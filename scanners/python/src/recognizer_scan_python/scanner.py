@@ -24,7 +24,7 @@ from recognizer_scan_python.discovery import (
     git_listing,
     selection,
 )
-from recognizer_scan_python.entry_point import is_entry_point
+from recognizer_scan_python.entry_point import is_entry_point, loaded_package_inits
 from recognizer_scan_python.index import ModuleIndex
 from recognizer_scan_python.infer import collect_classes, inferred_edges
 from recognizer_scan_python.outline import read_members
@@ -246,6 +246,16 @@ def scan(
         edges.extend(base_edges(item, index, parsed))
 
     calls = CallResolver(parsed, classes, outlines, index, router).scan_calls()
+    test_imports = read_test_imports(root, index, router, set(module_ids), listing)
+
+    marked = {m["id"] for m in modules if m.get("entry_point")}
+    pairs = [(e["from"], e["to"]) for e in edges if not e["to"].startswith("foreign:")]
+    pairs.extend((r["from"], r["to"]) for r in test_imports)
+    loaded = loaded_package_inits(module_ids, marked, pairs)
+
+    for module in modules:
+        if module["id"] in loaded:
+            module["entry_point"] = True
 
     return {
         "schema_version": 7,
@@ -261,5 +271,5 @@ def scan(
         "edges": sorted(edges, key=edge_order),
         "foreign": [{"id": f"foreign:{n}", "name": n} for n in sorted(foreign_names)],
         "calls": calls,
-        "test_imports": read_test_imports(root, index, router, set(module_ids), listing),
+        "test_imports": test_imports,
     }

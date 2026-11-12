@@ -23,7 +23,7 @@ def test_script_target_marks_its_module(run):
         }
     )
 
-    assert marked(document) == ["pkg/cli.py"]
+    assert marked(document) == ["pkg/__init__.py", "pkg/cli.py"]
 
 
 def test_gui_script_marks_its_module(run):
@@ -35,7 +35,7 @@ def test_gui_script_marks_its_module(run):
         }
     )
 
-    assert marked(document) == ["pkg/gui.py"]
+    assert marked(document) == ["pkg/__init__.py", "pkg/gui.py"]
 
 
 def test_src_layout_marks_the_module_under_src(run):
@@ -47,7 +47,7 @@ def test_src_layout_marks_the_module_under_src(run):
         }
     )
 
-    assert marked(document) == ["sub/src/pkg/cli.py"]
+    assert marked(document) == ["sub/src/pkg/__init__.py", "sub/src/pkg/cli.py"]
 
 
 def test_package_target_marks_its_init(run):
@@ -109,7 +109,7 @@ def test_only_resolving_targets_are_marked(run):
         }
     )
 
-    assert marked(document) == ["pkg/cli.py"]
+    assert marked(document) == ["pkg/__init__.py", "pkg/cli.py"]
 
 
 def test_pyproject_under_a_skipped_directory_is_not_read(run):

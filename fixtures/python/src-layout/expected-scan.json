@@ -79,7 +79,8 @@
       "id": "src/shop/__init__.py",
       "language": "python",
       "kind": "package",
-      "members": []
+      "members": [],
+      "entry_point": true
     },
     {
       "id": "src/shop/helpers.py",
