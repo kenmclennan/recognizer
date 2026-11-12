@@ -107,7 +107,7 @@ describe("the core's own key table", () => {
       string,
       { type: string; minimum?: number; maximum?: number },
     ][]) {
-      if (["distance_threshold", "warnings"].includes(name)) {
+      if (name === "warnings") {
         continue;
       }
 
@@ -122,9 +122,7 @@ describe("the core's own key table", () => {
       seen.push(`sensors.structure.${name}`);
     }
 
-    const switches = Object.entries(warnings)
-      .filter(([name]) => name !== "stable_abstractions")
-      .map(([name]) => name);
+    const switches = Object.keys(warnings);
     const placeholder = core("sensors.structure.warnings.<warning>");
 
     expect(placeholder.type).toBe("boolean");
