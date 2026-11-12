@@ -763,6 +763,30 @@ def test_the_guide_registers_crap_under_sensors(capsys):
     assert "  recognizer config --add-section sensors.crap\n" in out
 
 
+def test_the_guide_registers_crap_and_mutation_with_add_section_where_nothing_is_carried(capsys):
+    out = guide_text(capsys)
+    headings = {"kotlin": "Kotlin:", "rust": "Rust:", "csharp": "C#:"}
+
+    for language, heading in headings.items():
+        block = out.split(f"\n{heading}\n\n")[1].split("\n\n")[0] + "\n"
+
+        assert "  recognizer config --add-section sensors.crap\n" in block, language
+        assert "  recognizer config --add-section sensors.mutation\n" in block, language
+
+    assert "  recognizer config --add sensors.mutation.carry .venv\n" in out
+
+
+def test_the_guide_states_the_sensor_order_plainly(capsys):
+    out = " ".join(guide_text(capsys).split())
+
+    assert "recognizer config --add-section sensors.<name> registers one with its defaults" in out
+    assert (
+        "C.R.A.P. and Mutation read no overlay of each other's: register them in either order"
+        in out
+    )
+    assert "thresholds reads their overlays, so it comes last." in out
+
+
 def test_the_guide_registers_every_shipped_sensor(capsys):
     out = guide_text(capsys)
     names = json.loads(SHIPPED.read_text())
