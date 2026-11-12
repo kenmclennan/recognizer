@@ -233,3 +233,6 @@ The words recognizer's code, docs and interface use. A term is added here before
 | View bar | The control group at the canvas's top left: back and forward over the history, the open view's name with the saved views to open, Save and Copy link. |
 | Agent guide | The text `recognizer help agents` prints: how an agent answers show-me, extend, explain and drive requests, which commands to use and that `.recognizer/` is off limits. Its command section is generated from the command table. |
 | Agent install | What `recognizer agents install` writes into the user's Claude folder: a skill that only points at the agent guide, and a permission rule denying Read and Edit of `**/.recognizer/**`. `uninstall` reverses it. |
+| Commits panel | The rail's panel that lists History, Branches and Pull requests and holds the From and To slots; Open draws the range between them as an unsaved change view. |
+| Slot | From or To in the Commits panel; the highlighted one takes the next pick. |
+| Unsaved change view | A change view opened from the Commits panel that is held in the window and written only by Save as view; it never enters the Views list or the recent list. |
