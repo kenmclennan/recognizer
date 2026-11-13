@@ -68,6 +68,7 @@ function cards(
       planned: () => [],
       start: () => null,
       note: () => null,
+      whole: () => null,
       ...extra,
     },
   };
@@ -357,6 +358,7 @@ describe("member marks in the inspector contents", () => {
           planned: () => [],
           start: () => null,
           note: () => "Member marks loading",
+          whole: () => null,
         },
       },
     );
@@ -365,5 +367,15 @@ describe("member marks in the inspector contents", () => {
       kind: "note",
       text: "Member marks loading",
     });
+  });
+
+  it("flags every card of a wholly new or removed module and none of another", () => {
+    const members = [fn("a", 1, 2), klass("B", 4, [])];
+    const wholeOf = (kind: "new" | "removed" | null) =>
+      cards(members, {}, { whole: () => kind }).map((card) => card.whole);
+
+    expect(wholeOf("new")).toEqual(["new", "new"]);
+    expect(wholeOf("removed")).toEqual(["removed", "removed"]);
+    expect(wholeOf(null)).toEqual([undefined, undefined]);
   });
 });

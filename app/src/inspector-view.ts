@@ -167,7 +167,7 @@ function cardNode(row: CardRow, actions: InspectorActions): HTMLElement {
   const kind = row.label === "Member" ? "unknown" : row.label.toLowerCase();
   const node = el(
     "div",
-    `card card-${kind}${row.private ? " priv" : ""}${row.mark === undefined ? "" : ` marked ${row.look ?? ""}`}`,
+    `card card-${kind}${row.private ? " priv" : ""}${row.mark === undefined ? "" : ` marked ${row.look ?? ""}`}${row.whole === undefined ? "" : row.whole === "new" ? " whole-new" : " whole-del"}`,
   );
   const label = el("div", "card-label");
   const head = el("div", "card-code");
