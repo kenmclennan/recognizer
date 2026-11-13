@@ -452,7 +452,7 @@ pub fn scans_in(
         return None;
     }
 
-    match repository::scan_with(runner, &temp.0, command) {
+    match repository::scan_with(runner, &temp.0, command, true) {
         ScanReport::Scanned { scans, .. } if !scans.is_empty() => Some(scans),
         _ => None,
     }
@@ -608,7 +608,7 @@ fn scan_paths_at(
         return None;
     }
 
-    match repository::scan_with(runner, &temp.0, command) {
+    match repository::scan_with(runner, &temp.0, command, true) {
         ScanReport::Scanned { scans, .. } if !scans.is_empty() => Some(scans),
         _ => None,
     }
@@ -1494,5 +1494,39 @@ mod tests {
             assert!(remove_view(dir.path(), "link").is_err());
             assert!(target.exists());
         }
+    }
+
+    fn strict_scanner(dir: &Path) -> String {
+        crate::tool_runner::tests::script(
+            dir,
+            "strict-recognizer",
+            "for a in \"$@\"; do [ \"$a\" = \"--ignore-retired-config\" ] && ok=1; done\n[ -n \"$ok\" ] || { printf 'config/sensors/structure/hub was removed: x\\n' >&2; exit 2; }\nmkdir -p \"$2/.recognizer/cache\"\nprintf '{\"id\":1}' > \"$2/.recognizer/cache/scan.stub.json\"",
+        )
+        .display()
+        .to_string()
+    }
+
+    #[test]
+    fn both_historical_scans_pass_the_flag_a_plain_scan_does_not() {
+        let dir = TempDir::new().unwrap();
+        let root = range_repository(dir.path(), 1);
+        let command = strict_scanner(dir.path());
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let temp = TempDir::new().unwrap();
+        let commit = head(&root);
+
+        assert!(scans_in(temp.path(), &root, &commit, &runner, &command).is_some());
+        assert!(Memoised::<RangeMembers>::default()
+            .members(temp.path(), &root, "main", "feat", &runner, &command)
+            .is_some());
+
+        let plain = TempDir::new().unwrap();
+
+        match repository::scan_with(&runner, plain.path(), &command, false) {
+            ScanReport::ScanFailed { exit_code, .. } => assert_eq!(exit_code, 2),
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
     }
 }
