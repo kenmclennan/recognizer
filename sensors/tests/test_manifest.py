@@ -130,7 +130,13 @@ def test_the_metric_cells_and_the_settings_title_are_the_shipped_ones():
 
 
 def test_the_published_config_keys_carry_none_of_the_display_keys():
-    for key in config_schema.key_schema()["keys"]:
+    keys = [
+        *config_schema.CRAP_KEYS,
+        *config_schema.MUTATION_KEYS,
+        *config_schema.THRESHOLDS_KEYS,
+    ]
+
+    for key in keys:
         assert DISPLAY_KEYS.isdisjoint(key)
 
 
@@ -178,7 +184,11 @@ def test_published_figures_equal_the_constants_the_sensors_hold():
 
 
 def test_the_settings_are_the_config_keys_of_the_sensor_relative_to_its_section():
-    keys = config_schema.key_schema()["keys"]
+    keys = [
+        *config_schema.CRAP_KEYS,
+        *config_schema.MUTATION_KEYS,
+        *config_schema.THRESHOLDS_KEYS,
+    ]
 
     for name in NAMES:
         prefix = f"sensors.{name}."
