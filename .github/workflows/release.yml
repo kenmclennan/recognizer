@@ -133,6 +133,9 @@ jobs:
           recognizer scan "$repo/fixtures/typescript/sample"
           dup=$(mktemp -d)
           cp -R "$repo/fixtures/duplication/sample/." "$dup/"
+          git -C "$dup" init -q
+          git -C "$dup" add -A
+          git -C "$dup" -c user.name=release -c user.email=release@localhost commit -q -m sample
           recognizer scan "$dup"
           if ! grep -q '"kind": "duplication"' "$dup/.recognizer/cache/findings/structure.json" && ! grep -q '"kind":"duplication"' "$dup/.recognizer/cache/findings/structure.json"; then
             echo "recognizer scan wrote no duplication finding for the sample" >&2
