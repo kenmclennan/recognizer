@@ -68,6 +68,26 @@ describe("packaging/units.json", () => {
     }
   });
 
+  it("has a release-<unit> workflow naming each unit", () => {
+    for (const { unit } of UNITS) {
+      const file = workflows().find(
+        ({ name }) => name === `release-${unit}.yml`,
+      );
+
+      expect(file, `release-${unit}.yml`).toBeDefined();
+      expect(file.text).toContain(unit);
+    }
+  });
+
+  it("matches the plugins matrix of check.yml", () => {
+    const check = workflows().find(({ name }) => name === "check.yml").text;
+    const matrix = /^ {2}plugins:[\s\S]*?unit:\s*\[([^\]]*)\]/m.exec(check)[1];
+
+    expect(matrix.split(",").map((name) => name.trim())).toEqual(
+      UNITS.map(({ unit }) => unit),
+    );
+  });
+
   it("equals the shipped sensors of the CLI", () => {
     const source = readFileSync(
       join(ROOT, "check/src/shipped-sensors.ts"),
@@ -83,6 +103,32 @@ describe("packaging/units.json", () => {
 
     expect(shipped.length).toBeGreaterThan(0);
     expect(sensors.sort()).toEqual([...new Set(shipped)].sort());
+  });
+
+  it("states each plugin's install line as a brew upgrade or install of its own formula", () => {
+    const files = {
+      "scan-python": "scanners/python/src/recognizer_scan_python/manifest.py",
+      "scan-kotlin": "scanners/kotlin/src/recognizer_scan_kotlin/manifest.py",
+      "scan-csharp": "scanners/csharp/src/recognizer_scan_csharp/manifest.py",
+      "scan-typescript": "scanners/typescript/src/manifest.ts",
+      "scan-rust": "scanners/rust/src/manifest.rs",
+      "describe-claude": "describers/claude/src/manifest.ts",
+      sensors: "sensors/src/recognizer_sensors/manifest.py",
+    };
+
+    for (const { unit, formula } of FORMULAE) {
+      const text = readFileSync(join(ROOT, files[unit]), "utf8").replace(
+        /"\s*\n\s*"/g,
+        "",
+      );
+
+      if (unit === "sensors") {
+        expect(text).toContain("kenmclennan/tap/recognizer-sense-");
+        continue;
+      }
+
+      expect(text).toContain(`kenmclennan/tap/${formula}`);
+    }
   });
 });
 

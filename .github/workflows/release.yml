@@ -58,6 +58,16 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Require the plugins bundle in the tap
+        if: steps.released.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          if ! gh api "repos/$TAP_REPO/contents/Formula/recognizer-plugins.rb" --silent; then
+            echo "the tap has no Formula/recognizer-plugins.rb; release the plugin units and the bundle first" >&2
+            exit 1
+          fi
+
       - name: Set up Node
         if: steps.released.outputs.skip != 'true'
         uses: actions/setup-node@v5
@@ -78,13 +88,10 @@ jobs:
         if: steps.released.outputs.skip != 'true'
         run: npm ci --prefer-offline --no-audit --no-fund
 
-      - name: Build the toolchain archive
+      - name: Build the CLI toolchain folder
         if: steps.released.outputs.skip != 'true'
         run: |
           npm run build -w recognizer
-          npm run build -w recognizer-scan-typescript
-          npm run build -w recognizer-describe-claude
-          rustup target add aarch64-apple-darwin
           node scripts/build-toolchain.mjs dist-release
 
       - name: Build the app
@@ -111,58 +118,15 @@ jobs:
         if: steps.released.outputs.skip != 'true'
         run: |
           smoke=$(mktemp -d)
-          repo=$PWD
           tar -xzf dist-release/recognizer.app.tar.gz -C "$smoke"
           toolchain="$smoke/Recognizer.app/Contents/Resources/toolchain"
           node scripts/verify-toolchain.mjs "$toolchain"
           export PATH="$toolchain/commands:$(dirname "$(command -v node)"):/usr/bin:/bin"
-          for tool in recognizer recognizer-scan-typescript recognizer-scan-python recognizer-scan-kotlin recognizer-scan-csharp recognizer-scan-rust recognizer-sensors recognizer-sense-crap recognizer-sense-mutation recognizer-sense-thresholds recognizer-describe-claude; do
-            got=$("$tool" --version)
-            if [ "$got" != "$VERSION" ]; then
-              echo "$tool --version printed $got, expected $VERSION" >&2
-              exit 1
-            fi
-          done
-          for plugin in recognizer-scan-python recognizer-scan-typescript recognizer-scan-kotlin recognizer-scan-rust recognizer-scan-csharp recognizer-sense-crap recognizer-sense-mutation recognizer-sense-thresholds recognizer-describe-claude; do
-            if ! recognizer plugin check "$plugin"; then
-              echo "$plugin failed recognizer plugin check" >&2
-              exit 1
-            fi
-          done
-          recognizer scan "$repo/fixtures/python/sample"
-          recognizer scan "$repo/fixtures/typescript/sample"
-          dup=$(mktemp -d)
-          cp -R "$repo/fixtures/duplication/sample/." "$dup/"
-          git -C "$dup" init -q
-          git -C "$dup" add -A
-          git -C "$dup" -c user.name=release -c user.email=release@localhost commit -q -m sample
-          recognizer scan "$dup"
-          if ! grep -q '"kind": "duplication"' "$dup/.recognizer/cache/findings/structure.json" && ! grep -q '"kind":"duplication"' "$dup/.recognizer/cache/findings/structure.json"; then
-            echo "recognizer scan wrote no duplication finding for the sample" >&2
+          got=$(recognizer --version)
+          if [ "$got" != "$VERSION" ]; then
+            echo "recognizer --version printed $got, expected $VERSION" >&2
             exit 1
           fi
-          prompt=$(recognizer-describe-claude manifest | node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(0, "utf8")).prompt_version)')
-          case "$prompt" in
-            prompt-*) ;;
-            *) echo "recognizer-describe-claude manifest carries prompt_version $prompt" >&2; exit 1 ;;
-          esac
-          mixed=$(mktemp -d)
-          cp -R "$repo/fixtures/kotlin/sample/." "$mixed/"
-          cp -R "$repo/fixtures/rust/sample/." "$mixed/"
-          cp -R "$repo/fixtures/csharp/sample/." "$mixed/"
-          recognizer scan "$mixed"
-          for language in kotlin rust csharp; do
-            file="$mixed/.recognizer/cache/scan.$language.json"
-            if [ ! -f "$file" ]; then
-              echo "recognizer scan wrote no $file" >&2
-              exit 1
-            fi
-            got=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).scanner.version)' "$file")
-            if [ "$got" != "$VERSION" ]; then
-              echo "$file records scanner.version $got, expected $VERSION" >&2
-              exit 1
-            fi
-          done
 
       - name: Release notes
         if: steps.released.outputs.skip != 'true'
@@ -174,7 +138,7 @@ jobs:
             git log -n 1 --format=%s "$HEAD_SHA" > dist-release/notes.txt
           fi
           {
-            echo "From this release one cask installs the app and its tools, and the recognizer formula is retired. An existing machine runs \`brew update && brew uninstall --ignore-dependencies --formula recognizer && brew upgrade --cask recognizer\` once."
+            echo "From this release the cask installs the app and the \`recognizer\` command only. Every other command is its own formula in the tap, installed through the \`recognizer-plugins\` bundle, and the umbrella sensors command is gone. An existing machine runs \`brew update && brew uninstall --cask recognizer && brew install --cask recognizer\` once."
             echo
             cat dist-release/notes.txt
           } > dist-release/notes-final.txt
@@ -186,7 +150,7 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
           gh release create "v$VERSION" --repo "$RELEASES_REPO" --title "Recognizer $VERSION" --notes-file dist-release/notes.txt \
-            dist-release/recognizer-toolchain.tar.gz dist-release/recognizer.app.tar.gz
+            dist-release/recognizer.app.tar.gz
 
       - name: Tag the source
         if: steps.released.outputs.skip != 'true'
@@ -203,7 +167,7 @@ jobs:
         run: |
           app_sha=$(shasum -a 256 dist-release/recognizer.app.tar.gz | cut -d' ' -f1)
           git clone "https://x-access-token:${GH_TOKEN}@github.com/${TAP_REPO}.git" tap-repo
-          node scripts/render-homebrew.mjs "$VERSION" "$app_sha" tap-repo
+          node scripts/render-homebrew.mjs cask "$VERSION" "$app_sha" tap-repo
           cd tap-repo
           git rm -f --ignore-unmatch Formula/recognizer.rb
           if [ -n "$(git status --porcelain)" ]; then
