@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   describeRateMs,
@@ -445,6 +448,31 @@ describe("the estimate line", () => {
   });
 });
 
+describe("old records", () => {
+  it("gives no history from the committed scan-phases-ok example", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const text = readFileSync(
+      join(here, "../../schema/log-examples/valid/scan-phases-ok.json"),
+      "utf8",
+    );
+    const history = scanHistory([
+      { name: "20261101T090000000Z-scan.json", text },
+    ]);
+    const parts = estimateParts(
+      history,
+      planned({ describe: 4, "coverage-gaps": 4 }, ["coverage-gaps"], true),
+      [
+        STRUCTURE,
+        DESCRIBE,
+        { key: "coverage-gaps", name: "coverage-gaps", runsTests: false },
+      ],
+    );
+
+    expect(parts.every((one) => one.ms === null)).toBe(true);
+    expect(estimateLine(parts).text).toBe(NO_ESTIMATE_TEXT);
+  });
+});
+
 const T = 1_000_000;
 
 function fold(
@@ -488,10 +516,14 @@ describe("remaining time while running", () => {
     progress: ScanProgress,
     now: number,
     parts = PARTS.slice(0, 2),
-  ) => remaining({ parts, progress, startedAt: T, now });
+  ) => remaining({ parts, suites: {}, progress, startedAt: T, now });
 
-  it("is the frozen figure minus the time spent describing", () => {
+  it("is the frozen figure minus time spent while fewer than 3 modules are done", () => {
     expect(left(describing(2), T + 20_000)?.text).toBe("about 1 min left");
+  });
+
+  it("reads about 2 min left at exactly 3 done, from the pace", () => {
+    expect(left(describing(3), T + 30_000)?.text).toBe("about 2 min left");
   });
 
   it("keeps the whole figure while waiting for the describe answer", () => {
@@ -511,9 +543,60 @@ describe("remaining time while running", () => {
     expect(left(asked, T + 50_000)?.text).toBe("about 2 min left");
   });
 
+  const mutating = (done: number) =>
+    fold(frozen({ structure: 0, mutation: 600_000 }), [
+      [T, { event: "phase", phase: "sense", total: 1 }],
+      [T, { event: "start", phase: "sense", name: "mutation" }],
+      [
+        T,
+        {
+          event: "progress",
+          phase: "sense",
+          name: "mutation",
+          step: "mutants",
+          done: 14,
+          total: 38,
+        },
+      ],
+      [
+        T + 60_000,
+        {
+          event: "progress",
+          phase: "sense",
+          name: "mutation",
+          step: "mutants",
+          done,
+          total: 38,
+        },
+      ],
+    ]);
+  const mutationLeft = (progress: ScanProgress, suites: string[]) =>
+    remaining({
+      parts: [PARTS[0], PARTS[2]] as typeof PARTS,
+      suites: { mutation: suites },
+      progress,
+      startedAt: T,
+      now: T + 60_000,
+    });
+
+  it("paces Mutation from the functions done since its first mutants line", () => {
+    expect(mutationLeft(mutating(17), ["unit"])?.text).toBe("about 7 min left");
+  });
+
+  it("falls back to the frozen figure with two suites", () => {
+    expect(mutationLeft(mutating(17), ["a", "b"])?.text).toBe(
+      "about 9 min left",
+    );
+  });
+
+  it("falls back to the frozen figure below 3 functions since the first line", () => {
+    expect(mutationLeft(mutating(16), ["unit"])?.text).toBe("about 9 min left");
+  });
+
   it("names a part with no frozen figure and does not count it", () => {
     const result = remaining({
       parts: PARTS,
+      suites: {},
       progress: frozen({ structure: 0, describe: 60_000 }),
       startedAt: T,
       now: T,
@@ -526,6 +609,7 @@ describe("remaining time while running", () => {
     expect(
       remaining({
         parts: PARTS,
+        suites: {},
         progress: NO_PROGRESS,
         startedAt: T,
         now: T,

@@ -332,6 +332,7 @@ export function frozenFigures(
 
 export type RemainingInput = {
   parts: { key: string; name: string }[];
+  suites: Record<string, string[]>;
   progress: ScanProgress;
   startedAt: number | null;
   now: number;
@@ -339,13 +340,16 @@ export type RemainingInput = {
 
 export type Remaining = { text: string; title: string | null };
 
+const LEFT_FLOOR = 3;
+
 function leftOf(frozen: number, since: number | null, now: number): number {
   return since === null ? frozen : Math.max(0, frozen - (now - since));
 }
 
 export function remaining(input: RemainingInput): Remaining | null {
   const { progress, now } = input;
-  const { frozen, phaseAt, sensorAt, describeFrom } = progress.timing;
+  const { frozen, phaseAt, sensorAt, describeFrom, mutantsFrom } =
+    progress.timing;
 
   if (frozen === null || Object.keys(frozen).length === 0) {
     return null;
@@ -393,7 +397,13 @@ export function remaining(input: RemainingInput): Remaining | null {
         continue;
       }
 
-      total += leftOf(figure, describeFrom, now);
+      total +=
+        describing !== null &&
+        done >= LEFT_FLOOR &&
+        describeFrom !== null &&
+        now > describeFrom
+          ? (describing.total - done) * ((now - describeFrom) / done)
+          : leftOf(figure, describeFrom, now);
 
       continue;
     }
@@ -406,6 +416,25 @@ export function remaining(input: RemainingInput): Remaining | null {
 
     if (started === undefined) {
       total += figure;
+
+      continue;
+    }
+
+    const reported = progress.sensorProgress;
+
+    if (
+      key === MUTATION_KEY &&
+      input.suites[key]?.length === 1 &&
+      mutantsFrom !== null &&
+      reported !== null &&
+      reported.name === key &&
+      reported.step === "mutants" &&
+      reported.done - mutantsFrom.done >= LEFT_FLOOR
+    ) {
+      const since = reported.done - mutantsFrom.done;
+
+      total +=
+        (reported.total - reported.done) * ((now - mutantsFrom.at) / since);
 
       continue;
     }

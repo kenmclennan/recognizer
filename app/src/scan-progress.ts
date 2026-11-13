@@ -80,6 +80,7 @@ export type ScanTiming = {
   phaseAt: Record<string, number>;
   sensorAt: Record<string, number>;
   describeFrom: number | null;
+  mutantsFrom: { at: number; done: number } | null;
   frozen: Record<string, number> | null;
 };
 
@@ -106,6 +107,7 @@ export const NO_PROGRESS: ScanProgress = {
     phaseAt: {},
     sensorAt: {},
     describeFrom: null,
+    mutantsFrom: null,
     frozen: null,
   },
 };

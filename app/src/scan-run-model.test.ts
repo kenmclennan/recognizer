@@ -444,6 +444,15 @@ describe("the time slot while an app-driven scan runs", () => {
     expect(card?.when.title).toBe("not counting Mutation: no estimate yet");
   });
 
+  it("keeps the clock for a command-line run", () => {
+    const card = running(
+      { started_by: "cli" },
+      { timing: timing({ frozen: { structure: 0, crap: 600_000 } }) },
+    )?.card;
+
+    expect(card?.when.text).toMatch(/^\d\d:\d\d$/);
+  });
+
   it("keeps the clock when nothing was frozen", () => {
     expect(running({}, {})?.card.when.text).toMatch(/^\d\d:\d\d$/);
   });
@@ -459,5 +468,11 @@ describe("the time slot while an app-driven scan runs", () => {
 
       expect(card?.when.text).toMatch(/^\d\d:\d\d$/);
     }
+  });
+
+  it("keeps the clock while starting", () => {
+    const card = model(view({}, {}, { starting: { at: NOW } }))?.card;
+
+    expect(card?.when.text).toMatch(/^\d\d:\d\d$/);
   });
 });

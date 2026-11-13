@@ -80,8 +80,16 @@ function timed(
         timing: {
           ...timing,
           sensorAt: { ...timing.sensorAt, [event.name]: at },
+          mutantsFrom: null,
         },
       };
+    case "progress":
+      return event.step === "mutants" && timing.mutantsFrom === null
+        ? {
+            ...next,
+            timing: { ...timing, mutantsFrom: { at, done: event.done } },
+          }
+        : next;
     default:
       return next;
   }
@@ -324,6 +332,7 @@ function timeLeft(
         name: view.display(name),
       })),
     ],
+    suites: record.suites,
     progress: view.progress,
     startedAt: Number.isNaN(startedAt) ? null : startedAt,
     now,
