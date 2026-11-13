@@ -396,8 +396,29 @@ pub fn shipped_sensors_with(runner: &ToolRunner, command: &str) -> ShippedSensor
     }
 }
 
-pub fn scan_with(runner: &ToolRunner, folder: &Path, command: &str) -> ScanReport {
-    match runner.capture(command, &plain_scan_args(folder), false) {
+pub const IGNORE_RETIRED_CONFIG: &str = "--ignore-retired-config";
+
+pub fn historical_scan_args(folder: &Path) -> Vec<String> {
+    let mut args = plain_scan_args(folder);
+
+    args.push(IGNORE_RETIRED_CONFIG.to_string());
+
+    args
+}
+
+pub fn scan_with(
+    runner: &ToolRunner,
+    folder: &Path,
+    command: &str,
+    historical: bool,
+) -> ScanReport {
+    let args = if historical {
+        historical_scan_args(folder)
+    } else {
+        plain_scan_args(folder)
+    };
+
+    match runner.capture(command, &args, false) {
         Err(fault) => ScanReport::CommandMissing {
             hint: fault.message(),
         },
@@ -430,11 +451,49 @@ mod tests {
     }
 
     #[test]
+    fn the_argv_agrees_with_the_shared_fixture() {
+        let text = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/views/historical-scan-args.json"
+        ))
+        .unwrap();
+        let fixture: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let folder = Path::new(fixture["folder"].as_str().unwrap());
+        let listed = |key: &str| -> Vec<String> {
+            fixture[key]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|entry| entry.as_str().unwrap().to_string())
+                .collect()
+        };
+
+        assert_eq!(historical_scan_args(folder), listed("historical"));
+        assert_eq!(scan_args(folder, Describe::Off, &[]), listed("open_folder"));
+    }
+
+    #[test]
+    fn only_the_historical_argv_carries_the_ignore_retired_config_flag() {
+        let folder = Path::new("/tmp/folder");
+
+        assert_eq!(
+            historical_scan_args(folder),
+            ["scan", "/tmp/folder", "--ignore-retired-config"]
+        );
+        assert!(!plain_scan_args(folder).contains(&IGNORE_RETIRED_CONFIG.to_string()));
+
+        for describe in [Describe::Off, Describe::Stale, Describe::All] {
+            assert!(!scan_args(folder, describe, &names(&["a"]))
+                .contains(&IGNORE_RETIRED_CONFIG.to_string()));
+        }
+    }
+
+    #[test]
     fn scan_with_a_missing_command_reports_it_missing() {
         let dir = TempDir::new().unwrap();
         let runner = working_runner(dir.path());
 
-        match scan_with(&runner, dir.path(), "/nonexistent/recognizer") {
+        match scan_with(&runner, dir.path(), "/nonexistent/recognizer", false) {
             ScanReport::CommandMissing { .. } => {}
             other => panic!("{other:?}"),
         }
@@ -832,7 +891,7 @@ mod tests {
         let runner = runner_with(&shell, Duration::from_secs(10), Duration::from_secs(30), 4);
 
         assert!(matches!(
-            scan_with(&runner, dir.path(), RECOGNIZER_COMMAND),
+            scan_with(&runner, dir.path(), RECOGNIZER_COMMAND, false),
             ScanReport::CommandMissing { .. }
         ));
         assert_eq!(
