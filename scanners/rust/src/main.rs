@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 
+use recognizer_scan_rust::manifest;
 use recognizer_scan_rust::{render, scan};
 
 struct Arguments {
@@ -94,6 +95,12 @@ fn resolve_modified(root: &PathBuf) -> Option<bool> {
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+
+    if args == ["manifest"] {
+        print!("{}", manifest::text());
+        return ExitCode::SUCCESS;
+    }
+
     let arguments = match parse_arguments(&args) {
         Ok(Parsed::Run(arguments)) => arguments,
         Ok(Parsed::Version) => {

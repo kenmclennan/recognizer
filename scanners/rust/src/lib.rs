@@ -1,6 +1,7 @@
 pub mod crates;
 pub mod discovery;
 pub mod items;
+pub mod manifest;
 pub mod resolve;
 pub mod scanner;
 pub mod tree;
