@@ -4,10 +4,10 @@ import {
   branchRow,
   classify,
   commitRow,
-  createCommitsModel,
+  createSelection,
+  defaultBranchName,
   impactText,
   impactTip,
-  openLabel,
   orderBranches,
   type PickRow,
   pullRequestRow,
@@ -23,204 +23,293 @@ const row = (
 ): PickRow => ({ kind, ref, label: ref, sub: "", defaultFrom });
 
 const a = row("commit", "a".repeat(40), "p".repeat(40));
-const b = row("commit", "b".repeat(40), "q".repeat(40));
-const c = row("commit", "c".repeat(40), "r".repeat(40));
 
-describe("slots", () => {
-  it("starts with To highlighted and both slots empty", () => {
-    const model = createCommitsModel();
+const history = ["1", "2", "3", "4", "5"].map((one) => one.repeat(40));
+const at = (i: number) => row("commit", history[i] as string, `p${i}`);
 
-    expect(model.active()).toBe("to");
-    expect(model.slot("to")).toBeNull();
-    expect(model.slot("from")).toBeNull();
+const rangeSelection = () => {
+  const selection = createSelection();
+
+  selection.setMode("range");
+
+  return selection;
+};
+
+describe("selection", () => {
+  it("starts in One commit mode with First and Last empty and First next", () => {
+    const selection = createSelection();
+
+    expect(selection.mode()).toBe("one");
+    expect(selection.first()).toBeNull();
+    expect(selection.last()).toBeNull();
+    expect(selection.next()).toBe("first");
   });
 
-  it("fills To on the first pick and moves the highlight to From", () => {
-    const model = createCommitsModel();
+  it("in Range mode fills First on the first pick and names Last next", () => {
+    const selection = rangeSelection();
 
-    expect(model.pick(a)).toBe(true);
-    expect(model.slot("to")).toBe(a);
-    expect(model.slot("from")).toBeNull();
-    expect(model.active()).toBe("from");
+    expect(selection.pick(at(1), "history", history)).toBeNull();
+    expect(selection.first()).toEqual(at(1));
+    expect(selection.last()).toBeNull();
+    expect(selection.next()).toBe("last");
   });
 
-  it("fills From on the second pick and leaves the highlight on From", () => {
-    const model = createCommitsModel();
+  it("completes a range on the second pick with the older commit as First, whichever order the picks came in", () => {
+    const forward = rangeSelection();
+    const backward = rangeSelection();
 
-    model.pick(a);
-    model.pick(b);
+    forward.pick(at(1), "history", history);
 
-    expect(model.slot("to")).toBe(a);
-    expect(model.slot("from")).toBe(b);
-    expect(model.active()).toBe("from");
+    const one = forward.pick(at(3), "history", history);
+
+    backward.pick(at(3), "history", history);
+
+    const other = backward.pick(at(1), "history", history);
+
+    expect(one).toEqual(other);
+    expect(one?.base).toBe("p3");
+    expect(one?.head).toBe(history[1]);
+    expect(forward.first()).toEqual(at(3));
+    expect(forward.last()).toEqual(at(1));
+    expect(backward.first()).toEqual(at(3));
+    expect(backward.last()).toEqual(at(1));
   });
 
-  it("refuses a row already held in the other slot and changes nothing", () => {
-    const model = createCommitsModel();
+  it("clears First when the held First is clicked again before Last is picked", () => {
+    const selection = rangeSelection();
 
-    model.pick(a);
+    selection.pick(at(1), "history", history);
 
-    expect(model.pick(a)).toBe(false);
-    expect(model.slot("to")).toBe(a);
-    expect(model.slot("from")).toBeNull();
-    expect(model.active()).toBe("from");
+    expect(selection.pick(at(1), "history", history)).toBeNull();
+    expect(selection.first()).toBeNull();
+    expect(selection.next()).toBe("first");
   });
 
-  it("highlights a slot on click and replaces its row on the next pick", () => {
-    const model = createCommitsModel();
+  it("starts a new range from the clicked commit when a complete range is held", () => {
+    const selection = rangeSelection();
 
-    model.pick(a);
-    model.pick(b);
-    model.select("to");
+    selection.pick(at(1), "history", history);
+    selection.pick(at(3), "history", history);
 
-    expect(model.active()).toBe("to");
-
-    model.pick(c);
-
-    expect(model.slot("to")).toBe(c);
-    expect(model.slot("from")).toBe(b);
-    expect(model.active()).toBe("to");
+    expect(selection.pick(at(2), "history", history)).toBeNull();
+    expect(selection.first()).toEqual(at(2));
+    expect(selection.last()).toBeNull();
   });
 
-  it("clears a slot, empties it and highlights it", () => {
-    const model = createCommitsModel();
+  it("clearing First makes the remaining commit First and clearing Last empties Last", () => {
+    const selection = rangeSelection();
 
-    model.pick(a);
-    model.pick(b);
-    model.clear("to");
+    selection.pick(at(1), "history", history);
+    selection.pick(at(3), "history", history);
+    selection.clear("first");
 
-    expect(model.slot("to")).toBeNull();
-    expect(model.slot("from")).toBe(b);
-    expect(model.active()).toBe("to");
+    expect(selection.first()).toEqual(at(1));
+    expect(selection.last()).toBeNull();
+
+    selection.pick(at(3), "history", history);
+    selection.clear("last");
+
+    expect(selection.first()).toEqual(at(3));
+    expect(selection.last()).toBeNull();
   });
 
-  it("refuses swap with an empty slot and reverses the slots otherwise", () => {
-    const model = createCommitsModel();
+  it("pick returns nothing while a range has one end", () => {
+    const selection = rangeSelection();
 
-    model.pick(a);
-
-    expect(model.canSwap()).toBe(false);
-    expect(model.swap()).toBe(false);
-    expect(model.slot("to")).toBe(a);
-
-    model.pick(b);
-
-    expect(model.canSwap()).toBe(true);
-    expect(model.swap()).toBe(true);
-    expect(model.slot("to")).toBe(b);
-    expect(model.slot("from")).toBe(a);
-  });
-});
-
-describe("range", () => {
-  it("is null while To is empty", () => {
-    expect(createCommitsModel().range()).toBeNull();
+    expect(selection.pick(at(0), "history", history)).toBeNull();
+    expect(selection.count(history)).toBeNull();
   });
 
-  it("defaults a commit's From to its first parent", () => {
-    const model = createCommitsModel();
+  it("in One commit mode opens the commit's parent to the commit", () => {
+    const selection = createSelection();
 
-    model.pick(a);
-
-    expect(model.range()).toEqual({
+    expect(selection.pick(a, "history", history)).toEqual({
       base: "p".repeat(40),
       head: a.ref,
-      defaulted: true,
+      what: `commit ${a.label}`,
     });
+    expect(selection.picked()).toEqual(a);
   });
 
-  it("defaults a branch and a pull request to the merge base", () => {
-    const branch = createCommitsModel();
-    const pull = createCommitsModel();
+  it("on Branches and Pull requests opens the merge base to the head", () => {
+    const selection = createSelection();
+    const branch = row("branch", "feature/x", "m".repeat(40));
+    const pull = { ...row("pr", "d".repeat(40), "n".repeat(40)), label: "#9" };
 
-    branch.pick(row("branch", "feature/x", "m".repeat(40)));
-    pull.pick(row("pr", "d".repeat(40), "n".repeat(40)));
-
-    expect(branch.range()).toEqual({
+    expect(selection.pick(branch, "branches", history)).toEqual({
       base: "m".repeat(40),
       head: "feature/x",
-      defaulted: true,
+      what: "branch feature/x",
     });
-    expect(pull.range()?.base).toBe("n".repeat(40));
+    expect(selection.pick(pull, "prs", history)).toEqual({
+      base: "n".repeat(40),
+      head: "d".repeat(40),
+      what: "pull request #9",
+    });
   });
 
-  it("uses From's ref verbatim for a branch against a branch, a pull request against a commit and a commit against a tag-like name", () => {
-    const pairs: [PickRow, PickRow][] = [
-      [row("branch", "feature/x", "m"), row("branch", "spike")],
-      [row("pr", "d".repeat(40), "n"), row("commit", "e".repeat(40))],
-      [row("commit", "f".repeat(40), "o"), row("branch", "v0.4.0")],
-    ];
+  it("opens a branch even when the mode is Range", () => {
+    const selection = rangeSelection();
+    const branch = row("branch", "feature/x", "m".repeat(40));
 
-    for (const [to, from] of pairs) {
-      const model = createCommitsModel();
-
-      model.pick(to);
-      model.pick(from);
-
-      expect(model.range()).toEqual({
-        base: from.ref,
-        head: to.ref,
-        defaulted: false,
-      });
-    }
+    expect(selection.pick(branch, "branches", history)?.base).toBe(
+      "m".repeat(40),
+    );
+    expect(selection.first()).toBeNull();
   });
 
-  it("is null and says no parent commit for a root commit", () => {
-    const model = createCommitsModel();
+  it("refuses a root commit with the note no parent commit and holds nothing", () => {
+    const selection = createSelection();
+    const root = row("commit", "e".repeat(40));
 
-    model.pick(row("commit", "a".repeat(40), null));
-
-    expect(model.range()).toBeNull();
-    expect(model.rangeNote()).toBe("no parent commit");
+    expect(selection.pick(root, "history", history)).toBeNull();
+    expect(selection.note()).toBe("no parent commit");
+    expect(selection.picked()).toBeNull();
   });
 
-  it("is null and says no merge base for a branch with none", () => {
-    const model = createCommitsModel();
+  it("refuses a branch with no merge base with the note no merge base with the default branch", () => {
+    const selection = createSelection();
 
-    model.pick(row("branch", "orphan", null));
-
-    expect(model.range()).toBeNull();
-    expect(model.rangeNote()).toBe("no merge base with the default branch");
+    expect(
+      selection.pick(row("branch", "spike"), "branches", history),
+    ).toBeNull();
+    expect(selection.note()).toBe("no merge base with the default branch");
+    expect(selection.picked()).toBeNull();
   });
 
-  it("has no note when From is set or a default exists", () => {
-    const model = createCommitsModel();
+  it("has no refusal note after an accepted pick", () => {
+    const selection = createSelection();
 
-    model.pick(a);
+    selection.pick(row("commit", "e".repeat(40)), "history", history);
+    selection.pick(a, "history", history);
 
-    expect(model.rangeNote()).toBeNull();
+    expect(selection.note()).toBeNull();
   });
-});
 
-describe("shading", () => {
-  const list = ["1", "2", "3", "4", "5"].map((one) => one.repeat(40));
-  const at = (i: number) => row("commit", list[i] as string, "x");
+  it("refuses a range whose older end is a root commit and leaves Last unset", () => {
+    const selection = rangeSelection();
+    const root = row("commit", history[4] as string);
 
-  it("shades exactly the rows strictly between To and From in the history", () => {
-    const model = createCommitsModel();
+    selection.pick(at(1), "history", history);
 
-    model.pick(at(1));
-    model.pick(at(4));
+    expect(selection.pick(root, "history", history)).toBeNull();
+    expect(selection.note()).toBe("no parent commit");
+    expect(selection.last()).toBeNull();
+    expect(selection.first()).toEqual(at(1));
+  });
 
-    expect([...model.shaded(list)].sort()).toEqual([list[2], list[3]].sort());
+  it("shades exactly the rows strictly between First and Last in the full history", () => {
+    const selection = rangeSelection();
+
+    selection.pick(at(1), "history", history);
+    selection.pick(at(4), "history", history);
+
+    expect([...selection.between(history)].sort()).toEqual(
+      [history[2], history[3]].sort(),
+    );
   });
 
   it("shades none for an adjacent pair", () => {
-    const model = createCommitsModel();
+    const selection = rangeSelection();
 
-    model.pick(at(1));
-    model.pick(at(2));
+    selection.pick(at(1), "history", history);
+    selection.pick(at(2), "history", history);
 
-    expect(model.shaded(list).size).toBe(0);
+    expect(selection.between(history).size).toBe(0);
+    expect(selection.count(history)).toBe(2);
   });
 
-  it("shades nothing when an end is not a commit of the list", () => {
-    const model = createCommitsModel();
+  it("shades nothing when an end is not in the history list", () => {
+    const selection = rangeSelection();
 
-    model.pick(at(1));
-    model.pick(row("branch", "spike"));
+    selection.pick(at(1), "history", history);
+    selection.pick(row("commit", "z".repeat(40), "x"), "history", history);
 
-    expect(model.shaded(list).size).toBe(0);
+    expect(selection.between(history).size).toBe(0);
+  });
+
+  it("counts both ends from the full list, at the boundary of the whole list", () => {
+    const selection = rangeSelection();
+
+    selection.pick(at(0), "history", history);
+    selection.pick(at(4), "history", history);
+
+    expect(selection.count(history)).toBe(5);
+    expect(selection.between(history).size).toBe(3);
+  });
+
+  it("says one line per state of the guide, naming the default branch", () => {
+    const selection = createSelection();
+
+    expect(selection.guideLine("branches", "trunk", history)).toBe(
+      "Each branch shows what it changes against trunk.",
+    );
+    expect(selection.guideLine("prs", "feature/x", history)).toBe(
+      "Each pull request shows what it changes against feature/x.",
+    );
+    expect(selection.guideLine("branches", null, history)).toBe(
+      "Each branch shows what it changes against the default branch.",
+    );
+    expect(selection.guideLine("history", null, history)).toBe(
+      "Click a commit to see what it changed.",
+    );
+
+    selection.setMode("range");
+
+    expect(selection.guideLine("history", null, history)).toBe(
+      "Click the first commit of the range.",
+    );
+
+    selection.pick(at(1), "history", history);
+
+    expect(selection.guideLine("history", null, history)).toBe(
+      "Now click the last commit.",
+    );
+
+    selection.pick(at(3), "history", history);
+
+    expect(selection.guideLine("history", null, history)).toBe(
+      "3 commits, both ends included.",
+    );
+  });
+
+  it("shows the refusal note as the guide line until the next click", () => {
+    const selection = createSelection();
+
+    selection.pick(row("commit", "e".repeat(40)), "history", history);
+
+    expect(selection.guideLine("history", null, history)).toBe(
+      "no parent commit",
+    );
+
+    selection.pick(a, "history", history);
+
+    expect(selection.guideLine("history", null, history)).toBe(
+      "Click a commit to see what it changed.",
+    );
+  });
+
+  it("names the local default branch from the default ref", () => {
+    expect(defaultBranchName("origin/trunk")).toBe("trunk");
+    expect(defaultBranchName("origin/feature/x")).toBe("feature/x");
+    expect(defaultBranchName(null)).toBeNull();
+  });
+
+  it("setMode clears the held ends and the picked row", () => {
+    const selection = rangeSelection();
+
+    selection.pick(at(1), "history", history);
+    selection.setMode("one");
+    selection.pick(at(2), "history", history);
+
+    expect(selection.picked()).toEqual(at(2));
+
+    selection.setMode("range");
+
+    expect(selection.picked()).toBeNull();
+    expect(selection.first()).toBeNull();
+    expect(selection.pick(at(2), "history", history)).toBeNull();
+    expect(selection.first()).toEqual(at(2));
   });
 });
 
@@ -383,15 +472,15 @@ describe("row builders and ordering", () => {
     ]);
   });
 
-  it("hides rows with no files on the canvas but keeps From, To and unknown rows", () => {
+  it("hides rows with no files on the canvas but keeps held rows and unknown rows", () => {
     const none = { added: [], modified: [], removed: [], elsewhere: ["x"] };
     const some = { ...none, modified: ["m"] };
     const rows = [
-      { id: 1, classification: none, slot: null },
-      { id: 2, classification: some, slot: null },
-      { id: 3, classification: none, slot: "from" as const },
-      { id: 4, classification: none, slot: "to" as const },
-      { id: 5, classification: null, slot: null },
+      { id: 1, classification: none, held: false },
+      { id: 2, classification: some, held: false },
+      { id: 3, classification: none, held: true },
+      { id: 4, classification: none, held: true },
+      { id: 5, classification: null, held: false },
     ];
 
     expect(visibleRows(rows, true).rows.map((one) => one.id)).toEqual([
@@ -401,39 +490,14 @@ describe("row builders and ordering", () => {
     expect(visibleRows(rows, false)).toEqual({ rows, hidden: 0 });
   });
 
-  it("labels Open with the range and its count, naming the missing end when disabled", () => {
-    const short = (ref: string) => ref.slice(0, 3);
-    const range = { base: "abcdef", head: "123456", defaulted: false };
-    const three = {
-      added: ["a"],
-      modified: ["b", "c"],
-      removed: [],
-      elsewhere: [],
-    };
-    const none = { added: [], modified: [], removed: [], elsewhere: [] };
-
-    expect(openLabel(null, null, false, short, false)).toBe("pick To below");
-    expect(openLabel(null, null, false, short, true)).toBe("pick From below");
-    expect(openLabel(range, three, false, short, true)).toBe(
-      "Open abc..123 · 3 files",
-    );
-    expect(openLabel(range, none, false, short, true)).toBe(
-      "Open abc..123 · no files",
-    );
-    expect(openLabel(range, null, true, short, true)).toBe("Open abc..123");
-    expect(openLabel(range, null, false, short, true)).toBe(
-      "Open abc..123 · -",
-    );
-  });
-
   it("keeps shading computed from the full list when rows between are hidden", () => {
     const list = ["1", "2", "3", "4"].map((one) => one.repeat(40));
-    const model = createCommitsModel();
+    const selection = rangeSelection();
 
-    model.pick(row("commit", list[0] as string, "x"));
-    model.pick(row("commit", list[3] as string, "x"));
+    selection.pick(row("commit", list[0] as string, "x"), "history", list);
+    selection.pick(row("commit", list[3] as string, "x"), "history", list);
 
-    expect(model.shaded(list).size).toBe(2);
+    expect(selection.between(list).size).toBe(2);
   });
 
   it("writes an age in minutes, hours, days and years", () => {

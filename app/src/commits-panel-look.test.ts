@@ -52,6 +52,11 @@ function mount(options = {}, files = {}) {
 const rowFor = (m, text) => m.all(".commits-row").find((r) => r.textContent.includes(text));
 const tabNamed = (m, name) => m.all(".commits-tab").find((t) => t.textContent === name);
 const slotText = (m, which) => m.q(".commits-slot." + which + " .commits-slot-value").textContent;
+const slotHint = (m, which) => { const n = m.q(".commits-slot." + which + " .commits-slot-hint"); return n === null ? null : n.textContent; };
+const guide = (m) => m.q(".commits-summary").textContent;
+const modeButton = (m, which) => m.q(".commits-mode-" + which);
+const titlesOf = (m, selector) => m.all(selector).map((r) => r.querySelector(".commits-row-title").textContent);
+const endBadges = (m) => m.all(".commits-row").filter((r) => r.querySelector(".commits-picked")).map((r) => r.querySelector(".commits-row-title").textContent + ":" + r.querySelector(".commits-picked").textContent);
 const rangeFor = (base, head) => ({ baseCommit: "base999", headCommit: "feed01", merged: false, changes: [{ status: "M", path: "p/a.py" }, { status: "A", path: "p/b.py" }] });
 const calls = (m) => ({ history: m.commits.calls.history, branches: m.commits.calls.branches, pullRequests: m.commits.calls.pullRequests });
 const out = { errors: [] };
@@ -62,13 +67,13 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   await tick();
 
   const m = mount();
-  m.views.ranges.set(sha("c") + ".." + sha("a"), rangeFor());
+  m.views.ranges.set(sha("d") + ".." + sha("a"), rangeFor());
   window.dispatchEvent(new Event("focus"));
   document.dispatchEvent(new Event("visibilitychange"));
   await tick(1200);
   out.mounted = calls(m);
   out.railLabels = m.all(".rail button").map((b) => b.getAttribute("data-label"));
-  m.views.ranges.set(sha("c") + ".." + sha("b"), rangeFor());
+  m.views.ranges.set(sha("e") + ".." + sha("b"), rangeFor());
   click(m.q(".rail-commits"));
   await tick(100);
   out.opened = { open: m.q(".rail-commits").classList.contains("open"), display: getComputedStyle(m.q(".commits-panel")).display, calls: calls(m), rows: m.all(".commits-row").length, branch: m.q(".commits-on-branch").textContent, chips: m.all(".commits-chip").map((c) => c.textContent) };
@@ -88,78 +93,113 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   hover(m.q(".commits-row .commits-row-title"), "pointerenter");
   out.titleCard = cardText();
   hover(m.q(".commits-row .commits-row-title"), "pointerleave");
-  m.q(".commits-hide").click();
-  await tick();
-  out.branches = { rows: m.all(".commits-row .commits-row-title").map((r) => r.textContent), defaultFirst: m.all(".commits-row")[0].textContent.includes("main"), impact: impactTexts(), hidden: m.q(".commits-hidden").textContent, calls: calls(m) };
+  out.branchesPanel = { toggle: m.q(".commits-mode") !== null, cards: m.all(".commits-slot").length, filterHidden: m.q(".commits-filter").hidden, guide: guide(m), removed: [".commits-swap", ".commits-range-open", ".commits-save", ".commits-open-bar"].filter((selector) => m.q(selector) !== null) };
+  out.branches = { calls: calls(m) };
   click(tabNamed(m, "Pull requests"));
   await tick(100);
-  out.pulls = { calls: calls(m), rows: m.all(".commits-row").length, title: m.all(".commits-row-title").map((r) => r.textContent) };
+  out.pulls = { calls: calls(m), rows: m.all(".commits-row").length, title: m.all(".commits-row-title").map((r) => r.textContent), toggle: m.q(".commits-mode") !== null, cards: m.all(".commits-slot").length, filterHidden: m.q(".commits-filter").hidden, guide: guide(m) };
   click(tabNamed(m, "History"));
   await tick();
-  out.historyHide = { on: m.q(".commits-hide").getAttribute("aria-checked") === "true", rows: m.all(".commits-row").length };
+  out.historyHide = { on: m.q(".commits-hide").getAttribute("aria-checked") === "true", rows: m.all(".commits-row").length, filterHidden: m.q(".commits-filter").hidden };
   click(tabNamed(m, "Pull requests"));
   await tick();
   out.pullsAgain = calls(m);
   click(tabNamed(m, "History"));
   await tick();
 
+  const sameStyles = (one, other) => { const x = getComputedStyle(one); const y = getComputedStyle(other); return ["backgroundColor", "color", "borderRadius", "padding", "fontSize", "border"].every((key) => x[key] === y[key]); };
+  const scanTrack = m.q(".scan-run-mode:not(.commits-mode)");
+  out.toggle = {
+    labels: m.all(".commits-mode button").map((b) => b.textContent),
+    on: m.q(".commits-mode .on").textContent,
+    aboveList: m.q(".commits-mode").getBoundingClientRect().bottom <= m.q(".commits-list").getBoundingClientRect().top,
+    scanFound: scanTrack !== null && scanTrack.querySelector(".on") !== null && scanTrack.querySelector("button:not(.on)") !== null,
+    track: scanTrack !== null && sameStyles(m.q(".commits-mode"), scanTrack),
+    onButton: scanTrack !== null && sameStyles(m.q(".commits-mode .on"), scanTrack.querySelector(".on")),
+    offButton: scanTrack !== null && sameStyles(m.q(".commits-mode button:not(.on)"), scanTrack.querySelector("button:not(.on)")),
+    cards: m.all(".commits-slot").length,
+    guide: guide(m),
+    filterHidden: m.q(".commits-filter").hidden,
+    removed: [".commits-swap", ".commits-range-open", ".commits-save", ".commits-open-bar"].filter((selector) => m.q(selector) !== null),
+  };
+  const oneBefore = m.views.rangeCalls.length;
+  click(rowFor(m, "Middle"));
+  await tick(100);
+  out.one = { calls: m.views.rangeCalls.slice(oneBefore), cards: m.all(".commits-slot").length, picked: titlesOf(m, ".commits-row.picked") };
+  click(modeButton(m, "range"));
+  await tick();
+  out.rangeEmpty = { names: m.all(".commits-slot-name").map((n) => n.textContent), values: m.all(".commits-slot-value").map((n) => n.textContent), firstActive: m.q(".commits-slot.first").classList.contains("active"), lastActive: m.q(".commits-slot.last").classList.contains("active"), guide: guide(m), picked: m.all(".commits-row.picked").length, clears: m.all(".commits-slot-clear").length, on: m.q(".commits-mode .on").textContent };
+  const rangeBefore = m.views.rangeCalls.length;
   click(rowFor(m, "Middle"));
   await tick();
-  out.pickTo = { to: slotText(m, "to"), from: slotText(m, "from"), open: m.q(".commits-range-open").textContent.split(String.fromCharCode(183)).join("|"), ready: m.q(".commits-range-open").classList.contains("ready"), summary: m.q(".commits-summary"), compare: m.q(".commits-compare"), openDisabled: m.q(".commits-range-open").disabled, fromActive: m.q(".commits-slot.from").classList.contains("active") };
+  out.rangeFirst = { first: slotText(m, "first"), hint: slotHint(m, "first"), last: slotText(m, "last"), lastActive: m.q(".commits-slot.last").classList.contains("active"), firstActive: m.q(".commits-slot.first").classList.contains("active"), guide: guide(m), calls: m.views.rangeCalls.length - rangeBefore, badges: endBadges(m), clears: m.all(".commits-slot-clear").length, clearIcon: m.q(".commits-slot-clear svg") !== null };
   click(rowFor(m, "Oldest"));
+  await tick(100);
+  out.rangeBoth = { first: slotText(m, "first"), last: slotText(m, "last"), firstHint: slotHint(m, "first"), lastHint: slotHint(m, "last"), shaded: titlesOf(m, ".commits-row.shaded"), badges: endBadges(m), guide: guide(m), calls: m.views.rangeCalls.slice(rangeBefore) };
+  click(m.q(".commits-slot.first .commits-slot-clear"));
   await tick();
-  out.pickFrom = { from: slotText(m, "from"), shaded: m.all(".commits-row.shaded").map((r) => r.textContent.slice(0, 6)) };
-  click(rowFor(m, "Older"));
-  click(rowFor(m, "Older"));
-  out.swap = { before: [slotText(m, "from"), slotText(m, "to")] };
-  click(m.q(".commits-swap"));
-  out.swap.after = [slotText(m, "from"), slotText(m, "to")];
+  out.cleared = { first: slotText(m, "first"), last: slotText(m, "last"), shaded: m.all(".commits-row.shaded").length };
+  click(m.q(".commits-slot.first .commits-slot-clear"));
+  await tick();
+  out.clearedAll = { first: slotText(m, "first"), last: slotText(m, "last"), clears: m.all(".commits-slot-clear").length };
+  const orderBefore = m.views.rangeCalls.length;
+  click(rowFor(m, "Middle"));
+  click(rowFor(m, "Oldest"));
+  await tick(100);
+  click(m.q(".commits-slot.first .commits-slot-clear"));
+  click(m.q(".commits-slot.first .commits-slot-clear"));
+  click(rowFor(m, "Oldest"));
+  click(rowFor(m, "Middle"));
+  await tick(100);
+  out.orders = m.views.rangeCalls.slice(orderBefore);
 
-  click(m.q(".commits-slot.from .commits-slot-clear"));
-  click(m.q(".commits-slot.to .commits-slot-clear"));
-  click(rowFor(m, "Newest"));
-  click(rowFor(m, "Older"));
+  const d = mount();
+  d.views.ranges.set(sha("d") + ".." + sha("a"), rangeFor());
+  click(d.q(".rail-commits"));
+  await tick(100);
+  click(modeButton(d, "range"));
+  const finalBefore = d.views.rangeCalls.length;
+  click(rowFor(d, "Newest"));
+  click(rowFor(d, "Older"));
   await tick();
-  out.viewsBefore = m.views.files.size;
-  const askedByPanel = [...m.views.rangeCalls];
-  click(m.q(".commits-range-open"));
+  out.viewsBefore = d.views.files.size;
   await tick(150);
-  out.panelAsked = { keys: askedByPanel, unique: new Set(askedByPanel).size === askedByPanel.length };
-  out.rangeCalls = m.views.rangeCalls.slice(askedByPanel.length);
-  click(m.q(".rail-views"));
+  out.rangeCalls = d.views.rangeCalls.slice(-1);
+  out.openedOnce = d.views.rangeCalls.length - finalBefore;
+  click(d.q(".rail-views"));
   await tick();
-  const viewRows = m.all(".views-row").length;
-  click(m.q(".rail-commits"));
+  const viewRows = d.all(".views-row").length;
+  click(d.q(".rail-commits"));
   await tick();
   out.draft = {
     viewRows,
-    name: m.q(".view-name-text").textContent,
-    chip: m.q(".view-range-chip").textContent,
-    unsaved: m.q(".view-unsaved") !== null && !m.q(".view-unsaved").hidden,
-    saveShown: m.q(".commits-save") !== null && !m.q(".commits-save").hidden,
-    boxes: m.all(".box").map((b) => b.dataset.id).sort(),
-    files: m.views.files.size,
-    recent: (await m.views.recent()).length,
+    name: d.q(".view-name-text").textContent,
+    chip: d.q(".view-range-chip").textContent,
+    unsaved: d.q(".view-unsaved") !== null && !d.q(".view-unsaved").hidden,
+    saveGone: d.q(".commits-save") === null,
+    boxes: d.all(".box").map((b) => b.dataset.id).sort(),
+    files: d.views.files.size,
+    recent: (await d.views.recent()).length,
   };
-  out.countsBeforeBack = m.views.rangeCalls.length;
-  m.explorer.show;
-  click(m.q(".view-back"));
+  out.countsBeforeBack = d.views.rangeCalls.length;
+  d.explorer.show;
+  click(d.q(".view-back"));
   await tick(100);
-  out.back = { boxes: m.all(".box").length, name: m.q(".view-name-text").textContent, unsaved: !m.q(".view-unsaved").hidden };
-  click(m.q(".view-forward"));
+  out.back = { boxes: d.all(".box").length, name: d.q(".view-name-text").textContent, unsaved: !d.q(".view-unsaved").hidden };
+  click(d.q(".view-forward"));
   await tick(150);
-  out.forward = { name: m.q(".view-name-text").textContent, unsaved: !m.q(".view-unsaved").hidden, extraCalls: m.views.rangeCalls.length - out.countsBeforeBack, boxes: m.all(".box").map((b) => b.dataset.id).sort() };
-  click(m.q(".commits-save"));
+  out.forward = { name: d.q(".view-name-text").textContent, unsaved: !d.q(".view-unsaved").hidden, extraCalls: d.views.rangeCalls.length - out.countsBeforeBack, boxes: d.all(".box").map((b) => b.dataset.id).sort() };
+  click(d.q(".view-save"));
   await tick();
-  const dialogName = m.q(".view-field-name");
+  const dialogName = d.q(".view-field-name");
   dialogName.value = "gifts";
   dialogName.dispatchEvent(new Event("input", { bubbles: true }));
-  const description = m.q(".view-field-description");
+  const description = d.q(".view-field-description");
   description.value = "what changed";
   description.dispatchEvent(new Event("input", { bubbles: true }));
-  click(m.q(".view-confirm"));
+  click(d.q(".view-confirm"));
   await tick(150);
-  out.saved = { file: JSON.parse(m.views.files.get("gifts") || "null"), name: m.q(".view-name-text").textContent, unsaved: !m.q(".view-unsaved").hidden, saveButton: m.q(".commits-save").hidden };
+  out.saved = { file: JSON.parse(d.views.files.get("gifts") || "null"), name: d.q(".view-name-text").textContent, unsaved: !d.q(".view-unsaved").hidden };
 
   const WORDS = RS + [sha("a"), "aaaaaaa", sha("b"), "Ken", "1700000000", "Newest", ""].join(US) + "\\n\\nM\\tp/a.py\\n" + RS + [sha("b"), "bbbbbbb", sha("c"), "Ken", "1700000000", "Docs only", ""].join(US) + "\\n\\nM\\tdocs/x.md\\n" + RS + [sha("c"), "ccccccc", sha("d"), "Ken", "1700000000", "Version bump", ""].join(US) + "\\n\\n" + RS + [sha("d"), "ddddddd", "", "Ken", "1700000000", "Root", ""].join(US) + "\\n\\nA\\tp/a.py\\n";
   const filtered = mount({ history: WORDS });
@@ -170,27 +210,25 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   filtered.q(".commits-hide").click();
   await tick();
   out.filtered.off = { rows: titles(), hidden: filtered.q(".commits-hidden").textContent, docs: rowFor(filtered, "Docs only").querySelector(".commits-impact").textContent, bump: rowFor(filtered, "Version bump").querySelector(".commits-impact").textContent };
+  click(modeButton(filtered, "range"));
   click(rowFor(filtered, "Docs only"));
   click(rowFor(filtered, "Version bump"));
   filtered.q(".commits-hide").click();
   await tick();
-  out.filtered.pickedEmpty = { rows: titles(), hidden: filtered.q(".commits-hidden").textContent };
-  click(filtered.q(".commits-slot.from .commits-slot-clear"));
+  out.filtered.pickedEmpty = { rows: titles(), hidden: filtered.q(".commits-hidden").textContent, badges: endBadges(filtered) };
+  click(filtered.q(".commits-slot.first .commits-slot-clear"));
   await tick();
   out.filtered.toOnly = titles();
 
   const pending = mount();
   click(pending.q(".rail-commits"));
   await tick(100);
-  const openBox = () => pending.q(".commits-range-open").getBoundingClientRect();
-  const slotsBox = pending.q(".commits-slots").getBoundingClientRect();
-  out.pending = { first: { label: pending.q(".commits-range-open").textContent, disabled: pending.q(".commits-range-open").disabled }, abovTabs: openBox().bottom <= pending.q(".commits-tabs").getBoundingClientRect().top, belowSlots: openBox().top >= slotsBox.bottom };
   click(rowFor(pending, "Root"));
   await tick();
-  out.pending.root = { label: pending.q(".commits-range-open").textContent, disabled: pending.q(".commits-range-open").disabled, note: pending.q(".commits-summary") && pending.q(".commits-summary").textContent };
+  out.pending = { note: guide(pending), opened: pending.views.rangeCalls.length, picked: pending.all(".commits-row.picked").length, busy: pending.q(".canvas-loading").hidden };
   click(rowFor(pending, "Older"));
-  await tick();
-  out.pending.both = { label: pending.q(".commits-range-open").textContent, disabled: pending.q(".commits-range-open").disabled, ready: pending.q(".commits-range-open").classList.contains("ready") };
+  await tick(100);
+  out.pending.after = { note: guide(pending), opened: pending.views.rangeCalls.length };
 
   const store = mem();
   const sized = mount({ storage: store });
@@ -224,7 +262,7 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   out.resize.restored = restored.q(".tree").getBoundingClientRect().width;
 
   const modified = mount({}, { v: make({}, [{ kind: "pick", module: "p/a.py" }]) });
-  modified.views.ranges.set(sha("c") + ".." + sha("a"), rangeFor());
+  modified.views.ranges.set(sha("d") + ".." + sha("a"), rangeFor());
   await tick();
   click(modified.q(".view-list"));
   click(modified.q(".view-item"));
@@ -233,10 +271,10 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   await tick();
   click(modified.q(".rail-commits"));
   await tick(100);
+  click(modeButton(modified, "range"));
   click(rowFor(modified, "Newest"));
-  click(rowFor(modified, "Older"));
   const askedBefore = modified.views.rangeCalls.length;
-  click(modified.q(".commits-range-open"));
+  click(rowFor(modified, "Older"));
   await tick(100);
   out.guard = { dialog: modified.q(".unsaved-dialog-body") === null ? null : modified.q(".unsaved-dialog-body").textContent, ranges: modified.views.rangeCalls.length - askedBefore };
 
@@ -254,6 +292,75 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
     await tick();
     out["gh_" + status].branches = gh.all(".commits-row").length;
   }
+
+  const rangeAnswer = { baseCommit: "base999", headCommit: "feed01", merged: false, changes: [{ status: "M", path: "p/a.py" }] };
+  const spin = mount();
+  const gates = [];
+  spin.views.changeRange = (base, head) => { spin.views.rangeCalls.push(base + ".." + head); return new Promise((resolve) => gates.push(resolve)); };
+  const release = async (answer) => { gates.shift()(answer); await tick(150); };
+  const loadingNow = () => ({ text: spin.q(".canvas-loading").hidden ? null : spin.q(".canvas-loading").textContent, spinner: !spin.q(".canvas-loading").hidden && spin.q(".canvas-loading .spinner") !== null, rowSpinners: spin.all(".commits-row .commits-row-busy").length, busyTitles: spin.all(".commits-row").filter((r) => r.querySelector(".commits-row-busy")).map((r) => r.querySelector(".commits-row-title").textContent) });
+  click(spin.q(".rail-commits"));
+  await tick(100);
+  out.spin = { start: loadingNow() };
+  click(rowFor(spin, "Middle"));
+  await tick();
+  out.spin.commit = loadingNow();
+  out.spin.commitRowIcon = rowFor(spin, "Middle").querySelector("svg.spinner-icon") !== null;
+  await release(rangeAnswer);
+  out.spin.commitDone = loadingNow();
+  out.spin.commitDoneIcon = rowFor(spin, "Middle").querySelector(".commits-row-busy") === null && rowFor(spin, "Middle").querySelector("svg") !== null;
+  click(modeButton(spin, "range"));
+  click(rowFor(spin, "Newest"));
+  await tick();
+  out.spin.rangeHalf = loadingNow();
+  click(rowFor(spin, "Older"));
+  await tick();
+  out.spin.range = loadingNow();
+  await release({ baseCommit: "base999", headCommit: null, merged: false, changes: [] });
+  out.spin.rangeFailed = loadingNow();
+  click(tabNamed(spin, "Branches"));
+  await tick(100);
+  click(rowFor(spin, "feature/x"));
+  await tick();
+  out.spin.branch = loadingNow();
+  await release(rangeAnswer);
+  out.spin.branchDone = loadingNow();
+  out.spin.branchCall = spin.views.rangeCalls.at(-1);
+  click(tabNamed(spin, "Pull requests"));
+  await tick(100);
+  click(rowFor(spin, "Gift cards"));
+  await tick();
+  out.spin.pull = loadingNow();
+  await release(rangeAnswer);
+  out.spin.pullDone = loadingNow();
+  out.spin.pullCall = spin.views.rangeCalls.at(-1);
+  click(tabNamed(spin, "History"));
+  click(modeButton(spin, "one"));
+  click(rowFor(spin, "Oldest"));
+  await tick();
+  await release(null);
+  out.spin.unavailable = loadingNow();
+
+  const slow = mount();
+  const held = [];
+  const slowly = (name, reply) => { slow.commits[name] = () => new Promise((resolve) => held.push(() => resolve(reply))); };
+  slowly("listHistory", { branch: "main", text: HISTORY });
+  slowly("listBranches", { defaultRef: "origin/main", total: 3, text: BRANCHES });
+  slowly("listPullRequests", { status: "ok", detail: "", text: PRS });
+  click(slow.q(".rail-commits"));
+  await tick();
+  const listLoading = () => ({ text: slow.q(".commits-loading") === null ? null : slow.q(".commits-loading").textContent, spinner: slow.q(".commits-list .spinner") !== null, rows: slow.all(".commits-row").length });
+  out.listLoading = { history: listLoading() };
+  click(tabNamed(slow, "Branches"));
+  await tick();
+  out.listLoading.branches = listLoading();
+  click(tabNamed(slow, "Pull requests"));
+  await tick();
+  out.listLoading.prs = listLoading();
+  click(tabNamed(slow, "History"));
+  held.splice(0).forEach((run) => run());
+  await tick(100);
+  out.listLoading.after = listLoading();
 
   const reopen = mount();
   await tick();
@@ -290,6 +397,22 @@ type GhFacts = {
   branches: number;
 };
 
+type Loading = {
+  text: string | null;
+  spinner: boolean;
+  rowSpinners: number;
+  busyTitles: string[];
+};
+
+type ListLoading = { text: string | null; spinner: boolean; rows: number };
+
+type Panel = {
+  toggle: boolean;
+  cards: number;
+  filterHidden: boolean;
+  guide: string;
+};
+
 type Facts = {
   errors: string[];
   mounted: Calls;
@@ -308,31 +431,26 @@ type Facts = {
     on: boolean;
     impact: Impact[];
   };
+  branchesPanel: Panel & { removed: string[] };
   countCard: { lines: string[] | null; insideWindow: boolean };
   countCardGone: string[] | null;
   titleCard: string[] | null;
-  branches: {
-    rows: string[];
-    defaultFirst: boolean;
-    impact: Impact[];
-    hidden: string;
-    calls: Calls;
-  };
-  historyHide: { on: boolean; rows: number };
+  branches: { calls: Calls };
+  historyHide: { on: boolean; rows: number; filterHidden: boolean };
   filtered: {
     on: boolean;
     rows: string[];
     hidden: string;
     off: { rows: string[]; hidden: string; docs: string; bump: string };
-    pickedEmpty: { rows: string[]; hidden: string };
+    pickedEmpty: { rows: string[]; hidden: string; badges: string[] };
     toOnly: string[];
   };
   pending: {
-    first: { label: string; disabled: boolean };
-    abovTabs: boolean;
-    belowSlots: boolean;
-    root: { label: string; disabled: boolean; note: string | null };
-    both: { label: string; disabled: boolean; ready: boolean };
+    note: string;
+    opened: number;
+    picked: number;
+    busy: boolean;
+    after: { note: string; opened: number };
   };
   resize: {
     grew: boolean;
@@ -344,28 +462,65 @@ type Facts = {
     stored: { tree: number; inspector: number; commits: number };
     restored: number;
   };
-  pulls: { calls: Calls; rows: number; title: string[] };
+  pulls: Panel & { calls: Calls; rows: number; title: string[] };
   pullsAgain: Calls;
-  pickTo: {
-    to: string;
-    from: string;
-    open: string;
-    ready: boolean;
-    summary: unknown;
-    compare: unknown;
-    openDisabled: boolean;
-    fromActive: boolean;
+  toggle: {
+    labels: string[];
+    on: string;
+    aboveList: boolean;
+    scanFound: boolean;
+    track: boolean;
+    onButton: boolean;
+    offButton: boolean;
+    cards: number;
+    guide: string;
+    filterHidden: boolean;
+    removed: string[];
   };
-  pickFrom: { from: string; shaded: string[] };
-  swap: { before: string[]; after: string[] };
+  one: { calls: string[]; cards: number; picked: string[] };
+  rangeEmpty: {
+    names: string[];
+    values: string[];
+    firstActive: boolean;
+    lastActive: boolean;
+    guide: string;
+    picked: number;
+    clears: number;
+    on: string;
+  };
+  rangeFirst: {
+    first: string;
+    hint: string | null;
+    last: string;
+    lastActive: boolean;
+    firstActive: boolean;
+    guide: string;
+    calls: number;
+    badges: string[];
+    clears: number;
+    clearIcon: boolean;
+  };
+  rangeBoth: {
+    first: string;
+    last: string;
+    firstHint: string | null;
+    lastHint: string | null;
+    shaded: string[];
+    badges: string[];
+    guide: string;
+    calls: string[];
+  };
+  cleared: { first: string; last: string; shaded: number };
+  clearedAll: { first: string; last: string; clears: number };
+  orders: string[];
   viewsBefore: number;
-  panelAsked: { keys: string[]; unique: boolean };
   rangeCalls: string[];
+  openedOnce: number;
   draft: {
     name: string;
     chip: string;
     unsaved: boolean;
-    saveShown: boolean;
+    saveGone: boolean;
     boxes: string[];
     files: number;
     recent: number;
@@ -382,9 +537,31 @@ type Facts = {
     file: { change: { base: string; head: string } };
     name: string;
     unsaved: boolean;
-    saveButton: boolean;
   };
   guard: { dialog: string | null; ranges: number };
+  spin: {
+    start: Loading;
+    commit: Loading;
+    commitRowIcon: boolean;
+    commitDone: Loading;
+    commitDoneIcon: boolean;
+    rangeHalf: Loading;
+    range: Loading;
+    rangeFailed: Loading;
+    branch: Loading;
+    branchDone: Loading;
+    branchCall: string;
+    pull: Loading;
+    pullDone: Loading;
+    pullCall: string;
+    unavailable: Loading;
+  };
+  listLoading: {
+    history: ListLoading;
+    branches: ListLoading;
+    prs: ListLoading;
+    after: ListLoading;
+  };
   gh_missing: GhFacts;
   "gh_signed-out": GhFacts;
   gh_failed: GhFacts;
@@ -431,10 +608,10 @@ describe.skipIf(webkit === undefined)(
       expect(f.opened.chips).toEqual(["main", "v0.1.0"]);
     });
 
-    it("hides the empty default branch and spike by default, shows the bold count with squares and the not-on-the-canvas line, and lists them all with the switch off", () => {
+    it("hides the empty default branch and spike by default on Branches, with no switch shown there, and shows the bold count with squares and the not-on-the-canvas line", () => {
       expect(f.branchesHidden.on).toBe(true);
       expect(f.branchesHidden.rows).toEqual(["feature/x"]);
-      expect(f.branchesHidden.hidden).toBe("2 hidden");
+      expect(f.branchesPanel.filterHidden).toBe(true);
       expect(f.branchesHidden.impact).toEqual([
         {
           count: "3 files",
@@ -442,20 +619,16 @@ describe.skipIf(webkit === undefined)(
           other: "+1 not on the canvas",
         },
       ]);
-      expect(f.branches.defaultFirst).toBe(true);
-      expect(f.branches.rows).toEqual(["main", "feature/x", "spike"]);
-      expect(f.branches.impact.map((one) => one.count)).toEqual([
-        "no files",
-        "3 files",
-        "no files",
-      ]);
-      expect(f.branches.hidden).toBe("");
       expect(f.branches.calls.pullRequests).toBe(0);
       expect(f.pulls.calls.pullRequests).toBe(1);
       expect(f.pulls.rows).toBe(1);
       expect(f.pulls.title).toEqual(["#9 Gift cards"]);
       expect(f.pullsAgain.pullRequests).toBe(1);
-      expect(f.historyHide).toEqual({ on: true, rows: 5 });
+      expect(f.historyHide).toEqual({
+        on: true,
+        rows: 5,
+        filterHidden: false,
+      });
     });
 
     it("shows the count card with a file under each status and the title card, clamped inside the window, and hides them on leave", () => {
@@ -475,7 +648,7 @@ describe.skipIf(webkit === undefined)(
       expect(f.titleCard?.[0]).toBe("commits-card-heading:feature/x");
     });
 
-    it("hides rows with no files on the canvas, keeps the picked ends and the unknown rows, and counts them", () => {
+    it("hides rows with no files on the canvas on History, keeps the held ends and the unknown rows, and counts them", () => {
       expect(f.filtered.on).toBe(true);
       expect(f.filtered.rows).toEqual(["Newest", "Root"]);
       expect(f.filtered.hidden).toBe("2 hidden");
@@ -491,23 +664,20 @@ describe.skipIf(webkit === undefined)(
       expect(f.filtered.pickedEmpty).toEqual({
         rows: ["Newest", "Docs only", "Version bump", "Root"],
         hidden: "",
+        badges: ["Docs only:Last", "Version bump:First"],
       });
       expect(f.filtered.toOnly).toEqual(["Newest", "Docs only", "Root"]);
     });
 
-    it("puts Open under From and To, disabled while an end is missing and naming which, then accent with the range and its count", () => {
-      expect(f.pending.first).toEqual({
-        label: "pick To below",
-        disabled: true,
+    it("refuses a root commit with its note, opens nothing and holds nothing until the next click", () => {
+      expect(f.pending.note).toBe("no parent commit");
+      expect(f.pending.opened).toBe(0);
+      expect(f.pending.picked).toBe(0);
+      expect(f.pending.busy).toBe(true);
+      expect(f.pending.after).toEqual({
+        note: "Click a commit to see what it changed.",
+        opened: 1,
       });
-      expect(f.pending.abovTabs).toBe(true);
-      expect(f.pending.belowSlots).toBe(true);
-      expect(f.pending.root.label).toBe("pick From below");
-      expect(f.pending.root.disabled).toBe(true);
-      expect(f.pending.root.note).toBe("no parent commit");
-      expect(f.pending.both.disabled).toBe(false);
-      expect(f.pending.both.ready).toBe(true);
-      expect(f.pending.both.label).toMatch(/^Open ccccccc\.\.eeeeeee/);
     });
 
     it("drags the left column's edge within 260 and 640 for Commits, keeps the Files limits at 200 and 480 and restores the stored width", () => {
@@ -521,33 +691,166 @@ describe.skipIf(webkit === undefined)(
       expect(f.resize.restored).toBe(f.resize.stored.commits);
     });
 
-    it("fills To then From, shades the commits between them and swaps the slots", () => {
-      expect(f.pickTo.to).toBe("bbbbbbb");
-      expect(f.pickTo.from).toBe("ccccccc");
-      expect(f.pickTo.open).toBe(
-        `Open ${"c".repeat(7)}..${"b".repeat(7)} | 2 files`,
-      );
-      expect(f.pickTo.ready).toBe(true);
-      expect(f.pickTo.summary).toBeNull();
-      expect(f.pickTo.compare).toBeNull();
-      expect(f.pickTo.openDisabled).toBe(false);
-      expect(f.pickTo.fromActive).toBe(true);
-      expect(f.pickFrom.from).toBe("ddddddd");
-      expect(f.pickFrom.shaded).toHaveLength(1);
-      expect(f.swap.before).toEqual(["ccccccc", "bbbbbbb"]);
-      expect(f.swap.after).toEqual(["bbbbbbb", "ccccccc"]);
+    it("has a One commit | Range toggle on History only, styled like the Scan panel's toggle, and no From, To, swap, Open or Save as view", () => {
+      expect(f.toggle.labels).toEqual(["One commit", "Range"]);
+      expect(f.toggle.on).toBe("One commit");
+      expect(f.toggle.aboveList).toBe(true);
+      expect(f.toggle.scanFound).toBe(true);
+      expect(f.toggle.track).toBe(true);
+      expect(f.toggle.onButton).toBe(true);
+      expect(f.toggle.offButton).toBe(true);
+      expect(f.toggle.cards).toBe(0);
+      expect(f.toggle.guide).toBe("Click a commit to see what it changed.");
+      expect(f.toggle.filterHidden).toBe(false);
+      expect(f.toggle.removed).toEqual([]);
+      expect(f.branchesPanel.toggle).toBe(false);
+      expect(f.pulls.toggle).toBe(false);
+      expect(f.branchesPanel.removed).toEqual([]);
     });
 
-    it("opens a range as an unsaved change view named Change with its chip and Save as view, leaving the Views and recent lists alone", () => {
-      expect(f.viewsBefore).toBe(0);
-      expect(f.panelAsked.keys.at(-1)).toBe(
-        `${"c".repeat(40)}..${"a".repeat(40)}`,
+    it("in One commit mode a click opens the commit's parent to the commit at once", () => {
+      expect(f.one.calls).toEqual([`${"c".repeat(40)}..${"b".repeat(40)}`]);
+      expect(f.one.cards).toBe(0);
+      expect(f.one.picked).toEqual(["Middle"]);
+    });
+
+    it("in Range mode the cards read First and Last with click a commit while empty and highlight the next click", () => {
+      expect(f.rangeEmpty.on).toBe("Range");
+      expect(f.rangeEmpty.names).toEqual(["First", "Last"]);
+      expect(f.rangeEmpty.values).toEqual(["click a commit", "click a commit"]);
+      expect(f.rangeEmpty.firstActive).toBe(true);
+      expect(f.rangeEmpty.lastActive).toBe(false);
+      expect(f.rangeEmpty.guide).toBe("Click the first commit of the range.");
+      expect(f.rangeEmpty.picked).toBe(0);
+      expect(f.rangeEmpty.clears).toBe(0);
+    });
+
+    it("in Range mode the first click fills First with the short id and subject, opens nothing and moves the highlight to Last", () => {
+      expect(f.rangeFirst.first).toBe("bbbbbbb");
+      expect(f.rangeFirst.hint).toBe("Middle");
+      expect(f.rangeFirst.last).toBe("click a commit");
+      expect(f.rangeFirst.lastActive).toBe(true);
+      expect(f.rangeFirst.firstActive).toBe(false);
+      expect(f.rangeFirst.guide).toBe("Now click the last commit.");
+      expect(f.rangeFirst.calls).toBe(0);
+      expect(f.rangeFirst.badges).toEqual(["Middle:First"]);
+      expect(f.rangeFirst.clears).toBe(1);
+      expect(f.rangeFirst.clearIcon).toBe(true);
+    });
+
+    it("in Range mode the second click fills Last, the rows between are shaded and the ends carry First and Last badges", () => {
+      expect(f.rangeBoth.first).toBe("ddddddd");
+      expect(f.rangeBoth.firstHint).toBe("Oldest");
+      expect(f.rangeBoth.last).toBe("bbbbbbb");
+      expect(f.rangeBoth.lastHint).toBe("Middle");
+      expect(f.rangeBoth.shaded).toEqual(["Older"]);
+      expect(f.rangeBoth.badges).toEqual(["Middle:Last", "Oldest:First"]);
+      expect(f.rangeBoth.guide).toBe("3 commits, both ends included.");
+      expect(f.rangeBoth.shaded.length + 2).toBe(3);
+      expect(f.rangeBoth.calls).toEqual([
+        `${"e".repeat(40)}..${"b".repeat(40)}`,
+      ]);
+    });
+
+    it("in Range mode clearing First makes the remaining commit First and clearing again empties both", () => {
+      expect(f.cleared).toEqual({
+        first: "bbbbbbb",
+        last: "click a commit",
+        shaded: 0,
+      });
+      expect(f.clearedAll).toEqual({
+        first: "click a commit",
+        last: "click a commit",
+        clears: 0,
+      });
+    });
+
+    it("in Range mode opens the older commit's parent to the newer commit in both click orders", () => {
+      expect(f.orders).toEqual([
+        `${"e".repeat(40)}..${"b".repeat(40)}`,
+        `${"e".repeat(40)}..${"b".repeat(40)}`,
+      ]);
+    });
+
+    it("on Branches and Pull requests shows no toggle and no cards, names the default branch and hides the filter row", () => {
+      expect(f.branchesPanel.cards).toBe(0);
+      expect(f.branchesPanel.guide).toBe(
+        "Each branch shows what it changes against main.",
       );
-      expect(f.rangeCalls).toEqual([`${"c".repeat(40)}..${"a".repeat(40)}`]);
+      expect(f.pulls.cards).toBe(0);
+      expect(f.pulls.filterHidden).toBe(true);
+      expect(f.pulls.guide).toBe(
+        "Each pull request shows what it changes against main.",
+      );
+    });
+
+    it("shows the canvas spinner with the labelled text from the click until the change view is drawn, then removes it", () => {
+      expect(f.spin.start).toEqual({
+        text: null,
+        spinner: false,
+        rowSpinners: 0,
+        busyTitles: [],
+      });
+      expect(f.spin.commit.text).toBe("Loading commit bbbbbbb");
+      expect(f.spin.commit.spinner).toBe(true);
+      expect(f.spin.commitDone.text).toBeNull();
+      expect(f.spin.commitDone.spinner).toBe(false);
+      expect(f.spin.rangeHalf.text).toBeNull();
+      expect(f.spin.range.text).toBe("Loading range ccccccc to aaaaaaa");
+      expect(f.spin.branch.text).toBe("Loading branch feature/x");
+      expect(f.spin.branchDone.text).toBeNull();
+      expect(f.spin.pull.text).toBe("Loading pull request #9");
+      expect(f.spin.pullDone.text).toBeNull();
+    });
+
+    it("removes the canvas spinner when the open fails", () => {
+      expect(f.spin.rangeFailed.text).toBeNull();
+      expect(f.spin.rangeFailed.rowSpinners).toBe(0);
+      expect(f.spin.unavailable.text).toBeNull();
+      expect(f.spin.unavailable.rowSpinners).toBe(0);
+    });
+
+    it("turns the clicked row's icon into a spinner while loading and back after", () => {
+      expect(f.spin.commit.rowSpinners).toBe(1);
+      expect(f.spin.commit.busyTitles).toEqual(["Middle"]);
+      expect(f.spin.commitRowIcon).toBe(true);
+      expect(f.spin.commitDone.rowSpinners).toBe(0);
+      expect(f.spin.commitDoneIcon).toBe(true);
+      expect(f.spin.range.busyTitles).toEqual(["Newest"]);
+      expect(f.spin.branch.busyTitles).toEqual(["feature/x"]);
+      expect(f.spin.pull.busyTitles).toEqual(["#9 Gift cards"]);
+    });
+
+    it("opens a branch from its merge base to its head and a pull request from its merge base to its head sha", () => {
+      expect(f.spin.branchCall).toBe(`${"c".repeat(40)}..feature/x`);
+      expect(f.spin.pullCall).toBe(`${"b".repeat(40)}..${"f".repeat(40)}`);
+    });
+
+    it("shows a spinner with Loading commits, branches and pull requests while an empty list loads, then the rows", () => {
+      expect(f.listLoading.history).toEqual({
+        text: "Loading commits",
+        spinner: true,
+        rows: 0,
+      });
+      expect(f.listLoading.branches.text).toBe("Loading branches");
+      expect(f.listLoading.branches.spinner).toBe(true);
+      expect(f.listLoading.prs.text).toBe("Loading pull requests");
+      expect(f.listLoading.prs.spinner).toBe(true);
+      expect(f.listLoading.after).toEqual({
+        text: null,
+        spinner: false,
+        rows: 5,
+      });
+    });
+
+    it("opens a range as an unsaved change view named Change with its chip, leaving the Views and recent lists alone", () => {
+      expect(f.viewsBefore).toBe(0);
+      expect(f.rangeCalls).toEqual([`${"d".repeat(40)}..${"a".repeat(40)}`]);
+      expect(f.openedOnce).toBe(1);
       expect(f.draft.name).toBe("Change");
-      expect(f.draft.chip).toBe(`${"c".repeat(40)}..${"a".repeat(40)}`);
+      expect(f.draft.chip).toBe(`${"d".repeat(40)}..${"a".repeat(40)}`);
       expect(f.draft.unsaved).toBe(true);
-      expect(f.draft.saveShown).toBe(true);
+      expect(f.draft.saveGone).toBe(true);
       expect(f.draft.files).toBe(0);
       expect(f.draft.viewRows).toBe(0);
       expect(f.draft.recent).toBe(0);
@@ -566,12 +869,11 @@ describe.skipIf(webkit === undefined)(
 
     it("saves the draft as a view whose change equals the range and drops the unsaved badge", () => {
       expect(f.saved.file.change).toEqual({
-        base: "c".repeat(40),
+        base: "d".repeat(40),
         head: "a".repeat(40),
       });
       expect(f.saved.name).toBe("gifts");
       expect(f.saved.unsaved).toBe(false);
-      expect(f.saved.saveButton).toBe(true);
     });
 
     it("asks before opening a range over a modified saved view and opens nothing until answered", () => {

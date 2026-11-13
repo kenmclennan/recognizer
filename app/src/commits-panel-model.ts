@@ -15,8 +15,6 @@ export {
   parsePullRequests,
 } from "./commits-parse";
 
-export type Slot = "from" | "to";
-
 export type PickRow = {
   kind: "commit" | "branch" | "pr";
   ref: string;
@@ -25,104 +23,163 @@ export type PickRow = {
   defaultFrom: string | null;
 };
 
-export type PickedRange = { base: string; head: string; defaulted: boolean };
-
 export type BranchEntry = {
   row: BranchRow;
   facts: RefFacts | null;
   isDefault: boolean;
 };
 
-export type CommitsModel = {
-  active: () => Slot;
-  slot: (which: Slot) => PickRow | null;
-  pick: (row: PickRow) => boolean;
-  select: (which: Slot) => void;
-  clear: (which: Slot) => void;
-  swap: () => boolean;
-  canSwap: () => boolean;
-  range: () => PickedRange | null;
-  rangeNote: () => string | null;
-  shaded: (history: readonly string[]) => Set<string>;
+export type Mode = "one" | "range";
+
+export type End = "first" | "last";
+
+export type OpenRequest = { base: string; head: string; what: string };
+
+export type CommitsTabName = "history" | "branches" | "prs";
+
+export type Selection = {
+  mode: () => Mode;
+  setMode: (mode: Mode) => void;
+  first: () => PickRow | null;
+  last: () => PickRow | null;
+  picked: () => PickRow | null;
+  next: () => End;
+  pick: (
+    row: PickRow,
+    tab: CommitsTabName,
+    history: readonly string[],
+  ) => OpenRequest | null;
+  clear: (which: End) => void;
+  count: (history: readonly string[]) => number | null;
+  between: (history: readonly string[]) => Set<string>;
+  note: () => string | null;
+  guideLine: (
+    tab: CommitsTabName,
+    defaultName: string | null,
+    history: readonly string[],
+  ) => string;
 };
 
-function same(a: PickRow | null, b: PickRow): boolean {
-  return a !== null && a.kind === b.kind && a.ref === b.ref;
+function whatOf(row: PickRow): string {
+  return row.kind === "commit"
+    ? `commit ${row.label}`
+    : row.kind === "branch"
+      ? `branch ${row.label}`
+      : `pull request ${row.label}`;
 }
 
-export function createCommitsModel(): CommitsModel {
-  const held: Record<Slot, PickRow | null> = { from: null, to: null };
-  let active: Slot = "to";
+export function defaultBranchName(defaultRef: string | null): string | null {
+  return defaultRef === null
+    ? null
+    : defaultRef.slice(defaultRef.indexOf("/") + 1);
+}
 
-  const model: CommitsModel = {
-    active: () => active,
-    slot: (which) => held[which],
-    pick(row) {
-      const other: Slot = active === "to" ? "from" : "to";
+export function createSelection(): Selection {
+  let mode: Mode = "one";
+  let first: PickRow | null = null;
+  let last: PickRow | null = null;
+  let picked: PickRow | null = null;
+  let note: string | null = null;
 
-      if (same(held[other], row)) {
-        return false;
-      }
+  const reset = () => {
+    first = null;
+    last = null;
+    picked = null;
+    note = null;
+  };
 
-      held[active] = row;
-
-      if (active === "to" && held.from === null) {
-        active = "from";
-      }
-
-      return true;
+  const selection: Selection = {
+    mode: () => mode,
+    setMode(next) {
+      mode = next;
+      reset();
     },
-    select(which) {
-      active = which;
+    first: () => first,
+    last: () => last,
+    picked: () => picked,
+    next: () => (first === null ? "first" : last === null ? "last" : "first"),
+    pick(row, tab, history) {
+      note = null;
+
+      if (row.defaultFrom === null) {
+        note =
+          row.kind === "commit"
+            ? "no parent commit"
+            : "no merge base with the default branch";
+
+        return null;
+      }
+
+      if (tab !== "history" || mode === "one") {
+        picked = row;
+
+        return {
+          base: row.defaultFrom,
+          head: row.ref,
+          what: whatOf(row),
+        };
+      }
+
+      if (first === null || last !== null) {
+        first = row;
+        last = null;
+
+        return null;
+      }
+
+      if (first.ref === row.ref) {
+        first = null;
+
+        return null;
+      }
+
+      const held = history.indexOf(first.ref);
+      const clicked = history.indexOf(row.ref);
+      const [older, newer] =
+        held >= 0 && clicked >= 0 && clicked > held
+          ? [row, first]
+          : [first, row];
+
+      if (older.defaultFrom === null) {
+        note = "no parent commit";
+
+        return null;
+      }
+
+      first = older;
+      last = newer;
+
+      return {
+        base: older.defaultFrom,
+        head: newer.ref,
+        what: `range ${older.label} to ${newer.label}`,
+      };
     },
     clear(which) {
-      held[which] = null;
-      active = which;
-    },
-    canSwap: () => held.from !== null && held.to !== null,
-    swap() {
-      if (!model.canSwap()) {
-        return false;
+      if (which === "first") {
+        first = last;
       }
 
-      [held.from, held.to] = [held.to, held.from];
-
-      return true;
+      last = null;
+      note = null;
     },
-    range() {
-      const to = held.to;
-
-      if (to === null) {
+    count(history) {
+      if (first === null || last === null) {
         return null;
       }
 
-      const base = held.from?.ref ?? to.defaultFrom;
+      const a = history.indexOf(first.ref);
+      const b = history.indexOf(last.ref);
 
-      return base === null
-        ? null
-        : { base, head: to.ref, defaulted: held.from === null };
+      return a < 0 || b < 0 ? null : Math.abs(a - b) + 1;
     },
-    rangeNote() {
-      const to = held.to;
-
-      if (to === null || held.from !== null || to.defaultFrom !== null) {
-        return null;
-      }
-
-      return to.kind === "commit"
-        ? "no parent commit"
-        : "no merge base with the default branch";
-    },
-    shaded(history) {
-      const from = held.from;
-      const to = held.to;
-
-      if (from?.kind !== "commit" || to?.kind !== "commit") {
+    between(history) {
+      if (first === null || last === null) {
         return new Set();
       }
 
-      const a = history.indexOf(from.ref);
-      const b = history.indexOf(to.ref);
+      const a = history.indexOf(first.ref);
+      const b = history.indexOf(last.ref);
 
       if (a < 0 || b < 0) {
         return new Set();
@@ -130,9 +187,39 @@ export function createCommitsModel(): CommitsModel {
 
       return new Set(history.slice(Math.min(a, b) + 1, Math.max(a, b)));
     },
+    note: () => note,
+    guideLine(tab, defaultName, history) {
+      const name = defaultName ?? "the default branch";
+
+      if (note !== null) {
+        return note;
+      }
+
+      if (tab === "branches") {
+        return `Each branch shows what it changes against ${name}.`;
+      }
+
+      if (tab === "prs") {
+        return `Each pull request shows what it changes against ${name}.`;
+      }
+
+      if (mode === "one") {
+        return "Click a commit to see what it changed.";
+      }
+
+      if (first === null) {
+        return "Click the first commit of the range.";
+      }
+
+      if (last === null) {
+        return "Now click the last commit.";
+      }
+
+      return `${selection.count(history) ?? 0} commits, both ends included.`;
+    },
   };
 
-  return model;
+  return selection;
 }
 
 export function commitRow(row: HistoryRow): PickRow {
@@ -173,8 +260,7 @@ export function orderBranches(
   defaultRef: string | null,
   facts: ReadonlyMap<string, RefFacts>,
 ): BranchEntry[] {
-  const local =
-    defaultRef === null ? null : defaultRef.slice(defaultRef.indexOf("/") + 1);
+  const local = defaultBranchName(defaultRef);
   const entries = rows.map((row) => ({
     row,
     facts: facts.get(row.name) ?? null,
@@ -313,7 +399,7 @@ export function titleTip(
 }
 
 export function visibleRows<
-  T extends { classification: Classification | null; slot: Slot | null },
+  T extends { classification: Classification | null; held: boolean },
 >(rows: readonly T[], hide: boolean): { rows: T[]; hidden: number } {
   if (!hide) {
     return { rows: [...rows], hidden: 0 };
@@ -321,32 +407,12 @@ export function visibleRows<
 
   const kept = rows.filter(
     (row) =>
-      row.slot !== null ||
+      row.held ||
       row.classification === null ||
       onCanvas(row.classification) > 0,
   );
 
   return { rows: kept, hidden: rows.length - kept.length };
-}
-
-export function openLabel(
-  range: PickedRange | null,
-  classification: Classification | null,
-  loading: boolean,
-  short: (ref: string) => string,
-  toPicked: boolean,
-): string {
-  if (range === null) {
-    return toPicked ? "pick From below" : "pick To below";
-  }
-
-  const name = `${short(range.base)}..${short(range.head)}`;
-
-  if (loading) {
-    return `Open ${name}`;
-  }
-
-  return `Open ${name} · ${classification === null ? "-" : filesText(onCanvas(classification))}`;
 }
 
 export function ageOf(seconds: number, now: number): string {

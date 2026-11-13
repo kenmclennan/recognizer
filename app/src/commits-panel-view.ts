@@ -1,13 +1,15 @@
 import type {
   Classification,
+  End,
   Impact,
+  Mode,
   PickRow,
-  Slot,
   TipLine,
 } from "./commits-panel-model";
 import type { Checks } from "./commits-parse";
 import { button, el } from "./dom";
 import { type IconName, icon } from "./icons";
+import { spinner } from "./spinner-view";
 
 export type CommitsTab = "history" | "branches" | "prs";
 
@@ -23,7 +25,9 @@ export type CommitRowView = {
   titleTip: string[];
   badge: string | null;
   checks: Checks | null;
-  slot: Slot | null;
+  held: boolean;
+  end: End | null;
+  busy: boolean;
   shaded: boolean;
 };
 
@@ -36,34 +40,28 @@ export type CommitsListView = {
   hidden: number;
 };
 
-export type SlotView = {
+export type EndView = {
   label: string;
-  hint: string | null;
+  hint: string;
 };
 
 export type CommitsPanelModel = {
   branch: string | null;
-  active: Slot;
-  from: SlotView | null;
-  to: SlotView | null;
-  note: string | null;
-  canSwap: boolean;
-  openLabel: string;
-  canOpen: boolean;
-  canSave: boolean;
+  mode: Mode;
+  first: EndView | null;
+  last: EndView | null;
+  next: End;
+  guide: string;
   tab: CommitsTab;
   lists: Record<CommitsTab, CommitsListView>;
 };
 
 export type CommitsPanelActions = {
   pick: (row: PickRow) => void;
-  selectSlot: (slot: Slot) => void;
-  clearSlot: (slot: Slot) => void;
-  swap: () => void;
+  setMode: (mode: Mode) => void;
+  clearEnd: (end: End) => void;
   setTab: (tab: CommitsTab) => void;
   setHide: (tab: CommitsTab, hide: boolean) => void;
-  open: () => void;
-  save: () => void;
 };
 
 export type CommitsPanelView = {
@@ -77,35 +75,60 @@ const TABS: [CommitsTab, string][] = [
   ["prs", "Pull requests"],
 ];
 
-function slotNode(
-  which: Slot,
-  view: SlotView | null,
+const END_NAMES: Record<End, string> = { first: "First", last: "Last" };
+
+function endNode(
+  which: End,
+  view: EndView | null,
   active: boolean,
   actions: CommitsPanelActions,
 ): HTMLElement {
   const node = el("div", `commits-slot ${which}${active ? " active" : ""}`);
-  const pick = button("", "commits-slot-pick", () => actions.selectSlot(which));
-  const clear = button("", "commits-slot-clear", () =>
-    actions.clearSlot(which),
-  );
+  const pick = el("div", "commits-slot-pick");
+  const name = END_NAMES[which];
 
   pick.append(
-    el("span", "commits-slot-name", which === "from" ? "From" : "To"),
+    el("span", "commits-slot-name", name),
     el(
       "span",
       `commits-slot-value${view === null ? " empty" : ""}`,
-      view?.label ?? "pick below",
+      view?.label ?? "click a commit",
     ),
   );
 
-  if (view?.hint) {
+  if (view !== null) {
     pick.append(el("span", "commits-slot-hint", view.hint));
   }
 
-  clear.append(icon("x"));
-  clear.setAttribute("aria-label", `Clear ${which === "from" ? "From" : "To"}`);
-  clear.hidden = view === null;
-  node.append(pick, clear);
+  node.append(pick);
+
+  if (view !== null) {
+    const clear = button("", "commits-slot-clear", () =>
+      actions.clearEnd(which),
+    );
+
+    clear.append(icon("x"));
+    clear.setAttribute("aria-label", `Clear ${name}`);
+    node.append(clear);
+  }
+
+  return node;
+}
+
+function modeNode(mode: Mode, actions: CommitsPanelActions): HTMLElement {
+  const node = el("div", "scan-run-mode seg commits-mode");
+  const one = button("One commit", "commits-mode-one", () =>
+    actions.setMode("one"),
+  );
+  const range = button("Range", "commits-mode-range", () =>
+    actions.setMode("range"),
+  );
+
+  one.classList.toggle("on", mode === "one");
+  range.classList.toggle("on", mode === "range");
+  one.setAttribute("aria-pressed", String(mode === "one"));
+  range.setAttribute("aria-pressed", String(mode === "range"));
+  node.append(one, range);
 
   return node;
 }
@@ -169,7 +192,7 @@ function rowNode(
 ) {
   const node = button(
     "",
-    `commits-row ${row.pick.kind}${row.slot === null ? "" : ` picked ${row.slot}`}${row.shaded ? " shaded" : ""}`,
+    `commits-row ${row.pick.kind}${row.held ? " picked" : ""}${row.shaded ? " shaded" : ""}`,
     () => actions.pick(row.pick),
   );
   const text = el("span", "commits-row-text");
@@ -198,15 +221,33 @@ function rowNode(
   }
 
   text.append(top, el("span", "commits-row-meta", row.meta));
-  node.append(icon(row.icon), text, impactNode(row, cards));
+  const lead = row.busy ? spinner("Loading") : icon(row.icon);
 
-  if (row.slot !== null) {
-    node.append(
-      el("span", "commits-picked", row.slot === "from" ? "From" : "To"),
-    );
+  if (row.busy) {
+    lead.classList.add("commits-row-busy");
+  }
+
+  node.append(lead, text, impactNode(row, cards));
+
+  if (row.end !== null) {
+    node.append(el("span", "commits-picked", END_NAMES[row.end]));
   }
 
   return node;
+}
+
+const LOADING_TEXT: Record<CommitsTab, string> = {
+  history: "Loading commits",
+  branches: "Loading branches",
+  prs: "Loading pull requests",
+};
+
+function loadingNode(tab: CommitsTab): HTMLElement {
+  const holder = el("div", "commits-loading commits-loading-busy");
+
+  holder.append(spinner("Loading"), el("span", "", LOADING_TEXT[tab]));
+
+  return holder;
 }
 
 function buildCards(host: HTMLElement): Cards {
@@ -304,32 +345,29 @@ export function buildCommitsPanelView(
         title.append(el("span", "commits-on-branch", model.branch));
       }
 
-      const slots = el("div", "commits-slots");
-      const swap = button("", "commits-swap", () => actions.swap());
+      const parts: HTMLElement[] = [title];
 
-      swap.append(icon("swap"));
-      swap.setAttribute("aria-label", "Swap From and To");
-      swap.disabled = !model.canSwap;
-      slots.append(
-        slotNode("from", model.from, model.active === "from", actions),
-        swap,
-        slotNode("to", model.to, model.active === "to", actions),
-      );
-      const open = button(model.openLabel, "commits-range-open", () =>
-        actions.open(),
-      );
-      const save = button("Save as view", "commits-save", () => actions.save());
-      const bar = el("div", "commits-open-bar");
-
-      open.disabled = !model.canOpen;
-      open.classList.toggle("ready", model.canOpen);
-      save.hidden = !model.canSave;
-      bar.append(open, save);
-      head.replaceChildren(title, slots, bar);
-
-      if (model.note !== null) {
-        head.append(el("p", "commits-summary", model.note));
+      if (model.tab === "history") {
+        parts.push(modeNode(model.mode, actions));
       }
+
+      const line = el("p", "commits-summary", model.guide);
+
+      if (model.tab === "history" && model.mode === "range") {
+        const slots = el("div", "commits-slots commits-range-slots");
+        const wrap = el("div", "commits-range");
+
+        slots.append(
+          endNode("first", model.first, model.next === "first", actions),
+          endNode("last", model.last, model.next === "last", actions),
+        );
+        wrap.append(slots, line);
+        parts.push(wrap);
+      } else {
+        parts.push(line);
+      }
+
+      head.replaceChildren(...parts);
 
       tabs.replaceChildren(
         ...TABS.map(([key, label]) => {
@@ -349,6 +387,7 @@ export function buildCommitsPanelView(
       const shown = model.lists[model.tab];
 
       shownTab = model.tab;
+      filter.hidden = model.tab !== "history";
       hideBox.setAttribute("aria-checked", String(shown.hide));
       hiddenCount.textContent =
         shown.hide && shown.hidden > 0 ? `${shown.hidden} hidden` : "";
@@ -356,7 +395,7 @@ export function buildCommitsPanelView(
 
       list.replaceChildren(
         ...(shown.loading
-          ? [el("p", "commits-loading", "Loading")]
+          ? [loadingNode(model.tab)]
           : shown.notice !== null
             ? [el("p", "commits-notice", shown.notice)]
             : shown.rows.map((row) => rowNode(row, actions, cards))),

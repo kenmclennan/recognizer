@@ -2179,7 +2179,9 @@ svg.i.chevron {
 .scan-run-mode-incremental,
 .scan-run-mode-full,
 .findings-scope-canvas,
-.findings-scope-all {
+.findings-scope-all,
+.commits-mode-one,
+.commits-mode-range {
   flex: 1;
   min-width: 0;
   padding: 5px 6px;
@@ -3940,21 +3942,6 @@ svg.i.chevron {
   cursor: pointer;
 }
 
-.commits-swap {
-  align-self: center;
-  padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.commits-swap:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
 .commits-tabs {
   display: flex;
   gap: 2px;
@@ -4067,39 +4054,6 @@ svg.i.chevron {
   margin: 0;
   padding: 12px;
   color: var(--muted);
-}
-
-.commits-open-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.commits-range-open {
-  flex: 1;
-  padding: 6px 10px;
-  border: 1px solid var(--boxline);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  font-weight: 600;
-  text-align: left;
-}
-
-.commits-range-open.ready {
-  border-color: var(--sel);
-  background: var(--sel);
-  color: #fff;
-  cursor: pointer;
-}
-
-.commits-save {
-  padding: 6px 10px;
-  border: 1px solid var(--boxline);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--fg);
-  cursor: pointer;
 }
 
 .commits-filter {
@@ -4248,6 +4202,57 @@ svg.i.chevron {
 
 .commits-summary {
   margin: 0;
+}
+
+.commits-range {
+  margin-top: 2px;
+}
+
+.commits-range .commits-summary {
+  margin-top: 6px;
+}
+
+.commits-range-slots .commits-slot-pick {
+  cursor: default;
+}
+
+.commits-range-slots .commits-slot-hint {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commits-range-slots .commits-slot-value.empty {
+  margin: 0;
+}
+
+.commits-loading-busy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  color: var(--muted);
+}
+
+.commits-loading-busy .spinner-icon,
+.commits-row-busy .spinner-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.canvas-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .view-unsaved {

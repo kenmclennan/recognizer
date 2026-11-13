@@ -89,6 +89,7 @@ export type CanvasProps = {
   showInferred: boolean;
   notice: string | null;
   busy?: boolean;
+  loading?: string | null;
   notes?: CanvasNotes;
   orientation?: CanvasOrientation | null;
   metrics?: CanvasMetrics | null;
@@ -267,6 +268,8 @@ export function buildCanvasView(
   const empty = el("p", "empty-canvas");
   const notice = el("p", "canvas-notice");
   const busy = spinner("Laying out");
+  const loading = el("div", "canvas-loading");
+  const loadingText = el("span", "canvas-loading-text");
   const noteLayer = el("div", "note-layer");
   const bubbleViews = new Map<string, NoteBubbleView>();
   const titleMeasures = new Map<number, (text: string) => number>();
@@ -296,6 +299,8 @@ export function buildCanvasView(
 
   busy.classList.add("canvas-busy");
   busy.hidden = true;
+  loading.hidden = true;
+  loading.append(spinner("Loading"), loadingText);
   const legend = buildLegendView((show) => actions.setShowInferred(show));
   const metricsView = buildMetricsView((key) => actions.toggleMetric(key));
   const selectionBar = buildSelectionBar({
@@ -431,6 +436,7 @@ export function buildCanvasView(
     empty,
     notice,
     busy,
+    loading,
     selectionBar.element,
   );
   controls.append(
@@ -1767,6 +1773,8 @@ export function buildCanvasView(
       notice.textContent = next.notice ?? "";
       notice.hidden = next.notice === null;
       busy.hidden = next.busy !== true;
+      loading.hidden = !next.loading;
+      loadingText.textContent = next.loading ?? "";
 
       const scene = next.scene;
       const has = (scene?.boxes.length ?? 0) > 0;
