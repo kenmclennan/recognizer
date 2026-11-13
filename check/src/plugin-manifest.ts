@@ -13,6 +13,8 @@ export interface Manifest {
   kind: PluginKind;
   name: string;
   display: string;
+  description?: string;
+  expansion?: string;
   version: string;
   protocol: number;
   install: string;

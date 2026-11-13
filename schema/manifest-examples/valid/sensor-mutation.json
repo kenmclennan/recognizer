@@ -1,0 +1,142 @@
+{
+  "kind": "sensor",
+  "name": "mutation",
+  "display": "Mutation",
+  "description": "Mutates covered functions, reruns the tests, and warns where a mutated copy still passes, naming each surviving mutation.",
+  "version": "0.1.0",
+  "protocol": 1,
+  "install": "brew install --cask kenmclennan/tap/recognizer",
+  "check": true,
+  "long_running": true,
+  "units": [
+    "functions"
+  ],
+  "settings": [
+    {
+      "key": "carry",
+      "type": "string",
+      "description": "untracked repository paths Mutation copies into its working copy, such as a virtual environment or node_modules",
+      "example": "--add sensors.mutation.carry .venv",
+      "multi": true
+    },
+    {
+      "key": "max_minutes",
+      "type": "number",
+      "description": "the time budget of a Mutation run in minutes, above 0; a run that reaches it stops and keeps what it measured",
+      "example": "sensors.mutation.max_minutes 10",
+      "exclusiveMinimum": 0,
+      "default_text": "no time budget: the run continues until it finishes"
+    },
+    {
+      "key": "max_workers",
+      "type": "integer",
+      "description": "the most mutants tested at once, at least 1",
+      "example": "sensors.mutation.max_workers 4",
+      "minimum": 1,
+      "default_text": "sized from the machine's cores and free memory"
+    },
+    {
+      "key": "timeout_factor",
+      "type": "number",
+      "description": "how many times a mutant may run longer than the unmutated suite before it counts as timed out, above 0; default 10",
+      "example": "sensors.mutation.timeout_factor 5",
+      "exclusiveMinimum": 0,
+      "default": 10
+    },
+    {
+      "key": "incremental",
+      "type": "boolean",
+      "description": "whether a run measures only what changed since the last record; default true",
+      "example": "sensors.mutation.incremental false",
+      "default": true
+    },
+    {
+      "key": "record",
+      "type": "path",
+      "description": "where the sensor keeps what it has measured, relative to the repository; default .recognizer/cache/mutation/record.json",
+      "example": "sensors.mutation.record .recognizer/cache/mutation/record.json"
+    },
+    {
+      "key": "survivors",
+      "type": "path",
+      "description": "where the sensor writes the mutants that survived, relative to the repository; default .recognizer/cache/mutation/survivors.json",
+      "example": "sensors.mutation.survivors .recognizer/cache/mutation/survivors.json"
+    },
+    {
+      "key": "overlay",
+      "type": "path",
+      "description": "where the sensor writes its overlay, relative to the repository; default .recognizer/cache/overlays/mutation.json",
+      "example": "sensors.mutation.overlay .recognizer/cache/overlays/mutation.json"
+    }
+  ],
+  "metrics": [
+    {
+      "name": "killed",
+      "label": "kill",
+      "title": "Killed mutants",
+      "help": "How many mutated copies of the function the tests caught.",
+      "type": "count",
+      "granularity": "member",
+      "bad": "low"
+    },
+    {
+      "name": "survived",
+      "label": "surv",
+      "title": "Survived mutants",
+      "help": "How many mutated copies of the function the tests let through.",
+      "type": "count",
+      "granularity": "member",
+      "bad": "high"
+    },
+    {
+      "name": "uncovered",
+      "label": "unc",
+      "title": "Uncovered mutants",
+      "help": "How many possible mutations fall on lines no test runs.",
+      "type": "count",
+      "granularity": "member",
+      "bad": "high"
+    },
+    {
+      "name": "score",
+      "label": "mut",
+      "title": "Mutation score",
+      "help": "The share of mutated copies of the function the tests caught.",
+      "type": "ratio",
+      "granularity": "member",
+      "bad": "low"
+    }
+  ],
+  "findings": [
+    {
+      "kind": "mutation",
+      "group": {
+        "name": "Mutations",
+        "means": "Recognizer changed this function's code and no test failed, so the tests do not pin its behaviour.",
+        "todo": "Add a test that fails when this function's behaviour changes."
+      },
+      "help": "One finding per function with at least one surviving mutation.",
+      "sentence": {
+        "requires": [
+          "evidence.members.0.name",
+          "evidence.members.0.module",
+          "evidence.measures.survived"
+        ],
+        "parts": [
+          [
+            {
+              "text": "{evidence.members.0.name} in {evidence.members.0.module|short} has {evidence.measures.survived|num} surviving {evidence.measures.survived|plural:mutation:mutations}"
+            }
+          ],
+          [
+            {
+              "text": "."
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "runs_tests": true,
+  "scoped": true
+}

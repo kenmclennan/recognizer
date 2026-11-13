@@ -2,6 +2,7 @@
   "kind": "sensor",
   "name": "thresholds",
   "display": "Thresholds",
+  "description": "Turns any overlay metric over a configured line into a finding, with complexity and coverage lines built in.",
   "version": "0.1.0",
   "protocol": 1,
   "install": "brew install --cask kenmclennan/tap/recognizer",

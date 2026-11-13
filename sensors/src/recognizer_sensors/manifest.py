@@ -10,7 +10,42 @@ INSTALL = "brew install --cask kenmclennan/tap/recognizer"
 MEASURES = "evidence.measures"
 MEMBER = "evidence.members.0"
 
-LABELS = {"complexity": "cc", "coverage": "cov", "crap": "CRAP"}
+LABELS = {
+    "complexity": "cc",
+    "coverage": "cov",
+    "crap": "CRAP",
+    "killed": "kill",
+    "survived": "surv",
+    "uncovered": "unc",
+    "score": "mut",
+}
+
+TITLES = {
+    "complexity": "Complexity",
+    "coverage": "Coverage",
+    "crap": "C.R.A.P.",
+    "survived": "Survived mutants",
+    "killed": "Killed mutants",
+    "uncovered": "Uncovered mutants",
+    "score": "Mutation score",
+}
+
+DESCRIPTIONS = {
+    "crap": (
+        "Runs the tests under coverage and flags functions that are complex and "
+        "poorly covered, where a change is most likely to break something."
+    ),
+    "mutation": (
+        "Mutates covered functions, reruns the tests, and warns where a mutated "
+        "copy still passes, naming each surviving mutation."
+    ),
+    "thresholds": (
+        "Turns any overlay metric over a configured line into a finding, "
+        "with complexity and coverage lines built in."
+    ),
+}
+
+EXPANSIONS = {"crap": "C.R.A.P.: Change Risk Anti-Patterns."}
 
 METRIC_FIELDS = {
     "complexity": {
@@ -95,7 +130,8 @@ def metric(name: str) -> dict:
     published = fields.pop("published", None)
     entry = {
         "name": name,
-        "label": LABELS.get(name, name),
+        "label": LABELS[name],
+        "title": TITLES[name],
         "help": fields.pop("help"),
         **fields,
     }
@@ -217,6 +253,8 @@ def common(name: str, display: str, check: bool, units: str, settings: list[dict
         "kind": "sensor",
         "name": name,
         "display": display,
+        "description": DESCRIPTIONS[name],
+        **({"expansion": EXPANSIONS[name]} if name in EXPANSIONS else {}),
         "version": version("recognizer-sensors"),
         "protocol": PROTOCOL,
         "install": INSTALL,

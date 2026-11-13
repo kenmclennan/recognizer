@@ -2,6 +2,8 @@
   "kind": "sensor",
   "name": "crap",
   "display": "C.R.A.P.",
+  "description": "Runs the tests under coverage and flags functions that are complex and poorly covered, where a change is most likely to break something.",
+  "expansion": "C.R.A.P.: Change Risk Anti-Patterns.",
   "version": "0.1.0",
   "protocol": 1,
   "install": "brew install --cask kenmclennan/tap/recognizer",
@@ -30,6 +32,7 @@
     {
       "name": "complexity",
       "label": "cc",
+      "title": "Complexity",
       "help": "How many independent paths run through the function; more paths are harder to test and to change.",
       "type": "count",
       "granularity": "member",
@@ -42,6 +45,7 @@
     {
       "name": "coverage",
       "label": "cov",
+      "title": "Coverage",
       "help": "The share of the function's lines the tests run.",
       "type": "ratio",
       "granularity": "member",
@@ -54,6 +58,7 @@
     {
       "name": "crap",
       "label": "CRAP",
+      "title": "C.R.A.P.",
       "help": "Complexity weighed against coverage: the higher it is, the riskier the function is to change.",
       "type": "number",
       "granularity": "member",

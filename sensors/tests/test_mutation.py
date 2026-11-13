@@ -13,7 +13,6 @@ from conftest import (
     OVERLAY_SCHEMA,
     REPOSITORY,
     SELECTED_FIXTURE,
-    SENSOR_LIST,
     STOP_FIXTURE,
     event_lines,
     mutate_repository,
@@ -1049,12 +1048,15 @@ def test_a_failing_run_leaves_a_prior_overlay_alone(tmp_path):
     assert (root / OVERLAY).read_bytes() == before
 
 
-def test_the_defaults_match_the_registry():
-    registry = json.loads(SENSOR_LIST.read_text())
-    entry = next(e for e in registry if e["name"] == "mutation")
+def test_the_metrics_match_the_manifest():
+    from recognizer_sensors.manifest import build
 
-    assert sensor.METRICS == entry["metrics"]
-    assert entry["defaults"] == {}
+    declared = [
+        {k: metric[k] for k in ("name", "type", "granularity", "bad")}
+        for metric in build("mutation")["metrics"]
+    ]
+
+    assert sensor.METRICS == declared
 
 
 @pytest.mark.usefixtures("unprimed")

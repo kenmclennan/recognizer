@@ -14,7 +14,6 @@ REPOSITORY = Path(__file__).parents[2]
 FIXTURE = REPOSITORY / "fixtures" / "duplication" / "sample"
 FINDINGS_SCHEMA = REPOSITORY / "schema" / "findings.schema.json"
 SHIPPED = REPOSITORY / "fixtures" / "sensors" / "shipped.json"
-SENSOR_LIST = REPOSITORY / "fixtures" / "sensors" / "list.json"
 
 LANGUAGE_BY_SUFFIX = {
     ".py": "python",
