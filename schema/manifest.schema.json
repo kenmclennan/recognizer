@@ -1,0 +1,610 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://recognizer.dev/schema/manifest.schema.json",
+  "title": "Recognizer plugin manifest",
+  "description": "What a plugin prints for `<command> manifest`: one JSON document and a newline on stdout. Whether protocol is in range is judged by the CLI, never by this schema. A settings entry is the shape of one entry of keys in config-keys.schema.json, with the key relative to the plugin's own section.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "name",
+    "display",
+    "version",
+    "protocol",
+    "install",
+    "check",
+    "long_running",
+    "units",
+    "settings"
+  ],
+  "properties": {
+    "kind": {
+      "enum": [
+        "scanner",
+        "sensor",
+        "describer"
+      ]
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*$",
+      "maxLength": 64
+    },
+    "display": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "protocol": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "install": {
+      "type": "string",
+      "minLength": 1
+    },
+    "check": {
+      "type": "boolean"
+    },
+    "long_running": {
+      "type": "boolean"
+    },
+    "time_limit_seconds": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "units": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "settings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/setting"
+      }
+    },
+    "languages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/language"
+      }
+    },
+    "metrics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/metric"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "runs_tests": {
+      "type": "boolean"
+    },
+    "scoped": {
+      "type": "boolean"
+    },
+    "prompt_version": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "setting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "type",
+        "description",
+        "example"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "enum": [
+            "string",
+            "integer",
+            "number",
+            "boolean",
+            "enum",
+            "path"
+          ]
+        },
+        "values": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "multi": {
+          "type": "boolean"
+        },
+        "default": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "defaults": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        "default_text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "exclusiveMinimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        },
+        "exclusiveMaximum": {
+          "type": "number"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "example": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "if": {
+        "properties": {
+          "type": {
+            "const": "enum"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "values"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "values"
+          ]
+        }
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "default",
+              "defaults"
+            ]
+          },
+          {
+            "required": [
+              "default",
+              "default_text"
+            ]
+          },
+          {
+            "required": [
+              "defaults",
+              "default_text"
+            ]
+          }
+        ]
+      }
+    },
+    "path": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_-]*(\\.[A-Za-z0-9_-]+)*$"
+    },
+    "nonEmpty": {
+      "type": "string",
+      "minLength": 1
+    },
+    "condition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "has"
+          ],
+          "properties": {
+            "has": {
+              "$ref": "#/$defs/path"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "is"
+          ],
+          "properties": {
+            "path": {
+              "$ref": "#/$defs/path"
+            },
+            "is": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "left",
+            "op",
+            "right"
+          ],
+          "properties": {
+            "left": {
+              "$ref": "#/$defs/path"
+            },
+            "op": {
+              "enum": [
+                "gt",
+                "lt",
+                "eq"
+              ]
+            },
+            "right": {
+              "$ref": "#/$defs/path"
+            }
+          }
+        }
+      ]
+    },
+    "variant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "when": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/condition"
+          }
+        },
+        "text": {
+          "type": "string",
+          "pattern": "^(?:[^{}]|\\{[A-Za-z_][A-Za-z0-9_-]*(?:\\.[A-Za-z0-9_-]+)*(?:\\|(?:short|num|whole|percent|plural:[^:{}|]*:[^:{}|]*))?\\})*$"
+        }
+      }
+    },
+    "sentence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requires",
+        "parts"
+      ],
+      "properties": {
+        "requires": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/path"
+          }
+        },
+        "parts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/$defs/variant"
+            }
+          }
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "group",
+        "help",
+        "sentence"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*(\\.([a-z0-9_-]+|<[a-z][a-z0-9_]*>))*$"
+        },
+        "group": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "means",
+            "todo"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "means": {
+              "type": "string",
+              "minLength": 1
+            },
+            "todo": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "help": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sentence": {
+          "$ref": "#/$defs/sentence"
+        }
+      }
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "label",
+        "help",
+        "type",
+        "granularity",
+        "bad"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "help": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "enum": [
+            "ratio",
+            "count",
+            "number",
+            "boolean"
+          ]
+        },
+        "granularity": {
+          "enum": [
+            "module",
+            "member"
+          ]
+        },
+        "bad": {
+          "enum": [
+            "high",
+            "low"
+          ]
+        },
+        "published": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "source"
+          ],
+          "properties": {
+            "value": {
+              "type": "number"
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "language": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "extensions",
+        "files",
+        "skip"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "maxLength": 64
+        },
+        "extensions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^\\.[^/]+$"
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "skip": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directory_names",
+            "directory_prefixes",
+            "directory_suffixes",
+            "directory_markers",
+            "file_globs"
+          ],
+          "properties": {
+            "directory_names": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "directory_prefixes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "directory_suffixes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "directory_markers": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "file_globs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "long_running": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": [
+            "time_limit_seconds"
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "time_limit_seconds"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "scanner"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "languages"
+        ],
+        "properties": {
+          "metrics": false,
+          "findings": false,
+          "runs_tests": false,
+          "scoped": false,
+          "prompt_version": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "sensor"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "metrics",
+          "findings",
+          "runs_tests",
+          "scoped"
+        ],
+        "properties": {
+          "languages": false,
+          "prompt_version": false
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "describer"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "prompt_version"
+        ],
+        "properties": {
+          "languages": false,
+          "metrics": false,
+          "findings": false,
+          "runs_tests": false,
+          "scoped": false
+        }
+      }
+    }
+  ]
+}

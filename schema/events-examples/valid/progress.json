@@ -1,0 +1,6 @@
+{
+  "event": "progress",
+  "done": 10,
+  "total": 120,
+  "unit": "files"
+}
