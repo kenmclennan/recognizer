@@ -12,8 +12,37 @@ import { readShippedSensors } from "./shipped-sensors.js";
 
 const USAGE = [
   "usage: recognizer sensors [--json]",
-  "       recognizer sensors check [name] [--run] [--json] [--repository <dir>]",
+  "       recognizer sensors check [name] [--run] [--work] [--modules <file>] [--suites <file>] [--json] [--repository <dir>]",
 ];
+
+function suitesText(io: Io, file: string): string {
+  let text: string;
+
+  try {
+    text = io.readFile(resolve(file));
+  } catch (error) {
+    throw new InputError([
+      `cannot read --suites file ${file}: ${(error as Error).message}`,
+    ]);
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(text);
+
+    if (
+      !Array.isArray(parsed) ||
+      parsed.some((name) => typeof name !== "string" || name === "")
+    ) {
+      throw new Error("not an array of suite names");
+    }
+
+    return JSON.stringify(parsed);
+  } catch (error) {
+    throw new InputError([
+      `--suites file must be a JSON array of suite names: ${(error as Error).message}`,
+    ]);
+  }
+}
 
 export function runSensors(argv: string[], io: Io): number {
   const { values, positionals } = parseArgs({
@@ -23,6 +52,9 @@ export function runSensors(argv: string[], io: Io): number {
     options: {
       json: { type: "boolean" },
       run: { type: "boolean" },
+      work: { type: "boolean" },
+      modules: { type: "string" },
+      suites: { type: "string" },
       repository: { type: "string" },
     },
   });
@@ -32,18 +64,29 @@ export function runSensors(argv: string[], io: Io): number {
     throw new InputError(USAGE);
   }
 
-  if (verb === undefined && (values.run === true || values.repository)) {
+  if (
+    verb === undefined &&
+    (values.run === true ||
+      values.work === true ||
+      values.modules !== undefined ||
+      values.suites !== undefined ||
+      values.repository)
+  ) {
     throw new InputError(USAGE);
   }
 
   if (verb === "check") {
     const root = resolve(values.repository ?? ".");
-    const reports = checkSensors(
-      io,
-      root,
-      sensorsToCheck(io, root, name),
-      values.run === true,
-    );
+    const reports = checkSensors(io, root, sensorsToCheck(io, root, name), {
+      run: values.run === true,
+      work: values.work === true,
+      ...(values.modules === undefined
+        ? {}
+        : { modules: resolve(values.modules) }),
+      ...(values.suites === undefined
+        ? {}
+        : { suites: suitesText(io, values.suites) }),
+    });
 
     io.stdout(values.json === true ? reportJson(reports) : reportText(reports));
 

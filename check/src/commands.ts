@@ -743,7 +743,7 @@ export const COMMANDS: Command[] = [
     summary:
       "list the shipped sensors, with what each judges, and check their readiness",
     usage:
-      "recognizer sensors [--json]\nrecognizer sensors check [name] [--run] [--json] [--repository <dir>]",
+      "recognizer sensors [--json]\nrecognizer sensors check [name] [--run] [--work] [--modules <file>] [--suites <file>] [--json] [--repository <dir>]",
     arguments: [
       {
         name: "check [name]",
@@ -759,6 +759,21 @@ export const COMMANDS: Command[] = [
           "with check: also run each ready suite once and confirm its coverage report appears and parses",
       },
       {
+        flag: "--work",
+        description:
+          "with check: also ask a sensor that can say how much a run would do to count it from its own record, reading files and running no test",
+      },
+      {
+        flag: "--modules <file>",
+        description:
+          "with check: a JSON file holding an array of module ids; the work is counted for those modules only",
+      },
+      {
+        flag: "--suites <file>",
+        description:
+          "with check: a JSON file holding an array of suite names; a test-running sensor counts only those suites",
+      },
+      {
         flag: "--repository <dir>",
         description:
           "with check: the repository to check; default the current directory",
@@ -766,7 +781,7 @@ export const COMMANDS: Command[] = [
     ],
     output: {
       text: "one `<name>  <description>` line per shipped sensor; with check, one block per sensor: `<name>: ready`, or `<name>: N gaps` followed by one indented sentence per gap",
-      json: "[{ name, display, description, expansion, runs_tests, scoped, listed, metrics, findings, settings }], read from each sensor's manifest; with check, { ready, sensors: [{ name, ready, gaps: [{ code, suite, line }], notes: [{ code, suite, line }] }] }",
+      json: "[{ name, display, description, expansion, runs_tests, scoped, listed, metrics, findings, settings }], read from each sensor's manifest; with check, { ready, sensors: [{ name, ready, gaps: [{ code, suite, line }], notes: [{ code, suite, line }], work?: { unit, to_perform, reusable } }] }",
     },
     exitCodes: [
       { code: 0, meaning: "the list was printed, or every sensor is ready" },
@@ -1371,7 +1386,7 @@ export const COMMANDS: Command[] = [
     ],
     output: {
       text: "the list is one line per run, newest first: `<id>  <kind>  <started>  <outcome>  <n> ok, <n> failed`, or `no runs recorded`; a single run prints a header (id, kind, started, finished, by, arguments, outcome), then per scanner, sensor or module its outcome, exit status, duration, command, reason and stderr; a record that cannot be read is named on stderr as `skipped <id>: <message>`",
-      json: "the list is { runs: [{ id, kind, started, finished, by, outcome, entries, failed }] }; a single run is { id, log_version, kind, started, finished, by, arguments, outcome, exit, structure_ms?, entries: [{ name, command, status, outcome, duration_ms, modules?, fixed_ms?, incomplete?, reason?, diagnosis?, stderr, stderr_truncated? }] } or phases: [{ phase, entries, duration_ms? }] for a scan, where diagnosis is the sensor's Diagnosis object when the entry has one",
+      json: "the list is { runs: [{ id, kind, started, finished, by, outcome, entries, failed }] }; a single run is { id, log_version, kind, started, finished, by, arguments, outcome, exit, structure_ms?, entries: [{ name, command, status, outcome, duration_ms, modules?, fixed_ms?, incomplete?, work?: { unit, performed }, reason?, diagnosis?, stderr, stderr_truncated? }] } or phases: [{ phase, entries, duration_ms? }] for a scan, where diagnosis is the sensor's Diagnosis object when the entry has one",
     },
     exitCodes: [
       {

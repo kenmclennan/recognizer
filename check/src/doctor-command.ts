@@ -87,7 +87,7 @@ export function runDoctor(argv: string[], io: Io): number {
     scans: () => cachedScansState(io, root, languages),
     scanner: (spec) => scannerAvailability(io, spec),
     sensorReports: (sensors) =>
-      sensors.map((sensor) => checkSensor(io, root, sensor, false)),
+      sensors.map((sensor) => checkSensor(io, root, sensor, {})),
   };
   const report = buildReport(facts);
 

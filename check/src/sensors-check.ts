@@ -19,12 +19,26 @@ export interface SensorGap {
 
 export type SensorNote = SensorGap;
 
+export interface SensorWork {
+  unit: string;
+  to_perform: number;
+  reusable: number;
+}
+
 export interface SensorReport {
   name: string;
   ready: boolean;
   checked: boolean;
   gaps: SensorGap[];
   notes: SensorNote[];
+  work?: SensorWork;
+}
+
+export interface CheckOptions {
+  run?: boolean;
+  work?: boolean;
+  modules?: string;
+  suites?: string;
 }
 
 export interface CheckableSensor {
@@ -66,9 +80,32 @@ function entries(value: unknown): SensorGap[] | null {
     : null;
 }
 
+function isCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function workOf(value: unknown): SensorWork | undefined {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  const work = value as Record<string, unknown>;
+
+  return typeof work.unit === "string" &&
+    work.unit !== "" &&
+    isCount(work.to_perform) &&
+    isCount(work.reusable)
+    ? {
+        unit: work.unit,
+        to_perform: work.to_perform,
+        reusable: work.reusable,
+      }
+    : undefined;
+}
+
 function parseAnswer(
   stdout: string,
-): { gaps: SensorGap[]; notes: SensorNote[] } | null {
+): { gaps: SensorGap[]; notes: SensorNote[]; work?: SensorWork } | null {
   const last = stdout
     .split("\n")
     .map((line) => line.trim())
@@ -80,11 +117,18 @@ function parseAnswer(
   }
 
   try {
-    const parsed = JSON.parse(last) as { gaps?: unknown; notes?: unknown };
+    const parsed = JSON.parse(last) as {
+      gaps?: unknown;
+      notes?: unknown;
+      work?: unknown;
+    };
     const gaps = entries(parsed.gaps);
     const notes = parsed.notes === undefined ? [] : entries(parsed.notes);
+    const work = workOf(parsed.work);
 
-    return gaps === null || notes === null ? null : { gaps, notes };
+    return gaps === null || notes === null
+      ? null
+      : { gaps, notes, ...(work === undefined ? {} : { work }) };
   } catch {
     return null;
   }
@@ -122,6 +166,7 @@ export function checkArguments(
   command: string[],
   root: string,
   run: boolean,
+  options: Pick<CheckOptions, "work" | "modules" | "suites"> = {},
 ): string[] {
   const { prefix, rest } = afterRun(command);
 
@@ -130,6 +175,9 @@ export function checkArguments(
     "check",
     ...strippedArguments(rest, root, ["--suites"]),
     ...(run ? ["--run"] : []),
+    ...(options.work === true ? ["--work"] : []),
+    ...(options.modules === undefined ? [] : ["--modules", options.modules]),
+    ...(options.suites === undefined ? [] : ["--suites", options.suites]),
   ];
 }
 
@@ -188,9 +236,11 @@ export function checkSensor(
   io: Io,
   root: string,
   sensor: CheckableSensor,
-  run: boolean,
+  options: CheckOptions,
   read: ManifestReader = (prefix) => readManifestOf(io, prefix),
 ): SensorReport {
+  const run = options.run === true;
+
   if (!checkable(sensor.command)) {
     return {
       name: sensor.name,
@@ -217,10 +267,12 @@ export function checkSensor(
     };
   }
 
-  const [program, ...rest] = checkArguments(sensor.command, root, run) as [
-    string,
-    ...string[],
-  ];
+  const [program, ...rest] = checkArguments(
+    sensor.command,
+    root,
+    run,
+    options,
+  ) as [string, ...string[]];
   const result = io.run(program, rest, {
     cwd: root,
     ...(run ? {} : { timeoutMs: CHECK_TIMEOUT_MS }),
@@ -268,6 +320,7 @@ export function checkSensor(
     checked: true,
     gaps: answer.gaps,
     notes: answer.notes,
+    ...(answer.work === undefined ? {} : { work: answer.work }),
   };
 }
 
@@ -275,10 +328,10 @@ export function checkSensors(
   io: Io,
   root: string,
   sensors: CheckableSensor[],
-  run: boolean,
+  options: CheckOptions,
   read?: ManifestReader,
 ): SensorReport[] {
-  return sensors.map((sensor) => checkSensor(io, root, sensor, run, read));
+  return sensors.map((sensor) => checkSensor(io, root, sensor, options, read));
 }
 
 export function reportText(reports: SensorReport[]): string {
@@ -309,11 +362,12 @@ export function reportJson(reports: SensorReport[]): string {
   return `${JSON.stringify(
     {
       ready: reports.every((report) => report.ready),
-      sensors: reports.map(({ name, ready, gaps, notes }) => ({
+      sensors: reports.map(({ name, ready, gaps, notes, work }) => ({
         name,
         ready,
         gaps,
         notes,
+        ...(work === undefined ? {} : { work }),
       })),
     },
     null,
