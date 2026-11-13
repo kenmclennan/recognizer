@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { statSync, writeFileSync } from "node:fs";
+import { renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { ScanError } from "./errors.js";
 import { progressTo } from "./events.js";
 import { manifestText } from "./manifest.js";
@@ -13,11 +14,27 @@ export interface Io {
   writeFile: (path: string, text: string) => void;
 }
 
+export function writeAtomically(path: string, text: string): void {
+  const temporary = join(
+    dirname(path),
+    `.${basename(path)}.${process.pid}.tmp`,
+  );
+
+  try {
+    writeFileSync(temporary, text, "utf8");
+    renameSync(temporary, path);
+  } catch (error) {
+    rmSync(temporary, { force: true });
+
+    throw error;
+  }
+}
+
 export function nodeIo(): Io {
   return {
     stdout: (text) => process.stdout.write(text),
     stderr: (text) => process.stderr.write(text),
-    writeFile: (path, text) => writeFileSync(path, text, "utf8"),
+    writeFile: writeAtomically,
   };
 }
 

@@ -96,6 +96,22 @@ fn resolve_modified(root: &PathBuf) -> Option<bool> {
     git(root, &["status", "--porcelain", "--", ".", ":!.recognizer"]).map(|text| !text.is_empty())
 }
 
+fn write_atomically(path: &std::path::Path, text: &str) -> std::io::Result<()> {
+    let name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let temporary = path.with_file_name(format!(".{name}.{}.tmp", std::process::id()));
+
+    let written = std::fs::write(&temporary, text).and_then(|()| std::fs::rename(&temporary, path));
+
+    if written.is_err() {
+        let _ = std::fs::remove_file(&temporary);
+    }
+
+    written
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
@@ -175,7 +191,7 @@ fn main() -> ExitCode {
 
     match arguments.output {
         Some(path) => {
-            if let Err(error) = std::fs::write(&path, text) {
+            if let Err(error) = write_atomically(&path, &text) {
                 eprintln!("could not write {}: {error}", path.display());
                 return ExitCode::from(2);
             }
