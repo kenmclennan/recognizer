@@ -14,7 +14,7 @@ from recognizer_scan_python.infer import (
     stored_attributes,
     untyped_parameters,
 )
-from recognizer_scan_python.outline import is_accessor_pair, is_static
+from recognizer_scan_python.outline import is_accessor_pair, is_static, recorded_statements
 from recognizer_scan_python.routes import Router
 
 Function = ast.FunctionDef | ast.AsyncFunctionDef
@@ -126,7 +126,7 @@ class CallResolver:
         self.class_nodes = {
             (m, n.name): n
             for m, p in parsed.items()
-            for n in p.tree.body
+            for n, _ in recorded_statements(p.tree)
             if isinstance(n, ast.ClassDef)
         }
         self.holders = {key: Holders() for key in self.classes}
@@ -466,7 +466,7 @@ class CallResolver:
         for module_id in sorted(self.usable):
             tree = self.parsed[module_id].tree
 
-            for node in tree.body:
+            for node, _ in recorded_statements(tree):
                 if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
                     context = self.context_for(node, module_id, None)
                     self.calls_in(node, f"{module_id}::{node.name}", context, found)
