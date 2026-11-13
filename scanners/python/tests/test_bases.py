@@ -118,3 +118,56 @@ def test_two_project_bases_give_two_edges(run):
     )
 
     assert [(e[1], e[5]) for e in bases(document, "m.py")] == [("a.py", "A"), ("b.py", "B")]
+
+
+def test_block_level_class_inherits_project_class(run):
+    document = run(
+        {
+            "a.py": "class A: ...\n",
+            "b.py": "from a import A\nimport sys\nif sys.version_info:\n    class B(A): ...\n",
+        }
+    )
+
+    assert bases(document, "b.py") == [("b.py", "a.py", "inherits", 4, "B", "A")]
+
+
+def test_block_level_protocol_is_an_abstraction(run):
+    document = run(
+        {
+            "s.py": (
+                "from typing import Protocol\nimport sys\n"
+                "if sys.version_info:\n    class Store(Protocol): ...\n"
+            ),
+            "b.py": "from s import Store\nclass B(Store): ...\n",
+        }
+    )
+
+    assert bases(document, "b.py") == [("b.py", "s.py", "implements", 2, "B", "Store")]
+
+
+def test_class_defined_in_two_branches_yields_the_first_edge_only(run):
+    document = run(
+        {
+            "a.py": "class A: ...\n",
+            "b.py": (
+                "from a import A\ntry:\n    class B(A): ...\n"
+                "except ImportError:\n    class B(A): ...\n"
+            ),
+        }
+    )
+
+    assert bases(document, "b.py") == [("b.py", "a.py", "inherits", 3, "B", "A")]
+
+
+def test_block_level_class_shadowed_by_top_level_yields_the_top_level_edge(run):
+    document = run(
+        {
+            "a.py": "class A: ...\n",
+            "b.py": (
+                "from a import A\nimport sys\nif sys.version_info:\n    class B(A): ...\n"
+                "class B(A): ...\n"
+            ),
+        }
+    )
+
+    assert bases(document, "b.py") == [("b.py", "a.py", "inherits", 5, "B", "A")]
