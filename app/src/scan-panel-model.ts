@@ -496,6 +496,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
         sensors.find((one) => one.name === row.key)?.runsTests === true,
       scoped: sensors.find((one) => one.name === row.key)?.scoped === true,
     })),
+    input.work ?? {},
   );
   const planned: PlannedRun = { ...unplanned, frozen: frozenFigures(parts) };
   const plain = sensors

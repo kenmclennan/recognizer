@@ -1,12 +1,13 @@
 import { validateRunRecord } from "recognizer";
 import { STRUCTURE_KEY } from "./freshness-model";
-import { DESCRIBE_KEY, type PlannedRun } from "./scan-freshness";
+import { DESCRIBE_KEY, MUTATION_KEY, type PlannedRun } from "./scan-freshness";
 import type { ScanProgress } from "./scan-progress";
 
 export type SenseSample = {
   durationMs: number;
   modules: number;
   fixedMs: number | undefined;
+  work?: { unit: string; performed: number } | undefined;
 };
 
 export type PlannedWork = { unit: string; to_perform: number };
@@ -115,6 +116,7 @@ export function scanHistory(
     extractMs: null,
     describe: [],
     sense: {},
+    lastRun: null,
   };
 
   for (const file of ordered) {
@@ -129,6 +131,8 @@ export function scanHistory(
     if (record.kind !== "scan" || record.outcome === "running") {
       continue;
     }
+
+    history.lastRun ??= file.name;
 
     if (history.structureMs === null && record.structure_ms !== undefined) {
       history.structureMs = record.structure_ms;
@@ -181,6 +185,7 @@ export function scanHistory(
           durationMs: entry.duration_ms,
           modules: entry.modules,
           fixedMs: entry.fixed_ms,
+          ...(entry.work === undefined ? {} : { work: entry.work }),
         });
       }
     }
@@ -208,11 +213,60 @@ function secondsText(ms: number): string {
     : String(Math.round(seconds * 10) / 10);
 }
 
+const NOTHING_TO_MEASURE =
+  "nothing to measure; the baseline and coverage runs only";
+
+function workFigure(
+  samples: SenseSample[],
+  work: PlannedWork | null,
+): { ms: number; basis: string } | null {
+  const fixedFrom = samples.find((one) => one.fixedMs !== undefined);
+
+  if (work === null || fixedFrom === undefined) {
+    return null;
+  }
+
+  const fixed = fixedFrom.fixedMs as number;
+
+  if (work.to_perform === 0) {
+    return { ms: fixed, basis: NOTHING_TO_MEASURE };
+  }
+
+  const rates = samples
+    .filter(
+      (one) =>
+        one.fixedMs !== undefined &&
+        one.work !== undefined &&
+        one.work.unit === work.unit &&
+        one.work.performed > 0,
+    )
+    .slice(0, RECENT)
+    .map(
+      (one) =>
+        Math.max(0, one.durationMs - (one.fixedMs as number)) /
+        (one.work as { performed: number }).performed,
+    );
+
+  if (rates.length === 0) {
+    return null;
+  }
+
+  return {
+    ms: fixed + work.to_perform * median(rates),
+    basis: `${plural(work.to_perform, "function")} at recent pace`,
+  };
+}
+
 function senseFigure(
   samples: SenseSample[],
   spec: PartSpec,
   n: number,
+  work: PlannedWork | null,
 ): { ms: number; basis: string } | null {
+  if (spec.key === MUTATION_KEY || work !== null) {
+    return workFigure(samples, work);
+  }
+
   const recent = samples
     .filter((one) => !spec.runsTests || one.fixedMs !== undefined)
     .slice(0, RECENT);
@@ -244,6 +298,7 @@ export function estimateParts(
   history: ScanHistory,
   planned: PlannedRun,
   rows: readonly PartSpec[],
+  work: Readonly<Record<string, PlannedWork>> = {},
 ): EstimatePart[] {
   const parts: EstimatePart[] = [];
 
@@ -292,7 +347,12 @@ export function estimateParts(
       continue;
     }
 
-    const figure = senseFigure(history.sense[key] ?? [], spec, n);
+    const figure = senseFigure(
+      history.sense[key] ?? [],
+      spec,
+      n,
+      work[key] ?? null,
+    );
 
     parts.push(
       figure === null
