@@ -128,6 +128,20 @@ const openLegend = (m) => click(m.all("button").find((b) => b.textContent === "L
     bodyText: change.host.textContent.includes("proposed"),
   };
 
+  const unreadable = mount({ chg: make({ change: { base: "main", head: "feat" } }) });
+  unreadable.port.ranges.set("main..feat", {
+    baseCommit: "base999",
+    headCommit: "feed01",
+    merged: false,
+    changes: [{ status: "M", path: "p/a.py" }, { status: "D", path: "p/gone.py" }],
+  });
+  unreadable.port.reasons.set("base999", "config is broken");
+  await tick();
+  click(unreadable.q(".view-list"));
+  click(unreadable.q(".view-item"));
+  await tick(80);
+  facts.unreadable = { footer: unreadable.state.count };
+
   const gone = mount({ gone: make({ change: { base: "main", head: "ghost" } }) });
   gone.port.ranges.set("main..ghost", { baseCommit: "base999", headCommit: null, merged: false, changes: [] });
   await tick();
@@ -222,6 +236,7 @@ type Facts = {
     footer: string;
     bodyText: boolean;
   };
+  unreadable: { footer: string };
   headGone: {
     boxes: string[];
     footer: string;
@@ -317,6 +332,13 @@ describe.skipIf(webkit === undefined)("change views in a real browser", () => {
     expect(f.change.footer).toContain("diffed against main..feat just now");
     expect(f.change.footer).toContain("1 changed files matched no module");
     expect(f.change.bodyText).toBe(false);
+  });
+
+  it("says why removed modules could not be marked when the base scan failed, and not when it succeeded", () => {
+    expect(f.unreadable.footer).toContain(
+      "removed modules could not be marked: config is broken",
+    );
+    expect(f.change.footer).not.toContain("could not be marked");
   });
 
   it("lands the marks, footer line, chip and legend entries when a change view is opened by link", () => {

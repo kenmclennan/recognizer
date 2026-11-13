@@ -435,30 +435,75 @@ pub fn sweep_stale_temp_dirs() {
     sweep_stale(&std::env::temp_dir(), STALE_TEMP);
 }
 
+fn short(commit: &str) -> String {
+    commit.chars().take(7).collect()
+}
+
+fn failure_reason(report: ScanReport, commit: &str) -> String {
+    match report {
+        ScanReport::CommandMissing { hint } => hint,
+        ScanReport::ScanFailed { exit_code, stderr } => {
+            let first = repository::strip_escapes(&stderr)
+                .trim()
+                .lines()
+                .next()
+                .unwrap_or("")
+                .trim()
+                .to_string();
+
+            if first.is_empty() {
+                format!("recognizer exited {exit_code}")
+            } else {
+                first
+            }
+        }
+        ScanReport::Scanned { .. } => {
+            format!("the scan found no modules at {}", short(commit))
+        }
+    }
+}
+
+fn historical_scan(
+    temp: &Path,
+    commit: &str,
+    runner: &ToolRunner,
+    command: &str,
+) -> Result<Vec<ScanFile>, String> {
+    match repository::scan_with(runner, temp, command, true) {
+        ScanReport::Scanned { scans, .. } if !scans.is_empty() => Ok(scans),
+        other => Err(failure_reason(other, commit)),
+    }
+}
+
+fn not_a_commit(reference: &str) -> String {
+    format!("not a commit in this repository: {reference}")
+}
+
+fn scratch_folder(root: &Path) -> Result<TempScan, String> {
+    TempScan::create(root).ok_or_else(|| "could not make a scratch folder".to_string())
+}
+
 pub fn scans_in(
     root: &Path,
     folder: &Path,
     commit: &str,
     runner: &ToolRunner,
     command: &str,
-) -> Option<Vec<ScanFile>> {
+) -> Result<Vec<ScanFile>, String> {
     if !valid_commit(commit) {
-        return None;
+        return Err(not_a_commit(commit));
     }
 
-    let temp = TempScan::create(root)?;
+    let temp = scratch_folder(root)?;
 
     if !extract_commit(folder, commit, &temp.0) {
-        return None;
+        return Err(format!("git could not extract {}", short(commit)));
     }
 
-    match repository::scan_with(runner, &temp.0, command) {
-        ScanReport::Scanned { scans, .. } if !scans.is_empty() => Some(scans),
-        _ => None,
-    }
+    historical_scan(&temp.0, commit, runner, command)
 }
 
-type Comparison<T = Vec<ScanFile>> = Option<T>;
+type Comparison<T = Vec<ScanFile>> = Result<T, String>;
 
 pub struct Memoised<T: Clone = Vec<ScanFile>> {
     flights: Flights<Comparison<T>>,
@@ -483,7 +528,7 @@ impl<T: Clone> Memoised<T> {
 
         memo.retain(|(_, at, found)| {
             at.elapsed()
-                < if found.is_some() {
+                < if found.is_ok() {
                     MEMO_FOUND
                 } else {
                     MEMO_EMPTY
@@ -549,12 +594,18 @@ impl Memoised<RangeMembers> {
         runner: &ToolRunner,
         command: &str,
     ) -> Comparison<RangeMembers> {
-        if !valid_ref(base) || !valid_ref(head) {
-            return None;
-        }
+        let resolved = |reference: &str| {
+            if !valid_ref(reference) {
+                return Err(not_a_commit(reference));
+            }
 
-        let base_commit = resolve_ref(folder, base).ok()??;
-        let head_commit = resolve_ref(folder, head).ok()??;
+            resolve_ref(folder, reference)
+                .ok()
+                .flatten()
+                .ok_or_else(|| not_a_commit(reference))
+        };
+        let base_commit = resolved(base)?;
+        let head_commit = resolved(head)?;
         let key = format!(
             "{}\0{base_commit}\0{head_commit}\0members",
             folder.display()
@@ -601,17 +652,14 @@ fn scan_paths_at(
     paths: &[String],
     runner: &ToolRunner,
     command: &str,
-) -> Option<Vec<ScanFile>> {
-    let temp = TempScan::create(root)?;
+) -> Result<Vec<ScanFile>, String> {
+    let temp = scratch_folder(root)?;
 
     if !extract_paths(folder, commit, &temp.0, paths) {
-        return None;
+        return Err(format!("git could not extract {}", short(commit)));
     }
 
-    match repository::scan_with(runner, &temp.0, command) {
-        ScanReport::Scanned { scans, .. } if !scans.is_empty() => Some(scans),
-        _ => None,
-    }
+    historical_scan(&temp.0, commit, runner, command)
 }
 
 pub fn members_in(
@@ -621,7 +669,7 @@ pub fn members_in(
     head: &str,
     runner: &ToolRunner,
     command: &str,
-) -> Option<RangeMembers> {
+) -> Result<RangeMembers, String> {
     let diff = git_in(
         folder,
         &[
@@ -632,15 +680,23 @@ pub fn members_in(
             &format!("{base}...{head}"),
         ],
     )
-    .filter(|output| output.status.success())?;
+    .filter(|output| output.status.success())
+    .ok_or_else(|| format!("git could not diff {base}...{head}"))?;
     let paths: Vec<String> = parse_name_status(&String::from_utf8_lossy(&diff.stdout))
         .into_iter()
         .filter(|change| change.status == "M")
         .map(|change| change.path)
         .collect();
 
-    if paths.is_empty() || paths.len() > MEMBER_FILE_LIMIT {
-        return None;
+    if paths.is_empty() {
+        return Err("no modified files in this range".to_string());
+    }
+
+    if paths.len() > MEMBER_FILE_LIMIT {
+        return Err(format!(
+            "{} modified files, over the limit of {MEMBER_FILE_LIMIT}",
+            paths.len()
+        ));
     }
 
     let base_scans = scan_paths_at(root, folder, base, &paths, runner, command)?;
@@ -654,14 +710,14 @@ pub fn members_in(
         })
         .collect();
 
-    Some(RangeMembers {
+    Ok(RangeMembers {
         base_scans,
         head_scans,
         files,
     })
 }
 
-pub fn range_members(folder: &Path, base: &str, head: &str) -> Option<RangeMembers> {
+pub fn range_members(folder: &Path, base: &str, head: &str) -> Result<RangeMembers, String> {
     static RANGES: OnceLock<MemberRanges> = OnceLock::new();
 
     RANGES.get_or_init(MemberRanges::default).members(
@@ -674,7 +730,7 @@ pub fn range_members(folder: &Path, base: &str, head: &str) -> Option<RangeMembe
     )
 }
 
-pub fn scans_at(folder: &Path, commit: &str) -> Option<Vec<ScanFile>> {
+pub fn scans_at(folder: &Path, commit: &str) -> Result<Vec<ScanFile>, String> {
     static COMPARISONS: OnceLock<Comparisons> = OnceLock::new();
 
     COMPARISONS.get_or_init(Comparisons::default).scans(
@@ -1019,18 +1075,26 @@ mod tests {
         let runner = working_runner(tools.path());
         let temp = TempDir::new().unwrap();
         let modules = |commit: &str| -> Option<usize> {
-            scans_in(temp.path(), root, commit, &runner, &command).map(|scans| {
-                scans
-                    .iter()
-                    .map(|scan| scan.text.matches("\"id\"").count())
-                    .sum()
-            })
+            scans_in(temp.path(), root, commit, &runner, &command)
+                .ok()
+                .map(|scans| {
+                    scans
+                        .iter()
+                        .map(|scan| scan.text.matches("\"id\"").count())
+                        .sum()
+                })
         };
 
         assert_eq!(modules(&first), Some(2));
         assert_eq!(modules(&second), Some(3));
-        assert!(scans_in(temp.path(), root, "--output=x", &runner, &command).is_none());
-        assert!(scans_in(temp.path(), root, "deadbeefdeadbeef", &runner, &command).is_none());
+        assert_eq!(
+            scans_in(temp.path(), root, "--output=x", &runner, &command),
+            Err("not a commit in this repository: --output=x".to_string())
+        );
+        assert_eq!(
+            scans_in(temp.path(), root, "deadbeefdeadbeef", &runner, &command),
+            Err("git could not extract deadbee".to_string())
+        );
         assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
     }
 
@@ -1111,7 +1175,7 @@ mod tests {
 
         let (peak, starts) = peak_overlap(&log);
 
-        assert!(found.iter().all(Option::is_some));
+        assert!(found.iter().all(Result::is_ok));
         assert_eq!(starts, 24);
         assert!(peak <= 3, "peak {peak}");
         assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
@@ -1224,19 +1288,27 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let memo = Memoised::<RangeMembers>::default();
 
-        assert!(memo
-            .members(temp.path(), &root, "--output=x", "feat", &runner, &command)
-            .is_none());
-        assert!(memo
-            .members(temp.path(), &root, "main", "--output=x", &runner, &command)
-            .is_none());
+        assert_eq!(
+            memo.members(temp.path(), &root, "--output=x", "feat", &runner, &command),
+            Err("not a commit in this repository: --output=x".to_string())
+        );
+        assert_eq!(
+            memo.members(temp.path(), &root, "main", "--output=x", &runner, &command),
+            Err("not a commit in this repository: --output=x".to_string())
+        );
         assert!(!root.join("x").exists());
 
         let other = TempDir::new().unwrap();
         let many = range_repository(other.path(), MEMBER_FILE_LIMIT + 1);
         let found = memo.members(temp.path(), &many, "main", "feat", &runner, &command);
 
-        assert!(found.is_none());
+        assert_eq!(
+            found,
+            Err(format!(
+                "{} modified files, over the limit of 200",
+                MEMBER_FILE_LIMIT + 1
+            ))
+        );
         assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
     }
 
@@ -1266,7 +1338,7 @@ mod tests {
                 .collect()
         });
 
-        assert!(found[0].is_some());
+        assert!(found[0].is_ok());
         assert!(found.iter().all(|one| one == &found[0]));
         assert_eq!(peak_overlap(&log).1, 1);
 
@@ -1287,7 +1359,10 @@ mod tests {
         let runner = working_runner(tools.path());
         let temp = TempDir::new().unwrap();
 
-        assert!(scans_in(temp.path(), &root, &commits[0], &runner, &command).is_none());
+        assert_eq!(
+            scans_in(temp.path(), &root, &commits[0], &runner, &command),
+            Err("recognizer exited 2".to_string())
+        );
         assert_eq!(peak_overlap(&log).1, 1);
         assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
     }
@@ -1494,5 +1569,184 @@ mod tests {
             assert!(remove_view(dir.path(), "link").is_err());
             assert!(target.exists());
         }
+    }
+
+    fn strict_scanner(dir: &Path) -> String {
+        crate::tool_runner::tests::script(
+            dir,
+            "strict-recognizer",
+            "for a in \"$@\"; do [ \"$a\" = \"--ignore-retired-config\" ] && ok=1; done\n[ -n \"$ok\" ] || { printf 'config/sensors/structure/hub was removed: x\\nsecond line\\n' >&2; exit 2; }\nmkdir -p \"$2/.recognizer/cache\"\nprintf '{\"id\":1}' > \"$2/.recognizer/cache/scan.stub.json\"",
+        )
+        .display()
+        .to_string()
+    }
+
+    fn failing_on(dir: &Path, log: &Path, text: &str) -> String {
+        crate::tool_runner::tests::script(
+            dir,
+            "failing-on-recognizer",
+            &format!(
+                "echo start >> '{log}'\nif grep -q '{text}' \"$2\"/pkg/keep0.py; then echo 'config is broken' >&2; exit 2; fi\nmkdir -p \"$2/.recognizer/cache\"\nprintf '{{\"id\":1}}' > \"$2/.recognizer/cache/scan.stub.json\"",
+                log = log.display()
+            ),
+        )
+        .display()
+        .to_string()
+    }
+
+    #[test]
+    fn both_historical_scans_pass_the_flag_a_plain_scan_does_not() {
+        let dir = TempDir::new().unwrap();
+        let root = range_repository(dir.path(), 1);
+        let command = strict_scanner(dir.path());
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let temp = TempDir::new().unwrap();
+        let commit = head(&root);
+
+        assert!(scans_in(temp.path(), &root, &commit, &runner, &command).is_ok());
+        assert!(Memoised::<RangeMembers>::default()
+            .members(temp.path(), &root, "main", "feat", &runner, &command)
+            .is_ok());
+
+        let plain = TempDir::new().unwrap();
+
+        match repository::scan_with(&runner, plain.path(), &command, false) {
+            ScanReport::ScanFailed { exit_code, .. } => assert_eq!(exit_code, 2),
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn a_failed_scan_reason_is_the_first_stderr_line() {
+        let dir = TempDir::new().unwrap();
+        let root = range_repository(dir.path(), 1);
+        let command = crate::tool_runner::tests::script(
+            dir.path(),
+            "refusing-recognizer",
+            "printf '\\033[31mconfig/sensors/duplication was removed: gone\\033[0m\\nmore\\n' >&2; exit 2",
+        )
+        .display()
+        .to_string();
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let temp = TempDir::new().unwrap();
+        let reason = "config/sensors/duplication was removed: gone".to_string();
+
+        assert_eq!(
+            scans_in(temp.path(), &root, &head(&root), &runner, &command),
+            Err(reason.clone())
+        );
+        assert_eq!(
+            Memoised::<RangeMembers>::default().members(
+                temp.path(),
+                &root,
+                "main",
+                "feat",
+                &runner,
+                &command
+            ),
+            Err(reason)
+        );
+    }
+
+    #[test]
+    fn a_scan_with_no_modules_and_a_missing_command_each_give_their_reason() {
+        let dir = TempDir::new().unwrap();
+        let root = range_repository(dir.path(), 1);
+        let silent = crate::tool_runner::tests::script(dir.path(), "silent-recognizer", "exit 0")
+            .display()
+            .to_string();
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let temp = TempDir::new().unwrap();
+        let commit = head(&root);
+
+        assert_eq!(
+            scans_in(temp.path(), &root, &commit, &runner, &silent),
+            Err(format!("the scan found no modules at {}", &commit[..7]))
+        );
+
+        let missing = scans_in(
+            temp.path(),
+            &root,
+            &commit,
+            &runner,
+            "/nonexistent/recognizer",
+        );
+
+        assert!(!missing.unwrap_err().is_empty());
+    }
+
+    #[test]
+    fn a_range_with_no_modified_files_gives_its_reason() {
+        let dir = TempDir::new().unwrap();
+        let root = range_repository(dir.path(), 0);
+        let command = stub_scanner(dir.path()).display().to_string();
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let temp = TempDir::new().unwrap();
+
+        assert_eq!(
+            Memoised::<RangeMembers>::default().members(
+                temp.path(),
+                &root,
+                "main",
+                "feat",
+                &runner,
+                &command
+            ),
+            Err("no modified files in this range".to_string())
+        );
+    }
+
+    #[test]
+    fn a_failed_base_scan_is_the_reason_and_no_head_scan_is_attempted_and_the_reverse() {
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+
+        for (broken, expected_starts) in [("K = 1", 1), ("K = 2", 2)] {
+            let dir = TempDir::new().unwrap();
+            let root = range_repository(dir.path(), 1);
+            let log = dir.path().join("calls");
+            let command = failing_on(dir.path(), &log, broken);
+            let temp = TempDir::new().unwrap();
+            let memo = Memoised::<RangeMembers>::default();
+            let found = memo.members(temp.path(), &root, "main", "feat", &runner, &command);
+
+            assert_eq!(found, Err("config is broken".to_string()));
+            assert_eq!(
+                fs::read_to_string(&log).unwrap().lines().count(),
+                expected_starts
+            );
+
+            assert_eq!(
+                memo.members(temp.path(), &root, "main", "feat", &runner, &command),
+                found
+            );
+            assert_eq!(
+                fs::read_to_string(&log).unwrap().lines().count(),
+                expected_starts
+            );
+        }
+    }
+
+    #[test]
+    fn a_failed_comparison_keeps_its_reason_on_a_cache_hit() {
+        let dir = TempDir::new().unwrap();
+        let (root, commits) = history(dir.path(), 1);
+        let log = dir.path().join("log");
+        let command = logging_scanner(dir.path(), &log, 2);
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let temp = TempDir::new().unwrap();
+        let comparisons = Comparisons::default();
+        let first = comparisons.scans(temp.path(), &root, &commits[0], &runner, &command);
+        let second = comparisons.scans(temp.path(), &root, &commits[0], &runner, &command);
+
+        assert_eq!(first, Err("recognizer exited 2".to_string()));
+        assert_eq!(second, first);
+        assert_eq!(peak_overlap(&log).1, 1);
     }
 }

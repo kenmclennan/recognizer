@@ -1,6 +1,11 @@
 import { join } from "node:path";
 import type { Io } from "./cli.js";
-import { type Config, type ConfigRead, parseConfig } from "./config-parse.js";
+import {
+  type Config,
+  type ConfigOptions,
+  type ConfigRead,
+  parseConfig,
+} from "./config-parse.js";
 
 export type {
   Config,
@@ -23,6 +28,7 @@ export function readConfig(
   io: Io,
   root: string,
   read: ConfigRead,
+  options?: ConfigOptions,
 ): Config | null {
   const file = configFile(root);
 
@@ -30,5 +36,5 @@ export function readConfig(
     return null;
   }
 
-  return parseConfig(io.readFile(file), read);
+  return parseConfig(io.readFile(file), read, options);
 }

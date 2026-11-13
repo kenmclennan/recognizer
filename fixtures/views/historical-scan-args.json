@@ -1,0 +1,5 @@
+{
+  "folder": "/work/repo",
+  "historical": ["scan", "/work/repo", "--ignore-retired-config"],
+  "open_folder": ["scan", "/work/repo", "--json"]
+}

@@ -24,6 +24,10 @@ export type RangeMembers = {
   }[];
 };
 
+export type ReadOutcome<T> =
+  | { ok: true; value: T }
+  | { ok: false; reason: string };
+
 export type ViewsPort = {
   remove(name: string): Promise<void>;
   changeRange(base: string, head: string): Promise<ChangeRange | null>;
@@ -34,8 +38,8 @@ export type ViewsPort = {
   rename(from: string, to: string): Promise<void>;
   link(name: string): Promise<string>;
   renamesSince(commit: string): Promise<{ from: string; to: string }[]>;
-  scansAt(commit: string): Promise<Scan[] | null>;
-  rangeMembers(base: string, head: string): Promise<RangeMembers | null>;
+  scansAt(commit: string): Promise<ReadOutcome<Scan[]>>;
+  rangeMembers(base: string, head: string): Promise<ReadOutcome<RangeMembers>>;
   takePendingView(): Promise<string | null>;
   copy(text: string): Promise<void>;
   onChanged(run: () => void): () => void;
@@ -52,8 +56,8 @@ export const inertViews: ViewsPort = {
   rename: async () => {},
   link: async (name) => name,
   renamesSince: async () => [],
-  scansAt: async () => null,
-  rangeMembers: async () => null,
+  scansAt: async () => ({ ok: false, reason: "no repository is open" }),
+  rangeMembers: async () => ({ ok: false, reason: "no repository is open" }),
   takePendingView: async () => null,
   copy: async () => {},
   onChanged: () => () => {},

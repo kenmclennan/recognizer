@@ -22,33 +22,43 @@ export const viewsSource: ViewsPort = {
   renamesSince: (commit) =>
     invoke<{ from: string; to: string }[]>("renames_since", { commit }),
   async scansAt(commit) {
-    const files = await invoke<{ file: string; text: string }[] | null>(
-      "scans_at",
-      { commit },
-    );
+    const outcome = await invoke<
+      { Ok: { file: string; text: string }[] } | { Err: string }
+    >("scans_at", { commit });
 
-    return files === null
-      ? null
-      : files.map(({ text }) => JSON.parse(text) as Scan);
+    return "Err" in outcome
+      ? { ok: false, reason: outcome.Err }
+      : {
+          ok: true,
+          value: outcome.Ok.map(({ text }) => JSON.parse(text) as Scan),
+        };
   },
   async rangeMembers(base, head) {
-    const found = await invoke<{
-      base_scans: { file: string; text: string }[];
-      head_scans: { file: string; text: string }[];
-      files: RangeMembers["files"];
-    } | null>("range_members", { base, head });
+    const outcome = await invoke<
+      | {
+          Ok: {
+            base_scans: { file: string; text: string }[];
+            head_scans: { file: string; text: string }[];
+            files: RangeMembers["files"];
+          };
+        }
+      | { Err: string }
+    >("range_members", { base, head });
 
-    return found === null
-      ? null
-      : {
-          baseScans: found.base_scans.map(
-            ({ text }) => JSON.parse(text) as Scan,
-          ),
-          headScans: found.head_scans.map(
-            ({ text }) => JSON.parse(text) as Scan,
-          ),
-          files: found.files,
-        };
+    if ("Err" in outcome) {
+      return { ok: false, reason: outcome.Err };
+    }
+
+    const found = outcome.Ok;
+
+    return {
+      ok: true,
+      value: {
+        baseScans: found.base_scans.map(({ text }) => JSON.parse(text) as Scan),
+        headScans: found.head_scans.map(({ text }) => JSON.parse(text) as Scan),
+        files: found.files,
+      },
+    };
   },
   copy: (text) => navigator.clipboard.writeText(text),
   author: () => invoke<string>("view_author"),

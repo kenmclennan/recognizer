@@ -123,6 +123,7 @@ const facts = {};
 
   const unknownPort = fakeViews({ chg: make({ change: { base: "main", head: "feat" } }) });
   unknownPort.ranges.set("main..feat", { baseCommit: "cur1234", headCommit: "cur1234", merged: false, changes: [{ status: "M", path: ID }] });
+  unknownPort.reasons.set("main..feat", "config is broken");
   const unknown = mount({}, unknownPort);
   await tick();
   await inspect(unknown);
@@ -220,7 +221,7 @@ describe.skipIf(webkit === undefined)("member marks in a real browser", () => {
     expect(f.unknown.calls).toEqual(["main..feat"]);
     expect(f.unknown.bands).toBe(0);
     expect(f.unknown.notes).toEqual([
-      "Member marks could not be read for this range",
+      "Member marks could not be read for this range: config is broken",
     ]);
   });
 

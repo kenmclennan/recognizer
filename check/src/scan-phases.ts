@@ -6,7 +6,7 @@ import type { Diagnosis } from "./sensor-reason.js";
 import { receivesSuites, shippedCommand } from "./shipped-sensors.js";
 
 export const SCAN_USAGE =
-  "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--suites <file>] [--confirm-above <usd>] [--by <name>] [--json]";
+  "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--suites <file>] [--confirm-above <usd>] [--by <name>] [--ignore-retired-config] [--json]";
 
 export interface ScanOptions {
   positionals: string[];
@@ -18,6 +18,7 @@ export interface ScanOptions {
   modules: string | undefined;
   suites: string | undefined;
   confirmAbove: number | undefined;
+  ignoreRetiredConfig: boolean;
 }
 
 function usageError(message: string): InputError {
@@ -49,6 +50,7 @@ export function parseScanArgs(argv: string[]): ScanOptions {
     modules: undefined,
     suites: undefined,
     confirmAbove: undefined,
+    ignoreRetiredConfig: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -58,6 +60,8 @@ export function parseScanArgs(argv: string[]): ScanOptions {
       options.extract = true;
     } else if (arg === "--json") {
       options.json = true;
+    } else if (arg === "--ignore-retired-config") {
+      options.ignoreRetiredConfig = true;
     } else if (arg === "--describe") {
       options.describe = "stale";
     } else if (arg.startsWith("--describe=")) {
@@ -159,6 +163,15 @@ export function parseScanArgs(argv: string[]): ScanOptions {
 
   if (options.suites !== undefined && options.sense === null) {
     throw usageError("--suites needs --sense");
+  }
+
+  if (
+    options.ignoreRetiredConfig &&
+    (options.describe !== false || options.sense !== null)
+  ) {
+    throw new InputError([
+      "--ignore-retired-config takes no --describe or --sense",
+    ]);
   }
 
   return options;

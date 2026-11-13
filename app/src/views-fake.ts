@@ -16,6 +16,7 @@ export type FakeViews = ViewsPort & {
   ranges: Map<string, ChangeRange | null>;
   members: Map<string, RangeMembers | null>;
   memberCalls: string[];
+  reasons: Map<string, string>;
   opened: string[];
   removed: string[];
   rangeCalls: string[];
@@ -41,6 +42,7 @@ export function fakeViews(
   const scansByCommit = new Map<string, Scan[] | null>();
   const ranges = new Map<string, ChangeRange | null>();
   const members = new Map<string, RangeMembers | null>();
+  const reasons = new Map<string, string>();
   const opened: string[] = [];
   const waiting: (() => void)[] = [];
   const fake: FakeViews = {
@@ -53,6 +55,7 @@ export function fakeViews(
     ranges,
     members,
     memberCalls: [],
+    reasons,
     opened,
     removed: [],
     rangeCalls: [],
@@ -151,12 +154,21 @@ export function fakeViews(
         await new Promise<void>((resolve) => waiting.push(resolve));
       }
 
-      return scansByCommit.get(commit) ?? null;
+      const found = scansByCommit.get(commit);
+
+      return found === undefined || found === null
+        ? { ok: false, reason: reasons.get(commit) ?? "no scans seeded" }
+        : { ok: true, value: found };
     },
     async rangeMembers(base, head) {
       fake.memberCalls.push(`${base}..${head}`);
 
-      return members.get(`${base}..${head}`) ?? null;
+      const range = `${base}..${head}`;
+      const found = members.get(range);
+
+      return found === undefined || found === null
+        ? { ok: false, reason: reasons.get(range) ?? "no members seeded" }
+        : { ok: true, value: found };
     },
     async copy(text) {
       copied.push(text);

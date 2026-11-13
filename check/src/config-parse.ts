@@ -1,5 +1,8 @@
 import { parse } from "yaml";
-import { retiredKeysIn } from "./config-retired.js";
+import {
+  retiredKeysIn,
+  withoutRetiredKeysAndEmptiedSections,
+} from "./config-retired.js";
 import { InputError } from "./errors.js";
 import validate from "./generated/config-validator.js";
 import { expandShortForms, SHIPPED_SENSORS } from "./shipped-sensors.js";
@@ -194,6 +197,69 @@ const DUPLICATION_KEYS = [
   "min_nodes",
 ];
 
+function withMovedDuplicationSensor(document: unknown): unknown {
+  if (
+    !isPlainObject(document) ||
+    !isPlainObject(document.sensors) ||
+    !("duplication" in document.sensors)
+  ) {
+    return document;
+  }
+
+  const copy = structuredClone(document) as Record<string, unknown>;
+  const sensors = copy.sensors as Record<string, unknown>;
+  const moved = sensors.duplication;
+
+  delete sensors.duplication;
+
+  if (moved === false) {
+    sensors.structure = isPlainObject(sensors.structure)
+      ? { duplication: false, ...sensors.structure }
+      : sensors.structure === undefined
+        ? { duplication: false }
+        : sensors.structure;
+  } else if (isPlainObject(moved)) {
+    const unknown = Object.keys(moved)
+      .filter((key) => !DUPLICATION_KEYS.includes(key))
+      .sort();
+
+    if (unknown.length > 0) {
+      throw new InputError([
+        `config/sensors/duplication unknown setting: ${unknown.join(", ")}`,
+      ]);
+    }
+
+    const present = DUPLICATION_KEYS.filter((key) => key in moved);
+    const structure = sensors.structure;
+
+    if (present.length > 0 && structure === undefined) {
+      sensors.structure = {
+        duplication: Object.fromEntries(
+          present.map((key) => [key, moved[key]]),
+        ),
+      };
+    } else if (
+      present.length > 0 &&
+      isPlainObject(structure) &&
+      !("duplication" in structure)
+    ) {
+      structure.duplication = Object.fromEntries(
+        present.map((key) => [key, moved[key]]),
+      );
+    }
+  } else if (moved !== null) {
+    throw new InputError([
+      "config/sensors/duplication must be a section or false",
+    ]);
+  }
+
+  if (Object.keys(sensors).length === 0) {
+    delete copy.sensors;
+  }
+
+  return copy;
+}
+
 function rejectBadDuplication(document: unknown): void {
   if (!isPlainObject(document) || !isPlainObject(document.sensors)) {
     return;
@@ -358,7 +424,15 @@ function project(document: unknown, read: ConfigRead): unknown {
   );
 }
 
-export function parseConfig(text: string, read: ConfigRead = "all"): Config {
+export interface ConfigOptions {
+  skipRetired?: boolean;
+}
+
+export function parseConfig(
+  text: string,
+  read: ConfigRead = "all",
+  options: ConfigOptions = {},
+): Config {
   if (!readsAnyConfig(read)) {
     return {};
   }
@@ -374,6 +448,12 @@ export function parseConfig(text: string, read: ConfigRead = "all"): Config {
   }
 
   document = project(document, read);
+
+  if (options.skipRetired === true) {
+    document = withMovedDuplicationSensor(
+      withoutRetiredKeysAndEmptiedSections(document),
+    );
+  }
 
   rejectRetiredOverlays(document);
   rejectRetiredDuplicationSensor(document);

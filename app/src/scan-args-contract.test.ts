@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { parseScanArgs } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { FreshnessModel } from "./freshness-model";
@@ -99,5 +101,33 @@ describe("the arguments the app hands the scan command", () => {
     expect(suitesForSense(["crap"], { crap: [] })).toBeUndefined();
     expect(suitesForSense(["crap"], {})).toBeUndefined();
     expect(suitesForSense(["structure"], { crap: ["unit"] })).toBeUndefined();
+  });
+});
+
+describe("the arguments the app hands a historical scan", () => {
+  const fixture = JSON.parse(
+    readFileSync(
+      fileURLToPath(
+        new URL(
+          "../../fixtures/views/historical-scan-args.json",
+          import.meta.url,
+        ),
+      ),
+      "utf8",
+    ),
+  ) as { historical: string[]; open_folder: string[] };
+
+  it("parse with the retired-config flag and no describe or sense", () => {
+    const options = parseScanArgs(fixture.historical.slice(1));
+
+    expect(options.ignoreRetiredConfig).toBe(true);
+    expect(options.describe).toBe(false);
+    expect(options.sense).toBeNull();
+  });
+
+  it("are not what the open folder is scanned with", () => {
+    const options = parseScanArgs(fixture.open_folder.slice(1));
+
+    expect(options.ignoreRetiredConfig).toBe(false);
   });
 });

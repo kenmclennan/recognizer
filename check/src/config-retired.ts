@@ -76,6 +76,36 @@ export function retiredKeysIn(document: unknown): RetiredKey[] {
   return RETIRED_KEYS.filter((retired) => holds(document, retired.path));
 }
 
+export function withoutRetiredKeysAndEmptiedSections(
+  document: unknown,
+): unknown {
+  if (!isPlainObject(document)) {
+    return document;
+  }
+
+  const copy = structuredClone(document) as Record<string, unknown>;
+
+  for (const { path } of retiredKeysIn(copy)) {
+    const trail: Record<string, unknown>[] = [copy];
+
+    for (const step of path.slice(0, -1)) {
+      trail.push(trail[trail.length - 1]?.[step] as Record<string, unknown>);
+    }
+
+    delete trail[trail.length - 1]?.[path[path.length - 1] as string];
+
+    for (let depth = trail.length - 1; depth > 0; depth -= 1) {
+      if (Object.keys(trail[depth] as object).length > 0) {
+        break;
+      }
+
+      delete trail[depth - 1]?.[path[depth - 1] as string];
+    }
+  }
+
+  return copy;
+}
+
 export function withoutRetiredKeys(document: unknown): unknown {
   if (!isPlainObject(document)) {
     return document;
