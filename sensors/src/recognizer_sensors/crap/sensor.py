@@ -288,6 +288,6 @@ def run(
         documents=[(record_path(repository, "crap"), record_document("crap", entries))],
         tests=composed_tests(tests, suites, chosen, stored),
         diagnosis=diagnosis,
-        suites=suites_array(suites, entries),
+        suites=suites_array(suites, entries, chosen),
         recorded_inputs=recorded_inputs(suites, chosen, stored, scan_hashes(scans)),
     )

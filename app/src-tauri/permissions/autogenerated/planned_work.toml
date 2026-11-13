@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-planned-work"
+description = "Enables the planned_work command without any pre-configured scope."
+commands.allow = ["planned_work"]
+
+[[permission]]
+identifier = "deny-planned-work"
+description = "Denies the planned_work command without any pre-configured scope."
+commands.deny = ["planned_work"]

@@ -1222,7 +1222,7 @@ def measure(
 
         entries = merged_entries(stored_entries, fresh, [s.name for s in suites])
 
-        return suites_array(suites, entries), entries
+        return suites_array(suites, entries, ticked), entries
 
     def assemble(
         done: set[str], stopped: bool = False
@@ -1235,6 +1235,12 @@ def measure(
             if target.identity not in skipped_set and target.identity not in unmeasured
         ]
         reused = sum(1 for target in measured if target.reused)
+        counted = [target for target in measured if not target.carried]
+        work = {
+            "unit": "functions",
+            "performed": sum(1 for target in counted if target.to_run),
+            "reused": sum(1 for target in counted if target.reused),
+        }
         values = overlay_values(measured)
         overlay = Overlay(METRICS, values, repository / settings["overlay"])
         suites_list, suite_entries = suites_result(done, skipped_set, refused)
@@ -1278,6 +1284,7 @@ def measure(
             unowned=unowned_document(unowned),
             suites=suites_list,
             recorded_inputs=recorded_inputs(suites, ticked, stored_entries, current_modules),
+            work=work,
         )
 
         return outcome, measured, skipped_ids, reused

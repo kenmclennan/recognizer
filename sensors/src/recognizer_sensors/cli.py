@@ -62,6 +62,7 @@ def build_parser(package_version: str) -> argparse.ArgumentParser:
     parser.add_argument("--modules", type=Path)
     parser.add_argument("--suites")
     parser.add_argument("--run", action="store_true")
+    parser.add_argument("--work", action="store_true")
     parser.add_argument("--schema", action="store_true")
     parser.add_argument("--version", action="version", version=package_version)
 
@@ -78,6 +79,7 @@ def print_schema(args) -> int:
     other = (
         args.verb is not None
         or args.run
+        or args.work
         or args.settings is not None
         or args.output is not None
         or args.modules is not None
@@ -140,10 +142,25 @@ def is_dirty(root: Path) -> bool:
 
 
 def check(
-    sensor, repository: Path, settings: dict, run: bool, names: list[str] | None = None
+    sensor,
+    repository: Path,
+    settings: dict,
+    run: bool,
+    names: list[str] | None = None,
+    work: bool = False,
+    scope: set[str] | None = None,
 ) -> int:
     gaps, notes = sensor.check(repository, settings, run, names)
-    sys.stdout.write(json.dumps({"gaps": gaps, "notes": notes}) + "\n")
+    document: dict = {"gaps": gaps, "notes": notes}
+
+    if work and sensor.work is not None:
+        sys.setrecursionlimit(RECURSION_LIMIT)
+        planned = sensor.work(repository, settings, scope, names)
+
+        if planned is not None:
+            document["work"] = planned
+
+    sys.stdout.write(json.dumps(document) + "\n")
 
     return 0
 
@@ -175,6 +192,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.run and args.verb != "check":
         return fail("--run is valid only with the check verb")
+
+    if args.work and args.verb != "check":
+        return fail("--work is valid only with the check verb")
 
     if args.verb == "guide":
         if sensor.guide is not None:
@@ -230,7 +250,7 @@ def main(argv: list[str] | None = None) -> int:
         return fail(f"--repository is not a directory: {args.repository}")
 
     if args.verb == "check":
-        return check(sensor, args.repository, settings, args.run, names)
+        return check(sensor, args.repository, settings, args.run, names, args.work, scope)
 
     commit = args.commit if args.commit else resolve_commit(args.repository)
 
@@ -269,6 +289,7 @@ def main(argv: list[str] | None = None) -> int:
             outcome.excluded,
             outcome.unowned,
             outcome.suites,
+            outcome.work,
         )
 
         if outcome.overlay is not None:

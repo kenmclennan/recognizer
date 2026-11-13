@@ -236,6 +236,24 @@
         },
         "incomplete": {
           "type": "boolean"
+        },
+        "work": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "unit",
+            "performed"
+          ],
+          "properties": {
+            "unit": {
+              "type": "string",
+              "minLength": 1
+            },
+            "performed": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
         }
       }
     }

@@ -24,6 +24,7 @@ type SenseEntry = {
   fixed_ms?: number;
   incomplete?: boolean;
   outcome?: "ok" | "failed";
+  work?: { unit: string; performed: number };
 };
 
 function entry(one: {
@@ -33,6 +34,7 @@ function entry(one: {
   modules?: number;
   fixed_ms?: number;
   incomplete?: boolean;
+  work?: { unit: string; performed: number };
 }) {
   const { outcome = "ok", ...rest } = one;
 
@@ -105,6 +107,8 @@ function scanFile(
   return { name: `${stamp}-${kind}.json`, text: JSON.stringify(record) };
 }
 
+const fns = (performed: number) => ({ unit: "functions", performed });
+
 const MUTATION: PartSpec = {
   key: "mutation",
   name: "Mutation",
@@ -147,19 +151,37 @@ const MUTATION_RUNS = [
   scanFile("20261103T090000000Z", {
     structure_ms: 0,
     sense: [
-      { name: "mutation", duration_ms: 900000, fixed_ms: 130000, modules: 40 },
+      {
+        name: "mutation",
+        duration_ms: 900000,
+        fixed_ms: 130000,
+        modules: 40,
+        work: fns(40),
+      },
     ],
   }),
   scanFile("20261102T090000000Z", {
     structure_ms: 0,
     sense: [
-      { name: "mutation", duration_ms: 1000000, fixed_ms: 140000, modules: 50 },
+      {
+        name: "mutation",
+        duration_ms: 1000000,
+        fixed_ms: 140000,
+        modules: 50,
+        work: fns(50),
+      },
     ],
   }),
   scanFile("20261101T090000000Z", {
     structure_ms: 0,
     sense: [
-      { name: "mutation", duration_ms: 500000, fixed_ms: 120000, modules: 20 },
+      {
+        name: "mutation",
+        duration_ms: 500000,
+        fixed_ms: 120000,
+        modules: 20,
+        work: fns(20),
+      },
     ],
   }),
 ];
@@ -172,16 +194,22 @@ const CUT_SHORT = scanFile("20261104T090000000Z", {
       duration_ms: 200000,
       fixed_ms: 20000,
       modules: 40,
+      work: fns(40),
       incomplete: true,
     },
   ],
 });
 
-function mutationLine(files: { name: string; text: string }[], n = 40) {
+function mutationLine(
+  files: { name: string; text: string }[],
+  toPerform = 40,
+  modules = 40,
+) {
   const parts = estimateParts(
     scanHistory(files),
-    planned({ mutation: n }, ["mutation"]),
+    planned({ mutation: modules }, ["mutation"]),
     [MUTATION],
+    { mutation: { unit: "functions", to_perform: toPerform } },
   );
 
   return { parts, line: estimateLine(parts) };
@@ -229,6 +257,7 @@ describe("scanHistory with a part that runs tests", () => {
       kept,
       planned({ mutation: 40 }, ["mutation"]),
       [MUTATION],
+      { mutation: { unit: "functions", to_perform: 40 } },
     );
 
     expect(keptParts[0]?.ms).toBe(744000);
@@ -249,10 +278,12 @@ describe("scanHistory with a part that runs tests", () => {
                 duration_ms: duration,
                 fixed_ms: duration,
                 modules: 1,
+                work: fns(1),
               },
             ],
           }),
         ],
+        0,
         1,
       ).line.text;
 
@@ -301,11 +332,138 @@ describe("scanHistory with a part that runs tests", () => {
   });
 });
 
+describe("the Mutation estimate counts the functions it will measure", () => {
+  const FULL = scanFile("20261101T090000000Z", {
+    structure_ms: 0,
+    sense: [
+      {
+        name: "mutation",
+        duration_ms: 190000,
+        fixed_ms: 10000,
+        modules: 40,
+        work: fns(370),
+      },
+    ],
+  });
+  const REUSED = (at: number) =>
+    scanFile(`2026110${at}T090000000Z`, {
+      structure_ms: 0,
+      sense: [
+        {
+          name: "mutation",
+          duration_ms: 10000,
+          fixed_ms: 9000,
+          modules: 40,
+          work: fns(0),
+        },
+      ],
+    });
+
+  it("reads the full run on the new build as About 3 min", () => {
+    const { parts, line } = mutationLine([FULL], 370);
+
+    expect(parts[0]?.ms).toBeCloseTo(190000, 6);
+    expect(parts[0]?.basis).toBe("370 functions at recent pace");
+    expect(line.text).toBe("About 3 min");
+  });
+
+  it("reads an all-reused rerun as its fixed part alone and Under a minute", () => {
+    const { parts, line } = mutationLine([REUSED(2), FULL], 0);
+
+    expect(parts).toHaveLength(1);
+    expect(parts[0]?.ms).toBe(9000);
+    expect(parts[0]?.basis).toBe(
+      "nothing to measure; the baseline and coverage runs only",
+    );
+    expect(line.text).toBe("Under a minute");
+  });
+
+  it("reads a rerun after one function changes as the fixed part plus one function", () => {
+    const { parts, line } = mutationLine([REUSED(2), FULL], 1);
+
+    expect(parts[0]?.ms).toBeCloseTo(9000 + 180000 / 370, 6);
+    expect(parts[0]?.basis).toBe("1 function at recent pace");
+    expect(line.text).toBe("Under a minute");
+  });
+
+  it("keeps the rate honest when the newest entries all reused everything", () => {
+    const { parts } = mutationLine(
+      [REUSED(6), REUSED(5), REUSED(4), REUSED(3), REUSED(2), FULL],
+      40,
+    );
+
+    expect(parts[0]?.ms).toBeCloseTo(9000 + (40 * 180000) / 370, 6);
+  });
+
+  it("reads every function changed again as About 3 min", () => {
+    const { parts, line } = mutationLine([REUSED(2), FULL], 370);
+
+    expect(parts[0]?.ms).toBeCloseTo(9000 + 180000, 6);
+    expect(line.text).toBe("About 3 min");
+  });
+
+  it("gives no estimate when functions are to be performed and no sample has a rate", () => {
+    const old = scanFile("20261101T090000000Z", {
+      structure_ms: 0,
+      sense: [
+        { name: "mutation", duration_ms: 20000, fixed_ms: 5000, modules: 4 },
+      ],
+    });
+
+    expect(mutationLine([old], 3).parts[0]).toMatchObject({
+      ms: null,
+      basis: null,
+    });
+    expect(mutationLine([old], 0).parts[0]?.ms).toBe(5000);
+  });
+
+  it("gives no estimate for Mutation before the sensor has answered, never a module figure", () => {
+    const parts = estimateParts(
+      scanHistory(MUTATION_RUNS),
+      planned({ mutation: 40 }, ["mutation"]),
+      [MUTATION],
+    );
+
+    expect(parts[0]).toMatchObject({ ms: null, basis: null });
+  });
+
+  it("keeps the module figure for a part that does not answer work", () => {
+    const files = [
+      scanFile("20261101T090000000Z", {
+        structure_ms: 0,
+        sense: [
+          { name: "crap", duration_ms: 120000, fixed_ms: 120000, modules: 30 },
+        ],
+      }),
+    ];
+    const parts = estimateParts(
+      scanHistory(files),
+      planned({ crap: 5 }, ["crap"]),
+      [CRAP],
+      { mutation: { unit: "functions", to_perform: 9 } },
+    );
+
+    expect(parts[0]?.ms).toBe(120000);
+    expect(parts[0]?.basis).toBe("5 modules, last run's pace");
+  });
+
+  it("records the newest scan record name as the last run", () => {
+    expect(scanHistory([FULL, REUSED(2)]).lastRun).toBe(REUSED(2).name);
+    expect(scanHistory([]).lastRun).toBeNull();
+  });
+});
+
 describe("scanHistory exclusions", () => {
   const good = scanFile("20261103T090000000Z", {
     structure_ms: 0,
     sense: [
-      { name: "mutation", duration_ms: 900000, fixed_ms: 130000, modules: 40 },
+      {
+        name: "mutation",
+        duration_ms: 900000,
+        fixed_ms: 130000,
+        modules: 40,
+        work: fns(40),
+      },
     ],
   });
   const wrong = (over: Parameters<typeof scanFile>[1]) =>
@@ -317,6 +475,7 @@ describe("scanHistory exclusions", () => {
           duration_ms: 100000,
           fixed_ms: 10000,
           modules: 40,
+          work: fns(40),
         },
       ],
       ...over,
@@ -346,6 +505,7 @@ describe("scanHistory exclusions", () => {
           duration_ms: 100000,
           fixed_ms: 10000,
           modules: 40,
+          work: fns(40),
           outcome: "failed",
         },
       ],
@@ -390,6 +550,7 @@ describe("scanHistory exclusions", () => {
             duration_ms: at < 3 ? 10 : 200000,
             fixed_ms: 0,
             modules: 10,
+            work: fns(10),
           },
         ],
       }),

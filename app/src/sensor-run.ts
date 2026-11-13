@@ -22,7 +22,7 @@ import {
   type RunRecordFiles,
   refusalsOf,
 } from "./refusal-record";
-import { scanHistory } from "./scan-estimate";
+import { type PlannedWork, scanHistory } from "./scan-estimate";
 import type { Loaded, LoadedScan } from "./scan-loading";
 import type { SuiteResult } from "./suite-results";
 
@@ -105,6 +105,12 @@ export type ShippedSensors =
   | { status: "ok"; sensors: ShippedSensor[] }
   | { status: "unavailable"; reason: string };
 
+export type WorkRequest = {
+  sensor: string;
+  modules: string[] | null;
+  suites: string[] | null;
+};
+
 export type SensorsPort = {
   writeStructure(document: string | null): Promise<void>;
   readFindings(): Promise<FindingsFiles>;
@@ -116,6 +122,7 @@ export type SensorsPort = {
   onInputsChanged(run: () => void): () => void;
   shipped(): Promise<ShippedSensors>;
   describer(): Promise<DescriberInEffect>;
+  plannedWork(request: WorkRequest): Promise<PlannedWork | null>;
 };
 
 export const inertSensors: SensorsPort = {
@@ -140,6 +147,7 @@ export const inertSensors: SensorsPort = {
     status: "unavailable",
     reason: "the describer is not available",
   }),
+  plannedWork: async () => null,
 };
 
 export type SensorRun = {

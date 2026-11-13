@@ -548,15 +548,20 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
     };
   }
 
-  const HISTORY = json({ log_version: 1, kind: "scan", started: "2026-11-03T09:00:00.000Z", finished: "2026-11-03T09:10:00.000Z", by: "ken", arguments: [], outcome: "ok", exit: 0, structure_ms: 6000, phases: [{ phase: "sense", entries: [{ name: "mutation", command: ["x"], status: 0, outcome: "ok", duration_ms: 160000, modules: 2, fixed_ms: 100000, stderr: "" }] }] });
+  const HISTORY = json({ log_version: 1, kind: "scan", started: "2026-11-03T09:00:00.000Z", finished: "2026-11-03T09:10:00.000Z", by: "ken", arguments: [], outcome: "ok", exit: 0, structure_ms: 6000, phases: [{ phase: "sense", entries: [{ name: "mutation", command: ["x"], status: 0, outcome: "ok", duration_ms: 160000, modules: 2, fixed_ms: 100000, work: { unit: "functions", performed: 2 }, stderr: "" }] }] });
   const timedSensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
   timedSensors.runRecords.set("20261103T090000000Z-scan.json", HISTORY);
+  timedSensors.work.set("mutation", { unit: "functions", to_perform: 2 });
   const timed = await mount(fakeScan(), timedSensors);
   click(timed.q(".rail-scan"));
   await tick();
   const estimateOf = () => { const n = timed.q(".scan-estimate"); return n === null ? null : { exists: true, hidden: n.hidden, text: n.textContent, title: n.title, afterButtons: timed.q(".scan-buttons").compareDocumentPosition(n) === Node.DOCUMENT_POSITION_FOLLOWING }; };
   facts.estimateBefore = estimateOf();
+  timedSensors.holdWork = true;
   await timed.setTick("mutation", true);
+  facts.estimatePending = estimateOf();
+  timedSensors.releaseWork();
+  await tick(); await tick(); await tick();
   facts.estimateTicked = estimateOf();
   await timed.setTick("mutation", false);
   facts.estimateUnticked = estimateOf();
@@ -1116,9 +1121,18 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.estimateTicked.afterButtons).toBe(true);
     expect(f.estimateTicked.text).toBe("About 3 min");
     expect(f.estimateTicked.title).toBe(
-      "Structure: <1 min (last run)\nMutation: 3 min (2 modules at recent pace)",
+      "Structure: <1 min (last run)\nMutation: 3 min (2 functions at recent pace)",
     );
     expect(f.estimateUnticked.hidden).toBe(true);
+  });
+
+  it("reads Mutation as no estimate yet while the sensor's work answer is pending, and a figure after", () => {
+    expect(f.estimatePending.hidden).toBe(false);
+    expect(f.estimatePending.text).toBe(
+      "Under a minute, plus Mutation: no estimate yet",
+    );
+    expect(f.estimatePending.title).toContain("Mutation: no estimate yet");
+    expect(f.estimateTicked.text).toBe("About 3 min");
   });
 
   it("shows failed and no second line for a failure with no diagnosis", () => {

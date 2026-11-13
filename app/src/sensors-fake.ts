@@ -4,6 +4,7 @@ import {
   SHIPPED_DESCRIBER_COMMAND,
 } from "recognizer";
 import type { RunRecordFiles } from "./refusal-record";
+import type { PlannedWork } from "./scan-estimate";
 import type {
   FindingsFiles,
   OverlayFiles,
@@ -11,6 +12,7 @@ import type {
   SensorsPort,
   ShippedSensor,
   ShippedSensors,
+  WorkRequest,
 } from "./sensor-run";
 
 export type FakeSensors = SensorsPort & {
@@ -29,6 +31,10 @@ export type FakeSensors = SensorsPort & {
   list: ShippedSensors;
   modified: Map<string, number>;
   shippedVersion: string | null;
+  work: Map<string, PlannedWork | null>;
+  workRequests: WorkRequest[];
+  holdWork: boolean;
+  releaseWork(): void;
   editInputs(inputs: Partial<SensorInputs>): void;
 };
 
@@ -39,6 +45,7 @@ export function fakeSensors(
   shipped: ShippedSensors | ShippedSensor[] = [],
 ): FakeSensors {
   const listeners = new Set<() => void>();
+  const held: (() => void)[] = [];
   const fake: FakeSensors = {
     files: new Map(Object.entries(files)),
     inputs: {
@@ -61,6 +68,25 @@ export function fakeSensors(
     list: Array.isArray(shipped) ? { status: "ok", sensors: shipped } : shipped,
     modified: new Map(),
     shippedVersion: "prompt-0123456789ab",
+    work: new Map(),
+    workRequests: [],
+    holdWork: false,
+    releaseWork() {
+      fake.holdWork = false;
+
+      for (const release of held.splice(0)) {
+        release();
+      }
+    },
+    async plannedWork(request) {
+      fake.workRequests.push(request);
+
+      if (fake.holdWork) {
+        await new Promise<void>((release) => held.push(release));
+      }
+
+      return fake.work.get(request.sensor) ?? null;
+    },
     async describer() {
       let configured: { command: string[]; version: string } | undefined;
 

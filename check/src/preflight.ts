@@ -193,7 +193,7 @@ export function readinessGaps(
   sensors: PreflightSensor[],
   read?: ManifestReader,
 ): Gap[] {
-  return checkSensors(io, root, sensors, false, read).flatMap((report) =>
+  return checkSensors(io, root, sensors, {}, read).flatMap((report) =>
     report.gaps.map((gap) => ({
       id: `${report.name}:${gap.suite ?? "config"}:${gap.code}`,
       line: gap.line,

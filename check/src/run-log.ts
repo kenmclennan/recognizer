@@ -19,6 +19,12 @@ export interface RunEntry {
   modules?: number;
   fixed_ms?: number;
   incomplete?: true;
+  work?: EntryWork;
+}
+
+export interface EntryWork {
+  unit: string;
+  performed: number;
 }
 
 export type PhaseName = "extract" | "describe" | "measure" | "sense";
@@ -77,6 +83,7 @@ export interface EntryTiming {
   modules?: number;
   fixed_ms?: number;
   incomplete?: boolean;
+  work?: EntryWork;
 }
 
 export const STDERR_LIMIT = 8192;
@@ -153,6 +160,10 @@ export function entryFrom(name: string, timing: EntryTiming): RunEntry {
 
   if (timing.incomplete === true) {
     entry.incomplete = true;
+  }
+
+  if (timing.work !== undefined) {
+    entry.work = timing.work;
   }
 
   return entry;

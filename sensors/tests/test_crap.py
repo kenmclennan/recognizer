@@ -902,7 +902,12 @@ def test_a_run_of_one_suite_keeps_the_other_suites_coverage_and_age(tmp_path):
     status, second, overlay = crap_suites(root, tmp_path, settings, "--suites", '["unit"]')
 
     assert status == 0
-    assert second["suites"][1] == {"name": "web", "status": "ok", "ran_at": web_ran_at}
+    assert second["suites"][1] == {
+        "name": "web",
+        "status": "ok",
+        "ran_at": web_ran_at,
+        "ran": False,
+    }
     assert second["suites"][0]["status"] == "ok"
     assert overlay["values"]["coverage"].keys() == first_overlay["values"]["coverage"].keys()
 
@@ -929,7 +934,12 @@ def test_a_suite_that_never_ran_is_never_and_its_files_hash_to_zeros(tmp_path):
     status, document, _ = crap_suites(root, tmp_path, two_suite_settings(), "--suites", '["unit"]')
 
     assert status == 0
-    assert document["suites"][1] == {"name": "web", "status": "never", "ran_at": None}
+    assert document["suites"][1] == {
+        "name": "web",
+        "status": "never",
+        "ran_at": None,
+        "ran": False,
+    }
     assert document["tests"] != hashes.tests_hash(root, read_scans(root))
 
     current = hashes.test_map(root, read_scans(root))

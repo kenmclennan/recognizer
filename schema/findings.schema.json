@@ -10,6 +10,16 @@
     "inputs": { "$ref": "#/$defs/hashes" },
     "diagnosis": { "$ref": "#/$defs/diagnosis" },
     "tests": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "work": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit", "performed", "reused"],
+      "properties": {
+        "unit": { "type": "string", "minLength": 1 },
+        "performed": { "type": "integer", "minimum": 0 },
+        "reused": { "type": "integer", "minimum": 0 }
+      }
+    },
     "suites": {
       "type": "array",
       "items": {
@@ -27,7 +37,8 @@
           },
           "reason": { "type": "string", "minLength": 1 },
           "measured": { "type": "integer", "minimum": 0 },
-          "total": { "type": "integer", "minimum": 0 }
+          "total": { "type": "integer", "minimum": 0 },
+          "ran": { "type": "boolean" }
         },
         "if": { "properties": { "status": { "const": "never" } }, "required": ["status"] },
         "then": { "properties": { "ran_at": { "type": "null" } } },

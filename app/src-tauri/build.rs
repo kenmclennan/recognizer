@@ -8,6 +8,7 @@ fn main() {
         "list_views",
         "open_folder_in_editor",
         "open_in_editor",
+        "planned_work",
         "publish_window_state",
         "range_members",
         "read_describing",

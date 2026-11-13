@@ -22,6 +22,7 @@ def build_document(
     excluded: dict | None = None,
     unowned: dict | None = None,
     suites: list[dict] | None = None,
+    work: dict | None = None,
 ) -> dict:
     document = {
         "findings_version": 2,
@@ -56,6 +57,9 @@ def build_document(
 
     if suites is not None:
         document["suites"] = suites
+
+    if work is not None:
+        document["work"] = work
 
     return document
 

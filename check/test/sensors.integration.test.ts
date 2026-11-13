@@ -432,6 +432,7 @@ describe.skipIf(!HAS_UV)(
           name: string;
           status: string;
           ran_at: string | null;
+          ran?: boolean;
         }[] =>
           JSON.parse(
             readFileSync(
@@ -469,7 +470,12 @@ describe.skipIf(!HAS_UV)(
         const second = suitesOf();
 
         expect(second.map((one) => one.name)).toEqual(["sample", "sample-web"]);
-        expect(second[1]).toEqual(first[1]);
+        expect({ ...second[1], ran: undefined }).toEqual({
+          ...first[1],
+          ran: undefined,
+        });
+        expect(first.map((one) => one.ran)).toEqual([true, true]);
+        expect(second.map((one) => one.ran)).toEqual([true, false]);
         expect(second[0]?.status).toBe("ok");
       },
       scaledTimeout(180_000),

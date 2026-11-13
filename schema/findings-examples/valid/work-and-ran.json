@@ -1,0 +1,69 @@
+{
+  "findings_version": 1,
+  "sensor": {
+    "name": "mutation",
+    "version": "0.1.0"
+  },
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "modified": false,
+  "settings": {
+    "overlay": ".recognizer/cache/overlays/mutate.json",
+    "survivors": ".recognizer/cache/mutation/survivors.json"
+  },
+  "findings": [
+    {
+      "id": "mutation:app/rules.py::grade",
+      "kind": "mutation",
+      "severity": "warning",
+      "principle": "mutation-testing",
+      "citation": {
+        "author": "Richard A. DeMillo, Richard J. Lipton and Frederick G. Sayward",
+        "work": "Hints on Test Data Selection: Help for the Practicing Programmer, Computer",
+        "year": 1978
+      },
+      "fix_pattern": "strengthen-tests",
+      "summary": "grade in app/rules.py has 2 surviving mutations: line 2 >= to >, line 4 >= to >",
+      "evidence": {
+        "modules": [
+          "app/rules.py"
+        ],
+        "members": [
+          {
+            "module": "app/rules.py",
+            "name": "grade",
+            "file": "app/rules.py",
+            "lines": [
+              1,
+              6
+            ]
+          }
+        ],
+        "measures": {
+          "killed": 0,
+          "survived": 2,
+          "uncovered": 0,
+          "score": 0.0
+        }
+      }
+    }
+  ],
+  "work": {
+    "unit": "functions",
+    "performed": 2,
+    "reused": 1
+  },
+  "suites": [
+    {
+      "name": "unit",
+      "status": "ok",
+      "ran_at": "2026-11-02T10:00:00Z",
+      "ran": true
+    },
+    {
+      "name": "web",
+      "status": "partial",
+      "ran_at": "2026-11-01T10:00:00Z",
+      "ran": false
+    }
+  ]
+}

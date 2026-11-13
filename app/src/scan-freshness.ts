@@ -9,6 +9,8 @@ export type ResultsMode = "bring" | "rescan";
 
 export const DESCRIBE_KEY = "describe";
 
+export const MUTATION_KEY = "mutation";
+
 export type SensorFreshness =
   | { kind: "never-run" }
   | { kind: "known"; outOfDate: string[]; missing: string[] };

@@ -90,6 +90,70 @@ describe("recognizer sensors check", () => {
     );
   });
 
+  it("passes --work and --modules through to the plugin and prints the work it answers", () => {
+    const fake = setup(REGISTERED, (args) => ({
+      stdout: `${JSON.stringify({
+        gaps: [],
+        ...(args.includes("--work") && args[0] === "mutation"
+          ? { work: { unit: "functions", to_perform: 3, reusable: 367 } }
+          : {}),
+      })}\n`,
+    }));
+
+    expect(
+      check(fake, "mutation", "--work", "--modules", "/m.json", "--json"),
+    ).toBe(0);
+
+    const [call] = checks(fake);
+
+    expect(call?.args).toContain("--work");
+    expect(call?.args.slice(call.args.indexOf("--modules"))).toEqual([
+      "--modules",
+      "/m.json",
+    ]);
+    expect(JSON.parse(fake.out()).sensors).toEqual([
+      {
+        name: "mutation",
+        ready: true,
+        gaps: [],
+        notes: [],
+        work: { unit: "functions", to_perform: 3, reusable: 367 },
+      },
+    ]);
+  });
+
+  it("passes the suite names of a --suites file to the plugin", () => {
+    const fake = fakeIo({
+      files: { [CONFIG]: REGISTERED, "/s.json": '["unit","web"]' },
+      sensorsPreflight: { run: gapsBy({}) },
+    });
+
+    expect(check(fake, "mutation", "--work", "--suites", "/s.json")).toBe(0);
+
+    const [call] = checks(fake);
+
+    expect(call?.args.slice(call.args.indexOf("--suites"))).toEqual([
+      "--suites",
+      '["unit","web"]',
+    ]);
+  });
+
+  it("exits 2 for a --suites file that is not an array of names", () => {
+    const fake = fakeIo({
+      files: { [CONFIG]: REGISTERED, "/s.json": '{"unit":1}' },
+      sensorsPreflight: { run: gapsBy({}) },
+    });
+
+    expect(check(fake, "mutation", "--work", "--suites", "/s.json")).toBe(2);
+  });
+
+  it("prints no work for a sensor that does not answer it", () => {
+    const fake = setup(REGISTERED, gapsBy({}));
+
+    expect(check(fake, "crap", "--work", "--json")).toBe(0);
+    expect(JSON.parse(fake.out()).sensors[0]).not.toHaveProperty("work");
+  });
+
   it("says 1 gap for a single gap and exits 0 when every sensor is ready", () => {
     const one = setup(REGISTERED, gapsBy({ crap: [API_GAP] }));
 

@@ -50,6 +50,13 @@ export interface SuiteResult {
   reason?: string;
   measured?: number;
   total?: number;
+  ran?: boolean;
+}
+
+export interface FindingsWork {
+  unit: string;
+  performed: number;
+  reused: number;
 }
 
 export interface FindingsDocument {
@@ -68,6 +75,7 @@ export interface FindingsDocument {
   inputs?: Record<string, string>;
   tests?: string;
   suites?: SuiteResult[];
+  work?: FindingsWork;
   diagnosis?: Diagnosis;
 }
 

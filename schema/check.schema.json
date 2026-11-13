@@ -20,6 +20,29 @@
       "items": {
         "$ref": "#/$defs/entry"
       }
+    },
+    "work": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unit",
+        "to_perform",
+        "reusable"
+      ],
+      "properties": {
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to_perform": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reusable": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
     }
   },
   "$defs": {

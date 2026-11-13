@@ -1,9 +1,9 @@
 import type { Io } from "./cli.js";
-import { validateFindings } from "./findings-document.js";
+import { type FindingsWork, validateFindings } from "./findings-document.js";
 import { findingsFile, writeFindings } from "./findings-files.js";
 import type { Diagnosis, PluginEvent } from "./plugin-events.js";
 import { createPluginLimits, runPlugin } from "./plugin-run.js";
-import { entryFrom, type RunEntry } from "./run-log.js";
+import { type EntryWork, entryFrom, type RunEntry } from "./run-log.js";
 import type { Scan } from "./scan.js";
 import { measuredInputs } from "./structure-sensor.js";
 
@@ -29,7 +29,11 @@ function recordInputs(
   root: string,
   name: string,
   scans: Scan[],
-): { diagnosis: Diagnosis | undefined; incomplete: boolean } {
+): {
+  diagnosis: Diagnosis | undefined;
+  incomplete: boolean;
+  work: FindingsWork | undefined;
+} {
   const output = findingsFile(root, name);
   const document = validateFindings(JSON.parse(io.readFile(output)), { name });
 
@@ -43,7 +47,10 @@ function recordInputs(
     diagnosis: document.diagnosis,
     incomplete:
       document.stopped !== undefined ||
-      (document.suites ?? []).some((suite) => suite.status === "partial"),
+      (document.suites ?? []).some(
+        (suite) => suite.status === "partial" && suite.ran !== false,
+      ),
+    work: document.work,
   };
 }
 
@@ -79,6 +86,7 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
     let { reason } = run;
     let diagnosis: Diagnosis | undefined = run.diagnosis ?? undefined;
     let incomplete = false;
+    let work: EntryWork | undefined;
 
     if (
       reason !== null &&
@@ -96,6 +104,10 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
 
         diagnosis = recorded.diagnosis;
         incomplete = recorded.incomplete;
+        work =
+          recorded.work === undefined
+            ? undefined
+            : { unit: recorded.work.unit, performed: recorded.work.performed };
       } catch (error) {
         reason = `could not record inputs: ${(error as Error).message}`;
       }
@@ -115,6 +127,7 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
       modules: modules ?? moduleCount(input.scans),
       ...(fixedFrom === null ? {} : { fixed_ms: fixedFrom - began }),
       ...(incomplete ? { incomplete: true } : {}),
+      ...(work === undefined ? {} : { work }),
       ...(reason === null ? {} : { reason }),
       ...(run.stopped === true ? { stopped: true } : {}),
       ...(diagnosis === undefined ? {} : { diagnosis }),

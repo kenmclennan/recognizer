@@ -800,6 +800,23 @@ async fn shipped_sensors() -> Result<repository::ShippedSensors, String> {
 }
 
 #[tauri::command]
+async fn planned_work(
+    app: AppHandle,
+    window: WebviewWindow,
+    sensor: String,
+    modules: Option<Vec<String>>,
+    suites: Option<Vec<String>>,
+) -> Result<Option<repository::PlannedWork>, String> {
+    let folder = window_folder_path(&app, &window)?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        repository::planned_work(&folder, &sensor, modules.as_deref(), suites.as_deref())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
 async fn read_config_keys() -> Result<config_write::ConfigKeys, String> {
     tauri::async_runtime::spawn_blocking(config_write::read_config_keys)
         .await
@@ -1624,6 +1641,7 @@ pub fn run() {
             record_recent_view,
             remove_findings,
             shipped_sensors,
+            planned_work,
             shipped_describer,
             remove_view,
             rename_view,

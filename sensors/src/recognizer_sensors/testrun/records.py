@@ -135,17 +135,25 @@ def merged_entries(
     return entries
 
 
-def suites_array(suites: Iterable[Suite], entries: Mapping[str, dict]) -> list[dict]:
+def suites_array(
+    suites: Iterable[Suite], entries: Mapping[str, dict], ticked: Collection[str] | None = None
+) -> list[dict]:
     listed = []
 
     for suite in suites:
         entry = entries.get(suite.name)
+        ran = {} if ticked is None else {"ran": suite.name in ticked}
 
         if entry is None:
-            listed.append({"name": suite.name, "status": "never", "ran_at": None})
+            listed.append({"name": suite.name, "status": "never", "ran_at": None, **ran})
             continue
 
-        item: dict = {"name": suite.name, "status": entry["status"], "ran_at": entry["ran_at"]}
+        item: dict = {
+            "name": suite.name,
+            "status": entry["status"],
+            "ran_at": entry["ran_at"],
+            **ran,
+        }
 
         for key in ("reason", "measured", "total"):
             if key in entry:

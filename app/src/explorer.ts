@@ -12,6 +12,7 @@ import {
   rangeText,
   resolveView,
   type Scan,
+  scanHashes,
   usedByOf,
   usesOf,
   type View,
@@ -143,6 +144,7 @@ import {
 } from "./overlay-model";
 import { mountPanelResizers } from "./panel-resizer-view";
 import { type PlanOverlay, planOverlay } from "./plan-overlay";
+import { createPlannedWork, fingerprint } from "./planned-work";
 import { changedKeys, type ProgressKeys, progressKeys } from "./progress-keys";
 import { buildRailView, type LeftPanel } from "./rail-view";
 import { removedPlacement } from "./removed-boxes";
@@ -160,6 +162,7 @@ import {
 import { nextCheck } from "./row-model";
 import {
   freshnessMessage,
+  MUTATION_KEY,
   type PlannedRun,
   type ResultsMode,
 } from "./scan-freshness";
@@ -408,6 +411,7 @@ export function showExplorer(
   const state = createCanvasState(modules);
   const measure = createMeasure();
   const scans = loaded.scans.map(({ scan }) => scan);
+  const plannedWork = createPlannedWork(scanHost.port, () => render());
   const expanded = new Set<string>();
   const filter: FilterState = {
     text: "",
@@ -2620,10 +2624,22 @@ export function showExplorer(
     await loadScanConfig();
   }
 
+  let workStamp: { scans: Scan[]; text: string } | null = null;
+
+  function workStampOf(): string {
+    if (workStamp === null || workStamp.scans !== scans) {
+      workStamp = {
+        scans,
+        text: fingerprint(JSON.stringify([...scanHashes(scans)])),
+      };
+    }
+
+    return `${workStamp.text}:${loaded.history?.lastRun ?? ""}`;
+  }
+
   function scanModel(onlyView?: boolean) {
     const ticks = scanHost.ticks();
-
-    return scanPanel({
+    const input = {
       scan: scanHost.scan(),
       config: scanConfig,
       sensors: loaded.sensors,
@@ -2655,7 +2671,28 @@ export function showExplorer(
       shipped: shippedSensors,
       freshness: freshnessOf(loaded),
       ...(loaded.history === undefined ? {} : { history: loaded.history }),
-    });
+    };
+    const first = scanPanel(input);
+    const plan = first.planned?.plan;
+
+    if (plan === undefined || !plan.sense.includes(MUTATION_KEY)) {
+      return first;
+    }
+
+    const scope = {
+      sensor: MUTATION_KEY,
+      modules: plan.modules,
+      suites: plan.suites?.[MUTATION_KEY] ?? null,
+      stamp: workStampOf(),
+    };
+
+    plannedWork.ensure(scope);
+
+    const work = plannedWork.answers([scope]);
+
+    return Object.keys(work).length === 0
+      ? first
+      : scanPanel({ ...input, work });
   }
 
   function showTarget(target: ShowTarget) {

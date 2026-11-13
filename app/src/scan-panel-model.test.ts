@@ -1558,6 +1558,7 @@ describe("scanPanel estimate line", () => {
                 duration_ms: 160000,
                 modules: 3,
                 fixed_ms: 100000,
+                work: { unit: "functions", performed: 3 },
                 stderr: "",
               },
             ],
@@ -1567,9 +1568,13 @@ describe("scanPanel estimate line", () => {
     },
   ];
   const history = scanHistory(files);
+  const toPerform = (count: number) => ({
+    mutation: { unit: "functions", to_perform: count },
+  });
   const mutating = (over: Partial<PanelInput> = {}) =>
     input({
       history,
+      work: toPerform(3),
       ticks: {
         describe: false,
         ticked: [],
@@ -1597,7 +1602,7 @@ describe("scanPanel estimate line", () => {
 
     expect(model.estimate?.text).toBe("About 3 min");
     expect(model.estimate?.title).toBe(
-      "Structure: <1 min (last run)\nMutation: 3 min (3 modules at recent pace)",
+      "Structure: <1 min (last run)\nMutation: 3 min (3 functions at recent pace)",
     );
   });
 
@@ -1634,14 +1639,15 @@ describe("scanPanel estimate line", () => {
       mutating({
         mode: "rescan",
         view,
+        work: toPerform(1),
         ticks: { ...mutating().ticks, onlyView: true },
       }),
     );
 
     expect(whole.planned?.work.mutation).toBe(3);
     expect(scoped.planned?.work.mutation).toBe(1);
-    expect(whole.estimate?.title).toContain("3 modules at recent pace");
-    expect(scoped.estimate?.title).toContain("1 module at recent pace");
+    expect(whole.estimate?.title).toContain("3 functions at recent pace");
+    expect(scoped.estimate?.title).toContain("1 function at recent pace");
   });
 
   it("changes with the mode through the modules to describe", () => {
