@@ -265,7 +265,7 @@ describe("show", () => {
     );
 
     expect(cycle.findings.map((f: { why: string }) => f.why)).toContain(
-      "no-cycles",
+      "Levelization",
     );
     expect(cycle.findings[0]).toEqual(
       expect.objectContaining({ severity: expect.any(String) }),

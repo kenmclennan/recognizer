@@ -140,7 +140,7 @@ describe("findings", () => {
     expect(place).toHaveLength(1);
     expect(place[0]?.severity).toBe("warning");
     expect(place[0]?.text).toContain("cycle");
-    expect(place[0]?.why).toBe("no-cycles");
+    expect(place[0]?.why).toBe("Levelization");
   });
 
   it("returns nothing for a green or a grey module", () => {

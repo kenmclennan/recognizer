@@ -18,7 +18,8 @@
       "id": "rule-violation:depends:shop/domain/order.py->shop/adapters/memory_store.py",
       "kind": "rule-violation",
       "severity": "violation",
-      "principle": "dependencies-follow-the-policy",
+      "principle": "dependency-inversion-principle",
+      "citation": { "author": "Robert C. Martin", "work": "The Dependency Inversion Principle, C++ Report", "year": 1996 },
       "summary": "depends on shop/adapters/memory_store.py at line 4, 12",
       "evidence": {
         "modules": ["shop/domain/order.py"],
@@ -37,7 +38,8 @@
       "id": "cycle:app/domain/money.py,app/domain/order.py",
       "kind": "cycle",
       "severity": "warning",
-      "principle": "no-cycles",
+      "principle": "levelization",
+      "citation": { "author": "John Lakos", "work": "Large-Scale C++ Software Design", "year": 1996 },
       "summary": "cycle of 2 modules: app/domain/money.py, app/domain/order.py",
       "fix_pattern": "break-cycle",
       "evidence": {
@@ -52,7 +54,8 @@
       "id": "orphan:app/adapters/audit.py",
       "kind": "orphan",
       "severity": "warning",
-      "principle": "every-module-is-reachable",
+      "principle": "dead-code",
+      "citation": { "author": "Robert C. Martin", "work": "Clean Code", "year": 2008, "locator": "heuristic G9" },
       "summary": "app/adapters/audit.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
       "fix_pattern": "remove-or-wire-orphan",
       "evidence": { "modules": ["app/adapters/audit.py"] }
@@ -61,7 +64,8 @@
       "id": "orphan:app/testing/fake_clock.py",
       "kind": "orphan",
       "severity": "warning",
-      "principle": "every-module-is-reachable",
+      "principle": "dead-code",
+      "citation": { "author": "Robert C. Martin", "work": "Clean Code", "year": 2008, "locator": "heuristic G9" },
       "summary": "app/testing/fake_clock.py is imported only by 2 test files: tests/test_clock.py, tests/test_place.py; it is not an entry point, so if it only supports tests move it next to them rather than deleting it; a library can list its public API in warnings.orphan.entry_points",
       "fix_pattern": "move-orphan-to-tests",
       "evidence": {

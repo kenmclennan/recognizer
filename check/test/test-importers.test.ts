@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { principleOf } from "../src/principles.js";
 import { validateScan } from "../src/scan.js";
 import { orphanFindings } from "../src/structure-warnings.js";
 import {
@@ -78,7 +79,7 @@ describe("orphan test importers", () => {
           id: "orphan:a/lonely.py",
           kind: "orphan",
           severity: "warning",
-          principle: "every-module-is-reachable",
+          ...principleOf("dead-code"),
           ...TODAY,
         },
       ]);
@@ -100,7 +101,7 @@ describe("orphan test importers", () => {
       id: "orphan:a/lonely.py",
       kind: "orphan",
       severity: "warning",
-      principle: "every-module-is-reachable",
+      ...principleOf("dead-code"),
       summary:
         "a/lonely.py is imported only by 2 test files: t/test_a.py, t/test_b.py; it is not an entry point, so if it only supports tests move it next to them rather than deleting it; a library can list its public API in warnings.orphan.entry_points",
       fix_pattern: "move-orphan-to-tests",

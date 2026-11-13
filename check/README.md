@@ -177,13 +177,13 @@ Folder metrics are written beside them as `folder_metrics`, one row per folder (
 - `abstractness`: `abstract_members / exported_members` rounded to four decimals, `null` when no member is exported (a scan that records no members leaves it unknown).
 - `distance`: `abs(abstractness + instability - 1)` from the unrounded values, rounded to four decimals, `null` when either is `null`.
 
-A warning is a graph heuristic reported as a candidate with evidence, never a verdict. Warnings are never baselined and never affect the exit code. Each carries `id`, `principle`, `fix_pattern` (`private_imports` and `long_function` carry none), a one-line `summary` and `evidence`, and they are sorted by `id` then by module.
+A warning is a graph heuristic reported as a candidate with evidence, never a verdict. Warnings are never baselined and never affect the exit code. Each carries `id`, `principle` (the stable id of a published principle, shown by its name in the text output), `citation` (author, work, year and an optional locator, from the registry), `fix_pattern` (`private_imports` and `long_function` carry none), a one-line `summary` and `evidence`, and they are sorted by `id` then by module.
 
 | id | principle | fix pattern |
 | --- | --- | --- |
-| `cycle` | `no-cycles` | `break-cycle` |
-| `orphan` | `every-module-is-reachable` | `remove-or-wire-orphan`, or `move-orphan-to-tests` when test files import it |
-| `unused_exports` | `export-only-what-is-used` | `narrow-exports` |
+| `cycle` | `levelization` | `break-cycle` |
+| `orphan` | `dead-code` | `remove-or-wire-orphan`, or `move-orphan-to-tests` when test files import it |
+| `unused_exports` | `information-hiding` | `narrow-exports` |
 | `private_imports` | `information-hiding` | none |
 | `long_function` | `small-functions` | none |
 

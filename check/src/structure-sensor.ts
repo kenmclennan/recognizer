@@ -10,7 +10,8 @@ import type { FindingRecord, FindingsDocument } from "./findings-document.js";
 import { type FolderMetrics, measureFolders } from "./folder-metrics.js";
 import { keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
-import { collectViolations } from "./rules.js";
+import { principleOf } from "./principles.js";
+import { collectViolations, type Rule } from "./rules.js";
 import type { RecordedScan, Scan } from "./scan.js";
 import {
   longFunctionFindings,
@@ -19,7 +20,7 @@ import {
   unusedExportsFindings,
 } from "./structure-warnings.js";
 
-export const STRUCTURE_SENSOR_VERSION = "17";
+export const STRUCTURE_SENSOR_VERSION = "18";
 
 export interface StructureSettings {
   duplication: false | DuplicationSettings;
@@ -117,12 +118,18 @@ export function describeSettings(settings: StructureSettings): string {
   return `cycle ${on(w.cycle)}, orphan ${on(w.orphan)}, unused_exports ${on(w.unused_exports)}, private_imports ${on(w.private_imports)}, long_function ${on(w.long_function)}${entries}`;
 }
 
+export function violationPrinciple(rules: readonly Rule[]): string {
+  return rules.some((rule) => rule.type === "level")
+    ? "dependency-inversion-principle"
+    : "repository-policy";
+}
+
 function warningFinding(warning: Analysis["warnings"][number]): FindingRecord {
   return {
     id: `cycle:${warning.evidence.modules.join(",")}`,
     kind: "cycle",
     severity: "warning",
-    principle: warning.principle,
+    ...principleOf(warning.principle),
     summary: warning.summary,
     fix_pattern: warning.fix_pattern,
     evidence: {
@@ -188,7 +195,7 @@ export function structureSensor(
           id: violationId(violation),
           kind: "rule-violation",
           severity: "violation",
-          principle: "dependencies-follow-the-policy",
+          ...principleOf(violationPrinciple(violation.rules)),
           summary: violationText(violation),
           evidence: {
             modules: [violation.from],

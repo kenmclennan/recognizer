@@ -948,7 +948,7 @@ describe("show and modules read the findings files", () => {
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
-    expect(written.sensor.version).toBe("17");
+    expect(written.sensor.version).toBe("18");
     expect(written.settings.entry_points).toEqual([]);
   });
 
@@ -973,7 +973,7 @@ describe("show and modules read the findings files", () => {
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
-    expect(written.sensor.version).toBe("17");
+    expect(written.sensor.version).toBe("18");
     expect(written.settings.distance_threshold).toBeUndefined();
   });
 
@@ -1001,7 +1001,7 @@ describe("show and modules read the findings files", () => {
           id: "hub:shop/a.py",
           kind: "hub",
           severity: "warning",
-          principle: "interfaces-are-narrow-and-explicit",
+          principle: "name-your-constants",
           summary: "shop/a.py is a hub",
           fix_pattern: "split-hub",
           evidence: {

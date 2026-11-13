@@ -3,7 +3,8 @@
   "id": "duplication:src/pricing.ts::sumWithLevy|src/pricing.ts::totalWithTax",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "sumWithLevy in src/pricing.ts is 100% similar to totalWithTax in src/pricing.ts",
   "evidence": {
@@ -39,7 +40,8 @@
   "id": "duplication:app/pricing.py::sum_with_levy|app/pricing.py::total_with_tax",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "sum_with_levy in app/pricing.py is 100% similar to total_with_tax in app/pricing.py",
   "evidence": {

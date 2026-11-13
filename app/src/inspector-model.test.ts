@@ -786,7 +786,7 @@ describe("findings", () => {
     },
   });
   const violationRow = findingRow("violation", "v", "level 1 -> 2");
-  const warningRow = findingRow("warning", "w", "no-cycles");
+  const warningRow = findingRow("warning", "w", "levelization");
   const violation = {
     severity: "violation",
     text: "v",

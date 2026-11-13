@@ -3,6 +3,7 @@ import type { FindingRecord } from "./findings-document.js";
 import { functionLength, LONG_FUNCTION } from "./function-length.js";
 import { isForeign, keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
+import { principleOf } from "./principles.js";
 import type { Scan, ScanEdge, ScanMember } from "./scan.js";
 import {
   libraryApiHint,
@@ -123,7 +124,7 @@ export function orphanFindings(
         id: `orphan:${id}`,
         kind: "orphan",
         severity: "warning" as const,
-        principle: "every-module-is-reachable",
+        ...principleOf("dead-code"),
       };
 
       if (importers.length === 0) {
@@ -320,7 +321,7 @@ export function unusedExportsFindings(
       id: `unused_exports:${module.id}`,
       kind: "unused_exports",
       severity: "warning",
-      principle: "export-only-what-is-used",
+      ...principleOf("information-hiding"),
       summary: `${module.id} exports ${unused.length} ${noun} no other module imports: ${names}${marked.length > 0 ? unusedTestOnlyClause(marked) : ""}`,
       fix_pattern: "narrow-exports",
       evidence: {
@@ -443,7 +444,7 @@ export function privateImportsFindings(
       id: `private_imports:${importer}`,
       kind: "private_imports",
       severity: "warning",
-      principle: "information-hiding",
+      ...principleOf("information-hiding"),
       summary: `${importer} imports ${count} private ${count === 1 ? "name" : "names"} from ${ownerIds.length} ${ownerIds.length === 1 ? "module" : "modules"} (${first}${more}) - information hiding (Parnas, 1972)`,
       evidence: {
         modules: [importer],
@@ -534,7 +535,7 @@ export function longFunctionFindings(
         id: `long_function:${identity}`,
         kind: "long_function",
         severity: "warning",
-        principle: "small-functions",
+        ...principleOf("small-functions"),
         summary: `${fn.qualified} in ${file} is ${length} lines, over the ${LONG_FUNCTION} lines a function should hardly ever reach - functions should be small (Martin, Clean Code, 2008)`,
         evidence: {
           modules: [module.id],

@@ -9,7 +9,8 @@
       "id": "unused_exports:src/plan.py",
       "kind": "unused_exports",
       "severity": "warning",
-      "principle": "export-only-what-is-used",
+      "principle": "information-hiding",
+      "citation": { "author": "David Parnas", "work": "On the Criteria To Be Used in Decomposing Systems into Modules", "year": 1972 },
       "fix_pattern": "narrow-exports",
       "summary": "src/plan.py exports 2 names no other module imports: build, draft; only tests import build (tests/test_plan.py), so if nothing outside the repository uses it, delete it with its tests; a library can list its public API in warnings.orphan.entry_points",
       "evidence": {

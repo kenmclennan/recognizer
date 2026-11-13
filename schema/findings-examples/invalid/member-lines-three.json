@@ -9,7 +9,8 @@
       "id": "duplication:a|b",
       "kind": "duplication",
       "severity": "warning",
-      "principle": "Do not repeat yourself",
+      "principle": "dont-repeat-yourself",
+      "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
       "summary": "a is 100% similar to b",
       "evidence": {
         "modules": ["a.py"],

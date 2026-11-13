@@ -3,7 +3,8 @@
   "id": "duplication:near.rs::gather_names|near.rs::gather_tags",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "gather_names in near.rs is 88% similar to gather_tags in near.rs",
   "evidence": {
@@ -39,7 +40,8 @@
   "id": "duplication:near.rs::fetch_events|near.rs::fetch_pages",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "fetch_events in near.rs is 87% similar to fetch_pages in near.rs",
   "evidence": {
@@ -75,7 +77,8 @@
   "id": "duplication:near.rs::summarise_orders|near.rs::summarise_visits",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "summarise_orders in near.rs is 95% similar to summarise_visits in near.rs",
   "evidence": {
@@ -111,7 +114,8 @@
   "id": "duplication:planted.rs::load_session|planted.rs::load_settings",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "load_session in planted.rs is 100% similar to load_settings in planted.rs",
   "evidence": {
@@ -147,7 +151,8 @@
   "id": "duplication:planted.rs::order_total|planted.rs::parcel_weight",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "order_total in planted.rs is 100% similar to parcel_weight in planted.rs",
   "evidence": {
@@ -183,7 +188,8 @@
   "id": "duplication:planted.rs::store_ledger|planted.rs::store_report",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "store_ledger in planted.rs is 89% similar to store_report in planted.rs",
   "evidence": {
@@ -219,7 +225,8 @@
   "id": "duplication:branching.rs::Limits.page_size|branching.rs::Limits.retry_limit",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "Limits.page_size in branching.rs is 100% similar to Limits.retry_limit in branching.rs",
   "evidence": {

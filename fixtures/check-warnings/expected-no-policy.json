@@ -2,7 +2,7 @@
   "warnings": [
     {
       "id": "cycle",
-      "principle": "no-cycles",
+      "principle": "levelization",
       "fix_pattern": "break-cycle",
       "summary": "cycle of 2 modules: app/domain/money.py, app/domain/order.py",
       "evidence": {
@@ -24,7 +24,7 @@
     },
     {
       "id": "orphan",
-      "principle": "every-module-is-reachable",
+      "principle": "dead-code",
       "fix_pattern": "remove-or-wire-orphan",
       "summary": "app/adapters/audit.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
       "evidence": {
@@ -35,7 +35,7 @@
     },
     {
       "id": "orphan",
-      "principle": "every-module-is-reachable",
+      "principle": "dead-code",
       "fix_pattern": "remove-or-wire-orphan",
       "summary": "app/adapters/clock.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
       "evidence": {
@@ -46,7 +46,7 @@
     },
     {
       "id": "orphan",
-      "principle": "every-module-is-reachable",
+      "principle": "dead-code",
       "fix_pattern": "remove-or-wire-orphan",
       "summary": "app/adapters/sql.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
       "evidence": {
@@ -57,7 +57,7 @@
     },
     {
       "id": "orphan",
-      "principle": "every-module-is-reachable",
+      "principle": "dead-code",
       "fix_pattern": "remove-or-wire-orphan",
       "summary": "app/application/report.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
       "evidence": {

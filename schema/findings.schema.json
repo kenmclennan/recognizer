@@ -111,6 +111,17 @@
           "kind": { "type": "string", "minLength": 1 },
           "severity": { "enum": ["violation", "warning"] },
           "principle": { "type": "string", "minLength": 1 },
+          "citation": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["author", "work", "year"],
+            "properties": {
+              "author": { "type": "string", "minLength": 1 },
+              "work": { "type": "string", "minLength": 1 },
+              "year": { "type": "integer" },
+              "locator": { "type": "string", "minLength": 1 }
+            }
+          },
           "summary": { "type": "string", "minLength": 1 },
           "metric": { "type": "string", "minLength": 1 },
           "fix_pattern": { "type": "string", "minLength": 1 },

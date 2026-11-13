@@ -37,8 +37,8 @@ const scan = {
   edges: [{ from: ids[0], to: ids[1], kind: "depends", line: 4, names: ["X"] }],
   foreign: [],
 };
-const violation = { id: "rule-violation:a", kind: "rule-violation", severity: "violation", principle: "dependencies-follow-the-policy", summary: "depends on app/b.py at line 4", evidence: { modules: [ids[0]], edges: [{ from: ids[0], to: ids[1], kind: "depends", lines: [4], rules: [{ type: "level", from_level: "domain", to_level: "adapters" }] }] } };
-const cycle = { id: "cycle:a,b", kind: "cycle", severity: "warning", principle: "no-cycles", summary: "cycle of 2 modules", fix_pattern: "break-cycle", evidence: { modules: [ids[0], ids[1]], edges: [{ from: ids[0], to: ids[1] }, { from: ids[1], to: ids[0] }] } };
+const violation = { id: "rule-violation:a", kind: "rule-violation", severity: "violation", principle: "dependency-inversion-principle", summary: "depends on app/b.py at line 4", evidence: { modules: [ids[0]], edges: [{ from: ids[0], to: ids[1], kind: "depends", lines: [4], rules: [{ type: "level", from_level: "domain", to_level: "adapters" }] }] } };
+const cycle = { id: "cycle:a,b", kind: "cycle", severity: "warning", principle: "levelization", summary: "cycle of 2 modules", fix_pattern: "break-cycle", evidence: { modules: [ids[0], ids[1]], edges: [{ from: ids[0], to: ids[1] }, { from: ids[1], to: ids[0] }] } };
 const style = { id: "style:c", kind: "style", severity: "warning", principle: "name-your-constants", summary: "magic numbers", evidence: { modules: [ids[2]] } };
 const longOne = { id: "orphan:long", kind: "orphan", severity: "warning", principle: "p", summary: "s", evidence: { modules: ["app/" + longName] } };
 const longReport = { id: "note:long", kind: "note", severity: "warning", principle: "p", summary: "This is a long agent sentence that has to wrap at word boundaries inside a narrow panel and never be cut at the edge of it. ".repeat(3), evidence: { modules: [ids[2]] } };
