@@ -1,4 +1,6 @@
 import { validateRunRecord } from "recognizer";
+import { STRUCTURE_KEY } from "./freshness-model";
+import { DESCRIBE_KEY, type PlannedRun } from "./scan-freshness";
 
 export type DescribeSample = { ms: number; entries: number };
 
@@ -13,6 +15,20 @@ export const NO_HISTORY: ScanHistory = {
   extractMs: null,
   describe: [],
 };
+
+export type PartSpec = { key: string; name: string; runsTests: boolean };
+
+export type EstimatePart = {
+  key: string;
+  name: string;
+  ms: number | null;
+  basis: string | null;
+};
+
+export type ScanEstimate = { text: string; title: string };
+
+export const NO_ESTIMATE_TEXT =
+  "No estimate until this repository has been scanned";
 
 const RECENT = 5;
 
@@ -33,6 +49,33 @@ export function roundedTime(ms: number): string {
   const rest = minutes % 60;
 
   return rest === 0 ? `about ${hours} h` : `about ${hours} h ${rest} min`;
+}
+
+function capitalised(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function shortTime(ms: number): string {
+  const seconds = ms / 1000;
+
+  if (seconds < 60) {
+    return "<1 min";
+  }
+
+  const minutes = Math.round(seconds / 60);
+
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+
+  return rest === 0 ? `${hours} h` : `${hours} h ${rest} m`;
+}
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 export function scanHistory(
@@ -107,4 +150,94 @@ export function describeRateMs(history: ScanHistory): number | null {
   return entries === 0
     ? null
     : history.describe.reduce((total, one) => total + one.ms, 0) / entries;
+}
+
+function secondsText(ms: number): string {
+  const seconds = ms / 1000;
+
+  return seconds >= 10
+    ? String(Math.round(seconds))
+    : String(Math.round(seconds * 10) / 10);
+}
+
+export function estimateParts(
+  history: ScanHistory,
+  planned: PlannedRun,
+  rows: readonly PartSpec[],
+): EstimatePart[] {
+  const parts: EstimatePart[] = [];
+
+  for (const spec of rows) {
+    const { key, name } = spec;
+
+    if (key === STRUCTURE_KEY) {
+      parts.push(
+        history.structureMs === null
+          ? { key, name, ms: null, basis: null }
+          : {
+              key,
+              name,
+              ms: history.structureMs + (history.extractMs ?? 0),
+              basis: "last run",
+            },
+      );
+
+      continue;
+    }
+
+    const n = planned.work[key] ?? 0;
+    const ticked =
+      key === DESCRIBE_KEY
+        ? planned.plan.describe
+        : planned.plan.sense.includes(key);
+
+    if (!ticked || n === 0) {
+      continue;
+    }
+
+    if (key === DESCRIBE_KEY) {
+      const rate = describeRateMs(history);
+
+      parts.push(
+        rate === null
+          ? { key, name, ms: null, basis: null }
+          : {
+              key,
+              name,
+              ms: rate * n,
+              basis: `${plural(n, "module")} × ${secondsText(rate)} s`,
+            },
+      );
+
+      continue;
+    }
+
+    parts.push({ key, name, ms: null, basis: null });
+  }
+
+  return parts;
+}
+
+export function estimateLine(parts: readonly EstimatePart[]): ScanEstimate {
+  const known = parts.filter((one) => one.ms !== null);
+  const missing = parts.filter((one) => one.ms === null);
+
+  if (known.length === 0) {
+    return { text: NO_ESTIMATE_TEXT, title: "" };
+  }
+
+  const total = known.reduce((sum, one) => sum + (one.ms as number), 0);
+  const text =
+    capitalised(roundedTime(total)) +
+    (missing.length === 0
+      ? ""
+      : `, plus ${missing.map((one) => one.name).join(", ")}: no estimate yet`);
+  const title = [
+    ...known.map(
+      (one) => `${one.name}: ${shortTime(one.ms as number)} (${one.basis})`,
+    ),
+    ...missing.map((one) => `${one.name}: no estimate yet`),
+  ].join("\n");
+
+  return { text, title };
 }

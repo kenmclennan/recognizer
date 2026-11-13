@@ -1178,6 +1178,7 @@ describe("createRescanner", () => {
       idle: false,
       label: "Rescan 1 module",
       progress: "Rescanning 1 module\u2026",
+      work: {},
     };
 
     await rescanner.run(planned.plan.modules, planned);

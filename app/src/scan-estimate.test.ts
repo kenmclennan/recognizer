@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { describeRateMs, roundedTime, scanHistory } from "./scan-estimate";
+import {
+  describeRateMs,
+  estimateLine,
+  estimateParts,
+  NO_ESTIMATE_TEXT,
+  type PartSpec,
+  roundedTime,
+  scanHistory,
+} from "./scan-estimate";
+import { OPEN_RUN, type PlannedRun } from "./scan-freshness";
 
 type SenseEntry = {
   name: string;
@@ -89,6 +98,36 @@ function scanFile(
   return { name: `${stamp}-${kind}.json`, text: JSON.stringify(record) };
 }
 
+const MUTATION: PartSpec = {
+  key: "mutation",
+  name: "Mutation",
+  runsTests: true,
+};
+const CRAP: PartSpec = { key: "crap", name: "C.R.A.P.", runsTests: true };
+const STRUCTURE: PartSpec = {
+  key: "structure",
+  name: "Structure",
+  runsTests: false,
+};
+const DESCRIBE: PartSpec = {
+  key: "describe",
+  name: "Descriptions",
+  runsTests: false,
+};
+
+function planned(
+  work: Record<string, number>,
+  sense: string[],
+  describe = false,
+): PlannedRun {
+  return {
+    ...OPEN_RUN,
+    idle: false,
+    plan: { describe, describeAll: false, sense, modules: null },
+    work,
+  };
+}
+
 describe("roundedTime", () => {
   it("reads under a minute below 60000 ms and about 1 min at 60000 ms", () => {
     expect(roundedTime(59999)).toBe("under a minute");
@@ -115,6 +154,38 @@ describe("the estimate line", () => {
       ],
     }),
   ];
+  const rows = [STRUCTURE, DESCRIBE, CRAP, MUTATION];
+  const lineFor = (sense: string[], describe: boolean, history = files) => {
+    const parts = estimateParts(
+      scanHistory(history),
+      planned({ describe: 12, crap: 40, mutation: 40 }, sense, describe),
+      rows,
+    );
+
+    return estimateLine(parts);
+  };
+
+  it("reads No estimate until this repository has been scanned with no history", () => {
+    expect(lineFor(["crap", "mutation"], true, []).text).toBe(NO_ESTIMATE_TEXT);
+  });
+
+  it("adds the extract time to the structure figure", () => {
+    const parts = estimateParts(scanHistory(files), planned({}, []), [
+      STRUCTURE,
+    ]);
+
+    expect(parts[0]?.ms).toBe(10000);
+  });
+
+  it("does not name a ticked part with nothing to do", () => {
+    const parts = estimateParts(
+      scanHistory([]),
+      planned({ crap: 0 }, ["crap"]),
+      [STRUCTURE, CRAP],
+    );
+
+    expect(parts.map((one) => one.key)).toEqual(["structure"]);
+  });
 
   it("derives the describe rate from wall time over ok entries", () => {
     expect(describeRateMs(scanHistory(files))).toBe(4000);

@@ -17,7 +17,14 @@ import {
   stateText,
 } from "./freshness-model";
 import type { ResponsibilityState } from "./responsibility-model";
-import { describeRateMs, NO_HISTORY, type ScanHistory } from "./scan-estimate";
+import {
+  describeRateMs,
+  estimateLine,
+  estimateParts,
+  NO_HISTORY,
+  type ScanEstimate,
+  type ScanHistory,
+} from "./scan-estimate";
 import {
   DESCRIBE_KEY,
   MUTATION_KEY,
@@ -182,7 +189,10 @@ export type ScanPanelModel = {
   pending: boolean;
   mark: boolean;
   confirm: DescribeAskText | null;
+  estimate: ScanEstimate | null;
 };
+
+const NOTHING_TICKED = "Nothing ticked to run";
 
 const DESCRIBE_TITLE =
   "Writes one line per module saying what it is responsible for.";
@@ -454,6 +464,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       pending: true,
       mark: panelMark(input),
       confirm: null,
+      estimate: null,
     };
   }
 
@@ -464,6 +475,17 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     sensors,
     scopedIds(input),
     input.lines.modules,
+  );
+  const history = input.history ?? NO_HISTORY;
+  const parts = estimateParts(
+    history,
+    planned,
+    freshness.rows.map((row) => ({
+      key: row.key,
+      name: row.name,
+      runsTests:
+        sensors.find((one) => one.name === row.key)?.runsTests === true,
+    })),
   );
   const plain = sensors
     .filter(({ runsTests }) => !runsTests)
@@ -627,10 +649,13 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     confirm:
       input.describeAsk == null
         ? null
-        : describeAskText(
-            input.describeAsk,
-            describeRateMs(input.history ?? NO_HISTORY),
-          ),
+        : describeAskText(input.describeAsk, describeRateMs(history)),
+    estimate:
+      locked ||
+      planned.idle ||
+      freshness.action.primary.label === NOTHING_TICKED
+        ? null
+        : estimateLine(parts),
   };
 }
 

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { ScanState } from "./footer-scan";
 import { NO_CHANGES } from "./footer-scan";
 import type { ResponsibilityState } from "./responsibility-model";
+import { scanHistory } from "./scan-estimate";
 import {
   functionCount,
   NO_RUN,
@@ -1497,5 +1498,66 @@ describe("describeStopText for a failures stop", () => {
     expect(describeStopText(stop)).toBe(
       "Stopped: 4 describing calls failed in a row. 1 described, 2 not described. The next scan describes the rest.",
     );
+  });
+});
+
+describe("scanPanel estimate line", () => {
+  const files = [
+    {
+      name: "20261103T090000000Z-scan.json",
+      text: JSON.stringify({
+        log_version: 1,
+        kind: "scan",
+        started: "2026-11-03T09:00:00.000Z",
+        finished: "2026-11-03T09:10:00.000Z",
+        by: "ken",
+        arguments: [],
+        outcome: "ok",
+        exit: 0,
+        structure_ms: 6000,
+        phases: [
+          {
+            phase: "sense",
+            entries: [
+              {
+                name: "mutation",
+                command: ["x"],
+                status: 0,
+                outcome: "ok",
+                duration_ms: 160000,
+                modules: 3,
+                fixed_ms: 100000,
+                stderr: "",
+              },
+            ],
+          },
+        ],
+      }),
+    },
+  ];
+  const history = scanHistory(files);
+  const mutating = (over: Partial<PanelInput> = {}) =>
+    input({
+      history,
+      ticks: {
+        describe: false,
+        ticked: [],
+        once: ["mutation"],
+        onlyView: false,
+        suites: {},
+        folds: [],
+      },
+      ...over,
+    });
+
+  it("shows no line when nothing is ticked to run", () => {
+    const model = scanPanel(input({ history }));
+
+    expect(model.button.label).toBe("Nothing ticked to run");
+    expect(model.estimate).toBeNull();
+  });
+
+  it("shows no line while scanning", () => {
+    expect(scanPanel(mutating({ scanning: true })).estimate).toBeNull();
   });
 });
