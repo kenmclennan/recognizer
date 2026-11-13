@@ -570,6 +570,8 @@ svg.i.chevron {
 
 .msg .msg-body {
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--muted);
 }
 
