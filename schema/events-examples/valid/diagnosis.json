@@ -1,0 +1,6 @@
+{
+  "event": "diagnosis",
+  "code": "no-coverage-plugin",
+  "text": "The test suite writes no coverage report",
+  "fix": "Add pytest-cov and set tests.unit.coverage.path"
+}

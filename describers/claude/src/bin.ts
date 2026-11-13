@@ -9,6 +9,7 @@ import {
   parseRequest,
   UsageError,
 } from "./describe.js";
+import { manifestText } from "./manifest.js";
 import { promptVersion, readPrompt } from "./prompt.js";
 import { interpretReply, LIMIT_STATUS, LimitError } from "./reply.js";
 
@@ -154,6 +155,12 @@ function parseArguments(args: string[]): { model: string; file: string } {
 }
 
 async function main(args: string[]): Promise<number> {
+  if (args.length === 1 && args[0] === "manifest") {
+    process.stdout.write(manifestText());
+
+    return 0;
+  }
+
   if (args.length === 1 && args[0] === "--version") {
     const { version } = JSON.parse(readFileSync(PACKAGE_FILE, "utf8")) as {
       version: string;

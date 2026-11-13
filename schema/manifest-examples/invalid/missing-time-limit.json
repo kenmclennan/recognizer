@@ -1,0 +1,15 @@
+{
+  "kind": "describer",
+  "name": "claude",
+  "display": "Claude",
+  "version": "0.1.0",
+  "protocol": 1,
+  "install": "brew install --cask kenmclennan/tap/recognizer",
+  "check": true,
+  "long_running": false,
+  "units": [
+    "modules"
+  ],
+  "settings": [],
+  "prompt_version": "prompt-b450a986f729"
+}

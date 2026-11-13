@@ -4,6 +4,7 @@ import sys
 from importlib.metadata import version
 from pathlib import Path
 
+from recognizer_scan_csharp.manifest import manifest_text
 from recognizer_scan_csharp.scanner import scan_with_stats
 from recognizer_scan_csharp.serialise import render
 
@@ -60,7 +61,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    arguments = sys.argv[1:] if argv is None else argv
+
+    if arguments == ["manifest"]:
+        sys.stdout.write(manifest_text())
+
+        return 0
+
+    args = build_parser().parse_args(arguments)
     root: Path = args.root
 
     if not root.is_dir():

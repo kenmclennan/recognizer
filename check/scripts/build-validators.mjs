@@ -19,6 +19,8 @@ for (const name of [
   "scan-answer",
   "overlay",
   "config-keys",
+  "manifest",
+  "events",
 ]) {
   const schema = JSON.parse(
     readFileSync(

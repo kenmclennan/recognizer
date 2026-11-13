@@ -80,6 +80,7 @@ describe("command table", () => {
       "config",
       "policy",
       "doctor",
+      "plugin",
       "windows",
       "window",
       "describe",

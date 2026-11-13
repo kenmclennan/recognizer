@@ -144,6 +144,15 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Update in place | Handing a run's new sensor results, findings and notices to the open explorer without rebuilding it, so the canvas, camera, selection, inspector and left panel stay as they were. It applies when the scan's modules and scan documents are unchanged; a structural change rebuilds the explorer and carries the camera. |
 | Cache | A repository's gitignored `.recognizer/cache/`, where scans and overlays are written. |
 
+## Plugins
+
+| Term | Meaning |
+| --- | --- |
+| Plugin | An executable that does one of Recognizer's three kinds of work: a scanner reads a language into a scan, a sensor measures and writes findings and overlays, a describer writes one line per module. It is named `recognizer-scan-<name>`, `recognizer-sense-<name>` or `recognizer-describe-<name>` and speaks to Recognizer through arguments, JSON on stdout and events on stderr. Recognizer's own scanners, sensors and describer are plugins under the same contract. |
+| Manifest | The JSON a plugin prints for `<command> manifest`: its kind, name, display name, version, protocol version, install command, whether it has a readiness check, whether a run may take minutes or has a time limit, the words its progress counts in, its settings, and the fields its kind adds (a scanner's languages, a sensor's metrics and finding sentences, a describer's prompt version). |
+| Protocol version | The one integer in a manifest's `protocol`, covering the manifest, event, scan, findings and overlay schemas together. The CLI supports the current protocol and the one before it; a plugin outside that range is refused before anything runs. A plugin's own `version` is never compared. |
+| Verb | One of the four arguments a plugin answers: `manifest`, `check`, `run` and `guide`. A plugin does work only when Recognizer calls a verb. `manifest` is the only one required to answer so far, and the only one `recognizer plugin check` calls. |
+
 ## The viewer
 
 | Term | Meaning |

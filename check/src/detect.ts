@@ -119,31 +119,45 @@ const TYPESCRIPT_EXTENSIONS = [
   ".cts",
 ];
 
+const EXTENSIONS: Record<Language, string[]> = {
+  python: [".py"],
+  typescript: TYPESCRIPT_EXTENSIONS,
+  kotlin: [".kt"],
+  rust: [".rs"],
+  csharp: CSHARP_EXTENSIONS,
+};
+
+const FILES: Record<Language, string[]> = {
+  python: [],
+  typescript: ["tsconfig.json"],
+  kotlin: [],
+  rust: [],
+  csharp: [],
+};
+
 function languageOf(fileName: string): Language | null {
-  if (fileName.endsWith(".py")) {
-    return "python";
-  }
+  return (
+    LANGUAGES.find(
+      (language) =>
+        FILES[language].includes(fileName) ||
+        EXTENSIONS[language].some((extension) => fileName.endsWith(extension)),
+    ) ?? null
+  );
+}
 
-  if (
-    fileName === "tsconfig.json" ||
-    TYPESCRIPT_EXTENSIONS.some((extension) => fileName.endsWith(extension))
-  ) {
-    return "typescript";
-  }
-
-  if (fileName.endsWith(".kt")) {
-    return "kotlin";
-  }
-
-  if (fileName.endsWith(".rs")) {
-    return "rust";
-  }
-
-  if (CSHARP_EXTENSIONS.some((extension) => fileName.endsWith(extension))) {
-    return "csharp";
-  }
-
-  return null;
+export function languageRules() {
+  return LANGUAGES.map((language) => ({
+    name: language,
+    extensions: EXTENSIONS[language],
+    files: FILES[language],
+    skip: {
+      directory_names: SKIP_RULES[language].directoryNames,
+      directory_prefixes: SKIP_RULES[language].directoryPrefixes,
+      directory_suffixes: SKIP_RULES[language].directorySuffixes,
+      directory_markers: SKIP_RULES[language].directoryMarkers,
+      file_globs: SKIP_RULES[language].fileGlobs,
+    },
+  }));
 }
 
 function skipsFile(language: Language, fileName: string): boolean {

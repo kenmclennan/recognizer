@@ -1,0 +1,46 @@
+{
+  "kind": "scanner",
+  "name": "python",
+  "display": "Python",
+  "version": "0.1.0",
+  "protocol": 0,
+  "install": "brew install --cask kenmclennan/tap/recognizer",
+  "check": false,
+  "long_running": true,
+  "units": [
+    "files"
+  ],
+  "settings": [],
+  "languages": [
+    {
+      "name": "python",
+      "extensions": [
+        ".py"
+      ],
+      "files": [],
+      "skip": {
+        "directory_names": [
+          "__pycache__",
+          "test",
+          "tests",
+          "dist",
+          "build",
+          "node_modules",
+          "site-packages"
+        ],
+        "directory_prefixes": [
+          "."
+        ],
+        "directory_suffixes": [
+          ".egg-info"
+        ],
+        "directory_markers": [
+          "pyvenv.cfg"
+        ],
+        "file_globs": [
+          "conftest.py"
+        ]
+      }
+    }
+  ]
+}

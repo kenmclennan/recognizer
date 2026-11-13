@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://recognizer.dev/schema/events.schema.json",
+  "title": "Recognizer plugin event",
+  "description": "One event a plugin writes on stderr while it runs, as a line `recognizer-event <json>`. This schema validates the JSON after the prefix; the prefix is not enforced by it.",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event",
+        "total",
+        "unit"
+      ],
+      "properties": {
+        "event": {
+          "const": "start"
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event",
+        "done",
+        "total",
+        "unit"
+      ],
+      "properties": {
+        "event": {
+          "const": "progress"
+        },
+        "done": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "step": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event",
+        "text"
+      ],
+      "properties": {
+        "event": {
+          "const": "note"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event",
+        "code",
+        "text",
+        "fix"
+      ],
+      "properties": {
+        "event": {
+          "const": "diagnosis"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fix": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  ]
+}
