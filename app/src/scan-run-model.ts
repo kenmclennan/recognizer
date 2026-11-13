@@ -2,6 +2,7 @@ import type { ScanRunRecord } from "recognizer";
 import { ageText } from "./footer-scan";
 import type { IconName } from "./icons";
 import { runLogPath } from "./run-log-path";
+import { remaining } from "./scan-estimate";
 import {
   foldProgress,
   type ScanEvent,
@@ -41,7 +42,7 @@ export type RunCard = {
   showLog: string | null;
   gaps: GapItem[];
   help: HelpLine[];
-  when: { icon: IconName | null; text: string };
+  when: { icon: IconName | null; text: string; title?: string };
 };
 
 export type RunModel = {
@@ -53,11 +54,53 @@ export type RunModel = {
   partial: { sensor: string; text: string } | null;
 };
 
+function timed(
+  state: ScanProgress,
+  next: ScanProgress,
+  event: ScanEvent,
+  at: number,
+): ScanProgress {
+  const { timing } = state;
+
+  switch (event.event) {
+    case "phase":
+      return {
+        ...next,
+        timing: {
+          ...timing,
+          phaseAt: { ...timing.phaseAt, [event.phase]: at },
+          describeFrom: event.phase === "describe" ? at : timing.describeFrom,
+        },
+      };
+    case "answered":
+      return { ...next, timing: { ...timing, describeFrom: at } };
+    case "start":
+      return {
+        ...next,
+        timing: {
+          ...timing,
+          sensorAt: { ...timing.sensorAt, [event.name]: at },
+          mutantsFrom: null,
+        },
+      };
+    case "progress":
+      return event.step === "mutants" && timing.mutantsFrom === null
+        ? {
+            ...next,
+            timing: { ...timing, mutantsFrom: { at, done: event.done } },
+          }
+        : next;
+    default:
+      return next;
+  }
+}
+
 export function foldRunLine(
   state: ScanProgress,
   event: ScanEvent,
+  at: number,
 ): ScanProgress {
-  const next = foldProgress(state, event);
+  const next = timed(state, foldProgress(state, event), event, at);
 
   if (event.event === "start") {
     return { ...next, sensing: event.name };
@@ -268,11 +311,47 @@ function shortReason(failure: NonNullable<ScanRunRecord["failure"]>): string {
   return short ?? failure.reason.slice(0, REASON_LIMIT);
 }
 
+function timeLeft(
+  record: ScanRunRecord,
+  view: RunView,
+  now: number,
+): { text: string; title?: string } | null {
+  if (record.started_by !== "app") {
+    return null;
+  }
+
+  const startedAt = Date.parse(record.started_at);
+  const left = remaining({
+    parts: [
+      { key: "structure", name: "Structure" },
+      ...(record.describe
+        ? [{ key: "describe", name: DESCRIPTIONS_NAME }]
+        : []),
+      ...record.sensors.map((name) => ({
+        key: name,
+        name: view.display(name),
+      })),
+    ],
+    suites: record.suites,
+    progress: view.progress,
+    startedAt: Number.isNaN(startedAt) ? null : startedAt,
+    now,
+  });
+
+  return left === null
+    ? null
+    : {
+        text: left.text,
+        ...(left.title === null ? {} : { title: left.title }),
+      };
+}
+
 function cardOf(
   record: ScanRunRecord,
   view: RunView,
   ticked: ReadonlySet<string>,
   sensors: ReadonlySet<string>,
+  now: number,
 ): RunCard | null {
   const time = clockText(record.ended_at ?? record.started_at);
   const base = {
@@ -327,14 +406,26 @@ function cardOf(
         })),
       };
     }
-    case "running":
+    case "running": {
+      const left = timeLeft(record, view, now);
+
       return {
         ...base,
         icon: "loader",
         tone: "run",
         head: SCANNING_HEAD,
         line: currentLine(record, view),
+        ...(left === null
+          ? {}
+          : {
+              when: {
+                icon: null,
+                text: left.text,
+                ...(left.title === undefined ? {} : { title: left.title }),
+              },
+            }),
       };
+    }
     case "finished":
       return {
         ...base,
@@ -439,7 +530,7 @@ export function runModel(
     return null;
   }
 
-  const card = cardOf(record, view, ticked, sensors);
+  const card = cardOf(record, view, ticked, sensors, now);
 
   if (card === null) {
     return null;

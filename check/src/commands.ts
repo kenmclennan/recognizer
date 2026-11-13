@@ -1315,7 +1315,7 @@ export const COMMANDS: Command[] = [
     ],
     output: {
       text: "the list is one line per run, newest first: `<id>  <kind>  <started>  <outcome>  <n> ok, <n> failed`, or `no runs recorded`; a single run prints a header (id, kind, started, finished, by, arguments, outcome), then per scanner, sensor or module its outcome, exit status, duration, command, reason and stderr; a record that cannot be read is named on stderr as `skipped <id>: <message>`",
-      json: "the list is { runs: [{ id, kind, started, finished, by, outcome, entries, failed }] }; a single run is { id, log_version, kind, started, finished, by, arguments, outcome, exit, entries: [{ name, command, status, outcome, duration_ms, reason?, diagnosis?, stderr, stderr_truncated? }] }, where diagnosis is the sensor's Diagnosis object when the entry has one",
+      json: "the list is { runs: [{ id, kind, started, finished, by, outcome, entries, failed }] }; a single run is { id, log_version, kind, started, finished, by, arguments, outcome, exit, structure_ms?, entries: [{ name, command, status, outcome, duration_ms, modules?, fixed_ms?, incomplete?, reason?, diagnosis?, stderr, stderr_truncated? }] } or phases: [{ phase, entries, duration_ms? }] for a scan, where diagnosis is the sensor's Diagnosis object when the entry has one",
     },
     exitCodes: [
       {

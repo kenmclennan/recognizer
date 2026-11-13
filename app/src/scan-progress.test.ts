@@ -531,3 +531,28 @@ describe("parseScanLine preflight and summary exit", () => {
     });
   });
 });
+
+describe("describeAskText with a describe rate", () => {
+  const ask = {
+    modules: 12,
+    model: "sonnet",
+    inputTokens: 8000,
+    costUsd: 0.42,
+  };
+
+  it("appends the describe time to the cost", () => {
+    expect(describeAskText(ask, 5000).estimate).toBe(
+      "About 8K tokens, $0.42 at API prices, about 1 min",
+    );
+    expect(describeAskText(ask, 4000).estimate).toBe(
+      "About 8K tokens, $0.42 at API prices, under a minute",
+    );
+  });
+
+  it("leaves today's text exactly when there is no describe history", () => {
+    expect(describeAskText(ask, null)).toEqual(describeAskText(ask));
+    expect(describeAskText(ask, null).estimate).toBe(
+      "About 8K tokens, $0.42 at API prices",
+    );
+  });
+});

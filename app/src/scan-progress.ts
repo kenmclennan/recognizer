@@ -1,4 +1,5 @@
 import { type Diagnosis, type Gap, isGap } from "recognizer";
+import { roundedTime } from "./scan-estimate";
 
 export type ScanEvent =
   | {
@@ -72,6 +73,15 @@ export type ScanProgress = {
   stopped: boolean;
   sensing: string | null;
   log: string | null;
+  timing: ScanTiming;
+};
+
+export type ScanTiming = {
+  phaseAt: Record<string, number>;
+  sensorAt: Record<string, number>;
+  describeFrom: number | null;
+  mutantsFrom: { at: number; done: number } | null;
+  frozen: Record<string, number> | null;
 };
 
 export type ShowTarget =
@@ -93,6 +103,13 @@ export const NO_PROGRESS: ScanProgress = {
   stopped: false,
   sensing: null,
   log: null,
+  timing: {
+    phaseAt: {},
+    sensorAt: {},
+    describeFrom: null,
+    mutantsFrom: null,
+    frozen: null,
+  },
 };
 
 const PHASES: readonly string[] = ["extract", "describe", "sense"];
@@ -453,16 +470,20 @@ export type DescribeAskText = {
   estimate: string;
 };
 
-export function describeAskText(ask: DescribeAsk): DescribeAskText {
+export function describeAskText(
+  ask: DescribeAsk,
+  rateMs: number | null = null,
+): DescribeAskText {
   const tokens = `About ${tokensText(ask.inputTokens)} tokens`;
 
   return {
     heading: `Describe ${count(ask.modules)} modules?`,
     model: `Model: ${ask.model}`,
     estimate:
-      ask.costUsd === null
+      (ask.costUsd === null
         ? `${tokens}, price unknown`
-        : `${tokens}, $${ask.costUsd.toFixed(2)} at API prices`,
+        : `${tokens}, $${ask.costUsd.toFixed(2)} at API prices`) +
+      (rateMs === null ? "" : `, ${roundedTime(ask.modules * rateMs)}`),
   };
 }
 

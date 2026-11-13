@@ -18,6 +18,15 @@ import {
 } from "./freshness-model";
 import type { ResponsibilityState } from "./responsibility-model";
 import {
+  describeRateMs,
+  estimateLine,
+  estimateParts,
+  frozenFigures,
+  NO_HISTORY,
+  type ScanEstimate,
+  type ScanHistory,
+} from "./scan-estimate";
+import {
   DESCRIBE_KEY,
   MUTATION_KEY,
   markStale,
@@ -125,6 +134,7 @@ export type PanelInput = {
   shipped: ShippedSensors | null;
   freshness?: Freshness;
   runView?: RunInput | null;
+  history?: ScanHistory;
 };
 
 export type ScanRow = {
@@ -180,7 +190,10 @@ export type ScanPanelModel = {
   pending: boolean;
   mark: boolean;
   confirm: DescribeAskText | null;
+  estimate: ScanEstimate | null;
 };
+
+const NOTHING_TICKED = "Nothing ticked to run";
 
 const DESCRIBE_TITLE =
   "Writes one line per module saying what it is responsible for.";
@@ -452,10 +465,11 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       pending: true,
       mark: panelMark(input),
       confirm: null,
+      estimate: null,
     };
   }
 
-  const planned = planFor(
+  const unplanned = planFor(
     freshness,
     input.mode ?? "bring",
     input.ticks,
@@ -463,6 +477,18 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     scopedIds(input),
     input.lines.modules,
   );
+  const history = input.history ?? NO_HISTORY;
+  const parts = estimateParts(
+    history,
+    unplanned,
+    freshness.rows.map((row) => ({
+      key: row.key,
+      name: row.name,
+      runsTests:
+        sensors.find((one) => one.name === row.key)?.runsTests === true,
+    })),
+  );
+  const planned: PlannedRun = { ...unplanned, frozen: frozenFigures(parts) };
   const plain = sensors
     .filter(({ runsTests }) => !runsTests)
     .map(({ name }) => name);
@@ -623,7 +649,15 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     pending: false,
     mark: panelMark(input),
     confirm:
-      input.describeAsk == null ? null : describeAskText(input.describeAsk),
+      input.describeAsk == null
+        ? null
+        : describeAskText(input.describeAsk, describeRateMs(history)),
+    estimate:
+      locked ||
+      planned.idle ||
+      freshness.action.primary.label === NOTHING_TICKED
+        ? null
+        : estimateLine(parts),
   };
 }
 

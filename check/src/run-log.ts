@@ -16,6 +16,9 @@ export interface RunEntry {
   diagnosis?: Diagnosis;
   stderr: string;
   stderr_truncated?: true;
+  modules?: number;
+  fixed_ms?: number;
+  incomplete?: true;
 }
 
 export type PhaseName = "extract" | "describe" | "measure" | "sense";
@@ -23,6 +26,7 @@ export type PhaseName = "extract" | "describe" | "measure" | "sense";
 export interface RunPhase {
   phase: PhaseName;
   entries: RunEntry[];
+  duration_ms?: number;
 }
 
 export interface SkippedPhase {
@@ -42,6 +46,7 @@ export interface RunRecord {
   entries?: RunEntry[];
   phases?: RunPhase[];
   skipped?: SkippedPhase[];
+  structure_ms?: number;
 }
 
 export function entriesOf(record: RunRecord): RunEntry[] {
@@ -68,6 +73,9 @@ export interface EntryTiming {
   duration_ms: number;
   reason?: string;
   diagnosis?: Diagnosis;
+  modules?: number;
+  fixed_ms?: number;
+  incomplete?: boolean;
 }
 
 export const STDERR_LIMIT = 8192;
@@ -134,6 +142,18 @@ export function entryFrom(name: string, timing: EntryTiming): RunEntry {
     entry.stderr_truncated = true;
   }
 
+  if (timing.modules !== undefined) {
+    entry.modules = timing.modules;
+  }
+
+  if (timing.fixed_ms !== undefined) {
+    entry.fixed_ms = timing.fixed_ms;
+  }
+
+  if (timing.incomplete === true) {
+    entry.incomplete = true;
+  }
+
   return entry;
 }
 
@@ -169,6 +189,7 @@ export function buildPhasedRecord(
   running: boolean,
   skipped: SkippedPhase[] = [],
   refused = false,
+  structureMs?: number,
 ): RunRecord {
   const failed =
     refused ||
@@ -187,6 +208,7 @@ export function buildPhasedRecord(
     exit: running ? 0 : failed ? 1 : 0,
     phases,
     ...(skipped.length === 0 ? {} : { skipped: [...skipped] }),
+    ...(structureMs === undefined ? {} : { structure_ms: structureMs }),
   };
 }
 
@@ -285,7 +307,7 @@ export interface OpenPhasedRunLog {
   id(): string | null;
   skip(skipped: SkippedPhase): void;
   update(phases: RunPhase[]): void;
-  finish(phases: RunPhase[], refused?: boolean): void;
+  finish(phases: RunPhase[], refused?: boolean, structureMs?: number): void;
 }
 
 function openWriter(
@@ -325,7 +347,13 @@ export function openPhasedRunLog(
 ): OpenPhasedRunLog {
   const { write, id } = openWriter(io, root);
   const snapshot = (phases: RunPhase[]): RunPhase[] =>
-    phases.map((one) => ({ phase: one.phase, entries: [...one.entries] }));
+    phases.map((one) => ({
+      phase: one.phase,
+      entries: [...one.entries],
+      ...(one.duration_ms === undefined
+        ? {}
+        : { duration_ms: one.duration_ms }),
+    }));
 
   const skipped: SkippedPhase[] = [];
 
@@ -348,7 +376,7 @@ export function openPhasedRunLog(
           skipped,
         ),
       ),
-    finish: (phases, refused = false) =>
+    finish: (phases, refused = false, structureMs) =>
       write(
         buildPhasedRecord(
           io,
@@ -359,6 +387,7 @@ export function openPhasedRunLog(
           false,
           skipped,
           refused,
+          structureMs,
         ),
       ),
   };

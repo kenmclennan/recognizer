@@ -1,0 +1,37 @@
+{
+  "log_version": 1,
+  "kind": "scan",
+  "started": "2026-11-02T09:00:00.000Z",
+  "finished": "2026-11-02T09:00:09.500Z",
+  "by": "ken",
+  "arguments": [
+    "/work/shop",
+    "--describe",
+    "--sense",
+    "all"
+  ],
+  "outcome": "ok",
+  "exit": 0,
+  "phases": [
+    {
+      "phase": "describe",
+      "entries": [
+        {
+          "name": "orders",
+          "command": [
+            "node",
+            "describe.mjs",
+            "/work/shop",
+            "orders",
+            "/tmp/request-0.json"
+          ],
+          "status": 0,
+          "outcome": "ok",
+          "duration_ms": 2400,
+          "stderr": ""
+        }
+      ],
+      "duration_ms": 2400
+    }
+  ]
+}

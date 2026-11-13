@@ -147,6 +147,8 @@ export type PlannedRun = {
   idle: boolean;
   label: string;
   progress: string;
+  work: Record<string, number>;
+  frozen?: Record<string, number>;
 };
 
 export const OPEN_RUN: PlannedRun = {
@@ -161,6 +163,7 @@ export const OPEN_RUN: PlannedRun = {
   idle: true,
   label: "",
   progress: "",
+  work: {},
 };
 
 function plural(count: number, noun: string): string {
@@ -291,6 +294,12 @@ export function planFor(
       idle: false,
       label: model.action.primary.label,
       progress: `Rescanning ${plural(total, "module")}\u2026`,
+      work: workOf(
+        phases.describe ? total : null,
+        phases.sense,
+        scope !== null && any ? scope.length : null,
+        all.length,
+      ),
     };
   }
 
@@ -318,6 +327,7 @@ export function planFor(
     }
   }
 
+  const planModules = scopedIds.size === 0 ? null : inOrder(scopedIds, order);
   const changed = model.update.length;
   const names = [
     ...(describe ? ["Descriptions"] : []),
@@ -329,7 +339,7 @@ export function planFor(
       describe,
       describeAll: false,
       sense,
-      modules: scopedIds.size === 0 ? null : inOrder(scopedIds, order),
+      modules: planModules,
       suites: suitesForSense(sense, phases.suites),
     },
     dropped: phases.dropped,
@@ -340,5 +350,30 @@ export function planFor(
       changed > 0
         ? `Updating ${plural(changed, "module")}\u2026`
         : `Running ${joinNames(names)}\u2026`,
+    work: workOf(
+      describe ? gapOfRow(DESCRIBE_KEY).length : null,
+      sense,
+      planModules === null ? null : planModules.length,
+      all.length,
+    ),
   };
+}
+
+function workOf(
+  describe: number | null,
+  sense: string[],
+  scoped: number | null,
+  all: number,
+): Record<string, number> {
+  const work: Record<string, number> = {};
+
+  if (describe !== null) {
+    work[DESCRIBE_KEY] = describe;
+  }
+
+  for (const name of sense) {
+    work[name] = name === MUTATION_KEY ? (scoped ?? all) : all;
+  }
+
+  return work;
 }

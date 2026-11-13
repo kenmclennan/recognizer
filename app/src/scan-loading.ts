@@ -3,6 +3,7 @@ import {
   SCAN_SCHEMA_VERSION,
   type Scan,
 } from "recognizer";
+import type { ScanHistory } from "./scan-estimate";
 import type { ScanReport } from "./scan-report";
 import type { SensorStatus } from "./sensor-run";
 
@@ -20,6 +21,7 @@ export type Loaded = {
   overlays?: { name: string; text: string; modifiedMs?: number | null }[];
   overlaysUnreadable?: string[];
   tests?: string | null;
+  history?: ScanHistory;
 };
 
 const EMPTY: Loaded = {

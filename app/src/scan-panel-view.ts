@@ -315,6 +315,11 @@ function cardNode(card: RunCard, actions: ScanPanelActions): HTMLElement {
   }
 
   when.append(card.when.text);
+
+  if (card.when.title !== undefined) {
+    when.title = card.when.title;
+  }
+
   head.append(el("span", "summary-head-text", card.head), when);
   text.append(head);
 
@@ -377,8 +382,9 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
   const list = el("div", "scan-list");
   const controls = el("div", "scan-controls");
   const buttons = el("div", "scan-buttons");
+  const estimate = el("div", "scan-estimate");
 
-  element.append(header, sub, list, controls, buttons);
+  element.append(header, sub, list, controls, buttons, estimate);
 
   return {
     element,
@@ -389,6 +395,16 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
     },
     render(model) {
       sub.replaceChildren(model.header.text);
+
+      if (model.estimate == null) {
+        estimate.hidden = true;
+        estimate.replaceChildren();
+        estimate.removeAttribute("title");
+      } else {
+        estimate.hidden = false;
+        estimate.textContent = model.estimate.text;
+        estimate.title = model.estimate.title;
+      }
 
       if (model.header.moved !== null) {
         sub.append(" · ", el("span", "warn", model.header.moved));

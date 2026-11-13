@@ -548,6 +548,19 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
     };
   }
 
+  const HISTORY = json({ log_version: 1, kind: "scan", started: "2026-11-03T09:00:00.000Z", finished: "2026-11-03T09:10:00.000Z", by: "ken", arguments: [], outcome: "ok", exit: 0, structure_ms: 6000, phases: [{ phase: "sense", entries: [{ name: "mutation", command: ["x"], status: 0, outcome: "ok", duration_ms: 160000, modules: 2, fixed_ms: 100000, stderr: "" }] }] });
+  const timedSensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
+  timedSensors.runRecords.set("20261103T090000000Z-scan.json", HISTORY);
+  const timed = await mount(fakeScan(), timedSensors);
+  click(timed.q(".rail-scan"));
+  await tick();
+  const estimateOf = () => { const n = timed.q(".scan-estimate"); return n === null ? null : { exists: true, hidden: n.hidden, text: n.textContent, title: n.title, afterButtons: timed.q(".scan-buttons").compareDocumentPosition(n) === Node.DOCUMENT_POSITION_FOLLOWING }; };
+  facts.estimateBefore = estimateOf();
+  await timed.setTick("mutation", true);
+  facts.estimateTicked = estimateOf();
+  await timed.setTick("mutation", false);
+  facts.estimateUnticked = estimateOf();
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -904,6 +917,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       "scan-list",
       "scan-controls",
       "scan-buttons",
+      "scan-estimate",
     ]);
     expect(f.layout.controls).toEqual(["scan-scope", "scan-run-mode"]);
     expect(f.layout.rowsBeforeControls).toBe(true);
@@ -1093,6 +1107,18 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       expect(one.state).toMatch(SHORT_AGE);
       expect(one.why).toBeNull();
     }
+  });
+
+  it("shows the estimate line under the primary button with its breakdown on hover, and hides it when nothing is ticked", () => {
+    expect(f.estimateTicked).not.toBeNull();
+    expect(f.estimateTicked.exists).toBe(true);
+    expect(f.estimateTicked.hidden).toBe(false);
+    expect(f.estimateTicked.afterButtons).toBe(true);
+    expect(f.estimateTicked.text).toBe("About 3 min");
+    expect(f.estimateTicked.title).toBe(
+      "Structure: <1 min (last run)\nMutation: 3 min (2 modules at recent pace)",
+    );
+    expect(f.estimateUnticked.hidden).toBe(true);
   });
 
   it("shows failed and no second line for a failure with no diagnosis", () => {
