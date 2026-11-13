@@ -2640,6 +2640,7 @@ export function showExplorer(
       now: Date.now(),
       shipped: shippedSensors,
       freshness: freshnessOf(loaded),
+      ...(loaded.history === undefined ? {} : { history: loaded.history }),
     });
   }
 

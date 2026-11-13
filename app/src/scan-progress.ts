@@ -1,4 +1,5 @@
 import { type Diagnosis, type Gap, isGap } from "recognizer";
+import { roundedTime } from "./scan-estimate";
 
 export type ScanEvent =
   | {
@@ -453,16 +454,20 @@ export type DescribeAskText = {
   estimate: string;
 };
 
-export function describeAskText(ask: DescribeAsk): DescribeAskText {
+export function describeAskText(
+  ask: DescribeAsk,
+  rateMs: number | null = null,
+): DescribeAskText {
   const tokens = `About ${tokensText(ask.inputTokens)} tokens`;
 
   return {
     heading: `Describe ${count(ask.modules)} modules?`,
     model: `Model: ${ask.model}`,
     estimate:
-      ask.costUsd === null
+      (ask.costUsd === null
         ? `${tokens}, price unknown`
-        : `${tokens}, $${ask.costUsd.toFixed(2)} at API prices`,
+        : `${tokens}, $${ask.costUsd.toFixed(2)} at API prices`) +
+      (rateMs === null ? "" : `, ${roundedTime(ask.modules * rateMs)}`),
   };
 }
 

@@ -21,6 +21,7 @@ import {
   type RunRecordFiles,
   refusalsOf,
 } from "./refusal-record";
+import { scanHistory } from "./scan-estimate";
 import type { Loaded, LoadedScan } from "./scan-loading";
 import type { SuiteResult } from "./suite-results";
 
@@ -402,5 +403,6 @@ export async function withSensors(
     overlays: overlays.files,
     overlaysUnreadable: overlays.refused,
     tests,
+    history: scanHistory(records.files),
   };
 }

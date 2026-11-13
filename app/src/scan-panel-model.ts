@@ -17,6 +17,7 @@ import {
   stateText,
 } from "./freshness-model";
 import type { ResponsibilityState } from "./responsibility-model";
+import { describeRateMs, NO_HISTORY, type ScanHistory } from "./scan-estimate";
 import {
   DESCRIBE_KEY,
   MUTATION_KEY,
@@ -125,6 +126,7 @@ export type PanelInput = {
   shipped: ShippedSensors | null;
   freshness?: Freshness;
   runView?: RunInput | null;
+  history?: ScanHistory;
 };
 
 export type ScanRow = {
@@ -623,7 +625,12 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     pending: false,
     mark: panelMark(input),
     confirm:
-      input.describeAsk == null ? null : describeAskText(input.describeAsk),
+      input.describeAsk == null
+        ? null
+        : describeAskText(
+            input.describeAsk,
+            describeRateMs(input.history ?? NO_HISTORY),
+          ),
   };
 }
 
