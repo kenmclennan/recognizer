@@ -693,8 +693,13 @@ ${finishing("")}`,
     expect(entry?.modules).toBe(2);
   });
 
-  const suite = (status: string, measured: number, total: number) =>
-    `{ name: "s", status: "${status}", ran_at: "2026-01-01T00:00:00Z", measured: ${measured}, total: ${total} }`;
+  const suite = (
+    status: string,
+    measured: number,
+    total: number,
+    ran?: boolean,
+  ) =>
+    `{ name: "s", status: "${status}", ran_at: "2026-01-01T00:00:00Z", measured: ${measured}, total: ${total}${ran === undefined ? "" : `, ran: ${ran}`} }`;
 
   it.each([
     ["stopped", "stopped: { measured: 3, total: 10 }"],
@@ -707,6 +712,25 @@ ${finishing("")}`,
       expect(entry?.incomplete).toBe(true);
     },
   );
+
+  it("records incomplete for a partial suite the run ticked", async () => {
+    const entry = await sensed(
+      finishing(`suites: [${suite("partial", 3, 10, true)}]`),
+    );
+
+    expect(entry?.incomplete).toBe(true);
+  });
+
+  it("records no incomplete key for a partial suite the run did not tick beside an ok one it did", async () => {
+    const entry = await sensed(
+      finishing(
+        `suites: [${suite("ok", 3, 3, true)}, ${suite("partial", 1, 3, false)}]`,
+      ),
+    );
+
+    expect(entry?.outcome).toBe("ok");
+    expect(entry).not.toHaveProperty("incomplete");
+  });
 
   it("records no incomplete key for a document whose partial key covers functions outside its scope", async () => {
     const entry = await sensed(

@@ -43,7 +43,9 @@ function recordInputs(
     diagnosis: document.diagnosis,
     incomplete:
       document.stopped !== undefined ||
-      (document.suites ?? []).some((suite) => suite.status === "partial"),
+      (document.suites ?? []).some(
+        (suite) => suite.status === "partial" && suite.ran !== false,
+      ),
   };
 }
 

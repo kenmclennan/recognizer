@@ -50,6 +50,7 @@ export interface SuiteResult {
   reason?: string;
   measured?: number;
   total?: number;
+  ran?: boolean;
 }
 
 export interface FindingsDocument {

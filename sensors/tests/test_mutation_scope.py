@@ -446,6 +446,7 @@ def test_a_run_of_one_suite_carries_the_other_suites_recorded_functions(
     assert [s["name"] for s in findings["suites"]] == ["unit", "web"]
     assert findings["suites"][1]["status"] == "ok"
     assert findings["suites"][1]["measured"] == 1
+    assert [suite["ran"] for suite in findings["suites"]] == [True, False]
 
 
 def test_a_function_of_an_unselected_suite_with_no_record_is_absent(two_suites, tmp_path):
@@ -458,7 +459,7 @@ def test_a_function_of_an_unselected_suite_with_no_record_is_absent(two_suites, 
 
     assert not any(k.startswith(f"{WEB}/") for k in overlay["values"]["killed"])
     assert overlay["values"]["killed"]
-    assert findings["suites"][1] == {"name": "web", "status": "never", "ran_at": None}
+    assert findings["suites"][1] == {"name": "web", "status": "never", "ran_at": None, "ran": False}
     assert findings["suites"][0]["status"] == "ok"
 
 
@@ -484,3 +485,35 @@ def test_progress_counts_one_suite_at_a_time_in_config_order(two_suites, tmp_pat
     assert order == ["unit", "web"]
     assert max(m["done"] for m in mutants if m["step"] == "web") == 1
     assert unit_total == 5
+
+
+def test_a_partial_suite_is_not_ticked_by_a_run_of_another_suite(two_suites, tmp_path, monkeypatch):
+    root, settings, _ = two_suites
+
+    assert mutate_suites(root, tmp_path, settings) == 0
+
+    record = root / ".recognizer" / "cache" / "suites" / "mutation.json"
+    stored = json.loads(record.read_text())
+    stored["suites"]["web"]["status"] = "partial"
+    record.write_text(json.dumps(stored))
+
+    assert mutate_suites(root, tmp_path, settings, ["unit"]) == 0
+
+    findings = json.loads((tmp_path / "findings.json").read_text())
+    by_name = {suite["name"]: suite for suite in findings["suites"]}
+
+    assert by_name["web"]["status"] == "partial"
+    assert by_name["web"]["ran"] is False
+    assert by_name["unit"]["ran"] is True
+    assert by_name["unit"]["status"] == "ok"
+
+    assert mutate_suites(root, tmp_path, settings, ["web"]) == 0
+
+    again = {
+        suite["name"]: suite
+        for suite in json.loads((tmp_path / "findings.json").read_text())["suites"]
+    }
+
+    assert again["web"]["ran"] is True
+    assert again["web"]["status"] == "ok"
+    assert again["unit"]["ran"] is False

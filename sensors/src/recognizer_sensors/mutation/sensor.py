@@ -1222,7 +1222,7 @@ def measure(
 
         entries = merged_entries(stored_entries, fresh, [s.name for s in suites])
 
-        return suites_array(suites, entries), entries
+        return suites_array(suites, entries, ticked), entries
 
     def assemble(
         done: set[str], stopped: bool = False
