@@ -326,3 +326,58 @@ def test_the_metric_placeholder_refuses_command_as_the_config_schema_does():
 def test_the_schema_file_is_readable_from_a_path_outside_the_package():
     assert isinstance(KEYS_SCHEMA, Path)
     assert KEYS_SCHEMA.exists()
+
+
+MUTATION_BLANK_TEXTS = {
+    "sensors.mutation.max_minutes": "no time budget: the run continues until it finishes",
+    "sensors.mutation.max_workers": "sized from the machine's cores and free memory",
+}
+
+PUBLISHED_DEFAULTS = {
+    "sensors.crap.threshold": {"default": 30},
+    "sensors.mutation.incremental": {"default": True},
+    "sensors.mutation.timeout_factor": {"default": 10},
+    "sensors.thresholds.<metric>.above": {"defaults": {"complexity": 10}},
+    "sensors.thresholds.<metric>.below": {"defaults": {"coverage": 0.6}},
+    "sensors.thresholds.<metric>.severity": {
+        "defaults": {"complexity": "warning", "coverage": "warning"}
+    },
+}
+
+
+def test_the_blank_mutation_keys_publish_default_text_and_no_default():
+    for name, text in MUTATION_BLANK_TEXTS.items():
+        entry = published()[name]
+
+        assert entry["default_text"] == text
+        assert "default" not in entry
+        assert "defaults" not in entry
+
+
+def test_the_figure_defaults_are_the_ones_the_sensors_apply():
+    for name, expected in PUBLISHED_DEFAULTS.items():
+        entry = published()[name]
+
+        assert {k: entry[k] for k in ("default", "defaults") if k in entry} == expected
+        assert "default_text" not in entry
+
+
+def test_no_other_key_publishes_a_default():
+    carrying = {
+        name
+        for name, entry in published().items()
+        if {"default", "defaults", "default_text"} & set(entry)
+    }
+
+    assert carrying == set(PUBLISHED_DEFAULTS) | set(MUTATION_BLANK_TEXTS)
+
+
+def test_no_key_carries_more_than_one_default_field():
+    for entry in published().values():
+        assert len({"default", "defaults", "default_text"} & set(entry)) <= 1
+
+
+def test_the_pinned_sensors_schema_fixture_equals_the_published_schema():
+    pinned = json.loads((REPOSITORY / "fixtures" / "sensors" / "config-keys.json").read_text())
+
+    assert pinned == key_schema()
