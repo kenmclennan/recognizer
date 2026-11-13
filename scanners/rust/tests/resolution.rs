@@ -85,6 +85,48 @@ fn r1_an_in_repo_dependency_name_starts_at_its_library_root() {
 }
 
 #[test]
+fn r1_a_child_module_beats_a_dependency_of_the_same_name() {
+    let files = [
+        (
+            "Cargo.toml",
+            "[package]\nname = \"app\"\n[dependencies]\npricing = { path = \"pricing\" }\n",
+        ),
+        ("src/lib.rs", "mod pricing;\nuse pricing::discount;\n"),
+        ("src/pricing.rs", "pub fn discount() {}\n"),
+        ("pricing/Cargo.toml", "[package]\nname = \"pricing\"\n"),
+        ("pricing/src/lib.rs", "pub fn discount() {}\n"),
+    ];
+
+    let document = run(&files);
+
+    assert_has(&document, "src/lib.rs -> src/pricing.rs [discount]");
+    assert_lacks(&document, "src/lib.rs -> pricing/src/lib.rs [discount]");
+}
+
+#[test]
+fn r1_an_inline_module_beats_a_dependency_of_the_same_name() {
+    let files = [
+        (
+            "Cargo.toml",
+            "[package]\nname = \"app\"\n[dependencies]\npricing = { path = \"pricing\" }\n",
+        ),
+        (
+            "src/lib.rs",
+            "mod pricing { pub fn discount() {} }\nuse pricing::discount;\n",
+        ),
+        ("pricing/Cargo.toml", "[package]\nname = \"pricing\"\n"),
+        ("pricing/src/lib.rs", "pub fn discount() {}\n"),
+    ];
+
+    let document = run(&files);
+
+    assert_lacks(&document, "src/lib.rs -> pricing/src/lib.rs [discount]");
+    assert!(!edges(&document)
+        .iter()
+        .any(|edge| edge.contains("pricing/src/lib.rs")));
+}
+
+#[test]
 fn r1_a_child_module_name_starts_the_path() {
     let document = krate(&[
         (
