@@ -314,10 +314,6 @@ def declared_exports(tree: ast.Module) -> set[str] | None:
     return None if names is None else set(names)
 
 
-def module_level_classes(tree: ast.Module) -> list[ast.ClassDef]:
-    return [s for s in tree.body if isinstance(s, ast.ClassDef)]
-
-
 def module_kind(module_id: str, members: list[dict]) -> str:
     public = [member for member in members if not member["name"].startswith("_")]
 

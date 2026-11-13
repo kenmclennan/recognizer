@@ -190,3 +190,40 @@ def test_output_order_is_stable_for_one_line_with_several_edges(run):
     }
 
     assert [e[1] for e in inferred(run(files), "use.py")] == ["a.py", "b.py"]
+
+
+def test_block_level_function_and_method_parameters_are_inferred(run):
+    document = run(
+        {
+            "s.py": (
+                "from typing import Protocol\n"
+                "class Store(Protocol):\n"
+                "    def save(self, item): ...\n"
+                "class Mem(Store):\n"
+                "    def save(self, item): ...\n"
+            ),
+            "u.py": (
+                "import sys\n"
+                "if sys.version_info:\n"
+                "    def use(store):\n"
+                "        store.save(1)\n"
+                "    class K:\n"
+                "        def go(self, store):\n"
+                "            store.save(2)\n"
+            ),
+        }
+    )
+
+    edges = inferred(document, "u.py")
+    expected = {
+        "parameter": "store",
+        "methods": ["save"],
+        "class": "Store",
+        "implementations": ["Mem"],
+    }
+
+    assert len(edges) == 2
+    assert edges == [
+        ("u.py", "s.py", 3, ["save"], expected),
+        ("u.py", "s.py", 6, ["save"], expected),
+    ]

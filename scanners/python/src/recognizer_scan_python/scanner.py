@@ -11,7 +11,6 @@ from recognizer_scan_python.analysis import (
     expand,
     is_abstraction,
     module_kind,
-    module_level_classes,
     read_imports,
 )
 from recognizer_scan_python.calls import CallResolver
@@ -27,7 +26,7 @@ from recognizer_scan_python.discovery import (
 from recognizer_scan_python.entry_point import is_entry_point, loaded_package_inits
 from recognizer_scan_python.index import ModuleIndex
 from recognizer_scan_python.infer import collect_classes, inferred_edges
-from recognizer_scan_python.outline import read_members
+from recognizer_scan_python.outline import read_members, recorded_classes
 from recognizer_scan_python.routes import ModuleNames, Router, named_edges
 from recognizer_scan_python.script_entry_points import script_entry_points
 from recognizer_scan_python.source_roots import ROOT_CONFIG_FILES, detect_source_roots
@@ -75,7 +74,7 @@ def parse_all(root: Path, module_ids: list[str]) -> dict[str, tuple[ast.Module, 
 def base_edges(parsed: Parsed, index: ModuleIndex, others: dict[str, Parsed]) -> list[dict]:
     edges = []
 
-    for node in module_level_classes(parsed.tree):
+    for node in recorded_classes(parsed.tree):
         for base in node.bases:
             path = expand(base, parsed.imports.bindings)
 
@@ -198,9 +197,7 @@ def scan(
         tree, source = trees[module_id]
         imports = read_imports(module_id, tree, index)
         abstractions = {
-            node.name
-            for node in module_level_classes(tree)
-            if is_abstraction(node, imports.bindings)
+            node.name for node in recorded_classes(tree) if is_abstraction(node, imports.bindings)
         }
         parsed[module_id] = Parsed(module_id, tree, imports, abstractions, source)
 

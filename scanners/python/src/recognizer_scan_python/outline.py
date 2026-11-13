@@ -327,6 +327,10 @@ def recorded_statements(tree: ast.Module) -> list[tuple[ast.stmt, str]]:
     return recorded
 
 
+def recorded_classes(tree: ast.Module) -> list[ast.ClassDef]:
+    return [node for node, _ in recorded_statements(tree) if isinstance(node, ast.ClassDef)]
+
+
 def read_members(tree: ast.Module, bindings: dict[str, str], source: str) -> list[dict]:
     exports = declared_exports(tree)
     members = []

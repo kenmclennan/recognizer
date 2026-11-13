@@ -169,7 +169,7 @@ def untyped_parameters(function, is_method: bool) -> list[ast.arg]:
 
 
 def parameter_usages(tree: ast.Module):
-    for node in tree.body:
+    for node, _ in recorded_statements(tree):
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
             for parameter in untyped_parameters(node, False):
                 yield parameter, called_on(node.body, is_name(parameter.arg))
