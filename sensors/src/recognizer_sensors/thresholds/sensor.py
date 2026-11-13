@@ -6,6 +6,7 @@ from pathlib import Path
 
 from recognizer_sensors.hashes import tests_hash
 from recognizer_sensors.outcome import Outcome
+from recognizer_sensors.principles import principle_fields
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import SettingsError
 
@@ -14,7 +15,10 @@ DEFAULTS = {
     "coverage": {"below": 0.6, "severity": "warning"},
 }
 
-PRINCIPLES = {"coverage": "tests-cover-the-code", "complexity": "functions-stay-small"}
+PUBLISHED = {
+    "complexity": ("above", 10, "cyclomatic-complexity-limit"),
+    "coverage": ("below", 0.6, "code-coverage-guidelines"),
+}
 
 NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 ENTRY_KEYS = {"above", "below", "severity"}
@@ -160,6 +164,15 @@ def crosses(value: float, entry: dict) -> bool:
     return value < entry["below"]
 
 
+def principle_for(metric: str, entry: dict) -> dict:
+    published = PUBLISHED.get(metric)
+
+    if published is not None and entry.get(published[0]) == published[1]:
+        return principle_fields(published[2])
+
+    return {"principle": metric}
+
+
 def finding_for(metric, entry, key, module, member, value, producer) -> dict:
     if "above" in entry:
         line = entry["above"]
@@ -181,7 +194,7 @@ def finding_for(metric, entry, key, module, member, value, producer) -> dict:
         "id": f"thresholds:{metric}:{key}",
         "kind": f"thresholds.{metric}",
         "severity": entry["severity"],
-        "principle": PRINCIPLES.get(metric, metric),
+        **principle_for(metric, entry),
         "metric": metric,
         "summary": f"{key}: {metric} {format_number(value)} is {phrase} {format_number(line)}",
         "evidence": evidence,

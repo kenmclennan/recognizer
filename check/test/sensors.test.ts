@@ -771,7 +771,7 @@ describe("check ratcheting a thresholds violation", () => {
           id: "thresholds:complexity:app/billing.py::price",
           kind: "thresholds.complexity",
           severity: "warning",
-          principle: "functions-stay-small",
+          principle: "cyclomatic-complexity-limit",
           metric: "complexity",
           summary: "app/billing.py::price: complexity 14 is at or above 10",
           evidence: { modules: ["shop/main.py"] },

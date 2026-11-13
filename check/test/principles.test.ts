@@ -5,6 +5,10 @@ import { PRINCIPLES, principleName, principleOf } from "../src/principles.js";
 import { violationPrinciple } from "../src/structure-sensor.js";
 import { REPO } from "./helpers.js";
 
+const shared = JSON.parse(
+  readFileSync(join(REPO, "fixtures/sensors/principles.json"), "utf8"),
+);
+
 describe("the principle registry", () => {
   it("pins each entry's id, name and citation", () => {
     expect(PRINCIPLES).toEqual([
@@ -65,11 +69,17 @@ describe("the principle registry", () => {
           year: 1999,
         },
       },
+      ...shared,
     ]);
   });
 
-  it("has exactly seven entries", () => {
-    expect(PRINCIPLES).toHaveLength(7);
+  it("has exactly eleven entries", () => {
+    expect(PRINCIPLES).toHaveLength(11);
+  });
+
+  it("ends with the four entries fixtures/sensors/principles.json holds", () => {
+    expect(PRINCIPLES.slice(7)).toEqual(shared);
+    expect(shared).toHaveLength(4);
   });
 
   it("names a registered id and returns any other string unchanged", () => {
@@ -131,6 +141,10 @@ describe("docs/design.md Principles table", () => {
     "`private_imports`",
     "`long_function`",
     "`duplication`",
+    "`crap`",
+    "`mutation`",
+    "`thresholds.complexity`",
+    "`thresholds.coverage`",
   ])("has a row for %s", (kind) => {
     const rows = table
       .split("\n")

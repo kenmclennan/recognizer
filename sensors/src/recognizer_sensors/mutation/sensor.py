@@ -59,6 +59,7 @@ from recognizer_sensors.mutation.warmup import CARRY_HINT, coverage_run
 from recognizer_sensors.mutation.warmup import suite_size as suite_size_of
 from recognizer_sensors.outcome import Outcome, Overlay
 from recognizer_sensors.parsing import grammar_for, parse
+from recognizer_sensors.principles import principle_fields
 from recognizer_sensors.progress import report
 from recognizer_sensors.rust_test_blocks import in_file_test_hashes
 from recognizer_sensors.scans import Scan
@@ -110,7 +111,6 @@ METRICS = [
 
 STALE_OVERLAY = Path(".recognizer") / "cache" / "overlays" / "mutate.json"
 
-PRINCIPLE = "Tests must catch changes"
 FIX_PATTERN = "strengthen-tests"
 
 
@@ -827,7 +827,7 @@ def finding_for(target: Target, values: dict) -> dict:
         "id": f"mutation:{target.identity}",
         "kind": "mutation",
         "severity": "warning",
-        "principle": PRINCIPLE,
+        **principle_fields("mutation-testing"),
         "fix_pattern": FIX_PATTERN,
         "summary": (
             f"{target.qualified} in {target.module} has {len(listed)} surviving {noun}: "

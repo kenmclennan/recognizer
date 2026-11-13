@@ -11,6 +11,10 @@ from recognizer_sensors.thresholds import sensor
 
 FIXTURE = REPOSITORY / "fixtures" / "thresholds" / "sample"
 OVERLAYS = ".recognizer/cache/overlays"
+PUBLISHED = {
+    entry["id"]: entry["citation"]
+    for entry in json.loads((REPOSITORY / "fixtures" / "sensors" / "principles.json").read_text())
+}
 
 
 def overlay(commit, values, metrics=None, name="tool", **extra):
@@ -184,7 +188,8 @@ def test_the_fixture_yields_the_seven_findings(tmp_path, capsys):
     price = document["findings"][2]
 
     assert price["kind"] == "thresholds.complexity"
-    assert price["principle"] == "functions-stay-small"
+    assert price["principle"] == "cyclomatic-complexity-limit"
+    assert price["citation"] == PUBLISHED["cyclomatic-complexity-limit"]
     assert price["metric"] == "complexity"
     assert price["evidence"] == {
         "modules": ["app/billing.py"],
@@ -192,8 +197,10 @@ def test_the_fixture_yields_the_seven_findings(tmp_path, capsys):
         "measures": {"value": 14, "line": 10},
         "producer": "quality-tool",
     }
-    assert document["findings"][5]["principle"] == "tests-cover-the-code"
+    assert document["findings"][5]["principle"] == "code-coverage-guidelines"
+    assert document["findings"][5]["citation"] == PUBLISHED["code-coverage-guidelines"]
     assert document["findings"][0]["principle"] == "churn"
+    assert "citation" not in document["findings"][0]
 
     err = capsys.readouterr().err
 
@@ -489,3 +496,41 @@ def test_an_in_file_test_edit_makes_an_overlay_with_the_old_digest_skipped(
     _, document = sense(root, tmp_path)
 
     assert len(document["findings"]) == 1
+
+
+def complexity_finding(tmp_path, settings):
+    root, commit = fixture_repository(tmp_path)
+
+    _, document = sense(root, tmp_path, settings)
+    found = [
+        f for f in document["findings"] if f["id"] == "thresholds:complexity:app/billing.py::price"
+    ]
+
+    assert len(found) == 1
+
+    return found[0]
+
+
+def test_a_user_complexity_line_other_than_the_published_one_cites_nothing(tmp_path):
+    finding = complexity_finding(tmp_path, {"complexity": {"above": 12}})
+
+    assert finding["principle"] == "complexity"
+    assert "citation" not in finding
+
+
+def test_a_coverage_line_in_the_other_direction_cites_nothing(tmp_path):
+    root, _ = fixture_repository(tmp_path)
+
+    _, document = sense(root, tmp_path, {"coverage": {"above": 0.4}})
+    found = [f for f in document["findings"] if f["metric"] == "coverage"]
+
+    assert found
+    assert all(f["principle"] == "coverage" and "citation" not in f for f in found)
+
+
+def test_severity_plays_no_part_in_citing_the_published_line(tmp_path):
+    finding = complexity_finding(tmp_path, {"complexity": {"above": 10, "severity": "violation"}})
+
+    assert finding["severity"] == "violation"
+    assert finding["principle"] == "cyclomatic-complexity-limit"
+    assert finding["citation"] == PUBLISHED["cyclomatic-complexity-limit"]

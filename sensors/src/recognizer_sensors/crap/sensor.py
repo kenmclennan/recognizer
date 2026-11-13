@@ -8,6 +8,7 @@ from recognizer_sensors.hashes import scan_hashes, test_map
 from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.outcome import Outcome, Overlay
 from recognizer_sensors.parsing import grammar_for, parse
+from recognizer_sensors.principles import principle_fields
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import Refusal, SettingsError, diagnose, relative_path
 from recognizer_sensors.testrun.records import (
@@ -31,7 +32,7 @@ DEFAULTS = {
 
 OPTIONAL = {"tests"}
 
-PRINCIPLE = "Complex code needs tests"
+PUBLISHED_THRESHOLD = 30
 FIX_PATTERN = "simplify-or-test"
 
 METRICS = [
@@ -136,6 +137,13 @@ def measure_scan(
     return [(identity, m) for identity, (m, _) in zip(identities, measured, strict=True)]
 
 
+def principle_for(threshold: float) -> dict:
+    if threshold == PUBLISHED_THRESHOLD:
+        return principle_fields("change-risk-anti-patterns")
+
+    return {"principle": "crap"}
+
+
 def finding_for(identity: str, m: Measured, threshold: float) -> dict | None:
     if m.coverage is None:
         if m.complexity < threshold:
@@ -166,7 +174,7 @@ def finding_for(identity: str, m: Measured, threshold: float) -> dict | None:
         "id": f"crap:{identity}",
         "kind": "crap",
         "severity": "warning",
-        "principle": PRINCIPLE,
+        **principle_for(threshold),
         "fix_pattern": FIX_PATTERN,
         "summary": summary,
         "evidence": {

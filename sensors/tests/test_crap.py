@@ -531,6 +531,31 @@ def test_cc_five_at_zero_coverage_reports_at_exactly_the_threshold(tmp_path):
     assert higher["findings"] == []
 
 
+def test_a_finding_at_the_published_threshold_cites_its_source(tmp_path):
+    root = python_repository(tmp_path, branches(4), lcov_for("app/m.py", range(1, 10)))
+
+    _, document, _ = produced(root, tmp_path)
+
+    assert len(document["findings"]) == 1
+    assert document["findings"][0]["principle"] == "change-risk-anti-patterns"
+    assert (
+        document["findings"][0]["citation"]
+        == json.loads((REPOSITORY / "fixtures" / "sensors" / "principles.json").read_text())[0][
+            "citation"
+        ]
+    )
+
+
+def test_a_finding_at_another_threshold_cites_nothing(tmp_path):
+    root = python_repository(tmp_path, branches(4), lcov_for("app/m.py", range(1, 10)))
+
+    _, document, _ = produced(root, tmp_path, "--settings", '{"threshold":25}')
+
+    assert len(document["findings"]) == 1
+    assert document["findings"][0]["principle"] == "crap"
+    assert "citation" not in document["findings"][0]
+
+
 def test_cc_four_at_zero_coverage_does_not_report(tmp_path):
     root = python_repository(tmp_path, branches(3), lcov_for("app/m.py", range(1, 8)))
 
