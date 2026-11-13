@@ -310,10 +310,6 @@ function cardNode(card: RunCard, actions: ScanPanelActions): HTMLElement {
   node.dataset.shape = "run-card";
   node.dataset.phase = card.phase;
 
-  if (card.when.icon !== null) {
-    when.append(icon(card.when.icon, "summary-origin-icon"));
-  }
-
   when.append(card.when.text);
 
   if (card.when.title !== undefined) {
@@ -348,6 +344,15 @@ function cardNode(card: RunCard, actions: ScanPanelActions): HTMLElement {
     gaps.append(...card.gaps.map((item) => gapNode(item)));
     text.append(gaps, ...card.help.map(helpNode));
   }
+
+  const origin = el("div", "summary-origin");
+
+  if (card.origin.icon !== null) {
+    origin.append(icon(card.origin.icon, "summary-origin-icon"));
+  }
+
+  origin.append(el("span", "summary-origin-text", card.origin.text));
+  text.append(origin);
 
   node.append(
     icon(card.icon, card.tone === "run" ? "scan-spin" : "summary-icon"),
