@@ -159,6 +159,26 @@ export {
   validateOverlay,
 } from "./overlays.js";
 export { type PathStep, shortestPath } from "./paths.js";
+export {
+  CURRENT_PROTOCOL,
+  interpretManifest,
+  judgeProtocol,
+  type Manifest,
+  type ManifestRead,
+  type PluginKind,
+  type ProtocolJudgement,
+  readManifest,
+} from "./plugin-manifest.js";
+export {
+  type Condition,
+  type FindingEntry,
+  matchKind,
+  renderSentence,
+  type Sentence,
+  type SentenceRecord,
+  sentenceProblems,
+  type Variant,
+} from "./plugin-sentence.js";
 export { type Policy, parsePolicy } from "./policy.js";
 export { type PolicyProblem, policyProblems } from "./policy-problems.js";
 export {
