@@ -371,6 +371,7 @@ function freshnessOf(loaded: Loaded) {
 const LOSS_WARNING =
   "Your changes since it was saved will be lost unless you save them.";
 const CLEAR_BODY = `Clearing closes the view. ${LOSS_WARNING}`;
+const METRIC_AGE_TICK_MS = 60_000;
 const SENSOR_LOG = ".recognizer/cache/coverage/last-run.log";
 
 export function showExplorer(
@@ -4725,6 +4726,10 @@ export function showExplorer(
   resizeObserver?.observe(body);
 
   const stopUpdating = comparisons.onUpdate((name) => void update(name));
+  const ageTick = setInterval(
+    () => canvas.refreshMetricAges(canvasMetrics()),
+    METRIC_AGE_TICK_MS,
+  );
   const stopDriving = windowPort.onDrive(drive);
   const stopWatching = views.onChanged(() => void onViewsChanged());
   const stopWatchingResponsibilities = responsibilities.onChanged(
@@ -4795,6 +4800,7 @@ export function showExplorer(
       resizeObserver?.disconnect();
       stopWatching();
       stopUpdating();
+      clearInterval(ageTick);
       stopDriving();
       agentLine.clear();
 

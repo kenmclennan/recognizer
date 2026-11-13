@@ -146,6 +146,7 @@ export type CanvasActions = {
 export type CanvasView = {
   element: HTMLElement;
   render: (props: CanvasProps) => void;
+  refreshMetricAges: (metrics: CanvasMetrics) => void;
   centerOn: (id: string) => void;
   walkTo: (path: string, options: { animate: boolean }) => void;
   fitted: () => boolean;
@@ -1710,6 +1711,9 @@ export function buildCanvasView(
 
   return {
     element,
+    refreshMetricAges(metrics) {
+      metricsView.refreshAges(metrics);
+    },
     walkTo(path, options) {
       if (!walkNow(path, options.animate)) {
         pendingWalk = { path, animate: options.animate };
