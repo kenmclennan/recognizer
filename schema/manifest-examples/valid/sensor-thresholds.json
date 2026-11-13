@@ -29,6 +29,15 @@
       "example": "sensors.thresholds.complexity.above 12",
       "defaults": {
         "complexity": 10
+      },
+      "labels": {
+        "complexity": "Complexity above"
+      },
+      "order": 1,
+      "limit": {
+        "metric": "<metric>",
+        "direction": "above",
+        "severity": "<metric>.severity"
       }
     },
     {
@@ -38,6 +47,18 @@
       "example": "sensors.thresholds.coverage.below 0.7",
       "defaults": {
         "coverage": 0.6
+      },
+      "labels": {
+        "coverage": "Coverage below"
+      },
+      "units": {
+        "coverage": "0 to 1"
+      },
+      "order": 2,
+      "limit": {
+        "metric": "<metric>",
+        "direction": "below",
+        "severity": "<metric>.severity"
       }
     },
     {
@@ -55,6 +76,7 @@
       }
     }
   ],
+  "settings_title": "Complexity and coverage",
   "metrics": [],
   "findings": [
     {

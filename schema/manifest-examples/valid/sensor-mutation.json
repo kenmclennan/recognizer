@@ -25,7 +25,10 @@
       "description": "the time budget of a Mutation run in minutes, above 0; a run that reaches it stops and keeps what it measured",
       "example": "sensors.mutation.max_minutes 10",
       "exclusiveMinimum": 0,
-      "default_text": "no time budget: the run continues until it finishes"
+      "default_text": "no time budget: the run continues until it finishes",
+      "label": "Stop a run after",
+      "unit": "minutes",
+      "order": 3
     },
     {
       "key": "max_workers",
@@ -33,7 +36,9 @@
       "description": "the most mutants tested at once, at least 1",
       "example": "sensors.mutation.max_workers 4",
       "minimum": 1,
-      "default_text": "sized from the machine's cores and free memory"
+      "default_text": "sized from the machine's cores and free memory",
+      "label": "Workers",
+      "order": 4
     },
     {
       "key": "timeout_factor",
@@ -41,14 +46,19 @@
       "description": "how many times a mutant may run longer than the unmutated suite before it counts as timed out, above 0; default 10",
       "example": "sensors.mutation.timeout_factor 5",
       "exclusiveMinimum": 0,
-      "default": 10
+      "default": 10,
+      "label": "Timeout",
+      "unit": "x the unmutated suite",
+      "order": 2
     },
     {
       "key": "incremental",
       "type": "boolean",
       "description": "whether a run measures only what changed since the last record; default true",
       "example": "sensors.mutation.incremental false",
-      "default": true
+      "default": true,
+      "label": "Only what changed",
+      "order": 1
     },
     {
       "key": "record",
