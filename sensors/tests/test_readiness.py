@@ -834,6 +834,11 @@ BINDING_SUITES = (
         "--coverage.reportsDirectory=coverage",
         "coverage/lcov.info",
     ),
+    (
+        "csharp",
+        'dotnet test --collect:"XPlat Code Coverage;Format=lcov"',
+        "**/TestResults/*/coverage.info",
+    ),
 )
 
 
@@ -958,20 +963,21 @@ def test_the_guide_gives_kotlin_jacoco_and_every_other_suite_lcov(capsys):
         assert fmt == ("jacoco" if language == "kotlin" else "lcov")
 
 
-def test_the_guide_keeps_the_single_project_suites_and_adds_four_multi_project_ones(capsys):
+def test_the_guide_keeps_the_single_project_suites_and_adds_five_multi_project_ones(capsys):
     suites = suites_of(guide_text(capsys))
 
-    assert len(suites) == len(BINDING_SUITES) == 10
+    assert len(suites) == len(BINDING_SUITES) == 11
 
     languages = [next(w[1] for w in suite if w[0].endswith(".language")) for suite in suites]
     formats = [next(w[1] for w in suite if w[0].endswith(".coverage.format")) for suite in suites]
     directories = [next(w[1] for w in suite if w[0].endswith(".directory")) for suite in suites]
     last = suites[6:]
 
-    assert languages[6:] == ["kotlin", "rust", "rust", "typescript"]
-    assert formats[6:] == ["jacoco", "lcov", "lcov", "lcov"]
+    assert languages[6:] == ["kotlin", "rust", "rust", "typescript", "csharp"]
+    assert formats[6:] == ["jacoco", "lcov", "lcov", "lcov", "lcov"]
     assert directories[6:8] == [".", "."]
-    assert all(directory not in (".", "") for directory in directories[8:])
+    assert all(directory not in (".", "") for directory in directories[8:10])
+    assert directories[10] == "."
     assert ["vitest"] == [w[1] for w in last[3] if w[0].endswith(".runner")]
 
 
@@ -987,6 +993,18 @@ def test_the_guide_states_the_multi_project_facts(capsys):
     assert "A suite per Gradle module also works: the readiness check uses the nearest" in flat
     assert ":moshi:cleanTest :moshi:test :moshi:jacocoTestReport" in flat
     assert "ready does not say the whole workspace was covered" in flat
+
+    for fact in (
+        "inside each test project",
+        "one per target framework",
+        "A suite per test project also works",
+        "Directory.Packages.props",
+        "PackageVersion entry there",
+        "fails restore with NU1008",
+    ):
+        assert fact in flat
+
+    assert "TestFrameworks" not in out
     assert (
         "pythonpath"
         not in out.split("Repositories with more than one project:")[1]
