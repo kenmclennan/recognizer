@@ -4,6 +4,7 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -14,6 +15,7 @@ import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { makeTempDir } from "../scripts/temp-dirs.mjs";
 import { run } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
+import { entriesOf } from "../src/run-log.js";
 import { capture, REPO } from "./helpers.js";
 
 const VARIABLES = [
@@ -758,6 +760,22 @@ describe.skipIf(!HAS_UV)(
         });
         expect(JSON.stringify(events)).not.toContain('"step":"mutants"');
         expect(captured.out()).not.toContain("recognizer-progress");
+
+        const logDirectory = join(repository, ".recognizer/cache/log");
+        const newest = readdirSync(logDirectory)
+          .filter((file) => file.endsWith("-scan.json"))
+          .sort()
+          .at(-1) as string;
+        const record = JSON.parse(
+          readFileSync(join(logDirectory, newest), "utf8"),
+        );
+        const mutation = entriesOf(record).find(
+          (entry) => entry.name === "mutation",
+        );
+
+        expect(mutation).toBeDefined();
+        expect(mutation?.outcome).toBe("ok");
+        expect(mutation).not.toHaveProperty("incomplete");
       },
       scaledTimeout(240_000),
     );

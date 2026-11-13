@@ -1959,6 +1959,63 @@ def test_a_scoped_run_keeps_the_out_of_scope_functions_in_the_total(tmp_path, mo
     assert writes[-1] == {"measured": 3, "total": 4}
 
 
+def scoped_two_module_run(tmp_path, monkeypatch, budget_after_first):
+    fixture = tmp_path / "fixture"
+    shutil.copytree(STOP_FIXTURE, fixture)
+    (fixture / "app" / "other.py").write_text("def omega(a, b):\n    return a and b\n")
+    (fixture / "coverage" / "lcov.info").write_text(
+        (fixture / "coverage" / "lcov.info").read_text()
+        + "SF:app/other.py\nDA:1,1\nDA:2,1\nend_of_record\n"
+    )
+    scan = json.loads((fixture / "scan.python.json").read_text())
+    scan["files"].append({"path": "app/other.py", "hash": "1" * 64})
+    scan["modules"].append({"id": "app/other.py"})
+    (fixture / "scan.python.json").write_text(json.dumps(scan))
+    root, _ = mutate_repository(tmp_path, fixture)
+    modules = tmp_path / "modules.json"
+    modules.write_text(json.dumps(["app/rules.py"]))
+    ticker = Ticker()
+    started = []
+    real = runner.run_function
+
+    def stepping(*args, **extra):
+        started.append(1)
+        result = real(*args, **extra)
+
+        if budget_after_first and len(started) == 1:
+            ticker.now = 1000.0
+
+        return result
+
+    monkeypatch.setattr(sensor, "CLOCK", ticker)
+    monkeypatch.setattr(sensor, "run_function", stepping)
+    settings = (
+        mutate_settings("tests/strong.py", max_workers=1, max_minutes=1)
+        if budget_after_first
+        else mutate_settings("tests/strong.py", max_workers=1)
+    )
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings, "--modules", str(modules)) == 0
+
+    return read(tmp_path / "findings-overlay.json")
+
+
+def test_a_complete_scoped_run_writes_partial_and_ok_suites(tmp_path, monkeypatch):
+    findings = scoped_two_module_run(tmp_path, monkeypatch, False)
+
+    assert findings["partial"] == {"measured": 3, "total": 4}
+    assert findings["suites"]
+    assert all(suite["status"] == "ok" for suite in findings["suites"])
+
+
+def test_a_budget_limited_scoped_run_writes_a_partial_suite(tmp_path, monkeypatch):
+    findings = scoped_two_module_run(tmp_path, monkeypatch, True)
+
+    assert findings["partial"] == {"measured": 1, "total": 4}
+    assert "stopped" not in findings
+    assert any(suite["status"] == "partial" for suite in findings["suites"])
+
+
 def test_only_mutation_is_handed_a_checkpoint():
     from recognizer_sensors.registry import SHIPPED
 
