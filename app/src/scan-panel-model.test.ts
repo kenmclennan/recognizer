@@ -1,5 +1,6 @@
+import { readFileSync } from "node:fs";
 import type { Diagnosis, Scan, ScanRunRecord } from "recognizer";
-import { buildFreshness, SHIPPED_SENSOR_LIST } from "recognizer";
+import { buildFreshness } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { ScanState } from "./footer-scan";
 import { NO_CHANGES } from "./footer-scan";
@@ -189,14 +190,26 @@ describe("scanPanel rows", () => {
 describe("scanPanel and the structure sensor's duplication check", () => {
   const real: ShippedSensors = {
     status: "ok",
-    sensors: SHIPPED_SENSOR_LIST.map((one) => ({
-      name: one.name,
-      display: one.display,
-      line: one.line,
-      defaults: one.defaults,
-      runsTests: one.runs_tests,
-      listed: one.listed,
-    })),
+    sensors: ["crap", "mutation", "thresholds"].map((name) => {
+      const manifest = JSON.parse(
+        readFileSync(
+          new URL(
+            `../../schema/manifest-examples/valid/sensor-${name}.json`,
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      );
+
+      return {
+        name,
+        display: manifest.display,
+        line: manifest.description,
+        defaults: {},
+        runsTests: manifest.runs_tests,
+        listed: manifest.metrics.length > 0,
+      };
+    }),
   };
 
   it("builds no Duplication row from the shipped list", () => {

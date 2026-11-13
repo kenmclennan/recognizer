@@ -1,4 +1,5 @@
-import { buildFreshness, type Scan, SHIPPED_SENSOR_LIST } from "recognizer";
+import { readFileSync } from "node:fs";
+import { buildFreshness, type Scan } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { NO_CHANGES } from "./footer-scan";
 import { type ResultRow, type ResultState, stateText } from "./freshness-model";
@@ -238,17 +239,27 @@ describe("a member-granularity overlay judged per module", () => {
 
 const SHIPPED: ShippedSensors = {
   status: "ok",
-  sensors: SHIPPED_SENSOR_LIST.filter(
-    (sensor) => sensor.metrics.length > 0,
-  ).map((sensor) => ({
-    name: sensor.name,
-    display: sensor.display,
-    line: sensor.line,
-    defaults: {},
-    runsTests: sensor.runs_tests,
-    listed: sensor.listed,
-    metrics: [...sensor.metrics],
-  })),
+  sensors: ["crap", "mutation"].map((name) => {
+    const manifest = JSON.parse(
+      readFileSync(
+        new URL(
+          `../../schema/manifest-examples/valid/sensor-${name}.json`,
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    );
+
+    return {
+      name,
+      display: manifest.display,
+      line: manifest.description,
+      defaults: {},
+      runsTests: manifest.runs_tests,
+      listed: true,
+      metrics: manifest.metrics,
+    };
+  }),
 };
 
 function ran(name: string, over: Partial<SensorStatus> = {}): SensorStatus {

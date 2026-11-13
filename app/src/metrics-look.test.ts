@@ -8,6 +8,24 @@ const SCAN_COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const shipped = JSON.parse(
   readFileSync(here("../../schema/overlay-examples/valid/crap.json"), "utf8"),
 );
+const shippedList = ["crap", "mutation"].map((name) => {
+  const manifest = JSON.parse(
+    readFileSync(
+      here(`../../schema/manifest-examples/valid/sensor-${name}.json`),
+      "utf8",
+    ),
+  );
+
+  return {
+    name,
+    display: manifest.display,
+    line: manifest.description,
+    defaults: {},
+    runsTests: manifest.runs_tests,
+    listed: true,
+    metrics: manifest.metrics,
+  };
+});
 const HASH = "1".repeat(64);
 const EDITED = "0".repeat(64);
 const inputsAt = (hash: string) => ({
@@ -30,7 +48,6 @@ const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { loadedOf, mountExplorer, scanHostOf } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
-import { SHIPPED_SENSOR_LIST } from "recognizer";
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 ${FAKE_WORKER}
 
@@ -52,7 +69,7 @@ const loadedFor = (overlay) => loadedOf({
   sensors: overlay === null ? [] : [{ name: "crap", status: "ran", measured: { inputs: JSON.parse(overlay).inputs } }],
 });
 
-const SHIPPED = SHIPPED_SENSOR_LIST.filter((sensor) => sensor.metrics.length > 0).map((sensor) => ({ name: sensor.name, display: sensor.display, line: sensor.line, defaults: {}, runsTests: sensor.runs_tests, listed: sensor.listed, metrics: [...sensor.metrics] }));
+const SHIPPED = ${JSON.stringify(shippedList)};
 const DAY = 86400000;
 const crapOverlay = (commit, inputs = INPUTS) => JSON.stringify({ overlay_version: 1, commit, inputs, modified: false, producer: { name: "crap", version: "0.1.72" }, metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }, { name: "coverage", type: "ratio", granularity: "member", bad: "low" }, { name: "crap", type: "number", granularity: "member", bad: "high" }], values: { complexity: { "app/risk.py::classify": 8 }, coverage: { "app/risk.py::classify": 0.18 }, crap: { "app/risk.py::classify": 40 } } });
 const mutationOverlay = () => JSON.stringify({ overlay_version: 1, inputs: INPUTS, commit: ${JSON.stringify(SCAN_COMMIT)}, modified: false, producer: { name: "mutation", version: "0.1.0" }, metrics: ["killed", "survived", "uncovered", "score"].map((name) => ({ name, type: "count", granularity: "member", bad: name === "killed" || name === "score" ? "low" : "high" })), values: { killed: { "app/risk.py::classify": 2 }, survived: { "app/risk.py::classify": 3 }, uncovered: {}, score: {} } });

@@ -1,19 +1,24 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseConfig, shippedSensorSettings } from "../src/config-parse.js";
+import {
+  parseConfig,
+  registeredSensors,
+  shippedSensorSettings,
+} from "../src/config-parse.js";
 import { InputError } from "../src/errors.js";
 import { SCAN_SCHEMA_VERSION } from "../src/scan.js";
 import { selectSensors } from "../src/scan-phases.js";
 import {
   expandShortForms,
   isScoped,
+  receivesSuites,
   runsTests,
-  SHIPPED_SENSOR_LIST,
   SHIPPED_SENSORS,
   shippedSensorNames,
 } from "../src/shipped-sensors.js";
 import { REPO } from "./helpers.js";
+import { readExamples } from "./shipped-read.js";
 
 const command = (settings: string) => [
   "recognizer-sense-thresholds",
@@ -29,14 +34,6 @@ const command = (settings: string) => [
 ];
 
 describe("SHIPPED_SENSORS", () => {
-  it("equals the names in fixtures/sensors/list.json", () => {
-    const list: { name: string }[] = JSON.parse(
-      readFileSync(join(REPO, "fixtures/sensors/list.json"), "utf8"),
-    );
-
-    expect(SHIPPED_SENSORS).toEqual(list.map(({ name }) => name));
-  });
-
   it("equals fixtures/sensors/shipped.json", () => {
     expect(SHIPPED_SENSORS).toEqual(
       JSON.parse(
@@ -141,47 +138,22 @@ describe("the thresholds config examples", () => {
 });
 
 describe("the registry", () => {
-  const list = JSON.parse(
-    readFileSync(join(REPO, "fixtures/sensors/list.json"), "utf8"),
-  );
-
-  it("equals fixtures/sensors/list.json", () => {
-    expect(JSON.parse(JSON.stringify(SHIPPED_SENSOR_LIST))).toEqual(list);
-  });
-
-  it("gives every entry exactly the registry keys", () => {
-    for (const entry of SHIPPED_SENSOR_LIST) {
-      expect(Object.keys(entry).sort()).toEqual([
-        "defaults",
-        "display",
-        "line",
-        "listed",
-        "metrics",
-        "name",
-        "runs_tests",
-        "scoped",
-      ]);
-    }
-  });
+  const shipped = readExamples();
 
   it("lists crap and mutation and hides the configuration-only sensors", () => {
     expect(
-      SHIPPED_SENSOR_LIST.filter(({ listed }) => listed)
-        .map(({ name }) => name)
-        .sort(),
+      shipped.sensors.filter(({ listed }) => listed).map(({ name }) => name),
     ).toEqual(["crap", "mutation"]);
     expect(
-      SHIPPED_SENSOR_LIST.filter(({ listed }) => !listed).map(
-        ({ name }) => name,
-      ),
+      shipped.sensors.filter(({ listed }) => !listed).map(({ name }) => name),
     ).toEqual(["thresholds"]);
   });
 
   it("marks only crap and mutation as running tests", () => {
     expect(
-      SHIPPED_SENSOR_LIST.filter(({ runs_tests }) => runs_tests).map(
-        ({ name }) => name,
-      ),
+      shipped.sensors
+        .filter(({ runs_tests }) => runs_tests)
+        .map(({ name }) => name),
     ).toEqual(["crap", "mutation"]);
   });
 
@@ -189,26 +161,32 @@ describe("the registry", () => {
     expect(shippedSensorNames()).toEqual([...SHIPPED_SENSORS]);
   });
 
-  it("marks only mutation as taking a module scope, read from the committed list", () => {
-    expect(
-      list
-        .filter((entry: { scoped: boolean }) => entry.scoped)
-        .map((entry: { name: string }) => entry.name),
-    ).toEqual(["mutation"]);
-    expect(isScoped(["recognizer-sense-mutation", "run"])).toBe(true);
+  it("marks only mutation as taking a module scope, read from the manifests", () => {
+    expect(isScoped(["recognizer-sense-mutation", "run"], shipped)).toBe(true);
 
     for (const name of ["crap", "thresholds"]) {
-      expect(isScoped(["recognizer-sensors", name])).toBe(false);
+      expect(isScoped([`recognizer-sense-${name}`, "run"], shipped)).toBe(
+        false,
+      );
     }
 
-    expect(isScoped(["my-mutation", "mutation"])).toBe(false);
+    expect(isScoped(["my-mutation", "mutation"], shipped)).toBe(false);
   });
 
   it("tests the run command, not the name alone, for runs_tests", () => {
-    expect(runsTests(["recognizer-sense-crap", "run"])).toBe(true);
-    expect(runsTests(["recognizer-sense-mutation", "run"])).toBe(true);
-    expect(runsTests(["recognizer-sense-thresholds", "run"])).toBe(false);
-    expect(runsTests(["my-crap", "crap"])).toBe(false);
+    expect(runsTests(["recognizer-sense-crap", "run"], shipped)).toBe(true);
+    expect(runsTests(["recognizer-sense-mutation", "run"], shipped)).toBe(true);
+    expect(runsTests(["recognizer-sense-thresholds", "run"], shipped)).toBe(
+      false,
+    );
+    expect(runsTests(["my-crap", "crap"], shipped)).toBe(false);
+  });
+
+  it("answers false for every sensor when no manifest was read", () => {
+    const none = readExamples(["crap", "mutation", "thresholds"]);
+
+    expect(runsTests(["recognizer-sense-crap", "run"], none)).toBe(false);
+    expect(receivesSuites("crap", none)).toBe(false);
   });
 });
 
@@ -368,16 +346,30 @@ describe("the tests list", () => {
     const config = parseConfig(
       `${example("valid/tests-python-activate.yaml")}sensors:\n  crap: {}\n  mutation: {}\n  thresholds: {}\n`,
     );
+    const selected = selectSensors(
+      registeredSensors(config),
+      "all",
+      SHIPPED_SENSORS,
+      config.tests,
+      readExamples(),
+    );
 
-    expect(settingsOf(config.sensors?.crap).tests).toEqual(config.tests);
-    expect(settingsOf(config.sensors?.mutation).tests).toEqual(config.tests);
-    expect(settingsOf(config.sensors?.thresholds)).toEqual({});
+    expect(settingsOf(selected[0]).tests).toEqual(config.tests);
+    expect(settingsOf(selected[1]).tests).toEqual(config.tests);
+    expect(settingsOf(selected[2])).toEqual({});
   });
 
   it("hands no list to a mutation short form when the config has none", () => {
     const config = parseConfig("sensors:\n  mutation: {}\n");
+    const selected = selectSensors(
+      registeredSensors(config),
+      "all",
+      SHIPPED_SENSORS,
+      config.tests,
+      readExamples(),
+    );
 
-    expect(settingsOf(config.sensors?.mutation)).toEqual({});
+    expect(settingsOf(selected[0])).toEqual({});
   });
 
   it("hands the list to a requested crap and mutation that are not registered", () => {
@@ -387,6 +379,7 @@ describe("the tests list", () => {
       ["crap", "mutation", "thresholds"],
       SHIPPED_SENSORS,
       suites,
+      readExamples(),
     );
 
     expect(settingsOf(selected[0])).toEqual({ tests: suites });

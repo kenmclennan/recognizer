@@ -2,7 +2,11 @@ import { InputError } from "./errors.js";
 import type { Diagnosis, PluginEvent } from "./plugin-events.js";
 import type { PhaseName } from "./run-log.js";
 import type { ScanRunRecord } from "./scan-marker.js";
-import { receivesSuites, shippedCommand } from "./shipped-sensors.js";
+import {
+  type ShippedRead,
+  shippedCommand,
+  withSuiteSettings,
+} from "./shipped-sensors.js";
 
 export const SCAN_USAGE =
   "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--suites <file>] [--confirm-above <usd>] [--by <name>] [--ignore-retired-config] [--json]";
@@ -268,7 +272,13 @@ export function selectSensors(
   requested: "all" | string[],
   shipped: readonly string[] = [],
   suites?: readonly unknown[],
+  read: ShippedRead = { sensors: [], unreadable: [] },
 ): { name: string; command: string[] }[] {
+  const given = (one: { name: string; command: string[] }) => ({
+    ...one,
+    command: withSuiteSettings(one.command, read, suites),
+  });
+
   if (requested === "all") {
     if (registered.length === 0) {
       throw new InputError([
@@ -276,7 +286,7 @@ export function selectSensors(
       ]);
     }
 
-    return registered;
+    return registered.map(given);
   }
 
   if (requested.includes("duplication")) {
@@ -299,16 +309,13 @@ export function selectSensors(
   }
 
   return [
-    ...registered.filter((one) => requested.includes(one.name)),
+    ...registered.filter((one) => requested.includes(one.name)).map(given),
     ...requested
       .filter((name, index) => requested.indexOf(name) === index)
       .filter((name) => !names.includes(name))
       .map((name) => ({
         name,
-        command: shippedCommand(
-          name,
-          receivesSuites(name) && suites !== undefined ? { tests: suites } : {},
-        ),
+        command: withSuiteSettings(shippedCommand(name, {}), read, suites),
       })),
   ];
 }

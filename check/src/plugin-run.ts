@@ -5,7 +5,11 @@ import {
   type EventReader,
   type PluginEvent,
 } from "./plugin-events.js";
-import { type Manifest, readManifestOf } from "./plugin-manifest.js";
+import {
+  type Manifest,
+  type ManifestRead,
+  readManifestOf,
+} from "./plugin-manifest.js";
 import {
   fill,
   type RegisteredRun,
@@ -21,6 +25,7 @@ export function pluginPrefix(command: readonly string[]): string[] | null {
 }
 
 export interface PluginLimits {
+  readOf(prefix: string[]): ManifestRead;
   manifestOf(prefix: string[]): Manifest | null;
   limitMs(prefix: string[] | null): number | undefined;
   nameOf(prefix: string[] | null, fallback: string): string;
@@ -31,23 +36,33 @@ export function createPluginLimits(
   root: string,
   graceMs: number = PLUGIN_GRACE_MS,
 ): PluginLimits & { graceMs: number } {
-  const manifests = new Map<string, Manifest | null>();
+  const reads = new Map<string, ManifestRead>();
 
-  const manifestOf = (prefix: string[]): Manifest | null => {
+  const readOf = (prefix: string[]): ManifestRead => {
     const filled = prefix.map((item) => fill(item, root, "", ""));
     const key = filled.join("\0");
+    const known = reads.get(key);
 
-    if (!manifests.has(key)) {
-      const read = readManifestOf(io, filled);
-
-      manifests.set(key, read.ok ? read.manifest : null);
+    if (known !== undefined) {
+      return known;
     }
 
-    return manifests.get(key) ?? null;
+    const read = readManifestOf(io, filled);
+
+    reads.set(key, read);
+
+    return read;
+  };
+
+  const manifestOf = (prefix: string[]): Manifest | null => {
+    const read = readOf(prefix);
+
+    return read.ok ? read.manifest : null;
   };
 
   return {
     graceMs,
+    readOf,
     manifestOf,
     limitMs: (prefix) => {
       const manifest = prefix === null ? null : manifestOf(prefix);

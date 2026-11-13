@@ -232,7 +232,11 @@ export {
   parseSuiteSelection,
 } from "./scan-phases.js";
 export { SHIPPED_DESCRIBER_COMMAND } from "./shipped-describer.js";
-export { SHIPPED_SENSOR_LIST, shippedSensorNames } from "./shipped-sensors.js";
+export {
+  readShippedSensors,
+  type ShippedSensorEntry,
+  shippedSensorNames,
+} from "./shipped-sensors.js";
 export {
   measuredInputs,
   measuredModules,

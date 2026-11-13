@@ -9,6 +9,7 @@ const BAD_DESCRIBER = "describer:\n  command: []\n";
 
 function fresh(config: string) {
   return fakeIo({
+    sensorManifests: true,
     commit: COMMIT,
     files: { [`${ROOT}/a.py`]: "", [CONFIG]: config },
     scanners: { [PYTHON]: { output: scanJson(2, 1, { commit: COMMIT }) } },

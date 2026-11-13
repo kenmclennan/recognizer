@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseConfig, SHIPPED_SENSOR_LIST } from "recognizer";
+import { parseConfig } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
   COMPLEXITY_ABOVE,
@@ -69,13 +69,20 @@ describe("functionLimits", () => {
   });
 
   it("has the defaults the shipped sensors use", () => {
-    const crap = SHIPPED_SENSOR_LIST.find((entry) => entry.name === "crap");
+    const crap = JSON.parse(
+      readFileSync(
+        join(REPO, "schema/manifest-examples/valid/sensor-crap.json"),
+        "utf8",
+      ),
+    ) as { settings: { key: string; default?: number }[] };
     const python = readFileSync(
       join(REPO, "sensors/src/recognizer_sensors/thresholds/sensor.py"),
       "utf8",
     );
 
-    expect(crap?.defaults).toEqual({ threshold: CRAP_AT });
+    expect(crap.settings.find((one) => one.key === "threshold")?.default).toBe(
+      CRAP_AT,
+    );
     expect(python).toContain(`"above": ${COMPLEXITY_ABOVE},`);
     expect(python).toContain(`"below": ${COVERAGE_BELOW},`);
   });

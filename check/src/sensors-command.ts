@@ -8,7 +8,7 @@ import {
   reportText,
   sensorsToCheck,
 } from "./sensors-check.js";
-import { SHIPPED_SENSOR_LIST } from "./shipped-sensors.js";
+import { readShippedSensors } from "./shipped-sensors.js";
 
 const USAGE = [
   "usage: recognizer sensors [--json]",
@@ -50,15 +50,21 @@ export function runSensors(argv: string[], io: Io): number {
     return reports.every((report) => report.ready) ? 0 : 1;
   }
 
-  if (values.json === true) {
-    io.stdout(`${JSON.stringify(SHIPPED_SENSOR_LIST, null, 2)}\n`);
+  const { sensors, unreadable } = readShippedSensors(io);
 
-    return 0;
+  if (values.json === true) {
+    io.stdout(`${JSON.stringify(sensors, null, 2)}\n`);
+  } else if (sensors.length > 0) {
+    io.stdout(
+      `${sensors
+        .map(({ name, description }) => `${name}  ${description ?? ""}`)
+        .join("\n")}\n`,
+    );
   }
 
-  io.stdout(
-    `${SHIPPED_SENSOR_LIST.map(({ name, line }) => `${name}  ${line}`).join("\n")}\n`,
-  );
+  for (const { name, reason } of unreadable) {
+    io.stderr(`${name}: ${reason}\n`);
+  }
 
-  return 0;
+  return unreadable.length === 0 ? 0 : 1;
 }

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DirEntry, Io, RequestResult, RunResult } from "../src/cli.js";
 import { REPO } from "./helpers.js";
+import { exampleManifest } from "./shipped-read.js";
 
 export function describerManifestText(promptVersion: string): string {
   const manifest = JSON.parse(
@@ -41,6 +42,7 @@ export interface SensorsPreflight {
 }
 
 export interface FakeOptions {
+  sensorManifests?: boolean;
   sensorsPreflight?: SensorsPreflight;
   programs?: Record<string, Program>;
   files?: Record<string, string>;
@@ -215,6 +217,24 @@ export function fakeIo(options: FakeOptions = {}): Fake {
             stdout: "",
             stderr: "fatal: not a git repository",
           };
+    }
+
+    if (
+      args.at(-1) === "manifest" &&
+      options.sensorManifests === true &&
+      options.programs?.[command] === undefined &&
+      command.startsWith("recognizer-sense-")
+    ) {
+      calls.push({ command, args });
+
+      return {
+        started: true,
+        status: 0,
+        stdout: JSON.stringify(
+          exampleManifest(command.slice("recognizer-sense-".length)),
+        ),
+        stderr: "",
+      };
     }
 
     if (

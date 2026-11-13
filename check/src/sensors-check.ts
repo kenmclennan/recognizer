@@ -4,7 +4,12 @@ import { registeredSensors } from "./config-parse.js";
 import { readManifestOf } from "./plugin-manifest.js";
 import { pluginPrefix } from "./plugin-run.js";
 import { selectSensors } from "./scan-phases.js";
-import { shippedSensorNames, shippedSensorOf } from "./shipped-sensors.js";
+import {
+  type ManifestReader,
+  readShippedSensors,
+  shippedSensorNames,
+  shippedSensorOf,
+} from "./shipped-sensors.js";
 
 export interface SensorGap {
   code: string;
@@ -184,6 +189,7 @@ export function checkSensor(
   root: string,
   sensor: CheckableSensor,
   run: boolean,
+  read: ManifestReader = (prefix) => readManifestOf(io, prefix),
 ): SensorReport {
   if (!checkable(sensor.command)) {
     return {
@@ -195,8 +201,7 @@ export function checkSensor(
     };
   }
 
-  const declared = readManifestOf(
-    io,
+  const declared = read(
     afterRun(sensor.command).prefix.map((item) =>
       item.split("{repository}").join(root),
     ),
@@ -271,8 +276,9 @@ export function checkSensors(
   root: string,
   sensors: CheckableSensor[],
   run: boolean,
+  read?: ManifestReader,
 ): SensorReport[] {
-  return sensors.map((sensor) => checkSensor(io, root, sensor, run));
+  return sensors.map((sensor) => checkSensor(io, root, sensor, run, read));
 }
 
 export function reportText(reports: SensorReport[]): string {
@@ -319,13 +325,34 @@ export function sensorsToCheck(
   io: Io,
   root: string,
   name: string | undefined,
+  withSuites = true,
 ): CheckableSensor[] {
   const config = readConfig(io, root, ["sensors"]);
+  const registered = registeredSensors(config);
+
+  if (!withSuites) {
+    return selectSensors(
+      registered,
+      name === undefined ? "all" : [name],
+      shippedSensorNames(),
+    );
+  }
+
+  const wanted = new Set<string>(name === undefined ? [] : [name]);
+
+  for (const one of registered) {
+    const shipped = shippedSensorOf(one.command);
+
+    if (shipped !== undefined) {
+      wanted.add(shipped);
+    }
+  }
 
   return selectSensors(
-    registeredSensors(config),
+    registered,
     name === undefined ? "all" : [name],
     shippedSensorNames(),
     config?.tests,
+    readShippedSensors(io, undefined, [...wanted]),
   );
 }

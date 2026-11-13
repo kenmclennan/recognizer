@@ -45,23 +45,45 @@ pub struct ShippedSensor {
     pub name: String,
     #[serde(default)]
     pub display: String,
-    pub line: String,
-    pub defaults: serde_json::Map<String, serde_json::Value>,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expansion: Option<String>,
     #[serde(default, rename = "runsTests", alias = "runs_tests")]
     pub runs_tests: bool,
+    #[serde(default)]
+    pub scoped: bool,
     #[serde(default = "listed_by_default")]
     pub listed: bool,
     #[serde(default)]
     pub metrics: Vec<ShippedMetric>,
+    #[serde(default)]
+    pub findings: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub settings: Vec<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ShippedMetric {
     pub name: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub help: String,
     #[serde(rename = "type")]
     pub kind: String,
     pub granularity: String,
     pub bad: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub published: Option<ShippedPublished>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShippedPublished {
+    pub value: f64,
+    pub source: String,
 }
 
 fn listed_by_default() -> bool {
@@ -738,7 +760,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let good = fake_command(
             dir.path(),
-            r#"echo '[{"name":"duplication","line":"l","defaults":{"threshold":0.82}}]'"#,
+            r#"echo '[{"name":"duplication","description":"d","metrics":[],"findings":[],"settings":[]}]'"#,
         );
         let other = TempDir::new().unwrap();
         let bad = fake_command(other.path(), "echo nope");
@@ -792,7 +814,7 @@ mod tests {
         let other = TempDir::new().unwrap();
         let sensors = fake_command(
             other.path(),
-            r#"echo '[{"name":"duplication","line":"l","defaults":{"threshold":0.82}}]'"#,
+            r#"echo '[{"name":"duplication","description":"d","metrics":[],"findings":[],"settings":[]}]'"#,
         );
 
         assert!(matches!(
@@ -817,8 +839,58 @@ mod tests {
     }
 
     #[test]
+    fn a_full_shipped_entry_passes_findings_and_settings_through_unchanged() {
+        let findings = serde_json::json!([{"kind":"crap","group":{"name":"C.R.A.P.","means":"m","todo":"t"},"help":"h","sentence":{"requires":["a.b"],"parts":[[{"when":[{"has":"a.b"}],"text":"x {a.b|num}"}]]}}]);
+        let settings = serde_json::json!([{"key":"threshold","type":"number","default":30,"description":"d","example":"e"}]);
+        let list = serde_json::json!([{
+            "name": "crap",
+            "display": "C.R.A.P.",
+            "description": "d",
+            "expansion": "C.R.A.P.: Change Risk Anti-Patterns.",
+            "runs_tests": true,
+            "scoped": true,
+            "listed": true,
+            "metrics": [],
+            "findings": findings,
+            "settings": settings,
+        }])
+        .to_string();
+
+        match shipped_sensors_for(Some(0), &list, "") {
+            ShippedSensors::Ok { sensors } => {
+                let out = serde_json::to_value(&sensors[0]).unwrap();
+
+                assert_eq!(out["findings"], findings);
+                assert_eq!(out["settings"], settings);
+                assert_eq!(out["description"], "d");
+                assert_eq!(out["expansion"], "C.R.A.P.: Change Risk Anti-Patterns.");
+                assert_eq!(out["scoped"], true);
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn an_entry_without_expansion_or_published_parses_and_a_defaults_key_is_dropped() {
+        let list = r#"[{"name":"m","display":"M","description":"d","defaults":{"threshold":1},"runs_tests":false,"scoped":false,"listed":true,"metrics":[{"name":"k","label":"k","title":"K","help":"h","type":"count","granularity":"member","bad":"low"}],"findings":[],"settings":[]}]"#;
+
+        match shipped_sensors_for(Some(0), list, "") {
+            ShippedSensors::Ok { sensors } => {
+                let out = serde_json::to_value(&sensors[0]).unwrap();
+
+                assert!(sensors[0].expansion.is_none());
+                assert!(sensors[0].metrics[0].published.is_none());
+                assert!(out.get("defaults").is_none());
+                assert!(out.get("expansion").is_none());
+                assert!(out["metrics"][0].get("published").is_none());
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
     fn the_shipped_list_keeps_display_runs_tests_and_listed() {
-        let list = r#"[{"name":"crap","display":"C.R.A.P.","line":"l","defaults":{},"runs_tests":true,"listed":true,"metrics":[{"name":"crap","type":"number","granularity":"member","bad":"high"}]},{"name":"thresholds","display":"T","line":"l","defaults":{},"runs_tests":false,"listed":false,"metrics":[]}]"#;
+        let list = r#"[{"name":"crap","display":"C.R.A.P.","description":"d","runs_tests":true,"listed":true,"metrics":[{"name":"crap","label":"CRAP","title":"C.R.A.P.","help":"h","type":"number","granularity":"member","bad":"high","published":{"value":30.0,"source":"s"}}]},{"name":"thresholds","display":"T","description":"d","runs_tests":false,"listed":false,"metrics":[]}]"#;
 
         match shipped_sensors_for(Some(0), list, "") {
             ShippedSensors::Ok { sensors } => {
@@ -828,7 +900,7 @@ mod tests {
                 assert!(!sensors[1].listed);
                 assert_eq!(
                     serde_json::to_value(&sensors[0]).unwrap()["metrics"],
-                    serde_json::json!([{"name":"crap","type":"number","granularity":"member","bad":"high"}])
+                    serde_json::json!([{"name":"crap","label":"CRAP","title":"C.R.A.P.","help":"h","type":"number","granularity":"member","bad":"high","published":{"value":30.0,"source":"s"}}])
                 );
                 assert_eq!(
                     serde_json::to_value(&sensors[0]).unwrap()["runsTests"],

@@ -4,7 +4,7 @@ import type { Describer } from "./describe-modules.js";
 import type { Fix, Gap } from "./gap.js";
 import { pluginPrefix } from "./plugin-run.js";
 import { checkSensors } from "./sensors-check.js";
-import { shippedSensorOf } from "./shipped-sensors.js";
+import { type ManifestReader, shippedSensorOf } from "./shipped-sensors.js";
 
 export interface PreflightSensor {
   name: string;
@@ -191,8 +191,9 @@ export function readinessGaps(
   io: Io,
   root: string,
   sensors: PreflightSensor[],
+  read?: ManifestReader,
 ): Gap[] {
-  return checkSensors(io, root, sensors, false).flatMap((report) =>
+  return checkSensors(io, root, sensors, false, read).flatMap((report) =>
     report.gaps.map((gap) => ({
       id: `${report.name}:${gap.suite ?? "config"}:${gap.code}`,
       line: gap.line,

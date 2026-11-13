@@ -73,7 +73,7 @@ export function commandHelp(command: Command, io: Io): string {
 
 function runSensorGuide(sensor: string, io: Io): number {
   const root = resolve(".");
-  const [selected] = sensorsToCheck(io, root, sensor) as [
+  const [selected] = sensorsToCheck(io, root, sensor, false) as [
     { name: string; command: string[] },
   ];
   const guide = guideText(io, root, selected);

@@ -1,103 +1,52 @@
+import type { Io } from "./cli.js";
+import {
+  type Manifest,
+  type ManifestRead,
+  readManifestOf,
+} from "./plugin-manifest.js";
+import type { FindingEntry } from "./plugin-sentence.js";
+
 export interface ShippedMetric {
   name: string;
+  label: string;
+  title?: string;
+  help: string;
   type: "ratio" | "count" | "number" | "boolean";
   granularity: "module" | "member";
   bad: "high" | "low";
+  published?: { value: number; source: string };
 }
 
 export interface ShippedSensorEntry {
   name: string;
   display: string;
-  line: string;
-  defaults: Record<string, number | boolean | string>;
+  description?: string;
+  expansion?: string;
   runs_tests: boolean;
-  listed: boolean;
   scoped: boolean;
-  metrics: readonly ShippedMetric[];
+  listed: boolean;
+  metrics: ShippedMetric[];
+  findings: FindingEntry[];
+  settings: unknown[];
 }
 
-export const SHIPPED_SENSOR_LIST: readonly ShippedSensorEntry[] = [
-  {
-    name: "crap",
-    display: "C.R.A.P.",
-    line: "Runs the tests under coverage and flags functions that are complex and poorly covered, where a change is most likely to break something.",
-    defaults: {
-      threshold: 30,
-    },
-    runs_tests: true,
-    listed: true,
-    scoped: false,
-    metrics: [
-      {
-        name: "complexity",
-        type: "count",
-        granularity: "member",
-        bad: "high",
-      },
-      {
-        name: "coverage",
-        type: "ratio",
-        granularity: "member",
-        bad: "low",
-      },
-      {
-        name: "crap",
-        type: "number",
-        granularity: "member",
-        bad: "high",
-      },
-    ],
-  },
-  {
-    name: "mutation",
-    display: "Mutation",
-    line: "Mutates covered functions, reruns the tests, and warns where a mutated copy still passes, naming each surviving mutation.",
-    defaults: {},
-    runs_tests: true,
-    listed: true,
-    scoped: true,
-    metrics: [
-      {
-        name: "killed",
-        type: "count",
-        granularity: "member",
-        bad: "low",
-      },
-      {
-        name: "survived",
-        type: "count",
-        granularity: "member",
-        bad: "high",
-      },
-      {
-        name: "uncovered",
-        type: "count",
-        granularity: "member",
-        bad: "high",
-      },
-      {
-        name: "score",
-        type: "ratio",
-        granularity: "member",
-        bad: "low",
-      },
-    ],
-  },
-  {
-    name: "thresholds",
-    display: "Thresholds",
-    line: "Turns any overlay metric over a configured line into a finding, with complexity and coverage lines built in.",
-    defaults: {},
-    runs_tests: false,
-    listed: false,
-    scoped: false,
-    metrics: [],
-  },
-];
+export interface UnreadableSensor {
+  name: string;
+  reason: string;
+}
 
-export const SHIPPED_SENSORS: readonly string[] = SHIPPED_SENSOR_LIST.map(
-  ({ name }) => name,
-);
+export interface ShippedRead {
+  sensors: ShippedSensorEntry[];
+  unreadable: UnreadableSensor[];
+}
+
+export type ManifestReader = (prefix: string[]) => ManifestRead;
+
+export const SHIPPED_SENSORS: readonly string[] = [
+  "crap",
+  "mutation",
+  "thresholds",
+];
 
 export function shippedSensorNames(): string[] {
   return [...SHIPPED_SENSORS];
@@ -107,7 +56,7 @@ const SENSE_PREFIX = "recognizer-sense-";
 
 export function shippedSensorOf(
   command: readonly string[],
-): ShippedSensorEntry | undefined {
+): string | undefined {
   const program = command[0];
 
   if (program === undefined || !program.startsWith(SENSE_PREFIX)) {
@@ -116,15 +65,125 @@ export function shippedSensorOf(
 
   const name = program.slice(SENSE_PREFIX.length);
 
-  return SHIPPED_SENSOR_LIST.find((entry) => entry.name === name);
+  return SHIPPED_SENSORS.includes(name) ? name : undefined;
 }
 
-export function runsTests(command: readonly string[]): boolean {
-  return shippedSensorOf(command)?.runs_tests === true;
+function entryOf(manifest: Manifest): ShippedSensorEntry {
+  const metrics = (manifest.metrics ?? []) as ShippedMetric[];
+
+  return {
+    name: manifest.name,
+    display: manifest.display,
+    ...(manifest.description === undefined
+      ? {}
+      : { description: manifest.description }),
+    ...(manifest.expansion === undefined
+      ? {}
+      : { expansion: manifest.expansion }),
+    runs_tests: manifest.runs_tests === true,
+    scoped: manifest.scoped === true,
+    listed: metrics.length > 0,
+    metrics,
+    findings: manifest.findings ?? [],
+    settings: manifest.settings,
+  };
 }
 
-export function isScoped(command: readonly string[]): boolean {
-  return shippedSensorOf(command)?.scoped === true;
+export function readShippedSensors(
+  io: Io,
+  read: ManifestReader = (prefix) => readManifestOf(io, prefix),
+  names: readonly string[] = SHIPPED_SENSORS,
+): ShippedRead {
+  const result: ShippedRead = { sensors: [], unreadable: [] };
+
+  for (const name of SHIPPED_SENSORS.filter((one) => names.includes(one))) {
+    const manifest = read([`${SENSE_PREFIX}${name}`]);
+
+    if (manifest.ok && manifest.manifest.kind === "sensor") {
+      result.sensors.push(entryOf(manifest.manifest));
+    } else {
+      result.unreadable.push({
+        name,
+        reason: manifest.ok
+          ? `${SENSE_PREFIX}${name} manifest is not a sensor`
+          : manifest.reason,
+      });
+    }
+  }
+
+  return result;
+}
+
+function entryFor(
+  command: readonly string[],
+  shipped: ShippedRead,
+): ShippedSensorEntry | undefined {
+  const name = shippedSensorOf(command);
+
+  return shipped.sensors.find((entry) => entry.name === name);
+}
+
+export function runsTests(
+  command: readonly string[],
+  shipped: ShippedRead,
+): boolean {
+  return entryFor(command, shipped)?.runs_tests === true;
+}
+
+export function isScoped(
+  command: readonly string[],
+  shipped: ShippedRead,
+): boolean {
+  return entryFor(command, shipped)?.scoped === true;
+}
+
+export function receivesSuites(name: string, shipped: ShippedRead): boolean {
+  return shipped.sensors.some(
+    (entry) => entry.runs_tests && entry.name === name,
+  );
+}
+
+export function withSuiteSettings(
+  command: string[],
+  shipped: ShippedRead,
+  suites: readonly unknown[] | undefined,
+): string[] {
+  const name = shippedSensorOf(command);
+
+  if (
+    suites === undefined ||
+    name === undefined ||
+    !receivesSuites(name, shipped)
+  ) {
+    return command;
+  }
+
+  const at = command.indexOf("--settings");
+  const text = at === -1 ? undefined : command[at + 1];
+
+  if (text === undefined) {
+    return command;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(text);
+
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      return command;
+    }
+
+    const next = [...command];
+
+    next[at + 1] = JSON.stringify({ ...parsed, tests: suites });
+
+    return next;
+  } catch {
+    return command;
+  }
 }
 
 function isSettingsMapping(value: unknown): value is Record<string, unknown> {
@@ -154,16 +213,9 @@ export function shippedCommand(
   ];
 }
 
-export function receivesSuites(name: string): boolean {
-  return SHIPPED_SENSOR_LIST.some(
-    (entry) => entry.runs_tests && entry.name === name,
-  );
-}
-
 export function expandShortForms(
   entries: Record<string, unknown> | undefined,
   shipped: readonly string[],
-  suites?: readonly unknown[],
 ): Record<string, unknown> | undefined {
   if (entries === undefined) {
     return entries;
@@ -172,17 +224,7 @@ export function expandShortForms(
   return Object.fromEntries(
     Object.entries(entries).map(([name, entry]) =>
       shipped.includes(name) && isSettingsMapping(entry)
-        ? [
-            name,
-            {
-              command: shippedCommand(
-                name,
-                receivesSuites(name) && suites !== undefined
-                  ? { ...entry, tests: suites }
-                  : entry,
-              ),
-            },
-          ]
+        ? [name, { command: shippedCommand(name, entry) }]
         : [name, entry],
     ),
   );

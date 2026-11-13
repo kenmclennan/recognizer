@@ -58,6 +58,7 @@ function setup(
 ) {
   return fakeIo({
     files: { [CONFIG]: config },
+    sensorManifests: true,
     sensorsPreflight: { run: answer },
   });
 }
@@ -198,7 +199,7 @@ describe("recognizer sensors check", () => {
   });
 
   it("keeps listing the shipped sensors and rejects --run without check", () => {
-    const listed = fakeIo();
+    const listed = fakeIo({ sensorManifests: true });
 
     expect(run(["sensors"], listed.io)).toBe(0);
     expect(listed.out()).toContain("thresholds");
