@@ -310,14 +310,14 @@ describe("structure settings", () => {
     );
 
     expect(JSON.stringify(document.settings)).toBe(
-      '{"entry_points":[],"warnings":{"cycle":true,"orphan":true,"unused_exports":false,"private_imports":true,"long_function":true}}',
+      '{"entry_points":[],"warnings":{"cycle":true,"orphan":true,"unused_exports":false,"private_imports":true,"long_function":true},"long_function_limit":20}',
     );
-    expect(document.sensor.version).toBe("18");
+    expect(document.sensor.version).toBe("19");
   });
 
   it("describes the settings with and without entry points", () => {
     const base =
-      "cycle on, orphan on, unused_exports off, private_imports on, long_function on";
+      "cycle on, orphan on, unused_exports off, private_imports on, long_function on, long_function_limit 20";
 
     expect(describeSettings(DEFAULT_STRUCTURE_SETTINGS)).toBe(base);
     expect(
@@ -1586,7 +1586,7 @@ describe("unused_exports", () => {
         entry_points: ["a"],
       }),
     ).toBe(
-      `${base}, unused_exports on, private_imports on, long_function on, entry_points 1`,
+      `${base}, unused_exports on, private_imports on, long_function on, long_function_limit 20, entry_points 1`,
     );
   });
 
@@ -2111,10 +2111,48 @@ describe("long_function", () => {
       policy === null ? null : parsePolicy(policy),
     );
 
+  const foundAt = (modules: Mod[], limit: number) =>
+    longFunctionFindings(scanWith(modules), null, limit);
+
   const span = (name: string, line: number, end_line: number): Fn => ({
     name,
     line,
     end_line,
+  });
+
+  it("reports a 25-line function at limit 20, not at limit 25, and a 26-line one at 25", () => {
+    const at25 = [{ id: "lib/a.py", functions: [span("f", 1, 25)] }];
+    const at26 = [{ id: "lib/a.py", functions: [span("g", 1, 26)] }];
+
+    expect(ids(foundAt(at25, 20))).toEqual(["long_function:lib/a.py::f"]);
+    expect(foundAt(at25, 25)).toEqual([]);
+    expect(ids(foundAt(at26, 25))).toEqual(["long_function:lib/a.py::g"]);
+  });
+
+  it("names both figures and the published one in the measures when the limit is tuned", () => {
+    const [finding] = foundAt(
+      [{ id: "lib/a.py", functions: [span("f", 1, 34)] }],
+      30,
+    );
+
+    expect(finding?.summary).toBe(
+      "f in a.py is 34 lines, over this repository's limit of 30 lines (Clean Code says 20) - functions should be small (Martin, Clean Code, 2008)",
+    );
+    expect(finding?.evidence.measures).toEqual({
+      lines: 34,
+      limit: 30,
+      published: 20,
+    });
+    expect(finding).toMatchObject(principleOf("small-functions"));
+  });
+
+  it("carries no published measure at the published limit", () => {
+    const [finding] = foundAt(
+      [{ id: "lib/a.py", functions: [span("f", 1, 34)] }],
+      20,
+    );
+
+    expect(finding?.evidence.measures).toEqual({ lines: 34, limit: 20 });
   });
 
   it("gives none at 20 lines and one at 21", () => {

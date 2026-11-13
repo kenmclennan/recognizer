@@ -117,7 +117,7 @@ describe("structureSensor ids", () => {
   });
 
   it("records the current sensor version", () => {
-    expect(sense("check-warnings").document.sensor.version).toBe("18");
+    expect(sense("check-warnings").document.sensor.version).toBe("19");
   });
 
   it("changes only orphan findings when the scan carries test imports", () => {

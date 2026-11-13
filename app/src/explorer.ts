@@ -395,6 +395,7 @@ export function showExplorer(
   reconcileMessages: (foundKeys: readonly string[]) => void = () => {},
   comparisons: ViewComparisons = createViewComparisons(),
   commits: CommitsPort = inertCommits,
+  openSettings: () => void = () => {},
 ): Explorer {
   let loaded = initial;
   let health = computeHealth(loaded);
@@ -1077,6 +1078,7 @@ export function showExplorer(
     toggleScan: toggleScanPanel,
     toggleFindings: toggleFindingsPanel,
     toggleCommits: toggleCommitsPanel,
+    openSettings,
   });
   const commitsView = buildCommitsPanelView({
     pick(row) {

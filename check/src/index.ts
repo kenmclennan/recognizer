@@ -32,6 +32,25 @@ export {
 } from "./change-marks.js";
 export { type CheckResult, check, rankAgainstBaseline } from "./check.js";
 export {
+  addSection,
+  type EditOutcome,
+  type Listing,
+  listKeys,
+  setValue,
+  typedValue,
+  unsetValue,
+} from "./config-edit.js";
+export {
+  CORE_KEYS,
+  findKey,
+  type KeyEntry,
+  type KeySchema,
+  type PublishedKey,
+  type PublishedKeys,
+  parseKeySchema,
+  publish,
+} from "./config-keys.js";
+export {
   type Config,
   parseConfig,
   registeredSensors,

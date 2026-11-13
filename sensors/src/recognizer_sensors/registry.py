@@ -5,7 +5,7 @@ from pathlib import Path
 from recognizer_sensors.crap import sensor as crap
 from recognizer_sensors.mutation import sensor as mutation
 from recognizer_sensors.outcome import Outcome
-from recognizer_sensors.testrun.guide import guide
+from recognizer_sensors.testrun.guide import guide, mutation_guide
 from recognizer_sensors.testrun.readiness import check_with_notes, mutation_check
 from recognizer_sensors.thresholds import sensor as thresholds
 
@@ -40,7 +40,7 @@ SHIPPED = {
         scoped=True,
         checkpoints=True,
         check=mutation_check,
-        guide=guide,
+        guide=mutation_guide,
     ),
     "thresholds": Sensor(thresholds.parse_settings, thresholds.run, needs_commit=True),
 }

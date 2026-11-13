@@ -6,6 +6,7 @@ use tauri::{
 
 pub mod changes;
 pub mod commits;
+pub mod config_write;
 pub mod editor;
 pub mod fs_safe;
 pub mod in_file_tests;
@@ -44,7 +45,6 @@ use windows::{
 };
 
 const APP_TITLE: &str = "Recognizer";
-const SETTINGS_LABEL: &str = "settings";
 const RECENT_PREFIX: &str = "recent:";
 const CHANGES_POLL: Duration = Duration::from_secs(2);
 
@@ -370,28 +370,6 @@ fn focused_label(app: &AppHandle) -> Option<String> {
     )
 }
 
-const SETTINGS_WIDTH: f64 = 480.0;
-const SETTINGS_HEIGHT: f64 = 440.0;
-
-fn open_settings(app: &AppHandle) {
-    if app.get_webview_window(SETTINGS_LABEL).is_some() {
-        focus_label(app, SETTINGS_LABEL);
-
-        return;
-    }
-
-    let built =
-        WebviewWindowBuilder::new(app, SETTINGS_LABEL, WebviewUrl::App("settings.html".into()))
-            .title("Settings")
-            .inner_size(SETTINGS_WIDTH, SETTINGS_HEIGHT)
-            .resizable(false)
-            .build();
-
-    if let Err(error) = built {
-        eprintln!("recognizer: could not open settings: {error}");
-    }
-}
-
 struct AppSource {
     app: AppHandle,
 }
@@ -581,7 +559,11 @@ fn handle_menu(app: &AppHandle, event: MenuEvent) {
                 let _ = app.emit_to(label, "rescan", ());
             }
         }
-        "settings" => open_settings(app),
+        "settings" => {
+            if let Some(label) = focused_label(app) {
+                let _ = app.emit_to(label, "open-settings", ());
+            }
+        }
         "open-in-editor" => {
             if let Some(label) = focused_label(app) {
                 let _ = app.emit_to(label, "open-in-editor", ());
@@ -815,6 +797,29 @@ async fn shipped_sensors() -> Result<repository::ShippedSensors, String> {
     tauri::async_runtime::spawn_blocking(repository::shipped_sensors)
         .await
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn read_config_keys() -> Result<config_write::ConfigKeys, String> {
+    tauri::async_runtime::spawn_blocking(config_write::read_config_keys)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn write_repository_config(
+    app: AppHandle,
+    window: WebviewWindow,
+    edits: Vec<config_write::Edit>,
+    base_hash: String,
+) -> Result<config_write::ConfigWrite, String> {
+    let folder = window_folder_path(&app, &window)?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        config_write::write_repository_config(&folder, &edits, &base_hash)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -1614,6 +1619,7 @@ pub fn run() {
             read_sensor_inputs,
             read_tests_hash,
             read_describing,
+            read_config_keys,
             read_settings,
             record_recent_view,
             remove_findings,
@@ -1643,6 +1649,7 @@ pub fn run() {
             watch_sensor_inputs,
             watch_views,
             window_folder,
+            write_repository_config,
             write_scan_ticks,
             write_settings,
             write_structure,

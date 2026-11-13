@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-read-config-keys"
+description = "Enables the read_config_keys command without any pre-configured scope."
+commands.allow = ["read_config_keys"]
+
+[[permission]]
+identifier = "deny-read-config-keys"
+description = "Denies the read_config_keys command without any pre-configured scope."
+commands.deny = ["read_config_keys"]

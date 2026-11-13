@@ -551,14 +551,31 @@ def test_a_finding_at_the_published_threshold_cites_its_source(tmp_path):
     )
 
 
-def test_a_finding_at_another_threshold_cites_nothing(tmp_path):
+def test_a_finding_at_another_threshold_cites_its_source_and_names_both(tmp_path):
     root = python_repository(tmp_path, branches(4), lcov_for("app/m.py", range(1, 10)))
 
     _, document, _ = produced(root, tmp_path, "--settings", '{"threshold":25}')
+    finding = document["findings"][0]
 
     assert len(document["findings"]) == 1
-    assert document["findings"][0]["principle"] == "crap"
-    assert "citation" not in document["findings"][0]
+    assert finding["principle"] == "change-risk-anti-patterns"
+    assert finding["citation"]["author"] == "Alberto Savoia and Bob Evans"
+    assert finding["evidence"]["measures"]["limit"] == 25
+    assert finding["evidence"]["measures"]["published"] == 30
+    assert "threshold of 25" in finding["summary"]
+    assert "Savoia and Evans say 30" in finding["summary"]
+
+
+def test_a_finding_at_the_published_threshold_carries_no_published_figure(tmp_path):
+    root = python_repository(tmp_path, branches(30), lcov_for("app/m.py", range(1, 40)))
+
+    _, document, _ = produced(root, tmp_path, "--settings", '{"threshold":30}')
+    finding = document["findings"][0]
+
+    assert finding["principle"] == "change-risk-anti-patterns"
+    assert "published" not in finding["evidence"]["measures"]
+    assert "limit" not in finding["evidence"]["measures"]
+    assert "threshold of" not in finding["summary"]
 
 
 def test_cc_four_at_zero_coverage_does_not_report(tmp_path):

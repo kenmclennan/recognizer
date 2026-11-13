@@ -9,6 +9,7 @@ export const repositorySource = {
   chooseFolder: () => invoke<void>("choose_folder"),
   onFolderAssigned: (run: () => void) => listen("folder-assigned", () => run()),
   onRescan: (run: () => void) => listen("rescan", () => run()),
+  onOpenSettings: (run: () => void) => listen("open-settings", () => run()),
   onChanges: (run: (changes: Changes) => void) =>
     listen<Changes>("changes-changed", (event) => run(event.payload)),
 };

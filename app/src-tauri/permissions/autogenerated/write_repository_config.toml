@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-write-repository-config"
+description = "Enables the write_repository_config command without any pre-configured scope."
+commands.allow = ["write_repository_config"]
+
+[[permission]]
+identifier = "deny-write-repository-config"
+description = "Denies the write_repository_config command without any pre-configured scope."
+commands.deny = ["write_repository_config"]

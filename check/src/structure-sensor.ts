@@ -8,6 +8,7 @@ import {
 import { violationText } from "./findings.js";
 import type { FindingRecord, FindingsDocument } from "./findings-document.js";
 import { type FolderMetrics, measureFolders } from "./folder-metrics.js";
+import { LONG_FUNCTION } from "./function-length.js";
 import { keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
 import { principleOf } from "./principles.js";
@@ -20,7 +21,7 @@ import {
   unusedExportsFindings,
 } from "./structure-warnings.js";
 
-export const STRUCTURE_SENSOR_VERSION = "18";
+export const STRUCTURE_SENSOR_VERSION = "19";
 
 export interface StructureSettings {
   duplication: false | DuplicationSettings;
@@ -32,6 +33,7 @@ export interface StructureSettings {
     private_imports: boolean;
     long_function: boolean;
   };
+  long_function_limit: number;
 }
 
 export interface StructureContext {
@@ -56,6 +58,7 @@ export const DEFAULT_STRUCTURE_SETTINGS: StructureSettings = {
     private_imports: true,
     long_function: true,
   },
+  long_function_limit: LONG_FUNCTION,
 };
 
 export function resolveStructureSettings(
@@ -71,6 +74,7 @@ export function resolveStructureSettings(
 
   const defaults = DEFAULT_STRUCTURE_SETTINGS.warnings;
   const orphan = given.warnings?.orphan ?? true;
+  const longFunction = given.warnings?.long_function ?? true;
 
   const duplication = given.duplication;
 
@@ -86,8 +90,12 @@ export function resolveStructureSettings(
       unused_exports: given.warnings?.unused_exports ?? defaults.unused_exports,
       private_imports:
         given.warnings?.private_imports ?? defaults.private_imports,
-      long_function: given.warnings?.long_function ?? defaults.long_function,
+      long_function: longFunction !== false,
     },
+    long_function_limit:
+      typeof longFunction === "object"
+        ? longFunction.limit
+        : DEFAULT_STRUCTURE_SETTINGS.long_function_limit,
   };
 }
 
@@ -115,7 +123,7 @@ export function describeSettings(settings: StructureSettings): string {
       ? `, entry_points ${settings.entry_points.length}`
       : "";
 
-  return `cycle ${on(w.cycle)}, orphan ${on(w.orphan)}, unused_exports ${on(w.unused_exports)}, private_imports ${on(w.private_imports)}, long_function ${on(w.long_function)}${entries}`;
+  return `cycle ${on(w.cycle)}, orphan ${on(w.orphan)}, unused_exports ${on(w.unused_exports)}, private_imports ${on(w.private_imports)}, long_function ${on(w.long_function)}, long_function_limit ${settings.long_function_limit}${entries}`;
 }
 
 export function violationPrinciple(rules: readonly Rule[]): string {
@@ -234,7 +242,7 @@ export function structureSensor(
         ? privateImportsFindings(scan, policy)
         : []),
       ...(settings.warnings.long_function
-        ? longFunctionFindings(scan, policy)
+        ? longFunctionFindings(scan, policy, settings.long_function_limit)
         : []),
     ];
 
@@ -260,6 +268,7 @@ export function structureSensor(
           private_imports: settings.warnings.private_imports,
           long_function: settings.warnings.long_function,
         },
+        long_function_limit: settings.long_function_limit,
         ...(duplication !== null && settings.duplication !== false
           ? { duplication: { ...settings.duplication } }
           : {}),

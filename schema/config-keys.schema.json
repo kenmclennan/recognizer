@@ -50,6 +50,13 @@
             "items": { "type": "string", "minLength": 1 }
           },
           "multi": { "type": "boolean" },
+          "default": { "type": ["string", "number", "boolean"] },
+          "defaults": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": { "type": ["string", "number", "boolean"] }
+          },
+          "default_text": { "type": "string", "minLength": 1 },
           "minimum": { "type": "number" },
           "exclusiveMinimum": { "type": "number" },
           "maximum": { "type": "number" },
@@ -61,7 +68,14 @@
           "properties": { "type": { "const": "enum" } }
         },
         "then": { "required": ["values"] },
-        "else": { "not": { "required": ["values"] } }
+        "else": { "not": { "required": ["values"] } },
+        "not": {
+          "anyOf": [
+            { "required": ["default", "defaults"] },
+            { "required": ["default", "default_text"] },
+            { "required": ["defaults", "default_text"] }
+          ]
+        }
       }
     }
   }

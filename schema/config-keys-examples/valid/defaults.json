@@ -1,0 +1,34 @@
+{
+  "keys_version": 1,
+  "owner": "recognizer-sensors",
+  "placeholders": {
+    "metric": "^(complexity|coverage)$"
+  },
+  "sections": [],
+  "keys": [
+    {
+      "key": "sensors.crap.threshold",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "default": 30,
+      "description": "the C.R.A.P. score above which a function is reported",
+      "example": "sensors.crap.threshold 25"
+    },
+    {
+      "key": "sensors.thresholds.<metric>.severity",
+      "type": "enum",
+      "values": ["warning", "violation"],
+      "defaults": { "complexity": "warning", "coverage": "warning" },
+      "description": "how serious a threshold finding is",
+      "example": "sensors.thresholds.complexity.severity violation"
+    },
+    {
+      "key": "sensors.mutation.max_minutes",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "default_text": "no time budget: the run continues until it finishes",
+      "description": "the time budget of a Mutation run in minutes",
+      "example": "sensors.mutation.max_minutes 10"
+    }
+  ]
+}

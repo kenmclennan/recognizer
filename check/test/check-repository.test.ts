@@ -82,6 +82,7 @@ describe("check in repository mode", () => {
             private_imports: true,
             long_function: true,
           },
+          long_function_limit: 20,
         },
       },
     ]);

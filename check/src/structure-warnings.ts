@@ -497,6 +497,7 @@ function functionsOf(members: ScanMember[]): MeasuredFunction[] {
 export function longFunctionFindings(
   scan: Scan,
   policy: Policy | null,
+  limit: number = LONG_FUNCTION,
 ): FindingRecord[] {
   const { ids } = keptGraph(scan, policy?.ignore ?? []);
   const findings: FindingRecord[] = [];
@@ -518,7 +519,7 @@ export function longFunctionFindings(
 
       if (
         length === null ||
-        length <= LONG_FUNCTION ||
+        length <= limit ||
         fn.line === undefined ||
         fn.end_line === undefined
       ) {
@@ -536,7 +537,10 @@ export function longFunctionFindings(
         kind: "long_function",
         severity: "warning",
         ...principleOf("small-functions"),
-        summary: `${fn.qualified} in ${file} is ${length} lines, over the ${LONG_FUNCTION} lines a function should hardly ever reach - functions should be small (Martin, Clean Code, 2008)`,
+        summary:
+          limit === LONG_FUNCTION
+            ? `${fn.qualified} in ${file} is ${length} lines, over the ${LONG_FUNCTION} lines a function should hardly ever reach - functions should be small (Martin, Clean Code, 2008)`
+            : `${fn.qualified} in ${file} is ${length} lines, over this repository's limit of ${limit} lines (Clean Code says ${LONG_FUNCTION}) - functions should be small (Martin, Clean Code, 2008)`,
         evidence: {
           modules: [module.id],
           members: [
@@ -547,7 +551,11 @@ export function longFunctionFindings(
               lines: [fn.line, fn.end_line],
             },
           ],
-          measures: { lines: length, limit: LONG_FUNCTION },
+          measures: {
+            lines: length,
+            limit,
+            ...(limit === LONG_FUNCTION ? {} : { published: LONG_FUNCTION }),
+          },
         },
       });
     }

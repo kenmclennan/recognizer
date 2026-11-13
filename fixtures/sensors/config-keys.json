@@ -1,0 +1,194 @@
+{
+  "keys_version": 1,
+  "owner": "recognizer-sensors",
+  "placeholders": {
+    "name": "^.+$",
+    "variable": "^[A-Za-z_][A-Za-z0-9_]*$",
+    "metric": "^(?!command$)[A-Za-z0-9_-]+$"
+  },
+  "sections": [
+    {
+      "key": "tests.<name>",
+      "shape": "list-entry",
+      "identity": "name",
+      "description": "one test suite the coverage and mutation sensors run, found by its name; its first key creates it",
+      "example": "tests.unit.command \"pytest\""
+    }
+  ],
+  "keys": [
+    {
+      "key": "tests.<name>.language",
+      "type": "enum",
+      "description": "the language of the suite, which decides how its coverage report is read",
+      "example": "tests.unit.language python",
+      "values": [
+        "python",
+        "typescript",
+        "kotlin",
+        "rust",
+        "csharp"
+      ]
+    },
+    {
+      "key": "tests.<name>.directory",
+      "type": "path",
+      "description": "the folder the suite runs from, relative to the repository",
+      "example": "tests.unit.directory ."
+    },
+    {
+      "key": "tests.<name>.command",
+      "type": "string",
+      "description": "the command that runs the suite and writes its coverage report, run in the user's login shell",
+      "example": "tests.unit.command \"pytest --cov=src --cov-report=lcov:.recognizer/cache/coverage/unit/lcov.info\""
+    },
+    {
+      "key": "tests.<name>.activate",
+      "type": "string",
+      "description": "a line that makes the suite's tools available in a fresh login shell, such as a virtual environment or a Node version manager",
+      "example": "tests.unit.activate \"source .venv/bin/activate\""
+    },
+    {
+      "key": "tests.<name>.runner",
+      "type": "enum",
+      "description": "the test runner of a typescript suite; no other language takes one",
+      "example": "tests.web.runner vitest",
+      "values": [
+        "vitest",
+        "jest"
+      ]
+    },
+    {
+      "key": "tests.<name>.env.<variable>",
+      "type": "string",
+      "description": "one environment variable the suite runs with",
+      "example": "tests.unit.env.PYTHONPATH src"
+    },
+    {
+      "key": "tests.<name>.coverage.path",
+      "type": "path",
+      "description": "the coverage report the suite writes, relative to the suite's directory; * matches a folder or file name",
+      "example": "tests.unit.coverage.path .recognizer/cache/coverage/unit/lcov.info"
+    },
+    {
+      "key": "tests.<name>.coverage.format",
+      "type": "enum",
+      "description": "the format of the coverage report the suite writes",
+      "example": "tests.unit.coverage.format lcov",
+      "values": [
+        "lcov",
+        "jacoco"
+      ]
+    },
+    {
+      "key": "sensors.crap.threshold",
+      "type": "number",
+      "description": "the C.R.A.P. score above which a function is reported, above 0; default 30",
+      "example": "sensors.crap.threshold 20",
+      "exclusiveMinimum": 0,
+      "default": 30
+    },
+    {
+      "key": "sensors.crap.overlay",
+      "type": "path",
+      "description": "where the sensor writes its overlay, relative to the repository; default .recognizer/cache/overlays/crap.json",
+      "example": "sensors.crap.overlay .recognizer/cache/overlays/crap.json"
+    },
+    {
+      "key": "sensors.mutation.carry",
+      "type": "string",
+      "description": "untracked repository paths Mutation copies into its working copy, such as a virtual environment or node_modules",
+      "example": "--add sensors.mutation.carry .venv",
+      "multi": true
+    },
+    {
+      "key": "sensors.mutation.max_minutes",
+      "type": "number",
+      "description": "the time budget of a Mutation run in minutes, above 0; a run that reaches it stops and keeps what it measured",
+      "example": "sensors.mutation.max_minutes 10",
+      "exclusiveMinimum": 0,
+      "default_text": "no time budget: the run continues until it finishes"
+    },
+    {
+      "key": "sensors.mutation.max_workers",
+      "type": "integer",
+      "description": "the most mutants tested at once, at least 1",
+      "example": "sensors.mutation.max_workers 4",
+      "minimum": 1,
+      "default_text": "sized from the machine's cores and free memory"
+    },
+    {
+      "key": "sensors.mutation.timeout_factor",
+      "type": "number",
+      "description": "how many times a mutant may run longer than the unmutated suite before it counts as timed out, above 0; default 10",
+      "example": "sensors.mutation.timeout_factor 5",
+      "exclusiveMinimum": 0,
+      "default": 10
+    },
+    {
+      "key": "sensors.mutation.incremental",
+      "type": "boolean",
+      "description": "whether a run measures only what changed since the last record; default true",
+      "example": "sensors.mutation.incremental false",
+      "default": true
+    },
+    {
+      "key": "sensors.mutation.record",
+      "type": "path",
+      "description": "where the sensor keeps what it has measured, relative to the repository; default .recognizer/cache/mutation/record.json",
+      "example": "sensors.mutation.record .recognizer/cache/mutation/record.json"
+    },
+    {
+      "key": "sensors.mutation.survivors",
+      "type": "path",
+      "description": "where the sensor writes the mutants that survived, relative to the repository; default .recognizer/cache/mutation/survivors.json",
+      "example": "sensors.mutation.survivors .recognizer/cache/mutation/survivors.json"
+    },
+    {
+      "key": "sensors.mutation.overlay",
+      "type": "path",
+      "description": "where the sensor writes its overlay, relative to the repository; default .recognizer/cache/overlays/mutation.json",
+      "example": "sensors.mutation.overlay .recognizer/cache/overlays/mutation.json"
+    },
+    {
+      "key": "sensors.thresholds.<metric>",
+      "type": "enum",
+      "description": "turns the default threshold of a metric off",
+      "example": "sensors.thresholds.complexity off",
+      "values": [
+        "off"
+      ]
+    },
+    {
+      "key": "sensors.thresholds.<metric>.above",
+      "type": "number",
+      "description": "a finding when the metric is above this value; a metric takes above or below, not both",
+      "example": "sensors.thresholds.complexity.above 12",
+      "defaults": {
+        "complexity": 10
+      }
+    },
+    {
+      "key": "sensors.thresholds.<metric>.below",
+      "type": "number",
+      "description": "a finding when the metric is below this value; a metric takes above or below, not both",
+      "example": "sensors.thresholds.coverage.below 0.7",
+      "defaults": {
+        "coverage": 0.6
+      }
+    },
+    {
+      "key": "sensors.thresholds.<metric>.severity",
+      "type": "enum",
+      "description": "how a finding of the metric is reported; default warning",
+      "example": "sensors.thresholds.complexity.severity violation",
+      "values": [
+        "warning",
+        "violation"
+      ],
+      "defaults": {
+        "complexity": "warning",
+        "coverage": "warning"
+      }
+    }
+  ]
+}

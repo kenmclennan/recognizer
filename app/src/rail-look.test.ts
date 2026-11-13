@@ -27,6 +27,7 @@ const rail = buildRailView({
   toggleNotes() {},
   toggleScan() {},
   toggleFindings() {},
+  openSettings() {},
 });
 const tree = document.createElement("aside");
 tree.className = "tree";
@@ -94,6 +95,7 @@ const facts = {
   tag: rail.element.tagName,
   buttons: rail.element.querySelectorAll("button").length,
   children: rail.element.children.length,
+  gear: (() => { const g = rail.element.querySelector(".rail-settings").getBoundingClientRect(); const r = rail.element.getBoundingClientRect(); const f = rail.element.querySelector(".rail-findings").getBoundingClientRect(); return { belowFindings: g.top >= f.bottom, nearBottom: r.bottom - g.bottom < 16, label: rail.element.querySelector(".rail-settings").getAttribute("data-label") }; })(),
   aria: button.getAttribute("aria-label"),
   title: button.title,
   label: button.getAttribute("data-label"),
@@ -129,6 +131,7 @@ type Facts = {
   tag: string;
   buttons: number;
   children: number;
+  gear: { belowFindings: boolean; nearBottom: boolean; label: string };
   aria: string;
   title: string;
   label: string;
@@ -205,8 +208,13 @@ describe.skipIf(webkit === undefined)("the rail in a real browser", () => {
 
   it("sits full height at the window's left holding a 16px stroke-2 Files button then Commits, Views, Notes, Scan and Findings buttons", () => {
     expect(f.tag).toBe("NAV");
-    expect(f.children).toBe(6);
-    expect(f.buttons).toBe(6);
+    expect(f.children).toBe(8);
+    expect(f.buttons).toBe(7);
+    expect(f.gear).toEqual({
+      belowFindings: true,
+      nearBottom: true,
+      label: "Settings",
+    });
     expect(f.notesFacts.order).toEqual([
       "rail-files",
       "rail-commits",
@@ -214,10 +222,11 @@ describe.skipIf(webkit === undefined)("the rail in a real browser", () => {
       "rail-notes",
       "rail-scan",
       "rail-findings",
+      "rail-settings",
     ]);
     expect(f.aria).toBe("Files");
     expect(f.label).toBe("Files");
-    expect(f.titles).toEqual(["", "", "", "", "", ""]);
+    expect(f.titles).toEqual(["", "", "", "", "", "", ""]);
     expect(f.iconSize).toBe("16px");
     expect(f.strokeWidth).toBe("2px");
     expect(f.rail.left).toBe(0);

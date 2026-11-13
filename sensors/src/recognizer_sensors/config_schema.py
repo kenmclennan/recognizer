@@ -101,6 +101,7 @@ CRAP_KEYS = (
         "the C.R.A.P. score above which a function is reported, above 0; default 30",
         "sensors.crap.threshold 20",
         exclusiveMinimum=0,
+        default=30,
     ),
     key(
         "sensors.crap.overlay",
@@ -134,6 +135,7 @@ MUTATION_KEYS = (
         ),
         "sensors.mutation.max_minutes 10",
         exclusiveMinimum=0,
+        default_text="no time budget: the run continues until it finishes",
     ),
     key(
         "sensors.mutation.max_workers",
@@ -141,6 +143,7 @@ MUTATION_KEYS = (
         "the most mutants tested at once, at least 1",
         "sensors.mutation.max_workers 4",
         minimum=1,
+        default_text="sized from the machine's cores and free memory",
     ),
     key(
         "sensors.mutation.timeout_factor",
@@ -151,12 +154,14 @@ MUTATION_KEYS = (
         ),
         "sensors.mutation.timeout_factor 5",
         exclusiveMinimum=0,
+        default=10,
     ),
     key(
         "sensors.mutation.incremental",
         "boolean",
         "whether a run measures only what changed since the last record; default true",
         "sensors.mutation.incremental false",
+        default=True,
     ),
     key(
         "sensors.mutation.record",
@@ -201,12 +206,14 @@ THRESHOLDS_KEYS = (
         "number",
         "a finding when the metric is above this value; a metric takes above or below, not both",
         "sensors.thresholds.complexity.above 12",
+        defaults={"complexity": 10},
     ),
     key(
         "sensors.thresholds.<metric>.below",
         "number",
         "a finding when the metric is below this value; a metric takes above or below, not both",
         "sensors.thresholds.coverage.below 0.7",
+        defaults={"coverage": 0.6},
     ),
     key(
         "sensors.thresholds.<metric>.severity",
@@ -214,6 +221,7 @@ THRESHOLDS_KEYS = (
         "how a finding of the metric is reported; default warning",
         "sensors.thresholds.complexity.severity violation",
         values=["warning", "violation"],
+        defaults={"complexity": "warning", "coverage": "warning"},
     ),
 )
 

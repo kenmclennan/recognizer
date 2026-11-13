@@ -20,6 +20,11 @@ PUBLISHED = {
     "coverage": ("below", 0.6, "code-coverage-guidelines"),
 }
 
+ATTRIBUTION = {
+    "complexity": "McCabe says {}",
+    "coverage": "Google's guidelines say {}",
+}
+
 NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 ENTRY_KEYS = {"above", "below", "severity"}
 SEVERITIES = ("warning", "violation")
@@ -167,10 +172,19 @@ def crosses(value: float, entry: dict) -> bool:
 def principle_for(metric: str, entry: dict) -> dict:
     published = PUBLISHED.get(metric)
 
-    if published is not None and entry.get(published[0]) == published[1]:
+    if published is not None and published[0] in entry:
         return principle_fields(published[2])
 
     return {"principle": metric}
+
+
+def tuned_published(metric: str, entry: dict) -> float | None:
+    published = PUBLISHED.get(metric)
+
+    if published is None or published[0] not in entry or entry[published[0]] == published[1]:
+        return None
+
+    return published[1]
 
 
 def finding_for(metric, entry, key, module, member, value, producer) -> dict:
@@ -187,6 +201,18 @@ def finding_for(metric, entry, key, module, member, value, producer) -> dict:
         "producer": producer,
     }
 
+    published = tuned_published(metric, entry)
+    summary = f"{key}: {metric} {format_number(value)} is {phrase} {format_number(line)}"
+
+    if published is not None:
+        figure = (
+            f"{format_number(published * 100)}%"
+            if metric == "coverage"
+            else format_number(published)
+        )
+        summary = f"{summary} ({ATTRIBUTION[metric].format(figure)})"
+        evidence["measures"]["published"] = published
+
     if member is not None:
         evidence["members"] = [{"module": module, "name": member}]
 
@@ -196,7 +222,7 @@ def finding_for(metric, entry, key, module, member, value, producer) -> dict:
         "severity": entry["severity"],
         **principle_for(metric, entry),
         "metric": metric,
-        "summary": f"{key}: {metric} {format_number(value)} is {phrase} {format_number(line)}",
+        "summary": summary,
         "evidence": evidence,
     }
 

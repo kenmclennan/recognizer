@@ -33,7 +33,7 @@
     {
       "key": "kind:long_function",
       "name": "Long functions",
-      "means": "A function or method is more than 20 lines, over the length Clean Code says a function should hardly ever reach.",
+      "means": "A function or method is more than the limit (20 by default), the length Clean Code says a function should hardly ever reach.",
       "todo": "Check whether it does more than one thing."
     },
     {

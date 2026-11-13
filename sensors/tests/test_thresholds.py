@@ -501,11 +501,40 @@ def complexity_finding(tmp_path, settings):
     return found[0]
 
 
-def test_a_user_complexity_line_other_than_the_published_one_cites_nothing(tmp_path):
+def test_a_user_complexity_line_other_than_the_published_one_cites_its_source_and_names_both(
+    tmp_path,
+):
     finding = complexity_finding(tmp_path, {"complexity": {"above": 12}})
 
-    assert finding["principle"] == "complexity"
-    assert "citation" not in finding
+    assert finding["principle"] == "cyclomatic-complexity-limit"
+    assert finding["citation"] == PUBLISHED["cyclomatic-complexity-limit"]
+    assert finding["evidence"]["measures"]["line"] == 12
+    assert finding["evidence"]["measures"]["published"] == 10
+    assert "above 12" in finding["summary"]
+    assert "McCabe says 10" in finding["summary"]
+
+
+def test_a_published_complexity_line_carries_no_published_figure(tmp_path):
+    finding = complexity_finding(tmp_path, {"complexity": {"above": 10}})
+
+    assert finding["principle"] == "cyclomatic-complexity-limit"
+    assert "published" not in finding["evidence"]["measures"]
+    assert "says" not in finding["summary"]
+
+
+def test_a_tuned_coverage_line_cites_its_source_and_names_both(tmp_path):
+    root, _ = fixture_repository(tmp_path)
+
+    _, document = sense(root, tmp_path, {"coverage": {"below": 0.7}})
+    found = [f for f in document["findings"] if f["metric"] == "coverage"]
+
+    assert found
+    assert all(
+        f["principle"] == "code-coverage-guidelines"
+        and f["evidence"]["measures"]["published"] == 0.6
+        and "Google's guidelines say 60%" in f["summary"]
+        for f in found
+    )
 
 
 def test_a_coverage_line_in_the_other_direction_cites_nothing(tmp_path):
@@ -515,7 +544,24 @@ def test_a_coverage_line_in_the_other_direction_cites_nothing(tmp_path):
     found = [f for f in document["findings"] if f["metric"] == "coverage"]
 
     assert found
-    assert all(f["principle"] == "coverage" and "citation" not in f for f in found)
+    assert all(
+        f["principle"] == "coverage"
+        and "citation" not in f
+        and "published" not in f["evidence"]["measures"]
+        for f in found
+    )
+
+
+def test_a_metric_outside_the_published_table_keeps_its_own_name_as_principle(tmp_path):
+    root, commit = repository(tmp_path)
+    install(root, "tool.json", overlay(commit, {"survived": {"a.py::f": 5}}))
+
+    _, document = sense(root, tmp_path, {"survived": {"above": 3}})
+    finding = document["findings"][0]
+
+    assert finding["principle"] == "survived"
+    assert "citation" not in finding
+    assert "published" not in finding["evidence"]["measures"]
 
 
 def test_severity_plays_no_part_in_citing_the_published_line(tmp_path):

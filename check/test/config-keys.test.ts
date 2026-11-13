@@ -7,6 +7,7 @@ import {
   parseKeySchema,
   publish,
 } from "../src/config-keys.js";
+import { keysHelp } from "../src/key-command.js";
 import { REPO } from "./helpers.js";
 
 const EXAMPLES = join(REPO, "schema/config-keys-examples");
@@ -176,8 +177,12 @@ describe("the core's own key table", () => {
     expect(core("sensors.structure.warnings.orphan.entry_points").multi).toBe(
       true,
     );
+    expect(
+      core("sensors.structure.warnings.long_function.limit"),
+    ).toMatchObject({ type: "integer", minimum: 1, default: 20 });
     seen.push(
       "sensors.structure.warnings.<warning>",
+      "sensors.structure.warnings.long_function.limit",
       "sensors.structure.warnings.orphan.entry_points",
     );
 
@@ -194,6 +199,114 @@ describe("the core's own key table", () => {
     expect(keys.some((key) => key.includes("stable_abstractions"))).toBe(false);
     expect(keys.some((key) => key.includes("instability_gap"))).toBe(false);
     expect(keys.some((key) => key.includes("composition_roots"))).toBe(false);
+  });
+});
+
+describe("key defaults", () => {
+  const base = (extra: Record<string, unknown>) =>
+    JSON.stringify({
+      keys_version: 1,
+      owner: "x",
+      placeholders: {},
+      sections: [],
+      keys: [
+        {
+          key: "a.b",
+          type: "integer",
+          description: "d",
+          example: "e",
+          ...extra,
+        },
+      ],
+    });
+
+  it("refuses a key that carries more than one of default, defaults and default_text", () => {
+    expect(
+      "reason" in parseKeySchema(base({ default: 1, defaults: { a: 1 } })),
+    ).toBe(true);
+    expect(
+      "reason" in parseKeySchema(base({ default: 1, default_text: "t" })),
+    ).toBe(true);
+    expect(
+      "reason" in
+        parseKeySchema(base({ defaults: { a: 1 }, default_text: "t" })),
+    ).toBe(true);
+    expect("schema" in parseKeySchema(base({ default: 1 }))).toBe(true);
+  });
+
+  it("publishes the defaults of the core table", () => {
+    const warning = core("sensors.structure.warnings.<warning>");
+
+    expect(warning.defaults).toEqual({
+      cycle: true,
+      orphan: true,
+      unused_exports: false,
+      private_imports: true,
+      long_function: true,
+    });
+    expect(core("sensors.structure.warnings.long_function.limit").default).toBe(
+      20,
+    );
+
+    const figures = {
+      threshold: 0.82,
+      min_lines: 4,
+      pair_min_lines: 6,
+      min_nodes: 20,
+    };
+
+    for (const [name, value] of Object.entries(figures)) {
+      expect(core(`sensors.structure.duplication.${name}`).default, name).toBe(
+        value,
+      );
+    }
+
+    const defaulted = CORE_KEYS.keys
+      .filter(
+        (entry) => entry.default !== undefined || entry.defaults !== undefined,
+      )
+      .map((entry) => entry.key)
+      .sort();
+
+    expect(defaulted).toEqual([
+      "sensors.structure.duplication.min_lines",
+      "sensors.structure.duplication.min_nodes",
+      "sensors.structure.duplication.pair_min_lines",
+      "sensors.structure.duplication.threshold",
+      "sensors.structure.warnings.<warning>",
+      "sensors.structure.warnings.long_function.limit",
+    ]);
+  });
+
+  it("lists the default in the help line of each key form", () => {
+    const schema = JSON.parse(base({ default: 30 })) as KeySchema;
+    const withDefaults = {
+      ...schema,
+      keys: [
+        {
+          ...(schema.keys[0] as object),
+          default: undefined,
+          defaults: { x: 1, y: 2 },
+        },
+      ],
+    } as unknown as KeySchema;
+    const withText = {
+      ...schema,
+      keys: [
+        {
+          ...(schema.keys[0] as object),
+          default: undefined,
+          default_text: "sized from the cores",
+        },
+      ],
+    } as unknown as KeySchema;
+
+    const help = (given: KeySchema) =>
+      keysHelp({ noun: "config" } as never, publish([given], "config"));
+
+    expect(help(schema)).toContain("integer, default 30: d");
+    expect(help(withDefaults)).toContain("default x 1, y 2: d");
+    expect(help(withText)).toContain("default: sized from the cores: d");
   });
 });
 

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseConfig } from "../src/config-parse.js";
+import { resolveStructureSettings } from "../src/structure-sensor.js";
 import { REPO } from "./helpers.js";
 
 const RETIRED = "sensors:\n  structure:\n    distance_threshold: 0.5\n";
@@ -10,6 +11,37 @@ const SUITE = readFileSync(
   join(REPO, "schema/config-examples/valid/tests-python-activate.yaml"),
   "utf8",
 );
+
+describe("the long-function limit", () => {
+  const limit = (text: string) => {
+    const settings = resolveStructureSettings(parseConfig(text));
+
+    return settings === "off" ? null : settings.long_function_limit;
+  };
+
+  it("is 20 when absent and 30 when set", () => {
+    expect(
+      limit("sensors:\n  structure:\n    warnings:\n      cycle: true\n"),
+    ).toBe(20);
+    expect(
+      limit(
+        "sensors:\n  structure:\n    warnings:\n      long_function:\n        limit: 30\n",
+      ),
+    ).toBe(30);
+  });
+
+  it("keeps the switch off when long_function is false", () => {
+    const settings = resolveStructureSettings(
+      parseConfig(
+        "sensors:\n  structure:\n    warnings:\n      long_function: false\n",
+      ),
+    );
+
+    expect(settings === "off" ? null : settings.warnings.long_function).toBe(
+      false,
+    );
+  });
+});
 
 describe("parseConfig by section", () => {
   it("validates only the sections read", () => {

@@ -138,10 +138,7 @@ def measure_scan(
 
 
 def principle_for(threshold: float) -> dict:
-    if threshold == PUBLISHED_THRESHOLD:
-        return principle_fields("change-risk-anti-patterns")
-
-    return {"principle": "crap"}
+    return principle_fields("change-risk-anti-patterns")
 
 
 def finding_for(identity: str, m: Measured, threshold: float) -> dict | None:
@@ -169,6 +166,13 @@ def finding_for(identity: str, m: Measured, threshold: float) -> dict | None:
             "coverage": round(m.coverage, 4),
             "crap": round(score, 3),
         }
+
+    if threshold != PUBLISHED_THRESHOLD:
+        summary = (
+            f"{summary}, over this repository's threshold of {threshold:g} "
+            f"(Savoia and Evans say {PUBLISHED_THRESHOLD})"
+        )
+        measures = {**measures, "limit": threshold, "published": PUBLISHED_THRESHOLD}
 
     return {
         "id": f"crap:{identity}",

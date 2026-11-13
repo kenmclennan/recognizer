@@ -164,7 +164,12 @@ function crap(record: FindingRecord): string | null {
     return `${head} and unknown coverage.`;
   }
 
-  return `${head} and ${whole(measures.coverage * 100)}% coverage, C.R.A.P. ${whole(measures.crap)}.`;
+  const tuned =
+    measures.published === undefined
+      ? ""
+      : ` (Savoia and Evans say ${num(measures.published)})`;
+
+  return `${head} and ${whole(measures.coverage * 100)}% coverage, C.R.A.P. ${whole(measures.crap)}${tuned}.`;
 }
 
 function longFunction(record: FindingRecord): string | null {
@@ -175,7 +180,14 @@ function longFunction(record: FindingRecord): string | null {
     return null;
   }
 
-  return `${member.name} in ${shortName(member.module)} is ${num(lines)} lines, over the 20 a function should hardly ever reach - functions should be small (Martin, Clean Code, 2008).`;
+  const limit = record.evidence.measures?.limit ?? 20;
+  const published = record.evidence.measures?.published;
+  const reach =
+    published === undefined
+      ? `the ${num(limit)} a function should hardly ever reach`
+      : `this repository's limit of ${num(limit)} (Clean Code says ${num(published)})`;
+
+  return `${member.name} in ${shortName(member.module)} is ${num(lines)} lines, over ${reach} - functions should be small (Martin, Clean Code, 2008).`;
 }
 
 function mutation(record: FindingRecord): string | null {
@@ -214,7 +226,14 @@ function threshold(record: FindingRecord): string | null {
         ? "under the limit of"
         : "at the limit of";
 
-  return `${subject} has ${metric} ${num(measures.value)}, ${limit} ${num(measures.line)}.`;
+  const says =
+    measures.published === undefined
+      ? ""
+      : metric === "coverage"
+        ? ` (Google's guidelines say ${whole(measures.published * 100)}%)`
+        : ` (McCabe says ${num(measures.published)})`;
+
+  return `${subject} has ${metric} ${num(measures.value)}, ${limit} ${num(measures.line)}${says}.`;
 }
 
 function orphan(record: FindingRecord): string | null {

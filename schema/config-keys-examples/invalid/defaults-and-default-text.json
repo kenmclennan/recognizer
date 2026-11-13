@@ -1,0 +1,16 @@
+{
+  "keys_version": 1,
+  "owner": "recognizer-sensors",
+  "placeholders": { "metric": "^(complexity|coverage)$" },
+  "sections": [],
+  "keys": [
+    {
+      "key": "sensors.thresholds.<metric>.above",
+      "type": "number",
+      "defaults": { "complexity": 10 },
+      "default_text": "ten for complexity",
+      "description": "the line above which a metric is reported",
+      "example": "sensors.thresholds.complexity.above 12"
+    }
+  ]
+}

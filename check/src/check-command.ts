@@ -20,6 +20,7 @@ import type { FindingRecord, FindingsDocument } from "./findings-document.js";
 import { findingsFile, readFindingsFiles } from "./findings-files.js";
 import type { FolderMetrics } from "./folder-metrics.js";
 import { freshScans } from "./freshness.js";
+import { LONG_FUNCTION } from "./function-length.js";
 import { scansCommit } from "./load-findings.js";
 import { moduleNames } from "./neighbours.js";
 import { type Policy, parsePolicy } from "./policy.js";
@@ -430,6 +431,7 @@ function executeScanReplay(
       private_imports: true,
       long_function: true,
     },
+    long_function_limit: LONG_FUNCTION,
   };
   const sensed = structureSensor([validateScan(scan)], policy, settings, {
     commit: "",

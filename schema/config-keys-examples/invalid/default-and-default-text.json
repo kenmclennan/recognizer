@@ -1,0 +1,16 @@
+{
+  "keys_version": 1,
+  "owner": "recognizer-sensors",
+  "placeholders": {},
+  "sections": [],
+  "keys": [
+    {
+      "key": "sensors.mutation.max_minutes",
+      "type": "number",
+      "default": 10,
+      "default_text": "no time budget",
+      "description": "the time budget of a Mutation run in minutes",
+      "example": "sensors.mutation.max_minutes 10"
+    }
+  ]
+}
