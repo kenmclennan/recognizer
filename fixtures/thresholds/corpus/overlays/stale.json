@@ -22,6 +22,7 @@
   ],
   "values": {
     "complexity": {
+      "python/limits.py::c11_at": 11,
       "python/limits.py::c10_at": 10,
       "python/limits.py::c09_at": 9,
       "nowhere/ghost.py::f": 30,

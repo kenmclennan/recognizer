@@ -146,7 +146,7 @@ def principle_for(threshold: float) -> dict:
 
 def finding_for(identity: str, m: Measured, threshold: float) -> dict | None:
     if m.coverage is None:
-        if m.complexity < threshold:
+        if m.complexity <= threshold:
             return None
 
         summary = (
@@ -157,7 +157,7 @@ def finding_for(identity: str, m: Measured, threshold: float) -> dict | None:
     else:
         score = crap_score(m.complexity, m.coverage)
 
-        if score < threshold:
+        if score <= threshold:
             return None
 
         summary = (

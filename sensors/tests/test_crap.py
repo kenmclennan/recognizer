@@ -458,12 +458,9 @@ def test_the_fixture_gives_the_pinned_findings_and_overlay(sample, tmp_path, cap
     assert document["settings"]["threshold"] == 30.0
     assert document["settings"]["overlay"] == ".recognizer/cache/overlays/crap.json"
     assert [suite["name"] for suite in document["settings"]["suites"]] == ["python", "typescript"]
-    assert [f["id"] for f in document["findings"]] == [
-        "crap:app/risk.py::classify",
-        "crap:app/risk.py::gate",
-    ]
+    assert [f["id"] for f in document["findings"]] == ["crap:app/risk.py::classify"]
 
-    classify, gate = document["findings"]
+    [classify] = document["findings"]
 
     assert classify["summary"] == (
         "classify in app/risk.py has complexity 8 and 18% coverage, CRAP 43.1"
@@ -472,8 +469,6 @@ def test_the_fixture_gives_the_pinned_findings_and_overlay(sample, tmp_path, cap
     assert classify["evidence"]["members"] == [
         {"module": "app/risk.py", "name": "classify", "file": "app/risk.py", "lines": [1, 11]}
     ]
-    assert gate["summary"] == "gate in app/risk.py has complexity 5 and 0% coverage, CRAP 30.0"
-    assert gate["evidence"]["measures"] == {"complexity": 5, "coverage": 0.0, "crap": 30.0}
     assert overlay["commit"] == "c1"
     assert overlay["modified"] is False
     assert overlay["producer"]["name"] == "crap"
@@ -520,19 +515,29 @@ def lcov_for(path, lines, hits=0):
     return f"SF:{path}\n" + "".join(f"DA:{n},{hits}\n" for n in lines) + "end_of_record\n"
 
 
-def test_cc_five_at_zero_coverage_reports_at_exactly_the_threshold(tmp_path):
+def test_a_score_of_exactly_the_threshold_does_not_report(tmp_path):
     root = python_repository(tmp_path, branches(4), lcov_for("app/m.py", range(1, 10)))
 
+    _, document, overlay = produced(root, tmp_path)
+    _, lower, _ = produced(root, tmp_path, "--settings", '{"threshold":29.999}')
+
+    assert overlay["values"]["crap"] == {"app/m.py::f": 30.0}
+    assert document["findings"] == []
+    assert [f["id"] for f in lower["findings"]] == ["crap:app/m.py::f"]
+    assert lower["findings"][0]["evidence"]["measures"]["crap"] == 30.0
+
+
+def test_a_score_above_the_threshold_reports(tmp_path):
+    root = python_repository(tmp_path, branches(5), lcov_for("app/m.py", range(1, 12)))
+
     _, document, _ = produced(root, tmp_path)
-    _, higher, _ = produced(root, tmp_path, "--settings", '{"threshold":30.001}')
 
     assert [f["id"] for f in document["findings"]] == ["crap:app/m.py::f"]
-    assert document["findings"][0]["evidence"]["measures"]["crap"] == 30.0
-    assert higher["findings"] == []
+    assert document["findings"][0]["evidence"]["measures"]["crap"] == 42.0
 
 
 def test_a_finding_at_the_published_threshold_cites_its_source(tmp_path):
-    root = python_repository(tmp_path, branches(4), lcov_for("app/m.py", range(1, 10)))
+    root = python_repository(tmp_path, branches(5), lcov_for("app/m.py", range(1, 12)))
 
     _, document, _ = produced(root, tmp_path)
 
@@ -576,6 +581,15 @@ def test_a_high_complexity_function_with_unknown_coverage_reports_a_floor(tmp_pa
     assert overlay["values"]["coverage"] == {}
     assert overlay["values"]["crap"] == {}
     assert capsys.readouterr().err == ""
+
+
+def test_unknown_coverage_at_exactly_the_threshold_has_no_finding(tmp_path):
+    root = python_repository(tmp_path, branches(29))
+
+    _, document, overlay = produced(root, tmp_path)
+
+    assert overlay["values"]["complexity"] == {"app/m.py::f": 30}
+    assert document["findings"] == []
 
 
 def test_a_lower_complexity_function_with_unknown_coverage_has_no_finding(tmp_path):

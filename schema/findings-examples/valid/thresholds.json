@@ -15,7 +15,7 @@
       "severity": "violation",
       "principle": "churn",
       "metric": "churn",
-      "summary": "app/billing.py: churn 25 is at or above 20",
+      "summary": "app/billing.py: churn 25 is above 20",
       "evidence": {
         "modules": ["app/billing.py"],
         "measures": { "value": 25, "line": 20 },
@@ -29,7 +29,7 @@
       "principle": "cyclomatic-complexity-limit",
       "citation": {"author": "Thomas J. McCabe", "work": "A Complexity Measure, IEEE Transactions on Software Engineering", "year": 1976, "locator": "page 314, upper bound of 10"},
       "metric": "complexity",
-      "summary": "app/billing.py::price: complexity 14 is at or above 10",
+      "summary": "app/billing.py::price: complexity 14 is above 10",
       "evidence": {
         "modules": ["app/billing.py"],
         "members": [{ "module": "app/billing.py", "name": "price" }],

@@ -159,7 +159,7 @@ def format_number(value: float) -> str:
 
 def crosses(value: float, entry: dict) -> bool:
     if "above" in entry:
-        return value >= entry["above"]
+        return value > entry["above"]
 
     return value < entry["below"]
 
@@ -176,7 +176,7 @@ def principle_for(metric: str, entry: dict) -> dict:
 def finding_for(metric, entry, key, module, member, value, producer) -> dict:
     if "above" in entry:
         line = entry["above"]
-        phrase = "at or above"
+        phrase = "above"
     else:
         line = entry["below"]
         phrase = "below"

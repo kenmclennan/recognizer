@@ -1759,11 +1759,14 @@ describe("the metrics row on a function card", () => {
       null,
       null,
     ]);
-    expect(row({ cc: 11, crap: 30, cov: 0.59 })?.map((c) => c.tone)).toEqual([
-      "amber",
-      "red",
-      "amber",
+    expect(row({ cc: 10, crap: 30, cov: 0.6 })?.map((c) => c.tone)).toEqual([
+      null,
+      null,
+      null,
     ]);
+    expect(row({ cc: 11, crap: 30.01, cov: 0.59 })?.map((c) => c.tone)).toEqual(
+      ["amber", "red", "amber"],
+    );
   });
 
   it("shows a dash with no tone for a value the overlay lacks", () => {
@@ -1779,6 +1782,9 @@ describe("the metrics row on a function card", () => {
 
     expect(
       row({ cc: 99, crap: 20, cov: 0.7 }, { limits })?.map((c) => c.tone),
+    ).toEqual([null, null, "amber"]);
+    expect(
+      row({ cc: 99, crap: 20.5, cov: 0.7 }, { limits })?.map((c) => c.tone),
     ).toEqual([null, "red", "amber"]);
   });
 
