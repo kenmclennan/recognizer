@@ -1060,40 +1060,60 @@ export const COMMANDS: Command[] = [
   {
     name: "plugin",
     summary:
-      "check that a command is a conforming Recognizer plugin: that its verbs answer, its manifest validates, its events are well formed and it stops on SIGTERM",
-    usage:
+      "check that a command is a conforming Recognizer plugin, or register an installed sensor or describer in a repository's config",
+    usage: [
       "recognizer plugin check <command> [--repository <dir>] [--request <file>] [--json]",
+      "recognizer plugin add <name> [--kind sensor|describer] [--repository <dir>]",
+    ].join("\n"),
     arguments: [
       {
-        name: "<command>",
+        name: "check <command>",
         description:
           "the plugin's program name, looked up on PATH, or an absolute path; its basename must be recognizer-scan-<name>, recognizer-sense-<name> or recognizer-describe-<name>",
+      },
+      {
+        name: "add <name>",
+        description:
+          "the manifest name of an installed sensor or describer; it is registered in the repository's committed config and its install line is copied into the install section; a scanner is never registered, it is chosen with recognizer config scanners.<language> <name>",
       },
     ],
     options: [
       {
         flag: "--repository <dir>",
         description:
-          "run the verbs in this repository instead of a temporary one, for a plugin that needs real content",
+          "with check: run the verbs in this repository instead of a temporary one, for a plugin that needs real content; with add: the repository whose config is written, default the current directory",
       },
       {
         flag: "--request <file>",
         description:
-          "a describe request file; a describer's run spends a model call, so it is not run without one",
+          "with check: a describe request file; a describer's run spends a model call, so it is not run without one",
       },
-      { flag: "--json", description: "print JSON instead of text" },
+      {
+        flag: "--kind <sensor|describer>",
+        description:
+          "with add: which plugin to register when the name is both a sensor and a describer",
+      },
+      { flag: "--json", description: "with check: print JSON instead of text" },
     ],
     output: {
-      text: "one line per result: ok, warn or fail, the result's name and, for a warning or a failure, the reason; the results are starts, clean-output, valid, named-for-command, protocol, side-effect-free, sentences, check-verb, guide-verb, run-verb, events and stop",
-      json: "{ command, manifest, results: [{ name, status: ok|warn|fail, reason? }] } where manifest is the plugin's manifest, or null when it gave no valid one",
+      text: "check: one line per result: ok, warn or fail, the result's name and, for a warning or a failure, the reason; the results are starts, clean-output, valid, named-for-command, protocol, side-effect-free, sentences, check-verb, guide-verb, run-verb, events and stop. add: one line saying the plugin was registered or was already registered",
+      json: "check: { command, manifest, results: [{ name, status: ok|warn|fail, reason? }] } where manifest is the plugin's manifest, or null when it gave no valid one. add prints no JSON",
     },
     exitCodes: [
-      { code: 0, meaning: "nothing failed; a warning passes" },
-      { code: 1, meaning: "at least one result failed" },
+      {
+        code: 0,
+        meaning:
+          "check: nothing failed, a warning passes. add: the plugin was registered or already was",
+      },
+      {
+        code: 1,
+        meaning:
+          "check: at least one result failed. add: the plugin speaks a protocol outside the supported range, or its manifest could not be read",
+      },
       {
         code: 2,
         meaning:
-          "bad input - no command, an unknown flag, or a command that cannot be found on PATH",
+          "bad input - no command or name, an unknown flag, a command or plugin that cannot be found on PATH, a name that is both a sensor and a describer without --kind, a scanner name, or a second different describer",
       },
     ],
     examples: [
@@ -1104,6 +1124,10 @@ export const COMMANDS: Command[] = [
       {
         command: "recognizer plugin check ./bin/recognizer-sense-mine --json",
         note: "check a plugin by path and print the results for a script",
+      },
+      {
+        command: "recognizer plugin add crap",
+        note: "register the installed crap sensor and record its install line",
       },
     ],
     run: runPlugin,
