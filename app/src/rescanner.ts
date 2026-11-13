@@ -114,7 +114,7 @@ export function durationText(ms: number): string {
 
 function refusedText(gaps: ScanRunRecord["gaps"]): string {
   const first = gaps[0];
-  const count = `${gaps.length} ${gaps.length === 1 ? "tool" : "tools"} missing`;
+  const count = `${gaps.length} ${gaps.length === 1 ? "problem" : "problems"}`;
 
   return first === undefined ? count : `${count}: ${first.line}`;
 }

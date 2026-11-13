@@ -1505,11 +1505,35 @@ describe("scan notifications", () => {
 
     expect(made.lifecycle.at(-1)).toEqual({
       kind: "warning",
-      text: "Scan refused - 2 tools missing: coverage and pytest are not installed",
+      text: "Scan refused - 2 problems: coverage and pytest are not installed",
     });
     expect(
       made.lifecycle.some((one) => one.text.startsWith("Scan complete")),
     ).toBe(false);
+  });
+
+  it("posts a config gap as a problem, not a missing tool", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      result: {
+        status: "gaps",
+        gaps: [
+          {
+            ...GAP,
+            id: "crap:python:root:suite",
+            line: "no test suites are configured in .recognizer/config.yaml",
+          },
+        ],
+      },
+    });
+    const { made } = timed(scan);
+
+    await made.rescanner.run();
+
+    expect(made.lifecycle.at(-1)).toEqual({
+      kind: "warning",
+      text: "Scan refused - 1 problem: no test suites are configured in .recognizer/config.yaml",
+    });
   });
 
   it("posts a refusal for the live marker as a warning", async () => {
@@ -1606,8 +1630,7 @@ describe("the preflight flow", () => {
       ...OK,
       scans: [{ file: "scan.python.json" } as never],
     };
-    const refusalText =
-      "2 tools missing: coverage and pytest are not installed";
+    const refusalText = "2 problems: coverage and pytest are not installed";
     const refusedRecord = () =>
       record({
         run_id: "refused-open",
@@ -2054,7 +2077,7 @@ describe("one fold of the run record", () => {
     await rust.rescanner.run();
 
     const text =
-      "Scan refused - 1 tool missing: coverage and pytest are not installed";
+      "Scan refused - 1 problem: coverage and pytest are not installed";
 
     expect(rust.lifecycle.map((one) => one.text)).toEqual([text]);
 
