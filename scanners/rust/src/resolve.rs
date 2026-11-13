@@ -326,6 +326,79 @@ impl<'a> Resolver<'a> {
         self.finish(outcome, &state)
     }
 
+    fn expression_outcome(&self, from: &Pos, path: &[String], state: &mut State) -> Res {
+        let mut path = path.to_vec();
+
+        for _ in 0..8 {
+            let first = path[0].as_str();
+
+            if matches!(first, "crate" | "self" | "super") {
+                return self.resolve_path(from, &path, false, state);
+            }
+
+            if let Some(child) = self.child(from, first) {
+                return self.walk(child, &path[1..], state);
+            }
+
+            let Some(owner) = self.scope(from) else {
+                return Res::Nothing;
+            };
+
+            if owner.declared.contains(first) {
+                return Res::Nothing;
+            }
+
+            if let Some(leaf) = owner
+                .uses
+                .iter()
+                .find(|leaf| !leaf.glob && leaf.binding == first)
+            {
+                if leaf.leading_colon || leaf.path.is_empty() {
+                    return Res::Nothing;
+                }
+
+                let mut expanded = leaf.path.clone();
+
+                expanded.extend_from_slice(&path[1..]);
+                path = expanded;
+
+                continue;
+            }
+
+            return match self.envs[from.file].in_repo.get(first) {
+                Some(&lib) => self.walk(
+                    Pos {
+                        file: lib,
+                        scope: Vec::new(),
+                    },
+                    &path[1..],
+                    state,
+                ),
+                None => Res::Nothing,
+            };
+        }
+
+        Res::Nothing
+    }
+
+    pub fn resolve_expression(&self, file: usize, scope: &[String], path: &[String]) -> Final {
+        if path.len() < 2 {
+            return Final::Nothing;
+        }
+
+        let from = Pos {
+            file,
+            scope: scope.to_vec(),
+        };
+        let mut state = State::default();
+        let outcome = self.expression_outcome(&from, path, &mut state);
+
+        match outcome {
+            Res::Item { name: Some(_), .. } => self.finish(outcome, &state),
+            _ => Final::Nothing,
+        }
+    }
+
     pub fn resolve_trait(
         &self,
         file: usize,

@@ -5,7 +5,7 @@ use std::process::Command;
 use support::*;
 
 #[test]
-fn a_path_expression_with_no_use_gives_no_edge() {
+fn a_path_expression_into_the_crate_names_the_reached_item_and_a_foreign_one_adds_nothing() {
     let files = [
         (
             "Cargo.toml",
@@ -19,7 +19,14 @@ fn a_path_expression_with_no_use_gives_no_edge() {
     ];
     let document = run(&files);
 
-    assert_eq!(edges(&document), vec!["src/lib.rs ~> src/a.rs".to_string()]);
+    assert_eq!(
+        edges(&document),
+        vec![
+            "src/lib.rs ~> src/a.rs".to_string(),
+            "src/lib.rs -> src/a.rs [go]".to_string()
+        ]
+    );
+    assert!(document["foreign"].as_array().unwrap().is_empty());
 }
 
 #[test]

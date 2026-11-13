@@ -38,7 +38,9 @@ Structs and enums are `class`, traits `interface`, functions `function`, `const`
 
 A test gate is `#[test]` or a `cfg` predicate that requires `test`: `cfg(test)`, `cfg(all(..., test, ...))`, or `cfg(any(...))` when every alternative requires `test`; `cfg(any(test, unix))` and `cfg(not(test))` are production code. Test-gated items are dropped from members, and a `cfg` is read only for this decision.
 
-Calls, `cfg` and feature evaluation, macro expansion and macro bodies (beyond the `mod` declarations above), `use` items inside function bodies, type aliases, enum variants and path expressions that are not `use` items are not read. An `impl` for a type declared in another file adds nothing to any outline. A file declared by no crate is still a module, but its `crate::` and `super::` paths resolve to nothing.
+Path expressions (`a::f()`, `crate::a::Y::new()`, `a::S { .. }`) in function bodies, constants, statics, impl items and trait items are read: a path of two or more segments that resolves to another file of the same package by the `use` rules (`crate`, `self`, `super`, a child module, a `use` binding, the package library name) adds the reached item's name to a `depends` edge, one per target and `via`, kept apart from the `use` edge so a module or glob `use` stays a whole-module use; a name a `use` item already records on that target is not repeated. Single-segment paths, other crates, undeclared names and glob-imported first segments add nothing.
+
+Calls, `cfg` and feature evaluation, macro expansion and macro bodies (beyond the `mod` declarations above), `use` items inside function bodies, type aliases, enum variants, type positions, patterns, qualified-self paths (`<T as a::Tr>::f`) and paths with a leading `::` are not read. An `impl` for a type declared in another file adds nothing to any outline. A file declared by no crate is still a module, but its `crate::` and `super::` paths resolve to nothing.
 
 ## Tests
 
