@@ -2,17 +2,59 @@
 
 Recognizer scans a codebase into a language-neutral model of its modules and dependencies, and shows that model in a native viewer. The picture is derived from the code and never drawn by hand, so it cannot disagree with the code.
 
+It has four parts, installed together:
+
+- **Scanners.** One command per language (Python, TypeScript, Kotlin, C#, Rust) that reads a source tree and prints the same JSON scan document.
+- **The `recognizer` command.** Scans a repository, checks it against the repository's policy, answers questions about its modules, builds saved views, and runs the describer and the sensors.
+- **Sensors.** Judgements beyond structure. The structure sensor is built in: policy violations, cycles, orphans, unused exports, private imports, long functions, duplication and folder metrics. The shipped sensors are C.R.A.P., Mutation and Thresholds; a repository can register its own.
+- **The viewer.** A native macOS app (Tauri) that draws the modules and their dependencies, colours findings and health, opens a module to show its members, and keeps saved views and notes an agent can build and link to.
+
 ## Install
 
-macOS on Apple silicon, from the Homebrew tap. One cask, `brew install --cask kenmclennan/tap/recognizer`, installs the viewer and the `recognizer` command, the scanners and the sensors, which run on Homebrew's `node` and `python@3.13`. They are one package, so `brew upgrade --cask kenmclennan/tap/recognizer` (or a bare `brew upgrade`) moves them together. A machine that installed the retired formula runs `brew update && brew uninstall --ignore-dependencies --formula recognizer && brew upgrade --cask recognizer` once.
+Recognizer runs on macOS on Apple silicon and installs from the Homebrew tap:
 
 ```sh
 brew install --cask kenmclennan/tap/recognizer
 ```
 
-A packaged app runs the tools inside its own bundle, never the ones on the login shell's `PATH`, and refuses to scan when a tool's version differs from its own.
+The one cask installs the app and puts every command on `PATH`: `recognizer`, the five `recognizer-scan-<language>` scanners, `recognizer-sensors` and `recognizer-describe-claude`. They run on Homebrew's `node` and `python@3.13`, which the cask installs as dependencies. Check the install with `recognizer --version`.
 
-The app is ad-hoc signed, not notarized. The cask strips the quarantine attribute after install, so it opens without a prompt; an app taken from the releases page instead is refused by Gatekeeper until it is allowed under Privacy and Security in System Settings.
+Writing module responsibilities (`recognizer describe`) uses the [Claude Code](https://claude.com/claude-code) `claude` command, which you install and sign in to separately. Everything else works without it.
+
+## Upgrade
+
+```sh
+brew upgrade --cask kenmclennan/tap/recognizer
+```
+
+A bare `brew upgrade` works too. The app and every command are one package and move together. The app has no updater of its own.
+
+After an upgrade:
+
+- Run `recognizer doctor` in each repository you use it with. It reports any config key the new version retired, and prints the command that fixes each problem.
+- Run `recognizer agents install` again if you installed the agent skills, so they match the new version. It prints `no change` when they already do.
+
+A machine that installed the retired `recognizer` formula moves to the cask once with:
+
+```sh
+brew update && brew uninstall --ignore-dependencies --formula recognizer && brew upgrade --cask recognizer
+```
+
+## Uninstall
+
+Remove the agent skills first, while the command is still installed, then the cask:
+
+```sh
+recognizer agents uninstall
+brew uninstall --cask kenmclennan/tap/recognizer
+```
+
+The cask has no zap stanza, so these are left behind. Remove them only if you want them gone:
+
+- **Each repository's `.recognizer/` folder.** Its policy, config, saved views, responsibilities and baselines are committed files in that repository; `.recognizer/cache/` holds scans, findings, overlays and run logs. `rm -rf .recognizer/cache` frees the space and keeps the setup; `rm -rf .recognizer` removes everything (commit the removal if it was committed).
+- **The app's config folder**, `~/Library/Application Support/com.kenmclennan.recognizer`. It holds `config.json` (the Editor and Describing settings), the recent folders and views, and the app's socket. Remove it with `rm -rf ~/Library/Application\ Support/com.kenmclennan.recognizer`.
+- **The app's web view data**, `~/Library/WebKit/com.kenmclennan.recognizer`. Remove it with `rm -rf ~/Library/WebKit/com.kenmclennan.recognizer`.
+- **Homebrew's `node` and `python@3.13`**, if nothing else needs them: `brew autoremove`.
 
 ## Use
 
@@ -23,31 +65,90 @@ cd my-repo
 recognizer open
 ```
 
-The first open scans the repository (Python, TypeScript, Kotlin, C# and Rust are read) and shows the file tree; tick files or folders to put them on the canvas. The same scan drives the command line:
+The window scans the repository when it opens and shows its file tree; tick files or folders to put them on the canvas. Nothing costly runs on its own: describing and the sensors run only when you ask, from the Scan panel or the command line.
+
+The same scan drives the command line. Every command reads the cached scan, or scans first when the files changed:
 
 ```sh
-recognizer scan                 # extract when the files changed, describe, run sensors
-recognizer check                # violations, baseline growth, metrics and warnings
-recognizer uses app/src/main.ts # the modules a module uses; also used-by, callers, path, find, show
-recognizer help                 # every command
+recognizer scan                   # extract when the files changed
+recognizer scan --sense all       # then run every registered sensor
+recognizer check                  # violations, baseline growth, metrics and warnings
+recognizer uses app/src/main.ts   # the modules a module uses
+recognizer used-by app/src/main.ts
+recognizer callers <module> <name>
+recognizer path <from> <to>       # the shortest chain of uses
+recognizer find <text>            # modules by path, members by name
+recognizer show <module>          # members, signatures, responsibility and findings
+recognizer modules --findings     # every module with its counts, filtered and sorted
+recognizer views list             # saved views
+recognizer doctor                 # is the setup valid, and how to fix it
+recognizer log --last             # what the last run did and why it failed
 ```
 
-A repository configures Recognizer in `.recognizer/`, which is committed:
+`recognizer help` lists every command, and `recognizer help <command>` prints one in full: usage, options, output, exit codes and examples. [check/README.md](check/README.md) is the full reference.
 
-- `policy.yaml` declares the architecture: named components by path and the dependencies each may have. An edge that breaks it is a violation, and `recognizer check` refuses growth beyond the committed baseline. Start from a policy in [`policies/`](policies).
-- `config.yaml` registers the sensors to run (`sensors: {crap: {}}` for the shipped ones) and a describer that writes each module's one-line responsibility. The describer's model and how many modules it describes at once are user settings (`describing` in the app's `config.json`, edited in Settings), not part of the repository.
+## Configure a repository
 
-Agents use the command line only: `recognizer agents install` adds the Claude Code skills (one for the guide, one that sets up and updates a repository on request) and the permission rule, and `recognizer help agents` prints the guide they follow.
+A repository configures Recognizer in its `.recognizer/` folder. Edit it with `recognizer config` and `recognizer policy`, which check every key and value as they write, or ask an agent to do it with the setup skill (see [Agents](#agents)).
 
-## Parts
+- `policy.yaml` declares the architecture: named components by path and the dependencies each may have. An edge that breaks it is a violation. Start from a policy in [`policies/`](policies) (`hexagonal.yaml` or `vertical-slices.yaml`), or build one with `recognizer policy --add components.<name> '<glob>'`. `recognizer check --init-baseline` records today's violations in `baselines/violations.json`, and from then on `recognizer check` fails on any new one. The baseline may only shrink.
+- `config.yaml` registers the sensors to run and, optionally, a describer. `recognizer config --add-section sensors.crap` registers a shipped sensor with its defaults. C.R.A.P. and Mutation run the repository's own test suites, set under `tests:`; `recognizer help sensors crap` prints the setup guide and `recognizer sensors check --run` confirms it works. With no describer registered, `recognizer describe` uses the shipped `recognizer-describe-claude`. `recognizer help config` lists every key.
 
-- **Scanners.** One standalone command per language (Python, TypeScript, Kotlin, C#, Rust) that reads a source tree and prints the same JSON scan document.
-- **Check.** Reads the scan and the policy, reports violations against a baseline that may only shrink, and the structure sensor's warnings: cycles, orphans, package metrics.
-- **Sensors.** Shipped judgements beyond structure: CRAP today, mutation and thresholds following (duplication is a check inside the structure sensor); a repository can register its own command that writes findings.
-- **Viewer.** A native app (Tauri) that draws the modules and their dependencies, colours findings and health, opens a module to show its members, and keeps saved views and notes an agent can build and link to.
+Commit `policy.yaml`, `config.yaml`, `views/`, `responsibilities.json` and `baselines/`. Add `.recognizer/cache/` to the repository's `.gitignore`: it holds scans, findings, overlays and run logs, and Recognizer does not add the line for you.
+
+The describer's model and how many modules it describes at once are your settings, not the repository's: `describing` in the app's `config.json`, edited in the app's Settings.
+
+## Agents
+
+Agents use the command line only. Install the Claude Code skills once per machine:
+
+```sh
+recognizer agents install
+```
+
+It writes two skills under `~/.claude/skills/`: `recognizer`, which answers questions about a scanned codebase's structure by following the guide, and `recognizer-setup`, which sets up a repository, or updates and fixes its setup after an upgrade, proposing each command and running it only after you agree. It also adds deny rules to `~/.claude/settings.json` so an agent cannot read or edit `.recognizer/` except `config.yaml`. `recognizer agents uninstall` reverses both.
+
+`recognizer help agents` prints the guide the agents follow: the commands, the rules, and recipes for showing how something is built, reviewing a branch, planning a change, driving an open window, reporting a review and checking the setup.
+
+## Troubleshooting
+
+Start with `recognizer doctor` in the repository: it checks the config, the policy, the scanners and the sensors, and prints the fix for each problem. When a scan or describe fails, `recognizer log --last` shows what ran and why it failed.
+
+- **`recognizer: command not found`, or doctor reports a scanner or `recognizer-sensors` missing.** The cask is not installed, or its links were removed. Run `brew install --cask kenmclennan/tap/recognizer`.
+- **`brew list --formula` still shows `recognizer`.** The machine installed the retired formula, which the cask replaces. Run `brew update && brew uninstall --ignore-dependencies --formula recognizer && brew upgrade --cask recognizer` once.
+- **The app says `Recognizer X cannot scan with <tool> Y` or `This installation of Recognizer is incomplete`.** The app runs only the tools inside its own bundle, never the ones on `PATH`, and refuses when one is missing or its version differs from the app's. Run `brew reinstall --cask kenmclennan/tap/recognizer`.
+- **macOS refuses to open the app.** The app is ad-hoc signed, not notarized. The cask clears the quarantine attribute after install; an app downloaded from the releases page keeps it. Install with the cask, or allow the app under Privacy and Security in System Settings, or run `xattr -dr com.apple.quarantine /Applications/Recognizer.app`.
+- **`recognizer open` says "Recognizer.app was not found in ~/Applications or /Applications".** The app is not in either folder. Run `brew install --cask kenmclennan/tap/recognizer`, or set `RECOGNIZER_APP` to the absolute path of the `.app` bundle.
+- **Describing fails with "claude could not be run".** The shipped describer calls the `claude` command. Install Claude Code, sign in, and check that `command -v claude` finds it in a new terminal: the app takes its `PATH` from your login shell. "claude usage limit" means the plan's limit was hit: the lines already written stay, and a later `recognizer describe` finishes the rest.
+- **Doctor reports a retired or empty config key after an upgrade.** The new version no longer reads it. Run the `recognizer config --unset <key>` or `recognizer config --remove-section sensors.<name>` command doctor prints.
+- **The scan stops with exit 4 and "the folder has no git commit".** Sensors need a commit to record. Make the first commit (`git add` the files, then `git commit`).
+- **A sensor fails with `coverage unavailable: no test suites are configured` or `no test suite is configured for <language>`.** C.R.A.P. and Mutation run the repository's tests, and have no suite for a scanned language. Follow `recognizer help sensors crap` to add the `tests:` entries, then run `recognizer sensors check --run`.
+- **A sensor fails with `coverage unavailable: the <suite> suite left no coverage report at <path>`.** The suite's command failed, or wrote its report somewhere else. Read `.recognizer/cache/coverage/last-run.log`, fix the suite's `command` or `coverage.path` with `recognizer config`, and confirm with `recognizer sensors check crap --run`. The guide lists the coverage tool each language needs.
+- **A sensor fails with `<program> is not installed`.** The suite's tool is not on the login shell's `PATH` after the suite's `activate` line. Install it in the repository's environment, or set the activate line (`recognizer config tests.<name>.activate "<line>"`), as `recognizer help sensors crap` shows.
+- **Doctor says the scan was not used because the working tree has uncommitted changes.** The policy is compared with a clean scan only, and build output the repository does not ignore makes the tree dirty. Commit, ignore or stash those paths, then run `recognizer scan`. The setup guide lists the build folders to add to `.gitignore`.
+
+## Extending
+
+What a repository can add today:
+
+- **Its own sensor.** Register any command under `sensors` in `config.yaml`. It is run from the repository root with `{repository}`, `{commit}` and `{output}` filled in, and writes a findings document ([`schema/findings.schema.json`](schema/findings.schema.json)) to `{output}`. It runs when asked: `recognizer scan --sense <name>` or `--sense all`.
+
+  ```yaml
+  sensors:
+    unused:
+      command: [node, "{repository}/scripts/unused.mjs", "{commit}", "{output}"]
+  ```
+
+- **Its own describer.** Set `describer.command` and `describer.version` in `config.yaml`. The command is given `{repository}`, `{module}`, `{model}` and `{request}` (a JSON request file) and prints one line. Bump the version to redo every line.
+- **An agent's review.** `recognizer report --as <name>` files review findings in the findings form, and the viewer and `recognizer check` treat them like a sensor's.
+- **A different scanner binary** for a supported language, through `RECOGNIZER_SCAN_PYTHON`, `RECOGNIZER_SCAN_TYPESCRIPT`, `RECOGNIZER_SCAN_KOTLIN`, `RECOGNIZER_SCAN_CSHARP` or `RECOGNIZER_SCAN_RUST` (an absolute path).
+
+[check/README.md](check/README.md) gives the contracts in full. A plugin model for scanners, sensors and describers is being built; [docs/plugins.md](docs/plugins.md) describes it.
 
 ## Docs
 
-- [check/README.md](check/README.md): every command, the policy and findings formats, exit codes.
+- [check/README.md](check/README.md): every command, the policy, config and findings formats, exit codes.
 - [docs/design.md](docs/design.md): what is decided and what is still open; [docs/glossary.md](docs/glossary.md) names the terms.
+- [docs/plugins.md](docs/plugins.md): the plugin design being built.
 - [app/README.md](app/README.md): building the app and how releases are cut.
+- [CLAUDE.md](CLAUDE.md): how the repository is laid out and the rules for working in it.
