@@ -101,7 +101,8 @@
       "required": ["base", "head"],
       "properties": {
         "base": { "$ref": "#/$defs/ref" },
-        "head": { "$ref": "#/$defs/ref" }
+        "head": { "$ref": "#/$defs/ref" },
+        "name": { "type": "string", "pattern": "\\S" }
       }
     },
     "proposedChange": {

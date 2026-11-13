@@ -214,7 +214,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | View title | The optional heading text of a saved view, separate from its name. |
 | View details card | The card under the view bar, or in place of a Views panel row, that edits a view's name, title and description together, with Cancel and Save. |
 | View heading | The title and description of a saved view, drawn centred above the diagram and moving with it. |
-| Change view | A saved view that holds a git range (base..head), re-diffed when it opens; the diff's modules are on the canvas marked added, modified or removed. |
+| Change view | A saved view that holds a git range (base..head), re-diffed when it opens; the diff's modules are on the canvas marked added, modified or removed. The view's `change` may carry the name of the pick that opened it. |
 | Plan | A saved view marked `plan: true` that shows what is intended before the code exists: its modules may carry a proposed change, and it has no change range. A view is never both a plan and a change view. |
 | Proposed change | What a plan says will happen to one module: new, changes, moves, moves and changes, or removed. It is the view file's `proposed` entry, the `--change` kind on `views add` and `views change`, and a coloured border on the canvas. It is not the range of a change view. |
 | Planned module | A module a plan names with a proposed change of new, moves or moves and changes that the scan does not hold. It has a box, takes a note and never makes the view stale. |

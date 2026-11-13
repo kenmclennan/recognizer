@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { InputError } from "../src/errors.js";
 import type { Scan } from "../src/scan.js";
 import {
+  changeChip,
   migrateView,
   noteWarnings,
   proposedWarnings,
@@ -373,8 +374,8 @@ describe("view versions", () => {
   });
 
   it("counts the examples", () => {
-    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(13);
-    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(43);
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(14);
+    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(44);
   });
 });
 
@@ -400,6 +401,79 @@ describe("change views", () => {
     expect(migrateView(validateView(JSON.parse(text))).change).toEqual(
       change.change,
     );
+    expect(Object.keys(JSON.parse(text))).toEqual([
+      "schema_version",
+      "description",
+      "commit",
+      "change",
+      "steps",
+    ]);
+    expect(Object.keys(JSON.parse(text).change)).toEqual(["base", "head"]);
+  });
+
+  it("keeps a named change's name, after base and head", () => {
+    const named: View = {
+      ...change,
+      change: { name: "branch feat", head: "feat", base: "main" },
+    };
+    const text = serialiseView(named);
+
+    expect(Object.keys(JSON.parse(text).change)).toEqual([
+      "base",
+      "head",
+      "name",
+    ]);
+    expect(migrateView(validateView(JSON.parse(text))).change?.name).toBe(
+      "branch feat",
+    );
+  });
+
+  it("rejects a blank change name", () => {
+    expect(() =>
+      validateView({
+        ...JSON.parse(serialiseView(change)),
+        change: { base: "main", head: "feat", name: " " },
+      }),
+    ).toThrow(InputError);
+  });
+});
+
+describe("changeChip", () => {
+  const hex40 = (c: string) => c.repeat(40);
+
+  it("returns a stored name with the full range as the title", () => {
+    expect(
+      changeChip({ base: "main", head: "feat", name: "branch feat" }),
+    ).toEqual({ text: "branch feat", title: "main..feat" });
+  });
+
+  it("shortens two 40-hex refs to 8 characters", () => {
+    expect(changeChip({ base: hex40("a"), head: hex40("b") })).toEqual({
+      text: "aaaaaaaa..bbbbbbbb",
+      title: `${hex40("a")}..${hex40("b")}`,
+    });
+  });
+
+  it("returns branch names whole", () => {
+    expect(changeChip({ base: "main", head: "feat" }).text).toBe("main..feat");
+  });
+
+  it("shortens a 64-hex ref", () => {
+    expect(changeChip({ base: "c".repeat(64), head: "main" }).text).toBe(
+      "cccccccc..main",
+    );
+  });
+
+  it("returns a 39-hex string whole", () => {
+    expect(changeChip({ base: "d".repeat(39), head: "main" }).text).toBe(
+      `${"d".repeat(39)}..main`,
+    );
+  });
+
+  it("returns a 40-character string with a non-hex letter whole", () => {
+    const ref = `${"e".repeat(39)}g`;
+
+    expect(changeChip({ base: ref, head: "main" }).text).toBe(`${ref}..main`);
   });
 });
 

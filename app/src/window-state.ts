@@ -1,3 +1,4 @@
+import type { ViewChange } from "recognizer";
 import type { InspectorTab } from "./inspector-model";
 import type { Trail } from "./trail-model";
 
@@ -7,7 +8,7 @@ export type Snapshot = {
   folded: string[];
   focus: string | null;
   selection: { kind: "module" | "folder" | "edge"; id: string } | null;
-  draft: { base: string; head: string } | null;
+  draft: ViewChange | null;
 };
 
 export type WindowTrailPanel = {

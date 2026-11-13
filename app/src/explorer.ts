@@ -1,6 +1,7 @@
 import {
   buildFreshness,
   type ChangeFacts,
+  changeChip,
   changeMarks,
   type FileChange,
   folderUsedBy,
@@ -16,6 +17,7 @@ import {
   usedByOf,
   usesOf,
   type View,
+  type ViewChange,
   viewNotes,
 } from "recognizer";
 import { agentLineOf, backLabel, forwardLabel } from "./agent-line";
@@ -1100,7 +1102,7 @@ export function showExplorer(
       }
 
       render();
-      void openRange(request.base, request.head, request.what, {
+      void openRange(request.base, request.head, request.what, request.name, {
         kind: row.kind,
         ref: request.head,
       });
@@ -2361,13 +2363,17 @@ export function showExplorer(
     };
   }
 
-  function draftOf(range: { base: string; head: string }): View {
+  function draftOf(range: ViewChange): View {
     const view: View = {
       schema_version: 4,
       description: "",
       commit: null,
       steps: [],
-      change: { base: range.base, head: range.head },
+      change: {
+        base: range.base,
+        head: range.head,
+        ...(range.name === undefined ? {} : { name: range.name }),
+      },
     };
 
     viewTexts.set(DRAFT_VIEW, serialiseView(view));
@@ -2375,22 +2381,21 @@ export function showExplorer(
     return view;
   }
 
-  function draftRange(): { base: string; head: string } | null {
+  function draftRange(): ViewChange | null {
     if (openView !== DRAFT_VIEW) {
       return null;
     }
 
     const change = viewNamed(DRAFT_VIEW)?.change;
 
-    return change === undefined
-      ? null
-      : { base: change.base, head: change.head };
+    return change === undefined ? null : { ...change };
   }
 
   async function openRange(
     base: string,
     head: string,
     what: string,
+    name: string,
     row: { kind: PickRow["kind"]; ref: string },
   ) {
     const from = savedView();
@@ -2400,13 +2405,13 @@ export function showExplorer(
       unsavedDialog.show(
         from,
         `Opening the range closes the open view. ${LOSS_WARNING}`,
-        (choice) => void chooseRange(from, base, head, what, row, choice),
+        (choice) => void chooseRange(from, base, head, what, name, row, choice),
       );
 
       return;
     }
 
-    openRangeNow(base, head, what, row);
+    openRangeNow(base, head, what, name, row);
   }
 
   async function chooseRange(
@@ -2414,6 +2419,7 @@ export function showExplorer(
     base: string,
     head: string,
     what: string,
+    name: string,
     row: { kind: PickRow["kind"]; ref: string },
     choice: UnsavedChoice,
   ) {
@@ -2437,16 +2443,17 @@ export function showExplorer(
       }
     }
 
-    openRangeNow(base, head, what, row);
+    openRangeNow(base, head, what, name, row);
   }
 
   function openRangeNow(
     base: string,
     head: string,
     what: string,
+    name: string,
     row: { kind: PickRow["kind"]; ref: string },
   ) {
-    const view = draftOf({ base, head });
+    const view = draftOf({ base, head, name });
     const token = ++openToken;
 
     commitsOpening = { what, kind: row.kind, ref: row.ref };
@@ -3495,7 +3502,8 @@ export function showExplorer(
       }),
       names: viewList.map((entry) => entry.name),
       total: viewList.length,
-      openChip: openChipOf(),
+      openChip: openChipOf()?.text ?? null,
+      openChipTitle: openChipOf()?.title ?? null,
       openPlan: openViewValue()?.plan === true,
       canBack: history.canBack(),
       listed: listKnown,
@@ -3516,10 +3524,10 @@ export function showExplorer(
     });
   }
 
-  function openChipOf(): string | null {
+  function openChipOf(): { text: string; title: string } | null {
     const view = openViewValue();
 
-    return view?.change === undefined ? null : rangeText(view.change);
+    return view?.change === undefined ? null : changeChip(view.change);
   }
 
   function renamesFor(name: string, commit: string) {

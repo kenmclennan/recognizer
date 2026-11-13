@@ -69,6 +69,8 @@ describe("selection", () => {
     expect(one).toEqual(other);
     expect(one?.base).toBe("p3");
     expect(one?.head).toBe(history[1]);
+    expect(one?.name).toBe(`${at(3).label} to ${at(1).label}`);
+    expect(other?.name).toBe(one?.name);
     expect(forward.first()).toEqual(at(3));
     expect(forward.last()).toEqual(at(1));
     expect(backward.first()).toEqual(at(3));
@@ -127,6 +129,7 @@ describe("selection", () => {
       base: "p".repeat(40),
       head: a.ref,
       what: `commit ${a.label}`,
+      name: `commit ${a.label}`,
     });
     expect(selection.picked()).toEqual(a);
   });
@@ -140,11 +143,13 @@ describe("selection", () => {
       base: "m".repeat(40),
       head: "feature/x",
       what: "branch feature/x",
+      name: "branch feature/x",
     });
     expect(selection.pick(pull, "prs", history)).toEqual({
       base: "n".repeat(40),
       head: "d".repeat(40),
       what: "pull request #9",
+      name: "pull request #9",
     });
   });
 
