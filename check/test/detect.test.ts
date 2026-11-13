@@ -4,17 +4,25 @@ import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import { nodeIo } from "../src/cli.js";
-import { detectLanguages } from "../src/detect.js";
+import { detectLanguages, type LanguageRule } from "../src/detect.js";
 import { REPO } from "./helpers.js";
 import { fakeIo, ROOT } from "./scan-helpers.js";
 
-function detect(files: string[], symlinks: string[] = []) {
+const RULES = JSON.parse(
+  readFileSync(join(REPO, "fixtures/plugins/languages.json"), "utf8"),
+) as LanguageRule[];
+
+function detect(
+  files: string[],
+  symlinks: string[] = [],
+  rules: LanguageRule[] = RULES,
+) {
   const fake = fakeIo({
     files: Object.fromEntries(files.map((file) => [`${ROOT}/${file}`, ""])),
     symlinks: symlinks.map((link) => `${ROOT}/${link}`),
   });
 
-  return { languages: detectLanguages(fake.io, ROOT), fake };
+  return { languages: detectLanguages(fake.io, ROOT, rules), fake };
 }
 
 describe("selection parity", () => {
@@ -168,13 +176,62 @@ describe("detectLanguages", () => {
     ]);
 
     expect(languages).toEqual([
-      "python",
-      "typescript",
-      "kotlin",
-      "rust",
       "csharp",
+      "kotlin",
+      "python",
+      "rust",
+      "typescript",
     ]);
     expect(fake.readDirCalls()).toBe(1);
+  });
+});
+
+describe("detectLanguages with the rules it is given", () => {
+  const swift: LanguageRule = {
+    name: "swift",
+    extensions: [".swift"],
+    files: [],
+    skip: {
+      directory_names: [],
+      directory_prefixes: [],
+      directory_suffixes: [],
+      directory_markers: [],
+      file_globs: [],
+    },
+  };
+
+  it("detects a sixth language from a file its rules claim", () => {
+    expect(
+      detect(["Sources/App.swift"], [], [...RULES, swift]).languages,
+    ).toEqual(["swift"]);
+  });
+
+  it("detects no language that no given rules claim", () => {
+    expect(detect(["Sources/App.swift"]).languages).toEqual([]);
+  });
+
+  it("counts a file for every language whose rules claim it", () => {
+    const alias: LanguageRule = {
+      ...swift,
+      name: "pyalias",
+      extensions: [".py"],
+    };
+    const python = RULES.find((rule) => rule.name === "python") as LanguageRule;
+
+    expect(detect(["a.py"], [], [python, alias]).languages).toEqual([
+      "pyalias",
+      "python",
+    ]);
+  });
+
+  it("detects the languages in alphabetical order", () => {
+    expect(detect(["a.py", "b.rs", "c.kt", "d.cs", "e.ts"]).languages).toEqual([
+      "csharp",
+      "kotlin",
+      "python",
+      "rust",
+      "typescript",
+    ]);
   });
 });
 
@@ -190,7 +247,7 @@ describe("git listing", () => {
       ...extra,
     });
 
-    return { languages: detectLanguages(fake.io, ROOT), fake };
+    return { languages: detectLanguages(fake.io, ROOT, RULES), fake };
   }
 
   it("detects no language that is present only in an ignored folder", () => {
@@ -224,7 +281,7 @@ describe("git listing", () => {
       ["a.py", "n.kt", "gone.ts", ".gitignore"],
     );
 
-    expect(languages).toEqual(["python", "kotlin"]);
+    expect(languages).toEqual(["kotlin", "python"]);
   });
 
   it("walks every file when there is no listing", () => {
@@ -286,7 +343,7 @@ describe("git listing in real repositories", () => {
     write(root, { "inner/A.kt": "" });
     git(join(root, "inner"), ["init", "-q"]);
 
-    expect(detectLanguages(nodeIo(), root)).toEqual([]);
+    expect(detectLanguages(nodeIo(), root, RULES)).toEqual([]);
   });
 
   it("detects a subfolder root from its own tracked files only", () => {
@@ -297,7 +354,9 @@ describe("git listing in real repositories", () => {
     });
     write(root, { "sub/bin/C.rs": "" });
 
-    expect(detectLanguages(nodeIo(), join(root, "sub"))).toEqual(["python"]);
+    expect(detectLanguages(nodeIo(), join(root, "sub"), RULES)).toEqual([
+      "python",
+    ]);
   });
 
   it("detects this checkout's languages from the files git lists", () => {
@@ -324,8 +383,9 @@ describe("git listing in real repositories", () => {
         ),
       }).io,
       ROOT,
+      RULES,
     );
 
-    expect(detectLanguages(nodeIo(), REPO)).toEqual(expected);
+    expect(detectLanguages(nodeIo(), REPO, RULES)).toEqual(expected);
   });
 });

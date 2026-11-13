@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import { run } from "../src/cli.js";
 import { capture, REPO } from "./helpers.js";
+import { useScannerShim } from "./scan-helpers.js";
 
 const FAKE = join(REPO, "check/test/fixtures/fake-describer.mjs");
 const BIN = join(REPO, "check/dist/bin.js");
@@ -177,11 +178,16 @@ function launch(root: string, detached = false, scratch?: string) {
   return { child, closed };
 }
 
+let restorePath: () => void = () => {};
+
 beforeEach(() => {
   useDescribing("sonnet", 4);
+  restorePath = useScannerShim("python");
 });
 
 afterEach(() => {
+  restorePath();
+
   for (const directory of holdings.splice(0)) {
     writeFileSync(join(directory, "release-all"), "");
   }

@@ -18,11 +18,7 @@ import { validateFindings } from "../src/findings-document.js";
 import { entriesOf } from "../src/run-log.js";
 import { capture, REPO } from "./helpers.js";
 
-const VARIABLES = [
-  "RECOGNIZER_SCAN_PYTHON",
-  "RECOGNIZER_SCAN_TYPESCRIPT",
-  "SHELL",
-];
+const VARIABLES = ["SHELL"];
 const HAS_UV = spawnSync("uv", ["--version"]).status === 0;
 const TYPESCRIPT_BIN = join(REPO, "scanners/typescript/dist/bin.js");
 
@@ -103,14 +99,14 @@ describe.skipIf(!HAS_UV)(
       cpSync(join(REPO, "fixtures/duplication/sample"), repository, {
         recursive: true,
       });
-      process.env.RECOGNIZER_SCAN_PYTHON = launcher(
+      launcher(
         launchers,
-        "python.sh",
+        "recognizer-scan-python",
         `exec uv run --quiet --project ${REPO}/scanners/python recognizer-scan-python "$@"`,
       );
-      process.env.RECOGNIZER_SCAN_TYPESCRIPT = launcher(
+      launcher(
         launchers,
-        "typescript.sh",
+        "recognizer-scan-typescript",
         `exec node ${REPO}/scanners/typescript/dist/bin.js "$@"`,
       );
       launcher(
@@ -631,7 +627,6 @@ describe.skipIf(!HAS_UV)(
     let repository: string;
 
     beforeEach(() => {
-      saved.RECOGNIZER_SCAN_PYTHON = process.env.RECOGNIZER_SCAN_PYTHON;
       savedPath = process.env.PATH;
 
       const launchers = makeTempDir("recognizer-launchers-");
@@ -657,9 +652,9 @@ describe.skipIf(!HAS_UV)(
           "",
         ].join("\n"),
       );
-      process.env.RECOGNIZER_SCAN_PYTHON = launcher(
+      launcher(
         launchers,
-        "python.sh",
+        "recognizer-scan-python",
         `exec uv run --quiet --project ${REPO}/scanners/python recognizer-scan-python "$@"`,
       );
       launcher(
@@ -702,12 +697,6 @@ describe.skipIf(!HAS_UV)(
     });
 
     afterEach(() => {
-      if (saved.RECOGNIZER_SCAN_PYTHON === undefined) {
-        delete process.env.RECOGNIZER_SCAN_PYTHON;
-      } else {
-        process.env.RECOGNIZER_SCAN_PYTHON = saved.RECOGNIZER_SCAN_PYTHON;
-      }
-
       process.env.PATH = savedPath;
     });
 
@@ -842,9 +831,9 @@ describe.skipIf(!HAS_UV)(
         join(repository, ".gitignore"),
         ".venv/\n__pycache__/\n.recognizer/cache/\n",
       );
-      process.env.RECOGNIZER_SCAN_PYTHON = launcher(
+      launcher(
         launchers,
-        "python.sh",
+        "recognizer-scan-python",
         `exec uv run --quiet --project ${REPO}/scanners/python recognizer-scan-python "$@"`,
       );
       launcher(

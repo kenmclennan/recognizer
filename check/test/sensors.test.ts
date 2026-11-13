@@ -25,6 +25,7 @@ import {
   type Program,
   PYTHON,
   ROOT,
+  scannerManifestText,
 } from "./scan-helpers.js";
 
 const COMMIT = "abc123";
@@ -1361,25 +1362,26 @@ describe("scan --sense running a registered sensor as a real process", () => {
     );
 
     const sensed = capture();
-    const versionProbe = join(makeTempDir("recognizer-scanner-"), "python.sh");
-    const saved = process.env.RECOGNIZER_SCAN_PYTHON;
+    const probes = makeTempDir("recognizer-scanner-");
+    const savedPath = process.env.PATH;
 
-    writeFileSync(versionProbe, "#!/bin/sh\necho 0.0.0\n");
-    chmodSync(versionProbe, 0o755);
-    process.env.RECOGNIZER_SCAN_PYTHON = versionProbe;
+    writeFileSync(
+      join(probes, "recognizer-scan-python"),
+      `#!/bin/sh\nif [ "$1" = "manifest" ]; then\ncat <<'EOF'\n${scannerManifestText("python").trim()}\nEOF\nelse\necho 0.0.0\nfi\n`,
+    );
+    chmodSync(join(probes, "recognizer-scan-python"), 0o755);
+    process.env.PATH = `${probes}:${savedPath}`;
+
+    const out = capture();
+    let code: number;
 
     try {
       expect(await run(["scan", root, "--sense", "all"], sensed.io)).toBe(0);
+      code = await run(["check", "--repository", root, "--json"], out.io);
     } finally {
-      if (saved === undefined) {
-        delete process.env.RECOGNIZER_SCAN_PYTHON;
-      } else {
-        process.env.RECOGNIZER_SCAN_PYTHON = saved;
-      }
+      process.env.PATH = savedPath;
     }
 
-    const out = capture();
-    const code = await run(["check", "--repository", root, "--json"], out.io);
     const file = join(root, ".recognizer/cache/findings/fake-sensor.json");
     const document = JSON.parse(readFileSync(file, "utf8"));
 

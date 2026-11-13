@@ -29,6 +29,11 @@ import { errorText, InputError } from "./errors.js";
 import { findingsFile } from "./findings-files.js";
 import { type Gap, gapText, preflightLine } from "./gap.js";
 import { readPolicy } from "./load-findings.js";
+import {
+  discoverPlugins,
+  type InstalledPlugin,
+  unsupportedMessage,
+} from "./plugin-discovery.js";
 import type { PluginEvent } from "./plugin-events.js";
 import { createPluginLimits, prepareCall } from "./plugin-run.js";
 import { warnPolicyProblems } from "./policy-problems.js";
@@ -71,11 +76,9 @@ import {
 } from "./scan-phases.js";
 import {
   buildArgs,
-  notInstalledMessage,
-  resolveCommand,
-  SCANNERS,
-  type ScannerSpec,
-  scannerFor,
+  chooseScanner,
+  languageRulesOf,
+  type ScannerChoice,
 } from "./scanners.js";
 import {
   isScoped,
@@ -91,7 +94,9 @@ import { resolveStructureSettings } from "./structure-sensor.js";
 
 type FailureReason =
   | "not-installed"
-  | "invalid-override"
+  | "ambiguous-scanner"
+  | "invalid-choice"
+  | "unsupported-protocol"
   | "scanner-failed"
   | "invalid-scan"
   | "unknown-schema-version";
@@ -194,6 +199,7 @@ interface Scanned {
 export interface ExtractInput {
   io: Io;
   language: Language;
+  choice: ScannerChoice;
   root: string;
   commit: string | null;
   modified: boolean | null;
@@ -202,7 +208,7 @@ export interface ExtractInput {
 }
 
 interface Prepared {
-  spec: ScannerSpec;
+  scanner: InstalledPlugin;
   command: string;
   args: string[];
   output: string;
@@ -212,14 +218,27 @@ interface Prepared {
 function prepareScanner(
   input: ExtractInput,
 ): { failed: Scanned } | { ready: Prepared } {
-  const { io, language, root, commit, modified } = input;
-  const spec = scannerFor(language);
-  const resolution = resolveCommand(io, spec);
+  const { io, language, root, commit, modified, choice } = input;
 
-  if (!resolution.ok) {
+  if (!choice.ok) {
     return {
       failed: {
-        outcome: failure("invalid-override", resolution.message),
+        outcome: failure(choice.reason, choice.message),
+        command: [],
+        status: null,
+        stderr: "",
+        duration_ms: 0,
+      },
+    };
+  }
+
+  if (choice.scanner.judgement === "unsupported") {
+    return {
+      failed: {
+        outcome: failure(
+          "unsupported-protocol",
+          unsupportedMessage(choice.scanner),
+        ),
         command: [],
         status: null,
         stderr: "",
@@ -233,8 +252,8 @@ function prepareScanner(
 
   return {
     ready: {
-      spec,
-      command: resolution.command,
+      scanner: choice.scanner,
+      command: choice.scanner.command,
       args: buildArgs(root, output, commit, modified),
       output,
       directory,
@@ -248,7 +267,7 @@ function concludeScanner(
   result: RunResult,
   began: number,
 ): Scanned {
-  const { spec, command, args, output } = prepared;
+  const { scanner, command, args, output } = prepared;
   const scanned = (outcome: Outcome): Scanned => ({
     outcome,
     command: [command, ...args],
@@ -258,7 +277,9 @@ function concludeScanner(
   });
 
   if (!result.started) {
-    return scanned(failure("not-installed", notInstalledMessage(spec)));
+    return scanned(
+      failure("not-installed", `${scanner.command} could not be started`),
+    );
   }
 
   if (result.timedOut === true) {
@@ -336,6 +357,23 @@ async function runScannerAsync(input: ExtractInput): Promise<Scanned> {
   }
 }
 
+function cachedLanguages(io: Io, root: string): Language[] {
+  try {
+    return io
+      .readDir(join(root, CACHE))
+      .flatMap((entry) => {
+        const match = /^scan\.([a-z0-9][a-z0-9_-]*)\.json$/.exec(entry.name);
+
+        return entry.kind === "file" && match !== null
+          ? [match[1] as string]
+          : [];
+      })
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
 function removeIfPresent(io: Io, path: string, removed: string[]): void {
   if (io.exists(path)) {
     io.remove(path);
@@ -357,14 +395,12 @@ export function readCachedScan(
   }
 }
 
-function installedVersion(io: Io, language: Language): string | null {
-  const resolution = resolveCommand(io, scannerFor(language));
-
-  if (!resolution.ok) {
+function installedVersion(io: Io, choice: ScannerChoice): string | null {
+  if (!choice.ok) {
     return null;
   }
 
-  const result = io.run(resolution.command, ["--version"]);
+  const result = io.run(choice.scanner.command, ["--version"]);
 
   return result.started && result.status === 0 ? result.stdout.trim() : null;
 }
@@ -373,6 +409,7 @@ function decideExtraction(
   io: Io,
   root: string,
   detected: Language[],
+  choices: Map<Language, ScannerChoice>,
   force: boolean,
   commit: string | null,
   dirty: boolean,
@@ -404,7 +441,10 @@ function decideExtraction(
     dirty,
     languages: languages.map((one) => ({
       ...one,
-      installedVersion: installedVersion(io, one.language),
+      installedVersion: installedVersion(
+        io,
+        choices.get(one.language) as ScannerChoice,
+      ),
     })),
   });
 }
@@ -462,7 +502,10 @@ function* scanFlow(
       : parseModuleScope(readModulesFile(io, options.modules));
   const startedAt = io.now();
   const root = resolve(options.positionals[0] ?? ".");
-  const limits = createPluginLimits(io, root);
+  const discovery = discoverPlugins(io, ["scanner"]);
+  const limits = createPluginLimits(io, root, undefined, discovery.plugins);
+  let named: Record<string, string> = {};
+  let configInstall: Record<string, string> = {};
   let shipped: ShippedRead = { sensors: [], unreadable: [] };
 
   const wantsConfig = options.describe !== false || options.sense !== null;
@@ -480,6 +523,10 @@ function* scanFlow(
     }
 
     folderKnown = true;
+    const registered = readConfig(io, root, ["scanners", "install"]);
+
+    named = registered?.scanners ?? {};
+    configInstall = registered?.install ?? {};
 
     const config = readsAnyConfig(read)
       ? readConfig(io, root, read, { skipRetired: options.ignoreRetiredConfig })
@@ -611,7 +658,17 @@ function* scanFlow(
     };
 
     const modified = commit === null ? null : isDirty(io, root);
-    const detected = detectLanguages(io, root);
+    const detected = detectLanguages(
+      io,
+      root,
+      languageRulesOf(discovery.plugins),
+    );
+    const choices = new Map<Language, ScannerChoice>(
+      detected.map((language) => [
+        language,
+        chooseScanner(language, discovery.plugins, named[language]),
+      ]),
+    );
     const json = options.json;
     const removed: string[] = [];
     const phases: RunPhase[] = [];
@@ -660,6 +717,12 @@ function* scanFlow(
     };
 
     if (detected.length === 0) {
+      if (discovery.plugins.length === 0) {
+        io.stderr(
+          "no scanner is installed: recognizer plugins lists what is installed\n",
+        );
+      }
+
       io.stderr("no languages detected\n");
     }
 
@@ -732,6 +795,7 @@ function* scanFlow(
       describe: options.describe !== false,
       describer: describer ?? null,
       model: describing?.model ?? "",
+      install: configInstall,
     });
 
     if (early.length > 0) {
@@ -742,6 +806,7 @@ function* scanFlow(
       io,
       root,
       detected,
+      choices,
       options.extract,
       commit,
       modified === true,
@@ -761,31 +826,49 @@ function* scanFlow(
       io.stdout(`scans current at ${decision.commit}\n`);
     }
 
-    for (const spec of SCANNERS) {
-      const file = cacheFile(root, spec.language);
-      const shown = relative(root, file);
-
-      if (!detected.includes(spec.language)) {
-        const before = removed.length;
-
-        removeIfPresent(io, file, removed);
-
-        if (removed.length > before) {
-          io.stderr(`${spec.language}: removed stale ${shown}\n`);
-        }
-
+    for (const language of cachedLanguages(io, root)) {
+      if (detected.includes(language)) {
         continue;
       }
 
+      const file = cacheFile(root, language);
+      const before = removed.length;
+
+      removeIfPresent(io, file, removed);
+
+      if (removed.length > before) {
+        io.stderr(`${language}: removed stale ${relative(root, file)}\n`);
+      }
+    }
+
+    const noted = new Set<string>();
+
+    for (const language of detected) {
+      const file = cacheFile(root, language);
+      const shown = relative(root, file);
+      const choice = choices.get(language) as ScannerChoice;
+
       if (!decision.run) {
         continue;
+      }
+
+      if (
+        choice.ok &&
+        choice.scanner.judgement === "previous" &&
+        !noted.has(choice.scanner.name)
+      ) {
+        noted.add(choice.scanner.name);
+        io.stderr(
+          `${choice.scanner.command} speaks the previous protocol ${choice.scanner.manifest.protocol}: install ${choice.scanner.manifest.install}\n`,
+        );
       }
 
       const scanned = (yield {
         kind: "extract",
         input: {
           io,
-          language: spec.language,
+          language,
+          choice,
           root,
           commit,
           modified,
@@ -796,7 +879,7 @@ function* scanFlow(
         },
       }) as Scanned;
       const { outcome } = scanned;
-      const entry = entryFrom(spec.language, {
+      const entry = entryFrom(language, {
         command: scanned.command,
         status: scanned.status,
         stderr: scanned.stderr,
@@ -811,7 +894,7 @@ function* scanFlow(
 
         if (!json) {
           io.stdout(
-            `${spec.language}: ${outcome.modules} modules, ${outcome.edges} edges -> ${shown}\n`,
+            `${language}: ${outcome.modules} modules, ${outcome.edges} edges -> ${shown}\n`,
           );
         }
 
@@ -823,14 +906,14 @@ function* scanFlow(
         continue;
       }
 
-      io.stderr(`${spec.language}: ${outcome.reason} - ${outcome.message}\n`);
+      io.stderr(`${language}: ${outcome.reason} - ${outcome.message}\n`);
 
       const before = removed.length;
 
       removeIfPresent(io, file, removed);
 
       if (removed.length > before) {
-        io.stderr(`${spec.language}: removed stale ${shown}\n`);
+        io.stderr(`${language}: removed stale ${shown}\n`);
       }
 
       finishEntry(extract, entry);

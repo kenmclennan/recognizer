@@ -1,9 +1,65 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { chmodSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import type { DirEntry, Io, RequestResult, RunResult } from "../src/cli.js";
 import { REPO } from "./helpers.js";
 import { exampleManifest } from "./shipped-read.js";
+
+const LANGUAGE_RULES = JSON.parse(
+  readFileSync(join(REPO, "fixtures/plugins/languages.json"), "utf8"),
+) as { name: string }[];
+
+export function useScannerShim(language: string): () => void {
+  const directory = makeTempDir("recognizer-scanner-shim-");
+  const saved = process.env.PATH;
+  const path = join(directory, `recognizer-scan-${language}`);
+
+  writeFileSync(
+    path,
+    `#!/bin/sh\nif [ "$1" = "manifest" ]; then\ncat <<'EOF'\n${scannerManifestText(language).trim()}\nEOF\nfi\n`,
+  );
+  chmodSync(path, 0o755);
+  process.env.PATH = `${directory}:${saved}`;
+
+  return () => {
+    process.env.PATH = saved;
+  };
+}
+
+export function scannerManifestText(
+  name: string,
+  languages: string[] = [name],
+  protocol = 1,
+): string {
+  const manifest = JSON.parse(
+    readFileSync(
+      join(REPO, "schema/manifest-examples/valid/scanner.json"),
+      "utf8",
+    ),
+  );
+
+  return `${JSON.stringify({
+    ...manifest,
+    name,
+    protocol,
+    languages: languages.map(
+      (language) =>
+        LANGUAGE_RULES.find((rule) => rule.name === language) ?? {
+          name: language,
+          extensions: [`.${language}`],
+          files: [],
+          skip: {
+            directory_names: [],
+            directory_prefixes: [],
+            directory_suffixes: [],
+            directory_markers: [],
+            file_globs: [],
+          },
+        },
+    ),
+  })}\n`;
+}
 
 export function describerManifestText(promptVersion: string): string {
   const manifest = JSON.parse(
@@ -21,6 +77,10 @@ export interface ScannerBehaviour {
   stderr?: string;
   output?: string;
   version?: string;
+  languages?: string[];
+  protocol?: number;
+  manifest?: string;
+  unstartable?: boolean;
 }
 
 export interface ProgramEffect {
@@ -48,6 +108,7 @@ export interface FakeOptions {
   files?: Record<string, string>;
   symlinks?: string[];
   scanners?: Record<string, ScannerBehaviour>;
+  onPath?: string[];
   env?: Record<string, string>;
   commit?: string;
   tracked?: string[];
@@ -84,6 +145,7 @@ export interface Fake {
   removed: string[];
   writes: string[];
   renames: { from: string; to: string }[];
+  manifestReads: string[];
   readDirCalls: () => number;
   tempDirs: () => string[];
   requests: { socket: string; text: string }[];
@@ -92,6 +154,14 @@ export interface Fake {
 export const ROOT = "/repo";
 export const FAKE_PID = 1000;
 export const APP_CONFIG = "/app-config";
+export const BIN = "/fakebin";
+const DEFAULT_SCANNERS = [
+  "python",
+  "typescript",
+  "kotlin",
+  "rust",
+  "csharp",
+].map((name) => `recognizer-scan-${name}`);
 export const PYTHON = "recognizer-scan-python";
 export const TYPESCRIPT = "recognizer-scan-typescript";
 
@@ -153,6 +223,15 @@ export function fakeIo(options: FakeOptions = {}): Fake {
   const renames: { from: string; to: string }[] = [];
   const temps: string[] = [];
   const requests: { socket: string; text: string }[] = [];
+  const manifestReads: string[] = [];
+  const installed = [
+    ...(options.scanners === undefined
+      ? DEFAULT_SCANNERS
+      : Object.keys(options.scanners).filter((name) =>
+          name.startsWith("recognizer-scan-"),
+        )),
+    ...(options.onPath ?? []),
+  ];
   let readDirs = 0;
   let clock = Date.UTC(2026, 10, 2);
   let out = "";
@@ -161,6 +240,10 @@ export function fakeIo(options: FakeOptions = {}): Fake {
   files.set(`${ROOT}/.keep`, "");
 
   function children(path: string): DirEntry[] {
+    if (path === BIN) {
+      return installed.map((name) => ({ name, kind: "file" as const }));
+    }
+
     const prefix = `${path}/`;
     const seen = new Map<string, DirEntry["kind"]>();
 
@@ -183,14 +266,42 @@ export function fakeIo(options: FakeOptions = {}): Fake {
   }
 
   function isDirectory(path: string): boolean {
-    return path === ROOT || children(path).length > 0;
+    return path === ROOT || path === BIN || children(path).length > 0;
   }
 
   function runNow(
-    command: string,
+    given: string,
     args: string[],
     runOptions?: { cwd?: string; timeoutMs?: number },
   ): RunResult {
+    const command = given.startsWith(`${BIN}/`)
+      ? given.slice(BIN.length + 1)
+      : given;
+
+    if (
+      given.startsWith(`${BIN}/`) &&
+      args.at(-1) === "manifest" &&
+      command.startsWith("recognizer-scan-") &&
+      installed.includes(command)
+    ) {
+      manifestReads.push(command);
+
+      const behaviour = options.scanners?.[command] ?? {};
+
+      return {
+        started: true,
+        status: 0,
+        stdout:
+          behaviour.manifest ??
+          scannerManifestText(
+            command.slice("recognizer-scan-".length),
+            behaviour.languages ?? [command.slice("recognizer-scan-".length)],
+            behaviour.protocol ?? 1,
+          ),
+        stderr: "",
+      };
+    }
+
     if (command === "git" && args.includes("ls-files")) {
       if (options.listing) {
         return {
@@ -335,6 +446,10 @@ export function fakeIo(options: FakeOptions = {}): Fake {
       return { started: false, status: null, stdout: "", stderr: "" };
     }
 
+    if (behaviour.unstartable === true) {
+      return { started: false, status: null, stdout: "", stderr: "" };
+    }
+
     if (args[0] === "--version") {
       return {
         started: true,
@@ -361,7 +476,11 @@ export function fakeIo(options: FakeOptions = {}): Fake {
   let waited = 0;
 
   const io: Io = {
-    exists: (path) => files.has(path) || isDirectory(path),
+    exists: (path) =>
+      files.has(path) ||
+      isDirectory(path) ||
+      (path.startsWith(`${BIN}/`) &&
+        installed.includes(path.slice(BIN.length + 1))),
     readFile: (path) => {
       const content = files.get(path);
 
@@ -524,7 +643,9 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     env: (name) =>
       name === "RECOGNIZER_APP_CONFIG_DIR"
         ? (options.env?.[name] ?? APP_CONFIG)
-        : options.env?.[name],
+        : name === "PATH"
+          ? (options.env?.[name] ?? BIN)
+          : options.env?.[name],
     now: () => {
       if (options.now) {
         return options.now();
@@ -546,6 +667,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     removed,
     writes,
     renames,
+    manifestReads,
     readDirCalls: () => readDirs,
     tempDirs: () => temps,
     requests,

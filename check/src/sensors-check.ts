@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
@@ -50,7 +51,8 @@ export const CHECK_TIMEOUT_MS = 600_000;
 
 function checkable(command: readonly string[]): boolean {
   return (
-    pluginPrefix(command) !== null && shippedSensorOf(command) !== undefined
+    pluginPrefix(command) !== null &&
+    /^recognizer-sense-./.test(basename(command[0] ?? ""))
   );
 }
 
