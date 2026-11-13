@@ -1427,7 +1427,7 @@ async fn scans_at(
     app: AppHandle,
     window: WebviewWindow,
     commit: String,
-) -> Result<Option<Vec<repository::ScanFile>>, String> {
+) -> Result<Result<Vec<repository::ScanFile>, String>, String> {
     let folder = window_folder_path(&app, &window)?;
 
     tauri::async_runtime::spawn_blocking(move || views::scans_at(&folder, &commit))
@@ -1441,7 +1441,7 @@ async fn range_members(
     window: WebviewWindow,
     base: String,
     head: String,
-) -> Result<Option<views::RangeMembers>, String> {
+) -> Result<Result<views::RangeMembers, String>, String> {
     let folder = window_folder_path(&app, &window)?;
 
     tauri::async_runtime::spawn_blocking(move || views::range_members(&folder, &base, &head))

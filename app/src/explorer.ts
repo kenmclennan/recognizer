@@ -242,7 +242,12 @@ import { stepsFor } from "./view-steps";
 import type { Viewport } from "./viewport";
 import { dropdownNames, rangeOf, viewsPanelModel } from "./views-panel-model";
 import { buildViewsPanelView } from "./views-panel-view";
-import { DRAFT_VIEW, inertViews, type ViewsPort } from "./views-port";
+import {
+  DRAFT_VIEW,
+  inertViews,
+  type ReadOutcome,
+  type ViewsPort,
+} from "./views-port";
 import {
   type DriveAction,
   type DriveFacts,
@@ -335,16 +340,22 @@ type ChangeInfo =
       at: number;
       headCommit: string;
       members: ChangeMembers;
+      baseUnreadable?: string;
     };
 
-type ChangeMembers =
-  | "loading"
-  | null
-  | {
-      marks: Map<string, Map<string, MemberMarkKind> | null>;
-      start: Scan[];
-      head: Scan[];
-    };
+type LoadedMembers = {
+  marks: Map<string, Map<string, MemberMarkKind> | null>;
+  start: Scan[];
+  head: Scan[];
+};
+
+type ChangeMembers = "loading" | null | { unreadable: string } | LoadedMembers;
+
+function loadedMembers(members: ChangeMembers): LoadedMembers | null {
+  return members === null || members === "loading" || "unreadable" in members
+    ? null
+    : members;
+}
 
 function freshnessOf(loaded: Loaded) {
   return buildFreshness(
@@ -418,7 +429,7 @@ export function showExplorer(
     scene: Scene;
     value: ChangeOverlay;
   } | null = null;
-  const baseScanCache = new Map<string, Scan[] | null>();
+  const baseScanCache = new Map<string, ReadOutcome<Scan[]> | null>();
   const deletionUndos = new Set<number>();
   let scanConfig: string | null = null;
   let shippedSensors: ShippedSensors | null = null;
@@ -1414,18 +1425,16 @@ export function showExplorer(
       return undefined;
     }
 
-    const found = info.members;
+    const found = loadedMembers(info.members);
     const modifiedHere = (module: string) =>
       info.marked.some((one) => one.id === module && one.mark === "modified");
 
     return {
       mark: (module, key) =>
-        found === null || found === "loading"
-          ? null
-          : (found.marks.get(module)?.get(key) ?? null),
+        found === null ? null : (found.marks.get(module)?.get(key) ?? null),
       planned: () => [],
       start: (module) => {
-        if (found === null || found === "loading") {
+        if (found === null) {
           return null;
         }
 
@@ -1444,8 +1453,12 @@ export function showExplorer(
           return null;
         }
 
-        if (found === "loading") {
+        if (info.members === "loading") {
           return "Member marks loading";
+        }
+
+        if (info.members !== null && "unreadable" in info.members) {
+          return `Member marks could not be read for this range: ${info.members.unreadable}`;
         }
 
         return found === null || found.marks.get(module) === null
@@ -1827,12 +1840,19 @@ export function showExplorer(
 
     const present = scans as unknown as MarkScan[];
     let found = changeMarks(files, present, null);
+    let baseUnreadable: string | undefined;
 
     if (found.modules.some((one) => one.mark === "removed")) {
-      const baseScans =
-        answer.baseCommit === currentCommit(scans)
-          ? present
-          : ((await baseScansAt(answer.baseCommit)) as MarkScan[] | null);
+      let baseScans: MarkScan[] | null = present;
+
+      if (answer.baseCommit !== currentCommit(scans)) {
+        const outcome = await baseScansAt(answer.baseCommit);
+
+        baseScans = outcome?.ok
+          ? (outcome.value as unknown as MarkScan[])
+          : null;
+        baseUnreadable = outcome?.ok === false ? outcome.reason : undefined;
+      }
 
       if (token !== openToken) {
         return;
@@ -1858,6 +1878,7 @@ export function showExplorer(
       unmatched: found.unmatched,
       at: Date.now(),
       headCommit: answer.headCommit,
+      ...(baseUnreadable === undefined ? {} : { baseUnreadable }),
     };
 
     changeInfo = { ...okInfo, members: anyModified ? "loading" : null };
@@ -1881,21 +1902,25 @@ export function showExplorer(
       members:
         fetched === null
           ? null
-          : {
-              marks: memberMarks({
-                modules: found.modules,
-                base: fetched.baseScans,
-                head: fetched.headScans,
-                files: fetched.files,
-              }),
-              start: fetched.baseScans,
-              head: fetched.headScans,
-            },
+          : fetched.ok
+            ? {
+                marks: memberMarks({
+                  modules: found.modules,
+                  base: fetched.value.baseScans,
+                  head: fetched.value.headScans,
+                  files: fetched.value.files,
+                }),
+                start: fetched.value.baseScans,
+                head: fetched.value.headScans,
+              }
+            : { unreadable: fetched.reason },
     };
     render();
   }
 
-  async function baseScansAt(commit: string): Promise<Scan[] | null> {
+  async function baseScansAt(
+    commit: string,
+  ): Promise<ReadOutcome<Scan[]> | null> {
     if (!baseScanCache.has(commit)) {
       baseScanCache.set(commit, await views.scansAt(commit).catch(() => null));
     }
@@ -1961,6 +1986,9 @@ export function showExplorer(
             ? [`${info.unmatched} changed files matched no module`]
             : []),
           ...(noBox > 0 ? [`${noBox} removed modules have no box`] : []),
+          ...(info.baseUnreadable === undefined
+            ? []
+            : [`removed modules could not be marked: ${info.baseUnreadable}`]),
         ];
 
         return ` · diffed against ${info.range} ${ageText(info.at, Date.now())}${
@@ -3492,7 +3520,10 @@ export function showExplorer(
           const before =
             viewCommit === null
               ? null
-              : await views.scansAt(viewCommit).catch(() => null);
+              : await views
+                  .scansAt(viewCommit)
+                  .then((outcome) => (outcome.ok ? outcome.value : null))
+                  .catch(() => null);
 
           return staleReport({ view, now: scans, before, renames });
         },
@@ -4232,25 +4263,23 @@ export function showExplorer(
   function headScansOpen(): Scan[] {
     const info = changeInfo;
 
-    return info !== null &&
-      info.state === "ok" &&
-      info.name === openView &&
-      info.members !== null &&
-      info.members !== "loading"
-      ? info.members.head
-      : [];
+    if (info === null || info.state !== "ok" || info.name !== openView) {
+      return [];
+    }
+
+    return loadedMembers(info.members)?.head ?? [];
   }
 
   function drawnModules(): ReadonlySet<string> {
     const info = changeInfo;
 
-    if (
-      info === null ||
-      info.state !== "ok" ||
-      info.name !== openView ||
-      info.members === null ||
-      info.members === "loading"
-    ) {
+    if (info === null || info.state !== "ok" || info.name !== openView) {
+      return new Set();
+    }
+
+    const loaded = loadedMembers(info.members);
+
+    if (loaded === null) {
       return new Set();
     }
 
@@ -4258,8 +4287,8 @@ export function showExplorer(
       scans,
       headCommit: info.headCommit,
       marked: info.marked,
-      marks: info.members.marks,
-      head: info.members.head,
+      marks: loaded.marks,
+      head: loaded.head,
     });
   }
 
