@@ -36,6 +36,9 @@ export type CommitsListView = {
   notice: string | null;
   note: string | null;
   loading: boolean;
+};
+
+export type HistoryListView = CommitsListView & {
   hide: boolean;
   hidden: number;
 };
@@ -53,7 +56,9 @@ export type CommitsPanelModel = {
   next: End;
   guide: string;
   tab: CommitsTab;
-  lists: Record<CommitsTab, CommitsListView>;
+  lists: Record<Exclude<CommitsTab, "history">, CommitsListView> & {
+    history: HistoryListView;
+  };
 };
 
 export type CommitsPanelActions = {
@@ -61,7 +66,7 @@ export type CommitsPanelActions = {
   setMode: (mode: Mode) => void;
   clearEnd: (end: End) => void;
   setTab: (tab: CommitsTab) => void;
-  setHide: (tab: CommitsTab, hide: boolean) => void;
+  setHide: (hide: boolean) => void;
 };
 
 export type CommitsPanelView = {
@@ -317,7 +322,7 @@ export function buildCommitsPanelView(
   const tabs = el("div", "commits-tabs");
   const cards = buildCards(element);
   const hideBox = button("", "commits-hide", () =>
-    actions.setHide(shownTab, hideBox.getAttribute("aria-checked") !== "true"),
+    actions.setHide(hideBox.getAttribute("aria-checked") !== "true"),
   );
   const hideText = el(
     "span",
@@ -325,7 +330,6 @@ export function buildCommitsPanelView(
     "Hide commits with no files on the canvas",
   );
   const hiddenCount = el("span", "commits-hidden");
-  let shownTab: CommitsTab = "history";
 
   hideBox.setAttribute("role", "switch");
   filter.append(hideBox, hideText, hiddenCount);
@@ -385,12 +389,12 @@ export function buildCommitsPanelView(
       );
 
       const shown = model.lists[model.tab];
+      const history = model.lists.history;
 
-      shownTab = model.tab;
       filter.hidden = model.tab !== "history";
-      hideBox.setAttribute("aria-checked", String(shown.hide));
+      hideBox.setAttribute("aria-checked", String(history.hide));
       hiddenCount.textContent =
-        shown.hide && shown.hidden > 0 ? `${shown.hidden} hidden` : "";
+        history.hide && history.hidden > 0 ? `${history.hidden} hidden` : "";
       cards.hide();
 
       list.replaceChildren(
