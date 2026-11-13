@@ -2409,9 +2409,28 @@ describe("adopting once per scan", () => {
     expect(log.some((one) => one.startsWith("blocked:no scan"))).toBe(false);
   });
 
+  function recordedLines(scan: ReturnType<typeof fakeScan>, runId: string) {
+    return () => {
+      scan.emitRun({ kind: "run", run: record({ run_id: runId }) });
+
+      for (const text of [current, sensing(1), summary]) {
+        scan.emitRun({ kind: "line", line: text });
+      }
+
+      scan.emitRun({
+        kind: "run",
+        run: { ...finishedRecord, run_id: runId },
+      });
+    };
+  }
+
   it("adopts again for the next scan", async () => {
     const scan = fakeScan({ records: false });
-    const { log, rescanner } = oneShot(scan, lateRecord(scan));
+    let scans = 0;
+    const { log, rescanner } = oneShot(scan, () => {
+      scans += 1;
+      recordedLines(scan, `own-${scans}`)();
+    });
 
     await rescanner.run(null, OPEN_RUN);
     await rescanner.run(null, OPEN_RUN);
@@ -2439,7 +2458,13 @@ describe("adopting once per scan", () => {
     const real = scan.run.bind(scan);
 
     scan.run = async (plan) => {
-      lateRecord(scan)();
+      scan.emitRun({ kind: "run", run: record({ run_id: "own-1" }) });
+      scan.emitRun({ kind: "line", line: sensing(1) });
+      scan.emitRun({
+        kind: "run",
+        run: { ...finishedRecord, run_id: "own-1" },
+      });
+      recordedLines(scan, "own-2")();
 
       return real(plan);
     };
@@ -2448,5 +2473,144 @@ describe("adopting once per scan", () => {
 
     expect(log).toContain("blocked:Error: first fails");
     expect(adopts(log)).toHaveLength(1);
+  });
+});
+
+describe("replaying a previous finished run at open", () => {
+  const NOT_WAITING = "no scan is waiting to be adopted";
+  const previous = record({
+    run_id: "prev",
+    phase: "finished",
+    exit: 0,
+    ended_at: ENDED_AT,
+    describe: false,
+    ran: ["extract", "sense"],
+    sensors: ["alpha"],
+  });
+
+  const adopts = (log: string[]) => log.filter((one) => one === "adopt");
+  const blocked = (log: string[]) =>
+    log.filter((one) => one.startsWith("blocked:"));
+
+  function replay(
+    scan: ReturnType<typeof fakeScan>,
+    log: string[],
+    lines = true,
+    withRecord = true,
+  ) {
+    log.push("replayed");
+
+    if (lines) {
+      for (const text of [preflightOk, current, sensing(0), summary]) {
+        scan.emitRun({ kind: "line", line: text });
+      }
+    }
+
+    if (withRecord) {
+      scan.emitRun({ kind: "run", run: previous });
+    }
+  }
+
+  function opening(
+    when: "before" | "during" | "after-run" | "after-open",
+    lines = true,
+  ) {
+    const scan = fakeScan();
+    let pending = false;
+    let log: string[] = [];
+    const real = scan.run.bind(scan);
+
+    scan.run = async (plan) => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      pending = true;
+
+      if (when === "during") {
+        replay(scan, log, lines);
+      }
+
+      const result = await real(plan);
+
+      if (when === "after-run") {
+        replay(scan, log, lines);
+      }
+
+      return result;
+    };
+
+    const made = harness(scan, {
+      registered: async () => {
+        if (when === "before") {
+          replay(scan, log, lines);
+        }
+
+        return [{ name: "alpha", display: "Alpha", runsTests: false }];
+      },
+      adopt: async () => {
+        made.log.push("adopt");
+
+        if (!pending) {
+          throw new Error(NOT_WAITING);
+        }
+
+        pending = false;
+
+        return ORIGIN;
+      },
+    });
+
+    log = made.log;
+
+    return { scan, made, replayAfterOpen: () => replay(scan, made.log, lines) };
+  }
+
+  const positions = ["before", "during", "after-run", "after-open"] as const;
+
+  for (const lines of [true, false]) {
+    for (const when of positions) {
+      it(`adopts once when the replay lands ${when} the open scan${lines ? "" : " (record only)"}`, async () => {
+        const { made, replayAfterOpen } = opening(when, lines);
+
+        await made.rescanner.run(null, OPEN_RUN);
+
+        if (when === "after-open") {
+          replayAfterOpen();
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+
+        expect(adopts(made.log)).toHaveLength(1);
+        expect(blocked(made.log)).toEqual([]);
+        expect(
+          made.log.filter((one) => one.startsWith("replace:")),
+        ).toHaveLength(1);
+      });
+    }
+  }
+
+  it("adopts from the own run, not at the replay", async () => {
+    const { made } = opening("during");
+
+    await made.rescanner.run(null, OPEN_RUN);
+
+    expect(made.log.indexOf("sense")).toBeGreaterThan(
+      made.log.indexOf("replayed"),
+    );
+    expect(made.log.indexOf("adopt")).toBeGreaterThan(
+      made.log.indexOf("sense"),
+    );
+  });
+
+  it("adopts nothing from replayed lines with no run of the app's own", async () => {
+    const scan = fakeScan();
+    const made = harness(scan);
+
+    scan.run = async () => {
+      replay(scan, made.log, true, false);
+
+      return { status: "failed", exitCode: -1, stderr: "x" };
+    };
+
+    await made.rescanner.run(null, OPEN_RUN);
+
+    expect(adopts(made.log)).toHaveLength(0);
   });
 });

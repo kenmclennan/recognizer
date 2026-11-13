@@ -387,7 +387,7 @@ export function createRescanner<Carried>(
   }
 
   async function applyLine(line: string) {
-    if (!busy && liveRunId === null) {
+    if (liveRunId === null) {
       return;
     }
 
