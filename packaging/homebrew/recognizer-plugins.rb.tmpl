@@ -1,0 +1,21 @@
+class RecognizerPlugins < Formula
+  desc "Every official Recognizer plugin"
+  homepage "https://github.com/kenmclennan/recognizer-releases"
+  url "https://github.com/kenmclennan/recognizer-releases/releases/download/recognizer-plugins-v@@n@@/recognizer-plugins-@@n@@.tar.gz"
+  version "@@n@@"
+  sha256 "@@sha256@@"
+  license "MIT"
+
+@@dependencies@@
+
+  def install
+    libexec.install "members.txt"
+  end
+
+  test do
+    members = (libexec/"members.txt").read.split
+    %w[@@members@@].each do |member|
+      assert_includes members, member
+    end
+  end
+end

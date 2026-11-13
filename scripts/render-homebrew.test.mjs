@@ -3,11 +3,20 @@ import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { COMMAND_LINKS } from "./build-toolchain.mjs";
-import { render, renderAll } from "./render-homebrew.mjs";
+import {
+  className,
+  render,
+  renderAll,
+  renderBundle,
+  renderCask,
+  renderUnit,
+} from "./render-homebrew.mjs";
 import { makeTempDir } from "./temp-dirs.mjs";
+import { allFormulae, loadUnits } from "./units.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const APP = "b".repeat(64);
+const UNIT_SHA = "c".repeat(64);
 
 describe("render", () => {
   it("fills every placeholder", () => {
@@ -17,12 +26,16 @@ describe("render", () => {
   it("throws on a missing value", () => {
     expect(() => render("@@a@@-@@b@@", { a: "1" })).toThrow(/No value for b/);
   });
+
+  it("throws on an empty value", () => {
+    expect(() => render("@@a@@", { a: "" })).toThrow(/No value for a/);
+  });
 });
 
-describe("renderAll on the committed template", () => {
+describe("renderCask on the committed template", () => {
   const out = makeTempDir("brew-");
 
-  renderAll(ROOT, "1.2.3", APP, out);
+  renderCask(ROOT, "1.2.3", APP, out);
 
   const cask = readFileSync(join(out, "Casks/recognizer.rb"), "utf8");
   const binaries = [
@@ -49,6 +62,10 @@ describe("renderAll on the committed template", () => {
     );
 
     expect(formulae).toEqual(["node", "kenmclennan/tap/recognizer-plugins"]);
+    expect(cask).toContain('  depends_on formula: "node"\n');
+    expect(cask).toContain(
+      '  depends_on formula: "kenmclennan/tap/recognizer-plugins"\n',
+    );
     expect(cask).not.toContain("python@3.13");
     expect(cask).toContain("depends_on arch: :arm64");
   });
@@ -74,5 +91,107 @@ describe("renderAll on the committed template", () => {
   it("has no preflight_steps and keeps the quarantine postflight", () => {
     expect(cask).not.toContain("preflight_steps");
     expect(cask).toContain("postflight_steps do");
+  });
+});
+
+describe("renderUnit and renderBundle on the committed templates", () => {
+  const units = loadUnits(ROOT);
+
+  function formulaFor(unit, name) {
+    const out = makeTempDir("brew-unit-");
+
+    renderUnit(ROOT, unit, "4.5.6", UNIT_SHA, out);
+
+    return {
+      out,
+      text: readFileSync(join(out, "Formula", `${name}.rb`), "utf8"),
+    };
+  }
+
+  it.each([
+    ["scan-python", "recognizer-scan-python", '  depends_on "python@3.13"'],
+    ["scan-typescript", "recognizer-scan-typescript", '  depends_on "node"'],
+    ["scan-rust", "recognizer-scan-rust", null],
+  ])("renders the %s formula with its runtime", (unit, name, runtime) => {
+    const { text } = formulaFor(unit, name);
+    const dependencies = [...text.matchAll(/^[ \t]*depends_on .*$/gm)].map(
+      ([line]) => line,
+    );
+
+    expect(text).toContain(`class ${className(name)} < Formula`);
+    expect(text).toContain(
+      `releases/download/${unit}-v4.5.6/${unit}-4.5.6.tar.gz`,
+    );
+    expect(text).toContain(UNIT_SHA);
+    expect(text).toContain(`bin.install_symlink libexec/"bin/${name}"`);
+    expect(text).toContain(`#{bin}/${name} --version`);
+    expect(dependencies).toEqual([
+      "  depends_on arch: :arm64",
+      "  depends_on :macos",
+      ...(runtime === null ? [] : [runtime]),
+    ]);
+    expect(text).not.toContain("@@");
+  });
+
+  it("renders the sensors unit as three formulae with one url and different links", () => {
+    const out = makeTempDir("brew-sensors-");
+    const names = renderUnit(ROOT, "sensors", "4.5.6", UNIT_SHA, out);
+    const texts = names.map((name) =>
+      readFileSync(join(out, "Formula", `${name}.rb`), "utf8"),
+    );
+    const urls = texts.map((text) => /^\s*url "([^"]+)"/m.exec(text)[1]);
+    const links = texts.map((text) => /install_symlink (.*)$/m.exec(text)[1]);
+
+    expect(names).toEqual([
+      "recognizer-sense-crap",
+      "recognizer-sense-mutation",
+      "recognizer-sense-thresholds",
+    ]);
+    expect(new Set(urls).size).toBe(1);
+    expect(urls[0]).toContain("sensors-v4.5.6/sensors-4.5.6.tar.gz");
+    expect(new Set(links).size).toBe(3);
+  });
+
+  it("renders the bundle depending on the nine formulae and nothing else", () => {
+    const out = makeTempDir("brew-bundle-");
+
+    renderBundle(ROOT, 3, UNIT_SHA, out);
+
+    const text = readFileSync(
+      join(out, "Formula/recognizer-plugins.rb"),
+      "utf8",
+    );
+    const dependencies = [...text.matchAll(/depends_on "([^"]+)"/g)].map(
+      ([, name]) => name,
+    );
+
+    expect(dependencies.sort()).toEqual(
+      allFormulae(units)
+        .map((one) => one.formula)
+        .sort(),
+    );
+    expect(dependencies).toHaveLength(9);
+    expect(text).toContain("recognizer-plugins-v3/recognizer-plugins-3.tar.gz");
+    expect(text).toContain("class RecognizerPlugins < Formula");
+  });
+
+  it("renders every formula, the bundle and the cask together", () => {
+    const out = makeTempDir("brew-all-");
+
+    renderAll(ROOT, "1.2.3", APP, out);
+
+    expect(readdirSync(join(out, "Formula")).sort()).toEqual(
+      [
+        ...allFormulae(units).map((one) => `${one.formula}.rb`),
+        "recognizer-plugins.rb",
+      ].sort(),
+    );
+    expect(readdirSync(join(out, "Casks"))).toEqual(["recognizer.rb"]);
+  });
+
+  it("still throws for an empty value", () => {
+    expect(() =>
+      renderUnit(ROOT, "sensors", "", UNIT_SHA, makeTempDir("x-")),
+    ).toThrow(/No value for version/);
   });
 });
