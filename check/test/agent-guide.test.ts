@@ -63,7 +63,7 @@ describe("agent guide", () => {
   });
 
   it("has a line for every command in the table", () => {
-    expect(COMMANDS).toHaveLength(22);
+    expect(COMMANDS).toHaveLength(23);
 
     for (const command of COMMANDS) {
       expect(agentGuide()).toContain(

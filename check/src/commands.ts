@@ -7,6 +7,7 @@ import { runDoctor } from "./doctor-command.js";
 import { runHelp } from "./help.js";
 import { runLog } from "./log-command.js";
 import { runOpen } from "./open-command.js";
+import { runPlugin } from "./plugin-command.js";
 import { runPolicy } from "./policy-command.js";
 import {
   runCallers,
@@ -1036,6 +1037,44 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runDoctor,
+  },
+  {
+    name: "plugin",
+    summary:
+      "check that a command is a conforming Recognizer plugin: that its manifest verb answers, validates and is named for its kind",
+    usage: "recognizer plugin check <command> [--json]",
+    arguments: [
+      {
+        name: "<command>",
+        description:
+          "the plugin's program name, looked up on PATH, or an absolute path; its basename must be recognizer-scan-<name>, recognizer-sense-<name> or recognizer-describe-<name>",
+      },
+    ],
+    options: [{ flag: "--json", description: "print JSON instead of text" }],
+    output: {
+      text: "one line per result: ok, warn or fail, the result's name and, for a warning or a failure, the reason; the results are starts, clean-output, valid, named-for-command, protocol, side-effect-free and sentences",
+      json: "{ command, manifest, results: [{ name, status: ok|warn|fail, reason? }] } where manifest is the plugin's manifest, or null when it gave no valid one",
+    },
+    exitCodes: [
+      { code: 0, meaning: "nothing failed; a warning passes" },
+      { code: 1, meaning: "at least one result failed" },
+      {
+        code: 2,
+        meaning:
+          "bad input - no command, an unknown flag, or a command that cannot be found on PATH",
+      },
+    ],
+    examples: [
+      {
+        command: "recognizer plugin check recognizer-scan-python",
+        note: "run the conformance check against an installed plugin",
+      },
+      {
+        command: "recognizer plugin check ./bin/recognizer-sense-mine --json",
+        note: "check a plugin by path and print the results for a script",
+      },
+    ],
+    run: runPlugin,
   },
   {
     name: "windows",
