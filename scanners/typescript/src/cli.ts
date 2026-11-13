@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { statSync, writeFileSync } from "node:fs";
 import { ScanError } from "./errors.js";
+import { manifestText } from "./manifest.js";
 import { scan } from "./scan.js";
 import { render } from "./serialise.js";
 import { scannerVersion } from "./version.js";
@@ -102,6 +103,12 @@ export function resolveModified(root: string): boolean | null {
 }
 
 export function run(argv: string[], io: Io = nodeIo()): number {
+  if (argv.length === 1 && argv[0] === "manifest") {
+    io.stdout(manifestText());
+
+    return 0;
+  }
+
   if (argv.length === 1 && argv[0] === "--version") {
     io.stdout(`${scannerVersion()}\n`);
 
