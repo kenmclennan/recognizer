@@ -3,7 +3,7 @@
 Scans a Rust source tree into a scan document, using the `syn` parser.
 
 ```sh
-recognizer-scan-rust ROOT [--commit SHA] [--modified true|false] [--output FILE]
+recognizer-scan-rust run ROOT [--commit SHA] [--modified true|false] [--output FILE]
 ```
 
 `ROOT` is the repository root and the base of every module id. The commit defaults to `git rev-parse HEAD`, or `null` outside git. Output goes to stdout unless `--output` is given. When a `mod name;` declaration has no file, one line `recognizer-scan-rust: N mod declarations had no file` goes to stderr.

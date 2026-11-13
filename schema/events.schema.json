@@ -80,8 +80,7 @@
       "required": [
         "event",
         "code",
-        "text",
-        "fix"
+        "text"
       ],
       "properties": {
         "event": {

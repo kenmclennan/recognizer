@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import type { Io } from "./cli.js";
 import validate from "./generated/scan-marker-validator.js";
+import type { Diagnosis } from "./plugin-events.js";
 import type { PhaseName } from "./run-log.js";
-import type { DiagnosisCode } from "./sensor-reason.js";
 
 export const MARKER_FILE = "scan-running.json";
 export const PROGRESS_FILE = "scan-running.progress.jsonl";
@@ -32,7 +32,7 @@ export interface RunGap {
 export interface RunFailure {
   sensor: string;
   suite: string | null;
-  code: DiagnosisCode | null;
+  code: Diagnosis["code"] | null;
   reason: string;
 }
 

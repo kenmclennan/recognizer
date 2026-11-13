@@ -21,6 +21,7 @@ describe("fakeSensors describer", () => {
       status: "ok",
       command: [
         "recognizer-describe-claude",
+        "run",
         "--model",
         "{model}",
         "{request}",

@@ -1,8 +1,10 @@
 import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
+import { readManifestOf } from "./plugin-manifest.js";
+import { pluginPrefix } from "./plugin-run.js";
 import { selectSensors } from "./scan-phases.js";
-import { shippedSensorNames } from "./shipped-sensors.js";
+import { shippedSensorNames, shippedSensorOf } from "./shipped-sensors.js";
 
 export interface SensorGap {
   code: string;
@@ -27,7 +29,15 @@ export interface CheckableSensor {
 
 export const CHECK_TIMEOUT_MS = 600_000;
 
-const SENSORS_PROGRAM = "recognizer-sensors";
+function checkable(command: readonly string[]): boolean {
+  return (
+    pluginPrefix(command) !== null && shippedSensorOf(command) !== undefined
+  );
+}
+
+function notInstalled(command: readonly string[]): string {
+  return `${command[0]} is not installed`;
+}
 
 const DROPPED_PAIRS = ["--commit", "--output", "--modules", "--suites"];
 
@@ -97,14 +107,23 @@ export function strippedArguments(
   return kept;
 }
 
+function afterRun(command: string[]): { prefix: string[]; rest: string[] } {
+  const at = command.indexOf("run");
+
+  return { prefix: command.slice(0, at), rest: command.slice(at + 1) };
+}
+
 export function checkArguments(
   command: string[],
   root: string,
   run: boolean,
 ): string[] {
+  const { prefix, rest } = afterRun(command);
+
   return [
-    ...strippedArguments(command, root, ["--suites"]),
-    "--check",
+    ...prefix,
+    "check",
+    ...strippedArguments(rest, root, ["--suites"]),
     ...(run ? ["--run"] : []),
   ];
 }
@@ -114,17 +133,17 @@ export function guideText(
   root: string,
   sensor: CheckableSensor,
 ): { text: string } | { failure: string } {
-  if (sensor.command[0] !== SENSORS_PROGRAM) {
+  if (!checkable(sensor.command)) {
     return { text: "" };
   }
 
-  const full = [...strippedArguments(sensor.command, root), "--guide"];
-  const program = full[0] as string;
-  const rest = full.slice(1);
-  const result = io.run(program, rest, { cwd: root });
+  const { prefix } = afterRun(sensor.command);
+  const result = io.run(prefix[0] as string, [...prefix.slice(1), "guide"], {
+    cwd: root,
+  });
 
   if (!result.started) {
-    return { failure: `${SENSORS_PROGRAM} is not installed` };
+    return { failure: notInstalled(sensor.command) };
   }
 
   if (result.status !== 0) {
@@ -166,11 +185,28 @@ export function checkSensor(
   sensor: CheckableSensor,
   run: boolean,
 ): SensorReport {
-  if (sensor.command[0] !== SENSORS_PROGRAM) {
+  if (!checkable(sensor.command)) {
     return {
       name: sensor.name,
       ready: true,
       checked: false,
+      gaps: [],
+      notes: [],
+    };
+  }
+
+  const declared = readManifestOf(
+    io,
+    afterRun(sensor.command).prefix.map((item) =>
+      item.split("{repository}").join(root),
+    ),
+  );
+
+  if (declared.ok && !declared.manifest.check) {
+    return {
+      name: sensor.name,
+      ready: true,
+      checked: true,
       gaps: [],
       notes: [],
     };
@@ -194,7 +230,7 @@ export function checkSensor(
         {
           code: "sensors-missing",
           suite: null,
-          line: `${SENSORS_PROGRAM} is not installed`,
+          line: notInstalled(sensor.command),
         },
       ],
       notes: [],

@@ -11,6 +11,7 @@ from dataclasses import asdict
 
 import pytest
 from conftest import (
+    event_lines,
     git_commit,
     make_repository,
     mutate_repository,
@@ -484,16 +485,10 @@ def test_the_progress_total_counts_a_function_without_a_covering_test_on_every_r
     output = tmp_path / "overlay.json"
     settings = mutate_settings("tests/strong.py", max_workers=1)
 
-    monkeypatch.setenv("RECOGNIZER_PROGRESS", "1")
-
     def totals():
-        lines = [
-            json.loads(line.removeprefix("recognizer-progress "))
-            for line in capsys.readouterr().err.splitlines()
-            if line.startswith("recognizer-progress ")
-        ]
+        lines = event_lines(capsys.readouterr().err)
 
-        return {line["total"] for line in lines if line["step"] == "mutants"}
+        return {line["total"] for line in lines if line["event"] == "progress"}
 
     assert run_mutate(root, output, settings) == 0
 

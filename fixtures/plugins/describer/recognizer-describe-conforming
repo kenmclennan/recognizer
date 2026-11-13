@@ -1,0 +1,37 @@
+#!/bin/sh
+case "$1" in
+manifest)
+cat <<'MANIFEST'
+{
+  "kind": "describer",
+  "name": "conforming",
+  "display": "Claude",
+  "version": "0.1.0",
+  "protocol": 1,
+  "install": "brew install --cask kenmclennan/tap/recognizer",
+  "check": true,
+  "long_running": false,
+  "time_limit_seconds": 120,
+  "units": [
+    "modules"
+  ],
+  "settings": [],
+  "prompt_version": "prompt-b450a986f729"
+}
+MANIFEST
+exit 0
+;;
+check)
+echo '{"gaps":[],"notes":[]}'
+exit 0
+;;
+guide)
+exit 0
+;;
+run)
+exit 1
+;;
+*)
+exit 2
+;;
+esac

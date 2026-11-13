@@ -21,6 +21,7 @@ for (const name of [
   "config-keys",
   "manifest",
   "events",
+  "check",
 ]) {
   const schema = JSON.parse(
     readFileSync(

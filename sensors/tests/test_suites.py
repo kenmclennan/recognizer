@@ -281,6 +281,7 @@ def test_a_scanned_language_with_no_suite_is_unknown_and_named(tmp_path):
     assert diagnosis == {
         "code": "coverage-unavailable",
         "line": "coverage unavailable: no test suite is configured for typescript",
+        "unmeasured": True,
     }
 
 

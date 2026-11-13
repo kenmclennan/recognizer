@@ -3,7 +3,7 @@
 Scans a Kotlin source tree into a scan document, using py-tree-sitter with the [fwcd/tree-sitter-kotlin](https://github.com/fwcd/tree-sitter-kotlin) grammar, pinned to a git commit in `pyproject.toml` (`[tool.uv.sources]`, as the C# scanner pins its grammar) with py-tree-sitter pinned exactly. The PyPI `tree-sitter-kotlin` 1.1.0 is the newest release of the other grammar lineage and fails on `when` guards and `context(...)` parameters; a git commit is the only way to get a grammar that parses them, since fwcd's tags stop at 0.3.8, which predates guards.
 
 ```sh
-recognizer-scan-kotlin ROOT [--commit SHA] [--modified true|false] [--output FILE]
+recognizer-scan-kotlin run ROOT [--commit SHA] [--modified true|false] [--output FILE]
 ```
 
 `ROOT` is the repository root and the base of every module id. The commit defaults to `git rev-parse HEAD`, or `null` outside git. Output goes to stdout unless `--output` is given. When some files had damaged spans, one line `recognizer-scan-kotlin: D of N files had damaged spans` goes to stderr.

@@ -137,10 +137,13 @@ describe("the run model", () => {
           sensing: "mutation",
           sensorProgress: {
             name: "mutation",
-            step: "mutants",
-            suite: "unit",
-            done: 11,
-            total: 29,
+            phase: "sense",
+            progress: {
+              done: 11,
+              total: 29,
+              unit: "functions",
+              step: "unit",
+            },
           },
         },
       ),
@@ -150,7 +153,11 @@ describe("the run model", () => {
         { phase: "running" },
         {
           sensing: "crap",
-          sensorProgress: { name: "crap", step: "coverage", suite: "unit" },
+          sensorProgress: {
+            name: "crap",
+            phase: "sense",
+            note: "Coverage run for unit",
+          },
         },
       ),
     );
@@ -159,7 +166,7 @@ describe("the run model", () => {
       head: "Scanning",
       line: "Mutation \u00b7 unit \u00b7 11/29",
     });
-    expect(coverage?.card.line).toBe("C.R.A.P. \u00b7 unit");
+    expect(coverage?.card.line).toBe("C.R.A.P.");
   });
 
   it("reads Mutation 29/29 on a running record and a stopped one", () => {
@@ -167,9 +174,8 @@ describe("the run model", () => {
       sensing: "mutation",
       sensorProgress: {
         name: "mutation",
-        step: "mutants" as const,
-        done: 29,
-        total: 29,
+        phase: "sense" as const,
+        progress: { done: 29, total: 29, unit: "functions" },
       },
     };
 
@@ -244,7 +250,7 @@ describe("the run model", () => {
 
     expect(run?.card).toMatchObject({
       head: "C.R.A.P. failed on web",
-      line: "No coverage report",
+      line: "suite web left no coverage report at coverage/lcov.info",
       lineTitle: "suite web left no coverage report at coverage/lcov.info",
       showLog: ".recognizer/cache/log/20261112-scan.json",
       tone: "bad",
@@ -253,32 +259,34 @@ describe("the run model", () => {
     expect(bare?.card.line).toBe("x".repeat(60));
   });
 
-  it.each([
-    ["tests-failed", "Tests failed"],
-    ["tool-missing", "Tool missing"],
-    ["coverage-unavailable", "No coverage report"],
-  ] as const)("reads the short reason of %s", (code, text) => {
-    const run = model(
-      view({
-        phase: "failed",
-        ended_at: ENDED,
-        exit: 1,
-        failure: { sensor: "crap", suite: "unit", code, reason: "long reason" },
-      }),
-    );
+  it.each(["tests-failed", "custom-code"])(
+    "reads the reason of a %s failure cut to the limit",
+    (code) => {
+      const run = model(
+        view({
+          phase: "failed",
+          ended_at: ENDED,
+          exit: 1,
+          failure: {
+            sensor: "crap",
+            suite: "unit",
+            code,
+            reason: "r".repeat(90),
+          },
+        }),
+      );
 
-    expect(run?.card.line).toBe(text);
-  });
+      expect(run?.card.line).toBe("r".repeat(60));
+    },
+  );
 
   it("reads the stopped card with the kept count, the skipped suites, and without counts", () => {
     const progress = {
       sensing: "mutation",
       sensorProgress: {
         name: "mutation",
-        step: "mutants" as const,
-        suite: "unit",
-        done: 11,
-        total: 29,
+        phase: "sense" as const,
+        progress: { done: 11, total: 29, unit: "functions", step: "unit" },
       },
       startedSuites: { mutation: ["unit"] },
     };
@@ -323,9 +331,8 @@ describe("the run model", () => {
           sensing: "mutation",
           sensorProgress: {
             name: "mutation",
-            step: "mutants",
-            done: 11,
-            total: 29,
+            phase: "sense",
+            progress: { done: 11, total: 29, unit: "functions" },
           },
         },
       ),

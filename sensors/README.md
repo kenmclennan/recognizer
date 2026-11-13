@@ -3,12 +3,13 @@
 Recognizer's shipped sensors. Each reads the repository's cached scans and its working tree and writes one findings file (`schema/findings.schema.json`); `crap` and `mutation` also write an overlay (`schema/overlay.schema.json`). A sensor is one complete run: `crap` and `mutation` run the repository's tests themselves, so they execute the repository's code in its working tree.
 
 ```sh
-recognizer-sensors NAME [--repository P] [--commit C] [--output F] [--settings JSON]
+recognizer-sense-NAME run [--repository P] [--commit C] [--output F] [--settings JSON]
+recognizer-sensors NAME run [--repository P] [--commit C] [--output F] [--settings JSON]
 ```
 
 `--repository` defaults to `.`, `--commit` to `git rev-parse HEAD`, `--output` to stdout and `--settings` to `{}`. Exit status is `2` for an unknown or missing name, a `--settings` that is not a JSON object or holds a bad or unknown key, a missing repository, no commit and any argument error. `--version` prints the package version, which is also the findings file's `sensor.version`.
 
-A repository registers a shipped sensor in `.recognizer/config.yaml` by name: `sensors: {thresholds: {}}`. `recognizer` expands that to `recognizer-sensors thresholds --repository {repository} --commit {commit} --output {output} --settings <the mapping as JSON>`.
+A repository registers a shipped sensor in `.recognizer/config.yaml` by name: `sensors: {thresholds: {}}`. `recognizer` expands that to `recognizer-sense-thresholds run --repository {repository} --commit {commit} --output {output} --settings <the mapping as JSON>`.
 
 `brew install --cask kenmclennan/tap/recognizer` installs `recognizer-sensors` on `PATH`; the names it knows are the registry in `src/recognizer_sensors/registry.py`. Contributors run it from a checkout with `uv run --project sensors recognizer-sensors NAME`.
 
@@ -17,15 +18,15 @@ A sensor reports nothing for a file its grammars do not parse: a file with an ex
 ## Readiness check and setup guide
 
 ```sh
-recognizer-sensors NAME --repository P --settings JSON --check [--run]
-recognizer-sensors NAME --guide
+recognizer-sense-NAME check --repository P [--settings JSON] [--run]
+recognizer-sense-NAME guide
 ```
 
-`--check` prints one JSON line, `{"gaps": [{"code", "suite", "line"}], "notes": [{"code", "suite", "line"}]}`, and exits `0` whether or not there are gaps (`2` for bad arguments). It needs no commit, writes nothing in the repository and starts no test run. `--run` is valid only with `--check`: it also runs each suite that has no gap once and reports `coverage-missing`, `coverage-unreadable` or (a well-formed jacoco report that matches no scanned file, or no scan at all) `coverage-unmatched` when its coverage report is absent, does not parse or matches nothing; a failing suite that leaves a parseable report is not a gap. Under `--run` a suite with no gap whose report covers fewer than all scanned files of its language under its directory also gets a note, code `coverage-partial`, such as `suite core: the coverage report covers 19 of 71 scanned Rust files`; a note is never a gap and changes neither readiness nor the exit status, and an lcov report covering none of the scanned files is `covers 0 of N` rather than `coverage-unmatched`. A settings error is one gap, `config`, never exit `2`. `thresholds` has no check and prints `{"gaps": [], "notes": []}`.
+`check` prints one JSON line (valid against `schema/check.schema.json`), `{"gaps": [{"code", "suite", "line"}], "notes": [{"code", "suite", "line"}]}`, and exits `0` whether or not there are gaps (`2` for bad arguments). It needs no commit, writes nothing in the repository and starts no test run. `--run` is valid only with `check`: it also runs each suite that has no gap once and reports `coverage-missing`, `coverage-unreadable` or (a well-formed jacoco report that matches no scanned file, or no scan at all) `coverage-unmatched` when its coverage report is absent, does not parse or matches nothing; a failing suite that leaves a parseable report is not a gap. Under `--run` a suite with no gap whose report covers fewer than all scanned files of its language under its directory also gets a note, code `coverage-partial`, such as `suite core: the coverage report covers 19 of 71 scanned Rust files`; a note is never a gap and changes neither readiness nor the exit status, and an lcov report covering none of the scanned files is `covers 0 of N` rather than `coverage-unmatched`. A settings error is one gap, `config`, never exit `2`. `thresholds` has no check: its manifest says `check: false`, and `check` exits `2` with a usage message.
 
 `crap` and `mutation` share one check of the `tests:` suites: with none, `no-test-suites`; per suite, the directory exists (`directory-missing`), then `activate` runs in the user's login shell from the suite's directory (`activate-failed` when it does not, bounded by 60 seconds), then the mandated tools of its language are present: Python `pytest`, `coverage` and `pytest-cov` importable; TypeScript the one runner's packages (`vitest` with `@vitest/coverage-v8` or `@vitest/coverage-istanbul`, or `jest`; both runners in `package.json` is `runner-conflict`); Kotlin an executable `gradlew` and the JaCoCo plugin with its XML report; Rust `cargo llvm-cov` and a `llvm-tools` component in `rustup component list --installed`; C# `coverlet.collector` in every test project. Each gap is one sentence naming the suite, such as `suite api: pytest-cov is not installed in the activated environment`. No install command is offered or run.
 
-`--guide` prints the sensor's setup guide as plain text, empty for a sensor with none. The core prints it for `recognizer help sensors <name>`.
+`guide` prints the sensor's setup guide as plain text, empty for a sensor with none. The core prints it for `recognizer help sensors <name>`.
 
 ## crap
 
@@ -46,7 +47,9 @@ Unknown is never zero: a function whose file has no entry in the report has no `
 
 A failing test run does not end C.R.A.P. A suite's report is read even when the suite fails, and the findings document then carries a `diagnosis` with code `tests-failed`, the count of failing tests where the output names them (`failing.count`), at most five names (`failing.names`) and a line such as `3 tests failed, so coverage may read low`. When a suite leaves no fresh report, or its program does not start, C.R.A.P. reports complexity alone (every function has unknown coverage, so findings read `unknown coverage, CRAP at least <cc>` and the overlay holds only `complexity`) and the document carries a `diagnosis` with code `coverage-unavailable` and a line such as `coverage unavailable: the api suite left no coverage report at <path>; see .recognizer/cache/coverage/last-run.log`. Mutation instead refuses: it exits `2` and writes no document, before any mutant, when a suite's coverage run exits non-zero (code `tests-failed`, naming up to five failing tests: `the test suite fails before any mutation: tests/test_orders.py::test_refund and 2 more`) or no coverage can be produced (code `coverage-unavailable`).
 
-A refusal prints exactly two stderr lines: a line starting `recognizer-reason` and a space, followed by the diagnosis as JSON (`code`, `line`, optional `fix` and `failing`), then the plain `line`. Every other exit-2 path (bad settings, an unknown sensor) prints one plain line. The combined output of every command is in `.recognizer/cache/coverage/last-run.log`. The commands run in the sensor's own process group, so killing the group ends them.
+A refusal prints exactly two stderr lines: a `recognizer-event` line carrying a `diagnosis` event (`code`, `text` and optional `fix`), then the plain `line`. Every other exit-2 path (bad settings, an unknown sensor) prints one plain line. The combined output of every command is in `.recognizer/cache/coverage/last-run.log`. The commands run in the sensor's own process group, so killing the group ends them.
+
+Every sensor writes `recognizer-event` lines on stderr, always: `crap` a `start` of the functions it measured and a `note` per suite as its coverage run starts, `mutation` a `start` of the functions to mutate and a `progress` per suite (with `step` the suite name when more than one runs), `thresholds` a `start` of the modules and one closing `progress`. A diagnosis's `code` is the sensor's own short string, and the optional boolean `unmeasured` says the sensor finished without measuring what it was asked to (for example a language with no test suite), which makes the CLI record the run as failed. A diagnosis without it, such as `tests-failed`, does not.
 
 ## duplication
 

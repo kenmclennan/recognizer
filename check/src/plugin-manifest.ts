@@ -47,8 +47,9 @@ export function runManifest(
   io: Io,
   command: string,
   cwd?: string,
+  leading: string[] = [],
 ): ManifestRun {
-  return io.run(command, ["manifest"], {
+  return io.run(command, [...leading, "manifest"], {
     timeoutMs: MANIFEST_TIMEOUT_MS,
     ...(cwd === undefined ? {} : { cwd }),
   });
@@ -102,6 +103,15 @@ export function interpretManifest(
 
 export function readManifest(io: Io, command: string): ManifestRead {
   return interpretManifest(command, runManifest(io, command));
+}
+
+export function readManifestOf(io: Io, prefix: string[]): ManifestRead {
+  const [program, ...leading] = prefix as [string, ...string[]];
+
+  return interpretManifest(
+    prefix.join(" "),
+    runManifest(io, program, undefined, leading),
+  );
 }
 
 export function judgeProtocol(

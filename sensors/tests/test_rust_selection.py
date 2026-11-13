@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from conftest import git_commit, write_scan_document
+from conftest import git_commit, plain_lines, write_scan_document
 from test_mutation import RECORD, read, read_resolved, run_mutate
 
 from recognizer_sensors.mutation import commands
@@ -398,7 +398,7 @@ def test_a_repository_with_no_units_has_no_selection_and_prints_nothing(
     root, scan = make(tmp_path, monkeypatch, targets=[])
 
     assert collect(root, scan, tmp_path)[1] == {}
-    assert capsys.readouterr().err == ""
+    assert plain_lines(capsys.readouterr().err) == ""
 
 
 def test_the_reader_over_the_committed_rust_scanner_finds_every_unit():

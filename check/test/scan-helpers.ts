@@ -1,5 +1,19 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { DirEntry, Io, RequestResult, RunResult } from "../src/cli.js";
+import { REPO } from "./helpers.js";
+
+export function describerManifestText(promptVersion: string): string {
+  const manifest = JSON.parse(
+    readFileSync(
+      join(REPO, "schema/manifest-examples/valid/describer.json"),
+      "utf8",
+    ),
+  );
+
+  return `${JSON.stringify({ ...manifest, prompt_version: promptVersion })}\n`;
+}
 
 export interface ScannerBehaviour {
   status?: number;
@@ -203,6 +217,13 @@ export function fakeIo(options: FakeOptions = {}): Fake {
           };
     }
 
+    if (
+      args.at(-1) === "manifest" &&
+      options.programs?.[command] === undefined
+    ) {
+      return { started: false, status: null, stdout: "", stderr: "" };
+    }
+
     calls.push({
       command,
       args,
@@ -213,12 +234,15 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     });
 
     if (
-      command === "recognizer-sensors" &&
-      (args.includes("--version") || args.includes("--check"))
+      (command === "recognizer-sensors" && args.includes("--version")) ||
+      (command.startsWith("recognizer-sense-") && args.includes("check"))
     ) {
       const effect = args.includes("--version")
         ? (options.sensorsPreflight?.version ?? { stdout: "0.0.0\n" })
-        : (options.sensorsPreflight?.run?.(args) ?? {
+        : (options.sensorsPreflight?.run?.([
+            command.slice("recognizer-sense-".length),
+            ...args.slice(1),
+          ]) ?? {
             stdout: `${JSON.stringify({ gaps: [] })}\n`,
           });
 
@@ -230,10 +254,22 @@ export function fakeIo(options: FakeOptions = {}): Fake {
       };
     }
 
-    const program = options.programs?.[command];
+    const sensing =
+      command.startsWith("recognizer-sense-") &&
+      args[0] === "run" &&
+      options.programs?.[command] === undefined;
+    const program = sensing
+      ? options.programs?.["recognizer-sensors"]
+      : options.programs?.[command];
 
     if (program) {
-      const effect = program(args, files) ?? {};
+      const effect =
+        program(
+          sensing
+            ? [command.slice("recognizer-sense-".length), ...args.slice(1)]
+            : args,
+          files,
+        ) ?? {};
 
       return {
         started: effect.started ?? true,

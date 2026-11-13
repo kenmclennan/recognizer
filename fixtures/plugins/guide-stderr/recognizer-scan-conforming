@@ -1,0 +1,116 @@
+#!/bin/sh
+case "$1" in
+manifest)
+cat <<'MANIFEST'
+{
+  "kind": "scanner",
+  "name": "conforming",
+  "display": "Python",
+  "version": "0.1.0",
+  "protocol": 1,
+  "install": "brew install --cask kenmclennan/tap/recognizer",
+  "check": false,
+  "long_running": true,
+  "units": [
+    "files"
+  ],
+  "settings": [],
+  "languages": [
+    {
+      "name": "conforming",
+      "extensions": [
+        ".py"
+      ],
+      "files": [],
+      "skip": {
+        "directory_names": [
+          "__pycache__",
+          "test",
+          "tests",
+          "dist",
+          "build",
+          "node_modules",
+          "site-packages"
+        ],
+        "directory_prefixes": [
+          "."
+        ],
+        "directory_suffixes": [
+          ".egg-info"
+        ],
+        "directory_markers": [
+          "pyvenv.cfg"
+        ],
+        "file_globs": [
+          "conftest.py"
+        ]
+      }
+    }
+  ]
+}
+MANIFEST
+exit 0
+;;
+check)
+exit 2
+;;
+guide)
+echo noise >&2
+exit 0
+;;
+run)
+shift
+shift
+out=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --output) out=$2; shift 2 ;;
+    *) shift ;;
+  esac
+done
+echo 'recognizer-event {"event":"start","total":1,"unit":"files"}' >&2
+sleep 0.5
+cat > "$out" <<'SCAN'
+{
+  "schema_version": 7,
+  "scanner": {
+    "name": "recognizer-scan-python",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "sample.py",
+      "hash": "cb423ea559ddc5c92a8df7f34285fed03c3497bece8bd2d7893afb59792dc5d3"
+    }
+  ],
+  "selection": {
+    "extensions": [
+      ".py"
+    ],
+    "skip_directory_names": [],
+    "skip_directory_prefixes": [],
+    "skip_directory_suffixes": [],
+    "skip_directories_containing": [],
+    "skip_file_globs": []
+  },
+  "modules": [
+    {
+      "id": "sample.py",
+      "language": "python",
+      "kind": "module",
+      "members": []
+    }
+  ],
+  "edges": [],
+  "foreign": []
+}
+SCAN
+echo 'recognizer-event {"event":"progress","done":1,"total":1,"unit":"files"}' >&2
+exit 0
+;;
+*)
+exit 2
+;;
+esac

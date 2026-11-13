@@ -3,7 +3,7 @@
 Scans a repository of Node and React workspaces into a scan document, using the TypeScript compiler API.
 
 ```sh
-recognizer-scan-typescript ROOT [--commit SHA] [--output FILE]
+recognizer-scan-typescript run ROOT [--commit SHA] [--output FILE]
 ```
 
 `ROOT` is the repository root and the base of every module id. The commit defaults to `git rev-parse HEAD`, or `null` outside git. Output goes to stdout unless `--output` is given.

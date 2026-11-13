@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 import pytest
-from conftest import git_commit, make_repository
+from conftest import event_lines, git_commit, make_repository
 
 from recognizer_sensors.cli import main
 
@@ -62,6 +62,7 @@ def test_crap_keeps_its_results_over_a_red_uv_project(red_project, tmp_path):
     status = main(
         [
             "crap",
+            "run",
             "--repository",
             str(red_project),
             "--output",
@@ -88,6 +89,7 @@ def test_mutation_refuses_over_a_red_suite_and_leaves_no_work_folder(red_project
     status = main(
         [
             "mutation",
+            "run",
             "--repository",
             str(red_project),
             "--output",
@@ -97,12 +99,11 @@ def test_mutation_refuses_over_a_red_suite_and_leaves_no_work_folder(red_project
         ]
     )
     lines = capsys.readouterr().err.splitlines()
-    reason_line = next(line for line in lines if line.startswith("recognizer-reason "))
-    reason = json.loads(reason_line.removeprefix("recognizer-reason "))
+    reason = event_lines("\n".join(lines))[-1]
 
     assert status == 2
     assert reason["code"] == "tests-failed"
-    assert reason["failing"] == {"count": 1, "names": ["test_m.py::test_g"]}
+    assert "test_m.py::test_g" in reason["text"]
     assert not output.exists()
     assert not (red_project / ".recognizer/cache/mutation/work").exists()
 
@@ -135,6 +136,7 @@ def test_crap_builds_no_environment_and_leaves_no_venv(green_project, tmp_path):
     status = main(
         [
             "crap",
+            "run",
             "--repository",
             str(green_project),
             "--output",
@@ -156,6 +158,7 @@ def test_crap_leaves_an_existing_venv_byte_for_byte_unchanged(green_project, tmp
     status = main(
         [
             "crap",
+            "run",
             "--repository",
             str(green_project),
             "--output",
@@ -210,6 +213,7 @@ def test_crap_runs_a_projects_tests_in_its_own_interpreter_without_the_sensors_u
     status = main(
         [
             "crap",
+            "run",
             "--repository",
             str(root),
             "--output",

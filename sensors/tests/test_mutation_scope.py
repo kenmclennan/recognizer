@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 import pytest
-from conftest import MUTATE_FIXTURE, git_commit, shim_suite, suite_settings
+from conftest import MUTATE_FIXTURE, event_lines, git_commit, shim_suite, suite_settings
 
 from recognizer_sensors import hashes
 from recognizer_sensors.cli import main
@@ -85,6 +85,7 @@ def mutate(root, tmp_path, settings, modules=None):
     return main(
         [
             "mutation",
+            "run",
             "--repository",
             str(root),
             "--output",
@@ -245,6 +246,7 @@ def test_a_scope_given_to_another_sensor_is_exit_2(two_modules, tmp_path, capsys
     code = main(
         [
             "thresholds",
+            "run",
             "--repository",
             str(root),
             "--output",
@@ -267,6 +269,7 @@ def test_a_malformed_scope_file_is_exit_2(two_modules, tmp_path, text):
     code = main(
         [
             "mutation",
+            "run",
             "--repository",
             str(root),
             "--output",
@@ -334,19 +337,13 @@ def test_a_scoped_run_reports_progress_over_the_scope_only(
 
     assert mutate(root, tmp_path, settings) == 0
 
-    monkeypatch.setenv("RECOGNIZER_PROGRESS", "1")
     capsys.readouterr()
 
     assert mutate(root, tmp_path, settings, ["app/second.py"]) == 0
 
-    mutants = [
-        json.loads(line.removeprefix("recognizer-progress "))
-        for line in capsys.readouterr().err.splitlines()
-        if line.startswith("recognizer-progress ")
-    ]
-    mutants = [line for line in mutants if line["step"] == "mutants"]
+    mutants = [line for line in event_lines(capsys.readouterr().err) if line["event"] == "progress"]
 
-    assert mutants == [{"step": "mutants", "suite": "sample", "done": 2, "total": 2}]
+    assert mutants == [{"event": "progress", "done": 2, "total": 2, "unit": "functions"}]
 
 
 WEB = "0web"
@@ -399,6 +396,7 @@ def mutate_suites(root, tmp_path, settings, names=None):
     return main(
         [
             "mutation",
+            "run",
             "--repository",
             str(root),
             "--output",
@@ -411,11 +409,7 @@ def mutate_suites(root, tmp_path, settings, names=None):
 
 
 def progress_lines(capsys):
-    return [
-        json.loads(line.removeprefix("recognizer-progress "))
-        for line in capsys.readouterr().err.splitlines()
-        if line.startswith("recognizer-progress ")
-    ]
+    return event_lines(capsys.readouterr().err)
 
 
 def web_identity(overlay):
@@ -434,7 +428,6 @@ def test_a_run_of_one_suite_carries_the_other_suites_recorded_functions(
     web_runs = log.read_text().splitlines().count("web")
     rules = root / "app" / "rules.py"
     rules.write_text(rules.read_text().replace("return a and b", "return b and a"))
-    monkeypatch.setenv("RECOGNIZER_PROGRESS", "1")
     capsys.readouterr()
 
     assert mutate_suites(root, tmp_path, settings, ["unit"]) == 0
@@ -446,9 +439,9 @@ def test_a_run_of_one_suite_carries_the_other_suites_recorded_functions(
     assert log.read_text().splitlines().count("web") == web_runs
     assert overlay["values"]["killed"][identity] == full["values"]["killed"][identity]
     assert overlay["values"]["survived"][identity] == full["values"]["survived"][identity]
-    assert {line.get("suite") for line in lines} == {"unit"}
-    assert [line for line in lines if line["step"] == "coverage"] == [
-        {"step": "coverage", "suite": "unit"}
+    assert {line.get("step") for line in lines if line["event"] == "progress"} <= {None}
+    assert [line for line in lines if line["event"] == "note"] == [
+        {"event": "note", "text": "Coverage run: unit"}
     ]
     assert [s["name"] for s in findings["suites"]] == ["unit", "web"]
     assert findings["suites"][1]["status"] == "ok"
@@ -469,26 +462,25 @@ def test_a_function_of_an_unselected_suite_with_no_record_is_absent(two_suites, 
     assert findings["suites"][0]["status"] == "ok"
 
 
-def test_progress_counts_one_suite_at_a_time_in_config_order(
-    two_suites, tmp_path, monkeypatch, capsys
-):
+def test_progress_counts_one_suite_at_a_time_in_config_order(two_suites, tmp_path, capsys):
     root, settings, _ = two_suites
-    monkeypatch.setenv("RECOGNIZER_PROGRESS", "1")
 
     assert mutate_suites(root, tmp_path, settings) == 0
 
     lines = progress_lines(capsys)
-    suites = [line["suite"] for line in lines if line["step"] == "coverage"]
-    mutants = [line for line in lines if line["step"] == "mutants"]
+    suites = [
+        line["text"].removeprefix("Coverage run: ") for line in lines if line["event"] == "note"
+    ]
+    mutants = [line for line in lines if line["event"] == "progress"]
     order = []
 
     for line in mutants:
-        if line["suite"] not in order:
-            order.append(line["suite"])
+        if line["step"] not in order:
+            order.append(line["step"])
 
-    unit_total = next(m["total"] for m in mutants if m["suite"] == "unit")
+    unit_total = next(m["total"] for m in mutants if m["step"] == "unit")
 
     assert suites == ["unit", "web"]
     assert order == ["unit", "web"]
-    assert max(m["done"] for m in mutants if m["suite"] == "web") == 1
+    assert max(m["done"] for m in mutants if m["step"] == "web") == 1
     assert unit_total == 5

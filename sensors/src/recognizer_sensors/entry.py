@@ -1,6 +1,6 @@
 import sys
 
-from recognizer_sensors.cli import main
+from recognizer_sensors.cli import VERB_HINT, VERBS, fail, main
 from recognizer_sensors.manifest import manifest_text
 
 
@@ -11,6 +11,12 @@ def run(name: str, argv: list[str] | None = None) -> int:
         sys.stdout.write(manifest_text(name))
 
         return 0
+
+    if arguments == ["--version"]:
+        return main([name, "--version"])
+
+    if not arguments or arguments[0] not in VERBS:
+        return fail(f"expected a verb as the first argument; {VERB_HINT}, and manifest")
 
     return main([name, *arguments])
 

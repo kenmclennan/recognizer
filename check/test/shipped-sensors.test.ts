@@ -16,8 +16,8 @@ import {
 import { REPO } from "./helpers.js";
 
 const command = (settings: string) => [
-  "recognizer-sensors",
-  "thresholds",
+  "recognizer-sense-thresholds",
+  "run",
   "--repository",
   "{repository}",
   "--commit",
@@ -53,7 +53,8 @@ describe("expandShortForms for crap", () => {
       SHIPPED_SENSORS,
     ) as { crap: { command: string[] } };
 
-    expect(expanded.crap.command[1]).toBe("crap");
+    expect(expanded.crap.command[0]).toBe("recognizer-sense-crap");
+    expect(expanded.crap.command[1]).toBe("run");
     expect(expanded.crap.command.at(-1)).toBe('{"threshold":20}');
   });
 });
@@ -65,7 +66,8 @@ describe("expandShortForms for thresholds", () => {
       SHIPPED_SENSORS,
     ) as { thresholds: { command: string[] } };
 
-    expect(expanded.thresholds.command[1]).toBe("thresholds");
+    expect(expanded.thresholds.command[0]).toBe("recognizer-sense-thresholds");
+    expect(expanded.thresholds.command[1]).toBe("run");
     expect(expanded.thresholds.command.at(-1)).toBe(
       '{"complexity":{"above":15}}',
     );
@@ -117,8 +119,8 @@ describe("the thresholds config examples", () => {
 
     expect(config.sensors?.thresholds).toEqual({
       command: [
-        "recognizer-sensors",
-        "thresholds",
+        "recognizer-sense-thresholds",
+        "run",
         "--repository",
         "{repository}",
         "--commit",
@@ -193,7 +195,7 @@ describe("the registry", () => {
         .filter((entry: { scoped: boolean }) => entry.scoped)
         .map((entry: { name: string }) => entry.name),
     ).toEqual(["mutation"]);
-    expect(isScoped(["recognizer-sensors", "mutation"])).toBe(true);
+    expect(isScoped(["recognizer-sense-mutation", "run"])).toBe(true);
 
     for (const name of ["crap", "thresholds"]) {
       expect(isScoped(["recognizer-sensors", name])).toBe(false);
@@ -203,9 +205,9 @@ describe("the registry", () => {
   });
 
   it("tests the run command, not the name alone, for runs_tests", () => {
-    expect(runsTests(["recognizer-sensors", "crap"])).toBe(true);
-    expect(runsTests(["recognizer-sensors", "mutation"])).toBe(true);
-    expect(runsTests(["recognizer-sensors", "thresholds"])).toBe(false);
+    expect(runsTests(["recognizer-sense-crap", "run"])).toBe(true);
+    expect(runsTests(["recognizer-sense-mutation", "run"])).toBe(true);
+    expect(runsTests(["recognizer-sense-thresholds", "run"])).toBe(false);
     expect(runsTests(["my-crap", "crap"])).toBe(false);
   });
 });
@@ -225,7 +227,8 @@ describe("the sensor config examples", () => {
     const entry = config.sensors?.mutation as { command: string[] };
     const command = entry.command;
 
-    expect(command[1]).toBe("mutation");
+    expect(command[0]).toBe("recognizer-sense-mutation");
+    expect(command[1]).toBe("run");
     expect(JSON.parse(command.at(-1) ?? "")).toEqual({
       carry: ["frontend/node_modules"],
       max_minutes: 5,

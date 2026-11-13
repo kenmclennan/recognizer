@@ -1,6 +1,7 @@
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from recognizer_sensors import events
 from recognizer_sensors.crap.complexity import cyclomatic_complexity
 from recognizer_sensors.crap.lcov import Coverage, function_coverage
 from recognizer_sensors.functions import find_functions
@@ -260,8 +261,12 @@ def run(
     values: dict[str, dict[str, float]] = {"complexity": {}, "coverage": {}, "crap": {}}
     inputs: set[str] = set()
 
-    for scan in scans:
-        for identity, m in measure_scan(repository, scan, coverage):
+    measured_scans = [measure_scan(repository, scan, coverage) for scan in scans]
+
+    events.start(sum(len(measured) for measured in measured_scans), "functions")
+
+    for measured in measured_scans:
+        for identity, m in measured:
             inputs.add(m.module)
             values["complexity"][identity] = m.complexity
 

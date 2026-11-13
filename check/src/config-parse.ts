@@ -5,7 +5,11 @@ import {
 } from "./config-retired.js";
 import { InputError } from "./errors.js";
 import validate from "./generated/config-validator.js";
-import { expandShortForms, SHIPPED_SENSORS } from "./shipped-sensors.js";
+import {
+  expandShortForms,
+  SHIPPED_SENSORS,
+  shippedSensorOf,
+} from "./shipped-sensors.js";
 
 export interface SensorRegistration {
   command: string[];
@@ -67,7 +71,7 @@ export function shippedSensorSettings(
   );
   const command = registered?.command;
 
-  if (command === undefined || command[0] !== "recognizer-sensors") {
+  if (command === undefined || shippedSensorOf(command) === undefined) {
     return null;
   }
 

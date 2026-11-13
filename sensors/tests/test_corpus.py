@@ -37,6 +37,7 @@ def cases_of(sensor: str) -> list:
 def run_sensor(name: str, root: Path, output: Path, settings: dict, commit: str | None = None):
     argv = [
         name,
+        "run",
         "--repository",
         str(root),
         "--output",

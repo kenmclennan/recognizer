@@ -24,6 +24,7 @@ from recognizer_scan_python.discovery import (
     selection,
 )
 from recognizer_scan_python.entry_point import is_entry_point, loaded_package_inits
+from recognizer_scan_python.events import Progress
 from recognizer_scan_python.index import ModuleIndex
 from recognizer_scan_python.infer import collect_classes, inferred_edges
 from recognizer_scan_python.outline import read_members, recorded_classes
@@ -49,7 +50,9 @@ class Parsed:
     source: str
 
 
-def parse_all(root: Path, module_ids: list[str]) -> dict[str, tuple[ast.Module, str]]:
+def parse_all(
+    root: Path, module_ids: list[str], progress: Progress | None = None
+) -> dict[str, tuple[ast.Module, str]]:
     trees = {}
     problems = []
 
@@ -64,6 +67,9 @@ def parse_all(root: Path, module_ids: list[str]) -> dict[str, tuple[ast.Module, 
             problems.append(f"{module_id}:{error.lineno or 0}: {error.msg}")
         except (ValueError, UnicodeDecodeError, RecursionError, MemoryError) as error:
             problems.append(f"{module_id}:0: {error}")
+
+        if progress is not None:
+            progress.advance()
 
     if problems:
         raise ScanError(problems)
@@ -173,12 +179,22 @@ def read_test_imports(
 
 
 def scan(
-    root: Path, source_roots: list[str] | None, commit: str | None, modified: bool | None = None
+    root: Path,
+    source_roots: list[str] | None,
+    commit: str | None,
+    modified: bool | None = None,
+    progress: Progress | None = None,
 ) -> dict:
     root = Path(root)
     listing = git_listing(root)
     module_ids = discover(root, listing)
-    trees = parse_all(root, module_ids)
+    if progress is not None:
+        progress.start(len(module_ids))
+
+    trees = parse_all(root, module_ids, progress)
+
+    if progress is not None:
+        progress.finish()
 
     detected = source_roots is None
 

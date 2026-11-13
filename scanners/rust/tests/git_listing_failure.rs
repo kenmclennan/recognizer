@@ -38,6 +38,7 @@ fn a_missing_git_scans_every_file_silently_and_a_refusal_warns_once() {
     let binary = env!("CARGO_BIN_EXE_recognizer-scan-rust");
 
     let missing = Command::new(binary)
+        .arg("run")
         .arg(directory.path())
         .env("PATH", empty.path())
         .output()
@@ -45,7 +46,7 @@ fn a_missing_git_scans_every_file_silently_and_a_refusal_warns_once() {
     let missing_ids = String::from_utf8_lossy(&missing.stdout).into_owned();
 
     assert!(
-        missing.stderr.is_empty(),
+        !String::from_utf8_lossy(&missing.stderr).contains("git could not list"),
         "{}",
         String::from_utf8_lossy(&missing.stderr)
     );
@@ -53,13 +54,20 @@ fn a_missing_git_scans_every_file_silently_and_a_refusal_warns_once() {
     assert!(missing_ids.contains("\"src/a.rs\""));
 
     let refused = Command::new(binary)
+        .arg("run")
         .arg(directory.path())
         .env("PATH", wrapper.path())
         .output()
         .unwrap();
 
+    let noise: String = String::from_utf8_lossy(&refused.stderr)
+        .lines()
+        .filter(|line| !line.starts_with("recognizer-event "))
+        .map(|line| format!("{line}\n"))
+        .collect();
+
     assert_eq!(
-        String::from_utf8_lossy(&refused.stderr),
+        noise,
         "recognizer-scan-rust: git could not list files (fatal: detected dubious ownership in repository); scanning every file\n"
     );
     assert_eq!(String::from_utf8_lossy(&refused.stdout), missing_ids);

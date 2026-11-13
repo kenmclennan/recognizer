@@ -1,6 +1,6 @@
 import { join, relative, resolve } from "node:path";
 import { type Describing, readDescribing } from "./app-settings.js";
-import type { Io } from "./cli.js";
+import type { Io, RunResult } from "./cli.js";
 import { policyFile, readConfig } from "./config.js";
 import {
   type ConfigRead,
@@ -29,6 +29,8 @@ import { errorText, InputError } from "./errors.js";
 import { findingsFile } from "./findings-files.js";
 import { type Gap, gapText, preflightLine } from "./gap.js";
 import { readPolicy } from "./load-findings.js";
+import type { PluginEvent } from "./plugin-events.js";
+import { createPluginLimits, prepareCall } from "./plugin-run.js";
 import { warnPolicyProblems } from "./policy-problems.js";
 import { earlyGaps, readinessGaps } from "./preflight.js";
 import {
@@ -62,7 +64,7 @@ import {
   parseScanArgs,
   parseSuiteSelection,
   phaseLine,
-  progressLine,
+  pluginLine,
   selectSensors,
   startLine,
   summaryLine,
@@ -72,9 +74,9 @@ import {
   notInstalledMessage,
   resolveCommand,
   SCANNERS,
+  type ScannerSpec,
   scannerFor,
 } from "./scanners.js";
-import type { SensorProgress } from "./sensor-progress.js";
 import { isScoped, runsTests, shippedSensorNames } from "./shipped-sensors.js";
 import { runStructureSensor } from "./structure-run.js";
 import { resolveStructureSettings } from "./structure-sensor.js";
@@ -181,63 +183,146 @@ interface Scanned {
   duration_ms: number;
 }
 
-function runScanner(
-  io: Io,
-  language: Language,
-  root: string,
-  commit: string | null,
-  modified: boolean | null,
-): Scanned {
+export interface ExtractInput {
+  io: Io;
+  language: Language;
+  root: string;
+  commit: string | null;
+  modified: boolean | null;
+  limits: ReturnType<typeof createPluginLimits>;
+  onEvent?: (name: string, event: PluginEvent) => void;
+}
+
+interface Prepared {
+  spec: ScannerSpec;
+  command: string;
+  args: string[];
+  output: string;
+  directory: string;
+}
+
+function prepareScanner(
+  input: ExtractInput,
+): { failed: Scanned } | { ready: Prepared } {
+  const { io, language, root, commit, modified } = input;
   const spec = scannerFor(language);
   const resolution = resolveCommand(io, spec);
 
   if (!resolution.ok) {
     return {
-      outcome: failure("invalid-override", resolution.message),
-      command: [],
-      status: null,
-      stderr: "",
-      duration_ms: 0,
+      failed: {
+        outcome: failure("invalid-override", resolution.message),
+        command: [],
+        status: null,
+        stderr: "",
+        duration_ms: 0,
+      },
     };
   }
 
   const directory = io.makeTempDir();
+  const output = join(directory, `scan.${language}.json`);
+
+  return {
+    ready: {
+      spec,
+      command: resolution.command,
+      args: buildArgs(root, output, commit, modified),
+      output,
+      directory,
+    },
+  };
+}
+
+function concludeScanner(
+  io: Io,
+  prepared: Prepared,
+  result: RunResult,
+  began: number,
+): Scanned {
+  const { spec, command, args, output } = prepared;
+  const scanned = (outcome: Outcome): Scanned => ({
+    outcome,
+    command: [command, ...args],
+    status: result.started ? result.status : null,
+    stderr: result.stderr,
+    duration_ms: io.now() - began,
+  });
+
+  if (!result.started) {
+    return scanned(failure("not-installed", notInstalledMessage(spec)));
+  }
+
+  if (result.timedOut === true) {
+    return scanned(failure("scanner-failed", "timed out"));
+  }
+
+  if (result.status !== 0) {
+    return scanned(
+      failure(
+        "scanner-failed",
+        `exit ${result.status}: ${result.stderr.trim()}`,
+      ),
+    );
+  }
+
+  let bytes: string;
 
   try {
-    const output = join(directory, `scan.${language}.json`);
-    const args = buildArgs(root, output, commit, modified);
+    bytes = io.readFile(output);
+  } catch {
+    return scanned(failure("invalid-scan", "scanner wrote no output file"));
+  }
+
+  return scanned(checkScan(bytes));
+}
+
+function runScannerSync(input: ExtractInput): Scanned {
+  const prepared = prepareScanner(input);
+
+  if ("failed" in prepared) {
+    return prepared.failed;
+  }
+
+  const { io } = input;
+
+  try {
     const began = io.now();
-    const result = io.run(resolution.command, args);
-    const scanned = (outcome: Outcome): Scanned => ({
-      outcome,
-      command: [resolution.command, ...args],
-      status: result.started ? result.status : null,
-      stderr: result.stderr,
-      duration_ms: io.now() - began,
-    });
+    const result = io.run(prepared.ready.command, prepared.ready.args);
 
-    if (!result.started) {
-      return scanned(failure("not-installed", notInstalledMessage(spec)));
-    }
+    return concludeScanner(io, prepared.ready, result, began);
+  } finally {
+    io.removeDir(prepared.ready.directory);
+  }
+}
 
-    if (result.status !== 0) {
-      return scanned(
-        failure(
-          "scanner-failed",
-          `exit ${result.status}: ${result.stderr.trim()}`,
-        ),
-      );
-    }
+async function runScannerAsync(input: ExtractInput): Promise<Scanned> {
+  const prepared = prepareScanner(input);
 
-    let bytes: string;
+  if ("failed" in prepared) {
+    return prepared.failed;
+  }
 
-    try {
-      bytes = io.readFile(output);
-    } catch {
-      return scanned(failure("invalid-scan", "scanner wrote no output file"));
-    }
+  const { io, language } = input;
+  const { command, args, directory } = prepared.ready;
 
-    return scanned(checkScan(bytes));
+  try {
+    const call = prepareCall(
+      io,
+      input.limits,
+      [command, ...args],
+      language,
+      input.onEvent,
+    );
+    const began = io.now();
+    const result = await io.runAsync(command, args, call.options).result;
+
+    return concludeScanner(
+      io,
+      prepared.ready,
+      { ...result, stderr: call.reader.keep(result.stderr) },
+      began,
+    );
   } finally {
     io.removeDir(directory);
   }
@@ -346,11 +431,12 @@ function readSuitesFile(io: Io, file: string): string {
 }
 
 type ScanStep =
+  | { kind: "extract"; input: ExtractInput }
   | { kind: "describe"; input: DescribeInput }
   | { kind: "sense"; input: RunSensorsInput }
   | { kind: "parsers"; languages: string[] };
 
-type ScanAnswer = DescribeResult | Parsers | Error | null | undefined;
+type ScanAnswer = DescribeResult | Parsers | Scanned | Error | null | undefined;
 
 function* scanFlow(
   argv: string[],
@@ -493,6 +579,7 @@ function* scanFlow(
       }
     };
 
+    const limits = createPluginLimits(io, root);
     const modified = commit === null ? null : isDirty(io, root);
     const detected = detectLanguages(io, root);
     const json = options.json;
@@ -664,7 +751,20 @@ function* scanFlow(
         continue;
       }
 
-      const scanned = runScanner(io, spec.language, root, commit, modified);
+      const scanned = (yield {
+        kind: "extract",
+        input: {
+          io,
+          language: spec.language,
+          root,
+          commit,
+          modified,
+          limits,
+          onEvent: (name, event) => {
+            emit(pluginLine("extract", name, event));
+          },
+        },
+      }) as Scanned;
       const { outcome } = scanned;
       const entry = entryFrom(spec.language, {
         command: scanned.command,
@@ -812,6 +912,9 @@ function* scanFlow(
           onStart: (total) => {
             emit(phaseLine("describe", { total }));
           },
+          onEvent: (name: string, event: PluginEvent) => {
+            emit(pluginLine("describe", name, event));
+          },
           onEntry: (entry) => {
             finishEntry(phase, entry);
 
@@ -878,15 +981,15 @@ function* scanFlow(
           onStart: (name) => {
             emit(startLine("sense", name));
           },
-          onProgress: (name: string, progress: SensorProgress) => {
-            emit(progressLine("sense", name, progress));
+          onEvent: (name: string, event: PluginEvent) => {
+            emit(pluginLine("sense", name, event));
           },
           onEntry: (entry) => {
             finishEntry(phase, entry);
 
             if (!json) {
               io.stdout(
-                `${entry.outcome === "ok" ? "ran" : "failed"} ${entry.name}\n`,
+                `${entry.outcome === "ok" ? "ran" : entry.outcome} ${entry.name}\n`,
               );
             }
           },
@@ -952,6 +1055,21 @@ export function runScanSync(argv: string[], io: Io, read: ConfigRead): number {
   let step = flow.next();
 
   while (!step.done) {
+    if (step.value.kind === "extract") {
+      let scanned: Scanned | undefined;
+      let failure: unknown;
+
+      try {
+        scanned = runScannerSync(step.value.input);
+      } catch (error) {
+        failure = error ?? new Error("scanner failed");
+      }
+
+      step = failure === undefined ? flow.next(scanned) : flow.throw(failure);
+
+      continue;
+    }
+
     if (step.value.kind !== "parsers") {
       throw new Error("a synchronous scan cannot describe or sense");
     }
@@ -969,7 +1087,18 @@ export async function runScan(argv: string[], io: Io): Promise<number> {
     let step = flow.next();
 
     while (!step.done) {
-      if (step.value.kind === "sense") {
+      if (step.value.kind === "extract") {
+        let scanned: Scanned | undefined;
+        let failure: unknown;
+
+        try {
+          scanned = await runScannerAsync(step.value.input);
+        } catch (error) {
+          failure = error ?? new Error("scanner failed");
+        }
+
+        step = failure === undefined ? flow.next(scanned) : flow.throw(failure);
+      } else if (step.value.kind === "sense") {
         await runSensors(step.value.input);
         step = flow.next(undefined);
       } else if (step.value.kind === "parsers") {

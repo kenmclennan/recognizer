@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { makeTempDir } from "./temp-dirs.mjs";
 import { pluginCommands, verifyPlugins } from "./verify-toolchain.mjs";
 
-function fakeToolchain(failing = []) {
+function fakeToolchain(failing = [], message = "") {
   const dir = makeTempDir("verify-toolchain-");
   const commands = join(dir, "commands");
 
@@ -14,7 +14,7 @@ function fakeToolchain(failing = []) {
     [
       "#!/bin/sh",
       'case "$1 $2" in "plugin check") ;; *) exit 9 ;; esac',
-      `case "$(basename "$3")" in ${failing.map((name) => `${name}) exit 1 ;;`).join(" ")} esac`,
+      `case "$(basename "$3")" in ${failing.map((name) => `${name}) echo "${message}" >&2; exit 1 ;;`).join(" ")} esac`,
       "exit 0",
       "",
     ].join("\n"),
@@ -51,6 +51,14 @@ describe("verifyPlugins", () => {
 
     expect(() => verifyPlugins(dir)).toThrow(
       "plugin check failed for: recognizer-sense-crap, recognizer-scan-rust",
+    );
+  });
+
+  it("prints the output of each failing plugin check", () => {
+    const dir = fakeToolchain(["recognizer-scan-kotlin"], "grammar missing");
+
+    expect(() => verifyPlugins(dir)).toThrow(
+      "--- recognizer-scan-kotlin\ngrammar missing",
     );
   });
 });

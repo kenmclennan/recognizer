@@ -26,6 +26,20 @@ LANGUAGE_BY_SUFFIX = {
 }
 
 
+def event_lines(text: str) -> list[dict]:
+    return [
+        json.loads(line.removeprefix("recognizer-event "))
+        for line in text.splitlines()
+        if line.startswith("recognizer-event ")
+    ]
+
+
+def plain_lines(text: str) -> str:
+    return "".join(
+        line + "\n" for line in text.splitlines() if not line.startswith("recognizer-event ")
+    )
+
+
 def write_scans(root: Path, modified: bool | None = False) -> None:
     by_language: dict[str, list[str]] = {}
 
@@ -89,6 +103,7 @@ def run_cli(root: Path, output: Path, *extra: str) -> int:
     return main(
         [
             "thresholds",
+            "run",
             "--repository",
             str(root),
             "--commit",

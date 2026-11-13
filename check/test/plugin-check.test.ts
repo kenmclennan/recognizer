@@ -6,9 +6,11 @@ import { capture, REPO } from "./helpers.js";
 
 const FIXTURES = join(REPO, "fixtures/plugins");
 
-function check(name: string, ...extra: string[]) {
+const NEW_RESULTS = ["check-verb", "guide-verb", "run-verb", "events", "stop"];
+
+async function check(name: string, ...extra: string[]) {
   const captured = capture();
-  const status = run(
+  const status = await run(
     ["plugin", "check", join(FIXTURES, name), ...extra],
     captured.io,
   );
@@ -16,23 +18,38 @@ function check(name: string, ...extra: string[]) {
   return { status, out: captured.out(), err: captured.err() };
 }
 
-function results(name: string): PluginCheckResult[] {
-  const json = JSON.parse(check(name, "--json").out) as {
+async function results(name: string): Promise<PluginCheckResult[]> {
+  const json = JSON.parse((await check(name, "--json")).out) as {
     results: PluginCheckResult[];
   };
 
   return json.results;
 }
 
-function failed(name: string): string[] {
-  return results(name)
+async function failed(name: string): Promise<string[]> {
+  return (await results(name))
     .filter((entry) => entry.status === "fail")
     .map((entry) => entry.name);
 }
 
+async function statusOf(
+  name: string,
+  result: string,
+  options?: { graceMs: number },
+): Promise<PluginCheckResult | undefined> {
+  const report = await pluginCheck(
+    capture().io,
+    join(FIXTURES, name, "recognizer-scan-conforming"),
+    undefined,
+    options,
+  );
+
+  return report.results.find((entry) => entry.name === result);
+}
+
 describe("recognizer plugin check", () => {
-  it("passes a conforming plugin with every result ok and exit 0", () => {
-    const outcome = check("conforming/recognizer-scan-conforming");
+  it("passes a conforming plugin with every result ok and exit 0", async () => {
+    const outcome = await check("conforming/recognizer-scan-conforming");
 
     expect(outcome.status).toBe(0);
     expect(outcome.out.trimEnd().split("\n")).toEqual([
@@ -43,73 +60,82 @@ describe("recognizer plugin check", () => {
       "ok    protocol",
       "ok    side-effect-free",
       "ok    sentences",
+      "ok    check-verb  declares no check",
+      "ok    guide-verb",
+      "ok    run-verb",
+      "ok    events",
+      "ok    stop",
     ]);
   });
 
-  it("prints the command, manifest and results with --json", () => {
+  it("prints the command, manifest and results with --json", async () => {
     const json = JSON.parse(
-      check("conforming/recognizer-scan-conforming", "--json").out,
+      (await check("conforming/recognizer-scan-conforming", "--json")).out,
     ) as { command: string; manifest: { name: string }; results: unknown[] };
 
     expect(json.command).toBe(
       join(FIXTURES, "conforming/recognizer-scan-conforming"),
     );
     expect(json.manifest.name).toBe("conforming");
-    expect(json.results).toHaveLength(7);
+    expect(json.results).toHaveLength(12);
   });
 
-  it("fails starts for a command that exits 1", () => {
-    const outcome = check("exits/recognizer-scan-conforming");
+  it("fails starts for a command that exits 1", async () => {
+    const outcome = await check("exits/recognizer-scan-conforming");
 
     expect(outcome.status).toBe(1);
-    expect(failed("exits/recognizer-scan-conforming")).toContain("starts");
+    expect(await failed("exits/recognizer-scan-conforming")).toContain(
+      "starts",
+    );
     expect(outcome.out).toMatch(/fail {2}starts {2}manifest exited 1/);
   });
 
-  it("fails only clean-output for a command that writes to stderr", () => {
-    expect(failed("noisy/recognizer-scan-conforming")).toEqual([
+  it("fails only clean-output for a command that writes to stderr", async () => {
+    expect(await failed("noisy/recognizer-scan-conforming")).toEqual([
       "clean-output",
     ]);
-    expect(check("noisy/recognizer-scan-conforming").status).toBe(1);
+    expect((await check("noisy/recognizer-scan-conforming")).status).toBe(1);
   });
 
-  it("fails only named-for-command for a command with the wrong basename", () => {
-    const entry = results("wrong-name/conforming-scanner").find(
+  it("fails only named-for-command for a command with the wrong basename", async () => {
+    const entry = (await results("wrong-name/conforming-scanner")).find(
       (one) => one.status === "fail",
     );
 
-    expect(failed("wrong-name/conforming-scanner")).toEqual([
+    expect(await failed("wrong-name/conforming-scanner")).toEqual([
       "named-for-command",
     ]);
     expect(entry?.reason).toContain("recognizer-scan-conforming");
   });
 
-  it("fails only protocol for a plugin on an unsupported protocol, naming plugin, both versions and install", () => {
-    const entry = results("future/recognizer-scan-conforming").find(
+  it("fails only protocol for a plugin on an unsupported protocol, naming plugin, both versions and install", async () => {
+    const entry = (await results("future/recognizer-scan-conforming")).find(
       (one) => one.status === "fail",
     );
 
-    expect(failed("future/recognizer-scan-conforming")).toEqual(["protocol"]);
+    expect(await failed("future/recognizer-scan-conforming")).toEqual([
+      "protocol",
+    ]);
     expect(entry?.reason).toContain("conforming");
     expect(entry?.reason).toContain("protocol 2");
     expect(entry?.reason).toContain("protocol 1");
     expect(entry?.reason).toContain("brew install --cask");
   });
 
-  it("fails only side-effect-free for a command that writes a file into its working directory", () => {
-    const entry = results("writes/recognizer-scan-conforming").find(
+  it("fails only side-effect-free for a command that writes a file into its working directory", async () => {
+    const entry = (await results("writes/recognizer-scan-conforming")).find(
       (one) => one.status === "fail",
     );
 
-    expect(failed("writes/recognizer-scan-conforming")).toEqual([
+    expect(await failed("writes/recognizer-scan-conforming")).toEqual([
       "side-effect-free",
     ]);
     expect(entry?.reason).toContain("leaked");
   });
 
-  it("passes a plugin on the previous protocol with a warning that quotes install", () => {
+  it("passes a plugin on the previous protocol with a warning that quotes install", async () => {
     const captured = capture();
-    const report = pluginCheck(
+    const report = await pluginCheck(
       captured.io,
       join(FIXTURES, "conforming/recognizer-scan-conforming"),
       2,
@@ -121,14 +147,14 @@ describe("recognizer plugin check", () => {
     expect(warning?.reason).toContain("brew install --cask");
   });
 
-  it("exits 2 for no command, an unknown flag and a command not on PATH", () => {
+  it("exits 2 for no command, an unknown flag and a command not on PATH", async () => {
     const missing = capture();
     const flag = capture();
     const absent = capture();
 
-    expect(run(["plugin", "check"], missing.io)).toBe(2);
+    expect(await run(["plugin", "check"], missing.io)).toBe(2);
     expect(
-      run(
+      await run(
         [
           "plugin",
           "check",
@@ -139,7 +165,10 @@ describe("recognizer plugin check", () => {
       ),
     ).toBe(2);
     expect(
-      run(["plugin", "check", "recognizer-scan-no-such-tool-here"], absent.io),
+      await run(
+        ["plugin", "check", "recognizer-scan-no-such-tool-here"],
+        absent.io,
+      ),
     ).toBe(2);
     expect(absent.err()).toContain("was not found on PATH");
   });
@@ -149,5 +178,62 @@ describe("recognizer plugin check", () => {
 
     expect(run(["help", "plugin"], captured.io)).toBe(0);
     expect(captured.out()).toContain("recognizer plugin check <command>");
+  });
+
+  it.each([
+    ["check-bad", "check-verb", /check document/],
+    ["guide-stderr", "guide-verb", /stderr/],
+    ["run-fails", "run-verb", /no diagnosis event/],
+    ["event-invalid", "events", /not a valid event/],
+    ["event-order", "events", /before any start/],
+    ["event-over", "events", /2 done of 1/],
+  ])("fails only %s's %s result", async (fixture, name, reason) => {
+    const entries = await results(`${fixture}/recognizer-scan-conforming`);
+    const bad = entries.filter((entry) => entry.status === "fail");
+
+    expect(bad.map((entry) => entry.name)).toEqual([name]);
+    expect(bad[0]?.reason).toMatch(reason);
+
+    for (const other of NEW_RESULTS.filter((one) => one !== name)) {
+      expect(entries.find((entry) => entry.name === other)?.status).toBe("ok");
+    }
+  });
+
+  it("fails stop for a plugin that ignores SIGTERM and kills it", async () => {
+    const stop = await statusOf("ignores-term", "stop", { graceMs: 300 });
+
+    expect(stop?.status).toBe("fail");
+    expect(stop?.reason).toMatch(/did not exit within/);
+  });
+
+  it("warns on stop for a plugin that finishes before it could be stopped", async () => {
+    const stop = await statusOf("finishes-early", "stop");
+
+    expect(stop).toEqual({
+      name: "stop",
+      status: "warn",
+      reason: "finished before it could be stopped",
+    });
+  });
+
+  it("warns on run-verb and stop for a describer run without --request", async () => {
+    const report = await pluginCheck(
+      capture().io,
+      join(FIXTURES, "describer/recognizer-describe-conforming"),
+    );
+    const named = (name: string) =>
+      report.results.find((entry) => entry.name === name);
+
+    expect(named("run-verb")?.reason).toBe("not run: pass --request");
+    expect(named("stop")?.status).toBe("warn");
+    expect(named("events")?.status).toBe("ok");
+  });
+
+  it("lists --repository and --request in plugin check's help", async () => {
+    const captured = capture();
+
+    expect(await run(["plugin", "--help"], captured.io)).toBe(0);
+    expect(captured.out()).toContain("--repository <dir>");
+    expect(captured.out()).toContain("--request <file>");
   });
 });

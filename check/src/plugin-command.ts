@@ -4,7 +4,9 @@ import type { Io } from "./cli.js";
 import { InputError } from "./errors.js";
 import { pluginCheck, reportFailed, reportLines } from "./plugin-check.js";
 
-const USAGE = ["usage: recognizer plugin check <command> [--json]"];
+const USAGE = [
+  "usage: recognizer plugin check <command> [--repository <dir>] [--request <file>] [--json]",
+];
 
 function locate(io: Io, command: string): string | null {
   if (command.includes("/")) {
@@ -22,12 +24,16 @@ function locate(io: Io, command: string): string | null {
   return null;
 }
 
-function runCheck(argv: string[], io: Io): number {
+async function runCheck(argv: string[], io: Io): Promise<number> {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
     strict: true,
-    options: { json: { type: "boolean" } },
+    options: {
+      json: { type: "boolean" },
+      repository: { type: "string" },
+      request: { type: "string" },
+    },
   });
   const [command] = positionals;
 
@@ -41,7 +47,14 @@ function runCheck(argv: string[], io: Io): number {
     throw new InputError([`${command} was not found on PATH`]);
   }
 
-  const report = pluginCheck(io, path);
+  const report = await pluginCheck(io, path, undefined, {
+    ...(values.repository === undefined
+      ? {}
+      : { repository: resolve(values.repository) }),
+    ...(values.request === undefined
+      ? {}
+      : { request: resolve(values.request) }),
+  });
 
   if (values.json === true) {
     io.stdout(
@@ -54,7 +67,7 @@ function runCheck(argv: string[], io: Io): number {
   return reportFailed(report) ? 1 : 0;
 }
 
-export function runPlugin(argv: string[], io: Io): number {
+export function runPlugin(argv: string[], io: Io): number | Promise<number> {
   const [subcommand, ...rest] = argv;
 
   if (subcommand === "check") {

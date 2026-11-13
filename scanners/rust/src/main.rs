@@ -1,8 +1,11 @@
 use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 
+use recognizer_scan_rust::events::Progress;
 use recognizer_scan_rust::manifest;
-use recognizer_scan_rust::{render, scan};
+use recognizer_scan_rust::{render, scan_reporting};
+
+const VERBS: &str = "manifest, check, run, guide";
 
 struct Arguments {
     root: PathBuf,
@@ -101,7 +104,28 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
 
-    let arguments = match parse_arguments(&args) {
+    if args == ["guide"] {
+        return ExitCode::SUCCESS;
+    }
+
+    if args == ["--version"] || args == ["-V"] {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        return ExitCode::SUCCESS;
+    }
+
+    let rest = match args.split_first() {
+        Some((verb, rest)) if verb == "run" => rest,
+        Some((verb, _)) if verb == "check" => {
+            eprintln!("recognizer-scan-rust has no check verb; the verbs are {VERBS}");
+            return ExitCode::from(2);
+        }
+        _ => {
+            eprintln!("recognizer-scan-rust: the first argument must be a verb: {VERBS}");
+            return ExitCode::from(2);
+        }
+    };
+
+    let arguments = match parse_arguments(rest) {
         Ok(Parsed::Run(arguments)) => arguments,
         Ok(Parsed::Version) => {
             println!("{}", env!("CARGO_PKG_VERSION"));
@@ -126,7 +150,12 @@ fn main() -> ExitCode {
         .modified
         .or_else(|| resolve_modified(&arguments.root));
 
-    let result = match scan(&arguments.root, commit, modified) {
+    let result = match scan_reporting(
+        &arguments.root,
+        commit,
+        modified,
+        Some(&mut Progress::new()),
+    ) {
         Ok(result) => result,
         Err(error) => {
             eprintln!("could not parse:");

@@ -44,7 +44,7 @@ function passedPreflight(event: ScanEvent): boolean {
     case "entry":
       return event.phase !== "extract";
     case "start":
-    case "progress":
+    case "plugin":
     case "confirm":
     case "answered":
     case "stopped":

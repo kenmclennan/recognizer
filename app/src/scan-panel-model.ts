@@ -40,7 +40,7 @@ import {
   type DescribeStop,
   describeAskText,
   describeStopText,
-  type SensorProgress,
+  type PluginProgress,
 } from "./scan-progress";
 import { type RunInput, type RunModel, runModel } from "./scan-run-model";
 import { type ScanWhy, whyOf } from "./scan-why";
@@ -127,7 +127,7 @@ export type PanelInput = {
   describeStop?: DescribeStop | null;
   describeAsk?: DescribeAsk | null;
   describeSkipped?: boolean;
-  sensorProgress?: SensorProgress | null;
+  sensorProgress?: PluginProgress | null;
   extracting?: boolean;
   runModules?: number;
   now: number;
@@ -346,8 +346,7 @@ function whyFor(name: string, input: PanelInput): ScanWhy | null {
 
   if (
     (status?.status === "ran" || status?.status === "stale") &&
-    status.diagnosis !== undefined &&
-    status.diagnosis.code !== "tool-missing"
+    status.diagnosis !== undefined
   ) {
     return whyOf(status.diagnosis);
   }
@@ -661,14 +660,14 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
   };
 }
 
-function runningOf(progress: SensorProgress): SuiteRunning | null {
-  if (progress.suite === undefined) {
+function runningOf(progress: PluginProgress): SuiteRunning | null {
+  const counted = progress.progress;
+
+  if (counted?.step === undefined) {
     return null;
   }
 
-  return progress.step === "mutants"
-    ? { suite: progress.suite, done: progress.done, total: progress.total }
-    : { suite: progress.suite, done: null, total: null };
+  return { suite: counted.step, done: counted.done, total: counted.total };
 }
 
 function buttonOf(

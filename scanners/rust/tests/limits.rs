@@ -103,8 +103,16 @@ fn a_file_with_no_members_is_still_a_module_and_a_file() {
     );
 }
 
-fn binary() -> Command {
+fn bare() -> Command {
     Command::new(env!("CARGO_BIN_EXE_recognizer-scan-rust"))
+}
+
+fn binary() -> Command {
+    let mut command = bare();
+
+    command.arg("run");
+
+    command
 }
 
 #[test]
@@ -117,7 +125,7 @@ fn a_parse_failure_exits_two_and_lists_the_file() {
     );
 
     let output = binary().arg(directory.path()).output().unwrap();
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stderr = without_events(&output.stderr);
 
     assert_eq!(output.status.code(), Some(2));
     assert!(stderr.starts_with("could not parse:"), "{stderr}");
@@ -154,7 +162,7 @@ fn the_missing_mod_diagnostic_prints_only_when_a_mod_has_no_file() {
 
     let quiet = binary().arg(directory.path()).output().unwrap();
 
-    assert_eq!(String::from_utf8_lossy(&quiet.stderr), "");
+    assert_eq!(without_events(&quiet.stderr), "");
 }
 
 #[test]
@@ -189,4 +197,76 @@ fn a_modified_value_other_than_true_or_false_is_refused() {
         .unwrap();
 
     assert_eq!(output.status.code(), Some(2));
+}
+
+fn events(stderr: &[u8]) -> Vec<serde_json::Value> {
+    String::from_utf8_lossy(stderr)
+        .lines()
+        .filter_map(|line| line.strip_prefix("recognizer-event "))
+        .map(|json| serde_json::from_str(json).unwrap())
+        .collect()
+}
+
+fn without_events(stderr: &[u8]) -> String {
+    String::from_utf8_lossy(stderr)
+        .lines()
+        .filter(|line| !line.starts_with("recognizer-event "))
+        .map(|line| format!("{line}\n"))
+        .collect()
+}
+
+#[test]
+fn run_reports_start_and_progress_events_ending_at_the_total() {
+    let directory = tempfile::tempdir().unwrap();
+
+    write_tree(
+        directory.path(),
+        &[("a.rs", "fn a() {}\n"), ("b.rs", "fn b() {}\n")],
+    );
+
+    let output = binary().arg(directory.path()).output().unwrap();
+    let reported = events(&output.stderr);
+
+    assert!(output.status.success());
+    assert_eq!(
+        reported[0],
+        serde_json::json!({"event": "start", "total": 2, "unit": "files"})
+    );
+    assert_eq!(
+        reported.last().unwrap(),
+        &serde_json::json!({"event": "progress", "done": 2, "total": 2, "unit": "files"})
+    );
+    assert!(reported[1..]
+        .iter()
+        .all(|event| event["done"].as_u64() <= event["total"].as_u64()));
+}
+
+#[test]
+fn check_exits_two_without_a_document() {
+    let output = bare().arg("check").output().unwrap();
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("manifest, check, run, guide"));
+}
+
+#[test]
+fn guide_prints_nothing() {
+    let output = bare().arg("guide").output().unwrap();
+
+    assert!(output.status.success());
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn a_bare_path_and_a_flag_are_not_verbs() {
+    let directory = tempfile::tempdir().unwrap();
+
+    for first in [directory.path().to_str().unwrap(), "--output"] {
+        let output = bare().arg(first).output().unwrap();
+
+        assert_eq!(output.status.code(), Some(2));
+        assert!(String::from_utf8_lossy(&output.stderr).contains("manifest, check, run, guide"));
+    }
 }

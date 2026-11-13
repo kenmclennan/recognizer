@@ -3,6 +3,7 @@ import { readConfig } from "./config.js";
 import type { Describer } from "./describe-modules.js";
 import { describerVersion } from "./describer-version.js";
 import { InputError } from "./errors.js";
+import { readManifestOf } from "./plugin-manifest.js";
 import { SHIPPED_DESCRIBER_COMMAND } from "./shipped-describer.js";
 
 export { describerVersion };
@@ -35,10 +36,11 @@ export function findDescriber(io: Io, root: string): DescriberInEffect | null {
     };
   }
 
-  const run = io.run(SHIPPED_DESCRIBER_COMMAND[0] as string, [
-    "--prompt-version",
-  ]);
-  const version = run.started && run.status === 0 ? firstLine(run.stdout) : "";
+  const read = readManifestOf(io, [SHIPPED_DESCRIBER_COMMAND[0] as string]);
+  const version =
+    read.ok && read.manifest.prompt_version !== undefined
+      ? read.manifest.prompt_version
+      : "";
 
   if (version === "") {
     return null;
@@ -51,8 +53,4 @@ export function findDescriber(io: Io, root: string): DescriberInEffect | null {
     version: describerVersion(shipped),
     source: "shipped",
   };
-}
-
-function firstLine(text: string): string {
-  return (text.split("\n")[0] ?? "").trim();
 }

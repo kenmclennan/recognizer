@@ -3,6 +3,7 @@ import { registerPending } from "./pending-checkpoints.js";
 
 export interface RegisteredRun {
   reason: string | null;
+  stopped?: boolean;
   command: string[];
   status: number | null;
   stderr: string;
@@ -132,42 +133,6 @@ function prepare(
   return { filled, program, rest, written };
 }
 
-export function runRegistered(
-  io: Io,
-  root: string,
-  command: string[],
-  commit: string,
-  output: string,
-  what: string,
-  validate: (document: unknown, anyCommit?: boolean) => void,
-  timeoutMs?: number,
-  keepStderr: (stderr: string) => string = (stderr) => stderr,
-): RegisteredRun {
-  const prepared = prepare(io, root, command, commit, output, validate);
-  const unregister = registerPending(() => {
-    promoteCheckpoint(io, prepared.written, output, validate);
-  });
-  let result: RunResult;
-
-  try {
-    result = io.run(prepared.program, prepared.rest, {
-      cwd: root,
-      ...(timeoutMs === undefined ? {} : { timeoutMs }),
-    });
-  } finally {
-    unregister();
-  }
-
-  return conclude(
-    io,
-    prepared,
-    { ...result, stderr: keepStderr(result.stderr) },
-    output,
-    what,
-    validate,
-  );
-}
-
 export async function runRegisteredAsync(
   io: Io,
   root: string,
@@ -226,6 +191,10 @@ function conclude(
 
   if (result.timedOut) {
     return ran("timed out");
+  }
+
+  if (result.stopped === true) {
+    return { ...ran("stopped"), stopped: true };
   }
 
   if (!result.started) {

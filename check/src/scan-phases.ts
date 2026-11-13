@@ -1,8 +1,7 @@
 import { InputError } from "./errors.js";
+import type { Diagnosis, PluginEvent } from "./plugin-events.js";
 import type { PhaseName } from "./run-log.js";
 import type { ScanRunRecord } from "./scan-marker.js";
-import type { SensorProgress } from "./sensor-progress.js";
-import type { Diagnosis } from "./sensor-reason.js";
 import { receivesSuites, shippedCommand } from "./shipped-sensors.js";
 
 export const SCAN_USAGE =
@@ -393,7 +392,7 @@ export function extractionNeeded(state: ExtractionState): ExtractionDecision {
 
 export interface EventEntry {
   name: string;
-  outcome: "ok" | "failed";
+  outcome: "ok" | "failed" | "stopped";
   reason?: string;
   diagnosis?: Diagnosis;
   modules?: number;
@@ -414,12 +413,12 @@ export function startLine(phase: PhaseName, name: string): string {
   return `${JSON.stringify({ event: "start", phase, name })}\n`;
 }
 
-export function progressLine(
+export function pluginLine(
   phase: PhaseName,
   name: string,
-  progress: SensorProgress,
+  data: PluginEvent,
 ): string {
-  return `${JSON.stringify({ event: "progress", phase, name, ...progress })}\n`;
+  return `${JSON.stringify({ event: "plugin", phase, name, data })}\n`;
 }
 
 export function entryLine(phase: PhaseName, entry: EventEntry): string {

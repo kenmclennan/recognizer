@@ -467,10 +467,13 @@ describe("result rows from the findings suites array", () => {
       run: { ...NO_RUN, running: ["mutation"] },
       sensorProgress: {
         name: "mutation",
-        step: "mutants",
-        suite: "integration",
-        done: 4,
-        total: 12,
+        phase: "sense",
+        progress: {
+          done: 4,
+          total: 12,
+          unit: "functions",
+          step: "integration",
+        },
       },
     });
     const mutation = row(model, "mutation");

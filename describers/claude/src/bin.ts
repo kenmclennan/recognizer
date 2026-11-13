@@ -10,13 +10,20 @@ import {
   UsageError,
 } from "./describe.js";
 import { manifestText } from "./manifest.js";
-import { promptVersion, readPrompt } from "./prompt.js";
+import { readPrompt } from "./prompt.js";
 import { interpretReply, LIMIT_STATUS, LimitError } from "./reply.js";
 
 const TIMEOUT_MS = 120_000;
 const PACKAGE_FILE = new URL("../package.json", import.meta.url);
-const CHECK_FLAG = "--check";
-const USAGE = "usage: recognizer-describe-claude --model <name> <request-file>";
+const VERBS = "manifest, check, run, guide";
+const USAGE =
+  "usage: recognizer-describe-claude run --model <name> <request-file>";
+const EVENT_PREFIX = "recognizer-event ";
+const UNIT = "modules";
+
+function emit(event: Record<string, unknown>): void {
+  process.stderr.write(`${EVENT_PREFIX}${JSON.stringify(event)}\n`);
+}
 
 function claudeArgs(model: string): string[] {
   return [
@@ -170,22 +177,26 @@ async function main(args: string[]): Promise<number> {
     return 0;
   }
 
-  if (args.length === 1 && args[0] === "--prompt-version") {
-    process.stdout.write(`${promptVersion()}\n`);
+  if (args.length === 1 && args[0] === "check") {
+    process.stdout.write(`${JSON.stringify({ gaps: [], notes: [] })}\n`);
 
     return 0;
   }
 
+  if (args.length === 1 && args[0] === "guide") {
+    return 0;
+  }
+
+  if (args[0] !== "run") {
+    process.stderr.write(
+      `recognizer-describe-claude: the first argument must be a verb: ${VERBS}\n`,
+    );
+
+    return 2;
+  }
+
   try {
-    const { file } = parseArguments(args);
-
-    if (file === CHECK_FLAG) {
-      process.stdout.write("ok\n");
-
-      return 0;
-    }
-
-    const { model } = parseArguments(args);
+    const { model, file } = parseArguments(args.slice(1));
 
     let text: string;
 
@@ -198,15 +209,25 @@ async function main(args: string[]): Promise<number> {
     }
 
     const request = parseRequest(text);
+
+    emit({ event: "start", total: 1, unit: UNIT });
+
     const line = await describeModule(request, readPrompt(), (input) =>
       runClaude(model, input),
     );
+
+    emit({ event: "progress", done: 1, total: 1, unit: UNIT });
 
     process.stdout.write(`${line}\n`);
 
     return 0;
   } catch (error) {
     if (error instanceof LimitError) {
+      emit({
+        event: "diagnosis",
+        code: "usage-limit",
+        text: `claude usage limit: ${error.message}`,
+      });
       process.stderr.write(`claude usage limit: ${error.message}\n`);
 
       return LIMIT_STATUS;

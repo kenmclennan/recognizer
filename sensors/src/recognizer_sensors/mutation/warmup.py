@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ElementTree
 from collections.abc import Mapping
 from pathlib import Path
 
+from recognizer_sensors import events
 from recognizer_sensors.crap.jacoco import merge_coverage, parse_jacoco
 from recognizer_sensors.crap.lcov import Coverage, parse_lcov
 from recognizer_sensors.hashes import listed_files
@@ -25,7 +26,6 @@ from recognizer_sensors.mutation.runner import (
 )
 from recognizer_sensors.mutation.test_files import is_test_file
 from recognizer_sensors.parsing import parse
-from recognizer_sensors.progress import report as report_progress
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import MeasurementError, Refusal, diagnose
 from recognizer_sensors.testrun.contexts import PYTHON_DATA, ContextSelection, PythonContexts
@@ -669,7 +669,7 @@ def coverage_run(
         elif suite.language == "csharp":
             command = f'{command} --logger "trx;LogFilePrefix=results"'
 
-        report_progress("coverage", suite=suite.name)
+        events.note(f"Coverage run: {suite.name}")
         started = time.time()
         started_at.setdefault(suite.language, started)
         began = time.monotonic()

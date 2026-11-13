@@ -49,13 +49,13 @@ A plugin reports while it runs by writing JSON lines on stderr, each prefixed `r
 - `start {total, unit}`
 - `progress {done, total, unit, step?}`: `step` is an optional label for the stage it is in, such as "Coverage run".
 - `note {text}`
-- `diagnosis {code, text, fix}`: why something could not be measured, in the plugin's own words, with the fix. Codes belong to the plugin; Recognizer keeps no list of them.
+- `diagnosis {code, text, fix?}`: why something could not be measured, in the plugin's own words, with the fix where there is one. Codes belong to the plugin; Recognizer keeps no list of them.
 
 The CLI tags each event with the plugin's name and forwards it unchanged on `recognizer scan --json`. The app's progress, failure text and scan time estimates read these events and nothing plugin-specific.
 
 ## Stopping and time limits
 
-- Stop sends SIGTERM to the plugin's process group. The plugin writes what it has, marked `stopped`, and exits within 10 seconds, after which it is killed.
+- Stop sends SIGTERM to the CLI's process group, which holds every plugin, and the CLI relays it to each live plugin. The plugin writes what it has, marked `stopped`, and exits within 10 seconds, after which it is killed. A plugin owns its own children.
 - A plugin that is not `long_running` is stopped the same way when it passes its `time_limit_seconds`.
 
 ## Installing and registering
@@ -93,7 +93,7 @@ Everything an author needs ships inside the `recognizer` CLI, so it always match
 Each phase is its own item, built on the one before.
 
 1. **Protocol and manifest.** The manifest and event schemas, the protocol version, `recognizer plugin check`, and the CLI reading manifests. Recognizer's own tools answer `manifest`; `recognizer-sensors` gains one entry point per sensor. Nothing changes for users.
-2. **Lifecycle and events.** The four verbs and the event stream, read by the CLI and the app; the fixed progress steps, the closed diagnosis codes and the fixed sensor timeout go.
+2. **Lifecycle and events (built).** The four verbs and the event stream, read by the CLI and the app; the fixed progress steps, the closed diagnosis codes and the fixed sensor timeout go.
 3. **Manifest-driven CLI and app.** Every place that knows a plugin by name reads its manifest instead: the shipped-sensor registry, display names and expansions, metric names, finding groups and sentences, the module scope, and defaults duplicated outside the plugin.
 4. **Registration and discovery.** Discovery on `PATH`, `recognizer plugins`, `recognizer plugin add`, scanners chosen from manifests by language (the scan schema's language list opens), and doctor and setup made generic.
 5. **Distribution.** The separate formulae, the `recognizer-plugins` bundle, the cask depending on it, a release workflow per plugin, and the app's same-version rule replaced by the protocol range. `design.md`'s toolchain bullet is rewritten here.

@@ -717,6 +717,18 @@ function withoutShippedDescriber(): void {
   process.env.PATH = dir;
 }
 
+function shippedManifest() {
+  return {
+    ...JSON.parse(
+      readFileSync(
+        join(REPO, "schema/manifest-examples/valid/describer.json"),
+        "utf8",
+      ),
+    ),
+    prompt_version: SHIPPED_VERSION,
+  };
+}
+
 function installShippedDescriber(): void {
   const dir = mkdtempSync(join(tmpdir(), "recognizer-bin-"));
 
@@ -728,7 +740,7 @@ function installShippedDescriber(): void {
     script,
     [
       "#!/usr/bin/env node",
-      `if (process.argv[2] === "--prompt-version") { process.stdout.write("${SHIPPED_VERSION}\\n"); process.exit(0); }`,
+      `if (process.argv[2] === "manifest") { process.stdout.write(${JSON.stringify(JSON.stringify(shippedManifest()))} + "\\n"); process.exit(0); }`,
       'import { readFileSync } from "node:fs";',
       'const { module } = JSON.parse(readFileSync(process.argv[process.argv.length - 1], "utf8"));',
       'process.stdout.write("shipped " + module + "\\n");',
@@ -778,6 +790,7 @@ describe("describer in effect", () => {
     expect(JSON.parse(result.out)).toEqual({
       command: [
         "recognizer-describe-claude",
+        "run",
         "--model",
         "{model}",
         "{request}",
@@ -793,7 +806,7 @@ describe("describer in effect", () => {
     const result = await exec(repository(), "describe", "--describer");
 
     expect(result.out).toBe(
-      `recognizer-describe-claude --model {model} {request}  ${SHIPPED_VERSION}  shipped\n`,
+      `recognizer-describe-claude run --model {model} {request}  ${SHIPPED_VERSION}  shipped\n`,
     );
   });
 
@@ -833,6 +846,7 @@ describe("describer in effect", () => {
 
     expect(entry.describer).toEqual([
       "recognizer-describe-claude",
+      "run",
       "--model",
       "{model}",
       "{request}",

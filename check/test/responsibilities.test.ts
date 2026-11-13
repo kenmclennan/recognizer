@@ -122,8 +122,8 @@ describe("parseConfig", () => {
 
     expect(parseConfig(text).sensors?.crap).toEqual({
       command: [
-        "recognizer-sensors",
-        "crap",
+        "recognizer-sense-crap",
+        "run",
         "--repository",
         "{repository}",
         "--commit",
@@ -161,8 +161,8 @@ describe("parseConfig", () => {
       {
         name: "thresholds",
         command: [
-          "recognizer-sensors",
-          "thresholds",
+          "recognizer-sense-thresholds",
+          "run",
           "--repository",
           "{repository}",
           "--commit",

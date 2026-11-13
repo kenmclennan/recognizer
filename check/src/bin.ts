@@ -6,8 +6,7 @@ for (const [signal, code] of [
   ["SIGTERM", 143],
 ] as const) {
   process.on(signal, () => {
-    stopEverything(code);
-    process.exit(code);
+    void stopEverything(code).then(() => process.exit(code));
   });
 }
 

@@ -424,10 +424,10 @@ describe("a scan record from the real run", () => {
     cpSync(join(REPO, "fixtures/python/sample"), root, { recursive: true });
 
     const out = capture();
-    const real = out.io.run;
+    const real = out.io.runAsync;
     const io: Io = {
       ...out.io,
-      run: (command, args, options) => {
+      runAsync: (command, args, options) => {
         if (command !== PYTHON) {
           return real(command, args, options);
         }
@@ -437,7 +437,15 @@ describe("a scan record from the real run", () => {
           scanJson(2, 1),
         );
 
-        return { started: true, status: 0, stdout: "", stderr: "" };
+        return {
+          result: Promise.resolve({
+            started: true,
+            status: 0,
+            stdout: "",
+            stderr: "",
+          }),
+          kill: () => {},
+        };
       },
     };
 

@@ -18,6 +18,7 @@ def diagnose(
     fix: str | None = None,
     failing: dict | None = None,
     suite: str | None = None,
+    unmeasured: bool = False,
 ) -> dict:
     diagnosis: dict = {"code": code, "line": line}
 
@@ -29,6 +30,9 @@ def diagnose(
 
     if failing:
         diagnosis["failing"] = failing
+
+    if unmeasured:
+        diagnosis["unmeasured"] = True
 
     return diagnosis
 

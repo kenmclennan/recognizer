@@ -68,6 +68,7 @@ def mutate(root, tmp_path, scope=None):
     code = main(
         [
             "mutation",
+            "run",
             "--repository",
             str(root),
             "--output",

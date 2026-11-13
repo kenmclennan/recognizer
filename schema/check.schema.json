@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://recognizer.dev/schema/check.schema.json",
+  "title": "Recognizer plugin check document",
+  "description": "What a plugin's `check` verb prints on stdout: the gaps that stop it measuring this repository, and notes that do not.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "gaps"
+  ],
+  "properties": {
+    "gaps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "suite",
+        "line"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "suite": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "line": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

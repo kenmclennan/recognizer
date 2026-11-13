@@ -402,9 +402,8 @@ describe("scanPanel row states", () => {
         run: run({ running: ["mutation"], started: "mutation" }),
         sensorProgress: {
           name: "mutation",
-          step: "mutants",
-          done: 251,
-          total: 1204,
+          phase: "sense",
+          progress: { done: 251, total: 1204, unit: "functions" },
         },
       }),
     );
@@ -1066,6 +1065,16 @@ describe("scanPanel why", () => {
         line: "Needs coverage, see the log",
       })?.why,
     ).toMatchObject({ copy: null, log: true });
+  });
+
+  it("shows the why of a completed run whose diagnosis carries a code of the plugin's own", () => {
+    const row = completed({
+      code: "custom-code",
+      line: "The plugin could not measure",
+      fix: FIX,
+    });
+
+    expect(row?.why).toMatchObject({ copy: FIX, log: false });
   });
 
   it("reads a completed tests-failed run as current and keeps its diagnosis beneath", () => {

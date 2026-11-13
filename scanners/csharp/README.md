@@ -3,7 +3,7 @@
 Scans a C# source tree into a scan document, using py-tree-sitter with the tree-sitter-c-sharp grammar. The grammar is built from a pinned git commit (`tool.uv.sources` in `pyproject.toml`), because PyPI's 0.23.5 misreads C# 14 `extension` blocks as constructors without an error node. No .NET SDK is needed: the scanner parses, it never compiles.
 
 ```sh
-recognizer-scan-csharp ROOT [--commit SHA] [--modified true|false] [--output FILE]
+recognizer-scan-csharp run ROOT [--commit SHA] [--modified true|false] [--output FILE]
 ```
 
 `ROOT` is the repository root and the base of every module id. The commit defaults to `git rev-parse HEAD`, or `null` outside git. Output goes to stdout unless `--output` is given. When some files had damaged spans, one line `recognizer-scan-csharp: D of N files had damaged spans` goes to stderr; when `.fs` or `.vb` files were left out, a second line `recognizer-scan-csharp: left out F .fs and V .vb files` follows.

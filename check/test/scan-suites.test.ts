@@ -74,18 +74,14 @@ async function scan(selection: string | undefined, ...args: string[]) {
 function senseArgs(fake: ReturnType<typeof fakeIo>, name: string) {
   return fake.calls.find(
     (call) =>
-      call.command === "recognizer-sensors" &&
-      call.args[0] === name &&
-      !call.args.includes("--check"),
+      call.command === `recognizer-sense-${name}` && call.args[0] === "run",
   )?.args;
 }
 
 function checkArgs(fake: ReturnType<typeof fakeIo>, name: string) {
   return fake.calls.find(
     (call) =>
-      call.command === "recognizer-sensors" &&
-      call.args[0] === name &&
-      call.args.includes("--check"),
+      call.command === `recognizer-sense-${name}` && call.args[0] === "check",
   )?.args;
 }
 

@@ -134,7 +134,10 @@ export function depends(doc: ScanDocument, from: string) {
 }
 
 export function runBin(root: string, ...extra: string[]) {
-  return spawnSync("node", [BIN, root, ...extra], { encoding: "utf8" });
+  return spawnSync("node", [BIN, "run", root, ...extra], {
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
 }
 
 export function listFiles(dir: string): string[] {

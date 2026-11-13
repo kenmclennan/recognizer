@@ -41,9 +41,9 @@ def test_schema_prints_a_document_that_validates_against_the_key_schema(capsys):
     "argv",
     [
         ["--schema", "crap"],
-        ["--schema", "--check"],
+        ["--schema", "check"],
         ["--schema", "--run"],
-        ["--schema", "--guide"],
+        ["--schema", "guide"],
         ["--schema", "--settings", "{}"],
         ["--schema", "--output", "x"],
         ["--schema", "--modules", "x"],

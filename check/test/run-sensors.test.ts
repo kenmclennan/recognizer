@@ -5,9 +5,9 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { makeTempDir } from "../scripts/temp-dirs.mjs";
-import { nodeIo } from "../src/cli.js";
+import { nodeIo, stopEverything } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
-import { runSensors, SENSOR_TIMEOUT_MS } from "../src/run-sensors.js";
+import { runSensors } from "../src/run-sensors.js";
 import type { Scan } from "../src/scan.js";
 
 const COMMIT = "abc123";
@@ -26,6 +26,52 @@ fs.writeFileSync(output, JSON.stringify({
 }));
 `;
 
+function manifestOf(extra: Record<string, unknown> = {}) {
+  return {
+    kind: "sensor",
+    name: "quick",
+    display: "Quick",
+    version: "1",
+    protocol: 1,
+    install: "brew install --cask kenmclennan/tap/recognizer",
+    check: false,
+    long_running: true,
+    units: ["functions"],
+    settings: [],
+    metrics: [],
+    findings: [],
+    runs_tests: false,
+    scoped: false,
+    ...extra,
+  };
+}
+
+function pluginFile(
+  root: string,
+  body: string,
+  manifest = manifestOf(),
+): string {
+  const file = join(root, `plugin-${Math.random().toString(36).slice(2)}.cjs`);
+
+  writeFileSync(
+    file,
+    `const [verb, ...rest] = process.argv.slice(2);
+if (verb === "manifest") {
+  process.stdout.write(${JSON.stringify(JSON.stringify(manifest))} + "\\n");
+  process.exit(0);
+}
+const [commit, output] = rest;
+${body}
+`,
+  );
+
+  return file;
+}
+
+function pluginCommand(file: string): string[] {
+  return [process.execPath, file, "run", "{commit}", "{output}"];
+}
+
 function setup() {
   const root = makeTempDir("run-sensors-");
   const messages: string[] = [];
@@ -34,27 +80,40 @@ function setup() {
   return { root, io, messages };
 }
 
-describe("runSensors ceiling", () => {
-  it("allows a sensor sixty seconds", () => {
-    expect(SENSOR_TIMEOUT_MS).toBe(60_000);
-  });
+const FINDINGS_BODY = `
+const fs = require("fs");
+fs.mkdirSync(require("path").dirname(output), { recursive: true });
+fs.writeFileSync(output, JSON.stringify({
+  findings_version: 1,
+  sensor: { name: "quick", version: "1" },
+  commit,
+  modified: false,
+  settings: {},
+  findings: [],
+}));
+`;
 
+const event = (value: Record<string, unknown>) =>
+  `process.stderr.write("recognizer-event " + ${JSON.stringify(JSON.stringify(value))} + "\\n");`;
+
+describe("runSensors ceiling", () => {
   it(
     "fails a sensor still running at the ceiling as timed out and runs the next one",
     async () => {
       const { root, io, messages } = setup();
       const entries: string[] = [];
+      const hung = pluginFile(
+        root,
+        "setTimeout(() => {}, 30000);",
+        manifestOf({ long_running: false, time_limit_seconds: 1 }),
+      );
       const results = await runSensors({
         io,
         root,
         commit: COMMIT,
         scans: [],
-        timeoutMs: 3000,
         selected: [
-          {
-            name: "hung",
-            command: ["sh", "-c", "sleep 30 & wait"],
-          },
+          { name: "hung", command: pluginCommand(hung) },
           {
             name: "quick",
             command: [
@@ -88,10 +147,11 @@ describe("runSensors ceiling", () => {
   );
 
   it(
-    "gives a runsTests selection no timeout and the others the ceiling",
+    "passes the manifest's limit and the grace to the run and none for a legacy command",
     async () => {
       const { root, messages } = setup();
-      const timeouts: (number | undefined)[] = [];
+      const seen: { timeoutMs?: number; graceMs?: number }[] = [];
+      const manifests: string[][] = [];
       const real = nodeIo();
       const io = {
         ...real,
@@ -101,20 +161,31 @@ describe("runSensors ceiling", () => {
           args: string[],
           options?: { cwd?: string; timeoutMs?: number },
         ) => {
-          timeouts.push(options?.timeoutMs);
+          if (args.at(-1) === "manifest") {
+            manifests.push([command, ...args]);
+          }
 
           return real.run(command, args, options);
         },
         runAsync: (
           command: string,
           args: string[],
-          options?: { cwd?: string; timeoutMs?: number },
+          options?: { cwd?: string; timeoutMs?: number; graceMs?: number },
         ) => {
-          timeouts.push(options?.timeoutMs);
+          seen.push({
+            timeoutMs: options?.timeoutMs,
+            graceMs: options?.graceMs,
+          });
 
           return real.runAsync(command, args, options);
         },
       };
+      const limited = pluginFile(
+        root,
+        FINDINGS_BODY,
+        manifestOf({ long_running: false, time_limit_seconds: 5 }),
+      );
+      const open = pluginFile(root, FINDINGS_BODY);
 
       await runSensors({
         io,
@@ -122,72 +193,62 @@ describe("runSensors ceiling", () => {
         commit: COMMIT,
         scans: [],
         selected: [
-          { name: "slow-one", command: ["true"], runsTests: true },
-          { name: "quick-one", command: ["true"], runsTests: false },
-          { name: "plain-one", command: ["true"] },
+          { name: "quick", command: pluginCommand(limited) },
+          { name: "quick", command: pluginCommand(open) },
+          { name: "quick", command: ["true"] },
         ],
       });
 
-      expect(timeouts).toEqual([
-        undefined,
-        SENSOR_TIMEOUT_MS,
-        SENSOR_TIMEOUT_MS,
+      expect(seen).toEqual([
+        { timeoutMs: 5000, graceMs: 10_000 },
+        { timeoutMs: undefined, graceMs: 10_000 },
+        { timeoutMs: undefined, graceMs: 10_000 },
       ]);
+      expect(manifests).toHaveLength(2);
     },
     scaledTimeout(20000),
   );
 
-  it("hands a progress line to onProgress while the sensor is still running", async () => {
+  it("hands a plugin event to onEvent while the plugin is still running", async () => {
     const { root, io } = setup();
     const seen: unknown[] = [];
     let release: () => void = () => {};
     const observed = new Promise<void>((done) => {
       release = done;
     });
-    const script = `
+    const gate = join(root, "gate");
+    const live = pluginFile(
+      root,
+      `
       const fs = require("fs");
-      const [commit, output, gate] = process.argv.slice(1);
-      process.stderr.write('recognizer-progress {"step":"coverage"}\\n');
-      const wait = () => fs.existsSync(gate) ? finish() : setTimeout(wait, 10);
+      ${event({ event: "note", text: "Coverage run: unit" })}
+      const wait = () => fs.existsSync(${JSON.stringify(gate)}) ? finish() : setTimeout(wait, 10);
       const finish = () => {
-        fs.mkdirSync(require("path").dirname(output), { recursive: true });
-        fs.writeFileSync(output, JSON.stringify({
-          findings_version: 1,
-          sensor: { name: "live", version: "1" },
-          commit, modified: false, settings: {}, findings: [],
-        }));
+        ${FINDINGS_BODY}
       };
       wait();
-    `;
-    const gate = join(root, "gate");
+    `,
+      manifestOf({ name: "live" }),
+    );
     const running = runSensors({
       io,
       root,
       commit: COMMIT,
       scans: [],
       selected: [
-        {
-          name: "live",
-          runsTests: true,
-          command: [
-            process.execPath,
-            "-e",
-            script,
-            "{commit}",
-            "{output}",
-            gate,
-          ],
-        },
+        { name: "quick", runsTests: true, command: pluginCommand(live) },
       ],
-      onProgress: (name, progress) => {
-        seen.push({ name, ...progress });
+      onEvent: (name, one) => {
+        seen.push({ name, ...one });
         release();
       },
     });
 
     await observed;
 
-    expect(seen).toEqual([{ name: "live", step: "coverage" }]);
+    expect(seen).toEqual([
+      { name: "live", event: "note", text: "Coverage run: unit" },
+    ]);
 
     writeFileSync(gate, "");
 
@@ -197,33 +258,35 @@ describe("runSensors ceiling", () => {
     expect(entries[0]?.stderr).toBe("");
   });
 
-  it("drops a malformed or unknown-step progress line and keeps the run", async () => {
+  it("drops an invalid event line, counts it and keeps the run", async () => {
     const { root, io } = setup();
     const seen: unknown[] = [];
-    const script = `
-      process.stderr.write('recognizer-progress {not json}\\n');
-      process.stderr.write('recognizer-progress {"step":"later"}\\n');
-      process.stderr.write('recognizer-progress {"step":"mutants","done":3,"total":2}\\n');
-      process.stderr.write('recognizer-progress {"step":"mutants","done":1,"total":2}\\n');
-      ${WRITES_FINDINGS}
-    `;
+    const script = pluginFile(
+      root,
+      `
+      process.stderr.write('recognizer-event {not json}\\n');
+      process.stderr.write('recognizer-event {"event":"later"}\\n');
+      process.stderr.write('recognizer-event {"event":"progress","done":3}\\n');
+      ${event({ event: "progress", done: 1, total: 2, unit: "functions" })}
+      ${FINDINGS_BODY}
+    `,
+    );
     const entries = await runSensors({
       io,
       root,
       commit: COMMIT,
       scans: [],
       selected: [
-        {
-          name: "quick",
-          runsTests: true,
-          command: [process.execPath, "-e", script, "{commit}", "{output}"],
-        },
+        { name: "quick", runsTests: true, command: pluginCommand(script) },
       ],
-      onProgress: (_name, progress) => seen.push(progress),
+      onEvent: (_name, one) => seen.push(one),
     });
 
     expect(entries[0]).toMatchObject({ outcome: "ok" });
-    expect(seen).toEqual([{ step: "mutants", done: 1, total: 2 }]);
+    expect(entries[0]?.stderr).toBe("ignored 3 invalid event lines");
+    expect(seen).toEqual([
+      { event: "progress", done: 1, total: 2, unit: "functions" },
+    ]);
   });
 
   it("leaves no sensor process behind when the scan's process group is killed", async () => {
@@ -335,15 +398,16 @@ const DIAGNOSIS = {
   fix: "cargo install cargo-llvm-cov",
 };
 
-const REFUSES = `
-const [reason, plain] = process.argv.slice(1);
-process.stderr.write(reason + "\\n" + plain + "\\n");
-process.exit(2);
-`;
+const diagnosisEvent = (value: { code: string; line: string; fix?: string }) =>
+  event({
+    event: "diagnosis",
+    code: value.code,
+    text: value.line,
+    ...(value.fix === undefined ? {} : { fix: value.fix }),
+  });
 
-const WRITES_DIAGNOSIS = `
+const WRITES_DIAGNOSIS = (diagnosis: unknown) => `
 const fs = require("fs");
-const [commit, output, diagnosis] = process.argv.slice(1);
 fs.mkdirSync(require("path").dirname(output), { recursive: true });
 fs.writeFileSync(output, JSON.stringify({
   findings_version: 1,
@@ -352,64 +416,52 @@ fs.writeFileSync(output, JSON.stringify({
   modified: false,
   settings: {},
   findings: [],
-  diagnosis: JSON.parse(diagnosis),
+  diagnosis: ${JSON.stringify(diagnosis)},
 }));
 `;
 
 describe("runSensors diagnosis", () => {
   for (const runsTests of [false, true]) {
-    it(`carries a refusal's reason line to the entry and keeps the plain line as the reason (runsTests ${runsTests})`, async () => {
+    it(`carries a refusal's diagnosis event to the entry and keeps the plain line as the reason (runsTests ${runsTests})`, async () => {
       const { root, io } = setup();
+      const refusing = pluginFile(
+        root,
+        `${diagnosisEvent(DIAGNOSIS)}
+process.stderr.write(${JSON.stringify(DIAGNOSIS.line)} + "\\n");
+process.exit(2);`,
+      );
       const [entry] = await runSensors({
         io,
         root,
         commit: COMMIT,
         scans: [],
         selected: [
-          {
-            name: "quick",
-            runsTests,
-            command: [
-              process.execPath,
-              "-e",
-              REFUSES,
-              `recognizer-reason ${JSON.stringify(DIAGNOSIS)}`,
-              DIAGNOSIS.line,
-            ],
-          },
+          { name: "quick", runsTests, command: pluginCommand(refusing) },
         ],
       });
 
       expect(entry?.diagnosis).toEqual(DIAGNOSIS);
       expect(entry?.reason).toBe(DIAGNOSIS.line);
-      expect(entry?.stderr).not.toContain("recognizer-reason");
+      expect(entry?.stderr).not.toContain("recognizer-event");
     });
   }
 
   it("carries the findings document's diagnosis on a run that exits zero", async () => {
     const { root, io } = setup();
+    const writing = pluginFile(
+      root,
+      WRITES_DIAGNOSIS({
+        code: "tests-failed",
+        line: "3 tests failed, so coverage may read low",
+        failing: { count: 3, names: ["a", "b", "c"] },
+      }),
+    );
     const [entry] = await runSensors({
       io,
       root,
       commit: COMMIT,
       scans: [],
-      selected: [
-        {
-          name: "quick",
-          command: [
-            process.execPath,
-            "-e",
-            WRITES_DIAGNOSIS,
-            "{commit}",
-            "{output}",
-            JSON.stringify({
-              code: "tests-failed",
-              line: "3 tests failed, so coverage may read low",
-              failing: { count: 3, names: ["a", "b", "c"] },
-            }),
-          ],
-        },
-      ],
+      selected: [{ name: "quick", command: pluginCommand(writing) }],
     });
 
     expect(entry).toMatchObject({
@@ -418,32 +470,93 @@ describe("runSensors diagnosis", () => {
     });
   });
 
-  for (const code of ["tool-missing", "coverage-unavailable"]) {
+  it("fails a non-zero exit with no diagnosis event with its stderr as the reason", async () => {
+    const { root, io } = setup();
+    const refusing = pluginFile(
+      root,
+      `process.stderr.write("plain reason\\n");\nprocess.exit(2);`,
+    );
+    const [entry] = await runSensors({
+      io,
+      root,
+      commit: COMMIT,
+      scans: [],
+      selected: [{ name: "quick", command: pluginCommand(refusing) }],
+    });
+
+    expect(entry).toMatchObject({ outcome: "failed", reason: "plain reason" });
+    expect(entry?.diagnosis).toBeUndefined();
+  });
+
+  it("records an entry stopped by the user as stopped, not failed, and prints no failure line", async () => {
+    const { root, io, messages } = setup();
+    const noisy = pluginFile(
+      root,
+      `
+      process.on("SIGTERM", () => {
+        process.stderr.write("workers: 8\\n");
+        process.exit(143);
+      });
+      ${event({ event: "note", text: "mutating" })}
+      setInterval(() => {}, 1000);
+    `,
+    );
+    const running = runSensors({
+      io,
+      root,
+      commit: COMMIT,
+      scans: [],
+      selected: [{ name: "quick", command: pluginCommand(noisy) }],
+      onEvent: () => {
+        void stopEverything();
+      },
+    });
+    const [entry] = await running;
+
+    expect(entry).toMatchObject({ outcome: "stopped", reason: "stopped" });
+    expect(messages.join("")).not.toContain("failed quick");
+  });
+
+  for (const code of ["tests-failed", "anything-at-all"]) {
+    it(`keeps an exit-zero entry ok when its document's diagnosis is ${code} with no unmeasured flag`, async () => {
+      const { root, io } = setup();
+      const diagnosis = {
+        code,
+        line: "3 tests failed, so coverage may read low",
+      };
+      const writing = pluginFile(root, WRITES_DIAGNOSIS(diagnosis));
+      const [entry] = await runSensors({
+        io,
+        root,
+        commit: COMMIT,
+        scans: [],
+        selected: [{ name: "quick", command: pluginCommand(writing) }],
+      });
+
+      expect(entry).toMatchObject({ outcome: "ok", diagnosis });
+    });
+  }
+
+  for (const code of [
+    "tool-missing",
+    "coverage-unavailable",
+    "anything-at-all",
+  ]) {
     it(`fails an exit-zero sensor whose diagnosis is ${code} with the diagnosis line as the reason`, async () => {
       const { root, io } = setup();
       const diagnosis = {
         code,
         line: "coverage and pytest are not installed",
         fix: "uv sync",
+        unmeasured: true,
       };
+      const writing = pluginFile(root, WRITES_DIAGNOSIS(diagnosis));
       const [entry] = await runSensors({
         io,
         root,
         commit: COMMIT,
         scans: [],
-        selected: [
-          {
-            name: "quick",
-            command: [
-              process.execPath,
-              "-e",
-              WRITES_DIAGNOSIS,
-              "{commit}",
-              "{output}",
-              JSON.stringify(diagnosis),
-            ],
-          },
-        ],
+        selected: [{ name: "quick", command: pluginCommand(writing) }],
       });
 
       expect(entry).toMatchObject({
@@ -454,42 +567,34 @@ describe("runSensors diagnosis", () => {
     });
   }
 
-  for (const [label, reason] of [
-    ["not valid JSON", "recognizer-reason {nope"],
-    [
-      "an unknown code",
-      `recognizer-reason ${JSON.stringify({ ...DIAGNOSIS, code: "odd" })}`,
-    ],
+  for (const [label, line] of [
+    ["not valid JSON", "recognizer-event {nope"],
     [
       "an extra key",
-      `recognizer-reason ${JSON.stringify({ ...DIAGNOSIS, extra: 1 })}`,
+      `recognizer-event ${JSON.stringify({ event: "diagnosis", code: "x", text: "y", extra: 1 })}`,
     ],
     [
-      "six names",
-      `recognizer-reason ${JSON.stringify({
-        code: "tests-failed",
-        line: "x",
-        failing: { names: ["1", "2", "3", "4", "5", "6"] },
-      })}`,
+      "an empty text",
+      `recognizer-event ${JSON.stringify({ event: "diagnosis", code: "x", text: "" })}`,
     ],
   ] as const) {
-    it(`leaves a reason line that is ${label} in the stderr and gives no diagnosis`, async () => {
+    it(`drops an invalid diagnosis event that is ${label} and gives no diagnosis`, async () => {
       const { root, io } = setup();
+      const refusing = pluginFile(
+        root,
+        `process.stderr.write(${JSON.stringify(line)} + "\\n");\nprocess.stderr.write("plain\\n");\nprocess.exit(2);`,
+      );
       const [entry] = await runSensors({
         io,
         root,
         commit: COMMIT,
         scans: [],
-        selected: [
-          {
-            name: "quick",
-            command: [process.execPath, "-e", REFUSES, reason, "plain"],
-          },
-        ],
+        selected: [{ name: "quick", command: pluginCommand(refusing) }],
       });
 
       expect(entry?.diagnosis).toBeUndefined();
-      expect(entry?.stderr).toContain(reason);
+      expect(entry?.stderr).toContain("plain");
+      expect(entry?.stderr).toContain("ignored 1 invalid event line");
     });
   }
 });
@@ -503,7 +608,6 @@ describe("sense entry figures", () => {
   ] as unknown as Scan[];
   const finishing = (extra: string) => `
     const fs = require("fs");
-    const [commit, output] = process.argv.slice(1);
     fs.mkdirSync(require("path").dirname(output), { recursive: true });
     fs.writeFileSync(output, JSON.stringify({
       findings_version: 1,
@@ -511,10 +615,6 @@ describe("sense entry figures", () => {
       commit, modified: false, settings: {}, findings: [], ${extra}
     }));
   `;
-  const progressLines = (steps: string[]) =>
-    steps
-      .map((step) => `process.stderr.write('recognizer-progress ${step}\\n');`)
-      .join("\n");
 
   async function sensed(
     script: string,
@@ -542,10 +642,10 @@ describe("sense entry figures", () => {
             ? {}
             : { runsTests: over.runsTests }),
           ...(over.modules === undefined ? {} : { modules: over.modules }),
-          command: [process.execPath, "-e", script, "{commit}", "{output}"],
+          command: pluginCommand(pluginFile(root, script)),
         },
       ],
-      onProgress: () => {
+      onEvent: () => {
         at += 1;
       },
     });
@@ -553,23 +653,26 @@ describe("sense entry figures", () => {
     return entry;
   }
 
-  it("records fixed_ms as the delta to the first mutants line and the cached module count", async () => {
+  it("records fixed_ms as the delta to the first progress event with done above 0 and the cached module count", async () => {
     const entry = await sensed(
-      `${progressLines(['{"step":"coverage"}', '{"step":"mutants","done":0,"total":3}', '{"step":"mutants","done":1,"total":3}'])}\n${finishing("")}`,
+      `${event({ event: "start", total: 3, unit: "functions" })}
+${event({ event: "progress", done: 0, total: 3, unit: "functions" })}
+${event({ event: "progress", done: 1, total: 3, unit: "functions" })}
+${finishing("")}`,
       { runsTests: true, clock: [0, 1000, 9000, 20000] },
     );
 
     expect(entry).toMatchObject({
       outcome: "ok",
       modules: 3,
-      fixed_ms: 1000,
+      fixed_ms: 9000,
       duration_ms: 20000,
     });
   });
 
-  it("records the whole duration as fixed_ms when no mutants line arrives", async () => {
+  it("records the whole duration as fixed_ms when no progress event arrives", async () => {
     const entry = await sensed(
-      `${progressLines(['{"step":"coverage"}'])}\n${finishing("")}`,
+      `${event({ event: "start", total: 3, unit: "functions" })}\n${finishing("")}`,
       { runsTests: true, clock: [0, 7000, 7000] },
     );
 

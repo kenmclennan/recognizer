@@ -117,7 +117,7 @@ def test_an_unreadable_scan_is_no_modules(sample, tmp_path):
         ["thresholds", "--settings", "[1]"],
         ["thresholds", "--settings", '{"complexity":2}'],
         ["thresholds", "--settings", '{"nonesuch":1}'],
-        ["thresholds", "--repository", "/nonexistent/folder", "--commit", "c"],
+        ["thresholds", "run", "--repository", "/nonexistent/folder", "--commit", "c"],
         ["thresholds", "--bogus"],
     ],
 )
@@ -134,14 +134,14 @@ def test_no_commit_exits_two(tmp_path):
     root = tmp_path / "plain"
     root.mkdir()
 
-    assert main(["thresholds", "--repository", str(root)]) == 2
+    assert main(["thresholds", "run", "--repository", str(root)]) == 2
 
 
 def test_the_commit_defaults_to_head(sample, tmp_path):
     sha = git_commit(sample)
     output = tmp_path / "out.json"
 
-    assert main(["thresholds", "--repository", str(sample), "--output", str(output)]) == 0
+    assert main(["thresholds", "run", "--repository", str(sample), "--output", str(output)]) == 0
     assert json.loads(output.read_text())["commit"] == sha
 
 
@@ -154,7 +154,7 @@ def test_version_prints_the_package_version(capsys):
 
 
 def test_output_goes_to_stdout_by_default(sample, capsys):
-    assert main(["thresholds", "--repository", str(sample), "--commit", "c1"]) == 0
+    assert main(["thresholds", "run", "--repository", str(sample), "--commit", "c1"]) == 0
     assert json.loads(capsys.readouterr().out)["sensor"]["name"] == "thresholds"
 
 
@@ -204,6 +204,7 @@ def test_two_runs_give_the_same_bytes_under_another_hash_seed(sample, tmp_path):
                 "-m",
                 "recognizer_sensors",
                 "thresholds",
+                "run",
                 "--repository",
                 str(sample),
                 "--commit",
@@ -278,6 +279,7 @@ def test_suites_on_crap_refuses_an_unknown_empty_or_malformed_value(
     status = main(
         [
             "crap",
+            "run",
             "--repository",
             str(sample),
             "--commit",

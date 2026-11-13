@@ -67,7 +67,10 @@ function check(fake: ReturnType<typeof fakeIo>, ...argv: string[]) {
 }
 
 function checks(fake: ReturnType<typeof fakeIo>) {
-  return fake.calls.filter((call) => call.args.includes("--check"));
+  return fake.calls.filter(
+    (call) =>
+      call.command.startsWith("recognizer-sense-") && call.args[0] === "check",
+  );
 }
 
 describe("recognizer sensors check", () => {
@@ -169,7 +172,9 @@ describe("recognizer sensors check", () => {
     const fake = setup("", gapsBy({ crap: [API_GAP] }));
 
     expect(check(fake, "crap")).toBe(1);
-    expect(checks(fake).map((call) => call.args[0])).toEqual(["crap"]);
+    expect(checks(fake).map((call) => call.command)).toEqual([
+      "recognizer-sense-crap",
+    ]);
   });
 
   it("hands a shipped sensor that is not registered the tests list the scan would pass", () => {
@@ -237,7 +242,7 @@ describe("recognizer sensors check", () => {
       {
         code: "sensors-missing",
         suite: null,
-        line: "recognizer-sensors is not installed",
+        line: "recognizer-sense-crap is not installed",
       },
     ]);
   });
@@ -278,7 +283,7 @@ describe("recognizer sensors check", () => {
     const args = call?.args as string[];
 
     expect(call?.cwd).toBe(ROOT);
-    expect(args).toContain("--check");
+    expect(args[0]).toBe("check");
     expect(args).toContain(ROOT);
 
     for (const dropped of [
@@ -303,8 +308,8 @@ describe("checkArguments", () => {
     expect(
       checkArguments(
         [
-          "recognizer-sensors",
-          "mutation",
+          "recognizer-sense-mutation",
+          "run",
           "--repository",
           "{repository}",
           "--commit",
@@ -318,11 +323,10 @@ describe("checkArguments", () => {
         true,
       ),
     ).toEqual([
-      "recognizer-sensors",
-      "mutation",
+      "recognizer-sense-mutation",
+      "check",
       "--repository",
       "/r",
-      "--check",
       "--run",
     ]);
   });
@@ -332,7 +336,10 @@ describe("recognizer help sensors <name>", () => {
   const guided = (stdout: string) =>
     fakeIo({
       files: { [CONFIG]: REGISTERED },
-      programs: { "recognizer-sensors": () => ({ stdout }) },
+      programs: {
+        "recognizer-sense-crap": () => ({ stdout }),
+        "recognizer-sense-thresholds": () => ({ stdout }),
+      },
     });
 
   it("prints the guide the sensor supplies, verbatim", () => {
@@ -340,8 +347,7 @@ describe("recognizer help sensors <name>", () => {
 
     expect(run(["help", "sensors", "crap"], fake.io)).toBe(0);
     expect(fake.out()).toBe("the guide\nsecond line\n");
-    expect(fake.calls[0]?.args).toContain("--guide");
-    expect(fake.calls[0]?.args).not.toContain("--check");
+    expect(fake.calls[0]?.args).toEqual(["guide"]);
   });
 
   it("says a sensor that prints nothing supplies no setup guide", () => {
@@ -364,8 +370,8 @@ describe("recognizer help sensors <name>", () => {
 
 describe("suites pair", () => {
   const command = [
-    "recognizer-sensors",
-    "crap",
+    "recognizer-sense-crap",
+    "run",
     "--repository",
     "{repository}",
     "--suites",
@@ -374,20 +380,19 @@ describe("suites pair", () => {
 
   it("is kept by the readiness check arguments", () => {
     expect(checkArguments(command, "/r", false)).toEqual([
-      "recognizer-sensors",
-      "crap",
+      "recognizer-sense-crap",
+      "check",
       "--repository",
       "/r",
       "--suites",
       '["unit"]',
-      "--check",
     ]);
   });
 
   it("is dropped from the guide arguments", () => {
     expect(strippedArguments(command, "/r")).toEqual([
-      "recognizer-sensors",
-      "crap",
+      "recognizer-sense-crap",
+      "run",
       "--repository",
       "/r",
     ]);

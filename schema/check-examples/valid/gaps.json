@@ -1,0 +1,8 @@
+{
+  "gaps": [
+    {"code": "no-coverage", "suite": "unit", "line": "the unit suite writes no coverage report"}
+  ],
+  "notes": [
+    {"code": "slow", "suite": null, "line": "the integration suite takes a few minutes"}
+  ]
+}
