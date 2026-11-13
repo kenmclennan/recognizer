@@ -41,4 +41,24 @@ describe("nextVersion", () => {
 
     expect(nextVersion(conf.version, [])).toBe(conf.version);
   });
+
+  it("gives the next version of a unit from its prefixed tags and ignores v tags and other units", () => {
+    const tags = [
+      "scan-rust-v0.1.7",
+      "scan-rust-v0.1.9",
+      "scan-python-v3.0.0",
+      "sensors-v0.4.0",
+      "v9.9.9",
+    ];
+
+    expect(nextVersion("0.1.0", tags, "scan-rust-v")).toBe("0.1.10");
+    expect(nextVersion("0.2.0", tags, "scan-rust-v")).toBe("0.2.0");
+    expect(
+      nextVersion("0.1.0", ["v0.1.7", "sensors-v0.4.0"], "scan-rust-v"),
+    ).toBe("0.1.0");
+  });
+
+  it("does not take a unit tag for a cask tag with the default prefix", () => {
+    expect(nextVersion("0.1.0", ["scan-rust-v0.1.7", "xv0.1.7"])).toBe("0.1.0");
+  });
 });

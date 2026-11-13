@@ -12,7 +12,7 @@ from jsonschema import Draft202012Validator
 from recognizer_sensors import config_schema, entry
 from recognizer_sensors.cli import main
 from recognizer_sensors.crap.sensor import PUBLISHED_THRESHOLD
-from recognizer_sensors.manifest import INSTALL, PROTOCOL, build
+from recognizer_sensors.manifest import PROTOCOL, build, install_line
 from recognizer_sensors.registry import SHIPPED
 from recognizer_sensors.testrun import records
 from recognizer_sensors.thresholds.sensor import PUBLISHED
@@ -83,7 +83,7 @@ def test_the_manifest_names_the_sensor_and_the_shared_facts(name):
     assert manifest["kind"] == "sensor"
     assert manifest["name"] == name
     assert manifest["protocol"] == PROTOCOL
-    assert manifest["install"] == INSTALL
+    assert manifest["install"] == install_line(name)
     assert manifest["version"] == version("recognizer-sensors")
 
 

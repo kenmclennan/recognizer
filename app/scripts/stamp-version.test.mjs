@@ -3,7 +3,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../scripts/temp-dirs.mjs";
-import { stampVersion } from "./stamp-version.mjs";
+import {
+  committedVersion,
+  stampVersion,
+  UNIT_FILES,
+} from "./stamp-version.mjs";
 
 const FILES = {
   "app/src-tauri/tauri.conf.json":
@@ -64,24 +68,86 @@ describe("stampVersion", () => {
     );
   });
 
-  it("changes the eleven versions and no other byte", () => {
+  const CLI_FILES = [
+    "app/src-tauri/tauri.conf.json",
+    "app/src-tauri/Cargo.toml",
+    "app/package.json",
+    "package.json",
+    "check/package.json",
+  ];
+
+  function stamped(path, text) {
+    return path === "scanners/rust/Cargo.lock"
+      ? text.replace(
+          'name = "recognizer-scan-rust"\nversion = "0.1.0"',
+          'name = "recognizer-scan-rust"\nversion = "0.3.4"',
+        )
+      : text
+          .replace('version = "0.1.0"', 'version = "0.3.4"')
+          .replace('"version": "0.1.0"', '"version": "0.3.4"');
+  }
+
+  it("with no unit changes the five CLI and app versions and no plugin file", () => {
     const root = fixture();
 
     stampVersion(root, "0.3.4");
 
     for (const [path, text] of Object.entries(FILES)) {
-      const stamped =
-        path === "scanners/rust/Cargo.lock"
-          ? text.replace(
-              'name = "recognizer-scan-rust"\nversion = "0.1.0"',
-              'name = "recognizer-scan-rust"\nversion = "0.3.4"',
-            )
-          : text
-              .replace('version = "0.1.0"', 'version = "0.3.4"')
-              .replace('"version": "0.1.0"', '"version": "0.3.4"');
-
-      expect(readFileSync(join(root, path), "utf8")).toBe(stamped);
+      expect(readFileSync(join(root, path), "utf8")).toBe(
+        CLI_FILES.includes(path) ? stamped(path, text) : text,
+      );
     }
+  });
+
+  it("changes the eleven versions and no other byte", () => {
+    const root = fixture();
+
+    stampVersion(root, "0.3.4");
+
+    for (const unit of Object.keys(UNIT_FILES)) {
+      stampVersion(root, "0.3.4", unit);
+    }
+
+    for (const [path, text] of Object.entries(FILES)) {
+      expect(readFileSync(join(root, path), "utf8")).toBe(stamped(path, text));
+    }
+  });
+
+  it("stamping scan-rust rewrites its Cargo.toml and Cargo.lock entry and nothing else", () => {
+    const root = fixture();
+
+    stampVersion(root, "0.3.4", "scan-rust");
+
+    for (const [path, text] of Object.entries(FILES)) {
+      expect(readFileSync(join(root, path), "utf8")).toBe(
+        path.startsWith("scanners/rust/") ? stamped(path, text) : text,
+      );
+    }
+  });
+
+  it.each([
+    ["scan-python", ["scanners/python/pyproject.toml"]],
+    ["scan-typescript", ["scanners/typescript/package.json"]],
+    ["scan-kotlin", ["scanners/kotlin/pyproject.toml"]],
+    ["scan-csharp", ["scanners/csharp/pyproject.toml"]],
+    ["sensors", ["sensors/pyproject.toml"]],
+    ["describe-claude", ["describers/claude/package.json"]],
+  ])("stamping %s rewrites only its own files", (unit, own) => {
+    const root = fixture();
+
+    stampVersion(root, "0.3.4", unit);
+
+    for (const [path, text] of Object.entries(FILES)) {
+      expect(readFileSync(join(root, path), "utf8")).toBe(
+        own.includes(path) ? stamped(path, text) : text,
+      );
+    }
+  });
+
+  it("refuses a unit it does not know", () => {
+    expect(() => stampVersion(fixture(), "0.3.4", "scan-cobol")).toThrow(
+      /No unit scan-cobol/,
+    );
   });
 });
 
@@ -111,6 +177,10 @@ describe("stampVersion on the real manifests", () => {
     }
 
     stampVersion(root, "7.8.9");
+
+    for (const unit of Object.keys(UNIT_FILES)) {
+      stampVersion(root, "7.8.9", unit);
+    }
 
     const lockBefore = readFileSync(
       join(repo, "scanners/rust/Cargo.lock"),
@@ -156,5 +226,16 @@ describe("stampVersion on the real manifests", () => {
         'name = "recognizer-scan-rust"\nversion = "0.1.0"',
       ),
     ).toBe(lockBefore);
+  });
+});
+
+describe("committedVersion", () => {
+  it("reads the version a unit commits in its first manifest file", () => {
+    const root = fixture();
+
+    expect(committedVersion(root, "scan-rust")).toBe("0.1.0");
+    expect(committedVersion(root, "scan-typescript")).toBe("0.1.0");
+    expect(committedVersion(root, "sensors")).toBe("0.1.0");
+    expect(() => committedVersion(root, "scan-cobol")).toThrow(/No unit/);
   });
 });

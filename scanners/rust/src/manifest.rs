@@ -4,7 +4,7 @@ use crate::discovery::{EXTENSIONS, SKIPPED_DIRECTORY_NAMES, SKIPPED_DIRECTORY_PR
 
 pub const PROTOCOL: u64 = 1;
 
-pub const INSTALL: &str = "brew install --cask kenmclennan/tap/recognizer";
+pub const INSTALL: &str = "brew upgrade kenmclennan/tap/recognizer-scan-rust || brew install kenmclennan/tap/recognizer-scan-rust";
 
 pub fn build() -> Value {
     json!({

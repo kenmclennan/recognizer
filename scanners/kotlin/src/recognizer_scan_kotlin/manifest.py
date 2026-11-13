@@ -11,7 +11,10 @@ from recognizer_scan_kotlin.discovery import (
 
 PROTOCOL = 1
 
-INSTALL = "brew install --cask kenmclennan/tap/recognizer"
+INSTALL = (
+    "brew upgrade kenmclennan/tap/recognizer-scan-kotlin "
+    "|| brew install kenmclennan/tap/recognizer-scan-kotlin"
+)
 
 
 def build() -> dict:

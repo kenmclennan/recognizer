@@ -3,7 +3,8 @@ import { promptVersion } from "./prompt.js";
 
 export const PROTOCOL = 1;
 
-export const INSTALL = "brew install --cask kenmclennan/tap/recognizer";
+export const INSTALL =
+  "brew upgrade kenmclennan/tap/recognizer-describe-claude || brew install kenmclennan/tap/recognizer-describe-claude";
 
 const PACKAGE_FILE = new URL("../package.json", import.meta.url);
 
