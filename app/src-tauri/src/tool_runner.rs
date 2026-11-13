@@ -14,16 +14,7 @@ const RETRY_WINDOW: Duration = Duration::from_secs(30);
 const MAX_BOUND: usize = 4;
 const BUNDLE_FIX: &str = "brew reinstall --cask kenmclennan/tap/recognizer";
 
-pub const COMMANDS: [&str; 8] = [
-    "recognizer",
-    "recognizer-scan-typescript",
-    "recognizer-describe-claude",
-    "recognizer-scan-python",
-    "recognizer-scan-kotlin",
-    "recognizer-scan-csharp",
-    "recognizer-sensors",
-    "recognizer-scan-rust",
-];
+pub const COMMANDS: [&str; 1] = ["recognizer"];
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Toolchain {
@@ -787,13 +778,8 @@ impl ToolRunner {
                 .collect()
         });
 
-        for (name, result) in COMMANDS.iter().zip(results) {
-            match result {
-                Err(ToolFault::Missing { .. })
-                    if self.toolchain == Toolchain::Path && *name != COMMANDS[0] => {}
-                Err(fault) => return Err(fault),
-                Ok(_) => {}
-            }
+        for result in results {
+            result?;
         }
 
         Ok(())
@@ -1216,18 +1202,16 @@ pub mod tests {
         let elsewhere = TempDir::new().unwrap();
         let folder = fake_commands(dir.path(), "1.2.3");
 
-        fs::remove_file(folder.join("recognizer-sensors")).unwrap();
-        script(elsewhere.path(), "recognizer-sensors", "echo 1.2.3");
+        fs::remove_file(folder.join("recognizer")).unwrap();
+        script(elsewhere.path(), "recognizer", "echo 1.2.3");
 
         let runner = bundled_runner(dir.path(), &folder, &elsewhere.path().display().to_string());
-        let fault = runner
-            .capture("recognizer-sensors", &[], false)
-            .unwrap_err();
+        let fault = runner.capture("recognizer", &[], false).unwrap_err();
 
         assert_eq!(
             fault,
             ToolFault::Incomplete {
-                path: folder.join("recognizer-sensors")
+                path: folder.join("recognizer")
             }
         );
         assert!(fault.message().contains("incomplete"));
@@ -1264,15 +1248,17 @@ pub mod tests {
         let dir = TempDir::new().unwrap();
         let folder = fake_commands(dir.path(), "1.2.3");
 
-        script(&folder, "recognizer", "exit 0");
-        script(&folder, "recognizer-sensors", "echo 1.2.3\nexit 3");
-
         let runner = bundled_runner(dir.path(), &folder, "/usr/bin");
 
-        for name in ["recognizer", "recognizer-sensors"] {
-            let message = runner.capture(name, &[], false).unwrap_err().message();
+        for body in ["exit 0", "echo 1.2.3\nexit 3"] {
+            script(&folder, "recognizer", body);
 
-            assert!(message.contains(&format!("{name} no version")), "{message}");
+            let message = runner
+                .capture("recognizer", &[], false)
+                .unwrap_err()
+                .message();
+
+            assert!(message.contains("recognizer no version"), "{message}");
         }
     }
 
@@ -1341,19 +1327,19 @@ pub mod tests {
         assert!(runner.capture("recognizer", &[], false).is_ok());
         assert_eq!(runs_of(dir.path(), "recognizer", "version-runs"), 2);
 
-        fake_command(dir.path(), &folder, "recognizer-sensors", "9.9.9");
+        fake_command(dir.path(), &folder, "recognizer", "9.9.9");
 
-        assert!(runner.capture("recognizer-sensors", &[], false).is_err());
-        assert!(runner.capture("recognizer-sensors", &[], false).is_err());
-        assert_eq!(runs_of(dir.path(), "recognizer-sensors", "version-runs"), 2);
+        assert!(runner.capture("recognizer", &[], false).is_err());
+        assert!(runner.capture("recognizer", &[], false).is_err());
+        assert_eq!(runs_of(dir.path(), "recognizer", "version-runs"), 4);
     }
 
     #[test]
-    fn checking_every_command_refuses_on_the_one_that_disagrees() {
+    fn checking_the_command_refuses_when_it_disagrees() {
         let dir = TempDir::new().unwrap();
         let folder = fake_commands(dir.path(), "1.2.3");
 
-        fake_command(dir.path(), &folder, "recognizer-scan-kotlin", "0.1.108");
+        fake_command(dir.path(), &folder, "recognizer", "0.1.108");
 
         let runner = bundled_runner(dir.path(), &folder, "/usr/bin");
         let fault = runner.check_all().unwrap_err();
@@ -1361,8 +1347,11 @@ pub mod tests {
         assert!(matches!(
             &fault,
             ToolFault::Mismatch { tool, found, expected, .. }
-                if tool == "recognizer-scan-kotlin" && found == "0.1.108" && expected == "1.2.3"
+                if tool == "recognizer" && found == "0.1.108" && expected == "1.2.3"
         ));
+        assert!(fault
+            .message()
+            .contains("brew reinstall --cask kenmclennan/tap/recognizer"));
 
         for name in COMMANDS {
             assert_eq!(runs_of(dir.path(), name, "scan-runs"), 0);
@@ -1370,7 +1359,7 @@ pub mod tests {
     }
 
     #[test]
-    fn checking_every_command_passes_when_all_eight_agree() {
+    fn checking_the_command_passes_when_it_agrees() {
         let dir = TempDir::new().unwrap();
         let folder = fake_commands(dir.path(), "1.2.3");
         let runner = bundled_runner(dir.path(), &folder, "/usr/bin");
@@ -1379,22 +1368,45 @@ pub mod tests {
     }
 
     #[test]
-    fn a_development_path_without_a_scanner_still_checks_the_ones_it_has() {
+    fn checking_a_bundled_folder_without_the_command_is_incomplete() {
         let dir = TempDir::new().unwrap();
         let folder = fake_commands(dir.path(), "1.2.3");
 
-        fs::remove_file(folder.join("recognizer-scan-rust")).unwrap();
+        fs::remove_file(folder.join("recognizer")).unwrap();
 
-        let shell = shell_with_path(dir.path(), &folder.display().to_string());
-        let runner = ToolRunner::new(
-            shell.display().to_string(),
-            Duration::from_secs(10),
-            Duration::from_secs(30),
-            4,
-            Toolchain::Path,
-            "1.2.3",
+        let runner = bundled_runner(dir.path(), &folder, "/usr/bin");
+
+        assert_eq!(
+            runner.check_all().unwrap_err(),
+            ToolFault::Incomplete {
+                path: folder.join("recognizer")
+            }
         );
+    }
 
-        assert!(runner.check_all().is_ok());
+    #[test]
+    fn a_command_outside_the_list_is_still_version_checked() {
+        let dir = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "1.2.3");
+
+        assert!(!COMMANDS.contains(&"recognizer-scan-python"));
+
+        fake_command(dir.path(), &folder, "recognizer-scan-python", "9.9.9");
+
+        let runner = bundled_runner(dir.path(), &folder, "/usr/bin");
+        let fault = runner
+            .capture("recognizer-scan-python", &[], false)
+            .unwrap_err();
+
+        assert!(matches!(
+            fault,
+            ToolFault::Mismatch { ref tool, ref found, .. }
+                if tool == "recognizer-scan-python" && found == "9.9.9"
+        ));
+    }
+
+    #[test]
+    fn the_runner_checks_recognizer_only() {
+        assert_eq!(COMMANDS, ["recognizer"]);
     }
 }

@@ -44,7 +44,7 @@ export function fakeSettingsModal(
       options.schema === undefined
         ? {
             status: "unavailable",
-            reason: "recognizer-sensors is not installed",
+            reason: "recognizer config --schema did not answer",
           }
         : { status: "ok", schema: options.schema },
     calls: [],

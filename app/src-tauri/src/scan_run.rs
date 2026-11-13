@@ -1776,7 +1776,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let folder = fake_commands(dir.path(), "1.2.3");
 
-        fake_command(dir.path(), &folder, "recognizer-scan-python", "0.1.108");
+        fake_command(dir.path(), &folder, "recognizer", "0.1.108");
 
         let runner = bundled_runner(dir.path(), &folder, "/usr/bin");
         let runs = ScanRuns::default();
@@ -1796,11 +1796,11 @@ mod tests {
         match &result {
             ScanRun::Gaps { gaps } => {
                 assert_eq!(gaps.len(), 1);
-                assert_eq!(gaps[0].id, "toolchain:recognizer-scan-python");
+                assert_eq!(gaps[0].id, "toolchain:recognizer");
                 assert_eq!(gaps[0].needs, vec!["scan".to_string()]);
                 assert!(gaps[0].line.contains("1.2.3"));
                 assert!(gaps[0].line.contains("0.1.108"));
-                assert!(gaps[0].line.contains("recognizer-scan-python"));
+                assert!(gaps[0].line.contains("recognizer"));
             }
             other => panic!("expected Gaps, got {other:?}"),
         }

@@ -482,7 +482,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
 
   const recordOf = (name, outcome, at, diagnosis) => json({ log_version: 1, kind: "scan", started: at, finished: at, by: "ken", arguments: [], outcome, exit: outcome === "ok" ? 0 : 1, phases: [{ phase: "sense", entries: [{ name, command: ["x"], status: outcome === "ok" ? 0 : 1, outcome, duration_ms: 1, stderr: "", ...(outcome === "failed" ? { reason: "tests failed", ...(diagnosis ? { diagnosis } : {}) } : {}) }] }] });
   const restart = async (records, modifiedMs) => {
-    const f = fakeSensors({ crap: ranDoc("crap", undefined) }, { config: CONFIG + "  crap:\\n    command: [recognizer-sensors, crap, '{repository}']\\n" }, {}, SHIPPED);
+    const f = fakeSensors({ crap: ranDoc("crap", undefined) }, { config: CONFIG + "  crap:\\n    command: [recognizer-sense-crap, '{repository}']\\n" }, {}, SHIPPED);
     if (modifiedMs !== undefined) f.modified.set("crap", modifiedMs);
     for (const [name, text] of Object.entries(records)) f.runRecords.set(name, text);
     const m = await mount(fakeScan(), f);
