@@ -31,7 +31,7 @@ function launcher(directory: string, name: string, body: string): void {
   chmodSync(path, 0o755);
 }
 
-describe("the pinned recognizer-sensors key schema", () => {
+describe("the pinned sensors key schema", () => {
   const parsed = parseKeySchema(
     readFileSync(join(REPO, "fixtures/sensors/config-keys.json"), "utf8"),
   );
@@ -107,11 +107,6 @@ describe.skipIf(!HAS_UV)(
       launchers = makeTempDir("recognizer-launchers-");
       launcher(
         launchers,
-        "recognizer-sensors",
-        `exec uv run --quiet --project ${REPO}/sensors recognizer-sensors "$@"`,
-      );
-      launcher(
-        launchers,
         "recognizer-sense-crap",
         `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-crap "$@"`,
       );
@@ -158,6 +153,29 @@ describe.skipIf(!HAS_UV)(
         expect(result.stdout).toContain("tests.<name>.coverage.format");
         expect(result.stdout).toContain("sensors.mutation.carry");
         expect(result.stdout).not.toContain("did not answer");
+      },
+      scaledTimeout(120_000),
+    );
+
+    it(
+      "prints the schema of recognizer config --schema equal to the pinned file, whole",
+      () => {
+        const pinned = JSON.parse(
+          readFileSync(join(REPO, "fixtures/sensors/config-keys.json"), "utf8"),
+        );
+        const defaulted = pinned.keys.filter(
+          (entry: Record<string, unknown>) =>
+            entry.default !== undefined ||
+            entry.defaults !== undefined ||
+            entry.default_text !== undefined,
+        );
+
+        expect(defaulted).toHaveLength(8);
+
+        const result = shell("recognizer config --schema", repository());
+
+        expect(result.status, result.stderr).toBe(0);
+        expect(JSON.parse(result.stdout)).toEqual(pinned);
       },
       scaledTimeout(120_000),
     );

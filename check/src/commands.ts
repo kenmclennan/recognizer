@@ -824,6 +824,7 @@ export const COMMANDS: Command[] = [
       "recognizer config --unset <key> [<value>]",
       "recognizer config --remove-section <section>",
       "recognizer config --add-section <section>",
+      "recognizer config --schema [--repository <dir>]",
     ].join("\n"),
     arguments: [
       {
@@ -871,6 +872,11 @@ export const COMMANDS: Command[] = [
         flag: "--add-section",
         description:
           "create a section holding nothing but its name; an existing one is left alone",
+      },
+      {
+        flag: "--schema",
+        description:
+          "print the key schema the sensors publish as JSON, with keys_version 1; exits 1 when a shipped sensor's manifest cannot be read; takes no other verb",
       },
       {
         flag: "--repository <dir>",

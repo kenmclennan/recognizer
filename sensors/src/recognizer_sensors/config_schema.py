@@ -229,7 +229,7 @@ THRESHOLDS_KEYS = (
 def key_schema():
     return {
         "keys_version": KEYS_VERSION,
-        "owner": "recognizer-sensors",
+        "owner": "sensors",
         "placeholders": PLACEHOLDERS,
         "sections": list(SECTIONS),
         "keys": [

@@ -1,6 +1,6 @@
 import type { Io } from "./cli.js";
 import { configFile } from "./config.js";
-import { loadKeys } from "./config-keys.js";
+import { loadKeys, loadSensorSchema } from "./config-keys.js";
 import {
   type KeyedCommand,
   keysHelp,
@@ -10,11 +10,12 @@ import {
 
 const CONFIG: KeyedCommand = {
   noun: "config",
-  usage: usageFor("config"),
+  usage: usageFor("config", true),
   fileFor: configFile,
   keysFor: loadKeys,
   validate: null,
   missing: null,
+  schemaFor: loadSensorSchema,
 };
 
 export function runConfig(argv: string[], io: Io): number {

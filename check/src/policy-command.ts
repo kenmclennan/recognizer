@@ -45,6 +45,7 @@ const POLICY: KeyedCommand = {
   keysFor: () => PUBLISHED,
   validate: introduced,
   missing: "there is no policy at .recognizer/policy.yaml",
+  schemaFor: null,
 };
 
 export function runPolicy(argv: string[], io: Io): number {

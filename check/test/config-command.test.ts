@@ -2,64 +2,31 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
+import { loadKeys, parseKeySchema } from "../src/config-keys.js";
 import { REPO } from "./helpers.js";
-import { fakeIo, ROOT } from "./scan-helpers.js";
+import { fakeIo, type ProgramEffect, ROOT } from "./scan-helpers.js";
 
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
 
-const SENSORS_DOCUMENT = {
-  keys_version: 1,
-  owner: "recognizer-sensors",
-  placeholders: { name: "^.+$" },
-  sections: [
-    {
-      key: "tests.<name>",
-      shape: "list-entry",
-      identity: "name",
-      description: "one test suite",
-      example: 'tests.unit.command "pytest"',
-    },
-  ],
-  keys: [
-    {
-      key: "tests.<name>.command",
-      type: "string",
-      description: "the suite's command",
-      example: 'tests.unit.command "pytest"',
-    },
-    {
-      key: "tests.<name>.coverage.format",
-      type: "enum",
-      values: ["lcov", "jacoco"],
-      description: "the format of the coverage report",
-      example: "tests.unit.coverage.format jacoco",
-    },
-    {
-      key: "sensors.mutation.max_minutes",
-      type: "number",
-      exclusiveMinimum: 0,
-      description: "the time budget in minutes",
-      example: "sensors.mutation.max_minutes 10",
-    },
-    {
-      key: "sensors.mutation.carry",
-      type: "string",
-      multi: true,
-      description: "paths Mutation carries into its copy",
-      example: "--add sensors.mutation.carry .venv",
-    },
-  ],
-};
+const NAMES = ["crap", "mutation", "thresholds"];
+
+function unreadable(reasons: Record<string, ProgramEffect>) {
+  return Object.fromEntries(
+    Object.entries(reasons).map(([name, effect]) => [
+      `recognizer-sense-${name}`,
+      () => effect,
+    ]),
+  );
+}
 
 function setup(
-  answer: { stdout?: string; status?: number; started?: boolean } = {
-    stdout: JSON.stringify(SENSORS_DOCUMENT),
-  },
+  silent: Record<string, ProgramEffect> = {},
   files: Record<string, string> = {},
 ) {
   return fakeIo({
     files,
-    programs: { "recognizer-sensors": () => answer },
+    sensorManifests: true,
+    programs: unreadable(silent),
   });
 }
 
@@ -86,10 +53,13 @@ describe("recognizer config", () => {
   });
 
   it("prints key=value lines in file order for --list", () => {
-    const fake = setup(undefined, {
-      [CONFIG]:
-        'describer:\n  command: [a]\n  version: "1"\nsensors:\n  mutation:\n    carry: [.venv]\n',
-    });
+    const fake = setup(
+      {},
+      {
+        [CONFIG]:
+          'describer:\n  command: [a]\n  version: "1"\nsensors:\n  mutation:\n    carry: [.venv]\n',
+      },
+    );
 
     expect(config(fake, "--list")).toBe(0);
 
@@ -130,7 +100,7 @@ describe("recognizer config", () => {
   });
 
   it("writes nothing when an edit changes nothing", () => {
-    const fake = setup(undefined, { [CONFIG]: "sensors:\n  crap: {}\n" });
+    const fake = setup({}, { [CONFIG]: "sensors:\n  crap: {}\n" });
 
     expect(config(fake, "--add-section", "sensors.crap")).toBe(0);
     expect(fake.renames).toHaveLength(0);
@@ -190,72 +160,157 @@ describe("recognizer help config", () => {
       expect(out).toContain("describer.version");
       expect(out).toContain("tests.<name>.coverage.format");
       expect(out).toContain("one of lcov, jacoco");
-      expect(out).toContain("[recognizer-sensors]");
+      expect(out).toContain("[sensors]");
       expect(out).toContain(
-        "example: recognizer config tests.unit.coverage.format jacoco",
+        "example: recognizer config tests.unit.coverage.format lcov",
       );
       expect(out).not.toContain("did not answer");
     });
   }
 
   it("lists the core's keys and says the sensors program did not answer when it exits 1", () => {
-    const fake = setup({ status: 1 });
+    const fake = setup({
+      crap: { status: 1 },
+      mutation: { status: 1 },
+      thresholds: { status: 1 },
+    });
 
     expect(run(["help", "config"], fake.io)).toBe(0);
     expect(fake.out()).toContain("sensors.<name>.command");
-    expect(fake.out()).not.toContain("tests.<name>.coverage.format");
-    expect(fake.out()).toContain(
-      "recognizer-sensors did not answer: recognizer-sensors exited 1",
+    expect(fake.out()).toContain("tests.<name>.coverage.format");
+    expect(fake.out()).not.toContain("sensors.mutation.max_workers");
+
+    for (const name of NAMES) {
+      expect(fake.out()).toContain(`recognizer-sense-${name} did not answer`);
+    }
+  });
+});
+
+describe("loadKeys over three sensor manifests", () => {
+  it("publishes the tests keys and each sensor's keys with the prefixes restored", () => {
+    const published = loadKeys(setup().io, ROOT);
+    const keys = published.keys.map((key) => key.key);
+
+    expect(published.notAnswering).toBeNull();
+    expect(keys).toContain("tests.<name>.command");
+    expect(keys).toContain("sensors.crap.threshold");
+    expect(keys).toContain("sensors.thresholds.<metric>.above");
+    expect(keys.indexOf("sensors.crap.threshold")).toBeLessThan(
+      keys.indexOf("sensors.mutation.carry"),
     );
+    expect(keys.indexOf("sensors.mutation.carry")).toBeLessThan(
+      keys.indexOf("sensors.thresholds.<metric>.above"),
+    );
+  });
+
+  it("still publishes the other sensors' keys and names the one unreadable program once", () => {
+    const published = loadKeys(
+      setup({ mutation: { status: 1, stderr: "boom" } }).io,
+      ROOT,
+    );
+    const keys = published.keys.map((key) => key.key);
+
+    expect(keys).toContain("tests.<name>.command");
+    expect(keys).toContain("sensors.crap.threshold");
+    expect(keys).toContain("sensors.thresholds.<metric>.above");
+    expect(keys).not.toContain("sensors.mutation.max_workers");
+    expect(published.notAnswering).not.toBeNull();
+    expect(published.notAnswering?.split("; ")).toHaveLength(1);
+    expect(published.notAnswering).toContain(
+      "recognizer-sense-mutation did not answer: ",
+    );
+  });
+
+  it("publishes the core's and the tests keys when no sensor is readable", () => {
+    const published = loadKeys(
+      setup({
+        crap: { started: false },
+        mutation: { started: false },
+        thresholds: { started: false },
+      }).io,
+      ROOT,
+    );
+    const keys = published.keys.map((key) => key.key);
+
+    expect(keys).toContain("tests.<name>.command");
+    expect(keys).not.toContain("sensors.crap.threshold");
+    expect(published.notAnswering?.split("; ")).toHaveLength(3);
   });
 });
 
 describe("a sensors program that does not answer", () => {
   it.each([
-    ["exits 1", { status: 1 }, "exited 1"],
-    ["is missing", { started: false }, "is not installed"],
-    ["prints junk", { stdout: "junk" }, "invalid JSON"],
-    [
-      "speaks another keys_version",
-      { stdout: JSON.stringify({ ...SENSORS_DOCUMENT, keys_version: 2 }) },
-      "keys_version is 2",
-    ],
-    [
-      "prints an invalid document",
-      { stdout: JSON.stringify({ keys_version: 1 }) },
-      "key schema is invalid",
-    ],
+    ["exits 1", { status: 1 }],
+    ["is missing", { started: false }],
   ])(
-    "refuses a key only it owns when it %s, with that reason, and still writes a core key",
-    (_, answer, reason) => {
-      const fake = setup(answer);
+    "refuses a key only the sensors own when mutation %s, naming it, and still writes a core key",
+    (_, answer) => {
+      const fake = setup({ mutation: answer });
 
-      expect(config(fake, "tests.unit.command", "x")).toBe(2);
-      expect(fake.err()).toContain("tests.unit.command: no such key");
-      expect(fake.err()).toContain(
-        `recognizer-sensors did not answer: ${reason.includes("exited") ? "recognizer-sensors exited 1" : ""}`.trimEnd(),
-      );
-      expect(fake.err()).toContain(reason);
+      expect(config(fake, "sensors.mutation.carry", "x")).toBe(2);
+      expect(fake.err()).toContain("sensors.mutation.carry: no such key");
+      expect(fake.err()).toContain("recognizer-sense-mutation did not answer");
       expect(fake.files.has(CONFIG)).toBe(false);
 
+      expect(config(fake, "tests.unit.command", "x")).toBe(0);
       expect(config(fake, "describer.version", "2")).toBe(0);
-      expect(fake.files.get(CONFIG)).toBe('describer:\n  version: "2"\n');
     },
   );
 
   it("lists what it can, reports the rest on stderr with the reason, and exits 1", () => {
     const fake = setup(
-      { status: 1 },
+      {
+        crap: { status: 1 },
+        mutation: { status: 1 },
+        thresholds: { status: 1 },
+      },
       {
         [CONFIG]:
-          'describer:\n  version: "1"\ntests:\n  - name: a\n    command: x\n',
+          'describer:\n  version: "1"\nsensors:\n  mutation:\n    carry: [.venv]\ntests:\n  - name: a\n    command: x\n',
       },
     );
 
-    expect(config(fake, "--list")).toBe(1);
-    expect(fake.out()).toBe("describer.version=1\n");
-    expect(fake.err()).toContain("tests: cannot be addressed");
-    expect(fake.err()).toContain("recognizer-sensors did not answer");
+    expect(config(fake, "--list")).toBe(0);
+    expect(fake.out()).toContain("describer.version=1\n");
+    expect(fake.out()).toContain("sensors.mutation.carry=.venv\n");
+    expect(fake.out()).toContain("tests.a.command=x\n");
+  });
+});
+
+describe("recognizer config --schema", () => {
+  it("prints a schema parseKeySchema accepts, owner sensors, and exits 0", () => {
+    const fake = setup();
+
+    expect(config(fake, "--schema")).toBe(0);
+
+    const parsed = parseKeySchema(fake.out());
+
+    expect("schema" in parsed).toBe(true);
+    expect("schema" in parsed && parsed.schema.owner).toBe("sensors");
+    expect(fake.err()).toBe("");
+  });
+
+  it("exits 1 with the not-answering lines when a manifest is unreadable", () => {
+    const fake = setup({ mutation: { status: 1 }, crap: { started: false } });
+
+    expect(config(fake, "--schema")).toBe(1);
+    expect(fake.out()).toBe("");
+    expect(fake.err()).toContain("recognizer-sense-crap did not answer");
+    expect(fake.err()).toContain("recognizer-sense-mutation did not answer");
+  });
+
+  it("is refused combined with --list", () => {
+    const fake = setup();
+
+    expect(config(fake, "--schema", "--list")).toBe(2);
+    expect(fake.err()).toContain("usage: recognizer config");
+  });
+
+  it("is refused by recognizer policy", () => {
+    const fake = setup();
+
+    expect(run(["policy", "--repository", ROOT, "--schema"], fake.io)).toBe(2);
+    expect(fake.err()).toContain("usage: recognizer policy");
   });
 });
 
