@@ -41,13 +41,36 @@ describe("the long-function limit", () => {
   });
 });
 
+const LABELS: Record<string, string> = {
+  complexity: "cc",
+  crap: "CRAP",
+  coverage: "cov",
+};
+
+const cell = (
+  metric: string,
+  direction: "above" | "below",
+  value: number,
+  tone: "amber" | "red" = "amber",
+) => ({
+  metric,
+  label: LABELS[metric],
+  limit: { direction, value, tone },
+});
+
+const cellsOf = (yaml: string | null, shipped: ShippedSensors | null = REAL) =>
+  (yaml === null ? functionLimits(null, shipped) : limitsOf(yaml, shipped))
+    .cells;
+
 describe("functionLimits", () => {
   it("takes the defaults from the shipped manifests when nothing is registered", () => {
     const defaults = {
-      complexityAbove: 10,
-      coverageBelow: 0.6,
-      crapAt: 30,
       longAt: 20,
+      cells: [
+        cell("complexity", "above", 10),
+        cell("crap", "above", 30),
+        cell("coverage", "below", 0.6),
+      ],
     };
 
     expect(functionLimits(null, REAL)).toEqual(defaults);
@@ -56,41 +79,47 @@ describe("functionLimits", () => {
 
   it("reads the thresholds settings", () => {
     expect(
-      limitsOf(
-        "sensors:\n  thresholds:\n    complexity:\n      above: 12\n    coverage: 'off'\n",
+      cellsOf(
+        "sensors:\n  thresholds:\n    complexity:\n      above: 15\n    coverage: 'off'\n  crap:\n    threshold: 20\n",
       ),
-    ).toEqual({
-      complexityAbove: 12,
-      coverageBelow: null,
-      crapAt: 30,
-      longAt: 20,
-    });
+    ).toEqual([
+      cell("complexity", "above", 15),
+      cell("crap", "above", 20),
+      { metric: "coverage", label: "cov", limit: null },
+    ]);
   });
 
   it("reads a configured complexity limit over the published figure", () => {
     expect(
-      limitsOf("sensors:\n  thresholds:\n    complexity:\n      above: 12\n")
-        .complexityAbove,
-    ).toBe(12);
+      cellsOf("sensors:\n  thresholds:\n    complexity:\n      above: 12\n")[0],
+    ).toEqual(cell("complexity", "above", 12));
   });
 
   it("reads the crap threshold", () => {
-    expect(limitsOf("sensors:\n  crap:\n    threshold: 25\n").crapAt).toBe(25);
+    expect(cellsOf("sensors:\n  crap:\n    threshold: 25\n")[1]).toEqual(
+      cell("crap", "above", 25),
+    );
+  });
+
+  it("gives a metric without a cell no entry and a configured metric with no default none", () => {
+    const metrics = cellsOf(
+      "sensors:\n  thresholds:\n    churn:\n      above: 20\n",
+    ).map((one) => one.metric);
+
+    expect(metrics).toEqual(["complexity", "crap", "coverage"]);
+    expect(metrics).not.toContain("killed");
+    expect(metrics).not.toContain("churn");
   });
 
   it("gives null limits and longAt 20 when the list is null or unavailable", () => {
-    const empty = {
-      complexityAbove: null,
-      coverageBelow: null,
-      crapAt: null,
+    expect(functionLimits(null, null)).toEqual({ longAt: 20, cells: [] });
+    expect(limitsOf("sensors: {}\n", null)).toEqual({
       longAt: 20,
-    };
-
-    expect(functionLimits(null, null)).toEqual(empty);
-    expect(limitsOf("sensors: {}\n", null)).toEqual(empty);
+      cells: [],
+    });
     expect(
       functionLimits(null, { status: "unavailable", reason: "x" }),
-    ).toEqual(empty);
+    ).toEqual({ longAt: 20, cells: [] });
   });
 
   it("gives a null crapAt when crap declares no threshold setting", () => {
@@ -101,8 +130,11 @@ describe("functionLimits", () => {
       ),
     };
 
-    expect(functionLimits(null, bare).crapAt).toBeNull();
-    expect(functionLimits(null, bare).complexityAbove).toBe(10);
+    expect(cellsOf(null, bare)).toEqual([
+      cell("complexity", "above", 10),
+      { metric: "crap", label: "CRAP", limit: null },
+      cell("coverage", "below", 0.6),
+    ]);
   });
 
   it("falls back to null limits for unparseable settings and for config text that is not valid", () => {
@@ -110,19 +142,34 @@ describe("functionLimits", () => {
       "sensors:\n  crap:\n    command: [recognizer-sensors, crap, --settings, '{nope']\n",
     );
 
-    expect(functionLimits(broken, REAL)).toEqual({
-      ...DEFAULT_LIMITS,
-      complexityAbove: 10,
-      coverageBelow: 0.6,
-      crapAt: 30,
-    });
+    expect(functionLimits(broken, REAL).cells).toEqual(cellsOf(null));
     expect(limitsFromText("sensors: [", REAL)).toEqual(DEFAULT_LIMITS);
-    expect(limitsFromText(null, REAL)).toEqual({
-      complexityAbove: 10,
-      coverageBelow: 0.6,
-      crapAt: 30,
-      longAt: 20,
-    });
+    expect(limitsFromText(null, REAL)).toEqual(functionLimits(null, REAL));
+  });
+
+  it("colours only strictly past a limit, so a value equal to it has no tone", () => {
+    const [complexity, , coverage] = cellsOf(
+      "sensors:\n  thresholds:\n    complexity:\n      above: 15\n    coverage:\n      below: 0.6\n",
+    );
+
+    expect(complexity?.limit?.value).toBe(15);
+    expect(coverage?.limit?.value).toBe(0.6);
+  });
+
+  it("derives the tone from the severity setting", () => {
+    const tones = (yaml: string) => cellsOf(yaml).map((one) => one.limit?.tone);
+
+    expect(tones("sensors: {}\n")).toEqual(["amber", "amber", "amber"]);
+    expect(
+      tones(
+        "sensors:\n  thresholds:\n    complexity:\n      above: 10\n      severity: violation\n",
+      ),
+    ).toEqual(["red", "amber", "amber"]);
+    expect(
+      tones(
+        "sensors:\n  thresholds:\n    complexity:\n      above: 10\n      severity: warning\n",
+      ),
+    ).toEqual(["amber", "amber", "amber"]);
   });
 
   it("has the figures the thresholds sensor itself holds", () => {
@@ -130,9 +177,9 @@ describe("functionLimits", () => {
       join(REPO, "sensors/src/recognizer_sensors/thresholds/sensor.py"),
       "utf8",
     );
-    const limits = functionLimits(null, REAL);
+    const [complexity, , coverage] = functionLimits(null, REAL).cells;
 
-    expect(python).toContain(`"above": ${limits.complexityAbove},`);
-    expect(python).toContain(`"below": ${limits.coverageBelow},`);
+    expect(python).toContain(`"above": ${complexity?.limit?.value},`);
+    expect(python).toContain(`"below": ${coverage?.limit?.value},`);
   });
 });

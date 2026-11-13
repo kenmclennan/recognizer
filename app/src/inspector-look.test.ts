@@ -49,7 +49,6 @@ const inputs = {
   noteRows: () => [],
   canAddNote: false,
   filter: "",
-  limits: { complexityAbove: 10, coverageBelow: 0.6, crapAt: 30, longAt: 20 },
   responsibility: () => ({ state: { kind: "missing" }, failure: null }),
   metricsOn: false,
   limits: DEFAULT_LIMITS,
