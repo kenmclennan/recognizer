@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { collectFacts, FAKE_WORKER, here, webkit } from "./look-page";
+import { shippedSensor } from "./shipped-fake";
 
 const SCAN_COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const OTHER_COMMIT = "ffffffffffffffffffffffffffffffffffffffff";
@@ -54,7 +55,7 @@ const scan = {
   edges: [],
   foreign: [],
 };
-const SHIPPED = [{ name: "crap", display: "crap", line: "x", defaults: {}, runsTests: false, listed: true, metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }] }];
+const SHIPPED = ${JSON.stringify([{ ...shippedSensor("crap"), display: "crap", description: "x", runsTests: false }])};
 const loadedFor = (overlay) => loadedOf({ modules: ["app/risk.py"], scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", text: overlay }], sensors: [{ name: "crap", status: "ran", measured: { inputs: JSON.parse(overlay).inputs } }] });
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));

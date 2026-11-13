@@ -24,7 +24,8 @@ const members = [
     methods: [{ name: "go", line: 710, end_line: 760, params: [], private: false }] },
 ];
 const scan = { modules: [{ id: "p/m.py", kind: "module", members }], edges: [], foreign: [], calls: [] };
-const metric = (label, values, extra) => ({ key: "t/" + label, label, granularity: "member", type: "count", bad: "high", overlay: "t", stale: false, max: 100, values, ...extra });
+const NAMES = { complexity: ["cc", "Complexity"], crap: ["CRAP", "C.R.A.P."], coverage: ["cov", "Coverage"] };
+const metric = (label, values, extra) => ({ key: "t/" + label, label, short: (NAMES[label] || [label, label])[0], title: (NAMES[label] || [label, label])[1], granularity: "member", type: "count", bad: "high", overlay: "t", stale: false, max: 100, values, ...extra });
 const metrics = [
   metric("complexity", { "p/m.py::at_long": 10, "p/m.py::over_long": 11 }),
   metric("crap", { "p/m.py::at_long": 29, "p/m.py::over_long": 31 }, { type: "number" }),

@@ -47,8 +47,8 @@ const inputs = {
   metricsOn: false,
   limits: DEFAULT_LIMITS,
   metrics: [
-    { key: "t/complexity", label: "complexity", granularity: "member", type: "count", bad: "high", overlay: "t", stale: false, max: 12, values: { "p/m.py::C.go": 12, "p/m.py::f": 1 } },
-    { key: "t/coverage", label: "coverage", granularity: "member", type: "ratio", bad: "low", overlay: "t", stale: false, max: 1, values: { "p/m.py::C.go": 0.5 } },
+    { key: "t/complexity", label: "complexity", short: "cc", title: "Complexity", granularity: "member", type: "count", bad: "high", overlay: "t", stale: false, max: 12, values: { "p/m.py::C.go": 12, "p/m.py::f": 1 } },
+    { key: "t/coverage", label: "coverage", short: "cov", title: "Coverage", granularity: "member", type: "ratio", bad: "low", overlay: "t", stale: false, max: 1, values: { "p/m.py::C.go": 0.5 } },
   ],
 };
 const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, setFilter() {}, openInEditor() {}, setShowPrivate() {} };
@@ -434,9 +434,9 @@ describe("the inspector, in a real browser", () => {
       expect(klass?.rows).toBe(2);
       expect(klass?.text).toEqual(["12", "50%", "-", "-"]);
       expect(klass?.titles).toEqual([
-        "Cyclomatic complexity 12",
+        "Complexity 12",
         "Coverage 50%",
-        "Cyclomatic complexity: not measured",
+        "Complexity: not measured",
         "Coverage: not measured",
       ]);
       expect(klass?.align).toEqual(["right", "right", "right", "right"]);
