@@ -14,7 +14,7 @@ Temporary, like `design.md`: this document holds the plugin design while it is b
 | Verb | Required | What it does |
 | --- | --- | --- |
 | `manifest` | yes | Prints the plugin's manifest as JSON on stdout. Fast, side-effect free, runs nothing. |
-| `check` | when the manifest declares it | The readiness check: says what is missing for this repository (a tool, a test suite, a coverage plugin) as diagnoses, each with its fix. `--run` may run the repository's tests, and is used only when the user asks. |
+| `check` | when the manifest declares it | The readiness check: says what is missing for this repository (a tool, a test suite, a coverage plugin) as diagnoses, each with its fix. `--run` may run the repository's tests, and is used only when the user asks. `--work` (with `--modules` and `--suites`) adds a `work` count of what a run would do, from the plugin's own record with no run. |
 | `run` | yes | Does the plugin's work for a repository and writes its document to the output path it is given. |
 | `guide` | no | Prints setup help for this plugin, used by `recognizer help <plugin>` and the setup skill. |
 

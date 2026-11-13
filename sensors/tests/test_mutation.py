@@ -2211,3 +2211,206 @@ def test_carry_setting_rejects_bad_values(value):
 def test_carry_setting_accepts_relative_paths():
     assert sensor.parse_settings({"carry": ["gen", "x/y/"]})["carry"] == ("gen", "x/y")
     assert "carry" not in sensor.parse_settings({})
+
+
+def check_work(root, settings, *extra):
+    import contextlib
+    import io
+
+    out = io.StringIO()
+
+    with contextlib.redirect_stdout(out):
+        code = main(
+            [
+                "mutation",
+                "check",
+                "--repository",
+                str(root),
+                "--settings",
+                settings,
+                "--work",
+                *extra,
+            ]
+        )
+
+    assert code == 0
+
+    return json.loads(out.getvalue())
+
+
+def run_work(root, tmp_path, settings, *extra):
+    assert run_mutate(root, tmp_path / "overlay.json", settings, *extra) == 0
+
+    return read(tmp_path / "findings-overlay.json")["work"]
+
+
+def test_the_planned_work_matches_what_each_run_then_performs(tmp_path):
+    root, _ = mutate_repository(tmp_path)
+    settings = mutate_settings("tests/strong.py")
+
+    before = check_work(root, settings)["work"]
+
+    assert before["unit"] == "functions"
+    assert before["reusable"] == 0
+    assert before["to_perform"] > 0
+
+    first = run_work(root, tmp_path, settings)
+
+    assert first["unit"] == "functions"
+    assert first["performed"] == before["to_perform"] - 1
+
+    unchanged = check_work(root, settings)["work"]
+
+    assert (unchanged["to_perform"], unchanged["reusable"]) == (0, before["to_perform"])
+    assert run_work(root, tmp_path, settings)["performed"] == 0
+
+    rules = root / "app" / "rules.py"
+    rules.write_text(rules.read_text().replace("return a and b", "return b and a"))
+
+    changed = check_work(root, settings)["work"]
+
+    assert changed["to_perform"] == 1
+    assert changed["to_perform"] + changed["reusable"] == before["to_perform"]
+
+    second = run_work(root, tmp_path, settings)
+
+    assert second["performed"] == 1
+    assert second["reused"] == before["to_perform"] - 1
+
+
+def test_a_changed_covering_test_file_makes_its_functions_to_perform_and_over_counts_only_the_uncovered_one(
+    tmp_path,
+):
+    root, _ = mutate_repository(tmp_path)
+    settings = mutate_settings("tests/strong.py")
+    run_work(root, tmp_path, settings)
+
+    (root / "notes.txt").write_text("unrelated\n")
+
+    assert check_work(root, settings)["work"]["to_perform"] == 0
+
+    strong = root / "tests" / "strong.py"
+    strong.write_text(strong.read_text() + "\nassert True\n")
+
+    planned = check_work(root, settings)["work"]
+
+    assert planned["to_perform"] > 0
+    assert run_work(root, tmp_path, settings)["performed"] == planned["to_perform"] - 1
+
+
+def test_a_different_test_command_makes_every_function_to_perform(tmp_path):
+    root, _ = mutate_repository(tmp_path)
+    run_work(root, tmp_path, mutate_settings("tests/strong.py"))
+
+    work = check_work(root, mutate_settings("tests/weak.py"))["work"]
+
+    assert work["reusable"] == 0
+    assert work["to_perform"] > 0
+
+
+def test_a_scoped_check_counts_only_the_functions_of_the_modules(tmp_path):
+    root, _ = mutate_repository(tmp_path)
+    settings = mutate_settings("tests/strong.py")
+    everything = check_work(root, settings)["work"]
+    scope = tmp_path / "modules.json"
+    scope.write_text(json.dumps(["app/rules.py"]))
+    nothing = tmp_path / "none.json"
+    nothing.write_text(json.dumps(["app/missing.py"]))
+
+    assert check_work(root, settings, "--modules", str(scope))["work"] == everything
+    assert check_work(root, settings, "--modules", str(nothing))["work"] == {
+        "unit": "functions",
+        "to_perform": 0,
+        "reusable": 0,
+    }
+
+
+def test_a_record_with_some_reusable_functions_gives_both_counts(tmp_path):
+    root, _ = mutate_repository(tmp_path)
+    settings = mutate_settings("tests/strong.py")
+    total = check_work(root, settings)["work"]["to_perform"]
+    run_work(root, tmp_path, settings)
+    record = root / ".recognizer" / "cache" / "mutation" / "record.json"
+    document = json.loads(record.read_text())
+    first = sorted(document["functions"])[0]
+    document["functions"][first]["body"] = "0" * 64
+    record.write_text(json.dumps(document))
+
+    work = check_work(root, settings)["work"]
+
+    assert work["to_perform"] == 1
+    assert work["reusable"] == total - 1
+
+
+def budget_stepped_run(root, tmp_path, counting, monkeypatch):
+    settings, _ = counting
+    ticker = Ticker()
+    real = runner.run_function
+    started = []
+
+    def stepping(*args, **extra):
+        started.append(1)
+        result = real(*args, **extra)
+
+        if len(started) == 1:
+            ticker.now = 1000.0
+
+        return result
+
+    monkeypatch.setattr(sensor, "CLOCK", ticker)
+    monkeypatch.setattr(sensor, "run_function", stepping)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings(max_workers=1, max_minutes=1)) == 0
+
+    return read(tmp_path / "findings-overlay.json")
+
+
+def test_a_budget_limited_run_reports_exactly_the_functions_it_finished(
+    tmp_path, counting, monkeypatch
+):
+    root, _ = mutate_repository(tmp_path)
+
+    findings = budget_stepped_run(root, tmp_path, counting, monkeypatch)
+
+    assert findings["partial"] == {"measured": 2, "total": 3}
+    assert findings["work"] == {"unit": "functions", "performed": 1, "reused": 0}
+
+
+def test_a_budget_limited_run_of_one_suite_marks_it_ran_and_partial(
+    tmp_path, counting, monkeypatch
+):
+    root, _ = mutate_repository(tmp_path)
+
+    findings = budget_stepped_run(root, tmp_path, counting, monkeypatch)
+
+    assert [(s["status"], s["ran"]) for s in findings["suites"]] == [("partial", True)]
+
+
+def test_a_scoped_run_reports_performed_and_reused_without_the_carried_functions(tmp_path):
+    root, _ = mutate_repository(tmp_path)
+    settings = mutate_settings("tests/strong.py")
+    scope = tmp_path / "modules.json"
+    scope.write_text(json.dumps(["app/missing.py"]))
+
+    work = run_work(root, tmp_path, settings, "--modules", str(scope))
+
+    assert (work["performed"], work["reused"]) == (0, 0)
+
+
+def test_crap_answers_check_without_a_work_key(tmp_path, capsys):
+    root, _ = mutate_repository(tmp_path)
+
+    code = main(
+        [
+            "crap",
+            "check",
+            "--repository",
+            str(root),
+            "--settings",
+            mutate_settings("tests/strong.py"),
+            "--work",
+        ]
+    )
+
+    assert code == 0
+    assert "work" not in json.loads(capsys.readouterr().out)

@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 from recognizer_sensors.crap import sensor as crap
 from recognizer_sensors.mutation import sensor as mutation
+from recognizer_sensors.mutation.estimate import planned_work
 from recognizer_sensors.outcome import Outcome
 from recognizer_sensors.testrun.guide import guide, mutation_guide
 from recognizer_sensors.testrun.readiness import check_with_notes, mutation_check
@@ -19,6 +20,7 @@ class Sensor:
     checkpoints: bool = False
     check: Callable[..., tuple[list[dict], list[dict]]] | None = None
     guide: Callable[[], str] | None = None
+    work: Callable[..., dict | None] | None = None
 
 
 SHIPPED = {
@@ -34,6 +36,7 @@ SHIPPED = {
         checkpoints=True,
         check=mutation_check,
         guide=mutation_guide,
+        work=planned_work,
     ),
     "thresholds": Sensor(thresholds.parse_settings, thresholds.run, needs_commit=True),
 }
