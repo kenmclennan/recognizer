@@ -91,6 +91,11 @@ document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: tr
 view.post({ kind: "warning", text: "x".repeat(300) });
 const longToast = rect(q(".message-toast"));
 facts.longToast = { width: longToast.width, rightGap: rect(footer).right - longToast.right };
+view.post({ kind: "error", text: "recognizer-sensors: mutation: " + "t".repeat(120) });
+const tokenToast = q(".message-toast");
+const tokenRange = document.createRange();
+tokenRange.selectNodeContents(q(".message-toast .msg-body"));
+facts.tokenToast = { textOverflow: Math.max(...[...tokenRange.getClientRects()].map((r) => r.right - rect(tokenToast).right)), lines: tokenRange.getClientRects().length };
 
 document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 `;
@@ -141,6 +146,11 @@ describe.skipIf(webkit === undefined)(
       expect(f.longToast.width).toBeLessThanOrEqual(340);
       expect(f.longToast.rightGap).toBeGreaterThanOrEqual(0);
       expect(f.longToast.rightGap).toBeLessThanOrEqual(10);
+    });
+
+    it("wraps a 120-character unbroken token inside the toast's right edge", () => {
+      expect(f.tokenToast.lines).toBeGreaterThan(1);
+      expect(f.tokenToast.textOverflow).toBeLessThanOrEqual(0);
     });
 
     it("toasts a new message above the footer with a status role, replaced by the next", () => {
