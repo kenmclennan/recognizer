@@ -124,7 +124,7 @@
       "required": ["id", "language", "kind", "members"],
       "properties": {
         "id": { "$ref": "#/$defs/moduleId" },
-        "language": { "enum": ["python", "typescript", "kotlin", "rust", "csharp"] },
+        "language": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$", "maxLength": 64 },
         "kind": { "enum": ["module", "package", "interface"] },
         "members": { "type": "array", "items": { "$ref": "#/$defs/member" } },
         "entry_point": { "type": "boolean", "const": true },

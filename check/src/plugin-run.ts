@@ -35,8 +35,14 @@ export function createPluginLimits(
   io: Io,
   root: string,
   graceMs: number = PLUGIN_GRACE_MS,
+  known: readonly { command: string; manifest: Manifest }[] = [],
 ): PluginLimits & { graceMs: number } {
-  const reads = new Map<string, ManifestRead>();
+  const reads = new Map<string, ManifestRead>(
+    known.map(({ command, manifest }) => [
+      command,
+      { ok: true, manifest } as ManifestRead,
+    ]),
+  );
 
   const readOf = (prefix: string[]): ManifestRead => {
     const filled = prefix.map((item) => fill(item, root, "", ""));

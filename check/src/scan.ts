@@ -106,7 +106,7 @@ export interface TestImport {
 export interface Scan {
   modules: {
     id: string;
-    language: "python" | "typescript" | "kotlin" | "rust" | "csharp";
+    language: string;
     kind: "module" | "package" | "interface";
     members?: ScanMember[];
     entry_point?: boolean;

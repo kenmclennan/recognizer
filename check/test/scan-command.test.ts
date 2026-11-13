@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
 import { answerPath, markerPath, progressPath } from "../src/scan-marker.js";
-import { scannerFor } from "../src/scanners.js";
 import {
   APP_CONFIG,
   describerManifestText,
@@ -10,6 +9,7 @@ import {
   PYTHON,
   ROOT,
   scanJson,
+  scannerManifestText,
   TYPESCRIPT,
 } from "./scan-helpers.js";
 
@@ -116,104 +116,171 @@ describe("recognizer scan: command building", () => {
     ]);
   });
 
-  it("uses an absolute override in place of the scanner name", async () => {
-    const { fake, code } = await scan({
+  it("runs the absolute path discovery found, not the bare name", async () => {
+    const { fake } = await scan({
       files: { [`${ROOT}/a.py`]: "" },
-      env: { RECOGNIZER_SCAN_PYTHON: "/opt/py-launcher" },
-      scanners: { "/opt/py-launcher": okPython },
+      scanners: { [PYTHON]: okPython },
     });
+    const io = fake.io;
 
-    expect(code).toBe(0);
-    expect(fake.calls.map((call) => call.command)).toEqual([
-      "git",
-      "/opt/py-launcher",
-    ]);
+    expect(io.env("PATH")).toBe("/fakebin");
+    expect(fake.manifestReads).toEqual([PYTHON]);
   });
 
-  it("rejects a relative override without running anything", async () => {
-    const { fake, code, err } = await scan({
-      files: { [`${ROOT}/a.py`]: "" },
-      env: { RECOGNIZER_SCAN_PYTHON: "bin/launcher" },
+  it("reads one manifest per installed scanner per scan", async () => {
+    const { fake } = await scan({
+      files: both(),
+      scanners: {
+        [PYTHON]: okPython,
+        [TYPESCRIPT]: okTypescript,
+        "recognizer-scan-kotlin": {},
+      },
+    });
+
+    expect([...fake.manifestReads].sort()).toEqual([
+      "recognizer-scan-kotlin",
+      PYTHON,
+      TYPESCRIPT,
+    ]);
+  });
+});
+
+describe("recognizer scan: scanner choice", () => {
+  it("detects no language that no installed scanner claims", async () => {
+    const { code, err, fake } = await scan({
+      files: { [`${ROOT}/A.kt`]: "" },
       scanners: { [PYTHON]: okPython },
     });
 
+    expect(code).toBe(0);
+    expect(err).toContain("no languages detected");
+    expect(fake.calls.map((call) => call.command)).not.toContain(PYTHON);
+  });
+
+  it("says no scanner is installed when none is", async () => {
+    const { code, err } = await scan({
+      files: { [`${ROOT}/a.py`]: "" },
+      scanners: {},
+    });
+
+    expect(code).toBe(0);
+    expect(err).toBe(
+      "no scanner is installed: recognizer plugins lists what is installed\nno languages detected\n",
+    );
+  });
+
+  it("scans a language no shipped scanner knows with the scanner that claims it", async () => {
+    const { code, fake } = await scan({
+      files: { [`${ROOT}/Sources/App.swift`]: "" },
+      scanners: {
+        "recognizer-scan-swift": {
+          output: scanJson(1, 0, {
+            modules: [
+              {
+                id: "Sources/App.swift",
+                language: "swift",
+                kind: "module",
+                members: [],
+              },
+            ],
+            edges: [],
+          }),
+        },
+      },
+    });
+
+    expect(code).toBe(0);
+    expect(fake.files.has(`${ROOT}/.recognizer/cache/scan.swift.json`)).toBe(
+      true,
+    );
+  });
+
+  it("fails a language with ambiguous-scanner when two claim it and the config names none, and still scans the rest", async () => {
+    const { code, err, fake } = await scan({
+      files: both(),
+      scanners: {
+        [PYTHON]: okPython,
+        "recognizer-scan-python-alt": {
+          languages: ["python"],
+          output: scanJson(1, 0),
+        },
+        [TYPESCRIPT]: okTypescript,
+      },
+    });
+
     expect(code).toBe(1);
-    expect(err).toContain("python: invalid-override - ");
-    expect(fake.calls.map((call) => call.command)).toEqual(["git"]);
+    expect(err).toContain("python: ambiguous-scanner - ");
     expect(fake.files.has(PY_CACHE)).toBe(false);
+    expect(fake.files.has(TS_CACHE)).toBe(true);
   });
 
-  it("treats an empty override as unset", async () => {
-    const { fake, code } = await scan({
-      files: { [`${ROOT}/a.py`]: "" },
-      env: { RECOGNIZER_SCAN_PYTHON: "" },
+  it("runs the scanner the config names when two claim the language", async () => {
+    const { code, fake } = await scan({
+      files: {
+        [`${ROOT}/a.py`]: "",
+        [`${ROOT}/.recognizer/config.yaml`]:
+          "scanners:\n  python: python-alt\n",
+      },
+      scanners: {
+        [PYTHON]: okPython,
+        "recognizer-scan-python-alt": {
+          languages: ["python"],
+          output: scanJson(1, 0),
+        },
+      },
+    });
+
+    expect(code).toBe(0);
+    expect(fake.calls.map((call) => call.command)).toContain(
+      "recognizer-scan-python-alt",
+    );
+    expect(fake.calls.map((call) => call.command)).not.toContain(PYTHON);
+  });
+
+  it("fails invalid-choice when the config names an installed scanner that does not claim the language", async () => {
+    const { code, err, fake } = await scan({
+      files: {
+        [`${ROOT}/a.py`]: "",
+        [`${ROOT}/.recognizer/config.yaml`]:
+          "scanners:\n  python: typescript\n",
+      },
+      scanners: { [PYTHON]: okPython, [TYPESCRIPT]: okTypescript },
+    });
+
+    expect(code).toBe(1);
+    expect(err).toContain("python: invalid-choice - ");
+    expect(fake.calls.map((call) => call.command)).not.toContain(PYTHON);
+  });
+
+  it("fails not-installed when the config names a scanner that is not installed", async () => {
+    const { code, err } = await scan({
+      files: {
+        [`${ROOT}/a.py`]: "",
+        [`${ROOT}/.recognizer/config.yaml`]: "scanners:\n  python: gone\n",
+      },
       scanners: { [PYTHON]: okPython },
     });
 
-    expect(code).toBe(0);
-    expect(fake.calls[1]?.command).toBe(PYTHON);
-  });
-});
-
-describe("recognizer scan: kotlin", () => {
-  it("fails a detected kotlin language whose scanner is missing", async () => {
-    const { code, err } = await scan({ files: { [`${ROOT}/A.kt`]: "" } });
-
     expect(code).toBe(1);
-    expect(err).toContain("recognizer-scan-kotlin is not installed");
-    expect(err).toContain("RECOGNIZER_SCAN_KOTLIN");
+    expect(err).toContain("python: not-installed - ");
   });
 
-  it("runs recognizer-scan-kotlin for kotlin", () => {
-    expect(scannerFor("kotlin").name).toBe("recognizer-scan-kotlin");
-  });
-});
-
-describe("recognizer scan: rust", () => {
-  it("fails a detected rust language whose scanner is missing", async () => {
-    const { code, err } = await scan({ files: { [`${ROOT}/src/lib.rs`]: "" } });
-
-    expect(code).toBe(1);
-    expect(err).toContain("recognizer-scan-rust is not installed");
-    expect(err).toContain("RECOGNIZER_SCAN_RUST");
-  });
-
-  it("runs recognizer-scan-rust for rust", () => {
-    expect(scannerFor("rust").name).toBe("recognizer-scan-rust");
-  });
-
-  it("uses an absolute override in place of the scanner name", async () => {
-    const { fake, code } = await scan({
-      files: { [`${ROOT}/src/lib.rs`]: "" },
-      env: { RECOGNIZER_SCAN_RUST: "/opt/rust-launcher" },
-      scanners: { "/opt/rust-launcher": { output: scanJson(1, 0) } },
+  it("never starts run on a scanner whose protocol is unsupported", async () => {
+    const { code, err, fake } = await scan({
+      files: { [`${ROOT}/a.py`]: "" },
+      scanners: { [PYTHON]: { ...okPython, protocol: 9 } },
     });
 
-    expect(code).toBe(0);
-    expect(fake.calls.map((call) => call.command)).toEqual([
-      "git",
-      "/opt/rust-launcher",
-    ]);
-  });
-});
-
-describe("recognizer scan: csharp", () => {
-  it("fails a detected csharp language whose scanner is missing", async () => {
-    const { code, err } = await scan({ files: { [`${ROOT}/src/A.cs`]: "" } });
-
     expect(code).toBe(1);
-    expect(err).toContain("recognizer-scan-csharp is not installed");
-    expect(err).toContain("RECOGNIZER_SCAN_CSHARP");
-  });
-
-  it("runs recognizer-scan-csharp for csharp", () => {
-    expect(scannerFor("csharp").name).toBe("recognizer-scan-csharp");
+    expect(err).toContain("python: unsupported-protocol - ");
+    expect(err).toContain("install brew install");
+    expect(fake.calls.map((call) => call.command)).not.toContain(PYTHON);
   });
 });
 
 describe("recognizer scan: outcomes", () => {
   const cases: [string, Record<string, unknown>, string][] = [
-    ["not-installed", {}, "not-installed"],
+    ["not-installed", { [PYTHON]: { unstartable: true } }, "not-installed"],
     [
       "scanner-failed",
       { [PYTHON]: { status: 3, stderr: "boom" } },
@@ -311,7 +378,10 @@ describe("recognizer scan: outcomes", () => {
   it("removes the temporary directories on every path", async () => {
     const { fake } = await scan({
       files: both(),
-      scanners: { [PYTHON]: { status: 1 } },
+      scanners: {
+        [PYTHON]: { status: 1 },
+        [TYPESCRIPT]: { unstartable: true },
+      },
     });
 
     expect(
@@ -322,7 +392,10 @@ describe("recognizer scan: outcomes", () => {
 
   it("reports one written and one failed language in --json, exit 1", async () => {
     const { code, out, fake } = await scan(
-      { files: both(), scanners: { [PYTHON]: okPython } },
+      {
+        files: both(),
+        scanners: { [PYTHON]: okPython, [TYPESCRIPT]: { unstartable: true } },
+      },
       "--json",
     );
     const events = lines(out);
@@ -352,7 +425,10 @@ describe("recognizer scan: outcomes", () => {
   it("handles the reverse mix", async () => {
     const { code, fake } = await scan({
       files: both(),
-      scanners: { [TYPESCRIPT]: okTypescript },
+      scanners: {
+        [PYTHON]: { unstartable: true },
+        [TYPESCRIPT]: okTypescript,
+      },
     });
 
     expect(code).toBe(1);
@@ -554,7 +630,7 @@ describe("recognizer scan: usage", () => {
     await run([], fake.io);
 
     expect(fake.err()).toContain(
-      "usage: recognizer <check|scan|open|uses|used-by|callers|path|find|show|modules|views|sensors|config|policy|doctor|plugin|windows|window|describe|report|log|agents|help> ...",
+      "usage: recognizer <check|scan|open|uses|used-by|callers|path|find|show|modules|views|sensors|config|policy|doctor|plugin|plugins|windows|window|describe|report|log|agents|help> ...",
     );
   });
 });
@@ -1212,7 +1288,7 @@ describe("recognizer scan: phases", () => {
           {},
           { [CONFIG]: SENSORS, [PY_CACHE]: current({ commit: "old" }) },
         ),
-        scanners: {},
+        scanners: { [PYTHON]: { unstartable: true } },
       },
       "--sense",
       "first",
@@ -1268,7 +1344,7 @@ describe("recognizer scan: phases", () => {
 
     expect(code).toBe(4);
     expect(err).toContain(
-      "no describer is registered and recognizer-describe-claude is not installed (describe): brew install --cask kenmclennan/tap/recognizer",
+      "no describer is registered and recognizer-describe-claude is not installed (describe): install recognizer-describe-claude",
     );
     expect(extractCalls(fake)).toEqual([]);
   });

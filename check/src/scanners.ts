@@ -1,72 +1,5 @@
-import { isAbsolute } from "node:path";
-import type { Io } from "./cli.js";
-import type { Language } from "./detect.js";
-import { BREW_FIX } from "./preflight.js";
-
-export interface ScannerSpec {
-  language: Language;
-  name: string;
-  variable: string;
-  install: string;
-}
-
-export const SCANNERS: ScannerSpec[] = [
-  {
-    language: "python",
-    name: "recognizer-scan-python",
-    variable: "RECOGNIZER_SCAN_PYTHON",
-    install: BREW_FIX,
-  },
-  {
-    language: "typescript",
-    name: "recognizer-scan-typescript",
-    variable: "RECOGNIZER_SCAN_TYPESCRIPT",
-    install: BREW_FIX,
-  },
-  {
-    language: "kotlin",
-    name: "recognizer-scan-kotlin",
-    variable: "RECOGNIZER_SCAN_KOTLIN",
-    install: BREW_FIX,
-  },
-  {
-    language: "rust",
-    name: "recognizer-scan-rust",
-    variable: "RECOGNIZER_SCAN_RUST",
-    install: BREW_FIX,
-  },
-  {
-    language: "csharp",
-    name: "recognizer-scan-csharp",
-    variable: "RECOGNIZER_SCAN_CSHARP",
-    install: BREW_FIX,
-  },
-];
-
-export function scannerFor(language: Language): ScannerSpec {
-  return SCANNERS.find((spec) => spec.language === language) as ScannerSpec;
-}
-
-export type Resolution =
-  | { ok: true; command: string }
-  | { ok: false; message: string };
-
-export function resolveCommand(io: Io, spec: ScannerSpec): Resolution {
-  const override = io.env(spec.variable);
-
-  if (override === undefined || override === "") {
-    return { ok: true, command: spec.name };
-  }
-
-  if (!isAbsolute(override)) {
-    return {
-      ok: false,
-      message: `${spec.variable} must be an absolute path: ${override}`,
-    };
-  }
-
-  return { ok: true, command: override };
-}
+import type { LanguageRule } from "./detect.js";
+import type { InstalledPlugin } from "./plugin-discovery.js";
 
 export function buildArgs(
   repository: string,
@@ -87,6 +20,77 @@ export function buildArgs(
   return args;
 }
 
-export function notInstalledMessage(spec: ScannerSpec): string {
-  return `${spec.name} is not installed: install it with ${spec.install} or set ${spec.variable} to its absolute path`;
+export function languageRulesOf(
+  scanners: readonly InstalledPlugin[],
+): LanguageRule[] {
+  return scanners.flatMap(
+    (scanner) => (scanner.manifest.languages ?? []) as LanguageRule[],
+  );
+}
+
+export function claimsLanguage(
+  scanner: InstalledPlugin,
+  language: string,
+): boolean {
+  return languageRulesOf([scanner]).some((rule) => rule.name === language);
+}
+
+export type ScannerChoice =
+  | { ok: true; scanner: InstalledPlugin }
+  | {
+      ok: false;
+      reason: "not-installed" | "ambiguous-scanner" | "invalid-choice";
+      message: string;
+      claimants: string[];
+    };
+
+export function chooseScanner(
+  language: string,
+  scanners: readonly InstalledPlugin[],
+  named: string | undefined,
+): ScannerChoice {
+  const claimants = scanners.filter((one) => claimsLanguage(one, language));
+  const names = claimants.map((one) => one.name);
+
+  if (named !== undefined) {
+    const installed = scanners.find((one) => one.name === named);
+
+    if (installed === undefined) {
+      return {
+        ok: false,
+        reason: "not-installed",
+        message: `the config names the scanner ${named} for ${language} and recognizer-scan-${named} is not installed`,
+        claimants: names,
+      };
+    }
+
+    return claimsLanguage(installed, language)
+      ? { ok: true, scanner: installed }
+      : {
+          ok: false,
+          reason: "invalid-choice",
+          message: `the config names the scanner ${named} for ${language}, but its manifest does not claim ${language}`,
+          claimants: names,
+        };
+  }
+
+  if (claimants.length === 0) {
+    return {
+      ok: false,
+      reason: "not-installed",
+      message: `no installed scanner claims ${language}`,
+      claimants: names,
+    };
+  }
+
+  if (claimants.length > 1) {
+    return {
+      ok: false,
+      reason: "ambiguous-scanner",
+      message: `${names.join(" and ")} both claim ${language}: name one with recognizer config scanners.${language} <name>`,
+      claimants: names,
+    };
+  }
+
+  return { ok: true, scanner: claimants[0] as InstalledPlugin };
 }

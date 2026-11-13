@@ -11,13 +11,24 @@ import { retiredKeysIn, withoutRetiredKeys } from "./config-retired.js";
 import type { Language } from "./detect.js";
 import { InputError } from "./errors.js";
 import type { CachedScansState } from "./freshness.js";
+import type { InstalledPlugin } from "./plugin-discovery.js";
+import {
+  kindOfProgram,
+  type PluginFact,
+  type PluginSpec,
+  pluginProblems,
+  scannerProblems,
+} from "./plugin-doctor.js";
 import { parsePolicy } from "./policy.js";
 import { policyProblems } from "./policy-problems.js";
-import { BREW_FIX } from "./preflight.js";
-import { type ScannerSpec, scannerFor } from "./scanners.js";
-import type { CheckableSensor, SensorReport } from "./sensors-check.js";
+import { shippedSensorOf } from "./shipped-sensors.js";
 
-export type AreaName = "config" | "policy" | "scanners" | "sensors";
+export type AreaName =
+  | "config"
+  | "policy"
+  | "scanners"
+  | "sensors"
+  | "describers";
 
 export type ProblemCode =
   | "config-yaml"
@@ -30,15 +41,24 @@ export type ProblemCode =
   | "scan-stale"
   | "policy-entry"
   | "policy-folder"
-  | "scanner-override"
   | "scanner-missing"
-  | "sensor-gap";
+  | "scanner-ambiguous"
+  | "scanner-choice"
+  | "sensor-gap"
+  | "plugin-missing"
+  | "plugin-manifest"
+  | "plugin-protocol"
+  | "plugin-settings"
+  | "describer-gap";
+
+type Found = Omit<SetupProblem, "severity">;
 
 export interface SetupProblem {
   code: ProblemCode;
   subject: string;
   line: string;
   fix: { text: string; command: string | null };
+  severity: "problem" | "warning";
 }
 
 export interface Area {
@@ -51,12 +71,9 @@ export interface DoctorReport {
   repository: string;
   ok: boolean;
   problems: number;
+  warnings: number;
   areas: Area[];
 }
-
-export type ScannerAvailability =
-  | { available: true }
-  | { available: false; reason: "override" | "missing"; message: string };
 
 export interface DoctorFacts {
   repository: string;
@@ -65,8 +82,8 @@ export interface DoctorFacts {
   policyText: string | null;
   languages: Language[];
   scans(): CachedScansState;
-  scanner(spec: ScannerSpec): ScannerAvailability;
-  sensorReports(sensors: CheckableSensor[]): SensorReport[];
+  scanners: InstalledPlugin[];
+  plugins(specs: PluginSpec[]): PluginFact[];
 }
 
 const CONFIG_FILE = ".recognizer/config.yaml";
@@ -99,16 +116,92 @@ function schemaSubject(message: string): string {
   return path === "" ? "config" : path.slice(1).replaceAll("/", ".");
 }
 
-interface ConfigResult {
-  problems: SetupProblem[];
-  sensors: SensorsInput;
+interface Registered {
+  specs: PluginSpec[];
+  named: Record<string, string>;
+  install: Record<string, string>;
 }
 
-type SensorsInput = { checkable: CheckableSensor[] } | { skipped: string };
+interface ConfigResult {
+  problems: Found[];
+  registered: Registered | { skipped: string };
+}
+
+const NONE: Registered = { specs: [], named: {}, install: {} };
+
+function stringMap(value: unknown): Record<string, string> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? Object.fromEntries(
+        Object.entries(value).filter(
+          (entry): entry is [string, string] => typeof entry[1] === "string",
+        ),
+      )
+    : {};
+}
+
+function settingsOf(command: string[]): Record<string, unknown> | null {
+  const at = command.indexOf("--settings");
+  const text = at === -1 ? undefined : command[at + 1];
+
+  if (text === undefined || shippedSensorOf(command) === undefined) {
+    return null;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(text);
+
+    return typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function specsOf(
+  config: ReturnType<typeof expandedConfig>,
+  install: Record<string, string>,
+): PluginSpec[] {
+  const specs: PluginSpec[] = [];
+
+  for (const sensor of registeredSensors(config)) {
+    const program = sensor.command[0] as string;
+
+    if (kindOfProgram(program) === "sensor") {
+      specs.push({
+        kind: "sensor",
+        subject: sensor.name,
+        name: program.slice("recognizer-sense-".length),
+        program,
+        command: sensor.command,
+        settings: settingsOf(sensor.command),
+        installLine: install[program] ?? null,
+      });
+    }
+  }
+
+  const program = config.describer?.command[0];
+
+  if (program !== undefined && kindOfProgram(program) === "describer") {
+    specs.push({
+      kind: "describer",
+      subject: "describer",
+      name: program.slice("recognizer-describe-".length),
+      program,
+      command: config.describer?.command ?? [program],
+      settings: null,
+      installLine: install[program] ?? null,
+    });
+  }
+
+  return specs;
+}
 
 function configArea(facts: DoctorFacts): ConfigResult {
   if (facts.configText === null) {
-    return { problems: [], sensors: { checkable: [] } };
+    return { problems: [], registered: NONE };
   }
 
   let document: unknown;
@@ -125,11 +218,13 @@ function configArea(facts: DoctorFacts): ConfigResult {
           fix: textFix(`correct the YAML in ${CONFIG_FILE}`),
         },
       ],
-      sensors: { skipped: SKIP_CONFIG },
+      registered: {
+        skipped: SKIP_CONFIG,
+      },
     };
   }
 
-  const problems: SetupProblem[] = [];
+  const problems: Found[] = [];
 
   for (const retired of retiredKeysIn(document)) {
     const key = retired.path.join(".");
@@ -183,12 +278,20 @@ function configArea(facts: DoctorFacts): ConfigResult {
     });
   }
 
+  if (messages.length > 0) {
+    return { problems, registered: { skipped: SKIP_CONFIG } };
+  }
+
+  const record = (cleaned ?? {}) as Record<string, unknown>;
+  const install = stringMap(record.install);
+
   return {
     problems,
-    sensors:
-      messages.length > 0
-        ? { skipped: SKIP_CONFIG }
-        : { checkable: registeredSensors(expandedConfig(cleaned)) },
+    registered: {
+      specs: specsOf(expandedConfig(cleaned), install),
+      named: stringMap(record.scanners),
+      install,
+    },
   };
 }
 
@@ -336,7 +439,7 @@ function invalidFix(facts: DoctorFacts, message: string): SetupProblem["fix"] {
   );
 }
 
-function policyArea(facts: DoctorFacts): SetupProblem[] {
+function policyArea(facts: DoctorFacts): Found[] {
   if (facts.policyText === null) {
     return [];
   }
@@ -417,81 +520,81 @@ function policyArea(facts: DoctorFacts): SetupProblem[] {
   }));
 }
 
-function scannersArea(facts: DoctorFacts): SetupProblem[] {
-  return facts.languages.flatMap((language): SetupProblem[] => {
-    const spec = scannerFor(language);
-    const result = facts.scanner(spec);
+function pluginArea(
+  facts: DoctorFacts,
+  registered: Registered | { skipped: string },
+  kind: PluginSpec["kind"],
+): { skipped: string | null; problems: Found[] } {
+  if ("skipped" in registered) {
+    return { skipped: registered.skipped, problems: [] };
+  }
 
-    if (result.available) {
-      return [];
-    }
+  const specs = registered.specs.filter((spec) => spec.kind === kind);
 
-    if (result.reason === "override") {
-      return [
-        {
-          code: "scanner-override" as const,
-          subject: language,
-          line: result.message,
-          fix: textFix(
-            `set ${spec.variable} to an absolute path, or unset it to use ${spec.name} from PATH`,
-          ),
-        },
-      ];
-    }
-
-    return [
-      {
-        code: "scanner-missing" as const,
-        subject: language,
-        line: result.message,
-        fix: {
-          text: BREW_FIX,
-          command: BREW_FIX,
-        },
-      },
-    ];
-  });
+  return {
+    skipped: null,
+    problems:
+      specs.length === 0
+        ? []
+        : facts.plugins(specs).flatMap((fact) => pluginProblems(fact)),
+  };
 }
 
-function sensorsArea(
-  facts: DoctorFacts,
-  input: SensorsInput,
-): { skipped: string | null; problems: SetupProblem[] } {
-  if ("skipped" in input) {
-    return { skipped: input.skipped, problems: [] };
-  }
-
-  if (input.checkable.length === 0) {
-    return { skipped: null, problems: [] };
-  }
-
-  const problems = facts.sensorReports(input.checkable).flatMap((report) =>
-    report.gaps.map((gap) => ({
-      code: "sensor-gap" as const,
-      subject: report.name,
-      line: gap.line,
-      fix:
-        gap.code === "sensors-missing"
-          ? commandFix(BREW_FIX)
-          : commandFix(`recognizer help sensors ${report.name}`),
-    })),
-  );
-
-  return { skipped: null, problems };
+function withSeverity(problems: Found[]): SetupProblem[] {
+  return problems.map((one) => ({ severity: "problem" as const, ...one }));
 }
 
 export function buildReport(facts: DoctorFacts): DoctorReport {
   const config = configArea(facts);
-  const sensors = sensorsArea(facts, config.sensors);
+  const known = "skipped" in config.registered ? NONE : config.registered;
   const areas: Area[] = [
-    { name: "config", skipped: null, problems: config.problems },
-    { name: "policy", skipped: null, problems: policyArea(facts) },
-    { name: "scanners", skipped: null, problems: scannersArea(facts) },
-    { name: "sensors", ...sensors },
-  ];
-  const problems = areas.reduce((sum, area) => sum + area.problems.length, 0);
+    {
+      name: "config",
+      skipped: null,
+      problems: withSeverity(config.problems),
+    },
+    {
+      name: "policy",
+      skipped: null,
+      problems: withSeverity(policyArea(facts)),
+    },
+    {
+      name: "scanners",
+      skipped: null,
+      problems: withSeverity(
+        scannerProblems(
+          facts.languages,
+          facts.scanners,
+          known.named,
+          known.install,
+        ),
+      ),
+    },
+    ...(["sensor", "describer"] as const).map((kind): Area => {
+      const area = pluginArea(facts, config.registered, kind);
 
-  return { repository: facts.repository, ok: problems === 0, problems, areas };
+      return {
+        name: kind === "sensor" ? "sensors" : "describers",
+        skipped: area.skipped,
+        problems: withSeverity(area.problems),
+      };
+    }),
+  ];
+  const count = (severity: SetupProblem["severity"]) =>
+    areas.reduce(
+      (sum, area) =>
+        sum + area.problems.filter((one) => one.severity === severity).length,
+      0,
+    );
+  const problems = count("problem");
+
+  return {
+    repository: facts.repository,
+    ok: problems === 0,
+    problems,
+    warnings: count("warning"),
+    areas,
+  };
 }
 
 export function reportText(report: DoctorReport): string {
@@ -511,7 +614,10 @@ export function reportText(report: DoctorReport): string {
     lines.push(area.name);
 
     for (const problem of area.problems) {
-      lines.push(`  ${problem.line}`, `    fix: ${problem.fix.text}`);
+      lines.push(
+        `  ${problem.severity === "warning" ? "warning: " : ""}${problem.line}`,
+        `    fix: ${problem.fix.text}`,
+      );
     }
   }
 
@@ -520,6 +626,12 @@ export function reportText(report: DoctorReport): string {
       ? "No problems"
       : `${report.problems} ${report.problems === 1 ? "problem" : "problems"}`,
   );
+
+  if (report.warnings > 0) {
+    lines.push(
+      `${report.warnings} ${report.warnings === 1 ? "warning" : "warnings"}`,
+    );
+  }
 
   return `${lines.join("\n")}\n`;
 }

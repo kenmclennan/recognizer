@@ -2,10 +2,12 @@ import { isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
 import { InputError } from "./errors.js";
+import { runAdd } from "./plugin-add.js";
 import { pluginCheck, reportFailed, reportLines } from "./plugin-check.js";
 
 const USAGE = [
   "usage: recognizer plugin check <command> [--repository <dir>] [--request <file>] [--json]",
+  "       recognizer plugin add <name> [--kind sensor|describer] [--repository <dir>]",
 ];
 
 function locate(io: Io, command: string): string | null {
@@ -72,6 +74,10 @@ export function runPlugin(argv: string[], io: Io): number | Promise<number> {
 
   if (subcommand === "check") {
     return runCheck(rest, io);
+  }
+
+  if (subcommand === "add") {
+    return runAdd(rest, io);
   }
 
   throw new InputError(USAGE);

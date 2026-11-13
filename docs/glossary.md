@@ -155,6 +155,9 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Verb | One of the four arguments a plugin answers, always as its first argument: `manifest`, `check`, `run` and `guide`. A plugin does work only when Recognizer calls a verb. A tool whose manifest says `check: false` answers `check` with exit 2, and a tool with no setup help answers `guide` with nothing. All four are answered by every shipped tool, and `recognizer plugin check` calls all four. |
 | Plugin event | One JSON line a plugin writes on stderr while it runs, prefixed `recognizer-event`: a `start`, a `progress`, a `note` or a `diagnosis`. The CLI reads every one, tags it with the plugin's name and forwards it unchanged on `recognizer scan --json` as a `plugin` line, and the app reads those lines for the footer's scan line, the time estimate and the failure text. |
 | Grace period | The 10 seconds a plugin has to exit after SIGTERM, when the user stops a scan or a run passes its time limit, before it is killed with SIGKILL. The app adds a backstop of 15 seconds from its own SIGTERM. |
+| Installed plugin | An executable on `PATH` named `recognizer-scan-<name>`, `recognizer-sense-<name>` or `recognizer-describe-<name>` whose `manifest` verb answers with a valid manifest of that kind and name. `recognizer plugins` lists them; the first match on `PATH` is the one that runs. |
+| Install line | The string recorded under `install.<program>` in a repository's `config.yaml`, copied from the plugin's manifest by `recognizer plugin add`, which doctor shows as the fix when the program is not installed on a machine. |
+| Scanner choice | The `scanners` section of `config.yaml`, which maps a language to the manifest name of the scanner that reads it, and the rule that picks one scanner per language: the one installed scanner that claims it, the one the config names, or a failure when two claim it and the config names none. |
 
 ## The viewer
 

@@ -145,6 +145,28 @@ describe("skill texts", () => {
   });
 });
 
+describe("the setup skill is generic", () => {
+  const text = SKILLS[1]?.text ?? "";
+
+  it.each([
+    "crap",
+    "mutation",
+    "C.R.A.P.",
+    "recognizer-scan-",
+    "recognizer-sense-",
+  ])("does not name %s", (needle) => {
+    expect(text).not.toContain(needle);
+  });
+
+  it.each([
+    "recognizer plugins",
+    "recognizer plugin add",
+    "recognizer config scanners.<language> <name>",
+  ])("tells the agent to use %s", (needle) => {
+    expect(text).toContain(needle);
+  });
+});
+
 describe("skill eval fixture repository", () => {
   it("holds the pytest section the skill reads", () => {
     expect(

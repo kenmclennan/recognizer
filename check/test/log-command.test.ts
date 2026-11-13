@@ -11,6 +11,7 @@ import {
   PYTHON,
   ROOT,
   scanJson,
+  useScannerShim,
 } from "./scan-helpers.js";
 
 const DIRECTORY = `${ROOT}/.recognizer/cache/log`;
@@ -420,6 +421,7 @@ describe("sense and measure", () => {
 describe("a scan record from the real run", () => {
   it("is read back by log --json after a stubbed scan of the python sample", async () => {
     const root = makeTempDir("recognizer-log-");
+    const restorePath = useScannerShim("python");
 
     cpSync(join(REPO, "fixtures/python/sample"), root, { recursive: true });
 
@@ -428,7 +430,7 @@ describe("a scan record from the real run", () => {
     const io: Io = {
       ...out.io,
       runAsync: (command, args, options) => {
-        if (command !== PYTHON) {
+        if (!command.endsWith(PYTHON)) {
           return real(command, args, options);
         }
 
@@ -449,8 +451,12 @@ describe("a scan record from the real run", () => {
       },
     };
 
-    expect(await run(["scan", root], io)).toBe(0);
-    expect(await run(["log", "--json", "--repository", root], io)).toBe(0);
+    try {
+      expect(await run(["scan", root], io)).toBe(0);
+      expect(await run(["log", "--json", "--repository", root], io)).toBe(0);
+    } finally {
+      restorePath();
+    }
 
     const listed = JSON.parse(
       out.out().slice(out.out().indexOf('{\n  "runs"')),

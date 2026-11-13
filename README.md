@@ -112,13 +112,21 @@ It writes two skills under `~/.claude/skills/`: `recognizer`, which answers ques
 
 ## Troubleshooting
 
-Start with `recognizer doctor` in the repository: it checks the config, the policy, the scanners and the sensors, and prints the fix for each problem. When a scan or describe fails, `recognizer log --last` shows what ran and why it failed.
+Start with `recognizer doctor` in the repository: it checks the config, the policy, the scanners, the sensors and the describer, and prints the fix for each problem. `recognizer plugins` lists every plugin found on `PATH`, with its protocol and what uses it in the repository. When a scan or describe fails, `recognizer log --last` shows what ran and why it failed.
 
-- **`recognizer: command not found`, or doctor reports a scanner or `recognizer-sensors` missing.** The cask is not installed, or its links were removed. Run `brew install --cask kenmclennan/tap/recognizer`.
+- **`recognizer: command not found`.** The cask is not installed, or its links were removed. Run `brew install --cask kenmclennan/tap/recognizer`.
+- **Doctor reports `plugin-missing` for a registered sensor or describer.** The program is not on `PATH` on this machine. The fix is the install line recorded under `install.<program>` in `config.yaml`; when none is recorded it says so, and `recognizer plugin add <name>` on a machine that has the plugin records one.
+- **Doctor reports `plugin-manifest`.** The program is on `PATH` but its `manifest` verb did not answer or did not validate. `recognizer plugin check <program>` says which result failed.
+- **Doctor reports `plugin-protocol`.** The plugin speaks a protocol the installed Recognizer does not. The previous protocol is a warning (the plugin still runs); any other is a problem and the plugin is refused. The fix is the plugin's install line: upgrade it.
+- **Doctor reports `sensor-gap` or `describer-gap`.** The plugin's own readiness check found something missing; `recognizer help sensors <name>` says how to fix it.
+- **Doctor reports `plugin-settings`.** A key under `sensors.<name>` is not one the sensor's manifest declares, or its value breaks the declared type or range. `recognizer help sensors <name>` lists the keys.
+- **Doctor reports `scanner-missing`.** No installed scanner claims a language the repository holds, or `scanners.<language>` names a scanner that is not installed. Install a scanner that claims the language; `recognizer plugins` lists what is installed. With no scanner installed at all, the problem is named `scanners`.
+- **Doctor reports `scanner-ambiguous` or a scan fails with `ambiguous-scanner`.** Two installed scanners claim the language. Choose one with `recognizer config scanners.<language> <name>`.
+- **Doctor reports `scanner-choice`, or a scan fails with `invalid-choice`.** `scanners.<language>` names an installed scanner that does not claim the language. Name one that does, or `recognizer config --unset scanners.<language>`.
 - **`brew list --formula` still shows `recognizer`.** The machine installed the retired formula, which the cask replaces. Run `brew update && brew uninstall --ignore-dependencies --formula recognizer && brew upgrade --cask recognizer` once.
 - **The app says `Recognizer X cannot scan with <tool> Y` or `This installation of Recognizer is incomplete`.** The app runs only the tools inside its own bundle, never the ones on `PATH`, and refuses when one is missing or its version differs from the app's. Run `brew reinstall --cask kenmclennan/tap/recognizer`.
 - **macOS refuses to open the app.** The app is ad-hoc signed, not notarized. The cask clears the quarantine attribute after install; an app downloaded from the releases page keeps it. Install with the cask, or allow the app under Privacy and Security in System Settings, or run `xattr -dr com.apple.quarantine /Applications/Recognizer.app`.
-- **`recognizer open` says "Recognizer.app was not found in ~/Applications or /Applications".** The app is not in either folder. Run `brew install --cask kenmclennan/tap/recognizer`, or set `RECOGNIZER_APP` to the absolute path of the `.app` bundle.
+- **`recognizer open` says "Recognizer.app was not found in ~/Applications or /Applications".** The app is not in either folder. Set `RECOGNIZER_APP` to the absolute path of the `.app` bundle.
 - **Describing fails with "claude could not be run".** The shipped describer calls the `claude` command. Install Claude Code, sign in, and check that `command -v claude` finds it in a new terminal: the app takes its `PATH` from your login shell. "claude usage limit" means the plan's limit was hit: the lines already written stay, and a later `recognizer describe` finishes the rest.
 - **Doctor reports a retired or empty config key after an upgrade.** The new version no longer reads it. Run the `recognizer config --unset <key>` or `recognizer config --remove-section sensors.<name>` command doctor prints.
 - **The scan stops with exit 4 and "the folder has no git commit".** Sensors need a commit to record. Make the first commit (`git add` the files, then `git commit`).
@@ -131,6 +139,7 @@ Start with `recognizer doctor` in the repository: it checks the config, the poli
 
 What a repository can add today:
 
+- **An installed sensor or describer.** `recognizer plugin add <name>` registers it in `config.yaml` and records its install line under `install`, so `recognizer doctor` can tell a teammate how to install it. `recognizer plugins` lists what is installed.
 - **Its own sensor.** Register any command under `sensors` in `config.yaml`. It is run from the repository root with `{repository}`, `{commit}` and `{output}` filled in, and writes a findings document ([`schema/findings.schema.json`](schema/findings.schema.json)) to `{output}`. It runs when asked: `recognizer scan --sense <name>` or `--sense all`.
 
   ```yaml
@@ -141,7 +150,7 @@ What a repository can add today:
 
 - **Its own describer.** Set `describer.command` and `describer.version` in `config.yaml`. The command is given `{repository}`, `{module}`, `{model}` and `{request}` (a JSON request file) and prints one line. Bump the version to redo every line.
 - **An agent's review.** `recognizer report --as <name>` files review findings in the findings form, and the viewer and `recognizer check` treat them like a sensor's.
-- **A different scanner binary** for a supported language, through `RECOGNIZER_SCAN_PYTHON`, `RECOGNIZER_SCAN_TYPESCRIPT`, `RECOGNIZER_SCAN_KOTLIN`, `RECOGNIZER_SCAN_CSHARP` or `RECOGNIZER_SCAN_RUST` (an absolute path).
+- **A different scanner for a language.** Install a `recognizer-scan-<name>` program whose manifest claims the language, and when two scanners claim it, choose one with `recognizer config scanners.<language> <name>`. The `RECOGNIZER_SCAN_<LANGUAGE>` variables are retired: to run a checkout's scanner, put a launcher named `recognizer-scan-<name>` first on `PATH`.
 
 [check/README.md](check/README.md) gives the contracts in full. A plugin model for scanners, sensors and describers is being built; [docs/plugins.md](docs/plugins.md) describes it.
 

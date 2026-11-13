@@ -1,8 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { languageRules } from "../src/detect.js";
-import { BREW_FIX } from "../src/preflight.js";
 import { REPO } from "./helpers.js";
 import { manifestOf, type RealTool, realTools } from "./plugin-tools.js";
 
@@ -19,23 +17,28 @@ function manifest(name: string) {
 }
 
 describe("the shipped manifests equal the sources they transcribe", () => {
-  it("holds the one table of language rules that detect.ts holds", () => {
-    expect(json("fixtures/plugins/languages.json")).toEqual(languageRules());
+  it("holds the language rules the scanner manifests declare", () => {
+    const declared = [
+      "recognizer-scan-python",
+      "recognizer-scan-typescript",
+    ].flatMap((name) => manifest(name).languages ?? []);
+
+    expect(declared).toEqual(
+      (json("fixtures/plugins/languages.json") as { name: string }[]).filter(
+        (rule) => ["python", "typescript"].includes(rule.name),
+      ),
+    );
   });
 
   it.each([
     ["recognizer-scan-python", "python"],
     ["recognizer-scan-typescript", "typescript"],
-  ])("gives %s the detect.ts rules of %s", (command, language) => {
-    const rules = languageRules().find((one) => one.name === language);
+  ])("gives %s the shared rules of %s", (command, language) => {
+    const rules = (
+      json("fixtures/plugins/languages.json") as { name: string }[]
+    ).find((one) => one.name === language);
 
     expect(manifest(command).languages).toEqual([rules]);
-  });
-
-  it("gives every tool the install line of preflight", () => {
-    for (const name of TOOLS.keys()) {
-      expect(manifest(name).install).toBe(BREW_FIX);
-    }
   });
 
   it.each([

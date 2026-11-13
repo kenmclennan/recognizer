@@ -48,6 +48,8 @@ export interface TestSuite {
 
 export interface Config {
   describer?: { command: string[]; version: string };
+  scanners?: Record<string, string>;
+  install?: Record<string, string>;
   sensors?: Record<string, SensorEntry>;
   tests?: TestSuite[];
 }
@@ -400,7 +402,12 @@ export function expandedConfig(document: unknown): Config {
   return expandConfig(document) as Config;
 }
 
-export type ConfigSection = "describer" | "sensors" | "tests";
+export type ConfigSection =
+  | "describer"
+  | "install"
+  | "scanners"
+  | "sensors"
+  | "tests";
 export type ConfigRead = "all" | readonly ConfigSection[];
 
 export function readsAnyConfig(read: ConfigRead): boolean {

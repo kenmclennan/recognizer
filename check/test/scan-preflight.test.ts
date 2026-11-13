@@ -171,7 +171,7 @@ describe("scan preflight: the early stage", () => {
 
     expect(code).toBe(4);
     expect(err).toContain(
-      "the describer rejects the arguments the scan passes (describe): brew install --cask kenmclennan/tap/recognizer",
+      "the describer rejects the arguments the scan passes (describe): install recognizer-describe-claude",
     );
     expect(calls).toEqual([["check"]]);
   });

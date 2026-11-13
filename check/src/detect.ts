@@ -1,22 +1,19 @@
 import { join, relative } from "node:path";
 import type { Io } from "./cli.js";
 
-export type Language = "python" | "typescript" | "kotlin" | "rust" | "csharp";
+export type Language = string;
 
-const LANGUAGES: Language[] = [
-  "python",
-  "typescript",
-  "kotlin",
-  "rust",
-  "csharp",
-];
-
-interface SkipRules {
-  directoryNames: string[];
-  directoryPrefixes: string[];
-  directorySuffixes: string[];
-  directoryMarkers: string[];
-  fileGlobs: string[];
+export interface LanguageRule {
+  name: string;
+  extensions: string[];
+  files: string[];
+  skip: {
+    directory_names: string[];
+    directory_prefixes: string[];
+    directory_suffixes: string[];
+    directory_markers: string[];
+    file_globs: string[];
+  };
 }
 
 const SKIPPED_DIRECTORIES = new Set([
@@ -30,66 +27,6 @@ const SKIPPED_DIRECTORIES = new Set([
   ".recognizer",
 ]);
 
-const SKIP_RULES: Record<Language, SkipRules> = {
-  python: {
-    directoryNames: [
-      "__pycache__",
-      "test",
-      "tests",
-      "dist",
-      "build",
-      "node_modules",
-      "site-packages",
-    ],
-    directoryPrefixes: ["."],
-    directorySuffixes: [".egg-info"],
-    directoryMarkers: ["pyvenv.cfg"],
-    fileGlobs: ["conftest.py"],
-  },
-  typescript: {
-    directoryNames: [
-      "node_modules",
-      "dist",
-      "build",
-      "test",
-      "tests",
-      "__tests__",
-    ],
-    directoryPrefixes: ["."],
-    directorySuffixes: [],
-    directoryMarkers: [],
-    fileGlobs: ["*.d.ts", "*.d.mts", "*.d.cts", "*.test.*", "*.spec.*"],
-  },
-  kotlin: {
-    directoryNames: [
-      "build",
-      "test",
-      "androidTest",
-      "integrationTest",
-      "testFixtures",
-      "test-fixtures",
-    ],
-    directoryPrefixes: ["."],
-    directorySuffixes: ["Test"],
-    directoryMarkers: [],
-    fileGlobs: ["*Test.kt", "*Tests.kt"],
-  },
-  rust: {
-    directoryNames: ["target", "node_modules", "tests"],
-    directoryPrefixes: ["."],
-    directorySuffixes: [],
-    directoryMarkers: [],
-    fileGlobs: [],
-  },
-  csharp: {
-    directoryNames: ["bin", "obj"],
-    directoryPrefixes: ["."],
-    directorySuffixes: [],
-    directoryMarkers: [],
-    fileGlobs: ["*.g.cs", "*.g.i.cs", "*.Designer.cs"],
-  },
-};
-
 function matchesGlob(name: string, glob: string): boolean {
   const pattern = glob
     .split("*")
@@ -99,75 +36,27 @@ function matchesGlob(name: string, glob: string): boolean {
   return new RegExp(`^${pattern}$`).test(name);
 }
 
-function skipsDirectoryName(rules: SkipRules, name: string): boolean {
+function skipsDirectoryName(rule: LanguageRule, name: string): boolean {
   return (
-    rules.directoryNames.includes(name) ||
-    rules.directoryPrefixes.some((prefix) => name.startsWith(prefix)) ||
-    rules.directorySuffixes.some((suffix) => name.endsWith(suffix))
+    rule.skip.directory_names.includes(name) ||
+    rule.skip.directory_prefixes.some((prefix) => name.startsWith(prefix)) ||
+    rule.skip.directory_suffixes.some((suffix) => name.endsWith(suffix))
   );
 }
 
-const CSHARP_EXTENSIONS = [".cs", ".razor", ".cshtml", ".xaml"];
-const TYPESCRIPT_EXTENSIONS = [
-  ".ts",
-  ".tsx",
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".cjs",
-  ".mts",
-  ".cts",
-];
-
-const EXTENSIONS: Record<Language, string[]> = {
-  python: [".py"],
-  typescript: TYPESCRIPT_EXTENSIONS,
-  kotlin: [".kt"],
-  rust: [".rs"],
-  csharp: CSHARP_EXTENSIONS,
-};
-
-const FILES: Record<Language, string[]> = {
-  python: [],
-  typescript: ["tsconfig.json"],
-  kotlin: [],
-  rust: [],
-  csharp: [],
-};
-
-function languageOf(fileName: string): Language | null {
+function claims(rule: LanguageRule, fileName: string): boolean {
   return (
-    LANGUAGES.find(
-      (language) =>
-        FILES[language].includes(fileName) ||
-        EXTENSIONS[language].some((extension) => fileName.endsWith(extension)),
-    ) ?? null
+    rule.files.includes(fileName) ||
+    rule.extensions.some((extension) => fileName.endsWith(extension))
   );
 }
 
-export function languageRules() {
-  return LANGUAGES.map((language) => ({
-    name: language,
-    extensions: EXTENSIONS[language],
-    files: FILES[language],
-    skip: {
-      directory_names: SKIP_RULES[language].directoryNames,
-      directory_prefixes: SKIP_RULES[language].directoryPrefixes,
-      directory_suffixes: SKIP_RULES[language].directorySuffixes,
-      directory_markers: SKIP_RULES[language].directoryMarkers,
-      file_globs: SKIP_RULES[language].fileGlobs,
-    },
-  }));
-}
-
-function skipsFile(language: Language, fileName: string): boolean {
-  if (fileName === "tsconfig.json") {
+function skipsFile(rule: LanguageRule, fileName: string): boolean {
+  if (rule.files.includes(fileName)) {
     return false;
   }
 
-  return SKIP_RULES[language].fileGlobs.some((glob) =>
-    matchesGlob(fileName, glob),
-  );
+  return rule.skip.file_globs.some((glob) => matchesGlob(fileName, glob));
 }
 
 function gitListing(io: Io, root: string): Set<string> | null {
@@ -202,17 +91,22 @@ function gitListing(io: Io, root: string): Set<string> | null {
   return new Set(result.stdout.split("\0").filter((entry) => entry !== ""));
 }
 
-export function detectLanguages(io: Io, root: string): Language[] {
+export function detectLanguages(
+  io: Io,
+  root: string,
+  rules: readonly LanguageRule[],
+): Language[] {
   const found = new Set<Language>();
+  const names = new Set(rules.map((rule) => rule.name));
   const listing = gitListing(io, root);
 
-  function walk(directory: string, active: Language[]): void {
+  function walk(directory: string, active: readonly LanguageRule[]): void {
     const entries = io.readDir(directory);
 
     const here = active.filter(
-      (language) =>
+      (rule) =>
         directory === root ||
-        !SKIP_RULES[language].directoryMarkers.some((marker) =>
+        !rule.skip.directory_markers.some((marker) =>
           entries.some(
             (entry) => entry.kind === "file" && entry.name === marker,
           ),
@@ -220,7 +114,7 @@ export function detectLanguages(io: Io, root: string): Language[] {
     );
 
     for (const entry of entries) {
-      if (found.size === LANGUAGES.length) {
+      if (found.size === names.size) {
         return;
       }
 
@@ -230,29 +124,31 @@ export function detectLanguages(io: Io, root: string): Language[] {
         }
 
         const inside = here.filter(
-          (language) => !skipsDirectoryName(SKIP_RULES[language], entry.name),
+          (rule) => !skipsDirectoryName(rule, entry.name),
         );
 
         if (inside.length > 0) {
           walk(join(directory, entry.name), inside);
         }
       } else if (entry.kind === "file") {
-        const language = languageOf(entry.name);
+        const listed =
+          listing === null ||
+          listing.has(relative(root, join(directory, entry.name)));
 
-        if (
-          language &&
-          here.includes(language) &&
-          !skipsFile(language, entry.name) &&
-          (listing === null ||
-            listing.has(relative(root, join(directory, entry.name))))
-        ) {
-          found.add(language);
+        if (!listed) {
+          continue;
+        }
+
+        for (const rule of here) {
+          if (claims(rule, entry.name) && !skipsFile(rule, entry.name)) {
+            found.add(rule.name);
+          }
         }
       }
     }
   }
 
-  walk(root, LANGUAGES);
+  walk(root, rules);
 
-  return LANGUAGES.filter((language) => found.has(language));
+  return [...found].sort();
 }

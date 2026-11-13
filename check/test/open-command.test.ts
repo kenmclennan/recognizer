@@ -84,7 +84,7 @@ describe("recognizer open", () => {
     const { code, fake, err } = open({}, ROOT);
 
     expect(code).toBe(1);
-    expect(err).toContain("brew install --cask kenmclennan/tap/recognizer");
+    expect(err).toContain("set RECOGNIZER_APP to an absolute path");
     expect(fake.launches).toEqual([]);
   });
 
@@ -98,7 +98,7 @@ describe("recognizer open", () => {
     );
 
     expect(code).toBe(1);
-    expect(err).toContain("brew install --cask kenmclennan/tap/recognizer");
+    expect(err).toContain("set RECOGNIZER_APP to an absolute path");
     expect(fake.launches).toEqual([]);
   });
 
@@ -222,9 +222,7 @@ describe("recognizer open", () => {
       const { code, err } = open({ files: {} }, "recognizer://open?repo=x");
 
       expect(code).toBe(2);
-      expect(err).not.toContain(
-        "brew install --cask kenmclennan/tap/recognizer",
-      );
+      expect(err).not.toContain("was not found");
     });
 
     it("keeps the install hint for a valid link with no bundle", () => {
@@ -234,7 +232,7 @@ describe("recognizer open", () => {
       );
 
       expect(code).toBe(1);
-      expect(err).toContain("brew install --cask kenmclennan/tap/recognizer");
+      expect(err).toContain("set RECOGNIZER_APP to an absolute path");
     });
 
     it("refuses a view missing from the repository's own fixtures/check", () => {

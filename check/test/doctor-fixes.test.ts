@@ -33,14 +33,13 @@ function setup(options: Setup = {}) {
     status: options.status,
     files: {
       [`${ROOT}/m0.py`]: "",
-      "/bin/recognizer-scan-python": "",
       ...(options.config === undefined ? {} : { [CONFIG]: options.config }),
       ...(options.policy === undefined
         ? {}
         : { [POLICY_FILE]: options.policy }),
       ...(options.cache === undefined ? {} : { [CACHE]: options.cache }),
     },
-    env: { PATH: "/bin" },
+    scanners: { "recognizer-scan-python": {} },
   });
 }
 

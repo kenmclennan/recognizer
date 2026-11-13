@@ -4,6 +4,7 @@ import { type ConfigRead, readConfig } from "./config.js";
 import { readsAnyConfig } from "./config-parse.js";
 import { detectLanguages, type Language } from "./detect.js";
 import { InputError } from "./errors.js";
+import { discoverPlugins } from "./plugin-discovery.js";
 import type { RecordedScan, Scan } from "./scan.js";
 import {
   dirtyPaths,
@@ -11,6 +12,7 @@ import {
   resolveCommit,
   runScanSync,
 } from "./scan-command.js";
+import { languageRulesOf } from "./scanners.js";
 
 export interface FreshScans {
   scans: Scan[];
@@ -92,7 +94,11 @@ export function freshScans(io: Io, root: string, read: ConfigRead): FreshScans {
     readConfig(io, directory, read);
   }
 
-  const detected = detectLanguages(io, directory);
+  const detected = detectLanguages(
+    io,
+    directory,
+    languageRulesOf(discoverPlugins(io, ["scanner"]).plugins),
+  );
 
   if (detected.length > 0) {
     const cached = cachedScansState(io, directory, detected);

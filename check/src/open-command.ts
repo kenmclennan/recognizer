@@ -6,7 +6,7 @@ import { checkLink, isLink, parseLink } from "./link.js";
 
 const BUNDLE = "Recognizer.app";
 const OVERRIDE = "RECOGNIZER_APP";
-const INSTALL_HINT = `${BUNDLE} was not found in ~/Applications or /Applications; install it with: brew install --cask kenmclennan/tap/recognizer, or set RECOGNIZER_APP to an absolute path to a .app bundle`;
+const INSTALL_HINT = `${BUNDLE} was not found in ~/Applications or /Applications; set RECOGNIZER_APP to an absolute path to a .app bundle`;
 
 function candidates(io: Io): string[] {
   const home = io.env("HOME");

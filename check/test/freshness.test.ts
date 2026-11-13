@@ -18,6 +18,7 @@ function setup(
     commit?: string;
     cache?: string | null;
     files?: Record<string, string>;
+    scanners?: Parameters<typeof fakeIo>[0]["scanners"];
   } = {},
 ) {
   const fake = fakeIo({
@@ -30,7 +31,7 @@ function setup(
         : { [CACHE]: options.cache ?? cached(COMMIT) }),
       ...options.files,
     },
-    scanners: scanner,
+    scanners: options.scanners ?? scanner,
   });
 
   return fake;
@@ -87,7 +88,10 @@ describe("freshScans", () => {
   });
 
   it("scans when one of two detected languages has no cache", () => {
-    const fake = setup({ files: { [`${ROOT}/b.ts`]: "" } });
+    const fake = setup({
+      files: { [`${ROOT}/b.ts`]: "" },
+      scanners: { ...scanner, [TYPESCRIPT]: { unstartable: true } },
+    });
 
     expect(() => freshScans(fake.io, ROOT, "all")).toThrow(InputError);
     expect(scannerRuns(fake)).toBe(1);

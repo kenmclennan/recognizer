@@ -19,9 +19,8 @@ export interface EarlyInput {
   describe: boolean;
   describer: Describer | null;
   model: string;
+  install: Record<string, string>;
 }
-
-export const BREW_FIX = "brew install --cask kenmclennan/tap/recognizer";
 
 const SENSORS_PROGRAM = "recognizer-sensors";
 
@@ -36,14 +35,11 @@ function outside(text: string, cwd = ""): Fix {
   return { text, command: null, cwd, env: {}, kind: "outside" };
 }
 
-function installFix(): Fix {
-  return {
-    text: BREW_FIX,
-    command: BREW_FIX.split(" "),
-    cwd: "",
-    env: {},
-    kind: "outside",
-  };
+export function installFix(
+  install: Record<string, string> | undefined,
+  program: string,
+): Fix {
+  return outside(install?.[program] ?? `install ${program}`);
 }
 
 function isShipped(sensor: PreflightSensor): boolean {
@@ -73,7 +69,7 @@ function describerArgumentsGap(
       id: "describe:arguments",
       line: "the describer does not speak the plugin verbs: its command has no run element",
       needs: ["describe"],
-      fix: installFix(),
+      fix: installFix(input.install, describer.command[0] as string),
     };
   }
 
@@ -106,7 +102,7 @@ function describerArgumentsGap(
           env: {},
           kind: "repository",
         }
-      : installFix(),
+      : installFix(input.install, filled[0] as string),
   };
 }
 
@@ -123,7 +119,7 @@ function describerGaps(input: EarlyInput): Gap[] {
         id: "describe:missing",
         line: "no describer is registered and recognizer-describe-claude is not installed",
         needs: ["describe"],
-        fix: installFix(),
+        fix: installFix(input.install, REFERENCE_PROGRAM),
       },
     ];
   }
@@ -144,7 +140,7 @@ function describerGaps(input: EarlyInput): Gap[] {
           id: "describe:program",
           line: `the describer program ${program} does not start`,
           needs: ["describe"],
-          fix: outside(`install ${program}`),
+          fix: installFix(input.install, program),
         },
       ];
 }
@@ -165,7 +161,7 @@ function sensorProgramGaps(input: EarlyInput): Gap[] {
           id: "sensors:missing",
           line: `${SENSORS_PROGRAM} is not installed`,
           needs: shipped.map((one) => one.name),
-          fix: installFix(),
+          fix: installFix(input.install, SENSORS_PROGRAM),
         },
       ];
 }

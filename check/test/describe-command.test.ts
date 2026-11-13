@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -20,12 +21,23 @@ import { COMMANDS } from "../src/commands.js";
 import { DESCRIBE_FLAGS } from "../src/describe-command.js";
 import { fullHelp } from "../src/help.js";
 import { capture, REPO } from "./helpers.js";
+import { scannerManifestText } from "./scan-helpers.js";
 
 const FAKE = join(REPO, "check/test/fixtures/fake-describer.mjs");
 const ORDER = "shop/domain/order.py";
 const STORE = "shop/ports/store.py";
 const PLACE = "shop/application/place.py";
 const roots: string[] = [];
+
+function scannerShim(dir: string, language: string): void {
+  const path = join(dir, `recognizer-scan-${language}`);
+
+  writeFileSync(
+    path,
+    `#!/bin/sh\nif [ "$1" = "manifest" ]; then\necho '${scannerManifestText(language).trim()}'\nfi\n`,
+  );
+  chmodSync(path, 0o755);
+}
 
 function git(root: string, ...args: string[]): string {
   return execFileSync("git", ["-C", root, ...args], { encoding: "utf8" });
@@ -41,6 +53,12 @@ function repository(language = "python"): string {
   git(root, "config", "user.name", "t");
   git(root, "add", ".");
   git(root, "commit", "-q", "-m", "sample");
+
+  const shims = mkdtempSync(join(tmpdir(), "recognizer-scanner-shim-"));
+
+  binDirs.push(shims);
+  scannerShim(shims, language);
+  process.env.PATH = `${shims}:${process.env.PATH}`;
 
   const scan = JSON.parse(
     readFileSync(join(REPO, `fixtures/${language}/expected-scan.json`), "utf8"),
@@ -714,7 +732,8 @@ function withoutShippedDescriber(): void {
     execFileSync("which", ["git"], { encoding: "utf8" }).trim(),
     join(dir, "git"),
   );
-  process.env.PATH = dir;
+  scannerShim(dir, "python");
+  process.env.PATH = `${dir}:/usr/bin:/bin`;
 }
 
 function shippedManifest() {

@@ -11,11 +11,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type Io, run } from "../src/cli.js";
 import { moduleSource } from "../src/module-source.js";
 import type { Scan } from "../src/scan.js";
 import { capture, REPO } from "./helpers.js";
+import { useScannerShim } from "./scan-helpers.js";
 
 const FAKE = join(REPO, "check/test/fixtures/fake-describer.mjs");
 const DOMAIN = "app/src/main/kotlin/shop/domain";
@@ -109,7 +110,15 @@ async function statusOf(root: string, id: string): Promise<string> {
   );
 }
 
+let restorePath: () => void = () => {};
+
+beforeEach(() => {
+  restorePath = useScannerShim("kotlin");
+});
+
 afterEach(() => {
+  restorePath();
+
   for (const root of roots.splice(0)) {
     rmSync(root, { recursive: true, force: true });
   }

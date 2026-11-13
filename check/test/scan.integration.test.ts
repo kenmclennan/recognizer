@@ -16,7 +16,7 @@ import { run } from "../src/cli.js";
 import { validateScan } from "../src/index.js";
 import { capture, REPO } from "./helpers.js";
 
-const VARIABLES = ["RECOGNIZER_SCAN_PYTHON", "RECOGNIZER_SCAN_TYPESCRIPT"];
+const VARIABLES = ["PATH"];
 
 function launcher(directory: string, name: string, body: string): string {
   const path = join(directory, name);
@@ -96,16 +96,17 @@ describe.skipIf(!HAS_UV)(
       cpSync(join(REPO, "fixtures/typescript/sample"), repository, {
         recursive: true,
       });
-      process.env.RECOGNIZER_SCAN_PYTHON = launcher(
+      launcher(
         launchers,
-        "python.sh",
+        "recognizer-scan-python",
         `exec uv run --quiet --project ${REPO}/scanners/python recognizer-scan-python "$@"`,
       );
-      process.env.RECOGNIZER_SCAN_TYPESCRIPT = launcher(
+      launcher(
         launchers,
-        "typescript.sh",
+        "recognizer-scan-typescript",
         `exec node ${REPO}/scanners/typescript/dist/bin.js "$@"`,
       );
+      process.env.PATH = `${launchers}:${saved.PATH}`;
     });
 
     afterEach(() => {

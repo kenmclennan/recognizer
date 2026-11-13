@@ -1,19 +1,26 @@
-import { isAbsolute, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
-import { configFile } from "./config.js";
+import { configFile, readConfig } from "./config.js";
 import { detectLanguages } from "./detect.js";
 import {
   buildReport,
   type DoctorFacts,
   reportJson,
   reportText,
-  type ScannerAvailability,
 } from "./doctor.js";
 import { InputError } from "./errors.js";
 import { cachedScansState } from "./freshness.js";
-import type { ScannerSpec } from "./scanners.js";
+import { discoverPlugins, findOnPath } from "./plugin-discovery.js";
+import type { PluginFact, PluginSpec } from "./plugin-doctor.js";
+import { judgeProtocol, readManifest } from "./plugin-manifest.js";
+import { languageRulesOf } from "./scanners.js";
 import { checkSensor } from "./sensors-check.js";
+import {
+  readShippedSensors,
+  shippedSensorOf,
+  withSuiteSettings,
+} from "./shipped-sensors.js";
 
 const USAGE = ["usage: recognizer doctor [REPOSITORY] [--json]"];
 
@@ -21,39 +28,89 @@ function readIfPresent(io: Io, file: string): string | null {
   return io.exists(file) ? io.readFile(file) : null;
 }
 
-function scannerAvailability(io: Io, spec: ScannerSpec): ScannerAvailability {
-  const override = io.env(spec.variable);
+function describerGaps(io: Io, root: string, program: string): string[] {
+  const result = io.run(program, ["check"], { cwd: root });
 
-  if (override !== undefined && override !== "") {
-    if (!isAbsolute(override)) {
-      return {
-        available: false,
-        reason: "override",
-        message: `${spec.variable} must be an absolute path: ${override}`,
-      };
-    }
-
-    return io.exists(override)
-      ? { available: true }
-      : {
-          available: false,
-          reason: "missing",
-          message: `${spec.variable} names ${override}, which does not exist`,
-        };
+  if (result.started && result.status === 0) {
+    return [];
   }
 
-  const found = (io.env("PATH") ?? "")
-    .split(":")
-    .filter((directory) => directory !== "")
-    .some((directory) => io.exists(join(directory, spec.name)));
+  return [
+    result.started
+      ? `${program} check exited ${result.status ?? "without a status"}`
+      : `${program} check could not be started`,
+  ];
+}
 
-  return found
-    ? { available: true }
-    : {
-        available: false,
-        reason: "missing",
-        message: `${spec.name} is not installed: ${spec.language} files are present but no scanner is on PATH`,
-      };
+function suitesOf(io: Io, root: string): readonly unknown[] | undefined {
+  try {
+    return readConfig(io, root, ["tests"])?.tests;
+  } catch {
+    return undefined;
+  }
+}
+
+function pluginFact(
+  io: Io,
+  root: string,
+  spec: PluginSpec,
+  suites: readonly unknown[] | undefined,
+): PluginFact {
+  const found = findOnPath(io, spec.program);
+
+  if (found === null) {
+    return { ...spec, state: { status: "missing" } };
+  }
+
+  const read = readManifest(io, found);
+
+  if (!read.ok) {
+    return { ...spec, state: { status: "unreadable", reason: read.reason } };
+  }
+
+  const { manifest } = read;
+  const judgement = judgeProtocol(manifest);
+  const wantsCheck = manifest.check && judgement !== "unsupported";
+  const report =
+    wantsCheck && spec.kind === "sensor"
+      ? checkSensor(
+          io,
+          root,
+          {
+            name: spec.subject,
+            command: [
+              found,
+              ...withSuiteSettings(
+                spec.command,
+                readShippedSensors(
+                  io,
+                  () => read,
+                  [shippedSensorOf(spec.command)].filter(
+                    (name): name is string => name !== undefined,
+                  ),
+                ),
+                suites,
+              ).slice(1),
+            ],
+          },
+          {},
+          () => read,
+        )
+      : null;
+
+  return {
+    ...spec,
+    state: {
+      status: "read",
+      manifest,
+      judgement,
+      gaps: !wantsCheck
+        ? null
+        : report !== null
+          ? report.gaps.map((gap) => gap.line)
+          : describerGaps(io, root, found),
+    },
+  };
 }
 
 export function runDoctor(argv: string[], io: Io): number {
@@ -77,7 +134,8 @@ export function runDoctor(argv: string[], io: Io): number {
     throw new InputError([`repository is not a directory: ${root}`]);
   }
 
-  const languages = detectLanguages(io, root);
+  const scanners = discoverPlugins(io, ["scanner"]).plugins;
+  const languages = detectLanguages(io, root, languageRulesOf(scanners));
   const facts: DoctorFacts = {
     repository: root,
     named: given !== undefined,
@@ -85,9 +143,12 @@ export function runDoctor(argv: string[], io: Io): number {
     policyText: readIfPresent(io, join(root, ".recognizer", "policy.yaml")),
     languages,
     scans: () => cachedScansState(io, root, languages),
-    scanner: (spec) => scannerAvailability(io, spec),
-    sensorReports: (sensors) =>
-      sensors.map((sensor) => checkSensor(io, root, sensor, {})),
+    scanners,
+    plugins: (specs) => {
+      const suites = suitesOf(io, root);
+
+      return specs.map((spec) => pluginFact(io, root, spec, suites));
+    },
   };
   const report = buildReport(facts);
 
