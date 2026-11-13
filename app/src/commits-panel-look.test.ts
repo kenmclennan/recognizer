@@ -125,7 +125,7 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   const oneBefore = m.views.rangeCalls.length;
   click(rowFor(m, "Middle"));
   await tick(100);
-  out.one = { calls: m.views.rangeCalls.slice(oneBefore), cards: m.all(".commits-slot").length, picked: titlesOf(m, ".commits-row.picked") };
+  out.one = { chip: m.q(".view-range-chip").textContent, chipTitle: m.q(".view-range-chip").title, calls: m.views.rangeCalls.slice(oneBefore), cards: m.all(".commits-slot").length, picked: titlesOf(m, ".commits-row.picked") };
   click(modeButton(m, "range"));
   await tick();
   out.rangeEmpty = { names: m.all(".commits-slot-name").map((n) => n.textContent), values: m.all(".commits-slot-value").map((n) => n.textContent), firstActive: m.q(".commits-slot.first").classList.contains("active"), lastActive: m.q(".commits-slot.last").classList.contains("active"), guide: guide(m), picked: m.all(".commits-row.picked").length, clears: m.all(".commits-slot-clear").length, on: m.q(".commits-mode .on").textContent };
@@ -175,6 +175,7 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
     viewRows,
     name: d.q(".view-name-text").textContent,
     chip: d.q(".view-range-chip").textContent,
+    chipTitle: d.q(".view-range-chip").title,
     unsaved: d.q(".view-unsaved") !== null && !d.q(".view-unsaved").hidden,
     saveGone: d.q(".commits-save") === null,
     boxes: d.all(".box").map((b) => b.dataset.id).sort(),
@@ -188,7 +189,7 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   out.back = { boxes: d.all(".box").length, name: d.q(".view-name-text").textContent, unsaved: !d.q(".view-unsaved").hidden };
   click(d.q(".view-forward"));
   await tick(150);
-  out.forward = { name: d.q(".view-name-text").textContent, unsaved: !d.q(".view-unsaved").hidden, extraCalls: d.views.rangeCalls.length - out.countsBeforeBack, boxes: d.all(".box").map((b) => b.dataset.id).sort() };
+  out.forward = { chip: d.q(".view-range-chip").textContent, chipTitle: d.q(".view-range-chip").title, name: d.q(".view-name-text").textContent, unsaved: !d.q(".view-unsaved").hidden, extraCalls: d.views.rangeCalls.length - out.countsBeforeBack, boxes: d.all(".box").map((b) => b.dataset.id).sort() };
   click(d.q(".view-save"));
   await tick();
   const dialogName = d.q(".view-field-name");
@@ -477,7 +478,13 @@ type Facts = {
     filterHidden: boolean;
     removed: string[];
   };
-  one: { calls: string[]; cards: number; picked: string[] };
+  one: {
+    chip: string;
+    chipTitle: string;
+    calls: string[];
+    cards: number;
+    picked: string[];
+  };
   rangeEmpty: {
     names: string[];
     values: string[];
@@ -519,6 +526,7 @@ type Facts = {
   draft: {
     name: string;
     chip: string;
+    chipTitle: string;
     unsaved: boolean;
     saveGone: boolean;
     boxes: string[];
@@ -528,6 +536,8 @@ type Facts = {
   };
   back: { boxes: number; name: string; unsaved: boolean };
   forward: {
+    chip: string;
+    chipTitle: string;
     name: string;
     unsaved: boolean;
     extraCalls: number;
@@ -713,6 +723,8 @@ describe.skipIf(webkit === undefined)(
 
     it("in One commit mode a click opens the commit's parent to the commit at once", () => {
       expect(f.one.calls).toEqual([`${"c".repeat(40)}..${"b".repeat(40)}`]);
+      expect(f.one.chip).toBe("commit bbbbbbb");
+      expect(f.one.chipTitle).toBe(`${"c".repeat(40)}..${"b".repeat(40)}`);
       expect(f.one.cards).toBe(0);
       expect(f.one.picked).toEqual(["Middle"]);
     });
@@ -851,7 +863,8 @@ describe.skipIf(webkit === undefined)(
       expect(f.rangeCalls).toEqual([`${"d".repeat(40)}..${"a".repeat(40)}`]);
       expect(f.openedOnce).toBe(1);
       expect(f.draft.name).toBe("Change");
-      expect(f.draft.chip).toBe(`${"d".repeat(40)}..${"a".repeat(40)}`);
+      expect(f.draft.chip).toBe("ccccccc to aaaaaaa");
+      expect(f.draft.chipTitle).toBe(`${"d".repeat(40)}..${"a".repeat(40)}`);
       expect(f.draft.unsaved).toBe(true);
       expect(f.draft.saveGone).toBe(true);
       expect(f.draft.files).toBe(0);
@@ -866,6 +879,8 @@ describe.skipIf(webkit === undefined)(
       expect(f.back.boxes).toBe(0);
       expect(f.forward.unsaved).toBe(true);
       expect(f.forward.name).toBe("Change");
+      expect(f.forward.chip).toBe(f.draft.chip);
+      expect(f.forward.chipTitle).toBe(f.draft.chipTitle);
       expect(f.forward.extraCalls).toBe(1);
       expect(f.forward.boxes).toEqual(["p/a.py", "p/b.py"]);
     });
@@ -874,6 +889,7 @@ describe.skipIf(webkit === undefined)(
       expect(f.saved.file.change).toEqual({
         base: "d".repeat(40),
         head: "a".repeat(40),
+        name: f.draft.chip,
       });
       expect(f.saved.name).toBe("gifts");
       expect(f.saved.unsaved).toBe(false);

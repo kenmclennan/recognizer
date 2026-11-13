@@ -256,6 +256,7 @@ export {
   staleReasonText,
 } from "./view-staleness.js";
 export {
+  changeChip,
   type Ghost,
   isValidRef,
   migrateView,

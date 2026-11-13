@@ -14,6 +14,7 @@ export type ViewBarProps = {
   names: string[];
   total: number;
   openChip: string | null;
+  openChipTitle: string | null;
   openPlan: boolean;
   listed: boolean;
   listProblem: string | null;
@@ -128,6 +129,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     names: [],
     total: 0,
     openChip: null,
+    openChipTitle: null,
     openPlan: false,
     listed: false,
     listProblem: null,
@@ -432,6 +434,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
         : (next.open ?? "Untitled");
       rangeChip.hidden = next.openChip === null;
       rangeChip.textContent = next.openChip ?? "";
+      rangeChip.title = next.openChipTitle ?? "";
       planTag.hidden = !next.openPlan;
       if (editing && next.open !== previousOpen) {
         cancelEditing();

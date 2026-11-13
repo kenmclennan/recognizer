@@ -201,6 +201,20 @@ const openLegend = (m) => click(m.all("button").find((b) => b.textContent === "L
   await tick(80);
   facts.lateAfter = late.all(".box").map((b) => b.dataset.id);
 
+  const hexBase = "a".repeat(40);
+  const hexHead = "b".repeat(40);
+  const named = mount({ nm: make({ change: { base: hexBase, head: hexHead, name: "branch feat" } }), un: make({ change: { base: hexBase, head: hexHead } }) });
+  named.port.ranges.set(hexBase + ".." + hexHead, { baseCommit: "base999", headCommit: "feed01", merged: false, changes: [] });
+  await tick();
+  named.port.pending.push("nm");
+  named.explorer.openLinkedView();
+  await tick(80);
+  facts.named = { chip: named.q(".view-range-chip").textContent, title: named.q(".view-range-chip").title };
+  named.port.pending.push("un");
+  named.explorer.openLinkedView();
+  await tick(80);
+  facts.unnamed = { chip: named.q(".view-range-chip").textContent, title: named.q(".view-range-chip").title };
+
   document.getElementById("out").textContent = btoa(JSON.stringify(facts));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -253,6 +267,8 @@ type Facts = {
   plainLegend: string[];
   lateBefore: string[];
   lateAfter: string[];
+  named: { chip: string; title: string };
+  unnamed: { chip: string; title: string };
 };
 
 describe.skipIf(webkit === undefined)("change views in a real browser", () => {
@@ -362,6 +378,13 @@ describe.skipIf(webkit === undefined)("change views in a real browser", () => {
     );
     expect(f.rebuilt.footer).toContain("diffed against main..feat just now");
     expect(f.rebuilt.chip).toBe("main..feat");
+  });
+
+  it("shows a stored name as the chip and a view without one as the short ids, both with the full range on hover", () => {
+    const full = `${"a".repeat(40)}..${"b".repeat(40)}`;
+
+    expect(f.named).toEqual({ chip: "branch feat", title: full });
+    expect(f.unnamed).toEqual({ chip: "aaaaaaaa..bbbbbbbb", title: full });
   });
 
   it("carries the change entries in the Legend only while a change view is open", () => {

@@ -89,6 +89,24 @@ describe("windowStateOf", () => {
     expect(Object.keys(state)).not.toContain("draft");
   });
 
+  it("publishes no draft for a named unsaved change view", () => {
+    const state = windowStateOf(
+      {
+        view: "(unsaved)",
+        modules: [],
+        folded: [],
+        focus: null,
+        selection: null,
+        draft: { base: "main", head: "feature/x", name: "branch feature/x" },
+      },
+      { panels: [panel(null, null, "contents")], start: 0, active: 0, cap: 3 },
+      { open: false, tab: "contents" },
+    );
+
+    expect(state.view).toBeNull();
+    expect(Object.keys(state)).not.toContain("draft");
+  });
+
   it("holds no schema_version and no id or folder", () => {
     const state = windowStateOf(
       {

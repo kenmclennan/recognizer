@@ -25,6 +25,7 @@ export interface ViewNote {
 export interface ViewChange {
   base: string;
   head: string;
+  name?: string;
 }
 
 export type ProposedKind =
@@ -408,6 +409,20 @@ export function rangeText(change: ViewChange): string {
   return `${change.base}..${change.head}`;
 }
 
+function shortRef(ref: string): string {
+  return /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(ref) ? ref.slice(0, 8) : ref;
+}
+
+export function changeChip(change: ViewChange): {
+  text: string;
+  title: string;
+} {
+  return {
+    text: change.name ?? `${shortRef(change.base)}..${shortRef(change.head)}`,
+    title: rangeText(change),
+  };
+}
+
 export function migrateView(view: View): View {
   const notes = viewNotes(view);
 
@@ -418,7 +433,15 @@ export function migrateView(view: View): View {
     commit: view.commit,
     ...(view.change === undefined
       ? {}
-      : { change: { base: view.change.base, head: view.change.head } }),
+      : {
+          change: {
+            base: view.change.base,
+            head: view.change.head,
+            ...(view.change.name === undefined
+              ? {}
+              : { name: view.change.name }),
+          },
+        }),
     ...(view.plan === true ? { plan: true as const } : {}),
     ...(notes.length === 0 ? {} : { notes }),
     ...(view.plan === true && view.proposed !== undefined

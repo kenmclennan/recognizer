@@ -33,7 +33,12 @@ export type Mode = "one" | "range";
 
 export type End = "first" | "last";
 
-export type OpenRequest = { base: string; head: string; what: string };
+export type OpenRequest = {
+  base: string;
+  head: string;
+  what: string;
+  name: string;
+};
 
 export type CommitsTabName = "history" | "branches" | "prs";
 
@@ -117,6 +122,7 @@ export function createSelection(): Selection {
           base: row.defaultFrom,
           head: row.ref,
           what: whatOf(row),
+          name: whatOf(row),
         };
       }
 
@@ -153,6 +159,7 @@ export function createSelection(): Selection {
         base: older.defaultFrom,
         head: newer.ref,
         what: `range ${older.label} to ${newer.label}`,
+        name: `${older.label} to ${newer.label}`,
       };
     },
     clear(which) {
