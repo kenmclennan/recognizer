@@ -129,15 +129,15 @@ impl<'a> Resolver<'a> {
             "self" => Res::Module(from.clone()),
             "super" => self.super_of(from).map_or(Res::Nothing, Res::Module),
             _ => {
+                if let Some(child) = self.child(from, first) {
+                    return Res::Module(child);
+                }
+
                 if let Some(&lib) = self.envs[from.file].in_repo.get(first) {
                     return Res::Module(Pos {
                         file: lib,
                         scope: Vec::new(),
                     });
-                }
-
-                if let Some(child) = self.child(from, first) {
-                    return Res::Module(child);
                 }
 
                 if self.is_foreign(from.file, first) {
