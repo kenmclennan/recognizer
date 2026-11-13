@@ -116,10 +116,16 @@ jobs:
           toolchain="$smoke/Recognizer.app/Contents/Resources/toolchain"
           node scripts/verify-toolchain.mjs "$toolchain"
           export PATH="$toolchain/commands:$(dirname "$(command -v node)"):/usr/bin:/bin"
-          for tool in recognizer recognizer-scan-typescript recognizer-scan-python recognizer-scan-kotlin recognizer-scan-csharp recognizer-scan-rust recognizer-sensors recognizer-describe-claude; do
+          for tool in recognizer recognizer-scan-typescript recognizer-scan-python recognizer-scan-kotlin recognizer-scan-csharp recognizer-scan-rust recognizer-sensors recognizer-sense-crap recognizer-sense-mutation recognizer-sense-thresholds recognizer-describe-claude; do
             got=$("$tool" --version)
             if [ "$got" != "$VERSION" ]; then
               echo "$tool --version printed $got, expected $VERSION" >&2
+              exit 1
+            fi
+          done
+          for plugin in recognizer-scan-python recognizer-scan-typescript recognizer-scan-kotlin recognizer-scan-rust recognizer-scan-csharp recognizer-sense-crap recognizer-sense-mutation recognizer-sense-thresholds recognizer-describe-claude; do
+            if ! recognizer plugin check "$plugin"; then
+              echo "$plugin failed recognizer plugin check" >&2
               exit 1
             fi
           done
