@@ -19,6 +19,9 @@ export interface KeyEntry {
   type: KeyType;
   values?: string[];
   multi?: boolean;
+  default?: string | number | boolean;
+  defaults?: Record<string, string | number | boolean>;
+  default_text?: string;
   minimum?: number;
   exclusiveMinimum?: number;
   maximum?: number;
@@ -136,6 +139,7 @@ export const CORE_KEYS: KeySchema = {
       example: "sensors.structure.duplication.threshold 0.9",
       exclusiveMinimum: 0,
       maximum: 1,
+      default: 0.82,
     },
     {
       key: "sensors.structure.duplication.min_lines",
@@ -144,6 +148,7 @@ export const CORE_KEYS: KeySchema = {
         "the fewest lines a function needs to be compared; default 4",
       example: "sensors.structure.duplication.min_lines 6",
       minimum: 1,
+      default: 4,
     },
     {
       key: "sensors.structure.duplication.pair_min_lines",
@@ -152,6 +157,7 @@ export const CORE_KEYS: KeySchema = {
         "the fewest lines the shorter function of a pair needs; default 6",
       example: "sensors.structure.duplication.pair_min_lines 8",
       minimum: 1,
+      default: 6,
     },
     {
       key: "sensors.structure.duplication.min_nodes",
@@ -160,12 +166,29 @@ export const CORE_KEYS: KeySchema = {
         "the fewest syntax nodes a function needs to be compared; default 20",
       example: "sensors.structure.duplication.min_nodes 30",
       minimum: 1,
+      default: 20,
     },
     {
       key: "sensors.structure.warnings.<warning>",
       type: "boolean",
       description: `a switch for one structure warning: ${WARNINGS.join(", ")}`,
       example: "sensors.structure.warnings.unused_exports true",
+      defaults: {
+        cycle: true,
+        orphan: true,
+        unused_exports: false,
+        private_imports: true,
+        long_function: true,
+      },
+    },
+    {
+      key: "sensors.structure.warnings.long_function.limit",
+      type: "integer",
+      description:
+        "the most lines a function may have before the long_function warning reports it; default 20 (Clean Code)",
+      example: "sensors.structure.warnings.long_function.limit 30",
+      minimum: 1,
+      default: 20,
     },
     {
       key: "sensors.structure.warnings.orphan.entry_points",
@@ -460,6 +483,23 @@ export function describeConstraints(entry: KeyEntry): string {
   }
 
   const text = parts.join(", ");
+  const constraints = entry.multi === true ? `list of ${text}` : text;
 
-  return entry.multi === true ? `list of ${text}` : text;
+  if (entry.default !== undefined) {
+    return `${constraints}, default ${entry.default}`;
+  }
+
+  if (entry.defaults !== undefined) {
+    const figures = Object.entries(entry.defaults)
+      .map(([name, value]) => `${name} ${value}`)
+      .join(", ");
+
+    return `${constraints}, default ${figures}`;
+  }
+
+  if (entry.default_text !== undefined) {
+    return `${constraints}, default: ${entry.default_text}`;
+  }
+
+  return constraints;
 }
