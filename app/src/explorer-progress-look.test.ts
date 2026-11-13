@@ -14,6 +14,13 @@ import { loadedOf, mountExplorer, scanHostOf } from ${JSON.stringify(here("look-
 import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
 ${FAKE_WORKER}
 
+const realNow = Date.now.bind(Date);
+let skew = 0;
+Date.now = () => realNow() + skew;
+const ageTicks = [];
+const realSetInterval = window.setInterval.bind(window);
+window.setInterval = (fn, ms, ...rest) => (ms === 60000 ? (ageTicks.push(fn), 0) : realSetInterval(fn, ms, ...rest));
+
 const ids = ["app/a.py", "app/b.py"];
 const members = [{ name: "f", kind: "function", exported: true, line: 1, params: [], returns: "int" }];
 const scan = {
@@ -26,7 +33,7 @@ const scan = {
 };
 const inputs = { "app/a.py": ${JSON.stringify(H1)}, "app/b.py": ${JSON.stringify(H2)} };
 const overlay = JSON.stringify({ overlay_version: 2, commit: ${JSON.stringify(COMMIT)}, modified: false, inputs, tests: ${JSON.stringify(TESTS)}, producer: { name: "crap", version: "0.1.0" }, metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }], values: { complexity: { "app/a.py::f": 8, "app/b.py::f": 5 } } });
-const loaded = loadedOf({ modules: ids, scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", text: overlay }], sensors: [{ name: "crap", status: "ran", measured: { inputs, tests: ${JSON.stringify(TESTS)} } }], tests: ${JSON.stringify(TESTS)} });
+const loaded = loadedOf({ modules: ids, scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", text: overlay, modifiedMs: Date.now() }], sensors: [{ name: "crap", status: "ran", measured: { inputs, tests: ${JSON.stringify(TESTS)} } }], tests: ${JSON.stringify(TESTS)} });
 const SHIPPED = [{ name: "crap", display: "crap", line: "x", defaults: {}, runsTests: true, listed: true, metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }] }];
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
@@ -124,6 +131,19 @@ const changedOf = () => qa(".changed-label").length + "|" + qa(".disc-fill.grey"
   for (const observer of observers) observer.disconnect();
   facts.mutations = counts;
 
+  const ageOf = () => q(".metric-group-age").textContent;
+  const stageMutations = { count: 0 };
+  const stageObserver = new MutationObserver((records) => { stageMutations.count += records.length; });
+  stageObserver.observe(q(".stage"), { subtree: true, childList: true, attributes: true, characterData: true });
+  facts.ageBefore = ageOf();
+  skew = 3 * 60000;
+  for (const run of ageTicks) run();
+  await tick();
+  stageObserver.disconnect();
+  facts.ageAfter = ageOf();
+  facts.ageStageMutations = stageMutations.count;
+  facts.ageTickers = ageTicks.length;
+
   ${
     MEASURE
       ? `
@@ -181,6 +201,14 @@ describe.skipIf(webkit === undefined)(
 
     it("touches the rail when only the Scan panel text changes", () => {
       expect(f.mutations.rail).toBeGreaterThan(0);
+    });
+
+    it("advances the canvas metric header age on the minute tick during a scan without redrawing the canvas", () => {
+      expect(f.ageTickers).toBe(1);
+      expect(f.ageBefore).not.toBe("");
+      expect(f.ageAfter).not.toBe(f.ageBefore);
+      expect(f.ageAfter).toBe("measured 3 minutes ago");
+      expect(f.ageStageMutations).toBe(0);
     });
 
     it("moves the Findings line when the structure row flips from extracting to settled", () => {

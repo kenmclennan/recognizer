@@ -19,6 +19,7 @@ export type CanvasMetrics = {
 export type MetricsView = {
   element: HTMLElement;
   render: (open: boolean, metrics: CanvasMetrics | null) => void;
+  refreshAges: (metrics: CanvasMetrics) => void;
 };
 
 function row(
@@ -135,6 +136,22 @@ export function buildMetricsView(toggle: (key: string) => void): MetricsView {
           ),
         ]),
       );
+    },
+    refreshAges(metrics) {
+      const ages = element.querySelectorAll(".metric-group-age");
+
+      if (ages.length !== metrics.groups.length) {
+        return;
+      }
+
+      metrics.groups.forEach((group, index) => {
+        const text = groupHeader(group, metrics.now);
+        const age = ages[index];
+
+        if (age !== undefined && age.textContent !== text) {
+          age.textContent = text;
+        }
+      });
     },
   };
 }
