@@ -10,7 +10,7 @@ recognizer-sensors NAME [--repository P] [--commit C] [--output F] [--settings J
 
 A repository registers a shipped sensor in `.recognizer/config.yaml` by name: `sensors: {thresholds: {}}`. `recognizer` expands that to `recognizer-sensors thresholds --repository {repository} --commit {commit} --output {output} --settings <the mapping as JSON>`.
 
-Install with `uvx --from ./sensors recognizer-sensors` or `pipx install ./sensors`. The names a sensor knows are listed in `fixtures/sensors/shipped.json`.
+`brew install --cask kenmclennan/tap/recognizer` installs `recognizer-sensors` on `PATH`; the names it knows are the registry in `src/recognizer_sensors/registry.py`. Contributors run it from a checkout with `uv run --project sensors recognizer-sensors NAME`.
 
 A sensor reports nothing for a file its grammars do not parse: a file with an extension no grammar covers is skipped, and so is a function whose syntax tree has an error node.
 
