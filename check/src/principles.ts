@@ -98,7 +98,8 @@ export const PRINCIPLES: readonly Principle[] = [
       author: "Carlos Arguelles, Marko Ivanković and Adam Bender",
       work: "Code Coverage Best Practices, Google Testing Blog",
       year: 2020,
-      locator: "60% acceptable",
+      locator:
+        "60% acceptable, stated for a whole product; applied here per module and per member",
     },
   },
   {
