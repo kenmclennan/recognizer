@@ -1097,7 +1097,7 @@ export const COMMANDS: Command[] = [
       { flag: "--json", description: "with check: print JSON instead of text" },
     ],
     output: {
-      text: "check: one line per result: ok, warn or fail, the result's name and, for a warning or a failure, the reason; the results are starts, clean-output, valid, named-for-command, protocol, side-effect-free, sentences, check-verb, guide-verb, run-verb, events and stop. add: one line saying the plugin was registered or was already registered",
+      text: "check: one line per result: ok, warn or fail, the result's name and, for a warning or a failure, the reason; the results are starts, clean-output, valid, named-for-command, protocol, side-effect-free, sentences, limits, check-verb, guide-verb, run-verb, events and stop. add: one line saying the plugin was registered or was already registered",
       json: "check: { command, manifest, results: [{ name, status: ok|warn|fail, reason? }] } where manifest is the plugin's manifest, or null when it gave no valid one. add prints no JSON",
     },
     exitCodes: [

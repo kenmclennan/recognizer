@@ -180,6 +180,83 @@ export function checkSentences(context: Context): PluginCheckResult {
     : fail("sentences", problems.join("; "));
 }
 
+interface LimitSetting {
+  key: string;
+  type?: string;
+  labels?: unknown;
+  units?: unknown;
+  limit?: { metric: string; severity?: string };
+}
+
+const PLACEHOLDER = /<[a-z][a-z0-9_]*>/;
+
+function limitProblems(manifest: Manifest): string[] {
+  const settings = manifest.settings as LimitSetting[];
+  const metrics = ((manifest.metrics ?? []) as { name: string }[]).map(
+    (entry) => entry.name,
+  );
+
+  return settings.flatMap((setting) => {
+    const placeholder = PLACEHOLDER.exec(setting.key)?.[0];
+    const found: string[] = [];
+
+    if (placeholder === undefined) {
+      for (const field of ["labels", "units"] as const) {
+        if (setting[field] !== undefined) {
+          found.push(`${setting.key}: ${field} needs a key with a placeholder`);
+        }
+      }
+    }
+
+    const { limit } = setting;
+
+    if (limit === undefined) {
+      return found;
+    }
+
+    if (manifest.kind !== "sensor") {
+      found.push(`${setting.key}: only a sensor may declare a limit`);
+    } else if (PLACEHOLDER.test(limit.metric)) {
+      if (limit.metric !== placeholder) {
+        found.push(
+          `${setting.key}: limit metric ${limit.metric} is not the key's own placeholder`,
+        );
+      }
+    } else if (!metrics.includes(limit.metric)) {
+      found.push(
+        `${setting.key}: limit metric ${limit.metric} is not a metric of ${manifest.name}`,
+      );
+    }
+
+    if (
+      limit.severity !== undefined &&
+      !settings.some(
+        (other) => other.key === limit.severity && other.type === "enum",
+      )
+    ) {
+      found.push(
+        `${setting.key}: limit severity ${limit.severity} is not an enum setting of ${manifest.name}`,
+      );
+    }
+
+    return found;
+  });
+}
+
+export function checkLimits(context: Context): PluginCheckResult {
+  const { manifest } = context;
+
+  if (manifest === null) {
+    return needsManifest("limits");
+  }
+
+  const problems = limitProblems(manifest);
+
+  return problems.length === 0
+    ? ok("limits")
+    : fail("limits", problems.join("; "));
+}
+
 async function verbResults(
   io: Io,
   command: string,
@@ -733,6 +810,7 @@ export async function pluginCheck(
     checkProtocol(context),
     checkSideEffectFree(context),
     checkSentences(context),
+    checkLimits(context),
   ];
 
   return {

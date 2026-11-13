@@ -1,7 +1,13 @@
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
-import { type PluginCheckResult, pluginCheck } from "../src/plugin-check.js";
+import {
+  checkLimits,
+  type PluginCheckResult,
+  pluginCheck,
+} from "../src/plugin-check.js";
+import type { Manifest } from "../src/plugin-manifest.js";
 import { capture, REPO } from "./helpers.js";
 
 const FIXTURES = join(REPO, "fixtures/plugins");
@@ -60,6 +66,7 @@ describe("recognizer plugin check", () => {
       "ok    protocol",
       "ok    side-effect-free",
       "ok    sentences",
+      "ok    limits",
       "ok    check-verb  declares no check",
       "ok    guide-verb",
       "ok    run-verb",
@@ -77,7 +84,7 @@ describe("recognizer plugin check", () => {
       join(FIXTURES, "conforming/recognizer-scan-conforming"),
     );
     expect(json.manifest.name).toBe("conforming");
-    expect(json.results).toHaveLength(12);
+    expect(json.results).toHaveLength(13);
   });
 
   it("fails starts for a command that exits 1", async () => {
@@ -235,5 +242,104 @@ describe("recognizer plugin check", () => {
     expect(await run(["plugin", "--help"], captured.io)).toBe(0);
     expect(captured.out()).toContain("--repository <dir>");
     expect(captured.out()).toContain("--request <file>");
+  });
+});
+
+describe("checkLimits", () => {
+  const thresholds = () =>
+    JSON.parse(
+      readFileSync(
+        join(REPO, "schema/manifest-examples/valid/sensor-thresholds.json"),
+        "utf8",
+      ),
+    ) as Manifest;
+  const limitsOf = (manifest: Manifest) =>
+    checkLimits({
+      command: "x",
+      current: 1,
+      run: { started: true, status: 0, stdout: "", stderr: "" },
+      leftovers: [],
+      document: manifest,
+      parsed: true,
+      manifest,
+    } as never);
+  const edited = (change: (manifest: Manifest) => void) => {
+    const manifest = thresholds();
+
+    change(manifest);
+
+    return limitsOf(manifest);
+  };
+  const first = (manifest: Manifest) =>
+    manifest.settings[1] as {
+      limit: { metric: string; severity?: string };
+      labels?: unknown;
+      key: string;
+    };
+
+  it("passes the thresholds manifest", () => {
+    expect(limitsOf(thresholds())).toEqual({ name: "limits", status: "ok" });
+  });
+
+  it("fails a limit on a non-sensor", () => {
+    const manifest = JSON.parse(
+      readFileSync(
+        join(REPO, "schema/manifest-examples/valid/scanner.json"),
+        "utf8",
+      ),
+    ) as Manifest;
+
+    manifest.settings = [
+      {
+        key: "k",
+        type: "number",
+        description: "d",
+        example: "e",
+        limit: { metric: "x", direction: "above" },
+      },
+    ];
+
+    expect(limitsOf(manifest).reason).toContain("only a sensor");
+  });
+
+  it("fails a concrete metric that is not a metric of the manifest", () => {
+    const outcome = edited((manifest) => {
+      first(manifest).limit.metric = "nope";
+    });
+
+    expect(outcome.status).toBe("fail");
+    expect(outcome.reason).toContain("nope is not a metric");
+  });
+
+  it("fails a placeholder metric that is not the key's own placeholder", () => {
+    const outcome = edited((manifest) => {
+      first(manifest).limit.metric = "<other>";
+    });
+
+    expect(outcome.reason).toContain("not the key's own placeholder");
+  });
+
+  it("fails a severity that does not name an enum setting", () => {
+    const outcome = edited((manifest) => {
+      first(manifest).limit.severity = "<metric>.above";
+    });
+
+    expect(outcome.reason).toContain("not an enum setting");
+  });
+
+  it("fails labels on a key with no placeholder", () => {
+    const outcome = edited((manifest) => {
+      manifest.settings.push({
+        key: "plain",
+        type: "number",
+        description: "d",
+        example: "e",
+        labels: { a: "A" },
+      });
+    });
+
+    expect(outcome.reason).toContain(
+      "plain: labels needs a key with a placeholder",
+    );
   });
 });
