@@ -1,16 +1,12 @@
-import type {
-  BranchRow,
-  FileCounts,
-  HistoryRow,
-  PullRequestRow,
-} from "./commits-parse";
+import type { ChangeClassification, FileChange, MarkScan } from "recognizer";
+import { classifyChanges } from "recognizer";
+import type { BranchRow, HistoryRow, PullRequestRow } from "./commits-parse";
 import type { RefFacts } from "./commits-port";
 
 export {
   type BranchRow,
   type Checks,
   checksOf,
-  type FileCounts,
   ghNotice,
   type HistoryRow,
   type PullRequestRow,
@@ -191,23 +187,166 @@ export function orderBranches(
   ];
 }
 
-export function countsText(counts: FileCounts | null): string {
-  return counts === null
-    ? "-"
-    : `+${counts.added} ~${counts.modified} -${counts.removed}`;
+export type Classification = ChangeClassification;
+
+export function classify(
+  changes: readonly FileChange[] | null,
+  scans: readonly MarkScan[] | null,
+): Classification | null {
+  return changes === null || scans === null || scans.length === 0
+    ? null
+    : classifyChanges([...changes], [...scans]);
 }
 
-export function factsCounts(facts: RefFacts | null): FileCounts | null {
-  return facts === null ||
-    facts.added === null ||
-    facts.modified === null ||
-    facts.removed === null
-    ? null
-    : {
-        added: facts.added,
-        modified: facts.modified,
-        removed: facts.removed,
-      };
+export type Tone = "added" | "modified" | "removed";
+
+export type Square = { tone: Tone; count: number };
+
+export type Impact = {
+  count: string;
+  squares: Square[];
+  elsewhere: string | null;
+};
+
+const TONES: Tone[] = ["added", "modified", "removed"];
+
+export function onCanvas(classification: Classification): number {
+  return (
+    classification.added.length +
+    classification.modified.length +
+    classification.removed.length
+  );
+}
+
+export function filesText(count: number): string {
+  return count === 0 ? "no files" : count === 1 ? "1 file" : `${count} files`;
+}
+
+export function impactText(classification: Classification | null): Impact {
+  if (classification === null) {
+    return { count: "-", squares: [], elsewhere: null };
+  }
+
+  return {
+    count: filesText(onCanvas(classification)),
+    squares: TONES.map((tone) => ({
+      tone,
+      count: classification[tone].length,
+    })).filter((square) => square.count > 0),
+    elsewhere:
+      classification.elsewhere.length === 0
+        ? null
+        : `+${classification.elsewhere.length} not on the canvas`,
+  };
+}
+
+export type TipLine = {
+  kind: "heading" | "group" | "file";
+  text: string;
+  tone?: Tone;
+};
+
+const TONE_WORDS: Record<Tone, string> = {
+  added: "added",
+  modified: "modified",
+  removed: "removed",
+};
+
+export function impactTip(
+  classification: Classification | null,
+): TipLine[] | null {
+  if (classification === null) {
+    return null;
+  }
+
+  const total = onCanvas(classification);
+  const lines: TipLine[] = [
+    {
+      kind: "heading",
+      text:
+        total === 0
+          ? "Nothing on the canvas"
+          : `${filesText(total)} on the canvas`,
+    },
+  ];
+
+  for (const tone of TONES) {
+    const files = classification[tone];
+
+    if (files.length === 0) {
+      continue;
+    }
+
+    lines.push({
+      kind: "group",
+      text: `${files.length} ${TONE_WORDS[tone]}`,
+      tone,
+    });
+
+    for (const file of files) {
+      lines.push({ kind: "file", text: file, tone });
+    }
+  }
+
+  if (classification.elsewhere.length > 0) {
+    lines.push({
+      kind: "group",
+      text: `${filesText(classification.elsewhere.length)} not on the canvas`,
+    });
+
+    for (const file of classification.elsewhere) {
+      lines.push({ kind: "file", text: file });
+    }
+  }
+
+  return lines;
+}
+
+export function titleTip(
+  title: string,
+  sha: string,
+  author: string,
+  time: number,
+  now: number,
+): string[] {
+  return [title, sha, `${author} · ${ageOf(time, now)}`];
+}
+
+export function visibleRows<
+  T extends { classification: Classification | null; slot: Slot | null },
+>(rows: readonly T[], hide: boolean): { rows: T[]; hidden: number } {
+  if (!hide) {
+    return { rows: [...rows], hidden: 0 };
+  }
+
+  const kept = rows.filter(
+    (row) =>
+      row.slot !== null ||
+      row.classification === null ||
+      onCanvas(row.classification) > 0,
+  );
+
+  return { rows: kept, hidden: rows.length - kept.length };
+}
+
+export function openLabel(
+  range: PickedRange | null,
+  classification: Classification | null,
+  loading: boolean,
+  short: (ref: string) => string,
+  toPicked: boolean,
+): string {
+  if (range === null) {
+    return toPicked ? "pick From below" : "pick To below";
+  }
+
+  const name = `${short(range.base)}..${short(range.head)}`;
+
+  if (loading) {
+    return `Open ${name}`;
+  }
+
+  return `Open ${name} · ${classification === null ? "-" : filesText(onCanvas(classification))}`;
 }
 
 export function ageOf(seconds: number, now: number): string {

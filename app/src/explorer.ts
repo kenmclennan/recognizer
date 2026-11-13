@@ -43,12 +43,14 @@ import {
   type BranchEntry,
   type BranchRow,
   branchRow,
+  classify,
   commitRow,
-  countsText,
   createCommitsModel,
-  factsCounts,
   ghNotice,
   type HistoryRow,
+  impactText,
+  impactTip,
+  openLabel,
   orderBranches,
   type PickRow,
   type PullRequestRow,
@@ -56,6 +58,8 @@ import {
   parseHistory,
   parsePullRequests,
   pullRequestRow,
+  titleTip,
+  visibleRows,
 } from "./commits-panel-model";
 import {
   buildCommitsPanelView,
@@ -488,6 +492,13 @@ export function showExplorer(
     rows: PullRequestRow[];
   } = { state: "idle", status: "ok", detail: "", rows: [] };
   const commitFacts = new Map<string, RefFacts>();
+  const commitsHide: Record<CommitsTab, boolean> = {
+    history: true,
+    branches: true,
+    prs: true,
+  };
+  let rangeChanges: { key: string; changes: FileChange[] | null } | null = null;
+  let rangeAsked: string | null = null;
   const viewTexts = new Map<string, string>();
   const history =
     carried?.history ??
@@ -1085,6 +1096,10 @@ export function showExplorer(
         render();
       }
     },
+    setHide(tab, hide) {
+      commitsHide[tab] = hide;
+      render();
+    },
     setTab(tab) {
       commitsTab = tab;
 
@@ -1113,8 +1128,15 @@ export function showExplorer(
       shownPanels: () =>
         inspectorOpen ? Math.max(1, trailLayout(trail).shown.length) : 1,
       committed: () => render(),
+      leftWidth: () => (leftPanel === "commits" ? "commits" : "tree"),
     },
   );
+
+  let appliedLeft: "tree" | "commits" = "tree";
+
+  function leftWidth(): number {
+    return leftPanel === "commits" ? widths.commits : widths.tree;
+  }
 
   canvas.element.append(bar.element);
   tree.element.append(
@@ -1270,7 +1292,7 @@ export function showExplorer(
       return { cap: MAX_PANELS, width: widths.inspector };
     }
 
-    const tree = leftPanel === null ? 0 : widths.tree;
+    const tree = leftPanel === null ? 0 : leftWidth();
     const available = width - RAIL_WIDTH - tree - CANVAS_FLOOR;
 
     return panelCapacity(available, widths.inspector, trail.panels.length);
@@ -2030,6 +2052,8 @@ export function showExplorer(
     };
     pullLoad = { state: "idle", status: "ok", detail: "", rows: [] };
     commitFacts.clear();
+    rangeChanges = null;
+    rangeAsked = null;
     render();
     void loadHistory(token);
     void loadBranches(token);
@@ -2124,6 +2148,45 @@ export function showExplorer(
     );
   }
 
+  function syncRange() {
+    const range = commitsModel.range();
+
+    if (range === null) {
+      return;
+    }
+
+    const key = `${range.base}..${range.head}`;
+
+    if (rangeChanges?.key === key || rangeAsked === key) {
+      return;
+    }
+
+    const token = commitsToken;
+
+    rangeAsked = key;
+    void views
+      .changeRange(range.base, range.head)
+      .catch(() => null)
+      .then((answer) =>
+        answer?.changes.flatMap((change) =>
+          change.status === "A" ||
+          change.status === "M" ||
+          change.status === "D" ||
+          change.status === "T"
+            ? [{ status: change.status, path: change.path } as FileChange]
+            : [],
+        ),
+      )
+      .then((found) => {
+        const changes = found ?? null;
+
+        if (token === commitsToken && rangeAsked === key) {
+          rangeChanges = { key, changes };
+          render();
+        }
+      });
+  }
+
   async function loadFacts(token: number, refs: string[]) {
     if (refs.length === 0) {
       return;
@@ -2159,69 +2222,99 @@ export function showExplorer(
     const range = commitsModel.range();
     const from = commitsModel.slot("from");
     const to = commitsModel.slot("to");
+    const present = scans as unknown as MarkScan[];
     const shaded = commitsModel.shaded(historyLoad.rows.map((row) => row.sha));
-    const historyRows: CommitRowView[] = historyLoad.rows.map((row) => {
-      const pick = commitRow(row);
+    const rowOf = (
+      pick: PickRow,
+      changes: FileChange[] | null,
+      rest: Omit<
+        CommitRowView,
+        "pick" | "impact" | "tip" | "slot" | "classification"
+      >,
+    ) => {
+      const classification = classify(changes, present);
 
       return {
+        ...rest,
         pick,
+        impact: impactText(classification),
+        tip: impactTip(classification),
+        classification,
+        slot: slotOf(pick),
+      };
+    };
+    const historyRows: CommitRowView[] = historyLoad.rows.map((row) =>
+      rowOf(commitRow(row), row.changes, {
         icon: "commit",
         title: row.subject,
+        titleTip: titleTip(row.subject, row.sha, row.author, row.time, now),
         meta: `${row.short} · ${row.author} · ${ageOf(row.time, now)}`,
         chips: row.chips,
-        counts: countsText(row.counts),
         badge: null,
         checks: null,
-        slot: slotOf(pick),
         shaded: shaded.has(row.sha),
-      };
-    });
+      }),
+    );
     const entries: BranchEntry[] = orderBranches(
       branchLoad.rows,
       branchLoad.defaultRef,
       commitFacts,
     );
     const branchRows: CommitRowView[] = entries.map((entry) => {
-      const pick = branchRow(entry);
       const facts = entry.facts;
 
-      return {
-        pick,
+      return rowOf(branchRow(entry), facts?.changes ?? null, {
         icon: "branch",
         title: entry.row.name,
+        titleTip: titleTip(
+          entry.row.name,
+          entry.row.short,
+          entry.row.author,
+          entry.row.time,
+          now,
+        ),
         meta: `${facts?.ahead ?? "-"} ahead, ${facts?.behind ?? "-"} behind · ${entry.row.author} · ${ageOf(entry.row.time, now)}`,
         chips: entry.isDefault ? ["default"] : [],
-        counts: countsText(factsCounts(facts)),
         badge: null,
         checks: null,
-        slot: slotOf(pick),
         shaded: false,
-      };
+      });
     });
     const pullRows: CommitRowView[] = pullLoad.rows.map((row) => {
       const facts = commitFacts.get(row.sha) ?? null;
-      const pick = pullRequestRow(row, facts);
 
-      return {
-        pick,
+      return rowOf(pullRequestRow(row, facts), facts?.changes ?? null, {
         icon: "pull-request",
         title: `#${row.number} ${row.title}`,
+        titleTip: titleTip(
+          `#${row.number} ${row.title}`,
+          row.sha,
+          row.author,
+          row.time,
+          now,
+        ),
         meta: `${row.branch} · ${row.author} · ${ageOf(row.time, now)}`,
         chips: [],
-        counts: countsText(factsCounts(facts)),
         badge: row.draft ? "draft" : null,
         checks: row.checks,
-        slot: slotOf(pick),
         shaded: false,
-      };
+      });
     });
+    const rangeKey = range === null ? null : `${range.base}..${range.head}`;
+    const rangeHeld = rangeChanges?.key === rangeKey ? rangeChanges : null;
+    const rangeClass = classify(rangeHeld?.changes ?? null, present);
+    const visible = (rows: CommitRowView[], tab: CommitsTab) => {
+      const shown = visibleRows<CommitRowView>(rows, commitsHide[tab]);
+
+      return { rows: shown.rows, hidden: shown.hidden, hide: commitsHide[tab] };
+    };
     const pullNotice =
       pullLoad.state === "ready"
         ? ghNotice(pullLoad.status, pullLoad.detail)
         : null;
     const lists: Record<CommitsTab, CommitsListView> = {
       history: {
-        rows: historyRows,
+        ...visible(historyRows, "history"),
         loading: historyLoad.state === "loading",
         notice:
           historyLoad.state === "failed"
@@ -2232,7 +2325,7 @@ export function showExplorer(
         note: null,
       },
       branches: {
-        rows: branchRows,
+        ...visible(branchRows, "branches"),
         loading: branchLoad.state === "loading",
         notice:
           branchLoad.state === "failed"
@@ -2246,7 +2339,7 @@ export function showExplorer(
             : null,
       },
       prs: {
-        rows: pullRows,
+        ...visible(pullRows, "prs"),
         loading: pullLoad.state === "loading",
         notice:
           pullNotice ??
@@ -2272,10 +2365,13 @@ export function showExplorer(
       to: to === null ? null : { label: to.label, hint: null },
       note: commitsModel.rangeNote(),
       canSwap: commitsModel.canSwap(),
-      summary:
-        range === null
-          ? null
-          : `${shortRef(range.base)}..${shortRef(range.head)}`,
+      openLabel: openLabel(
+        range,
+        rangeClass,
+        range !== null && rangeHeld === null,
+        shortRef,
+        to !== null,
+      ),
       canOpen: range !== null,
       canSave: openView === DRAFT_VIEW,
       tab: commitsTab,
@@ -4341,6 +4437,13 @@ export function showExplorer(
     const placed = trailLayout(trail);
     const multi = inspectorOpen && trail.panels.length > 1;
 
+    const leftKey = leftPanel === "commits" ? "commits" : "tree";
+
+    if (leftKey !== appliedLeft) {
+      appliedLeft = leftKey;
+      body.style.setProperty("--tree-w", `${leftWidth()}px`);
+    }
+
     body.style.setProperty("--inspector-w", `${trailFit().width}px`);
     body.style.setProperty(
       "--inspector-shown",
@@ -4393,6 +4496,10 @@ export function showExplorer(
         : null,
       savedView(),
     );
+    if (leftPanel === "commits") {
+      syncRange();
+    }
+
     commitsView.render(leftPanel === "commits" ? commitsPanelModel() : null);
 
     renderFindings();

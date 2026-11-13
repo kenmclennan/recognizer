@@ -203,17 +203,17 @@ function collect(): Facts {
 describe.skipIf(webkit === undefined)("the rail in a real browser", () => {
   const f = (webkit === undefined ? null : collect()) as Facts;
 
-  it("sits full height at the window's left holding a 16px stroke-2 Files button then Views, Notes, Scan, Findings and Commits buttons", () => {
+  it("sits full height at the window's left holding a 16px stroke-2 Files button then Commits, Views, Notes, Scan and Findings buttons", () => {
     expect(f.tag).toBe("NAV");
     expect(f.children).toBe(6);
     expect(f.buttons).toBe(6);
     expect(f.notesFacts.order).toEqual([
       "rail-files",
+      "rail-commits",
       "rail-views",
       "rail-notes",
       "rail-scan",
       "rail-findings",
-      "rail-commits",
     ]);
     expect(f.aria).toBe("Files");
     expect(f.label).toBe("Files");

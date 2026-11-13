@@ -656,11 +656,11 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
   it("sits third on the rail as Scan, swaps with the tree and runs nothing on open", () => {
     expect(f.fresh.order).toEqual([
       "rail-files",
+      "rail-commits",
       "rail-views",
       "rail-notes",
       "rail-scan",
       "rail-findings",
-      "rail-commits",
     ]);
     expect(f.fresh.panelOpen).toBe(true);
     expect(f.fresh.files).toBe(false);

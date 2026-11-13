@@ -68,7 +68,7 @@ export function buildRailView(actions: RailActions): RailView {
   notes.append(count);
   scan.append(dot);
   findings.append(found);
-  element.append(files, views, notes, scan, findings, commits);
+  element.append(files, commits, views, notes, scan, findings);
 
   for (const one of [files, views, notes, scan, findings, commits]) {
     one.setAttribute("data-label", one.getAttribute("aria-label") ?? "");

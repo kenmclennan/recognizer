@@ -242,3 +242,5 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Commits panel | The rail's panel that lists History, Branches and Pull requests and holds the From and To slots; Open draws the range between them as an unsaved change view. |
 | Slot | From or To in the Commits panel; the highlighted one takes the next pick. |
 | Unsaved change view | A change view opened from the Commits panel that is held in the window and written only by Save as view; it never enters the Views list or the recent list. |
+| Files on the canvas | A Commits panel row's count of its changed files that are modules on the canvas: a file that is a current module, or a removed file whose extension the scans select. A removed file the scanner skipped at the base commit is counted although opening it shows no box. |
+| Not on the canvas | A changed file in a Commits panel row that is not a module on the canvas, shown as `+N not on the canvas`. |

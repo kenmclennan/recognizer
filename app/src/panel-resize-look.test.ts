@@ -101,7 +101,11 @@ describe("resizing the side panels in a real browser", () => {
       expect(report.inspectorLeft).toBe(400);
       expect(report.inspectorMax).toBe(640);
       expect(report.inspectorMin).toBe(280);
-      expect(JSON.parse(report.saved)).toEqual({ tree: 480, inspector: 370 });
+      expect(JSON.parse(report.saved)).toEqual({
+        tree: 480,
+        inspector: 370,
+        commits: 340,
+      });
       expect(report.reopened).toEqual({ tree: 480, inspector: 370 });
       expect(report.realStorage).toEqual({ tree: 222, inspector: 333 });
     },

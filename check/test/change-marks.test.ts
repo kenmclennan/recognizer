@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { MarkScan } from "../src/change-marks.js";
-import { changeMarks, parseNameStatus } from "../src/change-marks.js";
+import {
+  changeMarks,
+  classifyChanges,
+  type FileChange,
+  parseNameStatus,
+} from "../src/change-marks.js";
 
 function scan(
   modules: [string, "module" | "package"][],
@@ -106,5 +111,75 @@ describe("changeMarks", () => {
 
     expect(result.modules).toHaveLength(1);
     expect(result.unmatched).toBe(1);
+  });
+});
+
+describe("classifyChanges", () => {
+  const changes: FileChange[] = [
+    { status: "A", path: "src/c.py" },
+    { status: "M", path: "src/a.py" },
+    { status: "T", path: "src/a.py" },
+    { status: "D", path: "src/b.py" },
+    { status: "D", path: "docs/x.md" },
+    { status: "A", path: "src/new.py" },
+    { status: "M", path: "README.md" },
+    { status: "M", path: "src/A.py" },
+  ];
+
+  it("splits changes into added, modified, removed and elsewhere by name", () => {
+    expect(classifyChanges(changes, current)).toEqual({
+      added: ["src/c.py"],
+      modified: ["src/a.py", "src/a.py"],
+      removed: ["src/b.py"],
+      elsewhere: ["docs/x.md", "src/new.py", "README.md", "src/A.py"],
+    });
+  });
+
+  it("treats a deleted path that is still a current module as modified", () => {
+    expect(
+      classifyChanges([{ status: "D", path: "src/a.py" }], current),
+    ).toEqual({
+      added: [],
+      modified: ["src/a.py"],
+      removed: [],
+      elsewhere: [],
+    });
+  });
+
+  it("does not filter by extension when no extensions are selected", () => {
+    const open = [scan([["notes.md", "module"]], [])];
+
+    expect(
+      classifyChanges([{ status: "M", path: "notes.md" }], open).modified,
+    ).toEqual(["notes.md"]);
+  });
+
+  it("counts modules from every scan", () => {
+    const both = [...current, scan([["lib/z.kt", "module"]])];
+
+    expect(
+      classifyChanges([{ status: "A", path: "lib/z.kt" }], both).added,
+    ).toEqual(["lib/z.kt"]);
+  });
+
+  it("puts on the canvas exactly the modules changeMarks marks current", () => {
+    const onCanvas = classifyChanges(changes, current);
+    const marked = changeMarks(changes, current, base)
+      .modules.filter((one) => one.box === "current")
+      .map((one) => one.id)
+      .sort();
+
+    expect(
+      [...new Set([...onCanvas.added, ...onCanvas.modified])].sort(),
+    ).toEqual(marked);
+  });
+
+  it("counts a removed file the base scan lacked as removed where changeMarks gives it no box", () => {
+    const gone: FileChange[] = [{ status: "D", path: "src/ghost.py" }];
+
+    expect(changeMarks(gone, current, base).modules).toEqual([
+      { id: "src/ghost.py", mark: "removed", box: "none" },
+    ]);
+    expect(classifyChanges(gone, current).removed).toEqual(["src/ghost.py"]);
   });
 });

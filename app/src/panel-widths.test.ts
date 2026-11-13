@@ -18,6 +18,13 @@ describe("clampWidth", () => {
     expect(clampWidth("inspector", 640)).toBe(640);
   });
 
+  it("holds the Commits bounds and the initial width", () => {
+    expect(clampWidth("commits", 260)).toBe(260);
+    expect(clampWidth("commits", 640)).toBe(640);
+    expect(clampWidth("commits", 10)).toBe(260);
+    expect(clampWidth("commits", Number.NaN)).toBe(340);
+  });
+
   it("clamps below the minimum and above the maximum", () => {
     expect(clampWidth("tree", 10)).toBe(200);
     expect(clampWidth("tree", 9000)).toBe(480);
@@ -38,7 +45,7 @@ describe("clampWidth", () => {
 });
 
 describe("loadWidths", () => {
-  const initial = { tree: 280, inspector: 340 };
+  const initial = { tree: 280, inspector: 340, commits: 340 };
 
   it("gives both initial widths for an empty store", () => {
     expect(loadWidths(storeOf(null))).toEqual(initial);
@@ -46,14 +53,18 @@ describe("loadWidths", () => {
 
   it("reads a valid pair", () => {
     expect(
-      loadWidths(storeOf(JSON.stringify({ tree: 300, inspector: 400 }))),
-    ).toEqual({ tree: 300, inspector: 400 });
+      loadWidths(
+        storeOf(JSON.stringify({ tree: 300, inspector: 400, commits: 300 })),
+      ),
+    ).toEqual({ tree: 300, inspector: 400, commits: 300 });
   });
 
   it("clamps out-of-range values", () => {
     expect(
-      loadWidths(storeOf(JSON.stringify({ tree: 5, inspector: 5000 }))),
-    ).toEqual({ tree: 200, inspector: 640 });
+      loadWidths(
+        storeOf(JSON.stringify({ tree: 5, inspector: 5000, commits: 9000 })),
+      ),
+    ).toEqual({ tree: 200, inspector: 640, commits: 640 });
   });
 
   it("gives both initial widths for malformed JSON", () => {
@@ -78,14 +89,14 @@ describe("loadWidths", () => {
   it("keeps the valid field when the other is not a number", () => {
     expect(
       loadWidths(storeOf(JSON.stringify({ tree: 333, inspector: "wide" }))),
-    ).toEqual({ tree: 333, inspector: 340 });
+    ).toEqual({ tree: 333, inspector: 340, commits: 340 });
   });
 });
 
 describe("saveWidths", () => {
   it("writes JSON that loadWidths round-trips", () => {
     const written = new Map<string, string>();
-    const widths = { tree: 310, inspector: 450 };
+    const widths = { tree: 310, inspector: 450, commits: 500 };
 
     saveWidths({ setItem: (key, value) => written.set(key, value) }, widths);
 
@@ -103,7 +114,7 @@ describe("saveWidths", () => {
     };
 
     expect(() =>
-      saveWidths(throwing, { tree: 300, inspector: 400 }),
+      saveWidths(throwing, { tree: 300, inspector: 400, commits: 300 }),
     ).not.toThrow();
   });
 });
