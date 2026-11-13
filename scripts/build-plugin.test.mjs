@@ -107,6 +107,28 @@ describe("the wrapper table", () => {
     );
   });
 
+  it("matches the commands each pyproject declares", () => {
+    for (const entry of UNITS.filter(({ unit: id }) =>
+      ["scan-python", "scan-kotlin", "scan-csharp", "sensors"].includes(id),
+    )) {
+      const text = readFileSync(
+        join(ROOT, entry.folder, "pyproject.toml"),
+        "utf8",
+      );
+      const section = /\[project\.scripts\]\n([^[]*)/.exec(text)[1];
+      const declared = [...section.matchAll(/^(\S+)\s*=\s*"([^"]+)"/gm)].map(
+        (match) => [match[1], match[2]],
+      );
+
+      expect(declared).toEqual(
+        wrapperEntries(entry).map(({ command, module, entry: path }) => [
+          command,
+          path ?? `${module}.cli:main`,
+        ]),
+      );
+    }
+  });
+
   it("imports and calls the function an entry names instead of main", () => {
     const script = wrapperScript({
       command: "recognizer-sense-crap",

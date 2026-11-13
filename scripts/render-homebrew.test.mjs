@@ -43,10 +43,13 @@ describe("renderAll on the committed template", () => {
     expect(cask).toContain(APP);
   });
 
-  it("depends on Homebrew's node and python@3.13, not on a formula of its own", () => {
-    expect(cask).toContain('depends_on formula: "node"');
-    expect(cask).toContain('depends_on formula: "python@3.13"');
-    expect(cask).not.toContain("kenmclennan/tap/recognizer");
+  it("depends on node and the plugins bundle and on no other formula", () => {
+    const formulae = [...cask.matchAll(/depends_on formula: "([^"]+)"/g)].map(
+      ([, name]) => name,
+    );
+
+    expect(formulae).toEqual(["node", "kenmclennan/tap/recognizer-plugins"]);
+    expect(cask).not.toContain("python@3.13");
     expect(cask).toContain("depends_on arch: :arm64");
   });
 
@@ -58,6 +61,7 @@ describe("renderAll on the committed template", () => {
     expect(
       binaries.map(([, source, target]) => target ?? basename(source)),
     ).toEqual(COMMAND_LINKS.map(([name]) => name));
+    expect(binaries).toHaveLength(1);
 
     for (const [, source, target] of binaries) {
       expect(source).toContain(
@@ -67,22 +71,8 @@ describe("renderAll on the committed template", () => {
     }
   });
 
-  it("removes a formula's links before linking, one per command", () => {
-    const removals = [
-      ...cask.matchAll(
-        /^\s*remove "\{\{HOMEBREW_PREFIX\}\}\/bin\/([^"]+)", symlink_target_contains: "\/Cellar\/recognizer\/"$/gm,
-      ),
-    ].map(([, name]) => name);
-
-    expect(cask).toContain("preflight_steps do");
-    expect(removals).toEqual(
-      binaries
-        .map(([, source]) => basename(source))
-        .filter((name) => !name.startsWith("recognizer-sense-")),
-    );
-    expect(removals).toHaveLength(8);
-    expect(cask.indexOf("preflight_steps")).toBeLessThan(
-      cask.indexOf("binary "),
-    );
+  it("has no preflight_steps and keeps the quarantine postflight", () => {
+    expect(cask).not.toContain("preflight_steps");
+    expect(cask).toContain("postflight_steps do");
   });
 });
