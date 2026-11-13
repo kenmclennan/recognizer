@@ -1,0 +1,11 @@
+sensors:
+  crap: {}
+  mutation: {}
+tests:
+  - name: app
+    language: csharp
+    directory: .
+    command: 'dotnet test --collect:"XPlat Code Coverage;Format=lcov"'
+    coverage:
+      path: "**/TestResults/*/coverage.info"
+      format: lcov
