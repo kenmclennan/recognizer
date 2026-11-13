@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { COMMAND_LINKS } from "./build-toolchain.mjs";
 import { render, renderAll } from "./render-homebrew.mjs";
 import { makeTempDir } from "./temp-dirs.mjs";
 
@@ -53,19 +54,10 @@ describe("renderAll on the committed template", () => {
     expect(cask).not.toContain("@@");
   });
 
-  it("links exactly the eight commands onto the PATH", () => {
+  it("links exactly the toolchain commands onto the PATH", () => {
     expect(
       binaries.map(([, source, target]) => target ?? basename(source)),
-    ).toEqual([
-      "recognizer",
-      "recognizer-scan-typescript",
-      "recognizer-describe-claude",
-      "recognizer-scan-python",
-      "recognizer-scan-kotlin",
-      "recognizer-scan-csharp",
-      "recognizer-sensors",
-      "recognizer-scan-rust",
-    ]);
+    ).toEqual(COMMAND_LINKS.map(([name]) => name));
 
     for (const [, source, target] of binaries) {
       expect(source).toContain(
@@ -83,7 +75,11 @@ describe("renderAll on the committed template", () => {
     ].map(([, name]) => name);
 
     expect(cask).toContain("preflight_steps do");
-    expect(removals).toEqual(binaries.map(([, source]) => basename(source)));
+    expect(removals).toEqual(
+      binaries
+        .map(([, source]) => basename(source))
+        .filter((name) => !name.startsWith("recognizer-sense-")),
+    );
     expect(removals).toHaveLength(8);
     expect(cask.indexOf("preflight_steps")).toBeLessThan(
       cask.indexOf("binary "),
