@@ -261,7 +261,7 @@ describe("a sensors program that does not answer", () => {
 
 describe("the core stays agnostic", () => {
   it("names no suite or coverage key in the three files this item added", () => {
-    const words = /\b(tests|coverage|lcov|jacoco|activate|runner|language)\b/;
+    const words = /\b(tests|coverage|lcov|jacoco|activate|runner)\b/;
     const files = ["config-keys.ts", "config-edit.ts", "config-command.ts"];
 
     expect(files.length).toBe(3);

@@ -27,6 +27,28 @@
         }
       }
     },
+    "scanners": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9][a-z0-9_-]*$",
+        "maxLength": 64
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9_-]*$",
+        "maxLength": 64
+      }
+    },
+    "install": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^recognizer-(scan|sense|describe)-[a-z0-9][a-z0-9_-]*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
     "sensors": {
       "type": "object",
       "propertyNames": {

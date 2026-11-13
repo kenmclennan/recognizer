@@ -69,6 +69,8 @@ export interface PublishedKeys {
 
 const SENSOR_NAME = "^[a-z0-9][a-z0-9_-]{0,63}$";
 
+const PROGRAM_NAME = "^recognizer-(scan|sense|describe)-[a-z0-9][a-z0-9_-]*$";
+
 const WARNINGS = [
   "cycle",
   "unused_exports",
@@ -82,6 +84,8 @@ export const CORE_KEYS: KeySchema = {
   owner: "recognizer",
   placeholders: {
     name: SENSOR_NAME,
+    language: SENSOR_NAME,
+    program: PROGRAM_NAME,
     warning: `^(${WARNINGS.join("|")})$`,
   },
   sections: [
@@ -94,6 +98,20 @@ export const CORE_KEYS: KeySchema = {
     },
   ],
   keys: [
+    {
+      key: "scanners.<language>",
+      type: "string",
+      description:
+        "the scanner that reads a language when two installed scanners claim it, by its manifest name",
+      example: "scanners.python python-alt",
+    },
+    {
+      key: "install.<program>",
+      type: "string",
+      description:
+        "the line that installs a plugin program, recorded by recognizer plugin add and shown by recognizer doctor when the program is missing",
+      example: "install.recognizer-sense-mine 'see https://example.com/mine'",
+    },
     {
       key: "describer.command",
       type: "string",

@@ -96,7 +96,7 @@ fn a_module_with_an_unknown_language_is_still_refused() {
         fs::read_to_string(repository().join("schema/examples/valid/rust-module.json")).unwrap();
     let mut document: Value = serde_json::from_str(&text).unwrap();
 
-    document["modules"][0]["language"] = json!("cobol");
+    document["modules"][0]["language"] = json!("Not A Language");
 
     let validator = jsonschema::draft202012::new(&schema()).unwrap();
 

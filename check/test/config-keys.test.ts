@@ -101,6 +101,12 @@ describe("the core's own key table", () => {
     expect(core("sensors.<name>.command").multi).toBe(true);
     seen.push("sensors.<name>.command");
 
+    expect(CONFIG.properties.scanners.type).toBe("object");
+    expect(core("scanners.<language>").type).toBe("string");
+    expect(CONFIG.properties.install.type).toBe("object");
+    expect(core("install.<program>").type).toBe("string");
+    seen.push("scanners.<language>", "install.<program>");
+
     expect(core("sensors.structure").values).toEqual(["off"]);
     seen.push("sensors.structure");
 
