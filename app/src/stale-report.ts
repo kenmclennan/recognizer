@@ -69,8 +69,9 @@ export function staleReport(input: {
   now: Scan[];
   before: Scan[] | null;
   renames: Rename[];
+  reason?: string | null;
 }): StaleReport {
-  const { view, now, before: earlier, renames } = input;
+  const { view, now, before: earlier, renames, reason = null } = input;
   const resolved = resolveView(view, now);
   const current = new Set(moduleNames(now));
   const missing = resolved.unresolved.map((entry) => ({
@@ -103,7 +104,7 @@ export function staleReport(input: {
       unavailable:
         view.commit === null
           ? "view has no commit"
-          : `commit ${view.commit} could not be scanned`,
+          : `commit ${view.commit} could not be scanned${reason === null ? "" : `: ${reason}`}`,
     };
   }
 

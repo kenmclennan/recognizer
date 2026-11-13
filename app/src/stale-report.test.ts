@@ -100,6 +100,44 @@ describe("staleReport", () => {
     expect(hasEntries(report)).toBe(true);
   });
 
+  it("names why the earlier scan failed", () => {
+    const report = staleReport({
+      view: view(picks(place)),
+      now: [derived()],
+      before: null,
+      renames: [],
+      reason: "retired config key",
+    });
+
+    expect(report.unavailable).toBe(
+      "commit abc1234 could not be scanned: retired config key",
+    );
+  });
+
+  it("keeps the view without a commit text when a reason is given", () => {
+    const report = staleReport({
+      view: view(picks(place), null),
+      now: [derived()],
+      before: null,
+      renames: [],
+      reason: "ignored",
+    });
+
+    expect(report.unavailable).toBe("view has no commit");
+  });
+
+  it("ignores a reason when the earlier scan succeeded", () => {
+    const report = staleReport({
+      view: view(picks(place)),
+      now: [derived()],
+      before: [original()],
+      renames: [],
+      reason: "stale",
+    });
+
+    expect(report.unavailable).toBeNull();
+  });
+
   it("names a view without a commit", () => {
     const report = staleReport({
       view: view(picks(place), null),

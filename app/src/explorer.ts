@@ -3517,15 +3517,18 @@ export function showExplorer(
         viewCommit,
         scanCommit,
         run: async () => {
-          const before =
+          const outcome =
             viewCommit === null
               ? null
-              : await views
-                  .scansAt(viewCommit)
-                  .then((outcome) => (outcome.ok ? outcome.value : null))
-                  .catch(() => null);
+              : await views.scansAt(viewCommit).catch(() => null);
 
-          return staleReport({ view, now: scans, before, renames });
+          return staleReport({
+            view,
+            now: scans,
+            before: outcome?.ok ? outcome.value : null,
+            renames,
+            reason: outcome !== null && !outcome.ok ? outcome.reason : null,
+          });
         },
       },
       (message) => {
