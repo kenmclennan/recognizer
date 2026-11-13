@@ -70,7 +70,7 @@ One repository, a directory per part:
 - **Missing data is unknown, never healthy.**
 - **Nothing costly starts unasked.** A process that spends money (describer calls), noticeable time or machine resources (sensors, test and coverage runs, Mutation) starts only from an explicit user action, never on its own: not on window open, a file change or a timer. Automatic work is limited to the minimal checks needed to load and show what is out of date.
 - **Prior art is for approach only.** Robert C. Martin's [uml-viewer](https://github.com/unclebob/uml-viewer) states no licence: copy or port none of its code. Its published rules (what counts as an edge, what to skip, how interfaces are marked) may be followed.
-- **Scanned repositories own their `.recognizer/` folder.** Policy, tooling configuration (`config.yaml`), saved views, module responsibilities (`responsibilities.json`), proposals and baselines are committed there; scans, overlays, findings and run logs go in `.recognizer/cache/` (`log/` holds the run records), which is gitignored.
+- **Scanned repositories own their `.recognizer/` folder.** Policy, tooling configuration (`config.yaml`), saved views, module responsibilities (`responsibilities.json`) and baselines are committed there; scans, overlays, findings and run logs go in `.recognizer/cache/` (`log/` holds the run records), which is gitignored.
 
 ## Worktrees
 
