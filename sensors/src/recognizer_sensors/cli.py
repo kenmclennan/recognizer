@@ -269,6 +269,7 @@ def main(argv: list[str] | None = None) -> int:
             outcome.excluded,
             outcome.unowned,
             outcome.suites,
+            outcome.work,
         )
 
         if outcome.overlay is not None:

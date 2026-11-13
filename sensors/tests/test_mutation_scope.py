@@ -447,6 +447,7 @@ def test_a_run_of_one_suite_carries_the_other_suites_recorded_functions(
     assert findings["suites"][1]["status"] == "ok"
     assert findings["suites"][1]["measured"] == 1
     assert [suite["ran"] for suite in findings["suites"]] == [True, False]
+    assert findings["work"]["performed"] + findings["work"]["reused"] == 5
 
 
 def test_a_function_of_an_unselected_suite_with_no_record_is_absent(two_suites, tmp_path):

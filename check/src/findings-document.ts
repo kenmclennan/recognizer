@@ -53,6 +53,12 @@ export interface SuiteResult {
   ran?: boolean;
 }
 
+export interface FindingsWork {
+  unit: string;
+  performed: number;
+  reused: number;
+}
+
 export interface FindingsDocument {
   findings_version: 1 | 2;
   sensor: { name: string; version: string };
@@ -69,6 +75,7 @@ export interface FindingsDocument {
   inputs?: Record<string, string>;
   tests?: string;
   suites?: SuiteResult[];
+  work?: FindingsWork;
   diagnosis?: Diagnosis;
 }
 

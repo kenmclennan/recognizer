@@ -47,6 +47,8 @@ const OLD_EXAMPLE_SENTENCES: Record<string, string> = {
     "price in billing.py has complexity 14, over the limit of 10.",
   "unowned.json|mutation|mutation:app/rules.py::grade":
     "grade in rules.py has 2 surviving mutations.",
+  "work-and-ran.json|mutation|mutation:app/rules.py::grade":
+    "grade in rules.py has 2 surviving mutations.",
 };
 
 const OLD_HAND_SENTENCES: Record<string, string[]> = {
