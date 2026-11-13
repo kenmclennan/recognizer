@@ -547,20 +547,6 @@ mod tests {
     }
 
     #[test]
-    fn menu_target_falls_back_from_the_settings_window_to_the_latest_document() {
-        let open = labels(&["w-1", "w-2", "settings"]);
-
-        assert_eq!(
-            menu_target(
-                Some("settings"),
-                &labels(&["w-1", "w-2", "settings"]),
-                &open
-            ),
-            Some("w-2".to_string())
-        );
-    }
-
-    #[test]
     fn menu_target_keeps_a_focused_document_window() {
         let open = labels(&["w-1", "w-2"]);
 
@@ -572,10 +558,7 @@ mod tests {
 
     #[test]
     fn menu_target_is_none_when_nothing_is_open() {
-        assert_eq!(
-            menu_target(Some("settings"), &[], &labels(&["settings"])),
-            None
-        );
+        assert_eq!(menu_target(Some("w-1"), &[], &[]), None);
         assert_eq!(menu_target(None, &[], &[]), None);
     }
 }

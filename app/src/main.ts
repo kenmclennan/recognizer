@@ -22,6 +22,8 @@ import { rowSensors } from "./scan-panel-model";
 import { scanSource } from "./scan-source";
 import { withSensors } from "./sensor-run";
 import { sensorsSource } from "./sensors-source";
+import { settingsModalSource } from "./settings-modal-source";
+import { openSettingsModal, type SettingsModal } from "./settings-modal-view";
 import { spinner } from "./spinner-view";
 import { createViewComparisons } from "./view-comparisons";
 import { viewsSource } from "./views-source";
@@ -39,6 +41,23 @@ let runningLine: string | null = null;
 let current: Loaded | null = null;
 let releaseFirstScan: () => void = () => {};
 let explorerKeys: readonly string[] = [];
+let repositoryOpen = false;
+let settingsModal: SettingsModal | null = null;
+
+function openSettings(): void {
+  if (settingsModal !== null) {
+    return;
+  }
+
+  settingsModal = openSettingsModal({
+    port: settingsModalSource,
+    sensors: sensorsSource,
+    repository: repositoryOpen,
+    onClose: () => {
+      settingsModal = null;
+    },
+  });
+}
 
 const sensed = (loaded: Loaded) => withSensors(loaded, sensorsSource);
 
@@ -114,6 +133,7 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
     },
     comparisons,
     commitsSource,
+    openSettings,
   );
 }
 
@@ -203,6 +223,8 @@ async function start(): Promise<void> {
 
   const folder = await repositorySource.windowFolder();
 
+  repositoryOpen = folder !== null;
+
   if (folder === null) {
     showEmpty(content, () => {
       void repositorySource.chooseFolder().catch((error: unknown) => {
@@ -260,6 +282,15 @@ void getCurrentWebviewWindow().listen("view-link", () =>
 sensorsSource.onInputsChanged(() => void rescanner.refresh());
 
 void repositorySource.onRescan(() => void rescanner.run());
+
+void repositorySource.onOpenSettings(openSettings);
+
+document.addEventListener("keydown", (event) => {
+  if (event.metaKey && event.key === ",") {
+    event.preventDefault();
+    openSettings();
+  }
+});
 
 void repositorySource.onChanges((changes) => {
   if (scanState !== null) {

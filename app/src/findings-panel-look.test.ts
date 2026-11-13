@@ -406,6 +406,7 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
       "rail-notes",
       "rail-scan",
       "rail-findings",
+      "rail-settings",
     ]);
     expect(f.panel.badge).toBe("1");
     expect(f.panel.badgeClass).toContain("red");

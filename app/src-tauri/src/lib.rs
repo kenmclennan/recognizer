@@ -45,7 +45,6 @@ use windows::{
 };
 
 const APP_TITLE: &str = "Recognizer";
-const SETTINGS_LABEL: &str = "settings";
 const RECENT_PREFIX: &str = "recent:";
 const CHANGES_POLL: Duration = Duration::from_secs(2);
 
@@ -371,28 +370,6 @@ fn focused_label(app: &AppHandle) -> Option<String> {
     )
 }
 
-const SETTINGS_WIDTH: f64 = 480.0;
-const SETTINGS_HEIGHT: f64 = 440.0;
-
-fn open_settings(app: &AppHandle) {
-    if app.get_webview_window(SETTINGS_LABEL).is_some() {
-        focus_label(app, SETTINGS_LABEL);
-
-        return;
-    }
-
-    let built =
-        WebviewWindowBuilder::new(app, SETTINGS_LABEL, WebviewUrl::App("settings.html".into()))
-            .title("Settings")
-            .inner_size(SETTINGS_WIDTH, SETTINGS_HEIGHT)
-            .resizable(false)
-            .build();
-
-    if let Err(error) = built {
-        eprintln!("recognizer: could not open settings: {error}");
-    }
-}
-
 struct AppSource {
     app: AppHandle,
 }
@@ -582,7 +559,11 @@ fn handle_menu(app: &AppHandle, event: MenuEvent) {
                 let _ = app.emit_to(label, "rescan", ());
             }
         }
-        "settings" => open_settings(app),
+        "settings" => {
+            if let Some(label) = focused_label(app) {
+                let _ = app.emit_to(label, "open-settings", ());
+            }
+        }
         "open-in-editor" => {
             if let Some(label) = focused_label(app) {
                 let _ = app.emit_to(label, "open-in-editor", ());

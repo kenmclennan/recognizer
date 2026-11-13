@@ -18,6 +18,7 @@ export type RailActions = {
   toggleScan: () => void;
   toggleFindings: () => void;
   toggleCommits: () => void;
+  openSettings: () => void;
 };
 
 export type RailState = {
@@ -60,6 +61,13 @@ export function buildRailView(actions: RailActions): RailView {
     "rail-commits",
     actions.toggleCommits,
   );
+  const settings = iconButton(
+    "settings",
+    "Settings",
+    "rail-settings",
+    actions.openSettings,
+  );
+  const spacer = el("span", "rail-spacer");
   const count = el("span", "rail-count");
   const dot = el("span", "rail-dot");
   const found = el("span", "rail-count");
@@ -68,9 +76,18 @@ export function buildRailView(actions: RailActions): RailView {
   notes.append(count);
   scan.append(dot);
   findings.append(found);
-  element.append(files, commits, views, notes, scan, findings);
+  element.append(
+    files,
+    commits,
+    views,
+    notes,
+    scan,
+    findings,
+    spacer,
+    settings,
+  );
 
-  for (const one of [files, views, notes, scan, findings, commits]) {
+  for (const one of [files, views, notes, scan, findings, commits, settings]) {
     one.setAttribute("data-label", one.getAttribute("aria-label") ?? "");
     one.removeAttribute("title");
   }

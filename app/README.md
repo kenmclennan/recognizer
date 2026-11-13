@@ -8,6 +8,10 @@ The Recognizer viewer: a Tauri 2 desktop app for macOS (Apple silicon), built fr
 - `npm run check:app` runs typecheck, tests, lint, format checks, the Rust gate and the build.
 - `npm run install-app` builds the app and copies it into `~/Applications`. It links nothing into `~/.local/bin`.
 
+## Settings
+
+Settings is a modal over the repository window, opened from the gear at the bottom of the rail, Recognizer > Settings... and Cmd+, (a window with no repository shows only the App group). The App group (Editor and Describing) is stored per Mac in `config.json`. The Repository group edits the open repository's `.recognizer/config.yaml`: `write_repository_config` copies the file into a temp folder, runs `recognizer config` once per staged edit there, and replaces the real file only when every edit was accepted, refusing the write when the file changed since the modal read it. A Reset removes the key so the published default applies. The modal never scans.
+
 ## Releases
 
 Every merge to `main` that passes the `app` workflow builds the toolchain (`recognizer-toolchain.tar.gz`: the CLI and every scanner, also copied into the app bundle under `Contents/Resources/toolchain`, whose `commands/` folder holds one link per command and is what the app runs and the cask links onto `PATH`) and the app (`recognizer.app.tar.gz`, ad-hoc signed after the toolchain is copied in), smoke-tests the bundled toolchain, publishes both archives to `kenmclennan/recognizer-releases` and renders the cask into `kenmclennan/homebrew-tap`, removing the retired formula there. The version is computed in the release runner from the version committed in the root `package.json` and the releases already published, and stamped into every manifest; it is never committed by hand. The app updates only through Homebrew: install with `brew install --cask kenmclennan/tap/recognizer`, which installs the app and links every command onto `PATH`, and upgrade with `brew upgrade` or `brew upgrade --cask kenmclennan/tap/recognizer`. The release job is skipped with a notice if the repository lacks the `RELEASES_TOKEN` secret.
