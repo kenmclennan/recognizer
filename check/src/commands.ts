@@ -8,6 +8,7 @@ import { runHelp } from "./help.js";
 import { runLog } from "./log-command.js";
 import { runOpen } from "./open-command.js";
 import { runPlugin } from "./plugin-command.js";
+import { runPlugins } from "./plugins-command.js";
 import { runPolicy } from "./policy-command.js";
 import {
   runCallers,
@@ -1131,6 +1132,47 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runPlugin,
+  },
+  {
+    name: "plugins",
+    summary:
+      "list the installed plugins (scanners, sensors and describers found on PATH) and what uses each in a repository",
+    usage: "recognizer plugins [REPOSITORY] [--json]",
+    arguments: [
+      {
+        name: "[REPOSITORY]",
+        description:
+          "the repository whose config says what uses each plugin; defaults to the current directory",
+      },
+    ],
+    options: [{ flag: "--json", description: "print JSON instead of text" }],
+    output: {
+      text: "one `<kind>  <name>  <version>  protocol <n>  <current|previous|unsupported>  <used by>` line per installed plugin, scanners first, then sensors, then describers, each by name; the last column is `scanner for <languages>`, `registered` or `-`",
+      json: "[{ kind, name, command, version, protocol, range, used_by, install }], in the same order, read from each plugin's manifest",
+    },
+    exitCodes: [
+      { code: 0, meaning: "the list was printed" },
+      {
+        code: 1,
+        meaning:
+          "a plugin program's manifest did not answer (named on stderr, the readable plugins still printed)",
+      },
+      {
+        code: 2,
+        meaning: "bad arguments, or a repository that is not a folder",
+      },
+    ],
+    examples: [
+      {
+        command: "recognizer plugins",
+        note: "what is installed, and what this repository uses",
+      },
+      {
+        command: "recognizer plugins --json",
+        note: "the same list for a script",
+      },
+    ],
+    run: runPlugins,
   },
   {
     name: "windows",
