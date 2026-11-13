@@ -1320,6 +1320,18 @@ describe("change views", () => {
     expect(saved(fake, "a")).not.toHaveProperty("change");
   });
 
+  it("drops the change name when set --change replaces the range", () => {
+    const fake = repo(
+      changeView("a", { base: "main", head: "old", name: "Old range" }),
+    );
+
+    const result = go(fake, "set", "a", "--change", "main..feat");
+
+    expect(result.code).toBe(0);
+    expect(saved(fake, "a").change).toEqual({ base: "main", head: "feat" });
+    expect(saved(fake, "a").change).not.toHaveProperty("name");
+  });
+
   it("refuses set with none of --change, --title and --description", () => {
     const fake = repo(view("a"));
 
