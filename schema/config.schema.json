@@ -54,7 +54,24 @@
                       "type": "boolean"
                     },
                     "long_function": {
-                      "type": "boolean"
+                      "oneOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "limit"
+                          ],
+                          "properties": {
+                            "limit": {
+                              "type": "integer",
+                              "minimum": 1
+                            }
+                          }
+                        }
+                      ]
                     },
                     "orphan": {
                       "oneOf": [

@@ -826,10 +826,11 @@ describe("check running the structure sensor", () => {
         private_imports: true,
         long_function: true,
       },
+      long_function_limit: 20,
     });
     expect(document.commit).toBe(COMMIT);
     expect(out.split("\n")[0]).toBe(
-      "sensor structure: cycle on, orphan on, unused_exports off, private_imports on, long_function on",
+      "sensor structure: cycle on, orphan on, unused_exports off, private_imports on, long_function on, long_function_limit 20",
     );
     expect(err).toBe(POLICY_PROBLEM + NOT_MEASURED);
   });
@@ -948,7 +949,7 @@ describe("show and modules read the findings files", () => {
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
-    expect(written.sensor.version).toBe("18");
+    expect(written.sensor.version).toBe("19");
     expect(written.settings.entry_points).toEqual([]);
   });
 
@@ -973,7 +974,7 @@ describe("show and modules read the findings files", () => {
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
-    expect(written.sensor.version).toBe("18");
+    expect(written.sensor.version).toBe("19");
     expect(written.settings.distance_threshold).toBeUndefined();
   });
 
