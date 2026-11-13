@@ -46,12 +46,12 @@ import {
   branchRow,
   classify,
   commitRow,
-  createCommitsModel,
+  createSelection,
+  defaultBranchName,
   ghNotice,
   type HistoryRow,
   impactText,
   impactTip,
-  openLabel,
   orderBranches,
   type PickRow,
   type PullRequestRow,
@@ -477,7 +477,7 @@ export function showExplorer(
   let listKnown = false;
   let listProblem: string | null = null;
   let openToken = 0;
-  const commitsModel = createCommitsModel();
+  const commitsSelection = createSelection();
   let commitsTab: CommitsTab = "history";
   let commitsToken = 0;
   let commitsBranch: string | null = null;
@@ -505,8 +505,11 @@ export function showExplorer(
     branches: true,
     prs: true,
   };
-  let rangeChanges: { key: string; changes: FileChange[] | null } | null = null;
-  let rangeAsked: string | null = null;
+  let commitsOpening: {
+    what: string;
+    kind: PickRow["kind"];
+    ref: string;
+  } | null = null;
   const viewTexts = new Map<string, string>();
   const history =
     carried?.history ??
@@ -1088,22 +1091,31 @@ export function showExplorer(
   });
   const commitsView = buildCommitsPanelView({
     pick(row) {
-      if (commitsModel.pick(row)) {
+      const request = commitsSelection.pick(
+        row,
+        commitsTab,
+        historyLoad.rows.map((one) => one.sha),
+      );
+
+      if (request === null) {
         render();
+
+        return;
       }
+
+      render();
+      void openRange(request.base, request.head, request.what, {
+        kind: row.kind,
+        ref: request.head,
+      });
     },
-    selectSlot(slot) {
-      commitsModel.select(slot);
+    setMode(mode) {
+      commitsSelection.setMode(mode);
       render();
     },
-    clearSlot(slot) {
-      commitsModel.clear(slot);
+    clearEnd(end) {
+      commitsSelection.clear(end);
       render();
-    },
-    swap() {
-      if (commitsModel.swap()) {
-        render();
-      }
     },
     setHide(tab, hide) {
       commitsHide[tab] = hide;
@@ -1118,14 +1130,6 @@ export function showExplorer(
 
       render();
     },
-    open() {
-      const range = commitsModel.range();
-
-      if (range !== null) {
-        void openRange(range.base, range.head);
-      }
-    },
-    save: () => bar.promptSave(),
   });
   const body = el("div", "explorer");
 
@@ -1845,6 +1849,8 @@ export function showExplorer(
       return;
     }
 
+    commitsOpening = null;
+
     if (answer === null) {
       changeInfo = { name, range, state: "unavailable" };
       render();
@@ -2043,10 +2049,6 @@ export function showExplorer(
     return openView === DRAFT_VIEW ? null : openView;
   }
 
-  function shortRef(ref: string): string {
-    return /^[0-9a-f]{40,64}$/.test(ref) ? ref.slice(0, 7) : ref;
-  }
-
   function toggleCommitsPanel() {
     if (leftPanel === "commits") {
       leftPanel = null;
@@ -2071,8 +2073,6 @@ export function showExplorer(
     };
     pullLoad = { state: "idle", status: "ok", detail: "", rows: [] };
     commitFacts.clear();
-    rangeChanges = null;
-    rangeAsked = null;
     render();
     void loadHistory(token);
     void loadBranches(token);
@@ -2167,45 +2167,6 @@ export function showExplorer(
     );
   }
 
-  function syncRange() {
-    const range = commitsModel.range();
-
-    if (range === null) {
-      return;
-    }
-
-    const key = `${range.base}..${range.head}`;
-
-    if (rangeChanges?.key === key || rangeAsked === key) {
-      return;
-    }
-
-    const token = commitsToken;
-
-    rangeAsked = key;
-    void views
-      .changeRange(range.base, range.head)
-      .catch(() => null)
-      .then((answer) =>
-        answer?.changes.flatMap((change) =>
-          change.status === "A" ||
-          change.status === "M" ||
-          change.status === "D" ||
-          change.status === "T"
-            ? [{ status: change.status, path: change.path } as FileChange]
-            : [],
-        ),
-      )
-      .then((found) => {
-        const changes = found ?? null;
-
-        if (token === commitsToken && rangeAsked === key) {
-          rangeChanges = { key, changes };
-          render();
-        }
-      });
-  }
-
   async function loadFacts(token: number, refs: string[]) {
     if (refs.length === 0) {
       return;
@@ -2224,34 +2185,53 @@ export function showExplorer(
     render();
   }
 
-  function slotOf(row: PickRow): "from" | "to" | null {
-    for (const which of ["from", "to"] as const) {
-      const held = commitsModel.slot(which);
+  function endView(row: PickRow | null) {
+    return row === null ? null : { label: row.label, hint: row.sub };
+  }
 
-      if (held?.kind === row.kind && held.ref === row.ref) {
-        return which;
-      }
-    }
+  function loadingText(): string | null {
+    const opening = openingNow();
 
-    return null;
+    return opening === null ? null : `Loading ${opening.what}`;
+  }
+
+  function openingNow() {
+    return commitsOpening !== null &&
+      changeInfo?.name === DRAFT_VIEW &&
+      changeInfo.state === "loading"
+      ? commitsOpening
+      : null;
   }
 
   function commitsPanelModel() {
     const now = Date.now();
-    const range = commitsModel.range();
-    const from = commitsModel.slot("from");
-    const to = commitsModel.slot("to");
     const present = scans as unknown as MarkScan[];
-    const shaded = commitsModel.shaded(historyLoad.rows.map((row) => row.sha));
+    const historyShas = historyLoad.rows.map((row) => row.sha);
+    const shaded = commitsSelection.between(historyShas);
+    const first = commitsSelection.first();
+    const last = commitsSelection.last();
+    const picked = commitsSelection.picked();
+    const opening = openingNow();
+    const endOf = (pick: PickRow): "first" | "last" | null =>
+      commitsTab !== "history"
+        ? null
+        : first?.ref === pick.ref
+          ? "first"
+          : last?.ref === pick.ref
+            ? "last"
+            : null;
     const rowOf = (
       pick: PickRow,
       changes: FileChange[] | null,
       rest: Omit<
         CommitRowView,
-        "pick" | "impact" | "tip" | "slot" | "classification"
+        "pick" | "impact" | "tip" | "held" | "end" | "busy" | "classification"
       >,
     ) => {
       const classification = classify(changes, present);
+      const end = endOf(pick);
+      const heldPick =
+        picked !== null && picked.kind === pick.kind && picked.ref === pick.ref;
 
       return {
         ...rest,
@@ -2259,7 +2239,12 @@ export function showExplorer(
         impact: impactText(classification),
         tip: impactTip(classification),
         classification,
-        slot: slotOf(pick),
+        end,
+        held: end !== null || heldPick,
+        busy:
+          opening !== null &&
+          opening.kind === pick.kind &&
+          opening.ref === pick.ref,
       };
     };
     const historyRows: CommitRowView[] = historyLoad.rows.map((row) =>
@@ -2319,9 +2304,6 @@ export function showExplorer(
         shaded: false,
       });
     });
-    const rangeKey = range === null ? null : `${range.base}..${range.head}`;
-    const rangeHeld = rangeChanges?.key === rangeKey ? rangeChanges : null;
-    const rangeClass = classify(rangeHeld?.changes ?? null, present);
     const visible = (rows: CommitRowView[], tab: CommitsTab) => {
       const shown = visibleRows<CommitRowView>(rows, commitsHide[tab]);
 
@@ -2371,28 +2353,15 @@ export function showExplorer(
 
     return {
       branch: commitsBranch,
-      active: commitsModel.active(),
-      from:
-        from !== null
-          ? { label: from.label, hint: null }
-          : range?.defaulted === true
-            ? {
-                label: shortRef(range.base),
-                hint: to?.kind === "commit" ? "its parent" : "merge base",
-              }
-            : null,
-      to: to === null ? null : { label: to.label, hint: null },
-      note: commitsModel.rangeNote(),
-      canSwap: commitsModel.canSwap(),
-      openLabel: openLabel(
-        range,
-        rangeClass,
-        range !== null && rangeHeld === null,
-        shortRef,
-        to !== null,
+      mode: commitsSelection.mode(),
+      first: endView(first),
+      last: endView(last),
+      next: commitsSelection.next(),
+      guide: commitsSelection.guideLine(
+        commitsTab,
+        defaultBranchName(branchLoad.defaultRef),
+        historyShas,
       ),
-      canOpen: range !== null,
-      canSave: openView === DRAFT_VIEW,
       tab: commitsTab,
       lists,
     };
@@ -2424,7 +2393,12 @@ export function showExplorer(
       : { base: change.base, head: change.head };
   }
 
-  async function openRange(base: string, head: string) {
+  async function openRange(
+    base: string,
+    head: string,
+    what: string,
+    row: { kind: PickRow["kind"]; ref: string },
+  ) {
     const from = savedView();
 
     if (from !== null && modified()) {
@@ -2432,19 +2406,21 @@ export function showExplorer(
       unsavedDialog.show(
         from,
         `Opening the range closes the open view. ${LOSS_WARNING}`,
-        (choice) => void chooseRange(from, base, head, choice),
+        (choice) => void chooseRange(from, base, head, what, row, choice),
       );
 
       return;
     }
 
-    openRangeNow(base, head);
+    openRangeNow(base, head, what, row);
   }
 
   async function chooseRange(
     from: string,
     base: string,
     head: string,
+    what: string,
+    row: { kind: PickRow["kind"]; ref: string },
     choice: UnsavedChoice,
   ) {
     if (choice === "save") {
@@ -2467,13 +2443,19 @@ export function showExplorer(
       }
     }
 
-    openRangeNow(base, head);
+    openRangeNow(base, head, what, row);
   }
 
-  function openRangeNow(base: string, head: string) {
+  function openRangeNow(
+    base: string,
+    head: string,
+    what: string,
+    row: { kind: PickRow["kind"]; ref: string },
+  ) {
     const view = draftOf({ base, head });
     const token = ++openToken;
 
+    commitsOpening = { what, kind: row.kind, ref: row.ref };
     viewNotice = null;
     openView = DRAFT_VIEW;
     pendingLanding = null;
@@ -4312,6 +4294,7 @@ export function showExplorer(
       showInferred: state.showInferred(),
       notice: layoutNotice,
       busy: layoutBusy,
+      loading: loadingText(),
       notes,
       orientation: syncOrientation(),
       metrics: canvasMetrics(),
@@ -4556,10 +4539,6 @@ export function showExplorer(
         : null,
       savedView(),
     );
-    if (leftPanel === "commits") {
-      syncRange();
-    }
-
     commitsView.render(leftPanel === "commits" ? commitsPanelModel() : null);
 
     renderFindings();

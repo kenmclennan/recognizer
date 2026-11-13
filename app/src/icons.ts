@@ -33,7 +33,6 @@ export type IconName =
   | "commit"
   | "branch"
   | "pull-request"
-  | "swap"
   | "bell"
   | "triangle-alert"
   | "circle-x"
@@ -261,12 +260,6 @@ const SHAPES: Record<IconName, Shape[]> = {
     ["circle", { cx: "6", cy: "6", r: "3" }],
     ["path", { d: "M13 6h3a2 2 0 0 1 2 2v7" }],
     ["path", { d: "M6 9v12" }],
-  ],
-  swap: [
-    ["path", { d: "M8 3 4 7l4 4" }],
-    ["path", { d: "M4 7h16" }],
-    ["path", { d: "m16 21 4-4-4-4" }],
-    ["path", { d: "M20 17H4" }],
   ],
   x: [["path", { d: "M18 6L6 18M6 6l12 12" }]],
   bell: [
