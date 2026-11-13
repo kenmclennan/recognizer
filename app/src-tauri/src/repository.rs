@@ -49,6 +49,8 @@ pub struct ShippedSensor {
     pub description: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expansion: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub settings_title: Option<String>,
     #[serde(default, rename = "runsTests", alias = "runs_tests")]
     pub runs_tests: bool,
     #[serde(default)]
@@ -76,6 +78,8 @@ pub struct ShippedMetric {
     pub kind: String,
     pub granularity: String,
     pub bad: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cell: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub published: Option<ShippedPublished>,
 }
@@ -1101,6 +1105,33 @@ mod tests {
                 assert_eq!(out["description"], "d");
                 assert_eq!(out["expansion"], "C.R.A.P.: Change Risk Anti-Patterns.");
                 assert_eq!(out["scoped"], true);
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_settings_title_and_a_cell_round_trip_and_labelled_settings_pass_through_unchanged() {
+        let settings = serde_json::json!([{"key":"<metric>.above","type":"number","description":"d","example":"e","defaults":{"complexity":10},"labels":{"complexity":"Complexity above"},"units":{"complexity":"x"},"order":1,"limit":{"metric":"<metric>","direction":"above","severity":"<metric>.severity"}}]);
+        let list = serde_json::json!([{
+            "name": "thresholds",
+            "display": "Thresholds",
+            "description": "d",
+            "settings_title": "Complexity and coverage",
+            "runs_tests": false,
+            "listed": true,
+            "metrics": [{"name":"k","label":"k","title":"K","help":"h","type":"count","granularity":"member","bad":"low","cell":2}],
+            "settings": settings,
+        }])
+        .to_string();
+
+        match shipped_sensors_for(Some(0), &list, "") {
+            ShippedSensors::Ok { sensors } => {
+                let out = serde_json::to_value(&sensors[0]).unwrap();
+
+                assert_eq!(out["settings_title"], "Complexity and coverage");
+                assert_eq!(out["metrics"][0]["cell"], 2);
+                assert_eq!(out["settings"], settings);
             }
             other => panic!("{other:?}"),
         }

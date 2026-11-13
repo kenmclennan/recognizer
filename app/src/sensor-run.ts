@@ -67,6 +67,7 @@ export type ShippedSensor = {
   display: string;
   description: string;
   expansion?: string;
+  settings_title?: string;
   runsTests: boolean;
   scoped: boolean;
   listed: boolean;
@@ -83,13 +84,26 @@ export type ShippedMetric = {
   type: "ratio" | "count" | "number" | "boolean";
   granularity: "module" | "member";
   bad: "high" | "low";
+  cell?: number;
   published?: { value: number; source: string };
 };
 
 export type ShippedSetting = {
   key: string;
   type: string;
+  values?: string[];
   default?: string | number | boolean;
+  defaults?: Record<string, string | number | boolean>;
+  label?: string;
+  labels?: Record<string, string>;
+  unit?: string;
+  units?: Record<string, string>;
+  order?: number;
+  limit?: {
+    metric: string;
+    direction: "above" | "below";
+    severity?: string;
+  };
 };
 
 export type DescriberInEffect =

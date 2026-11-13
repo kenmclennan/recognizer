@@ -17,9 +17,10 @@ import {
   MAX_CONFIRM_ABOVE_USD,
   type RepositoryModel,
   repositorySections,
-  SECTION_SPECS,
   type SectionId,
+  type SectionSpec,
   SUITE_FIELDS,
+  sectionSpecs,
 } from "./settings-modal-model";
 import type { Settings, SettingsModalPort } from "./settings-modal-port";
 
@@ -127,6 +128,7 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
   let published: PublishedKeys = publish([CORE_KEYS], "config");
   let model: RepositoryModel = createRepositoryModel(published, null);
   let sections: { id: SectionId; name: string }[] = [];
+  let specs: SectionSpec[] = [];
   let configText: string | null = null;
   let current: PaneId = "editor";
   let busy = false;
@@ -430,6 +432,26 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
     return node;
   }
 
+  function textFor(key: string): HTMLInputElement {
+    const raw = model.value(key);
+    const shown = model.defaultShown(key);
+    const node = input(
+      "",
+      raw ?? (shown.kind === "figure" ? shown.text : ""),
+      key,
+    );
+
+    node.dataset.key = key;
+    node.classList.toggle("changed", model.changed(key));
+    node.classList.toggle("refused", model.error(key) !== null);
+    node.addEventListener("change", () => {
+      model.stage(key, node.value);
+      renderAll();
+    });
+
+    return node;
+  }
+
   function fieldRow(field: FieldSpec): HTMLElement {
     const controls: HTMLElement[] = [];
 
@@ -447,6 +469,10 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
       if (field.switchKey !== undefined) {
         controls.push(switchFor(field.switchKey));
       }
+    } else if (field.control === "select") {
+      controls.push(selectFor(field.key));
+    } else if (field.control === "text") {
+      controls.push(textFor(field.key));
     } else {
       controls.push(numberFor(field.key));
 
@@ -481,7 +507,7 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
       return;
     }
 
-    const spec = SECTION_SPECS.find((one) => one.id === id);
+    const spec = specs.find((one) => one.id === id);
 
     if (spec === undefined) {
       return;
@@ -615,7 +641,7 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
       return "suites";
     }
 
-    for (const spec of SECTION_SPECS) {
+    for (const spec of specs) {
       if (spec.fields.some((field) => fieldKeys(field).includes(key))) {
         return spec.id;
       }
@@ -751,11 +777,11 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
 
         published = publish(schemas, "config");
         configText = inputs.config;
-        model = createRepositoryModel(published, configText);
-        sections = repositorySections(
-          shipped.status === "ok" ? shipped.sensors : [],
-          published,
-        );
+        const sensors = shipped.status === "ok" ? shipped.sensors : [];
+
+        specs = sectionSpecs(sensors, published);
+        model = createRepositoryModel(published, configText, specs);
+        sections = repositorySections(sensors, published);
       }
     } catch (error) {
       notice = error instanceof Error ? error.message : String(error);

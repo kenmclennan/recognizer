@@ -5,6 +5,7 @@ import {
   type PublishedKeys,
   typedValue,
 } from "recognizer";
+import type { ShippedSensor, ShippedSetting } from "./sensor-run";
 import type { RepositoryEdit } from "./settings-modal-port";
 
 export const MAX_BATCH_SIZE = 16;
@@ -69,7 +70,7 @@ export function checkDescribing(
   };
 }
 
-export type FieldControl = "text" | "number" | "switch" | "limit";
+export type FieldControl = "text" | "number" | "switch" | "limit" | "select";
 
 export type FieldSpec = {
   label: string;
@@ -80,13 +81,7 @@ export type FieldSpec = {
   severityKey?: string;
 };
 
-export type SectionId =
-  | "structure"
-  | "duplication"
-  | "crap"
-  | "thresholds"
-  | "mutation"
-  | "suites";
+export type SectionId = string;
 
 export type SectionSpec = {
   id: SectionId;
@@ -99,7 +94,7 @@ const DUPLICATION = "sensors.structure.duplication";
 
 export const LONG_FUNCTION_KEY = `${WARNINGS}.long_function`;
 
-export const SECTION_SPECS: SectionSpec[] = [
+const APP_SECTION_SPECS: SectionSpec[] = [
   {
     id: "structure",
     name: "Structure",
@@ -159,65 +154,6 @@ export const SECTION_SPECS: SectionSpec[] = [
       },
     ],
   },
-  {
-    id: "crap",
-    name: "C.R.A.P.",
-    fields: [
-      {
-        label: "Report above",
-        key: "sensors.crap.threshold",
-        control: "number",
-        unit: "score",
-      },
-    ],
-  },
-  {
-    id: "thresholds",
-    name: "Complexity and coverage",
-    fields: [
-      {
-        label: "Complexity above",
-        key: "sensors.thresholds.complexity.above",
-        control: "number",
-        severityKey: "sensors.thresholds.complexity.severity",
-      },
-      {
-        label: "Coverage below",
-        key: "sensors.thresholds.coverage.below",
-        control: "number",
-        unit: "0 to 1",
-        severityKey: "sensors.thresholds.coverage.severity",
-      },
-    ],
-  },
-  {
-    id: "mutation",
-    name: "Mutation",
-    fields: [
-      {
-        label: "Only what changed",
-        key: "sensors.mutation.incremental",
-        control: "switch",
-      },
-      {
-        label: "Timeout",
-        key: "sensors.mutation.timeout_factor",
-        control: "number",
-        unit: "x the unmutated suite",
-      },
-      {
-        label: "Stop a run after",
-        key: "sensors.mutation.max_minutes",
-        control: "number",
-        unit: "minutes",
-      },
-      {
-        label: "Workers",
-        key: "sensors.mutation.max_workers",
-        control: "number",
-      },
-    ],
-  },
 ];
 
 export const SUITE_FIELDS = [
@@ -232,35 +168,103 @@ export const SUITE_FIELDS = [
 
 export type RepositorySection = { id: SectionId; name: string };
 
-const SENSOR_OF: Partial<Record<SectionId, string>> = {
-  crap: "crap",
-  thresholds: "thresholds",
-  mutation: "mutation",
-};
+const PLACEHOLDER = /<[a-z][a-z0-9_]*>/;
 
-export function repositorySections(
-  shipped: readonly { name: string; runsTests: boolean }[],
+function expanded(key: string, value: string): string {
+  return key.replace(PLACEHOLDER, value);
+}
+
+function controlOf(setting: ShippedSetting): FieldControl {
+  switch (setting.type) {
+    case "boolean":
+      return "switch";
+    case "number":
+    case "integer":
+      return "number";
+    case "enum":
+      return "select";
+    default:
+      return "text";
+  }
+}
+
+function fieldsOf(sensor: string, setting: ShippedSetting): FieldSpec[] {
+  const names: [string | null, string][] =
+    setting.labels !== undefined
+      ? Object.entries(setting.labels).map(([value, label]) => [value, label])
+      : setting.label !== undefined
+        ? [[null, setting.label]]
+        : [];
+
+  return names.map(([value, label]) => {
+    const full = (key: string) =>
+      `sensors.${sensor}.${value === null ? key : expanded(key, value)}`;
+    const unit = value === null ? setting.unit : setting.units?.[value];
+    const severity = setting.limit?.severity;
+
+    return {
+      label,
+      key: full(setting.key),
+      control: controlOf(setting),
+      ...(unit === undefined ? {} : { unit }),
+      ...(severity === undefined ? {} : { severityKey: full(severity) }),
+    };
+  });
+}
+
+function sensorSection(sensor: ShippedSensor): SectionSpec | null {
+  const ordered = sensor.settings
+    .map((setting, at) => ({ setting, at }))
+    .sort(
+      (a, b) =>
+        (a.setting.order ?? Number.POSITIVE_INFINITY) -
+          (b.setting.order ?? Number.POSITIVE_INFINITY) || a.at - b.at,
+    );
+  const fields = ordered.flatMap(({ setting }) =>
+    fieldsOf(sensor.name, setting),
+  );
+
+  return fields.length === 0
+    ? null
+    : {
+        id: sensor.name,
+        name: sensor.settings_title ?? sensor.display,
+        fields,
+      };
+}
+
+export function sectionSpecs(
+  shipped: readonly ShippedSensor[],
   published: PublishedKeys,
-): RepositorySection[] {
+): SectionSpec[] {
   const has = (key: string) =>
     published.keys.some((entry) => entry.key === key);
-  const listed = (name: string) => shipped.some((one) => one.name === name);
-  const found: RepositorySection[] = [];
+  const known = (key: string) =>
+    has(key) ||
+    has(placeholderKey(key)) ||
+    "found" in findKey(published, key.split("."));
+  const covered = (spec: SectionSpec) =>
+    spec.fields.every((field) => fieldKeys(field).every(known));
+  const sensors = shipped
+    .map(sensorSection)
+    .filter((spec): spec is SectionSpec => spec !== null)
+    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
-  for (const spec of SECTION_SPECS) {
-    const sensor = SENSOR_OF[spec.id];
-    const published_ = spec.fields.every(
-      (field) => has(field.key) || has(placeholderKey(field.key)),
-    );
+  return [...APP_SECTION_SPECS, ...sensors].filter(covered);
+}
 
-    if (!published_ || (sensor !== undefined && !listed(sensor))) {
-      continue;
-    }
+export function repositorySections(
+  shipped: readonly ShippedSensor[],
+  published: PublishedKeys,
+): RepositorySection[] {
+  const found: RepositorySection[] = sectionSpecs(shipped, published).map(
+    (spec) => ({ id: spec.id, name: spec.name }),
+  );
 
-    found.push({ id: spec.id, name: spec.name });
-  }
-
-  if (shipped.some((one) => one.runsTests) && has("tests.<name>.directory")) {
+  if (
+    shipped.some((one) => one.runsTests) &&
+    published.keys.some((entry) => entry.key === "tests.<name>.directory")
+  ) {
     found.push({ id: "suites", name: "Test suites" });
   }
 
@@ -268,9 +272,10 @@ export function repositorySections(
 }
 
 function placeholderKey(key: string): string {
-  return key
-    .replace(/^(sensors\.structure\.warnings)\.[a-z_]+$/, "$1.<warning>")
-    .replace(/^(sensors\.thresholds)\.[a-z_]+\.([a-z]+)$/, "$1.<metric>.$2");
+  return key.replace(
+    /^(sensors\.structure\.warnings)\.[a-z_]+$/,
+    "$1.<warning>",
+  );
 }
 
 export type DefaultShown =
@@ -358,6 +363,7 @@ function suiteNames(keys: Iterable<string>): string[] {
 export function createRepositoryModel(
   published: PublishedKeys,
   configText: string | null,
+  specs: readonly SectionSpec[] = APP_SECTION_SPECS,
 ): RepositoryModel {
   const current = new Map<string, string>();
 
@@ -407,9 +413,9 @@ export function createRepositoryModel(
   };
 
   const sectionKeys = (id: SectionId): string[] =>
-    SECTION_SPECS.filter((spec) => spec.id === id).flatMap((spec) =>
-      spec.fields.flatMap((field) => fieldKeys(field)),
-    );
+    specs
+      .filter((spec) => spec.id === id)
+      .flatMap((spec) => spec.fields.flatMap((field) => fieldKeys(field)));
 
   const stage = (key: string, raw: string): void => {
     errors.delete(key);
