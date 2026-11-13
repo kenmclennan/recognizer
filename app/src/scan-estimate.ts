@@ -9,6 +9,8 @@ export type SenseSample = {
   fixedMs: number | undefined;
 };
 
+export type PlannedWork = { unit: string; to_perform: number };
+
 export type DescribeSample = { ms: number; entries: number };
 
 export type ScanHistory = {
@@ -16,6 +18,7 @@ export type ScanHistory = {
   extractMs: number | null;
   describe: DescribeSample[];
   sense: Record<string, SenseSample[]>;
+  lastRun?: string | null;
 };
 
 export const NO_HISTORY: ScanHistory = {

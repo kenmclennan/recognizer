@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { RunRecordFiles } from "./refusal-record";
+import type { PlannedWork } from "./scan-estimate";
 import type {
   DescriberInEffect,
   FindingsFiles,
@@ -8,6 +9,7 @@ import type {
   SensorInputs,
   SensorsPort,
   ShippedSensors,
+  WorkRequest,
 } from "./sensor-run";
 
 export const sensorsSource: SensorsPort = {
@@ -20,6 +22,8 @@ export const sensorsSource: SensorsPort = {
   readInputs: () => invoke<SensorInputs>("read_sensor_inputs"),
   shipped: () => invoke<ShippedSensors>("shipped_sensors"),
   describer: () => invoke<DescriberInEffect>("shipped_describer"),
+  plannedWork: ({ sensor, modules, suites }: WorkRequest) =>
+    invoke<PlannedWork | null>("planned_work", { sensor, modules, suites }),
   onInputsChanged(run) {
     void invoke<void>("watch_sensor_inputs");
 

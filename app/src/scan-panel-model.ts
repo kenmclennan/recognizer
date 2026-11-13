@@ -23,6 +23,7 @@ import {
   estimateParts,
   frozenFigures,
   NO_HISTORY,
+  type PlannedWork,
   type ScanEstimate,
   type ScanHistory,
 } from "./scan-estimate";
@@ -135,6 +136,7 @@ export type PanelInput = {
   freshness?: Freshness;
   runView?: RunInput | null;
   history?: ScanHistory;
+  work?: Record<string, PlannedWork>;
 };
 
 export type ScanRow = {
