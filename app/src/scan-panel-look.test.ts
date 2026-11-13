@@ -29,10 +29,10 @@ const scan = {
 };
 const base = loadedOf({ modules: ids, scans: [{ file: "scan.python.json", scan }] });
 const SHIPPED = [
-  { name: "mutation", display: "Mutation", line: "Mutates and tests.", defaults: {}, runsTests: true, listed: true },
-  { name: "crap", display: "C.R.A.P.", line: "Runs the tests with coverage.", defaults: {}, runsTests: true, listed: true },
-  { name: "duplication", display: "Duplication", line: "Finds repeated structure.", defaults: {}, runsTests: false, listed: true },
-  { name: "thresholds", display: "Thresholds", line: "Limits.", defaults: {}, runsTests: false, listed: false },
+  { name: "mutation", display: "Mutation", description: "Mutates and tests.", runsTests: true, scoped: true, listed: true, metrics: [], findings: [], settings: [] },
+  { name: "crap", display: "C.R.A.P.", description: "Runs the tests with coverage.", expansion: "C.R.A.P.: Change Risk Anti-Patterns.", runsTests: true, scoped: false, listed: true, metrics: [], findings: [], settings: [] },
+  { name: "duplication", display: "Duplication", description: "Finds repeated structure.", runsTests: false, scoped: false, listed: true, metrics: [], findings: [], settings: [] },
+  { name: "thresholds", display: "Thresholds", description: "Limits.", runsTests: false, scoped: false, listed: false, metrics: [], findings: [], settings: [] },
 ];
 const CONFIG = "sensors:\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n  beta:\\n    command: [node, '{repository}/b.mjs', '{commit}', '{output}']\\n";
 const FILES = { responsibilities: null, config: CONFIG, refused: [], hashes: {} };

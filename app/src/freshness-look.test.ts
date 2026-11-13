@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { collectFacts, FAKE_WORKER, here, webkit } from "./look-page";
+import { shippedSensor } from "./shipped-fake";
 
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const H1 = "1".repeat(64);
@@ -31,7 +32,7 @@ const finding = (id, module) => ({ id, kind: "style", severity: "warning", princ
 const document_ = { findings_version: 2, sensor: { name: "crap", version: "0.1.0" }, commit: ${JSON.stringify(COMMIT)}, modified: false, settings: {}, inputs, tests: ${JSON.stringify(TESTS)}, findings: [finding("on-a", "app/a.py"), finding("on-b", "app/b.py")] };
 const loadedFor = (tests) => loadedOf({ modules: ids, scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", text: overlay }], findings: [document_], sensors: [{ name: "crap", status: "ran", measured: { inputs, tests: ${JSON.stringify(TESTS)} } }], tests });
 
-const SHIPPED = [{ name: "crap", display: "crap", line: "x", defaults: {}, runsTests: true, listed: true, metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }] }];
+const SHIPPED = ${JSON.stringify([{ ...shippedSensor("crap"), display: "crap", description: "x", runsTests: true, metrics: shippedSensor("crap").metrics.slice(0, 1) }])};
 const port = () => fakeSensors({}, {}, {}, SHIPPED);
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));

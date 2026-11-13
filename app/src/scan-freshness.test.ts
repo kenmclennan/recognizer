@@ -239,13 +239,15 @@ function stub(
   label: string,
   ticked: string[] = Object.keys(states),
   update: string[] = changed,
+  scopedKeys: string[] = ["mutation"],
 ): FreshnessModel {
   return {
     rows: Object.entries(states).map(([key, state]) => ({
       key,
-      name: key === "mutation" ? "Mutation" : key,
+      name: key[0]?.toUpperCase() + key.slice(1),
       state,
       tickable: true,
+      scoped: scopedKeys.includes(key),
     })),
     gaps: new Map(Object.entries(gaps)),
     changed,
@@ -262,8 +264,8 @@ const CURRENT_STATE: ResultState = { kind: "current", at: null };
 
 describe("planFor", () => {
   const rows = [
-    { name: "crap", display: "C.R.A.P.", runsTests: false },
-    { name: "mutation", display: "Mutation", runsTests: true },
+    { name: "crap", display: "C.R.A.P.", runsTests: false, scoped: false },
+    { name: "mutation", display: "Mutation", runsTests: true, scoped: true },
   ];
   const ticks: ScanTicks = {
     describe: true,
@@ -303,6 +305,41 @@ describe("planFor", () => {
     expect(planned.progress).toBe("Updating 3 modules\u2026");
     expect(planned.modules).toBe(3);
     expect(planned.idle).toBe(false);
+  });
+
+  it("takes the module scope from the scoped flag, not from a sensor called mutation", () => {
+    const flagged = [
+      { name: "mutation", display: "Mutation", runsTests: true, scoped: false },
+      { name: "other", display: "Other", runsTests: true, scoped: true },
+    ];
+    const both: ScanTicks = {
+      ...ticks,
+      describe: false,
+      ticked: [],
+      once: ["mutation", "other"],
+    };
+    const planned = planFor(
+      stub(
+        {
+          mutation: { kind: "out-of-date", modules: ["b.py", "c.py"] },
+          other: { kind: "out-of-date", modules: ["b.py"] },
+        },
+        { mutation: ["b.py", "c.py"], other: ["b.py"] },
+        ["b.py", "c.py"],
+        "Update 2 modules",
+        ["mutation", "other"],
+        undefined,
+        ["other"],
+      ),
+      "bring",
+      both,
+      flagged,
+      null,
+      MODULES,
+    );
+
+    expect(planned.plan.modules).toEqual(["b.py"]);
+    expect(planned.work).toEqual({ mutation: MODULES.length, other: 1 });
   });
 
   it("reruns an unscoped sensor whole and sends no module list when no scoped phase runs", () => {
@@ -451,7 +488,9 @@ describe("planFor", () => {
 });
 
 describe("a sensor-only gap", () => {
-  const rows = [{ name: "crap", display: "C.R.A.P.", runsTests: false }];
+  const rows = [
+    { name: "crap", display: "C.R.A.P.", runsTests: false, scoped: false },
+  ];
   const gap = (changed: string[], update: string[]) =>
     stub(
       { crap: { kind: "out-of-date", modules: ["c.py"] } },
@@ -515,9 +554,40 @@ describe("freshnessMessage", () => {
     expect(
       freshnessMessage(stub(states, {}, [], "Run Mutation")),
     )?.toMatchObject({
-      text: "Mutation has not run here yet. Survived-mutant results are missing from this picture.",
+      text: "Mutation has not run here yet. Its results are missing from this picture.",
       label: "Run Mutation",
     });
     expect(freshnessMessage(stub(states, {}, [], "Up to date", []))).toBeNull();
+  });
+
+  it("words the notice for any scoped sensor by its display name and ignores an unscoped one", () => {
+    const states: Record<string, ResultState> = {
+      other: { kind: "never-run" },
+    };
+
+    expect(
+      freshnessMessage(
+        stub(states, {}, [], "Run Other", ["other"], [], ["other"]),
+      ),
+    ).toMatchObject({
+      text: "Other has not run here yet. Its results are missing from this picture.",
+      label: "Run Other",
+    });
+    expect(
+      freshnessMessage(stub(states, {}, [], "Run Other", ["other"], [], [])),
+    ).toBeNull();
+    expect(
+      freshnessMessage(
+        stub(
+          { mutation: { kind: "never-run" } },
+          {},
+          [],
+          "Run Mutation",
+          ["mutation"],
+          [],
+          [],
+        ),
+      ),
+    ).toBeNull();
   });
 });

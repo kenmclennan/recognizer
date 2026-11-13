@@ -5,7 +5,6 @@ import {
   DESCRIBE_KEY,
   freshnessScope,
   gapOf,
-  MUTATION_KEY,
   type ResultsMode,
   sensorFreshness,
   staleModules,
@@ -13,7 +12,7 @@ import {
 import type { PanelInput, RowSensor } from "./scan-panel-model";
 import { sensorArmed } from "./suite-ticks";
 
-export { DESCRIBE_KEY, MUTATION_KEY };
+export { DESCRIBE_KEY };
 
 export const STRUCTURE_KEY = "structure";
 
@@ -29,6 +28,7 @@ export type ResultRow = {
   name: string;
   state: ResultState;
   tickable: boolean;
+  scoped: boolean;
 };
 
 export type SummaryTone = "ok" | "warn" | "bad" | "run";
@@ -296,7 +296,7 @@ function sensorState(
   }
 
   const scope = freshnessScope(modules, input.scans ?? [], input.freshness);
-  const result = sensorFreshness(scope, measured, one.name === MUTATION_KEY);
+  const result = sensorFreshness(scope, measured, one.scoped);
 
   if (result.kind === "never-run") {
     gaps.set(one.name, [...modules]);
@@ -742,18 +742,21 @@ export function buildFreshnessModel(
       name: "Structure",
       state: structureState(input, modules),
       tickable: false,
+      scoped: false,
     },
     {
       key: DESCRIBE_KEY,
       name: "Descriptions",
       state: describeState(input, modules, gaps),
       tickable: true,
+      scoped: false,
     },
     ...sensors.map((one) => ({
       key: one.name,
       name: one.display,
       state: sensorState(one, input, modules, gaps),
       tickable: true,
+      scoped: one.scoped,
     })),
   ];
   const ticked = (key: string) => isTicked(input, sensors, key);

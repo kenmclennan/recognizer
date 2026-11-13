@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { collectFacts, FAKE_WORKER, here, webkit } from "./look-page";
+import { shippedSensor } from "./shipped-fake";
 
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const H1 = "1".repeat(64);
@@ -34,7 +35,7 @@ const scan = {
 const inputs = { "app/a.py": ${JSON.stringify(H1)}, "app/b.py": ${JSON.stringify(H2)} };
 const overlay = JSON.stringify({ overlay_version: 2, commit: ${JSON.stringify(COMMIT)}, modified: false, inputs, tests: ${JSON.stringify(TESTS)}, producer: { name: "crap", version: "0.1.0" }, metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }], values: { complexity: { "app/a.py::f": 8, "app/b.py::f": 5 } } });
 const loaded = loadedOf({ modules: ids, scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", text: overlay, modifiedMs: Date.now() }], sensors: [{ name: "crap", status: "ran", measured: { inputs, tests: ${JSON.stringify(TESTS)} } }], tests: ${JSON.stringify(TESTS)} });
-const SHIPPED = [{ name: "crap", display: "crap", line: "x", defaults: {}, runsTests: true, listed: true, metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }] }];
+const SHIPPED = ${JSON.stringify([{ ...shippedSensor("crap"), display: "crap", description: "x", runsTests: true, metrics: shippedSensor("crap").metrics.slice(0, 1) }])};
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));

@@ -55,10 +55,13 @@ const shippedList: ShippedSensors = {
   sensors: ["crap", "mutation", "duplication"].map((name) => ({
     name,
     display: name === "crap" ? "C.R.A.P." : name,
-    line: "x",
-    defaults: {},
+    description: "x",
     runsTests: false,
+    scoped: false,
     listed: true,
+    metrics: [],
+    findings: [],
+    settings: [],
   })),
 };
 const ranWith = (name: string, inputs: Record<string, string>) => ({
@@ -253,11 +256,13 @@ const SHIPPED: ShippedSensors = {
     return {
       name,
       display: manifest.display,
-      line: manifest.description,
-      defaults: {},
+      description: manifest.description,
       runsTests: manifest.runs_tests,
+      scoped: manifest.scoped,
       listed: true,
       metrics: manifest.metrics,
+      findings: manifest.findings,
+      settings: manifest.settings,
     };
   }),
 };
@@ -657,6 +662,7 @@ describe("freshnessNote", () => {
     name: "C.R.A.P.",
     state,
     tickable: true,
+    scoped: false,
   });
   const noteOf = (state: ResultState) =>
     freshnessNote(group, rowOf(state), NOW, shippedList);
@@ -818,7 +824,15 @@ describe("freshnessNote against the Scan panel model", () => {
 
       return {
         ...base,
-        rows: [{ key: "crap", name: "C.R.A.P.", state, tickable: true }],
+        rows: [
+          {
+            key: "crap",
+            name: "C.R.A.P.",
+            state,
+            tickable: true,
+            scoped: false,
+          },
+        ],
         modules: new Set(["a.py", "b.py"]),
         stale: new Map([["crap", new Set(stale)]]),
       };

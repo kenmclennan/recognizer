@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fakeSensors } from "./sensors-fake";
+import { shippedSensors } from "./shipped-fake";
 
 describe("fakeSensors describer", () => {
   it("returns the config's describer when it has one", async () => {
@@ -79,5 +80,27 @@ describe("fakeSensors readRunRecords", () => {
       ],
       refused: ["20260101T000000009Z-scan.json"],
     });
+  });
+});
+
+describe("the shipped list a fake serves", () => {
+  it("has entries that derive listed from their metrics and carry findings and settings arrays", async () => {
+    const fake = fakeSensors({}, {}, {}, shippedSensors());
+    const list = await fake.shipped();
+
+    expect(list.status).toBe("ok");
+
+    if (list.status !== "ok") {
+      return;
+    }
+
+    expect(list.sensors.length).toBeGreaterThan(0);
+
+    for (const entry of list.sensors) {
+      expect(entry.listed).toBe(entry.metrics.length > 0);
+      expect(Array.isArray(entry.findings)).toBe(true);
+      expect(Array.isArray(entry.settings)).toBe(true);
+      expect(Object.keys(entry)).not.toContain("defaults");
+    }
   });
 });

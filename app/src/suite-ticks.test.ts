@@ -9,6 +9,7 @@ import {
   scanPanel,
 } from "./scan-panel-model";
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
+import { plainSensor } from "./shipped-fake";
 import {
   foldSummary,
   languageTag,
@@ -52,19 +53,18 @@ const CONFIG = `tests:
 
 const SHIPPED: ShippedSensors = {
   status: "ok",
-  sensors: ["crap", "mutation", "duplication"].map((name) => ({
-    name,
-    display:
-      name === "crap"
-        ? "C.R.A.P."
-        : name === "mutation"
-          ? "Mutation"
-          : "Duplication",
-    line: "x",
-    defaults: {},
-    runsTests: name !== "duplication",
-    listed: true,
-  })),
+  sensors: ["crap", "mutation", "duplication"].map((name) =>
+    plainSensor(name, {
+      display:
+        name === "crap"
+          ? "C.R.A.P."
+          : name === "mutation"
+            ? "Mutation"
+            : "Duplication",
+      description: "x",
+      runsTests: name !== "duplication",
+    }),
+  ),
 };
 
 function ticks(over: Partial<ScanTicks> = {}): ScanTicks {

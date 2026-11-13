@@ -53,7 +53,13 @@ describe("look-support", () => {
   it("registeredOf keeps the display and drops the title", () => {
     expect(
       registeredOf([
-        { name: "crap", display: "CRAP", title: "t", runsTests: true },
+        {
+          name: "crap",
+          display: "CRAP",
+          title: "t",
+          runsTests: true,
+          scoped: false,
+        },
       ]),
     ).toEqual([{ name: "crap", display: "CRAP", runsTests: true }]);
   });

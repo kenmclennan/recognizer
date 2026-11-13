@@ -28,7 +28,6 @@ import {
 } from "./scan-estimate";
 import {
   DESCRIBE_KEY,
-  MUTATION_KEY,
   markStale,
   type PlannedRun,
   planFor,
@@ -80,7 +79,7 @@ export const NO_RUN: RunState = {
   ranAt: {},
 };
 
-export { DESCRIBE_KEY, MUTATION_KEY };
+export { DESCRIBE_KEY };
 
 export type ScanTicks = {
   describe: boolean;
@@ -106,6 +105,7 @@ export type RowSensor = {
   display: string;
   title: string;
   runsTests: boolean;
+  scoped: boolean;
   suites?: SuiteRef[];
 };
 
@@ -210,14 +210,14 @@ function readConfig(config: string | null): Config | null {
   }
 }
 
-const EXPANSIONS: Record<string, string> = {
-  crap: "C.R.A.P.: Change Risk Anti-Patterns.",
-};
+function titleFor(one: {
+  display: string;
+  description: string;
+  expansion?: string;
+}): string {
+  const text = one.description === "" ? one.display : one.description;
 
-function titleFor(one: { name: string; line: string }): string {
-  const expansion = EXPANSIONS[one.name];
-
-  return expansion === undefined ? one.line : `${expansion} ${one.line}`;
+  return one.expansion === undefined ? text : `${one.expansion} ${text}`;
 }
 
 function suitesOf(config: string | null): SuiteRef[] {
@@ -245,6 +245,7 @@ export function rowSensors(
         display: one.display,
         title: titleFor(one),
         runsTests: one.runsTests,
+        scoped: one.scoped,
         ...(one.runsTests && suites.length > 0 ? { suites } : {}),
       });
     }
@@ -256,7 +257,13 @@ export function rowSensors(
   if (parsed !== null) {
     for (const { name } of registeredSensors(parsed)) {
       if (!known.has(name)) {
-        rows.push({ name, display: name, title: name, runsTests: false });
+        rows.push({
+          name,
+          display: name,
+          title: name,
+          runsTests: false,
+          scoped: false,
+        });
       }
     }
   }
@@ -485,6 +492,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       name: row.name,
       runsTests:
         sensors.find((one) => one.name === row.key)?.runsTests === true,
+      scoped: sensors.find((one) => one.name === row.key)?.scoped === true,
     })),
   );
   const planned: PlannedRun = { ...unplanned, frozen: frozenFigures(parts) };

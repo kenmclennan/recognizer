@@ -8,7 +8,6 @@ import { type SuiteRef, suitePlan } from "./suite-ticks";
 export type ResultsMode = "bring" | "rescan";
 
 export const DESCRIBE_KEY = "describe";
-export const MUTATION_KEY = "mutation";
 
 export type SensorFreshness =
   | { kind: "never-run" }
@@ -137,6 +136,7 @@ export type FreshnessMessage = {
 export type PlanRow = {
   name: string;
   runsTests: boolean;
+  scoped: boolean;
   suites?: SuiteRef[];
 };
 
@@ -195,20 +195,19 @@ export function freshnessMessage(
     };
   }
 
-  const mutation = model.rows.find(({ key }) => key === MUTATION_KEY);
+  const never = model.rows.find(
+    (row) =>
+      row.scoped && row.state.kind === "never-run" && model.ticked(row.key),
+  );
 
-  if (
-    mutation === undefined ||
-    mutation.state.kind !== "never-run" ||
-    !model.ticked(MUTATION_KEY)
-  ) {
+  if (never === undefined) {
     return null;
   }
 
   return {
-    key: "scan-freshness:mutation-never-run",
-    text: "Mutation has not run here yet. Survived-mutant results are missing from this picture.",
-    label: `Run ${mutation.name}`,
+    key: `scan-freshness:${never.key}-never-run`,
+    text: `${never.name} has not run here yet. Its results are missing from this picture.`,
+    label: `Run ${never.name}`,
   };
 }
 
@@ -299,6 +298,7 @@ export function planFor(
         phases.sense,
         scope !== null && any ? scope.length : null,
         all.length,
+        new Set(rows.filter(({ scoped }) => scoped).map(({ name }) => name)),
       ),
     };
   }
@@ -314,6 +314,9 @@ export function planFor(
       gapOfRow(name).length > 0,
   );
   const scopedIds = new Set<string>();
+  const scopedNames = new Set(
+    rows.filter(({ scoped }) => scoped).map(({ name }) => name),
+  );
 
   if (describe) {
     for (const id of gapOfRow(DESCRIBE_KEY)) {
@@ -321,8 +324,8 @@ export function planFor(
     }
   }
 
-  if (sense.includes(MUTATION_KEY)) {
-    for (const id of gapOfRow(MUTATION_KEY)) {
+  for (const name of sense.filter((one) => scopedNames.has(one))) {
+    for (const id of gapOfRow(name)) {
       scopedIds.add(id);
     }
   }
@@ -355,6 +358,7 @@ export function planFor(
       sense,
       planModules === null ? null : planModules.length,
       all.length,
+      scopedNames,
     ),
   };
 }
@@ -364,6 +368,7 @@ function workOf(
   sense: string[],
   scoped: number | null,
   all: number,
+  scopedNames: ReadonlySet<string>,
 ): Record<string, number> {
   const work: Record<string, number> = {};
 
@@ -372,7 +377,7 @@ function workOf(
   }
 
   for (const name of sense) {
-    work[name] = name === MUTATION_KEY ? (scoped ?? all) : all;
+    work[name] = scopedNames.has(name) ? (scoped ?? all) : all;
   }
 
   return work;

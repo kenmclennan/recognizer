@@ -3,6 +3,7 @@ import {
   carryDuplication,
   type Diagnosis,
   duplicationUnmeasured,
+  type FindingEntry,
   type FindingsDocument,
   InputError,
   type Policy,
@@ -64,18 +65,31 @@ export type SensorInputs = {
 export type ShippedSensor = {
   name: string;
   display: string;
-  line: string;
-  defaults: Record<string, number | boolean | string>;
+  description: string;
+  expansion?: string;
   runsTests: boolean;
+  scoped: boolean;
   listed: boolean;
-  metrics?: ShippedMetric[];
+  metrics: ShippedMetric[];
+  findings: FindingEntry[];
+  settings: ShippedSetting[];
 };
 
 export type ShippedMetric = {
   name: string;
+  label: string;
+  title: string;
+  help: string;
   type: "ratio" | "count" | "number" | "boolean";
   granularity: "module" | "member";
   bad: "high" | "low";
+  published?: { value: number; source: string };
+};
+
+export type ShippedSetting = {
+  key: string;
+  type: string;
+  default?: string | number | boolean;
 };
 
 export type DescriberInEffect =
