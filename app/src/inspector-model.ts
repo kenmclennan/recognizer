@@ -67,7 +67,10 @@ export type InspectorMembers = {
   planned: (module: string) => string[];
   start: (module: string) => ScanMember[] | null;
   note: (module: string) => string | null;
+  whole: (module: string) => WholeModule | null;
 };
+
+export type WholeModule = "new" | "removed";
 
 export type MemberLook = "removed" | "planned";
 
@@ -125,6 +128,7 @@ export type CardRow = {
   table: MetricTable | null;
   mark?: MemberMark;
   look?: MemberLook;
+  whole?: WholeModule;
 };
 
 export type SwitchRow = { kind: "switch"; label: "Show private"; on: boolean };
@@ -867,7 +871,10 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
       ? placed.map((entry) => entry.item)
       : insertRemoved(placed, starts, removed);
   const planned = plannedCards(members?.planned(module) ?? [], placed, module);
-  const cards = [...ordered, ...planned];
+  const whole = members?.whole(module) ?? null;
+  const cards = [...ordered, ...planned].map((card) =>
+    whole === null ? card : { ...card, whole },
+  );
   const note = members?.note(module) ?? null;
 
   return [

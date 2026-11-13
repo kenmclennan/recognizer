@@ -37,11 +37,11 @@ function mount(files, port) {
   return { host, q, all };
 }
 
-async function inspect(m) {
+async function inspect(m, id = ID) {
   click(m.q(".view-list"));
   click(m.q(".view-item"));
   await tick(120);
-  click(m.q('.box[data-id="' + ID + '"] .box-body'));
+  click(m.q('.box[data-id="' + id + '"] .box-body'));
   await tick();
   click(m.all(".bar-button").find((b) => b.title === "Contents (I)"));
   await tick(120);
@@ -134,6 +134,26 @@ const facts = {};
     calls: unknownPort.memberCalls,
   };
 
+  const NEW_ID = "p/b.py";
+  const bothScan = { ...scanOf([order, helper, fresh]), modules: [{ id: ID, kind: "module", members: [order, helper, fresh] }, { id: NEW_ID, kind: "module", members: [order, helper] }] };
+  const bothLoaded = loadedOf({ modules: [ID, NEW_ID], scans: [{ file: "scan.json", scan: bothScan }] });
+  const wholePort = fakeViews({ chg: make({ change: { base: "main", head: "feat" } }) });
+  wholePort.ranges.set("main..feat", { baseCommit: "cur1234", headCommit: "cur1234", merged: false, changes: [{ status: "M", path: ID }, { status: "A", path: NEW_ID }] });
+  wholePort.members.set("main..feat", { baseScans: [scanOf([order, helper, gone])], headScans: [bothScan], files: [{ path: ID, base_text: BASE_TEXT, head_text: HEAD_TEXT }] });
+  const wholeHost = document.createElement("div");
+  wholeHost.style.cssText = "width:1400px;height:800px;display:flex;flex-direction:column";
+  document.body.append(wholeHost);
+  mountExplorer({ container: wholeHost, loaded: bothLoaded, title: "demo", views: wholePort, post: () => null });
+  const whole = { host: wholeHost, q: (s) => wholeHost.querySelector(s), all: (s) => [...wholeHost.querySelectorAll(s)] };
+  const wholeState = () => ({ cards: whole.all(".inspector-panel .card").length, tinted: whole.all(".inspector-panel .card.whole-new").length, bands: whole.all(".inspector-panel .member-band").length, borders: [...new Set(whole.all(".inspector-panel .card").map((c) => getComputedStyle(c).borderLeftColor))] });
+  await tick();
+  await inspect(whole, NEW_ID);
+  await tick(120);
+  facts.wholeNew = wholeState();
+  click(whole.q('.box[data-id="' + ID + '"] .box-body'));
+  await tick(120);
+  facts.wholeModified = wholeState();
+
   document.getElementById("out").textContent = btoa(JSON.stringify(facts));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -162,6 +182,15 @@ type Facts = {
   changeLegend: string[];
   apart: { bands: string[]; rows: string[] };
   unknown: { bands: number; notes: string[]; calls: string[] };
+  wholeNew: WholeFacts;
+  wholeModified: WholeFacts;
+};
+
+type WholeFacts = {
+  cards: number;
+  tinted: number;
+  bands: number;
+  borders: string[];
 };
 
 describe.skipIf(webkit === undefined)("member marks in a real browser", () => {
@@ -223,6 +252,16 @@ describe.skipIf(webkit === undefined)("member marks in a real browser", () => {
     expect(f.unknown.notes).toEqual([
       "Member marks could not be read for this range: config is broken",
     ]);
+  });
+
+  it("tints every card of a wholly added module and none of a modified one", () => {
+    expect(f.wholeNew.cards).toBeGreaterThan(0);
+    expect(f.wholeNew.tinted).toBe(f.wholeNew.cards);
+    expect(f.wholeNew.bands).toBe(0);
+    expect(f.wholeNew.borders).toHaveLength(1);
+    expect(f.wholeModified.cards).toBeGreaterThan(0);
+    expect(f.wholeModified.tinted).toBe(0);
+    expect(f.wholeModified.borders).not.toContain(f.wholeNew.borders[0]);
   });
 
   it("lists the three member icons under the module kinds in both legends", () => {

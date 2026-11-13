@@ -1441,6 +1441,11 @@ export function showExplorer(
             .map((entry) => entry.member),
         start: () => null,
         note: () => null,
+        whole: (module) => {
+          const kind = plan.proposed.get(module)?.kind;
+
+          return kind === "new" || kind === "removed" ? kind : null;
+        },
       };
     }
 
@@ -1458,6 +1463,11 @@ export function showExplorer(
       mark: (module, key) =>
         found === null ? null : (found.marks.get(module)?.get(key) ?? null),
       planned: () => [],
+      whole: (module) => {
+        const mark = info.marked.find((one) => one.id === module)?.mark;
+
+        return mark === "added" ? "new" : mark === "removed" ? "removed" : null;
+      },
       start: (module) => {
         if (found === null) {
           return null;

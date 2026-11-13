@@ -4583,3 +4583,16 @@ svg.i.chevron {
   color: var(--faint);
   cursor: default;
 }
+
+.card.whole-new {
+  border-left-color: var(--ok);
+}
+
+.card.whole-del {
+  border-left-color: var(--bad);
+}
+
+.card.whole-del .card-code {
+  color: var(--muted);
+  text-decoration: line-through;
+}
