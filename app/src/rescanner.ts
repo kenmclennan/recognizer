@@ -381,7 +381,7 @@ export function createRescanner<Carried>(
 
     const before = progress;
 
-    progress = foldRunLine(progress, event);
+    progress = foldRunLine(progress, event, now());
 
     if (event.event === "phase" && event.phase === "describe") {
       run = { ...run, started: DESCRIBE_KEY };
@@ -734,7 +734,10 @@ export function createRescanner<Carried>(
       ranAt: run.ranAt,
     };
 
-    progress = NO_PROGRESS;
+    progress = {
+      ...NO_PROGRESS,
+      timing: { ...NO_PROGRESS.timing, frozen: planned?.frozen ?? null },
+    };
     startedFrom = record?.run_id ?? null;
     ownRunId = null;
     ownEnd = null;

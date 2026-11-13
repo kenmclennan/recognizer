@@ -21,6 +21,7 @@ import {
   describeRateMs,
   estimateLine,
   estimateParts,
+  frozenFigures,
   NO_HISTORY,
   type ScanEstimate,
   type ScanHistory,
@@ -468,7 +469,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
     };
   }
 
-  const planned = planFor(
+  const unplanned = planFor(
     freshness,
     input.mode ?? "bring",
     input.ticks,
@@ -479,7 +480,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
   const history = input.history ?? NO_HISTORY;
   const parts = estimateParts(
     history,
-    planned,
+    unplanned,
     freshness.rows.map((row) => ({
       key: row.key,
       name: row.name,
@@ -487,6 +488,7 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
         sensors.find((one) => one.name === row.key)?.runsTests === true,
     })),
   );
+  const planned: PlannedRun = { ...unplanned, frozen: frozenFigures(parts) };
   const plain = sensors
     .filter(({ runsTests }) => !runsTests)
     .map(({ name }) => name);

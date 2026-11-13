@@ -1,6 +1,7 @@
 import { validateRunRecord } from "recognizer";
 import { STRUCTURE_KEY } from "./freshness-model";
 import { DESCRIBE_KEY, MUTATION_KEY, type PlannedRun } from "./scan-freshness";
+import type { ScanProgress } from "./scan-progress";
 
 export type SenseSample = {
   durationMs: number;
@@ -317,4 +318,106 @@ export function estimateLine(parts: readonly EstimatePart[]): ScanEstimate {
   ].join("\n");
 
   return { text, title };
+}
+
+export function frozenFigures(
+  parts: readonly EstimatePart[],
+): Record<string, number> {
+  return Object.fromEntries(
+    parts
+      .filter((one) => one.ms !== null)
+      .map((one) => [one.key, one.ms as number]),
+  );
+}
+
+export type RemainingInput = {
+  parts: { key: string; name: string }[];
+  progress: ScanProgress;
+  startedAt: number | null;
+  now: number;
+};
+
+export type Remaining = { text: string; title: string | null };
+
+function leftOf(frozen: number, since: number | null, now: number): number {
+  return since === null ? frozen : Math.max(0, frozen - (now - since));
+}
+
+export function remaining(input: RemainingInput): Remaining | null {
+  const { progress, now } = input;
+  const { frozen, phaseAt, sensorAt, describeFrom } = progress.timing;
+
+  if (frozen === null || Object.keys(frozen).length === 0) {
+    return null;
+  }
+
+  const finishedSensors = new Set(
+    (progress.sense?.entries ?? []).map((entry) => entry.name),
+  );
+  const uncounted: string[] = [];
+  let total = 0;
+
+  for (const { key, name } of input.parts) {
+    const figure = frozen[key];
+
+    if (figure === undefined) {
+      uncounted.push(name);
+
+      continue;
+    }
+
+    if (key === STRUCTURE_KEY) {
+      total +=
+        phaseAt.describe !== undefined || phaseAt.sense !== undefined
+          ? 0
+          : leftOf(figure, input.startedAt, now);
+
+      continue;
+    }
+
+    if (key === DESCRIBE_KEY) {
+      const describing = progress.describe;
+      const done = describing?.entries.length ?? 0;
+
+      if (progress.describeSkipped || progress.sense !== null) {
+        continue;
+      }
+
+      if (phaseAt.describe === undefined || progress.describeAsk !== null) {
+        total += figure;
+
+        continue;
+      }
+
+      if (describing !== null && done >= describing.total) {
+        continue;
+      }
+
+      total += leftOf(figure, describeFrom, now);
+
+      continue;
+    }
+
+    if (finishedSensors.has(key)) {
+      continue;
+    }
+
+    const started = sensorAt[key];
+
+    if (started === undefined) {
+      total += figure;
+
+      continue;
+    }
+
+    total += leftOf(figure, started, now);
+  }
+
+  return {
+    text: `${roundedTime(total)} left`,
+    title:
+      uncounted.length === 0
+        ? null
+        : `not counting ${uncounted.join(", ")}: no estimate yet`,
+  };
 }

@@ -1627,4 +1627,11 @@ describe("scanPanel estimate line", () => {
     expect(bring.planned?.work.describe).toBe(1);
     expect(full.planned?.work.describe).toBe(3);
   });
+
+  it("freezes the figures the run will count", () => {
+    expect(scanPanel(mutating()).planned?.frozen).toEqual({
+      structure: 6000,
+      mutation: 160000,
+    });
+  });
 });

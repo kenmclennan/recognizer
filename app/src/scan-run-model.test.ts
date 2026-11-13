@@ -407,3 +407,57 @@ describe("the run model", () => {
     }
   });
 });
+
+describe("the time slot while an app-driven scan runs", () => {
+  const T0 = NOW - 60_000;
+  const timing = (over: Partial<ScanProgress["timing"]>) => ({
+    ...NO_PROGRESS.timing,
+    ...over,
+  });
+  const running = (
+    over: Partial<ScanRunRecord>,
+    progress: Partial<ScanProgress>,
+  ) =>
+    model(view({ started_at: new Date(T0).toISOString(), ...over }, progress));
+
+  it("reads about N min left from the frozen figures", () => {
+    const card = running(
+      { sensors: ["crap"] },
+      {
+        timing: timing({
+          frozen: { structure: 0, crap: 600_000 },
+          sensorAt: { crap: T0 },
+        }),
+      },
+    )?.card;
+
+    expect(card?.when.text).toBe("about 9 min left");
+    expect(card?.when.title).toBeUndefined();
+  });
+
+  it("names the parts it is not counting in the hover", () => {
+    const card = running(
+      {},
+      { timing: timing({ frozen: { structure: 0, crap: 600_000 } }) },
+    )?.card;
+
+    expect(card?.when.title).toBe("not counting Mutation: no estimate yet");
+  });
+
+  it("keeps the clock when nothing was frozen", () => {
+    expect(running({}, {})?.card.when.text).toMatch(/^\d\d:\d\d$/);
+  });
+
+  it("keeps the clock on a finished card and in every other phase", () => {
+    const frozen = timing({ frozen: { structure: 0, crap: 600_000 } });
+
+    for (const phase of ["finished", "stopped", "checking"] as const) {
+      const card = running(
+        { phase, ended_at: ENDED },
+        { timing: frozen },
+      )?.card;
+
+      expect(card?.when.text).toMatch(/^\d\d:\d\d$/);
+    }
+  });
+});

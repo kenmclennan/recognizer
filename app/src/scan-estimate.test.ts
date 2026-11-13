@@ -3,12 +3,16 @@ import {
   describeRateMs,
   estimateLine,
   estimateParts,
+  frozenFigures,
   NO_ESTIMATE_TEXT,
   type PartSpec,
+  remaining,
   roundedTime,
   scanHistory,
 } from "./scan-estimate";
 import { OPEN_RUN, type PlannedRun } from "./scan-freshness";
+import { NO_PROGRESS, type ScanProgress } from "./scan-progress";
+import { foldRunLine } from "./scan-run-model";
 
 type SenseEntry = {
   name: string;
@@ -426,7 +430,107 @@ describe("the estimate line", () => {
     expect(parts.map((one) => one.key)).toEqual(["structure"]);
   });
 
+  it("freezes only the parts that have a figure", () => {
+    const parts = estimateParts(
+      scanHistory(files),
+      planned({ crap: 40, mutation: 40 }, ["crap", "mutation"]),
+      rows,
+    );
+
+    expect(Object.keys(frozenFigures(parts))).toEqual(["structure", "crap"]);
+  });
+
   it("derives the describe rate from wall time over ok entries", () => {
     expect(describeRateMs(scanHistory(files))).toBe(4000);
+  });
+});
+
+const T = 1_000_000;
+
+function fold(
+  state: ScanProgress,
+  events: [number, Parameters<typeof foldRunLine>[1]][],
+) {
+  return events.reduce(
+    (next, [at, event]) => foldRunLine(next, event, at),
+    state,
+  );
+}
+
+function frozen(figures: Record<string, number>): ScanProgress {
+  return { ...NO_PROGRESS, timing: { ...NO_PROGRESS.timing, frozen: figures } };
+}
+
+const PARTS = [
+  { key: "structure", name: "Structure" },
+  { key: "describe", name: "Descriptions" },
+  { key: "mutation", name: "Mutation" },
+];
+
+describe("remaining time while running", () => {
+  const describing = (done: number) =>
+    fold(frozen({ structure: 0, describe: 90_000 }), [
+      [T, { event: "phase", phase: "describe", total: 12 }],
+      ...Array.from(
+        { length: done },
+        (_, at): [number, Parameters<typeof foldRunLine>[1]] => [
+          T + (at + 1) * 10_000,
+          {
+            event: "entry",
+            phase: "describe",
+            name: `m${at}`,
+            outcome: "ok",
+          },
+        ],
+      ),
+    ]);
+  const left = (
+    progress: ScanProgress,
+    now: number,
+    parts = PARTS.slice(0, 2),
+  ) => remaining({ parts, progress, startedAt: T, now });
+
+  it("is the frozen figure minus the time spent describing", () => {
+    expect(left(describing(2), T + 20_000)?.text).toBe("about 1 min left");
+  });
+
+  it("keeps the whole figure while waiting for the describe answer", () => {
+    const asked = foldRunLine(
+      describing(0),
+      {
+        event: "confirm",
+        phase: "describe",
+        modules: 12,
+        model: "m",
+        inputTokens: 1,
+        costUsd: 1,
+      },
+      T + 5_000,
+    );
+
+    expect(left(asked, T + 50_000)?.text).toBe("about 2 min left");
+  });
+
+  it("names a part with no frozen figure and does not count it", () => {
+    const result = remaining({
+      parts: PARTS,
+      progress: frozen({ structure: 0, describe: 60_000 }),
+      startedAt: T,
+      now: T,
+    });
+
+    expect(result?.title).toBe("not counting Mutation: no estimate yet");
+  });
+
+  it("keeps the clock when no part has a figure", () => {
+    expect(
+      remaining({
+        parts: PARTS,
+        progress: NO_PROGRESS,
+        startedAt: T,
+        now: T,
+      }),
+    ).toBeNull();
+    expect(left(frozen({}), T)).toBeNull();
   });
 });

@@ -1976,7 +1976,11 @@ describe("one fold of the run record", () => {
       const own = await viaWindow(name);
       const other = await viaCommandLine(name);
       const progressOf = (made: typeof own) => {
-        const { sensing: _sensing, ...rest } = made.rescanner.progress();
+        const {
+          sensing: _sensing,
+          timing: _timing,
+          ...rest
+        } = made.rescanner.progress();
 
         return rest;
       };

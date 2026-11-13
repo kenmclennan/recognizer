@@ -316,6 +316,10 @@ function cardNode(card: RunCard, actions: ScanPanelActions): HTMLElement {
 
   when.append(card.when.text);
 
+  if (card.when.title !== undefined) {
+    when.title = card.when.title;
+  }
+
   head.append(el("span", "summary-head-text", card.head), when);
   text.append(head);
 

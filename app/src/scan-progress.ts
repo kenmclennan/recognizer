@@ -73,6 +73,14 @@ export type ScanProgress = {
   stopped: boolean;
   sensing: string | null;
   log: string | null;
+  timing: ScanTiming;
+};
+
+export type ScanTiming = {
+  phaseAt: Record<string, number>;
+  sensorAt: Record<string, number>;
+  describeFrom: number | null;
+  frozen: Record<string, number> | null;
 };
 
 export type ShowTarget =
@@ -94,6 +102,12 @@ export const NO_PROGRESS: ScanProgress = {
   stopped: false,
   sensing: null,
   log: null,
+  timing: {
+    phaseAt: {},
+    sensorAt: {},
+    describeFrom: null,
+    frozen: null,
+  },
 };
 
 const PHASES: readonly string[] = ["extract", "describe", "sense"];
