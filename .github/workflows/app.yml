@@ -9,6 +9,8 @@ on:
       - scripts/**
       - packaging/**
       - scanners/**
+      - sensors/**
+      - describers/**
       - THIRD-PARTY-NOTICES.md
       - package.json
       - package-lock.json
@@ -23,6 +25,8 @@ on:
       - scripts/**
       - packaging/**
       - scanners/**
+      - sensors/**
+      - describers/**
       - THIRD-PARTY-NOTICES.md
       - package.json
       - package-lock.json
