@@ -499,7 +499,7 @@ def first_run(tmp_path, counting, capsys):
 
     assert run_mutate(root, output, settings(max_workers=1)) == 0
     assert summary(capsys) == (
-        "0 of 3 functions reused, 3 mutated, 0 skipped (uncovered-by-budget)"
+        "0 of 3 functions reused, 2 mutated, 0 skipped (uncovered-by-budget)"
     )
 
     return root, commit, output, runs()
@@ -654,16 +654,16 @@ def edit_conftest(root):
 
 
 @pytest.mark.parametrize(
-    ("change", "reused"),
+    ("change", "reused", "mutated"),
     [
-        (edit_test, 0),
-        (add_untracked_test, 0),
-        (delete_test, 0),
-        (edit_conftest, 1),
+        (edit_test, 0, 2),
+        (add_untracked_test, 0, 2),
+        (delete_test, 0, 2),
+        (edit_conftest, 1, 2),
     ],
     ids=["edited", "untracked", "deleted", "conftest"],
 )
-def test_a_changed_test_file_forces_a_full_run(tmp_path, counting, capsys, change, reused):
+def test_a_changed_test_file_forces_a_full_run(tmp_path, counting, capsys, change, reused, mutated):
     settings, runs = counting
     root, commit, output, after_first = first_run(tmp_path, counting, capsys)
     change(root)
@@ -673,7 +673,7 @@ def test_a_changed_test_file_forces_a_full_run(tmp_path, counting, capsys, chang
     err = capsys.readouterr().err
 
     assert "test files changed" not in err
-    assert f"{reused} of 3 functions reused, {3 - reused} mutated" in err
+    assert f"{reused} of 3 functions reused, {mutated} mutated" in err
     assert runs() > after_first
     assert read(root / RECORD)["commit"] == commit
 
@@ -856,7 +856,7 @@ def test_a_budgeted_run_skips_what_it_could_not_start_and_the_next_run_resumes(
 
     assert run_mutate(root, output, settings(max_workers=1, max_minutes=1)) == 0
     assert summary(capsys) == (
-        "0 of 3 functions reused, 2 mutated, 1 skipped (uncovered-by-budget)"
+        "0 of 3 functions reused, 1 mutated, 1 skipped (uncovered-by-budget)"
     )
 
     budgeted = read(tmp_path / "findings-overlay.json")

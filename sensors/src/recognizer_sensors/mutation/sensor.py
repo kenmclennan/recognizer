@@ -1475,7 +1475,7 @@ def measure(
                 "line": f"the run ended early: {refused.diagnosis['line']}",
             },
         )
-    mutated = len(measured) - reused
+    mutated = sum(1 for target in measured if target.to_run and not target.carried)
 
     if sizing_line is not None:
         print(sizing_line, file=sys.stderr)
