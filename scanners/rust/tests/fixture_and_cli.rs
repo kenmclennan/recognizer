@@ -185,3 +185,28 @@ fn integration_tests_in_the_fixture_are_absent_from_the_scan() {
 
     assert!(ids.iter().all(|id| !id.contains("tests/")));
 }
+
+#[test]
+fn output_is_written_by_renaming_a_temporary_file_over_the_target() {
+    use std::os::unix::fs::MetadataExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("scan.json");
+    fs::write(&target, "previous").unwrap();
+    let inode = fs::metadata(&target).unwrap().ino();
+
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_recognizer-scan-rust"))
+        .arg("run")
+        .arg(repository().join("fixtures/rust/sample"))
+        .arg("--output")
+        .arg(&target)
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    assert_ne!(fs::metadata(&target).unwrap().ino(), inode);
+    assert!(
+        serde_json::from_str::<serde_json::Value>(&fs::read_to_string(&target).unwrap()).is_ok()
+    );
+    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+}

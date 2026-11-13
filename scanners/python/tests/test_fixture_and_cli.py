@@ -283,3 +283,16 @@ def test_a_bare_path_and_a_flag_are_not_verbs(tmp_path):
 
         assert result.returncode == 2
         assert "manifest, check, run, guide" in result.stderr
+
+
+def test_output_is_written_by_renaming_a_temporary_file_over_the_target(tmp_path):
+    output = tmp_path / "scan.json"
+    output.write_text("previous")
+    inode = output.stat().st_ino
+
+    result = run_cli(str(FIXTURE_ROOT), "--output", str(output))
+
+    assert result.returncode == 0
+    assert output.stat().st_ino != inode
+    assert json.loads(output.read_text())["scanner"]["name"]
+    assert [path.name for path in tmp_path.iterdir()] == ["scan.json"]

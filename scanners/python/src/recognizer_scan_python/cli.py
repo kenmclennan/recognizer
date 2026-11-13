@@ -1,6 +1,8 @@
 import argparse
+import os
 import subprocess
 import sys
+import tempfile
 from importlib.metadata import version
 from pathlib import Path
 
@@ -67,6 +69,20 @@ PROG = "recognizer-scan-python"
 VERBS_TEXT = "manifest, check, run, guide"
 
 
+def write_atomically(text: str, output: Path) -> None:
+    handle, temporary = tempfile.mkstemp(dir=output.parent, prefix=f".{output.name}.")
+
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as stream:
+            stream.write(text)
+
+        os.replace(temporary, output)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+
+        raise
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
 
@@ -127,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
     text = render(document)
 
     if args.output:
-        args.output.write_text(text, encoding="utf-8")
+        write_atomically(text, args.output)
     else:
         sys.stdout.write(text)
 
