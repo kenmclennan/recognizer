@@ -1,4 +1,5 @@
 import type { FindingRecord } from "recognizer";
+import { EMPTY_CATALOG, type FindingCatalog } from "./finding-catalog";
 import { sentenceOf, shortName } from "./finding-sentence";
 import type { FindingRow } from "./findings-order";
 
@@ -52,7 +53,10 @@ function subjectOf(row: FindingRow): { name: string; folder: string } {
   return { name: shortName(module), folder: folderOf(module) };
 }
 
-export function cardOf(row: FindingRow): CardModel {
+export function cardOf(
+  row: FindingRow,
+  catalog: FindingCatalog = EMPTY_CATALOG,
+): CardModel {
   const { record } = row;
   const subject = subjectOf(row);
   const rows: CardRowModel[] = [];
@@ -119,7 +123,7 @@ export function cardOf(row: FindingRow): CardModel {
     id: row.id,
     name: subject.name,
     folder: subject.folder,
-    sentence: sentenceOf({ record, reported: row.reported }),
+    sentence: sentenceOf({ record, reported: row.reported }, catalog),
     rows,
   };
 }

@@ -1,8 +1,10 @@
 import {
   type FindingRecord,
   libraryApiHint,
+  renderSentence,
   unusedTestOnlySentence,
 } from "recognizer";
+import { EMPTY_CATALOG, type FindingCatalog } from "./finding-catalog";
 
 export type SentenceInput = {
   record: FindingRecord;
@@ -15,10 +17,6 @@ export function shortName(path: string): string {
 
 function num(value: number): string {
   return String(Math.round(value * 100) / 100);
-}
-
-function whole(value: number): string {
-  return String(Math.round(value));
 }
 
 function plural(count: number, one: string, many: string): string {
@@ -150,28 +148,6 @@ function duplication(record: FindingRecord): string | null {
   return `${members.length} functions repeat one structure: ${list}${tail}.`;
 }
 
-function crap(record: FindingRecord): string | null {
-  const member = record.evidence.members?.[0];
-  const measures = record.evidence.measures;
-
-  if (member === undefined || measures?.complexity === undefined) {
-    return null;
-  }
-
-  const head = `${member.name} in ${shortName(member.module)} has complexity ${num(measures.complexity)}`;
-
-  if (measures.coverage === undefined || measures.crap === undefined) {
-    return `${head} and unknown coverage.`;
-  }
-
-  const tuned =
-    measures.published === undefined
-      ? ""
-      : ` (Savoia and Evans say ${num(measures.published)})`;
-
-  return `${head} and ${whole(measures.coverage * 100)}% coverage, C.R.A.P. ${whole(measures.crap)}${tuned}.`;
-}
-
 function longFunction(record: FindingRecord): string | null {
   const member = record.evidence.members?.[0];
   const lines = record.evidence.measures?.lines;
@@ -188,52 +164,6 @@ function longFunction(record: FindingRecord): string | null {
       : `this repository's limit of ${num(limit)} (Clean Code says ${num(published)})`;
 
   return `${member.name} in ${shortName(member.module)} is ${num(lines)} lines, over ${reach} - functions should be small (Martin, Clean Code, 2008).`;
-}
-
-function mutation(record: FindingRecord): string | null {
-  const member = record.evidence.members?.[0];
-  const survived = record.evidence.measures?.survived;
-
-  if (member === undefined || survived === undefined) {
-    return null;
-  }
-
-  return `${member.name} in ${shortName(member.module)} has ${num(survived)} surviving ${plural(survived, "mutation", "mutations")}.`;
-}
-
-function threshold(record: FindingRecord): string | null {
-  const measures = record.evidence.measures;
-  const metric = record.kind.slice("thresholds.".length);
-  const member = record.evidence.members?.[0];
-  const module = member?.module ?? record.evidence.modules[0];
-
-  if (
-    measures?.value === undefined ||
-    measures.line === undefined ||
-    module === undefined
-  ) {
-    return null;
-  }
-
-  const subject =
-    member === undefined
-      ? shortName(module)
-      : `${member.name} in ${shortName(module)}`;
-  const limit =
-    measures.value > measures.line
-      ? "over the limit of"
-      : measures.value < measures.line
-        ? "under the limit of"
-        : "at the limit of";
-
-  const says =
-    measures.published === undefined
-      ? ""
-      : metric === "coverage"
-        ? ` (Google's guidelines say ${whole(measures.published * 100)}%)`
-        : ` (McCabe says ${num(measures.published)})`;
-
-  return `${subject} has ${metric} ${num(measures.value)}, ${limit} ${num(measures.line)}${says}.`;
 }
 
 function orphan(record: FindingRecord): string | null {
@@ -274,20 +204,31 @@ const TEMPLATES: Record<string, (record: FindingRecord) => string | null> = {
   private_imports: privateImports,
   long_function: longFunction,
   duplication,
-  crap,
-  mutation,
 };
 
-export function sentenceOf(input: SentenceInput): string {
+export function sentenceOf(
+  input: SentenceInput,
+  catalog: FindingCatalog = EMPTY_CATALOG,
+): string {
   const { record, reported } = input;
 
   if (reported) {
     return record.summary;
   }
 
-  const build = record.kind.startsWith("thresholds.")
-    ? threshold
-    : TEMPLATES[record.kind];
+  const planned = catalog.groupFor(record.kind);
 
-  return build?.(record) ?? record.summary;
+  if (planned !== undefined) {
+    return renderSentence(
+      {
+        kind: planned.pattern,
+        group: { name: planned.name, ...planned.help },
+        help: "",
+        sentence: planned.sentence,
+      },
+      record,
+    );
+  }
+
+  return TEMPLATES[record.kind]?.(record) ?? record.summary;
 }

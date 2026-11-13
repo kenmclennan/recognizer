@@ -3,8 +3,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { FindingRecord, FindingsDocument } from "recognizer";
 import { describe, expect, it } from "vitest";
+import { buildCatalog } from "./finding-catalog";
 import { sentenceOf } from "./finding-sentence";
 import { findingRows } from "./findings-order";
+import { shippedSensors } from "./shipped-fake";
+
+const CATALOG = buildCatalog({ status: "ok", sensors: shippedSensors() });
 
 const examples = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -54,7 +58,7 @@ function record(over: Partial<FindingRecord>): FindingRecord {
 }
 
 const sentence = (over: Partial<FindingRecord>, reported = false) =>
-  sentenceOf({ record: record(over), reported });
+  sentenceOf({ record: record(over), reported }, CATALOG);
 
 describe("unused_exports test-only names", () => {
   const unused = (members: { name: string; test_files?: string[] }[]) =>
@@ -101,7 +105,7 @@ describe("the committed findings examples", () => {
 
     expect(
       rows.map((row) =>
-        sentenceOf({ record: row.record, reported: row.reported }),
+        sentenceOf({ record: row.record, reported: row.reported }, CATALOG),
       ),
     ).toEqual(PINNED);
   });

@@ -419,7 +419,7 @@ function rowNode(
   return buildFindingGroup(
     row.group,
     row.open,
-    row.group.rows.map(cardOf),
+    row.group.rows.map((one) => cardOf(one, row.catalog)),
     { active: actions.focusedFinding(), absent: actions.moduleAbsent },
     {
       toggle: actions.focusFinding,

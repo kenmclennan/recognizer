@@ -1,18 +1,15 @@
-import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  type FindingEntry,
-  type FindingRecord,
-  type FindingsDocument,
-  renderSentence,
-} from "recognizer";
+import type { FindingRecord, FindingsDocument } from "recognizer";
 import { describe, expect, it } from "vitest";
+import { buildCatalog } from "./finding-catalog";
 import { sentenceOf } from "./finding-sentence";
+import { shippedSensors } from "./shipped-fake";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const EXAMPLES = join(REPO, "schema/findings-examples/valid");
+const CATALOG = buildCatalog({ status: "ok", sensors: shippedSensors() });
 
 const KINDS = [
   { sensor: "crap", match: (kind: string) => kind === "crap" },
@@ -23,24 +20,60 @@ const KINDS = [
   },
 ];
 
-function entryOf(sensor: string): FindingEntry {
-  const text = execFileSync(
-    "uv",
-    [
-      "run",
-      "--project",
-      join(REPO, "sensors"),
-      `recognizer-sense-${sensor}`,
-      "manifest",
-    ],
-    { encoding: "utf8" },
-  );
-  const [entry] = (JSON.parse(text) as { findings: FindingEntry[] }).findings;
+const OLD_EXAMPLE_SENTENCES: Record<string, string> = {
+  "counts.json|mutation|mutation:app/rules.py::grade":
+    "grade in rules.py has 2 surviving mutations.",
+  "crap.json|crap|crap:app/risk.py::classify":
+    "classify in risk.py has complexity 8 and 18% coverage, C.R.A.P. 43.",
+  "diagnosis-custom-code.json|crap|crap:app/risk.py::classify":
+    "classify in risk.py has complexity 8 and 18% coverage, C.R.A.P. 43.",
+  "diagnosis-unmeasured.json|crap|crap:app/risk.py::classify":
+    "classify in risk.py has complexity 8 and 18% coverage, C.R.A.P. 43.",
+  "diagnosis.json|crap|crap:app/risk.py::classify":
+    "classify in risk.py has complexity 8 and 18% coverage, C.R.A.P. 43.",
+  "excluded.json|mutation|mutation:app/rules.py::grade":
+    "grade in rules.py has 2 surviving mutations.",
+  "mutation.json|mutation|mutation:app/rules.py::grade":
+    "grade in rules.py has 2 surviving mutations.",
+  "partial.json|mutation|mutation:app/rules.py::grade":
+    "grade in rules.py has 2 surviving mutations.",
+  "stopped.json|mutation|mutation:app/rules.py::grade":
+    "grade in rules.py has 2 surviving mutations.",
+  "suites.json|crap|crap:app/risk.py::classify":
+    "classify in risk.py has complexity 8 and 18% coverage, C.R.A.P. 43.",
+  "thresholds.json|thresholds.churn|thresholds:churn:app/billing.py":
+    "billing.py has churn 25, over the limit of 20.",
+  "thresholds.json|thresholds.complexity|thresholds:complexity:app/billing.py::price":
+    "price in billing.py has complexity 14, over the limit of 10.",
+  "unowned.json|mutation|mutation:app/rules.py::grade":
+    "grade in rules.py has 2 surviving mutations.",
+};
 
-  return entry as FindingEntry;
-}
+const OLD_HAND_SENTENCES: Record<string, string[]> = {
+  crap: [
+    "f in m.py has complexity 8.46 and unknown coverage.",
+    "f in m.py has complexity 8 and 50% coverage, C.R.A.P. 12 (Savoia and Evans say 30).",
+    "f in m.py has complexity 8 and 50% coverage, C.R.A.P. 12 (Savoia and Evans say 12.5).",
+    "the summary",
+  ],
+  mutation: [
+    "f in m.py has 1 surviving mutation.",
+    "f in m.py has 0 surviving mutations.",
+    "the summary",
+  ],
+  thresholds: [
+    "m.py has complexity 10, at the limit of 10.",
+    "m.py has complexity 4.5, under the limit of 10.",
+    "f in m.py has complexity 14, over the limit of 12 (McCabe says 10).",
+    "m.py has coverage 0.4, under the limit of 0.7 (Google's guidelines say 60%).",
+    "m.py has churn 25, over the limit of 20 (McCabe says 15).",
+    "the summary",
+  ],
+};
 
-function exampleRecords(match: (kind: string) => boolean): FindingRecord[] {
+function exampleRecords(
+  match: (kind: string) => boolean,
+): { file: string; record: FindingRecord }[] {
   return readdirSync(EXAMPLES)
     .filter((name) => name.endsWith(".json"))
     .flatMap((name) =>
@@ -48,7 +81,9 @@ function exampleRecords(match: (kind: string) => boolean): FindingRecord[] {
         JSON.parse(
           readFileSync(join(EXAMPLES, name), "utf8"),
         ) as FindingsDocument
-      ).findings.filter((record) => match(record.kind)),
+      ).findings
+        .filter((record) => match(record.kind))
+        .map((record) => ({ file: name, record })),
     );
 }
 
@@ -110,39 +145,43 @@ const HAND_BUILT: Record<string, FindingRecord[]> = {
   ],
 };
 
-describe.each(KINDS)("the $sensor manifest sentence", ({ sensor, match }) => {
-  const entry = entryOf(sensor);
+const catalogSentence = (one: FindingRecord) =>
+  sentenceOf({ record: one, reported: false }, CATALOG);
+
+describe.each(KINDS)("the $sensor catalog sentence", ({ sensor, match }) => {
   const examples = exampleRecords(match);
 
   it("is rendered for at least one record of the kind in the examples", () => {
     expect(examples.length).toBeGreaterThan(0);
   });
 
-  it.each(examples.map((one) => [`${one.kind} ${one.id}`, one] as const))(
-    "renders what sentenceOf returns for %s",
-    (_, one) => {
-      expect(renderSentence(entry, one)).toBe(
-        sentenceOf({ record: one, reported: false }),
+  it.each(
+    examples.map(
+      ({ file, record: one }) =>
+        [`${one.kind} ${one.id} in ${file}`, file, one] as const,
+    ),
+  )("renders what the removed builder returned for %s", (_, file, one) => {
+    expect(catalogSentence(one)).toBe(
+      OLD_EXAMPLE_SENTENCES[`${file}|${one.kind}|${one.id}`],
+    );
+  });
+
+  it.each(
+    (HAND_BUILT[sensor] as FindingRecord[]).map(
+      (one, index) => [`${one.kind} case ${index}`, one, index] as const,
+    ),
+  )(
+    "renders what the removed builder returned for the hand-built %s",
+    (_, one, index) => {
+      expect(catalogSentence(one)).toBe(
+        (OLD_HAND_SENTENCES[sensor] as string[])[index],
       );
     },
   );
 
-  it.each(
-    (HAND_BUILT[sensor] as FindingRecord[]).map(
-      (one, index) => [`${one.kind} case ${index}`, one] as const,
-    ),
-  )("renders what sentenceOf returns for the hand-built %s", (_, one) => {
-    expect(renderSentence(entry, one)).toBe(
-      sentenceOf({ record: one, reported: false }),
-    );
-  });
-
   it("shows the finding's own summary when a required path is missing", () => {
     const bare = record(sensor === "thresholds" ? "thresholds.x" : sensor, {});
 
-    expect(renderSentence(entry, bare)).toBe("the summary");
-    expect(renderSentence(entry, bare)).toBe(
-      sentenceOf({ record: bare, reported: false }),
-    );
+    expect(catalogSentence(bare)).toBe("the summary");
   });
 });

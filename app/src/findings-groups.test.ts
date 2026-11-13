@@ -102,10 +102,13 @@ describe("groupsOf", () => {
     expect(groups.map((one) => one.key)).toContain("kind:cycle");
     expect(shown?.rows).toHaveLength(1);
     expect(
-      sentenceOf({
-        record: shown?.rows[0]?.record as FindingRecord,
-        reported: false,
-      }),
+      sentenceOf(
+        {
+          record: shown?.rows[0]?.record as FindingRecord,
+          reported: false,
+        },
+        CATALOG,
+      ),
     ).toBe("folder a depends on folder b, which is less stable");
   });
 
@@ -123,10 +126,13 @@ describe("groupsOf", () => {
     expect(groups.map((one) => one.key)).toContain("kind:cycle");
     expect(shown?.rows).toHaveLength(1);
     expect(
-      sentenceOf({
-        record: shown?.rows[0]?.record as FindingRecord,
-        reported: false,
-      }),
+      sentenceOf(
+        {
+          record: shown?.rows[0]?.record as FindingRecord,
+          reported: false,
+        },
+        CATALOG,
+      ),
     ).toBe("app/place.py is imported by 3 modules and imports 3");
   });
 

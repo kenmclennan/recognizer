@@ -4359,7 +4359,9 @@ export function showExplorer(
       groups: shownGroups.map((group) => ({
         group,
         open: openGroups.has(group.key),
-        cards: openGroups.has(group.key) ? group.rows.map(cardOf) : [],
+        cards: openGroups.has(group.key)
+          ? group.rows.map((row) => cardOf(row, catalog))
+          : [],
         none:
           group.rows.length === 0 || noneYet(ownerOf(catalog, group.key) ?? ""),
       })),
