@@ -1,0 +1,144 @@
+[
+  {
+    "name": "python",
+    "extensions": [
+      ".py"
+    ],
+    "files": [],
+    "skip": {
+      "directory_names": [
+        "__pycache__",
+        "test",
+        "tests",
+        "dist",
+        "build",
+        "node_modules",
+        "site-packages"
+      ],
+      "directory_prefixes": [
+        "."
+      ],
+      "directory_suffixes": [
+        ".egg-info"
+      ],
+      "directory_markers": [
+        "pyvenv.cfg"
+      ],
+      "file_globs": [
+        "conftest.py"
+      ]
+    }
+  },
+  {
+    "name": "typescript",
+    "extensions": [
+      ".ts",
+      ".tsx",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".cjs",
+      ".mts",
+      ".cts"
+    ],
+    "files": [
+      "tsconfig.json"
+    ],
+    "skip": {
+      "directory_names": [
+        "node_modules",
+        "dist",
+        "build",
+        "test",
+        "tests",
+        "__tests__"
+      ],
+      "directory_prefixes": [
+        "."
+      ],
+      "directory_suffixes": [],
+      "directory_markers": [],
+      "file_globs": [
+        "*.d.ts",
+        "*.d.mts",
+        "*.d.cts",
+        "*.test.*",
+        "*.spec.*"
+      ]
+    }
+  },
+  {
+    "name": "kotlin",
+    "extensions": [
+      ".kt"
+    ],
+    "files": [],
+    "skip": {
+      "directory_names": [
+        "build",
+        "test",
+        "androidTest",
+        "integrationTest",
+        "testFixtures",
+        "test-fixtures"
+      ],
+      "directory_prefixes": [
+        "."
+      ],
+      "directory_suffixes": [
+        "Test"
+      ],
+      "directory_markers": [],
+      "file_globs": [
+        "*Test.kt",
+        "*Tests.kt"
+      ]
+    }
+  },
+  {
+    "name": "rust",
+    "extensions": [
+      ".rs"
+    ],
+    "files": [],
+    "skip": {
+      "directory_names": [
+        "target",
+        "node_modules",
+        "tests"
+      ],
+      "directory_prefixes": [
+        "."
+      ],
+      "directory_suffixes": [],
+      "directory_markers": [],
+      "file_globs": []
+    }
+  },
+  {
+    "name": "csharp",
+    "extensions": [
+      ".cs",
+      ".razor",
+      ".cshtml",
+      ".xaml"
+    ],
+    "files": [],
+    "skip": {
+      "directory_names": [
+        "bin",
+        "obj"
+      ],
+      "directory_prefixes": [
+        "."
+      ],
+      "directory_suffixes": [],
+      "directory_markers": [],
+      "file_globs": [
+        "*.g.cs",
+        "*.g.i.cs",
+        "*.Designer.cs"
+      ]
+    }
+  }
+]
