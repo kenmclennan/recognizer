@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Scan, ScanEdge, ScanMember } from "recognizer";
 import { describe, expect, it } from "vitest";
+import { buildCatalog } from "./finding-catalog";
 import { type FindingRow, findingRows } from "./findings-order";
 import {
   CURRENT,
@@ -46,6 +47,7 @@ const scanOf = (
 
 const SHIPPED = { status: "ok" as const, sensors: shippedSensors() };
 const REAL_LIMITS = functionLimits(null, SHIPPED);
+const CATALOG = buildCatalog(SHIPPED);
 
 function named(label: string, overlay: string) {
   const entry = metricEntryOf(SHIPPED.sensors, overlay, label);
@@ -62,6 +64,7 @@ function inputsFor(
   );
 
   return {
+    catalog: CATALOG,
     scans,
     modules,
     compaction: compactFolders(modules),

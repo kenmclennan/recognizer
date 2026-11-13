@@ -12,6 +12,7 @@ import {
 } from "recognizer";
 import { type Counts, type Line, lastSegment, under } from "./canvas-graph";
 import type { Selection } from "./canvas-state";
+import type { FindingCatalog } from "./finding-catalog";
 import { type FindingGroupModel, groupsOf } from "./findings-groups";
 import type { FindingRow } from "./findings-order";
 import type { Compaction } from "./folder-compaction";
@@ -41,6 +42,7 @@ import { fileLabel } from "./tree-model";
 export type InspectorTab = "contents" | "findings" | "dependencies";
 
 export type InspectorInputs = {
+  catalog: FindingCatalog;
   scans: Scan[];
   modules: string[];
   compaction: Compaction;
@@ -178,6 +180,7 @@ export type Row =
     }
   | {
       kind: "finding-group";
+      catalog: FindingCatalog;
       key: string;
       group: FindingGroupModel;
       open: boolean;
@@ -1130,11 +1133,12 @@ function dependencyRows(
 }
 
 function groupRows(rows: FindingRow[], inputs: InspectorInputs): Row[] {
-  return groupsOf(rows).map((group) => {
+  return groupsOf(rows, inputs.catalog).map((group) => {
     const key = `findings:${group.key}`;
 
     return {
       kind: "finding-group",
+      catalog: inputs.catalog,
       key,
       group,
       open: inputs.expanded.has(key),

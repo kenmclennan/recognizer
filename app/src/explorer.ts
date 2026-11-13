@@ -73,12 +73,13 @@ import { describeLine } from "./edge-evidence";
 import { openFolderInEditor, openInEditor } from "./editor-open";
 import { type EditorPort, inertEditor } from "./editor-port";
 import { cardOf } from "./finding-card";
+import { buildCatalog, type FindingCatalog } from "./finding-catalog";
 import { keepsFocus } from "./finding-focus";
 import { litSet } from "./findings-card";
 import {
   groupsOf,
   headerLine,
-  SENSOR_GROUPS,
+  ownerOf,
   withEmptyGroups,
 } from "./findings-groups";
 import { badge, findingRows, walkFindings } from "./findings-order";
@@ -439,6 +440,7 @@ export function showExplorer(
   const deletionUndos = new Set<number>();
   let scanConfig: string | null = null;
   let shippedSensors: ShippedSensors | null = null;
+  let catalog: FindingCatalog = buildCatalog(null);
   let describedAt: number | null = null;
   let describerSeen: {
     config: string | null;
@@ -702,7 +704,7 @@ export function showExplorer(
       },
       walkFindings(delta) {
         const next = walkFindings(
-          groupsOf(allFindings).flatMap((group) => group.rows),
+          groupsOf(allFindings, catalog).flatMap((group) => group.rows),
           orientedFinding,
           delta,
         );
@@ -2478,7 +2480,7 @@ export function showExplorer(
       return;
     }
 
-    const group = groupsOf(allFindings).find((one) =>
+    const group = groupsOf(allFindings, catalog).find((one) =>
       one.rows.some((inner) => inner.id === id),
     );
 
@@ -2583,6 +2585,8 @@ export function showExplorer(
     } catch (error) {
       shippedSensors = { status: "unavailable", reason: String(error) };
     }
+
+    catalog = buildCatalog(shippedSensors);
 
     overlayModel = buildOverlayModel(loaded.overlays ?? [], {
       sensors: loaded.sensors,
@@ -4276,7 +4280,7 @@ export function showExplorer(
     const shownFindings = scoped
       ? scopedRows(allFindings, scopeOf(modules.opened()))
       : allFindings;
-    const groups = groupsOf(shownFindings);
+    const groups = groupsOf(shownFindings, catalog);
 
     const findingsFresh = scanModel(scoped).freshness;
     const everyChanged =
@@ -4285,7 +4289,9 @@ export function showExplorer(
       modules.opened().every((id) => findingsFresh.isChanged(id));
     const noneYet = (sensor: string) =>
       findingsFresh.group(sensor) === "none-yet";
-    const shownGroups = everyChanged ? [] : withEmptyGroups(groups, noneYet);
+    const shownGroups = everyChanged
+      ? []
+      : withEmptyGroups(groups, noneYet, catalog);
     const hiddenIn = scoped
       ? scopedRows(hiddenRows, scopeOf(modules.opened()))
       : hiddenRows;
@@ -4355,7 +4361,7 @@ export function showExplorer(
         open: openGroups.has(group.key),
         cards: openGroups.has(group.key) ? group.rows.map(cardOf) : [],
         none:
-          group.rows.length === 0 || noneYet(SENSOR_GROUPS[group.key] ?? ""),
+          group.rows.length === 0 || noneYet(ownerOf(catalog, group.key) ?? ""),
       })),
       active: orientedFinding,
       absent: (module) => !boxPresent(module),
@@ -4403,6 +4409,7 @@ export function showExplorer(
       const root = index === 0;
 
       return inspectorContent(panel.selection, {
+        catalog,
         scans: drawnScans(scans, drawn, drawnHead),
         modules: loaded.modules,
         compaction,
@@ -4566,7 +4573,7 @@ export function showExplorer(
         none: findings.shownGroups.map(
           (group) =>
             group.rows.length === 0 ||
-            findings.noneYet(SENSOR_GROUPS[group.key] ?? ""),
+            findings.noneYet(ownerOf(catalog, group.key) ?? ""),
         ),
         everyChanged: findings.everyChanged,
         empty: findingsEmpty(findings),
