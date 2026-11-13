@@ -5,11 +5,12 @@ use std::time::Duration;
 use serde::Serialize;
 
 use crate::tool_runner::{runner, ToolRunner};
-use crate::views::{parse_name_status, valid_ref};
+use crate::views::{parse_name_status, valid_ref, FileChange};
 
 const HISTORY_LIMIT: &str = "200";
 const BRANCH_LIMIT: usize = 100;
 const REF_LIMIT: usize = 100;
+const CHANGES_LIMIT: usize = 2000;
 const PULL_REQUEST_LIMIT: &str = "50";
 const GH_TIMEOUT: Duration = Duration::from_secs(20);
 const HISTORY_FORMAT: &str = "--format=%x1e%H%x1f%h%x1f%P%x1f%an%x1f%ct%x1f%s%x1f%D";
@@ -40,9 +41,7 @@ pub struct RefFacts {
     pub merge_base: Option<String>,
     pub behind: Option<u32>,
     pub ahead: Option<u32>,
-    pub added: Option<u32>,
-    pub modified: Option<u32>,
-    pub removed: Option<u32>,
+    pub changes: Option<Vec<FileChange>>,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -87,6 +86,8 @@ pub fn list_history(folder: &Path) -> Result<History, String> {
     let (ok, text, error) = git(
         folder,
         &[
+            "-c",
+            "core.quotePath=false",
             "log",
             "-n",
             HISTORY_LIMIT,
@@ -161,7 +162,7 @@ fn resolved_commit(folder: &Path, reference: &str) -> Option<String> {
     )
 }
 
-fn facts_for(folder: &Path, default: &str, reference: &str) -> RefFacts {
+fn facts_for(folder: &Path, default: &str, reference: &str, limit: usize) -> RefFacts {
     let mut facts = RefFacts {
         reference: reference.to_string(),
         ..RefFacts::default()
@@ -202,11 +203,8 @@ fn facts_for(folder: &Path, default: &str, reference: &str) -> RefFacts {
         ],
     ) {
         let changes = parse_name_status(&diff);
-        let count = |status: &str| changes.iter().filter(|c| c.status == status).count() as u32;
 
-        facts.added = Some(count("A"));
-        facts.modified = Some(count("M") + count("T"));
-        facts.removed = Some(count("D"));
+        facts.changes = (changes.len() <= limit).then_some(changes);
     }
 
     facts
@@ -218,7 +216,7 @@ pub fn ref_facts(folder: &Path, refs: &[String]) -> Vec<RefFacts> {
     refs.iter()
         .take(REF_LIMIT)
         .map(|reference| match &default {
-            Some(default) => facts_for(folder, default, reference),
+            Some(default) => facts_for(folder, default, reference, CHANGES_LIMIT),
             None => RefFacts {
                 reference: reference.clone(),
                 ..RefFacts::default()
@@ -412,7 +410,7 @@ mod tests {
     }
 
     #[test]
-    fn ref_facts_counts_ahead_behind_and_changed_files_against_the_default_ref() {
+    fn ref_facts_returns_ahead_behind_and_the_changed_files_against_the_default_ref() {
         let dir = branched();
         let base = git_stdout(dir.path(), &["merge-base", "main", "feature"]).unwrap();
         let facts = ref_facts(dir.path(), &["feature".to_string()]);
@@ -424,11 +422,43 @@ mod tests {
                 merge_base: Some(base),
                 behind: Some(1),
                 ahead: Some(2),
-                added: Some(1),
-                modified: Some(1),
-                removed: Some(0),
+                changes: Some(vec![
+                    FileChange {
+                        status: "M".to_string(),
+                        path: "a.py".to_string(),
+                    },
+                    FileChange {
+                        status: "A".to_string(),
+                        path: "c.py".to_string(),
+                    },
+                ]),
             }]
         );
+    }
+
+    #[test]
+    fn ref_facts_has_no_changes_for_a_ref_past_the_changes_limit() {
+        let dir = branched();
+        let base = git_stdout(dir.path(), &["merge-base", "main", "feature"]).unwrap();
+        let within = facts_for(dir.path(), "main", "feature", 2);
+        let past = facts_for(dir.path(), "main", "feature", 1);
+
+        assert_eq!(within.changes.map(|c| c.len()), Some(2));
+        assert_eq!(past.changes, None);
+        assert_eq!(past.ahead, Some(2));
+        assert_eq!(past.merge_base, Some(base));
+    }
+
+    #[test]
+    fn list_history_returns_a_non_ascii_file_name_unescaped() {
+        let dir = repository();
+
+        commit_file(dir.path(), "é.py", "1");
+
+        let history = list_history(dir.path()).unwrap();
+
+        assert!(history.text.contains("A\té.py"));
+        assert!(!history.text.contains("\\303"));
     }
 
     #[test]
@@ -442,6 +472,9 @@ mod tests {
 
         assert_eq!(facts.len(), 3);
         assert_eq!(facts[0].ahead, Some(2));
+        assert!(facts[0].changes.is_some());
+        assert_eq!(facts[1].changes, None);
+        assert_eq!(facts[1].ahead, None);
         assert_eq!(
             facts[1],
             RefFacts {
@@ -501,6 +534,15 @@ mod tests {
 
         assert!((1..=200).contains(&records.len()));
         assert_eq!(records[0].split('\u{1f}').next().unwrap(), head);
+
+        for line in records[0].lines().skip(1).filter(|line| !line.is_empty()) {
+            let mut parts = line.splitn(2, '\t');
+            let status = parts.next().unwrap();
+            let path = parts.next().unwrap_or("");
+
+            assert!(["A", "M", "D", "T"].contains(&status), "{line}");
+            assert!(!path.is_empty(), "{line}");
+        }
     }
 
     fn gh_runner(dir: &Path, path: &str) -> ToolRunner {

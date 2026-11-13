@@ -108,3 +108,40 @@ export function changeMarks(
 
   return { modules, unmatched };
 }
+
+export type ChangeClassification = {
+  added: string[];
+  modified: string[];
+  removed: string[];
+  elsewhere: string[];
+};
+
+export function classifyChanges(
+  changes: FileChange[],
+  current: MarkScan[],
+): ChangeClassification {
+  const now = modulesOf(current);
+  const extensions = extensionsOf(current);
+  const result: ChangeClassification = {
+    added: [],
+    modified: [],
+    removed: [],
+    elsewhere: [],
+  };
+
+  for (const change of changes) {
+    if (extensions.size > 0 && !extensions.has(extensionOf(change.path))) {
+      result.elsewhere.push(change.path);
+    } else if (now.has(change.path)) {
+      (change.status === "A" ? result.added : result.modified).push(
+        change.path,
+      );
+    } else if (change.status === "D") {
+      result.removed.push(change.path);
+    } else {
+      result.elsewhere.push(change.path);
+    }
+  }
+
+  return result;
+}

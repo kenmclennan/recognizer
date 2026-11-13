@@ -18,7 +18,7 @@ const fixture = (name: string) =>
 describe("parseHistory", () => {
   const { rows, skipped } = parseHistory(fixture("history.txt"));
 
-  it("reads every field of an ordinary commit with its added, modified and removed counts", () => {
+  it("reads every field of an ordinary commit with its changes", () => {
     expect(skipped).toBe(0);
     expect(rows).toHaveLength(3);
     expect(rows[0]).toEqual({
@@ -29,18 +29,36 @@ describe("parseHistory", () => {
       time: 1700000000,
       subject: "Add cart discounts",
       chips: ["main", "v0.4.0", "feature/x"],
-      counts: { added: 1, modified: 2, removed: 1 },
+      changes: [
+        { status: "A", path: "src/discounts.ts" },
+        { status: "M", path: "src/cart.ts" },
+        { status: "M", path: "src/checkout.ts" },
+        { status: "D", path: "src/old.ts" },
+      ],
     });
   });
 
-  it("keeps a merge commit's two parents and the counts against its first parent", () => {
+  it("keeps a merge commit's two parents and the changes against its first parent", () => {
     expect(rows[1]?.parents).toEqual(["c".repeat(40), "d".repeat(40)]);
-    expect(rows[1]?.counts).toEqual({ added: 1, modified: 1, removed: 0 });
+    expect(rows[1]?.changes).toEqual([
+      { status: "A", path: "src/pay.ts" },
+      { status: "M", path: "src/cart.ts" },
+    ]);
   });
 
-  it("gives a commit with no files zero counts and no chips", () => {
-    expect(rows[2]?.counts).toEqual({ added: 0, modified: 0, removed: 0 });
+  it("gives a commit with no files no changes and no chips", () => {
+    expect(rows[2]?.changes).toEqual([]);
     expect(rows[2]?.chips).toEqual([]);
+  });
+
+  it("drops a line with an unknown status and keeps a quoted path verbatim", () => {
+    const sha = "a".repeat(40);
+    const text = `\u001e${sha}\u001fa\u001f\u001fKen\u001f1\u001fx\u001f\n\nU\tconflict.py\nM\t"we\\"ird.py"\nT\tlink.py\n`;
+
+    expect(parseHistory(text).rows[0]?.changes).toEqual([
+      { status: "M", path: '"we\\"ird.py"' },
+      { status: "T", path: "link.py" },
+    ]);
   });
 
   it("shows branch and tag chips but never a remote ref or the HEAD arrow", () => {
@@ -159,6 +177,8 @@ describe("parseHistory over this repository's real committed history (non-gating
     }
 
     const text = git(
+      "-c",
+      "core.quotePath=false",
       "log",
       "-n",
       "200",
@@ -172,5 +192,6 @@ describe("parseHistory over this repository's real committed history (non-gating
 
     expect(result.rows[0]?.sha).toBe(git("rev-parse", "HEAD").trim());
     expect(result.skipped).toBe(0);
+    expect(result.rows[0]?.changes.length).toBeGreaterThan(0);
   });
 });

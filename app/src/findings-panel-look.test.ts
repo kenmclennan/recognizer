@@ -401,11 +401,11 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
   it("shows the header line and collapsed groups in the fixed order with counts and dots", () => {
     expect(f.panel.order).toEqual([
       "rail-files",
+      "rail-commits",
       "rail-views",
       "rail-notes",
       "rail-scan",
       "rail-findings",
-      "rail-commits",
     ]);
     expect(f.panel.badge).toBe("1");
     expect(f.panel.badgeClass).toContain("red");

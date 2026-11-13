@@ -1,8 +1,4 @@
-export type FileCounts = {
-  added: number;
-  modified: number;
-  removed: number;
-};
+import type { FileChange } from "recognizer";
 
 export type HistoryRow = {
   sha: string;
@@ -12,7 +8,7 @@ export type HistoryRow = {
   time: number;
   subject: string;
   chips: string[];
-  counts: FileCounts;
+  changes: FileChange[];
 };
 
 export type BranchRow = {
@@ -66,22 +62,27 @@ function chipsOf(decorations: string): string[] {
   return chips;
 }
 
-function countsOf(lines: string[]): FileCounts {
-  const counts: FileCounts = { added: 0, modified: 0, removed: 0 };
+const STATUSES = new Set(["A", "M", "D", "T"]);
+
+function changesOf(lines: string[]): FileChange[] {
+  const changes: FileChange[] = [];
 
   for (const line of lines) {
-    const status = line.split("\t")[0];
+    const tab = line.indexOf("\t");
 
-    if (status === "A") {
-      counts.added += 1;
-    } else if (status === "M" || status === "T") {
-      counts.modified += 1;
-    } else if (status === "D") {
-      counts.removed += 1;
+    if (tab < 0) {
+      continue;
+    }
+
+    const status = line.slice(0, tab);
+    const path = line.slice(tab + 1);
+
+    if (STATUSES.has(status) && path !== "") {
+      changes.push({ status: status as FileChange["status"], path });
     }
   }
 
-  return counts;
+  return changes;
 }
 
 export function parseHistory(text: string): Parsed<HistoryRow> {
@@ -112,7 +113,7 @@ export function parseHistory(text: string): Parsed<HistoryRow> {
       time: seconds,
       subject: subject ?? "",
       chips: chipsOf(fields[6] ?? ""),
-      counts: countsOf(rest),
+      changes: changesOf(rest),
     });
   }
 

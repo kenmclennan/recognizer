@@ -1,10 +1,15 @@
-export type PanelName = "tree" | "inspector";
+export type PanelName = "tree" | "inspector" | "commits";
 
-export type PanelWidths = { tree: number; inspector: number };
+export type PanelWidths = {
+  tree: number;
+  inspector: number;
+  commits: number;
+};
 
 export const PANEL_LIMITS = {
   tree: { min: 200, max: 480, initial: 280 },
   inspector: { min: 280, max: 640, initial: 340 },
+  commits: { min: 260, max: 640, initial: 340 },
 };
 
 export const PANEL_WIDTHS_KEY = "recognizer.panel-widths";
@@ -42,6 +47,7 @@ export function loadWidths(storage: Pick<Storage, "getItem">): PanelWidths {
   return {
     tree: fieldOf(parsed, "tree"),
     inspector: fieldOf(parsed, "inspector"),
+    commits: fieldOf(parsed, "commits"),
   };
 }
 
@@ -67,6 +73,6 @@ export function dragWidth(
 
   return clampWidth(
     panel,
-    panel === "tree" ? startWidth + delta : startWidth - delta,
+    panel === "inspector" ? startWidth - delta : startWidth + delta,
   );
 }

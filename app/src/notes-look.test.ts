@@ -527,11 +527,11 @@ describe.skipIf(webkit === undefined)("notes in the explorer", () => {
     expect(f.rail).toEqual({
       order: [
         "rail-files",
+        "rail-commits",
         "rail-views",
         "rail-notes",
         "rail-scan",
         "rail-findings",
-        "rail-commits",
       ],
       count: "3",
       countHidden: false,

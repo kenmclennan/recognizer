@@ -20,7 +20,9 @@ export {
   type CallerSummary,
 } from "./callers.js";
 export {
+  type ChangeClassification,
   changeMarks,
+  classifyChanges,
   type FileChange,
   type Mark,
   type MarkedModule,

@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   ageOf,
   branchRow,
+  classify,
   commitRow,
-  countsText,
   createCommitsModel,
+  impactText,
+  impactTip,
+  openLabel,
   orderBranches,
   type PickRow,
   pullRequestRow,
+  titleTip,
+  visibleRows,
 } from "./commits-panel-model";
 import type { RefFacts } from "./commits-port";
 
@@ -225,9 +230,7 @@ describe("row builders and ordering", () => {
     mergeBase,
     behind: 1,
     ahead: 2,
-    added: 3,
-    modified: 4,
-    removed: 5,
+    changes: [{ status: "A", path: "a.py" }],
   });
 
   it("builds a commit row whose default From is its first parent", () => {
@@ -240,7 +243,7 @@ describe("row builders and ordering", () => {
         time: 1,
         subject: "s",
         chips: [],
-        counts: { added: 0, modified: 0, removed: 0 },
+        changes: [],
       }),
     ).toEqual({
       kind: "commit",
@@ -300,9 +303,137 @@ describe("row builders and ordering", () => {
     ).toBe(false);
   });
 
-  it("shows a dash for unknown counts and the three counts when known", () => {
-    expect(countsText(null)).toBe("-");
-    expect(countsText({ added: 1, modified: 2, removed: 3 })).toBe("+1 ~2 -3");
+  it("shows a dash for an unknown change list and the bold count with its status split when known", () => {
+    expect(impactText(null)).toEqual({
+      count: "-",
+      squares: [],
+      elsewhere: null,
+    });
+    expect(
+      impactText({
+        added: ["a"],
+        modified: ["b", "c"],
+        removed: ["d"],
+        elsewhere: ["e", "f"],
+      }),
+    ).toEqual({
+      count: "4 files",
+      squares: [
+        { tone: "added", count: 1 },
+        { tone: "modified", count: 2 },
+        { tone: "removed", count: 1 },
+      ],
+      elsewhere: "+2 not on the canvas",
+    });
+    expect(
+      impactText({ added: ["a"], modified: [], removed: [], elsewhere: [] }),
+    ).toEqual({
+      count: "1 file",
+      squares: [{ tone: "added", count: 1 }],
+      elsewhere: null,
+    });
+    expect(
+      impactText({ added: [], modified: [], removed: [], elsewhere: ["x"] }),
+    ).toEqual({
+      count: "no files",
+      squares: [],
+      elsewhere: "+1 not on the canvas",
+    });
+  });
+
+  it("classifies as unknown without a change list or without a scan", () => {
+    const scan = [{ modules: [{ id: "a.py" }], selection: null }] as never;
+
+    expect(classify(null, scan)).toBeNull();
+    expect(classify([{ status: "M", path: "a.py" }], null)).toBeNull();
+    expect(classify([{ status: "M", path: "a.py" }], [])).toBeNull();
+    expect(classify([{ status: "M", path: "a.py" }], scan)?.modified).toEqual([
+      "a.py",
+    ]);
+  });
+
+  it("lists every file under its status in the tip and none for unknown", () => {
+    expect(impactTip(null)).toBeNull();
+    expect(
+      impactTip({
+        added: ["a"],
+        modified: [],
+        removed: ["d"],
+        elsewhere: ["e"],
+      }),
+    ).toEqual([
+      { kind: "heading", text: "2 files on the canvas" },
+      { kind: "group", text: "1 added", tone: "added" },
+      { kind: "file", text: "a", tone: "added" },
+      { kind: "group", text: "1 removed", tone: "removed" },
+      { kind: "file", text: "d", tone: "removed" },
+      { kind: "group", text: "1 file not on the canvas" },
+      { kind: "file", text: "e" },
+    ]);
+    expect(
+      impactTip({ added: [], modified: [], removed: [], elsewhere: [] })?.[0],
+    ).toEqual({ kind: "heading", text: "Nothing on the canvas" });
+  });
+
+  it("builds the title card from title, sha, author and age", () => {
+    expect(titleTip("Fix it", "f".repeat(40), "Ken", 0, 3_600_000)).toEqual([
+      "Fix it",
+      "f".repeat(40),
+      "Ken · 1h",
+    ]);
+  });
+
+  it("hides rows with no files on the canvas but keeps From, To and unknown rows", () => {
+    const none = { added: [], modified: [], removed: [], elsewhere: ["x"] };
+    const some = { ...none, modified: ["m"] };
+    const rows = [
+      { id: 1, classification: none, slot: null },
+      { id: 2, classification: some, slot: null },
+      { id: 3, classification: none, slot: "from" as const },
+      { id: 4, classification: none, slot: "to" as const },
+      { id: 5, classification: null, slot: null },
+    ];
+
+    expect(visibleRows(rows, true).rows.map((one) => one.id)).toEqual([
+      2, 3, 4, 5,
+    ]);
+    expect(visibleRows(rows, true).hidden).toBe(1);
+    expect(visibleRows(rows, false)).toEqual({ rows, hidden: 0 });
+  });
+
+  it("labels Open with the range and its count, naming the missing end when disabled", () => {
+    const short = (ref: string) => ref.slice(0, 3);
+    const range = { base: "abcdef", head: "123456", defaulted: false };
+    const three = {
+      added: ["a"],
+      modified: ["b", "c"],
+      removed: [],
+      elsewhere: [],
+    };
+    const none = { added: [], modified: [], removed: [], elsewhere: [] };
+
+    expect(openLabel(null, null, false, short, false)).toBe("pick To below");
+    expect(openLabel(null, null, false, short, true)).toBe("pick From below");
+    expect(openLabel(range, three, false, short, true)).toBe(
+      "Open abc..123 · 3 files",
+    );
+    expect(openLabel(range, none, false, short, true)).toBe(
+      "Open abc..123 · no files",
+    );
+    expect(openLabel(range, null, true, short, true)).toBe("Open abc..123");
+    expect(openLabel(range, null, false, short, true)).toBe(
+      "Open abc..123 · -",
+    );
+  });
+
+  it("keeps shading computed from the full list when rows between are hidden", () => {
+    const list = ["1", "2", "3", "4"].map((one) => one.repeat(40));
+    const model = createCommitsModel();
+
+    model.pick(row("commit", list[0] as string, "x"));
+    model.pick(row("commit", list[3] as string, "x"));
+
+    expect(model.shaded(list).size).toBe(2);
   });
 
   it("writes an age in minutes, hours, days and years", () => {

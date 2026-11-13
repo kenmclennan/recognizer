@@ -273,8 +273,8 @@ describe.skipIf(webkit === undefined)("change views in a real browser", () => {
   });
 
   it("puts the Views icon between Files and Notes", () => {
-    expect(f.rail.slice(0, 3)).toEqual(["Files", "Views", "Notes"]);
-    expect(f.panel.railIndex).toBe(1);
+    expect(f.rail.slice(0, 3)).toEqual(["Files", "Commits", "Views"]);
+    expect(f.panel.railIndex).toBe(2);
   });
 
   it("lists live views first with ranges and note counts, then a Stale heading", () => {

@@ -12,6 +12,7 @@ export type PanelResizerHandlers = {
   write: (px: number) => void;
   commit: () => void;
   count?: () => number;
+  clampAs?: () => PanelName;
 };
 
 export function buildPanelResizer(
@@ -36,7 +37,7 @@ export function buildPanelResizer(
     if (drag !== null) {
       handlers.write(
         dragWidth(
-          panel,
+          handlers.clampAs?.() ?? panel,
           drag.startWidth,
           drag.startX,
           event.clientX,
@@ -65,30 +66,33 @@ export function buildPanelResizer(
 export type PanelResizerHooks = {
   shownPanels: () => number;
   committed: () => void;
+  leftWidth?: () => "tree" | "commits";
 };
 
 export function mountPanelResizers(
   body: HTMLElement,
-  panels: Record<PanelName, HTMLElement>,
+  panels: Record<"tree" | "inspector", HTMLElement>,
   storage: Pick<Storage, "getItem" | "setItem">,
   hooks: PanelResizerHooks = { shownPanels: () => 1, committed: () => {} },
 ): PanelWidths {
   const widths = loadWidths(storage);
-  const apply = (panel: PanelName) =>
+  const leftKey = () => hooks.leftWidth?.() ?? "tree";
+  const apply = (panel: "tree" | "inspector") =>
     body.style.setProperty(
       panel === "tree" ? "--tree-w" : "--inspector-w",
-      `${widths[panel]}px`,
+      `${widths[panel === "tree" ? leftKey() : panel]}px`,
     );
 
   for (const panel of ["tree", "inspector"] as const) {
     apply(panel);
     panels[panel].append(
       buildPanelResizer(panel, {
-        read: () => widths[panel],
+        read: () => widths[panel === "tree" ? leftKey() : panel],
         write: (px) => {
-          widths[panel] = px;
+          widths[panel === "tree" ? leftKey() : panel] = px;
           apply(panel);
         },
+        clampAs: panel === "tree" ? leftKey : undefined,
         commit() {
           saveWidths(storage, widths);
           hooks.committed();

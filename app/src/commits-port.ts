@@ -1,11 +1,13 @@
+import type { FileChange } from "recognizer";
+
+export type { FileChange };
+
 export type RefFacts = {
   ref: string;
   mergeBase: string | null;
   behind: number | null;
   ahead: number | null;
-  added: number | null;
-  modified: number | null;
-  removed: number | null;
+  changes: FileChange[] | null;
 };
 
 export type HistoryReply = { branch: string | null; text: string };
@@ -44,8 +46,6 @@ export function nullFacts(ref: string): RefFacts {
     mergeBase: null,
     behind: null,
     ahead: null,
-    added: null,
-    modified: null,
-    removed: null,
+    changes: null,
   };
 }

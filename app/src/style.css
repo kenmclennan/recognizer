@@ -4172,7 +4172,6 @@ svg.i.chevron {
 }
 
 .commits-row-meta,
-.commits-counts,
 .commits-list-note,
 .commits-summary {
   color: var(--muted);
@@ -4213,17 +4212,184 @@ svg.i.chevron {
   color: var(--muted);
 }
 
-.commits-compare {
+.commits-open-bar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  border-top: 1px solid var(--line);
+}
+
+.commits-range-open {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--boxline);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  text-align: left;
+}
+
+.commits-range-open.ready {
+  border-color: var(--sel);
+  background: var(--sel);
+  color: #fff;
+  cursor: pointer;
+}
+
+.commits-save {
+  padding: 6px 10px;
+  border: 1px solid var(--boxline);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.commits-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.commits-hide {
+  position: relative;
+  flex: none;
+  width: 28px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--boxline);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.commits-hide::after {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--muted);
+  content: "";
+}
+
+.commits-hide[aria-checked="true"] {
+  border-color: var(--sel);
+  background: var(--sel);
+}
+
+.commits-hide[aria-checked="true"]::after {
+  left: 13px;
+  background: #fff;
+}
+
+.commits-hidden {
+  margin-left: auto;
+}
+
+.commits-impact {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 70px;
+}
+
+.commits-impact-count {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.commits-impact-count.zero {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.commits-impact-marks {
+  display: flex;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.commits-impact-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.commits-impact-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.commits-impact-swatch.added {
+  background: var(--ok);
+}
+
+.commits-impact-swatch.modified {
+  background: var(--warn);
+}
+
+.commits-impact-swatch.removed {
+  background: var(--bad);
+}
+
+.commits-impact-other {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.commits-card {
+  position: fixed;
+  z-index: 50;
+  max-width: 360px;
+  max-height: 60vh;
+  padding: 8px 10px;
+  overflow-y: auto;
+  border: 1px solid var(--boxline);
+  border-radius: 6px;
+  background: var(--bg);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.commits-card-heading {
+  margin-bottom: 4px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.commits-card-group {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.commits-card-file {
+  padding-left: 12px;
+  overflow-wrap: anywhere;
+}
+
+.commits-card-file.added {
+  color: var(--ok);
+}
+
+.commits-card-file.modified {
+  color: var(--warn);
+}
+
+.commits-card-file.removed {
+  color: var(--bad);
 }
 
 .commits-summary {
-  flex-basis: 100%;
   margin: 0;
 }
 
