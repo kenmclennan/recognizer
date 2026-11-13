@@ -59,6 +59,16 @@ export const PYTHON_COMMANDS = [
     module: "recognizer_sensors",
     project: "sensors",
   },
+  ...["crap", "mutation", "thresholds"].map((name) => ({
+    command: `recognizer-sense-${name}`,
+    module: "recognizer_sensors",
+    project: "sensors",
+    entry: `recognizer_sensors.entry:${name}`,
+  })),
+];
+
+const PYTHON_PACKAGES = [
+  ...new Map(PYTHON_COMMANDS.map((entry) => [entry.module, entry])).values(),
 ];
 
 export const COMMAND_LINKS = [
@@ -75,6 +85,9 @@ export const COMMAND_LINKS = [
   ["recognizer-scan-kotlin", "../bin/recognizer-scan-kotlin"],
   ["recognizer-scan-csharp", "../bin/recognizer-scan-csharp"],
   ["recognizer-sensors", "../bin/recognizer-sensors"],
+  ["recognizer-sense-crap", "../bin/recognizer-sense-crap"],
+  ["recognizer-sense-mutation", "../bin/recognizer-sense-mutation"],
+  ["recognizer-sense-thresholds", "../bin/recognizer-sense-thresholds"],
   ["recognizer-scan-rust", `../${RUST_BINARY}`],
 ];
 
@@ -89,15 +102,16 @@ export function writeCommandLinks(folder) {
 }
 
 export function wrapperScript(
-  { command, module },
+  { command, module, entry = `${module}.cli:main` },
   interpreter = PYTHON_INTERPRETER,
 ) {
+  const [entryModule, entryFunction] = entry.split(":");
   const program = [
     "import sys",
     "sys.path.insert(0, sys.argv.pop(1))",
     `sys.argv[0] = "${command}"`,
-    `from ${module}.cli import main`,
-    "sys.exit(main())",
+    `from ${entryModule} import ${entryFunction}`,
+    `sys.exit(${entryFunction}())`,
   ].join("; ");
 
   return [
@@ -130,7 +144,7 @@ export function pythonInstallArguments(wheelhouse, target, version) {
     "3.13",
     "--python-platform",
     "aarch64-apple-darwin",
-    ...PYTHON_COMMANDS.map(({ module }) =>
+    ...PYTHON_PACKAGES.map(({ module }) =>
       join(wheelhouse, `${module}-${version}-py3-none-any.whl`),
     ),
   ];
@@ -153,8 +167,8 @@ export function archiveEntries(version, closurePaths) {
     ),
     "node_modules/recognizer/grammars/PROVENANCE.json",
     ...closurePaths.map((path) => `${path}/package.json`),
-    ...PYTHON_COMMANDS.map(({ module }) => `${PYTHON_FOLDER}/${module}/cli.py`),
-    ...PYTHON_COMMANDS.map(
+    ...PYTHON_PACKAGES.map(({ module }) => `${PYTHON_FOLDER}/${module}/cli.py`),
+    ...PYTHON_PACKAGES.map(
       ({ module }) =>
         `${PYTHON_FOLDER}/${module}-${version}.dist-info/METADATA`,
     ),
@@ -352,7 +366,7 @@ export function buildToolchain(root, outDir) {
 
     mkdirSync(wheelhouse, { recursive: true });
 
-    for (const { project } of PYTHON_COMMANDS) {
+    for (const { project } of PYTHON_PACKAGES) {
       run("uv", ["build", "--wheel", "--out-dir", wheelhouse, project], {
         cwd: root,
       });

@@ -64,6 +64,9 @@ describe("archiveEntries", () => {
       "bin/recognizer-scan-kotlin",
       "bin/recognizer-scan-csharp",
       "bin/recognizer-sensors",
+      "bin/recognizer-sense-crap",
+      "bin/recognizer-sense-mutation",
+      "bin/recognizer-sense-thresholds",
       "recognizer-scan-rust",
       "commands/recognizer",
       "commands/recognizer-scan-typescript",
@@ -72,6 +75,9 @@ describe("archiveEntries", () => {
       "commands/recognizer-scan-kotlin",
       "commands/recognizer-scan-csharp",
       "commands/recognizer-sensors",
+      "commands/recognizer-sense-crap",
+      "commands/recognizer-sense-mutation",
+      "commands/recognizer-sense-thresholds",
       "commands/recognizer-scan-rust",
       "THIRD-PARTY-NOTICES.md",
       "LICENSE",
@@ -81,7 +87,10 @@ describe("archiveEntries", () => {
 
 describe("the wrapper table", () => {
   it("generates exactly the four commands the pyprojects declare, with their entry points", () => {
-    const declared = PYTHON_COMMANDS.flatMap(({ project }) => {
+    const projects = [
+      ...new Set(PYTHON_COMMANDS.map(({ project }) => project)),
+    ];
+    const declared = projects.flatMap((project) => {
       const text = readFileSync(join(ROOT, project, "pyproject.toml"), "utf8");
       const section = /\[project\.scripts\]\n([^[]*)/.exec(text)[1];
 
@@ -92,18 +101,30 @@ describe("the wrapper table", () => {
     });
 
     expect(declared).toEqual(
-      PYTHON_COMMANDS.map(({ command, module }) => [
+      PYTHON_COMMANDS.map(({ command, module, entry }) => [
         command,
-        `${module}.cli:main`,
+        entry ?? `${module}.cli:main`,
       ]),
     );
-    expect(PYTHON_COMMANDS).toHaveLength(4);
+    expect(PYTHON_COMMANDS).toHaveLength(7);
 
-    for (const entry of PYTHON_COMMANDS) {
+    for (const entry of PYTHON_COMMANDS.filter(({ entry }) => !entry)) {
       expect(wrapperScript(entry)).toContain(
         `from ${entry.module}.cli import main`,
       );
     }
+  });
+
+  it("imports and calls the function an entry names instead of main", () => {
+    const script = wrapperScript({
+      command: "recognizer-sense-crap",
+      module: "recognizer_sensors",
+      entry: "recognizer_sensors.entry:crap",
+    });
+
+    expect(script).toContain("from recognizer_sensors.entry import crap");
+    expect(script).toContain("sys.exit(crap())");
+    expect(script).not.toContain("import main");
   });
 
   it("installs the four project wheels into the target for the Homebrew interpreter", () => {
@@ -233,7 +254,7 @@ describe("the commands folder", () => {
     expect(readdirSync(join(folder, "commands")).sort()).toEqual(
       COMMAND_LINKS.map(([name]) => name).sort(),
     );
-    expect(COMMAND_LINKS).toHaveLength(8);
+    expect(COMMAND_LINKS).toHaveLength(11);
     expect(() => verifyCommands(folder)).not.toThrow();
   });
 

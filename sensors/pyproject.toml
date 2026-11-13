@@ -20,6 +20,9 @@ dependencies = [
 
 [project.scripts]
 recognizer-sensors = "recognizer_sensors.cli:main"
+recognizer-sense-crap = "recognizer_sensors.entry:crap"
+recognizer-sense-mutation = "recognizer_sensors.entry:mutation"
+recognizer-sense-thresholds = "recognizer_sensors.entry:thresholds"
 
 [dependency-groups]
 dev = ["pytest", "pytest-cov", "ruff", "jsonschema"]
