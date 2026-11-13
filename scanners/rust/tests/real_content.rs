@@ -170,3 +170,35 @@ fn this_repositorys_tauri_library_root_is_an_entry_point() {
 
     assert_eq!(module["entry_point"], Value::Bool(true));
 }
+
+#[test]
+fn a_tauri_edge_names_something_no_use_item_in_its_file_records() {
+    let document = scan(&repository(), None, None).ok().unwrap().document;
+    let mut found = 0;
+
+    for edge in document["edges"].as_array().unwrap() {
+        let from = edge["from"].as_str().unwrap();
+
+        if !in_tauri(&edge["from"]) || edge["kind"] != "depends" || edge.get("names").is_none() {
+            continue;
+        }
+
+        let source = fs::read_to_string(repository().join(from)).unwrap();
+        let uses: String = source
+            .lines()
+            .filter(|line| line.trim_start().starts_with("use ") || line.contains("pub use "))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        if edge["names"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|name| !uses.contains(name.as_str().unwrap()))
+        {
+            found += 1;
+        }
+    }
+
+    assert!(found > 0);
+}

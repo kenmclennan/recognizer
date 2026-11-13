@@ -3,9 +3,10 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use proc_macro2::{LineColumn, Span};
 use serde_json::{json, Map, Value};
 use syn::spanned::Spanned;
+use syn::visit::{self, Visit};
 use syn::{
-    Expr, FnArg, Item, ItemImpl, ItemTrait, Lit, Meta, Pat, ReturnType, Signature, TraitItem, Type,
-    TypeParamBound, UseTree, Visibility,
+    Expr, FnArg, ImplItem, Item, ItemImpl, ItemTrait, Lit, Meta, Pat, ReturnType, Signature,
+    TraitItem, Type, TypeParamBound, UseTree, Visibility,
 };
 
 const VALUE_LIMIT: usize = 40;
@@ -45,6 +46,12 @@ pub struct ImplRef {
     pub type_name: String,
 }
 
+pub struct ExprPath {
+    pub scope: Vec<String>,
+    pub line: usize,
+    pub segments: Vec<String>,
+}
+
 #[derive(Default)]
 pub struct Scope {
     pub uses: Vec<UseLeaf>,
@@ -61,6 +68,7 @@ pub struct Parsed {
     pub macro_calls: Vec<MacroCall>,
     pub inner_test: bool,
     pub impls: Vec<ImplRef>,
+    pub expr_paths: Vec<ExprPath>,
 }
 
 struct Text {
@@ -434,6 +442,7 @@ pub fn parse(source: &str) -> Result<Parsed, String> {
         macro_calls: Vec::new(),
         inner_test: file.attrs.iter().any(is_test_attribute),
         impls: Vec::new(),
+        expr_paths: Vec::new(),
     };
     let mut methods: HashMap<String, Vec<Value>> = HashMap::new();
 
@@ -456,6 +465,109 @@ pub fn parse(source: &str) -> Result<Parsed, String> {
 
 fn is_test_item(item: &Item) -> bool {
     attributes_of(item).iter().any(is_test_attribute)
+}
+
+struct PathReader<'a> {
+    scope: &'a [String],
+    found: &'a mut Vec<ExprPath>,
+}
+
+impl PathReader<'_> {
+    fn record(&mut self, path: &syn::Path) {
+        if path.leading_colon.is_some() || path.segments.len() < 2 {
+            return;
+        }
+
+        let Some(first) = path.segments.first() else {
+            return;
+        };
+
+        self.found.push(ExprPath {
+            scope: self.scope.to_vec(),
+            line: line_of(first.ident.span()),
+            segments: path
+                .segments
+                .iter()
+                .map(|segment| name_of(&segment.ident))
+                .collect(),
+        });
+    }
+}
+
+impl<'ast> Visit<'ast> for PathReader<'_> {
+    fn visit_item(&mut self, item: &'ast Item) {
+        if is_test_item(item) || matches!(item, Item::Mod(_) | Item::Use(_)) {
+            return;
+        }
+
+        visit::visit_item(self, item);
+    }
+
+    fn visit_impl_item(&mut self, item: &'ast ImplItem) {
+        let attributes: &[syn::Attribute] = match item {
+            ImplItem::Fn(found) => &found.attrs,
+            ImplItem::Const(found) => &found.attrs,
+            ImplItem::Type(found) => &found.attrs,
+            ImplItem::Macro(found) => &found.attrs,
+            _ => &[],
+        };
+
+        if attributes.iter().any(is_test_attribute) {
+            return;
+        }
+
+        visit::visit_impl_item(self, item);
+    }
+
+    fn visit_trait_item(&mut self, item: &'ast TraitItem) {
+        let attributes: &[syn::Attribute] = match item {
+            TraitItem::Fn(found) => &found.attrs,
+            TraitItem::Const(found) => &found.attrs,
+            TraitItem::Type(found) => &found.attrs,
+            TraitItem::Macro(found) => &found.attrs,
+            _ => &[],
+        };
+
+        if attributes.iter().any(is_test_attribute) {
+            return;
+        }
+
+        visit::visit_trait_item(self, item);
+    }
+
+    fn visit_pat(&mut self, _: &'ast Pat) {}
+
+    fn visit_expr_path(&mut self, expression: &'ast syn::ExprPath) {
+        if expression.qself.is_none() {
+            self.record(&expression.path);
+        }
+
+        visit::visit_expr_path(self, expression);
+    }
+
+    fn visit_expr_struct(&mut self, expression: &'ast syn::ExprStruct) {
+        if expression.qself.is_none() {
+            self.record(&expression.path);
+        }
+
+        visit::visit_expr_struct(self, expression);
+    }
+}
+
+fn read_block(block: &syn::Block, scope: &[String], parsed: &mut Parsed) {
+    PathReader {
+        scope,
+        found: &mut parsed.expr_paths,
+    }
+    .visit_block(block);
+}
+
+fn read_expr(expression: &Expr, scope: &[String], parsed: &mut Parsed) {
+    PathReader {
+        scope,
+        found: &mut parsed.expr_paths,
+    }
+    .visit_expr(expression);
 }
 
 fn declare(parsed: &mut Parsed, scope: &[String], name: String) {
@@ -541,6 +653,24 @@ fn collect(
                 }
             }
             Item::Impl(block) => {
+                for member in &block.items {
+                    let attributes = match member {
+                        ImplItem::Fn(found) => &found.attrs,
+                        ImplItem::Const(found) => &found.attrs,
+                        _ => continue,
+                    };
+
+                    if attributes.iter().any(is_test_attribute) {
+                        continue;
+                    }
+
+                    match member {
+                        ImplItem::Fn(found) => read_block(&found.block, scope, parsed),
+                        ImplItem::Const(found) => read_expr(&found.expr, scope, parsed),
+                        _ => {}
+                    }
+                }
+
                 if let Some((None, path, _)) = &block.trait_ {
                     if let (Some(_), Some(name)) = (last_segment(path), type_name(&block.self_ty)) {
                         parsed.impls.push(ImplRef {
@@ -599,6 +729,26 @@ fn collect(
 
                 declare(parsed, scope, name.clone());
 
+                for member in &found.items {
+                    match member {
+                        TraitItem::Fn(function)
+                            if !function.attrs.iter().any(is_test_attribute) =>
+                        {
+                            if let Some(body) = &function.default {
+                                read_block(body, scope, parsed);
+                            }
+                        }
+                        TraitItem::Const(constant)
+                            if !constant.attrs.iter().any(is_test_attribute) =>
+                        {
+                            if let Some((_, value)) = &constant.default {
+                                read_expr(value, scope, parsed);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
                 if top {
                     let mut value = member(
                         &name,
@@ -622,6 +772,7 @@ fn collect(
                 let name = name_of(&found.sig.ident);
 
                 declare(parsed, scope, name.clone());
+                read_block(&found.block, scope, parsed);
 
                 if top {
                     let mut value = member(
@@ -651,6 +802,7 @@ fn collect(
                 let name = name_of(&found.ident);
 
                 declare(parsed, scope, name.clone());
+                read_expr(&found.expr, scope, parsed);
 
                 if top && name != "_" {
                     let mut value = member(
@@ -671,6 +823,7 @@ fn collect(
                 let name = name_of(&found.ident);
 
                 declare(parsed, scope, name.clone());
+                read_expr(&found.expr, scope, parsed);
 
                 if top {
                     let mut value = member(

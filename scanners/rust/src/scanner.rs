@@ -295,6 +295,17 @@ pub fn scan(
         envs: &envs,
     };
 
+    let file_package: Vec<Option<usize>> = paths
+        .iter()
+        .enumerate()
+        .map(|(file, path)| {
+            package_of(
+                &packages,
+                tree.owner[file].map(|root| paths[root].as_str()),
+                path,
+            )
+        })
+        .collect();
     let mut edges = Vec::new();
     let mut foreign = BTreeSet::new();
     let mut modules = Vec::new();
@@ -332,6 +343,8 @@ pub fn scan(
             }
         }
 
+        let mut recorded: HashSet<(usize, Vec<usize>, String)> = HashSet::new();
+
         for (scope, content) in &source.scopes {
             for leaf in &content.uses {
                 match resolver.resolve_use(file, scope, &leaf.path, leaf.leading_colon) {
@@ -340,6 +353,12 @@ pub fn scan(
                         names,
                         via,
                     } if target != file => {
+                        if !leaf.glob {
+                            for name in &names {
+                                recorded.insert((target, via.clone(), name.clone()));
+                            }
+                        }
+
                         edges.push(Edge {
                             from: id.clone(),
                             to: paths[target].clone(),
@@ -367,6 +386,52 @@ pub fn scan(
                     _ => {}
                 }
             }
+        }
+
+        let mut grouped: Vec<(usize, Vec<usize>, usize, Vec<String>)> = Vec::new();
+
+        for reference in &source.expr_paths {
+            if let Final::Target {
+                file: target,
+                names,
+                via,
+            } = resolver.resolve_expression(file, &reference.scope, &reference.segments)
+            {
+                if target == file || file_package[target] != file_package[file] {
+                    continue;
+                }
+
+                for name in names {
+                    if recorded.contains(&(target, via.clone(), name.clone())) {
+                        continue;
+                    }
+
+                    match grouped
+                        .iter_mut()
+                        .find(|(to, route, _, _)| *to == target && *route == via)
+                    {
+                        Some((_, _, _, found)) => {
+                            if !found.contains(&name) {
+                                found.push(name);
+                            }
+                        }
+                        None => grouped.push((target, via.clone(), reference.line, vec![name])),
+                    }
+                }
+            }
+        }
+
+        for (target, via, line, names) in grouped {
+            edges.push(Edge {
+                from: id.clone(),
+                to: paths[target].clone(),
+                kind: "depends",
+                line,
+                member: None,
+                to_member: None,
+                names,
+                via: via.into_iter().map(|v| paths[v].clone()).collect(),
+            });
         }
 
         for implementation in &source.impls {

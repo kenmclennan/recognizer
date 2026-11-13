@@ -547,3 +547,278 @@ fn r9_a_trait_impl_through_an_unresolved_path_keeps_its_member() {
 
     assert_has(&document, "src/user.rs => src/m.rs T.Gen");
 }
+
+const A_MODULE: &str =
+    "pub fn f() {}\npub struct Y;\nimpl Y { pub fn new() -> Y { Y } }\npub const K: u8 = 1;\n";
+
+#[test]
+fn r10_a_path_through_a_used_module_adds_names_on_a_separate_edge() {
+    let document = krate(&[
+        ("src/lib.rs", "mod a;\nmod b;\nmod c;\n"),
+        ("src/a.rs", A_MODULE),
+        (
+            "src/b.rs",
+            "use crate::a;\npub fn g() { a::f(); crate::a::Y::new(); std::mem::drop(1); }\n",
+        ),
+        (
+            "src/c.rs",
+            "pub fn h() { super::a::f(); crate::a::missing(); }\n",
+        ),
+    ]);
+
+    assert_has(&document, "src/b.rs -> src/a.rs");
+    assert_has(&document, "src/b.rs -> src/a.rs [f,Y]");
+    assert_has(&document, "src/c.rs -> src/a.rs [f]");
+    assert!(document["foreign"].as_array().unwrap().is_empty());
+
+    let named: Vec<&serde_json::Value> = document["edges"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["from"] == "src/b.rs" && e.get("names").is_some())
+        .collect();
+
+    assert_eq!(named[0]["line"], 2);
+}
+
+#[test]
+fn r10_crate_super_chained_super_and_self_prefixes_resolve() {
+    let document = krate(&[
+        ("src/lib.rs", "mod a;\nmod top;\n"),
+        ("src/a.rs", A_MODULE),
+        ("src/top.rs", "mod mid;\npub fn t() { crate::a::f(); }\n"),
+        ("src/top/mid.rs", "mod deep;\n"),
+        (
+            "src/top/mid/deep.rs",
+            "pub fn d() { super::super::super::a::Y::new(); super::super::t(); self::d(); }\n",
+        ),
+    ]);
+
+    assert_has(&document, "src/top.rs -> src/a.rs [f]");
+    assert_has(&document, "src/top/mid/deep.rs -> src/a.rs [Y]");
+    assert_has(&document, "src/top/mid/deep.rs -> src/top.rs [t]");
+    assert_lacks(&document, "src/top/mid/deep.rs -> src/top/mid/deep.rs [d]");
+}
+
+#[test]
+fn r10_a_child_module_first_segment_resolves_for_file_and_inline_mod() {
+    let document = krate(&[
+        ("src/lib.rs", "mod a;\nmod user;\n"),
+        ("src/a.rs", A_MODULE),
+        (
+            "src/user.rs",
+            "mod inner;\nmod nested { pub fn n() {} }\npub fn u() { inner::f(); nested::n(); }\n",
+        ),
+        ("src/user/inner.rs", "pub fn f() {}\n"),
+    ]);
+
+    assert_has(&document, "src/user.rs -> src/user/inner.rs [f]");
+    assert!(edges(&document)
+        .iter()
+        .all(|e| !e.starts_with("src/user.rs -> src/user.rs")));
+}
+
+#[test]
+fn r10_a_use_binding_with_an_as_rename_resolves() {
+    let document = krate(&[
+        ("src/lib.rs", "mod a;\nmod b;\n"),
+        ("src/a.rs", A_MODULE),
+        (
+            "src/b.rs",
+            "use crate::a as alias;\npub fn g() { alias::Y::new(); }\n",
+        ),
+    ]);
+
+    assert_has(&document, "src/b.rs -> src/a.rs [Y]");
+}
+
+#[test]
+fn r10_the_package_library_name_resolves_from_a_binary() {
+    let document = run(&[
+        ("Cargo.toml", "[package]\nname = \"app\"\n"),
+        ("src/lib.rs", "pub mod a;\n"),
+        ("src/a.rs", A_MODULE),
+        ("src/main.rs", "fn main() { app::a::f(); }\n"),
+    ]);
+
+    assert_has(&document, "src/main.rs -> src/a.rs [f]");
+}
+
+#[test]
+fn r10_a_re_export_records_via() {
+    let document = krate(&[
+        ("src/lib.rs", "mod a;\nmod hub;\nmod user;\n"),
+        (
+            "src/a.rs",
+            "pub struct Y;\nimpl Y { pub fn new() -> Y { Y } }\n",
+        ),
+        ("src/hub.rs", "pub use crate::a::Y;\n"),
+        ("src/user.rs", "pub fn u() { crate::hub::Y::new(); }\n"),
+    ]);
+
+    assert_has(&document, "src/user.rs -> src/a.rs [Y] via src/hub.rs");
+}
+
+#[test]
+fn r10_paths_that_resolve_to_nothing_add_nothing() {
+    let document = run(&[
+        (
+            "Cargo.toml",
+            "[package]\nname = \"app\"\n[dependencies]\nserde = \"1\"\n",
+        ),
+        ("src/lib.rs", "mod a;\nmod b;\nmod glob;\nmod same;\n"),
+        ("src/a.rs", A_MODULE),
+        (
+            "src/b.rs",
+            "pub fn g() {\n    f();\n    std::mem::drop(1);\n    serde::ser::noop();\n    crate::a::absent();\n    a_macro!(crate::a::f());\n    let _x: crate::a::Y;\n    match 1 { crate::a::K => {} _ => {} }\n    <u8 as crate::a::Tr>::f();\n    ::std::mem::drop(2);\n}\n",
+        ),
+        ("src/glob.rs", "use crate::a::*;\npub fn g() { Y::new(); }\n"),
+        ("src/same.rs", "pub fn s() {}\npub fn t() { self::s(); crate::same::s(); }\n"),
+    ]);
+    let listed = edges(&document);
+
+    assert!(listed.iter().all(|e| !e.starts_with("src/b.rs ->")));
+    assert_has(&document, "src/glob.rs -> src/a.rs");
+    assert!(listed
+        .iter()
+        .all(|e| !e.starts_with("src/glob.rs -> src/a.rs [")));
+    assert!(listed.iter().all(|e| !e.starts_with("src/same.rs ->")));
+    assert!(document["foreign"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn r10_a_name_a_use_item_already_records_is_not_repeated() {
+    let document = krate(&[
+        ("src/lib.rs", "mod a;\nmod b;\n"),
+        ("src/a.rs", A_MODULE),
+        ("src/b.rs", "use crate::a::Y;\npub fn g() { Y::new(); }\n"),
+    ]);
+    let into_a: Vec<String> = edges(&document)
+        .into_iter()
+        .filter(|e| e.starts_with("src/b.rs -> src/a.rs"))
+        .collect();
+
+    assert_eq!(into_a, vec!["src/b.rs -> src/a.rs [Y]".to_string()]);
+}
+
+#[test]
+fn r10_a_resolvable_and_an_unresolvable_path_in_one_file_keep_only_the_first() {
+    let document = krate(&[
+        ("src/lib.rs", "mod a;\nmod b;\n"),
+        ("src/a.rs", A_MODULE),
+        (
+            "src/b.rs",
+            "pub fn g() { crate::a::f(); crate::nowhere::x(); }\n",
+        ),
+    ]);
+
+    assert_has(&document, "src/b.rs -> src/a.rs [f]");
+    assert_eq!(
+        edges(&document)
+            .iter()
+            .filter(|e| e.starts_with("src/b.rs ->"))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn r10_test_gated_code_adds_nothing_while_ungated_code_does() {
+    let document = krate(&[
+        ("src/lib.rs", "mod a;\nmod gated;\nmod open;\n"),
+        ("src/a.rs", A_MODULE),
+        (
+            "src/gated.rs",
+            "pub struct S;\n#[cfg(test)]\nfn t() { crate::a::f(); }\nimpl S {\n    #[cfg(test)]\n    fn m() { crate::a::Y::new(); }\n}\npub fn outer() {\n    #[cfg(test)]\n    fn inner() { crate::a::K; }\n}\n",
+        ),
+        (
+            "src/open.rs",
+            "pub struct S;\nfn t() { crate::a::f(); }\nimpl S { fn m() { crate::a::Y::new(); } }\npub fn outer() { fn inner() { crate::a::K; } }\n",
+        ),
+    ]);
+
+    assert_has(&document, "src/open.rs -> src/a.rs [f,Y,K]");
+    assert!(edges(&document)
+        .iter()
+        .all(|e| !e.starts_with("src/gated.rs -> src/a.rs")));
+}
+
+#[test]
+fn r10_sixteen_re_export_hops_reach_the_defining_file() {
+    let mut files = nested_chain(16);
+
+    files.retain(|(path, _)| path != "src/consumer.rs");
+    files.push((
+        "src/consumer.rs".to_string(),
+        "pub fn c() { crate::T::new(); }\n".to_string(),
+    ));
+
+    let document = run_owned(files);
+    let defining = "src/m1/m2/m3/m4/m5/m6/m7/m8/m9/m10/m11/m12/m13/m14/m15/m16.rs";
+
+    assert!(edges(&document)
+        .iter()
+        .any(|e| e.starts_with(&format!("src/consumer.rs -> {defining} [T] via"))));
+}
+
+#[test]
+fn r10_seventeen_re_export_hops_stop_before_the_defining_file() {
+    let mut files = nested_chain(17);
+
+    files.retain(|(path, _)| path != "src/consumer.rs");
+    files.push((
+        "src/consumer.rs".to_string(),
+        "pub fn c() { crate::T::new(); }\n".to_string(),
+    ));
+
+    let document = run_owned(files);
+    let defining = "src/m1/m2/m3/m4/m5/m6/m7/m8/m9/m10/m11/m12/m13/m14/m15/m16/m17.rs";
+
+    assert!(!edges(&document)
+        .iter()
+        .any(|e| e.starts_with(&format!("src/consumer.rs -> {defining}"))));
+}
+
+#[test]
+fn r10_every_position_in_a_top_level_and_an_inline_scope_is_read() {
+    let body = "pub fn f1() { crate::a::f(); }\npub const C1: u8 = crate::a::K;\npub static S1: u8 = crate::a::K;\npub struct Z;\nimpl Z { pub fn m1() { crate::a::Y::new(); } }\npub trait Tr { fn d1() { crate::a::Y::new(); } const D: u8 = 0; }\nimpl Tr for Z { fn d1() { crate::a::Y::new(); } }\n";
+    let inline = format!("mod inner {{\n{body}}}\n");
+    let marker = |name: &str| format!("pub fn {name}() {{}}\n");
+    let cases: [(&str, String, &str); 2] = [
+        ("top", body.to_string(), "src/top.rs"),
+        ("inline", inline, "src/wrapped.rs"),
+    ];
+
+    for (_, source, file) in cases {
+        let document = krate(&[
+            ("src/lib.rs", "mod a;\nmod top;\nmod wrapped;\n"),
+            ("src/a.rs", A_MODULE),
+            ("src/top.rs", &marker("x")),
+            ("src/wrapped.rs", &marker("y")),
+            (file, &source),
+        ]);
+
+        assert_has(&document, &format!("{file} -> src/a.rs [f,K,Y]"));
+    }
+}
+
+#[test]
+fn r10_a_path_into_an_in_repo_dependency_package_adds_nothing() {
+    let document = run(&[
+        (
+            "Cargo.toml",
+            "[package]\nname = \"app\"\n[dependencies]\nlocal = { path = \"local\" }\n",
+        ),
+        ("src/lib.rs", "pub fn g() { local::Thing::new(); }\n"),
+        ("local/Cargo.toml", "[package]\nname = \"local\"\n"),
+        (
+            "local/src/lib.rs",
+            "pub struct Thing;\nimpl Thing { pub fn new() {} }\n",
+        ),
+    ]);
+
+    assert!(edges(&document)
+        .iter()
+        .all(|e| !e.contains("local/src/lib.rs")));
+    assert!(document["foreign"].as_array().unwrap().is_empty());
+}
