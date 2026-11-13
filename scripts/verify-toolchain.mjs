@@ -10,7 +10,11 @@ import {
 import { join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { COMMAND_LINKS } from "./build-toolchain.mjs";
-import { closureFromLock, verifyVendored } from "./toolchain-closure.mjs";
+import {
+  closureFromLock,
+  LEGACY_TOOLCHAIN_WORKSPACES,
+  verifyVendored,
+} from "./toolchain-closure.mjs";
 
 const OWN = new Set([
   "recognizer",
@@ -38,7 +42,7 @@ export function verifyToolchainDir(dir, lock) {
   const versions = {};
   const nodeModules = join(dir, "node_modules");
   const candidates = new Set([
-    ...closureFromLock(lock).keys(),
+    ...closureFromLock(lock, LEGACY_TOOLCHAIN_WORKSPACES).keys(),
     ...(existsSync(nodeModules) ? vendoredPaths(nodeModules) : []),
   ]);
 
@@ -50,7 +54,7 @@ export function verifyToolchainDir(dir, lock) {
       : undefined;
   }
 
-  verifyVendored(lock, versions);
+  verifyVendored(lock, versions, LEGACY_TOOLCHAIN_WORKSPACES);
 }
 
 export function verifyCommands(dir) {

@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import {
   assertNoInstallScripts,
   closureFromLock,
+  LEGACY_TOOLCHAIN_WORKSPACES,
   verifyVendored,
 } from "./toolchain-closure.mjs";
 
@@ -306,8 +307,8 @@ export function buildToolchain(root, outDir) {
   const lock = JSON.parse(
     readFileSync(join(root, "package-lock.json"), "utf8"),
   );
-  const closure = closureFromLock(lock);
-  assertNoInstallScripts(lock);
+  const closure = closureFromLock(lock, LEGACY_TOOLCHAIN_WORKSPACES);
+  assertNoInstallScripts(lock, LEGACY_TOOLCHAIN_WORKSPACES);
   const closurePaths = [...closure.keys()];
   const folder = join(outDir, FOLDER);
   const packed = mkdtempSync(join(tmpdir(), "toolchain-packed-"));
@@ -360,7 +361,7 @@ export function buildToolchain(root, outDir) {
       ).version;
     }
 
-    verifyVendored(lock, versions);
+    verifyVendored(lock, versions, LEGACY_TOOLCHAIN_WORKSPACES);
 
     const wheelhouse = join(packed, WHEELHOUSE);
 
