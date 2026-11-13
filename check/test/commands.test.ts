@@ -51,6 +51,7 @@ describe("command table", () => {
     expect(code).toBe(0);
     expect(out).toContain("--suites <file>");
     expect(out).toContain("--confirm-above <usd>");
+    expect(out).toContain("--ignore-retired-config");
   });
 
   it("lists every command once, in table order, in the short help", () => {

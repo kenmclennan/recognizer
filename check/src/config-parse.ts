@@ -1,5 +1,8 @@
 import { parse } from "yaml";
-import { retiredKeysIn } from "./config-retired.js";
+import {
+  retiredKeysIn,
+  withoutRetiredKeysAndEmptiedSections,
+} from "./config-retired.js";
 import { InputError } from "./errors.js";
 import validate from "./generated/config-validator.js";
 import { expandShortForms, SHIPPED_SENSORS } from "./shipped-sensors.js";
@@ -358,7 +361,15 @@ function project(document: unknown, read: ConfigRead): unknown {
   );
 }
 
-export function parseConfig(text: string, read: ConfigRead = "all"): Config {
+export interface ConfigOptions {
+  skipRetired?: boolean;
+}
+
+export function parseConfig(
+  text: string,
+  read: ConfigRead = "all",
+  options: ConfigOptions = {},
+): Config {
   if (!readsAnyConfig(read)) {
     return {};
   }
@@ -374,6 +385,10 @@ export function parseConfig(text: string, read: ConfigRead = "all"): Config {
   }
 
   document = project(document, read);
+
+  if (options.skipRetired === true) {
+    document = withoutRetiredKeysAndEmptiedSections(document);
+  }
 
   rejectRetiredOverlays(document);
   rejectRetiredDuplicationSensor(document);

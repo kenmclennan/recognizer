@@ -139,7 +139,7 @@ export const COMMANDS: Command[] = [
     summary:
       "scan a repository in up to three phases: extract when the files changed, describe, sense",
     usage:
-      "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--suites <file>] [--confirm-above <usd>] [--by <name>] [--json]",
+      "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--suites <file>] [--confirm-above <usd>] [--by <name>] [--ignore-retired-config] [--json]",
     arguments: [
       {
         name: "REPOSITORY",
@@ -184,6 +184,11 @@ export const COMMANDS: Command[] = [
           "who asked, recorded in the run log; defaults to the login user",
       },
       {
+        flag: "--ignore-retired-config",
+        description:
+          "read the config as if every retired key had never been written, instead of refusing it, so a past commit's files can be scanned; every other config error still refuses, and it takes no --describe or --sense",
+      },
+      {
         flag: "--json",
         description: "print one JSON line per event instead of text",
       },
@@ -205,7 +210,7 @@ export const COMMANDS: Command[] = [
       {
         code: 2,
         meaning:
-          "bad input - an unknown sensor name, --sense with no sensors registered, more than one repository, an empty --by, --modules without --describe or --sense or with an unreadable or malformed file, --suites without --sense, or an unknown flag",
+          "bad input - an unknown sensor name, --sense with no sensors registered, more than one repository, an empty --by, --modules without --describe or --sense or with an unreadable or malformed file, --suites without --sense, --ignore-retired-config with --describe or --sense, or an unknown flag",
       },
       {
         code: 3,
