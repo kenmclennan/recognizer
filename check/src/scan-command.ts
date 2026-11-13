@@ -719,15 +719,26 @@ function* scanFlow(
     emit(preflightLine({ state: "ok" }));
     taken?.running();
 
-    if (
-      readsSensors(read) &&
-      (yield* runStructure(io, root, scans, options.ignoreRetiredConfig))
-    ) {
-      failed = true;
+    let structureMs: number | undefined;
+
+    if (readsSensors(read)) {
+      const structure = yield* runStructure(
+        io,
+        root,
+        scans,
+        options.ignoreRetiredConfig,
+      );
+
+      if (structure.failed) {
+        failed = true;
+      }
+
+      structureMs = structure.ms ?? undefined;
     }
 
     if (describer !== undefined && options.describe !== false) {
       const phase = startPhase("describe");
+      let describeFrom = io.now();
 
       for (const language of detected) {
         if (readCachedScan(io, root, language) === null) {
@@ -769,7 +780,12 @@ function* scanFlow(
                   io.stdout(asked);
 
                   if (taken === null) {
-                    return (await io.readLine())?.trim() === "describe";
+                    const answered =
+                      (await io.readLine())?.trim() === "describe";
+
+                    describeFrom = io.now();
+
+                    return answered;
                   }
 
                   taken.append(asked);
@@ -779,6 +795,7 @@ function* scanFlow(
                   taken.append(
                     `${JSON.stringify({ event: "answered", phase: "describe", describe })}\n`,
                   );
+                  describeFrom = io.now();
 
                   return describe;
                 },
@@ -804,6 +821,8 @@ function* scanFlow(
           },
         },
       }) as DescribeResult;
+
+      phase.duration_ms = io.now() - describeFrom;
 
       const stop = result.stopped;
 
@@ -839,6 +858,8 @@ function* scanFlow(
 
       emit(phaseLine("sense", { total: selected.length }));
 
+      const senseFrom = io.now();
+
       yield {
         kind: "sense",
         input: {
@@ -848,6 +869,9 @@ function* scanFlow(
             ...one,
             command: withSuites(one.name, scoped(one.command)),
             runsTests: runsTests(one.command),
+            ...(scope !== undefined && isScoped(one.command)
+              ? { modules: scope.length }
+              : {}),
           })),
           commit: commit ?? "",
           scans,
@@ -868,9 +892,11 @@ function* scanFlow(
           },
         },
       };
+
+      phase.duration_ms = io.now() - senseFrom;
     }
 
-    runLog?.finish(phases);
+    runLog?.finish(phases, false, structureMs);
 
     const exit = failed ? 1 : 0;
 
@@ -968,10 +994,16 @@ function* runStructure(
   root: string,
   scans: Scan[],
   skipRetired: boolean,
-): Generator<ScanStep, boolean, ScanAnswer> {
+): Generator<ScanStep, { failed: boolean; ms: number | null }, ScanAnswer> {
   if (scans.length === 0) {
-    return false;
+    return { failed: false, ms: null };
   }
+
+  let began: number | null = null;
+  const timed = (failed: boolean) => ({
+    failed,
+    ms: began === null ? null : io.now() - began,
+  });
 
   try {
     const settings = resolveStructureSettings(
@@ -983,8 +1015,10 @@ function* runStructure(
     if (settings === "off") {
       io.remove(findingsFile(root, "structure"));
 
-      return false;
+      return { failed: false, ms: null };
     }
+
+    began = io.now();
 
     const policy = readPolicy(io, root);
 
@@ -1017,19 +1051,19 @@ function* runStructure(
     if (answer instanceof Error) {
       io.stderr(`failed structure: duplication: ${answer.message}\n`);
 
-      return true;
+      return timed(true);
     }
 
     if (run.error !== null) {
       io.stderr(`failed structure: ${run.error}\n`);
 
-      return true;
+      return timed(true);
     }
 
-    return false;
+    return timed(false);
   } catch (error) {
     io.stderr(`failed structure: ${(error as Error).message}\n`);
 
-    return true;
+    return timed(true);
   }
 }

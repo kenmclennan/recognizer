@@ -1582,6 +1582,67 @@ describe("recognizer scan: phases", () => {
 
     expect(outcomes).toEqual(["running", "running", "running", "ok"]);
   });
+
+  describe("recorded figures", () => {
+    const phaseOf = (fake: ReturnType<typeof fakeIo>, name: string) =>
+      records(fake)[0].phases.find(
+        (one: { phase: string }) => one.phase === name,
+      );
+
+    it("records structure_ms when the structure sensor ran and none when it is off", async () => {
+      const ran = await scan(setup());
+      const off = await scan(
+        setup({}, { [CONFIG]: "sensors:\n  structure: off\n" }),
+      );
+
+      expect(typeof records(ran.fake)[0].structure_ms).toBe("number");
+      expect(records(off.fake)[0]).not.toHaveProperty("structure_ms");
+    });
+
+    it("records the sense phase duration and a module count on each sense entry", async () => {
+      const { fake } = await scan(
+        setup({}, { [CONFIG]: SENSORS }),
+        "--sense",
+        "first,second",
+      );
+      const sense = phaseOf(fake, "sense");
+
+      expect(sense.duration_ms).toBeGreaterThan(0);
+      expect(
+        sense.entries.map((one: { modules: number }) => one.modules),
+      ).toEqual([2, 2]);
+      expect(phaseOf(fake, "extract")).not.toHaveProperty("duration_ms");
+    });
+
+    it("excludes the wait for the describe confirmation from the describe duration", async () => {
+      const reads = { count: 0 };
+      let clock = 0;
+      const { fake } = await scan(
+        setup(
+          {
+            lines: ["describe"],
+            linesRead: reads,
+            now: () => {
+              clock += 1;
+
+              return clock + (reads.count > 0 ? 100_000 : 0);
+            },
+          },
+          { [CONFIG]: DESCRIBER },
+        ),
+        "--describe",
+        "--json",
+        "--confirm-above",
+        "0.0001",
+      );
+      const describing = phaseOf(fake, "describe");
+
+      expect(reads.count).toBe(1);
+      expect(describing.entries).toHaveLength(2);
+      expect(describing.duration_ms).toBeGreaterThanOrEqual(0);
+      expect(describing.duration_ms).toBeLessThan(1000);
+    });
+  });
 });
 
 describe("recognizer scan: --ignore-retired-config", () => {

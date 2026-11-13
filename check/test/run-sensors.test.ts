@@ -493,3 +493,118 @@ describe("runSensors diagnosis", () => {
     });
   }
 });
+
+describe("sense entry figures", () => {
+  const scans = [
+    {
+      modules: [{ id: "a.py" }, { id: "b.py" }, { id: "c.py" }],
+      files: [],
+    },
+  ] as unknown as Scan[];
+  const finishing = (extra: string) => `
+    const fs = require("fs");
+    const [commit, output] = process.argv.slice(1);
+    fs.mkdirSync(require("path").dirname(output), { recursive: true });
+    fs.writeFileSync(output, JSON.stringify({
+      findings_version: 1,
+      sensor: { name: "quick", version: "1" },
+      commit, modified: false, settings: {}, findings: [], ${extra}
+    }));
+  `;
+  const progressLines = (steps: string[]) =>
+    steps
+      .map((step) => `process.stderr.write('recognizer-progress ${step}\\n');`)
+      .join("\n");
+
+  async function sensed(
+    script: string,
+    over: { runsTests?: boolean; modules?: number; clock?: number[] } = {},
+  ) {
+    const { root, io } = setup();
+    const steps = over.clock ?? [];
+    let at = 0;
+    const ticking = {
+      ...io,
+      now: () =>
+        steps.length > 0
+          ? (steps[Math.min(at, steps.length - 1)] as number)
+          : Date.now(),
+    };
+    const [entry] = await runSensors({
+      io: ticking,
+      root,
+      commit: COMMIT,
+      scans,
+      selected: [
+        {
+          name: "quick",
+          ...(over.runsTests === undefined
+            ? {}
+            : { runsTests: over.runsTests }),
+          ...(over.modules === undefined ? {} : { modules: over.modules }),
+          command: [process.execPath, "-e", script, "{commit}", "{output}"],
+        },
+      ],
+      onProgress: () => {
+        at += 1;
+      },
+    });
+
+    return entry;
+  }
+
+  it("records fixed_ms as the delta to the first mutants line and the cached module count", async () => {
+    const entry = await sensed(
+      `${progressLines(['{"step":"coverage"}', '{"step":"mutants","done":0,"total":3}', '{"step":"mutants","done":1,"total":3}'])}\n${finishing("")}`,
+      { runsTests: true, clock: [0, 1000, 9000, 20000] },
+    );
+
+    expect(entry).toMatchObject({
+      outcome: "ok",
+      modules: 3,
+      fixed_ms: 1000,
+      duration_ms: 20000,
+    });
+  });
+
+  it("records the whole duration as fixed_ms when no mutants line arrives", async () => {
+    const entry = await sensed(
+      `${progressLines(['{"step":"coverage"}'])}\n${finishing("")}`,
+      { runsTests: true, clock: [0, 7000, 7000] },
+    );
+
+    expect(entry?.fixed_ms).toBe(entry?.duration_ms);
+    expect(entry?.duration_ms).toBe(7000);
+  });
+
+  it("gives a sensor that runs no tests no fixed_ms", async () => {
+    const entry = await sensed(finishing(""));
+
+    expect(entry).toMatchObject({ outcome: "ok", modules: 3 });
+    expect(entry).not.toHaveProperty("fixed_ms");
+  });
+
+  it("records the scoped module count when one was given", async () => {
+    const entry = await sensed(finishing(""), { runsTests: true, modules: 2 });
+
+    expect(entry?.modules).toBe(2);
+  });
+
+  it.each([
+    ["stopped", "stopped: { measured: 3, total: 10 }"],
+    ["partial", "partial: { measured: 3, total: 10 }"],
+  ])(
+    "records incomplete for a findings document carrying %s",
+    async (_name, extra) => {
+      const entry = await sensed(finishing(extra));
+
+      expect(entry?.incomplete).toBe(true);
+    },
+  );
+
+  it("carries no incomplete key for a document with neither", async () => {
+    const entry = await sensed(finishing(""));
+
+    expect(entry).not.toHaveProperty("incomplete");
+  });
+});

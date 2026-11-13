@@ -26,7 +26,12 @@ const UNMEASURED = new Set<Diagnosis["code"]>([
 export interface RunSensorsInput {
   io: Io;
   root: string;
-  selected: { name: string; command: string[]; runsTests?: boolean }[];
+  selected: {
+    name: string;
+    command: string[];
+    runsTests?: boolean;
+    modules?: number;
+  }[];
   commit: string;
   scans: Scan[];
   onStart?: (name: string) => void;
@@ -40,7 +45,7 @@ function recordInputs(
   root: string,
   name: string,
   scans: Scan[],
-): Diagnosis | undefined {
+): { diagnosis: Diagnosis | undefined; incomplete: boolean } {
   const output = findingsFile(root, name);
   const document = validateFindings(JSON.parse(io.readFile(output)), { name });
 
@@ -50,19 +55,28 @@ function recordInputs(
     inputs: document.inputs ?? measuredInputs(scans),
   });
 
-  return document.diagnosis;
+  return {
+    diagnosis: document.diagnosis,
+    incomplete:
+      document.stopped !== undefined || document.partial !== undefined,
+  };
+}
+
+function moduleCount(scans: Scan[]): number {
+  return scans.reduce((total, scan) => total + scan.modules.length, 0);
 }
 
 export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
   const { io, root, commit } = input;
   const entries: RunEntry[] = [];
 
-  for (const { name, command, runsTests } of input.selected) {
+  for (const { name, command, runsTests, modules } of input.selected) {
     input.onStart?.(name);
 
     const output = findingsFile(root, name);
     const began = io.now();
     let refusal: Diagnosis | undefined;
+    let firstMutants: number | null = null;
     const keepStderr = (stderr: string): string => {
       for (const line of stderr.split("\n")) {
         refusal ??= parseReasonLine(line) ?? undefined;
@@ -89,6 +103,10 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
                 const progress = parseProgressLine(line);
 
                 if (progress !== null) {
+                  if (progress.step === "mutants") {
+                    firstMutants ??= io.now();
+                  }
+
                   input.onProgress?.(name, progress);
                 }
               },
@@ -108,10 +126,14 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
           );
     let { reason } = run;
     let diagnosis = refusal;
+    let incomplete = false;
 
     if (reason === null) {
       try {
-        diagnosis = recordInputs(io, root, name, input.scans);
+        const recorded = recordInputs(io, root, name, input.scans);
+
+        diagnosis = recorded.diagnosis;
+        incomplete = recorded.incomplete;
       } catch (error) {
         reason = `could not record inputs: ${(error as Error).message}`;
       }
@@ -125,11 +147,17 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
       reason = diagnosis.line;
     }
 
+    const finished = io.now();
     const entry = entryFrom(name, {
       command: run.command,
       status: run.status,
       stderr: run.stderr,
-      duration_ms: io.now() - began,
+      duration_ms: finished - began,
+      modules: modules ?? moduleCount(input.scans),
+      ...(runsTests === true
+        ? { fixed_ms: (firstMutants ?? finished) - began }
+        : {}),
+      ...(incomplete ? { incomplete: true } : {}),
       ...(reason === null ? {} : { reason }),
       ...(diagnosis === undefined ? {} : { diagnosis }),
     });
