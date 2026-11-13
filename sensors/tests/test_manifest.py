@@ -87,6 +87,53 @@ def test_the_manifest_names_the_sensor_and_the_shared_facts(name):
     assert manifest["version"] == version("recognizer-sensors")
 
 
+DISPLAY_KEYS = {"label", "labels", "unit", "units", "order", "limit"}
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_the_valid_example_equals_the_manifest_the_sensor_prints(name):
+    example = REPOSITORY / "schema" / "manifest-examples" / "valid" / f"sensor-{name}.json"
+
+    assert json.loads(example.read_text()) == build(name)
+
+
+def test_the_labelled_settings_are_exactly_the_shipped_rows():
+    rows = {
+        name: [
+            entry["key"]
+            for entry in build(name)["settings"]
+            if "label" in entry or "labels" in entry
+        ]
+        for name in NAMES
+    }
+
+    assert rows == {
+        "crap": ["threshold"],
+        "mutation": ["max_minutes", "max_workers", "timeout_factor", "incremental"],
+        "thresholds": ["<metric>.above", "<metric>.below"],
+    }
+    assert sum(len(keys) for keys in rows.values()) == 7
+
+
+def test_the_metric_cells_and_the_settings_title_are_the_shipped_ones():
+    cells = {
+        metric["name"]: metric["cell"]
+        for name in NAMES
+        for metric in build(name)["metrics"]
+        if "cell" in metric
+    }
+
+    assert cells == {"complexity": 1, "crap": 2, "coverage": 3}
+    assert build("thresholds")["settings_title"] == "Complexity and coverage"
+    assert "settings_title" not in build("crap")
+    assert "settings_title" not in build("mutation")
+
+
+def test_the_published_config_keys_carry_none_of_the_display_keys():
+    for key in config_schema.key_schema()["keys"]:
+        assert DISPLAY_KEYS.isdisjoint(key)
+
+
 @pytest.mark.parametrize("name", NAMES)
 def test_runs_tests_and_scoped_equal_the_registry_flags(name):
     manifest = build(name)
@@ -137,7 +184,12 @@ def test_the_settings_are_the_config_keys_of_the_sensor_relative_to_its_section(
         prefix = f"sensors.{name}."
         owned = [{**k, "key": k["key"][len(prefix) :]} for k in keys if k["key"].startswith(prefix)]
 
-        assert build(name)["settings"] == owned
+        shown = [
+            {k: v for k, v in entry.items() if k not in DISPLAY_KEYS}
+            for entry in build(name)["settings"]
+        ]
+
+        assert shown == owned
 
 
 def test_the_run_modes_and_time_limits_are_the_ones_the_cli_applies_today():

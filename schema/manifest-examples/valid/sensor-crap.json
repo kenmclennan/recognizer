@@ -19,7 +19,13 @@
       "description": "the C.R.A.P. score above which a function is reported, above 0; default 30",
       "example": "sensors.crap.threshold 20",
       "exclusiveMinimum": 0,
-      "default": 30
+      "default": 30,
+      "label": "Report above",
+      "unit": "score",
+      "limit": {
+        "metric": "crap",
+        "direction": "above"
+      }
     },
     {
       "key": "overlay",
@@ -40,7 +46,8 @@
       "published": {
         "value": 10,
         "source": "McCabe"
-      }
+      },
+      "cell": 1
     },
     {
       "name": "coverage",
@@ -53,7 +60,8 @@
       "published": {
         "value": 0.6,
         "source": "Google's guidelines"
-      }
+      },
+      "cell": 3
     },
     {
       "name": "crap",
@@ -66,7 +74,8 @@
       "published": {
         "value": 30,
         "source": "Savoia and Evans"
-      }
+      },
+      "cell": 2
     }
   ],
   "findings": [

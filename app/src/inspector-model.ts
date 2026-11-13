@@ -617,47 +617,31 @@ function functionMetricsRow(
   metrics: readonly MetricDescriptor[],
   limits: FunctionLimits,
 ): FunctionMetricCell[] {
-  const cell = (
-    label: string,
-    short: string,
-    warn: (value: number) => "amber" | "red" | null,
-  ): FunctionMetricCell => {
-    const metric = metricOf(metrics, label);
+  return limits.cells.map(({ metric: name, label, limit }) => {
+    const metric = metricOf(metrics, name);
     const value = metric?.values[`${module}::${member.name}`];
-    const name = metric === undefined ? label : fullMetricName(metric);
+    const title = metric === undefined ? name : fullMetricName(metric);
 
     if (metric === undefined || typeof value !== "number") {
       return {
-        name: metric?.short ?? short,
+        name: metric?.short ?? label,
         text: "-",
         tone: null,
-        title: `${name}: not measured`,
+        title: `${title}: not measured`,
       };
     }
+
+    const past =
+      limit !== null &&
+      (limit.direction === "above" ? value > limit.value : value < limit.value);
 
     return {
       name: metric.short,
       text: valueLabel(metric, value),
-      tone: warn(value),
-      title: barTitle(metric, { value, member: null }, name),
+      tone: past && limit !== null ? limit.tone : null,
+      title: barTitle(metric, { value, member: null }, title),
     };
-  };
-
-  return [
-    cell("complexity", "cc", (value) =>
-      limits.complexityAbove !== null && value > limits.complexityAbove
-        ? "amber"
-        : null,
-    ),
-    cell("crap", "CRAP", (value) =>
-      limits.crapAt !== null && value > limits.crapAt ? "red" : null,
-    ),
-    cell("coverage", "cov", (value) =>
-      limits.coverageBelow !== null && value < limits.coverageBelow
-        ? "amber"
-        : null,
-    ),
-  ];
+  });
 }
 
 function plainCard(
@@ -686,7 +670,7 @@ function plainCard(
       ? sizeOf(member.line, member.end_line, largest, inputs.limits.longAt)
       : null,
     metricsRow:
-      isFunction && inputs.metricsOn
+      isFunction && inputs.metricsOn && inputs.limits.cells.length > 0
         ? functionMetricsRow(member, module, inputs.metrics, inputs.limits)
         : null,
     head,

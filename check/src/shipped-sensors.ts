@@ -14,6 +14,7 @@ export interface ShippedMetric {
   type: "ratio" | "count" | "number" | "boolean";
   granularity: "module" | "member";
   bad: "high" | "low";
+  cell?: number;
   published?: { value: number; source: string };
 }
 
@@ -22,6 +23,7 @@ export interface ShippedSensorEntry {
   display: string;
   description?: string;
   expansion?: string;
+  settings_title?: string;
   runs_tests: boolean;
   scoped: boolean;
   listed: boolean;
@@ -80,6 +82,9 @@ function entryOf(manifest: Manifest): ShippedSensorEntry {
     ...(manifest.expansion === undefined
       ? {}
       : { expansion: manifest.expansion }),
+    ...(manifest.settings_title === undefined
+      ? {}
+      : { settings_title: manifest.settings_title }),
     runs_tests: manifest.runs_tests === true,
     scoped: manifest.scoped === true,
     listed: metrics.length > 0,

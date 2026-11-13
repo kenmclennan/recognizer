@@ -29,6 +29,13 @@ Every manifest carries:
 - `units`: the words its progress counts in (`files`, `modules`, `functions`, ...).
 - `settings`: the config keys it reads under its own section, each with its type, constraints and `default` or `default_text`, in the same shape `recognizer config --help` lists.
 
+A setting may also say how the app shows it, all optional and none changing the key schema `recognizer config` publishes:
+
+- `label` (or `labels`, one per value of a placeholder such as `<metric>`), `unit` (or `units`) and `order`: the setting is a row of the Settings modal, named by its label, with its unit after the input, ordered ascending within the pane with unordered rows after in manifest order. A setting with no label is not a row.
+- `limit`: `{metric, direction, severity?}` says the setting limits that metric, `above` or `below`. `metric` is a name, or the key's own placeholder written `<metric>`. `severity` is the key of an enum setting of the same sensor holding the severity of a finding past the limit; the modal shows it beside the limit, and the function card colours a cell past the limit amber for `warning` (or no severity) and red for `violation`.
+
+A sensor may set `settings_title`, the heading of its Settings pane (`display` by default); a sensor with no labelled setting has no pane. A metric may set `cell`, its position in the cells of an inspector function card; a metric without one has no cell. `recognizer plugin check` fails a limit on a non-sensor, a limit whose metric or severity the manifest does not hold, and `labels` or `units` on a key with no placeholder.
+
 By kind:
 
 - **Scanner:** `languages`, and for each, the file rules that claim a file for it (extensions, skipped folders).

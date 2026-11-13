@@ -50,7 +50,23 @@ describe("the manifest schema", () => {
       readFileSync(join(REPO, "schema/config-keys.schema.json"), "utf8"),
     );
 
-    expect(manifest.$defs.setting).toEqual(keys.properties.keys.items);
+    const display = ["label", "labels", "unit", "units", "order", "limit"];
+    const {
+      properties: { ...shown },
+      not: { anyOf: exclusives },
+      ...rest
+    } = manifest.$defs.setting;
+
+    for (const name of display) {
+      delete shown[name];
+    }
+
+    expect({
+      ...rest,
+      properties: shown,
+      not: { anyOf: exclusives.slice(0, 3) },
+    }).toEqual(keys.properties.keys.items);
+    expect(exclusives).toHaveLength(5);
   });
 
   it("holds the protocol the CLI judges against", () => {

@@ -1,0 +1,172 @@
+{
+  "kind": "sensor",
+  "name": "thresholds",
+  "display": "Thresholds",
+  "description": "Turns any overlay metric over a configured line into a finding, with complexity and coverage lines built in.",
+  "version": "0.1.0",
+  "protocol": 1,
+  "install": "brew install --cask kenmclennan/tap/recognizer",
+  "check": false,
+  "long_running": false,
+  "time_limit_seconds": 60,
+  "units": [
+    "modules"
+  ],
+  "settings": [
+    {
+      "key": "<metric>",
+      "type": "enum",
+      "description": "turns the default threshold of a metric off",
+      "example": "sensors.thresholds.complexity off",
+      "values": [
+        "off"
+      ]
+    },
+    {
+      "key": "<metric>.above",
+      "type": "number",
+      "description": "a finding when the metric is above this value; a metric takes above or below, not both",
+      "example": "sensors.thresholds.complexity.above 12",
+      "defaults": {
+        "complexity": 10
+      },
+      "labels": {
+        "complexity": "Complexity above"
+      },
+      "order": 1,
+      "limit": {
+        "metric": "<metric>",
+        "severity": "<metric>.severity"
+      }
+    },
+    {
+      "key": "<metric>.below",
+      "type": "number",
+      "description": "a finding when the metric is below this value; a metric takes above or below, not both",
+      "example": "sensors.thresholds.coverage.below 0.7",
+      "defaults": {
+        "coverage": 0.6
+      },
+      "labels": {
+        "coverage": "Coverage below"
+      },
+      "units": {
+        "coverage": "0 to 1"
+      },
+      "order": 2,
+      "limit": {
+        "metric": "<metric>",
+        "direction": "below",
+        "severity": "<metric>.severity"
+      }
+    },
+    {
+      "key": "<metric>.severity",
+      "type": "enum",
+      "description": "how a finding of the metric is reported; default warning",
+      "example": "sensors.thresholds.complexity.severity violation",
+      "values": [
+        "warning",
+        "violation"
+      ],
+      "defaults": {
+        "complexity": "warning",
+        "coverage": "warning"
+      }
+    }
+  ],
+  "settings_title": "Complexity and coverage",
+  "metrics": [],
+  "findings": [
+    {
+      "kind": "thresholds.<metric>",
+      "group": {
+        "name": "Over a limit",
+        "means": "A measure passed a limit set in your config, such as module size.",
+        "todo": "Bring it back under the limit, or raise the limit if it is wrong."
+      },
+      "help": "One finding per module or function whose metric passed a configured limit.",
+      "sentence": {
+        "requires": [
+          "evidence.measures.value",
+          "evidence.measures.line",
+          "evidence.modules.0"
+        ],
+        "parts": [
+          [
+            {
+              "when": [
+                {
+                  "has": "evidence.members.0.name"
+                }
+              ],
+              "text": "{evidence.members.0.name} in {evidence.members.0.module|short}"
+            },
+            {
+              "text": "{evidence.modules.0|short}"
+            }
+          ],
+          [
+            {
+              "text": " has {metric} {evidence.measures.value|num}, "
+            }
+          ],
+          [
+            {
+              "when": [
+                {
+                  "left": "evidence.measures.value",
+                  "op": "gt",
+                  "right": "evidence.measures.line"
+                }
+              ],
+              "text": "over the limit of {evidence.measures.line|num}"
+            },
+            {
+              "when": [
+                {
+                  "left": "evidence.measures.value",
+                  "op": "lt",
+                  "right": "evidence.measures.line"
+                }
+              ],
+              "text": "under the limit of {evidence.measures.line|num}"
+            },
+            {
+              "text": "at the limit of {evidence.measures.line|num}"
+            }
+          ],
+          [
+            {
+              "when": [
+                {
+                  "path": "kind",
+                  "is": "thresholds.coverage"
+                },
+                {
+                  "has": "evidence.measures.published"
+                }
+              ],
+              "text": " (Google's guidelines say {evidence.measures.published|percent}%)"
+            },
+            {
+              "when": [
+                {
+                  "has": "evidence.measures.published"
+                }
+              ],
+              "text": " (McCabe says {evidence.measures.published|num})"
+            }
+          ],
+          [
+            {
+              "text": "."
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "runs_tests": false,
+  "scoped": false
+}

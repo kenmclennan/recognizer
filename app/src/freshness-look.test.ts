@@ -128,8 +128,8 @@ describe.skipIf(webkit === undefined)(
       ]);
       expect(f.matching.barsA).toBe(1);
       expect(f.matching.barsB).toBe(0);
-      expect(f.matching.tablesA).toEqual([["cc 8", "CRAP -", "cov -"]]);
-      expect(f.matching.tablesB).toEqual([["cc -", "CRAP -", "cov -"]]);
+      expect(f.matching.tablesA).toEqual([["cc 8"]]);
+      expect(f.matching.tablesB).toEqual([["cc -"]]);
       expect(f.matching.line).toBe("1 warning");
       expect(f.matching.staleLine).toBe(
         "Findings for 1 changed module is hidden.",

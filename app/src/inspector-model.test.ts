@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Scan, ScanEdge, ScanMember } from "recognizer";
+import {
+  parseConfig,
+  type Scan,
+  type ScanEdge,
+  type ScanMember,
+} from "recognizer";
 import { describe, expect, it } from "vitest";
 import { buildCatalog } from "./finding-catalog";
 import { type FindingRow, findingRows } from "./findings-order";
@@ -1804,8 +1809,27 @@ describe("the metrics row on a function card", () => {
       null,
     ]);
     expect(row({ cc: 11, crap: 30.01, cov: 0.59 })?.map((c) => c.tone)).toEqual(
-      ["amber", "red", "amber"],
+      ["amber", "amber", "amber"],
     );
+  });
+
+  it("colours a cell red when its severity setting is violation", () => {
+    const limits = functionLimits(
+      parseConfig(
+        "sensors:\n  thresholds:\n    complexity:\n      above: 10\n      severity: violation\n",
+      ),
+      SHIPPED,
+    );
+
+    expect(
+      row({ cc: 11, crap: 31, cov: 0.59 }, { limits })?.map((c) => c.tone),
+    ).toEqual(["red", "amber", "amber"]);
+  });
+
+  it("has no metrics row when the limits have no cells", () => {
+    expect(
+      row({ cc: 11, crap: 31, cov: 0.59 }, { limits: DEFAULT_LIMITS }),
+    ).toBeNull();
   });
 
   it("shows a dash with no tone for a value the overlay lacks", () => {
@@ -1818,10 +1842,32 @@ describe("the metrics row on a function card", () => {
 
   it("reads the configured limits and an off limit never colours", () => {
     const limits = {
-      complexityAbove: null,
-      coverageBelow: 0.8,
-      crapAt: 20,
       longAt: 20,
+      cells: [
+        {
+          metric: "complexity",
+          label: "cc",
+          limit: null,
+        },
+        {
+          metric: "crap",
+          label: "CRAP",
+          limit: {
+            direction: "above" as const,
+            value: 20,
+            tone: "red" as const,
+          },
+        },
+        {
+          metric: "coverage",
+          label: "cov",
+          limit: {
+            direction: "below" as const,
+            value: 0.8,
+            tone: "amber" as const,
+          },
+        },
+      ],
     };
 
     expect(
@@ -1834,10 +1880,16 @@ describe("the metrics row on a function card", () => {
 
   it("shows no tone for a null limit but still renders its three cells", () => {
     const limits = {
-      complexityAbove: null,
-      coverageBelow: null,
-      crapAt: null,
       longAt: 20,
+      cells: [
+        ["complexity", "cc"],
+        ["crap", "CRAP"],
+        ["coverage", "cov"],
+      ].map(([metric, label]) => ({
+        metric: metric as string,
+        label: label as string,
+        limit: null,
+      })),
     };
     const cells = row({ cc: 99, crap: 99, cov: 0.1 }, { limits });
 

@@ -15,6 +15,7 @@ export interface Manifest {
   display: string;
   description?: string;
   expansion?: string;
+  settings_title?: string;
   version: string;
   protocol: number;
   install: string;

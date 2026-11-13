@@ -101,6 +101,51 @@ METRIC_FIELDS = {
     },
 }
 
+SETTING_DISPLAY = {
+    "crap": {
+        "threshold": {
+            "label": "Report above",
+            "unit": "score",
+            "limit": {"metric": "crap", "direction": "above"},
+        },
+    },
+    "mutation": {
+        "incremental": {"label": "Only what changed", "order": 1},
+        "timeout_factor": {
+            "label": "Timeout",
+            "unit": "x the unmutated suite",
+            "order": 2,
+        },
+        "max_minutes": {"label": "Stop a run after", "unit": "minutes", "order": 3},
+        "max_workers": {"label": "Workers", "order": 4},
+    },
+    "thresholds": {
+        "<metric>.above": {
+            "labels": {"complexity": "Complexity above"},
+            "order": 1,
+            "limit": {
+                "metric": "<metric>",
+                "direction": "above",
+                "severity": "<metric>.severity",
+            },
+        },
+        "<metric>.below": {
+            "labels": {"coverage": "Coverage below"},
+            "units": {"coverage": "0 to 1"},
+            "order": 2,
+            "limit": {
+                "metric": "<metric>",
+                "direction": "below",
+                "severity": "<metric>.severity",
+            },
+        },
+    },
+}
+
+SETTINGS_TITLES = {"thresholds": "Complexity and coverage"}
+
+CELLS = {"complexity": 1, "crap": 2, "coverage": 3}
+
 GROUPS = {
     "crap": {
         "name": "C.R.A.P.",
@@ -138,6 +183,9 @@ def metric(name: str) -> dict:
 
     if published is not None:
         entry["published"] = published
+
+    if name in CELLS:
+        entry["cell"] = CELLS[name]
 
     return entry
 
@@ -248,6 +296,12 @@ def strip(prefix: str, keys) -> list[dict]:
     return [{**entry, "key": entry["key"].removeprefix(prefix)} for entry in keys]
 
 
+def displayed(name: str, settings: list[dict]) -> list[dict]:
+    extra = SETTING_DISPLAY.get(name, {})
+
+    return [{**entry, **extra.get(entry["key"], {})} for entry in settings]
+
+
 def common(name: str, display: str, check: bool, units: str, settings: list[dict]) -> dict:
     return {
         "kind": "sensor",
@@ -262,7 +316,8 @@ def common(name: str, display: str, check: bool, units: str, settings: list[dict
         "long_running": name != "thresholds",
         **({"time_limit_seconds": 60} if name == "thresholds" else {}),
         "units": [units],
-        "settings": settings,
+        "settings": displayed(name, settings),
+        **({"settings_title": SETTINGS_TITLES[name]} if name in SETTINGS_TITLES else {}),
     }
 
 

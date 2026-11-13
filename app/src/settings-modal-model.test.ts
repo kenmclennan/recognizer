@@ -7,7 +7,9 @@ import {
   checkDescribing,
   createRepositoryModel,
   repositorySections,
+  sectionSpecs,
 } from "./settings-modal-model";
+import { shippedSensors } from "./shipped-fake";
 
 describe("checkDescribing", () => {
   it("accepts a model and a batch size and trims the model", () => {
@@ -66,7 +68,7 @@ if (!("schema" in SENSOR_KEYS)) {
 const PUBLISHED = publish([CORE_KEYS, SENSOR_KEYS.schema], "config");
 
 const shipped = (...names: string[]) =>
-  names.map((name) => ({ name, runsTests: name === "crap" }));
+  shippedSensors().filter((one) => names.includes(one.name));
 
 describe("repositorySections", () => {
   const names = (list: ReturnType<typeof shipped>) =>
@@ -77,6 +79,97 @@ describe("repositorySections", () => {
       "Structure",
       "Duplication",
       "C.R.A.P.",
+      "Test suites",
+    ]);
+  });
+
+  it("lists the three real sensors' panes in the approved order", () => {
+    expect(names(shipped("crap", "mutation", "thresholds"))).toEqual([
+      "Structure",
+      "Duplication",
+      "C.R.A.P.",
+      "Complexity and coverage",
+      "Mutation",
+      "Test suites",
+    ]);
+  });
+
+  it("builds the mutation rows in order and the thresholds rows with their units and severity keys", () => {
+    const specs = sectionSpecs(
+      shipped("crap", "mutation", "thresholds"),
+      PUBLISHED,
+    );
+    const fields = (id: string) =>
+      specs.find((spec) => spec.id === id)?.fields ?? [];
+
+    expect(fields("mutation").map((field) => field.label)).toEqual([
+      "Only what changed",
+      "Timeout",
+      "Stop a run after",
+      "Workers",
+    ]);
+    expect(fields("thresholds")).toEqual([
+      {
+        label: "Complexity above",
+        key: "sensors.thresholds.complexity.above",
+        control: "number",
+        severityKey: "sensors.thresholds.complexity.severity",
+      },
+      {
+        label: "Coverage below",
+        key: "sensors.thresholds.coverage.below",
+        control: "number",
+        unit: "0 to 1",
+        severityKey: "sensors.thresholds.coverage.severity",
+      },
+    ]);
+  });
+
+  it("shows no pane for a sensor that declares no labels while a labelled sibling has one", () => {
+    const bare = {
+      ...shipped("mutation")[0],
+      name: "bare",
+      display: "Bare",
+      settings: shipped("mutation")[0]?.settings.map(
+        ({ label: _label, ...rest }) => rest,
+      ),
+    };
+
+    const listed = names([...shipped("crap"), bare as never]);
+
+    expect(listed).toContain("C.R.A.P.");
+    expect(listed).not.toContain("Bare");
+  });
+
+  it("titles a pane with settings_title and otherwise display", () => {
+    const [crap, thresholds] = [shipped("crap")[0], shipped("thresholds")[0]];
+
+    expect(crap?.settings_title).toBeUndefined();
+    expect(sectionSpecs([crap as never], PUBLISHED).at(-1)?.name).toBe(
+      crap?.display,
+    );
+    expect(sectionSpecs([thresholds as never], PUBLISHED).at(-1)?.name).toBe(
+      thresholds?.settings_title,
+    );
+  });
+
+  it("lists the first two when the key schema publishes crap and mutation but not thresholds", () => {
+    const keys = {
+      ...PUBLISHED,
+      keys: PUBLISHED.keys.filter(
+        (entry) => !entry.key.startsWith("sensors.thresholds."),
+      ),
+    };
+
+    expect(
+      repositorySections(shipped("crap", "mutation", "thresholds"), keys).map(
+        (section) => section.name,
+      ),
+    ).toEqual([
+      "Structure",
+      "Duplication",
+      "C.R.A.P.",
+      "Mutation",
       "Test suites",
     ]);
   });

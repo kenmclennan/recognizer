@@ -203,13 +203,11 @@ describe.skipIf(webkit === undefined)("function length on a card", () => {
     ]);
     expect(f.rowOn.over_long?.map((cell) => cell.classes)).toEqual([
       "fn-metric amber",
-      "fn-metric red",
+      "fn-metric amber",
       "fn-metric amber",
     ]);
     expect(f.rowOn.over_long?.[0]?.color).not.toBe(f.rowOn.at_long?.[0]?.color);
-    expect(f.rowOn.over_long?.[1]?.color).not.toBe(
-      f.rowOn.over_long?.[0]?.color,
-    );
+    expect(f.rowOn.over_long?.[1]?.color).toBe(f.rowOn.over_long?.[0]?.color);
   });
 
   it("shows a dash with no tone for a function the overlay does not measure, and no row on a constant", () => {

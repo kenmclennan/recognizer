@@ -24,6 +24,9 @@ export function shippedSensor(name: string): ShippedSensor {
     display: rest.display,
     description: rest.description,
     ...(rest.expansion === undefined ? {} : { expansion: rest.expansion }),
+    ...(rest.settings_title === undefined
+      ? {}
+      : { settings_title: rest.settings_title }),
     runsTests: runs_tests,
     scoped: rest.scoped,
     listed: rest.metrics.length > 0,
