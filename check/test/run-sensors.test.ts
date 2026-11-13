@@ -693,9 +693,12 @@ ${finishing("")}`,
     expect(entry?.modules).toBe(2);
   });
 
+  const suite = (status: string, measured: number, total: number) =>
+    `{ name: "s", status: "${status}", ran_at: "2026-01-01T00:00:00Z", measured: ${measured}, total: ${total} }`;
+
   it.each([
     ["stopped", "stopped: { measured: 3, total: 10 }"],
-    ["partial", "partial: { measured: 3, total: 10 }"],
+    ["a partial suite", `suites: [${suite("partial", 3, 10)}]`],
   ])(
     "records incomplete for a findings document carrying %s",
     async (_name, extra) => {
@@ -704,6 +707,34 @@ ${finishing("")}`,
       expect(entry?.incomplete).toBe(true);
     },
   );
+
+  it("records no incomplete key for a document whose partial key covers functions outside its scope", async () => {
+    const entry = await sensed(
+      finishing(
+        `partial: { measured: 3, total: 10 }, counts: { measured: 3, total: 10 }, suites: [${suite("ok", 3, 3)}]`,
+      ),
+    );
+
+    expect(entry).toBeDefined();
+    expect(entry?.outcome).toBe("ok");
+    expect(entry).not.toHaveProperty("incomplete");
+  });
+
+  it("records incomplete when any one of several suites is partial", async () => {
+    const entry = await sensed(
+      finishing(`suites: [${suite("ok", 3, 3)}, ${suite("partial", 1, 3)}]`),
+    );
+
+    expect(entry?.incomplete).toBe(true);
+  });
+
+  it("records incomplete for a stopped document that lists no suites", async () => {
+    const entry = await sensed(
+      finishing("stopped: { measured: 0, total: 10 }"),
+    );
+
+    expect(entry?.incomplete).toBe(true);
+  });
 
   it("carries no incomplete key for a document with neither", async () => {
     const entry = await sensed(finishing(""));
