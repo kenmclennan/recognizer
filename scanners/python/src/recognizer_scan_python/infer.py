@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 
 from recognizer_scan_python.analysis import expand, is_abstraction
 from recognizer_scan_python.index import ModuleIndex
+from recognizer_scan_python.outline import recorded_statements
 from recognizer_scan_python.routes import Router
 
 GENERIC_METHODS = frozenset(
@@ -63,7 +64,7 @@ def collect_classes(parsed: dict, index: ModuleIndex, router: Router) -> dict[Cl
     classes = {}
 
     for module_id, item in parsed.items():
-        for node in item.tree.body:
+        for node, _ in recorded_statements(item.tree):
             if isinstance(node, ast.ClassDef):
                 classes[(module_id, node.name)] = ClassInfo(
                     module_id,
@@ -75,7 +76,7 @@ def collect_classes(parsed: dict, index: ModuleIndex, router: Router) -> dict[Cl
     for module_id, item in parsed.items():
         local = {name for (owner, name) in classes if owner == module_id}
 
-        for node in item.tree.body:
+        for node, _ in recorded_statements(item.tree):
             if not isinstance(node, ast.ClassDef):
                 continue
 

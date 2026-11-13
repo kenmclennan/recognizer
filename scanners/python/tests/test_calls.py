@@ -326,3 +326,60 @@ def test_a_module_id_with_a_double_colon_has_no_calls(run):
 
 def test_no_python_means_an_empty_calls_list(run):
     assert run({"m.py": "x = 1\n"})["calls"] == []
+
+
+def test_calls_from_block_level_function_and_block_level_class_method(run):
+    document = run(
+        {
+            "m.py": (
+                "def helper(): ...\n"
+                "if True:\n"
+                "    def f():\n"
+                "        helper()\n"
+                "    class C:\n"
+                "        def go(self):\n"
+                "            helper()\n"
+            )
+        }
+    )
+
+    assert call_tuples(document) == [
+        ("m.py::C.go", "m.py::helper", "call"),
+        ("m.py::f", "m.py::helper", "call"),
+    ]
+
+
+def test_a_name_defined_in_two_branches_calls_from_the_first_only(run):
+    document = run(
+        {
+            "m.py": (
+                "def a(): ...\n"
+                "def b(): ...\n"
+                "try:\n"
+                "    def f():\n"
+                "        a()\n"
+                "except ImportError:\n"
+                "    def f():\n"
+                "        b()\n"
+            )
+        }
+    )
+
+    assert call_tuples(document) == [("m.py::f", "m.py::a", "call")]
+
+
+def test_block_level_class_inherits_a_top_level_base_for_self_calls(run):
+    document = run(
+        {
+            "m.py": (
+                "class Base:\n"
+                "    def shared(self): ...\n"
+                "if True:\n"
+                "    class D(Base):\n"
+                "        def go(self):\n"
+                "            self.shared()\n"
+            )
+        }
+    )
+
+    assert call_tuples(document) == [("m.py::D.go", "m.py::Base.shared", "call")]
