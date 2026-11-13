@@ -1560,4 +1560,71 @@ describe("scanPanel estimate line", () => {
   it("shows no line while scanning", () => {
     expect(scanPanel(mutating({ scanning: true })).estimate).toBeNull();
   });
+
+  it("reads the figure and a hover for exactly what the button runs", () => {
+    const model = scanPanel(mutating());
+
+    expect(model.estimate?.text).toBe("About 3 min");
+    expect(model.estimate?.title).toBe(
+      "Structure: <1 min (last run)\nMutation: 3 min (3 modules at recent pace)",
+    );
+  });
+
+  it("reads No estimate until this repository has been scanned with no history", () => {
+    expect(scanPanel(mutating({ history: undefined })).estimate?.text).toBe(
+      "No estimate until this repository has been scanned",
+    );
+  });
+
+  it("names a ticked sensor with no history", () => {
+    const model = scanPanel(
+      mutating({
+        ticks: {
+          describe: false,
+          ticked: [],
+          once: ["mutation", "crap"],
+          onlyView: false,
+          suites: {},
+          folds: [],
+        },
+      }),
+    );
+
+    expect(model.estimate?.text).toBe(
+      "About 3 min, plus C.R.A.P.: no estimate yet",
+    );
+    expect(model.estimate?.title).toContain("C.R.A.P.: no estimate yet");
+  });
+
+  it("changes with the scope, through the modules the plan gives Mutation", () => {
+    const view = { name: null, modules: ["a.py"] };
+    const whole = scanPanel(mutating({ mode: "rescan", view }));
+    const scoped = scanPanel(
+      mutating({
+        mode: "rescan",
+        view,
+        ticks: { ...mutating().ticks, onlyView: true },
+      }),
+    );
+
+    expect(whole.planned?.work.mutation).toBe(3);
+    expect(scoped.planned?.work.mutation).toBe(1);
+    expect(whole.estimate?.title).toContain("3 modules at recent pace");
+    expect(scoped.estimate?.title).toContain("1 module at recent pace");
+  });
+
+  it("changes with the mode through the modules to describe", () => {
+    const base = mutating({
+      ticks: { ...mutating().ticks, describe: true },
+      lines: {
+        modules: ["a.py", "b.py", "c.py"],
+        of: (id) => CURRENT[id] as ResponsibilityState,
+      },
+    });
+    const bring = scanPanel(base);
+    const full = scanPanel({ ...base, mode: "rescan" });
+
+    expect(bring.planned?.work.describe).toBe(1);
+    expect(full.planned?.work.describe).toBe(3);
+  });
 });

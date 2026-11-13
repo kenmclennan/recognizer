@@ -548,7 +548,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
     };
   }
 
-  const HISTORY = json({ log_version: 1, kind: "scan", started: "2026-11-03T09:00:00.000Z", finished: "2026-11-03T09:10:00.000Z", by: "ken", arguments: [], outcome: "ok", exit: 0, structure_ms: 6000, phases: [{ phase: "extract", entries: [{ name: "python", command: ["x"], status: 0, outcome: "ok", duration_ms: 4000, stderr: "" }] }] });
+  const HISTORY = json({ log_version: 1, kind: "scan", started: "2026-11-03T09:00:00.000Z", finished: "2026-11-03T09:10:00.000Z", by: "ken", arguments: [], outcome: "ok", exit: 0, structure_ms: 6000, phases: [{ phase: "sense", entries: [{ name: "mutation", command: ["x"], status: 0, outcome: "ok", duration_ms: 160000, modules: 2, fixed_ms: 100000, stderr: "" }] }] });
   const timedSensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
   timedSensors.runRecords.set("20261103T090000000Z-scan.json", HISTORY);
   const timed = await mount(fakeScan(), timedSensors);
@@ -1114,11 +1114,9 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.estimateTicked.exists).toBe(true);
     expect(f.estimateTicked.hidden).toBe(false);
     expect(f.estimateTicked.afterButtons).toBe(true);
-    expect(f.estimateTicked.text).toBe(
-      "Under a minute, plus Mutation: no estimate yet",
-    );
+    expect(f.estimateTicked.text).toBe("About 3 min");
     expect(f.estimateTicked.title).toBe(
-      "Structure: <1 min (last run)\nMutation: no estimate yet",
+      "Structure: <1 min (last run)\nMutation: 3 min (2 modules at recent pace)",
     );
     expect(f.estimateUnticked.hidden).toBe(true);
   });

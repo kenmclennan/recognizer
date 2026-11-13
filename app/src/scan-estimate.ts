@@ -1,6 +1,12 @@
 import { validateRunRecord } from "recognizer";
 import { STRUCTURE_KEY } from "./freshness-model";
-import { DESCRIBE_KEY, type PlannedRun } from "./scan-freshness";
+import { DESCRIBE_KEY, MUTATION_KEY, type PlannedRun } from "./scan-freshness";
+
+export type SenseSample = {
+  durationMs: number;
+  modules: number;
+  fixedMs: number | undefined;
+};
 
 export type DescribeSample = { ms: number; entries: number };
 
@@ -8,12 +14,14 @@ export type ScanHistory = {
   structureMs: number | null;
   extractMs: number | null;
   describe: DescribeSample[];
+  sense: Record<string, SenseSample[]>;
 };
 
 export const NO_HISTORY: ScanHistory = {
   structureMs: null,
   extractMs: null,
   describe: [],
+  sense: {},
 };
 
 export type PartSpec = { key: string; name: string; runsTests: boolean };
@@ -74,6 +82,15 @@ function shortTime(ms: number): string {
   return rest === 0 ? `${hours} h` : `${hours} h ${rest} m`;
 }
 
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+
+  return sorted.length % 2 === 1
+    ? (sorted[middle] as number)
+    : ((sorted[middle - 1] as number) + (sorted[middle] as number)) / 2;
+}
+
 function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
@@ -88,6 +105,7 @@ export function scanHistory(
     structureMs: null,
     extractMs: null,
     describe: [],
+    sense: {},
   };
 
   for (const file of ordered) {
@@ -134,6 +152,27 @@ export function scanHistory(
             entries: usable.length,
           });
         }
+
+        continue;
+      }
+
+      if (phase.phase !== "sense") {
+        continue;
+      }
+
+      for (const entry of usable) {
+        if (entry.modules === undefined || entry.modules === 0) {
+          continue;
+        }
+
+        const samples = history.sense[entry.name] ?? [];
+
+        history.sense[entry.name] = samples;
+        samples.push({
+          durationMs: entry.duration_ms,
+          modules: entry.modules,
+          fixedMs: entry.fixed_ms,
+        });
       }
     }
   }
@@ -158,6 +197,38 @@ function secondsText(ms: number): string {
   return seconds >= 10
     ? String(Math.round(seconds))
     : String(Math.round(seconds * 10) / 10);
+}
+
+function senseFigure(
+  samples: SenseSample[],
+  spec: PartSpec,
+  n: number,
+): { ms: number; basis: string } | null {
+  const recent = samples
+    .filter((one) => !spec.runsTests || one.fixedMs !== undefined)
+    .slice(0, RECENT);
+  const newest = recent[0];
+
+  if (newest === undefined) {
+    return null;
+  }
+
+  const fixed = spec.runsTests ? (newest.fixedMs as number) : 0;
+  const rate = median(
+    recent.map(
+      (one) =>
+        Math.max(
+          0,
+          one.durationMs - (spec.runsTests ? (one.fixedMs as number) : 0),
+        ) / one.modules,
+    ),
+  );
+  const basis =
+    spec.runsTests && spec.key !== MUTATION_KEY
+      ? `${plural(n, "module")}, last run's pace`
+      : `${plural(n, "module")} at recent pace`;
+
+  return { ms: fixed + n * rate, basis };
 }
 
 export function estimateParts(
@@ -212,7 +283,13 @@ export function estimateParts(
       continue;
     }
 
-    parts.push({ key, name, ms: null, basis: null });
+    const figure = senseFigure(history.sense[key] ?? [], spec, n);
+
+    parts.push(
+      figure === null
+        ? { key, name, ms: null, basis: null }
+        : { key, name, ms: figure.ms, basis: figure.basis },
+    );
   }
 
   return parts;
