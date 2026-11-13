@@ -66,6 +66,47 @@ describe("recognizer plugin check", () => {
     expect(outcome.out).toMatch(/fail {2}starts {2}manifest exited 1/);
   });
 
+  it("fails only clean-output for a command that writes to stderr", () => {
+    expect(failed("noisy/recognizer-scan-conforming")).toEqual([
+      "clean-output",
+    ]);
+    expect(check("noisy/recognizer-scan-conforming").status).toBe(1);
+  });
+
+  it("fails only named-for-command for a command with the wrong basename", () => {
+    const entry = results("wrong-name/conforming-scanner").find(
+      (one) => one.status === "fail",
+    );
+
+    expect(failed("wrong-name/conforming-scanner")).toEqual([
+      "named-for-command",
+    ]);
+    expect(entry?.reason).toContain("recognizer-scan-conforming");
+  });
+
+  it("fails only protocol for a plugin on an unsupported protocol, naming plugin, both versions and install", () => {
+    const entry = results("future/recognizer-scan-conforming").find(
+      (one) => one.status === "fail",
+    );
+
+    expect(failed("future/recognizer-scan-conforming")).toEqual(["protocol"]);
+    expect(entry?.reason).toContain("conforming");
+    expect(entry?.reason).toContain("protocol 2");
+    expect(entry?.reason).toContain("protocol 1");
+    expect(entry?.reason).toContain("brew install --cask");
+  });
+
+  it("fails only side-effect-free for a command that writes a file into its working directory", () => {
+    const entry = results("writes/recognizer-scan-conforming").find(
+      (one) => one.status === "fail",
+    );
+
+    expect(failed("writes/recognizer-scan-conforming")).toEqual([
+      "side-effect-free",
+    ]);
+    expect(entry?.reason).toContain("leaked");
+  });
+
   it("passes a plugin on the previous protocol with a warning that quotes install", () => {
     const captured = capture();
     const report = pluginCheck(
