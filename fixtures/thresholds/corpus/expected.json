@@ -447,7 +447,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.5882,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
@@ -494,7 +495,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.6,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
@@ -588,7 +590,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.5882,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
@@ -635,7 +638,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.6,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
@@ -732,7 +736,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.5882,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
@@ -782,7 +787,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.6,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
@@ -871,7 +877,8 @@
       "severity": "violation",
       "measures": {
         "value": 25,
-        "line": 11
+        "line": 11,
+        "published": 10
       },
       "derivation": "planted complexity 25; the custom line fires when > 11, and 25 > 11 is true",
       "known_defect": null
@@ -885,7 +892,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.1,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom line fires when < 0.61, and 0.1 < 0.61 is true",
       "known_defect": null
@@ -935,7 +943,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.5882,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
@@ -982,7 +991,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.6,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
@@ -1076,7 +1086,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.5882,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
@@ -1123,7 +1134,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.6,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
@@ -1220,7 +1232,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.5882,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
@@ -1270,7 +1283,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.6,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
@@ -1359,7 +1373,8 @@
       "severity": "violation",
       "measures": {
         "value": 25,
-        "line": 11
+        "line": 11,
+        "published": 10
       },
       "derivation": "planted complexity 25; the custom line fires when > 11, and 25 > 11 is true",
       "known_defect": null
@@ -1373,7 +1388,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.1,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom line fires when < 0.61, and 0.1 < 0.61 is true",
       "known_defect": null
@@ -1423,7 +1439,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.5882,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
@@ -1470,7 +1487,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.6,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
@@ -1564,7 +1582,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.5882,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
@@ -1611,7 +1630,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.6,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
@@ -1708,7 +1728,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.5882,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
@@ -1758,7 +1779,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.6,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
@@ -1847,7 +1869,8 @@
       "severity": "violation",
       "measures": {
         "value": 25,
-        "line": 11
+        "line": 11,
+        "published": 10
       },
       "derivation": "planted complexity 25; the custom line fires when > 11, and 25 > 11 is true",
       "known_defect": null
@@ -1861,7 +1884,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.1,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom line fires when < 0.61, and 0.1 < 0.61 is true",
       "known_defect": null
@@ -1911,7 +1935,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.5882,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
@@ -1958,7 +1983,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.6,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
@@ -2052,7 +2078,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.5882,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
@@ -2099,7 +2126,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.6,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
@@ -2196,7 +2224,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.5882,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
@@ -2246,7 +2275,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.6,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
@@ -2335,7 +2365,8 @@
       "severity": "violation",
       "measures": {
         "value": 25,
-        "line": 11
+        "line": 11,
+        "published": 10
       },
       "derivation": "planted complexity 25; the custom line fires when > 11, and 25 > 11 is true",
       "known_defect": null
@@ -2349,7 +2380,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.1,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom line fires when < 0.61, and 0.1 < 0.61 is true",
       "known_defect": null
@@ -2399,7 +2431,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.5882,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
@@ -2446,7 +2479,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.6,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
@@ -2540,7 +2574,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.5882,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
@@ -2587,7 +2622,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.6,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
@@ -2684,7 +2720,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.5882,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
@@ -2734,7 +2771,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.6,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
@@ -2823,7 +2861,8 @@
       "severity": "violation",
       "measures": {
         "value": 25,
-        "line": 11
+        "line": 11,
+        "published": 10
       },
       "derivation": "planted complexity 25; the custom line fires when > 11, and 25 > 11 is true",
       "known_defect": null
@@ -2837,7 +2876,8 @@
       "severity": "warning",
       "measures": {
         "value": 0.1,
-        "line": 0.61
+        "line": 0.61,
+        "published": 0.6
       },
       "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom line fires when < 0.61, and 0.1 < 0.61 is true",
       "known_defect": null

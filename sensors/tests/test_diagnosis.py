@@ -125,7 +125,7 @@ def test_a_complexity_only_document_still_warns_and_validates(tmp_path, monkeypa
     assert status == 0
     assert document["diagnosis"]["code"] == "coverage-unavailable"
     assert [f["summary"] for f in document["findings"]] == [
-        "f in app/m.py has complexity 2 and unknown coverage, CRAP at least 2"
+        "f in app/m.py has complexity 2 and unknown coverage, CRAP at least 2, over this repository's threshold of 1 (Savoia and Evans say 30)"
     ]
     assert "coverage" not in document["findings"][0]["evidence"]["measures"]
 

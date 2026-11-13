@@ -752,6 +752,18 @@ def test_the_guide_of_mutation_names_the_context_requirement_and_both_fixes(caps
     assert "pyproject.toml" not in out
 
 
+def test_the_guide_of_mutation_states_what_a_blank_budget_and_worker_count_mean(capsys):
+    _, out = run_cli(["mutation", "--guide"], capsys)
+    _, crap_out = run_cli(["crap", "--guide"], capsys)
+
+    for text in (
+        "no time budget: the run continues until it finishes",
+        "sized from the machine's cores and free memory",
+    ):
+        assert text in out
+        assert text not in crap_out
+
+
 def test_the_guide_of_mutation_names_carry_and_the_import_path_fix_in_recognizer_config(capsys):
     status, out = run_cli(["mutation", "--guide"], capsys)
 
