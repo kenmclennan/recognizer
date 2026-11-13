@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
+import { functionLimits } from "./function-limits";
 import { collectFacts, here, webkit } from "./look-page";
+import { shippedSensors } from "./shipped-fake";
 
 const HOSTS = `<div id="a-rail" style="width:44px;height:300px;display:flex;flex-direction:column"></div><div id="a-panel" style="width:340px;height:600px;display:flex;flex-direction:column"></div><div id="a-long" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-short" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-tabs" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-folder" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-top" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-narrow" style="width:200px;height:300px;display:flex;flex-direction:column"></div><div id="a-fit" style="width:340px;height:300px;display:flex;flex-direction:column"></div>`;
+
+const REAL_LIMITS = functionLimits(null, {
+  status: "ok",
+  sensors: shippedSensors(),
+});
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -10,7 +17,7 @@ document.body.insertAdjacentHTML("beforeend", ${JSON.stringify(HOSTS)});
 import { buildInspectorView } from ${JSON.stringify(here("inspector-view.ts"))};
 import { compactFolders } from ${JSON.stringify(here("folder-compaction.ts"))};
 import { inspectorContent } from ${JSON.stringify(here("inspector-model.ts"))};
-import { DEFAULT_LIMITS } from ${JSON.stringify(here("function-limits.ts"))};
+const DEFAULT_LIMITS = ${JSON.stringify(REAL_LIMITS)};
 
 const scan = {
   modules: [
@@ -47,8 +54,8 @@ const inputs = {
   metricsOn: false,
   limits: DEFAULT_LIMITS,
   metrics: [
-    { key: "t/complexity", label: "complexity", granularity: "member", type: "count", bad: "high", overlay: "t", stale: false, max: 12, values: { "p/m.py::C.go": 12, "p/m.py::f": 1 } },
-    { key: "t/coverage", label: "coverage", granularity: "member", type: "ratio", bad: "low", overlay: "t", stale: false, max: 1, values: { "p/m.py::C.go": 0.5 } },
+    { key: "t/complexity", label: "complexity", short: "cc", title: "Complexity", granularity: "member", type: "count", bad: "high", overlay: "t", stale: false, max: 12, values: { "p/m.py::C.go": 12, "p/m.py::f": 1 } },
+    { key: "t/coverage", label: "coverage", short: "cov", title: "Coverage", granularity: "member", type: "ratio", bad: "low", overlay: "t", stale: false, max: 1, values: { "p/m.py::C.go": 0.5 } },
   ],
 };
 const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, setFilter() {}, openInEditor() {}, setShowPrivate() {} };
@@ -434,9 +441,9 @@ describe("the inspector, in a real browser", () => {
       expect(klass?.rows).toBe(2);
       expect(klass?.text).toEqual(["12", "50%", "-", "-"]);
       expect(klass?.titles).toEqual([
-        "Cyclomatic complexity 12",
+        "Complexity 12",
         "Coverage 50%",
-        "Cyclomatic complexity: not measured",
+        "Complexity: not measured",
         "Coverage: not measured",
       ]);
       expect(klass?.align).toEqual(["right", "right", "right", "right"]);

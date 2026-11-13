@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-from conftest import REPOSITORY, SENSOR_LIST, SHIPPED
+from conftest import REPOSITORY, SHIPPED
 
 from recognizer_sensors.cli import main
 from recognizer_sensors.registry import SHIPPED as REGISTRY
@@ -696,11 +696,9 @@ def test_the_crap_check_prints_the_no_suites_gap_and_runs_nothing(harness, capsy
 
 
 def test_only_crap_and_mutation_have_a_test_check():
-    listed = json.loads(SENSOR_LIST.read_text())
     checking = sorted(name for name, sensor in REGISTRY.items() if sensor.runs_tests)
 
     assert checking == ["crap", "mutation"]
-    assert sorted(entry["name"] for entry in listed if entry["runs_tests"]) == checking
     assert sorted(json.loads(SHIPPED.read_text())) == sorted(REGISTRY)
     assert sorted(name for name, sensor in REGISTRY.items() if sensor.guide is not None) == checking
     assert (

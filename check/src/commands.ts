@@ -765,12 +765,16 @@ export const COMMANDS: Command[] = [
       },
     ],
     output: {
-      text: "one `<name>  <line>` line per shipped sensor; with check, one block per sensor: `<name>: ready`, or `<name>: N gaps` followed by one indented sentence per gap",
-      json: "[{ name, display, line, defaults, runs_tests, listed, metrics }]; with check, { ready, sensors: [{ name, ready, gaps: [{ code, suite, line }], notes: [{ code, suite, line }] }] }",
+      text: "one `<name>  <description>` line per shipped sensor; with check, one block per sensor: `<name>: ready`, or `<name>: N gaps` followed by one indented sentence per gap",
+      json: "[{ name, display, description, expansion, runs_tests, scoped, listed, metrics, findings, settings }], read from each sensor's manifest; with check, { ready, sensors: [{ name, ready, gaps: [{ code, suite, line }], notes: [{ code, suite, line }] }] }",
     },
     exitCodes: [
       { code: 0, meaning: "the list was printed, or every sensor is ready" },
-      { code: 1, meaning: "check found a gap" },
+      {
+        code: 1,
+        meaning:
+          "check found a gap, or a sensor's manifest was unreadable (named on stderr, the readable sensors still printed)",
+      },
       {
         code: 2,
         meaning: "bad arguments, an unknown sensor, or no sensors registered",
@@ -779,7 +783,7 @@ export const COMMANDS: Command[] = [
     examples: [
       {
         command: "recognizer sensors --json",
-        note: "the shipped sensors and their default settings",
+        note: "the shipped sensors, read from their manifests",
       },
       {
         command: "recognizer sensors check crap --run",

@@ -1,6 +1,6 @@
 import { validateRunRecord } from "recognizer";
 import { STRUCTURE_KEY } from "./freshness-model";
-import { DESCRIBE_KEY, MUTATION_KEY, type PlannedRun } from "./scan-freshness";
+import { DESCRIBE_KEY, type PlannedRun } from "./scan-freshness";
 import type { ScanProgress } from "./scan-progress";
 
 export type SenseSample = {
@@ -25,7 +25,12 @@ export const NO_HISTORY: ScanHistory = {
   sense: {},
 };
 
-export type PartSpec = { key: string; name: string; runsTests: boolean };
+export type PartSpec = {
+  key: string;
+  name: string;
+  runsTests: boolean;
+  scoped: boolean;
+};
 
 export type EstimatePart = {
   key: string;
@@ -225,7 +230,7 @@ function senseFigure(
     ),
   );
   const basis =
-    spec.runsTests && spec.key !== MUTATION_KEY
+    spec.runsTests && !spec.scoped
       ? `${plural(n, "module")}, last run's pace`
       : `${plural(n, "module")} at recent pace`;
 

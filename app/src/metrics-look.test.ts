@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { collectFacts, FAKE_WORKER, here, webkit } from "./look-page";
+import { shippedSensors } from "./shipped-fake";
 
 const SCAN_COMMIT = "0123456789abcdef0123456789abcdef01234567";
 
@@ -30,7 +31,6 @@ const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { loadedOf, mountExplorer, scanHostOf } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
-import { SHIPPED_SENSOR_LIST } from "recognizer";
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
 ${FAKE_WORKER}
 
@@ -52,7 +52,11 @@ const loadedFor = (overlay) => loadedOf({
   sensors: overlay === null ? [] : [{ name: "crap", status: "ran", measured: { inputs: JSON.parse(overlay).inputs } }],
 });
 
-const SHIPPED = SHIPPED_SENSOR_LIST.filter((sensor) => sensor.metrics.length > 0).map((sensor) => ({ name: sensor.name, display: sensor.display, line: sensor.line, defaults: {}, runsTests: sensor.runs_tests, listed: sensor.listed, metrics: [...sensor.metrics] }));
+const SHIPPED = ${JSON.stringify(
+  shippedSensors()
+    .filter((sensor) => sensor.metrics.length > 0)
+    .map((sensor) => ({ ...sensor, findings: [] })),
+)};
 const DAY = 86400000;
 const crapOverlay = (commit, inputs = INPUTS) => JSON.stringify({ overlay_version: 1, commit, inputs, modified: false, producer: { name: "crap", version: "0.1.72" }, metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }, { name: "coverage", type: "ratio", granularity: "member", bad: "low" }, { name: "crap", type: "number", granularity: "member", bad: "high" }], values: { complexity: { "app/risk.py::classify": 8 }, coverage: { "app/risk.py::classify": 0.18 }, crap: { "app/risk.py::classify": 40 } } });
 const mutationOverlay = () => JSON.stringify({ overlay_version: 1, inputs: INPUTS, commit: ${JSON.stringify(SCAN_COMMIT)}, modified: false, producer: { name: "mutation", version: "0.1.0" }, metrics: ["killed", "survived", "uncovered", "score"].map((name) => ({ name, type: "count", granularity: "member", bad: name === "killed" || name === "score" ? "low" : "high" })), values: { killed: { "app/risk.py::classify": 2 }, survived: { "app/risk.py::classify": 3 }, uncovered: {}, score: {} } });
@@ -103,8 +107,8 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
 }));
 
 (async () => {
-  const crapHost = () => scanHostOf({ port: fakeSensors({}, {}, {}, SHIPPED.filter((one) => one.name === "crap").map((one) => ({ ...one, display: "crap", metrics: [] }))) });
-  const mount = (overlay, carried) => mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", views: port, post: () => null, carried, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, overlay === null ? [] : SHIPPED.filter((one) => one.name === "crap").map((one) => ({ ...one, display: "crap", metrics: [] }))) }) });
+  const crapHost = () => scanHostOf({ port: fakeSensors({}, {}, {}, SHIPPED.filter((one) => one.name === "crap").map((one) => ({ ...one, display: "crap" }))) });
+  const mount = (overlay, carried) => mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", views: port, post: () => null, carried, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, overlay === null ? [] : SHIPPED.filter((one) => one.name === "crap").map((one) => ({ ...one, display: "crap" }))) }) });
   let explorer = mount(${JSON.stringify(fresh)}, null);
   await tick();
   for (const folder of ["app", "src", "lib"]) {
@@ -328,7 +332,9 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
       "crap/coverage",
       "crap/crap",
     ]);
-    expect(f.rows[0].text).toContain("Cyclomatic complexity of each function");
+    expect(f.rows[0].text).toContain(
+      "How many independent paths run through the function",
+    );
     expect(f.rows[0].text).not.toContain("per member");
   });
 
@@ -349,7 +355,7 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
     expect(complexity.fill).toBe("metric-fill red");
     expect(complexity.fillWidth).toBe(complexity.trackWidth);
     expect(complexity.value).toBe("8");
-    expect(complexity.title).toBe("Cyclomatic complexity 8, worst: classify");
+    expect(complexity.title).toBe("Complexity 8, worst: classify");
     expect(complexity.anchor).toBe("end");
     expect(coverage.fill).toBe("metric-fill red");
     expect(coverage.fillWidth).toBeCloseTo(coverage.trackWidth * 0.1818, 5);
@@ -357,7 +363,7 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
     expect(coverage.title).toBe("Coverage 18%, worst: classify");
     expect(f.other[0].fill).toBe("metric-fill green");
     expect(f.other[0].value).toBe("1");
-    expect(f.other[0].title).toBe("Cyclomatic complexity 1, worst: pick");
+    expect(f.other[0].title).toBe("Complexity 1, worst: pick");
   });
 
   it("draws no element for a metric a module has no value for", () => {

@@ -35,8 +35,8 @@ const MODEL = {
 } as unknown as FreshnessModel;
 
 const ROWS = [
-  { name: "structure", runsTests: false },
-  { name: "crap", runsTests: true },
+  { name: "structure", runsTests: false, scoped: false },
+  { name: "crap", runsTests: true, scoped: false },
 ];
 
 function ticksOf(overrides: Partial<ScanTicks>): ScanTicks {
@@ -79,10 +79,11 @@ describe("the arguments the app hands the scan command", () => {
         suites: { crap: { ticked: ["unit"], known: ["unit"] } },
       }),
       [
-        { name: "structure", runsTests: false },
+        { name: "structure", runsTests: false, scoped: false },
         {
           name: "crap",
           runsTests: true,
+          scoped: false,
           suites: [{ name: "unit", language: "python" }],
         },
       ],

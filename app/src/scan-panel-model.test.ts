@@ -1,5 +1,5 @@
 import type { Diagnosis, Scan, ScanRunRecord } from "recognizer";
-import { buildFreshness, SHIPPED_SENSOR_LIST } from "recognizer";
+import { buildFreshness } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { ScanState } from "./footer-scan";
 import { NO_CHANGES } from "./footer-scan";
@@ -17,6 +17,7 @@ import {
 import { describeStopText, NO_PROGRESS } from "./scan-progress";
 import { whyOf } from "./scan-why";
 import type { ShippedSensor, ShippedSensors } from "./sensor-run";
+import { plainSensor, shippedSensors } from "./shipped-fake";
 
 const CONFIG = `sensors:
   alpha:
@@ -40,22 +41,21 @@ function shipped(
   display: string,
   over: Partial<ShippedSensor> = {},
 ): ShippedSensor {
-  return {
-    name,
+  return plainSensor(name, {
     display,
-    line: `${display} does its thing.`,
-    defaults: {},
-    runsTests: false,
-    listed: true,
+    description: `${display} does its thing.`,
     ...over,
-  };
+  });
 }
 
 const LIST: ShippedSensors = {
   status: "ok",
   sensors: [
-    shipped("mutation", "Mutation", { runsTests: true }),
-    shipped("crap", "C.R.A.P.", { runsTests: true }),
+    shipped("mutation", "Mutation", { runsTests: true, scoped: true }),
+    shipped("crap", "C.R.A.P.", {
+      runsTests: true,
+      expansion: "C.R.A.P.: Change Risk Anti-Patterns.",
+    }),
     shipped("thresholds", "Thresholds", { listed: false }),
   ],
 };
@@ -155,6 +155,35 @@ describe("scanPanel rows", () => {
     );
   });
 
+  it("titles a row with its expansion and description, its description alone, or its display name", () => {
+    const rows = rowSensors(null, {
+      status: "ok",
+      sensors: [
+        plainSensor("one", {
+          display: "One",
+          description: "Does one.",
+          expansion: "One: Over Nothing Ever.",
+        }),
+        plainSensor("two", { display: "Two", description: "Does two." }),
+        plainSensor("three", { display: "Three" }),
+      ],
+    });
+
+    expect(rows.map((row) => row.title)).toEqual([
+      "One: Over Nothing Ever. Does one.",
+      "Three",
+      "Does two.",
+    ]);
+  });
+
+  it("carries scoped from the entry and gives a third-party row scoped false", () => {
+    const rows = rowSensors("sensors:\n  alpha:\n    command: [a]\n", LIST);
+
+    expect(rows.find((row) => row.name === "mutation")?.scoped).toBe(true);
+    expect(rows.find((row) => row.name === "crap")?.scoped).toBe(false);
+    expect(rows.find((row) => row.name === "alpha")?.scoped).toBe(false);
+  });
+
   it("shows Structure, Descriptions and third-party rows only when the shipped list is unavailable", () => {
     const model = scanPanel(
       input({ shipped: { status: "unavailable", reason: "old" } }),
@@ -189,14 +218,7 @@ describe("scanPanel rows", () => {
 describe("scanPanel and the structure sensor's duplication check", () => {
   const real: ShippedSensors = {
     status: "ok",
-    sensors: SHIPPED_SENSOR_LIST.map((one) => ({
-      name: one.name,
-      display: one.display,
-      line: one.line,
-      defaults: one.defaults,
-      runsTests: one.runs_tests,
-      listed: one.listed,
-    })),
+    sensors: shippedSensors(),
   };
 
   it("builds no Duplication row from the shipped list", () => {

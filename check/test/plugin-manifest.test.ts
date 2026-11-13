@@ -5,6 +5,7 @@ import {
   CURRENT_PROTOCOL,
   judgeProtocol,
   readManifest,
+  validateManifest,
 } from "../src/plugin-manifest.js";
 import { REPO } from "./helpers.js";
 import { fakeIo } from "./scan-helpers.js";
@@ -91,6 +92,72 @@ describe("readManifest", () => {
       ok: false,
       reason: "recognizer-scan-python manifest timed out",
     });
+  });
+});
+
+function example(name: string): Record<string, unknown> {
+  return JSON.parse(
+    readFileSync(
+      join(REPO, `schema/manifest-examples/valid/${name}.json`),
+      "utf8",
+    ),
+  );
+}
+
+describe("the description, expansion and title keys", () => {
+  it("accepts description, expansion and a metric title on a sensor", () => {
+    const sensor = example("sensor-crap");
+
+    expect(sensor.description).toBeTypeOf("string");
+    expect(sensor.expansion).toBeTypeOf("string");
+    expect(validateManifest(sensor)).toBeNull();
+  });
+
+  it("accepts a sensor that has none of the three", () => {
+    const {
+      description: _description,
+      expansion: _expansion,
+      ...bare
+    } = example("sensor-crap");
+    const metrics = (bare.metrics as Record<string, unknown>[]).map(
+      ({ title: _title, ...rest }) => rest,
+    );
+
+    expect(validateManifest({ ...bare, metrics })).toBeNull();
+  });
+
+  it("rejects description on a scanner manifest", () => {
+    expect(
+      validateManifest({ ...example("scanner"), description: "scans" }),
+    ).not.toBeNull();
+  });
+
+  it("rejects expansion on a describer manifest", () => {
+    expect(
+      validateManifest({ ...example("describer"), expansion: "Things." }),
+    ).not.toBeNull();
+  });
+
+  it.each(["description", "expansion"])(
+    "rejects an empty %s on a sensor",
+    (key) => {
+      expect(
+        validateManifest({ ...example("sensor-crap"), [key]: "" }),
+      ).not.toBeNull();
+    },
+  );
+
+  it("rejects an empty metric title", () => {
+    const sensor = example("sensor-crap");
+    const metrics = (sensor.metrics as Record<string, unknown>[]).map(
+      (one, at) => (at === 0 ? { ...one, title: "" } : one),
+    );
+
+    expect(validateManifest({ ...sensor, metrics })).not.toBeNull();
+  });
+
+  it("keeps the protocol at 1", () => {
+    expect(example("sensor-mutation").protocol).toBe(1);
   });
 });
 

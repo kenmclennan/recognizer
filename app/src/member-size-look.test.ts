@@ -1,13 +1,20 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { HUGE_FUNCTION, LONG_FUNCTION } from "./function-length";
+import { functionLimits } from "./function-limits";
 import { collectFacts, here, webkit } from "./look-page";
+import { shippedSensors } from "./shipped-fake";
+
+const REAL_LIMITS = functionLimits(null, {
+  status: "ok",
+  sensors: shippedSensors(),
+});
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { buildInspectorView } from ${JSON.stringify(here("inspector-view.ts"))};
 import { compactFolders } from ${JSON.stringify(here("folder-compaction.ts"))};
 import { inspectorContent } from ${JSON.stringify(here("inspector-model.ts"))};
-import { DEFAULT_LIMITS } from ${JSON.stringify(here("function-limits.ts"))};
+const DEFAULT_LIMITS = ${JSON.stringify(REAL_LIMITS)};
 
 const LONG = ${LONG_FUNCTION};
 const HUGE = ${HUGE_FUNCTION};
@@ -24,7 +31,8 @@ const members = [
     methods: [{ name: "go", line: 710, end_line: 760, params: [], private: false }] },
 ];
 const scan = { modules: [{ id: "p/m.py", kind: "module", members }], edges: [], foreign: [], calls: [] };
-const metric = (label, values, extra) => ({ key: "t/" + label, label, granularity: "member", type: "count", bad: "high", overlay: "t", stale: false, max: 100, values, ...extra });
+const NAMES = { complexity: ["cc", "Complexity"], crap: ["CRAP", "C.R.A.P."], coverage: ["cov", "Coverage"] };
+const metric = (label, values, extra) => ({ key: "t/" + label, label, short: (NAMES[label] || [label, label])[0], title: (NAMES[label] || [label, label])[1], granularity: "member", type: "count", bad: "high", overlay: "t", stale: false, max: 100, values, ...extra });
 const metrics = [
   metric("complexity", { "p/m.py::at_long": 10, "p/m.py::over_long": 11 }),
   metric("crap", { "p/m.py::at_long": 29, "p/m.py::over_long": 31 }, { type: "number" }),

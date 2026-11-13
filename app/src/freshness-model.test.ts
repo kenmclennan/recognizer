@@ -20,8 +20,20 @@ const MINUTE = 60000;
 const NOW = 100 * MINUTE;
 
 const SENSORS: RowSensor[] = [
-  { name: "crap", display: "C.R.A.P.", title: "", runsTests: true },
-  { name: "mutation", display: "Mutation", title: "", runsTests: true },
+  {
+    name: "crap",
+    display: "C.R.A.P.",
+    title: "",
+    runsTests: true,
+    scoped: false,
+  },
+  {
+    name: "mutation",
+    display: "Mutation",
+    title: "",
+    runsTests: true,
+    scoped: true,
+  },
 ];
 
 function scanOf(ids: string[]): Scan {
@@ -108,6 +120,51 @@ const run = (over: Partial<RunState>): RunState => ({ ...NO_RUN, ...over });
 const kindOf = (model: FreshnessModel, key: string) =>
   model.rows.find((row) => row.key === key)?.state.kind;
 const IDS = ["a.py", "b.py", "c.py"];
+
+describe("freshness model module scope", () => {
+  const flagged: RowSensor[] = [
+    {
+      name: "mutation",
+      display: "Mutation",
+      title: "",
+      runsTests: true,
+      scoped: false,
+    },
+    {
+      name: "other",
+      display: "Other",
+      title: "",
+      runsTests: true,
+      scoped: true,
+    },
+  ];
+
+  it("counts an unlisted module missing for the scoped row only, whatever the rows are called", () => {
+    const listed = ["a.py"];
+    const model = modelOf(
+      IDS,
+      {
+        sensors: [ran("mutation", listed), ran("other", listed)],
+        ticks: {
+          describe: false,
+          ticked: [],
+          once: ["mutation", "other"],
+          onlyView: false,
+          suites: {},
+          folds: [],
+        },
+      },
+      flagged,
+    );
+
+    expect(model.rows.find((row) => row.key === "other")?.scoped).toBe(true);
+    expect(model.rows.find((row) => row.key === "mutation")?.scoped).toBe(
+      false,
+    );
+    expect(model.gaps.get("other")).toEqual(["b.py", "c.py"]);
+    expect(model.gaps.get("mutation") ?? []).toEqual([]);
+  });
+});
 
 describe("freshness model states", () => {
   it("reads every row current when nothing changed", () => {

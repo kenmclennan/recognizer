@@ -1,5 +1,6 @@
 import type { Scan, ScanField, ScanMember } from "recognizer";
 import { describe, expect, it } from "vitest";
+import { EMPTY_CATALOG } from "./finding-catalog";
 import { compactFolders } from "./folder-compaction";
 import { DEFAULT_LIMITS } from "./function-limits";
 import {
@@ -46,6 +47,7 @@ function cards(
   extra: Partial<InspectorMembers> = {},
 ): CardRow[] {
   const inputs: InspectorInputs = {
+    catalog: EMPTY_CATALOG,
     scans: [scanOf(members)],
     modules: [ID],
     compaction: compactFolders([ID]),
@@ -220,6 +222,7 @@ describe("member marks in the inspector contents", () => {
     const rows = inspectorContent(
       { kind: "module", id: ID },
       {
+        catalog: EMPTY_CATALOG,
         scans: [scanOf([ORDER])],
         modules: [ID],
         compaction: compactFolders([ID]),
@@ -336,6 +339,7 @@ describe("member marks in the inspector contents", () => {
     const inputs = inspectorContent(
       { kind: "module", id: ID },
       {
+        catalog: EMPTY_CATALOG,
         scans: [scanOf([ORDER])],
         modules: [ID],
         compaction: compactFolders([ID]),

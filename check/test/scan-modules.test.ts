@@ -58,6 +58,7 @@ function setup(scope: string | undefined): FakeOptions {
       ...(scope === undefined ? {} : { [FILE]: scope }),
     },
     scanners: { [PYTHON]: { output: current() } },
+    sensorManifests: true,
     programs: {
       describer: () => ({ stdout: "a line\n" }),
       "recognizer-sensors": (args, files) =>

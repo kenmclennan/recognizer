@@ -108,7 +108,6 @@ function expandConfig(document: unknown): unknown {
   const sensors = expandShortForms(
     record.sensors as Record<string, unknown> | undefined,
     SHIPPED_SENSORS,
-    record.tests as TestSuite[] | undefined,
   );
 
   return {

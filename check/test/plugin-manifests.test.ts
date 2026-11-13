@@ -38,54 +38,19 @@ describe("the shipped manifests equal the sources they transcribe", () => {
     }
   });
 
-  it.each(["crap", "mutation", "thresholds"])(
-    "gives recognizer-sense-%s the registry entry of fixtures/sensors/list.json",
-    (name) => {
-      const registry = (
-        json("fixtures/sensors/list.json") as {
-          name: string;
-          display: string;
-          runs_tests: boolean;
-          scoped: boolean;
-          metrics: Record<string, unknown>[];
-        }[]
-      ).find((one) => one.name === name);
+  it.each([
+    ["crap", true, false],
+    ["mutation", true, true],
+    ["thresholds", false, false],
+  ])(
+    "gives recognizer-sense-%s runs_tests %s and scoped %s",
+    (name, runsTests, scoped) => {
       const made = manifest(`recognizer-sense-${name}`);
 
-      expect(made.display).toBe(registry?.display);
-      expect(made.runs_tests).toBe(registry?.runs_tests);
-      expect(made.scoped).toBe(registry?.scoped);
-      expect(
-        (made.metrics as Record<string, unknown>[]).map(
-          ({ name: metric, type, granularity, bad }) => ({
-            name: metric,
-            type,
-            granularity,
-            bad,
-          }),
-        ),
-      ).toEqual(registry?.metrics);
+      expect(made.runs_tests).toBe(runsTests);
+      expect(made.scoped).toBe(scoped);
     },
   );
-
-  it("gives the sensor finding groups the entries of app/src/finding-groups.json", () => {
-    const groups = (
-      json("app/src/finding-groups.json") as {
-        groups: { key: string; name: string; means: string; todo: string }[];
-      }
-    ).groups;
-
-    for (const name of ["crap", "mutation", "thresholds"]) {
-      const [entry] = manifest(`recognizer-sense-${name}`).findings ?? [];
-      const group = groups.find((one) => one.key === `kind:${name}`);
-
-      expect(entry?.group).toEqual({
-        name: group?.name,
-        means: group?.means,
-        todo: group?.todo,
-      });
-    }
-  });
 
   it("gives the sensors the time limits and unit words of today's code", () => {
     expect(manifest("recognizer-sense-thresholds")).toMatchObject({

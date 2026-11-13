@@ -98,6 +98,14 @@
     "prompt_version": {
       "type": "string",
       "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expansion": {
+      "type": "string",
+      "minLength": 1
     }
   },
   "$defs": {
@@ -398,6 +406,10 @@
           "type": "string",
           "minLength": 1
         },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
         "help": {
           "type": "string",
           "minLength": 1
@@ -560,7 +572,9 @@
           "findings": false,
           "runs_tests": false,
           "scoped": false,
-          "prompt_version": false
+          "prompt_version": false,
+          "description": false,
+          "expansion": false
         }
       }
     },
@@ -602,7 +616,9 @@
           "metrics": false,
           "findings": false,
           "runs_tests": false,
-          "scoped": false
+          "scoped": false,
+          "description": false,
+          "expansion": false
         }
       }
     }

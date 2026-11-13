@@ -71,11 +71,10 @@ describe("parseConfig by section", () => {
 
   it("reads tests whenever sensors is read", () => {
     const text = `sensors:\n  crap: {}\n${SUITE}`;
-    const crap = parseConfig(text, ["sensors"]).sensors?.crap as {
-      command: string[];
-    };
+    const read = parseConfig(text, ["sensors"]);
 
-    expect(crap.command.join(" ")).toContain("api");
+    expect(read.sensors?.crap).toBeDefined();
+    expect(read.tests).toHaveLength(1);
     expect(parseConfig(text, ["tests"]).sensors).toBeUndefined();
     expect(parseConfig(text, ["tests"]).tests).toHaveLength(1);
   });

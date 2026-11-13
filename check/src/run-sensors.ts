@@ -18,6 +18,7 @@ export interface RunSensorsInput {
   }[];
   commit: string;
   scans: Scan[];
+  limits?: ReturnType<typeof createPluginLimits>;
   onStart?: (name: string) => void;
   onEntry?: (entry: RunEntry) => void;
   onEvent?: (name: string, event: PluginEvent) => void;
@@ -53,7 +54,7 @@ function moduleCount(scans: Scan[]): number {
 export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
   const { io, root, commit } = input;
   const entries: RunEntry[] = [];
-  const limits = createPluginLimits(io, root);
+  const limits = input.limits ?? createPluginLimits(io, root);
 
   for (const { name, command, runsTests, modules } of input.selected) {
     input.onStart?.(name);

@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Scan, ScanEdge, ScanMember } from "recognizer";
 import { describe, expect, it } from "vitest";
+import { buildCatalog } from "./finding-catalog";
 import { type FindingRow, findingRows } from "./findings-order";
 import {
   CURRENT,
@@ -12,7 +13,7 @@ import {
 } from "./fixtures";
 import { compactFolders } from "./folder-compaction";
 import { HUGE_FUNCTION, LONG_FUNCTION } from "./function-length";
-import { DEFAULT_LIMITS } from "./function-limits";
+import { DEFAULT_LIMITS, functionLimits } from "./function-limits";
 import { computeHealth } from "./health";
 import {
   dependencyLabels,
@@ -24,6 +25,8 @@ import {
   type Row,
 } from "./inspector-model";
 import type { MetricDescriptor } from "./overlay-model";
+import { metricEntryOf } from "./overlay-model";
+import { shippedSensors } from "./shipped-fake";
 
 const scanOf = (
   members: ScanMember[] | undefined,
@@ -42,6 +45,16 @@ const scanOf = (
   ...extra,
 });
 
+const SHIPPED = { status: "ok" as const, sensors: shippedSensors() };
+const REAL_LIMITS = functionLimits(null, SHIPPED);
+const CATALOG = buildCatalog(SHIPPED);
+
+function named(label: string, overlay: string) {
+  const entry = metricEntryOf(SHIPPED.sensors, overlay, label);
+
+  return { title: entry?.title ?? label, short: entry?.label ?? label };
+}
+
 function inputsFor(
   scans: Scan[],
   extra: Partial<InspectorInputs> = {},
@@ -51,6 +64,7 @@ function inputsFor(
   );
 
   return {
+    catalog: CATALOG,
     scans,
     modules,
     compaction: compactFolders(modules),
@@ -70,7 +84,7 @@ function inputsFor(
     }),
     metrics: [],
     metricsOn: false,
-    limits: DEFAULT_LIMITS,
+    limits: REAL_LIMITS,
     ...extra,
   };
 }
@@ -1520,7 +1534,7 @@ describe("the metric table on a card", () => {
   ): MetricDescriptor => ({
     key: `t/${label}`,
     label,
-    title: label,
+    ...named(label, extra.overlay ?? "t"),
     granularity: "member",
     type: "count",
     bad: "high",
@@ -1547,20 +1561,20 @@ describe("the metric table on a card", () => {
     );
 
     expect(card?.table?.head).toEqual([
-      { text: "cc", title: "Cyclomatic complexity" },
+      { text: "cc", title: "Complexity" },
       { text: "cov", title: "Coverage" },
     ]);
     expect(card?.table?.rows.map((row) => row.name)).toEqual(
       (cls.methods ?? []).map((method) => method.name),
     );
     expect(card?.table?.rows[0]?.cells).toEqual([
-      { text: "12", tone: "red", title: "Cyclomatic complexity 12" },
+      { text: "12", tone: "red", title: "Complexity 12" },
       { text: "50%", tone: "amber", title: "Coverage 50%" },
     ]);
     expect(card?.table?.rows[1]?.cells[0]).toEqual({
       text: "-",
       tone: null,
-      title: "Cyclomatic complexity: not measured",
+      title: "Complexity: not measured",
     });
   });
 
@@ -1581,9 +1595,9 @@ describe("the metric table on a card", () => {
         metric(
           "score",
           { "pkg/m.py::C.go": 1 },
-          { overlay: "mutate", type: "ratio", bad: "low", max: 1 },
+          { overlay: "mutation", type: "ratio", bad: "low", max: 1 },
         ),
-        metric("survived", { "pkg/m.py::C.go": 1 }, { overlay: "mutate" }),
+        metric("survived", { "pkg/m.py::C.go": 1 }, { overlay: "mutation" }),
         metric("flaky", { "pkg/m.py::C.go": 1 }),
       ],
     );
@@ -1738,7 +1752,7 @@ describe("the metrics row on a function card", () => {
   ): MetricDescriptor => ({
     key: `t/${label}`,
     label,
-    title: label,
+    ...named(label, extra.overlay ?? "t"),
     granularity: "member",
     type: "count",
     bad: "high",
@@ -1816,6 +1830,20 @@ describe("the metrics row on a function card", () => {
     expect(
       row({ cc: 99, crap: 20.5, cov: 0.7 }, { limits })?.map((c) => c.tone),
     ).toEqual([null, "red", "amber"]);
+  });
+
+  it("shows no tone for a null limit but still renders its three cells", () => {
+    const limits = {
+      complexityAbove: null,
+      coverageBelow: null,
+      crapAt: null,
+      longAt: 20,
+    };
+    const cells = row({ cc: 99, crap: 99, cov: 0.1 }, { limits });
+
+    expect(cells).toHaveLength(3);
+    expect(cells?.map((c) => c.text)).toEqual(["99", "99", "10%"]);
+    expect(cells?.map((c) => c.tone)).toEqual([null, null, null]);
   });
 
   it("names and formats the three cells", () => {

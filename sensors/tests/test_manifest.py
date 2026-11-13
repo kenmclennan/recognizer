@@ -6,13 +6,14 @@ from importlib.metadata import version
 from pathlib import Path
 
 import pytest
-from conftest import REPOSITORY, SENSOR_LIST, git_commit, write_scans
+from conftest import REPOSITORY, git_commit, write_scans
 from jsonschema import Draft202012Validator
 
 from recognizer_sensors import config_schema, entry
 from recognizer_sensors.cli import main
 from recognizer_sensors.crap.sensor import PUBLISHED_THRESHOLD
 from recognizer_sensors.manifest import INSTALL, PROTOCOL, build
+from recognizer_sensors.registry import SHIPPED
 from recognizer_sensors.testrun import records
 from recognizer_sensors.thresholds.sensor import PUBLISHED
 
@@ -24,10 +25,6 @@ def validator() -> Draft202012Validator:
     schema = json.loads((REPOSITORY / "schema" / "manifest.schema.json").read_text())
 
     return Draft202012Validator(schema)
-
-
-def listed(name):
-    return next(e for e in json.loads(SENSOR_LIST.read_text()) if e["name"] == name)
 
 
 def launch(name: str, cwd: Path, *arguments: str) -> subprocess.CompletedProcess:
@@ -91,17 +88,34 @@ def test_the_manifest_names_the_sensor_and_the_shared_facts(name):
 
 
 @pytest.mark.parametrize("name", NAMES)
-def test_display_runs_tests_scoped_and_metrics_equal_the_registry(name):
+def test_runs_tests_and_scoped_equal_the_registry_flags(name):
     manifest = build(name)
-    registry = listed(name)
 
-    assert manifest["display"] == registry["display"]
-    assert manifest["runs_tests"] is registry["runs_tests"]
-    assert manifest["scoped"] is registry["scoped"]
-    assert [
-        {k: metric[k] for k in ("name", "type", "granularity", "bad")}
-        for metric in manifest["metrics"]
-    ] == registry["metrics"]
+    assert manifest["runs_tests"] is SHIPPED[name].runs_tests
+    assert manifest["scoped"] is SHIPPED[name].scoped
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_every_shipped_sensor_has_a_description(name):
+    assert build(name)["description"]
+
+
+def test_only_crap_has_an_expansion():
+    assert build("crap")["expansion"] == "C.R.A.P.: Change Risk Anti-Patterns."
+    assert "expansion" not in build("mutation")
+    assert "expansion" not in build("thresholds")
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_every_metric_has_a_title(name):
+    for metric in build(name)["metrics"]:
+        assert metric["title"]
+
+
+def test_the_mutation_metric_labels_are_the_short_forms():
+    labels = {metric["name"]: metric["label"] for metric in build("mutation")["metrics"]}
+
+    assert labels == {"killed": "kill", "survived": "surv", "uncovered": "unc", "score": "mut"}
 
 
 def test_published_figures_equal_the_constants_the_sensors_hold():

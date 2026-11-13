@@ -5,7 +5,12 @@ import {
   type ResultRow,
   stateText,
 } from "./freshness-model";
-import type { SensorStatus, ShippedSensors } from "./sensor-run";
+import type {
+  SensorStatus,
+  ShippedMetric,
+  ShippedSensor,
+  ShippedSensors,
+} from "./sensor-run";
 
 export type OverlayFileInput = {
   name: string;
@@ -26,6 +31,7 @@ export type MetricValue = number | boolean;
 export type MetricDescriptor = {
   key: string;
   label: string;
+  short: string;
   title: string;
   description?: string;
   granularity: "module" | "member";
@@ -55,28 +61,6 @@ export type OverlayModel = {
 
 export type ModuleValue = { value: MetricValue; member: string | null };
 
-export const TITLES: Record<string, string> = {
-  complexity: "Complexity",
-  coverage: "Coverage",
-  line_coverage: "Line coverage",
-  crap: "C.R.A.P.",
-  survived: "Survived mutants",
-  killed: "Killed mutants",
-  uncovered: "Uncovered mutants",
-  score: "Mutation score",
-};
-
-export const DESCRIPTIONS: Record<string, string> = {
-  complexity: "Cyclomatic complexity of each function",
-  coverage: "Share of each function's lines the tests ran",
-  line_coverage: "Share of a module's lines the tests ran",
-  crap: "Change risk: complexity weighted by missing coverage",
-  survived: "Changes to each function the tests did not catch",
-  killed: "Changes to each function the tests caught",
-  uncovered: "Changes to each function no test reaches",
-  score: "Share of tested changes the tests caught",
-};
-
 const SHORT = 7;
 
 function tooltipOf(overlay: Overlay): string {
@@ -105,18 +89,41 @@ type MetricSpec = {
   bad: "high" | "low";
 };
 
+export function metricEntryOf(
+  shipped: readonly ShippedSensor[],
+  group: string,
+  name: string,
+): ShippedMetric | undefined {
+  const own = shipped.filter((sensor) => sensor.name === group);
+  const rest = shipped.filter((sensor) => sensor.name !== group);
+
+  for (const sensor of [...own, ...rest]) {
+    const found = sensor.metrics.find((metric) => metric.name === name);
+
+    if (found !== undefined) {
+      return found;
+    }
+  }
+
+  return undefined;
+}
+
 function describe(
+  shipped: readonly ShippedSensor[],
   group: string,
   metric: MetricSpec,
   values: Record<string, MetricValue>,
 ): MetricDescriptor {
-  const description = DESCRIPTIONS[metric.name];
+  const entry = metricEntryOf(shipped, group, metric.name);
 
   return {
     key: `${group}/${metric.name}`,
     label: metric.name,
-    title: TITLES[metric.name] ?? metric.name,
-    ...(description === undefined ? {} : { description }),
+    short: entry?.label ?? metric.name,
+    title: entry?.title || metric.name,
+    ...(entry === undefined || entry.help === ""
+      ? {}
+      : { description: entry.help }),
     granularity: metric.granularity,
     type: metric.type,
     bad: metric.bad,
@@ -234,7 +241,7 @@ export function buildOverlayModel(
       enabled: !nothing,
       tooltip: tooltipOf(overlay),
       metrics: overlay.metrics.map((metric) =>
-        describe(file.name, metric, values(metric.name)),
+        describe(shipped, file.name, metric, values(metric.name)),
       ),
     });
   }
@@ -243,7 +250,7 @@ export function buildOverlayModel(
   const present = new Set(files.map((file) => file.name));
 
   for (const sensor of shipped) {
-    if (sensor.metrics === undefined || sensor.metrics.length === 0) {
+    if (sensor.metrics.length === 0) {
       continue;
     }
 
@@ -284,7 +291,7 @@ export function buildOverlayModel(
       enabled: false,
       tooltip: "",
       metrics: sensor.metrics.map((metric) =>
-        describe(sensor.name, metric, {}),
+        describe(shipped, sensor.name, metric, {}),
       ),
     });
   }

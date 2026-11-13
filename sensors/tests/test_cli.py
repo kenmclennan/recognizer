@@ -8,7 +8,6 @@ import pytest
 from conftest import (
     FINDINGS_SCHEMA,
     REPOSITORY,
-    SENSOR_LIST,
     SHIPPED,
     git_commit,
     run_cli,
@@ -237,12 +236,6 @@ def test_real_committed_content_yields_no_findings(language, tmp_path):
 
     assert run_cli(root, output) == 0
     assert json.loads(output.read_text())["findings"] == []
-
-
-def test_the_registry_and_defaults_agree_with_the_sensor_list():
-    listed = {entry["name"]: entry for entry in json.loads(SENSOR_LIST.read_text())}
-
-    assert sorted(REGISTRY) == sorted(listed)
 
 
 def test_the_retired_mutate_name_is_an_unknown_sensor(sample, capsys):

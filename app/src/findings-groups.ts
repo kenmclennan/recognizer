@@ -1,3 +1,4 @@
+import { EMPTY_CATALOG, type FindingCatalog } from "./finding-catalog";
 import groupFile from "./finding-groups.json";
 import { type FindingRow, orderFindings } from "./findings-order";
 
@@ -25,7 +26,21 @@ function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-export function groupOf(row: FindingRow): {
+export const STRUCTURE_OWNER: Record<string, string> = {
+  "kind:duplication": "duplication",
+};
+
+export function ownerOf(
+  catalog: FindingCatalog,
+  key: string,
+): string | undefined {
+  return catalog.sensorOf(key) ?? STRUCTURE_OWNER[key];
+}
+
+export function groupOf(
+  row: FindingRow,
+  catalog: FindingCatalog = EMPTY_CATALOG,
+): {
   key: string;
   name: string;
   help: GroupHelp | null;
@@ -34,8 +49,13 @@ export function groupOf(row: FindingRow): {
     return { key: `report:${row.sensor}`, name: row.sensor, help: null };
   }
 
-  const kind = row.kind.startsWith("thresholds.") ? "thresholds" : row.kind;
-  const fixed = FIXED.find((one) => one.key === `kind:${kind}`);
+  const planned = catalog.groupFor(row.kind);
+
+  if (planned) {
+    return { key: planned.key, name: planned.name, help: planned.help };
+  }
+
+  const fixed = FIXED.find((one) => one.key === `kind:${row.kind}`);
 
   if (fixed) {
     return {
@@ -51,12 +71,15 @@ export function groupOf(row: FindingRow): {
   return { key: `kind:${row.kind}`, name: kindLabel(row.kind), help: null };
 }
 
-export function groupsOf(rows: FindingRow[]): FindingGroupModel[] {
+export function groupsOf(
+  rows: FindingRow[],
+  catalog: FindingCatalog = EMPTY_CATALOG,
+): FindingGroupModel[] {
   const ordered = orderFindings(rows);
   const byKey = new Map<string, FindingGroupModel>();
 
   for (const row of ordered) {
-    const { key, name, help } = groupOf(row);
+    const { key, name, help } = groupOf(row, catalog);
     const group = byKey.get(key) ?? {
       key,
       name,
@@ -75,7 +98,13 @@ export function groupsOf(rows: FindingRow[]): FindingGroupModel[] {
   }
 
   const all = [...byKey.values()];
-  const fixed = FIXED.flatMap((one) => all.filter((g) => g.key === one.key));
+  const structure = FIXED.flatMap((one) =>
+    all.filter((g) => g.key === one.key),
+  );
+  const planned = catalog.groups.flatMap((one) =>
+    all.filter((g) => g.key === one.key),
+  );
+  const fixed = [...new Set([...structure, ...planned])];
   const reports = all.filter((g) => g.key.startsWith("report:"));
   const others = all
     .filter((g) => !fixed.includes(g) && !reports.includes(g))
@@ -106,36 +135,54 @@ export function headerLine(rows: FindingRow[]): string | null {
   return parts.join(", ");
 }
 
-export const SENSOR_GROUPS: Record<string, string> = {
-  "kind:duplication": "duplication",
-  "kind:crap": "crap",
-  "kind:mutation": "mutation",
-  "kind:thresholds": "thresholds",
-};
-
 export function withEmptyGroups(
   groups: FindingGroupModel[],
   noneYet: (sensor: string) => boolean,
+  catalog: FindingCatalog = EMPTY_CATALOG,
 ): FindingGroupModel[] {
   const present = new Set(groups.map(({ key }) => key));
-  const added = FIXED.filter((one) => {
-    const sensor = SENSOR_GROUPS[one.key];
+  const empty = (
+    key: string,
+    name: string,
+    help: GroupHelp | null,
+  ): FindingGroupModel => ({
+    key,
+    name,
+    help,
+    severity: "warning",
+    rows: [],
+  });
+  const structure = FIXED.filter((one) => {
+    const sensor = STRUCTURE_OWNER[one.key];
 
     return sensor !== undefined && !present.has(one.key) && noneYet(sensor);
-  }).map(
-    (one): FindingGroupModel => ({
-      key: one.key,
-      name: one.name,
-      help:
-        one.means !== undefined && one.todo !== undefined
-          ? { means: one.means, todo: one.todo }
-          : null,
-      severity: "warning",
-      rows: [],
-    }),
+  }).map((one) =>
+    empty(
+      one.key,
+      one.name,
+      one.means !== undefined && one.todo !== undefined
+        ? { means: one.means, todo: one.todo }
+        : null,
+    ),
   );
-  const all = [...groups, ...added];
-  const fixed = FIXED.flatMap((one) => all.filter((g) => g.key === one.key));
+  const seen = new Set<string>();
+  const planned = catalog.groups
+    .filter((one) => {
+      const wanted =
+        !present.has(one.key) && !seen.has(one.key) && noneYet(one.sensor);
 
-  return [...fixed, ...groups.filter((g) => !fixed.includes(g))];
+      seen.add(one.key);
+
+      return wanted;
+    })
+    .map((one) => empty(one.key, one.name, one.help));
+  const all = [...groups, ...structure, ...planned];
+  const ordered = [
+    ...FIXED.flatMap((one) => all.filter((g) => g.key === one.key)),
+    ...catalog.groups
+      .flatMap((one) => all.filter((g) => g.key === one.key))
+      .filter((g, at, list) => list.indexOf(g) === at),
+  ];
+
+  return [...ordered, ...groups.filter((g) => !ordered.includes(g))];
 }

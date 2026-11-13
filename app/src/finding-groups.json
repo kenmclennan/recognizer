@@ -41,24 +41,6 @@
       "name": "Duplicated code",
       "means": "The same structure written more than once; a fix in one copy can miss the others.",
       "todo": "Extract the shared part once the copies are truly the same, largest first."
-    },
-    {
-      "key": "kind:crap",
-      "name": "C.R.A.P.",
-      "means": "A function that is both complex and poorly covered by tests, so changing it is risky.",
-      "todo": "Add tests for it, or simplify it; either lowers the score."
-    },
-    {
-      "key": "kind:mutation",
-      "name": "Mutations",
-      "means": "Recognizer changed this function's code and no test failed, so the tests do not pin its behaviour.",
-      "todo": "Add a test that fails when this function's behaviour changes."
-    },
-    {
-      "key": "kind:thresholds",
-      "name": "Over a limit",
-      "means": "A measure passed a limit set in your config, such as module size.",
-      "todo": "Bring it back under the limit, or raise the limit if it is wrong."
     }
   ]
 }

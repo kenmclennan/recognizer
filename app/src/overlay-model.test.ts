@@ -1,4 +1,4 @@
-import { buildFreshness, type Scan, SHIPPED_SENSOR_LIST } from "recognizer";
+import { buildFreshness, type Scan } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { NO_CHANGES } from "./footer-scan";
 import { type ResultRow, type ResultState, stateText } from "./freshness-model";
@@ -6,17 +6,17 @@ import {
   applyFreshness,
   buildOverlayModel,
   currentMetricNamed,
-  DESCRIPTIONS,
   freshnessNote,
   groupHeader,
   type MetricDescriptor,
+  metricEntryOf,
   moduleValue,
   type OverlayGroup,
   pruneTicks,
-  TITLES,
 } from "./overlay-model";
 import { NO_RUN, type PanelInput, scanPanel } from "./scan-panel-model";
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
+import { plainSensor, shippedSensors } from "./shipped-fake";
 
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const H1 = "1".repeat(64);
@@ -51,14 +51,12 @@ const fileScan = {
 } as unknown as Scan;
 const shippedList: ShippedSensors = {
   status: "ok",
-  sensors: ["crap", "mutation", "duplication"].map((name) => ({
-    name,
-    display: name === "crap" ? "C.R.A.P." : name,
-    line: "x",
-    defaults: {},
-    runsTests: false,
-    listed: true,
-  })),
+  sensors: ["crap", "mutation", "duplication"].map((name) =>
+    plainSensor(name, {
+      display: name === "crap" ? "C.R.A.P." : name,
+      description: "x",
+    }),
+  ),
 };
 const ranWith = (name: string, inputs: Record<string, string>) => ({
   name,
@@ -137,10 +135,15 @@ function overlay(
   });
 }
 
-function only(text: string): MetricDescriptor {
-  const model = buildOverlayModel([{ name: "crap", text }]);
+function only(
+  text: string,
+  name = "crap",
+  shipped: ShippedSensors | null = null,
+): MetricDescriptor {
+  const model = buildOverlayModel([{ name, text }], { sensors: [], shipped });
 
-  return model.metrics[0] as MetricDescriptor;
+  return (model.metrics.find((metric) => metric.overlay === name) ??
+    model.metrics[0]) as MetricDescriptor;
 }
 
 describe("tooltips and per-module freshness", () => {
@@ -238,18 +241,10 @@ describe("a member-granularity overlay judged per module", () => {
 
 const SHIPPED: ShippedSensors = {
   status: "ok",
-  sensors: SHIPPED_SENSOR_LIST.filter(
-    (sensor) => sensor.metrics.length > 0,
-  ).map((sensor) => ({
-    name: sensor.name,
-    display: sensor.display,
-    line: sensor.line,
-    defaults: {},
-    runsTests: sensor.runs_tests,
-    listed: sensor.listed,
-    metrics: [...sensor.metrics],
-  })),
+  sensors: shippedSensors().filter((sensor) => sensor.metrics.length > 0),
 };
+
+const FULL: ShippedSensors = { status: "ok", sensors: shippedSensors() };
 
 function ran(name: string, over: Partial<SensorStatus> = {}): SensorStatus {
   return { name, status: "ran", commit: COMMIT, findings: 0, ...over };
@@ -447,7 +442,7 @@ describe("the group header model", () => {
 });
 
 describe("descriptors", () => {
-  it("keys by overlay and metric, takes max across member entries and describes the five names", () => {
+  it("keys by overlay and metric and takes max across member entries", () => {
     const metric = only(
       overlay([{ name: "complexity" }], {
         complexity: { "a.py::f": 8, "b.ts::g": 1 },
@@ -456,26 +451,77 @@ describe("descriptors", () => {
 
     expect(metric.key).toBe("crap/complexity");
     expect(metric.max).toBe(8);
-    expect(metric.description).toBe(DESCRIPTIONS.complexity);
-
-    for (const name of [
-      "complexity",
-      "coverage",
-      "line_coverage",
-      "crap",
-      "survived",
-      "killed",
-      "uncovered",
-      "score",
-    ]) {
-      expect(DESCRIPTIONS[name]).toBeTruthy();
-      expect(TITLES[name]).toBeTruthy();
-    }
-
-    expect(DESCRIPTIONS.mutation_survived).toBeUndefined();
-
-    expect(only(overlay([{ name: "other" }], {})).description).toBeUndefined();
     expect(only(overlay([{ name: "complexity" }], {})).max).toBe(0);
+  });
+
+  it("takes title, short and description from the manifest metric of the sensor named by the overlay", () => {
+    const metric = only(overlay([{ name: "complexity" }], {}), "crap", FULL);
+
+    expect(metric.title).toBe("Complexity");
+    expect(metric.short).toBe("cc");
+    expect(metric.description).toBe(
+      "How many independent paths run through the function; more paths are harder to test and to change.",
+    );
+  });
+
+  it("finds a metric through the first sensor that declares it when the overlay is named otherwise", () => {
+    const metric = only(
+      overlay([{ name: "crap", type: "number" }], {}),
+      "custom-crap",
+      FULL,
+    );
+
+    expect(metric.title).toBe("C.R.A.P.");
+    expect(metric.short).toBe("CRAP");
+    expect(metricEntryOf(FULL.sensors, "custom-crap", "crap")?.label).toBe(
+      "CRAP",
+    );
+  });
+
+  it("gives the four mutation metrics their short forms", () => {
+    const shorts = Object.fromEntries(
+      ["killed", "survived", "uncovered", "score"].map((name) => [
+        name,
+        only(overlay([{ name }], {}), "mutation", FULL).short,
+      ]),
+    );
+
+    expect(shorts).toEqual({
+      killed: "kill",
+      survived: "surv",
+      uncovered: "unc",
+      score: "mut",
+    });
+  });
+
+  it("shows the raw name and no description for a metric no entry declares", () => {
+    const metric = only(overlay([{ name: "line_coverage" }], {}), "crap", FULL);
+
+    expect(metric.title).toBe("line_coverage");
+    expect(metric.short).toBe("line_coverage");
+    expect(metric.description).toBeUndefined();
+  });
+
+  it("shows raw names everywhere when the list is unavailable or null", () => {
+    for (const shipped of [
+      null,
+      { status: "unavailable", reason: "x" } as ShippedSensors,
+    ]) {
+      const metric = only(overlay([{ name: "crap" }], {}), "crap", shipped);
+
+      expect(metric.title).toBe("crap");
+      expect(metric.short).toBe("crap");
+      expect(metric.description).toBeUndefined();
+    }
+  });
+
+  it("skips an entry that lacks the metric and finds it in another sensor", () => {
+    const list: ShippedSensors = {
+      status: "ok",
+      sensors: [plainSensor("custom"), ...shippedSensors()],
+    };
+
+    expect(metricEntryOf(list.sensors, "custom", "score")?.label).toBe("mut");
   });
 
   it("lists a file that fails validation as unreadable and keeps the others", () => {
@@ -646,6 +692,7 @@ describe("freshnessNote", () => {
     name: "C.R.A.P.",
     state,
     tickable: true,
+    scoped: false,
   });
   const noteOf = (state: ResultState) =>
     freshnessNote(group, rowOf(state), NOW, shippedList);
@@ -807,7 +854,15 @@ describe("freshnessNote against the Scan panel model", () => {
 
       return {
         ...base,
-        rows: [{ key: "crap", name: "C.R.A.P.", state, tickable: true }],
+        rows: [
+          {
+            key: "crap",
+            name: "C.R.A.P.",
+            state,
+            tickable: true,
+            scoped: false,
+          },
+        ],
         modules: new Set(["a.py", "b.py"]),
         stale: new Map([["crap", new Set(stale)]]),
       };

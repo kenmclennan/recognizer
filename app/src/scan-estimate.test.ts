@@ -109,17 +109,25 @@ const MUTATION: PartSpec = {
   key: "mutation",
   name: "Mutation",
   runsTests: true,
+  scoped: true,
 };
-const CRAP: PartSpec = { key: "crap", name: "C.R.A.P.", runsTests: true };
+const CRAP: PartSpec = {
+  key: "crap",
+  name: "C.R.A.P.",
+  runsTests: true,
+  scoped: false,
+};
 const STRUCTURE: PartSpec = {
   key: "structure",
   name: "Structure",
   runsTests: false,
+  scoped: false,
 };
 const DESCRIBE: PartSpec = {
   key: "describe",
   name: "Descriptions",
   runsTests: false,
+  scoped: false,
 };
 
 function planned(
@@ -269,6 +277,27 @@ describe("scanHistory with a part that runs tests", () => {
     expect(at(5)?.ms).toBe(120000);
     expect(at(500)?.ms).toBe(120000);
     expect(at(5)?.basis).toBe("5 modules, last run's pace");
+  });
+
+  it("words the basis by scoped and runsTests, not by a sensor's name", () => {
+    const files = [
+      scanFile("20261101T090000000Z", {
+        structure_ms: 0,
+        sense: [
+          { name: "a", duration_ms: 120000, fixed_ms: 60000, modules: 30 },
+          { name: "b", duration_ms: 120000, fixed_ms: 60000, modules: 30 },
+          { name: "c", duration_ms: 120000, modules: 30 },
+        ],
+      }),
+    ];
+    const part = (key: string, runsTests: boolean, scoped: boolean) =>
+      estimateParts(scanHistory(files), planned({ [key]: 5 }, [key]), [
+        { key, name: key, runsTests, scoped },
+      ])[0]?.basis;
+
+    expect(part("a", true, false)).toBe("5 modules, last run's pace");
+    expect(part("b", true, true)).toBe("5 modules at recent pace");
+    expect(part("c", false, false)).toBe("5 modules at recent pace");
   });
 });
 
@@ -464,7 +493,12 @@ describe("old records", () => {
       [
         STRUCTURE,
         DESCRIBE,
-        { key: "coverage-gaps", name: "coverage-gaps", runsTests: false },
+        {
+          key: "coverage-gaps",
+          name: "coverage-gaps",
+          runsTests: false,
+          scoped: false,
+        },
       ],
     );
 

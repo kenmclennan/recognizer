@@ -2,10 +2,14 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { FindingRecord, FindingsDocument } from "recognizer";
 import { describe, expect, it } from "vitest";
+import { buildCatalog, EMPTY_CATALOG } from "./finding-catalog";
 import groupFile from "./finding-groups.json";
 import { sentenceOf } from "./finding-sentence";
 import { groupsOf, headerLine, withEmptyGroups } from "./findings-groups";
 import { findingRows } from "./findings-order";
+import { shippedSensors } from "./shipped-fake";
+
+const CATALOG = buildCatalog({ status: "ok", sensors: shippedSensors() });
 
 function record(
   id: string,
@@ -39,8 +43,8 @@ function document(
   };
 }
 
-const names = (documents: FindingsDocument[]) =>
-  groupsOf(findingRows(documents)).map((group) => group.name);
+const names = (documents: FindingsDocument[], catalog = CATALOG) =>
+  groupsOf(findingRows(documents), catalog).map((group) => group.name);
 
 describe("groupsOf", () => {
   it("returns the fixed order and omits empty groups", () => {
@@ -77,7 +81,7 @@ describe("groupsOf", () => {
         instability: 0.23,
       }),
     ]);
-    const [group] = groupsOf(findingRows([old]));
+    const [group] = groupsOf(findingRows([old]), CATALOG);
 
     expect(group?.key).toBe("kind:stable_abstractions");
     expect(group?.name).toBe("Stable abstractions");
@@ -92,16 +96,19 @@ describe("groupsOf", () => {
       record("c", "cycle"),
     ]);
     const rows = findingRows([old]);
-    const groups = groupsOf(rows);
+    const groups = groupsOf(rows, CATALOG);
     const shown = groups.find((one) => one.key === "kind:stable_dependencies");
 
     expect(groups.map((one) => one.key)).toContain("kind:cycle");
     expect(shown?.rows).toHaveLength(1);
     expect(
-      sentenceOf({
-        record: shown?.rows[0]?.record as FindingRecord,
-        reported: false,
-      }),
+      sentenceOf(
+        {
+          record: shown?.rows[0]?.record as FindingRecord,
+          reported: false,
+        },
+        CATALOG,
+      ),
     ).toBe("folder a depends on folder b, which is less stable");
   });
 
@@ -119,10 +126,13 @@ describe("groupsOf", () => {
     expect(groups.map((one) => one.key)).toContain("kind:cycle");
     expect(shown?.rows).toHaveLength(1);
     expect(
-      sentenceOf({
-        record: shown?.rows[0]?.record as FindingRecord,
-        reported: false,
-      }),
+      sentenceOf(
+        {
+          record: shown?.rows[0]?.record as FindingRecord,
+          reported: false,
+        },
+        CATALOG,
+      ),
     ).toBe("app/place.py is imported by 3 modules and imports 3");
   });
 
@@ -134,7 +144,7 @@ describe("groupsOf", () => {
       },
     ]);
     const rows = findingRows([old]);
-    const [group] = groupsOf(rows);
+    const [group] = groupsOf(rows, CATALOG);
 
     expect(group?.key).toBe("kind:folder_cycle");
     expect(group?.rows).toHaveLength(1);
@@ -153,7 +163,7 @@ describe("groupsOf", () => {
       },
     ]);
     const rows = findingRows([old]);
-    const [group] = groupsOf(rows);
+    const [group] = groupsOf(rows, CATALOG);
 
     expect(group?.key).toBe("kind:policy_drift");
     expect(group?.rows).toHaveLength(1);
@@ -182,10 +192,63 @@ describe("groupsOf", () => {
           record("b", "thresholds.complexity"),
         ]),
       ]),
+      CATALOG,
     );
 
     expect(groups).toHaveLength(1);
+    expect(groups[0]?.key).toBe("kind:thresholds");
     expect(groups[0]?.rows).toHaveLength(2);
+  });
+
+  it("gives the three shipped sensors' keys in the order crap, mutation, thresholds after the structure groups", () => {
+    const groups = groupsOf(
+      findingRows([
+        document("t", [
+          record("th", "thresholds.complexity"),
+          record("mu", "mutation"),
+          record("cr", "crap"),
+          record("or", "orphan"),
+        ]),
+      ]),
+      CATALOG,
+    );
+
+    expect(groups.map((group) => group.key)).toEqual([
+      "kind:orphan",
+      "kind:crap",
+      "kind:mutation",
+      "kind:thresholds",
+    ]);
+  });
+
+  it("keeps the generic name and key for a kind the catalog does not know", () => {
+    const groups = groupsOf(
+      findingRows([document("t", [record("x", "flaky_thing")])]),
+      CATALOG,
+    );
+
+    expect(groups[0]?.key).toBe("kind:flaky_thing");
+    expect(groups[0]?.name).toBe("Flaky thing");
+    expect(groups[0]?.help).toBeNull();
+  });
+
+  it("gives the generic group to crap, mutation and thresholds rows when the catalog is empty", () => {
+    const groups = groupsOf(
+      findingRows([
+        document("t", [
+          record("cr", "crap"),
+          record("mu", "mutation"),
+          record("th", "thresholds.churn"),
+        ]),
+      ]),
+      EMPTY_CATALOG,
+    );
+
+    expect(groups.map((group) => [group.key, group.name, group.help])).toEqual([
+      ["kind:crap", "Crap", null],
+      ["kind:mutation", "Mutation", null],
+      ["kind:thresholds.churn", "Thresholds.churn", null],
+    ]);
   });
 
   it("marks a group red when a row is a violation and keeps rule-violation first", () => {
@@ -238,8 +301,10 @@ describe("withEmptyGroups", () => {
   ]);
 
   it("adds an empty group for a sensor with no current result, in panel order", () => {
-    const groups = withEmptyGroups(groupsOf(rows), (sensor) =>
-      ["crap", "mutation"].includes(sensor),
+    const groups = withEmptyGroups(
+      groupsOf(rows, CATALOG),
+      (sensor) => ["crap", "mutation"].includes(sensor),
+      CATALOG,
     );
 
     expect(groups.map((group) => [group.key, group.rows.length])).toEqual([
@@ -251,16 +316,18 @@ describe("withEmptyGroups", () => {
   });
 
   it("keeps a group that already has findings and adds nothing when every sensor is current", () => {
-    const groups = groupsOf(rows);
+    const groups = groupsOf(rows, CATALOG);
 
-    expect(withEmptyGroups(groups, () => true).map((g) => g.key)).toEqual([
+    expect(
+      withEmptyGroups(groups, () => true, CATALOG).map((g) => g.key),
+    ).toEqual([
       "kind:orphan",
       "kind:duplication",
       "kind:crap",
       "kind:mutation",
       "kind:thresholds",
     ]);
-    expect(withEmptyGroups(groups, () => false)).toEqual(groups);
+    expect(withEmptyGroups(groups, () => false, CATALOG)).toEqual(groups);
   });
 });
 
@@ -290,6 +357,14 @@ describe("long functions group", () => {
   });
 });
 
+describe("withEmptyGroups with an empty catalog", () => {
+  it("adds only the structure sensor's duplication group", () => {
+    const groups = withEmptyGroups([], () => true, EMPTY_CATALOG);
+
+    expect(groups.map((g) => g.key)).toEqual(["kind:duplication"]);
+  });
+});
+
 describe("finding-groups.json", () => {
   const entries = groupFile.groups as {
     key: string;
@@ -298,7 +373,7 @@ describe("finding-groups.json", () => {
     todo: string;
   }[];
 
-  it("has ten unique keys and names with plain help sentences", () => {
+  it("has the structure sensor's seven unique keys and names with plain help sentences", () => {
     expect(entries.map((one) => one.key)).toEqual([
       "kind:rule-violation",
       "kind:cycle",
@@ -307,11 +382,8 @@ describe("finding-groups.json", () => {
       "kind:private_imports",
       "kind:long_function",
       "kind:duplication",
-      "kind:crap",
-      "kind:mutation",
-      "kind:thresholds",
     ]);
-    expect(new Set(entries.map((one) => one.name)).size).toBe(10);
+    expect(new Set(entries.map((one) => one.name)).size).toBe(7);
 
     for (const one of entries) {
       expect(one.name).not.toBe("");
@@ -325,7 +397,10 @@ describe("finding-groups.json", () => {
     const all = entries.map((one, index) =>
       record(`r${index}`, one.key.slice("kind:".length)),
     );
-    const groups = groupsOf(findingRows([document("structure", all)]));
+    const groups = groupsOf(
+      findingRows([document("structure", all)]),
+      EMPTY_CATALOG,
+    );
 
     expect(groups.map((g) => g.name)).toEqual(entries.map((one) => one.name));
     expect(groups.map((g) => g.help)).toEqual(
@@ -343,7 +418,7 @@ describe("finding-groups.json", () => {
       ]),
     ]);
     const byName = Object.fromEntries(
-      groupsOf(rows).map((g) => [g.name, g.help]),
+      groupsOf(rows, CATALOG).map((g) => [g.name, g.help]),
     );
 
     expect(byName["Import cycle"]).not.toBeNull();
@@ -363,7 +438,12 @@ describe("finding-groups.json", () => {
 
     expect(row).toBeDefined();
 
-    for (const one of entries) {
+    const every = [
+      ...entries,
+      ...CATALOG.groups.map((one) => ({ name: one.name, ...one.help })),
+    ];
+
+    for (const one of every) {
       expect(row).toContain(one.name);
       expect(glossary).not.toContain(one.means);
       expect(glossary).not.toContain(one.todo);

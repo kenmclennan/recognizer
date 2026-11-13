@@ -77,7 +77,15 @@ import {
   type ScannerSpec,
   scannerFor,
 } from "./scanners.js";
-import { isScoped, runsTests, shippedSensorNames } from "./shipped-sensors.js";
+import {
+  isScoped,
+  readShippedSensors,
+  runsTests,
+  SHIPPED_SENSORS,
+  type ShippedRead,
+  shippedSensorNames,
+  shippedSensorOf,
+} from "./shipped-sensors.js";
 import { runStructureSensor } from "./structure-run.js";
 import { resolveStructureSettings } from "./structure-sensor.js";
 
@@ -454,6 +462,8 @@ function* scanFlow(
       : parseModuleScope(readModulesFile(io, options.modules));
   const startedAt = io.now();
   const root = resolve(options.positionals[0] ?? ".");
+  const limits = createPluginLimits(io, root);
+  let shipped: ShippedRead = { sensors: [], unreadable: [] };
 
   const wantsConfig = options.describe !== false || options.sense !== null;
   let describer: Describer | undefined;
@@ -487,6 +497,24 @@ function* scanFlow(
       readResponsibilities(io, root);
     }
 
+    if (options.sense !== null) {
+      const wanted = new Set<string>(
+        Array.isArray(options.sense)
+          ? options.sense.filter((name) => SHIPPED_SENSORS.includes(name))
+          : [],
+      );
+
+      for (const one of registeredSensors(config)) {
+        const name = shippedSensorOf(one.command);
+
+        if (name !== undefined) {
+          wanted.add(name);
+        }
+      }
+
+      shipped = readShippedSensors(io, limits.readOf, [...wanted]);
+    }
+
     selected =
       options.sense === null
         ? []
@@ -495,6 +523,7 @@ function* scanFlow(
             options.sense,
             shippedSensorNames(),
             config?.tests,
+            shipped,
           );
 
     const configured = (config?.tests ?? []).map((suite) => suite.name);
@@ -506,13 +535,15 @@ function* scanFlow(
             configured,
             selected.map((one) => ({
               name: one.name,
-              runsTests: runsTests(one.command),
+              runsTests: runsTests(one.command, shipped),
             })),
           );
 
     explicit = given;
 
-    for (const one of selected.filter((entry) => runsTests(entry.command))) {
+    for (const one of selected.filter((entry) =>
+      runsTests(entry.command, shipped),
+    )) {
       const names = given[one.name] ?? configured;
 
       chosen[one.name] = configured.filter((name) => names.includes(name));
@@ -560,13 +591,13 @@ function* scanFlow(
   function* scanRest(): Generator<ScanStep, number, ScanAnswer> {
     const commit = resolveCommit(io, root);
     const scoped = (command: string[]): string[] =>
-      options.modules !== undefined && isScoped(command)
+      options.modules !== undefined && isScoped(command, shipped)
         ? [...command, "--modules", resolve(options.modules)]
         : command;
     const withSuites = (name: string, command: string[]): string[] => {
       const names = explicit[name];
 
-      return names !== undefined && runsTests(command)
+      return names !== undefined && runsTests(command, shipped)
         ? [...command, "--suites", JSON.stringify(chosen[name] ?? names)]
         : command;
     };
@@ -579,7 +610,6 @@ function* scanFlow(
       }
     };
 
-    const limits = createPluginLimits(io, root);
     const modified = commit === null ? null : isDirty(io, root);
     const detected = detectLanguages(io, root);
     const json = options.json;
@@ -810,7 +840,8 @@ function* scanFlow(
       .map((language) => readCachedScan(io, root, language))
       .filter((scan): scan is RecordedScan => scan !== null);
 
-    const later = commit === null ? [] : readinessGaps(io, root, ticked);
+    const later =
+      commit === null ? [] : readinessGaps(io, root, ticked, limits.readOf);
 
     if (later.length > 0) {
       return refuse(later);
@@ -971,13 +1002,14 @@ function* scanFlow(
           selected: selected.map((one) => ({
             ...one,
             command: withSuites(one.name, scoped(one.command)),
-            runsTests: runsTests(one.command),
-            ...(scope !== undefined && isScoped(one.command)
+            runsTests: runsTests(one.command, shipped),
+            ...(scope !== undefined && isScoped(one.command, shipped)
               ? { modules: scope.length }
               : {}),
           })),
           commit: commit ?? "",
           scans,
+          limits,
           onStart: (name) => {
             emit(startLine("sense", name));
           },

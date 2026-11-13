@@ -32,7 +32,7 @@ Every manifest carries:
 By kind:
 
 - **Scanner:** `languages`, and for each, the file rules that claim a file for it (extensions, skipped folders).
-- **Sensor:** `metrics` (name, short label, help, granularity, which direction is bad, and the published figure and its source where one applies), `findings` (each kind's group name, help and sentence template), `runs_tests` (whether it needs the repository's test suites) and `scoped` (whether it can run for a set of modules).
+- **Sensor:** an optional `description` (one sentence saying what the sensor does) and `expansion` (what an abbreviated `display` stands for), `metrics` (name, short label, optional full `title`, help, granularity, which direction is bad, and the published figure and its source where one applies), `findings` (each kind's group name, help and sentence template), `runs_tests` (whether it needs the repository's test suites) and `scoped` (whether it can run for a set of modules).
 - **Describer:** `prompt_version`, which names the prompt its descriptions come from.
 
 ## Versions and compatibility
@@ -94,7 +94,7 @@ Each phase is its own item, built on the one before.
 
 1. **Protocol and manifest.** The manifest and event schemas, the protocol version, `recognizer plugin check`, and the CLI reading manifests. Recognizer's own tools answer `manifest`; `recognizer-sensors` gains one entry point per sensor. Nothing changes for users.
 2. **Lifecycle and events (built).** The four verbs and the event stream, read by the CLI and the app; the fixed progress steps, the closed diagnosis codes and the fixed sensor timeout go.
-3. **Manifest-driven CLI and app.** Every place that knows a plugin by name reads its manifest instead: the shipped-sensor registry, display names and expansions, metric names, finding groups and sentences, the module scope, and defaults duplicated outside the plugin.
+3. **Manifest-driven CLI and app (built).** Every place that knows a plugin by name reads its manifest instead: the shipped-sensor registry, display names and expansions, metric names, finding groups and sentences, the module scope, and defaults duplicated outside the plugin.
 4. **Registration and discovery.** Discovery on `PATH`, `recognizer plugins`, `recognizer plugin add`, scanners chosen from manifests by language (the scan schema's language list opens), and doctor and setup made generic.
 5. **Distribution.** The separate formulae, the `recognizer-plugins` bundle, the cask depending on it, a release workflow per plugin, and the app's same-version rule replaced by the protocol range. `design.md`'s toolchain bullet is rewritten here.
 6. **Author kit.** `recognizer help plugins`, `recognizer plugin init` with its templates, and `recognizer plugin schema`.

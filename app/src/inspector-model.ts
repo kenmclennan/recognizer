@@ -12,6 +12,7 @@ import {
 } from "recognizer";
 import { type Counts, type Line, lastSegment, under } from "./canvas-graph";
 import type { Selection } from "./canvas-state";
+import type { FindingCatalog } from "./finding-catalog";
 import { type FindingGroupModel, groupsOf } from "./findings-groups";
 import type { FindingRow } from "./findings-order";
 import type { Compaction } from "./folder-compaction";
@@ -41,6 +42,7 @@ import { fileLabel } from "./tree-model";
 export type InspectorTab = "contents" | "findings" | "dependencies";
 
 export type InspectorInputs = {
+  catalog: FindingCatalog;
   scans: Scan[];
   modules: string[];
   compaction: Compaction;
@@ -182,6 +184,7 @@ export type Row =
     }
   | {
       kind: "finding-group";
+      catalog: FindingCatalog;
       key: string;
       group: FindingGroupModel;
       open: boolean;
@@ -210,38 +213,14 @@ const PLAIN_LABELS: Record<string, CardLabel> = {
   type: "Type",
   enum: "Enum",
 };
-type Naming = { short: string; full: string };
-
-const METRIC_NAMES: Record<string, Naming> = {
-  complexity: { short: "cc", full: "Cyclomatic complexity" },
-  coverage: { short: "cov", full: "Coverage" },
-  crap: { short: "CRAP", full: "C.R.A.P. (Change Risk Anti-Patterns) score" },
-  mutation_score: { short: "mut", full: "Mutation score" },
-  mutation_survived: { short: "surv", full: "Survived mutants" },
-  killed: { short: "kill", full: "Killed mutants" },
-  uncovered: { short: "unc", full: "Uncovered" },
-};
-const MUTATION_NAMES: Record<string, Naming> = {
-  score: METRIC_NAMES.mutation_score as Naming,
-  survived: METRIC_NAMES.mutation_survived as Naming,
-};
-const MUTATION_OVERLAYS = new Set(["mutate", "mutation"]);
 const PARENT_SEGMENTS = 2;
 
-function naming(metric: MetricDescriptor): Naming | undefined {
-  const mutation = MUTATION_OVERLAYS.has(metric.overlay)
-    ? MUTATION_NAMES[metric.label]
-    : undefined;
-
-  return mutation ?? METRIC_NAMES[metric.label];
-}
-
 export function fullMetricName(metric: MetricDescriptor): string {
-  return naming(metric)?.full ?? metric.label;
+  return metric.title;
 }
 
 export function shortMetric(metric: MetricDescriptor): string {
-  return naming(metric)?.short ?? metric.label;
+  return metric.short;
 }
 
 function cellOf(metric: MetricDescriptor, memberId: string): MetricCell {
@@ -649,7 +628,7 @@ function functionMetricsRow(
 
     if (metric === undefined || typeof value !== "number") {
       return {
-        name: short,
+        name: metric?.short ?? short,
         text: "-",
         tone: null,
         title: `${name}: not measured`,
@@ -657,7 +636,7 @@ function functionMetricsRow(
     }
 
     return {
-      name: short,
+      name: metric.short,
       text: valueLabel(metric, value),
       tone: warn(value),
       title: barTitle(metric, { value, member: null }, name),
@@ -670,7 +649,9 @@ function functionMetricsRow(
         ? "amber"
         : null,
     ),
-    cell("crap", "CRAP", (value) => (value > limits.crapAt ? "red" : null)),
+    cell("crap", "CRAP", (value) =>
+      limits.crapAt !== null && value > limits.crapAt ? "red" : null,
+    ),
     cell("coverage", "cov", (value) =>
       limits.coverageBelow !== null && value < limits.coverageBelow
         ? "amber"
@@ -1159,11 +1140,12 @@ function dependencyRows(
 }
 
 function groupRows(rows: FindingRow[], inputs: InspectorInputs): Row[] {
-  return groupsOf(rows).map((group) => {
+  return groupsOf(rows, inputs.catalog).map((group) => {
     const key = `findings:${group.key}`;
 
     return {
       kind: "finding-group",
+      catalog: inputs.catalog,
       key,
       group,
       open: inputs.expanded.has(key),
