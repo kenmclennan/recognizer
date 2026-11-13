@@ -90,6 +90,10 @@
             "items": {
               "$ref": "#/$defs/entry"
             }
+          },
+          "duration_ms": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       }
@@ -114,6 +118,10 @@
           }
         }
       }
+    },
+    "structure_ms": {
+      "type": "integer",
+      "minimum": 0
     }
   },
   "$defs": {
@@ -215,6 +223,17 @@
         },
         "stderr_truncated": {
           "const": true
+        },
+        "modules": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fixed_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "incomplete": {
+          "type": "boolean"
         }
       }
     }
