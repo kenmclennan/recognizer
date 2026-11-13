@@ -26,7 +26,8 @@
       "id": "thresholds:complexity:app/billing.py::price",
       "kind": "thresholds.complexity",
       "severity": "warning",
-      "principle": "functions-stay-small",
+      "principle": "cyclomatic-complexity-limit",
+      "citation": {"author": "Thomas J. McCabe", "work": "A Complexity Measure, IEEE Transactions on Software Engineering", "year": 1976, "locator": "page 314, upper bound of 10"},
       "metric": "complexity",
       "summary": "app/billing.py::price: complexity 14 is at or above 10",
       "evidence": {

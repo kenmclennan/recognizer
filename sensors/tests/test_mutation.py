@@ -11,6 +11,7 @@ import pytest
 from conftest import (
     FINDINGS_SCHEMA,
     OVERLAY_SCHEMA,
+    REPOSITORY,
     SELECTED_FIXTURE,
     SENSOR_LIST,
     STOP_FIXTURE,
@@ -980,7 +981,13 @@ def test_the_weak_run_yields_one_warning_per_function_with_a_survivor(tmp_path):
 
     assert finding["kind"] == "mutation"
     assert finding["severity"] == "warning"
-    assert finding["principle"] == "Tests must catch changes"
+    assert finding["principle"] == "mutation-testing"
+    assert (
+        finding["citation"]
+        == json.loads((REPOSITORY / "fixtures" / "sensors" / "principles.json").read_text())[3][
+            "citation"
+        ]
+    )
     assert finding["fix_pattern"] == "strengthen-tests"
     assert finding["evidence"]["modules"] == ["app/rules.py"]
     assert finding["evidence"]["members"] == [

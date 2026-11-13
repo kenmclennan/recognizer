@@ -13,7 +13,8 @@
       "id": "crap:app/risk.py::classify",
       "kind": "crap",
       "severity": "warning",
-      "principle": "Complex code needs tests",
+      "principle": "change-risk-anti-patterns",
+      "citation": {"author": "Alberto Savoia and Bob Evans", "work": "This code is CRAP, Google Testing Blog", "year": 2011, "locator": "CRAP1(m) > 30"},
       "fix_pattern": "simplify-or-test",
       "summary": "classify in app/risk.py has complexity 8 and 18% coverage, CRAP 43.1",
       "evidence": {

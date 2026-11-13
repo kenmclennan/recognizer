@@ -15,7 +15,8 @@
       "id": "mutation:app/rules.py::grade",
       "kind": "mutation",
       "severity": "warning",
-      "principle": "Tests must catch changes",
+      "principle": "mutation-testing",
+      "citation": {"author": "Richard A. DeMillo, Richard J. Lipton and Frederick G. Sayward", "work": "Hints on Test Data Selection: Help for the Practicing Programmer, Computer", "year": 1978},
       "fix_pattern": "strengthen-tests",
       "summary": "grade in app/rules.py has 2 surviving mutations: line 2 >= to >, line 4 >= to >",
       "evidence": {

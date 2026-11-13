@@ -71,6 +71,45 @@ export const PRINCIPLES: readonly Principle[] = [
       year: 1999,
     },
   },
+  {
+    id: "change-risk-anti-patterns",
+    name: "C.R.A.P. (Change Risk Anti-Patterns)",
+    citation: {
+      author: "Alberto Savoia and Bob Evans",
+      work: "This code is CRAP, Google Testing Blog",
+      year: 2011,
+      locator: "CRAP1(m) > 30",
+    },
+  },
+  {
+    id: "cyclomatic-complexity-limit",
+    name: "Cyclomatic complexity limit",
+    citation: {
+      author: "Thomas J. McCabe",
+      work: "A Complexity Measure, IEEE Transactions on Software Engineering",
+      year: 1976,
+      locator: "page 314, upper bound of 10",
+    },
+  },
+  {
+    id: "code-coverage-guidelines",
+    name: "Code coverage guidelines",
+    citation: {
+      author: "Carlos Arguelles, Marko Ivanković and Adam Bender",
+      work: "Code Coverage Best Practices, Google Testing Blog",
+      year: 2020,
+      locator: "60% acceptable",
+    },
+  },
+  {
+    id: "mutation-testing",
+    name: "Mutation testing",
+    citation: {
+      author: "Richard A. DeMillo, Richard J. Lipton and Frederick G. Sayward",
+      work: "Hints on Test Data Selection: Help for the Practicing Programmer, Computer",
+      year: 1978,
+    },
+  },
 ];
 
 export function principleName(id: string): string {
