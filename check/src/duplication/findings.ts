@@ -1,4 +1,5 @@
 import type { FindingRecord } from "../findings-document.js";
+import { principleOf } from "../principles.js";
 import {
   type Pair,
   prunedPairs,
@@ -7,7 +8,7 @@ import {
 } from "./score.js";
 import { compareCodePoints } from "./syntax.js";
 
-export const PRINCIPLE = "Do not repeat yourself";
+export const PRINCIPLE = "dont-repeat-yourself";
 export const FIX_PATTERN = "extract-shared-function";
 
 export interface DuplicationSettings {
@@ -120,7 +121,7 @@ export function findingFor(
     id,
     kind: "duplication",
     severity: "warning",
-    principle: PRINCIPLE,
+    ...principleOf(PRINCIPLE),
     fix_pattern: FIX_PATTERN,
     summary,
     evidence: {

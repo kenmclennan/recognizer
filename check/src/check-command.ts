@@ -219,7 +219,7 @@ function warningOf(sensor: string, record: FindingRecord): ReportedWarning {
   if (sensor === "structure" && record.kind === "cycle") {
     return {
       id: "cycle",
-      principle: "no-cycles",
+      principle: "levelization",
       fix_pattern: "break-cycle",
       summary: record.summary,
       evidence: {

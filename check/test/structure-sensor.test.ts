@@ -9,7 +9,7 @@ import {
 } from "../src/baseline.js";
 import { rankAgainstBaseline } from "../src/check.js";
 import { validateFindings } from "../src/findings-document.js";
-import { parsePolicy, validateScan } from "../src/index.js";
+import { parsePolicy, principleOf, validateScan } from "../src/index.js";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
   measuredInputs,
@@ -117,7 +117,7 @@ describe("structureSensor ids", () => {
   });
 
   it("records the current sensor version", () => {
-    expect(sense("check-warnings").document.sensor.version).toBe("17");
+    expect(sense("check-warnings").document.sensor.version).toBe("18");
   });
 
   it("changes only orphan findings when the scan carries test imports", () => {
@@ -200,6 +200,54 @@ describe("structureSensor over the committed fixtures", () => {
     expect(found.filter((id) => id.startsWith("rule-violation:"))).toHaveLength(
       1,
     );
+  });
+});
+
+describe("the principle each finding cites", () => {
+  const cited = (name: string, kind: string) =>
+    sense(name).document.findings.filter((f) => f.kind === kind);
+
+  it("cites levelization on a cycle", () => {
+    const [cycle] = cited("check-warnings", "cycle");
+
+    expect(cycle).toMatchObject(principleOf("levelization"));
+  });
+
+  it("cites the Dependency Inversion Principle on a level violation", () => {
+    const found = cited("check-warnings", "rule-violation");
+
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject(
+      principleOf("dependency-inversion-principle"),
+    );
+  });
+
+  it("cites the repository policy, with no citation key, on forbid violations", () => {
+    const found = cited("check", "rule-violation").filter((finding) =>
+      finding.evidence.edges?.[0]?.rules?.every(
+        (rule) => rule.type === "forbid",
+      ),
+    );
+
+    expect(found.length).toBeGreaterThan(0);
+
+    for (const finding of found) {
+      expect(finding.principle).toBe("repository-policy");
+      expect("citation" in finding).toBe(false);
+    }
+  });
+
+  it("cites by the rules on each edge in the check fixture", () => {
+    for (const finding of cited("check", "rule-violation")) {
+      const level = finding.evidence.edges?.[0]?.rules?.some(
+        (rule) => rule.type === "level",
+      );
+
+      expect(finding.principle).toBe(
+        level ? "dependency-inversion-principle" : "repository-policy",
+      );
+      expect("citation" in finding).toBe(level);
+    }
   });
 });
 

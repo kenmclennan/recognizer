@@ -57,7 +57,7 @@ describe("senseRepository", () => {
           id: "duplication:a.py::f|a.py::g",
           kind: "duplication",
           severity: "warning",
-          principle: "Do not repeat yourself",
+          principle: "dont-repeat-yourself",
           summary: "f in a.py is 90% similar to g in a.py",
           evidence: { modules: ["a.py"] },
         },

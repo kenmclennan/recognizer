@@ -15,7 +15,7 @@ export interface ModuleMetrics {
 
 export interface CycleWarning {
   id: "cycle";
-  principle: "no-cycles";
+  principle: "levelization";
   fix_pattern: "break-cycle";
   summary: string;
   evidence: { modules: string[]; edges: { from: string; to: string }[] };
@@ -155,7 +155,7 @@ export function analyse(scan: Scan, ignore: Matcher[] = []): Analysis {
 
       return {
         id: "cycle",
-        principle: "no-cycles",
+        principle: "levelization",
         fix_pattern: "break-cycle",
         summary: `cycle of ${modules.length} modules: ${modules.join(", ")}`,
         evidence: { modules, edges: inside },

@@ -16,7 +16,7 @@ function duplicate(id: string): FindingRecord {
     id,
     kind: "duplication",
     severity: "warning",
-    principle: "Do not repeat yourself",
+    principle: "dont-repeat-yourself",
     summary: id,
     evidence: { modules: ["a.py"] },
   };
@@ -25,7 +25,7 @@ function duplicate(id: string): FindingRecord {
 function document(overrides: Partial<FindingsDocument> = {}): FindingsDocument {
   return {
     findings_version: 2,
-    sensor: { name: "structure", version: "17" },
+    sensor: { name: "structure", version: "18" },
     commit: "c1",
     modified: false,
     settings: { entry_points: [] },

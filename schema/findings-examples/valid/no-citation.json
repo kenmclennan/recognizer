@@ -1,0 +1,17 @@
+{
+  "findings_version": 1,
+  "sensor": { "name": "structure", "version": "18" },
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "modified": false,
+  "settings": {},
+  "findings": [
+    {
+      "id": "rule-violation:a",
+      "kind": "rule-violation",
+      "severity": "violation",
+      "principle": "repository-policy",
+      "summary": "s",
+      "evidence": { "modules": ["a/o.py"] }
+    }
+  ]
+}

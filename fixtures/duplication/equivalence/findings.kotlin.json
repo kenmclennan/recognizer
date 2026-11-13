@@ -3,7 +3,8 @@
   "id": "duplication:src/Near.kt::gatherNames|src/Near.kt::gatherTags",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "gatherNames in src/Near.kt is 85% similar to gatherTags in src/Near.kt",
   "evidence": {
@@ -39,7 +40,8 @@
   "id": "duplication:src/Near.kt::fetchEvents|src/Near.kt::fetchPages",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "fetchEvents in src/Near.kt is 88% similar to fetchPages in src/Near.kt",
   "evidence": {
@@ -75,7 +77,8 @@
   "id": "duplication:src/Near.kt::summariseOrders|src/Near.kt::summariseVisits",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "summariseOrders in src/Near.kt is 92% similar to summariseVisits in src/Near.kt",
   "evidence": {
@@ -111,7 +114,8 @@
   "id": "duplication:src/Planted.kt::loadSession|src/Planted.kt::loadSettings",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "loadSession in src/Planted.kt is 100% similar to loadSettings in src/Planted.kt",
   "evidence": {
@@ -147,7 +151,8 @@
   "id": "duplication:src/Planted.kt::orderTotal|src/Planted.kt::parcelWeight",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "orderTotal in src/Planted.kt is 100% similar to parcelWeight in src/Planted.kt",
   "evidence": {
@@ -183,7 +188,8 @@
   "id": "duplication:src/Planted.kt::storeLedger|src/Planted.kt::storeReport",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "storeLedger in src/Planted.kt is 88% similar to storeReport in src/Planted.kt",
   "evidence": {
@@ -219,7 +225,8 @@
   "id": "duplication:src/Branching.kt::Budgets.pageSize|src/Branching.kt::Budgets.retryLimit",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "Budgets.pageSize in src/Branching.kt is 100% similar to Budgets.retryLimit in src/Branching.kt",
   "evidence": {

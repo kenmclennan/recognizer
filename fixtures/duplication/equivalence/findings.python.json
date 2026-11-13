@@ -3,7 +3,8 @@
   "id": "duplication:near.py::gather_names|near.py::gather_tags",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "gather_names in near.py is 83% similar to gather_tags in near.py",
   "evidence": {
@@ -39,7 +40,8 @@
   "id": "duplication:near.py::fetch_events|near.py::fetch_pages",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "fetch_events in near.py is 83% similar to fetch_pages in near.py",
   "evidence": {
@@ -75,7 +77,8 @@
   "id": "duplication:near.py::summarise_orders|near.py::summarise_visits",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "summarise_orders in near.py is 93% similar to summarise_visits in near.py",
   "evidence": {
@@ -111,7 +114,8 @@
   "id": "duplication:planted.py::load_session|planted.py::load_settings",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "load_session in planted.py is 100% similar to load_settings in planted.py",
   "evidence": {
@@ -147,7 +151,8 @@
   "id": "duplication:planted.py::store_ledger|planted.py::store_report",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "store_ledger in planted.py is 88% similar to store_report in planted.py",
   "evidence": {
@@ -183,7 +188,8 @@
   "id": "duplication:branching.py::Limits.page_size|branching.py::Limits.retry_limit",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "Limits.page_size in branching.py is 100% similar to Limits.retry_limit in branching.py",
   "evidence": {
@@ -219,7 +225,8 @@
   "id": "duplication:planted.py::order_total|planted.py::parcel_weight",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "order_total in planted.py is 100% similar to parcel_weight in planted.py",
   "evidence": {

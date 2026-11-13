@@ -3,7 +3,8 @@
   "id": "duplication:src/Near.cs::Near.GatherNames|src/Near.cs::Near.GatherTags",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "Near.GatherNames in src/Near.cs is 87% similar to Near.GatherTags in src/Near.cs",
   "evidence": {
@@ -39,7 +40,8 @@
   "id": "duplication:src/Near.cs::Near.FetchEvents|src/Near.cs::Near.FetchPages",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "Near.FetchEvents in src/Near.cs is 87% similar to Near.FetchPages in src/Near.cs",
   "evidence": {
@@ -75,7 +77,8 @@
   "id": "duplication:src/Near.cs::Near.SummariseOrders|src/Near.cs::Near.SummariseVisits",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "Near.SummariseOrders in src/Near.cs is 95% similar to Near.SummariseVisits in src/Near.cs",
   "evidence": {
@@ -111,7 +114,8 @@
   "id": "duplication:src/Planted.cs::Planted.LoadSession|src/Planted.cs::Planted.LoadSettings",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "Planted.LoadSession in src/Planted.cs is 100% similar to Planted.LoadSettings in src/Planted.cs",
   "evidence": {
@@ -147,7 +151,8 @@
   "id": "duplication:src/Planted.cs::Planted.OrderTotal|src/Planted.cs::Planted.ParcelWeight",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "Planted.OrderTotal in src/Planted.cs is 100% similar to Planted.ParcelWeight in src/Planted.cs",
   "evidence": {
@@ -183,7 +188,8 @@
   "id": "duplication:src/Branching.cs::Budgets.PageSize|src/Branching.cs::Budgets.RetryLimit",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "Budgets.PageSize in src/Branching.cs is 100% similar to Budgets.RetryLimit in src/Branching.cs",
   "evidence": {
@@ -219,7 +225,8 @@
   "id": "duplication:src/Planted.cs::Planted.StoreLedger|src/Planted.cs::Planted.StoreReport",
   "kind": "duplication",
   "severity": "warning",
-  "principle": "Do not repeat yourself",
+  "principle": "dont-repeat-yourself",
+  "citation": { "author": "Andrew Hunt and David Thomas", "work": "The Pragmatic Programmer", "year": 1999 },
   "fix_pattern": "extract-shared-function",
   "summary": "Planted.StoreLedger in src/Planted.cs is 88% similar to Planted.StoreReport in src/Planted.cs",
   "evidence": {

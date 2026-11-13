@@ -47,6 +47,35 @@ function findingsByModule(
   return findingsByModuleFrom([document]);
 }
 
+describe("findingsByModuleFrom principle text", () => {
+  const record = (id: string, principle: string): FindingRecord => ({
+    id,
+    kind: "orphan",
+    severity: "warning",
+    principle,
+    summary: id,
+    evidence: { modules: ["a.py"] },
+  });
+
+  it("names a registered principle and keeps an unregistered one as written", () => {
+    const found = findingsByModuleFrom([
+      {
+        findings_version: 1,
+        sensor: { name: "structure", version: "18" },
+        commit: "c",
+        modified: false,
+        settings: {},
+        findings: [record("one", "dead-code"), record("two", "old-principle")],
+      },
+    ]);
+
+    expect(found.get("a.py")?.map((finding) => finding.why)).toEqual([
+      "Dead code",
+      "old-principle",
+    ]);
+  });
+});
+
 describe("findingsByModuleFrom over the structure document", () => {
   it("attaches a cycle warning to every module in it", () => {
     const { scan, policy } = fixture("check-warnings");
@@ -56,7 +85,7 @@ describe("findingsByModuleFrom over the structure document", () => {
       "warning",
     ]);
     expect(found.get("app/domain/order.py")?.map((f) => f.why)).toContain(
-      "no-cycles",
+      "Levelization",
     );
   });
 

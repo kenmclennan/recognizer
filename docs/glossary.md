@@ -171,7 +171,9 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Function length | The span from a function or method's first line to its last, shown on its inspector card as `N lines` with a bar scaled to the module's largest, banded neutral at 20 lines or fewer, long (amber) from 21 to 50 and red over 50. Over 20 lines it is also reported by the structure sensor as a `long_function` finding; the red band over 50 is only a visual band. |
 | Show private | The remembered switch that adds non-exported members and private fields and methods to Contents. |
 | Health disc | A dot on each file, folder and box: green fine, amber a warning, red a violation, a grey ring not measured. A folder shows the worst inside it. |
-| Finding | A violation or warning a sensor wrote for the current scan: a stable id, a kind, a principle, a one-line summary, its evidence by scan id and, where one is named, a fix pattern. Attached to the modules in its evidence; a health disc shows the summary. |
+| Principle | The published principle a finding rests on, named by a stable id from the registry in `check/src/principles.ts` and shown by its name. |
+| Citation | The author, work, year and optional locator a finding carries for its principle, taken from the registry; absent for the repository's own policy rule. |
+| Finding | A violation or warning a sensor wrote for the current scan: a stable id, a kind, a principle, a citation where the principle is published, a one-line summary, its evidence by scan id and, where one is named, a fix pattern. Attached to the modules in its evidence; a health disc shows the summary. |
 | Needs attention | The tree filter that keeps only modules with an amber or red disc. |
 | Focus | Narrowing the canvas to one folder's files. |
 | Legend | The panel on the canvas, opened from its bottom-right controls, that names every edge style, every disc and what a frame's figure counts, and holds the inferred-edges switch. |

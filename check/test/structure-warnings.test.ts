@@ -6,6 +6,7 @@ import { parseConfig } from "../src/config-parse.js";
 import { InputError } from "../src/errors.js";
 import { functionLength, parsePolicy, validateScan } from "../src/index.js";
 import { policyProblems } from "../src/policy-problems.js";
+import { principleOf } from "../src/principles.js";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
   describeSettings,
@@ -80,7 +81,7 @@ describe("orphan", () => {
     expect(finding).toMatchObject({
       kind: "orphan",
       severity: "warning",
-      principle: "every-module-is-reachable",
+      ...principleOf("dead-code"),
       fix_pattern: "remove-or-wire-orphan",
       summary:
         "app/plain.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
@@ -311,7 +312,7 @@ describe("structure settings", () => {
     expect(JSON.stringify(document.settings)).toBe(
       '{"entry_points":[],"warnings":{"cycle":true,"orphan":true,"unused_exports":false,"private_imports":true,"long_function":true}}',
     );
-    expect(document.sensor.version).toBe("17");
+    expect(document.sensor.version).toBe("18");
   });
 
   it("describes the settings with and without entry points", () => {
@@ -1448,7 +1449,7 @@ describe("unused_exports", () => {
       id: "unused_exports:shop/a.py",
       kind: "unused_exports",
       severity: "warning",
-      principle: "export-only-what-is-used",
+      ...principleOf("information-hiding"),
       fix_pattern: "narrow-exports",
     });
     expect(module?.evidence.members).toEqual([
@@ -1748,7 +1749,7 @@ describe("private_imports", () => {
     expect(result[0]).toMatchObject({
       kind: "private_imports",
       severity: "warning",
-      principle: "information-hiding",
+      ...principleOf("information-hiding"),
     });
     expect(result[0]?.fix_pattern).toBeUndefined();
     expect(result[0]?.summary).toContain("information hiding (Parnas, 1972)");
@@ -2128,7 +2129,7 @@ describe("long_function", () => {
     expect(result[0]).toMatchObject({
       kind: "long_function",
       severity: "warning",
-      principle: "small-functions",
+      ...principleOf("small-functions"),
     });
     expect(result[0]?.fix_pattern).toBeUndefined();
     expect(result[0]?.summary).toContain(

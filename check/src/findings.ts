@@ -1,4 +1,5 @@
 import type { FindingRecord, FindingsDocument } from "./findings-document.js";
+import { principleName } from "./principles.js";
 import type { Violation } from "./rules.js";
 
 export type Finding = {
@@ -48,7 +49,7 @@ export function findingsByModuleFrom(
       const why =
         isViolation && rules !== undefined
           ? ruleText({ rules })
-          : record.principle;
+          : principleName(record.principle);
 
       for (const id of record.evidence.modules) {
         add(isViolation ? violations : warnings, id, {

@@ -141,6 +141,13 @@ export { type PathStep, shortestPath } from "./paths.js";
 export { type Policy, parsePolicy } from "./policy.js";
 export { type PolicyProblem, policyProblems } from "./policy-problems.js";
 export {
+  type Citation,
+  PRINCIPLES,
+  type Principle,
+  principleName,
+  principleOf,
+} from "./principles.js";
+export {
   type LineStatus,
   lineStatus,
   type Responsibilities,

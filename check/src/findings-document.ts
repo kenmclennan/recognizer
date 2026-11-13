@@ -1,4 +1,5 @@
 import validate from "./generated/findings-validator.js";
+import type { Citation } from "./principles.js";
 import type { Rule } from "./rules.js";
 import type { Diagnosis } from "./sensor-reason.js";
 
@@ -15,6 +16,7 @@ export interface FindingRecord {
   kind: string;
   severity: "violation" | "warning";
   principle: string;
+  citation?: Citation;
   summary: string;
   fix_pattern?: string;
   metric?: string;

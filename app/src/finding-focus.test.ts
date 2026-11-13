@@ -7,7 +7,7 @@ const violation: FindingRecord = {
   id: "v",
   kind: "rule-violation",
   severity: "violation",
-  principle: "dependencies-follow-the-policy",
+  principle: "dependency-inversion-principle",
   summary: "depends on b.py",
   evidence: {
     modules: ["a.py"],
@@ -19,7 +19,7 @@ const cycle: FindingRecord = {
   id: "c",
   kind: "cycle",
   severity: "warning",
-  principle: "no-cycles",
+  principle: "levelization",
   summary: "cycle of 2",
   fix_pattern: "break-cycle",
   evidence: {

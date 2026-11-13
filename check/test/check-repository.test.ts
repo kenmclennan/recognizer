@@ -243,7 +243,7 @@ describe("check ranks duplication warnings by lines duplicated", () => {
     id,
     kind: "duplication",
     severity: "warning",
-    principle: "Do not repeat yourself",
+    principle: "dont-repeat-yourself",
     fix_pattern: "extract-shared-function",
     summary: `summary ${id}`,
     evidence: {
@@ -253,7 +253,7 @@ describe("check ranks duplication warnings by lines duplicated", () => {
   });
   const duplication = JSON.stringify({
     findings_version: 2,
-    sensor: { name: "structure", version: "17" },
+    sensor: { name: "structure", version: "18" },
     commit: COMMIT,
     modified: false,
     settings: {
@@ -335,7 +335,7 @@ describe("a structure file from before the folder cycle was removed", () => {
           id: "folder_cycle:a,b",
           kind: "folder_cycle",
           severity: "warning",
-          principle: "no-cycles",
+          principle: "levelization",
           summary: "folders a and b import each other",
           fix_pattern: "break-folder-cycle",
           evidence: {

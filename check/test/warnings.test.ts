@@ -176,7 +176,7 @@ describe("cycle warning", () => {
     expect(warnings).toEqual([
       {
         id: "cycle",
-        principle: "no-cycles",
+        principle: "levelization",
         fix_pattern: "break-cycle",
         summary: "cycle of 2 modules: a, b",
         evidence: {
