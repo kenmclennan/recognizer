@@ -22,7 +22,7 @@ const US = String.fromCharCode(31);
 const record = (c, parent, subject, deco, files) => RS + [sha(c), c.repeat(7), parent === null ? "" : sha(parent), "Ken", "1700000000", subject, deco].join(US) + "\\n\\n" + files.map((f) => f + "\\n").join("");
 const HISTORY = record("a", "b", "Newest", "HEAD -> main, origin/main", ["M\\tp/a.py"]) + record("b", "c", "Middle", "", ["A\\tp/b.py"]) + record("c", "d", "Older", "", ["M\\tp/c.py"]) + record("d", "e", "Oldest", "tag: v0.1.0", ["D\\tp/d.py"]) + record("e", null, "Root", "", ["A\\tp/a.py"]);
 const BRANCHES = ["main", "feature/x", "spike"].map((name, i) => [name, String(i).repeat(7), "Ken", "1699000000"].join(US) + "\\n").join("");
-const PRS = JSON.stringify([{ number: 9, title: "Gift cards", headRefName: "feature/x", headRefOid: sha("f"), author: { login: "lc" }, updatedAt: "2026-11-10T10:00:00Z", isDraft: false, statusCheckRollup: [] }]);
+const PRS = JSON.stringify([{ number: 9, title: "Gift cards", headRefName: "feature/x", headRefOid: sha("f"), author: { login: "lc" }, updatedAt: "2026-11-10T10:00:00Z", isDraft: false, statusCheckRollup: [] }, { number: 10, title: "Docs only", headRefName: "docs/only", headRefOid: sha("9"), author: { login: "lc" }, updatedAt: "2026-11-10T09:00:00Z", isDraft: false, statusCheckRollup: [] }]);
 const ch = (status, path) => ({ status, path });
 const facts = (ref, mergeBase, changes) => ({ ref, mergeBase, behind: 1, ahead: 2, changes });
 const FX = [ch("M", "p/a.py"), ch("A", "p/b.py"), ch("D", "p/zzz.py"), ch("A", "docs/x.md")];
@@ -40,7 +40,7 @@ function mount(options = {}, files = {}) {
     history: { branch: "main", text: options.history || HISTORY },
     branches: { defaultRef: "origin/main", total: 3, text: BRANCHES },
     pullRequests: options.pullRequests || { status: "ok", detail: "", text: PRS },
-    facts: [facts("main", sha("a"), []), facts("feature/x", sha("c"), FX), facts("spike", sha("c"), []), facts(sha("f"), sha("b"), [ch("M", "p/a.py")])],
+    facts: [facts("main", sha("a"), []), facts("feature/x", sha("c"), FX), facts("spike", sha("c"), []), facts(sha("f"), sha("b"), [ch("M", "p/a.py")]), facts(sha("9"), sha("b"), [ch("A", "docs/y.md")])],
   });
   const lines = [];
   const explorer = mountExplorer({ container: host, loaded, title: "demo", views, commits, post: (input) => { lines.push(input); return lines.length; }, storage: options.storage });
@@ -83,14 +83,14 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   const cardText = () => { const c = m.q(".commits-card"); return c.hidden ? null : [...c.children].map((n) => n.className + ":" + n.textContent); };
   const impactTexts = () => m.all(".commits-row").map((r) => ({ count: r.querySelector(".commits-impact-count").textContent, marks: [...r.querySelectorAll(".commits-impact-mark")].map((n) => n.className.replace("commits-impact-mark ", "") + n.textContent), other: (r.querySelector(".commits-impact-other") || { textContent: null }).textContent }));
   out.branchesHidden = { rows: m.all(".commits-row .commits-row-title").map((r) => r.textContent), hidden: m.q(".commits-hidden").textContent, on: m.q(".commits-hide").getAttribute("aria-checked") === "true", impact: impactTexts() };
-  const impactNode = m.q(".commits-row .commits-impact");
+  const impactNode = rowFor(m, "feature/x").querySelector(".commits-impact");
   hover(impactNode, "pointerenter", 1390, 790);
   const countCard = m.q(".commits-card");
   const box = countCard.getBoundingClientRect();
   out.countCard = { lines: cardText(), insideWindow: box.right <= window.innerWidth && box.bottom <= window.innerHeight && box.left >= 0 && box.top >= 0 };
   hover(impactNode, "pointerleave");
   out.countCardGone = cardText();
-  hover(m.q(".commits-row .commits-row-title"), "pointerenter");
+  hover(rowFor(m, "feature/x").querySelector(".commits-row-title"), "pointerenter");
   out.titleCard = cardText();
   hover(m.q(".commits-row .commits-row-title"), "pointerleave");
   out.branchesPanel = { toggle: m.q(".commits-mode") !== null, cards: m.all(".commits-slot").length, filterHidden: m.q(".commits-filter").hidden, guide: guide(m), removed: [".commits-swap", ".commits-range-open", ".commits-save", ".commits-open-bar"].filter((selector) => m.q(selector) !== null) };
@@ -608,21 +608,24 @@ describe.skipIf(webkit === undefined)(
       expect(f.opened.chips).toEqual(["main", "v0.1.0"]);
     });
 
-    it("hides the empty default branch and spike by default on Branches, with no switch shown there, and shows the bold count with squares and the not-on-the-canvas line", () => {
+    it("shows every branch and pull request with the History switch on, including those with no file on the canvas, and shows the bold count with squares and the not-on-the-canvas line", () => {
       expect(f.branchesHidden.on).toBe(true);
-      expect(f.branchesHidden.rows).toEqual(["feature/x"]);
+      expect(f.branchesHidden.rows).toEqual(["main", "feature/x", "spike"]);
+      expect(f.branchesHidden.hidden).toBe("");
       expect(f.branchesPanel.filterHidden).toBe(true);
       expect(f.branchesHidden.impact).toEqual([
+        { count: "no files", marks: [], other: null },
         {
           count: "3 files",
           marks: ["added1", "modified1", "removed1"],
           other: "+1 not on the canvas",
         },
+        { count: "no files", marks: [], other: null },
       ]);
       expect(f.branches.calls.pullRequests).toBe(0);
       expect(f.pulls.calls.pullRequests).toBe(1);
-      expect(f.pulls.rows).toBe(1);
-      expect(f.pulls.title).toEqual(["#9 Gift cards"]);
+      expect(f.pulls.rows).toBe(2);
+      expect(f.pulls.title).toEqual(["#9 Gift cards", "#10 Docs only"]);
       expect(f.pullsAgain.pullRequests).toBe(1);
       expect(f.historyHide).toEqual({
         on: true,
@@ -895,7 +898,7 @@ describe.skipIf(webkit === undefined)(
       for (const key of ["gh_missing", "gh_signed-out", "gh_failed"] as const) {
         expect(f[key].rows).toBe(0);
         expect(f[key].history).toBe(5);
-        expect(f[key].branches).toBe(1);
+        expect(f[key].branches).toBe(3);
       }
     });
 

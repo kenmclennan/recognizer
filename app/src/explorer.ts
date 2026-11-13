@@ -65,7 +65,7 @@ import {
 import {
   buildCommitsPanelView,
   type CommitRowView,
-  type CommitsListView,
+  type CommitsPanelModel,
   type CommitsTab,
 } from "./commits-panel-view";
 import { type CommitsPort, inertCommits, type RefFacts } from "./commits-port";
@@ -500,11 +500,7 @@ export function showExplorer(
     rows: PullRequestRow[];
   } = { state: "idle", status: "ok", detail: "", rows: [] };
   const commitFacts = new Map<string, RefFacts>();
-  const commitsHide: Record<CommitsTab, boolean> = {
-    history: true,
-    branches: true,
-    prs: true,
-  };
+  let historyHide = true;
   let commitsOpening: {
     what: string;
     kind: PickRow["kind"];
@@ -1117,8 +1113,8 @@ export function showExplorer(
       commitsSelection.clear(end);
       render();
     },
-    setHide(tab, hide) {
-      commitsHide[tab] = hide;
+    setHide(hide) {
+      historyHide = hide;
       render();
     },
     setTab(tab) {
@@ -2304,18 +2300,16 @@ export function showExplorer(
         shaded: false,
       });
     });
-    const visible = (rows: CommitRowView[], tab: CommitsTab) => {
-      const shown = visibleRows<CommitRowView>(rows, commitsHide[tab]);
-
-      return { rows: shown.rows, hidden: shown.hidden, hide: commitsHide[tab] };
-    };
+    const shownHistory = visibleRows<CommitRowView>(historyRows, historyHide);
     const pullNotice =
       pullLoad.state === "ready"
         ? ghNotice(pullLoad.status, pullLoad.detail)
         : null;
-    const lists: Record<CommitsTab, CommitsListView> = {
+    const lists: CommitsPanelModel["lists"] = {
       history: {
-        ...visible(historyRows, "history"),
+        rows: shownHistory.rows,
+        hide: historyHide,
+        hidden: shownHistory.hidden,
         loading: historyLoad.state === "loading",
         notice:
           historyLoad.state === "failed"
@@ -2326,7 +2320,7 @@ export function showExplorer(
         note: null,
       },
       branches: {
-        ...visible(branchRows, "branches"),
+        rows: branchRows,
         loading: branchLoad.state === "loading",
         notice:
           branchLoad.state === "failed"
@@ -2340,7 +2334,7 @@ export function showExplorer(
             : null,
       },
       prs: {
-        ...visible(pullRows, "prs"),
+        rows: pullRows,
         loading: pullLoad.state === "loading",
         notice:
           pullNotice ??
