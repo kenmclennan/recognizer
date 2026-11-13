@@ -10,6 +10,7 @@ document.body.insertAdjacentHTML("beforeend", ${JSON.stringify(HOSTS)});
 import { buildInspectorView } from ${JSON.stringify(here("inspector-view.ts"))};
 import { compactFolders } from ${JSON.stringify(here("folder-compaction.ts"))};
 import { inspectorContent } from ${JSON.stringify(here("inspector-model.ts"))};
+import { DEFAULT_LIMITS } from ${JSON.stringify(here("function-limits.ts"))};
 
 const scan = {
   modules: [
@@ -42,6 +43,8 @@ const inputs = {
   canAddNote: false,
   filter: "",
   responsibility: () => ({ state: { kind: "missing" }, failure: null }),
+  metricsOn: false,
+  limits: DEFAULT_LIMITS,
   metrics: [
     { key: "t/complexity", label: "complexity", granularity: "member", type: "count", bad: "high", overlay: "t", stale: false, max: 12, values: { "p/m.py::C.go": 12, "p/m.py::f": 1 } },
     { key: "t/coverage", label: "coverage", granularity: "member", type: "ratio", bad: "low", overlay: "t", stale: false, max: 1, values: { "p/m.py::C.go": 0.5 } },

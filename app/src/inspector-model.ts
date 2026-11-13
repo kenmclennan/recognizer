@@ -365,6 +365,7 @@ function sizeOf(
   line: number | null | undefined,
   endLine: number | null | undefined,
   largest: number,
+  longAt: number,
 ): CardSize | null {
   const lines = functionLength(line, endLine);
 
@@ -374,7 +375,7 @@ function sizeOf(
 
   return {
     text: lengthText(lines),
-    band: lengthBand(lines),
+    band: lengthBand(lines, longAt),
     width: barPercent(lines, largest),
   };
 }
@@ -453,6 +454,7 @@ function classCard(
   module: string,
   metrics: readonly MetricDescriptor[],
   largest: number,
+  longAt: number,
   context: MemberContext | null = null,
 ): CardRow {
   const label = member.kind === "interface" ? "Interface" : "Class";
@@ -512,7 +514,7 @@ function classCard(
         line: method.line ?? null,
         tokens: methodTokens(method),
         private: method.private === true,
-        size: sizeOf(method.line, method.end_line, largest),
+        size: sizeOf(method.line, method.end_line, largest, longAt),
         ...markOf(context, `${member.name}.${method.name}`),
       },
     }),
@@ -522,7 +524,14 @@ function classCard(
   );
   const all = inFileOrder([...fields, ...methods]).map(({ item }) => item);
   const visible = showPrivate ? all : all.filter((line) => !line.private);
-  const shown = withRemovedMethods(member, visible, keyed, context, largest);
+  const shown = withRemovedMethods(
+    member,
+    visible,
+    keyed,
+    context,
+    largest,
+    longAt,
+  );
   const hiddenFields = fields.filter(({ item }) => item.private).length;
   const hiddenMethods = methods.filter(({ item }) => item.private).length;
   const hiddenMarked = [...fields, ...methods].flatMap(({ item }) =>
@@ -554,6 +563,7 @@ function withRemovedMethods(
   keyed: Map<CardLine, string>,
   context: MemberContext | null,
   largest: number,
+  longAt: number,
 ): CardLine[] {
   const before = context?.start?.find((entry) => entry.name === member.name);
 
@@ -591,7 +601,7 @@ function withRemovedMethods(
         line: null,
         tokens: methodTokens(method),
         private: false,
-        size: sizeOf(null, null, largest),
+        size: sizeOf(null, null, largest, longAt),
         mark: memberMark("removed"),
         look: "removed",
       });
@@ -687,7 +697,9 @@ function plainCard(
     module,
     line: member.line ?? null,
     showsLine: !isFunction,
-    size: isFunction ? sizeOf(member.line, member.end_line, largest) : null,
+    size: isFunction
+      ? sizeOf(member.line, member.end_line, largest, inputs.limits.longAt)
+      : null,
     metricsRow:
       isFunction && inputs.metricsOn
         ? functionMetricsRow(member, module, inputs.metrics, inputs.limits)
@@ -812,6 +824,7 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
           module,
           inputs.metrics,
           largest,
+          inputs.limits.longAt,
           using,
         )
       : plainCard(member, module, largest, inputs, using);

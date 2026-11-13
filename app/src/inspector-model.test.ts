@@ -1674,6 +1674,31 @@ describe("function length on a card", () => {
     expect(found[0]?.size?.width).toBe(50);
   });
 
+  it("follows the repository's long-function limit for a function and for a method", () => {
+    const limits = { ...DEFAULT_LIMITS, longAt: 30 };
+    const withMethods = klass({
+      line: 90,
+      methods: [
+        { name: "at", line: 100, end_line: 129, private: false, params: [] },
+        { name: "over", line: 140, end_line: 170, private: false, params: [] },
+      ],
+    });
+    const found = cards(
+      [spanning("at", 1, 30), spanning("over", 40, 31), withMethods],
+      { limits },
+    );
+
+    expect(found.slice(0, 2).map((card) => card.size?.band)).toEqual([
+      "neutral",
+      "long",
+    ]);
+    expect(
+      found[2]?.lines.flatMap((line) =>
+        line.size === null ? [] : [line.size.band],
+      ),
+    ).toEqual(["neutral", "long"]);
+  });
+
   it("shows no size for a constant, a class or a function without an end line", () => {
     const found = cards([
       { name: "K", kind: "constant", exported: true, line: 1, value: "1" },
@@ -1778,7 +1803,12 @@ describe("the metrics row on a function card", () => {
   });
 
   it("reads the configured limits and an off limit never colours", () => {
-    const limits = { complexityAbove: null, coverageBelow: 0.8, crapAt: 20 };
+    const limits = {
+      complexityAbove: null,
+      coverageBelow: 0.8,
+      crapAt: 20,
+      longAt: 20,
+    };
 
     expect(
       row({ cc: 99, crap: 20, cov: 0.7 }, { limits })?.map((c) => c.tone),

@@ -24,6 +24,12 @@ describe("lengthBand", () => {
     expect(lengthBand(HUGE_FUNCTION + 1)).toBe("huge");
   });
 
+  it("lengthBand follows a tuned long-function limit", () => {
+    expect(lengthBand(30, 30)).toBe("neutral");
+    expect(lengthBand(31, 30)).toBe("long");
+    expect(lengthBand(51, 80)).toBe("huge");
+  });
+
   it("has the edges the glossary names", () => {
     expect([LONG_FUNCTION, HUGE_FUNCTION]).toEqual([20, 50]);
   });

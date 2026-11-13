@@ -8,12 +8,15 @@ export type LengthBand = "neutral" | "long" | "huge";
 
 const MIN_BAR_PERCENT = 6;
 
-export function lengthBand(lines: number): LengthBand {
+export function lengthBand(
+  lines: number,
+  longAt: number = LONG_FUNCTION,
+): LengthBand {
   if (lines > HUGE_FUNCTION) {
     return "huge";
   }
 
-  return lines > LONG_FUNCTION ? "long" : "neutral";
+  return lines > longAt ? "long" : "neutral";
 }
 
 export function barPercent(lines: number, largest: number): number {
