@@ -168,7 +168,20 @@ describe("parseScanArgs", () => {
       sense: null,
       json: false,
       by: undefined,
+      ignoreRetiredConfig: false,
     });
+  });
+
+  it("reads --ignore-retired-config and refuses it with --describe or --sense", () => {
+    expect(parseScanArgs(["--ignore-retired-config"]).ignoreRetiredConfig).toBe(
+      true,
+    );
+    expect(() =>
+      parseScanArgs(["--ignore-retired-config", "--describe"]),
+    ).toThrow("--ignore-retired-config takes no --describe or --sense");
+    expect(() =>
+      parseScanArgs(["--sense", "all", "--ignore-retired-config"]),
+    ).toThrow("--ignore-retired-config takes no --describe or --sense");
   });
 
   it("reads --describe alone and --describe=all", () => {

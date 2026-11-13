@@ -385,7 +385,9 @@ function* scanFlow(
 
     folderKnown = true;
 
-    const config = readsAnyConfig(read) ? readConfig(io, root, read) : null;
+    const config = readsAnyConfig(read)
+      ? readConfig(io, root, read, { skipRetired: options.ignoreRetiredConfig })
+      : null;
 
     if (options.describe !== false) {
       const found = findDescriber(io, root);
@@ -717,7 +719,10 @@ function* scanFlow(
     emit(preflightLine({ state: "ok" }));
     taken?.running();
 
-    if (readsSensors(read) && (yield* runStructure(io, root, scans))) {
+    if (
+      readsSensors(read) &&
+      (yield* runStructure(io, root, scans, options.ignoreRetiredConfig))
+    ) {
       failed = true;
     }
 
@@ -962,6 +967,7 @@ function* runStructure(
   io: Io,
   root: string,
   scans: Scan[],
+  skipRetired: boolean,
 ): Generator<ScanStep, boolean, ScanAnswer> {
   if (scans.length === 0) {
     return false;
@@ -969,7 +975,7 @@ function* runStructure(
 
   try {
     const settings = resolveStructureSettings(
-      readConfig(io, root, ["sensors"]),
+      readConfig(io, root, ["sensors"], { skipRetired }),
     );
 
     io.remove(findingsFile(root, "duplication"));

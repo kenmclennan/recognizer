@@ -1583,3 +1583,96 @@ describe("recognizer scan: phases", () => {
     expect(outcomes).toEqual(["running", "running", "running", "ok"]);
   });
 });
+
+describe("recognizer scan: --ignore-retired-config", () => {
+  const CONFIG_FILE = `${ROOT}/.recognizer/config.yaml`;
+  const RETIRED_STRUCTURE =
+    "sensors:\n  structure:\n    composition_roots: [a]\n";
+
+  function held(config: string): FakeOptions {
+    return {
+      files: { [`${ROOT}/a.py`]: "", [CONFIG_FILE]: config },
+      commit: "abc123",
+      scanners: { [PYTHON]: okPython },
+    };
+  }
+
+  it("refuses a retired key without the flag, exit 2", async () => {
+    const { code, err, fake } = await scan(held(RETIRED_STRUCTURE));
+
+    expect(code).toBe(2);
+    expect(err).toContain("config/sensors/structure/composition_roots");
+    expect(fake.calls.filter((call) => call.command === PYTHON)).toEqual([]);
+  });
+
+  it("scans past the same retired key with the flag, exit 0 and no mention of it", async () => {
+    const { code, err, fake } = await scan(
+      held(RETIRED_STRUCTURE),
+      "--ignore-retired-config",
+    );
+
+    expect(code).toBe(0);
+    expect(err).not.toContain("composition_roots");
+    expect(err).not.toContain("retired");
+    expect(fake.calls.filter((call) => call.command === PYTHON)).toHaveLength(
+      1,
+    );
+  });
+
+  it("scans past a retired overlays key with the flag", async () => {
+    const { code, err } = await scan(
+      held("overlays:\n  crap:\n    command: [x]\n"),
+      "--ignore-retired-config",
+    );
+
+    expect(code).toBe(0);
+    expect(err).not.toContain("overlays");
+  });
+
+  it("still refuses another config error with the flag, exit 2", async () => {
+    const { code, err } = await scan(
+      held(`${RETIRED_STRUCTURE}  duplication:\n    bogus: 1\n`),
+      "--ignore-retired-config",
+    );
+
+    expect(code).toBe(2);
+    expect(err).toContain("sensors/duplication unknown setting: bogus");
+    expect(err).not.toContain("composition_roots");
+  });
+
+  it("scans past a moved sensors.duplication with the flag, exit 0", async () => {
+    const { code, err } = await scan(
+      held("sensors:\n  duplication:\n    min_lines: 4\n"),
+      "--ignore-retired-config",
+    );
+
+    expect(code).toBe(0);
+    expect(err).not.toContain("duplication");
+  });
+
+  it("refuses sensors.duplication without the flag, exit 2", async () => {
+    const { code, err } = await scan(
+      held("sensors:\n  duplication:\n    min_lines: 4\n"),
+    );
+
+    expect(code).toBe(2);
+    expect(err).toContain("sensors/duplication was removed");
+  });
+
+  it.each([["--describe"], ["--describe=all"], ["--sense", "all"]])(
+    "refuses the flag with %s, exit 2, running nothing",
+    async (...extra) => {
+      const { code, err, fake } = await scan(
+        held(RETIRED_STRUCTURE),
+        "--ignore-retired-config",
+        ...extra,
+      );
+
+      expect(code).toBe(2);
+      expect(err).toContain(
+        "--ignore-retired-config takes no --describe or --sense",
+      );
+      expect(fake.calls).toEqual([]);
+    },
+  );
+});
