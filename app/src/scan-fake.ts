@@ -28,6 +28,7 @@ export type FakeScan = ScanPort & {
   watching: number;
   records: boolean;
   record: Partial<ScanRunRecord>;
+  now: () => number;
 };
 
 const SPAWNS_NO_RECORD = new Set<ScanRunResult["status"]>([
@@ -86,6 +87,7 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
     watching: 0,
     records: true,
     record: {},
+    now: Date.now,
     emitRun(event) {
       for (const handler of runs) {
         handler(event);
@@ -128,7 +130,7 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
         run_id: `fake-run-${nextRun()}`,
         pid: 4242,
         pgid: 4242,
-        started_at: "2026-11-10T09:00:00.000Z",
+        started_at: new Date(fake.now()).toISOString(),
         started_by: "app",
         repository: "/work/repo",
         sensors: plan.sense,

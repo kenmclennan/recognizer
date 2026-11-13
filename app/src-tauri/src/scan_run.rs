@@ -366,13 +366,20 @@ pub fn run_tick(folder: Option<&Path>, seen: &mut RunSeen) -> Vec<RunEmission> {
 
     match (folder.and_then(read_run), folder) {
         (Some(run), Some(folder)) => {
-            if seen.run.as_ref().map(|last| &last.run_id) != Some(&run.run_id) {
+            let new_run = seen.run.as_ref().map(|last| &last.run_id) != Some(&run.run_id);
+
+            if new_run {
                 seen.offset = 0;
             }
 
             let changed = seen.run.as_ref() != Some(&run);
             let record = RunEmission::Run(Some(Box::new(run.clone())));
             let (lines, offset) = appended_lines(folder, seen.offset);
+            let lines = if new_run && !is_active(&run) {
+                Vec::new()
+            } else {
+                lines
+            };
 
             seen.offset = offset;
 
@@ -2227,6 +2234,22 @@ mod tests {
         assert!(matches!(&after_exit[1], RunEmission::Run(Some(run)) if run.phase == "finished"));
         assert!(polled_again.is_empty());
         assert_eq!(runs.interval("w-1"), Duration::from_secs(1));
+    }
+
+    #[test]
+    fn a_finished_run_seen_first_emits_its_record_but_not_its_lines() {
+        let dir = TempDir::new().unwrap();
+        let mut seen = RunSeen::default();
+
+        write_run(dir.path(), std::process::id(), "finished", "app");
+        append_progress(dir.path(), "{\"event\":\"one\"}\n{\"event\":\"two\"}\n");
+
+        let first = run_tick(Some(dir.path()), &mut seen);
+        let second = run_tick(Some(dir.path()), &mut seen);
+
+        assert_eq!(first.len(), 1);
+        assert!(matches!(&first[0], RunEmission::Run(Some(run)) if run.phase == "finished"));
+        assert!(second.is_empty());
     }
 
     struct Reaper(Vec<std::process::Child>);

@@ -35,7 +35,7 @@ const record = (over: Partial<ScanRunRecord> = {}): ScanRunRecord => ({
   run_id: "run-1",
   pid: 4242,
   pgid: 4242,
-  started_at: "2026-11-10T09:00:00.000Z",
+  started_at: new Date(Date.now() + 60_000).toISOString(),
   started_by: "cli",
   repository: "/work/repo",
   sensors: ["alpha", "mut"],
@@ -141,6 +141,10 @@ function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
     show: (target) => log.push(`show:${target.kind}`),
     ...over,
   };
+
+  if (over.now) {
+    scan.now = over.now;
+  }
 
   return {
     log,
@@ -1938,7 +1942,7 @@ describe("one fold of the run record", () => {
       result: sequence.result,
       record: { started_at: BEGAN, ended_at: ENDED, ...sequence.end },
     });
-    const made = harness(scan);
+    const made = harness(scan, { now: () => Date.parse(BEGAN) });
 
     scan.onStep = (index) => {
       if (index === sequence.lines.length - 1) {
@@ -2477,9 +2481,11 @@ describe("adopting once per scan", () => {
 });
 
 describe("replaying a previous finished run at open", () => {
+  const NOW = "2026-11-10T09:30:00.000Z";
   const NOT_WAITING = "no scan is waiting to be adopted";
   const previous = record({
     run_id: "prev",
+    started_at: "2026-11-10T09:00:00.000Z",
     phase: "finished",
     exit: 0,
     ended_at: ENDED_AT,
@@ -2597,6 +2603,95 @@ describe("replaying a previous finished run at open", () => {
     expect(made.log.indexOf("adopt")).toBeGreaterThan(
       made.log.indexOf("sense"),
     );
+  });
+
+  it("keeps the own run when a previous finished record lands after the own record", async () => {
+    const scan = fakeScan();
+    const made = harness(scan, { now: () => Date.parse(NOW) });
+    const real = scan.run.bind(scan);
+
+    scan.run = async (plan) => {
+      const result = await real(plan);
+
+      scan.emitRun({ kind: "run", run: previous });
+
+      return result;
+    };
+
+    await made.rescanner.run(null, OPEN_RUN);
+
+    expect(made.rescanner.runView().record?.run_id).not.toBe("prev");
+    expect(made.rescanner.runView().record?.run_id).toMatch(/^fake-run-/);
+    expect(adopts(made.log)).toHaveLength(1);
+    expect(made.log.filter((one) => one.startsWith("replace:"))).toHaveLength(
+      1,
+    );
+  });
+
+  describe("the own start boundary", () => {
+    async function deliver(startedAt: string) {
+      const scan = fakeScan({ records: false });
+      const made = harness(scan, { now: () => Date.parse(NOW) });
+      const real = scan.run.bind(scan);
+
+      scan.run = async (plan) => {
+        scan.emitRun({
+          kind: "run",
+          run: { ...previous, run_id: "edge", started_at: startedAt },
+        });
+
+        return real(plan);
+      };
+
+      await made.rescanner.run(null, OPEN_RUN);
+
+      return made.rescanner.runView().record?.run_id ?? null;
+    }
+
+    it("counts a finished record that started at the scan start as own", async () => {
+      expect(await deliver(NOW)).toBe("edge");
+    });
+
+    it("ignores a finished record that started 1 ms before the scan start", async () => {
+      expect(await deliver(new Date(Date.parse(NOW) - 1).toISOString())).toBe(
+        null,
+      );
+    });
+  });
+
+  it("shows the progress of an external run that started before the window's scan clock", async () => {
+    const scan = fakeScan();
+    const made = harness(scan);
+    const flushed = () => new Promise((resolve) => setTimeout(resolve, 20));
+
+    scan.emitRun({
+      kind: "run",
+      run: {
+        ...previous,
+        run_id: "ext",
+        phase: "running",
+        ended_at: null,
+        exit: null,
+      },
+    });
+    await flushed();
+    scan.emitRun({ kind: "line", line: preflightOk });
+    scan.emitRun({ kind: "line", line: current });
+    await flushed();
+
+    expect(made.rescanner.external()).toBe(true);
+    expect(made.rescanner.progress().extract).toBe("current");
+  });
+
+  it("keeps the record of a previous finished run while no scan is busy", async () => {
+    const scan = fakeScan();
+    const made = harness(scan);
+
+    scan.emitRun({ kind: "run", run: previous });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(made.rescanner.runView().adoptedAtOpen).toBe("prev");
+    expect(made.rescanner.runView().record).toEqual(previous);
   });
 
   it("adopts nothing from replayed lines with no run of the app's own", async () => {

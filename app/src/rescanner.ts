@@ -145,6 +145,7 @@ export function createRescanner<Carried>(
   let endedRunId: string | null = null;
   let ownEnd: ScanRunRecord | null = null;
   let starting: { at: number } | null = null;
+  let scanStartedAt: number | null = null;
   let startedFrom: string | null = null;
   let ownRunId: string | null = null;
   let adoptedAtOpen: string | null = null;
@@ -663,6 +664,15 @@ export function createRescanner<Carried>(
       }
     }
 
+    if (
+      busy &&
+      scanStartedAt !== null &&
+      !isActive(next) &&
+      Date.parse(next.started_at) < scanStartedAt
+    ) {
+      return;
+    }
+
     if (starting !== null && next.run_id !== startedFrom) {
       starting = null;
     }
@@ -710,6 +720,7 @@ export function createRescanner<Carried>(
     try {
       await executeScan(modules, planned);
     } finally {
+      scanStartedAt = null;
       ticks = keepOnce ? ticks : { ...ticks, once: [] };
       keepOnce = false;
       heading = null;
@@ -765,7 +776,8 @@ export function createRescanner<Carried>(
     startedFrom = record?.run_id ?? null;
     ownRunId = null;
     ownEnd = null;
-    starting = { at: now() };
+    scanStartedAt = now();
+    starting = { at: scanStartedAt };
     publish();
 
     let result: ScanRunResult;
