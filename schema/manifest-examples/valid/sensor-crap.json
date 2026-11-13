@@ -1,0 +1,131 @@
+{
+  "kind": "sensor",
+  "name": "crap",
+  "display": "C.R.A.P.",
+  "version": "0.1.0",
+  "protocol": 1,
+  "install": "brew install --cask kenmclennan/tap/recognizer",
+  "check": true,
+  "long_running": true,
+  "units": [
+    "functions"
+  ],
+  "settings": [
+    {
+      "key": "threshold",
+      "type": "number",
+      "description": "the C.R.A.P. score above which a function is reported, above 0; default 30",
+      "example": "sensors.crap.threshold 20",
+      "exclusiveMinimum": 0,
+      "default": 30
+    },
+    {
+      "key": "overlay",
+      "type": "path",
+      "description": "where the sensor writes its overlay, relative to the repository; default .recognizer/cache/overlays/crap.json",
+      "example": "sensors.crap.overlay .recognizer/cache/overlays/crap.json"
+    }
+  ],
+  "metrics": [
+    {
+      "name": "complexity",
+      "label": "cc",
+      "help": "How many independent paths run through the function; more paths are harder to test and to change.",
+      "type": "count",
+      "granularity": "member",
+      "bad": "high",
+      "published": {
+        "value": 10,
+        "source": "McCabe"
+      }
+    },
+    {
+      "name": "coverage",
+      "label": "cov",
+      "help": "The share of the function's lines the tests run.",
+      "type": "ratio",
+      "granularity": "member",
+      "bad": "low",
+      "published": {
+        "value": 0.6,
+        "source": "Google's guidelines"
+      }
+    },
+    {
+      "name": "crap",
+      "label": "CRAP",
+      "help": "Complexity weighed against coverage: the higher it is, the riskier the function is to change.",
+      "type": "number",
+      "granularity": "member",
+      "bad": "high",
+      "published": {
+        "value": 30,
+        "source": "Savoia and Evans"
+      }
+    }
+  ],
+  "findings": [
+    {
+      "kind": "crap",
+      "group": {
+        "name": "C.R.A.P.",
+        "means": "A function that is both complex and poorly covered by tests, so changing it is risky.",
+        "todo": "Add tests for it, or simplify it; either lowers the score."
+      },
+      "help": "One finding per function whose C.R.A.P. score is over the threshold.",
+      "sentence": {
+        "requires": [
+          "evidence.members.0.name",
+          "evidence.members.0.module",
+          "evidence.measures.complexity"
+        ],
+        "parts": [
+          [
+            {
+              "text": "{evidence.members.0.name} in {evidence.members.0.module|short} has complexity {evidence.measures.complexity|num}"
+            }
+          ],
+          [
+            {
+              "when": [
+                {
+                  "has": "evidence.measures.coverage"
+                },
+                {
+                  "has": "evidence.measures.crap"
+                }
+              ],
+              "text": " and {evidence.measures.coverage|percent}% coverage, C.R.A.P. {evidence.measures.crap|whole}"
+            },
+            {
+              "text": " and unknown coverage"
+            }
+          ],
+          [
+            {
+              "when": [
+                {
+                  "has": "evidence.measures.coverage"
+                },
+                {
+                  "has": "evidence.measures.crap"
+                },
+                {
+                  "has": "evidence.measures.published"
+                }
+              ],
+              "text": " (Savoia and Evans say {evidence.measures.published|num})"
+            }
+          ],
+          [
+            {
+              "text": "."
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "runs_tests": true,
+  "scoped": false
+}
