@@ -102,12 +102,21 @@ export function verifyPlugins(dir, env = process.env) {
     );
 
     if (result.status !== 0) {
-      failures.push(name);
+      failures.push({
+        name,
+        output: `${result.stdout ?? ""}${result.stderr ?? ""}${result.error ? `${result.error.message}\n` : ""}`,
+      });
     }
   }
 
   if (failures.length > 0) {
-    throw new Error(`plugin check failed for: ${failures.join(", ")}`);
+    const details = failures
+      .map(({ name, output }) => `--- ${name}\n${output.trimEnd()}`)
+      .join("\n");
+
+    throw new Error(
+      `plugin check failed for: ${failures.map(({ name }) => name).join(", ")}\n${details}`,
+    );
   }
 }
 

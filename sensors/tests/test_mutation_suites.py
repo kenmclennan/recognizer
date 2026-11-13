@@ -9,6 +9,7 @@ from dataclasses import asdict
 
 import pytest
 from conftest import (
+    event_lines,
     git_commit,
     make_repository,
     mutate_repository,
@@ -190,9 +191,11 @@ def test_no_suite_for_any_scanned_language_refuses_with_coverage_unavailable(tmp
     assert run_sensor(root, tmp_path, settings, commit) == 2
 
     lines = capsys.readouterr().err.splitlines()
-    reason = json.loads(lines[0].removeprefix("recognizer-reason "))
+    reason = event_lines("\n".join(lines))[-1]
 
+    assert reason["event"] == "diagnosis"
     assert reason["code"] == "coverage-unavailable"
+    assert reason["text"] == lines[-1]
     assert lines[-1] == "coverage unavailable: no test suite is configured for typescript"
     assert work_folders(root) == []
 

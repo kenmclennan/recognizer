@@ -21,7 +21,7 @@ const COMMIT = "abc123";
 const CACHE = `${ROOT}/.recognizer/cache/scan.python.json`;
 const BREW = "brew install --cask kenmclennan/tap/recognizer";
 const READY_SENSOR =
-  "sensors:\n  mine:\n    command: [recognizer-sensors, mine]\n";
+  "sensors:\n  mine:\n    command: [recognizer-sense-crap, run]\n";
 const POLICY = 'components:\n  core: "m*.py"\n';
 
 interface Setup {
@@ -560,10 +560,9 @@ describe("doctor: sensors", () => {
     ]);
     expect(
       fake.calls
-        .filter((call) => call.command === "recognizer-sensors")
+        .filter((call) => call.command.startsWith("recognizer-sense-"))
         .every(
-          (call) =>
-            call.args.includes("--check") && !call.args.includes("--run"),
+          (call) => call.args[0] === "check" && !call.args.includes("--run"),
         ),
     ).toBe(true);
   });
@@ -606,7 +605,7 @@ describe("doctor: sensors", () => {
 
     expect(json(fake).status).toBe(0);
     expect(
-      fake.calls.some((call) => call.command === "recognizer-sensors"),
+      fake.calls.some((call) => call.command.startsWith("recognizer-sense-")),
     ).toBe(false);
   });
 });
@@ -681,10 +680,12 @@ describe("doctor starts nothing costly and writes nothing", () => {
     expect(fake.calls.length).toBeGreaterThan(0);
 
     for (const call of fake.calls) {
-      expect(["git", "recognizer-sensors"]).toContain(call.command);
+      expect(
+        call.command === "git" || call.command.startsWith("recognizer-sense-"),
+      ).toBe(true);
 
-      if (call.command === "recognizer-sensors") {
-        expect(call.args).toContain("--check");
+      if (call.command.startsWith("recognizer-sense-")) {
+        expect(call.args[0]).toBe("check");
         expect(call.args).not.toContain("--run");
       }
     }

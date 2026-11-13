@@ -150,7 +150,11 @@ describe("freshness model states", () => {
     const model = modelOf(IDS, {
       scanning: true,
       run: run({ running: ["mutation", "crap"], started: "mutation" }),
-      sensorProgress: { name: "mutation", step: "mutants", done: 5, total: 9 },
+      sensorProgress: {
+        name: "mutation",
+        phase: "sense",
+        progress: { done: 5, total: 9, unit: "functions" },
+      },
     });
 
     expect(model.rows.find((row) => row.key === "mutation")?.state).toEqual({
@@ -483,9 +487,8 @@ describe("the four situations of the mock", () => {
       run: run({ running: ["mutation"], started: "mutation" }),
       sensorProgress: {
         name: "mutation",
-        step: "mutants",
-        done: 251,
-        total: 1204,
+        phase: "sense",
+        progress: { done: 251, total: 1204, unit: "functions" },
       },
     });
 

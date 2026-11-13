@@ -12,6 +12,7 @@ from recognizer_scan_kotlin.discovery import (
     discover,
     selection,
 )
+from recognizer_scan_kotlin.events import Progress
 from recognizer_scan_kotlin.index import Index
 from recognizer_scan_kotlin.outline import member_of
 from recognizer_scan_kotlin.parse import parse_file
@@ -66,7 +67,9 @@ def has_main(file: SourceFile) -> bool:
     )
 
 
-def read_all(root: Path, paths: list[str]) -> tuple[list[SourceFile], list[dict]]:
+def read_all(
+    root: Path, paths: list[str], progress: Progress | None = None
+) -> tuple[list[SourceFile], list[dict]]:
     files = []
     hashes = []
 
@@ -74,6 +77,9 @@ def read_all(root: Path, paths: list[str]) -> tuple[list[SourceFile], list[dict]
         data = (root / path).read_bytes()
         files.append(read_source(path, directory_of(path), parse_file(data), data))
         hashes.append({"path": path, "hash": hashlib.sha256(data).hexdigest()})
+
+        if progress is not None:
+            progress.advance()
 
     return files, hashes
 
@@ -93,10 +99,22 @@ def merged_build_hashes(root: Path, hashes: list[dict], modules: list[str]) -> l
     return sorted(merged, key=lambda h: h["path"])
 
 
-def scan_with_stats(root: Path, commit: str | None, modified: bool | None = None) -> Scan:
+def scan_with_stats(
+    root: Path,
+    commit: str | None,
+    modified: bool | None = None,
+    progress: Progress | None = None,
+) -> Scan:
     root = Path(root)
     paths = discover(root)
-    files, hashes = read_all(root, paths)
+    if progress is not None:
+        progress.start(len(paths))
+
+    files, hashes = read_all(root, paths, progress)
+
+    if progress is not None:
+        progress.finish()
+
     builds = {d: build_module_of(root, d) for d in sorted({f.directory for f in files})}
     index = Index(files, {f.path: builds[f.directory] for f in files})
     hashes = merged_build_hashes(root, hashes, sorted(set(builds.values())))

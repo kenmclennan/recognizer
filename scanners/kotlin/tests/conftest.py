@@ -17,6 +17,12 @@ def load_schema() -> dict:
     return json.loads(SCHEMA_PATH.read_text())
 
 
+def without_events(text: str) -> str:
+    return "".join(
+        line for line in text.splitlines(keepends=True) if not line.startswith("recognizer-event ")
+    )
+
+
 def validate(document: dict) -> None:
     Draft202012Validator(load_schema()).validate(document)
 

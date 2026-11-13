@@ -4,6 +4,7 @@ import sys
 from importlib.metadata import version
 from pathlib import Path
 
+from recognizer_scan_python.events import Progress
 from recognizer_scan_python.manifest import manifest_text
 from recognizer_scan_python.scanner import ScanError, scan
 from recognizer_scan_python.serialise import render
@@ -61,15 +62,38 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+PROG = "recognizer-scan-python"
+
+VERBS_TEXT = "manifest, check, run, guide"
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
 
-    if arguments == ["manifest"]:
+    if arguments in (["--version"], ["--help"], ["-h"]):
+        build_parser().parse_args(arguments)
+
+    verb, rest = (arguments[0], arguments[1:]) if arguments else (None, [])
+
+    if verb == "manifest" and not rest:
         sys.stdout.write(manifest_text())
 
         return 0
 
-    args = build_parser().parse_args(arguments)
+    if verb == "guide" and not rest:
+        return 0
+
+    if verb == "check":
+        print(f"{PROG}: no check verb; the verbs are {VERBS_TEXT}", file=sys.stderr)
+
+        return 2
+
+    if verb != "run":
+        print(f"{PROG}: the first argument must be a verb: {VERBS_TEXT}", file=sys.stderr)
+
+        return 2
+
+    args = build_parser().parse_args(rest)
     root: Path = args.root
     source_roots = args.source_root or None
 
@@ -93,6 +117,7 @@ def main(argv: list[str] | None = None) -> int:
             None if source_roots is None else [Path(s).as_posix() for s in source_roots],
             commit,
             modified,
+            Progress(),
         )
     except ScanError as error:
         print("could not parse:", file=sys.stderr)

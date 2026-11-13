@@ -1,4 +1,4 @@
-import { type Diagnosis, type Gap, isGap } from "recognizer";
+import { type Diagnosis, type Gap, isGap, type PluginEvent } from "recognizer";
 import { roundedTime } from "./scan-estimate";
 
 export type ScanEvent =
@@ -13,12 +13,12 @@ export type ScanEvent =
       event: "entry";
       phase: "extract" | "describe" | "sense";
       name: string;
-      outcome: "ok" | "failed";
+      outcome: "ok" | "failed" | "stopped";
       reason?: string;
       diagnosis?: Diagnosis;
     }
   | { event: "start"; phase: "sense"; name: string }
-  | ({ event: "progress"; phase: "sense"; name: string } & SensorStep)
+  | { event: "plugin"; phase: PhaseName; name: string; data: PluginEvent }
   | ({ event: "stopped"; phase: "describe" } & DescribeStop)
   | ({ event: "confirm"; phase: "describe" } & DescribeAsk)
   | { event: "answered"; phase: "describe"; describe: boolean }
@@ -41,17 +41,25 @@ export type DescribeStop = {
   threshold: number;
 };
 
-export type SensorStep =
-  | { step: "coverage"; suite?: string }
-  | { step: "mutants"; suite?: string; done: number; total: number };
+export type PluginCount = {
+  done: number;
+  total: number;
+  unit: string;
+  step?: string;
+};
 
-export type SensorProgress = { name: string } & SensorStep;
+export type PluginProgress = {
+  name: string;
+  phase: PhaseName;
+  progress?: PluginCount;
+  note?: string;
+};
 
 export type PhaseName = "extract" | "describe" | "sense";
 
 export type EntryResult = {
   name: string;
-  outcome: "ok" | "failed";
+  outcome: "ok" | "failed" | "stopped";
   reason: string | null;
   diagnosis: Diagnosis | null;
 };
@@ -66,7 +74,7 @@ export type ScanProgress = {
   describeAsk: DescribeAsk | null;
   describeSkipped: boolean;
   sense: PhaseProgress | null;
-  sensorProgress: SensorProgress | null;
+  sensorProgress: PluginProgress | null;
   startedSuites: Record<string, string[]>;
   extractSettled: boolean;
   done: boolean;
@@ -80,7 +88,7 @@ export type ScanTiming = {
   phaseAt: Record<string, number>;
   sensorAt: Record<string, number>;
   describeFrom: number | null;
-  mutantsFrom: { at: number; done: number } | null;
+  rateFrom: { at: number; done: number; unit: string; step?: string } | null;
   frozen: Record<string, number> | null;
 };
 
@@ -107,7 +115,7 @@ export const NO_PROGRESS: ScanProgress = {
     phaseAt: {},
     sensorAt: {},
     describeFrom: null,
-    mutantsFrom: null,
+    rateFrom: null,
     frozen: null,
   },
 };
@@ -156,8 +164,8 @@ export function parseScanLine(text: string): ScanEvent | null {
       return line.phase === "sense" && typeof line.name === "string"
         ? { event: "start", phase: "sense", name: line.name }
         : null;
-    case "progress":
-      return progressEvent(line);
+    case "plugin":
+      return pluginEvent(line);
     default:
       return null;
   }
@@ -230,36 +238,65 @@ function confirmEvent(line: Record<string, unknown>): ScanEvent | null {
   };
 }
 
-function progressEvent(line: Record<string, unknown>): ScanEvent | null {
-  if (line.phase !== "sense" || typeof line.name !== "string") {
+function pluginEvent(line: Record<string, unknown>): ScanEvent | null {
+  if (
+    typeof line.phase !== "string" ||
+    !PHASES.includes(line.phase) ||
+    !nonEmpty(line.name) ||
+    typeof line.data !== "object" ||
+    line.data === null
+  ) {
     return null;
   }
 
-  const named =
-    typeof line.suite === "string" && line.suite !== ""
-      ? { suite: line.suite }
-      : {};
-  const base = {
-    event: "progress",
-    phase: "sense",
-    name: line.name,
-    ...named,
-  } as const;
+  const data = pluginData(line.data as Record<string, unknown>);
 
-  if (line.step === "coverage") {
-    return { ...base, step: "coverage" };
+  return data === null
+    ? null
+    : {
+        event: "plugin",
+        phase: line.phase as PhaseName,
+        name: line.name,
+        data,
+      };
+}
+
+function pluginData(data: Record<string, unknown>): PluginEvent | null {
+  switch (data.event) {
+    case "start":
+      return isCount(data.total) && nonEmpty(data.unit)
+        ? { event: "start", total: data.total, unit: data.unit }
+        : null;
+    case "progress":
+      return isCount(data.done) &&
+        isCount(data.total) &&
+        data.done <= data.total &&
+        nonEmpty(data.unit) &&
+        (data.step === undefined || nonEmpty(data.step))
+        ? {
+            event: "progress",
+            done: data.done,
+            total: data.total,
+            unit: data.unit,
+            ...(data.step === undefined ? {} : { step: data.step }),
+          }
+        : null;
+    case "note":
+      return nonEmpty(data.text) ? { event: "note", text: data.text } : null;
+    case "diagnosis":
+      return nonEmpty(data.code) &&
+        nonEmpty(data.text) &&
+        (data.fix === undefined || nonEmpty(data.fix))
+        ? {
+            event: "diagnosis",
+            code: data.code,
+            text: data.text,
+            ...(data.fix === undefined ? {} : { fix: data.fix }),
+          }
+        : null;
+    default:
+      return null;
   }
-
-  if (
-    line.step === "mutants" &&
-    isCount(line.done) &&
-    isCount(line.total) &&
-    line.done <= line.total
-  ) {
-    return { ...base, step: "mutants", done: line.done, total: line.total };
-  }
-
-  return null;
 }
 
 function phaseEvent(line: Record<string, unknown>): ScanEvent | null {
@@ -289,7 +326,9 @@ function entryEvent(line: Record<string, unknown>): ScanEvent | null {
     typeof line.phase !== "string" ||
     !PHASES.includes(line.phase) ||
     typeof line.name !== "string" ||
-    (line.outcome !== "ok" && line.outcome !== "failed")
+    (line.outcome !== "ok" &&
+      line.outcome !== "failed" &&
+      line.outcome !== "stopped")
   ) {
     return null;
   }
@@ -305,12 +344,6 @@ function entryEvent(line: Record<string, unknown>): ScanEvent | null {
     ...(diagnosis === null ? {} : { diagnosis }),
   };
 }
-
-const DIAGNOSIS_CODES: readonly string[] = [
-  "tool-missing",
-  "tests-failed",
-  "coverage-unavailable",
-];
 
 function nonEmpty(value: unknown): value is string {
   return typeof value === "string" && value !== "";
@@ -340,13 +373,16 @@ export function diagnosisOf(value: unknown): Diagnosis | null {
     return null;
   }
 
-  const { code, line, fix, failing } = value as Record<string, unknown>;
+  const { code, line, fix, failing, unmeasured } = value as Record<
+    string,
+    unknown
+  >;
 
   if (
-    typeof code !== "string" ||
-    !DIAGNOSIS_CODES.includes(code) ||
+    !nonEmpty(code) ||
     !nonEmpty(line) ||
-    (fix !== undefined && !nonEmpty(fix))
+    (fix !== undefined && !nonEmpty(fix)) ||
+    (unmeasured !== undefined && typeof unmeasured !== "boolean")
   ) {
     return null;
   }
@@ -358,11 +394,59 @@ export function diagnosisOf(value: unknown): Diagnosis | null {
   }
 
   return {
-    code: code as Diagnosis["code"],
+    code,
     line,
     ...(fix === undefined ? {} : { fix }),
+    ...(unmeasured === undefined ? {} : { unmeasured }),
     ...(names === undefined ? {} : { failing: names }),
   };
+}
+
+function foldPlugin(
+  state: ScanProgress,
+  event: Extract<ScanEvent, { event: "plugin" }>,
+): ScanProgress {
+  const { name, phase, data } = event;
+  const stored = state.sensorProgress;
+
+  if (data.event === "start") {
+    return { ...state, sensorProgress: { name, phase } };
+  }
+
+  if (stored !== null && stored.name !== name) {
+    return state;
+  }
+
+  if (data.event === "progress") {
+    const { event: _event, ...progress } = data;
+    const step = progress.step;
+    const seen = state.startedSuites[name] ?? [];
+
+    return {
+      ...state,
+      sensorProgress: { name, phase, progress },
+      startedSuites:
+        step === undefined || seen.includes(step)
+          ? state.startedSuites
+          : { ...state.startedSuites, [name]: [...seen, step] },
+    };
+  }
+
+  if (data.event === "note") {
+    return {
+      ...state,
+      sensorProgress: {
+        name,
+        phase,
+        ...(stored?.progress === undefined
+          ? {}
+          : { progress: stored.progress }),
+        note: data.text,
+      },
+    };
+  }
+
+  return state;
 }
 
 export function foldProgress(
@@ -374,23 +458,8 @@ export function foldProgress(
       return state.sensorProgress === null
         ? state
         : { ...state, sensorProgress: null };
-    case "progress": {
-      const { event: _event, phase: _phase, ...sensorProgress } = event;
-      const seen = state.startedSuites[sensorProgress.name] ?? [];
-      const suite = sensorProgress.suite;
-
-      return {
-        ...state,
-        sensorProgress,
-        startedSuites:
-          suite === undefined || seen.includes(suite)
-            ? state.startedSuites
-            : {
-                ...state.startedSuites,
-                [sensorProgress.name]: [...seen, suite],
-              },
-      };
-    }
+    case "plugin":
+      return foldPlugin(state, event);
     case "preflight":
       return state;
     case "summary":
@@ -441,7 +510,7 @@ export function foldProgress(
 
       return {
         ...state,
-        ...(event.phase === "sense" ? { sensorProgress: null } : {}),
+        sensorProgress: null,
         [event.phase]: { ...phase, entries: [...phase.entries, result] },
       };
     }
@@ -537,32 +606,42 @@ export function scanningText(
   const sensors = rows.filter((row) => row.key !== DESCRIBE_PHASE_KEY);
   const at = sensors.findIndex((row) => row.key === started);
   const row = sensors[at];
-
-  if (row === undefined) {
-    return "Scanning\u2026";
-  }
-
   const reported = progress.sensorProgress;
 
+  if (row === undefined) {
+    const extracting =
+      reported !== null && reported.phase === "extract"
+        ? pluginText(capitalised(reported.name), reported)
+        : null;
+
+    return extracting ?? "Scanning\u2026";
+  }
+
   if (reported !== null && reported.name === started) {
-    return sensorStepText(row.display, reported);
+    const text = pluginText(row.display, reported);
+
+    if (text !== null) {
+      return text;
+    }
   }
 
   return `Running ${row.display}\u2026 ${at + 1} of ${sensors.length}`;
 }
 
-function sensorStepText(display: string, reported: SensorProgress): string {
-  const suite = reported.suite;
+function pluginText(display: string, reported: PluginProgress): string | null {
+  const counted = reported.progress;
 
-  if (reported.step === "coverage") {
-    return suite === undefined
-      ? `${display}: measuring coverage`
-      : `${display}: ${suite} coverage`;
+  if (counted !== undefined) {
+    const step = counted.step === undefined ? "" : `${counted.step} \u00b7 `;
+
+    return `${display}: ${step}${counted.done} of ${counted.total} ${counted.unit}`;
   }
 
-  return suite === undefined
-    ? `${display}: ${reported.done} of ${reported.total} functions`
-    : `${display}: ${suite} \u00b7 ${reported.done}/${reported.total}`;
+  return reported.note === undefined ? null : `${display}: ${reported.note}`;
+}
+
+function capitalised(name: string): string {
+  return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
 export function showTarget(progress: ScanProgress): ShowTarget | null {

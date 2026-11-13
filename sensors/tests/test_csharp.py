@@ -322,6 +322,7 @@ def run_sensor(name, root, tmp_path, settings, commit=None):
     output = tmp_path / f"{name}.json"
     argv = [
         name,
+        "run",
         "--repository",
         str(root),
         "--output",

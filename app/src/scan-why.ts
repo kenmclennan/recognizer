@@ -49,9 +49,6 @@ export function whyOf(diagnosis: Diagnosis): ScanWhy {
   return {
     segments: split(sentence(diagnosis.line), chips),
     copy: diagnosis.fix ?? null,
-    log:
-      diagnosis.code === "tests-failed" ||
-      (diagnosis.code === "coverage-unavailable" &&
-        diagnosis.fix === undefined),
+    log: diagnosis.fix === undefined,
   };
 }

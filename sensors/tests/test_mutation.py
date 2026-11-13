@@ -15,6 +15,7 @@ from conftest import (
     SELECTED_FIXTURE,
     SENSOR_LIST,
     STOP_FIXTURE,
+    event_lines,
     mutate_repository,
     mutate_settings,
     python_suite,
@@ -40,6 +41,7 @@ def run_mutate(root, output, settings, *extra):
     code = main(
         [
             "mutation",
+            "run",
             "--repository",
             str(root),
             "--output",
@@ -303,13 +305,14 @@ def test_a_failing_baseline_names_the_failing_tests_in_both_stderr_lines(tmp_pat
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
     lines = [line for line in capsys.readouterr().err.splitlines() if line != CARRY_HINT]
-    reason = json.loads(lines[0].removeprefix("recognizer-reason "))
+    diagnosis = event_lines("\n".join(lines))[-1]
+    plain = [line for line in lines if not line.startswith("recognizer-event ")]
 
-    assert len(lines) == 2
-    assert reason["code"] == "tests-failed"
-    assert reason["failing"] == {"count": 1, "names": ["tests/test_a.py::test_x"]}
-    assert lines[1] == "the test suite fails before any mutation: tests/test_a.py::test_x"
-    assert reason["line"] == lines[1]
+    assert diagnosis["event"] == "diagnosis"
+    assert diagnosis["code"] == "tests-failed"
+    assert plain == ["the test suite fails before any mutation: tests/test_a.py::test_x"]
+    assert diagnosis["text"] == plain[0]
+    assert not any(line.startswith("recognizer-reason ") for line in lines)
 
 
 @pytest.mark.usefixtures("unprimed")
@@ -944,6 +947,7 @@ def findings_of(root, tmp_path, script):
         main(
             [
                 "mutation",
+                "run",
                 "--repository",
                 str(root),
                 "--output",
@@ -1149,6 +1153,7 @@ def start_sensor(root, tmp_path, settings, env=None):
             "-m",
             "recognizer_sensors",
             "mutation",
+            "run",
             "--repository",
             str(root),
             "--output",
@@ -1651,83 +1656,74 @@ def test_a_long_run_checkpoints_its_record_only_once_the_interval_has_passed(tmp
     assert records == [None, None, [ALPHA, BETA]]
 
 
-def progress_lines(capsys):
-    return [
-        json.loads(line.removeprefix("recognizer-progress "))
-        for line in capsys.readouterr().err.splitlines()
-        if line.startswith("recognizer-progress ")
-    ]
+def event_log(capsys):
+    return event_lines(capsys.readouterr().err)
 
 
-def test_progress_is_quiet_unless_the_switch_is_one(tmp_path, counting, capsys, monkeypatch):
-    settings, _ = counting
-    root, _ = mutate_repository(tmp_path)
-
-    monkeypatch.delenv("RECOGNIZER_PROGRESS", raising=False)
-
-    assert run_mutate(root, tmp_path / "overlay.json", settings(max_workers=1)) == 0
-    assert "recognizer-progress" not in capsys.readouterr().err
-
-    monkeypatch.setenv("RECOGNIZER_PROGRESS", "0")
-
-    assert (
-        run_mutate(root, tmp_path / "overlay.json", settings(max_workers=1, incremental=False)) == 0
-    )
-    assert "recognizer-progress" not in capsys.readouterr().err
-
-
-def test_progress_reports_coverage_then_functions_rising_to_the_total(
+def test_events_are_written_whatever_the_old_progress_switch_says(
     tmp_path, counting, capsys, monkeypatch
 ):
     settings, _ = counting
     root, _ = mutate_repository(tmp_path)
 
-    monkeypatch.setenv("RECOGNIZER_PROGRESS", "1")
+    monkeypatch.setenv("RECOGNIZER_PROGRESS", "0")
 
     assert run_mutate(root, tmp_path / "overlay.json", settings(max_workers=1)) == 0
 
-    lines = progress_lines(capsys)
-    mutants = lines[1:]
+    err = capsys.readouterr().err
 
-    assert lines[0] == {"step": "coverage", "suite": "sample"}
-    assert [line["step"] for line in mutants] == ["mutants"] * len(mutants)
-    assert {line["suite"] for line in mutants} == {"sample"}
+    assert "recognizer-progress" not in err
+    assert event_lines(err) != []
+
+
+def test_progress_reports_coverage_then_functions_rising_to_the_total(tmp_path, counting, capsys):
+    settings, _ = counting
+    root, _ = mutate_repository(tmp_path)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings(max_workers=1)) == 0
+
+    lines = event_log(capsys)
+    mutants = lines[2:]
+
+    assert lines[0] == {"event": "note", "text": "Coverage run: sample"}
+    assert lines[1]["event"] == "start"
+    assert lines[1]["unit"] == "functions"
+    assert {line["event"] for line in mutants} == {"progress"}
+    assert {line["unit"] for line in mutants} == {"functions"}
+    assert all("step" not in line for line in mutants)
     assert mutants[0]["done"] == 1
     assert mutants[-1]["done"] == mutants[-1]["total"]
+    assert lines[1]["total"] == mutants[-1]["total"]
     assert [line["done"] for line in mutants] == sorted(line["done"] for line in mutants)
     assert {line["total"] for line in mutants} == {mutants[0]["total"]}
 
 
 def test_an_unchanged_rerun_prints_one_mutants_line_with_every_function_done(
-    tmp_path, counting, capsys, monkeypatch
+    tmp_path, counting, capsys
 ):
     settings, _ = counting
     root, _, output, _ = first_run(tmp_path, counting, capsys)
 
-    monkeypatch.setenv("RECOGNIZER_PROGRESS", "1")
-
     assert run_mutate(root, output, settings(max_workers=1)) == 0
-    assert progress_lines(capsys) == [
-        {"step": "coverage", "suite": "sample"},
-        {"step": "mutants", "suite": "sample", "done": 3, "total": 3},
+    assert event_log(capsys) == [
+        {"event": "note", "text": "Coverage run: sample"},
+        {"event": "start", "total": 3, "unit": "functions"},
+        {"event": "progress", "done": 3, "total": 3, "unit": "functions"},
     ]
 
 
-def test_reused_functions_count_as_done_from_the_first_line(
-    tmp_path, counting, capsys, monkeypatch
-):
+def test_reused_functions_count_as_done_from_the_first_line(tmp_path, counting, capsys):
     settings, _ = counting
     root, _, output, _ = first_run(tmp_path, counting, capsys)
     rules = root / "app" / "rules.py"
     rules.write_text(rules.read_text().replace("return a and b", "return b and a"))
 
-    monkeypatch.setenv("RECOGNIZER_PROGRESS", "1")
-
     assert run_mutate(root, output, settings(max_workers=1)) == 0
-    assert progress_lines(capsys) == [
-        {"step": "coverage", "suite": "sample"},
-        {"step": "mutants", "suite": "sample", "done": 2, "total": 3},
-        {"step": "mutants", "suite": "sample", "done": 3, "total": 3},
+    assert event_log(capsys) == [
+        {"event": "note", "text": "Coverage run: sample"},
+        {"event": "start", "total": 3, "unit": "functions"},
+        {"event": "progress", "done": 2, "total": 3, "unit": "functions"},
+        {"event": "progress", "done": 3, "total": 3, "unit": "functions"},
     ]
 
 
@@ -1737,11 +1733,10 @@ def test_a_run_cut_by_the_budget_ends_short_of_the_total(tmp_path, counting, cap
     ticks = iter([0.0, 0.0])
 
     monkeypatch.setattr(sensor, "CLOCK", lambda: next(ticks, 1000.0))
-    monkeypatch.setenv("RECOGNIZER_PROGRESS", "1")
 
     assert run_mutate(root, tmp_path / "overlay.json", settings(max_workers=1, max_minutes=1)) == 0
 
-    mutants = progress_lines(capsys)[1:]
+    mutants = [line for line in event_log(capsys) if line["event"] == "progress"]
 
     assert mutants[0]["done"] == 1
     assert mutants[-1]["done"] < mutants[-1]["total"]

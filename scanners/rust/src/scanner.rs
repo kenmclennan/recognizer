@@ -1,3 +1,4 @@
+use crate::events::Progress;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::path::Path;
@@ -225,8 +226,22 @@ pub fn scan(
     commit: Option<String>,
     modified: Option<bool>,
 ) -> Result<Scan, ScanError> {
+    scan_reporting(root, commit, modified, None)
+}
+
+pub fn scan_reporting(
+    root: &Path,
+    commit: Option<String>,
+    modified: Option<bool>,
+    mut progress: Option<&mut Progress>,
+) -> Result<Scan, ScanError> {
     let listing = git_listing(root);
     let paths = source_files_in(root, &listing);
+
+    if let Some(progress) = progress.as_mut() {
+        progress.start(paths.len());
+    }
+
     let mut parsed: Vec<Parsed> = Vec::new();
     let mut hashes: Vec<String> = Vec::new();
     let mut problems = Vec::new();
@@ -249,6 +264,14 @@ pub fn scan(
             },
             Err(_) => problems.push(format!("{path}: stream did not contain valid UTF-8")),
         }
+
+        if let Some(progress) = progress.as_mut() {
+            progress.advance();
+        }
+    }
+
+    if let Some(progress) = progress.as_mut() {
+        progress.finish();
     }
 
     if !problems.is_empty() {

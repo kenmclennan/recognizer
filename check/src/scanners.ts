@@ -74,7 +74,7 @@ export function buildArgs(
   commit: string | null,
   modified: boolean | null,
 ): string[] {
-  const args = [repository, "--output", output];
+  const args = ["run", repository, "--output", output];
 
   if (commit) {
     args.push("--commit", commit);

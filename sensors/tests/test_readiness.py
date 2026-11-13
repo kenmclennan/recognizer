@@ -655,32 +655,31 @@ def run_cli(args, capsys):
 
 
 def test_the_check_flag_needs_no_commit(tmp_path, capsys):
-    status, out = run_cli(["thresholds", "--repository", str(tmp_path), "--check"], capsys)
+    status, out = run_cli(["crap", "check", "--repository", str(tmp_path)], capsys)
 
     assert status == 0
-    assert json.loads(out) == {"gaps": [], "notes": []}
+    assert json.loads(out)["gaps"] != []
+
+
+def test_thresholds_answers_check_with_exit_two_and_no_document(tmp_path, capsys):
+    status, out = run_cli(["thresholds", "check", "--repository", str(tmp_path)], capsys)
+
+    assert status == 2
+    assert out == ""
 
 
 def test_the_check_flag_prints_gaps_runs_no_tests_and_writes_nothing(tmp_path, capsys):
     before = sorted(path.name for path in tmp_path.iterdir())
 
-    status, out = run_cli(["crap", "--repository", str(tmp_path), "--check"], capsys)
+    status, out = run_cli(["crap", "check", "--repository", str(tmp_path)], capsys)
 
     assert status == 0
     assert codes(json.loads(out)["gaps"]) == ["no-test-suites"]
     assert sorted(path.name for path in tmp_path.iterdir()) == before
 
 
-@pytest.mark.parametrize("name", ["thresholds"])
-def test_a_sensor_without_a_check_prints_no_gaps(name, tmp_path, capsys):
-    status, out = run_cli([name, "--repository", str(tmp_path), "--check"], capsys)
-
-    assert status == 0
-    assert json.loads(out) == {"gaps": [], "notes": []}
-
-
 def test_the_crap_check_prints_the_no_suites_gap_and_runs_nothing(harness, capsys):
-    status, out = run_cli(["crap", "--repository", str(harness.root), "--check"], capsys)
+    status, out = run_cli(["crap", "check", "--repository", str(harness.root)], capsys)
 
     assert status == 0
     assert json.loads(out) == {
@@ -718,7 +717,7 @@ def test_the_mutation_check_lists_the_no_test_contexts_gap_and_the_crap_check_do
     harness, capsys
 ):
     harness.root.mkdir(exist_ok=True)
-    args = ["--repository", str(harness.root), "--check", "--settings", coverage_run_settings()]
+    args = ["check", "--repository", str(harness.root), "--settings", coverage_run_settings()]
 
     status, out = run_cli(["mutation", *args], capsys)
 
@@ -741,7 +740,7 @@ def test_the_check_over_this_repositorys_sensors_suite_reports_exactly_one_gap()
 
 
 def test_the_guide_of_mutation_names_the_context_requirement_and_both_fixes(capsys):
-    status, out = run_cli(["mutation", "--guide"], capsys)
+    status, out = run_cli(["mutation", "guide"], capsys)
 
     assert status == 0
     assert "dynamic_context = test_function" in out
@@ -753,8 +752,8 @@ def test_the_guide_of_mutation_names_the_context_requirement_and_both_fixes(caps
 
 
 def test_the_guide_of_mutation_states_what_a_blank_budget_and_worker_count_mean(capsys):
-    _, out = run_cli(["mutation", "--guide"], capsys)
-    _, crap_out = run_cli(["crap", "--guide"], capsys)
+    _, out = run_cli(["mutation", "guide"], capsys)
+    _, crap_out = run_cli(["crap", "guide"], capsys)
 
     for text in (
         "no time budget: the run continues until it finishes",
@@ -765,7 +764,7 @@ def test_the_guide_of_mutation_states_what_a_blank_budget_and_worker_count_mean(
 
 
 def test_the_guide_of_mutation_names_carry_and_the_import_path_fix_in_recognizer_config(capsys):
-    status, out = run_cli(["mutation", "--guide"], capsys)
+    status, out = run_cli(["mutation", "guide"], capsys)
 
     assert status == 0
     assert "carry" in out
@@ -775,7 +774,7 @@ def test_the_guide_of_mutation_names_carry_and_the_import_path_fix_in_recognizer
 
 
 def guide_text(capsys):
-    status, out = run_cli(["crap", "--guide"], capsys)
+    status, out = run_cli(["crap", "guide"], capsys)
 
     assert status == 0
 
@@ -1028,13 +1027,13 @@ def test_the_guide_still_installs_nothing_and_leaves_the_development_config_alon
 
 
 def test_run_alone_is_exit_two(tmp_path, capsys):
-    status, _ = run_cli(["crap", "--repository", str(tmp_path), "--run"], capsys)
+    status, _ = run_cli(["crap", "run", "--repository", str(tmp_path), "--run"], capsys)
 
     assert status == 2
 
 
 def test_check_with_run_is_accepted(tmp_path, capsys):
-    status, out = run_cli(["crap", "--repository", str(tmp_path), "--check", "--run"], capsys)
+    status, out = run_cli(["crap", "check", "--repository", str(tmp_path), "--run"], capsys)
 
     assert status == 0
     assert codes(json.loads(out)["gaps"]) == ["no-test-suites"]
@@ -1044,9 +1043,9 @@ def test_a_malformed_tests_list_is_the_config_gap_with_exit_zero(tmp_path, capsy
     status, out = run_cli(
         [
             "crap",
+            "check",
             "--repository",
             str(tmp_path),
-            "--check",
             "--settings",
             json.dumps({"tests": "nope"}),
         ],
@@ -1061,7 +1060,7 @@ def test_a_malformed_tests_list_is_the_config_gap_with_exit_zero(tmp_path, capsy
 
 
 def test_the_guide_of_crap_names_the_mandated_tools_and_thresholds_prints_nothing(tmp_path, capsys):
-    status, out = run_cli(["crap", "--guide"], capsys)
+    status, out = run_cli(["crap", "guide"], capsys)
 
     assert status == 0
 
@@ -1079,7 +1078,7 @@ def test_the_guide_of_crap_names_the_mandated_tools_and_thresholds_prints_nothin
     ):
         assert word in out
 
-    assert run_cli(["thresholds", "--guide"], capsys) == (0, "")
+    assert run_cli(["thresholds", "guide"], capsys) == (0, "")
 
 
 def test_an_unticked_suite_with_a_missing_tool_gives_no_gap(harness):
@@ -1259,7 +1258,7 @@ def test_the_check_line_carries_a_partial_note_under_notes_and_exits_zero(harnes
 
     with mock.patch.object(readiness, "read_scans", return_value=scans):
         status, out = run_cli(
-            ["crap", "--repository", str(harness.root), "--check", "--run", "--settings", settings],
+            ["crap", "check", "--repository", str(harness.root), "--run", "--settings", settings],
             capsys,
         )
 

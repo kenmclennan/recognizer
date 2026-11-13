@@ -12,6 +12,8 @@ import {
   usedByOf,
   usesOf,
 } from "./neighbours.js";
+import type { PluginEvent } from "./plugin-events.js";
+import { createPluginLimits, prepareCall } from "./plugin-run.js";
 import {
   type LineStatus,
   lineStatus,
@@ -239,6 +241,7 @@ export interface DescribeInput {
   confirm?: (projection: DescribeProjection) => Promise<boolean>;
   onStart?: (total: number) => void;
   onEntry?: (entry: RunEntry) => void;
+  onEvent?: (name: string, event: PluginEvent) => void;
 }
 
 export async function describeModules(
@@ -281,6 +284,7 @@ export async function describeModules(
   let stopped: DescribeStop | null = null;
   let failuresInARow = 0;
   const running = new Set<Running>();
+  const limits = createPluginLimits(io, root);
   const threshold = Math.max(input.batchSize, 2);
 
   const projection = projectDescribe(
@@ -375,13 +379,17 @@ export async function describeModules(
     const [program, ...rest] = filled as [string, ...string[]];
     const began = io.now();
 
-    const call = io.runAsync(program, rest);
+    const plugin = prepareCall(io, limits, filled, "describer", input.onEvent);
+    const call = io.runAsync(program, rest, plugin.options);
 
     running.add(call);
 
     return call.result.then((result) => {
       running.delete(call);
-      complete(subject, filled, began, result);
+      complete(subject, filled, began, {
+        ...result,
+        stderr: plugin.reader.keep(result.stderr),
+      });
     });
   };
 

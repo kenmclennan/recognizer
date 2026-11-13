@@ -5,6 +5,7 @@ import sys
 from importlib.metadata import version
 from pathlib import Path
 
+from recognizer_sensors import events
 from recognizer_sensors.config_schema import schema_text
 from recognizer_sensors.findings import (
     build_document,
@@ -22,7 +23,9 @@ from recognizer_sensors.testrun.suites import Suite, selected
 
 RECURSION_LIMIT = 20000
 
-REASON_PREFIX = "recognizer-reason "
+VERBS = ("run", "check", "guide")
+
+VERB_HINT = "the verbs are run, check and guide"
 
 
 def resolve_commit(root: Path) -> str | None:
@@ -41,18 +44,24 @@ def resolve_commit(root: Path) -> str | None:
     return sha if result.returncode == 0 and sha else None
 
 
+class VerbParser(argparse.ArgumentParser):
+    def error(self, message: str):
+        print(f"recognizer-sensors: {message}; {VERB_HINT}", file=sys.stderr)
+
+        raise SystemExit(2)
+
+
 def build_parser(package_version: str) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="recognizer-sensors")
+    parser = VerbParser(prog="recognizer-sensors")
     parser.add_argument("name", nargs="?")
+    parser.add_argument("verb", nargs="?")
     parser.add_argument("--repository", type=Path, default=Path("."))
     parser.add_argument("--commit")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--settings")
     parser.add_argument("--modules", type=Path)
     parser.add_argument("--suites")
-    parser.add_argument("--check", action="store_true")
     parser.add_argument("--run", action="store_true")
-    parser.add_argument("--guide", action="store_true")
     parser.add_argument("--schema", action="store_true")
     parser.add_argument("--version", action="version", version=package_version)
 
@@ -67,9 +76,8 @@ def fail(message: str) -> int:
 
 def print_schema(args) -> int:
     other = (
-        args.check
+        args.verb is not None
         or args.run
-        or args.guide
         or args.settings is not None
         or args.output is not None
         or args.modules is not None
@@ -162,14 +170,20 @@ def main(argv: list[str] | None = None) -> int:
     if sensor is None:
         return fail(f"unknown sensor: {args.name}")
 
-    if args.run and not args.check:
-        return fail("--run is valid only with --check")
+    if args.verb not in VERBS:
+        return fail(f"expected a verb after the sensor name; {VERB_HINT}")
 
-    if args.guide:
+    if args.run and args.verb != "check":
+        return fail("--run is valid only with the check verb")
+
+    if args.verb == "guide":
         if sensor.guide is not None:
             sys.stdout.write(sensor.guide())
 
         return 0
+
+    if args.verb == "check" and sensor.check is None:
+        return fail(f"{args.name} has no check verb")
 
     if args.modules is not None and not sensor.scoped:
         return fail(f"{args.name} takes no module scope")
@@ -201,7 +215,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         settings = sensor.parse_settings(raw)
     except SettingsError as error:
-        if args.check and args.repository.is_dir():
+        if args.verb == "check" and args.repository.is_dir():
             return config_gap(error)
 
         return fail(str(error))
@@ -215,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.repository.is_dir():
         return fail(f"--repository is not a directory: {args.repository}")
 
-    if args.check:
+    if args.verb == "check":
         return check(sensor, args.repository, settings, args.run, names)
 
     commit = args.commit if args.commit else resolve_commit(args.repository)
@@ -284,7 +298,7 @@ def main(argv: list[str] | None = None) -> int:
             else sensor.run(args.repository, scans, settings, **extra)
         )
     except Refusal as refusal:
-        print(f"{REASON_PREFIX}{json.dumps(refusal.diagnosis)}", file=sys.stderr)
+        events.diagnosis(refusal.diagnosis)
         print(str(refusal), file=sys.stderr)
 
         return 2
@@ -296,7 +310,7 @@ def main(argv: list[str] | None = None) -> int:
     emit(outcome, True)
 
     if outcome.refused:
-        print(f"{REASON_PREFIX}{json.dumps(outcome.diagnosis)}", file=sys.stderr)
+        events.diagnosis(outcome.diagnosis)
         print(outcome.diagnosis["line"], file=sys.stderr)
 
         return 2

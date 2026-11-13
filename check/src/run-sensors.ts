@@ -1,27 +1,11 @@
 import type { Io } from "./cli.js";
 import { validateFindings } from "./findings-document.js";
 import { findingsFile, writeFindings } from "./findings-files.js";
-import { runRegistered, runRegisteredAsync } from "./registered-command.js";
+import type { Diagnosis, PluginEvent } from "./plugin-events.js";
+import { createPluginLimits, runPlugin } from "./plugin-run.js";
 import { entryFrom, type RunEntry } from "./run-log.js";
 import type { Scan } from "./scan.js";
-import {
-  parseProgressLine,
-  type SensorProgress,
-  stripProgress,
-} from "./sensor-progress.js";
-import {
-  type Diagnosis,
-  parseReasonLine,
-  stripReason,
-} from "./sensor-reason.js";
 import { measuredInputs } from "./structure-sensor.js";
-
-export const SENSOR_TIMEOUT_MS = 60_000;
-
-const UNMEASURED = new Set<Diagnosis["code"]>([
-  "tool-missing",
-  "coverage-unavailable",
-]);
 
 export interface RunSensorsInput {
   io: Io;
@@ -36,8 +20,7 @@ export interface RunSensorsInput {
   scans: Scan[];
   onStart?: (name: string) => void;
   onEntry?: (entry: RunEntry) => void;
-  onProgress?: (name: string, progress: SensorProgress) => void;
-  timeoutMs?: number;
+  onEvent?: (name: string, event: PluginEvent) => void;
 }
 
 function recordInputs(
@@ -69,64 +52,41 @@ function moduleCount(scans: Scan[]): number {
 export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
   const { io, root, commit } = input;
   const entries: RunEntry[] = [];
+  const limits = createPluginLimits(io, root);
 
   for (const { name, command, runsTests, modules } of input.selected) {
     input.onStart?.(name);
 
     const output = findingsFile(root, name);
     const began = io.now();
-    let refusal: Diagnosis | undefined;
-    let firstMutants: number | null = null;
-    const keepStderr = (stderr: string): string => {
-      for (const line of stderr.split("\n")) {
-        refusal ??= parseReasonLine(line) ?? undefined;
-      }
-
-      return stripReason(stderr);
-    };
     const validate = (document: unknown, anyCommit?: boolean) => {
       validateFindings(document, anyCommit ? { name } : { name, commit });
     };
-    const run =
-      runsTests === true
-        ? await runRegisteredAsync(
-            io,
-            root,
-            command,
-            commit,
-            output,
-            "findings",
-            validate,
-            {
-              env: { RECOGNIZER_PROGRESS: input.onProgress ? "1" : "0" },
-              onStderrLine: (line) => {
-                const progress = parseProgressLine(line);
-
-                if (progress !== null) {
-                  if (progress.step === "mutants") {
-                    firstMutants ??= io.now();
-                  }
-
-                  input.onProgress?.(name, progress);
-                }
-              },
-            },
-            (stderr) => stripProgress(keepStderr(stderr)),
-          )
-        : runRegistered(
-            io,
-            root,
-            command,
-            commit,
-            output,
-            "findings",
-            validate,
-            input.timeoutMs ?? SENSOR_TIMEOUT_MS,
-            keepStderr,
-          );
+    const run = await runPlugin(
+      io,
+      limits,
+      root,
+      command,
+      commit,
+      output,
+      "findings",
+      validate,
+      name,
+      input.onEvent,
+    );
     let { reason } = run;
-    let diagnosis = refusal;
+    let diagnosis: Diagnosis | undefined = run.diagnosis ?? undefined;
     let incomplete = false;
+
+    if (
+      reason !== null &&
+      run.diagnosis !== null &&
+      run.status !== null &&
+      run.status !== 0 &&
+      reason !== "timed out"
+    ) {
+      reason = run.diagnosis.line;
+    }
 
     if (reason === null) {
       try {
@@ -139,32 +99,30 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
       }
     }
 
-    if (
-      reason === null &&
-      diagnosis !== undefined &&
-      UNMEASURED.has(diagnosis.code)
-    ) {
+    if (reason === null && diagnosis?.unmeasured === true) {
       reason = diagnosis.line;
     }
 
     const finished = io.now();
+    const fixedFrom = run.firstWorked ?? (runsTests === true ? finished : null);
     const entry = entryFrom(name, {
       command: run.command,
       status: run.status,
       stderr: run.stderr,
       duration_ms: finished - began,
       modules: modules ?? moduleCount(input.scans),
-      ...(runsTests === true
-        ? { fixed_ms: (firstMutants ?? finished) - began }
-        : {}),
+      ...(fixedFrom === null ? {} : { fixed_ms: fixedFrom - began }),
       ...(incomplete ? { incomplete: true } : {}),
       ...(reason === null ? {} : { reason }),
+      ...(run.stopped === true ? { stopped: true } : {}),
       ...(diagnosis === undefined ? {} : { diagnosis }),
     });
 
     entries.push(entry);
 
-    if (reason !== null) {
+    if (run.stopped === true) {
+      io.stderr(`stopped ${name}\n`);
+    } else if (reason !== null) {
       io.stderr(`failed ${name}: ${reason}\n`);
     }
 

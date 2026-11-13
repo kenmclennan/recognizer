@@ -348,8 +348,7 @@ function leftOf(frozen: number, since: number | null, now: number): number {
 
 export function remaining(input: RemainingInput): Remaining | null {
   const { progress, now } = input;
-  const { frozen, phaseAt, sensorAt, describeFrom, mutantsFrom } =
-    progress.timing;
+  const { frozen, phaseAt, sensorAt, describeFrom, rateFrom } = progress.timing;
 
   if (frozen === null || Object.keys(frozen).length === 0) {
     return null;
@@ -422,19 +421,21 @@ export function remaining(input: RemainingInput): Remaining | null {
 
     const reported = progress.sensorProgress;
 
+    const counted = reported?.progress;
+
     if (
-      key === MUTATION_KEY &&
-      input.suites[key]?.length === 1 &&
-      mutantsFrom !== null &&
+      (input.suites[key]?.length ?? 0) <= 1 &&
+      rateFrom !== null &&
       reported !== null &&
       reported.name === key &&
-      reported.step === "mutants" &&
-      reported.done - mutantsFrom.done >= LEFT_FLOOR
+      counted !== undefined &&
+      counted.unit === rateFrom.unit &&
+      counted.step === rateFrom.step &&
+      counted.done - rateFrom.done >= LEFT_FLOOR
     ) {
-      const since = reported.done - mutantsFrom.done;
+      const since = counted.done - rateFrom.done;
 
-      total +=
-        (reported.total - reported.done) * ((now - mutantsFrom.at) / since);
+      total += (counted.total - counted.done) * ((now - rateFrom.at) / since);
 
       continue;
     }

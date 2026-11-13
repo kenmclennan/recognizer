@@ -177,6 +177,64 @@ describe("cli", () => {
   });
 });
 
+describe("verbs and events", () => {
+  const verbs = "manifest, check, run, guide";
+
+  it("reports start and progress events that end at the total", () => {
+    const result = runBin(SAMPLE);
+    const events = result.stderr
+      .split("\n")
+      .filter((line) => line.startsWith("recognizer-event "))
+      .map(
+        (line) =>
+          JSON.parse(line.slice("recognizer-event ".length)) as Record<
+            string,
+            unknown
+          >,
+      );
+    const [first, ...rest] = events;
+
+    expect(result.status).toBe(0);
+    expect(first?.event).toBe("start");
+    expect(first?.unit).toBe("files");
+    expect(
+      rest.every((event) => (event.done as number) <= (event.total as number)),
+    ).toBe(true);
+    expect(events.at(-1)).toEqual({
+      event: "progress",
+      done: first?.total,
+      total: first?.total,
+      unit: "files",
+    });
+  });
+
+  it("exits 2 on check without printing a document", () => {
+    const result = spawnSync("node", [BIN, "check"], { encoding: "utf8" });
+
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain(verbs);
+  });
+
+  it("prints nothing for guide", () => {
+    const result = spawnSync("node", [BIN, "guide"], { encoding: "utf8" });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("");
+  });
+
+  it.each([[SAMPLE], ["--output"]])(
+    "exits 2 naming the verbs for %s",
+    (first) => {
+      const result = spawnSync("node", [BIN, first], { encoding: "utf8" });
+
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain(verbs);
+    },
+  );
+});
+
 describe("--version", () => {
   it("prints the manifest version", () => {
     const manifest = JSON.parse(

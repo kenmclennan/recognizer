@@ -164,6 +164,6 @@ def test_a_sensor_entry_point_writes_the_findings_the_named_form_writes(tmp_path
     named = tmp_path / "named.json"
     entered = tmp_path / "entered.json"
 
-    assert main(["crap", *flags, "--output", str(named)]) == 0
-    assert entry.crap([*flags, "--output", str(entered)]) == 0
+    assert main(["crap", "run", *flags, "--output", str(named)]) == 0
+    assert entry.crap(["run", *flags, "--output", str(entered)]) == 0
     assert named.read_text() == entered.read_text()

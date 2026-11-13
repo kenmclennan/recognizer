@@ -34,6 +34,7 @@ describe("the committed registration", () => {
     expect(config.describer.command).toEqual([
       "node",
       "{repository}/describers/claude/dist/bin.js",
+      "run",
       "--model",
       "{model}",
       "{request}",
@@ -70,7 +71,7 @@ describe("the committed registration", () => {
   it("names the current prompt version", () => {
     expect(
       config.describer.version,
-      "update .recognizer/config.yaml to the output of recognizer-describe-claude --prompt-version",
+      "update .recognizer/config.yaml to the prompt_version of recognizer-describe-claude manifest",
     ).toBe(promptVersion());
   });
 

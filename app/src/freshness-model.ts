@@ -208,9 +208,13 @@ function runningState(
   if (
     reported != null &&
     reported.name === key &&
-    reported.step === "mutants"
+    reported.progress !== undefined
   ) {
-    return { kind: "running", done: reported.done, total: reported.total };
+    return {
+      kind: "running",
+      done: reported.progress.done,
+      total: reported.progress.total,
+    };
   }
 
   return { kind: "running", done: null, total: null };

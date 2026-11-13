@@ -110,6 +110,21 @@ describe.skipIf(!HAS_UV)(
         "recognizer-sensors",
         `exec uv run --quiet --project ${REPO}/sensors recognizer-sensors "$@"`,
       );
+      launcher(
+        launchers,
+        "recognizer-sense-crap",
+        `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-crap "$@"`,
+      );
+      launcher(
+        launchers,
+        "recognizer-sense-mutation",
+        `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-mutation "$@"`,
+      );
+      launcher(
+        launchers,
+        "recognizer-sense-thresholds",
+        `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-thresholds "$@"`,
+      );
       launcher(launchers, "recognizer", `exec node ${BIN} "$@"`);
       process.env.PATH = `${launchers}:${savedPath}`;
     });
@@ -150,7 +165,7 @@ describe.skipIf(!HAS_UV)(
     it(
       "reproduces the eleven measured configs by running the guide's own commands",
       () => {
-        const guide = shell("recognizer-sensors crap --guide", repository());
+        const guide = shell("recognizer-sense-crap guide", repository());
 
         expect(guide.status).toBe(0);
 

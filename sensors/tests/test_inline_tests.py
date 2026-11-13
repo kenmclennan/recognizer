@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path, PurePosixPath
 
 import pytest
-from conftest import git_commit
+from conftest import git_commit, plain_lines
 
 from recognizer_sensors.hashes import digest_of, support_hash
 from recognizer_sensors.mutation.inline_tests import (
@@ -156,7 +156,7 @@ def test_a_path_attribute_is_followed_and_prints_nothing(tmp_path, capsys):
     )
     first = digest(root)
 
-    assert capsys.readouterr().err == ""
+    assert plain_lines(capsys.readouterr().err) == ""
 
     (root / "src/extra/spec.rs").write_text("fn a() { 1; }\n")
 

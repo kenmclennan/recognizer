@@ -105,16 +105,20 @@ export async function interrupt(
   waitMs: number,
 ): Promise<Interrupted> {
   const request = writeRequest(box, REQUEST);
-  const describer = spawn(process.execPath, [BIN, "--model", "opus", request], {
-    cwd: box.directory,
-    stdio: "ignore",
-    env: {
-      ...process.env,
-      PATH: [box.bin, dirname(process.execPath)].join(delimiter),
-      FAKE_CLAUDE_RECORD: box.record,
-      FAKE_CLAUDE_MODE: "sleep",
+  const describer = spawn(
+    process.execPath,
+    [BIN, "run", "--model", "opus", request],
+    {
+      cwd: box.directory,
+      stdio: "ignore",
+      env: {
+        ...process.env,
+        PATH: [box.bin, dirname(process.execPath)].join(delimiter),
+        FAKE_CLAUDE_RECORD: box.record,
+        FAKE_CLAUDE_MODE: "sleep",
+      },
     },
-  });
+  );
   const exited = new Promise<[number | null, NodeJS.Signals | null]>((done) =>
     describer.on("close", (status, by) => done([status, by])),
   );

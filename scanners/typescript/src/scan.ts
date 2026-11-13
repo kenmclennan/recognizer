@@ -5,6 +5,7 @@ import ts from "typescript";
 import { findCalls, type ScanCall } from "./calls.js";
 import { entryPoints } from "./entry-points.js";
 import { ScanError } from "./errors.js";
+import type { Progress } from "./events.js";
 import { extract, type FileInfo, type Member } from "./extract.js";
 import {
   gitListing,
@@ -182,6 +183,7 @@ export function scan(
   commit: string | null,
   modified: boolean | null = null,
   onSkipped: (line: string) => void = () => {},
+  progress: Progress | null = null,
 ): ScanDocument {
   if (!statSync(root, { throwIfNoEntry: false })?.isDirectory()) {
     throw new ScanError([`ROOT is not a directory: ${root}`]);
@@ -275,13 +277,19 @@ export function scan(
   const program = ts.createProgram(files, compilerOptions, host);
   const infos = new Map<string, FileInfo>();
 
+  progress?.start(files.length);
+
   for (const file of files) {
     const source = program.getSourceFile(file);
 
     if (source) {
       infos.set(idOf(file), extract(source));
     }
+
+    progress?.advance();
   }
+
+  progress?.finish();
 
   const problems = syntaxProblems(program, files, real);
 

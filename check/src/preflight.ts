@@ -2,7 +2,9 @@ import { dirname, isAbsolute, relative } from "node:path";
 import type { Io } from "./cli.js";
 import type { Describer } from "./describe-modules.js";
 import type { Fix, Gap } from "./gap.js";
+import { pluginPrefix } from "./plugin-run.js";
 import { checkSensors } from "./sensors-check.js";
+import { shippedSensorOf } from "./shipped-sensors.js";
 
 export interface PreflightSensor {
   name: string;
@@ -45,22 +47,11 @@ function installFix(): Fix {
 }
 
 function isShipped(sensor: PreflightSensor): boolean {
-  return sensor.command[0] === SENSORS_PROGRAM;
+  return shippedSensorOf(sensor.command) !== undefined;
 }
 
-function fillDescriber(
-  item: string,
-  root: string,
-  model: string,
-  request: string,
-): string {
-  return item
-    .split("{repository}")
-    .join(root)
-    .split("{model}")
-    .join(model)
-    .split("{request}")
-    .join(request);
+function fillDescriber(item: string, root: string): string {
+  return item.split("{repository}").join(root);
 }
 
 function isReference(command: string[]): boolean {
@@ -75,11 +66,21 @@ function describerArgumentsGap(
   input: EarlyInput,
   describer: Describer,
 ): Gap | null {
-  const filled = describer.command.map((item) =>
-    fillDescriber(item, input.root, input.model, "--check"),
-  );
-  const [program, ...rest] = filled as [string, ...string[]];
-  const result = io.run(program, rest, { cwd: input.root });
+  const prefix = pluginPrefix(describer.command);
+
+  if (prefix === null) {
+    return {
+      id: "describe:arguments",
+      line: "the describer does not speak the plugin verbs: its command has no run element",
+      needs: ["describe"],
+      fix: installFix(),
+    };
+  }
+
+  const filled = prefix.map((item) => fillDescriber(item, input.root));
+  const result = io.run(filled[0] as string, [...filled.slice(1), "check"], {
+    cwd: input.root,
+  });
 
   if (result.started && result.status === 0) {
     return null;

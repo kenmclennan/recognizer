@@ -37,7 +37,7 @@ def shim_on_path(monkeypatch, tmp_path, log):
 def test_the_no_suites_gap_is_printed_for_each_test_running_sensor(name, tmp_path, capsys):
     root = repository(tmp_path)
 
-    assert main([name, "--repository", str(root), "--check"]) == 0
+    assert main([name, "check", "--repository", str(root)]) == 0
     assert json.loads(capsys.readouterr().out) == {"gaps": [no_suites_gap()], "notes": []}
 
 
@@ -50,7 +50,7 @@ def test_the_mutation_preflight_prints_the_no_suites_gap_and_probes_nothing(
     (root / "Cargo.toml").write_text("")
     before = sorted(path.name for path in root.iterdir())
 
-    status = main(["mutation", "--repository", str(root), "--check"])
+    status = main(["mutation", "check", "--repository", str(root)])
 
     assert status == 0
     assert json.loads(capsys.readouterr().out) == {"gaps": [no_suites_gap()], "notes": []}

@@ -258,8 +258,8 @@ describe("selectSensors", () => {
     const selected = selectSensors(registered, ["crap", "a"], ["crap"]);
 
     expect(selected.map(({ name }) => name)).toEqual(["a", "crap"]);
-    expect(selected[1]?.command[0]).toBe("recognizer-sensors");
-    expect(selected[1]?.command[1]).toBe("crap");
+    expect(selected[1]?.command[0]).toBe("recognizer-sense-crap");
+    expect(selected[1]?.command[1]).toBe("run");
     expect(selected[1]?.command.at(-1)).toBe("{}");
   });
 

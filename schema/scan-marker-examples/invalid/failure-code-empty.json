@@ -27,7 +27,7 @@
   "failure": {
     "sensor": "crap",
     "suite": "unit",
-    "code": "nope",
+    "code": "",
     "reason": "3 tests failed"
   },
   "commit": "abc1234",

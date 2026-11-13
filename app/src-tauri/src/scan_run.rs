@@ -4,6 +4,7 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
+use std::thread;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -124,12 +125,7 @@ pub fn parse_run(text: &str) -> Option<ScanRunRecord> {
             failure.sensor.is_empty()
                 || failure.reason.chars().count() > STDERR_CHARS
                 || failure.suite.as_deref().is_some_and(str::is_empty)
-                || failure.code.as_deref().is_some_and(|code| {
-                    !matches!(
-                        code,
-                        "tool-missing" | "tests-failed" | "coverage-unavailable"
-                    )
-                })
+                || failure.code.as_deref().is_some_and(str::is_empty)
         })
         || run.commit.as_deref().is_some_and(str::is_empty)
         || run.ran.as_ref().is_some_and(|ran| !ran_ok(ran))
@@ -497,10 +493,38 @@ struct Handle {
     stopped: bool,
 }
 
-#[derive(Default)]
 pub struct ScanRuns {
     handles: Mutex<HashMap<String, Handle>>,
     seen: Mutex<HashMap<String, RunSeen>>,
+    backstop: Duration,
+}
+
+const STOP_BACKSTOP: Duration = Duration::from_secs(15);
+
+impl Default for ScanRuns {
+    fn default() -> Self {
+        Self::with_backstop(STOP_BACKSTOP)
+    }
+}
+
+fn kill_group_hard(pid: u32) {
+    let _ = Command::new("/bin/kill")
+        .args(["-KILL", "--"])
+        .arg(format!("-{pid}"))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+}
+
+fn schedule_backstop(pid: u32, delay: Duration) {
+    thread::spawn(move || {
+        thread::sleep(delay);
+
+        if pid_alive(pid) {
+            kill_group_hard(pid);
+        }
+    });
 }
 
 pub fn kill_pid(pid: u32) {
@@ -524,6 +548,14 @@ pub fn kill_group(pid: u32) {
 }
 
 impl ScanRuns {
+    pub fn with_backstop(backstop: Duration) -> Self {
+        Self {
+            handles: Mutex::default(),
+            seen: Mutex::default(),
+            backstop,
+        }
+    }
+
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, Handle>> {
         self.handles
             .lock()
@@ -550,6 +582,7 @@ impl ScanRuns {
 
             if handle.stopped {
                 kill_group(pid);
+                schedule_backstop(pid, self.backstop);
             }
         }
     }
@@ -576,6 +609,7 @@ impl ScanRuns {
 
             if let Some(pid) = handle.pid {
                 kill_group(pid);
+                schedule_backstop(pid, self.backstop);
             }
         }
     }
@@ -1875,6 +1909,54 @@ mod tests {
                 "running", "stopped"
             ]
         );
+    }
+
+    fn failed_with_code(code: &str) -> String {
+        let text = examples("valid")
+            .into_iter()
+            .find(|text| text.contains("the test run timed out"))
+            .unwrap();
+
+        text.replace("\"code\": null", &format!("\"code\": {code}"))
+    }
+
+    #[test]
+    fn a_failure_code_of_any_non_empty_string_is_accepted_and_an_empty_one_rejected() {
+        let custom = parse_run(&failed_with_code("\"custom-code\"")).unwrap();
+
+        assert_eq!(custom.failure.unwrap().code.as_deref(), Some("custom-code"));
+        assert!(parse_run(&failed_with_code("\"\"")).is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stopping_kills_a_group_that_ignores_term_after_the_backstop() {
+        use std::os::unix::process::CommandExt;
+
+        let runs = ScanRuns::with_backstop(Duration::from_millis(300));
+        let mut child = Command::new("/bin/sh")
+            .args(["-c", "trap '' TERM; while :; do sleep 1; done"])
+            .process_group(0)
+            .spawn()
+            .unwrap();
+
+        runs.begin("w-1").unwrap();
+        runs.started("w-1", child.id());
+        std::thread::sleep(Duration::from_millis(100));
+        runs.stop("w-1");
+        std::thread::sleep(Duration::from_millis(100));
+
+        assert!(child.try_wait().unwrap().is_none());
+
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+
+        while child.try_wait().unwrap().is_none() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the group outlived the backstop"
+            );
+            std::thread::sleep(Duration::from_millis(50));
+        }
     }
 
     #[test]

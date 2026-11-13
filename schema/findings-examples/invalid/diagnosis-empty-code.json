@@ -47,7 +47,7 @@
     "app/risk.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   },
   "diagnosis": {
-    "code": "unknown",
+    "code": "",
     "line": "3 tests failed, so coverage may read low",
     "failing": {
       "count": 3,

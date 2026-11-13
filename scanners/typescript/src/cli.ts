@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { statSync, writeFileSync } from "node:fs";
 import { ScanError } from "./errors.js";
+import { progressTo } from "./events.js";
 import { manifestText } from "./manifest.js";
 import { scan } from "./scan.js";
 import { render } from "./serialise.js";
@@ -27,8 +28,10 @@ interface Args {
   output: string | null;
 }
 
+const VERBS = "manifest, check, run, guide";
+
 const USAGE =
-  "usage: recognizer-scan-typescript ROOT [--commit SHA] [--modified true|false] [--output FILE]";
+  "usage: recognizer-scan-typescript run ROOT [--commit SHA] [--modified true|false] [--output FILE]";
 
 function parseArgs(argv: string[]): Args | string {
   let root: string | null = null;
@@ -103,19 +106,41 @@ export function resolveModified(root: string): boolean | null {
 }
 
 export function run(argv: string[], io: Io = nodeIo()): number {
-  if (argv.length === 1 && argv[0] === "manifest") {
+  const [verb, ...rest] = argv;
+
+  if (argv.length === 1 && verb === "manifest") {
     io.stdout(manifestText());
 
     return 0;
   }
 
-  if (argv.length === 1 && argv[0] === "--version") {
+  if (argv.length === 1 && verb === "--version") {
     io.stdout(`${scannerVersion()}\n`);
 
     return 0;
   }
 
-  const args = parseArgs(argv);
+  if (argv.length === 1 && verb === "guide") {
+    return 0;
+  }
+
+  if (verb === "check") {
+    io.stderr(
+      `recognizer-scan-typescript has no check verb; the verbs are ${VERBS}\n`,
+    );
+
+    return 2;
+  }
+
+  if (verb !== "run") {
+    io.stderr(
+      `recognizer-scan-typescript: the first argument must be a verb: ${VERBS}\n`,
+    );
+
+    return 2;
+  }
+
+  const args = parseArgs(rest);
 
   if (typeof args === "string") {
     io.stderr(`${args}\n${USAGE}\n`);
@@ -135,6 +160,7 @@ export function run(argv: string[], io: Io = nodeIo()): number {
       args.commit ? args.commit : resolveCommit(args.root),
       args.modified ?? resolveModified(args.root),
       io.stderr,
+      progressTo(io.stderr),
     );
     const text = render(document);
 

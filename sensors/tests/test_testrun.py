@@ -102,6 +102,7 @@ def crap(root, tmp_path, settings):
     status = main(
         [
             "crap",
+            "run",
             "--repository",
             str(root),
             "--output",
@@ -193,6 +194,7 @@ def test_a_failing_command_with_no_report_is_complexity_only_with_the_exit_in_th
         "code": "coverage-unavailable",
         "line": f"coverage unavailable: the api suite exited 1 and left no coverage report at {REPORT}; see {LOG}",
         "suite": "api",
+        "unmeasured": True,
     }
 
     overlay = json.loads((root / OVERLAY).read_text())
@@ -216,6 +218,7 @@ def test_a_failing_command_keeps_the_report_it_wrote_and_says_the_tests_failed(t
         "line": "the tests failed, so coverage may read low",
         "suite": "api",
     }
+    assert "unmeasured" not in diagnosis_of(output)
     assert json.loads((root / OVERLAY).read_text())["values"]["coverage"]
 
 
@@ -281,6 +284,7 @@ def test_a_command_that_leaves_no_report_is_complexity_only_naming_the_log(tmp_p
         "code": "coverage-unavailable",
         "line": f"coverage unavailable: the api suite left no coverage report at {REPORT}; see {LOG}",
         "suite": "api",
+        "unmeasured": True,
     }
 
 
@@ -374,6 +378,7 @@ def test_killing_the_sensors_group_ends_the_suite(tmp_path):
             "-m",
             "recognizer_sensors",
             "crap",
+            "run",
             "--repository",
             str(root),
             "--commit",
@@ -460,3 +465,18 @@ def test_a_failing_warm_up_suite_leaves_no_recorded_seconds(tmp_path):
         coverage_run(root, read_scans(root), suites_found, work, seconds=recorded)
 
     assert recorded == {}
+
+
+def test_a_language_with_no_suite_leaves_an_unmeasured_diagnosis_with_the_same_line(tmp_path):
+    root = two_languages(tmp_path)
+    writer = script(root, "w.py", WRITE_LCOV.replace("sys.argv[1]", "'out/py.info'"))
+    settings = {"tests": [suite("python", command(writer), path="out/py.info", name="py")]}
+
+    status, output = crap(root, tmp_path, settings)
+
+    assert status == 0
+    assert diagnosis_of(output) == {
+        "code": "coverage-unavailable",
+        "line": "coverage unavailable: no test suite is configured for typescript",
+        "unmeasured": True,
+    }

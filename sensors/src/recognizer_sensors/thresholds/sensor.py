@@ -4,6 +4,7 @@ import re
 import sys
 from pathlib import Path
 
+from recognizer_sensors import events
 from recognizer_sensors.hashes import tests_hash
 from recognizer_sensors.outcome import Outcome
 from recognizer_sensors.principles import principle_fields
@@ -229,6 +230,9 @@ def finding_for(metric, entry, key, module, member, value, producer) -> dict:
 
 def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Outcome:
     module_ids = [module.id for scan in scans for module in scan.modules]
+
+    events.start(len(module_ids), "modules")
+
     current_tests = tests_hash(repository, scans)
     overlays = current_overlays(repository, commit, current_tests)
     findings = []
@@ -275,6 +279,8 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
                 f"{source['file']} match no scanned module; skipped",
                 file=sys.stderr,
             )
+
+    events.progress(len(module_ids), len(module_ids), "modules")
 
     return Outcome(
         findings, inputs=frozenset(inputs), tests=current_tests if consumed_tests else None

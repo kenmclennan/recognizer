@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from conftest import REPOSITORY, git_commit, make_repository, write_scans
+from conftest import REPOSITORY, git_commit, make_repository, plain_lines, write_scans
 from jsonschema import Draft202012Validator
 
 from recognizer_sensors import hashes
@@ -427,6 +427,7 @@ def run_crap(root, output, *extra, coverage=COVERAGE, command=None):
     return main(
         [
             "crap",
+            "run",
             "--repository",
             str(root),
             "--commit",
@@ -451,7 +452,7 @@ def test_the_fixture_gives_the_pinned_findings_and_overlay(sample, tmp_path, cap
     status, document, overlay = produced(sample, tmp_path)
 
     assert status == 0
-    assert capsys.readouterr().err == ""
+    assert plain_lines(capsys.readouterr().err) == ""
     Draft202012Validator(json.loads(FINDINGS_SCHEMA.read_text())).validate(document)
     Draft202012Validator(json.loads(OVERLAY_SCHEMA.read_text())).validate(overlay)
     assert list(document["settings"]) == ["threshold", "overlay", "suites"]
@@ -597,7 +598,7 @@ def test_a_high_complexity_function_with_unknown_coverage_reports_a_floor(tmp_pa
     assert document["findings"][0]["evidence"]["measures"] == {"complexity": 31}
     assert overlay["values"]["coverage"] == {}
     assert overlay["values"]["crap"] == {}
-    assert capsys.readouterr().err == ""
+    assert plain_lines(capsys.readouterr().err) == ""
 
 
 def test_unknown_coverage_at_exactly_the_threshold_has_no_finding(tmp_path):
@@ -638,7 +639,7 @@ def test_a_suite_report_that_does_not_exist_is_coverage_unavailable(tmp_path, ca
     status, document, overlay = produced(root, tmp_path, command="true")
 
     assert status == 0
-    assert capsys.readouterr().err == ""
+    assert plain_lines(capsys.readouterr().err) == ""
     assert document["diagnosis"]["code"] == "coverage-unavailable"
     assert document["diagnosis"]["line"] == (
         "coverage unavailable: the python suite left no coverage report at "
@@ -654,7 +655,7 @@ def test_a_binary_coverage_file_leaves_every_function_unknown(tmp_path, capsys):
     status, _, overlay = produced(root, tmp_path)
 
     assert status == 0
-    assert capsys.readouterr().err == ""
+    assert plain_lines(capsys.readouterr().err) == ""
     assert overlay["values"]["complexity"] == {"app/m.py::f": 2}
     assert overlay["values"]["coverage"] == {}
 
@@ -665,7 +666,7 @@ def test_an_empty_coverage_file_is_not_an_error(tmp_path, capsys):
     status, _, overlay = produced(root, tmp_path)
 
     assert status == 0
-    assert capsys.readouterr().err == ""
+    assert plain_lines(capsys.readouterr().err) == ""
     assert overlay["values"]["coverage"] == {}
 
 
@@ -680,7 +681,7 @@ def test_a_fixture_with_an_empty_report_has_only_complexity(tmp_path, capsys):
 
     assert status == 0
     assert document["findings"] == []
-    assert capsys.readouterr().err == ""
+    assert plain_lines(capsys.readouterr().err) == ""
     assert len(overlay["values"]["complexity"]) == 6
     assert overlay["values"]["coverage"] == {}
     assert overlay["values"]["crap"] == {}
@@ -733,7 +734,15 @@ def test_two_runs_give_the_same_bytes(sample, tmp_path):
 def test_two_runs_give_the_same_bytes_under_another_hash_seed(sample, tmp_path):
     def run(seed, name):
         subprocess.run(
-            [sys.executable, "-m", "recognizer_sensors", "crap", "--repository", str(sample)]
+            [
+                sys.executable,
+                "-m",
+                "recognizer_sensors",
+                "crap",
+                "run",
+                "--repository",
+                str(sample),
+            ]
             + ["--commit", "c1", "--output", str(tmp_path / name)]
             + ["--settings", json.dumps({"tests": suites_for(sample)})],
             check=True,
@@ -759,7 +768,7 @@ def test_a_committed_repository_keeps_the_commit(sample, tmp_path):
     sha = git_commit(sample)
 
     main(
-        ["crap", "--repository", str(sample), "--output", str(tmp_path / "o.json")]
+        ["crap", "run", "--repository", str(sample), "--output", str(tmp_path / "o.json")]
         + with_suites(sample, [])
     )
 
@@ -786,7 +795,9 @@ def test_a_crap_run_with_no_tests_list_exits_two_and_leaves_a_prior_overlay(
     overlay_path.write_text("prior")
     output = tmp_path / "findings.json"
 
-    status = main(["crap", "--repository", str(sample), "--commit", "c1", "--output", str(output)])
+    status = main(
+        ["crap", "run", "--repository", str(sample), "--commit", "c1", "--output", str(output)]
+    )
 
     assert status == 2
     assert capsys.readouterr().err.splitlines()[-1] == (
@@ -859,6 +870,7 @@ def crap_suites(root, tmp_path, settings, *extra):
     status = main(
         [
             "crap",
+            "run",
             "--repository",
             str(root),
             "--commit",

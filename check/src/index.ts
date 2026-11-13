@@ -159,6 +159,7 @@ export {
   validateOverlay,
 } from "./overlays.js";
 export { type PathStep, shortestPath } from "./paths.js";
+export type { Diagnosis, PluginEvent } from "./plugin-events.js";
 export {
   CURRENT_PROTOCOL,
   interpretManifest,
@@ -230,11 +231,6 @@ export {
   parseScanArgs,
   parseSuiteSelection,
 } from "./scan-phases.js";
-export {
-  parseProgressLine,
-  type SensorProgress,
-} from "./sensor-progress.js";
-export type { Diagnosis, DiagnosisCode } from "./sensor-reason.js";
 export { SHIPPED_DESCRIBER_COMMAND } from "./shipped-describer.js";
 export { SHIPPED_SENSOR_LIST, shippedSensorNames } from "./shipped-sensors.js";
 export {

@@ -2,7 +2,7 @@ import json
 import shutil
 
 import pytest
-from conftest import FINDINGS_SCHEMA, REPOSITORY, git_commit, write_scans
+from conftest import FINDINGS_SCHEMA, REPOSITORY, git_commit, plain_lines, write_scans
 from jsonschema import Draft202012Validator
 
 from recognizer_sensors.cli import main
@@ -56,6 +56,7 @@ def sense(root, tmp_path, settings=None):
     code = main(
         [
             "thresholds",
+            "run",
             "--repository",
             str(root),
             "--output",
@@ -259,7 +260,7 @@ def test_a_missing_overlay_folder_is_silent_for_defaults(tmp_path, capsys):
 
     assert code == 0
     assert document["findings"] == []
-    assert capsys.readouterr().err == ""
+    assert plain_lines(capsys.readouterr().err) == ""
 
 
 def test_off_on_an_absent_metric_prints_nothing(tmp_path, capsys):
@@ -267,7 +268,7 @@ def test_off_on_an_absent_metric_prints_nothing(tmp_path, capsys):
 
     sense(root, tmp_path, {"churn": "off"})
 
-    assert capsys.readouterr().err == ""
+    assert plain_lines(capsys.readouterr().err) == ""
 
 
 def test_a_named_metric_in_no_overlay_prints_its_line(tmp_path, capsys):
@@ -305,7 +306,7 @@ def test_all_resolved_and_none_resolved(tmp_path, capsys):
     install(root, "t.json", overlay(commit, {"complexity": {"a.py": 20}}))
     sense(root, tmp_path)
 
-    assert capsys.readouterr().err == ""
+    assert plain_lines(capsys.readouterr().err) == ""
 
     install(root, "t.json", overlay(commit, {"complexity": {"x.py": 20, "y.py": 20}}))
     _, document = sense(root, tmp_path)

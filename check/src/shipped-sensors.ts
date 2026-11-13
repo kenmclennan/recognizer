@@ -103,24 +103,28 @@ export function shippedSensorNames(): string[] {
   return [...SHIPPED_SENSORS];
 }
 
-export function runsTests(command: readonly string[]): boolean {
-  if (command[0] !== "recognizer-sensors") {
-    return false;
+const SENSE_PREFIX = "recognizer-sense-";
+
+export function shippedSensorOf(
+  command: readonly string[],
+): ShippedSensorEntry | undefined {
+  const program = command[0];
+
+  if (program === undefined || !program.startsWith(SENSE_PREFIX)) {
+    return undefined;
   }
 
-  return SHIPPED_SENSOR_LIST.some(
-    (entry) => entry.runs_tests && entry.name === command[1],
-  );
+  const name = program.slice(SENSE_PREFIX.length);
+
+  return SHIPPED_SENSOR_LIST.find((entry) => entry.name === name);
+}
+
+export function runsTests(command: readonly string[]): boolean {
+  return shippedSensorOf(command)?.runs_tests === true;
 }
 
 export function isScoped(command: readonly string[]): boolean {
-  if (command[0] !== "recognizer-sensors") {
-    return false;
-  }
-
-  return SHIPPED_SENSOR_LIST.some(
-    (entry) => entry.scoped && entry.name === command[1],
-  );
+  return shippedSensorOf(command)?.scoped === true;
 }
 
 function isSettingsMapping(value: unknown): value is Record<string, unknown> {
@@ -137,8 +141,8 @@ export function shippedCommand(
   settings: Record<string, unknown>,
 ): string[] {
   return [
-    "recognizer-sensors",
-    name,
+    `${SENSE_PREFIX}${name}`,
+    "run",
     "--repository",
     "{repository}",
     "--commit",

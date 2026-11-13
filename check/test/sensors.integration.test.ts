@@ -116,6 +116,21 @@ describe.skipIf(!HAS_UV)(
         "recognizer-sensors",
         `exec uv run --quiet --project ${REPO}/sensors recognizer-sensors "$@"`,
       );
+      launcher(
+        launchers,
+        "recognizer-sense-crap",
+        `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-crap "$@"`,
+      );
+      launcher(
+        launchers,
+        "recognizer-sense-mutation",
+        `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-mutation "$@"`,
+      );
+      launcher(
+        launchers,
+        "recognizer-sense-thresholds",
+        `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-thresholds "$@"`,
+      );
       process.env.SHELL = launcher(
         launchers,
         "shell.sh",
@@ -644,6 +659,21 @@ describe.skipIf(!HAS_UV)(
         "recognizer-sensors",
         `exec uv run --quiet --project ${REPO}/sensors recognizer-sensors "$@"`,
       );
+      launcher(
+        launchers,
+        "recognizer-sense-crap",
+        `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-crap "$@"`,
+      );
+      launcher(
+        launchers,
+        "recognizer-sense-mutation",
+        `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-mutation "$@"`,
+      );
+      launcher(
+        launchers,
+        "recognizer-sense-thresholds",
+        `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-thresholds "$@"`,
+      );
       process.env.PATH = `${launchers}:${savedPath}`;
 
       const git = (...args: string[]) =>
@@ -691,21 +721,25 @@ describe.skipIf(!HAS_UV)(
           .filter((line) => line !== "")
           .map((line) => JSON.parse(line));
         const names = events.map((event) => event.event);
-        const progress = events.filter((event) => event.event === "progress");
+        const plugin = events.filter(
+          (event) => event.event === "plugin" && event.phase === "sense",
+        );
+        const data = plugin.map((event) => event.data);
+        const progress = data.filter((event) => event.event === "progress");
+        const start = data.find((event) => event.event === "start");
 
-        expect(names.indexOf("start")).toBeLessThan(names.indexOf("progress"));
-        expect(names.lastIndexOf("progress")).toBeLessThan(
+        expect(plugin.every((event) => event.name === "mutation")).toBe(true);
+        expect(plugin.every((event) => event.phase === "sense")).toBe(true);
+        expect(names.indexOf("start")).toBeLessThan(events.indexOf(plugin[0]));
+        expect(events.lastIndexOf(plugin.at(-1))).toBeLessThan(
           names.indexOf("entry", names.indexOf("start")),
         );
-        expect(progress[0]).toEqual({
-          event: "progress",
-          phase: "sense",
-          name: "mutation",
-          step: "coverage",
-          suite: "sample",
+        expect(data[0]).toEqual({
+          event: "note",
+          text: "Coverage run: sample",
         });
+        expect(start).toMatchObject({ event: "start", unit: "functions" });
 
-        const mutants = progress.slice(1);
         const overlay = JSON.parse(
           readFileSync(
             join(repository, ".recognizer/cache/overlays/mutation.json"),
@@ -714,12 +748,15 @@ describe.skipIf(!HAS_UV)(
         );
         const mutated = Object.keys(overlay.values.killed).length;
 
-        expect(mutants.length).toBeGreaterThan(0);
-        expect(mutants.every((event) => event.step === "mutants")).toBe(true);
-        expect(mutants.at(-1)).toMatchObject({
+        expect(progress.length).toBeGreaterThan(0);
+        expect(progress.every((event) => event.unit === "functions")).toBe(
+          true,
+        );
+        expect(progress.at(-1)).toMatchObject({
           done: mutated,
           total: mutated,
         });
+        expect(JSON.stringify(events)).not.toContain('"step":"mutants"');
         expect(captured.out()).not.toContain("recognizer-progress");
       },
       scaledTimeout(240_000),
@@ -790,6 +827,21 @@ describe.skipIf(!HAS_UV)(
         launchers,
         "recognizer-sensors",
         `exec uv run --quiet --project ${REPO}/sensors recognizer-sensors "$@"`,
+      );
+      launcher(
+        launchers,
+        "recognizer-sense-crap",
+        `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-crap "$@"`,
+      );
+      launcher(
+        launchers,
+        "recognizer-sense-mutation",
+        `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-mutation "$@"`,
+      );
+      launcher(
+        launchers,
+        "recognizer-sense-thresholds",
+        `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-thresholds "$@"`,
       );
       launcher(launchers, "python", "exit 0");
       process.env.SHELL = launcher(

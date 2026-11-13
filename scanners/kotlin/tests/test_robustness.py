@@ -1,6 +1,6 @@
 import pytest
 import tree_sitter_kotlin
-from conftest import FIXTURE_ROOT, build_tree, member, module
+from conftest import FIXTURE_ROOT, build_tree, member, module, without_events
 from tree_sitter import Language, Parser
 
 from recognizer_scan_kotlin import scan, scan_with_stats
@@ -127,15 +127,18 @@ def test_the_cli_prints_one_stderr_line_when_files_are_damaged(tmp_path, capsys)
         {"A.kt": DAMAGED_ANNOTATED_OBJECT, "B.kt": "class B\n"},
     )
 
-    assert main([str(tmp_path), "--output", str(tmp_path / "out.json")]) == 0
-    assert capsys.readouterr().err == "recognizer-scan-kotlin: 1 of 2 files had damaged spans\n"
+    assert main(["run", str(tmp_path), "--output", str(tmp_path / "out.json")]) == 0
+    assert (
+        without_events(capsys.readouterr().err)
+        == "recognizer-scan-kotlin: 1 of 2 files had damaged spans\n"
+    )
 
 
 def test_the_cli_prints_nothing_when_no_file_is_damaged(tmp_path, capsys):
     build_tree(tmp_path, {"B.kt": "class B\n"})
 
-    assert main([str(tmp_path), "--output", str(tmp_path / "out.json")]) == 0
-    assert capsys.readouterr().err == ""
+    assert main(["run", str(tmp_path), "--output", str(tmp_path / "out.json")]) == 0
+    assert without_events(capsys.readouterr().err) == ""
 
 
 def test_braces_in_strings_and_comments_do_not_split_a_declaration(run):

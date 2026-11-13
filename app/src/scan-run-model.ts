@@ -80,19 +80,48 @@ function timed(
         timing: {
           ...timing,
           sensorAt: { ...timing.sensorAt, [event.name]: at },
-          mutantsFrom: null,
+          rateFrom: null,
         },
       };
-    case "progress":
-      return event.step === "mutants" && timing.mutantsFrom === null
-        ? {
-            ...next,
-            timing: { ...timing, mutantsFrom: { at, done: event.done } },
-          }
-        : next;
+    case "plugin":
+      return pluginTimed(next, timing, event, at);
     default:
       return next;
   }
+}
+
+function pluginTimed(
+  next: ScanProgress,
+  timing: ScanProgress["timing"],
+  event: Extract<ScanEvent, { event: "plugin" }>,
+  at: number,
+): ScanProgress {
+  const { data } = event;
+
+  if (data.event === "start") {
+    return { ...next, timing: { ...timing, rateFrom: null } };
+  }
+
+  if (data.event !== "progress") {
+    return next;
+  }
+
+  const from = timing.rateFrom;
+
+  return from !== null && from.unit === data.unit && from.step === data.step
+    ? next
+    : {
+        ...next,
+        timing: {
+          ...timing,
+          rateFrom: {
+            at,
+            done: data.done,
+            unit: data.unit,
+            ...(data.step === undefined ? {} : { step: data.step }),
+          },
+        },
+      };
 }
 
 export function foldRunLine(
@@ -127,12 +156,6 @@ export const FINISHED_HEAD = "Scan finished";
 export const STOPPED_HEAD = "Scan stopped";
 
 export const FINISHED_KEPT_TEXT = "Finished results kept";
-
-export const SHORT_REASONS: Record<string, string> = {
-  "coverage-unavailable": "No coverage report",
-  "tests-failed": "Tests failed",
-  "tool-missing": "Tool missing",
-};
 
 const REASON_LIMIT = 60;
 
@@ -209,16 +232,15 @@ function currentLine(record: ScanRunRecord, view: RunView): string {
     const reported = progress.sensorProgress;
     const name = display(current);
 
-    if (reported !== null && reported.name === current) {
-      const suite = reported.suite;
+    const counted =
+      reported !== null && reported.name === current
+        ? reported.progress
+        : undefined;
 
-      if (reported.step === "mutants") {
-        return suite === undefined
-          ? `${name} \u00b7 ${reported.done}/${reported.total}`
-          : `${name} \u00b7 ${suite} \u00b7 ${reported.done}/${reported.total}`;
-      }
-
-      return suite === undefined ? name : `${name} \u00b7 ${suite}`;
+    if (counted !== undefined) {
+      return counted.step === undefined
+        ? `${name} \u00b7 ${counted.done}/${counted.total}`
+        : `${name} \u00b7 ${counted.step} \u00b7 ${counted.done}/${counted.total}`;
     }
 
     return name;
@@ -268,16 +290,16 @@ function keptCounts(view: RunView): Kept | null {
     sensing === null ||
     sensorProgress === null ||
     sensorProgress.name !== sensing ||
-    sensorProgress.step !== "mutants"
+    sensorProgress.progress === undefined
   ) {
     return null;
   }
 
   return {
     sensor: sensing,
-    suite: sensorProgress.suite ?? null,
-    done: sensorProgress.done,
-    total: sensorProgress.total,
+    suite: sensorProgress.progress.step ?? null,
+    done: sensorProgress.progress.done,
+    total: sensorProgress.progress.total,
   };
 }
 
@@ -306,9 +328,7 @@ function stoppedLine(
 }
 
 function shortReason(failure: NonNullable<ScanRunRecord["failure"]>): string {
-  const short = failure.code === null ? undefined : SHORT_REASONS[failure.code];
-
-  return short ?? failure.reason.slice(0, REASON_LIMIT);
+  return failure.reason.slice(0, REASON_LIMIT);
 }
 
 function timeLeft(

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
+import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../scripts/pool-scale.mjs";
 import { promptVersion, versionOf } from "../src/prompt.js";
@@ -16,7 +17,27 @@ import {
   writeRequest,
 } from "./helpers.js";
 
-const MODEL = ["--model", "opus"];
+const validateCheck = new Ajv2020({ allErrors: true }).compile(
+  JSON.parse(readFileSync(join(REPO, "schema/check.schema.json"), "utf8")),
+);
+
+const MODEL = ["run", "--model", "opus"];
+
+const PREFIX = "recognizer-event ";
+
+function eventsOf(stderr: string): Record<string, unknown>[] {
+  return stderr
+    .split("\n")
+    .filter((line) => line.startsWith(PREFIX))
+    .map((line) => JSON.parse(line.slice(PREFIX.length)));
+}
+
+function withoutEvents(stderr: string): string {
+  return stderr
+    .split("\n")
+    .filter((line) => !line.startsWith(PREFIX))
+    .join("\n");
+}
 
 describe("prompt reaches claude", () => {
   it("sends the prompt, outline and source on stdin with the configured model", () => {
@@ -111,7 +132,11 @@ describe("the usage limit", () => {
 
     expect(result.status).toBe(75);
     expect(result.stdout).toBe("");
-    expect(result.stderr).toMatch(/^claude usage limit: .+\n$/);
+    expect(withoutEvents(result.stderr)).toMatch(/^claude usage limit: .+\n$/);
+    expect(eventsOf(result.stderr).at(-1)).toMatchObject({
+      event: "diagnosis",
+      code: "usage-limit",
+    });
   });
 
   it("does not treat a 404 error as a limit", () => {
@@ -186,29 +211,49 @@ describe("usage errors", () => {
     expect(claudeRan(box)).toBe(false);
   });
 
-  it("accepts --model with --check and exits 0 without running claude", () => {
+  it("answers the check verb with an empty document without running claude", () => {
     const box = sandbox();
-    const result = run(box, ["--model", "sonnet", "--check"]);
+    const result = run(box, ["check"]);
 
     expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({ gaps: [], notes: [] });
+    expect(validateCheck(JSON.parse(result.stdout))).toBe(true);
     expect(claudeRan(box)).toBe(false);
   });
 
-  it("rejects --check without a model", () => {
+  it("prints nothing for the guide verb", () => {
     const box = sandbox();
-    const result = run(box, ["--check"]);
+    const result = run(box, ["guide"]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("");
+    expect(claudeRan(box)).toBe(false);
+  });
+
+  it.each([
+    [["--check"]],
+    [["--prompt-version"]],
+    [["--model", "sonnet", "request.json"]],
+  ])("exits 2 naming the verbs for the old form %j", (args) => {
+    const box = sandbox();
+    const result = run(box, args);
 
     expect(result.status).toBe(2);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("manifest, check, run, guide");
     expect(claudeRan(box)).toBe(false);
   });
 
-  it("prints the prompt version without running claude", () => {
+  it("reports a start and a progress event around the reply", () => {
     const box = sandbox();
-    const result = run(box, ["--prompt-version"]);
+    const result = run(box, [...MODEL, writeRequest(box, REQUEST)]);
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toBe(`${promptVersion()}\n`);
-    expect(claudeRan(box)).toBe(false);
+    expect(eventsOf(result.stderr)).toEqual([
+      { event: "start", total: 1, unit: "modules" },
+      { event: "progress", done: 1, total: 1, unit: "modules" },
+    ]);
   });
 });
 

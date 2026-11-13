@@ -383,6 +383,29 @@ describe("createRescanner", () => {
     expect(posted[0]?.text).toBe("alpha failed: boom");
   });
 
+  it("posts no error message for a sensor entry that ended because the user pressed Stop", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [
+        current,
+        sensing(1),
+        line({
+          event: "entry",
+          phase: "sense",
+          name: "mutation",
+          outcome: "stopped",
+          reason: "stopped",
+        }),
+        summary,
+      ],
+    });
+    const { posted, rescanner } = harness(scan);
+
+    await rescanner.run();
+
+    expect(posted.filter((one) => one.kind === "error")).toEqual([]);
+  });
+
   it("runs Descriptions as running while the describe phase is open and waiting before it", async () => {
     const scan = fakeScan({
       defaults: { describe: true, sensors: true },

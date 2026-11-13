@@ -175,7 +175,7 @@ import { buildScanPanelView } from "./scan-panel-view";
 import type {
   DescribeAsk,
   DescribeStop,
-  SensorProgress,
+  PluginProgress,
   ShowTarget,
 } from "./scan-progress";
 import type { RunInput } from "./scan-run-model";
@@ -279,7 +279,7 @@ export type ScanHost = {
   external?: () => boolean;
   progressText: () => string | null;
   footer?: (text: string | null) => void;
-  sensorProgress?: () => SensorProgress | null;
+  sensorProgress?: () => PluginProgress | null;
   extracting?: () => boolean;
   describeProgress: () => { entries: number; total: number } | null;
   describeStop: () => DescribeStop | null;

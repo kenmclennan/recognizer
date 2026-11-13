@@ -351,6 +351,17 @@ export function createRescanner<Carried>(
     };
   }
 
+  function settleStopped(name: string) {
+    const running = run.running.filter((one) => one !== name);
+    const next = running.find((one) => one !== DESCRIBE_KEY) ?? null;
+
+    run = {
+      ...run,
+      running,
+      started: run.started === name ? next : run.started,
+    };
+  }
+
   function settleDescribe() {
     if (!run.running.includes(DESCRIBE_KEY)) {
       return;
@@ -412,12 +423,16 @@ export function createRescanner<Carried>(
     }
 
     if (event.event === "entry" && event.phase === "sense") {
-      finished(
-        event.name,
-        event.outcome === "ok",
-        event.reason ?? "failed",
-        event.diagnosis ?? null,
-      );
+      if (event.outcome === "stopped") {
+        settleStopped(event.name);
+      } else {
+        finished(
+          event.name,
+          event.outcome === "ok",
+          event.reason ?? "failed",
+          event.diagnosis ?? null,
+        );
+      }
 
       if (event.outcome === "failed") {
         postFailure(event.name, event.reason ?? "failed");

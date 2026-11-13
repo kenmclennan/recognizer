@@ -1041,8 +1041,9 @@ export const COMMANDS: Command[] = [
   {
     name: "plugin",
     summary:
-      "check that a command is a conforming Recognizer plugin: that its manifest verb answers, validates and is named for its kind",
-    usage: "recognizer plugin check <command> [--json]",
+      "check that a command is a conforming Recognizer plugin: that its verbs answer, its manifest validates, its events are well formed and it stops on SIGTERM",
+    usage:
+      "recognizer plugin check <command> [--repository <dir>] [--request <file>] [--json]",
     arguments: [
       {
         name: "<command>",
@@ -1050,9 +1051,21 @@ export const COMMANDS: Command[] = [
           "the plugin's program name, looked up on PATH, or an absolute path; its basename must be recognizer-scan-<name>, recognizer-sense-<name> or recognizer-describe-<name>",
       },
     ],
-    options: [{ flag: "--json", description: "print JSON instead of text" }],
+    options: [
+      {
+        flag: "--repository <dir>",
+        description:
+          "run the verbs in this repository instead of a temporary one, for a plugin that needs real content",
+      },
+      {
+        flag: "--request <file>",
+        description:
+          "a describe request file; a describer's run spends a model call, so it is not run without one",
+      },
+      { flag: "--json", description: "print JSON instead of text" },
+    ],
     output: {
-      text: "one line per result: ok, warn or fail, the result's name and, for a warning or a failure, the reason; the results are starts, clean-output, valid, named-for-command, protocol, side-effect-free and sentences",
+      text: "one line per result: ok, warn or fail, the result's name and, for a warning or a failure, the reason; the results are starts, clean-output, valid, named-for-command, protocol, side-effect-free, sentences, check-verb, guide-verb, run-verb, events and stop",
       json: "{ command, manifest, results: [{ name, status: ok|warn|fail, reason? }] } where manifest is the plugin's manifest, or null when it gave no valid one",
     },
     exitCodes: [

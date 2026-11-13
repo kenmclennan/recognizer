@@ -1,6 +1,5 @@
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
 
 from recognizer_sensors.crap import sensor as crap
 from recognizer_sensors.mutation import sensor as mutation
@@ -8,12 +7,6 @@ from recognizer_sensors.outcome import Outcome
 from recognizer_sensors.testrun.guide import guide, mutation_guide
 from recognizer_sensors.testrun.readiness import check_with_notes, mutation_check
 from recognizer_sensors.thresholds import sensor as thresholds
-
-
-def no_gaps(
-    repository: Path, settings: dict, run: bool, names: list[str] | None = None
-) -> tuple[list[dict], list[dict]]:
-    return [], []
 
 
 @dataclass(frozen=True)
@@ -24,7 +17,7 @@ class Sensor:
     runs_tests: bool = False
     scoped: bool = False
     checkpoints: bool = False
-    check: Callable[..., tuple[list[dict], list[dict]]] = no_gaps
+    check: Callable[..., tuple[list[dict], list[dict]]] | None = None
     guide: Callable[[], str] | None = None
 
 

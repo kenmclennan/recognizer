@@ -5,7 +5,16 @@ import sys
 from importlib.metadata import version
 from pathlib import Path
 
-from conftest import EXPECTED_SCAN, FIXTURE_ROOT, REPOSITORY, build_tree, edges_of, member, validate
+from conftest import (
+    EXPECTED_SCAN,
+    FIXTURE_ROOT,
+    REPOSITORY,
+    build_tree,
+    edges_of,
+    member,
+    validate,
+    without_events,
+)
 
 from recognizer_scan_kotlin import scan
 from recognizer_scan_kotlin.discovery import selection
@@ -23,8 +32,12 @@ def edge_pairs(document: dict, kind: str = "depends") -> set[tuple[str, str]]:
     return {(e["from"], e["to"]) for e in document["edges"] if e["kind"] == kind}
 
 
-def run_cli(*args):
+def run_bare(*args):
     return subprocess.run([str(CONSOLE_SCRIPT), *args], capture_output=True, text=True)
+
+
+def run_cli(*args):
+    return run_bare("run", *args)
 
 
 def test_fixture_matches_expected_scan():
@@ -244,7 +257,7 @@ def test_cli_end_to_end(tmp_path):
 
     assert result.returncode == 0
     assert document == wanted
-    assert result.stderr == ""
+    assert without_events(result.stderr) == ""
     validate(document)
 
     output = tmp_path / "scan.json"
@@ -259,7 +272,7 @@ def test_cli_end_to_end(tmp_path):
 
 
 def test_cli_prints_the_package_version():
-    result = run_cli("--version")
+    result = run_bare("--version")
 
     assert result.returncode == 0
     assert result.stdout == f"{version('recognizer-scan-kotlin')}\n"
@@ -270,3 +283,48 @@ def test_cli_refuses_a_root_that_is_not_a_directory(tmp_path):
 
     assert result.returncode == 2
     assert "ROOT is not a directory" in result.stderr
+
+
+def test_run_reports_start_and_progress_events_ending_at_the_total():
+    result = run_cli(str(FIXTURE_ROOT))
+    events = [
+        json.loads(line.removeprefix("recognizer-event "))
+        for line in result.stderr.splitlines()
+        if line.startswith("recognizer-event ")
+    ]
+
+    assert result.returncode == 0
+    assert events[0]["event"] == "start"
+    assert events[0]["unit"] == "files"
+    assert all(event["unit"] == "files" for event in events)
+    assert all(event["done"] <= event["total"] for event in events[1:])
+    assert events[-1] == {
+        "event": "progress",
+        "done": events[0]["total"],
+        "total": events[0]["total"],
+        "unit": "files",
+    }
+
+
+def test_check_exits_two_without_a_document():
+    result = run_bare("check")
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "manifest, check, run, guide" in result.stderr
+
+
+def test_guide_prints_nothing():
+    result = run_bare("guide")
+
+    assert result.returncode == 0
+    assert result.stdout == ""
+    assert result.stderr == ""
+
+
+def test_a_bare_path_and_a_flag_are_not_verbs(tmp_path):
+    for arguments in ([str(tmp_path)], ["--output", str(tmp_path / "x.json")]):
+        result = run_bare(*arguments)
+
+        assert result.returncode == 2
+        assert "manifest, check, run, guide" in result.stderr

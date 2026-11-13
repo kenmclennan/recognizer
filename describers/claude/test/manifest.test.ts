@@ -5,6 +5,7 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import { PROTOCOL } from "../src/manifest.js";
+import { promptVersion } from "../src/prompt.js";
 import { BIN, REPO } from "./helpers.js";
 
 const validate = new Ajv2020({ allErrors: true }).compile(
@@ -41,10 +42,8 @@ describe("the manifest verb", () => {
     expect(readdirSync(elsewhere)).toEqual([]);
   });
 
-  it("names the prompt version --prompt-version prints", () => {
-    const printed = spawnSync("node", [BIN, "--prompt-version"], {
-      encoding: "utf8",
-    }).stdout.trim();
+  it("names the version of the prompt file", () => {
+    const printed = promptVersion();
 
     expect(JSON.parse(manifest(makeTempDir("manifest-")).stdout)).toMatchObject(
       {

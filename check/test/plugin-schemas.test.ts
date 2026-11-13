@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import validateCheck from "../src/generated/check-validator.js";
 import validateEvent from "../src/generated/events-validator.js";
 import validateManifest from "../src/generated/manifest-validator.js";
 import { REPO } from "./helpers.js";
@@ -12,6 +13,7 @@ const SUITES = [
     validate: validateManifest,
   },
   { name: "event", folder: "schema/events-examples", validate: validateEvent },
+  { name: "check", folder: "schema/check-examples", validate: validateCheck },
 ];
 
 function files(folder: string, kind: string): string[] {

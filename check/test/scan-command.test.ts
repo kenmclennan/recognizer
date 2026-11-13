@@ -4,6 +4,7 @@ import { answerPath, markerPath, progressPath } from "../src/scan-marker.js";
 import { scannerFor } from "../src/scanners.js";
 import {
   APP_CONFIG,
+  describerManifestText,
   type FakeOptions,
   fakeIo,
   PYTHON,
@@ -53,6 +54,7 @@ describe("recognizer scan: command building", () => {
       {
         command: PYTHON,
         args: [
+          "run",
           ROOT,
           "--output",
           "/tmp/fake-0/scan.python.json",
@@ -65,6 +67,7 @@ describe("recognizer scan: command building", () => {
       {
         command: TYPESCRIPT,
         args: [
+          "run",
           ROOT,
           "--output",
           "/tmp/fake-1/scan.typescript.json",
@@ -108,8 +111,8 @@ describe("recognizer scan: command building", () => {
     });
 
     expect(fake.calls.slice(1).map((call) => call.args)).toEqual([
-      [ROOT, "--output", "/tmp/fake-0/scan.python.json"],
-      [ROOT, "--output", "/tmp/fake-1/scan.typescript.json"],
+      ["run", ROOT, "--output", "/tmp/fake-0/scan.python.json"],
+      ["run", ROOT, "--output", "/tmp/fake-1/scan.typescript.json"],
     ]);
   });
 
@@ -1278,8 +1281,8 @@ describe("recognizer scan: phases", () => {
         programs: {
           ...base.programs,
           "recognizer-describe-claude": (args) =>
-            args[0] === "--prompt-version"
-              ? { stdout: "prompt-0123456789ab\n" }
+            args[0] === "manifest"
+              ? { stdout: describerManifestText("prompt-0123456789ab") }
               : { stdout: "a shipped line\n" },
         },
       },
@@ -1296,6 +1299,7 @@ describe("recognizer scan: phases", () => {
     expect(code).toBe(0);
     expect(entry.describer).toEqual([
       "recognizer-describe-claude",
+      "run",
       "--model",
       "{model}",
       "{request}",
@@ -1390,7 +1394,7 @@ describe("recognizer scan: phases", () => {
     const diagnosis = {
       code: "tests-failed",
       line: "The suite fails before any mutation.",
-      failing: { count: 3, names: ["tests/test_a.py::test_one"] },
+      fix: "Fix the failing tests",
     };
     const { out } = await scan(
       setup(
@@ -1398,7 +1402,7 @@ describe("recognizer scan: phases", () => {
           programs: {
             "first-sensor": () => ({
               status: 2,
-              stderr: `recognizer-reason ${JSON.stringify(diagnosis)}\n${diagnosis.line}\n`,
+              stderr: `recognizer-event ${JSON.stringify({ event: "diagnosis", code: diagnosis.code, text: diagnosis.line, fix: diagnosis.fix })}\n${diagnosis.line}\n`,
             }),
             "second-sensor": findings("second"),
           },
@@ -1475,12 +1479,13 @@ describe("recognizer scan: phases", () => {
   });
 
   describe("a sensor that reports progress", () => {
-    const PROGRESS = [
-      'recognizer-progress {"step":"coverage"}',
-      "recognizer-progress not json",
-      'recognizer-progress {"step":"later"}',
-      'recognizer-progress {"step":"mutants","done":1,"total":2}',
-      'recognizer-progress {"step":"mutants","done":2,"total":2}',
+    const EVENTS = [
+      'recognizer-event {"event":"start","total":2,"unit":"functions"}',
+      'recognizer-event {"event":"note","text":"Coverage run: unit"}',
+      "recognizer-event not json",
+      'recognizer-event {"event":"later"}',
+      'recognizer-event {"event":"progress","done":1,"total":2,"unit":"functions"}',
+      'recognizer-event {"event":"progress","done":2,"total":2,"unit":"functions"}',
       "",
     ].join("\n");
 
@@ -1500,13 +1505,13 @@ describe("recognizer scan: phases", () => {
               }),
             );
 
-            return { stderr: PROGRESS };
+            return { stderr: EVENTS };
           },
         },
       });
     }
 
-    it("passes each progress line through the --json stream between start and entry", async () => {
+    it("passes each plugin event through the --json stream as a plugin line between start and entry", async () => {
       const { out, code } = await scan(
         mutating(),
         "--sense",
@@ -1517,47 +1522,91 @@ describe("recognizer scan: phases", () => {
 
       expect(code).toBe(0);
       expect(
-        events.map((one) => [one.event, one.step ?? one.name ?? null]),
+        events.map((one) => [
+          one.event,
+          one.name ?? null,
+          (one.data as { event?: string } | undefined)?.event ?? null,
+        ]),
       ).toEqual([
-        ["preflight", null],
-        ["phase", null],
-        ["preflight", null],
-        ["phase", null],
-        ["start", "mutation"],
-        ["progress", "coverage"],
-        ["progress", "mutants"],
-        ["progress", "mutants"],
-        ["entry", "mutation"],
-        ["summary", null],
+        ["preflight", null, null],
+        ["phase", null, null],
+        ["preflight", null, null],
+        ["phase", null, null],
+        ["start", "mutation", null],
+        ["plugin", "mutation", "start"],
+        ["plugin", "mutation", "note"],
+        ["plugin", "mutation", "progress"],
+        ["plugin", "mutation", "progress"],
+        ["entry", "mutation", null],
+        ["summary", null, null],
       ]);
-      expect(events[5]).toEqual({
-        event: "progress",
+      expect(events[6]).toEqual({
+        event: "plugin",
         phase: "sense",
         name: "mutation",
-        step: "coverage",
+        data: { event: "note", text: "Coverage run: unit" },
       });
-      expect(events[7]).toEqual({
-        event: "progress",
+      expect(events[8]).toEqual({
+        event: "plugin",
         phase: "sense",
         name: "mutation",
-        step: "mutants",
-        done: 2,
-        total: 2,
+        data: { event: "progress", done: 2, total: 2, unit: "functions" },
       });
+      expect(JSON.stringify(events)).not.toContain('"step":"coverage"');
+    });
+
+    it("forwards a scanner's events as extract plugin lines tagged with its language", async () => {
+      const { out, code } = await scan(
+        {
+          files: { [`${ROOT}/a.py`]: "" },
+          scanners: {
+            [PYTHON]: {
+              output: scanJson(1, 0),
+              stderr: [
+                'recognizer-event {"event":"start","total":1,"unit":"files"}',
+                'recognizer-event {"event":"progress","done":1,"total":1,"unit":"files"}',
+                "",
+              ].join("\n"),
+            },
+          },
+        },
+        "--extract",
+        "--json",
+      );
+      const plugin = lines(out).filter((one) => one.event === "plugin");
+
+      expect(code).toBe(0);
+      expect(plugin).toEqual([
+        {
+          event: "plugin",
+          phase: "extract",
+          name: "python",
+          data: { event: "start", total: 1, unit: "files" },
+        },
+        {
+          event: "plugin",
+          phase: "extract",
+          name: "python",
+          data: { event: "progress", done: 1, total: 1, unit: "files" },
+        },
+      ]);
     });
 
     it("writes no progress without --json and keeps none in the run record", async () => {
       const text = await scan(mutating(), "--sense", "mutation");
 
-      expect(text.out).not.toContain("progress");
-      expect(text.out).not.toContain("recognizer-progress");
+      expect(text.out).not.toContain("plugin");
+      expect(text.out).not.toContain("recognizer-event");
 
       const json = await scan(mutating(), "--sense", "mutation", "--json");
 
       for (const result of [text, json]) {
         const [record] = records(result.fake);
 
-        expect(JSON.stringify(record)).not.toContain("recognizer-progress");
+        expect(JSON.stringify(record)).not.toContain("recognizer-event");
+        expect(JSON.stringify(record)).toContain(
+          "ignored 2 invalid event lines",
+        );
       }
     });
   });

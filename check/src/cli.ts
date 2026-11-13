@@ -58,18 +58,20 @@ export interface RunResult {
   stdout: string;
   stderr: string;
   timedOut?: boolean;
+  stopped?: boolean;
 }
 
 export interface RunOptions {
   cwd?: string;
   timeoutMs?: number;
+  graceMs?: number;
   env?: Record<string, string>;
   onStderrLine?: (line: string) => void;
 }
 
 export interface Running {
   result: Promise<RunResult>;
-  kill(): void;
+  kill(signal?: "SIGTERM" | "SIGKILL"): void;
 }
 
 export interface LaunchResult {
@@ -134,21 +136,70 @@ const REQUEST_SCRIPT = [
 
 const liveChildren = new Set<ChildProcess>();
 
+const stoppedChildren = new WeakSet<ChildProcess>();
+
 const liveTempDirs = new Set<string>();
 
-export function stopEverything(exit?: number): void {
-  releaseHeldMarkers(exit);
+export const STOP_GRACE_MS = 10_000;
 
-  for (const child of liveChildren) {
-    child.kill("SIGTERM");
-  }
+function exited(child: ChildProcess): Promise<void> {
+  return new Promise((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      resolve();
 
+      return;
+    }
+
+    child.once("exit", () => resolve());
+  });
+}
+
+function finishStop(): void {
   for (const directory of liveTempDirs) {
     rmSync(directory, { recursive: true, force: true });
   }
 
   liveTempDirs.clear();
   promotePending();
+}
+
+export function stopEverything(
+  exit?: number,
+  graceMs: number = STOP_GRACE_MS,
+): Promise<void> {
+  releaseHeldMarkers(exit);
+
+  const stopping = [...liveChildren];
+
+  if (stopping.length === 0) {
+    finishStop();
+
+    return Promise.resolve();
+  }
+
+  for (const child of stopping) {
+    stoppedChildren.add(child);
+    child.kill("SIGTERM");
+  }
+
+  let timer: NodeJS.Timeout | undefined;
+
+  return Promise.race([
+    Promise.all(stopping.map(exited)),
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, graceMs);
+    }),
+  ]).then(() => {
+    clearTimeout(timer);
+
+    for (const child of stopping) {
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill("SIGKILL");
+      }
+    }
+
+    finishStop();
+  });
 }
 
 function spawnAsync(
@@ -174,6 +225,7 @@ function spawnAsync(
     let pending = "";
     let timedOut = false;
     let settled = false;
+    let grace: NodeJS.Timeout | undefined;
 
     const deliver = (chunk: string) => {
       if (options?.onStderrLine === undefined) {
@@ -198,6 +250,7 @@ function spawnAsync(
 
       settled = true;
       clearTimeout(timer);
+      clearTimeout(grace);
       liveChildren.delete(child);
       resolve(value);
     };
@@ -231,21 +284,32 @@ function spawnAsync(
         stdout,
         stderr,
         ...(timedOut ? { timedOut } : {}),
+        ...(stoppedChildren.has(child) && !timedOut ? { stopped: true } : {}),
       });
     });
 
     if (options?.timeoutMs !== undefined) {
       timer = setTimeout(() => {
         timedOut = true;
-        child.kill("SIGKILL");
+
+        if (options.graceMs === undefined) {
+          child.kill("SIGKILL");
+
+          return;
+        }
+
+        child.kill("SIGTERM");
+        grace = setTimeout(() => {
+          child.kill("SIGKILL");
+        }, options.graceMs);
       }, options.timeoutMs);
     }
   });
 
   return {
     result,
-    kill: () => {
-      child.kill("SIGTERM");
+    kill: (signal = "SIGTERM") => {
+      child.kill(signal);
     },
   };
 }

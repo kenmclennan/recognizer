@@ -156,7 +156,8 @@
         "outcome": {
           "enum": [
             "ok",
-            "failed"
+            "failed",
+            "stopped"
           ]
         },
         "duration_ms": {
@@ -176,11 +177,12 @@
           ],
           "properties": {
             "code": {
-              "enum": [
-                "tool-missing",
-                "tests-failed",
-                "coverage-unavailable"
-              ]
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "unmeasured": {
+              "type": "boolean"
             },
             "line": {
               "type": "string",

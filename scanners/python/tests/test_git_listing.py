@@ -207,7 +207,7 @@ def test_the_cli_extracts_the_tracked_and_untracked_modules_and_not_the_ignored_
     )
 
     result = subprocess.run(
-        [str(CONSOLE_SCRIPT), str(tmp_path)], capture_output=True, text=True, check=True
+        [str(CONSOLE_SCRIPT), "run", str(tmp_path)], capture_output=True, text=True, check=True
     )
 
     assert sorted(m["id"] for m in json.loads(result.stdout)["modules"]) == [SOURCE, UNTRACKED]

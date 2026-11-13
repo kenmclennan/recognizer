@@ -15,9 +15,9 @@ const PY_CACHE = `${ROOT}/.recognizer/cache/scan.python.json`;
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
 const LOG = `${ROOT}/.recognizer/cache/log`;
 const REFERENCE =
-  'describer:\n  command: [recognizer-describe-claude, --model, "{model}", "{request}"]\n  version: "v1"\n';
+  'describer:\n  command: [recognizer-describe-claude, run, --model, "{model}", "{request}"]\n  version: "v1"\n';
 const IN_TREE =
-  'describer:\n  command: [node, "{repository}/describers/claude/dist/bin.js", --model, "{model}", "{request}"]\n  version: "v1"\n';
+  'describer:\n  command: [node, "{repository}/describers/claude/dist/bin.js", run, --model, "{model}", "{request}"]\n  version: "v1"\n';
 const CUSTOM =
   'describer:\n  command: [custom-describer, "{module}"]\n  version: "v1"\n';
 
@@ -111,9 +111,7 @@ function records(fake: ReturnType<typeof fakeIo>) {
 function sensorRuns(fake: ReturnType<typeof fakeIo>) {
   return fake.calls.filter(
     (call) =>
-      call.command === "recognizer-sensors" &&
-      !call.args.includes("--check") &&
-      !call.args.includes("--version"),
+      call.command.startsWith("recognizer-sense-") && call.args[0] === "run",
   );
 }
 
@@ -163,7 +161,7 @@ describe("scan preflight: the early stage", () => {
         "recognizer-describe-claude": (args) => {
           calls.push(args);
 
-          return args.includes("--check")
+          return args[0] === "check"
             ? { status: 2, stderr: "usage" }
             : { stdout: "a line\n" };
         },
@@ -175,7 +173,19 @@ describe("scan preflight: the early stage", () => {
     expect(err).toContain(
       "the describer rejects the arguments the scan passes (describe): brew install --cask kenmclennan/tap/recognizer",
     );
-    expect(calls).toEqual([["--model", "sonnet", "--check"]]);
+    expect(calls).toEqual([["check"]]);
+  });
+
+  it("gives the describer gap for a registered reference describer with no run element", async () => {
+    const options = setup(
+      'describer:\n  command: [recognizer-describe-claude, --model, "{model}", "{request}"]\n  version: "v1"\n',
+    );
+    const { code, err } = await scan(options, "--describe");
+
+    expect(code).toBe(4);
+    expect(err).toContain(
+      "the describer does not speak the plugin verbs: its command has no run element (describe)",
+    );
   });
 
   it("gives an npm run build fix for the in-tree describer", async () => {
@@ -261,10 +271,17 @@ describe("scan preflight: the early stage", () => {
 describe("scan preflight: the project stage", () => {
   it("checks only ticked sensors", async () => {
     const { code, fake } = await scan(setup(""), "--sense", "thresholds,crap");
-    const checks = fake.calls.filter((call) => call.args.includes("--check"));
+    const checks = fake.calls.filter(
+      (call) =>
+        call.command.startsWith("recognizer-sense-") &&
+        call.args[0] === "check",
+    );
 
     expect(code).toBe(0);
-    expect(checks.map((call) => call.args[0])).toEqual(["thresholds", "crap"]);
+    expect(checks.map((call) => call.command)).toEqual([
+      "recognizer-sense-thresholds",
+      "recognizer-sense-crap",
+    ]);
 
     for (const check of checks) {
       expect(check.args).not.toContain("--output");
@@ -304,7 +321,8 @@ describe("scan preflight: the project stage", () => {
     expect(code).toBe(0);
     expect(
       fake.calls.some(
-        (call) => call.args.includes("--check") && call.args[0] === "crap",
+        (call) =>
+          call.args[0] === "check" && call.command === "recognizer-sense-crap",
       ),
     ).toBe(false);
   });

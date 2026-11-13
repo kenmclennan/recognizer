@@ -550,23 +550,31 @@ describe("remaining time while running", () => {
       [
         T,
         {
-          event: "progress",
+          event: "plugin",
           phase: "sense",
           name: "mutation",
-          step: "mutants",
-          done: 14,
-          total: 38,
+          data: {
+            event: "progress",
+            done: 14,
+            total: 38,
+            unit: "functions",
+            step: "mutants",
+          },
         },
       ],
       [
         T + 60_000,
         {
-          event: "progress",
+          event: "plugin",
           phase: "sense",
           name: "mutation",
-          step: "mutants",
-          done,
-          total: 38,
+          data: {
+            event: "progress",
+            done,
+            total: 38,
+            unit: "functions",
+            step: "mutants",
+          },
         },
       ],
     ]);
@@ -579,7 +587,7 @@ describe("remaining time while running", () => {
       now: T + 60_000,
     });
 
-  it("paces Mutation from the functions done since its first mutants line", () => {
+  it("paces a plugin from the units done since its first progress event", () => {
     expect(mutationLeft(mutating(17), ["unit"])?.text).toBe("about 7 min left");
   });
 

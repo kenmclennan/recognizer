@@ -3,7 +3,14 @@ import shlex
 import sys
 
 import pytest
-from conftest import FINDINGS_SCHEMA, git_commit, make_repository, mutate_repository, python_suite
+from conftest import (
+    FINDINGS_SCHEMA,
+    event_lines,
+    git_commit,
+    make_repository,
+    mutate_repository,
+    python_suite,
+)
 from jsonschema import Draft202012Validator
 from test_mutation import run_mutate
 
@@ -96,6 +103,7 @@ def crap_document(tmp_path, settings):
     status = main(
         [
             "crap",
+            "run",
             "--repository",
             str(root),
             "--output",
@@ -146,7 +154,8 @@ def test_mutation_over_a_red_suite_refuses_and_leaves_no_work_folder(tmp_path, c
     lines = [line for line in capsys.readouterr().err.splitlines() if line != CARRY_HINT]
 
     assert status == 2
-    assert json.loads(lines[0].removeprefix("recognizer-reason "))["code"] == "tests-failed"
+    assert event_lines("\n".join(lines))[-1]["code"] == "tests-failed"
+    assert not any(line.startswith("recognizer-reason ") for line in lines)
     assert lines[-1] == "the test suite fails before any mutation: t/a.py::bad"
     assert not output.exists()
     assert not (root / ".recognizer/cache/mutation/work").exists()

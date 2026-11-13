@@ -7,6 +7,7 @@ from recognizer_scan_csharp.calls import resolve_calls
 from recognizer_scan_csharp.declarations import SourceFile, read_source
 from recognizer_scan_csharp.discovery import directory_of, discover, selection
 from recognizer_scan_csharp.entry_points import convention_roots, is_entry_point
+from recognizer_scan_csharp.events import Progress
 from recognizer_scan_csharp.extensions import extension_edges
 from recognizer_scan_csharp.index import Index
 from recognizer_scan_csharp.markup import read_markup
@@ -89,7 +90,11 @@ def absent_projects_of(root: Path, projects: dict[str, Project]) -> list[str]:
 
 
 def read_all(
-    root: Path, paths: list[str], projects: dict[str, Project], including: dict[str, set[str]]
+    root: Path,
+    paths: list[str],
+    projects: dict[str, Project],
+    including: dict[str, set[str]],
+    progress: Progress | None = None,
 ) -> tuple[list[SourceFile], list[dict]]:
     files = []
     hashes = []
@@ -107,6 +112,9 @@ def read_all(
         file.reach = frozenset(reach)
         files.append(file)
         hashes.append({"path": path, "hash": hashlib.sha256(data).hexdigest()})
+
+        if progress is not None:
+            progress.advance()
 
     return files, hashes
 
@@ -141,14 +149,26 @@ def global_usings(files: list[SourceFile]) -> dict[str, list]:
     return found
 
 
-def scan_with_stats(root: Path, commit: str | None, modified: bool | None = None) -> Scan:
+def scan_with_stats(
+    root: Path,
+    commit: str | None,
+    modified: bool | None = None,
+    progress: Progress | None = None,
+) -> Scan:
     root = Path(root)
     found = discover(root)
     reads: set[Path] = set()
     projects = load_projects(root, found.projects, found.solutions, reads)
     including = including_projects(projects, found.sources)
     paths = [p for p in found.sources if is_scanned(projects, including[p])]
-    files, hashes = read_all(root, paths, projects, including)
+    if progress is not None:
+        progress.start(len(paths))
+
+    files, hashes = read_all(root, paths, projects, including, progress)
+
+    if progress is not None:
+        progress.finish()
+
     index = Index(files)
     resolver = Resolver(index, projects, global_usings(files))
     roots = convention_roots(files, index)

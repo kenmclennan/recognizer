@@ -72,8 +72,8 @@ async function openEverything() {
 const steps = [
   ["idle", () => idle()],
   ["extracting", () => ({ ...idle(), running: true, extracting: true, progressText: "Extracting" })],
-  ["sensor running", () => ({ ...idle(), running: true, progressText: "crap", runState: { running: ["crap"], started: "crap", failures: {}, diagnoses: {}, ranAt: {} }, sensorProgress: { name: "crap", step: "mutants", done: 1, total: 4 } })],
-  ["sensor advancing", () => ({ ...idle(), running: true, progressText: "crap", runState: { running: ["crap"], started: "crap", failures: {}, diagnoses: {}, ranAt: {} }, sensorProgress: { name: "crap", step: "mutants", done: 3, total: 4 } })],
+  ["sensor running", () => ({ ...idle(), running: true, progressText: "crap", runState: { running: ["crap"], started: "crap", failures: {}, diagnoses: {}, ranAt: {} }, sensorProgress: { name: "crap", phase: "sense", progress: { done: 1, total: 4, unit: "functions" } } })],
+  ["sensor advancing", () => ({ ...idle(), running: true, progressText: "crap", runState: { running: ["crap"], started: "crap", failures: {}, diagnoses: {}, ranAt: {} }, sensorProgress: { name: "crap", phase: "sense", progress: { done: 3, total: 4, unit: "functions" } } })],
   ["describing", () => ({ ...idle(), running: true, progressText: "Describing", describe: { entries: 1, total: 2 } })],
   ["failing", () => ({ ...idle(), runState: { running: [], started: null, failures: { crap: "broke" }, diagnoses: {}, ranAt: {} } })],
   ["settled", () => idle()],

@@ -109,8 +109,23 @@ describe("parseScanLine diagnosis", () => {
     });
   });
 
+  it("accepts any non-empty code and reads unmeasured", () => {
+    const custom = { code: "custom-code", line: "why", unmeasured: true };
+
+    expect(
+      parseScanLine(JSON.stringify(sensed({ diagnosis: custom }))),
+    ).toEqual({
+      event: "entry",
+      phase: "sense",
+      name: "crap",
+      outcome: "failed",
+      reason: "refused",
+      diagnosis: custom,
+    });
+  });
+
   it.each([
-    ["an unknown code", { ...diagnosis, code: "nope" }],
+    ["an empty code", { ...diagnosis, code: "" }],
     ["a missing line", { code: "tests-failed" }],
     ["a fix that is not a string", { ...diagnosis, fix: 4 }],
     [
@@ -285,24 +300,33 @@ describe("the start event", () => {
   });
 });
 
-describe("sensor progress", () => {
+describe("plugin progress", () => {
   const rows = [
     { key: "crap", display: "Crap" },
     { key: "mutation", display: "Mutation" },
   ];
-  const coverage = {
-    event: "progress",
-    phase: "sense",
-    name: "mutation",
-    step: "coverage",
-  };
-  const mutants = (done: number, total: number) => ({
-    event: "progress",
-    phase: "sense",
-    name: "mutation",
-    step: "mutants",
-    done,
-    total,
+  const plugin = (name: string, data: object, phaseName = "sense") => ({
+    event: "plugin",
+    phase: phaseName,
+    name,
+    data,
+  });
+  const coverage = plugin("mutation", {
+    event: "note",
+    text: "Coverage run for unit",
+  });
+  const mutants = (done: number, total: number, step?: string) =>
+    plugin("mutation", {
+      event: "progress",
+      done,
+      total,
+      unit: "functions",
+      ...(step === undefined ? {} : { step }),
+    });
+  const started = plugin("mutation", {
+    event: "start",
+    total: 229,
+    unit: "functions",
   });
   const start = (name: string) => ({ event: "start", phase: "sense", name });
   const running = fold([
@@ -318,6 +342,7 @@ describe("sensor progress", () => {
       mutants(153, 229),
     );
     expect(parseScanLine(JSON.stringify(mutants(0, 0)))).toEqual(mutants(0, 0));
+    expect(parseScanLine(JSON.stringify(started))).toEqual(started);
   });
 
   it("rejects done above total, a negative or fractional count and a missing done", () => {
@@ -325,29 +350,79 @@ describe("sensor progress", () => {
     expect(parseScanLine(JSON.stringify(mutants(-1, 2)))).toBeNull();
     expect(parseScanLine(JSON.stringify(mutants(1.5, 2)))).toBeNull();
     expect(
-      parseScanLine(JSON.stringify({ ...coverage, step: "mutants" })),
+      parseScanLine(
+        JSON.stringify(plugin("mutation", { event: "progress", total: 2 })),
+      ),
     ).toBeNull();
     expect(
-      parseScanLine(JSON.stringify({ ...coverage, step: "later" })),
+      parseScanLine(JSON.stringify(plugin("mutation", { event: "later" }))),
     ).toBeNull();
     expect(
-      parseScanLine(JSON.stringify({ ...coverage, phase: "describe" })),
+      parseScanLine(JSON.stringify({ ...coverage, phase: "other" })),
     ).toBeNull();
   });
 
-  it("is stored on a progress line and cleared on the next start and on a sense entry", () => {
+  it("is stored on a plugin progress event and cleared on the plugin's next start and on a sense entry", () => {
     const stored = fold([mutants(1, 2)], running);
 
     expect(stored.sensorProgress).toEqual({
       name: "mutation",
-      step: "mutants",
-      done: 1,
-      total: 2,
+      phase: "sense",
+      progress: { done: 1, total: 2, unit: "functions" },
     });
     expect(fold([start("other")], stored).sensorProgress).toBeNull();
+    expect(fold([started], stored).sensorProgress).toEqual({
+      name: "mutation",
+      phase: "sense",
+    });
     expect(
       fold([entry("mutation", "sense")], stored).sensorProgress,
     ).toBeNull();
+  });
+
+  it("folds a start, a progress, a note and a progress in turn", () => {
+    const counted = {
+      done: 3,
+      total: 9,
+      unit: "functions",
+      step: "unit",
+    };
+    const afterStart = fold([started], running);
+    const afterProgress = fold([mutants(3, 9, "unit")], afterStart);
+    const afterNote = fold([coverage], afterProgress);
+    const afterNext = fold([mutants(4, 9, "unit")], afterNote);
+
+    expect(afterStart.sensorProgress).toEqual({
+      name: "mutation",
+      phase: "sense",
+    });
+    expect(afterProgress.sensorProgress).toEqual({
+      name: "mutation",
+      phase: "sense",
+      progress: counted,
+    });
+    expect(afterNote.sensorProgress).toEqual({
+      name: "mutation",
+      phase: "sense",
+      progress: counted,
+      note: "Coverage run for unit",
+    });
+    expect(afterNext.sensorProgress).toEqual({
+      name: "mutation",
+      phase: "sense",
+      progress: { ...counted, done: 4 },
+    });
+    expect(afterNext.startedSuites).toEqual({ mutation: ["unit"] });
+  });
+
+  it("does not let another plugin's lines replace the running one's", () => {
+    const stored = fold([mutants(3, 9)], running);
+    const other = fold(
+      [plugin("crap", { event: "progress", done: 1, total: 2, unit: "x" })],
+      stored,
+    );
+
+    expect(other.sensorProgress?.name).toBe("mutation");
   });
 
   it("shows the suite on coverage, then the suite and count, with no estimate", () => {
@@ -355,7 +430,7 @@ describe("sensor progress", () => {
       "Running Mutation\u2026 2 of 2",
     );
     expect(scanningText(rows, "mutation", fold([coverage], running))).toBe(
-      "Mutation: measuring coverage",
+      "Mutation: Coverage run for unit",
     );
     expect(
       scanningText(rows, "mutation", fold([mutants(153, 229)], running)),
@@ -364,22 +439,23 @@ describe("sensor progress", () => {
       scanningText(rows, "mutation", fold([mutants(229, 229)], running)),
     ).toBe("Mutation: 229 of 229 functions");
     expect(
-      scanningText(
-        rows,
-        "mutation",
-        fold([{ ...coverage, suite: "unit" }], running),
-      ),
-    ).toBe("Mutation: unit coverage");
-    expect(
-      scanningText(
-        rows,
-        "mutation",
-        fold([{ ...mutants(11, 29), suite: "unit" }], running),
-      ),
-    ).toBe("Mutation: unit \u00b7 11/29");
+      scanningText(rows, "mutation", fold([mutants(11, 29, "unit")], running)),
+    ).toBe("Mutation: unit \u00b7 11 of 29 functions");
   });
 
-  it("ignores another sensor's stored progress", () => {
+  it("reads the extract phase with the plugin's name", () => {
+    const extracting = fold([
+      plugin(
+        "python",
+        { event: "progress", done: 5, total: 40, unit: "files" },
+        "extract",
+      ),
+    ]);
+
+    expect(scanningText(rows, null, extracting)).toBe("Python: 5 of 40 files");
+  });
+
+  it("ignores another plugin's stored progress", () => {
     expect(scanningText(rows, "crap", fold([coverage], running))).toBe(
       "Running Crap\u2026 1 of 2",
     );

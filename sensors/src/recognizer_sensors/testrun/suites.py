@@ -8,9 +8,9 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from recognizer_sensors import events
 from recognizer_sensors.crap.jacoco import merge_coverage
 from recognizer_sensors.crap.lcov import Coverage
-from recognizer_sensors.progress import report
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import Refusal, SettingsError, diagnose, relative_path
 from recognizer_sensors.testrun.failures import crap_tests_failed, failing_names, suite_failed
@@ -266,11 +266,12 @@ def run_suite(repository: Path, suite: Suite, stream) -> tuple[int, str]:
     return result.returncode, output
 
 
-def unavailable(cause: str, suite: str | None = None) -> dict:
+def unavailable(cause: str, suite: str | None = None, unmeasured: bool = False) -> dict:
     return diagnose(
         "coverage-unavailable",
         f"coverage unavailable: {cause}; see {LOG.as_posix()}",
         suite=suite,
+        unmeasured=unmeasured,
     )
 
 
@@ -303,7 +304,7 @@ def collect_suites(
 
     with log.open("w", encoding="utf-8") as stream:
         for suite in runnable:
-            report("coverage", suite=suite.name)
+            events.note(f"Coverage run: {suite.name}")
             started = time.time()
             returncode, output = run_suite(repository, suite, stream)
             source = source_of(suite)
@@ -324,7 +325,7 @@ def collect_suites(
                         f"and left no coverage report at {where}"
                     )
 
-                diagnosis = unavailable(cause, suite.name)
+                diagnosis = unavailable(cause, suite.name, unmeasured=True)
                 outcome.update(status="failed", reason=diagnosis["line"])
 
                 continue
@@ -333,7 +334,9 @@ def collect_suites(
 
             if covers_nothing(part, source, suite.language, scans):
                 diagnosis = unavailable(
-                    f"the {suite.name} suite produced an empty coverage report", suite.name
+                    f"the {suite.name} suite produced an empty coverage report",
+                    suite.name,
+                    unmeasured=True,
                 )
                 outcome.update(status="failed", reason=diagnosis["line"])
 
@@ -350,6 +353,7 @@ def collect_suites(
         diagnosis = diagnose(
             "coverage-unavailable",
             f"coverage unavailable: no test suite is configured for {', '.join(uncovered)}",
+            unmeasured=True,
         )
 
     return merged, diagnosis

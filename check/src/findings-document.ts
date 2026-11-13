@@ -1,7 +1,7 @@
 import validate from "./generated/findings-validator.js";
+import type { Diagnosis } from "./plugin-events.js";
 import type { Citation } from "./principles.js";
 import type { Rule } from "./rules.js";
-import type { Diagnosis } from "./sensor-reason.js";
 
 export interface FindingEdge {
   from: string;

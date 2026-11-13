@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 import tree_sitter_c_sharp
-from conftest import build_tree, csproj, member
+from conftest import build_tree, csproj, member, without_events
 from tree_sitter import Language, Parser
 
 from recognizer_scan_csharp import scan_with_stats
@@ -87,10 +87,13 @@ def test_the_cli_prints_the_damaged_line_and_exits_zero(tmp_path, capsys):
             "App/B.cs": "namespace N;\npublic class B {}\n",
         },
     )
-    code = main([str(tmp_path), "--output", str(tmp_path / "out.json")])
+    code = main(["run", str(tmp_path), "--output", str(tmp_path / "out.json")])
 
     assert code == 0
-    assert capsys.readouterr().err == "recognizer-scan-csharp: 1 of 2 files had damaged spans\n"
+    assert (
+        without_events(capsys.readouterr().err)
+        == "recognizer-scan-csharp: 1 of 2 files had damaged spans\n"
+    )
 
 
 def test_three_fs_and_one_vb_file_print_the_left_out_line(tmp_path, capsys):
@@ -98,21 +101,24 @@ def test_three_fs_and_one_vb_file_print_the_left_out_line(tmp_path, capsys):
         tmp_path,
         {"A.cs": "class A {}\n", "a.fs": "", "b.fs": "", "sub/c.fs": "", "d.vb": ""},
     )
-    main([str(tmp_path), "--output", str(tmp_path / "out.json")])
+    main(["run", str(tmp_path), "--output", str(tmp_path / "out.json")])
 
-    assert capsys.readouterr().err == "recognizer-scan-csharp: left out 3 .fs and 1 .vb files\n"
+    assert (
+        without_events(capsys.readouterr().err)
+        == "recognizer-scan-csharp: left out 3 .fs and 1 .vb files\n"
+    )
 
 
 def test_no_left_out_files_print_no_line(tmp_path, capsys):
     build_tree(tmp_path, {"A.cs": "class A {}\n"})
-    main([str(tmp_path), "--output", str(tmp_path / "out.json")])
+    main(["run", str(tmp_path), "--output", str(tmp_path / "out.json")])
 
-    assert capsys.readouterr().err == ""
+    assert without_events(capsys.readouterr().err) == ""
 
 
 def test_a_repository_with_no_cs_file_is_not_an_error(tmp_path, capsys):
     build_tree(tmp_path, {"README.md": "x"})
-    code = main([str(tmp_path), "--output", str(tmp_path / "out.json")])
+    code = main(["run", str(tmp_path), "--output", str(tmp_path / "out.json")])
 
     assert code == 0
     assert (tmp_path / "out.json").read_text().count('"modules": []') == 1

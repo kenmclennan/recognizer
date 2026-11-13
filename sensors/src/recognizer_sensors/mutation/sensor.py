@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
+from recognizer_sensors import events
 from recognizer_sensors.crap.lcov import function_coverage
 from recognizer_sensors.findings import render, write_atomically
 from recognizer_sensors.functions import find_functions
@@ -60,7 +61,6 @@ from recognizer_sensors.mutation.warmup import suite_size as suite_size_of
 from recognizer_sensors.outcome import Outcome, Overlay
 from recognizer_sensors.parsing import grammar_for, parse
 from recognizer_sensors.principles import principle_fields
-from recognizer_sensors.progress import report
 from recognizer_sensors.rust_test_blocks import in_file_test_hashes
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import (
@@ -1174,7 +1174,14 @@ def measure(
     suite_done = {name: suite_total[name] - waiting.get(name, 0) for name in suite_total}
 
     def announce(name: str) -> None:
-        report("mutants", suite_done[name], suite_total[name], name)
+        events.progress(
+            suite_done[name],
+            suite_total[name],
+            "functions",
+            name if len(suite_total) > 1 else None,
+        )
+
+    events.start(sum(suite_total.values()), "functions")
 
     if queue:
         announce(queue[0].suite)

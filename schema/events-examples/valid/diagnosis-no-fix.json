@@ -1,0 +1,5 @@
+{
+  "event": "diagnosis",
+  "code": "tests-failed",
+  "text": "3 tests failed, so coverage may read low"
+}

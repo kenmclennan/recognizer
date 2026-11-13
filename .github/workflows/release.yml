@@ -141,10 +141,10 @@ jobs:
             echo "recognizer scan wrote no duplication finding for the sample" >&2
             exit 1
           fi
-          prompt=$(recognizer-describe-claude --prompt-version)
+          prompt=$(recognizer-describe-claude manifest | node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(0, "utf8")).prompt_version)')
           case "$prompt" in
             prompt-*) ;;
-            *) echo "recognizer-describe-claude --prompt-version printed $prompt" >&2; exit 1 ;;
+            *) echo "recognizer-describe-claude manifest carries prompt_version $prompt" >&2; exit 1 ;;
           esac
           mixed=$(mktemp -d)
           cp -R "$repo/fixtures/kotlin/sample/." "$mixed/"

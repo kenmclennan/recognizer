@@ -159,12 +159,12 @@
               "minLength": 1
             },
             "code": {
-              "enum": [
-                "tool-missing",
-                "tests-failed",
-                "coverage-unavailable",
-                null
-              ]
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 64
             },
             "reason": {
               "type": "string",
