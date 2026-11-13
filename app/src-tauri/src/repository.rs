@@ -418,6 +418,151 @@ pub fn shipped_sensors_with(runner: &ToolRunner, command: &str) -> ShippedSensor
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlannedWork {
+    pub unit: String,
+    pub to_perform: u64,
+}
+
+pub fn work_args(
+    folder: &Path,
+    sensor: &str,
+    modules_file: Option<&Path>,
+    suites_file: Option<&Path>,
+) -> Vec<String> {
+    let mut args: Vec<String> = [
+        "sensors",
+        "check",
+        sensor,
+        "--work",
+        "--json",
+        "--repository",
+    ]
+    .iter()
+    .map(|part| part.to_string())
+    .collect();
+
+    args.push(folder.display().to_string());
+
+    for (flag, file) in [("--modules", modules_file), ("--suites", suites_file)] {
+        if let Some(path) = file {
+            args.push(flag.to_string());
+            args.push(path.display().to_string());
+        }
+    }
+
+    args
+}
+
+pub fn planned_work_from(stdout: &str) -> Option<PlannedWork> {
+    let document: serde_json::Value = serde_json::from_str(&clean_output(stdout)).ok()?;
+    let work = document.get("sensors")?.as_array()?.first()?.get("work")?;
+
+    Some(PlannedWork {
+        unit: work
+            .get("unit")?
+            .as_str()
+            .filter(|unit| !unit.is_empty())?
+            .to_string(),
+        to_perform: work.get("to_perform")?.as_u64()?,
+    })
+}
+
+fn work_file(folder: &Path, kind: &str) -> PathBuf {
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let number = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+    folder
+        .join(CACHE)
+        .join(format!("work-{kind}-{}-{number}.json", std::process::id()))
+}
+
+pub fn planned_work_with(
+    runner: &ToolRunner,
+    command: &str,
+    folder: &Path,
+    sensor: &str,
+    modules: Option<&[String]>,
+    suites: Option<&[String]>,
+) -> Result<Option<PlannedWork>, String> {
+    crate::sensors::check_names(&[sensor.to_string()])?;
+
+    if let Some(ids) = modules {
+        crate::scan_run::check_modules(ids)?;
+    }
+
+    if let Some(names) = suites {
+        crate::scan_run::check_suites(&std::collections::BTreeMap::from([(
+            sensor.to_string(),
+            names.to_vec(),
+        )]))?;
+    }
+
+    fs::create_dir_all(folder.join(CACHE)).map_err(|error| error.to_string())?;
+
+    let mut files: Vec<PathBuf> = Vec::new();
+    let mut staged = |kind: &str, text: String| -> Result<PathBuf, String> {
+        let path = work_file(folder, kind);
+
+        crate::fs_safe::write_atomic(&path, &text)
+            .map_err(|error| format!("{}: {error}", path.display()))?;
+        files.push(path.clone());
+
+        Ok(path)
+    };
+
+    let staged_files = (|| {
+        let modules_path = modules
+            .map(|ids| staged("modules", serde_json::to_string(ids).unwrap_or_default()))
+            .transpose()?;
+        let suites_path = suites
+            .map(|names| staged("suites", serde_json::to_string(names).unwrap_or_default()))
+            .transpose()?;
+
+        Ok::<_, String>((modules_path, suites_path))
+    })();
+
+    let result = staged_files.and_then(|(modules_path, suites_path)| {
+        let args = work_args(
+            folder,
+            sensor,
+            modules_path.as_deref(),
+            suites_path.as_deref(),
+        );
+
+        runner
+            .capture(command, &args, false)
+            .map_err(|fault| fault.message())
+    });
+
+    for path in &files {
+        let _ = fs::remove_file(path);
+    }
+
+    let captured = result?;
+
+    Ok(match captured.code {
+        Some(0) | Some(1) => planned_work_from(&captured.stdout),
+        _ => None,
+    })
+}
+
+pub fn planned_work(
+    folder: &Path,
+    sensor: &str,
+    modules: Option<&[String]>,
+    suites: Option<&[String]>,
+) -> Result<Option<PlannedWork>, String> {
+    planned_work_with(
+        runner(),
+        RECOGNIZER_COMMAND,
+        folder,
+        sensor,
+        modules,
+        suites,
+    )
+}
+
 pub const IGNORE_RETIRED_CONFIG: &str = "--ignore-retired-config";
 
 pub fn historical_scan_args(folder: &Path) -> Vec<String> {
@@ -753,6 +898,97 @@ mod tests {
         fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
 
         path
+    }
+
+    #[test]
+    fn the_planned_work_is_read_from_the_sensor_check_and_every_failure_is_none() {
+        let dir = TempDir::new().unwrap();
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let good = fake_command(
+            tools.path(),
+            r#"case "$*" in *--work*--modules*) echo '{"ready":true,"sensors":[{"name":"mutation","ready":true,"gaps":[],"notes":[],"work":{"unit":"functions","to_perform":7,"reusable":3}}]}';; *) exit 3;; esac"#,
+        );
+        let command = good.display().to_string();
+        let modules = vec!["app/a.py".to_string()];
+
+        assert_eq!(
+            planned_work_with(
+                &runner,
+                &command,
+                dir.path(),
+                "mutation",
+                Some(&modules),
+                None
+            ),
+            Ok(Some(PlannedWork {
+                unit: "functions".to_string(),
+                to_perform: 7
+            }))
+        );
+        assert_eq!(
+            planned_work_with(&runner, &command, dir.path(), "mutation", None, None),
+            Ok(None)
+        );
+        assert!(planned_work_with(
+            &runner,
+            "/nonexistent/recognizer",
+            dir.path(),
+            "mutation",
+            None,
+            None
+        )
+        .is_err());
+        assert_eq!(
+            planned_work_with(&runner, &command, dir.path(), "-x", None, None),
+            Err("-x is not a sensor name".to_string())
+        );
+        assert!(
+            planned_work_with(&runner, &command, dir.path(), "mutation", Some(&[]), None).is_err()
+        );
+
+        let left: Vec<_> = fs::read_dir(dir.path().join(".recognizer/cache"))
+            .unwrap()
+            .collect();
+
+        assert!(left.is_empty());
+    }
+
+    #[test]
+    fn the_planned_work_text_without_work_or_with_a_bad_count_is_none() {
+        assert_eq!(planned_work_from(r#"{"sensors":[{"name":"crap"}]}"#), None);
+        assert_eq!(
+            planned_work_from(r#"{"sensors":[{"work":{"unit":"functions","to_perform":-1}}]}"#),
+            None
+        );
+        assert_eq!(planned_work_from("nope"), None);
+    }
+
+    #[test]
+    fn the_work_arguments_carry_the_files_only_when_given() {
+        let folder = Path::new("/r");
+
+        assert_eq!(
+            work_args(folder, "mutation", None, None),
+            [
+                "sensors",
+                "check",
+                "mutation",
+                "--work",
+                "--json",
+                "--repository",
+                "/r"
+            ]
+        );
+        assert_eq!(
+            work_args(
+                folder,
+                "mutation",
+                Some(Path::new("/m.json")),
+                Some(Path::new("/s.json"))
+            )[7..],
+            ["--modules", "/m.json", "--suites", "/s.json"]
+        );
     }
 
     #[test]
