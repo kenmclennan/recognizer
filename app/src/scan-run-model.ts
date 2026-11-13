@@ -42,7 +42,8 @@ export type RunCard = {
   showLog: string | null;
   gaps: GapItem[];
   help: HelpLine[];
-  when: { icon: IconName | null; text: string; title?: string };
+  when: { text: string; title?: string };
+  origin: { icon: IconName | null; text: string };
 };
 
 export type RunModel = {
@@ -213,11 +214,13 @@ function sensorOf(
   return sensors.has(only) && gap.id.startsWith(`${only}:`) ? only : null;
 }
 
-function when(
+function origin(
   by: "cli" | "app",
   time: string,
 ): { icon: IconName | null; text: string } {
-  return { icon: by === "cli" ? "terminal" : null, text: time };
+  return by === "cli"
+    ? { icon: "terminal", text: `Started from the command line at ${time}` }
+    : { icon: null, text: `Started here at ${time}` };
 }
 
 function listNames(names: string[]): string {
@@ -381,7 +384,8 @@ function cardOf(
     showLog: null,
     gaps: [],
     help: [],
-    when: when(record.started_by, time),
+    when: { text: time },
+    origin: origin(record.started_by, clockText(record.started_at)),
   };
 
   switch (record.phase) {
@@ -439,7 +443,6 @@ function cardOf(
           ? {}
           : {
               when: {
-                icon: null,
                 text: left.text,
                 ...(left.title === undefined ? {} : { title: left.title }),
               },
@@ -507,7 +510,8 @@ function startingCard(at: number): RunCard {
     showLog: null,
     gaps: [],
     help: [],
-    when: when("app", clockOfMs(at)),
+    when: { text: clockOfMs(at) },
+    origin: origin("app", clockOfMs(at)),
   };
 }
 

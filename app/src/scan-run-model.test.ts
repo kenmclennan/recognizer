@@ -63,18 +63,19 @@ const ENDED = "2026-11-12T09:05:00.000Z";
 
 describe("the run model", () => {
   it.each([
-    ["app", null],
-    ["cli", "terminal"],
+    ["app", null, "Started here at"],
+    ["cli", "terminal", "Started from the command line at"],
   ] as const)(
     "reads the checking card with its %s origin line and a locked panel",
-    (by, icon) => {
+    (by, icon, words) => {
       const run = model(view({ phase: "checking", started_by: by }));
 
       expect(run?.card).toMatchObject({
         head: "Checking tools",
         line: null,
         tone: "run",
-        when: { icon, text: clock("2026-11-12T09:00:00.000Z") },
+        when: { text: clock("2026-11-12T09:00:00.000Z") },
+        origin: { icon, text: `${words} ${clock("2026-11-12T09:00:00.000Z")}` },
       });
       expect(run?.active).toBe(true);
       expect(run?.subtitle).toBe(
@@ -126,7 +127,10 @@ describe("the run model", () => {
     });
     expect(run?.button).toEqual({ label: "Check again and scan", stop: false });
     expect(run?.subtitle).toBe("Pick what to measure, then scan.");
-    expect(run?.card.when.icon).toBe("terminal");
+    expect(run?.card.origin).toEqual({
+      icon: "terminal",
+      text: `Started from the command line at ${clock("2026-11-12T09:00:00.000Z")}`,
+    });
   });
 
   it("reads the running card naming the sensor, the suite and the count", () => {
@@ -209,7 +213,11 @@ describe("the run model", () => {
     expect(run?.card).toMatchObject({
       head: "Scan finished",
       line: "3 sensors measured",
-      when: { icon: "terminal", text: clock(ENDED) },
+      when: { text: clock(ENDED) },
+      origin: {
+        icon: "terminal",
+        text: `Started from the command line at ${clock("2026-11-12T09:00:00.000Z")}`,
+      },
       tone: "ok",
     });
     expect(run?.active).toBe(false);
@@ -357,8 +365,9 @@ describe("the run model", () => {
     expect(run?.card).toMatchObject({
       head: "Checking tools",
       gaps: [],
-      when: { icon: null },
+      origin: { icon: null },
     });
+    expect(run?.card.origin.text).toMatch(/^Started here at \d\d:\d\d$/);
     expect(run?.card.when.text).toMatch(/^\d\d:\d\d$/);
     expect(run?.button.stop).toBe(true);
   });

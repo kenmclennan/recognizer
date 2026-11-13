@@ -47,6 +47,8 @@ const box = (node) => { const r = node.getBoundingClientRect(); return { top: r.
 const snapshot = () => ({
   head: (q(".summary-head-text") ?? q(".summary-head"))?.textContent ?? null,
   line: q(".summary-line")?.textContent ?? null,
+  origin: q(".summary-origin")?.textContent ?? null,
+  originIcon: q(".summary-origin .summary-origin-icon") !== null,
   count: q(".preflight-box-count")?.textContent ?? null,
   controls: all(".preflight-gap button, .preflight-gap code, .preflight-fix, .preflight-copy, .preflight-installed").length,
   help: all(".preflight-help").map((h) => ({ sensor: h.dataset.sensor, text: h.textContent, code: h.querySelector("code")?.textContent ?? null })),
@@ -70,6 +72,9 @@ const snapshot = () => ({
   facts.gaps = snapshot();
   q(".scan-run").click();
   facts.calls = { run: calls.run };
+
+  render({ phase: "refused", started_by: "cli", exit: 4, ended_at: "2026-11-12T09:00:01.000Z", gaps: [py] });
+  facts.cli = snapshot();
 
   render(null);
   facts.idle = { card: q(".summary[data-shape=run-card]") !== null, head: (q(".summary-head-text") ?? q(".summary-head"))?.textContent ?? null };
@@ -105,6 +110,16 @@ describe.skipIf(webkit === undefined)("the preflight panel", () => {
       ["no test suites are configured", "C.R.A.P."],
       ["cargo-llvm-cov is not installed", "Mutation"],
     ]);
+  });
+
+  it("says where the scan started on the card, with the terminal icon only beside the command-line words", () => {
+    expect(f.running.origin).toMatch(/^Started here at \d\d:\d\d$/);
+    expect(f.running.originIcon).toBe(false);
+    expect(f.gaps.origin).toMatch(/^Started here at \d\d:\d\d$/);
+    expect(f.cli.origin).toMatch(
+      /^Started from the command line at \d\d:\d\d$/,
+    );
+    expect(f.cli.originIcon).toBe(true);
   });
 
   it("offers no Fix, Copy or installed control on any gap", () => {
