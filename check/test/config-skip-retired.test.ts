@@ -89,6 +89,11 @@ describe("parseConfig with skipRetired", () => {
       "unknown_key",
     ],
     [
+      "an unknown key under sensors.duplication",
+      "sensors:\n  structure:\n    hub_threshold: 1\n  duplication:\n    bogus: 1\n",
+      "sensors/duplication unknown setting: bogus",
+    ],
+    [
       "a null section the user wrote",
       "sensors:\n  structure:\n    hub_threshold: 1\n  crap:\n",
       "crap",
@@ -98,6 +103,54 @@ describe("parseConfig with skipRetired", () => {
 
     expect(message).toContain(expected);
     expect(message).not.toContain("hub_threshold");
+  });
+
+  it("moves the four sensors.duplication settings to sensors.structure.duplication", () => {
+    const text =
+      "sensors:\n  duplication:\n    threshold: 0.5\n    min_lines: 4\n    pair_min_lines: 6\n    min_nodes: 20\n";
+    const by_hand =
+      "sensors:\n  structure:\n    duplication:\n      threshold: 0.5\n      min_lines: 4\n      pair_min_lines: 6\n      min_nodes: 20\n";
+
+    expect(parseConfig(text, "all", SKIP)).toEqual(parseConfig(by_hand));
+  });
+
+  it("moves sensors.duplication beside the other structure settings", () => {
+    const text =
+      "sensors:\n  structure:\n    warnings:\n      cycle: true\n  duplication:\n    min_lines: 4\n";
+    const by_hand =
+      "sensors:\n  structure:\n    warnings:\n      cycle: true\n    duplication:\n      min_lines: 4\n";
+
+    expect(parseConfig(text, "all", SKIP)).toEqual(parseConfig(by_hand));
+  });
+
+  it("translates an empty or null sensors.duplication to nothing", () => {
+    expect(parseConfig("sensors:\n  duplication: {}\n", "all", SKIP)).toEqual(
+      parseConfig(""),
+    );
+    expect(parseConfig("sensors:\n  duplication:\n", "all", SKIP)).toEqual(
+      parseConfig(""),
+    );
+  });
+
+  it("keeps sensors.structure.duplication when both are present", () => {
+    const text =
+      "sensors:\n  structure:\n    duplication:\n      min_lines: 9\n  duplication:\n    min_lines: 4\n    threshold: 0.5\n";
+    const by_hand =
+      "sensors:\n  structure:\n    duplication:\n      min_lines: 9\n";
+
+    expect(parseConfig(text, "all", SKIP)).toEqual(parseConfig(by_hand));
+  });
+
+  it("moves a switched-off sensors.duplication", () => {
+    expect(
+      parseConfig("sensors:\n  duplication: false\n", "all", SKIP),
+    ).toEqual(parseConfig("sensors:\n  structure:\n    duplication: false\n"));
+  });
+
+  it("still refuses sensors.duplication without the option", () => {
+    expect(messageOf("sensors:\n  duplication: {}\n")).toContain(
+      "sensors/duplication was removed",
+    );
   });
 
   it("does not skip without the option", () => {

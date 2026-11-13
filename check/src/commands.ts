@@ -186,7 +186,7 @@ export const COMMANDS: Command[] = [
       {
         flag: "--ignore-retired-config",
         description:
-          "read the config as if every retired key had never been written, instead of refusing it, so a past commit's files can be scanned; every other config error still refuses, and it takes no --describe or --sense",
+          "read the config as if every retired key had never been written, instead of refusing it, and read a moved sensors.duplication as sensors.structure.duplication, so a past commit's files can be scanned; every other config error still refuses, and it takes no --describe or --sense",
       },
       {
         flag: "--json",

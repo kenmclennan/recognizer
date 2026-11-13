@@ -212,7 +212,7 @@ Extraction runs only when the scans are not current: there is no valid cached sc
 
 `--describe` describes every module whose line is missing, out of date or unreadable, exactly as `recognizer describe` does with no names, and `--describe=all` describes every module (the value only with `=`; `--describe all` leaves `all` as the repository). `--sense all` runs the registered sensors and `--sense a,b` runs those named, registered or shipped. A phase not asked for appears in no output and no record, except extraction, which always appears. Exit 2 comes before anything runs: more than one repository, an empty `--by`, a missing `--sense` value, an unknown sensor name, `--sense` with no sensors registered, or a repository that is not a directory. Exit 4 is the preflight refusal described below. Exit 1 comes after every entry has run: a language, a describer entry or a sensor entry failed. In CI, run `recognizer scan --sense all` and then `recognizer check`.
 
-`--ignore-retired-config` reads the config as if every retired key had never been written, instead of refusing it, so the files of a past commit can be scanned; every other config error still refuses, and the flag takes no `--describe` or `--sense`.
+`--ignore-retired-config` reads the config as if every retired key had never been written, instead of refusing it, and reads a moved `sensors.duplication` as `sensors.structure.duplication`, so the files of a past commit can be scanned; every other config error still refuses, and the flag takes no `--describe` or `--sense`.
 
 ### Preflight
 

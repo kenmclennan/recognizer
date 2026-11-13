@@ -1631,13 +1631,32 @@ describe("recognizer scan: --ignore-retired-config", () => {
 
   it("still refuses another config error with the flag, exit 2", async () => {
     const { code, err } = await scan(
-      held(`${RETIRED_STRUCTURE}    unknown_key: 1\n`),
+      held(`${RETIRED_STRUCTURE}  duplication:\n    bogus: 1\n`),
       "--ignore-retired-config",
     );
 
     expect(code).toBe(2);
-    expect(err).toContain("unknown_key");
+    expect(err).toContain("sensors/duplication unknown setting: bogus");
     expect(err).not.toContain("composition_roots");
+  });
+
+  it("scans past a moved sensors.duplication with the flag, exit 0", async () => {
+    const { code, err } = await scan(
+      held("sensors:\n  duplication:\n    min_lines: 4\n"),
+      "--ignore-retired-config",
+    );
+
+    expect(code).toBe(0);
+    expect(err).not.toContain("duplication");
+  });
+
+  it("refuses sensors.duplication without the flag, exit 2", async () => {
+    const { code, err } = await scan(
+      held("sensors:\n  duplication:\n    min_lines: 4\n"),
+    );
+
+    expect(code).toBe(2);
+    expect(err).toContain("sensors/duplication was removed");
   });
 
   it.each([["--describe"], ["--describe=all"], ["--sense", "all"]])(
