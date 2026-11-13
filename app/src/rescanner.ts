@@ -150,6 +150,7 @@ export function createRescanner<Carried>(
   let adoptedAtOpen: string | null = null;
   let seenFirst = false;
   let keepOnce = false;
+  let adoptedThisScan = false;
   const now = ports.now ?? Date.now;
   let externalQueue: Promise<void> = Promise.resolve();
 
@@ -199,6 +200,10 @@ export function createRescanner<Carried>(
 
   async function settle(): Promise<boolean> {
     try {
+      if (adoptedThisScan) {
+        return true;
+      }
+
       const scanned = ports.load(await ports.port.readCache());
 
       if (scanned.blocking !== null) {
@@ -210,6 +215,7 @@ export function createRescanner<Carried>(
       const loaded = await ports.sense(scanned);
       const origin = await ports.adopt();
 
+      adoptedThisScan = true;
       ports.adopted(origin);
       apply(loaded);
 
@@ -224,7 +230,7 @@ export function createRescanner<Carried>(
   }
 
   async function openFromCache(): Promise<boolean> {
-    if (ports.hasExplorer()) {
+    if (ports.hasExplorer() || adoptedThisScan) {
       return false;
     }
 
@@ -238,6 +244,7 @@ export function createRescanner<Carried>(
       const loaded = await ports.sense(cached);
       const origin = await ports.adopt();
 
+      adoptedThisScan = true;
       ports.adopted(origin);
       apply(loaded);
 
@@ -479,6 +486,7 @@ export function createRescanner<Carried>(
 
     begunRunId = scan.run_id;
     liveRunId = scan.run_id;
+    adoptedThisScan = busy ? adoptedThisScan : false;
     failureIds = [];
     rows = [
       ...(scan.describe
@@ -731,6 +739,7 @@ export function createRescanner<Carried>(
     }
 
     failureIds = [];
+    adoptedThisScan = false;
     rows = [
       ...(plan.describe
         ? [{ key: DESCRIBE_KEY, display: "Descriptions" }]

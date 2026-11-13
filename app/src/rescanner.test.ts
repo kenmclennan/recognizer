@@ -76,6 +76,7 @@ const entry = (phase: string, name: string, reason?: string) =>
 const summary = line({ event: "summary" });
 const preflightOk = line({ event: "preflight", state: "ok" });
 const LOG = "x-scan";
+const ENDED_AT = "2026-11-10T09:00:05.000Z";
 const summaryLogged = (exit: number) =>
   line({ event: "summary", exit, log: LOG });
 
@@ -2309,5 +2310,143 @@ describe("the outcome comes from the run record", () => {
     expect(failures(made)).toHaveLength(1);
     expect(failures(made)).toEqual(["Scan failed - scan: real reason"]);
     expect(made.log.join("\n")).not.toContain("ignored noise");
+  });
+});
+
+describe("adopting once per scan", () => {
+  const NOT_WAITING = "no scan is waiting to be adopted";
+  const finishedRecord = record({
+    phase: "finished",
+    exit: 0,
+    ended_at: ENDED_AT,
+    describe: false,
+    ran: ["extract", "sense"],
+    sensors: ["alpha"],
+  });
+
+  function oneShot(
+    scan: ReturnType<typeof fakeScan>,
+    body: () => void,
+    over: Partial<RescanPorts<string>> = {},
+  ) {
+    let pending = false;
+    const real = scan.run.bind(scan);
+
+    scan.run = async (plan) => {
+      pending = true;
+      body();
+
+      return real(plan);
+    };
+
+    const made = harness(scan, {
+      adopt: async () => {
+        made.log.push("adopt");
+
+        if (!pending) {
+          throw new Error(NOT_WAITING);
+        }
+
+        pending = false;
+
+        return ORIGIN;
+      },
+      ...over,
+    });
+
+    return made;
+  }
+
+  const adopts = (log: string[]) => log.filter((one) => one === "adopt");
+
+  function lateRecord(scan: ReturnType<typeof fakeScan>) {
+    return () => {
+      for (const text of [current, sensing(1), summary]) {
+        scan.emitRun({ kind: "line", line: text });
+      }
+
+      scan.emitRun({ kind: "run", run: record({ run_id: "own-1" }) });
+      scan.emitRun({
+        kind: "run",
+        run: { ...finishedRecord, run_id: "own-1" },
+      });
+    };
+  }
+
+  it("adopts once when the active record arrives after the lines", async () => {
+    const scan = fakeScan({ records: false });
+    const { log, rescanner } = oneShot(scan, lateRecord(scan));
+
+    await rescanner.run(null, OPEN_RUN);
+
+    expect(adopts(log)).toHaveLength(1);
+    expect(log.filter((one) => one.startsWith("replace:"))).toHaveLength(1);
+    expect(log.some((one) => one.startsWith("blocked:"))).toBe(false);
+    expect(log.indexOf("sense")).toBeLessThan(log.indexOf("adopt"));
+  });
+
+  it("adopts once when a settled scan then opens from the cache", async () => {
+    const scan = fakeScan({ records: false });
+    const { log, rescanner } = oneShot(
+      scan,
+      () => {
+        scan.emitRun({ kind: "line", line: current });
+        scan.emitRun({ kind: "line", line: sensing(1) });
+        scan.emitRun({ kind: "run", run: record({ run_id: "own-1" }) });
+        scan.emitRun({
+          kind: "run",
+          run: { ...finishedRecord, run_id: "own-1", ran: ["extract"] },
+        });
+      },
+      {
+        load: () => ({ ...OK, scans: [{ file: "scan.python.json" } as never] }),
+      },
+    );
+
+    await rescanner.run(null, OPEN_RUN);
+
+    expect(adopts(log)).toHaveLength(1);
+    expect(log.some((one) => one.startsWith("blocked:no scan"))).toBe(false);
+  });
+
+  it("adopts again for the next scan", async () => {
+    const scan = fakeScan({ records: false });
+    const { log, rescanner } = oneShot(scan, lateRecord(scan));
+
+    await rescanner.run(null, OPEN_RUN);
+    await rescanner.run(null, OPEN_RUN);
+
+    expect(adopts(log)).toHaveLength(2);
+    expect(log.some((one) => one.startsWith("blocked:"))).toBe(false);
+  });
+
+  it("retries a failed adopt on a later settle in the same scan", async () => {
+    const scan = fakeScan({ records: false });
+    let calls = 0;
+    const { log, rescanner } = harness(scan, {
+      adopt: async () => {
+        calls += 1;
+
+        if (calls === 1) {
+          throw new Error("first fails");
+        }
+
+        log.push("adopt");
+
+        return ORIGIN;
+      },
+    });
+    const real = scan.run.bind(scan);
+
+    scan.run = async (plan) => {
+      lateRecord(scan)();
+
+      return real(plan);
+    };
+
+    await rescanner.run(null, OPEN_RUN);
+
+    expect(log).toContain("blocked:Error: first fails");
+    expect(adopts(log)).toHaveLength(1);
   });
 });
