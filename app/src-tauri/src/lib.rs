@@ -6,6 +6,7 @@ use tauri::{
 
 pub mod changes;
 pub mod commits;
+pub mod config_write;
 pub mod editor;
 pub mod fs_safe;
 pub mod in_file_tests;
@@ -818,6 +819,29 @@ async fn shipped_sensors() -> Result<repository::ShippedSensors, String> {
 }
 
 #[tauri::command]
+async fn read_config_keys() -> Result<config_write::ConfigKeys, String> {
+    tauri::async_runtime::spawn_blocking(config_write::read_config_keys)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn write_repository_config(
+    app: AppHandle,
+    window: WebviewWindow,
+    edits: Vec<config_write::Edit>,
+    base_hash: String,
+) -> Result<config_write::ConfigWrite, String> {
+    let folder = window_folder_path(&app, &window)?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        config_write::write_repository_config(&folder, &edits, &base_hash)
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 async fn shipped_describer(
     app: AppHandle,
     window: WebviewWindow,
@@ -1614,6 +1638,7 @@ pub fn run() {
             read_sensor_inputs,
             read_tests_hash,
             read_describing,
+            read_config_keys,
             read_settings,
             record_recent_view,
             remove_findings,
@@ -1643,6 +1668,7 @@ pub fn run() {
             watch_sensor_inputs,
             watch_views,
             window_folder,
+            write_repository_config,
             write_scan_ticks,
             write_settings,
             write_structure,
