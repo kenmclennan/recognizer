@@ -357,7 +357,6 @@ describe.skipIf(!HAS_UV)(
         ).not.toThrow();
         expect(document.findings.map((f: { id: string }) => f.id)).toEqual([
           "crap:app/risk.py::classify",
-          "crap:app/risk.py::gate",
         ]);
 
         const overlay = crapOverlay();
@@ -553,7 +552,7 @@ describe.skipIf(!HAS_UV)(
       }
 
       it(
-        "finds the seven planted crossings",
+        "finds the five planted crossings",
         async () => {
           useThresholdsFixture("{churn: {above: 20, severity: violation}}");
 
@@ -565,9 +564,7 @@ describe.skipIf(!HAS_UV)(
           ).toBe(0);
           expect(thresholdIds()).toEqual([
             "thresholds:churn:app/billing.py",
-            "thresholds:churn:src/cart.ts",
             "thresholds:complexity:app/billing.py::price",
-            "thresholds:complexity:app/billing.py::round_up",
             "thresholds:complexity:src/cart.ts::Cart.total",
             "thresholds:coverage:app/billing.py::price",
             "thresholds:coverage:app/billing.py::tidy",

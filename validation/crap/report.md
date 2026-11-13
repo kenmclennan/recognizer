@@ -57,11 +57,11 @@ Ten functions, at least two per language and two with unknown coverage. `K` line
 | rust `match_three` | 5 | 5/7 | 25 x (2/7)^3 + 5 = 25 x 8/343 + 5 = 0.583 + 5 | 5.583 | 5.583 |
 | rust `wide_match` | 9 | unknown | no instrumented line, CRAP at least 9 | none | none |
 
-All ten agree. `typescript sprawl` sits exactly on the default threshold of 30 and is a finding, as the sensor's `>=` rule requires.
+All ten agree. `typescript sprawl` sits exactly on the default threshold of 30 and is not a finding, as the sensor's strict `>` rule requires (Savoia's published threshold is "> 30").
 
 ### Corpus against the sensor
 
-All 60 labelled functions agree with the sensor: complexity, coverage, score and finding or no finding (16 findings, 32 without). No case carries a `known_defect`.
+All 60 labelled functions agree with the sensor: complexity, coverage, score and finding or no finding (15 findings, 45 without). No case carries a `known_defect`.
 
 ## Disagreements
 

@@ -120,7 +120,7 @@ def test_a_complexity_only_document_still_warns_and_validates(tmp_path, monkeypa
         "coverage": {"path": "coverage/lcov.info", "format": "lcov"},
     }
 
-    status, document = crap_document(tmp_path, {"tests": [suite], "threshold": 2})
+    status, document = crap_document(tmp_path, {"tests": [suite], "threshold": 1})
 
     assert status == 0
     assert document["diagnosis"]["code"] == "coverage-unavailable"

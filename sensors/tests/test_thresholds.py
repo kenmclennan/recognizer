@@ -139,7 +139,7 @@ def test_the_cli_exits_2_for_a_bad_setting(tmp_path):
     assert code == 2
 
 
-def test_the_fixture_yields_the_seven_findings(tmp_path, capsys):
+def test_the_fixture_yields_the_five_findings(tmp_path, capsys):
     root, commit = fixture_repository(tmp_path)
 
     code, document = sense(root, tmp_path, {"churn": {"above": 20, "severity": "violation"}})
@@ -151,27 +151,17 @@ def test_the_fixture_yields_the_seven_findings(tmp_path, capsys):
         (
             "thresholds:churn:app/billing.py",
             "violation",
-            "app/billing.py: churn 25 is at or above 20",
-        ),
-        (
-            "thresholds:churn:src/cart.ts",
-            "violation",
-            "src/cart.ts: churn 20 is at or above 20",
+            "app/billing.py: churn 25 is above 20",
         ),
         (
             "thresholds:complexity:app/billing.py::price",
             "warning",
-            "app/billing.py::price: complexity 14 is at or above 10",
-        ),
-        (
-            "thresholds:complexity:app/billing.py::round_up",
-            "warning",
-            "app/billing.py::round_up: complexity 10 is at or above 10",
+            "app/billing.py::price: complexity 14 is above 10",
         ),
         (
             "thresholds:complexity:src/cart.ts::Cart.total",
             "warning",
-            "src/cart.ts::Cart.total: complexity 11 is at or above 10",
+            "src/cart.ts::Cart.total: complexity 11 is above 10",
         ),
         (
             "thresholds:coverage:app/billing.py::price",
@@ -185,7 +175,7 @@ def test_the_fixture_yields_the_seven_findings(tmp_path, capsys):
         ),
     ]
 
-    price = document["findings"][2]
+    price = document["findings"][1]
 
     assert price["kind"] == "thresholds.complexity"
     assert price["principle"] == "cyclomatic-complexity-limit"
@@ -197,8 +187,8 @@ def test_the_fixture_yields_the_seven_findings(tmp_path, capsys):
         "measures": {"value": 14, "line": 10},
         "producer": "quality-tool",
     }
-    assert document["findings"][5]["principle"] == "code-coverage-guidelines"
-    assert document["findings"][5]["citation"] == PUBLISHED["code-coverage-guidelines"]
+    assert document["findings"][3]["principle"] == "code-coverage-guidelines"
+    assert document["findings"][3]["citation"] == PUBLISHED["code-coverage-guidelines"]
     assert document["findings"][0]["principle"] == "churn"
     assert "citation" not in document["findings"][0]
 
@@ -534,3 +524,38 @@ def test_severity_plays_no_part_in_citing_the_published_line(tmp_path):
     assert finding["severity"] == "violation"
     assert finding["principle"] == "cyclomatic-complexity-limit"
     assert finding["citation"] == PUBLISHED["cyclomatic-complexity-limit"]
+
+
+def boundary_findings(tmp_path, metric, entry, value):
+    root, commit = repository(tmp_path)
+    install(root, "tool.json", overlay(commit, {metric: {"a.py::f": value}}))
+
+    code, document = sense(root, tmp_path, {metric: entry})
+
+    assert code == 0
+
+    return document["findings"]
+
+
+@pytest.mark.parametrize(
+    ("metric", "entry", "value", "fires"),
+    [
+        ("complexity", {"above": 10}, 10, False),
+        ("complexity", {"above": 10}, 11, True),
+        ("coverage", {"below": 0.6}, 0.6, False),
+        ("coverage", {"below": 0.6}, 0.59, True),
+        ("complexity", {"above": 15}, 15, False),
+        ("complexity", {"above": 15}, 16, True),
+        ("churn", {"below": 5}, 5, False),
+        ("churn", {"below": 5}, 4, True),
+    ],
+)
+def test_a_line_is_crossed_only_strictly(tmp_path, metric, entry, value, fires):
+    findings = boundary_findings(tmp_path, metric, entry, value)
+
+    assert len(findings) == (1 if fires else 0)
+
+    if fires:
+        word = "above" if "above" in entry else "below"
+        assert f"is {word} " in findings[0]["summary"]
+        assert " at or " not in findings[0]["summary"]

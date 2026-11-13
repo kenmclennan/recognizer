@@ -27,7 +27,7 @@ const scan = { modules: [{ id: "p/m.py", kind: "module", members }], edges: [], 
 const metric = (label, values, extra) => ({ key: "t/" + label, label, granularity: "member", type: "count", bad: "high", overlay: "t", stale: false, max: 100, values, ...extra });
 const metrics = [
   metric("complexity", { "p/m.py::at_long": 10, "p/m.py::over_long": 11 }),
-  metric("crap", { "p/m.py::at_long": 29, "p/m.py::over_long": 30 }, { type: "number" }),
+  metric("crap", { "p/m.py::at_long": 29, "p/m.py::over_long": 31 }, { type: "number" }),
   metric("coverage", { "p/m.py::at_long": 0.6, "p/m.py::over_long": 0.59 }, { type: "ratio", bad: "low", max: 1 }),
 ];
 const calls = [];

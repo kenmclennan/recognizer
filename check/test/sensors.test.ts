@@ -760,7 +760,7 @@ describe("check ratcheting a thresholds violation", () => {
           severity: "violation",
           principle: "churn",
           metric: "churn",
-          summary: "app/billing.py: churn 25 is at or above 20",
+          summary: "app/billing.py: churn 25 is above 20",
           evidence: {
             modules: ["shop/main.py"],
             measures: { value: 25, line: 20 },
@@ -773,7 +773,7 @@ describe("check ratcheting a thresholds violation", () => {
           severity: "warning",
           principle: "cyclomatic-complexity-limit",
           metric: "complexity",
-          summary: "app/billing.py::price: complexity 14 is at or above 10",
+          summary: "app/billing.py::price: complexity 14 is above 10",
           evidence: { modules: ["shop/main.py"] },
         },
       ],

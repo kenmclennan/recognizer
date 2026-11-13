@@ -410,7 +410,7 @@
       "finding_id": "thresholds:complexity:python/limits.py::c09_under",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "derivation": "planted complexity 9; the default line fires when > 10, and 9 > 10 is false",
       "known_defect": null
     },
     {
@@ -435,7 +435,7 @@
       "finding_id": "thresholds:complexity:python/limits.py::c09_under",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "derivation": "planted complexity 9; the custom line fires when > 11, and 9 > 11 is false",
       "known_defect": null
     },
     {
@@ -460,7 +460,7 @@
       "finding_id": "thresholds:complexity:python/limits.py::c09_at",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "derivation": "planted complexity 9; the default line fires when > 10, and 9 > 10 is false",
       "known_defect": null
     },
     {
@@ -482,7 +482,7 @@
       "finding_id": "thresholds:complexity:python/limits.py::c09_at",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "derivation": "planted complexity 9; the custom line fires when > 11, and 9 > 11 is false",
       "known_defect": null
     },
     {
@@ -507,7 +507,7 @@
       "finding_id": "thresholds:complexity:python/limits.py::c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "derivation": "planted complexity 9; the default line fires when > 10, and 9 > 10 is false",
       "known_defect": null
     },
     {
@@ -529,7 +529,7 @@
       "finding_id": "thresholds:complexity:python/limits.py::c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "derivation": "planted complexity 9; the custom line fires when > 11, and 9 > 11 is false",
       "known_defect": null
     },
     {
@@ -547,14 +547,11 @@
       "id": "default/python/c10_under/complexity",
       "run": "default",
       "language": "python",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:python/limits.py::c10_under",
-      "severity": "warning",
-      "measures": {
-        "value": 10,
-        "line": 10
-      },
-      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the default line fires when > 10, and 10 > 10 is false",
       "known_defect": null
     },
     {
@@ -579,7 +576,7 @@
       "finding_id": "thresholds:complexity:python/limits.py::c10_under",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "derivation": "planted complexity 10; the custom line fires when > 11, and 10 > 11 is false",
       "known_defect": null
     },
     {
@@ -600,14 +597,11 @@
       "id": "default/python/c10_at/complexity",
       "run": "default",
       "language": "python",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:python/limits.py::c10_at",
-      "severity": "warning",
-      "measures": {
-        "value": 10,
-        "line": 10
-      },
-      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the default line fires when > 10, and 10 > 10 is false",
       "known_defect": null
     },
     {
@@ -629,7 +623,7 @@
       "finding_id": "thresholds:complexity:python/limits.py::c10_at",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "derivation": "planted complexity 10; the custom line fires when > 11, and 10 > 11 is false",
       "known_defect": null
     },
     {
@@ -650,14 +644,11 @@
       "id": "default/python/c10_over/complexity",
       "run": "default",
       "language": "python",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:python/limits.py::c10_over",
-      "severity": "warning",
-      "measures": {
-        "value": 10,
-        "line": 10
-      },
-      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the default line fires when > 10, and 10 > 10 is false",
       "known_defect": null
     },
     {
@@ -679,7 +670,7 @@
       "finding_id": "thresholds:complexity:python/limits.py::c10_over",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "derivation": "planted complexity 10; the custom line fires when > 11, and 10 > 11 is false",
       "known_defect": null
     },
     {
@@ -704,7 +695,7 @@
         "value": 11,
         "line": 10
       },
-      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "derivation": "planted complexity 11; the default line fires when > 10, and 11 > 10 is true",
       "known_defect": null
     },
     {
@@ -725,14 +716,11 @@
       "id": "custom/python/c11_under/complexity",
       "run": "custom",
       "language": "python",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:python/limits.py::c11_under",
-      "severity": "violation",
-      "measures": {
-        "value": 11,
-        "line": 11
-      },
-      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 11; the custom line fires when > 11, and 11 > 11 is false",
       "known_defect": null
     },
     {
@@ -760,7 +748,7 @@
         "value": 11,
         "line": 10
       },
-      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "derivation": "planted complexity 11; the default line fires when > 10, and 11 > 10 is true",
       "known_defect": null
     },
     {
@@ -778,14 +766,11 @@
       "id": "custom/python/c11_at/complexity",
       "run": "custom",
       "language": "python",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:python/limits.py::c11_at",
-      "severity": "violation",
-      "measures": {
-        "value": 11,
-        "line": 11
-      },
-      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 11; the custom line fires when > 11, and 11 > 11 is false",
       "known_defect": null
     },
     {
@@ -813,7 +798,7 @@
         "value": 11,
         "line": 10
       },
-      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "derivation": "planted complexity 11; the default line fires when > 10, and 11 > 10 is true",
       "known_defect": null
     },
     {
@@ -831,14 +816,11 @@
       "id": "custom/python/c11_over/complexity",
       "run": "custom",
       "language": "python",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:python/limits.py::c11_over",
-      "severity": "violation",
-      "measures": {
-        "value": 11,
-        "line": 11
-      },
-      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 11; the custom line fires when > 11, and 11 > 11 is false",
       "known_defect": null
     },
     {
@@ -863,7 +845,7 @@
         "value": 25,
         "line": 10
       },
-      "derivation": "planted complexity 25; the default line fires when >= 10, and 25 >= 10 is true",
+      "derivation": "planted complexity 25; the default line fires when > 10, and 25 > 10 is true",
       "known_defect": null
     },
     {
@@ -891,7 +873,7 @@
         "value": 25,
         "line": 11
       },
-      "derivation": "planted complexity 25; the custom line fires when >= 11, and 25 >= 11 is true",
+      "derivation": "planted complexity 25; the custom line fires when > 11, and 25 > 11 is true",
       "known_defect": null
     },
     {
@@ -916,7 +898,7 @@
       "finding_id": "thresholds:complexity:typescript/limits.ts::c09_under",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "derivation": "planted complexity 9; the default line fires when > 10, and 9 > 10 is false",
       "known_defect": null
     },
     {
@@ -941,7 +923,7 @@
       "finding_id": "thresholds:complexity:typescript/limits.ts::c09_under",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "derivation": "planted complexity 9; the custom line fires when > 11, and 9 > 11 is false",
       "known_defect": null
     },
     {
@@ -966,7 +948,7 @@
       "finding_id": "thresholds:complexity:typescript/limits.ts::c09_at",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "derivation": "planted complexity 9; the default line fires when > 10, and 9 > 10 is false",
       "known_defect": null
     },
     {
@@ -988,7 +970,7 @@
       "finding_id": "thresholds:complexity:typescript/limits.ts::c09_at",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "derivation": "planted complexity 9; the custom line fires when > 11, and 9 > 11 is false",
       "known_defect": null
     },
     {
@@ -1013,7 +995,7 @@
       "finding_id": "thresholds:complexity:typescript/limits.ts::c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "derivation": "planted complexity 9; the default line fires when > 10, and 9 > 10 is false",
       "known_defect": null
     },
     {
@@ -1035,7 +1017,7 @@
       "finding_id": "thresholds:complexity:typescript/limits.ts::c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "derivation": "planted complexity 9; the custom line fires when > 11, and 9 > 11 is false",
       "known_defect": null
     },
     {
@@ -1053,14 +1035,11 @@
       "id": "default/typescript/c10_under/complexity",
       "run": "default",
       "language": "typescript",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:typescript/limits.ts::c10_under",
-      "severity": "warning",
-      "measures": {
-        "value": 10,
-        "line": 10
-      },
-      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the default line fires when > 10, and 10 > 10 is false",
       "known_defect": null
     },
     {
@@ -1085,7 +1064,7 @@
       "finding_id": "thresholds:complexity:typescript/limits.ts::c10_under",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "derivation": "planted complexity 10; the custom line fires when > 11, and 10 > 11 is false",
       "known_defect": null
     },
     {
@@ -1106,14 +1085,11 @@
       "id": "default/typescript/c10_at/complexity",
       "run": "default",
       "language": "typescript",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:typescript/limits.ts::c10_at",
-      "severity": "warning",
-      "measures": {
-        "value": 10,
-        "line": 10
-      },
-      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the default line fires when > 10, and 10 > 10 is false",
       "known_defect": null
     },
     {
@@ -1135,7 +1111,7 @@
       "finding_id": "thresholds:complexity:typescript/limits.ts::c10_at",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "derivation": "planted complexity 10; the custom line fires when > 11, and 10 > 11 is false",
       "known_defect": null
     },
     {
@@ -1156,14 +1132,11 @@
       "id": "default/typescript/c10_over/complexity",
       "run": "default",
       "language": "typescript",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:typescript/limits.ts::c10_over",
-      "severity": "warning",
-      "measures": {
-        "value": 10,
-        "line": 10
-      },
-      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the default line fires when > 10, and 10 > 10 is false",
       "known_defect": null
     },
     {
@@ -1185,7 +1158,7 @@
       "finding_id": "thresholds:complexity:typescript/limits.ts::c10_over",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "derivation": "planted complexity 10; the custom line fires when > 11, and 10 > 11 is false",
       "known_defect": null
     },
     {
@@ -1210,7 +1183,7 @@
         "value": 11,
         "line": 10
       },
-      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "derivation": "planted complexity 11; the default line fires when > 10, and 11 > 10 is true",
       "known_defect": null
     },
     {
@@ -1231,14 +1204,11 @@
       "id": "custom/typescript/c11_under/complexity",
       "run": "custom",
       "language": "typescript",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:typescript/limits.ts::c11_under",
-      "severity": "violation",
-      "measures": {
-        "value": 11,
-        "line": 11
-      },
-      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 11; the custom line fires when > 11, and 11 > 11 is false",
       "known_defect": null
     },
     {
@@ -1266,7 +1236,7 @@
         "value": 11,
         "line": 10
       },
-      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "derivation": "planted complexity 11; the default line fires when > 10, and 11 > 10 is true",
       "known_defect": null
     },
     {
@@ -1284,14 +1254,11 @@
       "id": "custom/typescript/c11_at/complexity",
       "run": "custom",
       "language": "typescript",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:typescript/limits.ts::c11_at",
-      "severity": "violation",
-      "measures": {
-        "value": 11,
-        "line": 11
-      },
-      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 11; the custom line fires when > 11, and 11 > 11 is false",
       "known_defect": null
     },
     {
@@ -1319,7 +1286,7 @@
         "value": 11,
         "line": 10
       },
-      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "derivation": "planted complexity 11; the default line fires when > 10, and 11 > 10 is true",
       "known_defect": null
     },
     {
@@ -1337,14 +1304,11 @@
       "id": "custom/typescript/c11_over/complexity",
       "run": "custom",
       "language": "typescript",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:typescript/limits.ts::c11_over",
-      "severity": "violation",
-      "measures": {
-        "value": 11,
-        "line": 11
-      },
-      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 11; the custom line fires when > 11, and 11 > 11 is false",
       "known_defect": null
     },
     {
@@ -1369,7 +1333,7 @@
         "value": 25,
         "line": 10
       },
-      "derivation": "planted complexity 25; the default line fires when >= 10, and 25 >= 10 is true",
+      "derivation": "planted complexity 25; the default line fires when > 10, and 25 > 10 is true",
       "known_defect": null
     },
     {
@@ -1397,7 +1361,7 @@
         "value": 25,
         "line": 11
       },
-      "derivation": "planted complexity 25; the custom line fires when >= 11, and 25 >= 11 is true",
+      "derivation": "planted complexity 25; the custom line fires when > 11, and 25 > 11 is true",
       "known_defect": null
     },
     {
@@ -1422,7 +1386,7 @@
       "finding_id": "thresholds:complexity:kotlin/limits/Limits.kt::c09_under",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "derivation": "planted complexity 9; the default line fires when > 10, and 9 > 10 is false",
       "known_defect": null
     },
     {
@@ -1447,7 +1411,7 @@
       "finding_id": "thresholds:complexity:kotlin/limits/Limits.kt::c09_under",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "derivation": "planted complexity 9; the custom line fires when > 11, and 9 > 11 is false",
       "known_defect": null
     },
     {
@@ -1472,7 +1436,7 @@
       "finding_id": "thresholds:complexity:kotlin/limits/Limits.kt::c09_at",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "derivation": "planted complexity 9; the default line fires when > 10, and 9 > 10 is false",
       "known_defect": null
     },
     {
@@ -1494,7 +1458,7 @@
       "finding_id": "thresholds:complexity:kotlin/limits/Limits.kt::c09_at",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "derivation": "planted complexity 9; the custom line fires when > 11, and 9 > 11 is false",
       "known_defect": null
     },
     {
@@ -1519,7 +1483,7 @@
       "finding_id": "thresholds:complexity:kotlin/limits/Limits.kt::c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "derivation": "planted complexity 9; the default line fires when > 10, and 9 > 10 is false",
       "known_defect": null
     },
     {
@@ -1541,7 +1505,7 @@
       "finding_id": "thresholds:complexity:kotlin/limits/Limits.kt::c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "derivation": "planted complexity 9; the custom line fires when > 11, and 9 > 11 is false",
       "known_defect": null
     },
     {
@@ -1559,14 +1523,11 @@
       "id": "default/kotlin/c10_under/complexity",
       "run": "default",
       "language": "kotlin",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:kotlin/limits/Limits.kt::c10_under",
-      "severity": "warning",
-      "measures": {
-        "value": 10,
-        "line": 10
-      },
-      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the default line fires when > 10, and 10 > 10 is false",
       "known_defect": null
     },
     {
@@ -1591,7 +1552,7 @@
       "finding_id": "thresholds:complexity:kotlin/limits/Limits.kt::c10_under",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "derivation": "planted complexity 10; the custom line fires when > 11, and 10 > 11 is false",
       "known_defect": null
     },
     {
@@ -1612,14 +1573,11 @@
       "id": "default/kotlin/c10_at/complexity",
       "run": "default",
       "language": "kotlin",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:kotlin/limits/Limits.kt::c10_at",
-      "severity": "warning",
-      "measures": {
-        "value": 10,
-        "line": 10
-      },
-      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the default line fires when > 10, and 10 > 10 is false",
       "known_defect": null
     },
     {
@@ -1641,7 +1599,7 @@
       "finding_id": "thresholds:complexity:kotlin/limits/Limits.kt::c10_at",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "derivation": "planted complexity 10; the custom line fires when > 11, and 10 > 11 is false",
       "known_defect": null
     },
     {
@@ -1662,14 +1620,11 @@
       "id": "default/kotlin/c10_over/complexity",
       "run": "default",
       "language": "kotlin",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:kotlin/limits/Limits.kt::c10_over",
-      "severity": "warning",
-      "measures": {
-        "value": 10,
-        "line": 10
-      },
-      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the default line fires when > 10, and 10 > 10 is false",
       "known_defect": null
     },
     {
@@ -1691,7 +1646,7 @@
       "finding_id": "thresholds:complexity:kotlin/limits/Limits.kt::c10_over",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "derivation": "planted complexity 10; the custom line fires when > 11, and 10 > 11 is false",
       "known_defect": null
     },
     {
@@ -1716,7 +1671,7 @@
         "value": 11,
         "line": 10
       },
-      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "derivation": "planted complexity 11; the default line fires when > 10, and 11 > 10 is true",
       "known_defect": null
     },
     {
@@ -1737,14 +1692,11 @@
       "id": "custom/kotlin/c11_under/complexity",
       "run": "custom",
       "language": "kotlin",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:kotlin/limits/Limits.kt::c11_under",
-      "severity": "violation",
-      "measures": {
-        "value": 11,
-        "line": 11
-      },
-      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 11; the custom line fires when > 11, and 11 > 11 is false",
       "known_defect": null
     },
     {
@@ -1772,7 +1724,7 @@
         "value": 11,
         "line": 10
       },
-      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "derivation": "planted complexity 11; the default line fires when > 10, and 11 > 10 is true",
       "known_defect": null
     },
     {
@@ -1790,14 +1742,11 @@
       "id": "custom/kotlin/c11_at/complexity",
       "run": "custom",
       "language": "kotlin",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:kotlin/limits/Limits.kt::c11_at",
-      "severity": "violation",
-      "measures": {
-        "value": 11,
-        "line": 11
-      },
-      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 11; the custom line fires when > 11, and 11 > 11 is false",
       "known_defect": null
     },
     {
@@ -1825,7 +1774,7 @@
         "value": 11,
         "line": 10
       },
-      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "derivation": "planted complexity 11; the default line fires when > 10, and 11 > 10 is true",
       "known_defect": null
     },
     {
@@ -1843,14 +1792,11 @@
       "id": "custom/kotlin/c11_over/complexity",
       "run": "custom",
       "language": "kotlin",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:kotlin/limits/Limits.kt::c11_over",
-      "severity": "violation",
-      "measures": {
-        "value": 11,
-        "line": 11
-      },
-      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 11; the custom line fires when > 11, and 11 > 11 is false",
       "known_defect": null
     },
     {
@@ -1875,7 +1821,7 @@
         "value": 25,
         "line": 10
       },
-      "derivation": "planted complexity 25; the default line fires when >= 10, and 25 >= 10 is true",
+      "derivation": "planted complexity 25; the default line fires when > 10, and 25 > 10 is true",
       "known_defect": null
     },
     {
@@ -1903,7 +1849,7 @@
         "value": 25,
         "line": 11
       },
-      "derivation": "planted complexity 25; the custom line fires when >= 11, and 25 >= 11 is true",
+      "derivation": "planted complexity 25; the custom line fires when > 11, and 25 > 11 is true",
       "known_defect": null
     },
     {
@@ -1928,7 +1874,7 @@
       "finding_id": "thresholds:complexity:rust/src/limits.rs::c09_under",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "derivation": "planted complexity 9; the default line fires when > 10, and 9 > 10 is false",
       "known_defect": null
     },
     {
@@ -1953,7 +1899,7 @@
       "finding_id": "thresholds:complexity:rust/src/limits.rs::c09_under",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "derivation": "planted complexity 9; the custom line fires when > 11, and 9 > 11 is false",
       "known_defect": null
     },
     {
@@ -1978,7 +1924,7 @@
       "finding_id": "thresholds:complexity:rust/src/limits.rs::c09_at",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "derivation": "planted complexity 9; the default line fires when > 10, and 9 > 10 is false",
       "known_defect": null
     },
     {
@@ -2000,7 +1946,7 @@
       "finding_id": "thresholds:complexity:rust/src/limits.rs::c09_at",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "derivation": "planted complexity 9; the custom line fires when > 11, and 9 > 11 is false",
       "known_defect": null
     },
     {
@@ -2025,7 +1971,7 @@
       "finding_id": "thresholds:complexity:rust/src/limits.rs::c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "derivation": "planted complexity 9; the default line fires when > 10, and 9 > 10 is false",
       "known_defect": null
     },
     {
@@ -2047,7 +1993,7 @@
       "finding_id": "thresholds:complexity:rust/src/limits.rs::c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "derivation": "planted complexity 9; the custom line fires when > 11, and 9 > 11 is false",
       "known_defect": null
     },
     {
@@ -2065,14 +2011,11 @@
       "id": "default/rust/c10_under/complexity",
       "run": "default",
       "language": "rust",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:rust/src/limits.rs::c10_under",
-      "severity": "warning",
-      "measures": {
-        "value": 10,
-        "line": 10
-      },
-      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the default line fires when > 10, and 10 > 10 is false",
       "known_defect": null
     },
     {
@@ -2097,7 +2040,7 @@
       "finding_id": "thresholds:complexity:rust/src/limits.rs::c10_under",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "derivation": "planted complexity 10; the custom line fires when > 11, and 10 > 11 is false",
       "known_defect": null
     },
     {
@@ -2118,14 +2061,11 @@
       "id": "default/rust/c10_at/complexity",
       "run": "default",
       "language": "rust",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:rust/src/limits.rs::c10_at",
-      "severity": "warning",
-      "measures": {
-        "value": 10,
-        "line": 10
-      },
-      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the default line fires when > 10, and 10 > 10 is false",
       "known_defect": null
     },
     {
@@ -2147,7 +2087,7 @@
       "finding_id": "thresholds:complexity:rust/src/limits.rs::c10_at",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "derivation": "planted complexity 10; the custom line fires when > 11, and 10 > 11 is false",
       "known_defect": null
     },
     {
@@ -2168,14 +2108,11 @@
       "id": "default/rust/c10_over/complexity",
       "run": "default",
       "language": "rust",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:rust/src/limits.rs::c10_over",
-      "severity": "warning",
-      "measures": {
-        "value": 10,
-        "line": 10
-      },
-      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the default line fires when > 10, and 10 > 10 is false",
       "known_defect": null
     },
     {
@@ -2197,7 +2134,7 @@
       "finding_id": "thresholds:complexity:rust/src/limits.rs::c10_over",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "derivation": "planted complexity 10; the custom line fires when > 11, and 10 > 11 is false",
       "known_defect": null
     },
     {
@@ -2222,7 +2159,7 @@
         "value": 11,
         "line": 10
       },
-      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "derivation": "planted complexity 11; the default line fires when > 10, and 11 > 10 is true",
       "known_defect": null
     },
     {
@@ -2243,14 +2180,11 @@
       "id": "custom/rust/c11_under/complexity",
       "run": "custom",
       "language": "rust",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:rust/src/limits.rs::c11_under",
-      "severity": "violation",
-      "measures": {
-        "value": 11,
-        "line": 11
-      },
-      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 11; the custom line fires when > 11, and 11 > 11 is false",
       "known_defect": null
     },
     {
@@ -2278,7 +2212,7 @@
         "value": 11,
         "line": 10
       },
-      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "derivation": "planted complexity 11; the default line fires when > 10, and 11 > 10 is true",
       "known_defect": null
     },
     {
@@ -2296,14 +2230,11 @@
       "id": "custom/rust/c11_at/complexity",
       "run": "custom",
       "language": "rust",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:rust/src/limits.rs::c11_at",
-      "severity": "violation",
-      "measures": {
-        "value": 11,
-        "line": 11
-      },
-      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 11; the custom line fires when > 11, and 11 > 11 is false",
       "known_defect": null
     },
     {
@@ -2331,7 +2262,7 @@
         "value": 11,
         "line": 10
       },
-      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "derivation": "planted complexity 11; the default line fires when > 10, and 11 > 10 is true",
       "known_defect": null
     },
     {
@@ -2349,14 +2280,11 @@
       "id": "custom/rust/c11_over/complexity",
       "run": "custom",
       "language": "rust",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:rust/src/limits.rs::c11_over",
-      "severity": "violation",
-      "measures": {
-        "value": 11,
-        "line": 11
-      },
-      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 11; the custom line fires when > 11, and 11 > 11 is false",
       "known_defect": null
     },
     {
@@ -2381,7 +2309,7 @@
         "value": 25,
         "line": 10
       },
-      "derivation": "planted complexity 25; the default line fires when >= 10, and 25 >= 10 is true",
+      "derivation": "planted complexity 25; the default line fires when > 10, and 25 > 10 is true",
       "known_defect": null
     },
     {
@@ -2409,7 +2337,7 @@
         "value": 25,
         "line": 11
       },
-      "derivation": "planted complexity 25; the custom line fires when >= 11, and 25 >= 11 is true",
+      "derivation": "planted complexity 25; the custom line fires when > 11, and 25 > 11 is true",
       "known_defect": null
     },
     {
@@ -2434,7 +2362,7 @@
       "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c09_under",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "derivation": "planted complexity 9; the default line fires when > 10, and 9 > 10 is false",
       "known_defect": null
     },
     {
@@ -2459,7 +2387,7 @@
       "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c09_under",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "derivation": "planted complexity 9; the custom line fires when > 11, and 9 > 11 is false",
       "known_defect": null
     },
     {
@@ -2484,7 +2412,7 @@
       "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c09_at",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "derivation": "planted complexity 9; the default line fires when > 10, and 9 > 10 is false",
       "known_defect": null
     },
     {
@@ -2506,7 +2434,7 @@
       "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c09_at",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "derivation": "planted complexity 9; the custom line fires when > 11, and 9 > 11 is false",
       "known_defect": null
     },
     {
@@ -2531,7 +2459,7 @@
       "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the default line fires when >= 10, and 9 >= 10 is false",
+      "derivation": "planted complexity 9; the default line fires when > 10, and 9 > 10 is false",
       "known_defect": null
     },
     {
@@ -2553,7 +2481,7 @@
       "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 9; the custom line fires when >= 11, and 9 >= 11 is false",
+      "derivation": "planted complexity 9; the custom line fires when > 11, and 9 > 11 is false",
       "known_defect": null
     },
     {
@@ -2571,14 +2499,11 @@
       "id": "default/csharp/c10_under/complexity",
       "run": "default",
       "language": "csharp",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c10_under",
-      "severity": "warning",
-      "measures": {
-        "value": 10,
-        "line": 10
-      },
-      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the default line fires when > 10, and 10 > 10 is false",
       "known_defect": null
     },
     {
@@ -2603,7 +2528,7 @@
       "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c10_under",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "derivation": "planted complexity 10; the custom line fires when > 11, and 10 > 11 is false",
       "known_defect": null
     },
     {
@@ -2624,14 +2549,11 @@
       "id": "default/csharp/c10_at/complexity",
       "run": "default",
       "language": "csharp",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c10_at",
-      "severity": "warning",
-      "measures": {
-        "value": 10,
-        "line": 10
-      },
-      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the default line fires when > 10, and 10 > 10 is false",
       "known_defect": null
     },
     {
@@ -2653,7 +2575,7 @@
       "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c10_at",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "derivation": "planted complexity 10; the custom line fires when > 11, and 10 > 11 is false",
       "known_defect": null
     },
     {
@@ -2674,14 +2596,11 @@
       "id": "default/csharp/c10_over/complexity",
       "run": "default",
       "language": "csharp",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c10_over",
-      "severity": "warning",
-      "measures": {
-        "value": 10,
-        "line": 10
-      },
-      "derivation": "planted complexity 10; the default line fires when >= 10, and 10 >= 10 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 10; the default line fires when > 10, and 10 > 10 is false",
       "known_defect": null
     },
     {
@@ -2703,7 +2622,7 @@
       "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c10_over",
       "severity": null,
       "measures": {},
-      "derivation": "planted complexity 10; the custom line fires when >= 11, and 10 >= 11 is false",
+      "derivation": "planted complexity 10; the custom line fires when > 11, and 10 > 11 is false",
       "known_defect": null
     },
     {
@@ -2728,7 +2647,7 @@
         "value": 11,
         "line": 10
       },
-      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "derivation": "planted complexity 11; the default line fires when > 10, and 11 > 10 is true",
       "known_defect": null
     },
     {
@@ -2749,14 +2668,11 @@
       "id": "custom/csharp/c11_under/complexity",
       "run": "custom",
       "language": "csharp",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c11_under",
-      "severity": "violation",
-      "measures": {
-        "value": 11,
-        "line": 11
-      },
-      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 11; the custom line fires when > 11, and 11 > 11 is false",
       "known_defect": null
     },
     {
@@ -2784,7 +2700,7 @@
         "value": 11,
         "line": 10
       },
-      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "derivation": "planted complexity 11; the default line fires when > 10, and 11 > 10 is true",
       "known_defect": null
     },
     {
@@ -2802,14 +2718,11 @@
       "id": "custom/csharp/c11_at/complexity",
       "run": "custom",
       "language": "csharp",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c11_at",
-      "severity": "violation",
-      "measures": {
-        "value": 11,
-        "line": 11
-      },
-      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 11; the custom line fires when > 11, and 11 > 11 is false",
       "known_defect": null
     },
     {
@@ -2837,7 +2750,7 @@
         "value": 11,
         "line": 10
       },
-      "derivation": "planted complexity 11; the default line fires when >= 10, and 11 >= 10 is true",
+      "derivation": "planted complexity 11; the default line fires when > 10, and 11 > 10 is true",
       "known_defect": null
     },
     {
@@ -2855,14 +2768,11 @@
       "id": "custom/csharp/c11_over/complexity",
       "run": "custom",
       "language": "csharp",
-      "expect": "finding",
+      "expect": "no-finding",
       "finding_id": "thresholds:complexity:csharp/Limits.cs::Limits.c11_over",
-      "severity": "violation",
-      "measures": {
-        "value": 11,
-        "line": 11
-      },
-      "derivation": "planted complexity 11; the custom line fires when >= 11, and 11 >= 11 is true",
+      "severity": null,
+      "measures": {},
+      "derivation": "planted complexity 11; the custom line fires when > 11, and 11 > 11 is false",
       "known_defect": null
     },
     {
@@ -2887,7 +2797,7 @@
         "value": 25,
         "line": 10
       },
-      "derivation": "planted complexity 25; the default line fires when >= 10, and 25 >= 10 is true",
+      "derivation": "planted complexity 25; the default line fires when > 10, and 25 > 10 is true",
       "known_defect": null
     },
     {
@@ -2915,7 +2825,7 @@
         "value": 25,
         "line": 11
       },
-      "derivation": "planted complexity 25; the custom line fires when >= 11, and 25 >= 11 is true",
+      "derivation": "planted complexity 25; the custom line fires when > 11, and 25 > 11 is true",
       "known_defect": null
     },
     {
@@ -2937,12 +2847,12 @@
     "overlay": "overlays/mixed.json",
     "findings": [
       {
-        "finding_id": "thresholds:complexity:python/limits.py::c10_at",
+        "finding_id": "thresholds:complexity:python/limits.py::c11_at",
         "measures": {
-          "value": 10,
+          "value": 11,
           "line": 10
         },
-        "derivation": "value 10 >= 10"
+        "derivation": "value 11 > 10"
       },
       {
         "finding_id": "thresholds:coverage:python/limits.py::c10_under",
@@ -2954,6 +2864,7 @@
       }
     ],
     "absent": [
+      "thresholds:complexity:python/limits.py::c10_at",
       "thresholds:complexity:python/limits.py::c09_at",
       "thresholds:coverage:python/limits.py::c10_over"
     ],
@@ -2961,12 +2872,12 @@
       "complexity": 2,
       "coverage": 1
     },
-    "derivation": "c10_at and c10_under resolve to the scanned module python/limits.py and cross the default lines; c09_at (9) and c10_over (0.9) resolve and stay under; nowhere/ghost.py::f and python/gone.py::g (complexity) and nowhere/ghost.py::h (coverage) match no scanned module, so 2 and 1 ids are skipped and counted"
+    "derivation": "c11_at (11) and c10_under (0.5) resolve to the scanned module python/limits.py and cross the default lines; c10_at (10, not above 10), c09_at (9) and c10_over (0.9) resolve and stay under; nowhere/ghost.py::f and python/gone.py::g (complexity) and nowhere/ghost.py::h (coverage) match no scanned module, so 2 and 1 ids are skipped and counted"
   },
   "stale": {
     "overlay": "overlays/stale.json",
     "findings": [],
-    "derivation": "the overlay's commit is not the repository's HEAD, so it is skipped whole although c10_at (10) would cross the line",
+    "derivation": "the overlay's commit is not the repository's HEAD, so it is skipped whole although c11_at (11) would cross the line",
     "skipped_commit": "0000000000000000000000000000000000000000"
   }
 }
