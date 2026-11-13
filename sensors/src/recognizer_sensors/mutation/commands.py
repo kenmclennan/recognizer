@@ -5,6 +5,8 @@ from recognizer_sensors.testrun.suites import Suite, directory_of
 
 MAX_SELECTED_FILES = 50
 
+MAX_SELECTED_NODES = 5000
+
 KOTLIN_CLASSES: dict[str, list[tuple[str, str]]] = {}
 
 CSHARP_CLASSES: dict[str, list[str]] = {}
@@ -178,6 +180,33 @@ def unselectable(files: set[str] | frozenset[str]) -> bool:
     return not files or len(files) > MAX_SELECTED_FILES or any(f.startswith("-") for f in files)
 
 
+def node_file(node: str) -> str:
+    return node.split("::", 1)[0]
+
+
+def nodes_selectable(nodes: set[str] | frozenset[str]) -> bool:
+    return 0 < len(nodes) <= MAX_SELECTED_NODES and not any(n.startswith("-") for n in nodes)
+
+
+def node_command(
+    suite: Suite,
+    nodes: set[str] | frozenset[str],
+    stop: bool,
+    previous: frozenset[str],
+) -> list[str] | None:
+    directory = directory_of(suite)
+    prefix = f"{directory}/" if directory else ""
+
+    if prefix and not all(n.startswith(prefix) for n in nodes):
+        return None
+
+    local = {n.removeprefix(prefix) for n in nodes}
+    kept = frozenset(f.removeprefix(prefix) for f in previous if f.startswith(prefix))
+    ordered = sorted(local, key=lambda n: (node_file(n) not in kept, n))
+
+    return ["pytest", "-rfE", *(["-x"] if stop else []), *ordered]
+
+
 def selected_command(
     suite: Suite,
     files: set[str] | frozenset[str] | None,
@@ -185,9 +214,16 @@ def selected_command(
     previous: frozenset[str] = frozenset(),
     workers: int = 1,
     file: str | None = None,
+    nodes: set[str] | frozenset[str] | None = None,
 ) -> list[str] | str | None:
     directory = directory_of(suite)
     language = suite.language
+
+    if language == "python" and nodes is not None and nodes_selectable(nodes):
+        found = node_command(suite, nodes, stop, previous)
+
+        if found is not None:
+            return found
 
     if language == "typescript":
         local = relative_to_directory({file}, directory) if file else None
