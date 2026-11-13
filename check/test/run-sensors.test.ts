@@ -732,6 +732,20 @@ ${finishing("")}`,
     expect(entry).not.toHaveProperty("incomplete");
   });
 
+  it("records the work a findings document carries, without the reused count", async () => {
+    const entry = await sensed(
+      finishing('work: { unit: "functions", performed: 4, reused: 9 }'),
+    );
+
+    expect(entry?.work).toEqual({ unit: "functions", performed: 4 });
+  });
+
+  it("records no work key for a document without one", async () => {
+    const entry = await sensed(finishing(""));
+
+    expect(entry).not.toHaveProperty("work");
+  });
+
   it("records no incomplete key for a document whose partial key covers functions outside its scope", async () => {
     const entry = await sensed(
       finishing(
