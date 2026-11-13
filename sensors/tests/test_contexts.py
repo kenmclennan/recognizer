@@ -1,4 +1,6 @@
 import gc
+import subprocess
+import sys
 import weakref
 
 import pytest
@@ -10,6 +12,7 @@ from recognizer_sensors.testrun.contexts import (
     PYTHON_DATA,
     ContextSelection,
     PythonContexts,
+    node_contexts,
     usable_contexts,
 )
 from recognizer_sensors.testrun.suites import parse_suites
@@ -184,3 +187,97 @@ def test_the_selection_answers_from_the_eager_dict_and_the_reader(tmp_path):
     assert selection.get("nowhere.py", {}) == {}
     assert suite_size(selection) == 3
     assert suite_size(eager) == 1
+
+
+def make_tests(tmp_path, *files):
+    (tmp_path / "tests").mkdir(exist_ok=True)
+
+    for file in files:
+        (tmp_path / "tests" / file).write_text("")
+
+
+def test_node_contexts_returns_each_node_id_without_its_phase(tmp_path):
+    make_tests(tmp_path, "test_a.py")
+
+    assert node_contexts(["tests/test_a.py::t1|run", "tests/test_a.py::t2|setup"], tmp_path) == {
+        "tests/test_a.py::t1",
+        "tests/test_a.py::t2",
+    }
+
+
+NODE_SHAPES = [
+    ("tests/test_a.py::test_t[a|b]|run", "tests/test_a.py::test_t[a|b]"),
+    (
+        "tests/test_a.py::test_every[hub#detail]@hub#detail|run",
+        "tests/test_a.py::test_every[hub#detail]",
+    ),
+    ("tests/test_a.py::test_t[a@b]|run", "tests/test_a.py::test_t[a@b]"),
+    (r"tests/test_a.py::test_t[\u2192]|run", r"tests/test_a.py::test_t[\u2192]"),
+]
+
+
+@pytest.mark.parametrize(("recorded", "expected"), NODE_SHAPES)
+def test_node_contexts_normalises_the_recorded_shapes(tmp_path, recorded, expected):
+    make_tests(tmp_path, "test_a.py")
+
+    assert node_contexts([recorded], tmp_path) == {expected}
+
+
+@pytest.mark.parametrize(
+    "names",
+    [
+        [""],
+        ["tests/test_a.py"],
+        ["tests/missing.py::t|run"],
+        ["tests/test_a.py::t|run", "tests/missing.py::t|run"],
+        ["tests/test_a.py::t|run", ""],
+        None,
+    ],
+)
+def test_node_contexts_is_none_when_any_name_cannot_be_resolved(tmp_path, names):
+    make_tests(tmp_path, "test_a.py")
+
+    assert node_contexts(names, tmp_path) is None
+
+
+@pytest.mark.parametrize(("recorded", "expected"), NODE_SHAPES)
+def test_a_normalised_node_id_is_collected_by_pytest_as_one_test(tmp_path, recorded, expected):
+    ident = expected.split("[", 1)[1][:-1].replace("\\u2192", "\u2192")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_a.py").write_text(
+        "import pytest\n\n\n"
+        f"@pytest.mark.parametrize('x', [pytest.param(1, id={ident!r})])\n"
+        f"def {expected.split('::', 1)[1].split('[')[0]}(x):\n    pass\n",
+        encoding="utf-8",
+    )
+    found = node_contexts([recorded], tmp_path)
+    assert found is not None
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", *sorted(found)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "1 passed" in result.stdout
+
+
+def test_the_python_reader_holds_node_ids_per_line_and_prefixes_the_directory(tmp_path):
+    (tmp_path / "svc" / "tests").mkdir(parents=True)
+    (tmp_path / "svc" / "app").mkdir()
+    (tmp_path / "svc" / "app" / "m.py").write_text("")
+    (tmp_path / "svc" / "tests" / "test_a.py").write_text("")
+    (tmp_path / PYTHON_DATA).parent.mkdir(parents=True)
+    data = CoverageData(basename=str(tmp_path / PYTHON_DATA))
+    data.set_context("tests/test_a.py::t1|run")
+    data.add_lines({str(tmp_path / "svc" / "app" / "m.py"): [1]})
+    data.set_context("")
+    data.add_lines({str(tmp_path / "svc" / "app" / "m.py"): [2]})
+    data.write()
+
+    reader = PythonContexts(tmp_path, directory="svc")
+
+    assert ContextSelection({}, reader).nodes("svc/app/m.py") == {
+        1: frozenset({"svc/tests/test_a.py::t1"})
+    }

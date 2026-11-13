@@ -22,7 +22,11 @@ from coverage import CoverageData
 from test_mutation import RECORD, SURVIVORS, read, run_mutate
 
 from recognizer_sensors.mutation import runner, sensor
-from recognizer_sensors.mutation.commands import mutant_command, selected_command
+from recognizer_sensors.mutation.commands import (
+    MAX_SELECTED_NODES,
+    mutant_command,
+    selected_command,
+)
 from recognizer_sensors.mutation.warmup import coverage_run
 from recognizer_sensors.scans import read_scans
 from recognizer_sensors.settings import Refusal
@@ -1211,3 +1215,111 @@ def test_a_mutant_running_at_the_deadline_is_ended_and_gives_no_verdict(tmp_path
     assert survivors["complete"] is False
     assert survivors["unmeasured"]["budget"] >= 1
     assert not survivors.get("timeouts")
+
+
+def test_python_node_selection_is_pytest_on_the_node_ids():
+    nodes = {"tests/b.py::t2", "tests/a.py::t1[x|y]"}
+    files = {"tests/a.py", "tests/b.py"}
+
+    assert selected_command(SUITE, files, nodes=nodes) == [
+        "pytest",
+        "-rfE",
+        "tests/a.py::t1[x|y]",
+        "tests/b.py::t2",
+    ]
+    assert selected_command(SUITE, files, stop=True, nodes=nodes)[:3] == ["pytest", "-rfE", "-x"]
+
+
+def test_a_previous_killer_file_leads_the_node_selection():
+    nodes = {"tests/a.py::t1", "tests/b.py::t2"}
+
+    assert selected_command(
+        SUITE, {"tests/a.py", "tests/b.py"}, previous=frozenset({"tests/b.py"}), nodes=nodes
+    ) == ["pytest", "-rfE", "tests/b.py::t2", "tests/a.py::t1"]
+
+
+def test_node_selection_falls_back_to_files_past_the_node_cap_and_for_a_dashed_id():
+    files = {"tests/a.py"}
+    at_cap = {f"tests/a.py::t{n}" for n in range(MAX_SELECTED_NODES)}
+    over = {f"tests/a.py::t{n}" for n in range(MAX_SELECTED_NODES + 1)}
+    file_command = ["pytest", "-rfE", "tests/a.py"]
+
+    assert selected_command(SUITE, files, nodes=at_cap)[2:] == sorted(at_cap)
+    assert selected_command(SUITE, files, nodes=over) == file_command
+    assert selected_command(SUITE, files, nodes={"-x::t"}) == file_command
+
+
+def test_a_node_selection_spanning_fifty_one_files_selects_nodes():
+    nodes = {f"tests/test_{n}.py::t" for n in range(51)}
+    files = {f"tests/test_{n}.py" for n in range(51)}
+
+    assert selected_command(SUITE, files, nodes=nodes)[2:] == sorted(nodes)
+    assert selected_command(SUITE, files) == mutant_command(SUITE)
+
+
+def test_node_selection_names_ids_relative_to_the_suite_directory():
+    nested = suite_of(directory="service")
+
+    assert selected_command(nested, {"service/tests/a.py"}, nodes={"service/tests/a.py::t"}) == [
+        "pytest",
+        "-rfE",
+        "tests/a.py::t",
+    ]
+    assert selected_command(
+        nested, {"other/tests/a.py"}, nodes={"other/tests/a.py::t"}
+    ) == mutant_command(nested)
+
+
+class NodeSelection(dict):
+    def __init__(self, files, nodes):
+        super().__init__(files)
+        self.node_lines = nodes
+
+    def nodes(self, path):
+        return self.node_lines.get(path, {})
+
+
+def test_a_mutant_runs_the_node_ids_that_covered_its_line(tmp_path, monkeypatch):
+    root, _ = mutate_repository(tmp_path)
+    nodes = {"app/rules.py": {2: frozenset({"tests/test_a.py::t1"})}}
+    fake_selection(monkeypatch, NodeSelection(SELECTED, nodes))
+    seen = spy_commands(monkeypatch)
+    settings = strong_settings(incremental=False, max_workers=1)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    commands = [command for command, _ in seen]
+
+    assert ["pytest", "-rfE", "tests/test_a.py::t1"] in commands
+    assert ["pytest", "-rfE", "-x", "tests/test_a.py::t1"] in commands
+
+
+def test_nodes_naming_other_files_than_the_selection_keep_file_selection():
+    assert sensor.node_set_for(frozenset({"tests/b.py::t"}), frozenset({"tests/a.py"})) is None
+    assert sensor.node_set_for(None, frozenset({"tests/a.py"})) is None
+    assert sensor.node_set_for(
+        frozenset({"tests/a.py::t"}), frozenset({"tests/a.py"})
+    ) == frozenset({"tests/a.py::t"})
+
+
+def test_a_node_selection_leaves_the_record_the_file_selection_writes(tmp_path, monkeypatch):
+    records = []
+    nodes = {"app/rules.py": {2: frozenset({"tests/test_a.py::t1"})}}
+
+    for name, selection in (
+        ("files", SELECTED),
+        ("nodes", NodeSelection(SELECTED, nodes)),
+    ):
+        base = tmp_path / name
+        base.mkdir()
+        root, _ = mutate_repository(base)
+        fake_selection(monkeypatch, selection)
+        settings = strong_settings(incremental=False, max_workers=1)
+
+        assert run_mutate(root, base / "overlay.json", settings) == 0
+
+        record = json.loads((root / RECORD).read_text())
+        records.append({k: v for k, v in record.items() if k != "commit"})
+
+    assert len(records[0]["functions"]) > 0
+    assert records[0] == records[1]

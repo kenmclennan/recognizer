@@ -132,6 +132,7 @@ class Target:
     covered: list[bool] = field(default_factory=list)
     timeouts: list[Site] = field(default_factory=list)
     selections: list[frozenset[str] | None] = field(default_factory=list)
+    nodes: list[frozenset[str] | None] = field(default_factory=list)
     previous: dict[int, frozenset[str]] = field(default_factory=dict)
     verdicts: list[str | None] = field(default_factory=list)
     covers: list[frozenset[str] | None] = field(default_factory=list)
@@ -662,6 +663,15 @@ def cover_of(files: frozenset[str] | None, hashes: dict[str, str]) -> frozenset[
     return with_conftests(files, hashes)
 
 
+def node_set_for(
+    nodes: frozenset[str] | None, files: frozenset[str] | None
+) -> frozenset[str] | None:
+    if not nodes or not files:
+        return None
+
+    return nodes if {node.split("::", 1)[0] for node in nodes} == set(files) else None
+
+
 def shared_cover(
     files: frozenset[str] | None,
     hashes: dict[str, str],
@@ -1072,6 +1082,15 @@ def measure(
                 chosen.get(covering_line(site, target, lines)) if covered else None
                 for site, covered in zip(target.sites, target.covered, strict=True)
             ]
+            node_lines = selection.nodes(target.file) if hasattr(selection, "nodes") else {}
+            target.nodes = [
+                node_set_for(node_lines.get(covering_line(site, target, lines)), files)
+                if covered
+                else None
+                for site, covered, files in zip(
+                    target.sites, target.covered, target.selections, strict=True
+                )
+            ]
             target.covers = [
                 shared_cover(files, hashes, covers_by_selection) for files in target.selections
             ]
@@ -1291,6 +1310,10 @@ def measure(
                 )
                 chosen = [target.selections[index] for index in target.to_run]
                 killers = [target.previous.get(index, frozenset()) for index in target.to_run]
+                node_sets = [
+                    target.nodes[index] if index < len(target.nodes) else None
+                    for index in target.to_run
+                ]
 
                 def baseline(
                     command: list[str] | str,
@@ -1316,11 +1339,12 @@ def measure(
                     command = whole
                     stopping = mutant_command(suite, True, workers)
                     files = chosen[index]
+                    nodes = node_sets[index]
 
                     if suite.language == "typescript":
                         selected = selected_command(suite, None, workers=workers, file=target.file)
                     elif files and len(files) * 2 <= suite_size:
-                        selected = selected_command(suite, files, workers=workers)
+                        selected = selected_command(suite, files, workers=workers, nodes=nodes)
                     else:
                         selected = None
 
@@ -1336,7 +1360,13 @@ def measure(
                         if seconds is not None:
                             command = selected
                             stopping = selected_command(
-                                suite, files, True, killers[index], workers, file=target.file
+                                suite,
+                                files,
+                                True,
+                                killers[index],
+                                workers,
+                                file=target.file,
+                                nodes=nodes,
                             )
 
                     if seconds is None:

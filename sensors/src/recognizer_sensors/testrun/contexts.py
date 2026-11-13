@@ -1,3 +1,4 @@
+import re
 import sys
 from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
@@ -31,6 +32,32 @@ def usable_contexts(names: object, directory: Path) -> frozenset[str] | None:
         files.add(path)
 
     return frozenset(files) if files else None
+
+
+PHASE_SUFFIX = re.compile(r"\|(run|setup|teardown)$")
+
+PARAM_SUFFIX = re.compile(r"(?<=\])@[^\[\]]*$")
+
+
+def node_contexts(names: object, directory: Path) -> frozenset[str] | None:
+    if not isinstance(names, list | set | tuple | frozenset):
+        return None
+
+    nodes: set[str] = set()
+
+    for name in names:
+        if not isinstance(name, str) or name == "" or "::" not in name:
+            return None
+
+        node = PARAM_SUFFIX.sub("", PHASE_SUFFIX.sub("", name))
+        path = node.split("::", 1)[0]
+
+        if not path or not (directory / path).is_file():
+            return None
+
+        nodes.add(node)
+
+    return frozenset(nodes) if nodes else None
 
 
 def path_like(name: str) -> bool:
@@ -98,6 +125,7 @@ class PythonContexts:
         self.data: CoverageData | None = None
         self.raw: dict[str, str] = {}
         self.cached: tuple[str, Lines] | None = None
+        self.cached_nodes: tuple[str, Lines] | None = None
         self.names: frozenset[str] | None = None
         self.recorded = True
         self.contexts: list[str] = []
@@ -156,6 +184,39 @@ class PythonContexts:
 
             if tests:
                 lines[number] = shared.setdefault(tests, tests)
+
+        return lines
+
+    def read_nodes(self, raw: str) -> Lines:
+        assert self.data is not None
+        shared: dict[frozenset[str], frozenset[str]] = {}
+        lines: Lines = {}
+
+        if self.dynamic:
+            return lines
+
+        for number, names in self.data.contexts_by_lineno(raw).items():
+            tests = node_contexts(names, self.repository / self.directory)
+
+            if tests and self.directory:
+                tests = frozenset(f"{self.directory}/{name}" for name in tests)
+
+            if tests:
+                lines[number] = shared.setdefault(tests, tests)
+
+        return lines
+
+    def node_lines(self, path: str) -> Lines:
+        raw = self.raw.get(path)
+
+        if raw is None:
+            return {}
+
+        if self.cached_nodes is not None and self.cached_nodes[0] == path:
+            return self.cached_nodes[1]
+
+        lines = self.read_nodes(raw)
+        self.cached_nodes = (path, lines)
 
         return lines
 
@@ -226,6 +287,14 @@ class ContextSelection(Mapping):
 
     def reader_of(self, path: str) -> "PythonContexts | None":
         return next((reader for reader in self.readers if path in reader.raw), None)
+
+    def nodes(self, path: str) -> Lines:
+        if path in self.eager:
+            return {}
+
+        reader = self.reader_of(path)
+
+        return reader.node_lines(path) if reader is not None else {}
 
     def __getitem__(self, path: str) -> Lines:
         if path in self.eager:
