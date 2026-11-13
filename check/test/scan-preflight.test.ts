@@ -67,7 +67,7 @@ function setup(
     },
     scanners: { [PYTHON]: { output: current() } },
     programs: {
-      "recognizer-sensors": (args, files) => {
+      "shipped-sensors": (args, files) => {
         files.set(
           args[args.indexOf("--output") + 1] as string,
           JSON.stringify({
@@ -247,16 +247,63 @@ describe("scan preflight: the early stage", () => {
     );
   });
 
-  it("gives a sensors gap when recognizer-sensors does not start", async () => {
-    const { code, err, fake } = await scan(
-      setup("", { version: { started: false } }),
-      "--sense",
-      "thresholds",
-    );
+  describe("gives one gap per ticked shipped sensor whose program does not start", () => {
+    const failing = (names: string[]) => ({
+      version: (name: string) =>
+        names.includes(name) ? { started: false } : { stdout: "0.0.0\n" },
+    });
 
-    expect(code).toBe(4);
-    expect(err).toContain("recognizer-sensors is not installed (thresholds)");
-    expect(sensorRuns(fake)).toEqual([]);
+    it("names only the sensor whose program does not start", async () => {
+      const { code, err, fake } = await scan(
+        setup("", failing(["mutation"])),
+        "--sense",
+        "crap,mutation,thresholds",
+      );
+
+      expect(code).toBe(4);
+      expect(err).toContain("recognizer-sense-mutation is not installed");
+      expect(err).not.toContain("recognizer-sense-crap is not installed");
+      expect(err).not.toContain("recognizer-sense-thresholds is not installed");
+      expect(sensorRuns(fake)).toEqual([]);
+    });
+
+    it("records the gap id and the sensor it needs", async () => {
+      const { out } = await scan(
+        setup("", failing(["mutation"])),
+        "--json",
+        "--sense",
+        "crap,mutation,thresholds",
+      );
+
+      const gaps = events(out)
+        .filter((event) => event.state === "gaps")
+        .flatMap((event) => event.gaps as { id: string; needs: string[] }[]);
+
+      expect(gaps.map((gap) => [gap.id, gap.needs])).toEqual([
+        ["sensors:missing:mutation", ["mutation"]],
+      ]);
+    });
+
+    it("gives three gaps when none of the three programs starts", async () => {
+      const { code, out } = await scan(
+        setup("", failing(["crap", "mutation", "thresholds"])),
+        "--json",
+        "--sense",
+        "crap,mutation,thresholds",
+      );
+
+      expect(code).toBe(4);
+
+      for (const name of ["crap", "mutation", "thresholds"]) {
+        expect(out).toContain(`sensors:missing:${name}`);
+      }
+    });
+
+    it("gives none when no shipped sensor is ticked", async () => {
+      const { err } = await scan(setup("", failing(["crap"])));
+
+      expect(err).not.toContain("is not installed");
+    });
   });
 
   it("reports nothing for a describer that is not ticked", async () => {
@@ -336,7 +383,7 @@ describe("scan preflight: the project stage", () => {
 
           return { stdout: "a line\n" };
         },
-        "recognizer-sensors": () => ({}),
+        "shipped-sensors": () => ({}),
       },
     });
     const { code, out, fake } = await scan(

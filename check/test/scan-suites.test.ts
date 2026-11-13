@@ -59,7 +59,7 @@ function setup(selection: string | undefined): FakeOptions {
     scanners: { [PYTHON]: { output: scanJson(1, 0) } },
     sensorManifests: true,
     programs: {
-      "recognizer-sensors": (args, files) =>
+      "shipped-sensors": (args, files) =>
         findingsFor(args[0] as string)(args, files),
     },
   };

@@ -22,8 +22,6 @@ export interface EarlyInput {
   install: Record<string, string>;
 }
 
-const SENSORS_PROGRAM = "recognizer-sensors";
-
 const REFERENCE_PROGRAM = "recognizer-describe-claude";
 
 const IN_TREE_DESCRIBER = "describers/claude/dist/bin.js";
@@ -40,10 +38,6 @@ export function installFix(
   program: string,
 ): Fix {
   return outside(install?.[program] ?? `install ${program}`);
-}
-
-function isShipped(sensor: PreflightSensor): boolean {
-  return shippedSensorOf(sensor.command) !== undefined;
 }
 
 function fillDescriber(item: string, root: string): string {
@@ -146,24 +140,27 @@ function describerGaps(input: EarlyInput): Gap[] {
 }
 
 function sensorProgramGaps(input: EarlyInput): Gap[] {
-  const shipped = input.sensors.filter(isShipped);
+  return input.sensors.flatMap((sensor) => {
+    const name = shippedSensorOf(sensor.command);
 
-  if (shipped.length === 0) {
-    return [];
-  }
+    if (name === undefined) {
+      return [];
+    }
 
-  const result = input.io.run(SENSORS_PROGRAM, ["--version"]);
+    const program = `recognizer-sense-${name}`;
+    const result = input.io.run(program, ["--version"]);
 
-  return result.started && result.status === 0
-    ? []
-    : [
-        {
-          id: "sensors:missing",
-          line: `${SENSORS_PROGRAM} is not installed`,
-          needs: shipped.map((one) => one.name),
-          fix: installFix(input.install, SENSORS_PROGRAM),
-        },
-      ];
+    return result.started && result.status === 0
+      ? []
+      : [
+          {
+            id: `sensors:missing:${name}`,
+            line: `${program} is not installed`,
+            needs: [sensor.name],
+            fix: installFix(input.install, program),
+          },
+        ];
+  });
 }
 
 export function earlyGaps(input: EarlyInput): Gap[] {
