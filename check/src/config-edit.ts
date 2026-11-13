@@ -215,6 +215,16 @@ function entryNamed(
   return null;
 }
 
+const WARNING_SECTION = "sensors.structure.warnings.";
+
+function inWarnings(steps: Step[], at: number): boolean {
+  return steps
+    .slice(0, at)
+    .map((entry) => entry.name)
+    .join(".")
+    .startsWith(WARNING_SECTION);
+}
+
 function descend(
   doc: Document,
   steps: Step[],
@@ -229,6 +239,19 @@ function descend(
 
   for (const [at, step] of steps.entries()) {
     const wantSeq = step.kind === "entry";
+    if (
+      create &&
+      !wantSeq &&
+      isScalar(node) &&
+      typeof node.value === "boolean" &&
+      inWarnings(steps, at)
+    ) {
+      const made = new YAMLMap();
+
+      place(made);
+      node = made;
+    }
+
     if (isEmptyValue(node)) {
       if (!create) {
         return { absent: true };
@@ -417,7 +440,12 @@ export function setValue(
   const name = lastStep(steps).name;
   const existing = map.get(name, true);
 
-  if (!isEmptyValue(existing) && !isScalar(existing)) {
+  const switchOverMap =
+    isMap(existing) &&
+    entry.type === "boolean" &&
+    inWarnings(steps, steps.length);
+
+  if (!isEmptyValue(existing) && !isScalar(existing) && !switchOverMap) {
     return refuse(
       `${key} is ${describeNode(existing)}; ${isMap(existing) ? "remove it with --remove-section first" : "remove it with --unset first"}`,
     );
@@ -590,6 +618,14 @@ export function unsetValue(
 
   if (raw === undefined) {
     map.delete(name);
+
+    if (
+      map.items.length === 0 &&
+      descent.holder !== null &&
+      inWarnings(steps, steps.length - 1)
+    ) {
+      descent.holder.map.delete(descent.holder.name);
+    }
 
     return { status: "ok", text: emit(doc, text) };
   }

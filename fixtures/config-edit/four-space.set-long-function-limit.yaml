@@ -1,0 +1,7 @@
+sensors:
+    mine:
+        command: [mine]
+    structure:
+        warnings:
+            long_function:
+                limit: 30

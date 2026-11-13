@@ -114,6 +114,17 @@ describe("the golden outputs", () => {
       (t: string) => addSection(t, KEYS, "sensors.crap"),
     ],
     [
+      "four-space",
+      "set-long-function-limit",
+      (t: string) =>
+        setValue(
+          t,
+          KEYS,
+          "sensors.structure.warnings.long_function.limit",
+          "30",
+        ),
+    ],
+    [
       "empty-flow",
       "set-crap-threshold",
       (t: string) => setValue(t, KEYS, "sensors.crap.threshold", "30"),
@@ -291,6 +302,82 @@ describe("list items", () => {
       status: "ok",
       lines: ["describe-it", "--fast"],
     });
+  });
+});
+
+describe("the long-function limit", () => {
+  const FILE = (value: string) =>
+    `sensors:\n  structure:\n    warnings:\n      long_function: ${value}\n`;
+
+  it("turns a true switch into the map form, keeping a comment", () => {
+    const outcome = setValue(
+      "sensors:\n  structure:\n    warnings:\n      # keep\n      long_function: true\n",
+      KEYS,
+      "sensors.structure.warnings.long_function.limit",
+      "30",
+    );
+
+    const result = text(outcome);
+
+    expect(parse(result).sensors.structure.warnings.long_function).toEqual({
+      limit: 30,
+    });
+    expect(result).toContain("# keep");
+  });
+
+  it("writes the map form over a false switch, which reads the warning on", () => {
+    const result = text(
+      setValue(
+        FILE("false"),
+        KEYS,
+        "sensors.structure.warnings.long_function.limit",
+        "30",
+      ),
+    );
+
+    expect(parse(result).sensors.structure.warnings.long_function).toEqual({
+      limit: 30,
+    });
+  });
+
+  it("returns the entry to a plain value or removes it when the limit is unset", () => {
+    const result = text(
+      unsetValue(
+        "sensors:\n  structure:\n    warnings:\n      long_function:\n        limit: 30\n",
+        KEYS,
+        "sensors.structure.warnings.long_function.limit",
+      ),
+    );
+
+    expect(
+      parse(result)?.sensors?.structure?.warnings?.long_function,
+    ).toBeUndefined();
+  });
+
+  it("writes false over a map form and drops the limit", () => {
+    const result = text(
+      setValue(
+        "sensors:\n  structure:\n    warnings:\n      long_function:\n        limit: 30\n",
+        KEYS,
+        "sensors.structure.warnings.long_function",
+        "false",
+      ),
+    );
+
+    expect(parse(result).sensors.structure.warnings.long_function).toBe(false);
+  });
+
+  it("refuses a limit below 1", () => {
+    expect(
+      refused(
+        setValue(
+          FILE("true"),
+          KEYS,
+          "sensors.structure.warnings.long_function.limit",
+          "0",
+        ),
+      ),
+    ).toContain("below the minimum 1");
   });
 });
 
