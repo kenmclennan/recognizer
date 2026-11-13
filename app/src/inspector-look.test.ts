@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
+import { functionLimits } from "./function-limits";
 import { collectFacts, here, webkit } from "./look-page";
+import { shippedSensors } from "./shipped-fake";
 
 const HOSTS = `<div id="a-rail" style="width:44px;height:300px;display:flex;flex-direction:column"></div><div id="a-panel" style="width:340px;height:600px;display:flex;flex-direction:column"></div><div id="a-long" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-short" style="width:340px;height:200px;display:flex;flex-direction:column"></div><div id="a-tabs" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-folder" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-top" style="width:340px;height:300px;display:flex;flex-direction:column"></div><div id="a-narrow" style="width:200px;height:300px;display:flex;flex-direction:column"></div><div id="a-fit" style="width:340px;height:300px;display:flex;flex-direction:column"></div>`;
+
+const REAL_LIMITS = functionLimits(null, {
+  status: "ok",
+  sensors: shippedSensors(),
+});
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -10,7 +17,7 @@ document.body.insertAdjacentHTML("beforeend", ${JSON.stringify(HOSTS)});
 import { buildInspectorView } from ${JSON.stringify(here("inspector-view.ts"))};
 import { compactFolders } from ${JSON.stringify(here("folder-compaction.ts"))};
 import { inspectorContent } from ${JSON.stringify(here("inspector-model.ts"))};
-import { DEFAULT_LIMITS } from ${JSON.stringify(here("function-limits.ts"))};
+const DEFAULT_LIMITS = ${JSON.stringify(REAL_LIMITS)};
 
 const scan = {
   modules: [

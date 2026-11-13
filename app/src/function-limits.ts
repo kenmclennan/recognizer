@@ -6,21 +6,19 @@ import {
   shippedSensorSettings,
 } from "recognizer";
 
-export const COMPLEXITY_ABOVE = 10;
-export const COVERAGE_BELOW = 0.6;
-export const CRAP_AT = 30;
+import type { ShippedSensors } from "./sensor-run";
 
 export type FunctionLimits = {
   complexityAbove: number | null;
   coverageBelow: number | null;
-  crapAt: number;
+  crapAt: number | null;
   longAt: number;
 };
 
 export const DEFAULT_LIMITS: FunctionLimits = {
-  complexityAbove: COMPLEXITY_ABOVE,
-  coverageBelow: COVERAGE_BELOW,
-  crapAt: CRAP_AT,
+  complexityAbove: null,
+  coverageBelow: null,
+  crapAt: null,
   longAt: LONG_FUNCTION,
 };
 
@@ -39,7 +37,7 @@ function limitFrom(
   settings: Record<string, unknown> | null,
   name: string,
   key: "above" | "below",
-  fallback: number,
+  fallback: number | null,
 ): number | null {
   const entry = entryOf(settings, name);
 
@@ -56,7 +54,40 @@ function limitFrom(
   return fallback;
 }
 
-export function functionLimits(config: Config | null): FunctionLimits {
+function publishedOf(shipped: ShippedSensors | null, metric: string) {
+  if (shipped === null || shipped.status !== "ok") {
+    return null;
+  }
+
+  for (const sensor of shipped.sensors) {
+    const value = sensor.metrics.find((one) => one.name === metric)?.published
+      ?.value;
+
+    if (isNumber(value)) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function crapDefault(shipped: ShippedSensors | null): number | null {
+  if (shipped === null || shipped.status !== "ok") {
+    return null;
+  }
+
+  const sensor = shipped.sensors.find((one) => one.name === "crap");
+  const value = sensor?.settings.find(
+    (one) => one.key === "threshold",
+  )?.default;
+
+  return isNumber(value) ? value : null;
+}
+
+export function functionLimits(
+  config: Config | null,
+  shipped: ShippedSensors | null,
+): FunctionLimits {
   const thresholds = shippedSensorSettings(config, "thresholds");
   const crap = entryOf(shippedSensorSettings(config, "crap"), "threshold");
 
@@ -71,20 +102,28 @@ export function functionLimits(config: Config | null): FunctionLimits {
       thresholds,
       "complexity",
       "above",
-      COMPLEXITY_ABOVE,
+      publishedOf(shipped, "complexity"),
     ),
-    coverageBelow: limitFrom(thresholds, "coverage", "below", COVERAGE_BELOW),
-    crapAt: isNumber(crap) ? crap : CRAP_AT,
+    coverageBelow: limitFrom(
+      thresholds,
+      "coverage",
+      "below",
+      publishedOf(shipped, "coverage"),
+    ),
+    crapAt: isNumber(crap) ? crap : crapDefault(shipped),
   };
 }
 
-export function limitsFromText(text: string | null): FunctionLimits {
+export function limitsFromText(
+  text: string | null,
+  shipped: ShippedSensors | null,
+): FunctionLimits {
   if (text === null) {
-    return DEFAULT_LIMITS;
+    return functionLimits(null, shipped);
   }
 
   try {
-    return functionLimits(parseConfig(text));
+    return functionLimits(parseConfig(text), shipped);
   } catch {
     return DEFAULT_LIMITS;
   }

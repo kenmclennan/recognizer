@@ -4430,7 +4430,7 @@ export function showExplorer(
         ),
         metrics: withoutDrawn(currentOverlays(), drawn).metrics,
         metricsOn: tickedMetrics().length > 0,
-        limits: limitsFromText(scanConfig),
+        limits: limitsFromText(scanConfig, shippedSensors),
         proposed: (id) => currentPlan()?.proposed.get(id) ?? null,
         members: currentMembers(),
       });

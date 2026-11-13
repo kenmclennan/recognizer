@@ -642,7 +642,9 @@ function functionMetricsRow(
         ? "amber"
         : null,
     ),
-    cell("crap", "CRAP", (value) => (value > limits.crapAt ? "red" : null)),
+    cell("crap", "CRAP", (value) =>
+      limits.crapAt !== null && value > limits.crapAt ? "red" : null,
+    ),
     cell("coverage", "cov", (value) =>
       limits.coverageBelow !== null && value < limits.coverageBelow
         ? "amber"

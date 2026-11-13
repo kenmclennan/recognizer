@@ -12,7 +12,7 @@ import {
 } from "./fixtures";
 import { compactFolders } from "./folder-compaction";
 import { HUGE_FUNCTION, LONG_FUNCTION } from "./function-length";
-import { DEFAULT_LIMITS } from "./function-limits";
+import { DEFAULT_LIMITS, functionLimits } from "./function-limits";
 import { computeHealth } from "./health";
 import {
   dependencyLabels,
@@ -45,6 +45,7 @@ const scanOf = (
 });
 
 const SHIPPED = { status: "ok" as const, sensors: shippedSensors() };
+const REAL_LIMITS = functionLimits(null, SHIPPED);
 
 function named(label: string, overlay: string) {
   const entry = metricEntryOf(SHIPPED.sensors, overlay, label);
@@ -80,7 +81,7 @@ function inputsFor(
     }),
     metrics: [],
     metricsOn: false,
-    limits: DEFAULT_LIMITS,
+    limits: REAL_LIMITS,
     ...extra,
   };
 }
@@ -1826,6 +1827,20 @@ describe("the metrics row on a function card", () => {
     expect(
       row({ cc: 99, crap: 20.5, cov: 0.7 }, { limits })?.map((c) => c.tone),
     ).toEqual([null, "red", "amber"]);
+  });
+
+  it("shows no tone for a null limit but still renders its three cells", () => {
+    const limits = {
+      complexityAbove: null,
+      coverageBelow: null,
+      crapAt: null,
+      longAt: 20,
+    };
+    const cells = row({ cc: 99, crap: 99, cov: 0.1 }, { limits });
+
+    expect(cells).toHaveLength(3);
+    expect(cells?.map((c) => c.text)).toEqual(["99", "99", "10%"]);
+    expect(cells?.map((c) => c.tone)).toEqual([null, null, null]);
   });
 
   it("names and formats the three cells", () => {

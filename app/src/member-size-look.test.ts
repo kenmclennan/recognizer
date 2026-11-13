@@ -1,13 +1,20 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { HUGE_FUNCTION, LONG_FUNCTION } from "./function-length";
+import { functionLimits } from "./function-limits";
 import { collectFacts, here, webkit } from "./look-page";
+import { shippedSensors } from "./shipped-fake";
+
+const REAL_LIMITS = functionLimits(null, {
+  status: "ok",
+  sensors: shippedSensors(),
+});
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { buildInspectorView } from ${JSON.stringify(here("inspector-view.ts"))};
 import { compactFolders } from ${JSON.stringify(here("folder-compaction.ts"))};
 import { inspectorContent } from ${JSON.stringify(here("inspector-model.ts"))};
-import { DEFAULT_LIMITS } from ${JSON.stringify(here("function-limits.ts"))};
+const DEFAULT_LIMITS = ${JSON.stringify(REAL_LIMITS)};
 
 const LONG = ${LONG_FUNCTION};
 const HUGE = ${HUGE_FUNCTION};
