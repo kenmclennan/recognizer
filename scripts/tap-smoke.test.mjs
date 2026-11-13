@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { fencedBlock, INSTALL_COMMANDS } from "./tap-smoke.mjs";
+import {
+  fencedBlock,
+  INSTALL_COMMANDS,
+  UNINSTALL_COMMANDS,
+} from "./tap-smoke.mjs";
 
 const README = readFileSync(
   fileURLToPath(new URL("../README.md", import.meta.url)),
@@ -11,6 +15,15 @@ const README = readFileSync(
 describe("the commands tap-smoke runs", () => {
   it("equal the first sh block of the README's Install section", () => {
     expect(fencedBlock(README, "Install")).toEqual(INSTALL_COMMANDS);
+  });
+
+  it("equal the first sh block of the README's Uninstall section", () => {
+    expect(fencedBlock(README, "Uninstall")).toEqual(UNINSTALL_COMMANDS);
+    expect(UNINSTALL_COMMANDS).toEqual([
+      "recognizer agents uninstall",
+      "brew uninstall --cask kenmclennan/tap/recognizer",
+      "brew autoremove",
+    ]);
   });
 
   it("fails when a section or its block is absent", () => {

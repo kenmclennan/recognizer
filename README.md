@@ -17,7 +17,7 @@ Recognizer runs on macOS on Apple silicon and installs from the Homebrew tap:
 brew install --cask kenmclennan/tap/recognizer
 ```
 
-The one cask installs the app and puts every command on `PATH`: `recognizer`, the five `recognizer-scan-<language>` scanners, `recognizer-sensors` and `recognizer-describe-claude`. They run on Homebrew's `node` and `python@3.13`, which the cask installs as dependencies. Check the install with `recognizer --version`.
+The cask installs the app and the `recognizer` command. It depends on the `recognizer-plugins` bundle formula, which brings every official plugin: the five `recognizer-scan-<language>` scanners, the three sensors (`recognizer-sense-crap`, `recognizer-sense-mutation` and `recognizer-sense-thresholds`) and `recognizer-describe-claude`. The plugins run on Homebrew's `node` and `python@3.13`, which Homebrew installs as dependencies. Check the install with `recognizer --version` and `recognizer plugins`.
 
 Writing module responsibilities (`recognizer describe`) uses the [Claude Code](https://claude.com/claude-code) `claude` command, which you install and sign in to separately. Everything else works without it.
 
@@ -27,12 +27,25 @@ Writing module responsibilities (`recognizer describe`) uses the [Claude Code](h
 brew upgrade --cask kenmclennan/tap/recognizer
 ```
 
-A bare `brew upgrade` works too. The app and every command are one package and move together. The app has no updater of its own.
+A bare `brew upgrade` works too. The app and the `recognizer` command are one package and move together; the app has no updater of its own. Each plugin is its own formula and upgrades on its own release, so a plugin can be a version ahead of or behind the command. `recognizer` judges a plugin by its protocol, not its version: a plugin outside the range the command supports is refused, and the message prints that plugin's install line.
 
 After an upgrade:
 
 - Run `recognizer doctor` in each repository you use it with. It reports any config key the new version retired, and prints the command that fixes each problem.
 - Run `recognizer agents install` again if you installed the agent skills, so they match the new version. It prints `no change` when they already do.
+
+### Installing or removing one plugin
+
+Install one plugin with its formula, and remove one with `--ignore-dependencies`, because the bundle requires every plugin:
+
+```sh
+brew install kenmclennan/tap/recognizer-scan-kotlin
+brew uninstall --ignore-dependencies recognizer-scan-kotlin
+```
+
+A scan that needs a removed plugin reports it missing and prints its install line. A removed plugin comes back the next time Homebrew installs the bundle, which happens when the bundle's member list changes or the cask is reinstalled.
+
+### Moving an existing install
 
 A machine that installed the retired `recognizer` formula moves to the cask once with:
 
@@ -40,21 +53,29 @@ A machine that installed the retired `recognizer` formula moves to the cask once
 brew update && brew uninstall --ignore-dependencies --formula recognizer && brew upgrade --cask recognizer
 ```
 
+A machine that holds the earlier cask, which carried every command itself, removes it and installs the new one once:
+
+```sh
+brew update && brew uninstall --cask recognizer && brew install --cask recognizer
+```
+
 ## Uninstall
 
-Remove the agent skills first, while the command is still installed, then the cask:
+Remove the agent skills first, while the command is still installed, then the cask, then the dependencies Homebrew no longer needs:
 
 ```sh
 recognizer agents uninstall
 brew uninstall --cask kenmclennan/tap/recognizer
+brew autoremove
 ```
+
+Removing the cask also removes the `recognizer-plugins` bundle and the plugins nothing else needs; `brew autoremove` is for an older Homebrew that leaves them, and for `node` and `python@3.13` when nothing else needs them.
 
 The cask has no zap stanza, so these are left behind. Remove them only if you want them gone:
 
 - **Each repository's `.recognizer/` folder.** Its policy, config, saved views, responsibilities and baselines are committed files in that repository; `.recognizer/cache/` holds scans, findings, overlays and run logs. `rm -rf .recognizer/cache` frees the space and keeps the setup; `rm -rf .recognizer` removes everything (commit the removal if it was committed).
 - **The app's config folder**, `~/Library/Application Support/com.kenmclennan.recognizer`. It holds `config.json` (the Editor and Describing settings), the recent folders and views, and the app's socket. Remove it with `rm -rf ~/Library/Application\ Support/com.kenmclennan.recognizer`.
 - **The app's web view data**, `~/Library/WebKit/com.kenmclennan.recognizer`. Remove it with `rm -rf ~/Library/WebKit/com.kenmclennan.recognizer`.
-- **Homebrew's `node` and `python@3.13`**, if nothing else needs them: `brew autoremove`.
 
 ## Use
 

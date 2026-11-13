@@ -1,6 +1,6 @@
 # Plugins
 
-Temporary, like `design.md`: this document holds the plugin design while it is built, and is deleted once the code, `check/README.md` and `recognizer help plugins` carry it. Until phase 5 ships, `design.md`'s "Released and installed as one toolchain" describes what is installed; this document describes where it is going.
+Temporary, like `design.md`: this document holds the plugin design while it is built, and is deleted once the code, `check/README.md` and `recognizer help plugins` carry it. Phase 5 is built: `design.md`'s "Released and installed as a cask plus one formula per plugin" describes what is installed.
 
 ## What a plugin is
 
@@ -78,7 +78,7 @@ The CLI tags each event with the plugin's name and forwards it unchanged on `rec
 - Each official plugin is its own Homebrew formula in the tap, declaring its own runtime (`python@3.13`, `node`, or a prebuilt binary), versioned and released when its own folder changes: `recognizer-scan-python`, `-typescript`, `-kotlin`, `-rust`, `-csharp`; `recognizer-sense-crap`, `-mutation`, `-thresholds`; `recognizer-describe-claude`.
 - The formula `recognizer-plugins` depends on every official plugin, and the cask depends on `recognizer-plugins`, so `brew install --cask recognizer` installs a working set. Adding an official plugin changes the bundle, not the cask.
 - Homebrew has no optional cask dependencies, so a minimal install means removing unwanted plugins after the bundle.
-- `brew uninstall <plugin>` removes one plugin; `brew uninstall --cask recognizer` followed by `brew autoremove` removes the official set.
+- `brew uninstall --ignore-dependencies <plugin>` removes one plugin, because the bundle requires it, and it returns when the bundle next changes; `brew uninstall --cask recognizer` followed by `brew autoremove` removes the official set.
 - Third-party plugins are distributed however their authors choose. Recognizer needs only an executable on `PATH`.
 
 ## Setup and doctor
@@ -103,5 +103,5 @@ Each phase is its own item, built on the one before.
 2. **Lifecycle and events (built).** The four verbs and the event stream, read by the CLI and the app; the fixed progress steps, the closed diagnosis codes and the fixed sensor timeout go.
 3. **Manifest-driven CLI and app (built).** Every place that knows a plugin by name reads its manifest instead: the shipped-sensor registry, display names and expansions, metric names, finding groups and sentences, the module scope, and defaults duplicated outside the plugin.
 4. **Registration and discovery (built).** Discovery on `PATH`, `recognizer plugins`, `recognizer plugin add`, scanners chosen from manifests by language (the scan schema's language list opens), and doctor and setup made generic.
-5. **Distribution.** The separate formulae, the `recognizer-plugins` bundle, the cask depending on it, a release workflow per plugin, and the app's same-version rule replaced by the protocol range. `design.md`'s toolchain bullet is rewritten here.
+5. **Distribution (built).** The separate formulae, the `recognizer-plugins` bundle, the cask depending on it, a release workflow per plugin, and the app's same-version rule replaced by the protocol range. `design.md`'s toolchain bullet is rewritten here.
 6. **Author kit.** `recognizer help plugins`, `recognizer plugin init` with its templates, and `recognizer plugin schema`.
