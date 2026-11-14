@@ -22,11 +22,12 @@ const rail = buildRailView({
   toggleFiles() {
     hidden = !hidden;
     grid.classList.toggle("tree-hidden", hidden);
-    rail.render({ panel: hidden ? null : "files", notes: notesTotal, scanFailed: false, findings: { count: 0, tone: "none" } });
+    rail.render({ panel: hidden ? null : "files", notes: notesTotal, scanFailed: false, findings: { count: 0, tone: "none" }, setup: { problems: null } });
   },
   toggleNotes() {},
   toggleScan() {},
   toggleFindings() {},
+  openSetup() {},
   openSettings() {},
 });
 const tree = document.createElement("aside");
@@ -38,7 +39,7 @@ inspector.className = "inspector";
 
 grid.append(rail.element, tree, canvas, inspector);
 document.body.append(grid);
-rail.render({ panel: "files", notes: notesTotal, scanFailed: false, findings: { count: 0, tone: "none" } });
+rail.render({ panel: "files", notes: notesTotal, scanFailed: false, findings: { count: 0, tone: "none" }, setup: { problems: null } });
 
 const cs = (node) => getComputedStyle(node);
 const probe = document.createElement("i");
@@ -69,15 +70,15 @@ const notesFacts = {
   order: [...rail.element.querySelectorAll("button")].map((b) => b.className.split(" ")[1]),
 };
 notesTotal = 0;
-rail.render({ panel: "files", notes: 0, scanFailed: false, findings: { count: 0, tone: "none" } });
+rail.render({ panel: "files", notes: 0, scanFailed: false, findings: { count: 0, tone: "none" }, setup: { problems: null } });
 notesFacts.zeroHidden = countOf().hidden;
 notesFacts.zeroText = countOf().textContent;
 notesTotal = 3;
-rail.render({ panel: "files", notes: 3, scanFailed: false, findings: { count: 0, tone: "none" } });
+rail.render({ panel: "files", notes: 3, scanFailed: false, findings: { count: 0, tone: "none" }, setup: { problems: null } });
 
 const foundEl = () => rail.element.querySelector(".rail-findings .rail-count");
 const badgeFacts = (findings) => {
-  rail.render({ panel: "files", notes: 3, scanFailed: false, findings });
+  rail.render({ panel: "files", notes: 3, scanFailed: false, findings, setup: { problems: null } });
   const box = foundEl().getBoundingClientRect();
   return { text: foundEl().textContent, hidden: foundEl().hidden, width: box.width, height: box.height, radius: cs(foundEl()).borderTopLeftRadius, background: cs(foundEl()).backgroundColor };
 };
@@ -86,10 +87,22 @@ const findingsFacts = {
   amber: badgeFacts({ count: 0, tone: "amber" }),
   none: badgeFacts({ count: 0, tone: "none" }),
 };
-rail.render({ panel: "files", notes: 3, scanFailed: false, findings: { count: 0, tone: "none" } });
+rail.render({ panel: "files", notes: 3, scanFailed: false, findings: { count: 0, tone: "none" }, setup: { problems: null } });
 
+const setupEl = () => rail.element.querySelector(".rail-setup");
+const setupFacts = (problems) => {
+  rail.render({ panel: "files", notes: 3, scanFailed: false, findings: { count: 0, tone: "none" }, setup: { problems } });
+  const badge = setupEl().querySelector(".rail-count");
+  return { label: setupEl().getAttribute("data-label"), text: badge.textContent, hidden: badge.hidden, amber: badge.classList.contains("amber"), background: cs(badge).backgroundColor };
+};
+const setupBadges = { two: setupFacts(2), one: setupFacts(1), zero: setupFacts(0), unknown: setupFacts(null) };
+const amberReference = findingsFacts.amber.background;
+rail.render({ panel: "files", notes: 3, scanFailed: false, findings: { count: 0, tone: "none" }, setup: { problems: null } });
 const rect = rail.element.getBoundingClientRect();
 const facts = {
+  setupBadges,
+  amberReference,
+  setupAboveSettings: (() => { const a = setupEl().getBoundingClientRect(); const b = rail.element.querySelector(".rail-settings").getBoundingClientRect(); const f = rail.element.querySelector(".rail-findings").getBoundingClientRect(); return { aboveSettings: a.bottom <= b.top, belowFindings: a.top >= f.bottom }; })(),
   findingsFacts,
   colours,
   tag: rail.element.tagName,
@@ -127,6 +140,18 @@ type State = {
 };
 
 type Facts = {
+  setupBadges: Record<
+    "two" | "one" | "zero" | "unknown",
+    {
+      label: string;
+      text: string;
+      hidden: boolean;
+      amber: boolean;
+      background: string;
+    }
+  >;
+  amberReference: string;
+  setupAboveSettings: { aboveSettings: boolean; belowFindings: boolean };
   colours: { sel: string; fg: string };
   tag: string;
   buttons: number;
@@ -206,10 +231,10 @@ function collect(): Facts {
 describe.skipIf(webkit === undefined)("the rail in a real browser", () => {
   const f = (webkit === undefined ? null : collect()) as Facts;
 
-  it("sits full height at the window's left holding a 16px stroke-2 Files button then Commits, Views, Notes, Scan and Findings buttons", () => {
+  it("sits full height at the window's left holding a 16px stroke-2 Files button then Commits, Views, Notes, Scan and Findings buttons, with Setup and Settings at the bottom", () => {
     expect(f.tag).toBe("NAV");
-    expect(f.children).toBe(8);
-    expect(f.buttons).toBe(7);
+    expect(f.children).toBe(9);
+    expect(f.buttons).toBe(8);
     expect(f.gear).toEqual({
       belowFindings: true,
       nearBottom: true,
@@ -222,17 +247,42 @@ describe.skipIf(webkit === undefined)("the rail in a real browser", () => {
       "rail-notes",
       "rail-scan",
       "rail-findings",
+      "rail-setup",
       "rail-settings",
     ]);
     expect(f.aria).toBe("Files");
     expect(f.label).toBe("Files");
-    expect(f.titles).toEqual(["", "", "", "", "", "", ""]);
+    expect(f.titles).toEqual(["", "", "", "", "", "", "", ""]);
     expect(f.iconSize).toBe("16px");
     expect(f.strokeWidth).toBe("2px");
     expect(f.rail.left).toBe(0);
     expect(f.rail.top).toBe(0);
     expect(f.rail.height).toBe(f.gridHeight);
     expect(f.treeLeft).toBe(f.rail.width);
+  });
+
+  it("puts the Setup button between Findings and Settings with an amber count badge", () => {
+    expect(f.setupAboveSettings).toEqual({
+      aboveSettings: true,
+      belowFindings: true,
+    });
+    expect(f.setupBadges.two).toMatchObject({
+      label: "Setup: 2 problems",
+      text: "2",
+      hidden: false,
+      amber: true,
+    });
+    expect(f.setupBadges.two.background).toBe(f.amberReference);
+    expect(f.setupBadges.one).toMatchObject({
+      label: "Setup: 1 problem",
+      text: "1",
+      hidden: false,
+    });
+    expect(f.setupBadges.zero).toMatchObject({ label: "Setup", hidden: true });
+    expect(f.setupBadges.unknown).toMatchObject({
+      label: "Setup",
+      hidden: true,
+    });
   });
 
   it("marks the Files button with a selection-colour bar and full-strength icon while the tree shows", () => {

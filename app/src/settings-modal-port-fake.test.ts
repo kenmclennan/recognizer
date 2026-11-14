@@ -57,4 +57,22 @@ describe("the settings modal port fake", () => {
     });
     expect(fake.config).toBe(BASE);
   });
+
+  it("round-trips the setup model with the other settings", async () => {
+    const fake = fakeSettingsModal();
+
+    expect((await fake.readSettings()).setup).toEqual({ model: "sonnet" });
+
+    await fake.writeSettings({
+      editor: "code",
+      describing: { model: "haiku", batchSize: 4, confirmAboveUsd: 5 },
+      setup: { model: "opus" },
+    });
+
+    expect(await fake.readSettings()).toEqual({
+      editor: "code",
+      describing: { model: "haiku", batchSize: 4, confirmAboveUsd: 5 },
+      setup: { model: "opus" },
+    });
+  });
 });

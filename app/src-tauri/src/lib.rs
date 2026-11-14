@@ -20,6 +20,7 @@ pub mod scan_run;
 pub mod scan_ticks;
 pub mod sensors;
 pub mod settings;
+pub mod setup_run;
 pub mod socket;
 pub mod tool_runner;
 pub mod views;
@@ -36,6 +37,7 @@ use launch::{launch_for, Launch};
 use recent::{open_target, OpenTarget};
 use repository::ScanReport;
 use scan_run::{ScanRun, ScanRuns};
+use setup_run::SetupRuns;
 use socket::{Drives, Entry, Snapshots};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
@@ -608,6 +610,10 @@ fn handle_window_event(window: &tauri::Window, event: &WindowEvent) {
                 .closed(window.label());
             window.app_handle().state::<Drives>().closed(window.label());
             window.app_handle().state::<ScanRuns>().stop(window.label());
+            window
+                .app_handle()
+                .state::<SetupRuns>()
+                .stop(window.label());
         }
         _ => {}
     }
@@ -944,6 +950,77 @@ fn stop_scan(app: AppHandle, window: WebviewWindow) {
     let folder = app.state::<WindowState>().folder_of(&label);
 
     scan_run::stop_scan_for(&app.state::<ScanRuns>(), &label, folder.as_deref());
+}
+
+#[tauri::command]
+async fn read_doctor(
+    app: AppHandle,
+    window: WebviewWindow,
+) -> Result<setup_run::DoctorRead, String> {
+    let folder = window_folder_path(&app, &window)?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        setup_run::read_doctor(tool_runner::runner(), &folder)
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn run_setup_check(
+    app: AppHandle,
+    window: WebviewWindow,
+    prompt: String,
+    schema: serde_json::Value,
+    budget: Option<f64>,
+) -> Result<setup_run::SetupCheck, String> {
+    let folder = window_folder_path(&app, &window)?;
+    let label = window_label(&window);
+    let model = settings::read(&config_file(&app)?)?.setup.model;
+    let schema = schema.to_string();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let runs = app.state::<SetupRuns>();
+
+        setup_run::run_check(
+            &runs,
+            &label,
+            &folder,
+            tool_runner::runner(),
+            &model,
+            &prompt,
+            &schema,
+            budget,
+            |line| {
+                let _ = app.emit_to(label.as_str(), "setup-run-line", line);
+            },
+        )
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn apply_setup(
+    app: AppHandle,
+    window: WebviewWindow,
+    commands: Vec<Vec<String>>,
+) -> Result<setup_run::ApplyResult, String> {
+    let folder = window_folder_path(&app, &window)?;
+    let label = window_label(&window);
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let runs = app.state::<SetupRuns>();
+
+        setup_run::apply_setup_run(&runs, &label, &folder, tool_runner::runner(), &commands)
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn stop_setup(app: AppHandle, window: WebviewWindow) {
+    app.state::<SetupRuns>().stop(&window_label(&window));
 }
 
 #[tauri::command]
@@ -1658,6 +1735,7 @@ pub fn run() {
             app.manage(ScanBaselines::default());
             std::thread::spawn(views::sweep_stale_temp_dirs);
             app.manage(ScanRuns::default());
+            app.manage(SetupRuns::default());
             app.manage(Snapshots::default());
             app.manage(Drives::default());
             app.manage(Mutex::new(start_socket(&handle)));
@@ -1723,6 +1801,10 @@ pub fn run() {
             read_pull_requests,
             scans_at,
             stop_scan,
+            read_doctor,
+            run_setup_check,
+            apply_setup,
+            stop_setup,
             answer_describe,
             take_pending_view,
             unwatch_git,

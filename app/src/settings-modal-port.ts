@@ -1,6 +1,7 @@
 export type Settings = {
   editor: string;
   describing: { model: string; batchSize: number; confirmAboveUsd: number };
+  setup: { model: string };
 };
 
 export type RepositoryEdit = {

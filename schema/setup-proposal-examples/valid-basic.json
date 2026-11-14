@@ -1,0 +1,23 @@
+{
+  "summary": "One doctor fix, one suite, a draft policy",
+  "changes": [
+    {
+      "section": "problems",
+      "title": "Drop the retired key",
+      "reason": "doctor reports config-retired",
+      "commands": [["recognizer", "config", "--unset", "sensors.duplication"]]
+    },
+    {
+      "section": "tests",
+      "title": "Confirm the suites by running them",
+      "reason": "proves the registered commands work",
+      "commands": [["recognizer", "sensors", "check", "--run"]]
+    },
+    {
+      "section": "policy",
+      "title": "Draft the components",
+      "reason": "the modules fall into two layers",
+      "commands": [["recognizer", "policy", "--add", "levels", "core"]]
+    }
+  ]
+}

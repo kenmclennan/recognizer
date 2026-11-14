@@ -19,7 +19,9 @@ export interface DescribeProjection {
   cost_usd: number | null;
 }
 
-function priceFor(model: string): { input: number; output: number } | null {
+export function priceFor(
+  model: string,
+): { input: number; output: number } | null {
   const family = Object.keys(PRICES_PER_MILLION).find((name) =>
     new RegExp(`(^|[^A-Za-z0-9])${name}([^A-Za-z0-9]|$)`, "i").test(model),
   );

@@ -363,6 +363,45 @@ describe("doctor: registered plugins", () => {
     expect(settings.tests.map((suite) => suite.name)).toEqual(["api"]);
   });
 
+  it("never passes --run to a sensor's check verb", async () => {
+    const fixture = setup(
+      [
+        "tests:",
+        "  - name: api",
+        "    language: python",
+        "    directory: .",
+        "    command: pytest",
+        "    coverage: { path: coverage/lcov.info, format: lcov }",
+        "sensors:",
+        "  crap: {}",
+        "",
+      ].join("\n"),
+    );
+    const log = join(fixture.repo, "arguments.log");
+    const program = join(fixture.bin, "recognizer-sense-crap");
+
+    writeShim(
+      fixture.bin,
+      "recognizer-sense-crap",
+      manifestFor("sensor", "crap"),
+    );
+    writeFileSync(
+      program,
+      readFileSync(program, "utf8").replace(
+        'if [ "$1" = "check" ]; then',
+        `if [ "$1" = "check" ]; then\necho "$@" >> '${log}'`,
+      ),
+    );
+    chmodSync(program, 0o755);
+
+    await doctor(fixture);
+
+    const line = readFileSync(log, "utf8");
+
+    expect(line.startsWith("check")).toBe(true);
+    expect(line.split(/\s+/)).not.toContain("--run");
+  });
+
   it("reports a describer-gap when the describer's check fails", async () => {
     const fixture = setup(
       "describer:\n  command: [recognizer-describe-d, run, --model, '{model}', '{request}']\n  version: v1\n",

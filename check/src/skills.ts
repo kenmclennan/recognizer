@@ -13,7 +13,7 @@ const GUIDE_SKILL = [
   "",
 ].join("\n");
 
-const SETUP_SKILL = [
+export const SETUP_SKILL = [
   "---",
   "name: recognizer-setup",
   "description: Use when the user asks to set up Recognizer for a repository, or to update or fix that setup after an upgrade or a change in the application.",

@@ -21,19 +21,39 @@ export type DescribingCheck =
   | { ok: true; value: DescribingValues }
   | { ok: false; error: string };
 
+export const MODEL_ERROR =
+  "Model must be a name with no spaces and no leading - (for example haiku)";
+
+export type SetupCheck =
+  | { ok: true; value: { model: string } }
+  | { ok: false; error: string };
+
+export function checkModel(model: string): string | null {
+  const name = model.trim();
+
+  return name === "" || name.startsWith("-") || /\s/.test(name)
+    ? MODEL_ERROR
+    : null;
+}
+
+export function checkSetup(model: string): SetupCheck {
+  const error = checkModel(model);
+
+  return error === null
+    ? { ok: true, value: { model: model.trim() } }
+    : { ok: false, error };
+}
+
 export function checkDescribing(
   model: string,
   batchSize: string,
   confirmAbove: string,
 ): DescribingCheck {
   const name = model.trim();
+  const modelError = checkModel(model);
 
-  if (name === "" || name.startsWith("-") || /\s/.test(name)) {
-    return {
-      ok: false,
-      error:
-        "Model must be a name with no spaces and no leading - (for example haiku)",
-    };
+  if (modelError !== null) {
+    return { ok: false, error: modelError };
   }
 
   const size = Number(batchSize);

@@ -19,7 +19,7 @@ const change = (node, value) => { node.value = value; node.dispatchEvent(new Eve
 const facts = {};
 
 (async () => {
-  const port = fakeSettingsModal({ config: CONFIG, schema, settings: { editor: "", describing: { model: "haiku", batchSize: 4, confirmAboveUsd: 5 } } });
+  const port = fakeSettingsModal({ config: CONFIG, schema, settings: { editor: "", describing: { model: "haiku", batchSize: 4, confirmAboveUsd: 5 }, setup: { model: "sonnet" } } });
   const modal = openSettingsModal({ port, sensors: sensors(CONFIG), repository: true });
   await modal.ready;
   const q = (selector) => modal.element.querySelector(selector);
@@ -117,7 +117,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
 const facts = {};
 
 (async () => {
-  const port = fakeSettingsModal({ settings: { editor: "Sublime Text", describing: { model: "opus", batchSize: 8, confirmAboveUsd: 7.5 } } });
+  const port = fakeSettingsModal({ settings: { editor: "Sublime Text", describing: { model: "opus", batchSize: 8, confirmAboveUsd: 7.5 }, setup: { model: "sonnet" } } });
   const modal = openSettingsModal({ port, sensors, repository: false });
   await modal.ready;
   const q = (selector) => modal.element.querySelector(selector);
@@ -209,6 +209,7 @@ describe.skipIf(webkit === undefined)("the settings modal", () => {
     expect(f.entries).toEqual([
       "Editor",
       "Describing",
+      "Setup",
       "Structure",
       "Duplication",
       "C.R.A.P.",
@@ -280,7 +281,7 @@ describe.skipIf(webkit === undefined)("the settings modal", () => {
 
   it("shows only the App group with no repository and calls no repository command", () => {
     expect(f.noRepository.groups).toEqual(["App"]);
-    expect(f.noRepository.entries).toEqual(["Editor", "Describing"]);
+    expect(f.noRepository.entries).toEqual(["Editor", "Describing", "Setup"]);
     expect(f.noRepository.commands).toEqual(["read_settings"]);
   });
 
@@ -328,6 +329,7 @@ describe.skipIf(webkit === undefined)("the settings modal's App group", () => {
     expect(f.saved).toEqual({
       editor: "code --goto",
       describing: { model: "opus", batchSize: 6, confirmAboveUsd: 7.5 },
+      setup: { model: "sonnet" },
     });
     expect(f.closedAfterSave).toBe(true);
     expect(f.savedAfterInvalid).toBe(0);

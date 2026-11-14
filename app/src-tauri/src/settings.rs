@@ -12,6 +12,61 @@ pub struct Settings {
     pub editor: String,
     #[serde(default)]
     pub describing: Describing,
+    #[serde(default)]
+    pub setup: Setup,
+}
+
+pub const DEFAULT_SETUP_MODEL: &str = "sonnet";
+
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Setup {
+    pub model: String,
+}
+
+impl Default for Setup {
+    fn default() -> Self {
+        Setup {
+            model: DEFAULT_SETUP_MODEL.to_string(),
+        }
+    }
+}
+
+fn setup_json(setup: &Setup) -> Value {
+    serde_json::json!({ "model": setup.model })
+}
+
+fn model_ok(model: &str) -> bool {
+    !(model.is_empty() || model.starts_with('-') || model.chars().any(char::is_whitespace))
+}
+
+fn model_error(key: &str) -> String {
+    format!("{key}.model must be a non-empty name with no whitespace and no leading -")
+}
+
+pub fn validate_setup(setup: &Setup) -> Result<(), String> {
+    if model_ok(&setup.model) {
+        Ok(())
+    } else {
+        Err(model_error("setup"))
+    }
+}
+
+fn parse_setup(value: &Value) -> Result<Setup, String> {
+    let Value::Object(object) = value else {
+        return Err("setup in config.json must be an object".to_string());
+    };
+
+    let model = match object.get("model") {
+        Some(Value::String(model)) => model.clone(),
+        _ => return Err("setup.model in config.json must be a string".to_string()),
+    };
+
+    let setup = Setup { model };
+
+    validate_setup(&setup)?;
+
+    Ok(setup)
 }
 
 pub const DEFAULT_MODEL: &str = "haiku";
@@ -49,11 +104,8 @@ fn describing_json(describing: &Describing) -> Value {
 pub fn validate_describing(describing: &Describing) -> Result<(), String> {
     let model = &describing.model;
 
-    if model.is_empty() || model.starts_with('-') || model.chars().any(char::is_whitespace) {
-        return Err(
-            "describing.model must be a non-empty name with no whitespace and no leading -"
-                .to_string(),
-        );
+    if !model_ok(model) {
+        return Err(model_error("describing"));
     }
 
     if describing.batch_size < 1 || describing.batch_size > MAX_BATCH_SIZE {
@@ -143,7 +195,16 @@ pub fn parse(text: Option<&str>) -> Result<Settings, String> {
         Some(value) => parse_describing(value)?,
     };
 
-    Ok(Settings { editor, describing })
+    let setup = match object.get("setup") {
+        None | Some(Value::Null) => Setup::default(),
+        Some(value) => parse_setup(value)?,
+    };
+
+    Ok(Settings {
+        editor,
+        describing,
+        setup,
+    })
 }
 
 pub fn validate(settings: &Settings) -> Result<(), String> {
@@ -151,7 +212,9 @@ pub fn validate(settings: &Settings) -> Result<(), String> {
         return Err("the editor must be a single line".to_string());
     }
 
-    validate_describing(&settings.describing)
+    validate_describing(&settings.describing)?;
+
+    validate_setup(&settings.setup)
 }
 
 pub fn seed(path: &Path) -> Result<(), String> {
@@ -160,14 +223,24 @@ pub fn seed(path: &Path) -> Result<(), String> {
         Err(_) => Map::new(),
     };
 
-    if object.contains_key("describing") {
-        return Ok(());
+    let mut changed = false;
+
+    if !object.contains_key("describing") {
+        object.insert(
+            "describing".to_string(),
+            describing_json(&Describing::default()),
+        );
+        changed = true;
     }
 
-    object.insert(
-        "describing".to_string(),
-        describing_json(&Describing::default()),
-    );
+    if !object.contains_key("setup") {
+        object.insert("setup".to_string(), setup_json(&Setup::default()));
+        changed = true;
+    }
+
+    if !changed {
+        return Ok(());
+    }
 
     write_object(path, object)
 }
@@ -211,6 +284,7 @@ pub fn save(path: &Path, settings: &Settings) -> Result<(), String> {
         "describing".to_string(),
         describing_json(&settings.describing),
     );
+    object.insert("setup".to_string(), setup_json(&settings.setup));
 
     write_object(path, object)
 }
@@ -551,5 +625,87 @@ mod tests {
         seed(&path).unwrap();
 
         assert_eq!(read(&path).unwrap().describing.model, "opus");
+    }
+
+    #[test]
+    fn an_absent_config_seeds_setup_sonnet_and_keeps_describing() {
+        let (_dir, path) = file();
+
+        seed(&path).unwrap();
+
+        let fresh: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+
+        assert_eq!(fresh["setup"], serde_json::json!({"model": "sonnet"}));
+        assert_eq!(fresh["describing"]["model"], "haiku");
+        assert_eq!(read(&path).unwrap().setup.model, "sonnet");
+    }
+
+    #[test]
+    fn a_file_with_describing_but_no_setup_gains_only_setup() {
+        let (_dir, path) = file();
+
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            r#"{"describing": {"model": "opus", "batch_size": 2}, "editor": "code"}"#,
+        )
+        .unwrap();
+        seed(&path).unwrap();
+
+        let written: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+
+        assert_eq!(written["setup"], serde_json::json!({"model": "sonnet"}));
+        assert_eq!(
+            written["describing"],
+            serde_json::json!({"model": "opus", "batch_size": 2})
+        );
+        assert_eq!(written["editor"], "code");
+    }
+
+    #[test]
+    fn a_blank_or_dashed_setup_model_is_refused_and_writes_nothing() {
+        let (_dir, path) = file();
+
+        for model in ["", "-x", "a b"] {
+            let bad = Settings {
+                setup: Setup {
+                    model: model.to_string(),
+                },
+                ..Settings::default()
+            };
+
+            assert!(save(&path, &bad).is_err(), "{model:?}");
+            assert!(!path.exists());
+        }
+
+        let error = parse(Some(r#"{"setup": {"model": "-x"}}"#)).unwrap_err();
+
+        assert!(error.contains("setup.model"), "{error}");
+        assert!(parse(Some(r#"{"setup": 3}"#)).is_err());
+    }
+
+    #[test]
+    fn an_unknown_key_survives_a_save_that_changes_setup() {
+        let (_dir, path) = file();
+
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            r#"{"other": [1], "setup": {"model": "haiku", "x": 1}}"#,
+        )
+        .unwrap();
+
+        let mut settings = read(&path).unwrap();
+
+        assert_eq!(settings.setup.model, "haiku");
+
+        settings.setup.model = "opus".to_string();
+        save(&path, &settings).unwrap();
+
+        let written: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+
+        assert_eq!(written["other"], serde_json::json!([1]));
+        assert_eq!(written["setup"], serde_json::json!({"model": "opus"}));
+        assert_eq!(read(&path), Ok(settings));
     }
 }

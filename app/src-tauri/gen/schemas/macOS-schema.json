@@ -177,10 +177,10 @@
       "description": "Permission identifier",
       "oneOf": [
         {
-          "description": "Choose, run, answer the describe question of and stop a scan of, read the cached scans and the remembered scan ticks of, write the scan ticks of, adopt the scan of, watch for a scan another process runs in, watch for changes to, name the folder a window holds, open the folder or a file in it in the editor, and read, write, remove and watch its saved views, read and record its recently opened views, read the changes of a git range in it, list its commits and branches and the facts of a ref, watch and stop watching its git state, read its open pull requests through gh, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, write the structure findings file, read and remove findings files, read the overlay files, read the run records, hash the repository's test files, read and watch the policy and config for the sensors, list the shipped sensors, ask a sensor to count the work a run would do, read the describer in effect, read the describing settings and add or remove one in the config, read and write the app settings, read the sensors package's published config keys, apply edits to the repository config through the recognizer command, read the version of the recognizer command, publish what the window shows to the app socket, and answer a command that drives it\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-answer-describe`\n- `allow-answer-window-drive`\n- `allow-change-range`\n- `allow-choose-folder`\n- `allow-list-branches`\n- `allow-list-history`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-planned-work`\n- `allow-publish-window-state`\n- `allow-range-members`\n- `allow-read-describing`\n- `allow-read-findings`\n- `allow-read-overlays`\n- `allow-read-pull-requests`\n- `allow-read-recent-views`\n- `allow-read-config-keys`\n- `allow-read-run-records`\n- `allow-read-responsibilities`\n- `allow-read-scan-cache`\n- `allow-read-scan-ticks`\n- `allow-read-sensor-inputs`\n- `allow-read-settings`\n- `allow-read-tests-hash`\n- `allow-record-recent-view`\n- `allow-ref-facts`\n- `allow-remove-findings`\n- `allow-remove-view`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-run-scan`\n- `allow-scans-at`\n- `allow-shipped-describer`\n- `allow-shipped-sensors`\n- `allow-stop-scan`\n- `allow-take-pending-view`\n- `allow-unwatch-git`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-external-scan`\n- `allow-watch-git`\n- `allow-watch-responsibilities`\n- `allow-watch-sensor-inputs`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-repository-config`\n- `allow-write-scan-ticks`\n- `allow-write-settings`\n- `allow-write-structure`\n- `allow-write-view`",
+          "description": "Choose, run, answer the describe question of and stop a scan of, read the cached scans and the remembered scan ticks of, write the scan ticks of, adopt the scan of, watch for a scan another process runs in, watch for changes to, name the folder a window holds, open the folder or a file in it in the editor, and read, write, remove and watch its saved views, read and record its recently opened views, read the changes of a git range in it, list its commits and branches and the facts of a ref, watch and stop watching its git state, read its open pull requests through gh, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, write the structure findings file, read and remove findings files, read the overlay files, read the run records, hash the repository's test files, read and watch the policy and config for the sensors, list the shipped sensors, ask a sensor to count the work a run would do, read the describer in effect, read the describing settings and add or remove one in the config, read and write the app settings, read the sensors package's published config keys, apply edits to the repository config through the recognizer command, read the setup doctor result, run the setup check, apply the ticked setup changes and stop either, read the version of the recognizer command, publish what the window shows to the app socket, and answer a command that drives it\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-apply-setup`\n- `allow-answer-describe`\n- `allow-answer-window-drive`\n- `allow-change-range`\n- `allow-choose-folder`\n- `allow-list-branches`\n- `allow-list-history`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-planned-work`\n- `allow-publish-window-state`\n- `allow-range-members`\n- `allow-read-describing`\n- `allow-read-doctor`\n- `allow-read-findings`\n- `allow-read-overlays`\n- `allow-read-pull-requests`\n- `allow-read-recent-views`\n- `allow-read-config-keys`\n- `allow-read-run-records`\n- `allow-read-responsibilities`\n- `allow-read-scan-cache`\n- `allow-read-scan-ticks`\n- `allow-read-sensor-inputs`\n- `allow-read-settings`\n- `allow-read-tests-hash`\n- `allow-record-recent-view`\n- `allow-ref-facts`\n- `allow-remove-findings`\n- `allow-remove-view`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-run-scan`\n- `allow-run-setup-check`\n- `allow-scans-at`\n- `allow-shipped-describer`\n- `allow-shipped-sensors`\n- `allow-stop-scan`\n- `allow-stop-setup`\n- `allow-take-pending-view`\n- `allow-unwatch-git`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-external-scan`\n- `allow-watch-git`\n- `allow-watch-responsibilities`\n- `allow-watch-sensor-inputs`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-repository-config`\n- `allow-write-scan-ticks`\n- `allow-write-settings`\n- `allow-write-structure`\n- `allow-write-view`",
           "type": "string",
           "const": "app-access",
-          "markdownDescription": "Choose, run, answer the describe question of and stop a scan of, read the cached scans and the remembered scan ticks of, write the scan ticks of, adopt the scan of, watch for a scan another process runs in, watch for changes to, name the folder a window holds, open the folder or a file in it in the editor, and read, write, remove and watch its saved views, read and record its recently opened views, read the changes of a git range in it, list its commits and branches and the facts of a ref, watch and stop watching its git state, read its open pull requests through gh, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, write the structure findings file, read and remove findings files, read the overlay files, read the run records, hash the repository's test files, read and watch the policy and config for the sensors, list the shipped sensors, ask a sensor to count the work a run would do, read the describer in effect, read the describing settings and add or remove one in the config, read and write the app settings, read the sensors package's published config keys, apply edits to the repository config through the recognizer command, read the version of the recognizer command, publish what the window shows to the app socket, and answer a command that drives it\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-answer-describe`\n- `allow-answer-window-drive`\n- `allow-change-range`\n- `allow-choose-folder`\n- `allow-list-branches`\n- `allow-list-history`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-planned-work`\n- `allow-publish-window-state`\n- `allow-range-members`\n- `allow-read-describing`\n- `allow-read-findings`\n- `allow-read-overlays`\n- `allow-read-pull-requests`\n- `allow-read-recent-views`\n- `allow-read-config-keys`\n- `allow-read-run-records`\n- `allow-read-responsibilities`\n- `allow-read-scan-cache`\n- `allow-read-scan-ticks`\n- `allow-read-sensor-inputs`\n- `allow-read-settings`\n- `allow-read-tests-hash`\n- `allow-record-recent-view`\n- `allow-ref-facts`\n- `allow-remove-findings`\n- `allow-remove-view`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-run-scan`\n- `allow-scans-at`\n- `allow-shipped-describer`\n- `allow-shipped-sensors`\n- `allow-stop-scan`\n- `allow-take-pending-view`\n- `allow-unwatch-git`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-external-scan`\n- `allow-watch-git`\n- `allow-watch-responsibilities`\n- `allow-watch-sensor-inputs`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-repository-config`\n- `allow-write-scan-ticks`\n- `allow-write-settings`\n- `allow-write-structure`\n- `allow-write-view`"
+          "markdownDescription": "Choose, run, answer the describe question of and stop a scan of, read the cached scans and the remembered scan ticks of, write the scan ticks of, adopt the scan of, watch for a scan another process runs in, watch for changes to, name the folder a window holds, open the folder or a file in it in the editor, and read, write, remove and watch its saved views, read and record its recently opened views, read the changes of a git range in it, list its commits and branches and the facts of a ref, watch and stop watching its git state, read its open pull requests through gh, build the link to one and take the view a link named, name the author of a note in it, read and watch its module responsibility lines, write the structure findings file, read and remove findings files, read the overlay files, read the run records, hash the repository's test files, read and watch the policy and config for the sensors, list the shipped sensors, ask a sensor to count the work a run would do, read the describer in effect, read the describing settings and add or remove one in the config, read and write the app settings, read the sensors package's published config keys, apply edits to the repository config through the recognizer command, read the setup doctor result, run the setup check, apply the ticked setup changes and stop either, read the version of the recognizer command, publish what the window shows to the app socket, and answer a command that drives it\n#### This permission set includes:\n\n- `allow-adopt-scan`\n- `allow-apply-setup`\n- `allow-answer-describe`\n- `allow-answer-window-drive`\n- `allow-change-range`\n- `allow-choose-folder`\n- `allow-list-branches`\n- `allow-list-history`\n- `allow-list-views`\n- `allow-open-folder-in-editor`\n- `allow-open-in-editor`\n- `allow-planned-work`\n- `allow-publish-window-state`\n- `allow-range-members`\n- `allow-read-describing`\n- `allow-read-doctor`\n- `allow-read-findings`\n- `allow-read-overlays`\n- `allow-read-pull-requests`\n- `allow-read-recent-views`\n- `allow-read-config-keys`\n- `allow-read-run-records`\n- `allow-read-responsibilities`\n- `allow-read-scan-cache`\n- `allow-read-scan-ticks`\n- `allow-read-sensor-inputs`\n- `allow-read-settings`\n- `allow-read-tests-hash`\n- `allow-record-recent-view`\n- `allow-ref-facts`\n- `allow-remove-findings`\n- `allow-remove-view`\n- `allow-rename-view`\n- `allow-renames-since`\n- `allow-run-scan`\n- `allow-run-setup-check`\n- `allow-scans-at`\n- `allow-shipped-describer`\n- `allow-shipped-sensors`\n- `allow-stop-scan`\n- `allow-stop-setup`\n- `allow-take-pending-view`\n- `allow-unwatch-git`\n- `allow-view-author`\n- `allow-view-link`\n- `allow-watch-changes`\n- `allow-watch-external-scan`\n- `allow-watch-git`\n- `allow-watch-responsibilities`\n- `allow-watch-sensor-inputs`\n- `allow-watch-views`\n- `allow-window-folder`\n- `allow-write-repository-config`\n- `allow-write-scan-ticks`\n- `allow-write-settings`\n- `allow-write-structure`\n- `allow-write-view`"
         },
         {
           "description": "Enables the adopt_scan command without any pre-configured scope.",
@@ -199,6 +199,12 @@
           "type": "string",
           "const": "allow-answer-window-drive",
           "markdownDescription": "Enables the answer_window_drive command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the apply_setup command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-apply-setup",
+          "markdownDescription": "Enables the apply_setup command without any pre-configured scope."
         },
         {
           "description": "Enables the change_range command without any pre-configured scope.",
@@ -271,6 +277,12 @@
           "type": "string",
           "const": "allow-read-describing",
           "markdownDescription": "Enables the read_describing command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the read_doctor command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-doctor",
+          "markdownDescription": "Enables the read_doctor command without any pre-configured scope."
         },
         {
           "description": "Enables the read_findings command without any pre-configured scope.",
@@ -381,6 +393,12 @@
           "markdownDescription": "Enables the run_scan command without any pre-configured scope."
         },
         {
+          "description": "Enables the run_setup_check command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-run-setup-check",
+          "markdownDescription": "Enables the run_setup_check command without any pre-configured scope."
+        },
+        {
           "description": "Enables the scans_at command without any pre-configured scope.",
           "type": "string",
           "const": "allow-scans-at",
@@ -403,6 +421,12 @@
           "type": "string",
           "const": "allow-stop-scan",
           "markdownDescription": "Enables the stop_scan command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the stop_setup command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-stop-setup",
+          "markdownDescription": "Enables the stop_setup command without any pre-configured scope."
         },
         {
           "description": "Enables the take_pending_view command without any pre-configured scope.",
@@ -519,6 +543,12 @@
           "markdownDescription": "Denies the answer_window_drive command without any pre-configured scope."
         },
         {
+          "description": "Denies the apply_setup command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-apply-setup",
+          "markdownDescription": "Denies the apply_setup command without any pre-configured scope."
+        },
+        {
           "description": "Denies the change_range command without any pre-configured scope.",
           "type": "string",
           "const": "deny-change-range",
@@ -589,6 +619,12 @@
           "type": "string",
           "const": "deny-read-describing",
           "markdownDescription": "Denies the read_describing command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the read_doctor command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-doctor",
+          "markdownDescription": "Denies the read_doctor command without any pre-configured scope."
         },
         {
           "description": "Denies the read_findings command without any pre-configured scope.",
@@ -699,6 +735,12 @@
           "markdownDescription": "Denies the run_scan command without any pre-configured scope."
         },
         {
+          "description": "Denies the run_setup_check command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-run-setup-check",
+          "markdownDescription": "Denies the run_setup_check command without any pre-configured scope."
+        },
+        {
           "description": "Denies the scans_at command without any pre-configured scope.",
           "type": "string",
           "const": "deny-scans-at",
@@ -721,6 +763,12 @@
           "type": "string",
           "const": "deny-stop-scan",
           "markdownDescription": "Denies the stop_scan command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the stop_setup command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-stop-setup",
+          "markdownDescription": "Denies the stop_setup command without any pre-configured scope."
         },
         {
           "description": "Denies the take_pending_view command without any pre-configured scope.",
