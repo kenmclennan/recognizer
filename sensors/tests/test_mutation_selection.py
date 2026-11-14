@@ -363,7 +363,7 @@ def test_each_mutant_runs_the_files_that_covered_its_line_and_baselines_run_once
     assert commands.count(STOPPING_WHOLE) == 1
     assert [timeout is None for _, timeout in seen].count(True) == 1
     assert capsys.readouterr().err.splitlines()[-1] == (
-        "recognizer-sensors: mutation: 1 functions without a covering test; "
+        "recognizer-sense-mutation: 1 functions without a covering test; "
         "2 mutants ran a selection, 1 ran the whole suite"
     )
 

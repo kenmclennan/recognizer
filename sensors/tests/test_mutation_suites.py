@@ -522,8 +522,8 @@ def test_kotlin_outside_the_root_and_a_language_with_two_suites_run_the_whole_su
     err = capsys.readouterr().err.splitlines()
 
     assert err == [
-        "recognizer-sensors: mutation: kotlin runs from app; running the whole suite for kotlin",
-        "recognizer-sensors: mutation: kotlin has 2 suites; running the whole suite for kotlin",
+        "recognizer-sense-mutation: kotlin runs from app; running the whole suite for kotlin",
+        "recognizer-sense-mutation: kotlin has 2 suites; running the whole suite for kotlin",
     ]
 
 

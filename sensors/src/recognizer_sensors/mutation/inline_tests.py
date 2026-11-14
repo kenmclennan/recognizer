@@ -258,7 +258,7 @@ def unit_digest(repository: Path, root: str) -> str:
         walk_unit(repository, PurePosixPath(root), entries)
     except UnsoundWalk as error:
         print(
-            f"recognizer-sensors: mutation: in-file tests of {root} not found by module walk "
+            f"recognizer-sense-mutation: in-file tests of {root} not found by module walk "
             f"({error}); any edit to its source reruns the sites it covers",
             file=sys.stderr,
         )

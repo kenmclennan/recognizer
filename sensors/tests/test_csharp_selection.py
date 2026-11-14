@@ -299,7 +299,7 @@ def test_a_class_with_no_file_or_an_odd_name_names_itself_and_falls_back(
 
     assert collect(root, scan, tmp_path)[1] == {}
     assert (
-        f"recognizer-sensors: mutation: test class {extra} has no single test file; "
+        f"recognizer-sense-mutation: test class {extra} has no single test file; "
         "running the whole suite for csharp"
     ) in capsys.readouterr().err
     assert not CSHARP_CLASSES

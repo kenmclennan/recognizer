@@ -16,7 +16,7 @@ def run(name: str, argv: list[str] | None = None) -> int:
         return main([name, "--version"])
 
     if not arguments or arguments[0] not in VERBS:
-        return fail(f"expected a verb as the first argument; {VERB_HINT}, and manifest")
+        return fail(f"expected a verb as the first argument; {VERB_HINT}, and manifest", name)
 
     return main([name, *arguments])
 

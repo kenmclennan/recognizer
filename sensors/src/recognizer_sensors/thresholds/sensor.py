@@ -109,7 +109,7 @@ def current_overlays(repository: Path, commit: str, current_tests: str) -> list[
 
         if not valid_overlay(document):
             print(
-                f"recognizer-sensors: thresholds: overlay {path.name} is unreadable; skipped",
+                f"recognizer-sense-thresholds: overlay {path.name} is unreadable; skipped",
                 file=sys.stderr,
             )
 
@@ -117,7 +117,7 @@ def current_overlays(repository: Path, commit: str, current_tests: str) -> list[
 
         if document["commit"] != commit:
             print(
-                f"recognizer-sensors: thresholds: overlay {path.name} is from commit "
+                f"recognizer-sense-thresholds: overlay {path.name} is from commit "
                 f"{document['commit']}, not {commit}; skipped",
                 file=sys.stderr,
             )
@@ -126,7 +126,7 @@ def current_overlays(repository: Path, commit: str, current_tests: str) -> list[
 
         if isinstance(document.get("tests"), str) and document["tests"] != current_tests:
             print(
-                f"recognizer-sensors: thresholds: overlay {path.name} measured different test "
+                f"recognizer-sense-thresholds: overlay {path.name} measured different test "
                 "files than the current ones; skipped",
                 file=sys.stderr,
             )
@@ -245,7 +245,7 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
         if source is None:
             if metric not in DEFAULTS:
                 print(
-                    f"recognizer-sensors: thresholds: metric {metric} is in no current overlay",
+                    f"recognizer-sense-thresholds: metric {metric} is in no current overlay",
                     file=sys.stderr,
                 )
 
@@ -275,7 +275,7 @@ def run(repository: Path, scans: list[Scan], settings: dict, commit: str) -> Out
 
         if unresolved:
             print(
-                f"recognizer-sensors: thresholds: {unresolved} ids of {metric} in "
+                f"recognizer-sense-thresholds: {unresolved} ids of {metric} in "
                 f"{source['file']} match no scanned module; skipped",
                 file=sys.stderr,
             )
