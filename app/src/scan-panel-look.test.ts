@@ -87,6 +87,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const setScan = (next) => { wired.scanState = next; };
   wired.rescanner = createRescanner({
     port: fake,
+    unregistered: async () => [],
     registered: async () => { const { config } = await sensors.readInputs(); return registeredOf(rowSensors(config, await sensors.shipped())); },
     load: () => base,
     sense: (loaded) => withSensors(loaded, sensors),

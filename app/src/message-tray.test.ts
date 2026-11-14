@@ -455,6 +455,16 @@ describe("message tray", () => {
       expect(tray.snapshot().badge.hidden).toBe(true);
     });
 
+    it("keeps an unregistered plugin warning across a reconcile", () => {
+      const { tray } = harness();
+
+      tray.post({ ...warning, text: "x", key: "unregistered:crap" });
+      tray.post({ ...warning, text: "y", key: "a" });
+      tray.reconcile([]);
+
+      expect(tray.snapshot().rows.map((row) => row.text)).toEqual(["x"]);
+    });
+
     it("keeps the toast when the removed message was another", () => {
       const { tray } = harness();
 

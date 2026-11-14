@@ -26,6 +26,8 @@ export const realTimer: SetTimer = (run, ms) => {
 
 export const TOAST_MS = 3500;
 
+export const UNREGISTERED_KEY_PREFIX = "unregistered:";
+
 export type MessageRow = {
   id: number;
   kind: MessageKind;
@@ -198,7 +200,10 @@ export function createMessageTray(
     reconcile(foundKeys) {
       const found = new Set(foundKeys);
       const kept = held.filter(
-        (message) => message.key === undefined || found.has(message.key),
+        (message) =>
+          message.key === undefined ||
+          message.key.startsWith(UNREGISTERED_KEY_PREFIX) ||
+          found.has(message.key),
       );
 
       if (kept.length === held.length) {
