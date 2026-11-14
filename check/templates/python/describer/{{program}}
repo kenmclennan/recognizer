@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+# {{program}}: a Recognizer describer written in Python (standard library only).
+# Run `recognizer help plugin-guide` for the contract this program follows.
+import json
+import signal
+import sys
+
+PROGRAM = "{{program}}"
+VERSION = "0.1.0"
+
+# EDIT HERE: change prompt_version whenever the way you describe modules changes.
+MANIFEST = {
+    "kind": "describer",
+    "name": "{{name}}",
+    "display": "{{name}}",
+    "version": VERSION,
+    "protocol": {{protocol}},
+    "install": "put {{program}} on PATH (EDIT HERE: say how your users install it)",
+    "check": True,
+    "long_running": False,
+    "time_limit_seconds": 120,
+    "units": ["modules"],
+    "settings": [],
+    "prompt_version": "1",
+}
+
+STOP_EXIT = 143
+
+
+def event(payload):
+    sys.stderr.write("recognizer-event " + json.dumps(payload) + "\n")
+    sys.stderr.flush()
+
+
+def on_term(signum, frame):
+    sys.exit(STOP_EXIT)
+
+
+def run(arguments):
+    model = None
+    request = None
+    index = 0
+
+    while index < len(arguments):
+        argument = arguments[index]
+
+        if argument == "--model" and index + 1 < len(arguments):
+            model = arguments[index + 1]
+            index += 2
+        elif request is None and not argument.startswith("--"):
+            request = argument
+            index += 1
+        else:
+            return usage()
+
+    if model is None or request is None:
+        return usage()
+
+    signal.signal(signal.SIGTERM, on_term)
+
+    with open(request) as handle:
+        module = json.load(handle)["module"]
+
+    event({"event": "start", "total": 1, "unit": "modules"})
+
+    # EDIT HERE: describe the module in one line, for example by asking a model.
+    line = "%s: replace this line with what the module is responsible for" % module
+
+    sys.stdout.write(line.replace("\n", " ") + "\n")
+    event({"event": "progress", "done": 1, "total": 1, "unit": "modules"})
+
+    return 0
+
+
+def usage():
+    sys.stderr.write(
+        "usage: " + PROGRAM + " manifest | check | guide | run --model <name> <request-file>\n"
+    )
+
+    return 2
+
+
+def main(arguments):
+    verb = arguments[0] if arguments else None
+
+    if verb == "manifest":
+        sys.stdout.write(json.dumps(MANIFEST, indent=2) + "\n")
+
+        return 0
+
+    if verb == "check":
+        sys.stdout.write('{"gaps":[],"notes":[]}\n')
+
+        return 0
+
+    if verb == "guide":
+        sys.stdout.write(
+            PROGRAM + " describes a module with a fixed line.\n"
+            "It needs nothing beyond Python 3.\n"
+            "Edit the EDIT HERE lines in this file to describe modules properly.\n"
+        )
+
+        return 0
+
+    if verb == "run":
+        return run(arguments[1:])
+
+    return usage()
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

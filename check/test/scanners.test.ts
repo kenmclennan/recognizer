@@ -101,7 +101,13 @@ describe("the scanner install hints", () => {
     const repo = fileURLToPath(new URL("../..", import.meta.url));
     const result = spawnSync(
       "grep",
-      ["-rn", "-E", "cargo install|pipx|uvx", "check/src"],
+      [
+        "-rn",
+        "--exclude-dir=generated",
+        "-E",
+        "cargo install|pipx|uvx",
+        "check/src",
+      ],
       { cwd: repo, encoding: "utf8" },
     );
 

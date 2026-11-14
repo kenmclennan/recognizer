@@ -8,6 +8,7 @@
       "app/**",
       "scripts/**",
       "!**/dist",
+      "!check/templates",
       "!**/src/generated",
       "!**/node_modules",
       "!**/src-tauri/target"
