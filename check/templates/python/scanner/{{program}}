@@ -1,0 +1,206 @@
+#!/usr/bin/env python3
+# {{program}}: a Recognizer scanner written in Python (standard library only).
+# Run `recognizer help plugin-guide` for the contract this program follows.
+import hashlib
+import json
+import os
+import signal
+import subprocess
+import sys
+
+PROGRAM = "{{program}}"
+VERSION = "0.1.0"
+
+# EDIT HERE: the extension of the files this scanner reads. A real scanner
+# also parses each file and fills in members and edges.
+EXTENSION = ".{{name}}"
+
+MANIFEST = {
+    "kind": "scanner",
+    "name": "{{name}}",
+    "display": "{{name}}",
+    "version": VERSION,
+    "protocol": {{protocol}},
+    "install": "put {{program}} on PATH (EDIT HERE: say how your users install it)",
+    "check": True,
+    "long_running": True,
+    "units": ["files"],
+    "settings": [],
+    "languages": [
+        {
+            "name": "{{name}}",
+            "extensions": [EXTENSION],
+            "files": [],
+            "skip": {
+                "directory_names": [],
+                "directory_prefixes": ["."],
+                "directory_suffixes": [],
+                "directory_markers": [],
+                "file_globs": [],
+            },
+        }
+    ],
+}
+
+SELECTION = {
+    "extensions": [EXTENSION],
+    "skip_directory_names": [],
+    "skip_directory_prefixes": [],
+    "skip_directory_suffixes": [],
+    "skip_directories_containing": [],
+    "skip_file_globs": [],
+}
+
+STOP_EXIT = 143
+
+state = {"files": [], "modules": [], "commit": None, "modified": None, "output": None}
+
+
+def event(payload):
+    sys.stderr.write("recognizer-event " + json.dumps(payload) + "\n")
+    sys.stderr.flush()
+
+
+def git(repository, *args):
+    return subprocess.run(
+        ["git", "-C", repository] + list(args),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
+def listed_files(repository):
+    done = git(repository, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+
+    if done.returncode != 0:
+        return []
+
+    names = done.stdout.decode("utf-8", "replace").split("\0")
+
+    return sorted({name for name in names if name.endswith(EXTENSION)})
+
+
+def write_scan():
+    document = {
+        "schema_version": {{scan_schema_version}},
+        "scanner": {"name": PROGRAM, "version": VERSION},
+        "commit": state["commit"],
+        "modified": state["modified"],
+        "files": state["files"],
+        "selection": SELECTION,
+        "modules": state["modules"],
+        "edges": [],
+        "foreign": [],
+    }
+    output = state["output"]
+    temporary = "%s.%d.tmp" % (output, os.getpid())
+
+    with open(temporary, "w") as handle:
+        json.dump(document, handle, indent=2)
+        handle.write("\n")
+
+    os.replace(temporary, output)
+
+
+def on_term(signum, frame):
+    if state["output"] is not None:
+        write_scan()
+
+    sys.exit(STOP_EXIT)
+
+
+def run(arguments):
+    repository = None
+    commit = None
+    output = None
+    index = 0
+
+    while index < len(arguments):
+        argument = arguments[index]
+
+        if argument == "--output" and index + 1 < len(arguments):
+            output = arguments[index + 1]
+            index += 2
+        elif argument == "--commit" and index + 1 < len(arguments):
+            commit = arguments[index + 1]
+            index += 2
+        elif repository is None and not argument.startswith("--"):
+            repository = argument
+            index += 1
+        else:
+            return usage()
+
+    if repository is None or output is None:
+        return usage()
+
+    state["commit"] = commit
+
+    if commit is not None:
+        status = git(repository, "status", "--porcelain")
+        state["modified"] = status.stdout.strip() != b""
+
+    state["output"] = output
+    signal.signal(signal.SIGTERM, on_term)
+
+    names = listed_files(repository)
+
+    event({"event": "start", "total": len(names), "unit": "files"})
+
+    for done, name in enumerate(names, start=1):
+        path = os.path.join(repository, name)
+
+        if os.path.isfile(path):
+            with open(path, "rb") as handle:
+                digest = hashlib.sha256(handle.read()).hexdigest()
+
+            # EDIT HERE: parse the file and fill in members; add edges between modules.
+            state["files"].append({"path": name, "hash": digest})
+            state["modules"].append(
+                {"id": name, "language": "{{name}}", "kind": "module", "members": []}
+            )
+
+        event({"event": "progress", "done": done, "total": len(names), "unit": "files"})
+
+    write_scan()
+
+    return 0
+
+
+def usage():
+    sys.stderr.write(
+        "usage: " + PROGRAM + " manifest | check | guide | run <repository> --output <file> [--commit <sha>]\n"
+    )
+
+    return 2
+
+
+def main(arguments):
+    verb = arguments[0] if arguments else None
+
+    if verb == "manifest":
+        sys.stdout.write(json.dumps(MANIFEST, indent=2) + "\n")
+
+        return 0
+
+    if verb == "check":
+        sys.stdout.write('{"gaps":[],"notes":[]}\n')
+
+        return 0
+
+    if verb == "guide":
+        sys.stdout.write(
+            PROGRAM + " reads files ending in " + EXTENSION + ".\n"
+            "It needs git on PATH and nothing else.\n"
+            "Edit the EDIT HERE lines in this file to make it read your language.\n"
+        )
+
+        return 0
+
+    if verb == "run":
+        return run(arguments[1:])
+
+    return usage()
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

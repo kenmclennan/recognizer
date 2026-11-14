@@ -43,13 +43,14 @@ const TOOLCHAIN: Record<Language, boolean> = {
   rust: works("cargo", ["--version"]),
 };
 
-const PAIRS = LANGUAGES.flatMap((language) =>
-  KINDS.map((kind) => [language, kind] as const),
-).filter(([language, kind]) =>
+const HAVE = (language: string, kind: string) =>
   Object.keys(bundledTemplates()).some((key) =>
     key.startsWith(`${language}/${kind}/`),
-  ),
-);
+  );
+
+const PAIRS = LANGUAGES.flatMap((language) =>
+  KINDS.map((kind) => [language, kind] as const),
+).filter(([language, kind]) => HAVE(language, kind));
 
 const REQUEST =
   '{"module":"a.py","source":"x","members":[],"uses":[],"used_by":[]}';
@@ -179,6 +180,69 @@ describe("plugin templates conform as written", () => {
           report.results.find((entry) => entry.name === "stop")?.status,
         );
         expect(status).toBe(0);
+      },
+      TIMEOUT,
+    );
+  }
+});
+
+describe("scanner templates", () => {
+  for (const language of LANGUAGES.filter((l) => HAVE(l, "scanner"))) {
+    it.skipIf(!REQUIRED && !TOOLCHAIN[language])(
+      `${language} scanner hashes files and escapes odd names`,
+      () => {
+        guardToolchain(language);
+
+        const { command } = prepare(language, "scanner");
+        const content = "line one\nline two\n";
+        const repository = gitRepository({ "sample.demo": content });
+        const output = join(makeTempDir("plugin-scan-"), "scan.json");
+        const first = spawnSync(
+          command,
+          ["run", repository, "--output", output, "--commit", "abc123"],
+          { encoding: "utf8" },
+        );
+
+        expect(first.status, first.stderr).toBe(0);
+
+        const scan = JSON.parse(readFileSync(output, "utf8")) as {
+          files: { path: string; hash: string }[];
+          modules: { id: string }[];
+          commit: string;
+        };
+
+        expect(scan.files[0]?.hash).toBe(
+          createHash("sha256").update(content).digest("hex"),
+        );
+        expect(scan.modules[0]?.id).toBe(scan.files[0]?.path);
+        expect(scan.commit).toBe("abc123");
+
+        const odd = 'a "quoted".demo';
+
+        writeFileSync(join(repository, odd), "other\n");
+
+        const second = spawnSync(
+          command,
+          ["run", repository, "--output", output],
+          { encoding: "utf8" },
+        );
+
+        expect(second.status, second.stderr).toBe(0);
+
+        const rescanned = JSON.parse(readFileSync(output, "utf8")) as {
+          modules: { id: string }[];
+          files: { path: string; hash: string }[];
+          commit: null;
+          modified: null;
+        };
+
+        expect(() => validateScan(rescanned)).not.toThrow();
+        expect(rescanned.modules.map((module) => module.id)).toContain(odd);
+        expect(rescanned.files.find((file) => file.path === odd)?.hash).toBe(
+          createHash("sha256").update("other\n").digest("hex"),
+        );
+        expect(rescanned.commit).toBeNull();
+        expect(rescanned.modified).toBeNull();
       },
       TIMEOUT,
     );
