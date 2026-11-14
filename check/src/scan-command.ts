@@ -80,6 +80,7 @@ import {
   languageRulesOf,
   type ScannerChoice,
 } from "./scanners.js";
+import { SHIPPED_DESCRIBER_NAME } from "./shipped-describer.js";
 import {
   isScoped,
   readShippedSensors,
@@ -91,6 +92,10 @@ import {
 } from "./shipped-sensors.js";
 import { runStructureSensor } from "./structure-run.js";
 import { resolveStructureSettings } from "./structure-sensor.js";
+import {
+  unregisteredSensors,
+  unregisteredWarning,
+} from "./unregistered-plugins.js";
 
 type FailureReason =
   | "not-installed"
@@ -510,6 +515,8 @@ function* scanFlow(
 
   const wantsConfig = options.describe !== false || options.sense !== null;
   let describer: Describer | undefined;
+  let describerSource: "config" | "shipped" | null = null;
+  let registeredNames: string[] = [];
   let selected: ReturnType<typeof selectSensors> = [];
   let folderKnown = false;
   const chosen: Record<string, string[]> = {};
@@ -536,9 +543,10 @@ function* scanFlow(
       const found = findDescriber(io, root);
 
       if (found !== null) {
-        const { source: _source, ...rest } = found;
+        const { source, ...rest } = found;
 
         describer = rest;
+        describerSource = source;
       }
 
       readResponsibilities(io, root);
@@ -561,6 +569,8 @@ function* scanFlow(
 
       shipped = readShippedSensors(io, limits.readOf, [...wanted]);
     }
+
+    registeredNames = registeredSensors(config).map((one) => one.name);
 
     selected =
       options.sense === null
@@ -631,6 +641,17 @@ function* scanFlow(
     }
 
     marker = acquired.held;
+  }
+
+  for (const name of unregisteredSensors(
+    registeredNames,
+    selected.map((one) => one.name),
+  )) {
+    io.stderr(`warning: ${unregisteredWarning(name)}\n`);
+  }
+
+  if (describerSource === "shipped" && describer !== undefined) {
+    io.stderr(`warning: ${unregisteredWarning(SHIPPED_DESCRIBER_NAME)}\n`);
   }
 
   const taken = marker;

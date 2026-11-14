@@ -1554,6 +1554,112 @@ describe("recognizer scan: phases", () => {
     });
   });
 
+  describe("an unregistered shipped plugin", () => {
+    const crapWarning =
+      "warning: crap is not registered in .recognizer/config.yaml; register it with `recognizer plugin add crap`. From the next release an unregistered plugin will not run.\n";
+    const mutationWarning = crapWarning.replaceAll("crap", "mutation");
+    const claudeWarning = crapWarning.replaceAll("crap", "claude");
+
+    function shippedRun(config: string, describe = false) {
+      const base = setup({}, { [CONFIG]: config });
+
+      return {
+        ...base,
+        programs: {
+          ...base.programs,
+          "shipped-sensors": (args: string[], files: Map<string, string>) => {
+            files.set(
+              args[args.indexOf("--output") + 1] as string,
+              JSON.stringify({
+                findings_version: 1,
+                sensor: { name: "crap", version: "1" },
+                commit: COMMIT,
+                modified: false,
+                settings: {},
+                findings: [],
+              }),
+            );
+
+            return undefined;
+          },
+          ...(describe
+            ? {
+                "recognizer-describe-claude": (args: string[]) =>
+                  args[0] === "manifest"
+                    ? { stdout: describerManifestText("prompt-0123456789ab") }
+                    : { stdout: "a shipped line\n" },
+              }
+            : {}),
+        },
+      };
+    }
+
+    function count(text: string, line: string): number {
+      return text.split(line).length - 1;
+    }
+
+    it("runs the sensor and warns once on stderr", async () => {
+      const { code, out, err } = await scan(shippedRun(""), "--sense", "crap");
+
+      expect(code).toBe(0);
+      expect(out).toContain("ran crap");
+      expect(count(err, crapWarning)).toBe(1);
+    });
+
+    it("warns once for a name requested twice", async () => {
+      const { err } = await scan(shippedRun(""), "--sense", "crap,crap");
+
+      expect(count(err, crapWarning)).toBe(1);
+    });
+
+    it("warns for each unregistered sensor", async () => {
+      const { err } = await scan(shippedRun(""), "--sense", "crap,mutation");
+
+      expect(count(err, crapWarning)).toBe(1);
+      expect(count(err, mutationWarning)).toBe(1);
+    });
+
+    it("warns nothing when the sensor is registered", async () => {
+      const { code, out, err } = await scan(
+        shippedRun("sensors:\n  crap: {}\n"),
+        "--sense",
+        "crap",
+      );
+
+      expect(code).toBe(0);
+      expect(out).toContain("ran crap");
+      expect(err).not.toContain("not registered");
+    });
+
+    it("warns nothing for --sense all", async () => {
+      const { code, err } = await scan(
+        shippedRun("sensors:\n  crap: {}\n"),
+        "--sense",
+        "all",
+      );
+
+      expect(code).toBe(0);
+      expect(err).not.toContain("not registered");
+    });
+
+    it("warns once about the shipped describer", async () => {
+      const { code, err } = await scan(shippedRun("", true), "--describe");
+
+      expect(code).toBe(0);
+      expect(count(err, claudeWarning)).toBe(1);
+    });
+
+    it("warns nothing when a describer is registered", async () => {
+      const { code, err } = await scan(
+        shippedRun(DESCRIBER, true),
+        "--describe",
+      );
+
+      expect(code).toBe(0);
+      expect(err).not.toContain("not registered");
+    });
+  });
+
   describe("a sensor that reports progress", () => {
     const EVENTS = [
       'recognizer-event {"event":"start","total":2,"unit":"functions"}',

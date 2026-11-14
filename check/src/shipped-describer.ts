@@ -5,3 +5,5 @@ export const SHIPPED_DESCRIBER_COMMAND = [
   "{model}",
   "{request}",
 ];
+
+export const SHIPPED_DESCRIBER_NAME = "claude";

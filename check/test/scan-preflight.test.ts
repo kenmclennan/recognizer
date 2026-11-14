@@ -444,7 +444,7 @@ describe("scan preflight: the project stage", () => {
     );
 
     expect(code).toBe(4);
-    expect(err).toBe("");
+    expect(err.replace(/^warning: crap is not registered.*\n/, "")).toBe("");
     expect(gaps).toMatchObject({
       gaps: [
         {
