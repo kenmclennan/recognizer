@@ -20,6 +20,7 @@
   },
   "scripts": {
     "app": "npm run tauri -w @recognizer/app -- dev",
+    "open-check": "node scripts/open-check.mjs",
     "install-app": "node app/scripts/install-app.mjs",
     "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#THIRD-PARTY-NOTICES.md\" \"#app/node_modules\" \"#app/src-tauri/target\" \"#scanners/python/.venv\" \"#scanners/kotlin/.venv\" \"#scanners/csharp/.venv\" \"#sensors/.venv\" \"#describers/claude/prompt.md\"",
     "check:rust": "node app/scripts/check-rust.mjs",

@@ -152,6 +152,10 @@ jobs:
             exit 1
           fi
 
+      - name: Open the app ten times
+        if: steps.released.outputs.skip != 'true'
+        run: node scripts/open-check.mjs --toolchain dist-release/toolchain
+
       - name: Require the commit on main
         if: steps.released.outputs.skip != 'true'
         run: |

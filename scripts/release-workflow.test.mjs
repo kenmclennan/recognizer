@@ -25,10 +25,17 @@ describe("release.yml", () => {
     expect(WORKFLOW.on.workflow_dispatch.inputs.commit.required).not.toBe(true);
   });
 
-  it("requires the commit on main after the toolchain smoke test and before publishing", () => {
+  it("opens the app after the toolchain smoke test and before publishing", () => {
+    const open = index("Open the app ten times");
+
+    expect(open).toBeGreaterThan(index("Smoke-test the bundled toolchain"));
+    expect(open).toBeLessThan(index("Publish the release"));
+  });
+
+  it("requires the commit on main between the open check and publishing", () => {
     const onMain = index("Require the commit on main");
 
-    expect(onMain).toBeGreaterThan(index("Smoke-test the bundled toolchain"));
+    expect(onMain).toBeGreaterThan(index("Open the app ten times"));
     expect(onMain).toBeLessThan(index("Publish the release"));
   });
 
