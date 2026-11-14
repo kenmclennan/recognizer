@@ -65,6 +65,7 @@ const ranWith = (name: string, inputs: Record<string, string>) => ({
   modifiedMs: null,
   measured: { inputs, tests: TESTS },
 });
+const REGISTERED = "sensors:\n  crap: {}\n  mutation: {}\n";
 const panel = (sensors: PanelInput["sensors"]) =>
   scanPanel({
     scan: {
@@ -73,7 +74,7 @@ const panel = (sensors: PanelInput["sensors"]) =>
       changes: NO_CHANGES,
       scanning: null,
     },
-    config: null,
+    config: REGISTERED,
     sensors,
     lines: {
       modules: ["a.py", "b.py"],
@@ -1038,7 +1039,7 @@ describe("freshnessNote against the Scan panel model", () => {
           changes: NO_CHANGES,
           scanning: null,
         },
-        config: null,
+        config: REGISTERED,
         sensors: [ranWith("crap", partly)],
         lines: {
           modules: ["a.py"],

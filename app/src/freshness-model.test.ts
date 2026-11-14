@@ -94,7 +94,7 @@ function modelOf(
   const scan = scanOf(ids);
   const input: PanelInput = {
     scan: scanState(),
-    config: null,
+    config: "describer:\n  command: [describer]\n  version: v1\n",
     sensors: [ran("crap", ids), ran("mutation", ids)],
     lines: { modules: ids, of: () => ({ kind: "current", line: "x" }) },
     describedAt: NOW - 16 * MINUTE,

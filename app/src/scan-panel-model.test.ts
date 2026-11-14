@@ -229,7 +229,7 @@ describe("scanPanel and the structure sensor's duplication check", () => {
   };
 
   it("builds no Duplication row from the shipped list", () => {
-    const names = scanPanel(input({ shipped: real, config: null })).rows.map(
+    const names = scanPanel(input({ shipped: real })).rows.map(
       (row) => row.name,
     );
 
@@ -238,6 +238,8 @@ describe("scanPanel and the structure sensor's duplication check", () => {
       "Descriptions",
       "C.R.A.P.",
       "Mutation",
+      "alpha",
+      "beta",
     ]);
   });
 
@@ -1768,7 +1770,7 @@ describe("unregistered plugins", () => {
     ...over,
   });
 
-  it("shows an unregistered shipped sensor untickable and keeps it out of the plan, even when the stored ticks list it", () => {
+  it("leaves an unregistered shipped sensor out of the rows and the plan, even when the stored ticks list it", () => {
     const stored = ticks({
       describe: true,
       ticked: ["mutation", "crap"],
@@ -1781,14 +1783,9 @@ describe("unregistered plugins", () => {
     const crap = model.rows.find((row) => row.key === "crap");
     const mutation = model.rows.find((row) => row.key === "mutation");
 
-    expect(crap).toMatchObject({ tickable: true, unregistered: null });
-    expect(mutation).toMatchObject({
-      tickable: false,
-      disabled: true,
-      ticked: false,
-      tick: "off",
-      unregistered: "recognizer plugin add mutation",
-    });
+    expect(crap).toMatchObject({ tickable: true });
+    expect(mutation).toBeUndefined();
+    expect(model.rows.map((row) => row.key)).toEqual(["structure", "crap"]);
     expect(model.planned?.plan.sense).toEqual(["crap"]);
     expect(model.planned?.plan.describe).toBe(false);
   });
@@ -1798,9 +1795,7 @@ describe("unregistered plugins", () => {
     const text = `${model.summary.head} ${model.summary.line}`;
 
     expect(text).not.toMatch(/Mutation/);
-    expect(
-      model.rows.find((row) => row.key === "mutation")?.unregistered,
-    ).not.toBeNull();
+    expect(model.rows.find((row) => row.key === "mutation")).toBeUndefined();
 
     const bare = scanPanel(input({ config: null }));
 
@@ -1809,7 +1804,7 @@ describe("unregistered plugins", () => {
     );
   });
 
-  it("marks every shipped row and the Descriptions row unregistered for a null config, and plans nothing by default", () => {
+  it("shows Structure alone for a null config, and plans nothing by default", () => {
     const model = scanPanel(
       input({
         config: null,
@@ -1817,15 +1812,7 @@ describe("unregistered plugins", () => {
       }),
     );
 
-    expect(
-      model.rows
-        .filter((row) => row.key !== "structure")
-        .map((row) => [row.key, row.tickable, row.unregistered]),
-    ).toEqual([
-      ["describe", false, "recognizer plugin add claude"],
-      ["crap", false, "recognizer plugin add crap"],
-      ["mutation", false, "recognizer plugin add mutation"],
-    ]);
+    expect(model.rows.map((row) => row.key)).toEqual(["structure"]);
 
     const rows = rowSensors(null, LIST);
     const { plan } = phasesFor(ticks({ describe: false, ticked: null }), rows);
@@ -1840,7 +1827,6 @@ describe("unregistered plugins", () => {
     expect(model.rows.find((row) => row.key === "describe")).toMatchObject({
       tickable: true,
       ticked: true,
-      unregistered: null,
     });
     expect(model.planned?.plan.describe).toBe(true);
   });

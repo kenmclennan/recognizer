@@ -44,13 +44,23 @@ export function fakeSensors(
   overlays: Record<string, string> = {},
   shipped: ShippedSensors | ShippedSensor[] = [],
 ): FakeSensors {
+  const listed: ShippedSensor[] = Array.isArray(shipped)
+    ? shipped
+    : shipped.status === "ok"
+      ? shipped.sensors
+      : [];
+  const registersEverything = [
+    "describer:\n  command: [describer]\n  version: v1",
+    "sensors:",
+    ...listed.map(({ name }) => `  ${name}: {}`),
+  ].join("\n");
   const listeners = new Set<() => void>();
   const held: (() => void)[] = [];
   const fake: FakeSensors = {
     files: new Map(Object.entries(files)),
     inputs: {
       policy: null,
-      config: null,
+      config: listed.length === 0 ? null : `${registersEverything}\n`,
       baseline: null,
       refused: [],
       ...inputs,

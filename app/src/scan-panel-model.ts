@@ -4,9 +4,7 @@ import {
   parseConfig,
   registeredSensors,
   type Scan,
-  SHIPPED_DESCRIBER_NAME,
   shippedSensorNames,
-  UNREGISTERED_FIX,
 } from "recognizer";
 import { scopeCaption } from "./findings-scope";
 import { ageText, type ScanState } from "./footer-scan";
@@ -157,7 +155,6 @@ export type ScanRow = {
   tick: TickState;
   tone: SuiteTone | null;
   fold: FoldModel | null;
-  unregistered: string | null;
 };
 
 export type FoldModel = {
@@ -621,20 +618,11 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
       ...(why === null ? [] : [why.segments.map(({ text }) => text).join("")]),
       ...(note === null ? [] : [note]),
     ].join(": ");
-    const unregistered =
-      row.key === DESCRIBE_KEY
-        ? describerRegistered(input.config)
-          ? null
-          : UNREGISTERED_FIX(SHIPPED_DESCRIBER_NAME)
-        : sensor !== undefined && !sensor.registered
-          ? UNREGISTERED_FIX(sensor.name)
-          : null;
     const base = {
       key: row.key,
       name: row.name,
       tickable: row.tickable,
-      unregistered,
-      disabled: structure || locked || unregistered !== null,
+      disabled: structure || locked,
       state: row.state,
       note,
       why,

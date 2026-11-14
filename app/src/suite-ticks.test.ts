@@ -445,9 +445,9 @@ describe("result rows from the findings suites array", () => {
     ).toEqual(["never", "never", "never"]);
   });
 
-  it("has no fold on a sensor that does not run tests and on a repository with no suites", () => {
-    expect(row(panel(), "duplication")?.fold).toBeNull();
-    expect(row(panel({ config: null }), "crap")?.fold).toBeNull();
+  it("has no row for an unregistered sensor", () => {
+    expect(row(panel(), "duplication")).toBeUndefined();
+    expect(row(panel({ config: null }), "crap")).toBeUndefined();
   });
 
   it("reads the fold closed by default and the sensor row unticked after a scan cleared once", () => {
