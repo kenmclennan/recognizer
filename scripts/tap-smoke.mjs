@@ -14,6 +14,7 @@ export const INSTALL_COMMANDS = [
 export const UNINSTALL_COMMANDS = [
   "recognizer agents uninstall",
   "brew uninstall --cask kenmclennan/tap/recognizer",
+  "brew uninstall recognizer-plugins recognizer-scan-python recognizer-scan-typescript recognizer-scan-kotlin recognizer-scan-csharp recognizer-scan-rust recognizer-sense-crap recognizer-sense-mutation recognizer-sense-thresholds recognizer-describe-claude",
   "brew autoremove",
 ];
 
