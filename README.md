@@ -178,13 +178,28 @@ What a repository can add today:
 - **An agent's review.** `recognizer report --as <name>` files review findings in the findings form, and the viewer and `recognizer check` treat them like a sensor's.
 - **A different scanner for a language.** Install a `recognizer-scan-<name>` program whose manifest claims the language, and when two scanners claim it, choose one with `recognizer config scanners.<language> <name>`. The `RECOGNIZER_SCAN_<LANGUAGE>` variables are retired: to run a checkout's scanner, put a launcher named `recognizer-scan-<name>` first on `PATH`.
 
-[check/README.md](check/README.md) gives the contracts in full. A plugin model for scanners, sensors and describers is being built; [docs/plugins.md](docs/plugins.md) describes it.
+[check/README.md](check/README.md) gives the contracts in full. `recognizer help plugin-guide` is the guide a plugin author follows.
+
+## Writing a plugin
+
+A scanner, sensor or describer is an executable that answers a few verbs, so it can be written in any language. The CLI ships templates for each kind in Python, TypeScript and Rust, and each passes the conformance check as written.
+
+1. Start with `recognizer plugin init`, which writes a working plugin into an empty folder and installs nothing:
+
+   ```sh
+   recognizer plugin init --kind sensor --language python --name mymetric ./recognizer-sense-mymetric
+   ```
+
+2. Iterate with `recognizer plugin check ./recognizer-sense-mymetric/recognizer-sense-mymetric`, which runs every verb and validates what it prints (build a Rust plugin first).
+3. Install it so the program is on `PATH`: link it into a directory that is, or `cargo install --path .` for Rust. Recognizer installs nothing.
+4. Register it with `recognizer plugin add mymetric` for a sensor or describer. A scanner is chosen by the language it claims instead.
+
+Read `recognizer help plugin-guide` for the full guide, and `recognizer plugin schema <name>` to print a contract schema.
 
 ## Docs
 
 - [check/README.md](check/README.md): every command, the policy, config and findings formats, exit codes.
 - [docs/use-cases.md](docs/use-cases.md): what Recognizer is for, and the five use cases every feature serves.
 - [docs/design.md](docs/design.md): what is decided and what is still open; [docs/glossary.md](docs/glossary.md) names the terms.
-- [docs/plugins.md](docs/plugins.md): the plugin design being built.
 - [app/README.md](app/README.md): building the app and how releases are cut.
 - [CLAUDE.md](CLAUDE.md): how the repository is laid out and the rules for working in it.

@@ -33,7 +33,10 @@ describe("build-templates", () => {
 
     expect(trees.size).toBe(9);
     expect(keys).toHaveLength(31);
+    expect(keys).toContain("rust/scanner/src/sha256.rs");
+    expect(keys.filter((key) => key.endsWith("sha256.rs"))).toHaveLength(1);
     expect(keys).toContain("python/describer/{{program}}");
+    expect(keys).toContain("rust/sensor/.gitignore");
   });
 
   it("is the bundle the build wrote into the CLI", () => {

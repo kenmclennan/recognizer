@@ -181,7 +181,7 @@ scripts/              the CLI toolchain and plugin archive builders, the Homebre
 packaging/            the release units and the cask, plugin and bundle templates
 validation/           each sensor's validation report and the measurement corpus
 fixtures/             small sample codebases per language, each with its expected scan
-docs/                 this document, the plugin design and the glossary
+docs/                 this document and the glossary
 ```
 
 CI runs a workflow per part, triggered by changes to its path (Toolchains and CI, below).

@@ -43,10 +43,6 @@ function expectedFiles(
 
 const PAIRS = LANGUAGES.flatMap((language) =>
   KINDS.map((kind) => [language, kind] as const),
-).filter(([language, kind]) =>
-  Object.keys(bundledTemplates()).some((key) =>
-    key.startsWith(`${language}/${kind}/`),
-  ),
 );
 
 function init(args: string[], files: Record<string, string> = {}) {
@@ -96,14 +92,74 @@ describe("recognizer plugin init", () => {
   );
 
   it("starts no process and registers nothing", () => {
-    const { fake } = init(full("describer", "python"));
+    const { fake } = init(full("scanner", "python"));
 
     expect(fake.calls).toEqual([]);
     expect(fake.launches).toEqual([]);
   });
 
+  it("names the build step for Rust only", () => {
+    expect(init(full("scanner", "rust")).fake.out()).toContain("cargo build");
+    expect(init(full("scanner", "python")).fake.out()).not.toContain(
+      "cargo build",
+    );
+  });
+
+  it("names plugin add for a sensor and the config key only for a scanner", () => {
+    expect(init(full("sensor", "python")).fake.out()).toContain(
+      "recognizer plugin add demo",
+    );
+    expect(init(full("scanner", "python")).fake.out()).toContain(
+      "recognizer config scanners.demo demo",
+    );
+    expect(init(full("scanner", "python")).fake.out()).not.toContain(
+      "plugin add",
+    );
+  });
+
+  it.each([
+    ["a missing --kind", ["--language", "python", "--name", "demo"], "--kind"],
+    [
+      "an unknown --language",
+      ["--kind", "scanner", "--language", "go", "--name", "demo"],
+      "python, typescript, rust",
+    ],
+    [
+      "an unknown --kind",
+      ["--kind", "oracle", "--language", "python", "--name", "demo"],
+      "scanner, sensor, describer",
+    ],
+    [
+      "an invalid --name",
+      ["--kind", "scanner", "--language", "python", "--name", "Bad_Name"],
+      "--name",
+    ],
+    [
+      "a 65-character --name",
+      ["--kind", "scanner", "--language", "python", "--name", "a".repeat(65)],
+      "--name",
+    ],
+    [
+      "an empty --name",
+      ["--kind", "scanner", "--language", "python", "--name", ""],
+      "--name",
+    ],
+    [
+      "a missing --name",
+      ["--kind", "scanner", "--language", "python"],
+      "--name",
+    ],
+  ])("exits 2 with the choices and an example on %s", (_title, args, text) => {
+    const { fake, status } = init(args);
+
+    expect(status).toBe(2);
+    expect(fake.err()).toContain(text);
+    expect(fake.err()).toContain("example: recognizer plugin init --kind");
+    expect(fake.writes).toEqual([]);
+  });
+
   it("refuses a folder holding a hidden file, names it and writes nothing", () => {
-    const { fake, status } = init(full("describer", "python"), {
+    const { fake, status } = init(full("scanner", "python"), {
       [`${FOLDER}/.hidden`]: "",
     });
 
@@ -114,7 +170,7 @@ describe("recognizer plugin init", () => {
   });
 
   it("refuses a folder path that is a file", () => {
-    const { fake, status } = init(full("describer", "python"), {
+    const { fake, status } = init(full("scanner", "python"), {
       [FOLDER]: "text",
     });
 
@@ -125,7 +181,7 @@ describe("recognizer plugin init", () => {
 
   it("creates an absent folder", () => {
     const { fake, status } = init(
-      full("describer", "python", "demo", "/work/new/deep"),
+      full("scanner", "python", "demo", "/work/new/deep"),
     );
 
     expect(status).toBe(0);
@@ -135,7 +191,7 @@ describe("recognizer plugin init", () => {
   it("writes into the current folder by default", () => {
     const { fake, status } = init([
       "--kind",
-      "describer",
+      "scanner",
       "--language",
       "python",
       "--name",
@@ -143,20 +199,18 @@ describe("recognizer plugin init", () => {
     ]);
 
     expect(status).toBe(0);
-    expect(fake.writes).toContain(
-      join(process.cwd(), "recognizer-describe-demo"),
-    );
+    expect(fake.writes).toContain(join(process.cwd(), "recognizer-scan-demo"));
   });
 
   it("throws before any write when a template names an unknown placeholder", () => {
     const fake = fakeIo();
     const templates = {
       ...bundledTemplates(),
-      "python/describer/README.md": "hello {{nonsense}}",
+      "python/scanner/README.md": "hello {{nonsense}}",
     };
 
     expect(() =>
-      runInit(full("describer", "python"), fake.io, templates),
+      runInit(full("scanner", "python"), fake.io, templates),
     ).toThrow(/unknown placeholder \{\{nonsense\}\}/);
     expect(fake.writes).toEqual([]);
   });

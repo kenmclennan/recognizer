@@ -6,7 +6,7 @@ Scans codebases into a language-neutral structure model and shows it in a native
 
 ## Design
 
-The design of record is [docs/design.md](docs/design.md). It is temporary: it holds the design while it is decided and built, and is deleted once the code and these docs carry it. Build against it; do not restate it here. [docs/plugins.md](docs/plugins.md) is a second temporary design document, for the plugin model of scanners, sensors and describers: until it is built, `design.md` describes what is installed and `plugins.md` where it is going.
+The design of record is [docs/design.md](docs/design.md). It is temporary: it holds the design while it is decided and built, and is deleted once the code and these docs carry it. Build against it; do not restate it here.
 
 - Its **Decided** section is settled. Do not reopen a decision without Ken.
 - Its **Open** section is decided with Ken one question at a time, in the order listed, each recorded under Decided before anything is built on it.
@@ -24,6 +24,7 @@ One repository, a directory per part:
 - `scripts/` - the CLI toolchain builder and the plugin archive builder (`build-plugin.mjs`) with their lockfile closure and archive checks, `packaging/units.json` and the release-unit reader, the tap smoke, the Homebrew renderer, the install guard both gates start with, the temp-directory guards every suite runs under, the pool-load timeout scaling (`pool-scale.mjs`) and the `schema-behind` check, each with its tests.
   - The archive holds the CLI, the five scanners, the sensors and the claude describer: the Rust scanner a prebuilt arm64 binary, the Python packages (the Python, Kotlin and C# scanners and the sensors) from a vendored wheelhouse, with the Kotlin and C# grammar wheels built from their pinned git commits.
 - `check/` - the `recognizer` CLI ([check/README.md](check/README.md)). Every command is one entry in the table in `commands.ts`, which dispatches it and generates `help` and the agent guide's command section, so a command exists nowhere else. A module the app also uses is exported from the library (`check/src/index.ts`), never copied.
+  - `check/templates/<language>/<kind>/` are the plugin template sources, bundled by the build into `dist/generated/templates.json`; `check/test/plugin-templates.test.ts` proves each conforms per kind and language, needs `cargo` for the Rust ones, and CI sets `RECOGNIZER_REQUIRE_TEMPLATE_TOOLCHAINS=1` so a missing toolchain fails.
   - Pure logic (the structure sensor, the view model, the scan phases, the run log) takes no IO, and the one seam to the running app is `Io.request`. A findings or overlay file is written through a temp file and rename, and validated on a precompiled validator because the app's CSP forbids eval. `.recognizer/cache/log/` keeps the last fifty records.
   - The structure sensor's duplication check (`check/src/duplication/`) parses source with `web-tree-sitter` and the grammars vendored in `check/grammars/`, whose provenance is `check/grammars/PROVENANCE.json`.
 - `packaging/homebrew/` - the cask template the release renders into the tap
@@ -36,7 +37,7 @@ One repository, a directory per part:
   - A sensor's defaults live in its own settings and its tests in `sensors/tests/`, with one end-to-end run per sensor in `check/test/sensors.integration.test.ts` over `fixtures/<sensor>/sample`. A sensor that reads another's overlay is listed after it in `config.yaml`.
 - `describers/claude/` - the reference describer: `recognizer-describe-claude run --model <name> <request-file>` sends the request `recognizer describe` writes to `claude -p` with the fixed prompt in `prompt.md` and prints one line; its version is derived from the prompt file and registered in `.recognizer/config.yaml`
 - `app/` - the Tauri viewer, built from `kenmclennan/tauri-starter` ([app/README.md](app/README.md))
-- `docs/` - the temporary design documents (`design.md`, `plugins.md`), the glossary, and `duplication-sensor-review.md`, a past investigation kept as history
+- `docs/` - the temporary design document (`design.md`), the glossary, and `duplication-sensor-review.md`, a past investigation kept as history
 - `.recognizer/` - this repository's own Recognizer config, which registers the in-tree claude describer
 - `.github/actions/` - the composite actions the workflows share: `install-uv` (uv from PyPI at one pinned version) and `cancel-on-failure`
 - `fixtures/` - small sample codebases per language, each with its expected scan; `fixtures/window-socket/` holds the request and response pairs the Rust socket tests and the CLI tests share. `fixtures/links/syntax.json` is shared the same way by `check/src/link.ts` and `app/src-tauri/src/link.rs`.

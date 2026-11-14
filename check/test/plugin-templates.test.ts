@@ -13,7 +13,7 @@ import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import { run } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
-import { bundledTemplates, KINDS, LANGUAGES } from "../src/plugin-templates.js";
+import { KINDS, LANGUAGES } from "../src/plugin-templates.js";
 import { validateScan } from "../src/scan.js";
 import { capture } from "./helpers.js";
 
@@ -43,14 +43,9 @@ const TOOLCHAIN: Record<Language, boolean> = {
   rust: works("cargo", ["--version"]),
 };
 
-const HAVE = (language: string, kind: string) =>
-  Object.keys(bundledTemplates()).some((key) =>
-    key.startsWith(`${language}/${kind}/`),
-  );
-
 const PAIRS = LANGUAGES.flatMap((language) =>
   KINDS.map((kind) => [language, kind] as const),
-).filter(([language, kind]) => HAVE(language, kind));
+);
 
 const REQUEST =
   '{"module":"a.py","source":"x","members":[],"uses":[],"used_by":[]}';
@@ -187,7 +182,7 @@ describe("plugin templates conform as written", () => {
 });
 
 describe("scanner templates", () => {
-  for (const language of LANGUAGES.filter((l) => HAVE(l, "scanner"))) {
+  for (const language of LANGUAGES) {
     it.skipIf(!REQUIRED && !TOOLCHAIN[language])(
       `${language} scanner hashes files and escapes odd names`,
       () => {
@@ -250,7 +245,7 @@ describe("scanner templates", () => {
 });
 
 describe("sensor templates", () => {
-  for (const language of LANGUAGES.filter((l) => HAVE(l, "sensor"))) {
+  for (const language of LANGUAGES) {
     it.skipIf(!REQUIRED && !TOOLCHAIN[language])(
       `${language} sensor writes valid findings for the commit`,
       () => {
@@ -289,7 +284,7 @@ describe("sensor templates", () => {
 });
 
 describe("typescript templates through a symlink", () => {
-  for (const kind of KINDS.filter((k) => HAVE("typescript", k))) {
+  for (const kind of KINDS) {
     it.skipIf(!REQUIRED && !TOOLCHAIN.typescript)(
       `typescript ${kind}`,
       async () => {
