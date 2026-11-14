@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { run } from "../src/cli.js";
+import { type Io, type RunOptions, run } from "../src/cli.js";
 import {
   checkLimits,
   type PluginCheckResult,
   pluginCheck,
+  stopResult,
 } from "../src/plugin-check.js";
 import type { Manifest } from "../src/plugin-manifest.js";
 import { capture, REPO } from "./helpers.js";
@@ -221,6 +222,71 @@ describe("recognizer plugin check", () => {
       status: "warn",
       reason: "finished before it could be stopped",
     });
+  });
+
+  async function stopAfterCompleteDocument(progress: string[]) {
+    const document = JSON.stringify({
+      findings_version: 1,
+      sensor: { name: "demo", version: "0.1.0" },
+      commit: "abc",
+      modified: false,
+      inputs: {},
+      settings: {},
+      findings: [],
+    });
+    const io = {
+      runAsync: (_command: string, _args: string[], options: RunOptions) => {
+        queueMicrotask(() =>
+          options.onStderrLine?.(
+            'recognizer-event {"event":"start","total":2,"unit":"modules"}',
+          ),
+        );
+
+        return {
+          kill: () => {},
+          result: Promise.resolve({
+            started: true,
+            status: null,
+            stdout: "",
+            stderr: [
+              'recognizer-event {"event":"start","total":2,"unit":"modules"}',
+              ...progress,
+            ].join("\n"),
+          }),
+        };
+      },
+      exists: () => true,
+      readFile: () => document,
+    } as unknown as Io;
+    const manifest = { kind: "sensor", name: "demo" } as Manifest;
+    const workspace = {
+      repository: "r",
+      commit: "abc",
+      output: "o",
+      cleanup: () => {},
+    };
+
+    return stopResult(io, "demo", manifest, workspace, {});
+  }
+
+  it("warns on stop when the complete document follows progress that reached the start total", async () => {
+    expect(
+      await stopAfterCompleteDocument([
+        'recognizer-event {"event":"progress","done":2,"total":2,"unit":"modules"}',
+      ]),
+    ).toEqual({
+      name: "stop",
+      status: "warn",
+      reason: "finished before it could be stopped",
+    });
+  });
+
+  it("fails on stop when the complete document follows progress short of the start total", async () => {
+    expect(
+      await stopAfterCompleteDocument([
+        'recognizer-event {"event":"progress","done":1,"total":2,"unit":"modules"}',
+      ]),
+    ).toMatchObject({ name: "stop", status: "fail" });
   });
 
   it("warns on run-verb and stop for a describer run without --request", async () => {

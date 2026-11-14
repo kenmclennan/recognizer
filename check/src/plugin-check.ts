@@ -731,6 +731,30 @@ export async function stopResult(
   return afterStop(io, manifest, outputFile, waited, true);
 }
 
+function reachedStartTotal(stderr: string): boolean {
+  let total: number | null = null;
+  let done: number | null = null;
+
+  for (const line of eventLines(stderr)) {
+    const parsed = parseEventLine(line);
+
+    if (parsed.kind !== "event") {
+      continue;
+    }
+
+    if (parsed.event.event === "start") {
+      total = parsed.event.total;
+      done = null;
+    }
+
+    if (parsed.event.event === "progress") {
+      done = parsed.event.done;
+    }
+  }
+
+  return total !== null && done !== null && done >= total;
+}
+
 function afterStop(
   io: Io,
   manifest: Manifest,
@@ -755,9 +779,13 @@ function afterStop(
       validateFindings(document, { name: manifest.name });
 
       if (document.stopped === undefined && document.partial === undefined) {
+        if (reachedStartTotal(run.stderr)) {
+          return result("stop", "warn", "finished before it could be stopped");
+        }
+
         return fail(
           "stop",
-          "the document left after SIGTERM does not carry stopped",
+          "the document left after SIGTERM is complete, but the run had not reported all its work",
         );
       }
     }
