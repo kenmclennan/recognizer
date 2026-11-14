@@ -93,7 +93,7 @@ export interface Io {
   wait(ms: number): Promise<void>;
   readBytes(path: string): Buffer;
   hashFile(path: string): string | null;
-  writeFile(path: string, content: string): void;
+  writeFile(path: string, content: string, mode?: number): void;
   rename(from: string, to: string): void;
   readDir(path: string): DirEntry[];
   remove(path: string): void;
@@ -367,9 +367,9 @@ export function nodeIo(): Io {
         return null;
       }
     },
-    writeFile: (path, content) => {
+    writeFile: (path, content, mode) => {
       mkdirSync(dirname(path), { recursive: true });
-      writeFileSync(path, content);
+      writeFileSync(path, content, mode === undefined ? undefined : { mode });
     },
     rename: (from, to) => renameSync(from, to),
     readDir: (path) =>

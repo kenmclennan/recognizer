@@ -160,6 +160,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Installed plugin | An executable on `PATH` named `recognizer-scan-<name>`, `recognizer-sense-<name>` or `recognizer-describe-<name>` whose `manifest` verb answers with a valid manifest of that kind and name. `recognizer plugins` lists them; the first match on `PATH` is the one that runs. |
 | Install line | The string recorded under `install.<program>` in a repository's `config.yaml`, copied from the plugin's manifest by `recognizer plugin add`, which doctor shows as the fix when the program is not installed on a machine. |
 | Scanner choice | The `scanners` section of `config.yaml`, which maps a language to the manifest name of the scanner that reads it, and the rule that picks one scanner per language: the one installed scanner that claims it, the one the config names, or a failure when two claim it and the config names none. |
+| Plugin template | The files `recognizer plugin init` writes for one kind and language, bundled in the CLI, and conforming as written: it passes `recognizer plugin check` the moment it is written. |
+| Plugin guide | The author guide `recognizer help plugin-guide` prints: what a plugin is, the verbs, the manifest, versions, events, stopping, installing and the author kit. |
 | Unregistered plugin | A shipped sensor or the shipped describer that a run uses although the repository's `config.yaml` does not register it. It still runs, with a warning in the CLI's stderr, the app's message tray and `recognizer doctor`, each naming `recognizer plugin add <name>`; a later release refuses it. |
 
 ## The viewer

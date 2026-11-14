@@ -58,6 +58,8 @@ jobs:
       - run: npm run build -w recognizer-describe-claude
       - run: npm run build -w check
       - run: node scripts/assert-clean-tmpdir.mjs npm test -w check
+        env:
+          RECOGNIZER_REQUIRE_TEMPLATE_TOOLCHAINS: "1"
 
       - if: failure()
         uses: ./.github/actions/cancel-on-failure

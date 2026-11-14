@@ -144,6 +144,7 @@ export interface Fake {
   launches: { command: string; args: string[] }[];
   removed: string[];
   writes: string[];
+  modes: Map<string, number>;
   renames: { from: string; to: string }[];
   manifestReads: string[];
   readDirCalls: () => number;
@@ -220,6 +221,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
   const launches: { command: string; args: string[] }[] = [];
   const removed: string[] = [];
   const writes: string[] = [];
+  const modes = new Map<string, number>();
   const renames: { from: string; to: string }[] = [];
   const temps: string[] = [];
   const requests: { socket: string; text: string }[] = [];
@@ -534,8 +536,14 @@ export function fakeIo(options: FakeOptions = {}): Fake {
         ? null
         : createHash("sha256").update(content).digest("hex");
     },
-    writeFile: (path, content) => {
+    writeFile: (path, content, mode) => {
       files.set(path, content);
+
+      if (mode === undefined) {
+        modes.delete(path);
+      } else {
+        modes.set(path, mode);
+      }
 
       if (!isMarkerFile(path)) {
         writes.push(path);
@@ -669,6 +677,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     launches,
     removed,
     writes,
+    modes,
     renames,
     manifestReads,
     readDirCalls: () => readDirs,
