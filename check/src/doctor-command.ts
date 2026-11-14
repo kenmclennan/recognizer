@@ -2,6 +2,7 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
 import { configFile, readConfig } from "./config.js";
+import { findDescriber } from "./describer-in-effect.js";
 import { detectLanguages } from "./detect.js";
 import {
   buildReport,
@@ -18,6 +19,7 @@ import { languageRulesOf } from "./scanners.js";
 import { checkSensor } from "./sensors-check.js";
 import {
   readShippedSensors,
+  SHIPPED_SENSORS,
   shippedSensorOf,
   withSuiteSettings,
 } from "./shipped-sensors.js";
@@ -113,6 +115,14 @@ function pluginFact(
   };
 }
 
+function describerShipped(io: Io, root: string): boolean {
+  try {
+    return findDescriber(io, root)?.source === "shipped";
+  } catch {
+    return false;
+  }
+}
+
 export function runDoctor(argv: string[], io: Io): number {
   const { values, positionals } = parseArgs({
     args: argv,
@@ -148,6 +158,12 @@ export function runDoctor(argv: string[], io: Io): number {
       const suites = suitesOf(io, root);
 
       return specs.map((spec) => pluginFact(io, root, spec, suites));
+    },
+    shipped: {
+      sensors: SHIPPED_SENSORS.filter(
+        (name) => findOnPath(io, `recognizer-sense-${name}`) !== null,
+      ),
+      describer: describerShipped(io, root),
     },
   };
   const report = buildReport(facts);

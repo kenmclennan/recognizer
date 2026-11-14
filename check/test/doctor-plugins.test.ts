@@ -458,7 +458,9 @@ describe("doctor: registered plugins", () => {
     expect(started.length).toBeGreaterThan(0);
     expect(
       started.every((one) =>
-        /recognizer-sense-mine (manifest|check)$/.test(one),
+        /(recognizer-sense-mine (manifest|check)|recognizer-describe-claude manifest)$/.test(
+          one,
+        ),
       ),
     ).toBe(true);
   });

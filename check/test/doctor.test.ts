@@ -7,7 +7,13 @@ import { loadKeys } from "../src/config-keys.js";
 import { RETIRED_KEYS } from "../src/config-retired.js";
 import { cachedScansState } from "../src/freshness.js";
 import { REPO } from "./helpers.js";
-import { fakeIo, PYTHON, ROOT, scanJson } from "./scan-helpers.js";
+import {
+  describerManifestText,
+  fakeIo,
+  PYTHON,
+  ROOT,
+  scanJson,
+} from "./scan-helpers.js";
 
 beforeEach(() => {
   vi.spyOn(process, "cwd").mockReturnValue(ROOT);
@@ -20,7 +26,7 @@ afterEach(() => {
 const COMMIT = "abc123";
 const CACHE = `${ROOT}/.recognizer/cache/scan.python.json`;
 const READY_SENSOR =
-  "sensors:\n  mine:\n    command: [recognizer-sense-crap, run]\n";
+  "sensors:\n  crap:\n    command: [recognizer-sense-crap, run]\n";
 const POLICY = 'components:\n  core: "m*.py"\n';
 
 interface Setup {
@@ -33,6 +39,7 @@ interface Setup {
   env?: Record<string, string>;
   files?: Record<string, string>;
   gap?: boolean;
+  shippedDescriber?: boolean;
 }
 
 function setup(options: Setup = {}) {
@@ -56,12 +63,26 @@ function setup(options: Setup = {}) {
     files,
     env: options.env ?? {},
     scanners: options.scanner === false ? {} : { [PYTHON]: {} },
-    onPath: options.onPath ?? ["recognizer-sense-crap"],
+    onPath:
+      options.onPath ??
+      (options.config?.includes("recognizer-sense-crap")
+        ? ["recognizer-sense-crap"]
+        : []),
     sensorManifests: true,
+    ...(options.shippedDescriber
+      ? {
+          programs: {
+            "recognizer-describe-claude": (args: string[]) =>
+              args[0] === "manifest"
+                ? { stdout: describerManifestText("prompt-0123456789ab") }
+                : { stdout: "" },
+          },
+        }
+      : {}),
     sensorsPreflight: options.gap
       ? {
           run: () => ({
-            stdout: `${JSON.stringify({ gaps: [{ code: "no-coverage", suite: null, line: "mine has no coverage" }] })}\n`,
+            stdout: `${JSON.stringify({ gaps: [{ code: "no-coverage", suite: null, line: "crap has no coverage" }] })}\n`,
           }),
         }
       : undefined,
@@ -538,8 +559,8 @@ describe("doctor: sensors", () => {
       {
         severity: "problem",
         code: "sensor-gap",
-        subject: "mine",
-        line: "mine has no coverage",
+        subject: "crap",
+        line: "crap has no coverage",
         fix: {
           text: "recognizer help sensors crap",
           command: "recognizer help sensors crap",
@@ -568,7 +589,7 @@ describe("doctor: sensors", () => {
     expect(result.report.areas[3].problems).toMatchObject([
       {
         code: "plugin-missing",
-        subject: "mine",
+        subject: "crap",
         fix: { text: "get crap", command: null },
       },
     ]);
@@ -794,5 +815,112 @@ describe("real content", () => {
         (problem: { code: string }) => problem.code,
       ),
     ).not.toContain("policy-invalid");
+  });
+});
+
+describe("doctor: unregistered shipped plugins", () => {
+  const ALL = [
+    "recognizer-sense-crap",
+    "recognizer-sense-mutation",
+    "recognizer-sense-thresholds",
+  ];
+  const CRAP = "sensors:\n  crap: {}\n";
+
+  it("warns for each installed shipped plugin that is not registered, with its fix", () => {
+    const result = json(
+      setup({
+        config: CRAP,
+        onPath: ALL,
+        shippedDescriber: true,
+      }),
+      ROOT,
+    );
+    const warnings = result.report.areas.flatMap(
+      (area: { problems: { code: string; fix: unknown; line: string }[] }) =>
+        area.problems,
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.report).toMatchObject({
+      ok: true,
+      problems: 0,
+      warnings: 3,
+    });
+    expect(
+      warnings.map((one: { fix: { command: string } }) => one.fix.command),
+    ).toEqual([
+      "recognizer plugin add mutation",
+      "recognizer plugin add thresholds",
+      "recognizer plugin add claude",
+    ]);
+    expect(
+      warnings.every(
+        (one: { code: string }) => one.code === "unregistered-plugin",
+      ),
+    ).toBe(true);
+  });
+
+  it("prints No problems and then the warning count", () => {
+    const result = doctor(
+      setup({ config: CRAP, onPath: ALL, shippedDescriber: true }),
+      ROOT,
+    );
+    const lines = result.out.trimEnd().split("\n");
+
+    expect(result.status).toBe(0);
+    expect(lines.slice(-2)).toEqual(["No problems", "3 warnings"]);
+    expect(result.out).toContain(
+      "  warning: mutation is not registered in .recognizer/config.yaml; register it with `recognizer plugin add mutation`. From the next release an unregistered plugin will not run.\n    fix: recognizer plugin add mutation\n",
+    );
+  });
+
+  it("warns about nothing when every installed plugin is registered", () => {
+    const result = json(
+      setup({
+        config:
+          "sensors:\n  crap: {}\n  mutation: {}\n  thresholds: {}\ndescriber:\n  command: [describer]\n  version: v1\n",
+        onPath: ALL,
+        shippedDescriber: true,
+      }),
+      ROOT,
+    );
+
+    expect(codes(result.report)).toEqual([]);
+    expect(result.report.warnings).toBe(0);
+  });
+
+  it("warns about nothing for an invalid config and skips both areas", () => {
+    const result = json(
+      setup({
+        config: "sensors:\n  crap:\n    bogus: 1\n",
+        onPath: ALL,
+        shippedDescriber: true,
+      }),
+      ROOT,
+    );
+    const area = (name: string) =>
+      result.report.areas.find((one: { name: string }) => one.name === name);
+
+    expect(codes(result.report)).not.toContain("sensors:unregistered-plugin");
+    expect(area("sensors").skipped).not.toBeNull();
+    expect(area("describers").skipped).not.toBeNull();
+  });
+
+  it("warns once per installed plugin with no config file", () => {
+    const result = json(setup({ onPath: ALL, shippedDescriber: true }), ROOT);
+
+    expect(codes(result.report)).toEqual([
+      "sensors:unregistered-plugin",
+      "sensors:unregistered-plugin",
+      "sensors:unregistered-plugin",
+      "describers:unregistered-plugin",
+    ]);
+    expect(result.status).toBe(0);
+  });
+
+  it("warns about nothing when the plugins are not installed", () => {
+    const result = json(setup({ onPath: [] }), ROOT);
+
+    expect(codes(result.report)).toEqual([]);
   });
 });
