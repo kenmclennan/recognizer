@@ -21,7 +21,12 @@ import {
 } from "./plugin-doctor.js";
 import { parsePolicy } from "./policy.js";
 import { policyProblems } from "./policy-problems.js";
+import { SHIPPED_DESCRIBER_NAME } from "./shipped-describer.js";
 import { shippedSensorOf } from "./shipped-sensors.js";
+import {
+  UNREGISTERED_FIX,
+  unregisteredWarning,
+} from "./unregistered-plugins.js";
 
 export type AreaName =
   | "config"
@@ -49,7 +54,8 @@ export type ProblemCode =
   | "plugin-manifest"
   | "plugin-protocol"
   | "plugin-settings"
-  | "describer-gap";
+  | "describer-gap"
+  | "unregistered-plugin";
 
 type Found = Omit<SetupProblem, "severity">;
 
@@ -84,6 +90,7 @@ export interface DoctorFacts {
   scans(): CachedScansState;
   scanners: InstalledPlugin[];
   plugins(specs: PluginSpec[]): PluginFact[];
+  shipped: { sensors: string[]; describer: boolean };
 }
 
 const CONFIG_FILE = ".recognizer/config.yaml";
@@ -120,6 +127,8 @@ interface Registered {
   specs: PluginSpec[];
   named: Record<string, string>;
   install: Record<string, string>;
+  sensors: string[];
+  describer: boolean;
 }
 
 interface ConfigResult {
@@ -127,7 +136,13 @@ interface ConfigResult {
   registered: Registered | { skipped: string };
 }
 
-const NONE: Registered = { specs: [], named: {}, install: {} };
+const NONE: Registered = {
+  specs: [],
+  named: {},
+  install: {},
+  sensors: [],
+  describer: false,
+};
 
 function stringMap(value: unknown): Record<string, string> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -291,6 +306,10 @@ function configArea(facts: DoctorFacts): ConfigResult {
       specs: specsOf(expandedConfig(cleaned), install),
       named: stringMap(record.scanners),
       install,
+      sensors: registeredSensors(expandedConfig(cleaned)).map(
+        (one) => one.name,
+      ),
+      describer: record.describer !== undefined,
     },
   };
 }
@@ -520,6 +539,30 @@ function policyArea(facts: DoctorFacts): Found[] {
   }));
 }
 
+function unregisteredProblems(
+  facts: DoctorFacts,
+  registered: Registered,
+  kind: PluginSpec["kind"],
+): Found[] {
+  const names =
+    kind === "sensor"
+      ? facts.shipped.sensors.filter(
+          (name) => !registered.sensors.includes(name),
+        )
+      : facts.shipped.describer && !registered.describer
+        ? [SHIPPED_DESCRIBER_NAME]
+        : [];
+
+  return names.map(
+    (name): Found => ({
+      code: "unregistered-plugin",
+      subject: name,
+      line: unregisteredWarning(name),
+      fix: commandFix(UNREGISTERED_FIX(name)),
+    }),
+  );
+}
+
 function pluginArea(
   facts: DoctorFacts,
   registered: Registered | { skipped: string },
@@ -533,15 +576,23 @@ function pluginArea(
 
   return {
     skipped: null,
-    problems:
-      specs.length === 0
+    problems: [
+      ...(specs.length === 0
         ? []
-        : facts.plugins(specs).flatMap((fact) => pluginProblems(fact)),
+        : facts.plugins(specs).flatMap((fact) => pluginProblems(fact))),
+      ...unregisteredProblems(facts, registered, kind),
+    ],
   };
 }
 
 function withSeverity(problems: Found[]): SetupProblem[] {
-  return problems.map((one) => ({ severity: "problem" as const, ...one }));
+  return problems.map((one) => ({
+    severity:
+      one.code === "unregistered-plugin"
+        ? ("warning" as const)
+        : ("problem" as const),
+    ...one,
+  }));
 }
 
 export function buildReport(facts: DoctorFacts): DoctorReport {

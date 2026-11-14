@@ -25,6 +25,7 @@ import { sensorsSource } from "./sensors-source";
 import { settingsModalSource } from "./settings-modal-source";
 import { openSettingsModal, type SettingsModal } from "./settings-modal-view";
 import { spinner } from "./spinner-view";
+import { unregisteredNotices } from "./unregistered-notice";
 import { createViewComparisons } from "./view-comparisons";
 import { viewsSource } from "./views-source";
 import { windowSource } from "./window-source";
@@ -150,6 +151,16 @@ const rescanner = createRescanner<Carried>({
       .catch(() => ({ status: "unavailable" as const, reason: "" }));
 
     return rowSensors(config, shipped);
+  },
+  unregistered: async (plan) => {
+    const { config } = await sensorsSource.readInputs();
+    const described = plan.describe ? await sensorsSource.describer() : null;
+
+    return unregisteredNotices(
+      config,
+      plan,
+      described?.status === "ok" ? described.source : null,
+    );
   },
   load: loadScans,
   sense: sensed,

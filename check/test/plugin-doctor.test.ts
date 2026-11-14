@@ -20,6 +20,7 @@ function facts(overrides: Partial<DoctorFacts> = {}): DoctorFacts {
     policyText: null,
     languages: [],
     scans: () => ({ state: "missing" }),
+    shipped: { sensors: [], describer: false },
     scanners: [
       {
         kind: "scanner",

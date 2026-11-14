@@ -1,0 +1,28 @@
+import { SHIPPED_SENSORS } from "./shipped-sensors.js";
+
+export function unregisteredWarning(name: string): string {
+  return `${name} is not registered in .recognizer/config.yaml; register it with \`${UNREGISTERED_FIX(name)}\`. From the next release an unregistered plugin will not run.`;
+}
+
+export function UNREGISTERED_FIX(name: string): string {
+  return `recognizer plugin add ${name}`;
+}
+
+export function unregisteredSensors(
+  registered: readonly string[],
+  requested: readonly string[],
+): string[] {
+  const names: string[] = [];
+
+  for (const name of requested) {
+    if (
+      SHIPPED_SENSORS.includes(name) &&
+      !registered.includes(name) &&
+      !names.includes(name)
+    ) {
+      names.push(name);
+    }
+  }
+
+  return names;
+}

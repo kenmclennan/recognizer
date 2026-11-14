@@ -16,6 +16,7 @@ import {
   phasesFor,
   type RowSensor,
   type RunState,
+  type ScanPlan,
   type ScanTicks,
 } from "./scan-panel-model";
 import type { RunEvent, ScanPort, ScanRunResult } from "./scan-port";
@@ -40,6 +41,7 @@ export type ProgressUpdate = {
 export type RescanPorts<Carried> = {
   port: ScanPort;
   registered: () => Promise<Registered>;
+  unregistered: (plan: ScanPlan) => Promise<{ key: string; text: string }[]>;
   load: (report: ScanReport) => Loaded;
   sense: (loaded: Loaded) => Promise<Loaded>;
   resense: () => Promise<Loaded | null>;
@@ -783,6 +785,10 @@ export function createRescanner<Carried>(
     let result: ScanRunResult;
 
     try {
+      for (const notice of await ports.unregistered(plan).catch(() => [])) {
+        ports.post({ kind: "warning", text: notice.text, key: notice.key });
+      }
+
       result = await ports.port.run(plan);
     } catch (error) {
       result = { status: "failed", exitCode: -1, stderr: String(error) };

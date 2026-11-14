@@ -69,7 +69,7 @@ The CLI tags each event with the plugin's name and forwards it unchanged on `rec
 
 - **Installed** means an executable on `PATH` named `recognizer-scan-<name>`, `recognizer-sense-<name>` or `recognizer-describe-<name>` whose `manifest` answers. `recognizer plugins` lists every installed plugin with its kind, name, version, protocol, whether that protocol is in range, and what uses it.
 - **Scanners** are chosen by the languages a repository holds: each language goes to the installed scanner whose manifest claims it. When two installed scanners claim a language, the repository's config names one; it is never guessed.
-- **Sensors and describers** run in a repository only when its committed config registers them. `recognizer plugin add <name>` registers one and copies its `install` line into the config, so a teammate who lacks the plugin is told by doctor exactly how to install it.
+- **Sensors and describers** run in a repository only when its committed config registers them. `recognizer plugin add <name>` registers one and copies its `install` line into the config, so a teammate who lacks the plugin is told by doctor exactly how to install it. Until REC-586 refuses it, an unregistered shipped sensor or describer still runs, with a warning from the scan, describe and the app, and a warning in doctor.
 - **Recognizer installs nothing.** Doctor and the app name a missing plugin and quote its `install` line.
 
 ## Distribution

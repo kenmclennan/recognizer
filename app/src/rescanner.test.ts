@@ -93,6 +93,7 @@ function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
       { name: "beta", display: "Beta", runsTests: false },
       { name: "mut", display: "Mutation", runsTests: true },
     ],
+    unregistered: async () => [],
     load: () => OK,
     sense: async (loaded) => {
       log.push("sense");
@@ -189,6 +190,62 @@ describe("createRescanner", () => {
     await rescanner.run();
 
     expect(scan.written).toHaveLength(1);
+  });
+
+  describe("unregistered plugin notices", () => {
+    const NOTICES = [
+      { key: "unregistered:alpha", text: "alpha is not registered" },
+      { key: "unregistered:claude", text: "claude is not registered" },
+    ];
+
+    it("posts each notice as a warning with its key before the scan runs", async () => {
+      const scan = fakeScan({ defaults: { describe: true, sensors: true } });
+      const seen: { text: string; key?: string; ran: number }[] = [];
+      const { rescanner, posted } = harness(scan, {
+        unregistered: async () => NOTICES,
+        post: (input) => {
+          seen.push({ text: input.text, key: input.key, ran: scan.ran.length });
+
+          return null;
+        },
+      });
+
+      await rescanner.run();
+
+      expect(seen.filter((one) => one.key !== undefined)).toEqual(
+        NOTICES.map((notice) => ({
+          text: notice.text,
+          key: notice.key,
+          ran: 0,
+        })),
+      );
+      expect(scan.ran).toHaveLength(1);
+      expect(posted).toEqual([]);
+    });
+
+    it("posts nothing when there are no notices", async () => {
+      const scan = fakeScan({ defaults: { describe: true, sensors: true } });
+      const { rescanner, posted } = harness(scan);
+
+      await rescanner.run();
+
+      expect(posted.filter((one) => one.key !== undefined)).toEqual([]);
+      expect(scan.ran).toHaveLength(1);
+    });
+
+    it("still runs when the lookup rejects", async () => {
+      const scan = fakeScan({ defaults: { describe: true, sensors: true } });
+      const { rescanner, posted } = harness(scan, {
+        unregistered: async () => {
+          throw new Error("no config");
+        },
+      });
+
+      await rescanner.run();
+
+      expect(scan.ran).toHaveLength(1);
+      expect(posted.filter((one) => one.key !== undefined)).toEqual([]);
+    });
   });
 
   it("runs only the structure scan on open and leaves the remembered ticks alone", async () => {

@@ -876,6 +876,44 @@ describe("describer in effect", () => {
   });
 });
 
+describe("unregistered describer warning", () => {
+  const WARNING =
+    "warning: claude is not registered in .recognizer/config.yaml; register it with `recognizer plugin add claude`. From the next release an unregistered plugin will not run.\n";
+
+  it("warns once on stderr when describing with the shipped describer", async () => {
+    installShippedDescriber();
+
+    const root = repository();
+    const result = await exec(root, "describe", "--all");
+
+    expect(result.code).toBe(0);
+    expect(responsibilities(root).modules[ORDER].line).toBe(`shipped ${ORDER}`);
+    expect(result.err.split(WARNING).length - 1).toBe(1);
+  });
+
+  it("warns nothing when a describer is registered", async () => {
+    installShippedDescriber();
+
+    const root = ready("v3");
+    const result = await exec(root, "describe", "--all");
+
+    expect(result.code).toBe(0);
+    expect(responsibilities(root).modules[ORDER].describer[0]).toBe("node");
+    expect(result.err).not.toContain("not registered");
+  });
+
+  it("warns nothing for --describer and --check", async () => {
+    installShippedDescriber();
+
+    const root = repository();
+
+    expect((await exec(root, "describe", "--describer")).err).toBe("");
+    expect((await exec(root, "describe", "--check")).err).not.toContain(
+      "not registered",
+    );
+  });
+});
+
 describe("describe config", () => {
   it("exits 2 with a config message when there is no describer", async () => {
     const root = repository();

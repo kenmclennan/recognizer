@@ -25,6 +25,8 @@ import {
   requireBy,
 } from "./run-log.js";
 import type { Scan } from "./scan.js";
+import { SHIPPED_DESCRIBER_NAME } from "./shipped-describer.js";
+import { unregisteredWarning } from "./unregistered-plugins.js";
 
 const OPTIONS = {
   all: { type: "boolean" },
@@ -46,6 +48,7 @@ interface Loaded {
   scans: Scan[];
   modules: string[];
   describer: Describer;
+  describerSource: "config" | "shipped";
   entries: Record<string, ResponsibilityEntry>;
   names: string[];
   all: boolean;
@@ -74,7 +77,7 @@ function load(argv: string[], io: Io): Loaded {
 
   const root = resolve(values.repository ?? ".");
   const { scans } = freshScans(io, root, ["describer"]);
-  const { source: _source, ...describer } = describerInEffect(io, root);
+  const { source: describerSource, ...describer } = describerInEffect(io, root);
 
   const entries = readResponsibilities(io, root).modules;
   const modules = moduleNames(scans);
@@ -90,6 +93,7 @@ function load(argv: string[], io: Io): Loaded {
     scans,
     modules,
     describer,
+    describerSource,
     entries,
     names: positionals,
     all: values.all === true,
@@ -170,6 +174,11 @@ function runCheck(loaded: Loaded, io: Io): number {
 
 async function runDescribe(loaded: Loaded, io: Io): Promise<number> {
   const startedAt = io.now();
+
+  if (loaded.describerSource === "shipped") {
+    io.stderr(`warning: ${unregisteredWarning(SHIPPED_DESCRIBER_NAME)}\n`);
+  }
+
   const recorded: RunEntry[] = [];
   let runLog: OpenRunLog | null = null;
   let projection: DescribeProjection | null = null;

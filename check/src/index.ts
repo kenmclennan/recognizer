@@ -250,6 +250,10 @@ export {
   unusedTestOnlySentence,
 } from "./test-importers.js";
 export {
+  unregisteredSensors,
+  unregisteredWarning,
+} from "./unregistered-plugins.js";
+export {
   type ChangeFacts,
   type StaleReason,
   staleReasons,
