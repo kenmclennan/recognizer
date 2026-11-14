@@ -373,6 +373,45 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   await tick(100);
   out.reopened = calls(reopen);
 
+
+  const prsPanel = mount();
+  await tick();
+  click(prsPanel.q(".rail-commits"));
+  await tick(100);
+  const focusHistoryBefore = prsPanel.commits.calls.pullRequests;
+  prsPanel.commits.emitFocus();
+  await tick(60);
+  out.focusOnHistory = prsPanel.commits.calls.pullRequests - focusHistoryBefore;
+  click(tabNamed(prsPanel, "Pull requests"));
+  await tick(100);
+  const prsBefore = prsPanel.commits.calls.pullRequests;
+  out.noButtonElsewhere = { historyTab: false, branchesTab: false };
+  prsPanel.commits.emitFocus();
+  await tick(100);
+  out.focusOnPrs = { reads: prsPanel.commits.calls.pullRequests - prsBefore, loading: prsPanel.q(".commits-loading") !== null, rows: prsPanel.all(".commits-row").length };
+  const pressBefore = prsPanel.commits.calls.pullRequests;
+  let releasePrs;
+  prsPanel.commits.holds.pullRequests.push(new Promise((resolve) => { releasePrs = resolve; }));
+  const refreshButton = () => prsPanel.q(".commits-refresh");
+  const buttonState = () => ({ present: refreshButton() !== null, disabled: refreshButton() !== null && refreshButton().disabled, spinner: refreshButton() !== null && refreshButton().querySelector(".spinner") !== null, icon: refreshButton() !== null && refreshButton().querySelector("svg.i") !== null, label: refreshButton() === null ? null : refreshButton().getAttribute("aria-label"), loading: prsPanel.q(".commits-loading") !== null, rows: prsPanel.all(".commits-row").length });
+  out.buttonIdle = buttonState();
+  click(refreshButton());
+  await tick(60);
+  out.buttonBusy = buttonState();
+  prsPanel.commits.emitFocus();
+  click(refreshButton());
+  await tick(60);
+  out.busyReads = prsPanel.commits.calls.pullRequests - pressBefore;
+  releasePrs();
+  await tick(100);
+  out.buttonDone = buttonState();
+  click(tabNamed(prsPanel, "History"));
+  await tick();
+  out.noButtonElsewhere.historyTab = prsPanel.q(".commits-refresh") === null;
+  click(tabNamed(prsPanel, "Branches"));
+  await tick();
+  out.noButtonElsewhere.branchesTab = prsPanel.q(".commits-refresh") === null;
+
   const failing = mount();
   failing.commits.history = new Error("fatal: not a git repository");
   click(failing.q(".rail-commits"));
@@ -387,6 +426,26 @@ type Impact = {
   count: string;
   marks: string[];
   other: string | null;
+};
+
+type Refresh = {
+  focusOnHistory: number;
+  focusOnPrs: { reads: number; loading: boolean; rows: number };
+  buttonIdle: ButtonState;
+  buttonBusy: ButtonState;
+  buttonDone: ButtonState;
+  busyReads: number;
+  noButtonElsewhere: { historyTab: boolean; branchesTab: boolean };
+};
+
+type ButtonState = {
+  present: boolean;
+  disabled: boolean;
+  spinner: boolean;
+  icon: boolean;
+  label: string | null;
+  loading: boolean;
+  rows: number;
 };
 
 type Calls = { history: number; branches: number; pullRequests: number };
@@ -577,7 +636,7 @@ type Facts = {
   gh_failed: GhFacts;
   reopened: Calls;
   failing: string;
-};
+} & Refresh;
 
 describe.skipIf(webkit === undefined)(
   "the Commits panel in a real browser",
@@ -920,6 +979,35 @@ describe.skipIf(webkit === undefined)(
 
     it("loads each list again when the panel is closed and reopened", () => {
       expect(f.reopened).toEqual({ history: 2, branches: 2, pullRequests: 0 });
+    });
+
+    it("reads pull requests once on focus only while the Pull requests tab is showing, with no loading state", () => {
+      expect(f.focusOnHistory).toBe(0);
+      expect(f.focusOnPrs).toEqual({ reads: 1, loading: false, rows: 2 });
+    });
+
+    it("shows the refresh button only on the Pull requests tab, with a spinner and disabled while a read is in flight", () => {
+      expect(f.buttonIdle).toEqual({
+        present: true,
+        disabled: false,
+        spinner: false,
+        icon: true,
+        label: "Refresh pull requests",
+        loading: false,
+        rows: 2,
+      });
+      expect(f.buttonBusy.spinner).toBe(true);
+      expect(f.buttonBusy.disabled).toBe(true);
+      expect(f.buttonBusy.icon).toBe(false);
+      expect(f.buttonBusy.loading).toBe(false);
+      expect(f.buttonBusy.rows).toBe(2);
+      expect(f.busyReads).toBe(1);
+      expect(f.buttonDone.spinner).toBe(false);
+      expect(f.buttonDone.icon).toBe(true);
+      expect(f.noButtonElsewhere).toEqual({
+        historyTab: true,
+        branchesTab: true,
+      });
     });
 
     it("shows a history error as the notice", () => {

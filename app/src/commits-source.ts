@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type {
   BranchesReply,
   CommitsPort,
@@ -12,4 +13,13 @@ export const commitsSource: CommitsPort = {
   listBranches: () => invoke<BranchesReply>("list_branches"),
   refFacts: (refs) => invoke<RefFacts[]>("ref_facts", { refs }),
   listPullRequests: () => invoke<PullRequestsReply>("read_pull_requests"),
+  onFocus(run) {
+    const pending = getCurrentWebviewWindow().onFocusChanged((event) => {
+      if (event.payload) {
+        run();
+      }
+    });
+
+    return () => void pending.then((stop) => stop());
+  },
 };

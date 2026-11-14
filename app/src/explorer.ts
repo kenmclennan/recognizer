@@ -483,6 +483,8 @@ export function showExplorer(
   let commitsTab: CommitsTab = "history";
   let commitsToken = 0;
   let commitsBranch: string | null = null;
+  let pullsBusy = false;
+  let commitsStops: (() => void)[] = [];
   let historyLoad: {
     state: "loading" | "ready" | "failed";
     rows: HistoryRow[];
@@ -1118,6 +1120,11 @@ export function showExplorer(
     setHide(hide) {
       historyHide = hide;
       render();
+    },
+    refreshPullRequests() {
+      if (!pullsBusy) {
+        void refreshPullRequests(commitsToken);
+      }
     },
     setTab(tab) {
       commitsTab = tab;
@@ -2051,6 +2058,7 @@ export function showExplorer(
     if (leftPanel === "commits") {
       leftPanel = null;
       commitsToken += 1;
+      stopCommitsWatching();
       render();
 
       return;
@@ -2070,7 +2078,10 @@ export function showExplorer(
       problem: "",
     };
     pullLoad = { state: "idle", status: "ok", detail: "", rows: [] };
+    pullsBusy = false;
     commitFacts.clear();
+    stopCommitsWatching();
+    commitsStops = [commits.onFocus(() => refreshPullsOnFocus(token))];
     render();
     void loadHistory(token);
     void loadBranches(token);
@@ -2078,6 +2089,29 @@ export function showExplorer(
     if (commitsTab === "prs") {
       void loadPullRequests(token);
     }
+  }
+
+  function stopCommitsWatching() {
+    const stops = commitsStops;
+
+    commitsStops = [];
+
+    for (const stop of stops) {
+      stop();
+    }
+  }
+
+  function refreshPullsOnFocus(token: number) {
+    if (
+      token !== commitsToken ||
+      leftPanel !== "commits" ||
+      commitsTab !== "prs" ||
+      pullsBusy
+    ) {
+      return;
+    }
+
+    void refreshPullRequests(token);
   }
 
   async function loadHistory(token: number) {
@@ -2134,8 +2168,17 @@ export function showExplorer(
     );
   }
 
-  async function loadPullRequests(token: number) {
-    pullLoad = { state: "loading", status: "ok", detail: "", rows: [] };
+  async function refreshPullRequests(token: number) {
+    await loadPullRequests(token, true);
+  }
+
+  async function loadPullRequests(token: number, keepRows = false) {
+    pullsBusy = true;
+
+    if (!keepRows) {
+      pullLoad = { state: "loading", status: "ok", detail: "", rows: [] };
+    }
+
     render();
 
     const next = await commits.listPullRequests().then(
@@ -2157,7 +2200,16 @@ export function showExplorer(
       return;
     }
 
+    pullsBusy = false;
     pullLoad = next;
+
+    if (next.status === "ok") {
+      commitsSelection.keepOnly(
+        "pr",
+        next.rows.map((row) => row.sha),
+      );
+    }
+
     render();
     await loadFacts(
       token,
@@ -2359,6 +2411,7 @@ export function showExplorer(
         historyShas,
       ),
       tab: commitsTab,
+      pullsBusy,
       lists,
     };
   }

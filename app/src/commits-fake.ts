@@ -18,6 +18,8 @@ export type FakeCommits = CommitsPort & {
     pullRequests: number;
     facts: string[][];
   };
+  holds: { pullRequests: Promise<void>[] };
+  emitFocus: () => void;
 };
 
 export function fakeCommits(
@@ -28,6 +30,7 @@ export function fakeCommits(
     facts?: RefFacts[];
   } = {},
 ): FakeCommits {
+  const focusers = new Set<() => void>();
   const fake: FakeCommits = {
     history: initial.history ?? { branch: null, text: "" },
     branches: initial.branches ?? { defaultRef: null, total: 0, text: "" },
@@ -38,6 +41,17 @@ export function fakeCommits(
     },
     facts: new Map((initial.facts ?? []).map((one) => [one.ref, one])),
     calls: { history: 0, branches: 0, pullRequests: 0, facts: [] },
+    holds: { pullRequests: [] },
+    emitFocus() {
+      for (const run of [...focusers]) {
+        run();
+      }
+    },
+    onFocus(run) {
+      focusers.add(run);
+
+      return () => void focusers.delete(run);
+    },
     async listHistory() {
       fake.calls.history += 1;
 
@@ -64,7 +78,11 @@ export function fakeCommits(
     async listPullRequests() {
       fake.calls.pullRequests += 1;
 
-      return fake.pullRequests;
+      const reply = fake.pullRequests;
+
+      await fake.holds.pullRequests.shift();
+
+      return reply;
     },
   };
 

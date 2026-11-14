@@ -31,6 +31,7 @@ export type CommitsPort = {
   listBranches(): Promise<BranchesReply>;
   refFacts(refs: string[]): Promise<RefFacts[]>;
   listPullRequests(): Promise<PullRequestsReply>;
+  onFocus(run: () => void): () => void;
 };
 
 export const inertCommits: CommitsPort = {
@@ -38,6 +39,7 @@ export const inertCommits: CommitsPort = {
   listBranches: async () => ({ defaultRef: null, total: 0, text: "" }),
   refFacts: async (refs) => refs.map(nullFacts),
   listPullRequests: async () => ({ status: "ok", detail: "", text: "[]" }),
+  onFocus: () => () => {},
 };
 
 export function nullFacts(ref: string): RefFacts {
