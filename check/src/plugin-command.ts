@@ -4,10 +4,12 @@ import type { Io } from "./cli.js";
 import { InputError } from "./errors.js";
 import { runAdd } from "./plugin-add.js";
 import { pluginCheck, reportFailed, reportLines } from "./plugin-check.js";
+import { runSchema } from "./plugin-schema.js";
 
 const USAGE = [
   "usage: recognizer plugin check <command> [--repository <dir>] [--request <file>] [--json]",
   "       recognizer plugin add <name> [--kind sensor|describer] [--repository <dir>]",
+  "       recognizer plugin schema <manifest|events|scan|findings|overlay|check>",
 ];
 
 function locate(io: Io, command: string): string | null {
@@ -78,6 +80,10 @@ export function runPlugin(argv: string[], io: Io): number | Promise<number> {
 
   if (subcommand === "add") {
     return runAdd(rest, io);
+  }
+
+  if (subcommand === "schema") {
+    return runSchema(rest, io);
   }
 
   throw new InputError(USAGE);

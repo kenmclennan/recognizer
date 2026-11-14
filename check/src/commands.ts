@@ -1067,10 +1067,11 @@ export const COMMANDS: Command[] = [
   {
     name: "plugin",
     summary:
-      "check that a command is a conforming Recognizer plugin, or register an installed sensor or describer in a repository's config",
+      "check that a command is a conforming Recognizer plugin, register an installed sensor or describer in a repository's config, or print a plugin contract schema",
     usage: [
       "recognizer plugin check <command> [--repository <dir>] [--request <file>] [--json]",
       "recognizer plugin add <name> [--kind sensor|describer] [--repository <dir>]",
+      "recognizer plugin schema <manifest|events|scan|findings|overlay|check>",
     ].join("\n"),
     arguments: [
       {
@@ -1082,6 +1083,11 @@ export const COMMANDS: Command[] = [
         name: "add <name>",
         description:
           "the manifest name of an installed sensor or describer; it is registered in the repository's committed config and its install line is copied into the install section; a scanner is never registered, it is chosen with recognizer config scanners.<language> <name>",
+      },
+      {
+        name: "schema <name>",
+        description:
+          "one of manifest, events, scan, findings, overlay or check: the plugin contract's JSON Schema, printed as it is committed",
       },
     ],
     options: [
@@ -1103,24 +1109,24 @@ export const COMMANDS: Command[] = [
       { flag: "--json", description: "with check: print JSON instead of text" },
     ],
     output: {
-      text: "check: one line per result: ok, warn or fail, the result's name and, for a warning or a failure, the reason; the results are starts, clean-output, valid, named-for-command, protocol, side-effect-free, sentences, limits, check-verb, guide-verb, run-verb, events and stop. add: one line saying the plugin was registered or was already registered",
-      json: "check: { command, manifest, results: [{ name, status: ok|warn|fail, reason? }] } where manifest is the plugin's manifest, or null when it gave no valid one. add prints no JSON",
+      text: "check: one line per result: ok, warn or fail, the result's name and, for a warning or a failure, the reason; the results are starts, clean-output, valid, named-for-command, protocol, side-effect-free, sentences, limits, check-verb, guide-verb, run-verb, events and stop. add: one line saying the plugin was registered or was already registered. schema: the schema as JSON, indented, and a newline",
+      json: "check: { command, manifest, results: [{ name, status: ok|warn|fail, reason? }] } where manifest is the plugin's manifest, or null when it gave no valid one. add and schema have no --json: schema always prints JSON",
     },
     exitCodes: [
       {
         code: 0,
         meaning:
-          "check: nothing failed, a warning passes. add: the plugin was registered or already was",
+          "check: nothing failed, a warning passes. add: the plugin was registered or already was. schema: the schema was printed",
       },
       {
         code: 1,
         meaning:
-          "check: at least one result failed. add: the plugin speaks a protocol outside the supported range, or its manifest could not be read",
+          "check: at least one result failed. add: the plugin speaks a protocol outside the supported range, or its manifest could not be read.",
       },
       {
         code: 2,
         meaning:
-          "bad input - no command or name, an unknown flag, a command or plugin that cannot be found on PATH, a name that is both a sensor and a describer without --kind, a scanner name, or a second different describer",
+          "bad input - no command or name, an unknown flag, a command or plugin that cannot be found on PATH, a name that is both a sensor and a describer without --kind, a scanner name, or a second different describer. schema: a missing or unknown name, the six names are listed",
       },
     ],
     examples: [
@@ -1131,6 +1137,10 @@ export const COMMANDS: Command[] = [
       {
         command: "recognizer plugin check ./bin/recognizer-sense-mine --json",
         note: "check a plugin by path and print the results for a script",
+      },
+      {
+        command: "recognizer plugin schema manifest",
+        note: "print the schema a plugin's manifest must satisfy",
       },
       {
         command: "recognizer plugin add crap",
