@@ -162,7 +162,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Scanner choice | The `scanners` section of `config.yaml`, which maps a language to the manifest name of the scanner that reads it, and the rule that picks one scanner per language: the one installed scanner that claims it, the one the config names, or a failure when two claim it and the config names none. |
 | Plugin template | The files `recognizer plugin init` writes for one kind and language, bundled in the CLI, and conforming as written: it passes `recognizer plugin check` the moment it is written. |
 | Plugin guide | The author guide `recognizer help plugin-guide` prints: what a plugin is, the verbs, the manifest, versions, events, stopping, installing and the author kit. |
-| Unregistered plugin | A shipped sensor or the shipped describer that a run uses although the repository's `config.yaml` does not register it. It still runs, with a warning in the CLI's stderr, the app's message tray and `recognizer doctor`, each naming `recognizer plugin add <name>`; a later release refuses it. |
+| Unregistered plugin | A shipped sensor or the shipped describer that a run uses although the repository's `config.yaml` does not register it. The CLI refuses it (exit 2), `recognizer doctor` reports it as a problem and the app shows it untickable, each naming `recognizer plugin add <name>`. |
 
 ## The viewer
 

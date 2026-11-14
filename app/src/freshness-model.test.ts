@@ -26,6 +26,7 @@ const SENSORS: RowSensor[] = [
     title: "",
     runsTests: true,
     scoped: false,
+    registered: true,
   },
   {
     name: "mutation",
@@ -33,6 +34,7 @@ const SENSORS: RowSensor[] = [
     title: "",
     runsTests: true,
     scoped: true,
+    registered: true,
   },
 ];
 
@@ -129,6 +131,7 @@ describe("freshness model module scope", () => {
       title: "",
       runsTests: true,
       scoped: false,
+      registered: true,
     },
     {
       name: "other",
@@ -136,6 +139,7 @@ describe("freshness model module scope", () => {
       title: "",
       runsTests: true,
       scoped: true,
+      registered: true,
     },
   ];
 

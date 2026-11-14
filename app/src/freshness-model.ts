@@ -9,7 +9,11 @@ import {
   sensorFreshness,
   staleModules,
 } from "./scan-freshness";
-import type { PanelInput, RowSensor } from "./scan-panel-model";
+import {
+  describerRegistered,
+  type PanelInput,
+  type RowSensor,
+} from "./scan-panel-model";
 import { sensorArmed } from "./suite-ticks";
 
 export { DESCRIBE_KEY };
@@ -748,14 +752,14 @@ export function buildFreshnessModel(
       key: DESCRIBE_KEY,
       name: "Descriptions",
       state: describeState(input, modules, gaps),
-      tickable: true,
+      tickable: describerRegistered(input.config),
       scoped: false,
     },
     ...sensors.map((one) => ({
       key: one.name,
       name: one.display,
       state: sensorState(one, input, modules, gaps),
-      tickable: true,
+      tickable: one.registered,
       scoped: one.scoped,
     })),
   ];
@@ -788,7 +792,10 @@ export function buildFreshnessModel(
     noResult,
     summary: summarize(
       input,
-      rows,
+      rows.filter(
+        ({ key, tickable }) =>
+          key === DESCRIBE_KEY || key === STRUCTURE_KEY || tickable,
+      ),
       changed,
       ticked,
       modules.length,

@@ -36,12 +36,31 @@ export function scanHostOf(overrides: Partial<ScanHost> = {}): ScanHost {
   return { ...inertScanHost, ...overrides };
 }
 
-export function registeredOf(rows: RowSensor[]): Registered {
-  return rows.map(({ name, display, runsTests }): Registered[number] => ({
-    name,
-    display,
-    runsTests,
-  }));
+export function registeredWith(
+  rows: (Pick<RowSensor, "name" | "display" | "runsTests"> &
+    Partial<Pick<RowSensor, "registered" | "suites">>)[],
+  describerRegistered = true,
+): Registered {
+  return {
+    sensors: rows.map((row) => ({ registered: true, ...row })),
+    describerRegistered,
+  };
+}
+
+export function registeredOf(
+  rows: RowSensor[],
+  describerRegistered = true,
+): Registered {
+  return {
+    sensors: rows.map(({ name, display, runsTests, registered, suites }) => ({
+      name,
+      display,
+      runsTests,
+      registered,
+      ...(suites === undefined ? {} : { suites }),
+    })),
+    describerRegistered,
+  };
 }
 
 export type ExplorerOptions = {

@@ -114,6 +114,12 @@ function rowNode(row: ScanRow, actions: ScanPanelActions): HTMLElement {
   tick.setAttribute("aria-label", row.name);
   tick.addEventListener("change", () => actions.tick(row.key, tick.checked));
   label.append(tick, el("span", "scan-row-name", row.name));
+
+  if (row.unregistered !== null) {
+    label.classList.add("has-fix");
+    label.append(el("span", "scan-row-fix", row.unregistered));
+  }
+
   state.title = row.stateTitle;
   state.append(glyph, el("span", "scan-state-text", row.text.text));
 

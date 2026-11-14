@@ -2237,6 +2237,19 @@ svg.i.chevron {
   white-space: nowrap;
 }
 
+.scan-row-label.has-fix {
+  flex-wrap: wrap;
+}
+
+.scan-row-fix {
+  flex-basis: 100%;
+  min-width: 0;
+  color: var(--faint);
+  font-family: var(--mono, monospace);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
 .scan-suite {
   padding-left: 40px;
 }

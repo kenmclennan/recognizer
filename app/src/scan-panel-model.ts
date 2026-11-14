@@ -4,7 +4,9 @@ import {
   parseConfig,
   registeredSensors,
   type Scan,
+  SHIPPED_DESCRIBER_NAME,
   shippedSensorNames,
+  UNREGISTERED_FIX,
 } from "recognizer";
 import { scopeCaption } from "./findings-scope";
 import { ageText, type ScanState } from "./footer-scan";
@@ -107,6 +109,7 @@ export type RowSensor = {
   title: string;
   runsTests: boolean;
   scoped: boolean;
+  registered: boolean;
   suites?: SuiteRef[];
 };
 
@@ -154,6 +157,7 @@ export type ScanRow = {
   tick: TickState;
   tone: SuiteTone | null;
   fold: FoldModel | null;
+  unregistered: string | null;
 };
 
 export type FoldModel = {
@@ -235,6 +239,10 @@ export function rowSensors(
 ): RowSensor[] {
   const rows: RowSensor[] = [];
   const suites = suitesOf(config);
+  const parsed = readConfig(config);
+  const registeredNames = new Set(
+    parsed === null ? [] : registeredSensors(parsed).map(({ name }) => name),
+  );
 
   if (shipped?.status === "ok") {
     const listed = shipped.sensors
@@ -248,12 +256,12 @@ export function rowSensors(
         title: titleFor(one),
         runsTests: one.runsTests,
         scoped: one.scoped,
+        registered: registeredNames.has(one.name),
         ...(one.runsTests && suites.length > 0 ? { suites } : {}),
       });
     }
   }
 
-  const parsed = readConfig(config);
   const known = new Set(shippedSensorNames());
 
   if (parsed !== null) {
@@ -265,6 +273,7 @@ export function rowSensors(
           title: name,
           runsTests: false,
           scoped: false,
+          registered: true,
         });
       }
     }
@@ -273,10 +282,46 @@ export function rowSensors(
   return rows;
 }
 
+export function describerRegistered(config: string | null): boolean {
+  return readConfig(config)?.describer !== undefined;
+}
+
+export function effectiveTicks(
+  ticks: ScanTicks,
+  rows: Pick<RowSensor, "name" | "runsTests" | "registered">[],
+  describerIsRegistered: boolean,
+): ScanTicks {
+  const gone = new Set(
+    rows.filter(({ registered }) => !registered).map(({ name }) => name),
+  );
+  const plain = rows
+    .filter(({ runsTests, registered }) => !runsTests && registered)
+    .map(({ name }) => name);
+  const kept = (name: string) => !gone.has(name);
+
+  return {
+    ...ticks,
+    describe: ticks.describe && describerIsRegistered,
+    ticked:
+      ticks.ticked === null
+        ? gone.size === 0
+          ? null
+          : plain
+        : ticks.ticked.filter(kept),
+    once: ticks.once.filter(kept),
+    suites: Object.fromEntries(
+      Object.entries(ticks.suites).filter(([name]) => kept(name)),
+    ),
+  };
+}
+
 export function phasesFor(
   ticks: ScanTicks,
-  rows: Pick<RowSensor, "name" | "runsTests" | "suites">[],
+  every: (Pick<RowSensor, "name" | "runsTests" | "suites"> & {
+    registered?: boolean;
+  })[],
 ): { plan: ScanPlan; dropped: string[] } {
+  const rows = every.filter(({ registered }) => registered !== false);
   const testing = rows
     .filter(({ runsTests }) => runsTests)
     .map(({ name }) => name);
@@ -445,8 +490,16 @@ function structureTitle(): string {
   return "Structure always runs";
 }
 
-export function scanPanel(input: PanelInput): ScanPanelModel {
-  const sensors = rowSensors(input.config, input.shipped);
+export function scanPanel(given: PanelInput): ScanPanelModel {
+  const sensors = rowSensors(given.config, given.shipped);
+  const input: PanelInput = {
+    ...given,
+    ticks: effectiveTicks(
+      given.ticks,
+      sensors,
+      describerRegistered(given.config),
+    ),
+  };
   const statuses =
     input.freshness === undefined
       ? input.sensors
@@ -568,11 +621,20 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
       ...(why === null ? [] : [why.segments.map(({ text }) => text).join("")]),
       ...(note === null ? [] : [note]),
     ].join(": ");
+    const unregistered =
+      row.key === DESCRIBE_KEY
+        ? describerRegistered(input.config)
+          ? null
+          : UNREGISTERED_FIX(SHIPPED_DESCRIBER_NAME)
+        : sensor !== undefined && !sensor.registered
+          ? UNREGISTERED_FIX(sensor.name)
+          : null;
     const base = {
       key: row.key,
       name: row.name,
       tickable: row.tickable,
-      disabled: structure || locked,
+      unregistered,
+      disabled: structure || locked || unregistered !== null,
       state: row.state,
       note,
       why,

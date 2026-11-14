@@ -6,6 +6,8 @@ import { NO_CHANGES } from "./footer-scan";
 import type { ResponsibilityState } from "./responsibility-model";
 import { scanHistory } from "./scan-estimate";
 import {
+  describerRegistered,
+  effectiveTicks,
   functionCount,
   NO_RUN,
   type PanelInput,
@@ -19,7 +21,12 @@ import { whyOf } from "./scan-why";
 import type { ShippedSensor, ShippedSensors } from "./sensor-run";
 import { plainSensor, shippedSensors } from "./shipped-fake";
 
-const CONFIG = `sensors:
+const CONFIG = `describer:
+  command: [describer, "{request}"]
+  version: v1
+sensors:
+  crap: {}
+  mutation: {}
   alpha:
     command: [node, "{repository}/a.mjs", "{commit}", "{output}"]
   beta:
@@ -1670,5 +1677,125 @@ describe("scanPanel estimate line", () => {
       structure: 6000,
       mutation: 160000,
     });
+  });
+});
+
+describe("unregistered plugins", () => {
+  const ONLY_CRAP = "sensors:\n  crap: {}\n";
+  const ticks = (over: Partial<PanelInput["ticks"]> = {}) => ({
+    ...input().ticks,
+    ...over,
+  });
+
+  it("shows an unregistered shipped sensor untickable and keeps it out of the plan, even when the stored ticks list it", () => {
+    const stored = ticks({
+      describe: true,
+      ticked: ["mutation", "crap"],
+      once: ["mutation", "crap"],
+    });
+
+    expect(stored.once).toContain("mutation");
+
+    const model = scanPanel(input({ config: ONLY_CRAP, ticks: stored }));
+    const crap = model.rows.find((row) => row.key === "crap");
+    const mutation = model.rows.find((row) => row.key === "mutation");
+
+    expect(crap).toMatchObject({ tickable: true, unregistered: null });
+    expect(mutation).toMatchObject({
+      tickable: false,
+      disabled: true,
+      ticked: false,
+      tick: "off",
+      unregistered: "recognizer plugin add mutation",
+    });
+    expect(model.planned?.plan.sense).toEqual(["crap"]);
+    expect(model.planned?.plan.describe).toBe(false);
+  });
+
+  it("leaves an unregistered sensor out of the summary", () => {
+    const model = scanPanel(input({ config: ONLY_CRAP }));
+    const text = `${model.summary.head} ${model.summary.line}`;
+
+    expect(text).not.toMatch(/Mutation/);
+    expect(
+      model.rows.find((row) => row.key === "mutation")?.unregistered,
+    ).not.toBeNull();
+
+    const bare = scanPanel(input({ config: null }));
+
+    expect(`${bare.summary.head} ${bare.summary.line}`).not.toMatch(
+      /Mutation|C\.R\.A\.P\./,
+    );
+  });
+
+  it("marks every shipped row and the Descriptions row unregistered for a null config, and plans nothing by default", () => {
+    const model = scanPanel(
+      input({
+        config: null,
+        ticks: ticks({ describe: true, ticked: null, once: [] }),
+      }),
+    );
+
+    expect(
+      model.rows
+        .filter((row) => row.key !== "structure")
+        .map((row) => [row.key, row.tickable, row.unregistered]),
+    ).toEqual([
+      ["describe", false, "recognizer plugin add claude"],
+      ["crap", false, "recognizer plugin add crap"],
+      ["mutation", false, "recognizer plugin add mutation"],
+    ]);
+
+    const rows = rowSensors(null, LIST);
+    const { plan } = phasesFor(ticks({ describe: false, ticked: null }), rows);
+
+    expect(plan.sense).toEqual([]);
+    expect(plan.describe).toBe(false);
+  });
+
+  it("carries describe through when a describer is registered", () => {
+    const model = scanPanel(input({ ticks: ticks({ describe: true }) }));
+
+    expect(model.rows.find((row) => row.key === "describe")).toMatchObject({
+      tickable: true,
+      ticked: true,
+      unregistered: null,
+    });
+    expect(model.planned?.plan.describe).toBe(true);
+  });
+
+  it("reads describerRegistered from the parsed config", () => {
+    expect(describerRegistered(CONFIG)).toBe(true);
+    expect(describerRegistered(ONLY_CRAP)).toBe(false);
+    expect(describerRegistered(null)).toBe(false);
+    expect(describerRegistered("sensors: [unclosed")).toBe(false);
+  });
+
+  it("drops only the unregistered names from ticked, once and suites and leaves the rest", () => {
+    const rows = [
+      { name: "alpha", runsTests: false, registered: true },
+      { name: "beta", runsTests: false, registered: false },
+      { name: "crap", runsTests: true, registered: true },
+      { name: "mutation", runsTests: true, registered: false },
+    ];
+    const given = ticks({
+      describe: true,
+      ticked: ["alpha", "beta"],
+      once: ["crap", "mutation"],
+      onlyView: true,
+      folds: ["crap", "mutation"],
+      suites: {
+        crap: { ticked: ["unit"], known: ["unit"] },
+        mutation: { ticked: ["unit"], known: ["unit"] },
+      },
+    });
+
+    expect(effectiveTicks(given, rows, true)).toEqual({
+      ...given,
+      ticked: ["alpha"],
+      once: ["crap"],
+      suites: { crap: { ticked: ["unit"], known: ["unit"] } },
+    });
+    expect(effectiveTicks(given, rows, false).describe).toBe(false);
   });
 });
