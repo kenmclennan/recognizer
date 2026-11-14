@@ -539,7 +539,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
     const reference = reopened.q('.scan-row[data-sensor="structure"]').getBoundingClientRect().height;
     facts.suiteWidths[width] = {
       count: rowsNow.length,
-      heights: rowsNow.map((r) => r.querySelector(".scan-row-fix") !== null || Math.abs(r.getBoundingClientRect().height - reference) < 1),
+      heights: rowsNow.map((r) => Math.abs(r.getBoundingClientRect().height - reference) < 1),
       clipped: rowsNow.map((r) => r.scrollWidth > r.clientWidth + 0.5),
       nameClipped: rowsNow.map((r) => { const n = r.querySelector(".scan-row-name"); return n.scrollWidth > n.clientWidth; }),
       panelOverflow: panelEl.scrollWidth > panelEl.clientWidth + 0.5,
@@ -568,8 +568,8 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const unregMount = await mount(fakeScan(), fakeSensors({}, { config: "sensors:\\n  crap: {}\\n" }, {}, SHIPPED));
   click(unregMount.q(".rail-scan"));
   await tick();
-  const bareRow = (key) => { const n = unregMount.q('.scan-row[data-sensor="' + key + '"]'); return { tickDisabled: n.querySelector(".scan-tick").disabled, ticked: n.querySelector(".scan-tick").checked, fix: n.querySelector(".scan-row-fix")?.textContent ?? null, fixInRow: n.querySelector(".scan-row-fix") !== null && n.querySelector(".scan-row-label").contains(n.querySelector(".scan-row-fix")), fixVisible: n.querySelector(".scan-row-fix") !== null && n.querySelector(".scan-row-fix").getBoundingClientRect().width > 0, fixOwnLine: n.querySelector(".scan-row-fix") !== null && n.querySelector(".scan-row-fix").getBoundingClientRect().top >= n.querySelector(".scan-row-name").getBoundingClientRect().bottom - 0.5, fixUntruncated: n.querySelector(".scan-row-fix") !== null && n.querySelector(".scan-row-fix").scrollWidth <= n.querySelector(".scan-row-fix").clientWidth + 0.5 && n.querySelector(".scan-row-fix").getBoundingClientRect().right <= n.getBoundingClientRect().right + 0.5, nameUntruncated: n.querySelector(".scan-row-name").scrollWidth <= n.querySelector(".scan-row-name").clientWidth + 0.5 }; };
-  facts.unregistered = { mutation: bareRow("mutation"), describe: bareRow("describe"), crap: bareRow("crap") };
+  const bareKeys = () => unregMount.all(".scan-row").map((n) => n.dataset.sensor);
+  facts.unregistered = { keys: bareKeys(), fixLines: unregMount.q(".scan-panel").textContent.split("recognizer plugin add").length - 1 };
   facts.unregisteredSummary = unregMount.q(".summary").textContent;
 
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
@@ -611,29 +611,10 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.scopeUntitledOn.scope.on).toBe("true");
   });
 
-  it("shows an unregistered sensor and the Descriptions row unticked and untickable with the fix beside the name", () => {
-    expect(f.unregistered.mutation).toEqual({
-      tickDisabled: true,
-      ticked: false,
-      fix: "recognizer plugin add mutation",
-      fixInRow: true,
-      fixVisible: true,
-      fixOwnLine: true,
-      fixUntruncated: true,
-      nameUntruncated: true,
-    });
-    expect(f.unregistered.describe).toMatchObject({
-      tickDisabled: true,
-      ticked: false,
-      fix: "recognizer plugin add claude",
-      fixInRow: true,
-      fixOwnLine: true,
-      fixUntruncated: true,
-      nameUntruncated: true,
-    });
+  it("lists only the registered sensors and renders no fix text", () => {
+    expect(f.unregistered.keys).toEqual(["structure", "crap"]);
+    expect(f.unregistered.fixLines).toBe(0);
     expect(f.unregisteredSummary).not.toMatch(/Mutation/);
-    expect(f.unregistered.crap.tickDisabled).toBe(false);
-    expect(f.unregistered.crap.fix).toBeNull();
   });
 
   it("captions a saved view by name and locks the switch during a run", () => {

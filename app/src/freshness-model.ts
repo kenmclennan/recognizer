@@ -748,20 +748,26 @@ export function buildFreshnessModel(
       tickable: false,
       scoped: false,
     },
-    {
-      key: DESCRIBE_KEY,
-      name: "Descriptions",
-      state: describeState(input, modules, gaps),
-      tickable: describerRegistered(input.config),
-      scoped: false,
-    },
-    ...sensors.map((one) => ({
-      key: one.name,
-      name: one.display,
-      state: sensorState(one, input, modules, gaps),
-      tickable: one.registered,
-      scoped: one.scoped,
-    })),
+    ...(describerRegistered(input.config)
+      ? [
+          {
+            key: DESCRIBE_KEY,
+            name: "Descriptions",
+            state: describeState(input, modules, gaps),
+            tickable: true,
+            scoped: false,
+          },
+        ]
+      : []),
+    ...sensors
+      .filter((one) => one.registered)
+      .map((one) => ({
+        key: one.name,
+        name: one.display,
+        state: sensorState(one, input, modules, gaps),
+        tickable: true,
+        scoped: one.scoped,
+      })),
   ];
   const ticked = (key: string) => isTicked(input, sensors, key);
   const structure = rows[0]?.state;
