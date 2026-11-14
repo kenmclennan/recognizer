@@ -1040,7 +1040,7 @@ export const COMMANDS: Command[] = [
     ],
     options: [{ flag: "--json", description: "print JSON instead of text" }],
     output: {
-      text: "for each area with a problem, its name and one indented line per problem with `fix: <command or instruction>` under it, then `not checked: <reason>` lines for a skipped area, and last `No problems` or `<n> problems`, then `<n> warnings` when there are any. An installed shipped sensor or describer that the config does not register is a `warning:` line with code `unregistered-plugin` and the fix `recognizer plugin add <name>`; a warning never changes the exit code",
+      text: "for each area with a problem, its name and one indented line per problem with `fix: <command or instruction>` under it, then `not checked: <reason>` lines for a skipped area, and last `No problems` or `<n> problems`, then `<n> warnings` when there are any. An installed shipped sensor or describer that the config does not register is a problem with code `unregistered-plugin` and the fix `recognizer plugin add <name>`",
       json: "{ repository, ok, problems, areas: [{ name: config|policy|scanners|sensors, skipped: string | null, problems: [{ code, subject, line, fix: { text, command: string | null }, severity: problem|warning }] }], warnings }",
     },
     exitCodes: [
@@ -1328,7 +1328,7 @@ export const COMMANDS: Command[] = [
   {
     name: "describe",
     summary:
-      "write each module's one-line responsibility with the repository's registered describer, or the shipped recognizer-describe-claude when none is registered, running up to the batch size of describers at once",
+      "write each module's one-line responsibility with the repository's registered describer (refused with `recognizer plugin add claude` when none is registered), running up to the batch size of describers at once",
     usage: [
       "recognizer describe [<module>... | --all] [--repository <dir>] [--json]",
       "recognizer describe --check [<module>...] [--repository <dir>] [--json]",

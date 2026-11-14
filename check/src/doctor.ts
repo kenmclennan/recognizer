@@ -25,7 +25,7 @@ import { SHIPPED_DESCRIBER_NAME } from "./shipped-describer.js";
 import { shippedSensorOf } from "./shipped-sensors.js";
 import {
   UNREGISTERED_FIX,
-  unregisteredWarning,
+  unregisteredMessage,
 } from "./unregistered-plugins.js";
 
 export type AreaName =
@@ -557,7 +557,7 @@ function unregisteredProblems(
     (name): Found => ({
       code: "unregistered-plugin",
       subject: name,
-      line: unregisteredWarning(name),
+      line: unregisteredMessage(name),
       fix: commandFix(UNREGISTERED_FIX(name)),
     }),
   );
@@ -587,10 +587,7 @@ function pluginArea(
 
 function withSeverity(problems: Found[]): SetupProblem[] {
   return problems.map((one) => ({
-    severity:
-      one.code === "unregistered-plugin"
-        ? ("warning" as const)
-        : ("problem" as const),
+    severity: "problem" as const,
     ...one,
   }));
 }

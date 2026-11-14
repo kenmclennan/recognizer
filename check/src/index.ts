@@ -243,7 +243,10 @@ export {
   type SetupChange,
   type SetupSection,
 } from "./setup-proposal.js";
-export { SHIPPED_DESCRIBER_COMMAND } from "./shipped-describer.js";
+export {
+  SHIPPED_DESCRIBER_COMMAND,
+  SHIPPED_DESCRIBER_NAME,
+} from "./shipped-describer.js";
 export {
   readShippedSensors,
   type ShippedSensorEntry,
@@ -263,6 +266,8 @@ export {
   unusedTestOnlySentence,
 } from "./test-importers.js";
 export {
+  UNREGISTERED_FIX,
+  unregisteredMessage,
   unregisteredSensors,
   unregisteredWarning,
 } from "./unregistered-plugins.js";
