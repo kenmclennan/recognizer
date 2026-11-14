@@ -65,15 +65,16 @@ brew update && brew uninstall --cask recognizer && brew install --cask recognize
 
 ## Uninstall
 
-Remove the agent skills first, while the command is still installed, then the cask, then the dependencies Homebrew no longer needs:
+Remove the agent skills first, while the command is still installed, then the cask, then the bundle and plugin formulae by name, then the dependencies Homebrew no longer needs:
 
 ```sh
 recognizer agents uninstall
 brew uninstall --cask kenmclennan/tap/recognizer
+brew uninstall recognizer-plugins recognizer-scan-python recognizer-scan-typescript recognizer-scan-kotlin recognizer-scan-csharp recognizer-scan-rust recognizer-sense-crap recognizer-sense-mutation recognizer-sense-thresholds recognizer-describe-claude
 brew autoremove
 ```
 
-Removing the cask also removes the `recognizer-plugins` bundle and the plugins nothing else needs; `brew autoremove` is for an older Homebrew that leaves them, and for `node` and `python@3.13` when nothing else needs them.
+Removing the cask leaves the `recognizer-plugins` bundle and the plugin formulae installed, so the block removes them by name; `brew autoremove` then removes `node` and `python@3.13` when nothing else needs them.
 
 The cask has no zap stanza, so these are left behind. Remove them only if you want them gone:
 

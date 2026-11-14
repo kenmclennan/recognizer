@@ -7,11 +7,19 @@ import {
   missingPluginCommands,
   UNINSTALL_COMMANDS,
 } from "./tap-smoke.mjs";
+import { allFormulae, loadUnits } from "./units.mjs";
 
 const README = readFileSync(
   fileURLToPath(new URL("../README.md", import.meta.url)),
   "utf8",
 );
+
+const names = [
+  "recognizer-plugins",
+  ...allFormulae(loadUnits(fileURLToPath(new URL("..", import.meta.url)))).map(
+    (one) => one.formula,
+  ),
+].join(" ");
 
 describe("the commands tap-smoke runs", () => {
   it("equal the first sh block of the README's Install section", () => {
@@ -23,8 +31,19 @@ describe("the commands tap-smoke runs", () => {
     expect(UNINSTALL_COMMANDS).toEqual([
       "recognizer agents uninstall",
       "brew uninstall --cask kenmclennan/tap/recognizer",
+      `brew uninstall ${names}`,
       "brew autoremove",
     ]);
+  });
+
+  it("names every formula and the bundle in the README's Uninstall line", () => {
+    const line = fencedBlock(README, "Uninstall").find((command) =>
+      command.startsWith("brew uninstall recognizer-"),
+    );
+
+    expect(line.split(" ").slice(2).sort()).toEqual(
+      [...names.split(" ")].sort(),
+    );
   });
 
   it("fails when a section or its block is absent", () => {
