@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { cpSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { allFormulae, loadUnits } from "./units.mjs";
 
@@ -37,6 +37,12 @@ export function fencedBlock(markdown, heading) {
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line !== "");
+}
+
+export function missingPluginCommands(json, commands) {
+  const listed = new Set(JSON.parse(json).map((one) => basename(one.command)));
+
+  return commands.filter((command) => !listed.has(command));
 }
 
 function sh(command, options = {}) {
@@ -90,12 +96,13 @@ export function smoke(root) {
     fail(`recognizer --version printed ${got}, the cask is ${cask}`);
   }
 
-  const plugins = must("recognizer plugins");
+  const [absent] = missingPluginCommands(
+    must("recognizer plugins --json"),
+    commands,
+  );
 
-  for (const command of commands) {
-    if (!plugins.includes(command)) {
-      fail(`recognizer plugins does not name ${command}`);
-    }
+  if (absent !== undefined) {
+    fail(`recognizer plugins does not name ${absent}`);
   }
 
   for (const command of commands) {
