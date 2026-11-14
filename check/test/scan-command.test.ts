@@ -1349,7 +1349,7 @@ describe("recognizer scan: phases", () => {
     expect(extractCalls(fake)).toEqual([]);
   });
 
-  it("describes with the shipped command once registered and records its command and version", async () => {
+  it("describes with the shipped fallback when no describer is registered", async () => {
     const base = setup(
       {},
       {

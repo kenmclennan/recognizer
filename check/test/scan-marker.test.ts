@@ -90,7 +90,7 @@ async function scan(extra: FakeOptions = {}, ...args: string[]) {
 }
 
 describe("scan marker: refusal", () => {
-  it("names the running scan, not an unregistered plugin, when a registered sensor is refused", async () => {
+  it("warns about no unregistered plugin when the run is refused", async () => {
     const files = { [MARKER]: markerFor(), [PROGRESS]: "line\n" };
     const { code, fake } = await scan(
       { files, alivePids: [OTHER_PID] },

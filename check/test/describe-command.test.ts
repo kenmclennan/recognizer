@@ -854,7 +854,7 @@ describe("describer in effect", () => {
     expect(responsibilities(root).modules[ORDER].describer[0]).toBe("node");
   });
 
-  it("describes with the shipped command once registered and records its command and version", async () => {
+  it("describes with the fallback and records its command and version", async () => {
     installShippedDescriber();
 
     const root = repository();

@@ -5,10 +5,6 @@ export function unregisteredMessage(name: string): string {
   return `${name} is not registered in .recognizer/config.yaml; register it with \`${UNREGISTERED_FIX(name)}\`.`;
 }
 
-export function unregisteredWarning(name: string): string {
-  return `${name} is not registered in .recognizer/config.yaml; register it with \`${UNREGISTERED_FIX(name)}\`. From the next release an unregistered plugin will not run.`;
-}
-
 export function refuseUnregistered(
   registered: readonly string[],
   requested: readonly string[],

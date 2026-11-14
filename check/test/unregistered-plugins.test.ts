@@ -5,7 +5,6 @@ import {
   UNREGISTERED_FIX,
   unregisteredMessage,
   unregisteredSensors,
-  unregisteredWarning,
 } from "../src/unregistered-plugins.js";
 
 function refusal(registered: string[], requested: string[]): string[] | null {
@@ -45,14 +44,6 @@ describe("refuseUnregistered", () => {
 
   it("throws an InputError", () => {
     expect(() => refuseUnregistered([], ["crap"])).toThrow(InputError);
-  });
-});
-
-describe("unregisteredWarning", () => {
-  it("fills the name into the binding text", () => {
-    expect(unregisteredWarning("crap")).toBe(
-      "crap is not registered in .recognizer/config.yaml; register it with `recognizer plugin add crap`. From the next release an unregistered plugin will not run.",
-    );
   });
 });
 

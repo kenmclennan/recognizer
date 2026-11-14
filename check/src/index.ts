@@ -269,7 +269,6 @@ export {
   UNREGISTERED_FIX,
   unregisteredMessage,
   unregisteredSensors,
-  unregisteredWarning,
 } from "./unregistered-plugins.js";
 export {
   type ChangeFacts,
