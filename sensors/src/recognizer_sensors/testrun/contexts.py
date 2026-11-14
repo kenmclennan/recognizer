@@ -141,7 +141,7 @@ class PythonContexts:
             measured = list(data.measured_files())
         except CoverageException:
             print(
-                "recognizer-sensors: mutation: the coverage data could not be read,"
+                "recognizer-sense-mutation: the coverage data could not be read,"
                 " so the whole suite runs",
                 file=sys.stderr,
             )

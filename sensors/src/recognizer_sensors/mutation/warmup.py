@@ -66,7 +66,7 @@ CSHARP_BY_FILE_DIRECTORY = ".recognizer/cache/coverage/csharp/by-file"
 RUST_BY_TARGET_DIRECTORY = ".recognizer/cache/coverage/rust/by-target"
 
 CARRY_HINT = (
-    "recognizer-sensors: mutation: the suite failed in its repository copy; untracked folders "
+    "recognizer-sense-mutation: the suite failed in its repository copy; untracked folders "
     "it needs (a venv, node_modules, build output) belong under carry in sensors.mutation"
 )
 
@@ -124,7 +124,7 @@ def selection_dropped(language: str, suites: list[Suite]) -> Selection:
         reason = f"{language} runs from {suites[0].directory}"
 
     print(
-        f"recognizer-sensors: mutation: {reason}; running the whole suite for {language}",
+        f"recognizer-sense-mutation: {reason}; running the whole suite for {language}",
         file=sys.stderr,
     )
 
@@ -200,7 +200,7 @@ def kotlin_class_map(repository: Path, copy: Path) -> dict[str, list[tuple[str, 
 
 def kotlin_fallback(reason: str) -> Selection:
     print(
-        f"recognizer-sensors: mutation: {reason}; running the whole suite for kotlin",
+        f"recognizer-sense-mutation: {reason}; running the whole suite for kotlin",
         file=sys.stderr,
     )
 
@@ -215,7 +215,7 @@ def kotlin_selection(
 
     if isinstance(mapped, str):
         print(
-            f"recognizer-sensors: mutation: test class {mapped} has no single test file; "
+            f"recognizer-sense-mutation: test class {mapped} has no single test file; "
             "running the whole suite for kotlin",
             file=sys.stderr,
         )
@@ -360,7 +360,7 @@ def csharp_class_map(repository: Path, classes: set[str]) -> dict[str, list[str]
 
 def csharp_fallback(reason: str) -> Selection:
     print(
-        f"recognizer-sensors: mutation: {reason}; running the whole suite for csharp",
+        f"recognizer-sense-mutation: {reason}; running the whole suite for csharp",
         file=sys.stderr,
     )
 
@@ -511,7 +511,7 @@ def rust_units(copy: Path, suite: Suite) -> dict[str, tuple[str, str, str]] | st
 
 def rust_fallback(reason: str) -> Selection:
     print(
-        f"recognizer-sensors: mutation: {reason}; running the whole suite for rust",
+        f"recognizer-sense-mutation: {reason}; running the whole suite for rust",
         file=sys.stderr,
     )
 

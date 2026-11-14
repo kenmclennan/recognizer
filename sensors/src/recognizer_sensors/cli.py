@@ -43,15 +43,19 @@ def resolve_commit(root: Path) -> str | None:
     return sha if result.returncode == 0 and sha else None
 
 
+def command_name(name: str | None) -> str:
+    return f"recognizer-sense-{name}" if name in SHIPPED else "recognizer-sense"
+
+
 class VerbParser(argparse.ArgumentParser):
     def error(self, message: str):
-        print(f"recognizer-sensors: {message}; {VERB_HINT}", file=sys.stderr)
+        print(f"{self.prog}: {message}; {VERB_HINT}", file=sys.stderr)
 
         raise SystemExit(2)
 
 
-def build_parser(package_version: str) -> argparse.ArgumentParser:
-    parser = VerbParser(prog="recognizer-sensors")
+def build_parser(package_version: str, name: str | None = None) -> argparse.ArgumentParser:
+    parser = VerbParser(prog=command_name(name))
     parser.add_argument("name", nargs="?")
     parser.add_argument("verb", nargs="?")
     parser.add_argument("--repository", type=Path, default=Path("."))
@@ -67,8 +71,8 @@ def build_parser(package_version: str) -> argparse.ArgumentParser:
     return parser
 
 
-def fail(message: str) -> int:
-    print(f"recognizer-sensors: {message}", file=sys.stderr)
+def fail(message: str, name: str | None = None) -> int:
+    print(f"{command_name(name)}: {message}", file=sys.stderr)
 
     return 2
 
@@ -153,24 +157,24 @@ def config_gap(error: SettingsError) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     package_version = version("recognizer-sensors")
-    args = build_parser(package_version).parse_args(argv)
+    args = build_parser(package_version, argv[0] if argv else None).parse_args(argv)
 
     if args.name is None:
-        return fail("a sensor name is required")
+        return fail("a sensor name is required", args.name)
 
     sensor = SHIPPED.get(args.name)
 
     if sensor is None:
-        return fail(f"unknown sensor: {args.name}")
+        return fail(f"unknown sensor: {args.name}", args.name)
 
     if args.verb not in VERBS:
-        return fail(f"expected a verb after the sensor name; {VERB_HINT}")
+        return fail(f"expected a verb after the sensor name; {VERB_HINT}", args.name)
 
     if args.run and args.verb != "check":
-        return fail("--run is valid only with the check verb")
+        return fail("--run is valid only with the check verb", args.name)
 
     if args.work and args.verb != "check":
-        return fail("--work is valid only with the check verb")
+        return fail("--work is valid only with the check verb", args.name)
 
     if args.verb == "guide":
         if sensor.guide is not None:
@@ -179,13 +183,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.verb == "check" and sensor.check is None:
-        return fail(f"{args.name} has no check verb")
+        return fail(f"{args.name} has no check verb", args.name)
 
     if args.modules is not None and not sensor.scoped:
-        return fail(f"{args.name} takes no module scope")
+        return fail(f"{args.name} takes no module scope", args.name)
 
     if args.suites is not None and not sensor.runs_tests:
-        return fail(f"{args.name} takes no test suites")
+        return fail(f"{args.name} takes no test suites", args.name)
 
     names = None
 
@@ -193,7 +197,7 @@ def main(argv: list[str] | None = None) -> int:
         names = read_suite_names(args.suites)
 
         if names is None:
-            return fail("--suites must be a JSON array of suite names")
+            return fail("--suites must be a JSON array of suite names", args.name)
 
     scope = None
 
@@ -201,12 +205,12 @@ def main(argv: list[str] | None = None) -> int:
         scope = read_scope(args.modules)
 
         if scope is None:
-            return fail("--modules must name a JSON file holding an array of module ids")
+            return fail("--modules must name a JSON file holding an array of module ids", args.name)
 
     raw = parse_raw_settings("{}" if args.settings is None else args.settings)
 
     if raw is None:
-        return fail("--settings must be a JSON object")
+        return fail("--settings must be a JSON object", args.name)
 
     try:
         settings = sensor.parse_settings(raw)
@@ -214,16 +218,16 @@ def main(argv: list[str] | None = None) -> int:
         if args.verb == "check" and args.repository.is_dir():
             return config_gap(error)
 
-        return fail(str(error))
+        return fail(str(error), args.name)
 
     if names is not None:
         try:
             selected([Suite(**item) for item in settings.get("suites") or []], names)
         except SettingsError as error:
-            return fail(str(error))
+            return fail(str(error), args.name)
 
     if not args.repository.is_dir():
-        return fail(f"--repository is not a directory: {args.repository}")
+        return fail(f"--repository is not a directory: {args.repository}", args.name)
 
     if args.verb == "check":
         return check(sensor, args.repository, settings, args.run, names, args.work, scope)
@@ -231,7 +235,7 @@ def main(argv: list[str] | None = None) -> int:
     commit = args.commit if args.commit else resolve_commit(args.repository)
 
     if not commit:
-        return fail("not a git repository, or no commit")
+        return fail("not a git repository, or no commit", args.name)
 
     sys.setrecursionlimit(RECURSION_LIMIT)
 

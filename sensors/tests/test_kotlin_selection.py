@@ -333,7 +333,7 @@ def test_a_class_with_no_file_leaves_no_selection_and_names_it(tmp_path, monkeyp
 
     assert selection == {}
     assert (
-        "recognizer-sensors: mutation: test class p.Ghost has no single test file; "
+        "recognizer-sense-mutation: test class p.Ghost has no single test file; "
         "running the whole suite for kotlin"
     ) in capsys.readouterr().err
     assert not KOTLIN_CLASSES

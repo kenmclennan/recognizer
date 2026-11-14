@@ -528,8 +528,7 @@ class Baselines:
 
                 if fallback and not isinstance(error, Stopped):
                     print(
-                        f"recognizer-sensors: mutation: {subject}: {error};"
-                        " running the whole suite",
+                        f"recognizer-sense-mutation: {subject}: {error}; running the whole suite",
                         file=sys.stderr,
                     )
             finally:
@@ -940,7 +939,7 @@ def run(
 
     for language in unconfigured:
         print(
-            f"recognizer-sensors: mutation: no test suite is configured for {language}; "
+            f"recognizer-sense-mutation: no test suite is configured for {language}; "
             "its files are not measured",
             file=sys.stderr,
         )
@@ -977,7 +976,7 @@ def sized_workers(peak: int) -> tuple[int, str]:
         else f"cores {cpus}, available {available // 1_000_000} MB, one run {peak // 1_000_000} MB"
     )
 
-    return workers, f"recognizer-sensors: mutation: workers: {workers} ({detail})"
+    return workers, f"recognizer-sense-mutation: workers: {workers} ({detail})"
 
 
 def measure(
@@ -1481,7 +1480,7 @@ def measure(
         print(sizing_line, file=sys.stderr)
 
     print(
-        f"recognizer-sensors: mutation: {reused} of {len(targets)} functions reused, "
+        f"recognizer-sense-mutation: {reused} of {len(targets)} functions reused, "
         f"{mutated} mutated, {len(skipped_ids)} skipped (uncovered-by-budget)",
         file=sys.stderr,
     )
@@ -1489,14 +1488,14 @@ def measure(
     site_total = sum(sum(target.covered) for target in measured)
     site_reused = sum(len(target.kept) for target in measured)
     print(
-        f"recognizer-sensors: mutation: {site_reused} of {site_total} sites reused, "
+        f"recognizer-sense-mutation: {site_reused} of {site_total} sites reused, "
         f"{site_total - site_reused} run",
         file=sys.stderr,
     )
     if modules is not None:
         carried_count = sum(1 for target in targets if target.carried)
         print(
-            f"recognizer-sensors: mutation: scoped to {len(modules)} modules; "
+            f"recognizer-sense-mutation: scoped to {len(modules)} modules; "
             f"{carried_count} functions carried from the record, "
             f"{len(unmeasured)} outside the scope have no result",
             file=sys.stderr,
@@ -1504,7 +1503,7 @@ def measure(
 
     if excluded:
         print(
-            f"recognizer-sensors: mutation: {len(excluded)} functions in "
+            f"recognizer-sense-mutation: {len(excluded)} functions in "
             f"{len({target.module for target in excluded})} modules not tested because "
             "their files are not in the coverage report",
             file=sys.stderr,
@@ -1512,14 +1511,14 @@ def measure(
 
     if unowned:
         print(
-            f"recognizer-sensors: mutation: {len(unowned)} functions in "
+            f"recognizer-sense-mutation: {len(unowned)} functions in "
             f"{len({target.module for target in unowned})} modules not tested because "
             "no test suite covers their files",
             file=sys.stderr,
         )
 
     print(
-        f"recognizer-sensors: mutation: {no_covering_test} functions without a covering test; "
+        f"recognizer-sense-mutation: {no_covering_test} functions without a covering test; "
         f"{ran['selection']} mutants ran a selection, {ran['whole']} ran the whole suite",
         file=sys.stderr,
     )

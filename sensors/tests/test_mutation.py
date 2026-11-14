@@ -473,12 +473,12 @@ def summary(capsys):
     lines = [
         line
         for line in capsys.readouterr().err.splitlines()
-        if line.startswith("recognizer-sensors: mutation: ") and "functions reused" in line
+        if line.startswith("recognizer-sense-mutation: ") and "functions reused" in line
     ]
 
     assert len(lines) == 1
 
-    return lines[0].removeprefix("recognizer-sensors: mutation: ")
+    return lines[0].removeprefix("recognizer-sense-mutation: ")
 
 
 def git(root, *args):

@@ -287,5 +287,21 @@ def test_suites_on_crap_refuses_an_unknown_empty_or_malformed_value(
     )
 
     assert status == 2
-    assert capsys.readouterr().err.startswith("recognizer-sensors: ")
+    assert capsys.readouterr().err.startswith("recognizer-sense-crap: ")
     assert not (tmp_path / "out.json").exists()
+
+
+@pytest.mark.parametrize("name", ["crap", "mutation", "thresholds"])
+def test_a_refusal_is_prefixed_with_the_sensors_own_command(name, tmp_path, capsys):
+    status = main([name, "run", "--repository", str(tmp_path / "missing")])
+
+    assert status == 2
+    assert capsys.readouterr().err.startswith(f"recognizer-sense-{name}: ")
+
+
+@pytest.mark.parametrize("name", ["crap", "mutation", "thresholds"])
+def test_a_missing_verb_is_prefixed_with_the_sensors_own_command(name, capsys):
+    from recognizer_sensors.entry import run
+
+    assert run(name, []) == 2
+    assert capsys.readouterr().err.startswith(f"recognizer-sense-{name}: ")
