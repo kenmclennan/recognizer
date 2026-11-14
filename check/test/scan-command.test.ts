@@ -1350,7 +1350,13 @@ describe("recognizer scan: phases", () => {
   });
 
   it("describes with the shipped fallback when no describer is registered", async () => {
-    const base = setup({}, { [CONFIG]: "" });
+    const base = setup(
+      {},
+      {
+        [CONFIG]:
+          'describer:\n  command: [recognizer-describe-claude, run, --model, "{model}", "{request}"]\n  version: prompt-0123456789ab\n',
+      },
+    );
     const { code, fake } = await scan(
       {
         ...base,
@@ -1555,10 +1561,10 @@ describe("recognizer scan: phases", () => {
   });
 
   describe("an unregistered shipped plugin", () => {
-    const crapWarning =
-      "warning: crap is not registered in .recognizer/config.yaml; register it with `recognizer plugin add crap`. From the next release an unregistered plugin will not run.\n";
-    const mutationWarning = crapWarning.replaceAll("crap", "mutation");
-    const claudeWarning = crapWarning.replaceAll("crap", "claude");
+    const crapLine =
+      "crap is not registered in .recognizer/config.yaml; register it with `recognizer plugin add crap`.\n";
+    const mutationLine = crapLine.replaceAll("crap", "mutation");
+    const claudeLine = crapLine.replaceAll("crap", "claude");
 
     function shippedRun(config: string, describe = false) {
       const base = setup({}, { [CONFIG]: config });
@@ -1594,32 +1600,52 @@ describe("recognizer scan: phases", () => {
       };
     }
 
-    function count(text: string, line: string): number {
-      return text.split(line).length - 1;
+    function pluginRuns(fake: {
+      calls: { command: string; args: string[] }[];
+    }) {
+      return fake.calls.filter(
+        (call) =>
+          (call.command.startsWith("recognizer-sense-") ||
+            call.command === "recognizer-describe-claude") &&
+          call.args[0] === "run",
+      );
     }
 
-    it("runs the sensor and warns once on stderr", async () => {
-      const { code, out, err } = await scan(shippedRun(""), "--sense", "crap");
+    it("refuses the sensor and runs nothing", async () => {
+      const { code, err, fake } = await scan(shippedRun(""), "--sense", "crap");
 
-      expect(code).toBe(0);
-      expect(out).toContain("ran crap");
-      expect(count(err, crapWarning)).toBe(1);
+      expect(code).toBe(2);
+      expect(err).toBe(crapLine);
+      expect(pluginRuns(fake)).toEqual([]);
+
+      const registered = await scan(
+        shippedRun("sensors:\n  crap: {}\n"),
+        "--sense",
+        "crap",
+      );
+
+      expect(registered.code).toBe(0);
+      expect(pluginRuns(registered.fake)).not.toEqual([]);
     });
 
-    it("warns once for a name requested twice", async () => {
+    it("refuses a name requested twice once", async () => {
       const { err } = await scan(shippedRun(""), "--sense", "crap,crap");
 
-      expect(count(err, crapWarning)).toBe(1);
+      expect(err).toBe(crapLine);
     });
 
-    it("warns for each unregistered sensor", async () => {
-      const { err } = await scan(shippedRun(""), "--sense", "crap,mutation");
+    it("refuses each unregistered sensor", async () => {
+      const { code, err } = await scan(
+        shippedRun(""),
+        "--sense",
+        "crap,mutation",
+      );
 
-      expect(count(err, crapWarning)).toBe(1);
-      expect(count(err, mutationWarning)).toBe(1);
+      expect(code).toBe(2);
+      expect(err).toBe(crapLine + mutationLine);
     });
 
-    it("warns nothing when the sensor is registered", async () => {
+    it("refuses nothing when the sensor is registered", async () => {
       const { code, out, err } = await scan(
         shippedRun("sensors:\n  crap: {}\n"),
         "--sense",
@@ -1631,7 +1657,7 @@ describe("recognizer scan: phases", () => {
       expect(err).not.toContain("not registered");
     });
 
-    it("warns nothing for --sense all", async () => {
+    it("refuses nothing for --sense all", async () => {
       const { code, err } = await scan(
         shippedRun("sensors:\n  crap: {}\n"),
         "--sense",
@@ -1642,18 +1668,29 @@ describe("recognizer scan: phases", () => {
       expect(err).not.toContain("not registered");
     });
 
-    it("warns once about the shipped describer", async () => {
-      const { code, err } = await scan(shippedRun("", true), "--describe");
+    it("refuses --describe with the shipped describer and runs nothing", async () => {
+      const { code, err, fake } = await scan(
+        shippedRun("", true),
+        "--describe",
+      );
 
-      expect(code).toBe(0);
-      expect(count(err, claudeWarning)).toBe(1);
+      expect(code).toBe(2);
+      expect(err).toBe(claudeLine);
+      expect(pluginRuns(fake)).toEqual([]);
     });
 
-    it("warns nothing when a describer is registered", async () => {
+    it("refuses nothing when a describer is registered", async () => {
       const { code, err } = await scan(
         shippedRun(DESCRIBER, true),
         "--describe",
       );
+
+      expect(code).toBe(0);
+      expect(err).not.toContain("not registered");
+    });
+
+    it("scans an unconfigured repository by default", async () => {
+      const { code, err } = await scan(shippedRun("", true));
 
       expect(code).toBe(0);
       expect(err).not.toContain("not registered");
@@ -1672,25 +1709,28 @@ describe("recognizer scan: phases", () => {
     ].join("\n");
 
     function mutating() {
-      return setup({
-        programs: {
-          "shipped-sensors": (args, files) => {
-            files.set(
-              args[args.indexOf("--output") + 1] as string,
-              JSON.stringify({
-                findings_version: 1,
-                sensor: { name: "mutation", version: "1" },
-                commit: COMMIT,
-                modified: false,
-                settings: {},
-                findings: [],
-              }),
-            );
+      return setup(
+        {
+          programs: {
+            "shipped-sensors": (args, files) => {
+              files.set(
+                args[args.indexOf("--output") + 1] as string,
+                JSON.stringify({
+                  findings_version: 1,
+                  sensor: { name: "mutation", version: "1" },
+                  commit: COMMIT,
+                  modified: false,
+                  settings: {},
+                  findings: [],
+                }),
+              );
 
-            return { stderr: EVENTS };
+              return { stderr: EVENTS };
+            },
           },
         },
-      });
+        { [CONFIG]: "sensors:\n  mutation: {}\n" },
+      );
     }
 
     it("passes each plugin event through the --json stream as a plugin line between start and entry", async () => {

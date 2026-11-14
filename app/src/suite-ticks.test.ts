@@ -32,7 +32,10 @@ const DAY = 24 * HOUR;
 const NOW = Date.parse("2026-11-12T12:00:00.000Z");
 const ALL = ["unit", "integration", "web"];
 
-const CONFIG = `tests:
+const CONFIG = `sensors:
+  crap: {}
+  mutation: {}
+tests:
   - name: unit
     language: python
     directory: tests/unit

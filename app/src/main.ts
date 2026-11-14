@@ -18,7 +18,7 @@ import { createRescanner } from "./rescanner";
 import { responsibilitiesSource } from "./responsibilities-source";
 import { OPEN_RUN } from "./scan-freshness";
 import { type Loaded, loadScans } from "./scan-loading";
-import { rowSensors } from "./scan-panel-model";
+import { describerRegistered, rowSensors } from "./scan-panel-model";
 import { scanSource } from "./scan-source";
 import { withSensors } from "./sensor-run";
 import { sensorsSource } from "./sensors-source";
@@ -29,7 +29,6 @@ import { doctorProblems } from "./setup-model";
 import type { DoctorRead } from "./setup-port";
 import { setupSource } from "./setup-source";
 import { spinner } from "./spinner-view";
-import { unregisteredNotices } from "./unregistered-notice";
 import { createViewComparisons } from "./view-comparisons";
 import { viewsSource } from "./views-source";
 import { windowSource } from "./window-source";
@@ -192,17 +191,10 @@ const rescanner = createRescanner<Carried>({
       .shipped()
       .catch(() => ({ status: "unavailable" as const, reason: "" }));
 
-    return rowSensors(config, shipped);
-  },
-  unregistered: async (plan) => {
-    const { config } = await sensorsSource.readInputs();
-    const described = plan.describe ? await sensorsSource.describer() : null;
-
-    return unregisteredNotices(
-      config,
-      plan,
-      described?.status === "ok" ? described.source : null,
-    );
+    return {
+      sensors: rowSensors(config, shipped),
+      describerRegistered: describerRegistered(config),
+    };
   },
   load: loadScans,
   sense: sensed,

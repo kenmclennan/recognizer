@@ -826,7 +826,7 @@ describe("doctor: unregistered shipped plugins", () => {
   ];
   const CRAP = "sensors:\n  crap: {}\n";
 
-  it("warns for each installed shipped plugin that is not registered, with its fix", () => {
+  it("reports each installed shipped plugin that is not registered as a problem, with its fix", () => {
     const result = json(
       setup({
         config: CRAP,
@@ -835,47 +835,47 @@ describe("doctor: unregistered shipped plugins", () => {
       }),
       ROOT,
     );
-    const warnings = result.report.areas.flatMap(
+    const problems = result.report.areas.flatMap(
       (area: { problems: { code: string; fix: unknown; line: string }[] }) =>
         area.problems,
     );
 
-    expect(result.status).toBe(0);
+    expect(result.status).toBe(1);
     expect(result.report).toMatchObject({
-      ok: true,
-      problems: 0,
-      warnings: 3,
+      ok: false,
+      problems: 3,
+      warnings: 0,
     });
     expect(
-      warnings.map((one: { fix: { command: string } }) => one.fix.command),
+      problems.map((one: { fix: { command: string } }) => one.fix.command),
     ).toEqual([
       "recognizer plugin add mutation",
       "recognizer plugin add thresholds",
       "recognizer plugin add claude",
     ]);
     expect(
-      warnings.every(
+      problems.every(
         (one: { code: string }) => one.code === "unregistered-plugin",
       ),
     ).toBe(true);
   });
 
-  it("prints No problems and then the warning count", () => {
+  it("prints the problem lines and the problem count, and exits 1", () => {
     const result = doctor(
       setup({ config: CRAP, onPath: ALL, shippedDescriber: true }),
       ROOT,
     );
     const lines = result.out.trimEnd().split("\n");
 
-    expect(result.status).toBe(0);
-    expect(lines.slice(-2)).toEqual(["No problems", "3 warnings"]);
+    expect(result.status).toBe(1);
+    expect(lines.at(-1)).toBe("3 problems");
     expect(result.out).toContain(
-      "  warning: mutation is not registered in .recognizer/config.yaml; register it with `recognizer plugin add mutation`. From the next release an unregistered plugin will not run.\n    fix: recognizer plugin add mutation\n",
+      "  mutation is not registered in .recognizer/config.yaml; register it with `recognizer plugin add mutation`.\n    fix: recognizer plugin add mutation\n",
     );
   });
 
-  it("warns about nothing when every installed plugin is registered", () => {
-    const result = json(
+  it("reports nothing when every installed plugin is registered", () => {
+    const result = doctor(
       setup({
         config:
           "sensors:\n  crap: {}\n  mutation: {}\n  thresholds: {}\ndescriber:\n  command: [describer]\n  version: v1\n",
@@ -885,11 +885,12 @@ describe("doctor: unregistered shipped plugins", () => {
       ROOT,
     );
 
-    expect(codes(result.report)).toEqual([]);
-    expect(result.report.warnings).toBe(0);
+    expect(result.status).toBe(0);
+    expect(result.out).toContain("No problems");
+    expect(result.out).not.toContain("unregistered");
   });
 
-  it("warns about nothing for an invalid config and skips both areas", () => {
+  it("reports nothing for an invalid config and skips both areas", () => {
     const result = json(
       setup({
         config: "sensors:\n  crap:\n    bogus: 1\n",
@@ -906,7 +907,7 @@ describe("doctor: unregistered shipped plugins", () => {
     expect(area("describers").skipped).not.toBeNull();
   });
 
-  it("warns once per installed plugin with no config file", () => {
+  it("reports each installed plugin as a problem with no config file", () => {
     const result = json(setup({ onPath: ALL, shippedDescriber: true }), ROOT);
 
     expect(codes(result.report)).toEqual([
@@ -915,10 +916,10 @@ describe("doctor: unregistered shipped plugins", () => {
       "sensors:unregistered-plugin",
       "describers:unregistered-plugin",
     ]);
-    expect(result.status).toBe(0);
+    expect(result.status).toBe(1);
   });
 
-  it("warns about nothing when the plugins are not installed", () => {
+  it("reports nothing when the plugins are not installed", () => {
     const result = json(setup({ onPath: [] }), ROOT);
 
     expect(codes(result.report)).toEqual([]);

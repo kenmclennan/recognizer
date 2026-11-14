@@ -93,8 +93,8 @@ import {
 import { runStructureSensor } from "./structure-run.js";
 import { resolveStructureSettings } from "./structure-sensor.js";
 import {
-  unregisteredSensors,
-  unregisteredWarning,
+  refuseUnregistered,
+  unregisteredMessage,
 } from "./unregistered-plugins.js";
 
 type FailureReason =
@@ -583,6 +583,15 @@ function* scanFlow(
             shipped,
           );
 
+    refuseUnregistered(
+      registeredNames,
+      Array.isArray(options.sense) ? options.sense : [],
+    );
+
+    if (describerSource === "shipped" && describer !== undefined) {
+      throw new InputError([unregisteredMessage(SHIPPED_DESCRIBER_NAME)]);
+    }
+
     const configured = (config?.tests ?? []).map((suite) => suite.name);
     const given =
       options.suites === undefined
@@ -641,17 +650,6 @@ function* scanFlow(
     }
 
     marker = acquired.held;
-  }
-
-  for (const name of unregisteredSensors(
-    registeredNames,
-    selected.map((one) => one.name),
-  )) {
-    io.stderr(`warning: ${unregisteredWarning(name)}\n`);
-  }
-
-  if (describerSource === "shipped" && describer !== undefined) {
-    io.stderr(`warning: ${unregisteredWarning(SHIPPED_DESCRIBER_NAME)}\n`);
   }
 
   const taken = marker;

@@ -26,7 +26,7 @@ import {
 } from "./run-log.js";
 import type { Scan } from "./scan.js";
 import { SHIPPED_DESCRIBER_NAME } from "./shipped-describer.js";
-import { unregisteredWarning } from "./unregistered-plugins.js";
+import { unregisteredMessage } from "./unregistered-plugins.js";
 
 const OPTIONS = {
   all: { type: "boolean" },
@@ -176,7 +176,7 @@ async function runDescribe(loaded: Loaded, io: Io): Promise<number> {
   const startedAt = io.now();
 
   if (loaded.describerSource === "shipped") {
-    io.stderr(`warning: ${unregisteredWarning(SHIPPED_DESCRIBER_NAME)}\n`);
+    throw new InputError([unregisteredMessage(SHIPPED_DESCRIBER_NAME)]);
   }
 
   const recorded: RunEntry[] = [];

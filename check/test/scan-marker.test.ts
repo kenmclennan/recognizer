@@ -57,7 +57,11 @@ function options(extra: FakeOptions = {}): FakeOptions {
     commit: "abc123",
     scanners: { [PYTHON]: { output: scanJson(1, 0) } },
     ...extra,
-    files: { [`${ROOT}/a.py`]: "", ...extra.files },
+    files: {
+      [`${ROOT}/a.py`]: "",
+      [`${ROOT}/.recognizer/config.yaml`]: "sensors:\n  crap: {}\n",
+      ...extra.files,
+    },
   };
 }
 

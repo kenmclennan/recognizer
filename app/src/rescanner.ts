@@ -12,11 +12,11 @@ import type { PlannedRun } from "./scan-freshness";
 import type { Loaded } from "./scan-loading";
 import {
   DESCRIBE_KEY,
+  effectiveTicks,
   NO_RUN,
   phasesFor,
   type RowSensor,
   type RunState,
-  type ScanPlan,
   type ScanTicks,
 } from "./scan-panel-model";
 import type { RunEvent, ScanPort, ScanRunResult } from "./scan-port";
@@ -32,7 +32,13 @@ import {
 import type { ScanReport } from "./scan-report";
 import { foldRunLine, isActive, type RunInput } from "./scan-run-model";
 
-export type Registered = Pick<RowSensor, "name" | "display" | "runsTests">[];
+export type Registered = {
+  sensors: Pick<
+    RowSensor,
+    "name" | "display" | "runsTests" | "registered" | "suites"
+  >[];
+  describerRegistered: boolean;
+};
 
 export type ProgressUpdate = {
   scanning: string | null;
@@ -41,7 +47,6 @@ export type ProgressUpdate = {
 export type RescanPorts<Carried> = {
   port: ScanPort;
   registered: () => Promise<Registered>;
-  unregistered: (plan: ScanPlan) => Promise<{ key: string; text: string }[]>;
   load: (report: ScanReport) => Loaded;
   sense: (loaded: Loaded) => Promise<Loaded>;
   resense: () => Promise<Loaded | null>;
@@ -175,7 +180,7 @@ export function createRescanner<Carried>(
   }
 
   async function writeTicks(registered: Registered) {
-    const plain = registered
+    const plain = registered.sensors
       .filter(({ runsTests }) => !runsTests)
       .map(({ name }) => name);
 
@@ -485,7 +490,7 @@ export function createRescanner<Carried>(
   async function beginRun(scan: ScanRunRecord) {
     const registered = await ports.registered();
     const display = (name: string) =>
-      registered.find((one) => one.name === name)?.display ?? name;
+      registered.sensors.find((one) => one.name === name)?.display ?? name;
 
     begunRunId = scan.run_id;
     liveRunId = scan.run_id;
@@ -736,7 +741,12 @@ export function createRescanner<Carried>(
       await loadTicks();
     }
 
-    const { plan: base } = phasesFor(ticks, registered);
+    const effective = effectiveTicks(
+      ticks,
+      registered.sensors,
+      registered.describerRegistered,
+    );
+    const { plan: base } = phasesFor(effective, registered.sensors);
     const plan = planned?.plan ?? {
       ...base,
       modules:
@@ -759,7 +769,8 @@ export function createRescanner<Carried>(
         : []),
       ...plan.sense.map((name) => ({
         key: name,
-        display: registered.find((one) => one.name === name)?.display ?? name,
+        display:
+          registered.sensors.find((one) => one.name === name)?.display ?? name,
       })),
     ];
 
@@ -785,10 +796,6 @@ export function createRescanner<Carried>(
     let result: ScanRunResult;
 
     try {
-      for (const notice of await ports.unregistered(plan).catch(() => [])) {
-        ports.post({ kind: "warning", text: notice.text, key: notice.key });
-      }
-
       result = await ports.port.run(plan);
     } catch (error) {
       result = { status: "failed", exitCode: -1, stderr: String(error) };

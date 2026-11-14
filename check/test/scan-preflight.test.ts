@@ -51,6 +51,13 @@ function current(): string {
   });
 }
 
+const SHIPPED_REGISTERED =
+  "sensors:\n  crap: {}\n  mutation: {}\n  thresholds: {}\n";
+
+function registeringShipped(config: string): string {
+  return config.includes("sensors:") ? config : config + SHIPPED_REGISTERED;
+}
+
 function setup(
   config: string,
   preflight?: SensorsPreflight,
@@ -63,7 +70,7 @@ function setup(
       [`${ROOT}/m0.py`]: "one",
       [`${ROOT}/m1.py`]: "two",
       [PY_CACHE]: current(),
-      [CONFIG]: config,
+      [CONFIG]: registeringShipped(config),
     },
     scanners: { [PYTHON]: { output: current() } },
     programs: {
@@ -326,8 +333,8 @@ describe("scan preflight: the project stage", () => {
 
     expect(code).toBe(0);
     expect(checks.map((call) => call.command)).toEqual([
-      "recognizer-sense-thresholds",
       "recognizer-sense-crap",
+      "recognizer-sense-thresholds",
     ]);
 
     for (const check of checks) {

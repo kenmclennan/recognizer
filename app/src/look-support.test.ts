@@ -59,9 +59,20 @@ describe("look-support", () => {
           title: "t",
           runsTests: true,
           scoped: false,
+          registered: true,
         },
       ]),
-    ).toEqual([{ name: "crap", display: "CRAP", runsTests: true }]);
+    ).toEqual({
+      sensors: [
+        {
+          name: "crap",
+          display: "CRAP",
+          runsTests: true,
+          registered: true,
+        },
+      ],
+      describerRegistered: true,
+    });
   });
 
   it("mountExplorer forwards every option to showExplorer in positional order", () => {

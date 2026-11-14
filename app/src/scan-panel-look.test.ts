@@ -15,7 +15,7 @@ import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
 import { createRescanner } from ${JSON.stringify(here("rescanner.ts"))};
 import { withSensors } from ${JSON.stringify(here("sensor-run.ts"))};
 import { NO_CHANGES } from ${JSON.stringify(here("footer-scan.ts"))};
-import { rowSensors } from ${JSON.stringify(here("scan-panel-model.ts"))};
+import { describerRegistered, rowSensors } from ${JSON.stringify(here("scan-panel-model.ts"))};
 import { PANEL_LIMITS } from ${JSON.stringify(here("panel-widths.ts"))};
 ${FAKE_WORKER}
 
@@ -31,10 +31,9 @@ const base = loadedOf({ modules: ids, scans: [{ file: "scan.python.json", scan }
 const SHIPPED = [
   { name: "mutation", display: "Mutation", description: "Mutates and tests.", runsTests: true, scoped: true, listed: true, metrics: [], findings: [], settings: [] },
   { name: "crap", display: "C.R.A.P.", description: "Runs the tests with coverage.", expansion: "C.R.A.P.: Change Risk Anti-Patterns.", runsTests: true, scoped: false, listed: true, metrics: [], findings: [], settings: [] },
-  { name: "duplication", display: "Duplication", description: "Finds repeated structure.", runsTests: false, scoped: false, listed: true, metrics: [], findings: [], settings: [] },
-  { name: "thresholds", display: "Thresholds", description: "Limits.", runsTests: false, scoped: false, listed: false, metrics: [], findings: [], settings: [] },
+  { name: "thresholds", display: "Duplication", description: "Finds repeated structure.", runsTests: false, scoped: false, listed: true, metrics: [], findings: [], settings: [] },
 ];
-const CONFIG = "sensors:\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n  beta:\\n    command: [node, '{repository}/b.mjs', '{commit}', '{output}']\\n";
+const CONFIG = "describer:\\n  command: [describer, '{request}']\\n  version: v1\\nsensors:\\n  crap: {}\\n  mutation: {}\\n  thresholds: {}\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n  beta:\\n    command: [node, '{repository}/b.mjs', '{commit}', '{output}']\\n";
 const FILES = { responsibilities: null, config: CONFIG, refused: [], hashes: {} };
 const ORIGIN = { branch: "main", commit: "cur1234" };
 const json = (value) => JSON.stringify(value);
@@ -87,8 +86,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const setScan = (next) => { wired.scanState = next; };
   wired.rescanner = createRescanner({
     port: fake,
-    unregistered: async () => [],
-    registered: async () => { const { config } = await sensors.readInputs(); return registeredOf(rowSensors(config, await sensors.shipped())); },
+    registered: async () => { const { config } = await sensors.readInputs(); return registeredOf(rowSensors(config, await sensors.shipped()), describerRegistered(config)); },
     load: () => base,
     sense: (loaded) => withSensors(loaded, sensors),
     resense: async () => withSensors(wired.current, sensors),
@@ -157,7 +155,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   await tick();
   facts.scanned = b.panel();
   await b.setTick("describe", true);
-  await b.setTick("duplication", true);
+  await b.setTick("thresholds", true);
   await b.setTick("crap", true);
   facts.ticked = { rows: b.rows().filter((r) => r.ticked).map((r) => r.key), written: fake.written.at(-1) };
 
@@ -168,10 +166,10 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
 
   const g1 = gate(); const g2 = gate(); const g3 = gate();
   const startLine = (name) => json({ event: "start", phase: "sense", name });
-  fake.steps = [current, describing(1), entry("describe", "app/a.py"), g1.promise, sensing(2), startLine("duplication"), g2.promise, entry("sense", "duplication"), startLine("crap"), g3.promise, entry("sense", "crap"), summary];
+  fake.steps = [current, describing(1), entry("describe", "app/a.py"), g1.promise, sensing(2), startLine("thresholds"), g2.promise, entry("sense", "thresholds"), startLine("crap"), g3.promise, entry("sense", "crap"), summary];
   const during = [];
   const duringFooter = [];
-  fake.onStep = (index) => { if ([1, 3, 5, 8].includes(index)) { during.push(c.panel()); duringFooter.push({ text: c.scanLineText(), buttons: c.footerButtons() }); } if (index === 6) c.sensors.files.set("duplication", json({ findings_version: 1, sensor: { name: "duplication", version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: { "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, findings: [] })); };
+  fake.onStep = (index) => { if ([1, 3, 5, 8].includes(index)) { during.push(c.panel()); duringFooter.push({ text: c.scanLineText(), buttons: c.footerButtons() }); } if (index === 6) c.sensors.files.set("thresholds", json({ findings_version: 1, sensor: { name: "thresholds", version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: { "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, findings: [] })); };
   await c.setTick("describe", true);
   await c.setTick("crap", true);
   click(c.q(".scan-run"));
@@ -216,7 +214,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
 
   const failFake = fakeScan({
     defaults: { describe: false, sensors: true },
-    steps: [current, sensing(1), entry("sense", "duplication", "broke"), json({ event: "summary", exit: 1, log: "x-scan" })],
+    steps: [current, sensing(1), entry("sense", "thresholds", "broke"), json({ event: "summary", exit: 1, log: "x-scan" })],
     result: { status: "finished", exitCode: 1 },
   });
   const t = await mount(failFake);
@@ -230,10 +228,10 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const failedFooter = { text: t.scanLineText(), buttons: t.footerButtons() };
   const messagesBefore = t.messages();
   const hiddenBefore = !t.visible(".scan-panel");
-  t.act("duplication failed", "Show");
+  t.act("thresholds failed", "Show");
   await tick();
   const dot = t.q(".rail-scan .rail-dot");
-  t.act("duplication failed", "Open log");
+  t.act("thresholds failed", "Open log");
   await tick();
   facts.sensorFail = {
     footer: failedFooter,
@@ -247,7 +245,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
 
   const bareFake = fakeScan({
     defaults: { describe: false, sensors: true },
-    steps: [current, sensing(1), entry("sense", "duplication", "broke"), summary],
+    steps: [current, sensing(1), entry("sense", "thresholds", "broke"), summary],
     result: { status: "finished", exitCode: 1 },
   });
   const bare = await mount(bareFake);
@@ -347,10 +345,10 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   click(sc.q(".rail-scan"));
   await tick();
   await sc.setTick("mutation", true);
-  facts.scopeOff = { scope: scopeOf(), describe: stateOf("describe"), mutation: stateOf("mutation"), mutationNote: noteOf("mutation"), crap: stateOf("crap"), duplication: stateOf("duplication") };
+  facts.scopeOff = { scope: scopeOf(), describe: stateOf("describe"), mutation: stateOf("mutation"), mutationNote: noteOf("mutation"), crap: stateOf("crap"), duplication: stateOf("thresholds") };
   click(sc.q(".scan-scope-canvas"));
   await tick();
-  facts.scopeOn = { scope: scopeOf(), describe: stateOf("describe"), mutation: stateOf("mutation"), mutationNote: noteOf("mutation"), crap: stateOf("crap"), duplication: stateOf("duplication"), written: scopeFake.written.at(-1) };
+  facts.scopeOn = { scope: scopeOf(), describe: stateOf("describe"), mutation: stateOf("mutation"), mutationNote: noteOf("mutation"), crap: stateOf("crap"), duplication: stateOf("thresholds"), written: scopeFake.written.at(-1) };
   const hold = gate();
   scopeFake.steps = [hold.promise];
   click(sc.q(".scan-run"));
@@ -397,11 +395,11 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const crapDoc = (hashes) => json({ findings_version: 1, sensor: { name: "crap", version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: hashes, findings: [] });
   const fsensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
   fsensors.files.set("crap", crapDoc({ "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" }));
-  for (const name of ["duplication", "mutation", "alpha", "beta"]) fsensors.files.set(name, json({ findings_version: 1, sensor: { name, version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: { "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, findings: [] }));
+  for (const name of ["thresholds", "mutation", "alpha", "beta"]) fsensors.files.set(name, json({ findings_version: 1, sensor: { name, version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: { "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, findings: [] }));
   const HA = "a".repeat(64);
   const HB = "b".repeat(64);
   const line = (hash) => ({ line: "Does a thing.", source_hash: hash, describer: ["node", "d.js"], version: "v1" });
-  const described = { responsibilities: json({ schema_version: 1, modules: { "app/a.py": line(HA), "app/b.py": line(HB) } }), config: CONFIG + "describer:\\n  command: [node, d.js]\\n  version: v1\\n", refused: [], hashes: { "app/a.py": HA, "app/b.py": HB } };
+  const described = { responsibilities: json({ schema_version: 1, modules: { "app/a.py": line(HA), "app/b.py": line(HB) } }), config: CONFIG.replace("[describer, '{request}']", "[node, d.js]"), refused: [], hashes: { "app/a.py": HA, "app/b.py": HB } };
   const fr = await mount(fakeScan(), fsensors, true, {}, described);
   click(fr.q(".rail-scan"));
   await tick();
@@ -483,7 +481,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
 
   const recordOf = (name, outcome, at, diagnosis) => json({ log_version: 1, kind: "scan", started: at, finished: at, by: "ken", arguments: [], outcome, exit: outcome === "ok" ? 0 : 1, phases: [{ phase: "sense", entries: [{ name, command: ["x"], status: outcome === "ok" ? 0 : 1, outcome, duration_ms: 1, stderr: "", ...(outcome === "failed" ? { reason: "tests failed", ...(diagnosis ? { diagnosis } : {}) } : {}) }] }] });
   const restart = async (records, modifiedMs) => {
-    const f = fakeSensors({ crap: ranDoc("crap", undefined) }, { config: CONFIG + "  crap:\\n    command: [recognizer-sense-crap, '{repository}']\\n" }, {}, SHIPPED);
+    const f = fakeSensors({ crap: ranDoc("crap", undefined) }, { config: CONFIG }, {}, SHIPPED);
     if (modifiedMs !== undefined) f.modified.set("crap", modifiedMs);
     for (const [name, text] of Object.entries(records)) f.runRecords.set(name, text);
     const m = await mount(fakeScan(), f);
@@ -541,7 +539,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
     const reference = reopened.q('.scan-row[data-sensor="structure"]').getBoundingClientRect().height;
     facts.suiteWidths[width] = {
       count: rowsNow.length,
-      heights: rowsNow.map((r) => Math.abs(r.getBoundingClientRect().height - reference) < 1),
+      heights: rowsNow.map((r) => r.querySelector(".scan-row-fix") !== null || Math.abs(r.getBoundingClientRect().height - reference) < 1),
       clipped: rowsNow.map((r) => r.scrollWidth > r.clientWidth + 0.5),
       nameClipped: rowsNow.map((r) => { const n = r.querySelector(".scan-row-name"); return n.scrollWidth > n.clientWidth; }),
       panelOverflow: panelEl.scrollWidth > panelEl.clientWidth + 0.5,
@@ -566,6 +564,13 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   facts.estimateTicked = estimateOf();
   await timed.setTick("mutation", false);
   facts.estimateUnticked = estimateOf();
+
+  const unregMount = await mount(fakeScan(), fakeSensors({}, { config: "sensors:\\n  crap: {}\\n" }, {}, SHIPPED));
+  click(unregMount.q(".rail-scan"));
+  await tick();
+  const bareRow = (key) => { const n = unregMount.q('.scan-row[data-sensor="' + key + '"]'); return { tickDisabled: n.querySelector(".scan-tick").disabled, ticked: n.querySelector(".scan-tick").checked, fix: n.querySelector(".scan-row-fix")?.textContent ?? null, fixInRow: n.querySelector(".scan-row-fix") !== null && n.querySelector(".scan-row-label").contains(n.querySelector(".scan-row-fix")), fixVisible: n.querySelector(".scan-row-fix") !== null && n.querySelector(".scan-row-fix").getBoundingClientRect().width > 0, fixOwnLine: n.querySelector(".scan-row-fix") !== null && n.querySelector(".scan-row-fix").getBoundingClientRect().top >= n.querySelector(".scan-row-name").getBoundingClientRect().bottom - 0.5, fixUntruncated: n.querySelector(".scan-row-fix") !== null && n.querySelector(".scan-row-fix").scrollWidth <= n.querySelector(".scan-row-fix").clientWidth + 0.5 && n.querySelector(".scan-row-fix").getBoundingClientRect().right <= n.getBoundingClientRect().right + 0.5, nameUntruncated: n.querySelector(".scan-row-name").scrollWidth <= n.querySelector(".scan-row-name").clientWidth + 0.5 }; };
+  facts.unregistered = { mutation: bareRow("mutation"), describe: bareRow("describe"), crap: bareRow("crap") };
+  facts.unregisteredSummary = unregMount.q(".summary").textContent;
 
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
@@ -604,6 +609,31 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.scopeNone.scope.all).toBe("Whole repository");
     expect(f.scopeUntitled.scope.caption).toMatch(/^This canvas, [1-9]/);
     expect(f.scopeUntitledOn.scope.on).toBe("true");
+  });
+
+  it("shows an unregistered sensor and the Descriptions row unticked and untickable with the fix beside the name", () => {
+    expect(f.unregistered.mutation).toEqual({
+      tickDisabled: true,
+      ticked: false,
+      fix: "recognizer plugin add mutation",
+      fixInRow: true,
+      fixVisible: true,
+      fixOwnLine: true,
+      fixUntruncated: true,
+      nameUntruncated: true,
+    });
+    expect(f.unregistered.describe).toMatchObject({
+      tickDisabled: true,
+      ticked: false,
+      fix: "recognizer plugin add claude",
+      fixInRow: true,
+      fixOwnLine: true,
+      fixUntruncated: true,
+      nameUntruncated: true,
+    });
+    expect(f.unregisteredSummary).not.toMatch(/Mutation/);
+    expect(f.unregistered.crap.tickDisabled).toBe(false);
+    expect(f.unregistered.crap.fix).toBeNull();
   });
 
   it("captions a saved view by name and locks the switch during a run", () => {
@@ -726,7 +756,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(title("crap")).toBe(
       "C.R.A.P.: Change Risk Anti-Patterns. Runs the tests with coverage.",
     );
-    expect(title("duplication")).toBe("Finds repeated structure.");
+    expect(title("thresholds")).toBe("Finds repeated structure.");
   });
 
   it("wraps a long status inside the panel's content box and keeps the tip inside the window", () => {
@@ -778,16 +808,16 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       "structure",
       "describe",
       "crap",
-      "duplication",
+      "thresholds",
     ]);
     expect(f.ticked.written).toEqual({
       describe: true,
-      ticked: ["duplication"],
+      ticked: ["thresholds"],
       onlyView: false,
       suites: {},
       folds: [],
     });
-    expect(f.reopened).toEqual(["structure", "describe", "duplication"]);
+    expect(f.reopened).toEqual(["structure", "describe", "thresholds"]);
     expect(f.suiteStart.crap).toEqual({
       ticked: false,
       indeterminate: false,
@@ -847,7 +877,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       {
         describe: true,
         describeAll: false,
-        sense: ["duplication", "crap"],
+        sense: ["thresholds", "crap"],
         modules: ["app/a.py", "app/b.py"],
       },
     ]);
@@ -858,7 +888,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       f.run.first.rows
         .filter((r: Facts) => r.spinner > 0)
         .map((r: Facts) => r.key),
-    ).toEqual(["describe", "crap", "duplication"]);
+    ).toEqual(["describe", "crap", "thresholds"]);
     expect(f.run.first.rows.map((r: Facts) => r.state).slice(1, 4)).toEqual([
       "0 of 1",
       "running",
@@ -890,12 +920,12 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     const row = (panel: Facts, key: string) =>
       panel.rows.find((r: Facts) => r.key === key);
 
-    expect(row(f.run.afterDescribe, "duplication").state).toBe("running");
+    expect(row(f.run.afterDescribe, "thresholds").state).toBe("running");
     expect(row(f.run.afterDescribe, "crap").state).toBe("running");
-    expect(row(f.run.afterDuplication, "duplication").state).toBe("now");
-    expect(row(f.run.afterDuplication, "duplication").color).toBe(GREEN);
+    expect(row(f.run.afterDuplication, "thresholds").state).toBe("now");
+    expect(row(f.run.afterDuplication, "thresholds").color).toBe(GREEN);
     expect(row(f.run.afterDuplication, "crap").state).toBe("running");
-    expect(row(f.run.after, "duplication").state).toBe("now");
+    expect(row(f.run.after, "thresholds").state).toBe("now");
     expect(f.run.after.header).toBe("Ran just now");
     expect(f.run.after.rowBars).toBe(0);
     expect(f.run.after.summary.bar).toBe(0);
@@ -983,7 +1013,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
   });
 
   it("leaves a failed sensor at failed with its age and a log link in red and posts exactly one tray message", () => {
-    const row = f.failed.rows.find((r: Facts) => r.key === "duplication");
+    const row = f.failed.rows.find((r: Facts) => r.key === "thresholds");
 
     expect(row.state).toBe("failed, just now");
     expect(row.color).toBe(RED);
@@ -991,7 +1021,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.failed.summary.shape).toBe("attention");
     expect(f.failed.summary.tone).toBe("bad");
     expect(f.failed.summary.bar).toBe(0);
-    expect(f.failed.posted).toEqual(["duplication failed: broke"]);
+    expect(f.failed.posted).toEqual(["thresholds failed: broke"]);
     expect(f.failed.amber).toBeNull();
     expect(f.sensorFail.reasonLines).toBe(0);
   });
@@ -1001,7 +1031,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.sensorFail.footer.buttons).toEqual(["bell"]);
     expect(f.sensorFail.messages).toEqual([
       {
-        text: "duplication failed: broke",
+        text: "thresholds failed: broke",
         actions: ["Show", "Open log"],
       },
     ]);
@@ -1013,7 +1043,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
 
   it("offers Show without Open log when the run left no log", () => {
     expect(f.noLog).toEqual([
-      { text: "duplication failed: broke", actions: ["Show"] },
+      { text: "thresholds failed: broke", actions: ["Show"] },
     ]);
   });
 

@@ -859,6 +859,11 @@ describe("describer in effect", () => {
 
     const root = repository();
 
+    writeFileSync(
+      join(root, ".recognizer/config.yaml"),
+      `describer:\n  command: [recognizer-describe-claude, run, --model, "{model}", "{request}"]\n  version: ${SHIPPED_VERSION}\n`,
+    );
+
     expect((await exec(root, "describe", "--all")).code).toBe(0);
 
     const entry = responsibilities(root).modules[ORDER];
@@ -876,22 +881,22 @@ describe("describer in effect", () => {
   });
 });
 
-describe("unregistered describer warning", () => {
-  const WARNING =
-    "warning: claude is not registered in .recognizer/config.yaml; register it with `recognizer plugin add claude`. From the next release an unregistered plugin will not run.\n";
+describe("unregistered describer refusal", () => {
+  const LINE =
+    "claude is not registered in .recognizer/config.yaml; register it with `recognizer plugin add claude`.\n";
 
-  it("warns once on stderr when describing with the shipped describer", async () => {
+  it("refuses before any model call when describing with the shipped describer", async () => {
     installShippedDescriber();
 
     const root = repository();
     const result = await exec(root, "describe", "--all");
 
-    expect(result.code).toBe(0);
-    expect(responsibilities(root).modules[ORDER].line).toBe(`shipped ${ORDER}`);
-    expect(result.err.split(WARNING).length - 1).toBe(1);
+    expect(result.code).toBe(2);
+    expect(result.err).toBe(LINE);
+    expect(calls(root)).toEqual([]);
   });
 
-  it("warns nothing when a describer is registered", async () => {
+  it("refuses nothing when a describer is registered", async () => {
     installShippedDescriber();
 
     const root = ready("v3");
@@ -902,11 +907,12 @@ describe("unregistered describer warning", () => {
     expect(result.err).not.toContain("not registered");
   });
 
-  it("warns nothing for --describer and --check", async () => {
+  it("refuses nothing for --describer and --check", async () => {
     installShippedDescriber();
 
     const root = repository();
 
+    expect((await exec(root, "describe", "--describer")).code).toBe(0);
     expect((await exec(root, "describe", "--describer")).err).toBe("");
     expect((await exec(root, "describe", "--check")).err).not.toContain(
       "not registered",
