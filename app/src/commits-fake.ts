@@ -18,6 +18,9 @@ export type FakeCommits = CommitsPort & {
     pullRequests: number;
     facts: string[][];
   };
+  holds: { history: Promise<void>[]; pullRequests: Promise<void>[] };
+  emitGitChanged: () => void;
+  emitFocus: () => void;
 };
 
 export function fakeCommits(
@@ -28,6 +31,8 @@ export function fakeCommits(
     facts?: RefFacts[];
   } = {},
 ): FakeCommits {
+  const watchers = new Set<() => void>();
+  const focusers = new Set<() => void>();
   const fake: FakeCommits = {
     history: initial.history ?? { branch: null, text: "" },
     branches: initial.branches ?? { defaultRef: null, total: 0, text: "" },
@@ -38,14 +43,39 @@ export function fakeCommits(
     },
     facts: new Map((initial.facts ?? []).map((one) => [one.ref, one])),
     calls: { history: 0, branches: 0, pullRequests: 0, facts: [] },
+    holds: { history: [], pullRequests: [] },
+    emitGitChanged() {
+      for (const run of [...watchers]) {
+        run();
+      }
+    },
+    emitFocus() {
+      for (const run of [...focusers]) {
+        run();
+      }
+    },
+    watchGit(onChange) {
+      watchers.add(onChange);
+
+      return () => void watchers.delete(onChange);
+    },
+    onFocus(run) {
+      focusers.add(run);
+
+      return () => void focusers.delete(run);
+    },
     async listHistory() {
       fake.calls.history += 1;
 
-      if (fake.history instanceof Error) {
-        throw fake.history;
+      const reply = fake.history;
+
+      await fake.holds.history.shift();
+
+      if (reply instanceof Error) {
+        throw reply;
       }
 
-      return fake.history;
+      return reply;
     },
     async listBranches() {
       fake.calls.branches += 1;
@@ -64,7 +94,11 @@ export function fakeCommits(
     async listPullRequests() {
       fake.calls.pullRequests += 1;
 
-      return fake.pullRequests;
+      const reply = fake.pullRequests;
+
+      await fake.holds.pullRequests.shift();
+
+      return reply;
     },
   };
 

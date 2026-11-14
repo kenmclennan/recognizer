@@ -483,6 +483,10 @@ export function showExplorer(
   let commitsTab: CommitsTab = "history";
   let commitsToken = 0;
   let commitsBranch: string | null = null;
+  let historySeq = 0;
+  let branchSeq = 0;
+  let pullsBusy = false;
+  let commitsStops: (() => void)[] = [];
   let historyLoad: {
     state: "loading" | "ready" | "failed";
     rows: HistoryRow[];
@@ -1118,6 +1122,11 @@ export function showExplorer(
     setHide(hide) {
       historyHide = hide;
       render();
+    },
+    refreshPullRequests() {
+      if (!pullsBusy) {
+        void refreshPullRequests(commitsToken);
+      }
     },
     setTab(tab) {
       commitsTab = tab;
@@ -2051,6 +2060,7 @@ export function showExplorer(
     if (leftPanel === "commits") {
       leftPanel = null;
       commitsToken += 1;
+      stopCommitsWatching();
       render();
 
       return;
@@ -2070,7 +2080,13 @@ export function showExplorer(
       problem: "",
     };
     pullLoad = { state: "idle", status: "ok", detail: "", rows: [] };
+    pullsBusy = false;
     commitFacts.clear();
+    stopCommitsWatching();
+    commitsStops = [
+      commits.watchGit(() => refreshGit(token)),
+      commits.onFocus(() => refreshPullsOnFocus(token)),
+    ];
     render();
     void loadHistory(token);
     void loadBranches(token);
@@ -2080,7 +2096,42 @@ export function showExplorer(
     }
   }
 
-  async function loadHistory(token: number) {
+  function stopCommitsWatching() {
+    const stops = commitsStops;
+
+    commitsStops = [];
+
+    for (const stop of stops) {
+      stop();
+    }
+  }
+
+  function refreshGit(token: number) {
+    if (token !== commitsToken) {
+      return;
+    }
+
+    void loadHistory(token, true);
+    void loadBranches(token, true);
+  }
+
+  function refreshPullsOnFocus(token: number) {
+    if (
+      token !== commitsToken ||
+      leftPanel !== "commits" ||
+      commitsTab !== "prs" ||
+      pullsBusy
+    ) {
+      return;
+    }
+
+    void refreshPullRequests(token);
+  }
+
+  async function loadHistory(token: number, refresh = false) {
+    historySeq += 1;
+
+    const seq = historySeq;
     const next = await commits.listHistory().then(
       (reply) => {
         commitsBranch = reply.branch;
@@ -2098,13 +2149,30 @@ export function showExplorer(
       }),
     );
 
-    if (token === commitsToken) {
-      historyLoad = next;
-      render();
+    if (token !== commitsToken || seq !== historySeq) {
+      return;
     }
+
+    if (refresh && next.state === "failed") {
+      return;
+    }
+
+    historyLoad = next;
+
+    if (next.state === "ready") {
+      commitsSelection.keepOnly(
+        "commit",
+        next.rows.map((row) => row.sha),
+      );
+    }
+
+    render();
   }
 
-  async function loadBranches(token: number) {
+  async function loadBranches(token: number, refresh = false) {
+    branchSeq += 1;
+
+    const seq = branchSeq;
     const next = await commits.listBranches().then(
       (reply) => ({
         state: "ready" as const,
@@ -2122,11 +2190,23 @@ export function showExplorer(
       }),
     );
 
-    if (token !== commitsToken) {
+    if (token !== commitsToken || seq !== branchSeq) {
+      return;
+    }
+
+    if (refresh && next.state === "failed") {
       return;
     }
 
     branchLoad = next;
+
+    if (next.state === "ready") {
+      commitsSelection.keepOnly(
+        "branch",
+        next.rows.map((row) => row.name),
+      );
+    }
+
     render();
     await loadFacts(
       token,
@@ -2134,8 +2214,17 @@ export function showExplorer(
     );
   }
 
-  async function loadPullRequests(token: number) {
-    pullLoad = { state: "loading", status: "ok", detail: "", rows: [] };
+  async function refreshPullRequests(token: number) {
+    await loadPullRequests(token, true);
+  }
+
+  async function loadPullRequests(token: number, keepRows = false) {
+    pullsBusy = true;
+
+    if (!keepRows) {
+      pullLoad = { state: "loading", status: "ok", detail: "", rows: [] };
+    }
+
     render();
 
     const next = await commits.listPullRequests().then(
@@ -2157,7 +2246,16 @@ export function showExplorer(
       return;
     }
 
+    pullsBusy = false;
     pullLoad = next;
+
+    if (next.status === "ok") {
+      commitsSelection.keepOnly(
+        "pr",
+        next.rows.map((row) => row.sha),
+      );
+    }
+
     render();
     await loadFacts(
       token,
@@ -2359,6 +2457,7 @@ export function showExplorer(
         historyShas,
       ),
       tab: commitsTab,
+      pullsBusy,
       lists,
     };
   }

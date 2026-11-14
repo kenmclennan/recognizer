@@ -27,6 +27,7 @@ pub mod windows;
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -1163,6 +1164,71 @@ static WATCHING_EXTERNAL: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 static WATCHING_CHANGES: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 static WATCHING_RESPONSIBILITIES: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 static WATCHING_SENSOR_INPUTS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+static WATCHING_GIT: Mutex<Option<HashMap<String, u64>>> = Mutex::new(None);
+static GIT_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+fn git_watch_continues(held: u64, stored: Option<u64>) -> bool {
+    stored == Some(held)
+}
+
+#[tauri::command]
+fn watch_git(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    let folder = window_folder_path(&app, &window)?;
+    let label = window_label(&window);
+    let held = GIT_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+
+    WATCHING_GIT
+        .lock()
+        .map_err(|error| error.to_string())?
+        .get_or_insert_with(HashMap::new)
+        .insert(label.clone(), held);
+
+    std::thread::spawn(move || {
+        let mut settle = commits::Settle::new(commits::git_state_snapshot(&folder));
+
+        loop {
+            std::thread::sleep(Duration::from_millis(500));
+
+            let stored = WATCHING_GIT
+                .lock()
+                .ok()
+                .and_then(|watching| watching.as_ref().and_then(|map| map.get(&label).copied()));
+
+            if !git_watch_continues(held, stored) || app.get_webview_window(&label).is_none() {
+                break;
+            }
+
+            if settle.poll(commits::git_state_snapshot(&folder))
+                && app.emit_to(&label, "git-changed", ()).is_err()
+            {
+                break;
+            }
+        }
+
+        if let Ok(mut watching) = WATCHING_GIT.lock() {
+            if let Some(map) = watching.as_mut() {
+                if map.get(&label) == Some(&held) {
+                    map.remove(&label);
+                }
+            }
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+fn unwatch_git(window: WebviewWindow) -> Result<(), String> {
+    if let Some(map) = WATCHING_GIT
+        .lock()
+        .map_err(|error| error.to_string())?
+        .as_mut()
+    {
+        map.remove(&window_label(&window));
+    }
+
+    Ok(())
+}
 
 #[tauri::command]
 fn read_responsibilities(
@@ -1659,10 +1725,12 @@ pub fn run() {
             stop_scan,
             answer_describe,
             take_pending_view,
+            unwatch_git,
             view_author,
             view_link,
             watch_changes,
             watch_external_scan,
+            watch_git,
             watch_responsibilities,
             watch_sensor_inputs,
             watch_views,
@@ -1717,4 +1785,24 @@ pub fn run() {
                 let _ = app;
             }
         });
+}
+
+#[cfg(test)]
+mod git_watch_tests {
+    use super::git_watch_continues;
+
+    #[test]
+    fn a_watch_continues_while_its_generation_is_the_stored_one() {
+        assert!(git_watch_continues(1, Some(1)));
+    }
+
+    #[test]
+    fn a_watch_stops_when_a_newer_generation_replaced_it() {
+        assert!(!git_watch_continues(1, Some(2)));
+    }
+
+    #[test]
+    fn a_watch_stops_once_unwatch_removed_its_generation() {
+        assert!(!git_watch_continues(1, None));
+    }
 }

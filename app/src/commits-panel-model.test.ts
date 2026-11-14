@@ -516,3 +516,53 @@ describe("row builders and ordering", () => {
     expect(ageOf(ago(400 * 86400), now)).toBe("1y");
   });
 });
+
+describe("keepOnly", () => {
+  it("keeps a pick whose ref is still listed", () => {
+    const selection = createSelection();
+
+    selection.pick(at(1), "history", history);
+    expect(selection.picked()).toEqual(at(1));
+
+    selection.keepOnly("commit", history);
+
+    expect(selection.picked()).toEqual(at(1));
+  });
+
+  it("clears a pick whose ref is missing", () => {
+    const selection = createSelection();
+
+    selection.pick(at(1), "history", history);
+    expect(selection.picked()).toEqual(at(1));
+
+    selection.keepOnly("commit", [history[0] as string]);
+
+    expect(selection.picked()).toBeNull();
+  });
+
+  it("leaves a pick of another kind untouched", () => {
+    const selection = createSelection();
+    const pr = row("pr", "f".repeat(40), "p");
+
+    selection.pick(pr, "prs", history);
+    expect(selection.picked()).toEqual(pr);
+
+    selection.keepOnly("commit", []);
+
+    expect(selection.picked()).toEqual(pr);
+  });
+
+  it("clears only the end that is missing in a range", () => {
+    const selection = rangeSelection();
+
+    selection.pick(at(3), "history", history);
+    selection.pick(at(1), "history", history);
+    expect(selection.first()).toEqual(at(3));
+    expect(selection.last()).toEqual(at(1));
+
+    selection.keepOnly("commit", [history[3] as string]);
+
+    expect(selection.first()).toEqual(at(3));
+    expect(selection.last()).toBeNull();
+  });
+});

@@ -56,6 +56,7 @@ export type CommitsPanelModel = {
   next: End;
   guide: string;
   tab: CommitsTab;
+  pullsBusy: boolean;
   lists: Record<Exclude<CommitsTab, "history">, CommitsListView> & {
     history: HistoryListView;
   };
@@ -67,6 +68,7 @@ export type CommitsPanelActions = {
   clearEnd: (end: End) => void;
   setTab: (tab: CommitsTab) => void;
   setHide: (hide: boolean) => void;
+  refreshPullRequests: () => void;
 };
 
 export type CommitsPanelView = {
@@ -366,6 +368,20 @@ export function buildCommitsPanelView(
           endNode("last", model.last, model.next === "last", actions),
         );
         wrap.append(slots, line);
+        parts.push(wrap);
+      } else if (model.tab === "prs") {
+        const wrap = el("div", "commits-guide");
+        const refresh = button("", "commits-refresh", () =>
+          actions.refreshPullRequests(),
+        );
+
+        refresh.setAttribute("aria-label", "Refresh pull requests");
+        refresh.title = "Refresh pull requests";
+        refresh.disabled = model.pullsBusy;
+        refresh.append(
+          model.pullsBusy ? spinner("Loading") : icon("rotate-ccw"),
+        );
+        wrap.append(line, refresh);
         parts.push(wrap);
       } else {
         parts.push(line);

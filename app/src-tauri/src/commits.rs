@@ -1,6 +1,6 @@
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use serde::Serialize;
 
@@ -267,6 +267,127 @@ pub fn read_pull_requests(runner: &ToolRunner, folder: &Path) -> PullRequests {
                 },
                 String::new(),
             )
+        }
+    }
+}
+
+const SETTLE_LIMIT: usize = 8;
+
+#[derive(Debug, Default, PartialEq)]
+pub struct GitState {
+    head: Option<String>,
+    fetch_head: Option<(u64, Option<SystemTime>)>,
+    packed_refs: Option<(u64, Option<SystemTime>)>,
+    refs: Vec<(String, u64, Option<SystemTime>)>,
+}
+
+fn file_stamp(path: &Path) -> Option<(u64, Option<SystemTime>)> {
+    std::fs::metadata(path)
+        .ok()
+        .map(|meta| (meta.len(), meta.modified().ok()))
+}
+
+fn collect_refs(dir: &Path, found: &mut Vec<(String, u64, Option<SystemTime>)>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+
+        match entry.file_type() {
+            Ok(kind) if kind.is_dir() => collect_refs(&path, found),
+            Ok(_) => {
+                if let Some((len, modified)) = file_stamp(&path) {
+                    found.push((path.to_string_lossy().into_owned(), len, modified));
+                }
+            }
+            Err(_) => {}
+        }
+    }
+}
+
+pub fn git_state_snapshot(folder: &Path) -> GitState {
+    let Some(paths) = git_stdout(
+        folder,
+        &[
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-path",
+            "HEAD",
+            "--git-path",
+            "FETCH_HEAD",
+            "--git-path",
+            "packed-refs",
+            "--git-path",
+            "refs",
+        ],
+    ) else {
+        return GitState::default();
+    };
+
+    let lines: Vec<&str> = paths.lines().collect();
+
+    let [head, fetch_head, packed_refs, refs] = lines.as_slice() else {
+        return GitState::default();
+    };
+
+    let mut found = Vec::new();
+
+    collect_refs(Path::new(refs), &mut found);
+    found.sort_by(|a, b| a.0.cmp(&b.0));
+
+    GitState {
+        head: std::fs::read_to_string(head).ok(),
+        fetch_head: file_stamp(Path::new(fetch_head)),
+        packed_refs: file_stamp(Path::new(packed_refs)),
+        refs: found,
+    }
+}
+
+pub fn snapshot_changed(previous: &GitState, next: &GitState) -> bool {
+    previous != next
+}
+
+pub struct Settle<T> {
+    baseline: T,
+    previous: Option<T>,
+    waited: usize,
+}
+
+impl<T: PartialEq> Settle<T> {
+    pub fn new(baseline: T) -> Self {
+        Settle {
+            baseline,
+            previous: None,
+            waited: 0,
+        }
+    }
+
+    pub fn poll(&mut self, next: T) -> bool {
+        match self.previous.take() {
+            None => {
+                if next != self.baseline {
+                    self.previous = Some(next);
+                    self.waited = 0;
+                }
+
+                false
+            }
+            Some(previous) => {
+                self.waited += 1;
+
+                if next == previous || self.waited >= SETTLE_LIMIT {
+                    self.baseline = next;
+                    self.waited = 0;
+
+                    true
+                } else {
+                    self.previous = Some(next);
+
+                    false
+                }
+            }
         }
     }
 }
@@ -627,5 +748,197 @@ mod tests {
         assert!(runner.command("gh").is_err());
         assert!(runner.external_command("gh").is_ok());
         assert_eq!(read_pull_requests(&runner, dir.path()).status, "ok");
+    }
+
+    fn snapshot_after(dir: &Path, change: impl FnOnce()) -> (GitState, GitState) {
+        let before = git_state_snapshot(dir);
+
+        std::thread::sleep(Duration::from_millis(30));
+        change();
+
+        (before, git_state_snapshot(dir))
+    }
+
+    #[test]
+    fn git_state_snapshot_is_equal_across_two_reads_with_nothing_between() {
+        let dir = repository();
+        let first = git_state_snapshot(dir.path());
+
+        assert!(first.head.is_some());
+        assert!(!first.refs.is_empty());
+        assert!(!snapshot_changed(&first, &git_state_snapshot(dir.path())));
+    }
+
+    #[test]
+    fn git_state_snapshot_changes_after_a_commit() {
+        let dir = repository();
+        let (before, after) = snapshot_after(dir.path(), || commit_file(dir.path(), "c.py", "1"));
+
+        assert!(snapshot_changed(&before, &after));
+    }
+
+    #[test]
+    fn git_state_snapshot_changes_after_checkout_dash_b() {
+        let dir = repository();
+        let (before, after) = snapshot_after(dir.path(), || {
+            run_git(dir.path(), &["checkout", "-q", "-b", "topic"])
+        });
+
+        assert!(snapshot_changed(&before, &after));
+    }
+
+    #[test]
+    fn git_state_snapshot_changes_after_a_fetch_from_a_local_bare_remote() {
+        let dir = repository();
+        let remote = TempDir::new().unwrap();
+
+        run_git(remote.path(), &["init", "-q", "--bare", "-b", "main"]);
+        run_git(
+            dir.path(),
+            &[
+                "remote",
+                "add",
+                "origin",
+                &remote.path().display().to_string(),
+            ],
+        );
+        run_git(dir.path(), &["push", "-q", "origin", "main"]);
+
+        let (before, after) = snapshot_after(dir.path(), || {
+            run_git(dir.path(), &["fetch", "-q", "origin"])
+        });
+
+        assert!(snapshot_changed(&before, &after));
+    }
+
+    #[test]
+    fn git_state_snapshot_changes_after_pack_refs_removes_the_loose_refs() {
+        let dir = repository();
+        let (before, after) =
+            snapshot_after(dir.path(), || run_git(dir.path(), &["pack-refs", "--all"]));
+
+        assert!(!before.refs.is_empty());
+        assert!(snapshot_changed(&before, &after));
+    }
+
+    #[test]
+    fn git_state_snapshot_is_empty_for_a_folder_outside_git() {
+        let dir = TempDir::new().unwrap();
+
+        assert_eq!(git_state_snapshot(dir.path()), GitState::default());
+    }
+
+    #[test]
+    fn git_state_snapshot_of_a_worktree_changes_after_a_commit_inside_it() {
+        let dir = repository();
+        let parent = TempDir::new().unwrap();
+        let tree = parent.path().join("tree");
+
+        run_git(
+            dir.path(),
+            &[
+                "worktree",
+                "add",
+                "-q",
+                "-b",
+                "wt",
+                &tree.display().to_string(),
+            ],
+        );
+
+        let (before, after) = snapshot_after(&tree, || commit_file(&tree, "w.py", "1"));
+
+        assert!(before.head.is_some());
+        assert!(snapshot_changed(&before, &after));
+    }
+
+    #[test]
+    fn git_state_snapshot_of_a_worktree_changes_after_a_checkout_inside_it() {
+        let dir = repository();
+        let parent = TempDir::new().unwrap();
+        let tree = parent.path().join("tree");
+
+        run_git(
+            dir.path(),
+            &[
+                "worktree",
+                "add",
+                "-q",
+                "-b",
+                "wt",
+                &tree.display().to_string(),
+            ],
+        );
+
+        let (before, after) =
+            snapshot_after(&tree, || run_git(&tree, &["checkout", "-q", "-b", "other"]));
+
+        assert_ne!(before.head, after.head);
+        assert!(snapshot_changed(&before, &after));
+    }
+
+    #[test]
+    fn git_state_snapshot_runs_over_the_real_repository() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let first = git_state_snapshot(&root);
+
+        assert_ne!(first, GitState::default());
+        assert!(!snapshot_changed(&first, &git_state_snapshot(&root)));
+    }
+
+    #[test]
+    fn snapshot_changed_is_false_for_equal_snapshots_and_true_otherwise() {
+        assert!(!snapshot_changed(
+            &GitState::default(),
+            &GitState::default()
+        ));
+        assert!(snapshot_changed(
+            &GitState::default(),
+            &GitState {
+                head: Some("x".to_string()),
+                ..GitState::default()
+            }
+        ));
+    }
+
+    fn settle(last: char, polls: &[char]) -> Option<usize> {
+        let mut state = Settle::new(last);
+
+        polls.iter().position(|next| state.poll(*next))
+    }
+
+    #[test]
+    fn settle_emits_nothing_while_the_snapshot_is_unchanged() {
+        assert_eq!(settle('a', &['a', 'a', 'a']), None);
+    }
+
+    #[test]
+    fn settle_emits_at_the_poll_that_sees_the_change_unchanged() {
+        assert_eq!(settle('a', &['b', 'b']), Some(1));
+    }
+
+    #[test]
+    fn settle_emits_on_the_bound_when_every_poll_changes() {
+        let polls: Vec<char> = "bcdefghijklmnop".chars().collect();
+
+        assert_eq!(settle('a', &polls), Some(8));
+    }
+
+    #[test]
+    fn settle_does_not_emit_one_poll_before_the_bound() {
+        let polls: Vec<char> = "bcdefghi".chars().collect();
+
+        assert_eq!(settle('a', &polls), None);
+    }
+
+    #[test]
+    fn settle_emits_again_for_a_second_change() {
+        let mut state = Settle::new('a');
+        let seen: Vec<bool> = ['b', 'b', 'b', 'c', 'c']
+            .iter()
+            .map(|next| state.poll(*next))
+            .collect();
+
+        assert_eq!(seen, [false, true, false, false, true]);
     }
 }

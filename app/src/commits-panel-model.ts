@@ -55,6 +55,7 @@ export type Selection = {
     history: readonly string[],
   ) => OpenRequest | null;
   clear: (which: End) => void;
+  keepOnly: (kind: PickRow["kind"], refs: readonly string[]) => void;
   count: (history: readonly string[]) => number | null;
   between: (history: readonly string[]) => Set<string>;
   note: () => string | null;
@@ -169,6 +170,22 @@ export function createSelection(): Selection {
 
       last = null;
       note = null;
+    },
+    keepOnly(kind, refs) {
+      const gone = (row: PickRow | null) =>
+        row !== null && row.kind === kind && !refs.includes(row.ref);
+
+      if (gone(first)) {
+        first = null;
+      }
+
+      if (gone(last)) {
+        last = null;
+      }
+
+      if (gone(picked)) {
+        picked = null;
+      }
     },
     count(history) {
       if (first === null || last === null) {
