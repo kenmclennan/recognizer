@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import { allFormulae, loadUnits } from "./units.mjs";
 
 export const INSTALL_COMMANDS = [
+  "brew tap kenmclennan/tap",
+  "brew trust kenmclennan/tap",
   "brew install --cask kenmclennan/tap/recognizer",
 ];
 
