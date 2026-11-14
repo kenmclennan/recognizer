@@ -434,6 +434,72 @@ describe("scanPanel row states", () => {
     expect(rowOf(model, "structure")?.state.kind).toBe("running");
   });
 
+  describe("a test-running sensor with suites", () => {
+    const suited = `${CONFIG}tests:
+  - name: unit
+    language: python
+    directory: tests/unit
+    command: pytest
+    coverage: { path: coverage.xml, format: lcov }
+`;
+
+    const running = (sensorProgress: PanelInput["sensorProgress"]) =>
+      scanPanel(
+        input({
+          config: suited,
+          ticks: {
+            describe: false,
+            ticked: [],
+            once: ["mutation"],
+            onlyView: false,
+            suites: { mutation: { ticked: ["unit"], known: ["unit"] } },
+            folds: [],
+          },
+          scanning: true,
+          run: run({ running: ["mutation"], started: "mutation" }),
+          sensorProgress,
+        }),
+      );
+
+    it("shows the stage on the sensor row and no suite running before any counted step", () => {
+      const row = rowOf(
+        running({
+          name: "mutation",
+          phase: "sense",
+          note: "Coverage run: unit",
+        }),
+        "mutation",
+      );
+
+      expect(row?.text.text).toBe("Coverage run: unit");
+      expect(row?.fold?.suites[0]?.state.kind).not.toBe("running");
+    });
+
+    it("shows running from the start event alone", () => {
+      const row = rowOf(
+        running({ name: "mutation", phase: "sense" }),
+        "mutation",
+      );
+
+      expect(row?.text.icon).toBe("loader");
+      expect(row?.text.text).toBe("running");
+    });
+
+    it("shows done of total once counts arrive", () => {
+      const row = rowOf(
+        running({
+          name: "mutation",
+          phase: "sense",
+          progress: { done: 3, total: 9, unit: "functions", step: "unit" },
+        }),
+        "mutation",
+      );
+
+      expect(row?.text.text).toBe("unit 3/9");
+      expect(row?.fold?.suites[0]?.state.text).toBe("3/9");
+    });
+  });
+
   it.each([
     [
       "limit",

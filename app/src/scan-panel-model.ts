@@ -671,14 +671,21 @@ export function scanPanel(input: PanelInput): ScanPanelModel {
   };
 }
 
-function runningOf(progress: PluginProgress): SuiteRunning | null {
+function runningOf(progress: PluginProgress): SuiteRunning {
   const counted = progress.progress;
 
-  if (counted?.step === undefined) {
-    return null;
+  if (counted?.step !== undefined) {
+    return { suite: counted.step, done: counted.done, total: counted.total };
   }
 
-  return { suite: counted.step, done: counted.done, total: counted.total };
+  const stage = progress.note;
+
+  return {
+    suite: "",
+    done: counted?.done ?? null,
+    total: counted?.total ?? null,
+    ...(stage === undefined ? {} : { stage }),
+  };
 }
 
 function buttonOf(

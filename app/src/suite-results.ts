@@ -25,6 +25,7 @@ export type SuiteRunning = {
   suite: string;
   done: number | null;
   total: number | null;
+  stage?: string;
 };
 
 export type FoldSummary = { icon: IconName; tone: SuiteTone; text: string };
@@ -161,13 +162,15 @@ export function foldSummary(input: {
   }
 
   if (input.running !== null) {
-    const { suite, done, total } = input.running;
+    const { suite, done, total, stage } = input.running;
 
     return {
       icon: "loader",
       tone: "run",
       text:
-        done !== null && total !== null ? `${suite} ${done}/${total}` : suite,
+        done !== null && total !== null
+          ? `${suite} ${done}/${total}`
+          : (stage ?? (suite === "" ? "running" : suite)),
     };
   }
 

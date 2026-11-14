@@ -449,6 +449,10 @@ function foldPlugin(
   return state;
 }
 
+function settledExtract(extract: ScanProgress["extract"]) {
+  return extract === "run" ? "current" : extract;
+}
+
 export function foldProgress(
   state: ScanProgress,
   event: ScanEvent,
@@ -465,6 +469,7 @@ export function foldProgress(
     case "summary":
       return {
         ...state,
+        extract: settledExtract(state.extract),
         extractSettled: true,
         done: true,
         log: event.log ?? state.log,
@@ -488,6 +493,7 @@ export function foldProgress(
 
       return {
         ...state,
+        extract: settledExtract(state.extract),
         extractSettled: true,
         [event.phase]: { total: event.total, entries: [] },
       };

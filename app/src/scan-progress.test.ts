@@ -229,6 +229,13 @@ describe("the extraction settle point", () => {
     expect(fold([extractRun, phase("sense", 1)]).extractSettled).toBe(true);
   });
 
+  it("moves extract to current when a later phase or the summary arrives", () => {
+    expect(fold([extractRun]).extract).toBe("run");
+    expect(fold([extractRun, phase("describe", 1)]).extract).toBe("current");
+    expect(fold([extractRun, phase("sense", 1)]).extract).toBe("current");
+    expect(fold([extractRun, summary]).extract).toBe("current");
+  });
+
   it("is the summary when no later phase ran", () => {
     expect(fold([extractCurrent, summary]).extractSettled).toBe(true);
   });
