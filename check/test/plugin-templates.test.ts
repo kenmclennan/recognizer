@@ -287,3 +287,38 @@ describe("sensor templates", () => {
     );
   }
 });
+
+describe("typescript templates through a symlink", () => {
+  for (const kind of KINDS.filter((k) => HAVE("typescript", k))) {
+    it.skipIf(!REQUIRED && !TOOLCHAIN.typescript)(
+      `typescript ${kind}`,
+      async () => {
+        guardToolchain("typescript");
+
+        const { command } = prepare("typescript", kind);
+        const bin = join(makeTempDir("plugin-bin-"), "bin");
+
+        mkdirSync(bin);
+
+        const link = join(bin, `recognizer-${VERB[kind]}-demo`);
+
+        symlinkSync(command, link);
+
+        const { status, report } = await checked(link, kind);
+
+        expect(report.results).toHaveLength(13);
+        expect(
+          report.results.filter((entry) => entry.status === "fail"),
+        ).toEqual([]);
+        expect(status).toBe(0);
+      },
+      TIMEOUT,
+    );
+  }
+});
+
+describe("plugin template stop handlers (non-gating)", () => {
+  it.todo(
+    "a scanner and a sensor write their document on SIGTERM: a sample run ends in milliseconds, so no handle can keep it alive for a signal without a race",
+  );
+});
