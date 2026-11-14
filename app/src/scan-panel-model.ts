@@ -649,7 +649,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
         progress != null &&
         progress.name === row.key &&
         (sensing === null || sensing === row.key)
-          ? runningOf(progress)
+          ? runningOf(progress, names)
           : null;
       const summary = foldSummary({
         all: names.length,
@@ -733,11 +733,22 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
   };
 }
 
-function runningOf(progress: PluginProgress): SuiteRunning {
+function runningOf(
+  progress: PluginProgress,
+  suites: readonly string[],
+): SuiteRunning {
   const counted = progress.progress;
 
   if (counted?.step !== undefined) {
     return { suite: counted.step, done: counted.done, total: counted.total };
+  }
+
+  if (counted !== undefined && suites.length === 1) {
+    return {
+      suite: suites[0] as string,
+      done: counted.done,
+      total: counted.total,
+    };
   }
 
   const stage = progress.note;

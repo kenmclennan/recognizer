@@ -502,7 +502,13 @@ export function createRescanner<Carried>(
         : []),
       ...scan.sensors.map((name) => ({ key: name, display: display(name) })),
     ];
-    progress = NO_PROGRESS;
+    progress = {
+      ...NO_PROGRESS,
+      timing: {
+        ...NO_PROGRESS.timing,
+        frozen: busy ? progress.timing.frozen : null,
+      },
+    };
     run = {
       running: [...(scan.describe ? [DESCRIBE_KEY] : []), ...scan.sensors],
       started: null,
