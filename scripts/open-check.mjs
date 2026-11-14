@@ -20,6 +20,7 @@ const CHECK_PREFIX = "com.kenmclennan.recognizer-open-check";
 export const OPEN_COUNT = 10;
 export const DEFAULT_TIMEOUT_MS = 45000;
 export const POLL_MS = 250;
+export const TERM_GRACE_MS = 2000;
 export const MAX_SOCKET_BYTES = 100;
 export const FIXTURE = "fixtures/python/sample";
 
@@ -90,6 +91,7 @@ export async function runOpens({
     const started = now();
     let reason = "the window never answered";
     let passed = false;
+    let elapsedMs = 0;
 
     try {
       for (;;) {
@@ -103,6 +105,7 @@ export async function runOpens({
 
         if (answer.status === "done") {
           if (sameFolder(answer.result?.folder ?? "", folder)) {
+            elapsedMs = now() - started;
             passed = true;
             break;
           }
@@ -126,7 +129,7 @@ export async function runOpens({
       return { ok: false, failedOpen: n, reason, opens };
     }
 
-    opens.push({ open: n, elapsedMs: now() - started });
+    opens.push({ open: n, elapsedMs });
   }
 
   return { ok: true, opens };
@@ -326,10 +329,18 @@ function launcher({ executable, folder, socket }) {
         if (child.exitCode === null && child.signalCode === null) {
           child.kill("SIGTERM");
 
-          const timer = setTimeout(() => child.kill("SIGKILL"), 20000);
+          let killed = false;
+          const timer = setTimeout(() => {
+            killed = true;
+            child.kill("SIGKILL");
+          }, TERM_GRACE_MS);
 
           await exited;
           clearTimeout(timer);
+
+          if (killed) {
+            rmSync(socket, { force: true });
+          }
         }
 
         for (let i = 0; i < 80 && existsSync(socket); i += 1) {

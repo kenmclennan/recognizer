@@ -100,6 +100,27 @@ describe("runOpens", () => {
     expect(rig.counts).toEqual({ launch: 4, stop: 4 });
   });
 
+  it("measures an open up to the explorer being seen, not through the stop", async () => {
+    const time = clock();
+    const rig = harness(() => done);
+    const launch = async () => {
+      const handle = await rig.launch();
+
+      return {
+        stop: async () => {
+          await handle.stop();
+          time.wait(20000);
+        },
+      };
+    };
+    const result = await run(rig, { count: 2, launch, ...time });
+
+    expect(result.opens).toEqual([
+      { open: 1, elapsedMs: 0 },
+      { open: 2, elapsedMs: 0 },
+    ]);
+  });
+
   it("passes an open that is refused twice and then done, with the fake clock's time", async () => {
     let calls = 0;
     const rig = harness(() => {
