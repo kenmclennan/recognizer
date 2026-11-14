@@ -1,10 +1,12 @@
 name: Release
 
 on:
-  workflow_run:
-    workflows: [app]
-    types: [completed]
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Full 40-character SHA to release, defaulting to the head of the ref the run starts on
+        required: false
+        type: string
 
 concurrency:
   group: release
@@ -12,11 +14,11 @@ concurrency:
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   gate:
     name: gate (release token present)
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     runs-on: [self-hosted, macOS, ARM64]
     outputs:
       present: ${{ steps.token.outputs.present }}
@@ -27,8 +29,8 @@ jobs:
         id: token
         run: |
           if [ -z "$RELEASES_TOKEN" ]; then
-            echo "::notice::RELEASES_TOKEN is not set; skipping the release"
-            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::error::RELEASES_TOKEN is not set; a requested release must publish, so it fails"
+            exit 1
           else
             echo "present=true" >> "$GITHUB_OUTPUT"
           fi
@@ -36,19 +38,26 @@ jobs:
   release:
     name: release (build, publish)
     needs: gate
-    if: needs.gate.outputs.present == 'true' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    if: needs.gate.outputs.present == 'true'
     runs-on: [self-hosted, macOS, ARM64]
     timeout-minutes: 60
     env:
       CARGO_BUILD_JOBS: "3"
-      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      HEAD_SHA: ${{ inputs.commit || github.sha }}
       RELEASES_REPO: kenmclennan/recognizer-releases
       TAP_REPO: kenmclennan/homebrew-tap
     steps:
+      - name: Require a full commit SHA
+        run: |
+          if ! printf '%s' "$HEAD_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "the commit must be a full 40-character SHA, got: $HEAD_SHA" >&2
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ inputs.commit || github.sha }}
           fetch-depth: 0
 
       - name: Skip an already released commit
@@ -56,6 +65,21 @@ jobs:
         run: |
           if git tag --points-at "$HEAD_SHA" | grep -q '^v'; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Require the app workflow to have passed
+        if: steps.released.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          runs=$(gh run list --workflow app.yml --commit "$HEAD_SHA" --json status,conclusion)
+          if [ "$(echo "$runs" | jq '[.[] | select(.status != "completed")] | length')" != "0" ]; then
+            echo "an app workflow run on $HEAD_SHA is still going" >&2
+            exit 1
+          fi
+          if [ "$(echo "$runs" | jq 'length')" != "0" ] && [ "$(echo "$runs" | jq '[.[] | select(.conclusion == "success")] | length')" = "0" ]; then
+            echo "no app workflow run on $HEAD_SHA succeeded" >&2
+            exit 1
           fi
 
       - name: Require the plugins bundle in the tap
@@ -125,6 +149,15 @@ jobs:
           got=$(recognizer --version)
           if [ "$got" != "$VERSION" ]; then
             echo "recognizer --version printed $got, expected $VERSION" >&2
+            exit 1
+          fi
+
+      - name: Require the commit on main
+        if: steps.released.outputs.skip != 'true'
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$HEAD_SHA" origin/main; then
+            echo "$HEAD_SHA is not on main; only commits on main are released" >&2
             exit 1
           fi
 
