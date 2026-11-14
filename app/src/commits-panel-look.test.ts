@@ -374,6 +374,64 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   out.reopened = calls(reopen);
 
 
+  const live = mount();
+  await tick();
+  click(live.q(".rail-commits"));
+  await tick(100);
+  const scroller = () => live.q(".commits-list");
+  const rowsOf = () => titlesOf(live, ".commits-row");
+  const sawLoading = [];
+  const watcher = new MutationObserver(() => { if (live.q(".commits-loading") !== null) sawLoading.push(true); });
+  watcher.observe(live.host, { childList: true, subtree: true });
+  const withNew = record("f", "a", "Brand new", "", ["M\\tp/a.py"]) + HISTORY;
+  live.commits.history = { branch: "main", text: withNew };
+  const historyBefore = live.commits.calls.history;
+  live.commits.emitGitChanged();
+  await tick(100);
+  out.refreshed = { rows: rowsOf(), loading: sawLoading.length, reads: live.commits.calls.history - historyBefore };
+
+  click(modeButton(live, "range"));
+  await tick();
+  click(rowFor(live, "Brand new"));
+  click(rowFor(live, "Oldest"));
+  await tick(100);
+  const rangeShade = () => ({ first: slotText(live, "first"), last: slotText(live, "last"), shaded: titlesOf(live, ".commits-row.shaded"), badges: endBadges(live) });
+  const rangeHeld = rangeShade();
+  live.commits.emitGitChanged();
+  await tick(100);
+  out.rangeKept = { before: rangeHeld, after: rangeShade() };
+  live.commits.history = { branch: "main", text: HISTORY };
+  live.commits.emitGitChanged();
+  await tick(100);
+  out.rangeLastGone = { first: slotText(live, "first"), last: slotText(live, "last") };
+  live.commits.history = { branch: "main", text: withNew };
+  live.commits.emitGitChanged();
+  await tick(100);
+
+  scroller().style.flex = "none";
+  scroller().style.height = "60px";
+  scroller().style.overflow = "auto";
+  scroller().scrollTop = 20;
+  const scrollBefore = scroller().scrollTop;
+  live.commits.emitGitChanged();
+  await tick(100);
+  out.scrollKept = { before: scrollBefore, after: scroller().scrollTop };
+  watcher.disconnect();
+
+  click(live.q(".rail-commits"));
+  await tick();
+  const closedBefore = calls(live);
+  live.commits.emitGitChanged();
+  live.commits.emitFocus();
+  await tick(100);
+  out.closedQuiet = { before: closedBefore, after: calls(live) };
+  click(live.q(".rail-commits"));
+  await tick(100);
+  const reopenedBefore = calls(live);
+  live.commits.emitGitChanged();
+  await tick(100);
+  out.reopenedOnce = { history: live.commits.calls.history - reopenedBefore.history, branches: live.commits.calls.branches - reopenedBefore.branches };
+
   const prsPanel = mount();
   await tick();
   click(prsPanel.q(".rail-commits"));
@@ -412,6 +470,31 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   await tick();
   out.noButtonElsewhere.branchesTab = prsPanel.q(".commits-refresh") === null;
 
+  const broken = mount();
+  await tick();
+  click(broken.q(".rail-commits"));
+  await tick(100);
+  broken.commits.history = new Error("index.lock exists");
+  broken.commits.emitGitChanged();
+  await tick(100);
+  out.failedRefresh = { rows: titlesOf(broken, ".commits-row"), notice: broken.q(".commits-notice") !== null };
+
+  const raced = mount();
+  await tick();
+  let releaseFirst;
+  let releaseSecond;
+  raced.commits.holds.history.push(new Promise((resolve) => { releaseFirst = resolve; }), new Promise((resolve) => { releaseSecond = resolve; }));
+  click(raced.q(".rail-commits"));
+  await tick(30);
+  raced.commits.history = { branch: "main", text: record("f", "a", "Raced new", "", ["M\\tp/a.py"]) };
+  raced.commits.emitGitChanged();
+  await tick(30);
+  releaseSecond();
+  await tick(60);
+  releaseFirst();
+  await tick(100);
+  out.raced = titlesOf(raced, ".commits-row");
+
   const failing = mount();
   failing.commits.history = new Error("fatal: not a git repository");
   click(failing.q(".rail-commits"));
@@ -429,6 +512,15 @@ type Impact = {
 };
 
 type Refresh = {
+  refreshed: { rows: string[]; loading: number; reads: number };
+  rangeKept: {
+    before: { first: string; last: string; shaded: string[]; badges: string[] };
+    after: { first: string; last: string; shaded: string[]; badges: string[] };
+  };
+  rangeLastGone: { first: string; last: string };
+  scrollKept: { before: number; after: number };
+  closedQuiet: { before: Calls; after: Calls };
+  reopenedOnce: { history: number; branches: number };
   focusOnHistory: number;
   focusOnPrs: { reads: number; loading: boolean; rows: number };
   buttonIdle: ButtonState;
@@ -436,6 +528,8 @@ type Refresh = {
   buttonDone: ButtonState;
   busyReads: number;
   noButtonElsewhere: { historyTab: boolean; branchesTab: boolean };
+  failedRefresh: { rows: string[]; notice: boolean };
+  raced: string[];
 };
 
 type ButtonState = {
@@ -981,6 +1075,35 @@ describe.skipIf(webkit === undefined)(
       expect(f.reopened).toEqual({ history: 2, branches: 2, pullRequests: 0 });
     });
 
+    it("refreshes History in place on a git change with no loading state and one more read", () => {
+      expect(f.refreshed.rows[0]).toBe("Brand new");
+      expect(f.refreshed.rows).toHaveLength(6);
+      expect(f.refreshed.loading).toBe(0);
+      expect(f.refreshed.reads).toBe(1);
+    });
+
+    it("keeps both range ends and the shading across a refresh that still lists them", () => {
+      expect(f.rangeKept.before.badges).toHaveLength(2);
+      expect(f.rangeKept.before.shaded.length).toBeGreaterThan(0);
+      expect(f.rangeKept.after).toEqual(f.rangeKept.before);
+    });
+
+    it("keeps First and empties Last when the last commit is gone after a refresh", () => {
+      expect(f.rangeKept.before.last).not.toBe("click a commit");
+      expect(f.rangeLastGone.first).toBe(f.rangeKept.before.first);
+      expect(f.rangeLastGone.last).toBe("click a commit");
+    });
+
+    it("keeps the list's scroll position across a refresh", () => {
+      expect(f.scrollKept.before).toBeGreaterThan(0);
+      expect(f.scrollKept.after).toBe(f.scrollKept.before);
+    });
+
+    it("reads nothing on a git change or focus with the panel closed, and one refresh per change once reopened", () => {
+      expect(f.closedQuiet.after).toEqual(f.closedQuiet.before);
+      expect(f.reopenedOnce).toEqual({ history: 1, branches: 1 });
+    });
+
     it("reads pull requests once on focus only while the Pull requests tab is showing, with no loading state", () => {
       expect(f.focusOnHistory).toBe(0);
       expect(f.focusOnPrs).toEqual({ reads: 1, loading: false, rows: 2 });
@@ -1008,6 +1131,15 @@ describe.skipIf(webkit === undefined)(
         historyTab: true,
         branchesTab: true,
       });
+    });
+
+    it("keeps the earlier rows when a refresh read fails", () => {
+      expect(f.failedRefresh.rows).toHaveLength(5);
+      expect(f.failedRefresh.notice).toBe(false);
+    });
+
+    it("leaves the refresh's rows when the initial reply lands after the refresh's", () => {
+      expect(f.raced).toEqual(["Raced new"]);
     });
 
     it("shows a history error as the notice", () => {

@@ -483,6 +483,8 @@ export function showExplorer(
   let commitsTab: CommitsTab = "history";
   let commitsToken = 0;
   let commitsBranch: string | null = null;
+  let historySeq = 0;
+  let branchSeq = 0;
   let pullsBusy = false;
   let commitsStops: (() => void)[] = [];
   let historyLoad: {
@@ -2081,7 +2083,10 @@ export function showExplorer(
     pullsBusy = false;
     commitFacts.clear();
     stopCommitsWatching();
-    commitsStops = [commits.onFocus(() => refreshPullsOnFocus(token))];
+    commitsStops = [
+      commits.watchGit(() => refreshGit(token)),
+      commits.onFocus(() => refreshPullsOnFocus(token)),
+    ];
     render();
     void loadHistory(token);
     void loadBranches(token);
@@ -2101,6 +2106,15 @@ export function showExplorer(
     }
   }
 
+  function refreshGit(token: number) {
+    if (token !== commitsToken) {
+      return;
+    }
+
+    void loadHistory(token, true);
+    void loadBranches(token, true);
+  }
+
   function refreshPullsOnFocus(token: number) {
     if (
       token !== commitsToken ||
@@ -2114,7 +2128,10 @@ export function showExplorer(
     void refreshPullRequests(token);
   }
 
-  async function loadHistory(token: number) {
+  async function loadHistory(token: number, refresh = false) {
+    historySeq += 1;
+
+    const seq = historySeq;
     const next = await commits.listHistory().then(
       (reply) => {
         commitsBranch = reply.branch;
@@ -2132,13 +2149,30 @@ export function showExplorer(
       }),
     );
 
-    if (token === commitsToken) {
-      historyLoad = next;
-      render();
+    if (token !== commitsToken || seq !== historySeq) {
+      return;
     }
+
+    if (refresh && next.state === "failed") {
+      return;
+    }
+
+    historyLoad = next;
+
+    if (next.state === "ready") {
+      commitsSelection.keepOnly(
+        "commit",
+        next.rows.map((row) => row.sha),
+      );
+    }
+
+    render();
   }
 
-  async function loadBranches(token: number) {
+  async function loadBranches(token: number, refresh = false) {
+    branchSeq += 1;
+
+    const seq = branchSeq;
     const next = await commits.listBranches().then(
       (reply) => ({
         state: "ready" as const,
@@ -2156,11 +2190,23 @@ export function showExplorer(
       }),
     );
 
-    if (token !== commitsToken) {
+    if (token !== commitsToken || seq !== branchSeq) {
+      return;
+    }
+
+    if (refresh && next.state === "failed") {
       return;
     }
 
     branchLoad = next;
+
+    if (next.state === "ready") {
+      commitsSelection.keepOnly(
+        "branch",
+        next.rows.map((row) => row.name),
+      );
+    }
+
     render();
     await loadFacts(
       token,
