@@ -1568,7 +1568,7 @@ describe("recognizer scan: phases", () => {
     function mutating() {
       return setup({
         programs: {
-          "recognizer-sensors": (args, files) => {
+          "shipped-sensors": (args, files) => {
             files.set(
               args[args.indexOf("--output") + 1] as string,
               JSON.stringify({

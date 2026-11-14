@@ -61,7 +61,7 @@ function setup(scope: string | undefined): FakeOptions {
     sensorManifests: true,
     programs: {
       describer: () => ({ stdout: "a line\n" }),
-      "recognizer-sensors": (args, files) =>
+      "shipped-sensors": (args, files) =>
         findingsFor(args[0] as string)(args, files),
     },
   };

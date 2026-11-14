@@ -1,6 +1,6 @@
 {
   "keys_version": 1,
-  "owner": "recognizer-sensors",
+  "owner": "sensors",
   "placeholders": {
     "name": "^.+$",
     "variable": "^[A-Za-z_][A-Za-z0-9_]*$",

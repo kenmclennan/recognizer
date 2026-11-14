@@ -91,7 +91,7 @@ document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: tr
 view.post({ kind: "warning", text: "x".repeat(300) });
 const longToast = rect(q(".message-toast"));
 facts.longToast = { width: longToast.width, rightGap: rect(footer).right - longToast.right };
-view.post({ kind: "error", text: "recognizer-sensors: mutation: " + "t".repeat(120) });
+view.post({ kind: "error", text: "recognizer-sense-mutation: mutation: " + "t".repeat(120) });
 const tokenToast = q(".message-toast");
 const tokenRange = document.createRange();
 tokenRange.selectNodeContents(q(".message-toast .msg-body"));

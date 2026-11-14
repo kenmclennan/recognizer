@@ -6,7 +6,6 @@ from importlib.metadata import version
 from pathlib import Path
 
 from recognizer_sensors import events
-from recognizer_sensors.config_schema import schema_text
 from recognizer_sensors.findings import (
     build_document,
     build_overlay,
@@ -63,7 +62,6 @@ def build_parser(package_version: str) -> argparse.ArgumentParser:
     parser.add_argument("--suites")
     parser.add_argument("--run", action="store_true")
     parser.add_argument("--work", action="store_true")
-    parser.add_argument("--schema", action="store_true")
     parser.add_argument("--version", action="version", version=package_version)
 
     return parser
@@ -73,25 +71,6 @@ def fail(message: str) -> int:
     print(f"recognizer-sensors: {message}", file=sys.stderr)
 
     return 2
-
-
-def print_schema(args) -> int:
-    other = (
-        args.verb is not None
-        or args.run
-        or args.work
-        or args.settings is not None
-        or args.output is not None
-        or args.modules is not None
-        or args.suites is not None
-    )
-
-    if args.name is not None or other:
-        return fail("--schema takes no sensor name and no other option than --repository")
-
-    sys.stdout.write(schema_text())
-
-    return 0
 
 
 def parse_raw_settings(text: str) -> dict | None:
@@ -175,9 +154,6 @@ def config_gap(error: SettingsError) -> int:
 def main(argv: list[str] | None = None) -> int:
     package_version = version("recognizer-sensors")
     args = build_parser(package_version).parse_args(argv)
-
-    if args.schema:
-        return print_schema(args)
 
     if args.name is None:
         return fail("a sensor name is required")

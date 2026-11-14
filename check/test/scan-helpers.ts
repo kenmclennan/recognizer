@@ -97,7 +97,7 @@ export type Program = (
 ) => ProgramEffect | undefined;
 
 export interface SensorsPreflight {
-  version?: ProgramEffect;
+  version?: ProgramEffect | ((name: string) => ProgramEffect);
   run?: (args: string[]) => ProgramEffect;
 }
 
@@ -365,11 +365,14 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     });
 
     if (
-      (command === "recognizer-sensors" && args.includes("--version")) ||
-      (command.startsWith("recognizer-sense-") && args.includes("check"))
+      command.startsWith("recognizer-sense-") &&
+      (args.includes("--version") || args.includes("check"))
     ) {
+      const version = options.sensorsPreflight?.version;
       const effect = args.includes("--version")
-        ? (options.sensorsPreflight?.version ?? { stdout: "0.0.0\n" })
+        ? ((typeof version === "function"
+            ? version(command.slice("recognizer-sense-".length))
+            : version) ?? { stdout: "0.0.0\n" })
         : (options.sensorsPreflight?.run?.([
             command.slice("recognizer-sense-".length),
             ...args.slice(1),
@@ -390,7 +393,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
       args[0] === "run" &&
       options.programs?.[command] === undefined;
     const program = sensing
-      ? options.programs?.["recognizer-sensors"]
+      ? options.programs?.["shipped-sensors"]
       : options.programs?.[command];
 
     if (program) {

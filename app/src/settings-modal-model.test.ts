@@ -67,6 +67,15 @@ if (!("schema" in SENSOR_KEYS)) {
 
 const PUBLISHED = publish([CORE_KEYS, SENSOR_KEYS.schema], "config");
 
+describe("the pinned sensors key schema", () => {
+  it("publishes beside the recognizer keys without a collision", () => {
+    expect(() =>
+      publish([CORE_KEYS, SENSOR_KEYS.schema], "config"),
+    ).not.toThrow();
+    expect(PUBLISHED.keys.some((key) => key.owner === "sensors")).toBe(true);
+  });
+});
+
 const shipped = (...names: string[]) =>
   shippedSensors().filter((one) => names.includes(one.name));
 

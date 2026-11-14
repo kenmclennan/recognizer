@@ -1,0 +1,19 @@
+class @@class_name@@ < Formula
+  desc "@@desc@@"
+  homepage "https://github.com/kenmclennan/recognizer-releases"
+  url "https://github.com/kenmclennan/recognizer-releases/releases/download/@@unit@@-v@@version@@/@@unit@@-@@version@@.tar.gz"
+  version "@@version@@"
+  sha256 "@@sha256@@"
+  license "MIT"
+
+@@dependencies@@
+
+  def install
+    libexec.install Dir["*"]
+    bin.install_symlink libexec/"bin/@@command@@"
+  end
+
+  test do
+    assert_equal "@@version@@", shell_output("#{bin}/@@command@@ --version").strip
+  end
+end

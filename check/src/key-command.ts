@@ -13,8 +13,8 @@ import {
 } from "./config-edit.js";
 import {
   describeConstraints,
-  notAnsweringLine,
   type PublishedKeys,
+  type SensorSchemaRead,
 } from "./config-keys.js";
 import { InputError } from "./errors.js";
 
@@ -25,9 +25,10 @@ export interface KeyedCommand {
   keysFor: (io: Io, root: string) => PublishedKeys;
   validate: ((original: string, text: string) => string | null) | null;
   missing: string | null;
+  schemaFor: ((io: Io) => SensorSchemaRead) | null;
 }
 
-export function usageFor(noun: string): string[] {
+export function usageFor(noun: string, schema = false): string[] {
   return [
     `usage: recognizer ${noun} <key> <value>`,
     `       recognizer ${noun} --add <key> <value>`,
@@ -36,6 +37,7 @@ export function usageFor(noun: string): string[] {
     `       recognizer ${noun} --unset <key> [<value>]`,
     `       recognizer ${noun} --remove-section <section>`,
     `       recognizer ${noun} --add-section <section>`,
+    ...(schema ? [`       recognizer ${noun} --schema`] : []),
     "       each takes [--repository <dir>]; `--` ends the options",
   ];
 }
@@ -54,7 +56,7 @@ function refusal(
   const suffix =
     published.notAnswering !== null &&
     /^no such key|is not a valid/.test(reason)
-      ? `; ${notAnsweringLine(published.notAnswering)}`
+      ? `; ${published.notAnswering}`
       : "";
 
   io.stderr(`recognizer ${command.noun}: ${key}: ${reason}${suffix}\n`);
@@ -102,6 +104,39 @@ function finish(
   return 0;
 }
 
+function printSchema(
+  command: KeyedCommand,
+  values: Record<string, unknown>,
+  positionals: string[],
+  io: Io,
+): number {
+  const others = Object.keys(values).filter(
+    (name) => name !== "schema" && name !== "repository",
+  );
+
+  if (
+    command.schemaFor === null ||
+    others.length > 0 ||
+    positionals.length > 0
+  ) {
+    throw new InputError(command.usage);
+  }
+
+  const read = command.schemaFor(io);
+
+  if (read.notAnswering.length > 0) {
+    for (const line of read.notAnswering) {
+      io.stderr(`recognizer ${command.noun}: ${line}\n`);
+    }
+
+    return 1;
+  }
+
+  io.stdout(`${JSON.stringify(read.schema, null, 2)}\n`);
+
+  return 0;
+}
+
 export function runKeyed(
   command: KeyedCommand,
   argv: string[],
@@ -119,8 +154,14 @@ export function runKeyed(
       "remove-section": { type: "boolean" },
       "add-section": { type: "boolean" },
       repository: { type: "string" },
+      schema: { type: "boolean" },
     },
   });
+
+  if (values.schema === true) {
+    return printSchema(command, values, positionals, io);
+  }
+
   const verbs = (
     ["add", "get", "list", "unset", "remove-section", "add-section"] as const
   ).filter((verb) => values[verb] === true);
@@ -174,9 +215,7 @@ export function runKeyed(
     }
 
     const why =
-      published.notAnswering === null
-        ? ""
-        : `: ${notAnsweringLine(published.notAnswering)}`;
+      published.notAnswering === null ? "" : `: ${published.notAnswering}`;
 
     for (const path of listing.skipped) {
       io.stderr(
@@ -264,7 +303,7 @@ export function keysHelp(
   }
 
   if (published.notAnswering !== null) {
-    lines.push("", notAnsweringLine(published.notAnswering));
+    lines.push("", published.notAnswering);
   }
 
   return `${lines.join("\n")}\n`;

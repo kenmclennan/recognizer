@@ -6,7 +6,7 @@
   "expansion": "C.R.A.P.: Change Risk Anti-Patterns.",
   "version": "0.1.0",
   "protocol": 1,
-  "install": "brew install --cask kenmclennan/tap/recognizer",
+  "install": "brew upgrade kenmclennan/tap/recognizer-sense-crap || brew install kenmclennan/tap/recognizer-sense-crap",
   "check": true,
   "long_running": true,
   "units": [

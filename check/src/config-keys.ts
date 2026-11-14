@@ -1,8 +1,8 @@
 import type { Io } from "./cli.js";
 import { InputError } from "./errors.js";
 import validateKeySchema from "./generated/config-keys-validator.js";
-
-export const SENSORS_PROGRAM = "recognizer-sensors";
+import { readShippedSensors } from "./shipped-sensors.js";
+import { SUITE_KEYS, SUITE_SECTION } from "./suite-keys.js";
 
 export const REGISTRATION_KEY = "sensors.<name>.command";
 
@@ -361,32 +361,70 @@ function compileAll(schema: KeySchema): void {
   }
 }
 
-export function loadKeys(io: Io, root: string): PublishedKeys {
-  const result = io.run(SENSORS_PROGRAM, ["--schema"], { cwd: root });
+const SENSORS_OWNER = "sensors";
 
-  const reason = (() => {
-    if (!result.started) {
-      return `${SENSORS_PROGRAM} is not installed`;
-    }
+const DISPLAY_FIELDS = new Set([
+  "label",
+  "labels",
+  "unit",
+  "units",
+  "order",
+  "limit",
+]);
 
-    if (result.status !== 0) {
-      return `${SENSORS_PROGRAM} exited ${result.status}`;
-    }
+const SENSOR_PLACEHOLDERS: Record<string, string> = {
+  name: "^.+$",
+  variable: "^[A-Za-z_][A-Za-z0-9_]*$",
+  metric: "^(?!command$)[A-Za-z0-9_-]+$",
+};
 
-    const parsed = parseKeySchema(result.stdout);
-
-    return "reason" in parsed ? parsed.reason : parsed.schema;
-  })();
-
-  if (typeof reason === "string") {
-    return { ...publish([CORE_KEYS], "config"), notAnswering: reason };
-  }
-
-  return publish([CORE_KEYS, reason], "config");
+export function notAnsweringLine(program: string, reason: string): string {
+  return `${program} did not answer: ${reason}`;
 }
 
-export function notAnsweringLine(reason: string): string {
-  return `${SENSORS_PROGRAM} did not answer: ${reason}`;
+export interface SensorSchemaRead {
+  schema: KeySchema;
+  notAnswering: string[];
+}
+
+export function loadSensorSchema(io: Io): SensorSchemaRead {
+  const shipped = readShippedSensors(io);
+  const keys: KeyEntry[] = [...SUITE_KEYS];
+
+  for (const sensor of shipped.sensors) {
+    for (const entry of sensor.settings as KeyEntry[]) {
+      const published = Object.fromEntries(
+        Object.entries(entry).filter(([name]) => !DISPLAY_FIELDS.has(name)),
+      ) as unknown as KeyEntry;
+
+      keys.push({
+        ...published,
+        key: `sensors.${sensor.name}.${entry.key}`,
+      });
+    }
+  }
+
+  return {
+    schema: {
+      keys_version: 1,
+      owner: SENSORS_OWNER,
+      placeholders: SENSOR_PLACEHOLDERS,
+      sections: [SUITE_SECTION],
+      keys,
+    },
+    notAnswering: shipped.unreadable.map((one) =>
+      notAnsweringLine(`recognizer-sense-${one.name}`, one.reason),
+    ),
+  };
+}
+
+export function loadKeys(io: Io, _root: string): PublishedKeys {
+  const read = loadSensorSchema(io);
+  const published = publish([CORE_KEYS, read.schema], "config");
+
+  return read.notAnswering.length === 0
+    ? published
+    : { ...published, notAnswering: read.notAnswering.join("; ") };
 }
 
 export interface Resolved {

@@ -299,7 +299,7 @@ describe("recognizer sensors check", () => {
     }
   });
 
-  it("reports sensors-missing when recognizer-sensors does not start", () => {
+  it("reports sensors-missing when a shipped sensor's program does not start", () => {
     const fake = setup(REGISTERED, () => ({ started: false }));
 
     expect(check(fake, "crap", "--json")).toBe(1);

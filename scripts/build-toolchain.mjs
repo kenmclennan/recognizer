@@ -9,7 +9,6 @@ import {
   readFileSync,
   rmSync,
   symlinkSync,
-  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,73 +21,12 @@ import {
 
 export const ARCHIVE = "recognizer-toolchain.tar.gz";
 
-const OWN_PACKAGES = [
-  "recognizer",
-  "recognizer-scan-typescript",
-  "recognizer-describe-claude",
-];
-const RUST_BINARY = "recognizer-scan-rust";
+const OWN_PACKAGES = ["recognizer"];
 const COMMANDS_FOLDER = "commands";
-const WHEELHOUSE = "wheelhouse";
-export const GRAMMARS = [
-  { package: "tree-sitter-kotlin", project: "scanners/kotlin" },
-  { package: "tree-sitter-c-sharp", project: "scanners/csharp" },
-];
-const PYTHON_FOLDER = "python";
 const FOLDER = "toolchain";
-const PYTHON_INTERPRETER = "/opt/homebrew/opt/python@3.13/bin/python3.13";
-
-export const PYTHON_COMMANDS = [
-  {
-    command: "recognizer-scan-python",
-    module: "recognizer_scan_python",
-    project: "scanners/python",
-  },
-  {
-    command: "recognizer-scan-kotlin",
-    module: "recognizer_scan_kotlin",
-    project: "scanners/kotlin",
-  },
-  {
-    command: "recognizer-scan-csharp",
-    module: "recognizer_scan_csharp",
-    project: "scanners/csharp",
-  },
-  {
-    command: "recognizer-sensors",
-    module: "recognizer_sensors",
-    project: "sensors",
-  },
-  ...["crap", "mutation", "thresholds"].map((name) => ({
-    command: `recognizer-sense-${name}`,
-    module: "recognizer_sensors",
-    project: "sensors",
-    entry: `recognizer_sensors.entry:${name}`,
-  })),
-];
-
-const PYTHON_PACKAGES = [
-  ...new Map(PYTHON_COMMANDS.map((entry) => [entry.module, entry])).values(),
-];
 
 export const COMMAND_LINKS = [
   ["recognizer", "../node_modules/recognizer/dist/bin.js"],
-  [
-    "recognizer-scan-typescript",
-    "../node_modules/recognizer-scan-typescript/dist/bin.js",
-  ],
-  [
-    "recognizer-describe-claude",
-    "../node_modules/recognizer-describe-claude/dist/bin.js",
-  ],
-  ["recognizer-scan-python", "../bin/recognizer-scan-python"],
-  ["recognizer-scan-kotlin", "../bin/recognizer-scan-kotlin"],
-  ["recognizer-scan-csharp", "../bin/recognizer-scan-csharp"],
-  ["recognizer-sensors", "../bin/recognizer-sensors"],
-  ["recognizer-sense-crap", "../bin/recognizer-sense-crap"],
-  ["recognizer-sense-mutation", "../bin/recognizer-sense-mutation"],
-  ["recognizer-sense-thresholds", "../bin/recognizer-sense-thresholds"],
-  ["recognizer-scan-rust", `../${RUST_BINARY}`],
 ];
 
 export function writeCommandLinks(folder) {
@@ -101,55 +39,6 @@ export function writeCommandLinks(folder) {
   }
 }
 
-export function wrapperScript(
-  { command, module, entry = `${module}.cli:main` },
-  interpreter = PYTHON_INTERPRETER,
-) {
-  const [entryModule, entryFunction] = entry.split(":");
-  const program = [
-    "import sys",
-    "sys.path.insert(0, sys.argv.pop(1))",
-    `sys.argv[0] = "${command}"`,
-    `from ${entryModule} import ${entryFunction}`,
-    `sys.exit(${entryFunction}())`,
-  ].join("; ");
-
-  return [
-    "#!/bin/sh",
-    "self=$0",
-    'while [ -L "$self" ]; do',
-    '  dir=$(cd "$(dirname "$self")" && pwd)',
-    '  link=$(readlink "$self")',
-    '  case "$link" in',
-    "    /*) self=$link ;;",
-    "    *) self=$dir/$link ;;",
-    "  esac",
-    "done",
-    'here=$(cd "$(dirname "$self")" && pwd)',
-    `exec "${interpreter}" -c '${program}' "$here/../${PYTHON_FOLDER}" "$@"`,
-    "",
-  ].join("\n");
-}
-
-export function pythonInstallArguments(wheelhouse, target, version) {
-  return [
-    "pip",
-    "install",
-    "--target",
-    target,
-    "--no-index",
-    "--find-links",
-    wheelhouse,
-    "--python-version",
-    "3.13",
-    "--python-platform",
-    "aarch64-apple-darwin",
-    ...PYTHON_PACKAGES.map(({ module }) =>
-      join(wheelhouse, `${module}-${version}-py3-none-any.whl`),
-    ),
-  ];
-}
-
 const SOURCE_GRAMMARS = [
   "python",
   "typescript",
@@ -159,7 +48,7 @@ const SOURCE_GRAMMARS = [
   "csharp",
 ];
 
-export function archiveEntries(version, closurePaths) {
+export function archiveEntries(closurePaths) {
   return [
     ...OWN_PACKAGES.map((name) => `node_modules/${name}/package.json`),
     ...SOURCE_GRAMMARS.map(
@@ -167,120 +56,22 @@ export function archiveEntries(version, closurePaths) {
     ),
     "node_modules/recognizer/grammars/PROVENANCE.json",
     ...closurePaths.map((path) => `${path}/package.json`),
-    ...PYTHON_PACKAGES.map(({ module }) => `${PYTHON_FOLDER}/${module}/cli.py`),
-    ...PYTHON_PACKAGES.map(
-      ({ module }) =>
-        `${PYTHON_FOLDER}/${module}-${version}.dist-info/METADATA`,
-    ),
-    ...PYTHON_COMMANDS.map(({ command }) => `bin/${command}`),
-    RUST_BINARY,
     ...COMMAND_LINKS.map(([name]) => `${COMMANDS_FOLDER}/${name}`),
     "THIRD-PARTY-NOTICES.md",
     "LICENSE",
   ];
 }
 
-export function mergeRequirements(exports) {
-  const blocks = new Map();
-
-  for (const text of exports) {
-    let current = null;
-
-    for (const line of text.split("\n")) {
-      if (line.trim() === "" || line.startsWith("#")) {
-        continue;
-      }
-
-      if (!/^\s/.test(line)) {
-        current = line.replace(/\s*\\$/, "").trim();
-
-        if (!blocks.has(current)) {
-          blocks.set(current, []);
-        } else {
-          current = null;
-        }
-      }
-
-      if (current !== null) {
-        blocks.get(current).push(line);
-      }
-    }
-  }
-
-  return `${[...blocks.values()].flat().join("\n")}\n`;
-}
-
-export function exportArguments() {
-  return [
-    "export",
-    "--frozen",
-    "--no-dev",
-    "--no-emit-project",
-    ...GRAMMARS.flatMap((grammar) => ["--no-emit-package", grammar.package]),
-    "--format",
-    "requirements-txt",
-  ];
-}
-
-export function grammarSource(pyproject, grammar) {
-  const entry = new RegExp(`^${grammar.package}\\s*=\\s*\\{[^}]*\\}`, "m").exec(
-    pyproject,
-  );
-  const git = /git\s*=\s*"([^"]+)"/.exec(entry?.[0] ?? "");
-  const rev = /rev\s*=\s*"([0-9a-f]{40})"/.exec(entry?.[0] ?? "");
-
-  if (!git || !rev) {
-    throw new Error(
-      `${grammar.project}/pyproject.toml has no pinned git source for ${grammar.package}`,
-    );
-  }
-
-  return { url: git[1], rev: rev[1] };
-}
-
-export function buildGrammarWheel(source, outDir, exec = run) {
-  const checkout = mkdtempSync(join(tmpdir(), "grammar-"));
-
-  try {
-    exec("git", ["init", "--quiet"], { cwd: checkout });
-    exec("git", ["remote", "add", "origin", source.url], { cwd: checkout });
-    exec("git", ["fetch", "--quiet", "--depth", "1", "origin", source.rev], {
-      cwd: checkout,
-    });
-    exec("git", ["checkout", "--quiet", "FETCH_HEAD"], { cwd: checkout });
-
-    const head = exec("git", ["rev-parse", "HEAD"], { cwd: checkout }).trim();
-
-    if (head !== source.rev) {
-      throw new Error(
-        `grammar checkout is ${head}, not the pinned ${source.rev}`,
-      );
-    }
-
-    exec("uv", ["build", "--wheel", "--out-dir", outDir, checkout]);
-  } finally {
-    rmSync(checkout, { recursive: true, force: true });
-  }
-}
-
-export function verifyArchive(listing, version, closurePaths) {
+export function verifyArchive(listing, closurePaths) {
   const present = new Set(
     listing
       .split("\n")
       .map((line) => line.trim().replace(/^\.\//, ""))
       .filter((line) => line !== ""),
   );
-  const missing = archiveEntries(version, closurePaths).filter(
+  const missing = archiveEntries(closurePaths).filter(
     (name) => !present.has(name),
   );
-
-  for (const grammar of GRAMMARS) {
-    const folder = `${PYTHON_FOLDER}/${grammar.package.replaceAll("-", "_")}/`;
-
-    if (![...present].some((name) => name.startsWith(folder))) {
-      missing.push(`${folder}*`);
-    }
-  }
 
   if (missing.length > 0) {
     throw new Error(`toolchain archive is missing: ${missing.join(", ")}`);
@@ -316,21 +107,9 @@ export function buildToolchain(root, outDir) {
     rmSync(folder, { recursive: true, force: true });
     mkdirSync(folder, { recursive: true });
 
-    run(
-      "npm",
-      [
-        "pack",
-        "-w",
-        "recognizer",
-        "-w",
-        "recognizer-scan-typescript",
-        "-w",
-        "recognizer-describe-claude",
-        "--pack-destination",
-        packed,
-      ],
-      { cwd: root },
-    );
+    run("npm", ["pack", "-w", "recognizer", "--pack-destination", packed], {
+      cwd: root,
+    });
 
     for (const name of OWN_PACKAGES) {
       const dir = join(folder, "node_modules", name);
@@ -361,90 +140,6 @@ export function buildToolchain(root, outDir) {
     }
 
     verifyVendored(lock, versions);
-
-    const wheelhouse = join(packed, WHEELHOUSE);
-
-    mkdirSync(wheelhouse, { recursive: true });
-
-    for (const { project } of PYTHON_PACKAGES) {
-      run("uv", ["build", "--wheel", "--out-dir", wheelhouse, project], {
-        cwd: root,
-      });
-    }
-
-    const requirements = join(packed, "wheelhouse-requirements.txt");
-    const exported = ["scanners/kotlin", "scanners/csharp", "sensors"].map(
-      (project) => run("uv", exportArguments(), { cwd: join(root, project) }),
-    );
-
-    writeFileSync(requirements, mergeRequirements(exported));
-    run("python3", [
-      "-m",
-      "pip",
-      "download",
-      "--require-hashes",
-      "--only-binary=:all:",
-      "--platform",
-      "macosx_11_0_arm64",
-      "--python-version",
-      "3.13",
-      "--implementation",
-      "cp",
-      "--abi",
-      "cp313",
-      "-r",
-      requirements,
-      "-d",
-      wheelhouse,
-    ]);
-
-    for (const grammar of GRAMMARS) {
-      buildGrammarWheel(
-        grammarSource(
-          readFileSync(join(root, grammar.project, "pyproject.toml"), "utf8"),
-          grammar,
-        ),
-        wheelhouse,
-      );
-    }
-
-    run(
-      "uv",
-      pythonInstallArguments(wheelhouse, join(folder, PYTHON_FOLDER), version),
-    );
-
-    mkdirSync(join(folder, "bin"), { recursive: true });
-
-    for (const entry of PYTHON_COMMANDS) {
-      const path = join(folder, "bin", entry.command);
-
-      writeFileSync(path, wrapperScript(entry));
-      chmodSync(path, 0o755);
-    }
-
-    run(
-      "cargo",
-      [
-        "build",
-        "--release",
-        "--locked",
-        "--target",
-        "aarch64-apple-darwin",
-        "--manifest-path",
-        "scanners/rust/Cargo.toml",
-      ],
-      { cwd: root },
-    );
-    copyFileSync(
-      join(
-        root,
-        "scanners/rust/target/aarch64-apple-darwin/release",
-        RUST_BINARY,
-      ),
-      join(folder, RUST_BINARY),
-    );
-    chmodSync(join(folder, RUST_BINARY), 0o755);
-
     writeCommandLinks(folder);
 
     copyFileSync(
@@ -457,10 +152,7 @@ export function buildToolchain(root, outDir) {
     const names = readdirSync(folder).sort();
 
     run("tar", ["-czf", archive, "-C", folder, ...names]);
-
-    const listing = run("tar", ["-tzf", archive]);
-
-    verifyArchive(listing, version, closurePaths);
+    verifyArchive(run("tar", ["-tzf", archive]), closurePaths);
 
     return archive;
   } finally {

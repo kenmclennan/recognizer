@@ -10,7 +10,6 @@ use crate::tool_runner::{runner, Captured, ToolFault};
 
 const CONFIG_DIR: &str = ".recognizer";
 const CONFIG_FILE: &str = ".recognizer/config.yaml";
-const SENSORS_COMMAND: &str = "recognizer-sensors";
 const CLI_PREFIX: &str = "recognizer config: ";
 const CHANGED: &str = "the config changed since it was read";
 
@@ -245,7 +244,7 @@ where
 {
     let unavailable = |reason: String| ConfigKeys::Unavailable { reason };
 
-    match run(&["--schema".to_string()]) {
+    match run(&["config".to_string(), "--schema".to_string()]) {
         Err(fault) => unavailable(fault.message()),
         Ok(Captured {
             code,
@@ -256,11 +255,12 @@ where
             Some(0) => match serde_json::from_str(&clean_output(&stdout)) {
                 Ok(schema) => ConfigKeys::Ok { schema },
                 Err(_) => unavailable(
-                    "recognizer-sensors printed something that is not a key schema".to_string(),
+                    "recognizer config --schema printed something that is not a key schema"
+                        .to_string(),
                 ),
             },
             other => unavailable(format!(
-                "recognizer-sensors exited {}: {}",
+                "recognizer config --schema exited {}: {}",
                 other.map_or("without a status".to_string(), |code| code.to_string()),
                 stderr.trim()
             )),
@@ -269,7 +269,7 @@ where
 }
 
 pub fn read_config_keys() -> ConfigKeys {
-    read_config_keys_with(|args| runner().capture(SENSORS_COMMAND, args, true))
+    read_config_keys_with(|args| runner().capture("recognizer", args, true))
 }
 
 #[cfg(test)]
@@ -494,9 +494,9 @@ mod tests {
     }
 
     #[test]
-    fn the_key_schema_is_read_from_the_sensors_package() {
+    fn the_key_schema_is_read_from_recognizer_config() {
         let ok = read_config_keys_with(|args| {
-            assert_eq!(args, ["--schema"]);
+            assert_eq!(args, ["config", "--schema"]);
 
             Ok(Captured {
                 code: Some(0),
@@ -521,5 +521,25 @@ mod tests {
                 reason: missing_hint()
             }
         );
+    }
+
+    #[test]
+    fn an_unreadable_key_schema_names_the_command_that_printed_it() {
+        let invalid_json = || {
+            Ok(Captured {
+                code: Some(0),
+                stdout: "not json".to_string(),
+                stderr: String::new(),
+            })
+        };
+
+        for result in [invalid_json(), captured(3, "bad")] {
+            match read_config_keys_with(|_| result.clone()) {
+                ConfigKeys::Unavailable { reason } => {
+                    assert!(reason.contains("recognizer config --schema"), "{reason}")
+                }
+                other => panic!("expected Unavailable, got {other:?}"),
+            }
+        }
     }
 }

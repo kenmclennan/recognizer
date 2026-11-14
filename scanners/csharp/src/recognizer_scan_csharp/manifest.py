@@ -11,7 +11,10 @@ from recognizer_scan_csharp.discovery import (
 
 PROTOCOL = 1
 
-INSTALL = "brew install --cask kenmclennan/tap/recognizer"
+INSTALL = (
+    "brew upgrade kenmclennan/tap/recognizer-scan-csharp "
+    "|| brew install kenmclennan/tap/recognizer-scan-csharp"
+)
 
 
 def build() -> dict:

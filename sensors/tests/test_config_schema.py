@@ -6,55 +6,28 @@ import jsonschema
 import pytest
 from conftest import REPOSITORY
 
-from recognizer_sensors.cli import main
-from recognizer_sensors.config_schema import key_schema
+from recognizer_sensors.config_schema import CRAP_KEYS, MUTATION_KEYS, THRESHOLDS_KEYS
 from recognizer_sensors.registry import SHIPPED
 from recognizer_sensors.testrun.suites import parse_suite
 
 KEYS_SCHEMA = REPOSITORY / "schema" / "config-keys.schema.json"
+PINNED_SCHEMA = REPOSITORY / "fixtures" / "sensors" / "config-keys.json"
 CONFIG_SCHEMA = REPOSITORY / "schema" / "config.schema.json"
 EXAMPLES = REPOSITORY / "schema" / "config-keys-examples"
 
 BOUNDS = ("minimum", "exclusiveMinimum", "maximum", "exclusiveMaximum")
 
 
-def run_cli(argv, capsys):
-    status = main(argv)
+def sensor_keys():
+    return [*CRAP_KEYS, *MUTATION_KEYS, *THRESHOLDS_KEYS]
 
-    return status, capsys.readouterr().out
+
+def key_schema():
+    return json.loads(PINNED_SCHEMA.read_text())
 
 
 def published():
     return {entry["key"]: entry for entry in key_schema()["keys"]}
-
-
-def test_schema_prints_a_document_that_validates_against_the_key_schema(capsys):
-    status, out = run_cli(["--schema"], capsys)
-
-    assert status == 0
-    assert json.loads(out) == key_schema()
-
-    jsonschema.validate(json.loads(out), json.loads(KEYS_SCHEMA.read_text()))
-
-
-@pytest.mark.parametrize(
-    "argv",
-    [
-        ["--schema", "crap"],
-        ["--schema", "check"],
-        ["--schema", "--run"],
-        ["--schema", "guide"],
-        ["--schema", "--settings", "{}"],
-        ["--schema", "--output", "x"],
-        ["--schema", "--modules", "x"],
-        [],
-    ],
-)
-def test_schema_with_a_name_or_another_mode_and_a_missing_name_are_exit_two(argv, capsys):
-    status, out = run_cli(argv, capsys)
-
-    assert status == 2
-    assert out == ""
 
 
 def test_the_valid_and_invalid_examples_are_told_apart_by_the_key_schema():
@@ -135,7 +108,7 @@ def nest(path, value):
 def test_the_example_of_every_sensor_key_is_accepted_by_that_sensor_parser():
     checked = []
 
-    for entry in key_schema()["keys"]:
+    for entry in sensor_keys():
         parts = entry["key"].split(".")
 
         if parts[0] != "sensors":
@@ -378,6 +351,14 @@ def test_no_key_carries_more_than_one_default_field():
 
 
 def test_the_pinned_sensors_schema_fixture_equals_the_published_schema():
-    pinned = json.loads((REPOSITORY / "fixtures" / "sensors" / "config-keys.json").read_text())
+    pinned = key_schema()
+    declared = {entry["key"] for entry in sensor_keys()}
+    pinned_sensor_keys = {
+        entry["key"] for entry in pinned["keys"] if entry["key"].startswith("sensors.")
+    }
 
-    assert pinned == key_schema()
+    assert pinned["owner"] == "sensors"
+    assert declared == pinned_sensor_keys
+    assert {entry["key"]: entry for entry in sensor_keys()} == {
+        entry["key"]: entry for entry in pinned["keys"] if entry["key"] in declared
+    }

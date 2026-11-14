@@ -3,7 +3,8 @@ import { scannerVersion } from "./version.js";
 
 export const PROTOCOL = 1;
 
-export const INSTALL = "brew install --cask kenmclennan/tap/recognizer";
+export const INSTALL =
+  "brew upgrade kenmclennan/tap/recognizer-scan-typescript || brew install kenmclennan/tap/recognizer-scan-typescript";
 
 export function manifest() {
   const rules = selection();

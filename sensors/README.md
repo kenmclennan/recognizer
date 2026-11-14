@@ -4,14 +4,13 @@ Recognizer's shipped sensors. Each reads the repository's cached scans and its w
 
 ```sh
 recognizer-sense-NAME run [--repository P] [--commit C] [--output F] [--settings JSON]
-recognizer-sensors NAME run [--repository P] [--commit C] [--output F] [--settings JSON]
 ```
 
 `--repository` defaults to `.`, `--commit` to `git rev-parse HEAD`, `--output` to stdout and `--settings` to `{}`. Exit status is `2` for an unknown or missing name, a `--settings` that is not a JSON object or holds a bad or unknown key, a missing repository, no commit and any argument error. `--version` prints the package version, which is also the findings file's `sensor.version`.
 
 A repository registers a shipped sensor in `.recognizer/config.yaml` by name: `sensors: {thresholds: {}}`. `recognizer` expands that to `recognizer-sense-thresholds run --repository {repository} --commit {commit} --output {output} --settings <the mapping as JSON>`.
 
-`brew install --cask kenmclennan/tap/recognizer` installs `recognizer-sensors` on `PATH`; the names it knows are the registry in `src/recognizer_sensors/registry.py`. Contributors run it from a checkout with `uv run --project sensors recognizer-sensors NAME`.
+`brew install kenmclennan/tap/recognizer-sense-NAME` installs one sensor on `PATH`, and the `recognizer-plugins` bundle installs all three; the names are the registry in `src/recognizer_sensors/registry.py`. Contributors run one from a checkout with `uv run --project sensors recognizer-sense-NAME`.
 
 A sensor reports nothing for a file its grammars do not parse: a file with an extension no grammar covers is skipped, and so is a function whose syntax tree has an error node.
 

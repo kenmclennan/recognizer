@@ -1,8 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const TAG = /^v(\d+)\.(\d+)\.(\d+)$/;
-
 function parts(version) {
   return version.split(".").map(Number);
 }
@@ -17,9 +15,14 @@ function compare(a, b) {
   return 0;
 }
 
-export function nextVersion(committed, tags) {
+function escapeRegExp(prefix) {
+  return prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function nextVersion(committed, tags, prefix = "v") {
+  const tag = new RegExp(`^${escapeRegExp(prefix)}(\\d+)\\.(\\d+)\\.(\\d+)$`);
   const found = tags
-    .map((tag) => TAG.exec(tag))
+    .map((name) => tag.exec(name))
     .filter((match) => match !== null);
 
   if (found.length === 0) {
@@ -44,5 +47,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     .map((line) => line.trim())
     .filter((line) => line !== "");
 
-  process.stdout.write(`${nextVersion(process.argv[2], tags)}\n`);
+  process.stdout.write(
+    `${nextVersion(process.argv[2], tags, process.argv[3] ?? "v")}\n`,
+  );
 }

@@ -111,11 +111,6 @@ describe.skipIf(!HAS_UV)(
       );
       launcher(
         launchers,
-        "recognizer-sensors",
-        `exec uv run --quiet --project ${REPO}/sensors recognizer-sensors "$@"`,
-      );
-      launcher(
-        launchers,
         "recognizer-sense-crap",
         `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-crap "$@"`,
       );
@@ -659,11 +654,6 @@ describe.skipIf(!HAS_UV)(
       );
       launcher(
         launchers,
-        "recognizer-sensors",
-        `exec uv run --quiet --project ${REPO}/sensors recognizer-sensors "$@"`,
-      );
-      launcher(
-        launchers,
         "recognizer-sense-crap",
         `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-crap "$@"`,
       );
@@ -835,11 +825,6 @@ describe.skipIf(!HAS_UV)(
         launchers,
         "recognizer-scan-python",
         `exec uv run --quiet --project ${REPO}/scanners/python recognizer-scan-python "$@"`,
-      );
-      launcher(
-        launchers,
-        "recognizer-sensors",
-        `exec uv run --quiet --project ${REPO}/sensors recognizer-sensors "$@"`,
       );
       launcher(
         launchers,

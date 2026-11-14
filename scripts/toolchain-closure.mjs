@@ -1,4 +1,4 @@
-export const TOOLCHAIN_WORKSPACES = ["check", "scanners/typescript"];
+export const TOOLCHAIN_WORKSPACES = ["check"];
 
 function resolve(packages, fromPath, name) {
   let base = fromPath;

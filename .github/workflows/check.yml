@@ -8,6 +8,7 @@ on:
       - sensors/**
       - describers/**
       - scripts/**
+      - packaging/**
       - policies/**
       - schema/**
       - fixtures/**
@@ -24,6 +25,7 @@ on:
       - sensors/**
       - describers/**
       - scripts/**
+      - packaging/**
       - policies/**
       - schema/**
       - fixtures/**
@@ -72,17 +74,43 @@ jobs:
         with:
           node-version: 22
       - run: npm ci --prefer-offline --no-audit --no-fund
-      - uses: ./.github/actions/install-uv
-      - run: uv sync --locked --project scanners/python
-      - run: uv sync --locked --project sensors
-      - run: npm run build -w recognizer-scan-typescript
-      - run: npm run build -w recognizer-describe-claude
       - run: npm run build -w check
       - run: node scripts/build-toolchain.mjs "$RUNNER_TEMP/toolchain"
       - run: |
           extracted=$(mktemp -d)
           tar -xzf "$RUNNER_TEMP/toolchain/recognizer-toolchain.tar.gz" -C "$extracted"
           node scripts/verify-toolchain.mjs "$extracted"
+
+      - if: failure()
+        uses: ./.github/actions/cancel-on-failure
+
+  plugins:
+    needs: test
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        unit: [scan-python, scan-typescript, scan-kotlin, scan-csharp, scan-rust, sensors, describe-claude]
+    env:
+      CARGO_BUILD_JOBS: "3"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - uses: ./.github/actions/install-uv
+      - run: rustup target add aarch64-apple-darwin
+      - run: npm run build -w check
+      - run: npm run build -w recognizer-scan-typescript
+      - run: npm run build -w recognizer-describe-claude
+      - run: |
+          version=$(node app/scripts/stamp-version.mjs committed "${{ matrix.unit }}")
+          node scripts/build-plugin.mjs "${{ matrix.unit }}" "$version" "$RUNNER_TEMP/plugin-${{ matrix.unit }}"
+          extracted=$(mktemp -d)
+          tar -xzf "$RUNNER_TEMP/plugin-${{ matrix.unit }}/${{ matrix.unit }}-$version.tar.gz" -C "$extracted"
+          node scripts/verify-plugin.mjs "${{ matrix.unit }}" "$extracted"
 
       - if: failure()
         uses: ./.github/actions/cancel-on-failure

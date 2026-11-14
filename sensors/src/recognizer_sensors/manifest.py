@@ -5,7 +5,12 @@ from recognizer_sensors.config_schema import CRAP_KEYS, MUTATION_KEYS, THRESHOLD
 
 PROTOCOL = 1
 
-INSTALL = "brew install --cask kenmclennan/tap/recognizer"
+
+def install_line(name: str) -> str:
+    formula = f"kenmclennan/tap/recognizer-sense-{name}"
+
+    return f"brew upgrade {formula} || brew install {formula}"
+
 
 MEASURES = "evidence.measures"
 MEMBER = "evidence.members.0"
@@ -311,7 +316,7 @@ def common(name: str, display: str, check: bool, units: str, settings: list[dict
         **({"expansion": EXPANSIONS[name]} if name in EXPANSIONS else {}),
         "version": version("recognizer-sensors"),
         "protocol": PROTOCOL,
-        "install": INSTALL,
+        "install": install_line(name),
         "check": check,
         "long_running": name != "thresholds",
         **({"time_limit_seconds": 60} if name == "thresholds" else {}),

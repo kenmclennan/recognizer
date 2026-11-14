@@ -139,7 +139,7 @@ describe("functionLimits", () => {
 
   it("falls back to null limits for unparseable settings and for config text that is not valid", () => {
     const broken = parseConfig(
-      "sensors:\n  crap:\n    command: [recognizer-sensors, crap, --settings, '{nope']\n",
+      "sensors:\n  crap:\n    command: [recognizer-sense-crap, --settings, '{nope']\n",
     );
 
     expect(functionLimits(broken, REAL).cells).toEqual(cellsOf(null));

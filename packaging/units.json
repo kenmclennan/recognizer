@@ -1,0 +1,105 @@
+{
+  "units": [
+    {
+      "unit": "scan-python",
+      "folder": "scanners/python",
+      "ci_workflow": "scanner-python",
+      "runtime": "python@3.13",
+      "formulae": [
+        {
+          "formula": "recognizer-scan-python",
+          "command": "recognizer-scan-python",
+          "desc": "Recognizer scanner for Python"
+        }
+      ]
+    },
+    {
+      "unit": "scan-typescript",
+      "folder": "scanners/typescript",
+      "ci_workflow": "scanner-typescript",
+      "runtime": "node",
+      "formulae": [
+        {
+          "formula": "recognizer-scan-typescript",
+          "command": "recognizer-scan-typescript",
+          "desc": "Recognizer scanner for TypeScript"
+        }
+      ]
+    },
+    {
+      "unit": "scan-kotlin",
+      "folder": "scanners/kotlin",
+      "ci_workflow": "scanner-kotlin",
+      "runtime": "python@3.13",
+      "formulae": [
+        {
+          "formula": "recognizer-scan-kotlin",
+          "command": "recognizer-scan-kotlin",
+          "desc": "Recognizer scanner for Kotlin"
+        }
+      ]
+    },
+    {
+      "unit": "scan-csharp",
+      "folder": "scanners/csharp",
+      "ci_workflow": "scanner-csharp",
+      "runtime": "python@3.13",
+      "formulae": [
+        {
+          "formula": "recognizer-scan-csharp",
+          "command": "recognizer-scan-csharp",
+          "desc": "Recognizer scanner for C#"
+        }
+      ]
+    },
+    {
+      "unit": "scan-rust",
+      "folder": "scanners/rust",
+      "ci_workflow": "scanner-rust",
+      "runtime": null,
+      "formulae": [
+        {
+          "formula": "recognizer-scan-rust",
+          "command": "recognizer-scan-rust",
+          "desc": "Recognizer scanner for Rust"
+        }
+      ]
+    },
+    {
+      "unit": "sensors",
+      "folder": "sensors",
+      "ci_workflow": "sensors",
+      "runtime": "python@3.13",
+      "formulae": [
+        {
+          "formula": "recognizer-sense-crap",
+          "command": "recognizer-sense-crap",
+          "desc": "Recognizer C.R.A.P. sensor"
+        },
+        {
+          "formula": "recognizer-sense-mutation",
+          "command": "recognizer-sense-mutation",
+          "desc": "Recognizer mutation testing sensor"
+        },
+        {
+          "formula": "recognizer-sense-thresholds",
+          "command": "recognizer-sense-thresholds",
+          "desc": "Recognizer metric thresholds sensor"
+        }
+      ]
+    },
+    {
+      "unit": "describe-claude",
+      "folder": "describers/claude",
+      "ci_workflow": "describer-claude",
+      "runtime": "node",
+      "formulae": [
+        {
+          "formula": "recognizer-describe-claude",
+          "command": "recognizer-describe-claude",
+          "desc": "Recognizer module describer that uses Claude"
+        }
+      ]
+    }
+  ]
+}

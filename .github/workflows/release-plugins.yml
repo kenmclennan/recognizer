@@ -1,0 +1,136 @@
+name: release-plugins
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - packaging/units.json
+      - packaging/homebrew/recognizer-plugins.rb.tmpl
+  workflow_dispatch:
+
+concurrency:
+  group: release-plugins
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  gate:
+    name: gate (release token present)
+    runs-on: [self-hosted, macOS, ARM64]
+    outputs:
+      present: ${{ steps.token.outputs.present }}
+    env:
+      RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+    steps:
+      - name: Check for RELEASES_TOKEN
+        id: token
+        run: |
+          if [ -z "$RELEASES_TOKEN" ]; then
+            echo "::notice::RELEASES_TOKEN is not set; skipping the release"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  release:
+    name: release (bundle formula)
+    needs: gate
+    if: needs.gate.outputs.present == 'true'
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 20
+    env:
+      RELEASES_REPO: kenmclennan/recognizer-releases
+      TAP_REPO: kenmclennan/homebrew-tap
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Check the members and skip an unchanged bundle
+        id: members
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${TAP_REPO}.git" tap-repo
+          node scripts/render-homebrew.mjs members | sort > members.txt
+          missing=0
+          while read -r member; do
+            if [ ! -f "tap-repo/Formula/$member.rb" ]; then
+              echo "the tap has no Formula/$member.rb" >&2
+              missing=1
+            fi
+          done < members.txt
+          if [ "$missing" != "0" ]; then
+            exit 1
+          fi
+          if [ -f tap-repo/Formula/recognizer-plugins.rb ]; then
+            grep -oE 'depends_on "[^"]+"' tap-repo/Formula/recognizer-plugins.rb | sed -E 's/depends_on "([^"]+)"/\1/' | sort > current.txt
+            if cmp -s members.txt current.txt; then
+              echo "::notice::the bundle already lists these members; skipping the release"
+              exit 0
+            fi
+          fi
+          echo "release=true" >> "$GITHUB_OUTPUT"
+
+      - name: Compute the bundle number
+        if: steps.members.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          last=$(gh api --paginate "repos/$RELEASES_REPO/releases" --jq '.[].tag_name' | grep -E '^recognizer-plugins-v[0-9]+$' | sed -E 's/^recognizer-plugins-v//' | sort -n | tail -n 1 || true)
+          echo "BUNDLE=$(( ${last:-0} + 1 ))" >> "$GITHUB_ENV"
+
+      - name: Build the bundle archive
+        if: steps.members.outputs.release == 'true'
+        run: |
+          mkdir -p dist-release bundle
+          cp members.txt bundle/members.txt
+          tar -czf "dist-release/recognizer-plugins-$BUNDLE.tar.gz" -C bundle members.txt
+
+      - name: Publish the release
+        if: steps.members.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          gh release create "recognizer-plugins-v$BUNDLE" --repo "$RELEASES_REPO" --title "recognizer-plugins $BUNDLE" \
+            --notes "The member list of the recognizer-plugins bundle formula." \
+            "dist-release/recognizer-plugins-$BUNDLE.tar.gz"
+
+      - name: Tag the source
+        if: steps.members.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          git tag "recognizer-plugins-v$BUNDLE" HEAD
+          git -c http.https://github.com/.extraheader= push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "recognizer-plugins-v$BUNDLE"
+
+      - name: Update the Homebrew tap
+        if: steps.members.outputs.release == 'true'
+        run: |
+          sha=$(shasum -a 256 "dist-release/recognizer-plugins-$BUNDLE.tar.gz" | cut -d' ' -f1)
+          node scripts/render-homebrew.mjs bundle "$BUNDLE" "$sha" tap-repo
+          cd tap-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/recognizer-plugins.rb
+          git commit -m "recognizer-plugins $BUNDLE"
+          pushed=false
+          for attempt in 1 2 3; do
+            if git push; then
+              pushed=true
+              break
+            fi
+            git pull --rebase
+          done
+          if [ "$pushed" != "true" ]; then
+            echo "the tap push was refused three times" >&2
+            exit 1
+          fi

@@ -25,9 +25,6 @@ on:
       - schema/**
       - scripts/**
       - packaging/**
-      - scanners/**
-      - sensors/**
-      - describers/**
       - THIRD-PARTY-NOTICES.md
       - package.json
       - package-lock.json

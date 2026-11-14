@@ -45,7 +45,9 @@ describe("closureFromLock", () => {
       readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"),
     );
 
-    expect([...closureFromLock(real)]).toEqual([
+    expect([
+      ...closureFromLock(real, ["check", "scanners/typescript"]),
+    ]).toEqual([
       ["node_modules/ajv", "8.20.0"],
       ["node_modules/fast-deep-equal", "3.1.3"],
       ["node_modules/fast-uri", "3.1.8"],
@@ -56,6 +58,28 @@ describe("closureFromLock", () => {
       ["node_modules/web-tree-sitter", "0.25.10"],
       ["node_modules/yaml", "2.9.1"],
     ]);
+  });
+});
+
+describe("closureFromLock per unit", () => {
+  const real = JSON.parse(
+    readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"),
+  );
+
+  it("holds the CLI's eight packages by default, without typescript", () => {
+    const names = [...closureFromLock(real).keys()];
+
+    expect(names).toHaveLength(8);
+    expect(names).not.toContain("node_modules/typescript");
+  });
+
+  it("holds only typescript for the typescript scanner and nothing for the describer", () => {
+    expect([...closureFromLock(real, ["scanners/typescript"]).keys()]).toEqual([
+      "node_modules/typescript",
+    ]);
+    expect([...closureFromLock(real, ["describers/claude"]).keys()]).toEqual(
+      [],
+    );
   });
 });
 

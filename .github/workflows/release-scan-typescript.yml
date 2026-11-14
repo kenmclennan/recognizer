@@ -1,0 +1,30 @@
+name: release-scan-typescript
+
+on:
+  workflow_run:
+    workflows: [scanner-typescript]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Release even when the unit has not changed
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-scan-typescript
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    uses: ./.github/workflows/release-plugin.yml
+    with:
+      unit: scan-typescript
+      force: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+    secrets: inherit
