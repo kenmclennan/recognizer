@@ -4,6 +4,7 @@ import type { Io } from "./cli.js";
 import { COMMANDS, type Command } from "./commands.js";
 import { configKeysHelp } from "./config-command.js";
 import { InputError } from "./errors.js";
+import { pluginGuide } from "./plugin-guide.js";
 import { policyKeysHelp } from "./policy-command.js";
 import { guideText, sensorsToCheck } from "./sensors-check.js";
 
@@ -21,6 +22,7 @@ export function shortHelp(commands: Command[] = COMMANDS): string {
     "run `recognizer help <command>` or `recognizer <command> --help` for a command in full",
     "run `recognizer --version` for the version",
     "run `recognizer help agents` for the guide an agent follows",
+    "run `recognizer help plugin-guide` for the guide a plugin author follows",
     "",
   ].join("\n");
 }
@@ -104,6 +106,19 @@ export function runHelp(argv: string[], io: Io): number {
 
   if (name === "agents" && rest.length === 0) {
     io.stdout(agentGuide());
+
+    return 0;
+  }
+
+  if (name === "plugin-guide") {
+    if (rest.length > 0) {
+      throw new InputError([
+        `no such command: ${argv.join(" ")}`,
+        "usage: recognizer help plugin-guide",
+      ]);
+    }
+
+    io.stdout(pluginGuide());
 
     return 0;
   }
