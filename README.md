@@ -14,10 +14,12 @@ It has four parts, installed together:
 Recognizer runs on macOS on Apple silicon and installs from the Homebrew tap:
 
 ```sh
+brew tap kenmclennan/tap
+brew trust kenmclennan/tap
 brew install --cask kenmclennan/tap/recognizer
 ```
 
-The cask installs the app and the `recognizer` command. It depends on the `recognizer-plugins` bundle formula, which brings every official plugin: the five `recognizer-scan-<language>` scanners, the three sensors (`recognizer-sense-crap`, `recognizer-sense-mutation` and `recognizer-sense-thresholds`) and `recognizer-describe-claude`. The plugins run on Homebrew's `node` and `python@3.13`, which Homebrew installs as dependencies. Check the install with `recognizer --version` and `recognizer plugins`.
+Homebrew 7 refuses formulae from a tap it does not trust, so the second command is needed: the cask depends on formulae in the same tap. The cask installs the app and the `recognizer` command. It depends on the `recognizer-plugins` bundle formula, which brings every official plugin: the five `recognizer-scan-<language>` scanners, the three sensors (`recognizer-sense-crap`, `recognizer-sense-mutation` and `recognizer-sense-thresholds`) and `recognizer-describe-claude`. The plugins run on Homebrew's `node` and `python@3.13`, which Homebrew installs as dependencies. Check the install with `recognizer --version` and `recognizer plugins`.
 
 Writing module responsibilities (`recognizer describe`) uses the [Claude Code](https://claude.com/claude-code) `claude` command, which you install and sign in to separately. Everything else works without it.
 
@@ -50,12 +52,14 @@ A scan that needs a removed plugin reports it missing and prints its install lin
 A machine that installed the retired `recognizer` formula moves to the cask once with:
 
 ```sh
+brew tap kenmclennan/tap && brew trust kenmclennan/tap
 brew update && brew uninstall --ignore-dependencies --formula recognizer && brew upgrade --cask recognizer
 ```
 
 A machine that holds the earlier cask, which carried every command itself, removes it and installs the new one once:
 
 ```sh
+brew tap kenmclennan/tap && brew trust kenmclennan/tap
 brew update && brew uninstall --cask recognizer && brew install --cask recognizer
 ```
 
