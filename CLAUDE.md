@@ -77,6 +77,8 @@ One repository, a directory per part:
 
 A fresh worktree has no `node_modules`. Run `npm ci` at the repository root before typecheck, tests or any `npm run` script; it covers every workspace. `npm run check` and `npm run check:app` start with `scripts/require-install.mjs`, which exits 1 with "run npm ci at the repository root" when `node_modules` is missing, stale or lacks a workspace. Run app tools and the `describers/claude` tests through their npm scripts, whose `pre*` hooks rebuild `check/dist`; a direct `tsc` or `vitest` call, and any test that spawns `check/dist/bin.js`, needs `npm run build -w recognizer` first.
 
+On a Mac with Recognizer installed, the Homebrew `recognizer-scan-*`, `recognizer-sense-*` and `recognizer-describe-*` commands on `PATH` stand in for the worktree's own plugins, so a test can pass locally that fails on the hosted runners, which have none. To reproduce a hosted job, run it with a `PATH` that holds no installed Recognizer command.
+
 The look tests need Playwright's WebKit (`npx -w @recognizer/app playwright install webkit`, as CI runs it) and skip without it.
 
 ## Stack-specific gate and review risks
