@@ -485,6 +485,21 @@ describe("scanPanel row states", () => {
       expect(row?.text.text).toBe("running");
     });
 
+    it("applies stepless counts to the only suite on the sensor and suite rows", () => {
+      const row = rowOf(
+        running({
+          name: "mutation",
+          phase: "sense",
+          progress: { done: 1971, total: 3528, unit: "functions" },
+        }),
+        "mutation",
+      );
+
+      expect(row?.text.text).toBe("unit 1971/3528");
+      expect(row?.fold?.suites[0]?.state.kind).toBe("running");
+      expect(row?.fold?.suites[0]?.state.text).toBe("1971/3528");
+    });
+
     it("shows done of total once counts arrive", () => {
       const row = rowOf(
         running({

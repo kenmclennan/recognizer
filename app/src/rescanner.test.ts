@@ -1687,6 +1687,25 @@ describe("the preflight flow", () => {
     expect(made.rescanner.runView().record?.run_id).toBe("new");
   });
 
+  it("keeps the frozen figures of the planned run when its record arrives", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [preflightOk, extract, current, summary],
+    });
+    const made = harness(scan);
+    const seen: (Record<string, number> | null)[] = [];
+
+    scan.onStep = () =>
+      seen.push(made.rescanner.runView().progress.timing.frozen);
+    await made.rescanner.run([], {
+      ...OPEN_RUN,
+      idle: false,
+      frozen: { structure: 6000, mut: 160000 },
+    });
+
+    expect(seen[2]).toEqual({ structure: 6000, mut: 160000 });
+  });
+
   it("shows the gaps of the refused run, with no blocked message", async () => {
     const { rescanner, log, scan } = await refused({
       hasExplorer: () => true,
