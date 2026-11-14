@@ -753,6 +753,7 @@ describe.skipIf(webkit === undefined)(
         "Notes",
         "Scan",
         "Findings",
+        "Setup",
         "Settings",
       ]);
       expect(f.mounted).toEqual({ history: 0, branches: 0, pullRequests: 0 });

@@ -10,6 +10,7 @@ import { button, el } from "./dom";
 import type { SensorInputs, ShippedSensors } from "./sensor-run";
 import {
   checkDescribing,
+  checkSetup,
   createRepositoryModel,
   type FieldSpec,
   fieldKeys,
@@ -40,18 +41,20 @@ export type SettingsModal = {
   close(): void;
 };
 
-type PaneId = "editor" | "describing" | SectionId;
+type PaneId = "editor" | "describing" | "setup" | SectionId;
 
 type AppValues = {
   editor: string;
   model: string;
   batchSize: string;
   confirmAbove: string;
+  setupModel: string;
 };
 
 const APP_ENTRIES: { id: PaneId; name: string }[] = [
   { id: "editor", name: "Editor" },
   { id: "describing", name: "Describing" },
+  { id: "setup", name: "Setup" },
 ];
 
 export const EDITOR_INFO =
@@ -59,6 +62,9 @@ export const EDITOR_INFO =
 
 export const MODEL_INFO =
   "The model every description uses, for scans started from the app and from a terminal.";
+
+export const SETUP_INFO =
+  "The model Check with Claude runs in the Setup modal. Applying the changes it proposes runs no model.";
 
 export const CONFIRM_INFO =
   "A scan asks before describing when its estimated cost, at API prices, is above this.";
@@ -69,6 +75,7 @@ function appValuesOf(settings: Settings): AppValues {
     model: settings.describing.model,
     batchSize: String(settings.describing.batchSize),
     confirmAbove: settings.describing.confirmAboveUsd.toFixed(2),
+    setupModel: settings.setup.model,
   };
 }
 
@@ -123,6 +130,7 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
   let loaded: AppValues = appValuesOf({
     editor: "",
     describing: { model: "", batchSize: 1, confirmAboveUsd: 0 },
+    setup: { model: "" },
   });
   let app = { ...loaded };
   let published: PublishedKeys = publish([CORE_KEYS], "config");
@@ -134,6 +142,7 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
   let busy = false;
   let notice: string | null = null;
   let appError: string | null = null;
+  let setupError: string | null = null;
   let closed = false;
 
   modal.setAttribute("role", "dialog");
@@ -157,10 +166,13 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
     app.editor !== loaded.editor ||
     app.model !== loaded.model ||
     app.batchSize !== loaded.batchSize ||
-    app.confirmAbove !== loaded.confirmAbove;
+    app.confirmAbove !== loaded.confirmAbove ||
+    app.setupModel !== loaded.setupModel;
 
   const checked = () =>
     checkDescribing(app.model, app.batchSize, app.confirmAbove);
+
+  const setupChecked = () => checkSetup(app.setupModel);
 
   function renderNav(): void {
     nav.replaceChildren();
@@ -203,7 +215,9 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
   }
 
   function renderFooter(): void {
-    const refused = model.hasErrors() || (appError !== null && appChanged());
+    const refused =
+      model.hasErrors() ||
+      ((appError !== null || setupError !== null) && appChanged());
     const edits = model.edits().length;
 
     save.disabled = busy || refused || (!appChanged() && edits === 0);
@@ -234,6 +248,36 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
     }
 
     return [head, el("div", "sm-where", where)];
+  }
+
+  function setupPane(): void {
+    const where = "Stored for this Mac; applies to every repository.";
+    const card = el("div", "sm-card");
+    const setupModel = input("", app.setupModel, "setup_model", "sonnet");
+
+    setupModel.addEventListener("input", () => {
+      app.setupModel = setupModel.value;
+
+      const result = setupChecked();
+
+      setupError = result.ok ? null : result.error;
+      renderFooter();
+
+      const alert = pane.querySelector("#sm-setup-error");
+
+      if (alert !== null) {
+        alert.textContent = setupError ?? "";
+      }
+    });
+    card.append(row("Model", [setupModel], null, null));
+    card.setAttribute("title", SETUP_INFO);
+
+    const alert = el("p", "sm-error");
+
+    alert.id = "sm-setup-error";
+    alert.setAttribute("role", "alert");
+    alert.textContent = setupError ?? "";
+    pane.append(...title("Setup", where, null), card, alert);
   }
 
   function appPane(id: "editor" | "describing"): void {
@@ -627,7 +671,9 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
     pane.replaceChildren();
     renderNav();
 
-    if (current === "editor" || current === "describing") {
+    if (current === "setup") {
+      setupPane();
+    } else if (current === "editor" || current === "describing") {
       appPane(current);
     } else {
       repositoryPane(current);
@@ -656,10 +702,19 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
     }
 
     const result = checked();
+    const setup = setupChecked();
 
     if (!result.ok) {
       appError = result.error;
       current = "describing";
+      renderAll();
+
+      return;
+    }
+
+    if (!setup.ok) {
+      setupError = setup.error;
+      current = "setup";
       renderAll();
 
       return;
@@ -674,6 +729,7 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
         await deps.port.writeSettings({
           editor: app.editor,
           describing: result.value,
+          setup: setup.value,
         });
       }
 

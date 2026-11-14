@@ -680,6 +680,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       "rail-notes",
       "rail-scan",
       "rail-findings",
+      "rail-setup",
       "rail-settings",
     ]);
     expect(f.fresh.panelOpen).toBe(true);

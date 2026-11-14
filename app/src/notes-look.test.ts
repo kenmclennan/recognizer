@@ -532,6 +532,7 @@ describe.skipIf(webkit === undefined)("notes in the explorer", () => {
         "rail-notes",
         "rail-scan",
         "rail-findings",
+        "rail-setup",
         "rail-settings",
       ],
       count: "3",

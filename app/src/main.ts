@@ -24,6 +24,10 @@ import { withSensors } from "./sensor-run";
 import { sensorsSource } from "./sensors-source";
 import { settingsModalSource } from "./settings-modal-source";
 import { openSettingsModal, type SettingsModal } from "./settings-modal-view";
+import { openSetupModal, type SetupModal } from "./setup-modal-view";
+import { doctorProblems } from "./setup-model";
+import type { DoctorRead } from "./setup-port";
+import { setupSource } from "./setup-source";
 import { spinner } from "./spinner-view";
 import { unregisteredNotices } from "./unregistered-notice";
 import { createViewComparisons } from "./view-comparisons";
@@ -56,6 +60,43 @@ function openSettings(): void {
     repository: repositoryOpen,
     onClose: () => {
       settingsModal = null;
+    },
+  });
+}
+
+let setupModal: SetupModal | null = null;
+let setupProblems: number | null = null;
+
+function noteDoctor(read: DoctorRead): void {
+  setupProblems = doctorProblems(read);
+  explorer?.setSetupProblems(setupProblems);
+}
+
+function refreshDoctor(): void {
+  if (!repositoryOpen) {
+    return;
+  }
+
+  void setupSource
+    .readDoctor()
+    .then(noteDoctor)
+    .catch((error: unknown) =>
+      noteDoctor({ status: "unavailable", reason: String(error) }),
+    );
+}
+
+function openSetup(): void {
+  if (setupModal !== null || !repositoryOpen) {
+    return;
+  }
+
+  setupModal = openSetupModal({
+    port: setupSource,
+    readModel: async () =>
+      (await settingsModalSource.readSettings()).setup.model,
+    onDoctor: noteDoctor,
+    onClose: () => {
+      setupModal = null;
     },
   });
 }
@@ -135,6 +176,7 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
     comparisons,
     commitsSource,
     openSettings,
+    openSetup,
   );
 }
 
@@ -170,6 +212,7 @@ const rescanner = createRescanner<Carried>({
   replace: (loaded, carried) => {
     explorer?.dispose();
     explorer = buildExplorer(loaded, carried);
+    explorer.setSetupProblems(setupProblems);
   },
   update: (loaded) => {
     if (explorer === null) {
@@ -195,6 +238,7 @@ const rescanner = createRescanner<Carried>({
   settled: () => {
     releaseFirstScan();
     releaseFirstScan = () => {};
+    refreshDoctor();
   },
   hasExplorer: () => explorer !== null,
   blocked: (text) => {
@@ -229,6 +273,7 @@ async function start(): Promise<void> {
   explorer = null;
   current = null;
   runningLine = null;
+  setupProblems = null;
   setScanState(null);
   footerView.setCount("");
 
@@ -290,7 +335,10 @@ void getCurrentWebviewWindow().listen("view-link", () =>
   explorer?.openLinkedView(),
 );
 
-sensorsSource.onInputsChanged(() => void rescanner.refresh());
+sensorsSource.onInputsChanged(() => {
+  void rescanner.refresh();
+  refreshDoctor();
+});
 
 void repositorySource.onRescan(() => void rescanner.run());
 

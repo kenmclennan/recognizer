@@ -28,6 +28,7 @@ export type FakeSettingsModal = SettingsModalPort & {
 export const DEFAULT_SETTINGS: Settings = {
   editor: "",
   describing: { model: "haiku", batchSize: 4, confirmAboveUsd: 5 },
+  setup: { model: "sonnet" },
 };
 
 export function fakeSettingsModal(

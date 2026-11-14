@@ -57,7 +57,9 @@ export {
   shippedSensorSettings,
   type TestSuite,
 } from "./config-parse.js";
+export { PRICES_PER_MILLION, priceFor } from "./describe-projection.js";
 export { describerVersion } from "./describer-version.js";
+export type { DoctorReport, SetupProblem } from "./doctor.js";
 export {
   carryDuplication,
   duplicationUnmeasured,
@@ -231,12 +233,23 @@ export {
   parseScanArgs,
   parseSuiteSelection,
 } from "./scan-phases.js";
+export {
+  commandRefusal,
+  type DroppedChange,
+  type ParsedProposal,
+  parseProposal,
+  quoteCommand,
+  SETUP_SCHEMA,
+  type SetupChange,
+  type SetupSection,
+} from "./setup-proposal.js";
 export { SHIPPED_DESCRIBER_COMMAND } from "./shipped-describer.js";
 export {
   readShippedSensors,
   type ShippedSensorEntry,
   shippedSensorNames,
 } from "./shipped-sensors.js";
+export { SETUP_SKILL } from "./skills.js";
 export {
   measuredInputs,
   measuredModules,

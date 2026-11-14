@@ -14,6 +14,10 @@ Run these from the repository root after `npm ci`.
 
 Settings is a modal over the repository window, opened from the gear at the bottom of the rail, Recognizer > Settings... and Cmd+, (a window with no repository shows only the App group). The App group (Editor and Describing) is stored per Mac in `config.json` in the app's config folder, `~/Library/Application Support/com.kenmclennan.recognizer`. The Repository group edits the open repository's `.recognizer/config.yaml`: `write_repository_config` copies the file into a temp folder, runs `recognizer config` once per staged edit there, and replaces the real file only when every edit was accepted, refusing the write when the file changed since the modal read it. A Reset removes the key so the published default applies. The modal never scans.
 
+## Setup
+
+Setup is a modal opened from the wrench at the bottom of the rail, above Settings, with an amber count of the problems `recognizer doctor` reports. Opening it runs only doctor. Check with Claude (`run_setup_check`) is the one costly action: it runs `claude -p` in the window's folder with a fixed read-only allowlist, the setup skill text from the library and `SETUP_SCHEMA`, using the Setup pane's model in Settings (seeded `sonnet`). Apply (`apply_setup`) runs exactly the ticked commands through the recognizer command, with Rust re-checking each against the shared grammar in `fixtures/setup/commands.json` and inserting `--repository` itself, stops at the first failure and then runs doctor. Stop (`stop_setup`) and closing the window kill the live process group.
+
 ## Releases
 
 Every push to `main` whose `app` workflow passes starts `release.yml`, on the self-hosted runner. The `app` workflow's push paths hold `app/`, `check/`, `schema/`, `scripts/`, `packaging/` and the root manifests, but no plugin folder, so a plugin-only change makes no cask release. A merge that touches none of those paths runs no `app` workflow, and a commit already tagged is skipped.

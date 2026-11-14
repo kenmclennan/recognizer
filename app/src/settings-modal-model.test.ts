@@ -5,6 +5,7 @@ import { CORE_KEYS, parseKeySchema, publish } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
   checkDescribing,
+  checkSetup,
   createRepositoryModel,
   repositorySections,
   sectionSpecs,
@@ -340,5 +341,25 @@ describe("the repository model", () => {
     ]);
     expect(one.addSuite("unit")).toContain("exists");
     expect(one.addSuite("a b")).toContain("letters");
+  });
+});
+
+describe("checkSetup", () => {
+  it("trims a model and refuses the same names Describing's model refuses", () => {
+    expect(checkSetup(" sonnet ")).toEqual({
+      ok: true,
+      value: { model: "sonnet" },
+    });
+
+    for (const bad of ["", "-x", "a b"]) {
+      const setup = checkSetup(bad);
+      const describing = checkDescribing(bad, "4", "5");
+
+      expect(setup.ok).toBe(false);
+      expect(describing.ok).toBe(false);
+      expect(
+        !setup.ok && !describing.ok && setup.error === describing.error,
+      ).toBe(true);
+    }
   });
 });

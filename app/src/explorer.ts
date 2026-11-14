@@ -331,6 +331,7 @@ export type Explorer = {
   openLinkedView: () => void;
   refreshResponsibilities: () => void;
   refreshPanel: () => void;
+  setSetupProblems: (problems: number | null) => void;
   show: (target: ShowTarget) => void;
   dispose: () => void;
 };
@@ -402,6 +403,7 @@ export function showExplorer(
   comparisons: ViewComparisons = createViewComparisons(),
   commits: CommitsPort = inertCommits,
   openSettings: () => void = () => {},
+  openSetup: () => void = () => {},
 ): Explorer {
   let loaded = initial;
   let health = computeHealth(loaded);
@@ -409,6 +411,7 @@ export function showExplorer(
   const compaction = compactFolders(loaded.modules);
   const root = buildTree(loaded.modules, compaction);
   let described = describeTree(root, health);
+  let setupProblems: number | null = null;
   const modules = createOpenModules(loaded.modules);
   const state = createCanvasState(modules);
   const measure = createMeasure();
@@ -1089,6 +1092,7 @@ export function showExplorer(
     toggleScan: toggleScanPanel,
     toggleFindings: toggleFindingsPanel,
     toggleCommits: toggleCommitsPanel,
+    openSetup,
     openSettings,
   });
   const commitsView = buildCommitsPanelView({
@@ -4648,6 +4652,7 @@ export function showExplorer(
       notes: noteTotal,
       scanFailed: scanModelNow.mark,
       findings: badge(allFindings),
+      setup: { problems: setupProblems },
     });
     renderTree(filtered, selection);
     body.classList.toggle("inspector-open", inspectorOpen);
@@ -4751,6 +4756,7 @@ export function showExplorer(
       notes: noteTotalOf(openViewValue()),
       scanFailed: scanModelNow.mark,
       findings: badge(allFindings),
+      setup: { problems: setupProblems },
     });
 
     if (changed.overlays) {
@@ -4789,6 +4795,7 @@ export function showExplorer(
       notes: noteTotalOf(openViewValue()),
       scanFailed: scanModelNow.mark,
       findings: badge(allFindings),
+      setup: { problems: setupProblems },
     });
     renderTree(filterTree(root, filter, context), state.selection());
     renderCanvas();
@@ -4910,6 +4917,10 @@ export function showExplorer(
     openLinkedView: () => void openLinkedView(),
     refreshResponsibilities: () => void readResponsibilities(),
     refreshPanel: () => renderProgress(),
+    setSetupProblems(problems) {
+      setupProblems = problems;
+      renderProgress();
+    },
     show: showTarget,
     carry: () => ({
       history,

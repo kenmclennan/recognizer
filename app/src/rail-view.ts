@@ -18,6 +18,7 @@ export type RailActions = {
   toggleScan: () => void;
   toggleFindings: () => void;
   toggleCommits: () => void;
+  openSetup: () => void;
   openSettings: () => void;
 };
 
@@ -26,12 +27,21 @@ export type RailState = {
   notes: number;
   scanFailed: boolean;
   findings: { count: number; tone: BadgeTone };
+  setup: { problems: number | null };
 };
 
 export type RailView = {
   element: HTMLElement;
   render: (state: RailState) => void;
 };
+
+export function setupLabel(problems: number | null): string {
+  if (problems === null || problems === 0) {
+    return "Setup";
+  }
+
+  return problems === 1 ? "Setup: 1 problem" : `Setup: ${problems} problems`;
+}
 
 export function buildRailView(actions: RailActions): RailView {
   const element = el("nav", "rail");
@@ -61,6 +71,7 @@ export function buildRailView(actions: RailActions): RailView {
     "rail-commits",
     actions.toggleCommits,
   );
+  const setup = iconButton("wrench", "Setup", "rail-setup", actions.openSetup);
   const settings = iconButton(
     "settings",
     "Settings",
@@ -71,11 +82,13 @@ export function buildRailView(actions: RailActions): RailView {
   const count = el("span", "rail-count");
   const dot = el("span", "rail-dot");
   const found = el("span", "rail-count");
+  const flagged = el("span", "rail-count amber");
 
   element.setAttribute("aria-label", "Panels");
   notes.append(count);
   scan.append(dot);
   findings.append(found);
+  setup.append(flagged);
   element.append(
     files,
     commits,
@@ -84,17 +97,27 @@ export function buildRailView(actions: RailActions): RailView {
     scan,
     findings,
     spacer,
+    setup,
     settings,
   );
 
-  for (const one of [files, views, notes, scan, findings, commits, settings]) {
+  for (const one of [
+    files,
+    views,
+    notes,
+    scan,
+    findings,
+    commits,
+    setup,
+    settings,
+  ]) {
     one.setAttribute("data-label", one.getAttribute("aria-label") ?? "");
     one.removeAttribute("title");
   }
 
   return {
     element,
-    render({ panel, notes: total, scanFailed, findings: badge }) {
+    render({ panel, notes: total, scanFailed, findings: badge, setup: ready }) {
       files.classList.toggle("open", panel === "files");
       files.setAttribute("aria-pressed", String(panel === "files"));
       views.classList.toggle("open", panel === "views");
@@ -114,6 +137,12 @@ export function buildRailView(actions: RailActions): RailView {
         `rail-count ${badge.tone === "none" ? "" : badge.tone}`.trim();
       found.textContent = badge.count > 0 ? String(badge.count) : "";
       found.hidden = badge.tone === "none";
+
+      const problems = ready.problems ?? 0;
+
+      flagged.textContent = problems > 0 ? String(problems) : "";
+      flagged.hidden = problems === 0;
+      setup.setAttribute("data-label", setupLabel(ready.problems));
     },
   };
 }
