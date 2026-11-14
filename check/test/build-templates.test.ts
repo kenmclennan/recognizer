@@ -24,15 +24,15 @@ describe("build-templates", () => {
     ]);
   });
 
-  it("holds 3 trees and 6 files for the committed templates", () => {
+  it("holds 5 trees and 14 files for the committed templates", () => {
     const bundle = bundleTemplates(join(REPO, "check/templates"));
     const keys = Object.keys(bundle);
     const trees = new Set(
       keys.map((key) => key.split("/").slice(0, 2).join("/")),
     );
 
-    expect(trees.size).toBe(3);
-    expect(keys).toHaveLength(6);
+    expect(trees.size).toBe(5);
+    expect(keys).toHaveLength(14);
     expect(keys).toContain("python/describer/{{program}}");
   });
 
