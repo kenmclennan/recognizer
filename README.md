@@ -178,6 +178,7 @@ What a repository can add today:
 ## Docs
 
 - [check/README.md](check/README.md): every command, the policy, config and findings formats, exit codes.
+- [docs/use-cases.md](docs/use-cases.md): what Recognizer is for, and the five use cases every feature serves.
 - [docs/design.md](docs/design.md): what is decided and what is still open; [docs/glossary.md](docs/glossary.md) names the terms.
 - [docs/plugins.md](docs/plugins.md): the plugin design being built.
 - [app/README.md](app/README.md): building the app and how releases are cut.
