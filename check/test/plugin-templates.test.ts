@@ -248,3 +248,42 @@ describe("scanner templates", () => {
     );
   }
 });
+
+describe("sensor templates", () => {
+  for (const language of LANGUAGES.filter((l) => HAVE(l, "sensor"))) {
+    it.skipIf(!REQUIRED && !TOOLCHAIN[language])(
+      `${language} sensor writes valid findings for the commit`,
+      () => {
+        guardToolchain(language);
+
+        const { command } = prepare(language, "sensor");
+        const repository = gitRepository({ "a.txt": "x\n" });
+        const output = join(makeTempDir("plugin-sense-"), "findings.json");
+        const done = spawnSync(
+          command,
+          [
+            "run",
+            "--repository",
+            repository,
+            "--commit",
+            "abc123",
+            "--output",
+            output,
+          ],
+          { encoding: "utf8" },
+        );
+
+        expect(done.status, done.stderr).toBe(0);
+
+        const document = validateFindings(
+          JSON.parse(readFileSync(output, "utf8")),
+          { name: "demo", commit: "abc123" },
+        );
+
+        expect(document.findings).toEqual([]);
+        expect(document.commit).toBe("abc123");
+      },
+      TIMEOUT,
+    );
+  }
+});
