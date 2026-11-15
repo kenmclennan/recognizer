@@ -451,7 +451,7 @@ describe.skipIf(webkit === undefined)("notes in the explorer", () => {
     expect(f.cancelEmpty).toEqual({ bubbles: 0, notes: 3 });
     expect(f.emptyBox).toEqual({
       focused: true,
-      barLit: false,
+      barLit: true,
       saveDisabled: true,
     });
     expect(f.emptyCancel).toEqual({ bubbles: 0, notes: 3 });

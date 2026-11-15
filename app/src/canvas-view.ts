@@ -1,5 +1,6 @@
 import type { Mark } from "recognizer";
 import { createBarHover, type Scheduler, timerScheduler } from "./bar-hover";
+import { pressKey } from "./bar-toggle";
 import {
   BOX_DESCRIPTION_WIDTH,
   createDescriptionHover,
@@ -53,7 +54,11 @@ import {
 import { bubblePlace, bubbleSize } from "./note-focus";
 import { type PlanOverlay, proposedClass } from "./plan-overlay";
 import type { RemovedBox } from "./removed-boxes";
-import { type BarModel, buildSelectionBar } from "./selection-bar-view";
+import {
+  type BarActions,
+  type BarModel,
+  buildSelectionBar,
+} from "./selection-bar-view";
 import { spinner } from "./spinner-view";
 import {
   type Heading,
@@ -132,6 +137,8 @@ export type CanvasActions = {
   openInEditor: () => void;
   addNote: () => void;
   openNote: (path: string) => void;
+  closeInspector: () => void;
+  closeNote: () => void;
   editNote: (path: string) => void;
   cancelNote: (path: string) => void;
   saveNote: (path: string, text: string) => void;
@@ -303,7 +310,7 @@ export function buildCanvasView(
   loading.append(spinner("Loading"), loadingText);
   const legend = buildLegendView((show) => actions.setShowInferred(show));
   const metricsView = buildMetricsView((key) => actions.toggleMetric(key));
-  const selectionBar = buildSelectionBar({
+  const barPanelActions: BarActions = {
     openTab: (tab) => actions.openTab(tab),
     toggleFocus: () => actions.toggleFocus(),
     toggleFold: () => actions.toggleFold(),
@@ -311,7 +318,10 @@ export function buildCanvasView(
     openInEditor: () => actions.openInEditor(),
     takeOff: () => actions.takeOff(),
     openNote: () => actions.addNote(),
-  });
+    closeInspector: () => actions.closeInspector(),
+    closeNote: () => actions.closeNote(),
+  };
+  const selectionBar = buildSelectionBar(barPanelActions);
 
   const hover = createBarHover(scheduler, (visible) =>
     selectionBar.element.classList.toggle("away", !visible),
@@ -1577,6 +1587,10 @@ export function buildCanvasView(
   });
 
   function perform(action: KeyAction) {
+    if (pressKey(action, props?.bar ?? null, barPanelActions)) {
+      return;
+    }
+
     if (action === "escape") {
       if (legendOpen || metricsOpen) {
         legendOpen = false;
@@ -1587,10 +1601,6 @@ export function buildCanvasView(
       }
     } else if (action === "dependencies") {
       actions.openTab("dependencies");
-    } else if (action === "findings") {
-      if (props?.bar?.findings) {
-        actions.openTab("findings");
-      }
     } else if (action === "contents") {
       actions.openContents();
     } else if (action === "focus") {
