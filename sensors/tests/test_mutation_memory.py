@@ -1,9 +1,10 @@
+import json
 import shlex
 import sys
 from pathlib import Path
 
 import pytest
-from conftest import mutate_repository, mutate_settings
+from conftest import command_suite, mutate_repository, mutate_settings
 from test_mutation import run_mutate
 
 from recognizer_sensors.mutation import memory, sensor
@@ -22,11 +23,15 @@ BINDING = (
     ("cpus", "available", "peak", "expected"),
     [
         (8, 8 * GB, 2 * GB, 4),
+        (8, 64 * GB, 2 * GB, 4),
         (8, 4 * GB, 2 * GB, 2),
         (8, 4 * GB - 1, 2 * GB, 1),
         (8, 1 * GB, 2 * GB, 1),
-        (2, 64 * GB, 2 * GB, 2),
-        (8, 8 * GB, 0, 8),
+        (8, 4 * GB, 1 * GB, 4),
+        (8, 4 * GB - 1, 1 * GB, 3),
+        (2, 64 * GB, 2 * GB, 1),
+        (1, 64 * GB, 2 * GB, 1),
+        (8, 8 * GB, 0, 4),
         (8, None, 2 * GB, 1),
     ],
 )
@@ -111,7 +116,12 @@ def test_the_sampler_reports_zero_when_nothing_runs():
 
 
 class FakeSampler:
-    peak_bytes = 1 * GB
+    peaks: list[int] = []
+    created = 0
+
+    def __init__(self):
+        type(self).created += 1
+        self.peak_bytes = type(self).peaks.pop(0) if type(self).peaks else 1 * GB
 
     def __enter__(self):
         return self
@@ -120,8 +130,10 @@ class FakeSampler:
         return None
 
 
-def sized_run(tmp_path, monkeypatch, capsys, available, cpus, **extra):
+def sized_run(tmp_path, monkeypatch, capsys, available, cpus, peaks=(), **extra):
     root, _ = mutate_repository(tmp_path)
+    FakeSampler.peaks = list(peaks)
+    FakeSampler.created = 0
     seen = []
     real = sensor.run_functions
 
@@ -146,7 +158,7 @@ def test_the_default_is_sized_from_memory(tmp_path, monkeypatch, capsys):
     seen, err = sized_run(tmp_path, monkeypatch, capsys, lambda: 3 * GB, 8)
 
     assert seen == [3]
-    assert "workers: 3 (cores 8, available 3000 MB, one run 1000 MB)" in err
+    assert "workers: 3 (cores 8, half 4, available 3000 MB, one run 1000 MB)" in err
 
 
 def test_an_explicit_value_reads_no_memory(tmp_path, monkeypatch, capsys):
@@ -167,9 +179,10 @@ def test_unreadable_memory_gives_one_worker(tmp_path, monkeypatch, capsys):
 
 
 def test_the_cores_bind_when_memory_is_plentiful(tmp_path, monkeypatch, capsys):
-    seen, _ = sized_run(tmp_path, monkeypatch, capsys, lambda: 16 * GB, 2)
+    seen, err = sized_run(tmp_path, monkeypatch, capsys, lambda: 16 * GB, 8)
 
-    assert seen == [2]
+    assert seen == [4]
+    assert "workers: 4 (cores 8, half 4, available 16000 MB, one run 1000 MB)" in err
 
 
 def kotlin_suite(env=None):
@@ -199,3 +212,154 @@ def test_another_language_gets_no_gradle_options(tmp_path, monkeypatch):
     result = run_test_command("echo OPTS=$GRADLE_OPTS", tmp_path, 30, suite)
 
     assert "OPTS=" in result.output.splitlines()
+
+
+def stub_probe(monkeypatch):
+    def found(queue, by_name, suite_size):
+        return next(iter(by_name.values())), [sys.executable, "-c", "pass"]
+
+    monkeypatch.setattr(sensor, "probe_command", found)
+
+
+def test_the_pool_is_sized_from_the_serial_probe(tmp_path, monkeypatch, capsys):
+    stub_probe(monkeypatch)
+
+    seen, err = sized_run(
+        tmp_path, monkeypatch, capsys, lambda: 3 * GB, 8, peaks=(2 * GB, 100 * MB)
+    )
+
+    assert FakeSampler.created == 2
+    assert seen == [4]
+    assert "workers: 4 (cores 8, half 4, available 3000 MB, one run 100 MB)" in err
+
+
+def test_without_a_selected_command_the_coverage_peak_sizes_the_pool(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(sensor, "probe_command", lambda *args: None)
+
+    seen, err = sized_run(
+        tmp_path, monkeypatch, capsys, lambda: 3 * GB, 8, peaks=(1 * GB, 100 * MB)
+    )
+
+    assert FakeSampler.created == 1
+    assert seen == [3]
+    assert "one run 1000 MB" in err
+
+
+def test_an_explicit_max_workers_runs_no_probe(tmp_path, monkeypatch, capsys):
+    def refuse(*args):
+        raise AssertionError("the probe ran")
+
+    monkeypatch.setattr(sensor, "probe_peak", refuse)
+
+    seen, err = sized_run(tmp_path, monkeypatch, capsys, lambda: 3 * GB, 8, max_workers=2)
+
+    assert seen == [2]
+    assert "workers:" not in err
+
+
+COUNTER = """
+import os, sys, time
+folder, record = sys.argv[1], sys.argv[2]
+mark = os.path.join(folder, str(os.getpid()))
+open(mark, "w").close()
+now = len(os.listdir(folder))
+with open(record, "a") as stream:
+    stream.write(f"{now}\\n")
+time.sleep(0.4)
+os.remove(mark)
+"""
+
+
+def test_the_whole_suite_runs_of_a_sized_run_stay_within_the_coverage_count(
+    tmp_path, monkeypatch, capsys
+):
+    stub_probe(monkeypatch)
+    folder = tmp_path / "active"
+    folder.mkdir()
+    record = tmp_path / "record.txt"
+    script = tmp_path / "counter.py"
+    script.write_text(COUNTER)
+    root, _ = mutate_repository(tmp_path)
+    FakeSampler.peaks = [1500 * MB, 100 * MB]
+    seen = []
+    real = sensor.run_functions
+
+    def spy(items, run_item, workers, *rest):
+        seen.append(workers)
+
+        return real(items, run_item, workers, *rest)
+
+    monkeypatch.setattr(sensor, "available_bytes", lambda: 3 * GB)
+    monkeypatch.setattr(sensor, "PeakSampler", FakeSampler)
+    monkeypatch.setattr(sensor, "core_count", lambda: 8)
+    monkeypatch.setattr(sensor, "run_functions", spy)
+    suite = command_suite([sys.executable, str(script), str(folder), str(record)])
+    settings = json.dumps({"tests": [suite], "incremental": False})
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
+
+    counts = [int(line) for line in record.read_text().split()]
+
+    assert seen == [4]
+    assert len(counts) >= 3
+    assert max(counts) == 2
+
+
+def test_whole_suite_runs_are_limited_to_the_coverage_sized_count(monkeypatch):
+    import threading
+    import time
+
+    from recognizer_sensors.mutation import runner
+    from recognizer_sensors.mutation.runner import Mutant, MutantResult, run_function, run_functions
+
+    lock = threading.Lock()
+    state = {"now": 0, "most": 0, "runs": 0}
+
+    def stub(*args, **kwargs):
+        with lock:
+            state["now"] += 1
+            state["runs"] += 1
+            state["most"] = max(state["most"], state["now"])
+
+        time.sleep(0.1)
+
+        with lock:
+            state["now"] -= 1
+
+        return MutantResult("killed")
+
+    monkeypatch.setattr(runner, "run_mutant", stub)
+    suite = Suite("p", "python", ".", "true", None, {}, "c", "lcov", None)
+    mutant = Mutant("a.py", b"", 0, 0, b"")
+    gate = threading.Semaphore(2)
+
+    run_functions(
+        list(range(8)),
+        lambda item: run_function(
+            Path("."), Path("."), [mutant], lambda index: ("true", 1.0), suite, whole_slots=gate
+        ),
+        8,
+        None,
+        time.monotonic,
+    )
+
+    assert state["runs"] >= 4
+    assert state["most"] == 2
+
+
+def test_a_mutant_that_times_out_under_the_larger_pool_is_still_counted(
+    tmp_path, monkeypatch, capsys
+):
+    root, _ = mutate_repository(tmp_path)
+    monkeypatch.setattr(sensor, "available_bytes", lambda: 16 * GB)
+    monkeypatch.setattr(sensor, "core_count", lambda: 8)
+    monkeypatch.setattr(sensor, "PeakSampler", FakeSampler)
+    FakeSampler.peaks = []
+
+    code = run_mutate(root, tmp_path / "overlay.json", mutate_settings("tests/slow_on_mutant.py"))
+    survivors = json.loads((root / ".recognizer/cache/mutation/survivors.json").read_text())
+    grade = survivors["functions"]["app/rules.py::grade"]
+
+    assert code == 0
+    assert "workers: 4 (" in capsys.readouterr().err
+    assert grade["timeouts"] == [{"line": 2, "operator": ">=", "replacement": ">"}]

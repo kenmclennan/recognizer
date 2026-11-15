@@ -303,7 +303,7 @@ def test_the_schema_file_is_readable_from_a_path_outside_the_package():
 
 MUTATION_BLANK_TEXTS = {
     "sensors.mutation.max_minutes": "no time budget: the run continues until it finishes",
-    "sensors.mutation.max_workers": "sized from the machine's cores and free memory",
+    "sensors.mutation.max_workers": "half the machine's cores, fewer if free memory is short",
 }
 
 PUBLISHED_DEFAULTS = {

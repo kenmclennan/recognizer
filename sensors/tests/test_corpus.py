@@ -541,3 +541,33 @@ def test_the_suite_corpus_run_makes_fewer_mutant_copies_than_it_runs_mutants(mut
 
     assert 0 < POOLED_COPIES["suite"] <= 2
     assert POOLED_COPIES["suite"] < mutants_run(overlay)
+
+
+def sized_python_corpus_overlay(work, name, **settings):
+    root = copy_corpus("mutation", work / name, "scan.*.json")
+    commit = git_commit(root)
+    cache = root / ".recognizer" / "cache"
+    cache.mkdir(parents=True)
+    shutil.copy(
+        FIXTURES / "mutation" / "corpus" / "scan.python.json",
+        cache / "scan.python.json",
+    )
+    run_sensor(
+        "mutation",
+        root,
+        work / f"{name}.json",
+        {"tests": [MUTATION_SUITES["python"]], **settings},
+        commit=commit,
+    )
+
+    return read_overlay(root, "mutation")["values"]
+
+
+def test_the_python_mutation_corpus_overlay_is_the_same_sized_as_with_one_worker(work):
+    sized = sized_python_corpus_overlay(work, "mutation-sized")
+    single = sized_python_corpus_overlay(work, "mutation-single", max_workers=1)
+
+    assert sized["killed"]
+    assert {name: sized[name] for name in ("killed", "survived", "uncovered")} == {
+        name: single[name] for name in ("killed", "survived", "uncovered")
+    }

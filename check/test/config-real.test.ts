@@ -63,7 +63,7 @@ describe("the pinned sensors key schema", () => {
       "no time budget: the run continues until it finishes",
     );
     expect(keys.get("sensors.mutation.max_workers")?.default_text).toBe(
-      "sized from the machine's cores and free memory",
+      "half the machine's cores, fewer if free memory is short",
     );
 
     const defaulted = [...keys.values()].filter(

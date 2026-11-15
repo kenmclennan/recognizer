@@ -105,7 +105,9 @@ def default_workers(cpus: int, available: int | None, peak: int) -> int:
     if available is None:
         return 1
 
-    if peak <= 0:
-        return max(1, cpus)
+    half = max(1, cpus // 2)
 
-    return max(1, min(cpus, available // peak))
+    if peak <= 0:
+        return half
+
+    return max(1, min(half, available // peak))

@@ -268,7 +268,7 @@ MUTATION_LINES = (
     "",
     "What a blank Mutation setting means:",
     "  max_minutes  no time budget: the run continues until it finishes",
-    "  max_workers  sized from the machine's cores and free memory",
+    "  max_workers  half the machine's cores, fewer if free memory is short",
 )
 
 
