@@ -565,7 +565,8 @@ export const COMMANDS: Command[] = [
       },
       {
         name: "show",
-        description: "print a view's steps and the modules they resolve to now",
+        description:
+          "print a view's steps and the modules they resolve to now, led by its title when it has one (--json carries title when set)",
       },
       {
         name: "diff",
@@ -575,7 +576,7 @@ export const COMMANDS: Command[] = [
       {
         name: "list",
         description:
-          "list every saved view with its range when it has one and, for a stale view, its reasons",
+          "list every saved view with its title when it has one, its range when it has one and, for a stale view, its reasons (--json carries title when set)",
       },
       {
         name: "check",

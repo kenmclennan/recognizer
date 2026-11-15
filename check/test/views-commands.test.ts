@@ -1359,6 +1359,30 @@ describe("change views", () => {
     expect(saved(fake, "a")).not.toHaveProperty("title");
   });
 
+  it("reads the title back in show text, show --json and list", () => {
+    const fake = repo({ ...view("a"), ...view("b") });
+
+    go(fake, "set", "a", "--title", "Placing an order");
+
+    const text = go(fake, "show", "a").out.split("\n");
+
+    expect(text[0]).toBe("a: Placing an order");
+    expect(text[1]).toBe("p");
+    expect(JSON.parse(go(fake, "show", "a", "--json").out).title).toBe(
+      "Placing an order",
+    );
+    expect(go(fake, "show", "b").out.split("\n")[0]).toBe("b: p");
+    expect(JSON.parse(go(fake, "show", "b", "--json").out)).not.toHaveProperty(
+      "title",
+    );
+
+    const listed = JSON.parse(go(fake, "list", "--json").out).views;
+
+    expect(listed[0].title).toBe("Placing an order");
+    expect(listed[1]).not.toHaveProperty("title");
+    expect(go(fake, "list").out).toContain("Placing an order - p");
+  });
+
   it("refuses a blank --description on set", () => {
     const fake = repo(view("a"));
     const result = go(fake, "set", "a", "--description", "  ");

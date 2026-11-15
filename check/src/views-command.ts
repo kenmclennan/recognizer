@@ -1347,6 +1347,7 @@ function runShow(argv: string[], io: Io): number {
       c,
       {
         name,
+        ...(view.title === undefined ? {} : { title: view.title }),
         description: view.description,
         commit: view.commit,
         ...(view.change === undefined ? {} : { change: view.change }),
@@ -1372,7 +1373,9 @@ function runShow(argv: string[], io: Io): number {
   }
 
   const lines = [
-    `${name}: ${view.description}`,
+    ...(view.title === undefined
+      ? [`${name}: ${view.description}`]
+      : [`${name}: ${view.title}`, view.description]),
     ...(view.plan === true ? ["plan"] : []),
     `saved at ${view.commit ?? "none"}`,
     ...(view.change === undefined ? [] : [`change: ${rangeText(view.change)}`]),
@@ -1450,6 +1453,7 @@ function runList(argv: string[], io: Io): number {
 
       return {
         name,
+        ...(view.title === undefined ? {} : { title: view.title }),
         description: view.description,
         commit: view.commit,
         steps: view.steps.length,
@@ -1470,7 +1474,7 @@ function runList(argv: string[], io: Io): number {
         "error" in row
           ? `${row.name}  invalid: ${row.error}`
           : [
-              `${row.name}  ${"plan" in row && row.plan === true ? "plan  " : ""}${row.change === undefined ? "" : `${rangeText(row.change)}  `}${plural(row.steps, "step")}  ${row.commit ?? "none"}  ${row.description}`,
+              `${row.name}  ${"plan" in row && row.plan === true ? "plan  " : ""}${row.change === undefined ? "" : `${rangeText(row.change)}  `}${plural(row.steps, "step")}  ${row.commit ?? "none"}  ${"title" in row && row.title !== undefined ? `${row.title} - ` : ""}${row.description}`,
               ...row.stale.map(
                 (reason) => `  stale: ${staleReasonText(reason)}`,
               ),
