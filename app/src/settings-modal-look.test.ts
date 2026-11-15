@@ -52,7 +52,7 @@ const facts = {};
   facts.cleared = { errors: qa(".sm-error").length, saveDisabled: q(".sm-foot .primary").disabled };
 
   q('[data-section="mutation"]').click();
-  facts.mutation = { defaults: text(qa(".sm-default")), resets: qa(".sm-default .sm-link").length };
+  facts.mutation = { defaults: text(qa(".sm-default")), resets: qa(".sm-default .sm-link").length, rows: [...qa(".sm-field")].map((r) => ({ name: r.querySelector(".sm-name").textContent, input: r.querySelector("input") ? box(r.querySelector("input")) : null, unit: r.querySelector(".sm-unit") ? box(r.querySelector(".sm-unit")) : null, def: r.querySelector(".sm-default") ? box(r.querySelector(".sm-default")) : null })) };
 
   q('[data-section="suites"]').click();
   facts.suitesAdd = q(".sm-add").textContent;
@@ -287,6 +287,20 @@ describe.skipIf(webkit === undefined)("the settings modal", () => {
     expect(f.mutation.defaults[0]).toContain("no time budget");
     expect(f.mutation.defaults[1]).toContain("sized from the machine's cores");
     expect(f.mutation.resets).toBe(0);
+  });
+
+  it("puts a mutation field's default below its input and unit", () => {
+    for (const name of ["Stop a run after", "Workers"]) {
+      const row = f.mutation.rows.find((r: Facts) => r.name === name);
+
+      expect(row.def).not.toBeNull();
+
+      for (const part of [row.input, row.unit].filter(Boolean)) {
+        expect(row.def.top).toBeGreaterThanOrEqual(part.bottom - 0.5);
+      }
+
+      expect(row.def.left).toBeGreaterThanOrEqual(row.input.left - 0.5);
+    }
   });
 
   it("adds a suite card from the Add a suite action", () => {

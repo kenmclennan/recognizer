@@ -107,7 +107,11 @@ function row(
   const control = el("div", "sm-control");
 
   control.append(...controls);
-  node.append(el("div", "sm-name", label), control, trailing ?? el("span"));
+  node.append(el("div", "sm-name", label), control);
+
+  if (trailing !== null) {
+    node.append(trailing);
+  }
 
   if (error !== null) {
     const line = el("p", "sm-error", error);
