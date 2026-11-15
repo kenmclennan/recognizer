@@ -819,25 +819,21 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       ticked: false,
       indeterminate: true,
     });
-    expect(f.suiteReopened.fold.open).toBe(true);
-    expect(f.suiteReopened.fold.suites.map((s: Facts) => s.ticked)).toEqual([
-      true,
-      false,
-      false,
-    ]);
+    expect(f.suiteReopened.fold.open).toBe(false);
+    expect(f.suiteReopened.sensor).toMatchObject({
+      ticked: false,
+      indeterminate: false,
+    });
   });
 
-  it("keeps the suite ticks and the fold after a scan clears the sensor tick", () => {
-    expect(f.suiteArmed).toMatchObject({ ticked: false, indeterminate: true });
-    expect(f.suiteAfterScan.plan.suites).toEqual({ crap: ["unit"] });
+  it("ticks every suite with the sensor and shows the sensor and its suites unticked after a scan clears the sensor tick", () => {
+    expect(f.suiteArmed).toMatchObject({ ticked: true, indeterminate: false });
+    expect(f.suiteAfterScan.plan.suites).toEqual({
+      crap: ["unit", "a-suite-with-a-very-long-name-indeed", "web"],
+    });
     expect(f.suiteAfterScan.sensor.ticked).toBe(false);
     expect(f.suiteAfterScan.sensor.indeterminate).toBe(false);
-    expect(f.suiteAfterScan.fold.open).toBe(true);
-    expect(f.suiteAfterScan.fold.suites.map((s: Facts) => s.ticked)).toEqual([
-      true,
-      false,
-      false,
-    ]);
+    expect(f.suiteAfterScan.fold.open).toBe(false);
   });
 
   it.each([200, 280])(

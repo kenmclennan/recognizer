@@ -62,6 +62,7 @@ import {
   suitePlan,
   type TickState,
   tickedSuites,
+  visibleSuiteTicks,
 } from "./suite-ticks";
 
 export type RunState = {
@@ -659,7 +660,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
           suites: suiteRows({
             sensor: row.key,
             suites: sensor.suites ?? [],
-            ticked,
+            ticked: visibleSuiteTicks(input.ticks, row.key, names),
             results,
             running: live,
             locked,

@@ -195,6 +195,7 @@ import { loadShowPrivate, saveShowPrivate } from "./show-private";
 import { currentCommit, hasEntries, staleReport } from "./stale-report";
 import {
   afterFoldToggle,
+  afterPanelOpen,
   afterSensorTick,
   afterSuiteTick,
 } from "./suite-ticks";
@@ -4615,7 +4616,15 @@ export function showExplorer(
     });
   }
 
+  let scanWasOpen = false;
+
   function render() {
+    if (leftPanel === "scan" && !scanWasOpen) {
+      scanHost.setTicks(afterPanelOpen(scanHost.ticks()));
+    }
+
+    scanWasOpen = leftPanel === "scan";
+
     const filtered = filterTree(root, filter, context);
     const selection = state.selection();
 
