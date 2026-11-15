@@ -65,17 +65,23 @@ export function afterSensorTick(
   all: string[],
 ): ScanTicks {
   if (sensorTickState(ticks, sensor, all) !== "off") {
-    return { ...ticks, once: ticks.once.filter((name) => name !== sensor) };
+    return withSuites(
+      { ...ticks, once: ticks.once.filter((name) => name !== sensor) },
+      sensor,
+      [],
+      all,
+    );
   }
 
-  const armed = {
-    ...ticks,
-    once: [...ticks.once.filter((name) => name !== sensor), sensor],
-  };
-
-  return tickedSuites(ticks.suites, sensor, all).length === 0
-    ? withSuites(armed, sensor, [...all], all)
-    : armed;
+  return withSuites(
+    {
+      ...ticks,
+      once: [...ticks.once.filter((name) => name !== sensor), sensor],
+    },
+    sensor,
+    [...all],
+    all,
+  );
 }
 
 export function afterSuiteTick(
@@ -85,16 +91,32 @@ export function afterSuiteTick(
   ticked: boolean,
   all: string[],
 ): ScanTicks {
-  const current = tickedSuites(ticks.suites, sensor, all).filter(
-    (name) => name !== suite,
-  );
+  const current = ticks.once.includes(sensor)
+    ? tickedSuites(ticks.suites, sensor, all).filter((name) => name !== suite)
+    : [];
   const next = ticked ? [...current, suite] : current;
   const order = all.filter((name) => next.includes(name));
   const written = withSuites(ticks, sensor, order, all);
+  const others = ticks.once.filter((name) => name !== sensor);
 
-  return ticked && !ticks.once.includes(sensor)
-    ? { ...written, once: [...ticks.once, sensor] }
-    : written;
+  return {
+    ...written,
+    once: order.length === 0 ? others : [...others, sensor],
+  };
+}
+
+export function afterPanelOpen(ticks: ScanTicks): ScanTicks {
+  return ticks.folds.length === 0 ? ticks : { ...ticks, folds: [] };
+}
+
+export function visibleSuiteTicks(
+  ticks: Pick<ScanTicks, "suites" | "once">,
+  sensor: string,
+  all: string[],
+): string[] {
+  return ticks.once.includes(sensor)
+    ? tickedSuites(ticks.suites, sensor, all)
+    : [];
 }
 
 export function afterFoldToggle(ticks: ScanTicks, sensor: string): ScanTicks {

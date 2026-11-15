@@ -19,11 +19,13 @@ import {
 } from "./suite-results";
 import {
   afterFoldToggle,
+  afterPanelOpen,
   afterSensorTick,
   afterSuiteTick,
   sensorTickState,
   suiteIsTicked,
   tickedSuites,
+  visibleSuiteTicks,
 } from "./suite-ticks";
 
 const MINUTE = 60000;
@@ -149,7 +151,7 @@ describe("suite ticks", () => {
     ).toBe("off");
   });
 
-  it("arms a sensor with no suite ticked by ticking every suite, and keeps a remembered selection", () => {
+  it("arms a sensor by ticking every suite, whatever selection was remembered", () => {
     const none = afterSensorTick(ticks(), "crap", ALL);
 
     expect(none.once).toEqual(["crap"]);
@@ -162,10 +164,10 @@ describe("suite ticks", () => {
     );
 
     expect(some.once).toEqual(["crap"]);
-    expect(some.suites.crap?.ticked).toEqual(["unit"]);
+    expect(some.suites.crap?.ticked).toEqual(ALL);
   });
 
-  it("disarms an on or some sensor and leaves every suite tick as it was", () => {
+  it("disarms an on or some sensor and unticks every one of its suites", () => {
     const armed = ticks({
       once: ["crap", "mutation"],
       suites: { crap: entry(["unit", "web"]), mutation: entry(ALL) },
@@ -173,11 +175,85 @@ describe("suite ticks", () => {
     const next = afterSensorTick(armed, "crap", ALL);
 
     expect(next.once).toEqual(["mutation"]);
-    expect(next.suites).toEqual(armed.suites);
-    expect(afterSensorTick(next, "crap", ALL).suites.crap?.ticked).toEqual([
-      "unit",
-      "web",
+    expect(next.suites.crap?.ticked).toEqual([]);
+    expect(next.suites.mutation).toEqual(entry(ALL));
+    expect(sensorTickState(next, "crap", ALL)).toBe("off");
+  });
+
+  it("ticks every suite when the sensor is ticked, whatever was remembered", () => {
+    const next = afterSensorTick(
+      ticks({ suites: { crap: entry(["unit"]) } }),
+      "crap",
+      ALL,
+    );
+
+    expect(next.once).toEqual(["crap"]);
+    expect(next.suites.crap?.ticked).toEqual(ALL);
+    expect(sensorTickState(next, "crap", ALL)).toBe("on");
+  });
+
+  it("shows every suite unticked while its sensor is unticked", () => {
+    const stale = ticks({ suites: { crap: entry(ALL) } });
+
+    expect(visibleSuiteTicks(stale, "crap", ALL)).toEqual([]);
+    expect(
+      visibleSuiteTicks({ ...stale, once: ["crap"] }, "crap", ALL),
+    ).toEqual(ALL);
+
+    const model = panel({ ticks: stale });
+    const crap = row(model, "crap");
+
+    expect(crap?.fold?.suites.map((one) => one.ticked)).toEqual([
+      false,
+      false,
+      false,
     ]);
+  });
+
+  it("arms an unticked sensor with only the suite ticked, ignoring stale suite ticks", () => {
+    const next = afterSuiteTick(
+      ticks({ suites: { crap: entry(ALL) } }),
+      "crap",
+      "web",
+      true,
+      ALL,
+    );
+
+    expect(next.once).toEqual(["crap"]);
+    expect(next.suites.crap?.ticked).toEqual(["web"]);
+    expect(sensorTickState(next, "crap", ALL)).toBe("some");
+  });
+
+  it("disarms the sensor when the last ticked suite is unticked", () => {
+    const armed = ticks({
+      once: ["crap", "mutation"],
+      suites: { crap: entry(["web"]) },
+    });
+    const next = afterSuiteTick(armed, "crap", "web", false, ALL);
+
+    expect(next.once).toEqual(["mutation"]);
+    expect(sensorTickState(next, "crap", ALL)).toBe("off");
+  });
+
+  it("reads the sensor as some while only part of its suites are ticked", () => {
+    const next = afterSuiteTick(
+      ticks({ once: ["crap"], suites: { crap: entry(ALL) } }),
+      "crap",
+      "unit",
+      false,
+      ALL,
+    );
+
+    expect(next.once).toEqual(["crap"]);
+    expect(sensorTickState(next, "crap", ALL)).toBe("some");
+    expect(row(panel({ ticks: next }), "crap")?.tick).toBe("some");
+  });
+
+  it("opens the panel with every fold closed", () => {
+    const open = ticks({ folds: ["crap", "mutation"] });
+
+    expect(afterPanelOpen(open).folds).toEqual([]);
+    expect(afterPanelOpen(ticks())).toEqual(ticks());
   });
 
   it("toggles a suite, stores every configured suite as known and arms its sensor on ticking", () => {
@@ -189,7 +265,7 @@ describe("suite ticks", () => {
     const off = afterSuiteTick(next, "crap", "web", false, ALL);
 
     expect(off.suites.crap?.ticked).toEqual([]);
-    expect(off.once).toEqual(["crap"]);
+    expect(off.once).toEqual([]);
     expect(sensorTickState(off, "crap", ALL)).toBe("off");
   });
 
@@ -458,8 +534,8 @@ describe("result rows from the findings suites array", () => {
     expect(row(after, "crap")?.fold?.open).toBe(false);
     expect(row(after, "crap")?.ticked).toBe(false);
     expect(row(after, "crap")?.tick).toBe("off");
-    expect(row(after, "crap")?.fold?.suites.every((one) => one.ticked)).toBe(
-      true,
+    expect(row(after, "crap")?.fold?.suites.some((one) => one.ticked)).toBe(
+      false,
     );
   });
 
