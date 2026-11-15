@@ -521,6 +521,7 @@ pub enum ScanRun {
     CommandMissing { hint: String },
     Failed { exit_code: i32, stderr: String },
     Refused { reason: String },
+    Attached,
     Gaps { gaps: Vec<Gap> },
 }
 
@@ -762,10 +763,11 @@ fn result_for(
         Some(127) => ScanRun::CommandMissing {
             hint: missing_hint(),
         },
-        Some(REFUSED_EXIT) => ScanRun::Refused {
-            reason: owner
-                .map(|record| refusal_text(record, folder))
-                .unwrap_or_else(|| format!("a scan is already running on {}", folder.display())),
+        Some(REFUSED_EXIT) => match owner {
+            Some(_) => ScanRun::Attached,
+            None => ScanRun::Refused {
+                reason: format!("a scan is already running on {}", folder.display()),
+            },
         },
         Some(PREFLIGHT_EXIT) => match own {
             Some(record) if record.phase == "refused" && !record.gaps.is_empty() => ScanRun::Gaps {
@@ -895,10 +897,8 @@ pub fn run_with_suites(
         };
     }
 
-    if let Some(run) = live_run(folder) {
-        return ScanRun::Refused {
-            reason: refusal_text(&run, folder),
-        };
+    if live_run(folder).is_some() {
+        return ScanRun::Attached;
     }
 
     if let Err(reason) = runs.begin(label) {
@@ -2448,7 +2448,7 @@ mod tests {
     }
 
     #[test]
-    fn run_scan_refuses_while_a_live_marker_exists_before_taking_a_baseline() {
+    fn run_scan_attaches_while_a_live_marker_exists_before_taking_a_baseline() {
         let dir = TempDir::new().unwrap();
         let runs = ScanRuns::default();
         let prepared = Mutex::new(false);
@@ -2457,7 +2457,6 @@ mod tests {
 
         write_marker(dir.path(), std::process::id(), "app");
 
-        let started_at = read_run(dir.path()).unwrap().started_at;
         let result = run_with(
             &runs,
             "w-1",
@@ -2471,23 +2470,13 @@ mod tests {
             || *prepared.lock().unwrap() = true,
         );
 
-        assert_eq!(
-            result,
-            ScanRun::Refused {
-                reason: format!(
-                    "a scan is already running on /work/shop: started from the app at {}, process {}; remove {} if that process is not a scan",
-                    started_at,
-                    std::process::id(),
-                    dir.path().join(MARKER).display()
-                )
-            }
-        );
+        assert_eq!(result, ScanRun::Attached);
         assert!(!*prepared.lock().unwrap());
         assert!(!runs.running("w-1"));
     }
 
     #[test]
-    fn exit_code_three_is_a_refusal_naming_the_live_owner() {
+    fn exit_code_three_with_a_live_owner_is_attached_and_without_one_is_refused() {
         let folder = Path::new("/work/shop");
         let owner = parse_run(&run_text(
             4242,
@@ -2501,9 +2490,7 @@ mod tests {
 
         assert_eq!(
             result_for(Some(3), false, String::new(), None, Some(&owner), folder),
-            ScanRun::Refused {
-                reason: refusal_text(&owner, folder)
-            }
+            ScanRun::Attached
         );
         assert_eq!(
             result_for(Some(3), false, String::new(), None, None, folder),

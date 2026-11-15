@@ -12,6 +12,7 @@ import {
 } from "./explorer";
 import { NO_CHANGES, type ScanOrigin, type ScanState } from "./footer-scan";
 import { buildFooter } from "./footer-view";
+import { type HoldingView, showHolding } from "./holding-view";
 import { showMessage } from "./message-view";
 import { repositorySource } from "./repository-source";
 import { createRescanner } from "./rescanner";
@@ -44,6 +45,7 @@ let scanState: ScanState | null = null;
 let runningLine: string | null = null;
 let current: Loaded | null = null;
 let releaseFirstScan: () => void = () => {};
+let holding: HoldingView | null = null;
 let explorerKeys: readonly string[] = [];
 let repositoryOpen = false;
 let settingsModal: SettingsModal | null = null;
@@ -220,6 +222,7 @@ const rescanner = createRescanner<Carried>({
   describedLine: () => explorer?.refreshResponsibilities(),
   progress: (update) => {
     runningLine = update.scanning;
+    holding?.update(update.scanning);
 
     if (scanState !== null) {
       setScanState({ ...scanState, scanning: runningLine });
@@ -227,7 +230,15 @@ const rescanner = createRescanner<Carried>({
 
     explorer?.refreshPanel();
   },
+  attached: () => {
+    holding = showHolding(content, () => void rescanner.stop(), runningLine);
+  },
   settled: () => {
+    if (holding !== null && explorer === null) {
+      showMessage(content, "The scan ended and left no result to show");
+    }
+
+    holding = null;
     releaseFirstScan();
     releaseFirstScan = () => {};
     refreshDoctor();
@@ -265,6 +276,7 @@ async function start(): Promise<void> {
   explorer = null;
   current = null;
   runningLine = null;
+  holding = null;
   setupProblems = null;
   setScanState(null);
   footerView.setCount("");
@@ -297,7 +309,11 @@ async function start(): Promise<void> {
   void rescanner.run(null, OPEN_RUN);
 
   await createBusyGate(
-    () => content.replaceChildren(scanning),
+    () => {
+      if (holding === null) {
+        content.replaceChildren(scanning);
+      }
+    },
     () => scanning.remove(),
   ).run(firstSettled);
 
