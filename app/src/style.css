@@ -4421,7 +4421,7 @@ svg.i.chevron {
 
 .settings-modal .sm-field {
   display: grid;
-  grid-template-columns: 200px 1fr auto;
+  grid-template-columns: 200px 1fr;
   align-items: center;
   gap: 4px 14px;
   padding: 12px 16px;
@@ -4451,7 +4451,9 @@ svg.i.chevron {
 .settings-modal .sm-default {
   color: var(--warn);
   font-size: 12px;
-  white-space: nowrap;
+  grid-column: 2;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .settings-modal .sm-default .sm-link {
@@ -4459,7 +4461,7 @@ svg.i.chevron {
 }
 
 .settings-modal .sm-error {
-  grid-column: 2 / 4;
+  grid-column: 2;
   margin: 0;
   color: var(--bad);
   font-size: 12px;
