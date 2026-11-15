@@ -90,15 +90,37 @@ const facts = {};
   none.close();
 
   const saving = fakeSettingsModal({ config: CONFIG, schema });
-  const savingModal = openSettingsModal({ port: saving, sensors: sensors(CONFIG), repository: true });
-  await savingModal.ready;
-  savingModal.element.querySelector('[data-section="duplication"]').click();
-  const reset = [...savingModal.element.querySelectorAll(".sm-default .sm-link")][0];
-  facts.resetPresent = reset !== undefined;
-  reset.click();
-  savingModal.element.querySelector(".sm-foot .primary").click();
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  const savingClosed = new Promise((resolve) => {
+    const savingModal = openSettingsModal({ port: saving, sensors: sensors(CONFIG), repository: true, onClose: resolve });
+    savingModal.ready.then(() => {
+      savingModal.element.querySelector('[data-section="duplication"]').click();
+      const reset = [...savingModal.element.querySelectorAll(".sm-default .sm-link")][0];
+      facts.resetPresent = reset !== undefined;
+      reset.click();
+      savingModal.element.querySelector(".sm-foot .primary").click();
+    });
+  });
+  await savingClosed;
   facts.saved = { config: saving.config, closed: document.querySelector(".settings-scrim") === null };
+
+  const held = fakeSettingsModal({ config: CONFIG, schema });
+  const realWrite = held.writeRepositoryConfig.bind(held);
+  let release = () => {};
+  const gate = new Promise((resolve) => { release = resolve; });
+  held.writeRepositoryConfig = async (...args) => { await gate; return realWrite(...args); };
+  const heldClosed = new Promise((resolve) => {
+    const heldModal = openSettingsModal({ port: held, sensors: sensors(CONFIG), repository: true, onClose: resolve });
+    heldModal.ready.then(async () => {
+      heldModal.element.querySelector('[data-section="duplication"]').click();
+      [...heldModal.element.querySelectorAll(".sm-default .sm-link")][0].click();
+      heldModal.element.querySelector(".sm-foot .primary").click();
+      await new Promise((r) => setTimeout(r, 0));
+      facts.held = { config: held.config, open: document.querySelector(".settings-scrim") !== null };
+      release();
+    });
+  });
+  await heldClosed;
+  facts.released = { config: held.config };
 
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })();
@@ -113,12 +135,13 @@ const sensors = { readInputs: async () => ({ policy: null, config: null, baselin
 const box = (node) => { const r = node.getBoundingClientRect(); return { name: node.tagName + "." + node.className, top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height }; };
 const text = (nodes) => [...nodes].map((n) => n.textContent);
 const typeInto = (node, value) => { node.value = value; node.dispatchEvent(new Event("input", { bubbles: true })); };
-const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
 const facts = {};
 
 (async () => {
   const port = fakeSettingsModal({ settings: { editor: "Sublime Text", describing: { model: "opus", batchSize: 8, confirmAboveUsd: 7.5 }, setup: { model: "sonnet" } } });
-  const modal = openSettingsModal({ port, sensors, repository: false });
+  let closed = () => {};
+  const appClosed = new Promise((resolve) => { closed = resolve; });
+  const modal = openSettingsModal({ port, sensors, repository: false, onClose: closed });
   await modal.ready;
   const q = (selector) => modal.element.querySelector(selector);
   const qa = (selector) => modal.element.querySelectorAll(selector);
@@ -166,7 +189,7 @@ const facts = {};
   pick("editor");
   typeInto(q('input[name="editor"]'), "  code --goto  ");
   q(".sm-foot .primary").click();
-  await settle();
+  await appClosed;
   facts.saved = port.settings;
   facts.closedAfterSave = document.querySelector(".settings-scrim") === null;
 
@@ -283,6 +306,13 @@ describe.skipIf(webkit === undefined)("the settings modal", () => {
     expect(f.noRepository.groups).toEqual(["App"]);
     expect(f.noRepository.entries).toEqual(["Editor", "Describing", "Setup"]);
     expect(f.noRepository.commands).toEqual(["read_settings"]);
+  });
+
+  it("holds the old config until a pending write lands, then removes the key", () => {
+    expect(f.held.open).toBe(true);
+    expect(f.held.config).toContain("min_lines");
+    expect(f.released.config).not.toContain("min_lines");
+    expect(f.released.config).toContain("limit: 30");
   });
 
   it("saves a reset as a removal of the key and closes", () => {
