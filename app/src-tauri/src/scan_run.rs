@@ -406,15 +406,45 @@ pub fn run_tick(folder: Option<&Path>, seen: &mut RunSeen) -> Vec<RunEmission> {
     out
 }
 
+fn stop_record(run: &ScanRunRecord) {
+    if run.pgid == Some(run.pid) {
+        kill_group(run.pid);
+    } else {
+        kill_pid(run.pid);
+    }
+}
+
 pub fn stop_scan_for(runs: &ScanRuns, label: &str, folder: Option<&Path>) {
     runs.stop(label);
 
     if let Some(run) = folder.and_then(live_run) {
-        if run.pgid == Some(run.pid) {
-            kill_group(run.pid);
-        } else {
-            kill_pid(run.pid);
+        stop_record(&run);
+    }
+}
+
+pub fn attached_app_runs(folders: &[(String, PathBuf)], runs: &ScanRuns) -> Vec<ScanRunRecord> {
+    let mut found: Vec<ScanRunRecord> = Vec::new();
+
+    for (label, folder) in folders {
+        if runs.in_progress(label) {
+            continue;
         }
+
+        let Some(run) = live_run(folder).filter(|run| run.started_by == "app") else {
+            continue;
+        };
+
+        if found.iter().all(|seen| seen.run_id != run.run_id) {
+            found.push(run);
+        }
+    }
+
+    found
+}
+
+pub fn stop_attached(records: &[ScanRunRecord]) {
+    for record in records {
+        stop_record(record);
     }
 }
 
@@ -2481,6 +2511,72 @@ mod tests {
                 reason: "a scan is already running on /work/shop".to_string()
             }
         );
+    }
+
+    #[test]
+    fn attached_app_runs_counts_a_live_app_run_once_and_skips_cli_and_handled_ones() {
+        let shared = TempDir::new().unwrap();
+        let cli = TempDir::new().unwrap();
+        let handled = TempDir::new().unwrap();
+        let runs = ScanRuns::default();
+
+        write_run_with(
+            shared.path(),
+            &run_text(
+                std::process::id(),
+                Some(std::process::id()),
+                "running",
+                "app",
+                "run-shared",
+                &now_timestamp(),
+            ),
+        );
+        write_run(cli.path(), std::process::id(), "running", "cli");
+        write_run(handled.path(), std::process::id(), "running", "app");
+        runs.begin("w-3").unwrap();
+
+        let folders = vec![
+            ("w-1".to_string(), shared.path().to_path_buf()),
+            ("w-2".to_string(), shared.path().to_path_buf()),
+            ("w-4".to_string(), cli.path().to_path_buf()),
+            ("w-3".to_string(), handled.path().to_path_buf()),
+        ];
+        let found = attached_app_runs(&folders, &runs);
+
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].run_id, "run-shared");
+    }
+
+    #[test]
+    fn stopping_an_attached_app_run_by_record_ends_its_group_and_its_own_session_child() {
+        use std::os::unix::process::CommandExt;
+
+        let dir = TempDir::new().unwrap();
+        let runs = ScanRuns::default();
+        let mut reaper = Reaper(Vec::new());
+        let child = Command::new("/bin/sh")
+            .args([
+                "-c",
+                "set -m; sleep 300 & mutant=$!; trap 'kill $mutant; exit 0' TERM; wait",
+            ])
+            .process_group(0)
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+        let mutant = wait_for_children(pid);
+
+        reaper.0.push(child);
+        write_run(dir.path(), pid, "running", "app");
+
+        let folders = vec![("w-1".to_string(), dir.path().to_path_buf())];
+        let found = attached_app_runs(&folders, &runs);
+
+        assert_eq!(found.len(), 1);
+
+        stop_attached(&found);
+
+        assert!(gone(mutant));
+        assert!(gone(pid));
     }
 
     fn gap(id: &str) -> Gap {
