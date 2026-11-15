@@ -71,6 +71,7 @@ One repository, a directory per part:
 - **No allow list.** The policy cannot mark a violating edge as acceptable. Existing violations live in a baseline that may only shrink.
 - **Missing data is unknown, never healthy.**
 - **Nothing costly starts unasked.** A process that spends money (describer calls), noticeable time or machine resources (sensors, test and coverage runs, Mutation) starts only from an explicit user action, never on its own: not on window open, a file change or a timer. Automatic work is limited to the minimal checks needed to load and show what is out of date.
+- **The machine's sleep is the user's.** Recognizer never stops the system from sleeping or suspending: no power assertion, no `caffeinate`, nothing that holds the machine awake for a scan. A run pauses while the machine sleeps and carries on when it wakes. Every duration, pace, timeout and estimate counts awake time only, never wall-clock time across a sleep.
 - **Prior art is for approach only.** Robert C. Martin's [uml-viewer](https://github.com/unclebob/uml-viewer) states no licence: copy or port none of its code. Its published rules (what counts as an edge, what to skip, how interfaces are marked) may be followed.
 - **Scanned repositories own their `.recognizer/` folder.** Policy, tooling configuration (`config.yaml`), saved views, module responsibilities (`responsibilities.json`) and baselines are committed there; scans, overlays, findings and run logs go in `.recognizer/cache/` (`log/` holds the run records), which is gitignored.
 
