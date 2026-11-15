@@ -58,6 +58,7 @@ export type RescanPorts<Carried> = {
   describedLine: () => void;
   progress: (update: ProgressUpdate) => void;
   settled: () => void;
+  attached: () => void;
   hasExplorer: () => boolean;
   blocked: (text: string) => void;
   post: (input: MessageInput) => number | null;
@@ -808,6 +809,29 @@ export function createRescanner<Carried>(
     }
 
     await externalQueue;
+
+    if (result.status === "attached") {
+      ownRunId = null;
+      starting = null;
+
+      const finished = takeOwnEnd();
+
+      if (finished !== null) {
+        await endRun(finished);
+
+        return;
+      }
+
+      await openFromCache();
+
+      if (ports.hasExplorer()) {
+        ports.settled();
+      } else {
+        ports.attached();
+      }
+
+      return;
+    }
 
     const ended = takeOwnEnd();
 

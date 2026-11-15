@@ -8,6 +8,7 @@ export type ScanRunResult =
   | { status: "command-missing"; hint: string }
   | { status: "failed"; exitCode: number; stderr: string }
   | { status: "refused"; reason: string }
+  | { status: "attached" }
   | { status: "gaps"; gaps: ScanRunRecord["gaps"] };
 
 export type StoredTicks = {

@@ -124,6 +124,7 @@ function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
       updates.push(update);
     },
     settled: () => log.push("settled"),
+    attached: () => log.push("attached"),
     hasExplorer: () => false,
     blocked: (text) => log.push(`blocked:${text}`),
     post: (input) => {
@@ -2768,5 +2769,144 @@ describe("replaying a previous finished run at open", () => {
     await made.rescanner.run(null, OPEN_RUN);
 
     expect(adopts(made.log)).toHaveLength(0);
+  });
+});
+
+describe("attaching to a scan still running from before", () => {
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+  function cached() {
+    const state = { drawn: 0 };
+    const ports: Partial<RescanPorts<string>> = {
+      load: () => ({ ...OK, scans: [{ file: "scan.python.json" } as never] }),
+      adopted: () => {
+        state.drawn += 1;
+      },
+      hasExplorer: () => state.drawn > 0,
+    };
+
+    return { state, ports };
+  }
+
+  function attaching(
+    over: Partial<RescanPorts<string>> = {},
+    before: (scan: ReturnType<typeof fakeScan>) => void = () => {},
+  ) {
+    const scan = fakeScan({ records: false });
+    const made = harness(scan, over);
+    let calls = 0;
+
+    scan.run = async () => {
+      calls += 1;
+      scan.emitRun({
+        kind: "run",
+        run: record({ run_id: "earlier", started_by: "app" }),
+      });
+      before(scan);
+      await flush();
+
+      return { status: "attached" };
+    };
+
+    return { ...made, scan, calls: () => calls };
+  }
+
+  it("attaches to a live run on open and starts none of its own", async () => {
+    const made = attaching();
+
+    await made.rescanner.run(null, OPEN_RUN);
+    await flush();
+
+    expect(made.rescanner.runView().record?.phase).toBe("running");
+    expect(made.rescanner.runView().record?.run_id).toBe("earlier");
+    expect(made.rescanner.external()).toBe(true);
+    expect(made.calls()).toBe(1);
+
+    await made.rescanner.run();
+
+    expect(made.calls()).toBe(1);
+    expect(made.log.some((one) => one.startsWith("blocked:"))).toBe(false);
+    expect(made.posted).toEqual([]);
+    expect(made.lifecycle.map((one) => one.kind)).toEqual(["info"]);
+  });
+
+  it("Stop on an attached run calls the port stop and settles when the record ends", async () => {
+    const made = attaching(cached().ports);
+
+    await made.rescanner.run(null, OPEN_RUN);
+    await flush();
+    await made.rescanner.stop();
+
+    expect(made.scan.stopped).toBe(1);
+
+    made.scan.emitRun({
+      kind: "run",
+      run: record({
+        run_id: "earlier",
+        started_by: "app",
+        phase: "stopped",
+        ended_at: "2026-11-10T09:00:05.000Z",
+      }),
+    });
+    await flush();
+
+    expect(made.rescanner.external()).toBe(false);
+    expect(made.log.filter((one) => one === "settled")).toHaveLength(2);
+  });
+
+  it("an attached run that ended while the result was in flight is ended once", async () => {
+    const drawing = cached();
+    const made = attaching(drawing.ports, (scan) =>
+      scan.emitRun({
+        kind: "run",
+        run: record({
+          run_id: "earlier",
+          started_by: "app",
+          phase: "finished",
+          exit: 0,
+          ended_at: "2026-11-10T09:00:05.000Z",
+          ran: ["extract"],
+        }),
+      }),
+    );
+
+    await made.rescanner.run(null, OPEN_RUN);
+    await flush();
+
+    expect(made.rescanner.external()).toBe(false);
+    expect(drawing.state.drawn).toBe(1);
+  });
+
+  it("an attached open with no cache holds the gate until the run ends", async () => {
+    const made = attaching();
+
+    await made.rescanner.run(null, OPEN_RUN);
+    await flush();
+
+    expect(made.log).toContain("attached");
+    expect(made.log).not.toContain("settled");
+
+    made.scan.emitRun({
+      kind: "run",
+      run: record({
+        run_id: "earlier",
+        started_by: "app",
+        phase: "stopped",
+        ended_at: "2026-11-10T09:00:05.000Z",
+      }),
+    });
+    await flush();
+
+    expect(made.log).toContain("settled");
+  });
+
+  it("an attached open with a cache draws the explorer from it", async () => {
+    const drawing = cached();
+    const made = attaching(drawing.ports);
+
+    await made.rescanner.run(null, OPEN_RUN);
+    await flush();
+
+    expect(drawing.state.drawn).toBe(1);
+    expect(made.log).not.toContain("attached");
   });
 });
