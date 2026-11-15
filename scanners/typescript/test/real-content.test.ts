@@ -1,7 +1,8 @@
 import { execFileSync } from "node:child_process";
-import { readdirSync } from "node:fs";
-import { join, sep } from "node:path";
+import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
+import { dirname, join, sep } from "node:path";
 import { describe, expect, it } from "vitest";
+import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import { REPO, runBin, validate } from "./helpers.js";
 
 const SOURCE_EXTENSION = /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$/;
@@ -53,17 +54,37 @@ function scannedFiles(root: string): string[] {
   });
 }
 
+function copiedWithoutTemplates(root: string): string {
+  const copy = makeTempDir("recognizer-ts-check-");
+
+  for (const path of listedFiles(root)) {
+    if (path === "" || path.startsWith("templates/")) {
+      continue;
+    }
+
+    const target = join(copy, path);
+
+    mkdirSync(dirname(target), { recursive: true });
+    copyFileSync(join(root, path), target);
+  }
+
+  return copy;
+}
+
 describe("scanning check/", () => {
   const check = join(REPO, "check");
 
   it("describes the project's own source", () => {
-    const result = runBin(check);
+    const copy = copiedWithoutTemplates(check);
+    const result = runBin(copy);
     expect(result.status).toBe(0);
 
     const doc = JSON.parse(result.stdout);
     validate(doc);
 
-    const sources = scannedFiles(check);
+    const sources = scannedFiles(check).filter(
+      (path) => !path.startsWith("templates/"),
+    );
 
     expect(doc.modules.length).toBe(sources.length);
     expect(
