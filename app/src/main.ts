@@ -1,5 +1,6 @@
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import "./style.css";
+import { createAwakeClock } from "recognizer";
 import { createBusyGate } from "./busy-gate";
 import { commitsSource } from "./commits-source";
 import { editorSource } from "./editor-source";
@@ -186,7 +187,16 @@ function reconcileKeys() {
   footerView.reconcile(explorerKeys);
 }
 
+const awakeClock = createAwakeClock<number>({
+  read: () => performance.now(),
+  setTimer: (fn, ms) => window.setTimeout(fn, ms),
+  clearTimer: (timer) => window.clearTimeout(timer),
+});
+
+awakeClock.start();
+
 const rescanner = createRescanner<Carried>({
+  awake: () => awakeClock.now(),
   port: scanSource,
   registered: async () => {
     const { config } = await sensorsSource.readInputs();

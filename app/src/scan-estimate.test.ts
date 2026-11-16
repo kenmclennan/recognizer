@@ -746,6 +746,15 @@ describe("remaining time while running", () => {
     parts = PARTS.slice(0, 2),
   ) => remaining({ parts, suites: {}, progress, startedAt: T, now });
 
+  it("time left ignores an injected sleep gap", () => {
+    const wallJump = 2 * 3_600_000;
+    const awakeNow = T + 20_000;
+    const wallNow = awakeNow + wallJump;
+
+    expect(left(describing(2), awakeNow)?.text).toBe("about 1 min left");
+    expect(left(describing(2), wallNow)?.text).not.toBe("about 1 min left");
+  });
+
   it("is the frozen figure minus time spent while fewer than 3 modules are done", () => {
     expect(left(describing(2), T + 20_000)?.text).toBe("about 1 min left");
   });
@@ -953,5 +962,30 @@ describe("remaining time while running", () => {
       }),
     ).toBeNull();
     expect(left(frozen({}), T)).toBeNull();
+  });
+});
+
+describe("paces from recorded durations", () => {
+  const sensed = (duration: number) => [
+    scanFile("20261103T090000000Z", {
+      structure_ms: 0,
+      sense: [
+        {
+          name: "mutation",
+          duration_ms: duration,
+          fixed_ms: 1000,
+          modules: 10,
+        },
+      ],
+    }),
+  ];
+
+  it("a pace ignores an injected sleep gap", () => {
+    const awake = scanHistory(sensed(600_000)).sense.mutation?.[0];
+    const legacy = scanHistory(sensed(600_000 * 100)).sense.mutation?.[0];
+
+    expect(awake).toBeDefined();
+    expect(awake?.durationMs).toBe(600_000);
+    expect(legacy?.durationMs).toBe(600_000 * 100);
   });
 });

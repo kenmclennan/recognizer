@@ -1671,6 +1671,52 @@ describe("the preflight flow", () => {
     expect(made.rescanner.runView().record?.run_id).toBe("new");
   });
 
+  it("scan start and elapsed use the awake clock", async () => {
+    let wall = 1_000_000;
+    const awake = 500;
+    const scan = fakeScan({
+      records: false,
+      defaults: { describe: false, sensors: true },
+      steps: [preflightOk, extract, current, summary],
+    });
+    const made = harness(scan, { now: () => wall, awake: () => awake });
+    const seen: { awakeNow: number | undefined; at: number | undefined }[] = [];
+
+    made.scan.onStep = () => {
+      wall += 8 * 3_600_000;
+      seen.push({
+        awakeNow: made.rescanner.runView().awakeNow,
+        at: made.rescanner.runView().starting?.at,
+      });
+    };
+    await made.rescanner.run();
+
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((one) => one.awakeNow === awake)).toBe(true);
+    expect(seen[0]?.at).toBe(1_000_000);
+  });
+
+  it("times an adopted run from the awake clock minus its wall age", async () => {
+    const wall = 5_000_000;
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [],
+    });
+    const made = harness(scan, { now: () => wall, awake: () => 900_000 });
+
+    scan.emitRun({
+      kind: "run",
+      run: record({
+        run_id: "adopted",
+        started_by: "app",
+        started_at: new Date(wall - 600_000).toISOString(),
+      }),
+    });
+    await flush();
+
+    expect(made.rescanner.runView().startedAwake).toBe(300_000);
+  });
+
   it("keeps the frozen figures of the planned run when its record arrives", async () => {
     const scan = fakeScan({
       defaults: { describe: false, sensors: true },

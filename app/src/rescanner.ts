@@ -66,6 +66,7 @@ export type RescanPorts<Carried> = {
   openLog: (log: string) => void;
   show: (target: ShowTarget) => void;
   now?: () => number;
+  awake?: () => number;
 };
 
 export type Rescanner = {
@@ -154,14 +155,44 @@ export function createRescanner<Carried>(
   let ownEnd: ScanRunRecord | null = null;
   let starting: { at: number } | null = null;
   let scanStartedAt: number | null = null;
+  let scanStartedWall: number | null = null;
+  let adoptedStart: { runId: string; at: number } | null = null;
   let startedFrom: string | null = null;
   let ownRunId: string | null = null;
   let adoptedAtOpen: string | null = null;
   let seenFirst = false;
   let keepOnce = false;
   let adoptedThisScan = false;
-  const now = ports.now ?? Date.now;
+  const wallNow = ports.now ?? Date.now;
+  const now = ports.awake ?? wallNow;
   let externalQueue: Promise<void> = Promise.resolve();
+
+  function startedAwake(): number | null {
+    if (record === null) {
+      return null;
+    }
+
+    const startedWall = Date.parse(record.started_at);
+
+    if (scanStartedAt !== null && scanStartedWall !== null) {
+      if (Number.isNaN(startedWall) || startedWall >= scanStartedWall) {
+        return scanStartedAt;
+      }
+    }
+
+    if (Number.isNaN(startedWall)) {
+      return null;
+    }
+
+    if (adoptedStart === null || adoptedStart.runId !== record.run_id) {
+      adoptedStart = {
+        runId: record.run_id,
+        at: now() - Math.max(0, wallNow() - startedWall),
+      };
+    }
+
+    return adoptedStart.at;
+  }
 
   function emit(update: { scanning: string | null }) {
     lastUpdate = { ...update };
@@ -680,9 +711,9 @@ export function createRescanner<Carried>(
 
     if (
       busy &&
-      scanStartedAt !== null &&
+      scanStartedWall !== null &&
       !isActive(next) &&
-      Date.parse(next.started_at) < scanStartedAt
+      Date.parse(next.started_at) < scanStartedWall
     ) {
       return;
     }
@@ -735,6 +766,7 @@ export function createRescanner<Carried>(
       await executeScan(modules, planned);
     } finally {
       scanStartedAt = null;
+      scanStartedWall = null;
       ticks = keepOnce ? ticks : { ...ticks, once: [] };
       keepOnce = false;
       heading = null;
@@ -797,7 +829,8 @@ export function createRescanner<Carried>(
     ownRunId = null;
     ownEnd = null;
     scanStartedAt = now();
-    starting = { at: scanStartedAt };
+    scanStartedWall = wallNow();
+    starting = { at: scanStartedWall };
     publish();
 
     let result: ScanRunResult;
@@ -991,6 +1024,8 @@ export function createRescanner<Carried>(
       progress,
       starting,
       adoptedAtOpen,
+      awakeNow: now(),
+      startedAwake: startedAwake(),
     }),
   };
 }
