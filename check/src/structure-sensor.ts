@@ -26,6 +26,7 @@ export const STRUCTURE_SENSOR_VERSION = "19";
 export interface StructureSettings {
   duplication: false | DuplicationSettings;
   entry_points: string[];
+  entry_annotations: string[];
   warnings: {
     cycle: boolean;
     orphan: boolean;
@@ -51,6 +52,7 @@ export interface StructureResult {
 export const DEFAULT_STRUCTURE_SETTINGS: StructureSettings = {
   duplication: { ...DEFAULT_DUPLICATION_SETTINGS },
   entry_points: [],
+  entry_annotations: [],
   warnings: {
     cycle: true,
     orphan: true,
@@ -83,7 +85,10 @@ export function resolveStructureSettings(
       duplication === false
         ? false
         : { ...DEFAULT_DUPLICATION_SETTINGS, ...(duplication ?? {}) },
-    entry_points: typeof orphan === "object" ? [...orphan.entry_points] : [],
+    entry_points:
+      typeof orphan === "object" ? [...(orphan.entry_points ?? [])] : [],
+    entry_annotations:
+      typeof orphan === "object" ? [...(orphan.entry_annotations ?? [])] : [],
     warnings: {
       cycle: given.warnings?.cycle ?? defaults.cycle,
       orphan: orphan !== false,
@@ -122,8 +127,12 @@ export function describeSettings(settings: StructureSettings): string {
     settings.entry_points.length > 0
       ? `, entry_points ${settings.entry_points.length}`
       : "";
+  const annotations =
+    settings.entry_annotations.length > 0
+      ? `, entry_annotations ${settings.entry_annotations.length}`
+      : "";
 
-  return `cycle ${on(w.cycle)}, orphan ${on(w.orphan)}, unused_exports ${on(w.unused_exports)}, private_imports ${on(w.private_imports)}, long_function ${on(w.long_function)}, long_function_limit ${settings.long_function_limit}${entries}`;
+  return `cycle ${on(w.cycle)}, orphan ${on(w.orphan)}, unused_exports ${on(w.unused_exports)}, private_imports ${on(w.private_imports)}, long_function ${on(w.long_function)}, long_function_limit ${settings.long_function_limit}${entries}${annotations}`;
 }
 
 export function violationPrinciple(rules: readonly Rule[]): string {
@@ -233,7 +242,12 @@ export function structureSensor(
 
     const extra = [
       ...(settings.warnings.orphan
-        ? orphanFindings(scan, policy, settings.entry_points)
+        ? orphanFindings(
+            scan,
+            policy,
+            settings.entry_points,
+            settings.entry_annotations,
+          )
         : []),
       ...(settings.warnings.unused_exports
         ? unusedExportsFindings(scan, policy, settings.entry_points)
@@ -261,6 +275,7 @@ export function structureSensor(
       modified: context.modified,
       settings: {
         entry_points: [...settings.entry_points],
+        entry_annotations: [...settings.entry_annotations],
         warnings: {
           cycle: settings.warnings.cycle,
           orphan: settings.warnings.orphan,

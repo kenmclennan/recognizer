@@ -75,6 +75,7 @@ describe("check in repository mode", () => {
             min_nodes: 20,
           },
           entry_points: [],
+          entry_annotations: [],
           warnings: {
             cycle: true,
             orphan: true,
@@ -322,6 +323,7 @@ describe("a structure file from before the folder cycle was removed", () => {
       modified: false,
       settings: {
         entry_points: [],
+        entry_annotations: [],
         warnings: {
           cycle: true,
           folder_cycle: true,
@@ -376,6 +378,7 @@ describe("a structure file from before policy drift became a policy problem", ()
       modified: false,
       settings: {
         entry_points: [],
+        entry_annotations: [],
         warnings: {
           cycle: true,
           orphan: true,
@@ -431,6 +434,7 @@ describe("a structure file from before the stable dependencies warning was remov
         instability_gap: 0.2,
         composition_roots: [],
         entry_points: [],
+        entry_annotations: [],
         warnings: {
           cycle: true,
           orphan: true,

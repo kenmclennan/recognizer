@@ -16,8 +16,24 @@ describe("the Kotlin entry-points fixture", () => {
       readFileSync(join(ROOT, "expected.json"), "utf8"),
     ) as { orphans: string[] };
 
-    expect(orphanFindings(scan, null, []).map((finding) => finding.id)).toEqual(
-      expected.orphans.map((id) => `orphan:${id}`),
+    expect(
+      orphanFindings(scan, null, [], []).map((finding) => finding.id),
+    ).toEqual(expected.orphans.map((id) => `orphan:${id}`));
+  });
+});
+
+describe("the Kotlin di-orphans fixture", () => {
+  it("leaves only the stray class beside an injected port", () => {
+    const root = join(REPO, "fixtures/kotlin/di-orphans");
+    const scan = validateScan(
+      JSON.parse(readFileSync(join(root, "scan.json"), "utf8")),
     );
+    const expected = JSON.parse(
+      readFileSync(join(root, "expected.json"), "utf8"),
+    ) as { orphans: string[] };
+
+    expect(
+      orphanFindings(scan, null, [], []).map((finding) => finding.id),
+    ).toEqual(expected.orphans.map((id) => `orphan:${id}`));
   });
 });

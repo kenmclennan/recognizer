@@ -71,6 +71,7 @@ describe("carryDuplication", () => {
       stored({
         settings: {
           entry_points: [],
+          entry_annotations: [],
           duplication: { ...SETTINGS.duplication, threshold: 0.9 },
         },
       }),

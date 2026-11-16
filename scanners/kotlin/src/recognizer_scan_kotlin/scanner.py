@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
 
+from recognizer_scan_kotlin.annotations import ENTRY_ANNOTATIONS, annotations_of
 from recognizer_scan_kotlin.calls import CallResolver
 from recognizer_scan_kotlin.declarations import SourceFile, read_source
 from recognizer_scan_kotlin.discovery import (
@@ -137,7 +138,12 @@ def scan_with_stats(
             "members": members,
         }
 
-        if has_main(file):
+        annotations = annotations_of(file)
+
+        if annotations:
+            module["annotations"] = annotations
+
+        if has_main(file) or any(a in ENTRY_ANNOTATIONS for a in annotations):
             module["entry_point"] = True
 
         expects = index.expect_files_of(file)

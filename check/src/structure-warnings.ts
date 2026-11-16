@@ -22,27 +22,6 @@ export function folderOf(id: string): string {
   return at < 0 ? "." : id.slice(0, at);
 }
 
-function moduleEdges(scan: Scan, policy: Policy | null) {
-  const { edges, declarations, ids } = keptGraph(scan, policy?.ignore ?? []);
-  const seen = new Set<string>();
-  const pairs: { from: string; to: string }[] = [];
-
-  for (const edge of edges) {
-    if (edge.from === edge.to || isForeign(edge.to)) {
-      continue;
-    }
-
-    const key = `${edge.from}\0${edge.to}`;
-
-    if (!seen.has(key)) {
-      seen.add(key);
-      pairs.push({ from: edge.from, to: edge.to });
-    }
-  }
-
-  return { ids, pairs, declarations };
-}
-
 function policyLiteralPaths(policy: Policy | null): Set<string> {
   const literalPaths = new Set<string>();
 
@@ -57,11 +36,14 @@ function policyLiteralPaths(policy: Policy | null): Set<string> {
   return literalPaths;
 }
 
+const SUPERTYPE_KINDS = new Set(["inherits", "implements"]);
+
 function reachedModules(
   scan: Scan,
   ids: Set<string>,
   imported: Set<string>,
   isEntry: (id: string) => boolean,
+  supertypes: { from: string; to: string }[],
 ): Set<string> {
   const reached = new Set<string>();
 
@@ -88,6 +70,18 @@ function reachedModules(
         grew = true;
       }
     }
+
+    for (const { from, to } of supertypes) {
+      if (reached.has(to) && !reached.has(from)) {
+        reached.add(from);
+        grew = true;
+      }
+
+      if (reached.has(from) && !reached.has(to)) {
+        reached.add(to);
+        grew = true;
+      }
+    }
   }
 
   return reached;
@@ -97,22 +91,49 @@ export function orphanFindings(
   scan: Scan,
   policy: Policy | null,
   entryPoints: string[],
+  entryAnnotations: string[],
 ): FindingRecord[] {
-  const { ids, pairs, declarations } = moduleEdges(scan, policy);
+  const { ids, edges, declarations } = keptGraph(scan, policy?.ignore ?? []);
+  const kotlin = new Set(
+    scan.modules
+      .filter((module) => module.language === "kotlin")
+      .map((module) => module.id),
+  );
+  const real = edges.filter(
+    (edge) => edge.from !== edge.to && !isForeign(edge.to),
+  );
+  const supertypes = real
+    .filter((edge) => SUPERTYPE_KINDS.has(edge.kind) && kotlin.has(edge.from))
+    .map((edge) => ({ from: edge.from, to: edge.to }));
+  const supertypePairs = new Set(
+    supertypes.map((edge) => `${edge.from}\0${edge.to}`),
+  );
   const imported = new Set([
-    ...pairs.map((pair) => pair.to),
+    ...real
+      .filter((edge) => !supertypePairs.has(`${edge.from}\0${edge.to}`))
+      .map((edge) => edge.to),
     ...declarations.map((edge) => edge.to),
   ]);
   const literalPaths = policyLiteralPaths(policy);
   const scanned = new Set(
     scan.modules
-      .filter((module) => module.entry_point === true)
+      .filter(
+        (module) =>
+          module.entry_point === true ||
+          (module.annotations ?? []).some((name) =>
+            entryAnnotations.includes(name),
+          ),
+      )
       .map((module) => module.id),
   );
 
   const testImporters = testImportersOf(scan);
-  const reached = reachedModules(scan, ids, imported, (id) =>
-    isEntryPoint(id, literalPaths, entryPoints, scanned.has(id)),
+  const reached = reachedModules(
+    scan,
+    ids,
+    imported,
+    (id) => isEntryPoint(id, literalPaths, entryPoints, scanned.has(id)),
+    supertypes,
   );
 
   return [...ids]

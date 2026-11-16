@@ -212,3 +212,61 @@ def test_the_entry_points_fixture_matches_its_committed_scan_and_expectations():
     assert {m["id"]: m["actual_of"] for m in document["modules"] if "actual_of" in m} == expected[
         "actual_of"
     ]
+
+
+@pytest.mark.parametrize(
+    "annotation",
+    [
+        "@Controller",
+        "@Singleton",
+        '@io.micronaut.http.annotation.Controller("/x")',
+        "@field:Named",
+        "@Service",
+        "@RestController",
+        "@Inject",
+    ],
+)
+def test_a_container_annotated_class_is_an_entry_point(run, annotation):
+    document = run(
+        {
+            "a/Wired.kt": f"package a\n\n{annotation}\nclass Wired\n",
+            "a/Plain.kt": "package a\n\nclass P\n",
+        }
+    )
+
+    assert flagged(document) == ["a/Wired.kt"]
+
+
+def test_an_unlisted_annotation_is_recorded_but_not_an_entry_point(run):
+    document = run({"a/Marked.kt": "package a\n\n@Foo\nclass Marked\n"})
+
+    assert module(document, "a/Marked.kt")["annotations"] == ["Foo"]
+    assert flagged(document) == []
+
+
+def test_a_member_only_annotation_does_not_flag_the_file(run):
+    document = run({"a/Plain.kt": "package a\n\nclass Plain {\n    @Bean\n    fun make() {}\n}\n"})
+
+    assert "annotations" not in module(document, "a/Plain.kt")
+    assert flagged(document) == []
+
+
+def test_annotations_are_sorted_and_deduplicated(run):
+    document = run(
+        {
+            "a/Many.kt": (
+                'package a\n\n@Zed\n@Controller("/x")\n@io.x.Controller\n@Alpha\ninterface Many\n'
+            )
+        }
+    )
+
+    assert module(document, "a/Many.kt")["annotations"] == ["Alpha", "Controller", "Zed"]
+
+
+def test_the_di_orphans_fixture_matches_its_committed_scan_and_expectations():
+    root = REPOSITORY / "fixtures" / "kotlin" / "di-orphans"
+    expected = json.loads((root / "expected.json").read_text())
+    document = scan(root, None)
+
+    assert document == json.loads((root / "scan.json").read_text())
+    assert flagged(document) == expected["entry_points"]

@@ -103,11 +103,15 @@
                         {
                           "type": "object",
                           "additionalProperties": false,
-                          "required": [
-                            "entry_points"
-                          ],
                           "properties": {
                             "entry_points": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            },
+                            "entry_annotations": {
                               "type": "array",
                               "items": {
                                 "type": "string",
