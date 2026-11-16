@@ -3,7 +3,17 @@ import validate from "./generated/events-validator.js";
 export const EVENT_PREFIX = "recognizer-event ";
 
 export type PluginEvent =
-  | { event: "start"; total: number; unit: string }
+  | {
+      event: "start";
+      total: number;
+      unit: string;
+      queued?: number;
+      not_measured?: {
+        reused: number;
+        no_covered_site: number;
+        out_of_scope: number;
+      };
+    }
   | {
       event: "progress";
       done: number;

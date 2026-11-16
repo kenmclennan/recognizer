@@ -1,0 +1,12 @@
+{
+  "event": "start",
+  "total": 633,
+  "unit": "functions",
+  "queued": 265,
+  "not_measured": {
+    "reused": 368,
+    "no_covered_site": 0,
+    "out_of_scope": 12,
+    "unknown": 1
+  }
+}
