@@ -48,7 +48,7 @@ interface ScanDescription {
     exports: string[];
     entry_point?: true;
   }[];
-  edges: ([string, string] | [string, string, "declares"])[];
+  edges: ([string, string] | [string, string, "declares" | "implements"])[];
 }
 
 const expected = JSON.parse(
@@ -90,15 +90,23 @@ function scanFrom(description: ScanDescription): Scan {
       kind: module.kind,
       ...(module.entry_point === true ? { entry_point: true } : {}),
       members: module.exports.map((kind, index) =>
-        kind === "abstract"
+        kind === "sealed"
           ? {
               name: `m${index}`,
               exported: true,
-              kind: "class",
+              kind: "interface",
               line: index + 1,
-              tags: ["abstract"],
+              tags: ["sealed"],
             }
-          : { name: `m${index}`, exported: true, kind, line: index + 1 },
+          : kind === "abstract"
+            ? {
+                name: `m${index}`,
+                exported: true,
+                kind: "class",
+                line: index + 1,
+                tags: ["abstract"],
+              }
+            : { name: `m${index}`, exported: true, kind, line: index + 1 },
       ),
     })),
     edges: description.edges.map(([from, to, kind], index) => ({
@@ -106,6 +114,7 @@ function scanFrom(description: ScanDescription): Scan {
       to,
       kind: kind ?? "depends",
       line: index + 1,
+      ...(kind === "implements" ? { member: "m0", to_member: "m0" } : {}),
     })),
     foreign: foreign.map((id) => ({ id, name: id.slice(8) })),
   } as unknown as Scan;
@@ -152,8 +161,8 @@ function label(one: Case): string {
 }
 
 describe("structure corpus", () => {
-  it("holds 16 labelled cases and 11 folder metric rows", () => {
-    expect(expected.cases).toHaveLength(16);
+  it("holds 18 labelled cases and 11 folder metric rows", () => {
+    expect(expected.cases).toHaveLength(18);
     expect(expected.folder_metrics).toHaveLength(11);
   });
 

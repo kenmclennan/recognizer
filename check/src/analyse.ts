@@ -1,6 +1,7 @@
 import type { Matcher } from "./glob.js";
 import { isForeign, keptGraph } from "./graph.js";
 import type { Scan } from "./scan.js";
+import { sealedGroups } from "./sealed-hierarchy.js";
 
 export interface ModuleMetrics {
   id: string;
@@ -136,22 +137,50 @@ export function analyse(scan: Scan, ignore: Matcher[] = []): Analysis {
     };
   });
 
-  const successors = new Map<string, string[]>();
+  const groups = sealedGroups(scan, edges);
+  const groupOf = (id: string) => groups.get(id) ?? id;
+  const crossing = new Map<string, Set<string>>();
+  const groupSuccessors = new Map<string, Set<string>>();
 
   for (const id of sorted) {
-    successors.set(id, [...(internal.get(id) ?? [])].sort(byCodeUnit));
+    crossing.set(id, new Set());
+    groupSuccessors.set(groupOf(id), new Set());
   }
 
-  const cycles: CycleWarning[] = strongComponents(sorted, successors)
+  for (const id of sorted) {
+    for (const to of internal.get(id) ?? []) {
+      if (groupOf(to) !== groupOf(id)) {
+        crossing.get(id)?.add(to);
+        groupSuccessors.get(groupOf(id))?.add(groupOf(to));
+      }
+    }
+  }
+
+  const groupIds = [...groupSuccessors.keys()].sort(byCodeUnit);
+  const successors = new Map<string, string[]>();
+
+  for (const group of groupIds) {
+    successors.set(
+      group,
+      [...(groupSuccessors.get(group) ?? [])].sort(byCodeUnit),
+    );
+  }
+
+  const cycles: CycleWarning[] = strongComponents(groupIds, successors)
     .filter((component) => component.length >= 2)
     .map((component): CycleWarning => {
-      const modules = [...component].sort(byCodeUnit);
-      const members = new Set(modules);
-      const inside = modules.flatMap((from) =>
-        (successors.get(from) ?? [])
-          .filter((to) => members.has(to))
-          .map((to) => ({ from, to })),
+      const members = new Set(component);
+      const inside = sorted.flatMap((from) =>
+        members.has(groupOf(from))
+          ? [...(crossing.get(from) ?? [])]
+              .filter((to) => members.has(groupOf(to)))
+              .sort(byCodeUnit)
+              .map((to) => ({ from, to }))
+          : [],
       );
+      const modules = [
+        ...new Set(inside.flatMap((edge) => [edge.from, edge.to])),
+      ].sort(byCodeUnit);
 
       return {
         id: "cycle",
