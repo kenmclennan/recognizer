@@ -19,8 +19,11 @@ import { showMessage } from "./message-view";
 import { repositorySource } from "./repository-source";
 import { createRescanner } from "./rescanner";
 import { responsibilitiesSource } from "./responsibilities-source";
+import { runLogPath } from "./run-log-path";
 import { OPEN_RUN } from "./scan-freshness";
 import { type Loaded, loadScans } from "./scan-loading";
+import { openProgressModel, STOPPED_MODEL } from "./scan-open-model";
+import { type OpenView, showOpen } from "./scan-open-view";
 import { describerRegistered, rowSensors } from "./scan-panel-model";
 import { scanSource } from "./scan-source";
 import { withSensors } from "./sensor-run";
@@ -31,7 +34,6 @@ import { openSetupModal, type SetupModal } from "./setup-modal-view";
 import { doctorProblems } from "./setup-model";
 import type { DoctorRead } from "./setup-port";
 import { setupSource } from "./setup-source";
-import { spinner } from "./spinner-view";
 import { createViewComparisons } from "./view-comparisons";
 import { viewsSource } from "./views-source";
 import { windowSource } from "./window-source";
@@ -48,6 +50,9 @@ let runningLine: string | null = null;
 let current: Loaded | null = null;
 let releaseFirstScan: () => void = () => {};
 let holding: HoldingView | null = null;
+let openView: OpenView | null = null;
+let openStartedAt = 0;
+let openTick: number | null = null;
 let explorerKeys: readonly string[] = [];
 let repositoryOpen = false;
 let settingsModal: SettingsModal | null = null;
@@ -187,6 +192,14 @@ function reconcileKeys() {
   footerView.reconcile(explorerKeys);
 }
 
+function openLogFile(path: string) {
+  void editorSource
+    .openFile(path)
+    .catch((error: unknown) =>
+      footerView.post({ kind: "error", text: String(error) }),
+    );
+}
+
 const awakeClock = createAwakeClock<number>({
   read: () => performance.now(),
   setTimer: (fn, ms) => window.setTimeout(fn, ms),
@@ -234,6 +247,7 @@ const rescanner = createRescanner<Carried>({
   progress: (update) => {
     runningLine = update.scanning;
     holding?.update(update.scanning);
+    renderOpenProgress();
 
     if (scanState !== null) {
       setScanState({ ...scanState, scanning: runningLine });
@@ -270,18 +284,61 @@ const rescanner = createRescanner<Carried>({
   post: (input) => footerView.post(input),
   attach: (id, extra) => footerView.attach(id, extra),
   show: (target) => explorer?.show(target),
-  openLog: (log) => {
-    void editorSource
-      .openFile(log)
-      .catch((error: unknown) =>
-        footerView.post({ kind: "error", text: String(error) }),
-      );
-  },
+  openLog: openLogFile,
 });
 
 void scanSource.watchExternal().catch((error: unknown) => {
   footerView.post({ kind: "error", text: String(error) });
 });
+
+const openActions = {
+  stop: () => void rescanner.stop(),
+  again: () => void start(),
+  openLog: () => {
+    const log = rescanner.progress().log;
+
+    if (log !== null) {
+      openLogFile(runLogPath(log));
+    }
+  },
+};
+
+function renderOpenProgress() {
+  openView?.render(
+    openProgressModel({
+      folder: folderName,
+      progress: rescanner.progress(),
+      startedAt: openStartedAt,
+      now: awakeClock.now(),
+      stopped: false,
+    }),
+  );
+}
+
+function showOpenProgress() {
+  if (holding !== null) {
+    return;
+  }
+
+  openView = showOpen(content, openActions);
+  renderOpenProgress();
+  openTick = window.setInterval(renderOpenProgress, 1000);
+}
+
+function hideOpenProgress() {
+  if (openTick !== null) {
+    window.clearInterval(openTick);
+    openTick = null;
+  }
+
+  openView?.remove();
+  openView = null;
+}
+
+function showOpenStopped() {
+  openView = showOpen(content, openActions);
+  openView.render(STOPPED_MODEL);
+}
 
 async function start(): Promise<void> {
   await rescanner.stop();
@@ -311,26 +368,20 @@ async function start(): Promise<void> {
   folderName = folder.split(/[\\/]/).filter(Boolean).pop() ?? folder;
   content.replaceChildren();
 
-  const scanning = spinner("Scanning");
-
-  scanning.classList.add("scan-busy");
-
   const firstSettled = new Promise<void>((resolve) => {
     releaseFirstScan = resolve;
   });
 
+  openStartedAt = awakeClock.now();
   void rescanner.run(null, OPEN_RUN);
 
-  await createBusyGate(
-    () => {
-      if (holding === null) {
-        content.replaceChildren(scanning);
-      }
-    },
-    () => scanning.remove(),
-  ).run(firstSettled);
+  await createBusyGate(showOpenProgress, hideOpenProgress).run(firstSettled);
 
   if (explorer === null) {
+    if (rescanner.progress().stopped) {
+      showOpenStopped();
+    }
+
     return;
   }
 
