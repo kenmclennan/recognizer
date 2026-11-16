@@ -431,6 +431,10 @@ function leftOf(frozen: number, since: number | null, now: number): number {
   return since === null ? frozen : Math.max(0, frozen - (now - since));
 }
 
+function isOverrun(frozen: number, since: number | null, now: number): boolean {
+  return since !== null && now - since > frozen;
+}
+
 export function remaining(input: RemainingInput): Remaining | null {
   const { progress, now } = input;
   const { frozen, phaseAt, sensorAt, describeFrom, rateFrom } = progress.timing;
@@ -443,6 +447,7 @@ export function remaining(input: RemainingInput): Remaining | null {
     (progress.sense?.entries ?? []).map((entry) => entry.name),
   );
   const uncounted: string[] = [];
+  const overran: { name: string; figure: number }[] = [];
   let total = 0;
 
   for (const { key, name } of input.parts) {
@@ -481,13 +486,22 @@ export function remaining(input: RemainingInput): Remaining | null {
         continue;
       }
 
-      total +=
+      if (
         describing !== null &&
         done >= LEFT_FLOOR &&
         describeFrom !== null &&
         now > describeFrom
-          ? (describing.total - done) * ((now - describeFrom) / done)
-          : leftOf(figure, describeFrom, now);
+      ) {
+        total += (describing.total - done) * ((now - describeFrom) / done);
+
+        continue;
+      }
+
+      if (isOverrun(figure, describeFrom, now)) {
+        overran.push({ name, figure });
+      }
+
+      total += leftOf(figure, describeFrom, now);
 
       continue;
     }
@@ -525,14 +539,31 @@ export function remaining(input: RemainingInput): Remaining | null {
       continue;
     }
 
+    if (isOverrun(figure, started, now)) {
+      overran.push({ name, figure });
+    }
+
     total += leftOf(figure, started, now);
   }
 
+  const names = overran.map((one) => `${one.name}: longer than estimated`);
+  const left = `${roundedTime(total)} left`;
+  const lines = [
+    ...(uncounted.length === 0
+      ? []
+      : [`not counting ${uncounted.join(", ")}: no estimate yet`]),
+    ...overran.map(
+      (one) => `${one.name}: past its estimate of ${roundedTime(one.figure)}`,
+    ),
+  ];
+
   return {
-    text: `${roundedTime(total)} left`,
-    title:
-      uncounted.length === 0
-        ? null
-        : `not counting ${uncounted.join(", ")}: no estimate yet`,
+    text:
+      names.length === 0
+        ? left
+        : total > 0
+          ? `${left}, plus ${names.join(", ")}`
+          : names.join(", "),
+    title: lines.length === 0 ? null : lines.join("\n"),
   };
 }
