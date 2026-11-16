@@ -123,6 +123,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Carry list | The `carry` setting under `sensors.mutation`: the exact untracked repository folders (such as `frontend/node_modules`) a copy takes, with no built-in list; a folder not listed is not in the copy. |
 | Warm-up copy | The one copy of the repository the Mutation sensor runs each configured Test suite in before any Mutant, to read its coverage and its per-test contexts; the warm-up also measures the Run memory. |
 | Run memory | The peak resident memory of the process tree of one test run, measured during the warm-up and used to size the default worker count. |
+| Memory reserve | The fixed amount of memory (2000 MB) Mutation leaves for the desktop when sizing workers on macOS: the sizing reading is free pages plus file-backed pages plus purgeable pages, less this reserve, so the `available` figure in the sizing line is net of it. |
 | Survivor | A Mutant whose test run passed: the tests did not notice the change. |
 | Producer | The tool that wrote an Overlay file, named with its version in the file's `producer`. |
 | Metric declaration | A metric's `name`, `type`, `granularity` and `bad` direction, registered in the Config and repeated in the Overlay file. |

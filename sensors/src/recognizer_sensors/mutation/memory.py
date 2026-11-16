@@ -3,6 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+MACOS_RESERVE = 2_000_000_000
+
 
 def vm_stat_bytes(text: str) -> int | None:
     lines = text.splitlines()
@@ -15,7 +17,7 @@ def vm_stat_bytes(text: str) -> int | None:
     except (IndexError, ValueError):
         return None
 
-    wanted = {"Pages free": None, "Pages inactive": None, "Pages speculative": None}
+    wanted = {"Pages free": None, "File-backed pages": None, "Pages purgeable": None}
 
     for line in lines[1:]:
         name, _, value = line.partition(":")
@@ -84,7 +86,12 @@ def macos_available() -> int | None:
     except OSError:
         return None
 
-    return vm_stat_bytes(text)
+    reading = vm_stat_bytes(text)
+
+    if reading is None:
+        return None
+
+    return max(0, reading - MACOS_RESERVE)
 
 
 def available_bytes() -> int | None:
@@ -111,3 +118,10 @@ def default_workers(cpus: int, available: int | None, peak: int) -> int:
         return half
 
     return max(1, min(half, available // peak))
+
+
+def binding_input(cpus: int, available: int, peak: int) -> str:
+    if peak <= 0:
+        return "cores"
+
+    return "memory" if available // peak < max(1, cpus // 2) else "cores"

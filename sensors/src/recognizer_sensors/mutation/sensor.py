@@ -23,7 +23,12 @@ from recognizer_sensors.hashes import (
 from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.mutation.commands import RUST_UNITS, mutant_command, selected_command
 from recognizer_sensors.mutation.inline_tests import unit_test_hashes
-from recognizer_sensors.mutation.memory import available_bytes, core_count, default_workers
+from recognizer_sensors.mutation.memory import (
+    available_bytes,
+    binding_input,
+    core_count,
+    default_workers,
+)
 from recognizer_sensors.mutation.record import (
     body_hash,
     build_record,
@@ -979,7 +984,8 @@ def sized_workers(peak: int, whole_peak: int | None = None) -> tuple[int, int, s
         if available is None
         else (
             f"cores {cpus}, half {max(1, cpus // 2)}, available {available // 1_000_000} MB, "
-            f"one run {peak // 1_000_000} MB"
+            f"one run {peak // 1_000_000} MB, "
+            f"bound by {binding_input(cpus, available, peak)}; max_workers sets the count"
         )
     )
 
