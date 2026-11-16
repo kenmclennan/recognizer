@@ -117,6 +117,9 @@
             }
           ]
         }
+      ],
+      "annotations": [
+        "UseCase"
       ]
     },
     {
@@ -134,7 +137,13 @@
           "fields": [],
           "methods": []
         }
-      ]
+      ],
+      "annotations": [
+        "Retention",
+        "Singleton",
+        "Target"
+      ],
+      "entry_point": true
     },
     {
       "id": "app/src/main/kotlin/shop/clients/PaymentClient.kt",
@@ -168,6 +177,9 @@
             }
           ]
         }
+      ],
+      "annotations": [
+        "Client"
       ]
     },
     {
@@ -327,6 +339,9 @@
           "fields": [],
           "methods": []
         }
+      ],
+      "annotations": [
+        "JdbcRepository"
       ]
     },
     {
@@ -406,7 +421,11 @@
             }
           ]
         }
-      ]
+      ],
+      "annotations": [
+        "Controller"
+      ],
+      "entry_point": true
     }
   ],
   "edges": [

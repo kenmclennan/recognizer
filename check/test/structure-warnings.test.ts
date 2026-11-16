@@ -1611,7 +1611,6 @@ describe("unused_exports", () => {
         "app/src/main/kotlin/shop/persistence/JdbcOrderStore.kt": [
           "JdbcOrderStore",
         ],
-        "app/src/main/kotlin/shop/web/OrderController.kt": ["OrderController"],
       },
       rust: {},
     };

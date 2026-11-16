@@ -110,6 +110,7 @@ export interface Scan {
     kind: "module" | "package" | "interface";
     members?: ScanMember[];
     entry_point?: boolean;
+    annotations?: string[];
     actual_of?: string[];
   }[];
   edges: ScanEdge[];
