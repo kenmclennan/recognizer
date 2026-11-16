@@ -98,7 +98,8 @@ const facts = {};
   const reselect = async () => {
     click(q('.box[data-id="app/hub.py"] .box-body'));
     await tick();
-    click(q('.selection-bar [aria-label^="Dependencies"]'));
+    const deps = q('.selection-bar [aria-label^="Dependencies"]');
+    if (!deps.classList.contains("on")) click(deps);
     await tick();
   };
 

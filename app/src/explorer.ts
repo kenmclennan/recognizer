@@ -688,6 +688,11 @@ export function showExplorer(
           openBubble(path, false);
         }
       },
+      closeInspector: () => rootActions.close(),
+      closeNote() {
+        noteFocus = null;
+        render();
+      },
       editNote: (path) => openBubble(path, true),
       cancelNote(path) {
         const view = openViewValue();
@@ -3056,12 +3061,15 @@ export function showExplorer(
 
   function selectionNotes(
     selection: NonNullable<Selection>,
-  ): { noted: boolean } | null {
+  ): { noted: boolean; open: boolean } | null {
     const view = openViewValue();
     const path = notePathOf(selection);
 
     return path !== null && view !== null && openView !== DRAFT_VIEW
-      ? { noted: noteAt(view, path) !== null }
+      ? {
+          noted: noteAt(view, path) !== null,
+          open: noteFocus?.path === path,
+        }
       : null;
   }
 

@@ -69,7 +69,7 @@ const facts = {};
   facts.arrivedKeys = Object.keys(facts.arrived).sort();
 
   const before = win.published.length;
-  click(q('.selection-bar [aria-label^="Dependencies"]'));
+  click(q(".itabs button.on"));
   await tick();
   facts.unchanged = win.published.length - before;
 

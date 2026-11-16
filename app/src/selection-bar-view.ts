@@ -1,3 +1,4 @@
+import { pressPanel } from "./bar-toggle";
 import { el } from "./dom";
 import { type IconName, icon } from "./icons";
 import type { InspectorTab } from "./inspector-model";
@@ -5,7 +6,7 @@ import type { InspectorTab } from "./inspector-model";
 export type BarModel = {
   kind: "module" | "folder";
   dependencies: number;
-  notes: { noted: boolean } | null;
+  notes: { noted: boolean; open: boolean } | null;
   findings: { count: number; tone: "red" | "amber" } | null;
   files: { open: number; held: number } | null;
   focused: boolean;
@@ -22,6 +23,8 @@ export type BarActions = {
   openInEditor: () => void;
   takeOff: () => void;
   openNote: () => void;
+  closeInspector: () => void;
+  closeNote: () => void;
 };
 
 export type SelectionBarView = {
@@ -96,7 +99,7 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
       }
 
       const contents = iconButton("list", "Contents (I)", () =>
-        actions.openContents(),
+        pressPanel(model, "contents", actions),
       );
 
       contents.classList.toggle("on", contentsShown);
@@ -105,7 +108,9 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
       const dependencies = iconButton(
         "dependencies",
         "Dependencies (D)",
-        model.dependencies > 0 ? () => actions.openTab("dependencies") : null,
+        model.dependencies > 0
+          ? () => pressPanel(model, "dependencies", actions)
+          : null,
         String(model.dependencies),
       );
 
@@ -119,7 +124,7 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
         const findings = iconButton(
           "findings",
           "Findings (W)",
-          () => actions.openTab("findings"),
+          () => pressPanel(model, "findings", actions),
           String(model.findings.count),
         );
 
@@ -132,11 +137,11 @@ export function buildSelectionBar(actions: BarActions): SelectionBarView {
 
       if (model.notes !== null) {
         const notes = iconButton("sticky-note", `Notes (N)`, () =>
-          actions.openNote(),
+          pressPanel(model, "notes", actions),
         );
 
         notes.classList.add("bar-notes");
-        notes.classList.toggle("on", model.notes.noted);
+        notes.classList.toggle("on", model.notes.open);
         parts.push(notes);
       }
 
