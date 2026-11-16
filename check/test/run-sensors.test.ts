@@ -618,17 +618,24 @@ describe("sense entry figures", () => {
 
   async function sensed(
     script: string,
-    over: { runsTests?: boolean; modules?: number; clock?: number[] } = {},
+    over: {
+      runsTests?: boolean;
+      modules?: number;
+      clock?: number[];
+      wall?: () => number;
+    } = {},
   ) {
     const { root, io } = setup();
     const steps = over.clock ?? [];
     let at = 0;
+    const reading = () =>
+      steps.length > 0
+        ? (steps[Math.min(at, steps.length - 1)] as number)
+        : Date.now();
     const ticking = {
       ...io,
-      now: () =>
-        steps.length > 0
-          ? (steps[Math.min(at, steps.length - 1)] as number)
-          : Date.now(),
+      now: over.wall ?? reading,
+      awake: reading,
     };
     const [entry] = await runSensors({
       io: ticking,
@@ -668,6 +675,29 @@ ${finishing("")}`,
       fixed_ms: 9000,
       duration_ms: 20000,
     });
+  });
+
+  it("a run-log duration ignores an injected sleep gap", async () => {
+    const HOURS_8 = 8 * 3_600_000;
+    let wall = 0;
+    const entry = await sensed(
+      `${event({ event: "start", total: 3, unit: "functions" })}
+${event({ event: "progress", done: 0, total: 3, unit: "functions" })}
+${event({ event: "progress", done: 1, total: 3, unit: "functions" })}
+${finishing("")}`,
+      {
+        runsTests: true,
+        clock: [0, 1000, 9000, 20000],
+        wall: () => {
+          wall += HOURS_8;
+
+          return wall;
+        },
+      },
+    );
+
+    expect(entry).toBeDefined();
+    expect(entry).toMatchObject({ fixed_ms: 9000, duration_ms: 20000 });
   });
 
   it("records the whole duration as fixed_ms when no progress event arrives", async () => {

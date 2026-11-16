@@ -357,7 +357,7 @@ export async function describeModules(
         command: filled,
         status: result.started ? result.status : null,
         stderr: result.stderr,
-        duration_ms: io.now() - began,
+        duration_ms: io.awake() - began,
         ...(reason === null ? {} : { reason }),
       }),
     );
@@ -377,7 +377,7 @@ export async function describeModules(
       fill(item, root, subject.id, requestFile, input.model),
     );
     const [program, ...rest] = filled as [string, ...string[]];
-    const began = io.now();
+    const began = io.awake();
 
     const plugin = prepareCall(io, limits, filled, "describer", input.onEvent);
     const call = io.runAsync(program, rest, plugin.options);

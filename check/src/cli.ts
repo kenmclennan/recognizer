@@ -13,6 +13,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { type AwakeClock, systemAwakeClock } from "./awake-clock.js";
 import { COMMANDS } from "./commands.js";
 import { errorText, InputError } from "./errors.js";
 import { commandHelp, shortHelp } from "./help.js";
@@ -105,6 +106,7 @@ export interface Io {
   request(socket: string, text: string): RequestResult;
   env(name: string): string | undefined;
   now(): number;
+  awake(): number;
   pid(): number;
   pidAlive(pid: number): boolean;
   processGroup(pid: number): number | null;
@@ -133,6 +135,14 @@ const REQUEST_SCRIPT = [
   "});",
   'connection.on("end", () => process.exit(1));',
 ].join("\n");
+
+let sharedClock: AwakeClock | undefined;
+
+function awakeClock(): AwakeClock {
+  sharedClock ??= systemAwakeClock();
+
+  return sharedClock;
+}
 
 const liveChildren = new Set<ChildProcess>();
 
@@ -182,15 +192,15 @@ export function stopEverything(
     child.kill("SIGTERM");
   }
 
-  let timer: NodeJS.Timeout | undefined;
+  let cancel: (() => void) | undefined;
 
   return Promise.race([
     Promise.all(stopping.map(exited)),
     new Promise<void>((resolve) => {
-      timer = setTimeout(resolve, graceMs);
+      cancel = awakeClock().after(graceMs, resolve);
     }),
   ]).then(() => {
-    clearTimeout(timer);
+    cancel?.();
 
     for (const child of stopping) {
       if (child.exitCode === null && child.signalCode === null) {
@@ -208,7 +218,7 @@ function spawnAsync(
   options?: RunOptions,
 ): Running {
   let child: ChildProcess;
-  let timer: NodeJS.Timeout | undefined;
+  let timer: (() => void) | undefined;
 
   const result = new Promise<RunResult>((resolve) => {
     child = spawn(command, args, {
@@ -225,7 +235,7 @@ function spawnAsync(
     let pending = "";
     let timedOut = false;
     let settled = false;
-    let grace: NodeJS.Timeout | undefined;
+    let grace: (() => void) | undefined;
 
     const deliver = (chunk: string) => {
       if (options?.onStderrLine === undefined) {
@@ -249,8 +259,8 @@ function spawnAsync(
       }
 
       settled = true;
-      clearTimeout(timer);
-      clearTimeout(grace);
+      timer?.();
+      grace?.();
       liveChildren.delete(child);
       resolve(value);
     };
@@ -289,7 +299,7 @@ function spawnAsync(
     });
 
     if (options?.timeoutMs !== undefined) {
-      timer = setTimeout(() => {
+      timer = awakeClock().after(options.timeoutMs, () => {
         timedOut = true;
 
         if (options.graceMs === undefined) {
@@ -299,10 +309,10 @@ function spawnAsync(
         }
 
         child.kill("SIGTERM");
-        grace = setTimeout(() => {
+        grace = awakeClock().after(options.graceMs, () => {
           child.kill("SIGKILL");
-        }, options.graceMs);
-      }, options.timeoutMs);
+        });
+      });
     }
   });
 
@@ -465,6 +475,7 @@ export function nodeIo(): Io {
     },
     env: (name) => process.env[name],
     now: () => Date.now(),
+    awake: () => awakeClock().now(),
     pid: () => process.pid,
     pidAlive: (pid) => {
       try {

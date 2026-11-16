@@ -67,7 +67,7 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
     input.onStart?.(name);
 
     const output = findingsFile(root, name);
-    const began = io.now();
+    const began = io.awake();
     const validate = (document: unknown, anyCommit?: boolean) => {
       validateFindings(document, anyCommit ? { name } : { name, commit });
     };
@@ -117,7 +117,7 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
       reason = diagnosis.line;
     }
 
-    const finished = io.now();
+    const finished = io.awake();
     const fixedFrom = run.firstWorked ?? (runsTests === true ? finished : null);
     const entry = entryFrom(name, {
       command: run.command,

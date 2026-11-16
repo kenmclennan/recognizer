@@ -14,6 +14,8 @@ export type RunInput = {
   progress: ScanProgress;
   starting: { at: number } | null;
   adoptedAtOpen: string | null;
+  awakeNow?: number;
+  startedAwake?: number | null;
 };
 
 export type RunView = RunInput & { display: (name: string) => string };
@@ -343,7 +345,13 @@ function timeLeft(
     return null;
   }
 
-  const startedAt = Date.parse(record.started_at);
+  const startedWall = Date.parse(record.started_at);
+  const startedAt =
+    view.startedAwake !== undefined
+      ? view.startedAwake
+      : Number.isNaN(startedWall)
+        ? null
+        : startedWall;
   const left = remaining({
     parts: [
       { key: "structure", name: "Structure" },
@@ -357,8 +365,8 @@ function timeLeft(
     ],
     suites: record.suites,
     progress: view.progress,
-    startedAt: Number.isNaN(startedAt) ? null : startedAt,
-    now,
+    startedAt,
+    now: view.awakeNow ?? now,
   });
 
   return left === null

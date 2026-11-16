@@ -278,7 +278,7 @@ function concludeScanner(
     command: [command, ...args],
     status: result.started ? result.status : null,
     stderr: result.stderr,
-    duration_ms: io.now() - began,
+    duration_ms: io.awake() - began,
   });
 
   if (!result.started) {
@@ -321,7 +321,7 @@ function runScannerSync(input: ExtractInput): Scanned {
   const { io } = input;
 
   try {
-    const began = io.now();
+    const began = io.awake();
     const result = io.run(prepared.ready.command, prepared.ready.args);
 
     return concludeScanner(io, prepared.ready, result, began);
@@ -348,7 +348,7 @@ async function runScannerAsync(input: ExtractInput): Promise<Scanned> {
       language,
       input.onEvent,
     );
-    const began = io.now();
+    const began = io.awake();
     const result = await io.runAsync(command, args, call.options).result;
 
     return concludeScanner(
@@ -971,7 +971,7 @@ function* scanFlow(
 
     if (describer !== undefined && options.describe !== false) {
       const phase = startPhase("describe");
-      let describeFrom = io.now();
+      let describeFrom = io.awake();
 
       for (const language of detected) {
         if (readCachedScan(io, root, language) === null) {
@@ -1016,7 +1016,7 @@ function* scanFlow(
                     const answered =
                       (await io.readLine())?.trim() === "describe";
 
-                    describeFrom = io.now();
+                    describeFrom = io.awake();
 
                     return answered;
                   }
@@ -1028,7 +1028,7 @@ function* scanFlow(
                   taken.append(
                     `${JSON.stringify({ event: "answered", phase: "describe", describe })}\n`,
                   );
-                  describeFrom = io.now();
+                  describeFrom = io.awake();
 
                   return describe;
                 },
@@ -1058,7 +1058,7 @@ function* scanFlow(
         },
       }) as DescribeResult;
 
-      phase.duration_ms = io.now() - describeFrom;
+      phase.duration_ms = io.awake() - describeFrom;
 
       const stop = result.stopped;
 
@@ -1094,7 +1094,7 @@ function* scanFlow(
 
       emit(phaseLine("sense", { total: selected.length }));
 
-      const senseFrom = io.now();
+      const senseFrom = io.awake();
 
       yield {
         kind: "sense",
@@ -1130,7 +1130,7 @@ function* scanFlow(
         },
       };
 
-      phase.duration_ms = io.now() - senseFrom;
+      phase.duration_ms = io.awake() - senseFrom;
     }
 
     runLog?.finish(phases, false, structureMs);
@@ -1265,7 +1265,7 @@ function* runStructure(
   let began: number | null = null;
   const timed = (failed: boolean) => ({
     failed,
-    ms: began === null ? null : io.now() - began,
+    ms: began === null ? null : io.awake() - began,
   });
 
   try {
@@ -1281,7 +1281,7 @@ function* runStructure(
       return { failed: false, ms: null };
     }
 
-    began = io.now();
+    began = io.awake();
 
     const policy = readPolicy(io, root);
 

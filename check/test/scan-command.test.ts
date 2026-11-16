@@ -1885,6 +1885,51 @@ describe("recognizer scan: phases", () => {
       expect(phaseOf(fake, "extract")).not.toHaveProperty("duration_ms");
     });
 
+    it("a phase duration ignores an injected sleep gap", async () => {
+      let wall = 0;
+      const { fake } = await scan(
+        setup(
+          {
+            now: () => {
+              wall += 8 * 3_600_000;
+
+              return wall;
+            },
+            awake: (() => {
+              let awake = 0;
+
+              return () => {
+                awake += 1;
+
+                return awake;
+              };
+            })(),
+          },
+          { [CONFIG]: SENSORS },
+        ),
+        "--sense",
+        "first,second",
+      );
+      const sense = phaseOf(fake, "sense");
+
+      expect(sense).toBeDefined();
+      expect(sense.duration_ms).toBeLessThan(1000);
+      expect(records(fake)[0].structure_ms).toBeLessThan(1000);
+    });
+
+    it("a run log timestamp stays wall time", async () => {
+      const { fake } = await scan(
+        setup({
+          now: () => Date.UTC(2026, 10, 2, 9, 23),
+          awake: () => 5,
+        }),
+      );
+      const record = records(fake)[0];
+
+      expect(record.started).toBe("2026-11-02T09:23:00.000Z");
+      expect(record.finished).toBe("2026-11-02T09:23:00.000Z");
+    });
+
     it("excludes the wait for the describe confirmation from the describe duration", async () => {
       const reads = { count: 0 };
       let clock = 0;
