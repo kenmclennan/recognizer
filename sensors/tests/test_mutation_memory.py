@@ -56,16 +56,70 @@ Pages active:                            200000.
 Pages inactive:                          232800.
 Pages speculative:                         7100.
 Pages purgeable:                           5000.
+File-backed pages:                       200000.
 """
 
 
-def test_vm_stat_sums_free_inactive_and_speculative():
-    assert memory.vm_stat_bytes(VM_STAT) == (18167 + 232800 + 7100) * 16384
+def test_vm_stat_sums_free_file_backed_and_purgeable():
+    assert memory.vm_stat_bytes(VM_STAT) == (18167 + 200000 + 5000) * 16384
 
 
 def test_vm_stat_without_a_field_is_none():
+    assert memory.vm_stat_bytes(VM_STAT) is not None
     assert memory.vm_stat_bytes("nothing here") is None
-    assert memory.vm_stat_bytes(VM_STAT.replace("Pages speculative", "Pages other")) is None
+
+    for name in ("Pages free", "File-backed pages", "Pages purgeable"):
+        assert memory.vm_stat_bytes(VM_STAT.replace(name, "Pages other")) is None
+
+
+def capture(free, inactive, speculative, purgeable, file_backed, active):
+    return (
+        "Mach Virtual Memory Statistics: (page size of 16384 bytes)\n"
+        f"Pages free:  {free}.\nPages active:  {active}.\nPages inactive:  {inactive}.\n"
+        f"Pages speculative:  {speculative}.\nPages purgeable:  {purgeable}.\n"
+        f"File-backed pages:  {file_backed}.\n"
+    )
+
+
+def fake_vm_stat(monkeypatch, text):
+    class Done:
+        stdout = text
+
+    monkeypatch.setattr(memory.subprocess, "run", lambda *args, **kwargs: Done())
+
+
+def test_the_36gb_case_gets_more_than_two_workers(monkeypatch):
+    fake_vm_stat(monkeypatch, capture(20000, 560000, 20000, 60000, 900000, 700000))
+
+    available = memory.macos_available()
+
+    assert available == (20000 + 900000 + 60000) * 16384 - memory.MACOS_RESERVE
+    assert default_workers(12, available, 3777 * MB) == 3
+    assert memory.binding_input(12, available, 3777 * MB) == "memory"
+
+
+def test_a_low_memory_capture_still_gets_one_worker(monkeypatch):
+    fake_vm_stat(monkeypatch, capture(5000, 0, 0, 2000, 40000, 0))
+
+    available = memory.macos_available()
+
+    assert available == 0
+    assert default_workers(8, available, 1 * GB) == 1
+    assert memory.binding_input(8, available, 1 * GB) == "memory"
+
+
+@pytest.mark.parametrize(
+    ("cpus", "available", "peak", "expected"),
+    [
+        (8, 16 * GB, 1 * GB, "cores"),
+        (8, 3 * GB, 1 * GB, "memory"),
+        (8, 4 * GB, 1 * GB, "cores"),
+        (8, 0, 1 * GB, "memory"),
+        (8, 3 * GB, 0, "cores"),
+    ],
+)
+def test_the_binding_input(cpus, available, peak, expected):
+    assert memory.binding_input(cpus, available, peak) == expected
 
 
 def test_meminfo_reads_mem_available_in_bytes():
@@ -89,7 +143,7 @@ def test_available_bytes_on_the_real_host(platform):
     available = memory.available_bytes()
 
     assert isinstance(available, int)
-    assert 0 < available < 4096 * GB
+    assert (0 if platform == "darwin" else 1) <= available < 4096 * GB
 
 
 def test_an_unknown_platform_reads_none(monkeypatch):
@@ -158,7 +212,10 @@ def test_the_default_is_sized_from_memory(tmp_path, monkeypatch, capsys):
     seen, err = sized_run(tmp_path, monkeypatch, capsys, lambda: 3 * GB, 8)
 
     assert seen == [3]
-    assert "workers: 3 (cores 8, half 4, available 3000 MB, one run 1000 MB)" in err
+    assert (
+        "workers: 3 (cores 8, half 4, available 3000 MB, one run 1000 MB, bound by memory; max_workers sets the count)"
+        in err
+    )
 
 
 def test_an_explicit_value_reads_no_memory(tmp_path, monkeypatch, capsys):
@@ -182,7 +239,10 @@ def test_the_cores_bind_when_memory_is_plentiful(tmp_path, monkeypatch, capsys):
     seen, err = sized_run(tmp_path, monkeypatch, capsys, lambda: 16 * GB, 8)
 
     assert seen == [4]
-    assert "workers: 4 (cores 8, half 4, available 16000 MB, one run 1000 MB)" in err
+    assert (
+        "workers: 4 (cores 8, half 4, available 16000 MB, one run 1000 MB, bound by cores; max_workers sets the count)"
+        in err
+    )
 
 
 def kotlin_suite(env=None):
@@ -230,7 +290,10 @@ def test_the_pool_is_sized_from_the_serial_probe(tmp_path, monkeypatch, capsys):
 
     assert FakeSampler.created == 2
     assert seen == [4]
-    assert "workers: 4 (cores 8, half 4, available 3000 MB, one run 100 MB)" in err
+    assert (
+        "workers: 4 (cores 8, half 4, available 3000 MB, one run 100 MB, bound by cores; max_workers sets the count)"
+        in err
+    )
 
 
 def test_without_a_selected_command_the_coverage_peak_sizes_the_pool(tmp_path, monkeypatch, capsys):
