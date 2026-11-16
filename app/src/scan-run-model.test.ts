@@ -451,6 +451,23 @@ describe("the time slot while an app-driven scan runs", () => {
     expect(card?.when.title).toBeUndefined();
   });
 
+  it("names an overrun in the card text and hover", () => {
+    const card = running(
+      { sensors: ["crap"] },
+      {
+        timing: timing({
+          frozen: { structure: 0, crap: 30_000 },
+          sensorAt: { crap: T0 },
+        }),
+      },
+    )?.card;
+
+    expect(card?.when.text).toBe("C.R.A.P.: longer than estimated");
+    expect(card?.when.title).toBe(
+      "C.R.A.P.: past its estimate of under a minute",
+    );
+  });
+
   it("names the parts it is not counting in the hover", () => {
     const card = running(
       {},

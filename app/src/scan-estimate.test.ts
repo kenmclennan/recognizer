@@ -829,6 +829,107 @@ describe("remaining time while running", () => {
     expect(mutationLeft(mutating(16), ["unit"])?.text).toBe("about 9 min left");
   });
 
+  const started = (figures: Record<string, number>) =>
+    fold(frozen(figures), [
+      [T, { event: "phase", phase: "sense", total: 1 }],
+      [T, { event: "start", phase: "sense", name: "mutation" }],
+    ]);
+  const overrunLeft = (
+    progress: ScanProgress,
+    now: number,
+    suites = ["unit"],
+    parts: { key: string; name: string }[] = [PARTS[0], PARTS[2]],
+  ) =>
+    remaining({
+      parts,
+      suites: { mutation: suites },
+      progress,
+      startedAt: T,
+      now,
+    });
+
+  it("names a sensor past its figure with no rate as longer than estimated", () => {
+    const result = overrunLeft(
+      started({ structure: 0, mutation: 600_000 }),
+      T + 700_000,
+    );
+
+    expect(result?.text).toBe("Mutation: longer than estimated");
+    expect(result?.text).not.toContain("under a minute");
+    expect(result?.title).toBe("Mutation: past its estimate of about 10 min");
+  });
+
+  it("keeps the other parts' time beside an overrun", () => {
+    const result = overrunLeft(
+      started({ structure: 0, crap: 300_000, mutation: 600_000 }),
+      T + 700_000,
+      ["unit"],
+      [PARTS[0], { key: "crap", name: "C.R.A.P." }, PARTS[2]],
+    );
+
+    expect(result?.text).toBe(
+      "about 5 min left, plus Mutation: longer than estimated",
+    );
+  });
+
+  it("counts exactly at the figure as no overrun", () => {
+    expect(
+      overrunLeft(started({ structure: 0, mutation: 600_000 }), T + 600_000)
+        ?.text,
+    ).toBe("under a minute left");
+  });
+
+  it("names a describing phase past its figure with fewer than 3 modules done", () => {
+    const result = left(describing(2), T + 100_000);
+
+    expect(result?.text).toBe("Descriptions: longer than estimated");
+  });
+
+  it("restarts the pace at a step change", () => {
+    const at = (
+      time: number,
+      step: string,
+      done: number,
+    ): [number, Parameters<typeof foldRunLine>[1]] => [
+      time,
+      {
+        event: "plugin",
+        phase: "sense",
+        name: "mutation",
+        data: { event: "progress", done, total: 38, unit: "functions", step },
+      },
+    ];
+    const run = (...lines: [number, Parameters<typeof foldRunLine>[1]][]) =>
+      fold(frozen({ structure: 0, mutation: 600_000 }), [
+        [T, { event: "phase", phase: "sense", total: 1 }],
+        [T, { event: "start", phase: "sense", name: "mutation" }],
+        at(T, "a", 14),
+        ...lines,
+      ]);
+
+    expect(
+      overrunLeft(
+        run(at(T + 60_000, "b", 20), at(T + 120_000, "b", 22)),
+        T + 120_000,
+      )?.text,
+    ).toBe("about 8 min left");
+    expect(
+      overrunLeft(
+        run(at(T + 60_000, "b", 20), at(T + 120_000, "b", 23)),
+        T + 120_000,
+      )?.text,
+    ).toBe("about 5 min left");
+  });
+
+  it("keeps two suites on the frozen figure and names the overrun", () => {
+    expect(
+      overrunLeft(started({ structure: 0, mutation: 600_000 }), T + 700_000, [
+        "a",
+        "b",
+      ])?.text,
+    ).toBe("Mutation: longer than estimated");
+  });
+
   it("names a part with no frozen figure and does not count it", () => {
     const result = remaining({
       parts: PARTS,
