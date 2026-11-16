@@ -77,7 +77,7 @@ export function diffNameStatus(
     "-C",
     root,
     "diff",
-    "--no-renames",
+    "-M",
     "--name-status",
     "-z",
     `${change.base}...${change.head}`,

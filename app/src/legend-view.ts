@@ -58,6 +58,7 @@ function swatch(style: EdgeStyle): SVGElement {
 const CHANGE_MARKS: { mark: string; label: string }[] = [
   { mark: "added", label: "added" },
   { mark: "modified", label: "modified" },
+  { mark: "renamed", label: "renamed" },
   { mark: "removed", label: "removed" },
 ];
 

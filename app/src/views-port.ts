@@ -5,7 +5,7 @@ export type ViewListing = {
   refused: string[];
 };
 
-export type RangeChange = { status: string; path: string };
+export type RangeChange = { status: string; path: string; from?: string };
 
 export type ChangeRange = {
   baseCommit: string | null;

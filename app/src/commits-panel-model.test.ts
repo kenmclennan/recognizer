@@ -407,6 +407,7 @@ describe("row builders and ordering", () => {
       impactText({
         added: ["a"],
         modified: ["b", "c"],
+        renamed: [],
         removed: ["d"],
         elsewhere: ["e", "f"],
       }),
@@ -420,14 +421,26 @@ describe("row builders and ordering", () => {
       elsewhere: "+2 not on the canvas",
     });
     expect(
-      impactText({ added: ["a"], modified: [], removed: [], elsewhere: [] }),
+      impactText({
+        added: ["a"],
+        modified: [],
+        renamed: [],
+        removed: [],
+        elsewhere: [],
+      }),
     ).toEqual({
       count: "1 file",
       squares: [{ tone: "added", count: 1 }],
       elsewhere: null,
     });
     expect(
-      impactText({ added: [], modified: [], removed: [], elsewhere: ["x"] }),
+      impactText({
+        added: [],
+        modified: [],
+        renamed: [],
+        removed: [],
+        elsewhere: ["x"],
+      }),
     ).toEqual({
       count: "no files",
       squares: [],
@@ -436,13 +449,43 @@ describe("row builders and ordering", () => {
   });
 
   it("classifies as unknown without a change list or without a scan", () => {
-    const scan = [{ modules: [{ id: "a.py" }], selection: null }] as never;
+    const selection = [
+      {
+        extensions: [".py"],
+        skip_directory_names: [],
+        skip_directory_prefixes: [],
+        skip_directory_suffixes: [],
+        skip_directories_containing: [],
+        skip_file_globs: [],
+      },
+    ];
 
-    expect(classify(null, scan)).toBeNull();
+    expect(classify(null, selection)).toBeNull();
     expect(classify([{ status: "M", path: "a.py" }], null)).toBeNull();
     expect(classify([{ status: "M", path: "a.py" }], [])).toBeNull();
-    expect(classify([{ status: "M", path: "a.py" }], scan)?.modified).toEqual([
-      "a.py",
+    expect(
+      classify([{ status: "M", path: "a.py" }], selection)?.modified,
+    ).toEqual(["a.py"]);
+  });
+
+  it("renamed square: one rename yields a renamed square and a group line", () => {
+    const classification = {
+      added: [],
+      modified: [],
+      renamed: ["new.py"],
+      removed: [],
+      elsewhere: [],
+    };
+
+    expect(impactText(classification)).toEqual({
+      count: "1 file",
+      squares: [{ tone: "renamed", count: 1 }],
+      elsewhere: null,
+    });
+    expect(impactTip(classification)).toEqual([
+      { kind: "heading", text: "1 file on the canvas" },
+      { kind: "group", text: "1 renamed", tone: "renamed" },
+      { kind: "file", text: "new.py", tone: "renamed" },
     ]);
   });
 
@@ -452,6 +495,7 @@ describe("row builders and ordering", () => {
       impactTip({
         added: ["a"],
         modified: [],
+        renamed: [],
         removed: ["d"],
         elsewhere: ["e"],
       }),
@@ -465,7 +509,13 @@ describe("row builders and ordering", () => {
       { kind: "file", text: "e" },
     ]);
     expect(
-      impactTip({ added: [], modified: [], removed: [], elsewhere: [] })?.[0],
+      impactTip({
+        added: [],
+        modified: [],
+        renamed: [],
+        removed: [],
+        elsewhere: [],
+      })?.[0],
     ).toEqual({ kind: "heading", text: "Nothing on the canvas" });
   });
 
@@ -478,7 +528,13 @@ describe("row builders and ordering", () => {
   });
 
   it("hides rows with no files on the canvas but keeps held rows and unknown rows", () => {
-    const none = { added: [], modified: [], removed: [], elsewhere: ["x"] };
+    const none = {
+      added: [],
+      modified: [],
+      renamed: [],
+      removed: [],
+      elsewhere: ["x"],
+    };
     const some = { ...none, modified: ["m"] };
     const rows = [
       { id: 1, classification: none, held: false },

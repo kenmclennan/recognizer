@@ -133,6 +133,8 @@ pub fn valid_ref(reference: &str) -> bool {
 pub struct FileChange {
     pub status: String,
     pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -148,11 +150,28 @@ pub fn parse_name_status(output: &str) -> Vec<FileChange> {
     let mut fields = output.split('\0');
     let mut changes = Vec::new();
 
-    while let (Some(status), Some(path)) = (fields.next(), fields.next()) {
+    while let Some(status) = fields.next() {
+        if status.starts_with('R') {
+            if let (Some(from), Some(path)) = (fields.next(), fields.next()) {
+                changes.push(FileChange {
+                    status: "R".to_string(),
+                    path: path.to_string(),
+                    from: Some(from.to_string()),
+                });
+            }
+
+            continue;
+        }
+
+        let Some(path) = fields.next() else {
+            break;
+        };
+
         if matches!(status, "A" | "M" | "D" | "T") {
             changes.push(FileChange {
                 status: status.to_string(),
                 path: path.to_string(),
+                from: None,
             });
         }
     }
@@ -214,13 +233,7 @@ pub fn change_range(folder: &Path, base: &str, head: &str) -> Option<ChangeRange
             .is_some_and(|output| output.status.success());
     let diff = git_in(
         folder,
-        &[
-            "diff",
-            "--no-renames",
-            "--name-status",
-            "-z",
-            &format!("{b}...{h}"),
-        ],
+        &["diff", "-M", "--name-status", "-z", &format!("{b}...{h}")],
     )
     .filter(|output| output.status.success())?;
 
@@ -1466,11 +1479,13 @@ mod tests {
             vec![
                 FileChange {
                     status: "D".into(),
-                    path: "src/b.py".into()
+                    path: "src/b.py".into(),
+                    from: None
                 },
                 FileChange {
                     status: "A".into(),
-                    path: "src/c.py".into()
+                    path: "src/c.py".into(),
+                    from: None
                 },
             ]
         );
@@ -1494,8 +1509,49 @@ mod tests {
             range.changes,
             vec![FileChange {
                 status: "A".into(),
-                path: "b.py".into()
+                path: "b.py".into(),
+                from: None
             }]
+        );
+    }
+
+    #[test]
+    fn change_range_reads_a_rename() {
+        let dir = git_repo();
+
+        run_git(dir.path(), &["checkout", "-q", "-b", "feat"]);
+        run_git(dir.path(), &["mv", "a.py", "renamed.py"]);
+        run_git(dir.path(), &["commit", "-q", "-m", "rename"]);
+        run_git(dir.path(), &["checkout", "-q", "main"]);
+
+        let range = change_range(dir.path(), "main", "feat").unwrap();
+
+        assert_eq!(
+            range.changes,
+            vec![FileChange {
+                status: "R".into(),
+                path: "renamed.py".into(),
+                from: Some("a.py".into())
+            }]
+        );
+    }
+
+    #[test]
+    fn name_status_reads_a_rename_as_old_then_new_path() {
+        assert_eq!(
+            parse_name_status("R100\0old.py\0new.py\0M\0a.py\0"),
+            vec![
+                FileChange {
+                    status: "R".into(),
+                    path: "new.py".into(),
+                    from: Some("old.py".into())
+                },
+                FileChange {
+                    status: "M".into(),
+                    path: "a.py".into(),
+                    from: None
+                },
+            ]
         );
     }
 

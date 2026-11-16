@@ -53,7 +53,6 @@ import {
 } from "./note-bubble-view";
 import { bubblePlace, bubbleSize } from "./note-focus";
 import { type PlanOverlay, proposedClass } from "./plan-overlay";
-import type { RemovedBox } from "./removed-boxes";
 import {
   type BarActions,
   type BarModel,
@@ -107,7 +106,7 @@ export type CanvasProps = {
 
 export type ChangeOverlay = {
   marks: ReadonlyMap<string, Mark>;
-  removed: RemovedBox[];
+  from: ReadonlyMap<string, string>;
 };
 
 export type CanvasOrientation = {
@@ -236,31 +235,6 @@ function frameText(rect: Rect, label: string, figure: string): SVGElement {
 }
 
 const points = (list: Point[]) => list.map((p) => `${p.x},${p.y}`).join(" ");
-
-function drawRemoved(removed: RemovedBox): SVGElement {
-  const { rect } = removed;
-  const middle = rect.y + rect.height / 2;
-  const node = svg("g", {
-    class: "box module mark-removed removed-box",
-    "data-kind": "module",
-    "data-id": removed.id,
-    "data-removed": removed.id,
-  });
-
-  node.append(
-    svg("rect", {
-      class: "box-body",
-      x: rect.x,
-      y: rect.y,
-      width: rect.width,
-      height: rect.height,
-      rx: 7,
-    }),
-    svg("text", { class: "name", x: rect.x + 12, y: middle + 4 }, removed.name),
-  );
-
-  return node;
-}
 
 export function buildCanvasView(
   actions: CanvasActions,
@@ -818,6 +792,12 @@ export function buildCanvasView(
             "data-id": box.id,
           });
 
+          const renamedFrom = props?.changes?.from.get(box.id);
+
+          if (renamedFrom !== undefined) {
+            node.append(svg("title", {}, `renamed from ${renamedFrom}`));
+          }
+
           const middle = rect.y + nameBase(box) / 2;
           const changedBox =
             box.kind !== "folder" && props?.changed?.(box.id) === true;
@@ -901,10 +881,6 @@ export function buildCanvasView(
       }
 
       parts.push(group);
-    }
-
-    for (const removed of props?.changes?.removed ?? []) {
-      parts.push(drawRemoved(removed));
     }
 
     world.replaceChildren(...parts);

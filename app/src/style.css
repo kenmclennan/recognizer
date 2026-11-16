@@ -3542,6 +3542,11 @@ svg.i.chevron {
   stroke-width: 2;
 }
 
+.box.mark-renamed .box-body {
+  stroke: var(--sel);
+  stroke-width: 2;
+}
+
 .box.mark-removed .box-body {
   fill: var(--panel);
   stroke: var(--bad);
@@ -3676,6 +3681,10 @@ svg.i.chevron {
 
 .change-swatch.modified {
   border-color: var(--warn);
+}
+
+.change-swatch.renamed {
+  border-color: var(--sel);
 }
 
 .change-swatch.removed {
@@ -4149,6 +4158,10 @@ svg.i.chevron {
   background: var(--warn);
 }
 
+.commits-impact-swatch.renamed {
+  background: var(--sel);
+}
+
 .commits-impact-swatch.removed {
   background: var(--bad);
 }
@@ -4194,6 +4207,10 @@ svg.i.chevron {
 
 .commits-card-file.modified {
   color: var(--warn);
+}
+
+.commits-card-file.renamed {
+  color: var(--sel);
 }
 
 .commits-card-file.removed {

@@ -182,7 +182,7 @@ describe("parseHistory over this repository's real committed history (non-gating
       "log",
       "-n",
       "200",
-      "--no-renames",
+      "-M",
       "--diff-merges=first-parent",
       "--name-status",
       "--format=%x1e%H%x1f%h%x1f%P%x1f%an%x1f%ct%x1f%s%x1f%D",

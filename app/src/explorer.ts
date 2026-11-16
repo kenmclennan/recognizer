@@ -41,6 +41,7 @@ import {
   type ChangeOverlay,
   createMeasure,
 } from "./canvas-view";
+import { unionScans } from "./change-union";
 import {
   ageOf,
   type BranchEntry,
@@ -149,7 +150,6 @@ import { type PlanOverlay, planOverlay } from "./plan-overlay";
 import { createPlannedWork, fingerprint } from "./planned-work";
 import { changedKeys, type ProgressKeys, progressKeys } from "./progress-keys";
 import { buildRailView, type LeftPanel } from "./rail-view";
-import { removedPlacement } from "./removed-boxes";
 import {
   inertResponsibilities,
   type ResponsibilitiesPort,
@@ -353,6 +353,8 @@ type ChangeInfo =
       headCommit: string;
       members: ChangeMembers;
       baseUnreadable?: string;
+      headUnreadable?: string;
+      drawn: Scan[];
     };
 
 type LoadedMembers = {
@@ -446,7 +448,7 @@ export function showExplorer(
     scene: Scene;
     value: ChangeOverlay;
   } | null = null;
-  const baseScanCache = new Map<string, ReadOutcome<Scan[]> | null>();
+  const rangeScanCache = new Map<string, ReadOutcome<Scan[]> | null>();
   const deletionUndos = new Set<number>();
   let scanConfig: string | null = null;
   let shippedSensors: ShippedSensors | null = null;
@@ -1400,13 +1402,58 @@ export function showExplorer(
     record();
   }
 
+  let drawnCount: { open: number; total: number } | null = null;
+
+  function onCanvasCount() {
+    return drawnCount ?? { open: modules.count(), total: modules.total() };
+  }
+
   function rebuild() {
     const plan = currentPlan();
+    const change = changeInfo;
+    const drawn =
+      change !== null && change.state === "ok" && change.name === openView
+        ? change
+        : null;
+    const drawnIds =
+      drawn === null
+        ? null
+        : new Set(
+            drawn.drawn.flatMap((scan) =>
+              scan.modules.map((module) => module.id),
+            ),
+          );
+
+    drawnCount =
+      drawnIds === null || drawn === null
+        ? null
+        : {
+            open: new Set([
+              ...modules.opened().filter((id) => drawnIds.has(id)),
+              ...drawn.marked
+                .filter((one) => one.box !== "none")
+                .map((one) => one.id),
+            ]).size,
+            total: drawnIds.size,
+          };
 
     graph = buildCanvasGraph({
-      scans,
-      modules: [...loaded.modules, ...(plan?.planned ?? [])],
-      opened: [...modules.opened(), ...(plan?.planned ?? [])],
+      scans: drawn === null ? scans : drawn.drawn,
+      modules:
+        drawnIds === null
+          ? [...loaded.modules, ...(plan?.planned ?? [])]
+          : [...drawnIds],
+      opened:
+        drawn === null || drawnIds === null
+          ? [...modules.opened(), ...(plan?.planned ?? [])]
+          : [
+              ...new Set([
+                ...modules.opened().filter((id) => drawnIds.has(id)),
+                ...drawn.marked
+                  .filter((one) => one.box !== "none")
+                  .map((one) => one.id),
+              ]),
+            ],
       ghosts: plan?.ghosts ?? [],
       disc: (path) => described.get(path)?.disc ?? "grey",
       folded: state.folded(),
@@ -1896,40 +1943,53 @@ export function showExplorer(
         change.status === "A" ||
         change.status === "M" ||
         change.status === "D" ||
-        change.status === "T"
+        change.status === "T" ||
+        change.status === "R"
       ) {
-        files.push({ status: change.status, path: change.path });
+        files.push({
+          status: change.status,
+          path: change.path,
+          ...(change.from === undefined ? {} : { from: change.from }),
+        });
       }
     }
 
     const present = scans as unknown as MarkScan[];
-    let found = changeMarks(files, present, null);
-    let baseUnreadable: string | undefined;
+    const [headOutcome, baseOutcome] = await Promise.all([
+      rangeScansAt(answer.headCommit),
+      rangeScansAt(answer.baseCommit),
+    ]);
 
-    if (found.modules.some((one) => one.mark === "removed")) {
-      let baseScans: MarkScan[] | null = present;
-
-      if (answer.baseCommit !== currentCommit(scans)) {
-        const outcome = await baseScansAt(answer.baseCommit);
-
-        baseScans = outcome?.ok
-          ? (outcome.value as unknown as MarkScan[])
-          : null;
-        baseUnreadable = outcome?.ok === false ? outcome.reason : undefined;
-      }
-
-      if (token !== openToken) {
-        return;
-      }
-
-      found = changeMarks(files, present, baseScans);
+    if (token !== openToken) {
+      return;
     }
 
-    for (const one of found.modules) {
-      if (one.box === "current" && knownModules.has(one.id)) {
-        modules.open(one.id);
-      }
-    }
+    const headScans = headOutcome?.ok
+      ? (headOutcome.value as unknown as MarkScan[])
+      : present;
+    const baseScans = baseOutcome?.ok
+      ? (baseOutcome.value as unknown as MarkScan[])
+      : null;
+    const headUnreadable =
+      headOutcome?.ok === false
+        ? headOutcome.reason
+        : headOutcome === null
+          ? "the scan could not be read"
+          : undefined;
+    const baseUnreadable =
+      baseOutcome?.ok === false
+        ? baseOutcome.reason
+        : baseOutcome === null
+          ? "the scan could not be read"
+          : undefined;
+    const found = changeMarks(files, headScans, baseScans);
+    const drawn = unionScans(
+      headScans as unknown as Scan[],
+      baseScans as unknown as Scan[] | null,
+      found.modules
+        .filter((one) => one.mark === "removed" && one.box === "base")
+        .map((one) => one.id),
+    );
 
     const anyModified = found.modules.some(
       (one) => one.mark === "modified" && one.box === "current",
@@ -1942,7 +2002,9 @@ export function showExplorer(
       unmatched: found.unmatched,
       at: Date.now(),
       headCommit: answer.headCommit,
+      drawn,
       ...(baseUnreadable === undefined ? {} : { baseUnreadable }),
+      ...(headUnreadable === undefined ? {} : { headUnreadable }),
     };
 
     changeInfo = { ...okInfo, members: anyModified ? "loading" : null };
@@ -1982,14 +2044,18 @@ export function showExplorer(
     render();
   }
 
-  async function baseScansAt(
+  async function rangeScansAt(
     commit: string,
   ): Promise<ReadOutcome<Scan[]> | null> {
-    if (!baseScanCache.has(commit)) {
-      baseScanCache.set(commit, await views.scansAt(commit).catch(() => null));
+    if (commit === currentCommit(scans)) {
+      return { ok: true, value: scans };
     }
 
-    return baseScanCache.get(commit) ?? null;
+    if (!rangeScanCache.has(commit)) {
+      rangeScanCache.set(commit, await views.scansAt(commit).catch(() => null));
+    }
+
+    return rangeScanCache.get(commit) ?? null;
   }
 
   function changeOverlay(): ChangeOverlay | null {
@@ -2014,11 +2080,10 @@ export function showExplorer(
 
     const value: ChangeOverlay = {
       marks: new Map(info.marked.map((one) => [one.id, one.mark])),
-      removed: removedPlacement(
-        scene,
-        info.marked
-          .filter((one) => one.mark === "removed" && one.box === "base")
-          .map((one) => one.id),
+      from: new Map(
+        info.marked.flatMap((one): [string, string][] =>
+          one.from === undefined ? [] : [[one.id, one.from]],
+        ),
       ),
     };
 
@@ -2044,12 +2109,15 @@ export function showExplorer(
       case "base-unknown":
         return ` · base ${info.range.slice(0, info.range.indexOf(".."))} is not in the repository`;
       case "ok": {
-        const noBox = info.marked.filter((one) => one.box === "none").length;
         const extra = [
           ...(info.unmatched > 0
             ? [`${info.unmatched} changed files matched no module`]
             : []),
-          ...(noBox > 0 ? [`${noBox} removed modules have no box`] : []),
+          ...(info.headUnreadable === undefined
+            ? []
+            : [
+                `the head could not be read, so added and renamed files may be missing: ${info.headUnreadable}`,
+              ]),
           ...(info.baseUnreadable === undefined
             ? []
             : [`removed modules could not be marked: ${info.baseUnreadable}`]),
@@ -2311,7 +2379,11 @@ export function showExplorer(
 
   function commitsPanelModel() {
     const now = Date.now();
-    const present = scans as unknown as MarkScan[];
+    const present = scans.flatMap((scan) =>
+      (scan as unknown as MarkScan).selection
+        ? [(scan as unknown as MarkScan).selection]
+        : [],
+    );
     const historyShas = historyLoad.rows.map((row) => row.sha);
     const shaded = commitsSelection.between(historyShas);
     const first = commitsSelection.first();
@@ -4375,7 +4447,7 @@ export function showExplorer(
     const notes = syncNotes();
 
     onCount(
-      `${modules.count()} of ${modules.total()} modules on the canvas${changeFooter()}`,
+      `${onCanvasCount().open} of ${onCanvasCount().total} modules on the canvas${changeFooter()}`,
     );
 
     const selection = state.selection();
@@ -4403,8 +4475,8 @@ export function showExplorer(
       bar: barOf(selection),
       titles,
       describe: (id) => descriptionOf(responsibilityOf(id)),
-      open: modules.count(),
-      total: modules.total(),
+      open: onCanvasCount().open,
+      total: onCanvasCount().total,
       showInferred: state.showInferred(),
       notice: layoutNotice,
       busy: layoutBusy,

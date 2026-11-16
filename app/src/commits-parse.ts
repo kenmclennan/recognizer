@@ -1,4 +1,4 @@
-import type { FileChange } from "recognizer";
+import { type FileChange, parseNameStatusLine } from "recognizer";
 
 export type HistoryRow = {
   sha: string;
@@ -62,8 +62,6 @@ function chipsOf(decorations: string): string[] {
   return chips;
 }
 
-const STATUSES = new Set(["A", "M", "D", "T"]);
-
 function changesOf(lines: string[]): FileChange[] {
   const changes: FileChange[] = [];
 
@@ -74,11 +72,10 @@ function changesOf(lines: string[]): FileChange[] {
       continue;
     }
 
-    const status = line.slice(0, tab);
-    const path = line.slice(tab + 1);
+    const change = parseNameStatusLine(line.slice(0, tab), line.slice(tab + 1));
 
-    if (STATUSES.has(status) && path !== "") {
-      changes.push({ status: status as FileChange["status"], path });
+    if (change !== null) {
+      changes.push(change);
     }
   }
 

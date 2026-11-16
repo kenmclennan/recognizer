@@ -34,9 +34,13 @@ export {
   type FileChange,
   type Mark,
   type MarkedModule,
+  type MarkerCheck,
   type MarkScan,
   type ParsedChanges,
   parseNameStatus,
+  parseNameStatusLine,
+  scannedBy,
+  statusOf,
 } from "./change-marks.js";
 export { type CheckResult, check, rankAgainstBaseline } from "./check.js";
 export {
@@ -233,6 +237,7 @@ export {
   type ScanField,
   type ScanMember,
   type ScanMethod,
+  type ScanSelection,
   type ScanVersionVerdict,
   validateAcceptedScan,
   validateScan,
