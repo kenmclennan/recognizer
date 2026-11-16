@@ -156,6 +156,26 @@ describe.skipIf(!HAS_UV)(
     );
 
     it(
+      "announces the detected languages on the extract run line under --json",
+      async () => {
+        const out = capture();
+
+        expect(await run(["scan", repository, "--json"], out.io)).toBe(0);
+
+        const phase = out
+          .out()
+          .split("\n")
+          .filter((line) => line !== "")
+          .map((line) => JSON.parse(line))
+          .find((line) => line.event === "phase" && line.phase === "extract");
+
+        expect(phase.state).toBe("run");
+        expect(phase.languages).toEqual(["python", "typescript"]);
+      },
+      scaledTimeout(120_000),
+    );
+
+    it(
       "resolves a src-layout package's own imports and matches its expected scan",
       async () => {
         const srcLayout = mkdtempSync(join(tmpdir(), "recognizer-src-layout-"));

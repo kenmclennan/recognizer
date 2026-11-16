@@ -836,7 +836,12 @@ function* scanFlow(
       phaseLine(
         "extract",
         decision.run
-          ? { state: "run", commit, reason: decision.reason }
+          ? {
+              state: "run",
+              commit,
+              reason: decision.reason,
+              languages: detected,
+            }
           : { state: "current", commit: decision.commit },
       ),
     );

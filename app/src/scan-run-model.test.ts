@@ -1,6 +1,6 @@
 import type { ScanRunRecord } from "recognizer";
 import { describe, expect, it } from "vitest";
-import { NO_PROGRESS, type ScanProgress } from "./scan-progress";
+import { NO_PROGRESS, parseScanLine, type ScanProgress } from "./scan-progress";
 import * as runModelModule from "./scan-run-model";
 import { type RunView, runModel } from "./scan-run-model";
 
@@ -507,5 +507,56 @@ describe("the time slot while an app-driven scan runs", () => {
     const card = model(view({}, {}, { starting: { at: NOW } }))?.card;
 
     expect(card?.when.text).toMatch(/^\d\d:\d\d$/);
+  });
+});
+
+describe("extract timing per language", () => {
+  const line = (event: object) => {
+    const parsed = parseScanLine(JSON.stringify(event));
+
+    if (parsed === null) {
+      throw new Error("unparsed line");
+    }
+
+    return parsed;
+  };
+  const plugin = (name: string, data: object) =>
+    line({ event: "plugin", phase: "extract", name, data });
+
+  it("stamps the first event, the total and the entry of each language", () => {
+    const folded = [
+      [100, plugin("python", { event: "start", total: 40, unit: "files" })],
+      [
+        150,
+        plugin("python", {
+          event: "progress",
+          done: 10,
+          total: 40,
+          unit: "files",
+        }),
+      ],
+      [
+        900,
+        line({
+          event: "entry",
+          phase: "extract",
+          name: "python",
+          outcome: "ok",
+        }),
+      ],
+      [1000, plugin("rust", { event: "start", total: 7, unit: "files" })],
+    ].reduce<ScanProgress>(
+      (state, [at, event]) =>
+        runModelModule.foldRunLine(
+          state,
+          event as Parameters<typeof runModelModule.foldRunLine>[1],
+          at as number,
+        ),
+      NO_PROGRESS,
+    );
+
+    expect(folded.timing.extractAt).toEqual({ python: 100, rust: 1000 });
+    expect(folded.timing.extractDoneAt).toEqual({ python: 900 });
+    expect(folded.timing.extractTotals).toEqual({ python: 40, rust: 7 });
   });
 });

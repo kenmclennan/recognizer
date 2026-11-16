@@ -4713,3 +4713,95 @@ svg.i.chevron {
   color: var(--bad);
   font-size: 11.5px;
 }
+
+.fo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 360px;
+  max-width: 100%;
+}
+
+.fo-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.fo-stage {
+  margin: 0;
+  opacity: 0.85;
+  text-align: center;
+}
+
+.fo-bar {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.fo-fill {
+  display: block;
+  height: 100%;
+  background: var(--sel);
+  transition: width 0.2s;
+}
+
+.fo-bar.indet .fo-fill {
+  width: 30%;
+  animation: fo-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes fo-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(340%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fo-bar.indet .fo-fill {
+    animation: none;
+  }
+}
+
+.fo-meta {
+  display: flex;
+  justify-content: space-between;
+  min-height: 1em;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.fo-list {
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.fo-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fo-elapsed {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.fo-msg {
+  margin: 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.fo-again {
+  display: flex;
+  justify-content: center;
+}

@@ -550,6 +550,7 @@ describe("recognizer scan: summary", () => {
         state: "run",
         commit: "abc123",
         reason: "no-scan:python",
+        languages: ["python", "typescript"],
       },
       {
         event: "entry",
@@ -709,6 +710,16 @@ describe("recognizer scan: phases", () => {
       .filter((call) => call.command === PYTHON)
       .map((call) => call.args);
   }
+
+  it("announces no languages on the current extract line", async () => {
+    const { out } = await scan(setup(), "--json");
+    const phase = lines(out).find(
+      (line) => line.event === "phase" && line.phase === "extract",
+    );
+
+    expect(phase).toMatchObject({ state: "current" });
+    expect(phase).not.toHaveProperty("languages");
+  });
 
   it("skips extraction on current scans, probing only the scanner version", async () => {
     const { out, fake, code } = await scan(setup());
