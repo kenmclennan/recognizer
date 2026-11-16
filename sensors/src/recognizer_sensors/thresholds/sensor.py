@@ -21,11 +21,6 @@ PUBLISHED = {
     "coverage": ("below", 0.6, "code-coverage-guidelines"),
 }
 
-ATTRIBUTION = {
-    "complexity": "McCabe says {}",
-    "coverage": "Google's guidelines say {}",
-}
-
 NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 ENTRY_KEYS = {"above", "below", "severity"}
 SEVERITIES = ("warning", "violation")
@@ -206,12 +201,6 @@ def finding_for(metric, entry, key, module, member, value, producer) -> dict:
     summary = f"{key}: {metric} {format_number(value)} is {phrase} {format_number(line)}"
 
     if published is not None:
-        figure = (
-            f"{format_number(published * 100)}%"
-            if metric == "coverage"
-            else format_number(published)
-        )
-        summary = f"{summary} ({ATTRIBUTION[metric].format(figure)})"
         evidence["measures"]["published"] = published
 
     if member is not None:

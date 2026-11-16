@@ -393,6 +393,15 @@ describe("finding-groups.json", () => {
     }
   });
 
+  it("names the principle's source once in the long-function and private-imports popovers", () => {
+    const means = (key: string) =>
+      entries.find((one) => one.key === key)?.means ?? "";
+    const count = (text: string, part: string) => text.split(part).length - 1;
+
+    expect(count(means("kind:long_function"), "Clean Code")).toBe(1);
+    expect(count(means("kind:private_imports"), "Parnas")).toBe(1);
+  });
+
   it("is what groupsOf names, orders and explains", () => {
     const all = entries.map((one, index) =>
       record(`r${index}`, one.key.slice("kind:".length)),

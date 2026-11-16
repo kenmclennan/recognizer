@@ -427,12 +427,12 @@ describe("private_imports sentence", () => {
 
     expect(text).toContain("store.py");
     expect(text).toContain("3 private names from 2 modules");
-    expect(text).toContain("Parnas, 1972");
+    expect(text).toBe("store.py imports 3 private names from 2 modules.");
   });
 });
 
 describe("long_function sentence", () => {
-  it("names the function, the file and the length", () => {
+  it("names the function, the length and the limit", () => {
     const text = sentence({
       kind: "long_function",
       evidence: {
@@ -449,15 +449,23 @@ describe("long_function sentence", () => {
       },
     });
 
-    expect(text).toContain("Store.save");
-    expect(text).toContain("store.py");
-    expect(text).toContain("34");
-    expect(text).toContain("Martin, Clean Code, 2008");
-    expect(text).toContain("over the 20 a function should hardly ever reach");
-    expect(text).not.toContain("says");
+    expect(text).toBe("Store.save is 34 lines, over the limit of 20.");
   });
 
-  it("names both figures when the limit is tuned", () => {
+  it("states the default limit when the record carries none", () => {
+    const text = sentence({
+      kind: "long_function",
+      evidence: {
+        modules: ["lib/store.py"],
+        members: [{ module: "lib/store.py", name: "Store.save" }],
+        measures: { lines: 21 },
+      },
+    });
+
+    expect(text).toBe("Store.save is 21 lines, over the limit of 20.");
+  });
+
+  it("states the tuned limit and no published figure", () => {
     const text = sentence({
       kind: "long_function",
       evidence: {
@@ -474,9 +482,7 @@ describe("long_function sentence", () => {
       },
     });
 
-    expect(text).toContain(
-      "over this repository's limit of 30 (Clean Code says 20)",
-    );
+    expect(text).toBe("Store.save is 34 lines, over the limit of 30.");
   });
 });
 
@@ -491,18 +497,18 @@ describe("the tuned crap and threshold sentences", () => {
       },
     });
 
-  it("names the published C.R.A.P. figure only when it is present", () => {
+  it("states no published C.R.A.P. figure whether or not it is present", () => {
     const base = { complexity: 12, coverage: 0.5, crap: 28 };
 
     expect(crap(base)).toBe(
       "f in a.py has complexity 12 and 50% coverage, C.R.A.P. 28.",
     );
     expect(crap({ ...base, limit: 25, published: 30 })).toBe(
-      "f in a.py has complexity 12 and 50% coverage, C.R.A.P. 28 (Savoia and Evans say 30).",
+      "f in a.py has complexity 12 and 50% coverage, C.R.A.P. 28.",
     );
   });
 
-  it("names the published complexity and coverage lines only when present", () => {
+  it("states no published complexity or coverage line whether or not it is present", () => {
     const at = (kind: string, measures: Record<string, number>) =>
       sentence({
         kind,
@@ -514,11 +520,9 @@ describe("the tuned crap and threshold sentences", () => {
     );
     expect(
       at("thresholds.complexity", { value: 14, line: 12, published: 10 }),
-    ).toBe("a.py has complexity 14, over the limit of 12 (McCabe says 10).");
+    ).toBe("a.py has complexity 14, over the limit of 12.");
     expect(
       at("thresholds.coverage", { value: 0.5, line: 0.7, published: 0.6 }),
-    ).toBe(
-      "a.py has coverage 0.5, under the limit of 0.7 (Google's guidelines say 60%).",
-    );
+    ).toBe("a.py has coverage 0.5, under the limit of 0.7.");
   });
 });

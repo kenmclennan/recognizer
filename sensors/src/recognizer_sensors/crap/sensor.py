@@ -169,10 +169,7 @@ def finding_for(identity: str, m: Measured, threshold: float) -> dict | None:
         }
 
     if threshold != PUBLISHED_THRESHOLD:
-        summary = (
-            f"{summary}, over this repository's threshold of {threshold:g} "
-            f"(Savoia and Evans say {PUBLISHED_THRESHOLD})"
-        )
+        summary = f"{summary}, over the limit of {threshold:g}"
         measures = {**measures, "limit": threshold, "published": PUBLISHED_THRESHOLD}
 
     return {

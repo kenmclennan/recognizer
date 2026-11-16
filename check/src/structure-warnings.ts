@@ -466,7 +466,7 @@ export function privateImportsFindings(
       kind: "private_imports",
       severity: "warning",
       ...principleOf("information-hiding"),
-      summary: `${importer} imports ${count} private ${count === 1 ? "name" : "names"} from ${ownerIds.length} ${ownerIds.length === 1 ? "module" : "modules"} (${first}${more}) - information hiding (Parnas, 1972)`,
+      summary: `${importer} imports ${count} private ${count === 1 ? "name" : "names"} from ${ownerIds.length} ${ownerIds.length === 1 ? "module" : "modules"} (${first}${more})`,
       evidence: {
         modules: [importer],
         members,
@@ -551,17 +551,13 @@ export function longFunctionFindings(
         (counts.get(fn.qualified) ?? 0) > 1
           ? `${module.id}::${fn.qualified}@${fn.line}`
           : `${module.id}::${fn.qualified}`;
-      const file = module.id.slice(module.id.lastIndexOf("/") + 1);
 
       findings.push({
         id: `long_function:${identity}`,
         kind: "long_function",
         severity: "warning",
         ...principleOf("small-functions"),
-        summary:
-          limit === LONG_FUNCTION
-            ? `${fn.qualified} in ${file} is ${length} lines, over the ${LONG_FUNCTION} lines a function should hardly ever reach - functions should be small (Martin, Clean Code, 2008)`
-            : `${fn.qualified} in ${file} is ${length} lines, over this repository's limit of ${limit} lines (Clean Code says ${LONG_FUNCTION}) - functions should be small (Martin, Clean Code, 2008)`,
+        summary: `${fn.qualified} is ${length} lines, over the limit of ${limit}`,
         evidence: {
           modules: [module.id],
           members: [
