@@ -12,6 +12,7 @@ import {
 } from "./explorer";
 import { NO_CHANGES, type ScanOrigin, type ScanState } from "./footer-scan";
 import { buildFooter } from "./footer-view";
+import { settledMessage } from "./holding-settled";
 import { type HoldingView, showHolding } from "./holding-view";
 import { showMessage } from "./message-view";
 import { repositorySource } from "./repository-source";
@@ -234,8 +235,10 @@ const rescanner = createRescanner<Carried>({
     holding = showHolding(content, () => void rescanner.stop(), runningLine);
   },
   settled: () => {
-    if (holding !== null && explorer === null) {
-      showMessage(content, "The scan ended and left no result to show");
+    const message = settledMessage(holding !== null, explorer !== null);
+
+    if (message !== null) {
+      showMessage(content, message);
     }
 
     holding = null;
