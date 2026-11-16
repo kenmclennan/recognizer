@@ -190,6 +190,7 @@ describe("the core's own key table", () => {
       "sensors.structure.warnings.<warning>",
       "sensors.structure.warnings.long_function.limit",
       "sensors.structure.warnings.orphan.entry_points",
+      "sensors.structure.warnings.orphan.entry_annotations",
     );
 
     expect(seen.length).toBeGreaterThanOrEqual(6);

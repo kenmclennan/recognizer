@@ -95,16 +95,16 @@ describe("declares edges", () => {
     const scan = scanOf([["src/lib.rs", "src/child.rs", "declares"]]);
 
     expect(
-      orphanFindings(scan, null, ["src/lib.rs"]).map((found) => found.id),
+      orphanFindings(scan, null, ["src/lib.rs"], []).map((found) => found.id),
     ).toEqual([]);
   });
 
   it("leave a module with no edge at all an orphan", () => {
     const scan = scanOf([], ["src/stray.rs"]);
 
-    expect(orphanFindings(scan, null, []).map((found) => found.id)).toEqual([
-      "orphan:src/stray.rs",
-    ]);
+    expect(orphanFindings(scan, null, [], []).map((found) => found.id)).toEqual(
+      ["orphan:src/stray.rs"],
+    );
   });
 
   it("separate a declared module from an unreached one in the same scan", () => {
@@ -114,7 +114,7 @@ describe("declares edges", () => {
     );
 
     expect(
-      orphanFindings(scan, null, ["src/lib.rs"]).map((found) => found.id),
+      orphanFindings(scan, null, ["src/lib.rs"], []).map((found) => found.id),
     ).toEqual(["orphan:src/stray.rs"]);
   });
 

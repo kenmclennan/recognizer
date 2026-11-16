@@ -46,6 +46,7 @@ describe("orphan", () => {
         scanOf(edges, modules),
         policy === null ? null : parsePolicy(policy),
         entryPoints,
+        [],
       ),
     );
 
@@ -58,8 +59,9 @@ describe("orphan", () => {
       scanOf([], ["app/run.py", "app/plain.py"], ["app/run.py"]),
       null,
       [],
+      [],
     );
-    const unflagged = orphanFindings(scanOf([], ["app/run.py"]), null, []);
+    const unflagged = orphanFindings(scanOf([], ["app/run.py"]), null, [], []);
 
     expect(ids(flagged)).toEqual(["orphan:app/plain.py"]);
     expect(ids(unflagged)).toEqual(["orphan:app/run.py"]);
@@ -76,7 +78,12 @@ describe("orphan", () => {
   });
 
   it("describes the finding", () => {
-    const [finding] = orphanFindings(scanOf([], ["app/plain.py"]), null, []);
+    const [finding] = orphanFindings(
+      scanOf([], ["app/plain.py"]),
+      null,
+      [],
+      [],
+    );
 
     expect(finding).toMatchObject({
       kind: "orphan",
@@ -131,7 +138,7 @@ describe("orphan", () => {
       ["orphan:app/index.ts"],
     );
     expect(
-      orphanFindings(scanOf([], ["app/index.ts"]), null, [])[0]?.summary,
+      orphanFindings(scanOf([], ["app/index.ts"]), null, [], [])[0]?.summary,
     ).toMatch(/entry_points$/);
   });
 
@@ -183,6 +190,7 @@ describe("orphan actual_of", () => {
       orphanFindings(
         scanWith(edges, modules, actualOf),
         policy === null ? null : parsePolicy(policy),
+        [],
         [],
       ),
     );
@@ -256,6 +264,7 @@ describe("orphan actual_of", () => {
       scanOf([], ["a/M.kt", "a/N.cs", "a/p.py"]),
       null,
       [],
+      [],
     );
     const hint =
       "; a library can list its public API in warnings.orphan.entry_points";
@@ -265,6 +274,144 @@ describe("orphan actual_of", () => {
       `a/N.cs is imported by no module and is not an entry point${hint}`,
       `a/p.py is imported by no module and is not an entry point${hint}`,
     ]);
+  });
+});
+
+describe("orphan over Kotlin dependency injection", () => {
+  type Edge = [string, string, "depends" | "implements" | "inherits"];
+
+  const injected = (
+    edges: Edge[],
+    modules: Record<string, string[] | undefined>,
+    language = "kotlin",
+  ) => {
+    const base = scanOf(
+      edges.map(([from, to]) => [from, to] as [string, string]),
+      Object.keys(modules),
+    );
+
+    return {
+      ...base,
+      modules: base.modules.map((module) => {
+        const annotations = modules[module.id];
+
+        return {
+          ...module,
+          language,
+          ...(annotations === undefined ? {} : { annotations }),
+        };
+      }),
+      edges: base.edges.map((edge, index) => ({
+        ...edge,
+        kind: (edges[index] as Edge)[2],
+      })),
+    };
+  };
+
+  const orphans = (
+    scan: ReturnType<typeof injected>,
+    annotations: string[] = [],
+  ) => ids(orphanFindings(scan, null, [], annotations));
+
+  const WIRED: Edge[] = [
+    ["UserController.kt", "GetUserPort.kt", "depends"],
+    ["GetUserUseCase.kt", "GetUserPort.kt", "depends"],
+    ["GetUserUseCase.kt", "GetUserPort.kt", "implements"],
+  ];
+
+  it("reports exactly the stray class beside an injected port and its implementer", () => {
+    const scan = injected(WIRED, {
+      "UserController.kt": ["Controller"],
+      "GetUserPort.kt": undefined,
+      "GetUserUseCase.kt": undefined,
+      "Stray.kt": undefined,
+    });
+    const flagged = {
+      ...scan,
+      modules: scan.modules.map((module) =>
+        module.id === "UserController.kt"
+          ? { ...module, entry_point: true as const }
+          : module,
+      ),
+    };
+
+    expect(orphans(flagged)).toEqual(["orphan:Stray.kt"]);
+  });
+
+  it("still reports an implementer of a port nothing reachable uses", () => {
+    const scan = injected(WIRED.slice(1), {
+      "GetUserPort.kt": undefined,
+      "GetUserUseCase.kt": undefined,
+      "Stray.kt": undefined,
+    });
+
+    expect(scan.modules.map((module) => module.id)).toContain("GetUserPort.kt");
+    expect(orphans(scan)).toEqual([
+      "orphan:GetUserPort.kt",
+      "orphan:GetUserUseCase.kt",
+      "orphan:Stray.kt",
+    ]);
+  });
+
+  it("uses a config-added annotation as an entry point", () => {
+    const scan = injected([], { "Handler.kt": ["Handler"] });
+
+    expect(orphans(scan)).toEqual(["orphan:Handler.kt"]);
+    expect(orphans(scan, ["Handler"])).toEqual([]);
+  });
+
+  it("keeps a base used by a reached Kotlin subtype", () => {
+    const scan = injected(
+      [
+        ["Main.kt", "Impl.kt", "depends"],
+        ["Impl.kt", "Base.kt", "inherits"],
+      ],
+      { "Main.kt": undefined, "Impl.kt": undefined, "Base.kt": undefined },
+    );
+
+    expect(orphans(scan)).toEqual(["orphan:Main.kt"]);
+  });
+
+  it("reports exactly the unreached pair beside a reached port with two implementers", () => {
+    const scan = injected(
+      [
+        ["C.kt", "PortA.kt", "depends"],
+        ["ImplA1.kt", "PortA.kt", "implements"],
+        ["ImplA2.kt", "PortA.kt", "implements"],
+        ["ImplB.kt", "PortB.kt", "implements"],
+      ],
+      {
+        "C.kt": ["Controller"],
+        "PortA.kt": undefined,
+        "ImplA1.kt": undefined,
+        "ImplA2.kt": undefined,
+        "PortB.kt": undefined,
+        "ImplB.kt": undefined,
+      },
+    );
+    const flagged = {
+      ...scan,
+      modules: scan.modules.map((module) =>
+        module.id === "C.kt"
+          ? { ...module, entry_point: true as const }
+          : module,
+      ),
+    };
+
+    expect(orphans(flagged)).toEqual(["orphan:ImplB.kt", "orphan:PortB.kt"]);
+  });
+
+  it("does not apply the downward rule to a python implementer", () => {
+    const scan = injected(
+      [
+        ["main.py", "base.py", "depends"],
+        ["sub.py", "base.py", "implements"],
+      ],
+      { "main.py": undefined, "base.py": undefined, "sub.py": undefined },
+      "python",
+    );
+
+    expect(orphans(scan)).toEqual(["orphan:main.py", "orphan:sub.py"]);
   });
 });
 
@@ -289,16 +436,39 @@ describe("structure settings", () => {
 
     expect(resolve("true")).toMatchObject({
       entry_points: [],
+      entry_annotations: [],
       warnings: { orphan: true },
     });
     expect(resolve("false")).toMatchObject({
       entry_points: [],
+      entry_annotations: [],
       warnings: { orphan: false },
     });
     expect(resolve("{ entry_points: [scripts/**] }")).toMatchObject({
       entry_points: ["scripts/**"],
       warnings: { orphan: true },
     });
+  });
+
+  it("accepts entry_annotations alone", () => {
+    const resolved = resolveStructureSettings(
+      config(
+        "sensors:\n  structure:\n    warnings:\n      orphan: { entry_annotations: [UseCase] }\n",
+      ),
+    ) as StructureSettings;
+
+    expect(resolved.entry_annotations).toEqual(["UseCase"]);
+    expect(resolved.entry_points).toEqual([]);
+    expect(resolved.warnings.orphan).toBe(true);
+  });
+
+  it("rejects an empty entry annotation", () => {
+    const read = (path: string) =>
+      readFileSync(join(REPO, "schema/config-examples", path), "utf8");
+
+    expect(() =>
+      parseConfig(read("invalid/sensors-orphan-bad-entry-annotations.yaml")),
+    ).toThrow(InputError);
   });
 
   it("records settings in key order", () => {
@@ -310,7 +480,7 @@ describe("structure settings", () => {
     );
 
     expect(JSON.stringify(document.settings)).toBe(
-      '{"entry_points":[],"warnings":{"cycle":true,"orphan":true,"unused_exports":false,"private_imports":true,"long_function":true},"long_function_limit":20}',
+      '{"entry_points":[],"entry_annotations":[],"warnings":{"cycle":true,"orphan":true,"unused_exports":false,"private_imports":true,"long_function":true},"long_function_limit":20}',
     );
     expect(document.sensor.version).toBe("19");
   });

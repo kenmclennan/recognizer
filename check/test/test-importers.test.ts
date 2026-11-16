@@ -59,7 +59,7 @@ function files(count: number, to = "a/lonely.py"): Records {
 }
 
 const orphans = (scan: ReturnType<typeof scanOf>) =>
-  orphanFindings(scan, null, []);
+  orphanFindings(scan, null, [], []);
 
 const TODAY = {
   summary:

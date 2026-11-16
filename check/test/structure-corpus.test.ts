@@ -122,6 +122,7 @@ function settingsFrom(description: ScanDescription): StructureSettings {
 
   return {
     entry_points: description.settings.entry_points ?? [],
+    entry_annotations: [],
     warnings: { ...off, ...description.settings.warnings },
   };
 }

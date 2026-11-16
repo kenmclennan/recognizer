@@ -33,6 +33,7 @@ function findingsByModule(
     policy,
     {
       entry_points: [],
+      entry_annotations: [],
       warnings: {
         cycle: true,
         orphan: true,

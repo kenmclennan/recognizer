@@ -16,8 +16,8 @@ describe("the Kotlin entry-points fixture", () => {
       readFileSync(join(ROOT, "expected.json"), "utf8"),
     ) as { orphans: string[] };
 
-    expect(orphanFindings(scan, null, []).map((finding) => finding.id)).toEqual(
-      expected.orphans.map((id) => `orphan:${id}`),
-    );
+    expect(
+      orphanFindings(scan, null, [], []).map((finding) => finding.id),
+    ).toEqual(expected.orphans.map((id) => `orphan:${id}`));
   });
 });

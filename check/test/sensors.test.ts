@@ -820,6 +820,7 @@ describe("check running the structure sensor", () => {
     expect(fake.files.has(`${STRUCTURE}.tmp`)).toBe(false);
     expect(document.settings).toEqual({
       entry_points: [],
+      entry_annotations: [],
       warnings: {
         cycle: true,
         orphan: true,
@@ -918,6 +919,7 @@ describe("show and modules read the findings files", () => {
       modified: false,
       settings: {
         entry_points: [],
+        entry_annotations: [],
         warnings: {
           cycle: true,
           orphan: true,
@@ -962,6 +964,7 @@ describe("show and modules read the findings files", () => {
       modified: false,
       settings: {
         entry_points: [],
+        entry_annotations: [],
         warnings: {
           cycle: true,
           orphan: true,
@@ -988,6 +991,7 @@ describe("show and modules read the findings files", () => {
       settings: {
         hub_threshold: 10,
         entry_points: [],
+        entry_annotations: [],
         warnings: {
           cycle: true,
           hub: true,

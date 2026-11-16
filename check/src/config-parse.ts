@@ -29,7 +29,9 @@ export interface StructureSettingsInput {
     unused_exports?: boolean;
     private_imports?: boolean;
     long_function?: boolean | { limit: number };
-    orphan?: boolean | { entry_points: string[] };
+    orphan?:
+      | boolean
+      | { entry_points?: string[]; entry_annotations?: string[] };
   };
 }
 

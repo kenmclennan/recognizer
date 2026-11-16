@@ -41,6 +41,7 @@ function sense(name: string, cycle = true) {
     policy,
     {
       entry_points: [],
+      entry_annotations: [],
       warnings: {
         cycle,
         orphan: cycle,
@@ -166,6 +167,7 @@ describe("structureSensor ids", () => {
     expect(off.metrics.length).toBeGreaterThan(0);
     expect(off.document.settings).toEqual({
       entry_points: [],
+      entry_annotations: [],
       warnings: {
         cycle: false,
         orphan: false,

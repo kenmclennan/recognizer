@@ -217,6 +217,15 @@ export const CORE_KEYS: KeySchema = {
       example:
         "--add sensors.structure.warnings.orphan.entry_points src/main.ts",
     },
+    {
+      key: "sensors.structure.warnings.orphan.entry_annotations",
+      type: "string",
+      multi: true,
+      description:
+        "simple names of annotations that make a Kotlin file an entry point for the orphan and unused_exports warnings, beside the shipped container annotations",
+      example:
+        "--add sensors.structure.warnings.orphan.entry_annotations UseCase",
+    },
   ],
 };
 
