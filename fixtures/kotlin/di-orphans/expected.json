@@ -1,0 +1,8 @@
+{
+  "entry_points": [
+    "app/UserController.kt"
+  ],
+  "orphans": [
+    "app/Stray.kt"
+  ]
+}

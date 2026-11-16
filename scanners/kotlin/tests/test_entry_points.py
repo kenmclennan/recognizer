@@ -261,3 +261,12 @@ def test_annotations_are_sorted_and_deduplicated(run):
     )
 
     assert module(document, "a/Many.kt")["annotations"] == ["Alpha", "Controller", "Zed"]
+
+
+def test_the_di_orphans_fixture_matches_its_committed_scan_and_expectations():
+    root = REPOSITORY / "fixtures" / "kotlin" / "di-orphans"
+    expected = json.loads((root / "expected.json").read_text())
+    document = scan(root, None)
+
+    assert document == json.loads((root / "scan.json").read_text())
+    assert flagged(document) == expected["entry_points"]

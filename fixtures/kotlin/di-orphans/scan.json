@@ -1,0 +1,230 @@
+{
+  "schema_version": 7,
+  "scanner": {
+    "name": "recognizer-scan-kotlin",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "app/GetUserPort.kt",
+      "hash": "3b570ac5cbd5b3e8ac2b8d4fdc45e267d7de815d96e6a342ec2a6e6416a7f76e"
+    },
+    {
+      "path": "app/GetUserUseCase.kt",
+      "hash": "fe7ebf8366eb4499e9dccfd554828f06a3426a3c93f4434043920d457bdaa43f"
+    },
+    {
+      "path": "app/Stray.kt",
+      "hash": "9c121fb45e7b6609590c9abc82bd2b178e948b4f110fd6263c34cf57481a70da"
+    },
+    {
+      "path": "app/UserController.kt",
+      "hash": "69ba19ddd6cddd104a747c8d638785a0d266607db68c0541d77a56571ff8f8db"
+    },
+    {
+      "path": "build.gradle.kts",
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "selection": {
+    "extensions": [
+      ".kt"
+    ],
+    "skip_directory_names": [
+      "build",
+      "test",
+      "androidTest",
+      "integrationTest",
+      "testFixtures",
+      "test-fixtures"
+    ],
+    "skip_directory_prefixes": [
+      "."
+    ],
+    "skip_directory_suffixes": [
+      "Test"
+    ],
+    "skip_directories_containing": [],
+    "skip_file_globs": [
+      "*Test.kt",
+      "*Tests.kt"
+    ],
+    "input_file_globs": [
+      "build.gradle",
+      "build.gradle.kts",
+      "pom.xml"
+    ]
+  },
+  "modules": [
+    {
+      "id": "app/GetUserPort.kt",
+      "language": "kotlin",
+      "kind": "interface",
+      "members": [
+        {
+          "name": "GetUserPort",
+          "kind": "interface",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "get",
+              "line": 4,
+              "end_line": 4,
+              "params": [
+                {
+                  "name": "id",
+                  "type": "String"
+                }
+              ],
+              "private": false,
+              "returns": "String",
+              "tags": [
+                "abstract"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "app/GetUserUseCase.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
+        {
+          "name": "GetUserUseCase",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [
+            "GetUserPort"
+          ],
+          "fields": [],
+          "methods": [
+            {
+              "name": "get",
+              "line": 4,
+              "end_line": 4,
+              "params": [
+                {
+                  "name": "id",
+                  "type": "String"
+                }
+              ],
+              "private": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "app/Stray.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Stray",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "app/UserController.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
+        {
+          "name": "UserController",
+          "kind": "class",
+          "line": 4,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [
+            {
+              "name": "users",
+              "line": 4,
+              "private": true,
+              "type": "GetUserPort"
+            }
+          ],
+          "methods": [
+            {
+              "name": "show",
+              "line": 5,
+              "end_line": 5,
+              "params": [
+                {
+                  "name": "id",
+                  "type": "String"
+                }
+              ],
+              "private": false
+            }
+          ]
+        }
+      ],
+      "annotations": [
+        "Controller"
+      ],
+      "entry_point": true
+    }
+  ],
+  "edges": [
+    {
+      "from": "app/GetUserUseCase.kt",
+      "to": "app/GetUserPort.kt",
+      "kind": "depends",
+      "line": 3,
+      "names": [
+        "GetUserPort"
+      ]
+    },
+    {
+      "from": "app/GetUserUseCase.kt",
+      "to": "app/GetUserPort.kt",
+      "kind": "implements",
+      "line": 3,
+      "member": "GetUserUseCase",
+      "to_member": "GetUserPort"
+    },
+    {
+      "from": "app/UserController.kt",
+      "to": "app/GetUserPort.kt",
+      "kind": "depends",
+      "line": 4,
+      "names": [
+        "GetUserPort"
+      ]
+    }
+  ],
+  "foreign": [],
+  "calls": [
+    {
+      "from": "app/GetUserPort.kt::GetUserPort.get",
+      "to": "app/GetUserUseCase.kt::GetUserUseCase.get",
+      "line": 4,
+      "how": "dispatch"
+    },
+    {
+      "from": "app/UserController.kt::UserController.show",
+      "to": "app/GetUserPort.kt::GetUserPort.get",
+      "line": 5,
+      "how": "call"
+    }
+  ],
+  "unresolved_imports": []
+}
