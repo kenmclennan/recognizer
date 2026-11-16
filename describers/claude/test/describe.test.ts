@@ -4,10 +4,13 @@ import { dirname, join, relative } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../scripts/pool-scale.mjs";
+import { createAwakeClock } from "../src/awake-clock.js";
+import { runClaude } from "../src/claude-run.js";
 import { promptVersion, versionOf } from "../src/prompt.js";
 import {
   claudeRan,
   interrupt,
+  PACKAGE,
   PROMPT_FILE,
   REPO,
   REQUEST,
@@ -308,3 +311,87 @@ function filesUnder(root: string): string[] {
     return /\.(md|ts|json|ya?ml|mjs|js)$/.test(entry.name) ? [path] : [];
   });
 }
+
+describe("the call limit", () => {
+  const HOURS_8 = 8 * 3_600_000;
+
+  function timers() {
+    let wall = 1_000_000;
+    let nextId = 1;
+    const pending = new Map<number, { at: number; fn: () => void }>();
+    const clock = createAwakeClock<number>({
+      read: () => wall,
+      setTimer: (fn, ms) => {
+        const id = nextId++;
+
+        pending.set(id, { at: wall + ms, fn });
+
+        return id;
+      },
+      clearTimer: (id) => {
+        pending.delete(id);
+      },
+    });
+    const advance = (ms: number) => {
+      wall += ms;
+    };
+    const fireDue = () => {
+      for (const [id, timer] of [...pending]) {
+        if (timer.at <= wall) {
+          pending.delete(id);
+          timer.fn();
+        }
+      }
+    };
+
+    return { clock, advance, fireDue, pending };
+  }
+
+  it(
+    "a timeout counts awake time only",
+    async () => {
+      const { clock, advance, fireDue, pending } = timers();
+      let outcome: string | undefined;
+      const holding = runClaude(
+        "opus",
+        "input",
+        clock,
+        {
+          file: process.execPath,
+          args: ["-e", "setTimeout(() => {}, 60000)"],
+        },
+        60_000,
+      ).then(
+        () => {
+          outcome = "resolved";
+        },
+        (error: Error) => {
+          outcome = error.message;
+        },
+      );
+
+      advance(HOURS_8);
+      fireDue();
+
+      expect(outcome).toBeUndefined();
+      expect(pending.size).toBe(1);
+
+      for (let tick = 0; tick < 60; tick += 1) {
+        advance(1000);
+        clock.now();
+        fireDue();
+      }
+
+      await holding;
+
+      expect(outcome).toBe("claude timed out after 60 seconds");
+    },
+    scaledTimeout(20_000),
+  );
+
+  it("keeps the awake clock copy identical to the library's", () => {
+    expect(readFileSync(join(PACKAGE, "src/awake-clock.ts"), "utf8")).toBe(
+      readFileSync(join(REPO, "check/src/awake-clock.ts"), "utf8"),
+    );
+  });
+});
