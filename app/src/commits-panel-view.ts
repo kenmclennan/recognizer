@@ -140,24 +140,41 @@ function modeNode(mode: Mode, actions: CommitsPanelActions): HTMLElement {
   return node;
 }
 
+type Owner = { key: string; kind: "count" | "title"; trigger: HTMLElement };
+
 type Cards = {
-  show: (lines: TipLine[], event: PointerEvent) => void;
+  show: (owner: Owner, lines: TipLine[], event: PointerEvent) => void;
+  showText: (owner: Owner, lines: string[], event: PointerEvent) => void;
   move: (event: PointerEvent) => void;
   hide: () => void;
-  showText: (lines: string[], event: PointerEvent) => void;
+  sync: (
+    resolve: (key: string, kind: Owner["kind"]) => TipLine[] | string[] | null,
+  ) => void;
 };
 
-function impactNode(row: CommitRowView, cards: Cards): HTMLElement {
-  const node = el("span", "commits-impact");
-  const { tip } = row;
+type RowEntry = {
+  key: string;
+  node: HTMLElement;
+  title: HTMLElement;
+  top: HTMLElement;
+  meta: HTMLElement;
+  text: HTMLElement;
+  impact: HTMLElement;
+  row: CommitRowView;
+  signature: string;
+  impactSignature: string;
+};
 
-  node.append(
+const rowKey = (row: CommitRowView) => `${row.pick.kind}:${row.pick.ref}`;
+
+function fillImpact(node: HTMLElement, row: CommitRowView) {
+  const parts: HTMLElement[] = [
     el(
       "span",
       `commits-impact-count${row.impact.count === "no files" ? " zero" : ""}`,
       row.impact.count,
     ),
-  );
+  ];
 
   if (row.impact.squares.length > 0) {
     const marks = el("span", "commits-impact-marks");
@@ -172,75 +189,128 @@ function impactNode(row: CommitRowView, cards: Cards): HTMLElement {
       marks.append(mark);
     }
 
-    node.append(marks);
+    parts.push(marks);
   }
 
   if (row.impact.elsewhere !== null) {
-    node.append(el("span", "commits-impact-other", row.impact.elsewhere));
+    parts.push(el("span", "commits-impact-other", row.impact.elsewhere));
   }
 
-  if (tip !== null) {
-    node.addEventListener("pointerenter", (event) =>
-      cards.show(tip, event as PointerEvent),
-    );
-    node.addEventListener("pointermove", (event) =>
-      cards.move(event as PointerEvent),
-    );
-    node.addEventListener("pointerleave", () => cards.hide());
-  }
-
-  return node;
+  node.replaceChildren(...parts);
 }
 
-function rowNode(
-  row: CommitRowView,
-  actions: CommitsPanelActions,
-  cards: Cards,
-) {
-  const node = button(
-    "",
-    `commits-row ${row.pick.kind}${row.held ? " picked" : ""}${row.shaded ? " shaded" : ""}`,
-    () => actions.pick(row.pick),
-  );
-  const text = el("span", "commits-row-text");
-  const top = el("span", "commits-row-top");
-  const title = el("span", "commits-row-title", row.title);
+function patchRow(entry: RowEntry, row: CommitRowView) {
+  entry.row = row;
 
-  title.addEventListener("pointerenter", (event) =>
-    cards.showText(row.titleTip, event as PointerEvent),
-  );
-  title.addEventListener("pointermove", (event) =>
-    cards.move(event as PointerEvent),
-  );
-  title.addEventListener("pointerleave", () => cards.hide());
-  top.append(title);
+  const signature = JSON.stringify(row);
+
+  if (signature === entry.signature) {
+    return;
+  }
+
+  entry.signature = signature;
+  entry.node.className = `commits-row ${row.pick.kind}${row.held ? " picked" : ""}${row.shaded ? " shaded" : ""}`;
+  entry.title.textContent = row.title;
+
+  const top: Node[] = [entry.title];
 
   for (const chip of row.chips) {
-    top.append(el("span", "commits-chip", chip));
+    top.push(el("span", "commits-chip", chip));
   }
 
   if (row.badge !== null) {
-    top.append(el("span", "commits-badge", row.badge));
+    top.push(el("span", "commits-badge", row.badge));
   }
 
   if (row.checks !== null && row.checks !== "none") {
-    top.append(el("span", `commits-checks ${row.checks}`, row.checks));
+    top.push(el("span", `commits-checks ${row.checks}`, row.checks));
   }
 
-  text.append(top, el("span", "commits-row-meta", row.meta));
+  entry.top.replaceChildren(...top);
+  entry.meta.textContent = row.meta;
+
   const lead = row.busy ? spinner("Loading") : icon(row.icon);
 
   if (row.busy) {
     lead.classList.add("commits-row-busy");
   }
 
-  node.append(lead, text, impactNode(row, cards));
+  const impactSignature = JSON.stringify(row.impact);
 
-  if (row.end !== null) {
-    node.append(el("span", "commits-picked", END_NAMES[row.end]));
+  if (impactSignature !== entry.impactSignature) {
+    entry.impactSignature = impactSignature;
+    fillImpact(entry.impact, row);
   }
 
-  return node;
+  entry.node.replaceChildren(
+    lead,
+    entry.text,
+    entry.impact,
+    ...(row.end === null
+      ? []
+      : [el("span", "commits-picked", END_NAMES[row.end])]),
+  );
+}
+
+function rowEntry(
+  row: CommitRowView,
+  actions: CommitsPanelActions,
+  cards: Cards,
+): RowEntry {
+  const key = rowKey(row);
+  const entry = {} as RowEntry;
+  const node = button("", "commits-row", () => actions.pick(entry.row.pick));
+  const text = el("span", "commits-row-text");
+  const top = el("span", "commits-row-top");
+  const title = el("span", "commits-row-title");
+  const meta = el("span", "commits-row-meta");
+  const impact = el("span", "commits-impact");
+
+  text.append(top, meta);
+
+  title.addEventListener("pointerenter", (event) =>
+    cards.showText(
+      { key, kind: "title", trigger: title },
+      entry.row.titleTip,
+      event as PointerEvent,
+    ),
+  );
+  title.addEventListener("pointermove", (event) =>
+    cards.move(event as PointerEvent),
+  );
+  title.addEventListener("pointerleave", () => cards.hide());
+
+  impact.addEventListener("pointerenter", (event) => {
+    if (entry.row.tip !== null) {
+      cards.show(
+        { key, kind: "count", trigger: impact },
+        entry.row.tip,
+        event as PointerEvent,
+      );
+    }
+  });
+  impact.addEventListener("pointermove", (event) => {
+    if (entry.row.tip !== null) {
+      cards.move(event as PointerEvent);
+    }
+  });
+  impact.addEventListener("pointerleave", () => cards.hide());
+
+  Object.assign(entry, {
+    key,
+    node,
+    title,
+    top,
+    meta,
+    text,
+    impact,
+    row,
+    signature: "",
+    impactSignature: "",
+  });
+  patchRow(entry, row);
+
+  return entry;
 }
 
 const LOADING_TEXT: Record<CommitsTab, string> = {
@@ -259,6 +329,8 @@ function loadingNode(tab: CommitsTab): HTMLElement {
 
 function buildCards(host: HTMLElement): Cards {
   const card = el("div", "commits-card");
+  let owner: Owner | null = null;
+  let shown = "";
 
   card.hidden = true;
   host.append(card);
@@ -280,36 +352,77 @@ function buildCards(host: HTMLElement): Cards {
     card.style.top = `${top}px`;
   };
 
+  const draw = (kind: Owner["kind"], lines: TipLine[] | string[]) => {
+    shown = JSON.stringify(lines);
+    card.replaceChildren(
+      ...(kind === "count"
+        ? (lines as TipLine[]).map((line) =>
+            el(
+              "div",
+              `commits-card-${line.kind}${line.tone === undefined ? "" : ` ${line.tone}`}`,
+              line.text,
+            ),
+          )
+        : (lines as string[]).map((line, index) =>
+            el(
+              "div",
+              index === 0 ? "commits-card-heading" : "commits-card-file",
+              line,
+            ),
+          )),
+    );
+  };
+
+  const hide = () => {
+    card.hidden = true;
+    owner = null;
+    shown = "";
+  };
+
+  const doc = host.ownerDocument;
+
+  doc.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      hide();
+    }
+  });
+  doc.addEventListener("pointerdown", (event) => {
+    if (owner !== null && !owner.trigger.contains(event.target as Node)) {
+      hide();
+    }
+  });
+
   return {
-    show(lines, event) {
-      card.replaceChildren(
-        ...lines.map((line) =>
-          el(
-            "div",
-            `commits-card-${line.kind}${line.tone === undefined ? "" : ` ${line.tone}`}`,
-            line.text,
-          ),
-        ),
-      );
+    show(next, lines, event) {
+      owner = next;
+      draw("count", lines);
       card.hidden = false;
       place(event);
     },
-    showText(lines, event) {
-      card.replaceChildren(
-        ...lines.map((line, index) =>
-          el(
-            "div",
-            index === 0 ? "commits-card-heading" : "commits-card-file",
-            line,
-          ),
-        ),
-      );
+    showText(next, lines, event) {
+      owner = next;
+      draw("title", lines);
       card.hidden = false;
       place(event);
     },
     move: place,
-    hide() {
-      card.hidden = true;
+    hide,
+    sync(resolve) {
+      if (owner === null) {
+        return;
+      }
+
+      const lines = resolve(owner.key, owner.kind);
+
+      if (lines === null) {
+        hide();
+
+        return;
+      }
+
+      if (JSON.stringify(lines) !== shown) {
+        draw(owner.kind, lines);
+      }
     },
   };
 }
@@ -332,6 +445,8 @@ export function buildCommitsPanelView(
     "Hide commits with no files on the canvas",
   );
   const hiddenCount = el("span", "commits-hidden");
+  let entries = new Map<string, RowEntry>();
+  let lastTab: CommitsTab | null = null;
 
   hideBox.setAttribute("role", "switch");
   filter.append(hideBox, hideText, hiddenCount);
@@ -411,14 +526,46 @@ export function buildCommitsPanelView(
       hideBox.setAttribute("aria-checked", String(history.hide));
       hiddenCount.textContent =
         history.hide && history.hidden > 0 ? `${history.hidden} hidden` : "";
-      cards.hide();
+
+      if (model.tab !== lastTab) {
+        entries = new Map();
+        lastTab = model.tab;
+      }
+
+      const live = new Map<string, RowEntry>();
+      const showRows = !shown.loading && shown.notice === null;
+
+      if (showRows) {
+        for (const row of shown.rows) {
+          const key = rowKey(row);
+          const known = entries.get(key);
+
+          if (known === undefined) {
+            live.set(key, rowEntry(row, actions, cards));
+          } else {
+            patchRow(known, row);
+            live.set(key, known);
+          }
+        }
+      }
+
+      entries = live;
+      cards.sync((key, kind) => {
+        const found = live.get(key);
+
+        if (found === undefined) {
+          return null;
+        }
+
+        return kind === "count" ? found.row.tip : found.row.titleTip;
+      });
 
       list.replaceChildren(
         ...(shown.loading
           ? [loadingNode(model.tab)]
           : shown.notice !== null
             ? [el("p", "commits-notice", shown.notice)]
-            : shown.rows.map((row) => rowNode(row, actions, cards))),
+            : [...live.values()].map((entry) => entry.node)),
         ...(shown.note === null
           ? []
           : [el("p", "commits-list-note", shown.note)]),
