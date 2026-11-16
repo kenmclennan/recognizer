@@ -1709,7 +1709,13 @@ def test_an_unchanged_rerun_prints_one_mutants_line_with_every_function_done(
     assert run_mutate(root, output, settings(max_workers=1)) == 0
     assert event_log(capsys) == [
         {"event": "note", "text": "Coverage run: sample"},
-        {"event": "start", "total": 3, "unit": "functions"},
+        {
+            "event": "start",
+            "total": 3,
+            "unit": "functions",
+            "queued": 0,
+            "not_measured": {"reused": 3, "no_covered_site": 0, "out_of_scope": 0},
+        },
         {"event": "progress", "done": 3, "total": 3, "unit": "functions"},
     ]
 
@@ -1723,10 +1729,61 @@ def test_reused_functions_count_as_done_from_the_first_line(tmp_path, counting, 
     assert run_mutate(root, output, settings(max_workers=1)) == 0
     assert event_log(capsys) == [
         {"event": "note", "text": "Coverage run: sample"},
-        {"event": "start", "total": 3, "unit": "functions"},
+        {
+            "event": "start",
+            "total": 3,
+            "unit": "functions",
+            "queued": 1,
+            "not_measured": {"reused": 2, "no_covered_site": 0, "out_of_scope": 0},
+        },
         {"event": "progress", "done": 2, "total": 3, "unit": "functions"},
         {"event": "progress", "done": 3, "total": 3, "unit": "functions"},
     ]
+
+
+def test_start_event_reports_queued_and_not_measured_counts(tmp_path, capsys):
+    fixture = tmp_path / "fixture"
+    shutil.copytree(STOP_FIXTURE, fixture)
+    (fixture / "app" / "other.py").write_text("def omega(a, b):\n    return a and b\n")
+    lcov = fixture / "coverage" / "lcov.info"
+    lcov.write_text(lcov.read_text() + "SF:app/other.py\nDA:1,1\nDA:2,1\nend_of_record\n")
+    scan = json.loads((fixture / "scan.python.json").read_text())
+    scan["files"].append({"path": "app/other.py", "hash": "1" * 64})
+    scan["modules"].append({"id": "app/other.py"})
+    (fixture / "scan.python.json").write_text(json.dumps(scan))
+    root, _ = mutate_repository(tmp_path, fixture)
+    output = tmp_path / "overlay.json"
+    settings = mutate_settings("tests/strong.py", max_workers=1)
+
+    assert run_mutate(root, output, settings) == 0
+
+    capsys.readouterr()
+    (root / "coverage" / "lcov.info").write_text(
+        (root / "coverage" / "lcov.info")
+        .read_text()
+        .replace("end_of_record", "DA:13,0\nDA:14,0\nend_of_record", 1)
+    )
+    changed = root / "app" / "rules.py"
+    changed.write_text(changed.read_text() + "\n\ndef delta(a, b):\n    return a and b\n")
+    changed.write_text(
+        changed.read_text().replace(
+            "def alpha(a, b):\n    return a and b", "def alpha(a, b):\n    return b and a", 1
+        )
+    )
+    modules = tmp_path / "modules.json"
+    modules.write_text(json.dumps(["app/rules.py"]))
+
+    assert run_mutate(root, output, settings, "--modules", str(modules)) == 0
+
+    start = event_log(capsys)[1]
+
+    assert start["event"] == "start"
+    assert start["queued"] == 1
+    assert start["not_measured"] == {"reused": 2, "no_covered_site": 1, "out_of_scope": 1}
+    assert (
+        start["queued"] + sum(start["not_measured"][key] for key in ("reused", "no_covered_site"))
+        == start["total"]
+    )
 
 
 def test_a_run_cut_by_the_budget_ends_short_of_the_total(tmp_path, counting, capsys, monkeypatch):

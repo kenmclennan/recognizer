@@ -23,6 +23,20 @@
         "unit": {
           "type": "string",
           "minLength": 1
+        },
+        "queued": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "not_measured": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reused", "no_covered_site", "out_of_scope"],
+          "properties": {
+            "reused": { "type": "integer", "minimum": 0 },
+            "no_covered_site": { "type": "integer", "minimum": 0 },
+            "out_of_scope": { "type": "integer", "minimum": 0 }
+          }
         }
       }
     },

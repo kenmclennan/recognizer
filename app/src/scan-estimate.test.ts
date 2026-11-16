@@ -780,7 +780,7 @@ describe("remaining time while running", () => {
     expect(left(asked, T + 50_000)?.text).toBe("about 2 min left");
   });
 
-  const mutating = (done: number) =>
+  const mutating = (done: number, first = 14, total = 38) =>
     fold(frozen({ structure: 0, mutation: 600_000 }), [
       [T, { event: "phase", phase: "sense", total: 1 }],
       [T, { event: "start", phase: "sense", name: "mutation" }],
@@ -792,8 +792,8 @@ describe("remaining time while running", () => {
           name: "mutation",
           data: {
             event: "progress",
-            done: 14,
-            total: 38,
+            done: first,
+            total,
             unit: "functions",
             step: "mutants",
           },
@@ -808,7 +808,7 @@ describe("remaining time while running", () => {
           data: {
             event: "progress",
             done,
-            total: 38,
+            total,
             unit: "functions",
             step: "mutants",
           },
@@ -826,6 +826,12 @@ describe("remaining time while running", () => {
 
   it("paces a plugin from the units done since its first progress event", () => {
     expect(mutationLeft(mutating(17), ["unit"])?.text).toBe("about 7 min left");
+  });
+
+  it("paces a plugin from progress since its first event, not from the functions done before the run", () => {
+    expect(mutationLeft(mutating(371, 368, 633), ["unit"])?.text).toBe(
+      "about 1 h 27 min left",
+    );
   });
 
   it("falls back to the frozen figure with two suites", () => {

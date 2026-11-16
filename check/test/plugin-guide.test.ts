@@ -30,6 +30,11 @@ describe("recognizer help plugin-guide", () => {
     expect(captured.out()).toBe(pluginGuide());
   });
 
+  it("documents the optional start counts", () => {
+    expect(pluginGuide()).toContain("queued");
+    expect(pluginGuide()).toContain("not_measured");
+  });
+
   it("is a usage error with an argument", () => {
     const captured = capture();
 

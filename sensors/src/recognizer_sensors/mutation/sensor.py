@@ -1243,7 +1243,20 @@ def measure(
             name if len(suite_total) > 1 else None,
         )
 
-    events.start(sum(suite_total.values()), "functions")
+    ran_names = set(suite_total)
+    settled = [
+        t for t in targets if t.suite in ran_names and in_scope(t) and t.identity not in queued
+    ]
+    events.start(
+        sum(suite_total.values()),
+        "functions",
+        queued=len(queue),
+        not_measured={
+            "reused": sum(1 for t in settled if t.reused),
+            "no_covered_site": sum(1 for t in settled if not t.reused),
+            "out_of_scope": sum(1 for t in targets if t.suite in ran_names and not in_scope(t)),
+        },
+    )
 
     if queue:
         announce(queue[0].suite)
