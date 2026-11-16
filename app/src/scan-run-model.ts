@@ -86,11 +86,52 @@ function timed(
           rateFrom: null,
         },
       };
-    case "plugin":
-      return pluginTimed(next, timing, event, at);
+    case "plugin": {
+      const stamped = extractStamped(next, event, at);
+
+      return pluginTimed(stamped, stamped.timing, event, at);
+    }
+    case "entry":
+      return event.phase === "extract"
+        ? {
+            ...next,
+            timing: {
+              ...next.timing,
+              extractDoneAt: { ...timing.extractDoneAt, [event.name]: at },
+            },
+          }
+        : next;
     default:
       return next;
   }
+}
+
+function extractStamped(
+  next: ScanProgress,
+  event: Extract<ScanEvent, { event: "plugin" }>,
+  at: number,
+): ScanProgress {
+  if (event.phase !== "extract") {
+    return next;
+  }
+
+  const { timing } = next;
+  const { name, data } = event;
+
+  return {
+    ...next,
+    timing: {
+      ...timing,
+      extractAt:
+        name in timing.extractAt
+          ? timing.extractAt
+          : { ...timing.extractAt, [name]: at },
+      extractTotals:
+        data.event === "start"
+          ? { ...timing.extractTotals, [name]: data.total }
+          : timing.extractTotals,
+    },
+  };
 }
 
 function pluginTimed(

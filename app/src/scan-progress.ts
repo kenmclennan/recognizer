@@ -7,6 +7,7 @@ export type ScanEvent =
       phase: "extract";
       state: "run" | "current";
       commit: string | null;
+      languages?: string[];
     }
   | { event: "phase"; phase: "describe" | "sense"; total: number }
   | {
@@ -68,6 +69,7 @@ export type PhaseProgress = { total: number; entries: EntryResult[] };
 
 export type ScanProgress = {
   extract: "pending" | "run" | "current";
+  languages: string[] | null;
   extractEntries: EntryResult[];
   describe: PhaseProgress | null;
   describeStop: DescribeStop | null;
@@ -87,6 +89,9 @@ export type ScanProgress = {
 export type ScanTiming = {
   phaseAt: Record<string, number>;
   sensorAt: Record<string, number>;
+  extractAt: Record<string, number>;
+  extractDoneAt: Record<string, number>;
+  extractTotals: Record<string, number>;
   describeFrom: number | null;
   rateFrom: { at: number; done: number; unit: string; step?: string } | null;
   frozen: Record<string, number> | null;
@@ -98,6 +103,7 @@ export type ShowTarget =
 
 export const NO_PROGRESS: ScanProgress = {
   extract: "pending",
+  languages: null,
   extractEntries: [],
   describe: null,
   describeStop: null,
@@ -114,6 +120,9 @@ export const NO_PROGRESS: ScanProgress = {
   timing: {
     phaseAt: {},
     sensorAt: {},
+    extractAt: {},
+    extractDoneAt: {},
+    extractTotals: {},
     describeFrom: null,
     rateFrom: null,
     frozen: null,
@@ -307,6 +316,9 @@ function phaseEvent(line: Record<string, unknown>): ScanEvent | null {
           phase: "extract",
           state: line.state,
           commit: typeof line.commit === "string" ? line.commit : null,
+          ...(Array.isArray(line.languages) && line.languages.every(nonEmpty)
+            ? { languages: line.languages }
+            : {}),
         }
       : null;
   }
@@ -488,7 +500,11 @@ export function foldProgress(
       return { ...state, describeAsk: null, describeSkipped: !event.describe };
     case "phase":
       if (event.phase === "extract") {
-        return { ...state, extract: event.state };
+        return {
+          ...state,
+          extract: event.state,
+          languages: event.languages ?? state.languages,
+        };
       }
 
       return {

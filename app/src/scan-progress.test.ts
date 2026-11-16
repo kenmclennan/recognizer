@@ -639,3 +639,41 @@ describe("describeAskText with a describe rate", () => {
     );
   });
 });
+
+describe("the extract run line's languages", () => {
+  const run = (languages: unknown) =>
+    parseScanLine(
+      JSON.stringify({
+        event: "phase",
+        phase: "extract",
+        state: "run",
+        commit: "abc",
+        languages,
+      }),
+    );
+
+  it("reads languages when they are an array of strings", () => {
+    expect(run(["python", "rust"])).toEqual({
+      event: "phase",
+      phase: "extract",
+      state: "run",
+      commit: "abc",
+      languages: ["python", "rust"],
+    });
+  });
+
+  it("treats a non-array or non-string entries as absent", () => {
+    expect(run("python")).not.toHaveProperty("languages");
+    expect(run(["python", 3])).not.toHaveProperty("languages");
+    expect(run(["python", ""])).not.toHaveProperty("languages");
+  });
+
+  it("folds the list into the progress", () => {
+    const event = run(["python"]);
+
+    expect(event).not.toBeNull();
+    expect(
+      foldProgress(NO_PROGRESS, event as NonNullable<typeof event>).languages,
+    ).toEqual(["python"]);
+  });
+});

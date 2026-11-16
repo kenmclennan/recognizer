@@ -290,6 +290,22 @@ describe("selectSensors", () => {
 });
 
 describe("event lines", () => {
+  it("carries the languages on the extract run line in the order given", () => {
+    const run = JSON.parse(
+      phaseLine("extract", {
+        state: "run",
+        commit: "abc",
+        reason: "forced",
+        languages: ["rust", "python"],
+      }),
+    );
+
+    expect(run.languages).toEqual(["rust", "python"]);
+    expect(
+      JSON.parse(phaseLine("extract", { state: "current", commit: "abc" })),
+    ).not.toHaveProperty("languages");
+  });
+
   it("builds the extract phase line for a run and for current scans", () => {
     expect(
       JSON.parse(

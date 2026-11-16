@@ -409,7 +409,12 @@ export interface EventEntry {
 export function phaseLine(
   phase: PhaseName,
   detail:
-    | { state: "run"; commit: string | null; reason: string }
+    | {
+        state: "run";
+        commit: string | null;
+        reason: string;
+        languages?: readonly string[];
+      }
     | { state: "current"; commit: string }
     | { total: number },
 ): string {
