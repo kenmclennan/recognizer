@@ -1,4 +1,11 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -86,6 +93,53 @@ describe("renderCask on the committed template", () => {
       );
       expect(target).toBeUndefined();
     }
+  });
+
+  it("warns about a missing node without failing the install", () => {
+    expect(cask).toContain("must_succeed: false");
+    expect(cask).not.toContain("caveats");
+    expect(cask).toContain("com.apple.quarantine");
+  });
+
+  it("the node check prints the shellenv line only when the login shell lacks node", () => {
+    const script = cask
+      .split("<<~'SH'")[1]
+      .split("\n")
+      .slice(1)
+      .join("\n")
+      .split(/^\s*SH$/m)[0]
+      .split("\n")
+      .map((line) => line.replace(/^ {10}/, ""))
+      .join("\n");
+
+    expect(script.trim()).not.toBe("");
+    expect(script).toContain("command -v $1");
+
+    const shells = makeTempDir("node-check-");
+    const run = (exitCode) => {
+      const shell = join(shells, `shell-${exitCode}`);
+
+      writeFileSync(shell, `#!/bin/sh\nexit ${exitCode}\n`);
+      chmodSync(shell, 0o755);
+
+      return spawnSync("/bin/sh", ["-c", script, "sh", "node"], {
+        encoding: "utf8",
+        env: { ...process.env, SHELL: shell },
+      });
+    };
+
+    const missing = run(1);
+
+    expect(missing.status).toBe(0);
+    expect(missing.stderr).toContain(
+      'eval "$(/opt/homebrew/bin/brew shellenv)"',
+    );
+    expect(missing.stderr).toContain("node");
+
+    const found = run(0);
+
+    expect(found.status).toBe(0);
+    expect(found.stderr).toBe("");
   });
 
   it("has no preflight_steps and keeps the quarantine postflight", () => {
