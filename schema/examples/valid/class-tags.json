@@ -70,6 +70,19 @@
           "tags": [
             "abstract"
           ]
+        },
+        {
+          "name": "Event",
+          "kind": "class",
+          "line": 9,
+          "exported": true,
+          "bases": [],
+          "fields": [],
+          "methods": [],
+          "tags": [
+            "abstract",
+            "sealed"
+          ]
         }
       ]
     }
