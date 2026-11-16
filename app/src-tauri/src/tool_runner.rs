@@ -102,7 +102,23 @@ pub enum ToolFault {
     Incomplete {
         path: PathBuf,
     },
+    Unrunnable {
+        tool: String,
+        path: PathBuf,
+        expected: String,
+        reason: Unrunnable,
+    },
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Unrunnable {
+    Interpreter { name: String },
+    Status { code: Option<i32>, stderr: String },
+    NoAnswer { seconds: u64 },
+    NotStarted { error: String },
+}
+
+const SHELLENV_FIX: &str = "eval \"$(/opt/homebrew/bin/brew shellenv)\"";
 
 pub fn mismatch_message(expected: &str, tool: &str, found: &str, path: &Path, fix: &str) -> String {
     format!(
@@ -114,7 +130,9 @@ pub fn mismatch_message(expected: &str, tool: &str, found: &str, path: &Path, fi
 impl ToolFault {
     pub fn gap_id(&self) -> String {
         match self {
-            ToolFault::Missing { tool } | ToolFault::Mismatch { tool, .. } => {
+            ToolFault::Missing { tool }
+            | ToolFault::Mismatch { tool, .. }
+            | ToolFault::Unrunnable { tool, .. } => {
                 format!("toolchain:{tool}")
             }
             ToolFault::Incomplete { .. } => "toolchain:incomplete".to_string(),
@@ -135,8 +153,144 @@ impl ToolFault {
                 "This installation of Recognizer is incomplete: {} is missing. Run: {BUNDLE_FIX}",
                 path.display()
             ),
+            ToolFault::Unrunnable {
+                tool,
+                path,
+                expected,
+                reason,
+            } => unrunnable_message(expected, tool, path, reason),
         }
     }
+}
+
+fn unrunnable_message(expected: &str, tool: &str, path: &Path, reason: &Unrunnable) -> String {
+    let head = format!(
+        "Recognizer {expected} cannot run {tool} ({})",
+        path.display()
+    );
+
+    match reason {
+        Unrunnable::Interpreter { name } => format!(
+            "{head}: it needs {name} on your login shell's PATH, and {name} was not found. Add Homebrew to your shell's startup file with {SHELLENV_FIX}, then reopen Recognizer."
+        ),
+        Unrunnable::Status { code, stderr } => {
+            let status = match code {
+                Some(0) => "printed no version".to_string(),
+                Some(code) => format!("--version exited with status {code}"),
+                None => "--version was stopped by a signal".to_string(),
+            };
+
+            if stderr.is_empty() {
+                format!("{head}: {status}")
+            } else {
+                format!("{head}: {status}: {stderr}")
+            }
+        }
+        Unrunnable::NoAnswer { seconds } => {
+            format!("{head}: --version did not answer within {seconds} seconds")
+        }
+        Unrunnable::NotStarted { error } => format!("{head}: could not be started: {error}"),
+    }
+}
+
+fn stderr_tail(bytes: &[u8]) -> String {
+    let text = String::from_utf8_lossy(bytes);
+    let lines: Vec<&str> = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+    let joined = lines[lines.len().saturating_sub(5)..].join("; ");
+    let count = joined.chars().count();
+
+    joined.chars().skip(count.saturating_sub(400)).collect()
+}
+
+fn missing_interpreter(stderr: &str) -> Option<String> {
+    stderr.lines().find_map(|line| {
+        let name = line
+            .trim()
+            .strip_prefix("env: ")?
+            .strip_suffix(": No such file or directory")?;
+
+        (!name.is_empty() && !name.contains(char::is_whitespace)).then(|| name.to_string())
+    })
+}
+
+struct BoundedRun {
+    code: Option<i32>,
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
+}
+
+enum RunFailure {
+    NotStarted(String),
+    TimedOut,
+}
+
+fn bounded_run(mut process: Command, timeout: Duration) -> Result<BoundedRun, RunFailure> {
+    process
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+
+        process.process_group(0);
+    }
+
+    let mut child = process
+        .spawn()
+        .map_err(|error| RunFailure::NotStarted(error.to_string()))?;
+    let drain = |pipe: Option<Box<dyn Read + Send>>| {
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+
+            if let Some(mut pipe) = pipe {
+                let _ = pipe.read_to_end(&mut bytes);
+            }
+
+            bytes
+        })
+    };
+    let stdout = drain(
+        child
+            .stdout
+            .take()
+            .map(|pipe| Box::new(pipe) as Box<dyn Read + Send>),
+    );
+    let stderr = drain(
+        child
+            .stderr
+            .take()
+            .map(|pipe| Box::new(pipe) as Box<dyn Read + Send>),
+    );
+    let deadline = Instant::now() + timeout;
+
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            _ => {
+                kill_group(child.id());
+
+                let _ = child.kill();
+                let _ = child.wait();
+
+                return Err(RunFailure::TimedOut);
+            }
+        }
+    };
+
+    Ok(BoundedRun {
+        code: status.code(),
+        stdout: stdout.join().unwrap_or_default(),
+        stderr: stderr.join().unwrap_or_default(),
+    })
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -609,13 +763,39 @@ impl ToolRunner {
             .env_clear()
             .envs(pairs.iter().cloned());
 
-        let found = self
+        let unrunnable = |reason: Unrunnable| ToolFault::Unrunnable {
+            tool: name.to_string(),
+            path: program.to_path_buf(),
+            expected: self.expected.clone(),
+            reason,
+        };
+
+        let run = self
             .limiter
-            .run(|| bounded_output(process, self.timeout))
-            .filter(|(code, _)| *code == Some(0))
-            .map(|(_, bytes)| String::from_utf8_lossy(&bytes).trim().to_string())
-            .filter(|text| !text.is_empty())
-            .unwrap_or_else(|| "no version".to_string());
+            .run(|| bounded_run(process, self.timeout))
+            .map_err(|failure| match failure {
+                RunFailure::NotStarted(error) => unrunnable(Unrunnable::NotStarted { error }),
+                RunFailure::TimedOut => unrunnable(Unrunnable::NoAnswer {
+                    seconds: self.timeout.as_secs(),
+                }),
+            })?;
+        let found = String::from_utf8_lossy(&run.stdout).trim().to_string();
+
+        if run.code != Some(0) || found.is_empty() {
+            let stderr = stderr_tail(&run.stderr);
+            let interpreter = run
+                .code
+                .filter(|code| *code == 127)
+                .and_then(|_| missing_interpreter(&String::from_utf8_lossy(&run.stderr)));
+
+            return Err(unrunnable(match interpreter {
+                Some(name) => Unrunnable::Interpreter { name },
+                None => Unrunnable::Status {
+                    code: run.code,
+                    stderr,
+                },
+            }));
+        }
 
         if found == self.expected {
             locked(&self.verified).insert(program.to_path_buf(), stamp);
@@ -1244,22 +1424,167 @@ pub mod tests {
     }
 
     #[test]
-    fn a_tool_that_prints_nothing_or_exits_non_zero_is_a_mismatch_showing_no_version() {
+    fn a_command_whose_interpreter_is_missing_is_unrunnable_and_names_node_and_the_login_shell() {
+        let dir = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "1.2.3");
+
+        script(
+            &folder,
+            "recognizer",
+            "echo \"env: node: No such file or directory\" >&2\nexit 127",
+        );
+
+        let runner = bundled_runner(dir.path(), &folder, "/usr/bin");
+        let fault = runner.capture("recognizer", &[], false).unwrap_err();
+        let message = fault.message();
+
+        assert!(matches!(
+            fault,
+            ToolFault::Unrunnable {
+                reason: Unrunnable::Interpreter { ref name },
+                ..
+            } if name == "node"
+        ));
+        assert!(
+            message.contains("needs node on your login shell's PATH"),
+            "{message}"
+        );
+        assert!(message.contains("brew shellenv"), "{message}");
+        assert!(!message.contains("brew reinstall"), "{message}");
+        assert!(!message.contains("no version"), "{message}");
+    }
+
+    #[test]
+    fn a_tool_that_prints_nothing_or_exits_non_zero_is_unrunnable_showing_its_status() {
         let dir = TempDir::new().unwrap();
         let folder = fake_commands(dir.path(), "1.2.3");
 
         let runner = bundled_runner(dir.path(), &folder, "/usr/bin");
 
-        for body in ["exit 0", "echo 1.2.3\nexit 3"] {
+        for (body, expected) in [
+            ("exit 0", vec!["printed no version"]),
+            ("echo 1.2.3\nexit 3", vec!["status 3"]),
+            ("echo boom >&2\nexit 2", vec!["status 2", "boom"]),
+        ] {
             script(&folder, "recognizer", body);
 
-            let message = runner
-                .capture("recognizer", &[], false)
-                .unwrap_err()
-                .message();
+            let fault = runner.capture("recognizer", &[], false).unwrap_err();
+            let message = fault.message();
 
-            assert!(message.contains("recognizer no version"), "{message}");
+            assert!(
+                matches!(
+                    fault,
+                    ToolFault::Unrunnable {
+                        reason: Unrunnable::Status { .. },
+                        ..
+                    }
+                ),
+                "{message}"
+            );
+
+            for part in expected {
+                assert!(message.contains(part), "{message}");
+            }
+
+            assert!(!message.contains("brew reinstall"), "{message}");
+            assert!(!message.contains("cannot scan with"), "{message}");
         }
+    }
+
+    #[test]
+    fn a_missing_or_non_executable_bundled_command_still_advises_a_reinstall() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "1.2.3");
+
+        fs::set_permissions(folder.join("recognizer"), fs::Permissions::from_mode(0o644)).unwrap();
+
+        let runner = bundled_runner(dir.path(), &folder, "/usr/bin");
+        let fault = runner.capture("recognizer", &[], false).unwrap_err();
+
+        assert!(matches!(fault, ToolFault::Incomplete { .. }));
+        assert!(fault
+            .message()
+            .contains("brew reinstall --cask kenmclennan/tap/recognizer"));
+    }
+
+    #[test]
+    fn the_stderr_tail_is_the_last_five_lines_cut_to_four_hundred_characters() {
+        let dir = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "1.2.3");
+
+        script(
+            &folder,
+            "recognizer",
+            "i=1\nwhile [ $i -le 20 ]; do echo \"line $i\" >&2; i=$((i+1)); done\nexit 1",
+        );
+
+        let runner = bundled_runner(dir.path(), &folder, "/usr/bin");
+        let message = runner
+            .capture("recognizer", &[], false)
+            .unwrap_err()
+            .message();
+
+        assert!(message.contains("line 20"), "{message}");
+        assert!(message.contains("line 16"), "{message}");
+        assert!(!message.contains("line 15"), "{message}");
+
+        let long = "x".repeat(1000);
+
+        script(&folder, "recognizer", &format!("echo {long} >&2\nexit 1"));
+
+        let message = runner
+            .capture("recognizer", &[], false)
+            .unwrap_err()
+            .message();
+        let tail = message.split("status 1: ").nth(1).unwrap();
+
+        assert_eq!(tail.chars().count(), 400, "{message}");
+    }
+
+    #[test]
+    fn a_command_that_does_not_answer_is_unrunnable_with_no_answer() {
+        let dir = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "1.2.3");
+
+        script(&folder, "recognizer", "sleep 30");
+
+        let shell = shell_with_path(dir.path(), "/bin:/usr/bin");
+        let runner = ToolRunner::new(
+            shell.display().to_string(),
+            Duration::from_secs(2),
+            Duration::from_secs(30),
+            4,
+            Toolchain::Bundled { folder },
+            "1.2.3",
+        );
+        let fault = runner.capture("recognizer", &[], false).unwrap_err();
+
+        assert!(matches!(
+            fault,
+            ToolFault::Unrunnable {
+                reason: Unrunnable::NoAnswer { .. },
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn a_command_writing_more_than_a_pipe_of_stderr_does_not_hang_verify() {
+        let dir = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "1.2.3");
+
+        script(
+            &folder,
+            "recognizer",
+            "head -c 200000 /dev/zero | tr '\\0' 'e' >&2\nexit 1",
+        );
+
+        let runner = bundled_runner(dir.path(), &folder, "/usr/bin");
+        let fault = runner.capture("recognizer", &[], false).unwrap_err();
+
+        assert!(matches!(fault, ToolFault::Unrunnable { .. }));
     }
 
     #[test]
