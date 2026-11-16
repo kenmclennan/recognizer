@@ -51,7 +51,7 @@ MUTATION_KEYS = (
         "the most mutants tested at once, at least 1",
         "sensors.mutation.max_workers 4",
         minimum=1,
-        default_text="sized from the machine's cores and free memory",
+        default_text="half the machine's cores, fewer if free memory is short",
     ),
     key(
         "sensors.mutation.timeout_factor",

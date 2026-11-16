@@ -755,7 +755,7 @@ def test_the_guide_of_mutation_states_what_a_blank_budget_and_worker_count_mean(
 
     for text in (
         "no time budget: the run continues until it finishes",
-        "sized from the machine's cores and free memory",
+        "half the machine's cores, fewer if free memory is short",
     ):
         assert text in out
         assert text not in crap_out

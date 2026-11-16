@@ -402,7 +402,7 @@ describe("the Mutation estimate counts the functions it will measure", () => {
     expect(line.text).toBe("About 3 min");
   });
 
-  it("gives no estimate when functions are to be performed and no sample has a rate", () => {
+  it("gives a count and no figure when functions are to be performed and no sample has a rate", () => {
     const old = scanFile("20261101T090000000Z", {
       structure_ms: 0,
       sense: [
@@ -412,7 +412,7 @@ describe("the Mutation estimate counts the functions it will measure", () => {
 
     expect(mutationLine([old], 3).parts[0]).toMatchObject({
       ms: null,
-      basis: null,
+      basis: "3 functions to mutate, no pace yet",
     });
     expect(mutationLine([old], 0).parts[0]?.ms).toBe(5000);
   });
@@ -592,6 +592,39 @@ describe("the estimate line", () => {
       "C.R.A.P.: 2 min (40 modules, last run's pace)",
       "Mutation: no estimate yet",
     ]);
+  });
+
+  it("names the function count when Mutation has work and no pace", () => {
+    const lineWith = (toPerform: number | null) =>
+      estimateLine(
+        estimateParts(
+          scanHistory(files),
+          planned(
+            { describe: 12, crap: 40, mutation: 40 },
+            ["crap", "mutation"],
+            true,
+          ),
+          rows,
+          toPerform === null
+            ? {}
+            : { [MUTATION.key]: { unit: "functions", to_perform: toPerform } },
+        ),
+      );
+    const many = lineWith(40);
+
+    expect(many.title).toContain(
+      "Mutation: 40 functions to mutate, no pace yet",
+    );
+    expect(many.text).toBe(
+      "About 3 min, plus Mutation: 40 functions to mutate, no pace yet",
+    );
+    expect(lineWith(1).title).toContain(
+      "Mutation: 1 function to mutate, no pace yet",
+    );
+    expect(lineWith(0).title).toContain("Mutation: no estimate yet");
+    expect(lineWith(null).text).toBe(
+      "About 3 min, plus Mutation: no estimate yet",
+    );
   });
 
   it("has no plus when every part has history", () => {

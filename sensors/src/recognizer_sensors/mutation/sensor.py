@@ -1,4 +1,5 @@
 import queue
+import shutil
 import sys
 import threading
 import time
@@ -319,6 +320,8 @@ def timeout_for(baseline_seconds: float, factor: float) -> float:
 
 
 LOG_LOCK = threading.Lock()
+
+PROBE_SECONDS = 600.0
 
 BASELINE_LOG = Path(".recognizer") / "cache" / "mutation" / "baseline.log"
 
@@ -965,18 +968,74 @@ def run(
         remove_work_folder(work)
 
 
-def sized_workers(peak: int) -> tuple[int, str]:
+def sized_workers(peak: int, whole_peak: int | None = None) -> tuple[int, int, str]:
     cpus = core_count()
     available = available_bytes()
     workers = default_workers(cpus, available, peak)
+    whole = workers if whole_peak is None else default_workers(cpus, available, whole_peak)
 
     detail = (
         "available memory unreadable"
         if available is None
-        else f"cores {cpus}, available {available // 1_000_000} MB, one run {peak // 1_000_000} MB"
+        else (
+            f"cores {cpus}, half {max(1, cpus // 2)}, available {available // 1_000_000} MB, "
+            f"one run {peak // 1_000_000} MB"
+        )
     )
 
-    return workers, f"recognizer-sense-mutation: workers: {workers} ({detail})"
+    return workers, whole, f"recognizer-sense-mutation: workers: {workers} ({detail})"
+
+
+def probe_command(
+    queue: list[Target], by_name: dict[str, Suite], suite_size: int
+) -> tuple[Suite, list[str] | str] | None:
+    for target in queue:
+        suite = by_name[target.suite]
+        whole = mutant_command(suite)
+        first = target.to_run[0]
+        files = target.selections[first]
+        nodes = target.nodes[first] if first < len(target.nodes) else None
+
+        if suite.language == "typescript":
+            selected = selected_command(suite, None, file=target.file)
+        elif files and len(files) * 2 <= suite_size:
+            selected = selected_command(suite, files, nodes=nodes)
+        else:
+            selected = None
+
+        if selected is not None and selected != whole:
+            return suite, selected
+
+    return None
+
+
+def probe_peak(
+    repository: Path,
+    work: Path,
+    carry: tuple[str, ...],
+    queue: list[Target],
+    by_name: dict[str, Suite],
+    suite_size: int,
+) -> int | None:
+    found = probe_command(queue, by_name, suite_size)
+
+    if found is None:
+        return None
+
+    suite, command = found
+    copy = work / f"probe-{next(NUMBERS)}"
+
+    try:
+        copy_repository(repository, copy, carry) if carry else copy_repository(repository, copy)
+
+        with PeakSampler() as sampler:
+            run_test_command(command, copy, PROBE_SECONDS, suite=suite)
+    except OSError:
+        return None
+    finally:
+        shutil.rmtree(copy, ignore_errors=True)
+
+    return sampler.peak_bytes if sampler.peak_bytes > 0 else None
 
 
 def measure(
@@ -1016,11 +1075,9 @@ def measure(
     finally:
         restore_coverage_handler()
 
+    coverage_peak = sampler.peak_bytes
     sizing_line = None
-
-    if settings["max_workers"] is None:
-        workers, sizing_line = sized_workers(sampler.peak_bytes)
-        settings = {**settings, "max_workers": workers}
+    whole_limit = settings["max_workers"]
 
     rust_entries = rust_test_entries(repository)
     test_files = test_hashes(repository, scans, rust_entries)
@@ -1288,7 +1345,21 @@ def measure(
 
         return outcome, measured, skipped_ids, reused
 
+    if settings["max_workers"] is None:
+        peak = (
+            probe_peak(
+                repository, work, tuple(settings.get("carry", ())), queue, by_name, suite_size
+            )
+            if queue and available_bytes() is not None
+            else None
+        )
+        workers, whole_limit, sizing_line = sized_workers(
+            coverage_peak if peak is None else peak, coverage_peak
+        )
+        settings = {**settings, "max_workers": workers}
+
     if queue:
+        whole_slots = threading.Semaphore(max(1, whole_limit))
         labelled = len(suites) > 1
         mutant_copies = MutantCopies(
             repository, work, settings["max_workers"], settings.get("carry", ())
@@ -1444,6 +1515,7 @@ def measure(
                         settings.get("carry", ()),
                         **({"copies": mutant_copies} if mutant_copies.enabled else {}),
                         **({"deadline": deadline, "clock": CLOCK} if deadline is not None else {}),
+                        whole_slots=whole_slots,
                     ),
                     settings["max_workers"],
                     deadline,

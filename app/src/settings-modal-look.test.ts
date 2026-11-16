@@ -285,7 +285,7 @@ describe.skipIf(webkit === undefined)("the settings modal", () => {
   it("shows the default text of a blank mutation field and no Reset", () => {
     expect(f.mutation.defaults).toHaveLength(2);
     expect(f.mutation.defaults[0]).toContain("no time budget");
-    expect(f.mutation.defaults[1]).toContain("sized from the machine's cores");
+    expect(f.mutation.defaults[1]).toContain("half the machine's cores");
     expect(f.mutation.resets).toBe(0);
   });
 

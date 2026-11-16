@@ -731,6 +731,7 @@ def run_function(
     deadline: float | None = None,
     clock: Callable[[], float] = time.monotonic,
     copies: MutantCopies | None = None,
+    whole_slots: threading.Semaphore | None = None,
 ) -> list[MutantResult] | None:
     results = []
 
@@ -743,18 +744,27 @@ def run_function(
         if STOP.is_set() or (deadline is not None and clock() >= deadline):
             return None
 
-        result = run_mutant(
-            repository,
-            work,
-            next(NUMBERS),
-            mutant,
-            command,
-            timeout,
-            suite,
-            known,
-            carry,
-            copies,
-        )
+        gate = whole_slots if whole_slots is not None and isinstance(command, str) else None
+
+        if gate is not None:
+            gate.acquire()
+
+        try:
+            result = run_mutant(
+                repository,
+                work,
+                next(NUMBERS),
+                mutant,
+                command,
+                timeout,
+                suite,
+                known,
+                carry,
+                copies,
+            )
+        finally:
+            if gate is not None:
+                gate.release()
 
         if STOP.is_set() or BUDGET_SPENT.is_set():
             return None

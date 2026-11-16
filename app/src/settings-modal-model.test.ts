@@ -281,6 +281,26 @@ describe("the repository model", () => {
     expect(set.edits()).toEqual([{ op: "unset", key }]);
   });
 
+  it("shows the text of a blank max_workers and offers Reset only once a value is set", () => {
+    const key = "sensors.mutation.max_workers";
+    const blank = model();
+
+    expect(blank.defaultShown(key)).toEqual({
+      kind: "text",
+      text: "half the machine's cores, fewer if free memory is short",
+    });
+    expect(blank.changed(key)).toBe(false);
+
+    const set = model("sensors:\n  mutation:\n    max_workers: 2\n");
+
+    expect(set.changed(key)).toBe(true);
+    expect(set.value(key)).toBe("2");
+
+    set.reset([key]);
+
+    expect(set.edits()).toEqual([{ op: "unset", key }]);
+  });
+
   it("refuses an out-of-bound value with the library's own reason and clears it on a change", () => {
     const one = model();
     const key = "sensors.structure.duplication.threshold";

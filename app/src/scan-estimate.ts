@@ -354,14 +354,31 @@ export function estimateParts(
       work[key] ?? null,
     );
 
-    parts.push(
-      figure === null
-        ? { key, name, ms: null, basis: null }
-        : { key, name, ms: figure.ms, basis: figure.basis },
-    );
+    const plannedWork = work[key] ?? null;
+
+    if (figure !== null) {
+      parts.push({ key, name, ms: figure.ms, basis: figure.basis });
+    } else if (
+      key === MUTATION_KEY &&
+      plannedWork !== null &&
+      plannedWork.to_perform > 0
+    ) {
+      parts.push({
+        key,
+        name,
+        ms: null,
+        basis: `${plural(plannedWork.to_perform, "function")} to mutate, no pace yet`,
+      });
+    } else {
+      parts.push({ key, name, ms: null, basis: null });
+    }
   }
 
   return parts;
+}
+
+function missingText(part: EstimatePart): string {
+  return `${part.name}: ${part.basis ?? "no estimate yet"}`;
 }
 
 export function estimateLine(parts: readonly EstimatePart[]): ScanEstimate {
@@ -377,12 +394,12 @@ export function estimateLine(parts: readonly EstimatePart[]): ScanEstimate {
     capitalised(roundedTime(total)) +
     (missing.length === 0
       ? ""
-      : `, plus ${missing.map((one) => one.name).join(", ")}: no estimate yet`);
+      : `, plus ${missing.map(missingText).join(", ")}`);
   const title = [
     ...known.map(
       (one) => `${one.name}: ${shortTime(one.ms as number)} (${one.basis})`,
     ),
-    ...missing.map((one) => `${one.name}: no estimate yet`),
+    ...missing.map(missingText),
   ].join("\n");
 
   return { text, title };
