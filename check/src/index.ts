@@ -5,6 +5,13 @@ export {
   type Warning,
 } from "./analyse.js";
 export {
+  AWAKE_GAP_MS,
+  AWAKE_TICK_MS,
+  type AwakeClock,
+  createAwakeClock,
+  systemAwakeClock,
+} from "./awake-clock.js";
+export {
   type BaselineEntry,
   compareIdentities,
   type Identity,

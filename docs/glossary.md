@@ -280,3 +280,4 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Unsaved change view | A change view opened from the Commits panel that is held in the window and written only by the canvas bar's save; it never enters the Views list or the recent list. |
 | Files on the canvas | A Commits panel row's count of its changed files that are modules on the canvas: a file that is a current module, or a removed file whose extension the scans select. A removed file the scanner skipped at the base commit is counted although opening it shows no box. |
 | Not on the canvas | A changed file in a Commits panel row that is not a module on the canvas, shown as `+N not on the canvas`. |
+| Awake time | Time the machine spends running, with the time it sleeps left out. Every scan duration, pace, timeout and estimate counts awake time; a timestamp a person reads, such as when a scan started, is wall-clock time. |
