@@ -57,7 +57,11 @@ def kotlin_fail_fast(command: list[str]) -> list[str]:
 KOTLIN_TEST_WORD = re.compile(r"(?<!\S)(?:\S*:)?test(?!\S)(?:\s+--no-daemon(?!\S))?")
 
 
+KOTLIN_NON_TEST_WORD = re.compile(r"\s+(?:\S*:)?(?:cleanTest|jacocoTestReport)(?!\S)")
+
+
 def kotlin_fail_fast_text(command: str) -> str:
+    command = KOTLIN_NON_TEST_WORD.sub("", command)
     found = KOTLIN_TEST_WORD.search(command)
 
     if found is None:

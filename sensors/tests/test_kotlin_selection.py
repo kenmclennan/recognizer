@@ -199,7 +199,7 @@ def test_kotlin_stop_adds_fail_fast_after_each_test_task():
     KOTLIN_CLASSES.clear()
     KOTLIN_CLASSES["t/XTest.kt"] = [(":a", "p.XTest"), (":b", "q.XTest")]
 
-    assert mutant_command(KSUITE, stop=True) == "./gradlew test --fail-fast jacocoTestReport"
+    assert mutant_command(KSUITE, stop=True) == "./gradlew test --fail-fast"
     assert selected_command(KSUITE, {"t/XTest.kt"}, stop=True) == [
         "./gradlew",
         ":a:test",
@@ -212,9 +212,7 @@ def test_kotlin_stop_adds_fail_fast_after_each_test_task():
         "--tests",
         "q.XTest",
     ]
-    assert selected_command(KSUITE, {"t/Other.kt"}, stop=True) == (
-        "./gradlew test --fail-fast jacocoTestReport"
-    )
+    assert selected_command(KSUITE, {"t/Other.kt"}, stop=True) == ("./gradlew test --fail-fast")
     assert "--fail-fast" not in selected_command(KSUITE, {"t/XTest.kt"})
 
     KOTLIN_CLASSES.clear()
@@ -506,3 +504,30 @@ def test_a_kotlin_selection_of_half_the_suite_is_used_and_one_more_file_runs_the
         or (command[:2] == ["./gradlew", "test"] and "--no-daemon" in command)
         for command in seen
     )
+
+
+def test_kotlin_fallback_mutant_command_keeps_the_suites_arguments_and_drops_clean_and_report():
+    suite = parse_suites(
+        [{**KOTLIN_SUITE_RAW, "command": "./gradlew cleanTest test jacocoTestReport"}]
+    )[0]
+    command = mutant_command(suite, stop=True)
+
+    assert command == "./gradlew test --fail-fast"
+    assert "cleanTest" not in command
+    assert "jacocoTestReport" not in command
+    assert selected_command(suite, {"t/Other.kt"}, stop=True) == command
+    assert mutant_command(suite) == suite.command
+
+
+def test_kotlin_fallback_mutant_command_drops_clean_and_report_per_project():
+    suite = parse_suites(
+        [
+            {
+                **KOTLIN_SUITE_RAW,
+                "command": "./gradlew :a:cleanTest :a:test --no-daemon :a:jacocoTestReport "
+                ":b:cleanTest :b:test :b:jacocoTestReport",
+            }
+        ]
+    )[0]
+
+    assert mutant_command(suite, stop=True) == ("./gradlew :a:test --no-daemon --fail-fast :b:test")
