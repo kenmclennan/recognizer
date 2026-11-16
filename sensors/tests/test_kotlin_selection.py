@@ -108,6 +108,19 @@ SOURCES = {
     OUTER: 'package p\n\n@Suppress("x")\nclass OuterTest {\n    inner class InnerTest\n}\n',
 }
 
+MARKER = "import org.junit.jupiter.api.Test\n\n"
+
+MARKED_SOURCES = {
+    CALC: SOURCES[CALC],
+    ADD: "package p\n\n" + MARKER + "class AddTest {\n    @Test fun a() {}\n}\n",
+    MANY: "package p\n\n"
+    + MARKER
+    + "class MulTest {\n    @Test fun a() {}\n}\n\nclass NegTest {\n    @Test fun a() {}\n}\n",
+    OUTER: "package p\n\n"
+    + MARKER
+    + "class OuterTest {\n    @Test fun a() {}\n    inner class InnerTest\n}\n",
+}
+
 ALL_CLASSES = "p.AddTest p.MulTest p.NegTest p.OuterTest p.OuterTest$InnerTest"
 
 
@@ -407,6 +420,90 @@ def test_a_subproject_result_directory_names_its_gradle_project(tmp_path, monkey
     (results / "TEST-p.XTest.xml").write_text("")
 
     assert kotlin_class_map(root, root) == {"a/src/test/kotlin/p/XTest.kt": [(":a", "p.XTest")]}
+
+
+def test_without_junit_xml_a_mutant_gets_the_same_selection_as_with_it(tmp_path, monkeypatch):
+    with_xml_root, scan = make(
+        tmp_path / "x", files=MARKED_SOURCES, classes=ALL_CLASSES, monkeypatch=monkeypatch
+    )
+    _, with_xml = collect(with_xml_root, scan)
+    KOTLIN_CLASSES.clear()
+    bare_root, scan = make(
+        tmp_path / "y", files=MARKED_SOURCES, classes="", monkeypatch=monkeypatch
+    )
+    _, without_xml = collect(bare_root, scan)
+
+    assert without_xml[CALC] == {
+        4: frozenset({ADD, OUTER}),
+        8: frozenset({MANY, OUTER}),
+        12: frozenset({MANY}),
+    }
+    assert without_xml == with_xml
+    assert selected_command(KSUITE, {MANY}) == [
+        "./gradlew",
+        "test",
+        "--no-daemon",
+        "--tests",
+        "p.MulTest",
+        "--tests",
+        "p.NegTest",
+    ]
+
+
+def test_the_source_class_map_over_the_committed_mutation_fixture(tmp_path):
+    root = tmp_path / "k"
+    shutil.copytree(
+        Path(__file__).parents[2] / "fixtures" / "mutation" / "kotlin" / "src", root / "src"
+    )
+    git_commit(root)
+
+    assert kotlin_class_map(root, root) == {
+        ADD: [("", "p.AddTest")],
+        MANY: [("", "p.MulTest"), ("", "p.NegTest")],
+        OUTER: [("", "p.OuterTest")],
+    }
+
+
+def test_a_subproject_test_source_names_its_gradle_project(tmp_path, monkeypatch):
+    path = "a/src/test/kotlin/p/XTest.kt"
+    files = {path: "package p\n\n" + MARKER + "class XTest {\n    @Test fun a() {}\n}\n"}
+    root, _ = make(tmp_path, files=files, classes="", monkeypatch=monkeypatch)
+
+    assert kotlin_class_map(root, root) == {path: [(":a", "p.XTest")]}
+
+
+def test_a_test_file_with_only_helper_classes_is_left_out_of_the_source_map(tmp_path, monkeypatch):
+    files = {**MARKED_SOURCES, "src/test/kotlin/p/Helper.kt": "package p\n\nclass Helper\n"}
+    root, _ = make(tmp_path, files=files, classes="", monkeypatch=monkeypatch)
+
+    mapped = kotlin_class_map(root, root)
+
+    assert sorted(mapped) == [ADD, MANY, OUTER]
+
+
+def test_two_marked_source_files_declaring_one_class_fall_back_naming_it(
+    tmp_path, monkeypatch, capsys
+):
+    files = {**MARKED_SOURCES, "src/test/kotlin/p/AddTest2.kt": MARKED_SOURCES[ADD]}
+    root, scan = make(tmp_path, files=files, classes="", monkeypatch=monkeypatch)
+
+    _, selection = collect(root, scan)
+
+    assert selection == {}
+    assert "p.AddTest has no single test file" in capsys.readouterr().err
+
+
+def test_no_xml_and_no_test_class_in_the_sources_prints_the_reason(tmp_path, monkeypatch, capsys):
+    root, scan = make(tmp_path, classes="", monkeypatch=monkeypatch)
+
+    _, selection = collect(root, scan)
+
+    assert selection == {}
+    assert not KOTLIN_CLASSES
+    assert (
+        "recognizer-sense-mutation: no JUnit XML results and no JUnit test class in the "
+        "Kotlin test sources; running the whole suite for kotlin"
+    ) in capsys.readouterr().err
 
 
 @pytest.fixture(autouse=True)

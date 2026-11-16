@@ -57,6 +57,10 @@ from recognizer_sensors.testrun.suites import (
 
 KOTLIN_REPORT_GLOB = "**/build/reports/jacoco/test/jacocoTestReport.xml"
 
+KOTLIN_TEST_MARKER = re.compile(
+    r"@(?:Test|ParameterizedTest|RepeatedTest|TestFactory|TestTemplate)\b"
+)
+
 KOTLIN_RESULTS_GLOB = "**/build/test-results/test/TEST-*.xml"
 
 CSHARP_TRX_GLOB = "**/TestResults/results_*.trx"
@@ -180,11 +184,55 @@ def kotlin_declarations(repository: Path) -> dict[str, list[str]]:
     return declared
 
 
+def kotlin_test_project(path: str) -> str | None:
+    parts = path.split("/")
+
+    for index in range(len(parts) - 1):
+        if parts[index] == "src" and parts[index + 1] == "test":
+            return "".join(f":{part}" for part in parts[:index])
+
+    return None
+
+
+def kotlin_source_map(repository: Path) -> dict[str, list[tuple[str, str]]] | str:
+    marked: dict[str, bool] = {}
+    mapped: dict[str, list[tuple[str, str]]] = {}
+
+    for name, files in kotlin_declarations(repository).items():
+        kept = [path for path in files if kotlin_marked(repository, path, marked)]
+
+        if len(kept) > 1:
+            return name
+
+        for path in kept:
+            mapped.setdefault(path, []).append((kotlin_test_project(path) or "", name))
+
+    return mapped
+
+
+def kotlin_marked(repository: Path, path: str, cache: dict[str, bool]) -> bool:
+    if path not in cache:
+        try:
+            text = (repository / path).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+
+        cache[path] = (
+            kotlin_test_project(path) is not None and KOTLIN_TEST_MARKER.search(text) is not None
+        )
+
+    return cache[path]
+
+
 def kotlin_class_map(repository: Path, copy: Path) -> dict[str, list[tuple[str, str]]] | str:
     declared = kotlin_declarations(repository)
     mapped: dict[str, list[tuple[str, str]]] = {}
+    results = kotlin_result_classes(copy)
 
-    for project, name in sorted(kotlin_result_classes(copy)):
+    if not results:
+        return kotlin_source_map(repository)
+
+    for project, name in sorted(results):
         files = declared.get(name, [])
 
         if len(files) != 1:
@@ -223,7 +271,9 @@ def kotlin_selection(
         return {}
 
     if not mapped:
-        return {}
+        return kotlin_fallback(
+            "no JUnit XML results and no JUnit test class in the Kotlin test sources"
+        )
 
     scanned = [path for module in scan.modules for path in module.files]
     builder = SelectionBuilder()
