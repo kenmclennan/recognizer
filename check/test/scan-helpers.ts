@@ -118,6 +118,7 @@ export interface FakeOptions {
   launchFails?: string;
   request?: (socket: string, text: string) => string | null;
   now?: () => number;
+  awake?: () => number;
   stdin?: string;
   lines?: (string | null)[];
   linesRead?: { count: number };
@@ -665,6 +666,13 @@ export function fakeIo(options: FakeOptions = {}): Fake {
       clock += 1;
 
       return clock;
+    },
+    awake: () => {
+      if (options.awake) {
+        return options.awake();
+      }
+
+      return io.now();
     },
   };
 

@@ -104,7 +104,7 @@ export function prepareCall(
   const limit = limits.limitMs(prefix);
   const reader = createEventReader(
     onEvent === undefined ? undefined : (event) => onEvent(name, event),
-    () => io.now(),
+    () => io.awake(),
   );
 
   return {
