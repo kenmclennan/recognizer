@@ -13,7 +13,7 @@ Without `--policy` no violations are computed and no baseline is read or written
 
 ## Sensors and findings
 
-A sensor judges and writes findings; `recognizer scan --sense` runs the registered ones, and `check` runs the structure sensor and reports from the current findings files of the structure sensor, the registered sensors and the shipped sensors. Each sensor writes one document at `.recognizer/cache/findings/<name>.json`, described by [`schema/findings.schema.json`](../schema/findings.schema.json) with examples in `schema/findings-examples/`: `findings_version` 1 or 2 (a shipped sensor writes 2, which adds `inputs`, the scan's file hash of each module it measured, and for a sensor that depends on tests `tests`, a sha256 over the test files), `sensor` (`name`, `version`), `commit`, `modified`, `settings` and `findings`. A finding has a stable `id`, `kind`, `severity` (`violation` or `warning`), `principle`, `summary`, `evidence` (`modules`, and where they apply `edges` with `lines` and `rules`, `members`, `measures` and `test_importers`) an optional `fix_pattern` and an optional `metric` naming the metric a finding is about (a thresholds finding also carries `evidence.producer`, the overlay's producer). Ids are unique within a document. The structure sensor's ids are `rule-violation:<edge kind>:<from>-><to>`, `cycle:<sorted modules joined by ",">`, `orphan:<module>`, `unused_exports:<module>`, `private_imports:<module>` and `long_function:<function identity>`.
+A sensor judges and writes findings; `recognizer scan --sense` runs the registered ones, and `check` runs the structure sensor and reports from the current findings files of the structure sensor, the registered sensors and the shipped sensors. Each sensor writes one document at `.recognizer/cache/findings/<name>.json`, described by [`schema/findings.schema.json`](../schema/findings.schema.json) with examples in `schema/findings-examples/`: `findings_version` 1 or 2 (a shipped sensor writes 2, which adds `inputs`, the scan's file hash of each module it measured, and for a sensor that depends on tests `tests`, a sha256 over the test files), `sensor` (`name`, `version`), `commit`, `modified`, `settings` and `findings`. A finding has a stable `id`, `kind`, `severity` (`violation` or `warning`), `principle`, `summary`, `evidence` (`modules`, and where they apply `edges` with `lines` and `rules`, `members`, `measures` and `test_importers`) an optional `fix_pattern` and an optional `metric` naming the metric a finding is about (a thresholds finding also carries `evidence.producer`, the overlay's producer). Ids are unique within a document. The structure sensor's ids are `rule-violation:<rule text>:<from>`, `cycle:<sorted modules joined by ",">`, `orphan:<module>`, `unused_exports:<module>`, `private_imports:<module>` and `long_function:<function identity>`.
 
 The structure sensor (`check/src/structure-sensor.ts`) is built in. It is configured in `.recognizer/config.yaml` under `sensors.structure`, and any other entry under `sensors` registers a command:
 
@@ -97,7 +97,7 @@ A scan must carry `schema_version` 7; a version-1 scan is refused with exit `2`.
 
 ## Violations and the baseline
 
-A violation is identified by `from`, `to` and `kind`, never by line. Edges sharing that identity collapse into one violation carrying all its lines and every rule that fired.
+A violation is one source module breaking one rule: its imports that break that rule are grouped into one violation carrying each import with its `to`, `kind` and lines (never identified by line). An edge that breaks two rules is in two violations, one per rule.
 
 The baseline lives at `.recognizer/baselines/violations.json` in the scanned repository, or at `--baseline`:
 
@@ -116,9 +116,9 @@ The baseline lives at `.recognizer/baselines/violations.json` in the scanned rep
 
 `violations` is sorted by `from`, `to`, then `kind` by code unit, with no duplicates; an unsorted, duplicated or unknown-version file is rejected. A missing baseline is treated as empty.
 
-A violation from a sensor that is not edge-shaped is held as `{ "id": "<finding id>" }`. The `{from, to, kind}` entries come first in the order above, then the `{id}` entries in id order. A `{from, to, kind}` entry is the finding id `rule-violation:<kind>:<from>-><to>`, so `new`, `fixed` and the baseline flags work over ids and a committed baseline keeps its meaning.
+A violation from a sensor that is not edge-shaped is held as `{ "id": "<finding id>" }`. The `{from, to, kind}` entries come first in the order above, then the `{id}` entries in id order. The baseline stays per import: a violation has one key per import (`from`, `to`, `kind`), and a legacy `{id: "rule-violation:<kind>:<from>-><to>"}` entry resolves to the same key, so a committed baseline keeps its meaning. A violation whose imports are all in the baseline is accepted; one with some imports outside it is new.
 
-`new` is the violations not in the baseline. `fixed` is the baseline entries that no longer occur; they never fail a run.
+`new` is the violations not in the baseline, narrowed to the imports outside it; one that also has imports inside the baseline carries `grown: true`, so a new import under a rule the module already breaks fails the run. `fixed` is the baseline entries (imports) that no longer occur and counts entries, not violations; they never fail a run.
 
 ## Flags
 

@@ -1,5 +1,5 @@
-import { compareIdentities, identityKey } from "./baseline.js";
 import { InputError } from "./errors.js";
+import { ruleText } from "./findings.js";
 import { matchesAny } from "./glob.js";
 import { keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
@@ -10,12 +10,24 @@ export type Rule =
   | { type: "uses"; from_component: string; to_component: string }
   | { type: "forbid"; pattern: string };
 
-export interface Violation {
-  from: string;
+export interface ViolationImport {
   to: string;
   kind: string;
   lines: number[];
-  rules: Rule[];
+}
+
+export interface Violation {
+  from: string;
+  rule: Rule;
+  imports: ViolationImport[];
+}
+
+function compareText(a: string, b: string): number {
+  if (a < b) {
+    return -1;
+  }
+
+  return a > b ? 1 : 0;
 }
 
 function assignComponents(
@@ -110,40 +122,45 @@ export function collectViolations(scan: Scan, policy: Policy) {
       }
     }
 
-    if (rules.length === 0) {
-      continue;
-    }
+    for (const rule of rules) {
+      const key = `${edge.from}\u0000${ruleText(rule)}`;
+      let group = found.get(key);
 
-    const key = identityKey(edge);
-    const existing = found.get(key);
-
-    if (existing) {
-      existing.lines.push(edge.line);
-
-      for (const rule of rules) {
-        if (
-          !existing.rules.some(
-            (r) => JSON.stringify(r) === JSON.stringify(rule),
-          )
-        ) {
-          existing.rules.push(rule);
-        }
+      if (group === undefined) {
+        group = { from: edge.from, rule, imports: [] };
+        found.set(key, group);
       }
-    } else {
-      found.set(key, {
-        from: edge.from,
-        to: edge.to,
-        kind: edge.kind,
-        lines: [edge.line],
-        rules,
-      });
+
+      const existing = group.imports.find(
+        (one) => one.to === edge.to && one.kind === edge.kind,
+      );
+
+      if (existing) {
+        existing.lines.push(edge.line);
+      } else {
+        group.imports.push({
+          to: edge.to,
+          kind: edge.kind,
+          lines: [edge.line],
+        });
+      }
     }
   }
 
-  const violations = [...found.values()].sort(compareIdentities);
+  const violations = [...found.values()].sort(
+    (a, b) =>
+      compareText(a.from, b.from) ||
+      compareText(ruleText(a.rule), ruleText(b.rule)),
+  );
 
   for (const violation of violations) {
-    violation.lines = [...new Set(violation.lines)].sort((a, b) => a - b);
+    for (const one of violation.imports) {
+      one.lines = [...new Set(one.lines)].sort((a, b) => a - b);
+    }
+
+    violation.imports.sort(
+      (a, b) => compareText(a.to, b.to) || compareText(a.kind, b.kind),
+    );
   }
 
   return { violations, unranked: unranked.size };

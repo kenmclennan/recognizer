@@ -1,37 +1,62 @@
 import {
   type BaselineEntry,
   compareEntries,
-  entryId,
   type Identity,
-  violationId,
+  identityKey,
+  violationKeys,
 } from "./baseline.js";
 import type { Policy } from "./policy.js";
 import { collectViolations, type Violation } from "./rules.js";
 import { validateScan } from "./scan.js";
 
+export type ReportedNew = Violation & { grown?: true };
+
 export interface CheckResult {
   violations: Violation[];
-  new: Violation[];
+  new: ReportedNew[];
   fixed: BaselineEntry[];
   unranked: number;
 }
 
+export interface Keyed {
+  keys: string[];
+}
+
+export interface Fresh<T> {
+  candidate: T;
+  fresh: Set<string>;
+  grown: boolean;
+}
+
 export interface Ranking<T> {
-  new: T[];
+  new: Fresh<T>[];
   fixed: BaselineEntry[];
 }
 
-export function rankById<T extends { id: string }>(
+export function rankByKeys<T extends Keyed>(
   current: T[],
   baseline: BaselineEntry[] | null,
 ): Ranking<T> {
-  const accepted = new Set((baseline ?? []).map(entryId));
-  const present = new Set(current.map((one) => one.id));
+  const accepted = new Set((baseline ?? []).map(identityKey));
+  const present = new Set(current.flatMap((one) => one.keys));
   const fixed = (baseline ?? [])
-    .filter((entry) => !present.has(entryId(entry)))
+    .filter((entry) => !present.has(identityKey(entry)))
     .sort(compareEntries);
+  const fresh: Fresh<T>[] = [];
 
-  return { new: current.filter((one) => !accepted.has(one.id)), fixed };
+  for (const candidate of current) {
+    const outside = new Set(candidate.keys.filter((key) => !accepted.has(key)));
+
+    if (outside.size > 0) {
+      fresh.push({
+        candidate,
+        fresh: outside,
+        grown: outside.size < new Set(candidate.keys).size,
+      });
+    }
+  }
+
+  return { new: fresh, fixed };
 }
 
 export function rankAgainstBaseline(
@@ -39,15 +64,27 @@ export function rankAgainstBaseline(
   unranked: number,
   baseline: Identity[] | BaselineEntry[] | null,
 ): CheckResult {
-  const identified = violations.map((violation) => ({
-    id: violationId(violation),
-    violation,
-  }));
-  const ranking = rankById(identified, baseline);
+  const ranking = rankByKeys(
+    violations.map((violation) => ({
+      violation,
+      keys: violationKeys(violation),
+    })),
+    baseline,
+  );
 
   return {
     violations,
-    new: ranking.new.map((one) => one.violation),
+    new: ranking.new.map(({ candidate, fresh, grown }) => {
+      const keys = candidate.keys;
+      const narrowed: ReportedNew = {
+        ...candidate.violation,
+        imports: candidate.violation.imports.filter((_, index) =>
+          fresh.has(keys[index] as string),
+        ),
+      };
+
+      return grown ? { ...narrowed, grown: true } : narrowed;
+    }),
     fixed: ranking.fixed,
     unranked,
   };

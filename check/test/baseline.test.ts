@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { identityOfViolationId, violationId } from "../src/baseline.js";
+import { edgeId, identityOfViolationId } from "../src/baseline.js";
 import { InputError, parseBaseline, serialiseBaseline } from "../src/index.js";
 
 const entry = (from: string, to: string, kind = "depends") => ({
@@ -69,16 +69,14 @@ describe("baseline", () => {
 
   it("rejects an id entry that repeats an identity entry", () => {
     expect(() =>
-      parseBaseline(
-        doc([entry("a", "b"), { id: violationId(entry("a", "b")) }]),
-      ),
+      parseBaseline(doc([entry("a", "b"), { id: edgeId(entry("a", "b")) }])),
     ).toThrow(InputError);
   });
 
   it("maps a violation id back to its identity", () => {
     const identity = entry("a/b.py", "c/d.py", "inherits");
 
-    expect(identityOfViolationId(violationId(identity))).toEqual(identity);
+    expect(identityOfViolationId(edgeId(identity))).toEqual(identity);
     expect(identityOfViolationId("cycle:a")).toBeNull();
   });
 });

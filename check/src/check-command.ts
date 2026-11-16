@@ -3,19 +3,19 @@ import { parseArgs } from "node:util";
 import type { ModuleMetrics, Warning } from "./analyse.js";
 import {
   type BaselineEntry,
-  entryId,
   type Identity,
+  identityKey,
   identityOfViolationId,
   parseBaseline,
   serialiseBaseline,
 } from "./baseline.js";
-import { type Ranking, rankById } from "./check.js";
+import { type Ranking, rankByKeys } from "./check.js";
 import type { Io } from "./cli.js";
 import { policyFile, readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
 import { duplicationUnmeasured } from "./duplication/carry.js";
 import { InputError } from "./errors.js";
-import { orderDuplication } from "./findings.js";
+import { orderDuplication, ruleText } from "./findings.js";
 import type { FindingRecord, FindingsDocument } from "./findings-document.js";
 import { findingsFile, readFindingsFiles } from "./findings-files.js";
 import type { FolderMetrics } from "./folder-metrics.js";
@@ -49,12 +49,13 @@ interface OtherFinding {
   finding_id?: string;
 }
 
-type ReportedViolation = Violation | OtherFinding;
+type GrownViolation = Violation & { grown?: true };
+type ReportedViolation = GrownViolation | OtherFinding;
 type ReportedWarning = Warning | OtherFinding;
 
 interface Candidate {
-  id: string;
-  entry: BaselineEntry;
+  entries: BaselineEntry[];
+  keys: string[];
   value: ReportedViolation;
 }
 
@@ -80,7 +81,7 @@ interface Gathered {
   folderMetrics: FolderMetrics[];
   unranked: number;
   sensors: SensorStatus[];
-  hiddenIds: Set<string>;
+  hiddenKeys: Set<string>;
 }
 
 function readInput(io: Io, path: string, what: string): string {
@@ -91,22 +92,13 @@ function readInput(io: Io, path: string, what: string): string {
   }
 }
 
-function ruleLine(violation: Violation): string {
-  const rules = violation.rules
-    .map((rule) => {
-      if (rule.type === "level") {
-        return `level ${rule.from_level} -> ${rule.to_level}`;
-      }
-
-      if (rule.type === "uses") {
-        return `uses ${rule.from_component} -> ${rule.to_component}`;
-      }
-
-      return `forbid ${rule.pattern}`;
-    })
+function ruleLine(violation: GrownViolation): string {
+  const imports = violation.imports
+    .map((one) => `${one.to} (${one.kind}) line ${one.lines.join(", ")}`)
     .join("; ");
+  const grew = violation.grown === true ? " (grew an existing violation)" : "";
 
-  return `${violation.from} -> ${violation.to} (${violation.kind}) line ${violation.lines.join(", ")}: ${rules}`;
+  return `${violation.from}: ${ruleText(violation.rule)} - ${imports}${grew}`;
 }
 
 function isStructureViolation(value: ReportedViolation): value is Violation {
@@ -174,37 +166,40 @@ function summary(
 }
 
 function violationOf(sensor: string, record: FindingRecord): Candidate {
-  const edge = record.evidence.edges?.[0];
+  const edges = record.evidence.edges ?? [];
+  const rule = edges[0]?.rules?.[0];
 
   if (
     sensor === "structure" &&
     record.kind === "rule-violation" &&
-    edge !== undefined &&
-    edge.kind !== undefined &&
-    edge.lines !== undefined
+    rule !== undefined &&
+    edges.every((edge) => edge.kind !== undefined && edge.lines !== undefined)
   ) {
-    const identity: Identity = {
+    const from = (edges[0] as { from: string }).from;
+    const entries: Identity[] = edges.map((edge) => ({
       from: edge.from,
       to: edge.to,
-      kind: edge.kind,
-    };
+      kind: edge.kind as string,
+    }));
 
     return {
-      id: record.id,
-      entry: identity,
+      entries,
+      keys: entries.map(identityKey),
       value: {
-        from: edge.from,
-        to: edge.to,
-        kind: edge.kind,
-        lines: edge.lines,
-        rules: edge.rules ?? [],
+        from,
+        rule,
+        imports: edges.map((edge) => ({
+          to: edge.to,
+          kind: edge.kind as string,
+          lines: edge.lines as number[],
+        })),
       },
     };
   }
 
   return {
-    id: record.id,
-    entry: { id: record.id },
+    entries: [{ id: record.id }],
+    keys: [identityKey({ id: record.id })],
     value: {
       id: record.kind,
       principle: record.principle,
@@ -263,11 +258,26 @@ function rankCandidates(
   unranked: number,
   baseline: BaselineEntry[] | null,
 ): Ranked {
-  const ranking: Ranking<Candidate> = rankById(candidates, baseline);
+  const ranking: Ranking<Candidate> = rankByKeys(candidates, baseline);
 
   return {
     violations: candidates.map((one) => one.value),
-    new: ranking.new.map((one) => one.value),
+    new: ranking.new.map(({ candidate, fresh, grown }) => {
+      const value = candidate.value;
+
+      if (!isStructureViolation(value)) {
+        return value;
+      }
+
+      const narrowed: GrownViolation = {
+        ...value,
+        imports: value.imports.filter((_, index) =>
+          fresh.has(candidate.keys[index] as string),
+        ),
+      };
+
+      return grown ? { ...narrowed, grown: true } : narrowed;
+    }),
     fixed: ranking.fixed,
     unranked,
   };
@@ -295,7 +305,7 @@ function settleBaseline(
   baselinePath: string,
   candidates: Candidate[],
   unranked: number,
-  hiddenIds: Set<string> = new Set(),
+  hiddenKeys: Set<string> = new Set(),
 ): {
   result: Ranked;
   report: { path: string; present: boolean; action: BaselineAction };
@@ -317,13 +327,21 @@ function settleBaseline(
 
   result = {
     ...result,
-    fixed: result.fixed.filter((entry) => !hiddenIds.has(entryId(entry))),
+    fixed: result.fixed.filter((entry) => !hiddenKeys.has(identityKey(entry))),
   };
 
   let action: BaselineAction = "none";
 
   if (flags.init) {
-    const entries = candidates.map((one) => one.entry);
+    const written = new Map<string, BaselineEntry>();
+
+    for (const one of candidates) {
+      for (const [index, entry] of one.entries.entries()) {
+        written.set(one.keys[index] as string, entry);
+      }
+    }
+
+    const entries = [...written.values()];
 
     io.writeFile(baselinePath, serialiseBaseline(entries));
     result = rankCandidates(candidates, unranked, entries);
@@ -333,9 +351,9 @@ function settleBaseline(
     result.new.length === 0 &&
     result.fixed.length > 0
   ) {
-    const fixedIds = new Set(result.fixed.map(entryId));
+    const fixedKeys = new Set(result.fixed.map(identityKey));
     const kept = (baseline ?? []).filter(
-      (entry) => !fixedIds.has(entryId(entry)),
+      (entry) => !fixedKeys.has(identityKey(entry)),
     );
     io.writeFile(baselinePath, serialiseBaseline(kept));
     action = "shrunk";
@@ -470,7 +488,7 @@ function executeScanReplay(
 
 function violationModules(value: ReportedViolation): string[] {
   if (isStructureViolation(value)) {
-    return [value.from, value.to];
+    return [value.from, ...value.imports.map((one) => one.to)];
   }
 
   return [
@@ -507,7 +525,7 @@ function gather(
 ): Gathered {
   const config = readConfig(io, root, ["sensors"]);
   const { commit } = scansCommit(scans);
-  const hiddenIds = new Set<string>();
+  const hiddenKeys = new Set<string>();
   const sensors: SensorStatus[] = [];
   const documents: FindingsDocument[] = [];
   const resolved = resolveStructureSettings(config);
@@ -571,7 +589,9 @@ function gather(
 
         for (const record of hidden) {
           if (record.severity === "violation") {
-            hiddenIds.add(violationOf(outcome.name, record).id);
+            for (const key of violationOf(outcome.name, record).keys) {
+              hiddenKeys.add(key);
+            }
           }
         }
 
@@ -620,7 +640,7 @@ function gather(
     folderMetrics,
     unranked,
     sensors,
-    hiddenIds,
+    hiddenKeys,
   };
 }
 
@@ -749,7 +769,7 @@ function executeRepository(
     baselinePath,
     candidates,
     gathered.unranked,
-    gathered.hiddenIds,
+    gathered.hiddenKeys,
   );
   const result: Ranked = narrowed
     ? {

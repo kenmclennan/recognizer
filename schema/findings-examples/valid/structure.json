@@ -16,7 +16,7 @@
   },
   "findings": [
     {
-      "id": "rule-violation:depends:shop/domain/order.py->shop/adapters/memory_store.py",
+      "id": "rule-violation:level domain -> adapters:shop/domain/order.py",
       "kind": "rule-violation",
       "severity": "violation",
       "principle": "dependency-inversion-principle",

@@ -2,14 +2,18 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  entryId,
   parseBaseline,
   serialiseBaseline,
   violationId,
 } from "../src/baseline.js";
 import { rankAgainstBaseline } from "../src/check.js";
 import { validateFindings } from "../src/findings-document.js";
-import { parsePolicy, principleOf, validateScan } from "../src/index.js";
+import {
+  collectViolations,
+  parsePolicy,
+  principleOf,
+  validateScan,
+} from "../src/index.js";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
   measuredInputs,
@@ -118,7 +122,7 @@ describe("structureSensor ids", () => {
   });
 
   it("records the current sensor version", () => {
-    expect(sense("check-warnings").document.sensor.version).toBe("19");
+    expect(sense("check-warnings").document.sensor.version).toBe("20");
   });
 
   it("changes only orphan findings when the scan carries test imports", () => {
@@ -195,12 +199,77 @@ describe("structureSensor over the committed fixtures", () => {
   it("finds the violation and cycle fixtures/check-warnings lists, by id", () => {
     const found = sense("check-warnings").document.findings.map((f) => f.id);
 
-    expect(found).toContain(
-      "rule-violation:depends:app/domain/order.py->app/adapters/memory.py",
-    );
+    const expected = fixture("check-warnings").expected("expected-policy.json");
+
+    expect(found).toContain(violationId(expected.violations[0]));
     expect(found).toContain("cycle:app/domain/money.py,app/domain/order.py");
     expect(found.filter((id) => id.startsWith("rule-violation:"))).toHaveLength(
       1,
+    );
+  });
+});
+
+describe("grouped violation records", () => {
+  it("writes one record per module and rule with an edge per import", () => {
+    const edges = [
+      { from: "d/a.py", to: "x/m1.py", kind: "depends", line: 3 },
+      { from: "d/a.py", to: "x/m2.py", kind: "depends", line: 7 },
+    ];
+    const scan = validateScan({
+      schema_version: 7,
+      scanner: { name: "t", version: "0" },
+      commit: null,
+      modified: false,
+      files: [],
+      selection: {
+        extensions: [],
+        skip_directory_names: [],
+        skip_directory_prefixes: [],
+        skip_directory_suffixes: [],
+        skip_directories_containing: [],
+        skip_file_globs: [],
+      },
+      modules: [],
+      edges,
+      foreign: [],
+    });
+    const policy = parsePolicy(
+      "levels: [domain, adapters]\ncomponents:\n  domain: d/**\n  adapters: x/**\n",
+    );
+    const document = structureSensor(
+      [scan],
+      policy,
+      DEFAULT_STRUCTURE_SETTINGS,
+      CONTEXT,
+    ).document;
+    const found = document.findings.filter((f) => f.kind === "rule-violation");
+    const rule = {
+      type: "level",
+      from_level: "domain",
+      to_level: "adapters",
+    };
+
+    expect(found).toHaveLength(1);
+    expect(found[0]?.id).toBe("rule-violation:level domain -> adapters:d/a.py");
+    expect(found[0]?.evidence.modules).toEqual(["d/a.py"]);
+    expect(found[0]?.evidence.edges).toEqual([
+      {
+        from: "d/a.py",
+        to: "x/m1.py",
+        kind: "depends",
+        lines: [3],
+        rules: [rule],
+      },
+      {
+        from: "d/a.py",
+        to: "x/m2.py",
+        kind: "depends",
+        lines: [7],
+        rules: [rule],
+      },
+    ]);
+    expect(found[0]?.summary).toBe(
+      "depends on x/m1.py at line 3; depends on x/m2.py at line 7",
     );
   });
 });
@@ -255,33 +324,16 @@ describe("the principle each finding cites", () => {
 
 describe("baseline compatibility", () => {
   it("reads the committed fixtures/check baseline against the new ids", () => {
-    const { baselineText } = fixture("check");
+    const { baselineText, scan, policy } = fixture("check");
     const baseline = parseBaseline(baselineText);
-    const document = sense("check").document;
-    const violations = document.findings.filter(
-      (f) => f.severity === "violation",
-    );
-    const matching = baseline.filter((entry) =>
-      violations.some((f) => f.id === entryId(entry)),
-    );
     const ranked = rankAgainstBaseline(
-      violations.map((f) => {
-        const edge = f.evidence.edges?.[0] as {
-          from: string;
-          to: string;
-          kind: string;
-        };
-
-        return { ...edge, lines: [], rules: [] };
-      }),
+      collectViolations(scan, policy).violations,
       0,
       baseline,
     );
 
     expect(baseline).toHaveLength(2);
-    expect(matching.map(entryId)).toEqual([
-      "rule-violation:depends:shop/domain/order.py->shop/adapters/memory_store.py",
-    ]);
+    expect(ranked.violations).toHaveLength(5);
     expect(ranked.new).toHaveLength(4);
     expect(ranked.fixed).toEqual([
       {
@@ -293,14 +345,18 @@ describe("baseline compatibility", () => {
   });
 
   it("reads the committed fixtures/check-warnings baseline against the new ids", () => {
-    const { baselineText } = fixture("check-warnings");
+    const { baselineText, scan, policy } = fixture("check-warnings");
     const baseline = parseBaseline(baselineText);
-    const violations = sense("check-warnings").document.findings.filter(
-      (f) => f.severity === "violation",
+    const ranked = rankAgainstBaseline(
+      collectViolations(scan, policy).violations,
+      0,
+      baseline,
     );
 
     expect(baseline).toHaveLength(1);
-    expect(violations.map((f) => f.id)).toEqual(baseline.map(entryId));
+    expect(ranked.violations).toHaveLength(1);
+    expect(ranked.new).toEqual([]);
+    expect(ranked.fixed).toEqual([]);
   });
 
   it.each(["check", "check-warnings"])(
