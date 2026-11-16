@@ -19,5 +19,13 @@ cask "recognizer" do
   postflight_steps do
     run "/usr/bin/xattr",
         args: ["-dr", "com.apple.quarantine", "{{appdir}}/Recognizer.app"]
+
+    run "/bin/sh",
+        args: ["-c", <<~'SH', "sh", "node"],
+          if ! /usr/bin/perl -e 'alarm 15; exec @ARGV' "${SHELL:-/bin/zsh}" -ilc "command -v $1" </dev/null >/dev/null 2>&1; then
+            printf '%s\n' "Recognizer needs $1 on your login shell's PATH, and it was not found there. Add this line to your shell's startup file (for example ~/.zshrc), then reopen Recognizer:" '  eval "$(/opt/homebrew/bin/brew shellenv)"' >&2
+          fi
+        SH
+        must_succeed: false
   end
 end
