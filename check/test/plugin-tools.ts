@@ -45,7 +45,26 @@ export function realTools(): RealTool[] {
 }
 
 export function manifestOf(tool: RealTool): Manifest {
+  const started = Date.now();
   const result = spawnSync(tool.path, ["manifest"], { encoding: "utf8" });
+  const elapsed = Date.now() - started;
+  const stdout = result.stdout ?? "";
+  const failure = (why: string): Error =>
+    new Error(
+      `${tool.name} manifest ${why}: status ${result.status}, signal ${result.signal}, spawn error ${result.error?.message ?? "none"}, ${elapsed} ms, stdout length ${stdout.length}, stderr: ${result.stderr ?? ""}`,
+    );
 
-  return JSON.parse(result.stdout) as Manifest;
+  if (result.status !== 0) {
+    throw failure("did not exit 0");
+  }
+
+  if (stdout.trim() === "") {
+    throw failure("printed empty output");
+  }
+
+  try {
+    return JSON.parse(stdout) as Manifest;
+  } catch {
+    throw failure("printed output that is not JSON");
+  }
 }

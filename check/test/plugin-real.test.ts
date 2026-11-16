@@ -10,7 +10,9 @@ describe("recognizer plugin check against the real tools", () => {
     async ({ name, path }) => {
       const captured = capture();
 
-      expect(await run(["plugin", "check", path], captured.io)).toBe(0);
+      const status = await run(["plugin", "check", path], captured.io);
+
+      expect(status, `${captured.err()}\n${captured.out()}`).toBe(0);
       expect(captured.out()).not.toMatch(/^fail/m);
 
       if (name === "recognizer-describe-claude") {

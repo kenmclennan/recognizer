@@ -6,6 +6,7 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 
 PROGRAM = "{{program}}"
 VERSION = "0.1.0"
@@ -53,13 +54,21 @@ def write_findings(stopped):
         document["stopped"] = {"measured": state["measured"], "total": state["total"]}
 
     output = state["output"]
-    temporary = "%s.%d.tmp" % (output, os.getpid())
+    descriptor, temporary = tempfile.mkstemp(
+        dir=os.path.dirname(os.path.abspath(output)), suffix=".tmp"
+    )
 
-    with open(temporary, "w") as handle:
-        json.dump(document, handle, indent=2)
-        handle.write("\n")
+    try:
+        with os.fdopen(descriptor, "w") as handle:
+            json.dump(document, handle, indent=2)
+            handle.write("\n")
 
-    os.replace(temporary, output)
+        os.replace(temporary, output)
+    except BaseException:
+        if os.path.exists(temporary):
+            os.remove(temporary)
+
+        raise
 
 
 def on_term(signum, frame):
