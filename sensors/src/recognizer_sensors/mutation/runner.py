@@ -1042,6 +1042,15 @@ def folder_is_stale(folder: Path) -> bool:
     return pid <= 0 or not process_is_alive(pid)
 
 
+def reap_gradle_daemons(folder: Path) -> None:
+    for home in folder.glob(f"{GRADLE_HOME_PREFIX}*"):
+        for pid in daemon_pids(home):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                continue
+
+
 def remove_stale_work_folders(own: Path) -> None:
     try:
         siblings = list(own.parent.iterdir())
@@ -1050,6 +1059,7 @@ def remove_stale_work_folders(own: Path) -> None:
 
     for folder in siblings:
         if folder != own and folder.is_dir() and folder_is_stale(folder):
+            reap_gradle_daemons(folder)
             shutil.rmtree(folder, ignore_errors=True)
 
 
@@ -1111,6 +1121,7 @@ def install_stop_handler(work: Path) -> Callable[[], None]:
             return
 
         stop_all()
+        stop_active_homes()
         remove_work_folder(work)
         os._exit(STOPPED_STATUS)
 
@@ -1138,10 +1149,12 @@ def install_stop_handler(work: Path) -> Callable[[], None]:
     threading.Thread(target=stop, daemon=True).start()
     threading.Thread(target=reap, daemon=True).start()
     previous = signal.signal(signal.SIGTERM, on_signal)
+    previous_interrupt = signal.signal(signal.SIGINT, on_signal)
 
     def restore() -> None:
         if not STOP.is_set():
             signal.signal(signal.SIGTERM, previous)
+            signal.signal(signal.SIGINT, previous_interrupt)
 
     return restore
 

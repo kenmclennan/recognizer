@@ -3,10 +3,12 @@ import shlex
 import signal
 import subprocess
 import sys
+import textwrap
 import time
 
 import pytest
 from test_mutation_memory import kotlin_suite
+from test_mutation_stop import start_child
 
 from recognizer_sensors.mutation import runner, sensor
 from recognizer_sensors.mutation.runner import (
@@ -14,6 +16,7 @@ from recognizer_sensors.mutation.runner import (
     daemon_pids,
     gradle_homes,
     process_is_alive,
+    remove_stale_work_folders,
     run_test_command,
 )
 from recognizer_sensors.testrun.suites import Suite
@@ -207,6 +210,153 @@ def test_command_of_reads_a_command_line_wider_than_the_terminal(monkeypatch):
     finally:
         process.kill()
         process.wait()
+
+
+def daemon_child(fake, tmp_path, tail):
+    return textwrap.dedent(
+        f"""
+        import os, subprocess, sys, time
+        from pathlib import Path
+        from recognizer_sensors.mutation import runner
+        from recognizer_sensors.testrun.suites import Suite
+
+        base = Path(sys.argv[1])
+        work = base / "work"
+        work.mkdir(exist_ok=True)
+        suite = Suite("k", "kotlin", ".", {str(fake.script) + " test"!r}, None, {fake.env!r}, "c", "lcov", None)
+
+        with runner.gradle_homes(work) as homes:
+            pids = []
+
+            for number in (0, 1):
+                home = homes.home_for(number, suite, base)
+                subprocess.run(
+                    [{str(fake.script)!r}, "test"],
+                    cwd=base,
+                    env={{**os.environ, **{fake.env!r}, "GRADLE_USER_HOME": str(home)}},
+                    check=True,
+                )
+                pids += runner.daemon_pids(home)
+
+            (base / "pids").write_text(" ".join(map(str, pids)))
+            restore = runner.install_stop_handler(work)
+            print("ready", flush=True)
+            {tail}
+        """
+    )
+
+
+UNWIND = """while not runner.STOP.is_set():
+                time.sleep(0.05)
+
+            restore()
+            time.sleep(0.2)"""
+
+WAIT = """time.sleep(60)"""
+
+
+def read_pids(tmp_path):
+    pids = [int(item) for item in (tmp_path / "pids").read_text().split()]
+
+    assert len(pids) == 2
+
+    return pids
+
+
+def stop_by(tmp_path, number):
+    fake = Fake(tmp_path)
+    process = start_child(tmp_path, daemon_child(fake, tmp_path, UNWIND))
+    pids = read_pids(tmp_path)
+
+    try:
+        os.kill(process.pid, number)
+        process.wait(timeout=20)
+
+        assert wait_dead(pids)
+        assert len(fake.stopped()) == 2
+    finally:
+        if process.poll() is None:
+            process.kill()
+
+
+def test_stop_by_sigterm_stops_every_workers_daemon(tmp_path):
+    stop_by(tmp_path, signal.SIGTERM)
+
+
+def test_stop_by_sigint_stops_every_workers_daemon(tmp_path):
+    stop_by(tmp_path, signal.SIGINT)
+
+
+def test_leave_stops_the_daemons_before_removing_the_work_folder(tmp_path):
+    fake = Fake(tmp_path)
+    process = start_child(tmp_path, daemon_child(fake, tmp_path, WAIT))
+    pids = read_pids(tmp_path)
+
+    try:
+        os.kill(process.pid, signal.SIGTERM)
+        time.sleep(0.3)
+        os.kill(process.pid, signal.SIGTERM)
+
+        assert process.wait(timeout=20) == 143
+        assert wait_dead(pids)
+        assert len(fake.stopped()) == 2
+        assert not (tmp_path / "work").exists()
+    finally:
+        if process.poll() is None:
+            process.kill()
+
+
+def test_the_pid_step_kills_a_daemon_that_ignores_stop(tmp_path):
+    fake = Fake(tmp_path, keep=True)
+    homes = GradleHomes(tmp_path / "work")
+    home = homes.home_for(0, fake.suite, tmp_path)
+    fake.start(home, tmp_path)
+    pids = daemon_pids(home)
+
+    assert len(pids) == 1
+
+    homes.stop_all()
+
+    assert fake.stopped() == [str(home)]
+    assert wait_dead(pids)
+
+
+def test_a_pid_whose_command_is_not_a_gradle_daemon_is_left_alone(tmp_path):
+    homes = GradleHomes(tmp_path / "work")
+    home = homes.home_for(0)
+    bystander = subprocess.Popen(["sleep", "30"])
+
+    try:
+        folder = home / "daemon" / "9"
+        folder.mkdir(parents=True)
+        (folder / f"daemon-{bystander.pid}.out.log").touch()
+
+        homes.stop_all()
+
+        assert bystander.poll() is None
+    finally:
+        bystander.kill()
+        bystander.wait()
+
+
+def test_the_next_run_reaps_the_daemons_of_a_stale_work_folder(tmp_path):
+    fake = Fake(tmp_path)
+    parent = tmp_path / "work"
+    own = parent / "own"
+    stale = parent / "stale"
+    own.mkdir(parents=True)
+    stale.mkdir()
+    (stale / "pid").write_text("999999999")
+    home = GradleHomes(stale).home_for(0, fake.suite, tmp_path)
+    fake.start(home, tmp_path)
+    pids = daemon_pids(home)
+
+    assert len(pids) == 1
+
+    remove_stale_work_folders(own)
+
+    assert wait_dead(pids)
+    assert not stale.exists()
 
 
 def test_daemon_pids_returns_only_live_gradle_daemons(tmp_path):
