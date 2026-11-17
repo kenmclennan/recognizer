@@ -1,0 +1,174 @@
+{
+  "survey_version": 1,
+  "version": "0.1.0",
+  "repository": "/Users/example/loom",
+  "configured": false,
+  "files": [
+    {
+      "language": "typescript",
+      "files": 3,
+      "folders": [
+        {
+          "path": "engine",
+          "files": 2
+        },
+        {
+          "path": "app",
+          "files": 1
+        }
+      ]
+    }
+  ],
+  "unread": [
+    {
+      "language": "typescript",
+      "files": 1,
+      "folders": [
+        {
+          "path": "scripts",
+          "files": 1
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "structure",
+      "display": "Structure",
+      "description": "the modules, imports and policy rules of the repository, read from the scan",
+      "always_on": true,
+      "enabled": true,
+      "runs_tests": false,
+      "limits": []
+    },
+    {
+      "id": "analysis",
+      "display": "Structural analysis",
+      "description": "warnings about cycles, unused exports, orphans, long functions, complexity and duplication; warnings never fail a run, only new policy violations fail recognizer check",
+      "always_on": false,
+      "enabled": true,
+      "runs_tests": false,
+      "limits": [
+        {
+          "key": "sensors.structure.warnings.long_function.limit",
+          "label": "long_function",
+          "default": 20,
+          "current": null
+        },
+        {
+          "key": "sensors.structure.warnings.complexity.limit",
+          "label": "complexity",
+          "default": 10,
+          "current": null
+        },
+        {
+          "key": "sensors.structure.duplication.pair_min_lines",
+          "label": "pair_min_lines",
+          "default": 6,
+          "current": null
+        }
+      ]
+    },
+    {
+      "id": "crap",
+      "display": "C.R.A.P.",
+      "description": "Runs the tests under coverage and flags functions that are complex and poorly covered, where a change is most likely to break something.",
+      "always_on": false,
+      "enabled": false,
+      "runs_tests": true,
+      "limits": []
+    },
+    {
+      "id": "mutation",
+      "display": "Mutation",
+      "description": "Mutates covered functions, reruns the tests, and warns where a mutated copy still passes, naming each surviving mutation.",
+      "always_on": false,
+      "enabled": false,
+      "runs_tests": true,
+      "limits": []
+    }
+  ],
+  "runners": [
+    {
+      "name": "engine",
+      "language": "typescript",
+      "runner": "vitest",
+      "directory": "engine",
+      "from": "engine/package.json",
+      "command": "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=coverage",
+      "coverage": {
+        "path": "coverage/lcov.info",
+        "format": "lcov"
+      },
+      "tool": "@vitest/coverage-v8"
+    },
+    {
+      "name": "app",
+      "language": "typescript",
+      "runner": "vitest",
+      "directory": "app",
+      "from": "app/package.json",
+      "command": "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=coverage",
+      "coverage": {
+        "path": "coverage/lcov.info",
+        "format": "lcov"
+      },
+      "tool": "@vitest/coverage-v8"
+    },
+    {
+      "name": "tauri",
+      "language": "rust",
+      "runner": "cargo",
+      "directory": "app/src-tauri",
+      "from": "app/src-tauri/Cargo.toml",
+      "command": "cargo llvm-cov --lcov --output-path target/lcov.info",
+      "coverage": {
+        "path": "target/lcov.info",
+        "format": "lcov"
+      },
+      "tool": "cargo-llvm-cov"
+    }
+  ],
+  "tools": [
+    {
+      "name": "@vitest/coverage-v8",
+      "kind": "gem",
+      "installed": false,
+      "why": "vitest writes its coverage report through this package",
+      "needed_by": [
+        "engine",
+        "app"
+      ],
+      "installs": "the repository root package.json and package-lock.json",
+      "command": [
+        "npm",
+        "install",
+        "--save-dev",
+        "@vitest/coverage-v8@3.2.4",
+        "-w",
+        "engine",
+        "-w",
+        "app"
+      ],
+      "cwd": "."
+    },
+    {
+      "name": "cargo-llvm-cov",
+      "kind": "cargo",
+      "installed": false,
+      "why": "cargo writes its coverage report through this subcommand",
+      "needed_by": [
+        "tauri"
+      ],
+      "installs": "the cargo bin folder, outside the repository",
+      "command": [
+        "cargo",
+        "install",
+        "cargo-llvm-cov",
+        "--locked"
+      ],
+      "cwd": "."
+    }
+  ],
+  "upgrade": []
+}

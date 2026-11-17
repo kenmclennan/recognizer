@@ -23,7 +23,8 @@
         "scan",
         "sense",
         "describe",
-        "measure"
+        "measure",
+        "setup"
       ]
     },
     "started": {

@@ -16,7 +16,7 @@ export interface LanguageRule {
   };
 }
 
-const SKIPPED_DIRECTORIES = new Set([
+export const SKIPPED_DIRECTORIES = new Set([
   ".git",
   "node_modules",
   ".venv",

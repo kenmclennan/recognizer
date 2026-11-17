@@ -259,6 +259,30 @@ export {
   parseScanArgs,
   parseSuiteSelection,
 } from "./scan-phases.js";
+export type { ApplyEvent } from "./setup-apply.js";
+export {
+  type DroppedCard,
+  type EntryCard,
+  type ForbidCard,
+  type IgnoreCard,
+  POLICY_RECOMMENDATION_SCHEMA,
+  type PolicyCard,
+  parseCard,
+  policyCommands,
+  type Recommendation,
+  summaryOf,
+} from "./setup-cards.js";
+export {
+  type BuiltChanges,
+  buildChanges,
+  type ChangeStep,
+  type DroppedRunner,
+  type PlannedChange,
+  type RunnerChoice,
+  type SetupChoices,
+  splitCommand,
+} from "./setup-changes.js";
+export { POLICY_RECOMMENDATION_PROMPT } from "./setup-policy-prompt.js";
 export {
   commandRefusal,
   type DroppedChange,
@@ -269,6 +293,16 @@ export {
   type SetupChange,
   type SetupSection,
 } from "./setup-proposal.js";
+export type {
+  Survey,
+  SurveyCheck,
+  SurveyLanguage,
+  SurveyLimit,
+  SurveyRunner,
+  SurveyTool,
+  SurveyUnread,
+  SurveyUpgrade,
+} from "./setup-survey.js";
 export {
   SHIPPED_DESCRIBER_COMMAND,
   SHIPPED_DESCRIBER_NAME,
