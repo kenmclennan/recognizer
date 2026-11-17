@@ -45,11 +45,15 @@ const scanOf = () => ({
   edges: [{ from: ids[0], to: ids[1], kind: "depends", line: 1, names: ["X"] }],
   foreign: [],
 });
+const structureOf = (overlay) => {
+  const crap = JSON.parse(overlay);
+  return JSON.stringify({ ...crap, producer: { name: "recognizer", version: "0.1.0" }, metrics: crap.metrics.filter((metric) => metric.name === "complexity"), values: { complexity: crap.values.complexity ?? {} } });
+};
 const loadedFor = (overlay) => loadedOf({
   modules: ids,
   scans: [{ file: "scan.json", scan: scanOf() }],
-  overlays: overlay === null ? [] : [{ name: "crap", text: overlay }],
-  sensors: overlay === null ? [] : [{ name: "crap", status: "ran", measured: { inputs: JSON.parse(overlay).inputs } }],
+  overlays: overlay === null ? [] : [{ name: "crap", text: overlay }, { name: "structure", text: structureOf(overlay) }],
+  sensors: overlay === null ? [] : [{ name: "crap", status: "ran", measured: { inputs: JSON.parse(overlay).inputs } }, { name: "structure", status: "ran", commit: JSON.parse(overlay).commit, modified: false }],
 });
 
 const SHIPPED = ${JSON.stringify(
@@ -125,11 +129,12 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   facts.heading = q(".canvas-metrics h4 .metric-group-title").textContent;
   facts.rows = qa(".metric-row").map((r) => ({ key: r.dataset.metric, text: r.textContent }));
 
-  click(q('.metric-row[data-metric="crap/complexity"]'));
+  click(q('.metric-row[data-metric="structure/complexity"]'));
   await tick();
   click(q('.metric-row[data-metric="crap/coverage"]'));
   await tick();
-  facts.detail = qa(".metric-row .metric-detail").map((d) => d.textContent);
+  facts.detailCount = qa(".metric-row .metric-detail").length;
+  facts.rowCount = qa(".metric-row").length;
   facts.heightTwo = heightOf("app/risk.py");
   facts.risk = barsOf("app/risk.py");
   facts.other = barsOf("src/other.ts");
@@ -177,7 +182,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
     chips: qa(".metric-chip").length,
     perMember: q(".canvas-metrics").textContent.includes("per member"),
   };
-  click(q('.metric-row[data-metric="crap/complexity"]'));
+  click(q('.metric-row[data-metric="structure/complexity"]'));
   await tick();
   facts.staleClick = barsOf("app/risk.py").length;
 
@@ -286,8 +291,8 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
       boxBottom: Number(body.getAttribute("y")) + Number(body.getAttribute("height")),
     };
   };
-  facts.mixed = await sourcesOf(mixedOverlay, ["crap/complexity", "crap/coverage"]);
-  facts.single = await sourcesOf(${JSON.stringify(fresh)}, ["crap/complexity", "crap/coverage"]);
+  facts.mixed = await sourcesOf(mixedOverlay, ["structure/complexity", "crap/coverage"]);
+  facts.single = await sourcesOf(${JSON.stringify(fresh)}, ["structure/complexity", "crap/coverage"]);
 
   const viewFile = JSON.stringify({
     schema_version: 4,
@@ -326,27 +331,29 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
 
   it("puts Metrics before Legend and lists the metrics under the overlay's heading", () => {
     expect(f.controls.slice(-2)).toEqual(["Metrics", "Legend"]);
-    expect(f.heading).toBe("crap");
+    expect(f.heading).toBe("Structural analysis");
     expect(f.rows.map((r: { key: string }) => r.key)).toEqual([
-      "crap/complexity",
+      "structure/complexity",
       "crap/coverage",
       "crap/crap",
     ]);
-    expect(f.rows[0].text).toContain(
-      "How many independent paths run through the function",
-    );
+    expect(f.rows[0].text).toContain("Cyclomatic complexity of each function.");
     expect(f.rows[0].text).not.toContain("per member");
+  });
+
+  it("renders no metric-detail line for a ticked metric", () => {
+    expect(f.rowCount).toBeGreaterThan(0);
+    expect(f.risk).toHaveLength(2);
+    expect(f.detailCount).toBe(0);
   });
 
   it("draws a row per measured metric in tick order and grows the box by each row plus 6px", () => {
     expect(f.heightBefore).toBe(40);
     expect(f.heightTwo).toBe(40 + 2 * 14 + 6);
     expect(f.risk.map((b: { metric: string }) => b.metric)).toEqual([
-      "crap/complexity",
+      "structure/complexity",
       "crap/coverage",
     ]);
-    expect(f.detail[0]).toBe("bar 1 - 0 to 8, high is bad");
-    expect(f.detail[1]).toBe("bar 2 - 0 to 100%, low is bad");
   });
 
   it("colours and sizes the bars by the worst member and titles them", () => {
@@ -464,28 +471,33 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
   });
 
   it("says no overlays were found when there are none", () => {
-    expect(f.empty).toBe("No overlays were found.");
+    expect(f.empty).toContain("Structural analysis");
+    expect(f.empty).toContain("Never run");
   });
 
   it("shows a current group with its age, no note and tickable rows", () => {
     const state = f.currentState;
 
-    expect(state.headers[0].title).toBe("C.R.A.P.");
-    expect(state.headers[0].age).toBe("measured 2 days ago");
-    expect(state.headers[0].tooltip).toContain("crap 0.1.72 - at 0123456");
+    const crap = state.headers.find(
+      (h: { title: string }) => h.title === "C.R.A.P.",
+    );
+
+    expect(crap.age).toBe("measured 2 days ago");
+    expect(crap.tooltip).toContain("crap 0.1.72 - at 0123456");
     expect(
       state.notes.filter((n: { text: string }) =>
         n.text.startsWith("Out of date"),
       ),
     ).toEqual([]);
-    expect(state.rows.slice(0, 3).map((r: { text: string }) => r.text)).toEqual(
-      [
-        expect.stringContaining("Complexity"),
-        expect.stringContaining("Coverage"),
-        expect.stringContaining("C.R.A.P."),
-      ],
+    const rows = state.rows.filter((r: { key: string }) =>
+      r.key.startsWith("crap/"),
     );
-    expect(state.rows[0].disabled).toBe(false);
+
+    expect(rows.map((r: { text: string }) => r.text)).toEqual([
+      expect.stringContaining("Coverage"),
+      expect.stringContaining("C.R.A.P."),
+    ]);
+    expect(rows[0].disabled).toBe(false);
     expect(state.perMember).toBe(false);
     expect(state.chips).toBe(0);
   });
@@ -501,13 +513,20 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
   it("warns amber on an out-of-date group and lists its rows disabled", () => {
     const state = f.outOfDateState;
 
-    expect(state.headers[0].title).toBe("C.R.A.P.");
-    expect(state.notes[0]).toEqual({
+    const crap = state.headers.find(
+      (h: { title: string }) => h.title === "C.R.A.P.",
+    );
+
+    expect(crap.title).toBe("C.R.A.P.");
+    expect(state.notes).toContainEqual({
       text: "3 modules out of date. Run C.R.A.P. from the Scan panel.",
       cls: "metric-note warn",
     });
-    expect(state.rows[0].disabled).toBe(true);
-    expect(state.headers[0].tooltip).toContain("crap 0.1.72 - at fffffff");
+    expect(
+      state.rows.find((r: { key: string }) => r.key === "crap/coverage")
+        .disabled,
+    ).toBe(true);
+    expect(crap.tooltip).toContain("crap 0.1.72 - at fffffff");
     expect(state.perMember).toBe(false);
     expect(state.chips).toBe(0);
     expect(f.afterStaleGroup.notes[0].cls).toBe("metric-note warn");
@@ -557,6 +576,7 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
     const state = f.neverRunState;
 
     expect(state.headers.map((h: { title: string }) => h.title)).toEqual([
+      "Structural analysis",
       "C.R.A.P.",
       "Mutation",
     ]);
@@ -564,6 +584,7 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
       true,
     );
     expect(state.notes.map((n: { text: string }) => n.text)).toEqual([
+      "Never run. Run Structural analysis from the Scan panel.",
       "Never run. Run C.R.A.P. from the Scan panel.",
       "Never run. Run Mutation from the Scan panel.",
     ]);

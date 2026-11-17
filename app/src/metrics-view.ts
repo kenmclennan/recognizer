@@ -1,6 +1,5 @@
 import { el } from "./dom";
 import { fullMetricName } from "./inspector-model";
-import { rangeLabel } from "./metric-bars";
 import {
   groupHeader,
   type MetricDescriptor,
@@ -64,12 +63,6 @@ function row(
 
   if (metric.description !== undefined) {
     text.append(el("div", "metric-description", metric.description));
-  }
-
-  if (ticked) {
-    text.append(
-      el("div", "metric-detail", `bar ${position + 1} - ${rangeLabel(metric)}`),
-    );
   }
 
   node.addEventListener("click", (event) => {

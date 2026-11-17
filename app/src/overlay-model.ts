@@ -1,6 +1,7 @@
 import { moduleOf, type Overlay, validateOverlay } from "recognizer";
 import { ageText } from "./footer-scan";
 import {
+  ANALYSIS_KEY,
   type FreshnessModel,
   type ResultRow,
   stateText,
@@ -62,6 +63,50 @@ export type OverlayModel = {
 export type ModuleValue = { value: MetricValue; member: string | null };
 
 const SHORT = 7;
+
+const ANALYSIS_SENSOR: ShippedSensor = {
+  name: ANALYSIS_KEY,
+  display: "Structural analysis",
+  description: "",
+  runsTests: false,
+  scoped: false,
+  listed: false,
+  findings: [],
+  settings: [],
+  metrics: [
+    {
+      name: "complexity",
+      label: "cc",
+      title: "Complexity",
+      help: "Cyclomatic complexity of each function.",
+      type: "count",
+      granularity: "member",
+      bad: "high",
+    },
+    {
+      name: "function_length",
+      label: "len",
+      title: "Function length",
+      help: "Lines in each function's body.",
+      type: "count",
+      granularity: "member",
+      bad: "high",
+    },
+    {
+      name: "duplication",
+      label: "dup",
+      title: "Duplication",
+      help: "Lines in each file repeated elsewhere.",
+      type: "count",
+      granularity: "module",
+      bad: "high",
+    },
+  ],
+};
+
+function listedHere(group: string, metric: string): boolean {
+  return !(group === "crap" && metric === "complexity");
+}
 
 function tooltipOf(overlay: Overlay): string {
   const commit = overlay.commit.slice(0, SHORT);
@@ -186,8 +231,12 @@ export function buildOverlayModel(
 ): OverlayModel {
   const built = new Map<string, OverlayGroup>();
   const unreadable: string[] = [];
-  const shipped =
-    context.shipped?.status === "ok" ? context.shipped.sensors : [];
+  const shipped = [
+    ANALYSIS_SENSOR,
+    ...(context.shipped?.status === "ok"
+      ? context.shipped.sensors.filter(({ name }) => name !== ANALYSIS_KEY)
+      : []),
+  ];
   const display = new Map(
     shipped.map((sensor) => [sensor.name, sensor.display]),
   );
@@ -240,9 +289,11 @@ export function buildOverlayModel(
       notes,
       enabled: !nothing,
       tooltip: tooltipOf(overlay),
-      metrics: overlay.metrics.map((metric) =>
-        describe(shipped, file.name, metric, values(metric.name)),
-      ),
+      metrics: overlay.metrics
+        .filter((metric) => listedHere(file.name, metric.name))
+        .map((metric) =>
+          describe(shipped, file.name, metric, values(metric.name)),
+        ),
     });
   }
 
@@ -271,7 +322,7 @@ export function buildOverlayModel(
     const read = status !== undefined && status.status !== "not run";
     const nothing = status?.stopped?.measured === 0;
 
-    if (read && !nothing) {
+    if (read && !nothing && sensor.name !== ANALYSIS_KEY) {
       continue;
     }
 
@@ -290,9 +341,9 @@ export function buildOverlayModel(
         : [],
       enabled: false,
       tooltip: "",
-      metrics: sensor.metrics.map((metric) =>
-        describe(shipped, sensor.name, metric, {}),
-      ),
+      metrics: sensor.metrics
+        .filter((metric) => listedHere(sensor.name, metric.name))
+        .map((metric) => describe(shipped, sensor.name, metric, {})),
     });
   }
 
@@ -309,11 +360,28 @@ function holdsValue(group: OverlayGroup): boolean {
   return group.metrics.some((metric) => Object.keys(metric.values).length > 0);
 }
 
+function staleOf(
+  name: string,
+  freshness: FreshnessModel,
+): ReadonlySet<string> | undefined {
+  if (name !== ANALYSIS_KEY) {
+    return freshness.stale.get(name);
+  }
+
+  const state = freshness.rows.find(({ key }) => key === ANALYSIS_KEY)?.state;
+
+  if (state?.kind === "current") {
+    return new Set();
+  }
+
+  return state?.kind === "out-of-date" ? new Set(state.modules) : undefined;
+}
+
 function keepCurrent(
   group: OverlayGroup,
   freshness: FreshnessModel,
 ): OverlayGroup {
-  const stale = freshness.stale.get(group.name);
+  const stale = staleOf(group.name, freshness);
 
   return {
     ...group,

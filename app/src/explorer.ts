@@ -111,6 +111,7 @@ import { scopeCaption, scopedRows, scopeOf } from "./findings-scope";
 import { compactFolders } from "./folder-compaction";
 import { ageText, type ScanState } from "./footer-scan";
 import {
+  ANALYSIS_KEY,
   type FreshnessModel,
   findingsActionOf,
   hiddenText,
@@ -1014,6 +1015,13 @@ export function showExplorer(
 
     if (key === DESCRIBE_KEY) {
       scanHost.setTicks({ ...ticks, describe: ticked });
+      render();
+
+      return;
+    }
+
+    if (key === ANALYSIS_KEY) {
+      scanHost.setTicks({ ...ticks, analysis: ticked });
       render();
 
       return;

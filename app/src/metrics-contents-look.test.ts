@@ -56,7 +56,11 @@ const scan = {
   foreign: [],
 };
 const SHIPPED = ${JSON.stringify([{ ...shippedSensor("crap"), display: "crap", description: "x", runsTests: false }])};
-const loadedFor = (overlay) => loadedOf({ modules: ["app/risk.py"], scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", text: overlay }], sensors: [{ name: "crap", status: "ran", measured: { inputs: JSON.parse(overlay).inputs } }] });
+const structureOf = (overlay) => {
+  const crap = JSON.parse(overlay);
+  return JSON.stringify({ ...crap, producer: { name: "recognizer", version: "0.1.0" }, metrics: crap.metrics.filter((metric) => metric.name === "complexity"), values: { complexity: crap.values.complexity ?? {} } });
+};
+const loadedFor = (overlay) => loadedOf({ modules: ["app/risk.py"], scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", text: overlay }, { name: "structure", text: structureOf(overlay) }], sensors: [{ name: "crap", status: "ran", measured: { inputs: JSON.parse(overlay).inputs } }, { name: "structure", status: "ran", commit: JSON.parse(overlay).commit, modified: false }] });
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
@@ -97,7 +101,7 @@ async function look() {
   await look();
   click(q(".metrics-toggle"));
   await tick();
-  click(q('.metric-row[data-metric="crap/complexity"]'));
+  click(q('.metric-row[data-metric="structure/complexity"]'));
   await tick();
   click(q('.metric-row[data-metric="crap/coverage"]'));
   await tick();
@@ -120,7 +124,7 @@ async function look() {
   facts.staleFooter = footer.text;
   facts.staleRows = qa(".metric-row").map((row) => ({ key: row.dataset.metric, disabled: row.classList.contains("disabled") }));
   facts.staleNotes = qa(".metric-note").map((note) => note.textContent);
-  click(q('.metric-row[data-metric="crap/complexity"]'));
+  click(q('.metric-row[data-metric="structure/complexity"]'));
   await tick();
   facts.staleBarsAfterClick = bars();
 
@@ -141,7 +145,7 @@ describe.skipIf(webkit === undefined)(
 
     it("shows each member's values in the table with a dash for an unmeasured one while the overlay is current", () => {
       expect(f.currentBars).toEqual([
-        { metric: "crap/complexity", value: "8" },
+        { metric: "structure/complexity", value: "8" },
         { metric: "crap/coverage", value: "50%" },
       ]);
       expect(f.currentFunctions).toEqual([
@@ -162,10 +166,10 @@ describe.skipIf(webkit === undefined)(
       expect(f.staleFunctions).toEqual([]);
       expect(f.staleFooter).toBeNull();
       expect(f.staleRows).toEqual([
-        { key: "crap/complexity", disabled: true },
+        { key: "structure/complexity", disabled: true },
         { key: "crap/coverage", disabled: true },
       ]);
-      expect(f.staleNotes[0]).toBe(
+      expect(f.staleNotes).toContain(
         "1 module out of date. Run crap from the Scan panel.",
       );
       expect(f.staleBarsAfterClick).toEqual([]);

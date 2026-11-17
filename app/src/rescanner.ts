@@ -5,6 +5,7 @@ import {
   type ScanRunRecord,
 } from "recognizer";
 import type { ScanOrigin } from "./footer-scan";
+import { ANALYSIS_KEY } from "./freshness-model";
 import { loadedUnchanged, sameStructure } from "./loaded-unchanged";
 import type { MessageAction, MessageInput } from "./message-tray";
 import { runLogPath } from "./run-log-path";
@@ -141,6 +142,7 @@ export function createRescanner<Carried>(
   let ticks: ScanTicks = DEFAULT_TICKS;
   let remembered = false;
   let ticksLoaded = false;
+  let analysisPlanned = true;
   let run: RunState = NO_RUN;
   let progress: ScanProgress = NO_PROGRESS;
   let current: Promise<void> = Promise.resolve();
@@ -798,6 +800,7 @@ export function createRescanner<Carried>(
     };
 
     heading = planned?.progress ?? null;
+    analysisPlanned = plan.analysis;
 
     if (!remembered) {
       await writeTicks(registered);
@@ -806,6 +809,9 @@ export function createRescanner<Carried>(
     failureIds = [];
     adoptedThisScan = false;
     rows = [
+      ...(plan.analysis
+        ? [{ key: ANALYSIS_KEY, display: "Structural analysis" }]
+        : []),
       ...(plan.describe
         ? [{ key: DESCRIBE_KEY, display: "Descriptions" }]
         : []),
@@ -817,7 +823,11 @@ export function createRescanner<Carried>(
     ];
 
     run = {
-      running: [...(plan.describe ? [DESCRIBE_KEY] : []), ...plan.sense],
+      running: [
+        ...(plan.analysis ? [ANALYSIS_KEY] : []),
+        ...(plan.describe ? [DESCRIBE_KEY] : []),
+        ...plan.sense,
+      ],
       started: null,
       failures: run.failures,
       diagnoses: run.diagnoses,
@@ -1034,6 +1044,7 @@ export function createRescanner<Carried>(
       adoptedAtOpen,
       awakeNow: now(),
       startedAwake: startedAwake(),
+      analysis: analysisPlanned,
     }),
   };
 }
