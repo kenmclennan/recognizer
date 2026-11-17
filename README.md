@@ -6,7 +6,7 @@ It has four parts, installed together:
 
 - **Scanners.** One command per language (Python, TypeScript, Kotlin, C#, Rust) that reads a source tree and prints the same JSON scan document.
 - **The `recognizer` command.** Scans a repository, checks it against the repository's policy, answers questions about its modules, builds saved views, and runs the describer and the sensors.
-- **Sensors.** Judgements beyond structure. The structure sensor is built in: policy violations, cycles, orphans, unused exports, private imports, long functions, duplication and folder metrics. The shipped sensors are C.R.A.P., Mutation and Thresholds; a repository can register its own.
+- **Sensors.** Judgements beyond structure. The structure sensor is built in: policy violations, cycles, orphans, unused exports, private imports, long functions, duplication and folder metrics. The shipped sensors are C.R.A.P. (which also reports low coverage) and Mutation; a repository can register its own.
 - **The viewer.** A native macOS app (Tauri) that draws the modules and their dependencies, colours findings and health, opens a module to show its members, and keeps saved views and notes an agent can build and link to.
 
 ## Install
@@ -19,7 +19,7 @@ brew trust kenmclennan/tap
 brew install --cask kenmclennan/tap/recognizer
 ```
 
-Homebrew 7 refuses formulae from a tap it does not trust, so the second command is needed: the cask depends on formulae in the same tap. The cask installs the app and the `recognizer` command. It depends on the `recognizer-plugins` bundle formula, which brings every official plugin: the five `recognizer-scan-<language>` scanners, the three sensors (`recognizer-sense-crap`, `recognizer-sense-mutation` and `recognizer-sense-thresholds`) and `recognizer-describe-claude`. The plugins run on Homebrew's `node` and `python@3.13`, which Homebrew installs as dependencies. Check the install with `recognizer --version` and `recognizer plugins`.
+Homebrew 7 refuses formulae from a tap it does not trust, so the second command is needed: the cask depends on formulae in the same tap. The cask installs the app and the `recognizer` command. It depends on the `recognizer-plugins` bundle formula, which brings every official plugin: the five `recognizer-scan-<language>` scanners, the two sensors (`recognizer-sense-crap` and `recognizer-sense-mutation`) and `recognizer-describe-claude`. The plugins run on Homebrew's `node` and `python@3.13`, which Homebrew installs as dependencies. Check the install with `recognizer --version` and `recognizer plugins`.
 
 Writing module responsibilities (`recognizer describe`) uses the [Claude Code](https://claude.com/claude-code) `claude` command, which you install and sign in to separately. Everything else works without it.
 
@@ -72,7 +72,7 @@ Remove the agent skills first, while the command is still installed, then the ca
 ```sh
 recognizer agents uninstall
 brew uninstall --cask kenmclennan/tap/recognizer
-brew uninstall recognizer-plugins recognizer-scan-python recognizer-scan-typescript recognizer-scan-kotlin recognizer-scan-csharp recognizer-scan-rust recognizer-sense-crap recognizer-sense-mutation recognizer-sense-thresholds recognizer-describe-claude
+brew uninstall recognizer-plugins recognizer-scan-python recognizer-scan-typescript recognizer-scan-kotlin recognizer-scan-csharp recognizer-scan-rust recognizer-sense-crap recognizer-sense-mutation recognizer-describe-claude
 brew autoremove
 ```
 

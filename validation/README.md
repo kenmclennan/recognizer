@@ -31,6 +31,6 @@ node validation/structure/folder-metrics.mjs [--full]
 
 `folder-metrics.mjs` needs `npm run build -w recognizer` first. `grimp_compare.py` prints the edge counts of the scanner's and grimp's module graphs, their intersection and the edges in only one.
 
-## thresholds
+## coverage
 
-No script: the sensor reads overlays only and has no reference tool, so the CI test over the labelled corpus is the comparison.
+No script: the coverage finding of C.R.A.P. has no reference tool, so the CI test over the labelled corpus in `fixtures/coverage/corpus/` is the comparison.

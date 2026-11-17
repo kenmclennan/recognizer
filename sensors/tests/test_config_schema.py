@@ -6,7 +6,7 @@ import jsonschema
 import pytest
 from conftest import REPOSITORY
 
-from recognizer_sensors.config_schema import CRAP_KEYS, MUTATION_KEYS, THRESHOLDS_KEYS
+from recognizer_sensors.config_schema import CRAP_KEYS, MUTATION_KEYS
 from recognizer_sensors.registry import SHIPPED
 from recognizer_sensors.testrun.suites import parse_suite
 
@@ -19,7 +19,7 @@ BOUNDS = ("minimum", "exclusiveMinimum", "maximum", "exclusiveMaximum")
 
 
 def sensor_keys():
-    return [*CRAP_KEYS, *MUTATION_KEYS, *THRESHOLDS_KEYS]
+    return [*CRAP_KEYS, *MUTATION_KEYS]
 
 
 def key_schema():
@@ -127,7 +127,7 @@ def test_the_example_of_every_sensor_key_is_accepted_by_that_sensor_parser():
         sensor.parse_settings(settings)
         checked.append(entry["key"])
 
-    assert len(checked) >= 14
+    assert len(checked) >= 10
 
 
 def test_the_examples_of_the_test_keys_build_a_suite_parse_suite_accepts():
@@ -157,6 +157,9 @@ def test_the_examples_of_the_test_keys_build_a_suite_parse_suite_accepts():
 
 
 def json_type(property_schema):
+    if "oneOf" in property_schema:
+        return json_type(next(b for b in property_schema["oneOf"] if "type" in b))
+
     if "enum" in property_schema:
         return "enum"
 
@@ -199,6 +202,9 @@ def assert_key_matches(key, name, property_schema):
         target = (
             property_schema["items"] if property_schema.get("type") == "array" else property_schema
         )
+
+        if "oneOf" in target:
+            target = next(b for b in target["oneOf"] if "type" in b)
 
         assert key.get(bound) == target.get(bound), (name, bound)
 
@@ -264,28 +270,7 @@ def test_every_shipped_short_form_property_has_a_published_key_and_back():
 
         assert owned == {f"sensors.{sensor}.{name}" for name in short["properties"]}
 
-    thresholds = next(
-        branch
-        for branch in config["thresholds"]["oneOf"]
-        if "additionalProperties" in branch and branch["additionalProperties"] is not False
-    )
-    entry = next(
-        branch for branch in thresholds["additionalProperties"]["oneOf"] if "properties" in branch
-    )
-
-    assert keys["sensors.thresholds.<metric>"]["values"] == ["off"]
-
-    for name, schema in entry["properties"].items():
-        assert_key_matches(keys.get(f"sensors.thresholds.<metric>.{name}"), name, schema)
-        seen.append(f"thresholds.{name}")
-
-    owned = {key for key in keys if key.startswith("sensors.thresholds.")}
-
-    assert owned == {
-        "sensors.thresholds.<metric>",
-        *{f"sensors.thresholds.<metric>.{name}" for name in entry["properties"]},
-    }
-    assert len(seen) >= 13
+    assert len(seen) >= 3
 
 
 def test_the_metric_placeholder_refuses_command_as_the_config_schema_does():
@@ -308,10 +293,9 @@ MUTATION_BLANK_TEXTS = {
 
 PUBLISHED_DEFAULTS = {
     "sensors.crap.threshold": {"default": 30},
+    "sensors.crap.coverage_limit": {"default": 0.6},
     "sensors.mutation.incremental": {"default": True},
     "sensors.mutation.timeout_factor": {"default": 10},
-    "sensors.thresholds.<metric>.below": {"defaults": {"coverage": 0.6}},
-    "sensors.thresholds.<metric>.severity": {"defaults": {"coverage": "warning"}},
 }
 
 

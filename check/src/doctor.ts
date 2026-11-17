@@ -7,7 +7,11 @@ import {
   schemaMessages,
   withoutEmptySections,
 } from "./config-parse.js";
-import { retiredKeysIn, withoutRetiredKeys } from "./config-retired.js";
+import {
+  retiredKeysIn,
+  toleratedMigration,
+  withoutRetiredKeys,
+} from "./config-retired.js";
 import type { Language } from "./detect.js";
 import { InputError } from "./errors.js";
 import type { CachedScansState } from "./freshness.js";
@@ -244,6 +248,22 @@ function configArea(facts: DoctorFacts): ConfigResult {
 
   for (const retired of retiredKeysIn(document)) {
     const key = retired.path.join(".");
+    const migration = retired.tolerated
+      ? toleratedMigration(document, (command) =>
+          withRepository(facts, command),
+        )
+      : null;
+
+    if (migration !== null) {
+      problems.push({
+        code: "config-retired",
+        subject: key,
+        line: migration.line,
+        fix: commandFix(migration.command),
+      });
+
+      continue;
+    }
 
     problems.push({
       code: "config-retired",

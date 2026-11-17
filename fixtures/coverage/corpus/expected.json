@@ -407,13 +407,13 @@
       "run": "default",
       "language": "python",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c09_under",
+      "finding_id": "coverage:python/limits.py::c09_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.6
+        "coverage": 0.5882,
+        "limit": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default limit fires when < 0.6, and 0.5882 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -421,14 +421,14 @@
       "run": "custom",
       "language": "python",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c09_under",
+      "finding_id": "coverage:python/limits.py::c09_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.61,
+        "coverage": 0.5882,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom limit fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -436,10 +436,10 @@
       "run": "default",
       "language": "python",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c09_at",
+      "finding_id": "coverage:python/limits.py::c09_at",
       "severity": null,
       "measures": {},
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default limit fires when < 0.6, and 0.6 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -447,14 +447,14 @@
       "run": "custom",
       "language": "python",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c09_at",
+      "finding_id": "coverage:python/limits.py::c09_at",
       "severity": "warning",
       "measures": {
-        "value": 0.6,
-        "line": 0.61,
+        "coverage": 0.6,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom limit fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -462,10 +462,10 @@
       "run": "default",
       "language": "python",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c09_over",
+      "finding_id": "coverage:python/limits.py::c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default limit fires when < 0.6, and 0.6111 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -473,10 +473,10 @@
       "run": "custom",
       "language": "python",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c09_over",
+      "finding_id": "coverage:python/limits.py::c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom limit fires when < 0.61, and 0.6111 < 0.61 is false",
       "known_defect": null
     },
     {
@@ -484,13 +484,13 @@
       "run": "default",
       "language": "python",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c10_under",
+      "finding_id": "coverage:python/limits.py::c10_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.6
+        "coverage": 0.5882,
+        "limit": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default limit fires when < 0.6, and 0.5882 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -498,14 +498,14 @@
       "run": "custom",
       "language": "python",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c10_under",
+      "finding_id": "coverage:python/limits.py::c10_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.61,
+        "coverage": 0.5882,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom limit fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -513,10 +513,10 @@
       "run": "default",
       "language": "python",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c10_at",
+      "finding_id": "coverage:python/limits.py::c10_at",
       "severity": null,
       "measures": {},
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default limit fires when < 0.6, and 0.6 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -524,14 +524,14 @@
       "run": "custom",
       "language": "python",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c10_at",
+      "finding_id": "coverage:python/limits.py::c10_at",
       "severity": "warning",
       "measures": {
-        "value": 0.6,
-        "line": 0.61,
+        "coverage": 0.6,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom limit fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -539,10 +539,10 @@
       "run": "default",
       "language": "python",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c10_over",
+      "finding_id": "coverage:python/limits.py::c10_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default limit fires when < 0.6, and 0.6111 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -550,10 +550,10 @@
       "run": "custom",
       "language": "python",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c10_over",
+      "finding_id": "coverage:python/limits.py::c10_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom limit fires when < 0.61, and 0.6111 < 0.61 is false",
       "known_defect": null
     },
     {
@@ -561,13 +561,13 @@
       "run": "default",
       "language": "python",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c11_under",
+      "finding_id": "coverage:python/limits.py::c11_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.6
+        "coverage": 0.5882,
+        "limit": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default limit fires when < 0.6, and 0.5882 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -575,14 +575,14 @@
       "run": "custom",
       "language": "python",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c11_under",
+      "finding_id": "coverage:python/limits.py::c11_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.61,
+        "coverage": 0.5882,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom limit fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -590,10 +590,10 @@
       "run": "default",
       "language": "python",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c11_at",
+      "finding_id": "coverage:python/limits.py::c11_at",
       "severity": null,
       "measures": {},
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default limit fires when < 0.6, and 0.6 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -601,14 +601,14 @@
       "run": "custom",
       "language": "python",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c11_at",
+      "finding_id": "coverage:python/limits.py::c11_at",
       "severity": "warning",
       "measures": {
-        "value": 0.6,
-        "line": 0.61,
+        "coverage": 0.6,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom limit fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -616,10 +616,10 @@
       "run": "default",
       "language": "python",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c11_over",
+      "finding_id": "coverage:python/limits.py::c11_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default limit fires when < 0.6, and 0.6111 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -627,10 +627,10 @@
       "run": "custom",
       "language": "python",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:python/limits.py::c11_over",
+      "finding_id": "coverage:python/limits.py::c11_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom limit fires when < 0.61, and 0.6111 < 0.61 is false",
       "known_defect": null
     },
     {
@@ -638,13 +638,13 @@
       "run": "default",
       "language": "python",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:python/limits.py::far",
+      "finding_id": "coverage:python/limits.py::far",
       "severity": "warning",
       "measures": {
-        "value": 0.1,
-        "line": 0.6
+        "coverage": 0.1,
+        "limit": 0.6
       },
-      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the default line fires when < 0.6, and 0.1 < 0.6 is true",
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the default limit fires when < 0.6, and 0.1 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -652,14 +652,14 @@
       "run": "custom",
       "language": "python",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:python/limits.py::far",
+      "finding_id": "coverage:python/limits.py::far",
       "severity": "warning",
       "measures": {
-        "value": 0.1,
-        "line": 0.61,
+        "coverage": 0.1,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom line fires when < 0.61, and 0.1 < 0.61 is true",
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom limit fires when < 0.61, and 0.1 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -667,13 +667,13 @@
       "run": "default",
       "language": "typescript",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c09_under",
+      "finding_id": "coverage:typescript/limits.ts::c09_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.6
+        "coverage": 0.5882,
+        "limit": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default limit fires when < 0.6, and 0.5882 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -681,14 +681,14 @@
       "run": "custom",
       "language": "typescript",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c09_under",
+      "finding_id": "coverage:typescript/limits.ts::c09_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.61,
+        "coverage": 0.5882,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom limit fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -696,10 +696,10 @@
       "run": "default",
       "language": "typescript",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c09_at",
+      "finding_id": "coverage:typescript/limits.ts::c09_at",
       "severity": null,
       "measures": {},
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default limit fires when < 0.6, and 0.6 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -707,14 +707,14 @@
       "run": "custom",
       "language": "typescript",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c09_at",
+      "finding_id": "coverage:typescript/limits.ts::c09_at",
       "severity": "warning",
       "measures": {
-        "value": 0.6,
-        "line": 0.61,
+        "coverage": 0.6,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom limit fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -722,10 +722,10 @@
       "run": "default",
       "language": "typescript",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c09_over",
+      "finding_id": "coverage:typescript/limits.ts::c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default limit fires when < 0.6, and 0.6111 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -733,10 +733,10 @@
       "run": "custom",
       "language": "typescript",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c09_over",
+      "finding_id": "coverage:typescript/limits.ts::c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom limit fires when < 0.61, and 0.6111 < 0.61 is false",
       "known_defect": null
     },
     {
@@ -744,13 +744,13 @@
       "run": "default",
       "language": "typescript",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c10_under",
+      "finding_id": "coverage:typescript/limits.ts::c10_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.6
+        "coverage": 0.5882,
+        "limit": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default limit fires when < 0.6, and 0.5882 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -758,14 +758,14 @@
       "run": "custom",
       "language": "typescript",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c10_under",
+      "finding_id": "coverage:typescript/limits.ts::c10_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.61,
+        "coverage": 0.5882,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom limit fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -773,10 +773,10 @@
       "run": "default",
       "language": "typescript",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c10_at",
+      "finding_id": "coverage:typescript/limits.ts::c10_at",
       "severity": null,
       "measures": {},
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default limit fires when < 0.6, and 0.6 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -784,14 +784,14 @@
       "run": "custom",
       "language": "typescript",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c10_at",
+      "finding_id": "coverage:typescript/limits.ts::c10_at",
       "severity": "warning",
       "measures": {
-        "value": 0.6,
-        "line": 0.61,
+        "coverage": 0.6,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom limit fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -799,10 +799,10 @@
       "run": "default",
       "language": "typescript",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c10_over",
+      "finding_id": "coverage:typescript/limits.ts::c10_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default limit fires when < 0.6, and 0.6111 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -810,10 +810,10 @@
       "run": "custom",
       "language": "typescript",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c10_over",
+      "finding_id": "coverage:typescript/limits.ts::c10_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom limit fires when < 0.61, and 0.6111 < 0.61 is false",
       "known_defect": null
     },
     {
@@ -821,13 +821,13 @@
       "run": "default",
       "language": "typescript",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c11_under",
+      "finding_id": "coverage:typescript/limits.ts::c11_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.6
+        "coverage": 0.5882,
+        "limit": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default limit fires when < 0.6, and 0.5882 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -835,14 +835,14 @@
       "run": "custom",
       "language": "typescript",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c11_under",
+      "finding_id": "coverage:typescript/limits.ts::c11_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.61,
+        "coverage": 0.5882,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom limit fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -850,10 +850,10 @@
       "run": "default",
       "language": "typescript",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c11_at",
+      "finding_id": "coverage:typescript/limits.ts::c11_at",
       "severity": null,
       "measures": {},
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default limit fires when < 0.6, and 0.6 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -861,14 +861,14 @@
       "run": "custom",
       "language": "typescript",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c11_at",
+      "finding_id": "coverage:typescript/limits.ts::c11_at",
       "severity": "warning",
       "measures": {
-        "value": 0.6,
-        "line": 0.61,
+        "coverage": 0.6,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom limit fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -876,10 +876,10 @@
       "run": "default",
       "language": "typescript",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c11_over",
+      "finding_id": "coverage:typescript/limits.ts::c11_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default limit fires when < 0.6, and 0.6111 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -887,10 +887,10 @@
       "run": "custom",
       "language": "typescript",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::c11_over",
+      "finding_id": "coverage:typescript/limits.ts::c11_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom limit fires when < 0.61, and 0.6111 < 0.61 is false",
       "known_defect": null
     },
     {
@@ -898,13 +898,13 @@
       "run": "default",
       "language": "typescript",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::far",
+      "finding_id": "coverage:typescript/limits.ts::far",
       "severity": "warning",
       "measures": {
-        "value": 0.1,
-        "line": 0.6
+        "coverage": 0.1,
+        "limit": 0.6
       },
-      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the default line fires when < 0.6, and 0.1 < 0.6 is true",
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the default limit fires when < 0.6, and 0.1 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -912,14 +912,14 @@
       "run": "custom",
       "language": "typescript",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:typescript/limits.ts::far",
+      "finding_id": "coverage:typescript/limits.ts::far",
       "severity": "warning",
       "measures": {
-        "value": 0.1,
-        "line": 0.61,
+        "coverage": 0.1,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom line fires when < 0.61, and 0.1 < 0.61 is true",
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom limit fires when < 0.61, and 0.1 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -927,13 +927,13 @@
       "run": "default",
       "language": "kotlin",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c09_under",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c09_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.6
+        "coverage": 0.5882,
+        "limit": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default limit fires when < 0.6, and 0.5882 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -941,14 +941,14 @@
       "run": "custom",
       "language": "kotlin",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c09_under",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c09_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.61,
+        "coverage": 0.5882,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom limit fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -956,10 +956,10 @@
       "run": "default",
       "language": "kotlin",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c09_at",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c09_at",
       "severity": null,
       "measures": {},
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default limit fires when < 0.6, and 0.6 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -967,14 +967,14 @@
       "run": "custom",
       "language": "kotlin",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c09_at",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c09_at",
       "severity": "warning",
       "measures": {
-        "value": 0.6,
-        "line": 0.61,
+        "coverage": 0.6,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom limit fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -982,10 +982,10 @@
       "run": "default",
       "language": "kotlin",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c09_over",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default limit fires when < 0.6, and 0.6111 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -993,10 +993,10 @@
       "run": "custom",
       "language": "kotlin",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c09_over",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom limit fires when < 0.61, and 0.6111 < 0.61 is false",
       "known_defect": null
     },
     {
@@ -1004,13 +1004,13 @@
       "run": "default",
       "language": "kotlin",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c10_under",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c10_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.6
+        "coverage": 0.5882,
+        "limit": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default limit fires when < 0.6, and 0.5882 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -1018,14 +1018,14 @@
       "run": "custom",
       "language": "kotlin",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c10_under",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c10_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.61,
+        "coverage": 0.5882,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom limit fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1033,10 +1033,10 @@
       "run": "default",
       "language": "kotlin",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c10_at",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c10_at",
       "severity": null,
       "measures": {},
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default limit fires when < 0.6, and 0.6 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -1044,14 +1044,14 @@
       "run": "custom",
       "language": "kotlin",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c10_at",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c10_at",
       "severity": "warning",
       "measures": {
-        "value": 0.6,
-        "line": 0.61,
+        "coverage": 0.6,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom limit fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1059,10 +1059,10 @@
       "run": "default",
       "language": "kotlin",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c10_over",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c10_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default limit fires when < 0.6, and 0.6111 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -1070,10 +1070,10 @@
       "run": "custom",
       "language": "kotlin",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c10_over",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c10_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom limit fires when < 0.61, and 0.6111 < 0.61 is false",
       "known_defect": null
     },
     {
@@ -1081,13 +1081,13 @@
       "run": "default",
       "language": "kotlin",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c11_under",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c11_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.6
+        "coverage": 0.5882,
+        "limit": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default limit fires when < 0.6, and 0.5882 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -1095,14 +1095,14 @@
       "run": "custom",
       "language": "kotlin",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c11_under",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c11_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.61,
+        "coverage": 0.5882,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom limit fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1110,10 +1110,10 @@
       "run": "default",
       "language": "kotlin",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c11_at",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c11_at",
       "severity": null,
       "measures": {},
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default limit fires when < 0.6, and 0.6 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -1121,14 +1121,14 @@
       "run": "custom",
       "language": "kotlin",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c11_at",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c11_at",
       "severity": "warning",
       "measures": {
-        "value": 0.6,
-        "line": 0.61,
+        "coverage": 0.6,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom limit fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1136,10 +1136,10 @@
       "run": "default",
       "language": "kotlin",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c11_over",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c11_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default limit fires when < 0.6, and 0.6111 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -1147,10 +1147,10 @@
       "run": "custom",
       "language": "kotlin",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::c11_over",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::c11_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom limit fires when < 0.61, and 0.6111 < 0.61 is false",
       "known_defect": null
     },
     {
@@ -1158,13 +1158,13 @@
       "run": "default",
       "language": "kotlin",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::far",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::far",
       "severity": "warning",
       "measures": {
-        "value": 0.1,
-        "line": 0.6
+        "coverage": 0.1,
+        "limit": 0.6
       },
-      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the default line fires when < 0.6, and 0.1 < 0.6 is true",
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the default limit fires when < 0.6, and 0.1 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -1172,14 +1172,14 @@
       "run": "custom",
       "language": "kotlin",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:kotlin/limits/Limits.kt::far",
+      "finding_id": "coverage:kotlin/limits/Limits.kt::far",
       "severity": "warning",
       "measures": {
-        "value": 0.1,
-        "line": 0.61,
+        "coverage": 0.1,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom line fires when < 0.61, and 0.1 < 0.61 is true",
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom limit fires when < 0.61, and 0.1 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1187,13 +1187,13 @@
       "run": "default",
       "language": "rust",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c09_under",
+      "finding_id": "coverage:rust/src/limits.rs::c09_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.6
+        "coverage": 0.5882,
+        "limit": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default limit fires when < 0.6, and 0.5882 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -1201,14 +1201,14 @@
       "run": "custom",
       "language": "rust",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c09_under",
+      "finding_id": "coverage:rust/src/limits.rs::c09_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.61,
+        "coverage": 0.5882,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom limit fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1216,10 +1216,10 @@
       "run": "default",
       "language": "rust",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c09_at",
+      "finding_id": "coverage:rust/src/limits.rs::c09_at",
       "severity": null,
       "measures": {},
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default limit fires when < 0.6, and 0.6 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -1227,14 +1227,14 @@
       "run": "custom",
       "language": "rust",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c09_at",
+      "finding_id": "coverage:rust/src/limits.rs::c09_at",
       "severity": "warning",
       "measures": {
-        "value": 0.6,
-        "line": 0.61,
+        "coverage": 0.6,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom limit fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1242,10 +1242,10 @@
       "run": "default",
       "language": "rust",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c09_over",
+      "finding_id": "coverage:rust/src/limits.rs::c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default limit fires when < 0.6, and 0.6111 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -1253,10 +1253,10 @@
       "run": "custom",
       "language": "rust",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c09_over",
+      "finding_id": "coverage:rust/src/limits.rs::c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom limit fires when < 0.61, and 0.6111 < 0.61 is false",
       "known_defect": null
     },
     {
@@ -1264,13 +1264,13 @@
       "run": "default",
       "language": "rust",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c10_under",
+      "finding_id": "coverage:rust/src/limits.rs::c10_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.6
+        "coverage": 0.5882,
+        "limit": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default limit fires when < 0.6, and 0.5882 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -1278,14 +1278,14 @@
       "run": "custom",
       "language": "rust",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c10_under",
+      "finding_id": "coverage:rust/src/limits.rs::c10_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.61,
+        "coverage": 0.5882,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom limit fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1293,10 +1293,10 @@
       "run": "default",
       "language": "rust",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c10_at",
+      "finding_id": "coverage:rust/src/limits.rs::c10_at",
       "severity": null,
       "measures": {},
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default limit fires when < 0.6, and 0.6 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -1304,14 +1304,14 @@
       "run": "custom",
       "language": "rust",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c10_at",
+      "finding_id": "coverage:rust/src/limits.rs::c10_at",
       "severity": "warning",
       "measures": {
-        "value": 0.6,
-        "line": 0.61,
+        "coverage": 0.6,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom limit fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1319,10 +1319,10 @@
       "run": "default",
       "language": "rust",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c10_over",
+      "finding_id": "coverage:rust/src/limits.rs::c10_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default limit fires when < 0.6, and 0.6111 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -1330,10 +1330,10 @@
       "run": "custom",
       "language": "rust",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c10_over",
+      "finding_id": "coverage:rust/src/limits.rs::c10_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom limit fires when < 0.61, and 0.6111 < 0.61 is false",
       "known_defect": null
     },
     {
@@ -1341,13 +1341,13 @@
       "run": "default",
       "language": "rust",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c11_under",
+      "finding_id": "coverage:rust/src/limits.rs::c11_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.6
+        "coverage": 0.5882,
+        "limit": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default limit fires when < 0.6, and 0.5882 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -1355,14 +1355,14 @@
       "run": "custom",
       "language": "rust",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c11_under",
+      "finding_id": "coverage:rust/src/limits.rs::c11_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.61,
+        "coverage": 0.5882,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom limit fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1370,10 +1370,10 @@
       "run": "default",
       "language": "rust",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c11_at",
+      "finding_id": "coverage:rust/src/limits.rs::c11_at",
       "severity": null,
       "measures": {},
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default limit fires when < 0.6, and 0.6 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -1381,14 +1381,14 @@
       "run": "custom",
       "language": "rust",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c11_at",
+      "finding_id": "coverage:rust/src/limits.rs::c11_at",
       "severity": "warning",
       "measures": {
-        "value": 0.6,
-        "line": 0.61,
+        "coverage": 0.6,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom limit fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1396,10 +1396,10 @@
       "run": "default",
       "language": "rust",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c11_over",
+      "finding_id": "coverage:rust/src/limits.rs::c11_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default limit fires when < 0.6, and 0.6111 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -1407,10 +1407,10 @@
       "run": "custom",
       "language": "rust",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::c11_over",
+      "finding_id": "coverage:rust/src/limits.rs::c11_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom limit fires when < 0.61, and 0.6111 < 0.61 is false",
       "known_defect": null
     },
     {
@@ -1418,13 +1418,13 @@
       "run": "default",
       "language": "rust",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::far",
+      "finding_id": "coverage:rust/src/limits.rs::far",
       "severity": "warning",
       "measures": {
-        "value": 0.1,
-        "line": 0.6
+        "coverage": 0.1,
+        "limit": 0.6
       },
-      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the default line fires when < 0.6, and 0.1 < 0.6 is true",
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the default limit fires when < 0.6, and 0.1 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -1432,14 +1432,14 @@
       "run": "custom",
       "language": "rust",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:rust/src/limits.rs::far",
+      "finding_id": "coverage:rust/src/limits.rs::far",
       "severity": "warning",
       "measures": {
-        "value": 0.1,
-        "line": 0.61,
+        "coverage": 0.1,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom line fires when < 0.61, and 0.1 < 0.61 is true",
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom limit fires when < 0.61, and 0.1 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1447,13 +1447,13 @@
       "run": "default",
       "language": "csharp",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c09_under",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c09_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.6
+        "coverage": 0.5882,
+        "limit": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default limit fires when < 0.6, and 0.5882 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -1461,14 +1461,14 @@
       "run": "custom",
       "language": "csharp",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c09_under",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c09_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.61,
+        "coverage": 0.5882,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom limit fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1476,10 +1476,10 @@
       "run": "default",
       "language": "csharp",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c09_at",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c09_at",
       "severity": null,
       "measures": {},
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default limit fires when < 0.6, and 0.6 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -1487,14 +1487,14 @@
       "run": "custom",
       "language": "csharp",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c09_at",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c09_at",
       "severity": "warning",
       "measures": {
-        "value": 0.6,
-        "line": 0.61,
+        "coverage": 0.6,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom limit fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1502,10 +1502,10 @@
       "run": "default",
       "language": "csharp",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c09_over",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default limit fires when < 0.6, and 0.6111 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -1513,10 +1513,10 @@
       "run": "custom",
       "language": "csharp",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c09_over",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c09_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom limit fires when < 0.61, and 0.6111 < 0.61 is false",
       "known_defect": null
     },
     {
@@ -1524,13 +1524,13 @@
       "run": "default",
       "language": "csharp",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c10_under",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c10_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.6
+        "coverage": 0.5882,
+        "limit": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default limit fires when < 0.6, and 0.5882 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -1538,14 +1538,14 @@
       "run": "custom",
       "language": "csharp",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c10_under",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c10_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.61,
+        "coverage": 0.5882,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom limit fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1553,10 +1553,10 @@
       "run": "default",
       "language": "csharp",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c10_at",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c10_at",
       "severity": null,
       "measures": {},
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default limit fires when < 0.6, and 0.6 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -1564,14 +1564,14 @@
       "run": "custom",
       "language": "csharp",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c10_at",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c10_at",
       "severity": "warning",
       "measures": {
-        "value": 0.6,
-        "line": 0.61,
+        "coverage": 0.6,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom limit fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1579,10 +1579,10 @@
       "run": "default",
       "language": "csharp",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c10_over",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c10_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default limit fires when < 0.6, and 0.6111 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -1590,10 +1590,10 @@
       "run": "custom",
       "language": "csharp",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c10_over",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c10_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom limit fires when < 0.61, and 0.6111 < 0.61 is false",
       "known_defect": null
     },
     {
@@ -1601,13 +1601,13 @@
       "run": "default",
       "language": "csharp",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c11_under",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c11_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.6
+        "coverage": 0.5882,
+        "limit": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default line fires when < 0.6, and 0.5882 < 0.6 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the default limit fires when < 0.6, and 0.5882 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -1615,14 +1615,14 @@
       "run": "custom",
       "language": "csharp",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c11_under",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c11_under",
       "severity": "warning",
       "measures": {
-        "value": 0.5882,
-        "line": 0.61,
+        "coverage": 0.5882,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom line fires when < 0.61, and 0.5882 < 0.61 is true",
+      "derivation": "10 of the first 17 lines hit, 10/17 rounded to four places; the custom limit fires when < 0.61, and 0.5882 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1630,10 +1630,10 @@
       "run": "default",
       "language": "csharp",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c11_at",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c11_at",
       "severity": null,
       "measures": {},
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default line fires when < 0.6, and 0.6 < 0.6 is false",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the default limit fires when < 0.6, and 0.6 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -1641,14 +1641,14 @@
       "run": "custom",
       "language": "csharp",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c11_at",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c11_at",
       "severity": "warning",
       "measures": {
-        "value": 0.6,
-        "line": 0.61,
+        "coverage": 0.6,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom line fires when < 0.61, and 0.6 < 0.61 is true",
+      "derivation": "3 of the first 5 lines hit, 3/5 rounded to four places; the custom limit fires when < 0.61, and 0.6 < 0.61 is true",
       "known_defect": null
     },
     {
@@ -1656,10 +1656,10 @@
       "run": "default",
       "language": "csharp",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c11_over",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c11_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default line fires when < 0.6, and 0.6111 < 0.6 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the default limit fires when < 0.6, and 0.6111 < 0.6 is false",
       "known_defect": null
     },
     {
@@ -1667,10 +1667,10 @@
       "run": "custom",
       "language": "csharp",
       "expect": "no-finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.c11_over",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.c11_over",
       "severity": null,
       "measures": {},
-      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom line fires when < 0.61, and 0.6111 < 0.61 is false",
+      "derivation": "11 of the first 18 lines hit, 11/18 rounded to four places; the custom limit fires when < 0.61, and 0.6111 < 0.61 is false",
       "known_defect": null
     },
     {
@@ -1678,13 +1678,13 @@
       "run": "default",
       "language": "csharp",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.far",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.far",
       "severity": "warning",
       "measures": {
-        "value": 0.1,
-        "line": 0.6
+        "coverage": 0.1,
+        "limit": 0.6
       },
-      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the default line fires when < 0.6, and 0.1 < 0.6 is true",
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the default limit fires when < 0.6, and 0.1 < 0.6 is true",
       "known_defect": null
     },
     {
@@ -1692,41 +1692,15 @@
       "run": "custom",
       "language": "csharp",
       "expect": "finding",
-      "finding_id": "thresholds:coverage:csharp/Limits.cs::Limits.far",
+      "finding_id": "coverage:csharp/Limits.cs::Limits.far",
       "severity": "warning",
       "measures": {
-        "value": 0.1,
-        "line": 0.61,
+        "coverage": 0.1,
+        "limit": 0.61,
         "published": 0.6
       },
-      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom line fires when < 0.61, and 0.1 < 0.61 is true",
+      "derivation": "1 of the first 10 lines hit, 1/10 rounded to four places; the custom limit fires when < 0.61, and 0.1 < 0.61 is true",
       "known_defect": null
     }
-  ],
-  "mixed": {
-    "overlay": "overlays/mixed.json",
-    "findings": [
-      {
-        "finding_id": "thresholds:coverage:python/limits.py::c10_under",
-        "measures": {
-          "value": 0.5,
-          "line": 0.6
-        },
-        "derivation": "value 0.5 < 0.6"
-      }
-    ],
-    "absent": [
-      "thresholds:coverage:python/limits.py::c10_over"
-    ],
-    "unresolved": {
-      "coverage": 1
-    },
-    "derivation": "c10_under (0.5) resolves to the scanned module python/limits.py and crosses the default coverage line; c10_over (0.9) resolves and stays above it; nowhere/ghost.py::h (coverage) matches no scanned module, so 1 id is skipped and counted; the overlay's complexity values are never judged by thresholds"
-  },
-  "stale": {
-    "overlay": "overlays/stale.json",
-    "findings": [],
-    "derivation": "the overlay's commit is not the repository's HEAD, so it is skipped whole although c10_under (0.5) would cross the coverage line",
-    "skipped_commit": "0000000000000000000000000000000000000000"
-  }
+  ]
 }

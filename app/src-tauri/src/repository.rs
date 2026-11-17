@@ -1114,8 +1114,8 @@ mod tests {
     fn a_settings_title_and_a_cell_round_trip_and_labelled_settings_pass_through_unchanged() {
         let settings = serde_json::json!([{"key":"<metric>.above","type":"number","description":"d","example":"e","defaults":{"complexity":10},"labels":{"complexity":"Complexity above"},"units":{"complexity":"x"},"order":1,"limit":{"metric":"<metric>","direction":"above","severity":"<metric>.severity"}}]);
         let list = serde_json::json!([{
-            "name": "thresholds",
-            "display": "Thresholds",
+            "name": "quiet",
+            "display": "Quiet",
             "description": "d",
             "settings_title": "Complexity and coverage",
             "runs_tests": false,
@@ -1157,7 +1157,7 @@ mod tests {
 
     #[test]
     fn the_shipped_list_keeps_display_runs_tests_and_listed() {
-        let list = r#"[{"name":"crap","display":"C.R.A.P.","description":"d","runs_tests":true,"listed":true,"metrics":[{"name":"crap","label":"CRAP","title":"C.R.A.P.","help":"h","type":"number","granularity":"member","bad":"high","published":{"value":30.0,"source":"s"}}]},{"name":"thresholds","display":"T","description":"d","runs_tests":false,"listed":false,"metrics":[]}]"#;
+        let list = r#"[{"name":"crap","display":"C.R.A.P.","description":"d","runs_tests":true,"listed":true,"metrics":[{"name":"crap","label":"CRAP","title":"C.R.A.P.","help":"h","type":"number","granularity":"member","bad":"high","published":{"value":30.0,"source":"s"}}]},{"name":"quiet","display":"Q","description":"d","runs_tests":false,"listed":false,"metrics":[]}]"#;
 
         match shipped_sensors_for(Some(0), list, "") {
             ShippedSensors::Ok { sensors } => {

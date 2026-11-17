@@ -49,7 +49,7 @@ const names = (documents: FindingsDocument[], catalog = CATALOG) =>
 describe("groupsOf", () => {
   it("returns the fixed order and omits empty groups", () => {
     const all = [
-      record("th", "thresholds.churn"),
+      record("lc", "coverage"),
       record("mu", "mutation"),
       record("cr", "crap"),
       record("du", "duplication"),
@@ -66,8 +66,8 @@ describe("groupsOf", () => {
       "Unused exports",
       "Duplicated code",
       "C.R.A.P.",
+      "Low coverage",
       "Mutations",
-      "Over a limit",
     ]);
     expect(names([document("structure", [record("or", "orphan")])])).toEqual([
       "Orphan",
@@ -184,27 +184,24 @@ describe("groupsOf", () => {
     ).toEqual(["Import cycle", "review", "Alpha", "Zebra"]);
   });
 
-  it("groups thresholds of every metric together", () => {
+  it("groups coverage records of every metric together", () => {
     const groups = groupsOf(
       findingRows([
-        document("t", [
-          record("a", "thresholds.churn"),
-          record("b", "thresholds.complexity"),
-        ]),
+        document("t", [record("a", "coverage"), record("b", "coverage")]),
       ]),
       CATALOG,
     );
 
     expect(groups).toHaveLength(1);
-    expect(groups[0]?.key).toBe("kind:thresholds");
+    expect(groups[0]?.key).toBe("kind:coverage");
     expect(groups[0]?.rows).toHaveLength(2);
   });
 
-  it("gives the three shipped sensors' keys in the order crap, mutation, thresholds after the structure groups", () => {
+  it("gives the three shipped sensors' keys in the order crap, coverage, mutation after the structure groups", () => {
     const groups = groupsOf(
       findingRows([
         document("t", [
-          record("th", "thresholds.complexity"),
+          record("lc", "coverage"),
           record("mu", "mutation"),
           record("cr", "crap"),
           record("or", "orphan"),
@@ -216,8 +213,8 @@ describe("groupsOf", () => {
     expect(groups.map((group) => group.key)).toEqual([
       "kind:orphan",
       "kind:crap",
+      "kind:coverage",
       "kind:mutation",
-      "kind:thresholds",
     ]);
   });
 
@@ -232,22 +229,22 @@ describe("groupsOf", () => {
     expect(groups[0]?.help).toBeNull();
   });
 
-  it("gives the generic group to crap, mutation and thresholds rows when the catalog is empty", () => {
+  it("gives the generic group to crap, mutation and coverage rows when the catalog is empty", () => {
     const groups = groupsOf(
       findingRows([
         document("t", [
           record("cr", "crap"),
           record("mu", "mutation"),
-          record("th", "thresholds.churn"),
+          record("lc", "coverage"),
         ]),
       ]),
       EMPTY_CATALOG,
     );
 
     expect(groups.map((group) => [group.key, group.name, group.help])).toEqual([
+      ["kind:coverage", "Coverage", null],
       ["kind:crap", "Crap", null],
       ["kind:mutation", "Mutation", null],
-      ["kind:thresholds.churn", "Thresholds.churn", null],
     ]);
   });
 
@@ -311,6 +308,7 @@ describe("withEmptyGroups", () => {
       ["kind:orphan", 1],
       ["kind:duplication", 1],
       ["kind:crap", 0],
+      ["kind:coverage", 0],
       ["kind:mutation", 0],
     ]);
   });
@@ -324,8 +322,8 @@ describe("withEmptyGroups", () => {
       "kind:orphan",
       "kind:duplication",
       "kind:crap",
+      "kind:coverage",
       "kind:mutation",
-      "kind:thresholds",
     ]);
     expect(withEmptyGroups(groups, () => false, CATALOG)).toEqual(groups);
   });

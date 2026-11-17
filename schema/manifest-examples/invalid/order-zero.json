@@ -1,7 +1,7 @@
 {
   "kind": "sensor",
-  "name": "thresholds",
-  "display": "Thresholds",
+  "name": "crap",
+  "display": "C.R.A.P.",
   "description": "Turns any overlay metric over a configured line into a finding, with complexity and coverage lines built in.",
   "version": "0.1.0",
   "protocol": 1,
@@ -17,7 +17,7 @@
       "key": "<metric>",
       "type": "enum",
       "description": "turns the default threshold of a metric off",
-      "example": "sensors.thresholds.complexity off",
+      "example": "sensors.crap.complexity off",
       "values": [
         "off"
       ]
@@ -26,7 +26,7 @@
       "key": "<metric>.above",
       "type": "number",
       "description": "a finding when the metric is above this value; a metric takes above or below, not both",
-      "example": "sensors.thresholds.complexity.above 12",
+      "example": "sensors.crap.complexity.above 12",
       "defaults": {
         "complexity": 10
       },
@@ -44,7 +44,7 @@
       "key": "<metric>.below",
       "type": "number",
       "description": "a finding when the metric is below this value; a metric takes above or below, not both",
-      "example": "sensors.thresholds.coverage.below 0.7",
+      "example": "sensors.crap.coverage.below 0.7",
       "defaults": {
         "coverage": 0.6
       },
@@ -65,7 +65,7 @@
       "key": "<metric>.severity",
       "type": "enum",
       "description": "how a finding of the metric is reported; default warning",
-      "example": "sensors.thresholds.complexity.severity violation",
+      "example": "sensors.crap.complexity.severity violation",
       "values": [
         "warning",
         "violation"
@@ -80,7 +80,7 @@
   "metrics": [],
   "findings": [
     {
-      "kind": "thresholds.<metric>",
+      "kind": "crap.<metric>",
       "group": {
         "name": "Over a limit",
         "means": "A measure passed a limit set in your config, such as module size.",

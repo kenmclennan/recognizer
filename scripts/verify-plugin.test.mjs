@@ -34,7 +34,6 @@ describe("verifyPlugins", () => {
     expect(pluginCommands(sensors)).toEqual([
       "recognizer-sense-crap",
       "recognizer-sense-mutation",
-      "recognizer-sense-thresholds",
     ]);
     expect(pluginCommands(findUnit(UNITS, "scan-rust"))).toEqual([
       "recognizer-scan-rust",
@@ -50,13 +49,10 @@ describe("verifyPlugins", () => {
       verifyPlugins(
         "/x",
         sensors,
-        fakeRecognizer([
-          "recognizer-sense-thresholds",
-          "recognizer-sense-crap",
-        ]),
+        fakeRecognizer(["recognizer-sense-mutation", "recognizer-sense-crap"]),
       ),
     ).toThrow(
-      "plugin check failed for: recognizer-sense-crap, recognizer-sense-thresholds",
+      "plugin check failed for: recognizer-sense-crap, recognizer-sense-mutation",
     );
   });
 
@@ -80,7 +76,7 @@ describe("verifyBin", () => {
     chmodSync(join(dir, "bin/recognizer-sense-crap"), 0o755);
 
     expect(() => verifyBin(dir, sensors)).toThrow(
-      /recognizer-sense-mutation is missing or not executable, recognizer-sense-thresholds is missing or not executable/,
+      /recognizer-sense-mutation is missing or not executable/,
     );
   });
 });

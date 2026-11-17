@@ -56,11 +56,7 @@ describe("archiveEntries", () => {
       "scan-kotlin": ["bin/recognizer-scan-kotlin"],
       "scan-csharp": ["bin/recognizer-scan-csharp"],
       "scan-rust": ["bin/recognizer-scan-rust"],
-      sensors: [
-        "bin/recognizer-sense-crap",
-        "bin/recognizer-sense-mutation",
-        "bin/recognizer-sense-thresholds",
-      ],
+      sensors: ["bin/recognizer-sense-crap", "bin/recognizer-sense-mutation"],
       "describe-claude": ["bin/recognizer-describe-claude"],
     });
 
@@ -78,7 +74,6 @@ describe("archiveEntries", () => {
       "python/recognizer_sensors-1.2.3.dist-info/METADATA",
       "bin/recognizer-sense-crap",
       "bin/recognizer-sense-mutation",
-      "bin/recognizer-sense-thresholds",
       "THIRD-PARTY-NOTICES.md",
       "LICENSE",
     ]);
@@ -99,7 +94,7 @@ describe("the wrapper table", () => {
       { command: "recognizer-scan-kotlin", module: "recognizer_scan_kotlin" },
     ]);
     expect(wrapperEntries(unit("sensors"))).toEqual(
-      ["crap", "mutation", "thresholds"].map((name) => ({
+      ["crap", "mutation"].map((name) => ({
         command: `recognizer-sense-${name}`,
         module: "recognizer_sensors",
         entry: `recognizer_sensors.entry:${name}`,

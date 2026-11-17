@@ -143,8 +143,8 @@ describe("docs/design.md Principles table", () => {
     "`duplication`",
     "`crap`",
     "`mutation`",
-    "`thresholds.complexity`",
-    "`thresholds.coverage`",
+    "`complexity`",
+    "`coverage`",
   ])("has a row for %s", (kind) => {
     const rows = table
       .split("\n")

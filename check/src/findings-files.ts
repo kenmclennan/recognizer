@@ -97,17 +97,7 @@ export function readFindingsFiles(
 
       const reported = outside ? { reported: true as const } : {};
       const freshness = freshnessOf(document);
-      const { current, hidden } = splitFindings(
-        name === "thresholds"
-          ? {
-              ...document,
-              findings: document.findings.filter(
-                (finding) => finding.kind !== "thresholds.complexity",
-              ),
-            }
-          : document,
-        freshness,
-      );
+      const { current, hidden } = splitFindings(document, freshness);
 
       return {
         name,

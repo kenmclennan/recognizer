@@ -27,7 +27,3 @@ def crap(argv: list[str] | None = None) -> int:
 
 def mutation(argv: list[str] | None = None) -> int:
     return run("mutation", argv)
-
-
-def thresholds(argv: list[str] | None = None) -> int:
-    return run("thresholds", argv)

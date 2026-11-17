@@ -61,6 +61,7 @@
           "exclusiveMinimum": { "type": "number" },
           "maximum": { "type": "number" },
           "exclusiveMaximum": { "type": "number" },
+          "off": { "type": "boolean" },
           "description": { "type": "string", "minLength": 1 },
           "example": { "type": "string", "minLength": 1 }
         },

@@ -26,7 +26,6 @@ const FILES = [
   "crap",
   "duplication",
   "mutation",
-  "thresholds",
   "registered-sensor",
   "report",
 ];
@@ -37,10 +36,9 @@ const PINNED = [
   "audit.py is imported by nothing and is not an entry point; a library can list its public API in warnings.orphan.entry_points.",
   "fake_clock.py is imported only by 2 test files and is not an entry point; if it only supports tests, move it next to them; a library can list its public API in warnings.orphan.entry_points.",
   "classify in risk.py has complexity 8 and 18% coverage, C.R.A.P. 43.",
+  "classify in risk.py has coverage 0.18, under the limit of 0.6.",
   "sumWithLevy in pricing.ts repeats the structure of totalWithTax in pricing.ts (10 lines).",
   "grade in rules.py has 2 surviving mutations.",
-  "billing.py has churn 25, over the limit of 20.",
-  "price in billing.py has complexity 14, over the limit of 10.",
   "helper is exported and never imported",
   "The order total is stored without checking it against its lines.",
 ];
@@ -259,14 +257,12 @@ describe("sentenceOf", () => {
   });
 
   it("reads a threshold at, over and under its limit", () => {
-    const at = (value: number, line: number) =>
+    const at = (coverage: number, limit: number) =>
       sentence({
-        kind: "thresholds.coverage",
-        evidence: { modules: ["x/a.py"], measures: { value, line } },
+        kind: "coverage",
+        evidence: { modules: ["x/a.py"], measures: { coverage, limit } },
       });
 
-    expect(at(10, 10)).toBe("a.py has coverage 10, at the limit of 10.");
-    expect(at(12, 10)).toBe("a.py has coverage 12, over the limit of 10.");
     expect(at(0.5, 0.6)).toBe("a.py has coverage 0.5, under the limit of 0.6.");
   });
 
@@ -600,15 +596,12 @@ describe("the tuned crap and threshold sentences", () => {
         evidence: { modules: ["x/a.py"], measures },
       });
 
-    expect(at("thresholds.complexity", { value: 14, line: 12 })).toBe(
-      "a.py has complexity 14, over the limit of 12.",
+    expect(at("coverage", { coverage: 0.5, limit: 0.7 })).toBe(
+      "a.py has coverage 0.5, under the limit of 0.7.",
     );
-    expect(
-      at("thresholds.complexity", { value: 14, line: 12, published: 10 }),
-    ).toBe("a.py has complexity 14, over the limit of 12.");
-    expect(
-      at("thresholds.coverage", { value: 0.5, line: 0.7, published: 0.6 }),
-    ).toBe("a.py has coverage 0.5, under the limit of 0.7.");
+    expect(at("coverage", { coverage: 0.5, limit: 0.7, published: 0.6 })).toBe(
+      "a.py has coverage 0.5, under the limit of 0.7.",
+    );
   });
 });
 

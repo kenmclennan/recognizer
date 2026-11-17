@@ -112,7 +112,11 @@ function cellLimit(
       const fallback = defaultOf(setting, metric);
       const value = isNumber(configured) ? configured : fallback;
 
-      if (isOff(sensor, settings, path, metric) || !isNumber(value)) {
+      if (
+        configured === false ||
+        isOff(sensor, settings, path, metric) ||
+        !isNumber(value)
+      ) {
         return { metric, label, limit: null };
       }
 

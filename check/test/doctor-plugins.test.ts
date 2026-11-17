@@ -560,13 +560,23 @@ describe("doctor: registered plugins", () => {
 
   it("accepts settings that match a manifest entry with a placeholder segment", async () => {
     const fixture = setup(
-      "sensors:\n  thresholds:\n    complexity:\n      above: 12\n",
+      "sensors:\n  mine:\n    size:\n      above: 12\n    command: [mine]\n",
     );
 
     writeShim(
       fixture.bin,
-      "recognizer-sense-thresholds",
-      manifestFor("sensor", "thresholds", { check: false }),
+      "recognizer-sense-mine",
+      manifestFor("sensor", "mine", {
+        check: false,
+        settings: [
+          {
+            key: "<metric>.above",
+            type: "number",
+            description: "a finding above this value",
+            example: "sensors.mine.size.above 3",
+          },
+        ],
+      }),
     );
 
     expect(problemsOf((await doctor(fixture)).report, "sensors")).toEqual([]);

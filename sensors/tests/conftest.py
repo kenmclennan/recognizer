@@ -8,7 +8,11 @@ from pathlib import Path
 
 import pytest
 
+from recognizer_sensors import events
 from recognizer_sensors.cli import main
+from recognizer_sensors.outcome import Outcome
+from recognizer_sensors.registry import SHIPPED as REGISTRY
+from recognizer_sensors.registry import Sensor
 
 REPOSITORY = Path(__file__).parents[2]
 FIXTURE = REPOSITORY / "fixtures" / "duplication" / "sample"
@@ -98,10 +102,19 @@ def sample(tmp_path) -> Path:
     return root
 
 
-def run_cli(root: Path, output: Path, *extra: str) -> int:
+COVERAGE_SUITE = {
+    "name": "unit",
+    "language": "python",
+    "directory": ".",
+    "command": "true",
+    "coverage": {"path": "out/lcov.info", "format": "lcov"},
+}
+
+
+def run_cli(root: Path, output: Path, *extra: str, settings: dict | None = None) -> int:
     return main(
         [
-            "thresholds",
+            "crap",
             "run",
             "--repository",
             str(root),
@@ -109,6 +122,8 @@ def run_cli(root: Path, output: Path, *extra: str) -> int:
             "c1",
             "--output",
             str(output),
+            "--settings",
+            json.dumps({"tests": [COVERAGE_SUITE], **(settings or {})}),
             *extra,
         ]
     )
@@ -229,3 +244,19 @@ def wait_for_pid(pid_file, deadline):
             time.sleep(0.05)
 
     return int(pid_file.read_text())
+
+
+def run_plain(repository, scans, settings):
+    total = sum(len(scan.modules) for scan in scans)
+
+    events.start(total, "modules")
+    events.progress(total, total, "modules")
+
+    return Outcome([])
+
+
+@pytest.fixture
+def plain_sensor(monkeypatch):
+    monkeypatch.setitem(REGISTRY, "plain", Sensor(lambda raw: raw, run_plain))
+
+    return "plain"

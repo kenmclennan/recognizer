@@ -110,7 +110,11 @@ def crap_runs(work):
                 for language in languages
             ]
             findings = run_sensor(
-                "crap", root, work / f"crap-{run}.json", {"tests": tests}, commit="c1"
+                "crap",
+                root,
+                work / f"crap-{run}.json",
+                {"tests": tests, "coverage_limit": False},
+                commit="c1",
             )
             runs[run] = (findings, read_overlay(root, "crap"))
 
@@ -170,10 +174,9 @@ def test_crap_measures_match_the_hand_derivation(crap_runs, case):
 
 
 @pytest.fixture(scope="module")
-def thresholds_repository(work):
-    root = copy_corpus("thresholds", work / "thresholds", "overlays")
+def coverage_runs(work):
+    root = copy_corpus("coverage", work / "coverage")
     write_scans(root)
-    commit = git_commit(root)
     scanned = sorted(p.name.split(".")[1] for p in (root / OVERLAYS.parent).glob("scan.*.json"))
     tests = [
         {
@@ -186,57 +189,50 @@ def thresholds_repository(work):
         }
         for language in scanned
     ]
+    runs = {}
 
     with pytest.MonkeyPatch.context() as patch:
         patch.setenv("SHELL", "/bin/sh")
-        run_sensor(
-            "crap",
-            root,
-            work / "thresholds-crap.json",
-            {"tests": tests, "threshold": 1000000},
-        )
 
-    return root, commit
+        for run, extra in (("default", {}), ("custom", {"coverage_limit": 0.61})):
+            runs[run] = run_sensor(
+                "crap",
+                root,
+                work / f"coverage-{run}.json",
+                {"tests": tests, "threshold": 1000000, **extra},
+                commit="c1",
+            )
 
-
-@pytest.fixture(scope="module")
-def thresholds_runs(thresholds_repository, work):
-    root, _ = thresholds_repository
-    custom = {"coverage": {"below": 0.61}}
-
-    return {
-        "default": run_sensor("thresholds", root, work / "thresholds-default.json", {}),
-        "custom": run_sensor("thresholds", root, work / "thresholds-custom.json", custom),
-    }
+    return runs
 
 
-def test_the_thresholds_corpus_plants_50_functions_10_in_each_language():
-    planted = load("thresholds")["planted"]
+def test_the_coverage_corpus_plants_50_functions_10_in_each_language():
+    planted = load("coverage")["planted"]
 
     assert len(planted) == 50
     assert [
         sum(1 for p in planted if p["language"] == lang) for lang in ("python", "kotlin", "csharp")
     ] == [10, 10, 10]
-    assert len(load("thresholds")["cases"]) == 100
+    assert len(load("coverage")["cases"]) == 100
 
 
 @pytest.mark.parametrize("run", ["default", "custom"])
-def test_the_thresholds_findings_are_exactly_the_labelled_ones(thresholds_runs, run):
+def test_the_coverage_findings_are_exactly_the_labelled_ones(coverage_runs, run):
     wanted = {
         c["finding_id"]
-        for c in load("thresholds")["cases"]
+        for c in load("coverage")["cases"]
         if c["run"] == run and c["expect"] == "finding" and c["known_defect"] is None
     }
 
-    assert exactly(wanted, {f["id"] for f in thresholds_runs[run]}) == {
+    assert exactly(wanted, {f["id"] for f in coverage_runs[run]}) == {
         "missing": [],
         "extra": [],
     }
 
 
-@pytest.mark.parametrize("case", cases_of("thresholds"))
-def test_thresholds_follow_the_line_at_each_planted_value(thresholds_runs, case):
-    finding = finding_named(thresholds_runs[case["run"]], case["finding_id"])
+@pytest.mark.parametrize("case", cases_of("coverage"))
+def test_coverage_follows_the_line_at_each_planted_value(coverage_runs, case):
+    finding = finding_named(coverage_runs[case["run"]], case["finding_id"])
 
     if case["expect"] == "no-finding":
         assert finding is None
@@ -246,52 +242,6 @@ def test_thresholds_follow_the_line_at_each_planted_value(thresholds_runs, case)
     assert finding is not None
     assert finding["severity"] == case["severity"]
     assert finding["evidence"]["measures"] == case["measures"]
-
-
-def prepare_overlay(root: Path, commit: str, name: str, file: str) -> Path:
-    folder = root / OVERLAYS
-    shutil.rmtree(folder, ignore_errors=True)
-    folder.mkdir(parents=True)
-    text = (FIXTURES / "thresholds" / "corpus" / "overlays" / file).read_text()
-    (folder / file).write_text(text.replace("COMMIT", commit))
-
-    return folder
-
-
-def test_a_mixed_overlay_resolves_what_it_can_and_counts_the_rest(
-    thresholds_repository, work, capsys
-):
-    root, commit = thresholds_repository
-    expected = load("thresholds")["mixed"]
-    prepare_overlay(root, commit, "mixed", "mixed.json")
-    findings = run_sensor("thresholds", root, work / "mixed.json", {})
-    captured = capsys.readouterr().err
-    ids = {f["id"]: f for f in findings}
-
-    assert sorted(ids) == sorted(f["finding_id"] for f in expected["findings"])
-
-    for wanted in expected["findings"]:
-        assert ids[wanted["finding_id"]]["evidence"]["measures"] == wanted["measures"]
-
-    for absent in expected["absent"]:
-        assert absent not in ids
-
-    for metric, count in expected["unresolved"].items():
-        assert f"{count} ids of {metric} in mixed.json match no scanned module; skipped" in captured
-
-
-def test_an_overlay_from_another_commit_produces_nothing(thresholds_repository, work, capsys):
-    root, commit = thresholds_repository
-    expected = load("thresholds")["stale"]
-    prepare_overlay(root, commit, "stale", "stale.json")
-    findings = run_sensor("thresholds", root, work / "stale.json", {})
-    captured = capsys.readouterr().err
-
-    assert findings == expected["findings"]
-    assert (
-        f"overlay stale.json is from commit {expected['skipped_commit']}, not {commit}; skipped"
-        in captured
-    )
 
 
 def node_strips_types() -> bool:

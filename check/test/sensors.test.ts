@@ -740,15 +740,15 @@ describe("check judging a registered sensor's findings per module", () => {
 });
 
 describe("check ratcheting a thresholds violation", () => {
-  const THRESHOLDS = `${ROOT}/.recognizer/cache/findings/thresholds.json`;
+  const THRESHOLDS = `${ROOT}/.recognizer/cache/findings/quality.json`;
   const ID = "thresholds:churn:app/billing.py";
   const YAML =
-    'sensors:\n  thresholds:\n    command: [thresholds, "{commit}", "{output}"]\n';
+    'sensors:\n  quality:\n    command: [quality, "{commit}", "{output}"]\n';
 
   function thresholdsDocument() {
     return JSON.stringify({
       findings_version: 1,
-      sensor: { name: "thresholds", version: "1" },
+      sensor: { name: "quality", version: "1" },
       commit: COMMIT,
       modified: false,
       settings: {},
@@ -767,15 +767,6 @@ describe("check ratcheting a thresholds violation", () => {
             producer: "quality-tool",
           },
         },
-        {
-          id: "thresholds:complexity:app/billing.py::price",
-          kind: "thresholds.complexity",
-          severity: "warning",
-          principle: "cyclomatic-complexity-limit",
-          metric: "complexity",
-          summary: "app/billing.py::price: complexity 14 is above 10",
-          evidence: { modules: ["shop/main.py"] },
-        },
       ],
     });
   }
@@ -788,9 +779,6 @@ describe("check ratcheting a thresholds violation", () => {
     const first = JSON.parse((await check(fake, "--json")).out);
 
     expect(findingIds(first.new)).toContain(ID);
-    expect(findingIds(first.new)).not.toContain(
-      "thresholds:complexity:app/billing.py::price",
-    );
 
     fake.files.delete(BASELINE);
     await check(fake, "--init-baseline");

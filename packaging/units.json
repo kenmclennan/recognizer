@@ -80,11 +80,6 @@
           "formula": "recognizer-sense-mutation",
           "command": "recognizer-sense-mutation",
           "desc": "Recognizer mutation testing sensor"
-        },
-        {
-          "formula": "recognizer-sense-thresholds",
-          "command": "recognizer-sense-thresholds",
-          "desc": "Recognizer metric thresholds sensor"
         }
       ]
     },

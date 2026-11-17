@@ -92,7 +92,7 @@ describe("the count against the C.R.A.P. corpus", () => {
 
 describe("the findings against the thresholds corpus", () => {
   it("reports exactly the 20 planted functions above 10, one each", () => {
-    const base = join(REPO, "fixtures/thresholds/corpus");
+    const base = join(REPO, "fixtures/coverage/corpus");
     const texts = sourcesUnder(base);
     const planted = readJson<{ planted: Planted[] }>(
       join(base, "expected.json"),

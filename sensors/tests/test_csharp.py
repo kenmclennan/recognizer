@@ -382,11 +382,6 @@ def test_crap_and_thresholds_run_on_the_fixture_with_a_coverlet_shaped_report(
     assert status == 0
     valid(output)
 
-    status, output = run_sensor("thresholds", root, tmp_path, {}, "c1")
-
-    assert status == 0
-    valid(output)
-
 
 def test_mutation_runs_on_the_fixture_with_a_runner_script(tmp_path, monkeypatch):
     monkeypatch.setenv("SHELL", "/bin/sh")

@@ -14,10 +14,7 @@ const CATALOG = buildCatalog({ status: "ok", sensors: shippedSensors() });
 const KINDS = [
   { sensor: "crap", match: (kind: string) => kind === "crap" },
   { sensor: "mutation", match: (kind: string) => kind === "mutation" },
-  {
-    sensor: "thresholds",
-    match: (kind: string) => kind.startsWith("thresholds."),
-  },
+  { sensor: "coverage", match: (kind: string) => kind === "coverage" },
 ];
 
 const OLD_EXAMPLE_SENTENCES: Record<string, string> = {
@@ -41,10 +38,8 @@ const OLD_EXAMPLE_SENTENCES: Record<string, string> = {
     "grade in rules.py has 2 surviving mutations.",
   "suites.json|crap|crap:app/risk.py::classify":
     "classify in risk.py has complexity 8 and 18% coverage, C.R.A.P. 43.",
-  "thresholds.json|thresholds.churn|thresholds:churn:app/billing.py":
-    "billing.py has churn 25, over the limit of 20.",
-  "thresholds.json|thresholds.complexity|thresholds:complexity:app/billing.py::price":
-    "price in billing.py has complexity 14, over the limit of 10.",
+  "crap.json|coverage|coverage:app/risk.py::classify":
+    "classify in risk.py has coverage 0.18, under the limit of 0.6.",
   "unowned.json|mutation|mutation:app/rules.py::grade":
     "grade in rules.py has 2 surviving mutations.",
   "work-and-ran.json|mutation|mutation:app/rules.py::grade":
@@ -64,12 +59,9 @@ const OLD_HAND_SENTENCES: Record<string, string[]> = {
     "f in m.py has 0 surviving mutations.",
     "the summary",
   ],
-  thresholds: [
-    "m.py has complexity 10, at the limit of 10.",
-    "m.py has complexity 4.5, under the limit of 10.",
-    "f in m.py has complexity 14, over the limit of 12.",
+  coverage: [
     "m.py has coverage 0.4, under the limit of 0.7.",
-    "m.py has churn 25, over the limit of 20.",
+    "f in m.py has coverage 0.4, under the limit of 0.6.",
     "the summary",
   ],
 };
@@ -135,20 +127,13 @@ const HAND_BUILT: Record<string, FindingRecord[]> = {
     record("mutation", { members: [MEMBER], measures: { survived: 0 } }),
     record("mutation", { members: [MEMBER], measures: {} }),
   ],
-  thresholds: [
-    record("thresholds.complexity", { measures: { value: 10, line: 10 } }),
-    record("thresholds.complexity", { measures: { value: 4.5, line: 10 } }),
-    record("thresholds.complexity", {
+  coverage: [
+    record("coverage", { measures: { coverage: 0.4, limit: 0.7 } }),
+    record("coverage", {
       members: [MEMBER],
-      measures: { value: 14, line: 12, published: 10 },
+      measures: { coverage: 0.4, limit: 0.6 },
     }),
-    record("thresholds.coverage", {
-      measures: { value: 0.4, line: 0.7, published: 0.6 },
-    }),
-    record("thresholds.churn", {
-      measures: { value: 25, line: 20, published: 15 },
-    }),
-    record("thresholds.churn", { measures: { value: 25 } }),
+    record("coverage", { measures: {} }),
   ],
 };
 
@@ -187,26 +172,29 @@ describe.each(KINDS)("the $sensor catalog sentence", ({ sensor, match }) => {
   );
 
   it("shows the finding's own summary when a required path is missing", () => {
-    const bare = record(sensor === "thresholds" ? "thresholds.x" : sensor, {});
+    const bare = record(sensor, {});
 
     expect(catalogSentence(bare)).toBe("the summary");
   });
 });
 
-describe("the crap and thresholds popover means", () => {
-  const meansOf = (file: string): string =>
+describe("the crap and coverage popover means", () => {
+  const meansOf = (file: string, kind: string): string =>
     JSON.parse(
       readFileSync(join(REPO, "schema/manifest-examples/valid", file), "utf8"),
-    ).findings[0].group.means;
+    ).findings.find((entry: { kind: string }) => entry.kind === kind).group
+      .means;
 
   const count = (text: string, part: string) => text.split(part).length - 1;
 
   it("names the crap source once", () => {
-    expect(count(meansOf("sensor-crap.json"), "Savoia and Evans")).toBe(1);
+    expect(count(meansOf("sensor-crap.json", "crap"), "Savoia and Evans")).toBe(
+      1,
+    );
   });
 
-  it("names each thresholds source once", () => {
-    const means = meansOf("sensor-thresholds.json");
+  it("names each coverage source once", () => {
+    const means = meansOf("sensor-crap.json", "coverage");
 
     expect(count(means, "McCabe")).toBe(0);
     expect(count(means, "Google")).toBe(1);

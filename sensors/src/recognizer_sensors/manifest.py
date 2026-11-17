@@ -1,7 +1,7 @@
 import json
 from importlib.metadata import version
 
-from recognizer_sensors.config_schema import CRAP_KEYS, MUTATION_KEYS, THRESHOLDS_KEYS
+from recognizer_sensors.config_schema import CRAP_KEYS, MUTATION_KEYS
 
 PROTOCOL = 1
 
@@ -43,10 +43,6 @@ DESCRIPTIONS = {
     "mutation": (
         "Mutates covered functions, reruns the tests, and warns where a mutated "
         "copy still passes, naming each surviving mutation."
-    ),
-    "thresholds": (
-        "Turns any overlay metric over a configured line into a finding, "
-        "with a coverage line built in."
     ),
 }
 
@@ -113,6 +109,11 @@ SETTING_DISPLAY = {
             "unit": "score",
             "limit": {"metric": "crap", "direction": "above"},
         },
+        "coverage_limit": {
+            "label": "Report coverage below",
+            "unit": "0 to 1",
+            "limit": {"metric": "coverage", "direction": "below"},
+        },
     },
     "mutation": {
         "incremental": {"label": "Only what changed", "order": 1},
@@ -124,29 +125,7 @@ SETTING_DISPLAY = {
         "max_minutes": {"label": "Stop a run after", "unit": "minutes", "order": 3},
         "max_workers": {"label": "Workers", "order": 4},
     },
-    "thresholds": {
-        "<metric>.above": {
-            "order": 1,
-            "limit": {
-                "metric": "<metric>",
-                "direction": "above",
-                "severity": "<metric>.severity",
-            },
-        },
-        "<metric>.below": {
-            "labels": {"coverage": "Coverage below"},
-            "units": {"coverage": "0 to 1"},
-            "order": 2,
-            "limit": {
-                "metric": "<metric>",
-                "direction": "below",
-                "severity": "<metric>.severity",
-            },
-        },
-    },
 }
-
-SETTINGS_TITLES = {"thresholds": "Coverage"}
 
 CELLS = {"complexity": 1, "crap": 2, "coverage": 3}
 
@@ -167,13 +146,13 @@ GROUPS = {
         ),
         "todo": "Add a test that fails when this function's behaviour changes.",
     },
-    "thresholds": {
-        "name": "Over a limit",
+    "coverage": {
+        "name": "Low coverage",
         "means": (
-            "A measure passed a limit set in your config, such as module size. "
+            "A function the tests cover less than the limit. "
             "The published line is coverage below 60% (Google's guidelines)."
         ),
-        "todo": "Bring it back under the limit, or raise the limit if it is wrong.",
+        "todo": "Add tests that run it, or raise the limit if it is wrong.",
     },
 }
 
@@ -252,9 +231,9 @@ def mutation_sentence() -> dict:
     }
 
 
-def thresholds_sentence() -> dict:
-    value = f"{MEASURES}.value"
-    line = f"{MEASURES}.line"
+def coverage_sentence() -> dict:
+    value = f"{MEASURES}.coverage"
+    line = f"{MEASURES}.limit"
 
     return {
         "requires": [value, line, "evidence.modules.0"],
@@ -263,18 +242,8 @@ def thresholds_sentence() -> dict:
                 variant(f"{{{MEMBER}.name}} in {{{MEMBER}.module|short}}", has(f"{MEMBER}.name")),
                 variant("{evidence.modules.0|short}"),
             ],
-            [variant(f" has {{metric}} {{{value}|num}}, ")],
-            [
-                variant(
-                    f"over the limit of {{{line}|num}}",
-                    {"left": value, "op": "gt", "right": line},
-                ),
-                variant(
-                    f"under the limit of {{{line}|num}}",
-                    {"left": value, "op": "lt", "right": line},
-                ),
-                variant(f"at the limit of {{{line}|num}}"),
-            ],
+            [variant(f" has coverage {{{value}|num}}, ")],
+            [variant(f"under the limit of {{{line}|num}}")],
             [variant(".")],
         ],
     }
@@ -305,11 +274,9 @@ def common(name: str, display: str, check: bool, units: str, settings: list[dict
         "protocol": PROTOCOL,
         "install": install_line(name),
         "check": check,
-        "long_running": name != "thresholds",
-        **({"time_limit_seconds": 60} if name == "thresholds" else {}),
+        "long_running": True,
         "units": [units],
         "settings": displayed(name, settings),
-        **({"settings_title": SETTINGS_TITLES[name]} if name in SETTINGS_TITLES else {}),
     }
 
 
@@ -324,53 +291,37 @@ def build(name: str) -> dict:
                     "crap",
                     "One finding per function whose C.R.A.P. score is over the threshold.",
                     crap_sentence(),
-                )
+                ),
+                finding(
+                    "coverage",
+                    "coverage",
+                    "One finding per function whose line coverage is under the limit.",
+                    coverage_sentence(),
+                ),
             ],
             "runs_tests": True,
             "scoped": False,
         }
 
-    if name == "mutation":
-        return {
-            **common(
-                "mutation",
-                "Mutation",
-                True,
-                "functions",
-                strip("sensors.mutation.", MUTATION_KEYS),
-            ),
-            "metrics": [metric(n) for n in ("killed", "survived", "uncovered", "score")],
-            "findings": [
-                finding(
-                    "mutation",
-                    "mutation",
-                    "One finding per function with at least one surviving mutation.",
-                    mutation_sentence(),
-                )
-            ],
-            "runs_tests": True,
-            "scoped": True,
-        }
-
     return {
         **common(
-            "thresholds",
-            "Thresholds",
-            False,
-            "modules",
-            strip("sensors.thresholds.", THRESHOLDS_KEYS),
+            "mutation",
+            "Mutation",
+            True,
+            "functions",
+            strip("sensors.mutation.", MUTATION_KEYS),
         ),
-        "metrics": [],
+        "metrics": [metric(n) for n in ("killed", "survived", "uncovered", "score")],
         "findings": [
             finding(
-                "thresholds.<metric>",
-                "thresholds",
-                "One finding per module or function whose metric passed a configured limit.",
-                thresholds_sentence(),
+                "mutation",
+                "mutation",
+                "One finding per function with at least one surviving mutation.",
+                mutation_sentence(),
             )
         ],
-        "runs_tests": False,
-        "scoped": False,
+        "runs_tests": True,
+        "scoped": True,
     }
 
 

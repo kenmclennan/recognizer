@@ -7,7 +7,6 @@ from recognizer_sensors.mutation.estimate import planned_work
 from recognizer_sensors.outcome import Outcome
 from recognizer_sensors.testrun.guide import guide, mutation_guide
 from recognizer_sensors.testrun.readiness import check_with_notes, mutation_check
-from recognizer_sensors.thresholds import sensor as thresholds
 
 
 @dataclass(frozen=True)
@@ -38,5 +37,4 @@ SHIPPED = {
         guide=mutation_guide,
         work=planned_work,
     ),
-    "thresholds": Sensor(thresholds.parse_settings, thresholds.run, needs_commit=True),
 }

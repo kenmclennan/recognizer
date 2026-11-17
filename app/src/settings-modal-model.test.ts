@@ -94,21 +94,17 @@ describe("repositorySections", () => {
   });
 
   it("lists the three real sensors' panes in the approved order", () => {
-    expect(names(shipped("crap", "mutation", "thresholds"))).toEqual([
+    expect(names(shipped("crap", "mutation"))).toEqual([
       "Structure",
       "Duplication",
       "C.R.A.P.",
-      "Coverage",
       "Mutation",
       "Test suites",
     ]);
   });
 
-  it("builds the mutation rows in order and the thresholds rows with their units and severity keys", () => {
-    const specs = sectionSpecs(
-      shipped("crap", "mutation", "thresholds"),
-      PUBLISHED,
-    );
+  it("builds the mutation rows in order and the crap rows with their labels and keys", () => {
+    const specs = sectionSpecs(shipped("crap", "mutation"), PUBLISHED);
     const fields = (id: string) =>
       specs.find((spec) => spec.id === id)?.fields ?? [];
 
@@ -118,14 +114,9 @@ describe("repositorySections", () => {
       "Stop a run after",
       "Workers",
     ]);
-    expect(fields("thresholds")).toEqual([
-      {
-        label: "Coverage below",
-        key: "sensors.thresholds.coverage.below",
-        control: "number",
-        unit: "0 to 1",
-        severityKey: "sensors.thresholds.coverage.severity",
-      },
+    expect(fields("crap").map((field) => [field.label, field.key])).toEqual([
+      ["Report above", "sensors.crap.threshold"],
+      ["Report coverage below", "sensors.crap.coverage_limit"],
     ]);
   });
 
@@ -146,36 +137,31 @@ describe("repositorySections", () => {
   });
 
   it("titles a pane with settings_title and otherwise display", () => {
-    const [crap, thresholds] = [shipped("crap")[0], shipped("thresholds")[0]];
+    const crap = shipped("crap")[0];
+    const titled = { ...shipped("mutation")[0], settings_title: "Titled pane" };
 
     expect(crap?.settings_title).toBeUndefined();
     expect(sectionSpecs([crap as never], PUBLISHED).at(-1)?.name).toBe(
       crap?.display,
     );
-    expect(sectionSpecs([thresholds as never], PUBLISHED).at(-1)?.name).toBe(
-      thresholds?.settings_title,
+    expect(sectionSpecs([titled as never], PUBLISHED).at(-1)?.name).toBe(
+      "Titled pane",
     );
   });
 
-  it("lists the first two when the key schema publishes crap and mutation but not thresholds", () => {
+  it("lists no mutation pane when the key schema publishes crap and mutation sensors but no mutation keys", () => {
     const keys = {
       ...PUBLISHED,
       keys: PUBLISHED.keys.filter(
-        (entry) => !entry.key.startsWith("sensors.thresholds."),
+        (entry) => !entry.key.startsWith("sensors.mutation."),
       ),
     };
 
     expect(
-      repositorySections(shipped("crap", "mutation", "thresholds"), keys).map(
+      repositorySections(shipped("crap", "mutation"), keys).map(
         (section) => section.name,
       ),
-    ).toEqual([
-      "Structure",
-      "Duplication",
-      "C.R.A.P.",
-      "Mutation",
-      "Test suites",
-    ]);
+    ).toEqual(["Structure", "Duplication", "C.R.A.P.", "Test suites"]);
   });
 
   it("lists only Structure and Duplication when no sensor is shipped", () => {
@@ -186,7 +172,7 @@ describe("repositorySections", () => {
     const core = publish([CORE_KEYS], "config");
 
     expect(
-      repositorySections(shipped("crap", "mutation", "thresholds"), core).map(
+      repositorySections(shipped("crap", "mutation"), core).map(
         (section) => section.name,
       ),
     ).toEqual(["Structure", "Duplication"]);
@@ -380,10 +366,9 @@ describe("checkSetup", () => {
 
 describe("the Structure section's complexity field", () => {
   it("has the Complexity limit with its switch after Long function", () => {
-    const structure = sectionSpecs(
-      shipped("crap", "mutation", "thresholds"),
-      PUBLISHED,
-    ).find((section) => section.id === "structure");
+    const structure = sectionSpecs(shipped("crap", "mutation"), PUBLISHED).find(
+      (section) => section.id === "structure",
+    );
     const labels = structure?.fields.map((field) => field.label);
 
     expect(labels?.slice(0, 2)).toEqual(["Long function", "Complexity"]);

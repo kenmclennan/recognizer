@@ -88,7 +88,6 @@ describe("parseConfig", () => {
       (file) =>
         file !== "sensors-crap-short.yaml" &&
         file !== "sensors-mutation-short.yaml" &&
-        file !== "sensors-thresholds-short.yaml" &&
         file !== "sensors-mutation-carry.yaml",
     ),
   )("parses %s", (file) => {
@@ -155,13 +154,13 @@ describe("parseConfig", () => {
   });
 
   it("registers the short form as an ordinary sensor", () => {
-    const config = parseConfig("sensors:\n  thresholds: {}\n");
+    const config = parseConfig("sensors:\n  crap: {}\n");
 
     expect(registeredSensors(config)).toEqual([
       {
-        name: "thresholds",
+        name: "crap",
         command: [
-          "recognizer-sense-thresholds",
+          "recognizer-sense-crap",
           "run",
           "--repository",
           "{repository}",

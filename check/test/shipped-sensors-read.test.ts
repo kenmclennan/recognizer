@@ -8,12 +8,8 @@ describe("readShippedSensors", () => {
     const read = readExamples();
 
     expect(read.unreadable).toEqual([]);
-    expect(read.sensors.map((one) => one.name)).toEqual([
-      "crap",
-      "mutation",
-      "thresholds",
-    ]);
-    expect(read.sensors.map((one) => one.listed)).toEqual([true, true, false]);
+    expect(read.sensors.map((one) => one.name)).toEqual(["crap", "mutation"]);
+    expect(read.sensors.map((one) => one.listed)).toEqual([true, true]);
   });
 
   it("builds an entry from the manifest only", () => {
@@ -37,7 +33,7 @@ describe("readShippedSensors", () => {
   it("names the unreadable sensor with its reason and keeps the others", () => {
     const read = readExamples(["mutation"]);
 
-    expect(read.sensors.map((one) => one.name)).toEqual(["crap", "thresholds"]);
+    expect(read.sensors.map((one) => one.name)).toEqual(["crap"]);
     expect(read.unreadable).toEqual([
       {
         name: "mutation",
@@ -47,9 +43,9 @@ describe("readShippedSensors", () => {
   });
 
   it("reads only the names it is given", () => {
-    const read = readExamples([], ["thresholds"]);
+    const read = readExamples([], ["mutation"]);
 
-    expect(read.sensors.map((one) => one.name)).toEqual(["thresholds"]);
+    expect(read.sensors.map((one) => one.name)).toEqual(["mutation"]);
   });
 });
 

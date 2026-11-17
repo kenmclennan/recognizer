@@ -46,6 +46,7 @@ interface SettingEntry {
   exclusiveMinimum?: number;
   maximum?: number;
   exclusiveMaximum?: number;
+  off?: boolean;
 }
 
 function textFix(text: string): SetupProblem["fix"] {
@@ -124,6 +125,10 @@ function breaks(entry: SettingEntry, value: unknown): string | null {
   }
 
   if (entry.type === "integer" || entry.type === "number") {
+    if (entry.off === true && value === false) {
+      return null;
+    }
+
     if (
       typeof value !== "number" ||
       (entry.type === "integer" && !Number.isInteger(value))

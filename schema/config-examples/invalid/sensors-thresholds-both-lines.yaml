@@ -1,5 +1,0 @@
-sensors:
-  thresholds:
-    size:
-      above: 15
-      below: 2

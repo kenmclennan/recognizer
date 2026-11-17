@@ -313,12 +313,71 @@ describe("recognizer plugin check", () => {
 
 describe("checkLimits", () => {
   const thresholds = () =>
-    JSON.parse(
-      readFileSync(
-        join(REPO, "schema/manifest-examples/valid/sensor-thresholds.json"),
-        "utf8",
+    ({
+      ...JSON.parse(
+        readFileSync(
+          join(REPO, "schema/manifest-examples/valid/sensor-crap.json"),
+          "utf8",
+        ),
       ),
-    ) as Manifest;
+      name: "mine",
+      metrics: [],
+      settings: [
+        {
+          key: "<metric>",
+          type: "enum",
+          description: "turns the default threshold of a metric off",
+          example: "sensors.mine.coverage off",
+          values: ["off"],
+        },
+        {
+          key: "<metric>.above",
+          type: "number",
+          description:
+            "a finding when the metric is above this value; a metric takes above or below, not both",
+          example: "sensors.mine.churn.above 20",
+          order: 1,
+          limit: {
+            metric: "<metric>",
+            direction: "above",
+            severity: "<metric>.severity",
+          },
+        },
+        {
+          key: "<metric>.below",
+          type: "number",
+          description:
+            "a finding when the metric is below this value; a metric takes above or below, not both",
+          example: "sensors.mine.coverage.below 0.7",
+          defaults: {
+            coverage: 0.6,
+          },
+          labels: {
+            coverage: "Coverage below",
+          },
+          units: {
+            coverage: "0 to 1",
+          },
+          order: 2,
+          limit: {
+            metric: "<metric>",
+            direction: "below",
+            severity: "<metric>.severity",
+          },
+        },
+        {
+          key: "<metric>.severity",
+          type: "enum",
+          description:
+            "how a finding of the metric is reported; default warning",
+          example: "sensors.mine.coverage.severity violation",
+          values: ["warning", "violation"],
+          defaults: {
+            coverage: "warning",
+          },
+        },
+      ],
+    }) as Manifest;
   const limitsOf = (manifest: Manifest) =>
     checkLimits({
       command: "x",

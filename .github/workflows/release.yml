@@ -363,6 +363,7 @@ jobs:
 
           cd tap-repo
           git rm -f --ignore-unmatch Formula/recognizer.rb
+          git rm -f --ignore-unmatch Formula/recognizer-sense-thresholds.rb
           git add -A Casks Formula
           if [ -n "$(git status --porcelain)" ]; then
             git config user.name "github-actions[bot]"

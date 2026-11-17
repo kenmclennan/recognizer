@@ -119,11 +119,6 @@ describe.skipIf(!HAS_UV)(
         "recognizer-sense-mutation",
         `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-mutation "$@"`,
       );
-      launcher(
-        launchers,
-        "recognizer-sense-thresholds",
-        `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-thresholds "$@"`,
-      );
       process.env.SHELL = launcher(
         launchers,
         "shell.sh",
@@ -344,6 +339,51 @@ describe.skipIf(!HAS_UV)(
       commit();
     }
 
+    describe("thresholds on the committed fixture", () => {
+      const coverageIds = (): string[] =>
+        JSON.parse(
+          readFileSync(
+            join(repository, ".recognizer/cache/findings/crap.json"),
+            "utf8",
+          ),
+        )
+          .findings.map((f: { id: string }) => f.id)
+          .filter((id: string) => id.startsWith("coverage:"));
+
+      it(
+        "finds the five planted crossings",
+        async () => {
+          useCrapFixture("{coverage_limit: 0.6}");
+
+          expect(
+            await run(["scan", repository, "--sense", "crap"], capture().io),
+          ).toBe(0);
+          expect(coverageIds()).toEqual([
+            "coverage:app/risk.py::classify",
+            "coverage:app/risk.py::gate",
+            "coverage:app/risk.py::label",
+          ]);
+        },
+        scaledTimeout(180_000),
+      );
+
+      it.each([
+        "{coverage_limit: false}",
+        "{coverage_limit: false, threshold: 15}",
+      ])(
+        "drops the complexity findings for %s",
+        async (settings) => {
+          useCrapFixture(settings);
+
+          expect(
+            await run(["scan", repository, "--sense", "crap"], capture().io),
+          ).toBe(0);
+          expect(coverageIds()).toEqual([]);
+        },
+        scaledTimeout(180_000),
+      );
+    });
+
     it(
       "finds the two planted risks and writes the overlay for crap",
       async () => {
@@ -364,6 +404,9 @@ describe.skipIf(!HAS_UV)(
           validateFindings(document, { name: "crap", commit: document.commit }),
         ).not.toThrow();
         expect(document.findings.map((f: { id: string }) => f.id)).toEqual([
+          "coverage:app/risk.py::classify",
+          "coverage:app/risk.py::gate",
+          "coverage:app/risk.py::label",
           "crap:app/risk.py::classify",
         ]);
 
@@ -494,122 +537,6 @@ describe.skipIf(!HAS_UV)(
       },
       scaledTimeout(180_000),
     );
-
-    describe("thresholds on the committed fixture", () => {
-      const COMMIT_ENV = {
-        ...process.env,
-        GIT_AUTHOR_NAME: "t",
-        GIT_AUTHOR_EMAIL: "t@example.com",
-        GIT_COMMITTER_NAME: "t",
-        GIT_COMMITTER_EMAIL: "t@example.com",
-      };
-
-      function useThresholdsFixture(settings: string): void {
-        rmSync(repository, { recursive: true, force: true });
-        mkdirSync(repository, { recursive: true });
-        cpSync(
-          join(REPO, "fixtures/thresholds/sample/app"),
-          join(repository, "app"),
-          {
-            recursive: true,
-          },
-        );
-        cpSync(
-          join(REPO, "fixtures/thresholds/sample/src"),
-          join(repository, "src"),
-          {
-            recursive: true,
-          },
-        );
-        commit();
-
-        const head = spawnSync("git", ["-C", repository, "rev-parse", "HEAD"], {
-          encoding: "utf8",
-          env: COMMIT_ENV,
-        }).stdout.trim();
-        const overlays = join(repository, ".recognizer/cache/overlays");
-
-        mkdirSync(overlays, { recursive: true });
-        writeFileSync(
-          join(overlays, "quality.json"),
-          readFileSync(
-            join(REPO, "fixtures/thresholds/sample/overlays/quality.json"),
-            "utf8",
-          ).replace("COMMIT", head),
-        );
-        cpSync(
-          join(REPO, "fixtures/thresholds/sample/overlays/stale.json"),
-          join(overlays, "stale.json"),
-        );
-        writeFileSync(
-          join(repository, ".recognizer/config.yaml"),
-          `sensors:\n  thresholds: ${settings}\n`,
-        );
-      }
-
-      function thresholdIds(): string[] {
-        const document = JSON.parse(
-          readFileSync(
-            join(repository, ".recognizer/cache/findings/thresholds.json"),
-            "utf8",
-          ),
-        );
-
-        expect(() =>
-          validateFindings(document, {
-            name: "thresholds",
-            commit: document.commit,
-          }),
-        ).not.toThrow();
-
-        return document.findings.map((f: { id: string }) => f.id);
-      }
-
-      it(
-        "finds the five planted crossings",
-        async () => {
-          useThresholdsFixture("{churn: {above: 20, severity: violation}}");
-
-          expect(
-            await run(
-              ["scan", repository, "--sense", "thresholds"],
-              capture().io,
-            ),
-          ).toBe(0);
-          expect(thresholdIds()).toEqual([
-            "thresholds:churn:app/billing.py",
-            "thresholds:coverage:app/billing.py::price",
-            "thresholds:coverage:app/billing.py::tidy",
-          ]);
-        },
-        scaledTimeout(180_000),
-      );
-
-      it.each(["{complexity: {above: 15}}", "{complexity: off}"])(
-        "drops the complexity findings for %s",
-        async (settings) => {
-          useThresholdsFixture(settings);
-
-          const captured = capture();
-
-          expect(
-            await run(
-              ["scan", repository, "--sense", "thresholds"],
-              captured.io,
-            ),
-          ).toBe(2);
-          expect(captured.err()).toContain(
-            "sensors.structure.warnings.complexity.limit",
-          );
-          expect(
-            existsSync(
-              join(repository, ".recognizer/cache/findings/thresholds.json"),
-            ),
-          ).toBe(false);
-        },
-        scaledTimeout(180_000),
-      );
-    });
   },
 );
 
@@ -660,11 +587,6 @@ describe.skipIf(!HAS_UV)(
         launchers,
         "recognizer-sense-mutation",
         `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-mutation "$@"`,
-      );
-      launcher(
-        launchers,
-        "recognizer-sense-thresholds",
-        `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-thresholds "$@"`,
       );
       process.env.PATH = `${launchers}:${savedPath}`;
 
@@ -834,11 +756,6 @@ describe.skipIf(!HAS_UV)(
         launchers,
         "recognizer-sense-mutation",
         `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-mutation "$@"`,
-      );
-      launcher(
-        launchers,
-        "recognizer-sense-thresholds",
-        `exec uv run --quiet --project ${REPO}/sensors recognizer-sense-thresholds "$@"`,
       );
       launcher(launchers, "python", "exit 0");
       process.env.SHELL = launcher(

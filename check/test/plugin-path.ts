@@ -33,9 +33,7 @@ export function manifestFor(
 ): Record<string, unknown> {
   const base = exampleOf(
     kind,
-    kind === "sensor" && ["crap", "mutation", "thresholds"].includes(name)
-      ? name
-      : "crap",
+    kind === "sensor" && ["crap", "mutation"].includes(name) ? name : "crap",
   );
 
   return { ...base, kind, name, ...overrides };

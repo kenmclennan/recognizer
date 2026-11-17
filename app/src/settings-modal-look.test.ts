@@ -236,7 +236,6 @@ describe.skipIf(webkit === undefined)("the settings modal", () => {
       "Structure",
       "Duplication",
       "C.R.A.P.",
-      "Coverage",
       "Mutation",
       "Test suites",
     ]);

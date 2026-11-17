@@ -8,7 +8,7 @@ import { fakeIo, type ProgramEffect, ROOT } from "./scan-helpers.js";
 
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
 
-const NAMES = ["crap", "mutation", "thresholds"];
+const NAMES = ["crap", "mutation"];
 
 function unreadable(reasons: Record<string, ProgramEffect>) {
   return Object.fromEntries(
@@ -172,7 +172,6 @@ describe("recognizer help config", () => {
     const fake = setup({
       crap: { status: 1 },
       mutation: { status: 1 },
-      thresholds: { status: 1 },
     });
 
     expect(run(["help", "config"], fake.io)).toBe(0);
@@ -194,12 +193,9 @@ describe("loadKeys over three sensor manifests", () => {
     expect(published.notAnswering).toBeNull();
     expect(keys).toContain("tests.<name>.command");
     expect(keys).toContain("sensors.crap.threshold");
-    expect(keys).toContain("sensors.thresholds.<metric>.above");
+    expect(keys).toContain("sensors.crap.coverage_limit");
     expect(keys.indexOf("sensors.crap.threshold")).toBeLessThan(
       keys.indexOf("sensors.mutation.carry"),
-    );
-    expect(keys.indexOf("sensors.mutation.carry")).toBeLessThan(
-      keys.indexOf("sensors.thresholds.<metric>.above"),
     );
   });
 
@@ -212,7 +208,7 @@ describe("loadKeys over three sensor manifests", () => {
 
     expect(keys).toContain("tests.<name>.command");
     expect(keys).toContain("sensors.crap.threshold");
-    expect(keys).toContain("sensors.thresholds.<metric>.above");
+    expect(keys).toContain("sensors.crap.coverage_limit");
     expect(keys).not.toContain("sensors.mutation.max_workers");
     expect(published.notAnswering).not.toBeNull();
     expect(published.notAnswering?.split("; ")).toHaveLength(1);
@@ -226,7 +222,6 @@ describe("loadKeys over three sensor manifests", () => {
       setup({
         crap: { started: false },
         mutation: { started: false },
-        thresholds: { started: false },
       }).io,
       ROOT,
     );
@@ -234,7 +229,7 @@ describe("loadKeys over three sensor manifests", () => {
 
     expect(keys).toContain("tests.<name>.command");
     expect(keys).not.toContain("sensors.crap.threshold");
-    expect(published.notAnswering?.split("; ")).toHaveLength(3);
+    expect(published.notAnswering?.split("; ")).toHaveLength(2);
   });
 });
 
@@ -262,7 +257,6 @@ describe("a sensors program that does not answer", () => {
       {
         crap: { status: 1 },
         mutation: { status: 1 },
-        thresholds: { status: 1 },
       },
       {
         [CONFIG]:

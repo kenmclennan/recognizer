@@ -13,7 +13,7 @@ const PY_CACHE = `${ROOT}/.recognizer/cache/scan.python.json`;
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
 const FILE = "/scope/modules.json";
 const DESCRIBER =
-  'describer:\n  command: [describer, "{module}"]\n  version: "v1"\nsensors:\n  crap: {}\n  mutation: {}\n  thresholds: {}\n';
+  'describer:\n  command: [describer, "{module}"]\n  version: "v1"\nsensors:\n  crap: {}\n  mutation: {}\n';
 
 function current(): string {
   return scanJson(3, 1, {
@@ -183,14 +183,13 @@ describe("recognizer scan --modules", () => {
     const { fake } = await scan(
       JSON.stringify(["m0.py"]),
       "--sense",
-      "mutation,thresholds,crap",
+      "mutation,crap",
       "--modules",
       FILE,
     );
 
     expect(senseArgs(fake, "mutation")).toContain("--modules");
     expect(senseArgs(fake, "mutation")?.slice(-2)).toEqual(["--modules", FILE]);
-    expect(senseArgs(fake, "thresholds")).not.toContain("--modules");
     expect(senseArgs(fake, "crap")).not.toContain("--modules");
   });
 

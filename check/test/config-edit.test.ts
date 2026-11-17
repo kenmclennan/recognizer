@@ -609,7 +609,7 @@ describe("listing", () => {
 });
 
 describe("a retired thresholds complexity key", () => {
-  const MESSAGE = /sensors\.structure\.warnings\.complexity\.limit/;
+  const MESSAGE = /config\/sensors\/thresholds was retired/;
 
   it.each([
     ["sensors.thresholds.complexity.above", "12"],
