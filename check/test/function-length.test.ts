@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { functionLength, LONG_FUNCTION } from "../src/function-length.js";
+import {
+  bodyLength,
+  functionLength,
+  LONG_FUNCTION,
+} from "../src/function-length.js";
 
 describe("functionLength", () => {
   it("counts the first and the last line", () => {
@@ -14,5 +18,17 @@ describe("functionLength", () => {
 
   it("limits a long function at 20", () => {
     expect(LONG_FUNCTION).toBe(20);
+  });
+});
+
+describe("bodyLength", () => {
+  it("counts the body line and the last line", () => {
+    expect(bodyLength(2, 20)).toBe(19);
+    expect(bodyLength(5, 5)).toBe(1);
+  });
+
+  it("is unknown without an end line or when the body starts after it", () => {
+    expect(bodyLength(9, 3)).toBeNull();
+    expect(bodyLength(1, undefined)).toBeNull();
   });
 });

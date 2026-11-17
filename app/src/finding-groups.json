@@ -33,7 +33,7 @@
     {
       "key": "kind:long_function",
       "name": "Long functions",
-      "means": "A function or method is more than the limit (20 by default), the length a function should hardly ever reach (Martin, Clean Code, 2008, chapter 3).",
+      "means": "A function or method has a body of more than the limit (20 lines by default), not counting its signature, the length a function should hardly ever reach (Martin, Clean Code, 2008, chapter 3).",
       "todo": "Check whether it does more than one thing."
     },
     {

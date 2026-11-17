@@ -1,6 +1,10 @@
 import { isEntryPoint, isLiteralPath, isTestFile } from "./entry-points.js";
 import type { FindingRecord } from "./findings-document.js";
-import { functionLength, LONG_FUNCTION } from "./function-length.js";
+import {
+  bodyLength,
+  functionLength,
+  LONG_FUNCTION,
+} from "./function-length.js";
 import { isForeign, keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
 import { principleOf } from "./principles.js";
@@ -487,6 +491,7 @@ interface MeasuredFunction {
   qualified: string;
   line?: number;
   end_line?: number;
+  body_line?: number;
 }
 
 function functionsOf(members: ScanMember[]): MeasuredFunction[] {
@@ -498,6 +503,7 @@ function functionsOf(members: ScanMember[]): MeasuredFunction[] {
         qualified: member.name,
         line: member.line,
         end_line: member.end_line,
+        body_line: member.body_line,
       });
 
       continue;
@@ -508,6 +514,7 @@ function functionsOf(members: ScanMember[]): MeasuredFunction[] {
         qualified: `${member.name}.${method.name}`,
         line: method.line,
         end_line: method.end_line,
+        body_line: method.body_line,
       });
     }
   }
@@ -536,7 +543,11 @@ export function longFunctionFindings(
     }
 
     for (const fn of functions) {
-      const length = functionLength(fn.line, fn.end_line);
+      const spanLength = functionLength(fn.line, fn.end_line);
+      const length =
+        spanLength === null || fn.body_line === undefined
+          ? spanLength
+          : bodyLength(fn.body_line, fn.end_line);
 
       if (
         length === null ||
@@ -557,7 +568,10 @@ export function longFunctionFindings(
         kind: "long_function",
         severity: "warning",
         ...principleOf("small-functions"),
-        summary: `${fn.qualified} is ${length} lines, over the limit of ${limit}`,
+        summary:
+          fn.body_line === undefined
+            ? `${fn.qualified} is ${length} lines, over the limit of ${limit}`
+            : `${fn.qualified} has a ${length}-line body, over the limit of ${limit}`,
         evidence: {
           modules: [module.id],
           members: [
@@ -571,6 +585,7 @@ export function longFunctionFindings(
           measures: {
             lines: length,
             limit,
+            ...(fn.body_line === undefined ? {} : { body_line: fn.body_line }),
             ...(limit === LONG_FUNCTION ? {} : { published: LONG_FUNCTION }),
           },
         },

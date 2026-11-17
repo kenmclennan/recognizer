@@ -205,7 +205,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Fold | Drawing an open folder as one box, which keeps its health disc and takes the edges to anything inside it. |
 | Contents | A module's members as cards in file order, or a folder's files. |
 | Card | A member shown in Contents with its label, line and code. |
-| Function length | The span from a function or method's first line to its last, shown on its inspector card as `N lines` with a bar scaled to the module's largest, banded neutral at 20 lines or fewer, long (amber) from 21 to 50 and red over 50. Over 20 lines it is also reported by the structure sensor as a `long_function` finding; the red band over 50 is only a visual band. |
+| Function length | The span from a function or method's first line to its last, shown on its inspector card as `N lines` with a bar scaled to the module's largest, banded neutral at 20 lines or fewer, long (amber) from 21 to 50 and red over 50. The red band over 50 is only a visual band. |
+| Body length | The lines from a function or method's `body_line` to its last, so a signature is not counted; the measure the `long_function` finding uses when the scan carries `body_line`, the first line of the body. |
 | Show private | The remembered switch that adds non-exported members and private fields and methods to Contents. |
 | Health disc | A dot on each file, folder and box: green fine, amber a warning, red a violation, a grey ring not measured. A folder shows the worst inside it. |
 | Principle | The published principle a finding rests on, named by a stable id from the registry in `check/src/principles.ts` and shown by its name. |

@@ -38,6 +38,7 @@
           "kind": "function",
           "line": 1,
           "end_line": 4,
+          "body_line": 2,
           "exported": true,
           "params": []
         },
@@ -51,6 +52,7 @@
               "name": "m",
               "line": 7,
               "end_line": 9,
+              "body_line": 8,
               "params": [],
               "private": false
             }

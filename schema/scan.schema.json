@@ -148,6 +148,7 @@
         },
         "line": { "$ref": "#/$defs/line" },
         "end_line": { "$ref": "#/$defs/line" },
+        "body_line": { "$ref": "#/$defs/line" },
         "exported": { "type": "boolean" },
         "visibility": {
           "enum": ["public", "protected", "internal", "private"]
@@ -206,7 +207,8 @@
               "anyOf": [
                 { "required": ["params"] },
                 { "required": ["returns"] },
-                { "required": ["end_line"] }
+                { "required": ["end_line"] },
+                { "required": ["body_line"] }
               ]
             }
           }
@@ -350,6 +352,7 @@
         "name": { "type": "string", "minLength": 1 },
         "line": { "$ref": "#/$defs/line" },
         "end_line": { "$ref": "#/$defs/line" },
+        "body_line": { "$ref": "#/$defs/line" },
         "params": { "type": "array", "items": { "$ref": "#/$defs/param" } },
         "returns": { "type": "string", "minLength": 1 },
         "private": { "type": "boolean" },

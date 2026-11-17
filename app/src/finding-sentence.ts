@@ -186,6 +186,10 @@ function longFunction(record: FindingRecord): string | null {
 
   const limit = record.evidence.measures?.limit ?? 20;
 
+  if (record.evidence.measures?.body_line !== undefined) {
+    return `${member.name} has a ${num(lines)}-line body, over the limit of ${num(limit)}.`;
+  }
+
   return `${member.name} is ${num(lines)} lines, over the limit of ${num(limit)}.`;
 }
 

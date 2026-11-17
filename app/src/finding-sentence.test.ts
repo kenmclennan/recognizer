@@ -486,6 +486,28 @@ describe("private_imports sentence", () => {
 });
 
 describe("long_function sentence", () => {
+  it("names a body length when the record carries body_line", () => {
+    const text = sentence({
+      kind: "long_function",
+      evidence: {
+        modules: ["lib/store.py"],
+        members: [
+          {
+            module: "lib/store.py",
+            name: "getEnrollments",
+            file: "lib/store.py",
+            lines: [1, 24],
+          },
+        ],
+        measures: { lines: 16, limit: 30, body_line: 9 },
+      },
+    });
+
+    expect(text).toBe(
+      "getEnrollments has a 16-line body, over the limit of 30.",
+    );
+  });
+
   it("names the function, the length and the limit", () => {
     const text = sentence({
       kind: "long_function",
