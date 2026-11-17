@@ -1676,6 +1676,22 @@ async fn ref_facts(
 }
 
 #[tauri::command]
+async fn change_detail(
+    app: AppHandle,
+    window: WebviewWindow,
+    kind: String,
+    reference: String,
+) -> Result<commits::ChangeDetail, String> {
+    let folder = window_folder_path(&app, &window)?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        commits::change_detail(tool_runner::runner(), &folder, &kind, &reference)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
 async fn read_pull_requests(
     app: AppHandle,
     window: WebviewWindow,
@@ -1829,6 +1845,7 @@ pub fn run() {
             list_history,
             list_branches,
             ref_facts,
+            change_detail,
             read_pull_requests,
             scans_at,
             stop_scan,

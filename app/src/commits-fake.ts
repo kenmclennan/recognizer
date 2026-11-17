@@ -1,7 +1,9 @@
 import {
   type BranchesReply,
+  type ChangeDetailReply,
   type CommitsPort,
   type HistoryReply,
+  NO_CHANGE_DETAIL,
   nullFacts,
   type PullRequestsReply,
   type RefFacts,
@@ -12,11 +14,13 @@ export type FakeCommits = CommitsPort & {
   branches: BranchesReply | Error;
   pullRequests: PullRequestsReply;
   facts: Map<string, RefFacts>;
+  details: Map<string, ChangeDetailReply>;
   calls: {
     history: number;
     branches: number;
     pullRequests: number;
     facts: string[][];
+    details: string[];
   };
   holds: { history: Promise<void>[]; pullRequests: Promise<void>[] };
   emitGitChanged: () => void;
@@ -29,6 +33,7 @@ export function fakeCommits(
     branches?: BranchesReply | Error;
     pullRequests?: PullRequestsReply;
     facts?: RefFacts[];
+    details?: Record<string, ChangeDetailReply>;
   } = {},
 ): FakeCommits {
   const watchers = new Set<() => void>();
@@ -42,7 +47,8 @@ export function fakeCommits(
       text: "[]",
     },
     facts: new Map((initial.facts ?? []).map((one) => [one.ref, one])),
-    calls: { history: 0, branches: 0, pullRequests: 0, facts: [] },
+    details: new Map(Object.entries(initial.details ?? {})),
+    calls: { history: 0, branches: 0, pullRequests: 0, facts: [], details: [] },
     holds: { history: [], pullRequests: [] },
     emitGitChanged() {
       for (const run of [...watchers]) {
@@ -90,6 +96,13 @@ export function fakeCommits(
       fake.calls.facts.push([...refs]);
 
       return refs.map((ref) => fake.facts.get(ref) ?? nullFacts(ref));
+    },
+    async changeDetail(kind, reference) {
+      const key = `${kind}:${reference}`;
+
+      fake.calls.details.push(key);
+
+      return fake.details.get(key) ?? NO_CHANGE_DETAIL;
     },
     async listPullRequests() {
       fake.calls.pullRequests += 1;
