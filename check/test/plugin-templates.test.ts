@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   symlinkSync,
   writeFileSync,
@@ -171,9 +172,12 @@ describe("plugin templates conform as written", () => {
           expect(entry, entry.name).toMatchObject({ status: "ok" });
         }
 
-        expect(["ok", "warn"]).toContain(
-          report.results.find((entry) => entry.name === "stop")?.status,
-        );
+        const stop = report.results.find((entry) => entry.name === "stop");
+
+        expect(
+          ["ok", "warn"],
+          JSON.stringify({ status: stop?.status, reason: stop?.reason }),
+        ).toContain(stop?.status);
         expect(status).toBe(0);
       },
       TIMEOUT,
@@ -310,6 +314,61 @@ describe("typescript templates through a symlink", () => {
       TIMEOUT,
     );
   }
+});
+
+describe("python sensor template stops inside its write", () => {
+  it.skipIf(!REQUIRED && !TOOLCHAIN.python)(
+    "a stop that lands inside the findings write leaves one valid stopped document and no temporary file",
+    () => {
+      guardToolchain("python");
+
+      const { command } = prepare("python", "sensor");
+      const folder = makeTempDir("plugin-stop-inside-write-");
+      const output = join(folder, "findings.json");
+      const harness = join(makeTempDir("plugin-stop-harness-"), "harness.py");
+
+      writeFileSync(
+        harness,
+        [
+          "import importlib.machinery, importlib.util, json, signal, sys",
+          "loader = importlib.machinery.SourceFileLoader('sensor', sys.argv[1])",
+          "spec = importlib.util.spec_from_loader('sensor', loader)",
+          "sensor = importlib.util.module_from_spec(spec)",
+          "loader.exec_module(sensor)",
+          "sensor.state['commit'] = 'abc'",
+          "sensor.state['output'] = sys.argv[2]",
+          "signal.signal(signal.SIGTERM, sensor.on_term)",
+          "real_dump = json.dump",
+          "fired = []",
+          "def dump(*args, **kwargs):",
+          "    real_dump(*args, **kwargs)",
+          "    if not fired:",
+          "        fired.append(True)",
+          "        signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)",
+          "json.dump = dump",
+          "try:",
+          "    sensor.write_findings(False)",
+          "except SystemExit as exit:",
+          "    sys.exit(exit.code)",
+          "sys.exit(0)",
+          "",
+        ].join("\n"),
+      );
+
+      const result = spawnSync("python3", [harness, command, output], {
+        encoding: "utf8",
+      });
+
+      expect(result.status, result.stderr).toBe(143);
+
+      const document = JSON.parse(readFileSync(output, "utf8"));
+
+      expect(document).toHaveProperty("stopped");
+      expect(document.stopped).toEqual({ measured: 0, total: 1 });
+      expect(readdirSync(folder)).toEqual(["findings.json"]);
+    },
+    TIMEOUT,
+  );
 });
 
 describe("plugin template stop handlers (non-gating)", () => {
