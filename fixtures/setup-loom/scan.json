@@ -1,0 +1,70 @@
+{
+  "schema_version": 7,
+  "scanner": {
+    "name": "recognizer-scan-typescript",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": false,
+  "files": [
+    {
+      "path": "app/src/main.ts",
+      "hash": "1fc472d3ebf13d32ffefc7c92e45602c50ec8c7b99d1d274591d035507641f75"
+    },
+    {
+      "path": "engine/src/index.ts",
+      "hash": "71e91e48618e933b2992838ccc6e6d16bcee6cc52c14e0dd8557397fba2ff83e"
+    },
+    {
+      "path": "engine/src/util.ts",
+      "hash": "d1a08267bb17902991a9357bae55070e6063446f4c05b5c13df21c7685d14e1c"
+    }
+  ],
+  "selection": {
+    "extensions": [
+      ".ts"
+    ],
+    "skip_directory_names": [
+      "node_modules"
+    ],
+    "skip_directory_prefixes": [],
+    "skip_directory_suffixes": [],
+    "skip_directories_containing": [],
+    "skip_file_globs": []
+  },
+  "modules": [
+    {
+      "id": "app/src/main.ts",
+      "language": "typescript",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "engine/src/index.ts",
+      "language": "typescript",
+      "kind": "module",
+      "members": []
+    },
+    {
+      "id": "engine/src/util.ts",
+      "language": "typescript",
+      "kind": "module",
+      "members": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "engine/src/index.ts",
+      "to": "engine/src/util.ts",
+      "kind": "import",
+      "line": 1
+    },
+    {
+      "from": "app/src/main.ts",
+      "to": "engine/src/index.ts",
+      "kind": "import",
+      "line": 1
+    }
+  ],
+  "foreign": []
+}

@@ -20,6 +20,7 @@ import { runFind, runModules, runShow } from "./read-commands.js";
 import { runReport } from "./report-command.js";
 import { runScan } from "./scan-command.js";
 import { runSensors } from "./sensors-command.js";
+import { runSetup } from "./setup-command.js";
 import { runViews } from "./views-command.js";
 import { runWindow, runWindows } from "./window-commands.js";
 
@@ -1502,9 +1503,9 @@ export const COMMANDS: Command[] = [
   {
     name: "log",
     summary:
-      "read the record each scan, describe and measure run leaves, to see what ran and why it failed",
+      "read the record each scan, describe, measure and setup run leaves, to see what ran and why it failed",
     usage:
-      "recognizer log [<id>] [--last] [--kind scan|describe|measure] [--repository <dir>] [--json]",
+      "recognizer log [<id>] [--last] [--kind scan|describe|measure|setup] [--repository <dir>] [--json]",
     arguments: [
       {
         name: "<id>",
@@ -1515,7 +1516,7 @@ export const COMMANDS: Command[] = [
     options: [
       { flag: "--last", description: "print the newest run in full" },
       {
-        flag: "--kind scan|describe|measure",
+        flag: "--kind scan|describe|measure|setup",
         description: "only runs of that kind, for the list and --last",
       },
       {
@@ -1590,6 +1591,49 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runAgents,
+  },
+  {
+    name: "setup",
+    summary: "survey a repository for setup",
+    usage: "recognizer setup survey [REPOSITORY] [--scan <file>] [--json]",
+    arguments: [
+      {
+        name: "survey",
+        description:
+          "survey reads what the repository has and starts no scanner, describer or test",
+      },
+      {
+        name: "REPOSITORY",
+        description: "the repository; defaults to the current directory",
+      },
+    ],
+    options: [
+      {
+        flag: "--scan <file>",
+        description:
+          "use this scan document instead of the repository's cached scan",
+      },
+      { flag: "--json", description: "print JSON; every verb already does" },
+    ],
+    output: {
+      text: "JSON on stdout for every verb",
+      json: "survey: { survey_version, version, repository, configured, files, unread, checks, runners, tools, upgrade }",
+    },
+    exitCodes: [
+      { code: 0, meaning: "the verb finished" },
+      {
+        code: 2,
+        meaning:
+          "bad input - an unknown verb or flag, an unreadable or invalid file, or a repository that is not a directory",
+      },
+    ],
+    examples: [
+      {
+        command: "recognizer setup survey",
+        note: "what setup would find in the current repository",
+      },
+    ],
+    run: runSetup,
   },
   {
     name: "help",

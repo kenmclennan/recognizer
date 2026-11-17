@@ -7,6 +7,7 @@ import { detectLanguages } from "./detect.js";
 import {
   buildReport,
   type DoctorFacts,
+  type DoctorReport,
   reportJson,
   reportText,
 } from "./doctor.js";
@@ -123,21 +124,11 @@ function describerShipped(io: Io, root: string): boolean {
   }
 }
 
-export function runDoctor(argv: string[], io: Io): number {
-  const { values, positionals } = parseArgs({
-    args: argv,
-    allowPositionals: true,
-    strict: true,
-    options: { json: { type: "boolean" } },
-  });
-
-  if (positionals.length > 1) {
-    throw new InputError(USAGE);
-  }
-
-  const [given] = positionals;
-  const root = resolve(given ?? ".");
-
+export function doctorReport(
+  io: Io,
+  root: string,
+  named: boolean,
+): DoctorReport {
   try {
     io.readDir(root);
   } catch {
@@ -148,7 +139,7 @@ export function runDoctor(argv: string[], io: Io): number {
   const languages = detectLanguages(io, root, languageRulesOf(scanners));
   const facts: DoctorFacts = {
     repository: root,
-    named: given !== undefined,
+    named,
     configText: readIfPresent(io, configFile(root)),
     policyText: readIfPresent(io, join(root, ".recognizer", "policy.yaml")),
     languages,
@@ -166,7 +157,24 @@ export function runDoctor(argv: string[], io: Io): number {
       describer: describerShipped(io, root),
     },
   };
-  const report = buildReport(facts);
+
+  return buildReport(facts);
+}
+
+export function runDoctor(argv: string[], io: Io): number {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    strict: true,
+    options: { json: { type: "boolean" } },
+  });
+
+  if (positionals.length > 1) {
+    throw new InputError(USAGE);
+  }
+
+  const [given] = positionals;
+  const report = doctorReport(io, resolve(given ?? "."), given !== undefined);
 
   io.stdout(values.json === true ? reportJson(report) : reportText(report));
 

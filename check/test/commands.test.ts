@@ -88,6 +88,7 @@ describe("command table", () => {
       "report",
       "log",
       "agents",
+      "setup",
       "help",
     ]);
   });

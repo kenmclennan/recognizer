@@ -269,6 +269,16 @@ export {
   type SetupChange,
   type SetupSection,
 } from "./setup-proposal.js";
+export type {
+  Survey,
+  SurveyCheck,
+  SurveyLanguage,
+  SurveyLimit,
+  SurveyRunner,
+  SurveyTool,
+  SurveyUnread,
+  SurveyUpgrade,
+} from "./setup-survey.js";
 export {
   SHIPPED_DESCRIBER_COMMAND,
   SHIPPED_DESCRIBER_NAME,
