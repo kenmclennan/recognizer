@@ -100,6 +100,7 @@ function modelOf(
     describedAt: NOW - 16 * MINUTE,
     ticks: {
       describe: true,
+      analysis: true,
       ticked: [],
       once: ["crap", "mutation"],
       onlyView: false,
@@ -151,6 +152,7 @@ describe("freshness model module scope", () => {
         sensors: [ran("mutation", listed), ran("other", listed)],
         ticks: {
           describe: false,
+          analysis: true,
           ticked: [],
           once: ["mutation", "other"],
           onlyView: false,
@@ -305,6 +307,7 @@ describe("freshness model changed modules", () => {
       sensors: [ran("crap", IDS, { "c.py": "old" }), ran("mutation", IDS)],
       ticks: {
         describe: true,
+        analysis: true,
         ticked: [],
         once: ["mutation"],
         onlyView: false,
@@ -581,6 +584,7 @@ describe("the four situations of the mock", () => {
       view: { name: "x", modules: nine.slice(0, 2) },
       ticks: {
         describe: true,
+        analysis: true,
         ticked: [],
         once: [],
         onlyView: true,
@@ -699,6 +703,7 @@ describe("the unscoped stale set per sensor", () => {
       sensors: [ran("crap", IDS, { "c.py": "old" }), ran("mutation", IDS)],
       ticks: {
         describe: true,
+        analysis: true,
         ticked: [],
         once: ["crap", "mutation"],
         onlyView: true,
@@ -795,6 +800,7 @@ describe("the model over committed content", () => {
 describe("freshness model counts every row, ticked or not", () => {
   const MUTATION_ONLY = {
     describe: true,
+    analysis: true,
     ticked: [],
     once: ["crap"],
     onlyView: false,
@@ -841,6 +847,7 @@ describe("freshness model counts every row, ticked or not", () => {
       ],
       ticks: {
         describe: true,
+        analysis: true,
         ticked: [],
         once: [],
         onlyView: false,
@@ -956,6 +963,7 @@ describe("freshness model counts every row, ticked or not", () => {
     const tickSets = [
       {
         describe: true,
+        analysis: true,
         ticked: [],
         once: [] as string[],
         onlyView: false,
@@ -964,6 +972,7 @@ describe("freshness model counts every row, ticked or not", () => {
       },
       {
         describe: false,
+        analysis: true,
         ticked: [],
         once: ["crap"],
         onlyView: false,
@@ -972,6 +981,7 @@ describe("freshness model counts every row, ticked or not", () => {
       },
       {
         describe: true,
+        analysis: true,
         ticked: [],
         once: ["crap", "mutation"],
         onlyView: false,
@@ -1001,6 +1011,7 @@ describe("the Findings panel action", () => {
       ],
       ticks: {
         describe: true,
+        analysis: true,
         ticked: [],
         once: ["crap"],
         onlyView: false,
@@ -1029,6 +1040,7 @@ describe("the Findings panel action", () => {
 describe("the Nothing ticked to run state", () => {
   const MUTATION_ONLY = {
     describe: true,
+    analysis: true,
     ticked: [],
     once: ["crap"],
     onlyView: false,
@@ -1060,6 +1072,7 @@ describe("the Nothing ticked to run state", () => {
       ],
       ticks: {
         describe: false,
+        analysis: true,
         ticked: [],
         once: [],
         onlyView: false,

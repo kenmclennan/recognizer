@@ -150,7 +150,7 @@ impl Describe {
     }
 }
 
-pub fn scan_flags(describe: Describe, sense: &[String]) -> Vec<String> {
+pub fn scan_flags(describe: Describe, sense: &[String], analysis: bool) -> Vec<String> {
     let mut flags = vec!["--json".to_string()];
 
     match describe {
@@ -164,13 +164,22 @@ pub fn scan_flags(describe: Describe, sense: &[String]) -> Vec<String> {
         flags.push(sense.join(","));
     }
 
+    if !analysis {
+        flags.push("--skip-analysis".to_string());
+    }
+
     flags
 }
 
-pub fn scan_args(folder: &Path, describe: Describe, sense: &[String]) -> Vec<String> {
+pub fn scan_args(
+    folder: &Path,
+    describe: Describe,
+    sense: &[String],
+    analysis: bool,
+) -> Vec<String> {
     let mut args = plain_scan_args(folder);
 
-    args.extend(scan_flags(describe, sense));
+    args.extend(scan_flags(describe, sense, analysis));
 
     args
 }
@@ -640,7 +649,10 @@ mod tests {
         };
 
         assert_eq!(historical_scan_args(folder), listed("historical"));
-        assert_eq!(scan_args(folder, Describe::Off, &[]), listed("open_folder"));
+        assert_eq!(
+            scan_args(folder, Describe::Off, &[], true),
+            listed("open_folder")
+        );
     }
 
     #[test]
@@ -654,7 +666,7 @@ mod tests {
         assert!(!plain_scan_args(folder).contains(&IGNORE_RETIRED_CONFIG.to_string()));
 
         for describe in [Describe::Off, Describe::Stale, Describe::All] {
-            assert!(!scan_args(folder, describe, &names(&["a"]))
+            assert!(!scan_args(folder, describe, &names(&["a"]), true)
                 .contains(&IGNORE_RETIRED_CONFIG.to_string()));
         }
     }
@@ -672,29 +684,44 @@ mod tests {
 
     #[test]
     fn the_scan_flags_are_json_plus_what_was_asked_and_never_extract() {
-        assert_eq!(scan_flags(Describe::Off, &[]), ["--json"]);
-        assert_eq!(scan_flags(Describe::Stale, &[]), ["--json", "--describe"]);
-        assert_eq!(scan_flags(Describe::All, &[]), ["--json", "--describe=all"]);
+        assert_eq!(scan_flags(Describe::Off, &[], true), ["--json"]);
         assert_eq!(
-            scan_flags(Describe::Off, &names(&["a", "b"])),
+            scan_flags(Describe::Stale, &[], true),
+            ["--json", "--describe"]
+        );
+        assert_eq!(
+            scan_flags(Describe::All, &[], true),
+            ["--json", "--describe=all"]
+        );
+        assert_eq!(
+            scan_flags(Describe::Off, &names(&["a", "b"]), true),
             ["--json", "--sense", "a,b"]
         );
         assert_eq!(
-            scan_flags(Describe::Stale, &names(&["c"])),
+            scan_flags(Describe::Stale, &names(&["c"]), true),
             ["--json", "--describe", "--sense", "c"]
         );
 
         for describe in [Describe::Off, Describe::Stale, Describe::All] {
             for sense in [names(&[]), names(&["a"])] {
-                assert!(!scan_flags(describe, &sense).contains(&"--extract".to_string()));
+                assert!(!scan_flags(describe, &sense, true).contains(&"--extract".to_string()));
             }
         }
     }
 
     #[test]
+    fn scan_flags_adds_skip_analysis_only_when_unticked() {
+        assert!(!scan_flags(Describe::Off, &[], true).contains(&"--skip-analysis".to_string()));
+        assert_eq!(
+            scan_flags(Describe::Stale, &names(&["a"]), false),
+            ["--json", "--describe", "--sense", "a", "--skip-analysis"]
+        );
+    }
+
+    #[test]
     fn the_scan_flags_follow_the_folder_in_argv() {
         let folder = Path::new("/tmp/it's a \"folder\" $(rm -rf x)");
-        let args = scan_args(folder, Describe::Stale, &names(&["$(rm -rf x)"]));
+        let args = scan_args(folder, Describe::Stale, &names(&["$(rm -rf x)"]), true);
 
         assert_eq!(args[0], "scan");
         assert_eq!(args[1], folder.display().to_string());

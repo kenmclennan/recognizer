@@ -13,6 +13,7 @@ export const scanSource: ScanPort = {
   run: (plan) =>
     invoke<ScanRunResult>("run_scan", {
       describe: plan.describe,
+      analysis: plan.analysis,
       describeAll: plan.describeAll,
       sense: plan.sense,
       modules: plan.modules,
@@ -25,6 +26,7 @@ export const scanSource: ScanPort = {
   writeTicks: (ticks) =>
     invoke<void>("write_scan_ticks", {
       describe: ticks.describe,
+      analysis: ticks.analysis,
       ticked: ticks.ticked,
       onlyView: ticks.onlyView,
       suites: ticks.suites,

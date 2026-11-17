@@ -13,6 +13,7 @@ export type ScanRunResult =
 
 export type StoredTicks = {
   describe: boolean;
+  analysis?: boolean;
   sensors: boolean;
   ticked: string[] | null;
   onlyView?: boolean;
@@ -60,6 +61,7 @@ export const inertScan: ScanPort = {
   }),
   readTicks: async () => ({
     describe: false,
+    analysis: true,
     sensors: false,
     ticked: null,
     remembered: false,

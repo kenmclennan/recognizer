@@ -858,6 +858,7 @@ pub fn run_with(
         sense,
         modules,
         None,
+        true,
         confirm_above,
         prepare,
     )
@@ -874,6 +875,7 @@ pub fn run_with_suites(
     sense: &[String],
     modules: Option<&[String]>,
     suites: Option<&BTreeMap<String, Vec<String>>>,
+    analysis: bool,
     confirm_above: Option<f64>,
     prepare: impl FnOnce(),
 ) -> ScanRun {
@@ -960,6 +962,7 @@ pub fn run_with_suites(
         sense,
         file.as_deref(),
         suites_path.as_deref(),
+        analysis,
         confirm_above,
     );
 
@@ -983,6 +986,7 @@ fn spawn_and_stream(
     sense: &[String],
     modules_file: Option<&Path>,
     suites_file: Option<&Path>,
+    analysis: bool,
     confirm_above: Option<f64>,
 ) -> ScanRun {
     let mut process = match runner.command(command) {
@@ -992,7 +996,7 @@ fn spawn_and_stream(
 
     process
         .env(STARTED_BY, "app")
-        .args(scan_args(folder, describe, sense))
+        .args(scan_args(folder, describe, sense, analysis))
         .args(
             modules_file
                 .map(|path| vec!["--modules".to_string(), path.display().to_string()])
@@ -1394,6 +1398,7 @@ mod tests {
             &["crap".to_string()],
             None,
             Some(suites),
+            true,
             None,
             || {},
         )

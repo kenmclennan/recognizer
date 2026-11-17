@@ -86,6 +86,7 @@ export { DESCRIBE_KEY };
 
 export type ScanTicks = {
   describe: boolean;
+  analysis: boolean;
   ticked: string[] | null;
   once: string[];
   onlyView: boolean;
@@ -96,6 +97,7 @@ export type ScanTicks = {
 export type ScanPlan = {
   describe: boolean;
   describeAll: boolean;
+  analysis: boolean;
   sense: string[];
   modules: string[] | null;
   suites?: Record<string, string[]>;
@@ -343,6 +345,7 @@ export function phasesFor(
     plan: {
       describe: ticks.describe,
       describeAll: false,
+      analysis: ticks.analysis,
       sense,
       modules: null,
       suites: planned.suites,

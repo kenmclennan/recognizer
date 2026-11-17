@@ -145,7 +145,13 @@ function planned(
   return {
     ...OPEN_RUN,
     idle: false,
-    plan: { describe, describeAll: false, sense, modules: null },
+    plan: {
+      describe,
+      describeAll: false,
+      analysis: true,
+      sense,
+      modules: null,
+    },
     work,
   };
 }

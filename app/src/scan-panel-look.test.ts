@@ -787,6 +787,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.ticked.rows).toEqual(["structure", "describe", "crap", "tally"]);
     expect(f.ticked.written).toEqual({
       describe: true,
+      analysis: true,
       ticked: ["tally"],
       onlyView: false,
       suites: {},
@@ -848,6 +849,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       {
         describe: true,
         describeAll: false,
+        analysis: true,
         sense: ["tally", "crap"],
         modules: ["app/a.py", "app/b.py"],
       },

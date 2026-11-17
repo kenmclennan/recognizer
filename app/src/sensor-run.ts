@@ -12,7 +12,6 @@ import {
   parsePolicy,
   registeredSensors,
   resolveStructureSettings,
-  type Scan,
   type StructureSettings,
   scanHashes,
   structureSensor,
@@ -25,6 +24,7 @@ import {
 } from "./refusal-record";
 import { type PlannedWork, scanHistory } from "./scan-estimate";
 import type { Loaded, LoadedScan } from "./scan-loading";
+import { scansCommit } from "./scans-commit";
 import type { SuiteResult } from "./suite-results";
 
 export type SensorStatus = {
@@ -36,6 +36,7 @@ export type SensorStatus = {
   reported?: { at: string; commit: string };
   notMeasured?: string[];
   commit?: string;
+  modified?: boolean;
   stopped?: { measured: number; total: number };
   partial?: { measured: number; total: number };
   excluded?: { functions: number; modules: string[] };
@@ -61,6 +62,7 @@ export type SensorInputs = {
   config: string | null;
   baseline: string | null;
   refused: string[];
+  analysis: boolean;
 };
 
 export type ShippedSensor = {
@@ -152,6 +154,7 @@ export const inertSensors: SensorsPort = {
     config: null,
     baseline: null,
     refused: [],
+    analysis: true,
   }),
   onInputsChanged: () => () => {},
   shipped: async () => ({
@@ -170,22 +173,7 @@ export type SensorRun = {
   statuses: SensorStatus[];
 };
 
-type RecordedScan = Scan & {
-  commit?: string | null;
-  modified?: boolean | null;
-};
-
-export function scansCommit(scans: Scan[]): {
-  commit: string | null;
-  modified: boolean;
-} {
-  const recorded = scans as RecordedScan[];
-
-  return {
-    commit: recorded[0]?.commit ?? null,
-    modified: recorded.some((scan) => scan.modified !== false),
-  };
-}
+export { scansCommit };
 
 function messagesOf(error: unknown): string {
   return error instanceof InputError
@@ -259,7 +247,7 @@ function carried(
 
 export async function senseRepository(
   scans: LoadedScan[],
-  inputs: Pick<SensorInputs, "policy" | "config">,
+  inputs: Pick<SensorInputs, "policy" | "config"> & { analysis?: boolean },
   port: SensorsPort,
 ): Promise<SensorRun> {
   const statuses: SensorStatus[] = [];
@@ -276,6 +264,39 @@ export async function senseRepository(
   if (settings === "off") {
     await port.writeStructure(null);
     statuses.push({ name: "structure", status: "off" });
+  } else if (inputs.analysis === false) {
+    const file = read.files.find(({ name }) => name === "structure");
+
+    if (file === undefined) {
+      statuses.push({ name: "structure", status: "not run" });
+    } else {
+      try {
+        const stored = validateFindings(JSON.parse(file.text), {
+          name: "structure",
+        });
+        const notMeasured = [
+          ...(duplicationUnmeasured(stored, settings) ? ["duplication"] : []),
+          ...(complexityUnmeasured(stored, settings) ? ["complexity"] : []),
+        ];
+
+        structure = stored;
+        structureRan = true;
+        statuses.push({
+          name: "structure",
+          status: "ran",
+          commit: stored.commit,
+          modified: stored.modified,
+          modifiedMs: file.modifiedMs ?? null,
+          ...(notMeasured.length > 0 ? { notMeasured } : {}),
+        });
+      } catch (error) {
+        statuses.push({
+          name: "structure",
+          status: "failed",
+          reason: (error as Error).message,
+        });
+      }
+    }
   } else {
     const context = { commit: commit ?? "", modified };
 

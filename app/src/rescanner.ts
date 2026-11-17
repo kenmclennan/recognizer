@@ -86,6 +86,7 @@ export type Rescanner = {
 
 const DEFAULT_TICKS: ScanTicks = {
   describe: false,
+  analysis: true,
   ticked: [],
   once: [],
   onlyView: false,
@@ -218,6 +219,7 @@ export function createRescanner<Carried>(
 
     await ports.port.writeTicks({
       describe: ticks.describe,
+      analysis: ticks.analysis,
       ticked: (ticks.ticked ?? plain).filter((name) => plain.includes(name)),
       onlyView: ticks.onlyView,
       suites: ticks.suites,
@@ -947,6 +949,7 @@ export function createRescanner<Carried>(
 
     ticks = {
       describe: stored.describe,
+      analysis: stored.analysis !== false,
       ticked: stored.ticked ?? (stored.sensors ? null : []),
       once: ticks.once,
       onlyView: stored.onlyView === true,

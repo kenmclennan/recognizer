@@ -83,6 +83,7 @@ const panel = (sensors: PanelInput["sensors"]) =>
     describedAt: null,
     ticks: {
       describe: false,
+      analysis: true,
       ticked: [],
       once: [],
       onlyView: false,
@@ -1048,6 +1049,7 @@ describe("freshnessNote against the Scan panel model", () => {
         describedAt: null,
         ticks: {
           describe: false,
+          analysis: true,
           ticked: [],
           once: [],
           onlyView: true,

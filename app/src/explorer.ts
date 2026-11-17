@@ -323,6 +323,7 @@ export const inertScanHost: ScanHost = {
   scan: () => null,
   ticks: () => ({
     describe: false,
+    analysis: true,
     ticked: null,
     once: [],
     onlyView: false,

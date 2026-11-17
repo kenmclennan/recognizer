@@ -27,6 +27,7 @@ function phasesOf(fake: FakeScan): string[] {
 
 const PLAN = {
   describe: true,
+  analysis: true,
   describeAll: false,
   sense: ["alpha"],
   modules: null,
@@ -96,6 +97,7 @@ describe("fakeScan", () => {
 
     await fake.writeTicks({
       describe: false,
+      analysis: true,
       ticked: ["alpha"],
       onlyView: false,
       suites: { crap: { ticked: ["unit"], known: ["unit", "web"] } },
@@ -104,6 +106,7 @@ describe("fakeScan", () => {
 
     expect(await fake.readTicks()).toEqual({
       describe: false,
+      analysis: true,
       sensors: true,
       ticked: ["alpha"],
       onlyView: false,

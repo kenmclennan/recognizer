@@ -173,6 +173,7 @@ describe("createRescanner", () => {
     expect(scan.ran).toEqual([
       {
         describe: true,
+        analysis: true,
         describeAll: false,
         sense: ["alpha", "beta"],
         modules: null,
@@ -182,6 +183,7 @@ describe("createRescanner", () => {
     expect(scan.written).toEqual([
       {
         describe: true,
+        analysis: true,
         ticked: ["alpha", "beta"],
         onlyView: false,
         suites: {},
@@ -207,6 +209,7 @@ describe("createRescanner", () => {
 
     expect(scan.ran[1]).toEqual({
       describe: false,
+      analysis: true,
       describeAll: false,
       sense: [],
       modules: null,
@@ -1112,6 +1115,7 @@ describe("createRescanner", () => {
     await rescanner.loadTicks();
     rescanner.setTicks({
       describe: true,
+      analysis: true,
       ticked: null,
       once: [],
       onlyView: false,
@@ -1123,6 +1127,7 @@ describe("createRescanner", () => {
     expect(scan.written).toEqual([
       {
         describe: true,
+        analysis: true,
         ticked: ["alpha", "beta"],
         onlyView: false,
         suites: {},
@@ -1131,6 +1136,7 @@ describe("createRescanner", () => {
     ]);
     expect(rescanner.ticks()).toEqual({
       describe: true,
+      analysis: true,
       ticked: null,
       once: [],
       onlyView: false,
@@ -1237,6 +1243,7 @@ describe("createRescanner", () => {
     const planned = {
       plan: {
         describe: false,
+        analysis: true,
         describeAll: true,
         sense: ["alpha"],
         modules: ["a.py"],

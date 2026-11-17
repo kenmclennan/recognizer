@@ -89,6 +89,7 @@ function input(over: Partial<PanelInput> = {}): PanelInput {
     describedAt: null,
     ticks: {
       describe: false,
+      analysis: true,
       ticked: [],
       once: [],
       onlyView: false,
@@ -458,6 +459,7 @@ describe("scanPanel row states", () => {
           config: suited,
           ticks: {
             describe: false,
+            analysis: true,
             ticked: [],
             once: ["mutation"],
             onlyView: false,
@@ -726,6 +728,7 @@ describe("scanPanel ticks", () => {
       input({
         ticks: {
           describe: true,
+          analysis: true,
           ticked: ["alpha"],
           once: ["crap"],
           onlyView: false,
@@ -744,6 +747,7 @@ describe("scanPanel ticks", () => {
       input({
         ticks: {
           describe: false,
+          analysis: true,
           ticked: null,
           once: [],
           onlyView: false,
@@ -763,6 +767,7 @@ describe("scanPanel ticks", () => {
       input({
         ticks: {
           describe: false,
+          analysis: true,
           ticked: [],
           once: [],
           onlyView: false,
@@ -789,6 +794,7 @@ describe("phasesFor", () => {
     const { plan, dropped } = phasesFor(
       {
         describe: true,
+        analysis: true,
         ticked: ["duplication", "alpha", "ghost"],
         once: [],
         onlyView: false,
@@ -801,6 +807,7 @@ describe("phasesFor", () => {
     expect(plan).toEqual({
       describe: true,
       describeAll: false,
+      analysis: true,
       sense: ["duplication", "alpha"],
       modules: null,
       suites: {},
@@ -813,6 +820,7 @@ describe("phasesFor", () => {
       phasesFor(
         {
           describe: false,
+          analysis: true,
           ticked: [],
           once: ["crap"],
           onlyView: false,
@@ -826,6 +834,7 @@ describe("phasesFor", () => {
       phasesFor(
         {
           describe: false,
+          analysis: true,
           ticked: ["crap"],
           once: [],
           onlyView: false,
@@ -842,6 +851,7 @@ describe("phasesFor", () => {
       phasesFor(
         {
           describe: false,
+          analysis: true,
           ticked: null,
           once: [],
           onlyView: false,
@@ -904,6 +914,7 @@ describe("scanPanel only this view", () => {
   const view = { name: "engine-loop", modules: ["a.py"] };
   const ticked = (onlyView: boolean) => ({
     describe: true,
+    analysis: true,
     ticked: [],
     once: ["mutation"],
     onlyView,
@@ -1020,6 +1031,7 @@ describe("scanPanel freshness", () => {
       lines: allCurrent(["a.py", "b.py"]),
       ticks: {
         describe: true,
+        analysis: true,
         ticked: [],
         once: ["crap"],
         onlyView: false,
@@ -1091,6 +1103,7 @@ describe("scanPanel freshness", () => {
       view: { name: "engine", modules: ["a.py"] },
       ticks: {
         describe: true,
+        analysis: true,
         ticked: [],
         once: ["crap"],
         onlyView: true,
@@ -1434,6 +1447,7 @@ function refused(...list: PreflightGap[]): Partial<PanelInput> {
 
 const bothTicked = {
   describe: false,
+  analysis: true,
   ticked: [],
   once: ["crap", "mutation"],
   onlyView: false,
@@ -1529,6 +1543,7 @@ describe("the run card", () => {
   it("names a help line for each sensor that reported a gap and for no other gap", () => {
     const ticks = {
       describe: true,
+      analysis: true,
       ticked: [],
       once: ["crap", "mutation"],
       onlyView: false,
@@ -1667,6 +1682,7 @@ describe("scanPanel estimate line", () => {
       work: toPerform(3),
       ticks: {
         describe: false,
+        analysis: true,
         ticked: [],
         once: ["mutation"],
         onlyView: false,
@@ -1707,6 +1723,7 @@ describe("scanPanel estimate line", () => {
       mutating({
         ticks: {
           describe: false,
+          analysis: true,
           ticked: [],
           once: ["mutation", "crap"],
           onlyView: false,
@@ -1795,6 +1812,7 @@ describe("unregistered plugins", () => {
   it("leaves an unregistered shipped sensor out of the rows and the plan, even when the stored ticks list it", () => {
     const stored = ticks({
       describe: true,
+      analysis: true,
       ticked: ["mutation", "crap"],
       once: ["mutation", "crap"],
     });
@@ -1869,6 +1887,7 @@ describe("unregistered plugins", () => {
     ];
     const given = ticks({
       describe: true,
+      analysis: true,
       ticked: ["alpha", "beta"],
       once: ["crap", "mutation"],
       onlyView: true,
