@@ -37,6 +37,12 @@ KOTLIN_JVM_OPTIONS = (
     "-Dorg.gradle.daemon=false",
     "-Dorg.gradle.project.kotlin.compiler.execution.strategy=in-process",
 )
+KOTLIN_DAEMON_JVM_OPTIONS = (
+    "-Dorg.gradle.daemon=true",
+    "-Dorg.gradle.project.kotlin.compiler.execution.strategy=in-process",
+    "-Dorg.gradle.daemon.idletimeout=300000",
+)
+GRADLE_HOME_PREFIX = "gradle-home-"
 LIVE_LOCK = threading.Lock()
 LEAVING = threading.Lock()
 LIVE: set[subprocess.Popen] = set()
@@ -329,6 +335,42 @@ def descendants(pid: int) -> list[int]:
     return tree_of(process_table(), pid)
 
 
+def source_gradle_home(suite: Suite | None) -> Path:
+    env = suite.env if suite is not None else {}
+    chosen = env.get("GRADLE_USER_HOME") or os.environ.get("GRADLE_USER_HOME")
+
+    return Path(chosen) if chosen else Path.home() / ".gradle"
+
+
+class GradleHomes:
+    def __init__(self, work: Path) -> None:
+        self.work = work
+        self.homes: dict[int | str, Path] = {}
+        self.lock = threading.Lock()
+
+    def home_for(self, number: int | str, suite: Suite | None = None) -> Path:
+        with self.lock:
+            if number in self.homes:
+                return self.homes[number]
+
+            home = self.work / f"{GRADLE_HOME_PREFIX}{number}"
+            home.mkdir(parents=True, exist_ok=True)
+            source = source_gradle_home(suite)
+
+            if (source / "wrapper").exists() and not os.path.lexists(home / "wrapper"):
+                (home / "wrapper").symlink_to(source / "wrapper")
+
+            if (source / "gradle.properties").is_file():
+                shutil.copy2(source / "gradle.properties", home / "gradle.properties")
+
+            if (source / "init.d").is_dir() and not (home / "init.d").exists():
+                shutil.copytree(source / "init.d", home / "init.d", symlinks=True)
+
+            self.homes[number] = home
+
+            return home
+
+
 class PeakSampler:
     def __init__(self, interval: float = 0.25) -> None:
         self.interval = interval
@@ -388,14 +430,25 @@ def run_test_command(
     timeout: float | None,
     suite: Suite | None = None,
     extra: dict[str, str] | None = None,
+    gradle_home: Path | None = None,
 ) -> TestRun:
     started = time.monotonic()
     words = command if isinstance(command, str) else shlex.join(command)
     env = {**os.environ, **(suite.env if suite is not None else {}), **(extra or {})}
 
     if suite is not None and suite.language == "kotlin":
+        options = KOTLIN_JVM_OPTIONS
+
+        if gradle_home is not None:
+            options = KOTLIN_DAEMON_JVM_OPTIONS
+            cache = source_gradle_home(suite) / "caches"
+            env["GRADLE_USER_HOME"] = str(gradle_home)
+
+            if (cache / "modules-2").is_dir() and not env.get("GRADLE_RO_DEP_CACHE"):
+                env["GRADLE_RO_DEP_CACHE"] = str(cache)
+
         env["GRADLE_OPTS"] = " ".join(
-            word for word in (env.get("GRADLE_OPTS", ""), *KOTLIN_JVM_OPTIONS) if word
+            word for word in (env.get("GRADLE_OPTS", ""), *options) if word
         )
 
     argv = (
