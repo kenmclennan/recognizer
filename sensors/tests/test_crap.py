@@ -464,9 +464,14 @@ def test_the_fixture_gives_the_pinned_findings_and_overlay(sample, tmp_path, cap
     [classify] = document["findings"]
 
     assert classify["summary"] == (
-        "classify in app/risk.py has complexity 8 and 18% coverage, CRAP 43.1"
+        "classify in app/risk.py has complexity 8 and 18% coverage, CRAP 43.1, over the limit of 30"
     )
-    assert classify["evidence"]["measures"] == {"complexity": 8, "coverage": 0.1818, "crap": 43.053}
+    assert classify["evidence"]["measures"] == {
+        "complexity": 8,
+        "coverage": 0.1818,
+        "crap": 43.053,
+        "limit": 30.0,
+    }
     assert classify["evidence"]["members"] == [
         {"module": "app/risk.py", "name": "classify", "file": "app/risk.py", "lines": [1, 11]}
     ]
@@ -567,7 +572,7 @@ def test_a_finding_at_another_threshold_cites_its_source_and_states_the_limit_on
     assert "says" not in finding["summary"]
 
 
-def test_a_finding_at_the_published_threshold_carries_no_published_figure(tmp_path):
+def test_a_finding_at_the_published_threshold_states_its_limit_and_no_published_figure(tmp_path):
     root = python_repository(tmp_path, branches(30), lcov_for("app/m.py", range(1, 40)))
 
     _, document, _ = produced(root, tmp_path, "--settings", '{"threshold":30}')
@@ -575,7 +580,8 @@ def test_a_finding_at_the_published_threshold_carries_no_published_figure(tmp_pa
 
     assert finding["principle"] == "change-risk-anti-patterns"
     assert "published" not in finding["evidence"]["measures"]
-    assert "limit" not in finding["evidence"]["measures"]
+    assert finding["evidence"]["measures"]["limit"] == 30
+    assert finding["summary"].endswith(", over the limit of 30")
     assert "threshold of" not in finding["summary"]
 
 
@@ -593,9 +599,12 @@ def test_a_high_complexity_function_with_unknown_coverage_reports_a_floor(tmp_pa
     _, document, overlay = produced(root, tmp_path)
 
     assert document["findings"][0]["summary"] == (
-        "f in app/m.py has complexity 31 and unknown coverage, CRAP at least 31"
+        "f in app/m.py has complexity 31 and unknown coverage, CRAP at least 31, over the limit of 30"
     )
-    assert document["findings"][0]["evidence"]["measures"] == {"complexity": 31}
+    assert document["findings"][0]["evidence"]["measures"] == {
+        "complexity": 31,
+        "limit": 30.0,
+    }
     assert overlay["values"]["coverage"] == {}
     assert overlay["values"]["crap"] == {}
     assert plain_lines(capsys.readouterr().err) == ""

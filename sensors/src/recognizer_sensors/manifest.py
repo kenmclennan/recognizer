@@ -212,6 +212,7 @@ def crap_sentence() -> dict:
     complexity = f"{MEASURES}.complexity"
     coverage = f"{MEASURES}.coverage"
     score = f"{MEASURES}.crap"
+    limit = f"{MEASURES}.limit"
 
     return {
         "requires": [f"{MEMBER}.name", f"{MEMBER}.module", complexity],
@@ -230,6 +231,7 @@ def crap_sentence() -> dict:
                 ),
                 variant(" and unknown coverage"),
             ],
+            [variant(f", over the limit of {{{limit}|num}}", has(limit))],
             [variant(".")],
         ],
     }

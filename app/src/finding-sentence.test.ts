@@ -551,14 +551,23 @@ describe("the tuned crap and threshold sentences", () => {
       },
     });
 
-  it("states no published C.R.A.P. figure whether or not it is present", () => {
+  it("states the limit in force for C.R.A.P., default or tuned, and no published figure", () => {
     const base = { complexity: 12, coverage: 0.5, crap: 28 };
 
     expect(crap(base)).toBe(
       "f in a.py has complexity 12 and 50% coverage, C.R.A.P. 28.",
     );
+    expect(crap({ ...base, limit: 25 })).toBe(
+      "f in a.py has complexity 12 and 50% coverage, C.R.A.P. 28, over the limit of 25.",
+    );
+    expect(crap({ ...base, limit: 30 })).toBe(
+      "f in a.py has complexity 12 and 50% coverage, C.R.A.P. 28, over the limit of 30.",
+    );
     expect(crap({ ...base, limit: 25, published: 30 })).toBe(
-      "f in a.py has complexity 12 and 50% coverage, C.R.A.P. 28.",
+      "f in a.py has complexity 12 and 50% coverage, C.R.A.P. 28, over the limit of 25.",
+    );
+    expect(crap({ complexity: 31, limit: 30 })).toBe(
+      "f in a.py has complexity 31 and unknown coverage, over the limit of 30.",
     );
   });
 

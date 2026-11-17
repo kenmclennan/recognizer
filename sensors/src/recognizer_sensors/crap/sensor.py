@@ -168,9 +168,11 @@ def finding_for(identity: str, m: Measured, threshold: float) -> dict | None:
             "crap": round(score, 3),
         }
 
+    summary = f"{summary}, over the limit of {threshold:g}"
+    measures = {**measures, "limit": threshold}
+
     if threshold != PUBLISHED_THRESHOLD:
-        summary = f"{summary}, over the limit of {threshold:g}"
-        measures = {**measures, "limit": threshold, "published": PUBLISHED_THRESHOLD}
+        measures = {**measures, "published": PUBLISHED_THRESHOLD}
 
     return {
         "id": f"crap:{identity}",

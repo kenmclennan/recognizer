@@ -54,9 +54,10 @@ const OLD_EXAMPLE_SENTENCES: Record<string, string> = {
 const OLD_HAND_SENTENCES: Record<string, string[]> = {
   crap: [
     "f in m.py has complexity 8.46 and unknown coverage.",
-    "f in m.py has complexity 8 and 50% coverage, C.R.A.P. 12.",
-    "f in m.py has complexity 8 and 50% coverage, C.R.A.P. 12.",
+    "f in m.py has complexity 8 and 50% coverage, C.R.A.P. 12, over the limit of 30.",
+    "f in m.py has complexity 8 and 50% coverage, C.R.A.P. 12, over the limit of 20.",
     "the summary",
+    "f in m.py has complexity 8.46 and unknown coverage, over the limit of 30.",
   ],
   mutation: [
     "f in m.py has 1 surviving mutation.",
@@ -111,7 +112,7 @@ const HAND_BUILT: Record<string, FindingRecord[]> = {
     record("crap", { members: [MEMBER], measures: { complexity: 8.456 } }),
     record("crap", {
       members: [MEMBER],
-      measures: { complexity: 8, coverage: 0.5, crap: 12.4, published: 30 },
+      measures: { complexity: 8, coverage: 0.5, crap: 12.4, limit: 30 },
     }),
     record("crap", {
       members: [MEMBER],
@@ -120,10 +121,14 @@ const HAND_BUILT: Record<string, FindingRecord[]> = {
         coverage: 0.5,
         crap: 12.4,
         limit: 20,
-        published: 12.5,
+        published: 30,
       },
     }),
     record("crap", { members: [MEMBER], measures: {} }),
+    record("crap", {
+      members: [MEMBER],
+      measures: { complexity: 8.456, limit: 30 },
+    }),
   ],
   mutation: [
     record("mutation", { members: [MEMBER], measures: { survived: 1 } }),
