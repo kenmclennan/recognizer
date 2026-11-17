@@ -473,7 +473,9 @@ def test_progress_counts_one_suite_at_a_time_in_config_order(two_suites, tmp_pat
     suites = [
         line["text"].removeprefix("Coverage run: ") for line in lines if line["event"] == "note"
     ]
-    mutants = [line for line in lines if line["event"] == "progress"]
+    mutants = [
+        line for line in lines if line["event"] == "progress" and line["unit"] == "functions"
+    ]
     order = []
 
     for line in mutants:

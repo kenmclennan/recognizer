@@ -706,7 +706,15 @@ def coverage_run(
     reader_suites: list[str] = []
     started_at: dict[str, float] = {}
 
-    for suite in runnable:
+    counted = len(runnable) > 1
+
+    if counted:
+        events.start(len(runnable), "suites")
+
+    for position, suite in enumerate(runnable):
+        if counted:
+            events.progress(position, len(runnable), "suites", suite.name)
+
         command = suite.command
         extra: dict[str, str] = {}
         data = None
@@ -725,6 +733,9 @@ def coverage_run(
         began = time.monotonic()
         exit_code, output = run_suite_in(repository, copy, suite, command, extra)
         elapsed = time.monotonic() - began
+
+        if counted:
+            events.progress(position + 1, len(runnable), "suites", suite.name)
 
         if suite_failed(suite.language, exit_code, output):
             print(CARRY_HINT, file=sys.stderr)
