@@ -320,6 +320,57 @@ def test_end_line_for_method_constructor_and_expression_bodied_member(run):
     assert spans == {"C": (3, 5), "Plain": (7, 10), "One": (12, 12)}
 
 
+def test_body_line_for_block_allman_expression_and_bodiless_members(run):
+    document = one(
+        run,
+        "namespace N;\n"
+        "public class C {\n"
+        "    public int Signed(\n"
+        "        int a,\n"
+        "        int b)\n"
+        "    {\n"
+        "        return a;\n"
+        "    }\n"
+        "\n"
+        "    public int Knr(int a) {\n"
+        "        return a;\n"
+        "    }\n"
+        "\n"
+        "    public int Arrow(\n"
+        "        int a) =>\n"
+        "        a + 1;\n"
+        "\n"
+        "    public int Inline(int a) => a;\n"
+        "\n"
+        "    public void Empty() { }\n"
+        "}\n"
+        "public abstract class B {\n"
+        "    public abstract int Gone(\n"
+        "        int a);\n"
+        "}\n"
+        "public interface I {\n"
+        "    int Sig(int a);\n"
+        "}\n",
+    )
+
+    def bodies(type_name):
+        return {
+            m["name"]: m.get("body_line")
+            for m in member(document, "App/A.cs", type_name)["methods"]
+        }
+
+    assert bodies("C") == {
+        "Signed": 7,
+        "Knr": 11,
+        "Arrow": 16,
+        "Inline": 18,
+        "Empty": 20,
+    }
+    assert bodies("B") == {"Gone": None}
+    assert bodies("I") == {"Sig": None}
+    assert "body_line" not in member(document, "App/A.cs", "C")
+
+
 EXTENSION_BLOCKS = (
     "namespace N;\n"
     "public static class Ext\n{\n"

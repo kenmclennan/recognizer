@@ -110,6 +110,37 @@ def fields_of(node: Node) -> list[dict]:
     return sorted(found, key=lambda f: f["line"])
 
 
+COMMENTS = ("line_comment", "multiline_comment")
+
+
+def body_line_of(node: Node) -> int | None:
+    body = child(node, "function_body")
+
+    if body is None or not body.children:
+        return None
+
+    end_line = node.end_point[0] + 1
+    opener = body.children[0]
+
+    if opener.type == "{":
+        return min(opener.start_point[0] + 2, end_line)
+
+    for item in body.children[1:]:
+        if item.type not in COMMENTS:
+            return item.start_point[0] + 1
+
+    return None
+
+
+def with_body_line(found: dict, node: Node) -> dict:
+    body_line = body_line_of(node)
+
+    if body_line is not None:
+        found["body_line"] = body_line
+
+    return found
+
+
 def method_of(node: Node, interface: bool, static: bool) -> dict:
     identifier = child(node, *NAMES)
     method = {
@@ -119,6 +150,7 @@ def method_of(node: Node, interface: bool, static: bool) -> dict:
         "params": parameters(node),
         "private": visibility_of(node) == "private",
     }
+    with_body_line(method, node)
     returns = type_text(node)
 
     if returns:
@@ -174,7 +206,7 @@ def class_outline(decl: Decl) -> dict:
 
 
 def function_outline(node: Node) -> dict:
-    found = {"end_line": node.end_point[0] + 1, "params": parameters(node)}
+    found = with_body_line({"end_line": node.end_point[0] + 1, "params": parameters(node)}, node)
     returns = type_text(node)
 
     if returns:
