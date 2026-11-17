@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { discoverPlugins } from "../src/plugin-discovery.js";
+import { judgeScanSchema } from "../src/plugin-manifest.js";
 import {
   ioWithPath,
   manifestFor,
@@ -117,5 +118,49 @@ describe("discoverPlugins", () => {
     const io = ioWithPath(["/no/such/directory", first]);
 
     expect(discoverPlugins(io).plugins).toHaveLength(1);
+  });
+});
+
+describe("judgeScanSchema", () => {
+  it("is undeclared when nothing is declared", () => {
+    expect(judgeScanSchema(undefined)).toBe("undeclared");
+  });
+
+  it.each([
+    [7, 7, [7], "current"],
+    [8, 7, [7], "newer"],
+    [6, 7, [7], "broken"],
+    [6, 8, [7], "broken"],
+    [7, 8, [7], "older"],
+    [1, 7, [], "older"],
+  ] as const)(
+    "judges %i against %i with breaks %j as %s",
+    (declared, current, breaks, verdict) => {
+      expect(judgeScanSchema(declared, current, breaks)).toBe(verdict);
+    },
+  );
+});
+
+describe("discoverPlugins and the scan schema", () => {
+  it("sets schema from the manifest's declared version", () => {
+    const { first, io } = setup();
+
+    writeShim(
+      first,
+      "recognizer-scan-a",
+      manifestFor("scanner", "a", { scan_schema_version: 8 }),
+    );
+    writeShim(
+      first,
+      "recognizer-scan-b",
+      manifestFor("scanner", "b", { scan_schema_version: 7 }),
+    );
+    writeShim(first, "recognizer-sense-s", manifestFor("sensor", "s"));
+
+    const schemas = Object.fromEntries(
+      discoverPlugins(io).plugins.map((one) => [one.name, one.schema]),
+    );
+
+    expect(schemas).toEqual({ a: "newer", b: "current", s: "undeclared" });
   });
 });

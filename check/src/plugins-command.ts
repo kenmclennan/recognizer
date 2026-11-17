@@ -10,6 +10,7 @@ import {
   type InstalledPlugin,
   KINDS,
   programName,
+  scanSchemaMessage,
 } from "./plugin-discovery.js";
 import { chooseScanner, languageRulesOf } from "./scanners.js";
 
@@ -53,6 +54,22 @@ function isRegistered(plugin: InstalledPlugin, config: Config): boolean {
   return plugin.kind === "sensor"
     ? registeredSensors(config).some((one) => one.command[0] === program)
     : config.describer?.command[0] === program;
+}
+
+function schemaColumn(plugin: InstalledPlugin): string {
+  if (plugin.kind !== "scanner") {
+    return "";
+  }
+
+  return `schema ${plugin.manifest.scan_schema_version ?? UNUSED}  `;
+}
+
+export function schemaMismatchLines(plugins: InstalledPlugin[]): string[] {
+  return plugins.flatMap((plugin) => {
+    const line = scanSchemaMessage(plugin);
+
+    return line === null ? [] : [line];
+  });
 }
 
 const ORDER = new Map(KINDS.map((kind, at) => [kind, at]));
@@ -115,6 +132,8 @@ export function runPlugins(argv: string[], io: Io): number {
           version: plugin.manifest.version,
           protocol: plugin.manifest.protocol,
           range: plugin.judgement,
+          scan_schema_version: plugin.manifest.scan_schema_version ?? null,
+          schema_range: plugin.schema,
           used_by: usedBy(plugin),
           install: plugin.manifest.install,
         })),
@@ -127,7 +146,7 @@ export function runPlugins(argv: string[], io: Io): number {
       `${sorted
         .map(
           (plugin) =>
-            `${plugin.kind}  ${plugin.name}  ${plugin.manifest.version}  protocol ${plugin.manifest.protocol}  ${plugin.judgement}  ${usedBy(plugin)}`,
+            `${plugin.kind}  ${plugin.name}  ${plugin.manifest.version}  protocol ${plugin.manifest.protocol}  ${plugin.judgement}  ${schemaColumn(plugin)}${usedBy(plugin)}`,
         )
         .join("\n")}\n`,
     );
@@ -137,5 +156,11 @@ export function runPlugins(argv: string[], io: Io): number {
     io.stderr(`${command}: ${reason}\n`);
   }
 
-  return unreadable.length === 0 ? 0 : 1;
+  const mismatched = schemaMismatchLines(sorted);
+
+  for (const line of mismatched) {
+    io.stderr(`${line}\n`);
+  }
+
+  return unreadable.length === 0 && mismatched.length === 0 ? 0 : 1;
 }
