@@ -82,6 +82,7 @@
           "exported": true,
           "visibility": "public",
           "end_line": 8,
+          "body_line": 4,
           "params": [
             {
               "name": "x",
@@ -120,6 +121,7 @@
           "exported": true,
           "visibility": "public",
           "end_line": 5,
+          "body_line": 4,
           "params": []
         }
       ],
@@ -137,6 +139,7 @@
           "exported": true,
           "visibility": "public",
           "end_line": 5,
+          "body_line": 4,
           "params": [
             {
               "name": "text",
@@ -202,6 +205,7 @@
           "exported": true,
           "visibility": "public",
           "end_line": 3,
+          "body_line": 3,
           "params": [],
           "returns": "Long"
         }
@@ -222,6 +226,7 @@
           "exported": true,
           "visibility": "public",
           "end_line": 3,
+          "body_line": 3,
           "params": [],
           "returns": "Long"
         }

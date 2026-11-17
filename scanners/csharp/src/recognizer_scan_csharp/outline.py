@@ -99,6 +99,25 @@ def fields_of(decl: Decl) -> list[dict]:
     return sorted(found, key=lambda f: f["line"])
 
 
+def body_line_of(node: Node) -> int | None:
+    end_line = node.end_point[0] + 1
+    body = node.child_by_field_name("body")
+
+    if body is not None and body.type == "block":
+        return min(body.start_point[0] + 2, end_line)
+
+    clause = body if body is not None else child(node, "arrow_expression_clause")
+
+    if clause is None:
+        return None
+
+    for item in clause.named_children:
+        if item.type != "comment":
+            return item.start_point[0] + 1
+
+    return None
+
+
 def method_of(node: Node, decl: Decl) -> dict:
     words = modifier_words(node)
     interface = decl.kind == "interface"
@@ -110,6 +129,11 @@ def method_of(node: Node, decl: Decl) -> dict:
         "params": parameters(node),
         "private": is_private(words, interface),
     }
+    body_line = body_line_of(node)
+
+    if body_line is not None:
+        method["body_line"] = body_line
+
     returns = type_text(node, "type" if node.type == "property_declaration" else "returns")
 
     if returns:

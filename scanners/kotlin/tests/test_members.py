@@ -95,6 +95,7 @@ def test_a_class_outline_has_bases_fields_and_methods(run):
         "name": "hidden",
         "line": 5,
         "end_line": 5,
+        "body_line": 5,
         "params": [{"name": "a", "type": "Int"}, {"name": "b", "type": "String"}],
         "private": True,
         "returns": "Boolean",
@@ -207,3 +208,53 @@ def test_a_plain_class_carries_no_tags(run):
 
 def test_an_abstract_class_keeps_its_abstract_tag(run):
     assert member(one(run, "abstract class A"), "a/F.kt", "A")["tags"] == ["abstract"]
+
+
+def test_body_line_for_block_expression_and_bodiless_functions(run):
+    document = one(
+        run,
+        "fun signed(\n"
+        "    a: Int,\n"
+        "    b: Int,\n"
+        "): Int {\n"
+        "    return a\n"
+        "}\n\n"
+        "fun allman(a: Int): Int\n"
+        "{\n"
+        "    return a\n"
+        "}\n\n"
+        "fun expression(\n"
+        "    a: Int,\n"
+        ") =\n"
+        "    a + 1\n\n"
+        "fun inline(a: Int) = a\n\n"
+        "fun empty() {}\n\n"
+        "abstract class B {\n"
+        "    abstract fun gone(\n"
+        "        a: Int,\n"
+        "    ): Int\n\n"
+        "    fun method(\n"
+        "        a: Int,\n"
+        "    ) {\n"
+        "        println()\n"
+        "    }\n"
+        "}\n\n"
+        "interface I {\n"
+        "    fun sig(a: Int)\n"
+        "}",
+    )
+
+    def body(name):
+        return member(document, "a/F.kt", name).get("body_line")
+
+    assert body("signed") == 7
+    assert body("allman") == 12
+    assert body("expression") == 18
+    assert body("inline") == 20
+    assert body("empty") == 22
+
+    methods = member(document, "a/F.kt", "B")["methods"]
+
+    assert [(m["name"], m.get("body_line")) for m in methods] == [("gone", None), ("method", 32)]
+    assert member(document, "a/F.kt", "I")["methods"][0].get("body_line") is None
+    assert "body_line" not in member(document, "a/F.kt", "B")

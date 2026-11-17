@@ -112,6 +112,7 @@
               "name": "get",
               "line": 4,
               "end_line": 4,
+              "body_line": 4,
               "params": [
                 {
                   "name": "id",
@@ -166,6 +167,7 @@
               "name": "show",
               "line": 5,
               "end_line": 5,
+              "body_line": 5,
               "params": [
                 {
                   "name": "id",

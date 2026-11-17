@@ -177,6 +177,7 @@
               "name": "save",
               "line": 12,
               "end_line": 12,
+              "body_line": 12,
               "params": [],
               "private": false
             }
@@ -189,6 +190,7 @@
           "exported": true,
           "visibility": "public",
           "end_line": 15,
+          "body_line": 15,
           "params": [],
           "returns": "Impl"
         },
