@@ -338,6 +338,27 @@ describe("recognizer scan: outcomes", () => {
     expect(err).toContain("accepts 7");
   });
 
+  it("refuses a version-6 scan as unknown-schema-version and writes nothing", async () => {
+    const { fake, err } = await scan({
+      files: { [`${ROOT}/a.py`]: "" },
+      scanners: { [PYTHON]: { output: scanJson(1, 0, { schema_version: 6 }) } },
+    });
+
+    expect(err).toContain("python: unknown-schema-version - ");
+    expect(err).toContain("schema_version 6");
+    expect(fake.files.has(PY_CACHE)).toBe(false);
+  });
+
+  it("accepts a version-7 scan", async () => {
+    const { code, fake } = await scan({
+      files: { [`${ROOT}/a.py`]: "" },
+      scanners: { [PYTHON]: { output: scanJson(1, 0, { schema_version: 7 }) } },
+    });
+
+    expect(code).toBe(0);
+    expect(fake.files.has(PY_CACHE)).toBe(true);
+  });
+
   it("refuses a version-2 scan naming both versions", async () => {
     const { err } = await scan({
       files: { [`${ROOT}/a.py`]: "" },

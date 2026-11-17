@@ -2,6 +2,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
+import type { InstalledPlugin } from "../src/plugin-discovery.js";
+import { schemaMismatchLines } from "../src/plugins-command.js";
 import {
   ioWithPath,
   manifestFor,
@@ -85,6 +87,18 @@ function installed() {
   return { bin, repo };
 }
 
+async function withJson(bin: string, repo: string) {
+  const listed = await plugins([bin], [repo, "--json"]);
+  const text = await plugins([bin], [repo]);
+
+  return {
+    code: text.code,
+    out: text.out,
+    err: text.err,
+    entries: JSON.parse(listed.out) as Record<string, unknown>[],
+  };
+}
+
 describe("recognizer plugins", () => {
   it("lists scanners, then sensors, then describers, each by name, with what uses them", async () => {
     const { bin, repo } = installed();
@@ -106,8 +120,8 @@ describe("recognizer plugins", () => {
       "sensor s",
       "describer d",
     ]);
-    expect(rows[0]).toMatch(/current {2}-$/);
-    expect(rows[1]).toMatch(/current {2}scanner for python$/);
+    expect(rows[0]).toMatch(/current {2}schema 7 {2}-$/);
+    expect(rows[1]).toMatch(/current {2}schema 7 {2}scanner for python$/);
     expect(rows[2]).toMatch(/current {2}registered$/);
     expect(rows[3]).toMatch(/current {2}registered$/);
   });
@@ -138,8 +152,96 @@ describe("recognizer plugins", () => {
       version: "0.1.0",
       protocol: 1,
       range: "current",
+      scan_schema_version: 7,
+      schema_range: "current",
       used_by: "-",
       install: expect.any(String),
+    });
+  });
+
+  it("gives every json entry the two schema keys, null and undeclared for a non-scanner", async () => {
+    const { bin, repo } = installed();
+    const { out } = await plugins([bin], [repo, "--json"]);
+    const entries = JSON.parse(out) as Record<string, unknown>[];
+    const sensor = entries.find((one) => one.kind === "sensor");
+
+    expect(entries.length).toBeGreaterThan(0);
+    expect(sensor).toMatchObject({
+      scan_schema_version: null,
+      schema_range: "undeclared",
+    });
+
+    for (const entry of entries) {
+      expect(entry).toHaveProperty("scan_schema_version");
+      expect(entry).toHaveProperty("schema_range");
+    }
+  });
+
+  it("prints schema - for a scanner that declares nothing and exits 0", async () => {
+    const bin = tempDirectory("recognizer-plugins-bin-");
+    const repo = tempDirectory("recognizer-plugins-repo-");
+    const { scan_schema_version: _, ...undeclared } = manifestFor(
+      "scanner",
+      "plain",
+      RULES("plain", ".plain"),
+    );
+
+    writeShim(bin, "recognizer-scan-plain", undeclared);
+
+    const { code, out, err } = await plugins([bin], [repo]);
+
+    expect(code).toBe(0);
+    expect(out).toMatch(/scanner {2}plain {2}.*current {2}schema - {2}-\n/);
+    expect(err).toBe("");
+  });
+
+  it("names a scanner on a newer scan schema with the cask fix, exits 1 and still lists the others", async () => {
+    const { bin, repo } = installed();
+
+    writeShim(
+      bin,
+      "recognizer-scan-newer",
+      manifestFor("scanner", "newer", {
+        ...RULES("newer", ".newer"),
+        scan_schema_version: 8,
+      }),
+    );
+
+    const { code, out, err, entries } = await withJson(bin, repo);
+
+    expect(code).toBe(1);
+    expect(out).toContain("scanner  python");
+    expect(out).toMatch(/scanner {2}newer {2}.*schema 8 /);
+    expect(err).toContain(
+      "recognizer-scan-newer writes scan schema 8 and this recognizer reads 7: run brew upgrade --cask kenmclennan/tap/recognizer",
+    );
+    expect(entries.find((one) => one.name === "newer")).toMatchObject({
+      scan_schema_version: 8,
+      schema_range: "newer",
+    });
+  });
+
+  it("names a scanner whose scan schema is broken with its install line", async () => {
+    const { bin, repo } = installed();
+
+    writeShim(
+      bin,
+      "recognizer-scan-stale",
+      manifestFor("scanner", "stale", {
+        ...RULES("stale", ".stale"),
+        scan_schema_version: 6,
+        install: "brew upgrade kenmclennan/tap/recognizer-scan-stale",
+      }),
+    );
+
+    const { code, err, entries } = await withJson(bin, repo);
+
+    expect(code).toBe(1);
+    expect(err).toContain(
+      "recognizer-scan-stale writes scan schema 6 and this recognizer cannot read it, because a change at or after 7 broke older scans: brew upgrade kenmclennan/tap/recognizer-scan-stale",
+    );
+    expect(entries.find((one) => one.name === "stale")).toMatchObject({
+      schema_range: "broken",
     });
   });
 
@@ -181,5 +283,37 @@ describe("recognizer plugins", () => {
     expect(code).toBe(0);
     expect(out).not.toContain("registered");
     expect(out).not.toContain("scanner for");
+  });
+});
+
+describe("schemaMismatchLines", () => {
+  function plugin(
+    schema: InstalledPlugin["schema"],
+    declared?: number,
+  ): InstalledPlugin {
+    return {
+      kind: "scanner",
+      name: "x",
+      command: "/bin/recognizer-scan-x",
+      judgement: "current",
+      schema,
+      manifest: {
+        ...(manifestFor("scanner", "x") as object),
+        scan_schema_version: declared,
+      } as InstalledPlugin["manifest"],
+    };
+  }
+
+  it("returns no line for an accepted older scanner", () => {
+    expect(schemaMismatchLines([plugin("older", 6)])).toEqual([]);
+  });
+
+  it("returns no line for current or undeclared", () => {
+    expect(schemaMismatchLines([plugin("current", 7)])).toEqual([]);
+    expect(schemaMismatchLines([plugin("undeclared")])).toEqual([]);
+  });
+
+  it("returns a line for a newer one", () => {
+    expect(schemaMismatchLines([plugin("newer", 8)])).toHaveLength(1);
   });
 });

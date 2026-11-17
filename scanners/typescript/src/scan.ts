@@ -19,6 +19,7 @@ import { namespaceNames } from "./namespace-use.js";
 import type { MemberOutline } from "./outline.js";
 import { Resolver } from "./resolve.js";
 import { namedEdges, Router } from "./routes.js";
+import { SCAN_SCHEMA_VERSION } from "./scan-schema.js";
 import { readTestImports } from "./test-imports.js";
 import { isUnder, TsconfigOptions } from "./tsconfig-options.js";
 import { scannerVersion } from "./version.js";
@@ -65,7 +66,7 @@ export interface ScanTestImport {
 }
 
 export interface ScanDocument {
-  schema_version: 7;
+  schema_version: typeof SCAN_SCHEMA_VERSION;
   scanner: { name: string; version: string };
   commit: string | null;
   modified: boolean | null;
@@ -487,7 +488,7 @@ export function scan(
   });
 
   return {
-    schema_version: 7,
+    schema_version: SCAN_SCHEMA_VERSION,
     scanner: { name: SCANNER_NAME, version: scannerVersion() },
     commit,
     modified,

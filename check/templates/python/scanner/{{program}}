@@ -27,6 +27,7 @@ MANIFEST = {
     "long_running": True,
     "units": ["files"],
     "settings": [],
+    "scan_schema_version": {{scan_schema_version}},
     "languages": [
         {
             "name": "{{name}}",

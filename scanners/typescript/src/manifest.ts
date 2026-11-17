@@ -1,4 +1,5 @@
 import { selection } from "./files.js";
+import { SCAN_SCHEMA_VERSION } from "./scan-schema.js";
 import { scannerVersion } from "./version.js";
 
 export const PROTOCOL = 1;
@@ -20,6 +21,7 @@ export function manifest() {
     long_running: true,
     units: ["files"],
     settings: [],
+    scan_schema_version: SCAN_SCHEMA_VERSION,
     languages: [
       {
         name: "typescript",

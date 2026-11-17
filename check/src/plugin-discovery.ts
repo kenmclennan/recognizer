@@ -3,11 +3,14 @@ import type { Io } from "./cli.js";
 import {
   CURRENT_PROTOCOL,
   judgeProtocol,
+  judgeScanSchema,
   type Manifest,
   type PluginKind,
   type ProtocolJudgement,
   readManifest,
+  type ScanSchemaJudgement,
 } from "./plugin-manifest.js";
+import { SCAN_BREAKING_VERSIONS, SCAN_SCHEMA_VERSION } from "./scan.js";
 
 export const PREFIXES: Record<PluginKind, string> = {
   scanner: "recognizer-scan-",
@@ -23,6 +26,7 @@ export interface InstalledPlugin {
   command: string;
   manifest: Manifest;
   judgement: ProtocolJudgement;
+  schema: ScanSchemaJudgement;
 }
 
 export interface UnreadablePlugin {
@@ -116,6 +120,10 @@ export function discoverPlugins(
         command,
         manifest,
         judgement: judgeProtocol(manifest),
+        schema:
+          kind === "scanner"
+            ? judgeScanSchema(manifest.scan_schema_version)
+            : "undeclared",
       });
     }
   }
@@ -146,4 +154,35 @@ export function unsupportedMessage(
   install: string = plugin.manifest.install,
 ): string {
   return `${programName(plugin.kind, plugin.name)} speaks protocol ${plugin.manifest.protocol} and recognizer supports ${supportedRange()}: install ${install}`;
+}
+
+export const CASK_UPGRADE = "brew upgrade --cask kenmclennan/tap/recognizer";
+
+export function scanSchemaMessage(
+  plugin: {
+    kind: PluginKind;
+    name: string;
+    manifest: Manifest;
+    schema: ScanSchemaJudgement;
+  },
+  install: string = plugin.manifest.install,
+  current: number = SCAN_SCHEMA_VERSION,
+  breaks: readonly number[] = SCAN_BREAKING_VERSIONS,
+): string | null {
+  const program = programName(plugin.kind, plugin.name);
+  const declared = plugin.manifest.scan_schema_version;
+
+  if (plugin.schema === "newer") {
+    return `${program} writes scan schema ${declared} and this recognizer reads ${current}: run ${CASK_UPGRADE}`;
+  }
+
+  if (plugin.schema === "broken") {
+    const at = Math.min(
+      ...breaks.filter((b) => (declared ?? 0) < b && b <= current),
+    );
+
+    return `${program} writes scan schema ${declared} and this recognizer cannot read it, because a change at or after ${at} broke older scans: ${install}`;
+  }
+
+  return null;
 }

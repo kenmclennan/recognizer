@@ -1,6 +1,7 @@
 use serde_json::{json, Value};
 
 use crate::discovery::{EXTENSIONS, SKIPPED_DIRECTORY_NAMES, SKIPPED_DIRECTORY_PREFIXES};
+use crate::scanner::SCAN_SCHEMA_VERSION;
 
 pub const PROTOCOL: u64 = 1;
 
@@ -18,6 +19,7 @@ pub fn build() -> Value {
         "long_running": true,
         "units": ["files"],
         "settings": [],
+        "scan_schema_version": SCAN_SCHEMA_VERSION,
         "languages": [{
             "name": "rust",
             "extensions": EXTENSIONS,

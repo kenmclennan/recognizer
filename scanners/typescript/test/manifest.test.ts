@@ -5,7 +5,7 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import { PROTOCOL } from "../src/manifest.js";
-import { BIN, REPO } from "./helpers.js";
+import { BIN, REPO, scanTree } from "./helpers.js";
 
 const validate = new Ajv2020({ allErrors: true }).compile(
   JSON.parse(readFileSync(join(REPO, "schema/manifest.schema.json"), "utf8")),
@@ -48,6 +48,21 @@ describe("the manifest verb", () => {
       JSON.parse(
         readFileSync(join(REPO, "scanners/typescript/package.json"), "utf8"),
       ).version,
+    );
+  });
+
+  it("declares the scan schema version of the schema and of the scan it writes", () => {
+    const declared = JSON.parse(
+      manifest(makeTempDir("manifest-")).stdout,
+    ).scan_schema_version;
+    const constant = JSON.parse(
+      readFileSync(join(REPO, "schema/scan.schema.json"), "utf8"),
+    ).properties.schema_version.const;
+
+    expect(declared).toBeDefined();
+    expect(declared).toBe(constant);
+    expect(declared).toBe(
+      scanTree({ "a.ts": "export const a = 1;\n" }).schema_version,
     );
   });
 });

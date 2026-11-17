@@ -42,5 +42,6 @@
         ]
       }
     }
-  ]
+  ],
+  "scan_schema_version": 7
 }

@@ -2,6 +2,9 @@ import type { ValidateFunction } from "ajv";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { InputError } from "./errors.js";
 import schema from "./generated/scan.schema.json" with { type: "json" };
+import breaking from "./generated/scan-breaking-versions.json" with {
+  type: "json",
+};
 
 export interface ScanEdge {
   from: string;
@@ -134,6 +137,26 @@ export interface RecordedScan extends Scan {
 export const SCAN_SCHEMA_VERSION: number =
   schema.properties.schema_version.const;
 
+export const SCAN_BREAKING_VERSIONS: number[] = breaking;
+
+export type ScanVersionVerdict = "current" | "older" | "newer" | "broken";
+
+export function judgeScanVersion(
+  found: number,
+  current: number = SCAN_SCHEMA_VERSION,
+  breaks: readonly number[] = SCAN_BREAKING_VERSIONS,
+): ScanVersionVerdict {
+  if (found === current) {
+    return "current";
+  }
+
+  if (found > current) {
+    return "newer";
+  }
+
+  return breaks.some((b) => found < b && b <= current) ? "broken" : "older";
+}
+
 let compiled: ValidateFunction | undefined;
 
 function validator(): ValidateFunction {
@@ -154,4 +177,33 @@ export function validateScan(value: unknown): Scan {
   );
 
   throw new InputError(messages.length > 0 ? messages : ["scan is invalid"]);
+}
+
+export function validateAcceptedScan(
+  value: unknown,
+  current: number = SCAN_SCHEMA_VERSION,
+  breaks: readonly number[] = SCAN_BREAKING_VERSIONS,
+): Scan {
+  const version = (value as { schema_version?: unknown } | null)
+    ?.schema_version;
+
+  if (typeof version !== "number" || !Number.isInteger(version)) {
+    return validateScan(value);
+  }
+
+  const verdict = judgeScanVersion(version, current, breaks);
+
+  if (verdict === "newer" || verdict === "broken") {
+    throw new InputError([
+      `scan has schema_version ${version}, recognizer accepts ${current}`,
+    ]);
+  }
+
+  if (verdict === "current") {
+    return validateScan(value);
+  }
+
+  validateScan({ ...(value as object), schema_version: SCAN_SCHEMA_VERSION });
+
+  return value as unknown as Scan;
 }

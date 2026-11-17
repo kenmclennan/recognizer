@@ -12,6 +12,8 @@ use crate::items::{self, Parsed};
 use crate::resolve::{Env, Final, Resolver};
 use crate::tree;
 
+pub const SCAN_SCHEMA_VERSION: u64 = 7;
+
 pub const SCANNER_NAME: &str = "recognizer-scan-rust";
 
 pub struct Scan {
@@ -497,7 +499,7 @@ pub fn scan_reporting(
     edges.sort_by_key(Edge::order);
 
     let document = json!({
-        "schema_version": 7,
+        "schema_version": SCAN_SCHEMA_VERSION,
         "scanner": {"name": SCANNER_NAME, "version": env!("CARGO_PKG_VERSION")},
         "commit": commit,
         "modified": modified,

@@ -53,6 +53,7 @@ export type ProblemCode =
   | "plugin-missing"
   | "plugin-manifest"
   | "plugin-protocol"
+  | "plugin-scan-schema"
   | "plugin-settings"
   | "describer-gap"
   | "unregistered-plugin";

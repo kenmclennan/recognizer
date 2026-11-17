@@ -8,6 +8,7 @@ from recognizer_scan_csharp.discovery import (
     SKIPPED_FILE_PATTERNS,
     SOURCE_EXTENSIONS,
 )
+from recognizer_scan_csharp.scan_schema import SCAN_SCHEMA_VERSION
 
 PROTOCOL = 1
 
@@ -29,6 +30,7 @@ def build() -> dict:
         "long_running": True,
         "units": ["files"],
         "settings": [],
+        "scan_schema_version": SCAN_SCHEMA_VERSION,
         "languages": [
             {
                 "name": "csharp",

@@ -35,10 +35,67 @@ jobs:
             echo "present=true" >> "$GITHUB_OUTPUT"
           fi
 
-  release:
-    name: release (build, publish)
+  plan:
+    name: plan (units and CI)
     needs: gate
     if: needs.gate.outputs.present == 'true'
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 15
+    outputs:
+      units: ${{ steps.plan.outputs.units }}
+      has_units: ${{ steps.plan.outputs.has_units }}
+    env:
+      HEAD_SHA: ${{ inputs.commit || github.sha }}
+    steps:
+      - name: Require a full commit SHA
+        run: |
+          if ! printf '%s' "$HEAD_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "the commit must be a full 40-character SHA, got: $HEAD_SHA" >&2
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.commit || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Plan the train
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          units=$(node scripts/release-train.mjs plan "$HEAD_SHA")
+          echo "units=$units" >> "$GITHUB_OUTPUT"
+          if [ "$units" = "[]" ]; then
+            echo "has_units=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_units=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-plugins:
+    name: build (${{ matrix.unit }})
+    needs: plan
+    if: needs.plan.outputs.has_units == 'true'
+    strategy:
+      max-parallel: 1
+      matrix:
+        unit: ${{ fromJson(needs.plan.outputs.units) }}
+    uses: ./.github/workflows/build-plugin.yml
+    with:
+      unit: ${{ matrix.unit }}
+      commit: ${{ inputs.commit || github.sha }}
+    secrets: inherit
+
+  release:
+    name: release (build, publish)
+    needs: [plan, build-plugins]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && (needs.build-plugins.result == 'success' || needs.build-plugins.result == 'skipped') }}
     runs-on: [self-hosted, macOS, ARM64]
     timeout-minutes: 60
     env:
@@ -65,21 +122,6 @@ jobs:
         run: |
           if git tag --points-at "$HEAD_SHA" | grep -q '^v'; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Require the app workflow to have passed
-        if: steps.released.outputs.skip != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          runs=$(gh run list --workflow app.yml --commit "$HEAD_SHA" --json status,conclusion)
-          if [ "$(echo "$runs" | jq '[.[] | select(.status != "completed")] | length')" != "0" ]; then
-            echo "an app workflow run on $HEAD_SHA is still going" >&2
-            exit 1
-          fi
-          if [ "$(echo "$runs" | jq 'length')" != "0" ] && [ "$(echo "$runs" | jq '[.[] | select(.conclusion == "success")] | length')" = "0" ]; then
-            echo "no app workflow run on $HEAD_SHA succeeded" >&2
-            exit 1
           fi
 
       - name: Require the plugins bundle in the tap
@@ -117,6 +159,20 @@ jobs:
         run: |
           npm run build -w recognizer
           node scripts/build-toolchain.mjs dist-release
+
+      - name: Download the built plugin archives
+        if: steps.released.outputs.skip != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: plugin-*
+          path: dist-train
+
+      - name: Verify the train's scan schema versions
+        if: steps.released.outputs.skip != 'true'
+        run: |
+          mkdir -p dist-train
+          app_schema=$(node --input-type=module -e 'import { SCAN_SCHEMA_VERSION } from "./check/dist/index.js"; process.stdout.write(String(SCAN_SCHEMA_VERSION))')
+          node scripts/release-train.mjs verify "$app_schema" dist-train
 
       - name: Build the app
         if: steps.released.outputs.skip != 'true'
@@ -186,6 +242,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
+          for meta in dist-train/*/meta.json; do
+            [ -f "$meta" ] || continue
+            unit=$(node -p "require('./$meta').unit")
+            built=$(node -p "require('./$meta').version")
+            gh release create "${unit}-v${built}" --repo "$RELEASES_REPO" --title "$unit $built" \
+              --notes "Release archive of the $unit plugin unit, installed by its Homebrew formulae from kenmclennan/tap." \
+              "$(dirname "$meta")/$unit-$built.tar.gz"
+          done
           gh release create "v$VERSION" --repo "$RELEASES_REPO" --title "Recognizer $VERSION" --notes-file dist-release/notes.txt \
             dist-release/recognizer.app.tar.gz
 
@@ -194,26 +258,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
+          tags="v$VERSION"
           git tag "v$VERSION" "$HEAD_SHA"
-          git -c http.https://github.com/.extraheader= push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "v$VERSION"
-
-      - name: Update the Homebrew tap
-        if: steps.released.outputs.skip != 'true'
-        env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
-        run: |
-          app_sha=$(shasum -a 256 dist-release/recognizer.app.tar.gz | cut -d' ' -f1)
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/${TAP_REPO}.git" tap-repo
-          node scripts/render-homebrew.mjs cask "$VERSION" "$app_sha" tap-repo
-          cd tap-repo
-          git rm -f --ignore-unmatch Formula/recognizer.rb
-          if [ -n "$(git status --porcelain)" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add Casks/recognizer.rb
-            git commit -m "recognizer $VERSION"
-            git push
-          fi
+          for meta in dist-train/*/meta.json; do
+            [ -f "$meta" ] || continue
+            unit=$(node -p "require('./$meta').unit")
+            built=$(node -p "require('./$meta').version")
+            git tag "${unit}-v${built}" "$HEAD_SHA"
+            tags="$tags ${unit}-v${built}"
+          done
+          git -c http.https://github.com/.extraheader= push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" $tags
 
       - name: Update the releases README
         if: steps.released.outputs.skip != 'true'
@@ -240,4 +294,90 @@ jobs:
               "$lsregister" -u "$bundle" || true
               rm -rf "$bundle"
             done
+          fi
+
+  tap:
+    name: tap (one commit)
+    needs: release
+    if: ${{ !cancelled() && needs.release.result == 'success' }}
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 20
+    env:
+      HEAD_SHA: ${{ inputs.commit || github.sha }}
+      RELEASES_REPO: kenmclennan/recognizer-releases
+      TAP_REPO: kenmclennan/homebrew-tap
+      GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.commit || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Render the cask and every formula into one commit
+        run: |
+          gh api --paginate "repos/$RELEASES_REPO/releases" --jq '.[].tag_name' > tags.txt
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${TAP_REPO}.git" tap-repo
+          mkdir -p assets
+
+          app_tag=$(grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' tags.txt | sort -V | tail -n 1)
+          app_version=${app_tag#v}
+          gh release download "$app_tag" --repo "$RELEASES_REPO" --pattern recognizer.app.tar.gz --dir assets --clobber
+          app_sha=$(shasum -a 256 assets/recognizer.app.tar.gz | cut -d' ' -f1)
+          node scripts/render-homebrew.mjs cask "$app_version" "$app_sha" tap-repo
+
+          for unit in $(node -p "require('./packaging/units.json').units.map((entry) => entry.unit).join(' ')"); do
+            tag=$(grep -E "^${unit}-v[0-9]+\.[0-9]+\.[0-9]+$" tags.txt | sort -V | tail -n 1 || true)
+            if [ -z "$tag" ]; then
+              echo "$unit has no published release" >&2
+              exit 1
+            fi
+            built=${tag#"${unit}-v"}
+            gh release download "$tag" --repo "$RELEASES_REPO" --pattern "$unit-$built.tar.gz" --dir assets --clobber
+            sha=$(shasum -a 256 "assets/$unit-$built.tar.gz" | cut -d' ' -f1)
+            node scripts/render-homebrew.mjs unit "$unit" "$built" "$sha" tap-repo
+          done
+
+          node scripts/render-homebrew.mjs members | sort > members.txt
+          current=""
+          if [ -f tap-repo/Formula/recognizer-plugins.rb ]; then
+            current=$(grep -oE 'depends_on "[^"]+"' tap-repo/Formula/recognizer-plugins.rb | sed -E 's/depends_on "([^"]+)"/\1/' | sort)
+          fi
+          if [ "$current" != "$(cat members.txt)" ]; then
+            last=$(grep -E '^recognizer-plugins-v[0-9]+$' tags.txt | sed -E 's/^recognizer-plugins-v//' | sort -n | tail -n 1 || true)
+            bundle=$(( ${last:-0} + 1 ))
+            mkdir -p bundle
+            cp members.txt bundle/members.txt
+            tar -czf "assets/recognizer-plugins-$bundle.tar.gz" -C bundle members.txt
+            gh release create "recognizer-plugins-v$bundle" --repo "$RELEASES_REPO" --title "recognizer-plugins $bundle" \
+              --notes "The member list of the recognizer-plugins bundle formula." \
+              "assets/recognizer-plugins-$bundle.tar.gz"
+            bundle_sha=$(shasum -a 256 "assets/recognizer-plugins-$bundle.tar.gz" | cut -d' ' -f1)
+            node scripts/render-homebrew.mjs bundle "$bundle" "$bundle_sha" tap-repo
+          fi
+
+          cd tap-repo
+          git rm -f --ignore-unmatch Formula/recognizer.rb
+          git add -A Casks Formula
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "recognizer $app_version"
+            pushed=false
+            for attempt in 1 2 3; do
+              if git push; then
+                pushed=true
+                break
+              fi
+              git pull --rebase
+            done
+            if [ "$pushed" != "true" ]; then
+              echo "the tap push was refused three times" >&2
+              exit 1
+            fi
           fi

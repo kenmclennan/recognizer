@@ -18,6 +18,7 @@ from recognizer_scan_kotlin.index import Index
 from recognizer_scan_kotlin.outline import member_of
 from recognizer_scan_kotlin.parse import parse_file
 from recognizer_scan_kotlin.resolve import Collected, Resolver
+from recognizer_scan_kotlin.scan_schema import SCAN_SCHEMA_VERSION
 
 SCANNER_NAME = "recognizer-scan-kotlin"
 
@@ -156,7 +157,7 @@ def scan_with_stats(
     calls = CallResolver(files, index, resolver, endpoints).scan_calls()
     unresolved = sorted(collected.unresolved, key=lambda u: (u["from"], u["line"], u["import"]))
     document = {
-        "schema_version": 7,
+        "schema_version": SCAN_SCHEMA_VERSION,
         "scanner": {"name": SCANNER_NAME, "version": version(SCANNER_NAME)},
         "commit": commit,
         "modified": modified,

@@ -70,3 +70,13 @@ fn the_languages_equal_the_shared_table() {
         expected
     );
 }
+
+#[test]
+fn the_manifest_declares_the_scan_schema_version_the_scanner_writes() {
+    let declared = build()["scan_schema_version"].clone();
+    let constant = read("schema/scan.schema.json")["properties"]["schema_version"]["const"].clone();
+
+    assert!(declared.is_u64());
+    assert_eq!(declared, constant);
+    assert_eq!(declared, run(&[("src/lib.rs", "")])["schema_version"]);
+}

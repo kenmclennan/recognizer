@@ -31,6 +31,8 @@ brew upgrade --cask kenmclennan/tap/recognizer
 
 A bare `brew upgrade` works too. The app and the `recognizer` command are one package and move together; the app has no updater of its own. Each plugin is its own formula and upgrades on its own release, so a plugin can be a version ahead of or behind the command. `recognizer` judges a plugin by its protocol, not its version: a plugin outside the range the command supports is refused, and the message prints that plugin's install line.
 
+From this release the app and every plugin that changed ship together, and a release is one commit to the tap. The app still reads a scan from an older plugin unless a release notes a break, so an older plugin needs no action by itself. If `recognizer plugins` or `recognizer doctor` names a plugin the app would refuse, run `brew update` first, then `brew upgrade --cask kenmclennan/tap/recognizer` when the plugin is newer than the app, or the plugin's own install line when it is older and listed as broken.
+
 After an upgrade:
 
 - Run `recognizer doctor` in each repository you use it with. It reports any config key the new version retired, and prints the command that fixes each problem.
@@ -144,6 +146,7 @@ Start with `recognizer doctor` in the repository: it checks the config, the poli
 - **Doctor reports `plugin-missing` for a registered sensor or describer.** The program is not on `PATH` on this machine. The fix is the install line recorded under `install.<program>` in `config.yaml`; when none is recorded it says so, and `recognizer plugin add <name>` on a machine that has the plugin records one.
 - **Doctor reports `plugin-manifest`.** The program is on `PATH` but its `manifest` verb did not answer or did not validate. `recognizer plugin check <program>` says which result failed.
 - **Doctor reports `plugin-protocol`.** The plugin speaks a protocol the installed Recognizer does not. The previous protocol is a warning (the plugin still runs); any other is a problem and the plugin is refused. The fix is the plugin's install line: upgrade it.
+- **Doctor reports `plugin-scan-schema`.** A scanner writes a scan the app would refuse: its scan schema is newer than the app reads, or older with a listed break in between. `recognizer plugins` shows each scanner's version and names the same plugin on stderr. Run `brew upgrade --cask kenmclennan/tap/recognizer` when the scanner is newer, or the scanner's install line when it is older.
 - **Doctor reports `sensor-gap` or `describer-gap`.** The plugin's own readiness check found something missing; `recognizer help sensors <name>` says how to fix it.
 - **Doctor reports `plugin-settings`.** A key under `sensors.<name>` is not one the sensor's manifest declares, or its value breaks the declared type or range. `recognizer help sensors <name>` lists the keys.
 - **Doctor reports `scanner-missing`.** No installed scanner claims a language the repository holds, or `scanners.<language>` names a scanner that is not installed. Install a scanner that claims the language; `recognizer plugins` lists what is installed. With no scanner installed at all, the problem is named `scanners`.

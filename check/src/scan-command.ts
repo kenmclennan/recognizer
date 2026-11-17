@@ -47,10 +47,11 @@ import {
 } from "./run-log.js";
 import { type RunSensorsInput, runSensors } from "./run-sensors.js";
 import {
+  judgeScanVersion,
   type RecordedScan,
   SCAN_SCHEMA_VERSION,
   type Scan,
-  validateScan,
+  validateAcceptedScan,
 } from "./scan.js";
 import { awaitDescribeAnswer } from "./scan-answer.js";
 import {
@@ -169,7 +170,11 @@ function checkScan(bytes: string): Outcome {
   const version = (parsed as { schema_version?: unknown } | null)
     ?.schema_version;
 
-  if (typeof version === "number" && version !== SCAN_SCHEMA_VERSION) {
+  if (
+    typeof version === "number" &&
+    Number.isInteger(version) &&
+    ["newer", "broken"].includes(judgeScanVersion(version))
+  ) {
     return failure(
       "unknown-schema-version",
       `scan has schema_version ${version}, recognizer accepts ${SCAN_SCHEMA_VERSION}`,
@@ -177,7 +182,7 @@ function checkScan(bytes: string): Outcome {
   }
 
   try {
-    const scan = validateScan(parsed);
+    const scan = validateAcceptedScan(parsed);
 
     return {
       ok: true,
@@ -392,7 +397,7 @@ export function readCachedScan(
   language: Language,
 ): RecordedScan | null {
   try {
-    return validateScan(
+    return validateAcceptedScan(
       JSON.parse(io.readFile(cacheFile(root, language))),
     ) as RecordedScan;
   } catch {
