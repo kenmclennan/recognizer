@@ -303,6 +303,7 @@ export type {
   SurveyUnread,
   SurveyUpgrade,
 } from "./setup-survey.js";
+export type { TryEvent } from "./setup-try.js";
 export {
   SHIPPED_DESCRIBER_COMMAND,
   SHIPPED_DESCRIBER_NAME,

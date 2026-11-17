@@ -1601,12 +1601,13 @@ export const COMMANDS: Command[] = [
       "recognizer setup changes [REPOSITORY] --choices <file> [--scan <file>] [--json]",
       "recognizer setup recommend [REPOSITORY] --input <file> [--scan <file>] [--json]",
       "recognizer setup apply [REPOSITORY] --choices <file>",
+      "recognizer setup try [REPOSITORY] --choices <file>",
     ].join("\n"),
     arguments: [
       {
-        name: "survey|changes|recommend|apply",
+        name: "survey|changes|recommend|apply|try",
         description:
-          "survey reads what the repository has and starts no scanner, describer or test; changes lists, in run order, the commands a choices file makes; recommend checks a policy recommendation file and counts what each forbid rule breaks today; apply runs the changes and undoes them all when one fails",
+          "survey reads what the repository has and starts no scanner, describer or test; changes lists, in run order, the commands a choices file makes; recommend checks a policy recommendation file and counts what each forbid rule breaks today; apply runs the changes and undoes them all when one fails; try applies only the test-running changes, runs the readiness check once and undoes them whatever it finds",
       },
       {
         name: "REPOSITORY",
@@ -1633,14 +1634,14 @@ export const COMMANDS: Command[] = [
     ],
     output: {
       text: "JSON on stdout for every verb; apply prints one JSON line per event instead of one document",
-      json: "survey: { survey_version, version, repository, configured, files, unread, checks, runners, tools, upgrade }; changes: { changes: [{ id, title, steps: [{ argv, cwd }] }], dropped, needing_user }; recommend: { entries, dropped }; apply: lines of { event: start, total }, { event: change, index, state: running|done|failed|undone, output } and { event: result, ok, doctor }",
+      json: "survey: { survey_version, version, repository, configured, files, unread, checks, runners, tools, upgrade }; changes: { changes: [{ id, title, steps: [{ argv, cwd }] }], dropped, needing_user }; recommend: { entries, dropped }; apply: lines of { event: start, total }, { event: change, index, state: running|done|failed|undone, output } and { event: result, ok, doctor }; try: the same lines, then { event: runner, name, ready, detail } per runner, and { event: result, ok }",
     },
     exitCodes: [
       { code: 0, meaning: "the verb finished; apply applied every change" },
       {
         code: 1,
         meaning:
-          "apply: a step failed or was stopped, and the earlier changes were undone",
+          "apply or try: a step failed or was stopped, and the earlier changes were undone; try: a runner was not ready",
       },
       {
         code: 2,

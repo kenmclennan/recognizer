@@ -11,12 +11,14 @@ import { applyChanges } from "./setup-apply.js";
 import { buildChanges, type SetupChoices } from "./setup-changes.js";
 import { recommend } from "./setup-recommend.js";
 import { surveyJson, surveyRepository } from "./setup-survey.js";
+import { rehearsalChanges, tryChanges } from "./setup-try.js";
 
 const USAGE = [
   "usage: recognizer setup survey [REPOSITORY] [--scan <file>] [--json]",
   "       recognizer setup changes [REPOSITORY] --choices <file> [--scan <file>] [--json]",
   "       recognizer setup recommend [REPOSITORY] --input <file> [--scan <file>] [--json]",
   "       recognizer setup apply [REPOSITORY] --choices <file>",
+  "       recognizer setup try [REPOSITORY] --choices <file>",
 ];
 
 function readJsonFile(io: Io, file: string, flag: string): unknown {
@@ -133,6 +135,21 @@ export async function runSetup(argv: string[], io: Io): Promise<number> {
       io,
       root,
       changes,
+      (event) => io.stdout(`${JSON.stringify(event)}\n`),
+      argv,
+    );
+
+    return ok ? 0 : 1;
+  }
+
+  if (verb === "try") {
+    const choices = choicesOf(io, values.choices);
+    const survey = surveyRepository(io, root);
+    const { changes } = buildChanges(survey, choices);
+    const ok = await tryChanges(
+      io,
+      root,
+      rehearsalChanges(survey, changes),
       (event) => io.stdout(`${JSON.stringify(event)}\n`),
       argv,
     );
