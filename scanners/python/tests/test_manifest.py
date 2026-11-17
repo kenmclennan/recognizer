@@ -7,6 +7,7 @@ from jsonschema import Draft202012Validator
 
 from recognizer_scan_python.cli import main
 from recognizer_scan_python.manifest import PROTOCOL, build
+from recognizer_scan_python.scanner import scan
 
 REPOSITORY = Path(__file__).resolve().parents[3]
 LAUNCH = "import sys; from recognizer_scan_python.cli import main; sys.exit(main())"
@@ -62,3 +63,16 @@ def test_languages_equal_the_shared_table():
     expected = [entry for entry in table if entry["name"] == "python"]
 
     assert build()["languages"] == expected
+
+
+def test_manifest_declares_the_scan_schema_version_the_scanner_writes():
+    const = json.loads((REPOSITORY / "schema" / "scan.schema.json").read_text())["properties"][
+        "schema_version"
+    ]["const"]
+    declared = build().get("scan_schema_version")
+
+    assert declared is not None
+    assert declared == const
+    emitted = scan(REPOSITORY / "fixtures" / "python" / "sample", ["."], None)
+
+    assert declared == emitted["schema_version"]

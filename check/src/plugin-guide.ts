@@ -48,7 +48,7 @@ function manifest(): string[] {
     "`recognizer plugin check` fails a limit on a non-sensor, a limit whose metric or severity the manifest does not hold, and labels or units on a key with no placeholder.",
     "",
     "By kind:",
-    "  - Scanner: languages (required), and for each language its name, extensions, files and the skip rules (directory_names, directory_prefixes, directory_suffixes, directory_markers, file_globs) that claim or skip a file for it. A scanner has none of the sensor or describer fields.",
+    "  - Scanner: languages (required), scan_schema_version (optional, the schema_version of the scans it writes: recognizer and `recognizer doctor` name a scanner whose version the app would refuse, and one that declares none is reported as undeclared), and for each language its name, extensions, files and the skip rules (directory_names, directory_prefixes, directory_suffixes, directory_markers, file_globs) that claim or skip a file for it. A scanner has none of the sensor or describer fields.",
     "  - Sensor: metrics, findings, runs_tests and scoped are required; description (one sentence) and expansion (what an abbreviated display stands for) are optional. A metric has name, label, help, type, granularity and bad, and optionally title, cell and published. A finding kind has kind, group, help and sentence, a template that `plugin check` reads for the placeholders it allows.",
     "  - Describer: prompt_version, which names the prompt its descriptions come from, is required.",
   );

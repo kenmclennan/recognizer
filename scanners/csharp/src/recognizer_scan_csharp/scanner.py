@@ -15,6 +15,7 @@ from recognizer_scan_csharp.outline import member_of
 from recognizer_scan_csharp.parse import parse_file
 from recognizer_scan_csharp.projects import Project, load_projects, owner_of, reach_of
 from recognizer_scan_csharp.resolve import Collected, Resolver
+from recognizer_scan_csharp.scan_schema import SCAN_SCHEMA_VERSION
 
 SCANNER_NAME = "recognizer-scan-csharp"
 
@@ -212,7 +213,7 @@ def scan_with_stats(
 
     unresolved = sorted(collected.unresolved, key=lambda u: (u["from"], u["line"], u["import"]))
     document = {
-        "schema_version": 7,
+        "schema_version": SCAN_SCHEMA_VERSION,
         "scanner": {"name": SCANNER_NAME, "version": version(SCANNER_NAME)},
         "commit": commit,
         "modified": modified,

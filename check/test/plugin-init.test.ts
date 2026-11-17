@@ -91,6 +91,23 @@ describe("recognizer plugin init", () => {
     },
   );
 
+  it.each(LANGUAGES)(
+    "writes the scan schema version into the %s scanner's manifest",
+    (language) => {
+      const { fake } = init(full("scanner", language));
+      const source = [...fake.writes]
+        .filter((path) => !path.endsWith("README.md"))
+        .map((path) => fake.files.get(path) ?? "")
+        .join("\n");
+
+      const version = templateValues("scanner", "demo").scan_schema_version;
+
+      expect(source).toMatch(
+        new RegExp(`scan_schema_version\\W+${version}\\b`),
+      );
+    },
+  );
+
   it("starts no process and registers nothing", () => {
     const { fake } = init(full("scanner", "python"));
 

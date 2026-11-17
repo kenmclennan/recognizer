@@ -29,6 +29,7 @@ from recognizer_scan_python.index import ModuleIndex
 from recognizer_scan_python.infer import collect_classes, inferred_edges
 from recognizer_scan_python.outline import read_members, recorded_classes
 from recognizer_scan_python.routes import ModuleNames, Router, named_edges
+from recognizer_scan_python.scan_schema import SCAN_SCHEMA_VERSION
 from recognizer_scan_python.script_entry_points import script_entry_points
 from recognizer_scan_python.source_roots import ROOT_CONFIG_FILES, detect_source_roots
 
@@ -271,7 +272,7 @@ def scan(
             module["entry_point"] = True
 
     return {
-        "schema_version": 7,
+        "schema_version": SCAN_SCHEMA_VERSION,
         "scanner": {"name": SCANNER_NAME, "version": version(SCANNER_NAME)},
         "commit": commit,
         "modified": modified,

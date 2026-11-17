@@ -77,6 +77,7 @@ fn manifest() -> String {
     out.push_str("  \"long_running\": true,\n");
     out.push_str("  \"units\": [\"files\"],\n");
     out.push_str("  \"settings\": [],\n");
+    out.push_str("  \"scan_schema_version\": {{scan_schema_version}},\n");
     out.push_str("  \"languages\": [\n");
     out.push_str("    {\n");
     out.push_str(&format!("      \"name\": {},\n", json_string("{{name}}")));

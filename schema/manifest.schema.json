@@ -77,6 +77,10 @@
         "$ref": "#/$defs/language"
       }
     },
+    "scan_schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
     "metrics": {
       "type": "array",
       "items": {
@@ -668,7 +672,8 @@
         ],
         "properties": {
           "languages": false,
-          "prompt_version": false
+          "prompt_version": false,
+          "scan_schema_version": false
         }
       }
     },
@@ -692,7 +697,8 @@
           "scoped": false,
           "description": false,
           "expansion": false,
-          "settings_title": false
+          "settings_title": false,
+          "scan_schema_version": false
         }
       }
     }

@@ -2,6 +2,12 @@ import type { Io } from "./cli.js";
 import validate from "./generated/manifest-validator.js";
 import protocol from "./generated/protocol.json" with { type: "json" };
 import type { FindingEntry } from "./plugin-sentence.js";
+import {
+  judgeScanVersion,
+  SCAN_BREAKING_VERSIONS,
+  SCAN_SCHEMA_VERSION,
+  type ScanVersionVerdict,
+} from "./scan.js";
 
 export const CURRENT_PROTOCOL: number = protocol.protocol;
 
@@ -25,6 +31,7 @@ export interface Manifest {
   units: string[];
   settings: unknown[];
   languages?: unknown[];
+  scan_schema_version?: number;
   metrics?: unknown[];
   findings?: FindingEntry[];
   runs_tests?: boolean;
@@ -128,4 +135,16 @@ export function judgeProtocol(
   return current > 1 && manifest.protocol === current - 1
     ? "previous"
     : "unsupported";
+}
+
+export type ScanSchemaJudgement = ScanVersionVerdict | "undeclared";
+
+export function judgeScanSchema(
+  declared: number | undefined,
+  current: number = SCAN_SCHEMA_VERSION,
+  breaks: readonly number[] = SCAN_BREAKING_VERSIONS,
+): ScanSchemaJudgement {
+  return declared === undefined
+    ? "undeclared"
+    : judgeScanVersion(declared, current, breaks);
 }

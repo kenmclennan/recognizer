@@ -10,6 +10,7 @@ function scanner(name: string, languages: string[]): InstalledPlugin {
     name,
     command: `/bin/recognizer-scan-${name}`,
     judgement: "current",
+    schema: "undeclared",
     manifest: {
       kind: "scanner",
       name,

@@ -24,6 +24,7 @@ const MANIFEST = {
   long_running: true,
   units: ["files"],
   settings: [],
+  scan_schema_version: {{scan_schema_version}},
   languages: [
     {
       name: "{{name}}",
