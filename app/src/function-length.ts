@@ -1,6 +1,6 @@
-import { functionLength, LONG_FUNCTION } from "recognizer";
+import { functionLength, LONG_FUNCTION, measuredLength } from "recognizer";
 
-export { functionLength, LONG_FUNCTION };
+export { functionLength, LONG_FUNCTION, measuredLength };
 
 export const HUGE_FUNCTION = 50;
 

@@ -1676,6 +1676,25 @@ describe("function length on a card", () => {
     expect(found[0]?.module).toBe("pkg/m.py");
   });
 
+  it("bands a function card by its body length when the scan carries body_line, the span without it", () => {
+    const found = cards([
+      fn("long_signature", true, { line: 1, end_line: 40, body_line: 38 }),
+      fn("long_body", true, { line: 50, end_line: 90, body_line: 55 }),
+      fn("no_body_line", true, { line: 100, end_line: 140 }),
+    ]);
+
+    expect(found.map((card) => card.size?.band)).toEqual([
+      "neutral",
+      "long",
+      "long",
+    ]);
+    expect(found.map((card) => card.size?.text)).toEqual([
+      "3 lines",
+      "36 lines",
+      "41 lines",
+    ]);
+  });
+
   it("scales the bar against the module's largest function or method, shown or not", () => {
     const klassWithMethod = klass({
       methods: [

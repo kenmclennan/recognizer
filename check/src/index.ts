@@ -107,6 +107,7 @@ export {
   COMPLEXITY_LIMIT,
   functionLength,
   LONG_FUNCTION,
+  measuredLength,
 } from "./function-length.js";
 export type { Fix, Gap } from "./gap.js";
 export { gapText, isGap } from "./gap.js";

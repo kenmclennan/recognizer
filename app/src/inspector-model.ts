@@ -18,10 +18,10 @@ import type { FindingRow } from "./findings-order";
 import type { Compaction } from "./folder-compaction";
 import {
   barPercent,
-  functionLength,
   type LengthBand,
   lengthBand,
   lengthText,
+  measuredLength,
 } from "./function-length";
 import type { FunctionLimits } from "./function-limits";
 import type { Disc, Finding } from "./health";
@@ -346,11 +346,12 @@ function cardMarkOf(
 
 function sizeOf(
   line: number | null | undefined,
+  bodyLine: number | null | undefined,
   endLine: number | null | undefined,
   largest: number,
   longAt: number,
 ): CardSize | null {
-  const lines = functionLength(line, endLine);
+  const lines = measuredLength(line, bodyLine, endLine);
 
   if (lines === null) {
     return null;
@@ -366,13 +367,21 @@ function sizeOf(
 function lengthsOf(members: readonly ScanMember[]): number[] {
   return members.flatMap((member) => {
     if (member.kind === "function") {
-      const lines = functionLength(member.line, member.end_line);
+      const lines = measuredLength(
+        member.line,
+        member.body_line,
+        member.end_line,
+      );
 
       return lines === null ? [] : [lines];
     }
 
     return (member.methods ?? []).flatMap((method) => {
-      const lines = functionLength(method.line, method.end_line);
+      const lines = measuredLength(
+        method.line,
+        method.body_line,
+        method.end_line,
+      );
 
       return lines === null ? [] : [lines];
     });
@@ -497,7 +506,13 @@ function classCard(
         line: method.line ?? null,
         tokens: methodTokens(method),
         private: method.private === true,
-        size: sizeOf(method.line, method.end_line, largest, longAt),
+        size: sizeOf(
+          method.line,
+          method.body_line,
+          method.end_line,
+          largest,
+          longAt,
+        ),
         ...markOf(context, `${member.name}.${method.name}`),
       },
     }),
@@ -584,7 +599,7 @@ function withRemovedMethods(
         line: null,
         tokens: methodTokens(method),
         private: false,
-        size: sizeOf(null, null, largest, longAt),
+        size: sizeOf(null, null, null, largest, longAt),
         mark: memberMark("removed"),
         look: "removed",
       });
@@ -667,7 +682,13 @@ function plainCard(
     line: member.line ?? null,
     showsLine: !isFunction,
     size: isFunction
-      ? sizeOf(member.line, member.end_line, largest, inputs.limits.longAt)
+      ? sizeOf(
+          member.line,
+          member.body_line,
+          member.end_line,
+          largest,
+          inputs.limits.longAt,
+        )
       : null,
     metricsRow:
       isFunction && inputs.metricsOn && inputs.limits.cells.length > 0

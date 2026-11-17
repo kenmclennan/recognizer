@@ -7,6 +7,7 @@ import {
   LONG_FUNCTION,
   lengthBand,
   lengthText,
+  measuredLength,
 } from "./function-length";
 
 describe("shared limit", () => {
@@ -46,6 +47,23 @@ describe("functionLength", () => {
     expect(functionLength(5, null)).toBeNull();
     expect(functionLength(undefined, 9)).toBeNull();
     expect(functionLength(5, 4)).toBeNull();
+  });
+});
+
+describe("measuredLength", () => {
+  it("measures the body from body_line when present", () => {
+    expect(measuredLength(10, 40, 45)).toBe(6);
+  });
+
+  it("keeps the span without body_line", () => {
+    expect(measuredLength(10, undefined, 45)).toBe(36);
+    expect(measuredLength(10, null, 45)).toBe(36);
+  });
+
+  it("is unknown when the span is unknown", () => {
+    expect(measuredLength(10, 12, undefined)).toBeNull();
+    expect(measuredLength(undefined, 12, 20)).toBeNull();
+    expect(measuredLength(10, 12, 9)).toBeNull();
   });
 });
 
