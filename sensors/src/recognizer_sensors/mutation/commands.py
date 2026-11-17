@@ -105,9 +105,6 @@ def kotlin_selected_command(selected: list[tuple[str, str]]) -> list[str]:
     for project in sorted({project for project, _ in selected}):
         command.append(f"{project}:test" if project else "test")
 
-        if "--no-daemon" not in command:
-            command.append("--no-daemon")
-
         for name in sorted(name for p, name in selected if p == project):
             command += ["--tests", name]
 

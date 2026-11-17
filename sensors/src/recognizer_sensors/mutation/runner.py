@@ -3,6 +3,7 @@ import errno
 import itertools
 import os
 import queue
+import re
 import shlex
 import shutil
 import signal
@@ -37,6 +38,14 @@ KOTLIN_JVM_OPTIONS = (
     "-Dorg.gradle.daemon=false",
     "-Dorg.gradle.project.kotlin.compiler.execution.strategy=in-process",
 )
+KOTLIN_DAEMON_JVM_OPTIONS = (
+    "-Dorg.gradle.daemon=true",
+    "-Dorg.gradle.project.kotlin.compiler.execution.strategy=in-process",
+    "-Dorg.gradle.daemon.idletimeout=300000",
+)
+GRADLE_STOP_SECONDS = 10.0
+GRADLE_HOME_PREFIX = "gradle-home-"
+GRADLE_DAEMON_WORD = "GradleDaemon"
 LIVE_LOCK = threading.Lock()
 LEAVING = threading.Lock()
 LIVE: set[subprocess.Popen] = set()
@@ -329,10 +338,175 @@ def descendants(pid: int) -> list[int]:
     return tree_of(process_table(), pid)
 
 
+DAEMON_LOG = re.compile(r"daemon-(\d+)\.out\.log")
+
+
+def command_of(pid: int) -> str:
+    try:
+        return subprocess.run(
+            ["ps", "-ww", "-o", "command=", "-p", str(pid)],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout
+    except OSError:
+        return ""
+
+
+def daemon_pids(home: Path) -> list[int]:
+    found: list[int] = []
+
+    for log in sorted(home.glob("daemon/*/daemon-*.out.log")):
+        matched = DAEMON_LOG.fullmatch(log.name)
+
+        if matched is None:
+            continue
+
+        pid = int(matched.group(1))
+
+        if pid > 0 and process_is_alive(pid) and GRADLE_DAEMON_WORD in command_of(pid):
+            found.append(pid)
+
+    return found
+
+
+def source_gradle_home(suite: Suite | None) -> Path:
+    env = suite.env if suite is not None else {}
+    chosen = env.get("GRADLE_USER_HOME") or os.environ.get("GRADLE_USER_HOME")
+
+    return Path(chosen) if chosen else Path.home() / ".gradle"
+
+
+class GradleHomes:
+    def __init__(self, work: Path) -> None:
+        self.work = work
+        self.homes: dict[int | str, Path] = {}
+        self.suites: dict[int | str, tuple[Suite, Path]] = {}
+        self.lock = threading.Lock()
+
+    def home_for(
+        self, number: int | str, suite: Suite | None = None, cwd: Path | None = None
+    ) -> Path:
+        with self.lock:
+            if number in self.homes:
+                return self.homes[number]
+
+            home = self.work / f"{GRADLE_HOME_PREFIX}{number}"
+            home.mkdir(parents=True, exist_ok=True)
+            source = source_gradle_home(suite)
+
+            if (source / "wrapper").exists() and not os.path.lexists(home / "wrapper"):
+                (home / "wrapper").symlink_to(source / "wrapper")
+
+            if (source / "gradle.properties").is_file():
+                shutil.copy2(source / "gradle.properties", home / "gradle.properties")
+
+            if (source / "init.d").is_dir() and not (home / "init.d").exists():
+                shutil.copytree(source / "init.d", home / "init.d", symlinks=True)
+
+            self.homes[number] = home
+
+            if suite is not None and cwd is not None:
+                self.suites[number] = (suite, cwd)
+
+            return home
+
+    def paths(self) -> list[Path]:
+        with self.lock:
+            return list(self.homes.values())
+
+    def pids(self) -> list[int]:
+        return [pid for home in self.paths() for pid in daemon_pids(home)]
+
+    def stop(self, number: int | str) -> None:
+        with self.lock:
+            home = self.homes.get(number)
+            known = self.suites.get(number)
+
+        if home is None:
+            return
+
+        if known is not None:
+            suite, cwd = known
+            words = shlex.split(suite.command)
+
+            if words:
+                run_gradle_stop(suite, cwd, home, words[0])
+
+        for pid in daemon_pids(home):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                continue
+
+    def stop_all(self) -> None:
+        with self.lock:
+            numbers = list(self.homes)
+
+        threads = [threading.Thread(target=self.stop, args=(number,)) for number in numbers]
+
+        for thread in threads:
+            thread.start()
+
+        for thread in threads:
+            thread.join()
+
+
+def run_gradle_stop(suite: Suite, cwd: Path, home: Path, wrapper: str) -> None:
+    env = {**os.environ, **suite.env, "GRADLE_USER_HOME": str(home)}
+
+    try:
+        process = subprocess.Popen(
+            [login_shell(), "-ilc", shell_script(suite, f"{shlex.quote(wrapper)} --stop")],
+            cwd=cwd,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError:
+        return
+
+    try:
+        process.wait(timeout=GRADLE_STOP_SECONDS)
+    except subprocess.TimeoutExpired:
+        kill_group(process)
+        process.wait()
+
+
+ACTIVE_HOMES: list[GradleHomes] = []
+
+
+def stop_active_homes() -> None:
+    for homes in list(ACTIVE_HOMES):
+        homes.stop_all()
+
+
+@contextmanager
+def gradle_homes(work: Path) -> Iterator[GradleHomes]:
+    homes = GradleHomes(work)
+    ACTIVE_HOMES.append(homes)
+
+    try:
+        yield homes
+    finally:
+        try:
+            homes.stop_all()
+        finally:
+            if homes in ACTIVE_HOMES:
+                ACTIVE_HOMES.remove(homes)
+
+
 class PeakSampler:
-    def __init__(self, interval: float = 0.25) -> None:
+    def __init__(
+        self, interval: float = 0.25, homes: "Collection[Path] | GradleHomes" = ()
+    ) -> None:
         self.interval = interval
         self.peak_bytes = 0
+        self.daemon_bytes = 0
+        self.homes = homes
         self.finished = threading.Event()
         self.thread = threading.Thread(target=self.watch, daemon=True)
 
@@ -345,7 +519,25 @@ class PeakSampler:
         self.finished.set()
         self.thread.join()
 
+    def sample_daemons(self) -> None:
+        homes = self.homes.paths() if isinstance(self.homes, GradleHomes) else list(self.homes)
+
+        if not homes:
+            return
+
+        pids = [pid for home in homes for pid in daemon_pids(home)]
+
+        if not pids:
+            return
+
+        table = process_table()
+        total = sum(table[pid][1] for pid in pids if pid in table)
+
+        self.daemon_bytes = max(self.daemon_bytes, total * 1024)
+
     def sample(self) -> None:
+        self.sample_daemons()
+
         with LIVE_LOCK:
             roots = [process.pid for process in LIVE]
 
@@ -388,14 +580,25 @@ def run_test_command(
     timeout: float | None,
     suite: Suite | None = None,
     extra: dict[str, str] | None = None,
+    gradle_home: Path | None = None,
 ) -> TestRun:
     started = time.monotonic()
     words = command if isinstance(command, str) else shlex.join(command)
     env = {**os.environ, **(suite.env if suite is not None else {}), **(extra or {})}
 
     if suite is not None and suite.language == "kotlin":
+        options = KOTLIN_JVM_OPTIONS
+
+        if gradle_home is not None:
+            options = KOTLIN_DAEMON_JVM_OPTIONS
+            cache = source_gradle_home(suite) / "caches"
+            env["GRADLE_USER_HOME"] = str(gradle_home)
+
+            if (cache / "modules-2").is_dir() and not env.get("GRADLE_RO_DEP_CACHE"):
+                env["GRADLE_RO_DEP_CACHE"] = str(cache)
+
         env["GRADLE_OPTS"] = " ".join(
-            word for word in (env.get("GRADLE_OPTS", ""), *KOTLIN_JVM_OPTIONS) if word
+            word for word in (env.get("GRADLE_OPTS", ""), *options) if word
         )
 
     argv = (
@@ -661,9 +864,10 @@ def run_mutant(
     known: Collection[str] | None = None,
     carry: tuple[str, ...] = (),
     copies: MutantCopies | None = None,
+    homes: GradleHomes | None = None,
 ) -> MutantResult:
     if copies is not None:
-        return run_pooled(copies, mutant, command, timeout, suite, known)
+        return run_pooled(copies, mutant, command, timeout, suite, known, homes)
 
     copy = work / str(number)
 
@@ -700,19 +904,35 @@ def run_pooled(
     timeout: float,
     suite: Suite,
     known: Collection[str] | None,
+    homes: GradleHomes | None = None,
 ) -> MutantResult:
     with copies.lease() as slot:
+        daemon = homes is not None and suite.language == "kotlin"
+
         try:
             pooled = slot.prepare()
             pooled.written = (mutant.path, mutant.source)
             head = mutant.source[: mutant.start_byte]
             tail = mutant.source[mutant.end_byte :]
             (pooled.path / mutant.path).write_bytes(head + mutant.replacement + tail)
-            result = run_test_command(command, pooled.path, timeout, suite=suite)
+            result = run_test_command(
+                command,
+                pooled.path,
+                timeout,
+                suite=suite,
+                **(
+                    {"gradle_home": homes.home_for(slot.number, suite, copies.repository)}
+                    if daemon and homes is not None
+                    else {}
+                ),
+            )
         except OSError:
             slot.retire()
 
             return MutantResult("killed")
+
+        if daemon and homes is not None and result.timed_out:
+            homes.stop(slot.number)
 
         if result.timed_out or result.exit_code is None or STOP.is_set() or BUDGET_SPENT.is_set():
             slot.retire()
@@ -732,6 +952,7 @@ def run_function(
     clock: Callable[[], float] = time.monotonic,
     copies: MutantCopies | None = None,
     whole_slots: threading.Semaphore | None = None,
+    homes: GradleHomes | None = None,
 ) -> list[MutantResult] | None:
     results = []
 
@@ -761,6 +982,7 @@ def run_function(
                 known,
                 carry,
                 copies,
+                homes,
             )
         finally:
             if gate is not None:
@@ -861,6 +1083,15 @@ def folder_is_stale(folder: Path) -> bool:
     return pid <= 0 or not process_is_alive(pid)
 
 
+def reap_gradle_daemons(folder: Path) -> None:
+    for home in folder.glob(f"{GRADLE_HOME_PREFIX}*"):
+        for pid in daemon_pids(home):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                continue
+
+
 def remove_stale_work_folders(own: Path) -> None:
     try:
         siblings = list(own.parent.iterdir())
@@ -869,6 +1100,7 @@ def remove_stale_work_folders(own: Path) -> None:
 
     for folder in siblings:
         if folder != own and folder.is_dir() and folder_is_stale(folder):
+            reap_gradle_daemons(folder)
             shutil.rmtree(folder, ignore_errors=True)
 
 
@@ -930,6 +1162,7 @@ def install_stop_handler(work: Path) -> Callable[[], None]:
             return
 
         stop_all()
+        stop_active_homes()
         remove_work_folder(work)
         os._exit(STOPPED_STATUS)
 
@@ -957,10 +1190,12 @@ def install_stop_handler(work: Path) -> Callable[[], None]:
     threading.Thread(target=stop, daemon=True).start()
     threading.Thread(target=reap, daemon=True).start()
     previous = signal.signal(signal.SIGTERM, on_signal)
+    previous_interrupt = signal.signal(signal.SIGINT, on_signal)
 
     def restore() -> None:
         if not STOP.is_set():
             signal.signal(signal.SIGTERM, previous)
+            signal.signal(signal.SIGINT, previous_interrupt)
 
     return restore
 

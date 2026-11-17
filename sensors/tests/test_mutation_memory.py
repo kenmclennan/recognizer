@@ -173,9 +173,12 @@ class FakeSampler:
     peaks: list[int] = []
     created = 0
 
-    def __init__(self):
+    daemons: list[int] = []
+
+    def __init__(self, interval=0.25, homes=()):
         type(self).created += 1
         self.peak_bytes = type(self).peaks.pop(0) if type(self).peaks else 1 * GB
+        self.daemon_bytes = type(self).daemons.pop(0) if type(self).daemons else 0
 
     def __enter__(self):
         return self

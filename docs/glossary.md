@@ -125,6 +125,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Mutant copy | The per-worker copy of the repository, made of the git-listed files and the folders on the Carry list, reset to its tracked state before each Mutant. It lives in the Scratch folder until the run ends or it is retired after a timeout or a failed reset. |
 | Carry list | The `carry` setting under `sensors.mutation`: the exact untracked repository folders (such as `frontend/node_modules`) a copy takes, with no built-in list; a folder not listed is not in the copy. |
 | Warm-up copy | The one copy of the repository the Mutation sensor runs each configured Test suite in before any Mutant, to read its coverage and its per-test contexts; the warm-up also measures the Run memory. |
+| Worker Gradle home | The per-worker `GRADLE_USER_HOME` in the Scratch folder that one warm Gradle daemon runs against for a Kotlin Mutation worker's Mutant runs, seeded from the user's Gradle home and removed with the run. |
 | Run memory | The peak resident memory of the process tree of one test run, measured during the warm-up and used to size the default worker count. |
 | Memory reserve | The fixed amount of memory (2000 MB) Mutation leaves for the desktop when sizing workers on macOS: the sizing reading is free pages plus file-backed pages plus purgeable pages, less this reserve, so the `available` figure in the sizing line is net of it. |
 | Survivor | A Mutant whose test run passed: the tests did not notice the change. |

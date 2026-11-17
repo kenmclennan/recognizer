@@ -179,7 +179,6 @@ def test_the_selected_command_joins_projects_in_sorted_order():
     assert kotlin_selected_command([(":b", "b.B"), ("", "r.R"), (":a", "z.Z"), (":a", "a.A")]) == [
         "./gradlew",
         "test",
-        "--no-daemon",
         "--tests",
         "r.R",
         ":a:test",
@@ -200,7 +199,6 @@ def test_a_root_project_selection_runs_gradle_test_with_the_filter():
     assert selected_command(KSUITE, {"t/XTest.kt"}) == [
         "./gradlew",
         "test",
-        "--no-daemon",
         "--tests",
         "p.XTest",
     ]
@@ -216,7 +214,6 @@ def test_kotlin_stop_adds_fail_fast_after_each_test_task():
     assert selected_command(KSUITE, {"t/XTest.kt"}, stop=True) == [
         "./gradlew",
         ":a:test",
-        "--no-daemon",
         "--fail-fast",
         "--tests",
         "p.XTest",
@@ -329,7 +326,6 @@ def test_a_selection_then_yields_the_covering_command(tmp_path, monkeypatch):
     assert selected_command(KSUITE, {MANY}) == [
         "./gradlew",
         "test",
-        "--no-daemon",
         "--tests",
         "p.MulTest",
         "--tests",
@@ -442,7 +438,6 @@ def test_without_junit_xml_a_mutant_gets_the_same_selection_as_with_it(tmp_path,
     assert selected_command(KSUITE, {MANY}) == [
         "./gradlew",
         "test",
-        "--no-daemon",
         "--tests",
         "p.MulTest",
         "--tests",
@@ -579,7 +574,7 @@ def test_a_kotlin_selection_of_half_the_suite_is_used_and_one_more_file_runs_the
     )
     seen = []
 
-    def spy(command, cwd, timeout, suite=None, extra=None):
+    def spy(command, cwd, timeout, suite=None, extra=None, gradle_home=None):
         seen.append(command if isinstance(command, str) else list(command))
 
         return runner.TestRun(0, False, 0.1, "")
@@ -590,7 +585,7 @@ def test_a_kotlin_selection_of_half_the_suite_is_used_and_one_more_file_runs_the
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
 
-    half = ["./gradlew", "test", "--no-daemon", "--tests", "p.T0Test", "--tests", "p.T1Test"]
+    half = ["./gradlew", "test", "--tests", "p.T0Test", "--tests", "p.T1Test"]
     whole = mutant_command(KSUITE)
 
     assert half in seen
@@ -598,7 +593,7 @@ def test_a_kotlin_selection_of_half_the_suite_is_used_and_one_more_file_runs_the
     assert not any("p.T2Test" in command for command in seen)
     assert all(
         isinstance(command, str)
-        or (command[:2] == ["./gradlew", "test"] and "--no-daemon" in command)
+        or (command[:2] == ["./gradlew", "test"] and "--no-daemon" not in command)
         for command in seen
     )
 
