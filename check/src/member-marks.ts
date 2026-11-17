@@ -7,6 +7,7 @@ export type MemberScan = Pick<RecordedScan, "modules">;
 
 export type MemberFile = {
   path: string;
+  base_path?: string;
   base_text: string | null;
   head_text: string | null;
 };
@@ -247,7 +248,9 @@ export function memberMarks(
 ): Map<string, Map<string, MemberMarkKind> | null> {
   const result = new Map<string, Map<string, MemberMarkKind> | null>();
   const modified = input.modules.filter(
-    (entry) => entry.mark === "modified" && entry.box === "current",
+    (entry) =>
+      (entry.mark === "modified" || entry.mark === "renamed") &&
+      entry.box === "current",
   );
 
   if (modified.length === 0) {
@@ -265,7 +268,11 @@ export function memberMarks(
     }
 
     const file = (input.files ?? []).find((f) => f.path === entry.id);
-    const startMembers = membersOf(input.base as MemberScan[], entry.id);
+    const baseId =
+      entry.mark === "renamed"
+        ? (file?.base_path ?? entry.from ?? entry.id)
+        : entry.id;
+    const startMembers = membersOf(input.base as MemberScan[], baseId);
     const endMembers = membersOf(input.head as MemberScan[], entry.id);
 
     if (

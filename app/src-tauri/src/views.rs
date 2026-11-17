@@ -636,6 +636,7 @@ const MEMBER_TEXT_LIMIT: usize = 2 * 1024 * 1024;
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct MemberFileTexts {
     pub path: String,
+    pub base_path: String,
     pub base_text: Option<String>,
     pub head_text: Option<String>,
 }
@@ -687,7 +688,7 @@ pub fn members_in(
         folder,
         &[
             "diff",
-            "--no-renames",
+            "-M",
             "--name-status",
             "-z",
             &format!("{base}...{head}"),
@@ -695,10 +696,19 @@ pub fn members_in(
     )
     .filter(|output| output.status.success())
     .ok_or_else(|| format!("git could not diff {base}...{head}"))?;
-    let paths: Vec<String> = parse_name_status(&String::from_utf8_lossy(&diff.stdout))
+    let pairs: Vec<(String, String)> = parse_name_status(&String::from_utf8_lossy(&diff.stdout))
         .into_iter()
-        .filter(|change| change.status == "M")
-        .map(|change| change.path)
+        .filter(|change| change.status == "M" || change.status == "R")
+        .map(|change| {
+            let base_path = change.from.clone().unwrap_or_else(|| change.path.clone());
+
+            (base_path, change.path)
+        })
+        .collect();
+    let paths: Vec<String> = pairs.iter().map(|(_, path)| path.clone()).collect();
+    let base_paths: Vec<String> = pairs
+        .iter()
+        .map(|(base_path, _)| base_path.clone())
         .collect();
 
     if paths.is_empty() {
@@ -712,13 +722,14 @@ pub fn members_in(
         ));
     }
 
-    let base_scans = scan_paths_at(root, folder, base, &paths, runner, command)?;
+    let base_scans = scan_paths_at(root, folder, base, &base_paths, runner, command)?;
     let head_scans = scan_paths_at(root, folder, head, &paths, runner, command)?;
-    let files = paths
+    let files = pairs
         .into_iter()
-        .map(|path| MemberFileTexts {
-            base_text: show_text(folder, base, &path),
+        .map(|(base_path, path)| MemberFileTexts {
+            base_text: show_text(folder, base, &base_path),
             head_text: show_text(folder, head, &path),
+            base_path,
             path,
         })
         .collect();
@@ -1257,6 +1268,60 @@ mod tests {
             .iter()
             .all(|file| file.base_text.as_deref() == Some("K = 1\n")
                 && file.head_text.as_deref() == Some("K = 2\n")));
+        assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn range_members_reads_a_renamed_and_edited_file() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path().join("renamed");
+
+        fs::create_dir_all(&root).unwrap();
+        assert!(git(&root, &["init", "-q"]));
+        assert!(git(&root, &["config", "user.name", "t"]));
+        assert!(git(&root, &["config", "user.email", "t@example.com"]));
+
+        let body: String = (0..10).map(|n| format!("K{n} = {n}\n")).collect();
+
+        fs::write(root.join("old.py"), &body).unwrap();
+        fs::write(root.join("pure.py"), "P = 1\nQ = 2\nR = 3\n").unwrap();
+        assert!(git(&root, &["add", "."]));
+        assert!(git(&root, &["commit", "-q", "-m", "base"]));
+        assert!(git(&root, &["branch", "-M", "main"]));
+        assert!(git(&root, &["checkout", "-q", "-b", "feat"]));
+        assert!(git(&root, &["mv", "old.py", "new.py"]));
+        assert!(git(&root, &["mv", "pure.py", "moved.py"]));
+        fs::write(root.join("new.py"), body.replace("K0 = 0", "K0 = 99")).unwrap();
+        assert!(git(&root, &["add", "-A"]));
+        assert!(git(&root, &["commit", "-q", "-m", "feat"]));
+
+        let command = stub_scanner(dir.path()).display().to_string();
+        let tools = TempDir::new().unwrap();
+        let runner = working_runner(tools.path());
+        let temp = TempDir::new().unwrap();
+        let found = Memoised::<RangeMembers>::default()
+            .members(temp.path(), &root, "main", "feat", &runner, &command)
+            .unwrap();
+        let edited = found
+            .files
+            .iter()
+            .find(|file| file.path == "new.py")
+            .unwrap();
+        let pure = found
+            .files
+            .iter()
+            .find(|file| file.path == "moved.py")
+            .unwrap();
+
+        assert_eq!(found.files.len(), 2);
+        assert_eq!(edited.base_path, "old.py");
+        assert_eq!(edited.base_text.as_deref(), Some(body.as_str()));
+        assert_eq!(
+            edited.head_text.as_deref(),
+            Some(body.replace("K0 = 0", "K0 = 99").as_str())
+        );
+        assert_eq!(pure.base_path, "pure.py");
+        assert_eq!(pure.base_text, pure.head_text);
         assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
     }
 

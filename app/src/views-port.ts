@@ -19,6 +19,7 @@ export type RangeMembers = {
   headScans: Scan[];
   files: {
     path: string;
+    base_path?: string;
     base_text: string | null;
     head_text: string | null;
   }[];

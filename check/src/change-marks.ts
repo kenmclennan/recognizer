@@ -280,3 +280,29 @@ export function classifyChanges(
 
   return result;
 }
+
+export function classifyOpened(
+  changes: FileChange[],
+  marked: MarkedModule[],
+): ChangeClassification {
+  const result: ChangeClassification = {
+    added: [],
+    modified: [],
+    renamed: [],
+    removed: [],
+    elsewhere: [],
+  };
+  const byId = new Map(marked.map((entry) => [entry.id, entry]));
+
+  for (const change of changes) {
+    const entry = byId.get(change.path);
+
+    if (entry !== undefined && entry.box !== "none") {
+      result[entry.mark].push(change.path);
+    } else {
+      result.elsewhere.push(change.path);
+    }
+  }
+
+  return result;
+}

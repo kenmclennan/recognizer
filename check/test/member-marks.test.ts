@@ -540,3 +540,44 @@ describe("memberMarks on class fields", () => {
     ).toEqual(new Map([["C.x", "modified"]]));
   });
 });
+
+describe("memberMarks on a renamed file", () => {
+  const OLD = "m/old.py";
+  const NEW = "m/new.py";
+  const renamed: MarkedModule[] = [
+    { id: NEW, mark: "renamed", box: "current", from: OLD },
+  ];
+
+  it("memberMarks reads a renamed file from its old and new texts", () => {
+    const head = START.replace("    d", "    D");
+    const result = memberMarks({
+      modules: renamed,
+      base: [scan({ [OLD]: [F_START, G_START] }, { commit: null })],
+      head: [scan({ [NEW]: [F_START, G_START] })],
+      files: [{ path: NEW, base_path: OLD, base_text: START, head_text: head }],
+    });
+
+    expect(result.get(NEW)).toEqual(new Map([["g", "modified"]]));
+  });
+
+  it("memberMarks treats a modified file without base_path as before", () => {
+    const head = START.replace("    d", "    D");
+
+    expect(run([F_START, G_START], [F_START, G_START], head)).toEqual(
+      new Map([["g", "modified"]]),
+    );
+  });
+
+  it("memberMarks leaves a renamed file unknown when the old path is not in the base scan", () => {
+    const result = memberMarks({
+      modules: renamed,
+      base: [scan({ "m/other.py": [F_START] }, { commit: null })],
+      head: [scan({ [NEW]: [F_START, G_START] })],
+      files: [
+        { path: NEW, base_path: OLD, base_text: START, head_text: START },
+      ],
+    });
+
+    expect(result.get(NEW)).toBeNull();
+  });
+});

@@ -31,6 +31,7 @@ export {
   type ChangeClassification,
   changeMarks,
   classifyChanges,
+  classifyOpened,
   type FileChange,
   type Mark,
   type MarkedModule,
