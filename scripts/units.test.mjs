@@ -68,14 +68,12 @@ describe("packaging/units.json", () => {
     }
   });
 
-  it("has a release-<unit> workflow naming each unit", () => {
+  it("has no release-<unit> workflow, because release.yml releases every unit listed here", () => {
     for (const { unit } of UNITS) {
-      const file = workflows().find(
-        ({ name }) => name === `release-${unit}.yml`,
-      );
-
-      expect(file, `release-${unit}.yml`).toBeDefined();
-      expect(file.text).toContain(unit);
+      expect(
+        workflows().find(({ name }) => name === `release-${unit}.yml`),
+        `release-${unit}.yml`,
+      ).toBeUndefined();
     }
   });
 
