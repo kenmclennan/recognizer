@@ -54,7 +54,7 @@ function isDocstring(node: SyntaxNode): boolean {
   );
 }
 
-function statementsOf(fn: SyntaxNode): SyntaxNode[] {
+export function bodyOf(fn: SyntaxNode): SyntaxNode | null {
   let body = fn.childForFieldName("body");
 
   if (
@@ -67,7 +67,11 @@ function statementsOf(fn: SyntaxNode): SyntaxNode[] {
       value !== null && value.type === "arrow_expression_clause" ? value : null;
   }
 
-  body ??= childrenOf(fn).find((c) => c.type === "function_body") ?? null;
+  return body ?? childrenOf(fn).find((c) => c.type === "function_body") ?? null;
+}
+
+function statementsOf(fn: SyntaxNode): SyntaxNode[] {
+  const body = bodyOf(fn);
 
   if (body === null) {
     return [];

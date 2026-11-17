@@ -8,6 +8,7 @@ import { findFunctions } from "../src/duplication/functions.js";
 import type { Grammar } from "../src/duplication/grammars.js";
 import { measureDuplication } from "../src/duplication/measure.js";
 import { countNodes, normalise } from "../src/duplication/normalise.js";
+import { bodyOf } from "../src/duplication/shapes.js";
 import type { RecordedScan } from "../src/scan.js";
 import {
   allParsers,
@@ -128,11 +129,11 @@ describe("the size gates", () => {
     ).toHaveLength(1);
   });
 
-  it("gives a finding at exactly the node count of the function and none one above", async () => {
+  it("gives a finding at exactly the node count of the function body and none one above", async () => {
     const parsers = await allParsers();
     const tree = parsers.get("python")?.parse(BODY("f"));
     const [first] = findFunctions(tree?.rootNode as never, "python");
-    const nodes = countNodes((first as { node: never }).node);
+    const nodes = countNodes(bodyOf((first as { node: never }).node) as never);
     const files = { "a.py": BODY("f"), "b.py": BODY("g") };
 
     expect((await find(files, { min_nodes: nodes })).findings).toHaveLength(1);

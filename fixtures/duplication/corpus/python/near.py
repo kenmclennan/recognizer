@@ -52,7 +52,7 @@ def fetch_events(session, filter_):
             raise RuntimeError(answer.reason)
         events.extend(answer.items)
         marker = answer.next_cursor
-        trace_page(marker)
+        marker = answer.next_cursor
         if marker is None:
             break
     return events

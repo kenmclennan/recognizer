@@ -14,7 +14,7 @@ import { type Grammar, grammarFor } from "./grammars.js";
 import { assignIdentities } from "./identity.js";
 import { countNodes, normalise } from "./normalise.js";
 import type { Parsers } from "./parsers.js";
-import { isTrivialShape } from "./shapes.js";
+import { bodyOf, isTrivialShape } from "./shapes.js";
 import {
   type CachedUnit,
   readUnitCache,
@@ -45,17 +45,23 @@ export function unitsInSource(
 
     for (const found of findFunctions(tree.rootNode, grammar)) {
       const node = found.node;
+      const body = bodyOf(node);
+
+      if (body === null) {
+        continue;
+      }
+
       const lines = node.endPosition.row - node.startPosition.row + 1;
 
       if (node.hasError || lines < settings.min_lines) {
         continue;
       }
 
-      if (countNodes(node) < settings.min_nodes || isTrivialShape(node)) {
+      if (countNodes(body) < settings.min_nodes || isTrivialShape(node)) {
         continue;
       }
 
-      const normalised = normalise(node, new Set());
+      const normalised = normalise(body, new Set());
 
       if (normalised === null) {
         continue;

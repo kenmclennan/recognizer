@@ -5,7 +5,7 @@ import {
   type DuplicationSettings,
 } from "../src/duplication/findings.js";
 import { measureDuplication } from "../src/duplication/measure.js";
-import { unitCachePath } from "../src/duplication/unit-cache.js";
+import { readUnitCache, unitCachePath } from "../src/duplication/unit-cache.js";
 import type { RecordedScan } from "../src/scan.js";
 import { allParsers, measuredFixture, ROOT } from "./duplication-helpers.js";
 
@@ -113,6 +113,31 @@ describe("reusing results for unchanged files", () => {
     expect(() =>
       JSON.parse(setup.fake.files.get(unitCachePath(ROOT)) as string),
     ).not.toThrow();
+  });
+
+  it("ignores a unit cache written by an earlier port version", async () => {
+    const setup = measuredFixture("fixtures/duplication/sample");
+
+    await measure(setup);
+
+    const written = JSON.parse(
+      setup.fake.files.get(unitCachePath(ROOT)) as string,
+    ) as { port: string };
+
+    expect(written.port).toBe("2");
+
+    setup.fake.files.set(
+      unitCachePath(ROOT),
+      JSON.stringify({ ...written, port: "1" }),
+    );
+
+    expect(readUnitCache(setup.fake.io, ROOT)).toEqual({});
+
+    await measure(setup);
+
+    expect(lastSummary(setup.fake.err())).toBe(
+      "duplication: 2 files parsed, 0 reused",
+    );
   });
 
   it("drops entries for files no scan lists any more", async () => {

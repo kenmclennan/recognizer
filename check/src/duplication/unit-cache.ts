@@ -2,7 +2,7 @@ import { join } from "node:path";
 import type { Io } from "../cli.js";
 import type { DuplicationSettings } from "./findings.js";
 
-export const PORT_VERSION = "1";
+export const PORT_VERSION = "2";
 
 export interface CachedUnit {
   qualified: string;
