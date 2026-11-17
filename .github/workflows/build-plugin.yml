@@ -1,4 +1,4 @@
-name: release-plugin
+name: build-plugin
 
 on:
   workflow_call:
@@ -6,76 +6,38 @@ on:
       unit:
         required: true
         type: string
-      force:
-        required: false
-        type: boolean
-        default: false
+      commit:
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  gate:
-    name: gate (release token present)
-    runs-on: [self-hosted, macOS, ARM64]
-    outputs:
-      present: ${{ steps.token.outputs.present }}
-    env:
-      RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
-    steps:
-      - name: Check for RELEASES_TOKEN
-        id: token
-        run: |
-          if [ -z "$RELEASES_TOKEN" ]; then
-            echo "::notice::RELEASES_TOKEN is not set; skipping the release"
-            echo "present=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          fi
-
-  release:
-    name: release (build, publish)
-    needs: gate
-    if: needs.gate.outputs.present == 'true'
+  build:
+    name: build (${{ inputs.unit }})
     runs-on: [self-hosted, macOS, ARM64]
     timeout-minutes: 60
     env:
       CARGO_BUILD_JOBS: "3"
       UNIT: ${{ inputs.unit }}
-      FORCE: ${{ inputs.force }}
-      HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       RELEASES_REPO: kenmclennan/recognizer-releases
-      TAP_REPO: kenmclennan/homebrew-tap
     steps:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ inputs.commit }}
           fetch-depth: 0
 
-      - name: Skip a unit that did not change
-        id: changed
-        run: |
-          folder=$(node -p "require('./packaging/units.json').units.find((entry) => entry.unit === process.env.UNIT).folder")
-          last=$(git tag --list "${UNIT}-v*" | grep -E "^${UNIT}-v[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n 1 || true)
-          if [ "$FORCE" = "true" ] || [ -z "$last" ] || ! git diff --quiet "$last" HEAD -- "$folder"; then
-            echo "release=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::$UNIT has not changed since $last; skipping the release"
-          fi
-
       - name: Set up Node
-        if: steps.changed.outputs.release == 'true'
         uses: actions/setup-node@v5
         with:
           node-version: "22"
 
       - name: Set up uv
-        if: steps.changed.outputs.release == 'true'
         uses: ./.github/actions/install-uv
 
       - name: Compute and stamp the version
-        if: steps.changed.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
@@ -85,11 +47,9 @@ jobs:
           node app/scripts/stamp-version.mjs "$version" "$UNIT"
 
       - name: Install dependencies
-        if: steps.changed.outputs.release == 'true'
         run: npm ci --prefer-offline --no-audit --no-fund
 
       - name: Build the unit
-        if: steps.changed.outputs.release == 'true'
         run: |
           npm run build -w recognizer
           case "$UNIT" in
@@ -100,7 +60,6 @@ jobs:
           node scripts/build-plugin.mjs "$UNIT" "$VERSION" dist-release
 
       - name: Smoke-test the archive
-        if: steps.changed.outputs.release == 'true'
         run: |
           repo=$PWD
           smoke=$(mktemp -d)
@@ -120,6 +79,11 @@ jobs:
               echo "$command failed recognizer plugin check" >&2
               exit 1
             fi
+            case "$UNIT" in
+              scan-*)
+                "$command" manifest | node -e 'const m = JSON.parse(require("fs").readFileSync(0, "utf8")); process.stdout.write(m.scan_schema_version === undefined ? "" : String(m.scan_schema_version))' > "$repo/declared-scan-schema.txt"
+                ;;
+            esac
           done
           scan_fixture() {
             work=$(mktemp -d)
@@ -153,49 +117,27 @@ jobs:
               ;;
           esac
 
-      - name: Publish the release
-        if: steps.changed.outputs.release == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+      - name: Record what was built
         run: |
-          gh release create "${UNIT}-v${VERSION}" --repo "$RELEASES_REPO" --title "$UNIT $VERSION" \
-            --notes "Release archive of the $UNIT plugin unit, installed by its Homebrew formulae from kenmclennan/tap." \
-            "dist-release/$UNIT-$VERSION.tar.gz"
-
-      - name: Tag the source
-        if: steps.changed.outputs.release == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
-        run: |
-          git tag "${UNIT}-v${VERSION}" "$HEAD_SHA"
-          git -c http.https://github.com/.extraheader= push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "${UNIT}-v${VERSION}"
-
-      - name: Update the Homebrew tap
-        if: steps.changed.outputs.release == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
-        run: |
-          sha=$(shasum -a 256 "dist-release/$UNIT-$VERSION.tar.gz" | cut -d' ' -f1)
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/${TAP_REPO}.git" tap-repo
-          node scripts/render-homebrew.mjs unit "$UNIT" "$VERSION" "$sha" tap-repo
-          cd tap-repo
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for formula in $(node -p "require('../packaging/units.json').units.find((entry) => entry.unit === process.env.UNIT).formulae.map((one) => one.formula).join(' ')"); do
-            git add "Formula/$formula.rb"
-            if ! git diff --cached --quiet; then
-              git commit -m "$formula $VERSION"
-            fi
-          done
-          pushed=false
-          for attempt in 1 2 3; do
-            if git push; then
-              pushed=true
-              break
-            fi
-            git pull --rebase
-          done
-          if [ "$pushed" != "true" ]; then
-            echo "the tap push was refused three times" >&2
-            exit 1
+          declared=""
+          if [ -f declared-scan-schema.txt ]; then
+            declared=$(cat declared-scan-schema.txt)
           fi
+          mkdir -p train
+          cp "dist-release/$UNIT-$VERSION.tar.gz" train/
+          UNIT="$UNIT" VERSION="$VERSION" DECLARED="$DECLARED" node -e '
+            const declared = process.env.DECLARED;
+            const meta = {
+              unit: process.env.UNIT,
+              version: process.env.VERSION,
+              scan_schema_version: declared === "" ? null : Number(declared),
+            };
+            require("fs").writeFileSync("train/meta.json", JSON.stringify(meta));
+          '
+
+      - name: Upload the archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-${{ inputs.unit }}
+          path: train/
+          if-no-files-found: error
