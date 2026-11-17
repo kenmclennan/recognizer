@@ -63,7 +63,7 @@ const LIST: ShippedSensors = {
       runsTests: true,
       expansion: "C.R.A.P.: Change Risk Anti-Patterns.",
     }),
-    shipped("thresholds", "Thresholds", { listed: false }),
+    shipped("quiet", "Quiet", { listed: false }),
   ],
 };
 
@@ -130,7 +130,7 @@ describe("scanPanel rows", () => {
   it("omits a shipped sensor that is not listed and makes only Structure untickable", () => {
     const rows = scanPanel(input()).rows;
 
-    expect(rows.map((row) => row.key)).not.toContain("thresholds");
+    expect(rows.map((row) => row.key)).not.toContain("quiet");
     expect(rows.filter((row) => !row.tickable).map((row) => row.key)).toEqual([
       "structure",
     ]);

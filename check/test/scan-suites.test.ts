@@ -26,7 +26,6 @@ const CONFIG_TEXT = [
   "sensors:",
   "  crap: {}",
   "  mutation: {}",
-  "  thresholds: {}",
   "",
 ].join("\n");
 
@@ -91,7 +90,7 @@ describe("recognizer scan --suites", () => {
     const { fake, code } = await scan(
       JSON.stringify({ crap: ["unit"] }),
       "--sense",
-      "crap,thresholds",
+      "crap,mutation",
       "--suites",
       FILE,
     );
@@ -101,7 +100,7 @@ describe("recognizer scan --suites", () => {
       "--suites",
       '["unit"]',
     ]);
-    expect(senseArgs(fake, "thresholds")).not.toContain("--suites");
+    expect(senseArgs(fake, "mutation")).not.toContain("--suites");
   });
 
   it("passes the pair to the readiness check of the tests-running sensor", async () => {
@@ -138,7 +137,7 @@ describe("recognizer scan --suites", () => {
     const { fake } = await scan(
       JSON.stringify({ crap: ["web", "unit"] }),
       "--sense",
-      "crap,mutation,thresholds",
+      "crap,mutation",
       "--suites",
       FILE,
     );
@@ -156,14 +155,13 @@ describe("recognizer scan --suites", () => {
 
   it.each([
     ["an unselected sensor", { mutation: ["unit"] }],
-    ["a sensor that runs no tests", { thresholds: ["unit"] }],
     ["an empty array", { crap: [] }],
     ["an unknown suite", { crap: ["nope"] }],
   ])("is exit 2 for %s, before any phase runs", async (_, value) => {
     const { code, err, fake } = await scan(
       JSON.stringify(value),
       "--sense",
-      "crap,thresholds",
+      "crap",
       "--suites",
       FILE,
     );

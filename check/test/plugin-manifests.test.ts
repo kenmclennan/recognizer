@@ -44,7 +44,6 @@ describe("the shipped manifests equal the sources they transcribe", () => {
   it.each([
     ["crap", true, false],
     ["mutation", true, true],
-    ["thresholds", false, false],
   ])(
     "gives recognizer-sense-%s runs_tests %s and scoped %s",
     (name, runsTests, scoped) => {
@@ -56,12 +55,6 @@ describe("the shipped manifests equal the sources they transcribe", () => {
   );
 
   it("gives the sensors the time limits and unit words of today's code", () => {
-    expect(manifest("recognizer-sense-thresholds")).toMatchObject({
-      long_running: false,
-      time_limit_seconds: 60,
-      units: ["modules"],
-      check: false,
-    });
     expect(manifest("recognizer-describe-claude")).toMatchObject({
       long_running: false,
       time_limit_seconds: 120,

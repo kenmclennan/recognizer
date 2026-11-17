@@ -41,8 +41,8 @@ def test_check_prints_a_document_valid_against_the_check_schema(name, repository
     assert document["gaps"] != []
 
 
-def test_check_on_thresholds_exits_two_and_prints_no_document(repository, capsys):
-    assert main(["thresholds", "check", "--repository", str(repository)]) == 2
+def test_check_on_thresholds_exits_two_and_prints_no_document(repository, capsys, plain_sensor):
+    assert main([plain_sensor, "check", "--repository", str(repository)]) == 2
 
     captured = capsys.readouterr()
 
@@ -53,13 +53,12 @@ def test_check_on_thresholds_exits_two_and_prints_no_document(repository, capsys
 def test_guide_prints_text_for_crap_and_mutation_and_nothing_for_thresholds(capsys):
     outputs = {}
 
-    for name in ("crap", "mutation", "thresholds"):
+    for name in ("crap", "mutation"):
         assert main([name, "guide"]) == 0
         outputs[name] = capsys.readouterr().out
 
     assert outputs["crap"].strip() != ""
     assert outputs["mutation"].strip() != ""
-    assert outputs["thresholds"] == ""
 
 
 @pytest.mark.parametrize("flag", ["--check", "--guide"])
@@ -91,11 +90,13 @@ def test_the_entry_point_passes_the_verb_through(repository, capsys):
     assert json.loads(capsys.readouterr().out)["gaps"] != []
 
 
-def test_thresholds_emits_a_start_and_one_final_progress_event(repository, tmp_path, capsys):
+def test_thresholds_emits_a_start_and_one_final_progress_event(
+    repository, tmp_path, capsys, plain_sensor
+):
     output = tmp_path / "out.json"
 
     assert (
-        main(["thresholds", "run", "--repository", str(repository), "--output", str(output)]) == 0
+        main([plain_sensor, "run", "--repository", str(repository), "--output", str(output)]) == 0
     )
 
     events = event_lines(capsys.readouterr().err)

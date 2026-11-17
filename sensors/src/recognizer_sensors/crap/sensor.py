@@ -28,12 +28,14 @@ from recognizer_sensors.testrun.suites import Suite, collect_suites, parse_suite
 
 DEFAULTS = {
     "threshold": 30,
+    "coverage_limit": 0.6,
     "overlay": ".recognizer/cache/overlays/crap.json",
 }
 
 OPTIONAL = {"tests"}
 
 PUBLISHED_THRESHOLD = 30
+PUBLISHED_COVERAGE_LIMIT = 0.6
 FIX_PATTERN = "simplify-or-test"
 
 METRICS = [
@@ -54,6 +56,19 @@ class Measured:
     coverage: float | None
 
 
+def parse_coverage_limit(value: object) -> float | None:
+    if value is False:
+        return None
+
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise SettingsError("coverage_limit must be a number above 0 and at most 1, or false")
+
+    if not 0 < value <= 1:
+        raise SettingsError("coverage_limit must be above 0 and at most 1")
+
+    return float(value)
+
+
 def parse_settings(raw: dict) -> dict:
     unknown = sorted(set(raw) - set(DEFAULTS) - OPTIONAL)
 
@@ -71,6 +86,7 @@ def parse_settings(raw: dict) -> dict:
 
     parsed = {
         "threshold": float(threshold),
+        "coverage_limit": parse_coverage_limit(settings["coverage_limit"]),
         "overlay": relative_path("overlay", settings["overlay"]),
     }
     parsed["suites"] = [asdict(s) for s in parse_suites(raw["tests"])] if "tests" in raw else None
@@ -183,14 +199,50 @@ def finding_for(identity: str, m: Measured, threshold: float) -> dict | None:
         "summary": summary,
         "evidence": {
             "modules": [m.module],
-            "members": [
-                {
-                    "module": m.module,
-                    "name": m.qualified,
-                    "file": m.file,
-                    "lines": [m.start_line, m.end_line],
-                }
-            ],
+            "members": [member_for(m)],
+            "measures": measures,
+        },
+    }
+
+
+def format_number(value: float) -> str:
+    if float(value).is_integer():
+        return str(int(value))
+
+    return repr(float(value))
+
+
+def member_for(m: Measured) -> dict:
+    return {
+        "module": m.module,
+        "name": m.qualified,
+        "file": m.file,
+        "lines": [m.start_line, m.end_line],
+    }
+
+
+def coverage_finding_for(identity: str, m: Measured, limit: float | None) -> dict | None:
+    if limit is None or m.coverage is None or not m.coverage < limit:
+        return None
+
+    coverage = round(m.coverage, 4)
+    measures = {"coverage": coverage, "limit": limit}
+
+    if limit != PUBLISHED_COVERAGE_LIMIT:
+        measures["published"] = PUBLISHED_COVERAGE_LIMIT
+
+    return {
+        "id": f"coverage:{identity}",
+        "kind": "coverage",
+        "severity": "warning",
+        **principle_fields("code-coverage-guidelines"),
+        "metric": "coverage",
+        "summary": (
+            f"{identity}: coverage {format_number(coverage)} is below {format_number(limit)}"
+        ),
+        "evidence": {
+            "modules": [m.module],
+            "members": [member_for(m)],
             "measures": measures,
         },
     }
@@ -277,6 +329,11 @@ def run(
 
             if finding is not None:
                 findings.append(finding)
+
+            coverage_finding = coverage_finding_for(identity, m, settings["coverage_limit"])
+
+            if coverage_finding is not None:
+                findings.append(coverage_finding)
 
     overlay = Overlay(METRICS, values, repository / settings["overlay"])
 

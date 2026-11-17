@@ -45,10 +45,29 @@ describe("parseConfig with skipRetired", () => {
       const path = key.split(".");
       const text = documentWith(path);
 
+      const tolerated = RETIRED_KEYS.some(
+        (retired) => retired.path.join(".") === key && retired.tolerated,
+      );
+
       expect(parseConfig(text, "all", SKIP)).toEqual(parseConfig("", "all"));
-      expect(messageOf(text)).not.toBe("");
+
+      if (tolerated) {
+        expect(messageOf(text)).toBe("");
+      } else {
+        expect(messageOf(text)).not.toBe("");
+      }
     },
   );
+
+  it("loads a config with sensors.thresholds exactly as without it, with no skipRetired", () => {
+    const text =
+      "sensors:\n  crap: {}\n  thresholds:\n    coverage:\n      below: 0.7\n    churn:\n      above: 20\n";
+
+    expect(parseConfig(text)).toEqual(parseConfig("sensors:\n  crap: {}\n"));
+    expect(parseConfig("sensors:\n  thresholds: {}\n")).toEqual(
+      parseConfig(""),
+    );
+  });
 
   it("equals the config with the retired keys deleted by hand when several are held", () => {
     const text = [

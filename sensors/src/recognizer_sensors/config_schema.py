@@ -12,6 +12,19 @@ CRAP_KEYS = (
         default=30,
     ),
     key(
+        "sensors.crap.coverage_limit",
+        "number",
+        (
+            "the line coverage below which a function is reported, above 0 and at most 1; "
+            "false turns the coverage finding off; default 0.6"
+        ),
+        "sensors.crap.coverage_limit 0.7",
+        exclusiveMinimum=0,
+        maximum=1,
+        off=True,
+        default=0.6,
+    ),
+    key(
         "sensors.crap.overlay",
         "path",
         (
@@ -98,36 +111,5 @@ MUTATION_KEYS = (
             ".recognizer/cache/overlays/mutation.json"
         ),
         "sensors.mutation.overlay .recognizer/cache/overlays/mutation.json",
-    ),
-)
-
-THRESHOLDS_KEYS = (
-    key(
-        "sensors.thresholds.<metric>",
-        "enum",
-        "turns the default threshold of a metric off",
-        "sensors.thresholds.coverage off",
-        values=["off"],
-    ),
-    key(
-        "sensors.thresholds.<metric>.above",
-        "number",
-        "a finding when the metric is above this value; a metric takes above or below, not both",
-        "sensors.thresholds.churn.above 20",
-    ),
-    key(
-        "sensors.thresholds.<metric>.below",
-        "number",
-        "a finding when the metric is below this value; a metric takes above or below, not both",
-        "sensors.thresholds.coverage.below 0.7",
-        defaults={"coverage": 0.6},
-    ),
-    key(
-        "sensors.thresholds.<metric>.severity",
-        "enum",
-        "how a finding of the metric is reported; default warning",
-        "sensors.thresholds.coverage.severity violation",
-        values=["warning", "violation"],
-        defaults={"coverage": "warning"},
     ),
 )

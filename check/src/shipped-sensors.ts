@@ -44,11 +44,7 @@ export interface ShippedRead {
 
 export type ManifestReader = (prefix: string[]) => ManifestRead;
 
-export const SHIPPED_SENSORS: readonly string[] = [
-  "crap",
-  "mutation",
-  "thresholds",
-];
+export const SHIPPED_SENSORS: readonly string[] = ["crap", "mutation"];
 
 export function shippedSensorNames(): string[] {
   return [...SHIPPED_SENSORS];

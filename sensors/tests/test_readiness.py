@@ -661,8 +661,8 @@ def test_the_check_flag_needs_no_commit(tmp_path, capsys):
     assert json.loads(out)["gaps"] != []
 
 
-def test_thresholds_answers_check_with_exit_two_and_no_document(tmp_path, capsys):
-    status, out = run_cli(["thresholds", "check", "--repository", str(tmp_path)], capsys)
+def test_thresholds_answers_check_with_exit_two_and_no_document(tmp_path, capsys, plain_sensor):
+    status, out = run_cli([plain_sensor, "check", "--repository", str(tmp_path)], capsys)
 
     assert status == 2
     assert out == ""
@@ -898,7 +898,6 @@ def test_the_guide_states_the_sensor_order_plainly(capsys):
         "C.R.A.P. and Mutation read no overlay of each other's: register them in either order"
         in out
     )
-    assert "thresholds reads their overlays, so it comes last." in out
 
 
 def test_the_guide_registers_every_shipped_sensor(capsys):
@@ -1075,8 +1074,6 @@ def test_the_guide_of_crap_names_the_mandated_tools_and_thresholds_prints_nothin
         "Never install anything without the human's say-so",
     ):
         assert word in out
-
-    assert run_cli(["thresholds", "guide"], capsys) == (0, "")
 
 
 def test_an_unticked_suite_with_a_missing_tool_gives_no_gap(harness):

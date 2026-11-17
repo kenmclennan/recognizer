@@ -6,6 +6,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 import pytest
 from conftest import (
+    COVERAGE_SUITE,
     FINDINGS_SCHEMA,
     REPOSITORY,
     SHIPPED,
@@ -31,12 +32,9 @@ def test_a_produced_file_validates_against_the_findings_schema(sample, tmp_path)
     document = json.loads(output.read_text())
 
     schema_validator().validate(document)
-    assert document["sensor"] == {"name": "thresholds", "version": version("recognizer-sensors")}
+    assert document["sensor"] == {"name": "crap", "version": version("recognizer-sensors")}
     assert document["commit"] == "c1"
-    assert document["modified"] is False
-    assert document["settings"] == {
-        "coverage": {"below": 0.6, "severity": "warning"},
-    }
+    assert document["settings"]["coverage_limit"] == 0.6
     assert document["findings"] == []
 
 
@@ -65,21 +63,32 @@ def test_the_version_is_read_before_the_sensor_runs_so_a_vanished_package_cannot
 def test_settings_reach_the_sensor_and_are_recorded(sample, tmp_path):
     output = tmp_path / "out.json"
 
-    assert run_cli(sample, output, "--settings", '{"churn":{"above":3}}') == 0
+    assert run_cli(sample, output, settings={"coverage_limit": 0.7}) == 0
 
     document = json.loads(output.read_text())
 
-    assert document["settings"] == {
-        "churn": {"above": 3, "severity": "warning"},
-        "coverage": {"below": 0.6, "severity": "warning"},
-    }
+    assert document["settings"]["coverage_limit"] == 0.7
 
 
-def test_modified_is_true_when_any_scan_is_not_known_clean(sample, tmp_path):
+def test_modified_is_true_when_any_scan_is_not_known_clean(sample, tmp_path, plain_sensor):
     write_scans(sample, modified=None)
     output = tmp_path / "out.json"
 
-    run_cli(sample, output)
+    assert (
+        main(
+            [
+                plain_sensor,
+                "run",
+                "--repository",
+                str(sample),
+                "--commit",
+                "c1",
+                "--output",
+                str(output),
+            ]
+        )
+        == 0
+    )
 
     assert json.loads(output.read_text())["modified"] is True
 
@@ -95,7 +104,6 @@ def test_a_repository_with_no_scans_yields_a_valid_empty_file(tmp_path):
 
     schema_validator().validate(document)
     assert document["findings"] == []
-    assert document["modified"] is False
 
 
 def test_an_unreadable_scan_is_no_modules(sample, tmp_path):
@@ -111,12 +119,12 @@ def test_an_unreadable_scan_is_no_modules(sample, tmp_path):
     [
         ["nonesuch"],
         [],
-        ["thresholds", "--settings", "not json"],
-        ["thresholds", "--settings", "[1]"],
-        ["thresholds", "--settings", '{"complexity":2}'],
-        ["thresholds", "--settings", '{"nonesuch":1}'],
-        ["thresholds", "run", "--repository", "/nonexistent/folder", "--commit", "c"],
-        ["thresholds", "--bogus"],
+        ["crap", "--settings", "not json"],
+        ["crap", "--settings", "[1]"],
+        ["crap", "--settings", '{"coverage_limit":2}'],
+        ["crap", "--settings", '{"nonesuch":1}'],
+        ["crap", "run", "--repository", "/nonexistent/folder", "--commit", "c"],
+        ["crap", "--bogus"],
     ],
 )
 def test_bad_arguments_exit_two(argv, tmp_path):
@@ -132,14 +140,14 @@ def test_no_commit_exits_two(tmp_path):
     root = tmp_path / "plain"
     root.mkdir()
 
-    assert main(["thresholds", "run", "--repository", str(root)]) == 2
+    assert main(["mutation", "run", "--repository", str(root)]) == 2
 
 
 def test_the_commit_defaults_to_head(sample, tmp_path):
     sha = git_commit(sample)
     output = tmp_path / "out.json"
 
-    assert main(["thresholds", "run", "--repository", str(sample), "--output", str(output)]) == 0
+    assert run_cli_without_commit(sample, output) == 0
     assert json.loads(output.read_text())["commit"] == sha
 
 
@@ -151,9 +159,39 @@ def test_version_prints_the_package_version(capsys):
     assert capsys.readouterr().out.strip() == version("recognizer-sensors")
 
 
+def run_cli_without_commit(sample, output):
+    return main(
+        [
+            "crap",
+            "run",
+            "--repository",
+            str(sample),
+            "--output",
+            str(output),
+            "--settings",
+            json.dumps({"tests": [COVERAGE_SUITE]}),
+        ]
+    )
+
+
+def run_cli_to_stdout(sample):
+    return main(
+        [
+            "crap",
+            "run",
+            "--repository",
+            str(sample),
+            "--commit",
+            "c1",
+            "--settings",
+            json.dumps({"tests": [COVERAGE_SUITE]}),
+        ]
+    )
+
+
 def test_output_goes_to_stdout_by_default(sample, capsys):
-    assert main(["thresholds", "run", "--repository", str(sample), "--commit", "c1"]) == 0
-    assert json.loads(capsys.readouterr().out)["sensor"]["name"] == "thresholds"
+    assert run_cli_to_stdout(sample) == 0
+    assert json.loads(capsys.readouterr().out)["sensor"]["name"] == "crap"
 
 
 def test_a_failing_run_leaves_no_file(sample, tmp_path, monkeypatch):
@@ -164,8 +202,8 @@ def test_a_failing_run_leaves_no_file(sample, tmp_path, monkeypatch):
 
     monkeypatch.setitem(
         REGISTRY,
-        "thresholds",
-        type(REGISTRY["thresholds"])(REGISTRY["thresholds"].parse_settings, explode),
+        "crap",
+        type(REGISTRY["crap"])(REGISTRY["crap"].parse_settings, explode, runs_tests=True),
     )
 
     with pytest.raises(RuntimeError):
@@ -181,7 +219,9 @@ def test_the_registry_equals_the_shipped_names():
 
 def tree_state(root):
     return {
-        str(p.relative_to(root)): p.read_bytes() for p in sorted(root.rglob("*")) if p.is_file()
+        str(p.relative_to(root)): p.read_bytes()
+        for p in sorted(root.rglob("*"))
+        if p.is_file() and ".recognizer/cache" not in p.relative_to(root).as_posix()
     }
 
 
@@ -201,7 +241,7 @@ def test_two_runs_give_the_same_bytes_under_another_hash_seed(sample, tmp_path):
                 sys.executable,
                 "-m",
                 "recognizer_sensors",
-                "thresholds",
+                "crap",
                 "run",
                 "--repository",
                 str(sample),
@@ -209,6 +249,8 @@ def test_two_runs_give_the_same_bytes_under_another_hash_seed(sample, tmp_path):
                 "c1",
                 "--output",
                 str(tmp_path / name),
+                "--settings",
+                json.dumps({"tests": [COVERAGE_SUITE]}),
             ],
             check=True,
             env=env,
@@ -242,8 +284,21 @@ def test_the_retired_mutate_name_is_an_unknown_sensor(sample, capsys):
     assert "unknown sensor: mutate" in capsys.readouterr().err
 
 
-def test_suites_on_a_sensor_that_runs_no_tests_exits_two(sample, tmp_path, capsys):
-    status = run_cli(sample, tmp_path / "out.json", "--suites", '["unit"]')
+def test_suites_on_a_sensor_that_runs_no_tests_exits_two(sample, tmp_path, capsys, plain_sensor):
+    status = main(
+        [
+            plain_sensor,
+            "run",
+            "--repository",
+            str(sample),
+            "--commit",
+            "c1",
+            "--output",
+            str(tmp_path / "out.json"),
+            "--suites",
+            '["unit"]',
+        ]
+    )
 
     assert status == 2
     assert "takes no test suites" in capsys.readouterr().err
@@ -290,7 +345,7 @@ def test_suites_on_crap_refuses_an_unknown_empty_or_malformed_value(
     assert not (tmp_path / "out.json").exists()
 
 
-@pytest.mark.parametrize("name", ["crap", "mutation", "thresholds"])
+@pytest.mark.parametrize("name", ["crap", "mutation"])
 def test_a_refusal_is_prefixed_with_the_sensors_own_command(name, tmp_path, capsys):
     status = main([name, "run", "--repository", str(tmp_path / "missing")])
 
@@ -298,7 +353,7 @@ def test_a_refusal_is_prefixed_with_the_sensors_own_command(name, tmp_path, caps
     assert capsys.readouterr().err.startswith(f"recognizer-sense-{name}: ")
 
 
-@pytest.mark.parametrize("name", ["crap", "mutation", "thresholds"])
+@pytest.mark.parametrize("name", ["crap", "mutation"])
 def test_a_missing_verb_is_prefixed_with_the_sensors_own_command(name, capsys):
     from recognizer_sensors.entry import run
 

@@ -51,8 +51,7 @@ function current(): string {
   });
 }
 
-const SHIPPED_REGISTERED =
-  "sensors:\n  crap: {}\n  mutation: {}\n  thresholds: {}\n";
+const SHIPPED_REGISTERED = "sensors:\n  crap: {}\n  mutation: {}\n";
 
 function registeringShipped(config: string): string {
   return config.includes("sensors:") ? config : config + SHIPPED_REGISTERED;
@@ -264,13 +263,12 @@ describe("scan preflight: the early stage", () => {
       const { code, err, fake } = await scan(
         setup("", failing(["mutation"])),
         "--sense",
-        "crap,mutation,thresholds",
+        "crap,mutation",
       );
 
       expect(code).toBe(4);
       expect(err).toContain("recognizer-sense-mutation is not installed");
       expect(err).not.toContain("recognizer-sense-crap is not installed");
-      expect(err).not.toContain("recognizer-sense-thresholds is not installed");
       expect(sensorRuns(fake)).toEqual([]);
     });
 
@@ -279,7 +277,7 @@ describe("scan preflight: the early stage", () => {
         setup("", failing(["mutation"])),
         "--json",
         "--sense",
-        "crap,mutation,thresholds",
+        "crap,mutation",
       );
 
       const gaps = events(out)
@@ -293,15 +291,15 @@ describe("scan preflight: the early stage", () => {
 
     it("gives three gaps when none of the three programs starts", async () => {
       const { code, out } = await scan(
-        setup("", failing(["crap", "mutation", "thresholds"])),
+        setup("", failing(["crap", "mutation"])),
         "--json",
         "--sense",
-        "crap,mutation,thresholds",
+        "crap,mutation",
       );
 
       expect(code).toBe(4);
 
-      for (const name of ["crap", "mutation", "thresholds"]) {
+      for (const name of ["crap", "mutation"]) {
         expect(out).toContain(`sensors:missing:${name}`);
       }
     });
@@ -323,8 +321,19 @@ describe("scan preflight: the early stage", () => {
 });
 
 describe("scan preflight: the project stage", () => {
+  it("scans a repository whose config still has sensors.thresholds", async () => {
+    const config =
+      "sensors:\n  crap: {}\n  mutation: {}\n  thresholds:\n    coverage:\n      min: 0.5\n";
+    const { code, fake } = await scan(setup(config), "--sense", "crap");
+
+    expect(code).toBe(0);
+    expect(sensorRuns(fake).map((call) => call.command)).toEqual([
+      "recognizer-sense-crap",
+    ]);
+  });
+
   it("checks only ticked sensors", async () => {
-    const { code, fake } = await scan(setup(""), "--sense", "thresholds,crap");
+    const { code, fake } = await scan(setup(""), "--sense", "mutation,crap");
     const checks = fake.calls.filter(
       (call) =>
         call.command.startsWith("recognizer-sense-") &&
@@ -334,7 +343,7 @@ describe("scan preflight: the project stage", () => {
     expect(code).toBe(0);
     expect(checks.map((call) => call.command)).toEqual([
       "recognizer-sense-crap",
-      "recognizer-sense-thresholds",
+      "recognizer-sense-mutation",
     ]);
 
     for (const check of checks) {
@@ -369,7 +378,7 @@ describe("scan preflight: the project stage", () => {
     const { code, fake } = await scan(
       setup("", gapsFor("crap")),
       "--sense",
-      "thresholds",
+      "mutation",
     );
 
     expect(code).toBe(0);
@@ -468,7 +477,7 @@ describe("scan preflight: the project stage", () => {
     const { code, out } = await scan(
       setup(""),
       "--sense",
-      "thresholds",
+      "mutation",
       "--json",
     );
 

@@ -2,6 +2,7 @@ import { parse } from "yaml";
 import {
   retiredKeysIn,
   withoutRetiredKeysAndEmptiedSections,
+  withoutToleratedKeys,
 } from "./config-retired.js";
 import { InputError } from "./errors.js";
 import validate from "./generated/config-validator.js";
@@ -123,7 +124,7 @@ function expandConfig(document: unknown): unknown {
 
 function rejectRetiredOverlays(document: unknown): void {
   const retired = retiredKeysIn(document).find(
-    ({ path }) => path[0] === "overlays",
+    ({ path, tolerated }) => path[0] === "overlays" && tolerated !== true,
   );
 
   if (retired !== undefined) {
@@ -321,7 +322,7 @@ function rejectBadDuplication(document: unknown): void {
 
 function rejectRetiredWarnings(document: unknown): void {
   const retired = retiredKeysIn(document).find(
-    ({ path }) => path[0] !== "overlays",
+    ({ path, tolerated }) => path[0] !== "overlays" && tolerated !== true,
   );
 
   if (retired !== undefined) {
@@ -467,6 +468,8 @@ export function parseConfig(
       withoutRetiredKeysAndEmptiedSections(document),
     );
   }
+
+  document = withoutToleratedKeys(document);
 
   rejectRetiredOverlays(document);
   rejectRetiredDuplicationSensor(document);

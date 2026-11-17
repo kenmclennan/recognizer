@@ -178,7 +178,11 @@ describe("readFindingsFiles tolerates a stored thresholds.complexity record", ()
     kind: `thresholds.${kind}`,
   });
 
-  function readNamed(name: string, value: FindingsDocument) {
+  function readNamed(
+    name: string,
+    value: FindingsDocument,
+    allowed: string[] = ["crap", "mutation"],
+  ) {
     const file = findingsFile(ROOT, name);
 
     return readFindingsFiles(
@@ -194,6 +198,8 @@ describe("readFindingsFiles tolerates a stored thresholds.complexity record", ()
       } as unknown as Io,
       ROOT,
       () => buildFreshness([SCAN], null),
+      [],
+      allowed,
     )[0];
   }
 
@@ -204,27 +210,33 @@ describe("readFindingsFiles tolerates a stored thresholds.complexity record", ()
       findings: kinds.map(record),
     });
 
+  it("marks a leftover thresholds file with no reported_at as unregistered", () => {
+    const outcome = readNamed("thresholds", held([]));
+
+    expect(outcome).toMatchObject({
+      name: "thresholds",
+      status: "unregistered",
+    });
+  });
+
   it("drops the complexity record and keeps the coverage one", () => {
     const outcome = readNamed("thresholds", held(["complexity", "coverage"]));
 
-    expect(outcome).toMatchObject({ status: "read" });
-    expect(
-      (outcome as { document: FindingsDocument }).document.findings.map(
-        (one) => one.kind,
-      ),
-    ).toEqual(["thresholds.coverage"]);
+    expect(outcome).toMatchObject({ status: "unregistered" });
+    expect(outcome).not.toHaveProperty("document");
   });
 
   it("reads a document of only complexity records back with none", () => {
     const outcome = readNamed("thresholds", held(["complexity"]));
 
-    expect(
-      (outcome as { document: FindingsDocument }).document.findings,
-    ).toEqual([]);
+    expect(outcome).toMatchObject({ status: "unregistered" });
+    expect(outcome).not.toHaveProperty("document");
   });
 
   it("leaves another sensor's thresholds.complexity-kinded record untouched", () => {
-    const outcome = readNamed("other", held(["complexity"], "other"));
+    const outcome = readNamed("other", held(["complexity"], "other"), [
+      "other",
+    ]);
 
     expect(
       (outcome as { document: FindingsDocument }).document.findings,

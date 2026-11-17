@@ -11,13 +11,12 @@ from jsonschema import Draft202012Validator
 
 from recognizer_sensors import config_schema, entry
 from recognizer_sensors.cli import main
-from recognizer_sensors.crap.sensor import PUBLISHED_THRESHOLD
+from recognizer_sensors.crap.sensor import PUBLISHED_COVERAGE_LIMIT, PUBLISHED_THRESHOLD
 from recognizer_sensors.manifest import PROTOCOL, build, install_line
 from recognizer_sensors.registry import SHIPPED
 from recognizer_sensors.testrun import records
-from recognizer_sensors.thresholds.sensor import PUBLISHED
 
-NAMES = ("crap", "mutation", "thresholds")
+NAMES = ("crap", "mutation")
 LAUNCH = "import sys; from recognizer_sensors.entry import {name}; sys.exit({name}())"
 
 
@@ -108,9 +107,8 @@ def test_the_labelled_settings_are_exactly_the_shipped_rows():
     }
 
     assert rows == {
-        "crap": ["threshold"],
+        "crap": ["threshold", "coverage_limit"],
         "mutation": ["max_minutes", "max_workers", "timeout_factor", "incremental"],
-        "thresholds": ["<metric>.below"],
     }
     assert sum(len(keys) for keys in rows.values()) == 6
 
@@ -124,7 +122,6 @@ def test_the_metric_cells_and_the_settings_title_are_the_shipped_ones():
     }
 
     assert cells == {"complexity": 1, "crap": 2, "coverage": 3}
-    assert build("thresholds")["settings_title"] == "Coverage"
     assert "settings_title" not in build("crap")
     assert "settings_title" not in build("mutation")
 
@@ -133,7 +130,6 @@ def test_the_published_config_keys_carry_none_of_the_display_keys():
     keys = [
         *config_schema.CRAP_KEYS,
         *config_schema.MUTATION_KEYS,
-        *config_schema.THRESHOLDS_KEYS,
     ]
 
     for key in keys:
@@ -156,7 +152,6 @@ def test_every_shipped_sensor_has_a_description(name):
 def test_only_crap_has_an_expansion():
     assert build("crap")["expansion"] == "C.R.A.P.: Change Risk Anti-Patterns."
     assert "expansion" not in build("mutation")
-    assert "expansion" not in build("thresholds")
 
 
 @pytest.mark.parametrize("name", NAMES)
@@ -179,7 +174,7 @@ def test_published_figures_equal_the_constants_the_sensors_hold():
     }
 
     assert published["complexity"]["value"] == 10
-    assert published["coverage"]["value"] == PUBLISHED["coverage"][1]
+    assert published["coverage"]["value"] == PUBLISHED_COVERAGE_LIMIT
     assert published["crap"]["value"] == PUBLISHED_THRESHOLD
 
 
@@ -187,7 +182,6 @@ def test_the_settings_are_the_config_keys_of_the_sensor_relative_to_its_section(
     keys = [
         *config_schema.CRAP_KEYS,
         *config_schema.MUTATION_KEYS,
-        *config_schema.THRESHOLDS_KEYS,
     ]
 
     for name in NAMES:
@@ -205,11 +199,9 @@ def test_the_settings_are_the_config_keys_of_the_sensor_relative_to_its_section(
 def test_the_run_modes_and_time_limits_are_the_ones_the_cli_applies_today():
     assert build("crap")["long_running"] is True
     assert build("mutation")["long_running"] is True
-    assert build("thresholds")["long_running"] is False
-    assert build("thresholds")["time_limit_seconds"] == 60
     assert "time_limit_seconds" not in build("crap")
-    assert [build(name)["check"] for name in NAMES] == [True, True, False]
-    assert [build(name)["units"] for name in NAMES] == [["functions"], ["functions"], ["modules"]]
+    assert [build(name)["check"] for name in NAMES] == [True, True]
+    assert [build(name)["units"] for name in NAMES] == [["functions"], ["functions"]]
 
 
 def test_a_sensor_entry_point_writes_the_findings_the_named_form_writes(tmp_path, monkeypatch):

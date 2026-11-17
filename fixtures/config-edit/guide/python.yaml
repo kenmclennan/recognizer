@@ -2,7 +2,6 @@ sensors:
   crap: {}
   mutation:
     carry: [.venv]
-  thresholds: {}
 tests:
   - name: api
     language: python

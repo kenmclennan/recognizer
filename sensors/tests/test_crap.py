@@ -357,6 +357,10 @@ def test_read_lcov_is_none_for_missing_directory_and_binary(tmp_path):
         {"overlay": ""},
         {"overlay": None},
         {"nope": 1},
+        {"coverage_limit": True},
+        {"coverage_limit": 0},
+        {"coverage_limit": 1.5},
+        {"coverage_limit": "x"},
     ],
 )
 def test_bad_settings_are_refused(raw):
@@ -371,6 +375,7 @@ def test_bad_settings_exit_two(sample, tmp_path):
 def test_defaults_are_recorded_in_order():
     assert list(parse_settings({}).items()) == [
         ("threshold", 30.0),
+        ("coverage_limit", 0.6),
         ("overlay", ".recognizer/cache/overlays/crap.json"),
         ("suites", None),
     ]
@@ -412,7 +417,7 @@ def suites_for(root, coverage=COVERAGE, command=None):
 
 def with_suites(root, extra, coverage=COVERAGE, command=None):
     args = list(extra)
-    tests = {"tests": suites_for(root, coverage, command)}
+    tests = {"tests": suites_for(root, coverage, command), "coverage_limit": False}
 
     if "--settings" in args:
         at = args.index("--settings") + 1
@@ -455,7 +460,7 @@ def test_the_fixture_gives_the_pinned_findings_and_overlay(sample, tmp_path, cap
     assert plain_lines(capsys.readouterr().err) == ""
     Draft202012Validator(json.loads(FINDINGS_SCHEMA.read_text())).validate(document)
     Draft202012Validator(json.loads(OVERLAY_SCHEMA.read_text())).validate(overlay)
-    assert list(document["settings"]) == ["threshold", "overlay", "suites"]
+    assert list(document["settings"]) == ["threshold", "coverage_limit", "overlay", "suites"]
     assert document["settings"]["threshold"] == 30.0
     assert document["settings"]["overlay"] == ".recognizer/cache/overlays/crap.json"
     assert [suite["name"] for suite in document["settings"]["suites"]] == ["python", "typescript"]
@@ -583,6 +588,135 @@ def test_a_finding_at_the_published_threshold_states_its_limit_and_no_published_
     assert finding["evidence"]["measures"]["limit"] == 30
     assert finding["summary"].endswith(", over the limit of 30")
     assert "threshold of" not in finding["summary"]
+
+
+JUDGED = '{"coverage_limit":0.6}'
+
+COVERAGE_CASES = """def at(a):
+    x = 1
+    y = 2
+    z = 3
+    w = 4
+    return x
+
+
+def over(a):
+    x = 1
+    y = 2
+    z = 3
+    w = 4
+    v = 5
+    u = 6
+    t = 7
+    s = 8
+    r = 9
+    return x
+
+
+def under(a):
+    x = 1
+    y = 2
+    z = 3
+    w = 4
+    v = 5
+    u = 6
+    t = 7
+    s = 8
+    r = 9
+    q = 10
+    return x
+"""
+
+
+def coverage_lcov(at_hits, over_hits, under_hits):
+    def lines(first, count, hits):
+        return [f"DA:{first + n},{1 if n < hits else 0}\n" for n in range(count)]
+
+    body = lines(2, 5, at_hits) + lines(9, 11, over_hits) + lines(22, 12, under_hits)
+
+    return "SF:app/m.py\n" + "".join(body) + "end_of_record\n"
+
+
+def coverage_repository(tmp_path):
+    return python_repository(tmp_path, COVERAGE_CASES, coverage_lcov(3, 7, 7))
+
+
+def test_reports_a_function_below_the_coverage_limit(tmp_path):
+    root = coverage_repository(tmp_path)
+
+    _, document, overlay = produced(root, tmp_path, "--settings", JUDGED)
+    [finding] = [f for f in document["findings"] if f["kind"] == "coverage"]
+
+    assert finding["id"] == "coverage:app/m.py::under"
+    assert finding["severity"] == "warning"
+    assert finding["metric"] == "coverage"
+    assert finding["principle"] == "code-coverage-guidelines"
+    assert finding["summary"] == "app/m.py::under: coverage 0.5833 is below 0.6"
+    assert finding["evidence"]["measures"] == {"coverage": 0.5833, "limit": 0.6}
+    assert finding["evidence"]["members"] == [
+        {"module": "app/m.py", "name": "under", "file": "app/m.py", "lines": [22, 33]}
+    ]
+    assert overlay["values"]["coverage"]["app/m.py::under"] == 0.5833
+
+
+def test_ignores_a_function_at_or_above_the_coverage_limit(tmp_path):
+    root = coverage_repository(tmp_path)
+
+    _, document, overlay = produced(root, tmp_path, "--settings", JUDGED)
+    ids = [f["id"] for f in document["findings"] if f["kind"] == "coverage"]
+
+    assert overlay["values"]["coverage"]["app/m.py::at"] == 0.6
+    assert overlay["values"]["coverage"]["app/m.py::over"] == 0.6364
+    assert ids == ["coverage:app/m.py::under"]
+
+
+def test_a_tuned_coverage_limit_names_both_figures(tmp_path):
+    root = coverage_repository(tmp_path)
+
+    _, document, _ = produced(root, tmp_path, "--settings", '{"coverage_limit":0.7}')
+    findings = {f["id"]: f for f in document["findings"] if f["kind"] == "coverage"}
+
+    assert sorted(findings) == [
+        "coverage:app/m.py::at",
+        "coverage:app/m.py::over",
+        "coverage:app/m.py::under",
+    ]
+    assert findings["coverage:app/m.py::at"]["evidence"]["measures"] == {
+        "coverage": 0.6,
+        "limit": 0.7,
+        "published": 0.6,
+    }
+    assert findings["coverage:app/m.py::at"]["summary"] == "app/m.py::at: coverage 0.6 is below 0.7"
+
+
+def test_coverage_limit_false_switches_the_judgement_off(tmp_path):
+    root = coverage_repository(tmp_path)
+
+    _, document, overlay = produced(root, tmp_path, "--settings", '{"coverage_limit":false}')
+
+    assert [f for f in document["findings"] if f["kind"] == "coverage"] == []
+    assert document["settings"]["coverage_limit"] is None
+    assert overlay["values"]["coverage"]["app/m.py::under"] == 0.5833
+
+
+def test_unknown_coverage_gets_no_coverage_finding(tmp_path):
+    root = python_repository(tmp_path, COVERAGE_CASES)
+
+    _, document, overlay = produced(root, tmp_path, "--settings", JUDGED)
+
+    assert overlay["values"]["coverage"] == {}
+    assert [f for f in document["findings"] if f["kind"] == "coverage"] == []
+
+
+def test_a_function_can_carry_both_a_crap_and_a_coverage_finding(tmp_path):
+    root = python_repository(tmp_path, branches(5), lcov_for("app/m.py", range(1, 12), hits=0))
+
+    _, document, _ = produced(root, tmp_path, "--settings", JUDGED)
+
+    assert sorted(f["id"] for f in document["findings"]) == [
+        "coverage:app/m.py::f",
+        "crap:app/m.py::f",
+    ]
 
 
 def test_cc_four_at_zero_coverage_does_not_report(tmp_path):

@@ -30,22 +30,14 @@ describe("the committed sensor manifests", () => {
 
   it("reads all three sensors", () => {
     expect(read.unreadable).toEqual([]);
-    expect(read.sensors.map((one) => one.name)).toEqual([
-      "crap",
-      "mutation",
-      "thresholds",
-    ]);
+    expect(read.sensors.map((one) => one.name)).toEqual(["crap", "mutation"]);
   });
 
   it("carries the flags the code used to hold", () => {
-    expect(read.sensors.map((one) => one.listed)).toEqual([true, true, false]);
-    expect(read.sensors.map((one) => one.runs_tests)).toEqual([
-      true,
-      true,
-      false,
-    ]);
-    expect(read.sensors.map((one) => one.scoped)).toEqual([false, true, false]);
-    expect(read.sensors.map((one) => one.metrics.length)).toEqual([3, 4, 0]);
+    expect(read.sensors.map((one) => one.listed)).toEqual([true, true]);
+    expect(read.sensors.map((one) => one.runs_tests)).toEqual([true, true]);
+    expect(read.sensors.map((one) => one.scoped)).toEqual([false, true]);
+    expect(read.sensors.map((one) => one.metrics.length)).toEqual([3, 4]);
   });
 
   it("carries crap's threshold default and the published figures", () => {

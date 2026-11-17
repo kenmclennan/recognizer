@@ -19,11 +19,8 @@ function refusal(registered: string[], requested: string[]): string[] | null {
 
 describe("refuseUnregistered", () => {
   it("refuses only the unregistered shipped names, once each, in request order", () => {
-    expect(
-      refusal(["crap"], ["crap", "mutation", "thresholds", "mutation"]),
-    ).toEqual([
-      unregisteredMessage("mutation"),
-      unregisteredMessage("thresholds"),
+    expect(refusal(["mutation"], ["crap", "mutation", "crap"])).toEqual([
+      unregisteredMessage("crap"),
     ]);
   });
 
@@ -32,8 +29,8 @@ describe("refuseUnregistered", () => {
   });
 
   it("gives one line per requested shipped name when none is registered", () => {
-    expect(refusal([], ["thresholds", "crap"])).toEqual([
-      unregisteredMessage("thresholds"),
+    expect(refusal([], ["mutation", "crap"])).toEqual([
+      unregisteredMessage("mutation"),
       unregisteredMessage("crap"),
     ]);
   });
@@ -62,11 +59,8 @@ describe("unregisteredMessage", () => {
 describe("unregisteredSensors", () => {
   it("returns the shipped names that are not registered, once each, in request order", () => {
     expect(
-      unregisteredSensors(
-        ["crap"],
-        ["crap", "mutation", "thresholds", "mutation"],
-      ),
-    ).toEqual(["mutation", "thresholds"]);
+      unregisteredSensors(["mutation"], ["crap", "mutation", "crap"]),
+    ).toEqual(["crap"]);
   });
 
   it("returns nothing when every requested sensor is registered", () => {
@@ -76,9 +70,10 @@ describe("unregisteredSensors", () => {
   });
 
   it("returns every requested shipped name when none is registered", () => {
-    expect(unregisteredSensors([], ["thresholds", "crap", "mutation"])).toEqual(
-      ["thresholds", "crap", "mutation"],
-    );
+    expect(unregisteredSensors([], ["mutation", "crap"])).toEqual([
+      "mutation",
+      "crap",
+    ]);
   });
 
   it("never returns a name that is not shipped", () => {

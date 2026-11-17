@@ -8,7 +8,7 @@ const EXAMPLES = join(
   "../../schema/manifest-examples/valid",
 );
 
-export const SHIPPED_NAMES = ["crap", "mutation", "thresholds"];
+export const SHIPPED_NAMES = ["crap", "mutation"];
 
 type ManifestDocument = Omit<ShippedSensor, "runsTests" | "listed"> & {
   runs_tests: boolean;

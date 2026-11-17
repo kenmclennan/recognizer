@@ -1,8 +1,0 @@
-sensors:
-  thresholds:
-    size:
-      above: 15
-    coverage: off
-    churn:
-      above: 20
-      severity: violation

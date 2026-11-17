@@ -39,7 +39,7 @@ function manifest(): string[] {
     "  - check: whether it has a readiness check.",
     "  - long_running: whether a run may take minutes. When it is false, time_limit_seconds is required: the most a run may take before it is stopped. When it is true, time_limit_seconds is refused.",
     "  - units: the words its progress counts in (files, modules, functions, ...).",
-    "  - settings: the config keys it reads under its own section; each is an object with key, type (string, integer, number, boolean, enum or path), description and example, and optionally values, multi, default, defaults, default_text, minimum, exclusiveMinimum, maximum and exclusiveMaximum. `recognizer config --help` lists the key shape.",
+    "  - settings: the config keys it reads under its own section; each is an object with key, type (string, integer, number, boolean, enum or path), description and example, and optionally values, multi, default, defaults, default_text, minimum, exclusiveMinimum, maximum, exclusiveMaximum and off (true when the value false switches the number off). `recognizer config --help` lists the key shape.",
     "",
     "A setting may also say how the app shows it, all optional and none changing the key schema `recognizer config` publishes:",
     "  - label (or labels, one per value of a placeholder such as <metric> in the key), unit (or units) and order: the setting is a row of the Settings modal, named by its label, with its unit after the input, ordered ascending within the pane with unordered rows after, in manifest order. A setting with no label is not a row.",

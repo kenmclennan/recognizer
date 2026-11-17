@@ -1,6 +1,9 @@
+export { thresholdsMigration as toleratedMigration } from "./config-thresholds.js";
+
 export interface RetiredKey {
   path: string[];
   message: string;
+  tolerated?: true;
 }
 
 const DELETE =
@@ -49,9 +52,10 @@ export const RETIRED_KEYS: RetiredKey[] = [
     message: `config/sensors/structure/warnings/policy_drift was removed: a policy that is out of date is a problem with the policy file, not a finding about the code, so it is always reported and there is nothing to switch; ${DELETE}`,
   },
   {
-    path: ["sensors", "thresholds", "complexity"],
+    path: ["sensors", "thresholds"],
+    tolerated: true,
     message:
-      "config/sensors/thresholds/complexity was replaced: structural analysis now judges complexity on every scan with no test run, so the thresholds sensor no longer does; set sensors.structure.warnings.complexity.limit to the number you had under above (default 10), or sensors.structure.warnings.complexity false in place of off; severity is no longer settable, a complexity finding is always a warning; delete the key (recognizer config --unset sensors.thresholds.complexity)",
+      "config/sensors/thresholds was retired: the thresholds sensor is gone, C.R.A.P. reports low coverage and structural analysis reports complexity; recognizer doctor gives the commands that move it",
   },
 ];
 
@@ -87,6 +91,7 @@ export function retiredKeysIn(document: unknown): RetiredKey[] {
 
 export function withoutRetiredKeysAndEmptiedSections(
   document: unknown,
+  only: (retired: RetiredKey) => boolean = () => true,
 ): unknown {
   if (!isPlainObject(document)) {
     return document;
@@ -94,7 +99,7 @@ export function withoutRetiredKeysAndEmptiedSections(
 
   const copy = structuredClone(document) as Record<string, unknown>;
 
-  for (const { path } of retiredKeysIn(copy)) {
+  for (const { path } of retiredKeysIn(copy).filter(only)) {
     const trail: Record<string, unknown>[] = [copy];
 
     for (const step of path.slice(0, -1)) {
@@ -133,4 +138,11 @@ export function withoutRetiredKeys(document: unknown): unknown {
   }
 
   return copy;
+}
+
+export function withoutToleratedKeys(document: unknown): unknown {
+  return withoutRetiredKeysAndEmptiedSections(
+    document,
+    (retired) => retired.tolerated === true,
+  );
 }

@@ -266,7 +266,7 @@ describe("recognizer sensors check", () => {
     const listed = fakeIo({ sensorManifests: true });
 
     expect(run(["sensors"], listed.io)).toBe(0);
-    expect(listed.out()).toContain("thresholds");
+    expect(listed.out()).toContain("mutation");
     expect(run(["sensors", "--run"], fakeIo().io)).toBe(2);
     expect(run(["sensors", "extra"], fakeIo().io)).toBe(2);
   });
@@ -403,7 +403,7 @@ describe("recognizer help sensors <name>", () => {
       files: { [CONFIG]: REGISTERED },
       programs: {
         "recognizer-sense-crap": () => ({ stdout }),
-        "recognizer-sense-thresholds": () => ({ stdout }),
+        "recognizer-sense-mutation": () => ({ stdout }),
       },
     });
 
@@ -418,8 +418,8 @@ describe("recognizer help sensors <name>", () => {
   it("says a sensor that prints nothing supplies no setup guide", () => {
     const fake = guided("");
 
-    expect(run(["help", "sensors", "thresholds"], fake.io)).toBe(0);
-    expect(fake.out()).toBe("thresholds supplies no setup guide\n");
+    expect(run(["help", "sensors", "mutation"], fake.io)).toBe(0);
+    expect(fake.out()).toBe("mutation supplies no setup guide\n");
   });
 
   it("exits 2 for an unknown sensor and leaves help sensors alone unchanged", () => {

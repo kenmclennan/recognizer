@@ -53,7 +53,6 @@ describe("packaging/units.json", () => {
       "recognizer-scan-typescript",
       "recognizer-sense-crap",
       "recognizer-sense-mutation",
-      "recognizer-sense-thresholds",
     ]);
   });
 

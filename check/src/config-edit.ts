@@ -122,6 +122,10 @@ export function typedValue(entry: KeyEntry, raw: string): Typed {
   }
 
   if (entry.type === "integer" || entry.type === "number") {
+    if (entry.off === true && raw === "false") {
+      return { value: false };
+    }
+
     if (entry.type === "integer" && !/^[+-]?\d+$/.test(raw)) {
       return { reason: `${raw} is not an integer` };
     }

@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { run } from "../src/cli.js";
-import { unsetValue } from "../src/config-edit.js";
+import { setValue, unsetValue } from "../src/config-edit.js";
 import { loadKeys } from "../src/config-keys.js";
 import { RETIRED_KEYS } from "../src/config-retired.js";
 import { cachedScansState } from "../src/freshness.js";
@@ -314,56 +314,114 @@ describe("doctor: config", () => {
     ]);
   });
 
+  const migrationOf = (config: string) => {
+    const result = json(setup({ config }));
+    const problems = result.report.areas[0].problems;
+
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toMatchObject({
+      code: "config-retired",
+      subject: "sensors.thresholds",
+    });
+
+    return problems[0] as { line: string; fix: { command: string } };
+  };
+
   it.each([
     [
-      "the long form",
-      "sensors:\n  thresholds:\n    complexity:\n      above: 12\n      severity: violation\n",
+      "coverage below another figure",
+      "sensors:\n  thresholds:\n    coverage:\n      below: 0.7\n",
+      "recognizer config sensors.crap.coverage_limit 0.7 && recognizer config --unset sensors.thresholds",
     ],
-    ["the short form", "sensors:\n  thresholds:\n    complexity: off\n"],
+    [
+      "coverage below the default",
+      "sensors:\n  thresholds:\n    coverage:\n      below: 0.6\n",
+      "recognizer config --unset sensors.thresholds",
+    ],
+    [
+      "coverage off",
+      "sensors:\n  thresholds:\n    coverage: off\n",
+      "recognizer config sensors.crap.coverage_limit false && recognizer config --unset sensors.thresholds",
+    ],
+    [
+      "a complexity line",
+      "sensors:\n  thresholds:\n    complexity:\n      above: 12\n",
+      "recognizer config sensors.structure.warnings.complexity.limit 12 && recognizer config --unset sensors.thresholds",
+    ],
+    [
+      "complexity off",
+      "sensors:\n  thresholds:\n    complexity: off\n",
+      "recognizer config sensors.structure.warnings.complexity false && recognizer config --unset sensors.thresholds",
+    ],
+    [
+      "a coverage and a complexity line",
+      "sensors:\n  thresholds:\n    complexity:\n      above: 15\n    coverage:\n      below: 0.5\n",
+      "recognizer config sensors.structure.warnings.complexity.limit 15 && recognizer config sensors.crap.coverage_limit 0.5 && recognizer config --unset sensors.thresholds",
+    ],
   ])(
-    "reports a thresholds complexity line in %s as retired",
-    (_form, config) => {
-      const result = json(setup({ config }));
-      const [problem] = result.report.areas[0].problems;
-
-      expect(result.report.areas[0].problems).toHaveLength(1);
-      expect(problem).toMatchObject({
-        code: "config-retired",
-        subject: "sensors.thresholds.complexity",
-        line: RETIRED_KEYS.find(
-          (retired) =>
-            retired.path.join(".") === "sensors.thresholds.complexity",
-        )?.message,
-      });
-      expect(problem.line).toContain(
-        "sensors.structure.warnings.complexity.limit",
-      );
-      expect(problem.line).toContain("complexity false");
-      expect(problem.fix.command).toContain(
-        "recognizer config --unset sensors.thresholds.complexity",
-      );
+    "reports a sensors.thresholds section with one migration fix for %s",
+    (_name, config, command) => {
+      expect(migrationOf(config).fix.command).toBe(command);
     },
   );
 
-  it("reports only the retired key beside a valid thresholds line", () => {
-    const result = json(
-      setup({
-        config:
-          "sensors:\n  thresholds:\n    complexity: off\n    coverage:\n      below: 0.5\n",
-      }),
+  it("reports a sensors.thresholds section with one migration fix that names what it drops", () => {
+    const problem = migrationOf(
+      "sensors:\n  thresholds:\n    coverage:\n      below: 0.7\n      severity: violation\n      above: 2\n    churn:\n      above: 20\n",
     );
 
-    expect(configCodes(result.report)).toEqual(["config:config-retired"]);
+    expect(problem.line).toContain(
+      "a coverage finding is always a warning now",
+    );
+    expect(problem.line).toContain("coverage.above 2 is dropped");
+    expect(problem.line).toContain("churn has no replacement and is dropped");
+    expect(problem.fix.command).toBe(
+      "recognizer config sensors.crap.coverage_limit 0.7 && recognizer config --unset sensors.thresholds",
+    );
   });
 
-  it("gives no problem for a thresholds config with only coverage", () => {
-    const result = json(
-      setup({
-        config: "sensors:\n  thresholds:\n    coverage:\n      below: 0.5\n",
-      }),
+  it("leaves a value already set at the new key alone", () => {
+    const problem = migrationOf(
+      "sensors:\n  crap:\n    coverage_limit: 0.8\n  thresholds:\n    coverage:\n      below: 0.7\n",
     );
 
-    expect(configCodes(result.report)).toEqual([]);
+    expect(problem.fix.command).toBe(
+      "recognizer config --unset sensors.thresholds",
+    );
+    expect(problem.line).toContain(
+      "sensors.crap.coverage_limit is already set",
+    );
+  });
+
+  it("applying the migration fix leaves no thresholds key", () => {
+    const published = loadKeys(fakeIo({ sensorManifests: true }).io, ROOT);
+    const start =
+      "sensors:\n  thresholds:\n    coverage:\n      below: 0.7\n    complexity:\n      above: 15\n";
+    let text = start;
+
+    for (const step of migrationOf(start).fix.command.split(" && ")) {
+      const words = step.split(" ").slice(2);
+      const outcome =
+        words[0] === "--unset"
+          ? unsetValue(text, published, words[1] as string)
+          : setValue(text, published, words[0] as string, words[1] as string);
+
+      expect(outcome.status).toBe("ok");
+
+      text = (outcome as { text: string }).text;
+    }
+
+    expect(text).not.toContain("thresholds");
+    expect(text).toContain("coverage_limit: 0.7");
+    expect(configCodes(json(setup({ config: text })).report)).toEqual([]);
+  });
+
+  it("gives no config-retired problem for this repository's own config", () => {
+    const own = readFileSync(join(REPO, ".recognizer/config.yaml"), "utf8");
+
+    expect(codes(json(setup({ config: own })).report)).not.toContain(
+      "config:config-retired",
+    );
   });
 
   it("never reports a fault twice", () => {
@@ -887,11 +945,7 @@ describe("real content", () => {
 });
 
 describe("doctor: unregistered shipped plugins", () => {
-  const ALL = [
-    "recognizer-sense-crap",
-    "recognizer-sense-mutation",
-    "recognizer-sense-thresholds",
-  ];
+  const ALL = ["recognizer-sense-crap", "recognizer-sense-mutation"];
   const CRAP = "sensors:\n  crap: {}\n";
 
   it("reports each installed shipped plugin that is not registered as a problem, with its fix", () => {
@@ -911,14 +965,13 @@ describe("doctor: unregistered shipped plugins", () => {
     expect(result.status).toBe(1);
     expect(result.report).toMatchObject({
       ok: false,
-      problems: 3,
+      problems: 2,
       warnings: 0,
     });
     expect(
       problems.map((one: { fix: { command: string } }) => one.fix.command),
     ).toEqual([
       "recognizer plugin add mutation",
-      "recognizer plugin add thresholds",
       "recognizer plugin add claude",
     ]);
     expect(
@@ -936,7 +989,7 @@ describe("doctor: unregistered shipped plugins", () => {
     const lines = result.out.trimEnd().split("\n");
 
     expect(result.status).toBe(1);
-    expect(lines.at(-1)).toBe("3 problems");
+    expect(lines.at(-1)).toBe("2 problems");
     expect(result.out).toContain(
       "  mutation is not registered in .recognizer/config.yaml; register it with `recognizer plugin add mutation`.\n    fix: recognizer plugin add mutation\n",
     );
@@ -946,7 +999,7 @@ describe("doctor: unregistered shipped plugins", () => {
     const result = doctor(
       setup({
         config:
-          "sensors:\n  crap: {}\n  mutation: {}\n  thresholds: {}\ndescriber:\n  command: [describer]\n  version: v1\n",
+          "sensors:\n  crap: {}\n  mutation: {}\ndescriber:\n  command: [describer]\n  version: v1\n",
         onPath: ALL,
         shippedDescriber: true,
       }),
@@ -979,7 +1032,6 @@ describe("doctor: unregistered shipped plugins", () => {
     const result = json(setup({ onPath: ALL, shippedDescriber: true }), ROOT);
 
     expect(codes(result.report)).toEqual([
-      "sensors:unregistered-plugin",
       "sensors:unregistered-plugin",
       "sensors:unregistered-plugin",
       "describers:unregistered-plugin",

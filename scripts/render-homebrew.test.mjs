@@ -199,11 +199,10 @@ describe("renderUnit and renderBundle on the committed templates", () => {
     expect(names).toEqual([
       "recognizer-sense-crap",
       "recognizer-sense-mutation",
-      "recognizer-sense-thresholds",
     ]);
     expect(new Set(urls).size).toBe(1);
     expect(urls[0]).toContain("sensors-v4.5.6/sensors-4.5.6.tar.gz");
-    expect(new Set(links).size).toBe(3);
+    expect(new Set(links).size).toBe(2);
   });
 
   it("renders the bundle depending on the nine formulae and nothing else", () => {
@@ -224,7 +223,7 @@ describe("renderUnit and renderBundle on the committed templates", () => {
         .map((one) => one.formula)
         .sort(),
     );
-    expect(dependencies).toHaveLength(9);
+    expect(dependencies).toHaveLength(8);
     expect(text).toContain("recognizer-plugins-v3/recognizer-plugins-3.tar.gz");
     expect(text).toContain("class RecognizerPlugins < Formula");
   });

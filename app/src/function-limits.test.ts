@@ -77,16 +77,19 @@ describe("functionLimits", () => {
     expect(limitsOf("sensors: {}\n")).toEqual(defaults);
   });
 
-  it("reads the thresholds settings", () => {
+  it("reads the coverage limit", () => {
     expect(
       cellsOf(
-        "sensors:\n  structure:\n    warnings:\n      complexity:\n        limit: 15\n  thresholds:\n    coverage: 'off'\n  crap:\n    threshold: 20\n",
+        "sensors:\n  structure:\n    warnings:\n      complexity:\n        limit: 15\n  crap:\n    threshold: 20\n    coverage_limit: false\n",
       ),
     ).toEqual([
       cell("complexity", "above", 15),
       cell("crap", "above", 20),
       { metric: "coverage", label: "cov", limit: null },
     ]);
+    expect(cellsOf("sensors:\n  crap:\n    coverage_limit: 0.7\n")[2]).toEqual(
+      cell("coverage", "below", 0.7),
+    );
   });
 
   it("reads a configured complexity limit over the published figure", () => {
@@ -104,9 +107,9 @@ describe("functionLimits", () => {
   });
 
   it("gives a metric without a cell no entry and a configured metric with no default none", () => {
-    const metrics = cellsOf(
-      "sensors:\n  thresholds:\n    churn:\n      above: 20\n",
-    ).map((one) => one.metric);
+    const metrics = cellsOf("sensors:\n  mutation:\n    max_workers: 2\n").map(
+      (one) => one.metric,
+    );
 
     expect(metrics).toEqual(["complexity", "crap", "coverage"]);
     expect(metrics).not.toContain("killed");
@@ -135,7 +138,7 @@ describe("functionLimits", () => {
     expect(cellsOf(null, bare)).toEqual([
       cell("complexity", "above", 10),
       { metric: "crap", label: "CRAP", limit: null },
-      cell("coverage", "below", 0.6),
+      { metric: "coverage", label: "cov", limit: null },
     ]);
   });
 
@@ -151,7 +154,7 @@ describe("functionLimits", () => {
 
   it("colours only strictly past a limit, so a value equal to it has no tone", () => {
     const [complexity, , coverage] = cellsOf(
-      "sensors:\n  structure:\n    warnings:\n      complexity:\n        limit: 15\n  thresholds:\n    coverage:\n      below: 0.6\n",
+      "sensors:\n  structure:\n    warnings:\n      complexity:\n        limit: 15\n  crap:\n    coverage_limit: 0.6\n",
     );
 
     expect(complexity?.limit?.value).toBe(15);
@@ -162,28 +165,22 @@ describe("functionLimits", () => {
     const tones = (yaml: string) => cellsOf(yaml).map((one) => one.limit?.tone);
 
     expect(tones("sensors: {}\n")).toEqual(["amber", "amber", "amber"]);
-    expect(
-      tones(
-        "sensors:\n  thresholds:\n    coverage:\n      below: 0.6\n      severity: violation\n",
-      ),
-    ).toEqual(["amber", "amber", "red"]);
-    expect(
-      tones(
-        "sensors:\n  thresholds:\n    coverage:\n      below: 0.6\n      severity: warning\n",
-      ),
-    ).toEqual(["amber", "amber", "amber"]);
+    expect(tones("sensors:\n  crap:\n    coverage_limit: 0.7\n")).toEqual([
+      "amber",
+      "amber",
+      "amber",
+    ]);
   });
 
-  it("has the figures the thresholds sensor itself holds", () => {
+  it("has the coverage figure the crap sensor itself holds", () => {
     const python = readFileSync(
-      join(REPO, "sensors/src/recognizer_sensors/thresholds/sensor.py"),
+      join(REPO, "sensors/src/recognizer_sensors/crap/sensor.py"),
       "utf8",
     );
     const [complexity, , coverage] = functionLimits(null, REAL).cells;
 
     expect(complexity?.limit?.value).toBe(COMPLEXITY_LIMIT);
-    expect(python).not.toContain('"above": 10');
-    expect(python).toContain(`"below": ${coverage?.limit?.value},`);
+    expect(python).toContain(`"coverage_limit": ${coverage?.limit?.value},`);
   });
 });
 
@@ -208,9 +205,9 @@ describe("the complexity cell's limit", () => {
     ).toBeNull();
   });
 
-  it("leaves the coverage cell to the thresholds sensor", () => {
+  it("reads the coverage cell from the crap sensor", () => {
     const coverage = cellsOf(
-      "sensors:\n  thresholds:\n    coverage:\n      below: 0.7\n",
+      "sensors:\n  crap:\n    coverage_limit: 0.7\n",
     ).find((one) => one.metric === "coverage");
 
     expect(coverage?.limit?.value).toBe(0.7);

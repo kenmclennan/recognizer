@@ -39,7 +39,7 @@ export function realTools(): RealTool[] {
       "recognizer-scan-typescript",
       "scanners/typescript/dist/bin.js",
     ),
-    ...["crap", "mutation", "thresholds"].map((name) => ({
+    ...["crap", "mutation"].map((name) => ({
       name: `recognizer-sense-${name}`,
       path: join(REPO, `sensors/.venv/bin/recognizer-sense-${name}`),
     })),

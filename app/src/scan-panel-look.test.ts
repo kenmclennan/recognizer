@@ -31,9 +31,8 @@ const base = loadedOf({ modules: ids, scans: [{ file: "scan.python.json", scan }
 const SHIPPED = [
   { name: "mutation", display: "Mutation", description: "Mutates and tests.", runsTests: true, scoped: true, listed: true, metrics: [], findings: [], settings: [] },
   { name: "crap", display: "C.R.A.P.", description: "Runs the tests with coverage.", expansion: "C.R.A.P.: Change Risk Anti-Patterns.", runsTests: true, scoped: false, listed: true, metrics: [], findings: [], settings: [] },
-  { name: "thresholds", display: "Duplication", description: "Finds repeated structure.", runsTests: false, scoped: false, listed: true, metrics: [], findings: [], settings: [] },
 ];
-const CONFIG = "describer:\\n  command: [describer, '{request}']\\n  version: v1\\nsensors:\\n  crap: {}\\n  mutation: {}\\n  thresholds: {}\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n  beta:\\n    command: [node, '{repository}/b.mjs', '{commit}', '{output}']\\n";
+const CONFIG = "describer:\\n  command: [describer, '{request}']\\n  version: v1\\nsensors:\\n  crap: {}\\n  mutation: {}\\n  tally:\\n    command: [node, '{repository}/t.mjs', '{commit}', '{output}']\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n  beta:\\n    command: [node, '{repository}/b.mjs', '{commit}', '{output}']\\n";
 const FILES = { responsibilities: null, config: CONFIG, refused: [], hashes: {} };
 const ORIGIN = { branch: "main", commit: "cur1234" };
 const json = (value) => JSON.stringify(value);
@@ -155,7 +154,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   await tick();
   facts.scanned = b.panel();
   await b.setTick("describe", true);
-  await b.setTick("thresholds", true);
+  await b.setTick("tally", true);
   await b.setTick("crap", true);
   facts.ticked = { rows: b.rows().filter((r) => r.ticked).map((r) => r.key), written: fake.written.at(-1) };
 
@@ -166,10 +165,10 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
 
   const g1 = gate(); const g2 = gate(); const g3 = gate();
   const startLine = (name) => json({ event: "start", phase: "sense", name });
-  fake.steps = [current, describing(1), entry("describe", "app/a.py"), g1.promise, sensing(2), startLine("thresholds"), g2.promise, entry("sense", "thresholds"), startLine("crap"), g3.promise, entry("sense", "crap"), summary];
+  fake.steps = [current, describing(1), entry("describe", "app/a.py"), g1.promise, sensing(2), startLine("tally"), g2.promise, entry("sense", "tally"), startLine("crap"), g3.promise, entry("sense", "crap"), summary];
   const during = [];
   const duringFooter = [];
-  fake.onStep = (index) => { if ([1, 3, 5, 8].includes(index)) { during.push(c.panel()); duringFooter.push({ text: c.scanLineText(), buttons: c.footerButtons() }); } if (index === 6) c.sensors.files.set("thresholds", json({ findings_version: 1, sensor: { name: "thresholds", version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: { "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, findings: [] })); };
+  fake.onStep = (index) => { if ([1, 3, 5, 8].includes(index)) { during.push(c.panel()); duringFooter.push({ text: c.scanLineText(), buttons: c.footerButtons() }); } if (index === 6) c.sensors.files.set("tally", json({ findings_version: 1, sensor: { name: "tally", version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: { "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, findings: [] })); };
   await c.setTick("describe", true);
   await c.setTick("crap", true);
   click(c.q(".scan-run"));
@@ -214,7 +213,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
 
   const failFake = fakeScan({
     defaults: { describe: false, sensors: true },
-    steps: [current, sensing(1), entry("sense", "thresholds", "broke"), json({ event: "summary", exit: 1, log: "x-scan" })],
+    steps: [current, sensing(1), entry("sense", "tally", "broke"), json({ event: "summary", exit: 1, log: "x-scan" })],
     result: { status: "finished", exitCode: 1 },
   });
   const t = await mount(failFake);
@@ -228,10 +227,10 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const failedFooter = { text: t.scanLineText(), buttons: t.footerButtons() };
   const messagesBefore = t.messages();
   const hiddenBefore = !t.visible(".scan-panel");
-  t.act("thresholds failed", "Show");
+  t.act("tally failed", "Show");
   await tick();
   const dot = t.q(".rail-scan .rail-dot");
-  t.act("thresholds failed", "Open log");
+  t.act("tally failed", "Open log");
   await tick();
   facts.sensorFail = {
     footer: failedFooter,
@@ -245,7 +244,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
 
   const bareFake = fakeScan({
     defaults: { describe: false, sensors: true },
-    steps: [current, sensing(1), entry("sense", "thresholds", "broke"), summary],
+    steps: [current, sensing(1), entry("sense", "tally", "broke"), summary],
     result: { status: "finished", exitCode: 1 },
   });
   const bare = await mount(bareFake);
@@ -345,10 +344,10 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   click(sc.q(".rail-scan"));
   await tick();
   await sc.setTick("mutation", true);
-  facts.scopeOff = { scope: scopeOf(), describe: stateOf("describe"), mutation: stateOf("mutation"), mutationNote: noteOf("mutation"), crap: stateOf("crap"), duplication: stateOf("thresholds") };
+  facts.scopeOff = { scope: scopeOf(), describe: stateOf("describe"), mutation: stateOf("mutation"), mutationNote: noteOf("mutation"), crap: stateOf("crap"), duplication: stateOf("tally") };
   click(sc.q(".scan-scope-canvas"));
   await tick();
-  facts.scopeOn = { scope: scopeOf(), describe: stateOf("describe"), mutation: stateOf("mutation"), mutationNote: noteOf("mutation"), crap: stateOf("crap"), duplication: stateOf("thresholds"), written: scopeFake.written.at(-1) };
+  facts.scopeOn = { scope: scopeOf(), describe: stateOf("describe"), mutation: stateOf("mutation"), mutationNote: noteOf("mutation"), crap: stateOf("crap"), duplication: stateOf("tally"), written: scopeFake.written.at(-1) };
   const hold = gate();
   scopeFake.steps = [hold.promise];
   click(sc.q(".scan-run"));
@@ -395,7 +394,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   const crapDoc = (hashes) => json({ findings_version: 1, sensor: { name: "crap", version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: hashes, findings: [] });
   const fsensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
   fsensors.files.set("crap", crapDoc({ "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" }));
-  for (const name of ["thresholds", "mutation", "alpha", "beta"]) fsensors.files.set(name, json({ findings_version: 1, sensor: { name, version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: { "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, findings: [] }));
+  for (const name of ["tally", "mutation", "alpha", "beta"]) fsensors.files.set(name, json({ findings_version: 1, sensor: { name, version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: { "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, findings: [] }));
   const HA = "a".repeat(64);
   const HB = "b".repeat(64);
   const line = (hash) => ({ line: "Does a thing.", source_hash: hash, describer: ["node", "d.js"], version: "v1" });
@@ -587,8 +586,8 @@ const NAMES = [
   "Structure",
   "Descriptions",
   "C.R.A.P.",
-  "Duplication",
   "Mutation",
+  "tally",
   "alpha",
   "beta",
 ];
@@ -711,7 +710,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.fresh.summary).toMatchObject({
       shape: "attention",
       tone: "warn",
-      head: "Structure, Descriptions, C.R.A.P., Duplication, Mutation, alpha and beta have never run",
+      head: "Structure, Descriptions, C.R.A.P., Mutation, tally, alpha and beta have never run",
       bar: 0,
     });
     expect(f.fresh.rowBars).toBe(0);
@@ -737,7 +736,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(title("crap")).toBe(
       "C.R.A.P.: Change Risk Anti-Patterns. Runs the tests with coverage.",
     );
-    expect(title("thresholds")).toBe("Finds repeated structure.");
+    expect(title("tally")).toBe("tally");
   });
 
   it("wraps a long status inside the panel's content box and keeps the tip inside the window", () => {
@@ -771,7 +770,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.changed.amber).toBeNull();
     expect(f.changed.summary).toMatchObject({
       shape: "attention",
-      head: "Descriptions, C.R.A.P., Duplication, Mutation, alpha and beta have never run",
+      head: "Descriptions, C.R.A.P., Mutation, tally, alpha and beta have never run",
       bar: 0,
     });
     expect(f.changed.rows.find((r: Facts) => r.key === "structure").state).toBe(
@@ -785,20 +784,15 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
   });
 
   it("remembers a tick and a suite tick through the port, never a tests-running sensor's own tick, and a reopened window reads them back", () => {
-    expect(f.ticked.rows).toEqual([
-      "structure",
-      "describe",
-      "crap",
-      "thresholds",
-    ]);
+    expect(f.ticked.rows).toEqual(["structure", "describe", "crap", "tally"]);
     expect(f.ticked.written).toEqual({
       describe: true,
-      ticked: ["thresholds"],
+      ticked: ["tally"],
       onlyView: false,
       suites: {},
       folds: [],
     });
-    expect(f.reopened).toEqual(["structure", "describe", "thresholds"]);
+    expect(f.reopened).toEqual(["structure", "describe", "tally"]);
     expect(f.suiteStart.crap).toEqual({
       ticked: false,
       indeterminate: false,
@@ -854,19 +848,19 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       {
         describe: true,
         describeAll: false,
-        sense: ["thresholds", "crap"],
+        sense: ["tally", "crap"],
         modules: ["app/a.py", "app/b.py"],
       },
     ]);
     expect(f.run.first.header).toBe(
-      "Running Descriptions, Duplication and C.R.A.P.\u2026 Describing\u2026 0 of 1 modules",
+      "Running Descriptions, tally and C.R.A.P.\u2026 Describing\u2026 0 of 1 modules",
     );
     expect(
       f.run.first.rows
         .filter((r: Facts) => r.spinner > 0)
         .map((r: Facts) => r.key),
-    ).toEqual(["describe", "crap", "thresholds"]);
-    expect(f.run.first.rows.map((r: Facts) => r.state).slice(1, 4)).toEqual([
+    ).toEqual(["describe", "crap", "tally"]);
+    expect([1, 2, 4].map((i) => f.run.first.rows[i].state)).toEqual([
       "0 of 1",
       "running",
       "running",
@@ -875,7 +869,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.run.first.summary).toMatchObject({
       shape: "running",
       tone: "run",
-      head: "Running Descriptions, C.R.A.P. and Duplication on 2 modules",
+      head: "Running Descriptions, C.R.A.P. and tally on 2 modules",
       bar: 1,
       spinning: true,
     });
@@ -885,7 +879,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       { text: "Stop", disabled: false, spinner: 0 },
     ]);
     expect(f.run.footer.text).toBe(
-      "Running Descriptions, Duplication and C.R.A.P.\u2026 Describing\u2026 0 of 1 modules",
+      "Running Descriptions, tally and C.R.A.P.\u2026 Describing\u2026 0 of 1 modules",
     );
     expect(f.run.footer.buttons).toEqual(["bell"]);
     expect(f.run.footerAfter.text).toBe("");
@@ -897,12 +891,12 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     const row = (panel: Facts, key: string) =>
       panel.rows.find((r: Facts) => r.key === key);
 
-    expect(row(f.run.afterDescribe, "thresholds").state).toBe("running");
+    expect(row(f.run.afterDescribe, "tally").state).toBe("running");
     expect(row(f.run.afterDescribe, "crap").state).toBe("running");
-    expect(row(f.run.afterDuplication, "thresholds").state).toBe("now");
-    expect(row(f.run.afterDuplication, "thresholds").color).toBe(GREEN);
+    expect(row(f.run.afterDuplication, "tally").state).toBe("now");
+    expect(row(f.run.afterDuplication, "tally").color).toBe(GREEN);
     expect(row(f.run.afterDuplication, "crap").state).toBe("running");
-    expect(row(f.run.after, "thresholds").state).toBe("now");
+    expect(row(f.run.after, "tally").state).toBe("now");
     expect(f.run.after.header).toBe("Ran just now");
     expect(f.run.after.rowBars).toBe(0);
     expect(f.run.after.summary.bar).toBe(0);
@@ -990,7 +984,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
   });
 
   it("leaves a failed sensor at failed with its age and a log link in red and posts exactly one tray message", () => {
-    const row = f.failed.rows.find((r: Facts) => r.key === "thresholds");
+    const row = f.failed.rows.find((r: Facts) => r.key === "tally");
 
     expect(row.state).toBe("failed, just now");
     expect(row.color).toBe(RED);
@@ -998,7 +992,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.failed.summary.shape).toBe("attention");
     expect(f.failed.summary.tone).toBe("bad");
     expect(f.failed.summary.bar).toBe(0);
-    expect(f.failed.posted).toEqual(["thresholds failed: broke"]);
+    expect(f.failed.posted).toEqual(["tally failed: broke"]);
     expect(f.failed.amber).toBeNull();
     expect(f.sensorFail.reasonLines).toBe(0);
   });
@@ -1008,7 +1002,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.sensorFail.footer.buttons).toEqual(["bell"]);
     expect(f.sensorFail.messages).toEqual([
       {
-        text: "thresholds failed: broke",
+        text: "tally failed: broke",
         actions: ["Show", "Open log"],
       },
     ]);
@@ -1020,7 +1014,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
 
   it("offers Show without Open log when the run left no log", () => {
     expect(f.noLog).toEqual([
-      { text: "thresholds failed: broke", actions: ["Show"] },
+      { text: "tally failed: broke", actions: ["Show"] },
     ]);
   });
 
@@ -1045,6 +1039,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.down).toEqual([
       { name: "Structure", disabled: true },
       { name: "Descriptions", disabled: false },
+      { name: "tally", disabled: false },
       { name: "alpha", disabled: false },
       { name: "beta", disabled: false },
     ]);

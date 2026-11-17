@@ -8,7 +8,7 @@ describe("groupKeyOf", () => {
   it.each([
     ["crap", "kind:crap"],
     ["mutation", "kind:mutation"],
-    ["thresholds.<metric>", "kind:thresholds"],
+    ["other.<metric>", "kind:other"],
     ["a.b.<c>.d", "kind:a.b"],
     ["<x>", "kind:"],
   ])("reads %s as %s", (pattern, key) => {
@@ -20,22 +20,33 @@ describe("buildCatalog", () => {
   it("builds one group per findings entry in list order with the keys the code used", () => {
     expect(REAL.groups.map((g) => [g.key, g.sensor, g.pattern])).toEqual([
       ["kind:crap", "crap", "crap"],
+      ["kind:coverage", "crap", "coverage"],
       ["kind:mutation", "mutation", "mutation"],
-      ["kind:thresholds", "thresholds", "thresholds.<metric>"],
     ]);
     expect(REAL.groups.map((g) => g.name)).toEqual([
       "C.R.A.P.",
+      "Low coverage",
       "Mutations",
-      "Over a limit",
     ]);
   });
 
   it("matches a placeholder segment against any one non-empty segment", () => {
-    expect(REAL.groupFor("thresholds.complexity")?.key).toBe("kind:thresholds");
-    expect(REAL.groupFor("thresholds.churn")?.key).toBe("kind:thresholds");
-    expect(REAL.groupFor("thresholds")).toBeUndefined();
-    expect(REAL.groupFor("thresholds.")).toBeUndefined();
-    expect(REAL.groupFor("thresholds.a.b")).toBeUndefined();
+    const group = {
+      kind: "other.<metric>",
+      group: { name: "Other", means: "m", todo: "t" },
+      help: "h",
+      sentence: { requires: [], parts: [] },
+    };
+    const catalog = buildCatalog({
+      status: "ok",
+      sensors: [plainSensor("other", { findings: [group] })],
+    });
+
+    expect(catalog.groupFor("other.complexity")?.key).toBe("kind:other");
+    expect(catalog.groupFor("other.churn")?.key).toBe("kind:other");
+    expect(catalog.groupFor("other")).toBeUndefined();
+    expect(catalog.groupFor("other.")).toBeUndefined();
+    expect(catalog.groupFor("other.a.b")).toBeUndefined();
     expect(REAL.groupFor("crap.extra")).toBeUndefined();
   });
 

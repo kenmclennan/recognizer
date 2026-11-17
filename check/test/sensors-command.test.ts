@@ -43,12 +43,10 @@ describe("recognizer sensors", () => {
     expect(entries.map((e: { name: string }) => e.name)).toEqual([
       "crap",
       "mutation",
-      "thresholds",
     ]);
     expect(entries.map((e: { listed: boolean }) => e.listed)).toEqual([
       true,
       true,
-      false,
     ]);
   });
 
@@ -81,25 +79,24 @@ describe("recognizer sensors", () => {
     expect(run(["sensors", "--json"], io)).toBe(1);
     expect(JSON.parse(out()).map((e: { name: string }) => e.name)).toEqual([
       "crap",
-      "thresholds",
     ]);
     expect(err()).toMatch(/^mutation: .*exited 1/m);
     expect(err().trim().split("\n")).toHaveLength(1);
   });
 
   it("prints an empty array, three stderr lines and exits 1 when none resolve", () => {
-    const { io, out, err } = answering(["crap", "mutation", "thresholds"]);
+    const { io, out, err } = answering(["crap", "mutation"]);
 
     expect(run(["sensors", "--json"], io)).toBe(1);
     expect(JSON.parse(out())).toEqual([]);
-    expect(err().trim().split("\n")).toHaveLength(3);
+    expect(err().trim().split("\n")).toHaveLength(2);
   });
 
   it("counts a manifest that prints invalid JSON as unreadable", () => {
-    const { io, err } = answering([], ["thresholds"]);
+    const { io, err } = answering([], ["mutation"]);
 
     expect(run(["sensors", "--json"], io)).toBe(1);
-    expect(err()).toMatch(/^thresholds: .*did not print JSON/m);
+    expect(err()).toMatch(/^mutation: .*did not print JSON/m);
   });
 
   it("prints name and description per line in text", () => {
@@ -107,7 +104,7 @@ describe("recognizer sensors", () => {
 
     expect(run(["sensors"], io)).toBe(0);
     expect(out()).toMatch(/^crap {2}Runs the tests under coverage/m);
-    expect(out().trim().split("\n")).toHaveLength(3);
+    expect(out().trim().split("\n")).toHaveLength(2);
   });
 
   it("exits 2 on an unknown flag", () => {

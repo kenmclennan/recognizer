@@ -22,6 +22,20 @@
         "members": [{ "module": "app/risk.py", "name": "classify", "file": "app/risk.py", "lines": [1, 11] }],
         "measures": { "complexity": 8, "coverage": 0.1818, "crap": 43.053 }
       }
+    },
+    {
+      "id": "coverage:app/risk.py::classify",
+      "kind": "coverage",
+      "severity": "warning",
+      "principle": "code-coverage-guidelines",
+      "citation": {"author": "Carlos Arguelles, Marko Ivanković and Adam Bender", "work": "Code Coverage Best Practices, Google Testing Blog", "year": 2020, "locator": "60% acceptable, stated for a whole product; applied here per module and per member"},
+      "metric": "coverage",
+      "summary": "app/risk.py::classify: coverage 0.1818 is below 0.6",
+      "evidence": {
+        "modules": ["app/risk.py"],
+        "members": [{ "module": "app/risk.py", "name": "classify", "file": "app/risk.py", "lines": [1, 11] }],
+        "measures": { "coverage": 0.1818, "limit": 0.6 }
+      }
     }
   ]
 }

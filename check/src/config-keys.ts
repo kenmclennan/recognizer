@@ -26,6 +26,7 @@ export interface KeyEntry {
   exclusiveMinimum?: number;
   maximum?: number;
   exclusiveMaximum?: number;
+  off?: boolean;
   description: string;
   example: string;
 }
@@ -556,6 +557,10 @@ export function describeConstraints(entry: KeyEntry): string {
 
   if (entry.exclusiveMaximum !== undefined) {
     parts.push(`below ${entry.exclusiveMaximum}`);
+  }
+
+  if (entry.off === true) {
+    parts.push("or false to switch it off");
   }
 
   const text = parts.join(", ");
