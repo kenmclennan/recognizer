@@ -428,8 +428,37 @@ export function titleTip(
   return [title, sha, `${author} · ${ageOf(time, now)}`];
 }
 
+export type HideFilter = { on: () => boolean; set: (on: boolean) => void };
+
+export function createHideFilter(): HideFilter {
+  let hide = true;
+
+  return {
+    on: () => hide,
+    set(on) {
+      hide = on;
+    },
+  };
+}
+
+export function filterLabel(tab: "history" | "branches" | "prs"): string {
+  const noun = {
+    history: "commits",
+    branches: "branches",
+    prs: "pull requests",
+  }[tab];
+
+  return `Hide ${noun} with nothing to show`;
+}
+
+export const FILTER_EMPTY = "Nothing here touches the canvas.";
+
 export function visibleRows<
-  T extends { classification: Classification | null; held: boolean },
+  T extends {
+    classification: Classification | null;
+    held: boolean;
+    pinned?: boolean;
+  },
 >(rows: readonly T[], hide: boolean): { rows: T[]; hidden: number } {
   if (!hide) {
     return { rows: [...rows], hidden: 0 };
@@ -438,6 +467,7 @@ export function visibleRows<
   const kept = rows.filter(
     (row) =>
       row.held ||
+      row.pinned === true ||
       row.classification === null ||
       onCanvas(row.classification) > 0,
   );

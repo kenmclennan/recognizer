@@ -4068,11 +4068,26 @@ svg.i.chevron {
 .commits-filter {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
+  gap: 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
+}
+
+.commits-hide-text {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
 .commits-hide {
@@ -4110,6 +4125,8 @@ svg.i.chevron {
 
 .commits-hidden {
   margin-left: auto;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .commits-impact {
