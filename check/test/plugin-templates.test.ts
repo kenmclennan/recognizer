@@ -371,6 +371,60 @@ describe("python sensor template stops inside its write", () => {
   );
 });
 
+describe("python scanner template stops inside its write", () => {
+  it.skipIf(!REQUIRED && !TOOLCHAIN.python)(
+    "a stop that lands inside the scan write leaves one valid document and no temporary file",
+    () => {
+      guardToolchain("python");
+
+      const { command } = prepare("python", "scanner");
+      const folder = makeTempDir("plugin-stop-inside-write-");
+      const output = join(folder, "scan.json");
+      const harness = join(makeTempDir("plugin-stop-harness-"), "harness.py");
+
+      writeFileSync(
+        harness,
+        [
+          "import importlib.machinery, importlib.util, json, signal, sys",
+          "loader = importlib.machinery.SourceFileLoader('scanner', sys.argv[1])",
+          "spec = importlib.util.spec_from_loader('scanner', loader)",
+          "scanner = importlib.util.module_from_spec(spec)",
+          "loader.exec_module(scanner)",
+          "scanner.state['commit'] = 'abc'",
+          "scanner.state['output'] = sys.argv[2]",
+          "signal.signal(signal.SIGTERM, scanner.on_term)",
+          "real_dump = json.dump",
+          "fired = []",
+          "def dump(*args, **kwargs):",
+          "    real_dump(*args, **kwargs)",
+          "    if not fired:",
+          "        fired.append(True)",
+          "        signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)",
+          "json.dump = dump",
+          "try:",
+          "    scanner.write_scan()",
+          "except SystemExit as exit:",
+          "    sys.exit(exit.code)",
+          "sys.exit(0)",
+          "",
+        ].join("\n"),
+      );
+
+      const result = spawnSync("python3", [harness, command, output], {
+        encoding: "utf8",
+      });
+
+      expect(result.status, result.stderr).toBe(143);
+
+      const document = JSON.parse(readFileSync(output, "utf8"));
+
+      expect(document.commit).toBe("abc");
+      expect(readdirSync(folder)).toEqual(["scan.json"]);
+    },
+    TIMEOUT,
+  );
+});
+
 describe("plugin template stop handlers (non-gating)", () => {
   it.todo(
     "a scanner and a sensor write their document on SIGTERM: a sample run ends in milliseconds, so no handle can keep it alive for a signal without a race",
