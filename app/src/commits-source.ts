@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type {
   BranchesReply,
+  ChangeDetailReply,
   CommitsPort,
   HistoryReply,
   PullRequestsReply,
@@ -14,6 +15,8 @@ export const commitsSource: CommitsPort = {
   listBranches: () => invoke<BranchesReply>("list_branches"),
   refFacts: (refs) => invoke<RefFacts[]>("ref_facts", { refs }),
   listPullRequests: () => invoke<PullRequestsReply>("read_pull_requests"),
+  changeDetail: (kind, reference) =>
+    invoke<ChangeDetailReply>("change_detail", { kind, reference }),
   watchGit(onChange) {
     const pending = listen("git-changed", () => onChange());
 

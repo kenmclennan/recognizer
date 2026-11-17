@@ -26,11 +26,29 @@ export type PullRequestsReply = {
   text: string;
 };
 
+export type ChangeDetailKind = "commit" | "branch" | "pr";
+
+export type ChangeDetailReply = {
+  git: string | null;
+  pull: PullRequestsReply | null;
+  defaultRef: string | null;
+};
+
+export const NO_CHANGE_DETAIL: ChangeDetailReply = {
+  git: null,
+  pull: null,
+  defaultRef: null,
+};
+
 export type CommitsPort = {
   listHistory(): Promise<HistoryReply>;
   listBranches(): Promise<BranchesReply>;
   refFacts(refs: string[]): Promise<RefFacts[]>;
   listPullRequests(): Promise<PullRequestsReply>;
+  changeDetail(
+    kind: ChangeDetailKind,
+    reference: string,
+  ): Promise<ChangeDetailReply>;
   watchGit(onChange: () => void): () => void;
   onFocus(run: () => void): () => void;
 };
@@ -40,6 +58,7 @@ export const inertCommits: CommitsPort = {
   listBranches: async () => ({ defaultRef: null, total: 0, text: "" }),
   refFacts: async (refs) => refs.map(nullFacts),
   listPullRequests: async () => ({ status: "ok", detail: "", text: "[]" }),
+  changeDetail: async () => NO_CHANGE_DETAIL,
   watchGit: () => () => {},
   onFocus: () => () => {},
 };

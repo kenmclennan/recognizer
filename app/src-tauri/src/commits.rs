@@ -12,6 +12,8 @@ const BRANCH_LIMIT: usize = 100;
 const REF_LIMIT: usize = 100;
 const CHANGES_LIMIT: usize = 2000;
 const PULL_REQUEST_LIMIT: &str = "50";
+const CHANGE_PULL_FIELDS: &str = "number,title,body,state,isDraft,author,statusCheckRollup";
+const BRANCH_PULL_FIELDS: &str = "number,title,isDraft,author,statusCheckRollup";
 const GH_TIMEOUT: Duration = Duration::from_secs(20);
 const HISTORY_FORMAT: &str = "--format=%x1e%H%x1f%h%x1f%P%x1f%an%x1f%ct%x1f%s%x1f%D";
 const BRANCH_FORMAT: &str =
@@ -49,6 +51,14 @@ pub struct PullRequests {
     pub status: String,
     pub detail: String,
     pub text: String,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangeDetail {
+    pub git: Option<String>,
+    pub pull: Option<PullRequests>,
+    pub default_ref: Option<String>,
 }
 
 fn git(folder: &Path, args: &[&str]) -> Result<(bool, String, String), String> {
@@ -225,27 +235,13 @@ pub fn ref_facts(folder: &Path, refs: &[String]) -> Vec<RefFacts> {
         .collect()
 }
 
-pub fn read_pull_requests(runner: &ToolRunner, folder: &Path) -> PullRequests {
+fn run_gh(runner: &ToolRunner, folder: &Path, args: &[&str], failure: &str) -> PullRequests {
     let outcome = |status: &str, detail: String, text: String| PullRequests {
         status: status.to_string(),
         detail,
         text,
     };
-    let captured = match runner.run_external(
-        "gh",
-        &[
-            "pr",
-            "list",
-            "--state",
-            "open",
-            "--limit",
-            PULL_REQUEST_LIMIT,
-            "--json",
-            PULL_REQUEST_FIELDS,
-        ],
-        folder,
-        GH_TIMEOUT,
-    ) {
+    let captured = match runner.run_external("gh", args, folder, GH_TIMEOUT) {
         Ok(captured) => captured,
         Err(_) => return outcome("missing", String::new(), String::new()),
     };
@@ -261,13 +257,128 @@ pub fn read_pull_requests(runner: &ToolRunner, folder: &Path) -> PullRequests {
             outcome(
                 "failed",
                 if detail.is_empty() {
-                    "gh pr list failed".to_string()
+                    failure.to_string()
                 } else {
                     detail
                 },
                 String::new(),
             )
         }
+    }
+}
+
+pub fn read_pull_requests(runner: &ToolRunner, folder: &Path) -> PullRequests {
+    run_gh(
+        runner,
+        folder,
+        &[
+            "pr",
+            "list",
+            "--state",
+            "open",
+            "--limit",
+            PULL_REQUEST_LIMIT,
+            "--json",
+            PULL_REQUEST_FIELDS,
+        ],
+        "gh pr list failed",
+    )
+}
+
+pub fn change_detail(
+    runner: &ToolRunner,
+    folder: &Path,
+    kind: &str,
+    reference: &str,
+) -> Result<ChangeDetail, String> {
+    match kind {
+        "commit" => {
+            if !valid_ref(reference) || resolved_commit(folder, reference).is_none() {
+                return Err(format!("not a commit: {reference}"));
+            }
+
+            let git = git(
+                folder,
+                &[
+                    "show",
+                    "-s",
+                    "--format=%an%x1f%ct%x1f%B",
+                    &format!("{reference}^{{commit}}"),
+                ],
+            )
+            .ok()
+            .filter(|(ok, _, _)| *ok)
+            .map(|(_, stdout, _)| stdout);
+
+            Ok(ChangeDetail {
+                git,
+                pull: None,
+                default_ref: None,
+            })
+        }
+        "branch" => {
+            if !valid_ref(reference) || resolved_commit(folder, reference).is_none() {
+                return Err(format!("not a branch: {reference}"));
+            }
+
+            let git = git(
+                folder,
+                &[
+                    "log",
+                    "-1",
+                    "--format=%an%x1f%ct%x1f%s",
+                    &format!("{reference}^{{commit}}"),
+                ],
+            )
+            .ok()
+            .filter(|(ok, _, _)| *ok)
+            .map(|(_, stdout, _)| stdout);
+            let pull = run_gh(
+                runner,
+                folder,
+                &[
+                    "pr",
+                    "list",
+                    "--state",
+                    "open",
+                    "--head",
+                    reference,
+                    "--limit",
+                    "1",
+                    "--json",
+                    BRANCH_PULL_FIELDS,
+                ],
+                "gh pr list failed",
+            );
+
+            Ok(ChangeDetail {
+                git,
+                pull: Some(pull),
+                default_ref: default_ref(folder),
+            })
+        }
+        "pr" => {
+            if reference.is_empty()
+                || reference.len() > 9
+                || !reference.bytes().all(|byte| byte.is_ascii_digit())
+            {
+                return Err(format!("not a pull request number: {reference}"));
+            }
+
+            let pull = run_gh(
+                runner,
+                folder,
+                &["pr", "view", reference, "--json", CHANGE_PULL_FIELDS],
+                "gh pr view failed",
+            );
+
+            Ok(ChangeDetail {
+                git: None,
+                pull: Some(pull),
+                default_ref: default_ref(folder),
+            })
+        }
+        other => Err(format!("unknown change kind: {other}")),
     }
 }
 
@@ -705,6 +816,135 @@ mod tests {
         let shell = shell_with_path(dir, path);
 
         runner_with(&shell, Duration::from_secs(10), Duration::from_secs(30), 4)
+    }
+
+    #[test]
+    fn change_detail_commit_returns_author_time_and_the_full_message() {
+        let dir = repository();
+        let dir_path = dir.path();
+
+        run_git(
+            dir_path,
+            &[
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                "subject line",
+                "-m",
+                "body text",
+            ],
+        );
+
+        let bin = TempDir::new().unwrap();
+        let runner = gh_runner(dir_path, &bin.path().display().to_string());
+        let detail = change_detail(&runner, dir_path, "commit", "HEAD").unwrap();
+        let text = detail.git.unwrap();
+        let mut parts = text.splitn(3, '\u{1f}');
+
+        assert_eq!(parts.next(), Some("T"));
+        assert!(parts.next().unwrap().parse::<u64>().is_ok());
+        assert!(parts.next().unwrap().contains("subject line\n\nbody text"));
+        assert!(detail.pull.is_none());
+    }
+
+    #[test]
+    fn change_detail_commit_refuses_an_option_shaped_ref_before_git_runs() {
+        let dir = repository();
+        let out = dir.path().join("f");
+        let bin = TempDir::new().unwrap();
+        let runner = gh_runner(dir.path(), &bin.path().display().to_string());
+
+        assert!(change_detail(
+            &runner,
+            dir.path(),
+            "commit",
+            &format!("--output={}", out.display())
+        )
+        .is_err());
+        assert!(change_detail(&runner, dir.path(), "commit", "-x").is_err());
+        assert!(!out.exists());
+    }
+
+    #[test]
+    fn change_detail_branch_returns_the_tip_and_the_default_ref() {
+        let dir = branched();
+        let bin = TempDir::new().unwrap();
+
+        script(bin.path(), "gh", "echo '[]'");
+
+        let runner = gh_runner(dir.path(), &bin.path().display().to_string());
+        let detail = change_detail(&runner, dir.path(), "branch", "feature").unwrap();
+
+        assert!(detail.git.unwrap().ends_with("\u{1f}edit a\n"));
+        assert_eq!(detail.default_ref.as_deref(), Some("origin/main"));
+        assert_eq!(detail.pull.unwrap().status, "ok");
+    }
+
+    #[test]
+    fn change_detail_pr_refuses_a_non_numeric_number() {
+        let dir = repository();
+        let bin = TempDir::new().unwrap();
+        let runner = gh_runner(dir.path(), &bin.path().display().to_string());
+
+        for bad in ["", "abc", "12;ls", "--web", "1234567890", "-1"] {
+            assert!(
+                change_detail(&runner, dir.path(), "pr", bad).is_err(),
+                "{bad}"
+            );
+        }
+
+        assert!(change_detail(&runner, dir.path(), "other", "1").is_err());
+    }
+
+    #[test]
+    fn change_detail_pr_returns_the_gh_json() {
+        let dir = branched();
+        let bin = TempDir::new().unwrap();
+
+        script(bin.path(), "gh", "echo '{\"number\":7}'");
+
+        let runner = gh_runner(dir.path(), &bin.path().display().to_string());
+        let detail = change_detail(&runner, dir.path(), "pr", "7").unwrap();
+        let pull = detail.pull.unwrap();
+
+        assert_eq!(pull.status, "ok");
+        assert!(pull.text.contains("\"number\":7"));
+        assert_eq!(detail.default_ref.as_deref(), Some("origin/main"));
+        assert!(detail.git.is_none());
+    }
+
+    #[test]
+    fn change_detail_branch_says_missing_when_gh_is_absent() {
+        let dir = branched();
+        let bin = TempDir::new().unwrap();
+        let runner = gh_runner(dir.path(), &bin.path().display().to_string());
+        let detail = change_detail(&runner, dir.path(), "branch", "feature").unwrap();
+
+        assert_eq!(detail.pull.unwrap().status, "missing");
+        assert!(detail.git.is_some());
+    }
+
+    #[test]
+    fn change_detail_commit_runs_over_the_real_committed_history() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let shallow = git_stdout(&root, &["rev-parse", "--is-shallow-repository"]);
+
+        if shallow.as_deref() != Some("false") {
+            println!("skipped: shallow or no checkout");
+
+            return;
+        }
+
+        let bin = TempDir::new().unwrap();
+        let runner = gh_runner(&root, &bin.path().display().to_string());
+        let detail = change_detail(&runner, &root, "commit", "HEAD").unwrap();
+        let text = detail.git.unwrap();
+        let mut parts = text.splitn(3, '\u{1f}');
+
+        assert!(!parts.next().unwrap().is_empty());
+        assert!(parts.next().unwrap().parse::<u64>().is_ok());
+        assert!(!parts.next().unwrap().trim().is_empty());
     }
 
     #[test]

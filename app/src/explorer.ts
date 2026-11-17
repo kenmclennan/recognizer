@@ -42,6 +42,21 @@ import {
   type ChangeOverlay,
   createMeasure,
 } from "./canvas-view";
+import {
+  type BranchTip,
+  type CommitDetail,
+  type PullDetail,
+  parseBranchTip,
+  parseCommitDetail,
+  parsePullDetail,
+} from "./change-detail-parse";
+import {
+  type ChangeCounts,
+  type ChangeSummary,
+  kindOfChange,
+  summariseChange,
+  viewNameFrom,
+} from "./change-summary";
 import { unionScans } from "./change-union";
 import {
   ageOf,
@@ -58,6 +73,7 @@ import {
   type HistoryRow,
   impactText,
   impactTip,
+  onCanvas,
   orderBranches,
   type PickRow,
   type PullRequestRow,
@@ -355,6 +371,7 @@ type ChangeInfo =
       at: number;
       headCommit: string;
       pick: { kind: PickRow["kind"]; ref: string } | null;
+      counts: ChangeCounts | null;
       members: ChangeMembers;
       baseUnreadable?: string;
       headUnreadable?: string;
@@ -411,6 +428,7 @@ export function showExplorer(
   commits: CommitsPort = inertCommits,
   openSettings: () => void = () => {},
   openSetup: () => void = () => {},
+  timeZone: string = Intl.DateTimeFormat().resolvedOptions().timeZone,
 ): Explorer {
   let loaded = initial;
   let health = computeHealth(loaded);
@@ -516,6 +534,13 @@ export function showExplorer(
     rows: PullRequestRow[];
   } = { state: "idle", status: "ok", detail: "", rows: [] };
   const commitFacts = new Map<string, RefFacts>();
+  let heldDetail: {
+    key: string;
+    commit: CommitDetail | null;
+    tip: BranchTip | null;
+    pull: PullDetail | null;
+    defaultRef: string | null;
+  } | null = null;
   const hideFilter = createHideFilter();
   let commitsOpening: {
     what: string;
@@ -1915,6 +1940,13 @@ export function showExplorer(
     }
 
     const range = rangeText(view.change);
+
+    if (heldDetail !== null && heldDetail.key !== range) {
+      heldDetail = null;
+    }
+
+    void loadDetail(name, view.change, range, token);
+
     const pick =
       commitsOpening === null
         ? null
@@ -2014,10 +2046,21 @@ export function showExplorer(
         (one.mark === "modified" || one.mark === "renamed") &&
         one.box === "current",
     );
+    const classified = classify(
+      files,
+      present.flatMap((scan) => (scan.selection ? [scan.selection] : [])),
+    );
     const okInfo = {
       name,
       range,
       state: "ok" as const,
+      counts:
+        classified === null
+          ? null
+          : {
+              onCanvas: onCanvas(classified),
+              elsewhere: classified.elsewhere.length,
+            },
       marked: found.modules,
       unmatched: found.unmatched,
       at: Date.now(),
@@ -2031,6 +2074,7 @@ export function showExplorer(
     changeInfo = { ...okInfo, members: anyModified ? "loading" : null };
     rebuild();
     render();
+    renderBar();
 
     if (!anyModified) {
       return;
@@ -2063,6 +2107,105 @@ export function showExplorer(
             : { unreadable: fetched.reason },
     };
     render();
+  }
+
+  async function loadDetail(
+    name: string,
+    change: ViewChange,
+    range: string,
+    token: number,
+  ) {
+    const kind = kindOfChange(change);
+    const fetched =
+      kind.kind === "commit" ||
+      (name === DRAFT_VIEW && (kind.kind === "branch" || kind.kind === "pr"));
+
+    if (!fetched) {
+      return;
+    }
+
+    const reference =
+      kind.kind === "commit"
+        ? kind.sha
+        : kind.kind === "branch"
+          ? kind.name
+          : kind.kind === "pr"
+            ? String(kind.number)
+            : "";
+    const reply = await commits
+      .changeDetail(kind.kind as "commit" | "branch" | "pr", reference)
+      .catch(() => null);
+
+    if (token !== openToken) {
+      return;
+    }
+
+    heldDetail = {
+      key: range,
+      commit:
+        kind.kind === "commit" ? parseCommitDetail(reply?.git ?? null) : null,
+      tip: kind.kind === "branch" ? parseBranchTip(reply?.git ?? null) : null,
+      pull:
+        kind.kind === "commit" ? null : parsePullDetail(reply?.pull ?? null),
+      defaultRef: reply?.defaultRef ?? null,
+    };
+    render();
+    renderBar();
+
+    const ref = kind.kind === "branch" ? kind.name : change.head;
+
+    if (kind.kind === "commit" || commitFacts.has(ref)) {
+      return;
+    }
+
+    const found = await commits.refFacts([ref]).catch(() => []);
+
+    if (token !== openToken) {
+      return;
+    }
+
+    for (const one of found) {
+      commitFacts.set(one.ref, one);
+    }
+
+    render();
+    renderBar();
+  }
+
+  function summaryOf(view: View | null): ChangeSummary | null {
+    if (view === null || view.change === undefined) {
+      return null;
+    }
+
+    const change = view.change;
+    const held =
+      heldDetail !== null && heldDetail.key === rangeText(change)
+        ? heldDetail
+        : null;
+    const known = commitFacts.get(change.head) ?? null;
+    const info =
+      changeInfo?.state === "ok" && changeInfo.range === rangeText(change)
+        ? changeInfo
+        : null;
+
+    return summariseChange(
+      change,
+      {
+        commit: held?.commit ?? null,
+        tip: held?.tip ?? null,
+        pull: held?.pull ?? null,
+        defaultBranch: defaultBranchName(held?.defaultRef ?? null),
+        ahead: known?.ahead ?? null,
+        behind: known?.behind ?? null,
+        rows: historyLoad.state === "ready" ? historyLoad.rows : null,
+        counts: info?.counts ?? null,
+      },
+      timeZone,
+    );
+  }
+
+  function draftSummary(): ChangeSummary | null {
+    return openView === DRAFT_VIEW ? summaryOf(openViewValue()) : null;
   }
 
   async function rangeScansAt(
@@ -3741,6 +3884,8 @@ export function showExplorer(
       total: viewList.length,
       openChip: openChipOf()?.text ?? null,
       openChipTitle: openChipOf()?.title ?? null,
+      openChangeTitle: draftSummary()?.title ?? null,
+      saveDefaults: saveDefaultsOf(),
       openPlan: openViewValue()?.plan === true,
       canBack: history.canBack(),
       listed: listKnown,
@@ -3764,7 +3909,26 @@ export function showExplorer(
   function openChipOf(): { text: string; title: string } | null {
     const view = openViewValue();
 
-    return view?.change === undefined ? null : changeChip(view.change);
+    if (view?.change === undefined) {
+      return null;
+    }
+
+    const chip = changeChip(view.change);
+    const summary = summaryOf(view);
+
+    return summary === null ? chip : { text: summary.chip, title: chip.title };
+  }
+
+  function saveDefaultsOf() {
+    const summary = draftSummary();
+
+    return summary === null
+      ? null
+      : {
+          name: viewNameFrom(summary.title),
+          title: summary.title,
+          description: summary.saveDescription,
+        };
   }
 
   function renamesFor(name: string, commit: string) {
@@ -4471,6 +4635,19 @@ export function showExplorer(
   let lastHeading: Heading | null = null;
   let headingDraft: { title: string | null; description: string } | null = null;
 
+  function sameFacts(
+    left: readonly string[] | undefined,
+    right: readonly string[] | undefined,
+  ): boolean {
+    return (
+      left === right ||
+      (left !== undefined &&
+        right !== undefined &&
+        left.length === right.length &&
+        left.every((one, index) => one === right[index]))
+    );
+  }
+
   function headingNow(): Heading | null {
     const view = openViewValue();
 
@@ -4480,17 +4657,31 @@ export function showExplorer(
       return null;
     }
 
+    const summary = headingDraft === null ? draftSummary() : null;
     const title =
-      headingDraft === null ? (view.title ?? null) : headingDraft.title;
+      summary !== null
+        ? summary.title
+        : headingDraft === null
+          ? (view.title ?? null)
+          : headingDraft.title;
     const description =
-      headingDraft === null ? view.description : headingDraft.description;
+      summary !== null
+        ? (summary.lead ?? "")
+        : headingDraft === null
+          ? view.description
+          : headingDraft.description;
+    const facts = summary?.facts;
 
     if (
       lastHeading === null ||
       lastHeading.title !== title ||
-      lastHeading.description !== description
+      lastHeading.description !== description ||
+      !sameFacts(lastHeading.facts, facts)
     ) {
-      lastHeading = { title, description };
+      lastHeading =
+        facts === undefined
+          ? { title, description }
+          : { title, description, facts };
     }
 
     return lastHeading;

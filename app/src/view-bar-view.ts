@@ -8,6 +8,8 @@ export type ViewBarItem = {
   chip: string | null;
 };
 
+export type SaveDefaults = { name: string; title: string; description: string };
+
 export type ViewBarProps = {
   open: string | null;
   views: ViewBarItem[];
@@ -15,6 +17,8 @@ export type ViewBarProps = {
   total: number;
   openChip: string | null;
   openChipTitle: string | null;
+  openChangeTitle: string | null;
+  saveDefaults: SaveDefaults | null;
   openPlan: boolean;
   listed: boolean;
   listProblem: string | null;
@@ -106,6 +110,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
       actions.save();
     } else {
       dialogName = "";
+      dialogDefaults = props.saveDefaults;
       dialogOpen = true;
       renderOverlay();
     }
@@ -130,6 +135,8 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     total: 0,
     openChip: null,
     openChipTitle: null,
+    openChangeTitle: null,
+    saveDefaults: null,
     openPlan: false,
     listed: false,
     listProblem: null,
@@ -149,6 +156,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
   let menuOpen = false;
   let dialogOpen = false;
   let dialogName = "";
+  let dialogDefaults: SaveDefaults | null = null;
   let editing = false;
 
   list.append(icon("folder-open"), icon("chevron-down", "view-chevron"));
@@ -230,11 +238,17 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     menuOpen = false;
     dialogOpen = false;
     editing = true;
+    const defaults = props.open === null ? props.saveDefaults : null;
+
     details.open(
       {
-        name: props.open ?? "",
-        title: props.openTitle,
-        description: props.openDescription ?? "",
+        name: props.open ?? defaults?.name ?? "",
+        title:
+          props.open === null ? (defaults?.title ?? null) : props.openTitle,
+        description:
+          props.open === null
+            ? (defaults?.description ?? "")
+            : (props.openDescription ?? ""),
         isNew: props.open === null,
       },
       otherNames(),
@@ -378,7 +392,10 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
     };
 
     nameInput.id = "view-name-field";
-    nameInput.value = dialogName;
+    nameInput.value =
+      dialogName !== "" ? dialogName : (dialogDefaults?.name ?? "");
+    titleInput.value = dialogDefaults?.title ?? "";
+    descriptionInput.value = dialogDefaults?.description ?? "";
     titleInput.id = "view-title-field";
     titleInput.placeholder = "Heading shown above the diagram";
     descriptionInput.id = "view-description-field";
@@ -418,6 +435,7 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
       menuOpen = false;
       cancelEditing();
       dialogName = "";
+      dialogDefaults = props.saveDefaults;
       dialogOpen = true;
       renderOverlay();
     },
@@ -429,9 +447,12 @@ export function buildViewBar(actions: ViewBarActions): ViewBar {
       forward.disabled = !next.canForward;
       relabel(back, next.backLabel);
       relabel(forward, next.forwardLabel);
-      nameText.textContent = next.unsaved
-        ? "Change"
+      const shownName = next.unsaved
+        ? (next.openChangeTitle ?? next.openChip ?? "Change")
         : (next.open ?? "Untitled");
+
+      nameText.textContent = shownName;
+      nameText.title = next.unsaved ? shownName : "";
       rangeChip.hidden = next.openChip === null;
       rangeChip.textContent = next.openChip ?? "";
       rangeChip.title = next.openChipTitle ?? "";

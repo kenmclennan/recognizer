@@ -98,6 +98,7 @@ describe("look-support", () => {
       "reconcileMessages",
       "comparisons",
       "commits",
+      "timeZone",
     ];
     const options = Object.fromEntries(
       keys.map((key) => [key, { sentinel: key }]),
@@ -106,7 +107,10 @@ describe("look-support", () => {
     const result = mountExplorer(options as never);
 
     expect(result).toBe(returned);
-    expect(mock.mock.calls[0]).toEqual(keys.map((key) => ({ sentinel: key })));
+    const expected: unknown[] = keys.map((key) => ({ sentinel: key }));
+
+    expected.splice(17, 0, undefined, undefined);
+    expect(mock.mock.calls[0]).toEqual(expected);
   });
 
   it("mountExplorer leaves unset options undefined so defaults apply", () => {
@@ -119,7 +123,7 @@ describe("look-support", () => {
 
     const args = mock.mock.calls[0];
     expect(args.slice(0, 3)).toEqual([container, loaded, "demo"]);
-    expect(args.length).toBe(17);
-    expect(args.slice(3)).toEqual(new Array(14).fill(undefined));
+    expect(args.length).toBe(20);
+    expect(args.slice(3)).toEqual(new Array(17).fill(undefined));
   });
 });

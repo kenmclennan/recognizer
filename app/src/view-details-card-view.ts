@@ -182,7 +182,7 @@ export function buildDetailsCard(options: DetailsCardOptions): DetailsCard {
       descriptionField.value = init.description;
       problemLine.hidden = true;
       nameField.removeAttribute("aria-invalid");
-      refresh();
+      refresh(init.isNew && init.name !== "");
     },
     setNames(existing) {
       names = existing;

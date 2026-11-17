@@ -81,6 +81,7 @@ export type ExplorerOptions = {
   reconcileMessages?: (foundKeys: readonly string[]) => void;
   comparisons?: ViewComparisons;
   commits?: CommitsPort;
+  timeZone?: string;
 };
 
 export function mountExplorer(options: ExplorerOptions): Explorer {
@@ -102,5 +103,8 @@ export function mountExplorer(options: ExplorerOptions): Explorer {
     options.reconcileMessages,
     options.comparisons,
     options.commits,
+    undefined,
+    undefined,
+    options.timeZone,
   );
 }

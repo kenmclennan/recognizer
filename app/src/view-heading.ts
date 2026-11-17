@@ -28,7 +28,11 @@ export function headingMetrics(width: number): HeadingMetrics {
   };
 }
 
-export type Heading = { title: string | null; description: string };
+export type Heading = {
+  title: string | null;
+  description: string;
+  facts?: readonly string[];
+};
 
 export type HeadingAnchor = { centre: number; top: number; width: number };
 
@@ -131,16 +135,59 @@ export function wrapLines(
     return lines;
   }
 
-  const kept = lines.slice(0, maxLines);
-  let last = kept[maxLines - 1] as string;
+  return endWithEllipsis(lines.slice(0, maxLines), width, measure);
+}
+
+function endWithEllipsis(
+  kept: string[],
+  width: number,
+  measure: (text: string) => number,
+): string[] {
+  const end = kept.length - 1;
+  let last = kept[end] as string;
 
   while (last !== "" && measure(`${last}…`) > width) {
     last = last.slice(0, -1).trimEnd();
   }
 
-  kept[maxLines - 1] = `${last}…`;
+  kept[end] = `${last}…`;
 
   return kept;
+}
+
+const FACTS_MAX_LINES = 3;
+const PARAGRAPH_WITH_FACTS_MAX_LINES = 2;
+
+function descriptionWithFacts(
+  heading: Heading,
+  width: number,
+  measure: (text: string) => number,
+): string[] {
+  if (heading.facts === undefined) {
+    return wrapLines(
+      heading.description,
+      width,
+      measure,
+      DESCRIPTION_MAX_LINES,
+    );
+  }
+
+  const facts = heading.facts.flatMap((entry) =>
+    wrapLines(entry, width, measure, null),
+  );
+
+  if (facts.length > FACTS_MAX_LINES) {
+    return endWithEllipsis(facts.slice(0, FACTS_MAX_LINES), width, measure);
+  }
+
+  const room = Math.max(
+    0,
+    Math.min(PARAGRAPH_WITH_FACTS_MAX_LINES, FACTS_MAX_LINES - facts.length),
+  );
+  const paragraph =
+    room === 0 ? [] : wrapLines(heading.description, width, measure, room);
+
+  return [...paragraph, ...facts];
 }
 
 export function layoutHeading(
@@ -160,11 +207,10 @@ export function layoutHeading(
           measureTitle(metrics.titleSize),
           null,
         );
-  const descriptionLines = wrapLines(
-    heading.description,
+  const descriptionLines = descriptionWithFacts(
+    heading,
     metrics.wrapWidth,
     measureDescription(metrics.descriptionSize),
-    DESCRIPTION_MAX_LINES,
   );
 
   if (titleLines.length === 0 && descriptionLines.length === 0) {

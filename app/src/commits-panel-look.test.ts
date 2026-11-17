@@ -1294,11 +1294,11 @@ describe.skipIf(webkit === undefined)(
       });
     });
 
-    it("opens a range as an unsaved change view named Change with its chip, leaving the Views and recent lists alone", () => {
+    it("opens a range as an unsaved change view titled from its range with its chip, leaving the Views and recent lists alone", () => {
       expect(f.viewsBefore).toBe(0);
       expect(f.rangeCalls).toEqual([`${"d".repeat(40)}..${"a".repeat(40)}`]);
       expect(f.openedOnce).toBe(1);
-      expect(f.draft.name).toBe("Change");
+      expect(f.draft.name).toBe("3 commits, ccccccc to aaaaaaa");
       expect(f.draft.chip).toBe("ccccccc to aaaaaaa");
       expect(f.draft.chipTitle).toBe(`${"d".repeat(40)}..${"a".repeat(40)}`);
       expect(f.draft.unsaved).toBe(true);
@@ -1314,7 +1314,7 @@ describe.skipIf(webkit === undefined)(
       expect(f.back.name).toBe("Untitled");
       expect(f.back.boxes).toBe(0);
       expect(f.forward.unsaved).toBe(true);
-      expect(f.forward.name).toBe("Change");
+      expect(f.forward.name).toBe("3 commits, ccccccc to aaaaaaa");
       expect(f.forward.chip).toBe(f.draft.chip);
       expect(f.forward.chipTitle).toBe(f.draft.chipTitle);
       expect(f.forward.extraCalls).toBe(1);
