@@ -1,7 +1,7 @@
 import type { Io } from "./cli.js";
 import { policyFile, readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
-import { carryDuplication } from "./duplication/carry.js";
+import { carryMeasured } from "./duplication/carry.js";
 import { readStoredStructure } from "./duplication/stored.js";
 import {
   type FindingsDocument,
@@ -45,12 +45,29 @@ export function scansCommit(scans: Scan[]): {
   };
 }
 
-function withoutDuplication(
+function withoutMeasured(
   settings: Record<string, unknown>,
 ): Record<string, unknown> {
-  const { duplication: _duplication, ...rest } = settings;
+  const {
+    duplication: _duplication,
+    complexity_limit: _complexityLimit,
+    ...rest
+  } = settings;
 
   return rest;
+}
+
+function complexityAgrees(
+  document: FindingsDocument,
+  settings: StructureSettings,
+): boolean {
+  const recorded = document.settings.complexity_limit;
+
+  if (!settings.warnings.complexity) {
+    return recorded === undefined;
+  }
+
+  return recorded === undefined || recorded === settings.complexity_limit;
 }
 
 function duplicationAgrees(
@@ -83,8 +100,9 @@ function storedStructure(
 
     return !document.modified &&
       duplicationAgrees(document, settings) &&
-      JSON.stringify(withoutDuplication(document.settings)) ===
-        JSON.stringify(withoutDuplication({ ...settings }))
+      complexityAgrees(document, settings) &&
+      JSON.stringify(withoutMeasured(document.settings)) ===
+        JSON.stringify(withoutMeasured({ ...settings }))
       ? document
       : null;
   } catch {
@@ -122,7 +140,7 @@ export function loadFindings(
   if (settings !== "off") {
     const context = { commit: commit ?? "", modified };
     const compute = () =>
-      carryDuplication(
+      carryMeasured(
         readStoredStructure(io, root),
         structureSensor(scans, readPolicy(io, root), settings, context)
           .document,

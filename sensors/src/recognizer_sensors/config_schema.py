@@ -106,15 +106,14 @@ THRESHOLDS_KEYS = (
         "sensors.thresholds.<metric>",
         "enum",
         "turns the default threshold of a metric off",
-        "sensors.thresholds.complexity off",
+        "sensors.thresholds.coverage off",
         values=["off"],
     ),
     key(
         "sensors.thresholds.<metric>.above",
         "number",
         "a finding when the metric is above this value; a metric takes above or below, not both",
-        "sensors.thresholds.complexity.above 12",
-        defaults={"complexity": 10},
+        "sensors.thresholds.churn.above 20",
     ),
     key(
         "sensors.thresholds.<metric>.below",
@@ -127,8 +126,8 @@ THRESHOLDS_KEYS = (
         "sensors.thresholds.<metric>.severity",
         "enum",
         "how a finding of the metric is reported; default warning",
-        "sensors.thresholds.complexity.severity violation",
+        "sensors.thresholds.coverage.severity violation",
         values=["warning", "violation"],
-        defaults={"complexity": "warning", "coverage": "warning"},
+        defaults={"coverage": "warning"},
     ),
 )

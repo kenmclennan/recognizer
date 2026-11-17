@@ -153,7 +153,7 @@
       "key": "sensors.thresholds.<metric>",
       "type": "enum",
       "description": "turns the default threshold of a metric off",
-      "example": "sensors.thresholds.complexity off",
+      "example": "sensors.thresholds.coverage off",
       "values": [
         "off"
       ]
@@ -162,10 +162,7 @@
       "key": "sensors.thresholds.<metric>.above",
       "type": "number",
       "description": "a finding when the metric is above this value; a metric takes above or below, not both",
-      "example": "sensors.thresholds.complexity.above 12",
-      "defaults": {
-        "complexity": 10
-      }
+      "example": "sensors.thresholds.churn.above 20"
     },
     {
       "key": "sensors.thresholds.<metric>.below",
@@ -180,13 +177,12 @@
       "key": "sensors.thresholds.<metric>.severity",
       "type": "enum",
       "description": "how a finding of the metric is reported; default warning",
-      "example": "sensors.thresholds.complexity.severity violation",
+      "example": "sensors.thresholds.coverage.severity violation",
       "values": [
         "warning",
         "violation"
       ],
       "defaults": {
-        "complexity": "warning",
         "coverage": "warning"
       }
     }

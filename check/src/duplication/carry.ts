@@ -31,27 +31,56 @@ function sameInputs(
   return entries(a) === entries(b);
 }
 
-export function carryDuplication(
+function sameComplexity(
+  stored: FindingsDocument,
+  settings: StructureSettings,
+): boolean {
+  return (
+    settings.warnings.complexity &&
+    stored.settings.complexity_limit === settings.complexity_limit
+  );
+}
+
+export function carryMeasured(
   stored: FindingsDocument | null,
   fresh: FindingsDocument,
   settings: StructureSettings,
 ): FindingsDocument {
   if (
-    settings.duplication === false ||
     stored === null ||
     stored.commit !== fresh.commit ||
-    !sameSettings(stored.settings.duplication, settings.duplication) ||
     !sameInputs(stored.inputs, fresh.inputs)
   ) {
     return fresh;
   }
 
+  const carryDuplication =
+    settings.duplication !== false &&
+    sameSettings(stored.settings.duplication, settings.duplication);
+  const carryComplexity = sameComplexity(stored, settings);
+
+  if (!carryDuplication && !carryComplexity) {
+    return fresh;
+  }
+
   return {
     ...fresh,
-    settings: { ...fresh.settings, duplication: { ...settings.duplication } },
+    settings: {
+      ...fresh.settings,
+      ...(carryDuplication && settings.duplication !== false
+        ? { duplication: { ...settings.duplication } }
+        : {}),
+      ...(carryComplexity
+        ? { complexity_limit: settings.complexity_limit }
+        : {}),
+    },
     findings: [
       ...fresh.findings,
-      ...stored.findings.filter((finding) => finding.kind === "duplication"),
+      ...stored.findings.filter(
+        (finding) =>
+          (carryDuplication && finding.kind === "duplication") ||
+          (carryComplexity && finding.kind === "complexity"),
+      ),
     ],
   };
 }
@@ -65,4 +94,14 @@ export function duplicationUnmeasured(
   settings: StructureSettings,
 ): boolean {
   return settings.duplication !== false && !isDuplicationMeasured(document);
+}
+
+export function complexityUnmeasured(
+  document: FindingsDocument,
+  settings: StructureSettings,
+): boolean {
+  return (
+    settings.warnings.complexity &&
+    document.settings.complexity_limit === undefined
+  );
 }

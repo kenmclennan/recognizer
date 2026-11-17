@@ -611,3 +611,35 @@ describe("the tuned crap and threshold sentences", () => {
     ).toBe("a.py has coverage 0.5, under the limit of 0.7.");
   });
 });
+
+describe("complexity sentence", () => {
+  it("names the function, the complexity and the limit", () => {
+    const text = sentence({
+      kind: "complexity",
+      evidence: {
+        modules: ["lib/store.py"],
+        members: [
+          {
+            module: "lib/store.py",
+            name: "price",
+            file: "lib/store.py",
+            lines: [1, 24],
+          },
+        ],
+        measures: { complexity: 13, limit: 10 },
+      },
+    });
+
+    expect(text).toBe("price has complexity 13, over the limit of 10.");
+  });
+
+  it("falls back to the summary when the measures are missing", () => {
+    const text = sentence({
+      kind: "complexity",
+      summary: "price has complexity 13, over the limit of 10",
+      evidence: { modules: ["lib/store.py"] },
+    });
+
+    expect(text).toBe("price has complexity 13, over the limit of 10");
+  });
+});

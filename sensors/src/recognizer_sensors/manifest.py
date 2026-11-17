@@ -46,7 +46,7 @@ DESCRIPTIONS = {
     ),
     "thresholds": (
         "Turns any overlay metric over a configured line into a finding, "
-        "with complexity and coverage lines built in."
+        "with a coverage line built in."
     ),
 }
 
@@ -126,7 +126,6 @@ SETTING_DISPLAY = {
     },
     "thresholds": {
         "<metric>.above": {
-            "labels": {"complexity": "Complexity above"},
             "order": 1,
             "limit": {
                 "metric": "<metric>",
@@ -147,7 +146,7 @@ SETTING_DISPLAY = {
     },
 }
 
-SETTINGS_TITLES = {"thresholds": "Complexity and coverage"}
+SETTINGS_TITLES = {"thresholds": "Coverage"}
 
 CELLS = {"complexity": 1, "crap": 2, "coverage": 3}
 
@@ -172,8 +171,7 @@ GROUPS = {
         "name": "Over a limit",
         "means": (
             "A measure passed a limit set in your config, such as module size. "
-            "The published lines are complexity above 10 (McCabe) "
-            "and coverage below 60% (Google's guidelines)."
+            "The published line is coverage below 60% (Google's guidelines)."
         ),
         "todo": "Bring it back under the limit, or raise the limit if it is wrong.",
     },

@@ -49,3 +49,5 @@ None. Two behaviours are worth knowing and are by design (REC-142): the first ov
 ## Defects to file
 
 None.
+
+Complexity is no longer judged by the thresholds sensor: structural analysis reports it (`sensors.structure.warnings.complexity.limit`), and its count is held equal to the C.R.A.P. count by `check/test/complexity-corpus.test.ts`. The readings above that name complexity describe the sensor as it was measured; the corpus now keeps only the coverage cases.

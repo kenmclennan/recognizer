@@ -94,11 +94,12 @@ A timed-out mutant is a kill: it counts in `killed` and the score, is listed und
 
 Reads every current overlay in `.recognizer/cache/overlays/` and writes one finding for each module or member whose value for a configured metric crosses its line. It measures nothing. The settings are a mapping from metric name to a line: `{above: N}` or `{below: N}` with an optional `severity` of `warning` (default) or `violation`, or the string `off` to switch a metric's line off.
 
-| metric       | default line |
-| ------------ | ------------ |
-| `complexity` | above 10     |
-| `coverage`   | below 0.6    |
+| metric     | default line |
+| ---------- | ------------ |
+| `coverage` | below 0.6    |
 
-There is no default for `crap` or `survived`: the `crap` and `mutation` sensors judge those, and a user may still name them. An entry replaces a metric's default whole. An `above` line fires only when the value is greater than the line and a `below` line only when it is less, so a value exactly on a line is never a finding. A finding has the id `thresholds:<metric>:<key>` (the overlay's own key), the kind `thresholds.<metric>`, the principle `code-coverage-guidelines` for `coverage` at `below: 0.6` and `cyclomatic-complexity-limit` for `complexity` at `above: 10`, each with its `citation`, and the metric's name with no `citation` for any other metric or line, the new `metric` field, and `evidence.measures` `{value, line}` with `evidence.producer` naming the overlay's producer. A violation ratchets in the baseline by its id.
+Complexity is not judged here: structural analysis reports a function over the complexity limit on every scan with no test run (`sensors.structure.warnings.complexity.limit`, default 10), and a `complexity` setting under `sensors.thresholds` is refused with that key named.
+
+There is no default for `crap` or `survived`: the `crap` and `mutation` sensors judge those, and a user may still name them. An entry replaces a metric's default whole. An `above` line fires only when the value is greater than the line and a `below` line only when it is less, so a value exactly on a line is never a finding. A finding has the id `thresholds:<metric>:<key>` (the overlay's own key), the kind `thresholds.<metric>`, the principle `code-coverage-guidelines` for `coverage` at `below: 0.6`, with its `citation`, and the metric's name with no `citation` for any other metric or line, the new `metric` field, and `evidence.measures` `{value, line}` with `evidence.producer` naming the overlay's producer. A violation ratchets in the baseline by its id.
 
 An overlay of another commit, or an unreadable one, is skipped with a line on stderr. The first overlay by file name that declares a metric supplies all of its values. A key matching no scanned module is counted and skipped; a metric you named that no current overlay declares prints a line. `recognizer scan --sense` runs sensors in the config's order, so list `thresholds` after `crap` to judge that run's overlay.

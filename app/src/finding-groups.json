@@ -37,6 +37,12 @@
       "todo": "Check whether it does more than one thing."
     },
     {
+      "key": "kind:complexity",
+      "name": "Complexity",
+      "means": "A function or method has more branch paths than the limit (10 by default), the upper bound proposed for a function that can still be tested and understood (McCabe, A Complexity Measure, 1976, page 314).",
+      "todo": "Split it where its branches serve separate purposes, or simplify the conditions."
+    },
+    {
       "key": "kind:duplication",
       "name": "Duplicated code",
       "means": "The same structure written more than once; a fix in one copy can miss the others.",

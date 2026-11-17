@@ -48,6 +48,11 @@ export const RETIRED_KEYS: RetiredKey[] = [
     path: ["sensors", "structure", "warnings", "policy_drift"],
     message: `config/sensors/structure/warnings/policy_drift was removed: a policy that is out of date is a problem with the policy file, not a finding about the code, so it is always reported and there is nothing to switch; ${DELETE}`,
   },
+  {
+    path: ["sensors", "thresholds", "complexity"],
+    message:
+      "config/sensors/thresholds/complexity was replaced: structural analysis now judges complexity on every scan with no test run, so the thresholds sensor no longer does; set sensors.structure.warnings.complexity.limit to the number you had under above (default 10), or sensors.structure.warnings.complexity false in place of off; severity is no longer settable, a complexity finding is always a warning; delete the key (recognizer config --unset sensors.thresholds.complexity)",
+  },
 ];
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -55,7 +60,11 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 export function retiredKeyFor(dotted: string): RetiredKey | undefined {
-  return RETIRED_KEYS.find((retired) => retired.path.join(".") === dotted);
+  return RETIRED_KEYS.find((retired) => {
+    const path = retired.path.join(".");
+
+    return dotted === path || dotted.startsWith(`${path}.`);
+  });
 }
 
 function holds(document: unknown, path: string[]): boolean {

@@ -125,7 +125,7 @@ describe("the thresholds config examples", () => {
         "--output",
         "{output}",
         "--settings",
-        '{"complexity":{"above":15},"coverage":"off","churn":{"above":20,"severity":"violation"}}',
+        '{"size":{"above":15},"coverage":"off","churn":{"above":20,"severity":"violation"}}',
       ],
     });
   });
@@ -269,12 +269,12 @@ describe("the sensor config examples", () => {
 describe("shippedSensorSettings", () => {
   it("returns the settings a short-form entry was expanded with", () => {
     const config = parseConfig(
-      "sensors:\n  crap:\n    threshold: 25\n  thresholds:\n    complexity:\n      above: 12\n",
+      "sensors:\n  crap:\n    threshold: 25\n  thresholds:\n    size:\n      above: 12\n",
     );
 
     expect(shippedSensorSettings(config, "crap")).toEqual({ threshold: 25 });
     expect(shippedSensorSettings(config, "thresholds")).toEqual({
-      complexity: { above: 12 },
+      size: { above: 12 },
     });
   });
 

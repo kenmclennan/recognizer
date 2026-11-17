@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseConfig } from "recognizer";
+import { COMPLEXITY_LIMIT, parseConfig } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_LIMITS,
@@ -80,7 +80,7 @@ describe("functionLimits", () => {
   it("reads the thresholds settings", () => {
     expect(
       cellsOf(
-        "sensors:\n  thresholds:\n    complexity:\n      above: 15\n    coverage: 'off'\n  crap:\n    threshold: 20\n",
+        "sensors:\n  structure:\n    warnings:\n      complexity:\n        limit: 15\n  thresholds:\n    coverage: 'off'\n  crap:\n    threshold: 20\n",
       ),
     ).toEqual([
       cell("complexity", "above", 15),
@@ -91,7 +91,9 @@ describe("functionLimits", () => {
 
   it("reads a configured complexity limit over the published figure", () => {
     expect(
-      cellsOf("sensors:\n  thresholds:\n    complexity:\n      above: 12\n")[0],
+      cellsOf(
+        "sensors:\n  structure:\n    warnings:\n      complexity:\n        limit: 12\n",
+      )[0],
     ).toEqual(cell("complexity", "above", 12));
   });
 
@@ -149,7 +151,7 @@ describe("functionLimits", () => {
 
   it("colours only strictly past a limit, so a value equal to it has no tone", () => {
     const [complexity, , coverage] = cellsOf(
-      "sensors:\n  thresholds:\n    complexity:\n      above: 15\n    coverage:\n      below: 0.6\n",
+      "sensors:\n  structure:\n    warnings:\n      complexity:\n        limit: 15\n  thresholds:\n    coverage:\n      below: 0.6\n",
     );
 
     expect(complexity?.limit?.value).toBe(15);
@@ -162,12 +164,12 @@ describe("functionLimits", () => {
     expect(tones("sensors: {}\n")).toEqual(["amber", "amber", "amber"]);
     expect(
       tones(
-        "sensors:\n  thresholds:\n    complexity:\n      above: 10\n      severity: violation\n",
+        "sensors:\n  thresholds:\n    coverage:\n      below: 0.6\n      severity: violation\n",
       ),
-    ).toEqual(["red", "amber", "amber"]);
+    ).toEqual(["amber", "amber", "red"]);
     expect(
       tones(
-        "sensors:\n  thresholds:\n    complexity:\n      above: 10\n      severity: warning\n",
+        "sensors:\n  thresholds:\n    coverage:\n      below: 0.6\n      severity: warning\n",
       ),
     ).toEqual(["amber", "amber", "amber"]);
   });
@@ -179,7 +181,38 @@ describe("functionLimits", () => {
     );
     const [complexity, , coverage] = functionLimits(null, REAL).cells;
 
-    expect(python).toContain(`"above": ${complexity?.limit?.value},`);
+    expect(complexity?.limit?.value).toBe(COMPLEXITY_LIMIT);
+    expect(python).not.toContain('"above": 10');
     expect(python).toContain(`"below": ${coverage?.limit?.value},`);
+  });
+});
+
+describe("the complexity cell's limit", () => {
+  const complexityOf = (yaml: string) =>
+    cellsOf(yaml).find((one) => one.metric === "complexity")?.limit;
+
+  it("is 10 by default and the configured limit under the structure sensor", () => {
+    expect(complexityOf("sensors: {}\n")?.value).toBe(10);
+    expect(
+      complexityOf(
+        "sensors:\n  structure:\n    warnings:\n      complexity:\n        limit: 12\n",
+      )?.value,
+    ).toBe(12);
+  });
+
+  it("has no limit when the complexity warning is switched off", () => {
+    expect(
+      complexityOf(
+        "sensors:\n  structure:\n    warnings:\n      complexity: false\n",
+      ),
+    ).toBeNull();
+  });
+
+  it("leaves the coverage cell to the thresholds sensor", () => {
+    const coverage = cellsOf(
+      "sensors:\n  thresholds:\n    coverage:\n      below: 0.7\n",
+    ).find((one) => one.metric === "coverage");
+
+    expect(coverage?.limit?.value).toBe(0.7);
   });
 });

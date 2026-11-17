@@ -77,6 +77,7 @@ const WARNINGS = [
   "orphan",
   "private_imports",
   "long_function",
+  "complexity",
 ];
 
 export const CORE_KEYS: KeySchema = {
@@ -197,6 +198,7 @@ export const CORE_KEYS: KeySchema = {
         unused_exports: false,
         private_imports: true,
         long_function: true,
+        complexity: true,
       },
     },
     {
@@ -207,6 +209,15 @@ export const CORE_KEYS: KeySchema = {
       example: "sensors.structure.warnings.long_function.limit 30",
       minimum: 1,
       default: 20,
+    },
+    {
+      key: "sensors.structure.warnings.complexity.limit",
+      type: "integer",
+      description:
+        "the most branch paths a function may have, as cyclomatic complexity, before the complexity warning reports it; default 10 (McCabe)",
+      example: "sensors.structure.warnings.complexity.limit 15",
+      minimum: 1,
+      default: 10,
     },
     {
       key: "sensors.structure.warnings.orphan.entry_points",

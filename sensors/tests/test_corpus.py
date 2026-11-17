@@ -202,7 +202,7 @@ def thresholds_repository(work):
 @pytest.fixture(scope="module")
 def thresholds_runs(thresholds_repository, work):
     root, _ = thresholds_repository
-    custom = {"complexity": {"above": 11, "severity": "violation"}, "coverage": {"below": 0.61}}
+    custom = {"coverage": {"below": 0.61}}
 
     return {
         "default": run_sensor("thresholds", root, work / "thresholds-default.json", {}),
@@ -217,7 +217,7 @@ def test_the_thresholds_corpus_plants_50_functions_10_in_each_language():
     assert [
         sum(1 for p in planted if p["language"] == lang) for lang in ("python", "kotlin", "csharp")
     ] == [10, 10, 10]
-    assert len(load("thresholds")["cases"]) == 200
+    assert len(load("thresholds")["cases"]) == 100
 
 
 @pytest.mark.parametrize("run", ["default", "custom"])

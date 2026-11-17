@@ -383,6 +383,14 @@ function prepared(
   }
 
   const entry = keyOf(published, typed);
+  const retired = retiredKeyFor(key);
+
+  if (
+    retired !== undefined &&
+    ("found" in entry || key !== retired.path.join("."))
+  ) {
+    return refuse(retired.message);
+  }
 
   if (!("found" in entry)) {
     return refuse(entry.reason);
@@ -572,8 +580,10 @@ export function unsetValue(
   const typed = key.split(".");
   const retired = retiredKeyFor(key);
 
-  if (retired !== undefined && raw === undefined) {
-    return unsetRetired(text, retired.path);
+  if (retired !== undefined) {
+    return raw === undefined && key === retired.path.join(".")
+      ? unsetRetired(text, retired.path)
+      : refuse(retired.message);
   }
 
   const entry = keyOf(published, typed);

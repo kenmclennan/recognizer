@@ -1,6 +1,6 @@
 sensors:
   thresholds:
-    complexity:
+    size:
       above: 15
     coverage: off
     churn:

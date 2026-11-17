@@ -480,14 +480,14 @@ describe("structure settings", () => {
     );
 
     expect(JSON.stringify(document.settings)).toBe(
-      '{"entry_points":[],"entry_annotations":[],"warnings":{"cycle":true,"orphan":true,"unused_exports":false,"private_imports":true,"long_function":true},"long_function_limit":20}',
+      '{"entry_points":[],"entry_annotations":[],"warnings":{"cycle":true,"orphan":true,"unused_exports":false,"private_imports":true,"long_function":true,"complexity":true},"long_function_limit":20}',
     );
-    expect(document.sensor.version).toBe("21");
+    expect(document.sensor.version).toBe("22");
   });
 
   it("describes the settings with and without entry points", () => {
     const base =
-      "cycle on, orphan on, unused_exports off, private_imports on, long_function on, long_function_limit 20";
+      "cycle on, orphan on, unused_exports off, private_imports on, long_function on, long_function_limit 20, complexity on, complexity_limit 10";
 
     expect(describeSettings(DEFAULT_STRUCTURE_SETTINGS)).toBe(base);
     expect(
@@ -597,6 +597,7 @@ describe("the removed hub keys", () => {
       "unused_exports",
       "private_imports",
       "long_function",
+      "complexity",
     ]);
     expect(
       JSON.stringify([
@@ -1756,7 +1757,7 @@ describe("unused_exports", () => {
         entry_points: ["a"],
       }),
     ).toBe(
-      `${base}, unused_exports on, private_imports on, long_function on, long_function_limit 20, entry_points 1`,
+      `${base}, unused_exports on, private_imports on, long_function on, long_function_limit 20, complexity on, complexity_limit 10, entry_points 1`,
     );
   });
 

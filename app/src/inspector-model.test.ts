@@ -1816,14 +1816,14 @@ describe("the metrics row on a function card", () => {
   it("colours a cell red when its severity setting is violation", () => {
     const limits = functionLimits(
       parseConfig(
-        "sensors:\n  thresholds:\n    complexity:\n      above: 10\n      severity: violation\n",
+        "sensors:\n  thresholds:\n    coverage:\n      below: 0.6\n      severity: violation\n",
       ),
       SHIPPED,
     );
 
     expect(
       row({ cc: 11, crap: 31, cov: 0.59 }, { limits })?.map((c) => c.tone),
-    ).toEqual(["red", "amber", "amber"]);
+    ).toEqual(["amber", "amber", "red"]);
   });
 
   it("has no metrics row when the limits have no cells", () => {

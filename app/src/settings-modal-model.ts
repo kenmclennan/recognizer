@@ -113,6 +113,7 @@ const WARNINGS = "sensors.structure.warnings";
 const DUPLICATION = "sensors.structure.duplication";
 
 export const LONG_FUNCTION_KEY = `${WARNINGS}.long_function`;
+const COMPLEXITY_KEY = `${WARNINGS}.complexity`;
 
 const APP_SECTION_SPECS: SectionSpec[] = [
   {
@@ -125,6 +126,13 @@ const APP_SECTION_SPECS: SectionSpec[] = [
         control: "limit",
         unit: "lines",
         switchKey: LONG_FUNCTION_KEY,
+      },
+      {
+        label: "Complexity",
+        key: `${COMPLEXITY_KEY}.limit`,
+        control: "limit",
+        unit: "paths",
+        switchKey: COMPLEXITY_KEY,
       },
       { label: "Import cycles", key: `${WARNINGS}.cycle`, control: "switch" },
       {

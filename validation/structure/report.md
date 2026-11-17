@@ -128,3 +128,7 @@ Lightcycle at current main `e7558af3` gives 330 findings in 142 files. Fourteen 
 ## Defects to file
 
 None open. The Python scanner indexes a source module named `test_*.py` outside a tests directory since REC-195.
+
+## Complexity
+
+The structure sensor now reports `complexity` findings, counted from source with the C.R.A.P. sensor's rules and with no test run; the thresholds sensor no longer judges complexity. The count is checked against the labelled C.R.A.P. corpus (60 cases) and the thresholds corpus planted functions (20 findings) by `check/test/complexity-corpus.test.ts`. The rule was not measured per repository over `validation/corpus`: it applies a published limit (McCabe, 10) to the count C.R.A.P. already measures.

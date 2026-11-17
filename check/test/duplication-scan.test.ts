@@ -123,4 +123,42 @@ describe("the scan driver and duplication", () => {
     ).toHaveLength(1);
     expect(document.settings.duplication).toBeDefined();
   });
+
+  it("asks for parsers for complexity alone and records the limit it judged by", async () => {
+    const fake = repository({
+      [`${ROOT}/.recognizer/config.yaml`]:
+        "sensors:\n  structure:\n    duplication: false\n    warnings:\n      complexity:\n        limit: 3\n",
+      [`${ROOT}/app/pricing.py`]:
+        "def f(x):\n    if x:\n        pass\n    if x > 1:\n        pass\n    if x > 2:\n        pass\n    return x\n",
+    });
+
+    expect(await run(["scan", ROOT], fake.io)).toBe(0);
+
+    const document = structureOf(fake);
+
+    expect(document.settings.complexity_limit).toBe(3);
+    expect(document.settings.duplication).toBeUndefined();
+    expect(
+      document.findings
+        .filter((one) => one.kind === "complexity")
+        .map((one) => one.id),
+    ).toEqual(["complexity:app/pricing.py::f"]);
+  });
+
+  it("asks for no parsers when duplication and complexity are both off", async () => {
+    const fake = repository({
+      [`${ROOT}/.recognizer/config.yaml`]:
+        "sensors:\n  structure:\n    duplication: false\n    warnings:\n      complexity: false\n",
+    });
+
+    expect(await run(["scan", ROOT], fake.io)).toBe(0);
+
+    const document = structureOf(fake);
+
+    expect(document.settings.complexity_limit).toBeUndefined();
+    expect(document.settings.duplication).toBeUndefined();
+    expect(
+      document.findings.filter((one) => one.kind === "complexity"),
+    ).toEqual([]);
+  });
 });

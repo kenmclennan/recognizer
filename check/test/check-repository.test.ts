@@ -19,7 +19,8 @@ import {
 
 const COMMIT = "abc123";
 const NOT_MEASURED =
-  "duplication not measured since the last scan: run recognizer scan\n";
+  "duplication not measured since the last scan: run recognizer scan\n" +
+  "complexity not measured since the last scan: run recognizer scan\n";
 const read = (path: string) => readFileSync(join(REPO, path), "utf8");
 const checkScan = JSON.parse(read("fixtures/check/scan.json"));
 const expected = JSON.parse(read("fixtures/check/expected.json"));
@@ -83,8 +84,10 @@ describe("check in repository mode", () => {
             unused_exports: false,
             private_imports: true,
             long_function: true,
+            complexity: true,
           },
           long_function_limit: 20,
+          complexity_limit: 10,
         },
       },
     ]);

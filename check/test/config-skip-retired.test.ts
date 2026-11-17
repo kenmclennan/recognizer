@@ -11,11 +11,21 @@ const SKIP = { skipRetired: true };
 function documentWith(path: string[]): string {
   return path.length === 1
     ? "overlays:\n  crap:\n    command: [x]\n"
-    : `sensors:\n  structure:\n${
-        path.length === 4
-          ? `    warnings:\n      ${path[3]}: true\n`
-          : `    ${path[2]}: 1\n`
-      }`;
+    : path
+        .map(
+          (step, index) =>
+            `${"  ".repeat(index)}${step}:${
+              index === path.length - 1
+                ? path[1] === "thresholds"
+                  ? " off"
+                  : path[2] === "warnings" || path[index - 1] === "warnings"
+                    ? " true"
+                    : " 1"
+                : ""
+            }`,
+        )
+        .join("\n")
+        .concat("\n");
 }
 
 function messageOf(text: string, options?: { skipRetired?: boolean }): string {

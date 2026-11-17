@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { carryDuplication } from "../src/duplication/carry.js";
+import {
+  carryMeasured as carryDuplication,
+  carryMeasured,
+  complexityUnmeasured,
+} from "../src/duplication/carry.js";
+import { DEFAULT_DUPLICATION_SETTINGS } from "../src/duplication/findings.js";
 import type {
   FindingRecord,
   FindingsDocument,
@@ -107,5 +112,105 @@ describe("carryDuplication", () => {
     });
 
     expect(carried.findings).toEqual([]);
+  });
+});
+
+function complexityFinding(id: string): FindingRecord {
+  return {
+    id,
+    kind: "complexity",
+    severity: "warning",
+    principle: "cyclomatic-complexity-limit",
+    summary: id,
+    evidence: { modules: ["a.py"] },
+  };
+}
+
+function storedBoth(limit: number | null = 10): FindingsDocument {
+  return stored({
+    settings: {
+      entry_points: [],
+      duplication: { ...SETTINGS.duplication },
+      ...(limit === null ? {} : { complexity_limit: limit }),
+    },
+    findings: [
+      duplicate("duplication:a"),
+      complexityFinding("complexity:a.py::f"),
+    ],
+  });
+}
+
+describe("carryMeasured complexity", () => {
+  it("carries stored complexity when commit, inputs and limit match", () => {
+    const carried = carryMeasured(storedBoth(), document(), SETTINGS);
+
+    expect(carried.findings.map((one) => one.id)).toEqual([
+      "duplication:a",
+      "complexity:a.py::f",
+    ]);
+    expect(carried.settings.complexity_limit).toBe(10);
+    expect(complexityUnmeasured(carried, SETTINGS)).toBe(false);
+  });
+
+  it("does not carry complexity judged against another limit", () => {
+    const carried = carryMeasured(storedBoth(15), document(), SETTINGS);
+
+    expect(carried.findings.map((one) => one.id)).toEqual(["duplication:a"]);
+    expect(complexityUnmeasured(carried, SETTINGS)).toBe(true);
+  });
+
+  it("does not carry complexity when the stored document records no limit", () => {
+    const carried = carryMeasured(storedBoth(null), document(), SETTINGS);
+
+    expect(carried.findings.map((one) => one.id)).toEqual(["duplication:a"]);
+    expect(complexityUnmeasured(carried, SETTINGS)).toBe(true);
+  });
+
+  it("does not carry complexity when the commit or inputs differ", () => {
+    expect(
+      carryMeasured(storedBoth(), document({ commit: "c2" }), SETTINGS)
+        .findings,
+    ).toEqual([]);
+    expect(
+      carryMeasured(
+        storedBoth(),
+        document({ inputs: { "a.py": "9" } }),
+        SETTINGS,
+      ).findings,
+    ).toEqual([]);
+  });
+
+  it("carries complexity while duplication is not carried", () => {
+    const carried = carryMeasured(storedBoth(), document(), {
+      ...SETTINGS,
+      duplication: { ...DEFAULT_DUPLICATION_SETTINGS, threshold: 0.5 },
+    });
+
+    expect(carried.findings.map((one) => one.id)).toEqual([
+      "complexity:a.py::f",
+    ]);
+    expect(complexityUnmeasured(carried, SETTINGS)).toBe(false);
+    expect(carried.settings.duplication).toBeUndefined();
+  });
+
+  it("carries duplication while complexity is not carried", () => {
+    const carried = carryMeasured(storedBoth(15), document(), SETTINGS);
+
+    expect(carried.settings.duplication).toBeDefined();
+    expect(complexityUnmeasured(carried, SETTINGS)).toBe(true);
+  });
+
+  it("reports nothing unmeasured while complexity is switched off", () => {
+    const off = {
+      ...SETTINGS,
+      warnings: { ...SETTINGS.warnings, complexity: false },
+    };
+
+    expect(complexityUnmeasured(document(), off)).toBe(false);
+    expect(
+      carryMeasured(storedBoth(), document(), off).findings.map(
+        (one) => one.id,
+      ),
+    ).toEqual(["duplication:a"]);
   });
 });

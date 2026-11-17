@@ -2,7 +2,7 @@
   "kind": "sensor",
   "name": "thresholds",
   "display": "Thresholds",
-  "description": "Turns any overlay metric over a configured line into a finding, with complexity and coverage lines built in.",
+  "description": "Turns any overlay metric over a configured line into a finding, with a coverage line built in.",
   "version": "0.1.0",
   "protocol": 1,
   "install": "brew upgrade kenmclennan/tap/recognizer-sense-thresholds || brew install kenmclennan/tap/recognizer-sense-thresholds",
@@ -17,7 +17,7 @@
       "key": "<metric>",
       "type": "enum",
       "description": "turns the default threshold of a metric off",
-      "example": "sensors.thresholds.complexity off",
+      "example": "sensors.thresholds.coverage off",
       "values": [
         "off"
       ]
@@ -26,13 +26,7 @@
       "key": "<metric>.above",
       "type": "number",
       "description": "a finding when the metric is above this value; a metric takes above or below, not both",
-      "example": "sensors.thresholds.complexity.above 12",
-      "defaults": {
-        "complexity": 10
-      },
-      "labels": {
-        "complexity": "Complexity above"
-      },
+      "example": "sensors.thresholds.churn.above 20",
       "order": 1,
       "limit": {
         "metric": "<metric>",
@@ -65,25 +59,24 @@
       "key": "<metric>.severity",
       "type": "enum",
       "description": "how a finding of the metric is reported; default warning",
-      "example": "sensors.thresholds.complexity.severity violation",
+      "example": "sensors.thresholds.coverage.severity violation",
       "values": [
         "warning",
         "violation"
       ],
       "defaults": {
-        "complexity": "warning",
         "coverage": "warning"
       }
     }
   ],
-  "settings_title": "Complexity and coverage",
+  "settings_title": "Coverage",
   "metrics": [],
   "findings": [
     {
       "kind": "thresholds.<metric>",
       "group": {
         "name": "Over a limit",
-        "means": "A measure passed a limit set in your config, such as module size. The published lines are complexity above 10 (McCabe) and coverage below 60% (Google's guidelines).",
+        "means": "A measure passed a limit set in your config, such as module size. The published line is coverage below 60% (Google's guidelines).",
         "todo": "Bring it back under the limit, or raise the limit if it is wrong."
       },
       "help": "One finding per module or function whose metric passed a configured limit.",

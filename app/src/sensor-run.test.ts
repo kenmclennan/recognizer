@@ -72,6 +72,56 @@ describe("senseRepository", () => {
     expect(statusOf(run, "structure")).toEqual({
       name: "structure",
       status: "ran",
+      notMeasured: ["complexity"],
+    });
+  });
+
+  it("carries stored complexity findings when commit, inputs and limit match", async () => {
+    const first = await senseRepository(
+      scans,
+      { policy, config: null },
+      fakeSensors(),
+    );
+    const kept = {
+      ...first.documents[0],
+      settings: { ...first.documents[0]?.settings, complexity_limit: 10 },
+      findings: [
+        ...(first.documents[0]?.findings ?? []),
+        {
+          id: "complexity:a.py::f",
+          kind: "complexity",
+          severity: "warning",
+          principle: "cyclomatic-complexity-limit",
+          summary: "f has complexity 11, over the limit of 10",
+          evidence: { modules: ["a.py"] },
+        },
+      ],
+    };
+    const run = await senseRepository(
+      scans,
+      { policy, config: null },
+      fakeSensors({ structure: JSON.stringify(kept) }),
+    );
+
+    expect(
+      run.documents[0]?.findings.filter((one) => one.kind === "complexity"),
+    ).toHaveLength(1);
+    expect(statusOf(run, "structure")).toEqual({
+      name: "structure",
+      status: "ran",
+      notMeasured: ["duplication"],
+    });
+  });
+
+  it("reports complexity as not measured without a stored limit", async () => {
+    const run = await senseRepository(
+      scans,
+      { policy, config: null },
+      fakeSensors(),
+    );
+
+    expect(statusOf(run, "structure")).toMatchObject({
+      notMeasured: expect.arrayContaining(["complexity"]),
     });
   });
 
@@ -85,7 +135,7 @@ describe("senseRepository", () => {
     expect(statusOf(run, "structure")).toEqual({
       name: "structure",
       status: "ran",
-      notMeasured: ["duplication"],
+      notMeasured: ["duplication", "complexity"],
     });
   });
 
@@ -470,7 +520,11 @@ describe("withSensors", () => {
       "structure",
     ]);
     expect(next.sensors).toEqual([
-      { name: "structure", status: "ran", notMeasured: ["duplication"] },
+      {
+        name: "structure",
+        status: "ran",
+        notMeasured: ["duplication", "complexity"],
+      },
     ]);
     expect(next.policy).toBe(policy);
     expect(next.baseline).toBe("{}");

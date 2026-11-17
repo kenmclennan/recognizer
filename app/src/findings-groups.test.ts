@@ -357,6 +357,19 @@ describe("long functions group", () => {
   });
 });
 
+describe("complexity group", () => {
+  it("is placed after Long functions", () => {
+    expect(
+      names([
+        document("structure", [
+          record("cx", "complexity"),
+          record("lf", "long_function"),
+        ]),
+      ]),
+    ).toEqual(["Long functions", "Complexity"]);
+  });
+});
+
 describe("withEmptyGroups with an empty catalog", () => {
   it("adds only the structure sensor's duplication group", () => {
     const groups = withEmptyGroups([], () => true, EMPTY_CATALOG);
@@ -381,9 +394,10 @@ describe("finding-groups.json", () => {
       "kind:unused_exports",
       "kind:private_imports",
       "kind:long_function",
+      "kind:complexity",
       "kind:duplication",
     ]);
-    expect(new Set(entries.map((one) => one.name)).size).toBe(7);
+    expect(new Set(entries.map((one) => one.name)).size).toBe(8);
 
     for (const one of entries) {
       expect(one.name).not.toBe("");
@@ -399,6 +413,7 @@ describe("finding-groups.json", () => {
     const count = (text: string, part: string) => text.split(part).length - 1;
 
     expect(count(means("kind:long_function"), "Clean Code")).toBe(1);
+    expect(count(means("kind:complexity"), "McCabe")).toBe(1);
     expect(count(means("kind:private_imports"), "Parnas")).toBe(1);
   });
 
