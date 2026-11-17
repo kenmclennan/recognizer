@@ -10,6 +10,7 @@ import {
   summariseChange,
   viewNameFrom,
 } from "./change-summary";
+import type { HistoryRow } from "./commits-parse";
 import { VIEW_NAME } from "./views-port";
 
 const sha = (letter: string) => letter.repeat(40);
@@ -44,7 +45,7 @@ const pullChange: ViewChange = {
 const rangeChange: ViewChange = {
   base: sha("1"),
   head: sha("4"),
-  name: "ccccccc to aaaaaaa",
+  name: "2222222 to 4444444",
 };
 
 const commit: CommitDetail = {
@@ -62,6 +63,32 @@ const pull: PullDetail = {
   author: "kenmclennan",
   checks: "pending",
 };
+
+function row(
+  letter: string,
+  parent: string,
+  author: string,
+  time: number,
+  subject: string,
+): HistoryRow {
+  return {
+    sha: sha(letter),
+    short: letter.repeat(7),
+    parents: [sha(parent)],
+    author,
+    time,
+    subject,
+    chips: [],
+    changes: [],
+  };
+}
+
+const rows = [
+  row("4", "3", "Ken", EPOCH, "newest subject"),
+  row("3", "2", "Ken", EPOCH - 60, "middle"),
+  row("2", "1", "Ken", EPOCH - 120, "older"),
+  row("1", "0", "Ana", EPOCH - 180, "before the range"),
+];
 
 describe("kindOfChange", () => {
   it("reads each kind from the name", () => {
@@ -262,6 +289,126 @@ describe("summariseChange", () => {
     expect(summary.saveDescription).toBe("kenmclennan · open");
   });
 
+  it("titles a branch from its open pull request", () => {
+    const summary = summariseChange(
+      branchChange,
+      {
+        ...nothing,
+        pull,
+        tip: { author: "Ken", time: EPOCH, subject: "tip subject" },
+        defaultBranch: "main",
+        ahead: 1,
+        behind: 0,
+        counts,
+      },
+      "UTC",
+    );
+
+    expect(summary.title).toBe("#1026 feat(app): show length");
+    expect(summary.chip).toBe("branch feat/x");
+    expect(summary.lead).toBeNull();
+    expect(summary.facts).toEqual([
+      "1 ahead, 0 behind main · Ken · pull request #1026, open",
+      "3 files on the canvas, 2 not on the canvas",
+    ]);
+    expect(summary.saveDescription).toBe(summary.facts[0]);
+  });
+
+  it("titles a branch with no pull request from its newest commit", () => {
+    const summary = summariseChange(
+      branchChange,
+      {
+        ...nothing,
+        tip: { author: "Ken", time: EPOCH, subject: "tip subject" },
+        defaultBranch: "main",
+        ahead: 2,
+        behind: 3,
+      },
+      "UTC",
+    );
+
+    expect(summary.title).toBe("tip subject");
+    expect(summary.facts).toEqual(["2 ahead, 3 behind main · Ken"]);
+  });
+
+  it("summarises a range by one author", () => {
+    const summary = summariseChange(
+      rangeChange,
+      { ...nothing, rows, counts },
+      "UTC",
+    );
+
+    expect(summary.title).toBe("3 commits, 2222222 to 4444444");
+    expect(summary.chip).toBe("2222222 to 4444444");
+    expect(summary.lead).toBe("newest subject and 2 earlier commits");
+    expect(summary.facts).toEqual([
+      "Ken · 17 Nov 2026 16:39 · 3 files on the canvas, 2 not on the canvas",
+    ]);
+    expect(summary.saveDescription).toBe(summary.lead);
+  });
+
+  it("counts down to the first commit when a merge whose first parent is the base sits before it", () => {
+    const merged = [
+      row("4", "3", "Ken", EPOCH, "newest subject"),
+      {
+        ...row("3", "6", "Ken", EPOCH - 60, "merge"),
+        parents: [sha("6"), sha("5")],
+      },
+      row("5", "6", "Ken", EPOCH - 120, "first on the branch"),
+      row("6", "0", "Ken", EPOCH - 180, "base"),
+    ];
+    const summary = summariseChange(
+      { base: sha("6"), head: sha("4"), name: "5555555 to 4444444" },
+      { ...nothing, rows: merged },
+      "UTC",
+    );
+
+    expect(summary.title).toBe("3 commits, 5555555 to 4444444");
+    expect(summary.lead).toBe("newest subject and 2 earlier commits");
+  });
+
+  it("names several authors when the span has more than one", () => {
+    const mixed = [
+      rows[0] as HistoryRow,
+      { ...(rows[1] as HistoryRow), author: "Ana" },
+      rows[2] as HistoryRow,
+      rows[3] as HistoryRow,
+    ];
+    const summary = summariseChange(
+      rangeChange,
+      { ...nothing, rows: mixed },
+      "UTC",
+    );
+
+    expect(summary.facts[0]?.startsWith("several authors · ")).toBe(true);
+  });
+
+  it("falls back to the chip text when the rows do not contain head", () => {
+    const summary = summariseChange(
+      rangeChange,
+      { ...nothing, rows: rows.slice(1), counts },
+      "UTC",
+    );
+
+    expect(summary.title).toBe("2222222 to 4444444");
+    expect(summary.lead).toBeNull();
+    expect(summary.facts).toEqual([
+      "3 files on the canvas, 2 not on the canvas",
+    ]);
+  });
+
+  it("reports unknown facts, not a partial count, when head is found and base's child is not", () => {
+    const summary = summariseChange(
+      rangeChange,
+      { ...nothing, rows: rows.slice(0, 2) },
+      "UTC",
+    );
+
+    expect(summary.title).toBe("2222222 to 4444444");
+    expect(summary.lead).toBeNull();
+    expect(summary.facts).toEqual([]);
+  });
+
   it("gives an unnamed change its chip text and the counts line alone", () => {
     const summary = summariseChange(
       { base: sha("b"), head: sha("a") },
@@ -277,7 +424,12 @@ describe("summariseChange", () => {
   });
 
   it("never titles a change Change", () => {
-    for (const change of [commitChange, pullChange]) {
+    for (const change of [
+      commitChange,
+      branchChange,
+      pullChange,
+      rangeChange,
+    ]) {
       expect(summariseChange(change, nothing, "UTC").title).not.toBe("Change");
     }
   });

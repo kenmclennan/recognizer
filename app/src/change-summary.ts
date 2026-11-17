@@ -177,6 +177,47 @@ function lines(items: readonly string[]): string[] {
   return items.filter((item) => item !== "");
 }
 
+type Span = { newest: HistoryRow; count: number; author: string };
+
+function spanOf(
+  change: ViewChange,
+  rows: readonly HistoryRow[] | null,
+): Span | null {
+  if (rows === null) {
+    return null;
+  }
+
+  const first = rows.findIndex((row) => row.sha === change.head);
+
+  if (first < 0) {
+    return null;
+  }
+
+  const label = /^(\S+) to \S+$/.exec(change.name ?? "")?.[1];
+
+  const last = rows.findIndex((row, index) =>
+    index < first
+      ? false
+      : label === undefined
+        ? row.parents[0] === change.base
+        : row.short === label,
+  );
+
+  if (last < 0) {
+    return null;
+  }
+
+  const covered = rows.slice(first, last + 1);
+  const authors = new Set(covered.map((row) => row.author));
+  const newest = covered[0] as HistoryRow;
+
+  return {
+    newest,
+    count: covered.length,
+    author: authors.size === 1 ? newest.author : "several authors",
+  };
+}
+
 function pullTitle(pull: PullDetail): string {
   return `#${pull.number} ${pull.title}`;
 }
@@ -229,6 +270,38 @@ export function summariseChange(
         counts,
       ]),
     ]);
+  } else if (kind.kind === "branch") {
+    const pull = facts.pull;
+
+    title =
+      pull !== null
+        ? pullTitle(pull)
+        : facts.tip !== null && facts.tip.subject !== ""
+          ? facts.tip.subject
+          : plain;
+    shown = lines([
+      joined([
+        aheadText(facts),
+        facts.tip?.author ?? null,
+        pull === null ? null : `pull request #${pull.number}, ${pull.state}`,
+      ]),
+      counts ?? "",
+    ]);
+  } else if (kind.kind === "range") {
+    const span = spanOf(change, facts.rows);
+
+    if (span !== null) {
+      const earlier = span.count - 1;
+
+      title = `${span.count} ${span.count === 1 ? "commit" : "commits"}, ${plain}`;
+      lead =
+        earlier === 0
+          ? span.newest.subject
+          : `${span.newest.subject} and ${earlier} earlier ${earlier === 1 ? "commit" : "commits"}`;
+      shown = lines([
+        joined([span.author, formatDate(span.newest.time, zone), counts]),
+      ]);
+    }
   }
 
   return {
