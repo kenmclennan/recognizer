@@ -6,7 +6,7 @@ It has four parts, installed together:
 
 - **Scanners.** One command per language (Python, TypeScript, Kotlin, C#, Rust) that reads a source tree and prints the same JSON scan document.
 - **The `recognizer` command.** Scans a repository, checks it against the repository's policy, answers questions about its modules, builds saved views, and runs the describer and the sensors.
-- **Sensors.** Judgements beyond structure. The structure sensor is built in: policy violations, cycles, orphans, unused exports, private imports, long functions, duplication and folder metrics. The shipped sensors are C.R.A.P. (which also reports low coverage) and Mutation; a repository can register its own.
+- **Sensors.** Judgements beyond structure. Structural analysis is built in: policy violations, cycles, orphans, unused exports, private imports, long functions, duplication and folder metrics. The shipped sensors are C.R.A.P. (which also reports low coverage) and Mutation; a repository can register its own.
 - **The viewer.** A native macOS app (Tauri) that draws the modules and their dependencies, colours findings and health, opens a module to show its members, and keeps saved views and notes an agent can build and link to.
 
 ## Install

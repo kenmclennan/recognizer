@@ -11,6 +11,12 @@ import type { Scan } from "./scan.js";
 
 export const STRUCTURE_OVERLAY_METRICS: MetricDeclaration[] = [
   { name: "complexity", type: "count", granularity: "member", bad: "high" },
+  {
+    name: "function_length",
+    type: "count",
+    granularity: "member",
+    bad: "high",
+  },
   { name: "duplication", type: "count", granularity: "module", bad: "high" },
 ];
 
@@ -24,6 +30,7 @@ export interface StructureMeasures {
   version: string;
   scans: Scan[];
   complexity: Record<string, number> | null;
+  functionLength: Record<string, number>;
   duplication: FindingRecord[] | null;
 }
 
@@ -70,6 +77,8 @@ export function buildStructureOverlay(measures: StructureMeasures): Overlay {
   if (measures.complexity !== null) {
     values.complexity = measures.complexity;
   }
+
+  values.function_length = measures.functionLength;
 
   if (duplication !== null) {
     values.duplication = duplication;

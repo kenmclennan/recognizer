@@ -10,7 +10,7 @@ import { fakeIo, ROOT } from "./scan-helpers.js";
 
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
 const MESSAGE =
-  "config/sensors/duplication was removed: duplication is now part of the structure sensor and runs with every scan; move its settings to sensors.structure.duplication (threshold, min_lines, pair_min_lines, min_nodes), or set sensors.structure.duplication to false to switch it off, and delete the sensors.duplication key";
+  "config/sensors/duplication was removed: duplication is now part of structural analysis and runs with every scan; move its settings to sensors.structure.duplication (threshold, min_lines, pair_min_lines, min_nodes), or set sensors.structure.duplication to false to switch it off, and delete the sensors.duplication key";
 
 function resolved(text: string) {
   return resolveStructureSettings(parseConfig(text));

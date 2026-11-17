@@ -91,6 +91,7 @@ import {
   shippedSensorNames,
   shippedSensorOf,
 } from "./shipped-sensors.js";
+import { structureOverlayFile } from "./structure-overlay.js";
 import { runStructureSensor } from "./structure-run.js";
 import { resolveStructureSettings } from "./structure-sensor.js";
 import {
@@ -970,6 +971,7 @@ function* scanFlow(
         root,
         scans,
         options.ignoreRetiredConfig,
+        options.analysis,
       );
 
       if (structure.failed) {
@@ -1267,8 +1269,9 @@ function* runStructure(
   root: string,
   scans: Scan[],
   skipRetired: boolean,
+  analysis: boolean,
 ): Generator<ScanStep, { failed: boolean; ms: number | null }, ScanAnswer> {
-  if (scans.length === 0) {
+  if (scans.length === 0 || !analysis) {
     return { failed: false, ms: null };
   }
 
@@ -1287,6 +1290,7 @@ function* runStructure(
 
     if (settings === "off") {
       io.remove(findingsFile(root, "structure"));
+      io.remove(structureOverlayFile(root));
 
       return { failed: false, ms: null };
     }

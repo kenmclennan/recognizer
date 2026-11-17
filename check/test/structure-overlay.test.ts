@@ -79,6 +79,32 @@ describe("the structural analysis overlay", () => {
     expect(overlay?.producer.name).toBe("recognizer");
   });
 
+  it("writes function_length by the long_function rule", () => {
+    const { overlay } = sense({ "a.py": branches("f", 2) }, {}, parsers, {
+      "a.py": [
+        {
+          kind: "function",
+          name: "f",
+          exported: true,
+          line: 1,
+          body_line: 2,
+          end_line: 31,
+        },
+        {
+          kind: "class",
+          name: "K",
+          exported: true,
+          methods: [{ name: "m", line: 40, body_line: 41, end_line: 44 }],
+        },
+      ],
+    });
+
+    expect(overlay?.values.function_length).toEqual({
+      "a.py::f": 30,
+      "a.py::K.m": 4,
+    });
+  });
+
   it("writes duplication as the lines inside a duplicated function", () => {
     const body = (name: string) =>
       [
@@ -114,10 +140,12 @@ describe("the structural analysis overlay", () => {
 
     expect(overlay?.metrics.map((metric) => metric.name)).toEqual([
       "complexity",
+      "function_length",
       "duplication",
     ]);
     expect(overlay?.values).not.toHaveProperty("complexity");
     expect(overlay?.values).not.toHaveProperty("duplication");
+    expect(overlay?.values).toHaveProperty("function_length");
   });
 
   it("writes no overlay without parsers", () => {

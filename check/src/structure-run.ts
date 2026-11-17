@@ -20,6 +20,7 @@ import {
   type StructureSettings,
   structureSensor,
 } from "./structure-sensor.js";
+import { functionLengths } from "./structure-warnings.js";
 
 export interface StructureRun {
   sensed: StructureResult;
@@ -130,6 +131,7 @@ export function runStructureSensor(
           version: packageVersion(),
           scans,
           complexity: complexityValues,
+          functionLength: functionLengths(scans, policy),
           duplication: duplicationFindings,
         }),
       );

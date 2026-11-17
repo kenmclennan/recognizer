@@ -44,8 +44,7 @@ const facts = {};
     sectionReset: q(".sm-title .sm-link").disabled,
   };
 
-  q('[data-section="duplication"]').click();
-  facts.duplication = { resetCount: qa(".sm-default .sm-link").length, defaults: text(qa(".sm-default")).map((t) => t.replace("Reset", "")), values: [...qa("input")].map((n) => n.value) };
+  facts.duplication = { resetCount: qa(".sm-default .sm-link").length, defaults: text(qa(".sm-default")).map((t) => t.replace("Reset", "")), threshold: q('input[name="sensors.structure.duplication.threshold"]').value };
   change(q('input[name="sensors.structure.duplication.threshold"]'), "1.5");
   facts.refused = { error: q(".sm-error").textContent, role: q(".sm-error").getAttribute("role"), saveDisabled: q(".sm-foot .primary").disabled, errorBelowInput: q(".sm-error").getBoundingClientRect().top >= q('input[name="sensors.structure.duplication.threshold"]').getBoundingClientRect().bottom - 0.5, message: q(".sm-message").textContent };
   change(q('input[name="sensors.structure.duplication.threshold"]'), "0.9");
@@ -93,8 +92,8 @@ const facts = {};
   const savingClosed = new Promise((resolve) => {
     const savingModal = openSettingsModal({ port: saving, sensors: sensors(CONFIG), repository: true, onClose: resolve });
     savingModal.ready.then(() => {
-      savingModal.element.querySelector('[data-section="duplication"]').click();
-      const reset = [...savingModal.element.querySelectorAll(".sm-default .sm-link")][0];
+      savingModal.element.querySelector('[data-section="structure"]').click();
+      const reset = [...savingModal.element.querySelectorAll(".sm-default .sm-link")][1];
       facts.resetPresent = reset !== undefined;
       reset.click();
       savingModal.element.querySelector(".sm-foot .primary").click();
@@ -111,8 +110,8 @@ const facts = {};
   const heldClosed = new Promise((resolve) => {
     const heldModal = openSettingsModal({ port: held, sensors: sensors(CONFIG), repository: true, onClose: resolve });
     heldModal.ready.then(async () => {
-      heldModal.element.querySelector('[data-section="duplication"]').click();
-      [...heldModal.element.querySelectorAll(".sm-default .sm-link")][0].click();
+      heldModal.element.querySelector('[data-section="structure"]').click();
+      [...heldModal.element.querySelectorAll(".sm-default .sm-link")][1].click();
       heldModal.element.querySelector(".sm-foot .primary").click();
       await new Promise((r) => setTimeout(r, 0));
       facts.held = { config: held.config, open: document.querySelector(".settings-scrim") !== null };
@@ -233,8 +232,7 @@ describe.skipIf(webkit === undefined)("the settings modal", () => {
       "Editor",
       "Describing",
       "Setup",
-      "Structure",
-      "Duplication",
+      "Structural analysis",
       "C.R.A.P.",
       "Mutation",
       "Test suites",
@@ -258,15 +256,14 @@ describe.skipIf(webkit === undefined)("the settings modal", () => {
 
   it("shows a changed field's default and Reset beside it", () => {
     expect(f.structure.resetCount).toBeGreaterThan(0);
-    expect(f.structure.defaults).toEqual(["default 20"]);
+    expect(f.structure.defaults).toEqual(["default 20", "default 4"]);
     expect(f.duplication.resetCount).toBeGreaterThan(0);
-    expect(f.duplication.defaults).toEqual(["default 4"]);
-    expect(f.duplication.values[0]).toBe("0.82");
+    expect(f.duplication.defaults).toEqual(["default 20", "default 4"]);
+    expect(f.duplication.threshold).toBe("0.82");
   });
 
   it("marks a changed section in the sidebar and no unchanged one", () => {
     expect(f.dots.structure).toBe(true);
-    expect(f.dots.duplication).toBe(true);
     expect(f.dots.crap).toBe(false);
     expect(f.dots.mutation).toBe(false);
   });
