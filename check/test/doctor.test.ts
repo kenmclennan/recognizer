@@ -593,6 +593,23 @@ describe("doctor: policy", () => {
     ]);
   });
 
+  it("reports a forbid glob matching no module with a text fix", () => {
+    const result = json(
+      setup({
+        ...clean,
+        policy: 'forbid:\n  - "m*.py -> nothing/*.py"\n',
+      }),
+    );
+
+    expect(result.report.areas[1].problems).toMatchObject([
+      {
+        code: "policy-forbid",
+        subject: "nothing/*.py",
+        fix: { command: null },
+      },
+    ]);
+  });
+
   it("reports a missing scan with the scan fix and starts no scan", () => {
     const fake = setup({ ...clean, cache: null });
     const result = json(fake);

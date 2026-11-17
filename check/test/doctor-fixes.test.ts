@@ -305,7 +305,7 @@ describe("policy problems carry a recognizer policy command", () => {
 
   it("offers the migration for a retired key and applying it clears the problem", () => {
     const policy =
-      "components:\n  core:\n    - app/**\n  gone:\n    - gone/**\nlevels:\n  - core\n  - gone\n";
+      "components:\n  core:\n    - app/**\n  edge:\n    - app/*.py\nlevels:\n  - core\n  - edge\n";
     const fake = setup({ policy, cache: scanned });
     const found = problems(fake, "policy");
 

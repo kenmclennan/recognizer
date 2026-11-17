@@ -3,10 +3,12 @@ import type { Policy } from "./policy.js";
 import type { Scan } from "./scan.js";
 
 export interface PolicyProblem {
-  kind: "entry";
+  kind: "entry" | "forbid";
   subject: string;
   text: string;
 }
+
+const FOREIGN_PREFIX = "foreign:";
 
 function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
@@ -16,7 +18,10 @@ export function policyProblems(
   scans: Scan[],
   policy: Policy | null,
 ): PolicyProblem[] {
-  if (policy === null || policy.entryGlobs.length === 0) {
+  if (
+    policy === null ||
+    (policy.entryGlobs.length === 0 && policy.forbid.length === 0)
+  ) {
     return [];
   }
 
@@ -28,18 +33,42 @@ export function policyProblems(
     }
   }
 
-  return [...new Set(policy.entryGlobs)]
-    .filter((glob) => {
-      const matches = compileGlob(glob);
+  const matchesNothing = (glob: string): boolean => {
+    const matches = compileGlob(glob);
 
-      return ![...scanned].some((id) => matches(id));
-    })
+    return ![...scanned].some((id) => matches(id));
+  };
+
+  const entries = [...new Set(policy.entryGlobs)]
+    .filter(matchesNothing)
     .map((glob) => ({
       kind: "entry" as const,
       subject: glob,
       text: `policy entry ${glob} matches no scanned module`,
-    }))
-    .sort((a, b) => compare(a.subject, b.subject));
+    }));
+
+  const forbids = new Map<string, PolicyProblem>();
+
+  for (const rule of policy.forbid) {
+    for (const glob of [...rule.fromGlobs, ...rule.toGlobs]) {
+      const text = `policy forbid ${rule.pattern}: ${glob} matches no scanned module`;
+
+      if (
+        !glob.startsWith(FOREIGN_PREFIX) &&
+        matchesNothing(glob) &&
+        !forbids.has(text)
+      ) {
+        forbids.set(text, { kind: "forbid", subject: glob, text });
+      }
+    }
+  }
+
+  return [
+    ...entries.sort((a, b) => compare(a.subject, b.subject)),
+    ...[...forbids.values()].sort(
+      (a, b) => compare(a.subject, b.subject) || compare(a.text, b.text),
+    ),
+  ];
 }
 
 export function warnPolicyProblems(

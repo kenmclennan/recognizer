@@ -4,6 +4,8 @@ import { compileGlob, type Matcher } from "./glob.js";
 
 export interface ForbidRule {
   pattern: string;
+  fromGlobs: string[];
+  toGlobs: string[];
   from: Matcher;
   to: Matcher;
 }
@@ -158,7 +160,13 @@ function parseForbid(entry: unknown, errors: string[]): ForbidRule | null {
     return null;
   }
 
-  return { pattern: entry, from: compileGlob(from), to: compileGlob(to) };
+  return {
+    pattern: entry,
+    fromGlobs: [from],
+    toGlobs: [to],
+    from: compileGlob(from),
+    to: compileGlob(to),
+  };
 }
 
 function parseListRule(
@@ -199,6 +207,8 @@ function parseListRule(
 
   return {
     pattern: `${from.join(", ")} -> ${to.join(", ")}`,
+    fromGlobs: from,
+    toGlobs: to,
     from: (id) => matchesFrom.some((one) => one(id)),
     to: (id) => matchesTo.some((one) => one(id)),
   };

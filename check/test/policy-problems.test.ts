@@ -51,4 +51,48 @@ describe("policyProblems", () => {
 
     expect(found).toEqual([]);
   });
+
+  it("reports a forbid rule's to glob matching nothing once, naming the glob", () => {
+    const found = policyProblems(
+      [scanOf([], ["app/domain/a.py", "app/adapters/b.py"])],
+      parsePolicy("forbid:\n  - app/domain/** -> app/nowhere/**\n"),
+    );
+
+    expect(found).toEqual([
+      {
+        kind: "forbid",
+        subject: "app/nowhere/**",
+        text: "policy forbid app/domain/** -> app/nowhere/**: app/nowhere/** matches no scanned module",
+      },
+    ]);
+  });
+
+  it("reports an unmatched glob inside a list forbid rule", () => {
+    const found = policyProblems(
+      [scanOf([], ["app/domain/a.py", "app/adapters/b.py"])],
+      parsePolicy(
+        "forbid:\n  - from: [app/domain/**, app/typo/**]\n    to: app/adapters/**\n",
+      ),
+    );
+
+    expect(found.map((problem) => problem.subject)).toEqual(["app/typo/**"]);
+  });
+
+  it("reports nothing for a forbid rule whose globs all match", () => {
+    const found = policyProblems(
+      [scanOf([], ["app/domain/a.py", "app/adapters/b.py"])],
+      parsePolicy("forbid:\n  - app/domain/** -> app/adapters/**\n"),
+    );
+
+    expect(found).toEqual([]);
+  });
+
+  it("does not report a forbid rule aimed at a foreign group", () => {
+    const found = policyProblems(
+      [scanOf([], ["app/domain/a.py"])],
+      parsePolicy("forbid:\n  - app/domain/** -> foreign:requests\n"),
+    );
+
+    expect(found).toEqual([]);
+  });
 });

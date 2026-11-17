@@ -49,6 +49,7 @@ export type ProblemCode =
   | "scan-missing"
   | "scan-stale"
   | "policy-entry"
+  | "policy-forbid"
   | "policy-retired"
   | "scanner-missing"
   | "scanner-ambiguous"
@@ -405,7 +406,10 @@ function policyArea(facts: DoctorFacts): Found[] {
     ];
   }
 
-  if (policy.entryGlobs.length === 0 || facts.languages.length === 0) {
+  if (
+    (policy.entryGlobs.length === 0 && policy.forbid.length === 0) ||
+    facts.languages.length === 0
+  ) {
     return [];
   }
 
@@ -453,12 +457,23 @@ function policyArea(facts: DoctorFacts): Found[] {
     ];
   }
 
-  return policyProblems(state.scans, policy).map((problem) => ({
-    code: "policy-entry" as const,
-    subject: problem.subject,
-    line: problem.text,
-    fix: entryFix(facts, problem.subject),
-  }));
+  return policyProblems(state.scans, policy).map((problem) =>
+    problem.kind === "entry"
+      ? {
+          code: "policy-entry" as const,
+          subject: problem.subject,
+          line: problem.text,
+          fix: entryFix(facts, problem.subject),
+        }
+      : {
+          code: "policy-forbid" as const,
+          subject: problem.subject,
+          line: problem.text,
+          fix: textFix(
+            `correct the glob ${problem.subject} in ${POLICY_FILE}, or remove it from its forbid rule`,
+          ),
+        },
+  );
 }
 
 function unregisteredProblems(
