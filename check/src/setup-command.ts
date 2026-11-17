@@ -1,13 +1,20 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { Io } from "./cli.js";
+import { detectLanguages } from "./detect.js";
 import { InputError } from "./errors.js";
+import { discoverPlugins } from "./plugin-discovery.js";
+import type { RecordedScan } from "./scan.js";
+import { readCachedScan } from "./scan-command.js";
+import { languageRulesOf } from "./scanners.js";
 import { buildChanges, type SetupChoices } from "./setup-changes.js";
+import { recommend } from "./setup-recommend.js";
 import { surveyJson, surveyRepository } from "./setup-survey.js";
 
 const USAGE = [
   "usage: recognizer setup survey [REPOSITORY] [--scan <file>] [--json]",
   "       recognizer setup changes [REPOSITORY] --choices <file> [--scan <file>] [--json]",
+  "       recognizer setup recommend [REPOSITORY] --input <file> [--scan <file>] [--json]",
 ];
 
 function readJsonFile(io: Io, file: string, flag: string): unknown {
@@ -42,6 +49,22 @@ function choicesOf(io: Io, file: string | undefined): SetupChoices {
   }
 
   return value as SetupChoices;
+}
+
+function scansFor(
+  io: Io,
+  root: string,
+  file: string | undefined,
+): RecordedScan[] {
+  if (file !== undefined) {
+    return [readJsonFile(io, file, "--scan") as RecordedScan];
+  }
+
+  const rules = languageRulesOf(discoverPlugins(io, ["scanner"]).plugins);
+
+  return detectLanguages(io, root, rules)
+    .map((language) => readCachedScan(io, root, language))
+    .filter((scan): scan is RecordedScan => scan !== null);
 }
 
 export async function runSetup(argv: string[], io: Io): Promise<number> {
@@ -80,6 +103,23 @@ export async function runSetup(argv: string[], io: Io): Promise<number> {
     const built = buildChanges(surveyRepository(io, root, scan), choices);
 
     io.stdout(`${JSON.stringify(built, null, 2)}\n`);
+
+    return 0;
+  }
+
+  if (verb === "recommend") {
+    if (values.input === undefined) {
+      throw new InputError(USAGE);
+    }
+
+    const answer = recommend(
+      io,
+      root,
+      readJsonFile(io, values.input, "--input"),
+      scansFor(io, root, values.scan),
+    );
+
+    io.stdout(`${JSON.stringify(answer, null, 2)}\n`);
 
     return 0;
   }

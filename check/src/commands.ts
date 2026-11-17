@@ -1595,16 +1595,17 @@ export const COMMANDS: Command[] = [
   {
     name: "setup",
     summary:
-      "survey a repository for setup and build the setup changes a set of choices makes",
+      "survey a repository for setup, build the setup changes a set of choices makes and check policy recommendations",
     usage: [
       "recognizer setup survey [REPOSITORY] [--scan <file>] [--json]",
       "recognizer setup changes [REPOSITORY] --choices <file> [--scan <file>] [--json]",
+      "recognizer setup recommend [REPOSITORY] --input <file> [--scan <file>] [--json]",
     ].join("\n"),
     arguments: [
       {
-        name: "survey|changes",
+        name: "survey|changes|recommend",
         description:
-          "survey reads what the repository has and starts no scanner, describer or test; changes lists, in run order, the commands a choices file makes",
+          "survey reads what the repository has and starts no scanner, describer or test; changes lists, in run order, the commands a choices file makes; recommend checks a policy recommendation file and counts what each forbid rule breaks today",
       },
       {
         name: "REPOSITORY",
@@ -1622,11 +1623,16 @@ export const COMMANDS: Command[] = [
         description:
           "a JSON file of the choices made: analysis, plugins, runners, tools, policy and upgrade",
       },
+      {
+        flag: "--input <file>",
+        description:
+          "a JSON file holding the policy recommendation an agent wrote",
+      },
       { flag: "--json", description: "print JSON; every verb already does" },
     ],
     output: {
       text: "JSON on stdout for every verb",
-      json: "survey: { survey_version, version, repository, configured, files, unread, checks, runners, tools, upgrade }; changes: { changes: [{ id, title, steps: [{ argv, cwd }] }], dropped, needing_user }",
+      json: "survey: { survey_version, version, repository, configured, files, unread, checks, runners, tools, upgrade }; changes: { changes: [{ id, title, steps: [{ argv, cwd }] }], dropped, needing_user }; recommend: { entries, dropped }",
     },
     exitCodes: [
       { code: 0, meaning: "the verb finished" },

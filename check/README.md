@@ -310,7 +310,7 @@ A fix command carries `--repository <path>` (a positional path for `recognizer s
 
 `survey [REPOSITORY] [--scan <file>]` is read-only and starts no scanner, describer or test command (`cargo llvm-cov --version` is the one probe). It reports the files each scanner read and the source files none claims, the checks with each limit's schema default, the test runners found from manifests (vitest or jest in `package.json`, a `[package]` in `Cargo.toml`, pytest in `pyproject.toml` or a requirements file), the coverage tool each needs and whether it is installed, and the upgrade fixes `recognizer doctor` offers for `config-retired`, `config-empty` and `policy-retired`. `schema/setup-survey.schema.json` describes it.
 
-`changes [REPOSITORY] --choices <file>` turns the choices made into the ordered commands to run: analysis settings, tool installs, runners, plugins, policy entries, then `recognizer check --init-baseline` when an accepted rule is broken today.
+`changes [REPOSITORY] --choices <file>` turns the choices made into the ordered commands to run: analysis settings, tool installs, runners, plugins, policy entries, then `recognizer check --init-baseline` when an accepted rule is broken today. `recommend [REPOSITORY] --input <file>` checks a policy recommendation against `POLICY_RECOMMENDATION_SCHEMA`, drops what the policy holds or the policy parser refuses (naming each), and counts what each forbid rule breaks today from the scan.
 
 ## recognizer open
 

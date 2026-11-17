@@ -281,6 +281,7 @@ export {
   type SetupChoices,
   splitCommand,
 } from "./setup-changes.js";
+export { POLICY_RECOMMENDATION_PROMPT } from "./setup-policy-prompt.js";
 export {
   commandRefusal,
   type DroppedChange,

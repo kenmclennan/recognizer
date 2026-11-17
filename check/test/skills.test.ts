@@ -23,3 +23,24 @@ describe("the setup skill's policy step", () => {
     expect(step).toContain("The user can skip this step");
   });
 });
+
+describe("the setup skill's steps 2 and 3 use the setup verbs", () => {
+  const lines = SETUP_SKILL.split("\n");
+  const sensors = lines.find((line) => line.startsWith("2. ")) as string;
+  const policy = lines.find((line) => line.startsWith("3. ")) as string;
+
+  it("calls the survey in step 2 and recommend in step 3", () => {
+    expect(sensors).toContain("recognizer setup survey");
+    expect(policy).toContain("recognizer setup recommend");
+  });
+
+  it("names the policy verbs and none of the retired or hand-derived ones", () => {
+    for (const word of ["--add-forbid", "ignore", "entry"]) {
+      expect(policy).toContain(word);
+    }
+
+    for (const step of [sensors, policy]) {
+      expect(step).not.toMatch(/levels|\buses\b/);
+    }
+  });
+});
