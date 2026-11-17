@@ -16,8 +16,8 @@ const COMMIT = "abc123";
 const checkScan = JSON.parse(
   readFileSync(join(REPO, "fixtures/check/scan.json"), "utf8"),
 );
-const STALE = "components:\n  domain: shop/domain/**\n  ports: nowhere/**\n";
-const COVERING = "components:\n  all:\n    - shop/**\n    - tests/**\n";
+const STALE = "entry:\n  - shop/main.py\n  - nowhere/**\n";
+const COVERING = "entry:\n  - shop/main.py\n";
 const POLICY = `${ROOT}/.recognizer/policy.yaml`;
 
 function problemLines(err: string): string[] {
@@ -44,17 +44,14 @@ describe("policy problems on check --scan", () => {
     return { code, out: fake.out(), err: fake.err() };
   }
 
-  it("prints the stale entry and the uncovered folder on stderr and keeps the exit code", () => {
+  it("prints the stale entry on stderr and keeps the exit code", () => {
     const stale = checkScan_(STALE);
     const covered = checkScan_(COVERING);
     const lines = problemLines(stale.err);
 
     expect(lines).toContain(
-      "warning: p.yaml: policy entry nowhere/** (component ports) matches no scanned module",
+      "warning: p.yaml: policy entry nowhere/** matches no scanned module",
     );
-    expect(
-      lines.some((line) => line.startsWith("warning: p.yaml: folder ")),
-    ).toBe(true);
     expect(stale.code).toBe(covered.code);
     expect(problemLines(covered.err)).toEqual([]);
   });
@@ -89,17 +86,14 @@ describe("policy problems on check in repository mode", () => {
     return { code, out: fake.out(), err: fake.err() };
   }
 
-  it("prints both policy problems naming the policy file, with the exit code of a covering policy", () => {
+  it("prints the policy problem naming the policy file, with the exit code of a covering policy", () => {
     const stale = repository(STALE);
     const covered = repository(COVERING);
     const lines = problemLines(stale.err);
 
     expect(lines).toContain(
-      `warning: ${POLICY}: policy entry nowhere/** (component ports) matches no scanned module`,
+      `warning: ${POLICY}: policy entry nowhere/** matches no scanned module`,
     );
-    expect(
-      lines.some((line) => line.startsWith(`warning: ${POLICY}: folder `)),
-    ).toBe(true);
     expect(stale.code).toBe(covered.code);
     expect(problemLines(covered.err)).toEqual([]);
     expect(JSON.stringify(JSON.parse(stale.out).warnings)).not.toContain(
@@ -119,19 +113,14 @@ describe("policy problems on scan", () => {
     return { code, err: fake.err() };
   }
 
-  it("prints both policy problems and keeps the exit code of a covering policy", async () => {
-    const stale = await scan("components:\n  one: gone/**\n");
-    const covered = await scan('components:\n  all: "**"\n');
+  it("prints the policy problem and keeps the exit code of a covering policy", async () => {
+    const stale = await scan("entry:\n  - gone/**\n");
+    const covered = await scan('entry:\n  - "**"\n');
     const lines = problemLines(stale.err);
 
     expect(lines).toContain(
-      "warning: .recognizer/policy.yaml: policy entry gone/** (component one) matches no scanned module",
+      "warning: .recognizer/policy.yaml: policy entry gone/** matches no scanned module",
     );
-    expect(
-      lines.some((line) =>
-        line.startsWith("warning: .recognizer/policy.yaml: folder "),
-      ),
-    ).toBe(true);
     expect(stale.code).toBe(covered.code);
     expect(problemLines(covered.err)).toEqual([]);
   });

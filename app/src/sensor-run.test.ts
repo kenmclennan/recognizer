@@ -398,12 +398,11 @@ describe("senseRepository", () => {
     ).toBe(false);
   });
 
-  it("falls back without a policy when a module matches two components", async () => {
+  it("falls back without a policy when the policy uses a retired key", async () => {
     const run = await senseRepository(
       scans,
       {
-        policy:
-          "components:\n  one: shop/**\n  two: shop/domain/**\nlevels: [one, two]\n",
+        policy: "components:\n  one: shop/**\n",
         config: null,
       },
       fakeSensors(),

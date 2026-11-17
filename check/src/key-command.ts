@@ -64,7 +64,7 @@ function refusal(
   return 2;
 }
 
-function save(io: Io, file: string, text: string): void {
+export function save(io: Io, file: string, text: string): void {
   const temporary = temporaryFor(file, io);
 
   io.writeFile(temporary, text);

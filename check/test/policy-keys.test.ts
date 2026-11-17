@@ -8,10 +8,6 @@ describe("the policy keys", () => {
   });
 
   it.each([
-    ["components", "a.b"],
-    ["components", "a b"],
-    ["uses", "a.b"],
-    ["uses", "a b"],
     ["foreign", "a.b"],
     ["foreign", "a b"],
   ])("refuses %s.%s as not a valid <name>", (section, name) => {
@@ -30,17 +26,21 @@ describe("the policy keys", () => {
     }
   });
 
-  it("describes levels as inner first", () => {
-    const levels = POLICY_KEYS.keys.find((key) => key.key === "levels");
+  it("has entry, forbid, ignore and foreign and no retired key", () => {
+    const names = POLICY_KEYS.keys.map((key) => key.key);
 
-    expect(levels?.description).toBe(
-      "component names, inner first, in the order they are added",
+    expect(names).toEqual(
+      expect.arrayContaining(["entry", "forbid", "ignore", "foreign.<name>"]),
     );
+    expect(names.join(" ")).not.toMatch(/components|levels|uses/);
+    expect(POLICY_KEYS.sections.map((section) => section.key)).toEqual([
+      "foreign",
+    ]);
   });
 
   it("accepts a one-segment name", () => {
     const published = publish([POLICY_KEYS], "policy");
 
-    expect("found" in findKey(published, ["components", "domain"])).toBe(true);
+    expect("found" in findKey(published, ["foreign", "http"])).toBe(true);
   });
 });

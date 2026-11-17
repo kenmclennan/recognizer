@@ -15,7 +15,6 @@ export interface CheckResult {
   violations: Violation[];
   new: ReportedNew[];
   fixed: BaselineEntry[];
-  unranked: number;
 }
 
 export interface Keyed {
@@ -61,7 +60,6 @@ export function rankByKeys<T extends Keyed>(
 
 export function rankAgainstBaseline(
   violations: Violation[],
-  unranked: number,
   baseline: Identity[] | BaselineEntry[] | null,
 ): CheckResult {
   const ranking = rankByKeys(
@@ -86,7 +84,6 @@ export function rankAgainstBaseline(
       return grown ? { ...narrowed, grown: true } : narrowed;
     }),
     fixed: ranking.fixed,
-    unranked,
   };
 }
 
@@ -95,10 +92,7 @@ export function check(
   policy: Policy,
   baseline: Identity[] | null,
 ): CheckResult {
-  const { violations, unranked } = collectViolations(
-    validateAcceptedScan(scan),
-    policy,
-  );
+  const { violations } = collectViolations(validateAcceptedScan(scan), policy);
 
-  return rankAgainstBaseline(violations, unranked, baseline);
+  return rankAgainstBaseline(violations, baseline);
 }

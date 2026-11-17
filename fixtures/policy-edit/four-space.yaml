@@ -1,5 +1,4 @@
-components:
-    domain:
-        - shop/domain/**
-levels:
-    - domain
+entry:
+    - shop/main.py
+forbid:
+    - shop/adapters/* -> shop/adapters/*

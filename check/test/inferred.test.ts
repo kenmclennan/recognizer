@@ -8,10 +8,8 @@ import { check, InputError, parsePolicy, validateScan } from "../src/index.js";
 import { capture } from "./helpers.js";
 
 const POLICY = `
-levels: [inner, outer]
-components:
-  inner: i/**
-  outer: o/**
+forbid:
+  - i/** -> o/**
 `;
 
 const INFERRED = {

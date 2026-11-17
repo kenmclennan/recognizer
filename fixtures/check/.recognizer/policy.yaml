@@ -1,19 +1,16 @@
-levels:
-  - domain
-  - ports
-  - application
-  - adapters
-  - entry
-
-components:
-  domain: shop/domain/**
-  ports: shop/ports/**
-  application: shop/application/**
-  adapters: shop/adapters/**
-  entry: [shop/main.py]
+entry:
+  - shop/main.py
 
 forbid:
   - shop/adapters/* -> shop/adapters/*
   - "* -> foreign:requests"
+  - from: [shop/domain/**]
+    to: [shop/ports/**, shop/application/**, shop/adapters/**, shop/main.py]
+  - from: [shop/ports/**]
+    to: [shop/application/**, shop/adapters/**, shop/main.py]
+  - from: [shop/application/**]
+    to: [shop/adapters/**, shop/main.py]
+  - from: [shop/adapters/**]
+    to: [shop/main.py]
 
 ignore: [tests/**]

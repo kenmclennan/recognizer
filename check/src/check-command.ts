@@ -66,7 +66,6 @@ interface Ranked {
   violations: ReportedViolation[];
   new: ReportedViolation[];
   fixed: BaselineEntry[];
-  unranked: number;
 }
 
 interface SensorStatus {
@@ -82,7 +81,6 @@ interface Gathered {
   documents: FindingsDocument[];
   metrics: ModuleMetrics[];
   folderMetrics: FolderMetrics[];
-  unranked: number;
   sensors: SensorStatus[];
   hiddenKeys: Set<string>;
 }
@@ -149,7 +147,7 @@ function summary(
 
   if (result) {
     lines.push(
-      `violations: ${result.violations.length}, new: ${result.new.length}, fixed: ${result.fixed.length}, unranked: ${result.unranked}`,
+      `violations: ${result.violations.length}, new: ${result.new.length}, fixed: ${result.fixed.length}`,
     );
 
     if (result.fixed.length > 0) {
@@ -258,7 +256,6 @@ function warningsOf(documents: FindingsDocument[]): ReportedWarning[] {
 
 function rankCandidates(
   candidates: Candidate[],
-  unranked: number,
   baseline: BaselineEntry[] | null,
 ): Ranked {
   const ranking: Ranking<Candidate> = rankByKeys(candidates, baseline);
@@ -282,7 +279,6 @@ function rankCandidates(
       return grown ? { ...narrowed, grown: true } : narrowed;
     }),
     fixed: ranking.fixed,
-    unranked,
   };
 }
 
@@ -307,7 +303,6 @@ function settleBaseline(
   flags: BaselineFlags,
   baselinePath: string,
   candidates: Candidate[],
-  unranked: number,
   hiddenKeys: Set<string> = new Set(),
 ): {
   result: Ranked;
@@ -326,7 +321,7 @@ function settleBaseline(
     throw new InputError([`baseline does not exist: ${baselinePath}`]);
   }
 
-  let result = rankCandidates(candidates, unranked, baseline);
+  let result = rankCandidates(candidates, baseline);
 
   result = {
     ...result,
@@ -347,7 +342,7 @@ function settleBaseline(
     const entries = [...written.values()];
 
     io.writeFile(baselinePath, serialiseBaseline(entries));
-    result = rankCandidates(candidates, unranked, entries);
+    result = rankCandidates(candidates, entries);
     action = "initialised";
   } else if (
     flags.update &&
@@ -485,7 +480,6 @@ function executeScanReplay(
     flags,
     baselinePath,
     candidatesOf([sensed.document]),
-    sensed.unranked,
   );
 
   io.stdout(
@@ -541,7 +535,6 @@ function gather(
   const resolved = resolveStructureSettings(config);
   let metrics: ModuleMetrics[] = [];
   let folderMetrics: FolderMetrics[] = [];
-  let unranked = 0;
 
   const fail = (name: string, reason: string) => {
     io.remove(findingsFile(root, name));
@@ -558,7 +551,6 @@ function gather(
 
     metrics = sensed.metrics;
     folderMetrics = sensed.folder_metrics;
-    unranked = sensed.unranked;
 
     if (run.error !== null) {
       fail("structure", run.error);
@@ -654,7 +646,6 @@ function gather(
     documents,
     metrics,
     folderMetrics,
-    unranked,
     sensors,
     hiddenKeys,
   };
@@ -784,7 +775,6 @@ function executeRepository(
     flags,
     baselinePath,
     candidates,
-    gathered.unranked,
     gathered.hiddenKeys,
   );
   const result: Ranked = narrowed
@@ -798,7 +788,6 @@ function executeRepository(
         fixed: settled.result.fixed.filter((one) =>
           touches(listed, entryModules(one)),
         ),
-        unranked: settled.result.unranked,
       }
     : settled.result;
 

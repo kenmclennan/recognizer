@@ -103,7 +103,7 @@ describe("measureFolders", () => {
   });
 
   it("leaves ignored modules out", () => {
-    const policy = parsePolicy("components:\n  a: a/**\nignore:\n  - b/**\n");
+    const policy = parsePolicy("ignore:\n  - b/**\n");
     const { rows } = measureFolders(
       [scanOf([{ id: "a/x.ts" }, { id: "b/y.ts" }], [["a/x.ts", "b/y.ts"]])],
       policy,

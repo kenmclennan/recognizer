@@ -53,7 +53,6 @@ export interface StructureResult {
   document: FindingsDocument;
   metrics: ModuleMetrics[];
   folder_metrics: FolderMetrics[];
-  unranked: number;
 }
 
 export const DEFAULT_STRUCTURE_SETTINGS: StructureSettings = {
@@ -207,7 +206,6 @@ export function structureSensor(
   const seen = new Set<string>();
   const metrics: ModuleMetrics[] = [];
   const warnings: FindingRecord[] = [];
-  let unranked = 0;
 
   const add = (target: FindingRecord[], finding: FindingRecord) => {
     if (!seen.has(finding.id)) {
@@ -219,8 +217,6 @@ export function structureSensor(
   for (const scan of scans) {
     if (policy !== null) {
       const collected = collectViolations(scan, policy);
-
-      unranked += collected.unranked;
 
       for (const violation of collected.violations) {
         add(findings, {
@@ -315,6 +311,5 @@ export function structureSensor(
     },
     metrics,
     folder_metrics: folders.rows,
-    unranked,
   };
 }

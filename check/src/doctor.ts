@@ -23,7 +23,7 @@ import {
   pluginProblems,
   scannerProblems,
 } from "./plugin-doctor.js";
-import { parsePolicy } from "./policy.js";
+import { parsePolicy, RETIRED_KEYS } from "./policy.js";
 import { policyProblems } from "./policy-problems.js";
 import { SHIPPED_DESCRIBER_NAME } from "./shipped-describer.js";
 import { shippedSensorOf } from "./shipped-sensors.js";
@@ -49,7 +49,7 @@ export type ProblemCode =
   | "scan-missing"
   | "scan-stale"
   | "policy-entry"
-  | "policy-folder"
+  | "policy-retired"
   | "scanner-missing"
   | "scanner-ambiguous"
   | "scanner-choice"
@@ -339,149 +339,49 @@ function policyCommand(facts: DoctorFacts, arguments_: string): string {
   return withRepository(facts, `recognizer policy ${arguments_}`);
 }
 
-function releaseCommands(
-  policy: ReturnType<typeof parsePolicy>,
-  name: string,
-): string[] {
-  const commands: string[] = [];
-
-  if (policy.levels.includes(name)) {
-    commands.push(
-      policy.levels.length === 1 ? "--unset levels" : `--unset levels ${name}`,
-    );
-  }
-
-  if (policy.uses !== null) {
-    const remaining = new Map(policy.uses);
-
-    for (const [owner, allowed] of policy.uses) {
-      if (owner === name) {
-        remaining.delete(owner);
-        commands.push(
-          remaining.size === 0
-            ? "--remove-section uses"
-            : `--unset uses.${quoted(name)}`,
-        );
-      } else if (allowed.includes(name)) {
-        const kept = allowed.filter((entry) => entry !== name);
-
-        if (kept.length === 0) {
-          remaining.delete(owner);
-          commands.push(
-            remaining.size === 0
-              ? "--remove-section uses"
-              : `--unset uses.${quoted(owner)}`,
-          );
-        } else {
-          remaining.set(owner, kept);
-          commands.push(`--unset uses.${quoted(owner)} ${quoted(name)}`);
-        }
-      }
-    }
-  }
-
-  return commands;
+function entryFix(facts: DoctorFacts, glob: string): SetupProblem["fix"] {
+  return commandFix(policyCommand(facts, `--unset entry ${quoted(glob)}`));
 }
 
-function entryFix(
-  facts: DoctorFacts,
-  policy: ReturnType<typeof parsePolicy>,
-  glob: string,
-): SetupProblem["fix"] {
-  for (const [name, globs] of policy.componentGlobs) {
-    if (globs.includes(glob)) {
-      const release = globs.length === 1 ? releaseCommands(policy, name) : [];
-      const unset = `--unset components.${name} ${quoted(glob)}`;
-
-      return commandFix(
-        [...release, unset]
-          .map((arguments_) => policyCommand(facts, arguments_))
-          .join(" && "),
-      );
-    }
-  }
-
-  return textFix("remove the entry with recognizer policy --unset");
-}
-
-function folderFix(facts: DoctorFacts, folder: string): SetupProblem["fix"] {
-  const target = folder === "." ? "<module>" : quoted(`${folder}/*`);
-  const root = folder === "." ? " (name each root module)" : "";
-
+function invalidFix(): SetupProblem["fix"] {
   return textFix(
-    `cover it with ${policyCommand(facts, `--add components.<name> ${target}`)} (<name> is one of recognizer policy --list's components), or leave it out of the graph with ${policyCommand(facts, `--add ignore ${target}`)}${root}`,
+    `recognizer policy cannot repair a structurally invalid policy: correct ${POLICY_FILE} by hand, then run recognizer policy --list to confirm it reads`,
   );
 }
 
-function usesOf(facts: DoctorFacts): Record<string, unknown> {
+function retiredPolicyKeys(policyText: string): string[] {
+  let document: unknown;
+
   try {
-    const uses = (parse(facts.policyText ?? "") as { uses?: unknown })?.uses;
-
-    return typeof uses === "object" && uses !== null && !Array.isArray(uses)
-      ? (uses as Record<string, unknown>)
-      : {};
+    document = parse(policyText);
   } catch {
-    return {};
-  }
-}
-
-function invalidFix(facts: DoctorFacts, message: string): SetupProblem["fix"] {
-  const level =
-    /^levels: (?:"([^"]+)" is not in components|duplicate level "([^"]+)")$/.exec(
-      message,
-    );
-
-  if (level !== null) {
-    return commandFix(
-      policyCommand(
-        facts,
-        `--unset levels ${quoted(level[1] ?? level[2] ?? "")}`,
-      ),
-    );
+    return [];
   }
 
-  const section = /^uses: "([^"]+)" is not in components$/.exec(message);
-
-  if (section !== null) {
-    if (Object.keys(usesOf(facts)).length === 1) {
-      return commandFix(policyCommand(facts, "--remove-section uses"));
-    }
-
-    return commandFix(
-      policyCommand(facts, `--unset uses.${quoted(section[1] ?? "")}`),
-    );
+  if (typeof document !== "object" || document === null) {
+    return [];
   }
 
-  const entry = /^uses\.([^:]+): "([^"]+)" is not in components$/.exec(message);
-
-  if (entry !== null) {
-    const uses = usesOf(facts);
-    const listed = uses[entry[1] ?? ""];
-
-    if (
-      Object.keys(uses).length === 1 &&
-      Array.isArray(listed) &&
-      listed.length === 1
-    ) {
-      return commandFix(policyCommand(facts, "--remove-section uses"));
-    }
-
-    return commandFix(
-      policyCommand(
-        facts,
-        `--unset uses.${entry[1] ?? ""} ${quoted(entry[2] ?? "")}`,
-      ),
-    );
-  }
-
-  return textFix(
-    `recognizer policy cannot repair a structurally invalid policy: correct ${POLICY_FILE} by hand, then run recognizer policy --list to confirm it reads`,
+  return Object.keys(document).filter((key) =>
+    (RETIRED_KEYS as readonly string[]).includes(key),
   );
 }
 
 function policyArea(facts: DoctorFacts): Found[] {
   if (facts.policyText === null) {
     return [];
+  }
+
+  const retired = retiredPolicyKeys(facts.policyText);
+  const found: Found[] = [];
+
+  if (retired.length > 0) {
+    found.push({
+      code: "policy-retired",
+      subject: POLICY_FILE,
+      line: `the policy uses retired keys: ${retired.join(", ")}`,
+      fix: commandFix(policyCommand(facts, "--migrate")),
+    });
   }
 
   let policy: ReturnType<typeof parsePolicy>;
@@ -492,15 +392,20 @@ function policyArea(facts: DoctorFacts): Found[] {
     const messages =
       error instanceof InputError ? error.messages : [(error as Error).message];
 
-    return messages.map((line) => ({
-      code: "policy-invalid" as const,
-      subject: POLICY_FILE,
-      line,
-      fix: invalidFix(facts, line),
-    }));
+    return [
+      ...found,
+      ...messages
+        .filter((line) => !/^policy: "[^"]+" is retired;/.test(line))
+        .map((line) => ({
+          code: "policy-invalid" as const,
+          subject: POLICY_FILE,
+          line,
+          fix: invalidFix(),
+        })),
+    ];
   }
 
-  if (policy.components.size === 0 || facts.languages.length === 0) {
+  if (policy.entryGlobs.length === 0 || facts.languages.length === 0) {
     return [];
   }
 
@@ -549,14 +454,10 @@ function policyArea(facts: DoctorFacts): Found[] {
   }
 
   return policyProblems(state.scans, policy).map((problem) => ({
-    code:
-      problem.kind === "entry" ? ("policy-entry" as const) : "policy-folder",
+    code: "policy-entry" as const,
     subject: problem.subject,
     line: problem.text,
-    fix:
-      problem.kind === "entry"
-        ? entryFix(facts, policy, problem.subject)
-        : folderFix(facts, problem.subject),
+    fix: entryFix(facts, problem.subject),
   }));
 }
 

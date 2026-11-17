@@ -35,9 +35,8 @@
     {
       "from": "shop/domain/money.py",
       "rule": {
-        "type": "level",
-        "from_level": "domain",
-        "to_level": "ports"
+        "type": "forbid",
+        "pattern": "shop/domain/** -> shop/ports/**, shop/application/**, shop/adapters/**, shop/main.py"
       },
       "imports": [
         {
@@ -52,9 +51,8 @@
     {
       "from": "shop/domain/order.py",
       "rule": {
-        "type": "level",
-        "from_level": "domain",
-        "to_level": "adapters"
+        "type": "forbid",
+        "pattern": "shop/domain/** -> shop/ports/**, shop/application/**, shop/adapters/**, shop/main.py"
       },
       "imports": [
         {
@@ -64,17 +62,7 @@
             4,
             12
           ]
-        }
-      ]
-    },
-    {
-      "from": "shop/domain/order.py",
-      "rule": {
-        "type": "level",
-        "from_level": "domain",
-        "to_level": "application"
-      },
-      "imports": [
+        },
         {
           "to": "shop/application/place.py",
           "kind": "depends",
@@ -121,9 +109,8 @@
     {
       "from": "shop/domain/money.py",
       "rule": {
-        "type": "level",
-        "from_level": "domain",
-        "to_level": "ports"
+        "type": "forbid",
+        "pattern": "shop/domain/** -> shop/ports/**, shop/application/**, shop/adapters/**, shop/main.py"
       },
       "imports": [
         {
@@ -138,9 +125,8 @@
     {
       "from": "shop/domain/order.py",
       "rule": {
-        "type": "level",
-        "from_level": "domain",
-        "to_level": "application"
+        "type": "forbid",
+        "pattern": "shop/domain/** -> shop/ports/**, shop/application/**, shop/adapters/**, shop/main.py"
       },
       "imports": [
         {
@@ -150,7 +136,8 @@
             7
           ]
         }
-      ]
+      ],
+      "grown": true
     }
   ],
   "fixed": [
@@ -160,7 +147,6 @@
       "kind": "depends"
     }
   ],
-  "unranked": 1,
   "baseline": {
     "present": true,
     "action": "none"

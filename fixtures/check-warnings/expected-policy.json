@@ -3,9 +3,8 @@
     {
       "from": "app/domain/order.py",
       "rule": {
-        "type": "level",
-        "from_level": "domain",
-        "to_level": "adapters"
+        "type": "forbid",
+        "pattern": "app/domain/** -> app/ports/**, app/application/**, app/adapters/**"
       },
       "imports": [
         {
@@ -20,7 +19,6 @@
   ],
   "new": [],
   "fixed": [],
-  "unranked": 0,
   "baseline": {
     "present": true,
     "action": "none"

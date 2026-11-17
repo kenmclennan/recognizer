@@ -40,7 +40,7 @@ describe("check against the fixture", () => {
 
     expect(code).toBe(1);
     expect(actual).toEqual(expected);
-    expect(err).toContain("violations: 5, new: 4, fixed: 1, unranked: 1");
+    expect(err).toContain("violations: 4, new: 4, fixed: 1");
   });
 
   it("agrees with the library", () => {
@@ -57,7 +57,6 @@ describe("check against the fixture", () => {
       violations: expected.violations,
       new: expected.new,
       fixed: expected.fixed,
-      unranked: expected.unranked,
     });
   });
 
@@ -69,7 +68,7 @@ describe("check against the fixture", () => {
     );
 
     expect(child.status).toBe(1);
-    expect(JSON.parse(child.stdout).unranked).toBe(1);
+    expect(JSON.parse(child.stdout).violations).toHaveLength(4);
   });
 
   it("treats a missing baseline as empty and says so", () => {
@@ -80,16 +79,13 @@ describe("check against the fixture", () => {
     const result = JSON.parse(out);
 
     expect(result.baseline.present).toBe(false);
-    expect(result.new).toHaveLength(5);
+    expect(result.new).toHaveLength(4);
   });
 
   it("exits 0 when everything is ignored", () => {
     const dir = copyFixture();
     const policyPath = join(dir, ".recognizer/policy.yaml");
-    writeFileSync(
-      policyPath,
-      'components:\n  a: x/**\nlevels: [a]\nignore: ["**"]\n',
-    );
+    writeFileSync(policyPath, 'ignore: ["**"]\n');
 
     expect(execute(checkArgs(dir)).code).toBe(0);
   });
@@ -199,10 +195,7 @@ describe("--init-baseline", () => {
 
   it("creates an empty baseline for a clean scan", () => {
     const dir = copyFixture();
-    writeFileSync(
-      join(dir, ".recognizer/policy.yaml"),
-      "components:\n  a: x/**\nlevels: [a]\n",
-    );
+    writeFileSync(join(dir, ".recognizer/policy.yaml"), "forbid: []\n");
     const baselinePath = join(dir, "clean/violations.json");
 
     expect(
@@ -285,13 +278,13 @@ describe("bad input", () => {
   });
 });
 
-describe("check against the uses-form fixture", () => {
+describe("check against the migrated uses-form fixture", () => {
   const USES = join(REPO, "fixtures/check-uses");
   const usesExpected = JSON.parse(
     readFileSync(join(USES, "expected.json"), "utf8"),
   );
 
-  it("prints expected.json, exits 1 and summarises the uses rule", () => {
+  it("prints expected.json, exits 1 and summarises the forbid rule", () => {
     const { code, out, err } = execute(checkArgs(USES));
     const actual = JSON.parse(out);
 
@@ -299,7 +292,7 @@ describe("check against the uses-form fixture", () => {
 
     expect(code).toBe(1);
     expect(actual).toEqual(usesExpected);
-    expect(err).toContain("uses orders -> billing");
+    expect(err).toContain("forbid app/orders/** -> app/billing/**");
   });
 
   it("agrees with the library", () => {
@@ -310,7 +303,6 @@ describe("check against the uses-form fixture", () => {
     );
 
     expect(result.violations).toEqual(usesExpected.violations);
-    expect(result.unranked).toBe(usesExpected.unranked);
   });
 
   it("has a scan that validates against the schema", () => {

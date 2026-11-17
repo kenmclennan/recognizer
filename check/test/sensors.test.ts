@@ -21,7 +21,6 @@ import {
   hashedScan,
   inputsOf,
   mountedModules,
-  POLICY_PROBLEM,
   type Program,
   PYTHON,
   ROOT,
@@ -147,7 +146,7 @@ describe("scan --sense running a registered sensor", () => {
     const report = JSON.parse(out.slice(sensed.out.length));
 
     expect(code).toBe(1);
-    expect(report.violations).toHaveLength(6);
+    expect(report.violations).toHaveLength(5);
     expect(report.new).toHaveLength(5);
     expect(
       report.new.map((v: { finding_id?: string }) => v.finding_id),
@@ -530,7 +529,7 @@ describe("check reading registered sensors", () => {
       name: "fake-sensor",
       status: "missing",
     });
-    expect(report.violations).toHaveLength(5);
+    expect(report.violations).toHaveLength(4);
   });
 
   it("accepts the sensor's violation once the baseline lists it by id", async () => {
@@ -557,7 +556,7 @@ describe("check reading registered sensors", () => {
     const report = JSON.parse(out);
 
     expect(err).toContain("stale fake-sensor");
-    expect(report.violations).toHaveLength(5);
+    expect(report.violations).toHaveLength(4);
     expect(report.sensors).toContainEqual({
       name: "fake-sensor",
       status: "stale",
@@ -708,7 +707,7 @@ describe("check judging a registered sensor's findings per module", () => {
     });
     const { err, out } = await check(fake, "--json");
 
-    expect(err).toBe(POLICY_PROBLEM + NOT_MEASURED);
+    expect(err).toBe(NOT_MEASURED);
     expect(JSON.parse(out).sensors).toContainEqual({
       name: "fake-sensor",
       status: "ran",
@@ -822,7 +821,7 @@ describe("check running the structure sensor", () => {
     expect(out.split("\n")[0]).toBe(
       "sensor structure: cycle on, orphan on, unused_exports off, private_imports on, long_function on, long_function_limit 20, complexity on, complexity_limit 10",
     );
-    expect(err).toBe(POLICY_PROBLEM + NOT_MEASURED);
+    expect(err).toBe(NOT_MEASURED);
   });
 
   it("writes no file and removes an old one when structure is off", async () => {

@@ -193,7 +193,7 @@ describe("structureSensor over the committed fixtures", () => {
     expect(found.map((f) => f.id)).toEqual(
       expected.violations.map(violationId),
     );
-    expect(found).toHaveLength(5);
+    expect(found).toHaveLength(4);
   });
 
   it("finds the violation and cycle fixtures/check-warnings lists, by id", () => {
@@ -233,9 +233,7 @@ describe("grouped violation records", () => {
       edges,
       foreign: [],
     });
-    const policy = parsePolicy(
-      "levels: [domain, adapters]\ncomponents:\n  domain: d/**\n  adapters: x/**\n",
-    );
+    const policy = parsePolicy("forbid:\n  - d/** -> x/**\n");
     const document = structureSensor(
       [scan],
       policy,
@@ -243,14 +241,10 @@ describe("grouped violation records", () => {
       CONTEXT,
     ).document;
     const found = document.findings.filter((f) => f.kind === "rule-violation");
-    const rule = {
-      type: "level",
-      from_level: "domain",
-      to_level: "adapters",
-    };
+    const rule = { type: "forbid", pattern: "d/** -> x/**" };
 
     expect(found).toHaveLength(1);
-    expect(found[0]?.id).toBe("rule-violation:level domain -> adapters:d/a.py");
+    expect(found[0]?.id).toBe("rule-violation:forbid d/** -> x/**:d/a.py");
     expect(found[0]?.evidence.modules).toEqual(["d/a.py"]);
     expect(found[0]?.evidence.edges).toEqual([
       {
@@ -284,13 +278,11 @@ describe("the principle each finding cites", () => {
     expect(cycle).toMatchObject(principleOf("levelization"));
   });
 
-  it("cites the Dependency Inversion Principle on a level violation", () => {
+  it("cites the repository policy on a violation of the migrated check-warnings policy", () => {
     const found = cited("check-warnings", "rule-violation");
 
     expect(found).toHaveLength(1);
-    expect(found[0]).toMatchObject(
-      principleOf("dependency-inversion-principle"),
-    );
+    expect(found[0]).toMatchObject(principleOf("repository-policy"));
   });
 
   it("cites the repository policy, with no citation key, on forbid violations", () => {
@@ -328,12 +320,11 @@ describe("baseline compatibility", () => {
     const baseline = parseBaseline(baselineText);
     const ranked = rankAgainstBaseline(
       collectViolations(scan, policy).violations,
-      0,
       baseline,
     );
 
     expect(baseline).toHaveLength(2);
-    expect(ranked.violations).toHaveLength(5);
+    expect(ranked.violations).toHaveLength(4);
     expect(ranked.new).toHaveLength(4);
     expect(ranked.fixed).toEqual([
       {
@@ -349,7 +340,6 @@ describe("baseline compatibility", () => {
     const baseline = parseBaseline(baselineText);
     const ranked = rankAgainstBaseline(
       collectViolations(scan, policy).violations,
-      0,
       baseline,
     );
 

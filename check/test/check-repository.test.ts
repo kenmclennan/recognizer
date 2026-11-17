@@ -11,7 +11,6 @@ import {
   hashedScan,
   inputsOf,
   mountedModules,
-  POLICY_PROBLEM,
   PYTHON,
   ROOT,
   TYPESCRIPT,
@@ -95,16 +94,16 @@ describe("check in repository mode", () => {
     delete report.sensors;
 
     expect(report).toEqual(expected);
-    expect(err).toBe(POLICY_PROBLEM + NOT_MEASURED);
+    expect(err).toBe(NOT_MEASURED);
   });
 
   it("prints the summary and the warnings as text on stdout only", () => {
     const { code, out, err } = check([]);
 
     expect(code).toBe(1);
-    expect(out).toContain("violations: 5, new: 4, fixed: 1, unranked: 1");
+    expect(out).toContain("violations: 4, new: 4, fixed: 1");
     expect(out).toContain("warnings: ");
-    expect(err).toBe(POLICY_PROBLEM + NOT_MEASURED);
+    expect(err).toBe(NOT_MEASURED);
   });
 
   it("reports metrics and warnings only when there is no policy", () => {
@@ -258,7 +257,7 @@ describe("check writes the baseline per import", () => {
     expect(
       written.map((entry) => ("to" in entry ? entry.to : "")).sort(),
     ).toEqual(CURRENT_IMPORTS.map((one) => one.to).sort());
-    expect(JSON.parse(result.out).violations).toHaveLength(6);
+    expect(JSON.parse(result.out).violations).toHaveLength(5);
   });
 
   it("update-baseline shrinks by an import of a surviving finding", () => {

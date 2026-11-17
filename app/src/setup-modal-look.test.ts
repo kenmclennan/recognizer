@@ -20,7 +20,7 @@ const proposal = {
     { section: "problems", title: "Drop key", reason: "retired", commands: [["recognizer", "config", "--unset", "a.b"]] },
     { section: "problems", title: "Add suite", reason: "tests exist", commands: [["recognizer", "config", "tests.api.command", "pytest"]] },
     { section: "tests", title: "Run the suites", reason: "prove them", commands: [["recognizer", "sensors", "check", "--run"]] },
-    { section: "policy", title: "Draft layers", reason: "two layers", commands: [["recognizer", "policy", "--add", "levels", "core"]] },
+    { section: "policy", title: "Name an entry point", reason: "the main module is run, not imported", commands: [["recognizer", "policy", "--add", "entry", "src/main.ts"]] },
   ],
 };
 const settle = () => new Promise((resolve) => setTimeout(resolve, 30));

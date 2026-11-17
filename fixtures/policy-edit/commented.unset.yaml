@@ -1,16 +1,14 @@
 # The shop's rules.
-levels:
-  - domain
-  - ports
+entry: [shop/main.py]
 
-# Where each component lives.
-components:
-  domain: shop/domain/**
-  ports:
-    - shop/ports/**
-    - shop/ports2/**
-    - shop/ports3/**
-  entry: [shop/main.py]
-
+# What may not import what.
 forbid:
   - shop/adapters/* -> shop/adapters/* # no sideways calls
+  - from: [shop/domain/**]
+    to: [shop/ports/**, shop/adapters/**]
+  - shop/ui/** -> shop/db/**
+
+foreign:
+  http:
+    - requests
+    - urllib
