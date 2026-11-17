@@ -66,24 +66,10 @@
       "cell": 1
     },
     {
-      "name": "coverage",
-      "label": "cov",
-      "title": "Coverage",
-      "help": "The share of the function's lines the tests run.",
-      "type": "ratio",
-      "granularity": "member",
-      "bad": "low",
-      "published": {
-        "value": 0.6,
-        "source": "Google's guidelines"
-      },
-      "cell": 3
-    },
-    {
       "name": "crap",
       "label": "CRAP",
-      "title": "C.R.A.P.",
-      "help": "Complexity weighed against coverage: the higher it is, the riskier the function is to change.",
+      "title": "C.R.A.P. score",
+      "help": "Complexity weighed against how well tests cover each function.",
       "type": "number",
       "granularity": "member",
       "bad": "high",
@@ -92,6 +78,20 @@
         "source": "Savoia and Evans"
       },
       "cell": 2
+    },
+    {
+      "name": "coverage",
+      "label": "cov",
+      "title": "Coverage",
+      "help": "Share of each function's lines the tests run.",
+      "type": "ratio",
+      "granularity": "member",
+      "bad": "low",
+      "published": {
+        "value": 0.6,
+        "source": "Google's guidelines"
+      },
+      "cell": 3
     }
   ],
   "findings": [

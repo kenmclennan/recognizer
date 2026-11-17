@@ -483,7 +483,7 @@ def test_the_fixture_gives_the_pinned_findings_and_overlay(sample, tmp_path, cap
     assert overlay["commit"] == "c1"
     assert overlay["modified"] is False
     assert overlay["producer"]["name"] == "crap"
-    assert [m["name"] for m in overlay["metrics"]] == ["complexity", "coverage", "crap"]
+    assert [m["name"] for m in overlay["metrics"]] == ["complexity", "crap", "coverage"]
     assert overlay["values"]["complexity"] == {
         "app/risk.py::classify": 8,
         "app/risk.py::gate": 5,

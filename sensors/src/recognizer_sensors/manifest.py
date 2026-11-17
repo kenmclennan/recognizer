@@ -28,7 +28,7 @@ LABELS = {
 TITLES = {
     "complexity": "Complexity",
     "coverage": "Coverage",
-    "crap": "C.R.A.P.",
+    "crap": "C.R.A.P. score",
     "survived": "Survived mutants",
     "killed": "Killed mutants",
     "uncovered": "Uncovered mutants",
@@ -63,17 +63,14 @@ METRIC_FIELDS = {
         "type": "ratio",
         "granularity": "member",
         "bad": "low",
-        "help": "The share of the function's lines the tests run.",
+        "help": "Share of each function's lines the tests run.",
         "published": {"value": 0.6, "source": "Google's guidelines"},
     },
     "crap": {
         "type": "number",
         "granularity": "member",
         "bad": "high",
-        "help": (
-            "Complexity weighed against coverage: the higher it "
-            "is, the riskier the function is to change."
-        ),
+        "help": ("Complexity weighed against how well tests cover each function."),
         "published": {"value": 30, "source": "Savoia and Evans"},
     },
     "killed": {
@@ -284,7 +281,7 @@ def build(name: str) -> dict:
     if name == "crap":
         return {
             **common("crap", "C.R.A.P.", True, "functions", strip("sensors.crap.", CRAP_KEYS)),
-            "metrics": [metric("complexity"), metric("coverage"), metric("crap")],
+            "metrics": [metric("complexity"), metric("crap"), metric("coverage")],
             "findings": [
                 finding(
                     "crap",
