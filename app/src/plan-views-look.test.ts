@@ -231,7 +231,7 @@ describe.skipIf(webkit === undefined)("plan views in a real browser", () => {
     ]);
     expect(f.legend.change).toBe(0);
     expect(f.change.planRows).toBe(0);
-    expect(f.change.changeRows).toBe(3);
+    expect(f.change.changeRows).toBe(4);
   });
 
   it("shows the proposed change and the source path in the inspector", () => {

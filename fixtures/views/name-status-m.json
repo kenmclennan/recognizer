@@ -1,0 +1,4 @@
+{
+  "description": "git diff -M --name-status -z base...head for a range with M, A, D and R in src and test",
+  "stdout": "M\u0000src/mod.py\u0000A\u0000src/added.py\u0000D\u0000src/gone.py\u0000R100\u0000src/old.py\u0000src/new.py\u0000M\u0000test/test_mod.py\u0000A\u0000test/test_added.py\u0000D\u0000test/test_gone.py\u0000R090\u0000test/test_old.py\u0000test/test_new.py\u0000"
+}

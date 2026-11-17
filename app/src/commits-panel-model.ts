@@ -1,4 +1,8 @@
-import type { ChangeClassification, FileChange, MarkScan } from "recognizer";
+import type {
+  ChangeClassification,
+  FileChange,
+  ScanSelection,
+} from "recognizer";
 import { classifyChanges } from "recognizer";
 import type { BranchRow, HistoryRow, PullRequestRow } from "./commits-parse";
 import type { RefFacts } from "./commits-port";
@@ -301,14 +305,14 @@ export type Classification = ChangeClassification;
 
 export function classify(
   changes: readonly FileChange[] | null,
-  scans: readonly MarkScan[] | null,
+  selections: readonly ScanSelection[] | null,
 ): Classification | null {
-  return changes === null || scans === null || scans.length === 0
+  return changes === null || selections === null || selections.length === 0
     ? null
-    : classifyChanges([...changes], [...scans]);
+    : classifyChanges([...changes], [...selections]);
 }
 
-export type Tone = "added" | "modified" | "removed";
+export type Tone = "added" | "modified" | "renamed" | "removed";
 
 export type Square = { tone: Tone; count: number };
 
@@ -318,12 +322,13 @@ export type Impact = {
   elsewhere: string | null;
 };
 
-const TONES: Tone[] = ["added", "modified", "removed"];
+const TONES: Tone[] = ["added", "modified", "renamed", "removed"];
 
 export function onCanvas(classification: Classification): number {
   return (
     classification.added.length +
     classification.modified.length +
+    classification.renamed.length +
     classification.removed.length
   );
 }
@@ -359,6 +364,7 @@ export type TipLine = {
 const TONE_WORDS: Record<Tone, string> = {
   added: "added",
   modified: "modified",
+  renamed: "renamed",
   removed: "removed",
 };
 

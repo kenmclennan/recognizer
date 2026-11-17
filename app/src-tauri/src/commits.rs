@@ -91,7 +91,7 @@ pub fn list_history(folder: &Path) -> Result<History, String> {
             "log",
             "-n",
             HISTORY_LIMIT,
-            "--no-renames",
+            "-M",
             "--diff-merges=first-parent",
             "--name-status",
             HISTORY_FORMAT,
@@ -196,7 +196,7 @@ fn facts_for(folder: &Path, default: &str, reference: &str, limit: usize) -> Ref
         folder,
         &[
             "diff",
-            "--no-renames",
+            "-M",
             "--name-status",
             "-z",
             &format!("{default}...{reference}"),
@@ -547,14 +547,49 @@ mod tests {
                     FileChange {
                         status: "M".to_string(),
                         path: "a.py".to_string(),
+                        from: None,
                     },
                     FileChange {
                         status: "A".to_string(),
                         path: "c.py".to_string(),
+                        from: None,
                     },
                 ]),
             }]
         );
+    }
+
+    #[test]
+    fn facts_for_reads_a_rename() {
+        let dir = repository();
+
+        with_origin_head(dir.path());
+        run_git(dir.path(), &["checkout", "-q", "-b", "feature"]);
+        run_git(dir.path(), &["mv", "a.py", "renamed.py"]);
+        run_git(dir.path(), &["commit", "-q", "-m", "rename"]);
+
+        let facts = facts_for(dir.path(), "main", "feature", 10);
+
+        assert_eq!(
+            facts.changes,
+            Some(vec![FileChange {
+                status: "R".to_string(),
+                path: "renamed.py".to_string(),
+                from: Some("a.py".to_string()),
+            }])
+        );
+    }
+
+    #[test]
+    fn list_history_reads_a_rename_as_a_three_field_line() {
+        let dir = repository();
+
+        run_git(dir.path(), &["mv", "a.py", "renamed.py"]);
+        run_git(dir.path(), &["commit", "-q", "-m", "rename"]);
+
+        let history = list_history(dir.path()).unwrap();
+
+        assert!(history.text.contains("R100\ta.py\trenamed.py"));
     }
 
     #[test]

@@ -1215,7 +1215,7 @@ describe("change views", () => {
           return { status: merged.includes(args.at(-2) as string) ? 0 : 1 };
         }
 
-        if (args.includes("--no-renames")) {
+        if (args.includes("-M")) {
           return { stdout: diff };
         }
 
@@ -1438,7 +1438,7 @@ describe("change views", () => {
       range: "main..feat",
       baseCommit: COMMIT,
       headCommit: "feed01",
-      unmatched: 0,
+      unmatched: 1,
     });
     expect(document.modules).toEqual([
       {
@@ -1446,7 +1446,6 @@ describe("change views", () => {
         mark: "added",
         box: "current",
       },
-      { id: "shop/gone.py", mark: "removed", box: "none" },
     ]);
   });
 

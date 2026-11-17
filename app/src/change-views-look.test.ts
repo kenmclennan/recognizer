@@ -119,14 +119,61 @@ const openLegend = (m) => click(m.all("button").find((b) => b.textContent === "L
   await tick(80);
   facts.change = {
     boxes: change.all(".box").map((b) => [b.dataset.id, b.classList.contains("mark-added") ? "added" : b.classList.contains("mark-modified") ? "modified" : b.classList.contains("mark-removed") ? "removed" : ""]),
-    removedBoxes: change.all(".removed-box").map((b) => b.dataset.removed),
-    removedDash: getComputedStyle(change.q(".removed-box .box-body")).strokeDasharray,
-    removedStrike: getComputedStyle(change.q(".removed-box .name")).textDecorationLine,
+    removedBoxes: change.all(".box.mark-removed").map((b) => b.dataset.id),
+    removedDash: getComputedStyle(change.q(".box.mark-removed .box-body")).strokeDasharray,
+    removedStrike: getComputedStyle(change.q(".box.mark-removed .name")).textDecorationLine,
     legend: (openLegend(change), legendRows(change)),
     chip: change.q(".view-range-chip").textContent,
     footer: change.state.count,
     bodyText: change.host.textContent.includes("proposed"),
   };
+
+  const union = mount({ chg: make({ change: { base: "main", head: "feat" } }) });
+  const unionSelection = { ...selection, skip_directory_names: ["tests"] };
+  const unionModules = (ids) => ids.map((id) => ({ id, kind: "module" }));
+  union.port.ranges.set("main..feat", {
+    baseCommit: "base999",
+    headCommit: "feed01",
+    merged: false,
+    changes: [
+      { status: "M", path: "p/a.py" },
+      { status: "A", path: "p/added.py" },
+      { status: "D", path: "p/gone.py" },
+      { status: "R", path: "p/new.py", from: "p/old.py" },
+      { status: "M", path: "tests/t_mod.py" },
+      { status: "A", path: "tests/t_added.py" },
+      { status: "D", path: "tests/t_gone.py" },
+      { status: "R", path: "tests/t_new.py", from: "tests/t_old.py" },
+    ],
+  });
+  union.port.scansByCommit.set("feed01", [{ commit: "feed01", selection: unionSelection, modules: unionModules(["p/a.py", "p/b.py", "p/added.py", "p/new.py"]), edges: [{ from: "p/added.py", to: "p/a.py", kind: "depends", line: 1, names: ["f"] }], foreign: [] }]);
+  union.port.scansByCommit.set("base999", [{ commit: "base999", selection: unionSelection, modules: unionModules(["p/a.py", "p/b.py", "p/gone.py", "p/old.py"]), edges: [{ from: "p/gone.py", to: "p/a.py", kind: "depends", line: 1, names: ["f"] }], foreign: [] }]);
+  await tick();
+  click(union.q(".view-list"));
+  click(union.q(".view-item"));
+  await tick(160);
+  const rectOf = (m, id) => { const r = m.q('.box[data-id="' + id + '"] .box-body').getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; };
+  const unionBoxes = union.all(".box.module");
+  const frames = union.all(".box.folder");
+  facts.union = {
+    boxes: unionBoxes.map((b) => [b.dataset.id, b.classList.contains("mark-added") ? "added" : b.classList.contains("mark-modified") ? "modified" : b.classList.contains("mark-renamed") ? "renamed" : b.classList.contains("mark-removed") ? "removed" : ""]).sort((a, b) => a[0].localeCompare(b[0])),
+    renamedTitle: union.q('.box[data-id="p/new.py"] title')?.textContent ?? null,
+    footer: union.state.count,
+    goneInsideSiblingColumn: (() => { const gone = rectOf(union, "p/gone.py"); const sibling = rectOf(union, "p/a.py"); const all = unionBoxes.map((b) => rectOf(union, b.dataset.id)); const bottomMost = Math.max(...all.map((r) => r.bottom)); return { sameBand: gone.top <= bottomMost && gone.bottom <= bottomMost, belowScene: gone.top > Math.max(...all.filter((r) => r !== gone).map((r) => r.bottom)), siblingTop: sibling.top }; })(),
+    frames: frames.length,
+    emptyHintHidden: union.q(".empty-canvas") === null ? null : union.q(".empty-canvas").hidden,
+    countLine: union.state.count.split(" modules on the canvas")[0],
+  };
+
+  const headless = mount({ chg: make({ change: { base: "main", head: "feat" } }) });
+  headless.port.ranges.set("main..feat", { baseCommit: "base999", headCommit: "feed01", merged: false, changes: [{ status: "M", path: "p/a.py" }] });
+  headless.port.scansByCommit.set("base999", [baseScan]);
+  headless.port.reasons.set("feed01", "head checkout failed");
+  await tick();
+  click(headless.q(".view-list"));
+  click(headless.q(".view-item"));
+  await tick(80);
+  facts.headUnreadable = { footer: headless.state.count, boxes: headless.all(".box").map((b) => b.dataset.id) };
 
   const unreadable = mount({ chg: make({ change: { base: "main", head: "feat" } }) });
   unreadable.port.ranges.set("main..feat", {
@@ -250,6 +297,15 @@ type Facts = {
     footer: string;
     bodyText: boolean;
   };
+  union: {
+    boxes: [string, string][];
+    emptyHintHidden: boolean | null;
+    countLine: string;
+    renamedTitle: string | null;
+    footer: string;
+    goneInsideSiblingColumn: { belowScene: boolean };
+  };
+  headUnreadable: { footer: string; boxes: string[] };
   unreadable: { footer: string };
   headGone: {
     boxes: string[];
@@ -338,12 +394,18 @@ describe.skipIf(webkit === undefined)("change views in a real browser", () => {
       ]),
     );
     expect(f.change.removedBoxes).toEqual(["p/gone.py"]);
+    expect(f.change.boxes.map((entry) => entry[0])).toContain("p/gone.py");
     expect(f.change.removedDash).not.toBe("none");
     expect(f.change.removedStrike).toBe("line-through");
   });
 
   it("names the three marks in a legend, shows the range chip and the footer line", () => {
-    expect(f.change.legend).toEqual(["added", "modified", "removed"]);
+    expect(f.change.legend).toEqual([
+      "added",
+      "modified",
+      "renamed",
+      "removed",
+    ]);
     expect(f.change.chip).toBe("main..feat");
     expect(f.change.footer).toContain("diffed against main..feat just now");
     expect(f.change.footer).toContain("1 changed files matched no module");
@@ -357,6 +419,30 @@ describe.skipIf(webkit === undefined)("change views in a real browser", () => {
     expect(f.change.footer).not.toContain("could not be marked");
   });
 
+  it("draws a node for every counted file: added, removed in its folder, renamed once at its new path, and no test file", () => {
+    expect(f.union.boxes).toEqual([
+      ["p/a.py", "modified"],
+      ["p/added.py", "added"],
+      ["p/gone.py", "removed"],
+      ["p/new.py", "renamed"],
+    ]);
+    expect(f.union.goneInsideSiblingColumn.belowScene).toBe(false);
+    expect(f.union.renamedTitle).toBe("renamed from p/old.py");
+    expect(f.union.footer).toContain("diffed against main..feat just now");
+    expect(f.union.footer).not.toContain("could not be read");
+  });
+
+  it("counts every drawn box as open: the empty hint is hidden and the footer counts the boxes drawn against the modules in the range", () => {
+    expect(f.union.emptyHintHidden).toBe(true);
+    expect(f.union.countLine).toBe("4 of 5");
+  });
+
+  it("states the head unreadable in the footer rather than dropping files", () => {
+    expect(f.headUnreadable.footer).toContain(
+      "the head could not be read, so added and renamed files may be missing: head checkout failed",
+    );
+  });
+
   it("lands the marks, footer line, chip and legend entries when a change view is opened by link", () => {
     expect(f.linked.marks).toEqual(
       expect.arrayContaining([
@@ -366,7 +452,12 @@ describe.skipIf(webkit === undefined)("change views in a real browser", () => {
     );
     expect(f.linked.footer).toContain("diffed against main..feat just now");
     expect(f.linked.chip).toBe("main..feat");
-    expect(f.linked.legend).toEqual(["added", "modified", "removed"]);
+    expect(f.linked.legend).toEqual([
+      "added",
+      "modified",
+      "renamed",
+      "removed",
+    ]);
   });
 
   it("lands the marks again when a rescan rebuilds the explorer around an open change view", () => {
