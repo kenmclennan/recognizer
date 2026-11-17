@@ -229,3 +229,71 @@ describe("withHeading", () => {
     );
   });
 });
+
+describe("layoutHeading with facts", () => {
+  const anchor = { centre: 450, top: 150, width: 610 };
+  const line = (letter: string) => letter.repeat(70);
+  const paragraph = (count: number) =>
+    ["a", "b", "c", "d"].slice(0, count).map(line).join(" ");
+  const layout = (description: string, facts?: string[]) =>
+    layoutHeading(
+      { title: "T", description, ...(facts === undefined ? {} : { facts }) },
+      anchor,
+      measureAt,
+      measureAt,
+    )?.descriptionLines;
+
+  it("shows a two-line description and one facts line as three lines with no ellipsis", () => {
+    expect(layout(paragraph(2), ["facts"])).toEqual([
+      line("a"),
+      line("b"),
+      "facts",
+    ]);
+  });
+
+  it("cuts a three-line description to two lines ending in an ellipsis beside one facts line", () => {
+    const lines = layout(paragraph(3), ["facts"]);
+
+    expect(lines).toHaveLength(3);
+    expect(lines?.[0]).toBe(line("a"));
+    expect(lines?.[1]?.endsWith("…")).toBe(true);
+    expect(lines?.[2]).toBe("facts");
+  });
+
+  it("leaves one description line beside two facts lines", () => {
+    expect(layout(paragraph(3), ["one", "two"])).toEqual([
+      `${line("a")}…`,
+      "one",
+      "two",
+    ]);
+  });
+
+  it("drops the description beside three facts lines", () => {
+    expect(layout(paragraph(2), ["one", "two", "three"])).toEqual([
+      "one",
+      "two",
+      "three",
+    ]);
+  });
+
+  it("cuts four facts lines to three with an ellipsis ending the third", () => {
+    expect(layout(paragraph(2), ["one", "two", "three", "four"])).toEqual([
+      "one",
+      "two",
+      "three…",
+    ]);
+  });
+
+  it("wraps a long facts entry on its own", () => {
+    const lines = layout("", [`${line("a")} ${line("b")}`]);
+
+    expect(lines).toEqual([line("a"), line("b")]);
+  });
+
+  it("keeps the three-line cap without facts", () => {
+    const lines = layout(paragraph(4));
+
+    expect(lines).toHaveLength(3);
+    expect(lines?.[2]?.endsWith("…")).toBe(true);
+  });
+});
