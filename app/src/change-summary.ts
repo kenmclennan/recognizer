@@ -1,9 +1,10 @@
-import type { ViewChange } from "recognizer";
+import { changeChip, type ViewChange } from "recognizer";
 import type {
   BranchTip,
   CommitDetail,
   PullDetail,
 } from "./change-detail-parse";
+import { filesText } from "./commits-panel-model";
 import type { HistoryRow } from "./commits-parse";
 
 export type ChangeKind =
@@ -35,6 +36,7 @@ export type ChangeSummary = {
 };
 
 const VIEW_NAME_MAX = 64;
+const SEPARATOR = " \u00b7 ";
 
 export function kindOfChange(change: ViewChange): ChangeKind {
   const name = change.name;
@@ -143,4 +145,98 @@ export function formatDate(seconds: number, zone: string): string {
   const found = parts(seconds, zone);
 
   return `${found.get("day")} ${found.get("month")} ${found.get("year")} ${found.get("hour")}:${found.get("minute")}`;
+}
+
+function joined(items: readonly (string | null)[]): string {
+  return items.filter((item) => item !== null && item !== "").join(SEPARATOR);
+}
+
+function countsText(counts: ChangeCounts | null): string | null {
+  if (counts === null) {
+    return null;
+  }
+
+  const base = `${filesText(counts.onCanvas)} on the canvas`;
+
+  return counts.elsewhere > 0
+    ? `${base}, ${counts.elsewhere} not on the canvas`
+    : base;
+}
+
+function aheadText(facts: ChangeSummaryFacts): string | null {
+  if (facts.ahead === null || facts.behind === null) {
+    return null;
+  }
+
+  const base = `${facts.ahead} ahead, ${facts.behind} behind`;
+
+  return facts.defaultBranch === null ? base : `${base} ${facts.defaultBranch}`;
+}
+
+function lines(items: readonly string[]): string[] {
+  return items.filter((item) => item !== "");
+}
+
+function pullTitle(pull: PullDetail): string {
+  return `#${pull.number} ${pull.title}`;
+}
+
+export function summariseChange(
+  change: ViewChange,
+  facts: ChangeSummaryFacts,
+  zone: string,
+): ChangeSummary {
+  const kind = kindOfChange(change);
+  const plain = changeChip(change).text;
+  const counts = countsText(facts.counts);
+  let title = plain;
+  let chip = plain;
+  let lead: string | null = null;
+  let shown: string[] = lines([counts ?? ""]);
+
+  if (kind.kind === "commit") {
+    const commit = facts.commit;
+
+    if (commit !== null) {
+      title = commit.subject === "" ? plain : commit.subject;
+      chip = `${plain}${SEPARATOR}${formatDay(commit.time, zone)}`;
+      lead = firstParagraph(commit.body, null);
+    }
+
+    shown = lines([
+      joined([
+        commit?.author ?? null,
+        commit === null ? null : formatDate(commit.time, zone),
+        counts,
+      ]),
+    ]);
+  } else if (kind.kind === "pr") {
+    const pull = facts.pull;
+
+    if (pull !== null) {
+      title = pullTitle(pull);
+      lead = firstParagraph(pull.body, pull.title);
+    }
+
+    shown = lines([
+      joined([
+        pull?.author ?? null,
+        pull?.state ?? null,
+        pull === null || pull.checks === "none"
+          ? null
+          : `checks ${pull.checks}`,
+        aheadText(facts),
+        counts,
+      ]),
+    ]);
+  }
+
+  return {
+    title,
+    chip,
+    lead,
+    facts: shown,
+    saveDescription:
+      kind.kind === "branch" ? (shown[0] ?? "") : (lead ?? shown[0] ?? ""),
+  };
 }
