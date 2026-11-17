@@ -27,7 +27,7 @@ const COMMIT = "abc123";
 const CACHE = `${ROOT}/.recognizer/cache/scan.python.json`;
 const READY_SENSOR =
   "sensors:\n  crap:\n    command: [recognizer-sense-crap, run]\n";
-const POLICY = 'components:\n  core: "m*.py"\n';
+const POLICY = 'entry:\n  - "m*.py"\n';
 
 interface Setup {
   config?: string | null;
@@ -519,7 +519,44 @@ describe("doctor: policy", () => {
     expect(codes(result.report)).toEqual(["policy:policy-invalid"]);
   });
 
-  it("reports a folder no component covers", () => {
+  it("reports a retired key as one policy-retired problem with the migration fix", () => {
+    const result = json(
+      setup({
+        ...clean,
+        policy:
+          "components:\n  core: m0.py\nlevels: [core]\nuses:\n  core: []\n",
+      }),
+    );
+
+    expect(result.report.areas[1].problems).toEqual([
+      {
+        severity: "problem",
+        code: "policy-retired",
+        subject: ".recognizer/policy.yaml",
+        line: "the policy uses retired keys: components, levels, uses",
+        fix: {
+          text: "recognizer policy --migrate",
+          command: "recognizer policy --migrate",
+        },
+      },
+    ]);
+  });
+
+  it("reports a retired key beside an unrelated invalid value as two problems", () => {
+    const result = json(
+      setup({
+        ...clean,
+        policy: "components:\n  core: m0.py\nforbid: [nope]\n",
+      }),
+    );
+
+    expect(codes(result.report)).toEqual([
+      "policy:policy-retired",
+      "policy:policy-invalid",
+    ]);
+  });
+
+  it("reports no folder problem for a folder the policy does not cover", () => {
     const cache = scanJson(
       0,
       0,
@@ -533,31 +570,26 @@ describe("doctor: policy", () => {
       "  ",
     );
     const result = json(
-      setup({ ...clean, policy: 'components:\n  core: "m0.py"\n', cache }),
+      setup({ ...clean, policy: 'entry:\n  - "m0.py"\n', cache }),
     );
-    const [problem] = result.report.areas[1].problems;
 
-    expect(problem).toMatchObject({
-      code: "policy-folder",
-      subject: "sub",
-    });
-    expect(problem.fix.command).toBeNull();
-    expect(problem.fix.text).toContain(
-      "recognizer policy --add ignore 'sub/*'",
-    );
-    expect(problem.fix.text).not.toContain("policy.yaml");
+    expect(result.report.areas[1].problems).toEqual([]);
   });
 
   it("reports an entry matching no module", () => {
     const result = json(
       setup({
         ...clean,
-        policy: 'components:\n  core: "m*.py"\n  ghost: "nothing/*.py"\n',
+        policy: 'entry:\n  - "m*.py"\n  - "nothing/*.py"\n',
       }),
     );
 
     expect(result.report.areas[1].problems).toMatchObject([
-      { code: "policy-entry", subject: "nothing/*.py" },
+      {
+        code: "policy-entry",
+        subject: "nothing/*.py",
+        fix: { command: "recognizer policy --unset entry 'nothing/*.py'" },
+      },
     ]);
   });
 
@@ -616,7 +648,7 @@ describe("doctor: policy", () => {
     expect(codes(result.report)).toEqual([]);
   });
 
-  it("makes no comparison for a policy with no components", () => {
+  it("makes no comparison for a policy with no entry", () => {
     const result = json(
       setup({ ...clean, policy: "ignore: []\n", cache: null }),
     );
@@ -802,7 +834,7 @@ describe("doctor: usage", () => {
 describe("doctor starts nothing costly and writes nothing", () => {
   const failing = {
     config: `${READY_SENSOR}  other:\n    command: [other-tool, --run]\n  structure:\n    hub_threshold: 1\ntests:\n  - name: unit\n    language: python\n    directory: .\n    command: pytest-should-not-run\n    coverage:\n      path: c.lcov\n      format: lcov\n`,
-    policy: 'components:\n  core: "m0.py"\n',
+    policy: 'entry:\n  - "m0.py"\n',
     cache: null,
     scanner: false,
     gap: true,

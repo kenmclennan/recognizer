@@ -61,7 +61,7 @@ function indentOf(text: string): number {
   return line === undefined ? 2 : line.length - line.trimStart().length;
 }
 
-function emit(doc: Document, source: string): string {
+export function emit(doc: Document, source: string): string {
   return doc.toString({
     flowCollectionPadding: false,
     indent: indentOf(source),
@@ -928,6 +928,17 @@ export function listKeys(text: string, published: PublishedKeys): Listing {
 
   const walkList = (seq: YAMLSeq, path: string[]): void => {
     for (const item of seq.items) {
+      if (
+        isMap(item) &&
+        published.subject === "policy" &&
+        path.length === 1 &&
+        path[0] === "forbid"
+      ) {
+        lines.push(`forbid=${JSON.stringify(item.toJSON())}`);
+
+        continue;
+      }
+
       if (!isMap(item)) {
         lines.push(`${path.join(".")}=${scalarText(item)}`);
 

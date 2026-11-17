@@ -108,7 +108,7 @@ export const COMMANDS: Command[] = [
     ],
     output: {
       text: "repository mode: a `sensor structure:` line with the settings in effect, the summary lines and one `warning: <summary>` line per warning on stdout; with --scan: a summary on stderr and the report document on stdout. In repository mode check runs structural analysis, writes its findings file in .recognizer/cache/findings/ and reads every current findings file there; it never runs a registered sensor, so run `recognizer scan --sense all` first when their findings should count",
-      json: "the report document: violations, new, fixed, unranked, baseline, warnings and metrics, and in repository mode a sensors list of { name, status, reason?, settings? } where a registered sensor is ran only when its file is current, else stale or missing; always JSON on stdout with --scan, and with --json in repository mode",
+      json: "the report document: violations, new, fixed, baseline, warnings and metrics, and in repository mode a sensors list of { name, status, reason?, settings? } where a registered sensor is ran only when its file is current, else stale or missing; always JSON on stdout with --scan, and with --json in repository mode",
     },
     exitCodes: [
       { code: 0, meaning: "no new violation, or no policy" },
@@ -942,6 +942,8 @@ export const COMMANDS: Command[] = [
       "recognizer policy --unset <key> [<value>]",
       "recognizer policy --remove-section <section>",
       "recognizer policy --add-section <section>",
+      "recognizer policy --add-forbid --from <glob> [--from <glob>...] --to <glob> [--to <glob>...]",
+      "recognizer policy --migrate",
     ].join("\n"),
     arguments: [
       {
@@ -956,7 +958,7 @@ export const COMMANDS: Command[] = [
       },
       {
         name: "<section>",
-        description: "components, uses or foreign: the map a key lives in",
+        description: "foreign: the map a key lives in",
       },
     ],
     options: [
@@ -988,6 +990,26 @@ export const COMMANDS: Command[] = [
         description: "create an empty section; an existing one is left alone",
       },
       {
+        flag: "--add-forbid",
+        description:
+          "append one forbid rule over lists: every import from a file matching a --from glob to a file matching a --to glob is a violation; an identical rule already present changes nothing",
+      },
+      {
+        flag: "--from <glob>",
+        description:
+          "with --add-forbid, a glob the rule forbids importing from; repeat for more",
+      },
+      {
+        flag: "--to <glob>",
+        description:
+          "with --add-forbid, a glob the rule forbids importing; repeat for more",
+      },
+      {
+        flag: "--migrate",
+        description:
+          "rewrite a policy written in the earlier component form into forbid and entry rules, and print one line per change; a policy with none changes nothing, and an inconsistent one exits 2 and changes nothing. The rewrite reports the same imports as violations when no module matches the globs of two components, the case the old parser refused to scan; a module matching no component stays unconstrained",
+      },
+      {
         flag: "--repository <dir>",
         description:
           "the repository whose policy to edit; default the current directory",
@@ -1014,12 +1036,17 @@ export const COMMANDS: Command[] = [
     ],
     examples: [
       {
-        command: "recognizer policy --add components.domain src/domain/**",
-        note: "add a glob to a component, creating the policy on the first write",
+        command: "recognizer policy --add entry src/main.ts",
+        note: "name an entry point, creating the policy on the first write",
       },
       {
-        command: "recognizer policy --unset components.legacy",
-        note: "delete a component; refused while levels or uses name it",
+        command:
+          "recognizer policy --add-forbid --from 'src/domain/**' --to 'src/adapters/**' --to 'src/ui/**'",
+        note: "forbid the domain importing adapters or ui",
+      },
+      {
+        command: "recognizer policy --migrate",
+        note: "rewrite a policy written in the earlier component form",
       },
       {
         command: "recognizer policy --list",

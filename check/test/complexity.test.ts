@@ -127,7 +127,7 @@ describe("the complexity warning", () => {
         "kept.py": branches("h", 12),
       },
       {},
-      "components:\n  all: '**'\nlevels: [all]\nignore: ['ignored/**']\n",
+      "ignore: ['ignored/**']\n",
     );
 
     expect(findings.map((finding) => finding.id)).toEqual([

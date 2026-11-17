@@ -6,12 +6,13 @@ import { check, parsePolicy, validateScan } from "../src/index.js";
 import { REPO } from "./helpers.js";
 
 const POLICY = `
-levels: [domain, ports, application, adapters]
-components:
-  domain: shop/domain/**
-  ports: shop/ports/**
-  application: shop/application/**
-  adapters: shop/adapters/**
+forbid:
+  - from: [shop/domain/**]
+    to: [shop/ports/**, shop/application/**, shop/adapters/**]
+  - from: [shop/ports/**]
+    to: [shop/application/**, shop/adapters/**]
+  - from: [shop/application/**]
+    to: [shop/adapters/**]
 `;
 
 function expectedScan(): Record<string, unknown> {

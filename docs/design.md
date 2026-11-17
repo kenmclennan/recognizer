@@ -192,7 +192,7 @@ Everything the repository's owners write is committed under `.recognizer/`; anyt
 
 | What | Where | Committed |
 | --- | --- | --- |
-| Policy: levels, components, foreign libraries, ignores | `.recognizer/policy.*` | yes |
+| Policy: forbid rules, entry points, foreign libraries, ignores | `.recognizer/policy.*` | yes |
 | Ratchet baselines | `.recognizer/baselines/` | yes |
 | Saved views | `.recognizer/views/` | yes |
 | Scan results | `.recognizer/cache/` | no |
@@ -205,24 +205,16 @@ Scans are not stored for change detection: comparing two commits means scanning 
 
 ### Policy
 
-The one file a repository's owners write, at `.recognizer/policy.yaml`. YAML, because people write it and comments matter. Components are assigned by path, so the same policy shape works in every language.
+The one file a repository's owners write, at `.recognizer/policy.yaml`. YAML, because people write it and comments matter. Rules are written over paths, so the same policy shape works in every language.
 
 ```yaml
-levels: # optional; inner first; a component may depend on itself or any inner one
-  - domain
-  - ports
-  - application
-  - adapters
-  - entry
+entry: [lightcycle/container.py, lightcycle/cli.py] # files nothing imports on purpose
 
-components: # which paths belong to which component
-  domain: lightcycle/domain/**
-  ports: lightcycle/ports/**
-  application: lightcycle/application/**
-  adapters: lightcycle/adapters/**
-  entry: [lightcycle/container.py, lightcycle/cli.py]
-
-forbid: # rules the other forms cannot express
+forbid: # the imports that are violations
+  - from: [lightcycle/domain/**, lightcycle/ports/**]
+    to: [lightcycle/application/**, lightcycle/adapters/**]
+  - from: [lightcycle/application/**]
+    to: [lightcycle/adapters/**]
   - lightcycle/adapters/* -> lightcycle/adapters/*
   - "* -> lightcycle/adapters/tui/**"
 
@@ -232,10 +224,10 @@ foreign: # group external libraries
 ignore: [tests/**, "**/fixtures/**"]
 ```
 
-- **The dependency rule comes from `levels` and `uses`.** An edge between two components in `levels` from inner to outer is a violation: drawn red, and counted by the ratchet. `uses` maps a component to the components it may depend on, and permits an edge the order forbids; an edge between two different components that neither form permits is a violation.
-- **`forbid` covers what the other forms cannot express**, such as adapters calling each other.
+- **A policy is `ignore`, `entry` and `forbid`.** A forbid rule is `from` globs and `to` globs, or a `"<from-glob> -> <to-glob>"` string for one pair: any import from a file matching `from` to a file matching `to` is a violation, drawn red and counted by the ratchet. The setup step reads as plain rules ("files in A must not import B, C"), because naming layers assumes a layered architecture.
+- **`entry` names the files nothing imports on purpose**, so structural analysis never reports them as orphans.
 - **There is no allow list.** A way to mark an edge as acceptable becomes a place for violations to hide. An existing violation goes in the ratchet baseline (`.recognizer/baselines/`), where it is counted and may only shrink, never into the policy.
-- **The level order is one rule form, not the only one.** The general form is named components with the dependencies each may have (Principles: every dependence is justified by purpose). `levels` and `uses` are both optional and may be combined: a policy with `levels` only is the level order, with `uses` only is an explicit dependency table, and with neither checks only `forbid`. Starter policies for each form live in `policies/`.
+- **Components, ordering keys and dependency tables are retired.** An earlier policy named components and ordered them or listed the components each may use; `recognizer policy --migrate` rewrites one into forbid rules and entry points that report the same imports. Starter policies live in `policies/`.
 
 ### Scan document
 
@@ -390,8 +382,8 @@ A structural finding meets four rules:
 | Reported as | Principle | Citation | Evidence | Needs from the policy |
 | --- | --- | --- | --- | --- |
 | `cycle` | Levelization: no cyclic physical dependencies between files; Martin's Acyclic Dependencies Principle is the component form | John Lakos, Large-Scale C++ Software Design, 1996 | the modules and edges of the cycle | nothing |
-| rule violation from `levels` | Dependency Inversion Principle | Robert C. Martin, "The Dependency Inversion Principle", C++ Report, 1996 | the edge, its lines and the level rule it breaks | the levels |
-| rule violation from `uses` or `forbid` | Repository policy: the repository's own rule, named as such (declared intent, not a principle Recognizer asserts) | none | the edge, its lines and the rule it breaks | the `uses` or `forbid` rule |
+| rule violation from a legacy `level` rule | Dependency Inversion Principle | Robert C. Martin, "The Dependency Inversion Principle", C++ Report, 1996 | the edge, its lines and the level rule it breaks | the level order of a retired policy, read from a findings file written before the migration |
+| rule violation from `forbid` | Repository policy: the repository's own rule, named as such (declared intent, not a principle Recognizer asserts) | none | the edge, its lines and the rule it breaks | the `forbid` rule |
 | `unused_exports` | Information hiding | David Parnas, "On the Criteria To Be Used in Decomposing Systems into Modules", 1972 | the exported members no other module imports | nothing |
 | `orphan` | Dead code | Robert C. Martin, Clean Code, 2008, heuristic G9 | the module nothing imports | nothing |
 | `private_imports` | Information hiding, with PEP 8's definition of private (a leading underscore) | David Parnas, "On the Criteria To Be Used in Decomposing Systems into Modules", 1972 | the private names a Python file imports from other modules | nothing |

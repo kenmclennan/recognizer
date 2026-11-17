@@ -67,12 +67,12 @@ describe("orphan", () => {
     expect(ids(unflagged)).toEqual(["orphan:app/run.py"]);
   });
 
-  it("still exempts configured globs and policy literals beside a flag", () => {
+  it("still exempts configured globs and policy entry beside a flag", () => {
     expect(
       orphans(
         ["app/run.py", "cli/x.py", "app/lit.py"],
         ["cli/**"],
-        "components:\n  wired:\n    - app/lit.py\n",
+        "entry:\n  - app/lit.py\n",
       ),
     ).toEqual(["orphan:app/run.py"]);
   });
@@ -96,16 +96,19 @@ describe("orphan", () => {
     });
   });
 
-  it("exempts a module a policy entry names literally", () => {
-    expect(
-      orphans(["app/cli.py"], [], "components:\n  entry: [app/cli.py]\n"),
-    ).toEqual([]);
-  });
+  it("entry paths are never orphans", () => {
+    const entry = "entry:\n  - app/cli.py\n  - app/jobs/**\n";
 
-  it("does not exempt on a wildcard policy glob", () => {
     expect(
-      orphans(["app/cli.py"], [], "components:\n  all: [app/**]\n"),
-    ).toEqual(["orphan:app/cli.py"]);
+      orphans(["app/cli.py", "app/jobs/nightly.py", "app/other.py"], [], entry),
+    ).toEqual(["orphan:app/other.py"]);
+    expect(
+      orphans(["app/cli.py", "app/jobs/nightly.py", "app/other.py"], [], null),
+    ).toEqual([
+      "orphan:app/cli.py",
+      "orphan:app/jobs/nightly.py",
+      "orphan:app/other.py",
+    ]);
   });
 
   it.each([
@@ -508,7 +511,7 @@ describe("structure settings", () => {
         ],
         ["c/lonely.py"],
       );
-      const policy = parsePolicy("components:\n  a: a/**\n  gone: gone/**\n");
+      const policy = parsePolicy("forbid:\n  - a/** -> gone/**\n");
       const run = (settings: StructureSettings) =>
         ids(
           structureSensor([scan], policy, settings, CONTEXT).document.findings,
@@ -654,9 +657,7 @@ describe("the removed policy_drift warning", () => {
       ["app/domain/a.py", "app/misc/m.py"],
       ["app/domain/a.py", "app/misc/m.py"],
     );
-    const policy = parsePolicy(
-      "components:\n  domain: app/domain/**\n  ports: app/ports/**\n",
-    );
+    const policy = parsePolicy("entry:\n  - app/domain/**\n  - app/ports/**\n");
     const { document } = structureSensor(
       [scan],
       policy,
@@ -1647,13 +1648,13 @@ describe("unused_exports", () => {
     ]);
   });
 
-  it("skips a module the policy names by a literal path", () => {
+  it("skips a module the policy lists in entry", () => {
     expect(
       unusedOf(
         [{ id: "app/cli.py", exports: ["a"] }],
         [],
         [],
-        "components:\n  entry: [app/cli.py]\n",
+        "entry:\n  - app/cli.py\n",
       ),
     ).toEqual({});
   });

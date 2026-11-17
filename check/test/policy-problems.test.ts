@@ -4,10 +4,9 @@ import { policyProblems } from "../src/policy-problems.js";
 import { scanOf } from "./scan-of.js";
 
 describe("policyProblems", () => {
-  const POLICY =
-    "components:\n  domain: app/domain/**\n  ports: app/ports/**\n";
+  const POLICY = "entry:\n  - app/domain/**\n  - app/ports/**\n";
 
-  it("reports exactly the failing entry and the uncovered folder", () => {
+  it("reports an entry glob matching no scanned module and no folder problem", () => {
     const found = policyProblems(
       [
         scanOf(
@@ -22,30 +21,25 @@ describe("policyProblems", () => {
       {
         kind: "entry",
         subject: "app/ports/**",
-        text: "policy entry app/ports/** (component ports) matches no scanned module",
-      },
-      {
-        kind: "folder",
-        subject: "app/misc",
-        text: "folder app/misc holds 1 scanned modules that no component covers",
+        text: "policy entry app/ports/** matches no scanned module",
       },
     ]);
   });
 
-  it("reports a glob listed under two components once", () => {
+  it("reports a glob listed twice once", () => {
     const found = policyProblems(
       [scanOf([], ["x/a.py"])],
-      parsePolicy("components:\n  one: gone/**\n  two: gone/**\n  c: x/**\n"),
+      parsePolicy("entry:\n  - gone/**\n  - gone/**\n  - x/**\n"),
     );
 
     expect(found.map((problem) => problem.subject)).toEqual(["gone/**"]);
-    expect(found[0]?.text).toContain("component one");
   });
 
-  it("reports nothing without components or without a policy", () => {
+  it("reports nothing with empty entry or without a policy", () => {
     const scan = scanOf([], ["x/a.py"]);
 
     expect(policyProblems([scan], parsePolicy("ignore: []\n"))).toEqual([]);
+    expect(policyProblems([scan], parsePolicy("entry: []\n"))).toEqual([]);
     expect(policyProblems([scan], null)).toEqual([]);
   });
 

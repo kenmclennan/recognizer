@@ -1,11 +1,7 @@
-components:
-  domain: app/domain/**
-  ports: app/ports/**
-  application: app/application/**
-  adapters: app/adapters/**
-
-levels:
-  - domain
-  - ports
-  - application
-  - adapters
+forbid:
+  - from: [app/domain/**]
+    to: [app/ports/**, app/application/**, app/adapters/**]
+  - from: [app/ports/**]
+    to: [app/application/**, app/adapters/**]
+  - from: [app/application/**]
+    to: [app/adapters/**]

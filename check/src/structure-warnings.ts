@@ -1,4 +1,4 @@
-import { isEntryPoint, isLiteralPath, isTestFile } from "./entry-points.js";
+import { isEntryPoint, isTestFile } from "./entry-points.js";
 import type { FindingRecord } from "./findings-document.js";
 import { LONG_FUNCTION, measuredLength } from "./function-length.js";
 import { isForeign, keptGraph } from "./graph.js";
@@ -20,20 +20,6 @@ export function folderOf(id: string): string {
   const at = id.lastIndexOf("/");
 
   return at < 0 ? "." : id.slice(0, at);
-}
-
-function policyLiteralPaths(policy: Policy | null): Set<string> {
-  const literalPaths = new Set<string>();
-
-  for (const globs of policy?.componentGlobs.values() ?? []) {
-    for (const glob of globs) {
-      if (isLiteralPath(glob)) {
-        literalPaths.add(glob);
-      }
-    }
-  }
-
-  return literalPaths;
 }
 
 const SUPERTYPE_KINDS = new Set(["inherits", "implements"]);
@@ -114,7 +100,7 @@ export function orphanFindings(
       .map((edge) => edge.to),
     ...declarations.map((edge) => edge.to),
   ]);
-  const literalPaths = policyLiteralPaths(policy);
+  const policyEntry = policy?.entry ?? [];
   const scanned = new Set(
     scan.modules
       .filter(
@@ -132,7 +118,7 @@ export function orphanFindings(
     scan,
     ids,
     imported,
-    (id) => isEntryPoint(id, literalPaths, entryPoints, scanned.has(id)),
+    (id) => isEntryPoint(id, policyEntry, entryPoints, scanned.has(id)),
     supertypes,
   );
 
@@ -280,7 +266,7 @@ export function unusedExportsFindings(
   const { edges, declarations, ids } = keptGraph(scan, policy?.ignore ?? []);
   const { named, whole } = usedNames([...edges, ...declarations]);
   const viaExpect = usedThroughExpect(scan, ids, named, whole);
-  const literalPaths = policyLiteralPaths(policy);
+  const policyEntry = policy?.entry ?? [];
   const testImporters = testImportersOf(scan);
   const findings: FindingRecord[] = [];
 
@@ -290,7 +276,7 @@ export function unusedExportsFindings(
       whole.has(module.id) ||
       isEntryPoint(
         module.id,
-        literalPaths,
+        policyEntry,
         entryPoints,
         module.entry_point === true,
       )

@@ -50,7 +50,6 @@ function outcome(
     rules: result.violations.flatMap((v) =>
       v.imports.map((one) => [v.from, one.to, v.rule.type]),
     ),
-    unranked: result.unranked,
   };
 }
 
@@ -64,7 +63,7 @@ describe("hexagonal.yaml", () => {
       ]).rules,
     ).toEqual([
       ["lightcycle/adapters/x.py", "lightcycle/adapters/y.py", "forbid"],
-      ["lightcycle/domain/a.py", "lightcycle/adapters/b.py", "level"],
+      ["lightcycle/domain/a.py", "lightcycle/adapters/b.py", "forbid"],
     ]);
   });
 
@@ -78,7 +77,6 @@ describe("hexagonal.yaml", () => {
     const result = check(scan, template("hexagonal.yaml"), null);
 
     expect(result.violations).toEqual([]);
-    expect(result.unranked).toBe(0);
   });
 });
 
@@ -91,14 +89,18 @@ describe("vertical-slices.yaml", () => {
         ["src/shared/s.py", "src/orders/a.py"],
       ]).rules,
     ).toEqual([
-      ["src/orders/a.py", "src/billing/b.py", "uses"],
-      ["src/shared/s.py", "src/orders/a.py", "uses"],
+      ["src/orders/a.py", "src/billing/b.py", "forbid"],
+      ["src/shared/s.py", "src/orders/a.py", "forbid"],
     ]);
   });
 
-  it("leaves a module under src/other unranked", () => {
+  it("leaves a module under src/other unconstrained", () => {
     expect(
-      outcome("vertical-slices.yaml", [], ["src/other/o.py"]).unranked,
-    ).toBe(1);
+      outcome(
+        "vertical-slices.yaml",
+        [["src/other/o.py", "src/orders/a.py"]],
+        ["src/other/o.py", "src/orders/a.py"],
+      ).rules,
+    ).toEqual([]);
   });
 });

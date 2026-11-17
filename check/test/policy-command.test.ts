@@ -10,17 +10,8 @@ import { fakeIo, ROOT } from "./scan-helpers.js";
 const POLICY = `${ROOT}/.recognizer/policy.yaml`;
 
 const BASE = [
-  "components:",
-  "  domain:",
-  "    - shop/domain/**",
-  "  ports:",
-  "    - shop/ports/**",
-  "levels:",
-  "  - domain",
-  "  - ports",
-  "uses:",
-  "  ports:",
-  "    - domain",
+  "entry:",
+  "  - shop/main.py",
   "forbid:",
   "  - a/** -> b/**",
   "foreign:",
@@ -44,70 +35,32 @@ const fixture = (name: string) =>
 
 describe("recognizer policy, per key", () => {
   const keys = [
-    {
-      key: "components.domain",
-      item: "shop/extra/**",
-      first: "shop/domain/**",
-    },
-    { key: "levels", item: "adapters", first: "domain" },
-    { key: "uses.ports", item: "adapters", first: "domain" },
+    { key: "entry", item: "shop/cli.py", first: "shop/main.py" },
     { key: "forbid", item: "c/** -> d/**", first: "a/** -> b/**" },
     { key: "foreign.http", item: "urllib", first: "requests" },
     { key: "ignore", item: "docs/**", first: "tests/**" },
   ];
 
-  const unsettable = [
-    "components:",
-    "  domain:",
-    "    - shop/domain/**",
-    "  ports:",
-    "    - shop/ports/**",
-    "  extra:",
-    "    - shop/extra/**",
-    "levels:",
-    "  - ports",
-    "uses:",
-    "  ports:",
-    "    - ports",
-    "  extra:",
-    "    - ports",
-    "forbid:",
-    "  - a/** -> b/**",
-    "foreign:",
-    "  http:",
-    "    - requests",
-    "  other:",
-    "    - z",
-    "ignore:",
-    "  - tests/**",
-    "",
-  ].join("\n");
-
-  const withAdapters = `${BASE}`.replace(
-    "levels:",
-    "  adapters:\n    - shop/adapters/**\nlevels:",
-  );
-
   for (const { key, item, first } of keys) {
     describe(key, () => {
       it("set is refused as a list and leaves the file byte-identical", () => {
-        const fake = setup(withAdapters);
+        const fake = setup();
 
         expect(policy(fake, key, item)).toBe(2);
         expect(fake.err()).toMatch(
           new RegExp(`^recognizer policy: ${key.replace(".", "\\.")}: .*list`),
         );
-        expect(fake.files.get(POLICY)).toBe(withAdapters);
+        expect(fake.files.get(POLICY)).toBe(BASE);
       });
 
       it("--add appends the item and a repeat leaves the file byte-identical", () => {
-        const fake = setup(withAdapters);
+        const fake = setup();
 
         expect(policy(fake, "--add", key, item)).toBe(0);
 
         const after = fake.files.get(POLICY) as string;
 
-        expect(after).not.toBe(withAdapters);
+        expect(after).not.toBe(BASE);
         expect(after).toContain(item);
         expect(policy(fake, "--add", key, item)).toBe(0);
         expect(fake.files.get(POLICY)).toBe(after);
@@ -117,9 +70,7 @@ describe("recognizer policy, per key", () => {
         const fake = setup();
 
         expect(policy(fake, "--get", key)).toBe(0);
-        expect(fake.out()).toBe(
-          `${first}\n${key === "levels" ? "ports\n" : ""}`,
-        );
+        expect(fake.out()).toBe(`${first}\n`);
       });
 
       it("--list includes the key's items", () => {
@@ -130,20 +81,18 @@ describe("recognizer policy, per key", () => {
       });
 
       it("--unset <key> <value> deletes that item", () => {
-        const fake = setup(withAdapters);
+        const fake = setup();
 
         expect(policy(fake, "--add", key, item)).toBe(0);
         expect(policy(fake, "--unset", key, item)).toBe(0);
-        expect(fake.files.get(POLICY)).toBe(withAdapters);
+        expect(fake.files.get(POLICY)).toBe(BASE);
       });
 
       it("--unset <key> deletes the key", () => {
-        const fake = setup(unsettable);
+        const fake = setup();
+
         expect(policy(fake, "--unset", key)).toBe(0);
-
-        const after = fake.files.get(POLICY) as string;
-
-        expect(after).not.toBe(unsettable);
+        expect(fake.files.get(POLICY)).not.toBe(BASE);
         expect(policy(fake, "--get", key)).toBe(1);
       });
     });
@@ -151,13 +100,6 @@ describe("recognizer policy, per key", () => {
 });
 
 describe("recognizer policy sections", () => {
-  it("--add-section components writes an empty map on a new file", () => {
-    const fake = setup(null);
-
-    expect(policy(fake, "--add-section", "components")).toBe(0);
-    expect(fake.files.get(POLICY)).toBe("components: {}\n");
-  });
-
   it("--add-section foreign writes an empty map", () => {
     const fake = setup(null);
 
@@ -165,42 +107,37 @@ describe("recognizer policy sections", () => {
     expect(fake.files.get(POLICY)).toBe("foreign: {}\n");
   });
 
-  it("--add-section uses is refused with a uses: message and writes nothing", () => {
-    const fake = setup("components:\n  a: x/**\n");
+  it("--add-section of a retired section is refused and writes nothing", () => {
+    const fake = setup("ignore:\n  - tests/**\n");
 
     expect(policy(fake, "--add-section", "uses")).toBe(2);
     expect(fake.err()).toMatch(/^recognizer policy: uses: /);
-    expect(fake.files.get(POLICY)).toBe("components:\n  a: x/**\n");
+    expect(fake.files.get(POLICY)).toBe("ignore:\n  - tests/**\n");
   });
 
-  it("--remove-section removes components, uses and foreign whole", () => {
-    const fake = setup(BASE.replace(/levels:\n( {2}- .*\n)+/, ""));
+  it("--remove-section removes foreign whole", () => {
+    const fake = setup();
 
-    expect(policy(fake, "--remove-section", "uses")).toBe(0);
     expect(policy(fake, "--remove-section", "foreign")).toBe(0);
-    expect(policy(fake, "--remove-section", "components")).toBe(0);
     expect(fake.files.get(POLICY)).toBe(
-      "forbid:\n  - a/** -> b/**\nignore:\n  - tests/**\n",
+      "entry:\n  - shop/main.py\nforbid:\n  - a/** -> b/**\nignore:\n  - tests/**\n",
     );
   });
 
   it("refuses a key typed as a section and a section typed as a key", () => {
     const fake = setup();
 
-    expect(policy(fake, "--add", "components", "x")).toBe(2);
+    expect(policy(fake, "--add", "foreign", "x")).toBe(2);
     expect(fake.err()).toContain("is a section, not a key");
-    expect(policy(fake, "--add-section", "components.domain")).toBe(2);
+    expect(policy(fake, "--add-section", "foreign.http")).toBe(2);
     expect(fake.files.get(POLICY)).toBe(BASE);
   });
 });
 
 describe("recognizer policy refuses a write that introduces an error", () => {
   const refused: [string, string[]][] = [
-    ["levels", ["--add", "levels", "ghost"]],
-    ["uses.ports", ["--add", "uses.ports", "ghost"]],
     ["forbid", ["--add", "forbid", "no arrow"]],
-    ["components.domain", ["--add", "components.domain", ""]],
-    ["components.domain", ["--unset", "components.domain"]],
+    ["entry", ["--add", "entry", ""]],
   ];
 
   it.each(refused)("%s: %j leaves the file byte-identical", (key, argv) => {
@@ -212,18 +149,10 @@ describe("recognizer policy refuses a write that introduces an error", () => {
     expect(key).toBe(argv[1]);
   });
 
-  it("names the component a levels entry lacks", () => {
-    const fake = setup();
-
-    policy(fake, "--add", "levels", "ghost");
-
-    expect(fake.err()).toContain('"ghost" is not in components');
-  });
-
   it("saves a valid edit elsewhere in a file that already has an error", () => {
     const broken = `${BASE}`.replace(
-      "levels:\n  - domain\n  - ports\n",
-      "levels:\n  - domain\n  - nowhere\n",
+      "  - a/** -> b/**\n",
+      "  - a/** -> b/**\n  - nope\n",
     );
     const fake = setup(broken);
 
@@ -233,26 +162,145 @@ describe("recognizer policy refuses a write that introduces an error", () => {
 
   it("refuses an edit that adds a second error, naming only the new one", () => {
     const broken = `${BASE}`.replace(
-      "levels:\n  - domain\n  - ports\n",
-      "levels:\n  - domain\n  - nowhere\n",
+      "  - a/** -> b/**\n",
+      "  - a/** -> b/**\n  - nope\n",
     );
     const fake = setup(broken);
 
-    expect(policy(fake, "--add", "uses.ports", "ghost")).toBe(2);
-    expect(fake.err()).toContain("ghost");
-    expect(fake.err()).not.toContain("nowhere");
+    expect(policy(fake, "--add", "forbid", "also bad")).toBe(2);
+    expect(fake.err()).toContain("also bad");
+    expect(fake.err()).not.toContain("nope");
     expect(fake.files.get(POLICY)).toBe(broken);
   });
 
   it("lets the one bad entry be unset while other errors remain", () => {
     const broken = `${BASE}`.replace(
-      "levels:\n  - domain\n  - ports\n",
-      "levels:\n  - domain\n  - nowhere\n",
+      "  - a/** -> b/**\n",
+      "  - a/** -> b/**\n  - nope\n",
     );
     const fake = setup(broken);
 
-    expect(policy(fake, "--unset", "levels", "nowhere")).toBe(0);
-    expect(fake.files.get(POLICY)).not.toContain("nowhere");
+    expect(policy(fake, "--unset", "forbid", "nope")).toBe(0);
+    expect(fake.files.get(POLICY)).not.toContain("nope");
+  });
+});
+
+describe("recognizer policy --add-forbid", () => {
+  it("appends a mapping rule and a repeat changes nothing", () => {
+    const fake = setup();
+
+    expect(
+      policy(
+        fake,
+        "--add-forbid",
+        "--from",
+        "src/domain/**",
+        "--from",
+        "src/ports/**",
+        "--to",
+        "src/adapters/**",
+      ),
+    ).toBe(0);
+
+    const after = fake.files.get(POLICY) as string;
+
+    expect(after).toContain(
+      "  - from: [src/domain/**, src/ports/**]\n    to: [src/adapters/**]\n",
+    );
+    expect(parsePolicy(after).forbid).toHaveLength(2);
+    expect(
+      policy(
+        fake,
+        "--add-forbid",
+        "--from",
+        "src/domain/**",
+        "--from",
+        "src/ports/**",
+        "--to",
+        "src/adapters/**",
+      ),
+    ).toBe(0);
+    expect(fake.files.get(POLICY)).toBe(after);
+  });
+
+  it("creates the policy on the first write", () => {
+    const fake = setup(null);
+
+    expect(policy(fake, "--add-forbid", "--from", "a/**", "--to", "b/**")).toBe(
+      0,
+    );
+    expect(fake.files.get(POLICY)).toBe(
+      "forbid:\n  - from: [a/**]\n    to: [b/**]\n",
+    );
+  });
+
+  it("keeps the comments and layout of commented.yaml", () => {
+    const fake = setup(fixture("commented.yaml"));
+
+    expect(
+      policy(
+        fake,
+        "--add-forbid",
+        "--from",
+        "shop/ui/**",
+        "--to",
+        "shop/db/**",
+        "--to",
+        "shop/cache/**",
+      ),
+    ).toBe(0);
+
+    const after = fake.files.get(POLICY) as string;
+
+    expect(after).toBe(
+      fixture("commented.yaml").replace(
+        "\nforeign:",
+        "  - from: [shop/ui/**]\n    to: [shop/db/**, shop/cache/**]\n\nforeign:",
+      ),
+    );
+  });
+
+  it.each([
+    [["--add-forbid", "--to", "b/**"]],
+    [["--add-forbid", "--from", "a/**"]],
+    [["--add-forbid"]],
+    [["--add-forbid", "--migrate"]],
+  ])("%j is a usage error and writes nothing", (argv) => {
+    const fake = setup();
+
+    expect(policy(fake, ...argv)).toBe(2);
+    expect(fake.err()).toContain("usage: recognizer policy");
+    expect(fake.files.get(POLICY)).toBe(BASE);
+  });
+
+  it("refuses a write that would introduce an error", () => {
+    const fake = setup();
+
+    expect(policy(fake, "--add-forbid", "--from", " ", "--to", "b/**")).toBe(2);
+    expect(fake.files.get(POLICY)).toBe(BASE);
+  });
+});
+
+describe("recognizer policy lists a list rule", () => {
+  const WITH_RULE =
+    "forbid:\n  - from: [a/**]\n    to: [b/**, c/**]\n  - x/** -> y/**\n";
+
+  it("--list prints a mapping entry as forbid= followed by its JSON", () => {
+    const fake = setup(WITH_RULE);
+
+    expect(policy(fake, "--list")).toBe(0);
+    expect(fake.out()).toBe(
+      'forbid={"from":["a/**"],"to":["b/**","c/**"]}\nforbid=x/** -> y/**\n',
+    );
+  });
+
+  it("--unset forbid <string rule> leaves a mapping entry in place", () => {
+    const fake = setup(WITH_RULE);
+
+    expect(policy(fake, "--unset", "forbid", "x/** -> y/**")).toBe(0);
+    expect(fake.files.get(POLICY)).toBe(
+      "forbid:\n  - from: [a/**]\n    to: [b/**, c/**]\n",
+    );
   });
 });
 
@@ -266,7 +314,7 @@ describe("recognizer policy keeps the file's text", () => {
     const fake = setup(input);
 
     expect(lines(input).filter((line) => line.includes("#")).length).toBe(3);
-    expect(policy(fake, "--add", "components.ports", "shop/ports3/**")).toBe(0);
+    expect(policy(fake, "--add", "forbid", "shop/ui/** -> shop/db/**")).toBe(0);
 
     const added = fake.files.get(POLICY) as string;
 
@@ -282,52 +330,49 @@ describe("recognizer policy keeps the file's text", () => {
     )) {
       expect(lines(unset)).toContain(line);
     }
-
-    const kept = lines(input).filter((line) => lines(unset).includes(line));
-
-    expect(
-      lines(unset.trimEnd()).filter((line) => !line.includes("ports3")),
-    ).toEqual(lines(input.replace(/\nignore:.*\n$/, "").trimEnd()));
   });
 
   it("keeps a four-space indent", () => {
     const fake = setup(fixture("four-space.yaml"));
 
-    expect(policy(fake, "--add", "components.domain", "shop/x/**")).toBe(0);
+    expect(policy(fake, "--add", "entry", "shop/x.py")).toBe(0);
     expect(fake.files.get(POLICY)).toBe(fixture("four-space.added.yaml"));
   });
 
   it("refuses --add onto a scalar and converts it by unset then add", () => {
-    const fake = setup("components:\n  domain: shop/domain/**\n");
+    const fake = setup("foreign:\n  http: requests\n");
 
-    expect(policy(fake, "--add", "components.domain", "x/**")).toBe(2);
-    expect(fake.err()).toContain("components.domain is a scalar, not a list");
-    expect(policy(fake, "--get", "components.domain")).toBe(0);
-    expect(fake.out()).toBe("shop/domain/**\n");
+    expect(policy(fake, "--add", "foreign.http", "x")).toBe(2);
+    expect(fake.err()).toContain("foreign.http is a scalar, not a list");
+    expect(policy(fake, "--get", "foreign.http")).toBe(0);
+    expect(fake.out()).toBe("requests\n");
   });
 
   it("reports a path --list cannot address and exits 1", () => {
-    const fake = setup("components:\n  a.b: x/**\n  c: y/**\n");
+    const fake = setup("foreign:\n  a.b: [x]\n  c: [y]\n");
 
     expect(policy(fake, "--list")).toBe(1);
-    expect(fake.out()).toBe("components.c=y/**\n");
+    expect(fake.out()).toBe("foreign.c=y\n");
     expect(fake.err()).toContain("cannot be addressed");
   });
 
-  it("does not let a component named command block writes under components", () => {
-    const fake = setup("components:\n  command: x/**\n");
+  it("--add entry works on a policy with no entry", () => {
+    const fake = setup("ignore:\n  - tests/**\n");
 
-    expect(policy(fake, "--add", "components.x", "y/**")).toBe(0);
-    expect(fake.files.get(POLICY)).toContain("x:");
+    expect(policy(fake, "--add", "entry", "src/main.ts")).toBe(0);
+    expect(fake.files.get(POLICY)).toBe(
+      "ignore:\n  - tests/**\nentry:\n  - src/main.ts\n",
+    );
   });
 });
 
 describe("recognizer policy with no policy file", () => {
   it.each([
-    ["--get", "levels"],
+    ["--get", "entry"],
     ["--list"],
-    ["--unset", "levels"],
-    ["--remove-section", "components"],
+    ["--unset", "entry"],
+    ["--remove-section", "foreign"],
+    ["--migrate"],
   ])("%s exits 1 saying there is no policy and creates nothing", (...argv) => {
     const fake = setup(null);
 
@@ -344,32 +389,27 @@ describe("recognizer policy with no policy file", () => {
     const root = makeTempDir("policy-first-");
     const io = nodeIo();
     const code = run(
-      [
-        "policy",
-        "--repository",
-        root,
-        "--add",
-        "components.domain",
-        "src/domain/**",
-      ],
+      ["policy", "--repository", root, "--add", "entry", "src/main.ts"],
       io,
     );
     const file = join(root, ".recognizer", "policy.yaml");
 
     expect(code).toBe(0);
     expect(existsSync(file)).toBe(true);
-    expect(parsePolicy(readFileSync(file, "utf8")).components).toBeDefined();
+    expect(parsePolicy(readFileSync(file, "utf8")).entryGlobs).toEqual([
+      "src/main.ts",
+    ]);
   });
 });
 
 describe("recognizer policy argument shapes", () => {
   it.each([
-    [["--add", "levels"]],
+    [["--add", "entry"]],
     [["--get"]],
-    [["--list", "levels"]],
-    [["--add", "--get", "levels"]],
+    [["--list", "entry"]],
+    [["--add", "--get", "entry"]],
     [["--add-section"]],
-    [["levels", "a", "b"]],
+    [["entry", "a", "b"]],
   ])("%j is a usage error", (argv) => {
     const fake = setup();
 
@@ -379,7 +419,7 @@ describe("recognizer policy argument shapes", () => {
 });
 
 describe("recognizer check over a policy built only through recognizer policy", () => {
-  it("gives the same report as the hand-written fixture policy", () => {
+  it("gives the same report as the committed fixture policy", () => {
     const handWritten = readFileSync(
       join(REPO, "fixtures/check/.recognizer/policy.yaml"),
       "utf8",
@@ -389,20 +429,32 @@ describe("recognizer check over a policy built only through recognizer policy", 
       readFileSync(join(REPO, "fixtures/check/expected.json"), "utf8"),
     );
     const fake = setup(null);
+    const rules: [string[], string[]][] = [
+      [
+        ["shop/domain/**"],
+        [
+          "shop/ports/**",
+          "shop/application/**",
+          "shop/adapters/**",
+          "shop/main.py",
+        ],
+      ],
+      [
+        ["shop/ports/**"],
+        ["shop/application/**", "shop/adapters/**", "shop/main.py"],
+      ],
+      [["shop/application/**"], ["shop/adapters/**", "shop/main.py"]],
+      [["shop/adapters/**"], ["shop/main.py"]],
+    ];
     const steps: string[][] = [
-      ...["domain", "ports", "application", "adapters"].map((name) => [
-        "--add",
-        `components.${name}`,
-        `shop/${name}/**`,
-      ]),
-      ["--add", "components.entry", "shop/main.py"],
-      ...["domain", "ports", "application", "adapters", "entry"].map((name) => [
-        "--add",
-        "levels",
-        name,
-      ]),
+      ["--add", "entry", "shop/main.py"],
       ["--add", "forbid", "shop/adapters/* -> shop/adapters/*"],
       ["--add", "forbid", "* -> foreign:requests"],
+      ...rules.map(([from, to]) => [
+        "--add-forbid",
+        ...from.flatMap((glob) => ["--from", glob]),
+        ...to.flatMap((glob) => ["--to", glob]),
+      ]),
       ["--add", "ignore", "tests/**"],
     ];
 
@@ -449,21 +501,13 @@ describe("recognizer policy help", () => {
 
     expect(out).toContain("Keys:");
 
-    for (const key of [
-      "components.<name>",
-      "levels",
-      "uses.<name>",
-      "forbid",
-      "foreign.<name>",
-      "ignore",
-    ]) {
+    for (const key of ["entry", "forbid", "foreign.<name>", "ignore"]) {
       expect(out).toContain(`  ${key}  [recognizer]`);
     }
 
-    expect(out).toContain("list of string: the globs of one component");
-    expect(out).toContain(
-      "example: recognizer policy --add components.domain src/domain/**",
-    );
+    expect(out).toContain("example: recognizer policy --add entry src/main.ts");
+    expect(out).toContain("--migrate");
+    expect(out).toContain("--add-forbid");
     expect(out).not.toContain("did not answer");
   });
 });

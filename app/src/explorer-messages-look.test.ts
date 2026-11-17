@@ -77,7 +77,7 @@ const facts = {};
   facts.afterAllFixed = { rows: fixed.rows(), badgeHidden: fixed.q(".bell-badge").hidden, toastHidden: fixed.q(".message-toast").hidden };
 
   const drift = session();
-  drift.build({ ...base, policy: "components:\\n  app: app/**\\n  lib: lib/**\\n  gone: gone/**\\n" });
+  drift.build({ ...base, policy: "entry:\\n  - app/**\\n  - gone/**\\n" });
   await tick();
   facts.policyProblem = drift.all(".message-list .msg.warning").map((row) => row.querySelector(".msg-text").textContent);
 

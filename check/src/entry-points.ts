@@ -1,4 +1,4 @@
-import { compileGlob } from "./glob.js";
+import { compileGlob, type Matcher } from "./glob.js";
 
 const TEST_DIRECTORIES = new Set(["test", "tests", "__tests__"]);
 export const SCRIPT_EXTENSIONS = [
@@ -14,10 +14,6 @@ export const SCRIPT_EXTENSIONS = [
 const TEST_BASENAME = new RegExp(
   `^(?:test_.*\\.py|.*_test\\.py|conftest\\.py|.*\\.(?:test|spec)\\.(?:${SCRIPT_EXTENSIONS.join("|")}))$`,
 );
-
-export function isLiteralPath(glob: string): boolean {
-  return !glob.includes("*") && !glob.includes("?");
-}
 
 function stemOf(basename: string): string {
   const dot = basename.lastIndexOf(".");
@@ -53,11 +49,11 @@ export function isTestFile(id: string): boolean {
 
 export function isEntryPoint(
   id: string,
-  literalPaths: Set<string>,
+  policyEntry: Matcher[],
   entryGlobs: string[],
   scanned: boolean,
 ): boolean {
-  if (scanned || literalPaths.has(id) || isTestFile(id)) {
+  if (scanned || policyEntry.some((matches) => matches(id)) || isTestFile(id)) {
     return true;
   }
 

@@ -134,8 +134,8 @@ describe("docs/design.md Principles table", () => {
 
   it.each([
     "`cycle`",
-    "`levels`",
-    "`uses` or `forbid`",
+    "`level`",
+    "`forbid`",
     "`unused_exports`",
     "`orphan`",
     "`private_imports`",

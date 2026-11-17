@@ -3,7 +3,7 @@
     "entry_points": ["o/cli/**"],
     "warnings": { "orphan": true }
   },
-  "policy": "components:\n  wired:\n    - o/policy-path.ts\n",
+  "policy": "entry:\n  - o/policy-path.ts\n",
   "modules": [
     {
       "id": "o/main.ts",

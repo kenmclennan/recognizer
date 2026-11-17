@@ -60,12 +60,6 @@ function problems(fake: ReturnType<typeof setup>, area: string): Problem[] {
   ).problems;
 }
 
-function invalid(fake: ReturnType<typeof setup>): Problem[] {
-  return problems(fake, "policy").filter(
-    (problem) => problem.code === "policy-invalid",
-  );
-}
-
 function words(command: string): string[] {
   return [...command.matchAll(/'((?:[^']|'\\'')*)'|(\S+)/g)].map((match) =>
     (match[1] ?? match[2] ?? "").replaceAll("'\\''", "'"),
@@ -91,7 +85,7 @@ describe("a dirty tree is named, not rescanned", () => {
   it("gives the uncommitted-changes line and a text fix for one path", () => {
     const [problem] = problems(
       setup({
-        policy: "components:\n  core:\n    - m*.py\n",
+        policy: "entry:\n  - m*.py\n",
         cache: current,
         status: " M m0.py\n",
       }),
@@ -109,7 +103,7 @@ describe("a dirty tree is named, not rescanned", () => {
   it("names the first three of seven paths and counts the rest", () => {
     const [problem] = problems(
       setup({
-        policy: "components:\n  core:\n    - m*.py\n",
+        policy: "entry:\n  - m*.py\n",
         cache: current,
         status: dirty(7),
       }),
@@ -123,7 +117,7 @@ describe("a dirty tree is named, not rescanned", () => {
   it("names exactly three paths with no more", () => {
     const [problem] = problems(
       setup({
-        policy: "components:\n  core:\n    - m*.py\n",
+        policy: "entry:\n  - m*.py\n",
         cache: current,
         status: dirty(3),
       }),
@@ -137,7 +131,7 @@ describe("a dirty tree is named, not rescanned", () => {
   it("keeps recognizer scan as the fix for a clean tree at another commit", () => {
     const [problem] = problems(
       setup({
-        policy: "components:\n  core:\n    - m*.py\n",
+        policy: "entry:\n  - m*.py\n",
         cache: scanJson(2, 1, { commit: "old" }, "  "),
       }),
       "policy",
@@ -267,7 +261,7 @@ describe("a retired key's fix leaves no empty section", () => {
 });
 
 describe("policy problems carry a recognizer policy command", () => {
-  const folderScan = (...ids: string[]) =>
+  const scanOfIds = (...ids: string[]) =>
     scanJson(
       0,
       0,
@@ -283,18 +277,17 @@ describe("policy problems carry a recognizer policy command", () => {
       "  ",
     );
 
-  const scanned = folderScan("app/a.py");
+  const scanned = scanOfIds("app/a.py");
 
-  it("removes a glob matching nothing", () => {
-    const policy =
-      "components:\n  core:\n    - app/**\n  gone:\n    - gone/**\n";
+  it("removes an entry glob matching nothing", () => {
+    const policy = "entry:\n  - app/**\n  - gone/**\n";
     const fake = setup({ policy, cache: scanned });
     const found = problems(fake, "policy");
 
     expect(found).toHaveLength(1);
     expect(found[0]?.code).toBe("policy-entry");
     expect(found[0]?.fix.command).toBe(
-      "recognizer policy --unset components.gone 'gone/**'",
+      "recognizer policy --unset entry 'gone/**'",
     );
     expect(found[0]?.fix.text).toBe(found[0]?.fix.command);
 
@@ -303,162 +296,45 @@ describe("policy problems carry a recognizer policy command", () => {
     expect(problems(fake, "policy")).toEqual([]);
   });
 
-  it("reports a glob held by two components once, then for the other", () => {
-    const policy =
-      "components:\n  core:\n    - app/**\n  one:\n    - gone/**\n  two:\n    - gone/**\n";
-    const fake = setup({ policy, cache: scanned });
-    const first = problems(fake, "policy");
+  it("reports an entry glob listed twice once", () => {
+    const policy = "entry:\n  - app/**\n  - gone/**\n  - gone/**\n";
+    const found = problems(setup({ policy, cache: scanned }), "policy");
 
-    expect(first).toHaveLength(1);
-    expect(first[0]?.fix.command).toContain("components.one");
-
-    apply(fake, first[0]?.fix.command ?? null);
-
-    const second = problems(fake, "policy");
-
-    expect(second).toHaveLength(1);
-    expect(second[0]?.fix.command).toContain("components.two");
+    expect(found).toHaveLength(1);
   });
 
-  it("releases levels and uses before removing a component's last glob", () => {
+  it("offers the migration for a retired key and applying it clears the problem", () => {
     const policy =
-      "components:\n  core:\n    - app/**\n  gone:\n    - gone/**\nlevels:\n  - core\n  - gone\nuses:\n  gone:\n    - core\n  core:\n    - gone\n";
+      "components:\n  core:\n    - app/**\n  gone:\n    - gone/**\nlevels:\n  - core\n  - gone\n";
     const fake = setup({ policy, cache: scanned });
     const found = problems(fake, "policy");
 
     expect(found).toHaveLength(1);
-    expect(found[0]?.fix.command).toContain(" && ");
+    expect(found[0]?.code).toBe("policy-retired");
+    expect(found[0]?.fix.command).toBe("recognizer policy --migrate");
 
     apply(fake, found[0]?.fix.command ?? null);
 
-    expect(problems(fake, "policy")).toEqual([]);
+    expect(problems(fake, "policy").map((one) => one.code)).toEqual([]);
   });
 
-  it("removes levels and uses entirely when only the gone component names them", () => {
-    const policy =
-      "components:\n  core:\n    - app/**\n  gone:\n    - gone/**\nlevels:\n  - gone\nuses:\n  gone:\n    - core\n";
-    const fake = setup({ policy, cache: scanned });
-    const found = problems(fake, "policy");
+  it("names the repository in the migration fix when it was named", () => {
+    const fake = setup({ policy: "components:\n  a: x/**\n" });
 
-    apply(fake, found[0]?.fix.command ?? null);
+    run(["doctor", ROOT, "--json"], fake.io);
 
-    expect(problems(fake, "policy")).toEqual([]);
-  });
+    const found = JSON.parse(fake.out()).areas.find(
+      (area: { name: string }) => area.name === "policy",
+    ).problems;
 
-  it("keeps a single command when the component has another glob", () => {
-    const policy =
-      "components:\n  core:\n    - app/**\n  gone:\n    - gone/**\n    - app/*\nlevels:\n  - gone\n";
-    const fake = setup({ policy, cache: scanned });
-    const found = problems(fake, "policy");
-
-    expect(found[0]?.fix.command).not.toContain(" && ");
-
-    apply(fake, found[0]?.fix.command ?? null);
-
-    expect(problems(fake, "policy")).toEqual([]);
-  });
-
-  it("names both forms for an uncovered folder and each clears it", () => {
-    const policy = "components:\n  core:\n    - other/**\n";
-    const cache = folderScan("app/a.py", "other/b.py");
-    const [problem] = problems(setup({ policy, cache }), "policy") as [Problem];
-
-    expect(problem.code).toBe("policy-folder");
-    expect(problem.fix.command).toBeNull();
-    expect(problem.fix.text).toContain(
-      "recognizer policy --add ignore 'app/*'",
+    expect(found[0].fix.command).toBe(
+      `recognizer policy --migrate --repository ${ROOT}`,
     );
-    expect(problem.fix.text).toContain(
-      "recognizer policy --add components.<name> 'app/*'",
-    );
-
-    for (const command of [
-      "recognizer policy --add ignore 'app/*'",
-      "recognizer policy --add components.core 'app/*'",
-    ]) {
-      const fake = setup({ policy, cache });
-
-      apply(fake, command);
-
-      expect(problems(fake, "policy")).toEqual([]);
-    }
   });
 
-  it("says to name each root module for the root folder", () => {
-    const [problem] = problems(
-      setup({
-        policy: "components:\n  core:\n    - other/**\n",
-        cache: folderScan("root.py", "other/b.py"),
-      }),
-      "policy",
-    ) as [Problem];
-
-    expect(problem.fix.text).toContain("<module>");
-    expect(problem.fix.text).toContain("name each root module");
-  });
-
-  const cases = [
-    [
-      "an unknown level",
-      "components:\n  a:\n    - x/**\nlevels:\n  - a\n  - b\n",
-      "recognizer policy --unset levels b",
-    ],
-    [
-      "a duplicate level",
-      "components:\n  a:\n    - x/**\nlevels:\n  - a\n  - a\n",
-      "recognizer policy --unset levels a",
-    ],
-    [
-      "an unknown uses section",
-      "components:\n  a:\n    - x/**\nuses:\n  b:\n    - a\n",
-      "recognizer policy --remove-section uses",
-    ],
-    [
-      "an unknown uses target",
-      "components:\n  a:\n    - x/**\nuses:\n  a:\n    - b\n",
-      "recognizer policy --remove-section uses",
-    ],
-    [
-      "an unknown uses section beside a valid one",
-      "components:\n  a:\n    - x/**\nuses:\n  a:\n    - a\n  b:\n    - a\n",
-      "recognizer policy --unset uses.b",
-    ],
-    [
-      "an unknown uses target beside a valid one",
-      "components:\n  a:\n    - x/**\nuses:\n  a:\n    - a\n    - b\n",
-      "recognizer policy --unset uses.a b",
-    ],
-  ] as const;
-
-  it.each(cases)("clears %s", (_, policy, command) => {
-    const fake = setup({ policy });
-    const found = invalid(fake);
-
-    expect(found).toHaveLength(1);
-    expect(found[0]?.code).toBe("policy-invalid");
-    expect(found[0]?.fix.command).toBe(command);
-
-    apply(fake, command);
-
-    expect(invalid(fake)).toEqual([]);
-  });
-
-  it("clears only the message it names when a policy has two", () => {
-    const policy =
-      "components:\n  a:\n    - x/**\nlevels:\n  - a\n  - b\nuses:\n  c:\n    - a\n";
-    const fake = setup({ policy });
-    const found = invalid(fake);
-
-    expect(found).toHaveLength(2);
-
-    apply(fake, found[0]?.fix.command ?? null);
-
-    expect(invalid(fake)).toHaveLength(1);
-  });
-
-  it("gives hand-edit text and no command for a structural fault", () => {
+  it("gives hand-edit text and no command for an invalid value", () => {
     const found = problems(
-      setup({ policy: "components:\n  a:\n    - x/**\nwhat: 1\n" }),
+      setup({ policy: "forbid:\n  - x/** -> y/**\nwhat: 1\n" }),
       "policy",
     );
 
@@ -470,12 +346,11 @@ describe("policy problems carry a recognizer policy command", () => {
 
   it("never names the policy file outside the structural case", () => {
     const fake = setup({
-      policy:
-        "components:\n  core:\n    - other/**\n  gone:\n    - gone/**\nlevels:\n  - core\n",
-      cache: folderScan("app/a.py", "other/b.py"),
+      policy: "entry:\n  - gone/**\n",
+      cache: scanOfIds("app/a.py", "other/b.py"),
     });
 
-    for (const problem of invalid(fake)) {
+    for (const problem of problems(fake, "policy")) {
       expect(problem.fix.text).not.toContain("policy.yaml");
     }
   });

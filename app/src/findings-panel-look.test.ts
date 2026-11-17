@@ -37,7 +37,7 @@ const groupedScan = validateScan({
   foreign: [],
 });
 const GROUPED_POLICY =
-  "components:\n  config: config/**\n  adapter: adapter/**\nuses:\n  adapter: []\n";
+  "forbid:\n  - config/** -> adapter/**\n  - adapter/** -> config/**\n";
 const groupedDocument = structureSensor(
   [groupedScan],
   parsePolicy(GROUPED_POLICY),
@@ -569,7 +569,7 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
     expect(f.grouped.line).toBe("1 violation");
     expect(f.grouped.cards).toBe(1);
     expect(f.grouped.sentence).toBe(
-      "Application.kt imports 2 modules from adapter, which the policy forbids: config may not use adapter.",
+      "Application.kt imports 2 modules, which the policy forbids: nothing may match config/** -> adapter/**.",
     );
     expect(f.grouped.rows).toEqual([
       "Application.ktconfigAdd to view",

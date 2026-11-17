@@ -6,19 +6,6 @@ export const POLICY_KEYS: KeySchema = {
   placeholders: { name: "^[^.\\s]+$" },
   sections: [
     {
-      key: "components",
-      shape: "map-entry",
-      description: "the components, each a name holding its globs",
-      example: "--add-section components",
-    },
-    {
-      key: "uses",
-      shape: "map-entry",
-      description:
-        "the dependency rules, each a component holding the components it may depend on",
-      example: "--remove-section uses",
-    },
-    {
       key: "foreign",
       shape: "map-entry",
       description: "the foreign groups, each a name holding its members",
@@ -27,31 +14,18 @@ export const POLICY_KEYS: KeySchema = {
   ],
   keys: [
     {
-      key: "components.<name>",
+      key: "entry",
       type: "string",
       multi: true,
-      description: "the globs of one component",
-      example: "--add components.domain src/domain/**",
-    },
-    {
-      key: "levels",
-      type: "string",
-      multi: true,
-      description: "component names, inner first, in the order they are added",
-      example: "--add levels domain",
-    },
-    {
-      key: "uses.<name>",
-      type: "string",
-      multi: true,
-      description: "the components that <name> may depend on",
-      example: "--add uses.adapters domain",
+      description: "paths or globs that are entry points, never orphans",
+      example: "--add entry src/main.ts",
     },
     {
       key: "forbid",
       type: "string",
       multi: true,
-      description: "`<from-glob> -> <to-glob>` strings naming forbidden edges",
+      description:
+        "`<from-glob> -> <to-glob>` strings naming forbidden edges; a rule over lists is written with --add-forbid",
       example: '--add forbid "src/ui/** -> src/db/**"',
     },
     {

@@ -37,7 +37,7 @@ const PROPOSAL = {
       section: "policy",
       title: "Draft",
       reason: "r",
-      commands: [["recognizer", "policy", "--add", "levels", "core"]],
+      commands: [["recognizer", "policy", "--add", "entry", "src/main.ts"]],
     },
   ],
 };

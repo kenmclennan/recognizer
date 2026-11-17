@@ -92,7 +92,7 @@ describe("computeHealth on fixtures/check", () => {
 
   it("pins the finding line formats", () => {
     expect(health.lines("shop/domain/order.py")[0]).toMatch(
-      /^violation: depends on shop\/adapters\/memory_store\.py at line \d+(, \d+)* \((level|uses|forbid) /,
+      /^violation: depends on shop\/adapters\/memory_store\.py at line \d+(, \d+)*; depends on shop\/application\/place\.py at line 7 \(forbid /,
     );
     expect(health.lines("shop/application/place.py")).toHaveLength(1);
     expect(health.lines("shop/application/place.py")[0]).toContain("cycle");
@@ -125,9 +125,9 @@ describe("findings", () => {
     expect(order.length).toBe(health.lines("shop/domain/order.py").length);
     expect(order[0]?.severity).toBe("violation");
     expect(order[0]?.text).toMatch(
-      /^depends on shop\/adapters\/memory_store\.py at line \d+(, \d+)*$/,
+      /^depends on shop\/adapters\/memory_store\.py at line \d+(, \d+)*; depends on shop\/application\/place\.py at line 7$/,
     );
-    expect(order[0]?.why).toMatch(/^(level|uses|forbid) /);
+    expect(order[0]?.why).toMatch(/^forbid /);
     expect(health.lines("shop/domain/order.py")[0]).toBe(
       `violation: ${order[0]?.text} (${order[0]?.why})`,
     );
@@ -209,8 +209,11 @@ describe("computeHealth with a baseline", () => {
     const health = withBaseline(baseline);
 
     expect(plain.disc("shop/domain/order.py")).toBe("red");
-    expect(health.findings("shop/domain/order.py").length).toBeLessThan(
-      plain.findings("shop/domain/order.py").length,
+    expect(plain.findings("shop/domain/order.py")[0]?.text).toContain(
+      "memory_store.py",
+    );
+    expect(health.findings("shop/domain/order.py")[0]?.text).not.toContain(
+      "memory_store.py",
     );
   });
 
@@ -225,7 +228,8 @@ describe("computeHealth with a baseline", () => {
       secondSensorDocument("shop/main.py", undefined, undefined, "other"),
     ]).health;
 
-    expect(count(health.documents)).toBeLessThan(count(plain.documents));
+    expect(count(health.documents)).toBe(count(plain.documents));
+    expect(health.documents).not.toEqual(plain.documents);
     expect(
       stray.documents.find((one) => one.sensor.name === "lint")?.findings,
     ).toEqual([]);
@@ -568,35 +572,31 @@ describe("computeHealth policy problems", () => {
   const problemsFor = (policy: string | null) =>
     healthFor("check", policy, []).health.policyProblems;
 
-  it("reports the one uncovered folder of fixtures/check and marks no module with it", () => {
+  it("reports no problem for the committed fixtures/check policy and marks no module", () => {
     const policy = fixturePolicy("check");
     const { health, ids } = healthOf("check", policy);
 
-    expect(health.policyProblems).toEqual([
-      {
-        kind: "folder",
-        subject: "shop/legacy",
-        text: "folder shop/legacy holds 1 scanned modules that no component covers",
-      },
-    ]);
+    expect(health.policyProblems).toEqual([]);
 
     for (const id of ids) {
-      expect(health.lines(id).join("\n")).not.toContain("shop/legacy holds");
+      expect(health.lines(id).join("\n")).not.toContain("matches no scanned");
     }
   });
 
-  it("reports a stale entry and an uncovered folder together", () => {
-    const problems = problemsFor(
-      "components:\n  domain: shop/domain/**\n  gone: nowhere/**\n",
-    );
+  it("reports an entry glob that matches no scanned module", () => {
+    const problems = problemsFor("entry:\n  - shop/main.py\n  - nowhere/**\n");
 
-    expect(problems.map((problem) => problem.kind)).toContain("entry");
-    expect(problems.map((problem) => problem.kind)).toContain("folder");
-    expect(problems.map((problem) => problem.subject)).toContain("nowhere/**");
+    expect(problems).toEqual([
+      {
+        kind: "entry",
+        subject: "nowhere/**",
+        text: "policy entry nowhere/** matches no scanned module",
+      },
+    ]);
   });
 
   it("gives none without a policy and none for a policy that does not parse", () => {
     expect(problemsFor(null)).toEqual([]);
-    expect(problemsFor("components: [unbalanced")).toEqual([]);
+    expect(problemsFor("entry: [unbalanced")).toEqual([]);
   });
 });

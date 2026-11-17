@@ -15,9 +15,19 @@
     },
     {
       "section": "policy",
-      "title": "Draft the components",
-      "reason": "the modules fall into two layers",
-      "commands": [["recognizer", "policy", "--add", "levels", "core"]]
+      "title": "Forbid the application layer importing adapters",
+      "reason": "the modules fall into an application layer and an adapters layer",
+      "commands": [
+        [
+          "recognizer",
+          "policy",
+          "--add-forbid",
+          "--from",
+          "src/application/**",
+          "--to",
+          "src/adapters/**"
+        ]
+      ]
     }
   ]
 }

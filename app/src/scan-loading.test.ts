@@ -181,9 +181,9 @@ describe("loadScans", () => {
       exitCode: 0,
       stderr: "",
       scans: [],
-      policy: "levels: []",
+      policy: "entry: []",
     });
 
-    expect(loaded.policy).toBe("levels: []");
+    expect(loaded.policy).toBe("entry: []");
   });
 });

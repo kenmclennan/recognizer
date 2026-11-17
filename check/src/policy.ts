@@ -9,22 +9,15 @@ export interface ForbidRule {
 }
 
 export interface Policy {
-  components: Map<string, Matcher[]>;
-  componentGlobs: Map<string, string[]>;
-  levels: string[];
-  uses: Map<string, string[]> | null;
   forbid: ForbidRule[];
   ignore: Matcher[];
+  entry: Matcher[];
+  entryGlobs: string[];
 }
 
-const ALLOWED_KEYS = new Set([
-  "components",
-  "levels",
-  "uses",
-  "forbid",
-  "foreign",
-  "ignore",
-]);
+export const RETIRED_KEYS = ["components", "levels", "uses"] as const;
+
+const ALLOWED_KEYS = new Set(["forbid", "foreign", "ignore", "entry"]);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -71,83 +64,12 @@ export function parsePolicy(yamlText: string): Policy {
   const errors: string[] = [];
 
   for (const key of Object.keys(document)) {
-    if (!ALLOWED_KEYS.has(key)) {
+    if ((RETIRED_KEYS as readonly string[]).includes(key)) {
+      errors.push(
+        `policy: "${key}" is retired; run recognizer doctor for the migration`,
+      );
+    } else if (!ALLOWED_KEYS.has(key)) {
       errors.push(`policy: unknown key "${key}"`);
-    }
-  }
-
-  const components = new Map<string, Matcher[]>();
-  const componentGlobs = new Map<string, string[]>();
-
-  if (document.components !== undefined) {
-    if (!isPlainObject(document.components)) {
-      errors.push("components: must map component names to globs");
-    } else {
-      for (const [name, value] of Object.entries(document.components)) {
-        if (name.trim() === "") {
-          errors.push("components: every name must be non-empty");
-          continue;
-        }
-
-        const globs = readGlobList(value, `components.${name}`, errors);
-        components.set(name, globs.map(compileGlob));
-        componentGlobs.set(name, globs);
-      }
-    }
-  }
-
-  const levels: string[] = [];
-
-  if (document.levels !== undefined) {
-    if (!Array.isArray(document.levels) || document.levels.length === 0) {
-      errors.push("levels: must be a non-empty list of component names");
-    } else {
-      for (const level of document.levels) {
-        if (!isNonEmptyString(level)) {
-          errors.push("levels: every level must be a non-empty string");
-        } else if (levels.includes(level)) {
-          errors.push(`levels: duplicate level "${level}"`);
-        } else if (!components.has(level)) {
-          errors.push(`levels: "${level}" is not in components`);
-        } else {
-          levels.push(level);
-        }
-      }
-    }
-  }
-
-  let uses: Map<string, string[]> | null = null;
-
-  if (document.uses !== undefined) {
-    if (
-      !isPlainObject(document.uses) ||
-      Object.keys(document.uses).length === 0
-    ) {
-      errors.push("uses: must be a non-empty map of component names to lists");
-    } else {
-      uses = new Map<string, string[]>();
-
-      for (const [name, allowed] of Object.entries(document.uses)) {
-        if (!components.has(name)) {
-          errors.push(`uses: "${name}" is not in components`);
-        }
-
-        if (
-          !Array.isArray(allowed) ||
-          !allowed.every((entry) => typeof entry === "string")
-        ) {
-          errors.push(`uses.${name}: must be a list of component names`);
-          continue;
-        }
-
-        for (const target of allowed) {
-          if (!components.has(target)) {
-            errors.push(`uses.${name}: "${target}" is not in components`);
-          }
-        }
-
-        uses.set(name, allowed);
-      }
     }
   }
 
@@ -155,7 +77,7 @@ export function parsePolicy(yamlText: string): Policy {
 
   if (document.forbid !== undefined) {
     if (!Array.isArray(document.forbid)) {
-      errors.push("forbid: must be a list of strings");
+      errors.push("forbid: must be a list");
     } else {
       for (const entry of document.forbid) {
         const rule = parseForbid(entry, errors);
@@ -194,16 +116,30 @@ export function parsePolicy(yamlText: string): Policy {
     }
   }
 
+  let entryGlobs: string[] = [];
+
+  if (document.entry !== undefined) {
+    if (!Array.isArray(document.entry)) {
+      errors.push("entry: must be a list of globs");
+    } else {
+      entryGlobs = readGlobList(document.entry, "entry", errors);
+    }
+  }
+
   if (errors.length > 0) {
     throw new InputError(errors);
   }
 
-  return { components, componentGlobs, levels, uses, forbid, ignore };
+  return { forbid, ignore, entry: entryGlobs.map(compileGlob), entryGlobs };
 }
 
 function parseForbid(entry: unknown, errors: string[]): ForbidRule | null {
+  if (isPlainObject(entry)) {
+    return parseListRule(entry, errors);
+  }
+
   if (typeof entry !== "string") {
-    errors.push("forbid: every entry must be a string");
+    errors.push("forbid: every entry must be a string or a from/to mapping");
     return null;
   }
 
@@ -223,4 +159,47 @@ function parseForbid(entry: unknown, errors: string[]): ForbidRule | null {
   }
 
   return { pattern: entry, from: compileGlob(from), to: compileGlob(to) };
+}
+
+function parseListRule(
+  entry: Record<string, unknown>,
+  errors: string[],
+): ForbidRule | null {
+  const shown = JSON.stringify(entry);
+  const keys = Object.keys(entry);
+
+  if (keys.length !== 2 || !keys.includes("from") || !keys.includes("to")) {
+    errors.push(`forbid: ${shown} must have exactly the keys "from" and "to"`);
+    return null;
+  }
+
+  const sides: string[][] = [];
+
+  for (const side of ["from", "to"] as const) {
+    const value = entry[side];
+
+    if (Array.isArray(value) && value.length === 0) {
+      errors.push(`forbid: ${shown} has an empty "${side}" list`);
+      return null;
+    }
+
+    const before = errors.length;
+    const globs = readGlobList(value, `forbid ${shown} ${side}`, errors);
+
+    if (errors.length > before) {
+      return null;
+    }
+
+    sides.push(globs);
+  }
+
+  const [from, to] = sides as [string[], string[]];
+  const matchesFrom = from.map(compileGlob);
+  const matchesTo = to.map(compileGlob);
+
+  return {
+    pattern: `${from.join(", ")} -> ${to.join(", ")}`,
+    from: (id) => matchesFrom.some((one) => one(id)),
+    to: (id) => matchesTo.some((one) => one(id)),
+  };
 }

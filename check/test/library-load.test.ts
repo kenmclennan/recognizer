@@ -89,7 +89,7 @@ describe("library load without code generation", () => {
     const result = noEval(script);
 
     expect(result.status).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual({ violations: 5, warnings: 1 });
+    expect(JSON.parse(result.stdout)).toEqual({ violations: 4, warnings: 1 });
   });
 
   it("validates a saved view with code generation from strings disabled", () => {
