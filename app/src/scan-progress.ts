@@ -110,6 +110,7 @@ export type ScanTiming = {
   rateFrom: { at: number; done: number; unit: string; step?: string } | null;
   runWork: RunWork | null;
   frozen: Record<string, number> | null;
+  suiteHistory: SuiteHistory | null;
 };
 
 export type ShowTarget =
@@ -142,6 +143,7 @@ export const NO_PROGRESS: ScanProgress = {
     rateFrom: null,
     runWork: null,
     frozen: null,
+    suiteHistory: null,
   },
 };
 

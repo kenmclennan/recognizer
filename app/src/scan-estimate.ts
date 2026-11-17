@@ -2,6 +2,7 @@ import { validateRunRecord } from "recognizer";
 import { STRUCTURE_KEY } from "./freshness-model";
 import { DESCRIBE_KEY, MUTATION_KEY, type PlannedRun } from "./scan-freshness";
 import type { RunWork, ScanProgress, SuiteHistory } from "./scan-progress";
+import { median, SUITES_UNIT, suitePace } from "./suite-pace";
 
 export type SenseSample = {
   durationMs: number;
@@ -91,15 +92,6 @@ function shortTime(ms: number): string {
   const rest = minutes % 60;
 
   return rest === 0 ? `${hours} h` : `${hours} h ${rest} m`;
-}
-
-function median(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-
-  return sorted.length % 2 === 1
-    ? (sorted[middle] as number)
-    : ((sorted[middle - 1] as number) + (sorted[middle] as number)) / 2;
 }
 
 function plural(count: number, noun: string): string {
@@ -474,7 +466,11 @@ function paced(runWork: RunWork | null): ((now: number) => number) | null {
 
   const keys = Object.keys(runWork.steps);
 
-  if (!runWork.queued && keys.some((key) => key !== "")) {
+  if (
+    !runWork.queued &&
+    runWork.unit !== SUITES_UNIT &&
+    keys.some((key) => key !== "")
+  ) {
     return null;
   }
 
@@ -483,7 +479,7 @@ function paced(runWork: RunWork | null): ((now: number) => number) | null {
     0,
   );
 
-  if (performed < LEFT_FLOOR) {
+  if (performed < (runWork.unit === SUITES_UNIT ? 1 : LEFT_FLOOR)) {
     return null;
   }
 
@@ -579,6 +575,28 @@ export function remaining(input: RemainingInput): Remaining | null {
     const reported = progress.sensorProgress;
 
     const counted = reported?.progress;
+
+    const bySuite =
+      reported !== null && reported.name === key
+        ? suitePace(
+            input.suites[key] ?? [],
+            progress.timing.suiteHistory?.[key],
+            progress.timing.runWork,
+            now,
+          )
+        : null;
+
+    if (bySuite !== null) {
+      total += bySuite.left;
+      overran.push(
+        ...bySuite.overran.map((suite) => ({
+          name: `${name} on ${suite}`,
+          figure: figure,
+        })),
+      );
+
+      continue;
+    }
 
     const worked =
       reported !== null && reported.name === key

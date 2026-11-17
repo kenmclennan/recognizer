@@ -954,6 +954,193 @@ describe("remaining time while running", () => {
     );
   });
 
+  const crap = (done: number) =>
+    stream("crap", 840_000, { total: 2, unit: "suites" }, [
+      [T, 0, 2, undefined, "suites"],
+      [T + 300_000, done, 2, undefined, "suites"],
+    ]);
+
+  it("paces a two-suite crap run once one suite is done", () => {
+    expect(sensorLeft("crap", crap(1), T + 300_000)?.text).toBe(
+      "about 5 min left",
+    );
+  });
+
+  it("keeps a two-suite crap run on the frozen figure with no suite done", () => {
+    expect(sensorLeft("crap", crap(0), T + 300_000)?.text).toBe(
+      "about 9 min left",
+    );
+  });
+
+  it("adds nothing for a two-suite crap run with every suite done", () => {
+    expect(sensorLeft("crap", crap(2), T + 300_000)?.text).toBe(
+      "under a minute left",
+    );
+  });
+
+  const SECOND = 1000;
+  const loomHistory = {
+    engine: [32 * SECOND],
+    app: [84 * SECOND],
+    tauri: [339 * SECOND],
+  };
+  const withHistory = (
+    progress: ScanProgress,
+    history: Record<string, number[]> = loomHistory,
+  ): ScanProgress => ({
+    ...progress,
+    timing: { ...progress.timing, suiteHistory: { crap: history } },
+  });
+  const loom = (
+    events: [number, number, string][],
+    history?: Record<string, number[]>,
+  ) =>
+    withHistory(
+      stream(
+        "crap",
+        840_000,
+        { total: 3, unit: "suites" },
+        events.map(([at, done, step]) => [at, done, 3, step, "suites"]),
+      ),
+      history,
+    );
+  const loomLeft = (progress: ScanProgress, now: number) =>
+    sensorLeft("crap", progress, now, ["engine", "app", "tauri"]);
+  const engineDone: [number, number, string][] = [
+    [T, 0, "engine"],
+    [T + 14 * SECOND, 1, "engine"],
+    [T + 14 * SECOND, 1, "app"],
+  ];
+
+  it("paces a multi-suite run on each suite's own history, scaled by this run's speed", () => {
+    expect(loomLeft(loom(engineDone), T + 14 * SECOND)?.text).toBe(
+      "about 3 min left",
+    );
+  });
+
+  it("counts the running suite as its median minus its elapsed time", () => {
+    expect(loomLeft(loom(engineDone), T + 34 * SECOND)?.text).toBe(
+      "about 3 min left",
+    );
+  });
+
+  it("takes the median of the past runs at least as long as an overrunning suite", () => {
+    const progress = loom(
+      [
+        [T, 0, "engine"],
+        [T + 32 * SECOND, 1, "engine"],
+        [T + 32 * SECOND, 1, "app"],
+      ],
+      { ...loomHistory, app: [60 * SECOND, 120 * SECOND] },
+    );
+
+    expect(loomLeft(progress, T + 132 * SECOND)?.text).toBe("about 6 min left");
+  });
+
+  it("names a suite that outran every past run and counts nothing for it beside the suites still to run", () => {
+    const progress = loom(
+      [
+        [T, 0, "engine"],
+        [T + 32 * SECOND, 1, "engine"],
+        [T + 32 * SECOND, 1, "app"],
+      ],
+      loomHistory,
+    );
+
+    expect(loomLeft(progress, T + 400 * SECOND)?.text).toBe(
+      "about 6 min left, plus crap on app: longer than estimated",
+    );
+  });
+
+  it("paces a suite with no history on the suite-count pace", () => {
+    expect(
+      loomLeft(
+        loom(
+          [
+            [T, 0, "engine"],
+            [T + 60 * SECOND, 1, "engine"],
+            [T + 60 * SECOND, 1, "app"],
+          ],
+          { engine: [60 * SECOND] },
+        ),
+        T + 60 * SECOND,
+      )?.text,
+    ).toBe("about 2 min left");
+  });
+
+  it("keeps the suite-count pace for a sensor with no per-suite history", () => {
+    expect(
+      loomLeft(
+        stream("crap", 840_000, { total: 3, unit: "suites" }, [
+          [T, 0, 3, "engine", "suites"],
+          [T + 60 * SECOND, 1, 3, "engine", "suites"],
+        ]),
+        T + 60 * SECOND,
+      )?.text,
+    ).toBe("about 2 min left");
+  });
+
+  const crapRun = (events: [number, Line[1]][]) =>
+    fold(frozen({ structure: 0, crap: 60_000 }), [
+      [T, { event: "phase", phase: "sense", total: 1 }],
+      [T, { event: "start", phase: "sense", name: "crap" }],
+      [T, plugin("crap", { event: "start", total: 3, unit: "suites" })],
+      ...events,
+    ]);
+  const suiteEvent = (done: number, step: string): Line[1] =>
+    plugin("crap", {
+      event: "progress",
+      done,
+      total: 3,
+      unit: "suites",
+      step,
+    });
+  const coverageNote = (suite: string): Line[1] =>
+    plugin("crap", { event: "note", text: `Coverage run: ${suite}` });
+  const threeSuiteRun = (
+    until: "engine" | "app" | "tauri",
+    history?: Record<string, number[]>,
+  ): ScanProgress => {
+    const events: [number, Line[1]][] = [
+      [T, suiteEvent(0, "engine")],
+      [T, coverageNote("engine")],
+      [T + 92 * SECOND, suiteEvent(1, "engine")],
+      [T + 92 * SECOND, suiteEvent(1, "app")],
+      [T + 92 * SECOND, coverageNote("app")],
+    ];
+
+    if (until !== "engine") {
+      events.push(
+        [T + 155 * SECOND, suiteEvent(2, "app")],
+        [T + 155 * SECOND, suiteEvent(2, "tauri")],
+        [T + 155 * SECOND, coverageNote("tauri")],
+      );
+    }
+
+    const progress = crapRun(events);
+
+    return history === undefined ? progress : withHistory(progress, history);
+  };
+
+  it("reads about 3 min after the first of three suites and about 1 min after the second, with no history", () => {
+    expect(loomLeft(threeSuiteRun("engine"), T + 92 * SECOND)?.text).toBe(
+      "about 3 min left",
+    );
+    expect(loomLeft(threeSuiteRun("tauri"), T + 155 * SECOND)?.text).toBe(
+      "about 1 min left",
+    );
+  });
+
+  it("keeps those figures after the sensor starts its function run", () => {
+    const progress = crapRun([
+      [T, suiteEvent(0, "engine")],
+      [T + 92 * SECOND, suiteEvent(1, "engine")],
+      [T + 92 * SECOND, suiteEvent(1, "app")],
+    ]);
+
+    expect(loomLeft(progress, T + 92 * SECOND)?.text).toBe("about 3 min left");
+  });
+
   it("keeps a stepped stream with no queued on the frozen figure", () => {
     const progress = stream(
       "mutation",

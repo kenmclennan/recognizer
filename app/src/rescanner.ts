@@ -539,6 +539,7 @@ export function createRescanner<Carried>(
       timing: {
         ...NO_PROGRESS.timing,
         frozen: busy ? progress.timing.frozen : null,
+        suiteHistory: busy ? progress.timing.suiteHistory : null,
       },
     };
     run = {
@@ -823,7 +824,11 @@ export function createRescanner<Carried>(
 
     progress = {
       ...NO_PROGRESS,
-      timing: { ...NO_PROGRESS.timing, frozen: planned?.frozen ?? null },
+      timing: {
+        ...NO_PROGRESS.timing,
+        frozen: planned?.frozen ?? null,
+        suiteHistory: planned?.suiteHistory ?? null,
+      },
     };
     startedFrom = record?.run_id ?? null;
     ownRunId = null;

@@ -1755,6 +1755,28 @@ describe("scanPanel estimate line", () => {
     expect(full.planned?.work.describe).toBe(3);
   });
 
+  it("freezes each suite's past durations beside the figures", () => {
+    const suites = [
+      { name: "a", durationMs: 40000 },
+      { name: "b", durationMs: 60000 },
+    ];
+    const sample = history.sense.mutation?.[0];
+
+    if (sample === undefined) {
+      throw new Error("the fixture history has no mutation sample");
+    }
+
+    const withSuites = {
+      ...history,
+      sense: { mutation: [{ ...sample, suites }] },
+    };
+
+    expect(
+      scanPanel(mutating({ history: withSuites })).planned?.suiteHistory,
+    ).toEqual({ mutation: { a: [40000], b: [60000] } });
+    expect(scanPanel(mutating()).planned?.suiteHistory).toBeUndefined();
+  });
+
   it("freezes the figures the run will count", () => {
     expect(scanPanel(mutating()).planned?.frozen).toEqual({
       structure: 6000,

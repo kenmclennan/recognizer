@@ -26,6 +26,7 @@ import {
   type PlannedWork,
   type ScanEstimate,
   type ScanHistory,
+  suiteHistoryOf,
 } from "./scan-estimate";
 import {
   DESCRIBE_KEY,
@@ -549,7 +550,15 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
     })),
     input.work ?? {},
   );
-  const planned: PlannedRun = { ...unplanned, frozen: frozenFigures(parts) };
+  const suiteHistory = suiteHistoryOf(
+    history,
+    parts.map((one) => one.key),
+  );
+  const planned: PlannedRun = {
+    ...unplanned,
+    frozen: frozenFigures(parts),
+    ...(Object.keys(suiteHistory).length === 0 ? {} : { suiteHistory }),
+  };
   const plain = sensors
     .filter(({ runsTests }) => !runsTests)
     .map(({ name }) => name);
