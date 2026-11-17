@@ -105,16 +105,22 @@ function findingOf(
   };
 }
 
-export function measureComplexity(
+export interface ComplexityMeasure {
+  findings: FindingRecord[];
+  values: Record<string, number>;
+}
+
+export function measureComplexityValues(
   io: Io,
   root: string,
   scans: Scan[],
   policy: Policy | null,
   settings: StructureSettings,
   parsers: Parsers,
-): FindingRecord[] {
+): ComplexityMeasure {
   const limit = settings.complexity_limit;
   const findings: FindingRecord[] = [];
+  const values: Record<string, number> = {};
 
   for (const scan of scans) {
     const { ids } = keptGraph(scan, policy?.ignore ?? []);
@@ -141,6 +147,10 @@ export function measureComplexity(
       }
 
       for (const fn of measureSource(module.id, source, grammar, parsers)) {
+        const key = `${module.id}::${fn.qualified}`;
+
+        values[key] = Math.max(values[key] ?? 0, fn.complexity);
+
         if (fn.complexity > limit) {
           findings.push(findingOf(module.id, fn, limit));
         }
@@ -150,7 +160,22 @@ export function measureComplexity(
 
   const seen = new Set<string>();
 
-  return findings
-    .filter((finding) => !seen.has(finding.id) && seen.add(finding.id))
-    .sort((a, b) => compare(a.id, b.id));
+  return {
+    findings: findings
+      .filter((finding) => !seen.has(finding.id) && seen.add(finding.id))
+      .sort((a, b) => compare(a.id, b.id)),
+    values,
+  };
+}
+
+export function measureComplexity(
+  io: Io,
+  root: string,
+  scans: Scan[],
+  policy: Policy | null,
+  settings: StructureSettings,
+  parsers: Parsers,
+): FindingRecord[] {
+  return measureComplexityValues(io, root, scans, policy, settings, parsers)
+    .findings;
 }
