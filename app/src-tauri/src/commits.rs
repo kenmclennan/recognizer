@@ -937,7 +937,7 @@ mod tests {
         }
 
         let bin = TempDir::new().unwrap();
-        let runner = gh_runner(&root, &bin.path().display().to_string());
+        let runner = gh_runner(bin.path(), &bin.path().display().to_string());
         let detail = change_detail(&runner, &root, "commit", "HEAD").unwrap();
         let text = detail.git.unwrap();
         let mut parts = text.splitn(3, '\u{1f}');
