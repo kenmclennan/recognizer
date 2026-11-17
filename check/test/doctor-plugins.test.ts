@@ -236,6 +236,99 @@ describe("doctor: scanners from manifests", () => {
   });
 });
 
+describe("doctor: a scanner's scan schema", () => {
+  async function withScanner(overrides: Record<string, unknown>) {
+    const fixture = setup(undefined, { "a.py": "" });
+
+    writeShim(
+      fixture.bin,
+      "recognizer-scan-python",
+      manifestFor("scanner", "python", {
+        ...RULES("python", ".py"),
+        install: "brew upgrade kenmclennan/tap/recognizer-scan-python",
+        ...overrides,
+      }),
+    );
+
+    return doctor(fixture);
+  }
+
+  it("reports a newer scanner as plugin-scan-schema with the cask fix", async () => {
+    const { report, code } = await withScanner({ scan_schema_version: 8 });
+    const found = problemsOf(report, "scanners");
+
+    expect(code).toBe(1);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      code: "plugin-scan-schema",
+      severity: "problem",
+    });
+    expect(found[0]?.line).toContain("scan schema 8");
+    expect(found[0]?.fix.text).toBe(
+      "brew upgrade --cask kenmclennan/tap/recognizer",
+    );
+  });
+
+  it("reports a broken scanner with its install line", async () => {
+    const { report } = await withScanner({ scan_schema_version: 6 });
+    const [problem] = problemsOf(report, "scanners");
+
+    expect(problem?.code).toBe("plugin-scan-schema");
+    expect(problem?.fix.text).toBe(
+      "brew upgrade kenmclennan/tap/recognizer-scan-python",
+    );
+  });
+
+  it("reports nothing for a scanner that declares the current version", async () => {
+    const { report, code } = await withScanner({ scan_schema_version: 7 });
+
+    expect(problemsOf(report, "scanners")).toEqual([]);
+    expect(code).toBe(0);
+  });
+
+  it("reports nothing for a scanner that declares nothing", async () => {
+    const { scan_schema_version: _, ...rest } = manifestFor(
+      "scanner",
+      "python",
+    );
+    const { report } = await withScanner(rest);
+
+    expect(problemsOf(report, "scanners")).toEqual([]);
+  });
+
+  it("reports both codes for a scanner that is protocol-unsupported and schema-newer", async () => {
+    const { report } = await withScanner({
+      protocol: 7,
+      scan_schema_version: 8,
+    });
+    const codes = problemsOf(report, "scanners").map((one) => one.code);
+
+    expect(codes).toEqual(["plugin-protocol", "plugin-scan-schema"]);
+  });
+
+  it("does not report a scanner no detected language chooses", async () => {
+    const fixture = setup(undefined, { "a.py": "" });
+
+    writeShim(
+      fixture.bin,
+      "recognizer-scan-python",
+      manifestFor("scanner", "python", RULES("python", ".py")),
+    );
+    writeShim(
+      fixture.bin,
+      "recognizer-scan-swift",
+      manifestFor("scanner", "swift", {
+        ...RULES("swift", ".swift"),
+        scan_schema_version: 9,
+      }),
+    );
+
+    const { report } = await doctor(fixture);
+
+    expect(problemsOf(report, "scanners")).toEqual([]);
+  });
+});
+
 describe("doctor: registered plugins", () => {
   const SENSOR =
     "sensors:\n  mine:\n    command: [recognizer-sense-mine, run, --repository, '{repository}']\n";

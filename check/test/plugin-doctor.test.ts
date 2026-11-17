@@ -5,6 +5,7 @@ import {
   reportJson,
   reportText,
 } from "../src/doctor.js";
+import type { InstalledPlugin } from "../src/plugin-discovery.js";
 import type { PluginFact, PluginSpec } from "../src/plugin-doctor.js";
 import { scannerProblems, settingProblems } from "../src/plugin-doctor.js";
 import type { Manifest } from "../src/plugin-manifest.js";
@@ -27,6 +28,7 @@ function facts(overrides: Partial<DoctorFacts> = {}): DoctorFacts {
         name: "python",
         command: "/bin/recognizer-scan-python",
         judgement: "current",
+        schema: "undeclared",
         manifest: manifestFor("scanner", "python") as unknown as Manifest,
       },
     ],
@@ -110,6 +112,59 @@ describe("scannerProblems", () => {
     });
     expect(problem?.fix.text).toBe("recorded line");
   });
+});
+
+describe("scannerProblems and the scan schema", () => {
+  function scanner(schema: InstalledPlugin["schema"], declared?: number) {
+    return {
+      kind: "scanner" as const,
+      name: "python",
+      command: "/bin/recognizer-scan-python",
+      judgement: "current" as const,
+      schema,
+      manifest: manifestFor("scanner", "python", {
+        install: "get it",
+        scan_schema_version: declared,
+        languages: [
+          { name: "python", extensions: [".py"], files: [], skip: {} },
+        ],
+      }) as unknown as Manifest,
+    };
+  }
+
+  it("gives a newer scanner the cask fix", () => {
+    const found = scannerProblems(["python"], [scanner("newer", 8)], {}, {});
+
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      code: "plugin-scan-schema",
+      severity: "problem",
+    });
+    expect(found[0]?.fix.text).toBe(
+      "brew upgrade --cask kenmclennan/tap/recognizer",
+    );
+  });
+
+  it("gives a broken scanner its recorded install line", () => {
+    const found = scannerProblems(
+      ["python"],
+      [scanner("broken", 6)],
+      {},
+      { "recognizer-scan-python": "recorded line" },
+    );
+
+    expect(found[0]?.fix.text).toBe("recorded line");
+    expect(found[0]?.line).toContain("recorded line");
+  });
+
+  it.each(["older", "undeclared", "current"] as const)(
+    "raises nothing for a %s scanner",
+    (schema) => {
+      expect(scannerProblems(["python"], [scanner(schema, 7)], {}, {})).toEqual(
+        [],
+      );
+    },
+  );
 });
 
 describe("settingProblems", () => {

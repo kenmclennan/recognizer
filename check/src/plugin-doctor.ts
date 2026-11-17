@@ -1,6 +1,10 @@
 import type { SetupProblem } from "./doctor.js";
 import type { InstalledPlugin } from "./plugin-discovery.js";
-import { supportedRange } from "./plugin-discovery.js";
+import {
+  CASK_UPGRADE,
+  scanSchemaMessage,
+  supportedRange,
+} from "./plugin-discovery.js";
 import {
   CURRENT_PROTOCOL,
   type Manifest,
@@ -309,6 +313,27 @@ export function scannerProblems(
           install[`recognizer-scan-${choice.scanner.name}`] ?? null,
         ),
       );
+
+      const line = scanSchemaMessage(
+        choice.scanner,
+        install[`recognizer-scan-${choice.scanner.name}`] ?? undefined,
+      );
+
+      if (line !== null) {
+        found.push(
+          problem(
+            "plugin-scan-schema",
+            language,
+            line,
+            textFix(
+              choice.scanner.schema === "newer"
+                ? CASK_UPGRADE
+                : (install[`recognizer-scan-${choice.scanner.name}`] ??
+                    choice.scanner.manifest.install),
+            ),
+          ),
+        );
+      }
 
       continue;
     }
