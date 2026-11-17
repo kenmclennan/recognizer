@@ -552,7 +552,7 @@ def test_a_finding_at_the_published_threshold_cites_its_source(tmp_path):
     )
 
 
-def test_a_finding_at_another_threshold_cites_its_source_and_names_both(tmp_path):
+def test_a_finding_at_another_threshold_cites_its_source_and_states_the_limit_only(tmp_path):
     root = python_repository(tmp_path, branches(4), lcov_for("app/m.py", range(1, 10)))
 
     _, document, _ = produced(root, tmp_path, "--settings", '{"threshold":25}')
@@ -563,8 +563,8 @@ def test_a_finding_at_another_threshold_cites_its_source_and_names_both(tmp_path
     assert finding["citation"]["author"] == "Alberto Savoia and Bob Evans"
     assert finding["evidence"]["measures"]["limit"] == 25
     assert finding["evidence"]["measures"]["published"] == 30
-    assert "threshold of 25" in finding["summary"]
-    assert "Savoia and Evans say 30" in finding["summary"]
+    assert finding["summary"].endswith(", over the limit of 25")
+    assert "says" not in finding["summary"]
 
 
 def test_a_finding_at_the_published_threshold_carries_no_published_figure(tmp_path):

@@ -1921,7 +1921,7 @@ describe("private_imports", () => {
       ...principleOf("information-hiding"),
     });
     expect(result[0]?.fix_pattern).toBeUndefined();
-    expect(result[0]?.summary).toContain("information hiding (Parnas, 1972)");
+    expect(result[0]?.summary).not.toContain("Parnas");
     expect(result[0]?.evidence.members).toEqual([
       {
         module: "lib/shared.py",
@@ -2296,17 +2296,18 @@ describe("long_function", () => {
     expect(ids(foundAt(at25, 20))).toEqual(["long_function:lib/a.py::f"]);
     expect(foundAt(at25, 25)).toEqual([]);
     expect(ids(foundAt(at26, 25))).toEqual(["long_function:lib/a.py::g"]);
+    expect(
+      foundAt([{ id: "lib/a.py", functions: [span("h", 1, 30)] }], 30),
+    ).toEqual([]);
   });
 
-  it("names both figures and the published one in the measures when the limit is tuned", () => {
+  it("states the limit in force and keeps the published figure in the measures when the limit is tuned", () => {
     const [finding] = foundAt(
       [{ id: "lib/a.py", functions: [span("f", 1, 34)] }],
       30,
     );
 
-    expect(finding?.summary).toBe(
-      "f in a.py is 34 lines, over this repository's limit of 30 lines (Clean Code says 20) - functions should be small (Martin, Clean Code, 2008)",
-    );
+    expect(finding?.summary).toBe("f is 34 lines, over the limit of 30");
     expect(finding?.evidence.measures).toEqual({
       lines: 34,
       limit: 30,
@@ -2339,9 +2340,8 @@ describe("long_function", () => {
       ...principleOf("small-functions"),
     });
     expect(result[0]?.fix_pattern).toBeUndefined();
-    expect(result[0]?.summary).toContain(
-      "functions should be small (Martin, Clean Code, 2008)",
-    );
+    expect(result[0]?.summary).toBe("b is 21 lines, over the limit of 20");
+    expect(result[0]?.summary).not.toContain("Martin");
     expect(result[0]?.evidence.modules).toEqual(["lib/store.py"]);
   });
 
@@ -2363,7 +2363,7 @@ describe("long_function", () => {
       },
     ]);
     expect(result[0]?.evidence.measures).toEqual({ lines: 31, limit: 20 });
-    expect(result[0]?.summary).toContain("Store.save in store.py is 31 lines");
+    expect(result[0]?.summary).toContain("Store.save is 31 lines");
   });
 
   it("gives none for a function or method with no range", () => {

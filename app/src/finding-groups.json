@@ -27,13 +27,13 @@
     {
       "key": "kind:private_imports",
       "name": "Private imports",
-      "means": "A Python file imports names another module marks private, by an underscore or by leaving them out of its __all__.",
+      "means": "A Python file imports names another module marks private, by an underscore or by leaving them out of its __all__. This reaches past the module's interface, which is all importers may depend on (information hiding, Parnas, 1972).",
       "todo": "Check whether the name is meant to be public."
     },
     {
       "key": "kind:long_function",
       "name": "Long functions",
-      "means": "A function or method is more than the limit (20 by default), the length Clean Code says a function should hardly ever reach.",
+      "means": "A function or method is more than the limit (20 by default), the length a function should hardly ever reach (Martin, Clean Code, 2008, chapter 3).",
       "todo": "Check whether it does more than one thing."
     },
     {

@@ -185,13 +185,8 @@ function longFunction(record: FindingRecord): string | null {
   }
 
   const limit = record.evidence.measures?.limit ?? 20;
-  const published = record.evidence.measures?.published;
-  const reach =
-    published === undefined
-      ? `the ${num(limit)} a function should hardly ever reach`
-      : `this repository's limit of ${num(limit)} (Clean Code says ${num(published)})`;
 
-  return `${member.name} in ${shortName(member.module)} is ${num(lines)} lines, over ${reach} - functions should be small (Martin, Clean Code, 2008).`;
+  return `${member.name} is ${num(lines)} lines, over the limit of ${num(limit)}.`;
 }
 
 function orphan(record: FindingRecord): string | null {
@@ -221,7 +216,7 @@ function privateImports(record: FindingRecord): string | null {
 
   const owners = new Set(members.map((member) => member.module)).size;
 
-  return `${shortName(module)} imports ${members.length} private ${plural(members.length, "name", "names")} from ${owners} ${plural(owners, "module", "modules")}, which reaches past their interface (information hiding, Parnas, 1972).`;
+  return `${shortName(module)} imports ${members.length} private ${plural(members.length, "name", "names")} from ${owners} ${plural(owners, "module", "modules")}.`;
 }
 
 const TEMPLATES: Record<string, (record: FindingRecord) => string | null> = {
