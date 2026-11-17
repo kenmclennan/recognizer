@@ -235,3 +235,18 @@ def test_a_sensor_entry_point_writes_the_findings_the_named_form_writes(tmp_path
     assert main(["crap", "run", *flags, "--output", str(named)]) == 0
     assert entry.crap(["run", *flags, "--output", str(entered)]) == 0
     assert named.read_text() == entered.read_text()
+
+
+def test_the_crap_metrics_are_titled_helped_and_ordered_as_the_agreed_mock():
+    metrics = [
+        (metric["name"], metric["title"], metric["help"]) for metric in build("crap")["metrics"]
+    ]
+
+    assert metrics[1:] == [
+        (
+            "crap",
+            "C.R.A.P. score",
+            "Complexity weighed against how well tests cover each function.",
+        ),
+        ("coverage", "Coverage", "Share of each function's lines the tests run."),
+    ]

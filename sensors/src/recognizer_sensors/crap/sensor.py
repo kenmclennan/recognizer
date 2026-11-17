@@ -40,8 +40,8 @@ FIX_PATTERN = "simplify-or-test"
 
 METRICS = [
     {"name": "complexity", "type": "count", "granularity": "member", "bad": "high"},
-    {"name": "coverage", "type": "ratio", "granularity": "member", "bad": "low"},
     {"name": "crap", "type": "number", "granularity": "member", "bad": "high"},
+    {"name": "coverage", "type": "ratio", "granularity": "member", "bad": "low"},
 ]
 
 

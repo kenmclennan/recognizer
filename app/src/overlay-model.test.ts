@@ -479,7 +479,7 @@ describe("descriptors", () => {
     );
     const entry = metricEntryOf(FULL.sensors, "crap", "crap");
 
-    expect(entry?.title).toBe("C.R.A.P.");
+    expect(entry?.title).toBe("C.R.A.P. score");
     expect(metric.title).toBe(entry?.title);
     expect(metric.short).toBe(entry?.label);
     expect(metric.description).toBe(entry?.help);
@@ -493,7 +493,7 @@ describe("descriptors", () => {
       FULL,
     );
 
-    expect(metric.title).toBe("C.R.A.P.");
+    expect(metric.title).toBe("C.R.A.P. score");
     expect(metric.short).toBe("CRAP");
     expect(metricEntryOf(FULL.sensors, "custom-crap", "crap")?.label).toBe(
       "CRAP",
