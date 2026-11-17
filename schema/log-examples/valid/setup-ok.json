@@ -1,0 +1,28 @@
+{
+  "log_version": 1,
+  "kind": "setup",
+  "started": "2026-11-17T10:05:00.000Z",
+  "finished": "2026-11-17T10:05:09.000Z",
+  "by": "ken",
+  "arguments": ["apply", "/work/loom", "--choices", "/tmp/choices.json"],
+  "outcome": "ok",
+  "exit": 0,
+  "entries": [
+    {
+      "name": "tool-@vitest/coverage-v8",
+      "command": ["npm", "install", "--save-dev", "@vitest/coverage-v8@3.2.4", "-w", "engine"],
+      "status": 0,
+      "outcome": "ok",
+      "duration_ms": 6000,
+      "stderr": "added 14 packages"
+    },
+    {
+      "name": "plugin-crap",
+      "command": ["recognizer", "plugin", "add", "crap"],
+      "status": 0,
+      "outcome": "ok",
+      "duration_ms": 300,
+      "stderr": ""
+    }
+  ]
+}

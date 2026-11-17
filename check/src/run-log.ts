@@ -4,7 +4,7 @@ import { InputError } from "./errors.js";
 import { validateRunRecord } from "./log-document.js";
 import type { Diagnosis } from "./plugin-events.js";
 
-export type RunKind = "scan" | "sense" | "describe" | "measure";
+export type RunKind = "scan" | "sense" | "describe" | "measure" | "setup";
 
 export interface RunEntry {
   name: string;
@@ -96,7 +96,7 @@ export interface EntryTiming {
 export const STDERR_LIMIT = 8192;
 export const KEEP = 50;
 
-const NAME = /^\d{8}T\d{9}Z-(scan|sense|describe|measure)\.json$/;
+const NAME = /^\d{8}T\d{9}Z-(scan|sense|describe|measure|setup)\.json$/;
 const ID = /^\d{8}T\d{9}Z-(scan|sense|describe|measure)$/;
 const BY_LIMIT = 64;
 

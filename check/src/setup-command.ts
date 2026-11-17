@@ -7,6 +7,7 @@ import { discoverPlugins } from "./plugin-discovery.js";
 import type { RecordedScan } from "./scan.js";
 import { readCachedScan } from "./scan-command.js";
 import { languageRulesOf } from "./scanners.js";
+import { applyChanges } from "./setup-apply.js";
 import { buildChanges, type SetupChoices } from "./setup-changes.js";
 import { recommend } from "./setup-recommend.js";
 import { surveyJson, surveyRepository } from "./setup-survey.js";
@@ -15,6 +16,7 @@ const USAGE = [
   "usage: recognizer setup survey [REPOSITORY] [--scan <file>] [--json]",
   "       recognizer setup changes [REPOSITORY] --choices <file> [--scan <file>] [--json]",
   "       recognizer setup recommend [REPOSITORY] --input <file> [--scan <file>] [--json]",
+  "       recognizer setup apply [REPOSITORY] --choices <file>",
 ];
 
 function readJsonFile(io: Io, file: string, flag: string): unknown {
@@ -122,6 +124,20 @@ export async function runSetup(argv: string[], io: Io): Promise<number> {
     io.stdout(`${JSON.stringify(answer, null, 2)}\n`);
 
     return 0;
+  }
+
+  if (verb === "apply") {
+    const choices = choicesOf(io, values.choices);
+    const { changes } = buildChanges(surveyRepository(io, root), choices);
+    const ok = await applyChanges(
+      io,
+      root,
+      changes,
+      (event) => io.stdout(`${JSON.stringify(event)}\n`),
+      argv,
+    );
+
+    return ok ? 0 : 1;
   }
 
   throw new InputError(USAGE);

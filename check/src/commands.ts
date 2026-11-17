@@ -1595,17 +1595,18 @@ export const COMMANDS: Command[] = [
   {
     name: "setup",
     summary:
-      "survey a repository for setup, build the setup changes a set of choices makes and check policy recommendations",
+      "survey a repository for setup, build the setup changes a set of choices makes, check policy recommendations and apply the changes all or nothing",
     usage: [
       "recognizer setup survey [REPOSITORY] [--scan <file>] [--json]",
       "recognizer setup changes [REPOSITORY] --choices <file> [--scan <file>] [--json]",
       "recognizer setup recommend [REPOSITORY] --input <file> [--scan <file>] [--json]",
+      "recognizer setup apply [REPOSITORY] --choices <file>",
     ].join("\n"),
     arguments: [
       {
-        name: "survey|changes|recommend",
+        name: "survey|changes|recommend|apply",
         description:
-          "survey reads what the repository has and starts no scanner, describer or test; changes lists, in run order, the commands a choices file makes; recommend checks a policy recommendation file and counts what each forbid rule breaks today",
+          "survey reads what the repository has and starts no scanner, describer or test; changes lists, in run order, the commands a choices file makes; recommend checks a policy recommendation file and counts what each forbid rule breaks today; apply runs the changes and undoes them all when one fails",
       },
       {
         name: "REPOSITORY",
@@ -1631,11 +1632,16 @@ export const COMMANDS: Command[] = [
       { flag: "--json", description: "print JSON; every verb already does" },
     ],
     output: {
-      text: "JSON on stdout for every verb",
-      json: "survey: { survey_version, version, repository, configured, files, unread, checks, runners, tools, upgrade }; changes: { changes: [{ id, title, steps: [{ argv, cwd }] }], dropped, needing_user }; recommend: { entries, dropped }",
+      text: "JSON on stdout for every verb; apply prints one JSON line per event instead of one document",
+      json: "survey: { survey_version, version, repository, configured, files, unread, checks, runners, tools, upgrade }; changes: { changes: [{ id, title, steps: [{ argv, cwd }] }], dropped, needing_user }; recommend: { entries, dropped }; apply: lines of { event: start, total }, { event: change, index, state: running|done|failed|undone, output } and { event: result, ok, doctor }",
     },
     exitCodes: [
-      { code: 0, meaning: "the verb finished" },
+      { code: 0, meaning: "the verb finished; apply applied every change" },
+      {
+        code: 1,
+        meaning:
+          "apply: a step failed or was stopped, and the earlier changes were undone",
+      },
       {
         code: 2,
         meaning:

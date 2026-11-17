@@ -259,6 +259,7 @@ export {
   parseScanArgs,
   parseSuiteSelection,
 } from "./scan-phases.js";
+export type { ApplyEvent } from "./setup-apply.js";
 export {
   type DroppedCard,
   type EntryCard,

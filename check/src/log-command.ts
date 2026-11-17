@@ -15,9 +15,9 @@ import {
 } from "./run-log.js";
 
 const USAGE =
-  "recognizer log [<id>] [--last] [--kind scan|describe|measure] [--repository <dir>] [--json]";
+  "recognizer log [<id>] [--last] [--kind scan|describe|measure|setup] [--repository <dir>] [--json]";
 
-const KINDS = ["scan", "sense", "describe", "measure"];
+const KINDS = ["scan", "sense", "describe", "measure", "setup"];
 
 function listLine(run: RunSummary): string {
   const outcome = run.outcome === "running" ? "stopped" : run.outcome;

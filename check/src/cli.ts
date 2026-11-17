@@ -152,6 +152,20 @@ const liveTempDirs = new Set<string>();
 
 export const STOP_GRACE_MS = 10_000;
 
+const stopHooks = new Set<() => Promise<void>>();
+
+export function onStop(hook: () => Promise<void>): () => void {
+  stopHooks.add(hook);
+
+  return () => {
+    stopHooks.delete(hook);
+  };
+}
+
+async function runStopHooks(): Promise<void> {
+  await Promise.all([...stopHooks].map((hook) => hook()));
+}
+
 function exited(child: ChildProcess): Promise<void> {
   return new Promise((resolve) => {
     if (child.exitCode !== null || child.signalCode !== null) {
@@ -182,9 +196,13 @@ export function stopEverything(
   const stopping = [...liveChildren];
 
   if (stopping.length === 0) {
-    finishStop();
+    if (stopHooks.size === 0) {
+      finishStop();
 
-    return Promise.resolve();
+      return Promise.resolve();
+    }
+
+    return runStopHooks().then(finishStop);
   }
 
   for (const child of stopping) {
@@ -208,7 +226,7 @@ export function stopEverything(
       }
     }
 
-    finishStop();
+    return runStopHooks().then(finishStop);
   });
 }
 
