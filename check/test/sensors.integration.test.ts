@@ -351,7 +351,7 @@ describe.skipIf(!HAS_UV)(
           .filter((id: string) => id.startsWith("coverage:"));
 
       it(
-        "finds the five planted crossings",
+        "finds the three planted crossings",
         async () => {
           useCrapFixture("{coverage_limit: 0.6}");
 

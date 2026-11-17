@@ -198,7 +198,7 @@ A warning is a graph heuristic reported as a candidate with evidence, never a ve
 - `remove-or-wire-orphan`, `move-orphan-to-tests` and `narrow-exports`: the fix patterns for `orphan` and `unused_exports`.
 - `break-cycle`: the fix pattern for `cycle`, naming the change that removes at least one edge of the cycle.
 
-The in-effect thresholds are printed as `thresholds` in the output. They are command-line flags only; the policy carries no warnings key.
+Thresholds are command-line flags only; the policy carries no warnings key.
 
 ## Exit codes
 

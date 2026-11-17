@@ -384,7 +384,7 @@ describe("finding-groups.json", () => {
     todo: string;
   }[];
 
-  it("has the structure sensor's seven unique keys and names with plain help sentences", () => {
+  it("has the structure sensor's eight unique keys and names with plain help sentences", () => {
     expect(entries.map((one) => one.key)).toEqual([
       "kind:rule-violation",
       "kind:cycle",
