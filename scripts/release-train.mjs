@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadUnits } from "./units.mjs";
 
@@ -83,6 +85,16 @@ export function plan(units, sha, facts) {
   return { units: planned, failures };
 }
 
+export function verifyTrain(appVersion, built) {
+  return built
+    .filter((one) => one.unit.startsWith("scan-"))
+    .filter((one) => one.scan_schema_version !== appVersion)
+    .map(
+      (one) =>
+        `${one.unit} declares scan schema ${one.scan_schema_version ?? "nothing"} and the app reads ${appVersion}`,
+    );
+}
+
 function git(root, args) {
   return execFileSync("git", args, { cwd: root, encoding: "utf8" });
 }
@@ -125,6 +137,14 @@ export function systemFacts(root) {
   };
 }
 
+function readBuilt(directory) {
+  return readdirSync(directory, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => join(directory, entry.name, "meta.json"))
+    .filter((file) => existsSync(file))
+    .map((file) => JSON.parse(readFileSync(file, "utf8")));
+}
+
 export function main(argv, root, facts = systemFacts(root)) {
   const [mode, ...rest] = argv;
 
@@ -140,7 +160,19 @@ export function main(argv, root, facts = systemFacts(root)) {
     return result.failures.length === 0 ? 0 : 1;
   }
 
-  process.stderr.write("usage: release-train.mjs plan <sha>\n");
+  if (mode === "verify" && rest.length === 2) {
+    const failures = verifyTrain(Number(rest[0]), readBuilt(rest[1]));
+
+    for (const failure of failures) {
+      process.stderr.write(`${failure}\n`);
+    }
+
+    return failures.length === 0 ? 0 : 1;
+  }
+
+  process.stderr.write(
+    "usage: release-train.mjs plan <sha> | verify <app-scan-schema-version> <built-folder>\n",
+  );
 
   return 2;
 }

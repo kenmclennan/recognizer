@@ -125,7 +125,7 @@ jobs:
           fi
           mkdir -p train
           cp "dist-release/$UNIT-$VERSION.tar.gz" train/
-          UNIT="$UNIT" VERSION="$VERSION" DECLARED="$DECLARED" node -e '
+          UNIT="$UNIT" VERSION="$VERSION" DECLARED="$declared" node -e '
             const declared = process.env.DECLARED;
             const meta = {
               unit: process.env.UNIT,

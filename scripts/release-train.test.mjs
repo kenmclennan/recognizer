@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ciVerdict,
@@ -5,7 +7,9 @@ import {
   main,
   plan,
   plannedUnits,
+  verifyTrain,
 } from "./release-train.mjs";
+import { makeTempDir } from "./temp-dirs.mjs";
 
 const UNITS = [
   {
@@ -212,7 +216,57 @@ describe("plan", () => {
   });
 });
 
-describe("main", () => {
+describe("verifyTrain", () => {
+  it("fails when a built scanner declares 8 and the app reads 7", () => {
+    const failures = verifyTrain(7, [
+      { unit: "scan-python", scan_schema_version: 7 },
+      { unit: "scan-rust", scan_schema_version: 8 },
+    ]);
+
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toContain("scan-rust");
+    expect(failures[0]).toContain("8");
+  });
+
+  it("passes when every scanner equals the app", () => {
+    expect(
+      verifyTrain(7, [
+        { unit: "scan-python", scan_schema_version: 7 },
+        { unit: "sensors", scan_schema_version: null },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("fails a scanner that declares nothing", () => {
+    expect(
+      verifyTrain(7, [{ unit: "scan-kotlin", scan_schema_version: null }]),
+    ).toHaveLength(1);
+  });
+});
+
+describe("main verify", () => {
+  function built(entries) {
+    const root = makeTempDir("release-train-");
+
+    for (const entry of entries) {
+      mkdirSync(join(root, `plugin-${entry.unit}`));
+      writeFileSync(
+        join(root, `plugin-${entry.unit}`, "meta.json"),
+        JSON.stringify(entry),
+      );
+    }
+
+    return root;
+  }
+
+  it("exits 1 on a mismatch and 0 when equal", () => {
+    const bad = built([{ unit: "scan-rust", scan_schema_version: 8 }]);
+    const good = built([{ unit: "scan-rust", scan_schema_version: 7 }]);
+
+    expect(main(["verify", "7", bad], ".")).toBe(1);
+    expect(main(["verify", "7", good], ".")).toBe(0);
+  });
+
   it("exits 2 on an unknown mode", () => {
     expect(main(["nope"], ".")).toBe(2);
   });

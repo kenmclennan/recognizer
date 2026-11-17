@@ -69,12 +69,29 @@ describe("packaging/units.json", () => {
   });
 
   it("has no release-<unit> workflow, because release.yml releases every unit listed here", () => {
+    const release = workflows().find(({ name }) => name === "release.yml");
+
+    expect(release.text).toContain("release-train.mjs");
+
     for (const { unit } of UNITS) {
       expect(
         workflows().find(({ name }) => name === `release-${unit}.yml`),
         `release-${unit}.yml`,
       ).toBeUndefined();
     }
+  });
+
+  it("hands build-plugin.yml's meta.json step the shell variable it sets", () => {
+    const build = workflows().find(({ name }) => name === "build-plugin.yml");
+    const step =
+      /- name: Record what was built\n[\s\S]*?(?=\n {6}- name:)/.exec(
+        build.text,
+      )[0];
+    const assigned = /^\s*(\w+)=\$\(cat declared-scan-schema\.txt\)/m.exec(
+      step,
+    )[1];
+
+    expect(step).toContain(`DECLARED="$${assigned}"`);
   });
 
   it("matches the plugins matrix of check.yml", () => {

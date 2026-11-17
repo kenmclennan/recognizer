@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
@@ -39,10 +39,12 @@ describe("release.yml", () => {
     expect(onMain).toBeLessThan(index("Publish the release"));
   });
 
-  it("requires the app workflow to have passed before the toolchain build", () => {
-    expect(index("Require the app workflow to have passed")).toBeLessThan(
-      index("Build the CLI toolchain folder"),
+  it("requires the train's plan job before the toolchain build", () => {
+    expect(WORKFLOW.jobs.release.needs).toContain("plan");
+    expect(WORKFLOW.jobs.plan.steps.map((step) => step.name)).toContain(
+      "Plan the train",
     );
+    expect(index("Build the CLI toolchain folder")).toBeGreaterThanOrEqual(0);
   });
 
   it("guards every step after the skip step, apart from the cleanup", () => {
@@ -64,5 +66,28 @@ describe("release.yml", () => {
       expect(String(job.if ?? "")).not.toContain("workflow_run");
       expect(JSON.stringify(job.env ?? {})).not.toContain("workflow_run");
     }
+  });
+
+  it("writes to the tap only from release.yml", () => {
+    const folder = fileURLToPath(
+      new URL("../.github/workflows/", import.meta.url),
+    );
+    const files = readdirSync(folder).filter((name) => name.endsWith(".yml"));
+
+    expect(files.length).toBeGreaterThan(0);
+
+    const writers = files.filter((name) =>
+      /homebrew-tap|TAP_REPO|render-homebrew/.test(
+        readFileSync(`${folder}${name}`, "utf8"),
+      ),
+    );
+
+    expect(writers).toEqual(["release.yml"]);
+  });
+
+  it("builds the planned units before the release job and publishes the tap after it", () => {
+    expect(WORKFLOW.jobs["build-plugins"].needs).toBe("plan");
+    expect(WORKFLOW.jobs.release.needs).toContain("build-plugins");
+    expect(WORKFLOW.jobs.tap.needs).toBe("release");
   });
 });
