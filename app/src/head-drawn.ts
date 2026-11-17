@@ -35,7 +35,7 @@ export function headDrawn(inputs: HeadDrawnInputs): ReadonlySet<string> {
     inputs.marked
       .filter(
         (entry) =>
-          entry.mark === "modified" &&
+          (entry.mark === "modified" || entry.mark === "renamed") &&
           entry.box === "current" &&
           inputs.marks.get(entry.id) !== undefined &&
           inputs.marks.get(entry.id) !== null &&

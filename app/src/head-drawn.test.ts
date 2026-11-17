@@ -108,6 +108,22 @@ describe("head-drawn", () => {
   });
 });
 
+describe("head-drawn renamed", () => {
+  it("headDrawn includes a renamed module with marks held in the head scan", () => {
+    const drawn = headDrawn({
+      scans: [scanOf(["other"], { commit: "else", modified: false })],
+      headCommit: HEAD,
+      marked: [
+        { id: "p/a.py", mark: "renamed", box: "current", from: "p/old.py" },
+      ],
+      marks: new Map([["p/a.py", new Map([["helper", "added"]])]]),
+      head,
+    });
+
+    expect([...drawn]).toEqual(["p/a.py"]);
+  });
+});
+
 describe("head-drawn responsibility", () => {
   const checkout = (id: string) => ({
     state: { kind: "current" as const, line: `checkout ${id}` },

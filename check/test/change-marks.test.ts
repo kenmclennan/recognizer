@@ -4,6 +4,7 @@ import type { MarkScan } from "../src/change-marks.js";
 import {
   changeMarks,
   classifyChanges,
+  classifyOpened,
   type FileChange,
   parseNameStatus,
   scannedBy,
@@ -328,5 +329,44 @@ describe("scannedBy", () => {
 
     expect(scannedBy("vendor/a.py", selection)).toBe(false);
     expect(scannedBy("vendor2/a.py", selection)).toBe(true);
+  });
+});
+
+describe("classifyOpened", () => {
+  it("classifyOpened counts only files with a node", () => {
+    const csharp = {
+      ...selectionOf([".cs", ".py"]),
+      skip_directory_names: [],
+    };
+    const head = [
+      {
+        modules: [{ id: "src/a.py", kind: "module" }],
+        selection: csharp,
+      } as MarkScan,
+    ];
+    const changes: FileChange[] = [
+      { status: "A", path: "src/a.py" },
+      { status: "M", path: "Tests/T.cs" },
+      { status: "A", path: "src/ghost.py" },
+      { status: "D", path: "src/gone.py" },
+    ];
+
+    expect(changes).toHaveLength(4);
+
+    const found = changeMarks(changes, head, null);
+    const result = classifyOpened(changes, found.modules);
+
+    expect(result.added).toEqual(["src/a.py"]);
+    expect(result.elsewhere).toEqual([
+      "Tests/T.cs",
+      "src/ghost.py",
+      "src/gone.py",
+    ]);
+    expect(
+      result.added.length +
+        result.modified.length +
+        result.renamed.length +
+        result.removed.length,
+    ).toBe(found.modules.filter((one) => one.box !== "none").length);
   });
 });

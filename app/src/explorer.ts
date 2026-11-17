@@ -3,6 +3,7 @@ import {
   type ChangeFacts,
   changeChip,
   changeMarks,
+  classifyOpened,
   type FileChange,
   folderUsedBy,
   folderUses,
@@ -353,6 +354,7 @@ type ChangeInfo =
       unmatched: number;
       at: number;
       headCommit: string;
+      pick: { kind: PickRow["kind"]; ref: string } | null;
       members: ChangeMembers;
       baseUnreadable?: string;
       headUnreadable?: string;
@@ -1533,7 +1535,11 @@ export function showExplorer(
 
     const found = loadedMembers(info.members);
     const modifiedHere = (module: string) =>
-      info.marked.some((one) => one.id === module && one.mark === "modified");
+      info.marked.some(
+        (one) =>
+          one.id === module &&
+          (one.mark === "modified" || one.mark === "renamed"),
+      );
 
     return {
       mark: (module, key) =>
@@ -1549,8 +1555,14 @@ export function showExplorer(
           return null;
         }
 
+        const marked = info.marked.find((one) => one.id === module);
+        const baseId =
+          marked?.mark === "renamed" && marked.from !== undefined
+            ? marked.from
+            : module;
+
         for (const scan of found.start) {
-          const entry = scan.modules.find((one) => one.id === module);
+          const entry = scan.modules.find((one) => one.id === baseId);
 
           if (entry !== undefined) {
             return entry.members ?? null;
@@ -1903,6 +1915,10 @@ export function showExplorer(
     }
 
     const range = rangeText(view.change);
+    const pick =
+      commitsOpening === null
+        ? null
+        : { kind: commitsOpening.kind, ref: commitsOpening.ref };
 
     changeInfo = { name, range, state: "loading" };
     render();
@@ -1994,7 +2010,9 @@ export function showExplorer(
     );
 
     const anyModified = found.modules.some(
-      (one) => one.mark === "modified" && one.box === "current",
+      (one) =>
+        (one.mark === "modified" || one.mark === "renamed") &&
+        one.box === "current",
     );
     const okInfo = {
       name,
@@ -2004,6 +2022,7 @@ export function showExplorer(
       unmatched: found.unmatched,
       at: Date.now(),
       headCommit: answer.headCommit,
+      pick,
       drawn,
       ...(baseUnreadable === undefined ? {} : { baseUnreadable }),
       ...(headUnreadable === undefined ? {} : { headUnreadable }),
@@ -2392,6 +2411,12 @@ export function showExplorer(
     const last = commitsSelection.last();
     const picked = commitsSelection.picked();
     const opening = openingNow();
+    const openInfo =
+      changeInfo?.state === "ok" && changeInfo.name === DRAFT_VIEW
+        ? changeInfo
+        : null;
+    const openedPick = openInfo?.pick ?? null;
+    const openedMarked = openInfo?.marked ?? [];
     const endOf = (pick: PickRow): "first" | "last" | null =>
       commitsTab !== "history"
         ? null
@@ -2416,7 +2441,13 @@ export function showExplorer(
         | "classification"
       >,
     ) => {
-      const classification = classify(changes, present);
+      const classification =
+        openedPick !== null &&
+        openedPick.kind === pick.kind &&
+        openedPick.ref === pick.ref &&
+        changes !== null
+          ? classifyOpened(changes, openedMarked)
+          : classify(changes, present);
       const end = endOf(pick);
       const heldPick =
         picked !== null && picked.kind === pick.kind && picked.ref === pick.ref;

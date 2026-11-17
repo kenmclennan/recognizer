@@ -615,6 +615,22 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   await tick(100);
   out.failing = failing.q(".commits-notice").textContent;
 
+  const ghostHistory = record("a", "b", "Ghost range", "HEAD -> main", ["A\\tp/ghost.py", "A\\tp/b.py"]) + record("b", null, "Ghost root", "", ["A\\tp/a.py"]);
+  const ghost = mount({ history: ghostHistory });
+  const countOf = () => { const r = rowFor(ghost, "Ghost range"); return { count: r.querySelector(".commits-impact-count").textContent, other: (r.querySelector(".commits-impact-other") || { textContent: null }).textContent }; };
+  const headScan = { ...scan, commit: sha("a"), modules: ["p/a.py", "p/b.py"].map((id) => ({ id, kind: "module" })) };
+  const baseScan = { ...scan, commit: sha("b"), modules: ["p/a.py"].map((id) => ({ id, kind: "module" })) };
+  ghost.views.scansByCommit.set(sha("a"), [headScan]);
+  ghost.views.scansByCommit.set(sha("b"), [baseScan]);
+  ghost.views.ranges.set(sha("b") + ".." + sha("a"), { baseCommit: sha("b"), headCommit: sha("a"), merged: false, changes: [{ status: "A", path: "p/ghost.py" }, { status: "A", path: "p/b.py" }] });
+  click(ghost.q(".rail-commits"));
+  await tick(100);
+  const ghostBefore = countOf();
+  click(rowFor(ghost, "Ghost range"));
+  await tick(300);
+  const ghostAfter = countOf();
+  out.ghostCounts = { before: ghostBefore, after: ghostAfter, tip: (() => { const node = rowFor(ghost, "Ghost range").querySelector(".commits-impact"); node.dispatchEvent(new PointerEvent("pointerenter", { clientX: 60, clientY: 60, bubbles: false })); const card = ghost.q(".commits-card"); return [...card.children].map((n) => n.textContent); })() };
+
   document.getElementById("out").textContent = btoa(JSON.stringify(out));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -891,6 +907,11 @@ type Facts = {
   gh_failed: GhFacts;
   reopened: Calls;
   failing: string;
+  ghostCounts: {
+    before: { count: string; other: string | null };
+    after: { count: string; other: string | null };
+    tip: string[];
+  };
 } & Refresh;
 
 describe.skipIf(webkit === undefined)(
@@ -1402,6 +1423,16 @@ describe.skipIf(webkit === undefined)(
 
     it("leaves the refresh's rows when the initial reply lands after the refresh's", () => {
       expect(f.raced).toEqual(["Raced new"]);
+    });
+
+    it("popover counts equal the drawn nodes after a change view opens a C# range", () => {
+      expect(f.ghostCounts.before).toEqual({ count: "2 files", other: null });
+      expect(f.ghostCounts.after).toEqual({
+        count: "1 file",
+        other: "+1 not on the canvas",
+      });
+      expect(f.ghostCounts.tip).toContain("1 file not on the canvas");
+      expect(f.ghostCounts.tip).toContain("p/ghost.py");
     });
 
     it("shows a history error as the notice", () => {
