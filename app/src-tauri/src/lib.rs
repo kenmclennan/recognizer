@@ -21,6 +21,7 @@ pub mod scan_ticks;
 pub mod sensors;
 pub mod settings;
 pub mod setup_run;
+pub mod shutdown;
 pub mod socket;
 pub mod tool_runner;
 pub mod views;
@@ -407,6 +408,28 @@ impl socket::Source for AppSource {
         }
 
         drives.wait(label, number, &receiver, socket::DRIVE_WAIT)
+    }
+}
+
+fn start_signal_listener(app: &AppHandle) {
+    let handle = app.clone();
+
+    let listening = shutdown::listen(move || {
+        let state = handle.state::<WindowState>();
+        let scans = handle.state::<ScanRuns>();
+        let attached = scan_run::attached_app_runs(&state.folders(), &scans);
+
+        shutdown::stop_for_signal(
+            &scans,
+            &handle.state::<SetupRuns>(),
+            &attached,
+            || state.confirm_quit(),
+            || handle.exit(0),
+        );
+    });
+
+    if let Err(error) = listening {
+        eprintln!("recognizer: signal handling is not available: {error}");
     }
 }
 
@@ -1745,6 +1768,7 @@ pub fn run() {
             app.manage(Snapshots::default());
             app.manage(Drives::default());
             app.manage(Mutex::new(start_socket(&handle)));
+            start_signal_listener(&handle);
             app.set_menu(build_menu(&handle)?)?;
 
             let opened_with = app
