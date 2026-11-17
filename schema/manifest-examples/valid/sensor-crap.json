@@ -117,6 +117,16 @@
           ],
           [
             {
+              "when": [
+                {
+                  "has": "evidence.measures.limit"
+                }
+              ],
+              "text": ", over the limit of {evidence.measures.limit|num}"
+            }
+          ],
+          [
+            {
               "text": "."
             }
           ]
