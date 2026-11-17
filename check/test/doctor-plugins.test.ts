@@ -1,6 +1,6 @@
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
 import type { DoctorReport } from "../src/doctor.js";
 import {
@@ -527,5 +527,47 @@ describe("doctor: registered plugins", () => {
       "describers",
     ]);
     expect(report.warnings).toBe(0);
+  });
+});
+
+describe("doctor: PATH isolation", () => {
+  const original = process.env.PATH;
+
+  afterEach(() => {
+    process.env.PATH = original;
+  });
+
+  it("does not see a describer that is only on the process PATH", async () => {
+    const outside = tempDirectory("recognizer-doctor-outside-");
+
+    writeShim(
+      outside,
+      "recognizer-describe-claude",
+      manifestFor("describer", "claude"),
+    );
+    process.env.PATH = `${outside}:${original ?? ""}`;
+
+    const { report } = await doctor(setup());
+
+    expect(
+      report.areas.find((one) => one.name === "describers")?.problems,
+    ).toEqual([]);
+  });
+
+  it("resolves a command only on the narrowed PATH", () => {
+    const outside = tempDirectory("recognizer-doctor-outside-");
+
+    writeShim(
+      outside,
+      "recognizer-describe-claude",
+      manifestFor("describer", "claude"),
+    );
+    process.env.PATH = `${outside}:${original ?? ""}`;
+
+    const result = ioWithPath([]).run("recognizer-describe-claude", [
+      "manifest",
+    ]);
+
+    expect(result.started).toBe(false);
   });
 });
