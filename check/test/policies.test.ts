@@ -47,7 +47,9 @@ function outcome(
   const result = check(scanOf(edges, modules), template(name), null);
 
   return {
-    rules: result.violations.map((v) => [v.from, v.to, v.rules[0]?.type]),
+    rules: result.violations.flatMap((v) =>
+      v.imports.map((one) => [v.from, one.to, v.rule.type]),
+    ),
     unranked: result.unranked,
   };
 }

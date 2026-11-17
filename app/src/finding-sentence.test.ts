@@ -319,6 +319,60 @@ describe("sentenceOf", () => {
   });
 });
 
+describe("the violation sentence for several imports", () => {
+  const several = (kinds: string[], rule: object) =>
+    sentence({
+      kind: "rule-violation",
+      evidence: {
+        modules: ["config/Application.kt"],
+        edges: kinds.map((kind, index) => ({
+          from: "config/Application.kt",
+          to: `adapter/Port${index}.kt`,
+          kind,
+          lines: [index + 1],
+          rules: [rule as never],
+        })),
+      },
+    });
+
+  it("names the count and the target for several imports", () => {
+    const uses = {
+      type: "uses",
+      from_component: "config",
+      to_component: "adapter",
+    };
+
+    expect(several(["depends", "depends"], uses)).toBe(
+      "Application.kt imports 2 modules from adapter, which the policy forbids: config may not use adapter.",
+    );
+    expect(
+      several(["depends", "depends", "depends"], {
+        type: "level",
+        from_level: "domain",
+        to_level: "adapters",
+      }),
+    ).toBe(
+      "Application.kt imports 3 modules from adapters, which the policy forbids: domain may not use adapters.",
+    );
+    expect(
+      several(["depends", "depends"], { type: "forbid", pattern: "y/**" }),
+    ).toBe(
+      "Application.kt imports 2 modules, which the policy forbids: nothing may match y/**.",
+    );
+  });
+
+  it("uses the shared kind as the verb unless it is depends or mixed", () => {
+    const rule = { type: "forbid", pattern: "y/**" };
+
+    expect(several(["inherits", "inherits"], rule)).toContain(
+      "inherits 2 modules",
+    );
+    expect(several(["depends", "implements"], rule)).toContain(
+      "imports 2 modules",
+    );
+  });
+});
+
 describe("the duplication sentence", () => {
   const member = (name: string, module: string, lines?: [number, number]) => ({
     module,

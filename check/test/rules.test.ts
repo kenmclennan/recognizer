@@ -1,7 +1,14 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { check, InputError, parsePolicy, validateScan } from "../src/index.js";
+import {
+  check,
+  InputError,
+  parsePolicy,
+  ruleText,
+  type Violation,
+  validateScan,
+} from "../src/index.js";
 import { FIXTURE, REPO } from "./helpers.js";
 
 const POLICY = `
@@ -90,9 +97,10 @@ describe("forbid rule", () => {
   it("fires on a module target", () => {
     const result = run([edge("x/a.py", "x/b.py")]);
 
-    expect(result.violations[0]?.rules).toEqual([
-      { type: "forbid", pattern: "x/* -> x/*" },
-    ]);
+    expect(result.violations[0]?.rule).toEqual({
+      type: "forbid",
+      pattern: "x/* -> x/*",
+    });
   });
 
   it("fires on a foreign target only when named", () => {
@@ -102,7 +110,7 @@ describe("forbid rule", () => {
     expect(run([edge("x/a.py", "foreign:os")]).violations).toEqual([]);
   });
 
-  it("yields one violation with both rules when an edge hits level and forbid", () => {
+  it("yields one violation per rule when an edge hits level and forbid", () => {
     const result = run([
       edge("d/a.py", "foreign:requests"),
       edge("x/a.py", "x/b.py"),
@@ -113,10 +121,14 @@ describe("forbid rule", () => {
     );
 
     expect(result.violations).toHaveLength(2);
-    expect(both.violations).toHaveLength(1);
-    expect(both.violations[0]?.rules.map((r) => r.type)).toEqual([
-      "level",
-      "forbid",
+    expect(both.violations).toHaveLength(2);
+    expect(both.violations.map((v) => ruleText(v.rule))).toEqual([
+      "forbid d/* -> x/*",
+      "level domain -> adapters",
+    ]);
+    expect(both.violations.map((v) => v.imports)).toEqual([
+      [{ to: "x/b.py", kind: "depends", lines: [1] }],
+      [{ to: "x/b.py", kind: "depends", lines: [1] }],
     ]);
   });
 
@@ -127,7 +139,115 @@ describe("forbid rule", () => {
     ]);
 
     expect(result.violations).toHaveLength(1);
-    expect(result.violations[0]?.lines).toEqual([2, 9]);
+    expect(result.violations[0]?.imports).toEqual([
+      { to: "x/b.py", kind: "depends", lines: [2, 9] },
+    ]);
+  });
+
+  it("groups two imports from one module under one rule into one violation", () => {
+    const result = run([
+      edge("d/a.py", "x/m1.py", "depends", 3),
+      edge("d/a.py", "x/m2.py", "depends", 7),
+    ]);
+
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0]?.from).toBe("d/a.py");
+    expect(ruleText((result.violations[0] as Violation).rule)).toBe(
+      "level domain -> adapters",
+    );
+    expect(result.violations[0]?.imports).toEqual([
+      { to: "x/m1.py", kind: "depends", lines: [3] },
+      { to: "x/m2.py", kind: "depends", lines: [7] },
+    ]);
+  });
+
+  it("keeps different rules and different source modules apart", () => {
+    const rules = run([
+      edge("d/a.py", "x/m1.py"),
+      edge("d/a.py", "foreign:requests"),
+    ]);
+    const modules = run([edge("d/a.py", "x/m1.py"), edge("d/b.py", "x/m1.py")]);
+
+    expect(rules.violations).toHaveLength(2);
+    expect(modules.violations).toHaveLength(2);
+    expect(modules.violations.map((v) => v.from)).toEqual(["d/a.py", "d/b.py"]);
+  });
+});
+
+describe("baseline over grouped violations", () => {
+  const known = (to: string) => ({ from: "d/a.py", to, kind: "depends" });
+
+  it("treats a second import under a rule the module already breaks as growth", () => {
+    const result = run(
+      [edge("d/a.py", "x/m1.py"), edge("d/a.py", "x/m2.py")],
+      POLICY,
+      [],
+    );
+    const ranked = check(
+      scanOf([edge("d/a.py", "x/m1.py"), edge("d/a.py", "x/m2.py")]),
+      parsePolicy(POLICY),
+      [known("x/m1.py")],
+    );
+
+    expect(result.new).toHaveLength(1);
+    expect(ranked.violations).toHaveLength(1);
+    expect(ranked.new).toHaveLength(1);
+    expect(ranked.new[0]?.grown).toBe(true);
+    expect(ranked.new[0]?.imports.map((one) => one.to)).toEqual(["x/m2.py"]);
+    expect(ranked.fixed).toEqual([]);
+  });
+
+  it("accepts an import already in the baseline and reports a new rule", () => {
+    const ranked = check(
+      scanOf([
+        edge("d/a.py", "x/m1.py"),
+        edge("d/a.py", "x/m2.py"),
+        edge("d/a.py", "p/s.py"),
+      ]),
+      parsePolicy(POLICY),
+      [known("x/m1.py")],
+    );
+    const byRule = (text: string) =>
+      ranked.new.find((v) => ruleText(v.rule) === text);
+
+    expect(ranked.new).toHaveLength(2);
+    expect(byRule("level domain -> adapters")?.grown).toBe(true);
+    expect(
+      byRule("level domain -> adapters")?.imports.map((one) => one.to),
+    ).toEqual(["x/m2.py"]);
+    expect(byRule("level domain -> ports")?.grown).toBeUndefined();
+    expect(ranked.fixed).toEqual([]);
+  });
+
+  it("matches an old per-edge baseline of either spelling", () => {
+    const scan = scanOf([edge("d/a.py", "x/m1.py")]);
+
+    for (const baseline of [
+      [known("x/m1.py")],
+      [{ id: "rule-violation:depends:d/a.py->x/m1.py" }],
+    ]) {
+      const ranked = check(
+        scan,
+        parsePolicy(POLICY),
+        baseline as { from: string; to: string; kind: string }[],
+      );
+
+      expect(ranked.violations).toHaveLength(1);
+      expect(ranked.new).toEqual([]);
+      expect(ranked.fixed).toEqual([]);
+    }
+  });
+
+  it("reports a removed import as fixed while the finding stays", () => {
+    const ranked = check(
+      scanOf([edge("d/a.py", "x/m1.py")]),
+      parsePolicy(POLICY),
+      [known("x/m1.py"), known("x/m2.py")],
+    );
+
+    expect(ranked.violations).toHaveLength(1);
+    expect(ranked.new).toEqual([]);
+    expect(ranked.fixed).toEqual([known("x/m2.py")]);
   });
 });
 
@@ -156,7 +276,7 @@ uses:
 `;
 
 function ruleOf(edges: object[], policy: string) {
-  return run(edges, policy).violations.map((v) => v.rules);
+  return run(edges, policy).violations.map((v) => [v.rule]);
 }
 
 describe("component rule", () => {
@@ -221,12 +341,18 @@ describe("component rule", () => {
     ]);
   });
 
-  it("orders uses before forbid on one edge", () => {
-    const policy = `${USES_ONLY}forbid: ['o/* -> b/*']\n`;
+  it("sorts one module's violations by rule text", () => {
+    const policy = `${MIXED}forbid: ['d/* -> *']\n`;
+    const result = run(
+      [edge("d/x.py", "a/y.py"), edge("d/x.py", "e/y.py")],
+      policy,
+    );
 
-    expect(
-      ruleOf([edge("o/x.py", "b/y.py")], policy)[0]?.map((r) => r.type),
-    ).toEqual(["uses", "forbid"]);
+    expect(result.violations.map((v) => ruleText(v.rule))).toEqual([
+      "forbid d/* -> *",
+      "level domain -> application",
+      "uses domain -> extras",
+    ]);
   });
 });
 

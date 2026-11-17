@@ -6,7 +6,7 @@ import type { FindingRow } from "./findings-order";
 export type CardRowModel =
   | { kind: "module"; module: string; name: string; folder: string }
   | { kind: "member"; module: string; name: string; folder: string }
-  | { kind: "edge"; from: string; to: string }
+  | { kind: "edge"; from: string; to: string; lines?: number[] }
   | {
       kind: "test";
       file: string;
@@ -116,7 +116,12 @@ export function cardOf(
   for (const edge of record.kind === "private_imports"
     ? []
     : (record.evidence.edges ?? [])) {
-    rows.push({ kind: "edge", from: edge.from, to: edge.to });
+    rows.push({
+      kind: "edge",
+      from: edge.from,
+      to: edge.to,
+      ...(edge.lines === undefined ? {} : { lines: edge.lines }),
+    });
   }
 
   return {

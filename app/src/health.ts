@@ -6,6 +6,7 @@ import {
   InputError,
   identityKey,
   measuredModules,
+  narrowViolationRecord,
   type Policy,
   type PolicyProblem,
   parseBaseline,
@@ -39,7 +40,7 @@ const MAX_HOVER_LINES = 10;
 const RANK: Record<Disc, number> = { green: 0, grey: 1, amber: 2, red: 3 };
 
 export function violationLine(violation: Violation): string {
-  return `violation: ${violationText(violation)} (${ruleText(violation)})`;
+  return `violation: ${violationText(violation)} (${ruleText(violation.rule)})`;
 }
 
 function messagesOf(error: unknown): string {
@@ -117,10 +118,15 @@ export function computeHealth(
 
   const visible = shown.map((document) => ({
     ...document,
-    findings: document.findings.filter(
-      (record) =>
-        record.severity !== "violation" || !accepted.has(identityKey(record)),
-    ),
+    findings: document.findings.flatMap((record) => {
+      if (record.severity !== "violation") {
+        return [record];
+      }
+
+      const narrowed = narrowViolationRecord(record, accepted);
+
+      return narrowed === null ? [] : [narrowed];
+    }),
   }));
   const byModule = findingsByModuleFrom(visible);
 

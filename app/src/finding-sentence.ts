@@ -43,11 +43,39 @@ function ruleClause(
   return `nothing may match ${first.pattern}`;
 }
 
+function severalImports(
+  edges: NonNullable<FindingRecord["evidence"]["edges"]>,
+): string {
+  const first = edges[0] as (typeof edges)[number];
+  const rule = first.rules?.[0];
+  const kinds = new Set(edges.map((edge) => edge.kind ?? "depends"));
+  const [only] = [...kinds];
+  const verb =
+    kinds.size === 1 && only !== undefined && only !== "depends"
+      ? only
+      : "imports";
+  const target =
+    rule === undefined || rule.type === "forbid"
+      ? ""
+      : ` from ${rule.type === "uses" ? rule.to_component : rule.to_level}`;
+  const head = `${shortName(first.from)} ${verb} ${edges.length} modules${target}`;
+  const clause = ruleClause(first.rules);
+
+  return clause === null
+    ? `${head}, which the policy forbids.`
+    : `${head}, which the policy forbids: ${clause}.`;
+}
+
 function violation(record: FindingRecord): string | null {
-  const edge = record.evidence.edges?.[0];
+  const edges = record.evidence.edges ?? [];
+  const edge = edges[0];
 
   if (edge === undefined) {
     return null;
+  }
+
+  if (edges.length > 1) {
+    return severalImports(edges);
   }
 
   const verb =

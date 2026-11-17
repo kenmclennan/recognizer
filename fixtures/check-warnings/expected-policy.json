@@ -2,16 +2,18 @@
   "violations": [
     {
       "from": "app/domain/order.py",
-      "to": "app/adapters/memory.py",
-      "kind": "depends",
-      "lines": [
-        12
-      ],
-      "rules": [
+      "rule": {
+        "type": "level",
+        "from_level": "domain",
+        "to_level": "adapters"
+      },
+      "imports": [
         {
-          "type": "level",
-          "from_level": "domain",
-          "to_level": "adapters"
+          "to": "app/adapters/memory.py",
+          "kind": "depends",
+          "lines": [
+            12
+          ]
         }
       ]
     }

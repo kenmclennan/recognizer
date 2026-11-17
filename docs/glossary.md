@@ -44,7 +44,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Stratum | A horizontal layer of responsibility, such as domain, application or adapters. |
 | Slice | A vertical cut through the strata that makes one use case or feature work, from the thing that drives it to the things it drives. |
 | Policy | The one file a repository's owners write to declare components and the dependencies they may have. |
-| Violation | An edge that breaks a rule the policy declares. Baselined; the only finding that fails a run. |
+| Violation | A module's imports that break one rule the policy declares, reported as one finding. Baselined per import; the only finding that fails a run. |
 | Warning | A heuristic over the graph, tied to a principle and carrying its evidence. Never baselined, never fails a run. |
 | Baseline | The recorded violations a repository has accepted for now; it may only shrink. |
 | Scratch folder | A rebuildable folder under `.recognizer/cache/` (the Mutation work folder `mutation/work`, which holds the Warm-up copy and every Mutant copy). Results (overlays, findings, coverage, logs, Mutation's `survivors.json` and `record.json`, scans) are never scratch and stay backed up. |

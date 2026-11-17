@@ -16,6 +16,7 @@ export {
   compareIdentities,
   type Identity,
   identityKey,
+  narrowViolationRecord,
   parseBaseline,
   serialiseBaseline,
   violationId,
@@ -75,6 +76,7 @@ export { InputError } from "./errors.js";
 export {
   type Finding,
   findingsByModuleFrom,
+  importText,
   linesDuplicated,
   orderDuplication,
   ruleText,
@@ -214,7 +216,7 @@ export {
   scanHashes,
   splitFindings,
 } from "./result-freshness.js";
-export type { Rule, Violation } from "./rules.js";
+export type { Rule, Violation, ViolationImport } from "./rules.js";
 export { collectViolations } from "./rules.js";
 export type { RunEntry, RunPhase, RunRecord } from "./run-log.js";
 export {
