@@ -8,7 +8,7 @@ import {
 import { violationText } from "./findings.js";
 import type { FindingRecord, FindingsDocument } from "./findings-document.js";
 import { type FolderMetrics, measureFolders } from "./folder-metrics.js";
-import { LONG_FUNCTION } from "./function-length.js";
+import { COMPLEXITY_LIMIT, LONG_FUNCTION } from "./function-length.js";
 import { keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
 import { principleOf } from "./principles.js";
@@ -21,7 +21,7 @@ import {
   unusedExportsFindings,
 } from "./structure-warnings.js";
 
-export const STRUCTURE_SENSOR_VERSION = "21";
+export const STRUCTURE_SENSOR_VERSION = "22";
 
 export interface StructureSettings {
   duplication: false | DuplicationSettings;
@@ -33,8 +33,15 @@ export interface StructureSettings {
     unused_exports: boolean;
     private_imports: boolean;
     long_function: boolean;
+    complexity: boolean;
   };
   long_function_limit: number;
+  complexity_limit: number;
+}
+
+export interface Measured {
+  duplication: FindingRecord[] | null;
+  complexity: FindingRecord[] | null;
 }
 
 export interface StructureContext {
@@ -59,8 +66,10 @@ export const DEFAULT_STRUCTURE_SETTINGS: StructureSettings = {
     unused_exports: false,
     private_imports: true,
     long_function: true,
+    complexity: true,
   },
   long_function_limit: LONG_FUNCTION,
+  complexity_limit: COMPLEXITY_LIMIT,
 };
 
 export function resolveStructureSettings(
@@ -77,6 +86,7 @@ export function resolveStructureSettings(
   const defaults = DEFAULT_STRUCTURE_SETTINGS.warnings;
   const orphan = given.warnings?.orphan ?? true;
   const longFunction = given.warnings?.long_function ?? true;
+  const complexity = given.warnings?.complexity ?? true;
 
   const duplication = given.duplication;
 
@@ -96,11 +106,16 @@ export function resolveStructureSettings(
       private_imports:
         given.warnings?.private_imports ?? defaults.private_imports,
       long_function: longFunction !== false,
+      complexity: complexity !== false,
     },
     long_function_limit:
       typeof longFunction === "object"
         ? longFunction.limit
         : DEFAULT_STRUCTURE_SETTINGS.long_function_limit,
+    complexity_limit:
+      typeof complexity === "object"
+        ? complexity.limit
+        : DEFAULT_STRUCTURE_SETTINGS.complexity_limit,
   };
 }
 
@@ -132,7 +147,7 @@ export function describeSettings(settings: StructureSettings): string {
       ? `, entry_annotations ${settings.entry_annotations.length}`
       : "";
 
-  return `cycle ${on(w.cycle)}, orphan ${on(w.orphan)}, unused_exports ${on(w.unused_exports)}, private_imports ${on(w.private_imports)}, long_function ${on(w.long_function)}, long_function_limit ${settings.long_function_limit}${entries}${annotations}`;
+  return `cycle ${on(w.cycle)}, orphan ${on(w.orphan)}, unused_exports ${on(w.unused_exports)}, private_imports ${on(w.private_imports)}, long_function ${on(w.long_function)}, long_function_limit ${settings.long_function_limit}, complexity ${on(w.complexity)}, complexity_limit ${settings.complexity_limit}${entries}${annotations}`;
 }
 
 export function violationPrinciple(rules: readonly Rule[]): string {
@@ -186,7 +201,7 @@ export function structureSensor(
   policy: Policy | null,
   settings: StructureSettings,
   context: StructureContext,
-  duplication: FindingRecord[] | null = null,
+  measured: Measured = { duplication: null, complexity: null },
 ): StructureResult {
   const findings: FindingRecord[] = [];
   const seen = new Set<string>();
@@ -280,13 +295,22 @@ export function structureSensor(
           unused_exports: settings.warnings.unused_exports,
           private_imports: settings.warnings.private_imports,
           long_function: settings.warnings.long_function,
+          complexity: settings.warnings.complexity,
         },
         long_function_limit: settings.long_function_limit,
-        ...(duplication !== null && settings.duplication !== false
+        ...(measured.complexity !== null
+          ? { complexity_limit: settings.complexity_limit }
+          : {}),
+        ...(measured.duplication !== null && settings.duplication !== false
           ? { duplication: { ...settings.duplication } }
           : {}),
       },
-      findings: [...findings, ...warnings, ...(duplication ?? [])],
+      findings: [
+        ...findings,
+        ...warnings,
+        ...(measured.duplication ?? []),
+        ...(measured.complexity ?? []),
+      ],
       inputs: measuredInputs(scans),
     },
     metrics,

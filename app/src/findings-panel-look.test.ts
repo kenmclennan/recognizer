@@ -51,8 +51,10 @@ const groupedDocument = structureSensor(
       unused_exports: false,
       private_imports: false,
       long_function: false,
+      complexity: false,
     },
     long_function_limit: 20,
+    complexity_limit: 10,
   },
   { commit: "cur1234", modified: false },
 ).document;

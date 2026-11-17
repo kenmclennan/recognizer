@@ -144,6 +144,29 @@ function cellLimit(
   return { metric, label, limit: null };
 }
 
+const COMPLEXITY_METRIC = "complexity";
+
+function complexityCell(
+  { name: metric, label }: ShippedMetric,
+  config: Config | null,
+): CellLimit {
+  const structure = resolveStructureSettings(config);
+
+  if (structure === "off" || !structure.warnings.complexity) {
+    return { metric, label, limit: null };
+  }
+
+  return {
+    metric,
+    label,
+    limit: {
+      direction: "above",
+      value: structure.complexity_limit,
+      tone: "amber",
+    },
+  };
+}
+
 function cellsOf(
   config: Config | null,
   shipped: ShippedSensors | null,
@@ -156,7 +179,11 @@ function cellsOf(
     .flatMap((sensor) => sensor.metrics)
     .filter((metric) => metric.cell !== undefined)
     .sort((a, b) => (a.cell as number) - (b.cell as number))
-    .map((metric) => cellLimit(metric, config, shipped.sensors));
+    .map((metric) =>
+      metric.name === COMPLEXITY_METRIC
+        ? complexityCell(metric, config)
+        : cellLimit(metric, config, shipped.sensors),
+    );
 }
 
 export function functionLimits(

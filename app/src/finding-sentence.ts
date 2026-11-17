@@ -193,6 +193,21 @@ function longFunction(record: FindingRecord): string | null {
   return `${member.name} is ${num(lines)} lines, over the limit of ${num(limit)}.`;
 }
 
+function complexity(record: FindingRecord): string | null {
+  const member = record.evidence.members?.[0];
+  const measures = record.evidence.measures;
+
+  if (
+    member === undefined ||
+    measures?.complexity === undefined ||
+    measures.limit === undefined
+  ) {
+    return null;
+  }
+
+  return `${member.name} has complexity ${num(measures.complexity)}, over the limit of ${num(measures.limit)}.`;
+}
+
 function orphan(record: FindingRecord): string | null {
   const module = record.evidence.modules[0];
 
@@ -230,6 +245,7 @@ const TEMPLATES: Record<string, (record: FindingRecord) => string | null> = {
   unused_exports: unusedExports,
   private_imports: privateImports,
   long_function: longFunction,
+  complexity,
   duplication,
 };
 

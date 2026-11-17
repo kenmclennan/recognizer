@@ -188,11 +188,21 @@ describe("a retired key's fix leaves no empty section", () => {
   const sampleFor = (path: string[]) =>
     path.length === 1
       ? "overlays:\n  crap:\n    command: [x]\n"
-      : `sensors:\n  structure:\n${
-          path.length === 4
-            ? `    warnings:\n      ${path[3]}: true\n`
-            : `    ${path[2]}: 1\n`
-        }`;
+      : path
+          .map(
+            (step, index) =>
+              `${"  ".repeat(index)}${step}:${
+                index === path.length - 1
+                  ? path[1] === "thresholds"
+                    ? " off"
+                    : path[2] === "warnings" || path[index - 1] === "warnings"
+                      ? " true"
+                      : " 1"
+                  : ""
+              }`,
+          )
+          .join("\n")
+          .concat("\n");
 
   it.each(RETIRED_KEYS.map((retired) => [retired.path.join(".")]))(
     "the printed fix for %s leaves a file of {}",

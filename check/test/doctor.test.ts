@@ -108,6 +108,10 @@ const clean = {
   cache: current,
 };
 
+function configCodes(report: Parameters<typeof codes>[0]): string[] {
+  return codes(report).filter((code) => code.startsWith("config:"));
+}
+
 function codes(report: {
   areas: { name: string; problems: { code: string }[] }[];
 }) {
@@ -216,18 +220,20 @@ describe("doctor: config", () => {
       "      stable_dependencies: true",
       "      folder_cycle: true",
       "      policy_drift: true",
+      "  thresholds:",
+      "    complexity: off",
       "",
     ].join("\n");
     const result = json(setup({ config: text }));
     const found = result.report.areas[0].problems;
 
     expect(found.map((problem: { code: string }) => problem.code)).toEqual(
-      Array(10).fill("config-retired"),
+      Array(RETIRED_KEYS.length).fill("config-retired"),
     );
     expect(
       found.map((problem: { subject: string }) => problem.subject),
     ).toEqual(RETIRED_KEYS.map((retired) => retired.path.join(".")));
-    expect(result.report.problems).toBe(10);
+    expect(found).toHaveLength(RETIRED_KEYS.length);
   });
 
   it("reports an empty sensor section with --remove-section", () => {
@@ -308,6 +314,58 @@ describe("doctor: config", () => {
     ]);
   });
 
+  it.each([
+    [
+      "the long form",
+      "sensors:\n  thresholds:\n    complexity:\n      above: 12\n      severity: violation\n",
+    ],
+    ["the short form", "sensors:\n  thresholds:\n    complexity: off\n"],
+  ])(
+    "reports a thresholds complexity line in %s as retired",
+    (_form, config) => {
+      const result = json(setup({ config }));
+      const [problem] = result.report.areas[0].problems;
+
+      expect(result.report.areas[0].problems).toHaveLength(1);
+      expect(problem).toMatchObject({
+        code: "config-retired",
+        subject: "sensors.thresholds.complexity",
+        line: RETIRED_KEYS.find(
+          (retired) =>
+            retired.path.join(".") === "sensors.thresholds.complexity",
+        )?.message,
+      });
+      expect(problem.line).toContain(
+        "sensors.structure.warnings.complexity.limit",
+      );
+      expect(problem.line).toContain("complexity false");
+      expect(problem.fix.command).toContain(
+        "recognizer config --unset sensors.thresholds.complexity",
+      );
+    },
+  );
+
+  it("reports only the retired key beside a valid thresholds line", () => {
+    const result = json(
+      setup({
+        config:
+          "sensors:\n  thresholds:\n    complexity: off\n    coverage:\n      below: 0.5\n",
+      }),
+    );
+
+    expect(configCodes(result.report)).toEqual(["config:config-retired"]);
+  });
+
+  it("gives no problem for a thresholds config with only coverage", () => {
+    const result = json(
+      setup({
+        config: "sensors:\n  thresholds:\n    coverage:\n      below: 0.5\n",
+      }),
+    );
+
+    expect(configCodes(result.report)).toEqual([]);
+  });
+
   it("never reports a fault twice", () => {
     const result = json(
       setup({
@@ -324,11 +382,21 @@ describe("retired keys are unsettable", () => {
   const sampleFor = (path: string[]) =>
     path.length === 1
       ? "overlays:\n  crap:\n    command: [x]\n"
-      : `sensors:\n  structure:\n${
-          path.length === 4
-            ? `    warnings:\n      ${path[3]}: true\n`
-            : `    ${path[2]}: 1\n`
-        }`;
+      : path
+          .map(
+            (step, index) =>
+              `${"  ".repeat(index)}${step}:${
+                index === path.length - 1
+                  ? path[1] === "thresholds"
+                    ? " off"
+                    : path[2] === "warnings" || path[index - 1] === "warnings"
+                      ? " true"
+                      : " 1"
+                  : ""
+              }`,
+          )
+          .join("\n")
+          .concat("\n");
 
   it.each(RETIRED_KEYS.map((retired) => [retired.path.join(".")]))(
     "unsets %s and doctor then reports none",

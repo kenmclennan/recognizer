@@ -13,14 +13,17 @@ import { type Ranking, rankByKeys } from "./check.js";
 import type { Io } from "./cli.js";
 import { policyFile, readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
-import { duplicationUnmeasured } from "./duplication/carry.js";
+import {
+  complexityUnmeasured,
+  duplicationUnmeasured,
+} from "./duplication/carry.js";
 import { InputError } from "./errors.js";
 import { orderDuplication, ruleText } from "./findings.js";
 import type { FindingRecord, FindingsDocument } from "./findings-document.js";
 import { findingsFile, readFindingsFiles } from "./findings-files.js";
 import type { FolderMetrics } from "./folder-metrics.js";
 import { freshScans } from "./freshness.js";
-import { LONG_FUNCTION } from "./function-length.js";
+import { COMPLEXITY_LIMIT, LONG_FUNCTION } from "./function-length.js";
 import { scansCommit } from "./load-findings.js";
 import { moduleNames } from "./neighbours.js";
 import { type Policy, parsePolicy } from "./policy.js";
@@ -449,8 +452,10 @@ function executeScanReplay(
       unused_exports: false,
       private_imports: true,
       long_function: true,
+      complexity: true,
     },
     long_function_limit: LONG_FUNCTION,
+    complexity_limit: COMPLEXITY_LIMIT,
   };
   const sensed = structureSensor(
     [validateAcceptedScan(scan)],
@@ -565,6 +570,12 @@ function gather(
       if (duplicationUnmeasured(sensed.document, resolved)) {
         io.stderr(
           "duplication not measured since the last scan: run recognizer scan\n",
+        );
+      }
+
+      if (complexityUnmeasured(sensed.document, resolved)) {
+        io.stderr(
+          "complexity not measured since the last scan: run recognizer scan\n",
         );
       }
 

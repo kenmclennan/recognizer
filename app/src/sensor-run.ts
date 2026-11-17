@@ -1,6 +1,7 @@
 import {
   type Config,
-  carryDuplication,
+  carryMeasured,
+  complexityUnmeasured,
   type Diagnosis,
   duplicationUnmeasured,
   type FindingEntry,
@@ -246,7 +247,7 @@ function carried(
   }
 
   try {
-    return carryDuplication(
+    return carryMeasured(
       validateFindings(JSON.parse(file.text), { name: "structure" }),
       fresh,
       settings,
@@ -293,6 +294,11 @@ export async function senseRepository(
       structure = carried(read, sensed.document, settings);
     }
 
+    const notMeasured = [
+      ...(duplicationUnmeasured(structure, settings) ? ["duplication"] : []),
+      ...(complexityUnmeasured(structure, settings) ? ["complexity"] : []),
+    ];
+
     try {
       await port.writeStructure(
         commit === null ? null : `${JSON.stringify(structure, null, 2)}\n`,
@@ -300,9 +306,7 @@ export async function senseRepository(
       statuses.push({
         name: "structure",
         status: "ran",
-        ...(duplicationUnmeasured(structure, settings)
-          ? { notMeasured: ["duplication"] }
-          : {}),
+        ...(notMeasured.length > 0 ? { notMeasured } : {}),
       });
       structureRan = true;
     } catch (error) {

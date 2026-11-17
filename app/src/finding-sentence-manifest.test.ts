@@ -208,7 +208,7 @@ describe("the crap and thresholds popover means", () => {
   it("names each thresholds source once", () => {
     const means = meansOf("sensor-thresholds.json");
 
-    expect(count(means, "McCabe")).toBe(1);
+    expect(count(means, "McCabe")).toBe(0);
     expect(count(means, "Google")).toBe(1);
   });
 });

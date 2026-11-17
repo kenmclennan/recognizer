@@ -30,7 +30,8 @@ import {
 
 const COMMIT = "abc123";
 const NOT_MEASURED =
-  "duplication not measured since the last scan: run recognizer scan\n";
+  "duplication not measured since the last scan: run recognizer scan\n" +
+  "complexity not measured since the last scan: run recognizer scan\n";
 const read = (path: string) => readFileSync(join(REPO, path), "utf8");
 const checkScan = JSON.parse(read("fixtures/check/scan.json"));
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
@@ -825,12 +826,13 @@ describe("check running the structure sensor", () => {
         unused_exports: false,
         private_imports: true,
         long_function: true,
+        complexity: true,
       },
       long_function_limit: 20,
     });
     expect(document.commit).toBe(COMMIT);
     expect(out.split("\n")[0]).toBe(
-      "sensor structure: cycle on, orphan on, unused_exports off, private_imports on, long_function on, long_function_limit 20",
+      "sensor structure: cycle on, orphan on, unused_exports off, private_imports on, long_function on, long_function_limit 20, complexity on, complexity_limit 10",
     );
     expect(err).toBe(POLICY_PROBLEM + NOT_MEASURED);
   });
@@ -950,7 +952,7 @@ describe("show and modules read the findings files", () => {
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
-    expect(written.sensor.version).toBe("21");
+    expect(written.sensor.version).toBe("22");
     expect(written.settings.entry_points).toEqual([]);
   });
 
@@ -976,7 +978,7 @@ describe("show and modules read the findings files", () => {
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
-    expect(written.sensor.version).toBe("21");
+    expect(written.sensor.version).toBe("22");
     expect(written.settings.distance_threshold).toBeUndefined();
   });
 

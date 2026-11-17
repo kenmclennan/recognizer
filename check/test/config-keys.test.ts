@@ -189,6 +189,7 @@ describe("the core's own key table", () => {
     seen.push(
       "sensors.structure.warnings.<warning>",
       "sensors.structure.warnings.long_function.limit",
+      "sensors.structure.warnings.complexity.limit",
       "sensors.structure.warnings.orphan.entry_points",
       "sensors.structure.warnings.orphan.entry_annotations",
     );
@@ -250,6 +251,7 @@ describe("key defaults", () => {
       unused_exports: false,
       private_imports: true,
       long_function: true,
+      complexity: true,
     });
     expect(core("sensors.structure.warnings.long_function.limit").default).toBe(
       20,
@@ -281,6 +283,7 @@ describe("key defaults", () => {
       "sensors.structure.duplication.pair_min_lines",
       "sensors.structure.duplication.threshold",
       "sensors.structure.warnings.<warning>",
+      "sensors.structure.warnings.complexity.limit",
       "sensors.structure.warnings.long_function.limit",
     ]);
   });

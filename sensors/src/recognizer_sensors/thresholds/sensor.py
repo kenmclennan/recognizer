@@ -12,12 +12,10 @@ from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import SettingsError
 
 DEFAULTS = {
-    "complexity": {"above": 10, "severity": "warning"},
     "coverage": {"below": 0.6, "severity": "warning"},
 }
 
 PUBLISHED = {
-    "complexity": ("above", 10, "cyclomatic-complexity-limit"),
     "coverage": ("below", 0.6, "code-coverage-guidelines"),
 }
 
@@ -59,6 +57,12 @@ def parse_settings(raw: dict) -> dict:
     effective = {name: dict(entry) for name, entry in DEFAULTS.items()}
 
     for name, entry in raw.items():
+        if name == "complexity":
+            raise SettingsError(
+                "complexity is judged by structural analysis: "
+                "set sensors.structure.warnings.complexity.limit"
+            )
+
         if name == "command" or not NAME_PATTERN.match(name):
             raise SettingsError(f"invalid metric name: {name}")
 

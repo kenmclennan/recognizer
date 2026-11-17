@@ -27,3 +27,5 @@ export function bodyLength(
 
   return endLine - bodyLine + 1;
 }
+
+export const COMPLEXITY_LIMIT = 10;

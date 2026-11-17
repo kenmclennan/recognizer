@@ -97,11 +97,16 @@ export function withIdentities(units: Unit[]): Unit[] {
   }));
 }
 
-function decode(io: Io, path: string, bytes: Buffer): string | null {
+export function decode(
+  io: Io,
+  path: string,
+  bytes: Buffer,
+  label = "duplication",
+): string | null {
   try {
     return DECODER.decode(bytes);
   } catch {
-    io.stderr(`duplication: skipped ${path}: not valid UTF-8\n`);
+    io.stderr(`${label}: skipped ${path}: not valid UTF-8\n`);
 
     return null;
   }

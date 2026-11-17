@@ -1,0 +1,5 @@
+sensors:
+  structure:
+    warnings:
+      complexity:
+        limit: 0

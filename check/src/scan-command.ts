@@ -1303,7 +1303,7 @@ function* runStructure(
     );
 
     const answer =
-      settings.duplication === false
+      settings.duplication === false && !settings.warnings.complexity
         ? null
         : yield {
             kind: "parsers",
@@ -1322,7 +1322,9 @@ function* runStructure(
     const run = runStructureSensor(io, root, scans, policy, settings, parsers);
 
     if (answer instanceof Error) {
-      io.stderr(`failed structure: duplication: ${answer.message}\n`);
+      io.stderr(
+        `failed structure: ${settings.duplication === false ? "complexity" : "duplication"}: ${answer.message}\n`,
+      );
 
       return timed(true);
     }

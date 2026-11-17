@@ -82,21 +82,23 @@ def fixture_repository(tmp_path):
     return root, commit
 
 
+ABOVE_TEN = {"churn": {"above": 10}}
+
+
 def test_the_defaults():
     assert sensor.parse_settings({}) == {
-        "complexity": {"above": 10, "severity": "warning"},
         "coverage": {"below": 0.6, "severity": "warning"},
     }
 
 
 def test_a_user_entry_replaces_the_default_whole():
-    settings = sensor.parse_settings({"complexity": {"below": 2}})
+    settings = sensor.parse_settings({"coverage": {"above": 2}})
 
-    assert settings["complexity"] == {"below": 2, "severity": "warning"}
+    assert settings["coverage"] == {"above": 2, "severity": "warning"}
 
 
 def test_off_removes_a_default_and_keeps_the_other():
-    assert list(sensor.parse_settings({"complexity": "off"})) == ["coverage"]
+    assert list(sensor.parse_settings({"coverage": "off", "churn": {"above": 1}})) == ["churn"]
 
 
 def test_off_on_a_metric_without_a_default_is_accepted():
@@ -106,22 +108,22 @@ def test_off_on_a_metric_without_a_default_is_accepted():
 def test_the_effective_mapping_is_sorted_with_severity_filled_in():
     settings = sensor.parse_settings({"churn": {"above": 20}, "crap": {"above": 30}})
 
-    assert list(settings) == ["churn", "complexity", "coverage", "crap"]
+    assert list(settings) == ["churn", "coverage", "crap"]
     assert settings["churn"]["severity"] == "warning"
 
 
 @pytest.mark.parametrize(
     "raw",
     [
-        {"complexity": "no"},
-        {"complexity": {"above": 1, "below": 2}},
-        {"complexity": {}},
-        {"complexity": {"above": True}},
-        {"complexity": {"above": "ten"}},
-        {"complexity": {"above": float("inf")}},
-        {"complexity": {"above": 1, "severity": "error"}},
-        {"complexity": {"above": 1, "extra": 1}},
-        {"complexity": 5},
+        {"churn": "no"},
+        {"churn": {"above": 1, "below": 2}},
+        {"churn": {}},
+        {"churn": {"above": True}},
+        {"churn": {"above": "ten"}},
+        {"churn": {"above": float("inf")}},
+        {"churn": {"above": 1, "severity": "error"}},
+        {"churn": {"above": 1, "extra": 1}},
+        {"churn": 5},
         {"command": {"above": 1}},
         {"a:b": {"above": 1}},
         {"a/b": {"above": 1}},
@@ -135,12 +137,12 @@ def test_a_bad_setting_is_rejected(raw):
 def test_the_cli_exits_2_for_a_bad_setting(tmp_path):
     root, _ = repository(tmp_path)
 
-    code, _ = sense(root, tmp_path, {"complexity": "no"})
+    code, _ = sense(root, tmp_path, {"churn": "no"})
 
     assert code == 2
 
 
-def test_the_fixture_yields_the_five_findings(tmp_path, capsys):
+def test_the_fixture_yields_the_three_findings(tmp_path, capsys):
     root, commit = fixture_repository(tmp_path)
 
     code, document = sense(root, tmp_path, {"churn": {"above": 20, "severity": "violation"}})
@@ -153,16 +155,6 @@ def test_the_fixture_yields_the_five_findings(tmp_path, capsys):
             "thresholds:churn:app/billing.py",
             "violation",
             "app/billing.py: churn 25 is above 20",
-        ),
-        (
-            "thresholds:complexity:app/billing.py::price",
-            "warning",
-            "app/billing.py::price: complexity 14 is above 10",
-        ),
-        (
-            "thresholds:complexity:src/cart.ts::Cart.total",
-            "warning",
-            "src/cart.ts::Cart.total: complexity 11 is above 10",
         ),
         (
             "thresholds:coverage:app/billing.py::price",
@@ -178,54 +170,57 @@ def test_the_fixture_yields_the_five_findings(tmp_path, capsys):
 
     price = document["findings"][1]
 
-    assert price["kind"] == "thresholds.complexity"
-    assert price["principle"] == "cyclomatic-complexity-limit"
-    assert price["citation"] == PUBLISHED["cyclomatic-complexity-limit"]
-    assert price["metric"] == "complexity"
+    assert price["metric"] == "coverage"
+    assert price["principle"] == "code-coverage-guidelines"
+    assert price["citation"] == PUBLISHED["code-coverage-guidelines"]
     assert price["evidence"] == {
         "modules": ["app/billing.py"],
         "members": [{"module": "app/billing.py", "name": "price"}],
-        "measures": {"value": 14, "line": 10},
+        "measures": {"value": 0.5, "line": 0.6},
         "producer": "quality-tool",
     }
-    assert document["findings"][3]["principle"] == "code-coverage-guidelines"
-    assert document["findings"][3]["citation"] == PUBLISHED["code-coverage-guidelines"]
     assert document["findings"][0]["principle"] == "churn"
     assert "citation" not in document["findings"][0]
 
     err = capsys.readouterr().err
 
     assert "overlay stale.json is from commit" in err
-    assert "1 ids of complexity in quality.json match no scanned module" in err
 
 
-def test_a_higher_complexity_line_and_off_drop_the_complexity_findings(tmp_path):
+def test_a_complexity_setting_is_refused_and_an_overlay_complexity_value_is_not_judged(tmp_path):
+    for raw in ({"complexity": {"above": 12}}, {"complexity": "off"}):
+        with pytest.raises(SettingsError, match="sensors.structure.warnings.complexity.limit"):
+            sensor.parse_settings(raw)
+
     root, _ = fixture_repository(tmp_path)
 
-    for settings in ({"complexity": {"above": 15}}, {"complexity": "off"}):
-        _, document = sense(root, tmp_path, settings)
-        ids = [f["id"] for f in document["findings"]]
+    code, _ = sense(root, tmp_path, {"complexity": {"above": 12}})
 
-        assert not [i for i in ids if i.startswith("thresholds:complexity:")]
-        assert len([i for i in ids if i.startswith("thresholds:coverage:")]) == 2
+    assert code == 2
+
+    _, document = sense(root, tmp_path, ABOVE_TEN)
+    ids = [f["id"] for f in document["findings"]]
+
+    assert not [i for i in ids if i.startswith("thresholds:complexity:")]
+    assert len([i for i in ids if i.startswith("thresholds:coverage:")]) == 2
 
 
 def test_a_boolean_value_is_skipped(tmp_path):
     root, commit = repository(tmp_path)
-    install(root, "t.json", overlay(commit, {"complexity": {"a.py": True, "b.py": 12}}))
+    install(root, "t.json", overlay(commit, {"churn": {"a.py": True, "b.py": 12}}))
 
-    _, document = sense(root, tmp_path)
+    _, document = sense(root, tmp_path, ABOVE_TEN)
 
-    assert [f["id"] for f in document["findings"]] == ["thresholds:complexity:b.py"]
+    assert [f["id"] for f in document["findings"]] == ["thresholds:churn:b.py"]
 
 
 def test_unreadable_and_wrong_shape_overlays_are_skipped(tmp_path, capsys):
     root, commit = repository(tmp_path)
     install(root, "a-bad.json", "not json")
     install(root, "b-shape.json", {"overlay_version": 3})
-    install(root, "c-good.json", overlay(commit, {"complexity": {"a.py": 12}}))
+    install(root, "c-good.json", overlay(commit, {"churn": {"a.py": 12}}))
 
-    code, document = sense(root, tmp_path)
+    code, document = sense(root, tmp_path, ABOVE_TEN)
 
     assert code == 0
     assert len(document["findings"]) == 1
@@ -234,21 +229,21 @@ def test_unreadable_and_wrong_shape_overlays_are_skipped(tmp_path, capsys):
 
 def test_the_first_overlay_by_file_name_wins(tmp_path):
     root, commit = repository(tmp_path)
-    install(root, "a.json", overlay(commit, {"complexity": {"a.py": 11}}))
-    install(root, "b.json", overlay(commit, {"complexity": {"a.py": 50, "b.py": 50}}, name="other"))
+    install(root, "a.json", overlay(commit, {"churn": {"a.py": 11}}))
+    install(root, "b.json", overlay(commit, {"churn": {"a.py": 50, "b.py": 50}}, name="other"))
 
-    _, document = sense(root, tmp_path)
+    _, document = sense(root, tmp_path, ABOVE_TEN)
 
     assert [(f["id"], f["evidence"]["measures"]["value"]) for f in document["findings"]] == [
-        ("thresholds:complexity:a.py", 11)
+        ("thresholds:churn:a.py", 11)
     ]
 
 
 def test_a_metric_in_values_but_not_declared_is_not_judged(tmp_path):
     root, commit = repository(tmp_path)
-    install(root, "t.json", overlay(commit, {"complexity": {"a.py": 50}}, metrics=[]))
+    install(root, "t.json", overlay(commit, {"churn": {"a.py": 50}}, metrics=[]))
 
-    _, document = sense(root, tmp_path)
+    _, document = sense(root, tmp_path, ABOVE_TEN)
 
     assert document["findings"] == []
 
@@ -281,38 +276,36 @@ def test_a_named_metric_in_no_overlay_prints_its_line(tmp_path, capsys):
 
 def test_keys_resolve_to_modules_and_members(tmp_path, capsys):
     root, commit = repository(tmp_path)
-    values = {"complexity": {"a.py": 20, "a.py::C.m": 21, "b.py::f@12": 22, "gone.py::g": 23}}
+    values = {"churn": {"a.py": 20, "a.py::C.m": 21, "b.py::f@12": 22, "gone.py::g": 23}}
     install(root, "t.json", overlay(commit, values))
 
-    _, document = sense(root, tmp_path)
+    _, document = sense(root, tmp_path, ABOVE_TEN)
 
     by_id = {f["id"]: f["evidence"] for f in document["findings"]}
 
     assert sorted(by_id) == [
-        "thresholds:complexity:a.py",
-        "thresholds:complexity:a.py::C.m",
-        "thresholds:complexity:b.py::f@12",
+        "thresholds:churn:a.py",
+        "thresholds:churn:a.py::C.m",
+        "thresholds:churn:b.py::f@12",
     ]
-    assert "members" not in by_id["thresholds:complexity:a.py"]
-    assert by_id["thresholds:complexity:a.py::C.m"]["members"] == [
-        {"module": "a.py", "name": "C.m"}
-    ]
-    assert by_id["thresholds:complexity:b.py::f@12"]["members"][0]["name"] == "f@12"
-    assert "1 ids of complexity in t.json match no scanned module" in capsys.readouterr().err
+    assert "members" not in by_id["thresholds:churn:a.py"]
+    assert by_id["thresholds:churn:a.py::C.m"]["members"] == [{"module": "a.py", "name": "C.m"}]
+    assert by_id["thresholds:churn:b.py::f@12"]["members"][0]["name"] == "f@12"
+    assert "1 ids of churn in t.json match no scanned module" in capsys.readouterr().err
 
 
 def test_all_resolved_and_none_resolved(tmp_path, capsys):
     root, commit = repository(tmp_path)
-    install(root, "t.json", overlay(commit, {"complexity": {"a.py": 20}}))
-    sense(root, tmp_path)
+    install(root, "t.json", overlay(commit, {"churn": {"a.py": 20}}))
+    sense(root, tmp_path, ABOVE_TEN)
 
     assert plain_lines(capsys.readouterr().err) == ""
 
-    install(root, "t.json", overlay(commit, {"complexity": {"x.py": 20, "y.py": 20}}))
-    _, document = sense(root, tmp_path)
+    install(root, "t.json", overlay(commit, {"churn": {"x.py": 20, "y.py": 20}}))
+    _, document = sense(root, tmp_path, ABOVE_TEN)
 
     assert document["findings"] == []
-    assert "2 ids of complexity" in capsys.readouterr().err
+    assert "2 ids of churn" in capsys.readouterr().err
 
 
 def test_a_below_line_does_not_fire_on_the_line_and_a_violation_is_carried(tmp_path):
@@ -355,21 +348,21 @@ def test_a_run_writes_only_the_findings_file_and_is_deterministic(tmp_path):
 def test_an_overlay_written_after_a_first_run_is_judged_by_the_second(tmp_path):
     root, commit = repository(tmp_path)
 
-    _, first = sense(root, tmp_path)
-    install(root, "crap.json", overlay(commit, {"complexity": {"a.py::f": 40}}))
-    _, second = sense(root, tmp_path)
+    _, first = sense(root, tmp_path, ABOVE_TEN)
+    install(root, "crap.json", overlay(commit, {"churn": {"a.py::f": 40}}))
+    _, second = sense(root, tmp_path, ABOVE_TEN)
 
     assert first["findings"] == []
-    assert [f["id"] for f in second["findings"]] == ["thresholds:complexity:a.py::f"]
+    assert [f["id"] for f in second["findings"]] == ["thresholds:churn:a.py::f"]
 
 
 def test_a_function_absent_from_the_overlay_is_not_judged(tmp_path):
     root, commit = repository(tmp_path)
-    install(root, "t.json", overlay(commit, {"complexity": {"b.py": 99}}))
+    install(root, "t.json", overlay(commit, {"churn": {"b.py": 99}}))
 
-    _, document = sense(root, tmp_path)
+    _, document = sense(root, tmp_path, ABOVE_TEN)
 
-    assert [f["id"] for f in document["findings"]] == ["thresholds:complexity:b.py"]
+    assert [f["id"] for f in document["findings"]] == ["thresholds:churn:b.py"]
 
 
 def thresholds_repo(tmp_path, **extra):
@@ -379,7 +372,7 @@ def thresholds_repo(tmp_path, **extra):
     install(
         root,
         "tool.json",
-        overlay(commit, {"complexity": {"a.py::f": 99, "ghost.py::g": 99}}, **extra),
+        overlay(commit, {"churn": {"a.py::f": 99, "ghost.py::g": 99}}, **extra),
     )
 
     return root
@@ -394,7 +387,7 @@ def current_tests(root):
 def test_inputs_hold_only_the_modules_that_resolved(tmp_path, capsys):
     root = thresholds_repo(tmp_path)
 
-    code, document = sense(root, tmp_path)
+    code, document = sense(root, tmp_path, ABOVE_TEN)
 
     assert code == 0
     assert document["findings_version"] == 2
@@ -409,10 +402,10 @@ def test_an_overlay_with_matching_tests_is_kept_and_its_tests_hash_is_written(tm
     install(
         root,
         "tool.json",
-        overlay(commit, {"complexity": {"a.py::f": 99}}, inputs={}, tests=tests),
+        overlay(commit, {"churn": {"a.py::f": 99}}, inputs={}, tests=tests),
     )
 
-    code, document = sense(root, tmp_path)
+    code, document = sense(root, tmp_path, ABOVE_TEN)
 
     assert code == 0
     assert len(document["findings"]) == 1
@@ -422,7 +415,7 @@ def test_an_overlay_with_matching_tests_is_kept_and_its_tests_hash_is_written(tm
 def test_an_overlay_with_different_tests_is_skipped_and_named_on_stderr(tmp_path, capsys):
     root = thresholds_repo(tmp_path, inputs={}, tests="e" * 64)
 
-    code, document = sense(root, tmp_path)
+    code, document = sense(root, tmp_path, ABOVE_TEN)
 
     assert code == 0
     assert document["findings"] == []
@@ -433,7 +426,7 @@ def test_an_overlay_with_different_tests_is_skipped_and_named_on_stderr(tmp_path
 def test_an_overlay_with_no_tests_is_never_skipped_on_that_ground(tmp_path):
     root = thresholds_repo(tmp_path)
 
-    code, document = sense(root, tmp_path)
+    code, document = sense(root, tmp_path, ABOVE_TEN)
 
     assert code == 0
     assert len(document["findings"]) == 1
@@ -447,7 +440,7 @@ def test_a_version_one_and_a_version_two_overlay_both_produce_findings(tmp_path,
     document["overlay_version"] = version
     path.write_text(json.dumps(document))
 
-    code, result = sense(root, tmp_path)
+    code, result = sense(root, tmp_path, ABOVE_TEN)
 
     assert code == 0
     assert len(result["findings"]) == 1
@@ -471,9 +464,9 @@ def test_an_in_file_test_edit_makes_an_overlay_with_the_old_digest_skipped(
     install(
         root,
         "old.json",
-        overlay(commit, {"complexity": {"a.py::f": 99}}, name=producer, inputs={}, tests=old),
+        overlay(commit, {"churn": {"a.py::f": 99}}, name=producer, inputs={}, tests=old),
     )
-    code, document = sense(root, tmp_path)
+    code, document = sense(root, tmp_path, ABOVE_TEN)
 
     assert code == 0
     assert document["findings"] == []
@@ -482,45 +475,11 @@ def test_an_in_file_test_edit_makes_an_overlay_with_the_old_digest_skipped(
     install(
         root,
         "old.json",
-        overlay(commit, {"complexity": {"a.py::f": 99}}, name=producer, inputs={}, tests=new),
+        overlay(commit, {"churn": {"a.py::f": 99}}, name=producer, inputs={}, tests=new),
     )
-    _, document = sense(root, tmp_path)
+    _, document = sense(root, tmp_path, ABOVE_TEN)
 
     assert len(document["findings"]) == 1
-
-
-def complexity_finding(tmp_path, settings):
-    root, commit = fixture_repository(tmp_path)
-
-    _, document = sense(root, tmp_path, settings)
-    found = [
-        f for f in document["findings"] if f["id"] == "thresholds:complexity:app/billing.py::price"
-    ]
-
-    assert len(found) == 1
-
-    return found[0]
-
-
-def test_a_user_complexity_line_other_than_the_published_one_cites_its_source_and_states_the_line_only(
-    tmp_path,
-):
-    finding = complexity_finding(tmp_path, {"complexity": {"above": 12}})
-
-    assert finding["principle"] == "cyclomatic-complexity-limit"
-    assert finding["citation"] == PUBLISHED["cyclomatic-complexity-limit"]
-    assert finding["evidence"]["measures"]["line"] == 12
-    assert finding["evidence"]["measures"]["published"] == 10
-    assert finding["summary"].endswith("is above 12")
-    assert "says" not in finding["summary"]
-
-
-def test_a_published_complexity_line_carries_no_published_figure(tmp_path):
-    finding = complexity_finding(tmp_path, {"complexity": {"above": 10}})
-
-    assert finding["principle"] == "cyclomatic-complexity-limit"
-    assert "published" not in finding["evidence"]["measures"]
-    assert "says" not in finding["summary"]
 
 
 def test_a_tuned_coverage_line_cites_its_source_and_states_the_line_only(tmp_path):
@@ -567,11 +526,20 @@ def test_a_metric_outside_the_published_table_keeps_its_own_name_as_principle(tm
 
 
 def test_severity_plays_no_part_in_citing_the_published_line(tmp_path):
-    finding = complexity_finding(tmp_path, {"complexity": {"above": 10, "severity": "violation"}})
+    root, _ = fixture_repository(tmp_path)
+
+    _, document = sense(root, tmp_path, {"coverage": {"below": 0.6, "severity": "violation"}})
+    found = [
+        f for f in document["findings"] if f["id"] == "thresholds:coverage:app/billing.py::price"
+    ]
+
+    assert len(found) == 1
+
+    finding = found[0]
 
     assert finding["severity"] == "violation"
-    assert finding["principle"] == "cyclomatic-complexity-limit"
-    assert finding["citation"] == PUBLISHED["cyclomatic-complexity-limit"]
+    assert finding["principle"] == "code-coverage-guidelines"
+    assert finding["citation"] == PUBLISHED["code-coverage-guidelines"]
 
 
 def boundary_findings(tmp_path, metric, entry, value):
@@ -588,14 +556,24 @@ def boundary_findings(tmp_path, metric, entry, value):
 @pytest.mark.parametrize(
     ("metric", "entry", "value", "fires"),
     [
-        ("complexity", {"above": 10}, 10, False),
-        ("complexity", {"above": 10}, 11, True),
+        ("churn", {"above": 10}, 10, False),
+        ("churn", {"above": 10}, 11, True),
         ("coverage", {"below": 0.6}, 0.6, False),
         ("coverage", {"below": 0.6}, 0.59, True),
-        ("complexity", {"above": 15}, 15, False),
-        ("complexity", {"above": 15}, 16, True),
+        ("churn", {"above": 15}, 15, False),
+        ("churn", {"above": 15}, 16, True),
         ("churn", {"below": 5}, 5, False),
         ("churn", {"below": 5}, 4, True),
+    ],
+    ids=[
+        "complexity-entry0-10-False",
+        "complexity-entry1-11-True",
+        "coverage-entry2-0.6-False",
+        "coverage-entry3-0.59-True",
+        "complexity-entry4-15-False",
+        "complexity-entry5-16-True",
+        "churn-entry6-5-False",
+        "churn-entry7-4-True",
     ],
 )
 def test_a_line_is_crossed_only_strictly(tmp_path, metric, entry, value, fires):

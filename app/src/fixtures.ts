@@ -77,8 +77,10 @@ export function structureDocument(
         unused_exports: false,
         private_imports: true,
         long_function: true,
+        complexity: true,
       },
       long_function_limit: 20,
+      complexity_limit: 10,
     },
     { commit, modified: false },
   );

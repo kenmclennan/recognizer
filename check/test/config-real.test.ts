@@ -49,14 +49,13 @@ describe("the pinned sensors key schema", () => {
     expect(keys.get("sensors.crap.threshold")?.default).toBe(30);
     expect(keys.get("sensors.mutation.timeout_factor")?.default).toBe(10);
     expect(keys.get("sensors.mutation.incremental")?.default).toBe(true);
-    expect(keys.get("sensors.thresholds.<metric>.above")?.defaults).toEqual({
-      complexity: 10,
-    });
+    expect(
+      keys.get("sensors.thresholds.<metric>.above")?.defaults,
+    ).toBeUndefined();
     expect(keys.get("sensors.thresholds.<metric>.below")?.defaults).toEqual({
       coverage: 0.6,
     });
     expect(keys.get("sensors.thresholds.<metric>.severity")?.defaults).toEqual({
-      complexity: "warning",
       coverage: "warning",
     });
     expect(keys.get("sensors.mutation.max_minutes")?.default_text).toBe(
@@ -73,7 +72,7 @@ describe("the pinned sensors key schema", () => {
         entry.default_text !== undefined,
     );
 
-    expect(defaulted).toHaveLength(8);
+    expect(defaulted).toHaveLength(7);
   });
 });
 
@@ -170,7 +169,7 @@ describe.skipIf(!HAS_UV)(
             entry.default_text !== undefined,
         );
 
-        expect(defaulted).toHaveLength(8);
+        expect(defaulted).toHaveLength(7);
 
         const result = shell("recognizer config --schema", repository());
 

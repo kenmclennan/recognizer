@@ -35,7 +35,6 @@ def test_a_produced_file_validates_against_the_findings_schema(sample, tmp_path)
     assert document["commit"] == "c1"
     assert document["modified"] is False
     assert document["settings"] == {
-        "complexity": {"above": 10, "severity": "warning"},
         "coverage": {"below": 0.6, "severity": "warning"},
     }
     assert document["findings"] == []
@@ -66,12 +65,12 @@ def test_the_version_is_read_before_the_sensor_runs_so_a_vanished_package_cannot
 def test_settings_reach_the_sensor_and_are_recorded(sample, tmp_path):
     output = tmp_path / "out.json"
 
-    assert run_cli(sample, output, "--settings", '{"complexity":{"above":3}}') == 0
+    assert run_cli(sample, output, "--settings", '{"churn":{"above":3}}') == 0
 
     document = json.loads(output.read_text())
 
     assert document["settings"] == {
-        "complexity": {"above": 3, "severity": "warning"},
+        "churn": {"above": 3, "severity": "warning"},
         "coverage": {"below": 0.6, "severity": "warning"},
     }
 

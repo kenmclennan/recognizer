@@ -171,3 +171,63 @@ describe("readFindingsFiles judges per module", () => {
     expect(read(value, null, null)).toMatchObject({ valid: false });
   });
 });
+
+describe("readFindingsFiles tolerates a stored thresholds.complexity record", () => {
+  const record = (kind: string) => ({
+    ...finding(`thresholds:${kind}:pkg/a.py::f`, ["pkg/a.py"]),
+    kind: `thresholds.${kind}`,
+  });
+
+  function readNamed(name: string, value: FindingsDocument) {
+    const file = findingsFile(ROOT, name);
+
+    return readFindingsFiles(
+      {
+        readDir: () => [{ name: `${name}.json`, kind: "file" }],
+        readFile: (path: string) => {
+          if (path !== file) {
+            throw new Error("missing");
+          }
+
+          return JSON.stringify(value);
+        },
+      } as unknown as Io,
+      ROOT,
+      () => buildFreshness([SCAN], null),
+    )[0];
+  }
+
+  const held = (kinds: string[], name = "thresholds") =>
+    document({
+      sensor: { name, version: "1" },
+      inputs: { "pkg/a.py": H1 },
+      findings: kinds.map(record),
+    });
+
+  it("drops the complexity record and keeps the coverage one", () => {
+    const outcome = readNamed("thresholds", held(["complexity", "coverage"]));
+
+    expect(outcome).toMatchObject({ status: "read" });
+    expect(
+      (outcome as { document: FindingsDocument }).document.findings.map(
+        (one) => one.kind,
+      ),
+    ).toEqual(["thresholds.coverage"]);
+  });
+
+  it("reads a document of only complexity records back with none", () => {
+    const outcome = readNamed("thresholds", held(["complexity"]));
+
+    expect(
+      (outcome as { document: FindingsDocument }).document.findings,
+    ).toEqual([]);
+  });
+
+  it("leaves another sensor's thresholds.complexity-kinded record untouched", () => {
+    const outcome = readNamed("other", held(["complexity"], "other"));
+
+    expect(
+      (outcome as { document: FindingsDocument }).document.findings,
+    ).toHaveLength(1);
+  });
+});

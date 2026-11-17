@@ -310,11 +310,8 @@ PUBLISHED_DEFAULTS = {
     "sensors.crap.threshold": {"default": 30},
     "sensors.mutation.incremental": {"default": True},
     "sensors.mutation.timeout_factor": {"default": 10},
-    "sensors.thresholds.<metric>.above": {"defaults": {"complexity": 10}},
     "sensors.thresholds.<metric>.below": {"defaults": {"coverage": 0.6}},
-    "sensors.thresholds.<metric>.severity": {
-        "defaults": {"complexity": "warning", "coverage": "warning"}
-    },
+    "sensors.thresholds.<metric>.severity": {"defaults": {"coverage": "warning"}},
 }
 
 

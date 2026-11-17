@@ -98,7 +98,7 @@ describe("repositorySections", () => {
       "Structure",
       "Duplication",
       "C.R.A.P.",
-      "Complexity and coverage",
+      "Coverage",
       "Mutation",
       "Test suites",
     ]);
@@ -119,12 +119,6 @@ describe("repositorySections", () => {
       "Workers",
     ]);
     expect(fields("thresholds")).toEqual([
-      {
-        label: "Complexity above",
-        key: "sensors.thresholds.complexity.above",
-        control: "number",
-        severityKey: "sensors.thresholds.complexity.severity",
-      },
       {
         label: "Coverage below",
         key: "sensors.thresholds.coverage.below",
@@ -381,5 +375,23 @@ describe("checkSetup", () => {
         !setup.ok && !describing.ok && setup.error === describing.error,
       ).toBe(true);
     }
+  });
+});
+
+describe("the Structure section's complexity field", () => {
+  it("has the Complexity limit with its switch after Long function", () => {
+    const structure = sectionSpecs(
+      shipped("crap", "mutation", "thresholds"),
+      PUBLISHED,
+    ).find((section) => section.id === "structure");
+    const labels = structure?.fields.map((field) => field.label);
+
+    expect(labels?.slice(0, 2)).toEqual(["Long function", "Complexity"]);
+    expect(structure?.fields[1]).toMatchObject({
+      key: "sensors.structure.warnings.complexity.limit",
+      control: "limit",
+      unit: "paths",
+      switchKey: "sensors.structure.warnings.complexity",
+    });
   });
 });

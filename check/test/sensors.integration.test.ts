@@ -578,8 +578,6 @@ describe.skipIf(!HAS_UV)(
           ).toBe(0);
           expect(thresholdIds()).toEqual([
             "thresholds:churn:app/billing.py",
-            "thresholds:complexity:app/billing.py::price",
-            "thresholds:complexity:src/cart.ts::Cart.total",
             "thresholds:coverage:app/billing.py::price",
             "thresholds:coverage:app/billing.py::tidy",
           ]);
@@ -592,21 +590,22 @@ describe.skipIf(!HAS_UV)(
         async (settings) => {
           useThresholdsFixture(settings);
 
+          const captured = capture();
+
           expect(
             await run(
               ["scan", repository, "--sense", "thresholds"],
-              capture().io,
+              captured.io,
             ),
-          ).toBe(0);
-
-          const ids = thresholdIds();
-
+          ).toBe(2);
+          expect(captured.err()).toContain(
+            "sensors.structure.warnings.complexity.limit",
+          );
           expect(
-            ids.filter((id) => id.startsWith("thresholds:complexity:")),
-          ).toEqual([]);
-          expect(
-            ids.filter((id) => id.startsWith("thresholds:coverage:")),
-          ).toHaveLength(2);
+            existsSync(
+              join(repository, ".recognizer/cache/findings/thresholds.json"),
+            ),
+          ).toBe(false);
         },
         scaledTimeout(180_000),
       );

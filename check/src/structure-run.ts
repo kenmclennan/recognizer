@@ -1,8 +1,11 @@
 import type { Io } from "./cli.js";
-import { carryDuplication } from "./duplication/carry.js";
+import { measureComplexity } from "./complexity/measure.js";
+import { carryMeasured } from "./duplication/carry.js";
+import type { DuplicationSettings } from "./duplication/findings.js";
 import { measureDuplication } from "./duplication/measure.js";
 import type { Parsers } from "./duplication/parsers.js";
 import { readStoredStructure } from "./duplication/stored.js";
+import type { FindingRecord } from "./findings-document.js";
 import { writeFindings } from "./findings-files.js";
 import { scansCommit } from "./load-findings.js";
 import type { Policy } from "./policy.js";
@@ -29,41 +32,63 @@ export function runStructureSensor(
 ): StructureRun {
   const { commit, modified } = scansCommit(scans);
   const context = { commit: commit ?? "", modified };
-  let measureError: string | null = null;
+  const errors: string[] = [];
   let sensed: StructureResult;
 
-  if (settings.duplication !== false && parsers !== null) {
-    try {
-      sensed = structureSensor(
-        scans,
-        policy,
-        settings,
-        context,
-        measureDuplication(
-          io,
-          root,
-          scans,
-          settings.duplication,
-          parsers,
-          true,
-        ),
-      );
-    } catch (error) {
-      measureError = `duplication: ${(error as Error).message}`;
-      sensed = structureSensor(scans, policy, settings, context);
-    }
+  if (parsers !== null) {
+    const attempt = (
+      label: string,
+      wanted: boolean,
+      measure: (loaded: Parsers) => FindingRecord[],
+    ): FindingRecord[] | null => {
+      if (!wanted) {
+        return null;
+      }
+
+      try {
+        return measure(parsers);
+      } catch (error) {
+        errors.push(`${label}: ${(error as Error).message}`);
+
+        return null;
+      }
+    };
+
+    sensed = structureSensor(scans, policy, settings, context, {
+      duplication: attempt(
+        "duplication",
+        settings.duplication !== false,
+        (loaded) =>
+          measureDuplication(
+            io,
+            root,
+            scans,
+            settings.duplication as DuplicationSettings,
+            loaded,
+            true,
+          ),
+      ),
+      complexity: attempt(
+        "complexity",
+        settings.warnings.complexity,
+        (loaded) =>
+          measureComplexity(io, root, scans, policy, settings, loaded),
+      ),
+    });
   } else {
     const plain = structureSensor(scans, policy, settings, context);
 
     sensed = {
       ...plain,
-      document: carryDuplication(
+      document: carryMeasured(
         readStoredStructure(io, root),
         plain.document,
         settings,
       ),
     };
   }
+
+  const measureError = errors.length > 0 ? errors.join("; ") : null;
 
   if (commit === null) {
     return { sensed, commit, error: measureError };

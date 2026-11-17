@@ -110,9 +110,9 @@ def test_the_labelled_settings_are_exactly_the_shipped_rows():
     assert rows == {
         "crap": ["threshold"],
         "mutation": ["max_minutes", "max_workers", "timeout_factor", "incremental"],
-        "thresholds": ["<metric>.above", "<metric>.below"],
+        "thresholds": ["<metric>.below"],
     }
-    assert sum(len(keys) for keys in rows.values()) == 7
+    assert sum(len(keys) for keys in rows.values()) == 6
 
 
 def test_the_metric_cells_and_the_settings_title_are_the_shipped_ones():
@@ -124,7 +124,7 @@ def test_the_metric_cells_and_the_settings_title_are_the_shipped_ones():
     }
 
     assert cells == {"complexity": 1, "crap": 2, "coverage": 3}
-    assert build("thresholds")["settings_title"] == "Complexity and coverage"
+    assert build("thresholds")["settings_title"] == "Coverage"
     assert "settings_title" not in build("crap")
     assert "settings_title" not in build("mutation")
 
@@ -178,7 +178,7 @@ def test_published_figures_equal_the_constants_the_sensors_hold():
         if "published" in metric
     }
 
-    assert published["complexity"]["value"] == PUBLISHED["complexity"][1]
+    assert published["complexity"]["value"] == 10
     assert published["coverage"]["value"] == PUBLISHED["coverage"][1]
     assert published["crap"]["value"] == PUBLISHED_THRESHOLD
 

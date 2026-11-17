@@ -74,7 +74,8 @@ export { PRICES_PER_MILLION, priceFor } from "./describe-projection.js";
 export { describerVersion } from "./describer-version.js";
 export type { DoctorReport, SetupProblem } from "./doctor.js";
 export {
-  carryDuplication,
+  carryMeasured,
+  complexityUnmeasured,
   duplicationUnmeasured,
 } from "./duplication/carry.js";
 export { InputError } from "./errors.js";
@@ -103,6 +104,7 @@ export {
 } from "./folder-metrics.js";
 export {
   bodyLength,
+  COMPLEXITY_LIMIT,
   functionLength,
   LONG_FUNCTION,
 } from "./function-length.js";

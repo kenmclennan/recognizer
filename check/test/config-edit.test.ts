@@ -607,3 +607,28 @@ describe("listing", () => {
     expect(listing.skipped).toEqual(["tests"]);
   });
 });
+
+describe("a retired thresholds complexity key", () => {
+  const MESSAGE = /sensors\.structure\.warnings\.complexity\.limit/;
+
+  it.each([
+    ["sensors.thresholds.complexity.above", "12"],
+    ["sensors.thresholds.complexity.severity", "violation"],
+  ])("refuses --set %s with the replacement message", (key, value) => {
+    const outcome = setValue("sensors: {}\n", KEYS, key, value);
+
+    expect(outcome.status).toBe("refused");
+    expect((outcome as { reason: string }).reason).toMatch(MESSAGE);
+  });
+
+  it("refuses --unset of a key beneath it with the same message", () => {
+    const outcome = unsetValue(
+      "sensors:\n  thresholds:\n    complexity:\n      above: 12\n",
+      KEYS,
+      "sensors.thresholds.complexity.above",
+    );
+
+    expect(outcome.status).toBe("refused");
+    expect((outcome as { reason: string }).reason).toMatch(MESSAGE);
+  });
+});
