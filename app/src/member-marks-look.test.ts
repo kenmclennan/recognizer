@@ -103,6 +103,20 @@ const facts = {};
   click(change.all("button").find((b) => b.textContent === "Legend"));
   facts.changeLegend = change.all(".canvas-legend .member-legend-row").filter((r) => !r.hidden).map((r) => r.textContent);
 
+  const OLD_ID = "p/old.py";
+  const renamedBase = { ...scanOf([order, helper, gone]), modules: [{ id: OLD_ID, kind: "module", members: [order, helper, gone] }, { id: "p/b.py", kind: "module" }] };
+  const renamedPort = fakeViews({ chg: make({ change: { base: "main", head: "feat" } }) });
+  renamedPort.ranges.set("main..feat", { baseCommit: "cur1234", headCommit: "cur1234", merged: false, changes: [{ status: "R", path: ID, from: OLD_ID }] });
+  renamedPort.members.set("main..feat", { baseScans: [renamedBase], headScans: [scanOf([order, helper, fresh])], files: [{ path: ID, base_path: OLD_ID, base_text: BASE_TEXT, head_text: HEAD_TEXT }] });
+  const renamed = mount({}, renamedPort);
+  await tick();
+  await inspect(renamed);
+  await tick(120);
+  facts.renamed = {
+    bands: describeBands(renamed).map((band) => band.title),
+    rows: renamed.all(".card-code").map((node) => node.textContent),
+  };
+
   const elsewhere = { ...scanOf([order, helper]), commit: "other999", modules: [{ id: ID, kind: "module", members: [order, helper] }, { id: "p/b.py", kind: "module" }] };
   const apartLoaded = loadedOf({ modules: [ID, "p/b.py"], scans: [{ file: "scan.json", scan: elsewhere }] });
   const apartPort = fakeViews({ chg: make({ change: { base: "main", head: "feat" } }) });
@@ -181,6 +195,7 @@ type Facts = {
   };
   changeLegend: string[];
   apart: { bands: string[]; rows: string[] };
+  renamed: { bands: string[]; rows: string[] };
   unknown: { bands: number; notes: string[]; calls: string[] };
   wholeNew: WholeFacts;
   wholeModified: WholeFacts;
@@ -244,6 +259,15 @@ describe.skipIf(webkit === undefined)("member marks in a real browser", () => {
   it("marks and draws the head's members when the checkout is on another commit", () => {
     expect([...f.apart.bands].sort()).toEqual(["added", "modified", "removed"]);
     expect(f.apart.rows.some((row) => row.includes("fresh"))).toBe(true);
+  });
+
+  it("marks the changed members of a renamed-and-edited file against its old path", () => {
+    expect([...f.renamed.bands].sort()).toEqual([
+      "added",
+      "modified",
+      "removed",
+    ]);
+    expect(f.renamed.rows.some((row) => row.includes("fresh"))).toBe(true);
   });
 
   it("says marks could not be read, and draws none, when the range's members are unknown", () => {
