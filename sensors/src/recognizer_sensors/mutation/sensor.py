@@ -50,6 +50,7 @@ from recognizer_sensors.mutation.runner import (
     StoppedBeforeMutation,
     copy_repository,
     git_lines,
+    gradle_homes,
     install_coverage_stop_handler,
     install_stop_handler,
     new_work_folder,
@@ -973,10 +974,12 @@ def run(
         remove_work_folder(work)
 
 
-def sized_workers(peak: int, whole_peak: int | None = None) -> tuple[int, int, str]:
+def sized_workers(
+    peak: int, whole_peak: int | None = None, daemon: int = 0
+) -> tuple[int, int, str]:
     cpus = core_count()
     available = available_bytes()
-    workers = default_workers(cpus, available, peak)
+    workers = default_workers(cpus, available, peak, daemon)
     whole = workers if whole_peak is None else default_workers(cpus, available, whole_peak)
 
     detail = (
@@ -985,7 +988,8 @@ def sized_workers(peak: int, whole_peak: int | None = None) -> tuple[int, int, s
         else (
             f"cores {cpus}, half {max(1, cpus // 2)}, available {available // 1_000_000} MB, "
             f"one run {peak // 1_000_000} MB, "
-            f"bound by {binding_input(cpus, available, peak)}; max_workers sets the count"
+            f"{f'resident daemon {daemon // 1_000_000} MB, ' if daemon > 0 else ''}"
+            f"bound by {binding_input(cpus, available, peak, daemon)}; max_workers sets the count"
         )
     )
 
@@ -1022,7 +1026,7 @@ def probe_peak(
     queue: list[Target],
     by_name: dict[str, Suite],
     suite_size: int,
-) -> int | None:
+) -> tuple[int, int] | None:
     found = probe_command(queue, by_name, suite_size)
 
     if found is None:
@@ -1034,14 +1038,38 @@ def probe_peak(
     try:
         copy_repository(repository, copy, carry) if carry else copy_repository(repository, copy)
 
-        with PeakSampler() as sampler:
-            run_test_command(command, copy, PROBE_SECONDS, suite=suite)
+        if suite.language == "kotlin":
+            peak, daemon = probe_with_daemon(repository, work, copy, suite, command)
+        else:
+            with PeakSampler() as sampler:
+                run_test_command(command, copy, PROBE_SECONDS, suite=suite)
+
+            peak, daemon = sampler.peak_bytes, 0
     except OSError:
         return None
     finally:
         shutil.rmtree(copy, ignore_errors=True)
 
-    return sampler.peak_bytes if sampler.peak_bytes > 0 else None
+    return (peak, daemon) if peak > 0 else None
+
+
+def probe_with_daemon(
+    repository: Path, work: Path, copy: Path, suite: Suite, command: list[str] | str
+) -> tuple[int, int]:
+    peak = 0
+    daemon = 0
+
+    with gradle_homes(work) as homes:
+        home = homes.home_for("probe", suite, repository)
+
+        for _ in range(2):
+            with PeakSampler(homes=[home]) as sampler:
+                run_test_command(command, copy, PROBE_SECONDS, suite=suite, gradle_home=home)
+
+            peak = max(peak, sampler.peak_bytes)
+            daemon = max(daemon, sampler.daemon_bytes)
+
+    return peak, daemon
 
 
 def measure(
@@ -1365,16 +1393,15 @@ def measure(
         return outcome, measured, skipped_ids, reused
 
     if settings["max_workers"] is None:
-        peak = (
+        probed = (
             probe_peak(
                 repository, work, tuple(settings.get("carry", ())), queue, by_name, suite_size
             )
             if queue and available_bytes() is not None
             else None
         )
-        workers, whole_limit, sizing_line = sized_workers(
-            coverage_peak if peak is None else peak, coverage_peak
-        )
+        peak, daemon = probed if probed is not None else (coverage_peak, 0)
+        workers, whole_limit, sizing_line = sized_workers(peak, coverage_peak, daemon)
         settings = {**settings, "max_workers": workers}
 
     if queue:

@@ -108,7 +108,7 @@ def core_count() -> int:
     return os.cpu_count() or 1
 
 
-def default_workers(cpus: int, available: int | None, peak: int) -> int:
+def default_workers(cpus: int, available: int | None, peak: int, daemon: int = 0) -> int:
     if available is None:
         return 1
 
@@ -117,11 +117,11 @@ def default_workers(cpus: int, available: int | None, peak: int) -> int:
     if peak <= 0:
         return half
 
-    return max(1, min(half, available // peak))
+    return max(1, min(half, available // (peak + daemon)))
 
 
-def binding_input(cpus: int, available: int, peak: int) -> str:
+def binding_input(cpus: int, available: int, peak: int, daemon: int = 0) -> str:
     if peak <= 0:
         return "cores"
 
-    return "memory" if available // peak < max(1, cpus // 2) else "cores"
+    return "memory" if available // (peak + daemon) < max(1, cpus // 2) else "cores"

@@ -579,7 +579,7 @@ def test_a_kotlin_selection_of_half_the_suite_is_used_and_one_more_file_runs_the
     )
     seen = []
 
-    def spy(command, cwd, timeout, suite=None, extra=None):
+    def spy(command, cwd, timeout, suite=None, extra=None, gradle_home=None):
         seen.append(command if isinstance(command, str) else list(command))
 
         return runner.TestRun(0, False, 0.1, "")

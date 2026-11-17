@@ -7,12 +7,16 @@ import textwrap
 import time
 
 import pytest
-from test_mutation_memory import kotlin_suite
+from conftest import mutate_repository
+from test_mutation import run_mutate
+from test_mutation_memory import FakeSampler, kotlin_suite, sized_run
 from test_mutation_stop import start_child
 
 from recognizer_sensors.mutation import runner, sensor
+from recognizer_sensors.mutation.memory import default_workers
 from recognizer_sensors.mutation.runner import (
     GradleHomes,
+    PeakSampler,
     daemon_pids,
     gradle_homes,
     process_is_alive,
@@ -376,3 +380,81 @@ def test_daemon_pids_returns_only_live_gradle_daemons(tmp_path):
         bystander.kill()
         bystander.wait()
         os.kill(live, signal.SIGKILL)
+
+
+@pytest.mark.parametrize(
+    ("available", "expected"),
+    [(8000 * MB, 4), (4000 * MB, 2), (3999 * MB, 1)],
+)
+def test_default_workers_counts_the_daemon_heap(available, expected):
+    assert default_workers(8, available, 1000 * MB, 1000 * MB) == expected
+    assert default_workers(8, 4000 * MB, 1000 * MB, 0) == 4
+
+
+def test_the_sizing_line_names_the_daemon_when_counted(tmp_path, monkeypatch, capsys):
+    FakeSampler.daemons = [1000 * MB]
+    monkeypatch.setattr(sensor, "probe_peak", lambda *a, **k: (1000 * MB, 1000 * MB))
+    root, _ = mutate_repository(tmp_path)
+    monkeypatch.setattr(sensor, "available_bytes", lambda: 3_000_000_000)
+    monkeypatch.setattr(sensor, "PeakSampler", FakeSampler)
+    monkeypatch.setattr(sensor, "core_count", lambda: 8)
+    from conftest import mutate_settings
+
+    assert run_mutate(root, tmp_path / "o.json", mutate_settings("tests/weak.py")) == 0
+
+    err = capsys.readouterr().err
+
+    assert "one run 1000 MB, resident daemon 1000 MB, bound by memory" in err
+    FakeSampler.daemons = []
+
+
+def test_the_sizing_line_is_unchanged_without_a_daemon(tmp_path, monkeypatch, capsys):
+    _, err = sized_run(tmp_path, monkeypatch, capsys, lambda: 3_000_000_000, 8)
+
+    assert "one run 1000 MB, bound by memory; max_workers sets the count)" in err
+    assert "resident daemon" not in err
+
+
+def test_the_probe_runs_a_kotlin_selected_command_twice_and_stops_its_daemon(tmp_path, monkeypatch):
+    fake = Fake(tmp_path)
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    (repository / "f").write_text("x")
+    work = tmp_path / "work"
+    work.mkdir()
+    FakeSampler.peaks = [100 * MB, 300 * MB]
+    FakeSampler.daemons = [100 * MB, 300 * MB]
+    monkeypatch.setattr(sensor, "PeakSampler", FakeSampler)
+    monkeypatch.setattr(sensor, "probe_command", lambda *_: (fake.suite, f"{fake.script} test"))
+
+    result = sensor.probe_peak(repository, work, (), [], {}, 1)
+
+    assert result == (300 * MB, 300 * MB)
+    assert len(fake.run_log.read_text().split()) == 2
+    assert len(fake.stopped()) == 1
+    assert not any(daemon_pids(path) for path in work.glob("gradle-home-*"))
+    FakeSampler.peaks = []
+    FakeSampler.daemons = []
+
+
+def test_the_sampler_reports_the_daemons_resident_memory(tmp_path):
+    homes = GradleHomes(tmp_path / "work")
+    home = homes.home_for(0)
+    allocate = (
+        "x = bytearray(150_000_000); x[::4096] = b'a' * len(x[::4096]); import time; time.sleep(3)"
+    )
+    process = subprocess.Popen([sys.executable, "-c", allocate, "GradleDaemon"])
+
+    try:
+        folder = home / "daemon" / "9"
+        folder.mkdir(parents=True)
+        (folder / f"daemon-{process.pid}.out.log").touch()
+
+        with PeakSampler(interval=0.05, homes=[home]) as sampler:
+            time.sleep(1.5)
+
+        assert sampler.daemon_bytes >= 120 * MB
+        assert sampler.peak_bytes == 0
+    finally:
+        process.kill()
+        process.wait()

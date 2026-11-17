@@ -500,9 +500,13 @@ def gradle_homes(work: Path) -> Iterator[GradleHomes]:
 
 
 class PeakSampler:
-    def __init__(self, interval: float = 0.25) -> None:
+    def __init__(
+        self, interval: float = 0.25, homes: "Collection[Path] | GradleHomes" = ()
+    ) -> None:
         self.interval = interval
         self.peak_bytes = 0
+        self.daemon_bytes = 0
+        self.homes = homes
         self.finished = threading.Event()
         self.thread = threading.Thread(target=self.watch, daemon=True)
 
@@ -515,7 +519,25 @@ class PeakSampler:
         self.finished.set()
         self.thread.join()
 
+    def sample_daemons(self) -> None:
+        homes = self.homes.paths() if isinstance(self.homes, GradleHomes) else list(self.homes)
+
+        if not homes:
+            return
+
+        pids = [pid for home in homes for pid in daemon_pids(home)]
+
+        if not pids:
+            return
+
+        table = process_table()
+        total = sum(table[pid][1] for pid in pids if pid in table)
+
+        self.daemon_bytes = max(self.daemon_bytes, total * 1024)
+
     def sample(self) -> None:
+        self.sample_daemons()
+
         with LIVE_LOCK:
             roots = [process.pid for process in LIVE]
 
