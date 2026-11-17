@@ -1,9 +1,16 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { beforeAll } from "vitest";
 import { makeTempDir } from "../scripts/temp-dirs.mjs";
 import type { Manifest } from "../src/plugin-manifest.js";
 import { REPO } from "./helpers.js";
+
+beforeAll(() => {
+  if (!existsSync(join(REPO, "describers/claude/dist/bin.js"))) {
+    throw new Error("run npm run build -w recognizer-describe-claude");
+  }
+});
 
 export interface RealTool {
   name: string;
