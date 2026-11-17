@@ -166,7 +166,7 @@ def test_crap_measures_match_the_hand_derivation(crap_runs, case):
         assert finding is None
     else:
         assert finding is not None
-        assert finding["evidence"]["measures"] == measures
+        assert finding["evidence"]["measures"] == {**measures, "limit": load("crap")["threshold"]}
 
 
 @pytest.fixture(scope="module")

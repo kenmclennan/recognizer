@@ -432,6 +432,76 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   await tick(100);
   out.reopenedOnce = { history: live.commits.calls.history - reopenedBefore.history, branches: live.commits.calls.branches - reopenedBefore.branches };
 
+  const hv = mount();
+  await tick();
+  click(hv.q(".rail-commits"));
+  await tick(100);
+  click(tabNamed(hv, "Branches"));
+  await tick(100);
+  const hvPoint = (node, type, x = 60, y = 60) => node.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, bubbles: type === "pointerdown" }));
+  const hvCard = () => hv.q(".commits-card");
+  const hvText = () => { const c = hvCard(); return c.hidden ? null : [...c.children].map((n) => n.className + ":" + n.textContent); };
+  const hvCount = () => rowFor(hv, "feature/x").querySelector(".commits-impact");
+  const hvTitle = () => rowFor(hv, "feature/x").querySelector(".commits-row-title");
+  const hvRefresh = async () => { hv.commits.emitGitChanged(); await tick(100); };
+  const replaceSpy = { calls: 0 };
+  const realReplace = hvCard().replaceChildren.bind(hvCard());
+  hvCard().replaceChildren = (...nodes) => { replaceSpy.calls += 1; return realReplace(...nodes); };
+
+  hvPoint(hvCount(), "pointerenter");
+  const cardBefore = hvCard();
+  const countBefore = hvCount();
+  const textBefore = hvText();
+  const spyBefore = replaceSpy.calls;
+  await hvRefresh();
+  await hvRefresh();
+  out.popoverKept = { visibleFirst: textBefore !== null, sameCard: hv.q(".commits-card") === cardBefore, sameCount: hvCount() === countBefore, hidden: hvCard().hidden, textSame: JSON.stringify(hvText()) === JSON.stringify(textBefore), redraws: replaceSpy.calls - spyBefore };
+
+  const styleBefore = hvCard().style.left + "|" + hvCard().style.top;
+  const spyChanged = replaceSpy.calls;
+  hv.commits.facts.set("feature/x", facts("feature/x", sha("c"), [...FX, ch("A", "p/c.py")]));
+  await hvRefresh();
+  out.popoverUpdated = { hidden: hvCard().hidden, sameCard: hv.q(".commits-card") === cardBefore, sameCount: hvCount() === countBefore, lines: hvText(), style: hvCard().style.left + "|" + hvCard().style.top === styleBefore, redraws: replaceSpy.calls - spyChanged };
+
+  hv.commits.branches = { defaultRef: "origin/main", total: 2, text: ["main", "feature/x"].map((name, i) => [name, String(i).repeat(7), "Ken", "1699000000"].join(US) + "\\n").join("") };
+  await hvRefresh();
+  out.popoverMixed = { hidden: hvCard().hidden, sameCount: hvCount() === countBefore, rows: titlesOf(hv, ".commits-row") };
+
+  hvPoint(hvCount(), "pointerleave");
+  out.leftTrigger = hvCard().hidden;
+
+  hvPoint(hvTitle(), "pointerenter");
+  const titleCardBefore = hvCard();
+  const titleTextBefore = hvText();
+  await hvRefresh();
+  out.titleKept = { visibleFirst: titleTextBefore !== null && titleTextBefore[0].endsWith("feature/x"), sameCard: hv.q(".commits-card") === titleCardBefore, hidden: hvCard().hidden, textSame: JSON.stringify(hvText()) === JSON.stringify(titleTextBefore) };
+  hvPoint(hvTitle(), "pointerleave");
+
+  hvPoint(hvCount(), "pointerenter");
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+  out.escape = hvCard().hidden;
+  hvPoint(hvCount(), "pointerenter");
+  hvPoint(hvCount(), "pointerdown");
+  const insideKept = !hvCard().hidden;
+  hvPoint(document.body, "pointerdown");
+  out.pointerdown = { insideKept, outsideHidden: hvCard().hidden };
+
+  hvPoint(hvCount(), "pointerenter");
+  hv.commits.branches = { defaultRef: "origin/main", total: 1, text: ["main"].map((name, i) => [name, String(i).repeat(7), "Ken", "1699000000"].join(US) + "\\n").join("") };
+  await hvRefresh();
+  out.rowGone = hvCard().hidden;
+
+  hv.commits.branches = { defaultRef: "origin/main", total: 3, text: BRANCHES };
+  await hvRefresh();
+  const clickRow = rowFor(hv, "feature/x");
+  const clickRowFeature = () => rowFor(hv, "feature/x");
+  const beforeClicks = hv.views.rangeCalls.length;
+  hv.commits.facts.set("feature/x", facts("feature/x", sha("b"), FX));
+  await hvRefresh();
+  click(clickRowFeature());
+  await tick(100);
+  out.clickPick = { sameRow: clickRowFeature() === clickRow, call: hv.views.rangeCalls.slice(beforeClicks) };
+
   const prsPanel = mount();
   await tick();
   click(prsPanel.q(".rail-commits"));
@@ -588,6 +658,34 @@ type Facts = {
   branchesPanel: Panel & { removed: string[] };
   countCard: { lines: string[] | null; insideWindow: boolean };
   countCardGone: string[] | null;
+  popoverKept: {
+    visibleFirst: boolean;
+    sameCard: boolean;
+    sameCount: boolean;
+    hidden: boolean;
+    textSame: boolean;
+    redraws: number;
+  };
+  popoverUpdated: {
+    hidden: boolean;
+    sameCard: boolean;
+    sameCount: boolean;
+    lines: string[] | null;
+    style: boolean;
+    redraws: number;
+  };
+  popoverMixed: { hidden: boolean; sameCount: boolean; rows: string[] };
+  leftTrigger: boolean;
+  titleKept: {
+    visibleFirst: boolean;
+    sameCard: boolean;
+    hidden: boolean;
+    textSame: boolean;
+  };
+  escape: boolean;
+  pointerdown: { insideKept: boolean; outsideHidden: boolean };
+  rowGone: boolean;
+  clickPick: { sameRow: boolean; call: string[] };
   titleCard: string[] | null;
   branches: { calls: Calls };
   historyHide: { on: boolean; rows: number; filterHidden: boolean };
@@ -813,6 +911,60 @@ describe.skipIf(webkit === undefined)(
       expect(f.countCard.insideWindow).toBe(true);
       expect(f.countCardGone).toBeNull();
       expect(f.titleCard?.[0]).toBe("commits-card-heading:feature/x");
+    });
+
+    it("keeps the card open and the same element when a refresh leaves the hovered row unchanged", () => {
+      expect(f.popoverKept.visibleFirst).toBe(true);
+      expect(f.popoverKept.hidden).toBe(false);
+      expect(f.popoverKept.sameCard).toBe(true);
+      expect(f.popoverKept.sameCount).toBe(true);
+      expect(f.popoverKept.textSame).toBe(true);
+    });
+
+    it("updates the open card in place when the hovered branch's files change", () => {
+      expect(f.popoverUpdated.hidden).toBe(false);
+      expect(f.popoverUpdated.sameCard).toBe(true);
+      expect(f.popoverUpdated.sameCount).toBe(true);
+      expect(f.popoverUpdated.lines).toContain(
+        "commits-card-file added:p/c.py",
+      );
+      expect(f.popoverUpdated.style).toBe(true);
+    });
+
+    it("redraws the card only when its lines changed", () => {
+      expect(f.popoverKept.redraws).toBe(0);
+      expect(f.popoverUpdated.redraws).toBe(1);
+    });
+
+    it("keeps the card for the hovered branch when another branch leaves the list", () => {
+      expect(f.popoverMixed.rows).toEqual(["main", "feature/x"]);
+      expect(f.popoverMixed.hidden).toBe(false);
+      expect(f.popoverMixed.sameCount).toBe(true);
+    });
+
+    it("hides the card when the hovered row leaves the list", () => {
+      expect(f.rowGone).toBe(true);
+    });
+
+    it("hides the card when the pointer leaves its trigger", () => {
+      expect(f.leftTrigger).toBe(true);
+    });
+
+    it("hides the card on Escape and on a pointerdown outside the trigger, and keeps it on a pointerdown inside", () => {
+      expect(f.escape).toBe(true);
+      expect(f.pointerdown).toEqual({ insideKept: true, outsideHidden: true });
+    });
+
+    it("keeps the title card across a refresh", () => {
+      expect(f.titleKept.visibleFirst).toBe(true);
+      expect(f.titleKept.hidden).toBe(false);
+      expect(f.titleKept.sameCard).toBe(true);
+      expect(f.titleKept.textSame).toBe(true);
+    });
+
+    it("keeps a reused row's click bound to its current pick", () => {
+      expect(f.clickPick.sameRow).toBe(true);
+      expect(f.clickPick.call).toEqual([`${"b".repeat(40)}..feature/x`]);
     });
 
     it("hides rows with no files on the canvas on History, keeps the held ends and the unknown rows, and counts them", () => {

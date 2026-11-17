@@ -54,9 +54,10 @@ const OLD_EXAMPLE_SENTENCES: Record<string, string> = {
 const OLD_HAND_SENTENCES: Record<string, string[]> = {
   crap: [
     "f in m.py has complexity 8.46 and unknown coverage.",
-    "f in m.py has complexity 8 and 50% coverage, C.R.A.P. 12 (Savoia and Evans say 30).",
-    "f in m.py has complexity 8 and 50% coverage, C.R.A.P. 12 (Savoia and Evans say 12.5).",
+    "f in m.py has complexity 8 and 50% coverage, C.R.A.P. 12, over the limit of 30.",
+    "f in m.py has complexity 8 and 50% coverage, C.R.A.P. 12, over the limit of 20.",
     "the summary",
+    "f in m.py has complexity 8.46 and unknown coverage, over the limit of 30.",
   ],
   mutation: [
     "f in m.py has 1 surviving mutation.",
@@ -66,9 +67,9 @@ const OLD_HAND_SENTENCES: Record<string, string[]> = {
   thresholds: [
     "m.py has complexity 10, at the limit of 10.",
     "m.py has complexity 4.5, under the limit of 10.",
-    "f in m.py has complexity 14, over the limit of 12 (McCabe says 10).",
-    "m.py has coverage 0.4, under the limit of 0.7 (Google's guidelines say 60%).",
-    "m.py has churn 25, over the limit of 20 (McCabe says 15).",
+    "f in m.py has complexity 14, over the limit of 12.",
+    "m.py has coverage 0.4, under the limit of 0.7.",
+    "m.py has churn 25, over the limit of 20.",
     "the summary",
   ],
 };
@@ -111,7 +112,7 @@ const HAND_BUILT: Record<string, FindingRecord[]> = {
     record("crap", { members: [MEMBER], measures: { complexity: 8.456 } }),
     record("crap", {
       members: [MEMBER],
-      measures: { complexity: 8, coverage: 0.5, crap: 12.4, published: 30 },
+      measures: { complexity: 8, coverage: 0.5, crap: 12.4, limit: 30 },
     }),
     record("crap", {
       members: [MEMBER],
@@ -120,10 +121,14 @@ const HAND_BUILT: Record<string, FindingRecord[]> = {
         coverage: 0.5,
         crap: 12.4,
         limit: 20,
-        published: 12.5,
+        published: 30,
       },
     }),
     record("crap", { members: [MEMBER], measures: {} }),
+    record("crap", {
+      members: [MEMBER],
+      measures: { complexity: 8.456, limit: 30 },
+    }),
   ],
   mutation: [
     record("mutation", { members: [MEMBER], measures: { survived: 1 } }),
@@ -185,5 +190,25 @@ describe.each(KINDS)("the $sensor catalog sentence", ({ sensor, match }) => {
     const bare = record(sensor === "thresholds" ? "thresholds.x" : sensor, {});
 
     expect(catalogSentence(bare)).toBe("the summary");
+  });
+});
+
+describe("the crap and thresholds popover means", () => {
+  const meansOf = (file: string): string =>
+    JSON.parse(
+      readFileSync(join(REPO, "schema/manifest-examples/valid", file), "utf8"),
+    ).findings[0].group.means;
+
+  const count = (text: string, part: string) => text.split(part).length - 1;
+
+  it("names the crap source once", () => {
+    expect(count(meansOf("sensor-crap.json"), "Savoia and Evans")).toBe(1);
+  });
+
+  it("names each thresholds source once", () => {
+    const means = meansOf("sensor-thresholds.json");
+
+    expect(count(means, "McCabe")).toBe(1);
+    expect(count(means, "Google")).toBe(1);
   });
 });

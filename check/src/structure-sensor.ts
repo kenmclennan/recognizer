@@ -21,7 +21,7 @@ import {
   unusedExportsFindings,
 } from "./structure-warnings.js";
 
-export const STRUCTURE_SENSOR_VERSION = "19";
+export const STRUCTURE_SENSOR_VERSION = "20";
 
 export interface StructureSettings {
   duplication: false | DuplicationSettings;
@@ -212,19 +212,17 @@ export function structureSensor(
           id: violationId(violation),
           kind: "rule-violation",
           severity: "violation",
-          ...principleOf(violationPrinciple(violation.rules)),
+          ...principleOf(violationPrinciple([violation.rule])),
           summary: violationText(violation),
           evidence: {
             modules: [violation.from],
-            edges: [
-              {
-                from: violation.from,
-                to: violation.to,
-                kind: violation.kind,
-                lines: violation.lines,
-                rules: violation.rules,
-              },
-            ],
+            edges: violation.imports.map((one) => ({
+              from: violation.from,
+              to: one.to,
+              kind: one.kind,
+              lines: one.lines,
+              rules: [violation.rule],
+            })),
           },
         });
       }

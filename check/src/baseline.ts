@@ -1,4 +1,7 @@
 import { InputError } from "./errors.js";
+import { importText, ruleText } from "./findings.js";
+import type { FindingRecord } from "./findings-document.js";
+import type { Violation } from "./rules.js";
 
 export interface Identity {
   from: string;
@@ -15,8 +18,18 @@ export type BaselineEntry = Identity | IdEntry;
 const KINDS = new Set(["depends", "inherits", "implements"]);
 const VIOLATION_PREFIX = "rule-violation:";
 
-export function violationId(identity: Identity): string {
+export function violationId(violation: Pick<Violation, "from" | "rule">) {
+  return `${VIOLATION_PREFIX}${ruleText(violation.rule)}:${violation.from}`;
+}
+
+export function edgeId(identity: Identity): string {
   return `${VIOLATION_PREFIX}${identity.kind}:${identity.from}->${identity.to}`;
+}
+
+export function violationKeys(violation: Violation): string[] {
+  return violation.imports.map((one) =>
+    identityKey({ from: violation.from, to: one.to, kind: one.kind }),
+  );
 }
 
 export function identityOfViolationId(id: string): Identity | null {
@@ -45,12 +58,60 @@ export function identityKey(entry: BaselineEntry): string {
     : `${identity.from}\u0000${identity.to}\u0000${identity.kind}`;
 }
 
+export function narrowViolationRecord(
+  record: FindingRecord,
+  accepted: Set<string>,
+): FindingRecord | null {
+  const edges = record.evidence.edges ?? [];
+
+  if (
+    record.kind !== "rule-violation" ||
+    edges.length === 0 ||
+    edges.some((edge) => edge.kind === undefined)
+  ) {
+    return accepted.has(identityKey(record)) ? null : record;
+  }
+
+  const kept = edges.filter(
+    (edge) =>
+      !accepted.has(
+        identityKey({
+          from: edge.from,
+          to: edge.to,
+          kind: edge.kind as string,
+        }),
+      ),
+  );
+
+  if (kept.length === 0) {
+    return null;
+  }
+
+  if (kept.length === edges.length) {
+    return record;
+  }
+
+  return {
+    ...record,
+    summary: kept
+      .map((edge) =>
+        importText({
+          to: edge.to,
+          kind: edge.kind as string,
+          lines: edge.lines ?? [],
+        }),
+      )
+      .join("; "),
+    evidence: { ...record.evidence, edges: kept },
+  };
+}
+
 export function isIdEntry(entry: BaselineEntry): entry is IdEntry {
   return "id" in entry;
 }
 
 export function entryId(entry: BaselineEntry): string {
-  return isIdEntry(entry) ? entry.id : violationId(entry);
+  return isIdEntry(entry) ? entry.id : edgeId(entry);
 }
 
 export function compareEntries(a: BaselineEntry, b: BaselineEntry): number {

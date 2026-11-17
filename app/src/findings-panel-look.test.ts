@@ -1,9 +1,66 @@
+import { parsePolicy, structureSensor, validateScan } from "recognizer";
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import groupFile from "./finding-groups.json";
 import { collectFacts, FAKE_WORKER, here, webkit } from "./look-page";
 
+const GROUPED_IDS = [
+  "config/Application.kt",
+  "adapter/PortA.kt",
+  "adapter/PortB.kt",
+];
+const GROUPED_HASH = "1".repeat(64);
+const groupedScan = validateScan({
+  schema_version: 7,
+  scanner: { name: "t", version: "0" },
+  commit: "cur1234",
+  modified: false,
+  files: GROUPED_IDS.map((path) => ({ path, hash: GROUPED_HASH })),
+  selection: {
+    extensions: [],
+    skip_directory_names: [],
+    skip_directory_prefixes: [],
+    skip_directory_suffixes: [],
+    skip_directories_containing: [],
+    skip_file_globs: [],
+  },
+  modules: GROUPED_IDS.map((id) => ({
+    id,
+    language: "kotlin",
+    kind: "module",
+    members: [],
+  })),
+  edges: [
+    { from: GROUPED_IDS[0], to: GROUPED_IDS[1], kind: "depends", line: 3 },
+    { from: GROUPED_IDS[0], to: GROUPED_IDS[2], kind: "depends", line: 7 },
+  ],
+  foreign: [],
+});
+const GROUPED_POLICY =
+  "components:\n  config: config/**\n  adapter: adapter/**\nuses:\n  adapter: []\n";
+const groupedDocument = structureSensor(
+  [groupedScan],
+  parsePolicy(GROUPED_POLICY),
+  {
+    duplication: false,
+    entry_points: [],
+    entry_annotations: [],
+    warnings: {
+      cycle: true,
+      orphan: false,
+      unused_exports: false,
+      private_imports: false,
+      long_function: false,
+    },
+    long_function_limit: 20,
+  },
+  { commit: "cur1234", modified: false },
+).document;
+
 const HARNESS = `
+const groupedScan = ${JSON.stringify(groupedScan)};
+const groupedDocument = ${JSON.stringify(groupedDocument)};
+const groupedIds = ${JSON.stringify(GROUPED_IDS)};
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { loadedOf, scanHostOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
@@ -385,6 +442,27 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
     with: { shown: withPolicy.shown(".findings-policy"), nodes: withPolicy.all(".findings-policy .finding-info").length },
   };
 
+  {
+    const g = await mount({ modules: groupedIds, scans: [{ file: "scan.kotlin.json", scan: groupedScan }], policy: ${JSON.stringify(GROUPED_POLICY)}, findings: [groupedDocument] }, null);
+    const badge = g.q(".rail-findings .rail-count").textContent;
+    click(g.q(".rail-findings"));
+    await tick();
+    const head = g.q(".finding-group-head");
+    const count = g.q(".finding-group-count").textContent;
+    click(head);
+    await tick();
+    click(g.q(".finding-card .finding-card-head"));
+    await tick();
+    facts.grouped = {
+      badge,
+      count,
+      line: g.q(".findings-line").textContent,
+      cards: g.all(".finding-card").length,
+      sentence: g.q(".finding-card .finding-sentence").textContent,
+      rows: texts(g, ".finding-card.open .finding-item"),
+    };
+  }
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -483,6 +561,21 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
     expect(f.info.focused.color).toBe(f.info.focused.fg);
   });
 
+  it("one card lists both imports with their lines and the panel and badge count one", () => {
+    expect(f.grouped.badge).toBe("1");
+    expect(f.grouped.count).toBe("1");
+    expect(f.grouped.line).toBe("1 violation");
+    expect(f.grouped.cards).toBe(1);
+    expect(f.grouped.sentence).toBe(
+      "Application.kt imports 2 modules from adapter, which the policy forbids: config may not use adapter.",
+    );
+    expect(f.grouped.rows).toEqual([
+      "Application.ktconfigAdd to view",
+      "Application.kt -> PortA.kt, line 3",
+      "Application.kt -> PortB.kt, line 7",
+    ]);
+  });
+
   it("a group is collapsed until clicked", () => {
     expect(f.panel.cards).toBe(0);
     expect(f.card.groupsOpen).toBe(1);
@@ -510,7 +603,7 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
     expect(f.oriented.litLines).toBe(1);
     expect(f.oriented.dimmed).toEqual(["lib/c.py"]);
     expect(f.oriented.open).toBe(1);
-    expect(f.oriented.rows).toEqual(["a.pyapp", "a.py -> b.py"]);
+    expect(f.oriented.rows).toEqual(["a.pyapp", "a.py -> b.py, line 4"]);
     expect(f.oriented.adds).toBe(0);
   });
 

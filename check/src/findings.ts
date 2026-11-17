@@ -1,6 +1,6 @@
 import type { FindingRecord, FindingsDocument } from "./findings-document.js";
 import { principleName } from "./principles.js";
-import type { Violation } from "./rules.js";
+import type { Rule, Violation, ViolationImport } from "./rules.js";
 
 export type Finding = {
   severity: "violation" | "warning";
@@ -8,13 +8,7 @@ export type Finding = {
   why: string;
 };
 
-export function ruleText(violation: Pick<Violation, "rules">): string {
-  const rule = violation.rules[0];
-
-  if (rule === undefined) {
-    return "";
-  }
-
+export function ruleText(rule: Rule): string {
   if (rule.type === "level") {
     return `level ${rule.from_level} -> ${rule.to_level}`;
   }
@@ -26,10 +20,14 @@ export function ruleText(violation: Pick<Violation, "rules">): string {
   return `forbid ${rule.pattern}`;
 }
 
-export function violationText(violation: Violation): string {
-  const verb = violation.kind === "depends" ? "depends on" : violation.kind;
+export function importText(one: ViolationImport): string {
+  const verb = one.kind === "depends" ? "depends on" : one.kind;
 
-  return `${verb} ${violation.to} at line ${violation.lines.join(", ")}`;
+  return `${verb} ${one.to} at line ${one.lines.join(", ")}`;
+}
+
+export function violationText(violation: Violation): string {
+  return violation.imports.map(importText).join("; ");
 }
 
 export function findingsByModuleFrom(
@@ -45,10 +43,10 @@ export function findingsByModuleFrom(
   for (const document of documents) {
     for (const record of document.findings) {
       const isViolation = record.severity === "violation";
-      const rules = record.evidence.edges?.[0]?.rules;
+      const rule = record.evidence.edges?.[0]?.rules?.[0];
       const why =
-        isViolation && rules !== undefined
-          ? ruleText({ rules })
+        isViolation && rule !== undefined
+          ? ruleText(rule)
           : principleName(record.principle);
 
       for (const id of record.evidence.modules) {

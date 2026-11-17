@@ -155,7 +155,8 @@ GROUPS = {
     "crap": {
         "name": "C.R.A.P.",
         "means": (
-            "A function that is both complex and poorly covered by tests, so changing it is risky."
+            "A function that is both complex and poorly covered by tests, "
+            "so changing it is risky. The published threshold is 30 (Savoia and Evans)."
         ),
         "todo": "Add tests for it, or simplify it; either lowers the score.",
     },
@@ -169,7 +170,11 @@ GROUPS = {
     },
     "thresholds": {
         "name": "Over a limit",
-        "means": "A measure passed a limit set in your config, such as module size.",
+        "means": (
+            "A measure passed a limit set in your config, such as module size. "
+            "The published lines are complexity above 10 (McCabe) "
+            "and coverage below 60% (Google's guidelines)."
+        ),
         "todo": "Bring it back under the limit, or raise the limit if it is wrong.",
     },
 }
@@ -207,7 +212,7 @@ def crap_sentence() -> dict:
     complexity = f"{MEASURES}.complexity"
     coverage = f"{MEASURES}.coverage"
     score = f"{MEASURES}.crap"
-    published = f"{MEASURES}.published"
+    limit = f"{MEASURES}.limit"
 
     return {
         "requires": [f"{MEMBER}.name", f"{MEMBER}.module", complexity],
@@ -226,14 +231,7 @@ def crap_sentence() -> dict:
                 ),
                 variant(" and unknown coverage"),
             ],
-            [
-                variant(
-                    f" (Savoia and Evans say {{{published}|num}})",
-                    has(coverage),
-                    has(score),
-                    has(published),
-                )
-            ],
+            [variant(f", over the limit of {{{limit}|num}}", has(limit))],
             [variant(".")],
         ],
     }
@@ -259,7 +257,6 @@ def mutation_sentence() -> dict:
 def thresholds_sentence() -> dict:
     value = f"{MEASURES}.value"
     line = f"{MEASURES}.line"
-    published = f"{MEASURES}.published"
 
     return {
         "requires": [value, line, "evidence.modules.0"],
@@ -279,14 +276,6 @@ def thresholds_sentence() -> dict:
                     {"left": value, "op": "lt", "right": line},
                 ),
                 variant(f"at the limit of {{{line}|num}}"),
-            ],
-            [
-                variant(
-                    f" (Google's guidelines say {{{published}|percent}}%)",
-                    {"path": "kind", "is": "thresholds.coverage"},
-                    has(published),
-                ),
-                variant(f" (McCabe says {{{published}|num}})", has(published)),
             ],
             [variant(".")],
         ],

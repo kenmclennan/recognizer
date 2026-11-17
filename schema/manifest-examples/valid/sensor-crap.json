@@ -83,7 +83,7 @@
       "kind": "crap",
       "group": {
         "name": "C.R.A.P.",
-        "means": "A function that is both complex and poorly covered by tests, so changing it is risky.",
+        "means": "A function that is both complex and poorly covered by tests, so changing it is risky. The published threshold is 30 (Savoia and Evans).",
         "todo": "Add tests for it, or simplify it; either lowers the score."
       },
       "help": "One finding per function whose C.R.A.P. score is over the threshold.",
@@ -119,16 +119,10 @@
             {
               "when": [
                 {
-                  "has": "evidence.measures.coverage"
-                },
-                {
-                  "has": "evidence.measures.crap"
-                },
-                {
-                  "has": "evidence.measures.published"
+                  "has": "evidence.measures.limit"
                 }
               ],
-              "text": " (Savoia and Evans say {evidence.measures.published|num})"
+              "text": ", over the limit of {evidence.measures.limit|num}"
             }
           ],
           [
