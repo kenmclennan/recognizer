@@ -76,6 +76,7 @@
           "line": 3,
           "exported": true,
           "end_line": 5,
+          "body_line": 4,
           "params": [
             {
               "name": "total",
@@ -90,6 +91,7 @@
           "line": 7,
           "exported": false,
           "end_line": 9,
+          "body_line": 8,
           "params": [
             {
               "name": "value",
@@ -130,6 +132,7 @@
               "name": "save",
               "line": 10,
               "end_line": 12,
+              "body_line": 11,
               "params": [
                 {
                   "name": "order",
@@ -167,6 +170,7 @@
           "line": 11,
           "exported": true,
           "end_line": 13,
+          "body_line": 12,
           "params": [],
           "returns": "Order"
         }
@@ -202,6 +206,7 @@
               "name": "new",
               "line": 12,
               "end_line": 14,
+              "body_line": 13,
               "params": [
                 {
                   "name": "id",
@@ -220,6 +225,7 @@
               "name": "subtotal",
               "line": 16,
               "end_line": 18,
+              "body_line": 17,
               "params": [],
               "private": true,
               "returns": "u64"
@@ -251,6 +257,7 @@
               "name": "save",
               "line": 7,
               "end_line": 9,
+              "body_line": 8,
               "params": [
                 {
                   "name": "order",
@@ -292,6 +299,7 @@
               "name": "name",
               "line": 6,
               "end_line": 8,
+              "body_line": 7,
               "params": [],
               "private": false,
               "returns": "String"

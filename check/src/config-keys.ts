@@ -203,7 +203,7 @@ export const CORE_KEYS: KeySchema = {
       key: "sensors.structure.warnings.long_function.limit",
       type: "integer",
       description:
-        "the most lines a function may have before the long_function warning reports it; default 20 (Clean Code)",
+        "the most lines a function's body may have, not counting its signature, before the long_function warning reports it; default 20 (Clean Code)",
       example: "sensors.structure.warnings.long_function.limit 30",
       minimum: 1,
       default: 20,

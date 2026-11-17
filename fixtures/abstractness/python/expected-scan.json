@@ -75,6 +75,7 @@
               "name": "save",
               "line": 6,
               "end_line": 6,
+              "body_line": 6,
               "params": [],
               "private": false,
               "returns": "None",
@@ -116,6 +117,7 @@
               "name": "run",
               "line": 19,
               "end_line": 19,
+              "body_line": 19,
               "params": [],
               "private": false,
               "returns": "None",
@@ -170,6 +172,7 @@
           "line": 15,
           "exported": true,
           "end_line": 16,
+          "body_line": 16,
           "params": [],
           "returns": "Row"
         },
@@ -179,6 +182,7 @@
           "line": 19,
           "exported": false,
           "end_line": 19,
+          "body_line": 19,
           "params": [],
           "returns": "None"
         }

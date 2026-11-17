@@ -138,6 +138,7 @@
           "line": 15,
           "exported": true,
           "end_line": 17,
+          "body_line": 16,
           "params": [],
           "returns": "Impl"
         },

@@ -165,6 +165,7 @@ def method_outline(function: Function, protocol: bool) -> dict:
         "name": function.name,
         "line": function.lineno,
         "end_line": function.end_lineno,
+        "body_line": function.body[0].lineno,
         "params": outline["params"],
         "private": is_private(function.name),
     }
@@ -339,9 +340,11 @@ def read_members(tree: ast.Module, bindings: dict[str, str], source: str) -> lis
         if isinstance(statement, ast.ClassDef):
             detail = class_member(statement, bindings)
         elif isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef):
-            detail = {"kind": "function", "end_line": statement.end_lineno} | callable_outline(
-                statement, False, False
-            )
+            detail = {
+                "kind": "function",
+                "end_line": statement.end_lineno,
+                "body_line": statement.body[0].lineno,
+            } | callable_outline(statement, False, False)
         elif (
             TYPE_ALIAS is not None and isinstance(statement, TYPE_ALIAS)
         ) or is_annotated_type_alias(statement):

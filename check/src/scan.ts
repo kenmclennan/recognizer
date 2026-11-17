@@ -51,6 +51,7 @@ export interface ScanMethod {
   name: string;
   line?: number;
   end_line?: number;
+  body_line?: number;
   params?: ScanParam[];
   returns?: string;
   private?: boolean;
@@ -64,6 +65,7 @@ export interface ScanMember {
   kind?: "class" | "function" | "interface" | "type" | "constant" | "enum";
   line?: number;
   end_line?: number;
+  body_line?: number;
   bases?: string[];
   fields?: ScanField[];
   methods?: ScanMethod[];

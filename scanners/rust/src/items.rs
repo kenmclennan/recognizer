@@ -139,6 +139,10 @@ fn end_line_of(span: Span) -> usize {
     span.end().line
 }
 
+fn body_line_of(block: &syn::Block, end_line: usize) -> usize {
+    (block.brace_token.span.open().start().line + 1).min(end_line)
+}
+
 fn is_public(visibility: &Visibility) -> bool {
     match visibility {
         Visibility::Public(_) => true,
@@ -325,6 +329,7 @@ fn tags(signature: &Signature, is_static: bool, is_abstract: bool) -> Vec<&'stat
 fn method(
     signature: &Signature,
     end_line: usize,
+    body: Option<&syn::Block>,
     private: bool,
     is_abstract: bool,
     text: &Text,
@@ -334,6 +339,11 @@ fn method(
     found.insert("name".into(), json!(name_of(&signature.ident)));
     found.insert("line".into(), json!(line_of(signature.ident.span())));
     found.insert("end_line".into(), json!(end_line));
+
+    if let Some(block) = body {
+        found.insert("body_line".into(), json!(body_line_of(block, end_line)));
+    }
+
     found.insert("params".into(), json!(parameters(signature, text)));
     found.insert("private".into(), json!(private));
 
@@ -360,6 +370,7 @@ fn impl_methods(block: &ItemImpl, text: &Text) -> Vec<Value> {
             syn::ImplItem::Fn(function) => Some(method(
                 &function.sig,
                 end_line_of(function.span()),
+                Some(&function.block),
                 !in_trait && !is_public(&function.vis),
                 false,
                 text,
@@ -377,6 +388,7 @@ fn trait_methods(block: &ItemTrait, text: &Text) -> Vec<Value> {
             TraitItem::Fn(function) => Some(method(
                 &function.sig,
                 end_line_of(function.span()),
+                function.default.as_ref(),
                 false,
                 function.default.is_none(),
                 text,
@@ -782,7 +794,13 @@ fn collect(
                         is_public(&found.vis),
                     );
 
-                    value.insert("end_line".into(), json!(end_line_of(found.span())));
+                    let end_line = end_line_of(found.span());
+
+                    value.insert("end_line".into(), json!(end_line));
+                    value.insert(
+                        "body_line".into(),
+                        json!(body_line_of(&found.block, end_line)),
+                    );
                     value.insert("params".into(), json!(parameters(&found.sig, text)));
 
                     if let Some(output) = returns(&found.sig, text) {

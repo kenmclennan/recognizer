@@ -2222,6 +2222,7 @@ describe("long_function", () => {
     name: string;
     line?: number;
     end_line?: number;
+    body_line?: number;
   };
 
   type Mod = {
@@ -2343,6 +2344,99 @@ describe("long_function", () => {
     expect(result[0]?.summary).toBe("b is 21 lines, over the limit of 20");
     expect(result[0]?.summary).not.toContain("Martin");
     expect(result[0]?.evidence.modules).toEqual(["lib/store.py"]);
+  });
+
+  describe("measuring the body", () => {
+    const withBody = (
+      name: string,
+      line: number,
+      body_line: number,
+      end_line: number,
+    ): Fn => ({ name, line, end_line, body_line });
+
+    it("does not report a 31-line signature with a one-line body, while the same span without body_line is reported", () => {
+      const annotated = [
+        { id: "lib/a.py", functions: [withBody("f", 1, 32, 32)] },
+      ];
+      const unmeasured = [{ id: "lib/a.py", functions: [span("f", 1, 32)] }];
+
+      expect(foundAt(annotated, 30)).toEqual([]);
+      expect(foundAt(unmeasured, 30)[0]?.summary).toBe(
+        "f is 32 lines, over the limit of 30",
+      );
+    });
+
+    it("reports a 25-line body at limit 20 with its body length", () => {
+      const result = foundAt(
+        [{ id: "lib/a.py", functions: [withBody("f", 1, 10, 34)] }],
+        20,
+      );
+
+      expect(result[0]?.summary).toBe(
+        "f has a 25-line body, over the limit of 20",
+      );
+      expect(result[0]?.evidence.measures).toEqual({
+        lines: 25,
+        limit: 20,
+        body_line: 10,
+      });
+      expect(result[0]?.evidence.members?.[0]?.lines).toEqual([1, 34]);
+    });
+
+    it("gives none at a 20-line body and one at a 21-line body", () => {
+      const at = (end: number) => [
+        { id: "lib/a.py", functions: [withBody("f", 1, 5, end)] },
+      ];
+
+      expect(foundAt(at(24), 20)).toEqual([]);
+      expect(ids(foundAt(at(25), 20))).toEqual(["long_function:lib/a.py::f"]);
+    });
+
+    it("gives nothing when the body starts after the end line", () => {
+      expect(
+        foundAt(
+          [{ id: "lib/a.py", functions: [withBody("f", 1, 50, 40)] }],
+          20,
+        ),
+      ).toEqual([]);
+    });
+
+    it("measures a method by its body", () => {
+      const annotated = [
+        {
+          id: "lib/a.py",
+          classes: [{ name: "C", methods: [withBody("m", 2, 40, 41)] }],
+        },
+      ];
+      const long = [
+        {
+          id: "lib/a.py",
+          classes: [{ name: "C", methods: [withBody("m", 2, 5, 40)] }],
+        },
+      ];
+
+      expect(foundAt(annotated, 30)).toEqual([]);
+      expect(foundAt(long, 30)[0]?.summary).toBe(
+        "C.m has a 36-line body, over the limit of 30",
+      );
+    });
+
+    it("measures each function the way its own record allows", () => {
+      const result = foundAt(
+        [
+          {
+            id: "lib/a.py",
+            functions: [withBody("a", 1, 2, 30), span("b", 40, 70)],
+          },
+        ],
+        20,
+      );
+
+      expect(result.map((record) => record.summary)).toEqual([
+        "a has a 29-line body, over the limit of 20",
+        "b is 31 lines, over the limit of 20",
+      ]);
+    });
   });
 
   it("counts a method like a function", () => {

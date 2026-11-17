@@ -74,6 +74,7 @@
           "line": 1,
           "exported": true,
           "end_line": 2,
+          "body_line": 2,
           "params": []
         }
       ]
@@ -89,6 +90,7 @@
           "line": 5,
           "exported": true,
           "end_line": 7,
+          "body_line": 6,
           "params": []
         }
       ]
@@ -110,6 +112,7 @@
           "line": 4,
           "exported": true,
           "end_line": 5,
+          "body_line": 5,
           "params": [
             {
               "name": "a",

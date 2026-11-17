@@ -184,4 +184,70 @@ describe("module kind", () => {
     });
     expect(found.get("D")?.end_line).toBeUndefined();
   });
+
+  it("records body_line below a multi-line signature, for blocks, arrows, one-liners and methods, and omits it without a body", () => {
+    const doc = scanTree({
+      "a.ts": [
+        "export function signed(",
+        "  a: number,",
+        "  b: number,",
+        "): number {",
+        "  return a;",
+        "}",
+        "",
+        "export function allman(a: number)",
+        "{",
+        "  return a;",
+        "}",
+        "",
+        "export const arrow = (",
+        "  a: number,",
+        ") =>",
+        "  a + 1;",
+        "",
+        "export const blockArrow = () => {",
+        "  return 1;",
+        "};",
+        "",
+        "export function one() { return 1; }",
+        "",
+        "export function overload(a: string): void;",
+        "export function overload(a: number): void;",
+        "export function overload(a: any): void {",
+        "  return;",
+        "}",
+        "",
+        "export class C {",
+        "  method(",
+        "    a: number,",
+        "  ) {",
+        "    return a;",
+        "  }",
+        "",
+        "  constructor() {",
+        "    this.x = 1;",
+        "  }",
+        "}",
+        "",
+        "export interface I {",
+        "  sig(a: number): void;",
+        "}",
+        "",
+      ].join("\n"),
+    });
+    const all = doc.modules[0]?.members ?? [];
+    const bodies = (name: string) =>
+      all.filter((m) => m.name === name).map((m) => m.body_line);
+    const methods = all.find((m) => m.name === "C")?.methods ?? [];
+    const iface = all.find((m) => m.name === "I")?.methods ?? [];
+
+    expect(bodies("signed")).toEqual([5]);
+    expect(bodies("allman")).toEqual([10]);
+    expect(bodies("arrow")).toEqual([16]);
+    expect(bodies("blockArrow")).toEqual([19]);
+    expect(bodies("one")).toEqual([22]);
+    expect(bodies("overload")).toEqual([undefined]);
+    expect(methods.map((m) => m.body_line)).toEqual([34, 38]);
+    expect(iface.map((m) => m.body_line)).toEqual([undefined]);
+  });
 });

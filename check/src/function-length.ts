@@ -16,3 +16,14 @@ export function functionLength(
 
   return endLine - line + 1;
 }
+
+export function bodyLength(
+  bodyLine: number,
+  endLine: number | null | undefined,
+): number | null {
+  if (endLine === null || endLine === undefined || endLine < bodyLine) {
+    return null;
+  }
+
+  return endLine - bodyLine + 1;
+}
