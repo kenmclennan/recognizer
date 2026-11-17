@@ -86,6 +86,12 @@ function ran(
   };
 }
 
+function withAnalysis(given: PanelInput["sensors"]): PanelInput["sensors"] {
+  return given.some(({ name }) => name === "structure")
+    ? given
+    : [{ name: "structure", status: "ran" }, ...given];
+}
+
 function modelOf(
   ids: string[],
   over: Partial<PanelInput> = {},
@@ -115,6 +121,8 @@ function modelOf(
     freshness: buildFreshness([scan], "t"),
     ...over,
   };
+
+  input.sensors = withAnalysis(input.sensors);
 
   return buildFreshnessModel(input, sensors);
 }
@@ -177,6 +185,7 @@ describe("freshness model states", () => {
     const model = modelOf(IDS);
 
     expect(model.rows.map((row) => [row.key, row.state.kind])).toEqual([
+      ["scan", "current"],
       ["structure", "current"],
       ["describe", "current"],
       ["crap", "current"],
@@ -573,7 +582,7 @@ describe("the four situations of the mock", () => {
 
     expect(model.summary.head).toBe("C.R.A.P. failed; Mutation has never run");
     expect(model.summary.line).toBe(
-      "Their values and findings are missing. Structure and Descriptions are current.",
+      "Their values and findings are missing. Structure, Structural analysis and Descriptions are current.",
     );
     expect(model.action.primary.label).toBe("Run C.R.A.P. and Mutation");
     expect(model.summary.bar).toBeNull();

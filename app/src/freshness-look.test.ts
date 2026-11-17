@@ -27,7 +27,7 @@ const scan = {
   foreign: [],
 };
 const inputs = { "app/a.py": ${JSON.stringify(H1)}, "app/b.py": ${JSON.stringify(H0)} };
-const overlay = JSON.stringify({ overlay_version: 2, commit: ${JSON.stringify(COMMIT)}, modified: false, inputs, tests: ${JSON.stringify(TESTS)}, producer: { name: "crap", version: "0.1.0" }, metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }], values: { complexity: { "app/a.py::f": 8, "app/b.py::f": 5 } } });
+const overlay = JSON.stringify({ overlay_version: 2, commit: ${JSON.stringify(COMMIT)}, modified: false, inputs, tests: ${JSON.stringify(TESTS)}, producer: { name: "crap", version: "0.1.0" }, metrics: [{ name: "coverage", type: "count", granularity: "member", bad: "high" }], values: { coverage: { "app/a.py::f": 8, "app/b.py::f": 5 } } });
 const finding = (id, module) => ({ id, kind: "style", severity: "warning", principle: "name-your-constants", summary: "magic numbers " + id, evidence: { modules: [module] } });
 const document_ = { findings_version: 2, sensor: { name: "crap", version: "0.1.0" }, commit: ${JSON.stringify(COMMIT)}, modified: false, settings: {}, inputs, tests: ${JSON.stringify(TESTS)}, findings: [finding("on-a", "app/a.py"), finding("on-b", "app/b.py")] };
 const loadedFor = (tests) => loadedOf({ modules: ids, scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", text: overlay }], findings: [document_], sensors: [{ name: "crap", status: "ran", measured: { inputs, tests: ${JSON.stringify(TESTS)} } }], tests });
@@ -70,7 +70,7 @@ async function observe(tests, changed = false) {
   }
   click(q(".metrics-toggle"));
   await tick();
-  const row = q('.metric-row[data-metric="crap/complexity"]');
+  const row = q('.metric-row[data-metric="crap/coverage"]');
   const rowDisabled = row.classList.contains("disabled");
   click(row);
   await tick();
@@ -83,7 +83,7 @@ async function observe(tests, changed = false) {
     labelB: q('.box[data-id="app/b.py"] .changed-label') === null ? null : q('.box[data-id="app/b.py"] .changed-label').textContent,
     nameRightB: q('.box[data-id="app/b.py"] .name').getBBox().x + q('.box[data-id="app/b.py"] .name').getBBox().width,
     labelLeftB: q('.box[data-id="app/b.py"] .changed-label') === null ? null : q('.box[data-id="app/b.py"] .changed-label').getBBox().x,
-    note: qa(".metric-note").map((note) => note.textContent),
+    note: qa(".metric-note").map((note) => note.textContent).filter((text) => !text.includes("Structural analysis")),
     barsA: barsOf("app/a.py"),
     barsB: barsOf("app/b.py"),
     discA: discOf("app/a.py"),
@@ -128,7 +128,7 @@ describe.skipIf(webkit === undefined)(
       ]);
       expect(f.matching.barsA).toBe(1);
       expect(f.matching.barsB).toBe(0);
-      expect(f.matching.tablesA).toEqual([["cc 8"]]);
+      expect(f.matching.tablesA).toEqual([["cc -"]]);
       expect(f.matching.tablesB).toEqual([["cc -"]]);
       expect(f.matching.line).toBe("1 warning");
       expect(f.matching.staleLine).toBe(

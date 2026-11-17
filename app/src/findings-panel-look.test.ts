@@ -119,8 +119,8 @@ async function mount(loaded, picks, status) {
   const editor = fakeEditor();
   const counts = [];
   const runs = [];
-  const scanHost = scanHostOf({ port: fake, run: (modules, planned) => runs.push({ modules, planned }) });
-  mountExplorer({ container: host, loaded: { ...base, ...loaded, sensors: status ?? [{ name: "alpha", status: "ran" }] }, title: "demo", onCount: (text) => counts.push(text), views: port, post: () => null, storage: { getItem: () => null, setItem: () => {} }, editor, scanHost });
+  const scanHost = scanHostOf({ scan: () => ({ origin: { branch: "main", commit: "abc1234" }, scannedAt: Date.now(), changes: { files: [], moved: null }, scanning: null }), port: fake, run: (modules, planned) => runs.push({ modules, planned }) });
+  mountExplorer({ container: host, loaded: { ...base, ...loaded, sensors: [{ name: "structure", status: "ran" }, ...(status ?? [{ name: "alpha", status: "ran" }])] }, title: "demo", onCount: (text) => counts.push(text), views: port, post: () => null, storage: { getItem: () => null, setItem: () => {} }, editor, scanHost });
   await tick();
   const q = (selector) => host.querySelector(selector);
   const all = (selector) => [...host.querySelectorAll(selector)];

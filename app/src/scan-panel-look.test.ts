@@ -583,7 +583,7 @@ const RED = "rgb(248, 81, 73)";
 const ACCENT = "rgb(68, 147, 248)";
 const MUTED = "rgb(145, 152, 161)";
 const NAMES = [
-  "Structure",
+  "Structural analysis",
   "Descriptions",
   "C.R.A.P.",
   "Mutation",
@@ -699,7 +699,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.fresh.railLabel).toContain("Scan");
   });
 
-  it("matches the mock's fresh repository: Not scanned yet, one list, only Structure ticked, every row never run", () => {
+  it("matches the mock's fresh repository: Not scanned yet, one list, only Structural analysis ticked, every row never run", () => {
     expect(f.fresh.header).toBe("Not scanned yet");
     expect(names(f.fresh)).toEqual(NAMES);
     expect(states(f.fresh)).toEqual(Array(7).fill("never run"));
@@ -710,7 +710,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.fresh.summary).toMatchObject({
       shape: "attention",
       tone: "warn",
-      head: "Structure, Descriptions, C.R.A.P., Mutation, tally, alpha and beta have never run",
+      head: "Structure, Structural analysis, Descriptions, C.R.A.P., Mutation, tally, alpha and beta have never run",
       bar: 0,
     });
     expect(f.fresh.rowBars).toBe(0);
@@ -721,7 +721,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.fresh.subLines).toBe(0);
     expect(
       f.fresh.rows.filter((r: Facts) => r.disabled).map((r: Facts) => r.key),
-    ).toEqual(["structure"]);
+    ).toEqual([]);
     expect(f.fresh.rows.every((r: Facts) => r.accent === ACCENT)).toBe(true);
   });
 
@@ -729,7 +729,9 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     const title = (key: string) =>
       f.fresh.rows.find((r: Facts) => r.key === key).title;
 
-    expect(title("structure")).toBe("Structure always runs");
+    expect(title("structure")).toBe(
+      "Finds import cycles, files nothing imports, unused exports, private imports, long or complex functions, duplication and policy violations. Runs with every scan and needs no tests.",
+    );
     expect(title("describe")).toBe(
       "Writes one line per module saying what it is responsible for.",
     );
@@ -751,7 +753,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
 
   it("has the primary button naming its work below the scope and mode toggles", () => {
     expect(f.fresh.buttons).toEqual([
-      { text: "Run Structure", disabled: false, spinner: 0 },
+      { text: "Run", disabled: false, spinner: 0 },
     ]);
     expect(f.freshPartial.modeToggles).toEqual([
       { text: "Incremental", pressed: "true", disabled: false },
@@ -774,7 +776,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       bar: 0,
     });
     expect(f.changed.rows.find((r: Facts) => r.key === "structure").state).toBe(
-      "1 module out of date",
+      "2h",
     );
     expect(f.changed.buttons[0]).toEqual({
       text: "Update 1 module",
@@ -982,7 +984,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.ticksWhileRunning.unchanged).toBe(true);
     expect(f.ticksWhileRunning.stopEnabled).toBe(true);
     expect(f.ticksAfterStop.length).toBeGreaterThan(0);
-    expect(f.ticksAfterStop.filter(Boolean)).toHaveLength(1);
+    expect(f.ticksAfterStop.filter(Boolean)).toHaveLength(0);
   });
 
   it("leaves a failed sensor at failed with its age and a log link in red and posts exactly one tray message", () => {
@@ -1039,7 +1041,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
 
   it("lists Descriptions and the third-party rows, none disabled, when the shipped list is unavailable", () => {
     expect(f.down).toEqual([
-      { name: "Structure", disabled: true },
+      { name: "Structural analysis", disabled: false },
       { name: "Descriptions", disabled: false },
       { name: "tally", disabled: false },
       { name: "alpha", disabled: false },
@@ -1127,7 +1129,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.estimateTicked.afterButtons).toBe(true);
     expect(f.estimateTicked.text).toBe("About 3 min");
     expect(f.estimateTicked.title).toBe(
-      "Structure: <1 min (last run)\nMutation: 3 min (2 functions at recent pace)",
+      "Structural analysis: <1 min (last run)\nMutation: 3 min (2 functions at recent pace)",
     );
     expect(f.estimateUnticked.hidden).toBe(true);
   });
