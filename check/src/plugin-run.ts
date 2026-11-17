@@ -4,6 +4,7 @@ import {
   type Diagnosis,
   type EventReader,
   type PluginEvent,
+  type SuiteDuration,
 } from "./plugin-events.js";
 import {
   type Manifest,
@@ -121,6 +122,7 @@ export function prepareCall(
 export interface PluginRun extends RegisteredRun {
   diagnosis: Diagnosis | null;
   firstWorked: number | null;
+  suites: SuiteDuration[];
 }
 
 export async function runPlugin(
@@ -152,5 +154,6 @@ export async function runPlugin(
     ...run,
     diagnosis: call.reader.diagnosis(),
     firstWorked: call.reader.firstWorked(),
+    suites: call.reader.suites(),
   };
 }

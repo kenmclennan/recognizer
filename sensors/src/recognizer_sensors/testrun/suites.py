@@ -303,10 +303,22 @@ def collect_suites(
             merge_coverage(merged, stored[suite.name])
 
     with log.open("w", encoding="utf-8") as stream:
-        for suite in runnable:
+        counted = len(runnable) > 1
+
+        if counted:
+            events.start(len(runnable), "suites")
+
+        for position, suite in enumerate(runnable):
+            if counted:
+                events.progress(position, len(runnable), "suites", suite.name)
+
             events.note(f"Coverage run: {suite.name}")
             started = time.time()
             returncode, output = run_suite(repository, suite, stream)
+
+            if counted:
+                events.progress(position + 1, len(runnable), "suites", suite.name)
+
             source = source_of(suite)
             part = read_source(repository, source, files, started)
             failed = suite_failed(suite.language, returncode, output)

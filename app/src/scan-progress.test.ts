@@ -352,6 +352,25 @@ describe("plugin progress", () => {
     expect(parseScanLine(JSON.stringify(started))).toEqual(started);
   });
 
+  it("keeps a valid queued on a start and drops an invalid one", () => {
+    const withQueued = plugin("mutation", {
+      event: "start",
+      total: 229,
+      unit: "functions",
+      queued: 30,
+    });
+
+    expect(parseScanLine(JSON.stringify(withQueued))).toEqual(withQueued);
+    expect(
+      parseScanLine(
+        JSON.stringify({
+          ...withQueued,
+          data: { ...withQueued.data, queued: -1 },
+        }),
+      ),
+    ).toEqual(started);
+  });
+
   it("rejects done above total, a negative or fractional count and a missing done", () => {
     expect(parseScanLine(JSON.stringify(mutants(3, 2)))).toBeNull();
     expect(parseScanLine(JSON.stringify(mutants(-1, 2)))).toBeNull();

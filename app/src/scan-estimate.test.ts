@@ -12,6 +12,7 @@ import {
   remaining,
   roundedTime,
   scanHistory,
+  suiteHistoryOf,
 } from "./scan-estimate";
 import { OPEN_RUN, type PlannedRun } from "./scan-freshness";
 import { NO_PROGRESS, type ScanProgress } from "./scan-progress";
@@ -25,6 +26,7 @@ type SenseEntry = {
   incomplete?: boolean;
   outcome?: "ok" | "failed";
   work?: { unit: string; performed: number };
+  suites?: { name: string; duration_ms: number }[];
 };
 
 function entry(one: {
@@ -35,6 +37,7 @@ function entry(one: {
   fixed_ms?: number;
   incomplete?: boolean;
   work?: { unit: string; performed: number };
+  suites?: { name: string; duration_ms: number }[];
 }) {
   const { outcome = "ok", ...rest } = one;
 
@@ -227,6 +230,47 @@ describe("roundedTime", () => {
 
   it("adds the minutes past the hour", () => {
     expect(roundedTime(3_900_000)).toBe("about 1 h 5 min");
+  });
+});
+
+describe("per-suite durations in the history", () => {
+  const run = (name: string, suites: { name: string; duration_ms: number }[]) =>
+    scanFile(name, {
+      structure_ms: 0,
+      sense: [
+        {
+          name: "crap",
+          duration_ms: 50000,
+          fixed_ms: 50000,
+          modules: 30,
+          suites,
+        },
+      ],
+    });
+
+  it("reads each suite's duration from the run log and lists them newest first", () => {
+    const history = scanHistory([
+      run("20261101T090000000Z", [
+        { name: "engine", duration_ms: 3200 },
+        { name: "app", duration_ms: 8400 },
+      ]),
+      run("20261102T090000000Z", [
+        { name: "engine", duration_ms: 1400 },
+        { name: "app", duration_ms: 4500 },
+      ]),
+    ]);
+
+    expect(history.sense.crap?.[0]?.suites).toEqual([
+      { name: "engine", durationMs: 1400 },
+      { name: "app", durationMs: 4500 },
+    ]);
+    expect(suiteHistoryOf(history, ["crap", "mutation"])).toEqual({
+      crap: { engine: [1400, 3200], app: [4500, 8400] },
+    });
+  });
+
+  it("lists no suite history for a sensor whose runs recorded none", () => {
+    expect(suiteHistoryOf(scanHistory([]), ["crap"])).toEqual({});
   });
 });
 
@@ -834,8 +878,281 @@ describe("remaining time while running", () => {
     );
   });
 
-  it("falls back to the frozen figure with two suites", () => {
-    expect(mutationLeft(mutating(17), ["a", "b"])?.text).toBe(
+  type Line = [number, Parameters<typeof foldRunLine>[1]];
+  const plugin = (
+    name: string,
+    data: Extract<Line[1], { event: "plugin" }>["data"],
+  ): Line["1"] => ({ event: "plugin", phase: "sense", name, data });
+  const stream = (
+    name: string,
+    figure: number,
+    start: Record<string, unknown>,
+    progress: [number, number, number, string | undefined, string][],
+  ) =>
+    fold(frozen({ structure: 0, [name]: figure }), [
+      [T, { event: "phase", phase: "sense", total: 1 }],
+      [T, { event: "start", phase: "sense", name }],
+      [T, plugin(name, { event: "start", ...start } as never)],
+      ...progress.map(
+        ([at, done, total, step, unit]): Line => [
+          at,
+          plugin(name, {
+            event: "progress",
+            done,
+            total,
+            unit,
+            ...(step === undefined ? {} : { step }),
+          }),
+        ],
+      ),
+    ]);
+  const sensorLeft = (
+    key: string,
+    progress: ScanProgress,
+    now: number,
+    suites = ["a", "b"],
+  ) =>
+    remaining({
+      parts: [PARTS[0], { key, name: key }],
+      suites: { [key]: suites },
+      progress,
+      startedAt: T,
+      now,
+    });
+  const twoSuiteMutation = (bDone: number) =>
+    stream("mutation", 600_000, { total: 150, unit: "functions", queued: 30 }, [
+      [T, 80, 100, "a", "functions"],
+      [T + 240_000, 100, 100, "a", "functions"],
+      [T + 240_000, 50, 60, "b", "functions"],
+      [T + 300_000, bDone, 60, "b", "functions"],
+    ]);
+
+  it("paces a two-suite mutation run from the work done across its suites", () => {
+    const progress = twoSuiteMutation(53);
+
+    expect(progress.timing.runWork).not.toBeNull();
+    expect(sensorLeft("mutation", progress, T + 300_000)?.text).toBe(
+      "about 2 min left",
+    );
+  });
+
+  const firstSuite = (done: number) =>
+    stream("mutation", 600_000, { total: 150, unit: "functions", queued: 30 }, [
+      [T, 80, 100, "a", "functions"],
+      [T + 30_000, done, 100, "a", "functions"],
+    ]);
+
+  it("keeps a two-suite mutation run on the frozen figure at 2 functions of work", () => {
+    expect(sensorLeft("mutation", firstSuite(82), T + 30_000)?.text).toBe(
+      "about 10 min left",
+    );
+  });
+
+  it("paces a two-suite mutation run at 3 functions of work", () => {
+    expect(sensorLeft("mutation", firstSuite(83), T + 30_000)?.text).toBe(
+      "about 5 min left",
+    );
+  });
+
+  const crap = (done: number) =>
+    stream("crap", 840_000, { total: 2, unit: "suites" }, [
+      [T, 0, 2, undefined, "suites"],
+      [T + 300_000, done, 2, undefined, "suites"],
+    ]);
+
+  it("paces a two-suite crap run once one suite is done", () => {
+    expect(sensorLeft("crap", crap(1), T + 300_000)?.text).toBe(
+      "about 5 min left",
+    );
+  });
+
+  it("keeps a two-suite crap run on the frozen figure with no suite done", () => {
+    expect(sensorLeft("crap", crap(0), T + 300_000)?.text).toBe(
+      "about 9 min left",
+    );
+  });
+
+  it("adds nothing for a two-suite crap run with every suite done", () => {
+    expect(sensorLeft("crap", crap(2), T + 300_000)?.text).toBe(
+      "under a minute left",
+    );
+  });
+
+  const SECOND = 1000;
+  const loomHistory = {
+    engine: [32 * SECOND],
+    app: [84 * SECOND],
+    tauri: [339 * SECOND],
+  };
+  const withHistory = (
+    progress: ScanProgress,
+    history: Record<string, number[]> = loomHistory,
+  ): ScanProgress => ({
+    ...progress,
+    timing: { ...progress.timing, suiteHistory: { crap: history } },
+  });
+  const loom = (
+    events: [number, number, string][],
+    history?: Record<string, number[]>,
+  ) =>
+    withHistory(
+      stream(
+        "crap",
+        840_000,
+        { total: 3, unit: "suites" },
+        events.map(([at, done, step]) => [at, done, 3, step, "suites"]),
+      ),
+      history,
+    );
+  const loomLeft = (progress: ScanProgress, now: number) =>
+    sensorLeft("crap", progress, now, ["engine", "app", "tauri"]);
+  const engineDone: [number, number, string][] = [
+    [T, 0, "engine"],
+    [T + 14 * SECOND, 1, "engine"],
+    [T + 14 * SECOND, 1, "app"],
+  ];
+
+  it("paces a multi-suite run on each suite's own history, scaled by this run's speed", () => {
+    expect(loomLeft(loom(engineDone), T + 14 * SECOND)?.text).toBe(
+      "about 3 min left",
+    );
+  });
+
+  it("counts the running suite as its median minus its elapsed time", () => {
+    expect(loomLeft(loom(engineDone), T + 34 * SECOND)?.text).toBe(
+      "about 3 min left",
+    );
+  });
+
+  it("takes the median of the past runs at least as long as an overrunning suite", () => {
+    const progress = loom(
+      [
+        [T, 0, "engine"],
+        [T + 32 * SECOND, 1, "engine"],
+        [T + 32 * SECOND, 1, "app"],
+      ],
+      { ...loomHistory, app: [60 * SECOND, 120 * SECOND] },
+    );
+
+    expect(loomLeft(progress, T + 132 * SECOND)?.text).toBe("about 6 min left");
+  });
+
+  it("names a suite that outran every past run and counts nothing for it beside the suites still to run", () => {
+    const progress = loom(
+      [
+        [T, 0, "engine"],
+        [T + 32 * SECOND, 1, "engine"],
+        [T + 32 * SECOND, 1, "app"],
+      ],
+      loomHistory,
+    );
+
+    expect(loomLeft(progress, T + 400 * SECOND)?.text).toBe(
+      "about 6 min left, plus crap on app: longer than estimated",
+    );
+  });
+
+  it("paces a suite with no history on the suite-count pace", () => {
+    expect(
+      loomLeft(
+        loom(
+          [
+            [T, 0, "engine"],
+            [T + 60 * SECOND, 1, "engine"],
+            [T + 60 * SECOND, 1, "app"],
+          ],
+          { engine: [60 * SECOND] },
+        ),
+        T + 60 * SECOND,
+      )?.text,
+    ).toBe("about 2 min left");
+  });
+
+  it("keeps the suite-count pace for a sensor with no per-suite history", () => {
+    expect(
+      loomLeft(
+        stream("crap", 840_000, { total: 3, unit: "suites" }, [
+          [T, 0, 3, "engine", "suites"],
+          [T + 60 * SECOND, 1, 3, "engine", "suites"],
+        ]),
+        T + 60 * SECOND,
+      )?.text,
+    ).toBe("about 2 min left");
+  });
+
+  const crapRun = (events: [number, Line[1]][]) =>
+    fold(frozen({ structure: 0, crap: 60_000 }), [
+      [T, { event: "phase", phase: "sense", total: 1 }],
+      [T, { event: "start", phase: "sense", name: "crap" }],
+      [T, plugin("crap", { event: "start", total: 3, unit: "suites" })],
+      ...events,
+    ]);
+  const suiteEvent = (done: number, step: string): Line[1] =>
+    plugin("crap", {
+      event: "progress",
+      done,
+      total: 3,
+      unit: "suites",
+      step,
+    });
+  const coverageNote = (suite: string): Line[1] =>
+    plugin("crap", { event: "note", text: `Coverage run: ${suite}` });
+  const threeSuiteRun = (
+    until: "engine" | "app" | "tauri",
+    history?: Record<string, number[]>,
+  ): ScanProgress => {
+    const events: [number, Line[1]][] = [
+      [T, suiteEvent(0, "engine")],
+      [T, coverageNote("engine")],
+      [T + 92 * SECOND, suiteEvent(1, "engine")],
+      [T + 92 * SECOND, suiteEvent(1, "app")],
+      [T + 92 * SECOND, coverageNote("app")],
+    ];
+
+    if (until !== "engine") {
+      events.push(
+        [T + 155 * SECOND, suiteEvent(2, "app")],
+        [T + 155 * SECOND, suiteEvent(2, "tauri")],
+        [T + 155 * SECOND, coverageNote("tauri")],
+      );
+    }
+
+    const progress = crapRun(events);
+
+    return history === undefined ? progress : withHistory(progress, history);
+  };
+
+  it("reads about 3 min after the first of three suites and about 1 min after the second, with no history", () => {
+    expect(loomLeft(threeSuiteRun("engine"), T + 92 * SECOND)?.text).toBe(
+      "about 3 min left",
+    );
+    expect(loomLeft(threeSuiteRun("tauri"), T + 155 * SECOND)?.text).toBe(
+      "about 1 min left",
+    );
+  });
+
+  it("keeps those figures after the sensor starts its function run", () => {
+    const progress = crapRun([
+      [T, suiteEvent(0, "engine")],
+      [T + 92 * SECOND, suiteEvent(1, "engine")],
+      [T + 92 * SECOND, suiteEvent(1, "app")],
+    ]);
+
+    expect(loomLeft(progress, T + 92 * SECOND)?.text).toBe("about 3 min left");
+  });
+
+  it("keeps a stepped stream with no queued on the frozen figure", () => {
+    const progress = stream(
+      "mutation",
+      600_000,
+      { total: 150, unit: "functions" },
+      [
+        [T, 10, 100, "a", "functions"],
+        [T + 60_000, 20, 100, "a", "functions"],
+      ],
+    );
+
+    expect(sensorLeft("mutation", progress, T + 60_000)?.text).toBe(
       "about 9 min left",
     );
   });
@@ -936,7 +1253,7 @@ describe("remaining time while running", () => {
     ).toBe("about 5 min left");
   });
 
-  it("keeps two suites on the frozen figure and names the overrun", () => {
+  it("keeps a two-suite sensor with no progress on the frozen figure and names the overrun", () => {
     expect(
       overrunLeft(started({ structure: 0, mutation: 600_000 }), T + 700_000, [
         "a",

@@ -1,3 +1,4 @@
+import json
 import os
 import shlex
 import subprocess
@@ -240,6 +241,48 @@ def test_two_suites_one_reporting_and_one_not_keep_the_first_and_name_the_second
     assert coverage == {"app/m.py": {1: 1, 2: 1, 3: 0}}
     assert diagnosis["code"] == "coverage-unavailable"
     assert "the ts suite left no coverage report at out/lcov.info" in diagnosis["line"]
+
+
+def suite_events(capsys):
+    prefix = "recognizer-event "
+
+    return [
+        json.loads(line[len(prefix) :])
+        for line in capsys.readouterr().err.splitlines()
+        if line.startswith(prefix) and '"note"' not in line
+    ]
+
+
+def test_two_suites_write_a_suites_start_and_progress_naming_each_suite(tmp_path, capsys):
+    root = build(tmp_path)
+
+    run(root, raw(name="one"), raw(name="two"))
+
+    assert suite_events(capsys) == [
+        {"event": "start", "total": 2, "unit": "suites"},
+        {"event": "progress", "done": 0, "total": 2, "unit": "suites", "step": "one"},
+        {"event": "progress", "done": 1, "total": 2, "unit": "suites", "step": "one"},
+        {"event": "progress", "done": 1, "total": 2, "unit": "suites", "step": "two"},
+        {"event": "progress", "done": 2, "total": 2, "unit": "suites", "step": "two"},
+    ]
+
+
+def test_one_suite_writes_no_start_or_progress(tmp_path, capsys):
+    root = build(tmp_path)
+
+    run(root, raw())
+
+    assert suite_events(capsys) == []
+
+
+def test_a_failing_suite_still_advances_the_suite_count(tmp_path, capsys):
+    root = build(tmp_path)
+
+    run(root, raw(name="one", command="exit 4"), raw(name="two"))
+
+    done = [e["done"] for e in suite_events(capsys) if e["event"] == "progress"]
+
+    assert done == [0, 1, 1, 2]
 
 
 def test_a_suite_that_fails_after_writing_keeps_coverage_and_names_the_failures(tmp_path):

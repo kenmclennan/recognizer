@@ -86,6 +86,20 @@ export type ScanProgress = {
   timing: ScanTiming;
 };
 
+export type RunWork = {
+  work: number;
+  queued: boolean;
+  unit: string;
+  at: number | null;
+  current: string | null;
+  steps: Record<
+    string,
+    { first: number; latest: number; firstAt: number; lastAt: number }
+  >;
+};
+
+export type SuiteHistory = Record<string, Record<string, number[]>>;
+
 export type ScanTiming = {
   phaseAt: Record<string, number>;
   sensorAt: Record<string, number>;
@@ -94,7 +108,9 @@ export type ScanTiming = {
   extractTotals: Record<string, number>;
   describeFrom: number | null;
   rateFrom: { at: number; done: number; unit: string; step?: string } | null;
+  runWork: RunWork | null;
   frozen: Record<string, number> | null;
+  suiteHistory: SuiteHistory | null;
 };
 
 export type ShowTarget =
@@ -125,7 +141,9 @@ export const NO_PROGRESS: ScanProgress = {
     extractTotals: {},
     describeFrom: null,
     rateFrom: null,
+    runWork: null,
     frozen: null,
+    suiteHistory: null,
   },
 };
 
@@ -274,7 +292,12 @@ function pluginData(data: Record<string, unknown>): PluginEvent | null {
   switch (data.event) {
     case "start":
       return isCount(data.total) && nonEmpty(data.unit)
-        ? { event: "start", total: data.total, unit: data.unit }
+        ? {
+            event: "start",
+            total: data.total,
+            unit: data.unit,
+            ...(isCount(data.queued) ? { queued: data.queued } : {}),
+          }
         : null;
     case "progress":
       return isCount(data.done) &&

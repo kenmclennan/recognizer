@@ -1,13 +1,15 @@
 import { validateRunRecord } from "recognizer";
 import { STRUCTURE_KEY } from "./freshness-model";
 import { DESCRIBE_KEY, MUTATION_KEY, type PlannedRun } from "./scan-freshness";
-import type { ScanProgress } from "./scan-progress";
+import type { RunWork, ScanProgress, SuiteHistory } from "./scan-progress";
+import { median, SUITES_UNIT, suitePace } from "./suite-pace";
 
 export type SenseSample = {
   durationMs: number;
   modules: number;
   fixedMs: number | undefined;
   work?: { unit: string; performed: number } | undefined;
+  suites?: { name: string; durationMs: number }[] | undefined;
 };
 
 export type PlannedWork = { unit: string; to_perform: number };
@@ -90,15 +92,6 @@ function shortTime(ms: number): string {
   const rest = minutes % 60;
 
   return rest === 0 ? `${hours} h` : `${hours} h ${rest} m`;
-}
-
-function median(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-
-  return sorted.length % 2 === 1
-    ? (sorted[middle] as number)
-    : ((sorted[middle - 1] as number) + (sorted[middle] as number)) / 2;
 }
 
 function plural(count: number, noun: string): string {
@@ -186,12 +179,43 @@ export function scanHistory(
           modules: entry.modules,
           fixedMs: entry.fixed_ms,
           ...(entry.work === undefined ? {} : { work: entry.work }),
+          ...(entry.suites === undefined
+            ? {}
+            : {
+                suites: entry.suites.map((one) => ({
+                  name: one.name,
+                  durationMs: one.duration_ms,
+                })),
+              }),
         });
       }
     }
   }
 
   return history;
+}
+
+export function suiteHistoryOf(
+  history: ScanHistory,
+  keys: readonly string[],
+): SuiteHistory {
+  const found: SuiteHistory = {};
+
+  for (const key of keys) {
+    const durations: Record<string, number[]> = {};
+
+    for (const sample of (history.sense[key] ?? []).slice(0, RECENT)) {
+      for (const one of sample.suites ?? []) {
+        durations[one.name] = [...(durations[one.name] ?? []), one.durationMs];
+      }
+    }
+
+    if (Object.keys(durations).length > 0) {
+      found[key] = durations;
+    }
+  }
+
+  return found;
 }
 
 export function describeRateMs(history: ScanHistory): number | null {
@@ -435,6 +459,36 @@ function isOverrun(frozen: number, since: number | null, now: number): boolean {
   return since !== null && now - since > frozen;
 }
 
+function paced(runWork: RunWork | null): ((now: number) => number) | null {
+  if (runWork === null || runWork.at === null) {
+    return null;
+  }
+
+  const keys = Object.keys(runWork.steps);
+
+  if (
+    !runWork.queued &&
+    runWork.unit !== SUITES_UNIT &&
+    keys.some((key) => key !== "")
+  ) {
+    return null;
+  }
+
+  const performed = keys.reduce(
+    (sum, key) => sum + runWork.steps[key].latest - runWork.steps[key].first,
+    0,
+  );
+
+  if (performed < (runWork.unit === SUITES_UNIT ? 1 : LEFT_FLOOR)) {
+    return null;
+  }
+
+  const at = runWork.at;
+
+  return (now) =>
+    Math.max(0, runWork.work - performed) * ((now - at) / performed);
+}
+
 export function remaining(input: RemainingInput): Remaining | null {
   const { progress, now } = input;
   const { frozen, phaseAt, sensorAt, describeFrom, rateFrom } = progress.timing;
@@ -521,6 +575,39 @@ export function remaining(input: RemainingInput): Remaining | null {
     const reported = progress.sensorProgress;
 
     const counted = reported?.progress;
+
+    const bySuite =
+      reported !== null && reported.name === key
+        ? suitePace(
+            input.suites[key] ?? [],
+            progress.timing.suiteHistory?.[key],
+            progress.timing.runWork,
+            now,
+          )
+        : null;
+
+    if (bySuite !== null) {
+      total += bySuite.left;
+      overran.push(
+        ...bySuite.overran.map((suite) => ({
+          name: `${name} on ${suite}`,
+          figure: figure,
+        })),
+      );
+
+      continue;
+    }
+
+    const worked =
+      reported !== null && reported.name === key
+        ? paced(progress.timing.runWork)
+        : null;
+
+    if (worked !== null) {
+      total += worked(now);
+
+      continue;
+    }
 
     if (
       (input.suites[key]?.length ?? 0) <= 1 &&

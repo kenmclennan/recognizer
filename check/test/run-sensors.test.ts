@@ -677,6 +677,31 @@ ${finishing("")}`,
     });
   });
 
+  it("records each suite's own duration from the suite progress events", async () => {
+    const step = (done: number, name: string) =>
+      event({ event: "progress", done, total: 2, unit: "suites", step: name });
+    const entry = await sensed(
+      `${event({ event: "start", total: 2, unit: "suites" })}
+${step(0, "engine")}
+${step(1, "engine")}
+${step(1, "app")}
+${step(2, "app")}
+${finishing("")}`,
+      { clock: [0, 0, 3000, 3000, 9000, 12000] },
+    );
+
+    expect(entry?.suites).toEqual([
+      { name: "engine", duration_ms: 3000 },
+      { name: "app", duration_ms: 6000 },
+    ]);
+  });
+
+  it("records no suites for a run with no stepped progress", async () => {
+    const entry = await sensed(finishing(""));
+
+    expect(entry).not.toHaveProperty("suites");
+  });
+
   it("a run-log duration ignores an injected sleep gap", async () => {
     const HOURS_8 = 8 * 3_600_000;
     let wall = 0;

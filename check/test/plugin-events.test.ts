@@ -105,4 +105,30 @@ describe("the plugin event reader", () => {
       fix: "do it",
     });
   });
+
+  it("reports each step's own duration from its first to its last progress event", () => {
+    let clock = 0;
+    const times = [100, 400, 400, 1000];
+    const reader = createEventReader(undefined, () => times[clock++] as number);
+    const step = (done: number, name: string) =>
+      line({ event: "progress", done, total: 2, unit: "suites", step: name });
+
+    reader.line(step(0, "engine"));
+    reader.line(step(1, "engine"));
+    reader.line(step(1, "app"));
+    reader.line(step(2, "app"));
+
+    expect(reader.suites()).toEqual([
+      { name: "engine", duration_ms: 300 },
+      { name: "app", duration_ms: 600 },
+    ]);
+  });
+
+  it("reports no suites for progress without a step", () => {
+    const reader = createEventReader();
+
+    reader.line(line({ event: "progress", done: 1, total: 2, unit: "f" }));
+
+    expect(reader.suites()).toEqual([]);
+  });
 });

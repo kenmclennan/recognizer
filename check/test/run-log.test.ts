@@ -298,7 +298,7 @@ describe("log schema examples", () => {
   });
 
   it("holds the expected count of valid examples", () => {
-    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(14);
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(15);
   });
 
   it.each(readdirSync(join(EXAMPLES, "valid")))("accepts %s", (file) => {
