@@ -1,4 +1,10 @@
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import { type Io, nodeIo } from "../src/cli.js";
@@ -88,9 +94,35 @@ export function writeShim(
 export function ioWithPath(directories: string[]): Io {
   const base = nodeIo();
 
+  const resolve = (command: string): string | undefined => {
+    if (command.includes("/")) {
+      return command;
+    }
+
+    const found = directories.find((directory) =>
+      existsSync(join(directory, command)),
+    );
+
+    return found === undefined ? undefined : join(found, command);
+  };
+
   return {
     ...base,
     env: (name) => (name === "PATH" ? directories.join(":") : base.env(name)),
+    run: (command, args, options) => {
+      const resolved = resolve(command);
+
+      if (resolved === undefined) {
+        return {
+          started: false,
+          status: null,
+          stdout: "",
+          stderr: `spawn ${command} ENOENT`,
+        };
+      }
+
+      return base.run(resolved, args, options);
+    },
   };
 }
 
