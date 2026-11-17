@@ -23,6 +23,7 @@ def test_only_the_abstract_class_is_tagged():
     document = scan(FIXTURE / "sample", None)
 
     assert member(document, CONTRACTS, "Base")["tags"] == ["abstract"]
+    assert member(document, SHAPES, "Shape")["tags"] == ["sealed"]
 
     for module_id, name in (
         (CONTRACTS, "Store"),
@@ -30,7 +31,6 @@ def test_only_the_abstract_class_is_tagged():
         (SHAPES, "Id"),
         (SHAPES, "Ids"),
         (SHAPES, "Row"),
-        (SHAPES, "Shape"),
         (SHAPES, "Impl"),
         (SHAPES, "Color"),
     ):

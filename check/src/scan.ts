@@ -32,7 +32,8 @@ export type ScanClassTag =
   | "frozen"
   | "final"
   | "runtime_checkable"
-  | "abstract";
+  | "abstract"
+  | "sealed";
 
 export interface ScanParam {
   name: string;

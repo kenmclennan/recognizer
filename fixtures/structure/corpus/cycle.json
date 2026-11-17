@@ -59,6 +59,45 @@
       "id": "f/b.ts",
       "kind": "module",
       "exports": []
+    },
+    {
+      "id": "sh/Event.kt",
+      "kind": "module",
+      "exports": [
+        "sealed"
+      ]
+    },
+    {
+      "id": "sh/Created.kt",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "sh/Deleted.kt",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "sw/Event.kt",
+      "kind": "module",
+      "exports": [
+        "sealed"
+      ]
+    },
+    {
+      "id": "sw/Created.kt",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "sw/Deleted.kt",
+      "kind": "module",
+      "exports": []
+    },
+    {
+      "id": "sw/Audit.kt",
+      "kind": "module",
+      "exports": []
     }
   ],
   "edges": [
@@ -105,6 +144,50 @@
     [
       "f/b.ts",
       "foreign:pkg"
+    ],
+    [
+      "sh/Created.kt",
+      "sh/Event.kt",
+      "implements"
+    ],
+    [
+      "sh/Deleted.kt",
+      "sh/Event.kt",
+      "implements"
+    ],
+    [
+      "sh/Event.kt",
+      "sh/Created.kt"
+    ],
+    [
+      "sh/Event.kt",
+      "sh/Deleted.kt"
+    ],
+    [
+      "sw/Created.kt",
+      "sw/Event.kt",
+      "implements"
+    ],
+    [
+      "sw/Deleted.kt",
+      "sw/Event.kt",
+      "implements"
+    ],
+    [
+      "sw/Event.kt",
+      "sw/Created.kt"
+    ],
+    [
+      "sw/Event.kt",
+      "sw/Deleted.kt"
+    ],
+    [
+      "sw/Created.kt",
+      "sw/Audit.kt"
+    ],
+    [
+      "sw/Audit.kt",
+      "sw/Created.kt"
     ]
   ]
 }

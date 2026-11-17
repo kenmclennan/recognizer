@@ -14,11 +14,23 @@ function scanOf(
   edges: Edge[],
   modules: Array<string | [string, string]> = [],
   seed = 0,
+  sealed: string[] = [],
 ) {
   const rows = modules.map((entry) => {
     const [id, kind] = typeof entry === "string" ? [entry, "module"] : entry;
+    const members = sealed.includes(id)
+      ? [
+          {
+            name: "M",
+            exported: true,
+            kind: "interface",
+            line: 1,
+            tags: ["sealed"],
+          },
+        ]
+      : [];
 
-    return { id, language: "python", kind, members: [] };
+    return { id, language: "python", kind, members };
   });
 
   const rowEdges = edges.map(([from, to, kind], index) => ({
@@ -57,8 +69,9 @@ function scanOf(
 function analysed(
   edges: Edge[],
   modules: Array<string | [string, string]> = [],
+  sealed: string[] = [],
 ) {
-  return analyse(validateScan(scanOf(edges, modules)));
+  return analyse(validateScan(scanOf(edges, modules, 0, sealed)));
 }
 
 function row(result: ReturnType<typeof analysed>, id: string) {
@@ -223,6 +236,111 @@ describe("cycle warning", () => {
         ["a", "c"],
       ]).warnings,
     ).toEqual([]);
+  });
+});
+
+const hierarchy: Edge[] = [
+  ["Created", "Event", "implements"],
+  ["Deleted", "Event", "implements"],
+  ["Event", "Created"],
+  ["Event", "Deleted"],
+];
+
+const hierarchyModules = ["Event", "Created", "Deleted", "Audit"];
+
+describe("cycle warning - sealed hierarchies", () => {
+  it("cycle warning - a sealed type and its direct subtypes are not a cycle", () => {
+    const scan = scanOf(hierarchy, hierarchyModules, 0, ["Event"]);
+
+    expect(scan.edges).toHaveLength(4);
+    expect(analyse(validateScan(scan)).warnings).toEqual([]);
+  });
+
+  it("cycle warning - a real dependency of a subtype is reported alone", () => {
+    const { warnings } = analysed(
+      [...hierarchy, ["Created", "Audit"], ["Audit", "Created"]],
+      hierarchyModules,
+      ["Event"],
+    );
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.summary).toBe("cycle of 2 modules: Audit, Created");
+    expect(warnings[0]?.evidence).toEqual({
+      modules: ["Audit", "Created"],
+      edges: [
+        { from: "Audit", to: "Created" },
+        { from: "Created", to: "Audit" },
+      ],
+    });
+  });
+
+  it("cycle warning - a cycle through the base omits the hierarchy edges", () => {
+    const { warnings } = analysed(
+      [...hierarchy, ["Created", "Audit"], ["Audit", "Event"]],
+      hierarchyModules,
+      ["Event"],
+    );
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.evidence).toEqual({
+      modules: ["Audit", "Created", "Event"],
+      edges: [
+        { from: "Audit", to: "Event" },
+        { from: "Created", to: "Audit" },
+      ],
+    });
+  });
+
+  it("cycle warning - a hierarchy with no edge out of it reports nothing", () => {
+    const { warnings } = analysed(
+      [...hierarchy, ["Audit", "Event"]],
+      hierarchyModules,
+      ["Event"],
+    );
+
+    expect(warnings).toEqual([]);
+  });
+
+  it("cycle warning - two hierarchies report only the one with a real cycle", () => {
+    const { warnings } = analysed(
+      [
+        ...hierarchy,
+        ["Created", "Audit"],
+        ["Audit", "Created"],
+        ["Left", "Base", "implements"],
+        ["Base", "Left"],
+      ],
+      [...hierarchyModules, "Base", "Left"],
+      ["Event", "Base"],
+    );
+
+    expect(warnings.map((warning) => warning.summary)).toEqual([
+      "cycle of 2 modules: Audit, Created",
+    ]);
+  });
+
+  it("cycle warning - a sealed subinterface joins all three levels", () => {
+    const { warnings } = analysed(
+      [
+        ["Mid", "Top", "implements"],
+        ["Leaf", "Mid", "implements"],
+        ["Top", "Mid"],
+        ["Mid", "Leaf"],
+        ["Leaf", "Top"],
+      ],
+      ["Top", "Mid", "Leaf"],
+      ["Top", "Mid"],
+    );
+
+    expect(warnings).toEqual([]);
+  });
+
+  it("cycle warning - metrics ignore the sealed grouping", () => {
+    const plain = analysed(hierarchy, hierarchyModules);
+    const sealed = analysed(hierarchy, hierarchyModules, ["Event"]);
+
+    expect(sealed.metrics).toEqual(plain.metrics);
+    expect(row(sealed, "Event")).toMatchObject({ fan_in: 2, fan_out: 2 });
   });
 });
 

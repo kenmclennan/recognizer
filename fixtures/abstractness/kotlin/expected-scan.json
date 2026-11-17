@@ -159,7 +159,8 @@
           "visibility": "public",
           "bases": [],
           "fields": [],
-          "methods": []
+          "methods": [],
+          "tags": ["sealed"]
         },
         {
           "name": "Impl",

@@ -369,7 +369,7 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": {
-        "enum": ["dataclass", "frozen", "final", "runtime_checkable", "abstract"]
+        "enum": ["dataclass", "frozen", "final", "runtime_checkable", "abstract", "sealed"]
       }
     },
     "call": {

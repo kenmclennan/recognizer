@@ -191,3 +191,19 @@ def test_end_line_for_function_method_annotated_function_and_one_liner(run):
 
     assert (method["line"], method["end_line"]) == (16, 18)
     assert "end_line" not in member(document, "a/F.kt", "C")
+
+
+def test_a_sealed_class_is_tagged_sealed(run):
+    assert member(one(run, "sealed class A"), "a/F.kt", "A")["tags"] == ["sealed"]
+
+
+def test_a_sealed_interface_is_tagged_sealed(run):
+    assert member(one(run, "sealed interface A"), "a/F.kt", "A")["tags"] == ["sealed"]
+
+
+def test_a_plain_class_carries_no_tags(run):
+    assert "tags" not in member(one(run, "class A"), "a/F.kt", "A")
+
+
+def test_an_abstract_class_keeps_its_abstract_tag(run):
+    assert member(one(run, "abstract class A"), "a/F.kt", "A")["tags"] == ["abstract"]
