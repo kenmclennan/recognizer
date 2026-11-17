@@ -61,6 +61,12 @@ export interface EventReader {
   keep(stderr: string): string;
   diagnosis(): Diagnosis | null;
   firstWorked(): number | null;
+  suites(): SuiteDuration[];
+}
+
+export interface SuiteDuration {
+  name: string;
+  duration_ms: number;
 }
 
 export function createEventReader(
@@ -70,6 +76,8 @@ export function createEventReader(
   let invalid = 0;
   let diagnosis: Diagnosis | null = null;
   let firstWorked: number | null = null;
+  let stepUnit: string | null = null;
+  const stepped = new Map<string, { first: number; last: number }>();
 
   return {
     line: (line) => {
@@ -95,8 +103,24 @@ export function createEventReader(
         };
       }
 
+      const at =
+        event.event === "progress" &&
+        (event.done > 0 || event.step !== undefined)
+          ? now()
+          : 0;
+
       if (event.event === "progress" && event.done > 0) {
-        firstWorked ??= now();
+        firstWorked ??= at;
+      }
+
+      if (event.event === "progress" && event.step !== undefined) {
+        stepUnit ??= event.unit;
+
+        if (event.unit === stepUnit) {
+          const seen = stepped.get(event.step);
+
+          stepped.set(event.step, { first: seen?.first ?? at, last: at });
+        }
       }
 
       onEvent?.(event);
@@ -117,5 +141,10 @@ export function createEventReader(
     },
     diagnosis: () => diagnosis,
     firstWorked: () => firstWorked,
+    suites: () =>
+      [...stepped].map(([name, { first, last }]) => ({
+        name,
+        duration_ms: Math.max(0, Math.round(last - first)),
+      })),
   };
 }

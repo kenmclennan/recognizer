@@ -128,6 +128,7 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
       ...(fixedFrom === null ? {} : { fixed_ms: fixedFrom - began }),
       ...(incomplete ? { incomplete: true } : {}),
       ...(work === undefined ? {} : { work }),
+      ...(reason === null ? { suites: run.suites } : {}),
       ...(reason === null ? {} : { reason }),
       ...(run.stopped === true ? { stopped: true } : {}),
       ...(diagnosis === undefined ? {} : { diagnosis }),

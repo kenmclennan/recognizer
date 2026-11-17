@@ -20,6 +20,12 @@ export interface RunEntry {
   fixed_ms?: number;
   incomplete?: true;
   work?: EntryWork;
+  suites?: EntrySuite[];
+}
+
+export interface EntrySuite {
+  name: string;
+  duration_ms: number;
 }
 
 export interface EntryWork {
@@ -84,6 +90,7 @@ export interface EntryTiming {
   fixed_ms?: number;
   incomplete?: boolean;
   work?: EntryWork;
+  suites?: EntrySuite[];
 }
 
 export const STDERR_LIMIT = 8192;
@@ -164,6 +171,10 @@ export function entryFrom(name: string, timing: EntryTiming): RunEntry {
 
   if (timing.work !== undefined) {
     entry.work = timing.work;
+  }
+
+  if (timing.suites !== undefined && timing.suites.length > 0) {
+    entry.suites = timing.suites;
   }
 
   return entry;
