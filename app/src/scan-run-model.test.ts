@@ -560,3 +560,87 @@ describe("extract timing per language", () => {
     expect(folded.timing.extractTotals).toEqual({ python: 40, rust: 7 });
   });
 });
+
+describe("the run's work across steps", () => {
+  const sense = (name: string, data: object) =>
+    parseScanLine(
+      JSON.stringify({ event: "plugin", phase: "sense", name, data }),
+    );
+  const fold = (lines: [number, object | null][]) =>
+    lines.reduce<ScanProgress>(
+      (state, [at, event]) =>
+        runModelModule.foldRunLine(
+          state,
+          event as Parameters<typeof runModelModule.foldRunLine>[1],
+          at,
+        ),
+      NO_PROGRESS,
+    );
+  const progress = (done: number, unit: string, step?: string) =>
+    sense("mutation", {
+      event: "progress",
+      done,
+      total: 100,
+      unit,
+      ...(step === undefined ? {} : { step }),
+    });
+  const start = sense("mutation", {
+    event: "start",
+    total: 150,
+    unit: "functions",
+    queued: 30,
+  });
+
+  it("starts from queued, or from total without it", () => {
+    expect(fold([[1, start]]).timing.runWork).toEqual({
+      work: 30,
+      queued: true,
+      unit: "functions",
+      at: null,
+      current: null,
+      steps: {},
+    });
+    expect(
+      fold([[1, sense("crap", { event: "start", total: 2, unit: "suites" })]])
+        .timing.runWork,
+    ).toMatchObject({ work: 2, queued: false });
+  });
+
+  it("sums the progress since each step's first event", () => {
+    const folded = fold([
+      [1, start],
+      [10, progress(80, "functions", "a")],
+      [20, progress(100, "functions", "a")],
+      [20, progress(50, "functions", "b")],
+      [30, progress(53, "functions", "b")],
+    ]);
+
+    expect(folded.timing.runWork?.at).toBe(10);
+    expect(folded.timing.runWork?.steps).toEqual({
+      a: { first: 80, latest: 100, firstAt: 10, lastAt: 20 },
+      b: { first: 50, latest: 53, firstAt: 20, lastAt: 30 },
+    });
+    expect(folded.timing.runWork?.current).toBe("b");
+  });
+
+  it("ignores a progress of another unit", () => {
+    const folded = fold([
+      [1, start],
+      [10, progress(5, "suites")],
+    ]);
+
+    expect(folded.timing.runWork?.steps).toEqual({});
+    expect(folded.timing.runWork?.at).toBeNull();
+  });
+
+  it("resets on the next plugin start", () => {
+    const folded = fold([
+      [1, start],
+      [10, progress(80, "functions", "a")],
+      [20, start],
+    ]);
+
+    expect(folded.timing.runWork?.steps).toEqual({});
+    expect(folded.timing.runWork?.at).toBeNull();
+  });
+});

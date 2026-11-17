@@ -1,10 +1,11 @@
-import type { ScanRunRecord } from "recognizer";
+import type { PluginEvent, ScanRunRecord } from "recognizer";
 import { ageText } from "./footer-scan";
 import type { IconName } from "./icons";
 import { runLogPath } from "./run-log-path";
 import { remaining } from "./scan-estimate";
 import {
   foldProgress,
+  type RunWork,
   type ScanEvent,
   type ScanProgress,
 } from "./scan-progress";
@@ -84,6 +85,7 @@ function timed(
           ...timing,
           sensorAt: { ...timing.sensorAt, [event.name]: at },
           rateFrom: null,
+          runWork: null,
         },
       };
     case "plugin": {
@@ -143,7 +145,21 @@ function pluginTimed(
   const { data } = event;
 
   if (data.event === "start") {
-    return { ...next, timing: { ...timing, rateFrom: null } };
+    return {
+      ...next,
+      timing: {
+        ...timing,
+        rateFrom: null,
+        runWork: {
+          work: data.queued ?? data.total,
+          queued: data.queued !== undefined,
+          unit: data.unit,
+          at: null,
+          current: null,
+          steps: {},
+        },
+      },
+    };
   }
 
   if (data.event !== "progress") {
@@ -151,13 +167,15 @@ function pluginTimed(
   }
 
   const from = timing.rateFrom;
+  const worked = workedOn(timing.runWork, data, at);
 
   return from !== null && from.unit === data.unit && from.step === data.step
-    ? next
+    ? { ...next, timing: { ...timing, runWork: worked } }
     : {
         ...next,
         timing: {
           ...timing,
+          runWork: worked,
           rateFrom: {
             at,
             done: data.done,
@@ -166,6 +184,34 @@ function pluginTimed(
           },
         },
       };
+}
+
+function workedOn(
+  runWork: RunWork | null,
+  data: Extract<PluginEvent, { event: "progress" }>,
+  at: number,
+): RunWork | null {
+  if (runWork === null || runWork.unit !== data.unit) {
+    return runWork;
+  }
+
+  const key = data.step ?? "";
+  const seen = runWork.steps[key];
+
+  return {
+    ...runWork,
+    at: runWork.at ?? at,
+    current: key,
+    steps: {
+      ...runWork.steps,
+      [key]: {
+        first: seen?.first ?? data.done,
+        latest: data.done,
+        firstAt: seen?.firstAt ?? at,
+        lastAt: at,
+      },
+    },
+  };
 }
 
 export function foldRunLine(

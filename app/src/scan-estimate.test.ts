@@ -12,6 +12,7 @@ import {
   remaining,
   roundedTime,
   scanHistory,
+  suiteHistoryOf,
 } from "./scan-estimate";
 import { OPEN_RUN, type PlannedRun } from "./scan-freshness";
 import { NO_PROGRESS, type ScanProgress } from "./scan-progress";
@@ -25,6 +26,7 @@ type SenseEntry = {
   incomplete?: boolean;
   outcome?: "ok" | "failed";
   work?: { unit: string; performed: number };
+  suites?: { name: string; duration_ms: number }[];
 };
 
 function entry(one: {
@@ -35,6 +37,7 @@ function entry(one: {
   fixed_ms?: number;
   incomplete?: boolean;
   work?: { unit: string; performed: number };
+  suites?: { name: string; duration_ms: number }[];
 }) {
   const { outcome = "ok", ...rest } = one;
 
@@ -227,6 +230,47 @@ describe("roundedTime", () => {
 
   it("adds the minutes past the hour", () => {
     expect(roundedTime(3_900_000)).toBe("about 1 h 5 min");
+  });
+});
+
+describe("per-suite durations in the history", () => {
+  const run = (name: string, suites: { name: string; duration_ms: number }[]) =>
+    scanFile(name, {
+      structure_ms: 0,
+      sense: [
+        {
+          name: "crap",
+          duration_ms: 50000,
+          fixed_ms: 50000,
+          modules: 30,
+          suites,
+        },
+      ],
+    });
+
+  it("reads each suite's duration from the run log and lists them newest first", () => {
+    const history = scanHistory([
+      run("20261101T090000000Z", [
+        { name: "engine", duration_ms: 3200 },
+        { name: "app", duration_ms: 8400 },
+      ]),
+      run("20261102T090000000Z", [
+        { name: "engine", duration_ms: 1400 },
+        { name: "app", duration_ms: 4500 },
+      ]),
+    ]);
+
+    expect(history.sense.crap?.[0]?.suites).toEqual([
+      { name: "engine", durationMs: 1400 },
+      { name: "app", durationMs: 4500 },
+    ]);
+    expect(suiteHistoryOf(history, ["crap", "mutation"])).toEqual({
+      crap: { engine: [1400, 3200], app: [4500, 8400] },
+    });
+  });
+
+  it("lists no suite history for a sensor whose runs recorded none", () => {
+    expect(suiteHistoryOf(scanHistory([]), ["crap"])).toEqual({});
   });
 });
 
@@ -834,8 +878,94 @@ describe("remaining time while running", () => {
     );
   });
 
-  it("falls back to the frozen figure with two suites", () => {
-    expect(mutationLeft(mutating(17), ["a", "b"])?.text).toBe(
+  type Line = [number, Parameters<typeof foldRunLine>[1]];
+  const plugin = (
+    name: string,
+    data: Extract<Line[1], { event: "plugin" }>["data"],
+  ): Line["1"] => ({ event: "plugin", phase: "sense", name, data });
+  const stream = (
+    name: string,
+    figure: number,
+    start: Record<string, unknown>,
+    progress: [number, number, number, string | undefined, string][],
+  ) =>
+    fold(frozen({ structure: 0, [name]: figure }), [
+      [T, { event: "phase", phase: "sense", total: 1 }],
+      [T, { event: "start", phase: "sense", name }],
+      [T, plugin(name, { event: "start", ...start } as never)],
+      ...progress.map(
+        ([at, done, total, step, unit]): Line => [
+          at,
+          plugin(name, {
+            event: "progress",
+            done,
+            total,
+            unit,
+            ...(step === undefined ? {} : { step }),
+          }),
+        ],
+      ),
+    ]);
+  const sensorLeft = (
+    key: string,
+    progress: ScanProgress,
+    now: number,
+    suites = ["a", "b"],
+  ) =>
+    remaining({
+      parts: [PARTS[0], { key, name: key }],
+      suites: { [key]: suites },
+      progress,
+      startedAt: T,
+      now,
+    });
+  const twoSuiteMutation = (bDone: number) =>
+    stream("mutation", 600_000, { total: 150, unit: "functions", queued: 30 }, [
+      [T, 80, 100, "a", "functions"],
+      [T + 240_000, 100, 100, "a", "functions"],
+      [T + 240_000, 50, 60, "b", "functions"],
+      [T + 300_000, bDone, 60, "b", "functions"],
+    ]);
+
+  it("paces a two-suite mutation run from the work done across its suites", () => {
+    const progress = twoSuiteMutation(53);
+
+    expect(progress.timing.runWork).not.toBeNull();
+    expect(sensorLeft("mutation", progress, T + 300_000)?.text).toBe(
+      "about 2 min left",
+    );
+  });
+
+  const firstSuite = (done: number) =>
+    stream("mutation", 600_000, { total: 150, unit: "functions", queued: 30 }, [
+      [T, 80, 100, "a", "functions"],
+      [T + 30_000, done, 100, "a", "functions"],
+    ]);
+
+  it("keeps a two-suite mutation run on the frozen figure at 2 functions of work", () => {
+    expect(sensorLeft("mutation", firstSuite(82), T + 30_000)?.text).toBe(
+      "about 10 min left",
+    );
+  });
+
+  it("paces a two-suite mutation run at 3 functions of work", () => {
+    expect(sensorLeft("mutation", firstSuite(83), T + 30_000)?.text).toBe(
+      "about 5 min left",
+    );
+  });
+
+  it("keeps a stepped stream with no queued on the frozen figure", () => {
+    const progress = stream(
+      "mutation",
+      600_000,
+      { total: 150, unit: "functions" },
+      [
+        [T, 10, 100, "a", "functions"],
+        [T + 60_000, 20, 100, "a", "functions"],
+      ],
+    );
+
+    expect(sensorLeft("mutation", progress, T + 60_000)?.text).toBe(
       "about 9 min left",
     );
   });
@@ -936,7 +1066,7 @@ describe("remaining time while running", () => {
     ).toBe("about 5 min left");
   });
 
-  it("keeps two suites on the frozen figure and names the overrun", () => {
+  it("keeps a two-suite sensor with no progress on the frozen figure and names the overrun", () => {
     expect(
       overrunLeft(started({ structure: 0, mutation: 600_000 }), T + 700_000, [
         "a",
