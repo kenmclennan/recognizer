@@ -33,15 +33,3 @@ node validation/corpus/source-roots-compare.mjs [--only <name>[,<name>...]]
 ```
 
 For each Python entry in the manifest the script fetches the pinned commit into a temporary folder outside the repository, scans it with `recognizer-scan-python --source-root .` (the old default) and with no flag (detected source roots), runs `recognizer check --scan` on each, and prints one row per repository and run: modules, in-repo edges, foreign self-edges (edges to `foreign:<name>` where `<name>` is a package of the repository), and the `hub` and `orphan` finding counts. The clones are deleted when it finishes. It runs the `recognizer` and `recognizer-scan-python` on `PATH`; nothing from a clone is built, tested, installed or executed. Its offline test is `source-roots-compare.test.mjs`.
-
-## Duplication equivalence
-
-```sh
-node validation/corpus/duplication-equivalence.mjs [--out <folder>] [--only <name>[,<name>...]] [--runs <n>]
-```
-
-For each manifest repository, and for lightcycle at `c1933e0` in its own `lightcycle-c1933e0` clone, the script compares the duplication findings the structure sensor writes with the ones the Python sensor wrote at the base commit (`recognizer-sensors duplication`), by id and by record. A finding in a file the port skipped as invalid UTF-8 is a difference with that cause; any other difference fails the run.
-
-The lightcycle row expects 45 Python findings. That figure is the base sensor at its defaults, not the 533 pairs the REC-182 review counted at `8f6a858e`: later commits report one finding per group, skip constructor and accessor shapes and raise `pair_min_lines` to 6.
-
-`added` is the cold cost: the duplication unit cache is deleted before each timed run with duplication on, and the median is taken against runs with it off. `warm` is the same figure with the cache kept. The off runs write a one-key `.recognizer/config.yaml` into the clone and restore the repository's own file afterwards.
