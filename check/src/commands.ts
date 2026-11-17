@@ -1594,13 +1594,17 @@ export const COMMANDS: Command[] = [
   },
   {
     name: "setup",
-    summary: "survey a repository for setup",
-    usage: "recognizer setup survey [REPOSITORY] [--scan <file>] [--json]",
+    summary:
+      "survey a repository for setup and build the setup changes a set of choices makes",
+    usage: [
+      "recognizer setup survey [REPOSITORY] [--scan <file>] [--json]",
+      "recognizer setup changes [REPOSITORY] --choices <file> [--scan <file>] [--json]",
+    ].join("\n"),
     arguments: [
       {
-        name: "survey",
+        name: "survey|changes",
         description:
-          "survey reads what the repository has and starts no scanner, describer or test",
+          "survey reads what the repository has and starts no scanner, describer or test; changes lists, in run order, the commands a choices file makes",
       },
       {
         name: "REPOSITORY",
@@ -1613,11 +1617,16 @@ export const COMMANDS: Command[] = [
         description:
           "use this scan document instead of the repository's cached scan",
       },
+      {
+        flag: "--choices <file>",
+        description:
+          "a JSON file of the choices made: analysis, plugins, runners, tools, policy and upgrade",
+      },
       { flag: "--json", description: "print JSON; every verb already does" },
     ],
     output: {
       text: "JSON on stdout for every verb",
-      json: "survey: { survey_version, version, repository, configured, files, unread, checks, runners, tools, upgrade }",
+      json: "survey: { survey_version, version, repository, configured, files, unread, checks, runners, tools, upgrade }; changes: { changes: [{ id, title, steps: [{ argv, cwd }] }], dropped, needing_user }",
     },
     exitCodes: [
       { code: 0, meaning: "the verb finished" },

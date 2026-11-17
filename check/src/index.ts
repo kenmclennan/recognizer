@@ -260,6 +260,28 @@ export {
   parseSuiteSelection,
 } from "./scan-phases.js";
 export {
+  type DroppedCard,
+  type EntryCard,
+  type ForbidCard,
+  type IgnoreCard,
+  POLICY_RECOMMENDATION_SCHEMA,
+  type PolicyCard,
+  parseCard,
+  policyCommands,
+  type Recommendation,
+  summaryOf,
+} from "./setup-cards.js";
+export {
+  type BuiltChanges,
+  buildChanges,
+  type ChangeStep,
+  type DroppedRunner,
+  type PlannedChange,
+  type RunnerChoice,
+  type SetupChoices,
+  splitCommand,
+} from "./setup-changes.js";
+export {
   commandRefusal,
   type DroppedChange,
   type ParsedProposal,
