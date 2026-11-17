@@ -109,6 +109,7 @@
               "name": "save",
               "line": 7,
               "end_line": 8,
+              "body_line": 8,
               "params": [
                 {
                   "name": "order"
@@ -153,6 +154,7 @@
           "line": 4,
           "exported": true,
           "end_line": 5,
+          "body_line": 5,
           "params": [
             {
               "name": "source"
@@ -165,6 +167,7 @@
           "line": 8,
           "exported": false,
           "end_line": 9,
+          "body_line": 9,
           "params": [
             {
               "name": "source"
@@ -184,6 +187,7 @@
           "line": 5,
           "exported": true,
           "end_line": 8,
+          "body_line": 6,
           "params": [
             {
               "name": "order_id"
@@ -203,6 +207,7 @@
           "line": 1,
           "exported": true,
           "end_line": 2,
+          "body_line": 2,
           "params": [
             {
               "name": "order"
@@ -299,6 +304,7 @@
               "name": "total",
               "line": 14,
               "end_line": 15,
+              "body_line": 15,
               "params": [],
               "private": false,
               "returns": "int"
@@ -307,6 +313,7 @@
               "name": "_sum",
               "line": 17,
               "end_line": 18,
+              "body_line": 18,
               "params": [],
               "private": true,
               "returns": "int"
@@ -320,6 +327,7 @@
           "line": 21,
           "exported": false,
           "end_line": 22,
+          "body_line": 22,
           "params": [
             {
               "name": "order_id"
@@ -333,6 +341,7 @@
           "line": 25,
           "exported": false,
           "end_line": 26,
+          "body_line": 26,
           "params": [
             {
               "name": "order_id",
@@ -347,6 +356,7 @@
           "line": 29,
           "exported": false,
           "end_line": 30,
+          "body_line": 30,
           "params": []
         }
       ]
@@ -375,6 +385,7 @@
               "name": "save",
               "line": 6,
               "end_line": 6,
+              "body_line": 6,
               "params": [
                 {
                   "name": "order"
@@ -397,6 +408,7 @@
               "name": "now",
               "line": 10,
               "end_line": 10,
+              "body_line": 10,
               "params": [],
               "private": false
             }
@@ -415,6 +427,7 @@
           "line": 1,
           "exported": true,
           "end_line": 2,
+          "body_line": 2,
           "params": [],
           "returns": "dict"
         }

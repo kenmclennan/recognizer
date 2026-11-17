@@ -306,6 +306,32 @@ fn functions_and_methods_record_the_last_line_of_the_declaration() {
     assert!(class.get("end_line").is_none());
 }
 
+#[test]
+fn functions_and_methods_record_the_first_line_of_the_body() {
+    let source = "pub fn signed(\n    a: u32,\n    b: u32,\n) -> u32 {\n    a\n}\n\npub fn allman(a: u32) -> u32\n{\n    a\n}\n\npub fn one() { }\n\npub struct C;\n\nimpl C {\n    pub fn method(\n        &self,\n    ) {\n        println!();\n    }\n}\n\npub trait T {\n    fn gone(\n        &self,\n    );\n\n    fn given(&self) {\n        println!();\n    }\n}\n";
+    let document = krate(&[("src/lib.rs", source)]);
+    let members = module(&document, "src/lib.rs")["members"]
+        .as_array()
+        .unwrap()
+        .clone();
+    let find = |name: &str| members.iter().find(|m| m["name"] == name).unwrap().clone();
+    let body = |value: &serde_json::Value| value.get("body_line").map(|v| v.as_u64().unwrap());
+
+    assert_eq!(body(&find("signed")), Some(5));
+    assert_eq!(body(&find("allman")), Some(10));
+    assert_eq!(body(&find("one")), Some(13));
+
+    let class = find("C");
+
+    assert_eq!(body(&class["methods"][0]), Some(21));
+    assert!(class.get("body_line").is_none());
+
+    let shape = find("T");
+
+    assert_eq!(body(&shape["methods"][0]), None);
+    assert_eq!(body(&shape["methods"][1]), Some(31));
+}
+
 const GATES: &str = r#"
 #[cfg(test)] fn g_test() {}
 #[cfg(all(test, unix))] fn g_all() {}

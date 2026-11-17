@@ -147,6 +147,7 @@
               "name": "grow",
               "line": 10,
               "end_line": 12,
+              "body_line": 11,
               "params": [],
               "private": true,
               "returns": "number"
@@ -155,6 +156,7 @@
               "name": "count",
               "line": 14,
               "end_line": 16,
+              "body_line": 15,
               "params": [],
               "private": false,
               "returns": "number"
@@ -167,6 +169,7 @@
           "line": 19,
           "exported": true,
           "end_line": 21,
+          "body_line": 20,
           "params": [],
           "returns": "BaseStore"
         }
@@ -183,6 +186,7 @@
           "line": 1,
           "exported": true,
           "end_line": 3,
+          "body_line": 2,
           "params": [
             {
               "name": "source"
@@ -214,6 +218,7 @@
               "name": "save",
               "line": 6,
               "end_line": 6,
+              "body_line": 6,
               "params": [],
               "private": false,
               "returns": "void"
@@ -226,6 +231,7 @@
           "line": 9,
           "exported": true,
           "end_line": 9,
+          "body_line": 9,
           "params": [
             {
               "name": "p",
@@ -239,6 +245,7 @@
           "line": 11,
           "exported": true,
           "end_line": 11,
+          "body_line": 11,
           "params": [],
           "returns": "BaseStore"
         },
@@ -299,6 +306,7 @@
           "line": 1,
           "exported": true,
           "end_line": 3,
+          "body_line": 2,
           "params": [
             {
               "name": "store"
@@ -359,6 +367,7 @@
           "line": 7,
           "exported": true,
           "end_line": 11,
+          "body_line": 8,
           "params": []
         }
       ]
@@ -374,6 +383,7 @@
           "line": 1,
           "exported": true,
           "end_line": 1,
+          "body_line": 1,
           "params": []
         }
       ]
@@ -403,6 +413,7 @@
           "line": 4,
           "exported": false,
           "end_line": 4,
+          "body_line": 4,
           "params": []
         }
       ]

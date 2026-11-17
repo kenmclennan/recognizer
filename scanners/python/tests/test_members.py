@@ -184,6 +184,40 @@ def test_end_line_for_function_method_decorated_function_and_one_liner(run):
     assert "end_line" not in by_name["C"]
 
 
+def test_body_line_is_the_first_statement_below_a_multi_line_signature(run):
+    document = run(
+        {
+            "m.py": (
+                "def signed(\n"
+                "    a: int,\n"
+                "    b: int,\n"
+                ") -> int:\n"
+                "    return a\n"
+                "\n"
+                "def documented():\n"
+                '    """Doc."""\n'
+                "    return 1\n"
+                "\n"
+                "def one(): ...\n"
+                "\n"
+                "class C:\n"
+                "    def method(\n"
+                "        self,\n"
+                "    ):\n"
+                "        return 2\n"
+            )
+        }
+    )
+
+    by_name = {m["name"]: m for m in module(document, "m.py")["members"]}
+
+    assert by_name["signed"]["body_line"] == 5
+    assert by_name["documented"]["body_line"] == 8
+    assert by_name["one"]["body_line"] == 11
+    assert by_name["C"]["methods"][0]["body_line"] == 17
+    assert "body_line" not in by_name["C"]
+
+
 def test_every_function_and_method_in_the_sample_ends_at_or_after_its_start():
     from conftest import FIXTURE_ROOT
 

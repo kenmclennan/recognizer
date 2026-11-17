@@ -20,6 +20,7 @@ export interface MethodOutline {
   name: string;
   line: number;
   end_line: number;
+  body_line?: number;
   params: ParamOutline[];
   returns?: string;
   private: boolean;
@@ -28,6 +29,7 @@ export interface MethodOutline {
 
 export interface MemberOutline {
   end_line?: number;
+  body_line?: number;
   bases?: string[];
   fields?: FieldOutline[];
   methods?: MethodOutline[];
@@ -80,6 +82,36 @@ function endLineOf(sf: ts.SourceFile, node: ts.Node): number {
   return sf.getLineAndCharacterOfPosition(node.getEnd()).line + 1;
 }
 
+function bodyLineOf(sf: ts.SourceFile, node: ts.Node): number | undefined {
+  const body = (node as { body?: ts.Node }).body;
+
+  if (body === undefined) {
+    return undefined;
+  }
+
+  const start = lineOf(sf, body);
+
+  if (!ts.isBlock(body)) {
+    return start;
+  }
+
+  return Math.min(start + 1, endLineOf(sf, node));
+}
+
+function withBodyLine<T extends { body_line?: number }>(
+  outline: T,
+  sf: ts.SourceFile,
+  node: ts.Node,
+): T {
+  const bodyLine = bodyLineOf(sf, node);
+
+  if (bodyLine !== undefined) {
+    outline.body_line = bodyLine;
+  }
+
+  return outline;
+}
+
 function parameterName(
   parameter: ts.ParameterDeclaration,
   sf: ts.SourceFile,
@@ -129,10 +161,14 @@ export function callableOutline(
   node: ts.SignatureDeclaration,
   sf: ts.SourceFile,
 ): MemberOutline {
-  const outline: MemberOutline = {
-    end_line: endLineOf(sf, node),
-    params: parameters(node.parameters, sf),
-  };
+  const outline: MemberOutline = withBodyLine<MemberOutline>(
+    {
+      end_line: endLineOf(sf, node),
+      params: parameters(node.parameters, sf),
+    },
+    sf,
+    node,
+  );
 
   if (node.type) {
     outline.returns = collapse(node.type.getText(sf));
@@ -170,13 +206,17 @@ function methodOutline(
   }
 
   const tags = tagsOf(node, extra);
-  const method: MethodOutline = {
-    name: propertyLabel(node.name, sf),
-    line: lineOf(sf, node.name),
-    end_line: endLineOf(sf, node),
-    params: parameters(node.parameters, sf),
-    private: isPrivate(node, node.name),
-  };
+  const method: MethodOutline = withBodyLine<MethodOutline>(
+    {
+      name: propertyLabel(node.name, sf),
+      line: lineOf(sf, node.name),
+      end_line: endLineOf(sf, node),
+      params: parameters(node.parameters, sf),
+      private: isPrivate(node, node.name),
+    },
+    sf,
+    node,
+  );
 
   if (node.type) {
     method.returns = collapse(node.type.getText(sf));
@@ -193,13 +233,17 @@ function constructorOutline(
   node: ts.ConstructorDeclaration,
   sf: ts.SourceFile,
 ): MethodOutline {
-  return {
-    name: "constructor",
-    line: lineOf(sf, node),
-    end_line: endLineOf(sf, node),
-    params: parameters(node.parameters, sf),
-    private: isPrivate(node, undefined),
-  };
+  return withBodyLine<MethodOutline>(
+    {
+      name: "constructor",
+      line: lineOf(sf, node),
+      end_line: endLineOf(sf, node),
+      params: parameters(node.parameters, sf),
+      private: isPrivate(node, undefined),
+    },
+    sf,
+    node,
+  );
 }
 
 function baseTexts(
