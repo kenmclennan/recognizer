@@ -83,7 +83,7 @@
       "kind": "thresholds.<metric>",
       "group": {
         "name": "Over a limit",
-        "means": "A measure passed a limit set in your config, such as module size.",
+        "means": "A measure passed a limit set in your config, such as module size. The published lines are complexity above 10 (McCabe) and coverage below 60% (Google's guidelines).",
         "todo": "Bring it back under the limit, or raise the limit if it is wrong."
       },
       "help": "One finding per module or function whose metric passed a configured limit.",
@@ -135,28 +135,6 @@
             },
             {
               "text": "at the limit of {evidence.measures.line|num}"
-            }
-          ],
-          [
-            {
-              "when": [
-                {
-                  "path": "kind",
-                  "is": "thresholds.coverage"
-                },
-                {
-                  "has": "evidence.measures.published"
-                }
-              ],
-              "text": " (Google's guidelines say {evidence.measures.published|percent}%)"
-            },
-            {
-              "when": [
-                {
-                  "has": "evidence.measures.published"
-                }
-              ],
-              "text": " (McCabe says {evidence.measures.published|num})"
             }
           ],
           [

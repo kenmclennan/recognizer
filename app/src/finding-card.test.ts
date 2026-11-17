@@ -84,6 +84,28 @@ describe("cardOf rows", () => {
     ]);
   });
 
+  it("a violation card has one edge row per import with its lines", () => {
+    const card = cardOf(
+      rowOf({
+        kind: "rule-violation",
+        severity: "violation",
+        evidence: {
+          modules: ["c/App.kt"],
+          edges: [
+            { from: "c/App.kt", to: "a/P1.kt", kind: "depends", lines: [3] },
+            { from: "c/App.kt", to: "a/P2.kt", kind: "depends", lines: [7] },
+          ],
+        },
+      }),
+    );
+
+    expect(card.rows).toEqual([
+      { kind: "module", module: "c/App.kt", name: "App.kt", folder: "c" },
+      { kind: "edge", from: "c/App.kt", to: "a/P1.kt", lines: [3] },
+      { kind: "edge", from: "c/App.kt", to: "a/P2.kt", lines: [7] },
+    ]);
+  });
+
   it("lists one member row per member for a duplication finding", () => {
     const card = cardOf(
       rowOf({

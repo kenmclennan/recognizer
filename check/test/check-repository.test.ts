@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { parseBaseline, serialiseBaseline } from "../src/baseline.js";
 import { run } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
 import { REPO } from "./helpers.js";
@@ -219,6 +220,67 @@ describe("check in repository mode", () => {
     });
 
     expect(check(["--init-baseline"], fake).code).toBe(2);
+  });
+});
+
+const BASELINE_PATH = `${ROOT}/.recognizer/baselines/violations.json`;
+const CURRENT_IMPORTS = [
+  { from: "shop/adapters/sql_store.py", to: "foreign:requests" },
+  { from: "shop/adapters/sql_store.py", to: "shop/adapters/memory_store.py" },
+  { from: "shop/domain/money.py", to: "shop/ports/store.py" },
+  { from: "shop/domain/order.py", to: "shop/adapters/memory_store.py" },
+  { from: "shop/domain/order.py", to: "shop/application/place.py" },
+];
+
+describe("check writes the baseline per import", () => {
+  it("init-baseline writes one entry per import and one for an edge under two rules", () => {
+    const policy = policyFiles[`${ROOT}/.recognizer/policy.yaml`].replace(
+      "ignore:",
+      "  - shop/domain/* -> shop/adapters/*\nignore:",
+    );
+    const fake = fakeIo({
+      commit: COMMIT,
+      files: {
+        [`${ROOT}/shop/a.py`]: "",
+        ...mountedModules(checkScan),
+        [`${ROOT}/.recognizer/cache/scan.python.json`]: cached(checkScan),
+        [`${ROOT}/.recognizer/policy.yaml`]: policy,
+      },
+    });
+    const result = check(["--init-baseline", "--json"], fake);
+    const written = parseBaseline(fake.files.get(BASELINE_PATH) as string);
+
+    expect(result.code).toBe(0);
+    expect(written).toHaveLength(5);
+    expect(
+      written.map((entry) => ("to" in entry ? entry.to : "")).sort(),
+    ).toEqual(CURRENT_IMPORTS.map((one) => one.to).sort());
+    expect(JSON.parse(result.out).violations).toHaveLength(6);
+  });
+
+  it("update-baseline shrinks by an import of a surviving finding", () => {
+    const kept = CURRENT_IMPORTS.map((one) => ({ ...one, kind: "depends" }));
+    const stale = {
+      from: "shop/domain/order.py",
+      to: "shop/application/gone.py",
+      kind: "depends",
+    };
+    const fake = setup({
+      [BASELINE_PATH]: serialiseBaseline([
+        ...kept.map((one) =>
+          one.to === "shop/ports/store.py"
+            ? { ...one, kind: "implements" }
+            : one,
+        ),
+        stale,
+      ]),
+    });
+    const result = check(["--update-baseline"], fake);
+    const written = parseBaseline(fake.files.get(BASELINE_PATH) as string);
+
+    expect(result.code).toBe(0);
+    expect(written).toHaveLength(5);
+    expect(written).not.toContainEqual(stale);
   });
 });
 

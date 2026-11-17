@@ -45,7 +45,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Stratum | A horizontal layer of responsibility, such as domain, application or adapters. |
 | Slice | A vertical cut through the strata that makes one use case or feature work, from the thing that drives it to the things it drives. |
 | Policy | The one file a repository's owners write to declare components and the dependencies they may have. |
-| Violation | An edge that breaks a rule the policy declares. Baselined; the only finding that fails a run. |
+| Violation | A module's imports that break one rule the policy declares, reported as one finding. Baselined per import; the only finding that fails a run. |
 | Warning | A heuristic over the graph, tied to a principle and carrying its evidence. Never baselined, never fails a run. |
 | Baseline | The recorded violations a repository has accepted for now; it may only shrink. |
 | Scratch folder | A rebuildable folder under `.recognizer/cache/` (the Mutation work folder `mutation/work`, which holds the Warm-up copy and every Mutant copy). Results (overlays, findings, coverage, logs, Mutation's `survivors.json` and `record.json`, scans) are never scratch and stay backed up. |
@@ -189,7 +189,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Repository setting | A value written to the open repository's Config (`.recognizer/config.yaml`) by the Settings modal, through `recognizer config`. |
 | Settings label | The `label`, `labels`, `unit`, `units` and `order` keys of a sensor manifest's setting that make it a row of the Settings modal: the row's name, the text after its input, and its place in the pane. A setting with neither `label` nor `labels` is not a row, and a sensor with no labelled setting has no pane; `settings_title` names the pane, `display` by default. |
 | Limit link | A setting's `limit` key in a sensor manifest: the metric it limits, its direction (`above` or `below`) and, optionally, the setting that holds the severity of a finding past it. The Settings modal shows that severity as a select beside the limit, and the severity sets the tone of the metric's function-card cell: amber for `warning` or no severity, red for `violation`. |
-| Tuned figure | A limit, threshold or line that differs from its published figure (the long-function limit, the C.R.A.P. threshold, the complexity or coverage line); a finding on it keeps the principle's citation and names both figures. |
+| Tuned figure | A limit, threshold or line that differs from its published figure (the long-function limit, the C.R.A.P. threshold, the complexity or coverage line); a finding on it states the limit in force, and the published figure appears once, in the group's popover and the setting's description. |
 | Published default | The `default`, `defaults` or `default_text` a key schema entry publishes; Reset restores it by removing the key, never by writing it. |
 | Staged edit | A change the Settings modal holds until Save. |
 | Describe phase | The second phase of a scan, run when ticked: the modules whose line is missing or out of date are described; progress shows in the footer's scan line and the result is a message in the message tray. |

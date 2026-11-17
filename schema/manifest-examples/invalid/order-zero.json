@@ -139,28 +139,6 @@
           ],
           [
             {
-              "when": [
-                {
-                  "path": "kind",
-                  "is": "thresholds.coverage"
-                },
-                {
-                  "has": "evidence.measures.published"
-                }
-              ],
-              "text": " (Google's guidelines say {evidence.measures.published|percent}%)"
-            },
-            {
-              "when": [
-                {
-                  "has": "evidence.measures.published"
-                }
-              ],
-              "text": " (McCabe says {evidence.measures.published|num})"
-            }
-          ],
-          [
-            {
               "text": "."
             }
           ]

@@ -105,16 +105,10 @@
             {
               "when": [
                 {
-                  "has": "evidence.measures.coverage"
-                },
-                {
-                  "has": "evidence.measures.crap"
-                },
-                {
-                  "has": "evidence.measures.published"
+                  "has": "evidence.measures.limit"
                 }
               ],
-              "text": " (Savoia and Evans say {evidence.measures.published|num})"
+              "text": ", over the limit of {evidence.measures.limit|num}"
             }
           ],
           [

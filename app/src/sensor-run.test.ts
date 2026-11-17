@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { validateFindings } from "recognizer";
+import { type Rule, validateFindings, violationId } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
   CURRENT,
@@ -103,7 +103,7 @@ describe("senseRepository", () => {
     const expected = JSON.parse(
       readFileSync(join(REPO, "fixtures/check/expected.json"), "utf8"),
     ) as {
-      violations: { from: string; to: string; kind: string }[];
+      violations: { from: string; rule: Rule }[];
       warnings: { id: string; evidence: { modules?: string[] } }[];
     };
     const run = await senseRepository(
@@ -118,11 +118,7 @@ describe("senseRepository", () => {
       .sort();
     const warnings = findings.filter((record) => record.severity === "warning");
 
-    expect(violations).toEqual(
-      expected.violations
-        .map(({ from, to, kind }) => `rule-violation:${kind}:${from}->${to}`)
-        .sort(),
-    );
+    expect(violations).toEqual(expected.violations.map(violationId).sort());
     expect(warnings).toHaveLength(expected.warnings.length);
   });
 

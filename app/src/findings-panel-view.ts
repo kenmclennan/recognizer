@@ -51,7 +51,12 @@ function itemNode(
   node.append(el("span", `finding-mark ${severity}`), text);
 
   if (row.kind === "edge") {
-    text.textContent = `${shortName(row.from)} -> ${shortName(row.to)}`;
+    const names = `${shortName(row.from)} -> ${shortName(row.to)}`;
+
+    text.textContent =
+      row.lines === undefined || row.lines.length === 0
+        ? names
+        : `${names}, line ${row.lines.join(", ")}`;
 
     return node;
   }

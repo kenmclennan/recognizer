@@ -43,11 +43,39 @@ function ruleClause(
   return `nothing may match ${first.pattern}`;
 }
 
+function severalImports(
+  edges: NonNullable<FindingRecord["evidence"]["edges"]>,
+): string {
+  const first = edges[0] as (typeof edges)[number];
+  const rule = first.rules?.[0];
+  const kinds = new Set(edges.map((edge) => edge.kind ?? "depends"));
+  const [only] = [...kinds];
+  const verb =
+    kinds.size === 1 && only !== undefined && only !== "depends"
+      ? only
+      : "imports";
+  const target =
+    rule === undefined || rule.type === "forbid"
+      ? ""
+      : ` from ${rule.type === "uses" ? rule.to_component : rule.to_level}`;
+  const head = `${shortName(first.from)} ${verb} ${edges.length} modules${target}`;
+  const clause = ruleClause(first.rules);
+
+  return clause === null
+    ? `${head}, which the policy forbids.`
+    : `${head}, which the policy forbids: ${clause}.`;
+}
+
 function violation(record: FindingRecord): string | null {
-  const edge = record.evidence.edges?.[0];
+  const edges = record.evidence.edges ?? [];
+  const edge = edges[0];
 
   if (edge === undefined) {
     return null;
+  }
+
+  if (edges.length > 1) {
+    return severalImports(edges);
   }
 
   const verb =
@@ -157,13 +185,8 @@ function longFunction(record: FindingRecord): string | null {
   }
 
   const limit = record.evidence.measures?.limit ?? 20;
-  const published = record.evidence.measures?.published;
-  const reach =
-    published === undefined
-      ? `the ${num(limit)} a function should hardly ever reach`
-      : `this repository's limit of ${num(limit)} (Clean Code says ${num(published)})`;
 
-  return `${member.name} in ${shortName(member.module)} is ${num(lines)} lines, over ${reach} - functions should be small (Martin, Clean Code, 2008).`;
+  return `${member.name} is ${num(lines)} lines, over the limit of ${num(limit)}.`;
 }
 
 function orphan(record: FindingRecord): string | null {
@@ -193,7 +216,7 @@ function privateImports(record: FindingRecord): string | null {
 
   const owners = new Set(members.map((member) => member.module)).size;
 
-  return `${shortName(module)} imports ${members.length} private ${plural(members.length, "name", "names")} from ${owners} ${plural(owners, "module", "modules")}, which reaches past their interface (information hiding, Parnas, 1972).`;
+  return `${shortName(module)} imports ${members.length} private ${plural(members.length, "name", "names")} from ${owners} ${plural(owners, "module", "modules")}.`;
 }
 
 const TEMPLATES: Record<string, (record: FindingRecord) => string | null> = {

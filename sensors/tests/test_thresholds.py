@@ -502,7 +502,7 @@ def complexity_finding(tmp_path, settings):
     return found[0]
 
 
-def test_a_user_complexity_line_other_than_the_published_one_cites_its_source_and_names_both(
+def test_a_user_complexity_line_other_than_the_published_one_cites_its_source_and_states_the_line_only(
     tmp_path,
 ):
     finding = complexity_finding(tmp_path, {"complexity": {"above": 12}})
@@ -511,8 +511,8 @@ def test_a_user_complexity_line_other_than_the_published_one_cites_its_source_an
     assert finding["citation"] == PUBLISHED["cyclomatic-complexity-limit"]
     assert finding["evidence"]["measures"]["line"] == 12
     assert finding["evidence"]["measures"]["published"] == 10
-    assert "above 12" in finding["summary"]
-    assert "McCabe says 10" in finding["summary"]
+    assert finding["summary"].endswith("is above 12")
+    assert "says" not in finding["summary"]
 
 
 def test_a_published_complexity_line_carries_no_published_figure(tmp_path):
@@ -523,7 +523,7 @@ def test_a_published_complexity_line_carries_no_published_figure(tmp_path):
     assert "says" not in finding["summary"]
 
 
-def test_a_tuned_coverage_line_cites_its_source_and_names_both(tmp_path):
+def test_a_tuned_coverage_line_cites_its_source_and_states_the_line_only(tmp_path):
     root, _ = fixture_repository(tmp_path)
 
     _, document = sense(root, tmp_path, {"coverage": {"below": 0.7}})
@@ -533,7 +533,8 @@ def test_a_tuned_coverage_line_cites_its_source_and_names_both(tmp_path):
     assert all(
         f["principle"] == "code-coverage-guidelines"
         and f["evidence"]["measures"]["published"] == 0.6
-        and "Google's guidelines say 60%" in f["summary"]
+        and "says" not in f["summary"]
+        and f["summary"].endswith("is below 0.7")
         for f in found
     )
 

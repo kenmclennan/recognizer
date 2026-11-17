@@ -571,16 +571,14 @@ describe("check reading registered sensors", () => {
         [BASELINE]: JSON.stringify({
           schema_version: 1,
           violations: JSON.parse(read("fixtures/check/expected.json"))
-            .violations.map(
+            .violations.flatMap(
               ({
                 from,
-                to,
-                kind,
+                imports,
               }: {
                 from: string;
-                to: string;
-                kind: string;
-              }) => ({ from, to, kind }),
+                imports: { to: string; kind: string }[];
+              }) => imports.map(({ to, kind }) => ({ from, to, kind })),
             )
             .sort(
               (
@@ -952,7 +950,7 @@ describe("show and modules read the findings files", () => {
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
-    expect(written.sensor.version).toBe("19");
+    expect(written.sensor.version).toBe("20");
     expect(written.settings.entry_points).toEqual([]);
   });
 
@@ -978,7 +976,7 @@ describe("show and modules read the findings files", () => {
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
-    expect(written.sensor.version).toBe("19");
+    expect(written.sensor.version).toBe("20");
     expect(written.settings.distance_threshold).toBeUndefined();
   });
 

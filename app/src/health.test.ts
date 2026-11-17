@@ -249,6 +249,78 @@ describe("computeHealth with a baseline", () => {
   });
 });
 
+describe("computeHealth narrows a grouped finding by import", () => {
+  const policy = fixturePolicy("check");
+  const FROM = "shop/domain/order.py";
+  const MEMORY = "shop/adapters/memory_store.py";
+  const PLACE = "shop/application/place.py";
+  const rule = {
+    type: "level" as const,
+    from_level: "domain",
+    to_level: "adapters",
+  };
+  const edge = (to: string, line: number) => ({
+    from: FROM,
+    to,
+    kind: "depends",
+    lines: [line],
+    rules: [rule],
+  });
+  const grouped = {
+    id: "rule-violation:level domain -> adapters:shop/domain/order.py",
+    kind: "rule-violation",
+    severity: "violation" as const,
+    principle: "dependency-inversion-principle",
+    summary: `depends on ${MEMORY} at line 4; depends on ${PLACE} at line 7`,
+    evidence: { modules: [FROM], edges: [edge(MEMORY, 4), edge(PLACE, 7)] },
+  };
+  const baselineOf = (violations: object[]) =>
+    JSON.stringify({ schema_version: 1, violations });
+  const visible = (violations: object[], extra: object[] = []) => {
+    const document = structureDocument("check", policy);
+
+    return healthFor(
+      "check",
+      policy,
+      [{ ...document, findings: [grouped, ...extra] } as FindingsDocument],
+      baselineOf(violations),
+    ).health.documents[0]?.findings;
+  };
+
+  it("a finding with an accepted import keeps only the new imports", () => {
+    const found = visible([{ from: FROM, to: MEMORY, kind: "depends" }]);
+
+    expect(found).toHaveLength(1);
+    expect(found?.[0]?.evidence.edges?.map((one) => one.to)).toEqual([PLACE]);
+    expect(found?.[0]?.summary).toBe(`depends on ${PLACE} at line 7`);
+  });
+
+  it("a finding whose imports are all accepted is hidden", () => {
+    expect(
+      visible([
+        { from: FROM, to: MEMORY, kind: "depends" },
+        { from: FROM, to: PLACE, kind: "depends" },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("a non-structure violation is still accepted by its id", () => {
+    const other = {
+      id: "lint:1",
+      kind: "lint",
+      severity: "violation" as const,
+      principle: "p",
+      summary: "s",
+      evidence: { modules: [FROM] },
+    };
+
+    expect(
+      visible([{ id: "lint:1" }], [other])?.some((one) => one.id === "lint:1"),
+    ).toBe(false);
+    expect(visible([], [other])?.some((one) => one.id === "lint:1")).toBe(true);
+  });
+});
+
 describe("computeHealth without a policy", () => {
   it("shows nothing red and both cycle modules amber", () => {
     const { health, ids } = healthOf("check", null);
@@ -356,28 +428,29 @@ describe("hover truncation", () => {
 });
 
 describe("violationLine", () => {
-  const base = { from: "a", to: "b", lines: [3, 5] };
+  const base = { from: "a" };
+  const imports = (kind: string) => [{ to: "b", kind, lines: [3, 5] }];
 
   it("names each rule kind", () => {
     expect(
       violationLine({
         ...base,
-        kind: "depends",
-        rules: [{ type: "level", from_level: "domain", to_level: "adapters" }],
+        imports: imports("depends"),
+        rule: { type: "level", from_level: "domain", to_level: "adapters" },
       }),
     ).toBe("violation: depends on b at line 3, 5 (level domain -> adapters)");
     expect(
       violationLine({
         ...base,
-        kind: "inherits",
-        rules: [{ type: "uses", from_component: "x", to_component: "y" }],
+        imports: imports("inherits"),
+        rule: { type: "uses", from_component: "x", to_component: "y" },
       }),
     ).toBe("violation: inherits b at line 3, 5 (uses x -> y)");
     expect(
       violationLine({
         ...base,
-        kind: "implements",
-        rules: [{ type: "forbid", pattern: "* -> foreign:requests" }],
+        imports: imports("implements"),
+        rule: { type: "forbid", pattern: "* -> foreign:requests" },
       }),
     ).toBe(
       "violation: implements b at line 3, 5 (forbid * -> foreign:requests)",
