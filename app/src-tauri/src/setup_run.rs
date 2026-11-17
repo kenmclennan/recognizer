@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
-use std::path::Path;
-use std::process::Stdio;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 use std::sync::Mutex;
 
 use serde::Serialize;
@@ -11,13 +11,10 @@ use crate::repository::{clean_output, RECOGNIZER_COMMAND};
 use crate::scan_run::{kill_group, live_run, refusal_text};
 use crate::tool_runner::{Captured, ToolFault, ToolRunner};
 
-const MAX_ARGUMENTS: usize = 20;
-const MAX_ARGUMENT_LENGTH: usize = 4096;
-const MAX_BUDGET: f64 = 100.0;
 const STDERR_CHARS: usize = 2000;
 const LIMIT_TEXT: &str = "usage limit";
 
-const ALLOWED_TOOLS: [&str; 7] = [
+const ALLOWED_TOOLS: [&str; 9] = [
     "Read",
     "Glob",
     "Grep",
@@ -25,6 +22,8 @@ const ALLOWED_TOOLS: [&str; 7] = [
     "Bash(recognizer plugins:*)",
     "Bash(recognizer doctor:*)",
     "Bash(recognizer scan --extract)",
+    "Bash(recognizer uses:*)",
+    "Bash(recognizer used-by:*)",
 ];
 
 #[derive(Default)]
@@ -104,11 +103,7 @@ impl SetupRuns {
     }
 }
 
-pub fn budget_ok(budget: Option<f64>) -> Option<f64> {
-    budget.filter(|value| value.is_finite() && *value > 0.0 && *value < MAX_BUDGET)
-}
-
-pub fn claude_args(model: &str, schema: &str, budget: Option<f64>) -> Vec<String> {
+pub fn claude_args(model: &str, schema: &str) -> Vec<String> {
     let mut args: Vec<String> = [
         "-p",
         "--model",
@@ -141,92 +136,6 @@ pub fn claude_args(model: &str, schema: &str, budget: Option<f64>) -> Vec<String
         .iter()
         .map(|part| part.to_string()),
     );
-
-    if let Some(budget) = budget_ok(budget) {
-        args.push("--max-budget-usd".to_string());
-        args.push(budget.to_string());
-    }
-
-    args
-}
-
-pub fn command_refusal(argv: &[String]) -> Option<String> {
-    if argv.len() > MAX_ARGUMENTS {
-        return Some(format!("more than {MAX_ARGUMENTS} arguments"));
-    }
-
-    for argument in argv {
-        if argument == "--repository" {
-            return Some("carries --repository".to_string());
-        }
-
-        if argument.contains('\0') {
-            return Some("an argument contains a NUL".to_string());
-        }
-
-        if argument.chars().count() > MAX_ARGUMENT_LENGTH {
-            return Some(format!(
-                "an argument is longer than {MAX_ARGUMENT_LENGTH} characters"
-            ));
-        }
-    }
-
-    if argv.first().map(String::as_str) != Some(RECOGNIZER_COMMAND) {
-        return Some("not a recognizer command".to_string());
-    }
-
-    match argv.get(1).map(String::as_str) {
-        Some("config") | Some("policy") => None,
-        Some("plugin") => {
-            if argv.get(2).map(String::as_str) == Some("add") {
-                None
-            } else {
-                Some("only plugin add is allowed".to_string())
-            }
-        }
-        Some("scan") => {
-            if argv.len() == 2 {
-                None
-            } else {
-                Some("scan takes no argument".to_string())
-            }
-        }
-        Some("sensors") if argv.get(2).map(String::as_str) == Some("check") => {
-            let rest = &argv[3..];
-            let runs = rest.iter().filter(|argument| *argument == "--run").count();
-            let names: Vec<&String> = rest
-                .iter()
-                .filter(|argument| *argument != "--run")
-                .collect();
-
-            if runs > 1 || names.len() > 1 || names.iter().any(|name| name.starts_with('-')) {
-                Some("sensors check takes --run and at most one sensor name".to_string())
-            } else {
-                None
-            }
-        }
-        _ => Some("not a command setup may run".to_string()),
-    }
-}
-
-pub fn runner_args(argv: &[String], folder: &Path) -> Vec<String> {
-    let repository = folder.display().to_string();
-    let mut args = vec![argv[1].clone()];
-
-    match argv[1].as_str() {
-        "scan" => args.push(repository),
-        "config" | "policy" => {
-            args.push("--repository".to_string());
-            args.push(repository);
-            args.extend(argv[2..].iter().cloned());
-        }
-        _ => {
-            args.push(argv[2].clone());
-            args.push("--repository".to_string());
-            args.push(repository);
-            args.extend(argv[3..].iter().cloned());
-        }
-    }
 
     args
 }
@@ -401,7 +310,6 @@ pub fn run_check(
     model: &str,
     prompt: &str,
     schema: &str,
-    budget: Option<f64>,
     on_line: impl Fn(String),
 ) -> SetupCheck {
     if let Some(run) = live_run(folder) {
@@ -424,7 +332,7 @@ pub fn run_check(
     }
 
     process
-        .args(claude_args(model, schema, budget))
+        .args(claude_args(model, schema))
         .current_dir(folder)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -498,141 +406,6 @@ pub fn run_check(
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(tag = "status", rename_all = "kebab-case")]
-pub enum SetupApply {
-    Applied {
-        applied: usize,
-        total: usize,
-    },
-    Failed {
-        applied: usize,
-        total: usize,
-        command: Vec<String>,
-        code: Option<i32>,
-        stderr: String,
-    },
-    Stopped {
-        applied: usize,
-        total: usize,
-    },
-    Refused {
-        reason: String,
-    },
-}
-
-pub fn apply_with(
-    commands: &[Vec<String>],
-    stopped: impl Fn() -> bool,
-    mut run: impl FnMut(&[String]) -> Result<Captured, ToolFault>,
-) -> SetupApply {
-    for argv in commands {
-        if let Some(reason) = command_refusal(argv) {
-            return SetupApply::Refused {
-                reason: format!("{}: {reason}", argv.join(" ")),
-            };
-        }
-    }
-
-    let total = commands.len();
-
-    for (applied, argv) in commands.iter().enumerate() {
-        if stopped() {
-            return SetupApply::Stopped { applied, total };
-        }
-
-        let captured = match run(argv) {
-            Ok(captured) => captured,
-            Err(fault) => {
-                return SetupApply::Failed {
-                    applied,
-                    total,
-                    command: argv.clone(),
-                    code: None,
-                    stderr: fault.message(),
-                }
-            }
-        };
-
-        if stopped() {
-            return SetupApply::Stopped {
-                applied: applied + usize::from(captured.code == Some(0)),
-                total,
-            };
-        }
-
-        if captured.code != Some(0) {
-            return SetupApply::Failed {
-                applied,
-                total,
-                command: argv.clone(),
-                code: captured.code,
-                stderr: tail_chars(captured.stderr.trim()),
-            };
-        }
-    }
-
-    SetupApply::Applied {
-        applied: total,
-        total,
-    }
-}
-
-pub fn run_recognizer(
-    runs: &SetupRuns,
-    label: &str,
-    folder: &Path,
-    runner: &ToolRunner,
-    args: &[String],
-) -> Result<Captured, ToolFault> {
-    let mut process = runner.command(RECOGNIZER_COMMAND)?;
-
-    process
-        .args(args)
-        .current_dir(folder)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-
-        process.process_group(0);
-    }
-
-    let missing = || ToolFault::Missing {
-        tool: RECOGNIZER_COMMAND.to_string(),
-    };
-    let mut child = process.spawn().map_err(|_| missing())?;
-
-    runs.started(label, child.id());
-
-    let mut stdout = child.stdout.take().ok_or_else(missing)?;
-    let mut stderr = child.stderr.take().ok_or_else(missing)?;
-    let out = std::thread::spawn(move || {
-        let mut bytes = Vec::new();
-
-        let _ = stdout.read_to_end(&mut bytes);
-
-        bytes
-    });
-    let err = std::thread::spawn(move || {
-        let mut bytes = Vec::new();
-
-        let _ = stderr.read_to_end(&mut bytes);
-
-        bytes
-    });
-    let status = child.wait().ok();
-
-    Ok(Captured {
-        code: status.and_then(|status| status.code()),
-        stdout: String::from_utf8_lossy(&out.join().unwrap_or_default()).into_owned(),
-        stderr: String::from_utf8_lossy(&err.join().unwrap_or_default()).into_owned(),
-    })
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(tag = "status", rename_all = "kebab-case")]
 pub enum DoctorRead {
     Ok { report: Value },
     Unavailable { reason: String },
@@ -668,12 +441,13 @@ pub fn doctor_from(captured: Result<Captured, ToolFault>) -> DoctorRead {
     }
 }
 
-pub fn read_doctor(runner: &ToolRunner, folder: &Path) -> DoctorRead {
-    doctor_from(runner.command(RECOGNIZER_COMMAND).and_then(|mut process| {
-        process
-            .args(["doctor", "--json"])
-            .current_dir(folder)
-            .stdin(Stdio::null());
+fn capture_recognizer(
+    runner: &ToolRunner,
+    folder: &Path,
+    args: &[String],
+) -> Result<Captured, ToolFault> {
+    runner.command(RECOGNIZER_COMMAND).and_then(|mut process| {
+        process.args(args).current_dir(folder).stdin(Stdio::null());
 
         runner
             .limited(|| process.output())
@@ -685,61 +459,306 @@ pub fn read_doctor(runner: &ToolRunner, folder: &Path) -> DoctorRead {
             .map_err(|_| ToolFault::Missing {
                 tool: RECOGNIZER_COMMAND.to_string(),
             })
-    }))
+    })
+}
+
+fn words(parts: &[&str]) -> Vec<String> {
+    parts.iter().map(|part| part.to_string()).collect()
+}
+
+pub fn read_doctor(runner: &ToolRunner, folder: &Path) -> DoctorRead {
+    doctor_from(capture_recognizer(
+        runner,
+        folder,
+        &words(&["doctor", "--json"]),
+    ))
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct ApplyResult {
-    pub outcome: SetupApply,
-    pub doctor: DoctorRead,
+#[serde(tag = "status", rename_all = "kebab-case")]
+pub enum SurveyRead {
+    Ok { survey: Value, doctor: DoctorRead },
+    Unavailable { reason: String },
 }
 
-pub fn apply_setup_run(
+fn survey_of(runner: &ToolRunner, folder: &Path) -> Result<Value, String> {
+    let mut args = words(&["setup", "survey"]);
+
+    args.push(folder.display().to_string());
+
+    let captured = capture_recognizer(runner, folder, &args).map_err(|fault| fault.message())?;
+
+    if captured.code != Some(0) {
+        let detail = captured.stderr.trim();
+
+        return Err(if detail.is_empty() {
+            "recognizer setup survey did not answer".to_string()
+        } else {
+            tail_chars(detail)
+        });
+    }
+
+    serde_json::from_str::<Value>(&captured.stdout)
+        .map_err(|_| "recognizer setup survey printed no JSON".to_string())
+}
+
+pub fn read_survey(runner: &ToolRunner, folder: &Path, extract: bool) -> SurveyRead {
+    let mut survey = match survey_of(runner, folder) {
+        Ok(survey) => survey,
+        Err(reason) => return SurveyRead::Unavailable { reason },
+    };
+
+    if extract && survey.get("files").is_some_and(Value::is_null) {
+        let mut args = words(&["scan", "--extract"]);
+
+        args.push(folder.display().to_string());
+
+        if let Err(fault) = capture_recognizer(runner, folder, &args) {
+            return SurveyRead::Unavailable {
+                reason: fault.message(),
+            };
+        }
+
+        survey = match survey_of(runner, folder) {
+            Ok(survey) => survey,
+            Err(reason) => return SurveyRead::Unavailable { reason },
+        };
+    }
+
+    SurveyRead::Ok {
+        survey,
+        doctor: read_doctor(runner, folder),
+    }
+}
+
+pub struct TempFile {
+    path: PathBuf,
+}
+
+impl TempFile {
+    pub fn write(label: &str, kind: &str, text: &str) -> Result<TempFile, String> {
+        let safe: String = label
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+            .collect();
+        let path = std::env::temp_dir().join(format!(
+            "recognizer-setup-{}-{safe}-{kind}.json",
+            std::process::id()
+        ));
+        let mut options = std::fs::OpenOptions::new();
+
+        options.write(true).create(true).truncate(true);
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+
+            options.mode(0o600);
+        }
+
+        let mut file = options
+            .open(&path)
+            .map_err(|error| format!("cannot write {}: {error}", path.display()))?;
+        let file_path = TempFile { path: path.clone() };
+
+        file.write_all(text.as_bytes())
+            .map_err(|error| format!("cannot write {}: {error}", path.display()))?;
+
+        Ok(file_path)
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for TempFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+pub enum SetupRun {
+    Finished { result: Value },
+    Failed { reason: String },
+    Refused { reason: String },
+}
+
+pub fn stream_child(
+    runs: &SetupRuns,
+    label: &str,
+    mut process: Command,
+    on_line: impl Fn(String),
+) -> SetupRun {
+    process
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+
+        process.process_group(0);
+    }
+
+    let mut child = match process.spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            return SetupRun::Failed {
+                reason: format!("{RECOGNIZER_COMMAND} could not start: {error}"),
+            }
+        }
+    };
+
+    runs.started(label, child.id());
+
+    let stderr = child.stderr.take();
+    let errors = std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+
+        if let Some(mut stderr) = stderr {
+            let _ = stderr.read_to_end(&mut bytes);
+        }
+
+        String::from_utf8_lossy(&bytes).into_owned()
+    });
+    let mut result = None;
+
+    if let Some(stdout) = child.stdout.take() {
+        for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+            if let Ok(value) = serde_json::from_str::<Value>(&line) {
+                if value.get("event").and_then(Value::as_str) == Some("result") {
+                    result = Some(value);
+                }
+            }
+
+            on_line(line);
+        }
+    }
+
+    let status = child.wait().ok();
+    let detail = errors.join().unwrap_or_default();
+
+    match result {
+        Some(result) => SetupRun::Finished { result },
+        None => SetupRun::Failed {
+            reason: format!(
+                "recognizer exited {} without a result: {}",
+                status
+                    .and_then(|status| status.code())
+                    .map_or("by signal".to_string(), |code| code.to_string()),
+                tail_chars(clean_output(&detail).as_str())
+            ),
+        },
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn run_setup_verb(
     runs: &SetupRuns,
     label: &str,
     folder: &Path,
     runner: &ToolRunner,
-    commands: &[Vec<String>],
-) -> ApplyResult {
-    for argv in commands {
-        if let Some(reason) = command_refusal(argv) {
-            return ApplyResult {
-                outcome: SetupApply::Refused {
-                    reason: format!("{}: {reason}", argv.join(" ")),
-                },
-                doctor: read_doctor(runner, folder),
-            };
-        }
-    }
-
+    verb: &str,
+    choices: &str,
+    on_line: impl Fn(String),
+) -> SetupRun {
     if let Some(run) = live_run(folder) {
-        return ApplyResult {
-            outcome: SetupApply::Refused {
-                reason: refusal_text(&run, folder),
-            },
-            doctor: read_doctor(runner, folder),
+        return SetupRun::Refused {
+            reason: refusal_text(&run, folder),
         };
     }
+
+    let file = match TempFile::write(label, "choices", choices) {
+        Ok(file) => file,
+        Err(reason) => return SetupRun::Failed { reason },
+    };
+    let mut process = match runner.command(RECOGNIZER_COMMAND) {
+        Ok(process) => process,
+        Err(fault) => {
+            return SetupRun::Failed {
+                reason: fault.message(),
+            }
+        }
+    };
+
+    process
+        .args(["setup", verb])
+        .arg(folder)
+        .arg("--choices")
+        .arg(file.path())
+        .current_dir(folder);
 
     if let Err(reason) = runs.begin(label) {
-        return ApplyResult {
-            outcome: SetupApply::Refused { reason },
-            doctor: read_doctor(runner, folder),
-        };
+        return SetupRun::Refused { reason };
     }
 
-    let outcome = apply_with(
-        commands,
-        || runs.stopped(label),
-        |argv| run_recognizer(runs, label, folder, runner, &runner_args(argv, folder)),
-    );
+    let end = stream_child(runs, label, process, on_line);
 
     runs.finish(label);
 
-    ApplyResult {
-        outcome,
-        doctor: read_doctor(runner, folder),
+    end
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn run_recommend(
+    runs: &SetupRuns,
+    label: &str,
+    folder: &Path,
+    runner: &ToolRunner,
+    model: &str,
+    prompt: &str,
+    schema: &str,
+    on_line: impl Fn(String),
+) -> SetupCheck {
+    match run_check(runs, label, folder, runner, model, prompt, schema, on_line) {
+        SetupCheck::Proposal {
+            output,
+            cost_usd,
+            duration_ms,
+            denials,
+        } => match recommendation_of(runner, folder, label, &output) {
+            Ok(recommendation) => SetupCheck::Proposal {
+                output: recommendation,
+                cost_usd,
+                duration_ms,
+                denials,
+            },
+            Err(reason) => SetupCheck::Failed {
+                reason,
+                subtype: None,
+                cost_usd,
+                duration_ms,
+            },
+        },
+        other => other,
     }
+}
+
+fn recommendation_of(
+    runner: &ToolRunner,
+    folder: &Path,
+    label: &str,
+    answer: &Value,
+) -> Result<Value, String> {
+    let file = TempFile::write(label, "answer", &answer.to_string())?;
+    let mut args = words(&["setup", "recommend"]);
+
+    args.push(folder.display().to_string());
+    args.push("--input".to_string());
+    args.push(file.path().display().to_string());
+
+    let captured = capture_recognizer(runner, folder, &args).map_err(|fault| fault.message())?;
+
+    if captured.code != Some(0) {
+        return Err(tail_chars(captured.stderr.trim()));
+    }
+
+    serde_json::from_str::<Value>(&captured.stdout)
+        .map_err(|_| "recognizer setup recommend printed no JSON".to_string())
 }
 
 #[cfg(test)]
@@ -751,38 +770,15 @@ mod tests {
         parts.iter().map(|part| part.to_string()).collect()
     }
 
-    fn fixture() -> Value {
-        let text = std::fs::read_to_string(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../fixtures/setup/commands.json"
-        ))
-        .unwrap();
-
-        serde_json::from_str(&text).unwrap()
-    }
-
-    fn argv_of(value: &Value) -> Vec<String> {
-        value
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|part| part.as_str().unwrap().to_string())
-            .collect()
-    }
-
-    fn ok(code: i32, stderr: &str) -> Result<Captured, ToolFault> {
-        Ok(Captured {
-            code: Some(code),
-            stdout: String::new(),
-            stderr: stderr.to_string(),
-        })
+    fn read(relative: &str) -> String {
+        std::fs::read_to_string(format!("{}/{relative}", env!("CARGO_MANIFEST_DIR"))).unwrap()
     }
 
     #[test]
     fn claude_args_is_exactly_the_bound_flag_set() {
-        let args = claude_args("sonnet", "{}", None);
+        let args = claude_args("sonnet", "{}");
         let at = args.iter().position(|arg| arg == "--allowedTools").unwrap();
-        let rules = &args[at + 1..at + 8];
+        let rules = &args[at + 1..at + 10];
 
         assert_eq!(
             rules,
@@ -794,10 +790,12 @@ mod tests {
                 "Bash(recognizer plugins:*)",
                 "Bash(recognizer doctor:*)",
                 "Bash(recognizer scan --extract)",
+                "Bash(recognizer uses:*)",
+                "Bash(recognizer used-by:*)",
             ])
         );
-        assert_eq!(args[at + 8], "--setting-sources");
-        assert_eq!(args[at + 9], "");
+        assert_eq!(args[at + 10], "--setting-sources");
+        assert_eq!(args[at + 11], "");
 
         let mode = args
             .iter()
@@ -822,22 +820,57 @@ mod tests {
     }
 
     #[test]
-    fn the_budget_flag_appears_only_for_a_valid_budget() {
-        let has = |budget: Option<f64>| {
-            claude_args("sonnet", "{}", budget)
-                .iter()
-                .any(|arg| arg == "--max-budget-usd")
-        };
+    fn setup_recommend_args_hold_the_read_only_allowlist() {
+        let args = claude_args("sonnet", "{\"type\":\"object\"}");
 
-        assert!(has(Some(2.08)));
-        assert!(has(Some(99.99)));
-        assert!(!has(Some(100.0)));
-        assert!(!has(Some(100.01)));
-        assert!(!has(Some(0.0)));
-        assert!(!has(Some(-1.0)));
-        assert!(!has(Some(f64::NAN)));
-        assert!(!has(Some(f64::INFINITY)));
-        assert!(!has(None));
+        assert!(args.contains(&"Bash(recognizer uses:*)".to_string()));
+        assert!(args.contains(&"Bash(recognizer used-by:*)".to_string()));
+        assert!(!args.iter().any(|arg| arg == "--max-budget-usd"));
+
+        let at = args.iter().position(|arg| arg == "--json-schema").unwrap();
+
+        assert_eq!(args[at + 1], "{\"type\":\"object\"}");
+    }
+
+    #[test]
+    fn every_setup_command_is_registered_permitted_and_listed() {
+        let build = read("build.rs");
+        let app = read("permissions/app.toml");
+        let lib = read("src/lib.rs");
+
+        for name in [
+            "setup_survey",
+            "setup_recommend",
+            "setup_apply",
+            "setup_try",
+            "stop_setup",
+        ] {
+            let allow = format!("allow-{}", name.replace('_', "-"));
+
+            assert!(build.contains(&format!("\"{name}\"")), "build.rs {name}");
+            assert!(app.contains(&format!("\"{allow}\"")), "app.toml {allow}");
+            assert!(lib.contains(&format!("{name},")), "lib.rs {name}");
+            assert!(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join(format!("permissions/autogenerated/{name}.toml"))
+                    .exists(),
+                "permission file {name}"
+            );
+        }
+
+        for gone in ["read_doctor", "run_setup_check", "apply_setup"] {
+            let hyphenated = gone.replace('_', "-");
+
+            assert!(!build.contains(gone), "build.rs {gone}");
+            assert!(!app.contains(&hyphenated), "app.toml {gone}");
+            assert!(!lib.contains(&format!("{gone},")), "lib.rs {gone}");
+            assert!(
+                !std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join(format!("permissions/autogenerated/{gone}.toml"))
+                    .exists(),
+                "permission file {gone}"
+            );
+        }
     }
 
     #[test]
@@ -896,167 +929,49 @@ mod tests {
     }
 
     #[test]
-    fn the_grammar_matches_the_shared_fixture() {
-        let fixture = fixture();
-        let accepted = fixture["accepted"].as_array().unwrap();
-        let refused = fixture["refused"].as_array().unwrap();
+    fn a_setup_run_event_line_is_forwarded_whole() {
+        let runs = SetupRuns::default();
+        let file = TempFile::write("w-test", "choices", "{}").unwrap();
+        let path = file.path().to_path_buf();
+        let mut process = Command::new("sh");
 
-        assert!(!accepted.is_empty());
-        assert!(!refused.is_empty());
+        process.args(["-c", r#"echo '{"event":"start","total":1}'; exit 1"#]);
+        runs.begin("w-test").unwrap();
 
-        for entry in accepted {
-            let argv = argv_of(entry);
+        let seen = RefCell::new(Vec::new());
+        let end = stream_child(&runs, "w-test", process, |line| {
+            seen.borrow_mut().push(line)
+        });
 
-            assert_eq!(command_refusal(&argv), None, "{argv:?}");
-        }
+        runs.finish("w-test");
 
-        for entry in refused {
-            let argv = argv_of(&entry["argv"]);
-            let reason = entry["reason"].as_str().unwrap();
+        assert_eq!(*seen.borrow(), vec![r#"{"event":"start","total":1}"#]);
+        assert!(matches!(end, SetupRun::Failed { .. }));
+        assert!(path.exists());
 
-            assert_eq!(command_refusal(&argv).as_deref(), Some(reason), "{reason}");
-        }
+        drop(file);
+
+        assert!(!path.exists());
     }
 
     #[test]
-    fn a_refused_command_means_none_run() {
-        let calls = RefCell::new(0);
-        let commands = vec![
-            strings(&["recognizer", "config", "--unset", "a.b"]),
-            strings(&["recognizer", "plugin", "check", "x"]),
-        ];
+    fn a_result_line_is_the_run_end() {
+        let runs = SetupRuns::default();
+        let mut process = Command::new("sh");
 
-        let outcome = apply_with(
-            &commands,
-            || false,
-            |_| {
-                *calls.borrow_mut() += 1;
+        process.args([
+            "-c",
+            r#"echo '{"event":"start","total":0}'; echo '{"event":"result","ok":true}'"#,
+        ]);
+        runs.begin("w-1").unwrap();
 
-                ok(0, "")
-            },
-        );
-
-        assert!(matches!(outcome, SetupApply::Refused { .. }));
-        assert_eq!(*calls.borrow(), 0);
-    }
-
-    #[test]
-    fn the_first_failure_stops_the_apply_and_reports_one_of_three() {
-        let calls = RefCell::new(Vec::new());
-        let commands = vec![
-            strings(&["recognizer", "config", "--unset", "a.b"]),
-            strings(&["recognizer", "config", "--unset", "c.d"]),
-            strings(&["recognizer", "config", "--unset", "e.f"]),
-        ];
-
-        let outcome = apply_with(
-            &commands,
-            || false,
-            |argv| {
-                calls.borrow_mut().push(argv.to_vec());
-
-                if argv[3] == "c.d" {
-                    ok(1, "boom: no such key")
-                } else {
-                    ok(0, "")
-                }
-            },
-        );
+        let end = stream_child(&runs, "w-1", process, |_| {});
 
         assert_eq!(
-            outcome,
-            SetupApply::Failed {
-                applied: 1,
-                total: 3,
-                command: commands[1].clone(),
-                code: Some(1),
-                stderr: "boom: no such key".to_string(),
+            end,
+            SetupRun::Finished {
+                result: serde_json::json!({"event": "result", "ok": true})
             }
-        );
-        assert_eq!(calls.borrow().len(), 2);
-    }
-
-    #[test]
-    fn every_command_applies_in_order_when_all_succeed() {
-        let calls = RefCell::new(Vec::new());
-        let commands = vec![
-            strings(&["recognizer", "scan"]),
-            strings(&["recognizer", "plugin", "add", "claude"]),
-        ];
-
-        let outcome = apply_with(
-            &commands,
-            || false,
-            |argv| {
-                calls.borrow_mut().push(argv.to_vec());
-
-                ok(0, "")
-            },
-        );
-
-        assert_eq!(
-            outcome,
-            SetupApply::Applied {
-                applied: 2,
-                total: 2
-            }
-        );
-        assert_eq!(*calls.borrow(), commands);
-    }
-
-    #[test]
-    fn a_stop_halts_before_the_next_command() {
-        let commands = vec![
-            strings(&["recognizer", "scan"]),
-            strings(&["recognizer", "scan"]),
-        ];
-        let seen = RefCell::new(0);
-
-        let outcome = apply_with(
-            &commands,
-            || *seen.borrow() >= 1,
-            |_| {
-                *seen.borrow_mut() += 1;
-
-                ok(0, "")
-            },
-        );
-
-        assert_eq!(
-            outcome,
-            SetupApply::Stopped {
-                applied: 1,
-                total: 2
-            }
-        );
-        assert_eq!(*seen.borrow(), 1);
-    }
-
-    #[test]
-    fn repository_is_inserted_by_rust_after_the_verb() {
-        let folder = Path::new("/work/repo");
-
-        assert_eq!(
-            runner_args(
-                &strings(&["recognizer", "config", "--unset", "a.b"]),
-                folder
-            ),
-            strings(&["config", "--repository", "/work/repo", "--unset", "a.b"])
-        );
-        assert_eq!(
-            runner_args(&strings(&["recognizer", "scan"]), folder),
-            strings(&["scan", "/work/repo"])
-        );
-        assert_eq!(
-            runner_args(&strings(&["recognizer", "plugin", "add", "claude"]), folder),
-            strings(&["plugin", "add", "--repository", "/work/repo", "claude"])
-        );
-        assert_eq!(
-            runner_args(
-                &strings(&["recognizer", "sensors", "check", "--run"]),
-                folder
-            ),
-            strings(&["sensors", "check", "--repository", "/work/repo", "--run"])
         );
     }
 

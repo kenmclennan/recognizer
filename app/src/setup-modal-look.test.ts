@@ -13,132 +13,168 @@ const HARNESS = `
 import { openSetupModal } from ${JSON.stringify(here("setup-modal-view.ts"))};
 import { fakeSetup } from ${JSON.stringify(here("setup-fake.ts"))};
 
-const doctor = (problems) => ({ status: "ok", report: { repository: "/r", ok: problems === 0, problems, warnings: 0, areas: [{ name: "config", skipped: null, problems: Array.from({ length: problems }, (_, i) => ({ code: "config-retired", subject: "k" + i, line: "problem " + i, fix: { text: "fix", command: null }, severity: "problem" })) }] } });
-const proposal = {
-  summary: "A draft",
-  changes: [
-    { section: "problems", title: "Drop key", reason: "retired", commands: [["recognizer", "config", "--unset", "a.b"]] },
-    { section: "problems", title: "Add suite", reason: "tests exist", commands: [["recognizer", "config", "tests.api.command", "pytest"]] },
-    { section: "tests", title: "Run the suites", reason: "prove them", commands: [["recognizer", "sensors", "check", "--run"]] },
-    { section: "policy", title: "Name an entry point", reason: "the main module is run, not imported", commands: [["recognizer", "policy", "--add", "entry", "src/main.ts"]] },
-  ],
-};
-const settle = () => new Promise((resolve) => setTimeout(resolve, 30));
-const box = (node) => { const r = node.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height }; };
-const facts = {};
+const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
+const box = (node) => { const r = node.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; };
+const facts = { screens: {}, lifecycle: {} };
+
+function prose(root) {
+  const copy = root.cloneNode(true);
+  for (const node of copy.querySelectorAll(".sw-mono, .sw-code, pre, code, textarea, input")) node.remove();
+  return copy.textContent;
+}
+
+function snap(modal, name) {
+  const q = (s) => modal.element.querySelector(s);
+  const body = q(".sw-body");
+  const dialog = q(".settings-modal");
+  facts.screens[name] = {
+    text: prose(body),
+    heading: (q(".sw-body h2") || { textContent: "" }).textContent,
+    steps: [...modal.element.querySelectorAll(".sw-step")].map((n) => n.dataset.step + (n.classList.contains("skip") ? ":skip" : n.classList.contains("now") ? ":now" : n.classList.contains("done") ? ":done" : "")),
+    foot: [...modal.element.querySelectorAll(".sw-foot button")].filter((b) => !b.hidden).map((b) => b.textContent + (b.disabled ? " (disabled)" : "")),
+    insideScrim: box(dialog).left >= box(modal.element).left && box(dialog).right <= box(modal.element).right && box(dialog).top >= box(modal.element).top && box(dialog).bottom <= box(modal.element).bottom,
+    paneFitsModal: box(body).right <= box(dialog).right && box(body).bottom <= box(dialog).bottom,
+    noHorizontalOverflow: body.scrollWidth <= body.clientWidth,
+    rows: [...modal.element.querySelectorAll(".sw-row .sw-what")].map((n) => n.textContent),
+    cards: [...modal.element.querySelectorAll(".sw-rec .sw-what")].map((n) => n.textContent),
+    groups: [...modal.element.querySelectorAll(".sw-group")].map((n) => n.textContent),
+    env: [...modal.element.querySelectorAll(".sw-envrow code")].map((n) => n.textContent),
+    runners: [...modal.element.querySelectorAll(".sw-runner")].map((n) => n.textContent),
+  };
+}
 
 (async () => {
-  const fake = fakeSetup({
-    doctor: doctor(2),
-    progress: ["Read .recognizer/policy.yaml", "Bash recognizer doctor"],
-    checkResult: { status: "proposal", output: proposal, costUsd: 0.42, durationMs: 83000, denials: 0 },
-  });
   let release = () => {};
-  fake.gate = new Promise((resolve) => { release = resolve; });
-  const modal = openSetupModal({ port: fake, readModel: async () => "sonnet" });
+  const fake = fakeSetup({ progress: ["Read 65 files and 212 imports"] });
+  let closedCalls = 0;
+  const modal = openSetupModal({ port: fake, onClose: () => { closedCalls += 1; } });
+  facts.lifecycle.attachedOnOpen = document.body.contains(modal.element) && document.body.querySelectorAll(".setup-modal").length === 1;
   await modal.ready;
-  const q = (selector) => modal.element.querySelector(selector);
-  const qa = (selector) => [...modal.element.querySelectorAll(selector)];
-  const foot = () => qa(".sm-foot button").map((b) => b.textContent);
-
-  facts.start = {
-    lines: qa(".su-line").map((n) => n.textContent),
-    estimate: q(".su-estimate").textContent,
-    foot: foot(),
-    callsAfterOpen: fake.calls.slice(),
-    insideScrim: box(q(".settings-modal")).width <= box(modal.element).width && box(q(".settings-modal")).height <= box(modal.element).height,
-    paneFitsModal: box(q(".sm-pane")).right <= box(q(".settings-modal")).right && box(q(".sm-pane")).bottom <= box(q(".settings-modal")).bottom,
-  };
-
-  const checking = modal.controller.check();
   await settle();
-  facts.checking = { progress: qa(".su-progress").map((n) => n.textContent), foot: foot() };
+  const q = (s) => modal.element.querySelector(s);
+  const qa = (s) => [...modal.element.querySelectorAll(s)];
+  const next = () => { modal.controller.next(); return settle(); };
+
+  snap(modal, "files");
+  facts.openCalls = fake.calls.slice();
+  await next();
+  snap(modal, "checks");
+  await next();
+
+  qa("button").find((b) => b.textContent === "Add a variable").click();
+  await settle();
+  q('[data-control="env-name"]').value = "RUST_LOG";
+  q('[data-control="env-value"]').value = "debug";
+  qa("button").find((b) => b.textContent === "Add").click();
+  await settle();
+  snap(modal, "tests");
+
+  qa("button").find((b) => b.textContent === "Run once").click();
+  await settle();
+  await settle();
+  snap(modal, "tests-tried");
+  await next();
+
+  q('[data-control="policy-ask"]').click();
+  q('[data-control="policy-ask"]').dispatchEvent(new Event("change"));
+  await settle();
+  snap(modal, "policy-choice");
+  fake.gate = new Promise((resolve) => { release = resolve; });
+  qa("button").find((b) => b.textContent === "Ask Claude").click();
+  await settle();
+  snap(modal, "policy-running");
   release();
-  await checking;
+  fake.gate = null;
   await settle();
-
-  facts.report = {
-    nav: qa(".sm-entry").map((n) => n.textContent),
-    head: q(".su-run").textContent,
-    changes: qa(".su-change-title").map((n) => n.textContent),
-    checked: qa(".su-change input").map((n) => n.checked),
-    badges: qa(".su-badge").map((n) => n.textContent),
-    commands: qa(".su-command").map((n) => n.textContent),
-    applyDisabled: qa(".sm-foot button").find((b) => b.textContent === "Apply").disabled,
-    sameLeftEdge: new Set(qa(".su-change").map((n) => box(n).left)).size === 1,
-  };
-
-  qa(".sm-entry").find((n) => n.dataset.section === "tests").click();
-  facts.tests = {
-    nav: qa(".sm-entry").map((n) => n.textContent),
-    changes: qa(".su-change-title").map((n) => n.textContent),
-    badges: qa(".su-badge").map((n) => n.textContent),
-    checked: qa(".su-change input").map((n) => n.checked),
-  };
-  q(".su-change input").click();
-  facts.afterTick = { nav: qa(".sm-entry").map((n) => n.textContent) };
-
-  qa(".sm-entry").find((n) => n.dataset.section === "problems").click();
-  facts.problemsAgain = { nav: qa(".sm-entry").map((n) => n.textContent) };
-
-  await modal.controller.apply();
   await settle();
-  facts.applied = { text: qa(".su-line").map((n) => n.textContent), foot: foot(), ran: fake.ran.map((a) => a.join(" ")) };
+  snap(modal, "policy-cards");
+  qa('[data-decide="0:accept"]')[0].click();
+  await settle();
+  await next();
+  snap(modal, "review");
 
-  const empty = fakeSetup({ doctor: doctor(0), checkResult: { status: "proposal", output: { changes: [] }, costUsd: 0.1, durationMs: 4000, denials: 0 } });
+  fake.gate = new Promise((resolve) => { release = resolve; });
+  qa("button").find((b) => b.textContent.startsWith("Apply")).click();
+  await settle();
+  snap(modal, "apply-running");
+  release();
+  fake.gate = null;
+  await settle();
+  await settle();
+  snap(modal, "apply-done");
   modal.close();
-  const second = openSetupModal({ port: empty, readModel: async () => "sonnet" });
+  facts.lifecycle.goneAfterClose = document.querySelector(".setup-modal") === null;
+  facts.lifecycle.closedCalls = closedCalls;
+
+  const failing = fakeSetup({ failAt: 1 });
+  const second = openSetupModal({ port: failing });
   await second.ready;
-  await second.controller.check();
+  for (let i = 0; i < 4; i++) second.controller.next();
   await settle();
-  const sq = (selector) => second.element.querySelector(selector);
-  facts.empty = { text: sq(".su-empty").textContent, applyDisabled: [...second.element.querySelectorAll(".sm-foot button")].find((b) => b.textContent === "Apply").disabled, nav: [...second.element.querySelectorAll(".sm-entry")].map((n) => n.textContent) };
+  await second.controller.apply();
+  await settle();
+  snap(second, "apply-failed");
   second.close();
 
-  const failing = fakeSetup({ doctor: doctor(1), checkResult: { status: "failed", reason: "ran out of budget", subtype: "error_max_budget_usd", costUsd: 2.1, durationMs: 9000 } });
-  const third = openSetupModal({ port: failing, readModel: async () => "sonnet" });
-  await third.ready;
-  await third.controller.check();
-  await settle();
-  const tq = (selector) => third.element.querySelector(selector);
-  facts.error = { text: tq(".su-error").textContent, role: tq(".su-error").getAttribute("role"), head: tq(".su-run").textContent };
-  third.close();
+  let escCalls = 0;
+  const esc = openSetupModal({ port: fakeSetup({}), onClose: () => { escCalls += 1; } });
+  await esc.ready;
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+  facts.lifecycle.escapeClosed = document.querySelector(".setup-modal") === null && escCalls === 1;
 
-  document.getElementById("out").textContent = btoa(JSON.stringify(facts));
+  let scrimCalls = 0;
+  const sc = openSetupModal({ port: fakeSetup({}), onClose: () => { scrimCalls += 1; } });
+  await sc.ready;
+  sc.element.querySelector(".settings-modal").dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  facts.lifecycle.insideClickKept = document.querySelector(".setup-modal") !== null && scrimCalls === 0;
+  sc.element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  facts.lifecycle.scrimClosed = document.querySelector(".setup-modal") === null && scrimCalls === 1;
+
+  const live = fakeSetup({});
+  const during = openSetupModal({ port: live });
+  await during.ready;
+  for (let i = 0; i < 4; i++) during.controller.next();
+  await settle();
+  live.gate = new Promise(() => {});
+  const applying = during.controller.apply();
+  await settle();
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+  await settle();
+  facts.lifecycle.stopCalls = live.calls.filter((c) => c === "stop_setup").length;
+  facts.lifecycle.closedDuringApply = document.querySelector(".setup-modal") === null;
+
+  document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
 
+type Screen = {
+  text: string;
+  heading: string;
+  steps: string[];
+  foot: string[];
+  insideScrim: boolean;
+  paneFitsModal: boolean;
+  noHorizontalOverflow: boolean;
+  rows: string[];
+  cards: string[];
+  groups: string[];
+  env: string[];
+  runners: string[];
+};
+
 type Facts = {
-  start: {
-    lines: string[];
-    estimate: string;
-    foot: string[];
-    callsAfterOpen: string[];
-    insideScrim: boolean;
-    paneFitsModal: boolean;
+  screens: Record<string, Screen>;
+  openCalls: string[];
+  lifecycle: {
+    attachedOnOpen: boolean;
+    goneAfterClose: boolean;
+    closedCalls: number;
+    escapeClosed: boolean;
+    insideClickKept: boolean;
+    scrimClosed: boolean;
+    stopCalls: number;
+    closedDuringApply: boolean;
   };
-  checking: { progress: string[]; foot: string[] };
-  report: {
-    nav: string[];
-    head: string;
-    changes: string[];
-    checked: boolean[];
-    badges: string[];
-    commands: string[];
-    applyDisabled: boolean;
-    sameLeftEdge: boolean;
-  };
-  tests: {
-    nav: string[];
-    changes: string[];
-    badges: string[];
-    checked: boolean[];
-  };
-  afterTick: { nav: string[] };
-  problemsAgain: { nav: string[] };
-  applied: { text: string[]; foot: string[]; ran: string[] };
-  empty: { text: string; applyDisabled: boolean; nav: string[] };
-  error: { text: string; role: string; head: string };
 };
 
 function collect(): Facts {
@@ -173,7 +209,7 @@ function collect(): Facts {
       );
     }
 
-    const text = atob(match[1]);
+    const text = Buffer.from(match[1], "base64").toString("utf8");
 
     if (text.startsWith("ERR ")) {
       throw new Error(text);
@@ -186,82 +222,110 @@ function collect(): Facts {
 }
 
 describe.skipIf(webkit === undefined)(
-  "the setup modal in a real browser",
+  "the setup wizard in a real browser",
   () => {
     const f = (webkit === undefined ? null : collect()) as Facts;
-
-    it("opens on doctor's result, says what Check does and gives the estimate, having run only doctor", () => {
-      expect(f.start.lines).toEqual(["problem 0", "problem 1"]);
-      expect(f.start.estimate).toContain("sonnet");
-      expect(f.start.estimate).toContain("$0.26 to $1.04");
-      expect(f.start.foot).toEqual(["Close", "Check with Claude"]);
-      expect(f.start.callsAfterOpen).toEqual(["read_doctor"]);
-    });
+    const names = [
+      "files",
+      "checks",
+      "tests",
+      "tests-tried",
+      "policy-choice",
+      "policy-running",
+      "policy-cards",
+      "review",
+      "apply-running",
+      "apply-done",
+      "apply-failed",
+    ];
 
     it("fits the modal within the window and the pane within the modal", () => {
-      expect(f.start.insideScrim).toBe(true);
-      expect(f.start.paneFitsModal).toBe(true);
+      for (const name of names) {
+        const screen = f.screens[name] as Screen;
+
+        expect(screen.insideScrim, name).toBe(true);
+        expect(screen.paneFitsModal, name).toBe(true);
+        expect(screen.noHorizontalOverflow, name).toBe(true);
+      }
     });
 
-    it("shows one progress line per tool use with Cancel while checking", () => {
-      expect(f.checking.progress).toEqual([
-        "Read .recognizer/policy.yaml",
-        "Bash recognizer doctor",
+    it("attaches itself to the page on open and leaves it on close, as main.ts uses it", () => {
+      expect(f.lifecycle.attachedOnOpen).toBe(true);
+      expect(f.lifecycle.goneAfterClose).toBe(true);
+      expect(f.lifecycle.closedCalls).toBe(1);
+    });
+
+    it("Escape closes the wizard and calls onClose", () => {
+      expect(f.lifecycle.escapeClosed).toBe(true);
+    });
+
+    it("a click on the scrim closes the wizard and a click inside the dialog does not", () => {
+      expect(f.lifecycle.insideClickKept).toBe(true);
+      expect(f.lifecycle.scrimClosed).toBe(true);
+    });
+
+    it("closing during Apply stops the run once", () => {
+      expect(f.lifecycle.closedDuringApply).toBe(true);
+      expect(f.lifecycle.stopCalls).toBe(1);
+    });
+
+    it("no screen carries a time estimate", () => {
+      for (const name of names) {
+        const screen = f.screens[name] as Screen;
+
+        expect(screen.text.trim().length, name).toBeGreaterThan(0);
+        expect(screen.text, name).not.toMatch(
+          /\d\s?(s|sec|seconds?|min|minutes?)\b|about \d|longer than/,
+        );
+      }
+    });
+
+    it("shows files, checks and the tests step from the committed survey", () => {
+      expect(f.openCalls).toEqual(["survey+extract"]);
+      expect(f.screens.files?.rows).toEqual([
+        "3 TypeScript files",
+        "1 files not read",
       ]);
-      expect(f.checking.foot).toEqual(["Cancel"]);
-    });
-
-    it("lays the report out with one nav entry per section, ticked-of-total counts and the run's time and cost", () => {
-      expect(f.report.nav).toEqual([
-        "Problems1 of 2",
-        "Test suites0 of 1",
-        "Policy0 of 1",
+      expect(f.screens.files?.steps[0]).toBe("files:now");
+      expect(f.screens.checks?.rows).toEqual([
+        "Structure - always on",
+        "Structural analysis",
+        "C.R.A.P.",
+        "Mutation",
       ]);
-      expect(f.report.head).toBe("1 min 23 s - $0.42");
-      expect(f.report.changes).toEqual(["Drop key", "Add suite"]);
-      expect(f.report.commands).toEqual([
-        "recognizer config --unset a.b",
-        "recognizer config tests.api.command pytest",
-      ]);
-      expect(f.report.sameLeftEdge).toBe(true);
+      expect(
+        f.screens.tests?.rows.filter((row) => row.includes("found in")),
+      ).toHaveLength(3);
+      expect(f.screens.tests?.env).toEqual(["RUST_LOG", "debug"]);
     });
 
-    it("starts a registers-a-program change unticked and badges it", () => {
-      expect(f.report.checked).toEqual([true, false]);
-      expect(f.report.badges).toEqual(["Registers a program"]);
-      expect(f.report.applyDisabled).toBe(false);
-    });
-
-    it("badges a test-running change and starts it unticked, and ticking updates the nav count", () => {
-      expect(f.tests.changes).toEqual(["Run the suites"]);
-      expect(f.tests.badges).toEqual(["Runs the tests"]);
-      expect(f.tests.checked).toEqual([false]);
-      expect(f.afterTick.nav).toEqual([
-        "Problems1 of 2",
-        "Test suites1 of 1",
-        "Policy0 of 1",
+    it("shows Run once as a result per runner", () => {
+      expect(f.screens["tests-tried"]?.runners).toEqual([
+        "engine: ready",
+        "app: ready",
+        "tauri: ready",
       ]);
     });
 
-    it("applies exactly the ticked commands and reports them", () => {
-      expect(f.applied.ran).toEqual([
-        "recognizer config --unset a.b",
-        "recognizer sensors check --run",
-      ]);
-      expect(f.applied.text[0]).toBe("2 of 2 applied.");
-      expect(f.applied.foot).toEqual(["Back to the report", "Close"]);
+    it("shows the policy choice, the running state and the two groups of cards", () => {
+      expect(f.screens["policy-choice"]?.foot).toContain("Next (disabled)");
+      expect(f.screens["policy-running"]?.text).toContain(
+        "Claude is reading the imports",
+      );
+      expect(f.screens["policy-cards"]?.groups).toEqual(["Left out", "Rules"]);
+      expect(f.screens["policy-cards"]?.cards).toHaveLength(4);
     });
 
-    it("shows Nothing to change with Apply disabled for an empty proposal", () => {
-      expect(f.empty.text).toBe("Nothing to change");
-      expect(f.empty.applyDisabled).toBe(true);
-      expect(f.empty.nav).toEqual([]);
-    });
-
-    it("shows a failed check as an alert with its cost", () => {
-      expect(f.error.text).toBe("ran out of budget");
-      expect(f.error.role).toBe("alert");
-      expect(f.error.head).toBe("9 s - $2.10");
+    it("lists the changes in review and shows apply running, done and failed", () => {
+      expect(
+        f.screens.review?.foot.some((label) => label.startsWith("Apply ")),
+      ).toBe(true);
+      expect(f.screens["apply-running"]?.foot).toContain("Stop");
+      expect(f.screens["apply-done"]?.heading).toBe("Setup is done");
+      expect(f.screens["apply-done"]?.foot).toContain("Close");
+      expect(f.screens["apply-failed"]?.heading).toBe("Setup stopped");
+      expect(f.screens["apply-failed"]?.foot).toContain("Try again");
+      expect(f.screens["apply-failed"]?.foot).toContain("Back to review");
     });
   },
 );

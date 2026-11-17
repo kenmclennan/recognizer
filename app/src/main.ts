@@ -86,8 +86,14 @@ function refreshDoctor(): void {
   }
 
   void setupSource
-    .readDoctor()
-    .then(noteDoctor)
+    .survey(false)
+    .then((read) =>
+      noteDoctor(
+        read.status === "ok"
+          ? read.doctor
+          : { status: "unavailable", reason: read.reason },
+      ),
+    )
     .catch((error: unknown) =>
       noteDoctor({ status: "unavailable", reason: String(error) }),
     );
@@ -100,8 +106,9 @@ function openSetup(): void {
 
   setupModal = openSetupModal({
     port: setupSource,
-    readModel: async () =>
-      (await settingsModalSource.readSettings()).setup.model,
+    reloadSensors: async () => {
+      await rescanner.refresh();
+    },
     onDoctor: noteDoctor,
     onClose: () => {
       setupModal = null;

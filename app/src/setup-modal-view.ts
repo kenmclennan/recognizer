@@ -1,23 +1,33 @@
-import { quoteCommand, type SetupSection } from "recognizer";
-import { button, el } from "./dom";
-import { estimateText } from "./setup-estimate";
 import {
-  canApply,
+  type PlannedChange,
+  type PolicyCard,
+  quoteCommand,
+  type SurveyRunner,
+} from "recognizer";
+import { button, el } from "./dom";
+import {
+  acceptedCards,
+  canNext,
+  changesOf,
   createSetupController,
-  doctorLines,
-  type ReportState,
-  runSummary,
-  SECTION_NAMES,
+  currentKey,
+  droppedOf,
+  isSkipped,
+  pluginChecks,
+  type Row,
   type SetupController,
   type SetupState,
-  sectionCounts,
-  sectionsOf,
+  sharedBy,
+  stepsOf,
+  testsWanted,
+  undecidedCards,
+  type WizardState,
 } from "./setup-model";
-import type { DoctorRead, SetupApplyOutcome, SetupPort } from "./setup-port";
+import type { DoctorRead, SetupPort } from "./setup-port";
 
 export type SetupModalDeps = {
   port: SetupPort;
-  readModel: () => Promise<string>;
+  reloadSensors?: () => Promise<void> | void;
   onDoctor?: (read: DoctorRead) => void;
   onClose?: () => void;
 };
@@ -29,298 +39,102 @@ export type SetupModal = {
   close(): void;
 };
 
-export const CHECK_INFO =
-  "Check with Claude runs Claude once, read-only, over this repository with the setup guide, and proposes changes you tick before anything is applied.";
+const LANGUAGES: Record<string, string> = {
+  typescript: "TypeScript",
+  rust: "Rust",
+  python: "Python",
+  kotlin: "Kotlin",
+  csharp: "C#",
+};
 
-function outcomeText(outcome: SetupApplyOutcome): string {
-  switch (outcome.status) {
-    case "applied":
-      return `${outcome.applied} of ${outcome.total} applied.`;
-    case "stopped":
-      return `Stopped: ${outcome.applied} of ${outcome.total} applied.`;
-    case "refused":
-      return `Refused: ${outcome.reason}`;
-    case "failed":
-      return `Failed: ${outcome.applied} of ${outcome.total} applied.`;
+const LIMIT_SENTENCES: Record<string, [string, string]> = {
+  long_function: ["functions with more than ", " lines"],
+  complexity: [
+    "functions with more than ",
+    " paths through them (cyclomatic complexity)",
+  ],
+  pair_min_lines: [
+    "functions that repeat each other, when both are ",
+    " or more lines",
+  ],
+};
+
+const GLYPH: Record<string, string> = {
+  waiting: "○",
+  running: "◌",
+  done: "✓",
+  failed: "✕",
+  undone: "↺",
+};
+
+function languageName(name: string): string {
+  return LANGUAGES[name] ?? name;
+}
+
+function folderText(folders: { path: string; files: number }[]): string {
+  return folders.map((one) => `${one.path} (${one.files})`).join(", ");
+}
+
+function commandText(change: PlannedChange): string {
+  return change.steps.map((one) => quoteCommand(one.argv)).join("\n");
+}
+
+function cardHead(card: PolicyCard): string {
+  if (card.kind === "ignore") {
+    return "Leave these files out of the dependency checks";
   }
+
+  if (card.kind === "entry") {
+    return "Treat these files as entry points";
+  }
+
+  const from = card.from.join(", ");
+  const to = card.to.join(" or ");
+
+  return card.both
+    ? `Files in ${from} and ${to} must not import each other`
+    : `Files in ${from} must not import from ${to}`;
 }
 
 export function openSetupModal(deps: SetupModalDeps): SetupModal {
   const controller = createSetupController({
     port: deps.port,
-    readModel: deps.readModel,
+    ...(deps.reloadSensors === undefined
+      ? {}
+      : { reloadSensors: deps.reloadSensors }),
     ...(deps.onDoctor === undefined ? {} : { onDoctor: deps.onDoctor }),
   });
   const scrim = el("div", "settings-scrim");
   const modal = el("div", "settings-modal setup-modal");
-  const head = el("div", "sm-head");
-  const nav = el("nav", "sm-nav");
-  const pane = el("div", "sm-pane");
-  const foot = el("div", "sm-foot");
-  const message = el("span", "sm-message");
-  const title = el("span", "su-title", "Setup");
-  const summary = el("span", "su-run");
+  const head = el("div", "sw-head");
+  const title = el("h1", "sw-title", "Set up");
+  const where = el("p", "sw-where");
+  const steps = el("div", "sw-steps");
+  const body = el("div", "sw-body");
+  const foot = el("div", "sw-foot");
+  const note = el("div", "sw-note");
+  const backButton = button("Back", "sw-btn", () => {});
+  const nextButton = button("Next", "sw-btn sw-primary", () => {});
+  const open = new Set<string>();
   let closed = false;
+  let adding: string | null = null;
 
   modal.setAttribute("role", "dialog");
   modal.setAttribute("aria-modal", "true");
   modal.setAttribute("aria-label", "Setup");
-  head.append(title, summary);
-  modal.append(head, nav, pane, foot);
+  head.append(title, where);
+  foot.append(note, backButton, nextButton);
+  modal.append(head, steps, body, foot);
   scrim.append(modal);
 
-  function renderNav(state: SetupState): void {
-    nav.replaceChildren();
-
-    const group = (name: string) => {
-      nav.append(el("div", "sm-group", name));
-    };
-    const entry = (
-      label: string,
-      on: boolean,
-      count: string | null,
-      pick: (() => void) | null,
-      section: string,
-    ) => {
-      const one = button(label, "sm-entry", () => pick?.());
-
-      one.classList.toggle("on", on);
-      one.dataset.section = section;
-
-      if (count !== null) {
-        one.append(el("span", "su-count", count));
-      }
-
-      nav.append(one);
-    };
-
-    if (state.kind === "report") {
-      group("Proposal");
-
-      for (const section of sectionsOf(state)) {
-        const { ticked, total } = sectionCounts(state, section);
-
-        entry(
-          SECTION_NAMES[section],
-          state.section === section,
-          `${ticked} of ${total}`,
-          () => controller.select(section),
-          section,
-        );
-      }
-
-      return;
-    }
-
-    group("Setup");
-    entry("Doctor", true, null, null, "doctor");
-  }
-
-  function reportPane(state: ReportState): void {
-    const section: SetupSection | null = state.section;
-
-    pane.append(el("h2", "", "Proposed changes"));
-
-    if (state.summary !== "") {
-      pane.append(el("div", "sm-where", state.summary));
-    }
-
-    if (state.changes.length === 0) {
-      pane.append(el("p", "su-empty", "Nothing to change"));
-    }
-
-    state.changes.forEach((change, at) => {
-      if (change.section !== section) {
-        return;
-      }
-
-      const card = el("div", "sm-card su-change");
-      const label = el("label", "su-change-head");
-      const box = el("input");
-
-      box.type = "checkbox";
-      box.checked = state.ticks[at] === true;
-      box.addEventListener("change", () => controller.toggle(at));
-      label.append(box, el("span", "su-change-title", change.title));
-
-      if (change.runsTests) {
-        label.append(el("span", "su-badge", "Runs the tests"));
-      }
-
-      if (change.registersProgram) {
-        label.append(el("span", "su-badge", "Registers a program"));
-      }
-
-      card.append(label, el("p", "su-reason", change.reason));
-
-      for (const argv of change.commands) {
-        card.append(el("code", "su-command", quoteCommand(argv)));
-      }
-
-      pane.append(card);
-    });
-  }
-
-  function render(state: SetupState): void {
-    pane.replaceChildren();
-    foot.replaceChildren();
-    message.textContent = "";
-    message.classList.remove("bad");
-    summary.textContent = "";
-    renderNav(state);
-
-    const close = button("Close", "", () => closeModal());
-
-    switch (state.kind) {
-      case "start": {
-        pane.append(
-          el("h2", "", "Setup"),
-          el("div", "sm-where", "What recognizer doctor reports"),
-        );
-
-        for (const line of doctorLines(state.doctor)) {
-          pane.append(el("p", "su-line", line));
-        }
-
-        pane.append(
-          el("p", "su-info", CHECK_INFO),
-          el(
-            "p",
-            "su-estimate",
-            state.model === "" ? "" : estimateText(state.model),
-          ),
-        );
-
-        const check = button("Check with Claude", "primary", () => {
-          void controller.check();
-        });
-
-        check.disabled = state.model === "";
-        foot.append(message, close, check);
-        break;
-      }
-
-      case "checking": {
-        pane.append(el("h2", "", "Checking with Claude"));
-
-        for (const line of state.lines) {
-          pane.append(el("p", "su-progress", line));
-        }
-
-        foot.append(
-          message,
-          button("Cancel", "", () => void controller.cancel()),
-        );
-        break;
-      }
-
-      case "report": {
-        summary.textContent = runSummary(state.costUsd, state.durationMs);
-        reportPane(state);
-
-        if (state.dropped.length > 0) {
-          message.textContent = `Left out: ${state.dropped
-            .map((one) => `${one.title} (${one.refusal})`)
-            .join("; ")}`;
-          message.classList.add("bad");
-        }
-
-        const apply = button("Apply", "primary", () => {
-          void controller.apply();
-        });
-
-        apply.disabled = !canApply(state);
-        foot.append(message, close, apply);
-        break;
-      }
-
-      case "applying": {
-        pane.append(
-          el("h2", "", "Applying"),
-          el("p", "su-progress", "Running the ticked commands in order."),
-        );
-        foot.append(
-          message,
-          button("Stop", "", () => void controller.stop()),
-        );
-        break;
-      }
-
-      case "applied": {
-        summary.textContent = runSummary(
-          state.report.costUsd,
-          state.report.durationMs,
-        );
-        pane.append(
-          el("h2", "", "Applied"),
-          el("p", "su-line", outcomeText(state.outcome)),
-        );
-
-        if (state.outcome.status === "failed") {
-          pane.append(
-            el("code", "su-command", quoteCommand(state.outcome.command)),
-            el(
-              "p",
-              "su-line",
-              `Exit code ${state.outcome.code === null ? "none" : state.outcome.code}`,
-            ),
-            el("pre", "su-stderr", state.outcome.stderr),
-          );
-          message.classList.add("bad");
-        }
-
-        pane.append(
-          el("div", "sm-where", "What recognizer doctor reports now"),
-        );
-
-        for (const line of doctorLines(state.doctor)) {
-          pane.append(el("p", "su-line", line));
-        }
-
-        foot.append(
-          message,
-          button("Back to the report", "", () => controller.back()),
-          close,
-        );
-        break;
-      }
-
-      case "error": {
-        summary.textContent = runSummary(state.costUsd, state.durationMs);
-        pane.append(el("h2", "", "Setup could not finish"));
-
-        const reason = el("p", "su-line su-error", state.message);
-
-        reason.setAttribute("role", "alert");
-        pane.append(reason);
-
-        if (state.detail !== null) {
-          pane.append(el("p", "su-line", state.detail));
-        }
-
-        foot.append(
-          message,
-          button("Back", "", () => controller.back()),
-          close,
-        );
-        break;
-      }
-    }
-  }
-
-  function closeModal(): void {
+  function close(): void {
     if (closed) {
       return;
     }
 
     closed = true;
-
-    const kind = controller.state().kind;
-
-    if (kind === "checking" || kind === "applying") {
-      void deps.port.stop();
-    }
-
+    void controller.stop();
+    off();
     document.removeEventListener("keydown", onKey, true);
     scrim.remove();
     deps.onClose?.();
@@ -330,25 +144,1023 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     if (event.key === "Escape" && !event.defaultPrevented) {
       event.preventDefault();
       event.stopPropagation();
-      closeModal();
+      close();
     }
   }
 
-  controller.subscribe(render);
   scrim.addEventListener("mousedown", (event) => {
     if (event.target === scrim) {
-      closeModal();
+      close();
     }
   });
   document.addEventListener("keydown", onKey, true);
-  document.body.append(scrim);
+
+  function disclosure(id: string, label: string, text: string): HTMLElement[] {
+    const box = el("pre", "sw-code sw-mono", text);
+    const link = button(label, "sw-link", () => {
+      if (open.has(id)) {
+        open.delete(id);
+      } else {
+        open.add(id);
+      }
+
+      box.hidden = !open.has(id);
+    });
+
+    box.hidden = !open.has(id);
+
+    return [link, box];
+  }
+
+  function row(
+    lead: HTMLElement | string,
+    main: HTMLElement[],
+    meta: HTMLElement[] = [],
+    className = "",
+  ): HTMLElement {
+    const one = el("div", `sw-row ${className}`.trim());
+    const first = el("span", "sw-lead");
+    const middle = el("div", "sw-main");
+    const last = el("div", "sw-meta");
+
+    if (typeof lead === "string") {
+      first.textContent = lead;
+    } else {
+      first.append(lead);
+    }
+
+    middle.append(...main);
+    last.append(...meta);
+    one.append(first, middle, last);
+
+    return one;
+  }
+
+  function checkbox(
+    checked: boolean,
+    data: string,
+    change: (on: boolean) => void,
+    disabled = false,
+  ): HTMLInputElement {
+    const box = el("input", "sw-check");
+
+    box.type = "checkbox";
+    box.checked = checked;
+    box.disabled = disabled;
+    box.dataset.control = data;
+    box.addEventListener("change", () => change(box.checked));
+
+    return box;
+  }
+
+  function callout(kind: "" | "ok" | "bad", lines: (HTMLElement | string)[]) {
+    const box = el("div", `sw-callout ${kind}`.trim());
+
+    box.append(
+      ...lines.map((line) =>
+        typeof line === "string" ? el("div", "sw-why", line) : line,
+      ),
+    );
+
+    return box;
+  }
+
+  function limitInput(state: WizardState, label: string): HTMLInputElement {
+    const input = el("input", "sw-num");
+
+    input.type = "number";
+    input.min = "1";
+    input.value = String(state.limits[label] ?? 1);
+    input.dataset.limit = label;
+    input.addEventListener("change", () =>
+      controller.setLimit(label, Number(input.value)),
+    );
+
+    return input;
+  }
+
+  function filesStep(state: WizardState) {
+    const { files, unread } = state.survey;
+
+    body.append(
+      el("h2", "", "Files Recognizer reads"),
+      el(
+        "p",
+        "sw-lead-text",
+        "Recognizer scanned the repository. Each file becomes one box on the canvas. Nothing to change here.",
+      ),
+    );
+
+    if (files === null) {
+      body.append(
+        row("i", [
+          el("div", "sw-what", "No scan yet"),
+          el(
+            "div",
+            "sw-why",
+            "The repository could not be scanned for this survey, so the files are not listed. Setup can still go ahead.",
+          ),
+        ]),
+      );
+    }
+
+    for (const language of files ?? []) {
+      body.append(
+        row(
+          "✓",
+          [
+            el(
+              "div",
+              "sw-what",
+              `${language.files} ${languageName(language.language)} files`,
+            ),
+            el("div", "sw-why", folderText(language.folders)),
+          ],
+          [],
+          "found",
+        ),
+      );
+    }
+
+    for (const miss of unread) {
+      body.append(
+        row(
+          "i",
+          [
+            el("div", "sw-what", `${miss.files} files not read`),
+            el(
+              "div",
+              "sw-why",
+              `${folderText(miss.folders)}: no scanner for ${languageName(miss.language)} is installed.`,
+            ),
+          ],
+          [],
+          "found",
+        ),
+      );
+    }
+  }
+
+  function checksStep(state: WizardState) {
+    const analysis = state.survey.checks.find((one) => one.id === "analysis");
+    const structure = state.survey.checks.find((one) => one.id === "structure");
+
+    body.append(
+      el("h2", "", "Checks"),
+      el(
+        "p",
+        "sw-lead-text",
+        "What Recognizer should tell you about this code.",
+      ),
+    );
+
+    if (structure !== undefined) {
+      body.append(
+        row("🔒", [
+          el("div", "sw-what", `${structure.display} - always on`),
+          el("div", "sw-why", structure.description),
+        ]),
+      );
+    }
+
+    if (analysis !== undefined) {
+      const list = el("ul", "sw-findlist");
+
+      list.append(
+        el(
+          "li",
+          "",
+          "import cycles, files nothing imports, unused exports, and imports of another folder's private files",
+        ),
+      );
+
+      for (const limit of analysis.limits) {
+        const [before, after] = LIMIT_SENTENCES[limit.label] ?? [
+          `${limit.label} above `,
+          "",
+        ];
+        const item = el("li", "");
+
+        item.append(before, limitInput(state, limit.label), after);
+        list.append(item);
+      }
+
+      body.append(
+        row(
+          checkbox(state.analysis, "analysis", (on) =>
+            controller.setAnalysis(on),
+          ),
+          [
+            el("div", "sw-what", analysis.display),
+            el(
+              "div",
+              "sw-why",
+              "Runs with every scan and needs no tests, so it is quick. It warns about:",
+            ),
+            list,
+            el(
+              "div",
+              "sw-why",
+              "A warning shows on the canvas and in Findings, and never fails a run. Once you have a policy, an import that breaks it is a violation: recognizer check fails on a new one.",
+            ),
+          ],
+          [],
+          state.analysis ? "" : "off",
+        ),
+      );
+    }
+
+    for (const check of pluginChecks(state.survey)) {
+      const on = state.plugins[check.id] === true;
+
+      body.append(
+        row(
+          checkbox(on, `plugin-${check.id}`, (value) =>
+            controller.setPlugin(check.id, value),
+          ),
+          [
+            el("div", "sw-what", check.display),
+            el("div", "sw-why", check.description),
+            ...(check.runs_tests
+              ? [
+                  el(
+                    "div",
+                    "sw-needs",
+                    "Needs your tests, run with coverage. The next step sets that up.",
+                  ),
+                ]
+              : []),
+          ],
+          [],
+          on ? "" : "off",
+        ),
+      );
+    }
+
+    if (!testsWanted(state)) {
+      body.append(
+        callout("", [
+          "No chosen check runs your tests, so the Tests step is skipped.",
+        ]),
+      );
+    }
+  }
+
+  function envForm(state: WizardState, name: string): HTMLElement[] {
+    const own = state.runners[name];
+    const out: HTMLElement[] = [];
+
+    own?.env.forEach(([key, value], at) => {
+      const line = el("div", "sw-envrow");
+
+      line.append(
+        el("code", "", key),
+        el("code", "", value),
+        button("Remove", "sw-link", () => controller.removeEnv(name, at)),
+      );
+      out.push(line);
+    });
+
+    if (adding === name) {
+      const key = el("input", "sw-text");
+      const value = el("input", "sw-text");
+      const line = el("div", "sw-envrow");
+
+      key.placeholder = "NAME";
+      key.dataset.control = "env-name";
+      value.placeholder = "value";
+      value.dataset.control = "env-value";
+      line.append(
+        key,
+        value,
+        button("Add", "sw-btn sw-small", () => {
+          if (controller.addEnv(name, key.value.trim(), value.value)) {
+            adding = null;
+            render(controller.state());
+          } else {
+            key.classList.add("bad");
+          }
+        }),
+        button("Cancel", "sw-link", () => {
+          adding = null;
+          render(controller.state());
+        }),
+      );
+      out.push(line);
+    } else {
+      if ((own?.env.length ?? 0) === 0) {
+        out.push(el("span", "sw-why", "Your login shell's. "));
+      }
+
+      out.push(
+        button("Add a variable", "sw-link", () => {
+          adding = name;
+          render(controller.state());
+        }),
+      );
+    }
+
+    return out;
+  }
+
+  function runnerCard(state: WizardState, runner: SurveyRunner): HTMLElement {
+    const own = state.runners[runner.name];
+    const tool = state.survey.tools.find((one) =>
+      one.needed_by.includes(runner.name),
+    );
+    const on = own?.on === true;
+    const content: HTMLElement[] = [
+      el(
+        "div",
+        "sw-what",
+        `${runner.name} - ${languageName(runner.language)}, ${runner.runner}, found in ${runner.from}`,
+      ),
+    ];
+
+    if (on && own !== undefined) {
+      const command = el("textarea", "sw-cmd sw-mono");
+
+      command.rows = 2;
+      command.value = own.command;
+      command.dataset.control = `command-${runner.name}`;
+      command.addEventListener("change", () =>
+        controller.setCommand(runner.name, command.value),
+      );
+
+      const grid = el("dl", "sw-kv");
+      const commandCell = el("dd", "");
+
+      commandCell.append(command);
+
+      if (own.command !== runner.command) {
+        commandCell.append(
+          button("Back to the found command", "sw-link", () =>
+            controller.setCommand(runner.name, runner.command),
+          ),
+        );
+      }
+
+      const envCell = el("dd", "");
+
+      envCell.append(...envForm(state, runner.name));
+      grid.append(
+        el("dt", "", "Runs in"),
+        el("dd", "sw-mono", `${runner.directory}/`),
+        el("dt", "", "Command"),
+        commandCell,
+        el("dt", "", "Environment"),
+        envCell,
+      );
+
+      if (tool !== undefined && !tool.installed) {
+        const kept = state.tools[tool.name] === true;
+        const shared = sharedBy(state, runner);
+        const card = el("div", "sw-tool");
+        const text = el("div", "");
+
+        text.append(
+          el(
+            "div",
+            "sw-what",
+            `Install ${tool.name}${shared.length > 1 ? ` - also used by ${shared.filter((one) => one !== runner.name).join(", ")}` : ""}`,
+          ),
+          el(
+            "div",
+            "sw-why",
+            `Not installed. ${tool.why}. Changes ${tool.installs}.`,
+          ),
+        );
+
+        if (!kept) {
+          text.append(
+            el(
+              "div",
+              "sw-warnline",
+              `Without it this command fails, so ${shared.join(" and ")} ${shared.length > 1 ? "are" : "is"} left out. Install it yourself and run setup again to add ${shared.length > 1 ? "them" : "it"}.`,
+            ),
+          );
+        }
+
+        card.append(
+          checkbox(kept, `tool-${tool.name}`, (value) =>
+            controller.setTool(tool.name, value),
+          ),
+          text,
+        );
+
+        const needs = el("dd", "");
+
+        needs.append(card);
+        grid.append(el("dt", "", "Needs"), needs);
+      }
+
+      content.push(grid);
+    } else {
+      content.push(
+        el(
+          "div",
+          "sw-warnline",
+          `${runner.directory}/ gets no C.R.A.P. or Mutation results.`,
+        ),
+      );
+    }
+
+    return row(
+      checkbox(on, `runner-${runner.name}`, (value) =>
+        controller.setRunner(runner.name, value),
+      ),
+      content,
+      [],
+      on && (tool === undefined || tool.installed || state.tools[tool.name])
+        ? ""
+        : "off",
+    );
+  }
+
+  function rowsList(rows: Row[], id: string): HTMLElement[] {
+    return rows.map((one, at) => {
+      const main = [el("div", "sw-what", one.title)];
+
+      if (one.state === "undone") {
+        main.push(el("div", "sw-why", `Undone ${one.output}`.trim()));
+      }
+
+      const meta: HTMLElement[] = [];
+
+      if (one.output !== "" && one.state !== "undone") {
+        meta.push(...disclosure(`${id}-${at}`, "Output", one.output));
+      }
+
+      return row(GLYPH[one.state] ?? "", main, meta, `state-${one.state}`);
+    });
+  }
+
+  function testsStep(state: WizardState) {
+    const who = pluginChecks(state.survey)
+      .filter((check) => check.runs_tests && state.plugins[check.id] === true)
+      .map((check) => check.display);
+
+    body.append(
+      el("h2", "", "Running your tests"),
+      el(
+        "p",
+        "sw-lead-text",
+        `${who.join(" and ")} run${who.length > 1 ? "" : "s"} your tests with coverage turned on. These are the test runners found in the repository, and the command Recognizer will use for each. Change a command, or add environment variables, if your tests need them.`,
+      ),
+    );
+
+    for (const runner of state.survey.runners) {
+      body.append(runnerCard(state, runner));
+    }
+
+    const tried = state.tried;
+    const holder = el("div", "sw-tryout");
+
+    if (tried.kind === "idle" || tried.kind === "error") {
+      holder.append(
+        callout("", [
+          el("div", "sw-what", "Try the commands"),
+          el(
+            "div",
+            "sw-why",
+            "Optional. Installs what a command needs, runs the readiness check once, then undoes the changes.",
+          ),
+          ...(tried.kind === "error"
+            ? [el("div", "sw-why bad", tried.message)]
+            : []),
+          button("Run once", "sw-btn sw-small", () => {
+            void controller.runOnce();
+          }),
+        ]),
+      );
+    } else if (tried.kind === "running") {
+      holder.append(
+        callout("", [
+          el("div", "sw-what", "Running the commands once"),
+          ...rowsList(tried.rows, "try"),
+          button("Stop", "sw-btn sw-small", () => {
+            void controller.stop();
+          }),
+        ]),
+      );
+    } else {
+      holder.append(
+        callout(tried.ok ? "ok" : "bad", [
+          el(
+            "div",
+            "sw-what",
+            tried.ok
+              ? "Every command ran and measured coverage"
+              : "Some commands did not get ready",
+          ),
+          ...tried.runners.map((one) =>
+            el(
+              "div",
+              `sw-runner ${one.ready ? "ready" : "notready"}`,
+              one.ready
+                ? `${one.name}: ready`
+                : `${one.name}: not ready - ${one.detail}`,
+            ),
+          ),
+          el(
+            "div",
+            "sw-why",
+            "The changes were undone. Apply makes them for real.",
+          ),
+          button("Run once", "sw-btn sw-small", () => {
+            void controller.runOnce();
+          }),
+        ]),
+      );
+    }
+
+    body.append(holder);
+  }
+
+  function card(state: WizardState, index: number, entry: PolicyCard) {
+    const decision = state.decisions[index];
+    const one = el(
+      "div",
+      `sw-rec ${decision === "accept" ? "accepted" : decision === "reject" ? "rejected" : ""}`.trim(),
+    );
+    const top = el("div", "sw-top");
+    const acts = el("div", "sw-acts");
+    const grid = el("dl", "sw-kv");
+
+    for (const choice of ["accept", "reject"] as const) {
+      const act = button(
+        choice === "accept" ? "Accept" : "Reject",
+        `sw-btn sw-small ${decision === choice ? "on" : ""}`.trim(),
+        () => controller.decide(index, choice),
+      );
+
+      act.dataset.decide = `${index}:${choice}`;
+      acts.append(act);
+    }
+
+    top.append(el("div", "sw-what", cardHead(entry)), acts);
+
+    const files =
+      entry.kind === "ignore"
+        ? entry.globs
+        : entry.kind === "entry"
+          ? entry.paths
+          : [];
+
+    if (files.length > 0) {
+      const list = el("ul", "sw-evid sw-mono");
+
+      for (const file of files) {
+        list.append(el("li", "", file));
+      }
+
+      const cell = el("dd", "");
+
+      cell.append(list);
+      grid.append(el("dt", "", "Files"), cell);
+    }
+
+    grid.append(
+      el("dt", "", "Why"),
+      el("dd", "", entry.why),
+      el("dt", "", "Based on"),
+      el("dd", "sw-mono", entry.based_on),
+    );
+
+    if (entry.kind === "forbid" && entry.today !== undefined) {
+      grid.append(
+        el("dt", "", "Today"),
+        el(
+          "dd",
+          "",
+          entry.today.count === 0
+            ? "No import breaks it."
+            : `${entry.today.count} import${entry.today.count === 1 ? "" : "s"} break${entry.today.count === 1 ? "s" : ""} it${entry.today.example === null ? "" : `: ${entry.today.example}`}. It is recorded as known, so only a new one fails recognizer check.`,
+        ),
+      );
+    }
+
+    one.append(top, grid);
+
+    return one;
+  }
+
+  function policyStep(state: WizardState) {
+    body.append(
+      el("h2", "", "Dependency policy"),
+      el(
+        "p",
+        "sw-lead-text",
+        "A policy names the parts of your code and which may import which. Structural analysis then reports every import that breaks it as a violation, and recognizer check fails CI when a new one appears. Every codebase is shaped differently, so Claude reads this one's imports and recommends parts and rules. You accept or reject each one; only what you accept is saved.",
+      ),
+    );
+
+    const run = state.policy;
+
+    if (run.kind === "running") {
+      body.append(
+        row(
+          "◌",
+          [
+            el("div", "sw-what", "Claude is reading the imports"),
+            el("div", "sw-progress sw-mono", run.lines.join("\n")),
+          ],
+          [
+            button("Stop", "sw-btn sw-small", () => {
+              void controller.stop();
+            }),
+          ],
+        ),
+      );
+
+      return;
+    }
+
+    if (run.kind === "done") {
+      const entries = run.recommendation.entries;
+      const accepted = acceptedCards(state).length;
+      const open = undecidedCards(state);
+      const bar = el("div", "sw-bar-row");
+
+      bar.append(
+        el("span", "sw-count", `${accepted} accepted, ${open} to decide`),
+        button("Accept all remaining", "sw-link", () =>
+          controller.acceptRemaining(),
+        ),
+        button("Ask again", "sw-link", () => {
+          void controller.askClaude();
+        }),
+      );
+      body.append(
+        el(
+          "p",
+          "sw-lead-text",
+          `Claude recommends ${entries.length} ${entries.length === 1 ? "entry" : "entries"}. Accept or reject each one; only what you accept is saved.`,
+        ),
+        bar,
+      );
+
+      const groups: [string, string, (entry: PolicyCard) => boolean][] = [
+        ["Left out", "", (entry) => entry.kind !== "forbid"],
+        [
+          "Rules",
+          "Any import a rule does not name is allowed.",
+          (entry) => entry.kind === "forbid",
+        ],
+      ];
+
+      for (const [name, sub, test] of groups) {
+        const members = entries
+          .map((entry, at) => ({ entry, at }))
+          .filter(({ entry }) => test(entry));
+
+        if (members.length === 0) {
+          continue;
+        }
+
+        body.append(el("h3", "sw-group", name));
+
+        if (sub !== "") {
+          body.append(el("div", "sw-why", sub));
+        }
+
+        for (const { entry, at } of members) {
+          body.append(card(state, at, entry));
+        }
+      }
+
+      for (const dropped of run.recommendation.dropped) {
+        body.append(
+          callout("", [
+            `Left out of the list: ${dropped.summary} - ${dropped.reason}.`,
+          ]),
+        );
+      }
+
+      return;
+    }
+
+    const choices: ["skip" | "ask", string, string][] = [
+      ["skip", "Skip for now", "Add one later from the Policy panel."],
+      [
+        "ask",
+        "Ask Claude for recommendations",
+        "Claude reads the imports and recommends parts and rules, each with the imports behind it. Uses your Claude account. Nothing is saved until you accept it and apply.",
+      ],
+    ];
+
+    for (const [id, what, why] of choices) {
+      const radio = el("input", "sw-check");
+
+      radio.type = "radio";
+      radio.name = "policy-mode";
+      radio.checked = state.policyMode === id;
+      radio.dataset.control = `policy-${id}`;
+      radio.addEventListener("change", () => controller.setPolicyMode(id));
+
+      const main: HTMLElement[] = [
+        el("div", "sw-what", what),
+        el("div", "sw-why", why),
+      ];
+
+      if (id === "ask" && state.policyMode === "ask") {
+        main.push(
+          button("Ask Claude", "sw-btn sw-small sw-primary", () => {
+            void controller.askClaude();
+          }),
+        );
+      }
+
+      body.append(row(radio, main));
+    }
+
+    if (run.kind === "failed") {
+      const alert = callout("bad", [run.message]);
+
+      alert.setAttribute("role", "alert");
+      body.append(alert);
+    }
+
+    if (!state.analysis) {
+      body.append(
+        callout("", [
+          "Structural analysis is off, so a policy is kept but nothing is judged against it until you turn it on.",
+        ]),
+      );
+    }
+  }
+
+  function changesStep(state: WizardState) {
+    body.append(
+      el("h2", "", "What the upgrade changed"),
+      el(
+        "p",
+        "sw-lead-text",
+        `Recognizer ${state.survey.version} changed ${state.survey.upgrade.length === 1 ? "one thing" : "things"} this repository uses. Scans and checks still run meanwhile.`,
+      ),
+    );
+
+    state.survey.upgrade.forEach((fix, at) => {
+      body.append(
+        row(
+          checkbox(state.upgrade[at] === true, `upgrade-${at}`, (value) =>
+            controller.setUpgrade(at, value),
+          ),
+          [el("div", "sw-what", fix.line)],
+          disclosure(`up-${at}`, "Command", fix.command),
+        ),
+      );
+    });
+  }
+
+  function reviewStep(state: WizardState) {
+    const changes = changesOf(state);
+
+    body.append(
+      el("h2", "", "Review"),
+      el(
+        "p",
+        "sw-lead-text",
+        "Everything that will change, in the order it runs. Nothing has changed yet.",
+      ),
+    );
+
+    changes.forEach((change, at) => {
+      body.append(
+        row(
+          "○",
+          [el("div", "sw-what", change.title)],
+          disclosure(`rv-${at}`, "Command", commandText(change)),
+        ),
+      );
+    });
+
+    if (changes.length === 0) {
+      body.append(el("p", "sw-empty", "Nothing to change."));
+    }
+
+    for (const dropped of droppedOf(state)) {
+      body.append(
+        callout("", [
+          `${dropped.runner} is left out: ${dropped.tool} is not being installed.`,
+        ]),
+      );
+    }
+
+    body.append(
+      callout("", [
+        "All or nothing: if a change fails, the ones before it are undone and the repository is left as it was.",
+      ]),
+    );
+  }
+
+  function applyStep(state: WizardState) {
+    const run = state.apply;
+
+    if (run === null) {
+      return;
+    }
+
+    const heading =
+      run.state === "done"
+        ? state.flow === "setup"
+          ? "Setup is done"
+          : "Everything is up to date"
+        : run.state === "running"
+          ? "Applying"
+          : "Setup stopped";
+    const finished = run.rows.filter((one) => one.state === "done").length;
+    const bar = el("div", "sw-bar");
+    const fill = el("i", `sw-fill ${run.state}`);
+
+    fill.style.width =
+      run.state === "running"
+        ? `${Math.round((finished / Math.max(1, run.rows.length)) * 100)}%`
+        : "100%";
+    bar.append(fill);
+    body.append(el("h2", "", heading), bar);
+
+    if (run.state === "done") {
+      const problems =
+        run.doctor?.status === "ok" ? run.doctor.report.problems : null;
+
+      body.append(
+        callout("ok", [
+          el(
+            "div",
+            "sw-what",
+            problems === 0
+              ? "Doctor finds no problems."
+              : problems === null
+                ? "Doctor could not run."
+                : `Doctor still finds ${problems} problem${problems === 1 ? "" : "s"}.`,
+          ),
+          "The changes are live in this window.",
+        ]),
+      );
+    } else if (run.state === "failed" || run.state === "stopped") {
+      const failed = run.rows.find((one) => one.state === "failed");
+      const alert = callout("bad", [
+        el(
+          "div",
+          "sw-what",
+          run.state === "stopped"
+            ? "Stopped, so nothing was changed."
+            : `${failed?.title ?? "A change"} failed, so nothing was changed.`,
+        ),
+        el("div", "sw-why", run.message ?? failed?.output ?? ""),
+      ]);
+
+      alert.setAttribute("role", "alert");
+      body.append(alert);
+    }
+
+    body.append(...rowsList(run.rows, "ap"));
+  }
+
+  function renderSteps(state: WizardState) {
+    steps.replaceChildren();
+
+    stepsOf(state).forEach((one, at) => {
+      const skipped = isSkipped(state, one.key);
+      const kind = skipped
+        ? "skip"
+        : at < state.at
+          ? "done"
+          : at === state.at
+            ? "now"
+            : "";
+      const item = el("div", `sw-step ${kind}`.trim());
+
+      item.dataset.step = one.key;
+      item.append(
+        el("i", "sw-tick"),
+        el("span", "", `${kind === "done" ? "✓ " : ""}${one.name}`),
+      );
+      item.addEventListener("click", () => controller.goto(at));
+      steps.append(item);
+    });
+  }
+
+  function footer(state: WizardState) {
+    const key = currentKey(state);
+    const total = stepsOf(state).length;
+    const run = state.apply;
+
+    backButton.hidden = state.at === 0 || key === "apply";
+    backButton.textContent = "Back";
+    nextButton.disabled = !canNext(state);
+    nextButton.classList.add("sw-primary");
+    nextButton.textContent = "Next";
+    note.textContent = `Step ${state.at + 1} of ${total}`;
+    nextButton.onclick = () => controller.next();
+    backButton.onclick = () => controller.back();
+
+    if (key === "policy" && state.policy.kind === "done") {
+      const open = undecidedCards(state);
+
+      nextButton.textContent =
+        open > 0 ? `Next, leaving ${open} undecided` : "Next";
+    }
+
+    if (key === "review") {
+      const count = changesOf(state).length;
+
+      nextButton.textContent = `Apply ${count} change${count === 1 ? "" : "s"}`;
+      nextButton.onclick = () => {
+        void controller.apply();
+      };
+    }
+
+    if (key === "apply" && run !== null) {
+      nextButton.disabled = false;
+
+      if (run.state === "running") {
+        nextButton.textContent = "Stop";
+        nextButton.classList.remove("sw-primary");
+        note.textContent = `Change ${Math.min(run.rows.findIndex((one) => one.state === "running") + 1 || run.rows.length, run.rows.length)} of ${run.rows.length}`;
+        nextButton.onclick = () => {
+          void controller.stop();
+        };
+      } else if (run.state === "done") {
+        nextButton.textContent = "Close";
+        note.textContent =
+          "A log of this run is saved in .recognizer/cache/log";
+        nextButton.onclick = () => close();
+      } else {
+        nextButton.textContent = "Try again";
+        backButton.hidden = false;
+        backButton.textContent = "Back to review";
+        backButton.onclick = () => controller.backToReview();
+        note.textContent =
+          "A log of this run is saved in .recognizer/cache/log";
+        nextButton.onclick = () => {
+          void controller.apply();
+        };
+      }
+    }
+  }
+
+  function render(state: SetupState): void {
+    if (closed) {
+      return;
+    }
+
+    body.replaceChildren();
+
+    if (state.kind === "loading") {
+      title.textContent = "Set up";
+      steps.replaceChildren();
+      body.append(el("p", "sw-lead-text", "Reading the repository..."));
+      nextButton.disabled = true;
+      backButton.hidden = true;
+      note.textContent = "";
+
+      return;
+    }
+
+    if (state.kind === "unavailable") {
+      const alert = el("p", "sw-error", state.reason);
+
+      alert.setAttribute("role", "alert");
+      steps.replaceChildren();
+      body.append(el("h2", "", "Setup could not read the repository"), alert);
+      nextButton.textContent = "Close";
+      nextButton.disabled = false;
+      nextButton.onclick = () => close();
+      backButton.hidden = true;
+      note.textContent = "";
+
+      return;
+    }
+
+    const name = state.survey.repository.split("/").pop() ?? "";
+
+    title.textContent =
+      state.flow === "setup"
+        ? `Set up ${name}`
+        : `Update ${name} for Recognizer ${state.survey.version}`;
+    where.textContent = state.survey.repository;
+    renderSteps(state);
+
+    const key = currentKey(state);
+
+    if (key === "files") filesStep(state);
+    else if (key === "checks") checksStep(state);
+    else if (key === "tests") testsStep(state);
+    else if (key === "policy") policyStep(state);
+    else if (key === "changes") changesStep(state);
+    else if (key === "review") reviewStep(state);
+    else applyStep(state);
+
+    footer(state);
+  }
+
+  const off = controller.subscribe(render);
+  const ready = controller.open();
+
   render(controller.state());
+  document.body.append(scrim);
 
-  const ready = controller.open().catch((error: unknown) => {
-    message.textContent =
-      error instanceof Error ? error.message : String(error);
-    message.classList.add("bad");
-  });
-
-  return { element: scrim, ready, controller, close: closeModal };
+  return { element: scrim, ready, controller, close };
 }

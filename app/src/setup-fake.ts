@@ -1,70 +1,126 @@
-import { commandRefusal } from "recognizer";
+import {
+  type ApplyEvent,
+  buildChanges,
+  type DoctorReport,
+  type PlannedChange,
+  type Recommendation,
+  type SetupChoices,
+  type Survey,
+  type TryEvent,
+} from "recognizer";
+import loom from "../../schema/setup-survey-examples/valid/loom.json";
 import type {
+  ApplyResultEvent,
   DoctorRead,
-  SetupApplyOutcome,
-  SetupApplyResult,
-  SetupCheckResult,
+  RecommendRead,
   SetupPort,
+  SetupSurveyRead,
+  TryResultEvent,
 } from "./setup-port";
 
 export type FakeSetup = SetupPort & {
-  doctor: DoctorRead;
-  checkResult: SetupCheckResult;
+  surveyRead: SetupSurveyRead;
+  recommendation: RecommendRead;
   progress: string[];
-  scanLive: boolean;
-  failing: (argv: string[]) => { code: number; stderr: string } | null;
+  failAt: number | null;
+  notReady: Record<string, string>;
   calls: string[];
-  ran: string[][];
-  prompts: string[];
-  budgets: (number | null)[];
+  applied: SetupChoices[];
+  tried: SetupChoices[];
   gate: Promise<void> | null;
   stopped: number;
 };
 
-export const CLEAN_DOCTOR: DoctorRead = {
-  status: "ok",
-  report: {
-    repository: "/repo",
-    ok: true,
-    problems: 0,
-    warnings: 0,
-    areas: [],
-  },
+export const CLEAN_REPORT: DoctorReport = {
+  repository: "/repo",
+  ok: true,
+  problems: 0,
+  warnings: 0,
+  areas: [],
+};
+
+export const CLEAN_DOCTOR: DoctorRead = { status: "ok", report: CLEAN_REPORT };
+
+export const LOOM_SURVEY = loom as unknown as Survey;
+
+export const RECOMMENDATION: Recommendation = {
+  entries: [
+    {
+      kind: "ignore",
+      globs: ["**/*.test.ts", "scripts/**"],
+      why: "Tests import the code they test, and scripts import nothing of the app's.",
+      based_on: "14 test files",
+    },
+    {
+      kind: "entry",
+      paths: ["app/src/main.tsx"],
+      why: "Nothing imports an entry point: the runtime starts it.",
+      based_on: "app/index.html loads main.tsx",
+    },
+    {
+      kind: "forbid",
+      from: ["engine/src/application/"],
+      to: ["engine/src/adapters/"],
+      both: false,
+      why: "Application code is written against its own interfaces.",
+      based_on: "generate-scene.ts imports only application/ports",
+      today: {
+        count: 1,
+        example: "application/ports/config.ts imports adapters/model/strip.ts",
+      },
+    },
+    {
+      kind: "forbid",
+      from: ["engine/src/adapters/model/"],
+      to: ["engine/src/adapters/story/"],
+      both: true,
+      why: "One adapter calling another couples two outside things together.",
+      based_on:
+        "adapters/model and adapters/story import nothing from each other",
+      today: { count: 0, example: null },
+    },
+  ],
+  dropped: [
+    {
+      index: 4,
+      kind: "forbid",
+      summary: "app/ must not import engine/",
+      reason: "the policy already holds this rule",
+    },
+  ],
 };
 
 export function fakeSetup(options: Partial<FakeSetup> = {}): FakeSetup {
-  let handler: ((line: string) => void) | null = null;
   let release: (() => void) | null = null;
 
   const fake: FakeSetup = {
-    doctor: CLEAN_DOCTOR,
-    checkResult: { status: "cancelled" },
+    surveyRead: { status: "ok", survey: LOOM_SURVEY, doctor: CLEAN_DOCTOR },
+    recommendation: {
+      status: "proposal",
+      output: RECOMMENDATION,
+      costUsd: null,
+      durationMs: null,
+      denials: 0,
+    },
     progress: [],
-    scanLive: false,
-    failing: () => null,
+    failAt: null,
+    notReady: {},
     calls: [],
-    ran: [],
-    prompts: [],
-    budgets: [],
+    applied: [],
+    tried: [],
     gate: null,
     stopped: 0,
     ...options,
-    async readDoctor() {
-      fake.calls.push("read_doctor");
+    async survey(extract) {
+      fake.calls.push(extract ? "survey+extract" : "survey");
 
-      return fake.doctor;
+      return fake.surveyRead;
     },
-    async check(prompt, _schema, budget) {
-      fake.calls.push("run_setup_check");
-      fake.prompts.push(prompt);
-      fake.budgets.push(budget);
-
-      if (fake.scanLive) {
-        return { status: "refused", reason: "a scan is running" };
-      }
+    async recommend(_prompt, _schema, onLine) {
+      fake.calls.push("recommend");
 
       for (const line of fake.progress) {
-        handler?.(line);
+        onLine(line);
       }
 
       if (fake.gate !== null) {
@@ -79,62 +135,118 @@ export function fakeSetup(options: Partial<FakeSetup> = {}): FakeSetup {
         }
       }
 
-      return fake.checkResult;
+      return fake.recommendation;
     },
-    async apply(commands): Promise<SetupApplyResult> {
-      fake.calls.push("apply_setup");
+    async apply(choices, onEvent): Promise<ApplyResultEvent> {
+      fake.calls.push("apply");
+      fake.applied.push(choices);
 
-      const refused = commands
-        .map((argv) => commandRefusal(argv))
-        .find((reason) => reason !== null);
+      const survey = surveyOf(fake);
+      const changes = buildChanges(survey, choices).changes;
+      const ok = await run(fake, changes, onEvent);
 
-      let outcome: SetupApplyOutcome;
+      return { event: "result", ok, doctor: ok ? CLEAN_REPORT : null };
+    },
+    async tryRunners(choices, onEvent): Promise<TryResultEvent> {
+      fake.calls.push("try");
+      fake.tried.push(choices);
 
-      if (refused !== undefined && refused !== null) {
-        outcome = { status: "refused", reason: refused };
-      } else if (fake.scanLive) {
-        outcome = { status: "refused", reason: "a scan is running" };
-      } else {
-        outcome = {
-          status: "applied",
-          applied: commands.length,
-          total: commands.length,
-        };
+      const survey = surveyOf(fake);
+      const changes = buildChanges(survey, choices).changes.filter(
+        (change) =>
+          change.id.startsWith("tool-") ||
+          change.id.startsWith("tests-") ||
+          change.id.startsWith("plugin-"),
+      );
+      const ran = await run(fake, changes, onEvent, (undo) => {
+        const names = changes
+          .filter((change) => change.id.startsWith("tests-"))
+          .map((change) => change.id.slice("tests-".length));
 
-        for (const [at, argv] of commands.entries()) {
-          const failure = fake.failing(argv);
-
-          if (failure !== null) {
-            outcome = {
-              status: "failed",
-              applied: at,
-              total: commands.length,
-              command: argv,
-              code: failure.code,
-              stderr: failure.stderr,
-            };
-            break;
+        for (const runner of survey.runners) {
+          if (names.includes(runner.name)) {
+            onEvent({
+              event: "runner",
+              name: runner.name,
+              ready: fake.notReady[runner.name] === undefined,
+              detail: fake.notReady[runner.name] ?? "",
+            });
           }
-
-          fake.ran.push(argv);
         }
-      }
 
-      return { outcome, doctor: fake.doctor };
+        undo();
+      });
+
+      return {
+        event: "result",
+        ok: ran && Object.keys(fake.notReady).length === 0,
+      };
     },
     async stop() {
       fake.calls.push("stop_setup");
       fake.stopped += 1;
       release?.();
     },
-    onLine(next) {
-      handler = next;
-
-      return () => {
-        handler = null;
-      };
-    },
   };
 
   return fake;
+}
+
+function surveyOf(fake: FakeSetup): Survey {
+  return fake.surveyRead.status === "ok" ? fake.surveyRead.survey : LOOM_SURVEY;
+}
+
+async function run(
+  fake: FakeSetup,
+  changes: PlannedChange[],
+  onEvent: (event: ApplyEvent & TryEvent) => void,
+  finish?: (undo: () => void) => void,
+): Promise<boolean> {
+  onEvent({ event: "start", total: changes.length });
+
+  const done: number[] = [];
+  const undo = () => {
+    for (const index of [...done].reverse()) {
+      onEvent({ event: "change", index, state: "undone", output: "" });
+    }
+  };
+
+  for (const [index, change] of changes.entries()) {
+    onEvent({ event: "change", index, state: "running", output: "" });
+
+    if (fake.gate !== null) {
+      await Promise.race([
+        fake.gate,
+        new Promise<void>((resolve) => {
+          const poll = () =>
+            fake.stopped > 0 ? resolve() : setTimeout(poll, 5);
+
+          poll();
+        }),
+      ]);
+    }
+
+    if (fake.failAt === index || fake.stopped > 0) {
+      onEvent({
+        event: "change",
+        index,
+        state: "failed",
+        output: `${change.id} failed`,
+      });
+      undo();
+
+      return false;
+    }
+
+    done.push(index);
+    onEvent({ event: "change", index, state: "done", output: "ok" });
+  }
+
+  if (finish === undefined) {
+    return true;
+  }
+
+  finish(undo);
+
+  return true;
 }

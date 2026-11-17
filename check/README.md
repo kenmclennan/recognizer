@@ -271,7 +271,7 @@ The scan is validated, then its bytes are copied unchanged to `.recognizer/cache
 - `3`: another scan is already running on the repository; the reason on stderr names who started it, when, and its process id.
 - `4`: the preflight found a gap in a tool the ticked phases need; no describe call or sensor ran, extraction may have; each gap is one line with its fix on stderr.
 
-The app's Setup modal reads the same sources as this command table: `SETUP_SCHEMA`, `parseProposal` and `commandRefusal` in `check/src/setup-proposal.ts` are exported from the library. A proposal is a document of changes whose commands are argv lists; a command is accepted only when it is `recognizer config`, `policy`, `plugin add`, `scan` with no argument, or `sensors check` with `--run` and at most one sensor name, and never carries `--repository`. The app's Rust side enforces the same list from `fixtures/setup/commands.json`, which is the one write path from a proposal into a repository's `.recognizer/`.
+`commandRefusal` in `check/src/setup-proposal.ts` is exported from the library and checks an upgrade fix before `recognizer setup changes` builds a step from it: a command is accepted only when it is `recognizer config`, `policy`, `plugin add`, `scan` with no argument, or `sensors check` with `--run` and at most one sensor name, and never carries `--repository`. `fixtures/setup/commands.json` is the grammar's fixture.
 
 ## recognizer config
 

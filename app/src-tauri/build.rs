@@ -1,7 +1,6 @@
 fn main() {
     let commands = tauri_build::AppManifest::new().commands(&[
         "adopt_scan",
-        "apply_setup",
         "answer_describe",
         "answer_window_drive",
         "change_range",
@@ -13,7 +12,6 @@ fn main() {
         "publish_window_state",
         "range_members",
         "read_describing",
-        "read_doctor",
         "read_findings",
         "read_overlays",
         "read_recent_views",
@@ -30,7 +28,10 @@ fn main() {
         "read_scan_cache",
         "read_scan_ticks",
         "run_scan",
-        "run_setup_check",
+        "setup_apply",
+        "setup_recommend",
+        "setup_survey",
+        "setup_try",
         "scans_at",
         "shipped_sensors",
         "shipped_describer",
