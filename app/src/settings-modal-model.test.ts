@@ -84,10 +84,9 @@ describe("repositorySections", () => {
   const names = (list: ReturnType<typeof shipped>) =>
     repositorySections(list, PUBLISHED).map((section) => section.name);
 
-  it("lists Structure, Duplication and the suites for a crap-only toolchain", () => {
+  it("lists Structural analysis and the suites for a crap-only toolchain", () => {
     expect(names(shipped("crap"))).toEqual([
-      "Structure",
-      "Duplication",
+      "Structural analysis",
       "C.R.A.P.",
       "Test suites",
     ]);
@@ -95,8 +94,7 @@ describe("repositorySections", () => {
 
   it("lists the three real sensors' panes in the approved order", () => {
     expect(names(shipped("crap", "mutation"))).toEqual([
-      "Structure",
-      "Duplication",
+      "Structural analysis",
       "C.R.A.P.",
       "Mutation",
       "Test suites",
@@ -161,11 +159,11 @@ describe("repositorySections", () => {
       repositorySections(shipped("crap", "mutation"), keys).map(
         (section) => section.name,
       ),
-    ).toEqual(["Structure", "Duplication", "C.R.A.P.", "Test suites"]);
+    ).toEqual(["Structural analysis", "C.R.A.P.", "Test suites"]);
   });
 
-  it("lists only Structure and Duplication when no sensor is shipped", () => {
-    expect(names([])).toEqual(["Structure", "Duplication"]);
+  it("lists only Structural analysis when no sensor is shipped", () => {
+    expect(names([])).toEqual(["Structural analysis"]);
   });
 
   it("drops the section of a sensor the key schema stops publishing", () => {
@@ -175,11 +173,35 @@ describe("repositorySections", () => {
       repositorySections(shipped("crap", "mutation"), core).map(
         (section) => section.name,
       ),
-    ).toEqual(["Structure", "Duplication"]);
+    ).toEqual(["Structural analysis"]);
   });
 });
 
 describe("the repository model", () => {
+  it("groups the duplication and complexity limits under Structural analysis", () => {
+    const sections = repositorySections([], PUBLISHED);
+    const analysis = sections.filter(
+      (section) => section.name === "Structural analysis",
+    );
+
+    expect(analysis).toHaveLength(1);
+    expect(sections.map((section) => section.id)).not.toContain("duplication");
+
+    const labels = sectionSpecs([], PUBLISHED)
+      .find((spec) => spec.id === "structure")
+      ?.fields.map((field) => field.label);
+
+    expect(labels).toContain("Complexity");
+    expect(labels).toEqual(
+      expect.arrayContaining([
+        "Duplication similarity",
+        "Duplication - fewest lines compared",
+        "Duplication - shorter of a pair",
+        "Duplication - fewest syntax nodes",
+      ]),
+    );
+  });
+
   const model = (config: string | null = null) =>
     createRepositoryModel(PUBLISHED, config);
   const LIMIT = "sensors.structure.warnings.long_function.limit";
@@ -192,8 +214,8 @@ describe("the repository model", () => {
       "sensors:\n  structure:\n    duplication:\n      min_lines: 6\n",
     );
 
-    expect(equal.sectionChanged("duplication")).toBe(false);
-    expect(differs.sectionChanged("duplication")).toBe(true);
+    expect(equal.sectionChanged("structure")).toBe(false);
+    expect(differs.sectionChanged("structure")).toBe(true);
     expect(
       differs.defaultShown("sensors.structure.duplication.min_lines"),
     ).toEqual({ kind: "figure", text: "4" });
@@ -204,7 +226,7 @@ describe("the repository model", () => {
       "sensors:\n  structure:\n    duplication:\n      min_lines: 6\n      min_nodes: 30\n",
     );
 
-    changed.resetSection("duplication");
+    changed.resetSection("structure");
 
     expect(changed.edits()).toEqual([
       { op: "unset", key: "sensors.structure.duplication.min_lines" },
@@ -364,7 +386,7 @@ describe("checkSetup", () => {
   });
 });
 
-describe("the Structure section's complexity field", () => {
+describe("the Structural analysis section's complexity field", () => {
   it("has the Complexity limit with its switch after Long function", () => {
     const structure = sectionSpecs(shipped("crap", "mutation"), PUBLISHED).find(
       (section) => section.id === "structure",

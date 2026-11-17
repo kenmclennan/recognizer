@@ -53,7 +53,7 @@ Every sensor writes `recognizer-event` lines on stderr, always: `crap` a `note` 
 
 ## duplication
 
-There is no `duplication` sensor here any more. The duplication check is part of the structure sensor in `check/` (`check/src/duplication/`, settings under `sensors.structure.duplication`) and runs with every `recognizer scan`; `check/README.md` describes it. This package keeps `functions.py`, `identity.py` and `parsing.py` for C.R.A.P. and Mutation, and `sensors/tests/test_function_identities.py` pins their function identities to the goldens the TypeScript port is tested against.
+There is no `duplication` sensor here any more. The duplication check is part of structural analysis in `check/` (`check/src/duplication/`, settings under `sensors.structure.duplication`) and runs with every `recognizer scan`; `check/README.md` describes it. This package keeps `functions.py`, `identity.py` and `parsing.py` for C.R.A.P. and Mutation, and `sensors/tests/test_function_identities.py` pins their function identities to the goldens the TypeScript port is tested against.
 
 ## mutation
 

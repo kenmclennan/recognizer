@@ -5,6 +5,7 @@ import {
   type ScanRunRecord,
 } from "recognizer";
 import type { ScanOrigin } from "./footer-scan";
+import { ANALYSIS_KEY } from "./freshness-model";
 import { loadedUnchanged, sameStructure } from "./loaded-unchanged";
 import type { MessageAction, MessageInput } from "./message-tray";
 import { runLogPath } from "./run-log-path";
@@ -86,6 +87,7 @@ export type Rescanner = {
 
 const DEFAULT_TICKS: ScanTicks = {
   describe: false,
+  analysis: true,
   ticked: [],
   once: [],
   onlyView: false,
@@ -140,6 +142,7 @@ export function createRescanner<Carried>(
   let ticks: ScanTicks = DEFAULT_TICKS;
   let remembered = false;
   let ticksLoaded = false;
+  let analysisPlanned = true;
   let run: RunState = NO_RUN;
   let progress: ScanProgress = NO_PROGRESS;
   let current: Promise<void> = Promise.resolve();
@@ -218,6 +221,7 @@ export function createRescanner<Carried>(
 
     await ports.port.writeTicks({
       describe: ticks.describe,
+      analysis: ticks.analysis,
       ticked: (ticks.ticked ?? plain).filter((name) => plain.includes(name)),
       onlyView: ticks.onlyView,
       suites: ticks.suites,
@@ -796,6 +800,7 @@ export function createRescanner<Carried>(
     };
 
     heading = planned?.progress ?? null;
+    analysisPlanned = plan.analysis;
 
     if (!remembered) {
       await writeTicks(registered);
@@ -804,6 +809,9 @@ export function createRescanner<Carried>(
     failureIds = [];
     adoptedThisScan = false;
     rows = [
+      ...(plan.analysis
+        ? [{ key: ANALYSIS_KEY, display: "Structural analysis" }]
+        : []),
       ...(plan.describe
         ? [{ key: DESCRIBE_KEY, display: "Descriptions" }]
         : []),
@@ -815,7 +823,11 @@ export function createRescanner<Carried>(
     ];
 
     run = {
-      running: [...(plan.describe ? [DESCRIBE_KEY] : []), ...plan.sense],
+      running: [
+        ...(plan.analysis ? [ANALYSIS_KEY] : []),
+        ...(plan.describe ? [DESCRIBE_KEY] : []),
+        ...plan.sense,
+      ],
       started: null,
       failures: run.failures,
       diagnoses: run.diagnoses,
@@ -947,6 +959,7 @@ export function createRescanner<Carried>(
 
     ticks = {
       describe: stored.describe,
+      analysis: stored.analysis !== false,
       ticked: stored.ticked ?? (stored.sensors ? null : []),
       once: ticks.once,
       onlyView: stored.onlyView === true,
@@ -1031,6 +1044,7 @@ export function createRescanner<Carried>(
       adoptedAtOpen,
       awakeNow: now(),
       startedAwake: startedAwake(),
+      analysis: analysisPlanned,
     }),
   };
 }

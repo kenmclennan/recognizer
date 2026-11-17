@@ -169,7 +169,13 @@ describe("parseScanArgs", () => {
       json: false,
       by: undefined,
       ignoreRetiredConfig: false,
+      analysis: true,
     });
+  });
+
+  it("parses --skip-analysis", () => {
+    expect(parseScanArgs(["--skip-analysis"]).analysis).toBe(false);
+    expect(parseScanArgs([]).analysis).toBe(true);
   });
 
   it("reads --ignore-retired-config and refuses it with --describe or --sense", () => {

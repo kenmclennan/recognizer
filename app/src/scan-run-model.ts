@@ -17,6 +17,7 @@ export type RunInput = {
   adoptedAtOpen: string | null;
   awakeNow?: number;
   startedAwake?: number | null;
+  analysis?: boolean;
 };
 
 export type RunView = RunInput & { display: (name: string) => string };
@@ -441,7 +442,9 @@ function timeLeft(
         : startedWall;
   const left = remaining({
     parts: [
-      { key: "structure", name: "Structure" },
+      ...(view.analysis === false
+        ? []
+        : [{ key: "structure", name: "Structural analysis" }]),
       ...(record.describe
         ? [{ key: "describe", name: DESCRIPTIONS_NAME }]
         : []),

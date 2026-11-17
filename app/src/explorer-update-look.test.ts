@@ -58,7 +58,7 @@ const shown = () => ({
   transform: q(".world").getAttribute("transform"),
   panel: q(".findings-panel") !== null && getComputedStyle(q(".findings-panel")).display !== "none",
   badge: [q(".rail-findings .rail-count"), q(".findings-line")].map((n) => (n === null ? null : n.textContent)).join("|"),
-  metrics: qa(".metric-row").map((r) => r.dataset.metric),
+  metrics: qa(".metric-row").map((r) => r.dataset.metric).filter((key) => !key.startsWith("structure/")),
 });
 
 (async () => {

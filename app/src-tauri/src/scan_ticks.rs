@@ -18,6 +18,8 @@ pub struct SuiteTicks {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StoredTicks {
     pub describe: bool,
+    #[serde(default = "yes")]
+    pub analysis: bool,
     #[serde(default, skip_serializing)]
     pub measure: bool,
     #[serde(default, skip_serializing)]
@@ -36,12 +38,17 @@ pub struct StoredTicks {
 #[derive(Debug, PartialEq, Serialize)]
 pub struct ScanTicks {
     pub describe: bool,
+    pub analysis: bool,
     pub ticked: Option<Vec<String>>,
     #[serde(rename = "onlyView")]
     pub only_view: bool,
     pub remembered: bool,
     pub suites: BTreeMap<String, SuiteTicks>,
     pub folds: Vec<String>,
+}
+
+fn yes() -> bool {
+    true
 }
 
 pub fn ticks_file_in(config_dir: &Path) -> PathBuf {
@@ -59,6 +66,7 @@ pub fn read(path: &Path, folder: &Path) -> ScanTicks {
     match read_all(path).remove(&folder.display().to_string()) {
         Some(stored) => ScanTicks {
             describe: stored.describe,
+            analysis: stored.analysis,
             ticked: Some(if stored.sensors == Some(false) {
                 Vec::new()
             } else {
@@ -71,6 +79,7 @@ pub fn read(path: &Path, folder: &Path) -> ScanTicks {
         },
         None => ScanTicks {
             describe: false,
+            analysis: true,
             ticked: Some(Vec::new()),
             only_view: false,
             remembered: false,
@@ -120,6 +129,7 @@ mod tests {
     fn stored(describe: bool, ticked: &[&str]) -> StoredTicks {
         StoredTicks {
             describe,
+            analysis: true,
             measure: false,
             overlays: vec![],
             sensors: None,
@@ -128,6 +138,29 @@ mod tests {
             suites: BTreeMap::new(),
             folds: Vec::new(),
         }
+    }
+
+    #[test]
+    fn reads_analysis_true_from_a_file_without_it() {
+        let dir = TempDir::new().unwrap();
+        let file = ticks_file_in(dir.path());
+
+        fs::write(&file, r#"{"/repo":{"describe":true,"ticked":["a"]}}"#).unwrap();
+
+        assert!(read(&file, Path::new("/repo")).analysis);
+    }
+
+    #[test]
+    fn round_trips_analysis_false() {
+        let dir = TempDir::new().unwrap();
+        let file = ticks_file_in(dir.path());
+        let mut off = stored(false, &[]);
+
+        off.analysis = false;
+
+        write(&file, Path::new("/repo"), off).unwrap();
+
+        assert!(!read(&file, Path::new("/repo")).analysis);
     }
 
     #[test]
@@ -147,6 +180,7 @@ mod tests {
             read(&file, Path::new("/repo")),
             ScanTicks {
                 describe: false,
+                analysis: true,
                 ticked: Some(vec![]),
                 only_view: false,
                 remembered: false,
@@ -167,6 +201,7 @@ mod tests {
             read(&file, Path::new("/repo")),
             ScanTicks {
                 describe: true,
+                analysis: true,
                 ticked: Some(vec!["a".to_string()]),
                 only_view: false,
                 remembered: true,
@@ -192,6 +227,7 @@ mod tests {
             read(&file, Path::new("/repo")),
             ScanTicks {
                 describe: true,
+                analysis: true,
                 ticked: Some(vec![]),
                 only_view: false,
                 remembered: true,

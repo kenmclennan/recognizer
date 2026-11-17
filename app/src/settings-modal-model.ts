@@ -118,7 +118,7 @@ const COMPLEXITY_KEY = `${WARNINGS}.complexity`;
 const APP_SECTION_SPECS: SectionSpec[] = [
   {
     id: "structure",
-    name: "Structure",
+    name: "Structural analysis",
     fields: [
       {
         label: "Long function",
@@ -150,32 +150,26 @@ const APP_SECTION_SPECS: SectionSpec[] = [
         key: `${WARNINGS}.unused_exports`,
         control: "switch",
       },
-    ],
-  },
-  {
-    id: "duplication",
-    name: "Duplication",
-    fields: [
       {
-        label: "Similarity",
+        label: "Duplication similarity",
         key: `${DUPLICATION}.threshold`,
         control: "number",
         unit: "above 0, at most 1",
       },
       {
-        label: "Fewest lines compared",
+        label: "Duplication - fewest lines compared",
         key: `${DUPLICATION}.min_lines`,
         control: "number",
         unit: "lines",
       },
       {
-        label: "Shorter of a pair",
+        label: "Duplication - shorter of a pair",
         key: `${DUPLICATION}.pair_min_lines`,
         control: "number",
         unit: "lines",
       },
       {
-        label: "Fewest syntax nodes",
+        label: "Duplication - fewest syntax nodes",
         key: `${DUPLICATION}.min_nodes`,
         control: "number",
         unit: "nodes",

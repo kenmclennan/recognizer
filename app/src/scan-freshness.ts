@@ -158,6 +158,7 @@ export const OPEN_RUN: PlannedRun = {
   plan: {
     describe: false,
     describeAll: false,
+    analysis: true,
     sense: [],
     modules: null,
   },
@@ -287,6 +288,7 @@ export function planFor(
       plan: {
         describe: phases.describe,
         describeAll: true,
+        analysis: ticks.analysis,
         sense: phases.sense,
         modules: scope !== null && any ? scope : null,
         suites: suitesForSense(phases.sense, phases.suites),
@@ -344,6 +346,7 @@ export function planFor(
     plan: {
       describe,
       describeAll: false,
+      analysis: ticks.analysis,
       sense,
       modules: planModules,
       suites: suitesForSense(sense, phases.suites),

@@ -269,6 +269,7 @@ describe("planFor", () => {
   ];
   const ticks: ScanTicks = {
     describe: true,
+    analysis: true,
     ticked: ["crap"],
     once: ["mutation"],
     onlyView: false,
@@ -298,6 +299,7 @@ describe("planFor", () => {
     expect(planned.plan).toEqual({
       describe: true,
       describeAll: false,
+      analysis: true,
       sense: ["mutation"],
       modules: ["a.py", "b.py", "c.py"],
     });
@@ -315,6 +317,7 @@ describe("planFor", () => {
     const both: ScanTicks = {
       ...ticks,
       describe: false,
+      analysis: true,
       ticked: [],
       once: ["mutation", "other"],
     };
@@ -360,6 +363,7 @@ describe("planFor", () => {
     expect(planned.plan).toEqual({
       describe: false,
       describeAll: false,
+      analysis: true,
       sense: ["crap"],
       modules: null,
     });
@@ -387,6 +391,7 @@ describe("planFor", () => {
     expect(planned.plan).toEqual({
       describe: false,
       describeAll: false,
+      analysis: true,
       sense: [],
       modules: null,
     });
@@ -456,6 +461,7 @@ describe("planFor", () => {
     expect(planned.plan).toEqual({
       describe: true,
       describeAll: true,
+      analysis: true,
       sense: ["crap", "mutation"],
       modules: ["a.py", "b.py"],
     });
@@ -472,6 +478,7 @@ describe("planFor", () => {
       "rescan",
       {
         describe: false,
+        analysis: true,
         ticked: [],
         once: [],
         onlyView: false,
@@ -502,6 +509,7 @@ describe("a sensor-only gap", () => {
     );
   const ticks: ScanTicks = {
     describe: false,
+    analysis: true,
     ticked: ["crap"],
     once: [],
     onlyView: false,

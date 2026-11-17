@@ -14,11 +14,14 @@ import {
   type PanelInput,
   type RowSensor,
 } from "./scan-panel-model";
+import { scansCommit } from "./scans-commit";
 import { sensorArmed } from "./suite-ticks";
 
 export { DESCRIBE_KEY };
 
-export const STRUCTURE_KEY = "structure";
+export const SCAN_KEY = "scan";
+
+export const ANALYSIS_KEY = "structure";
 
 export type ResultState =
   | { kind: "current"; at: number | null }
@@ -133,8 +136,12 @@ export function stateText(state: ResultState, now: number): StateText {
 }
 
 function isTicked(input: PanelInput, sensors: RowSensor[], key: string) {
-  if (key === STRUCTURE_KEY) {
+  if (key === SCAN_KEY) {
     return true;
+  }
+
+  if (key === ANALYSIS_KEY) {
+    return input.ticks.analysis;
   }
 
   if (key === DESCRIBE_KEY) {
@@ -189,7 +196,7 @@ function runningState(
     return null;
   }
 
-  if (key === STRUCTURE_KEY) {
+  if (key === SCAN_KEY) {
     return input.extracting === true
       ? { kind: "running", done: null, total: null }
       : null;
@@ -350,8 +357,8 @@ function describeState(
   };
 }
 
-function structureState(input: PanelInput, modules: string[]): ResultState {
-  const running = runningState(STRUCTURE_KEY, input);
+function scanState(input: PanelInput, modules: string[]): ResultState {
+  const running = runningState(SCAN_KEY, input);
 
   if (running !== null) {
     return running;
@@ -366,6 +373,54 @@ function structureState(input: PanelInput, modules: string[]): ResultState {
   return changed.length > 0
     ? { kind: "out-of-date", modules: changed }
     : { kind: "current", at: input.scan.scannedAt };
+}
+
+function analysisState(input: PanelInput, modules: string[]): ResultState {
+  const running = runningState(ANALYSIS_KEY, input);
+
+  if (running !== null) {
+    return running;
+  }
+
+  const failed = failureAt(ANALYSIS_KEY, input);
+
+  if (failed !== null) {
+    return { kind: "failed", at: failed.at };
+  }
+
+  const status = input.sensors.find(({ name }) => name === ANALYSIS_KEY);
+
+  if (
+    status === undefined ||
+    status.status === "off" ||
+    status.status === "not run" ||
+    (input.scan === null && status.commit === undefined)
+  ) {
+    return { kind: "never-run" };
+  }
+
+  const at =
+    input.run.ranAt[ANALYSIS_KEY] ??
+    status.modifiedMs ??
+    input.scan?.scannedAt ??
+    null;
+
+  if (status.commit === undefined || input.scans === undefined) {
+    return { kind: "current", at };
+  }
+
+  const { commit, modified } = scansCommit(input.scans);
+
+  if (status.commit === commit && status.modified === modified) {
+    return { kind: "current", at };
+  }
+
+  const changed = structureChanged(input, modules);
+
+  return {
+    kind: "out-of-date",
+    modules: changed.length > 0 ? changed : [...modules],
+  };
 }
 
 function shortModule(id: string): string {
@@ -462,11 +517,11 @@ function summarize(
     .join("");
   const tickedBehind = rows.filter(
     ({ key, state }) =>
-      key !== STRUCTURE_KEY && ticked(key) && state.kind === "out-of-date",
+      key !== SCAN_KEY && ticked(key) && state.kind === "out-of-date",
   );
   const behind = rows.filter(
     ({ key, state }) =>
-      key !== STRUCTURE_KEY && !ticked(key) && state.kind === "out-of-date",
+      key !== SCAN_KEY && !ticked(key) && state.kind === "out-of-date",
   );
   const behindSentence =
     behind.length === 0
@@ -585,9 +640,14 @@ function actionOf(
   );
 
   if (runnable.length > 0) {
+    const named = runnable.filter(({ key }) => key !== SCAN_KEY);
+
     return {
       primary: {
-        label: `Run ${joinNames(runnable.map(({ name }) => name))}`,
+        label:
+          named.length === runnable.length
+            ? `Run ${joinNames(named.map(({ name }) => name))}`
+            : "Run",
         disabled: false,
       },
       mode,
@@ -596,7 +656,7 @@ function actionOf(
 
   const untickedStale = rows.filter(
     ({ key, state }) =>
-      key !== STRUCTURE_KEY &&
+      key !== SCAN_KEY &&
       !ticked(key) &&
       (state.kind === "out-of-date" ||
         state.kind === "failed" ||
@@ -640,7 +700,7 @@ function findingsLine(
   }
 
   const sensors = rows.filter(
-    ({ key }) => key !== STRUCTURE_KEY && key !== DESCRIBE_KEY,
+    ({ key }) => key !== SCAN_KEY && key !== DESCRIBE_KEY,
   );
   const failed = sensors.filter(({ state }) => state.kind === "failed");
   const never = sensors.filter(({ state }) => state.kind === "never-run");
@@ -742,10 +802,17 @@ export function buildFreshnessModel(
   const gaps = new Map<string, string[]>();
   const rows: ResultRow[] = [
     {
-      key: STRUCTURE_KEY,
+      key: SCAN_KEY,
       name: "Structure",
-      state: structureState(input, modules),
+      state: scanState(input, modules),
       tickable: false,
+      scoped: false,
+    },
+    {
+      key: ANALYSIS_KEY,
+      name: "Structural analysis",
+      state: analysisState(input, modules),
+      tickable: true,
       scoped: false,
     },
     ...(describerRegistered(input.config)
@@ -800,7 +867,7 @@ export function buildFreshnessModel(
       input,
       rows.filter(
         ({ key, tickable }) =>
-          key === DESCRIBE_KEY || key === STRUCTURE_KEY || tickable,
+          key === DESCRIBE_KEY || key === SCAN_KEY || tickable,
       ),
       changed,
       ticked,

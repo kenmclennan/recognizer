@@ -9,10 +9,11 @@ import {
 import { scopeCaption } from "./findings-scope";
 import { ageText, type ScanState } from "./footer-scan";
 import {
+  ANALYSIS_KEY,
   buildFreshnessModel,
   type FreshnessModel,
   type ResultState,
-  STRUCTURE_KEY,
+  SCAN_KEY,
   type StateText,
   stateText,
 } from "./freshness-model";
@@ -86,6 +87,7 @@ export { DESCRIBE_KEY };
 
 export type ScanTicks = {
   describe: boolean;
+  analysis: boolean;
   ticked: string[] | null;
   once: string[];
   onlyView: boolean;
@@ -96,6 +98,7 @@ export type ScanTicks = {
 export type ScanPlan = {
   describe: boolean;
   describeAll: boolean;
+  analysis: boolean;
   sense: string[];
   modules: string[] | null;
   suites?: Record<string, string[]>;
@@ -343,6 +346,7 @@ export function phasesFor(
     plan: {
       describe: ticks.describe,
       describeAll: false,
+      analysis: ticks.analysis,
       sense,
       modules: null,
       suites: planned.suites,
@@ -477,17 +481,22 @@ function header(
   };
 }
 
-function structureNote(input: PanelInput): string | null {
-  const status = input.sensors.find(({ name }) => name === STRUCTURE_KEY);
+function analysisNote(input: PanelInput): string | null {
+  const status = input.sensors.find(({ name }) => name === ANALYSIS_KEY);
+  const notes = [
+    ...(status?.notMeasured?.includes("duplication") === true
+      ? ["Duplication: run a scan"]
+      : []),
+    ...(status?.notMeasured?.includes("complexity") === true
+      ? ["Complexity: run a scan"]
+      : []),
+  ];
 
-  return status?.notMeasured?.includes("duplication") === true
-    ? "Duplication: run a scan"
-    : null;
+  return notes.length === 0 ? null : notes.join(". ");
 }
 
-function structureTitle(): string {
-  return "Structure always runs";
-}
+const ANALYSIS_TITLE =
+  "Finds import cycles, files nothing imports, unused exports, private imports, long or complex functions, duplication and policy violations. Runs with every scan and needs no tests.";
 
 export function scanPanel(given: PanelInput): ScanPanelModel {
   const sensors = rowSensors(given.config, given.shipped);
@@ -563,14 +572,14 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
     .filter(({ runsTests }) => !runsTests)
     .map(({ name }) => name);
   const titles = new Map<string, string>([
-    [STRUCTURE_KEY, structureTitle()],
+    [ANALYSIS_KEY, ANALYSIS_TITLE],
     [DESCRIBE_KEY, DESCRIBE_TITLE],
     ...sensors.map((one): [string, string] => [one.name, one.title]),
   ]);
 
   const plainTicked = (key: string, runsTests: boolean | undefined): boolean =>
-    key === STRUCTURE_KEY
-      ? true
+    key === ANALYSIS_KEY
+      ? input.ticks.analysis
       : key === DESCRIBE_KEY
         ? input.ticks.describe
         : runsTests === true
@@ -583,7 +592,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
     freshness.rows
       .filter(
         (row) =>
-          row.key !== STRUCTURE_KEY &&
+          row.key !== SCAN_KEY &&
           plainTicked(
             row.key,
             sensors.find((one) => one.name === row.key)?.runsTests,
@@ -605,105 +614,109 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
     input.runView?.progress.sensorProgress ?? input.sensorProgress;
   const sensing = input.runView?.progress.sensing ?? null;
 
-  const rows: ScanRow[] = freshness.rows.map((row) => {
-    const structure = row.key === STRUCTURE_KEY;
-    const sensor = sensors.find((one) => one.name === row.key);
-    const names = (sensor?.suites ?? []).map(({ name }) => name);
-    const foldable = sensor?.runsTests === true && names.length > 0;
-    const full = stateText(row.state, input.now);
-    const note =
-      row.key === DESCRIBE_KEY
-        ? judged.describeStop != null
-          ? describeStopText(judged.describeStop)
-          : judged.describeSkipped === true
-            ? "skipped this scan"
-            : null
-        : structure
-          ? structureNote(judged)
-          : stoppedNote(row.key, judged);
-    const why =
-      structure || row.key === DESCRIBE_KEY ? null : whyFor(row.key, judged);
-    const titled = [
-      full.text,
-      ...(why === null ? [] : [why.segments.map(({ text }) => text).join("")]),
-      ...(note === null ? [] : [note]),
-    ].join(": ");
-    const base = {
-      key: row.key,
-      name: row.name,
-      tickable: row.tickable,
-      disabled: structure || locked,
-      state: row.state,
-      note,
-      why,
-      title: titles.get(row.key) ?? row.name,
-    };
+  const rows: ScanRow[] = freshness.rows
+    .filter((row) => row.key !== SCAN_KEY)
+    .map((row) => {
+      const structure = row.key === ANALYSIS_KEY;
+      const sensor = sensors.find((one) => one.name === row.key);
+      const names = (sensor?.suites ?? []).map(({ name }) => name);
+      const foldable = sensor?.runsTests === true && names.length > 0;
+      const full = stateText(row.state, input.now);
+      const note =
+        row.key === DESCRIBE_KEY
+          ? judged.describeStop != null
+            ? describeStopText(judged.describeStop)
+            : judged.describeSkipped === true
+              ? "skipped this scan"
+              : null
+          : structure
+            ? analysisNote(judged)
+            : stoppedNote(row.key, judged);
+      const why =
+        structure || row.key === DESCRIBE_KEY ? null : whyFor(row.key, judged);
+      const titled = [
+        full.text,
+        ...(why === null
+          ? []
+          : [why.segments.map(({ text }) => text).join("")]),
+        ...(note === null ? [] : [note]),
+      ].join(": ");
+      const base = {
+        key: row.key,
+        name: row.name,
+        tickable: row.tickable,
+        disabled: locked,
+        state: row.state,
+        note,
+        why,
+        title: titles.get(row.key) ?? row.name,
+      };
 
-    if (foldable && sensor !== undefined) {
-      const ticked = tickedSuites(input.ticks.suites, row.key, names);
-      const results = statuses.find((one) => one.name === row.key)?.suites;
-      const live =
-        (input.scanning || run?.active === true) &&
-        progress != null &&
-        progress.name === row.key &&
-        (sensing === null || sensing === row.key)
-          ? runningOf(progress, names)
-          : null;
-      const summary = foldSummary({
-        all: names.length,
-        results: tickedResults(sensor.suites ?? [], ticked, results),
-        running: live,
-        now: input.now,
-      });
-      const tick = sensorTickState(input.ticks, row.key, names);
+      if (foldable && sensor !== undefined) {
+        const ticked = tickedSuites(input.ticks.suites, row.key, names);
+        const results = statuses.find((one) => one.name === row.key)?.suites;
+        const live =
+          (input.scanning || run?.active === true) &&
+          progress != null &&
+          progress.name === row.key &&
+          (sensing === null || sensing === row.key)
+            ? runningOf(progress, names)
+            : null;
+        const summary = foldSummary({
+          all: names.length,
+          results: tickedResults(sensor.suites ?? [], ticked, results),
+          running: live,
+          now: input.now,
+        });
+        const tick = sensorTickState(input.ticks, row.key, names);
+
+        return {
+          ...base,
+          ticked: tick === "on",
+          tick,
+          tone: summary.tone,
+          text: { icon: summary.icon, text: summary.text },
+          stateTitle: `${summary.text}`,
+          fold: {
+            open: input.ticks.folds.includes(row.key),
+            suites: suiteRows({
+              sensor: row.key,
+              suites: sensor.suites ?? [],
+              ticked: visibleSuiteTicks(input.ticks, row.key, names),
+              results,
+              running: live,
+              locked,
+              now: input.now,
+            }),
+          },
+        };
+      }
+
+      const current =
+        row.state.kind === "current" && row.state.at !== null
+          ? { icon: full.icon, text: shortAge(input.now - row.state.at) }
+          : full;
+      const isTicked = structure
+        ? input.ticks.analysis
+        : row.key === DESCRIBE_KEY
+          ? input.ticks.describe
+          : sensor?.runsTests === true
+            ? input.ticks.once.includes(row.key)
+            : (input.ticks.ticked ?? plain).includes(row.key);
 
       return {
         ...base,
-        ticked: tick === "on",
-        tick,
-        tone: summary.tone,
-        text: { icon: summary.icon, text: summary.text },
-        stateTitle: `${summary.text}`,
-        fold: {
-          open: input.ticks.folds.includes(row.key),
-          suites: suiteRows({
-            sensor: row.key,
-            suites: sensor.suites ?? [],
-            ticked: visibleSuiteTicks(input.ticks, row.key, names),
-            results,
-            running: live,
-            locked,
-            now: input.now,
-          }),
-        },
+        ticked: isTicked,
+        tick: isTicked ? "on" : "off",
+        tone: null,
+        text:
+          run?.partial?.sensor === row.key
+            ? { icon: "circle-dashed", text: run.partial.text }
+            : current,
+        stateTitle: titled,
+        fold: null,
       };
-    }
-
-    const current =
-      row.state.kind === "current" && row.state.at !== null
-        ? { icon: full.icon, text: shortAge(input.now - row.state.at) }
-        : full;
-    const isTicked = structure
-      ? true
-      : row.key === DESCRIBE_KEY
-        ? input.ticks.describe
-        : sensor?.runsTests === true
-          ? input.ticks.once.includes(row.key)
-          : (input.ticks.ticked ?? plain).includes(row.key);
-
-    return {
-      ...base,
-      ticked: isTicked,
-      tick: isTicked ? "on" : "off",
-      tone: null,
-      text:
-        run?.partial?.sensor === row.key
-          ? { icon: "circle-dashed", text: run.partial.text }
-          : current,
-      stateTitle: titled,
-      fold: null,
-    };
-  });
+    });
 
   return {
     header: header(input, run),

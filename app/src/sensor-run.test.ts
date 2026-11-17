@@ -36,6 +36,54 @@ describe("senseRepository", () => {
     expect(run.documents[0]?.commit).toBe(CURRENT);
   });
 
+  it("does not run or write the analysis when it is unticked", async () => {
+    const first = fakeSensors();
+
+    await senseRepository(scans, { policy, config: null }, first);
+
+    const stored = first.written[0] as string;
+    const unticked = fakeSensors({ structure: stored });
+    const run = await senseRepository(
+      scans,
+      { policy, config: null, analysis: false },
+      unticked,
+    );
+
+    expect(unticked.written).toEqual([]);
+    expect(run.documents[0]?.commit).toBe(CURRENT);
+    expect(statusOf(run, "structure")).toMatchObject({
+      name: "structure",
+      status: "ran",
+      commit: CURRENT,
+    });
+
+    const ticked = fakeSensors({ structure: stored });
+
+    await senseRepository(
+      scans,
+      { policy, config: null, analysis: true },
+      ticked,
+    );
+
+    expect(ticked.written).toHaveLength(1);
+  });
+
+  it("reports not run when it is unticked and there is no stored file", async () => {
+    const port = fakeSensors();
+    const run = await senseRepository(
+      scans,
+      { policy, config: null, analysis: false },
+      port,
+    );
+
+    expect(port.written).toEqual([]);
+    expect(run.documents).toEqual([]);
+    expect(statusOf(run, "structure")).toEqual({
+      name: "structure",
+      status: "not run",
+    });
+  });
+
   it("carries the stored duplication findings through a rewrite of the structure file", async () => {
     const first = await senseRepository(
       scans,

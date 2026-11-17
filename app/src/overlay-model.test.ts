@@ -4,7 +4,7 @@ import { NO_CHANGES } from "./footer-scan";
 import { type ResultRow, type ResultState, stateText } from "./freshness-model";
 import {
   applyFreshness,
-  buildOverlayModel,
+  buildOverlayModel as buildWithAnalysis,
   currentMetricNamed,
   freshnessNote,
   groupHeader,
@@ -17,6 +17,21 @@ import {
 import { NO_RUN, type PanelInput, scanPanel } from "./scan-panel-model";
 import type { SensorStatus, ShippedSensors } from "./sensor-run";
 import { plainSensor, shippedSensors } from "./shipped-fake";
+
+function buildOverlayModel(
+  files: Parameters<typeof buildWithAnalysis>[0],
+  context?: Parameters<typeof buildWithAnalysis>[1],
+): ReturnType<typeof buildWithAnalysis> {
+  const model = buildWithAnalysis(files, context);
+
+  if (files.some(({ name }) => name === "structure")) {
+    return model;
+  }
+
+  const groups = model.groups.filter(({ name }) => name !== "structure");
+
+  return { ...model, groups, metrics: groups.flatMap((one) => one.metrics) };
+}
 
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const H1 = "1".repeat(64);
@@ -83,6 +98,7 @@ const panel = (sensors: PanelInput["sensors"]) =>
     describedAt: null,
     ticks: {
       describe: false,
+      analysis: true,
       ticked: [],
       once: [],
       onlyView: false,
@@ -148,7 +164,7 @@ function only(
 }
 
 describe("tooltips and per-module freshness", () => {
-  const text = overlay([{ name: "complexity" }], {});
+  const text = overlay([{ name: "coverage" }], {});
 
   it("gives the commit as provenance in the tooltip", () => {
     const model = buildOverlayModel([{ name: "crap", text }]);
@@ -157,7 +173,7 @@ describe("tooltips and per-module freshness", () => {
   });
 
   it("appends the modified tree", () => {
-    const modified = overlay([{ name: "complexity" }], {}, { modified: true });
+    const modified = overlay([{ name: "coverage" }], {}, { modified: true });
     const model = buildOverlayModel([{ name: "crap", text: modified }]);
 
     expect(model.groups[0]?.tooltip).toBe(
@@ -166,7 +182,7 @@ describe("tooltips and per-module freshness", () => {
   });
 
   it("keeps the tooltip the same whatever the scan's commit", () => {
-    const stale = overlay([{ name: "complexity" }], {}, { inputs: EDITED });
+    const stale = overlay([{ name: "coverage" }], {}, { inputs: EDITED });
     const model = buildOverlayModel([{ name: "crap", text: stale }]);
 
     expect(model.groups[0]?.tooltip).toBe("crap 0.1.0 - at 0123456");
@@ -174,9 +190,9 @@ describe("tooltips and per-module freshness", () => {
 });
 
 describe("a member-granularity overlay judged per module", () => {
-  const values = { complexity: { "a.py::f": 3, "b.py::g": 9 } };
+  const values = { coverage: { "a.py::f": 3, "b.py::g": 9 } };
   const mixed = (inputs: Record<string, string>, extra = {}) =>
-    overlay([{ name: "complexity" }], values, {
+    overlay([{ name: "coverage" }], values, {
       inputs,
       tests: TESTS,
       ...extra,
@@ -394,7 +410,7 @@ describe("the group header model", () => {
       "C.R.A.P.",
       "Mutation",
     ]);
-    expect(model.groups.map((group) => group.metrics.length)).toEqual([3, 4]);
+    expect(model.groups.map((group) => group.metrics.length)).toEqual([2, 4]);
   });
 
   it("marks only the group without findings or overlay as never run", () => {
@@ -445,24 +461,29 @@ describe("the group header model", () => {
 describe("descriptors", () => {
   it("keys by overlay and metric and takes max across member entries", () => {
     const metric = only(
-      overlay([{ name: "complexity" }], {
-        complexity: { "a.py::f": 8, "b.ts::g": 1 },
+      overlay([{ name: "coverage" }], {
+        coverage: { "a.py::f": 8, "b.ts::g": 1 },
       }),
     );
 
-    expect(metric.key).toBe("crap/complexity");
+    expect(metric.key).toBe("crap/coverage");
     expect(metric.max).toBe(8);
-    expect(only(overlay([{ name: "complexity" }], {})).max).toBe(0);
+    expect(only(overlay([{ name: "coverage" }], {})).max).toBe(0);
   });
 
   it("takes title, short and description from the manifest metric of the sensor named by the overlay", () => {
-    const metric = only(overlay([{ name: "complexity" }], {}), "crap", FULL);
-
-    expect(metric.title).toBe("Complexity");
-    expect(metric.short).toBe("cc");
-    expect(metric.description).toBe(
-      "How many independent paths run through the function; more paths are harder to test and to change.",
+    const metric = only(
+      overlay([{ name: "crap", type: "number" }], {}),
+      "crap",
+      FULL,
     );
+    const entry = metricEntryOf(FULL.sensors, "crap", "crap");
+
+    expect(entry?.title).toBe("C.R.A.P.");
+    expect(metric.title).toBe(entry?.title);
+    expect(metric.short).toBe(entry?.label);
+    expect(metric.description).toBe(entry?.help);
+    expect(metric.description).not.toBe("");
   });
 
   it("finds a metric through the first sensor that declares it when the overlay is named otherwise", () => {
@@ -535,12 +556,12 @@ describe("descriptors", () => {
       },
       {
         name: "negative",
-        text: overlay([{ name: "complexity" }], {
-          complexity: { "a.py::f": -1 },
+        text: overlay([{ name: "coverage" }], {
+          coverage: { "a.py::f": -1 },
         }),
       },
       { name: "garbage", text: "not json" },
-      { name: "good", text: overlay([{ name: "complexity" }], {}) },
+      { name: "good", text: overlay([{ name: "coverage" }], {}) },
     ]);
 
     expect(model.unreadable).toEqual(["bad", "garbage", "negative"]);
@@ -551,8 +572,8 @@ describe("descriptors", () => {
 describe("per-module values", () => {
   it("takes the max for bad high and the min for bad low, ties to the lowest id", () => {
     const high = only(
-      overlay([{ name: "complexity" }], {
-        complexity: { "a.py::b": 5, "a.py::a": 5, "a.py::c": 2 },
+      overlay([{ name: "coverage" }], {
+        coverage: { "a.py::b": 5, "a.py::a": 5, "a.py::c": 2 },
       }),
     );
     const low = only(
@@ -588,8 +609,8 @@ describe("per-module values", () => {
 
   it("splits on the first :: only", () => {
     const metric = only(
-      overlay([{ name: "complexity" }], {
-        complexity: { "a.py::Foo.bar": 3, "a.py::Foo::baz": 2 },
+      overlay([{ name: "coverage" }], {
+        coverage: { "a.py::Foo.bar": 3, "a.py::Foo::baz": 2 },
       }),
     );
 
@@ -601,7 +622,7 @@ describe("per-module values", () => {
 
   it("does not match a module whose id merely starts with another's", () => {
     const metric = only(
-      overlay([{ name: "complexity" }], { complexity: { "ab.py::f": 3 } }),
+      overlay([{ name: "coverage" }], { coverage: { "ab.py::f": 3 } }),
     );
 
     expect(moduleValue(metric, "a")).toBeNull();
@@ -619,8 +640,8 @@ describe("per-module values", () => {
 
   it("leaves unknown modules null rather than zero-filling or dropping them", () => {
     const metric = only(
-      overlay([{ name: "complexity" }], {
-        complexity: { "one.py::f": 4, "two.py::g": 1, "two.py::h": 6 },
+      overlay([{ name: "coverage" }], {
+        coverage: { "one.py::f": 4, "two.py::g": 1, "two.py::h": 6 },
       }),
     );
     const results = ["one.py", "two.py", "three.py"].map((id) =>
@@ -826,10 +847,10 @@ describe("freshnessNote against the Scan panel model", () => {
 
   describe("applyFreshness", () => {
     const FILE_FRESH = buildFreshness([fileScan], TESTS);
-    const values = { complexity: { "a.py::f": 1, "b.py::f": 2 } };
+    const values = { coverage: { "a.py::f": 1, "b.py::f": 2 } };
     const file = (name: string, inputs: Record<string, string>) => ({
       name,
-      text: overlay([{ name: "complexity" }], values, { inputs, tests: TESTS }),
+      text: overlay([{ name: "coverage" }], values, { inputs, tests: TESTS }),
     });
     const build = (
       files: ReturnType<typeof file>[],
@@ -897,7 +918,7 @@ describe("freshnessNote against the Scan panel model", () => {
 
       expect(enabledOf(applied, "crap")).toBe(true);
       expect(applied.metrics).toHaveLength(1);
-      expect(applied.metrics[0]?.values).toEqual(values.complexity);
+      expect(applied.metrics[0]?.values).toEqual(values.coverage);
     });
 
     it.each(["current", "never-run", "failed", "running"] as const)(
@@ -994,8 +1015,8 @@ describe("freshnessNote against the Scan panel model", () => {
           {
             name: "crap",
             text: overlay(
-              [{ name: "complexity" }],
-              { complexity: { "a.py::f": 1, "gone.py::f": 5 } },
+              [{ name: "coverage" }],
+              { coverage: { "a.py::f": 1, "gone.py::f": 5 } },
               { inputs: whole, tests: TESTS },
             ),
           },
@@ -1018,7 +1039,7 @@ describe("freshnessNote against the Scan panel model", () => {
           model,
           panel([ranWith("crap", inputs)]).freshness,
         );
-        const accepted = Object.keys(values.complexity).filter((key) =>
+        const accepted = Object.keys(values.coverage).filter((key) =>
           FILE_FRESH.current(
             { inputs, tests: TESTS },
             FILE_FRESH.moduleOf(key),
@@ -1048,6 +1069,7 @@ describe("freshnessNote against the Scan panel model", () => {
         describedAt: null,
         ticks: {
           describe: false,
+          analysis: true,
           ticked: [],
           once: [],
           onlyView: true,
@@ -1079,5 +1101,86 @@ describe("freshnessNote against the Scan panel model", () => {
         ),
       ).toBeNull();
     });
+  });
+});
+
+describe("the Structural analysis group", () => {
+  const structureOverlay = overlay(
+    [
+      { name: "complexity" },
+      { name: "function_length" },
+      { name: "duplication", granularity: "module" },
+    ],
+    {
+      complexity: { "a.py::f": 3 },
+      function_length: { "a.py::f": 12 },
+      duplication: { "a.py": 6 },
+    },
+    { producer: { name: "recognizer", version: "0.1.0" } },
+  );
+  const crapOverlay = overlay(
+    [{ name: "complexity" }, { name: "coverage" }, { name: "crap" }],
+    {
+      complexity: { "a.py::f": 3 },
+      coverage: { "a.py::f": 1 },
+      crap: { "a.py::f": 3 },
+    },
+  );
+
+  it("groups Complexity, Function length and Duplication under Structural analysis, first", () => {
+    const model = buildWithAnalysis(
+      [
+        { name: "crap", text: crapOverlay },
+        { name: "structure", text: structureOverlay },
+      ],
+      { sensors: [], shipped: SHIPPED },
+    );
+    const [first] = model.groups;
+
+    expect(first?.name).toBe("structure");
+    expect(first?.title).toBe("Structural analysis");
+    expect(first?.metrics.map((metric) => metric.short)).toEqual([
+      "cc",
+      "len",
+      "dup",
+    ]);
+    expect(first?.metrics.map((metric) => metric.title)).toEqual([
+      "Complexity",
+      "Function length",
+      "Duplication",
+    ]);
+    expect(first?.enabled).toBe(true);
+  });
+
+  it("groups C.R.A.P. score and Coverage under C.R.A.P. and lists no complexity there", () => {
+    const file = JSON.parse(crapOverlay) as { values: Record<string, unknown> };
+
+    expect(file.values).toHaveProperty("complexity");
+
+    const model = buildWithAnalysis([{ name: "crap", text: crapOverlay }], {
+      sensors: [],
+      shipped: SHIPPED,
+    });
+    const crap = model.groups.find((group) => group.name === "crap");
+
+    expect(crap?.metrics.map((metric) => metric.label)).toEqual([
+      "coverage",
+      "crap",
+    ]);
+  });
+
+  it("shows the Structural analysis group disabled when no structure overlay exists", () => {
+    const model = buildWithAnalysis([], {
+      sensors: [{ name: "structure", status: "ran" }],
+      shipped: SHIPPED,
+    });
+    const [first] = model.groups;
+
+    expect(first?.name).toBe("structure");
+    expect(first?.enabled).toBe(false);
+    expect(first?.metrics).toHaveLength(3);
+    expect(
+      first?.metrics.every((metric) => Object.keys(metric.values).length === 0),
+    ).toBe(true);
   });
 });

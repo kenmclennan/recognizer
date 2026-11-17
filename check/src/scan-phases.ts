@@ -9,7 +9,7 @@ import {
 } from "./shipped-sensors.js";
 
 export const SCAN_USAGE =
-  "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--suites <file>] [--confirm-above <usd>] [--by <name>] [--ignore-retired-config] [--json]";
+  "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--suites <file>] [--confirm-above <usd>] [--by <name>] [--skip-analysis] [--ignore-retired-config] [--json]";
 
 export interface ScanOptions {
   positionals: string[];
@@ -22,6 +22,7 @@ export interface ScanOptions {
   suites: string | undefined;
   confirmAbove: number | undefined;
   ignoreRetiredConfig: boolean;
+  analysis: boolean;
 }
 
 function usageError(message: string): InputError {
@@ -54,6 +55,7 @@ export function parseScanArgs(argv: string[]): ScanOptions {
     suites: undefined,
     confirmAbove: undefined,
     ignoreRetiredConfig: false,
+    analysis: true,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -63,6 +65,8 @@ export function parseScanArgs(argv: string[]): ScanOptions {
       options.extract = true;
     } else if (arg === "--json") {
       options.json = true;
+    } else if (arg === "--skip-analysis") {
+      options.analysis = false;
     } else if (arg === "--ignore-retired-config") {
       options.ignoreRetiredConfig = true;
     } else if (arg === "--describe") {
@@ -291,7 +295,7 @@ export function selectSensors(
 
   if (requested.includes("duplication")) {
     throw new InputError([
-      "duplication is part of the structure sensor and runs with every scan",
+      "duplication is part of structural analysis and runs with every scan",
     ]);
   }
 

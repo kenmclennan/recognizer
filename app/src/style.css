@@ -3287,8 +3287,7 @@ svg.i.chevron {
   font-weight: 600;
 }
 
-.metric-description,
-.metric-detail {
+.metric-description {
   opacity: 0.7;
 }
 

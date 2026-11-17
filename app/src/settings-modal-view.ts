@@ -574,7 +574,7 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
         el(
           "p",
           "sm-note",
-          "The structure sensor is off (sensors.structure: off in the config).",
+          "Structural analysis is off (sensors.structure: off in the config).",
         ),
       );
     }

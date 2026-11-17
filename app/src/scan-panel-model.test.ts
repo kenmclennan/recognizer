@@ -78,7 +78,7 @@ function allCurrent(modules: string[]): PanelInput["lines"] {
 }
 
 function input(over: Partial<PanelInput> = {}): PanelInput {
-  return {
+  return withAnalysis({
     scan: SCAN,
     config: CONFIG,
     sensors: [],
@@ -89,6 +89,7 @@ function input(over: Partial<PanelInput> = {}): PanelInput {
     describedAt: null,
     ticks: {
       describe: false,
+      analysis: true,
       ticked: [],
       once: [],
       onlyView: false,
@@ -100,7 +101,16 @@ function input(over: Partial<PanelInput> = {}): PanelInput {
     now: NOW,
     shipped: LIST,
     ...over,
-  };
+  });
+}
+
+function withAnalysis(given: PanelInput): PanelInput {
+  return given.sensors.some(({ name }) => name === "structure")
+    ? given
+    : {
+        ...given,
+        sensors: [{ name: "structure", status: "ran" }, ...given.sensors],
+      };
 }
 
 function run(over: Partial<RunState>): RunState {
@@ -116,9 +126,22 @@ const fresh = input({
 });
 
 describe("scanPanel rows", () => {
-  it("lists Structure, Descriptions, shipped sensors by display name, then third-party sensors in config order", () => {
+  it("lists Structural analysis, Descriptions, C.R.A.P. and Mutation in that order with no Structure row", () => {
+    const rows = scanPanel(input()).rows.map((row) => row.name);
+
+    expect(rows.slice(0, 4)).toEqual([
+      "Structural analysis",
+      "Descriptions",
+      "C.R.A.P.",
+      "Mutation",
+    ]);
+    expect(rows).not.toContain("Structure");
+    expect(scanPanel(input()).rows[0]?.key).toBe("structure");
+  });
+
+  it("lists Structural analysis, Descriptions, shipped sensors by display name, then third-party sensors in config order", () => {
     expect(scanPanel(input()).rows.map((row) => row.name)).toEqual([
-      "Structure",
+      "Structural analysis",
       "Descriptions",
       "C.R.A.P.",
       "Mutation",
@@ -127,28 +150,31 @@ describe("scanPanel rows", () => {
     ]);
   });
 
-  it("omits a shipped sensor that is not listed and makes only Structure untickable", () => {
+  it("omits a shipped sensor that is not listed and makes every listed row tickable", () => {
     const rows = scanPanel(input()).rows;
 
     expect(rows.map((row) => row.key)).not.toContain("quiet");
-    expect(rows.filter((row) => !row.tickable).map((row) => row.key)).toEqual([
-      "structure",
-    ]);
+    expect(rows.every((row) => row.tickable)).toBe(true);
   });
 
-  it("keeps Structure ticked and disabled, and disables every other row only while scanning", () => {
+  it("disables every row only while scanning", () => {
     const idle = scanPanel(input()).rows;
     const busy = scanPanel(input({ scanning: true })).rows;
 
     expect(idle.find((row) => row.key === "structure")).toMatchObject({
       ticked: true,
-      disabled: true,
-      title: "Structure always runs",
+      disabled: false,
     });
-    expect(idle.filter((row) => row.disabled).map((row) => row.key)).toEqual([
-      "structure",
-    ]);
+    expect(idle.some((row) => row.disabled)).toBe(false);
     expect(busy.every((row) => row.disabled)).toBe(true);
+  });
+
+  it("titles Structural analysis with the mock's wording", () => {
+    expect(
+      scanPanel(input()).rows.find((row) => row.key === "structure")?.title,
+    ).toBe(
+      "Finds import cycles, files nothing imports, unused exports, private imports, long or complex functions, duplication and policy violations. Runs with every scan and needs no tests.",
+    );
   });
 
   it("titles a shipped row with the registry's sentence and Descriptions with the mock's wording", () => {
@@ -191,13 +217,13 @@ describe("scanPanel rows", () => {
     expect(rows.find((row) => row.name === "alpha")?.scoped).toBe(false);
   });
 
-  it("shows Structure, Descriptions and third-party rows only when the shipped list is unavailable", () => {
+  it("shows Structural analysis, Descriptions and third-party rows only when the shipped list is unavailable", () => {
     const model = scanPanel(
       input({ shipped: { status: "unavailable", reason: "old" } }),
     );
 
     expect(model.rows.map((row) => row.name)).toEqual([
-      "Structure",
+      "Structural analysis",
       "Descriptions",
       "alpha",
       "beta",
@@ -234,7 +260,7 @@ describe("scanPanel and the structure sensor's duplication check", () => {
     );
 
     expect(names).toEqual([
-      "Structure",
+      "Structural analysis",
       "Descriptions",
       "C.R.A.P.",
       "Mutation",
@@ -243,7 +269,7 @@ describe("scanPanel and the structure sensor's duplication check", () => {
     ]);
   });
 
-  it("notes unmeasured duplication on the Structure row and only then", () => {
+  it("notes unmeasured duplication on the Structural analysis row and only then", () => {
     const structure = (notMeasured?: string[]) =>
       scanPanel(
         input({
@@ -259,6 +285,61 @@ describe("scanPanel and the structure sensor's duplication check", () => {
 
     expect(structure(["duplication"])?.note).toBe("Duplication: run a scan");
     expect(structure()?.note).toBeNull();
+  });
+
+  it("notes unmeasured complexity beside duplication on the Structural analysis row", () => {
+    const note = scanPanel(
+      input({
+        sensors: [
+          {
+            name: "structure",
+            status: "ran",
+            notMeasured: ["duplication", "complexity"],
+          },
+        ],
+      }),
+    ).rows.find((row) => row.key === "structure")?.note;
+
+    expect(note).toBe("Duplication: run a scan. Complexity: run a scan");
+  });
+
+  it("reads an unticked Structural analysis row as its last result, with no off state", () => {
+    const scans = [
+      { modules: [], edges: [], foreign: [], commit: "new", modified: false },
+    ] as unknown as Scan[];
+    const stored = {
+      name: "structure",
+      status: "ran" as const,
+      commit: "old",
+      modified: false,
+      modifiedMs: NOW - MINUTE,
+    };
+    const given = input({
+      scans,
+      sensors: [stored],
+      ticks: { ...input().ticks, analysis: false },
+    });
+
+    expect(given.sensors.find(({ name }) => name === "structure")).toEqual(
+      stored,
+    );
+
+    const row = scanPanel(given).rows.find((one) => one.key === "structure");
+
+    expect(row?.ticked).toBe(false);
+    expect(row?.state.kind).toBe("out-of-date");
+    expect(row?.state.kind).not.toBe("off");
+  });
+
+  it("keeps the analysis ticked when a remembered ticked list does not name it", () => {
+    const model = scanPanel(
+      input({ ticks: { ...input().ticks, ticked: ["alpha"] } }),
+    );
+
+    expect(model.rows.find((row) => row.key === "structure")?.ticked).toBe(
+      true,
+    );
+    expect(model.rows.find((row) => row.key === "alpha")?.ticked).toBe(true);
   });
 });
 
@@ -359,7 +440,7 @@ describe("scanPanel row states", () => {
 
   it("reads never run on a repository nothing has run on, and Structure as never run without a scan", () => {
     expect(states(scanPanel(fresh))).toEqual([
-      "Structure: never run",
+      "Structural analysis: never run",
       "Descriptions: never run",
       "C.R.A.P.: never run",
       "Mutation: never run",
@@ -440,7 +521,9 @@ describe("scanPanel row states", () => {
     );
 
     expect(rowOf(model, "mutation")?.text.text).toBe("251 of 1,204");
-    expect(rowOf(model, "structure")?.state.kind).toBe("running");
+    expect(
+      model.freshness.rows.find(({ key }) => key === "scan")?.state.kind,
+    ).toBe("running");
   });
 
   describe("a test-running sensor with suites", () => {
@@ -458,6 +541,7 @@ describe("scanPanel row states", () => {
           config: suited,
           ticks: {
             describe: false,
+            analysis: true,
             ticked: [],
             once: ["mutation"],
             onlyView: false,
@@ -701,7 +785,7 @@ describe("scanPanel row states", () => {
   it("offers Run Structure on a repository never scanned, and a disabled Running button during a scan", () => {
     expect(scanPanel(fresh).button).toEqual({
       scanning: false,
-      label: "Run Structure",
+      label: "Run",
       disabled: false,
     });
     expect(scanPanel(input({ scanning: true })).button).toEqual({
@@ -726,6 +810,7 @@ describe("scanPanel ticks", () => {
       input({
         ticks: {
           describe: true,
+          analysis: true,
           ticked: ["alpha"],
           once: ["crap"],
           onlyView: false,
@@ -744,6 +829,7 @@ describe("scanPanel ticks", () => {
       input({
         ticks: {
           describe: false,
+          analysis: true,
           ticked: null,
           once: [],
           onlyView: false,
@@ -763,6 +849,7 @@ describe("scanPanel ticks", () => {
       input({
         ticks: {
           describe: false,
+          analysis: true,
           ticked: [],
           once: [],
           onlyView: false,
@@ -789,6 +876,7 @@ describe("phasesFor", () => {
     const { plan, dropped } = phasesFor(
       {
         describe: true,
+        analysis: true,
         ticked: ["duplication", "alpha", "ghost"],
         once: [],
         onlyView: false,
@@ -801,6 +889,7 @@ describe("phasesFor", () => {
     expect(plan).toEqual({
       describe: true,
       describeAll: false,
+      analysis: true,
       sense: ["duplication", "alpha"],
       modules: null,
       suites: {},
@@ -813,6 +902,7 @@ describe("phasesFor", () => {
       phasesFor(
         {
           describe: false,
+          analysis: true,
           ticked: [],
           once: ["crap"],
           onlyView: false,
@@ -826,6 +916,7 @@ describe("phasesFor", () => {
       phasesFor(
         {
           describe: false,
+          analysis: true,
           ticked: ["crap"],
           once: [],
           onlyView: false,
@@ -842,6 +933,7 @@ describe("phasesFor", () => {
       phasesFor(
         {
           describe: false,
+          analysis: true,
           ticked: null,
           once: [],
           onlyView: false,
@@ -904,6 +996,7 @@ describe("scanPanel only this view", () => {
   const view = { name: "engine-loop", modules: ["a.py"] };
   const ticked = (onlyView: boolean) => ({
     describe: true,
+    analysis: true,
     ticked: [],
     once: ["mutation"],
     onlyView,
@@ -1020,6 +1113,7 @@ describe("scanPanel freshness", () => {
       lines: allCurrent(["a.py", "b.py"]),
       ticks: {
         describe: true,
+        analysis: true,
         ticked: [],
         once: ["crap"],
         onlyView: false,
@@ -1076,7 +1170,10 @@ describe("scanPanel freshness", () => {
   });
 
   it("reads a sensor with no findings document as never run and offers to run it", () => {
-    const model = scanPanel({ ...base({}), sensors: others });
+    const model = scanPanel({
+      ...base({}),
+      sensors: [{ name: "structure", status: "ran" }, ...others],
+    });
 
     expect(model.freshness.summary.head).toBe("C.R.A.P. has never run");
     expect(model.rows.find(({ key }) => key === "crap")?.text.text).toBe(
@@ -1091,6 +1188,7 @@ describe("scanPanel freshness", () => {
       view: { name: "engine", modules: ["a.py"] },
       ticks: {
         describe: true,
+        analysis: true,
         ticked: [],
         once: ["crap"],
         onlyView: true,
@@ -1434,6 +1532,7 @@ function refused(...list: PreflightGap[]): Partial<PanelInput> {
 
 const bothTicked = {
   describe: false,
+  analysis: true,
   ticked: [],
   once: ["crap", "mutation"],
   onlyView: false,
@@ -1529,6 +1628,7 @@ describe("the run card", () => {
   it("names a help line for each sensor that reported a gap and for no other gap", () => {
     const ticks = {
       describe: true,
+      analysis: true,
       ticked: [],
       once: ["crap", "mutation"],
       onlyView: false,
@@ -1667,6 +1767,7 @@ describe("scanPanel estimate line", () => {
       work: toPerform(3),
       ticks: {
         describe: false,
+        analysis: true,
         ticked: [],
         once: ["mutation"],
         onlyView: false,
@@ -1692,7 +1793,7 @@ describe("scanPanel estimate line", () => {
 
     expect(model.estimate?.text).toBe("About 3 min");
     expect(model.estimate?.title).toBe(
-      "Structure: <1 min (last run)\nMutation: 3 min (3 functions at recent pace)",
+      "Structural analysis: <1 min (last run)\nMutation: 3 min (3 functions at recent pace)",
     );
   });
 
@@ -1707,6 +1808,7 @@ describe("scanPanel estimate line", () => {
       mutating({
         ticks: {
           describe: false,
+          analysis: true,
           ticked: [],
           once: ["mutation", "crap"],
           onlyView: false,
@@ -1795,6 +1897,7 @@ describe("unregistered plugins", () => {
   it("leaves an unregistered shipped sensor out of the rows and the plan, even when the stored ticks list it", () => {
     const stored = ticks({
       describe: true,
+      analysis: true,
       ticked: ["mutation", "crap"],
       once: ["mutation", "crap"],
     });
@@ -1826,7 +1929,7 @@ describe("unregistered plugins", () => {
     );
   });
 
-  it("shows Structure alone for a null config, and plans nothing by default", () => {
+  it("shows Structural analysis alone for a null config, and plans nothing by default", () => {
     const model = scanPanel(
       input({
         config: null,
@@ -1869,6 +1972,7 @@ describe("unregistered plugins", () => {
     ];
     const given = ticks({
       describe: true,
+      analysis: true,
       ticked: ["alpha", "beta"],
       once: ["crap", "mutation"],
       onlyView: true,

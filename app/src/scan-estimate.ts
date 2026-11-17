@@ -1,5 +1,5 @@
 import { validateRunRecord } from "recognizer";
-import { STRUCTURE_KEY } from "./freshness-model";
+import { ANALYSIS_KEY } from "./freshness-model";
 import { DESCRIBE_KEY, MUTATION_KEY, type PlannedRun } from "./scan-freshness";
 import type { RunWork, ScanProgress, SuiteHistory } from "./scan-progress";
 import { median, SUITES_UNIT, suitePace } from "./suite-pace";
@@ -329,7 +329,11 @@ export function estimateParts(
   for (const spec of rows) {
     const { key, name } = spec;
 
-    if (key === STRUCTURE_KEY) {
+    if (key === ANALYSIS_KEY) {
+      if (!planned.plan.analysis) {
+        continue;
+      }
+
       parts.push(
         history.structureMs === null
           ? { key, name, ms: null, basis: null }
@@ -513,7 +517,7 @@ export function remaining(input: RemainingInput): Remaining | null {
       continue;
     }
 
-    if (key === STRUCTURE_KEY) {
+    if (key === ANALYSIS_KEY) {
       total +=
         phaseAt.describe !== undefined || phaseAt.sense !== undefined
           ? 0

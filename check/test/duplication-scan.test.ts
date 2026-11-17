@@ -102,7 +102,7 @@ describe("the scan driver and duplication", () => {
       2,
     );
     expect(fake.err()).toContain(
-      "duplication is part of the structure sensor and runs with every scan",
+      "duplication is part of structural analysis and runs with every scan",
     );
   });
 

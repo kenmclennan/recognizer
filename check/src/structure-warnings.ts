@@ -518,6 +518,37 @@ function functionsOf(members: ScanMember[]): MeasuredFunction[] {
   return functions;
 }
 
+export function functionLengths(
+  scans: Scan[],
+  policy: Policy | null,
+): Record<string, number> {
+  const lengths: Record<string, number> = {};
+
+  for (const scan of scans) {
+    const { ids } = keptGraph(scan, policy?.ignore ?? []);
+
+    for (const module of scan.modules) {
+      if (!ids.has(module.id) || isTestFile(module.id)) {
+        continue;
+      }
+
+      for (const fn of functionsOf(module.members ?? [])) {
+        const length = measuredLength(fn.line, fn.body_line, fn.end_line);
+
+        if (length === null) {
+          continue;
+        }
+
+        const key = `${module.id}::${fn.qualified}`;
+
+        lengths[key] = Math.max(lengths[key] ?? 0, length);
+      }
+    }
+  }
+
+  return lengths;
+}
+
 export function longFunctionFindings(
   scan: Scan,
   policy: Policy | null,

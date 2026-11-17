@@ -75,6 +75,7 @@ const SHIPPED: ShippedSensors = {
 function ticks(over: Partial<ScanTicks> = {}): ScanTicks {
   return {
     describe: false,
+    analysis: true,
     ticked: [],
     once: [],
     onlyView: false,

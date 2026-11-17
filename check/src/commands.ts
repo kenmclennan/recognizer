@@ -107,7 +107,7 @@ export const COMMANDS: Command[] = [
       },
     ],
     output: {
-      text: "repository mode: a `sensor structure:` line with the settings in effect, the summary lines and one `warning: <summary>` line per warning on stdout; with --scan: a summary on stderr and the report document on stdout. In repository mode check runs the structure sensor, writes its findings file in .recognizer/cache/findings/ and reads every current findings file there; it never runs a registered sensor, so run `recognizer scan --sense all` first when their findings should count",
+      text: "repository mode: a `sensor structure:` line with the settings in effect, the summary lines and one `warning: <summary>` line per warning on stdout; with --scan: a summary on stderr and the report document on stdout. In repository mode check runs structural analysis, writes its findings file in .recognizer/cache/findings/ and reads every current findings file there; it never runs a registered sensor, so run `recognizer scan --sense all` first when their findings should count",
       json: "the report document: violations, new, fixed, unranked, baseline, warnings and metrics, and in repository mode a sensors list of { name, status, reason?, settings? } where a registered sensor is ran only when its file is current, else stale or missing; always JSON on stdout with --scan, and with --json in repository mode",
     },
     exitCodes: [
@@ -115,7 +115,7 @@ export const COMMANDS: Command[] = [
       {
         code: 1,
         meaning:
-          "at least one new violation, the structure sensor failed, or a findings file is invalid",
+          "at least one new violation, structural analysis failed, or a findings file is invalid",
       },
       {
         code: 2,
@@ -141,7 +141,7 @@ export const COMMANDS: Command[] = [
     summary:
       "scan a repository in up to three phases: extract when the files changed, describe, sense",
     usage:
-      "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--suites <file>] [--confirm-above <usd>] [--by <name>] [--ignore-retired-config] [--json]",
+      "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--suites <file>] [--confirm-above <usd>] [--by <name>] [--skip-analysis] [--ignore-retired-config] [--json]",
     arguments: [
       {
         name: "REPOSITORY",
@@ -184,6 +184,11 @@ export const COMMANDS: Command[] = [
         flag: "--by <name>",
         description:
           "who asked, recorded in the run log; defaults to the login user",
+      },
+      {
+        flag: "--skip-analysis",
+        description:
+          "build the structure without running structural analysis: its findings file, its overlay and its time in the run log are left as they were; without the flag every scan runs it",
       },
       {
         flag: "--ignore-retired-config",

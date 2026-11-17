@@ -661,6 +661,7 @@ describe("recognizer scan: phases", () => {
   const COMMIT = "abc123";
   const CONFIG = `${ROOT}/.recognizer/config.yaml`;
   const STRUCTURE = `${ROOT}/.recognizer/cache/findings/structure.json`;
+  const STRUCTURE_OVERLAY = `${ROOT}/.recognizer/cache/overlays/structure.json`;
   const LOG = `${ROOT}/.recognizer/cache/log`;
   const SENSORS =
     'sensors:\n  first:\n    command: [first-sensor, "{commit}", "{output}"]\n  second:\n    command: [second-sensor, "{commit}", "{output}"]\n';
@@ -760,6 +761,19 @@ describe("recognizer scan: phases", () => {
     ]);
   });
 
+  it("with --skip-analysis a scan still extracts, writes no structure findings, keeps an existing structure.json and records no structure_ms", async () => {
+    const { fake, code } = await scan(
+      setup({}, { [STRUCTURE]: "old findings" }),
+      "--skip-analysis",
+    );
+
+    expect(code).toBe(0);
+    expect(extractCalls(fake)).toEqual([["--version"]]);
+    expect(fake.files.get(STRUCTURE)).toBe("old findings");
+    expect(fake.removed).not.toContain(STRUCTURE);
+    expect(records(fake)[0]).not.toHaveProperty("structure_ms");
+  });
+
   it("writes the structure findings after extracting too", async () => {
     const { fake } = await scan(
       setup({}, { [PY_CACHE]: current({ commit: "old" }) }),
@@ -775,11 +789,13 @@ describe("recognizer scan: phases", () => {
         {
           [CONFIG]: "sensors:\n  structure: off\n",
           [STRUCTURE]: "stale",
+          [STRUCTURE_OVERLAY]: "stale",
         },
       ),
     );
 
     expect(fake.files.has(STRUCTURE)).toBe(false);
+    expect(fake.files.has(STRUCTURE_OVERLAY)).toBe(false);
     expect(fake.removed).toContain(STRUCTURE);
   });
 

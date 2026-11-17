@@ -63,6 +63,7 @@ export function fakeSensors(
       config: listed.length === 0 ? null : `${registersEverything}\n`,
       baseline: null,
       refused: [],
+      analysis: true,
       ...inputs,
     },
     refused: [],

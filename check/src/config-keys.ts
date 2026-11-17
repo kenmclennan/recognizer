@@ -141,14 +141,14 @@ export const CORE_KEYS: KeySchema = {
       key: "sensors.structure",
       type: "enum",
       values: ["off"],
-      description: "turns the structure sensor off",
+      description: "turns structural analysis off",
       example: "sensors.structure off",
     },
     {
       key: "sensors.structure.duplication",
       type: "boolean",
       description:
-        "false switches the duplication check of the structure sensor off; it runs with every scan by default",
+        "false switches the duplication check of structural analysis off; it runs with every scan by default",
       example: "sensors.structure.duplication false",
     },
     {

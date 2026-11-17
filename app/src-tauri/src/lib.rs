@@ -889,6 +889,7 @@ async fn shipped_describer(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 async fn run_scan(
     app: AppHandle,
     window: WebviewWindow,
@@ -897,6 +898,7 @@ async fn run_scan(
     sense: Vec<String>,
     modules: Option<Vec<String>>,
     suites: Option<std::collections::BTreeMap<String, Vec<String>>>,
+    analysis: Option<bool>,
 ) -> Result<ScanRun, String> {
     let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
@@ -934,6 +936,7 @@ async fn run_scan(
             &sense,
             modules.as_deref(),
             suites.as_ref(),
+            analysis.unwrap_or(true),
             confirm_above,
             || {
                 let origin = changes::take_origin(&folder);
@@ -1070,10 +1073,12 @@ fn read_scan_ticks(app: AppHandle, window: WebviewWindow) -> Result<scan_ticks::
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 fn write_scan_ticks(
     app: AppHandle,
     window: WebviewWindow,
     describe: bool,
+    analysis: Option<bool>,
     ticked: Vec<String>,
     only_view: bool,
     suites: Option<std::collections::BTreeMap<String, scan_ticks::SuiteTicks>>,
@@ -1086,6 +1091,7 @@ fn write_scan_ticks(
         &folder,
         scan_ticks::StoredTicks {
             describe,
+            analysis: analysis.unwrap_or(true),
             measure: false,
             overlays: Vec::new(),
             sensors: None,
@@ -1448,7 +1454,12 @@ fn read_sensor_inputs(
     app: AppHandle,
     window: WebviewWindow,
 ) -> Result<sensors::SensorInputs, String> {
-    Ok(sensors::read_inputs(&window_folder_path(&app, &window)?))
+    let folder = window_folder_path(&app, &window)?;
+    let mut inputs = sensors::read_inputs(&folder);
+
+    inputs.analysis = scan_ticks::read(&ticks_file(&app)?, &folder).analysis;
+
+    Ok(inputs)
 }
 
 #[tauri::command]

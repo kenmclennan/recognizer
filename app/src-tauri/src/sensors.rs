@@ -43,12 +43,25 @@ pub struct RunRecordsRead {
     pub refused: Vec<String>,
 }
 
-#[derive(Debug, Default, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct SensorInputs {
     pub policy: Option<String>,
     pub config: Option<String>,
     pub baseline: Option<String>,
     pub refused: Vec<String>,
+    pub analysis: bool,
+}
+
+impl Default for SensorInputs {
+    fn default() -> Self {
+        SensorInputs {
+            policy: None,
+            config: None,
+            baseline: None,
+            refused: Vec::new(),
+            analysis: true,
+        }
+    }
 }
 
 pub fn sensor_name_ok(name: &str) -> bool {
@@ -233,6 +246,7 @@ pub fn read_inputs(folder: &Path) -> SensorInputs {
         config,
         baseline,
         refused,
+        analysis: true,
     }
 }
 
@@ -525,6 +539,12 @@ mod tests {
         }
 
         assert!(findings_path(&dir, "b").exists());
+    }
+
+    #[test]
+    fn read_inputs_default_carries_analysis_true() {
+        assert!(SensorInputs::default().analysis);
+        assert!(read_inputs(TempDir::new().unwrap().path()).analysis);
     }
 
     #[test]

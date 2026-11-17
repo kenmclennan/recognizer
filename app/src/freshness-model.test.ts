@@ -86,6 +86,12 @@ function ran(
   };
 }
 
+function withAnalysis(given: PanelInput["sensors"]): PanelInput["sensors"] {
+  return given.some(({ name }) => name === "structure")
+    ? given
+    : [{ name: "structure", status: "ran" }, ...given];
+}
+
 function modelOf(
   ids: string[],
   over: Partial<PanelInput> = {},
@@ -100,6 +106,7 @@ function modelOf(
     describedAt: NOW - 16 * MINUTE,
     ticks: {
       describe: true,
+      analysis: true,
       ticked: [],
       once: ["crap", "mutation"],
       onlyView: false,
@@ -114,6 +121,8 @@ function modelOf(
     freshness: buildFreshness([scan], "t"),
     ...over,
   };
+
+  input.sensors = withAnalysis(input.sensors);
 
   return buildFreshnessModel(input, sensors);
 }
@@ -151,6 +160,7 @@ describe("freshness model module scope", () => {
         sensors: [ran("mutation", listed), ran("other", listed)],
         ticks: {
           describe: false,
+          analysis: true,
           ticked: [],
           once: ["mutation", "other"],
           onlyView: false,
@@ -175,6 +185,7 @@ describe("freshness model states", () => {
     const model = modelOf(IDS);
 
     expect(model.rows.map((row) => [row.key, row.state.kind])).toEqual([
+      ["scan", "current"],
       ["structure", "current"],
       ["describe", "current"],
       ["crap", "current"],
@@ -305,6 +316,7 @@ describe("freshness model changed modules", () => {
       sensors: [ran("crap", IDS, { "c.py": "old" }), ran("mutation", IDS)],
       ticks: {
         describe: true,
+        analysis: true,
         ticked: [],
         once: ["mutation"],
         onlyView: false,
@@ -570,7 +582,7 @@ describe("the four situations of the mock", () => {
 
     expect(model.summary.head).toBe("C.R.A.P. failed; Mutation has never run");
     expect(model.summary.line).toBe(
-      "Their values and findings are missing. Structure and Descriptions are current.",
+      "Their values and findings are missing. Structure, Structural analysis and Descriptions are current.",
     );
     expect(model.action.primary.label).toBe("Run C.R.A.P. and Mutation");
     expect(model.summary.bar).toBeNull();
@@ -581,6 +593,7 @@ describe("the four situations of the mock", () => {
       view: { name: "x", modules: nine.slice(0, 2) },
       ticks: {
         describe: true,
+        analysis: true,
         ticked: [],
         once: [],
         onlyView: true,
@@ -699,6 +712,7 @@ describe("the unscoped stale set per sensor", () => {
       sensors: [ran("crap", IDS, { "c.py": "old" }), ran("mutation", IDS)],
       ticks: {
         describe: true,
+        analysis: true,
         ticked: [],
         once: ["crap", "mutation"],
         onlyView: true,
@@ -795,6 +809,7 @@ describe("the model over committed content", () => {
 describe("freshness model counts every row, ticked or not", () => {
   const MUTATION_ONLY = {
     describe: true,
+    analysis: true,
     ticked: [],
     once: ["crap"],
     onlyView: false,
@@ -841,6 +856,7 @@ describe("freshness model counts every row, ticked or not", () => {
       ],
       ticks: {
         describe: true,
+        analysis: true,
         ticked: [],
         once: [],
         onlyView: false,
@@ -956,6 +972,7 @@ describe("freshness model counts every row, ticked or not", () => {
     const tickSets = [
       {
         describe: true,
+        analysis: true,
         ticked: [],
         once: [] as string[],
         onlyView: false,
@@ -964,6 +981,7 @@ describe("freshness model counts every row, ticked or not", () => {
       },
       {
         describe: false,
+        analysis: true,
         ticked: [],
         once: ["crap"],
         onlyView: false,
@@ -972,6 +990,7 @@ describe("freshness model counts every row, ticked or not", () => {
       },
       {
         describe: true,
+        analysis: true,
         ticked: [],
         once: ["crap", "mutation"],
         onlyView: false,
@@ -1001,6 +1020,7 @@ describe("the Findings panel action", () => {
       ],
       ticks: {
         describe: true,
+        analysis: true,
         ticked: [],
         once: ["crap"],
         onlyView: false,
@@ -1029,6 +1049,7 @@ describe("the Findings panel action", () => {
 describe("the Nothing ticked to run state", () => {
   const MUTATION_ONLY = {
     describe: true,
+    analysis: true,
     ticked: [],
     once: ["crap"],
     onlyView: false,
@@ -1060,6 +1081,7 @@ describe("the Nothing ticked to run state", () => {
       ],
       ticks: {
         describe: false,
+        analysis: true,
         ticked: [],
         once: [],
         onlyView: false,
