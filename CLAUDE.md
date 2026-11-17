@@ -77,7 +77,7 @@ One repository, a directory per part:
 
 ## Worktrees
 
-A fresh worktree has no `node_modules`. Run `npm ci` at the repository root before typecheck, tests or any `npm run` script; it covers every workspace. `npm run check` and `npm run check:app` start with `scripts/require-install.mjs`, which exits 1 with "run npm ci at the repository root" when `node_modules` is missing, stale or lacks a workspace. Run app tools and the `describers/claude` tests through their npm scripts, whose `pre*` hooks rebuild `check/dist`; a direct `tsc` or `vitest` call, and any test that spawns `check/dist/bin.js`, needs `npm run build -w recognizer` first.
+A fresh worktree has no `node_modules`. Run `npm ci` at the repository root before typecheck, tests, markdownlint or any `npm run` script; it covers every workspace. `npm run check` and `npm run check:app` start with `scripts/require-install.mjs`, which exits 1 with "run npm ci at the repository root" when `node_modules` is missing, stale or lacks a workspace. Run app tools and the `describers/claude` tests through their npm scripts, whose `pre*` hooks rebuild `check/dist`; a direct `tsc` or `vitest` call, and any test that spawns `check/dist/bin.js`, needs `npm run build -w recognizer` first.
 
 `check`'s `pretest` also builds the describer (`npm run build -w recognizer-describe-claude`), which `check/test/plugin-tools.ts` requires; a direct `vitest` run in `check` needs that build too.
 
