@@ -1,10 +1,6 @@
 import { isEntryPoint, isLiteralPath, isTestFile } from "./entry-points.js";
 import type { FindingRecord } from "./findings-document.js";
-import {
-  bodyLength,
-  functionLength,
-  LONG_FUNCTION,
-} from "./function-length.js";
+import { LONG_FUNCTION, measuredLength } from "./function-length.js";
 import { isForeign, keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
 import { principleOf } from "./principles.js";
@@ -543,11 +539,7 @@ export function longFunctionFindings(
     }
 
     for (const fn of functions) {
-      const spanLength = functionLength(fn.line, fn.end_line);
-      const length =
-        spanLength === null || fn.body_line === undefined
-          ? spanLength
-          : bodyLength(fn.body_line, fn.end_line);
+      const length = measuredLength(fn.line, fn.body_line, fn.end_line);
 
       if (
         length === null ||

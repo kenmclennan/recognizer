@@ -28,4 +28,18 @@ export function bodyLength(
   return endLine - bodyLine + 1;
 }
 
+export function measuredLength(
+  line: number | null | undefined,
+  bodyLine: number | null | undefined,
+  endLine: number | null | undefined,
+): number | null {
+  const span = functionLength(line, endLine);
+
+  if (span === null || bodyLine === null || bodyLine === undefined) {
+    return span;
+  }
+
+  return bodyLength(bodyLine, endLine);
+}
+
 export const COMPLEXITY_LIMIT = 10;
