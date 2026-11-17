@@ -49,8 +49,10 @@ import {
   branchRow,
   classify,
   commitRow,
+  createHideFilter,
   createSelection,
   defaultBranchName,
+  FILTER_EMPTY,
   ghNotice,
   type HistoryRow,
   impactText,
@@ -512,7 +514,7 @@ export function showExplorer(
     rows: PullRequestRow[];
   } = { state: "idle", status: "ok", detail: "", rows: [] };
   const commitFacts = new Map<string, RefFacts>();
-  let historyHide = true;
+  const hideFilter = createHideFilter();
   let commitsOpening: {
     what: string;
     kind: PickRow["kind"];
@@ -1132,7 +1134,7 @@ export function showExplorer(
       render();
     },
     setHide(hide) {
-      historyHide = hide;
+      hideFilter.set(hide);
       render();
     },
     refreshPullRequests() {
@@ -2401,9 +2403,17 @@ export function showExplorer(
     const rowOf = (
       pick: PickRow,
       changes: FileChange[] | null,
+      pinned: boolean,
       rest: Omit<
         CommitRowView,
-        "pick" | "impact" | "tip" | "held" | "end" | "busy" | "classification"
+        | "pick"
+        | "impact"
+        | "tip"
+        | "held"
+        | "pinned"
+        | "end"
+        | "busy"
+        | "classification"
       >,
     ) => {
       const classification = classify(changes, present);
@@ -2419,6 +2429,7 @@ export function showExplorer(
         classification,
         end,
         held: end !== null || heldPick,
+        pinned,
         busy:
           opening !== null &&
           opening.kind === pick.kind &&
@@ -2426,7 +2437,7 @@ export function showExplorer(
       };
     };
     const historyRows: CommitRowView[] = historyLoad.rows.map((row) =>
-      rowOf(commitRow(row), row.changes, {
+      rowOf(commitRow(row), row.changes, false, {
         icon: "commit",
         title: row.subject,
         titleTip: titleTip(row.subject, row.sha, row.author, row.time, now),
@@ -2445,7 +2456,7 @@ export function showExplorer(
     const branchRows: CommitRowView[] = entries.map((entry) => {
       const facts = entry.facts;
 
-      return rowOf(branchRow(entry), facts?.changes ?? null, {
+      return rowOf(branchRow(entry), facts?.changes ?? null, entry.isDefault, {
         icon: "branch",
         title: entry.row.name,
         titleTip: titleTip(
@@ -2465,7 +2476,7 @@ export function showExplorer(
     const pullRows: CommitRowView[] = pullLoad.rows.map((row) => {
       const facts = commitFacts.get(row.sha) ?? null;
 
-      return rowOf(pullRequestRow(row, facts), facts?.changes ?? null, {
+      return rowOf(pullRequestRow(row, facts), facts?.changes ?? null, false, {
         icon: "pull-request",
         title: `#${row.number} ${row.title}`,
         titleTip: titleTip(
@@ -2482,7 +2493,10 @@ export function showExplorer(
         shaded: false,
       });
     });
-    const shownHistory = visibleRows<CommitRowView>(historyRows, historyHide);
+    const hide = hideFilter.on();
+    const shownHistory = visibleRows<CommitRowView>(historyRows, hide);
+    const shownBranches = visibleRows<CommitRowView>(branchRows, hide);
+    const shownPulls = visibleRows<CommitRowView>(pullRows, hide);
     const pullNotice =
       pullLoad.state === "ready"
         ? ghNotice(pullLoad.status, pullLoad.detail)
@@ -2490,7 +2504,6 @@ export function showExplorer(
     const lists: CommitsPanelModel["lists"] = {
       history: {
         rows: shownHistory.rows,
-        hide: historyHide,
         hidden: shownHistory.hidden,
         loading: historyLoad.state === "loading",
         notice:
@@ -2498,31 +2511,39 @@ export function showExplorer(
             ? `Could not read the history: ${historyLoad.problem}`
             : historyRows.length === 0 && historyLoad.state === "ready"
               ? "No commits"
-              : null,
+              : historyLoad.state === "ready" && shownHistory.rows.length === 0
+                ? FILTER_EMPTY
+                : null,
         note: null,
       },
       branches: {
-        rows: branchRows,
+        rows: shownBranches.rows,
+        hidden: shownBranches.hidden,
         loading: branchLoad.state === "loading",
         notice:
           branchLoad.state === "failed"
             ? `Could not read the branches: ${branchLoad.problem}`
             : branchRows.length === 0 && branchLoad.state === "ready"
               ? "No branches"
-              : null,
+              : branchLoad.state === "ready" && shownBranches.rows.length === 0
+                ? FILTER_EMPTY
+                : null,
         note:
           branchLoad.total > branchRows.length
             ? `Showing ${branchRows.length} of ${branchLoad.total} branches`
             : null,
       },
       prs: {
-        rows: pullRows,
+        rows: shownPulls.rows,
+        hidden: shownPulls.hidden,
         loading: pullLoad.state === "loading",
         notice:
           pullNotice ??
           (pullLoad.state === "ready" && pullRows.length === 0
             ? "No open pull requests"
-            : null),
+            : pullLoad.state === "ready" && shownPulls.rows.length === 0
+              ? FILTER_EMPTY
+              : null),
         note: null,
       },
     };
@@ -2540,6 +2561,7 @@ export function showExplorer(
       ),
       tab: commitsTab,
       pullsBusy,
+      hide,
       lists,
     };
   }

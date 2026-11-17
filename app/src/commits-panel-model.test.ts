@@ -4,8 +4,10 @@ import {
   branchRow,
   classify,
   commitRow,
+  createHideFilter,
   createSelection,
   defaultBranchName,
+  filterLabel,
   impactText,
   impactTip,
   orderBranches,
@@ -549,6 +551,103 @@ describe("row builders and ordering", () => {
     ]);
     expect(visibleRows(rows, true).hidden).toBe(1);
     expect(visibleRows(rows, false)).toEqual({ rows, hidden: 0 });
+  });
+
+  it("filter state is one value shared by the three tabs", () => {
+    const none = {
+      added: [],
+      modified: [],
+      renamed: [],
+      removed: [],
+      elsewhere: ["x"],
+    };
+    const some = { ...none, modified: ["m"] };
+    const list = () => [
+      { classification: none, held: false },
+      { classification: some, held: false },
+    ];
+    const tabs = [list(), list(), list()];
+    const filter = createHideFilter();
+
+    expect(filter.on()).toBe(true);
+
+    for (const rows of tabs) {
+      expect(rows.some((one) => one.classification === some)).toBe(true);
+      expect(visibleRows(rows, filter.on()).hidden).toBe(1);
+    }
+
+    filter.set(false);
+
+    for (const rows of tabs) {
+      expect(visibleRows(rows, filter.on()).hidden).toBe(0);
+    }
+
+    filter.set(true);
+
+    for (const rows of tabs) {
+      expect(visibleRows(rows, filter.on()).hidden).toBe(1);
+    }
+  });
+
+  it("counts what each tab hides", () => {
+    const none = {
+      added: [],
+      modified: [],
+      renamed: [],
+      removed: [],
+      elsewhere: ["x"],
+    };
+    const some = { ...none, modified: ["m"] };
+    const empty = { classification: none, held: false };
+    const full = { classification: some, held: false };
+
+    expect(visibleRows([empty, empty, empty, full, full], true).hidden).toBe(3);
+    expect(visibleRows([empty, full, full], true).hidden).toBe(1);
+    expect(visibleRows([full, full], true).hidden).toBe(0);
+    expect(
+      visibleRows(
+        [
+          empty,
+          { classification: none, held: true },
+          { classification: null, held: false },
+        ],
+        true,
+      ),
+    ).toEqual({
+      rows: [
+        { classification: none, held: true },
+        { classification: null, held: false },
+      ],
+      hidden: 1,
+    });
+  });
+
+  it("never hides a pinned row", () => {
+    const none = {
+      added: [],
+      modified: [],
+      renamed: [],
+      removed: [],
+      elsewhere: ["x"],
+    };
+    const pinned = { id: 1, classification: none, held: false, pinned: true };
+    const loose = { id: 2, classification: none, held: false, pinned: false };
+
+    const both = visibleRows([pinned, loose], true);
+
+    expect(both.rows.map((one) => one.id)).toEqual([1]);
+    expect(both.hidden).toBe(1);
+
+    const alone = visibleRows([pinned], true);
+
+    expect(alone.rows).toHaveLength(1);
+    expect(alone.hidden).toBe(0);
+  });
+
+  it("labels the filter with the tab's noun", () => {
+    expect(filterLabel("history")).toBe("Hide commits with nothing to show");
+    expect(filterLabel("branches")).toBe("Hide branches with nothing to show");
+    expect(filterLabel("prs")).toBe("Hide pull requests with nothing to show");
   });
 
   it("keeps shading computed from the full list when rows between are hidden", () => {

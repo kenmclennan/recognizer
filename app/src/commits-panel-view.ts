@@ -6,6 +6,7 @@ import type {
   PickRow,
   TipLine,
 } from "./commits-panel-model";
+import { filterLabel } from "./commits-panel-model";
 import type { Checks } from "./commits-parse";
 import { button, el } from "./dom";
 import { type IconName, icon } from "./icons";
@@ -26,6 +27,7 @@ export type CommitRowView = {
   badge: string | null;
   checks: Checks | null;
   held: boolean;
+  pinned: boolean;
   end: End | null;
   busy: boolean;
   shaded: boolean;
@@ -36,10 +38,6 @@ export type CommitsListView = {
   notice: string | null;
   note: string | null;
   loading: boolean;
-};
-
-export type HistoryListView = CommitsListView & {
-  hide: boolean;
   hidden: number;
 };
 
@@ -57,9 +55,8 @@ export type CommitsPanelModel = {
   guide: string;
   tab: CommitsTab;
   pullsBusy: boolean;
-  lists: Record<Exclude<CommitsTab, "history">, CommitsListView> & {
-    history: HistoryListView;
-  };
+  hide: boolean;
+  lists: Record<CommitsTab, CommitsListView>;
 };
 
 export type CommitsPanelActions = {
@@ -439,10 +436,8 @@ export function buildCommitsPanelView(
   const hideBox = button("", "commits-hide", () =>
     actions.setHide(hideBox.getAttribute("aria-checked") !== "true"),
   );
-  const hideText = el(
-    "span",
-    "commits-hide-text",
-    "Hide commits with no files on the canvas",
+  const hideText = button("", "commits-hide-text", () =>
+    actions.setHide(hideBox.getAttribute("aria-checked") !== "true"),
   );
   const hiddenCount = el("span", "commits-hidden");
   let entries = new Map<string, RowEntry>();
@@ -451,7 +446,7 @@ export function buildCommitsPanelView(
   hideBox.setAttribute("role", "switch");
   filter.append(hideBox, hideText, hiddenCount);
   tabs.setAttribute("role", "tablist");
-  element.append(head, tabs, filter, list);
+  element.append(head, filter, tabs, list);
 
   return {
     element,
@@ -520,12 +515,13 @@ export function buildCommitsPanelView(
       );
 
       const shown = model.lists[model.tab];
-      const history = model.lists.history;
+      const label = filterLabel(model.tab);
 
-      filter.hidden = model.tab !== "history";
-      hideBox.setAttribute("aria-checked", String(history.hide));
+      hideText.textContent = label;
+      hideBox.setAttribute("aria-label", label);
+      hideBox.setAttribute("aria-checked", String(model.hide));
       hiddenCount.textContent =
-        history.hide && history.hidden > 0 ? `${history.hidden} hidden` : "";
+        model.hide && shown.hidden > 0 ? `${shown.hidden} hidden` : "";
 
       if (model.tab !== lastTab) {
         entries = new Map();

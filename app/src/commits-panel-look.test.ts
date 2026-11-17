@@ -23,6 +23,7 @@ const record = (c, parent, subject, deco, files) => RS + [sha(c), c.repeat(7), p
 const HISTORY = record("a", "b", "Newest", "HEAD -> main, origin/main", ["M\\tp/a.py"]) + record("b", "c", "Middle", "", ["A\\tp/b.py"]) + record("c", "d", "Older", "", ["M\\tp/c.py"]) + record("d", "e", "Oldest", "tag: v0.1.0", ["D\\tp/d.py"]) + record("e", null, "Root", "", ["A\\tp/a.py"]);
 const BRANCHES = ["main", "feature/x", "spike"].map((name, i) => [name, String(i).repeat(7), "Ken", "1699000000"].join(US) + "\\n").join("");
 const PRS = JSON.stringify([{ number: 9, title: "Gift cards", headRefName: "feature/x", headRefOid: sha("f"), author: { login: "lc" }, updatedAt: "2026-11-10T10:00:00Z", isDraft: false, statusCheckRollup: [] }, { number: 10, title: "Docs only", headRefName: "docs/only", headRefOid: sha("9"), author: { login: "lc" }, updatedAt: "2026-11-10T09:00:00Z", isDraft: false, statusCheckRollup: [] }]);
+const PRS_DOCS = JSON.stringify(JSON.parse(PRS).slice(1));
 const ch = (status, path) => ({ status, path });
 const facts = (ref, mergeBase, changes) => ({ ref, mergeBase, behind: 1, ahead: 2, changes });
 const FX = [ch("M", "p/a.py"), ch("A", "p/b.py"), ch("D", "p/zzz.py"), ch("A", "docs/x.md")];
@@ -278,6 +279,49 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   click(rowFor(modified, "Older"));
   await tick(100);
   out.guard = { dialog: modified.q(".unsaved-dialog-body") === null ? null : modified.q(".unsaved-dialog-body").textContent, ranges: modified.views.rangeCalls.length - askedBefore };
+
+  const filterFacts = (n) => {
+    const row = n.q(".commits-filter").getBoundingClientRect();
+    const label = n.q(".commits-hide-text");
+    const count = n.q(".commits-hidden");
+    const countBox = count.getBoundingClientRect();
+    return {
+      aboveTabs: row.bottom <= n.q(".commits-tabs").getBoundingClientRect().top,
+      belowGuide: row.top >= n.q(".commits-summary").getBoundingClientRect().bottom,
+      label: label.textContent,
+      oneLine: label.getBoundingClientRect().height <= n.q(".commits-hide").getBoundingClientRect().height + 8,
+      count: count.textContent,
+      countOnRow: count.textContent === "" || (countBox.top >= row.top && countBox.bottom <= row.bottom),
+      on: n.q(".commits-hide").getAttribute("aria-checked") === "true",
+      rows: n.all(".commits-row .commits-row-title").map((r) => r.textContent),
+    };
+  };
+  const flt = mount();
+  click(flt.q(".rail-commits"));
+  await tick(100);
+  out.filterHistory = filterFacts(flt);
+  click(tabNamed(flt, "Branches"));
+  await tick(100);
+  out.filterBranches = filterFacts(flt);
+  out.filterBranchesMain = rowFor(flt, "main").querySelector(".commits-impact-count").textContent;
+  click(tabNamed(flt, "Pull requests"));
+  await tick(100);
+  out.filterPulls = filterFacts(flt);
+  click(flt.q(".commits-hide-text"));
+  await tick();
+  out.filterPullsOff = filterFacts(flt);
+  click(tabNamed(flt, "History"));
+  await tick();
+  out.filterHistoryOff = filterFacts(flt);
+  click(tabNamed(flt, "Branches"));
+  await tick();
+  out.filterBranchesOff = filterFacts(flt);
+  const only = mount({ pullRequests: { status: "ok", detail: "", text: PRS_DOCS } });
+  click(only.q(".rail-commits"));
+  await tick(100);
+  click(tabNamed(only, "Pull requests"));
+  await tick(100);
+  out.filterEmpty = { notice: only.q(".commits-notice") && only.q(".commits-notice").textContent, rows: only.all(".commits-row").length, count: only.q(".commits-hidden").textContent };
 
   for (const status of ["missing", "signed-out", "failed"]) {
     const gh = mount({ pullRequests: { status, detail: "rate limited", text: "" } });
@@ -630,6 +674,17 @@ type Loading = {
 
 type ListLoading = { text: string | null; spinner: boolean; rows: number };
 
+type FilterFacts = {
+  aboveTabs: boolean;
+  belowGuide: boolean;
+  label: string;
+  oneLine: boolean;
+  count: string;
+  countOnRow: boolean;
+  on: boolean;
+  rows: string[];
+};
+
 type Panel = {
   toggle: boolean;
   cards: number;
@@ -649,6 +704,14 @@ type Facts = {
     branch: string;
     chips: string[];
   };
+  filterHistory: FilterFacts;
+  filterBranches: FilterFacts;
+  filterBranchesMain: string;
+  filterPulls: FilterFacts;
+  filterPullsOff: FilterFacts;
+  filterHistoryOff: FilterFacts;
+  filterBranchesOff: FilterFacts;
+  filterEmpty: { notice: string | null; rows: number; count: string };
   branchesHidden: {
     rows: string[];
     hidden: string;
@@ -870,11 +933,11 @@ describe.skipIf(webkit === undefined)(
       expect(f.opened.chips).toEqual(["main", "v0.1.0"]);
     });
 
-    it("shows every branch and pull request with the History switch on, including those with no file on the canvas, and shows the bold count with squares and the not-on-the-canvas line", () => {
+    it("hides branches and pull requests with no file on the canvas by default, keeps main, counts them, and shows the bold count with squares and the not-on-the-canvas line", () => {
       expect(f.branchesHidden.on).toBe(true);
-      expect(f.branchesHidden.rows).toEqual(["main", "feature/x", "spike"]);
-      expect(f.branchesHidden.hidden).toBe("");
-      expect(f.branchesPanel.filterHidden).toBe(true);
+      expect(f.branchesHidden.rows).toEqual(["main", "feature/x"]);
+      expect(f.branchesHidden.hidden).toBe("1 hidden");
+      expect(f.branchesPanel.filterHidden).toBe(false);
       expect(f.branchesHidden.impact).toEqual([
         { count: "no files", marks: [], other: null },
         {
@@ -882,12 +945,11 @@ describe.skipIf(webkit === undefined)(
           marks: ["added1", "modified1", "removed1"],
           other: "+1 not on the canvas",
         },
-        { count: "no files", marks: [], other: null },
       ]);
       expect(f.branches.calls.pullRequests).toBe(0);
       expect(f.pulls.calls.pullRequests).toBe(1);
-      expect(f.pulls.rows).toBe(2);
-      expect(f.pulls.title).toEqual(["#9 Gift cards", "#10 Docs only"]);
+      expect(f.pulls.rows).toBe(1);
+      expect(f.pulls.title).toEqual(["#9 Gift cards"]);
       expect(f.pullsAgain.pullRequests).toBe(1);
       expect(f.historyHide).toEqual({
         on: true,
@@ -1093,13 +1155,60 @@ describe.skipIf(webkit === undefined)(
       ]);
     });
 
-    it("on Branches and Pull requests shows no toggle and no cards, names the default branch and hides the filter row", () => {
+    it("puts one filter row above the tabs and below the guide on every tab, on one line with the tab's noun and the count on the same row", () => {
+      for (const tab of [f.filterHistory, f.filterBranches, f.filterPulls]) {
+        expect(tab.aboveTabs).toBe(true);
+        expect(tab.belowGuide).toBe(true);
+        expect(tab.oneLine).toBe(true);
+        expect(tab.countOnRow).toBe(true);
+      }
+
+      expect(f.filterHistory.label).toBe("Hide commits with nothing to show");
+      expect(f.filterBranches.label).toBe("Hide branches with nothing to show");
+      expect(f.filterPulls.label).toBe(
+        "Hide pull requests with nothing to show",
+      );
+    });
+
+    it("counts what each tab hides and keeps main while its row says no files", () => {
+      expect(f.filterBranches.rows).toEqual(["main", "feature/x"]);
+      expect(f.filterBranches.count).toBe("1 hidden");
+      expect(f.filterBranchesMain).toBe("no files");
+      expect(f.filterPulls.rows).toEqual(["#9 Gift cards"]);
+      expect(f.filterPulls.count).toBe("1 hidden");
+    });
+
+    it("keeps one filter state across tabs and toggles it from the label", () => {
+      expect(f.filterPulls.on).toBe(true);
+
+      for (const tab of [
+        f.filterPullsOff,
+        f.filterHistoryOff,
+        f.filterBranchesOff,
+      ]) {
+        expect(tab.on).toBe(false);
+        expect(tab.count).toBe("");
+      }
+
+      expect(f.filterBranchesOff.rows).toEqual(["main", "feature/x", "spike"]);
+      expect(f.filterPullsOff.rows).toEqual(["#9 Gift cards", "#10 Docs only"]);
+    });
+
+    it("says nothing here touches the canvas when the filter leaves a tab empty", () => {
+      expect(f.filterEmpty).toEqual({
+        notice: "Nothing here touches the canvas.",
+        rows: 0,
+        count: "1 hidden",
+      });
+    });
+
+    it("on Branches and Pull requests shows no toggle and no cards, names the default branch and shows the filter row", () => {
       expect(f.branchesPanel.cards).toBe(0);
       expect(f.branchesPanel.guide).toBe(
         "Each branch shows what it changes against main.",
       );
       expect(f.pulls.cards).toBe(0);
-      expect(f.pulls.filterHidden).toBe(true);
+      expect(f.pulls.filterHidden).toBe(false);
       expect(f.pulls.guide).toBe(
         "Each pull request shows what it changes against main.",
       );
@@ -1220,7 +1329,7 @@ describe.skipIf(webkit === undefined)(
       for (const key of ["gh_missing", "gh_signed-out", "gh_failed"] as const) {
         expect(f[key].rows).toBe(0);
         expect(f[key].history).toBe(5);
-        expect(f[key].branches).toBe(3);
+        expect(f[key].branches).toBe(2);
       }
     });
 
@@ -1259,7 +1368,7 @@ describe.skipIf(webkit === undefined)(
 
     it("reads pull requests once on focus only while the Pull requests tab is showing, with no loading state", () => {
       expect(f.focusOnHistory).toBe(0);
-      expect(f.focusOnPrs).toEqual({ reads: 1, loading: false, rows: 2 });
+      expect(f.focusOnPrs).toEqual({ reads: 1, loading: false, rows: 1 });
     });
 
     it("shows the refresh button only on the Pull requests tab, with a spinner and disabled while a read is in flight", () => {
@@ -1270,13 +1379,13 @@ describe.skipIf(webkit === undefined)(
         icon: true,
         label: "Refresh pull requests",
         loading: false,
-        rows: 2,
+        rows: 1,
       });
       expect(f.buttonBusy.spinner).toBe(true);
       expect(f.buttonBusy.disabled).toBe(true);
       expect(f.buttonBusy.icon).toBe(false);
       expect(f.buttonBusy.loading).toBe(false);
-      expect(f.buttonBusy.rows).toBe(2);
+      expect(f.buttonBusy.rows).toBe(1);
       expect(f.busyReads).toBe(1);
       expect(f.buttonDone.spinner).toBe(false);
       expect(f.buttonDone.icon).toBe(true);
