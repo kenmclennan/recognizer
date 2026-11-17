@@ -1,4 +1,4 @@
-# Duplication equivalence goldens
+# Duplication goldens
 
 Data the TypeScript duplication check (`check/src/duplication/`) is tested against. `functions.*.json` and `histogram.*.json` were produced once by the Python duplication sensor and the shared `functions.py` and `identity.py` at base commit `1755593674ca859eed13100d62e11986c6bb0770` (`origin/main` when REC-522 was built).
 
