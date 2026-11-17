@@ -1,3 +1,4 @@
+import json
 import sys
 
 import pytest
@@ -265,3 +266,42 @@ def test_a_suite_whose_contexts_all_fail_to_resolve_is_refused_naming_suite_and_
     assert diagnosis["suite"] == "api"
     assert "api" in diagnosis["line"]
     assert "test_shop.test_" in diagnosis["line"]
+
+
+def progress_events(capsys):
+    prefix = "recognizer-event "
+
+    return [
+        json.loads(line[len(prefix) :])
+        for line in capsys.readouterr().err.splitlines()
+        if line.startswith(prefix) and '"note"' not in line
+    ]
+
+
+def test_two_warmup_suites_write_a_suites_start_and_progress_naming_each_suite(tmp_path, capsys):
+    files = {
+        **BASE,
+        ".coveragerc": "[run]\ndynamic_context = test_function\n",
+        "other/app/shop.py": SHOP,
+        "other/tests/test_other.py": TEST_SHOP,
+        "other/run.sh": SCRIPT,
+        "other/.coveragerc": "[run]\ndynamic_context = test_function\n",
+    }
+
+    warm(tmp_path, files, [suite_raw(), suite_raw("other", "other")])
+
+    assert progress_events(capsys) == [
+        {"event": "start", "total": 2, "unit": "suites"},
+        {"event": "progress", "done": 0, "total": 2, "unit": "suites", "step": "api"},
+        {"event": "progress", "done": 1, "total": 2, "unit": "suites", "step": "api"},
+        {"event": "progress", "done": 1, "total": 2, "unit": "suites", "step": "other"},
+        {"event": "progress", "done": 2, "total": 2, "unit": "suites", "step": "other"},
+    ]
+
+
+def test_one_warmup_suite_writes_no_start_or_progress(tmp_path, capsys):
+    files = {**BASE, ".coveragerc": "[run]\ndynamic_context = test_function\n"}
+
+    warm(tmp_path, files, [suite_raw()])
+
+    assert progress_events(capsys) == []
