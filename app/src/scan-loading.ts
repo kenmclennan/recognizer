@@ -1,5 +1,6 @@
 import {
   type FindingsDocument,
+  judgeScanVersion,
   SCAN_SCHEMA_VERSION,
   type Scan,
 } from "recognizer";
@@ -55,7 +56,12 @@ function parseScan(file: string, text: string): LoadedScan | string {
     return `${file} is not a scan document`;
   }
 
-  if (version !== SCAN_SCHEMA_VERSION) {
+  const refused =
+    typeof version !== "number" ||
+    !Number.isInteger(version) ||
+    ["newer", "broken"].includes(judgeScanVersion(version));
+
+  if (refused) {
     return `${file} has schema_version ${String(version)}; this viewer reads ${SCAN_SCHEMA_VERSION}`;
   }
 

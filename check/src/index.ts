@@ -224,6 +224,8 @@ export type { Rule, Violation, ViolationImport } from "./rules.js";
 export { collectViolations } from "./rules.js";
 export type { RunEntry, RunPhase, RunRecord } from "./run-log.js";
 export {
+  judgeScanVersion,
+  SCAN_BREAKING_VERSIONS,
   SCAN_SCHEMA_VERSION,
   type Scan,
   type ScanCall,
@@ -231,6 +233,8 @@ export {
   type ScanField,
   type ScanMember,
   type ScanMethod,
+  type ScanVersionVerdict,
+  validateAcceptedScan,
   validateScan,
 } from "./scan.js";
 export type {

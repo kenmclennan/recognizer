@@ -26,7 +26,7 @@ import { moduleNames } from "./neighbours.js";
 import { type Policy, parsePolicy } from "./policy.js";
 import { warnPolicyProblems } from "./policy-problems.js";
 import type { Violation } from "./rules.js";
-import { type Scan, validateScan } from "./scan.js";
+import { type Scan, validateAcceptedScan } from "./scan.js";
 import { shippedSensorNames } from "./shipped-sensors.js";
 import { runStructureSensor } from "./structure-run.js";
 import {
@@ -434,7 +434,7 @@ function executeScanReplay(
     warnPolicyProblems(
       io.stderr,
       values.policy as string,
-      [validateScan(scan)],
+      [validateAcceptedScan(scan)],
       policy,
     );
   }
@@ -452,10 +452,15 @@ function executeScanReplay(
     },
     long_function_limit: LONG_FUNCTION,
   };
-  const sensed = structureSensor([validateScan(scan)], policy, settings, {
-    commit: "",
-    modified: false,
-  });
+  const sensed = structureSensor(
+    [validateAcceptedScan(scan)],
+    policy,
+    settings,
+    {
+      commit: "",
+      modified: false,
+    },
+  );
   const warnings = warningsOf([sensed.document]);
 
   if (policy === null) {

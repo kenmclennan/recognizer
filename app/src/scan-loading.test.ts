@@ -49,6 +49,23 @@ describe("loadScans", () => {
     ]);
   });
 
+  it("loads a current scan and refuses a broken one given together", () => {
+    const loaded = loadScans(
+      scanned([
+        { file: "scan.python.json", text: scanText(["a.py"]) },
+        {
+          file: "scan.kotlin.json",
+          text: scanText(["k.kt"], { schema_version: 6 }),
+        },
+      ]),
+    );
+
+    expect(loaded.scans.map((scan) => scan.file)).toEqual(["scan.python.json"]);
+    expect(loaded.notices).toEqual([
+      "scan.kotlin.json has schema_version 6; this viewer reads 7",
+    ]);
+  });
+
   it("refuses a version 2 scan, which the previous scanners wrote", () => {
     const loaded = loadScans(
       scanned([

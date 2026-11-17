@@ -7,7 +7,7 @@ import {
 } from "./baseline.js";
 import type { Policy } from "./policy.js";
 import { collectViolations, type Violation } from "./rules.js";
-import { validateScan } from "./scan.js";
+import { validateAcceptedScan } from "./scan.js";
 
 export type ReportedNew = Violation & { grown?: true };
 
@@ -96,7 +96,7 @@ export function check(
   baseline: Identity[] | null,
 ): CheckResult {
   const { violations, unranked } = collectViolations(
-    validateScan(scan),
+    validateAcceptedScan(scan),
     policy,
   );
 
