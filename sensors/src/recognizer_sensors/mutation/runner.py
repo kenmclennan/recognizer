@@ -864,9 +864,10 @@ def run_mutant(
     known: Collection[str] | None = None,
     carry: tuple[str, ...] = (),
     copies: MutantCopies | None = None,
+    homes: GradleHomes | None = None,
 ) -> MutantResult:
     if copies is not None:
-        return run_pooled(copies, mutant, command, timeout, suite, known)
+        return run_pooled(copies, mutant, command, timeout, suite, known, homes)
 
     copy = work / str(number)
 
@@ -903,19 +904,35 @@ def run_pooled(
     timeout: float,
     suite: Suite,
     known: Collection[str] | None,
+    homes: GradleHomes | None = None,
 ) -> MutantResult:
     with copies.lease() as slot:
+        daemon = homes is not None and suite.language == "kotlin"
+
         try:
             pooled = slot.prepare()
             pooled.written = (mutant.path, mutant.source)
             head = mutant.source[: mutant.start_byte]
             tail = mutant.source[mutant.end_byte :]
             (pooled.path / mutant.path).write_bytes(head + mutant.replacement + tail)
-            result = run_test_command(command, pooled.path, timeout, suite=suite)
+            result = run_test_command(
+                command,
+                pooled.path,
+                timeout,
+                suite=suite,
+                **(
+                    {"gradle_home": homes.home_for(slot.number, suite, copies.repository)}
+                    if daemon and homes is not None
+                    else {}
+                ),
+            )
         except OSError:
             slot.retire()
 
             return MutantResult("killed")
+
+        if daemon and homes is not None and result.timed_out:
+            homes.stop(slot.number)
 
         if result.timed_out or result.exit_code is None or STOP.is_set() or BUDGET_SPENT.is_set():
             slot.retire()
@@ -935,6 +952,7 @@ def run_function(
     clock: Callable[[], float] = time.monotonic,
     copies: MutantCopies | None = None,
     whole_slots: threading.Semaphore | None = None,
+    homes: GradleHomes | None = None,
 ) -> list[MutantResult] | None:
     results = []
 
@@ -964,6 +982,7 @@ def run_function(
                 known,
                 carry,
                 copies,
+                homes,
             )
         finally:
             if gate is not None:

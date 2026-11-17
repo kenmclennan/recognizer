@@ -5,24 +5,32 @@ import subprocess
 import sys
 import textwrap
 import time
+from contextlib import contextmanager
+from pathlib import Path
 
 import pytest
 from conftest import mutate_repository
+from test_kotlin_selection import KOTLIN_SUITE_RAW
 from test_mutation import run_mutate
 from test_mutation_memory import FakeSampler, kotlin_suite, sized_run
 from test_mutation_stop import start_child
 
 from recognizer_sensors.mutation import runner, sensor
+from recognizer_sensors.mutation.commands import kotlin_class_command, kotlin_selected_command
 from recognizer_sensors.mutation.memory import default_workers
 from recognizer_sensors.mutation.runner import (
     GradleHomes,
+    Mutant,
+    MutantCopies,
     PeakSampler,
     daemon_pids,
     gradle_homes,
     process_is_alive,
     remove_stale_work_folders,
+    run_pooled,
     run_test_command,
 )
+from recognizer_sensors.mutation.runner import TestRun as Run
 from recognizer_sensors.testrun.suites import Suite
 
 MB = 1_000_000
@@ -174,6 +182,81 @@ def test_a_worker_home_is_seeded_from_the_source_home(tmp_path):
     )
 
     assert sorted(path.name for path in bare.iterdir()) == []
+
+
+def test_a_selected_kotlin_mutant_command_carries_no_no_daemon_but_the_coverage_command_does():
+    assert "--no-daemon" not in kotlin_selected_command([("", "p.A"), (":a", "p.B")])
+    assert "--no-daemon" in kotlin_class_command("", ["p.A"])
+
+
+def make_copies(tmp_path, size):
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "A.kt").write_text("fun a() = 1\n")
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "add", "A.kt"], cwd=root, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "c"],
+        cwd=root,
+        check=True,
+    )
+    work = tmp_path / "work"
+    work.mkdir()
+
+    return root, work, MutantCopies(root, work, size)
+
+
+def a_mutant():
+    source = b"fun a() = 1\n"
+
+    return Mutant("A.kt", source, 10, 11, b"2")
+
+
+def test_a_pooled_kotlin_mutant_runs_with_its_slots_home(tmp_path):
+    fake = Fake(tmp_path)
+    root, work, copies = make_copies(tmp_path, 2)
+
+    with gradle_homes(work) as homes:
+        for _ in range(4):
+            run_pooled(copies, a_mutant(), fake.suite.command, 30, fake.suite, None, homes)
+
+    used = fake.run_log.read_text().split()
+
+    assert {Path(item).name for item in used} == {"gradle-home-0", "gradle-home-1"}
+    assert len(fake.stopped()) == 2
+
+
+def test_a_non_pooled_run_stays_cold(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(runner, "plan_listing", lambda *_: None)
+    seen = []
+    real = sensor.run_function
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs.get("homes"))
+
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(sensor, "run_function", spy)
+    sized_run(tmp_path, monkeypatch, capsys, lambda: 3_000_000_000, 8)
+
+    assert seen
+    assert seen == [None] * len(seen)
+
+    result = run_test_command("printenv GRADLE_OPTS", tmp_path, 30, kotlin_suite())
+
+    assert "-Dorg.gradle.daemon=false" in result.output
+    assert "-Dorg.gradle.daemon=true" not in result.output
+
+
+def test_a_non_kotlin_mutant_gets_no_home(tmp_path):
+    root, work, copies = make_copies(tmp_path, 1)
+    suite = Suite("p", "python", ".", "true", None, {}, "c", "lcov", None)
+
+    with gradle_homes(work) as homes:
+        run_pooled(copies, a_mutant(), "true", 30, suite, None, homes)
+
+    assert sorted(path.name for path in work.iterdir() if path.name.startswith("gradle-home")) == []
+    assert any(path.name.startswith("mutant-") for path in work.iterdir())
 
 
 def test_a_normal_finish_stops_every_workers_daemon(tmp_path):
@@ -343,6 +426,37 @@ def test_a_pid_whose_command_is_not_a_gradle_daemon_is_left_alone(tmp_path):
         bystander.wait()
 
 
+def test_a_timed_out_mutant_stops_only_its_workers_daemon(tmp_path, monkeypatch):
+    fake = Fake(tmp_path)
+    root, work, copies = make_copies(tmp_path, 2)
+    calls = []
+
+    def run(command, cwd, timeout, suite=None, extra=None, gradle_home=None):
+        fake.start(gradle_home, root)
+        calls.append(gradle_home)
+
+        return Run(None, len(calls) == 1, 0.1, "")
+
+    monkeypatch.setattr(runner, "run_test_command", run)
+
+    with gradle_homes(work) as homes:
+        run_pooled(copies, a_mutant(), fake.suite.command, 30, fake.suite, None, homes)
+        first = homes.home_for(0)
+
+        assert daemon_pids(first) == []
+
+        run_pooled(copies, a_mutant(), fake.suite.command, 30, fake.suite, None, homes)
+        other = homes.home_for(1)
+
+        assert len(daemon_pids(other)) == 1
+        assert daemon_pids(first) == []
+        assert fake.stopped() == [str(first)]
+
+        run_pooled(copies, a_mutant(), fake.suite.command, 30, fake.suite, None, homes)
+
+        assert len(daemon_pids(first)) == 1
+
+
 def test_the_next_run_reaps_the_daemons_of_a_stale_work_folder(tmp_path):
     fake = Fake(tmp_path)
     parent = tmp_path / "work"
@@ -363,23 +477,23 @@ def test_the_next_run_reaps_the_daemons_of_a_stale_work_folder(tmp_path):
     assert not stale.exists()
 
 
-def test_daemon_pids_returns_only_live_gradle_daemons(tmp_path):
-    fake = Fake(tmp_path)
-    home = GradleHomes(tmp_path / "work").home_for(0, fake.suite, tmp_path)
-    fake.start(home, tmp_path)
-    [live] = daemon_pids(home)
-    bystander = subprocess.Popen(["sleep", "30"])
+def test_measure_enters_gradle_homes_once_and_leaves_it(tmp_path, monkeypatch, capsys):
+    events = []
+    real = sensor.gradle_homes
 
-    try:
-        folder = home / "daemon" / "9"
-        (folder / "daemon-999999999.out.log").touch()
-        (folder / f"daemon-{bystander.pid}.out.log").touch()
+    @contextmanager
+    def recording(work):
+        events.append("enter")
 
-        assert daemon_pids(home) == [live]
-    finally:
-        bystander.kill()
-        bystander.wait()
-        os.kill(live, signal.SIGKILL)
+        with real(work) as homes:
+            yield homes
+
+        events.append("exit")
+
+    monkeypatch.setattr(sensor, "gradle_homes", recording)
+    sized_run(tmp_path, monkeypatch, capsys, lambda: 3_000_000_000, 8)
+
+    assert events == ["enter", "exit"]
 
 
 @pytest.mark.parametrize(
@@ -458,3 +572,32 @@ def test_the_sampler_reports_the_daemons_resident_memory(tmp_path):
     finally:
         process.kill()
         process.wait()
+
+
+def test_daemon_pids_returns_only_live_gradle_daemons(tmp_path):
+    fake = Fake(tmp_path)
+    home = GradleHomes(tmp_path / "work").home_for(0, fake.suite, tmp_path)
+    fake.start(home, tmp_path)
+    [live] = daemon_pids(home)
+    bystander = subprocess.Popen(["sleep", "30"])
+
+    try:
+        folder = home / "daemon" / "9"
+        (folder / "daemon-999999999.out.log").touch()
+        (folder / f"daemon-{bystander.pid}.out.log").touch()
+
+        assert daemon_pids(home) == [live]
+    finally:
+        bystander.kill()
+        bystander.wait()
+        os.kill(live, signal.SIGKILL)
+
+
+def test_the_selected_command_over_the_committed_kotlin_sample_has_no_no_daemon():
+    from test_kotlin_selection import KSUITE
+
+    command = kotlin_selected_command([("", "shop.web.OrderControllerTest")])
+
+    assert command == ["./gradlew", "test", "--tests", "shop.web.OrderControllerTest"]
+    assert KOTLIN_SUITE_RAW["language"] == "kotlin"
+    assert KSUITE.language == "kotlin"

@@ -4,7 +4,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
@@ -1411,6 +1411,8 @@ def measure(
             repository, work, settings["max_workers"], settings.get("carry", ())
         )
         restore_handler = install_stop_handler(work)
+        homes_stack = ExitStack()
+        homes = homes_stack.enter_context(gradle_homes(work))
         end_watch = None
         BUDGET_SPENT.clear()
 
@@ -1559,7 +1561,11 @@ def measure(
                         by_name[target.suite],
                         hashes if target.language == "python" else None,
                         settings.get("carry", ()),
-                        **({"copies": mutant_copies} if mutant_copies.enabled else {}),
+                        **(
+                            {"copies": mutant_copies, "homes": homes}
+                            if mutant_copies.enabled
+                            else {}
+                        ),
                         **({"deadline": deadline, "clock": CLOCK} if deadline is not None else {}),
                         whole_slots=whole_slots,
                     ),
@@ -1579,6 +1585,7 @@ def measure(
             if end_watch is not None:
                 end_watch()
 
+            homes_stack.close()
             restore_handler()
 
     outcome, measured, skipped_ids, reused = assemble(done, stopped)
