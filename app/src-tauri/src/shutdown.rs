@@ -78,6 +78,27 @@ mod tests {
     }
 
     #[test]
+    fn a_confirmed_quit_with_one_setup_run_stops_it_before_exit() {
+        let scans = ScanRuns::default();
+        let setups = SetupRuns::default();
+        let stopped_at_exit = RefCell::new(None);
+
+        setups.begin("w-1").unwrap();
+
+        stop_for_signal(
+            &scans,
+            &setups,
+            &[],
+            || {},
+            || {
+                *stopped_at_exit.borrow_mut() = Some(setups.stopped("w-1"));
+            },
+        );
+
+        assert_eq!(*stopped_at_exit.borrow(), Some(true));
+    }
+
+    #[test]
     fn the_exit_closure_runs_after_the_stops() {
         let (scans, setups) = two_scans_and_a_setup();
         let events = RefCell::new(Vec::new());

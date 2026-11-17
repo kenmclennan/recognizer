@@ -98,6 +98,10 @@ impl SetupRuns {
     pub fn running(&self, label: &str) -> bool {
         self.lock().contains_key(label)
     }
+
+    pub fn running_count(&self) -> usize {
+        self.lock().len()
+    }
 }
 
 pub fn budget_ok(budget: Option<f64>) -> Option<f64> {
@@ -1096,5 +1100,21 @@ mod tests {
         assert!(!runs.stopped("w-2"));
         assert!(runs.finish("w-1"));
         assert!(!runs.running("w-1"));
+    }
+
+    #[test]
+    fn running_count_counts_every_setup_run() {
+        let runs = SetupRuns::default();
+
+        assert_eq!(runs.running_count(), 0);
+
+        runs.begin("w-1").unwrap();
+        runs.begin("w-2").unwrap();
+
+        assert_eq!(runs.running_count(), 2);
+
+        runs.finish("w-1");
+
+        assert_eq!(runs.running_count(), 1);
     }
 }

@@ -719,15 +719,16 @@ fn ask_to_quit(app: &AppHandle, count: usize) {
                     state.dialog_closed();
 
                     if stop {
-                        let attached = scan_run::attached_app_runs(
-                            &state.folders(),
-                            &answered.state::<ScanRuns>(),
-                        );
+                        let scans = answered.state::<ScanRuns>();
+                        let attached = scan_run::attached_app_runs(&state.folders(), &scans);
 
-                        answered.state::<ScanRuns>().stop_all();
-                        scan_run::stop_attached(&attached);
-                        state.confirm_quit();
-                        answered.exit(0);
+                        shutdown::stop_for_signal(
+                            &scans,
+                            &answered.state::<SetupRuns>(),
+                            &attached,
+                            || state.confirm_quit(),
+                            || answered.exit(0),
+                        );
                     }
                 });
         }
@@ -1867,6 +1868,7 @@ pub fn run() {
             }
             RunEvent::ExitRequested { code, api, .. } => {
                 let running = app.state::<ScanRuns>().in_progress_labels().len()
+                    + app.state::<SetupRuns>().running_count()
                     + scan_run::attached_app_runs(
                         &app.state::<WindowState>().folders(),
                         &app.state::<ScanRuns>(),
