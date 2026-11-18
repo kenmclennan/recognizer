@@ -1,13 +1,13 @@
 # Recognizer
 
-Recognizer scans a codebase into a language-neutral model of its modules and dependencies, and shows that model in a native viewer. The picture is derived from the code and never drawn by hand, so it cannot disagree with the code.
+Recognizer scans a codebase into a language-neutral model of its files and dependencies, and shows that model in a native viewer. The picture is derived from the code and never drawn by hand, so it cannot disagree with the code.
 
 It has four parts, installed together:
 
 - **Scanners.** One command per language (Python, TypeScript, Kotlin, C#, Rust) that reads a source tree and prints the same JSON scan document.
-- **The `recognizer` command.** Scans a repository, checks it against the repository's policy, answers questions about its modules, builds saved views, and runs the describer and the sensors.
+- **The `recognizer` command.** Scans a repository, checks it against the repository's policy, answers questions about its files, builds saved views, and runs the describer and the sensors.
 - **Sensors.** Judgements beyond structure. Structural analysis is built in: policy violations, cycles, orphans, unused exports, private imports, long functions, duplication and folder metrics. The shipped sensors are C.R.A.P. (which also reports low coverage) and Mutation; a repository can register its own.
-- **The viewer.** A native macOS app (Tauri) that draws the modules and their dependencies, colours findings and health, opens a module to show its members, and keeps saved views and notes an agent can build and link to.
+- **The viewer.** A native macOS app (Tauri) that draws the files and their dependencies, colours findings and health, opens a file to show its members, and keeps saved views and notes an agent can build and link to.
 
 ## Install
 
@@ -21,7 +21,7 @@ brew install --cask kenmclennan/tap/recognizer
 
 Homebrew 7 refuses formulae from a tap it does not trust, so the second command is needed: the cask depends on formulae in the same tap. The cask installs the app and the `recognizer` command. It depends on the `recognizer-plugins` bundle formula, which brings every official plugin: the five `recognizer-scan-<language>` scanners, the two sensors (`recognizer-sense-crap` and `recognizer-sense-mutation`) and `recognizer-describe-claude`. The plugins run on Homebrew's `node` and `python@3.13`, which Homebrew installs as dependencies. Check the install with `recognizer --version` and `recognizer plugins`.
 
-Writing module responsibilities (`recognizer describe`) uses the [Claude Code](https://claude.com/claude-code) `claude` command, which you install and sign in to separately. Everything else works without it.
+Writing file responsibilities (`recognizer describe`) uses the [Claude Code](https://claude.com/claude-code) `claude` command, which you install and sign in to separately. Everything else works without it.
 
 ## Upgrade
 
@@ -124,7 +124,7 @@ A repository configures Recognizer in its `.recognizer/` folder. Edit it with `r
 
 Commit `policy.yaml`, `config.yaml`, `views/`, `responsibilities.json` and `baselines/`. `.recognizer/cache/` holds scans, findings, overlays and run logs and ignores itself with its own `.gitignore`, so the repository needs no line for it.
 
-The describer's model and how many modules it describes at once are your settings, not the repository's: `describing` in the app's `config.json`, edited in the app's Settings.
+The describer's model and how many files it describes at once are your settings, not the repository's: `describing` in the app's `config.json`, edited in the app's Settings.
 
 ## Agents
 
