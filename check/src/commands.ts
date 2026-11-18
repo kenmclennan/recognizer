@@ -959,7 +959,7 @@ export const COMMANDS: Command[] = [
       },
       {
         name: "<section>",
-        description: "foreign: the map a key lives in",
+        description: "a map a key lives in",
       },
     ],
     options: [

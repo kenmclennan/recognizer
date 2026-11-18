@@ -37,7 +37,6 @@ describe("recognizer policy, per key", () => {
   const keys = [
     { key: "entry", item: "shop/cli.py", first: "shop/main.py" },
     { key: "forbid", item: "c/** -> d/**", first: "a/** -> b/**" },
-    { key: "foreign.http", item: "urllib", first: "requests" },
     { key: "ignore", item: "docs/**", first: "tests/**" },
   ];
 
@@ -104,6 +103,7 @@ describe("recognizer policy sections", () => {
     const fake = setup(null);
 
     expect(policy(fake, "--add-section", "foreign")).toBe(2);
+    expect(fake.err()).toMatch(/^recognizer policy: foreign: /);
     expect(fake.files.has(POLICY)).toBe(false);
   });
 
@@ -115,20 +115,19 @@ describe("recognizer policy sections", () => {
     expect(fake.files.get(POLICY)).toBe("ignore:\n  - tests/**\n");
   });
 
-  it("--remove-section removes foreign whole", () => {
+  it("--remove-section of the retired foreign section is refused and writes nothing", () => {
     const fake = setup();
 
-    expect(policy(fake, "--remove-section", "foreign")).toBe(0);
-    expect(fake.files.get(POLICY)).toBe(
-      "entry:\n  - shop/main.py\nforbid:\n  - a/** -> b/**\nignore:\n  - tests/**\n",
-    );
+    expect(policy(fake, "--remove-section", "foreign")).toBe(2);
+    expect(fake.err()).toMatch(/^recognizer policy: foreign: /);
+    expect(fake.files.get(POLICY)).toBe(BASE);
   });
 
   it("refuses a key typed as a section and a section typed as a key", () => {
     const fake = setup();
 
     expect(policy(fake, "--add", "foreign", "x")).toBe(2);
-    expect(fake.err()).toContain("is a section, not a key");
+    expect(fake.err()).toMatch(/^recognizer policy: foreign: /);
     expect(policy(fake, "--add-section", "foreign.http")).toBe(2);
     expect(fake.files.get(POLICY)).toBe(BASE);
   });
@@ -340,12 +339,12 @@ describe("recognizer policy keeps the file's text", () => {
   });
 
   it("refuses --add onto a scalar and converts it by unset then add", () => {
-    const fake = setup("foreign:\n  http: requests\n");
+    const fake = setup("entry: shop/main.py\n");
 
-    expect(policy(fake, "--add", "foreign.http", "x")).toBe(2);
-    expect(fake.err()).toContain("foreign.http is a scalar, not a list");
-    expect(policy(fake, "--get", "foreign.http")).toBe(0);
-    expect(fake.out()).toBe("requests\n");
+    expect(policy(fake, "--add", "entry", "x")).toBe(2);
+    expect(fake.err()).toContain("entry is a scalar, not a list");
+    expect(policy(fake, "--get", "entry")).toBe(0);
+    expect(fake.out()).toBe("shop/main.py\n");
   });
 
   it("reports a path --list cannot address and exits 1", () => {
@@ -501,10 +500,11 @@ describe("recognizer policy help", () => {
 
     expect(out).toContain("Keys:");
 
-    for (const key of ["entry", "forbid", "foreign.<name>", "ignore"]) {
+    for (const key of ["entry", "forbid", "ignore"]) {
       expect(out).toContain(`  ${key}  [recognizer]`);
     }
 
+    expect(out).not.toContain("foreign");
     expect(out).toContain("example: recognizer policy --add entry src/main.ts");
     expect(out).toContain("--migrate");
     expect(out).toContain("--add-forbid");
