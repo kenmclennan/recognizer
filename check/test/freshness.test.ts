@@ -221,7 +221,7 @@ describe("freshScans", () => {
     freshScans(fake.io, ROOT, "all");
 
     expect(fake.out()).toBe("");
-    expect(fake.err()).toContain("python: 2 modules, 1 edges");
+    expect(fake.err()).toContain("python: 2 files, 1 edges");
   });
 
   it("rejects a root that is not a directory", () => {

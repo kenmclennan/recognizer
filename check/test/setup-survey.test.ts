@@ -713,6 +713,56 @@ describe("setup survey marks", () => {
     ).toBe("new");
   });
 
+  it("the files step counts the scan's modules, not its files", async () => {
+    const scan = JSON.parse(readFileSync(join(LOOM, "scan.json"), "utf8")) as {
+      files: { path: string; hash: string }[];
+      modules: { id: string }[];
+    };
+    const sources = scan.modules.slice(0, 2).map((module) => module.id);
+    const manifest = { path: "package.json", hash: scan.files[0]?.hash ?? "" };
+    const bespoke = {
+      ...scan,
+      files: [
+        ...scan.files.filter((file) => sources.includes(file.path)),
+        manifest,
+      ],
+      modules: scan.modules.filter((module) => sources.includes(module.id)),
+    };
+    const directory = makeTempDir("recognizer-survey-count-");
+    const path = join(directory, "scan.json");
+
+    writeFileSync(path, JSON.stringify(bespoke));
+
+    const { survey } = await surveyOf([LOOM, "--scan", path]);
+    const typescript = survey.files?.find(
+      (one) => one.language === "typescript",
+    );
+
+    expect(bespoke.files).toHaveLength(3);
+    expect(typescript?.files).toBe(2);
+    expect(
+      typescript?.folders.reduce((total, folder) => total + folder.files, 0),
+    ).toBe(2);
+  });
+
+  it("a scan whose files and modules coincide keeps its count", async () => {
+    const { survey } = await surveyOf([
+      LOOM,
+      "--scan",
+      join(LOOM, "scan.json"),
+    ]);
+    const scan = JSON.parse(readFileSync(join(LOOM, "scan.json"), "utf8")) as {
+      files: unknown[];
+      modules: unknown[];
+    };
+    const typescript = survey.files?.find(
+      (one) => one.language === "typescript",
+    );
+
+    expect(scan.files).toHaveLength(scan.modules.length);
+    expect(typescript?.files).toBe(scan.modules.length);
+  });
+
   it("leaves an unregistered plugin the Checks step offers out of the fixes", async () => {
     process.env.PATH = shimmedPath(shimDirectory(true, true));
 

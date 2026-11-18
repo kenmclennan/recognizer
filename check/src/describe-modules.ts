@@ -254,7 +254,7 @@ export async function describeModules(
 
   for (const id of within ?? []) {
     if (!modules.includes(id)) {
-      io.stderr(`skipped: no such module ${id}\n`);
+      io.stderr(`skipped: no such file ${id}\n`);
     }
   }
 

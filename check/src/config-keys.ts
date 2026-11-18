@@ -119,7 +119,7 @@ export const CORE_KEYS: KeySchema = {
       type: "string",
       multi: true,
       description:
-        "the words of the command that describes a module; {repository}, {module}, {model} and {request} are filled in",
+        "the words of the command that describes a file; {repository}, {module}, {model} and {request} are filled in",
       example: '--add describer.command "recognizer-describe-claude"',
     },
     {
@@ -225,7 +225,7 @@ export const CORE_KEYS: KeySchema = {
       type: "string",
       multi: true,
       description:
-        "globs of the modules the orphan and unused_exports warnings treat as entry points",
+        "globs of the files the orphan and unused_exports warnings treat as entry points",
       example:
         "--add sensors.structure.warnings.orphan.entry_points src/main.ts",
     },

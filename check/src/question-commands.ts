@@ -54,7 +54,7 @@ function question(
 
   for (const path of loaded.positionals.slice(0, moduleArguments)) {
     if (!loaded.modules.includes(path)) {
-      throw new InputError([`no such module: ${path}`]);
+      throw new InputError([`no such file: ${path}`]);
     }
   }
 
@@ -110,7 +110,7 @@ function neighbours(
   }
 
   const verb = direction === "uses" ? "uses" : "is used by";
-  const lines = [`${module} ${verb} ${plural(rows.length, "module")}`];
+  const lines = [`${module} ${verb} ${plural(rows.length, "file")}`];
 
   for (const group of groups) {
     lines.push(group.folder === "" ? "./" : `${group.folder}/`);
@@ -157,7 +157,7 @@ export function runCallers(argv: string[], io: Io): number {
 
   io.stdout(
     `${[
-      `${module}::${name} is called by ${plural(callers.length, "module")}`,
+      `${module}::${name} is called by ${plural(callers.length, "file")}`,
       ...callers.map(
         (caller) =>
           `  ${caller.module}${caller.through === null ? "" : ` (through ${caller.through})`}`,

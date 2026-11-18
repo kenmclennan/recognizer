@@ -116,7 +116,7 @@ describe("skill texts", () => {
       [
         "---",
         "name: recognizer",
-        "description: Use when the user asks about the structure of a codebase scanned with Recognizer, such as showing, explaining or extending a view of its modules.",
+        "description: Use when the user asks about the structure of a codebase scanned with Recognizer, such as showing, explaining or extending a view of its files.",
         "---",
         "",
         "Run `recognizer help agents` and follow it.",

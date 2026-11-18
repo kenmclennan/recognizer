@@ -66,7 +66,7 @@ function load(argv: string[], io: Io): Loaded {
   });
 
   if (values.all === true && positionals.length > 0) {
-    throw new InputError([`--all takes no module; usage: ${USAGE}`]);
+    throw new InputError([`--all takes no file; usage: ${USAGE}`]);
   }
 
   if (values.all === true && values.check === true) {
@@ -84,7 +84,7 @@ function load(argv: string[], io: Io): Loaded {
   const unknown = positionals.filter((name) => !modules.includes(name));
 
   if (unknown.length > 0) {
-    throw new InputError(unknown.map((name) => `no such module: ${name}`));
+    throw new InputError(unknown.map((name) => `no such file: ${name}`));
   }
 
   return {

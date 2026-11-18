@@ -6,7 +6,7 @@ export const POLICY_RECOMMENDATION_PROMPT = [
   "Each entry is one of three kinds:",
   "",
   '- `{ "kind": "ignore", "globs": [...], "why": "...", "based_on": "..." }` leaves files out of the structure, such as generated code, scripts and fixtures.',
-  '- `{ "kind": "entry", "paths": [...], "why": "...", "based_on": "..." }` names modules that are entry points, so they are not reported as unused.',
+  '- `{ "kind": "entry", "paths": [...], "why": "...", "based_on": "..." }` names files that are entry points, so they are not reported as unused.',
   '- `{ "kind": "forbid", "from": [...], "to": [...], "both": false, "why": "...", "based_on": "..." }` says files matching `from` must not import files matching `to`; set `both` to true when neither side may import the other.',
   "",
   "`why` is one plain sentence a reviewer can check. `based_on` names the files or imports you read, so the person can verify it. Never present a dependency direction as the tool's finding: it is your suggestion from the code. Do not state how many imports break a rule today; recognizer counts that itself.",

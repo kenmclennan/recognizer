@@ -6,7 +6,7 @@ export interface Skill {
 const GUIDE_SKILL = [
   "---",
   "name: recognizer",
-  "description: Use when the user asks about the structure of a codebase scanned with Recognizer, such as showing, explaining or extending a view of its modules.",
+  "description: Use when the user asks about the structure of a codebase scanned with Recognizer, such as showing, explaining or extending a view of its files.",
   "---",
   "",
   "Run `recognizer help agents` and follow it.",
@@ -32,7 +32,7 @@ export const SETUP_SKILL = [
   "",
   "Go in this order, one step at a time.",
   "",
-  "1. Scanning: run `recognizer plugins` and `recognizer scan --extract`, then report each language with the scanner that read it, the module counts and anything skipped or damaged. When two scanners claim a language, propose `recognizer config scanners.<language> <name>` for the one to use. Nothing else changes, and a problem stops setup there.",
+  "1. Scanning: run `recognizer plugins` and `recognizer scan --extract`, then report each language with the scanner that read it, the file counts and anything skipped or damaged. When two scanners claim a language, propose `recognizer config scanners.<language> <name>` for the one to use. Nothing else changes, and a problem stops setup there.",
   "2. Sensors and test suites: run `recognizer setup survey` for the test runners found from the repository's manifests, the coverage tools they need, the sensors that can run, and what the survey could not read. Register each sensor the user wants with `recognizer plugin add <name>`, and propose test suites only for sensors whose survey entry says `runs_tests`, as the `recognizer config` commands `recognizer setup changes` builds from the user's choices; do not work them out by hand. Then confirm with `recognizer sensors check --run`, asking first because that runs the tests.",
   "3. Policy: read the code and its imports, write the `ignore` globs, `entry` points and `forbid` rules you would recommend, each with its reasoning and the imports that support it, as the JSON `recognizer setup recommend` checks; it leaves out what the policy already holds or would reject, and counts what each rule breaks today. Write what the user accepts with `recognizer policy` (`--add ignore`, `--add entry`, `--add-forbid`). The user states the intent and you draft it; never present a dependency direction as the tool's finding. The user can skip this step, and then no policy is written.",
   "4. Check: run `recognizer doctor` and report a clean result or what remains.",

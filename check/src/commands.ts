@@ -50,7 +50,7 @@ const QUESTION_EXIT_CODES = [
   {
     code: 2,
     meaning:
-      "bad input - an unknown module, a wrong argument count, an unknown flag, or a scan that could not be made",
+      "bad input - an unknown file, a wrong argument count, an unknown flag, or a scan that could not be made",
   },
 ];
 
@@ -69,14 +69,14 @@ export const COMMANDS: Command[] = [
       {
         name: "<module>",
         description:
-          "a module's repository-relative path; narrows the report to violations that touch it, warnings that name it and its metrics; not with --scan, --update-baseline or --init-baseline",
+          "a file's repository-relative path; narrows the report to violations that touch it, warnings that name it and its metrics; not with --scan, --update-baseline or --init-baseline",
       },
     ],
     options: [
       {
         flag: "--scan <file>",
         description:
-          "replay this scan document instead of the repository's scan; takes no module, --repository or --json",
+          "replay this scan document instead of the repository's scan; takes no file, --repository or --json",
       },
       {
         flag: "--repository <dir>",
@@ -121,7 +121,7 @@ export const COMMANDS: Command[] = [
       {
         code: 2,
         meaning:
-          "bad input - an unknown module, a baseline flag with a module, --init-baseline while a registered sensor's results are out of date or invalid, --scan with a module or --json, an unknown flag or a scan that could not be made",
+          "bad input - an unknown file, a baseline flag with a file, --init-baseline while a registered sensor's results are out of date or invalid, --scan with a file or --json, an unknown flag or a scan that could not be made",
       },
     ],
     examples: [
@@ -159,7 +159,7 @@ export const COMMANDS: Command[] = [
       {
         flag: "--describe[=all]",
         description:
-          "describe every module whose line is missing or out of date, as recognizer describe does with no names, up to the batch size at once; =all describes every module (the value only with =)",
+          "describe every file whose line is missing or out of date, as recognizer describe does with no names, up to the batch size at once; =all describes every file (the value only with =)",
       },
       {
         flag: "--sense <all|name[,name...]>",
@@ -169,7 +169,7 @@ export const COMMANDS: Command[] = [
       {
         flag: "--modules <file>",
         description:
-          "a JSON array of module ids that limits --describe to those modules (the stale ones among them, or all of them with =all) and passes the file to the mutation sensor, which mutates only those modules' functions; needs --describe or --sense, and no other sensor takes it",
+          "a JSON array of file ids that limits --describe to those files (the stale ones among them, or all of them with =all) and passes the file to the mutation sensor, which mutates only those files' functions; needs --describe or --sense, and no other sensor takes it",
       },
       {
         flag: "--suites <file>",
@@ -203,7 +203,7 @@ export const COMMANDS: Command[] = [
     ],
     output: {
       text: "a heading line per phase (extract, describe, sense) and one line per entry on stdout, `scans current at <commit>` when extraction was skipped; failures on stderr",
-      json: "one line per event on stdout as it happens: `phase` (extract: state run|current, commit, reason; describe and sense: total), `progress` (phase sense, name, step coverage|mutants, and done and total with mutants; only from a sensor that runs tests and reports it, such as mutation), `entry` (phase, name, outcome ok|failed, reason when failed, modules and edges for a written language), `preflight` (state run|ok|gaps, and the gaps with each one's id, line, needs and fix when gaps), `structure` (state run|done|failed, and files, the count of files the analysis read, once it ran; none when the structure sensor is off) and a last `summary` (repository, commit, modified, exit, phases with their entries, removed, skipped)",
+      json: "one line per event on stdout as it happens: `phase` (extract: state run|current, commit, reason; describe and sense: total), `progress` (phase sense, name, step coverage|mutants, and done and total with mutants; only from a sensor that runs tests and reports it, such as mutation), `entry` (phase, name, outcome ok|failed, reason when failed, files and edges for a written language), `preflight` (state run|ok|gaps, and the gaps with each one's id, line, needs and fix when gaps), `structure` (state run|done|failed, and files, the count of files the analysis read, once it ran; none when the structure sensor is off) and a last `summary` (repository, commit, modified, exit, phases with their entries, removed, skipped)",
     },
     exitCodes: [
       {
@@ -280,17 +280,17 @@ export const COMMANDS: Command[] = [
   },
   {
     name: "uses",
-    summary: "list the modules a module uses, grouped by folder",
+    summary: "list the files a file uses, grouped by folder",
     usage: "recognizer uses <module> [--repository <dir>] [--json]",
     arguments: [
       {
         name: "<module>",
-        description: "a module's repository-relative path",
+        description: "a file's repository-relative path",
       },
     ],
     options: REPOSITORY_OPTIONS,
     output: {
-      text: "`<module> uses N modules`, then per folder a `<folder>/` line and one indented line per module with the names used, suffixed (private) or (inferred)",
+      text: "`<module> uses N files`, then per folder a `<folder>/` line and one indented line per file with the names used, suffixed (private) or (inferred)",
       json: '{ module, direction: "uses", count, groups: [{ folder, modules: [{ id, names, private, inferred }] }] }',
     },
     exitCodes: QUESTION_EXIT_CODES,
@@ -304,17 +304,17 @@ export const COMMANDS: Command[] = [
   },
   {
     name: "used-by",
-    summary: "list the modules that use a module, grouped by folder",
+    summary: "list the files that use a file, grouped by folder",
     usage: "recognizer used-by <module> [--repository <dir>] [--json]",
     arguments: [
       {
         name: "<module>",
-        description: "a module's repository-relative path",
+        description: "a file's repository-relative path",
       },
     ],
     options: REPOSITORY_OPTIONS,
     output: {
-      text: "`<module> is used by N modules`, then per folder a `<folder>/` line and one indented line per module with the names used, suffixed (private) or (inferred)",
+      text: "`<module> is used by N files`, then per folder a `<folder>/` line and one indented line per file with the names used, suffixed (private) or (inferred)",
       json: '{ module, direction: "usedBy", count, groups: [{ folder, modules: [{ id, names, private, inferred }] }] }',
     },
     exitCodes: QUESTION_EXIT_CODES,
@@ -328,12 +328,12 @@ export const COMMANDS: Command[] = [
   },
   {
     name: "callers",
-    summary: "list the modules that call a module's member",
+    summary: "list the files that call a file's member",
     usage: "recognizer callers <module> <name> [--repository <dir>] [--json]",
     arguments: [
       {
         name: "<module>",
-        description: "a module's repository-relative path",
+        description: "a file's repository-relative path",
       },
       {
         name: "<name>",
@@ -343,7 +343,7 @@ export const COMMANDS: Command[] = [
     ],
     options: REPOSITORY_OPTIONS,
     output: {
-      text: "`<module>::<name> is called by N modules`, one line per caller with (through <Abstraction>) when it reaches the member by dispatch, then `built: yes|no`",
+      text: "`<module>::<name> is called by N files`, one line per caller with (through <Abstraction>) when it reaches the member by dispatch, then `built: yes|no`",
       json: "{ module, name, constructed, callers: [{ module, through }] }",
     },
     exitCodes: [
@@ -351,7 +351,7 @@ export const COMMANDS: Command[] = [
       {
         code: 2,
         meaning:
-          "bad input - an unknown module, a scan with no call data for the module, or a scan that could not be made",
+          "bad input - an unknown file, a scan with no call data for the file, or a scan that could not be made",
       },
     ],
     examples: [
@@ -364,11 +364,11 @@ export const COMMANDS: Command[] = [
   },
   {
     name: "path",
-    summary: "find the shortest chain of uses from one module to another",
+    summary: "find the shortest chain of uses from one file to another",
     usage: "recognizer path <from> <to> [--repository <dir>] [--json]",
     arguments: [
-      { name: "<from>", description: "the module the chain starts at" },
-      { name: "<to>", description: "the module the chain ends at" },
+      { name: "<from>", description: "the file the chain starts at" },
+      { name: "<to>", description: "the file the chain ends at" },
     ],
     options: REPOSITORY_OPTIONS,
     output: {
@@ -376,7 +376,7 @@ export const COMMANDS: Command[] = [
       json: "{ from, to, found, steps: [{ from, to, names, private, inferred }] }, with steps empty when found is false",
     },
     exitCodes: [
-      { code: 0, meaning: "a path exists, including from a module to itself" },
+      { code: 0, meaning: "a path exists, including from a file to itself" },
       { code: 1, meaning: "no path exists" },
       { code: 2, meaning: "bad input" },
     ],
@@ -390,25 +390,25 @@ export const COMMANDS: Command[] = [
   },
   {
     name: "find",
-    summary: "find modules by path and members by name",
+    summary: "find files by path and members by name",
     usage: "recognizer find <text> [--repository <dir>] [--json]",
     arguments: [
       {
         name: "<text>",
         description:
-          "a case-insensitive substring of a module's path or of a top-level member's name",
+          "a case-insensitive substring of a file's path or of a top-level member's name",
       },
     ],
     options: REPOSITORY_OPTIONS,
     output: {
-      text: "`N modules, M members matched`, then a `modules` list of ids and a `members` list of `module::name  kind  line N`",
+      text: "`N files, M members matched`, then a `files` list of ids and a `members` list of `module::name  kind  line N`",
       json: "{ text, modules: [{ id, kind }], members: [{ module, name, kind, line, exported }] }",
     },
     exitCodes: QUESTION_EXIT_CODES,
     examples: [
       {
         command: `recognizer find order ${SAMPLE}`,
-        note: "every module path and member name containing order",
+        note: "every file path and member name containing order",
       },
     ],
     run: runFind,
@@ -416,12 +416,12 @@ export const COMMANDS: Command[] = [
   {
     name: "show",
     summary:
-      "show what the explorer's Contents tab shows for a module: members, signatures, responsibility and findings",
+      "show what the explorer's Contents tab shows for a file: members, signatures, responsibility and findings",
     usage: "recognizer show <module> [--private] [--repository <dir>] [--json]",
     arguments: [
       {
         name: "<module>",
-        description: "a module's repository-relative path",
+        description: "a file's repository-relative path",
       },
     ],
     options: [
@@ -433,7 +433,7 @@ export const COMMANDS: Command[] = [
       ...REPOSITORY_OPTIONS,
     ],
     output: {
-      text: "a header `module  kind  uses N  used by N`, a `responsibility:` line with its status in brackets unless current (and a `run recognizer describe <module> to write it` line when it is missing), one `line  visibility  kind  signature` row per member with a class's fields and methods indented under it, `N private hidden`, then `findings:` rows or `no findings`",
+      text: "a header `file  kind  uses N  used by N`, a `responsibility:` line with its status in brackets unless current (and a `run recognizer describe <module> to write it` line when it is missing), one `line  visibility  kind  signature` row per member with a class's fields and methods indented under it, `N private hidden`, then `findings:` rows or `no findings`",
       json: '{ module, kind, uses, usedBy, responsibility: { status: "current"|"out-of-date"|"missing"|"unchecked", line }, members: [{ name, kind, line, visibility, signature, fields?, methods? }], hiddenPrivate, findings: [{ severity, text, why }] }',
     },
     exitCodes: QUESTION_EXIT_CODES,
@@ -448,26 +448,26 @@ export const COMMANDS: Command[] = [
   {
     name: "modules",
     summary:
-      "list the modules with their uses, used-by and finding counts, filtered and sorted",
+      "list the files with their uses, used-by and finding counts, filtered and sorted",
     usage:
       "recognizer modules [--folder <path>] [--findings] [--min-uses <n>] [--min-used-by <n>] [--sort <id|uses|used-by|findings>] [--reverse] [--limit <n>] [--repository <dir>] [--json]",
     arguments: [],
     options: [
       {
         flag: "--folder <path>",
-        description: "keep modules at or under this folder",
+        description: "keep files at or under this folder",
       },
       {
         flag: "--findings",
-        description: "keep modules with at least one finding",
+        description: "keep files with at least one finding",
       },
       {
         flag: "--min-uses <n>",
-        description: "keep modules that use at least n modules (integer >= 0)",
+        description: "keep files that use at least n files (integer >= 0)",
       },
       {
         flag: "--min-used-by <n>",
-        description: "keep modules used by at least n modules (integer >= 0)",
+        description: "keep files used by at least n files (integer >= 0)",
       },
       {
         flag: "--sort <key>",
@@ -482,14 +482,14 @@ export const COMMANDS: Command[] = [
       ...REPOSITORY_OPTIONS,
     ],
     output: {
-      text: "`N of M modules`, then `id  kind  uses N  used by N  findings N` per row",
+      text: "`N of M files`, then `id  kind  uses N  used by N  findings N` per row",
       json: "{ total, count, modules: [{ id, kind, uses, usedBy, findings }] }, where total is before the filters",
     },
     exitCodes: QUESTION_EXIT_CODES,
     examples: [
       {
         command: `recognizer modules --sort used-by --limit 5 ${SAMPLE}`,
-        note: "the five most depended-on modules",
+        note: "the five most depended-on files",
       },
     ],
     run: runModules,
@@ -524,7 +524,7 @@ export const COMMANDS: Command[] = [
       },
       {
         name: "<module>",
-        description: "a module's repository-relative path, as in the scan",
+        description: "a file's repository-relative path, as in the scan",
       },
       {
         name: "<folder>",
@@ -534,7 +534,7 @@ export const COMMANDS: Command[] = [
       {
         name: "<text>",
         description:
-          "a note's text; a module or a folder carries one note, and writing one replaces the one already there",
+          "a note's text; a file or a folder carries one note, and writing one replaces the one already there",
       },
       {
         name: "new",
@@ -544,17 +544,17 @@ export const COMMANDS: Command[] = [
       {
         name: "add",
         description:
-          "pick one or more modules; each must be in the scan, except on a plan with --change new, moves or moves-and-changes, where a module that does not exist yet is planned and takes only its proposed change; --change sets the proposed change of each module named (a plan only)",
+          "pick one or more files; each must be in the scan, except on a plan with --change new, moves or moves-and-changes, where a file that does not exist yet is planned and takes only its proposed change; --change sets the proposed change of each file named (a plan only)",
       },
       {
         name: "change",
         description:
-          "set or clear a proposed change on a plan: what the plan says will happen to one module, drawn as a coloured border. A proposed change is new, changes, moves, moves-and-changes or removed; changes and removed need the module in the scan; moves and moves-and-changes need --from, the path the module moves from, and draw a ghost box there. --clear removes it, and is refused on a planned module (remove it with views remove)",
+          "set or clear a proposed change on a plan: what the plan says will happen to one file, drawn as a coloured border. A proposed change is new, changes, moves, moves-and-changes or removed; changes and removed need the file in the scan; moves and moves-and-changes need --from, the path the file moves from, and draw a ghost box there. --clear removes it, and is refused on a planned file (remove it with views remove)",
       },
       {
         name: "rule",
         description:
-          "put a folder's modules (--folder), or what a module uses (--uses) or is used by (--used-by), on the view, re-evaluated against every scan; --uses and --used-by are direct, one step (the rows the Dependencies tab lists), not transitive; --within limits uses and used-by to a folder",
+          "put a folder's files (--folder), or what a file uses (--uses) or is used by (--used-by), on the view, re-evaluated against every scan; --uses and --used-by are direct, one step (the rows the Dependencies tab lists), not transitive; --within limits uses and used-by to a folder",
       },
       {
         name: "fold",
@@ -567,17 +567,17 @@ export const COMMANDS: Command[] = [
       {
         name: "remove",
         description:
-          "take a module off the view (its pick is deleted and, if a rule still puts it there, it is recorded as left out); with --fold, --focus or --rule delete that step instead",
+          "take a file off the view (its pick is deleted and, if a rule still puts it there, it is recorded as left out); with --fold, --focus or --rule delete that step instead",
       },
       {
         name: "show",
         description:
-          "print a view's steps and the modules they resolve to now, led by its title when it has one (--json carries title when set)",
+          "print a view's steps and the files they resolve to now, led by its title when it has one (--json carries title when set)",
       },
       {
         name: "diff",
         description:
-          "for a change view, run git diff --name-status over its range and print the modules it changed, each marked added, modified or removed, with the two commits and the count of changed files that matched no module; read-only, exit 1 for a view with no range or a ref git does not know",
+          "for a change view, run git diff --name-status over its range and print the files it changed, each marked added, modified or removed, with the two commits and the count of changed files that matched no file; read-only, exit 1 for a view with no range or a ref git does not know",
       },
       {
         name: "list",
@@ -614,7 +614,7 @@ export const COMMANDS: Command[] = [
       {
         flag: "--from-window <id>",
         description:
-          "save what the app window with this id shows as the view: one pick per module on the canvas, one fold per folded folder and the focus; the window must hold --repository (new)",
+          "save what the app window with this id shows as the view: one pick per file on the canvas, one fold per folded folder and the focus; the window must hold --repository (new)",
       },
       {
         flag: "--change <base>..<head>|none",
@@ -624,7 +624,7 @@ export const COMMANDS: Command[] = [
       {
         flag: "--plan",
         description:
-          "make the view a plan: modules may carry a proposed change, and the view has no change range (new, set)",
+          "make the view a plan: files may carry a proposed change, and the view has no change range (new, set)",
       },
       {
         flag: "--no-plan",
@@ -634,11 +634,11 @@ export const COMMANDS: Command[] = [
       {
         flag: "--from <path>",
         description:
-          "the path a moved module moves from; required with moves and moves-and-changes (add, change)",
+          "the path a moved file moves from; required with moves and moves-and-changes (add, change)",
       },
       {
         flag: "--clear",
-        description: "clear a module's proposed change (change)",
+        description: "clear a file's proposed change (change)",
       },
       {
         flag: "--fix",
@@ -652,14 +652,14 @@ export const COMMANDS: Command[] = [
       {
         flag: "--remove",
         description:
-          "delete the note on the module or folder instead of setting one (note)",
+          "delete the note on the file or folder instead of setting one (note)",
       },
     ],
     output: {
       text: [
-        "new, add, rule, fold, focus, remove, note: `<name>: <what changed>; N steps, resolves to M modules`",
-        "show: `<name>: <description>`, `saved at <commit>`, the numbered steps, `resolves to N modules` with one per line, then `notes:` with one `<n>. <module-or-folder>: <text> (<by>)` line per note in reading order (marked `(not on the view)` when it is not), then a `warning:` line when the file holds several notes on one path, then unresolved, folded and focus lines when there are any",
-        "diff: `<name>: <range> (<base>..<head>)`, then one `<added|modified|removed> <module>` line per changed module (`(no box)` when a removed module is in no scan we hold) and a count of files that matched no module\n  list: one `<name>  [<range>  ]N steps  <commit>  <description>` line per view, then a `  stale: <reason>` line for each reason",
+        "new, add, rule, fold, focus, remove, note: `<name>: <what changed>; N steps, resolves to M files`",
+        "show: `<name>: <description>`, `saved at <commit>`, the numbered steps, `resolves to N files` with one per line, then `notes:` with one `<n>. <module-or-folder>: <text> (<by>)` line per note in reading order (marked `(not on the view)` when it is not), then a `warning:` line when the file holds several notes on one path, then unresolved, folded and focus lines when there are any",
+        "diff: `<name>: <range> (<base>..<head>)`, then one `<added|modified|removed> <module>` line per changed file (`(no box)` when a removed file is in no scan we hold) and a count of files that matched no file\n  list: one `<name>  [<range>  ]N steps  <commit>  <description>` line per view, then a `  stale: <reason>` line for each reason",
         "check: `<name>: ok` or `<name>: N unresolved` with one `step N <kind> <path> - no such <module|folder>` line each, plus `(renamed to <path>)` when git records one",
         "rm: `<name>: removed`",
       ].join("\n"),
@@ -681,7 +681,7 @@ export const COMMANDS: Command[] = [
       {
         code: 2,
         meaning:
-          "bad input - an unknown view, module or folder, a view that already exists, an invalid name, a wrong argument count, an unknown flag, an invalid view file, or --from-window naming a window that is not open, is not running the app, holds another repository or shows a module the scan lacks",
+          "bad input - an unknown view, file or folder, a view that already exists, an invalid name, a wrong argument count, an unknown flag, an invalid view file, or --from-window naming a window that is not open, is not running the app, holds another repository or shows a file the scan lacks",
       },
     ],
     examples: [
@@ -708,7 +708,7 @@ export const COMMANDS: Command[] = [
       {
         command:
           'recognizer views note order-placement shop/application/place.py "The one use case" --by Claude',
-        note: "explain a module on the view; writing it again replaces the note in its place, and a path ending in / notes a folder; a new note goes last, so the order notes are written in is the reading order",
+        note: "explain a file on the view; writing it again replaces the note in its place, and a path ending in / notes a folder; a new note goes last, so the order notes are written in is the reading order",
       },
       {
         command:
@@ -737,11 +737,11 @@ export const COMMANDS: Command[] = [
       {
         command:
           "recognizer views add redesign shop/application/discount.py --change new",
-        note: "plan a module that does not exist yet; changes and removed need the module in the scan, and moves needs --from <old path>",
+        note: "plan a file that does not exist yet; changes and removed need the file in the scan, and moves needs --from <old path>",
       },
       {
         command: "recognizer views show order-placement --json",
-        note: "the modules the view resolves to now",
+        note: "the files the view resolves to now",
       },
     ],
     run: runViews,
@@ -774,7 +774,7 @@ export const COMMANDS: Command[] = [
       {
         flag: "--modules <file>",
         description:
-          "with check: a JSON file holding an array of module ids; the work is counted for those modules only",
+          "with check: a JSON file holding an array of file ids; the work is counted for those files only",
       },
       {
         flag: "--suites <file>",
@@ -1008,7 +1008,7 @@ export const COMMANDS: Command[] = [
       {
         flag: "--migrate",
         description:
-          "rewrite a policy written in the earlier component form into forbid and entry rules, and print one line per change; a policy with none changes nothing, and an inconsistent one exits 2 and changes nothing. The rewrite reports the same imports as violations when no module matches the globs of two components, the case the old parser refused to scan; a module matching no component stays unconstrained",
+          "rewrite a policy written in the earlier component form into forbid and entry rules, and print one line per change; a policy with none changes nothing, and an inconsistent one exits 2 and changes nothing. The rewrite reports the same imports as violations when no file matches the globs of two components, the case the old parser refused to scan; a file matching no component stays unconstrained",
       },
       {
         flag: "--repository <dir>",
@@ -1291,12 +1291,12 @@ export const COMMANDS: Command[] = [
       {
         name: "add | remove <module>...",
         description:
-          "put each module on the canvas or take it off; refused when a path is not a module in the scan",
+          "put each file on the canvas or take it off; refused when a path is not a file in the scan",
       },
       {
         name: "fold <folder>... [--off]",
         description:
-          "fold each folder, or unfold it with --off; refused when a folder holds no module",
+          "fold each folder, or unfold it with --off; refused when a folder holds no file",
       },
       {
         name: "focus <folder>",
@@ -1305,19 +1305,19 @@ export const COMMANDS: Command[] = [
       {
         name: "select <module-or-folder>",
         description:
-          "select a module (a module wins over a folder of the same id) or a folder",
+          "select a file (a file wins over a folder of the same id) or a folder",
       },
       {
         name: "trail uses|used-by <module>",
         description:
-          "follow that relation from the active trail panel's selection to the module and open the Dependencies tab; refused when the trail is empty or the module is not a direct dependency or dependent",
+          "follow that relation from the active trail panel's selection to the file and open the Dependencies tab; refused when the trail is empty or the file is not a direct dependency or dependent",
       },
       {
         name: "open-view <name>",
         description: "open the saved view of that name, as the Views menu does",
       },
       {
-        name: "clear modules|folds|focus|selection|all",
+        name: "clear files|folds|focus|selection|all",
         description: "empty that part of the canvas state",
       },
     ],
@@ -1331,7 +1331,7 @@ export const COMMANDS: Command[] = [
       { flag: "--off", description: "with fold, unfold instead" },
     ],
     output: {
-      text: "without a verb: the window's id and folder, then its view, modules, folds, focus, selection, trail and inspector tab; with one: a summary of the change, or `nothing changed`",
+      text: "without a verb: the window's id and folder, then its view, files, folds, focus, selection, trail and inspector tab; with one: a summary of the change, or `nothing changed`",
       json: "without a verb: { id, folder, view, modules, folded, focus, selection, trail: [{ selection, relation, tab, active }], inspector: { open, tab } }; with one: { summary, changed }",
     },
     exitCodes: [
@@ -1350,7 +1350,7 @@ export const COMMANDS: Command[] = [
       },
       {
         command: "recognizer window w-1 add app/a.py app/b.py --by Claude",
-        note: "put two modules on the first window's canvas; its footer reads `Claude added 2 modules` with an Undo",
+        note: "put two files on the first window's canvas; its footer reads `Claude added 2 files` with an Undo",
       },
       {
         command: "recognizer window w-1 fold app/util --off",
@@ -1362,7 +1362,7 @@ export const COMMANDS: Command[] = [
   {
     name: "describe",
     summary:
-      "write each module's one-line responsibility with the repository's registered describer (refused with `recognizer plugin add claude` when none is registered), running up to the batch size of describers at once",
+      "write each file's one-line responsibility with the repository's registered describer (refused with `recognizer plugin add claude` when none is registered), running up to the batch size of describers at once",
     usage: [
       "recognizer describe [<module>... | --all] [--repository <dir>] [--json]",
       "recognizer describe --check [<module>...] [--repository <dir>] [--json]",
@@ -1372,18 +1372,18 @@ export const COMMANDS: Command[] = [
       {
         name: "<module>",
         description:
-          "a module's repository-relative path; without a module, describe redoes every missing or out-of-date line, and with one it redoes exactly the named modules whatever their status",
+          "a file's repository-relative path; without a file, describe redoes every missing or out-of-date line, and with one it redoes exactly the named files whatever their status",
       },
     ],
     options: [
       {
         flag: "--all",
-        description: "describe every module in the scan, current or not",
+        description: "describe every file in the scan, current or not",
       },
       {
         flag: "--check",
         description:
-          "run no describer and write nothing: print each module's status and line",
+          "run no describer and write nothing: print each file's status and line",
       },
       {
         flag: "--describer",
@@ -1405,7 +1405,7 @@ export const COMMANDS: Command[] = [
     output: {
       text: [
         "describe: `described <id>` per success on stdout and `failed <id>: <reason>` per failure on stderr, then `described N, failed M, already current K`, with `, pruned P` when entries were removed",
-        "describe --check: one `<id>  <status>  <line>` row per module, where status is current, out-of-date (followed by `(source changed)`, `(describer changed)` and/or `(version changed)`), missing or unreadable, then `N current, M out of date, K missing`, then a `gone <id>` line for each entry whose module is no longer in the scan",
+        "describe --check: one `<id>  <status>  <line>` row per file, where status is current, out-of-date (followed by `(source changed)`, `(describer changed)` and/or `(version changed)`), missing or unreadable, then `N current, M out of date, K missing`, then a `gone <id>` line for each entry whose file is no longer in the scan",
       ].join("\n"),
       json: [
         "describe: { described: string[], failed: [{ module, reason }], current, pruned: string[] }",
@@ -1416,27 +1416,27 @@ export const COMMANDS: Command[] = [
       {
         code: 0,
         meaning:
-          "every selected module was described or none was selected; with --check, every module is current",
+          "every selected file was described or none was selected; with --check, every file is current",
       },
       {
         code: 1,
         meaning:
-          "at least one selected module failed (the rest are still written); with --check, at least one module is not current",
+          "at least one selected file failed (the rest are still written); with --check, at least one file is not current",
       },
       {
         code: 2,
         meaning:
-          "bad input - no describer registered in .recognizer/config.yaml and recognizer-describe-claude not installed, an invalid config or responsibilities file, an unknown module, --all with a module or with --check, an unknown flag or a scan that could not be made",
+          "bad input - no describer registered in .recognizer/config.yaml and recognizer-describe-claude not installed, an invalid config or responsibilities file, an unknown file, --all with a file or with --check, an unknown flag or a scan that could not be made",
       },
     ],
     examples: [
       {
         command: "recognizer describe",
-        note: "describe every module whose line is missing or out of date",
+        note: "describe every file whose line is missing or out of date",
       },
       {
         command: "recognizer describe shop/domain/order.py",
-        note: "redo one module's line",
+        note: "redo one file's line",
       },
       {
         command: "recognizer describe --check --json",
@@ -1527,7 +1527,7 @@ export const COMMANDS: Command[] = [
       { flag: "--json", description: "print JSON instead of text" },
     ],
     output: {
-      text: "the list is one line per run, newest first: `<id>  <kind>  <started>  <outcome>  <n> ok, <n> failed`, or `no runs recorded`; a single run prints a header (id, kind, started, finished, by, arguments, outcome), then per scanner, sensor or module its outcome, exit status, duration, command, reason and stderr; a record that cannot be read is named on stderr as `skipped <id>: <message>`",
+      text: "the list is one line per run, newest first: `<id>  <kind>  <started>  <outcome>  <n> ok, <n> failed`, or `no runs recorded`; a single run prints a header (id, kind, started, finished, by, arguments, outcome), then per scanner, sensor or file its outcome, exit status, duration, command, reason and stderr; a record that cannot be read is named on stderr as `skipped <id>: <message>`",
       json: "the list is { runs: [{ id, kind, started, finished, by, outcome, entries, failed }] }; a single run is { id, log_version, kind, started, finished, by, arguments, outcome, exit, structure_ms?, entries: [{ name, command, status, outcome, duration_ms, modules?, fixed_ms?, incomplete?, work?: { unit, performed }, suites?: [{ name, duration_ms }], reason?, diagnosis?, stderr, stderr_truncated? }] } or phases: [{ phase, entries, duration_ms? }] for a scan, where diagnosis is the sensor's Diagnosis object when the entry has one",
     },
     exitCodes: [

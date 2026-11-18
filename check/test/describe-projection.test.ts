@@ -64,11 +64,11 @@ describe("projectionText", () => {
         cost_usd: 0.0004,
       }),
     ).toBe(
-      "projection: 2 modules, ~3000 input tokens, ~$0.0004 (haiku, API-equivalent estimate)\n",
+      "projection: 2 files, ~3000 input tokens, ~$0.0004 (haiku, API-equivalent estimate)\n",
     );
   });
 
-  it("prints $unknown for a null cost and a bare line for no modules", () => {
+  it("prints $unknown for a null cost and a bare line for no files", () => {
     expect(
       projectionText({
         modules: 1,
@@ -86,6 +86,6 @@ describe("projectionText", () => {
         output_tokens: 0,
         cost_usd: 0,
       }),
-    ).toBe("projection: 0 modules\n");
+    ).toBe("projection: 0 files\n");
   });
 });

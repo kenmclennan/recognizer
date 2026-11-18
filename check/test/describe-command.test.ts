@@ -183,7 +183,7 @@ afterEach(() => {
 });
 
 describe("describe status", () => {
-  it("reports every module missing with no file", async () => {
+  it("reports every file missing with no file", async () => {
     const root = ready();
     const { code, parsed } = await statuses(root);
 
@@ -198,7 +198,7 @@ describe("describe status", () => {
     expect(parsed.modules.every((m) => m.line === null)).toBe(true);
   });
 
-  it("makes only an edited module out of date and redescribes only it", async () => {
+  it("makes only an edited file out of date and redescribes only it", async () => {
     const root = ready();
 
     expect((await exec(root, "describe")).code).toBe(0);
@@ -289,7 +289,7 @@ describe("describe selection", () => {
     expect(statSync(file).mtimeMs).toBe(mtime);
   });
 
-  it("redoes a named current module and only the named ones", async () => {
+  it("redoes a named current file and only the named ones", async () => {
     const root = ready();
 
     await exec(root, "describe");
@@ -314,12 +314,12 @@ describe("describe selection", () => {
     expect(calls(root)).toHaveLength(15);
   });
 
-  it("exits 2 for an unknown module and runs nothing", async () => {
+  it("exits 2 for an unknown file and runs nothing", async () => {
     const root = ready();
     const result = await exec(root, "describe", "nope.py", ORDER);
 
     expect(result.code).toBe(2);
-    expect(result.err).toContain("no such module: nope.py");
+    expect(result.err).toContain("no such file: nope.py");
     expect(calls(root)).toEqual([]);
     expect(existsSync(join(root, ".recognizer/responsibilities.json"))).toBe(
       false,
@@ -396,7 +396,7 @@ describe("describe projection", () => {
     const first = result.out.split("\n")[0] as string;
 
     expect(first).toMatch(
-      /^projection: 15 modules, ~\d+ input tokens, ~\$\d+\.\d{4} \(haiku, API-equivalent estimate\)$/,
+      /^projection: 15 files, ~\d+ input tokens, ~\$\d+\.\d{4} \(haiku, API-equivalent estimate\)$/,
     );
   });
 
@@ -416,14 +416,14 @@ describe("describe projection", () => {
     expect(body.projection.cost_usd).toBeGreaterThan(0);
   });
 
-  it("prints a bare line when no module needs describing", async () => {
+  it("prints a bare line when no file needs describing", async () => {
     const root = ready();
 
     await exec(root, "describe");
 
     const result = await exec(root, "describe");
 
-    expect(result.out.split("\n")[0]).toBe("projection: 0 modules");
+    expect(result.out.split("\n")[0]).toBe("projection: 0 files");
   });
 
   it("prints $unknown for a model with no known price", async () => {
@@ -544,8 +544,8 @@ describe("describe failures", () => {
   });
 });
 
-describe("describe a Kotlin file module", () => {
-  it("reports only the module of a deleted file unreadable", async () => {
+describe("describe a Kotlin file", () => {
+  it("reports only the file of a deleted file unreadable", async () => {
     const root = repository("kotlin");
     const gone = "app/src/main/kotlin/shop/domain/Order.kt";
 
@@ -588,7 +588,7 @@ describe("describe a Kotlin file module", () => {
 });
 
 describe("describe write path", () => {
-  it("writes each success before the next module and leaves no temp file", async () => {
+  it("writes each success before the next file and leaves no temp file", async () => {
     const root = ready("v1", "--fail", STORE);
 
     await exec(root, "describe", ORDER, STORE);
@@ -656,7 +656,7 @@ describe("describe write path", () => {
 });
 
 describe("describe request", () => {
-  it("gives the describer the module's source, members and neighbours", async () => {
+  it("gives the describer the file's source, members and neighbours", async () => {
     const root = ready();
     const copy = join(root, ".recognizer/cache/request.json");
 
@@ -694,7 +694,7 @@ describe("describe request", () => {
 });
 
 describe("describe prune", () => {
-  it("removes an entry for a module no longer in the scan and reports it", async () => {
+  it("removes an entry for a file no longer in the scan and reports it", async () => {
     const root = ready();
 
     await exec(root, "describe");
@@ -968,7 +968,7 @@ describe("describe config", () => {
 });
 
 describe("describe --check", () => {
-  it("prints text rows for current, out-of-date and missing modules", async () => {
+  it("prints text rows for current, out-of-date and missing files", async () => {
     const root = ready();
 
     await exec(root, "describe", ORDER, STORE);
@@ -986,7 +986,7 @@ describe("describe --check", () => {
     expect(rows).toContain("1 current, 1 out of date, 13 missing");
   });
 
-  it("exits 0 only when every module is current", async () => {
+  it("exits 0 only when every file is current", async () => {
     const root = ready();
 
     await exec(root, "describe");
@@ -994,7 +994,7 @@ describe("describe --check", () => {
     expect((await exec(root, "describe", "--check")).code).toBe(0);
   });
 
-  it("restricts output to the named modules", async () => {
+  it("restricts output to the named files", async () => {
     const root = ready();
     const result = await exec(root, "describe", "--check", "--json", ORDER);
 
@@ -1178,7 +1178,7 @@ describe("describe leaves a run record", () => {
     });
   });
 
-  it("records an unreadable module with an empty command", async () => {
+  it("records an unreadable file with an empty command", async () => {
     const root = ready();
 
     rmSync(join(root, ORDER));

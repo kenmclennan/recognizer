@@ -555,7 +555,7 @@ describe("recognizer scan: summary", () => {
 
     expect(code).toBe(0);
     expect(out).toBe(
-      "extract\npython: 2 modules, 1 edges -> .recognizer/cache/scan.python.json\ntypescript: 3 modules, 2 edges -> .recognizer/cache/scan.typescript.json\n",
+      "extract\npython: 2 files, 1 edges -> .recognizer/cache/scan.python.json\ntypescript: 3 files, 2 edges -> .recognizer/cache/scan.typescript.json\n",
     );
     expect(err).toBe("");
   });
@@ -910,7 +910,7 @@ describe("recognizer scan: phases", () => {
 
     expect(code).toBe(0);
     expect(out).toMatch(
-      /describe\nprojection: 2 modules, ~\d+ input tokens, ~\$[\d.]+ \(.+, API-equivalent estimate\)\ndescribed m0\.py/,
+      /describe\nprojection: 2 files, ~\d+ input tokens, ~\$[\d.]+ \(.+, API-equivalent estimate\)\ndescribed m0\.py/,
     );
     expect(out.replace(/projection: .*\n/, "")).toBe(
       `extract\nscans current at ${COMMIT}\ndescribe\ndescribed m0.py\ndescribed m1.py\ndescribed 2, failed 0, already current 0\nsense\nran first\nran second\n`,
@@ -1049,7 +1049,7 @@ describe("recognizer scan: phases", () => {
 
     expect(heading).toBeGreaterThan(-1);
     expect(rows[heading + 1]).toMatch(
-      /^projection: 2 modules, ~\d+ input tokens, ~\$[\d.]+ \(.+, API-equivalent estimate\)$/,
+      /^projection: 2 files, ~\d+ input tokens, ~\$[\d.]+ \(.+, API-equivalent estimate\)$/,
     );
   });
 
@@ -1342,7 +1342,7 @@ describe("recognizer scan: phases", () => {
 
     expect(code).toBe(1);
     expect(err).toMatch(
-      /stopped: claude usage limit reached \(claude usage limit: out of quota\); \d+ modules not described/,
+      /stopped: claude usage limit reached \(claude usage limit: out of quota\); \d+ files not described/,
     );
     expect(out).toContain("stopped: claude usage limit reached");
   });
@@ -1987,7 +1987,7 @@ describe("recognizer scan: phases", () => {
       expect(record.exit).toBe(1);
     });
 
-    it("records the sense phase duration and a module count on each sense entry", async () => {
+    it("records the sense phase duration and a file count on each sense entry", async () => {
       const { fake } = await scan(
         setup({}, { [CONFIG]: SENSORS }),
         "--sense",
