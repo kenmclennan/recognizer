@@ -6,11 +6,11 @@ Scans a C# source tree into a scan document, using py-tree-sitter with the tree-
 recognizer-scan-csharp run ROOT [--commit SHA] [--modified true|false] [--output FILE]
 ```
 
-`ROOT` is the repository root and the base of every module id. The commit defaults to `git rev-parse HEAD`, or `null` outside git. Output goes to stdout unless `--output` is given. When some files had damaged spans, one line `recognizer-scan-csharp: D of N files had damaged spans` goes to stderr; when `.fs` or `.vb` files were left out, a second line `recognizer-scan-csharp: left out F .fs and V .vb files` follows.
+`ROOT` is the repository root and the base of every file id. The commit defaults to `git rev-parse HEAD`, or `null` outside git. Output goes to stdout unless `--output` is given. When some files had damaged spans, one line `recognizer-scan-csharp: D of N files had damaged spans` goes to stderr; when `.fs` or `.vb` files were left out, a second line `recognizer-scan-csharp: left out F .fs and V .vb files` follows.
 
 ## Files and projects
 
-The scanner reads `.cs` files outside directories named `bin` and `obj` and dot directories, skipping `*.g.cs`, `*.g.i.cs` and `*.Designer.cs`. A module is one read file, and its id is the file's repository-relative path. Discovery reads `.sln`, `.slnx`, `.csproj` and `Directory.Build.props`; a file belongs to its nearest `.csproj`, and a `<Compile Include ... Link>` adds a file to every project that includes it. A file with no project is its own single-file project.
+The scanner reads `.cs` files outside directories named `bin` and `obj` and dot directories, skipping `*.g.cs`, `*.g.i.cs` and `*.Designer.cs`. Each read file is one box, and its id is the file's repository-relative path. Discovery reads `.sln`, `.slnx`, `.csproj` and `Directory.Build.props`; a file belongs to its nearest `.csproj`, and a `<Compile Include ... Link>` adds a file to every project that includes it. A file with no project is its own single-file project.
 
 A project is test code, and is not scanned, when its `.csproj` references `Microsoft.NET.Test.Sdk`, sets `IsTestProject` true, uses `Sdk="MSTest.Sdk"`, or has a package reference whose id starts with xunit, NUnit, MSTest or TUnit or is `Microsoft.AspNetCore.Mvc.Testing`. When the `.csproj` cannot be read, a project named `*.Tests`, `*.UnitTests`, `*.IntegrationTests` or `*.FunctionalTests` is test code. The test projects' directories are listed in `selection.skip_paths`, except a test project that holds a scanned project.
 
@@ -34,7 +34,7 @@ A file is an entry point when it has top-level statements, a `static Main`, a co
 
 ## Markup
 
-The scanner reads `.razor`, `.cshtml` and `.xaml` files outside test projects and adds `depends` edges for the types they name: `@inject`, `@model` and `@inherits`, `@using` as scope, Razor component tags in `.razor` files, and XAML elements, `x:Class` and `x:DataType` through `xmlns:` CLR-namespace mappings. A markup file is not a module; its edges come from its code-behind module, else the nearest module in the project that declares a type, and the edge `line` is a line in the markup file. Names that resolve to nothing add no edge and no foreign name.
+The scanner reads `.razor`, `.cshtml` and `.xaml` files outside test projects and adds `depends` edges for the types they name: `@inject`, `@model` and `@inherits`, `@using` as scope, Razor component tags in `.razor` files, and XAML elements, `x:Class` and `x:DataType` through `xmlns:` CLR-namespace mappings. A markup file is not a box; its edges come from its code-behind file, else the nearest file in the project that declares a type, and the edge `line` is a line in the markup file. Names that resolve to nothing add no edge and no foreign name.
 
 ## Calls
 

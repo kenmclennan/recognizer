@@ -6,4 +6,4 @@ describer:
     - --model
     - "{model}"
     - "{request}"
-  version: "prompt-b450a986f729"
+  version: "prompt-a78718fb99ab"

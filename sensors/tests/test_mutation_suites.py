@@ -153,7 +153,7 @@ def test_a_language_with_no_suite_is_not_measured_and_says_so(tmp_path, capsys):
     assert document["unowned"] == {"functions": 1, "modules": ["web/a.ts"]}
     assert "web/a.ts" in document["inputs"]
     assert [entry["identity"] for entry in survivors["unowned"]] == ["web/a.ts::a"]
-    assert "1 functions in 1 modules not tested because no test suite covers their files" in stderr
+    assert "1 functions in 1 files not tested because no test suite covers their files" in stderr
 
 
 def test_a_file_outside_every_suite_directory_is_recorded_as_unowned(tmp_path):

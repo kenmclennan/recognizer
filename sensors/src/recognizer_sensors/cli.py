@@ -187,7 +187,7 @@ def main(argv: list[str] | None = None) -> int:
         return fail(f"{args.name} has no check verb", args.name)
 
     if args.modules is not None and not sensor.scoped:
-        return fail(f"{args.name} takes no module scope", args.name)
+        return fail(f"{args.name} takes no file scope", args.name)
 
     if args.suites is not None and not sensor.runs_tests:
         return fail(f"{args.name} takes no test suites", args.name)
@@ -206,7 +206,7 @@ def main(argv: list[str] | None = None) -> int:
         scope = read_scope(args.modules)
 
         if scope is None:
-            return fail("--modules must name a JSON file holding an array of module ids", args.name)
+            return fail("--modules must name a JSON file holding an array of file ids", args.name)
 
     raw = parse_raw_settings("{}" if args.settings is None else args.settings)
 

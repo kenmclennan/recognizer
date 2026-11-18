@@ -60,7 +60,7 @@ export function buildInput(request: DescribeRequest, prompt: string): string {
   return [
     prompt,
     "",
-    `Module: ${request.module}`,
+    `File: ${request.module}`,
     `Kind: ${request.kind}`,
     "",
     "Outline (JSON):",

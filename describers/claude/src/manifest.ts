@@ -25,7 +25,7 @@ export function manifest() {
     check: true,
     long_running: false,
     time_limit_seconds: 120,
-    units: ["modules"],
+    units: ["files"],
     settings: [],
     prompt_version: promptVersion(),
   };

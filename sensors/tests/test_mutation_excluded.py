@@ -104,7 +104,7 @@ def test_a_file_absent_from_the_coverage_report_is_recorded_as_excluded(tmp_path
         json.loads((root / ".recognizer/cache/overlays/mutation.json").read_text())["values"]
     )
     assert (
-        "1 functions in 1 modules not tested because their files are not in the coverage report"
+        "1 functions in 1 files not tested because their files are not in the coverage report"
         in capsys.readouterr().err
     )
 
