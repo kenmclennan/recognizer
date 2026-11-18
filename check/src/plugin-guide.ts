@@ -19,7 +19,7 @@ function verbs(): string[] {
   return lines(
     "2. The four verbs",
     "  manifest  required. Prints the manifest as one JSON document and a newline on stdout, and nothing on stderr. Fast, side-effect free, runs nothing.",
-    '  check     required when the manifest says check is true. The readiness check: prints {"gaps":[],"notes":[]} plus a gap for each thing missing for this repository, each with its fix. A sensor also takes --repository. Its document is the `check` schema.',
+    '  check     required when the manifest says check is true. The readiness check: prints {"gaps":[],"notes":[]} plus a gap for each thing missing for this repository, each with its fix. A gap may carry an optional `output`, a non-empty string such as the tail of a failed run, which `recognizer sensors check --json` relays and the setup wizard shows. A sensor also takes --repository. Its document is the `check` schema.',
     "  run       required. Does the work for a repository and writes its document to the output path it is given. A scanner is called `run <repository> --output <file> [--commit <sha>]`, a sensor `run --repository <dir> --commit <sha> --output <file> [--settings <json>]`, a describer `run --model <name> <request-file>` and prints one line on stdout.",
     "  guide     optional. Prints setup help for this plugin on stdout and nothing on stderr; used by `recognizer help sensors <name>` and the setup skill.",
     "A call with no verb or an unknown one writes a usage line to stderr and exits 2.",

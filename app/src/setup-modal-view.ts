@@ -657,7 +657,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
               ? "Every command ran and measured coverage"
               : "Some commands did not get ready",
           ),
-          ...tried.runners.map((one) =>
+          ...tried.runners.flatMap((one) => [
             el(
               "div",
               `sw-runner ${one.ready ? "ready" : "notready"}`,
@@ -665,7 +665,10 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
                 ? `${one.name}: ready`
                 : `${one.name}: not ready - ${one.detail}`,
             ),
-          ),
+            ...(one.ready || one.output === ""
+              ? []
+              : disclosure(`rn-${one.name}`, "Output", one.output)),
+          ]),
           el(
             "div",
             "sw-why",

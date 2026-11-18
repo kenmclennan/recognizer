@@ -325,12 +325,13 @@ describe("setup try", () => {
     await tryChanges(fake.io, root, changes, (event) => events.push(event));
 
     expect(runners(events)).toEqual([
-      { event: "runner", name: "engine", ready: true, detail: "" },
+      { event: "runner", name: "engine", ready: true, detail: "", output: "" },
       {
         event: "runner",
         name: "tauri",
         ready: false,
         detail: "tauri has no coverage",
+        output: "",
       },
     ]);
   });
@@ -365,7 +366,47 @@ describe("setup try", () => {
       name: "tauri",
       ready: false,
       detail: `${shared} tauri has no mutation run`,
+      output: "",
     });
+  });
+
+  it("joins the distinct outputs of a runner's gaps with a blank line", async () => {
+    const fake = fakeIo(root, {
+      ready: false,
+      sensors: [
+        {
+          name: "crap",
+          ready: false,
+          gaps: [
+            { code: "x", suite: "tauri", line: "a", output: "A" },
+            { code: "y", suite: "tauri", line: "b", output: "B" },
+            { code: "z", suite: "tauri", line: "c", output: "A" },
+            { code: "w", suite: "tauri", line: "d" },
+            { code: "v", suite: "engine", line: "e" },
+          ],
+        },
+      ],
+    });
+    const events: TryEvent[] = [];
+
+    await tryChanges(fake.io, root, kept(), (event) => events.push(event));
+
+    expect(runners(events)).toEqual([
+      {
+        event: "runner",
+        name: "engine",
+        ready: false,
+        detail: "e",
+        output: "",
+      },
+      {
+        event: "runner",
+        name: "tauri",
+        ready: false,
+        detail: "a b c d",
+        output: "A\n\nB",
+      },
+    ]);
   });
 
   it("a stopped try restores the repository", async () => {

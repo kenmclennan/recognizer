@@ -789,7 +789,7 @@ export const COMMANDS: Command[] = [
     ],
     output: {
       text: "one `<name>  <description>` line per shipped sensor; with check, one block per sensor: `<name>: ready`, or `<name>: N gaps` followed by one indented sentence per gap",
-      json: "[{ name, display, description, expansion, runs_tests, scoped, listed, metrics, findings, settings }], read from each sensor's manifest; with check, { ready, sensors: [{ name, ready, gaps: [{ code, suite, line }], notes: [{ code, suite, line }], work?: { unit, to_perform, reusable } }] }",
+      json: "[{ name, display, description, expansion, runs_tests, scoped, listed, metrics, findings, settings }], read from each sensor's manifest; with check, { ready, sensors: [{ name, ready, gaps: [{ code, suite, line, output? }], notes: [{ code, suite, line }], work?: { unit, to_perform, reusable } }] }",
     },
     exitCodes: [
       { code: 0, meaning: "the list was printed, or every sensor is ready" },

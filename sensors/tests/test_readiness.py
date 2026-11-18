@@ -459,6 +459,45 @@ def test_a_suite_that_writes_nothing_and_exits_one_gives_coverage_missing_with_i
     ]
 
 
+def test_a_suite_that_writes_nothing_and_exits_one_carries_its_output(harness):
+    gaps = check(harness.root, run_settings("echo engine not built; exit 1"), True)
+
+    assert gaps[0]["code"] == "coverage-missing"
+    assert "engine not built" in gaps[0]["output"]
+
+
+def test_two_suites_each_carry_only_their_own_output(harness):
+    settings = settings_of(
+        raw(name="first", command="echo alpha-word; exit 1"),
+        raw(name="second", command="echo beta-word; exit 1"),
+    )
+
+    gaps = check(harness.root, settings, True)
+    outputs = {item["suite"]: item["output"] for item in gaps}
+
+    assert "alpha-word" in outputs["first"]
+    assert "beta-word" not in outputs["first"]
+    assert "beta-word" in outputs["second"]
+    assert "alpha-word" not in outputs["second"]
+
+
+def test_a_long_output_is_cut_to_its_tail(harness):
+    command = "i=0; while [ $i -lt 1500 ]; do echo line-$i-padding; i=$((i+1)); done; echo last-line; exit 1"
+
+    gaps = check(harness.root, run_settings(command), True)
+    output = gaps[0]["output"]
+
+    assert output.startswith(readiness.OMITTED_MARKER + "\n")
+    assert len(output) <= readiness.SUITE_OUTPUT_LIMIT + len(readiness.OMITTED_MARKER) + 1
+    assert output.endswith("last-line\n")
+
+
+def test_a_failing_suite_that_prints_nothing_carries_no_output_key(harness):
+    gaps = check(harness.root, run_settings("exit 1"), True)
+
+    assert "output" not in gaps[0]
+
+
 def test_a_suite_that_writes_nothing_and_exits_zero_omits_the_status(harness):
     gaps = check(harness.root, run_settings("true"), True)
 

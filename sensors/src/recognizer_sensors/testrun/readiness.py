@@ -32,6 +32,10 @@ SHELL_TIMEOUT_SECONDS = 60
 
 OUTPUT_LIMIT = 200
 
+SUITE_OUTPUT_LIMIT = 8000
+
+OMITTED_MARKER = "... (earlier output omitted)"
+
 COVERLET = "coverlet.collector"
 
 TEST_SDK = "microsoft.net.test.sdk"
@@ -175,8 +179,26 @@ def gap(code: str, suite: str | None, line: str) -> dict:
     return {"code": code, "suite": suite, "line": line}
 
 
-def suite_gap(code: str, suite: Suite, line: str) -> dict:
-    return gap(code, suite.name, f"suite {suite.name}: {line}")
+def suite_gap(code: str, suite: Suite, line: str, output: str = "") -> dict:
+    found = gap(code, suite.name, f"suite {suite.name}: {line}")
+
+    if output.strip():
+        found["output"] = output
+
+    return found
+
+
+def output_tail(text: str) -> str:
+    if len(text) <= SUITE_OUTPUT_LIMIT:
+        return text
+
+    cut = text[-SUITE_OUTPUT_LIMIT:]
+
+    if text[-SUITE_OUTPUT_LIMIT - 1] != "\n":
+        newline = cut.find("\n")
+        cut = cut[newline + 1 :] if newline != -1 else ""
+
+    return f"{OMITTED_MARKER}\n{cut}"
 
 
 def typescript_probe(suite: Suite) -> str:
@@ -485,19 +507,21 @@ def has_well_formed_jacoco(
     )
 
 
-def unmatched_gap(suite: Suite, where: str, scanned: bool) -> dict:
+def unmatched_gap(suite: Suite, where: str, scanned: bool, output: str = "") -> dict:
     if not scanned:
         return suite_gap(
             "coverage-unmatched",
             suite,
             f"the coverage report at {where} parses, but there is no scan to match it against; "
             "run recognizer scan first",
+            output,
         )
 
     return suite_gap(
         "coverage-unmatched",
         suite,
         f"the coverage report at {where} parses, but its paths match no file in the scan",
+        output,
     )
 
 
@@ -528,26 +552,33 @@ def run_gap(
     started_at = time.time()
 
     try:
-        returncode, _ = run_suite(repository, suite, stream)
+        returncode, output = run_suite(repository, suite, stream)
     except Refusal:
         return suite_gap("activate-failed", suite, "the login shell could not be started"), None
 
     where = report_pattern(suite)
     source = source_of(suite)
+    shown = output_tail(output)
     coverage = read_source(repository, source, files, started_at)
 
     if coverage is None:
         cause = f"the suite exited {returncode} and left" if returncode else "the suite left"
 
-        return suite_gap("coverage-missing", suite, f"{cause} no coverage report at {where}"), None
+        return (
+            suite_gap("coverage-missing", suite, f"{cause} no coverage report at {where}", shown),
+            None,
+        )
 
     if not coverage and has_well_formed_jacoco(repository, source, files, started_at):
-        return unmatched_gap(suite, where, bool(files)), None
+        return unmatched_gap(suite, where, bool(files), shown), None
 
     if not coverage:
         return (
             suite_gap(
-                "coverage-unreadable", suite, f"the coverage report at {where} does not parse"
+                "coverage-unreadable",
+                suite,
+                f"the coverage report at {where} does not parse",
+                shown,
             ),
             None,
         )
