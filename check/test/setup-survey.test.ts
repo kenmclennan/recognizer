@@ -11,9 +11,14 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeTempDir } from "../../scripts/temp-dirs.mjs";
+import { type Io, nodeIo } from "../src/cli.js";
 import validate from "../src/generated/setup-survey-validator.js";
 import { runSetup } from "../src/setup-command.js";
-import { folderSlug, type Survey } from "../src/setup-survey.js";
+import {
+  folderSlug,
+  type Survey,
+  surveyRepository,
+} from "../src/setup-survey.js";
 import { capture, REPO } from "./helpers.js";
 import { copyLoom, LOOM, shimDirectory, shimmedPath } from "./setup-helpers.js";
 
@@ -996,5 +1001,54 @@ describe("setup survey gradle suites", () => {
     expect(survey.suites).toHaveLength(1);
     expect(survey.runners).toEqual([]);
     expect(survey.notes).toEqual([]);
+  });
+
+  it("the survey reads the build and runs no Gradle", () => {
+    const directory = tree({
+      "build.gradle.kts": KOTLIN_BUILD,
+      gradlew: "",
+      "src/main/kotlin/A.kt": "class A\n",
+    });
+    const calls: string[][] = [];
+    const base = nodeIo();
+    const io: Io = {
+      ...base,
+      run: (command, args, options) => {
+        calls.push([command, ...args]);
+
+        return base.run(command, args, options);
+      },
+    };
+    const survey = surveyRepository(io, directory);
+
+    expect(survey.runners).toHaveLength(1);
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.flat().some((part) => part.includes("gradle"))).toBe(false);
+  });
+
+  it("the survey of this repository lists its real Gradle fixtures", async () => {
+    const { survey } = await surveyOf([REPO]);
+    const runner = survey.runners.find(
+      (one) =>
+        one.language === "kotlin" &&
+        one.directory === "fixtures/mutation/kotlin",
+    );
+
+    expect(runner?.command).toBe(COMMAND);
+    expect(runner?.coverage.path).toBe(DEFAULT_PATH);
+    expect(
+      survey.notes?.some(
+        (note) =>
+          note.directory === "fixtures/mutation/kotlin" &&
+          note.text.includes("no Gradle wrapper"),
+      ),
+    ).toBe(true);
+    expect(
+      survey.notes?.some(
+        (note) =>
+          note.directory === "fixtures/kotlin/sample/app" &&
+          note.text.includes("no JaCoCo"),
+      ),
+    ).toBe(true);
   });
 });

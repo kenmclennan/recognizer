@@ -1,0 +1,123 @@
+{
+  "survey_version": 1,
+  "version": "0.1.0",
+  "repository": "/Users/example/orders",
+  "configured": false,
+  "files": null,
+  "unread": [
+    {
+      "language": "kotlin",
+      "files": 2,
+      "folders": [
+        {
+          "path": ".",
+          "files": 1
+        },
+        {
+          "path": "svc-b",
+          "files": 1
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "structure",
+      "display": "Structure",
+      "description": "the files, imports and policy rules of the repository, read from the scan",
+      "always_on": true,
+      "enabled": true,
+      "runs_tests": false,
+      "limits": [],
+      "mark": null
+    },
+    {
+      "id": "analysis",
+      "display": "Structural analysis",
+      "description": "warnings about cycles, unused exports, orphans, long functions, complexity and duplication; warnings never fail a run, only new policy violations fail recognizer check",
+      "always_on": false,
+      "enabled": true,
+      "runs_tests": false,
+      "limits": [
+        {
+          "key": "sensors.structure.warnings.long_function.limit",
+          "label": "long_function",
+          "default": 20,
+          "current": null
+        },
+        {
+          "key": "sensors.structure.warnings.complexity.limit",
+          "label": "complexity",
+          "default": 10,
+          "current": null
+        },
+        {
+          "key": "sensors.structure.duplication.pair_min_lines",
+          "label": "pair_min_lines",
+          "default": 6,
+          "current": null
+        }
+      ],
+      "mark": null
+    },
+    {
+      "id": "crap",
+      "display": "C.R.A.P.",
+      "description": "Runs the tests under coverage and flags functions that are complex and poorly covered, where a change is most likely to break something.",
+      "always_on": false,
+      "enabled": false,
+      "runs_tests": true,
+      "limits": [],
+      "mark": null
+    },
+    {
+      "id": "mutation",
+      "display": "Mutation",
+      "description": "Mutates covered functions, reruns the tests, and warns where a mutated copy still passes, naming each surviving mutation.",
+      "always_on": false,
+      "enabled": false,
+      "runs_tests": true,
+      "limits": [],
+      "mark": null
+    },
+    {
+      "id": "claude",
+      "display": "Claude",
+      "description": "",
+      "always_on": false,
+      "enabled": false,
+      "runs_tests": false,
+      "limits": [],
+      "mark": null
+    }
+  ],
+  "runners": [
+    {
+      "name": "orders",
+      "language": "kotlin",
+      "runner": "gradle",
+      "directory": ".",
+      "from": "build.gradle.kts",
+      "command": "./gradlew cleanTest test jacocoTestReport",
+      "coverage": {
+        "path": "build/reports/jacoco/test/jacocoTestReport.xml",
+        "format": "jacoco"
+      },
+      "tool": null
+    }
+  ],
+  "notes": [
+    {
+      "language": "kotlin",
+      "directory": "svc-b",
+      "text": "no JaCoCo: add id(\"jacoco\") to the plugins { } block of svc-b/build.gradle.kts (Groovy: id 'jacoco'); Recognizer does not edit build files"
+    }
+  ],
+  "tools": [],
+  "fixes": [],
+  "suites": [],
+  "policy": {
+    "present": false,
+    "uncovered": []
+  }
+}
