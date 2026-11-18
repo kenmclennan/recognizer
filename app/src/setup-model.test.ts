@@ -20,11 +20,14 @@ import {
 } from "./setup-model";
 
 function counting(fake: FakeSetup) {
-  const seen = { sensors: 0, doctors: 0 };
+  const seen = { sensors: 0, doctors: 0, scans: 0 };
   const controller = createSetupController({
     port: fake,
     reloadSensors: () => {
       seen.sensors += 1;
+    },
+    scanAfterApply: () => {
+      seen.scans += 1;
     },
     onDoctor: () => {
       seen.doctors += 1;
@@ -279,6 +282,32 @@ describe("the setup wizard model", () => {
 
     expect(seen.sensors).toBeGreaterThan(0);
     expect(seen.doctors).toBeGreaterThan(1);
+  });
+
+  it("starts one open-time scan after a successful apply", async () => {
+    const { controller, seen } = await opened();
+
+    advanceTo(controller, "review");
+    await controller.apply();
+
+    expect(seen.scans).toBe(1);
+  });
+
+  it("starts no scan after a failed apply or a Run once", async () => {
+    const failed = await opened(fakeSetup({ failAt: 2 }));
+
+    advanceTo(failed.controller, "review");
+    await failed.controller.apply();
+
+    expect(wizard(failed.controller).apply?.state).toBe("failed");
+    expect(failed.seen.scans).toBe(0);
+
+    const tried = await opened();
+
+    advanceTo(tried.controller, "tests");
+    await tried.controller.runOnce();
+
+    expect(tried.seen.scans).toBe(0);
   });
 
   it("names each runner with its readiness after Run once", async () => {

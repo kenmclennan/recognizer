@@ -28,6 +28,7 @@ import type { DoctorRead, SetupPort } from "./setup-port";
 export type SetupModalDeps = {
   port: SetupPort;
   reloadSensors?: () => Promise<void> | void;
+  scanAfterApply?: () => void;
   onDoctor?: (read: DoctorRead) => void;
   onClose?: () => void;
 };
@@ -102,6 +103,9 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     ...(deps.reloadSensors === undefined
       ? {}
       : { reloadSensors: deps.reloadSensors }),
+    ...(deps.scanAfterApply === undefined
+      ? {}
+      : { scanAfterApply: deps.scanAfterApply }),
     ...(deps.onDoctor === undefined ? {} : { onDoctor: deps.onDoctor }),
   });
   const scrim = el("div", "settings-scrim");
