@@ -175,6 +175,7 @@ describe("recognizer setup survey", () => {
       enabled: false,
       runs_tests: false,
       limits: [],
+      mark: null,
     });
     expect(validate(before.survey), JSON.stringify(validate.errors)).toBe(true);
 
@@ -610,8 +611,8 @@ function copySaga(config: string | null): string {
   return directory;
 }
 
-describe("setup survey suites", () => {
-  it("suites follow the config and the repository", async () => {
+describe("setup survey marks", () => {
+  it("marks follow the config and the repository", async () => {
     const directory = copySaga(
       `sensors:\n  crap:\n    command: [recognizer-sense-crap]\ntests:\n${suiteYaml("server", "server")}${suiteYaml("legacy", "legacy")}`,
     );
@@ -624,6 +625,12 @@ describe("setup survey suites", () => {
     ]);
     expect(survey.runners.map((one) => one.name)).toEqual(["web"]);
     expect(survey.configured).toBe(true);
+    expect(survey.checks.find((check) => check.id === "crap")?.mark).toBe(
+      "set-up",
+    );
+    expect(survey.checks.find((check) => check.id === "mutation")?.mark).toBe(
+      "new",
+    );
     expect(validate(survey), JSON.stringify(validate.errors)).toBe(true);
   });
 
@@ -660,11 +667,40 @@ describe("setup survey suites", () => {
     expect(survey.runners.map((one) => one.name)).toEqual(["server", "web-2"]);
   });
 
-  it("without a config suites is empty", async () => {
+  it("without a config every mark is null and suites is empty", async () => {
     const { survey } = await surveyOf([copySaga(null)]);
 
     expect(survey.configured).toBe(false);
     expect(survey.suites).toEqual([]);
+    expect(survey.checks.length).toBeGreaterThan(0);
+    expect(survey.checks.every((check) => check.mark === null)).toBe(true);
     expect(survey.runners.map((one) => one.name)).toEqual(["server", "web"]);
+  });
+
+  it("a language named only by a scanners key with no files is gone", async () => {
+    const directory = copyLoom();
+
+    mkdirSync(join(directory, ".recognizer"), { recursive: true });
+    writeFileSync(
+      join(directory, ".recognizer/config.yaml"),
+      "scanners:\n  kotlin: recognizer-scan-kotlin\n",
+    );
+
+    const { survey } = await surveyOf([
+      directory,
+      "--scan",
+      join(LOOM, "scan.json"),
+    ]);
+    const kotlin = survey.files?.find((one) => one.language === "kotlin");
+
+    expect(kotlin).toEqual({
+      language: "kotlin",
+      files: 0,
+      folders: [],
+      mark: "gone",
+    });
+    expect(
+      survey.files?.find((one) => one.language === "typescript")?.mark,
+    ).toBe("new");
   });
 });

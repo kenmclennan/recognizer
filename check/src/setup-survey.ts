@@ -19,6 +19,8 @@ import { readShippedSensors } from "./shipped-sensors.js";
 
 export const SURVEY_VERSION = 1;
 
+export type SetupMark = "set-up" | "new" | "gone";
+
 export interface SurveyFolder {
   path: string;
   files: number;
@@ -28,6 +30,7 @@ export interface SurveyLanguage {
   language: string;
   files: number;
   folders: SurveyFolder[];
+  mark: SetupMark | null;
 }
 
 export interface SurveyUnread {
@@ -51,6 +54,7 @@ export interface SurveyCheck {
   enabled: boolean;
   runs_tests: boolean;
   limits: SurveyLimit[];
+  mark: SetupMark | null;
 }
 
 export interface SurveyRunner {
@@ -870,6 +874,7 @@ function filesOf(scans: RecordedScan[]): SurveyLanguage[] {
         language: scanLanguage(scan),
         files: paths.length,
         folders: foldersOf(paths),
+        mark: null,
       };
     })
     .sort((a, b) => compareText(a.language, b.language));
@@ -949,7 +954,19 @@ function limitsOf(document: Record<string, unknown>): SurveyLimit[] {
   });
 }
 
-function checksOf(io: Io, document: Record<string, unknown>): SurveyCheck[] {
+function checkMark(configured: boolean, enabled: boolean): SetupMark | null {
+  if (!configured) {
+    return null;
+  }
+
+  return enabled ? "set-up" : "new";
+}
+
+function checksOf(
+  io: Io,
+  document: Record<string, unknown>,
+  configured: boolean,
+): SurveyCheck[] {
   const structure = valueAt(document, ["sensors", "structure"]);
   const registered = valueAt(document, ["sensors"]);
   const shipped = readShippedSensors(io).sensors;
@@ -965,6 +982,7 @@ function checksOf(io: Io, document: Record<string, unknown>): SurveyCheck[] {
       enabled: true,
       runs_tests: false,
       limits: [],
+      mark: configured ? "set-up" : null,
     },
     {
       id: "analysis",
@@ -975,28 +993,39 @@ function checksOf(io: Io, document: Record<string, unknown>): SurveyCheck[] {
       enabled: structure !== "off",
       runs_tests: false,
       limits: limitsOf(document),
+      mark: checkMark(configured, structure !== "off"),
     },
-    ...shipped.map((sensor) => ({
-      id: sensor.name,
-      display: sensor.display,
-      description: sensor.description ?? "",
-      always_on: false,
-      enabled:
+    ...shipped.map((sensor) => {
+      const enabled =
         typeof registered === "object" &&
         registered !== null &&
-        sensor.name in registered,
-      runs_tests: sensor.runs_tests,
-      limits: [],
-    })),
-    ...describers.map((describer) => ({
-      id: describer.name,
-      display: describer.manifest.display,
-      description: describer.manifest.description ?? "",
-      always_on: false,
-      enabled: "describer" in document,
-      runs_tests: false,
-      limits: [],
-    })),
+        sensor.name in registered;
+
+      return {
+        id: sensor.name,
+        display: sensor.display,
+        description: sensor.description ?? "",
+        always_on: false,
+        enabled,
+        runs_tests: sensor.runs_tests,
+        limits: [],
+        mark: checkMark(configured, enabled),
+      };
+    }),
+    ...describers.map((describer) => {
+      const enabled = "describer" in document;
+
+      return {
+        id: describer.name,
+        display: describer.manifest.display,
+        description: describer.manifest.description ?? "",
+        always_on: false,
+        enabled,
+        runs_tests: false,
+        limits: [],
+        mark: checkMark(configured, enabled),
+      };
+    }),
   ];
 }
 
@@ -1071,6 +1100,44 @@ function suitesOf(
     .sort((a, b) => compareText(a.name, b.name));
 }
 
+function markLanguages(
+  languages: SurveyLanguage[],
+  document: Record<string, unknown>,
+  suites: SurveySuite[],
+  configured: boolean,
+): SurveyLanguage[] {
+  if (!configured) {
+    return languages;
+  }
+
+  const scanners = document.scanners;
+  const named = new Set<string>([
+    ...suites.map((suite) => suite.language),
+    ...(typeof scanners === "object" &&
+    scanners !== null &&
+    !Array.isArray(scanners)
+      ? Object.keys(scanners)
+      : []),
+  ]);
+  const present = new Set(languages.map((one) => one.language));
+  const marked = languages.map((one) => ({
+    ...one,
+    mark: named.has(one.language) ? ("set-up" as const) : ("new" as const),
+  }));
+  const gone = [...named]
+    .filter((language) => language !== "" && !present.has(language))
+    .map((language) => ({
+      language,
+      files: 0,
+      folders: [],
+      mark: "gone" as const,
+    }));
+
+  return [...marked, ...gone].sort((a, b) =>
+    compareText(a.language, b.language),
+  );
+}
+
 export function surveyRepository(
   io: Io,
   given: string,
@@ -1118,9 +1185,12 @@ export function surveyRepository(
     version: packageVersion(),
     repository: root,
     configured,
-    files: scans === null ? null : filesOf(scans),
+    files:
+      scans === null
+        ? null
+        : markLanguages(filesOf(scans), document, suites, configured),
     unread: unreadOf(files, rules),
-    checks: checksOf(io, document),
+    checks: checksOf(io, document, configured),
     runners,
     tools: toolsOf(io, root, runners, files),
     upgrade: upgradeOf(io, root),

@@ -285,6 +285,7 @@ export {
 export { POLICY_RECOMMENDATION_PROMPT } from "./setup-policy-prompt.js";
 export { commandRefusal, quoteCommand } from "./setup-proposal.js";
 export type {
+  SetupMark,
   Survey,
   SurveyCheck,
   SurveyLanguage,

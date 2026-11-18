@@ -24,7 +24,7 @@
     "configured": { "type": "boolean" },
     "files": {
       "type": ["array", "null"],
-      "items": { "$ref": "#/$defs/languageFiles" }
+      "items": { "$ref": "#/$defs/languageMarked" }
     },
     "unread": {
       "type": "array",
@@ -42,7 +42,8 @@
           "always_on",
           "enabled",
           "runs_tests",
-          "limits"
+          "limits",
+          "mark"
         ],
         "properties": {
           "id": { "type": "string", "minLength": 1 },
@@ -51,6 +52,7 @@
           "always_on": { "type": "boolean" },
           "enabled": { "type": "boolean" },
           "runs_tests": { "type": "boolean" },
+          "mark": { "$ref": "#/$defs/mark" },
           "limits": {
             "type": "array",
             "items": {
@@ -181,6 +183,29 @@
     }
   },
   "$defs": {
+    "mark": { "enum": ["set-up", "new", "gone", null] },
+    "languageMarked": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["language", "files", "folders", "mark"],
+      "properties": {
+        "language": { "type": "string", "minLength": 1 },
+        "files": { "type": "integer", "minimum": 0 },
+        "folders": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "files"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "files": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        "mark": { "$ref": "#/$defs/mark" }
+      }
+    },
     "languageFiles": {
       "type": "object",
       "additionalProperties": false,

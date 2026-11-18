@@ -16,7 +16,8 @@
           "path": "app",
           "files": 1
         }
-      ]
+      ],
+      "mark": null
     }
   ],
   "unread": [
@@ -39,7 +40,8 @@
       "always_on": true,
       "enabled": true,
       "runs_tests": false,
-      "limits": []
+      "limits": [],
+      "mark": null
     },
     {
       "id": "analysis",
@@ -67,7 +69,8 @@
           "default": 6,
           "current": null
         }
-      ]
+      ],
+      "mark": null
     },
     {
       "id": "crap",
@@ -76,7 +79,8 @@
       "always_on": false,
       "enabled": false,
       "runs_tests": true,
-      "limits": []
+      "limits": [],
+      "mark": null
     },
     {
       "id": "mutation",
@@ -85,7 +89,8 @@
       "always_on": false,
       "enabled": false,
       "runs_tests": true,
-      "limits": []
+      "limits": [],
+      "mark": null
     }
   ],
   "tools": [
