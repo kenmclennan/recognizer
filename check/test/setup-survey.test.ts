@@ -142,6 +142,20 @@ describe("recognizer setup survey", () => {
         "rust:app/src-tauri",
       ]),
     );
+    const commandOf = (directory: string) =>
+      survey.runners.find((runner) => runner.directory === directory)?.command;
+
+    for (const directory of [
+      "check",
+      "describers/claude",
+      "scanners/typescript",
+    ]) {
+      const command = commandOf(directory) ?? "";
+
+      expect(command).toContain("--config test/vitest.config.ts --coverage");
+    }
+
+    expect(commandOf("app")).not.toContain("--config");
     expect(validate(survey), JSON.stringify(validate.errors)).toBe(true);
   });
 
@@ -415,19 +429,19 @@ describe("a vitest suite behind an npm run chain", () => {
 
   it.each([
     ["cucumber-js", { test: "cucumber-js" }],
-    [
-      "a first vitest step with other arguments",
-      {
-        test: "npm run test:unit",
-        "test:unit": "vitest run --config x.ts",
-      },
-    ],
+    ["a coverage flag", { test: "vitest run --coverage" }],
+    ["a coverage setting", { test: "vitest run --coverage.enabled" }],
+    ["a watch flag", { test: "vitest --watch" }],
+    ["a reporter flag", { test: "vitest run -r dot" }],
+    ["another subcommand", { test: "vitest watch" }],
+    ["a glob word", { test: "vitest run src/**/*.test.ts" }],
+    ["a bare double dash", { test: "vitest run -- x" }],
     ["a cycle", { test: "npm run a", a: "npm run a" }],
     ["a missing script", { test: "npm run missing" }],
     ["a quote in an env value", { test: 'FOO="a b" vitest run' }],
     ["npm run with a workspace flag", { test: "npm run test -w x" }],
   ])(
-    "gives no runner when no step is a plain vitest step: %s",
+    "gives no runner when no step is a safe vitest step: %s",
     async (_title, scripts) => {
       const { survey } = await surveyOf([
         chainRepository({ name: "server", scripts }),
@@ -436,6 +450,91 @@ describe("a vitest suite behind an npm run chain", () => {
       expect(survey.runners.map((runner) => runner.name)).toEqual(["web"]);
     },
   );
+
+  it("keeps a vitest script's own arguments in the command", async () => {
+    const directory = chainRepository({
+      name: "server",
+      scripts: { test: "vitest run --config test/vitest.config.ts" },
+    });
+
+    rmSync(join(directory, "server/vitest.config.ts"));
+    mkdirSync(join(directory, "server/test"), { recursive: true });
+    writeFileSync(join(directory, "server/test/vitest.config.ts"), "");
+
+    const { survey } = await surveyOf([directory]);
+    const server = survey.runners.find((runner) => runner.name === "server");
+
+    expect(server).toBeDefined();
+    expect(server?.command).toBe(
+      "npx vitest run --config test/vitest.config.ts --coverage --coverage.reporter=lcov --coverage.reportsDirectory=../.recognizer/cache/coverage/server",
+    );
+  });
+
+  it("keeps the arguments of a chain step and its env", async () => {
+    const { survey } = await surveyOf([
+      chainRepository({
+        name: "server",
+        scripts: {
+          test: "npm run unit",
+          unit: "NODE_CONFIG_DIR=./config vitest run --project web",
+        },
+      }),
+    ]);
+    const server = survey.runners.find((runner) => runner.name === "server");
+
+    expect(server).toBeDefined();
+    expect(server?.env).toEqual({ NODE_CONFIG_DIR: "./config" });
+    expect(server?.command).toContain("run --project web --coverage");
+  });
+
+  it.each([
+    [
+      "a package with vitest listed and a watch script",
+      { test: "vitest --watch" },
+    ],
+    [
+      "a package whose chain names a missing script",
+      { test: "npm run missing" },
+    ],
+  ])(
+    "gives no runner for %s without a config beside it",
+    async (_title, scripts) => {
+      const { survey } = await surveyOf([
+        chainRepository(
+          {
+            name: "server",
+            scripts,
+            devDependencies: { vitest: "^3.2.4" },
+          },
+          false,
+        ),
+      ]);
+
+      expect(survey.runners.map((runner) => runner.name)).toEqual(["web"]);
+    },
+  );
+
+  it("a hit and a stop in one survey are each their own result", async () => {
+    const directory = makeTempDir("recognizer-setup-mixed-");
+
+    for (const [name, test] of [
+      ["alpha", "vitest run --config a.ts"],
+      ["beta", "vitest run --coverage"],
+    ]) {
+      mkdirSync(join(directory, name as string), { recursive: true });
+      writeFileSync(
+        join(directory, name as string, "package.json"),
+        JSON.stringify({ name, scripts: { test } }),
+      );
+    }
+
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.runners.map((runner) => runner.name)).toEqual(["alpha"]);
+    expect(survey.runners[0]?.command).toContain(
+      "run --config a.ts --coverage",
+    );
+  });
 
   it("the survey of the Saga-shaped fixture lists server and web", async () => {
     const { survey } = await surveyOf([join(REPO, "fixtures/setup-saga")]);

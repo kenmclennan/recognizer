@@ -164,12 +164,17 @@ function reportRoot(name: string, directory: string): string {
   return `${"../".repeat(depth)}${reportFolder(name)}`;
 }
 
-function commandFor(runner: string, name: string, directory: string): string {
+function commandFor(
+  runner: string,
+  name: string,
+  directory: string,
+  args: string[] = [],
+): string {
   const where = reportRoot(name, directory);
 
   switch (runner) {
     case "vitest":
-      return `npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=${where}`;
+      return `npx vitest run ${[...args, `--coverage --coverage.reporter=lcov --coverage.reportsDirectory=${where}`].join(" ")}`;
     case "jest":
       return `npx jest --coverage --coverageReporters=lcov --coverageDirectory=${where}`;
     case "cargo":
@@ -380,15 +385,28 @@ interface Found {
   from: string;
   tool: string | null;
   env?: Record<string, string>;
+  args?: string[];
 }
 
 const VITEST_CONFIG = /^vitest\.config\.(ts|mts|cts|js|mjs|cjs)$/;
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const UNSAFE_VALUE = /[$`'"\\]/;
 const CHAIN_DEPTH = 5;
+const SAFE_ARGUMENT = /^[A-Za-z0-9_@%+=:,./-]+$/;
+const OTHER_SUBCOMMANDS = new Set([
+  "watch",
+  "dev",
+  "bench",
+  "related",
+  "list",
+  "init",
+  "typecheck",
+]);
+const CONFLICTING_ARGUMENT =
+  /^(--coverage([.=].*)?|--watch|-w|--reporter(=.*)?|-r|--ui)$/;
 
 type Resolution =
-  | { kind: "hit"; env: Record<string, string> }
+  | { kind: "hit"; env: Record<string, string>; args: string[] }
   | { kind: "stop" }
   | { kind: "none" };
 
@@ -434,10 +452,20 @@ function resolveStep(step: string): Resolution {
   }
 
   const rest = words.slice(at + 1);
+  const args = rest[0] === "run" ? rest.slice(1) : rest;
 
-  return rest.length === 0 || (rest.length === 1 && rest[0] === "run")
-    ? { kind: "hit", env }
-    : { kind: "stop" };
+  if (rest[0] !== undefined && OTHER_SUBCOMMANDS.has(rest[0])) {
+    return { kind: "stop" };
+  }
+
+  const keepable = args.every(
+    (word) =>
+      word !== "--" &&
+      SAFE_ARGUMENT.test(word) &&
+      !CONFLICTING_ARGUMENT.test(word),
+  );
+
+  return keepable ? { kind: "hit", env, args } : { kind: "stop" };
 }
 
 function resolveScript(
@@ -494,9 +522,11 @@ function typescriptRunners(io: Io, root: string, files: string[]): Found[] {
         directoryOf(file) === directory &&
         VITEST_CONFIG.test(posix.basename(file)),
     );
-    const chain = hasConfig
-      ? vitestStepOf(manifest)
-      : ({ kind: "none" } as const);
+    const detected = runnerOf(manifest, workspacesOf(manifest).length > 0);
+    const chain =
+      hasConfig || detected === "vitest"
+        ? vitestStepOf(manifest)
+        : ({ kind: "none" } as const);
 
     if (chain.kind === "hit") {
       found.push({
@@ -506,6 +536,7 @@ function typescriptRunners(io: Io, root: string, files: string[]): Found[] {
         from: path,
         tool: "@vitest/coverage-v8",
         ...(Object.keys(chain.env).length === 0 ? {} : { env: chain.env }),
+        ...(chain.args.length === 0 ? {} : { args: chain.args }),
       });
 
       continue;
@@ -515,15 +546,13 @@ function typescriptRunners(io: Io, root: string, files: string[]): Found[] {
       continue;
     }
 
-    const runner = runnerOf(manifest, workspacesOf(manifest).length > 0);
-
-    if (runner !== null) {
+    if (detected !== null) {
       found.push({
         language: "typescript",
-        runner,
+        runner: detected,
         directory,
         from: path,
-        tool: runner === "vitest" ? "@vitest/coverage-v8" : null,
+        tool: detected === "vitest" ? "@vitest/coverage-v8" : null,
       });
     }
   }
@@ -604,7 +633,7 @@ function nameRunners(found: Found[], root: string): SurveyRunner[] {
       runner: one.runner,
       directory: one.directory,
       from: one.from,
-      command: commandFor(one.runner, name, one.directory),
+      command: commandFor(one.runner, name, one.directory, one.args),
       coverage: {
         path: `${reportFolder(name)}/lcov.info`,
         format: "lcov",
