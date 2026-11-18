@@ -335,6 +335,39 @@ describe("setup try", () => {
     ]);
   });
 
+  it("a gap line two sensors report for one suite shows once", async () => {
+    const changes = kept();
+    const shared = "tauri exited 1 and left no coverage report";
+    const fake = fakeIo(root, {
+      ready: false,
+      sensors: [
+        {
+          name: "crap",
+          ready: false,
+          gaps: [{ code: "x", suite: "tauri", line: shared }],
+        },
+        {
+          name: "mutation",
+          ready: false,
+          gaps: [
+            { code: "x", suite: "tauri", line: shared },
+            { code: "y", suite: "tauri", line: "tauri has no mutation run" },
+          ],
+        },
+      ],
+    });
+    const events: TryEvent[] = [];
+
+    await tryChanges(fake.io, root, changes, (event) => events.push(event));
+
+    expect(runners(events)[1]).toEqual({
+      event: "runner",
+      name: "tauri",
+      ready: false,
+      detail: `${shared} tauri has no mutation run`,
+    });
+  });
+
   it("a stopped try restores the repository", async () => {
     const changes = kept();
     let release: (result: RunResult) => void = () => {};
