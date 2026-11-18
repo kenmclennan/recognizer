@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
@@ -84,6 +86,32 @@ fn findings_relative(name: &str) -> String {
     format!("{FINDINGS}/{name}.json")
 }
 
+type OwnStamp = (u128, u64);
+
+fn own_structure_stamps() -> &'static Mutex<HashMap<PathBuf, OwnStamp>> {
+    static STAMPS: OnceLock<Mutex<HashMap<PathBuf, OwnStamp>>> = OnceLock::new();
+
+    STAMPS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn record_own_structure_stamp(folder: &Path) {
+    let relative = findings_relative("structure");
+
+    if let Some((_, modified, length)) = stamp(folder, &relative) {
+        if let Ok(mut stamps) = own_structure_stamps().lock() {
+            stamps.insert(folder.to_path_buf(), (modified, length));
+        }
+    }
+}
+
+fn is_own_structure_stamp(folder: &Path, modified: u128, length: u64) -> bool {
+    own_structure_stamps()
+        .lock()
+        .ok()
+        .and_then(|stamps| stamps.get(folder).copied())
+        .is_some_and(|own| own == (modified, length))
+}
+
 pub fn write_structure(folder: &Path, document: Option<&str>) -> Result<(), String> {
     let target = folder.join(findings_relative("structure"));
 
@@ -99,7 +127,10 @@ pub fn write_structure(folder: &Path, document: Option<&str>) -> Result<(), Stri
                 return Ok(());
             }
 
-            write_atomic(&target, text).map_err(|error| error.to_string())
+            write_atomic(&target, text).map_err(|error| error.to_string())?;
+            record_own_structure_stamp(folder);
+
+            Ok(())
         }
         None => match fs::remove_file(&target) {
             Ok(()) => Ok(()),
@@ -286,6 +317,10 @@ pub fn snapshot(folder: &Path) -> Snapshot {
         .chain(overlays)
         .chain(findings)
         .filter_map(|relative| stamp(folder, &relative))
+        .filter(|(relative, modified, length)| {
+            *relative != findings_relative("structure")
+                || !is_own_structure_stamp(folder, *modified, *length)
+        })
         .collect()
 }
 
@@ -339,30 +374,59 @@ mod tests {
     }
 
     #[test]
-    fn writing_the_same_structure_again_is_not_a_change() {
+    fn the_snapshot_ignores_the_structure_file_the_app_wrote_but_not_one_written_elsewhere() {
         let dir = TempDir::new().unwrap();
-
-        write_structure(dir.path(), Some("{\"a\":1}")).unwrap();
-
         let target = dir.path().join(findings_relative("structure"));
-        let old = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
-
-        fs::File::options()
-            .write(true)
-            .open(&target)
-            .unwrap()
-            .set_modified(old)
-            .unwrap();
 
         let before = snapshot(dir.path());
 
         write_structure(dir.path(), Some("{\"a\":1}")).unwrap();
 
-        assert!(!snapshot_changed(&before, &snapshot(dir.path())));
+        assert!(target.exists());
+        assert_eq!(before, snapshot(dir.path()));
+
+        write_structure(dir.path(), Some("{\"a\":1}")).unwrap();
+
+        assert_eq!(before, snapshot(dir.path()));
+
+        fs::write(&target, "{\"edited\":true,\"by\":\"someone else\"}").unwrap();
+
+        let after_external = snapshot(dir.path());
+
+        assert!(snapshot_changed(&before, &after_external));
+        assert!(after_external
+            .iter()
+            .any(|(path, _, _)| *path == findings_relative("structure")));
 
         write_structure(dir.path(), Some("{\"a\":2}")).unwrap();
 
-        assert!(snapshot_changed(&before, &snapshot(dir.path())));
+        assert_eq!(before, snapshot(dir.path()));
+    }
+
+    #[test]
+    fn the_snapshot_ignores_the_app_removing_the_structure_file() {
+        let dir = TempDir::new().unwrap();
+
+        write_structure(dir.path(), Some("{\"a\":1}")).unwrap();
+
+        let before = snapshot(dir.path());
+
+        write_structure(dir.path(), None).unwrap();
+
+        let removed = snapshot(dir.path());
+
+        assert!(!findings_path(&dir, "structure").exists());
+        assert_eq!(before, removed);
+
+        fs::create_dir_all(dir.path().join(FINDINGS)).unwrap();
+        fs::write(findings_path(&dir, "structure"), "{\"x\":1}").unwrap();
+
+        let external = snapshot(dir.path());
+
+        write_structure(dir.path(), None).unwrap();
+
+        assert!(snapshot_changed(&external, &snapshot(dir.path())));
+        assert_eq!(before, snapshot(dir.path()));
     }
 
     #[test]

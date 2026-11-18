@@ -15,6 +15,7 @@ import { NO_CHANGES, type ScanOrigin, type ScanState } from "./footer-scan";
 import { buildFooter } from "./footer-view";
 import { settledMessage } from "./holding-settled";
 import { type HoldingView, showHolding } from "./holding-view";
+import { inputsRefresh, singleFlight } from "./inputs-refresh";
 import { showMessage } from "./message-view";
 import { repositorySource } from "./repository-source";
 import { createRescanner } from "./rescanner";
@@ -80,12 +81,14 @@ function noteDoctor(read: DoctorRead): void {
   explorer?.setSetupProblems(setupProblems);
 }
 
-function refreshDoctor(): void {
+const refreshDoctor = singleFlight(runDoctor);
+
+function runDoctor(): Promise<unknown> {
   if (!repositoryOpen) {
-    return;
+    return Promise.resolve();
   }
 
-  void setupSource
+  return setupSource
     .survey(false)
     .then((read) =>
       noteDoctor(
@@ -415,10 +418,13 @@ void getCurrentWebviewWindow().listen("view-link", () =>
   explorer?.openLinkedView(),
 );
 
-sensorsSource.onInputsChanged(() => {
-  void rescanner.refresh();
-  refreshDoctor();
+const onInputsChanged = inputsRefresh({
+  refresh: () => rescanner.refresh(),
+  doctor: runDoctor,
+  flight: refreshDoctor,
 });
+
+sensorsSource.onInputsChanged(() => void onInputsChanged());
 
 void repositorySource.onRescan(() => void rescanner.run());
 
