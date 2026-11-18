@@ -25,6 +25,7 @@ import {
 } from "./plugin-doctor.js";
 import { parsePolicy, RETIRED_KEYS } from "./policy.js";
 import { policyProblems } from "./policy-problems.js";
+import { PROBLEM_TITLES } from "./problem-titles.js";
 import { SHIPPED_DESCRIBER_NAME } from "./shipped-describer.js";
 import { shippedSensorOf } from "./shipped-sensors.js";
 import {
@@ -63,15 +64,18 @@ export type ProblemCode =
   | "describer-gap"
   | "unregistered-plugin";
 
-type Found = Omit<SetupProblem, "severity">;
+type Found = Omit<RawProblem, "severity">;
 
 export interface SetupProblem {
   code: ProblemCode;
   subject: string;
+  title: string;
   line: string;
   fix: { text: string; command: string | null };
   severity: "problem" | "warning";
 }
+
+export type RawProblem = Omit<SetupProblem, "title">;
 
 export interface Area {
   name: AreaName;
@@ -526,6 +530,7 @@ function withSeverity(problems: Found[]): SetupProblem[] {
   return problems.map((one) => ({
     severity: "problem" as const,
     ...one,
+    title: PROBLEM_TITLES[one.code],
   }));
 }
 

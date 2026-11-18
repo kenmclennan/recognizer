@@ -1,4 +1,4 @@
-import type { SetupProblem } from "./doctor.js";
+import type { RawProblem, SetupProblem } from "./doctor.js";
 import type { InstalledPlugin } from "./plugin-discovery.js";
 import {
   CASK_UPGRADE,
@@ -59,7 +59,7 @@ function problem(
   line: string,
   fix: SetupProblem["fix"],
   severity: SetupProblem["severity"] = "problem",
-): SetupProblem {
+): RawProblem {
   return { code, subject, line, fix, severity };
 }
 
@@ -79,7 +79,7 @@ function protocolProblem(
   manifest: Manifest,
   judgement: ProtocolJudgement,
   installLine: string | null,
-): SetupProblem[] {
+): RawProblem[] {
   if (judgement === "current") {
     return [];
   }
@@ -176,7 +176,7 @@ export function settingProblems(
   subject: string,
   settings: Record<string, unknown>,
   declared: unknown[],
-): SetupProblem[] {
+): RawProblem[] {
   const entries = declared as SettingEntry[];
 
   return leaves(settings, []).flatMap(({ path, value }) => {
@@ -219,7 +219,7 @@ function missingFix(fact: PluginFact): SetupProblem["fix"] {
   );
 }
 
-export function pluginProblems(fact: PluginFact): SetupProblem[] {
+export function pluginProblems(fact: PluginFact): RawProblem[] {
   const { state, subject, program } = fact;
 
   if (state.status === "missing") {
@@ -287,8 +287,8 @@ export function scannerProblems(
   scanners: readonly InstalledPlugin[],
   named: Record<string, string>,
   install: Record<string, string>,
-): SetupProblem[] {
-  const found: SetupProblem[] = [];
+): RawProblem[] {
+  const found: RawProblem[] = [];
 
   if (scanners.length === 0) {
     found.push(

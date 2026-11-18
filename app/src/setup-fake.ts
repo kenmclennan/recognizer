@@ -30,6 +30,7 @@ export type FakeSetup = SetupPort & {
   tried: SetupChoices[];
   gate: Promise<void> | null;
   stopped: number;
+  applyDoctor?: DoctorReport | null;
 };
 
 export const CLEAN_REPORT: DoctorReport = {
@@ -147,7 +148,15 @@ export function fakeSetup(options: Partial<FakeSetup> = {}): FakeSetup {
       const changes = buildChanges(survey, choices).changes;
       const ok = await run(fake, changes, onEvent);
 
-      return { event: "result", ok, doctor: ok ? CLEAN_REPORT : null };
+      return {
+        event: "result",
+        ok,
+        doctor: ok
+          ? fake.applyDoctor === undefined
+            ? CLEAN_REPORT
+            : fake.applyDoctor
+          : null,
+      };
     },
     async tryRunners(choices, onEvent): Promise<TryResultEvent> {
       fake.calls.push("try");

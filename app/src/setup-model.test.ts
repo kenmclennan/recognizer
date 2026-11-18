@@ -212,6 +212,7 @@ describe("the setup wizard model", () => {
       (code, at) => ({
         code,
         subject: `k${at}`,
+        title: `title ${code}`,
         line: `fix ${code}`,
         command: `recognizer config --unset k${at}`,
       }),

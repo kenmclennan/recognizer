@@ -255,3 +255,31 @@ describe("the built commands", () => {
     }
   });
 });
+
+describe("upgrade changes", () => {
+  it("show the survey title with the line as detail, and the command alone otherwise", () => {
+    const known = {
+      code: "config-retired",
+      subject: "k",
+      title: "Settings moved to new places",
+      line: "the full doctor line",
+      command: "recognizer config --unset k",
+    };
+    const built = buildChanges(
+      { ...survey, upgrade: [known] },
+      { upgrade: [known.command, "recognizer config --unset other"] },
+    );
+
+    expect(built.changes).toHaveLength(1);
+    expect(built.changes[0]).toMatchObject({
+      title: known.title,
+      detail: known.line,
+    });
+    expect(built.needing_user).toEqual([
+      {
+        command: "recognizer config --unset other",
+        reason: "not a finding of the survey",
+      },
+    ]);
+  });
+});

@@ -79,6 +79,7 @@ export interface SurveyTool {
 export interface SurveyUpgrade {
   code: string;
   subject: string;
+  title: string;
   line: string;
   command: string;
 }
@@ -964,6 +965,7 @@ function upgradeOf(io: Io, root: string): SurveyUpgrade[] {
     .map((problem) => ({
       code: problem.code,
       subject: problem.subject,
+      title: problem.title,
       line: problem.line,
       command: problem.fix.command as string,
     }));

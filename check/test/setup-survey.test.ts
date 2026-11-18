@@ -468,3 +468,27 @@ describe("setup survey examples", () => {
     expect(validate(value)).toBe(false);
   });
 });
+
+describe("setup survey upgrade items", () => {
+  it("upgrade items carry a title", () => {
+    const loom = JSON.parse(
+      readFileSync(
+        join(REPO, "schema/setup-survey-examples/valid/loom.json"),
+        "utf8",
+      ),
+    );
+    const item = {
+      code: "config-retired",
+      subject: "k",
+      title: "Settings moved to new places",
+      line: "l",
+      command: "recognizer config --unset k",
+    };
+
+    expect(validate({ ...loom, upgrade: [item] })).toBe(true);
+
+    const { title: _title, ...untitled } = item;
+
+    expect(validate({ ...loom, upgrade: [untitled] })).toBe(false);
+  });
+});

@@ -6,6 +6,7 @@ import { setValue, unsetValue } from "../src/config-edit.js";
 import { loadKeys } from "../src/config-keys.js";
 import { RETIRED_KEYS } from "../src/config-retired.js";
 import { cachedScansState } from "../src/freshness.js";
+import { PROBLEM_TITLES } from "../src/problem-titles.js";
 import { REPO } from "./helpers.js";
 import {
   describerManifestText,
@@ -177,6 +178,7 @@ describe("doctor: config", () => {
               severity: "problem",
               code: "config-retired",
               subject: "sensors.structure.distance_threshold",
+              title: expect.any(String),
               line: expect.stringContaining(
                 "config/sensors/structure/distance_threshold was removed",
               ),
@@ -244,6 +246,7 @@ describe("doctor: config", () => {
         severity: "problem",
         code: "config-empty",
         subject: "sensors.crap",
+        title: expect.any(String),
         line: "config sensors.crap is empty: delete the section or give it settings",
         fix: {
           text: "recognizer config --remove-section sensors.crap",
@@ -312,6 +315,40 @@ describe("doctor: config", () => {
       "config:config-empty",
       "config:config-invalid",
     ]);
+  });
+
+  it("json problems carry a title and text keeps the line", () => {
+    const config = "sensors:\n  thresholds:\n    coverage:\n      below: 0.7\n";
+    const result = json(setup({ config }));
+    const problem = result.report.areas[0].problems[0];
+    const text = doctor(setup({ config }), ROOT);
+
+    expect(problem.title).toBe(PROBLEM_TITLES["config-retired"]);
+    expect(problem.line).toContain("sensors/thresholds");
+    expect(text.out).toContain(problem.line);
+    expect(text.out).not.toContain(problem.title);
+  });
+
+  it("every json problem over a faulty repository has a title from the table", () => {
+    const result = json(
+      setup({
+        config:
+          "sensors:\n  crap:\n  thresholds:\n    coverage: off\n  structure:\n    warnings:\n      cycle: maybe\n",
+        policy: "components: []\n",
+        cache: null,
+      }),
+    );
+    const problems = result.report.areas.flatMap(
+      (area: { problems: { code: string; title: string }[] }) => area.problems,
+    );
+
+    expect(problems.length).toBeGreaterThan(2);
+
+    for (const problem of problems) {
+      expect(problem.title).toBe(
+        PROBLEM_TITLES[problem.code as keyof typeof PROBLEM_TITLES],
+      );
+    }
   });
 
   const migrationOf = (config: string) => {
@@ -533,6 +570,7 @@ describe("doctor: policy", () => {
         severity: "problem",
         code: "policy-retired",
         subject: ".recognizer/policy.yaml",
+        title: expect.any(String),
         line: "the policy uses retired keys: components, levels, uses",
         fix: {
           text: "recognizer policy --migrate",
@@ -620,6 +658,7 @@ describe("doctor: policy", () => {
         severity: "problem",
         code: "scan-missing",
         subject: "python",
+        title: expect.any(String),
         line: expect.stringContaining("no scan"),
         fix: { text: "recognizer scan", command: "recognizer scan" },
       },
@@ -685,6 +724,7 @@ describe("doctor: scanners", () => {
         severity: "problem",
         code: "scanner-missing",
         subject: "scanners",
+        title: expect.any(String),
         line: "no scanner is installed",
         fix: {
           text: "install a scanner that claims a language: recognizer plugins lists what is installed",
@@ -735,6 +775,7 @@ describe("doctor: sensors", () => {
         severity: "problem",
         code: "sensor-gap",
         subject: "crap",
+        title: expect.any(String),
         line: "crap has no coverage",
         fix: {
           text: "recognizer help sensors crap",

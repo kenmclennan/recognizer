@@ -931,8 +931,8 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
           checkbox(state.upgrade[at] === true, `upgrade-${at}`, (value) =>
             controller.setUpgrade(at, value),
           ),
-          [el("div", "sw-what", fix.line)],
-          disclosure(`up-${at}`, "Command", fix.command),
+          [el("div", "sw-what", fix.title)],
+          disclosure(`up-${at}`, "Details", `${fix.line}\n\n${fix.command}`),
         ),
       );
     });
@@ -955,7 +955,13 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
         row(
           "○",
           [el("div", "sw-what", change.title)],
-          disclosure(`rv-${at}`, "Command", commandText(change)),
+          change.detail === undefined
+            ? disclosure(`rv-${at}`, "Command", commandText(change))
+            : disclosure(
+                `rv-${at}`,
+                "Details",
+                `${change.detail}\n\n${commandText(change)}`,
+              ),
         ),
       );
     });
@@ -986,11 +992,23 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       return;
     }
 
+    const read = run.doctor?.status === "ok" ? run.doctor.report : null;
+    const remaining =
+      read === null
+        ? []
+        : read.areas
+            .flatMap((area) => area.problems)
+            .filter((one) => one.severity === "problem");
+    const clean = read !== null && read.problems === 0;
     const heading =
       run.state === "done"
         ? state.flow === "setup"
           ? "Setup is done"
-          : "Everything is up to date"
+          : clean
+            ? "Everything is up to date"
+            : read === null
+              ? "Updated"
+              : `Updated - ${read.problems} thing${read.problems === 1 ? "" : "s"} still to fix`
         : run.state === "running"
           ? "Applying"
           : "Setup stopped";
@@ -1006,22 +1024,26 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     body.append(el("h2", "", heading), bar);
 
     if (run.state === "done") {
-      const problems =
-        run.doctor?.status === "ok" ? run.doctor.report.problems : null;
-
       body.append(
-        callout("ok", [
-          el(
-            "div",
-            "sw-what",
-            problems === 0
-              ? "Doctor finds no problems."
-              : problems === null
-                ? "Doctor could not run."
-                : `Doctor still finds ${problems} problem${problems === 1 ? "" : "s"}.`,
-          ),
-          "The changes are live in this window.",
-        ]),
+        callout(
+          clean ? "ok" : "",
+          clean || read === null
+            ? [
+                el(
+                  "div",
+                  "sw-what",
+                  clean ? "Doctor finds no problems." : "Doctor could not run.",
+                ),
+                "The changes are live in this window.",
+              ]
+            : [
+                ...remaining.flatMap((one) => [
+                  el("div", "sw-what", one.title),
+                  el("div", "sw-why", one.fix.text),
+                ]),
+                "The changes are live in this window.",
+              ],
+        ),
       );
     } else if (run.state === "failed" || run.state === "stopped") {
       const failed = run.rows.find((one) => one.state === "failed");

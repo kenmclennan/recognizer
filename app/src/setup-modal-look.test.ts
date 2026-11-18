@@ -36,6 +36,7 @@ function snap(modal, name) {
     paneFitsModal: box(body).right <= box(dialog).right && box(body).bottom <= box(dialog).bottom,
     noHorizontalOverflow: body.scrollWidth <= body.clientWidth,
     rows: [...modal.element.querySelectorAll(".sw-row .sw-what")].map((n) => n.textContent),
+    details: [...modal.element.querySelectorAll(".sw-row")].map((r) => { const pre = r.querySelector("pre"); const link = r.querySelector(".sw-link"); return pre ? { label: link.textContent, text: pre.textContent, hidden: pre.hidden } : null; }),
     cards: [...modal.element.querySelectorAll(".sw-rec .sw-what")].map((n) => n.textContent),
     groups: [...modal.element.querySelectorAll(".sw-group")].map((n) => n.textContent),
     env: [...modal.element.querySelectorAll(".sw-envrow code")].map((n) => n.textContent),
@@ -181,6 +182,28 @@ function snap(modal, name) {
   facts.lifecycle.stopCalls = live.calls.filter((c) => c === "stop_setup").length;
   facts.lifecycle.closedDuringApply = document.querySelector(".setup-modal") === null;
 
+  const problemOf = (n) => ({ code: "config-retired", subject: "k" + n, title: "Settings moved to new places " + n, line: "config/sensors/thresholds was retired " + n, fix: { text: "Run the move " + n, command: "recognizer config --unset k" + n }, severity: "problem" });
+  const reportOf = (count) => ({ repository: "/repo", ok: count === 0, problems: count, warnings: 0, areas: count === 0 ? [] : [{ name: "config", skipped: null, problems: Array.from({ length: count }, (_, i) => problemOf(i + 1)) }] });
+  const upgradeSurvey = { ...fakeSetup({}).surveyRead.survey, configured: true, upgrade: [1, 2].map((n) => ({ code: "config-retired", subject: "k" + n, title: "Settings moved to new places " + n, line: "config/sensors/thresholds was retired " + n, command: "recognizer config --unset k" + n })) };
+  const finals = { one: reportOf(1), two: reportOf(2), clean: reportOf(0), unavailable: null };
+  for (const [name, doctor] of Object.entries(finals)) {
+    const up = openSetupModal({ port: fakeSetup({ surveyRead: { status: "ok", survey: upgradeSurvey, doctor: { status: "ok", report: reportOf(2) } }, applyDoctor: doctor }) });
+    await up.ready;
+    await settle();
+    if (name === "one") {
+      snap(up, "upgrade-changes");
+      up.element.querySelector(".sw-row .sw-link").click();
+      snap(up, "upgrade-changes-open");
+    }
+    up.controller.next();
+    await settle();
+    if (name === "one") snap(up, "upgrade-review");
+    await up.controller.apply();
+    await settle();
+    snap(up, "upgrade-final-" + name);
+    up.close();
+  }
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -194,6 +217,7 @@ type Screen = {
   paneFitsModal: boolean;
   noHorizontalOverflow: boolean;
   rows: string[];
+  details: ({ label: string; text: string; hidden: boolean } | null)[];
   cards: string[];
   groups: string[];
   env: string[];
@@ -398,6 +422,38 @@ describe.skipIf(webkit === undefined)(
       );
       expect(f.screens["policy-cards"]?.groups).toEqual(["Left out", "Rules"]);
       expect(f.screens["policy-cards"]?.cards).toHaveLength(4);
+    });
+
+    it("upgrade rows show titles", () => {
+      for (const name of ["upgrade-changes", "upgrade-review"]) {
+        const screen = f.screens[name] as Screen;
+
+        expect(screen.rows, name).toHaveLength(2);
+        expect(screen.rows[0], name).toBe("Settings moved to new places 1");
+        expect(screen.text, name).not.toContain("thresholds");
+        expect(screen.details[0]?.label, name).toBe("Details");
+        expect(screen.details[0]?.text, name).toBe(
+          "config/sensors/thresholds was retired 1\n\nrecognizer config --unset k1",
+        );
+      }
+
+      expect(f.screens["upgrade-changes"]?.details[0]?.hidden).toBe(true);
+      expect(f.screens["upgrade-changes-open"]?.details[0]?.hidden).toBe(false);
+    });
+
+    it("final screen lists what is left", () => {
+      const final = (name: string) =>
+        f.screens[`upgrade-final-${name}`] as Screen;
+
+      expect(final("one").heading).toBe("Updated - 1 thing still to fix");
+      expect(final("one").text).toContain("Settings moved to new places 1");
+      expect(final("one").text).toContain("Run the move 1");
+      expect(final("two").heading).toBe("Updated - 2 things still to fix");
+      expect(final("two").text).toContain("Settings moved to new places 2");
+      expect(final("clean").heading).toBe("Everything is up to date");
+      expect(final("clean").text).not.toContain("Run the move");
+      expect(final("unavailable").heading).toBe("Updated");
+      expect(final("unavailable").text).toContain("Doctor could not run.");
     });
 
     it("lists the changes in review and shows apply running, done and failed", () => {

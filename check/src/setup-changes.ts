@@ -10,6 +10,7 @@ export interface ChangeStep {
 export interface PlannedChange {
   id: string;
   title: string;
+  detail?: string;
   steps: ChangeStep[];
 }
 
@@ -307,7 +308,8 @@ function upgradeChanges(
     } else {
       changes.push({
         id: `upgrade-${changes.length + 1}`,
-        title: known?.line ?? command,
+        title: known?.title ?? command,
+        ...(known === undefined ? {} : { detail: known.line }),
         steps: [step(survey, argv)],
       });
     }
