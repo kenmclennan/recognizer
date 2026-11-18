@@ -27,21 +27,93 @@ const UNSCANNED = [
   step("survey", "run"),
   step("survey", "done"),
   step("scan", "run"),
+  line({
+    event: "phase",
+    phase: "extract",
+    state: "run",
+    commit: null,
+    languages: ["typescript", "python"],
+  }),
+  line({
+    event: "plugin",
+    phase: "extract",
+    name: "typescript",
+    data: { event: "start", total: 125, unit: "files" },
+  }),
+  line({
+    event: "entry",
+    phase: "extract",
+    name: "typescript",
+    outcome: "ok",
+    modules: 3,
+    edges: 2,
+  }),
+  line({
+    event: "plugin",
+    phase: "extract",
+    name: "python",
+    data: { event: "start", total: 9, unit: "files" },
+  }),
+  line({
+    event: "entry",
+    phase: "extract",
+    name: "python",
+    outcome: "ok",
+    modules: 1,
+    edges: 0,
+  }),
+  line({ event: "structure", state: "run" }),
+  line({ event: "structure", state: "done", files: 134 }),
   step("scan", "done"),
   step("reading", "run"),
   step("reading", "done"),
 ];
 
 describe("the loading reducer", () => {
-  it("gives the three rows their states as the step lines arrive", () => {
-    const state = run(UNSCANNED.slice(0, 3));
+  it("keeps the third row waiting until the scan row has finished", () => {
+    const early = run([
+      ...UNSCANNED.slice(0, 5),
+      step("reading", "run"),
+      step("survey", "done"),
+    ]);
+
+    expect(early.scan?.state).toBe("running");
+    expect(early.reading.state).toBe("waiting");
+    expect(early.reading.startedAt).toBeNull();
+
+    const settled = run([
+      ...UNSCANNED.slice(0, 5),
+      step("reading", "run"),
+      step("reading", "done"),
+      step("scan", "done"),
+    ]);
+
+    expect(settled.scan?.state).toBe("done");
+    expect(settled.reading.state).toBe("done");
+    expect(settled.reading.startedAt).toBeGreaterThanOrEqual(
+      settled.scan?.endedAt ?? Infinity,
+    );
+  });
+
+  it("gives the rows, the language lines and the duplication line", () => {
+    const state = run(UNSCANNED.slice(0, 5));
 
     expect(state.survey.state).toBe("done");
     expect(state.scan?.state).toBe("running");
     expect(state.reading.state).toBe("waiting");
+    expect(state.languages).toEqual([
+      { name: "typescript", state: "reading", files: 125 },
+      { name: "python", state: "waiting", files: null },
+    ]);
+    expect(state.duplication).toBeNull();
 
     const end = run(UNSCANNED);
 
+    expect(end.languages).toEqual([
+      { name: "typescript", state: "done", files: 125 },
+      { name: "python", state: "done", files: 9 },
+    ]);
+    expect(end.duplication).toEqual({ state: "done", files: 134 });
     expect(end.scan?.state).toBe("done");
     expect(end.reading.state).toBe("done");
   });
@@ -52,6 +124,25 @@ describe("the loading reducer", () => {
     expect(state.scan).toBeNull();
   });
 
+  it("records a failed duplication run", () => {
+    const state = run([
+      line({ event: "structure", state: "run" }),
+      line({ event: "structure", state: "failed", files: 4 }),
+    ]);
+
+    expect(state.duplication).toEqual({ state: "failed", files: 4 });
+  });
+
+  it("finishes the scan row on phase extract current with no language lines", () => {
+    const state = run([
+      step("scan", "run"),
+      line({ event: "phase", phase: "extract", state: "current", commit: "a" }),
+    ]);
+
+    expect(state.scan?.state).toBe("done");
+    expect(state.languages).toEqual([]);
+  });
+
   it("ignores lines that do not parse and events it does not use", () => {
     const before = run(UNSCANNED.slice(0, 3));
     const after = run([
@@ -60,6 +151,12 @@ describe("the loading reducer", () => {
       "",
       "[1]",
       line({ event: "preflight", state: "ok" }),
+      line({
+        event: "plugin",
+        phase: "sense",
+        name: "crap",
+        data: { event: "note", text: "x" },
+      }),
     ]);
 
     expect({ ...after, fill: 0 }).toEqual({ ...before, fill: 0 });
@@ -90,6 +187,13 @@ describe("the loading bar", () => {
     }
   });
 
+  it("does not move back when the language list raises the total", () => {
+    const before = run(UNSCANNED.slice(0, 3));
+    const after = reduceLoading(before, UNSCANNED[3] as string, 1);
+
+    expect(after.fill).toBeGreaterThanOrEqual(before.fill);
+  });
+
   it("lands exactly on 100% when every unit is done", () => {
     expect(run(UNSCANNED).fill).toBe(1);
     expect(loadingFill(run(UNSCANNED))).toBe(1);
@@ -108,14 +212,14 @@ describe("the loading bar", () => {
     expect(whole.fill).toBe(1);
   });
 
-  it("counts three units when a scan runs", () => {
+  it("counts the scan as one language before the languages arrive", () => {
     const state = run([
       step("scan", "run"),
       step("survey", "run"),
       step("survey", "done"),
     ]);
 
-    expect(state.fill).toBeCloseTo(1 / 3);
+    expect(state.fill).toBeCloseTo(1 / 4);
   });
 });
 

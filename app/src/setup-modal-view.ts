@@ -1391,6 +1391,24 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       );
     }
 
+    const lines: string[] = progress.languages
+      .filter((one) => one.state !== "waiting")
+      .map((one) =>
+        one.state === "done"
+          ? `${languageName(one.name)}: ${one.files ?? 0} files`
+          : `${languageName(one.name)}: reading...`,
+      );
+
+    if (progress.duplication !== null) {
+      lines.push(
+        progress.duplication.state === "comparing"
+          ? "Duplication: comparing..."
+          : progress.duplication.state === "failed"
+            ? "Duplication: could not compare"
+            : `Duplication: ${progress.duplication.files ?? 0} files compared`,
+      );
+    }
+
     const timed = (row: Timed): Timed =>
       row.state === "done" ? row : { ...row, endedAt: timeNow };
 
@@ -1398,7 +1416,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       stepRow("Finding languages and test setups", timed(progress.survey)),
       ...(progress.scan === null
         ? []
-        : [stepRow("Scanning the files", timed(progress.scan))]),
+        : [stepRow("Scanning the files", timed(progress.scan), lines)]),
       stepRow("Reading what the scan found", timed(progress.reading)),
     );
   }

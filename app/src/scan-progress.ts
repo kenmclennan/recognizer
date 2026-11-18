@@ -25,6 +25,8 @@ export type ScanEvent =
   | { event: "answered"; phase: "describe"; describe: boolean }
   | { event: "preflight"; state: "run" | "ok" }
   | { event: "preflight"; state: "gaps"; gaps: Gap[] }
+  | { event: "structure"; state: "run" }
+  | { event: "structure"; state: "done" | "failed"; files: number }
   | { event: "summary"; exit?: number; log?: string | null };
 
 export type DescribeAsk = {
@@ -193,9 +195,26 @@ export function parseScanLine(text: string): ScanEvent | null {
         : null;
     case "plugin":
       return pluginEvent(line);
+    case "structure":
+      return structureEvent(line);
     default:
       return null;
   }
+}
+
+function structureEvent(line: Record<string, unknown>): ScanEvent | null {
+  if (line.state === "run") {
+    return { event: "structure", state: "run" };
+  }
+
+  if (
+    (line.state === "done" || line.state === "failed") &&
+    isCount(line.files)
+  ) {
+    return { event: "structure", state: line.state, files: line.files };
+  }
+
+  return null;
 }
 
 function preflightEvent(line: Record<string, unknown>): ScanEvent | null {
@@ -500,6 +519,7 @@ export function foldProgress(
     case "plugin":
       return foldPlugin(state, event);
     case "preflight":
+    case "structure":
       return state;
     case "summary":
       return {

@@ -696,3 +696,20 @@ describe("the extract run line's languages", () => {
     ).toEqual(["python"]);
   });
 });
+
+describe("parseScanLine structure", () => {
+  it("reads the run, done and failed states and drops a count it cannot read", () => {
+    expect(parseScanLine('{"event":"structure","state":"run"}')).toEqual({
+      event: "structure",
+      state: "run",
+    });
+    expect(
+      parseScanLine('{"event":"structure","state":"done","files":125}'),
+    ).toEqual({ event: "structure", state: "done", files: 125 });
+    expect(
+      parseScanLine('{"event":"structure","state":"failed","files":3}'),
+    ).toEqual({ event: "structure", state: "failed", files: 3 });
+    expect(parseScanLine('{"event":"structure","state":"done"}')).toBeNull();
+    expect(parseScanLine('{"event":"structure","state":"x"}')).toBeNull();
+  });
+});

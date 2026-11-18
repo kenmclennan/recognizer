@@ -1,3 +1,5 @@
+import { parseScanLine } from "./scan-progress";
+
 export type Progress = "waiting" | "running" | "done";
 
 export type Timed = {
@@ -6,11 +8,26 @@ export type Timed = {
   endedAt: number | null;
 };
 
+export type LanguageProgress = {
+  name: string;
+  state: "waiting" | "reading" | "done";
+  files: number | null;
+};
+
+export type DuplicationProgress = {
+  state: "comparing" | "done" | "failed";
+  files: number | null;
+};
+
 export type LoadingState = {
   startedAt: number;
   survey: Timed;
   scan: Timed | null;
   reading: Timed;
+  held: Array<"run" | "done">;
+  languages: LanguageProgress[];
+  languagesKnown: boolean;
+  duplication: DuplicationProgress | null;
   fill: number;
 };
 
@@ -22,6 +39,10 @@ export function startLoading(now: number): LoadingState {
     survey: { ...WAITING },
     scan: null,
     reading: { ...WAITING },
+    held: [],
+    languages: [],
+    languagesKnown: false,
+    duplication: null,
     fill: 0,
   };
 }
@@ -38,6 +59,33 @@ function finished(row: Timed, now: number): Timed {
     : { state: "done", startedAt: row.startedAt ?? now, endedAt: now };
 }
 
+function readingStep(
+  state: LoadingState,
+  phase: "run" | "done",
+  now: number,
+): LoadingState {
+  return {
+    ...state,
+    reading:
+      phase === "run"
+        ? began(state.reading, now)
+        : finished(state.reading, now),
+  };
+}
+
+function scanEnded(state: LoadingState, now: number): LoadingState {
+  const ended: LoadingState = {
+    ...state,
+    scan: finished(state.scan ?? { ...WAITING }, now),
+    held: [],
+  };
+
+  return state.held.reduce(
+    (current, phase) => readingStep(current, phase, now),
+    ended,
+  );
+}
+
 function stepOf(
   state: LoadingState,
   step: string,
@@ -45,33 +93,136 @@ function stepOf(
   now: number,
 ): LoadingState {
   const running = phase === "run";
-  const move = (row: Timed) => (running ? began(row, now) : finished(row, now));
 
   if (step === "survey") {
-    return { ...state, survey: move(state.survey) };
+    return {
+      ...state,
+      survey: running ? began(state.survey, now) : finished(state.survey, now),
+    };
   }
 
   if (step === "reading") {
-    return { ...state, reading: move(state.reading) };
+    const at = running ? "run" : "done";
+
+    if (state.scan !== null && state.scan.state !== "done") {
+      return { ...state, held: [...state.held, at] };
+    }
+
+    return readingStep(state, at, now);
   }
 
   if (step === "scan") {
-    return { ...state, scan: move(state.scan ?? { ...WAITING }) };
+    if (running) {
+      return { ...state, scan: began(state.scan ?? { ...WAITING }, now) };
+    }
+
+    return scanEnded(state, now);
+  }
+
+  return state;
+}
+
+function withLanguage(
+  languages: LanguageProgress[],
+  name: string,
+  patch: Partial<LanguageProgress>,
+): LanguageProgress[] {
+  const at = languages.findIndex((one) => one.name === name);
+
+  if (at === -1) {
+    return [...languages, { name, state: "waiting", files: null, ...patch }];
+  }
+
+  return languages.map((one, index) =>
+    index === at ? { ...one, ...patch } : one,
+  );
+}
+
+function feedOf(state: LoadingState, text: string, now: number) {
+  const event = parseScanLine(text);
+
+  if (event === null) {
+    return state;
+  }
+
+  if (event.event === "phase" && event.phase === "extract") {
+    if (event.state === "current") {
+      return scanEnded(state, now);
+    }
+
+    return {
+      ...state,
+      languagesKnown: event.languages !== undefined,
+      languages: (event.languages ?? []).reduce(
+        (list, name) => withLanguage(list, name, {}),
+        state.languages,
+      ),
+    };
+  }
+
+  if (event.event === "plugin" && event.phase === "extract") {
+    const known = state.languages.find((one) => one.name === event.name);
+    const data = event.data;
+
+    if (data.event === "start") {
+      return {
+        ...state,
+        languages: withLanguage(state.languages, event.name, {
+          state: "reading",
+          files: data.unit === "files" ? data.total : (known?.files ?? null),
+        }),
+      };
+    }
+
+    if (data.event === "progress" && data.unit === "files") {
+      return {
+        ...state,
+        languages: withLanguage(state.languages, event.name, {
+          state: "reading",
+          files: data.total,
+        }),
+      };
+    }
+
+    return state;
+  }
+
+  if (event.event === "entry" && event.phase === "extract") {
+    return {
+      ...state,
+      languages: withLanguage(state.languages, event.name, { state: "done" }),
+    };
+  }
+
+  if (event.event === "structure") {
+    const duplication: DuplicationProgress =
+      event.state === "run"
+        ? { state: "comparing", files: null }
+        : { state: event.state, files: event.files };
+
+    return { ...state, duplication };
   }
 
   return state;
 }
 
 export function loadingFill(state: LoadingState): number {
-  const total = state.scan === null ? 2 : 3;
+  const scanUnits = Math.max(1, state.languages.length);
+  const total = state.scan === null ? 2 : 1 + scanUnits + 1 + 1;
   let done = state.survey.state === "done" ? 1 : 0;
 
   if (state.reading.state === "done") {
     done += 1;
   }
 
-  if (state.scan?.state === "done") {
-    done += 1;
+  if (state.scan !== null) {
+    done +=
+      state.scan.state === "done"
+        ? scanUnits + 1
+        : state.languages.filter((one) => one.state === "done").length +
+          (state.duplication !== null && state.duplication.state !== "comparing"
+            ? 1
+            : 0);
   }
 
   return Math.min(1, done / total);
@@ -98,7 +249,7 @@ export function reduceLoading(
     typeof line.step === "string" &&
     typeof line.state === "string"
       ? stepOf(state, line.step, line.state, now)
-      : state;
+      : feedOf(state, text, now);
 
   return { ...next, fill: Math.max(state.fill, loadingFill(next)) };
 }

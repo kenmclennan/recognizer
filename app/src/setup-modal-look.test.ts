@@ -323,7 +323,13 @@ function snap(modal, name) {
     feed({ event: "step", step: "survey", state: "run" }),
     feed({ event: "step", step: "survey", state: "done" }),
     feed({ event: "step", step: "scan", state: "run" }),
+    feed({ event: "phase", phase: "extract", state: "run", commit: null, languages: ["typescript"] }),
+    feed({ event: "plugin", phase: "extract", name: "typescript", data: { event: "start", total: 125, unit: "files" } }),
     holdMid,
+    feed({ event: "plugin", phase: "extract", name: "typescript", data: { event: "progress", done: 125, total: 125, unit: "files" } }),
+    feed({ event: "entry", phase: "extract", name: "typescript", outcome: "ok", modules: 3, edges: 2 }),
+    feed({ event: "structure", state: "run" }),
+    feed({ event: "structure", state: "done", files: 125 }),
     feed({ event: "step", step: "scan", state: "done" }),
     feed({ event: "step", step: "reading", state: "run" }),
     holdEnd,
@@ -507,7 +513,7 @@ describe.skipIf(webkit === undefined)(
     describe("progress while reading and applying", () => {
       const shot = (name: string) => f.progress[name] as Shot;
 
-      it("opening Setup on an unscanned folder shows the three rows and the lead line", () => {
+      it("opening Setup on an unscanned folder shows the three rows, the lead line and a per-language line before Files", () => {
         const mid = shot("scan-mid");
 
         expect(mid).toBeDefined();
@@ -520,6 +526,7 @@ describe.skipIf(webkit === undefined)(
         expect(mid.text).toContain(
           "This happens once, the first time Setup opens on a folder that has never been scanned.",
         );
+        expect(mid.text).toContain("TypeScript: reading...");
         expect(mid.spinners).toBe(1);
         expect(mid.ticks).toBe(1);
         expect(mid.circles).toBe(1);
@@ -530,9 +537,11 @@ describe.skipIf(webkit === undefined)(
         expect(mid.elapsed).toMatch(/^\d+\.\ds$/);
       });
 
-      it("finished rows show their time", () => {
+      it("finished scan lines show the file count and the duplication count, and finished rows their time", () => {
         const end = shot("scan-end");
 
+        expect(end.text).toContain("TypeScript: 125 files");
+        expect(end.text).toContain("Duplication: 125 files compared");
         expect(end.ticks).toBe(2);
         expect(end.times).toBe(2);
         expect(end.fillRatio).toBeGreaterThan(shot("scan-mid").fillRatio);
