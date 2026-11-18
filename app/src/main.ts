@@ -109,6 +109,7 @@ function openSetup(): void {
     reloadSensors: async () => {
       await rescanner.refresh();
     },
+    scanAfterApply: () => void rescanner.run(null, OPEN_RUN),
     onDoctor: noteDoctor,
     onClose: () => {
       setupModal = null;

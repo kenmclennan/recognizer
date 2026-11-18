@@ -248,6 +248,7 @@ export type SetupController = {
 export type SetupDeps = {
   port: SetupPort;
   reloadSensors?: () => Promise<void> | void;
+  scanAfterApply?: () => void;
   onDoctor?: (read: DoctorRead) => void;
 };
 
@@ -648,6 +649,7 @@ export function createSetupController(deps: SetupDeps): SetupController {
               : { status: "ok", report: result.doctor };
 
           await deps.reloadSensors?.();
+          deps.scanAfterApply?.();
           deps.onDoctor?.(doctor);
           progress({ state: "done", doctor });
         } else {
