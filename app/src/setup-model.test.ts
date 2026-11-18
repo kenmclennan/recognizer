@@ -695,6 +695,31 @@ describe("the setup wizard model", () => {
     });
 
     it("picks the fix choice for a problem", () => {
+      const claude = {
+        id: "claude",
+        display: "Claude",
+        description: "",
+        always_on: false,
+        enabled: false,
+        runs_tests: false,
+        limits: [],
+        mark: null,
+      };
+      const withClaude: Survey = {
+        ...survey,
+        checks: [...survey.checks, claude],
+      };
+
+      expect(
+        fixChoicesOf(
+          withClaude,
+          problem(
+            "unregistered-plugin",
+            "claude",
+            "recognizer plugin add claude",
+          ),
+        ),
+      ).toEqual({ plugins: ["claude"] });
       expect(fixChoicesOf(survey, fixable)).toEqual({
         fixes: ["recognizer config --unset k1"],
       });

@@ -131,6 +131,13 @@ export function fixChoicesOf(
   survey: Survey,
   problem: SetupProblem,
 ): SetupChoices | null {
+  if (
+    problem.code === "unregistered-plugin" &&
+    survey.checks.some((check) => check.id === problem.subject)
+  ) {
+    return { plugins: [problem.subject] };
+  }
+
   const command = problem.fix.command;
 
   if (command !== null && survey.fixes.some((one) => one.command === command)) {
@@ -141,6 +148,10 @@ export function fixChoicesOf(
 }
 
 export function fixButtonName(problem: SetupProblem): string {
+  if (problem.code === "unregistered-plugin") {
+    return "Register it";
+  }
+
   if (problem.code === "scan-stale" || problem.code === "scan-missing") {
     return "Rescan";
   }

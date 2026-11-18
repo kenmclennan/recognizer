@@ -14,6 +14,7 @@ import { openSetupModal } from ${JSON.stringify(here("setup-modal-view.ts"))};
 import { CLEAN_DOCTOR, fakeSetup } from ${JSON.stringify(here("setup-fake.ts"))};
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
+const LOG_SENTENCE = "A log of this run";
 const box = (node) => { const r = node.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; };
 const facts = { screens: {}, lifecycle: {}, rowClicks: {} };
 
@@ -410,8 +411,10 @@ function snap(modal, name) {
 
   facts.done = {};
   const handProblem = { code: "config-duplicate-suite", subject: "unit", title: "Two test suites share a name", line: "tests: unit appears twice", fix: { text: "Rename one of the suites", command: null }, severity: "problem" };
+  const pluginProblem = { code: "unregistered-plugin", subject: "claude", title: "Claude is not registered", line: "claude is installed but not registered", fix: { text: "Register the plugin", command: "recognizer plugin add claude" }, severity: "problem" };
   const reportWith = (list) => ({ repository: "/repo", ok: list.length === 0, problems: list.length, warnings: 0, areas: list.length === 0 ? [] : [{ name: "config", skipped: null, problems: list }] });
-  const doneSurvey = { ...base, fixes: [fixOf(1), fixOf(2)] };
+  const claudeCheck = { id: "claude", display: "Claude", description: "describes", always_on: false, enabled: false, runs_tests: false, limits: [], mark: null };
+  const doneSurvey = { ...base, fixes: [fixOf(1), fixOf(2)], checks: [...base.checks, claudeCheck] };
   const finishWith = async (applyDoctor, extra = {}) => {
     const port = fakeSetup({ surveyRead: { status: "ok", survey: doneSurvey, doctor: { status: "ok", report: reportOf(2) } }, applyDoctor, ...extra });
     const m = openSetupModal({ port });
@@ -439,6 +442,12 @@ function snap(modal, name) {
       rowCount: rows.length,
       blocks: [...callout.querySelectorAll(".sw-problem")].map((b) => { const act = b.querySelector("button"); return { text: b.textContent, button: act ? act.textContent : null, disabled: act ? act.disabled : null, orRun: b.textContent.includes("Or run"), bold: b.querySelector(".sw-what").textContent }; }),
       buttonsDisabled: buttons.map((b) => b.disabled),
+      logSentence: {
+        inFooter: m.element.querySelector(".sw-foot").textContent.split(LOG_SENTENCE).length - 1,
+        inBody: m.element.querySelector(".sw-body").textContent.split(LOG_SENTENCE).length - 1,
+        inCards: [...m.element.querySelectorAll(".sw-body .sw-row, .sw-body .sw-callout")].filter((c) => c.textContent.includes(LOG_SENTENCE)).length,
+        inModal: m.element.textContent.split(LOG_SENTENCE).length - 1,
+      },
     };
   };
   const pressFix = async (m, at) => { [...m.element.querySelectorAll(".sw-problem button")][at].click(); await settle(); };
@@ -470,6 +479,15 @@ function snap(modal, name) {
   await pressFix(stuck.m, 0);
   facts.done.stuck = doneOf(stuck.m);
   stuck.m.close();
+
+  const registered = await finishWith(reportWith([pluginProblem]));
+  await pressFix(registered.m, 0);
+  facts.done.pluginApplied = registered.port.applied[registered.port.applied.length - 1];
+  facts.done.pluginButton = null;
+  registered.m.close();
+  const pluginAgain = await finishWith(reportWith([pluginProblem]));
+  facts.done.pluginButton = doneOf(pluginAgain.m).blocks[0].button;
+  pluginAgain.m.close();
 
   const sameText = await finishWith(reportWith([{ ...problemOf(1), fix: { text: "recognizer config --unset k1", command: "recognizer config --unset k1" } }]));
   facts.done.sameText = { ...doneOf(sameText.m), mentions: sameText.m.element.querySelector(".sw-problem").textContent.split("recognizer config --unset k1").length - 1 };
@@ -599,12 +617,20 @@ type DoneFact = {
     bold: string;
   }[];
   buttonsDisabled: boolean[];
+  logSentence: {
+    inFooter: number;
+    inBody: number;
+    inCards: number;
+    inModal: number;
+  };
 };
 type Facts = {
   done: Record<string, DoneFact> & {
     sameText: DoneFact & { mentions: number };
     appliedByFix: unknown[];
     fixedCalls: number;
+    pluginApplied: unknown;
+    pluginButton: string | null;
     panels: CardFact[];
     opened: string;
     failed: {
@@ -1110,6 +1136,17 @@ describe.skipIf(webkit === undefined)(
         expect(two.lastLine).toBe("The changes are live in this window.");
       });
 
+      it("the log sentence appears once on the done screen, in the footer and in no card", () => {
+        for (const name of ["two", "fixed", "green", "clean"]) {
+          const found = done(name).logSentence;
+
+          expect(found.inFooter).toBe(1);
+          expect(found.inBody).toBe(0);
+          expect(found.inCards).toBe(0);
+          expect(found.inModal).toBe(1);
+        }
+      });
+
       it("a fix whose text is its command shows the command once", () => {
         expect(f.done.sameText.mentions).toBe(1);
         expect(f.done.sameText.blocks[0]?.orRun).toBe(true);
@@ -1150,6 +1187,11 @@ describe.skipIf(webkit === undefined)(
         expect(stuck.blocks[0]?.text).toContain("Could not fix this");
         expect(stuck.blocks[0]?.button).toBe("Fix it");
         expect(stuck.lead).toBe("1 thing still to fix");
+      });
+
+      it("the unregistered-plugin fix registers the plugin through the plugins choice", () => {
+        expect(f.done.pluginApplied).toEqual({ plugins: ["claude"] });
+        expect(f.done.pluginButton).toBe("Register it");
       });
 
       it("an all-clear apply shows the green callout", () => {
