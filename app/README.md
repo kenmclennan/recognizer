@@ -16,7 +16,7 @@ Settings is a modal over the repository window, opened from the gear at the bott
 
 ## Setup
 
-Setup is a modal opened from the wrench at the bottom of the rail, above Settings, with an amber count of the problems `recognizer doctor` reports. Opening it runs only doctor. Check with Claude (`run_setup_check`) is the one costly action: it runs `claude -p` in the window's folder with a fixed read-only allowlist, the setup skill text from the library and `SETUP_SCHEMA`, using the Setup pane's model in Settings (seeded `sonnet`). Apply (`apply_setup`) runs exactly the ticked commands through the recognizer command, with Rust re-checking each against the shared grammar in `fixtures/setup/commands.json` and inserting `--repository` itself, stops at the first failure and then runs doctor. Stop (`stop_setup`) and closing the window kill the live process group.
+Setup is a wizard opened from the wrench at the bottom of the rail, above Settings, with an amber count of the problems `recognizer doctor` reports. Opening it runs the survey and doctor (`setup_survey`) and, when no scan is cached, `scan --extract`; nothing costly starts until a button is clicked. Ask Claude (`setup_recommend`) runs `claude -p` in the window's folder with a fixed read-only allowlist for policy recommendations only, using the Setup pane's model in Settings (seeded `sonnet`), and passes the answer through `recognizer setup recommend`. Apply (`setup_apply`) and Run once (`setup_try`) write the choices to a temp file and run `recognizer setup apply|try`, streaming each event line to the window as `setup-run-event`; the command builds every argv itself and undoes all changes when one fails. Stop (`stop_setup`) and closing the window kill the live process group.
 
 ## Releases
 

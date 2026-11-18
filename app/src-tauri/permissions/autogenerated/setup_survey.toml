@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-setup-survey"
+description = "Enables the setup_survey command without any pre-configured scope."
+commands.allow = ["setup_survey"]
+
+[[permission]]
+identifier = "deny-setup-survey"
+description = "Denies the setup_survey command without any pre-configured scope."
+commands.deny = ["setup_survey"]

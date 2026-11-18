@@ -1,304 +1,349 @@
+import { buildChanges, policyCommands, type Survey } from "recognizer";
 import { describe, expect, it } from "vitest";
-import { CLEAN_DOCTOR, fakeSetup } from "./setup-fake";
 import {
-  canApply,
+  CLEAN_DOCTOR,
+  type FakeSetup,
+  fakeSetup,
+  LOOM_SURVEY,
+  RECOMMENDATION,
+} from "./setup-fake";
+import {
+  choicesOf,
   createSetupController,
-  doctorProblems,
-  type ReportState,
-  sectionCounts,
-  sectionsOf,
+  currentKey,
+  isSkipped,
+  type SetupController,
+  type StepKey,
+  stepsOf,
+  testsWanted,
+  type WizardState,
 } from "./setup-model";
-import type { DoctorRead } from "./setup-port";
 
-const DOCTOR_2: DoctorRead = {
-  status: "ok",
-  report: {
-    ...(CLEAN_DOCTOR as { report: object }).report,
-    problems: 2,
-  } as never,
-};
-
-const PROPOSAL = {
-  summary: "s",
-  changes: [
-    {
-      section: "problems",
-      title: "Drop key",
-      reason: "r",
-      commands: [["recognizer", "config", "--unset", "a.b"]],
-    },
-    {
-      section: "tests",
-      title: "Run suites",
-      reason: "r",
-      commands: [["recognizer", "sensors", "check", "--run"]],
-    },
-    {
-      section: "policy",
-      title: "Draft",
-      reason: "r",
-      commands: [["recognizer", "policy", "--add", "entry", "src/main.ts"]],
-    },
-  ],
-};
-
-function controller(fake = fakeSetup({ doctor: DOCTOR_2 })) {
-  const doctors: DoctorRead[] = [];
-  const one = createSetupController({
+function counting(fake: FakeSetup) {
+  const seen = { sensors: 0, doctors: 0 };
+  const controller = createSetupController({
     port: fake,
-    readModel: async () => "sonnet",
-    onDoctor: (read) => doctors.push(read),
-  });
-
-  return { fake, one, doctors };
-}
-
-async function reported() {
-  const fake = fakeSetup({
-    doctor: DOCTOR_2,
-    checkResult: {
-      status: "proposal",
-      output: PROPOSAL,
-      costUsd: 0.5,
-      durationMs: 12000,
-      denials: 0,
+    reloadSensors: () => {
+      seen.sensors += 1;
+    },
+    onDoctor: () => {
+      seen.doctors += 1;
     },
   });
-  const made = controller(fake);
 
-  await made.one.open();
-  await made.one.check();
-
-  return made;
+  return { controller, seen };
 }
 
-describe("the setup modal model", () => {
-  it("runs doctor and nothing else when it opens", async () => {
-    const { fake, one, doctors } = controller();
+function wizard(controller: SetupController): WizardState {
+  const state = controller.state();
 
-    await one.open();
+  if (state.kind !== "wizard") {
+    throw new Error(`state is ${state.kind}`);
+  }
 
-    expect(fake.calls).toEqual(["read_doctor"]);
-    expect(one.state()).toMatchObject({ kind: "start", model: "sonnet" });
-    expect(doctors).toHaveLength(1);
-    expect(doctorProblems(doctors[0] ?? null)).toBe(2);
+  return state;
+}
+
+function advanceTo(controller: SetupController, key: StepKey): void {
+  for (
+    let guard = 0;
+    guard < 10 && currentKey(wizard(controller)) !== key;
+    guard++
+  ) {
+    controller.next();
+  }
+
+  expect(currentKey(wizard(controller))).toBe(key);
+}
+
+async function opened(fake: FakeSetup = fakeSetup()) {
+  const made = counting(fake);
+
+  await made.controller.open();
+
+  return { ...made, fake };
+}
+
+describe("the setup wizard model", () => {
+  it("opens by running the survey and doctor and nothing costly", async () => {
+    const { controller, fake, seen } = await opened();
+
+    expect(fake.calls).toEqual(["survey+extract"]);
+    expect(wizard(controller).flow).toBe("setup");
+    expect(currentKey(wizard(controller))).toBe("files");
+    expect(seen.doctors).toBe(1);
   });
 
-  it("ignores a second Check click while a check is live", async () => {
-    let open: () => void = () => {};
-    const gate = new Promise<void>((resolve) => {
-      open = resolve;
+  it("shows the reason when the survey cannot be read", async () => {
+    const { controller } = await opened(
+      fakeSetup({
+        surveyRead: { status: "unavailable", reason: "no recognizer" },
+      }),
+    );
+
+    expect(controller.state()).toEqual({
+      kind: "unavailable",
+      reason: "no recognizer",
     });
-    const fake = fakeSetup({ doctor: DOCTOR_2, gate });
-    const { one } = controller(fake);
+  });
 
-    await one.open();
+  it("skips Tests when no chosen check runs tests", async () => {
+    const { controller } = await opened();
 
-    const first = one.check();
+    expect(testsWanted(wizard(controller))).toBe(true);
+    expect(isSkipped(wizard(controller), "tests")).toBe(false);
 
-    await one.check();
-    await one.check();
+    controller.setPlugin("crap", false);
+    controller.setPlugin("mutation", false);
 
-    expect(one.state().kind).toBe("checking");
+    expect(isSkipped(wizard(controller), "tests")).toBe(true);
+
+    advanceTo(controller, "policy");
+
+    expect(currentKey(wizard(controller))).toBe("policy");
+    controller.back();
+    expect(currentKey(wizard(controller))).toBe("checks");
+
+    const plain: Survey = {
+      ...LOOM_SURVEY,
+      checks: LOOM_SURVEY.checks.map((check) => ({
+        ...check,
+        runs_tests: false,
+      })),
+    };
+    const second = await opened(
+      fakeSetup({
+        surveyRead: { status: "ok", survey: plain, doctor: CLEAN_DOCTOR },
+      }),
+    );
+
+    expect(isSkipped(wizard(second.controller), "tests")).toBe(true);
+    expect(choicesOf(wizard(second.controller)).runners).toEqual([]);
+    expect(choicesOf(wizard(second.controller)).tools).toEqual([]);
+  });
+
+  it("disables Next on Policy with Ask chosen and not run, and enables it after Skip or a run", async () => {
+    const { controller } = await opened();
+
+    advanceTo(controller, "policy");
+    expect(wizard(controller).policyMode).toBe("skip");
+
+    controller.setPolicyMode("ask");
+    controller.next();
+    expect(currentKey(wizard(controller))).toBe("policy");
+
+    controller.setPolicyMode("skip");
+    controller.next();
+    expect(currentKey(wizard(controller))).toBe("review");
+
+    controller.back();
+    controller.setPolicyMode("ask");
+    await controller.askClaude();
+    expect(wizard(controller).policy.kind).toBe("done");
+
+    controller.next();
+    expect(currentKey(wizard(controller))).toBe("review");
+  });
+
+  it("an accepted card contributes exactly its commands and a rejected or undecided one none", async () => {
+    const { controller } = await opened();
+
+    controller.setPolicyMode("ask");
+    await controller.askClaude();
+
     expect(
-      fake.calls.filter((call) => call === "run_setup_check"),
-    ).toHaveLength(1);
+      buildChanges(LOOM_SURVEY, choicesOf(wizard(controller))).changes.filter(
+        (one) => one.id.startsWith("policy"),
+      ),
+    ).toEqual([]);
 
-    open();
-    await first;
+    controller.decide(0, "accept");
+    controller.decide(1, "reject");
+    controller.decide(3, "accept");
+
+    const policy = buildChanges(
+      LOOM_SURVEY,
+      choicesOf(wizard(controller)),
+    ).changes.filter((one) => one.id.startsWith("policy"));
+    const [first, , , fourth] = RECOMMENDATION.entries;
+
+    expect(policy.map((one) => one.id)).toEqual(["policy-1", "policy-2"]);
+    expect(policy[0]?.steps.map((one) => one.argv)).toEqual(
+      policyCommands(first as never),
+    );
+    expect(policy[1]?.steps.map((one) => one.argv)).toEqual(
+      policyCommands(fourth as never),
+    );
   });
 
-  it("passes the doctor result and the budget from the model's estimate", async () => {
-    const { fake } = await reported();
+  it("the upgrade flow lists doctor's fixes and has three steps", async () => {
+    const fixes = ["config-retired", "config-empty", "policy-retired"].map(
+      (code, at) => ({
+        code,
+        subject: `k${at}`,
+        line: `fix ${code}`,
+        command: `recognizer config --unset k${at}`,
+      }),
+    );
+    const survey: Survey = { ...LOOM_SURVEY, configured: true, upgrade: fixes };
+    const { controller, fake } = await opened(
+      fakeSetup({ surveyRead: { status: "ok", survey, doctor: CLEAN_DOCTOR } }),
+    );
+    const state = wizard(controller);
 
-    expect(fake.prompts[0]).toContain('"problems": 2');
-    expect(fake.budgets).toEqual([2.08]);
+    expect(state.flow).toBe("upgrade");
+    expect(stepsOf(state).map((step) => step.key)).toEqual([
+      "changes",
+      "review",
+      "apply",
+    ]);
+    expect(currentKey(state)).toBe("changes");
+    expect(state.upgrade).toEqual([true, true, true]);
+
+    controller.setUpgrade(1, false);
+    advanceTo(controller, "review");
+    await controller.apply();
+
+    expect(fake.applied[0]?.upgrade).toEqual([
+      "recognizer config --unset k0",
+      "recognizer config --unset k2",
+    ]);
   });
 
-  it("shows progress lines while checking and returns to start on cancel", async () => {
+  it("applies exactly the chosen changes and shows doctor's result", async () => {
+    const { controller, fake } = await opened();
+
+    controller.setPlugin("mutation", false);
+    controller.setLimit("long_function", 30);
+    advanceTo(controller, "review");
+
+    const before = buildChanges(
+      LOOM_SURVEY,
+      choicesOf(wizard(controller)),
+    ).changes;
+
+    await controller.apply();
+
+    const state = wizard(controller);
+
+    expect(fake.applied).toHaveLength(1);
+    expect(fake.applied[0]).toEqual(choicesOf(state));
+    expect(state.apply?.state).toBe("done");
+    expect(state.apply?.rows.map((row) => row.title)).toEqual(
+      before.map((change) => change.title),
+    );
+    expect(state.apply?.rows.every((row) => row.state === "done")).toBe(true);
+    expect(state.apply?.doctor?.status).toBe("ok");
+    expect(before.some((change) => change.id === "plugin-mutation")).toBe(
+      false,
+    );
+    expect(
+      before.some((change) => change.id === "analysis-long_function"),
+    ).toBe(true);
+  });
+
+  it("leaves the choices as they were after a failed apply", async () => {
+    const { controller, fake, seen } = await opened(fakeSetup({ failAt: 2 }));
+
+    advanceTo(controller, "review");
+
+    const choices = choicesOf(wizard(controller));
+
+    await controller.apply();
+
+    const state = wizard(controller);
+
+    expect(state.apply?.state).toBe("failed");
+    expect(state.apply?.rows.map((row) => row.state).slice(0, 3)).toEqual([
+      "undone",
+      "undone",
+      "failed",
+    ]);
+    expect(choicesOf(state)).toEqual(choices);
+    expect(fake.applied).toHaveLength(1);
+    expect(seen.sensors).toBe(0);
+
+    controller.backToReview();
+    expect(currentKey(wizard(controller))).toBe("review");
+    expect(wizard(controller).apply).toBeNull();
+  });
+
+  it("re-reads the registry and doctor after apply", async () => {
+    const { controller, seen } = await opened();
+
+    expect(seen.sensors).toBe(0);
+    expect(seen.doctors).toBe(1);
+
+    advanceTo(controller, "review");
+    await controller.apply();
+
+    expect(seen.sensors).toBeGreaterThan(0);
+    expect(seen.doctors).toBeGreaterThan(1);
+  });
+
+  it("names each runner with its readiness after Run once", async () => {
+    const { controller, fake } = await opened(
+      fakeSetup({ notReady: { tauri: "tauri has no coverage" } }),
+    );
+
+    advanceTo(controller, "tests");
+    await controller.runOnce();
+
+    const tried = wizard(controller).tried;
+
+    expect(fake.tried).toHaveLength(1);
+    expect(tried.kind).toBe("done");
+
+    if (tried.kind === "done") {
+      expect(tried.ok).toBe(false);
+      expect(tried.runners).toEqual([
+        { name: "engine", ready: true, detail: "" },
+        { name: "app", ready: true, detail: "" },
+        { name: "tauri", ready: false, detail: "tauri has no coverage" },
+      ]);
+      expect(tried.rows.some((row) => row.state === "undone")).toBe(true);
+    }
+  });
+
+  it("calls stop once during Apply and ignores a second click", async () => {
     let open: () => void = () => {};
-    const gate = new Promise<void>((resolve) => {
-      open = resolve;
-    });
-    const fake = fakeSetup({
-      doctor: DOCTOR_2,
-      gate,
-      progress: ["Read a", "Bash b"],
-    });
-    const { one } = controller(fake);
+    const { controller, fake } = await opened(
+      fakeSetup({
+        gate: new Promise<void>((resolve) => {
+          open = resolve;
+        }),
+      }),
+    );
 
-    await one.open();
+    advanceTo(controller, "review");
 
-    const running = one.check();
+    const running = controller.apply();
 
-    expect(one.state()).toMatchObject({
-      kind: "checking",
-      lines: ["Read a", "Bash b"],
-    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await controller.stop();
+    await controller.stop();
+    await running;
+    open();
 
-    await one.cancel();
+    expect(fake.calls.filter((call) => call === "stop_setup")).toHaveLength(1);
+    expect(wizard(controller).apply?.state).toBe("stopped");
+  });
+
+  it("calls stop once during Run once and ignores a second click", async () => {
+    const { controller, fake } = await opened(
+      fakeSetup({ gate: new Promise<void>(() => {}) }),
+    );
+
+    advanceTo(controller, "tests");
+
+    const running = controller.runOnce();
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await controller.stop();
+    await controller.stop();
     await running;
 
-    expect(fake.stopped).toBe(1);
-    expect(one.state().kind).toBe("start");
-    open();
-  });
-
-  it("builds the report with ticks derived from the commands", async () => {
-    const { one } = await reported();
-    const state = one.state() as ReportState;
-
-    expect(state.kind).toBe("report");
-    expect(state.ticks).toEqual([true, false, false]);
-    expect(sectionsOf(state)).toEqual(["problems", "tests", "policy"]);
-    expect(sectionCounts(state, "problems")).toEqual({ ticked: 1, total: 1 });
-    expect(sectionCounts(state, "tests")).toEqual({ ticked: 0, total: 1 });
-    expect(state.costUsd).toBe(0.5);
-  });
-
-  it("disables Apply with nothing ticked", async () => {
-    const { one } = await reported();
-
-    expect(canApply(one.state())).toBe(true);
-
-    one.toggle(0);
-
-    expect(canApply(one.state())).toBe(false);
-
-    await one.apply();
-
-    expect(one.state().kind).toBe("report");
-  });
-
-  it("applies exactly the ticked commands and shows doctor's result", async () => {
-    const { fake, one, doctors } = await reported();
-
-    one.toggle(1);
-    await one.apply();
-
-    expect(fake.ran).toEqual([
-      ["recognizer", "config", "--unset", "a.b"],
-      ["recognizer", "sensors", "check", "--run"],
-    ]);
-    expect(one.state()).toMatchObject({
-      kind: "applied",
-      outcome: { status: "applied", applied: 2, total: 2 },
-    });
-    expect(doctors).toHaveLength(2);
-    expect(
-      fake.calls.filter((call) => call === "run_setup_check"),
-    ).toHaveLength(1);
-  });
-
-  it("leaves the ticks as they were after a failed apply", async () => {
-    const { fake, one } = await reported();
-
-    fake.failing = () => ({ code: 1, stderr: "boom" });
-    one.toggle(2);
-    await one.apply();
-
-    const applied = one.state();
-
-    expect(applied).toMatchObject({
-      kind: "applied",
-      outcome: { status: "failed", applied: 0, total: 2, stderr: "boom" },
-    });
-
-    one.back();
-
-    expect((one.state() as ReportState).ticks).toEqual([true, false, true]);
-  });
-
-  it("shows an error and no report for a proposal of the wrong shape", async () => {
-    const fake = fakeSetup({
-      doctor: DOCTOR_2,
-      checkResult: {
-        status: "proposal",
-        output: [1],
-        costUsd: 0.1,
-        durationMs: 5,
-        denials: 0,
-      },
-    });
-    const { one } = controller(fake);
-
-    await one.open();
-    await one.check();
-
-    expect(one.state()).toMatchObject({ kind: "error", costUsd: 0.1 });
-  });
-
-  it("shows a failed check with its reason and cost", async () => {
-    const fake = fakeSetup({
-      doctor: DOCTOR_2,
-      checkResult: {
-        status: "failed",
-        reason: "over budget",
-        subtype: "error_max_budget_usd",
-        costUsd: 2.1,
-        durationMs: 9,
-      },
-    });
-    const { one } = controller(fake);
-
-    await one.open();
-    await one.check();
-
-    expect(one.state()).toMatchObject({
-      kind: "error",
-      message: "over budget",
-      detail: "error_max_budget_usd",
-    });
-  });
-
-  it("shows nothing to change for a proposal with no change", async () => {
-    const fake = fakeSetup({
-      doctor: DOCTOR_2,
-      checkResult: {
-        status: "proposal",
-        output: { changes: [] },
-        costUsd: 0.2,
-        durationMs: 5,
-        denials: 0,
-      },
-    });
-    const { one } = controller(fake);
-
-    await one.open();
-    await one.check();
-
-    const state = one.state() as ReportState;
-
-    expect(state.kind).toBe("report");
-    expect(sectionsOf(state)).toEqual([]);
-    expect(canApply(state)).toBe(false);
-  });
-
-  it("keeps the shared fake honest: a refused command, a failure part way, a live scan", async () => {
-    const fake = fakeSetup({ doctor: DOCTOR_2 });
-
-    expect((await fake.apply([["npm", "test"]])).outcome.status).toBe(
-      "refused",
-    );
-
-    fake.failing = (argv) =>
-      argv[3] === "b" ? { code: 2, stderr: "bad" } : null;
-
-    expect(
-      (
-        await fake.apply([
-          ["recognizer", "config", "--unset", "a"],
-          ["recognizer", "config", "--unset", "b"],
-          ["recognizer", "config", "--unset", "c"],
-        ])
-      ).outcome,
-    ).toMatchObject({ status: "failed", applied: 1, total: 3 });
-    expect(fake.ran).toHaveLength(1);
-
-    fake.scanLive = true;
-
-    expect((await fake.apply([["recognizer", "scan"]])).outcome.status).toBe(
-      "refused",
-    );
+    expect(fake.calls.filter((call) => call === "stop_setup")).toHaveLength(1);
+    expect(wizard(controller).tried.kind).toBe("done");
   });
 });

@@ -283,16 +283,7 @@ export {
   splitCommand,
 } from "./setup-changes.js";
 export { POLICY_RECOMMENDATION_PROMPT } from "./setup-policy-prompt.js";
-export {
-  commandRefusal,
-  type DroppedChange,
-  type ParsedProposal,
-  parseProposal,
-  quoteCommand,
-  SETUP_SCHEMA,
-  type SetupChange,
-  type SetupSection,
-} from "./setup-proposal.js";
+export { commandRefusal, quoteCommand } from "./setup-proposal.js";
 export type {
   Survey,
   SurveyCheck,
@@ -303,6 +294,7 @@ export type {
   SurveyUnread,
   SurveyUpgrade,
 } from "./setup-survey.js";
+export type { TryEvent } from "./setup-try.js";
 export {
   SHIPPED_DESCRIBER_COMMAND,
   SHIPPED_DESCRIBER_NAME,

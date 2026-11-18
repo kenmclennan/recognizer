@@ -1,149 +1,311 @@
 import {
-  type DroppedChange,
-  parseProposal,
-  SETUP_SCHEMA,
-  type SetupChange,
-  type SetupSection,
+  type ApplyEvent,
+  buildChanges,
+  type PlannedChange,
+  POLICY_RECOMMENDATION_PROMPT,
+  POLICY_RECOMMENDATION_SCHEMA,
+  type PolicyCard,
+  type Recommendation,
+  type SetupChoices,
+  type Survey,
+  type SurveyRunner,
+  type TryEvent,
 } from "recognizer";
-import { budgetFor } from "./setup-estimate";
-import type { DoctorRead, SetupApplyOutcome, SetupPort } from "./setup-port";
-import { buildPrompt } from "./setup-prompt";
+import type { DoctorRead, SetupPort } from "./setup-port";
 
-export const SECTION_ORDER: SetupSection[] = ["problems", "tests", "policy"];
+export type Flow = "setup" | "upgrade";
 
-export const SECTION_NAMES: Record<SetupSection, string> = {
-  problems: "Problems",
-  tests: "Test suites",
-  policy: "Policy",
+export type StepKey =
+  | "files"
+  | "checks"
+  | "tests"
+  | "policy"
+  | "review"
+  | "apply"
+  | "changes";
+
+export const SETUP_STEPS: { key: StepKey; name: string }[] = [
+  { key: "files", name: "Files" },
+  { key: "checks", name: "Checks" },
+  { key: "tests", name: "Tests" },
+  { key: "policy", name: "Policy" },
+  { key: "review", name: "Review" },
+  { key: "apply", name: "Apply" },
+];
+
+export const UPGRADE_STEPS: { key: StepKey; name: string }[] = [
+  { key: "changes", name: "What changed" },
+  { key: "review", name: "Review" },
+  { key: "apply", name: "Apply" },
+];
+
+export type RunnerState = {
+  on: boolean;
+  command: string;
+  env: [string, string][];
 };
 
-export type ReportState = {
-  kind: "report";
-  summary: string;
-  changes: SetupChange[];
-  dropped: DroppedChange[];
-  ticks: boolean[];
-  section: SetupSection | null;
-  costUsd: number | null;
-  durationMs: number | null;
+export type RowState = "waiting" | "running" | "done" | "failed" | "undone";
+
+export type Row = { title: string; state: RowState; output: string };
+
+export type RunnerResult = { name: string; ready: boolean; detail: string };
+
+export type TryState =
+  | { kind: "idle" }
+  | { kind: "running"; rows: Row[] }
+  | { kind: "done"; ok: boolean; runners: RunnerResult[]; rows: Row[] }
+  | { kind: "error"; message: string };
+
+export type PolicyRun =
+  | { kind: "idle" }
+  | { kind: "running"; lines: string[] }
+  | { kind: "done"; recommendation: Recommendation }
+  | { kind: "failed"; message: string };
+
+export type ApplyRun = {
+  state: "running" | "done" | "failed" | "stopped";
+  rows: Row[];
+  doctor: DoctorRead | null;
+  message: string | null;
+};
+
+export type WizardState = {
+  kind: "wizard";
+  flow: Flow;
+  survey: Survey;
+  doctor: DoctorRead;
+  at: number;
+  analysis: boolean;
+  limits: Record<string, number>;
+  plugins: Record<string, boolean>;
+  runners: Record<string, RunnerState>;
+  tools: Record<string, boolean>;
+  tried: TryState;
+  policyMode: "skip" | "ask";
+  policy: PolicyRun;
+  decisions: Record<number, "accept" | "reject">;
+  upgrade: boolean[];
+  apply: ApplyRun | null;
 };
 
 export type SetupState =
-  | { kind: "start"; doctor: DoctorRead | null; model: string }
-  | { kind: "checking"; lines: string[] }
-  | ReportState
-  | { kind: "applying"; report: ReportState }
-  | {
-      kind: "applied";
-      report: ReportState;
-      outcome: SetupApplyOutcome;
-      doctor: DoctorRead;
-    }
-  | {
-      kind: "error";
-      message: string;
-      detail: string | null;
-      costUsd: number | null;
-      durationMs: number | null;
-    };
+  | { kind: "loading" }
+  | { kind: "unavailable"; reason: string }
+  | WizardState;
 
 export function doctorProblems(read: DoctorRead | null): number | null {
   return read !== null && read.status === "ok" ? read.report.problems : null;
 }
 
-export function sectionsOf(report: ReportState): SetupSection[] {
-  return SECTION_ORDER.filter((section) =>
-    report.changes.some((change) => change.section === section),
+export function stepsOf(state: WizardState): typeof SETUP_STEPS {
+  return state.flow === "upgrade" ? UPGRADE_STEPS : SETUP_STEPS;
+}
+
+export function pluginChecks(survey: Survey) {
+  return survey.checks.filter(
+    (check) => !check.always_on && check.id !== "analysis",
   );
 }
 
-export function sectionCounts(
-  report: ReportState,
-  section: SetupSection,
-): { ticked: number; total: number } {
-  let ticked = 0;
-  let total = 0;
-
-  report.changes.forEach((change, at) => {
-    if (change.section === section) {
-      total += 1;
-
-      if (report.ticks[at]) {
-        ticked += 1;
-      }
-    }
-  });
-
-  return { ticked, total };
-}
-
-export function tickedCommands(report: ReportState): string[][] {
-  return report.changes.flatMap((change, at) =>
-    report.ticks[at] ? change.commands : [],
+export function testsWanted(state: WizardState): boolean {
+  return pluginChecks(state.survey).some(
+    (check) => state.plugins[check.id] === true && check.runs_tests,
   );
 }
 
-export function canApply(state: SetupState): boolean {
-  return (
-    state.kind === "report" &&
-    state.changes.some((_, at) => state.ticks[at] === true)
+export function isSkipped(state: WizardState, key: StepKey): boolean {
+  return state.flow === "setup" && key === "tests" && !testsWanted(state);
+}
+
+export function currentKey(state: WizardState): StepKey {
+  return stepsOf(state)[state.at]?.key ?? "files";
+}
+
+export function acceptedCards(state: WizardState): PolicyCard[] {
+  if (state.policyMode !== "ask" || state.policy.kind !== "done") {
+    return [];
+  }
+
+  return state.policy.recommendation.entries.filter(
+    (_, at) => state.decisions[at] === "accept",
   );
+}
+
+export function undecidedCards(state: WizardState): number {
+  if (state.policy.kind !== "done") {
+    return 0;
+  }
+
+  return state.policy.recommendation.entries.filter(
+    (_, at) => state.decisions[at] === undefined,
+  ).length;
+}
+
+export function choicesOf(state: WizardState): SetupChoices {
+  if (state.flow === "upgrade") {
+    return {
+      upgrade: state.survey.upgrade
+        .filter((_, at) => state.upgrade[at] === true)
+        .map((one) => one.command),
+    };
+  }
+
+  const wanted = testsWanted(state);
+  const analysis = state.survey.checks.find((one) => one.id === "analysis");
+
+  return {
+    ...(analysis === undefined
+      ? {}
+      : { analysis: { on: state.analysis, limits: { ...state.limits } } }),
+    plugins: pluginChecks(state.survey)
+      .filter((check) => state.plugins[check.id] === true)
+      .map((check) => check.id),
+    runners: wanted
+      ? state.survey.runners
+          .filter((runner) => state.runners[runner.name]?.on === true)
+          .map((runner) => {
+            const own = state.runners[runner.name] as RunnerState;
+            const env = Object.fromEntries(own.env);
+
+            return {
+              name: runner.name,
+              ...(own.command === runner.command
+                ? {}
+                : { command: own.command }),
+              ...(own.env.length === 0 ? {} : { env }),
+            };
+          })
+      : [],
+    tools: wanted
+      ? state.survey.tools
+          .filter((tool) => state.tools[tool.name] === true)
+          .map((tool) => tool.name)
+      : [],
+    policy: acceptedCards(state),
+  };
+}
+
+export function changesOf(state: WizardState): PlannedChange[] {
+  return buildChanges(state.survey, choicesOf(state)).changes;
+}
+
+export function droppedOf(state: WizardState) {
+  return buildChanges(state.survey, choicesOf(state)).dropped;
+}
+
+export function sharedBy(state: WizardState, runner: SurveyRunner): string[] {
+  return state.survey.runners
+    .filter(
+      (one) =>
+        one.tool === runner.tool &&
+        runner.tool !== null &&
+        state.runners[one.name]?.on === true,
+    )
+    .map((one) => one.name);
+}
+
+export function canNext(state: WizardState): boolean {
+  const key = currentKey(state);
+
+  if (key === "policy") {
+    return state.policyMode === "skip" || state.policy.kind === "done";
+  }
+
+  if (key === "review") {
+    return changesOf(state).length > 0;
+  }
+
+  return key !== "apply";
 }
 
 export type SetupController = {
   state(): SetupState;
   subscribe(listener: (state: SetupState) => void): () => void;
   open(): Promise<void>;
-  check(): Promise<void>;
-  cancel(): Promise<void>;
-  toggle(index: number): void;
-  select(section: SetupSection): void;
+  next(): void;
+  back(): void;
+  goto(index: number): void;
+  setAnalysis(on: boolean): void;
+  setLimit(label: string, value: number): void;
+  setPlugin(id: string, on: boolean): void;
+  setRunner(name: string, on: boolean): void;
+  setCommand(name: string, command: string): void;
+  addEnv(name: string, variable: string, value: string): boolean;
+  removeEnv(name: string, index: number): void;
+  setTool(name: string, on: boolean): void;
+  setPolicyMode(mode: "skip" | "ask"): void;
+  askClaude(): Promise<void>;
+  decide(index: number, decision: "accept" | "reject"): void;
+  acceptRemaining(): void;
+  setUpgrade(index: number, on: boolean): void;
+  runOnce(): Promise<void>;
   apply(): Promise<void>;
   stop(): Promise<void>;
-  back(): void;
+  backToReview(): void;
 };
 
 export type SetupDeps = {
   port: SetupPort;
-  readModel: () => Promise<string>;
+  reloadSensors?: () => Promise<void> | void;
   onDoctor?: (read: DoctorRead) => void;
 };
 
-function reportOf(
-  output: unknown,
-  costUsd: number | null,
-  durationMs: number | null,
-): SetupState {
-  const parsed = parseProposal(output);
+const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-  if ("error" in parsed) {
-    return {
-      kind: "error",
-      message: parsed.error,
-      detail: null,
-      costUsd,
-      durationMs,
-    };
-  }
-
-  const first = SECTION_ORDER.find((section) =>
-    parsed.changes.some((change) => change.section === section),
-  );
+function initial(survey: Survey, doctor: DoctorRead): WizardState {
+  const analysis = survey.checks.find((one) => one.id === "analysis");
+  const flow: Flow =
+    survey.upgrade.length > 0 && survey.configured ? "upgrade" : "setup";
 
   return {
-    kind: "report",
-    summary: parsed.summary,
-    changes: parsed.changes,
-    dropped: parsed.dropped,
-    ticks: parsed.changes.map((change) => change.ticked),
-    section: first ?? null,
-    costUsd,
-    durationMs,
+    kind: "wizard",
+    flow,
+    survey,
+    doctor,
+    at: 0,
+    analysis: analysis?.enabled ?? true,
+    limits: Object.fromEntries(
+      (analysis?.limits ?? []).map((limit) => [
+        limit.label,
+        limit.current ?? limit.default,
+      ]),
+    ),
+    plugins: Object.fromEntries(
+      pluginChecks(survey).map((check) => [check.id, !check.enabled]),
+    ),
+    runners: Object.fromEntries(
+      survey.runners.map((runner) => [
+        runner.name,
+        { on: true, command: runner.command, env: [] },
+      ]),
+    ),
+    tools: Object.fromEntries(survey.tools.map((tool) => [tool.name, true])),
+    tried: { kind: "idle" },
+    policyMode: "skip",
+    policy: { kind: "idle" },
+    decisions: {},
+    upgrade: survey.upgrade.map(() => true),
+    apply: null,
   };
 }
 
+function rowsOf(changes: PlannedChange[]): Row[] {
+  return changes.map((change) => ({
+    title: change.title,
+    state: "waiting",
+    output: "",
+  }));
+}
+
+function withRow(rows: Row[], index: number, patch: Partial<Row>): Row[] {
+  return rows.map((row, at) => (at === index ? { ...row, ...patch } : row));
+}
+
 export function createSetupController(deps: SetupDeps): SetupController {
-  let state: SetupState = { kind: "start", doctor: null, model: "" };
+  let state: SetupState = { kind: "loading" };
+  let stopping = false;
+  let live = false;
   const listeners = new Set<(state: SetupState) => void>();
 
   function set(next: SetupState): void {
@@ -154,14 +316,36 @@ export function createSetupController(deps: SetupDeps): SetupController {
     }
   }
 
-  let begun: { doctor: DoctorRead | null; model: string } = {
-    doctor: null,
-    model: "",
-  };
+  function edit(change: (wizard: WizardState) => Partial<WizardState>): void {
+    if (state.kind === "wizard") {
+      set({ ...state, ...change(state) });
+    }
+  }
 
-  function begin(doctor: DoctorRead | null, model: string): void {
-    begun = { doctor, model };
-    set({ kind: "start", doctor, model });
+  function move(step: number): void {
+    edit((wizard) => {
+      let at = wizard.at + step;
+
+      while (
+        at > 0 &&
+        at < stepsOf(wizard).length - 1 &&
+        isSkipped(wizard, stepsOf(wizard)[at]?.key ?? "files")
+      ) {
+        at += step;
+      }
+
+      return { at: Math.max(0, Math.min(at, stepsOf(wizard).length - 1)) };
+    });
+  }
+
+  async function finishStop(): Promise<void> {
+    if (stopping) {
+      return;
+    }
+
+    stopping = true;
+
+    await deps.port.stop();
   }
 
   return {
@@ -172,157 +356,333 @@ export function createSetupController(deps: SetupDeps): SetupController {
       return () => listeners.delete(listener);
     },
     async open() {
-      const model = await deps.readModel();
+      set({ kind: "loading" });
 
-      begin(null, model);
+      const read = await deps.port.survey(true);
 
-      const doctor = await deps.port.readDoctor();
+      if (read.status === "unavailable") {
+        set({ kind: "unavailable", reason: read.reason });
 
-      deps.onDoctor?.(doctor);
-
-      if (state.kind === "start") {
-        begin(doctor, model);
-      }
-    },
-    async check() {
-      if (state.kind !== "start") {
         return;
       }
 
-      const { doctor, model } = begun;
+      deps.onDoctor?.(read.doctor);
+      set(initial(read.survey, read.doctor));
+    },
+    next() {
+      if (state.kind !== "wizard" || !canNext(state)) {
+        return;
+      }
 
-      set({ kind: "checking", lines: [] });
+      move(1);
+    },
+    back() {
+      move(-1);
+    },
+    goto(index) {
+      if (
+        state.kind !== "wizard" ||
+        index >= state.at ||
+        currentKey(state) === "apply" ||
+        isSkipped(state, stepsOf(state)[index]?.key ?? "files")
+      ) {
+        return;
+      }
 
-      const off = deps.port.onLine((line) => {
-        if (state.kind === "checking") {
-          set({ kind: "checking", lines: [...state.lines, line] });
-        }
+      edit(() => ({ at: index }));
+    },
+    setAnalysis: (on) => edit(() => ({ analysis: on })),
+    setLimit: (label, value) =>
+      edit((wizard) => ({
+        limits: {
+          ...wizard.limits,
+          [label]: Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1,
+        },
+      })),
+    setPlugin: (id, on) =>
+      edit((wizard) => ({ plugins: { ...wizard.plugins, [id]: on } })),
+    setRunner: (name, on) =>
+      edit((wizard) => ({
+        runners: {
+          ...wizard.runners,
+          [name]: { ...(wizard.runners[name] as RunnerState), on },
+        },
+      })),
+    setCommand: (name, command) =>
+      edit((wizard) => ({
+        runners: {
+          ...wizard.runners,
+          [name]: { ...(wizard.runners[name] as RunnerState), command },
+        },
+      })),
+    addEnv(name, variable, value) {
+      if (!NAME.test(variable)) {
+        return false;
+      }
+
+      edit((wizard) => {
+        const own = wizard.runners[name] as RunnerState;
+
+        return {
+          runners: {
+            ...wizard.runners,
+            [name]: {
+              ...own,
+              env: [
+                ...own.env.filter(([key]) => key !== variable),
+                [variable, value],
+              ],
+            },
+          },
+        };
       });
 
+      return true;
+    },
+    removeEnv: (name, index) =>
+      edit((wizard) => {
+        const own = wizard.runners[name] as RunnerState;
+
+        return {
+          runners: {
+            ...wizard.runners,
+            [name]: { ...own, env: own.env.filter((_, at) => at !== index) },
+          },
+        };
+      }),
+    setTool: (name, on) =>
+      edit((wizard) => ({ tools: { ...wizard.tools, [name]: on } })),
+    setPolicyMode: (mode) =>
+      edit((wizard) =>
+        wizard.policy.kind === "running" ? {} : { policyMode: mode },
+      ),
+    async askClaude() {
+      if (state.kind !== "wizard" || state.policy.kind === "running") {
+        return;
+      }
+
+      stopping = false;
+      edit(() => ({
+        policy: { kind: "running", lines: [] },
+        decisions: {},
+      }));
+
+      const survey = state.survey;
+      const prompt = `${POLICY_RECOMMENDATION_PROMPT}\n\nThe setup survey of this repository:\n\n${JSON.stringify(survey, null, 2)}\n`;
+
       try {
-        const result = await deps.port.check(
-          buildPrompt(doctor),
-          SETUP_SCHEMA,
-          budgetFor(model),
+        const result = await deps.port.recommend(
+          prompt,
+          POLICY_RECOMMENDATION_SCHEMA,
+          (line) =>
+            edit((wizard) =>
+              wizard.policy.kind === "running"
+                ? {
+                    policy: {
+                      kind: "running",
+                      lines: [...wizard.policy.lines, line],
+                    },
+                  }
+                : {},
+            ),
         );
 
         if (result.status === "proposal") {
-          set(reportOf(result.output, result.costUsd, result.durationMs));
-        } else if (result.status === "failed") {
-          set({
-            kind: "error",
-            message: result.reason,
-            detail: result.subtype,
-            costUsd: result.costUsd,
-            durationMs: result.durationMs,
-          });
+          edit(() => ({
+            policy: { kind: "done", recommendation: result.output },
+          }));
         } else if (result.status === "cancelled") {
-          begin(doctor, model);
+          edit(() => ({ policy: { kind: "idle" } }));
         } else {
-          set({
-            kind: "error",
-            message: result.reason,
-            detail: null,
-            costUsd: null,
-            durationMs: null,
-          });
+          edit(() => ({
+            policy: { kind: "failed", message: result.reason },
+          }));
         }
       } catch (error) {
-        set({
-          kind: "error",
-          message: error instanceof Error ? error.message : String(error),
-          detail: null,
-          costUsd: null,
-          durationMs: null,
+        edit(() => ({
+          policy: {
+            kind: "failed",
+            message: error instanceof Error ? error.message : String(error),
+          },
+        }));
+      }
+    },
+    decide: (index, decision) =>
+      edit((wizard) => {
+        const decisions = { ...wizard.decisions };
+
+        if (decisions[index] === decision) {
+          delete decisions[index];
+        } else {
+          decisions[index] = decision;
+        }
+
+        return { decisions };
+      }),
+    acceptRemaining: () =>
+      edit((wizard) => {
+        if (wizard.policy.kind !== "done") {
+          return {};
+        }
+
+        const decisions = { ...wizard.decisions };
+
+        wizard.policy.recommendation.entries.forEach((_, at) => {
+          if (decisions[at] === undefined) {
+            decisions[at] = "accept";
+          }
         });
-      } finally {
-        off();
-      }
-    },
-    async cancel() {
-      if (state.kind === "checking") {
-        await deps.port.stop();
-      }
-    },
-    toggle(index) {
-      if (state.kind !== "report" || index < 0 || index >= state.ticks.length) {
+
+        return { decisions };
+      }),
+    setUpgrade: (index, on) =>
+      edit((wizard) => ({
+        upgrade: wizard.upgrade.map((one, at) => (at === index ? on : one)),
+      })),
+    async runOnce() {
+      if (state.kind !== "wizard" || state.tried.kind === "running") {
         return;
       }
 
-      const ticks = state.ticks.map((on, at) => (at === index ? !on : on));
+      stopping = false;
+      live = true;
 
-      set({ ...state, ticks });
-    },
-    select(section) {
-      if (state.kind === "report") {
-        set({ ...state, section });
+      const choices = choicesOf(state);
+      const planned = buildChanges(state.survey, choices).changes.filter(
+        (change) =>
+          change.id.startsWith("tool-") ||
+          change.id.startsWith("tests-") ||
+          change.id.startsWith("plugin-"),
+      );
+      const runners: RunnerResult[] = [];
+      let rows = rowsOf(planned);
+
+      edit(() => ({ tried: { kind: "running", rows } }));
+
+      const onEvent = (event: TryEvent) => {
+        if (!live) {
+          return;
+        }
+
+        if (event.event === "change") {
+          rows = withRow(rows, event.index, {
+            state: event.state,
+            output: event.output,
+          });
+          edit(() => ({ tried: { kind: "running", rows } }));
+        } else if (event.event === "runner") {
+          runners.push({
+            name: event.name,
+            ready: event.ready,
+            detail: event.detail,
+          });
+        }
+      };
+
+      try {
+        const result = await deps.port.tryRunners(choices, onEvent);
+
+        live = false;
+        edit(() => ({
+          tried: { kind: "done", ok: result.ok, runners, rows },
+        }));
+      } catch (error) {
+        live = false;
+        edit(() => ({
+          tried: {
+            kind: "error",
+            message: error instanceof Error ? error.message : String(error),
+          },
+        }));
       }
     },
     async apply() {
-      if (state.kind !== "report" || !canApply(state)) {
+      if (
+        state.kind !== "wizard" ||
+        state.apply?.state === "running" ||
+        changesOf(state).length === 0
+      ) {
         return;
       }
 
-      const report = state;
+      stopping = false;
+      live = true;
 
-      set({ kind: "applying", report });
+      const choices = choicesOf(state);
+      let rows = rowsOf(changesOf(state));
+
+      const progress = (
+        patch: Partial<ApplyRun> & { state: ApplyRun["state"] },
+      ) =>
+        edit((wizard) => ({
+          apply: {
+            rows,
+            doctor: wizard.apply?.doctor ?? null,
+            message: null,
+            ...patch,
+          },
+          at: stepsOf(wizard).length - 1,
+        }));
+
+      progress({ state: "running" });
+
+      const onEvent = (event: ApplyEvent) => {
+        if (live && event.event === "change") {
+          rows = withRow(rows, event.index, {
+            state: event.state,
+            output: event.output,
+          });
+          progress({ state: "running" });
+        }
+      };
 
       try {
-        const result = await deps.port.apply(tickedCommands(report));
+        const result = await deps.port.apply(choices, onEvent);
 
-        deps.onDoctor?.(result.doctor);
-        set({
-          kind: "applied",
-          report,
-          outcome: result.outcome,
-          doctor: result.doctor,
-        });
+        live = false;
+
+        if (result.ok) {
+          const doctor: DoctorRead =
+            result.doctor === null
+              ? { status: "unavailable", reason: "doctor did not answer" }
+              : { status: "ok", report: result.doctor };
+
+          await deps.reloadSensors?.();
+          deps.onDoctor?.(doctor);
+          progress({ state: "done", doctor });
+        } else {
+          progress({
+            state: stopping ? "stopped" : "failed",
+          });
+        }
       } catch (error) {
-        set({
-          kind: "applied",
-          report,
-          outcome: {
-            status: "refused",
-            reason: error instanceof Error ? error.message : String(error),
-          },
-          doctor: { status: "unavailable", reason: "the apply did not finish" },
+        live = false;
+        progress({
+          state: "failed",
+          message: error instanceof Error ? error.message : String(error),
         });
       }
     },
     async stop() {
-      if (state.kind === "applying") {
-        await deps.port.stop();
+      if (state.kind !== "wizard") {
+        return;
+      }
+
+      if (
+        state.apply?.state === "running" ||
+        state.tried.kind === "running" ||
+        state.policy.kind === "running"
+      ) {
+        await finishStop();
       }
     },
-    back() {
-      if (state.kind === "applied") {
-        set(state.report);
-      } else if (state.kind === "error") {
-        begin(begun.doctor, begun.model);
-      }
+    backToReview() {
+      edit((wizard) => ({
+        apply: null,
+        at: stepsOf(wizard).findIndex((step) => step.key === "review"),
+      }));
     },
   };
-}
-
-export function runSummary(
-  costUsd: number | null,
-  durationMs: number | null,
-): string {
-  const parts: string[] = [];
-
-  if (durationMs !== null) {
-    parts.push(
-      durationMs < 60_000
-        ? `${Math.max(1, Math.round(durationMs / 1000))} s`
-        : `${Math.floor(durationMs / 60_000)} min ${Math.round((durationMs % 60_000) / 1000)} s`,
-    );
-  }
-
-  if (costUsd !== null) {
-    parts.push(`$${costUsd.toFixed(2)}`);
-  }
-
-  return parts.join(" - ");
 }
 
 export function doctorLines(read: DoctorRead | null): string[] {

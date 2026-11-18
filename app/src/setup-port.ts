@@ -1,13 +1,24 @@
-import type { DoctorReport } from "recognizer";
+import type {
+  ApplyEvent,
+  DoctorReport,
+  Recommendation,
+  SetupChoices,
+  Survey,
+  TryEvent,
+} from "recognizer";
 
 export type DoctorRead =
   | { status: "ok"; report: DoctorReport }
   | { status: "unavailable"; reason: string };
 
-export type SetupCheckResult =
+export type SetupSurveyRead =
+  | { status: "ok"; survey: Survey; doctor: DoctorRead }
+  | { status: "unavailable"; reason: string };
+
+export type RecommendRead =
   | {
       status: "proposal";
-      output: unknown;
+      output: Recommendation;
       costUsd: number | null;
       durationMs: number | null;
       denials: number;
@@ -23,32 +34,24 @@ export type SetupCheckResult =
   | { status: "refused"; reason: string }
   | { status: "unavailable"; reason: string };
 
-export type SetupApplyOutcome =
-  | { status: "applied"; applied: number; total: number }
-  | {
-      status: "failed";
-      applied: number;
-      total: number;
-      command: string[];
-      code: number | null;
-      stderr: string;
-    }
-  | { status: "stopped"; applied: number; total: number }
-  | { status: "refused"; reason: string };
+export type ApplyResultEvent = Extract<ApplyEvent, { event: "result" }>;
 
-export type SetupApplyResult = {
-  outcome: SetupApplyOutcome;
-  doctor: DoctorRead;
-};
+export type TryResultEvent = Extract<TryEvent, { event: "result" }>;
 
 export type SetupPort = {
-  readDoctor(): Promise<DoctorRead>;
-  check(
+  survey(extract: boolean): Promise<SetupSurveyRead>;
+  recommend(
     prompt: string,
     schema: unknown,
-    budget: number | null,
-  ): Promise<SetupCheckResult>;
-  apply(commands: string[][]): Promise<SetupApplyResult>;
+    onLine: (line: string) => void,
+  ): Promise<RecommendRead>;
+  apply(
+    choices: SetupChoices,
+    onEvent: (event: ApplyEvent) => void,
+  ): Promise<ApplyResultEvent>;
+  tryRunners(
+    choices: SetupChoices,
+    onEvent: (event: TryEvent) => void,
+  ): Promise<TryResultEvent>;
   stop(): Promise<void>;
-  onLine(handler: (line: string) => void): () => void;
 };

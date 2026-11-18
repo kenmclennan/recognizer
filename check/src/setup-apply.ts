@@ -15,7 +15,7 @@ export type ApplyEvent =
     }
   | { event: "result"; ok: boolean; doctor: DoctorReport | null };
 
-type Snapshot = Map<string, string | null>;
+export type Snapshot = Map<string, string | null>;
 
 const LOCKFILES = [
   "package-lock.json",
@@ -86,7 +86,11 @@ function npmPaths(changes: PlannedChange[]): string[] {
   return [...paths];
 }
 
-function snapshotOf(io: Io, root: string, changes: PlannedChange[]): Snapshot {
+export function snapshotOf(
+  io: Io,
+  root: string,
+  changes: PlannedChange[],
+): Snapshot {
   const snapshot: Snapshot = new Map();
 
   for (const path of [...recognizerFiles(io, root), ...npmPaths(changes)]) {
@@ -99,7 +103,7 @@ function snapshotOf(io: Io, root: string, changes: PlannedChange[]): Snapshot {
   return snapshot;
 }
 
-function restore(io: Io, root: string, snapshot: Snapshot): void {
+export function restore(io: Io, root: string, snapshot: Snapshot): void {
   for (const path of recognizerFiles(io, root)) {
     if (!snapshot.has(path)) {
       io.remove(path);
@@ -117,7 +121,7 @@ function restore(io: Io, root: string, snapshot: Snapshot): void {
   }
 }
 
-function cargoInstalled(change: PlannedChange): string | null {
+export function cargoInstalled(change: PlannedChange): string | null {
   const install = change.steps.find(
     ({ argv }) => argv[0] === "cargo" && argv[1] === "install",
   );
@@ -125,7 +129,7 @@ function cargoInstalled(change: PlannedChange): string | null {
   return install?.argv[2] ?? null;
 }
 
-function undoNote(change: PlannedChange): string {
+export function undoNote(change: PlannedChange): string {
   const cargo = cargoInstalled(change);
 
   if (cargo !== null) {
@@ -139,14 +143,14 @@ function undoNote(change: PlannedChange): string {
   return "";
 }
 
-interface Ran {
+export interface Ran {
   ok: boolean;
   output: string;
   command: string[];
   status: number | null;
 }
 
-async function runChange(
+export async function runChange(
   io: Io,
   change: PlannedChange,
   stopped: () => boolean,

@@ -986,26 +986,26 @@ fn stop_scan(app: AppHandle, window: WebviewWindow) {
 }
 
 #[tauri::command]
-async fn read_doctor(
+async fn setup_survey(
     app: AppHandle,
     window: WebviewWindow,
-) -> Result<setup_run::DoctorRead, String> {
+    extract: bool,
+) -> Result<setup_run::SurveyRead, String> {
     let folder = window_folder_path(&app, &window)?;
 
     tauri::async_runtime::spawn_blocking(move || {
-        setup_run::read_doctor(tool_runner::runner(), &folder)
+        setup_run::read_survey(tool_runner::runner(), &folder, extract)
     })
     .await
     .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-async fn run_setup_check(
+async fn setup_recommend(
     app: AppHandle,
     window: WebviewWindow,
     prompt: String,
     schema: serde_json::Value,
-    budget: Option<f64>,
 ) -> Result<setup_run::SetupCheck, String> {
     let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
@@ -1015,7 +1015,7 @@ async fn run_setup_check(
     tauri::async_runtime::spawn_blocking(move || {
         let runs = app.state::<SetupRuns>();
 
-        setup_run::run_check(
+        setup_run::run_recommend(
             &runs,
             &label,
             &folder,
@@ -1023,7 +1023,6 @@ async fn run_setup_check(
             &model,
             &prompt,
             &schema,
-            budget,
             |line| {
                 let _ = app.emit_to(label.as_str(), "setup-run-line", line);
             },
@@ -1033,22 +1032,55 @@ async fn run_setup_check(
     .map_err(|error| error.to_string())
 }
 
+fn run_setup_verb_for(
+    app: AppHandle,
+    window: &WebviewWindow,
+    verb: &'static str,
+    choices: serde_json::Value,
+) -> impl std::future::Future<Output = Result<setup_run::SetupRun, String>> {
+    let folder = window_folder_path(&app, window);
+    let label = window_label(window);
+
+    async move {
+        let folder = folder?;
+        let choices = choices.to_string();
+
+        tauri::async_runtime::spawn_blocking(move || {
+            let runs = app.state::<SetupRuns>();
+
+            setup_run::run_setup_verb(
+                &runs,
+                &label,
+                &folder,
+                tool_runner::runner(),
+                verb,
+                &choices,
+                |line| {
+                    let _ = app.emit_to(label.as_str(), "setup-run-event", line);
+                },
+            )
+        })
+        .await
+        .map_err(|error| error.to_string())
+    }
+}
+
 #[tauri::command]
-async fn apply_setup(
+async fn setup_apply(
     app: AppHandle,
     window: WebviewWindow,
-    commands: Vec<Vec<String>>,
-) -> Result<setup_run::ApplyResult, String> {
-    let folder = window_folder_path(&app, &window)?;
-    let label = window_label(&window);
+    choices: serde_json::Value,
+) -> Result<setup_run::SetupRun, String> {
+    run_setup_verb_for(app, &window, "apply", choices).await
+}
 
-    tauri::async_runtime::spawn_blocking(move || {
-        let runs = app.state::<SetupRuns>();
-
-        setup_run::apply_setup_run(&runs, &label, &folder, tool_runner::runner(), &commands)
-    })
-    .await
-    .map_err(|error| error.to_string())
+#[tauri::command]
+async fn setup_try(
+    app: AppHandle,
+    window: WebviewWindow,
+    choices: serde_json::Value,
+) -> Result<setup_run::SetupRun, String> {
+    run_setup_verb_for(app, &window, "try", choices).await
 }
 
 #[tauri::command]
@@ -1860,9 +1892,10 @@ pub fn run() {
             read_pull_requests,
             scans_at,
             stop_scan,
-            read_doctor,
-            run_setup_check,
-            apply_setup,
+            setup_survey,
+            setup_recommend,
+            setup_apply,
+            setup_try,
             stop_setup,
             answer_describe,
             take_pending_view,
