@@ -21,7 +21,7 @@ function scanned(
 }
 
 describe("loadScans", () => {
-  it("accepts a scan and lists its modules", () => {
+  it("accepts a scan and lists its files", () => {
     const loaded = loadScans(
       scanned([{ file: "scan.python.json", text: scanText(["a.py", "b.py"]) }]),
     );
@@ -104,9 +104,7 @@ describe("loadScans", () => {
       );
 
       expect(loaded.modules).toEqual([]);
-      expect(loaded.notices[0]).toContain(
-        "lacks the modules, edges and foreign",
-      );
+      expect(loaded.notices[0]).toContain("lacks the files, edges and foreign");
     }
   });
 

@@ -162,7 +162,7 @@ const openLegend = (m) => click(m.all("button").find((b) => b.textContent === "L
     goneInsideSiblingColumn: (() => { const gone = rectOf(union, "p/gone.py"); const sibling = rectOf(union, "p/a.py"); const all = unionBoxes.map((b) => rectOf(union, b.dataset.id)); const bottomMost = Math.max(...all.map((r) => r.bottom)); return { sameBand: gone.top <= bottomMost && gone.bottom <= bottomMost, belowScene: gone.top > Math.max(...all.filter((r) => r !== gone).map((r) => r.bottom)), siblingTop: sibling.top }; })(),
     frames: frames.length,
     emptyHintHidden: union.q(".empty-canvas") === null ? null : union.q(".empty-canvas").hidden,
-    countLine: union.state.count.split(" modules on the canvas")[0],
+    countLine: union.state.count.split(" files on the canvas")[0],
   };
 
   const headless = mount({ chg: make({ change: { base: "main", head: "feat" } }) });
@@ -385,7 +385,7 @@ describe.skipIf(webkit === undefined)("change views in a real browser", () => {
     expect(f.offline).toEqual({ stale: 0, live: 1 });
   });
 
-  it("marks added, modified and removed modules with a dashed struck removed box", () => {
+  it("marks added, modified and removed files with a dashed struck removed box", () => {
     expect(f.change.boxes).toEqual(
       expect.arrayContaining([
         ["p/a.py", "modified"],
@@ -408,13 +408,13 @@ describe.skipIf(webkit === undefined)("change views in a real browser", () => {
     ]);
     expect(f.change.chip).toBe("main..feat");
     expect(f.change.footer).toContain("diffed against main..feat just now");
-    expect(f.change.footer).toContain("1 changed files matched no module");
+    expect(f.change.footer).toContain("1 changed files matched no file");
     expect(f.change.bodyText).toBe(false);
   });
 
-  it("says why removed modules could not be marked when the base scan failed, and not when it succeeded", () => {
+  it("says why removed files could not be marked when the base scan failed, and not when it succeeded", () => {
     expect(f.unreadable.footer).toContain(
-      "removed modules could not be marked: config is broken",
+      "removed files could not be marked: config is broken",
     );
     expect(f.change.footer).not.toContain("could not be marked");
   });
@@ -432,7 +432,7 @@ describe.skipIf(webkit === undefined)("change views in a real browser", () => {
     expect(f.union.footer).not.toContain("could not be read");
   });
 
-  it("counts every drawn box as open: the empty hint is hidden and the footer counts the boxes drawn against the modules in the range", () => {
+  it("counts every drawn box as open: the empty hint is hidden and the footer counts the boxes drawn against the files in the range", () => {
     expect(f.union.emptyHintHidden).toBe(true);
     expect(f.union.countLine).toBe("4 of 5");
   });

@@ -45,7 +45,7 @@ function healthOf(name: string, policy: string | null) {
 describe("computeHealth on fixtures/check", () => {
   const { health, ids } = healthOf("check", fixturePolicy("check"));
 
-  it("marks violating modules red", () => {
+  it("marks violating files red", () => {
     for (const id of [
       "shop/domain/order.py",
       "shop/domain/money.py",
@@ -59,7 +59,7 @@ describe("computeHealth on fixtures/check", () => {
     expect(health.disc("shop/application/place.py")).toBe("amber");
   });
 
-  it("marks the other measured modules green", () => {
+  it("marks the other measured files green", () => {
     for (const id of [
       "shop/ports/store.py",
       "shop/adapters/memory_store.py",
@@ -69,11 +69,11 @@ describe("computeHealth on fixtures/check", () => {
     }
   });
 
-  it("marks the module in an uncovered folder green, the folder being a policy problem and not a finding", () => {
+  it("marks the file in an uncovered folder green, the folder being a policy problem and not a finding", () => {
     expect(health.disc("shop/legacy/helpers.py")).toBe("green");
   });
 
-  it("shows an ignored module as a grey ring", () => {
+  it("shows an ignored file as a grey ring", () => {
     expect(health.disc("tests/test_order.py")).toBe("grey");
   });
 
@@ -108,7 +108,7 @@ describe("computeHealth on fixtures/check", () => {
     ).toBe(health.lines("shop/domain/order.py").length);
   });
 
-  it("prefixes a folder hover with each module's path relative to the folder", () => {
+  it("prefixes a folder hover with each file's path relative to the folder", () => {
     const described = describeTree(buildTree(ids), health);
     const lines = described.get("shop/domain")?.hover.split("\n") ?? [];
 
@@ -143,7 +143,7 @@ describe("findings", () => {
     expect(place[0]?.why).toBe("Levelization");
   });
 
-  it("returns nothing for a green or a grey module", () => {
+  it("returns nothing for a green or a grey file", () => {
     const { health } = healthOf("check", fixturePolicy("check"));
 
     expect(health.findings("shop/main.py")).toEqual([]);
@@ -326,7 +326,7 @@ describe("computeHealth narrows a grouped finding by import", () => {
 });
 
 describe("computeHealth without a policy", () => {
-  it("shows nothing red and both cycle modules amber", () => {
+  it("shows nothing red and both cycle files amber", () => {
     const { health, ids } = healthOf("check", null);
 
     expect(ids.some((id) => health.disc(id) === "red")).toBe(false);
@@ -335,7 +335,7 @@ describe("computeHealth without a policy", () => {
     expect(health.disc("tests/test_order.py")).toBe("green");
   });
 
-  it("drops a finding on an id that is not a module", () => {
+  it("drops a finding on an id that is not a file", () => {
     const modules = fixtureScan("check", "scan.json", CURRENT)
       .scan.modules.map((module) => module.id)
       .filter((id) => id !== "shop/domain/order.py");
@@ -358,7 +358,7 @@ describe("computeHealth from findings files", () => {
     expect(ids.every((id) => health.disc(id) === "grey")).toBe(true);
   });
 
-  it("ignores a file from another commit, leaving its modules grey", () => {
+  it("ignores a file from another commit, leaving its files grey", () => {
     const { health, ids } = healthFor("check", fixturePolicy("check"), [
       structureDocument("check", fixturePolicy("check"), "old"),
     ]);
@@ -383,7 +383,7 @@ describe("computeHealth from findings files", () => {
     ]);
   });
 
-  it("marks a clean module green when a second sensor's current file covers it, without a structure file", () => {
+  it("marks a clean file green when a second sensor's current file covers it, without a structure file", () => {
     const { health } = healthFor("check", fixturePolicy("check"), [
       secondSensorDocument("shop/main.py"),
     ]);
@@ -392,7 +392,7 @@ describe("computeHealth from findings files", () => {
     expect(health.disc("shop/ports/store.py")).toBe("green");
   });
 
-  it("keeps a module grey when the only current file is a stale second sensor", () => {
+  it("keeps a file grey when the only current file is a stale second sensor", () => {
     const { health } = healthFor("check", fixturePolicy("check"), [
       secondSensorDocument("shop/main.py", "x", "y", "old"),
     ]);
@@ -462,7 +462,7 @@ describe("violationLine", () => {
   });
 });
 
-describe("computeHealth judged per module", () => {
+describe("computeHealth judged per file", () => {
   const H1 = "1".repeat(64);
   const H2 = "2".repeat(64);
   const H0 = "0".repeat(64);
@@ -523,7 +523,7 @@ describe("computeHealth judged per module", () => {
       tests,
     });
 
-  it("keeps the findings of current modules and hides the rest", () => {
+  it("keeps the findings of current files and hides the rest", () => {
     const health = healthOfDocument(crap({ "a.py": H1, "b.py": H0 }));
 
     expect(health.documents[0]?.findings.map((f) => f.id)).toEqual(["on-a"]);
@@ -536,7 +536,7 @@ describe("computeHealth judged per module", () => {
     expect(health.findings("b.py")).toEqual([]);
   });
 
-  it("colours a module covered currently with no current findings green", () => {
+  it("colours a file covered currently with no current findings green", () => {
     const health = healthOfDocument({
       ...crap({ "a.py": H1, "b.py": H2 }),
       findings: [],
@@ -547,7 +547,7 @@ describe("computeHealth judged per module", () => {
     expect(health.hidden).toEqual([]);
   });
 
-  it("hides everything and leaves its modules grey without inputs", () => {
+  it("hides everything and leaves its files grey without inputs", () => {
     const health = healthOfDocument(crap(undefined));
 
     expect(health.documents[0]?.findings).toEqual([]);
@@ -556,7 +556,7 @@ describe("computeHealth judged per module", () => {
     expect(health.disc("b.py")).toBe("grey");
   });
 
-  it("hides every finding when the tests hash differs though modules match", () => {
+  it("hides every finding when the tests hash differs though files match", () => {
     const health = healthOfDocument(
       crap({ "a.py": H1, "b.py": H2 }),
       "b".repeat(64),
@@ -572,7 +572,7 @@ describe("computeHealth policy problems", () => {
   const problemsFor = (policy: string | null) =>
     healthFor("check", policy, []).health.policyProblems;
 
-  it("reports no problem for the committed fixtures/check policy and marks no module", () => {
+  it("reports no problem for the committed fixtures/check policy and marks no file", () => {
     const policy = fixturePolicy("check");
     const { health, ids } = healthOf("check", policy);
 
@@ -583,14 +583,14 @@ describe("computeHealth policy problems", () => {
     }
   });
 
-  it("reports an entry glob that matches no scanned module", () => {
+  it("reports an entry glob that matches no scanned file", () => {
     const problems = problemsFor("entry:\n  - shop/main.py\n  - nowhere/**\n");
 
     expect(problems).toEqual([
       {
         kind: "entry",
         subject: "nowhere/**",
-        text: "policy entry nowhere/** matches no scanned module",
+        text: "policy entry nowhere/** matches no scanned file",
       },
     ]);
   });

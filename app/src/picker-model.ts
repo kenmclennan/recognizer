@@ -200,7 +200,7 @@ export function createPicker(input: PickerInput): PickerModel {
 
   return {
     title,
-    placeholder: () => `Filter ${raw.length} modules`,
+    placeholder: () => `Filter ${raw.length} files`,
     groups,
     unused,
     rowCount: () => raw.length,

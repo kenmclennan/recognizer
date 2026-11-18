@@ -45,7 +45,7 @@ describe("sensorFreshness", () => {
     expect(gapOf({ kind: "never-run" }, MODULES)).toEqual(MODULES);
   });
 
-  it("marks every module out of date when the document has no inputs", () => {
+  it("marks every file out of date when the document has no inputs", () => {
     expect(sensorFreshness(SCOPE, {}, false)).toEqual({
       kind: "known",
       outOfDate: MODULES,
@@ -53,7 +53,7 @@ describe("sensorFreshness", () => {
     });
   });
 
-  it("marks every module out of date when the tests hash differs", () => {
+  it("marks every file out of date when the tests hash differs", () => {
     const measured = { inputs: { "a.py": "ha" }, tests: "other" };
 
     expect(sensorFreshness(SCOPE, measured, false)).toMatchObject({
@@ -71,7 +71,7 @@ describe("sensorFreshness", () => {
     });
   });
 
-  it("does not count a module an unscoped sensor never listed", () => {
+  it("does not count a file an unscoped sensor never listed", () => {
     const measured = { inputs: { "a.py": "ha" }, tests: "t1" };
 
     expect(sensorFreshness(SCOPE, measured, false)).toEqual({
@@ -81,7 +81,7 @@ describe("sensorFreshness", () => {
     });
   });
 
-  it("counts a module with functions that the scoped sensor never listed as missing", () => {
+  it("counts a file with functions that the scoped sensor never listed as missing", () => {
     const measured = { inputs: { "a.py": "ha" }, tests: "t1" };
 
     expect(sensorFreshness(SCOPE, measured, true)).toEqual({
@@ -91,7 +91,7 @@ describe("sensorFreshness", () => {
     });
   });
 
-  it("does not count a missing module that has no function", () => {
+  it("does not count a missing file that has no function", () => {
     const scan = scanOf({ "a.py": "ha", "b.py": "hb" }, ["a.py"]);
     const scope = freshnessScope(
       ["a.py", "b.py"],
@@ -120,7 +120,7 @@ describe("sensorFreshness", () => {
     expect(gapOf(result, MODULES)).toEqual(["b.py", "c.py"]);
   });
 
-  it("ignores a module no scan hashes", () => {
+  it("ignores a file no scan hashes", () => {
     const scope = freshnessScope([...MODULES, "ghost.py"], [SCAN], FRESH);
     const measured = {
       inputs: { "a.py": "ha", "b.py": "hb", "c.py": "hc", "ghost.py": "x" },
@@ -133,7 +133,7 @@ describe("sensorFreshness", () => {
     });
   });
 
-  it("finds no missing module when a complete Mutation run lists every module with a function", () => {
+  it("finds no missing file when a complete Mutation run lists every file with a function", () => {
     const measured = {
       inputs: { "a.py": "ha", "b.py": "hb", "c.py": "hc" },
       tests: "t1",
@@ -146,7 +146,7 @@ describe("sensorFreshness", () => {
   });
 });
 
-describe("sensorFreshness with an excluded module in inputs", () => {
+describe("sensorFreshness with an excluded file in inputs", () => {
   const one = freshnessScope(
     ["a.py"],
     [scanOf({ "a.py": "ha" }, ["a.py"])],
@@ -183,7 +183,7 @@ describe("sensorFreshness with an excluded module in inputs", () => {
 });
 
 describe("sensorFreshness on committed content", () => {
-  it("leaves no module of the committed Mutation sample counted missing when its inputs list every module with a function", () => {
+  it("leaves no file of the committed Mutation sample counted missing when its inputs list every file with a function", () => {
     const scan = JSON.parse(
       readFileSync(
         new URL(
@@ -213,7 +213,7 @@ describe("markStale", () => {
   const ran = (name: string, measured: SensorStatus["measured"]) =>
     ({ name, status: "ran", measured }) as SensorStatus;
 
-  it("never marks a sensor stale whose every module is current", () => {
+  it("never marks a sensor stale whose every file is current", () => {
     const out = markStale(
       [ran("crap", { inputs: { "a.py": "ha" }, tests: "t1" })],
       FRESH,
@@ -222,7 +222,7 @@ describe("markStale", () => {
     expect(out[0]?.status).toBe("ran");
   });
 
-  it("marks a sensor stale when a module changed or the file has no inputs", () => {
+  it("marks a sensor stale when a file changed or the file has no inputs", () => {
     const out = markStale(
       [ran("crap", { inputs: { "a.py": "x" }, tests: "t1" }), ran("lint", {})],
       FRESH,
@@ -287,7 +287,7 @@ describe("planFor", () => {
         },
         { describe: ["a.py"], crap: [], mutation: ["b.py", "c.py"] },
         ["a.py", "b.py", "c.py"],
-        "Update 3 modules",
+        "Update 3 files",
       ),
       "bring",
       ticks,
@@ -303,13 +303,13 @@ describe("planFor", () => {
       sense: ["mutation"],
       modules: ["a.py", "b.py", "c.py"],
     });
-    expect(planned.label).toBe("Update 3 modules");
-    expect(planned.progress).toBe("Updating 3 modules\u2026");
+    expect(planned.label).toBe("Update 3 files");
+    expect(planned.progress).toBe("Updating 3 files\u2026");
     expect(planned.modules).toBe(3);
     expect(planned.idle).toBe(false);
   });
 
-  it("takes the module scope from the scoped flag, not from a sensor called mutation", () => {
+  it("takes the file scope from the scoped flag, not from a sensor called mutation", () => {
     const flagged = [
       { name: "mutation", display: "Mutation", runsTests: true, scoped: false },
       { name: "other", display: "Other", runsTests: true, scoped: true },
@@ -329,7 +329,7 @@ describe("planFor", () => {
         },
         { mutation: ["b.py", "c.py"], other: ["b.py"] },
         ["b.py", "c.py"],
-        "Update 2 modules",
+        "Update 2 files",
         ["mutation", "other"],
         undefined,
         ["other"],
@@ -345,13 +345,13 @@ describe("planFor", () => {
     expect(planned.work).toEqual({ mutation: MODULES.length, other: 1 });
   });
 
-  it("reruns an unscoped sensor whole and sends no module list when no scoped phase runs", () => {
+  it("reruns an unscoped sensor whole and sends no file list when no scoped phase runs", () => {
     const planned = planFor(
       stub(
         { crap: { kind: "out-of-date", modules: ["b.py"] } },
         { crap: ["b.py"] },
         ["b.py"],
-        "Update 1 module",
+        "Update 1 file",
       ),
       "bring",
       { ...ticks, describe: false, once: [] },
@@ -367,7 +367,7 @@ describe("planFor", () => {
       sense: ["crap"],
       modules: null,
     });
-    expect(planned.progress).toBe("Updating 1 module\u2026");
+    expect(planned.progress).toBe("Updating 1 file\u2026");
   });
 
   it("gives a Structure-only change a runnable extract-only plan", () => {
@@ -379,7 +379,7 @@ describe("planFor", () => {
         },
         { crap: [] },
         ["a.py"],
-        "Update 1 module",
+        "Update 1 file",
       ),
       "bring",
       { ...ticks, describe: false, once: [] },
@@ -425,7 +425,7 @@ describe("planFor", () => {
     expect(planned.plan.modules).toBeNull();
   });
 
-  it("never says Bringing 0 modules when only a never-run sensor runs", () => {
+  it("never says Bringing 0 files when only a never-run sensor runs", () => {
     const planned = planFor(
       stub(
         { mutation: { kind: "never-run" } },
@@ -448,7 +448,7 @@ describe("planFor", () => {
   });
 
   it("runs every ticked sensor over the scope and describes everything when rescanning", () => {
-    const model = stub({}, {}, [], "Rescan 2 modules");
+    const model = stub({}, {}, [], "Rescan 2 files");
     const planned = planFor(
       model,
       "rescan",
@@ -465,8 +465,8 @@ describe("planFor", () => {
       sense: ["crap", "mutation"],
       modules: ["a.py", "b.py"],
     });
-    expect(planned.label).toBe("Rescan 2 modules");
-    expect(planned.progress).toBe("Rescanning 2 modules\u2026");
+    expect(planned.label).toBe("Rescan 2 files");
+    expect(planned.progress).toBe("Rescanning 2 files\u2026");
     expect(
       planFor(model, "rescan", ticks, rows, null, MODULES).plan.modules,
     ).toBeNull();
@@ -474,7 +474,7 @@ describe("planFor", () => {
 
   it("keeps the run enabled when nothing is ticked so a plain rescan stays reachable", () => {
     const planned = planFor(
-      stub({}, {}, [], "Rescan 3 modules"),
+      stub({}, {}, [], "Rescan 3 files"),
       "rescan",
       {
         describe: false,
@@ -503,7 +503,7 @@ describe("a sensor-only gap", () => {
       { crap: { kind: "out-of-date", modules: ["c.py"] } },
       { crap: ["c.py"] },
       changed,
-      "Update 1 module",
+      "Update 1 file",
       ["crap"],
       update,
     );
@@ -517,19 +517,19 @@ describe("a sensor-only gap", () => {
     folds: [],
   };
 
-  it("plans one module and shows no canvas banner", () => {
+  it("plans one file and shows no canvas banner", () => {
     const model = gap([], ["c.py"]);
     const planned = planFor(model, "bring", ticks, rows, null, MODULES);
 
     expect(planned.modules).toBe(1);
-    expect(planned.progress).toBe("Updating 1 module\u2026");
+    expect(planned.progress).toBe("Updating 1 file\u2026");
     expect(freshnessMessage(model)).toBeNull();
   });
 
-  it("names one changed module in the banner when Structure changed it", () => {
+  it("names one changed file in the banner when Structure changed it", () => {
     const message = freshnessMessage(gap(["a.py"], ["a.py", "c.py"]));
 
-    expect(message?.text.startsWith("1 module has changed")).toBe(true);
+    expect(message?.text.startsWith("1 file has changed")).toBe(true);
   });
 });
 
@@ -540,17 +540,17 @@ describe("freshnessMessage", () => {
     ).toBeNull();
   });
 
-  it("counts the changed modules, keys the message by their set and labels the button", () => {
-    const one = freshnessMessage(stub({}, {}, ["b.py"], "Update 1 module"));
+  it("counts the changed files, keys the message by their set and labels the button", () => {
+    const one = freshnessMessage(stub({}, {}, ["b.py"], "Update 1 file"));
     const two = freshnessMessage(
-      stub({}, {}, ["a.py", "b.py"], "Update 2 modules"),
+      stub({}, {}, ["a.py", "b.py"], "Update 2 files"),
     );
 
     expect(one?.text).toBe(
-      "1 module has changed since it was scanned. Its results are hidden, so this picture is partial.",
+      "1 file has changed since it was scanned. Its results are hidden, so this picture is partial.",
     );
-    expect(one?.label).toBe("Update 1 module");
-    expect(two?.text.startsWith("2 modules have changed")).toBe(true);
+    expect(one?.label).toBe("Update 1 file");
+    expect(two?.text.startsWith("2 files have changed")).toBe(true);
     expect(one?.key).not.toBe(two?.key);
   });
 

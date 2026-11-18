@@ -341,7 +341,7 @@ describe("scanHistory with a part that runs tests", () => {
     expect(at(59999)).toBe("Under a minute");
   });
 
-  it("gives C.R.A.P. its last duration whatever the module count", () => {
+  it("gives C.R.A.P. its last duration whatever the file count", () => {
     const files = [
       scanFile("20261101T090000000Z", {
         structure_ms: 0,
@@ -357,7 +357,7 @@ describe("scanHistory with a part that runs tests", () => {
 
     expect(at(5)?.ms).toBe(120000);
     expect(at(500)?.ms).toBe(120000);
-    expect(at(5)?.basis).toBe("5 modules, last run's pace");
+    expect(at(5)?.basis).toBe("5 files, last run's pace");
   });
 
   it("words the basis by scoped and runsTests, not by a sensor's name", () => {
@@ -376,9 +376,9 @@ describe("scanHistory with a part that runs tests", () => {
         { key, name: key, runsTests, scoped },
       ])[0]?.basis;
 
-    expect(part("a", true, false)).toBe("5 modules, last run's pace");
-    expect(part("b", true, true)).toBe("5 modules at recent pace");
-    expect(part("c", false, false)).toBe("5 modules at recent pace");
+    expect(part("a", true, false)).toBe("5 files, last run's pace");
+    expect(part("b", true, true)).toBe("5 files at recent pace");
+    expect(part("c", false, false)).toBe("5 files at recent pace");
   });
 });
 
@@ -467,7 +467,7 @@ describe("the Mutation estimate counts the functions it will measure", () => {
     expect(mutationLine([old], 0).parts[0]?.ms).toBe(5000);
   });
 
-  it("gives no estimate for Mutation before the sensor has answered, never a module figure", () => {
+  it("gives no estimate for Mutation before the sensor has answered, never a file figure", () => {
     const parts = estimateParts(
       scanHistory(MUTATION_RUNS),
       planned({ mutation: 40 }, ["mutation"]),
@@ -477,7 +477,7 @@ describe("the Mutation estimate counts the functions it will measure", () => {
     expect(parts[0]).toMatchObject({ ms: null, basis: null });
   });
 
-  it("keeps the module figure for a part that does not answer work", () => {
+  it("keeps the file figure for a part that does not answer work", () => {
     const files = [
       scanFile("20261101T090000000Z", {
         structure_ms: 0,
@@ -494,7 +494,7 @@ describe("the Mutation estimate counts the functions it will measure", () => {
     );
 
     expect(parts[0]?.ms).toBe(120000);
-    expect(parts[0]?.basis).toBe("5 modules, last run's pace");
+    expect(parts[0]?.basis).toBe("5 files, last run's pace");
   });
 
   it("records the newest scan record name as the last run", () => {
@@ -564,7 +564,7 @@ describe("scanHistory exclusions", () => {
     expect(figure([good, failed])).toBe(figure([good]));
   });
 
-  it("ignores an entry with no modules", () => {
+  it("ignores an entry with no files", () => {
     const empty = wrong({
       sense: [
         { name: "mutation", duration_ms: 100000, fixed_ms: 10000, modules: 0 },
@@ -638,8 +638,8 @@ describe("the estimate line", () => {
     expect(line.text).toBe("About 3 min, plus Mutation: no estimate yet");
     expect(line.title.split("\n")).toEqual([
       "Structure: <1 min (last run)",
-      "Descriptions: <1 min (12 modules × 4 s)",
-      "C.R.A.P.: 2 min (40 modules, last run's pace)",
+      "Descriptions: <1 min (12 files × 4 s)",
+      "C.R.A.P.: 2 min (40 files, last run's pace)",
       "Mutation: no estimate yet",
     ]);
   });
@@ -805,7 +805,7 @@ describe("remaining time while running", () => {
     expect(left(describing(2), wallNow)?.text).not.toBe("about 1 min left");
   });
 
-  it("is the frozen figure minus time spent while fewer than 3 modules are done", () => {
+  it("is the frozen figure minus time spent while fewer than 3 files are done", () => {
     expect(left(describing(2), T + 20_000)?.text).toBe("about 1 min left");
   });
 
@@ -1217,7 +1217,7 @@ describe("remaining time while running", () => {
     ).toBe("under a minute left");
   });
 
-  it("names a describing phase past its figure with fewer than 3 modules done", () => {
+  it("names a describing phase past its figure with fewer than 3 files done", () => {
     const result = left(describing(2), T + 100_000);
 
     expect(result?.text).toBe("Descriptions: longer than estimated");

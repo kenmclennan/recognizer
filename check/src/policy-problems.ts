@@ -44,14 +44,14 @@ export function policyProblems(
     .map((glob) => ({
       kind: "entry" as const,
       subject: glob,
-      text: `policy entry ${glob} matches no scanned module`,
+      text: `policy entry ${glob} matches no scanned file`,
     }));
 
   const forbids = new Map<string, PolicyProblem>();
 
   for (const rule of policy.forbid) {
     for (const glob of [...rule.fromGlobs, ...rule.toGlobs]) {
-      const text = `policy forbid ${rule.pattern}: ${glob} matches no scanned module`;
+      const text = `policy forbid ${rule.pattern}: ${glob} matches no scanned file`;
 
       if (
         !glob.startsWith(FOREIGN_PREFIX) &&

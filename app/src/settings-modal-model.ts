@@ -136,7 +136,7 @@ const APP_SECTION_SPECS: SectionSpec[] = [
       },
       { label: "Import cycles", key: `${WARNINGS}.cycle`, control: "switch" },
       {
-        label: "Orphan modules",
+        label: "Orphan files",
         key: `${WARNINGS}.orphan`,
         control: "switch",
       },

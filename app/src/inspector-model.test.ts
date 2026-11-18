@@ -138,7 +138,7 @@ const klass = (extra: Partial<ScanMember> = {}): ScanMember => ({
   ...extra,
 });
 
-describe("module contents", () => {
+describe("file contents", () => {
   const scan = {
     modules: [{ id: "pkg/m.py", members: [] }],
     edges: [],
@@ -154,7 +154,7 @@ describe("module contents", () => {
   });
 });
 
-describe("module contents as cards", () => {
+describe("file contents as cards", () => {
   it("opens with the switch, then the cards in file order across kinds", () => {
     const rows = rowsOf(
       scanOf([
@@ -355,7 +355,7 @@ describe("the responsibility line in the header", () => {
       inputsFor([scanOf([fn("f", true)])], tab ? { tab } : {}),
     ).header;
 
-  it("is the module's line, on every tab, and never among the rows", () => {
+  it("is the file's line, on every tab, and never among the rows", () => {
     for (const tab of [undefined, "dependencies", "findings"] as const) {
       expect(headerOf(module("pkg/m.py"), tab).responsibility).toEqual({
         kind: "responsibility",
@@ -549,7 +549,7 @@ describe("card tokens", () => {
 });
 
 describe("missing data", () => {
-  it("says so for a module with no members", () => {
+  it("says so for a file with no members", () => {
     const rows = rowsOf(scanOf(undefined));
 
     expect(rows.map((row) => row.kind)).toEqual(["note"]);
@@ -682,7 +682,7 @@ describe("folder contents", () => {
     expect(header.muted).toMatch(/^\d+ files · a\/$/);
   });
 
-  it("shows None for a folder with no known modules", () => {
+  it("shows None for a folder with no known files", () => {
     expect(inspectorContent(folder("zz"), inputsFor([scan])).rows).toEqual([
       { kind: "none" },
     ]);
@@ -701,7 +701,7 @@ describe("header and tabs", () => {
     ],
   });
 
-  it("headers a module with its name and the last two folders", () => {
+  it("headers a file with its name and the last two folders", () => {
     const { header } = inspectorContent(
       module("src/app/pkg/m.py"),
       inputsFor([scan]),
@@ -745,7 +745,7 @@ describe("header and tabs", () => {
     expect(some.tabs?.[0]?.active).toBe(true);
   });
 
-  it("offers Contents, Dependencies N and Findings for a module and a folder, from the counts", () => {
+  it("offers Contents, Dependencies N and Findings for a file and a folder, from the counts", () => {
     const counts = () => ({ uses: 12, usedBy: 1 });
     const labels = (selection: ReturnType<typeof module | typeof folder>) =>
       inspectorContent(selection, inputsFor([scan], { counts })).tabs?.map(
@@ -885,7 +885,7 @@ describe("findings", () => {
     });
   });
 
-  it("says No findings, or Not measured for a grey module", () => {
+  it("says No findings, or Not measured for a grey file", () => {
     const green = inspectorContent(
       module("d/a.py"),
       inputsFor([scan], { tab: "findings" }),
@@ -899,7 +899,7 @@ describe("findings", () => {
     expect(grey).toEqual([{ kind: "note", text: "Not measured" }]);
   });
 
-  it("groups a folder's findings by kind across its modules, not per module", () => {
+  it("groups a folder's findings by kind across its files, not per file", () => {
     const rowFor = (id: string): FindingRow => ({
       ...violationRow,
       id: `v-${id}`,
@@ -930,7 +930,7 @@ describe("findings", () => {
     expect(content.tabs?.[2]?.label).toBe("Findings 2");
   });
 
-  it("lists a finding once in a folder though several of its modules report it", () => {
+  it("lists a finding once in a folder though several of its files report it", () => {
     const content = inspectorContent(
       folder("d"),
       inputsFor([scan], {
@@ -943,7 +943,7 @@ describe("findings", () => {
     expect(group.group.rows).toHaveLength(1);
   });
 
-  it("notes unmeasured modules in a folder with no findings and after groups", () => {
+  it("notes unmeasured files in a folder with no findings and after groups", () => {
     const grey = (id: string) => (id === "d" ? "grey" : "green");
     const quiet = inspectorContent(
       folder("d"),
@@ -959,11 +959,11 @@ describe("findings", () => {
     ).rows;
 
     expect(quiet).toEqual([
-      { kind: "note", text: "Some modules are not measured" },
+      { kind: "note", text: "Some files are not measured" },
     ]);
     expect(loud[loud.length - 1]).toEqual({
       kind: "note",
-      text: "Some modules are not measured",
+      text: "Some files are not measured",
     });
     expect(
       inspectorContent(folder("d"), inputsFor([scan], { tab: "findings" }))
@@ -1232,7 +1232,7 @@ describe("dependencies tab", () => {
     expect(list.map((row) => row.kind)).not.toContain("legend");
   });
 
-  it("lists the modules a module uses under folder headings with their full path, then the module rows", () => {
+  it("lists the files a file uses under folder headings with their full path, then the file rows", () => {
     const list = section(rows({}), "Uses 3");
 
     expect(labelsOf(list)).toEqual(["a/", "x.py", "y.py", "b/", "z.py"]);
@@ -1244,7 +1244,7 @@ describe("dependencies tab", () => {
     });
   });
 
-  it("lists the modules that use a module in the Used by section", () => {
+  it("lists the files that use a file in the Used by section", () => {
     const list = section(rows({}), "Used by 1");
 
     expect(labelsOf(list)).toEqual(["this folder", "caller.py"]);
@@ -1256,7 +1256,7 @@ describe("dependencies tab", () => {
 
     expect(list[0]).toMatchObject({
       kind: "filter",
-      placeholder: "Filter 4 modules",
+      placeholder: "Filter 4 files",
     });
     expect(moduleRows(list)[0]).toMatchObject({ state: "checked", bold: true });
     expect(moduleRows(list)[1]).toMatchObject({ state: "unchecked" });
@@ -1276,7 +1276,7 @@ describe("dependencies tab", () => {
     expect(section(list, "Used by 1").length).toBe(2);
   });
 
-  it("filters both sections by module and by name", () => {
+  it("filters both sections by file and by name", () => {
     const list = rows({ filter: "z" });
 
     expect(labelsOf(section(list, "Uses 3"))).toEqual(["b/", "z.py"]);
@@ -1301,7 +1301,7 @@ describe("dependencies tab", () => {
     expect(section(list, "Uses 0")).toEqual([{ kind: "none" }]);
   });
 
-  it("gives folder rows no chevron and lists their modules whatever expanded holds", () => {
+  it("gives folder rows no chevron and lists their files whatever expanded holds", () => {
     const labels = (expanded: Set<string>) =>
       moduleRows(section(rows({ expanded }), "Uses 3")).map((row) => [
         row.label,
@@ -1364,7 +1364,7 @@ describe("following dependency rows", () => {
       (row): row is Extract<Row, { kind: "module" }> => row.kind === "module",
     );
 
-  it("makes module rows followable in the section they are listed under", () => {
+  it("makes file rows followable in the section they are listed under", () => {
     const rows = moduleRows(dependencies());
 
     expect(rows.map((row) => [row.id, row.follow])).toEqual([
@@ -1387,7 +1387,7 @@ describe("following dependency rows", () => {
     expect(moduleRows(contents).every((row) => row.follow === null)).toBe(true);
   });
 
-  it("highlights only the followed section when a module is in both", () => {
+  it("highlights only the followed section when a file is in both", () => {
     const rows = moduleRows(
       dependencies({ followed: { id: "partner.py", relation: "usedBy" } }),
     ).filter((row) => row.id === "partner.py");
@@ -1695,7 +1695,7 @@ describe("function length on a card", () => {
     ]);
   });
 
-  it("scales the bar against the module's largest function or method, shown or not", () => {
+  it("scales the bar against the file's largest function or method, shown or not", () => {
     const klassWithMethod = klass({
       methods: [
         {
@@ -1969,7 +1969,7 @@ describe("the proposed change on a plan", () => {
     ).toBeUndefined();
   });
 
-  it("shows no line for a module without one and still renders a module the scan lacks", () => {
+  it("shows no line for a file without one and still renders a file the scan lacks", () => {
     expect(header("pkg/m.py", {}).proposed).toBeUndefined();
 
     const planned = inspectorContent(

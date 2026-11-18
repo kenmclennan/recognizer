@@ -182,10 +182,10 @@ describe.skipIf(webkit === undefined)("driving a window", () => {
     f = await collectFacts<Facts>(HARNESS, "drive");
   }, scaledTimeout(120000));
 
-  it("add answers done and puts the modules on the canvas", () => {
+  it("add answers done and puts the files on the canvas", () => {
     expect(f.addDone).toEqual({
       status: "done",
-      summary: "added 4 modules",
+      summary: "added 4 files",
       changed: true,
     });
     expect(f.afterAdd).toEqual([
@@ -197,13 +197,13 @@ describe.skipIf(webkit === undefined)("driving a window", () => {
   });
 
   it("posts a message with an Undo action and announces it through the toast", () => {
-    expect(f.line).toContain("Claude added 4 modules");
+    expect(f.line).toContain("Claude added 4 files");
     expect(f.undoButton).toBe("Undo");
     expect(f.role).toBe("status");
   });
 
   it("labels the Back button as the agent's change", () => {
-    expect(f.backTitle).toBe("Back - undo Claude: added 4 modules");
+    expect(f.backTitle).toBe("Back - undo Claude: added 4 files");
     expect(f.backAria).toBe(f.backTitle);
   });
 
@@ -214,7 +214,7 @@ describe.skipIf(webkit === undefined)("driving a window", () => {
   });
 
   it("names the agent on the Forward button after going back", () => {
-    expect(f.forwardTitle).toBe("Forward - redo Claude: added 4 modules");
+    expect(f.forwardTitle).toBe("Forward - redo Claude: added 4 files");
   });
 
   it("Forward redoes the change and clears the line", () => {
@@ -231,10 +231,10 @@ describe.skipIf(webkit === undefined)("driving a window", () => {
     expect(f.lineAfterNoop).toBeNull();
   });
 
-  it("refuses an unknown module, view or folder and leaves the window unchanged", () => {
+  it("refuses an unknown file, view or folder and leaves the window unchanged", () => {
     expect(f.unknownModule).toEqual({
       status: "refused",
-      reason: "no module app/zzz.py in the scan",
+      reason: "no file app/zzz.py in the scan",
     });
     expect(f.unknownView).toEqual({
       status: "refused",
@@ -245,7 +245,7 @@ describe.skipIf(webkit === undefined)("driving a window", () => {
   });
 
   it("clears the line on the user's own change and labels that entry plainly", () => {
-    expect(f.lineBeforeUser).toContain("Claude added 1 module");
+    expect(f.lineBeforeUser).toContain("Claude added 1 file");
     expect(f.lineAfterUser).toBeNull();
     expect(f.backAfterUser).toBe("Back");
   });
@@ -263,7 +263,7 @@ describe.skipIf(webkit === undefined)("driving a window", () => {
     expect(f.afterSelect).toEqual({ kind: "module", id: "app/hub.py" });
   });
 
-  it("follows a trail relation, and refuses a module that is not a neighbour", () => {
+  it("follows a trail relation, and refuses a file that is not a neighbour", () => {
     expect(f.trailDone).toMatchObject({ status: "done" });
     expect(f.afterTrail).toEqual(["app/hub.py", "lib/a.py"]);
     expect(f.trailNotNeighbour).toEqual({

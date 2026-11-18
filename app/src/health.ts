@@ -208,7 +208,7 @@ function walk(
   }
 
   const fallback =
-    worst === "grey" ? "some modules are not measured" : "no findings";
+    worst === "grey" ? "some files are not measured" : "no findings";
   const lines = entries.map((entry) => `${entry.path}: ${entry.line}`);
 
   into.set(node.path, { disc: worst, hover: hoverText(lines, fallback) });
