@@ -39,6 +39,7 @@ function snap(modal, name) {
     details: [...modal.element.querySelectorAll(".sw-row")].map((r) => { const pre = r.querySelector("pre"); const link = r.querySelector(".sw-link"); return pre ? { label: link.textContent, text: pre.textContent, hidden: pre.hidden } : null; }),
     cards: [...modal.element.querySelectorAll(".sw-rec .sw-what")].map((n) => n.textContent),
     groups: [...modal.element.querySelectorAll(".sw-group")].map((n) => n.textContent),
+    rowBoxes: [...modal.element.querySelectorAll(".sw-row")].map((r) => r.querySelector("input") !== null),
     env: [...modal.element.querySelectorAll(".sw-envrow code")].map((n) => n.textContent),
     runners: [...modal.element.querySelectorAll(".sw-runner")].map((n) => n.textContent),
     runnerOutputs: [...modal.element.querySelectorAll(".sw-runner")].map((n) => {
@@ -184,23 +185,55 @@ function snap(modal, name) {
 
   const problemOf = (n) => ({ code: "config-retired", subject: "k" + n, title: "Settings moved to new places " + n, line: "config/sensors/thresholds was retired " + n, fix: { text: "Run the move " + n, command: "recognizer config --unset k" + n }, severity: "problem" });
   const reportOf = (count) => ({ repository: "/repo", ok: count === 0, problems: count, warnings: 0, areas: count === 0 ? [] : [{ name: "config", skipped: null, problems: Array.from({ length: count }, (_, i) => problemOf(i + 1)) }] });
-  const upgradeSurvey = { ...fakeSetup({}).surveyRead.survey, configured: true, upgrade: [1, 2].map((n) => ({ code: "config-retired", subject: "k" + n, title: "Settings moved to new places " + n, line: "config/sensors/thresholds was retired " + n, command: "recognizer config --unset k" + n })) };
+  const base = fakeSetup({}).surveyRead.survey;
+  const fixOf = (n) => ({ code: "config-retired", subject: "k" + n, title: "Settings moved to new places " + n, line: "config/sensors/thresholds was retired " + n, fix_text: "Run the move " + n, command: "recognizer config --unset k" + n });
+  const handFix = { code: "config-duplicate-suite", subject: "unit", title: "Two test suites share a name", line: "tests: unit appears twice", fix_text: "Rename one of the suites in .recognizer/config.yaml", command: null };
+  const suiteOf = (name, mark) => ({ name, language: "typescript", directory: name, command: "npx vitest run", mark });
+  const rerunSurvey = {
+    ...base,
+    configured: true,
+    files: [...base.files.map((l) => ({ ...l, mark: "set-up" })), { language: "python", files: 0, folders: [], mark: "gone" }],
+    checks: base.checks.map((c) => { const enabled = c.id === "crap" ? true : c.enabled; return { ...c, enabled, mark: enabled ? "set-up" : "new" }; }),
+    suites: [suiteOf("legacy", "gone"), suiteOf("server", "set-up")],
+    fixes: [fixOf(1), fixOf(2), handFix],
+    policy: { present: true, uncovered: ["web", "tools"] },
+  };
+  const rerunPort = (extra = {}) => fakeSetup({ surveyRead: { status: "ok", survey: rerunSurvey, doctor: { status: "ok", report: reportOf(3) } }, ...extra });
+
+  const rerun = openSetupModal({ port: rerunPort() });
+  await rerun.ready;
+  await settle();
+  rerun.controller.next();
+  await settle();
+  rerun.controller.next();
+  await settle();
+  rerun.controller.next();
+  await settle();
+  rerun.controller.setPolicyMode("ask");
+  await rerun.controller.askClaude();
+  await settle();
+  rerun.controller.acceptRemaining();
+  rerun.controller.setLimit("long_function", 31);
+  rerun.controller.next();
+  await settle();
+  snap(rerun, "rerun-review");
+  rerun.element.querySelector(".sw-row .sw-link").click();
+  snap(rerun, "rerun-review-open");
+  rerun.controller.setFix(0, false);
+  await settle();
+  snap(rerun, "rerun-review-unticked");
+  rerun.close();
+
   const finals = { one: reportOf(1), two: reportOf(2), clean: reportOf(0), unavailable: null };
   for (const [name, doctor] of Object.entries(finals)) {
-    const up = openSetupModal({ port: fakeSetup({ surveyRead: { status: "ok", survey: upgradeSurvey, doctor: { status: "ok", report: reportOf(2) } }, applyDoctor: doctor }) });
+    const up = openSetupModal({ port: rerunPort({ applyDoctor: doctor }) });
     await up.ready;
     await settle();
-    if (name === "one") {
-      snap(up, "upgrade-changes");
-      up.element.querySelector(".sw-row .sw-link").click();
-      snap(up, "upgrade-changes-open");
-    }
-    up.controller.next();
+    for (let i = 0; i < 4; i++) up.controller.next();
     await settle();
-    if (name === "one") snap(up, "upgrade-review");
     await up.controller.apply();
     await settle();
-    snap(up, "upgrade-final-" + name);
+    snap(up, "final-" + name);
     up.close();
   }
 
@@ -220,6 +253,7 @@ type Screen = {
   details: ({ label: string; text: string; hidden: boolean } | null)[];
   cards: string[];
   groups: string[];
+  rowBoxes: boolean[];
   env: string[];
   runners: string[];
   runnerOutputs: ({ hidden: boolean; text: string } | null)[];
@@ -424,26 +458,43 @@ describe.skipIf(webkit === undefined)(
       expect(f.screens["policy-cards"]?.cards).toHaveLength(4);
     });
 
-    it("upgrade rows show titles", () => {
-      for (const name of ["upgrade-changes", "upgrade-review"]) {
-        const screen = f.screens[name] as Screen;
+    it("review lists doctor's fixes under their own heading by title", () => {
+      const review = f.screens["rerun-review"] as Screen;
 
-        expect(screen.rows, name).toHaveLength(2);
-        expect(screen.rows[0], name).toBe("Settings moved to new places 1");
-        expect(screen.text, name).not.toContain("thresholds");
-        expect(screen.details[0]?.label, name).toBe("Details");
-        expect(screen.details[0]?.text, name).toBe(
-          "config/sensors/thresholds was retired 1\n\nrecognizer config --unset k1",
-        );
-      }
-
-      expect(f.screens["upgrade-changes"]?.details[0]?.hidden).toBe(true);
-      expect(f.screens["upgrade-changes-open"]?.details[0]?.hidden).toBe(false);
+      expect(review.groups).toEqual([
+        "Doctor's fixes",
+        "Checks",
+        "Tests",
+        "Policy",
+      ]);
+      expect(review.rows.length).toBeGreaterThan(3);
+      expect(review.rows.slice(0, 3)).toEqual([
+        "Settings moved to new places 1",
+        "Settings moved to new places 2",
+        "Two test suites share a name",
+      ]);
+      expect(review.rowBoxes.slice(0, 3)).toEqual([true, true, false]);
+      expect(review.text).not.toContain("thresholds");
+      expect(review.text).toContain("Rename one of the suites");
+      expect(review.text).toContain(
+        "Doctor keeps reporting this until it is fixed by hand.",
+      );
+      expect(review.text).not.toContain("Open Setup again to apply it later.");
+      expect(review.details[0]?.label).toBe("Details");
+      expect(review.details[0]?.hidden).toBe(true);
+      expect(review.details[0]?.text).toBe(
+        "config/sensors/thresholds was retired 1\n\nrecognizer config --unset k1",
+      );
+      expect(
+        (f.screens["rerun-review-open"] as Screen).details[0]?.hidden,
+      ).toBe(false);
+      expect((f.screens["rerun-review-unticked"] as Screen).text).toContain(
+        "Doctor keeps reporting this until it is fixed. Open Setup again to apply it later.",
+      );
     });
 
     it("final screen lists what is left", () => {
-      const final = (name: string) =>
-        f.screens[`upgrade-final-${name}`] as Screen;
+      const final = (name: string) => f.screens[`final-${name}`] as Screen;
 
       expect(final("one").heading).toBe("Updated - 1 thing still to fix");
       expect(final("one").text).toContain("Settings moved to new places 1");
@@ -461,7 +512,7 @@ describe.skipIf(webkit === undefined)(
         f.screens.review?.foot.some((label) => label.startsWith("Apply ")),
       ).toBe(true);
       expect(f.screens["apply-running"]?.foot).toContain("Stop");
-      expect(f.screens["apply-done"]?.heading).toBe("Setup is done");
+      expect(f.screens["apply-done"]?.heading).toBe("Everything is up to date");
       expect(f.screens["apply-done"]?.foot).toContain("Close");
       expect(f.screens["apply-failed"]?.heading).toBe("Setup stopped");
       expect(f.screens["apply-failed"]?.foot).toContain("Try again");

@@ -33,7 +33,7 @@ export interface SetupChoices {
   runners?: RunnerChoice[];
   tools?: string[];
   policy?: PolicyCard[];
-  upgrade?: string[];
+  fixes?: string[];
   plugins_off?: string[];
   remove_suites?: string[];
 }
@@ -371,15 +371,15 @@ function policyChanges(survey: Survey, choices: SetupChoices): PlannedChange[] {
   return changes;
 }
 
-function upgradeChanges(
+function fixChanges(
   survey: Survey,
   choices: SetupChoices,
 ): { changes: PlannedChange[]; needing: BuiltChanges["needing_user"] } {
   const changes: PlannedChange[] = [];
   const needing: BuiltChanges["needing_user"] = [];
 
-  for (const command of choices.upgrade ?? []) {
-    const known = survey.upgrade.find((one) => one.command === command);
+  for (const command of choices.fixes ?? []) {
+    const known = survey.fixes.find((one) => one.command === command);
     const argv = withoutRepository(splitCommand(command));
     const refusal =
       known === undefined
@@ -390,7 +390,7 @@ function upgradeChanges(
       needing.push({ command, reason: refusal });
     } else {
       changes.push({
-        id: `upgrade-${changes.length + 1}`,
+        id: `fix-${changes.length + 1}`,
         group: "fixes",
         title: known?.title ?? command,
         ...(known === undefined ? {} : { detail: known.line }),
@@ -407,11 +407,11 @@ export function buildChanges(
   choices: SetupChoices,
 ): BuiltChanges {
   const dropped = droppedRunners(survey, choices);
-  const upgrade = upgradeChanges(survey, choices);
+  const fixes = fixChanges(survey, choices);
 
   return {
     changes: [
-      ...upgrade.changes,
+      ...fixes.changes,
       ...analysisChanges(survey, choices),
       ...pluginChanges(survey, choices),
       ...pluginOffChanges(survey, choices),
@@ -421,7 +421,7 @@ export function buildChanges(
       ...policyChanges(survey, choices),
     ],
     dropped,
-    needing_user: upgrade.needing,
+    needing_user: fixes.needing,
   };
 }
 

@@ -186,26 +186,30 @@ describe("buildChanges", () => {
     expect(titles(all)).toContain("policy-baseline");
   });
 
-  it("applies an upgrade fix and lists one that needs the user", () => {
-    const withUpgrade: Survey = {
+  it("applies a fix and lists one that needs the user", () => {
+    const withFixes: Survey = {
       ...survey,
-      upgrade: [
+      fixes: [
         {
           code: "config-retired",
           subject: "sensors.x",
+          title: "t",
           line: "retired",
+          fix_text: "t",
           command: "recognizer config --unset sensors.x",
         },
         {
           code: "config-empty",
           subject: "sensors.y",
+          title: "t",
           line: "empty",
+          fix_text: "t",
           command: "rm -rf /",
         },
       ],
     };
-    const built = buildChanges(withUpgrade, {
-      upgrade: [
+    const built = buildChanges(withFixes, {
+      fixes: [
         "recognizer config --unset sensors.x",
         "rm -rf /",
         "recognizer config --unset sensors.z",
@@ -225,17 +229,18 @@ describe("buildChanges", () => {
     const command = "recognizer config --unset sensors.x";
     const withFix: Survey = {
       ...survey,
-      upgrade: [
+      fixes: [
         {
           code: "config-retired",
           subject: "x",
           title: "t",
           line: "l",
+          fix_text: "t",
           command,
         },
       ],
     };
-    const groups = buildChanges(withFix, { ...all, upgrade: [command] })
+    const groups = buildChanges(withFix, { ...all, fixes: [command] })
       .changes.map((change) => change.group)
       .filter((group, at, list) => list.indexOf(group) === at);
 
@@ -357,18 +362,19 @@ describe("the built commands", () => {
   );
 });
 
-describe("upgrade changes", () => {
+describe("fix changes", () => {
   it("show the survey title with the line as detail, and the command alone otherwise", () => {
     const known = {
       code: "config-retired",
       subject: "k",
       title: "Settings moved to new places",
       line: "the full doctor line",
+      fix_text: "move it",
       command: "recognizer config --unset k",
     };
     const built = buildChanges(
-      { ...survey, upgrade: [known] },
-      { upgrade: [known.command, "recognizer config --unset other"] },
+      { ...survey, fixes: [known] },
+      { fixes: [known.command, "recognizer config --unset other"] },
     );
 
     expect(built.changes).toHaveLength(1);

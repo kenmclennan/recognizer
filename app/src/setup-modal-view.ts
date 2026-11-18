@@ -15,10 +15,10 @@ import {
   isSkipped,
   pluginChecks,
   type Row,
+  SETUP_STEPS,
   type SetupController,
   type SetupState,
   sharedBy,
-  stepsOf,
   testsWanted,
   undecidedCards,
   type WizardState,
@@ -915,24 +915,55 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     }
   }
 
-  function changesStep(state: WizardState) {
-    body.append(
-      el("h2", "", "What the upgrade changed"),
-      el(
-        "p",
-        "sw-lead-text",
-        `Recognizer ${state.survey.version} changed ${state.survey.upgrade.length === 1 ? "one thing" : "things"} this repository uses. Scans and checks still run meanwhile.`,
-      ),
-    );
+  function fixRows(state: WizardState) {
+    const fixes = state.survey.fixes;
 
-    state.survey.upgrade.forEach((fix, at) => {
+    if (fixes.length === 0) {
+      return;
+    }
+
+    body.append(el("h3", "sw-group", "Doctor's fixes"));
+
+    fixes.forEach((fix, at) => {
+      if (fix.command === null) {
+        body.append(
+          row(
+            "✎",
+            [
+              el("div", "sw-what", fix.title),
+              el("div", "sw-why", fix.fix_text),
+              el(
+                "div",
+                "sw-why",
+                "Doctor keeps reporting this until it is fixed by hand.",
+              ),
+            ],
+            disclosure(`fx-${at}`, "Details", fix.line),
+          ),
+        );
+
+        return;
+      }
+
+      const on = state.fixes[at] === true;
+
       body.append(
         row(
-          checkbox(state.upgrade[at] === true, `upgrade-${at}`, (value) =>
-            controller.setUpgrade(at, value),
-          ),
-          [el("div", "sw-what", fix.title)],
-          disclosure(`up-${at}`, "Details", `${fix.line}\n\n${fix.command}`),
+          checkbox(on, `fix-${at}`, (value) => controller.setFix(at, value)),
+          [
+            el("div", "sw-what", fix.title),
+            ...(on
+              ? []
+              : [
+                  el(
+                    "div",
+                    "sw-why",
+                    "Doctor keeps reporting this until it is fixed. Open Setup again to apply it later.",
+                  ),
+                ]),
+          ],
+          disclosure(`fx-${at}`, "Details", `${fix.line}\n\n${fix.command}`),
+          on ? "" : "off",
         ),
       );
     });
@@ -950,21 +981,41 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       ),
     );
 
-    changes.forEach((change, at) => {
-      body.append(
-        row(
-          "○",
-          [el("div", "sw-what", change.title)],
-          change.detail === undefined
-            ? disclosure(`rv-${at}`, "Command", commandText(change))
-            : disclosure(
-                `rv-${at}`,
-                "Details",
-                `${change.detail}\n\n${commandText(change)}`,
-              ),
-        ),
-      );
-    });
+    fixRows(state);
+
+    const groups: [string, PlannedChange["group"]][] = [
+      ["Checks", "checks"],
+      ["Tests", "tests"],
+      ["Policy", "policy"],
+    ];
+
+    for (const [heading, group] of groups) {
+      const members = changes.filter((change) => change.group === group);
+
+      if (members.length === 0) {
+        continue;
+      }
+
+      body.append(el("h3", "sw-group", heading));
+
+      for (const change of members) {
+        const at = changes.indexOf(change);
+
+        body.append(
+          row(
+            "○",
+            [el("div", "sw-what", change.title)],
+            change.detail === undefined
+              ? disclosure(`rv-${at}`, "Command", commandText(change))
+              : disclosure(
+                  `rv-${at}`,
+                  "Details",
+                  `${change.detail}\n\n${commandText(change)}`,
+                ),
+          ),
+        );
+      }
+    }
 
     if (changes.length === 0) {
       body.append(el("p", "sw-empty", "Nothing to change."));
@@ -1002,13 +1053,11 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     const clean = read !== null && read.problems === 0;
     const heading =
       run.state === "done"
-        ? state.flow === "setup"
-          ? "Setup is done"
-          : clean
-            ? "Everything is up to date"
-            : read === null
-              ? "Updated"
-              : `Updated - ${read.problems} thing${read.problems === 1 ? "" : "s"} still to fix`
+        ? clean
+          ? "Everything is up to date"
+          : read === null
+            ? "Updated"
+            : `Updated - ${read.problems} thing${read.problems === 1 ? "" : "s"} still to fix`
         : run.state === "running"
           ? "Applying"
           : "Setup stopped";
@@ -1068,7 +1117,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
   function renderSteps(state: WizardState) {
     steps.replaceChildren();
 
-    stepsOf(state).forEach((one, at) => {
+    SETUP_STEPS.forEach((one, at) => {
       const skipped = isSkipped(state, one.key);
       const kind = skipped
         ? "skip"
@@ -1091,7 +1140,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
 
   function footer(state: WizardState) {
     const key = currentKey(state);
-    const total = stepsOf(state).length;
+    const total = SETUP_STEPS.length;
     const run = state.apply;
 
     backButton.hidden = state.at === 0 || key === "apply";
@@ -1183,10 +1232,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
 
     const name = state.survey.repository.split("/").pop() ?? "";
 
-    title.textContent =
-      state.flow === "setup"
-        ? `Set up ${name}`
-        : `Update ${name} for Recognizer ${state.survey.version}`;
+    title.textContent = `Set up ${name}`;
     where.textContent = state.survey.repository;
     renderSteps(state);
 
@@ -1196,7 +1242,6 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     else if (key === "checks") checksStep(state);
     else if (key === "tests") testsStep(state);
     else if (key === "policy") policyStep(state);
-    else if (key === "changes") changesStep(state);
     else if (key === "review") reviewStep(state);
     else applyStep(state);
 

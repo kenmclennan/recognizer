@@ -12,9 +12,9 @@ import {
   createSetupController,
   currentKey,
   isSkipped,
+  SETUP_STEPS,
   type SetupController,
   type StepKey,
-  stepsOf,
   testsWanted,
   type WizardState,
 } from "./setup-model";
@@ -72,7 +72,6 @@ describe("the setup wizard model", () => {
     const { controller, fake, seen } = await opened();
 
     expect(fake.calls).toEqual(["survey+extract"]);
-    expect(wizard(controller).flow).toBe("setup");
     expect(currentKey(wizard(controller))).toBe("files");
     expect(seen.doctors).toBe(1);
   });
@@ -207,39 +206,58 @@ describe("the setup wizard model", () => {
     );
   });
 
-  it("the upgrade flow lists doctor's fixes and has three steps", async () => {
+  it("a configured repository opens on Files and lists doctor's fixes", async () => {
     const fixes = ["config-retired", "config-empty", "policy-retired"].map(
       (code, at) => ({
         code,
         subject: `k${at}`,
         title: `title ${code}`,
         line: `fix ${code}`,
+        fix_text: `fix ${code}`,
         command: `recognizer config --unset k${at}`,
       }),
     );
-    const survey: Survey = { ...LOOM_SURVEY, configured: true, upgrade: fixes };
+    const survey: Survey = { ...LOOM_SURVEY, configured: true, fixes };
     const { controller, fake } = await opened(
       fakeSetup({ surveyRead: { status: "ok", survey, doctor: CLEAN_DOCTOR } }),
     );
     const state = wizard(controller);
 
-    expect(state.flow).toBe("upgrade");
-    expect(stepsOf(state).map((step) => step.key)).toEqual([
-      "changes",
-      "review",
-      "apply",
-    ]);
-    expect(currentKey(state)).toBe("changes");
-    expect(state.upgrade).toEqual([true, true, true]);
+    expect(SETUP_STEPS).toHaveLength(6);
+    expect(currentKey(state)).toBe("files");
+    expect(state.fixes).toEqual([true, true, true]);
 
-    controller.setUpgrade(1, false);
+    controller.setFix(1, false);
     advanceTo(controller, "review");
     await controller.apply();
 
-    expect(fake.applied[0]?.upgrade).toEqual([
+    expect(fake.applied[0]?.fixes).toEqual([
       "recognizer config --unset k0",
       "recognizer config --unset k2",
     ]);
+  });
+
+  it("a text-only fix is never applied", async () => {
+    const survey: Survey = {
+      ...LOOM_SURVEY,
+      configured: true,
+      fixes: [
+        {
+          code: "config-duplicate-suite",
+          subject: "unit",
+          title: "t",
+          line: "l",
+          fix_text: "rename it",
+          command: null,
+        },
+      ],
+    };
+    const { controller } = await opened(
+      fakeSetup({ surveyRead: { status: "ok", survey, doctor: CLEAN_DOCTOR } }),
+    );
+
+    expect(wizard(controller).fixes).toEqual([true]);
+    expect(choicesOf(wizard(controller)).fixes).toEqual([]);
   });
 
   it("applies exactly the chosen changes and shows doctor's result", async () => {
