@@ -17,6 +17,8 @@ import {
   createSetupController,
   currentKey,
   isSkipped,
+  lineCount,
+  linesLabel,
   SETUP_STEPS,
   type SetupController,
   type StepKey,
@@ -556,5 +558,17 @@ describe("the setup wizard model", () => {
     expect(end?.state).toBe("done");
     expect(end?.fill).toBe(1);
     expect(end?.checking.state).toBe("done");
+  });
+
+  it("counts the lines of an output", () => {
+    expect(lineCount("")).toBe(0);
+    expect(lineCount("a\nb\n")).toBe(2);
+    expect(lineCount("a\nb")).toBe(2);
+  });
+
+  it("labels one line singular and any other count plural", () => {
+    expect(linesLabel(1)).toBe("1 line");
+    expect(linesLabel(0)).toBe("0 lines");
+    expect(linesLabel(3)).toBe("3 lines");
   });
 });

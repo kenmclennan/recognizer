@@ -16,6 +16,8 @@ import {
   currentKey,
   droppedOf,
   isSkipped,
+  lineCount,
+  linesLabel,
   pluginChecks,
   type Row,
   SETUP_STEPS,
@@ -67,7 +69,7 @@ const LIMIT_SENTENCES: Record<string, [string, string]> = {
 
 const SVG = "http://www.w3.org/2000/svg";
 
-type IconKind = "spinner" | "tick" | "circle";
+type IconKind = "spinner" | "tick" | "circle" | "chevron";
 
 function icon(kind: IconKind): SVGElement {
   const svg = document.createElementNS(SVG, "svg");
@@ -97,6 +99,8 @@ function icon(kind: IconKind): SVGElement {
     shape("path", { d: "M14 8a6 6 0 0 0-6-6" });
   } else if (kind === "tick") {
     shape("path", { d: "M3.5 8.5l3 3 6-7" });
+  } else if (kind === "chevron") {
+    shape("path", { d: "M6 3.5l4.5 4.5L6 12.5" });
   } else {
     shape("circle", { cx: "8", cy: "8", r: "5.5" });
   }
@@ -223,7 +227,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
   const cancelButton = button("Cancel", "sw-btn", () => close());
   const backButton = button("Back", "sw-btn", () => {});
   const nextButton = button("Next", "sw-btn sw-primary", () => {});
-  const open = new Set<string>();
+  const open = new Map<string, boolean>();
   const now = deps.now ?? Date.now;
   let closed = false;
   let adding: string | null = null;
@@ -271,21 +275,34 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
   });
   document.addEventListener("keydown", onKey, true);
 
-  function disclosure(id: string, label: string, text: string): HTMLElement[] {
+  function disclosure(
+    id: string,
+    label: string,
+    text: string,
+    options: { startOpen?: boolean } = {},
+  ): HTMLElement {
+    const panel = el("div", "sw-panel");
     const box = el("pre", "sw-code sw-mono", text);
-    const link = button(label, "sw-link", () => {
-      if (open.has(id)) {
-        open.delete(id);
-      } else {
-        open.add(id);
-      }
-
-      box.hidden = !open.has(id);
+    const chevron = icon("chevron");
+    const toggle = button("", "sw-toggle", () => {
+      open.set(id, !isOpen());
+      sync();
     });
+    const isOpen = () => open.get(id) ?? options.startOpen === true;
+    const sync = () => {
+      const now = isOpen();
 
-    box.hidden = !open.has(id);
+      box.hidden = !now;
+      panel.dataset.open = now ? "open" : "closed";
+      toggle.setAttribute("aria-expanded", String(now));
+    };
 
-    return [link, box];
+    toggle.append(chevron, el("span", "sw-toggle-label", label));
+    panel.append(toggle, box);
+
+    sync();
+
+    return panel;
   }
 
   function row(
@@ -293,6 +310,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     main: HTMLElement[],
     meta: HTMLElement[] = [],
     className = "",
+    panel: HTMLElement | null = null,
   ): HTMLElement {
     const one = el("div", `sw-row ${className}`.trim());
     const control = lead instanceof HTMLInputElement ? lead : null;
@@ -306,11 +324,13 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       first.append(lead);
     }
 
-    const bodies = meta.filter((node) => node.tagName === "PRE");
-
     middle.append(...main);
-    last.append(...meta.filter((node) => node.tagName !== "PRE"));
-    one.append(first, middle, last, ...bodies);
+    last.append(...meta);
+    one.append(first, middle, last);
+
+    if (panel !== null) {
+      one.append(panel);
+    }
 
     if (control !== null) {
       one.classList.add("pick");
@@ -741,12 +761,16 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       : [];
   }
 
-  function rowsList(rows: Row[], id: string): HTMLElement[] {
+  function rowsList(rows: Row[], id: string, halted = false): HTMLElement[] {
     return rows.map((one, at) => {
       const main = [el("div", "sw-what", one.title)];
 
       if (one.state === "undone") {
         main.push(el("div", "sw-why", `Undone ${one.output}`.trim()));
+      }
+
+      if (halted && one.state === "waiting") {
+        main.push(el("div", "sw-why", "- not applied"));
       }
 
       if (one.state === "running" && one.step !== undefined) {
@@ -760,6 +784,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       }
 
       const meta: HTMLElement[] = [];
+      let panel: HTMLElement | null = null;
 
       if (one.state === "done" && one.startedAt != null) {
         meta.push(
@@ -772,7 +797,14 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       }
 
       if (one.output !== "" && one.state !== "undone") {
-        meta.push(...disclosure(`${id}-${at}`, "Output", one.output));
+        panel = disclosure(
+          `${id}-${at}`,
+          one.state === "failed"
+            ? "What the command printed"
+            : `What the check printed (${linesLabel(lineCount(one.output))})`,
+          one.output,
+          { startOpen: one.state === "failed" },
+        );
       }
 
       const kind = STATE_ICON[one.state];
@@ -782,6 +814,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
         main,
         meta,
         `state-${one.state}`,
+        panel,
       );
     });
   }
@@ -912,7 +945,13 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
             ),
             ...(one.ready || one.output === ""
               ? []
-              : disclosure(`rn-${one.name}`, "Output", one.output)),
+              : [
+                  disclosure(
+                    `rn-${one.name}`,
+                    "What the command printed",
+                    one.output,
+                  ),
+                ]),
           ]),
           el(
             "div",
@@ -1180,6 +1219,8 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
                 "Doctor keeps reporting this until it is fixed by hand.",
               ),
             ],
+            [],
+            "",
             disclosure(`fx-${at}`, "Details", fix.line),
           ),
         );
@@ -1204,8 +1245,9 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
                   ),
                 ]),
           ],
-          disclosure(`fx-${at}`, "Details", `${fix.line}\n\n${fix.command}`),
+          [],
           on ? "" : "off",
+          disclosure(`fx-${at}`, "Details", `${fix.line}\n\n${fix.command}`),
         ),
       );
     });
@@ -1247,6 +1289,8 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
           row(
             "○",
             [el("div", "sw-what", change.title)],
+            [],
+            "",
             change.detail === undefined
               ? disclosure(`rv-${at}`, "Command", commandText(change))
               : disclosure(
@@ -1350,14 +1394,31 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
             ? "Stopped, so nothing was changed."
             : `${failed?.title ?? "A change"} failed, so nothing was changed.`,
         ),
-        el("div", "sw-why", run.message ?? failed?.output ?? ""),
+        ...(run.state === "stopped"
+          ? run.message === null
+            ? []
+            : [el("div", "sw-why", run.message)]
+          : [
+              el(
+                "div",
+                "sw-why",
+                run.message ??
+                  "The changes before it were undone. Its output is open below.",
+              ),
+            ]),
       ]);
 
       alert.setAttribute("role", "alert");
       body.append(alert);
     }
 
-    body.append(...rowsList(run.rows, "ap"));
+    body.append(
+      ...rowsList(
+        run.rows,
+        "ap",
+        run.state === "failed" || run.state === "stopped",
+      ),
+    );
 
     if (run.state === "running" || run.state === "done") {
       body.append(

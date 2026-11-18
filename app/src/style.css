@@ -4929,6 +4929,42 @@ svg.i.chevron {
   background: rgba(63, 185, 80, 0.08);
 }
 
+.setup-modal .sw-row.state-failed {
+  border-color: rgba(248, 81, 73, 0.6);
+}
+
+.setup-modal .sw-panel {
+  grid-column: 1 / -1;
+  margin: 4px -12px -10px;
+  border-top: 1px solid var(--line);
+}
+
+.setup-modal .sw-callout .sw-panel {
+  align-self: stretch;
+  margin: 4px 0 0;
+}
+
+.setup-modal .sw-toggle {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  background: none;
+  color: var(--sel);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.setup-modal .sw-panel .sw-code {
+  max-height: 180px;
+  margin: 0 12px 8px;
+  overflow: auto;
+}
+
 .setup-modal .sw-callout.bad {
   border-color: rgba(248, 81, 73, 0.4);
   background: rgba(248, 81, 73, 0.08);
@@ -5048,6 +5084,15 @@ svg.i.chevron {
   width: 16px;
   height: 16px;
   color: var(--faint);
+}
+
+.setup-modal .sw-toggle .sw-icon {
+  flex: none;
+  transition: transform 0.12s;
+}
+
+.setup-modal .sw-panel[data-open="open"] .sw-toggle .sw-icon {
+  transform: rotate(90deg);
 }
 
 .setup-modal .sw-icon-tick {

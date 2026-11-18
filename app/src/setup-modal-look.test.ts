@@ -36,7 +36,7 @@ function snap(modal, name) {
     paneFitsModal: box(body).right <= box(dialog).right && box(body).bottom <= box(dialog).bottom,
     noHorizontalOverflow: body.scrollWidth <= body.clientWidth,
     rows: [...modal.element.querySelectorAll(".sw-row .sw-what")].map((n) => n.textContent),
-    details: [...modal.element.querySelectorAll(".sw-row")].map((r) => { const pre = r.querySelector("pre"); const link = r.querySelector(".sw-link"); return pre ? { label: link.textContent, text: pre.textContent, hidden: pre.hidden } : null; }),
+    details: [...modal.element.querySelectorAll(".sw-row")].map((r) => { const panel = r.querySelector(".sw-panel"); if (!panel) return null; const pre = panel.querySelector("pre"); const toggle = panel.querySelector(".sw-toggle"); return { label: toggle.textContent, text: pre.textContent, hidden: pre.hidden, state: panel.dataset.open, chevron: toggle.querySelector("svg") !== null }; }),
     cards: [...modal.element.querySelectorAll(".sw-rec .sw-what")].map((n) => n.textContent),
     groups: [...modal.element.querySelectorAll(".sw-group")].map((n) => n.textContent),
     marks: [...modal.element.querySelectorAll(".sw-mark")].map((n) => n.textContent),
@@ -45,9 +45,10 @@ function snap(modal, name) {
     runners: [...modal.element.querySelectorAll(".sw-runner")].map((n) => n.textContent),
     notes: [...modal.element.querySelectorAll(".sw-body .sw-note")].map((n) => n.textContent),
     runnerOutputs: [...modal.element.querySelectorAll(".sw-runner")].map((n) => {
-      const link = n.nextElementSibling;
-      const box = link && link.nextElementSibling;
-      return link && link.textContent === "Output" && box && box.tagName === "PRE" ? { hidden: box.hidden, text: box.textContent } : null;
+      const panel = n.nextElementSibling;
+      const box = panel && panel.querySelector("pre");
+      const toggle = panel && panel.querySelector(".sw-toggle");
+      return panel && panel.classList.contains("sw-panel") && box ? { hidden: box.hidden, text: box.textContent, label: toggle.textContent } : null;
     }),
   };
 }
@@ -144,7 +145,7 @@ function snap(modal, name) {
   await settle();
   await settle();
   snap(third, "tried-output");
-  [...third.element.querySelectorAll(".sw-runner + button")][0].click();
+  [...third.element.querySelectorAll(".sw-runner + .sw-panel .sw-toggle")][0].click();
   snap(third, "tried-output-open");
   third.close();
 
@@ -265,11 +266,11 @@ function snap(modal, name) {
   rerun.controller.next();
   await settle();
   snap(rerun, "rerun-review");
-  const openRow = rerun.element.querySelector(".sw-row .sw-link").closest(".sw-row");
+  const openRow = rerun.element.querySelector(".sw-row .sw-toggle").closest(".sw-row");
   const titleBefore = openRow.querySelector(".sw-what").getBoundingClientRect().width;
-  openRow.querySelector(".sw-link").click();
+  openRow.querySelector(".sw-toggle").click();
   const titleBox = openRow.querySelector(".sw-what").getBoundingClientRect();
-  const toggleBox = openRow.querySelector(".sw-link").getBoundingClientRect();
+  const toggleBox = openRow.querySelector(".sw-toggle").getBoundingClientRect();
   const detailBox = openRow.querySelector("pre").getBoundingClientRect();
   const rowBox = openRow.getBoundingClientRect();
   facts.disclosure = {
@@ -406,6 +407,59 @@ function snap(modal, name) {
   shot("apply-finished", stepping);
   stepping.close();
 
+
+  facts.done = {};
+  const reportWith = (list) => ({ repository: "/repo", ok: list.length === 0, problems: list.length, warnings: 0, areas: list.length === 0 ? [] : [{ name: "config", skipped: null, problems: list }] });
+  const finishWith = async (applyDoctor, extra = {}) => {
+    const port = fakeSetup({ surveyRead: { status: "ok", survey: base, doctor: { status: "ok", report: reportOf(2) } }, applyDoctor, ...extra });
+    const m = openSetupModal({ port });
+    await m.ready;
+    await settle();
+    for (let i = 0; i < 4; i++) m.controller.next();
+    await settle();
+    await m.controller.apply();
+    await settle();
+    return { port, m };
+  };
+
+  const panelsOf = (m) => [...m.element.querySelectorAll(".sw-body > .sw-row")].map((r) => {
+    const panel = r.querySelector(".sw-panel");
+    const base = { cls: r.className, border: getComputedStyle(r).borderTopColor, text: r.querySelector(".sw-main").textContent };
+    if (!panel) return { ...base, panel: null };
+    const toggle = panel.querySelector(".sw-toggle");
+    const pre = panel.querySelector("pre");
+    const svg = toggle.querySelector("svg");
+    return { ...base, panel: {
+      label: toggle.textContent,
+      state: panel.dataset.open,
+      hidden: pre.hidden,
+      text: pre.textContent,
+      chevron: svg !== null,
+      chevronSize: svg ? svg.getBoundingClientRect().width : 0,
+      turned: svg ? getComputedStyle(svg).transform !== "none" : false,
+      belowMain: panel.getBoundingClientRect().top >= r.querySelector(".sw-main").getBoundingClientRect().bottom,
+      spansCard: panel.getBoundingClientRect().width >= r.getBoundingClientRect().width - 26,
+      ruled: getComputedStyle(panel).borderTopWidth !== "0px",
+      maxHeight: getComputedStyle(pre).maxHeight,
+    } };
+  });
+  const printed = await finishWith(reportWith([]), { doneOutput: "one\\ntwo\\nthree\\n" });
+  facts.done.panels = panelsOf(printed.m);
+  const toggleAt = printed.m.element.querySelector(".sw-body > .sw-row .sw-toggle");
+  toggleAt.click();
+  facts.done.opened = panelsOf(printed.m)[0].panel.state;
+  printed.m.close();
+
+  const broken = fakeSetup({ failAt: 1, doneOutput: "one\\ntwo\\nthree\\n" });
+  const brokenModal = openSetupModal({ port: broken });
+  await brokenModal.ready;
+  for (let i = 0; i < 4; i++) brokenModal.controller.next();
+  await settle();
+  await brokenModal.controller.apply();
+  await settle();
+  facts.done.failed = { heading: brokenModal.element.querySelector(".sw-body h2").textContent, bar: brokenModal.element.querySelector(".sw-fill").className, callout: brokenModal.element.querySelector(".sw-callout").textContent, calloutClass: brokenModal.element.querySelector(".sw-callout").className, rows: panelsOf(brokenModal) };
+  brokenModal.close();
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -419,7 +473,13 @@ type Screen = {
   paneFitsModal: boolean;
   noHorizontalOverflow: boolean;
   rows: string[];
-  details: ({ label: string; text: string; hidden: boolean } | null)[];
+  details: ({
+    label: string;
+    text: string;
+    hidden: boolean;
+    state: string;
+    chevron: boolean;
+  } | null)[];
   cards: string[];
   groups: string[];
   marks: string[];
@@ -427,7 +487,7 @@ type Screen = {
   env: string[];
   runners: string[];
   notes: string[];
-  runnerOutputs: ({ hidden: boolean; text: string } | null)[];
+  runnerOutputs: ({ hidden: boolean; text: string; label: string } | null)[];
 };
 
 type Shot = {
@@ -446,7 +506,37 @@ type Shot = {
   runningLines: string[];
 };
 
+type PanelFact = {
+  label: string;
+  state: string;
+  hidden: boolean;
+  text: string;
+  chevron: boolean;
+  chevronSize: number;
+  turned: boolean;
+  belowMain: boolean;
+  spansCard: boolean;
+  ruled: boolean;
+  maxHeight: string;
+};
+type CardFact = {
+  cls: string;
+  border: string;
+  text: string;
+  panel: PanelFact | null;
+};
 type Facts = {
+  done: {
+    panels: CardFact[];
+    opened: string;
+    failed: {
+      heading: string;
+      bar: string;
+      callout: string;
+      calloutClass: string;
+      rows: CardFact[];
+    };
+  };
   disclosure: Record<string, boolean>;
   namedPairs: string[][];
   progress: Record<string, Shot>;
@@ -741,7 +831,7 @@ describe.skipIf(webkit === undefined)(
       ]);
     });
 
-    it("shows an Output disclosure only after a not-ready runner with output", () => {
+    it("shows an output panel only after a not-ready runner with output", () => {
       const closed = f.screens["tried-output"];
 
       expect(closed?.runners).toEqual([
@@ -752,7 +842,11 @@ describe.skipIf(webkit === undefined)(
       expect(closed?.runnerOutputs).toEqual([
         null,
         null,
-        { hidden: true, text: "engine not built" },
+        {
+          hidden: true,
+          text: "engine not built",
+          label: "What the command printed",
+        },
       ]);
       expect(f.screens["tried-output-open"]?.runnerOutputs[2]?.hidden).toBe(
         false,
@@ -901,6 +995,68 @@ describe.skipIf(webkit === undefined)(
       expect(f.screens["apply-failed"]?.heading).toBe("Setup stopped");
       expect(f.screens["apply-failed"]?.foot).toContain("Try again");
       expect(f.screens["apply-failed"]?.foot).toContain("Back to review");
+    });
+
+    describe("the output panel", () => {
+      it("the output panel is closed on a successful row and open on a failed one", () => {
+        const first = f.done.panels[0] as CardFact;
+        const panel = first.panel as PanelFact;
+
+        expect(panel.label).toBe("What the check printed (3 lines)");
+        expect(panel.state).toBe("closed");
+        expect(panel.hidden).toBe(true);
+        expect(panel.chevron).toBe(true);
+        expect(panel.chevronSize).toBe(16);
+        expect(panel.turned).toBe(false);
+        expect(panel.belowMain).toBe(true);
+        expect(panel.spansCard).toBe(true);
+        expect(panel.ruled).toBe(true);
+        expect(panel.maxHeight).toBe("180px");
+        expect(f.done.opened).toBe("open");
+
+        const rows = f.done.failed.rows;
+        const failed = rows.find((r) =>
+          r.cls.includes("state-failed"),
+        ) as CardFact;
+        const succeeded = rows[0] as CardFact;
+
+        expect(failed.panel?.label).toBe("What the command printed");
+        expect(failed.panel?.state).toBe("open");
+        expect(failed.panel?.hidden).toBe(false);
+        expect(failed.panel?.turned).toBe(true);
+        expect(failed.border).not.toBe(succeeded.border);
+        expect(
+          rows.slice(2).every((r) => r.text.includes("- not applied")),
+        ).toBe(true);
+        expect(f.done.failed.heading).toBe("Setup stopped");
+        expect(f.done.failed.bar).toContain("failed");
+        expect(f.done.failed.calloutClass).toContain("bad");
+        expect(f.done.failed.callout).toContain(
+          "failed, so nothing was changed.",
+        );
+        expect(f.done.failed.callout).toContain(
+          "The changes before it were undone. Its output is open below.",
+        );
+      });
+
+      it("the Checks-step Details uses the same output panel", () => {
+        for (const name of ["rerun-review"]) {
+          const panels = (f.screens[name]?.details ?? []).filter(
+            (d) => d !== null,
+          );
+
+          expect(panels.length).toBeGreaterThan(0);
+
+          for (const one of panels) {
+            expect(one.chevron).toBe(true);
+            expect(one.state).toBe("closed");
+          }
+        }
+
+        expect(
+          f.screens["rerun-review"]?.details.find((d) => d !== null)?.label,
+        ).toBe("Details");
+      });
     });
   },
 );

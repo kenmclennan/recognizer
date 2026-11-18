@@ -111,6 +111,18 @@ export type SetupState =
   | { kind: "unavailable"; reason: string }
   | WizardState;
 
+export function lineCount(text: string): number {
+  if (text === "") {
+    return 0;
+  }
+
+  return (text.endsWith("\n") ? text.slice(0, -1) : text).split("\n").length;
+}
+
+export function linesLabel(count: number): string {
+  return count === 1 ? "1 line" : `${count} lines`;
+}
+
 export function doctorProblems(read: DoctorRead | null): number | null {
   return read !== null && read.status === "ok" ? read.report.problems : null;
 }

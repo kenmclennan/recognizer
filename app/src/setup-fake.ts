@@ -34,6 +34,7 @@ export type FakeSetup = SetupPort & {
   holdDoctor: Promise<void> | null;
   stopped: number;
   applyDoctor?: DoctorReport | null;
+  doneOutput?: string;
 };
 
 export const CLEAN_REPORT: DoctorReport = {
@@ -309,7 +310,12 @@ async function run(
     }
 
     done.push(index);
-    onEvent({ event: "change", index, state: "done", output: "ok" });
+    onEvent({
+      event: "change",
+      index,
+      state: "done",
+      output: fake.doneOutput ?? "ok",
+    });
   }
 
   if (finish === undefined) {
