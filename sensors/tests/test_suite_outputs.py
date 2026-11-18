@@ -222,10 +222,10 @@ UNREDIRECTED = {
     "python": [],
     "typescript-vitest": [],
     "typescript-jest": [],
-    "typescript-package": ["packages/web/coverage/"],
+    "typescript-package": [],
     "rust": ["target/"],
     "rust-workspace": ["target/"],
-    "rust-crate": ["crates/ignore/lcov.info"],
+    "rust-crate": [],
     "kotlin": ["build/", ".gradle/", ".kotlin/"],
     "kotlin-workspace": ["build/", ".gradle/", ".kotlin/"],
     "csharp": ["bin/", "obj/", "tests/TestResults/"],
@@ -266,6 +266,10 @@ def writer(entry: dict) -> str:
             )
 
     path = report.replace("*", "run")
+
+    if path.startswith(f"{CACHE}/") and directory != ".":
+        path = "../" * len(directory.split("/")) + path
+
     text = JACOCO if entry["coverage"]["format"] == "jacoco" else None
 
     if text is None:
@@ -322,7 +326,7 @@ def test_a_guide_suite_with_the_guide_ignores_leaves_the_tree_clean(tmp_path, na
     ignores = GUIDE_IGNORES
     entry = guide_suite(name)
 
-    if entry["directory"] != ".":
+    if entry["directory"] != "." and not entry["coverage"]["path"].startswith(f"{CACHE}/"):
         ignores += f"{entry['directory']}/{entry['coverage']['path'].split('/')[0]}/\n"
         ignores += f"{entry['directory']}/{entry['coverage']['path']}\n"
 

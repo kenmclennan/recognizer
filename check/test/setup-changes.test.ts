@@ -136,7 +136,7 @@ describe("buildChanges", () => {
       expect.stringContaining("tests.app.command"),
       "tests.app.runner vitest",
       "tests.app.env.NODE_ENV test",
-      "tests.app.coverage.path coverage/lcov.info",
+      "tests.app.coverage.path .recognizer/cache/coverage/app/lcov.info",
       "tests.app.coverage.format lcov",
     ]);
 

@@ -189,7 +189,7 @@ def login_shell() -> str:
 
 
 def report_pattern(suite: Suite) -> str:
-    if suite.directory in ("", "."):
+    if suite.directory in ("", ".") or suite.coverage_path.startswith(f"{COVERAGE_CACHE}/"):
         return suite.coverage_path
 
     return f"{suite.directory.rstrip('/')}/{suite.coverage_path}"

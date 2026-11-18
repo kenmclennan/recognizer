@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import validate from "../src/generated/setup-survey-validator.js";
 import { runSetup } from "../src/setup-command.js";
-import type { Survey } from "../src/setup-survey.js";
+import { folderSlug, type Survey } from "../src/setup-survey.js";
 import { capture, REPO } from "./helpers.js";
 import { copyLoom, LOOM, shimDirectory, shimmedPath } from "./setup-helpers.js";
 
@@ -195,6 +195,95 @@ describe("recognizer setup survey", () => {
     );
 
     expect(coverage?.installs).toBe("package.json, package-lock.json");
+  });
+
+  it("suggests a report path under the repository's root cache for every runner", async () => {
+    const directory = makeTempDir("recognizer-setup-cache-");
+    const write = (path: string, text: string) => {
+      mkdirSync(dirname(join(directory, path)), { recursive: true });
+      writeFileSync(join(directory, path), text);
+    };
+    const vitest = JSON.stringify({
+      scripts: { test: "vitest run" },
+      devDependencies: { vitest: "^3.2.4" },
+    });
+
+    write("package.json", vitest);
+    write("packages/web/package.json", vitest);
+    write(
+      "packages/jt/package.json",
+      JSON.stringify({
+        scripts: { test: "jest" },
+        devDependencies: { jest: "^30.0.0" },
+      }),
+    );
+    write("services/api/pyproject.toml", "[tool.pytest]\n");
+    write("crates/core/Cargo.toml", '[package]\nname = "core"\n');
+
+    const { survey } = await surveyOf([directory]);
+    const runners = survey.runners;
+
+    expect(runners.map((runner) => runner.directory).sort()).toEqual([
+      ".",
+      "crates/core",
+      "packages/jt",
+      "packages/web",
+      "services/api",
+    ]);
+
+    for (const runner of runners) {
+      const depth =
+        runner.directory === "." ? 0 : runner.directory.split("/").length;
+      const folder = `.recognizer/cache/coverage/${folderSlug(runner.name)}`;
+
+      expect(runner.coverage.path).toBe(`${folder}/lcov.info`);
+      expect(runner.command).toContain(`${"../".repeat(depth)}${folder}`);
+
+      if (depth === 0) {
+        expect(runner.command).not.toContain("..");
+      } else {
+        expect(runner.command).not.toContain(
+          `${"../".repeat(depth + 1)}.recognizer`,
+        );
+      }
+    }
+  });
+
+  it("slugs a suite name as the sensors do", () => {
+    const rows = JSON.parse(
+      readFileSync(join(REPO, "fixtures/suites/folder-slugs.json"), "utf8"),
+    ) as { name: string; slug: string }[];
+
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.some((row) => /[^A-Za-z0-9._-]/.test(row.name))).toBe(true);
+    expect(rows.some((row) => row.name.startsWith("."))).toBe(true);
+
+    for (const row of rows) {
+      expect(folderSlug(row.name)).toBe(row.slug);
+    }
+  });
+
+  it("the loom example puts every runner's report under the root cache", () => {
+    const survey = JSON.parse(
+      readFileSync(
+        join(REPO, "schema/setup-survey-examples/valid/loom.json"),
+        "utf8",
+      ),
+    ) as Survey;
+
+    expect(survey.runners.map((runner) => runner.name)).toEqual([
+      "engine",
+      "app",
+      "tauri",
+    ]);
+
+    for (const runner of survey.runners) {
+      const depth = runner.directory.split("/").length;
+      const folder = `.recognizer/cache/coverage/${runner.name}`;
+
+      expect(runner.coverage.path).toBe(`${folder}/lcov.info`);
+      expect(runner.command).toContain(`${"../".repeat(depth)}${folder}`);
+    }
   });
 
   it("prefixes each path with a package root in a subfolder", async () => {

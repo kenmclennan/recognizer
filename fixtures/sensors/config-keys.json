@@ -66,7 +66,7 @@
     {
       "key": "tests.<name>.coverage.path",
       "type": "path",
-      "description": "the coverage report the suite writes, relative to the suite's directory; * matches a folder or file name",
+      "description": "the coverage report the suite writes, relative to the suite's directory, except a path starting .recognizer/cache/coverage/, which is relative to the repository root; * matches a folder or file name",
       "example": "tests.unit.coverage.path .recognizer/cache/coverage/unit/lcov.info"
     },
     {
