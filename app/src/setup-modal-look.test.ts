@@ -43,6 +43,7 @@ function snap(modal, name) {
     rowBoxes: [...modal.element.querySelectorAll(".sw-row")].map((r) => r.querySelector("input") !== null),
     env: [...modal.element.querySelectorAll(".sw-envrow code")].map((n) => n.textContent),
     runners: [...modal.element.querySelectorAll(".sw-runner")].map((n) => n.textContent),
+    notes: [...modal.element.querySelectorAll(".sw-body .sw-note")].map((n) => n.textContent),
     runnerOutputs: [...modal.element.querySelectorAll(".sw-runner")].map((n) => {
       const link = n.nextElementSibling;
       const box = link && link.nextElementSibling;
@@ -210,6 +211,16 @@ function snap(modal, name) {
   };
   const rerunPort = (extra = {}) => fakeSetup({ surveyRead: { status: "ok", survey: rerunSurvey, doctor: { status: "ok", report: reportOf(3) } }, ...extra });
 
+  const noteText = 'no JaCoCo: add id("jacoco") to the plugins { } block of build.gradle.kts; Recognizer does not edit build files';
+  const noted = openSetupModal({ port: fakeSetup({ surveyRead: { status: "ok", survey: { ...base, runners: [], tools: [], notes: [{ language: "kotlin", directory: ".", text: noteText }] }, doctor: { status: "ok", report: reportOf(0) } } }) });
+  await noted.ready;
+  await settle();
+  noted.controller.next();
+  await settle();
+  noted.controller.next();
+  await settle();
+  snap(noted, "tests-note");
+
   const rerun = openSetupModal({ port: rerunPort() });
   await rerun.ready;
   await settle();
@@ -301,6 +312,7 @@ type Screen = {
   rowBoxes: boolean[];
   env: string[];
   runners: string[];
+  notes: string[];
   runnerOutputs: ({ hidden: boolean; text: string } | null)[];
 };
 
@@ -463,6 +475,13 @@ describe.skipIf(webkit === undefined)(
         f.screens.tests?.rows.filter((row) => row.includes("found in")),
       ).toHaveLength(3);
       expect(f.screens.tests?.env).toEqual(["RUST_LOG", "debug"]);
+    });
+
+    it("the Tests step shows a survey note", () => {
+      const notes = f.screens["tests-note"]?.notes ?? [];
+
+      expect(notes).toHaveLength(1);
+      expect(notes[0]).toContain('no JaCoCo: add id("jacoco")');
     });
 
     it("shows Run once as a result per runner", () => {

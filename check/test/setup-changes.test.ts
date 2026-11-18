@@ -127,6 +127,43 @@ describe("buildChanges", () => {
     expect(ids).toContain("tests-tauri");
   });
 
+  it("a gradle runner's changes set the jacoco format and no runner key", () => {
+    const gradle: Survey = {
+      ...survey,
+      runners: [
+        {
+          name: "orders",
+          language: "kotlin",
+          runner: "gradle",
+          directory: ".",
+          from: "build.gradle.kts",
+          command: "./gradlew cleanTest test jacocoTestReport",
+          coverage: {
+            path: "build/reports/jacoco/test/jacocoTestReport.xml",
+            format: "jacoco",
+          },
+          tool: null,
+        },
+      ],
+    };
+    const { changes } = buildChanges(gradle, {
+      ...all,
+      runners: [{ name: "orders" }],
+      tools: [],
+    });
+    const orders = changes.find((change) => change.id === "tests-orders");
+
+    expect(
+      orders?.steps.map((step) => step.argv.slice(2, 4).join(" ")),
+    ).toEqual([
+      "tests.orders.language kotlin",
+      "tests.orders.directory .",
+      expect.stringContaining("tests.orders.command"),
+      "tests.orders.coverage.path build/reports/jacoco/test/jacocoTestReport.xml",
+      "tests.orders.coverage.format jacoco",
+    ]);
+  });
+
   it("builds a runner as one config command per key, with env added inline", () => {
     const { changes } = buildChanges(survey, all);
     const app = changes.find((change) => change.id === "tests-app");

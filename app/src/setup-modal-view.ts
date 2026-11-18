@@ -753,6 +753,10 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       body.append(runnerCard(state, runner));
     }
 
+    for (const survey of state.survey.notes ?? []) {
+      body.append(el("div", "sw-note sw-why", survey.text));
+    }
+
     const tried = state.tried;
     const holder = el("div", "sw-tryout");
 
