@@ -13,7 +13,4 @@ forbid: # the imports that are violations
   - lightcycle/adapters/* -> lightcycle/adapters/*
   - "* -> lightcycle/adapters/tui/**"
 
-foreign: # group external libraries
-  stdlib: [os, subprocess, sqlite3]
-
 ignore: [tests/**, "**/fixtures/**"]

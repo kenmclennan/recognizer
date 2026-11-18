@@ -192,7 +192,7 @@ Everything the repository's owners write is committed under `.recognizer/`; anyt
 
 | What | Where | Committed |
 | --- | --- | --- |
-| Policy: forbid rules, entry points, foreign libraries, ignores | `.recognizer/policy.*` | yes |
+| Policy: forbid rules, entry points, ignores | `.recognizer/policy.*` | yes |
 | Ratchet baselines | `.recognizer/baselines/` | yes |
 | Saved views | `.recognizer/views/` | yes |
 | Scan results | `.recognizer/cache/` | no |
@@ -217,9 +217,6 @@ forbid: # the imports that are violations
     to: [lightcycle/adapters/**]
   - lightcycle/adapters/* -> lightcycle/adapters/*
   - "* -> lightcycle/adapters/tui/**"
-
-foreign: # group external libraries
-  stdlib: [os, subprocess, sqlite3]
 
 ignore: [tests/**, "**/fixtures/**"]
 ```
@@ -246,7 +243,7 @@ The four lists are:
 - **`calls`**: member to member, by `module::Qualified.name`, with `line` and `how`: `call`, `construct`, `inferred` (the receiver's class found as for an inferred edge) or `dispatch` (an abstract method to the concrete methods that implement it). A call through a port is followed by dispatch to the adapter, so a member's callers include those that reach it through an abstraction. Calls are what an agent traces a feature with, and what the inspector's callers come from.
 - **`unresolved_imports`**: optional, written by the Kotlin scanner (always, empty when nothing qualifies). Each item is `from` (a module id), `import` (the import path as written, without its alias; a wildcard keeps its `.*`) and `line`: an import whose name is declared in no scanned file and whose package is equal to or below an in-repo package prefix, whether or not it is used. A scanner that does not record them omits the key, which means not recorded.
 - **`test_imports`**: optional, written by the Python and TypeScript scanners (always, empty when no test file imports a scanned module). Each item is `from` (the repository-relative path of a test file the scanner skipped, never a module id), `to` (a scanned module id) and optional `names` (the sorted names the test file takes from that module; absent when any of its imports takes the whole module). One item per distinct (`from`, `to`) pair, sorted by `from` then `to`. A scanner that does not record them omits the key, which means not recorded, never "no importers". The `orphan` finding reads them to say a module is imported only by tests.
-- **`foreign`**: external libraries, each a node with id `foreign:<name>`, which edges point at; `name` is what the policy's `foreign` groups match on.
+- **`foreign`**: external libraries, each a node with id `foreign:<name>`, which edges point at.
 
 The document is facts about the code only: no policy, layout, colours or violation flags. `check` computes violations from the scan and the policy. A repository with more than one language gets one scan per language; merging them is the consumer's job.
 

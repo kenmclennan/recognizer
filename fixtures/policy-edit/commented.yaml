@@ -7,9 +7,4 @@ forbid:
   - from: [shop/domain/**]
     to: [shop/ports/**, shop/adapters/**]
 
-foreign:
-  http:
-    - requests
-    - urllib
-
 ignore: [tests/**]

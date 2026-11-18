@@ -100,11 +100,11 @@ describe("recognizer policy, per key", () => {
 });
 
 describe("recognizer policy sections", () => {
-  it("--add-section foreign writes an empty map", () => {
+  it("--add-section foreign is refused as retired and writes nothing", () => {
     const fake = setup(null);
 
-    expect(policy(fake, "--add-section", "foreign")).toBe(0);
-    expect(fake.files.get(POLICY)).toBe("foreign: {}\n");
+    expect(policy(fake, "--add-section", "foreign")).toBe(2);
+    expect(fake.files.has(POLICY)).toBe(false);
   });
 
   it("--add-section of a retired section is refused and writes nothing", () => {
@@ -187,7 +187,7 @@ describe("recognizer policy refuses a write that introduces an error", () => {
 
 describe("recognizer policy --add-forbid", () => {
   it("appends a mapping rule and a repeat changes nothing", () => {
-    const fake = setup();
+    const fake = setup(BASE.replace("foreign:\n  http:\n    - requests\n", ""));
 
     expect(
       policy(
@@ -254,8 +254,8 @@ describe("recognizer policy --add-forbid", () => {
 
     expect(after).toBe(
       fixture("commented.yaml").replace(
-        "\nforeign:",
-        "  - from: [shop/ui/**]\n    to: [shop/db/**, shop/cache/**]\n\nforeign:",
+        "\nignore:",
+        "  - from: [shop/ui/**]\n    to: [shop/db/**, shop/cache/**]\n\nignore:",
       ),
     );
   });

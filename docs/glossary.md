@@ -134,7 +134,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Metric declaration | A metric's `name`, `type`, `granularity` and `bad` direction, registered in the Config and repeated in the Overlay file. |
 | Config | A repository's committed `.recognizer/config.yaml`, which registers its overlays and holds its other recognizer tooling settings. The policy is separate. |
 | Config key | A dotted path that addresses one scalar or one list of scalars in the Config, as `recognizer config` takes it: `sensors.mutation.max_minutes`, or `tests.<name>.command` for the list entry whose `name` is `<name>`. |
-| Policy key | A dotted path that addresses one list of strings in the Policy, as `recognizer policy` takes it: `entry`, `forbid`, `foreign.<name>` or `ignore`. |
+| Policy key | A dotted path that addresses one list of strings in the Policy, as `recognizer policy` takes it: `entry`, `forbid` or `ignore`. |
 | Forbid rule | A policy entry whose `from` globs may not import its `to` globs, reported as a Violation per importing file. |
 | Key schema | The document an owner publishes listing the Config keys it owns, described by `schema/config-keys.schema.json` and merged by `recognizer config` and `recognizer help config`. |
 | Command table | `COMMANDS` in `check/src/commands.ts`: the one list `recognizer` dispatches from and generates its help from. |

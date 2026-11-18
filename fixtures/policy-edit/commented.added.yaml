@@ -8,9 +8,4 @@ forbid:
     to: [shop/ports/**, shop/adapters/**]
   - shop/ui/** -> shop/db/**
 
-foreign:
-  http:
-    - requests
-    - urllib
-
 ignore: [tests/**]

@@ -17,9 +17,14 @@ export interface Policy {
   entryGlobs: string[];
 }
 
-export const RETIRED_KEYS = ["components", "levels", "uses"] as const;
+export const RETIRED_KEYS = [
+  "components",
+  "levels",
+  "uses",
+  "foreign",
+] as const;
 
-const ALLOWED_KEYS = new Set(["forbid", "foreign", "ignore", "entry"]);
+const ALLOWED_KEYS = new Set(["forbid", "ignore", "entry"]);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -86,23 +91,6 @@ export function parsePolicy(yamlText: string): Policy {
 
         if (rule) {
           forbid.push(rule);
-        }
-      }
-    }
-  }
-
-  if (document.foreign !== undefined) {
-    const foreign = document.foreign;
-
-    if (!isPlainObject(foreign)) {
-      errors.push("foreign: must map group names to lists of strings");
-    } else {
-      for (const [group, members] of Object.entries(foreign)) {
-        if (
-          !Array.isArray(members) ||
-          !members.every((m) => typeof m === "string")
-        ) {
-          errors.push(`foreign.${group}: must be a list of strings`);
         }
       }
     }
