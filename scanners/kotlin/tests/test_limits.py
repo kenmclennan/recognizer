@@ -87,9 +87,9 @@ def test_a_java_declared_class_stays_foreign_and_the_java_file_is_not_read(run):
 
 
 def test_a_kotlin_script_file_is_not_read(run):
-    document = run({"build.gradle.kts": "val x = 1\n", "a/A.kt": "class A\n"})
+    document = run({"build.gradle.kts": "val x = 1\n", "src/main/kotlin/A.kt": "class A\n"})
 
-    assert [f["path"] for f in document["files"]] == ["a/A.kt", "build.gradle.kts"]
+    assert [f["path"] for f in document["files"]] == ["build.gradle.kts", "src/main/kotlin/A.kt"]
 
 
 def test_every_build_file_in_the_probed_directory_is_listed(run):

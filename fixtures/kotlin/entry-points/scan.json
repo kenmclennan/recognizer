@@ -24,10 +24,6 @@
       "hash": "ca2ffe39261485e6164f95037c6a7157030dc4fe27f2d73239aad1c823b959f0"
     },
     {
-      "path": "build.gradle.kts",
-      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
       "path": "common/Clock.kt",
       "hash": "1dccb6eccb3b07b809d53e0a9f4039a936a417bc7c7a2bceee490df5a6c31c7c"
     },
@@ -42,6 +38,10 @@
     {
       "path": "jvm/Lonely.jvm.kt",
       "hash": "879b981668ce98de2aaf75e6a05b88d936540a94c2c536f4954a87dbe13575a6"
+    },
+    {
+      "path": "pom.xml",
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     }
   ],
   "selection": {
@@ -67,7 +67,11 @@
       "*Test.kt",
       "*Tests.kt"
     ],
-    "input_file_globs": ["build.gradle", "build.gradle.kts", "pom.xml"]
+    "input_file_globs": [
+      "build.gradle",
+      "build.gradle.kts",
+      "pom.xml"
+    ]
   },
   "modules": [
     {
@@ -82,13 +86,13 @@
           "exported": true,
           "visibility": "public",
           "end_line": 8,
-          "body_line": 4,
           "params": [
             {
               "name": "x",
               "type": "Any"
             }
-          ]
+          ],
+          "body_line": 4
         }
       ]
     },
@@ -121,8 +125,8 @@
           "exported": true,
           "visibility": "public",
           "end_line": 5,
-          "body_line": 4,
-          "params": []
+          "params": [],
+          "body_line": 4
         }
       ],
       "entry_point": true
@@ -139,13 +143,13 @@
           "exported": true,
           "visibility": "public",
           "end_line": 5,
-          "body_line": 4,
           "params": [
             {
               "name": "text",
               "type": "String"
             }
-          ]
+          ],
+          "body_line": 4
         }
       ]
     },
@@ -205,8 +209,8 @@
           "exported": true,
           "visibility": "public",
           "end_line": 3,
-          "body_line": 3,
           "params": [],
+          "body_line": 3,
           "returns": "Long"
         }
       ],
@@ -226,8 +230,8 @@
           "exported": true,
           "visibility": "public",
           "end_line": 3,
-          "body_line": 3,
           "params": [],
+          "body_line": 3,
           "returns": "Long"
         }
       ],

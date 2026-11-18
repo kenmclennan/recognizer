@@ -1,4 +1,6 @@
 import os
+import posixpath
+import re
 import subprocess
 import sys
 from fnmatch import fnmatch
@@ -17,6 +19,11 @@ SKIPPED_DIRECTORY_PREFIXES = (".",)
 SKIPPED_DIRECTORY_SUFFIXES = ("Test",)
 SKIPPED_FILE_PATTERNS = ("*Test.kt", "*Tests.kt")
 BUILD_FILES = ("build.gradle", "build.gradle.kts", "pom.xml")
+GRADLE_BUILD_FILES = ("build.gradle", "build.gradle.kts")
+SOURCE_SET_LANGUAGES = ("kotlin", "java")
+SOURCE_FOLDER_CALL = re.compile(r"\b(?:srcDir|srcDirs|setSrcDirs)\b")
+COLLECTION_WRAPPERS = re.compile(r"\b(?:listOf|setOf|arrayOf|mutableListOf)\b")
+STRING_LITERAL = re.compile(r"""^(?:"[^"$\\]*"|'[^'$\\]*')$""")
 
 
 Listing = frozenset[str] | None
@@ -114,7 +121,132 @@ def discover(root: Path, listing: Listing | _Unread = UNREAD) -> list[str]:
                 if is_listed(listing, relative):
                     found.append(relative)
 
-    return sorted(found)
+    return keep_gradle_source_folders(root, sorted(found))
+
+
+def balanced_arguments(text: str, start: int) -> str | None:
+    depth = 0
+
+    for index in range(start, len(text)):
+        if text[index] == "(":
+            depth += 1
+        elif text[index] == ")":
+            depth -= 1
+
+            if depth == 0:
+                return text[start + 1 : index]
+
+    return None
+
+
+def declared_folders(text: str) -> tuple[list[str], bool]:
+    folders = []
+    readable = True
+
+    for call in SOURCE_FOLDER_CALL.finditer(text):
+        position = call.end()
+        following = text[position:].lstrip(" \t")
+
+        if following.startswith("("):
+            argument = balanced_arguments(text, text.index("(", position))
+        else:
+            argument = re.split(r"[\n}]", following, maxsplit=1)[0]
+
+        if argument is None:
+            readable = False
+            continue
+
+        argument = COLLECTION_WRAPPERS.sub("", argument)
+        argument = re.sub(r"[=\[\]()]", " ", argument)
+        tokens = [token.strip() for token in argument.split(",") if token.strip()]
+
+        if not tokens or not all(STRING_LITERAL.match(token) for token in tokens):
+            readable = False
+            continue
+
+        folders.extend(token[1:-1] for token in tokens)
+
+    return folders, readable
+
+
+def has_default_source_folder(segments: list[str]) -> bool:
+    return any(
+        segments[index] == "src" and segments[index + 2] in SOURCE_SET_LANGUAGES
+        for index in range(len(segments) - 3)
+    )
+
+
+def resolve_inside(module: str, folder: str) -> str | None:
+    if folder.startswith("/"):
+        return None
+
+    resolved = posixpath.normpath(posixpath.join(module, folder))
+
+    if resolved == ".." or resolved.startswith("../"):
+        return None
+
+    if module != "." and not (resolved + "/").startswith(module + "/"):
+        return None
+
+    return resolved
+
+
+class GradleModule:
+    def __init__(self, root: Path, module: str):
+        self.folders: list[str] = []
+
+        for name in GRADLE_BUILD_FILES:
+            build_file = (Path(module) / name).as_posix()
+
+            if not (root / build_file).is_file():
+                continue
+
+            text = (root / build_file).read_text(encoding="utf-8", errors="replace")
+            folders, readable = declared_folders(text)
+
+            for folder in folders:
+                resolved = resolve_inside(module, folder)
+
+                if resolved is None:
+                    readable = False
+                else:
+                    self.folders.append(resolved)
+
+            if not readable:
+                print(
+                    f"recognizer-scan-kotlin: {build_file} declares a source folder "
+                    "the scanner cannot read; reading its default src/<set> folders only",
+                    file=sys.stderr,
+                )
+
+    def keeps(self, module: str, path: str) -> bool:
+        return has_default_source_folder(below_module(module, path).split("/")) or any(
+            path.startswith(folder + "/") for folder in self.folders
+        )
+
+
+def keep_gradle_source_folders(root: Path, paths: list[str]) -> list[str]:
+    owners = {path: build_module_of(root, directory_of(path)) for path in paths}
+    modules: dict[str, GradleModule | None] = {}
+
+    for module in set(owners.values()):
+        is_gradle = any((root / module / name).is_file() for name in GRADLE_BUILD_FILES)
+        standard_layout = any(
+            has_default_source_folder(below_module(module, path).split("/"))
+            for path in paths
+            if owners[path] == module
+        )
+        modules[module] = GradleModule(root, module) if is_gradle and standard_layout else None
+
+    return [
+        path
+        for path in paths
+        if modules[owners[path]] is None or modules[owners[path]].keeps(owners[path], path)
+    ]
+
+
+def below_module(module: str, path: str) -> str:
+    return path if module == "." else path[len(module) + 1 :]
 
 
 def directory_of(path: str) -> str:

@@ -24,7 +24,7 @@
       "hash": "69ba19ddd6cddd104a747c8d638785a0d266607db68c0541d77a56571ff8f8db"
     },
     {
-      "path": "build.gradle.kts",
+      "path": "pom.xml",
       "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     }
   ],
@@ -112,14 +112,14 @@
               "name": "get",
               "line": 4,
               "end_line": 4,
-              "body_line": 4,
               "params": [
                 {
                   "name": "id",
                   "type": "String"
                 }
               ],
-              "private": false
+              "private": false,
+              "body_line": 4
             }
           ]
         }
@@ -167,14 +167,14 @@
               "name": "show",
               "line": 5,
               "end_line": 5,
-              "body_line": 5,
               "params": [
                 {
                   "name": "id",
                   "type": "String"
                 }
               ],
-              "private": false
+              "private": false,
+              "body_line": 5
             }
           ]
         }
