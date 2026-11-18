@@ -13,6 +13,9 @@ use crate::tool_runner::{Captured, ToolFault, ToolRunner};
 
 const STDERR_CHARS: usize = 2000;
 const LIMIT_TEXT: &str = "usage limit";
+const SIGNED_OUT_TEXT: &str = "not logged in";
+const SIGNED_OUT_REASON: &str =
+    "Claude Code is not signed in. Open a terminal, run claude and sign in, then try again.";
 
 const ALLOWED_TOOLS: [&str; 9] = [
     "Read",
@@ -269,10 +272,13 @@ pub fn outcome_of(facts: Option<ResultFacts>, code: Option<i32>, stderr: &str) -
                 denials: facts.permission_denials,
             },
             _ => SetupCheck::Failed {
-                reason: facts
-                    .text
-                    .filter(|text| !text.trim().is_empty())
-                    .unwrap_or_else(|| "claude answered without a proposal".to_string()),
+                reason: match facts.text.filter(|text| !text.trim().is_empty()) {
+                    Some(text) if text.to_lowercase().contains(SIGNED_OUT_TEXT) => {
+                        SIGNED_OUT_REASON.to_string()
+                    }
+                    Some(text) => text,
+                    None => "claude answered without a proposal".to_string(),
+                },
                 subtype: facts.subtype,
                 cost_usd: facts.total_cost_usd,
                 duration_ms: facts.duration_ms,
@@ -924,6 +930,26 @@ mod tests {
 
         match outcome_of(None, Some(1), "Claude usage limit reached") {
             SetupCheck::Failed { reason, .. } => assert!(reason.contains("limit"), "{reason}"),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_signed_out_claude_gets_the_app_s_own_reason_and_a_limit_keeps_its_own() {
+        let signed_out = parse_line(r#"{"type":"result","subtype":"success","is_error":true,"api_error_status":null,"duration_ms":53,"total_cost_usd":0,"result":"Not logged in · Please run /login","terminal_reason":"api_error"}"#).1;
+
+        match outcome_of(signed_out, Some(1), "") {
+            SetupCheck::Failed { reason, .. } => assert_eq!(
+                reason,
+                "Claude Code is not signed in. Open a terminal, run claude and sign in, then try again."
+            ),
+            other => panic!("{other:?}"),
+        }
+
+        let limited = parse_line(r#"{"type":"result","subtype":"success","is_error":true,"result":"Claude usage limit reached"}"#).1;
+
+        match outcome_of(limited, Some(1), "") {
+            SetupCheck::Failed { reason, .. } => assert_eq!(reason, "Claude usage limit reached"),
             other => panic!("{other:?}"),
         }
     }
