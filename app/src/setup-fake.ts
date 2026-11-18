@@ -29,6 +29,8 @@ export type FakeSetup = SetupPort & {
   applied: SetupChoices[];
   tried: SetupChoices[];
   gate: Promise<void> | null;
+  holdAfterCommand: Promise<void> | null;
+  holdDoctor: Promise<void> | null;
   stopped: number;
   applyDoctor?: DoctorReport | null;
 };
@@ -112,6 +114,8 @@ export function fakeSetup(options: Partial<FakeSetup> = {}): FakeSetup {
     applied: [],
     tried: [],
     gate: null,
+    holdAfterCommand: null,
+    holdDoctor: null,
     stopped: 0,
     ...options,
     async survey(extract) {
@@ -146,7 +150,17 @@ export function fakeSetup(options: Partial<FakeSetup> = {}): FakeSetup {
 
       const survey = surveyOf(fake);
       const changes = buildChanges(survey, choices).changes;
-      const ok = await run(fake, changes, onEvent);
+      const ok = await run(fake, changes, onEvent, undefined, onEvent);
+
+      if (ok) {
+        onEvent({ event: "doctor", state: "running" });
+
+        if (fake.holdDoctor !== null) {
+          await fake.holdDoctor;
+        }
+
+        onEvent({ event: "doctor", state: "done" });
+      }
 
       return {
         event: "result",
@@ -216,6 +230,7 @@ async function run(
   changes: PlannedChange[],
   onEvent: (event: ApplyEvent & TryEvent) => void,
   finish?: (undo: () => void) => void,
+  steps?: (event: ApplyEvent) => void,
 ): Promise<boolean> {
   onEvent({
     event: "start",
@@ -232,6 +247,32 @@ async function run(
 
   for (const [index, change] of changes.entries()) {
     onEvent({ event: "change", index, state: "running", output: "" });
+
+    for (const [at, { argv }] of change.steps.entries()) {
+      const command = argv.join(" ");
+
+      steps?.({
+        event: "command",
+        index,
+        step: at + 1,
+        steps: change.steps.length,
+        command,
+        state: "running",
+      });
+
+      steps?.({
+        event: "command",
+        index,
+        step: at + 1,
+        steps: change.steps.length,
+        command,
+        state: "done",
+      });
+
+      if (index === 0 && at === 0 && fake.holdAfterCommand !== null) {
+        await fake.holdAfterCommand;
+      }
+    }
 
     if (fake.gate !== null) {
       await Promise.race([

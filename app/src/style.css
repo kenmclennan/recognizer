@@ -5059,6 +5059,11 @@ svg.i.chevron {
   animation: sw-spin 0.9s linear infinite;
 }
 
+.setup-modal .sw-command {
+  color: var(--faint);
+  overflow-wrap: anywhere;
+}
+
 @keyframes sw-spin {
   to {
     transform: rotate(360deg);

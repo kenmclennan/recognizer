@@ -314,11 +314,27 @@ function snap(modal, name) {
       runningLines: qa(".sw-row.state-running .sw-why").map((n) => n.textContent),
     };
   };
-  const stepping = openSetupModal({ port: fakeSetup() });
+  let freeCommand = () => {};
+  let freeDoctor = () => {};
+  let freeReload = () => {};
+  const holdCommand = new Promise((resolve) => { freeCommand = resolve; });
+  const holdDoctor = new Promise((resolve) => { freeDoctor = resolve; });
+  const holdReload = new Promise((resolve) => { freeReload = resolve; });
+  const stepping = openSetupModal({ port: fakeSetup({ holdAfterCommand: holdCommand, holdDoctor }), reloadSensors: () => holdReload });
   await stepping.ready;
   for (let i = 0; i < 4; i++) stepping.controller.next();
   await settle();
-  await stepping.controller.apply();
+  const applied = stepping.controller.apply();
+  await settle();
+  shot("apply-command", stepping);
+  freeCommand();
+  await settle();
+  shot("apply-doctor", stepping);
+  freeDoctor();
+  await settle();
+  shot("apply-reload", stepping);
+  freeReload();
+  await applied;
   await settle();
   shot("apply-finished", stepping);
   stepping.close();
@@ -454,13 +470,36 @@ describe.skipIf(webkit === undefined)(
     describe("progress while reading and applying", () => {
       const shot = (name: string) => f.progress[name] as Shot;
 
-      it("Apply shows icons and a time on every finished row and the elapsed time in the heading", () => {
+      it("Apply shows a spinning first row with its step and command, and a bar above zero after the first command", () => {
+        const hold = shot("apply-command");
+
+        expect(hold.spinners).toBe(1);
+        expect(hold.runningLines[0]).toMatch(/^Step 1 of \d+$/);
+        expect(hold.runningLines.length).toBeGreaterThanOrEqual(2);
+        expect(hold.fillRatio).toBeGreaterThan(0);
+        expect(hold.titles.slice(-2)).toEqual([
+          "Checking the setup",
+          "Loading the checks",
+        ]);
+        expect(hold.glyphLeads).toBe(0);
+      });
+
+      it("the two finishing rows spin in turn and then show their time", () => {
+        expect(shot("apply-doctor").runningLines).toEqual([]);
+        expect(shot("apply-doctor").spinners).toBeGreaterThanOrEqual(1);
+        expect(shot("apply-reload").spinners).toBe(1);
+        expect(shot("apply-reload").times).toBeGreaterThan(
+          shot("apply-doctor").times,
+        );
+
         const done = shot("apply-finished");
 
         expect(done.spinners).toBe(0);
-        expect(done.glyphLeads).toBe(0);
-        expect(done.iconSquare).toBe(true);
         expect(done.times).toBe(done.titles.length);
+        expect(done.titles.slice(-2)).toEqual([
+          "Checking the setup",
+          "Loading the checks",
+        ]);
         expect(done.elapsed).toMatch(/^\d+\.\ds$/);
       });
     });

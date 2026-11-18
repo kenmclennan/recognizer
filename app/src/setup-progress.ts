@@ -18,3 +18,24 @@ export function elapsedText(ms: number): string {
 
   return `${minutes}m ${rest}s`;
 }
+
+export function timedText(row: Timed, now: number): string {
+  if (row.startedAt === null) {
+    return "";
+  }
+
+  return elapsedText((row.endedAt ?? now) - row.startedAt);
+}
+
+export function applyFill(
+  commands: number | null,
+  commandsDone: number,
+  changesDone: number,
+  changes: number,
+): number {
+  if (commands !== null && commands > 0) {
+    return Math.min(1, commandsDone / commands);
+  }
+
+  return Math.min(1, changesDone / Math.max(1, changes));
+}

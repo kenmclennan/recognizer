@@ -12,6 +12,7 @@ import {
   type TryEvent,
 } from "recognizer";
 import type { DoctorRead, SetupPort } from "./setup-port";
+import { applyFill, type Timed } from "./setup-progress";
 
 export type StepKey =
   | "files"
@@ -42,6 +43,9 @@ export type Row = {
   title: string;
   state: RowState;
   output: string;
+  step?: number;
+  steps?: number;
+  command?: string;
   startedAt?: number | null;
   endedAt?: number | null;
 };
@@ -72,6 +76,9 @@ export type ApplyRun = {
   message: string | null;
   startedAt: number;
   endedAt: number | null;
+  fill: number;
+  checking: Timed;
+  loading: Timed;
 };
 
 export type WizardState = {
@@ -636,7 +643,23 @@ export function createSetupController(deps: SetupDeps): SetupController {
         state: "running",
         startedAt,
       });
+      let commands: number | null = null;
+      let commandsDone = 0;
       let endedAt: number | null = null;
+      let checking: Timed = {
+        state: "waiting",
+        startedAt: null,
+        endedAt: null,
+      };
+      let loading: Timed = { state: "waiting", startedAt: null, endedAt: null };
+
+      const fill = () =>
+        applyFill(
+          commands,
+          commandsDone,
+          rows.filter((one) => one.state === "done").length,
+          rows.length,
+        );
       const progress = (
         patch: Partial<ApplyRun> & { state: ApplyRun["state"] },
       ) =>
@@ -647,6 +670,9 @@ export function createSetupController(deps: SetupDeps): SetupController {
             message: null,
             startedAt,
             endedAt,
+            fill: fill(),
+            checking,
+            loading,
             ...patch,
           },
           at: SETUP_STEPS.length - 1,
@@ -655,7 +681,13 @@ export function createSetupController(deps: SetupDeps): SetupController {
       progress({ state: "running" });
 
       const onEvent = (event: ApplyEvent) => {
-        if (live && event.event === "change") {
+        if (!live) {
+          return;
+        }
+
+        if (event.event === "start") {
+          commands = event.commands ?? null;
+        } else if (event.event === "change") {
           rows = withRow(rows, event.index, {
             state: event.state,
             output: event.output,
@@ -665,8 +697,30 @@ export function createSetupController(deps: SetupDeps): SetupController {
                 ? { endedAt: now() }
                 : {}),
           });
-          progress({ state: "running" });
+        } else if (event.event === "command") {
+          if (event.state === "running") {
+            rows = withRow(rows, event.index, {
+              step: event.step,
+              steps: event.steps,
+              command: event.command,
+            });
+          } else {
+            commandsDone += 1;
+          }
+        } else if (event.event === "doctor") {
+          checking =
+            event.state === "running"
+              ? { state: "running", startedAt: now(), endedAt: null }
+              : {
+                  state: "done",
+                  startedAt: checking.startedAt ?? now(),
+                  endedAt: now(),
+                };
+        } else {
+          return;
         }
+
+        progress({ state: "running" });
       };
 
       try {
@@ -680,7 +734,22 @@ export function createSetupController(deps: SetupDeps): SetupController {
               ? { status: "unavailable", reason: "doctor did not answer" }
               : { status: "ok", report: result.doctor };
 
+          if (checking.state !== "done") {
+            checking = {
+              state: "done",
+              startedAt: checking.startedAt ?? now(),
+              endedAt: now(),
+            };
+          }
+
+          loading = { state: "running", startedAt: now(), endedAt: null };
+          progress({ state: "running" });
           await deps.reloadSensors?.();
+          loading = {
+            state: "done",
+            startedAt: loading.startedAt,
+            endedAt: now(),
+          };
           endedAt = now();
           deps.scanAfterApply?.();
           deps.onDoctor?.(doctor);

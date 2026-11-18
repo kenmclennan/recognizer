@@ -748,6 +748,16 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
         main.push(el("div", "sw-why", `Undone ${one.output}`.trim()));
       }
 
+      if (one.state === "running" && one.step !== undefined) {
+        main.push(
+          el("div", "sw-why", `Step ${one.step} of ${one.steps ?? one.step}`),
+        );
+      }
+
+      if (one.state === "running" && one.command !== undefined) {
+        main.push(el("div", "sw-why sw-mono sw-command", one.command));
+      }
+
       const meta: HTMLElement[] = [];
 
       if (one.state === "done" && one.startedAt != null) {
@@ -773,6 +783,18 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
         `state-${one.state}`,
       );
     });
+  }
+
+  function stepRow(title: string, timed: Timed, detail: string[] = []) {
+    return row(
+      icon(STATE_ICON[timed.state] as IconKind),
+      [
+        el("div", "sw-what", title),
+        ...detail.map((line) => el("div", "sw-why sw-mono", line)),
+      ],
+      timeTag(timed),
+      `state-${timed.state}`,
+    );
   }
 
   function suiteRow(state: WizardState, suite: SurveySuite): HTMLElement {
@@ -1280,7 +1302,6 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
         : run.state === "running"
           ? "Applying"
           : "Setup stopped";
-    const finished = run.rows.filter((one) => one.state === "done").length;
     const bar = el("div", "sw-bar");
     const fill = el("i", `sw-fill ${run.state}`);
     const headRow = el("div", "sw-headrow");
@@ -1289,9 +1310,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       elapsedText((run.endedAt ?? now()) - run.startedAt);
 
     fill.style.width =
-      run.state === "running"
-        ? `${Math.round((finished / Math.max(1, run.rows.length)) * 100)}%`
-        : "100%";
+      run.state === "running" ? `${Math.round(run.fill * 100)}%` : "100%";
     bar.append(fill);
     time.textContent = elapsedNow();
     elapsed = run.endedAt === null ? { node: time, text: elapsedNow } : null;
@@ -1338,6 +1357,13 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     }
 
     body.append(...rowsList(run.rows, "ap"));
+
+    if (run.state === "running" || run.state === "done") {
+      body.append(
+        stepRow("Checking the setup", run.checking),
+        stepRow("Loading the checks", run.loading),
+      );
+    }
   }
 
   function renderSteps(state: WizardState) {
