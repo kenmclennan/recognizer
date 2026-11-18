@@ -1,0 +1,7 @@
+{
+  "name": "saga",
+  "private": true,
+  "workspaces": ["server", "web"],
+  "scripts": { "test": "npm run test -w @saga/server && npm run test -w @saga/web" },
+  "devDependencies": { "vitest": "^3.2.4" }
+}
