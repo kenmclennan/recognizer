@@ -263,7 +263,9 @@ function snap(modal, name) {
   snap(calm, "calm-review");
   calm.close();
 
-  const finals = { one: reportOf(1), two: reportOf(2), clean: reportOf(0), unavailable: null };
+  const gapOf = (title, subject, fix) => ({ code: "sensor-gap", subject, title, line: subject + " has a gap", fix: { text: fix, command: null }, severity: "problem" });
+  const named = { ok: false, repository: "/repo", problems: 2, warnings: 0, areas: [{ name: "sensors", skipped: null, problems: [gapOf("C.R.A.P. cannot run as set up", "crap", "Run the crap help"), gapOf("Mutation cannot run as set up", "mutation", "Run the mutation help")] }] };
+  const finals = { one: reportOf(1), two: reportOf(2), clean: reportOf(0), unavailable: null, named };
   for (const [name, doctor] of Object.entries(finals)) {
     const up = openSetupModal({ port: rerunPort({ applyDoctor: doctor }) });
     await up.ready;
@@ -273,6 +275,9 @@ function snap(modal, name) {
     await up.controller.apply();
     await settle();
     snap(up, "final-" + name);
+    if (name === "named") {
+      facts.namedPairs = [...up.element.querySelectorAll(".sw-what")].filter((n) => n.nextElementSibling && n.nextElementSibling.classList.contains("sw-why")).map((n) => [n.textContent, n.nextElementSibling.textContent]);
+    }
     up.close();
   }
 
@@ -301,6 +306,7 @@ type Screen = {
 
 type Facts = {
   disclosure: Record<string, boolean>;
+  namedPairs: string[][];
   rowClicks: {
     checkToggled: boolean;
     checkToggledBack: boolean;
@@ -594,6 +600,13 @@ describe.skipIf(webkit === undefined)(
       expect(calm.text).toContain("Nothing to change.");
       expect(calm.foot).toContain("Close");
       expect(calm.foot).not.toContain("Close (disabled)");
+    });
+
+    it("final screen lists two sensor-gap problems by name", () => {
+      expect(f.namedPairs).toEqual([
+        ["C.R.A.P. cannot run as set up", "Run the crap help"],
+        ["Mutation cannot run as set up", "Run the mutation help"],
+      ]);
     });
 
     it("final screen lists what is left", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { RETIRED_KEYS as RETIRED_CONFIG } from "../src/config-retired.js";
 import { RETIRED_KEYS as RETIRED_POLICY } from "../src/policy.js";
-import { PROBLEM_TITLES } from "../src/problem-titles.js";
+import { LANGUAGE_NAMES, PROBLEM_TITLES } from "../src/problem-titles.js";
 
 const CODES = [
   "config-yaml",
@@ -35,11 +35,16 @@ const RETIRED_NAMES = [
 
 describe("problem titles", () => {
   it("every code has a plain title", () => {
+    expect(CODES.length).toBeGreaterThan(0);
     expect(Object.keys(PROBLEM_TITLES).sort()).toEqual([...CODES].sort());
 
-    for (const [code, title] of Object.entries(PROBLEM_TITLES)) {
+    for (const [code, template] of Object.entries(PROBLEM_TITLES)) {
+      const title = template("x");
+
       expect(title.length, code).toBeGreaterThan(0);
       expect(title, code).not.toMatch(/[/._]/);
+      expect(title.toLowerCase(), code).not.toContain("thresholds");
+      expect(title.toLowerCase(), code).not.toContain("module");
 
       for (const name of RETIRED_NAMES) {
         expect(title.toLowerCase(), `${code} names ${name}`).not.toContain(
@@ -47,5 +52,22 @@ describe("problem titles", () => {
         );
       }
     }
+  });
+
+  it("language names match the app", () => {
+    expect(LANGUAGE_NAMES).toEqual({
+      typescript: "TypeScript",
+      rust: "Rust",
+      python: "Python",
+      kotlin: "Kotlin",
+      csharp: "C#",
+    });
+    expect(PROBLEM_TITLES["scanner-missing"]("csharp")).toBe(
+      "No scanner for C#",
+    );
+    expect(PROBLEM_TITLES["scanner-missing"]("zig")).toBe("No scanner for zig");
+    expect(PROBLEM_TITLES["scanner-missing"]("scanners")).toBe(
+      "No scanner is installed",
+    );
   });
 });

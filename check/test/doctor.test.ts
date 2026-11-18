@@ -264,6 +264,37 @@ describe("doctor: config", () => {
     expect(problem.fix.command).toBeNull();
   });
 
+  it("title names the subject: config-duplicate-suite", () => {
+    const suite = (name: string) =>
+      `  - name: ${name}\n    language: python\n    directory: .\n    command: pytest\n    coverage:\n      path: c.lcov\n      format: lcov\n`;
+    const titleFor = (name: string) =>
+      json(setup({ config: `tests:\n${suite(name)}${suite(name)}` })).report
+        .areas[0].problems[0].title;
+
+    expect(titleFor("web")).toBe("Two test suites are named web");
+    expect(titleFor("api")).toBe("Two test suites are named api");
+  });
+
+  it("fixed titles ignore the subject", () => {
+    const retired = (key: string) =>
+      json(
+        setup({
+          config: `sensors:\n  ${key}:\n    coverage:\n      below: 0.7\n`,
+        }),
+      ).report.areas[0].problems[0];
+
+    expect(retired("thresholds").title).toBe("Settings moved to new places");
+    expect(PROBLEM_TITLES["scan-missing"]("python")).toBe(
+      PROBLEM_TITLES["scan-missing"]("kotlin,rust"),
+    );
+    expect(PROBLEM_TITLES["policy-entry"]("a/**")).toBe(
+      PROBLEM_TITLES["policy-entry"]("b/**"),
+    );
+    expect(PROBLEM_TITLES["config-invalid"]("a.b")).toBe(
+      PROBLEM_TITLES["config-invalid"]("c.d"),
+    );
+  });
+
   it("reports a duplicate suite name", () => {
     const suite = (name: string) =>
       `  - name: ${name}\n    language: python\n    directory: .\n    command: pytest\n    coverage:\n      path: c.lcov\n      format: lcov\n`;
@@ -323,7 +354,9 @@ describe("doctor: config", () => {
     const problem = result.report.areas[0].problems[0];
     const text = doctor(setup({ config }), ROOT);
 
-    expect(problem.title).toBe(PROBLEM_TITLES["config-retired"]);
+    expect(problem.title).toBe(
+      PROBLEM_TITLES["config-retired"](problem.subject),
+    );
     expect(problem.line).toContain("sensors/thresholds");
     expect(text.out).toContain(problem.line);
     expect(text.out).not.toContain(problem.title);
@@ -339,14 +372,18 @@ describe("doctor: config", () => {
       }),
     );
     const problems = result.report.areas.flatMap(
-      (area: { problems: { code: string; title: string }[] }) => area.problems,
+      (area: {
+        problems: { code: string; subject: string; title: string }[];
+      }) => area.problems,
     );
 
     expect(problems.length).toBeGreaterThan(2);
 
     for (const problem of problems) {
       expect(problem.title).toBe(
-        PROBLEM_TITLES[problem.code as keyof typeof PROBLEM_TITLES],
+        PROBLEM_TITLES[problem.code as keyof typeof PROBLEM_TITLES](
+          problem.subject,
+        ),
       );
     }
   });
@@ -1069,6 +1106,21 @@ describe("doctor: unregistered shipped plugins", () => {
         (one: { code: string }) => one.code === "unregistered-plugin",
       ),
     ).toBe(true);
+  });
+
+  it("title names the subject: unregistered-plugin", () => {
+    const result = json(
+      setup({ config: CRAP, onPath: ALL, shippedDescriber: true }),
+      ROOT,
+    );
+    const titles = result.report.areas
+      .flatMap((area: { problems: { title: string }[] }) => area.problems)
+      .map((one: { title: string }) => one.title);
+
+    expect(titles).toEqual([
+      "The mutation plugin is not registered",
+      "The claude plugin is not registered",
+    ]);
   });
 
   it("prints the problem lines and the problem count, and exits 1", () => {

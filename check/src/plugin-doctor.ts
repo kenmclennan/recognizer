@@ -59,8 +59,11 @@ function problem(
   line: string,
   fix: SetupProblem["fix"],
   severity: SetupProblem["severity"] = "problem",
+  display?: string,
 ): RawProblem {
-  return { code, subject, line, fix, severity };
+  return display === undefined
+    ? { code, subject, line, fix, severity }
+    : { code, subject, line, fix, severity, display };
 }
 
 function protocolLine(
@@ -79,6 +82,7 @@ function protocolProblem(
   manifest: Manifest,
   judgement: ProtocolJudgement,
   installLine: string | null,
+  display?: string,
 ): RawProblem[] {
   if (judgement === "current") {
     return [];
@@ -91,6 +95,7 @@ function protocolProblem(
       protocolLine(program, manifest.protocol, judgement),
       textFix(installLine ?? manifest.install),
       judgement === "previous" ? "warning" : "problem",
+      display,
     ),
   ];
 }
@@ -250,6 +255,7 @@ export function pluginProblems(fact: PluginFact): RawProblem[] {
     state.manifest,
     state.judgement,
     fact.installLine,
+    state.manifest.display,
   );
 
   if (state.judgement === "unsupported") {
@@ -258,15 +264,24 @@ export function pluginProblems(fact: PluginFact): RawProblem[] {
 
   const gaps = (state.gaps ?? []).map((line) =>
     fact.kind === "sensor"
-      ? problem("sensor-gap", subject, line, {
-          text: `recognizer help sensors ${fact.name}`,
-          command: `recognizer help sensors ${fact.name}`,
-        })
+      ? problem(
+          "sensor-gap",
+          subject,
+          line,
+          {
+            text: `recognizer help sensors ${fact.name}`,
+            command: `recognizer help sensors ${fact.name}`,
+          },
+          "problem",
+          state.manifest.display,
+        )
       : problem(
           "describer-gap",
           subject,
           line,
           textFix(`run ${program} check`),
+          "problem",
+          state.manifest.display,
         ),
   );
 
