@@ -15,7 +15,11 @@ import { InputError } from "./errors.js";
 import { cachedScansState } from "./freshness.js";
 import { discoverPlugins, findOnPath } from "./plugin-discovery.js";
 import type { PluginFact, PluginSpec } from "./plugin-doctor.js";
-import { judgeProtocol, readManifest } from "./plugin-manifest.js";
+import {
+  judgeProtocol,
+  readManifest,
+  readManifestOf,
+} from "./plugin-manifest.js";
 import { languageRulesOf } from "./scanners.js";
 import { checkSensor } from "./sensors-check.js";
 import {
@@ -155,6 +159,15 @@ export function doctorReport(
         (name) => findOnPath(io, `recognizer-sense-${name}`) !== null,
       ),
       describer: describerShipped(io, root),
+    },
+    shippedDisplay: (kind, name) => {
+      const program =
+        kind === "sensor"
+          ? `recognizer-sense-${name}`
+          : `recognizer-describe-${name}`;
+      const read = readManifestOf(io, [program]);
+
+      return read.ok ? read.manifest.display : undefined;
     },
   };
 
