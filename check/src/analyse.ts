@@ -186,7 +186,7 @@ export function analyse(scan: Scan, ignore: Matcher[] = []): Analysis {
         id: "cycle",
         principle: "levelization",
         fix_pattern: "break-cycle",
-        summary: `cycle of ${modules.length} modules: ${modules.join(", ")}`,
+        summary: `cycle of ${modules.length} files: ${modules.join(", ")}`,
         evidence: { modules, edges: inside },
       };
     })

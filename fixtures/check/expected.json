@@ -156,7 +156,7 @@
       "id": "cycle",
       "principle": "levelization",
       "fix_pattern": "break-cycle",
-      "summary": "cycle of 2 modules: shop/application/place.py, shop/domain/order.py",
+      "summary": "cycle of 2 files: shop/application/place.py, shop/domain/order.py",
       "evidence": {
         "modules": [
           "shop/application/place.py",
@@ -178,7 +178,7 @@
       "id": "orphan",
       "principle": "dead-code",
       "fix_pattern": "remove-or-wire-orphan",
-      "summary": "shop/adapters/sql_store.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
+      "summary": "shop/adapters/sql_store.py is imported by no file and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
       "evidence": {
         "modules": [
           "shop/adapters/sql_store.py"
@@ -189,7 +189,7 @@
       "id": "orphan",
       "principle": "dead-code",
       "fix_pattern": "remove-or-wire-orphan",
-      "summary": "shop/domain/money.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
+      "summary": "shop/domain/money.py is imported by no file and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
       "evidence": {
         "modules": [
           "shop/domain/money.py"

@@ -155,11 +155,11 @@ export function runFind(argv: string[], io: Io): number {
   );
 
   const lines = [
-    `${plural(modules.length, "module")}, ${plural(members.length, "member")} matched`,
+    `${plural(modules.length, "file")}, ${plural(members.length, "member")} matched`,
   ];
 
   if (modules.length > 0) {
-    lines.push("modules", ...modules.map((module) => `  ${module.id}`));
+    lines.push("files", ...modules.map((module) => `  ${module.id}`));
   }
 
   if (members.length > 0) {
@@ -314,11 +314,11 @@ function showFolder(loaded: Loaded, io: Io, id: string): number {
   ).rows.find((one) => one.id === folder);
 
   if (row === undefined) {
-    throw new InputError([`no such module: ${id}`]);
+    throw new InputError([`no such file: ${id}`]);
   }
 
   const lines = [
-    `${row.id}  folder  ${plural(row.modules, "module")}`,
+    `${row.id}  folder  ${plural(row.modules, "file")}`,
     metricsLine(row),
     ...metricsTable(row).map(([name, value]) => `${name}: ${value}`),
   ];
@@ -502,7 +502,7 @@ export function runModules(argv: string[], io: Io): number {
 
   const rows = limit === null ? kept : kept.slice(0, limit);
   const lines = [
-    `${rows.length} of ${all.length} modules`,
+    `${rows.length} of ${all.length} files`,
     ...rows.map(
       (row) =>
         `${row.id}  ${row.kind}  uses ${row.uses}  used by ${row.usedBy}  findings ${row.findings}`,

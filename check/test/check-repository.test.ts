@@ -179,7 +179,7 @@ describe("check in repository mode", () => {
     expect(TYPESCRIPT).toBeDefined();
   });
 
-  it("narrows violations, warnings and metrics to the named modules", () => {
+  it("narrows violations, warnings and metrics to the named files", () => {
     const named = "shop/adapters/sql_store.py";
     const { out } = check([named, "--json"]);
     const report = JSON.parse(out);
@@ -203,11 +203,11 @@ describe("check in repository mode", () => {
     expect(check(["shop/adapters/sql_store.py"]).code).toBe(1);
   });
 
-  it("exits 2 for an unknown module", () => {
+  it("exits 2 for an unknown file", () => {
     expect(check(["no/such.py"]).code).toBe(2);
   });
 
-  it("exits 2 for a baseline flag with a module", () => {
+  it("exits 2 for a baseline flag with a file", () => {
     const result = check(["shop/main.py", "--update-baseline"]);
 
     expect(result.code).toBe(2);
@@ -460,7 +460,7 @@ describe("a structure file from before policy drift became a policy problem", ()
           kind: "policy_drift",
           severity: "warning",
           principle: "old-principle",
-          summary: "folder a holds 1 scanned modules that no component covers",
+          summary: "folder a holds 1 scanned files that no component covers",
           fix_pattern: "old-fix-pattern",
           evidence: { modules: ["a/x.py"] },
         },
@@ -646,7 +646,7 @@ describe("orphan test importers in the report", () => {
   it("prints no test file lines for an orphan nothing imports", () => {
     const out = runOn({ ...orphanScan(0), test_imports: [] });
 
-    expect(out).toContain("a/lonely.py is imported by no module");
+    expect(out).toContain("a/lonely.py is imported by no file");
     expect(out).not.toContain("test file");
   });
 });

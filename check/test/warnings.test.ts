@@ -85,7 +85,7 @@ function row(result: ReturnType<typeof analysed>, id: string) {
 }
 
 describe("metrics", () => {
-  it("counts distinct modules, not edges", () => {
+  it("counts distinct files, not edges", () => {
     const result = analysed([
       ["a", "b", "depends"],
       ["a", "b", "inherits"],
@@ -116,7 +116,7 @@ describe("metrics", () => {
     expect(result.metrics.map((metric) => metric.id)).toEqual(["a", "b"]);
   });
 
-  it("scores foreign-only modules null and project importers by project imports", () => {
+  it("scores foreign-only files null and project importers by project imports", () => {
     const result = analysed([
       ["a", "b"],
       ["a", "foreign:os"],
@@ -131,7 +131,7 @@ describe("metrics", () => {
     expect(row(result, "d")).toMatchObject({ efferent: 0, instability: null });
   });
 
-  it("reports null instability for a module with no edges", () => {
+  it("reports null instability for a file with no edges", () => {
     expect(row(analysed([], ["lonely"]), "lonely").instability).toBeNull();
   });
 
@@ -145,7 +145,7 @@ describe("metrics", () => {
     expect(row(result, "b").instability).toBe(0.3333);
   });
 
-  it("marks an interface module abstract", () => {
+  it("marks an interface file abstract", () => {
     const result = analysed([["a", "i"]], [["i", "interface"], "a"]);
 
     expect(row(result, "i")).toMatchObject({
@@ -155,13 +155,13 @@ describe("metrics", () => {
     expect(row(result, "a")).toMatchObject({ kind: "module", abstractness: 0 });
   });
 
-  it("gives an edge endpoint missing from modules a module row", () => {
+  it("gives an edge endpoint missing from files a file row", () => {
     const result = analysed([["a", "ghost"]], ["a"]);
 
     expect(row(result, "ghost")).toMatchObject({ kind: "module", fan_in: 1 });
   });
 
-  it("drops ignored modules and their edges from rows and warnings", () => {
+  it("drops ignored files and their edges from rows and warnings", () => {
     const scan = validateScan(
       scanOf(
         [
@@ -191,7 +191,7 @@ describe("cycle warning", () => {
         id: "cycle",
         principle: "levelization",
         fix_pattern: "break-cycle",
-        summary: "cycle of 2 modules: a, b",
+        summary: "cycle of 2 files: a, b",
         evidence: {
           modules: ["a", "b"],
           edges: [
@@ -214,7 +214,7 @@ describe("cycle warning", () => {
     expect(warnings[0]?.evidence).toMatchObject({ modules: ["a", "b", "c"] });
   });
 
-  it("reports two disjoint cycles in order of first module", () => {
+  it("reports two disjoint cycles in order of first file", () => {
     const { warnings } = analysed([
       ["x", "y"],
       ["y", "x"],
@@ -223,8 +223,8 @@ describe("cycle warning", () => {
     ]);
 
     expect(warnings.map((warning) => warning.summary)).toEqual([
-      "cycle of 2 modules: a, b",
-      "cycle of 2 modules: x, y",
+      "cycle of 2 files: a, b",
+      "cycle of 2 files: x, y",
     ]);
   });
 
@@ -264,7 +264,7 @@ describe("cycle warning - sealed hierarchies", () => {
     );
 
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]?.summary).toBe("cycle of 2 modules: Audit, Created");
+    expect(warnings[0]?.summary).toBe("cycle of 2 files: Audit, Created");
     expect(warnings[0]?.evidence).toEqual({
       modules: ["Audit", "Created"],
       edges: [
@@ -315,7 +315,7 @@ describe("cycle warning - sealed hierarchies", () => {
     );
 
     expect(warnings.map((warning) => warning.summary)).toEqual([
-      "cycle of 2 modules: Audit, Created",
+      "cycle of 2 files: Audit, Created",
     ]);
   });
 

@@ -50,11 +50,11 @@ describe("orphan", () => {
       ),
     );
 
-  it("reports a plain module nothing imports", () => {
+  it("reports a plain file nothing imports", () => {
     expect(orphans(["app/plain.py"])).toEqual(["orphan:app/plain.py"]);
   });
 
-  it("skips a module the scan flags as an entry point", () => {
+  it("skips a file the scan flags as an entry point", () => {
     const flagged = orphanFindings(
       scanOf([], ["app/run.py", "app/plain.py"], ["app/run.py"]),
       null,
@@ -91,7 +91,7 @@ describe("orphan", () => {
       ...principleOf("dead-code"),
       fix_pattern: "remove-or-wire-orphan",
       summary:
-        "app/plain.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
+        "app/plain.py is imported by no file and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
       evidence: { modules: ["app/plain.py"] },
     });
   });
@@ -145,19 +145,19 @@ describe("orphan", () => {
     ).toMatch(/entry_points$/);
   });
 
-  it("exempts a module matched by an entry_points glob", () => {
+  it("exempts a file matched by an entry_points glob", () => {
     expect(
       orphans(["scripts/run.mjs", "app/other.py"], ["scripts/**"]),
     ).toEqual(["orphan:app/other.py"]);
   });
 
-  it("reports a module imported only by itself", () => {
+  it("reports a file imported only by itself", () => {
     expect(orphans(["a.py"], [], null, [["a.py", "a.py"]])).toEqual([
       "orphan:a.py",
     ]);
   });
 
-  it("reports a module whose only importer is ignored", () => {
+  it("reports a file whose only importer is ignored", () => {
     expect(
       orphans(["vendor/v.py", "lib2/x.py"], [], "ignore: [vendor/**]\n", [
         ["vendor/v.py", "lib2/x.py"],
@@ -273,9 +273,9 @@ describe("orphan actual_of", () => {
       "; a library can list its public API in warnings.orphan.entry_points";
 
     expect(kt.map((finding) => finding.summary)).toEqual([
-      `a/M.kt is imported by no module and is not an entry point${hint}`,
-      `a/N.cs is imported by no module and is not an entry point${hint}`,
-      `a/p.py is imported by no module and is not an entry point${hint}`,
+      `a/M.kt is imported by no file and is not an entry point${hint}`,
+      `a/N.cs is imported by no file and is not an entry point${hint}`,
+      `a/p.py is imported by no file and is not an entry point${hint}`,
     ]);
   });
 });
@@ -1098,7 +1098,7 @@ describe("unused_exports test-only names", () => {
       { module: "a/m.py", name: "c", file: "a/m.py", lines: [12, 12] },
     ]);
     expect(finding.summary).toBe(
-      `a/m.py exports 3 names no other module imports: a, b, c; only tests import b (t/test_a.py, t/test_z.py), so if nothing outside the repository uses it, delete it with its tests${HINT}`,
+      `a/m.py exports 3 names no other file imports: a, b, c; only tests import b (t/test_a.py, t/test_z.py), so if nothing outside the repository uses it, delete it with its tests${HINT}`,
     );
   });
 
@@ -1117,11 +1117,11 @@ describe("unused_exports test-only names", () => {
 
     expect(withTests).toEqual(without);
     expect(withTests.summary).toBe(
-      "a/m.py exports 2 names no other module imports: a, b",
+      "a/m.py exports 2 names no other file imports: a, b",
     );
   });
 
-  it("leaves a name used by a non-test module unlisted even when a test imports it", () => {
+  it("leaves a name used by a non-test file unlisted even when a test imports it", () => {
     const found = unusedExportsFindings(
       unusedScan(
         [
@@ -1151,7 +1151,7 @@ describe("unused_exports test-only names", () => {
     );
 
     expect(finding.summary).toBe(
-      `a/m.py exports 2 names no other module imports: a, b; only tests import a, b (t/test_a.py), so if nothing outside the repository uses them, delete them with their tests${HINT}`,
+      `a/m.py exports 2 names no other file imports: a, b; only tests import a, b (t/test_a.py), so if nothing outside the repository uses them, delete them with their tests${HINT}`,
     );
   });
 
@@ -1169,11 +1169,11 @@ describe("unused_exports test-only names", () => {
     expect(finding.summary).toContain(`only tests import a (${shown}), so`);
   });
 
-  it("leaves a Kotlin module with no test imports unchanged", () => {
+  it("leaves a Kotlin file with no test imports unchanged", () => {
     const finding = unusedWithTests(["a"], [], "a/M.kt", "kotlin");
 
     expect(finding.summary).toBe(
-      "a/M.kt exports 1 name no other module imports: a",
+      "a/M.kt exports 1 name no other file imports: a",
     );
   });
 
@@ -1387,7 +1387,7 @@ describe("unused_exports", () => {
       ).not.toHaveProperty("k/Expect.kt");
     });
 
-    it("counts nothing from an ignored or absent actual module", () => {
+    it("counts nothing from an ignored or absent actual file", () => {
       expect(
         unusedOf(
           [expectFile, actualFile],
@@ -1403,7 +1403,7 @@ describe("unused_exports", () => {
       );
     });
 
-    it("clears the shared called members of an intermediate module and judges the rest as before", () => {
+    it("clears the shared called members of an intermediate file and judges the rest as before", () => {
       const middle = {
         id: "k/Expect.mid.kt",
         exports: ["go", "other"],
@@ -1424,7 +1424,7 @@ describe("unused_exports", () => {
     });
   });
 
-  it("skips a flagged module and still lists an unflagged one", () => {
+  it("skips a flagged file and still lists an unflagged one", () => {
     expect(
       unusedOf([
         { id: "shop/run.py", exports: ["go"], entry_point: true },
@@ -1433,7 +1433,7 @@ describe("unused_exports", () => {
     ).toEqual({ "shop/lib2.py": ["go"] });
   });
 
-  it("lists only the unused name of a partly used module", () => {
+  it("lists only the unused name of a partly used file", () => {
     const found = unusedExportsFindings(
       unusedScan(
         [
@@ -1454,7 +1454,7 @@ describe("unused_exports", () => {
       "unused_exports:shop/b.py",
     ]);
     expect(found[0]?.summary).toBe(
-      "shop/a.py exports 1 name no other module imports: c",
+      "shop/a.py exports 1 name no other file imports: c",
     );
   });
 
@@ -1479,7 +1479,7 @@ describe("unused_exports", () => {
     );
 
     expect(finding?.summary).toBe(
-      "shop/a.py exports 3 names no other module imports: a, b, c",
+      "shop/a.py exports 3 names no other file imports: a, b, c",
     );
     expect(finding?.evidence.members?.map((member) => member.name)).toEqual([
       "a",
@@ -1542,7 +1542,7 @@ describe("unused_exports", () => {
     ).toEqual({ "shop/a.py": ["a"] });
   });
 
-  it("reports only the names an __all__ lists, never the module's other public functions", () => {
+  it("reports only the names an __all__ lists, never the file's other public functions", () => {
     expect(
       unusedOf([
         {
@@ -1579,12 +1579,12 @@ describe("unused_exports", () => {
     "api/src/x.spec.ts",
     "app/FooTest.kt",
     "src/main/App.kt",
-  ])("never reports the skipped module %s", (id) => {
+  ])("never reports the skipped file %s", (id) => {
     expect(unusedOf([{ id, exports: ["a"] }], [], ["src/main/**"])).toEqual({});
   });
 
   it.each(["api/src/index.ts", "shop/src/lib.rs"])(
-    "reports the unmarked index-like module %s",
+    "reports the unmarked index-like file %s",
     (id) => {
       expect(unusedOf([{ id, exports: ["a"] }], [], [])).toEqual({
         [id]: ["a"],
@@ -1605,7 +1605,7 @@ describe("unused_exports", () => {
     ).toEqual({ "src/mainline/App.kt": ["b"] });
   });
 
-  it("gives a module the file and lines, and a package neither", () => {
+  it("gives a file the file and lines, and a package neither", () => {
     const [module] = unusedExportsFindings(
       unusedScan([{ id: "shop/a.py", exports: ["a"] }]),
       null,
@@ -1648,7 +1648,7 @@ describe("unused_exports", () => {
     ]);
   });
 
-  it("skips a module the policy lists in entry", () => {
+  it("skips a file the policy lists in entry", () => {
     expect(
       unusedOf(
         [{ id: "app/cli.py", exports: ["a"] }],
@@ -1659,7 +1659,7 @@ describe("unused_exports", () => {
     ).toEqual({});
   });
 
-  it("drops an ignored module and its edges", () => {
+  it("drops an ignored file and its edges", () => {
     expect(
       unusedOf(
         [
@@ -1673,7 +1673,7 @@ describe("unused_exports", () => {
     ).toEqual({ "lib/x.py": ["x"] });
   });
 
-  it("reports exactly the partly used and the wholly unused modules", () => {
+  it("reports exactly the partly used and the wholly unused files", () => {
     expect(
       unusedOf(
         [
@@ -2057,7 +2057,7 @@ describe("private_imports", () => {
     expect(
       result[0]?.evidence.members?.map((m) => `${m.module}:${m.name}`),
     ).toEqual(["lib/a.py:_x", "lib/b.py:_y", "lib/b.py:_z"]);
-    expect(result[0]?.summary).toContain("from 2 modules");
+    expect(result[0]?.summary).toContain("from 2 files");
   });
 
   it("leaves unknown data unreported", () => {
@@ -2509,7 +2509,7 @@ describe("long_function", () => {
     expect(ids(mixed)).toEqual(["long_function:lib/store.py::load@40"]);
   });
 
-  it("skips a module a policy ignore removes", () => {
+  it("skips a file a policy ignore removes", () => {
     const modules = [{ id: "lib/store.py", functions: [span("a", 1, 40)] }];
     const ignoring = "ignore: [lib/**]\n";
     const other = "ignore: [other/**]\n";
@@ -2521,7 +2521,7 @@ describe("long_function", () => {
   });
 
   it.each(["python", "typescript", "kotlin", "rust", "csharp"])(
-    "measures a %s module",
+    "measures a %s file",
     (language) => {
       const result = found([
         {

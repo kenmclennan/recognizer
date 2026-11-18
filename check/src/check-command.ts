@@ -715,7 +715,7 @@ function executeRepository(
 
   if (named.length > 0 && (flags.update || flags.init)) {
     throw new InputError([
-      "--update-baseline and --init-baseline check the whole repository and take no module",
+      "--update-baseline and --init-baseline check the whole repository and take no file",
     ]);
   }
 
@@ -724,7 +724,7 @@ function executeRepository(
   const unknown = named.filter((id) => !known.has(id));
 
   if (unknown.length > 0) {
-    throw new InputError(unknown.map((id) => `no such module: ${id}`));
+    throw new InputError(unknown.map((id) => `no such file: ${id}`));
   }
 
   const listed = new Set(named);

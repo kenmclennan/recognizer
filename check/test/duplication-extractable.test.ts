@@ -38,7 +38,7 @@ function functionsIn(
 const ids = (findings: { id: string }[]) => findings.map((f) => f.id);
 
 describe("what the duplication check compares", () => {
-  it("has the module rule constants the spec states", () => {
+  it("has the file rule constants the spec states", () => {
     expect(MODULE_MIN_FUNCTIONS).toBe(2);
     expect(MODULE_MATCH_SHARE).toBe(0.75);
   });
@@ -69,7 +69,7 @@ describe("what the duplication check compares", () => {
     expect(findings).toEqual([]);
   });
 
-  it("two near-copy classes give one module finding", async () => {
+  it("two near-copy classes give one file finding", async () => {
     const { findings } = await measure("copies");
 
     expect(ids(findings)).toEqual([
@@ -87,13 +87,13 @@ describe("what the duplication check compares", () => {
     );
   });
 
-  it("a module pair exactly at the share qualifies", async () => {
+  it("a file pair exactly at the share qualifies", async () => {
     const { findings } = await measure("bounds/three-of-four");
 
     expect(ids(findings)).toEqual(["duplication:modules:a.py|b.py"]);
   });
 
-  it("a module pair under the share does not", async () => {
+  it("a file pair under the share does not", async () => {
     const { findings } = await measure("bounds/two-of-three");
 
     expect(findings).toHaveLength(2);

@@ -137,7 +137,7 @@ export function orphanFindings(
       if (importers.length === 0) {
         return {
           ...base,
-          summary: `${id} is imported by no module and is not an entry point${libraryApiHint(id)}`,
+          summary: `${id} is imported by no file and is not an entry point${libraryApiHint(id)}`,
           fix_pattern: "remove-or-wire-orphan",
           evidence: { modules: [id] },
         };
@@ -329,7 +329,7 @@ export function unusedExportsFindings(
       kind: "unused_exports",
       severity: "warning",
       ...principleOf("information-hiding"),
-      summary: `${module.id} exports ${unused.length} ${noun} no other module imports: ${names}${marked.length > 0 ? unusedTestOnlyClause(marked) : ""}`,
+      summary: `${module.id} exports ${unused.length} ${noun} no other file imports: ${names}${marked.length > 0 ? unusedTestOnlyClause(marked) : ""}`,
       fix_pattern: "narrow-exports",
       evidence: {
         modules: [module.id],
@@ -452,7 +452,7 @@ export function privateImportsFindings(
       kind: "private_imports",
       severity: "warning",
       ...principleOf("information-hiding"),
-      summary: `${importer} imports ${count} private ${count === 1 ? "name" : "names"} from ${ownerIds.length} ${ownerIds.length === 1 ? "module" : "modules"} (${first}${more})`,
+      summary: `${importer} imports ${count} private ${count === 1 ? "name" : "names"} from ${ownerIds.length} ${ownerIds.length === 1 ? "file" : "files"} (${first}${more})`,
       evidence: {
         modules: [importer],
         members,

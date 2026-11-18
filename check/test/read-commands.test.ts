@@ -62,7 +62,7 @@ const warningsPolicy = {
 };
 
 describe("find", () => {
-  it("matches order by module path and by member name, in json", () => {
+  it("matches order by file path and by member name, in json", () => {
     const { code, out } = ask(python, ["find", "order", "--json"]);
     const document = JSON.parse(out);
 
@@ -91,15 +91,15 @@ describe("find", () => {
   it("prints both sections in text", () => {
     const { out } = ask(python, ["find", "order"]);
 
-    expect(out.split("\n")[0]).toBe("1 module, 2 members matched");
-    expect(out).toContain("modules\n  shop/domain/order.py\n");
+    expect(out.split("\n")[0]).toBe("1 file, 2 members matched");
+    expect(out).toContain("files\n  shop/domain/order.py\n");
     expect(out).toContain("  shop/domain/order.py::Order  class  line 9");
   });
 
-  it("prints only the modules section for a path-only match", () => {
+  it("prints only the files section for a path-only match", () => {
     const { out } = ask(python, ["find", "adapters"]);
 
-    expect(out).toContain("modules\n");
+    expect(out).toContain("files\n");
     expect(out).not.toContain("members\n");
   });
 
@@ -107,7 +107,7 @@ describe("find", () => {
     const { out } = ask(python, ["find", "new_order"]);
 
     expect(out).toContain("members\n");
-    expect(out).not.toContain("modules\n");
+    expect(out).not.toContain("files\n");
   });
 
   it("is case-insensitive", () => {
@@ -272,7 +272,7 @@ describe("show", () => {
     );
   });
 
-  it("refuses the removed --hub-threshold flag on show and modules", () => {
+  it("refuses the removed --hub-threshold flag on show and files", () => {
     for (const argv of [
       ["show", "app/domain/money.py", "--hub-threshold", "3"],
       ["modules", "--hub-threshold", "3"],
@@ -285,11 +285,11 @@ describe("show", () => {
     }
   });
 
-  it("exits 2 for an unknown module", () => {
+  it("exits 2 for an unknown file", () => {
     const { code, err } = ask(python, ["show", "nope.py"]);
 
     expect(code).toBe(2);
-    expect(err).toContain("no such module: nope.py");
+    expect(err).toContain("no such file: nope.py");
   });
 
   describe("responsibility", () => {
@@ -372,7 +372,7 @@ describe("modules", () => {
   const rows = (argv: string[], scan = python, extra = {}) =>
     JSON.parse(ask(scan, ["modules", ...argv, "--json"], extra).out);
 
-  it("lists every module with total and count", () => {
+  it("lists every file with total and count", () => {
     const document = rows([]);
 
     expect(document.total).toBe(15);
@@ -425,7 +425,7 @@ describe("modules", () => {
     expect(document.modules).toEqual([]);
   });
 
-  it("keeps only modules with findings for --findings", () => {
+  it("keeps only files with findings for --findings", () => {
     const document = rows(["--findings"], warnings, warningsPolicy);
     const ids = document.modules.map((m: { id: string }) => m.id);
 
@@ -485,11 +485,11 @@ describe("modules", () => {
     expect(document.modules[0].id).toBe("shop/domain/customer.py");
   });
 
-  it("prints a count line and one row per module in text", () => {
+  it("prints a count line and one row per file in text", () => {
     const { out } = ask(python, ["modules", "--limit", "2"]);
     const lines = out.trimEnd().split("\n");
 
-    expect(lines[0]).toBe("2 of 15 modules");
+    expect(lines[0]).toBe("2 of 15 files");
     expect(lines).toHaveLength(3);
     expect(lines[1]).toMatch(
       /^\S+ {2}\w+ {2}uses \d+ {2}used by \d+ {2}findings \d+$/,
