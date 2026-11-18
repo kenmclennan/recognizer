@@ -279,6 +279,73 @@ describe("setup apply", () => {
     expect(npm).toBeDefined();
   });
 
+  it("emits one command event pair per step and doctor events before the result", async () => {
+    const changes = build().filter((change) =>
+      ["analysis-long_function", "tool-cargo-llvm-cov"].includes(change.id),
+    );
+    const total = changes.reduce((sum, change) => sum + change.steps.length, 0);
+    const fake = fakeIo(root, null);
+    const events: ApplyEvent[] = [];
+
+    expect(changes.length).toBe(2);
+
+    await applyChanges(fake.io, root, changes, (event) => events.push(event));
+
+    expect(events[0]).toEqual({ event: "start", total: 2, commands: total });
+
+    const commands = events.filter((event) => event.event === "command");
+
+    expect(commands.length).toBe(total * 2);
+
+    for (const [index, change] of changes.entries()) {
+      for (const [at, { argv }] of change.steps.entries()) {
+        for (const state of ["running", "done"]) {
+          expect(commands).toContainEqual({
+            event: "command",
+            index,
+            step: at + 1,
+            steps: change.steps.length,
+            command: argv.join(" "),
+            state,
+          });
+        }
+      }
+    }
+
+    const names = events.map((event) =>
+      event.event === "doctor" ? `doctor ${event.state}` : event.event,
+    );
+
+    expect(names.slice(-3)).toEqual([
+      "doctor running",
+      "doctor done",
+      "result",
+    ]);
+  });
+
+  it("a failing step emits command running and no done for it, then change failed", async () => {
+    const changes = build().filter((change) =>
+      ["analysis-long_function", "tool-cargo-llvm-cov"].includes(change.id),
+    );
+    const failing = changes[1]?.steps[0]?.argv.join(" ") ?? "?";
+    const fake = fakeIo(root, (argv) =>
+      argv.join(" ").startsWith(failing)
+        ? { started: true, status: 1, stdout: "", stderr: "boom\n" }
+        : null,
+    );
+    const events: ApplyEvent[] = [];
+
+    await applyChanges(fake.io, root, changes, (event) => events.push(event));
+
+    const mine = events.filter(
+      (event) => event.event === "command" && event.index === 1,
+    );
+
+    expect(mine).toMatchObject([{ state: "running", step: 1 }]);
+    expect(states(events)).toEqual(["done", "failed", "undone"]);
+    expect(events.some((event) => event.event === "doctor")).toBe(false);
+  });
+
   it("a step stopped by SIGTERM undoes the earlier ones", async () => {
     process.env.PATH = shimmedPath(shimDirectory(true));
 

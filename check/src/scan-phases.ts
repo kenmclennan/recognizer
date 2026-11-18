@@ -437,6 +437,13 @@ export function pluginLine(
   return `${JSON.stringify({ event: "plugin", phase, name, data })}\n`;
 }
 
+export function structureLine(detail: {
+  state: "run" | "done" | "failed";
+  files?: number;
+}): string {
+  return `${JSON.stringify({ event: "structure", ...detail })}\n`;
+}
+
 export function entryLine(phase: PhaseName, entry: EventEntry): string {
   return `${JSON.stringify({ event: "entry", phase, ...entry })}\n`;
 }

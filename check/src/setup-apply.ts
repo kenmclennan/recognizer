@@ -6,7 +6,16 @@ import { buildRecord, entryFrom, type RunEntry, recordRun } from "./run-log.js";
 import type { PlannedChange } from "./setup-changes.js";
 
 export type ApplyEvent =
-  | { event: "start"; total: number }
+  | { event: "start"; total: number; commands: number }
+  | {
+      event: "command";
+      index: number;
+      step: number;
+      steps: number;
+      command: string;
+      state: "running" | "done";
+    }
+  | { event: "doctor"; state: "running" | "done" }
   | {
       event: "change";
       index: number;
@@ -154,12 +163,19 @@ export async function runChange(
   io: Io,
   change: PlannedChange,
   stopped: () => boolean,
+  onStep: (
+    step: number,
+    steps: number,
+    argv: string[],
+    state: "running" | "done",
+  ) => void = () => {},
 ): Promise<Ran> {
   let output = "";
   let command: string[] = [];
   let status: number | null = 0;
+  const steps = change.steps.length;
 
-  for (const { argv, cwd } of change.steps) {
+  for (const [at, { argv, cwd }] of change.steps.entries()) {
     if (stopped()) {
       return { ok: false, output: `${output}stopped\n`, command, status: 143 };
     }
@@ -167,6 +183,9 @@ export async function runChange(
     command = argv;
 
     const [program, ...args] = argv;
+
+    onStep(at + 1, steps, argv, "running");
+
     const result = await io.runAsync(program as string, args, { cwd }).result;
 
     output += `${result.stdout}${result.stderr}`;
@@ -189,6 +208,8 @@ export async function runChange(
         status,
       };
     }
+
+    onStep(at + 1, steps, argv, "done");
   }
 
   return { ok: true, output, command, status };
@@ -233,13 +254,30 @@ export async function applyChanges(
   const completed: { change: PlannedChange; index: number }[] = [];
 
   try {
-    emit({ event: "start", total: changes.length });
+    emit({
+      event: "start",
+      total: changes.length,
+      commands: changes.reduce((sum, change) => sum + change.steps.length, 0),
+    });
 
     for (const [index, change] of changes.entries()) {
       emit({ event: "change", index, state: "running", output: "" });
 
       const began = io.now();
-      const ran = await runChange(io, change, () => stopRequested);
+      const ran = await runChange(
+        io,
+        change,
+        () => stopRequested,
+        (step, steps, stepArgv, state) =>
+          emit({
+            event: "command",
+            index,
+            step,
+            steps,
+            command: stepArgv.join(" "),
+            state,
+          }),
+      );
 
       if (ran.ok) {
         completed.push({ change, index });
@@ -282,11 +320,15 @@ export async function applyChanges(
 
     let doctor: DoctorReport | null = null;
 
+    emit({ event: "doctor", state: "running" });
+
     try {
       doctor = doctorReport(io, root, false);
     } catch {
       doctor = null;
     }
+
+    emit({ event: "doctor", state: "done" });
 
     recordRun(
       io,

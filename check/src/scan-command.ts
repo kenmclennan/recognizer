@@ -74,6 +74,7 @@ import {
   pluginLine,
   selectSensors,
   startLine,
+  structureLine,
   summaryLine,
 } from "./scan-phases.js";
 import {
@@ -984,7 +985,17 @@ function* scanFlow(
         scans,
         options.ignoreRetiredConfig,
         options.analysis,
+        () => emit(structureLine({ state: "run" })),
       );
+
+      if (structure.ran) {
+        emit(
+          structureLine({
+            state: structure.failed ? "failed" : "done",
+            files: scans.reduce((sum, scan) => sum + scan.files.length, 0),
+          }),
+        );
+      }
 
       if (structure.failed) {
         failed = true;
@@ -1311,6 +1322,7 @@ function* runStructure(
   scans: Scan[],
   skipRetired: boolean,
   analysis: boolean,
+  onRun: () => void,
 ): Generator<ScanStep, StructureResult, ScanAnswer> {
   if (scans.length === 0 || !analysis) {
     return { failed: false, ran: false, ms: null };
@@ -1337,6 +1349,8 @@ function* runStructure(
 
       return { failed: false, ran: false, ms: null };
     }
+
+    onRun();
 
     began = io.awake();
 

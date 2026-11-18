@@ -217,7 +217,11 @@ async function run(
   onEvent: (event: ApplyEvent & TryEvent) => void,
   finish?: (undo: () => void) => void,
 ): Promise<boolean> {
-  onEvent({ event: "start", total: changes.length });
+  onEvent({
+    event: "start",
+    total: changes.length,
+    commands: changes.reduce((sum, change) => sum + change.steps.length, 0),
+  });
 
   const done: number[] = [];
   const undo = () => {

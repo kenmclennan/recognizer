@@ -486,6 +486,8 @@ describe("scan preflight: the project stage", () => {
       "preflight",
       "phase",
       "preflight",
+      "structure",
+      "structure",
       "phase",
       "start",
       "entry",
