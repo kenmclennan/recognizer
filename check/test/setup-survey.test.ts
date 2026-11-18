@@ -9,6 +9,7 @@ import {
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import validate from "../src/generated/setup-survey-validator.js";
 import { runSetup } from "../src/setup-command.js";
 import type { Survey } from "../src/setup-survey.js";
@@ -81,6 +82,9 @@ describe("recognizer setup survey", () => {
       "@vitest/coverage-v8@3.2.4",
     );
     expect(coverage[0]?.needed_by).toEqual(["engine", "app"]);
+    expect(coverage[0]?.installs).toBe(
+      "engine/package.json, app/package.json, package-lock.json",
+    );
     expect(survey.tools.map((tool) => tool.name)).toContain("cargo-llvm-cov");
     expect(survey.checks.map((check) => check.id)).toEqual([
       "structure",
@@ -170,6 +174,56 @@ describe("recognizer setup survey", () => {
     expect(
       after.survey.checks.find((check) => check.id === "claude")?.enabled,
     ).toBe(true);
+  });
+
+  it("names the root package.json and the lockfile for a vitest suite at the root", async () => {
+    const directory = makeTempDir("recognizer-setup-root-");
+
+    writeFileSync(
+      join(directory, "package.json"),
+      JSON.stringify({
+        name: "solo",
+        scripts: { test: "vitest run" },
+        devDependencies: { vitest: "^3.2.4" },
+      }),
+    );
+    writeFileSync(join(directory, "package-lock.json"), "{}");
+
+    const { survey } = await surveyOf([directory]);
+    const coverage = survey.tools.find(
+      (tool) => tool.name === "@vitest/coverage-v8",
+    );
+
+    expect(coverage?.installs).toBe("package.json, package-lock.json");
+  });
+
+  it("prefixes each path with a package root in a subfolder", async () => {
+    const directory = makeTempDir("recognizer-setup-sub-");
+    const sub = join(directory, "web");
+
+    mkdirSync(join(sub, "engine"), { recursive: true });
+    writeFileSync(
+      join(sub, "package.json"),
+      JSON.stringify({ name: "web", private: true, workspaces: ["engine"] }),
+    );
+    writeFileSync(
+      join(sub, "engine/package.json"),
+      JSON.stringify({
+        name: "engine",
+        scripts: { test: "vitest run" },
+        devDependencies: { vitest: "^3.2.4" },
+      }),
+    );
+    writeFileSync(join(sub, "package-lock.json"), "{}");
+
+    const { survey } = await surveyOf([directory]);
+    const coverage = survey.tools.find(
+      (tool) => tool.name === "@vitest/coverage-v8",
+    );
+
+    expect(coverage?.installs).toBe(
+      "web/engine/package.json, web/package-lock.json",
+    );
   });
 
   it("lists no describer check when none is installed", async () => {
