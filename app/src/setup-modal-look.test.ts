@@ -231,7 +231,20 @@ function snap(modal, name) {
   rerun.controller.next();
   await settle();
   snap(rerun, "rerun-review");
-  rerun.element.querySelector(".sw-row .sw-link").click();
+  const openRow = rerun.element.querySelector(".sw-row .sw-link").closest(".sw-row");
+  const titleBefore = openRow.querySelector(".sw-what").getBoundingClientRect().width;
+  openRow.querySelector(".sw-link").click();
+  const titleBox = openRow.querySelector(".sw-what").getBoundingClientRect();
+  const toggleBox = openRow.querySelector(".sw-link").getBoundingClientRect();
+  const detailBox = openRow.querySelector("pre").getBoundingClientRect();
+  const rowBox = openRow.getBoundingClientRect();
+  facts.disclosure = {
+    titleWidthKept: Math.abs(titleBox.width - titleBefore) < 1,
+    toggleClear: toggleBox.right <= titleBox.left || toggleBox.left >= titleBox.right || toggleBox.bottom <= titleBox.top || toggleBox.top >= titleBox.bottom,
+    detailBelowTitle: detailBox.top >= titleBox.bottom,
+    detailWiderThanTitle: detailBox.width > titleBox.width,
+    detailSpansRow: detailBox.right <= rowBox.right && detailBox.width > rowBox.width * 0.8,
+  };
   snap(rerun, "rerun-review-open");
   rerun.controller.setFix(0, false);
   await settle();
@@ -287,6 +300,7 @@ type Screen = {
 };
 
 type Facts = {
+  disclosure: Record<string, boolean>;
   rowClicks: {
     checkToggled: boolean;
     checkToggledBack: boolean;
@@ -526,6 +540,16 @@ describe.skipIf(webkit === undefined)(
       expect((f.screens["policy-choice"] as Screen).text).toContain(
         "Skip for now",
       );
+    });
+
+    it("an opened disclosure sits under the title at full width without moving the title or the toggle over it", () => {
+      expect(f.disclosure).toEqual({
+        titleWidthKept: true,
+        toggleClear: true,
+        detailBelowTitle: true,
+        detailWiderThanTitle: true,
+        detailSpansRow: true,
+      });
     });
 
     it("review lists doctor's fixes under their own heading by title", () => {

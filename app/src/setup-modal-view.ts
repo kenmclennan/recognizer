@@ -252,9 +252,11 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       first.append(lead);
     }
 
+    const bodies = meta.filter((node) => node.tagName === "PRE");
+
     middle.append(...main);
-    last.append(...meta);
-    one.append(first, middle, last);
+    last.append(...meta.filter((node) => node.tagName !== "PRE"));
+    one.append(first, middle, last, ...bodies);
 
     if (control !== null) {
       one.classList.add("pick");
