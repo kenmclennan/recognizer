@@ -674,3 +674,219 @@ describe("doctor: PATH isolation", () => {
     expect(result.started).toBe(false);
   });
 });
+
+describe("doctor: titles name their subject", () => {
+  const sensorLine = (name: string) =>
+    `sensors:\n  ${name}:\n    command: [recognizer-sense-${name}, run, --repository, '{repository}']\n`;
+  const SENSOR = sensorLine("mine");
+
+  const titleOf = async (fixture: Setup, area: string) =>
+    problemsOf((await doctor(fixture)).report, area).map((one) => one.title);
+
+  it("reports two sensor-gaps with titles naming each sensor", async () => {
+    const fixture = setup(
+      `${sensorLine("crap")}${sensorLine("mutation").slice("sensors:\n".length)}`,
+    );
+
+    for (const [name, display] of [
+      ["crap", "C.R.A.P."],
+      ["mutation", "Mutation"],
+    ]) {
+      writeShim(
+        fixture.bin,
+        `recognizer-sense-${name}`,
+        manifestFor("sensor", name as string, { check: true, display }),
+        {
+          check: JSON.stringify({
+            gaps: [{ code: "x", suite: null, line: `${name} has a gap` }],
+          }),
+        },
+      );
+    }
+
+    const problems = problemsOf((await doctor(fixture)).report, "sensors");
+    const titles = problems.map((one) => one.title);
+
+    expect(problems.map((one) => one.code)).toEqual([
+      "sensor-gap",
+      "sensor-gap",
+    ]);
+    expect(titles).toEqual([
+      "C.R.A.P. cannot run as set up",
+      "Mutation cannot run as set up",
+    ]);
+    expect(new Set(titles).size).toBe(2);
+    expect(Object.keys(problems[0] ?? {}).sort()).toEqual(
+      ["code", "fix", "line", "severity", "subject", "title"].sort(),
+    );
+  });
+
+  it("title names the subject: sensor-gap", async () => {
+    const fixture = setup(SENSOR);
+
+    writeShim(
+      fixture.bin,
+      "recognizer-sense-mine",
+      manifestFor("sensor", "mine", { check: true, display: "Mine" }),
+      {
+        check: JSON.stringify({
+          gaps: [{ code: "x", suite: null, line: "g" }],
+        }),
+      },
+    );
+
+    expect(await titleOf(fixture, "sensors")).toEqual([
+      "Mine cannot run as set up",
+    ]);
+  });
+
+  it("title names the subject: describer-gap", async () => {
+    const fixture = setup(
+      "describer:\n  command: [recognizer-describe-d, run, --model, '{model}', '{request}']\n  version: v1\n",
+    );
+
+    writeShim(
+      fixture.bin,
+      "recognizer-describe-d",
+      manifestFor("describer", "d", { check: true, display: "Claude" }),
+      { checkStatus: 3 },
+    );
+
+    expect(await titleOf(fixture, "describers")).toEqual([
+      "The Claude describer is not ready",
+    ]);
+  });
+
+  it("title names the subject: plugin-missing", async () => {
+    expect(await titleOf(setup(SENSOR), "sensors")).toEqual([
+      "The mine plugin is not installed",
+    ]);
+  });
+
+  it("title names the subject: plugin-manifest", async () => {
+    const fixture = setup(SENSOR);
+
+    writeShim(fixture.bin, "recognizer-sense-mine", "garbage");
+
+    expect(await titleOf(fixture, "sensors")).toEqual([
+      "The mine plugin cannot be read",
+    ]);
+  });
+
+  it("title names the subject: plugin-settings", async () => {
+    const fixture = setup("sensors:\n  crap:\n    threshold: 20\n");
+
+    writeShim(
+      fixture.bin,
+      "recognizer-sense-crap",
+      manifestFor("sensor", "crap", { check: false, settings: [] }),
+    );
+
+    expect(await titleOf(fixture, "sensors")).toEqual([
+      "A crap setting is wrong",
+    ]);
+  });
+
+  it("title names the subject: plugin-protocol for a sensor and a scanner", async () => {
+    const sensor = setup(SENSOR);
+
+    writeShim(
+      sensor.bin,
+      "recognizer-sense-mine",
+      manifestFor("sensor", "mine", { protocol: 5, display: "Mine" }),
+    );
+
+    expect(await titleOf(sensor, "sensors")).toEqual([
+      "The Mine plugin speaks another protocol version",
+    ]);
+
+    const scanner = setup(undefined, { "a.py": "" });
+
+    writeShim(
+      scanner.bin,
+      "recognizer-scan-python",
+      manifestFor("scanner", "python", {
+        ...RULES("python", ".py"),
+        protocol: 7,
+      }),
+    );
+
+    expect(await titleOf(scanner, "scanners")).toEqual([
+      "The python plugin speaks another protocol version",
+    ]);
+  });
+
+  it("title names the subject: scanner-missing", async () => {
+    expect(await titleOf(setup(undefined, { "a.py": "" }), "scanners")).toEqual(
+      ["No scanner is installed"],
+    );
+
+    const named = setup("scanners:\n  kotlin: kotlin-x\n");
+
+    expect(await titleOf(named, "scanners")).toEqual([
+      "No scanner is installed",
+      "No scanner for Kotlin",
+    ]);
+
+    const csharp = setup("scanners:\n  csharp: csharp-x\n");
+    const zig = setup("scanners:\n  zig: zig-x\n");
+
+    expect(await titleOf(csharp, "scanners")).toContain("No scanner for C#");
+    expect(await titleOf(zig, "scanners")).toContain("No scanner for zig");
+  });
+
+  it("title names the subject: plugin-scan-schema", async () => {
+    const fixture = setup(undefined, { "a.py": "" });
+
+    writeShim(
+      fixture.bin,
+      "recognizer-scan-python",
+      manifestFor("scanner", "python", {
+        ...RULES("python", ".py"),
+        scan_schema_version: 8,
+      }),
+    );
+
+    expect(await titleOf(fixture, "scanners")).toEqual([
+      "The Python scanner's output is invalid",
+    ]);
+  });
+
+  it("title names the subject: scanner-ambiguous", async () => {
+    const fixture = setup(undefined, { "a.py": "" });
+
+    writeShim(
+      fixture.bin,
+      "recognizer-scan-python",
+      manifestFor("scanner", "python", RULES("python", ".py")),
+    );
+    writeShim(
+      fixture.bin,
+      "recognizer-scan-python-alt",
+      manifestFor("scanner", "python-alt", RULES("python", ".py")),
+    );
+
+    expect(await titleOf(fixture, "scanners")).toEqual([
+      "Two scanners claim Python",
+    ]);
+  });
+
+  it("title names the subject: scanner-choice", async () => {
+    const fixture = setup("scanners:\n  python: kotlin\n", { "a.py": "" });
+
+    writeShim(
+      fixture.bin,
+      "recognizer-scan-python",
+      manifestFor("scanner", "python", RULES("python", ".py")),
+    );
+    writeShim(
+      fixture.bin,
+      "recognizer-scan-kotlin",
+      manifestFor("scanner", "kotlin", RULES("kotlin", ".kt")),
+    );
+
+    expect(await titleOf(fixture, "scanners")).toEqual([
+      "The scanner chosen for Python is not usable",
+    ]);
+  });
+});

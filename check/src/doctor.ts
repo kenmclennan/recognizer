@@ -75,7 +75,7 @@ export interface SetupProblem {
   severity: "problem" | "warning";
 }
 
-export type RawProblem = Omit<SetupProblem, "title">;
+export type RawProblem = Omit<SetupProblem, "title"> & { display?: string };
 
 export interface Area {
   name: AreaName;
@@ -527,10 +527,10 @@ function pluginArea(
 }
 
 function withSeverity(problems: Found[]): SetupProblem[] {
-  return problems.map((one) => ({
+  return problems.map(({ display, ...one }) => ({
     severity: "problem" as const,
     ...one,
-    title: PROBLEM_TITLES[one.code],
+    title: PROBLEM_TITLES[one.code](display ?? one.subject),
   }));
 }
 
