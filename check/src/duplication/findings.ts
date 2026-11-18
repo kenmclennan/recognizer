@@ -36,6 +36,7 @@ export interface Unit {
   endLine: number;
   startIndex: number;
   endIndex: number;
+  floorLines: number;
   fingerprints: ReadonlySet<string>;
   identity: string;
 }
@@ -238,7 +239,7 @@ function moduleFindings(
   settings: DuplicationSettings,
 ): { findings: FindingRecord[]; absorbed: Set<Edge> } {
   const floor = Math.max(settings.min_lines, settings.pair_min_lines);
-  const lines = (unit: Unit) => unit.endLine - unit.startLine + 1;
+  const lines = (unit: Unit) => unit.floorLines;
   const eligible = new Map<string, number>();
 
   for (const unit of units) {
@@ -365,7 +366,7 @@ export function findingsForUnits(
 
     if (
       members.length === 2 &&
-      Math.min(...members.map((u) => u.endLine - u.startLine + 1)) < pairFloor
+      Math.min(...members.map((u) => u.floorLines)) < pairFloor
     ) {
       continue;
     }

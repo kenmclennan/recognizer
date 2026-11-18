@@ -124,11 +124,36 @@ describe("reusing results for unchanged files", () => {
       setup.fake.files.get(unitCachePath(ROOT)) as string,
     ) as { port: string };
 
-    expect(written.port).toBe("2");
+    expect(written.port).toBe("3");
 
     setup.fake.files.set(
       unitCachePath(ROOT),
-      JSON.stringify({ ...written, port: "1" }),
+      JSON.stringify({ ...written, port: "2" }),
+    );
+
+    expect(readUnitCache(setup.fake.io, ROOT)).toEqual({});
+
+    await measure(setup);
+
+    expect(lastSummary(setup.fake.err())).toBe(
+      "duplication: 2 files parsed, 0 reused",
+    );
+  });
+
+  it("a unit cache written at port 2 is ignored", async () => {
+    const setup = measuredFixture("fixtures/duplication/sample");
+
+    await measure(setup);
+
+    const written = JSON.parse(
+      setup.fake.files.get(unitCachePath(ROOT)) as string,
+    ) as { port: string };
+
+    expect(written.port).toBe("3");
+
+    setup.fake.files.set(
+      unitCachePath(ROOT),
+      JSON.stringify({ ...written, port: "2" }),
     );
 
     expect(readUnitCache(setup.fake.io, ROOT)).toEqual({});

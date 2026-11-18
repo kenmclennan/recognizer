@@ -2,7 +2,7 @@ import { join } from "node:path";
 import type { Io } from "../cli.js";
 import type { DuplicationSettings } from "./findings.js";
 
-export const PORT_VERSION = "2";
+export const PORT_VERSION = "3";
 
 export interface CachedUnit {
   qualified: string;
@@ -10,6 +10,7 @@ export interface CachedUnit {
   endLine: number;
   startIndex: number;
   endIndex: number;
+  floorLines: number;
   fingerprints: string[];
 }
 
@@ -42,6 +43,7 @@ function isUnit(value: unknown): value is CachedUnit {
     isNumber(unit.endLine) &&
     isNumber(unit.startIndex) &&
     isNumber(unit.endIndex) &&
+    isNumber(unit.floorLines) &&
     Array.isArray(unit.fingerprints) &&
     unit.fingerprints.every((item) => typeof item === "string")
   );

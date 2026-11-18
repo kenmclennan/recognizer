@@ -21,7 +21,7 @@ import {
   unusedExportsFindings,
 } from "./structure-warnings.js";
 
-export const STRUCTURE_SENSOR_VERSION = "22";
+export const STRUCTURE_SENSOR_VERSION = "23";
 
 export interface StructureSettings {
   duplication: false | DuplicationSettings;

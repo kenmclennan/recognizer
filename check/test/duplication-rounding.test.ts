@@ -10,6 +10,7 @@ function unit(identity: string, module = "m"): Unit {
     qualified: identity,
     startLine: 1,
     endLine: 8,
+    floorLines: 8,
     startIndex: 0,
     endIndex: 10,
     fingerprints: new Set(),
