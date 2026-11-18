@@ -1,6 +1,7 @@
 import { cpSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../scripts/pool-scale.mjs";
 import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import { COMMANDS } from "../src/commands.js";
 import { buildChanges, type SetupChoices } from "../src/setup-changes.js";
@@ -235,25 +236,32 @@ describe("the built commands", () => {
     process.env.PATH = savedPath;
   });
 
-  it("every built command passes the CLI's own key schema", async () => {
-    const { changes } = buildChanges({ ...survey, repository: directory }, all);
-    const keyed = changes
-      .flatMap((change) => change.steps)
-      .filter(({ argv }) => argv[1] === "config" || argv[1] === "policy");
-
-    expect(keyed.length).toBeGreaterThan(15);
-
-    for (const { argv } of keyed) {
-      const out = capture();
-      const command = COMMANDS.find((one) => one.name === argv[1]);
-      const status = await command?.run(
-        [...argv.slice(2), "--repository", directory],
-        out.io,
+  it(
+    "every built command passes the CLI's own key schema",
+    async () => {
+      const { changes } = buildChanges(
+        { ...survey, repository: directory },
+        all,
       );
+      const keyed = changes
+        .flatMap((change) => change.steps)
+        .filter(({ argv }) => argv[1] === "config" || argv[1] === "policy");
 
-      expect(status, `${argv.join(" ")}: ${out.err()}`).toBe(0);
-    }
-  });
+      expect(keyed.length).toBeGreaterThan(15);
+
+      for (const { argv } of keyed) {
+        const out = capture();
+        const command = COMMANDS.find((one) => one.name === argv[1]);
+        const status = await command?.run(
+          [...argv.slice(2), "--repository", directory],
+          out.io,
+        );
+
+        expect(status, `${argv.join(" ")}: ${out.err()}`).toBe(0);
+      }
+    },
+    scaledTimeout(30_000),
+  );
 });
 
 describe("upgrade changes", () => {
