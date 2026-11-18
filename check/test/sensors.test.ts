@@ -939,7 +939,7 @@ describe("show and modules read the findings files", () => {
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
-    expect(written.sensor.version).toBe("22");
+    expect(written.sensor.version).toBe("23");
     expect(written.settings.entry_points).toEqual([]);
   });
 
@@ -965,7 +965,7 @@ describe("show and modules read the findings files", () => {
 
     const written = JSON.parse(fake.files.get(STRUCTURE) as string);
 
-    expect(written.sensor.version).toBe("22");
+    expect(written.sensor.version).toBe("23");
     expect(written.settings.distance_threshold).toBeUndefined();
   });
 

@@ -485,7 +485,7 @@ describe("structure settings", () => {
     expect(JSON.stringify(document.settings)).toBe(
       '{"entry_points":[],"entry_annotations":[],"warnings":{"cycle":true,"orphan":true,"unused_exports":false,"private_imports":true,"long_function":true,"complexity":true},"long_function_limit":20}',
     );
-    expect(document.sensor.version).toBe("22");
+    expect(document.sensor.version).toBe("23");
   });
 
   it("describes the settings with and without entry points", () => {

@@ -14,7 +14,8 @@ import { type Grammar, grammarFor } from "./grammars.js";
 import { assignIdentities } from "./identity.js";
 import { countNodes, normalise } from "./normalise.js";
 import type { Parsers } from "./parsers.js";
-import { bodyOf, isTrivialShape } from "./shapes.js";
+import { isTrivialShape } from "./shapes.js";
+import { comparedSpan } from "./span.js";
 import {
   type CachedUnit,
   readUnitCache,
@@ -45,13 +46,14 @@ export function unitsInSource(
 
     for (const found of findFunctions(tree.rootNode, grammar)) {
       const node = found.node;
-      const body = bodyOf(node);
+      const span = comparedSpan(node, grammar);
 
-      if (body === null) {
+      if (span === null) {
         continue;
       }
 
-      const lines = node.endPosition.row - node.startPosition.row + 1;
+      const body = span.node;
+      const lines = span.lines;
 
       if (node.hasError || lines < settings.min_lines) {
         continue;
@@ -75,6 +77,7 @@ export function unitsInSource(
         endLine: node.endPosition.row + 1,
         startIndex: node.startIndex,
         endIndex: node.endIndex,
+        floorLines: lines,
         fingerprints: fingerprints(normalised),
         identity: "",
       });
@@ -124,6 +127,7 @@ function cachedOf(unit: Unit): CachedUnit {
     endLine: unit.endLine,
     startIndex: unit.startIndex,
     endIndex: unit.endIndex,
+    floorLines: unit.floorLines,
     fingerprints: [...unit.fingerprints],
   };
 }
@@ -137,6 +141,7 @@ function unitOf(module: string, cached: CachedUnit): Unit {
     endLine: cached.endLine,
     startIndex: cached.startIndex,
     endIndex: cached.endIndex,
+    floorLines: cached.floorLines,
     fingerprints: new Set(cached.fingerprints),
     identity: "",
   };
