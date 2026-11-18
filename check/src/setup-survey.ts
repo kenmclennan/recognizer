@@ -747,6 +747,7 @@ function checksOf(io: Io, document: Record<string, unknown>): SurveyCheck[] {
   const structure = valueAt(document, ["sensors", "structure"]);
   const registered = valueAt(document, ["sensors"]);
   const shipped = readShippedSensors(io).sensors;
+  const describers = discoverPlugins(io, ["describer"]).plugins;
 
   return [
     {
@@ -779,6 +780,15 @@ function checksOf(io: Io, document: Record<string, unknown>): SurveyCheck[] {
         registered !== null &&
         sensor.name in registered,
       runs_tests: sensor.runs_tests,
+      limits: [],
+    })),
+    ...describers.map((describer) => ({
+      id: describer.name,
+      display: describer.manifest.display,
+      description: describer.manifest.description ?? "",
+      always_on: false,
+      enabled: "describer" in document,
+      runs_tests: false,
       limits: [],
     })),
   ];
