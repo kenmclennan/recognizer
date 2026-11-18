@@ -220,6 +220,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
   const body = el("div", "sw-body");
   const foot = el("div", "sw-foot");
   const note = el("div", "sw-note");
+  const cancelButton = button("Cancel", "sw-btn", () => close());
   const backButton = button("Back", "sw-btn", () => {});
   const nextButton = button("Next", "sw-btn sw-primary", () => {});
   const open = new Set<string>();
@@ -237,7 +238,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
   modal.setAttribute("aria-modal", "true");
   modal.setAttribute("aria-label", "Setup");
   head.append(title, where);
-  foot.append(note, backButton, nextButton);
+  foot.append(note, cancelButton, backButton, nextButton);
   modal.append(head, steps, body, foot);
   scrim.append(modal);
 
@@ -1450,6 +1451,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     const total = SETUP_STEPS.length;
     const run = state.apply;
 
+    cancelButton.hidden = key === "apply";
     backButton.hidden = state.at === 0 || key === "apply";
     backButton.textContent = "Back";
     nextButton.disabled = !canNext(state);
@@ -1523,6 +1525,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       steps.replaceChildren();
       loadingStep(state.progress);
       nextButton.disabled = true;
+      cancelButton.hidden = false;
       backButton.hidden = true;
       note.textContent = "";
 
@@ -1538,6 +1541,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       nextButton.textContent = "Close";
       nextButton.disabled = false;
       nextButton.onclick = () => close();
+      cancelButton.hidden = true;
       backButton.hidden = true;
       note.textContent = "";
 

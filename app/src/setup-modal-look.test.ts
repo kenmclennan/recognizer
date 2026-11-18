@@ -185,6 +185,29 @@ function snap(modal, name) {
   facts.lifecycle.stopCalls = live.calls.filter((c) => c === "stop_setup").length;
   facts.lifecycle.closedDuringApply = document.querySelector(".setup-modal") === null;
 
+  facts.cancel = {};
+  const cancelAt = async (name, steps, loading) => {
+    const calls = [];
+    let closes = 0;
+    const port = loading ? fakeSetup({ surveyLines: [new Promise(() => {})] }) : fakeSetup({});
+    const m = openSetupModal({ port, onClose: () => { closes += 1; } });
+    if (!loading) await m.ready;
+    await settle();
+    for (let i = 0; i < steps; i++) { m.controller.next(); await settle(); }
+    const foot = [...m.element.querySelectorAll(".sw-foot button")].filter((b) => !b.hidden).map((b) => b.textContent);
+    const button = [...m.element.querySelectorAll(".sw-foot button")].find((b) => b.textContent === "Cancel" && !b.hidden);
+    if (button) button.click();
+    await settle();
+    facts.cancel[name] = { foot, closed: document.querySelector(".setup-modal") === null, closeCalls: closes, applied: port.calls.includes("apply") };
+    if (document.querySelector(".setup-modal") !== null) m.close();
+  };
+  await cancelAt("loading", 0, true);
+  await cancelAt("files", 0, false);
+  await cancelAt("checks", 1, false);
+  await cancelAt("tests", 2, false);
+  await cancelAt("policy", 3, false);
+  await cancelAt("review", 4, false);
+
   const problemOf = (n) => ({ code: "config-retired", subject: "k" + n, title: "Settings moved to new places " + n, line: "config/sensors/thresholds was retired " + n, fix: { text: "Run the move " + n, command: "recognizer config --unset k" + n }, severity: "problem" });
   const reportOf = (count) => ({ repository: "/repo", ok: count === 0, problems: count, warnings: 0, areas: count === 0 ? [] : [{ name: "config", skipped: null, problems: Array.from({ length: count }, (_, i) => problemOf(i + 1)) }] });
   const base = fakeSetup({}).surveyRead.survey;
@@ -301,6 +324,7 @@ function snap(modal, name) {
     const icon = q(".sw-row svg");
     facts.progress[name] = {
       heading: (q(".sw-body h2") || { textContent: "" }).textContent,
+      foot: qa(".sw-foot button").filter((b) => !b.hidden).map((b) => b.textContent),
       text: q(".sw-body").textContent,
       titles: qa(".sw-row .sw-what").map((n) => n.textContent),
       spinners: qa(".sw-row svg.sw-icon-spinner").length,
@@ -408,6 +432,7 @@ type Screen = {
 
 type Shot = {
   heading: string;
+  foot: string[];
   text: string;
   titles: string[];
   spinners: number;
@@ -446,6 +471,10 @@ type Facts = {
     stopCalls: number;
     closedDuringApply: boolean;
   };
+  cancel: Record<
+    string,
+    { foot: string[]; closed: boolean; closeCalls: number; applied: boolean }
+  >;
 };
 
 function collect(): Facts {
@@ -633,6 +662,38 @@ describe.skipIf(webkit === undefined)(
     it("closing during Apply stops the run once", () => {
       expect(f.lifecycle.closedDuringApply).toBe(true);
       expect(f.lifecycle.stopCalls).toBe(1);
+    });
+
+    it("Cancel is in the footer on the loading screen and on Files, Checks, Tests, Policy and Review, and not on Apply or the unreadable screen", () => {
+      for (const name of [
+        "loading",
+        "files",
+        "checks",
+        "tests",
+        "policy",
+        "review",
+      ]) {
+        expect(f.cancel[name]?.foot, name).toContain("Cancel");
+      }
+
+      for (const name of ["apply-running", "apply-done", "apply-failed"]) {
+        expect((f.screens[name] as Screen).foot, name).not.toContain("Cancel");
+      }
+    });
+
+    it("clicking Cancel closes the wizard once and applies nothing", () => {
+      for (const name of [
+        "loading",
+        "files",
+        "checks",
+        "tests",
+        "policy",
+        "review",
+      ]) {
+        expect(f.cancel[name]?.closed, name).toBe(true);
+        expect(f.cancel[name]?.closeCalls, name).toBe(1);
+        expect(f.cancel[name]?.applied, name).toBe(false);
+      }
     });
 
     it("no screen carries a time estimate", () => {
