@@ -46,7 +46,7 @@ describe("the manifest verb", () => {
     expect(JSON.parse(manifest(makeTempDir("manifest-")).stdout)).toMatchObject(
       {
         description:
-          "Writes a one-line description of each module with Claude, only when you ask, using your Claude account.",
+          "Writes a one-line description of each file with Claude, only when you ask, using your Claude account.",
       },
     );
   });

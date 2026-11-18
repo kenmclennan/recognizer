@@ -18,7 +18,7 @@ export function manifest() {
     name: "claude",
     display: "Claude",
     description:
-      "Writes a one-line description of each module with Claude, only when you ask, using your Claude account.",
+      "Writes a one-line description of each file with Claude, only when you ask, using your Claude account.",
     version,
     protocol: PROTOCOL,
     install: INSTALL,

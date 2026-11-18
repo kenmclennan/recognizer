@@ -765,7 +765,7 @@ function checksOf(io: Io, document: Record<string, unknown>): SurveyCheck[] {
       id: "structure",
       display: "Structure",
       description:
-        "the modules, imports and policy rules of the repository, read from the scan",
+        "the files, imports and policy rules of the repository, read from the scan",
       always_on: true,
       enabled: true,
       runs_tests: false,
