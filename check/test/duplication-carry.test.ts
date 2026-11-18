@@ -214,3 +214,20 @@ describe("carryMeasured complexity", () => {
     ).toEqual(["duplication:a"]);
   });
 });
+
+describe("carryMeasured across sensor versions", () => {
+  it("does not carry across sensor versions", () => {
+    const fresh = document({ sensor: { name: "structure", version: "19" } });
+    const carried = carryMeasured(stored(), fresh, SETTINGS);
+
+    expect(carried).toBe(fresh);
+    expect(carried.findings).toEqual([]);
+    expect(carried.settings.duplication).toBeUndefined();
+  });
+
+  it("still carries when the versions are equal", () => {
+    const carried = carryMeasured(stored(), document(), SETTINGS);
+
+    expect(carried.findings.length).toBe(2);
+  });
+});

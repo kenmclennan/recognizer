@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { parseBaseline, serialiseBaseline } from "../src/baseline.js";
 import { run } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
+import { STRUCTURE_SENSOR_VERSION } from "../src/structure-sensor.js";
 import { REPO } from "./helpers.js";
 import {
   type FakeOptions,
@@ -67,7 +68,8 @@ describe("check in repository mode", () => {
     expect(report.sensors).toEqual([
       {
         name: "structure",
-        status: "ran",
+        status: "partial",
+        not_measured: ["duplication", "complexity"],
         settings: {
           duplication: {
             threshold: 0.82,
@@ -319,7 +321,7 @@ describe("check ranks duplication warnings by lines duplicated", () => {
   });
   const duplication = JSON.stringify({
     findings_version: 2,
-    sensor: { name: "structure", version: "18" },
+    sensor: { name: "structure", version: STRUCTURE_SENSOR_VERSION },
     commit: COMMIT,
     modified: false,
     settings: {

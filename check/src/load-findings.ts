@@ -18,6 +18,7 @@ import type { RecordedScan, Scan } from "./scan.js";
 import { shippedSensorNames } from "./shipped-sensors.js";
 import {
   resolveStructureSettings,
+  STRUCTURE_SENSOR_VERSION,
   type StructureSettings,
   structureSensor,
 } from "./structure-sensor.js";
@@ -99,6 +100,7 @@ function storedStructure(
     );
 
     return !document.modified &&
+      document.sensor.version === STRUCTURE_SENSOR_VERSION &&
       duplicationAgrees(document, settings) &&
       complexityAgrees(document, settings) &&
       JSON.stringify(withoutMeasured(document.settings)) ===
