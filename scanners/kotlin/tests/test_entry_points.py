@@ -6,7 +6,7 @@ from conftest import REPOSITORY, edges_of, module, targets
 from recognizer_scan_kotlin import scan
 from recognizer_scan_kotlin.parse import parse_file
 
-BUILD = {"build.gradle.kts": ""}
+BUILD = {"pom.xml": ""}
 GUARD = (
     "package a\n\nfun run(xs: List<Any>) {\n"
     "    xs.forEach { x\n\n        ->\n        shout(x)\n    }\n}\n"
@@ -89,9 +89,9 @@ def test_an_actual_without_an_expect_has_no_key(run):
 def test_an_expect_in_another_build_module_does_not_link(run):
     document = run(
         {
-            "one/build.gradle.kts": "",
+            "one/pom.xml": "",
             "one/Clock.kt": "package a\n\nexpect fun now(): Long\n",
-            "two/build.gradle.kts": "",
+            "two/pom.xml": "",
             "two/Clock.kt": "package a\n\nactual fun now(): Long = 1\n",
         }
     )

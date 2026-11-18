@@ -1,6 +1,6 @@
 from conftest import edges_of, targets
 
-BUILD = {"app/build.gradle.kts": "", "lib/build.gradle.kts": ""}
+BUILD = {"app/pom.xml": "", "lib/pom.xml": ""}
 
 
 def user(imports: str, body: str = "val x: X? = null", package: str = "q") -> str:
