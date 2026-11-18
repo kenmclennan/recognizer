@@ -132,6 +132,12 @@ describe("the description, expansion and title keys", () => {
     ).not.toBeNull();
   });
 
+  it("accepts description on a describer manifest", () => {
+    expect(
+      validateManifest({ ...example("describer"), description: "Describes." }),
+    ).toBeNull();
+  });
+
   it("rejects expansion on a describer manifest", () => {
     expect(
       validateManifest({ ...example("describer"), expansion: "Things." }),

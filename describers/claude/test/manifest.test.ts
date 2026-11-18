@@ -42,6 +42,15 @@ describe("the manifest verb", () => {
     expect(readdirSync(elsewhere)).toEqual([]);
   });
 
+  it("explains itself in one plain sentence", () => {
+    expect(JSON.parse(manifest(makeTempDir("manifest-")).stdout)).toMatchObject(
+      {
+        description:
+          "Writes a one-line description of each module with Claude, only when you ask, using your Claude account.",
+      },
+    );
+  });
+
   it("names the version of the prompt file", () => {
     const printed = promptVersion();
 

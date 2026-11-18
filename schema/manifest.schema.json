@@ -698,7 +698,6 @@
           "findings": false,
           "runs_tests": false,
           "scoped": false,
-          "description": false,
           "expansion": false,
           "settings_title": false,
           "scan_schema_version": false
