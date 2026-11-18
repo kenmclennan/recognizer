@@ -62,6 +62,7 @@ export interface SurveyRunner {
   command: string;
   coverage: { path: string; format: string };
   tool: string | null;
+  env?: Record<string, string>;
 }
 
 export interface SurveyTool {

@@ -147,6 +147,30 @@ describe("buildChanges", () => {
     );
   });
 
+  it("writes a detected env when the choice names none", () => {
+    const detected: Survey = {
+      ...survey,
+      runners: survey.runners.map((runner) =>
+        runner.name === "engine"
+          ? { ...runner, env: { NODE_CONFIG_DIR: "./config" } }
+          : runner,
+      ),
+    };
+    const stepsFor = (choices: SetupChoices) =>
+      buildChanges(detected, choices)
+        .changes.find((change) => change.id === "tests-engine")
+        ?.steps.map((step) => step.argv.slice(2, 4).join(" ")) ?? [];
+
+    expect(stepsFor(all)).toContain(
+      "tests.engine.env.NODE_CONFIG_DIR ./config",
+    );
+    expect(
+      stepsFor({ ...all, runners: [{ name: "engine", env: {} }] }).some(
+        (step) => step.includes(".env."),
+      ),
+    ).toBe(false);
+  });
+
   it("writes the baseline only when an accepted rule is broken today", () => {
     const clean = {
       ...all,
