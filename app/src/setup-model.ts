@@ -697,19 +697,3 @@ export function createSetupController(deps: SetupDeps): SetupController {
     },
   };
 }
-
-export function doctorLines(read: DoctorRead | null): string[] {
-  if (read === null) {
-    return ["Reading recognizer doctor..."];
-  }
-
-  if (read.status === "unavailable") {
-    return [`Doctor could not run: ${read.reason}`];
-  }
-
-  const lines = read.report.areas.flatMap((area) =>
-    area.problems.map((problem) => problem.line),
-  );
-
-  return lines.length === 0 ? ["Doctor reports no problems."] : lines;
-}
