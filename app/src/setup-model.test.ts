@@ -1,7 +1,9 @@
 import {
   type ApplyEvent,
   buildChanges,
+  type DoctorReport,
   policyCommands,
+  type SetupProblem,
   type Survey,
 } from "recognizer";
 import { describe, expect, it } from "vitest";
@@ -16,6 +18,7 @@ import {
   choicesOf,
   createSetupController,
   currentKey,
+  fixChoicesOf,
   isSkipped,
   lineCount,
   linesLabel,
@@ -560,10 +563,154 @@ describe("the setup wizard model", () => {
     expect(end?.checking.state).toBe("done");
   });
 
-  it("counts the lines of an output", () => {
-    expect(lineCount("")).toBe(0);
-    expect(lineCount("a\nb\n")).toBe(2);
-    expect(lineCount("a\nb")).toBe(2);
+  describe("fixing one problem from the done screen", () => {
+    const problem = (
+      code: SetupProblem["code"],
+      subject: string,
+      command: string | null,
+    ): SetupProblem => ({
+      code,
+      subject,
+      title: `Problem ${subject}`,
+      line: "line",
+      fix: { text: "fix it", command },
+      severity: "problem",
+    });
+    const report = (...list: SetupProblem[]): DoctorReport => ({
+      repository: "/repo",
+      ok: list.length === 0,
+      problems: list.length,
+      warnings: 0,
+      areas:
+        list.length === 0
+          ? []
+          : [{ name: "config", skipped: null, problems: list }],
+    });
+    const fixable = problem(
+      "config-retired",
+      "k1",
+      "recognizer config --unset k1",
+    );
+    const survey: Survey = {
+      ...LOOM_SURVEY,
+      fixes: [
+        {
+          code: "config-retired",
+          subject: "k1",
+          title: "Problem k1",
+          line: "line",
+          fix_text: "fix it",
+          command: "recognizer config --unset k1",
+        },
+      ],
+    };
+    const finished = async (applyDoctor: DoctorReport) => {
+      const fake = fakeSetup({
+        surveyRead: { status: "ok", survey, doctor: CLEAN_DOCTOR },
+        applyDoctor,
+      });
+      const made = await opened(fake);
+
+      advanceTo(made.controller, "review");
+      await made.controller.apply();
+
+      return made;
+    };
+
+    it("pressing a problem's fix runs only that fix and re-reads doctor", async () => {
+      const { controller, fake, seen } = await finished(report(fixable));
+      const before = {
+        applies: fake.calls.filter((call) => call === "apply").length,
+        applied: fake.applied.length,
+        sensors: seen.sensors,
+        scans: seen.scans,
+        doctors: seen.doctors,
+      };
+
+      fake.applyDoctor = report();
+      await controller.fixProblem("config-retired:k1");
+
+      expect(fake.applied.length).toBe(before.applied + 1);
+      expect(fake.applied.at(-1)).toEqual({
+        fixes: ["recognizer config --unset k1"],
+      });
+      expect(fake.calls.filter((call) => call === "apply").length).toBe(
+        before.applies + 1,
+      );
+      expect(fake.calls).not.toContain("try");
+      expect(wizard(controller).apply?.doctor).toEqual({
+        status: "ok",
+        report: report(),
+      });
+      expect(wizard(controller).apply?.fixed).toEqual(["config-retired:k1"]);
+      expect(seen.sensors).toBe(before.sensors + 1);
+      expect(seen.scans).toBe(before.scans + 1);
+      expect(seen.doctors).toBe(before.doctors + 1);
+    });
+
+    it("ignores a second press while the first fix is running", async () => {
+      const { controller, fake } = await finished(report(fixable));
+      let release = () => {};
+
+      fake.gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+
+      const first = controller.fixProblem("config-retired:k1");
+
+      await Promise.resolve();
+
+      const count = fake.applied.length;
+
+      await controller.fixProblem("config-retired:k1");
+      expect(fake.applied.length).toBe(count);
+      expect(wizard(controller).apply?.fixing).toEqual({
+        "config-retired:k1": "running",
+      });
+
+      fake.gate = null;
+      release();
+      await first;
+    });
+
+    it("marks a fix that leaves its problem in the report as failed", async () => {
+      const { controller } = await finished(report(fixable));
+
+      await controller.fixProblem("config-retired:k1");
+
+      expect(wizard(controller).apply?.fixing).toEqual({
+        "config-retired:k1": "failed",
+      });
+      expect(wizard(controller).apply?.fixed).toEqual([]);
+    });
+
+    it("does nothing for a problem with no runnable fix", async () => {
+      const hand = problem("config-duplicate-suite", "unit", null);
+      const { controller, fake } = await finished(report(hand));
+      const count = fake.applied.length;
+
+      await controller.fixProblem("config-duplicate-suite:unit");
+
+      expect(fake.applied.length).toBe(count);
+    });
+
+    it("picks the fix choice for a problem", () => {
+      expect(fixChoicesOf(survey, fixable)).toEqual({
+        fixes: ["recognizer config --unset k1"],
+      });
+      expect(
+        fixChoicesOf(survey, problem("config-duplicate-suite", "unit", null)),
+      ).toBeNull();
+      expect(
+        fixChoicesOf(survey, problem("config-retired", "k9", "recognizer x")),
+      ).toBeNull();
+    });
+
+    it("counts the lines of an output", () => {
+      expect(lineCount("")).toBe(0);
+      expect(lineCount("a\nb\n")).toBe(2);
+      expect(lineCount("a\nb")).toBe(2);
+    });
   });
 
   it("labels one line singular and any other count plural", () => {

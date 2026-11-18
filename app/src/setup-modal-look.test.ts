@@ -441,10 +441,35 @@ function snap(modal, name) {
       buttonsDisabled: buttons.map((b) => b.disabled),
     };
   };
+  const pressFix = async (m, at) => { [...m.element.querySelectorAll(".sw-problem button")][at].click(); await settle(); };
 
   const first = await finishWith(reportWith([problemOf(1), handProblem]));
   facts.done.two = doneOf(first.m);
   first.m.close();
+
+  let freeFix = () => {};
+  const held = await finishWith(reportWith([problemOf(1), problemOf(2)]));
+  held.port.gate = new Promise((resolve) => { freeFix = resolve; });
+  const before = held.port.applied.length;
+  await pressFix(held.m, 0);
+  facts.done.running = doneOf(held.m);
+  held.port.applyDoctor = reportWith([problemOf(2)]);
+  freeFix();
+  held.port.gate = null;
+  await settle();
+  await settle();
+  facts.done.fixed = doneOf(held.m);
+  facts.done.appliedByFix = held.port.applied.slice(before);
+  facts.done.fixedCalls = held.port.calls.filter((c) => c === "apply").length;
+  held.port.applyDoctor = reportWith([]);
+  await pressFix(held.m, 0);
+  facts.done.green = doneOf(held.m);
+  held.m.close();
+
+  const stuck = await finishWith(reportWith([problemOf(1)]));
+  await pressFix(stuck.m, 0);
+  facts.done.stuck = doneOf(stuck.m);
+  stuck.m.close();
 
   const sameText = await finishWith(reportWith([{ ...problemOf(1), fix: { text: "recognizer config --unset k1", command: "recognizer config --unset k1" } }]));
   facts.done.sameText = { ...doneOf(sameText.m), mentions: sameText.m.element.querySelector(".sw-problem").textContent.split("recognizer config --unset k1").length - 1 };
@@ -578,6 +603,8 @@ type DoneFact = {
 type Facts = {
   done: Record<string, DoneFact> & {
     sameText: DoneFact & { mentions: number };
+    appliedByFix: unknown[];
+    fixedCalls: number;
     panels: CardFact[];
     opened: string;
     failed: {
@@ -1066,7 +1093,7 @@ describe.skipIf(webkit === undefined)(
         );
       });
 
-      it("the done screen shows the still-to-fix callout ", () => {
+      it("the done screen shows the still-to-fix callout with a button only on a fixable problem", () => {
         const two = done("two");
 
         expect(two.heading).toBe("Setup is done");
@@ -1077,7 +1104,7 @@ describe.skipIf(webkit === undefined)(
           "Settings moved to new places 1",
           "Two test suites share a name",
         ]);
-        expect(two.blocks.map((b) => b.button)).toEqual([null, null]);
+        expect(two.blocks.map((b) => b.button)).toEqual(["Fix it", null]);
         expect(two.blocks.map((b) => b.orRun)).toEqual([true, false]);
         expect(two.blocks[0]?.text).toContain("Run the move 1");
         expect(two.lastLine).toBe("The changes are live in this window.");
@@ -1086,6 +1113,43 @@ describe.skipIf(webkit === undefined)(
       it("a fix whose text is its command shows the command once", () => {
         expect(f.done.sameText.mentions).toBe(1);
         expect(f.done.sameText.blocks[0]?.orRun).toBe(true);
+      });
+
+      it("pressing a fix button shows Running... then Fixed and drops the count", () => {
+        const running = done("running");
+        const fixed = done("fixed");
+
+        expect(running.blocks[0]?.button).toBe("Running...");
+        expect(running.buttonsDisabled).toEqual([true, true]);
+        expect(fixed.blocks[0]?.text).toBe(
+          "Fixed: Settings moved to new places 1",
+        );
+        expect(fixed.blocks[0]?.button).toBeNull();
+        expect(fixed.lead).toBe("1 thing still to fix");
+        expect(fixed.blocks[1]?.button).toBe("Fix it");
+        expect(f.done.appliedByFix).toEqual([
+          { fixes: ["recognizer config --unset k1"] },
+        ]);
+        expect(f.done.fixedCalls).toBe(2);
+      });
+
+      it("the callout turns green when the last problem is fixed", () => {
+        const green = done("green");
+
+        expect(green.calloutClass).toContain("ok");
+        expect(green.lead).toBe(
+          "Everything is set up. Doctor finds no problems.",
+        );
+        expect(green.lastLine).toBe("The changes are live in this window.");
+        expect(green.blocks.map((b) => b.button)).toEqual([null, null]);
+      });
+
+      it("a fix that leaves the problem in the report shows it as not fixed", () => {
+        const stuck = done("stuck");
+
+        expect(stuck.blocks[0]?.text).toContain("Could not fix this");
+        expect(stuck.blocks[0]?.button).toBe("Fix it");
+        expect(stuck.lead).toBe("1 thing still to fix");
       });
 
       it("an all-clear apply shows the green callout", () => {

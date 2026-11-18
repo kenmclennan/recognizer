@@ -15,6 +15,8 @@ import {
   createSetupController,
   currentKey,
   droppedOf,
+  fixButtonName,
+  fixChoicesOf,
   isSkipped,
   lineCount,
   linesLabel,
@@ -1339,7 +1341,10 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
         .filter((one) => one.severity === "problem")
         .map(problemKey),
     );
-    const open = latest.size;
+    const open = run.problems.filter(
+      (one) =>
+        !run.fixed.includes(problemKey(one)) && latest.has(problemKey(one)),
+    ).length;
     const heading =
       run.state === "done"
         ? read === null
@@ -1364,14 +1369,29 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     body.append(headRow, bar);
 
     if (run.state === "done") {
+      const busy = Object.values(run.fixing).includes("running");
       const blocks =
         read === null
           ? []
           : run.problems.map((one) => {
+              const key = problemKey(one);
+              const resolved = run.fixed.includes(key) || !latest.has(key);
               const block = el("div", "sw-problem");
               const text = el("div", "sw-problem-text");
 
-              block.dataset.problem = problemKey(one);
+              block.dataset.problem = key;
+
+              if (resolved) {
+                text.append(el("div", "sw-what", `Fixed: ${one.title}`));
+                block.append(text);
+
+                return block;
+              }
+
+              if (run.fixing[key] === "failed") {
+                text.append(el("div", "sw-why bad", "Could not fix this"));
+              }
+
               text.append(el("div", "sw-what", one.title));
 
               if (one.fix.text !== one.fix.command) {
@@ -1386,6 +1406,22 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
               }
 
               block.append(text);
+
+              if (fixChoicesOf(state.survey, one) !== null) {
+                const act = button(
+                  run.fixing[key] === "running"
+                    ? "Running..."
+                    : fixButtonName(one),
+                  "sw-btn sw-small",
+                  () => {
+                    void controller.fixProblem(key);
+                  },
+                );
+
+                act.disabled = busy;
+                act.dataset.fix = key;
+                block.append(act);
+              }
 
               return block;
             });
