@@ -30,7 +30,7 @@ export function claudeArgs(model: string): string[] {
     '{"mcpServers":{}}',
     "--disable-slash-commands",
     "--system-prompt",
-    "You describe code modules.",
+    "You describe code files.",
   ];
 }
 

@@ -455,7 +455,7 @@ def test_scoped_and_unscoped_runs_apply_the_same_rule(tmp_path, monkeypatch, cap
     overlay = read(root / ".recognizer/cache/overlays/mutation.json")
 
     assert mutants == []
-    assert "scoped to 1 modules; 1 functions carried from the record, 1 outside" in err
+    assert "scoped to 1 files; 1 functions carried from the record, 1 outside" in err
     assert sorted(overlay["inputs"]) == ["app/one.py", "app/three.py"]
     assert "app/two.py::dec" not in overlay["values"]["killed"]
     assert "sites reused" in err

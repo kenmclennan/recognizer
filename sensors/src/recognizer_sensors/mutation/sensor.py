@@ -1620,7 +1620,7 @@ def measure(
     if modules is not None:
         carried_count = sum(1 for target in targets if target.carried)
         print(
-            f"recognizer-sense-mutation: scoped to {len(modules)} modules; "
+            f"recognizer-sense-mutation: scoped to {len(modules)} files; "
             f"{carried_count} functions carried from the record, "
             f"{len(unmeasured)} outside the scope have no result",
             file=sys.stderr,
@@ -1629,7 +1629,7 @@ def measure(
     if excluded:
         print(
             f"recognizer-sense-mutation: {len(excluded)} functions in "
-            f"{len({target.module for target in excluded})} modules not tested because "
+            f"{len({target.module for target in excluded})} files not tested because "
             "their files are not in the coverage report",
             file=sys.stderr,
         )
@@ -1637,7 +1637,7 @@ def measure(
     if unowned:
         print(
             f"recognizer-sense-mutation: {len(unowned)} functions in "
-            f"{len({target.module for target in unowned})} modules not tested because "
+            f"{len({target.module for target in unowned})} files not tested because "
             "no test suite covers their files",
             file=sys.stderr,
         )

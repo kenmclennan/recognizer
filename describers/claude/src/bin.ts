@@ -12,7 +12,7 @@ const VERBS = "manifest, check, run, guide";
 const USAGE =
   "usage: recognizer-describe-claude run --model <name> <request-file>";
 const EVENT_PREFIX = "recognizer-event ";
-const UNIT = "modules";
+const UNIT = "files";
 
 function emit(event: Record<string, unknown>): void {
   process.stderr.write(`${EVENT_PREFIX}${JSON.stringify(event)}\n`);

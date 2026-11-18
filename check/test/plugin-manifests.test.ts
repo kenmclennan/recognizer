@@ -58,7 +58,7 @@ describe("the shipped manifests equal the sources they transcribe", () => {
     expect(manifest("recognizer-describe-claude")).toMatchObject({
       long_running: false,
       time_limit_seconds: 120,
-      units: ["modules"],
+      units: ["files"],
       check: true,
     });
     expect(manifest("recognizer-sense-crap")).toMatchObject({

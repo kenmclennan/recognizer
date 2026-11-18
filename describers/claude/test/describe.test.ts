@@ -50,7 +50,7 @@ describe("prompt reaches claude", () => {
 
     expect(result.status).toBe(0);
     expect(stdin.startsWith(readFileSync(PROMPT_FILE, "utf8"))).toBe(true);
-    expect(stdin).toContain("Module: shop/domain/order.py\nKind: module\n");
+    expect(stdin).toContain("File: shop/domain/order.py\nKind: module\n");
     expect(stdin).toContain('Outline (JSON):\n{\n  "members": [');
     expect(stdin).toContain("shop/domain/money.py");
     expect(stdin).toContain("shop/application/place.py");
@@ -71,7 +71,7 @@ describe("prompt reaches claude", () => {
       '{"mcpServers":{}}',
       "--disable-slash-commands",
       "--system-prompt",
-      "You describe code modules.",
+      "You describe code files.",
     ]);
     expect(recorded(box, "cwd")).not.toBe(box.directory);
   });
@@ -254,8 +254,8 @@ describe("usage errors", () => {
 
     expect(result.status).toBe(0);
     expect(eventsOf(result.stderr)).toEqual([
-      { event: "start", total: 1, unit: "modules" },
-      { event: "progress", done: 1, total: 1, unit: "modules" },
+      { event: "start", total: 1, unit: "files" },
+      { event: "progress", done: 1, total: 1, unit: "files" },
     ]);
   });
 });
