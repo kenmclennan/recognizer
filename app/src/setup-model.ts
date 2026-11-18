@@ -7,6 +7,7 @@ import {
   type PolicyCard,
   type Recommendation,
   type SetupChoices,
+  type SetupProblem,
   type Survey,
   type SurveyRunner,
   type TryEvent,
@@ -85,6 +86,9 @@ export type ApplyRun = {
   fill: number;
   checking: Timed;
   loading: Timed;
+  problems: SetupProblem[];
+  fixed: string[];
+  fixing: Record<string, "running" | "failed">;
 };
 
 export type WizardState = {
@@ -110,6 +114,62 @@ export type SetupState =
   | { kind: "loading"; progress: LoadingState }
   | { kind: "unavailable"; reason: string }
   | WizardState;
+
+export function problemKey(problem: SetupProblem): string {
+  return `${problem.code}:${problem.subject}`;
+}
+
+export function problemsOf(read: DoctorRead | null): SetupProblem[] {
+  return read !== null && read.status === "ok"
+    ? read.report.areas
+        .flatMap((area) => area.problems)
+        .filter((one) => one.severity === "problem")
+    : [];
+}
+
+export function fixChoicesOf(
+  survey: Survey,
+  problem: SetupProblem,
+): SetupChoices | null {
+  if (
+    problem.code === "unregistered-plugin" &&
+    survey.checks.some((check) => check.id === problem.subject)
+  ) {
+    return { plugins: [problem.subject] };
+  }
+
+  const command = problem.fix.command;
+
+  if (command !== null && survey.fixes.some((one) => one.command === command)) {
+    return { fixes: [command] };
+  }
+
+  return null;
+}
+
+export function fixButtonName(problem: SetupProblem): string {
+  if (problem.code === "unregistered-plugin") {
+    return "Register it";
+  }
+
+  if (problem.code === "scan-stale" || problem.code === "scan-missing") {
+    return "Rescan";
+  }
+
+  return "Fix it";
+}
+
+export function lineCount(text: string): number {
+  if (text === "") {
+    return 0;
+  }
+
+  return (text.endsWith("\n") ? text.slice(0, -1) : text).split("\n").length;
+}
+
+export function linesLabel(count: number): string {
+  return count === 1 ? "1 line" : `${count} lines`;
+}
 
 export function doctorProblems(read: DoctorRead | null): number | null {
   return read !== null && read.status === "ok" ? read.report.problems : null;
@@ -261,6 +321,7 @@ export type SetupController = {
   setRemoval(name: string, on: boolean): void;
   runOnce(): Promise<void>;
   apply(): Promise<void>;
+  fixProblem(key: string): Promise<void>;
   stop(): Promise<void>;
   backToReview(): void;
 };
@@ -687,6 +748,9 @@ export function createSetupController(deps: SetupDeps): SetupController {
             fill: fill(),
             checking,
             loading,
+            problems: [],
+            fixed: [],
+            fixing: {},
             ...patch,
           },
           at: SETUP_STEPS.length - 1,
@@ -767,7 +831,7 @@ export function createSetupController(deps: SetupDeps): SetupController {
           endedAt = now();
           deps.scanAfterApply?.();
           deps.onDoctor?.(doctor);
-          progress({ state: "done", doctor });
+          progress({ state: "done", doctor, problems: problemsOf(doctor) });
         } else {
           endedAt = now();
           progress({
@@ -781,6 +845,90 @@ export function createSetupController(deps: SetupDeps): SetupController {
           state: "failed",
           message: error instanceof Error ? error.message : String(error),
         });
+      }
+    },
+    async fixProblem(key) {
+      if (state.kind !== "wizard") {
+        return;
+      }
+
+      const run = state.apply;
+      const problem = run?.problems.find((one) => problemKey(one) === key);
+
+      if (
+        run === null ||
+        problem === undefined ||
+        run.state !== "done" ||
+        run.fixed.includes(key) ||
+        Object.values(run.fixing).includes("running")
+      ) {
+        return;
+      }
+
+      const choices = fixChoicesOf(state.survey, problem);
+
+      if (choices === null) {
+        return;
+      }
+
+      const patchRun = (
+        change: (current: ApplyRun) => Partial<ApplyRun>,
+      ): void =>
+        edit((wizard) =>
+          wizard.apply === null
+            ? {}
+            : { apply: { ...wizard.apply, ...change(wizard.apply) } },
+        );
+      const without = (
+        fixing: ApplyRun["fixing"],
+      ): Record<string, "running" | "failed"> => {
+        const { [key]: _gone, ...rest } = fixing;
+
+        return rest;
+      };
+
+      patchRun((current) => ({
+        fixing: { ...current.fixing, [key]: "running" },
+      }));
+
+      try {
+        const result = await deps.port.apply(choices, () => {});
+
+        if (!result.ok || result.doctor === null) {
+          patchRun((current) => ({
+            fixing: { ...current.fixing, [key]: "failed" },
+          }));
+
+          return;
+        }
+
+        const doctor: DoctorRead = { status: "ok", report: result.doctor };
+        const latest = problemsOf(doctor);
+        const stillThere = latest.some((one) => problemKey(one) === key);
+
+        await deps.reloadSensors?.();
+        deps.scanAfterApply?.();
+        deps.onDoctor?.(doctor);
+        patchRun((current) => ({
+          doctor,
+          problems: [
+            ...current.problems,
+            ...latest.filter(
+              (one) =>
+                !current.problems.some(
+                  (known) => problemKey(known) === problemKey(one),
+                ),
+            ),
+          ],
+          fixed: stillThere ? current.fixed : [...current.fixed, key],
+          fixing: stillThere
+            ? { ...current.fixing, [key]: "failed" }
+            : without(current.fixing),
+        }));
+      } catch {
+        patchRun((current) => ({
+          fixing: { ...current.fixing, [key]: "failed" },
+        }));
       }
     },
     async stop() {

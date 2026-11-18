@@ -14,6 +14,7 @@ import { openSetupModal } from ${JSON.stringify(here("setup-modal-view.ts"))};
 import { CLEAN_DOCTOR, fakeSetup } from ${JSON.stringify(here("setup-fake.ts"))};
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
+const LOG_SENTENCE = "A log of this run";
 const box = (node) => { const r = node.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; };
 const facts = { screens: {}, lifecycle: {}, rowClicks: {} };
 
@@ -36,7 +37,7 @@ function snap(modal, name) {
     paneFitsModal: box(body).right <= box(dialog).right && box(body).bottom <= box(dialog).bottom,
     noHorizontalOverflow: body.scrollWidth <= body.clientWidth,
     rows: [...modal.element.querySelectorAll(".sw-row .sw-what")].map((n) => n.textContent),
-    details: [...modal.element.querySelectorAll(".sw-row")].map((r) => { const pre = r.querySelector("pre"); const link = r.querySelector(".sw-link"); return pre ? { label: link.textContent, text: pre.textContent, hidden: pre.hidden } : null; }),
+    details: [...modal.element.querySelectorAll(".sw-row")].map((r) => { const panel = r.querySelector(".sw-panel"); if (!panel) return null; const pre = panel.querySelector("pre"); const toggle = panel.querySelector(".sw-toggle"); return { label: toggle.textContent, text: pre.textContent, hidden: pre.hidden, state: panel.dataset.open, chevron: toggle.querySelector("svg") !== null }; }),
     cards: [...modal.element.querySelectorAll(".sw-rec .sw-what")].map((n) => n.textContent),
     groups: [...modal.element.querySelectorAll(".sw-group")].map((n) => n.textContent),
     marks: [...modal.element.querySelectorAll(".sw-mark")].map((n) => n.textContent),
@@ -45,9 +46,10 @@ function snap(modal, name) {
     runners: [...modal.element.querySelectorAll(".sw-runner")].map((n) => n.textContent),
     notes: [...modal.element.querySelectorAll(".sw-body .sw-note")].map((n) => n.textContent),
     runnerOutputs: [...modal.element.querySelectorAll(".sw-runner")].map((n) => {
-      const link = n.nextElementSibling;
-      const box = link && link.nextElementSibling;
-      return link && link.textContent === "Output" && box && box.tagName === "PRE" ? { hidden: box.hidden, text: box.textContent } : null;
+      const panel = n.nextElementSibling;
+      const box = panel && panel.querySelector("pre");
+      const toggle = panel && panel.querySelector(".sw-toggle");
+      return panel && panel.classList.contains("sw-panel") && box ? { hidden: box.hidden, text: box.textContent, label: toggle.textContent } : null;
     }),
   };
 }
@@ -144,7 +146,7 @@ function snap(modal, name) {
   await settle();
   await settle();
   snap(third, "tried-output");
-  [...third.element.querySelectorAll(".sw-runner + button")][0].click();
+  [...third.element.querySelectorAll(".sw-runner + .sw-panel .sw-toggle")][0].click();
   snap(third, "tried-output-open");
   third.close();
 
@@ -265,11 +267,11 @@ function snap(modal, name) {
   rerun.controller.next();
   await settle();
   snap(rerun, "rerun-review");
-  const openRow = rerun.element.querySelector(".sw-row .sw-link").closest(".sw-row");
+  const openRow = rerun.element.querySelector(".sw-row .sw-toggle").closest(".sw-row");
   const titleBefore = openRow.querySelector(".sw-what").getBoundingClientRect().width;
-  openRow.querySelector(".sw-link").click();
+  openRow.querySelector(".sw-toggle").click();
   const titleBox = openRow.querySelector(".sw-what").getBoundingClientRect();
-  const toggleBox = openRow.querySelector(".sw-link").getBoundingClientRect();
+  const toggleBox = openRow.querySelector(".sw-toggle").getBoundingClientRect();
   const detailBox = openRow.querySelector("pre").getBoundingClientRect();
   const rowBox = openRow.getBoundingClientRect();
   facts.disclosure = {
@@ -406,6 +408,133 @@ function snap(modal, name) {
   shot("apply-finished", stepping);
   stepping.close();
 
+
+  facts.done = {};
+  const handProblem = { code: "config-duplicate-suite", subject: "unit", title: "Two test suites share a name", line: "tests: unit appears twice", fix: { text: "Rename one of the suites", command: null }, severity: "problem" };
+  const pluginProblem = { code: "unregistered-plugin", subject: "claude", title: "Claude is not registered", line: "claude is installed but not registered", fix: { text: "Register the plugin", command: "recognizer plugin add claude" }, severity: "problem" };
+  const reportWith = (list) => ({ repository: "/repo", ok: list.length === 0, problems: list.length, warnings: 0, areas: list.length === 0 ? [] : [{ name: "config", skipped: null, problems: list }] });
+  const claudeCheck = { id: "claude", display: "Claude", description: "describes", always_on: false, enabled: false, runs_tests: false, limits: [], mark: null };
+  const doneSurvey = { ...base, fixes: [fixOf(1), fixOf(2)], checks: [...base.checks, claudeCheck] };
+  const finishWith = async (applyDoctor, extra = {}) => {
+    const port = fakeSetup({ surveyRead: { status: "ok", survey: doneSurvey, doctor: { status: "ok", report: reportOf(2) } }, applyDoctor, ...extra });
+    const m = openSetupModal({ port });
+    await m.ready;
+    await settle();
+    for (let i = 0; i < 4; i++) m.controller.next();
+    await settle();
+    await m.controller.apply();
+    await settle();
+    return { port, m };
+  };
+  const doneOf = (m) => {
+    const callout = m.element.querySelector(".sw-body .sw-callout");
+    const rows = [...m.element.querySelectorAll(".sw-body > .sw-row")].map((r) => r.getBoundingClientRect());
+    const calloutBox = callout.getBoundingClientRect();
+    const buttons = [...callout.querySelectorAll("button")];
+    return {
+      heading: m.element.querySelector(".sw-body h2").textContent,
+      calloutClass: callout.className,
+      lead: callout.querySelector(".sw-what").textContent,
+      lastLine: callout.lastElementChild.textContent,
+      calloutAboveRows: rows.length >= 2 && calloutBox.bottom <= rows[0].top,
+      gapBelowCallout: rows.length >= 2 ? rows[0].top - calloutBox.bottom : -1,
+      gapBetweenRows: rows.length >= 2 ? rows[1].top - rows[0].bottom : -2,
+      rowCount: rows.length,
+      blocks: [...callout.querySelectorAll(".sw-problem")].map((b) => { const act = b.querySelector("button"); return { text: b.textContent, button: act ? act.textContent : null, disabled: act ? act.disabled : null, orRun: b.textContent.includes("Or run"), bold: b.querySelector(".sw-what").textContent }; }),
+      buttonsDisabled: buttons.map((b) => b.disabled),
+      logSentence: {
+        inFooter: m.element.querySelector(".sw-foot").textContent.split(LOG_SENTENCE).length - 1,
+        inBody: m.element.querySelector(".sw-body").textContent.split(LOG_SENTENCE).length - 1,
+        inCards: [...m.element.querySelectorAll(".sw-body .sw-row, .sw-body .sw-callout")].filter((c) => c.textContent.includes(LOG_SENTENCE)).length,
+        inModal: m.element.textContent.split(LOG_SENTENCE).length - 1,
+      },
+    };
+  };
+  const pressFix = async (m, at) => { [...m.element.querySelectorAll(".sw-problem button")][at].click(); await settle(); };
+
+  const first = await finishWith(reportWith([problemOf(1), handProblem]));
+  facts.done.two = doneOf(first.m);
+  first.m.close();
+
+  let freeFix = () => {};
+  const held = await finishWith(reportWith([problemOf(1), problemOf(2)]));
+  held.port.gate = new Promise((resolve) => { freeFix = resolve; });
+  const before = held.port.applied.length;
+  await pressFix(held.m, 0);
+  facts.done.running = doneOf(held.m);
+  held.port.applyDoctor = reportWith([problemOf(2)]);
+  freeFix();
+  held.port.gate = null;
+  await settle();
+  await settle();
+  facts.done.fixed = doneOf(held.m);
+  facts.done.appliedByFix = held.port.applied.slice(before);
+  facts.done.fixedCalls = held.port.calls.filter((c) => c === "apply").length;
+  held.port.applyDoctor = reportWith([]);
+  await pressFix(held.m, 0);
+  facts.done.green = doneOf(held.m);
+  held.m.close();
+
+  const stuck = await finishWith(reportWith([problemOf(1)]));
+  await pressFix(stuck.m, 0);
+  facts.done.stuck = doneOf(stuck.m);
+  stuck.m.close();
+
+  const registered = await finishWith(reportWith([pluginProblem]));
+  await pressFix(registered.m, 0);
+  facts.done.pluginApplied = registered.port.applied[registered.port.applied.length - 1];
+  facts.done.pluginButton = null;
+  registered.m.close();
+  const pluginAgain = await finishWith(reportWith([pluginProblem]));
+  facts.done.pluginButton = doneOf(pluginAgain.m).blocks[0].button;
+  pluginAgain.m.close();
+
+  const sameText = await finishWith(reportWith([{ ...problemOf(1), fix: { text: "recognizer config --unset k1", command: "recognizer config --unset k1" } }]));
+  facts.done.sameText = { ...doneOf(sameText.m), mentions: sameText.m.element.querySelector(".sw-problem").textContent.split("recognizer config --unset k1").length - 1 };
+  sameText.m.close();
+
+  const clean = await finishWith(reportWith([]));
+  facts.done.clean = doneOf(clean.m);
+  clean.m.close();
+
+  const panelsOf = (m) => [...m.element.querySelectorAll(".sw-body > .sw-row")].map((r) => {
+    const panel = r.querySelector(".sw-panel");
+    const base = { cls: r.className, border: getComputedStyle(r).borderTopColor, text: r.querySelector(".sw-main").textContent };
+    if (!panel) return { ...base, panel: null };
+    const toggle = panel.querySelector(".sw-toggle");
+    const pre = panel.querySelector("pre");
+    const svg = toggle.querySelector("svg");
+    return { ...base, panel: {
+      label: toggle.textContent,
+      state: panel.dataset.open,
+      hidden: pre.hidden,
+      text: pre.textContent,
+      chevron: svg !== null,
+      chevronSize: svg ? svg.getBoundingClientRect().width : 0,
+      turned: svg ? getComputedStyle(svg).transform !== "none" : false,
+      belowMain: panel.getBoundingClientRect().top >= r.querySelector(".sw-main").getBoundingClientRect().bottom,
+      spansCard: panel.getBoundingClientRect().width >= r.getBoundingClientRect().width - 26,
+      ruled: getComputedStyle(panel).borderTopWidth !== "0px",
+      maxHeight: getComputedStyle(pre).maxHeight,
+    } };
+  });
+  const printed = await finishWith(reportWith([]), { doneOutput: "one\\ntwo\\nthree\\n" });
+  facts.done.panels = panelsOf(printed.m);
+  const toggleAt = printed.m.element.querySelector(".sw-body > .sw-row .sw-toggle");
+  toggleAt.click();
+  facts.done.opened = panelsOf(printed.m)[0].panel.state;
+  printed.m.close();
+
+  const broken = fakeSetup({ failAt: 1, doneOutput: "one\\ntwo\\nthree\\n" });
+  const brokenModal = openSetupModal({ port: broken });
+  await brokenModal.ready;
+  for (let i = 0; i < 4; i++) brokenModal.controller.next();
+  await settle();
+  await brokenModal.controller.apply();
+  await settle();
+  facts.done.failed = { heading: brokenModal.element.querySelector(".sw-body h2").textContent, bar: brokenModal.element.querySelector(".sw-fill").className, callout: brokenModal.element.querySelector(".sw-callout").textContent, calloutClass: brokenModal.element.querySelector(".sw-callout").className, rows: panelsOf(brokenModal) };
+  brokenModal.close();
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -419,7 +548,13 @@ type Screen = {
   paneFitsModal: boolean;
   noHorizontalOverflow: boolean;
   rows: string[];
-  details: ({ label: string; text: string; hidden: boolean } | null)[];
+  details: ({
+    label: string;
+    text: string;
+    hidden: boolean;
+    state: string;
+    chevron: boolean;
+  } | null)[];
   cards: string[];
   groups: string[];
   marks: string[];
@@ -427,7 +562,7 @@ type Screen = {
   env: string[];
   runners: string[];
   notes: string[];
-  runnerOutputs: ({ hidden: boolean; text: string } | null)[];
+  runnerOutputs: ({ hidden: boolean; text: string; label: string } | null)[];
 };
 
 type Shot = {
@@ -446,7 +581,66 @@ type Shot = {
   runningLines: string[];
 };
 
+type PanelFact = {
+  label: string;
+  state: string;
+  hidden: boolean;
+  text: string;
+  chevron: boolean;
+  chevronSize: number;
+  turned: boolean;
+  belowMain: boolean;
+  spansCard: boolean;
+  ruled: boolean;
+  maxHeight: string;
+};
+type CardFact = {
+  cls: string;
+  border: string;
+  text: string;
+  panel: PanelFact | null;
+};
+type DoneFact = {
+  heading: string;
+  calloutClass: string;
+  lead: string;
+  lastLine: string;
+  calloutAboveRows: boolean;
+  gapBelowCallout: number;
+  gapBetweenRows: number;
+  rowCount: number;
+  blocks: {
+    text: string;
+    button: string | null;
+    disabled: boolean | null;
+    orRun: boolean;
+    bold: string;
+  }[];
+  buttonsDisabled: boolean[];
+  logSentence: {
+    inFooter: number;
+    inBody: number;
+    inCards: number;
+    inModal: number;
+  };
+};
 type Facts = {
+  done: Record<string, DoneFact> & {
+    sameText: DoneFact & { mentions: number };
+    appliedByFix: unknown[];
+    fixedCalls: number;
+    pluginApplied: unknown;
+    pluginButton: string | null;
+    panels: CardFact[];
+    opened: string;
+    failed: {
+      heading: string;
+      bar: string;
+      callout: string;
+      calloutClass: string;
+      rows: CardFact[];
+    };
+  };
   disclosure: Record<string, boolean>;
   namedPairs: string[][];
   progress: Record<string, Shot>;
@@ -741,7 +935,7 @@ describe.skipIf(webkit === undefined)(
       ]);
     });
 
-    it("shows an Output disclosure only after a not-ready runner with output", () => {
+    it("shows an output panel only after a not-ready runner with output", () => {
       const closed = f.screens["tried-output"];
 
       expect(closed?.runners).toEqual([
@@ -752,7 +946,11 @@ describe.skipIf(webkit === undefined)(
       expect(closed?.runnerOutputs).toEqual([
         null,
         null,
-        { hidden: true, text: "engine not built" },
+        {
+          hidden: true,
+          text: "engine not built",
+          label: "What the command printed",
+        },
       ]);
       expect(f.screens["tried-output-open"]?.runnerOutputs[2]?.hidden).toBe(
         false,
@@ -877,15 +1075,20 @@ describe.skipIf(webkit === undefined)(
       ]);
     });
 
-    it("final screen lists what is left", () => {
+    it('the done screen lists each remaining problem as a block under "Setup is done"', () => {
       const final = (name: string) => f.screens[`final-${name}`] as Screen;
 
-      expect(final("one").heading).toBe("Updated - 1 thing still to fix");
+      expect(final("one").heading).toBe("Setup is done");
+      expect(final("one").text).toContain("1 thing still to fix");
       expect(final("one").text).toContain("Settings moved to new places 1");
       expect(final("one").text).toContain("Run the move 1");
-      expect(final("two").heading).toBe("Updated - 2 things still to fix");
+      expect(final("two").heading).toBe("Setup is done");
+      expect(final("two").text).toContain("2 things still to fix");
       expect(final("two").text).toContain("Settings moved to new places 2");
-      expect(final("clean").heading).toBe("Everything is up to date");
+      expect(final("clean").heading).toBe("Setup is done");
+      expect(final("clean").text).toContain(
+        "Everything is set up. Doctor finds no problems.",
+      );
       expect(final("clean").text).not.toContain("Run the move");
       expect(final("unavailable").heading).toBe("Updated");
       expect(final("unavailable").text).toContain("Doctor could not run.");
@@ -896,11 +1099,172 @@ describe.skipIf(webkit === undefined)(
         f.screens.review?.foot.some((label) => label.startsWith("Apply ")),
       ).toBe(true);
       expect(f.screens["apply-running"]?.foot).toContain("Stop");
-      expect(f.screens["apply-done"]?.heading).toBe("Everything is up to date");
+      expect(f.screens["apply-done"]?.heading).toBe("Setup is done");
       expect(f.screens["apply-done"]?.foot).toContain("Close");
       expect(f.screens["apply-failed"]?.heading).toBe("Setup stopped");
       expect(f.screens["apply-failed"]?.foot).toContain("Try again");
       expect(f.screens["apply-failed"]?.foot).toContain("Back to review");
+    });
+
+    describe("the done screen and the output panel", () => {
+      const done = (name: string) => f.done[name] as DoneFact;
+
+      it("the summary callout has the same gap below it as between rows", () => {
+        const two = done("two");
+
+        expect(two.rowCount).toBeGreaterThanOrEqual(2);
+        expect(two.calloutAboveRows).toBe(true);
+        expect(Math.abs(two.gapBelowCallout - two.gapBetweenRows)).toBeLessThan(
+          1,
+        );
+      });
+
+      it("the done screen shows the still-to-fix callout with a button only on a fixable problem", () => {
+        const two = done("two");
+
+        expect(two.heading).toBe("Setup is done");
+        expect(two.lead).toBe("2 things still to fix");
+        expect(two.calloutClass).toContain("warn");
+        expect(two.calloutClass).not.toContain("ok");
+        expect(two.blocks.map((b) => b.bold)).toEqual([
+          "Settings moved to new places 1",
+          "Two test suites share a name",
+        ]);
+        expect(two.blocks.map((b) => b.button)).toEqual(["Fix it", null]);
+        expect(two.blocks.map((b) => b.orRun)).toEqual([true, false]);
+        expect(two.blocks[0]?.text).toContain("Run the move 1");
+        expect(two.lastLine).toBe("The changes are live in this window.");
+      });
+
+      it("the log sentence appears once on the done screen, in the footer and in no card", () => {
+        for (const name of ["two", "fixed", "green", "clean"]) {
+          const found = done(name).logSentence;
+
+          expect(found.inFooter).toBe(1);
+          expect(found.inBody).toBe(0);
+          expect(found.inCards).toBe(0);
+          expect(found.inModal).toBe(1);
+        }
+      });
+
+      it("a fix whose text is its command shows the command once", () => {
+        expect(f.done.sameText.mentions).toBe(1);
+        expect(f.done.sameText.blocks[0]?.orRun).toBe(true);
+      });
+
+      it("pressing a fix button shows Running... then Fixed and drops the count", () => {
+        const running = done("running");
+        const fixed = done("fixed");
+
+        expect(running.blocks[0]?.button).toBe("Running...");
+        expect(running.buttonsDisabled).toEqual([true, true]);
+        expect(fixed.blocks[0]?.text).toBe(
+          "Fixed: Settings moved to new places 1",
+        );
+        expect(fixed.blocks[0]?.button).toBeNull();
+        expect(fixed.lead).toBe("1 thing still to fix");
+        expect(fixed.blocks[1]?.button).toBe("Fix it");
+        expect(f.done.appliedByFix).toEqual([
+          { fixes: ["recognizer config --unset k1"] },
+        ]);
+        expect(f.done.fixedCalls).toBe(2);
+      });
+
+      it("the callout turns green when the last problem is fixed", () => {
+        const green = done("green");
+
+        expect(green.calloutClass).toContain("ok");
+        expect(green.lead).toBe(
+          "Everything is set up. Doctor finds no problems.",
+        );
+        expect(green.lastLine).toBe("The changes are live in this window.");
+        expect(green.blocks.map((b) => b.button)).toEqual([null, null]);
+      });
+
+      it("a fix that leaves the problem in the report shows it as not fixed", () => {
+        const stuck = done("stuck");
+
+        expect(stuck.blocks[0]?.text).toContain("Could not fix this");
+        expect(stuck.blocks[0]?.button).toBe("Fix it");
+        expect(stuck.lead).toBe("1 thing still to fix");
+      });
+
+      it("the unregistered-plugin fix registers the plugin through the plugins choice", () => {
+        expect(f.done.pluginApplied).toEqual({ plugins: ["claude"] });
+        expect(f.done.pluginButton).toBe("Register it");
+      });
+
+      it("an all-clear apply shows the green callout", () => {
+        const clean = done("clean");
+
+        expect(clean.calloutClass).toContain("ok");
+        expect(clean.lead).toBe(
+          "Everything is set up. Doctor finds no problems.",
+        );
+        expect(f.screens["apply-done"]?.text).toContain(
+          "Everything is set up. Doctor finds no problems.",
+        );
+      });
+
+      it("the output panel is closed on a successful row and open on a failed one", () => {
+        const first = f.done.panels[0] as CardFact;
+        const panel = first.panel as PanelFact;
+
+        expect(panel.label).toBe("What the check printed (3 lines)");
+        expect(panel.state).toBe("closed");
+        expect(panel.hidden).toBe(true);
+        expect(panel.chevron).toBe(true);
+        expect(panel.chevronSize).toBe(16);
+        expect(panel.turned).toBe(false);
+        expect(panel.belowMain).toBe(true);
+        expect(panel.spansCard).toBe(true);
+        expect(panel.ruled).toBe(true);
+        expect(panel.maxHeight).toBe("180px");
+        expect(f.done.opened).toBe("open");
+
+        const rows = f.done.failed.rows;
+        const failed = rows.find((r) =>
+          r.cls.includes("state-failed"),
+        ) as CardFact;
+        const succeeded = rows[0] as CardFact;
+
+        expect(failed.panel?.label).toBe("What the command printed");
+        expect(failed.panel?.state).toBe("open");
+        expect(failed.panel?.hidden).toBe(false);
+        expect(failed.panel?.turned).toBe(true);
+        expect(failed.border).not.toBe(succeeded.border);
+        expect(
+          rows.slice(2).every((r) => r.text.includes("- not applied")),
+        ).toBe(true);
+        expect(f.done.failed.heading).toBe("Setup stopped");
+        expect(f.done.failed.bar).toContain("failed");
+        expect(f.done.failed.calloutClass).toContain("bad");
+        expect(f.done.failed.callout).toContain(
+          "failed, so nothing was changed.",
+        );
+        expect(f.done.failed.callout).toContain(
+          "The changes before it were undone. Its output is open below.",
+        );
+      });
+
+      it("the Checks-step Details uses the same output panel", () => {
+        for (const name of ["rerun-review"]) {
+          const panels = (f.screens[name]?.details ?? []).filter(
+            (d) => d !== null,
+          );
+
+          expect(panels.length).toBeGreaterThan(0);
+
+          for (const one of panels) {
+            expect(one.chevron).toBe(true);
+            expect(one.state).toBe("closed");
+          }
+        }
+
+        expect(
+          f.screens["rerun-review"]?.details.find((d) => d !== null)?.label,
+        ).toBe("Details");
+      });
     });
   },
 );
