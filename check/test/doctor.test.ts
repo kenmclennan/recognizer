@@ -1118,8 +1118,8 @@ describe("doctor: unregistered shipped plugins", () => {
       .map((one: { title: string }) => one.title);
 
     expect(titles).toEqual([
-      "The mutation plugin is not registered",
-      "The claude plugin is not registered",
+      "The Mutation plugin is not registered",
+      "The Claude plugin is not registered",
     ]);
   });
 

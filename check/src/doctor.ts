@@ -101,6 +101,7 @@ export interface DoctorFacts {
   scanners: InstalledPlugin[];
   plugins(specs: PluginSpec[]): PluginFact[];
   shipped: { sensors: string[]; describer: boolean };
+  shippedDisplay?(kind: PluginSpec["kind"], name: string): string | undefined;
 }
 
 const CONFIG_FILE = ".recognizer/config.yaml";
@@ -500,6 +501,7 @@ function unregisteredProblems(
       subject: name,
       line: unregisteredMessage(name),
       fix: commandFix(UNREGISTERED_FIX(name)),
+      display: facts.shippedDisplay?.(kind, name),
     }),
   );
 }
