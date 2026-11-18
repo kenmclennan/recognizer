@@ -297,7 +297,6 @@ export type {
   SurveySuite,
   SurveyTool,
   SurveyUnread,
-  SurveyUpgrade,
 } from "./setup-survey.js";
 export type { TryEvent } from "./setup-try.js";
 export {

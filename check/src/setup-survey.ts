@@ -93,14 +93,6 @@ export interface SurveyFix {
   command: string | null;
 }
 
-export interface SurveyUpgrade {
-  code: string;
-  subject: string;
-  title: string;
-  line: string;
-  command: string;
-}
-
 export interface SurveySuite {
   name: string;
   language: string;
@@ -125,7 +117,6 @@ export interface Survey {
   checks: SurveyCheck[];
   runners: SurveyRunner[];
   tools: SurveyTool[];
-  upgrade: SurveyUpgrade[];
   fixes: SurveyFix[];
   suites: SurveySuite[];
   policy: SurveyPolicy;
@@ -1083,26 +1074,6 @@ function fixesOf(
     });
 }
 
-const UPGRADE_CODES = ["config-retired", "config-empty", "policy-retired"];
-
-function upgradeOf(io: Io, root: string): SurveyUpgrade[] {
-  const report = doctorReport(io, root, false);
-
-  return report.areas
-    .flatMap((area) => area.problems)
-    .filter(
-      (problem) =>
-        UPGRADE_CODES.includes(problem.code) && problem.fix.command !== null,
-    )
-    .map((problem) => ({
-      code: problem.code,
-      subject: problem.subject,
-      title: problem.title,
-      line: problem.line,
-      command: problem.fix.command as string,
-    }));
-}
-
 function suitesOf(
   io: Io,
   document: Record<string, unknown>,
@@ -1303,7 +1274,6 @@ export function surveyRepository(
     checks,
     runners,
     tools: toolsOf(io, root, runners, files),
-    upgrade: upgradeOf(io, root),
     fixes: fixesOf(io, root, checks),
     suites,
     policy: policyOf(io, root, scans),

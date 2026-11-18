@@ -148,9 +148,8 @@
       "cwd": "."
     }
   ],
-  "upgrade": [],
-  "suites": [],
   "fixes": [],
+  "suites": [],
   "policy": {
     "present": false,
     "uncovered": []

@@ -570,8 +570,8 @@ describe("setup survey examples", () => {
   });
 });
 
-describe("setup survey upgrade items", () => {
-  it("upgrade items carry a title", () => {
+describe("setup survey fixes", () => {
+  it("fixes carry a title and validate against the schema", () => {
     const loom = JSON.parse(
       readFileSync(
         join(REPO, "schema/setup-survey-examples/valid/loom.json"),
@@ -579,18 +579,22 @@ describe("setup survey upgrade items", () => {
       ),
     );
     const item = {
-      code: "config-retired",
+      code: "config-duplicate-suite",
       subject: "k",
       title: "Settings moved to new places",
       line: "l",
-      command: "recognizer config --unset k",
+      fix_text: "edit it",
+      command: null,
     };
 
-    expect(validate({ ...loom, upgrade: [item] })).toBe(true);
+    expect(validate({ ...loom, fixes: [item] })).toBe(true);
+    expect(
+      validate({ ...loom, fixes: [{ ...item, command: "recognizer scan" }] }),
+    ).toBe(true);
 
     const { title: _title, ...untitled } = item;
 
-    expect(validate({ ...loom, upgrade: [untitled] })).toBe(false);
+    expect(validate({ ...loom, fixes: [untitled] })).toBe(false);
   });
 });
 
@@ -703,37 +707,7 @@ describe("setup survey marks", () => {
       survey.files?.find((one) => one.language === "typescript")?.mark,
     ).toBe("new");
   });
-});
 
-describe("setup survey fixes", () => {
-  it("fixes carry a title and validate against the schema", () => {
-    const loom = JSON.parse(
-      readFileSync(
-        join(REPO, "schema/setup-survey-examples/valid/loom.json"),
-        "utf8",
-      ),
-    );
-    const item = {
-      code: "config-duplicate-suite",
-      subject: "k",
-      title: "Settings moved to new places",
-      line: "l",
-      fix_text: "edit it",
-      command: null,
-    };
-
-    expect(validate({ ...loom, fixes: [item] })).toBe(true);
-    expect(
-      validate({ ...loom, fixes: [{ ...item, command: "recognizer scan" }] }),
-    ).toBe(true);
-
-    const { title: _title, ...untitled } = item;
-
-    expect(validate({ ...loom, fixes: [untitled] })).toBe(false);
-  });
-});
-
-describe("setup survey fix list", () => {
   it("leaves an unregistered plugin the Checks step offers out of the fixes", async () => {
     process.env.PATH = shimmedPath(shimDirectory(true, true));
 

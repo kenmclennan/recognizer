@@ -1623,7 +1623,7 @@ export const COMMANDS: Command[] = [
       {
         flag: "--choices <file>",
         description:
-          "a JSON file of the choices made: analysis, plugins, runners, tools, policy and upgrade",
+          "a JSON file of the choices made: analysis, plugins, runners, tools, policy, fixes, plugins_off and remove_suites",
       },
       {
         flag: "--input <file>",
@@ -1634,7 +1634,7 @@ export const COMMANDS: Command[] = [
     ],
     output: {
       text: "JSON on stdout for every verb; apply prints one JSON line per event instead of one document",
-      json: "survey: { survey_version, version, repository, configured, files, unread, checks, runners, tools, upgrade }; changes: { changes: [{ id, title, steps: [{ argv, cwd }] }], dropped, needing_user }; recommend: { entries, dropped }; apply: lines of { event: start, total }, { event: change, index, state: running|done|failed|undone, output } and { event: result, ok, doctor }; try: the same lines, then { event: runner, name, ready, detail } per runner, and { event: result, ok }",
+      json: "survey: { survey_version, version, repository, configured, files, unread, checks, runners, tools, fixes, suites, policy }, each language and check carrying a mark (set-up, new, gone or null); changes: { changes: [{ id, group, title, steps: [{ argv, cwd }] }], dropped, needing_user }; recommend: { entries, dropped }; apply: lines of { event: start, total }, { event: change, index, state: running|done|failed|undone, output } and { event: result, ok, doctor }; try: the same lines, then { event: runner, name, ready, detail } per runner, and { event: result, ok }",
     },
     exitCodes: [
       { code: 0, meaning: "the verb finished; apply applied every change" },

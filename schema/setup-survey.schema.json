@@ -14,7 +14,6 @@
     "checks",
     "runners",
     "tools",
-    "upgrade",
     "fixes",
     "suites",
     "policy"
@@ -144,23 +143,6 @@
             "items": { "type": "string" }
           },
           "cwd": { "type": "string", "minLength": 1 }
-        }
-      }
-    },
-    "upgrade": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["code", "subject", "title", "line", "command"],
-        "properties": {
-          "code": {
-            "enum": ["config-retired", "config-empty", "policy-retired"]
-          },
-          "subject": { "type": "string" },
-          "title": { "type": "string", "minLength": 1 },
-          "line": { "type": "string" },
-          "command": { "type": "string", "minLength": 1 }
         }
       }
     },
