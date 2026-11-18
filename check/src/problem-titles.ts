@@ -1,0 +1,26 @@
+import type { ProblemCode } from "./doctor.js";
+
+export const PROBLEM_TITLES: Record<ProblemCode, string> = {
+  "config-yaml": "Configuration file cannot be read",
+  "config-retired": "Settings moved to new places",
+  "config-empty": "Empty settings section",
+  "config-duplicate-suite": "Two test suites share a name",
+  "config-invalid": "A setting has a wrong value",
+  "policy-invalid": "Policy file has an error",
+  "scan-missing": "No scan yet",
+  "scan-stale": "Scan is out of date",
+  "policy-entry": "Policy entry matches no module",
+  "policy-forbid": "Policy rule matches no module",
+  "policy-retired": "Policy format changed",
+  "scanner-missing": "No scanner for a language",
+  "scanner-ambiguous": "Two scanners claim a language",
+  "scanner-choice": "Scanner choice is unresolved",
+  "sensor-gap": "Sensor cannot run as set up",
+  "plugin-missing": "A plugin is not installed",
+  "plugin-manifest": "A plugin cannot be read",
+  "plugin-protocol": "A plugin speaks another protocol version",
+  "plugin-scan-schema": "A scanner's output is invalid",
+  "plugin-settings": "A plugin setting is wrong",
+  "describer-gap": "Describer is not ready",
+  "unregistered-plugin": "A shipped plugin is not registered",
+};
