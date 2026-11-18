@@ -24,6 +24,7 @@ export type FakeSetup = SetupPort & {
   progress: string[];
   failAt: number | null;
   notReady: Record<string, string>;
+  notReadyOutput: Record<string, string>;
   calls: string[];
   applied: SetupChoices[];
   tried: SetupChoices[];
@@ -105,6 +106,7 @@ export function fakeSetup(options: Partial<FakeSetup> = {}): FakeSetup {
     progress: [],
     failAt: null,
     notReady: {},
+    notReadyOutput: {},
     calls: [],
     applied: [],
     tried: [],
@@ -170,6 +172,10 @@ export function fakeSetup(options: Partial<FakeSetup> = {}): FakeSetup {
               name: runner.name,
               ready: fake.notReady[runner.name] === undefined,
               detail: fake.notReady[runner.name] ?? "",
+              output:
+                fake.notReady[runner.name] === undefined
+                  ? ""
+                  : (fake.notReadyOutput[runner.name] ?? ""),
             });
           }
         }

@@ -180,6 +180,39 @@ describe("recognizer sensors check", () => {
     });
   });
 
+  it("relays a gap's output in --json and leaves text mode without it", () => {
+    const withOutput = { ...API_GAP, output: "engine not built\n" };
+    const answer = () => ({
+      stdout: `${JSON.stringify({ gaps: [withOutput, WEB_GAP] })}\n`,
+    });
+    const json = setup(REGISTERED, answer);
+
+    check(json, "crap", "--json");
+
+    expect(JSON.parse(json.out()).sensors[0].gaps).toEqual([
+      withOutput,
+      WEB_GAP,
+    ]);
+
+    const text = setup(REGISTERED, answer);
+
+    check(text, "crap");
+
+    expect(text.out()).not.toContain("engine not built");
+
+    const bad = setup(REGISTERED, () => ({
+      stdout: `${JSON.stringify({ gaps: [{ ...API_GAP, output: 3 }] })}\n`,
+    }));
+
+    check(bad, "crap", "--json");
+
+    expect(
+      JSON.parse(bad.out()).sensors[0].gaps.map(
+        (gap: { code: string }) => gap.code,
+      ),
+    ).toEqual(["check-failed"]);
+  });
+
   it("prints a note under the ready line, never as a gap, and exits 0", () => {
     const fake = setup(REGISTERED, (args) => ({
       stdout: `${JSON.stringify({ gaps: [], notes: args[0] === "crap" ? [NOTE] : [] })}\n`,

@@ -1,0 +1,6 @@
+{
+  "gaps": [
+    {"code": "coverage-missing", "suite": "unit", "line": "the suite exited 1 and left no coverage report", "output": "engine not built\n"}
+  ],
+  "notes": []
+}

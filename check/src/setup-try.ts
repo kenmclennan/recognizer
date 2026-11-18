@@ -17,12 +17,19 @@ export type TryEvent =
       state: "running" | "done" | "failed" | "undone";
       output: string;
     }
-  | { event: "runner"; name: string; ready: boolean; detail: string }
+  | {
+      event: "runner";
+      name: string;
+      ready: boolean;
+      detail: string;
+      output: string;
+    }
   | { event: "result"; ok: boolean };
 
 interface Gap {
   suite: string | null;
   line: string;
+  output?: string;
 }
 
 export function rehearsalChanges(
@@ -164,11 +171,27 @@ export async function tryChanges(
         ok = false;
       }
 
+      const output =
+        gaps === null
+          ? []
+          : [
+              ...new Set(
+                gaps
+                  .filter((gap) => gap.suite === name)
+                  .flatMap((gap) =>
+                    gap.output === undefined || gap.output === ""
+                      ? []
+                      : [gap.output],
+                  ),
+              ),
+            ];
+
       emit({
         event: "runner",
         name,
         ready: own.length === 0,
         detail: own.join(" "),
+        output: output.join("\n\n"),
       });
     }
 

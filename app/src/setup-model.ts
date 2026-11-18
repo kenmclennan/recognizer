@@ -49,7 +49,12 @@ export type RowState = "waiting" | "running" | "done" | "failed" | "undone";
 
 export type Row = { title: string; state: RowState; output: string };
 
-export type RunnerResult = { name: string; ready: boolean; detail: string };
+export type RunnerResult = {
+  name: string;
+  ready: boolean;
+  detail: string;
+  output: string;
+};
 
 export type TryState =
   | { kind: "idle" }
@@ -576,6 +581,7 @@ export function createSetupController(deps: SetupDeps): SetupController {
             name: event.name,
             ready: event.ready,
             detail: event.detail,
+            output: event.output,
           });
         }
       };

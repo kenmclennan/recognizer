@@ -326,11 +326,40 @@ describe("the setup wizard model", () => {
     if (tried.kind === "done") {
       expect(tried.ok).toBe(false);
       expect(tried.runners).toEqual([
-        { name: "engine", ready: true, detail: "" },
-        { name: "app", ready: true, detail: "" },
-        { name: "tauri", ready: false, detail: "tauri has no coverage" },
+        { name: "engine", ready: true, detail: "", output: "" },
+        { name: "app", ready: true, detail: "", output: "" },
+        {
+          name: "tauri",
+          ready: false,
+          detail: "tauri has no coverage",
+          output: "",
+        },
       ]);
       expect(tried.rows.some((row) => row.state === "undone")).toBe(true);
+    }
+  });
+
+  it("carries a not-ready runner's output into its result", async () => {
+    const { controller } = await opened(
+      fakeSetup({
+        notReady: { tauri: "no report" },
+        notReadyOutput: { tauri: "engine not built" },
+      }),
+    );
+
+    advanceTo(controller, "tests");
+    await controller.runOnce();
+
+    const tried = wizard(controller).tried;
+
+    expect(tried.kind).toBe("done");
+
+    if (tried.kind === "done") {
+      expect(tried.runners.map((one) => one.output)).toEqual([
+        "",
+        "",
+        "engine not built",
+      ]);
     }
   });
 

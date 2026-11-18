@@ -40,6 +40,11 @@ function snap(modal, name) {
     groups: [...modal.element.querySelectorAll(".sw-group")].map((n) => n.textContent),
     env: [...modal.element.querySelectorAll(".sw-envrow code")].map((n) => n.textContent),
     runners: [...modal.element.querySelectorAll(".sw-runner")].map((n) => n.textContent),
+    runnerOutputs: [...modal.element.querySelectorAll(".sw-runner")].map((n) => {
+      const link = n.nextElementSibling;
+      const box = link && link.nextElementSibling;
+      return link && link.textContent === "Output" && box && box.tagName === "PRE" ? { hidden: box.hidden, text: box.textContent } : null;
+    }),
   };
 }
 
@@ -106,6 +111,18 @@ function snap(modal, name) {
   facts.lifecycle.goneAfterClose = document.querySelector(".setup-modal") === null;
   facts.lifecycle.closedCalls = closedCalls;
 
+  const outputting = fakeSetup({ notReady: { tauri: "no report" }, notReadyOutput: { tauri: "engine not built" } });
+  const third = openSetupModal({ port: outputting });
+  await third.ready;
+  for (let i = 0; i < 2; i++) { third.controller.next(); await settle(); }
+  [...third.element.querySelectorAll("button")].find((b) => b.textContent === "Run once").click();
+  await settle();
+  await settle();
+  snap(third, "tried-output");
+  [...third.element.querySelectorAll(".sw-runner + button")][0].click();
+  snap(third, "tried-output-open");
+  third.close();
+
   const failing = fakeSetup({ failAt: 1 });
   const second = openSetupModal({ port: failing });
   await second.ready;
@@ -160,6 +177,7 @@ type Screen = {
   groups: string[];
   env: string[];
   runners: string[];
+  runnerOutputs: ({ hidden: boolean; text: string } | null)[];
 };
 
 type Facts = {
@@ -304,6 +322,29 @@ describe.skipIf(webkit === undefined)(
         "engine: ready",
         "app: ready",
         "tauri: ready",
+      ]);
+    });
+
+    it("shows an Output disclosure only after a not-ready runner with output", () => {
+      const closed = f.screens["tried-output"];
+
+      expect(closed?.runners).toEqual([
+        "engine: ready",
+        "app: ready",
+        "tauri: not ready - no report",
+      ]);
+      expect(closed?.runnerOutputs).toEqual([
+        null,
+        null,
+        { hidden: true, text: "engine not built" },
+      ]);
+      expect(f.screens["tried-output-open"]?.runnerOutputs[2]?.hidden).toBe(
+        false,
+      );
+      expect(f.screens["tests-tried"]?.runnerOutputs).toEqual([
+        null,
+        null,
+        null,
       ]);
     });
 

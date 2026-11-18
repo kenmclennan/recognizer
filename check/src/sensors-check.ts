@@ -16,6 +16,7 @@ export interface SensorGap {
   code: string;
   suite: string | null;
   line: string;
+  output?: string;
 }
 
 export type SensorNote = SensorGap;
@@ -72,13 +73,19 @@ function isSensorGap(value: unknown): value is SensorGap {
   return (
     typeof gap.code === "string" &&
     typeof gap.line === "string" &&
-    (gap.suite === null || typeof gap.suite === "string")
+    (gap.suite === null || typeof gap.suite === "string") &&
+    (gap.output === undefined || typeof gap.output === "string")
   );
 }
 
 function entries(value: unknown): SensorGap[] | null {
   return Array.isArray(value) && value.every(isSensorGap)
-    ? value.map(({ code, suite, line }) => ({ code, suite, line }))
+    ? value.map(({ code, suite, line, output }) => ({
+        code,
+        suite,
+        line,
+        ...(output === undefined ? {} : { output }),
+      }))
     : null;
 }
 
