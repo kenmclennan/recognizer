@@ -992,9 +992,12 @@ async fn setup_survey(
     extract: bool,
 ) -> Result<setup_run::SurveyRead, String> {
     let folder = window_folder_path(&app, &window)?;
+    let label = window_label(&window);
 
     tauri::async_runtime::spawn_blocking(move || {
-        setup_run::read_survey(tool_runner::runner(), &folder, extract)
+        setup_run::read_survey(tool_runner::runner(), &folder, extract, |line| {
+            let _ = app.emit_to(label.as_str(), "setup-survey-event", line);
+        })
     })
     .await
     .map_err(|error| error.to_string())

@@ -2,15 +2,18 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::time::Duration;
 
 use serde::Serialize;
 use serde_json::Value;
 
 use crate::repository::{clean_output, RECOGNIZER_COMMAND};
-use crate::scan_run::{kill_group, live_run, refusal_text};
+use crate::scan_run::{appended_lines, kill_group, live_run, read_run, refusal_text};
 use crate::tool_runner::{Captured, ToolFault, ToolRunner};
 
+const FEED_POLL: Duration = Duration::from_millis(250);
 const STDERR_CHARS: usize = 2000;
 const LIMIT_TEXT: &str = "usage limit";
 const SIGNED_OUT_TEXT: &str = "not logged in";
@@ -508,33 +511,158 @@ fn survey_of(runner: &ToolRunner, folder: &Path) -> Result<Value, String> {
         .map_err(|_| "recognizer setup survey printed no JSON".to_string())
 }
 
-pub fn read_survey(runner: &ToolRunner, folder: &Path, extract: bool) -> SurveyRead {
-    let mut survey = match survey_of(runner, folder) {
-        Ok(survey) => survey,
+fn step_line(step: &str, state: &str) -> String {
+    serde_json::json!({ "event": "step", "step": step, "state": state }).to_string()
+}
+
+struct FeedRelay {
+    offset: u64,
+    armed: bool,
+}
+
+impl FeedRelay {
+    fn new() -> Self {
+        FeedRelay {
+            offset: 0,
+            armed: false,
+        }
+    }
+
+    fn tick(&mut self, folder: &Path, child: u32, on_line: &impl Fn(String)) {
+        if !self.armed {
+            match read_run(folder) {
+                Some(run) if run.pid == child || run.pgid == Some(child) => self.armed = true,
+                _ => return,
+            }
+        }
+
+        let (lines, next) = appended_lines(folder, self.offset);
+
+        self.offset = next;
+
+        for line in lines {
+            on_line(line);
+        }
+    }
+}
+
+fn scan_relayed(
+    runner: &ToolRunner,
+    folder: &Path,
+    on_line: &(impl Fn(String) + Sync),
+) -> Result<(), String> {
+    let mut args = words(&["scan", "--extract"]);
+
+    args.push(folder.display().to_string());
+
+    let mut process = runner
+        .command(RECOGNIZER_COMMAND)
+        .map_err(|fault| fault.message())?;
+
+    process
+        .args(&args)
+        .current_dir(folder)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+
+        process.process_group(0);
+    }
+
+    let missing = || {
+        ToolFault::Missing {
+            tool: RECOGNIZER_COMMAND.to_string(),
+        }
+        .message()
+    };
+    let mut child = process.spawn().map_err(|_| missing())?;
+    let pid = child.id();
+    let finished = AtomicBool::new(false);
+
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
+            let mut relay = FeedRelay::new();
+
+            while !finished.load(Ordering::SeqCst) {
+                relay.tick(folder, pid, on_line);
+                std::thread::sleep(FEED_POLL);
+            }
+
+            relay.tick(folder, pid, on_line);
+        });
+
+        let waited = runner.limited(|| child.wait());
+
+        finished.store(true, Ordering::SeqCst);
+
+        waited.map(|_| ()).map_err(|_| missing())
+    })
+}
+
+fn survey_flow(
+    extract: bool,
+    mut survey: impl FnMut() -> Result<Value, String>,
+    scan: impl FnOnce() -> Result<(), String>,
+    doctor: impl FnOnce() -> DoctorRead,
+    on_line: &impl Fn(String),
+) -> SurveyRead {
+    on_line(step_line("survey", "run"));
+
+    let mut read = match survey() {
+        Ok(read) => read,
         Err(reason) => return SurveyRead::Unavailable { reason },
     };
 
-    if extract && survey.get("files").is_some_and(Value::is_null) {
-        let mut args = words(&["scan", "--extract"]);
+    on_line(step_line("survey", "done"));
 
-        args.push(folder.display().to_string());
+    let scanned = extract && read.get("files").is_some_and(Value::is_null);
 
-        if let Err(fault) = capture_recognizer(runner, folder, &args) {
-            return SurveyRead::Unavailable {
-                reason: fault.message(),
-            };
+    if scanned {
+        on_line(step_line("scan", "run"));
+
+        if let Err(reason) = scan() {
+            return SurveyRead::Unavailable { reason };
         }
 
-        survey = match survey_of(runner, folder) {
-            Ok(survey) => survey,
+        on_line(step_line("scan", "done"));
+    }
+
+    on_line(step_line("reading", "run"));
+
+    if scanned {
+        read = match survey() {
+            Ok(read) => read,
             Err(reason) => return SurveyRead::Unavailable { reason },
         };
     }
 
+    let doctor = doctor();
+
+    on_line(step_line("reading", "done"));
+
     SurveyRead::Ok {
-        survey,
-        doctor: read_doctor(runner, folder),
+        survey: read,
+        doctor,
     }
+}
+
+pub fn read_survey(
+    runner: &ToolRunner,
+    folder: &Path,
+    extract: bool,
+    on_line: impl Fn(String) + Sync,
+) -> SurveyRead {
+    survey_flow(
+        extract,
+        || survey_of(runner, folder),
+        || scan_relayed(runner, folder, &on_line),
+        || read_doctor(runner, folder),
+        &on_line,
+    )
 }
 
 pub struct TempFile {
@@ -1057,5 +1185,130 @@ mod tests {
         runs.finish("w-1");
 
         assert_eq!(runs.running_count(), 1);
+    }
+
+    fn marker_text(pid: u32) -> String {
+        format!(
+            r#"{{"version":5,"run_id":"r","pid":{pid},"pgid":{pid},"started_at":"2026-01-01T00:00:00.000Z","started_by":"app","repository":"/work/shop","sensors":[],"describe":false,"suites":{{}},"phase":"running","ended_at":null,"exit":null,"gaps":[],"failure":null,"commit":null,"ran":null}}"#
+        )
+    }
+
+    fn cache(folder: &Path) -> PathBuf {
+        let cache = folder.join(".recognizer/cache");
+
+        std::fs::create_dir_all(&cache).unwrap();
+
+        cache
+    }
+
+    fn append(folder: &Path, text: &str) {
+        use std::io::Write;
+
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(cache(folder).join("scan-running.progress.jsonl"))
+            .unwrap();
+
+        file.write_all(text.as_bytes()).unwrap();
+    }
+
+    fn collected(relay: &mut FeedRelay, folder: &Path, child: u32, seen: &RefCell<Vec<String>>) {
+        relay.tick(folder, child, &|line| seen.borrow_mut().push(line));
+    }
+
+    #[test]
+    fn the_relay_forwards_feed_lines_appended_in_two_chunks_and_holds_a_partial_line() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        let seen = RefCell::new(Vec::new());
+        let mut relay = FeedRelay::new();
+
+        std::fs::write(cache(folder).join("scan-running.json"), marker_text(4242)).unwrap();
+        append(folder, "{\"event\":\"a\"}\n{\"event\":");
+        collected(&mut relay, folder, 4242, &seen);
+
+        assert_eq!(*seen.borrow(), strings(&["{\"event\":\"a\"}"]));
+
+        append(folder, "\"b\"}\n");
+        collected(&mut relay, folder, 4242, &seen);
+
+        assert_eq!(
+            *seen.borrow(),
+            strings(&["{\"event\":\"a\"}", "{\"event\":\"b\"}"])
+        );
+    }
+
+    #[test]
+    fn the_relay_forwards_nothing_until_the_marker_names_the_child() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        let seen = RefCell::new(Vec::new());
+        let mut relay = FeedRelay::new();
+
+        append(folder, "{\"event\":\"stale\"}\n");
+        collected(&mut relay, folder, 4242, &seen);
+
+        assert!(seen.borrow().is_empty());
+
+        std::fs::write(cache(folder).join("scan-running.json"), marker_text(9999)).unwrap();
+        collected(&mut relay, folder, 4242, &seen);
+
+        assert!(seen.borrow().is_empty());
+
+        std::fs::write(cache(folder).join("scan-running.json"), marker_text(4242)).unwrap();
+        collected(&mut relay, folder, 4242, &seen);
+
+        assert_eq!(*seen.borrow(), strings(&["{\"event\":\"stale\"}"]));
+    }
+
+    fn flow(files_null: bool, extract: bool) -> Vec<String> {
+        let seen = RefCell::new(Vec::new());
+        let files = if files_null {
+            Value::Null
+        } else {
+            Value::from(1)
+        };
+        let result = survey_flow(
+            extract,
+            || Ok(serde_json::json!({ "files": files })),
+            || Ok(()),
+            || DoctorRead::Unavailable {
+                reason: "x".to_string(),
+            },
+            &|line| seen.borrow_mut().push(line),
+        );
+
+        assert!(matches!(result, SurveyRead::Ok { .. }));
+
+        seen.into_inner()
+    }
+
+    #[test]
+    fn the_step_lines_arrive_survey_scan_reading_on_an_unscanned_folder() {
+        assert_eq!(
+            flow(true, true),
+            strings(&[
+                r#"{"event":"step","step":"survey","state":"run"}"#,
+                r#"{"event":"step","step":"survey","state":"done"}"#,
+                r#"{"event":"step","step":"scan","state":"run"}"#,
+                r#"{"event":"step","step":"scan","state":"done"}"#,
+                r#"{"event":"step","step":"reading","state":"run"}"#,
+                r#"{"event":"step","step":"reading","state":"done"}"#,
+            ])
+        );
+    }
+
+    #[test]
+    fn the_step_lines_arrive_survey_reading_on_a_scanned_folder() {
+        assert_eq!(
+            flow(false, true),
+            strings(&[
+                r#"{"event":"step","step":"survey","state":"run"}"#,
+                r#"{"event":"step","step":"survey","state":"done"}"#,
+                r#"{"event":"step","step":"reading","state":"run"}"#,
+                r#"{"event":"step","step":"reading","state":"done"}"#,
+            ])
+        );
     }
 }
