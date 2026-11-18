@@ -265,7 +265,7 @@ uses:
     expect(newTriples(migrated(text), [["b/1.py", "a/1.py"]])).toEqual([]);
   });
 
-  it("migrating again changes nothing, and comments, ignore and foreign survive", () => {
+  it("migrating again changes nothing, and comments and ignore survive and foreign is removed", () => {
     const text = `# the rules
 components:
   a: a/**
@@ -280,7 +280,7 @@ ignore: [tests/**] # skip tests
     const once = migrated(text);
 
     expect(once).toContain("# the rules");
-    expect(once).toContain("foreign:\n  stdlib: [os]");
+    expect(once).not.toContain("foreign");
     expect(once).toContain("ignore: [tests/**] # skip tests");
     expect(once).not.toMatch(/components|levels|uses/);
     expect(migrated(once)).toBe(once);
@@ -502,5 +502,31 @@ levels:
     expect(lonely(migratedCheck)).toContain("orphan:shop/tool.py");
     expect(lonely(withTool)).not.toContain("orphan:shop/tool.py");
     expect(parse(withTool).entry).toContain("shop/tool.py");
+  });
+});
+
+describe("recognizer policy --migrate of foreign", () => {
+  it("removes foreign alone, writes nothing in its place and leaves the other rules", () => {
+    const text = `# rules
+forbid:
+  - a/** -> b/**
+
+foreign:
+  stdlib: [os]
+
+ignore: [tests/**]
+`;
+    const outcome = migratePolicy(text);
+
+    expect(outcome).toMatchObject({
+      status: "ok",
+      changes: ["removed foreign"],
+    });
+    expect(outcome.status === "ok" && outcome.text).toBe(`# rules
+forbid:
+  - a/** -> b/**
+
+ignore: [tests/**]
+`);
   });
 });

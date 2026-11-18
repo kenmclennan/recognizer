@@ -329,6 +329,7 @@ export function migratePolicy(text: string): MigrateOutcome {
   addEntry(doc, paths);
   root.delete("levels");
   root.delete("uses");
+  root.delete("foreign");
 
   if (rules.length > 0) {
     appendRules(doc, rules);
