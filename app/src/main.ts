@@ -89,7 +89,7 @@ function runDoctor(): Promise<unknown> {
   }
 
   return setupSource
-    .survey(false)
+    .survey(false, () => {})
     .then((read) =>
       noteDoctor(
         read.status === "ok"

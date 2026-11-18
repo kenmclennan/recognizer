@@ -12,7 +12,13 @@ import {
   type TryEvent,
 } from "recognizer";
 import type { DoctorRead, SetupPort } from "./setup-port";
-import { applyFill, type Timed } from "./setup-progress";
+import {
+  applyFill,
+  type LoadingState,
+  reduceLoading,
+  startLoading,
+  type Timed,
+} from "./setup-progress";
 
 export type StepKey =
   | "files"
@@ -101,7 +107,7 @@ export type WizardState = {
 };
 
 export type SetupState =
-  | { kind: "loading" }
+  | { kind: "loading"; progress: LoadingState }
   | { kind: "unavailable"; reason: string }
   | WizardState;
 
@@ -328,7 +334,7 @@ function withRow(rows: Row[], index: number, patch: Partial<Row>): Row[] {
 
 export function createSetupController(deps: SetupDeps): SetupController {
   const now = deps.now ?? Date.now;
-  let state: SetupState = { kind: "loading" };
+  let state: SetupState = { kind: "loading", progress: startLoading(now()) };
   let stopping = false;
   let live = false;
   const listeners = new Set<(state: SetupState) => void>();
@@ -381,9 +387,17 @@ export function createSetupController(deps: SetupDeps): SetupController {
       return () => listeners.delete(listener);
     },
     async open() {
-      set({ kind: "loading" });
+      let progress = startLoading(now());
 
-      const read = await deps.port.survey(true);
+      set({ kind: "loading", progress });
+
+      const read = await deps.port.survey(true, (line) => {
+        progress = reduceLoading(progress, line, now());
+
+        if (state.kind === "loading") {
+          set({ kind: "loading", progress });
+        }
+      });
 
       if (read.status === "unavailable") {
         set({ kind: "unavailable", reason: read.reason });

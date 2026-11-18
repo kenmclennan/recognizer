@@ -27,7 +27,7 @@ import {
   type WizardState,
 } from "./setup-model";
 import type { DoctorRead, SetupPort } from "./setup-port";
-import { elapsedText, type Timed } from "./setup-progress";
+import { elapsedText, type LoadingState, type Timed } from "./setup-progress";
 
 export type SetupModalDeps = {
   port: SetupPort;
@@ -1366,6 +1366,43 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     }
   }
 
+  function loadingStep(progress: LoadingState) {
+    const timeNow = now();
+    const headRow = el("div", "sw-headrow");
+    const time = el("span", "sw-elapsed sw-mono");
+    const elapsedNow = () => elapsedText(now() - progress.startedAt);
+    const bar = el("div", "sw-bar");
+    const fill = el("i", "sw-fill running");
+
+    time.textContent = elapsedNow();
+    elapsed = { node: time, text: elapsedNow };
+    headRow.append(el("h2", "", "Reading the repository"), time);
+    fill.style.width = `${Math.round(progress.fill * 100)}%`;
+    bar.append(fill);
+    body.append(headRow, bar);
+
+    if (progress.scan !== null) {
+      body.append(
+        el(
+          "p",
+          "sw-lead-text",
+          "This happens once, the first time Setup opens on a folder that has never been scanned.",
+        ),
+      );
+    }
+
+    const timed = (row: Timed): Timed =>
+      row.state === "done" ? row : { ...row, endedAt: timeNow };
+
+    body.append(
+      stepRow("Finding languages and test setups", timed(progress.survey)),
+      ...(progress.scan === null
+        ? []
+        : [stepRow("Scanning the files", timed(progress.scan))]),
+      stepRow("Reading what the scan found", timed(progress.reading)),
+    );
+  }
+
   function renderSteps(state: WizardState) {
     steps.replaceChildren();
 
@@ -1466,7 +1503,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     if (state.kind === "loading") {
       title.textContent = "Set up";
       steps.replaceChildren();
-      body.append(el("p", "sw-lead-text", "Reading the repository..."));
+      loadingStep(state.progress);
       nextButton.disabled = true;
       backButton.hidden = true;
       note.textContent = "";

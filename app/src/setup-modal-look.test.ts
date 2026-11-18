@@ -314,6 +314,43 @@ function snap(modal, name) {
       runningLines: qa(".sw-row.state-running .sw-why").map((n) => n.textContent),
     };
   };
+  const feed = (o) => JSON.stringify(o);
+  let freeMid = () => {};
+  let freeEnd = () => {};
+  const holdMid = new Promise((resolve) => { freeMid = resolve; });
+  const holdEnd = new Promise((resolve) => { freeEnd = resolve; });
+  const unscanned = openSetupModal({ port: fakeSetup({ surveyLines: [
+    feed({ event: "step", step: "survey", state: "run" }),
+    feed({ event: "step", step: "survey", state: "done" }),
+    feed({ event: "step", step: "scan", state: "run" }),
+    holdMid,
+    feed({ event: "step", step: "scan", state: "done" }),
+    feed({ event: "step", step: "reading", state: "run" }),
+    holdEnd,
+  ] }) });
+  await settle();
+  shot("scan-mid", unscanned);
+  freeMid();
+  await settle();
+  shot("scan-end", unscanned);
+  freeEnd();
+  await unscanned.ready;
+  unscanned.close();
+
+  let freeScanned = () => {};
+  const holdScanned = new Promise((resolve) => { freeScanned = resolve; });
+  const scanned = openSetupModal({ port: fakeSetup({ surveyLines: [
+    feed({ event: "step", step: "survey", state: "run" }),
+    feed({ event: "step", step: "survey", state: "done" }),
+    feed({ event: "step", step: "reading", state: "run" }),
+    holdScanned,
+  ] }) });
+  await settle();
+  shot("scanned", scanned);
+  freeScanned();
+  await scanned.ready;
+  scanned.close();
+
   let freeCommand = () => {};
   let freeDoctor = () => {};
   let freeReload = () => {};
@@ -469,6 +506,48 @@ describe.skipIf(webkit === undefined)(
 
     describe("progress while reading and applying", () => {
       const shot = (name: string) => f.progress[name] as Shot;
+
+      it("opening Setup on an unscanned folder shows the three rows and the lead line", () => {
+        const mid = shot("scan-mid");
+
+        expect(mid).toBeDefined();
+        expect(mid.heading).toBe("Reading the repository");
+        expect(mid.titles).toEqual([
+          "Finding languages and test setups",
+          "Scanning the files",
+          "Reading what the scan found",
+        ]);
+        expect(mid.text).toContain(
+          "This happens once, the first time Setup opens on a folder that has never been scanned.",
+        );
+        expect(mid.spinners).toBe(1);
+        expect(mid.ticks).toBe(1);
+        expect(mid.circles).toBe(1);
+        expect(mid.glyphLeads).toBe(0);
+        expect(mid.iconSquare).toBe(true);
+        expect(mid.fillRatio).toBeGreaterThan(0);
+        expect(mid.fillRatio).toBeLessThan(1);
+        expect(mid.elapsed).toMatch(/^\d+\.\ds$/);
+      });
+
+      it("finished rows show their time", () => {
+        const end = shot("scan-end");
+
+        expect(end.ticks).toBe(2);
+        expect(end.times).toBe(2);
+        expect(end.fillRatio).toBeGreaterThan(shot("scan-mid").fillRatio);
+      });
+
+      it("a folder already scanned shows only the rows that run and no lead line", () => {
+        const read = shot("scanned");
+
+        expect(read.titles).toEqual([
+          "Finding languages and test setups",
+          "Reading what the scan found",
+        ]);
+        expect(read.text).not.toContain("This happens once");
+        expect(read.spinners).toBe(1);
+      });
 
       it("Apply shows a spinning first row with its step and command, and a bar above zero after the first command", () => {
         const hold = shot("apply-command");

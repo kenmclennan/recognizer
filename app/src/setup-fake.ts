@@ -29,6 +29,7 @@ export type FakeSetup = SetupPort & {
   applied: SetupChoices[];
   tried: SetupChoices[];
   gate: Promise<void> | null;
+  surveyLines: (string | Promise<void>)[];
   holdAfterCommand: Promise<void> | null;
   holdDoctor: Promise<void> | null;
   stopped: number;
@@ -114,12 +115,21 @@ export function fakeSetup(options: Partial<FakeSetup> = {}): FakeSetup {
     applied: [],
     tried: [],
     gate: null,
+    surveyLines: [],
     holdAfterCommand: null,
     holdDoctor: null,
     stopped: 0,
     ...options,
-    async survey(extract) {
+    async survey(extract, onLine) {
       fake.calls.push(extract ? "survey+extract" : "survey");
+
+      for (const line of fake.surveyLines) {
+        if (typeof line === "string") {
+          onLine(line);
+        } else {
+          await line;
+        }
+      }
 
       return fake.surveyRead;
     },
