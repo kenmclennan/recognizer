@@ -819,7 +819,7 @@ describe("check running the structure sensor", () => {
     });
     expect(document.commit).toBe(COMMIT);
     expect(out.split("\n")[0]).toBe(
-      "sensor structure: cycle on, orphan on, unused_exports off, private_imports on, long_function on, long_function_limit 20, complexity on, complexity_limit 10",
+      "sensor structure: cycle on, orphan on, unused_exports off, private_imports on, long_function on, long_function_limit 20, complexity on, complexity_limit 10 (not measured: duplication, complexity)",
     );
     expect(err).toBe(NOT_MEASURED);
   });

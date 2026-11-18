@@ -48,6 +48,7 @@ export function carryMeasured(
 ): FindingsDocument {
   if (
     stored === null ||
+    stored.sensor.version !== fresh.sensor.version ||
     stored.commit !== fresh.commit ||
     !sameInputs(stored.inputs, fresh.inputs)
   ) {

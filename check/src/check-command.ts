@@ -70,8 +70,9 @@ interface Ranked {
 
 interface SensorStatus {
   name: string;
-  status: "ran" | "off" | "failed" | "stale" | "missing";
+  status: "ran" | "partial" | "off" | "failed" | "stale" | "missing";
   reason?: string;
+  not_measured?: string[];
   settings?: StructureSettings;
   reported?: true;
   out_of_date?: number;
@@ -559,19 +560,32 @@ function gather(
         documents.push(sensed.document);
       }
 
+      const notMeasured: string[] = [];
+
       if (duplicationUnmeasured(sensed.document, resolved)) {
+        notMeasured.push("duplication");
         io.stderr(
           "duplication not measured since the last scan: run recognizer scan\n",
         );
       }
 
       if (complexityUnmeasured(sensed.document, resolved)) {
+        notMeasured.push("complexity");
         io.stderr(
           "complexity not measured since the last scan: run recognizer scan\n",
         );
       }
 
-      sensors.push({ name: "structure", status: "ran", settings: resolved });
+      sensors.push(
+        notMeasured.length === 0
+          ? { name: "structure", status: "ran", settings: resolved }
+          : {
+              name: "structure",
+              status: "partial",
+              settings: resolved,
+              not_measured: notMeasured,
+            },
+      );
     }
   }
 
@@ -746,11 +760,15 @@ function executeRepository(
   const analysis = analysisReport(warnings, metrics, folderMetrics);
   const candidates = candidatesOf(gathered.documents);
   const settings = gathered.sensors.find((one) => one.name === "structure");
+  const unmeasuredNote =
+    settings?.not_measured && settings.not_measured.length > 0
+      ? ` (not measured: ${settings.not_measured.join(", ")})`
+      : "";
   const sensorLine = `sensor structure: ${
     settings?.settings
       ? describeSettings(settings.settings)
       : (settings?.status ?? "off")
-  }\n`;
+  }${unmeasuredNote}\n`;
   const exit = (fresh: number) => (failed ? 1 : fresh > 0 ? 1 : 0);
 
   if (policy === null && candidates.length === 0) {
