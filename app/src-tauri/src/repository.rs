@@ -512,6 +512,8 @@ pub fn planned_work_with(
     }
 
     fs::create_dir_all(folder.join(CACHE)).map_err(|error| error.to_string())?;
+    crate::fs_safe::ensure_cache_ignore(&folder.join(CACHE).join("work"))
+        .map_err(|error| error.to_string())?;
 
     let mut files: Vec<PathBuf> = Vec::new();
     let mut staged = |kind: &str, text: String| -> Result<PathBuf, String> {
@@ -980,9 +982,10 @@ mod tests {
 
         let left: Vec<_> = fs::read_dir(dir.path().join(".recognizer/cache"))
             .unwrap()
+            .map(|entry| entry.unwrap().file_name())
             .collect();
 
-        assert!(left.is_empty());
+        assert_eq!(left, vec![std::ffi::OsString::from(".gitignore")]);
     }
 
     #[test]

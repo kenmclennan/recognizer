@@ -14,6 +14,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { type AwakeClock, systemAwakeClock } from "./awake-clock.js";
+import { ensureCacheIgnore } from "./cache-ignore.js";
 import { COMMANDS } from "./commands.js";
 import { errorText, InputError } from "./errors.js";
 import { commandHelp, shortHelp } from "./help.js";
@@ -397,6 +398,7 @@ export function nodeIo(): Io {
     },
     writeFile: (path, content, mode) => {
       mkdirSync(dirname(path), { recursive: true });
+      ensureCacheIgnore(path);
       writeFileSync(path, content, mode === undefined ? undefined : { mode });
     },
     rename: (from, to) => renameSync(from, to),
@@ -514,6 +516,7 @@ export function nodeIo(): Io {
     },
     createExclusive: (path, content) => {
       mkdirSync(dirname(path), { recursive: true });
+      ensureCacheIgnore(path);
 
       try {
         writeFileSync(path, content, { flag: "wx" });
@@ -527,7 +530,10 @@ export function nodeIo(): Io {
         throw error;
       }
     },
-    append: (path, content) => appendFileSync(path, content),
+    append: (path, content) => {
+      ensureCacheIgnore(path);
+      appendFileSync(path, content);
+    },
     stdout: (text) => process.stdout.write(text),
     stderr: (text) => process.stderr.write(text),
   };

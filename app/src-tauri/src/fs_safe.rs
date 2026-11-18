@@ -56,9 +56,34 @@ pub fn checked_relative_entry(root: &Path, relative: &str) -> Result<PathBuf, St
     )
 }
 
+pub fn ensure_cache_ignore(target: &Path) -> std::io::Result<()> {
+    let Some(cache) = target.ancestors().find(|ancestor| {
+        ancestor.file_name().is_some_and(|name| name == "cache")
+            && ancestor
+                .parent()
+                .and_then(Path::file_name)
+                .is_some_and(|name| name == ".recognizer")
+    }) else {
+        return Ok(());
+    };
+
+    fs::create_dir_all(cache)?;
+
+    match fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(cache.join(".gitignore"))
+    {
+        Ok(mut file) => std::io::Write::write_all(&mut file, b"*\n"),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
 pub fn write_atomic(target: &Path, text: &str) -> std::io::Result<()> {
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent)?;
+        ensure_cache_ignore(target)?;
     }
 
     let mut name = target.as_os_str().to_owned();
@@ -194,5 +219,44 @@ mod tests {
 
         assert!(checked_relative_entry(&root, "dirlink").is_err());
         assert!(checked_relative_entry(&root, "filelink").is_err());
+    }
+
+    #[test]
+    fn write_atomic_into_the_cache_adds_a_gitignore() {
+        let (_dir, root) = folder();
+
+        write_atomic(&root.join(".recognizer/cache/findings/x.json"), "{}").unwrap();
+
+        assert_eq!(
+            fs::read_to_string(root.join(".recognizer/cache/.gitignore")).unwrap(),
+            "*\n"
+        );
+    }
+
+    #[test]
+    fn write_atomic_outside_the_cache_adds_no_gitignore() {
+        let (_dir, root) = folder();
+
+        write_atomic(&root.join(".recognizer/config.yaml"), "x").unwrap();
+        write_atomic(&root.join("other/x"), "x").unwrap();
+
+        assert!(!root.join(".recognizer/cache").exists());
+        assert!(!root.join(".recognizer/.gitignore").exists());
+        assert!(!root.join("other/.gitignore").exists());
+    }
+
+    #[test]
+    fn an_existing_gitignore_is_left_alone() {
+        let (_dir, root) = folder();
+        let cache = root.join(".recognizer/cache");
+
+        fs::create_dir_all(&cache).unwrap();
+        fs::write(cache.join(".gitignore"), "custom\n").unwrap();
+        write_atomic(&cache.join("x.json"), "{}").unwrap();
+
+        assert_eq!(
+            fs::read_to_string(cache.join(".gitignore")).unwrap(),
+            "custom\n"
+        );
     }
 }
