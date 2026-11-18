@@ -2,7 +2,7 @@ import { basename, join, posix, relative, resolve } from "node:path";
 import { parse } from "yaml";
 import type { Io } from "./cli.js";
 import { packageVersion } from "./cli.js";
-import { configFile } from "./config.js";
+import { configFile, policyFile } from "./config.js";
 import { CORE_KEYS, type KeyEntry } from "./config-keys.js";
 import {
   detectLanguages,
@@ -11,13 +11,19 @@ import {
 } from "./detect.js";
 import { doctorReport } from "./doctor-command.js";
 import { InputError } from "./errors.js";
+import { compileGlob } from "./glob.js";
 import { discoverPlugins } from "./plugin-discovery.js";
+import { type Policy, parsePolicy } from "./policy.js";
 import type { RecordedScan } from "./scan.js";
 import { readCachedScan } from "./scan-command.js";
 import { languageRulesOf } from "./scanners.js";
+import { splitCommand, withoutRepository } from "./setup-changes.js";
+import { commandRefusal } from "./setup-proposal.js";
 import { readShippedSensors } from "./shipped-sensors.js";
 
 export const SURVEY_VERSION = 1;
+
+export type SetupMark = "set-up" | "new" | "gone";
 
 export interface SurveyFolder {
   path: string;
@@ -28,6 +34,7 @@ export interface SurveyLanguage {
   language: string;
   files: number;
   folders: SurveyFolder[];
+  mark: SetupMark | null;
 }
 
 export interface SurveyUnread {
@@ -51,6 +58,7 @@ export interface SurveyCheck {
   enabled: boolean;
   runs_tests: boolean;
   limits: SurveyLimit[];
+  mark: SetupMark | null;
 }
 
 export interface SurveyRunner {
@@ -76,12 +84,27 @@ export interface SurveyTool {
   cwd: string;
 }
 
-export interface SurveyUpgrade {
+export interface SurveyFix {
   code: string;
   subject: string;
   title: string;
   line: string;
+  fix_text: string;
+  command: string | null;
+}
+
+export interface SurveySuite {
+  name: string;
+  language: string;
+  directory: string;
   command: string;
+  env?: Record<string, string>;
+  mark: "set-up" | "gone";
+}
+
+export interface SurveyPolicy {
+  present: boolean;
+  uncovered: string[];
 }
 
 export interface Survey {
@@ -94,7 +117,9 @@ export interface Survey {
   checks: SurveyCheck[];
   runners: SurveyRunner[];
   tools: SurveyTool[];
-  upgrade: SurveyUpgrade[];
+  fixes: SurveyFix[];
+  suites: SurveySuite[];
+  policy: SurveyPolicy;
 }
 
 export interface SurveyOptions {
@@ -614,19 +639,29 @@ function pythonRunners(io: Io, root: string, files: string[]): Found[] {
     .sort((a, b) => compareText(a.directory, b.directory));
 }
 
-function nameRunners(found: Found[], root: string): SurveyRunner[] {
+function nameRunners(
+  found: Found[],
+  root: string,
+  taken: Set<string> = new Set(),
+): SurveyRunner[] {
   const used = new Map<string, number>();
+  const names = new Set(taken);
 
   return found.map((one) => {
     const base = basename(one.directory === "." ? root : one.directory).replace(
       /^src-/,
       "",
     );
-    const seen = (used.get(base) ?? 0) + 1;
+    let seen = (used.get(base) ?? 0) + 1;
+    let name = seen === 1 ? base : `${base}-${seen}`;
+
+    while (names.has(name)) {
+      seen += 1;
+      name = `${base}-${seen}`;
+    }
 
     used.set(base, seen);
-
-    const name = seen === 1 ? base : `${base}-${seen}`;
+    names.add(name);
 
     return {
       name,
@@ -850,6 +885,7 @@ function filesOf(scans: RecordedScan[]): SurveyLanguage[] {
         language: scanLanguage(scan),
         files: paths.length,
         folders: foldersOf(paths),
+        mark: null,
       };
     })
     .sort((a, b) => compareText(a.language, b.language));
@@ -929,7 +965,19 @@ function limitsOf(document: Record<string, unknown>): SurveyLimit[] {
   });
 }
 
-function checksOf(io: Io, document: Record<string, unknown>): SurveyCheck[] {
+function checkMark(configured: boolean, enabled: boolean): SetupMark | null {
+  if (!configured) {
+    return null;
+  }
+
+  return enabled ? "set-up" : "new";
+}
+
+function checksOf(
+  io: Io,
+  document: Record<string, unknown>,
+  configured: boolean,
+): SurveyCheck[] {
   const structure = valueAt(document, ["sensors", "structure"]);
   const registered = valueAt(document, ["sensors"]);
   const shipped = readShippedSensors(io).sensors;
@@ -945,6 +993,7 @@ function checksOf(io: Io, document: Record<string, unknown>): SurveyCheck[] {
       enabled: true,
       runs_tests: false,
       limits: [],
+      mark: configured ? "set-up" : null,
     },
     {
       id: "analysis",
@@ -955,49 +1004,218 @@ function checksOf(io: Io, document: Record<string, unknown>): SurveyCheck[] {
       enabled: structure !== "off",
       runs_tests: false,
       limits: limitsOf(document),
+      mark: checkMark(configured, structure !== "off"),
     },
-    ...shipped.map((sensor) => ({
-      id: sensor.name,
-      display: sensor.display,
-      description: sensor.description ?? "",
-      always_on: false,
-      enabled:
+    ...shipped.map((sensor) => {
+      const enabled =
         typeof registered === "object" &&
         registered !== null &&
-        sensor.name in registered,
-      runs_tests: sensor.runs_tests,
-      limits: [],
-    })),
-    ...describers.map((describer) => ({
-      id: describer.name,
-      display: describer.manifest.display,
-      description: describer.manifest.description ?? "",
-      always_on: false,
-      enabled: "describer" in document,
-      runs_tests: false,
-      limits: [],
-    })),
+        sensor.name in registered;
+
+      return {
+        id: sensor.name,
+        display: sensor.display,
+        description: sensor.description ?? "",
+        always_on: false,
+        enabled,
+        runs_tests: sensor.runs_tests,
+        limits: [],
+        mark: checkMark(configured, enabled),
+      };
+    }),
+    ...describers.map((describer) => {
+      const enabled = "describer" in document;
+
+      return {
+        id: describer.name,
+        display: describer.manifest.display,
+        description: describer.manifest.description ?? "",
+        always_on: false,
+        enabled,
+        runs_tests: false,
+        limits: [],
+        mark: checkMark(configured, enabled),
+      };
+    }),
   ];
 }
 
-const UPGRADE_CODES = ["config-retired", "config-empty", "policy-retired"];
-
-function upgradeOf(io: Io, root: string): SurveyUpgrade[] {
+function fixesOf(
+  io: Io,
+  root: string,
+  checks: readonly SurveyCheck[],
+): SurveyFix[] {
   const report = doctorReport(io, root, false);
+  const offered = new Set(checks.map((check) => check.id));
 
   return report.areas
     .flatMap((area) => area.problems)
+    .filter((problem) => problem.severity === "problem")
     .filter(
       (problem) =>
-        UPGRADE_CODES.includes(problem.code) && problem.fix.command !== null,
+        !(
+          problem.code === "unregistered-plugin" && offered.has(problem.subject)
+        ),
     )
-    .map((problem) => ({
-      code: problem.code,
-      subject: problem.subject,
-      title: problem.title,
-      line: problem.line,
-      command: problem.fix.command as string,
+    .map((problem) => {
+      const command = problem.fix.command;
+      const runnable =
+        command !== null &&
+        commandRefusal(withoutRepository(splitCommand(command))) === null;
+
+      return {
+        code: problem.code,
+        subject: problem.subject,
+        title: problem.title,
+        line: problem.line,
+        fix_text: problem.fix.text,
+        command: runnable ? command : null,
+      };
+    });
+}
+
+function suitesOf(
+  io: Io,
+  document: Record<string, unknown>,
+  files: string[],
+  configured: boolean,
+): SurveySuite[] {
+  const list = document.tests;
+
+  if (!configured || !Array.isArray(list)) {
+    return [];
+  }
+
+  const text = (value: unknown) => (typeof value === "string" ? value : "");
+
+  return list
+    .filter(
+      (entry): entry is Record<string, unknown> =>
+        typeof entry === "object" && entry !== null && !Array.isArray(entry),
+    )
+    .map((entry) => {
+      const directory = posix.normalize(text(entry.directory) || ".");
+      const root = directory === "." || directory === "./";
+      const holds =
+        root ||
+        files.some(
+          (file) => file === directory || file.startsWith(`${directory}/`),
+        );
+      const env =
+        typeof entry.env === "object" &&
+        entry.env !== null &&
+        !Array.isArray(entry.env)
+          ? Object.fromEntries(
+              Object.entries(entry.env).filter(
+                (pair): pair is [string, string] => typeof pair[1] === "string",
+              ),
+            )
+          : undefined;
+
+      return {
+        name: text(entry.name),
+        language: text(entry.language),
+        directory: text(entry.directory) || ".",
+        command: text(entry.command),
+        ...(env === undefined || Object.keys(env).length === 0 ? {} : { env }),
+        mark: holds ? ("set-up" as const) : ("gone" as const),
+      };
+    })
+    .filter((suite) => suite.name !== "")
+    .sort((a, b) => compareText(a.name, b.name));
+}
+
+function markLanguages(
+  languages: SurveyLanguage[],
+  document: Record<string, unknown>,
+  suites: SurveySuite[],
+  configured: boolean,
+): SurveyLanguage[] {
+  if (!configured) {
+    return languages;
+  }
+
+  const scanners = document.scanners;
+  const named = new Set<string>([
+    ...suites.map((suite) => suite.language),
+    ...(typeof scanners === "object" &&
+    scanners !== null &&
+    !Array.isArray(scanners)
+      ? Object.keys(scanners)
+      : []),
+  ]);
+  const present = new Set(languages.map((one) => one.language));
+  const marked = languages.map((one) => ({
+    ...one,
+    mark: named.has(one.language) ? ("set-up" as const) : ("new" as const),
+  }));
+  const gone = [...named]
+    .filter((language) => language !== "" && !present.has(language))
+    .map((language) => ({
+      language,
+      files: 0,
+      folders: [],
+      mark: "gone" as const,
     }));
+
+  return [...marked, ...gone].sort((a, b) =>
+    compareText(a.language, b.language),
+  );
+}
+
+function readPolicy(io: Io, root: string): Policy | null {
+  const file = policyFile(root);
+
+  if (!io.exists(file)) {
+    return null;
+  }
+
+  try {
+    return parsePolicy(io.readFile(file));
+  } catch {
+    return null;
+  }
+}
+
+function policyOf(
+  io: Io,
+  root: string,
+  scans: RecordedScan[] | null,
+): SurveyPolicy {
+  const present = io.exists(policyFile(root));
+  const policy = readPolicy(io, root);
+
+  if (policy === null || scans === null) {
+    return { present, uncovered: [] };
+  }
+
+  const matchers = [
+    ...policy.ignore,
+    ...policy.entry,
+    ...policy.forbid.flatMap((rule) =>
+      [...rule.fromGlobs, ...rule.toGlobs]
+        .filter((glob) => !glob.startsWith("foreign:"))
+        .map(compileGlob),
+    ),
+  ];
+  const folders = new Map<string, boolean>();
+
+  for (const scan of scans) {
+    for (const module of scan.modules) {
+      const folder = folderOf(module.id);
+      const covered = matchers.some((matches) => matches(module.id));
+
+      folders.set(folder, (folders.get(folder) ?? false) || covered);
+    }
+  }
+
+  return {
+    present,
+    uncovered: [...folders]
+      .filter(([, covered]) => !covered)
+      .map(([folder]) => folder)
+      .sort(compareText),
+  };
 }
 
 export function surveyRepository(
@@ -1023,24 +1241,42 @@ export function surveyRepository(
     options.scan !== undefined
       ? [readScanFile(io, options.scan)]
       : cachedScans(io, root, rules);
+  const configured = io.exists(configFile(root));
+  const suites = suitesOf(io, document, files, configured);
   const found = [
     ...typescriptRunners(io, root, files),
     ...rustRunners(io, root, files),
     ...pythonRunners(io, root, files),
-  ];
-  const runners = nameRunners(found, root);
+  ].filter(
+    (one) =>
+      !suites.some(
+        (suite) =>
+          suite.directory === one.directory && suite.language === one.language,
+      ),
+  );
+  const runners = nameRunners(
+    found,
+    root,
+    new Set(suites.map((suite) => suite.name)),
+  );
+  const checks = checksOf(io, document, configured);
 
   return {
     survey_version: SURVEY_VERSION,
     version: packageVersion(),
     repository: root,
-    configured: io.exists(configFile(root)),
-    files: scans === null ? null : filesOf(scans),
+    configured,
+    files:
+      scans === null
+        ? null
+        : markLanguages(filesOf(scans), document, suites, configured),
     unread: unreadOf(files, rules),
-    checks: checksOf(io, document),
+    checks,
     runners,
     tools: toolsOf(io, root, runners, files),
-    upgrade: upgradeOf(io, root),
+    fixes: fixesOf(io, root, checks),
+    suites,
+    policy: policyOf(io, root, scans),
   };
 }
 

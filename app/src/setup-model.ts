@@ -13,28 +13,19 @@ import {
 } from "recognizer";
 import type { DoctorRead, SetupPort } from "./setup-port";
 
-export type Flow = "setup" | "upgrade";
-
 export type StepKey =
   | "files"
   | "checks"
   | "tests"
   | "policy"
   | "review"
-  | "apply"
-  | "changes";
+  | "apply";
 
 export const SETUP_STEPS: { key: StepKey; name: string }[] = [
   { key: "files", name: "Files" },
   { key: "checks", name: "Checks" },
   { key: "tests", name: "Tests" },
   { key: "policy", name: "Policy" },
-  { key: "review", name: "Review" },
-  { key: "apply", name: "Apply" },
-];
-
-export const UPGRADE_STEPS: { key: StepKey; name: string }[] = [
-  { key: "changes", name: "What changed" },
   { key: "review", name: "Review" },
   { key: "apply", name: "Apply" },
 ];
@@ -77,7 +68,6 @@ export type ApplyRun = {
 
 export type WizardState = {
   kind: "wizard";
-  flow: Flow;
   survey: Survey;
   doctor: DoctorRead;
   at: number;
@@ -90,7 +80,8 @@ export type WizardState = {
   policyMode: "skip" | "ask";
   policy: PolicyRun;
   decisions: Record<number, "accept" | "reject">;
-  upgrade: boolean[];
+  fixes: boolean[];
+  removals: Record<string, boolean>;
   apply: ApplyRun | null;
 };
 
@@ -101,10 +92,6 @@ export type SetupState =
 
 export function doctorProblems(read: DoctorRead | null): number | null {
   return read !== null && read.status === "ok" ? read.report.problems : null;
-}
-
-export function stepsOf(state: WizardState): typeof SETUP_STEPS {
-  return state.flow === "upgrade" ? UPGRADE_STEPS : SETUP_STEPS;
 }
 
 export function pluginChecks(survey: Survey) {
@@ -120,11 +107,11 @@ export function testsWanted(state: WizardState): boolean {
 }
 
 export function isSkipped(state: WizardState, key: StepKey): boolean {
-  return state.flow === "setup" && key === "tests" && !testsWanted(state);
+  return key === "tests" && !testsWanted(state);
 }
 
 export function currentKey(state: WizardState): StepKey {
-  return stepsOf(state)[state.at]?.key ?? "files";
+  return SETUP_STEPS[state.at]?.key ?? "files";
 }
 
 export function acceptedCards(state: WizardState): PolicyCard[] {
@@ -148,14 +135,6 @@ export function undecidedCards(state: WizardState): number {
 }
 
 export function choicesOf(state: WizardState): SetupChoices {
-  if (state.flow === "upgrade") {
-    return {
-      upgrade: state.survey.upgrade
-        .filter((_, at) => state.upgrade[at] === true)
-        .map((one) => one.command),
-    };
-  }
-
   const wanted = testsWanted(state);
   const analysis = state.survey.checks.find((one) => one.id === "analysis");
 
@@ -166,6 +145,18 @@ export function choicesOf(state: WizardState): SetupChoices {
     plugins: pluginChecks(state.survey)
       .filter((check) => state.plugins[check.id] === true)
       .map((check) => check.id),
+    plugins_off: pluginChecks(state.survey)
+      .filter(
+        (check) => check.mark === "set-up" && state.plugins[check.id] !== true,
+      )
+      .map((check) => check.id),
+    fixes: state.survey.fixes
+      .filter((one, at) => state.fixes[at] === true && one.command !== null)
+      .map((one) => one.command as string),
+    remove_suites: state.survey.suites
+      .filter((suite) => suite.mark === "gone")
+      .filter((suite) => state.removals[suite.name] === true)
+      .map((suite) => suite.name),
     runners: wanted
       ? state.survey.runners
           .filter((runner) => state.runners[runner.name]?.on === true)
@@ -245,7 +236,8 @@ export type SetupController = {
   askClaude(): Promise<void>;
   decide(index: number, decision: "accept" | "reject"): void;
   acceptRemaining(): void;
-  setUpgrade(index: number, on: boolean): void;
+  setFix(index: number, on: boolean): void;
+  setRemoval(name: string, on: boolean): void;
   runOnce(): Promise<void>;
   apply(): Promise<void>;
   stop(): Promise<void>;
@@ -263,12 +255,8 @@ const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 function initial(survey: Survey, doctor: DoctorRead): WizardState {
   const analysis = survey.checks.find((one) => one.id === "analysis");
-  const flow: Flow =
-    survey.upgrade.length > 0 && survey.configured ? "upgrade" : "setup";
-
   return {
     kind: "wizard",
-    flow,
     survey,
     doctor,
     at: 0,
@@ -280,7 +268,10 @@ function initial(survey: Survey, doctor: DoctorRead): WizardState {
       ]),
     ),
     plugins: Object.fromEntries(
-      pluginChecks(survey).map((check) => [check.id, !check.enabled]),
+      pluginChecks(survey).map((check) => [
+        check.id,
+        check.mark === null ? !check.enabled : check.mark === "set-up",
+      ]),
     ),
     runners: Object.fromEntries(
       survey.runners.map((runner) => [
@@ -297,7 +288,12 @@ function initial(survey: Survey, doctor: DoctorRead): WizardState {
     policyMode: "skip",
     policy: { kind: "idle" },
     decisions: {},
-    upgrade: survey.upgrade.map(() => true),
+    fixes: survey.fixes.map(() => true),
+    removals: Object.fromEntries(
+      survey.suites
+        .filter((suite) => suite.mark === "gone")
+        .map((suite) => [suite.name, true]),
+    ),
     apply: null,
   };
 }
@@ -340,13 +336,13 @@ export function createSetupController(deps: SetupDeps): SetupController {
 
       while (
         at > 0 &&
-        at < stepsOf(wizard).length - 1 &&
-        isSkipped(wizard, stepsOf(wizard)[at]?.key ?? "files")
+        at < SETUP_STEPS.length - 1 &&
+        isSkipped(wizard, SETUP_STEPS[at]?.key ?? "files")
       ) {
         at += step;
       }
 
-      return { at: Math.max(0, Math.min(at, stepsOf(wizard).length - 1)) };
+      return { at: Math.max(0, Math.min(at, SETUP_STEPS.length - 1)) };
     });
   }
 
@@ -396,7 +392,7 @@ export function createSetupController(deps: SetupDeps): SetupController {
         state.kind !== "wizard" ||
         index >= state.at ||
         currentKey(state) === "apply" ||
-        isSkipped(state, stepsOf(state)[index]?.key ?? "files")
+        isSkipped(state, SETUP_STEPS[index]?.key ?? "files")
       ) {
         return;
       }
@@ -547,10 +543,12 @@ export function createSetupController(deps: SetupDeps): SetupController {
 
         return { decisions };
       }),
-    setUpgrade: (index, on) =>
+    setFix: (index, on) =>
       edit((wizard) => ({
-        upgrade: wizard.upgrade.map((one, at) => (at === index ? on : one)),
+        fixes: wizard.fixes.map((one, at) => (at === index ? on : one)),
       })),
+    setRemoval: (name, on) =>
+      edit((wizard) => ({ removals: { ...wizard.removals, [name]: on } })),
     async runOnce() {
       if (state.kind !== "wizard" || state.tried.kind === "running") {
         return;
@@ -564,7 +562,8 @@ export function createSetupController(deps: SetupDeps): SetupController {
         (change) =>
           change.id.startsWith("tool-") ||
           change.id.startsWith("tests-") ||
-          change.id.startsWith("plugin-"),
+          (change.id.startsWith("plugin-") &&
+            !change.id.startsWith("plugin-off-")),
       );
       const runners: RunnerResult[] = [];
       let rows = rowsOf(planned);
@@ -634,7 +633,7 @@ export function createSetupController(deps: SetupDeps): SetupController {
             message: null,
             ...patch,
           },
-          at: stepsOf(wizard).length - 1,
+          at: SETUP_STEPS.length - 1,
         }));
 
       progress({ state: "running" });
@@ -691,9 +690,9 @@ export function createSetupController(deps: SetupDeps): SetupController {
       }
     },
     backToReview() {
-      edit((wizard) => ({
+      edit(() => ({
         apply: null,
-        at: stepsOf(wizard).findIndex((step) => step.key === "review"),
+        at: SETUP_STEPS.findIndex((step) => step.key === "review"),
       }));
     },
   };

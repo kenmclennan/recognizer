@@ -1,14 +1,18 @@
 import { type PolicyCard, policyCommands, summaryOf } from "./setup-cards.js";
 import { commandRefusal, quoteCommand } from "./setup-proposal.js";
 import type { Survey, SurveyRunner } from "./setup-survey.js";
+import { SHIPPED_DESCRIBER_NAME } from "./shipped-describer.js";
 
 export interface ChangeStep {
   argv: string[];
   cwd: string;
 }
 
+export type ChangeGroup = "fixes" | "checks" | "tests" | "policy";
+
 export interface PlannedChange {
   id: string;
+  group: ChangeGroup;
   title: string;
   detail?: string;
   steps: ChangeStep[];
@@ -29,7 +33,9 @@ export interface SetupChoices {
   runners?: RunnerChoice[];
   tools?: string[];
   policy?: PolicyCard[];
-  upgrade?: string[];
+  fixes?: string[];
+  plugins_off?: string[];
+  remove_suites?: string[];
 }
 
 export interface DroppedRunner {
@@ -82,7 +88,7 @@ export function splitCommand(text: string): string[] {
   return words;
 }
 
-function withoutRepository(argv: string[]): string[] {
+export function withoutRepository(argv: string[]): string[] {
   const at = argv.indexOf("--repository");
 
   return at === -1 ? argv : [...argv.slice(0, at), ...argv.slice(at + 2)];
@@ -107,6 +113,7 @@ function analysisChanges(
       ? [
           {
             id: "analysis-off",
+            group: "checks",
             title: "Turn structural analysis off",
             steps: [configStep(survey, "sensors.structure", "off")],
           },
@@ -122,6 +129,7 @@ function analysisChanges(
     if (chosen !== undefined && chosen !== (limit.current ?? limit.default)) {
       changes.push({
         id: `analysis-${limit.label}`,
+        group: "checks",
         title: `Set ${limit.label} to ${chosen}`,
         steps: [configStep(survey, limit.key, String(chosen))],
       });
@@ -177,6 +185,7 @@ function toolChanges(survey: Survey, choices: SetupChoices): PlannedChange[] {
     .filter((tool) => tool.needed_by.some((name) => wanted.has(name)))
     .map((tool) => ({
       id: `tool-${tool.name}${tool.cwd === "." ? "" : `-${tool.cwd}`}`,
+      group: "tests" as const,
       title: `Install ${tool.name}`,
       steps: [
         step(
@@ -238,6 +247,7 @@ function runnerChanges(
     if (runner !== undefined && !out.has(runner.name)) {
       changes.push({
         id: `tests-${runner.name}`,
+        group: "tests",
         title: `Add the ${runner.name} test runner`,
         steps: runnerSteps(survey, runner, choice),
       });
@@ -261,15 +271,87 @@ function pluginChanges(survey: Survey, choices: SetupChoices): PlannedChange[] {
     })
     .map((name) => ({
       id: `plugin-${name}`,
+      group: "checks" as const,
       title: `Turn on ${survey.checks.find((one) => one.id === name)?.display ?? name}`,
       steps: [step(survey, ["recognizer", "plugin", "add", name])],
     }));
+}
+
+function pluginOffChanges(
+  survey: Survey,
+  choices: SetupChoices,
+): PlannedChange[] {
+  return [...new Set(choices.plugins_off ?? [])].flatMap((name) => {
+    const check = survey.checks.find((one) => one.id === name);
+
+    if (
+      check === undefined ||
+      check.always_on ||
+      check.id === "analysis" ||
+      !check.enabled
+    ) {
+      return [];
+    }
+
+    const steps =
+      name === SHIPPED_DESCRIBER_NAME
+        ? ["describer.command", "describer.version"].map((key) =>
+            step(survey, ["recognizer", "config", "--unset", key]),
+          )
+        : [
+            step(survey, [
+              "recognizer",
+              "config",
+              "--remove-section",
+              `sensors.${name}`,
+            ]),
+          ];
+
+    return [
+      {
+        id: `plugin-off-${name}`,
+        group: "checks" as const,
+        title: `Turn off ${check.display}`,
+        steps,
+      },
+    ];
+  });
+}
+
+function suiteRemoveChanges(
+  survey: Survey,
+  choices: SetupChoices,
+): PlannedChange[] {
+  return [...new Set(choices.remove_suites ?? [])].flatMap((name) => {
+    const suite = survey.suites.find((one) => one.name === name);
+
+    if (suite === undefined || suite.mark !== "gone") {
+      return [];
+    }
+
+    return [
+      {
+        id: `suite-remove-${name}`,
+        group: "tests" as const,
+        title: `Remove the ${name} test suite`,
+        steps: [
+          step(survey, [
+            "recognizer",
+            "config",
+            "--remove-section",
+            `tests.${name}`,
+          ]),
+        ],
+      },
+    ];
+  });
 }
 
 function policyChanges(survey: Survey, choices: SetupChoices): PlannedChange[] {
   const cards = choices.policy ?? [];
   const changes: PlannedChange[] = cards.map((card, index) => ({
     id: `policy-${index + 1}`,
+    group: "policy",
     title: summaryOf(card),
     steps: policyCommands(card).map((argv) => step(survey, argv)),
   }));
@@ -280,6 +362,7 @@ function policyChanges(survey: Survey, choices: SetupChoices): PlannedChange[] {
   if (broken) {
     changes.push({
       id: "policy-baseline",
+      group: "policy",
       title: "Record today's violations as the baseline",
       steps: [step(survey, ["recognizer", "check", "--init-baseline"])],
     });
@@ -288,15 +371,15 @@ function policyChanges(survey: Survey, choices: SetupChoices): PlannedChange[] {
   return changes;
 }
 
-function upgradeChanges(
+function fixChanges(
   survey: Survey,
   choices: SetupChoices,
 ): { changes: PlannedChange[]; needing: BuiltChanges["needing_user"] } {
   const changes: PlannedChange[] = [];
   const needing: BuiltChanges["needing_user"] = [];
 
-  for (const command of choices.upgrade ?? []) {
-    const known = survey.upgrade.find((one) => one.command === command);
+  for (const command of choices.fixes ?? []) {
+    const known = survey.fixes.find((one) => one.command === command);
     const argv = withoutRepository(splitCommand(command));
     const refusal =
       known === undefined
@@ -307,7 +390,8 @@ function upgradeChanges(
       needing.push({ command, reason: refusal });
     } else {
       changes.push({
-        id: `upgrade-${changes.length + 1}`,
+        id: `fix-${changes.length + 1}`,
+        group: "fixes",
         title: known?.title ?? command,
         ...(known === undefined ? {} : { detail: known.line }),
         steps: [step(survey, argv)],
@@ -323,19 +407,21 @@ export function buildChanges(
   choices: SetupChoices,
 ): BuiltChanges {
   const dropped = droppedRunners(survey, choices);
-  const upgrade = upgradeChanges(survey, choices);
+  const fixes = fixChanges(survey, choices);
 
   return {
     changes: [
-      ...upgrade.changes,
+      ...fixes.changes,
       ...analysisChanges(survey, choices),
+      ...pluginChanges(survey, choices),
+      ...pluginOffChanges(survey, choices),
+      ...suiteRemoveChanges(survey, choices),
       ...toolChanges(survey, choices),
       ...runnerChanges(survey, choices, dropped),
-      ...pluginChanges(survey, choices),
       ...policyChanges(survey, choices),
     ],
     dropped,
-    needing_user: upgrade.needing,
+    needing_user: fixes.needing,
   };
 }
 

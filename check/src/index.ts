@@ -275,6 +275,7 @@ export {
 export {
   type BuiltChanges,
   buildChanges,
+  type ChangeGroup,
   type ChangeStep,
   type DroppedRunner,
   type PlannedChange,
@@ -285,14 +286,17 @@ export {
 export { POLICY_RECOMMENDATION_PROMPT } from "./setup-policy-prompt.js";
 export { commandRefusal, quoteCommand } from "./setup-proposal.js";
 export type {
+  SetupMark,
   Survey,
   SurveyCheck,
+  SurveyFix,
   SurveyLanguage,
   SurveyLimit,
+  SurveyPolicy,
   SurveyRunner,
+  SurveySuite,
   SurveyTool,
   SurveyUnread,
-  SurveyUpgrade,
 } from "./setup-survey.js";
 export type { TryEvent } from "./setup-try.js";
 export {

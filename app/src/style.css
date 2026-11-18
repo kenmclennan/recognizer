@@ -4980,6 +4980,17 @@ svg.i.chevron {
   text-transform: uppercase;
 }
 
+.setup-modal .sw-mark {
+  color: var(--faint);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.setup-modal .sw-mark-new {
+  color: var(--muted);
+}
+
 .setup-modal .sw-bar-row {
   display: flex;
   gap: 10px;

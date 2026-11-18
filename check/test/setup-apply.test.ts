@@ -234,6 +234,8 @@ function states(events: ApplyEvent[]): string[] {
 
 describe("setup apply", () => {
   it("a failing step undoes the earlier ones byte for byte", async () => {
+    process.env.PATH = shimmedPath(shimDirectory(true));
+
     const changes = build();
     const failing = changes.findIndex((change) => change.id === "tests-engine");
 
@@ -278,6 +280,8 @@ describe("setup apply", () => {
   });
 
   it("a step stopped by SIGTERM undoes the earlier ones", async () => {
+    process.env.PATH = shimmedPath(shimDirectory(true));
+
     const changes = build();
     const fake = fakeIo(root, (_argv, index) =>
       index === 3

@@ -2,7 +2,10 @@ import {
   type PlannedChange,
   type PolicyCard,
   quoteCommand,
+  type SetupMark,
+  type Survey,
   type SurveyRunner,
+  type SurveySuite,
 } from "recognizer";
 import { button, el } from "./dom";
 import {
@@ -15,10 +18,10 @@ import {
   isSkipped,
   pluginChecks,
   type Row,
+  SETUP_STEPS,
   type SetupController,
   type SetupState,
   sharedBy,
-  stepsOf,
   testsWanted,
   undecidedCards,
   type WizardState,
@@ -74,6 +77,61 @@ function languageName(name: string): string {
 
 function folderText(folders: { path: string; files: number }[]): string {
   return folders.map((one) => `${one.path} (${one.files})`).join(", ");
+}
+
+const MARK_TEXT: Record<SetupMark, string> = {
+  "set-up": "Set up",
+  new: "New",
+  gone: "Gone",
+};
+
+const UPGRADE_CODES = ["config-retired", "config-empty", "policy-retired"];
+
+function markTag(mark: SetupMark | null): HTMLElement[] {
+  return mark === null
+    ? []
+    : [el("span", `sw-mark sw-mark-${mark}`, MARK_TEXT[mark])];
+}
+
+function changedSince(survey: Survey): string[] {
+  const named = (items: string[]) => items.join(", ");
+  const languages = survey.files ?? [];
+  const lines: string[] = [];
+  const fresh = languages.filter((one) => one.mark === "new");
+  const gone = languages.filter((one) => one.mark === "gone");
+  const runners = survey.runners.map((one) => `${one.name} (${one.directory})`);
+  const suites = survey.suites
+    .filter((one) => one.mark === "gone")
+    .map((one) => `${one.name} (${one.directory})`);
+  const moved = survey.fixes.filter((one) =>
+    UPGRADE_CODES.includes(one.code),
+  ).length;
+
+  if (fresh.length > 0) {
+    lines.push(
+      `New languages: ${named(fresh.map((one) => languageName(one.language)))}.`,
+    );
+  }
+
+  if (runners.length > 0) {
+    lines.push(`New test runners: ${named(runners)}.`);
+  }
+
+  if (gone.length > 0) {
+    lines.push(
+      `Languages with no files now: ${named(gone.map((one) => languageName(one.language)))}.`,
+    );
+  }
+
+  if (suites.length > 0) {
+    lines.push(`Test suites whose folder is gone: ${named(suites)}.`);
+  }
+
+  if (moved > 0) {
+    lines.push(`${moved} setting${moved === 1 ? "" : "s"} an upgrade moved.`);
+  }
+
+  return lines;
 }
 
 function commandText(change: PlannedChange): string {
@@ -273,6 +331,19 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       ),
     );
 
+    if (state.survey.configured) {
+      const lines = changedSince(state.survey);
+
+      body.append(
+        callout("", [
+          el("div", "sw-what", "What changed since setup"),
+          ...(lines.length === 0
+            ? ["Nothing has changed since setup."]
+            : lines),
+        ]),
+      );
+    }
+
     if (files === null) {
       body.append(
         row("i", [
@@ -298,7 +369,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
             ),
             el("div", "sw-why", folderText(language.folders)),
           ],
-          [],
+          markTag(language.mark),
           "found",
         ),
       );
@@ -386,7 +457,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
               "A warning shows on the canvas and in Findings, and never fails a run. Once you have a policy, an import that breaks it is a violation: recognizer check fails on a new one.",
             ),
           ],
-          [],
+          markTag(analysis.mark),
           state.analysis ? "" : "off",
         ),
       );
@@ -403,6 +474,9 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
           [
             el("div", "sw-what", check.display),
             el("div", "sw-why", check.description),
+            ...(check.mark === "set-up" && !on
+              ? [el("div", "sw-why", "Unticked, so Apply turns it off.")]
+              : []),
             ...(check.runs_tests
               ? [
                   el(
@@ -413,7 +487,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
                 ]
               : []),
           ],
-          [],
+          markTag(check.mark),
           on ? "" : "off",
         ),
       );
@@ -592,7 +666,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
         controller.setRunner(runner.name, value),
       ),
       content,
-      [],
+      state.survey.configured ? markTag("new") : [],
       on && (tool === undefined || tool.installed || state.tools[tool.name])
         ? ""
         : "off",
@@ -617,6 +691,44 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     });
   }
 
+  function suiteRow(state: WizardState, suite: SurveySuite): HTMLElement {
+    const where = `${suite.directory}/`;
+
+    if (suite.mark === "gone") {
+      const on = state.removals[suite.name] === true;
+
+      return row(
+        checkbox(on, `remove-${suite.name}`, (value) =>
+          controller.setRemoval(suite.name, value),
+        ),
+        [
+          el("div", "sw-what", `${suite.name} - ${where} has no files now`),
+          el("div", "sw-why", "Remove from the config"),
+        ],
+        markTag("gone"),
+        on ? "" : "off",
+      );
+    }
+
+    const env = Object.entries(suite.env ?? {})
+      .map(([key, value]) => `${key}=${value}`)
+      .join(" ");
+
+    return row(
+      "✓",
+      [
+        el("div", "sw-what", `${suite.name} - ${where}`),
+        el(
+          "div",
+          "sw-why sw-mono",
+          env === "" ? suite.command : `${env} ${suite.command}`,
+        ),
+      ],
+      markTag("set-up"),
+      "found",
+    );
+  }
+
   function testsStep(state: WizardState) {
     const who = pluginChecks(state.survey)
       .filter((check) => check.runs_tests && state.plugins[check.id] === true)
@@ -630,6 +742,10 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
         `${who.join(" and ")} run${who.length > 1 ? "" : "s"} your tests with coverage turned on. These are the test runners found in the repository, and the command Recognizer will use for each. Change a command, or add environment variables, if your tests need them.`,
       ),
     );
+
+    for (const suite of state.survey.suites) {
+      body.append(suiteRow(state, suite));
+    }
 
     for (const runner of state.survey.runners) {
       body.append(runnerCard(state, runner));
@@ -865,14 +981,29 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       return;
     }
 
+    const kept = state.survey.configured && state.survey.policy.present;
     const choices: ["skip" | "ask", string, string][] = [
-      ["skip", "Skip for now", "Add one later from the Policy panel."],
+      kept
+        ? ["skip", "Keep it as it is", "Change it later from the Policy panel."]
+        : ["skip", "Skip for now", "Add one later from the Policy panel."],
       [
         "ask",
-        "Ask Claude for recommendations",
+        kept
+          ? "Ask Claude to recommend changes"
+          : "Ask Claude for recommendations",
         "Claude reads the imports and recommends parts and rules, each with the imports behind it. Uses your Claude account. Nothing is saved until you accept it and apply.",
       ],
     ];
+
+    if (state.survey.policy.uncovered.length > 0) {
+      body.append(
+        el(
+          "p",
+          "sw-why sw-uncovered",
+          `Not covered by the policy: ${state.survey.policy.uncovered.join(", ")}.`,
+        ),
+      );
+    }
 
     for (const [id, what, why] of choices) {
       const radio = el("input", "sw-check");
@@ -915,24 +1046,55 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     }
   }
 
-  function changesStep(state: WizardState) {
-    body.append(
-      el("h2", "", "What the upgrade changed"),
-      el(
-        "p",
-        "sw-lead-text",
-        `Recognizer ${state.survey.version} changed ${state.survey.upgrade.length === 1 ? "one thing" : "things"} this repository uses. Scans and checks still run meanwhile.`,
-      ),
-    );
+  function fixRows(state: WizardState) {
+    const fixes = state.survey.fixes;
 
-    state.survey.upgrade.forEach((fix, at) => {
+    if (fixes.length === 0) {
+      return;
+    }
+
+    body.append(el("h3", "sw-group", "Doctor's fixes"));
+
+    fixes.forEach((fix, at) => {
+      if (fix.command === null) {
+        body.append(
+          row(
+            "✎",
+            [
+              el("div", "sw-what", fix.title),
+              el("div", "sw-why", fix.fix_text),
+              el(
+                "div",
+                "sw-why",
+                "Doctor keeps reporting this until it is fixed by hand.",
+              ),
+            ],
+            disclosure(`fx-${at}`, "Details", fix.line),
+          ),
+        );
+
+        return;
+      }
+
+      const on = state.fixes[at] === true;
+
       body.append(
         row(
-          checkbox(state.upgrade[at] === true, `upgrade-${at}`, (value) =>
-            controller.setUpgrade(at, value),
-          ),
-          [el("div", "sw-what", fix.title)],
-          disclosure(`up-${at}`, "Details", `${fix.line}\n\n${fix.command}`),
+          checkbox(on, `fix-${at}`, (value) => controller.setFix(at, value)),
+          [
+            el("div", "sw-what", fix.title),
+            ...(on
+              ? []
+              : [
+                  el(
+                    "div",
+                    "sw-why",
+                    "Doctor keeps reporting this until it is fixed. Open Setup again to apply it later.",
+                  ),
+                ]),
+          ],
+          disclosure(`fx-${at}`, "Details", `${fix.line}\n\n${fix.command}`),
+          on ? "" : "off",
         ),
       );
     });
@@ -950,21 +1112,41 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       ),
     );
 
-    changes.forEach((change, at) => {
-      body.append(
-        row(
-          "○",
-          [el("div", "sw-what", change.title)],
-          change.detail === undefined
-            ? disclosure(`rv-${at}`, "Command", commandText(change))
-            : disclosure(
-                `rv-${at}`,
-                "Details",
-                `${change.detail}\n\n${commandText(change)}`,
-              ),
-        ),
-      );
-    });
+    fixRows(state);
+
+    const groups: [string, PlannedChange["group"]][] = [
+      ["Checks", "checks"],
+      ["Tests", "tests"],
+      ["Policy", "policy"],
+    ];
+
+    for (const [heading, group] of groups) {
+      const members = changes.filter((change) => change.group === group);
+
+      if (members.length === 0) {
+        continue;
+      }
+
+      body.append(el("h3", "sw-group", heading));
+
+      for (const change of members) {
+        const at = changes.indexOf(change);
+
+        body.append(
+          row(
+            "○",
+            [el("div", "sw-what", change.title)],
+            change.detail === undefined
+              ? disclosure(`rv-${at}`, "Command", commandText(change))
+              : disclosure(
+                  `rv-${at}`,
+                  "Details",
+                  `${change.detail}\n\n${commandText(change)}`,
+                ),
+          ),
+        );
+      }
+    }
 
     if (changes.length === 0) {
       body.append(el("p", "sw-empty", "Nothing to change."));
@@ -1002,13 +1184,11 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     const clean = read !== null && read.problems === 0;
     const heading =
       run.state === "done"
-        ? state.flow === "setup"
-          ? "Setup is done"
-          : clean
-            ? "Everything is up to date"
-            : read === null
-              ? "Updated"
-              : `Updated - ${read.problems} thing${read.problems === 1 ? "" : "s"} still to fix`
+        ? clean
+          ? "Everything is up to date"
+          : read === null
+            ? "Updated"
+            : `Updated - ${read.problems} thing${read.problems === 1 ? "" : "s"} still to fix`
         : run.state === "running"
           ? "Applying"
           : "Setup stopped";
@@ -1068,7 +1248,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
   function renderSteps(state: WizardState) {
     steps.replaceChildren();
 
-    stepsOf(state).forEach((one, at) => {
+    SETUP_STEPS.forEach((one, at) => {
       const skipped = isSkipped(state, one.key);
       const kind = skipped
         ? "skip"
@@ -1091,7 +1271,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
 
   function footer(state: WizardState) {
     const key = currentKey(state);
-    const total = stepsOf(state).length;
+    const total = SETUP_STEPS.length;
     const run = state.apply;
 
     backButton.hidden = state.at === 0 || key === "apply";
@@ -1113,10 +1293,16 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     if (key === "review") {
       const count = changesOf(state).length;
 
-      nextButton.textContent = `Apply ${count} change${count === 1 ? "" : "s"}`;
-      nextButton.onclick = () => {
-        void controller.apply();
-      };
+      if (count === 0) {
+        nextButton.disabled = false;
+        nextButton.textContent = "Close";
+        nextButton.onclick = () => close();
+      } else {
+        nextButton.textContent = `Apply ${count} change${count === 1 ? "" : "s"}`;
+        nextButton.onclick = () => {
+          void controller.apply();
+        };
+      }
     }
 
     if (key === "apply" && run !== null) {
@@ -1183,10 +1369,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
 
     const name = state.survey.repository.split("/").pop() ?? "";
 
-    title.textContent =
-      state.flow === "setup"
-        ? `Set up ${name}`
-        : `Update ${name} for Recognizer ${state.survey.version}`;
+    title.textContent = `Set up ${name}`;
     where.textContent = state.survey.repository;
     renderSteps(state);
 
@@ -1196,7 +1379,6 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     else if (key === "checks") checksStep(state);
     else if (key === "tests") testsStep(state);
     else if (key === "policy") policyStep(state);
-    else if (key === "changes") changesStep(state);
     else if (key === "review") reviewStep(state);
     else applyStep(state);
 

@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import {
+  cpSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -174,6 +175,7 @@ describe("recognizer setup survey", () => {
       enabled: false,
       runs_tests: false,
       limits: [],
+      mark: null,
     });
     expect(validate(before.survey), JSON.stringify(validate.errors)).toBe(true);
 
@@ -568,8 +570,8 @@ describe("setup survey examples", () => {
   });
 });
 
-describe("setup survey upgrade items", () => {
-  it("upgrade items carry a title", () => {
+describe("setup survey fixes", () => {
+  it("fixes carry a title and validate against the schema", () => {
     const loom = JSON.parse(
       readFileSync(
         join(REPO, "schema/setup-survey-examples/valid/loom.json"),
@@ -577,17 +579,230 @@ describe("setup survey upgrade items", () => {
       ),
     );
     const item = {
-      code: "config-retired",
+      code: "config-duplicate-suite",
       subject: "k",
       title: "Settings moved to new places",
       line: "l",
-      command: "recognizer config --unset k",
+      fix_text: "edit it",
+      command: null,
     };
 
-    expect(validate({ ...loom, upgrade: [item] })).toBe(true);
+    expect(validate({ ...loom, fixes: [item] })).toBe(true);
+    expect(
+      validate({ ...loom, fixes: [{ ...item, command: "recognizer scan" }] }),
+    ).toBe(true);
 
     const { title: _title, ...untitled } = item;
 
-    expect(validate({ ...loom, upgrade: [untitled] })).toBe(false);
+    expect(validate({ ...loom, fixes: [untitled] })).toBe(false);
+  });
+});
+
+function suiteYaml(name: string, directory: string): string {
+  return `  - name: ${name}\n    language: typescript\n    directory: ${directory}\n    command: npx vitest run\n    coverage:\n      path: c/lcov.info\n      format: lcov\n`;
+}
+
+function copySaga(config: string | null): string {
+  const directory = makeTempDir("recognizer-setup-saga-");
+
+  cpSync(join(REPO, "fixtures/setup-saga"), directory, { recursive: true });
+
+  if (config !== null) {
+    mkdirSync(join(directory, ".recognizer"), { recursive: true });
+    writeFileSync(join(directory, ".recognizer/config.yaml"), config);
+  }
+
+  return directory;
+}
+
+describe("setup survey marks", () => {
+  it("marks follow the config and the repository", async () => {
+    const directory = copySaga(
+      `sensors:\n  crap:\n    command: [recognizer-sense-crap]\ntests:\n${suiteYaml("server", "server")}${suiteYaml("legacy", "legacy")}`,
+    );
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.suites).toHaveLength(2);
+    expect(survey.suites.map((one) => [one.name, one.mark])).toEqual([
+      ["legacy", "gone"],
+      ["server", "set-up"],
+    ]);
+    expect(survey.runners.map((one) => one.name)).toEqual(["web"]);
+    expect(survey.configured).toBe(true);
+    expect(survey.checks.find((check) => check.id === "crap")?.mark).toBe(
+      "set-up",
+    );
+    expect(survey.checks.find((check) => check.id === "mutation")?.mark).toBe(
+      "new",
+    );
+    expect(validate(survey), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it("a suite is gone when its folder holds no file", async () => {
+    const directory = copySaga(
+      `tests:\n${suiteYaml("root", ".")}${suiteYaml("empty", "nowhere")}`,
+    );
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.suites).toHaveLength(2);
+    expect(survey.suites.find((one) => one.name === "root")?.mark).toBe(
+      "set-up",
+    );
+    expect(survey.suites.find((one) => one.name === "empty")?.mark).toBe(
+      "gone",
+    );
+  });
+
+  it("a hand-written suite whose folder exists stays set up", async () => {
+    const directory = copySaga(`tests:\n${suiteYaml("hand", "web")}`);
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.suites).toHaveLength(1);
+    expect(survey.suites[0]?.mark).toBe("set-up");
+  });
+
+  it("a moved folder leaves the old suite gone and names the new runner afresh", async () => {
+    const directory = copySaga(`tests:\n${suiteYaml("web", "old/web")}`);
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.suites.map((one) => [one.name, one.mark])).toEqual([
+      ["web", "gone"],
+    ]);
+    expect(survey.runners.map((one) => one.name)).toEqual(["server", "web-2"]);
+  });
+
+  it("without a config every mark is null and suites is empty", async () => {
+    const { survey } = await surveyOf([copySaga(null)]);
+
+    expect(survey.configured).toBe(false);
+    expect(survey.suites).toEqual([]);
+    expect(survey.checks.length).toBeGreaterThan(0);
+    expect(survey.checks.every((check) => check.mark === null)).toBe(true);
+    expect(survey.runners.map((one) => one.name)).toEqual(["server", "web"]);
+  });
+
+  it("a language named only by a scanners key with no files is gone", async () => {
+    const directory = copyLoom();
+
+    mkdirSync(join(directory, ".recognizer"), { recursive: true });
+    writeFileSync(
+      join(directory, ".recognizer/config.yaml"),
+      "scanners:\n  kotlin: recognizer-scan-kotlin\n",
+    );
+
+    const { survey } = await surveyOf([
+      directory,
+      "--scan",
+      join(LOOM, "scan.json"),
+    ]);
+    const kotlin = survey.files?.find((one) => one.language === "kotlin");
+
+    expect(kotlin).toEqual({
+      language: "kotlin",
+      files: 0,
+      folders: [],
+      mark: "gone",
+    });
+    expect(
+      survey.files?.find((one) => one.language === "typescript")?.mark,
+    ).toBe("new");
+  });
+
+  it("leaves an unregistered plugin the Checks step offers out of the fixes", async () => {
+    process.env.PATH = shimmedPath(shimDirectory(true, true));
+
+    const directory = copySaga("overlays:\n  x: 1\n");
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.checks.some((check) => check.id === "claude")).toBe(true);
+    expect(
+      survey.fixes.filter((one) => one.code === "unregistered-plugin"),
+    ).toEqual([]);
+    expect(survey.fixes.some((one) => one.code === "config-retired")).toBe(
+      true,
+    );
+  });
+
+  it("lists every problem as a fix, runnable or by hand", async () => {
+    const directory = copySaga(
+      `overlays:\n  x: 1\ntests:\n${suiteYaml("dup", "web")}${suiteYaml("dup", "web")}`,
+    );
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.fixes.length).toBeGreaterThanOrEqual(2);
+
+    const retired = survey.fixes.find((one) => one.code === "config-retired");
+    const duplicate = survey.fixes.find(
+      (one) => one.code === "config-duplicate-suite",
+    );
+
+    expect(retired?.command).not.toBeNull();
+    expect(duplicate?.command).toBeNull();
+    expect(duplicate?.fix_text.length).toBeGreaterThan(0);
+  });
+});
+
+describe("setup survey policy", () => {
+  function scanOf(ids: string[]): string {
+    const base = JSON.parse(readFileSync(join(LOOM, "scan.json"), "utf8")) as {
+      modules: unknown[];
+    };
+    const directory = makeTempDir("recognizer-setup-scan-");
+    const file = join(directory, "scan.json");
+
+    writeFileSync(
+      file,
+      JSON.stringify({
+        ...base,
+        modules: ids.map((id) => ({
+          id,
+          language: "typescript",
+          kind: "module",
+          members: [],
+        })),
+      }),
+    );
+
+    return file;
+  }
+
+  async function uncovered(policy: string | null): Promise<string[]> {
+    const directory = copyLoom();
+
+    if (policy !== null) {
+      mkdirSync(join(directory, ".recognizer"), { recursive: true });
+      writeFileSync(join(directory, ".recognizer/policy.yaml"), policy);
+    }
+
+    const { survey } = await surveyOf([
+      directory,
+      "--scan",
+      scanOf(["server/a.ts", "web/b.ts", "root.ts"]),
+    ]);
+
+    return survey.policy.uncovered;
+  }
+
+  it("policy reports folders no part covers", async () => {
+    expect(await uncovered("entry:\n  - server/**\n")).toEqual([".", "web"]);
+    expect(
+      await uncovered("entry:\n  - server/**\nignore:\n  - web/**\n"),
+    ).toEqual(["."]);
+    expect(await uncovered(null)).toEqual([]);
+    expect(await uncovered("forbid: nonsense\n")).toEqual([]);
+  });
+
+  it("a null scan gives no uncovered folders", async () => {
+    const directory = copyLoom();
+
+    mkdirSync(join(directory, ".recognizer"), { recursive: true });
+    writeFileSync(
+      join(directory, ".recognizer/policy.yaml"),
+      "entry:\n  - server/**\n",
+    );
+
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.policy).toEqual({ present: true, uncovered: [] });
   });
 });

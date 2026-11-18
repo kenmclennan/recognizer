@@ -14,7 +14,9 @@
     "checks",
     "runners",
     "tools",
-    "upgrade"
+    "fixes",
+    "suites",
+    "policy"
   ],
   "properties": {
     "survey_version": { "const": 1 },
@@ -23,7 +25,7 @@
     "configured": { "type": "boolean" },
     "files": {
       "type": ["array", "null"],
-      "items": { "$ref": "#/$defs/languageFiles" }
+      "items": { "$ref": "#/$defs/languageMarked" }
     },
     "unread": {
       "type": "array",
@@ -41,7 +43,8 @@
           "always_on",
           "enabled",
           "runs_tests",
-          "limits"
+          "limits",
+          "mark"
         ],
         "properties": {
           "id": { "type": "string", "minLength": 1 },
@@ -50,6 +53,7 @@
           "always_on": { "type": "boolean" },
           "enabled": { "type": "boolean" },
           "runs_tests": { "type": "boolean" },
+          "mark": { "$ref": "#/$defs/mark" },
           "limits": {
             "type": "array",
             "items": {
@@ -142,25 +146,82 @@
         }
       }
     },
-    "upgrade": {
+    "fixes": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["code", "subject", "title", "line", "command"],
+        "required": [
+          "code",
+          "subject",
+          "title",
+          "line",
+          "fix_text",
+          "command"
+        ],
         "properties": {
-          "code": {
-            "enum": ["config-retired", "config-empty", "policy-retired"]
-          },
+          "code": { "type": "string", "minLength": 1 },
           "subject": { "type": "string" },
           "title": { "type": "string", "minLength": 1 },
           "line": { "type": "string" },
-          "command": { "type": "string", "minLength": 1 }
+          "fix_text": { "type": "string" },
+          "command": { "type": ["string", "null"], "minLength": 1 }
         }
+      }
+    },
+    "suites": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "language", "directory", "command", "mark"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "language": { "type": "string" },
+          "directory": { "type": "string" },
+          "command": { "type": "string" },
+          "env": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "mark": { "enum": ["set-up", "gone"] }
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["present", "uncovered"],
+      "properties": {
+        "present": { "type": "boolean" },
+        "uncovered": { "type": "array", "items": { "type": "string" } }
       }
     }
   },
   "$defs": {
+    "mark": { "enum": ["set-up", "new", "gone", null] },
+    "languageMarked": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["language", "files", "folders", "mark"],
+      "properties": {
+        "language": { "type": "string", "minLength": 1 },
+        "files": { "type": "integer", "minimum": 0 },
+        "folders": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "files"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "files": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        "mark": { "$ref": "#/$defs/mark" }
+      }
+    },
     "languageFiles": {
       "type": "object",
       "additionalProperties": false,

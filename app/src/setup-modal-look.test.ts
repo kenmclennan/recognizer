@@ -11,7 +11,7 @@ const here = (name: string) => fileURLToPath(new URL(name, import.meta.url));
 
 const HARNESS = `
 import { openSetupModal } from ${JSON.stringify(here("setup-modal-view.ts"))};
-import { fakeSetup } from ${JSON.stringify(here("setup-fake.ts"))};
+import { CLEAN_DOCTOR, fakeSetup } from ${JSON.stringify(here("setup-fake.ts"))};
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
 const box = (node) => { const r = node.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; };
@@ -39,6 +39,8 @@ function snap(modal, name) {
     details: [...modal.element.querySelectorAll(".sw-row")].map((r) => { const pre = r.querySelector("pre"); const link = r.querySelector(".sw-link"); return pre ? { label: link.textContent, text: pre.textContent, hidden: pre.hidden } : null; }),
     cards: [...modal.element.querySelectorAll(".sw-rec .sw-what")].map((n) => n.textContent),
     groups: [...modal.element.querySelectorAll(".sw-group")].map((n) => n.textContent),
+    marks: [...modal.element.querySelectorAll(".sw-mark")].map((n) => n.textContent),
+    rowBoxes: [...modal.element.querySelectorAll(".sw-row")].map((r) => r.querySelector("input") !== null),
     env: [...modal.element.querySelectorAll(".sw-envrow code")].map((n) => n.textContent),
     runners: [...modal.element.querySelectorAll(".sw-runner")].map((n) => n.textContent),
     runnerOutputs: [...modal.element.querySelectorAll(".sw-runner")].map((n) => {
@@ -184,23 +186,80 @@ function snap(modal, name) {
 
   const problemOf = (n) => ({ code: "config-retired", subject: "k" + n, title: "Settings moved to new places " + n, line: "config/sensors/thresholds was retired " + n, fix: { text: "Run the move " + n, command: "recognizer config --unset k" + n }, severity: "problem" });
   const reportOf = (count) => ({ repository: "/repo", ok: count === 0, problems: count, warnings: 0, areas: count === 0 ? [] : [{ name: "config", skipped: null, problems: Array.from({ length: count }, (_, i) => problemOf(i + 1)) }] });
-  const upgradeSurvey = { ...fakeSetup({}).surveyRead.survey, configured: true, upgrade: [1, 2].map((n) => ({ code: "config-retired", subject: "k" + n, title: "Settings moved to new places " + n, line: "config/sensors/thresholds was retired " + n, command: "recognizer config --unset k" + n })) };
+  const base = fakeSetup({}).surveyRead.survey;
+  const fixOf = (n) => ({ code: "config-retired", subject: "k" + n, title: "Settings moved to new places " + n, line: "config/sensors/thresholds was retired " + n, fix_text: "Run the move " + n, command: "recognizer config --unset k" + n });
+  const handFix = { code: "config-duplicate-suite", subject: "unit", title: "Two test suites share a name", line: "tests: unit appears twice", fix_text: "Rename one of the suites in .recognizer/config.yaml", command: null };
+  const suiteOf = (name, mark) => ({ name, language: "typescript", directory: name, command: "npx vitest run", mark });
+  const rerunSurvey = {
+    ...base,
+    configured: true,
+    files: [...base.files.map((l) => ({ ...l, mark: "set-up" })), { language: "python", files: 0, folders: [], mark: "gone" }],
+    checks: base.checks.map((c) => { const enabled = c.id === "crap" ? true : c.enabled; return { ...c, enabled, mark: enabled ? "set-up" : "new" }; }),
+    suites: [suiteOf("legacy", "gone"), suiteOf("server", "set-up")],
+    fixes: [fixOf(1), fixOf(2), handFix],
+    policy: { present: true, uncovered: ["web", "tools"] },
+  };
+  const calmSurvey = {
+    ...rerunSurvey,
+    runners: [],
+    tools: [],
+    suites: [suiteOf("server", "set-up")],
+    files: base.files.map((l) => ({ ...l, mark: "set-up" })),
+    fixes: [],
+    policy: { present: true, uncovered: [] },
+  };
+  const rerunPort = (extra = {}) => fakeSetup({ surveyRead: { status: "ok", survey: rerunSurvey, doctor: { status: "ok", report: reportOf(3) } }, ...extra });
+
+  const rerun = openSetupModal({ port: rerunPort() });
+  await rerun.ready;
+  await settle();
+  snap(rerun, "rerun-files");
+  rerun.controller.next();
+  await settle();
+  snap(rerun, "rerun-checks");
+  rerun.controller.next();
+  await settle();
+  snap(rerun, "rerun-tests");
+  rerun.controller.next();
+  await settle();
+  snap(rerun, "rerun-policy");
+  rerun.controller.setPolicyMode("ask");
+  await rerun.controller.askClaude();
+  await settle();
+  rerun.controller.acceptRemaining();
+  rerun.controller.setLimit("long_function", 31);
+  rerun.controller.next();
+  await settle();
+  snap(rerun, "rerun-review");
+  rerun.element.querySelector(".sw-row .sw-link").click();
+  snap(rerun, "rerun-review-open");
+  rerun.controller.setFix(0, false);
+  await settle();
+  snap(rerun, "rerun-review-unticked");
+  rerun.close();
+
+  const calm = openSetupModal({ port: fakeSetup({ surveyRead: { status: "ok", survey: calmSurvey, doctor: CLEAN_DOCTOR } }) });
+  await calm.ready;
+  await settle();
+  snap(calm, "calm-files");
+  for (let i = 0; i < 3; i++) calm.controller.next();
+  await settle();
+  snap(calm, "calm-policy");
+  calm.controller.next();
+  await settle();
+  snap(calm, "calm-review");
+  calm.close();
+
   const finals = { one: reportOf(1), two: reportOf(2), clean: reportOf(0), unavailable: null };
   for (const [name, doctor] of Object.entries(finals)) {
-    const up = openSetupModal({ port: fakeSetup({ surveyRead: { status: "ok", survey: upgradeSurvey, doctor: { status: "ok", report: reportOf(2) } }, applyDoctor: doctor }) });
+    const up = openSetupModal({ port: rerunPort({ applyDoctor: doctor }) });
     await up.ready;
     await settle();
-    if (name === "one") {
-      snap(up, "upgrade-changes");
-      up.element.querySelector(".sw-row .sw-link").click();
-      snap(up, "upgrade-changes-open");
-    }
-    up.controller.next();
+    for (let i = 0; i < 4; i++) up.controller.next();
     await settle();
-    if (name === "one") snap(up, "upgrade-review");
     await up.controller.apply();
     await settle();
-    snap(up, "upgrade-final-" + name);
+    snap(up, "final-" + name);
     up.close();
   }
 
@@ -220,6 +279,8 @@ type Screen = {
   details: ({ label: string; text: string; hidden: boolean } | null)[];
   cards: string[];
   groups: string[];
+  marks: string[];
+  rowBoxes: boolean[];
   env: string[];
   runners: string[];
   runnerOutputs: ({ hidden: boolean; text: string } | null)[];
@@ -424,26 +485,95 @@ describe.skipIf(webkit === undefined)(
       expect(f.screens["policy-cards"]?.cards).toHaveLength(4);
     });
 
-    it("upgrade rows show titles", () => {
-      for (const name of ["upgrade-changes", "upgrade-review"]) {
-        const screen = f.screens[name] as Screen;
+    it("files note names what changed", () => {
+      const files = f.screens["rerun-files"] as Screen;
 
-        expect(screen.rows, name).toHaveLength(2);
-        expect(screen.rows[0], name).toBe("Settings moved to new places 1");
-        expect(screen.text, name).not.toContain("thresholds");
-        expect(screen.details[0]?.label, name).toBe("Details");
-        expect(screen.details[0]?.text, name).toBe(
-          "config/sensors/thresholds was retired 1\n\nrecognizer config --unset k1",
-        );
-      }
+      expect(files.rows).toHaveLength(3);
+      expect(files.marks).toEqual(["Set up", "Gone"]);
+      expect(files.text).toContain("New test runners: engine (engine)");
+      expect(files.text).toContain(
+        "Test suites whose folder is gone: legacy (legacy)",
+      );
+      expect(files.text).toContain("Languages with no files now: Python");
+      expect(files.text).toContain("2 settings an upgrade moved.");
+      expect((f.screens["calm-files"] as Screen).text).toContain(
+        "Nothing has changed since setup.",
+      );
+    });
 
-      expect(f.screens["upgrade-changes"]?.details[0]?.hidden).toBe(true);
-      expect(f.screens["upgrade-changes-open"]?.details[0]?.hidden).toBe(false);
+    it("marks the checks and the tests of a configured repository", () => {
+      expect((f.screens["rerun-checks"] as Screen).marks).toEqual([
+        "Set up",
+        "Set up",
+        "New",
+      ]);
+
+      const tests = f.screens["rerun-tests"] as Screen;
+
+      expect(tests.marks).toEqual(["Gone", "Set up", "New", "New", "New"]);
+      expect(tests.text).toContain("Remove from the config");
+    });
+
+    it("policy names uncovered folders", () => {
+      const policy = f.screens["rerun-policy"] as Screen;
+
+      expect(policy.text).toContain("Keep it as it is");
+      expect(policy.text).toContain("Ask Claude to recommend changes");
+      expect(policy.text).toContain("Not covered by the policy: web, tools.");
+      expect((f.screens["calm-policy"] as Screen).text).not.toContain(
+        "Not covered by the policy",
+      );
+      expect((f.screens["policy-choice"] as Screen).text).toContain(
+        "Skip for now",
+      );
+    });
+
+    it("review lists doctor's fixes under their own heading by title", () => {
+      const review = f.screens["rerun-review"] as Screen;
+
+      expect(review.groups).toEqual([
+        "Doctor's fixes",
+        "Checks",
+        "Tests",
+        "Policy",
+      ]);
+      expect(review.rows.length).toBeGreaterThan(3);
+      expect(review.rows.slice(0, 3)).toEqual([
+        "Settings moved to new places 1",
+        "Settings moved to new places 2",
+        "Two test suites share a name",
+      ]);
+      expect(review.rowBoxes.slice(0, 3)).toEqual([true, true, false]);
+      expect(review.text).not.toContain("thresholds");
+      expect(review.text).toContain("Rename one of the suites");
+      expect(review.text).toContain(
+        "Doctor keeps reporting this until it is fixed by hand.",
+      );
+      expect(review.text).not.toContain("Open Setup again to apply it later.");
+      expect(review.details[0]?.label).toBe("Details");
+      expect(review.details[0]?.hidden).toBe(true);
+      expect(review.details[0]?.text).toBe(
+        "config/sensors/thresholds was retired 1\n\nrecognizer config --unset k1",
+      );
+      expect(
+        (f.screens["rerun-review-open"] as Screen).details[0]?.hidden,
+      ).toBe(false);
+      expect((f.screens["rerun-review-unticked"] as Screen).text).toContain(
+        "Doctor keeps reporting this until it is fixed. Open Setup again to apply it later.",
+      );
+    });
+
+    it("review with nothing to change offers Close", () => {
+      const calm = f.screens["calm-review"] as Screen;
+
+      expect(calm.rows).toHaveLength(0);
+      expect(calm.text).toContain("Nothing to change.");
+      expect(calm.foot).toContain("Close");
+      expect(calm.foot).not.toContain("Close (disabled)");
     });
 
     it("final screen lists what is left", () => {
-      const final = (name: string) =>
-        f.screens[`upgrade-final-${name}`] as Screen;
+      const final = (name: string) => f.screens[`final-${name}`] as Screen;
 
       expect(final("one").heading).toBe("Updated - 1 thing still to fix");
       expect(final("one").text).toContain("Settings moved to new places 1");
@@ -461,7 +591,7 @@ describe.skipIf(webkit === undefined)(
         f.screens.review?.foot.some((label) => label.startsWith("Apply ")),
       ).toBe(true);
       expect(f.screens["apply-running"]?.foot).toContain("Stop");
-      expect(f.screens["apply-done"]?.heading).toBe("Setup is done");
+      expect(f.screens["apply-done"]?.heading).toBe("Everything is up to date");
       expect(f.screens["apply-done"]?.foot).toContain("Close");
       expect(f.screens["apply-failed"]?.heading).toBe("Setup stopped");
       expect(f.screens["apply-failed"]?.foot).toContain("Try again");
