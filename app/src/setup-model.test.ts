@@ -90,6 +90,34 @@ describe("the setup wizard model", () => {
     });
   });
 
+  it("starts a runner's env from the survey and sends an emptied one as nothing", async () => {
+    const withEnv: Survey = {
+      ...LOOM_SURVEY,
+      runners: LOOM_SURVEY.runners.map((runner, at) =>
+        at === 0 ? { ...runner, env: { NODE_CONFIG_DIR: "./config" } } : runner,
+      ),
+    };
+    const { controller } = await opened(
+      fakeSetup({
+        surveyRead: { status: "ok", survey: withEnv, doctor: CLEAN_DOCTOR },
+      }),
+    );
+    const name = withEnv.runners[0]?.name as string;
+
+    expect(wizard(controller).runners[name]?.on).toBe(true);
+    expect(wizard(controller).runners[name]?.env).toEqual([
+      ["NODE_CONFIG_DIR", "./config"],
+    ]);
+
+    controller.removeEnv(name, 0);
+
+    const sent = choicesOf(wizard(controller)).runners?.find(
+      (runner) => runner.name === name,
+    );
+
+    expect(sent?.env).toEqual({});
+  });
+
   it("skips Tests when no chosen check runs tests", async () => {
     const { controller } = await opened();
 

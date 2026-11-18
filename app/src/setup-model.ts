@@ -178,7 +178,9 @@ export function choicesOf(state: WizardState): SetupChoices {
               ...(own.command === runner.command
                 ? {}
                 : { command: own.command }),
-              ...(own.env.length === 0 ? {} : { env }),
+              ...(own.env.length === 0 && runner.env === undefined
+                ? {}
+                : { env }),
             };
           })
       : [],
@@ -283,7 +285,11 @@ function initial(survey: Survey, doctor: DoctorRead): WizardState {
     runners: Object.fromEntries(
       survey.runners.map((runner) => [
         runner.name,
-        { on: true, command: runner.command, env: [] },
+        {
+          on: true,
+          command: runner.command,
+          env: Object.entries(runner.env ?? {}),
+        },
       ]),
     ),
     tools: Object.fromEntries(survey.tools.map((tool) => [tool.name, true])),

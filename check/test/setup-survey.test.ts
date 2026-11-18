@@ -343,6 +343,112 @@ describe("recognizer setup survey", () => {
   });
 });
 
+function chainRepository(
+  server: Record<string, unknown>,
+  config = true,
+): string {
+  const directory = makeTempDir("recognizer-setup-chain-");
+
+  mkdirSync(join(directory, "server"), { recursive: true });
+  mkdirSync(join(directory, "web"), { recursive: true });
+  writeFileSync(
+    join(directory, "package.json"),
+    JSON.stringify({
+      name: "root",
+      workspaces: ["server", "web"],
+      devDependencies: { vitest: "^3.2.4" },
+    }),
+  );
+  writeFileSync(join(directory, "server/package.json"), JSON.stringify(server));
+  writeFileSync(
+    join(directory, "web/package.json"),
+    JSON.stringify({ name: "web", scripts: { test: "vitest run" } }),
+  );
+  writeFileSync(join(directory, "web/vitest.config.ts"), "");
+
+  if (config) {
+    writeFileSync(join(directory, "server/vitest.config.ts"), "");
+  }
+
+  return directory;
+}
+
+const SAGA_SERVER = {
+  name: "server",
+  scripts: {
+    test: "npm run test:unit && npm run test:integration && npm run test:feature",
+    "test:unit": "NODE_CONFIG_DIR=./config vitest run",
+    "test:integration":
+      "NODE_CONFIG_DIR=./config vitest run --config vitest.integration.config.ts",
+    "test:feature": "cucumber-js",
+  },
+  devDependencies: { "@vitest/coverage-v8": "^3.2.4" },
+};
+
+describe("a vitest suite behind an npm run chain", () => {
+  it("finds a vitest suite behind an npm run chain and carries its env", async () => {
+    const { survey } = await surveyOf([chainRepository(SAGA_SERVER)]);
+
+    expect(survey.runners).toHaveLength(2);
+
+    const [server, web] = survey.runners;
+
+    expect(server?.name).toBe("server");
+    expect(server?.env).toEqual({ NODE_CONFIG_DIR: "./config" });
+    expect(server?.directory).toBe("server");
+    expect(server?.from).toBe("server/package.json");
+    expect(server?.command).toBe(
+      "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=../.recognizer/cache/coverage/server",
+    );
+    expect(web?.name).toBe("web");
+    expect(web).not.toHaveProperty("env");
+    expect(
+      survey.runners.some((runner) => runner.command.includes("integration")),
+    ).toBe(false);
+  });
+
+  it("follows nothing without a vitest config beside the package", async () => {
+    const { survey } = await surveyOf([chainRepository(SAGA_SERVER, false)]);
+
+    expect(survey.runners.map((runner) => runner.name)).toEqual(["web"]);
+  });
+
+  it.each([
+    ["cucumber-js", { test: "cucumber-js" }],
+    [
+      "a first vitest step with other arguments",
+      {
+        test: "npm run test:unit",
+        "test:unit": "vitest run --config x.ts",
+      },
+    ],
+    ["a cycle", { test: "npm run a", a: "npm run a" }],
+    ["a missing script", { test: "npm run missing" }],
+    ["a quote in an env value", { test: 'FOO="a b" vitest run' }],
+    ["npm run with a workspace flag", { test: "npm run test -w x" }],
+  ])(
+    "gives no runner when no step is a plain vitest step: %s",
+    async (_title, scripts) => {
+      const { survey } = await surveyOf([
+        chainRepository({ name: "server", scripts }),
+      ]);
+
+      expect(survey.runners.map((runner) => runner.name)).toEqual(["web"]);
+    },
+  );
+
+  it("the survey of the Saga-shaped fixture lists server and web", async () => {
+    const { survey } = await surveyOf([join(REPO, "fixtures/setup-saga")]);
+
+    expect(survey.runners.map((runner) => runner.name)).toEqual([
+      "server",
+      "web",
+    ]);
+    expect(survey.runners[0]?.env).toEqual({ NODE_CONFIG_DIR: "./config" });
+    expect(validate(survey), JSON.stringify(validate.errors)).toBe(true);
+  });
+});
+
 describe("setup survey examples", () => {
   const examples = join(REPO, "schema/setup-survey-examples");
 

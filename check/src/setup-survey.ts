@@ -62,6 +62,7 @@ export interface SurveyRunner {
   command: string;
   coverage: { path: string; format: string };
   tool: string | null;
+  env?: Record<string, string>;
 }
 
 export interface SurveyTool {
@@ -378,6 +379,99 @@ interface Found {
   directory: string;
   from: string;
   tool: string | null;
+  env?: Record<string, string>;
+}
+
+const VITEST_CONFIG = /^vitest\.config\.(ts|mts|cts|js|mjs|cjs)$/;
+const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const UNSAFE_VALUE = /[$`'"\\]/;
+const CHAIN_DEPTH = 5;
+
+type Resolution =
+  | { kind: "hit"; env: Record<string, string> }
+  | { kind: "stop" }
+  | { kind: "none" };
+
+function scriptsOf(manifest: Record<string, unknown>): Record<string, string> {
+  const scripts = manifest.scripts;
+
+  if (typeof scripts !== "object" || scripts === null) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(scripts).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    ),
+  );
+}
+
+function resolveStep(step: string): Resolution {
+  const words = step.split(/\s+/).filter((word) => word !== "");
+  const env: Record<string, string> = {};
+  let at = 0;
+
+  while (at < words.length && /^[^=\s]+=/.test(words[at] as string)) {
+    const word = words[at] as string;
+    const equals = word.indexOf("=");
+    const name = word.slice(0, equals);
+    const value = word.slice(equals + 1);
+
+    if (!ENV_NAME.test(name) || UNSAFE_VALUE.test(value)) {
+      return { kind: "stop" };
+    }
+
+    env[name] = value;
+    at += 1;
+  }
+
+  if (words[at] === "npx") {
+    at += 1;
+  }
+
+  if (words[at] !== "vitest") {
+    return { kind: "none" };
+  }
+
+  const rest = words.slice(at + 1);
+
+  return rest.length === 0 || (rest.length === 1 && rest[0] === "run")
+    ? { kind: "hit", env }
+    : { kind: "stop" };
+}
+
+function resolveScript(
+  scripts: Record<string, string>,
+  name: string,
+  path: string[],
+): Resolution {
+  const script = scripts[name];
+
+  if (
+    script === undefined ||
+    path.includes(name) ||
+    path.length >= CHAIN_DEPTH
+  ) {
+    return { kind: "stop" };
+  }
+
+  for (const raw of script.split("&&")) {
+    const step = raw.trim();
+    const followed = /^npm run ([^\s]+)$/.exec(step);
+    const result = followed
+      ? resolveScript(scripts, followed[1] as string, [...path, name])
+      : resolveStep(step);
+
+    if (result.kind !== "none") {
+      return result;
+    }
+  }
+
+  return { kind: "none" };
+}
+
+function vitestStepOf(manifest: Record<string, unknown>): Resolution {
+  return resolveScript(scriptsOf(manifest), "test", []);
 }
 
 function typescriptRunners(io: Io, root: string, files: string[]): Found[] {
@@ -394,13 +488,40 @@ function typescriptRunners(io: Io, root: string, files: string[]): Found[] {
       continue;
     }
 
+    const directory = directoryOf(path);
+    const hasConfig = files.some(
+      (file) =>
+        directoryOf(file) === directory &&
+        VITEST_CONFIG.test(posix.basename(file)),
+    );
+    const chain = hasConfig
+      ? vitestStepOf(manifest)
+      : ({ kind: "none" } as const);
+
+    if (chain.kind === "hit") {
+      found.push({
+        language: "typescript",
+        runner: "vitest",
+        directory,
+        from: path,
+        tool: "@vitest/coverage-v8",
+        ...(Object.keys(chain.env).length === 0 ? {} : { env: chain.env }),
+      });
+
+      continue;
+    }
+
+    if (chain.kind === "stop") {
+      continue;
+    }
+
     const runner = runnerOf(manifest, workspacesOf(manifest).length > 0);
 
     if (runner !== null) {
       found.push({
         language: "typescript",
         runner,
-        directory: directoryOf(path),
+        directory,
         from: path,
         tool: runner === "vitest" ? "@vitest/coverage-v8" : null,
       });
@@ -489,6 +610,7 @@ function nameRunners(found: Found[], root: string): SurveyRunner[] {
         format: "lcov",
       },
       tool: one.tool,
+      ...(one.env === undefined ? {} : { env: one.env }),
     };
   });
 }

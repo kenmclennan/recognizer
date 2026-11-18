@@ -136,7 +136,7 @@ function runnerSteps(
   choice: RunnerChoice,
 ): ChangeStep[] {
   const key = (name: string) => `tests.${runner.name}.${name}`;
-  const env = Object.entries(choice.env ?? {}).sort(([a], [b]) =>
+  const env = Object.entries(choice.env ?? runner.env ?? {}).sort(([a], [b]) =>
     a < b ? -1 : a > b ? 1 : 0,
   );
 

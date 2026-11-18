@@ -1,0 +1,10 @@
+{
+  "name": "@saga/server",
+  "scripts": {
+    "test": "npm run test:unit && npm run test:integration && npm run test:feature",
+    "test:unit": "NODE_CONFIG_DIR=./config vitest run",
+    "test:integration": "NODE_CONFIG_DIR=./config vitest run --config vitest.integration.config.ts",
+    "test:feature": "cucumber-js"
+  },
+  "devDependencies": { "@vitest/coverage-v8": "^3.2.4" }
+}
