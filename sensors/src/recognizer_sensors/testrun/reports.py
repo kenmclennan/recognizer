@@ -8,7 +8,9 @@ from recognizer_sensors.scans import Scan
 
 LOG = Path(".recognizer") / "cache" / "coverage" / "last-run.log"
 
-CACHE_PREFIX = ".recognizer/"
+COVERAGE_CACHE = ".recognizer/cache/coverage"
+
+SLUG_UNSAFE = re.compile(r"[^A-Za-z0-9._-]")
 
 REASON_LIMIT = 200
 
@@ -68,10 +70,28 @@ def covers_nothing(part: Coverage, source: Source, language: str | None, scans: 
     return expected > 0 and covered == 0
 
 
-def fresh_reports(repository: Path, pattern: str, since: float | None) -> list[Path]:
+def folder_of(name: str) -> str:
+    slug = SLUG_UNSAFE.sub("-", name)
+
+    if slug.startswith("."):
+        slug = f"-{slug[1:]}"
+
+    return f"{COVERAGE_CACHE}/{slug}"
+
+
+def in_own_folder(pattern: str, suite_name: str | None) -> bool:
+    if suite_name is None or ".." in pattern.split("/"):
+        return False
+
+    return pattern.startswith(f"{folder_of(suite_name)}/")
+
+
+def fresh_reports(
+    repository: Path, pattern: str, since: float | None, suite_name: str | None = None
+) -> list[Path]:
     matches = sorted(p for p in repository.glob(pattern) if p.is_file())
 
-    if since is None or pattern.startswith(CACHE_PREFIX):
+    if since is None or in_own_folder(pattern, suite_name):
         return matches
 
     floor = int(since * NANOSECONDS)
@@ -82,7 +102,7 @@ def fresh_reports(repository: Path, pattern: str, since: float | None) -> list[P
 def parse_matches(
     repository: Path, source: Source, files: list[str], since: float | None
 ) -> list[Coverage] | None:
-    matches = fresh_reports(repository, source.path, since)
+    matches = fresh_reports(repository, source.path, since, source.label)
 
     if not matches:
         return None

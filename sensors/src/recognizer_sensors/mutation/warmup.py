@@ -754,7 +754,9 @@ def coverage_run(
         where = report_pattern(suite)
 
         if suite.language == "python":
-            found = outside_the_copy(copy, repository, fresh_reports(copy, where, started))
+            found = outside_the_copy(
+                copy, repository, fresh_reports(copy, where, started, suite.name)
+            )
 
             if found is not None:
                 raise editable_refusal(suite, found)
