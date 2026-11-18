@@ -203,7 +203,7 @@ export const COMMANDS: Command[] = [
     ],
     output: {
       text: "a heading line per phase (extract, describe, sense) and one line per entry on stdout, `scans current at <commit>` when extraction was skipped; failures on stderr",
-      json: "one line per event on stdout as it happens: `phase` (extract: state run|current, commit, reason; describe and sense: total), `progress` (phase sense, name, step coverage|mutants, and done and total with mutants; only from a sensor that runs tests and reports it, such as mutation), `entry` (phase, name, outcome ok|failed, reason when failed, modules and edges for a written language), `preflight` (state run|ok|gaps, and the gaps with each one's id, line, needs and fix when gaps) and a last `summary` (repository, commit, modified, exit, phases with their entries, removed, skipped)",
+      json: "one line per event on stdout as it happens: `phase` (extract: state run|current, commit, reason; describe and sense: total), `progress` (phase sense, name, step coverage|mutants, and done and total with mutants; only from a sensor that runs tests and reports it, such as mutation), `entry` (phase, name, outcome ok|failed, reason when failed, modules and edges for a written language), `preflight` (state run|ok|gaps, and the gaps with each one's id, line, needs and fix when gaps), `structure` (state run|done|failed, and files, the count of files the analysis read, once it ran; none when the structure sensor is off) and a last `summary` (repository, commit, modified, exit, phases with their entries, removed, skipped)",
     },
     exitCodes: [
       {
@@ -1634,7 +1634,7 @@ export const COMMANDS: Command[] = [
     ],
     output: {
       text: "JSON on stdout for every verb; apply prints one JSON line per event instead of one document",
-      json: "survey: { survey_version, version, repository, configured, files, unread, checks, runners, notes, tools, fixes, suites, policy }, each language and check carrying a mark (set-up, new, gone or null); changes: { changes: [{ id, group, title, steps: [{ argv, cwd }] }], dropped, needing_user }; recommend: { entries, dropped }; apply: lines of { event: start, total }, { event: change, index, state: running|done|failed|undone, output } and { event: result, ok, doctor }; try: the same lines, then { event: runner, name, ready, detail } per runner, and { event: result, ok }",
+      json: "survey: { survey_version, version, repository, configured, files, unread, checks, runners, notes, tools, fixes, suites, policy }, each language and check carrying a mark (set-up, new, gone or null); changes: { changes: [{ id, group, title, steps: [{ argv, cwd }] }], dropped, needing_user }; recommend: { entries, dropped }; apply: lines of { event: start, total, commands }, { event: change, index, state: running|done|failed|undone, output }, { event: command, index, step, steps, command, state: running|done } per step, { event: doctor, state: running|done } and { event: result, ok, doctor }; try: the same lines, then { event: runner, name, ready, detail } per runner, and { event: result, ok }",
     },
     exitCodes: [
       { code: 0, meaning: "the verb finished; apply applied every change" },

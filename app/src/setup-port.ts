@@ -39,7 +39,10 @@ export type ApplyResultEvent = Extract<ApplyEvent, { event: "result" }>;
 export type TryResultEvent = Extract<TryEvent, { event: "result" }>;
 
 export type SetupPort = {
-  survey(extract: boolean): Promise<SetupSurveyRead>;
+  survey(
+    extract: boolean,
+    onLine: (line: string) => void,
+  ): Promise<SetupSurveyRead>;
   recommend(
     prompt: string,
     schema: unknown,

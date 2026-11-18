@@ -315,7 +315,7 @@ pub fn refusal_text(run: &ScanRunRecord, folder: &Path) -> String {
     )
 }
 
-fn appended_lines(folder: &Path, offset: u64) -> (Vec<String>, u64) {
+pub(crate) fn appended_lines(folder: &Path, offset: u64) -> (Vec<String>, u64) {
     let Ok(mut file) = fs::File::open(folder.join(MARKER_PROGRESS)) else {
         return (Vec::new(), offset);
     };

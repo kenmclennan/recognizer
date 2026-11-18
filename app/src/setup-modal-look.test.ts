@@ -292,6 +292,96 @@ function snap(modal, name) {
     up.close();
   }
 
+  facts.progress = {};
+  const shot = (name, m) => {
+    const q = (sel) => m.element.querySelector(sel);
+    const qa = (sel) => [...m.element.querySelectorAll(sel)];
+    const fill = q(".sw-fill");
+    const bar = q(".sw-bar");
+    const icon = q(".sw-row svg");
+    facts.progress[name] = {
+      heading: (q(".sw-body h2") || { textContent: "" }).textContent,
+      text: q(".sw-body").textContent,
+      titles: qa(".sw-row .sw-what").map((n) => n.textContent),
+      spinners: qa(".sw-row svg.sw-icon-spinner").length,
+      ticks: qa(".sw-row svg.sw-icon-tick").length,
+      circles: qa(".sw-row svg.sw-icon-circle").length,
+      glyphLeads: qa(".sw-row .sw-lead").filter((n) => n.querySelector("svg") === null && n.textContent.trim() !== "").length,
+      times: qa(".sw-row .sw-time").length,
+      elapsed: (q(".sw-elapsed") || { textContent: "" }).textContent,
+      fillRatio: fill && bar ? fill.getBoundingClientRect().width / bar.getBoundingClientRect().width : -1,
+      iconSquare: icon ? icon.getBoundingClientRect().width === icon.getBoundingClientRect().height : false,
+      runningLines: qa(".sw-row.state-running .sw-why").map((n) => n.textContent),
+    };
+  };
+  const feed = (o) => JSON.stringify(o);
+  let freeMid = () => {};
+  let freeEnd = () => {};
+  const holdMid = new Promise((resolve) => { freeMid = resolve; });
+  const holdEnd = new Promise((resolve) => { freeEnd = resolve; });
+  const unscanned = openSetupModal({ port: fakeSetup({ surveyLines: [
+    feed({ event: "step", step: "survey", state: "run" }),
+    feed({ event: "step", step: "survey", state: "done" }),
+    feed({ event: "step", step: "scan", state: "run" }),
+    feed({ event: "phase", phase: "extract", state: "run", commit: null, languages: ["typescript"] }),
+    feed({ event: "plugin", phase: "extract", name: "typescript", data: { event: "start", total: 125, unit: "files" } }),
+    holdMid,
+    feed({ event: "plugin", phase: "extract", name: "typescript", data: { event: "progress", done: 125, total: 125, unit: "files" } }),
+    feed({ event: "entry", phase: "extract", name: "typescript", outcome: "ok", modules: 3, edges: 2 }),
+    feed({ event: "structure", state: "run" }),
+    feed({ event: "structure", state: "done", files: 125 }),
+    feed({ event: "step", step: "scan", state: "done" }),
+    feed({ event: "step", step: "reading", state: "run" }),
+    holdEnd,
+  ] }) });
+  await settle();
+  shot("scan-mid", unscanned);
+  freeMid();
+  await settle();
+  shot("scan-end", unscanned);
+  freeEnd();
+  await unscanned.ready;
+  unscanned.close();
+
+  let freeScanned = () => {};
+  const holdScanned = new Promise((resolve) => { freeScanned = resolve; });
+  const scanned = openSetupModal({ port: fakeSetup({ surveyLines: [
+    feed({ event: "step", step: "survey", state: "run" }),
+    feed({ event: "step", step: "survey", state: "done" }),
+    feed({ event: "step", step: "reading", state: "run" }),
+    holdScanned,
+  ] }) });
+  await settle();
+  shot("scanned", scanned);
+  freeScanned();
+  await scanned.ready;
+  scanned.close();
+
+  let freeCommand = () => {};
+  let freeDoctor = () => {};
+  let freeReload = () => {};
+  const holdCommand = new Promise((resolve) => { freeCommand = resolve; });
+  const holdDoctor = new Promise((resolve) => { freeDoctor = resolve; });
+  const holdReload = new Promise((resolve) => { freeReload = resolve; });
+  const stepping = openSetupModal({ port: fakeSetup({ holdAfterCommand: holdCommand, holdDoctor }), reloadSensors: () => holdReload });
+  await stepping.ready;
+  for (let i = 0; i < 4; i++) stepping.controller.next();
+  await settle();
+  const applied = stepping.controller.apply();
+  await settle();
+  shot("apply-command", stepping);
+  freeCommand();
+  await settle();
+  shot("apply-doctor", stepping);
+  freeDoctor();
+  await settle();
+  shot("apply-reload", stepping);
+  freeReload();
+  await applied;
+  await settle();
+  shot("apply-finished", stepping);
+  stepping.close();
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -316,9 +406,25 @@ type Screen = {
   runnerOutputs: ({ hidden: boolean; text: string } | null)[];
 };
 
+type Shot = {
+  heading: string;
+  text: string;
+  titles: string[];
+  spinners: number;
+  ticks: number;
+  circles: number;
+  glyphLeads: number;
+  times: number;
+  elapsed: string;
+  fillRatio: number;
+  iconSquare: boolean;
+  runningLines: string[];
+};
+
 type Facts = {
   disclosure: Record<string, boolean>;
   namedPairs: string[][];
+  progress: Record<string, Shot>;
   rowClicks: {
     checkToggled: boolean;
     checkToggledBack: boolean;
@@ -403,6 +509,88 @@ describe.skipIf(webkit === undefined)(
       "apply-done",
       "apply-failed",
     ];
+
+    describe("progress while reading and applying", () => {
+      const shot = (name: string) => f.progress[name] as Shot;
+
+      it("opening Setup on an unscanned folder shows the three rows, the lead line and a per-language line before Files", () => {
+        const mid = shot("scan-mid");
+
+        expect(mid).toBeDefined();
+        expect(mid.heading).toBe("Reading the repository");
+        expect(mid.titles).toEqual([
+          "Finding languages and test setups",
+          "Scanning the files",
+          "Reading what the scan found",
+        ]);
+        expect(mid.text).toContain(
+          "This happens once, the first time Setup opens on a folder that has never been scanned.",
+        );
+        expect(mid.text).toContain("TypeScript: reading...");
+        expect(mid.spinners).toBe(1);
+        expect(mid.ticks).toBe(1);
+        expect(mid.circles).toBe(1);
+        expect(mid.glyphLeads).toBe(0);
+        expect(mid.iconSquare).toBe(true);
+        expect(mid.fillRatio).toBeGreaterThan(0);
+        expect(mid.fillRatio).toBeLessThan(1);
+        expect(mid.elapsed).toMatch(/^\d+\.\ds$/);
+      });
+
+      it("finished scan lines show the file count and the duplication count, and finished rows their time", () => {
+        const end = shot("scan-end");
+
+        expect(end.text).toContain("TypeScript: 125 files");
+        expect(end.text).toContain("Duplication: 125 files compared");
+        expect(end.ticks).toBe(2);
+        expect(end.times).toBe(2);
+        expect(end.fillRatio).toBeGreaterThan(shot("scan-mid").fillRatio);
+      });
+
+      it("a folder already scanned shows only the rows that run and no lead line", () => {
+        const read = shot("scanned");
+
+        expect(read.titles).toEqual([
+          "Finding languages and test setups",
+          "Reading what the scan found",
+        ]);
+        expect(read.text).not.toContain("This happens once");
+        expect(read.spinners).toBe(1);
+      });
+
+      it("Apply shows a spinning first row with its step and command, and a bar above zero after the first command", () => {
+        const hold = shot("apply-command");
+
+        expect(hold.spinners).toBe(1);
+        expect(hold.runningLines[0]).toMatch(/^Step 1 of \d+$/);
+        expect(hold.runningLines.length).toBeGreaterThanOrEqual(2);
+        expect(hold.fillRatio).toBeGreaterThan(0);
+        expect(hold.titles.slice(-2)).toEqual([
+          "Checking the setup",
+          "Loading the checks",
+        ]);
+        expect(hold.glyphLeads).toBe(0);
+      });
+
+      it("the two finishing rows spin in turn and then show their time", () => {
+        expect(shot("apply-doctor").runningLines).toEqual([]);
+        expect(shot("apply-doctor").spinners).toBeGreaterThanOrEqual(1);
+        expect(shot("apply-reload").spinners).toBe(1);
+        expect(shot("apply-reload").times).toBeGreaterThan(
+          shot("apply-doctor").times,
+        );
+
+        const done = shot("apply-finished");
+
+        expect(done.spinners).toBe(0);
+        expect(done.times).toBe(done.titles.length);
+        expect(done.titles.slice(-2)).toEqual([
+          "Checking the setup",
+          "Loading the checks",
+        ]);
+        expect(done.elapsed).toMatch(/^\d+\.\ds$/);
+      });
+    });
 
     it("fits the modal within the window and the pane within the modal", () => {
       for (const name of names) {

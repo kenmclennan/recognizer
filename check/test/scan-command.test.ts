@@ -590,6 +590,8 @@ describe("recognizer scan: summary", () => {
         edges: 2,
       },
       { event: "preflight", state: "ok" },
+      { event: "structure", state: "run" },
+      { event: "structure", state: "done", files: 0 },
       {
         event: "summary",
         repository: ROOT,
@@ -797,6 +799,41 @@ describe("recognizer scan: phases", () => {
     expect(fake.files.has(STRUCTURE)).toBe(false);
     expect(fake.files.has(STRUCTURE_OVERLAY)).toBe(false);
     expect(fake.removed).toContain(STRUCTURE);
+  });
+
+  it("writes structure run then done with the file count between preflight ok and summary", async () => {
+    const { out } = await scan(setup(), "--json");
+    const events = lines(out);
+    const names = events.map((line) => line.event);
+
+    expect(names.indexOf("structure")).toBe(names.lastIndexOf("preflight") + 1);
+    expect(events.filter((line) => line.event === "structure")).toEqual([
+      { event: "structure", state: "run" },
+      { event: "structure", state: "done", files: 2 },
+    ]);
+    expect(names.lastIndexOf("structure")).toBe(names.length - 2);
+    expect(names[names.length - 1]).toBe("summary");
+  });
+
+  it("writes no structure line when the structure sensor is off", async () => {
+    const { out } = await scan(
+      setup({}, { [CONFIG]: "sensors:\n  structure: off\n" }),
+      "--json",
+    );
+
+    expect(lines(out).filter((line) => line.event === "structure")).toEqual([]);
+  });
+
+  it("writes structure run then failed when the structure run fails", async () => {
+    const { out } = await scan(
+      setup({}, { [`${ROOT}/.recognizer/policy.yaml`]: "components: {}\n" }),
+      "--json",
+    );
+
+    expect(lines(out).filter((line) => line.event === "structure")).toEqual([
+      { event: "structure", state: "run" },
+      { event: "structure", state: "failed", files: 2 },
+    ]);
   });
 
   it.each<[string, FakeOptions, Record<string, string>, string, string[]]>([
@@ -1577,6 +1614,8 @@ describe("recognizer scan: phases", () => {
       ["preflight", null],
       ["phase", "extract"],
       ["preflight", null],
+      ["structure", null],
+      ["structure", null],
       ["projection", "describe"],
       ["phase", "describe"],
       ["entry", "describe"],
@@ -1592,13 +1631,13 @@ describe("recognizer scan: phases", () => {
       state: "current",
       commit: COMMIT,
     });
-    expect(events[4]).toEqual({ event: "phase", phase: "describe", total: 2 });
-    expect(events[8]).toEqual({
+    expect(events[6]).toEqual({ event: "phase", phase: "describe", total: 2 });
+    expect(events[10]).toEqual({
       event: "start",
       phase: "sense",
       name: "first",
     });
-    expect(events[9]).toEqual({
+    expect(events[11]).toEqual({
       event: "entry",
       phase: "sense",
       name: "first",
@@ -1804,6 +1843,8 @@ describe("recognizer scan: phases", () => {
         ["preflight", null, null],
         ["phase", null, null],
         ["preflight", null, null],
+        ["structure", null, null],
+        ["structure", null, null],
         ["phase", null, null],
         ["start", "mutation", null],
         ["plugin", "mutation", "start"],
@@ -1813,13 +1854,13 @@ describe("recognizer scan: phases", () => {
         ["entry", "mutation", null],
         ["summary", null, null],
       ]);
-      expect(events[6]).toEqual({
+      expect(events[8]).toEqual({
         event: "plugin",
         phase: "sense",
         name: "mutation",
         data: { event: "note", text: "Coverage run: unit" },
       });
-      expect(events[8]).toEqual({
+      expect(events[10]).toEqual({
         event: "plugin",
         phase: "sense",
         name: "mutation",

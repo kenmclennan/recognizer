@@ -5026,6 +5026,56 @@ svg.i.chevron {
   background: var(--bad);
 }
 
+.setup-modal .sw-headrow {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.setup-modal .sw-headrow h2 {
+  margin: 0;
+}
+
+.setup-modal .sw-elapsed,
+.setup-modal .sw-time {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.setup-modal .sw-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  color: var(--faint);
+}
+
+.setup-modal .sw-icon-tick {
+  color: var(--ok);
+}
+
+.setup-modal .sw-icon-spinner {
+  color: var(--sel);
+  animation: sw-spin 0.9s linear infinite;
+}
+
+.setup-modal .sw-command {
+  color: var(--faint);
+  overflow-wrap: anywhere;
+}
+
+@keyframes sw-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup-modal .sw-icon-spinner {
+    animation: none;
+  }
+}
+
 .setup-modal .sw-progress {
   margin-top: 6px;
   color: var(--muted);

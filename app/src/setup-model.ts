@@ -12,6 +12,13 @@ import {
   type TryEvent,
 } from "recognizer";
 import type { DoctorRead, SetupPort } from "./setup-port";
+import {
+  applyFill,
+  type LoadingState,
+  reduceLoading,
+  startLoading,
+  type Timed,
+} from "./setup-progress";
 
 export type StepKey =
   | "files"
@@ -38,7 +45,16 @@ export type RunnerState = {
 
 export type RowState = "waiting" | "running" | "done" | "failed" | "undone";
 
-export type Row = { title: string; state: RowState; output: string };
+export type Row = {
+  title: string;
+  state: RowState;
+  output: string;
+  step?: number;
+  steps?: number;
+  command?: string;
+  startedAt?: number | null;
+  endedAt?: number | null;
+};
 
 export type RunnerResult = {
   name: string;
@@ -64,6 +80,11 @@ export type ApplyRun = {
   rows: Row[];
   doctor: DoctorRead | null;
   message: string | null;
+  startedAt: number;
+  endedAt: number | null;
+  fill: number;
+  checking: Timed;
+  loading: Timed;
 };
 
 export type WizardState = {
@@ -86,7 +107,7 @@ export type WizardState = {
 };
 
 export type SetupState =
-  | { kind: "loading" }
+  | { kind: "loading"; progress: LoadingState }
   | { kind: "unavailable"; reason: string }
   | WizardState;
 
@@ -249,6 +270,7 @@ export type SetupDeps = {
   reloadSensors?: () => Promise<void> | void;
   scanAfterApply?: () => void;
   onDoctor?: (read: DoctorRead) => void;
+  now?: () => number;
 };
 
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -311,7 +333,8 @@ function withRow(rows: Row[], index: number, patch: Partial<Row>): Row[] {
 }
 
 export function createSetupController(deps: SetupDeps): SetupController {
-  let state: SetupState = { kind: "loading" };
+  const now = deps.now ?? Date.now;
+  let state: SetupState = { kind: "loading", progress: startLoading(now()) };
   let stopping = false;
   let live = false;
   const listeners = new Set<(state: SetupState) => void>();
@@ -364,9 +387,17 @@ export function createSetupController(deps: SetupDeps): SetupController {
       return () => listeners.delete(listener);
     },
     async open() {
-      set({ kind: "loading" });
+      let progress = startLoading(now());
 
-      const read = await deps.port.survey(true);
+      set({ kind: "loading", progress });
+
+      const read = await deps.port.survey(true, (line) => {
+        progress = reduceLoading(progress, line, now());
+
+        if (state.kind === "loading") {
+          set({ kind: "loading", progress });
+        }
+      });
 
       if (read.status === "unavailable") {
         set({ kind: "unavailable", reason: read.reason });
@@ -621,8 +652,28 @@ export function createSetupController(deps: SetupDeps): SetupController {
       live = true;
 
       const choices = choicesOf(state);
-      let rows = rowsOf(changesOf(state));
+      const startedAt = now();
+      let rows = withRow(rowsOf(changesOf(state)), 0, {
+        state: "running",
+        startedAt,
+      });
+      let commands: number | null = null;
+      let commandsDone = 0;
+      let endedAt: number | null = null;
+      let checking: Timed = {
+        state: "waiting",
+        startedAt: null,
+        endedAt: null,
+      };
+      let loading: Timed = { state: "waiting", startedAt: null, endedAt: null };
 
+      const fill = () =>
+        applyFill(
+          commands,
+          commandsDone,
+          rows.filter((one) => one.state === "done").length,
+          rows.length,
+        );
       const progress = (
         patch: Partial<ApplyRun> & { state: ApplyRun["state"] },
       ) =>
@@ -631,6 +682,11 @@ export function createSetupController(deps: SetupDeps): SetupController {
             rows,
             doctor: wizard.apply?.doctor ?? null,
             message: null,
+            startedAt,
+            endedAt,
+            fill: fill(),
+            checking,
+            loading,
             ...patch,
           },
           at: SETUP_STEPS.length - 1,
@@ -639,13 +695,46 @@ export function createSetupController(deps: SetupDeps): SetupController {
       progress({ state: "running" });
 
       const onEvent = (event: ApplyEvent) => {
-        if (live && event.event === "change") {
+        if (!live) {
+          return;
+        }
+
+        if (event.event === "start") {
+          commands = event.commands ?? null;
+        } else if (event.event === "change") {
           rows = withRow(rows, event.index, {
             state: event.state,
             output: event.output,
+            ...(event.state === "running"
+              ? { startedAt: rows[event.index]?.startedAt ?? now() }
+              : event.state === "done" || event.state === "failed"
+                ? { endedAt: now() }
+                : {}),
           });
-          progress({ state: "running" });
+        } else if (event.event === "command") {
+          if (event.state === "running") {
+            rows = withRow(rows, event.index, {
+              step: event.step,
+              steps: event.steps,
+              command: event.command,
+            });
+          } else {
+            commandsDone += 1;
+          }
+        } else if (event.event === "doctor") {
+          checking =
+            event.state === "running"
+              ? { state: "running", startedAt: now(), endedAt: null }
+              : {
+                  state: "done",
+                  startedAt: checking.startedAt ?? now(),
+                  endedAt: now(),
+                };
+        } else {
+          return;
         }
+
+        progress({ state: "running" });
       };
 
       try {
@@ -659,17 +748,35 @@ export function createSetupController(deps: SetupDeps): SetupController {
               ? { status: "unavailable", reason: "doctor did not answer" }
               : { status: "ok", report: result.doctor };
 
+          if (checking.state !== "done") {
+            checking = {
+              state: "done",
+              startedAt: checking.startedAt ?? now(),
+              endedAt: now(),
+            };
+          }
+
+          loading = { state: "running", startedAt: now(), endedAt: null };
+          progress({ state: "running" });
           await deps.reloadSensors?.();
+          loading = {
+            state: "done",
+            startedAt: loading.startedAt,
+            endedAt: now(),
+          };
+          endedAt = now();
           deps.scanAfterApply?.();
           deps.onDoctor?.(doctor);
           progress({ state: "done", doctor });
         } else {
+          endedAt = now();
           progress({
             state: stopping ? "stopped" : "failed",
           });
         }
       } catch (error) {
         live = false;
+        endedAt = now();
         progress({
           state: "failed",
           message: error instanceof Error ? error.message : String(error),

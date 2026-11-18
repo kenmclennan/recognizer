@@ -41,7 +41,17 @@ async function stream<E extends { event: string }, R extends E>(
 }
 
 export const setupSource: SetupPort = {
-  survey: (extract) => invoke<SetupSurveyRead>("setup_survey", { extract }),
+  async survey(extract, onLine) {
+    const unlisten = await listen<string>("setup-survey-event", (message) =>
+      onLine(message.payload),
+    );
+
+    try {
+      return await invoke<SetupSurveyRead>("setup_survey", { extract });
+    } finally {
+      unlisten();
+    }
+  },
   async recommend(prompt, schema, onLine) {
     const unlisten = await listen<string>("setup-run-line", (message) =>
       onLine(message.payload),

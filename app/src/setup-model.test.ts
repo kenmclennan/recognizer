@@ -1,4 +1,9 @@
-import { buildChanges, policyCommands, type Survey } from "recognizer";
+import {
+  type ApplyEvent,
+  buildChanges,
+  policyCommands,
+  type Survey,
+} from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
   CLEAN_DOCTOR,
@@ -489,5 +494,67 @@ describe("the setup wizard model", () => {
 
     expect(fake.calls.filter((call) => call === "stop_setup")).toHaveLength(1);
     expect(wizard(controller).tried.kind).toBe("done");
+  });
+
+  it("moves the apply bar per command and shows the current row running before any event", async () => {
+    let release: () => void = () => {};
+    const { controller } = await opened(
+      fakeSetup({
+        holdAfterCommand: new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+      }),
+    );
+
+    advanceTo(controller, "review");
+
+    const finished = controller.apply();
+
+    await Promise.resolve();
+
+    const held = wizard(controller).apply;
+    const total = held?.rows.length ?? 0;
+
+    expect(held?.rows[0]?.state).toBe("running");
+    expect(held?.rows[0]?.step).toBe(1);
+    expect(held?.rows[0]?.command).toBeTruthy();
+    expect(held?.fill).toBeGreaterThan(0);
+    expect(held?.fill).toBeLessThan(1);
+    expect(total).toBeGreaterThan(1);
+
+    release();
+    await finished;
+
+    const end = wizard(controller).apply;
+
+    expect(end?.state).toBe("done");
+    expect(end?.fill).toBe(1);
+    expect(end?.checking.state).toBe("done");
+    expect(end?.loading.state).toBe("done");
+  });
+
+  it("falls back to a bar per finished change when the toolchain sends no command events", async () => {
+    const fake = fakeSetup();
+    const base = fake.apply;
+    const { controller } = await opened(fake);
+
+    fake.apply = (choices, onEvent) =>
+      base(choices, (event) => {
+        if (event.event !== "command" && event.event !== "doctor") {
+          onEvent(
+            (event.event === "start"
+              ? { event: "start", total: event.total }
+              : event) as ApplyEvent,
+          );
+        }
+      });
+    advanceTo(controller, "review");
+    await controller.apply();
+
+    const end = wizard(controller).apply;
+
+    expect(end?.state).toBe("done");
+    expect(end?.fill).toBe(1);
+    expect(end?.checking.state).toBe("done");
   });
 });
