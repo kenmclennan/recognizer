@@ -187,6 +187,35 @@ describe("senseRepository", () => {
     });
   });
 
+  it.each([
+    ["after", false],
+    ["before", true],
+  ])(
+    "writes the same document twice over scans with an empty suite scan %s a normal one",
+    async (_label, emptyFirst) => {
+      const normal = fixtureScan("check", "scan.json", CURRENT);
+      const empty = {
+        file: "scan.typescript.json",
+        scan: {
+          ...normal.scan,
+          modules: [],
+          files: [],
+          edges: [],
+          foreign: [],
+        },
+      };
+      const both = emptyFirst ? [empty, normal] : [normal, empty];
+      const port = fakeSensors();
+
+      await senseRepository(both, { policy, config: null }, port);
+      await senseRepository(both, { policy, config: null }, port);
+
+      expect(port.written).toHaveLength(2);
+      expect(port.written[0]).not.toBeNull();
+      expect(port.written[1]).toBe(port.written[0]);
+    },
+  );
+
   it("keeps the structure document in memory when the scans carry no commit", async () => {
     const port = fakeSensors();
     const bare = [fixtureScan("check")];
