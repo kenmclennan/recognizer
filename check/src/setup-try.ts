@@ -154,7 +154,11 @@ export async function tryChanges(
       const own =
         gaps === null
           ? ["the readiness check gave no answer"]
-          : gaps.filter((gap) => gap.suite === name).map((gap) => gap.line);
+          : [
+              ...new Set(
+                gaps.filter((gap) => gap.suite === name).map((gap) => gap.line),
+              ),
+            ];
 
       if (own.length > 0) {
         ok = false;
