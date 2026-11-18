@@ -183,6 +183,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     className = "",
   ): HTMLElement {
     const one = el("div", `sw-row ${className}`.trim());
+    const control = lead instanceof HTMLInputElement ? lead : null;
     const first = el("span", "sw-lead");
     const middle = el("div", "sw-main");
     const last = el("div", "sw-meta");
@@ -196,6 +197,23 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     middle.append(...main);
     last.append(...meta);
     one.append(first, middle, last);
+
+    if (control !== null) {
+      one.classList.add("pick");
+      one.classList.toggle("locked", control.disabled);
+      one.addEventListener("click", (event) => {
+        const target = event.target as Element;
+
+        if (
+          control.disabled ||
+          target.closest("button, input, textarea, select, a, label, pre")
+        ) {
+          return;
+        }
+
+        control.click();
+      });
+    }
 
     return one;
   }

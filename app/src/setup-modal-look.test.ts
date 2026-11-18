@@ -15,7 +15,7 @@ import { fakeSetup } from ${JSON.stringify(here("setup-fake.ts"))};
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
 const box = (node) => { const r = node.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; };
-const facts = { screens: {}, lifecycle: {} };
+const facts = { screens: {}, lifecycle: {}, rowClicks: {} };
 
 function prose(root) {
   const copy = root.cloneNode(true);
@@ -64,6 +64,21 @@ function snap(modal, name) {
   facts.openCalls = fake.calls.slice();
   await next();
   snap(modal, "checks");
+  const plugin = q('[data-control^="plugin-"]');
+  const pluginBefore = plugin.checked;
+  plugin.closest(".sw-row").querySelector(".sw-why").click();
+  await settle();
+  facts.rowClicks.checkToggled = plugin.checked !== pluginBefore;
+  facts.rowClicks.pointer = getComputedStyle(q('[data-control^="plugin-"]').closest(".sw-row")).cursor;
+  plugin.closest(".sw-row").querySelector(".sw-why").click();
+  await settle();
+  facts.rowClicks.checkToggledBack = plugin.checked === pluginBefore;
+  const analysis = q('[data-control="analysis"]');
+  const limit = analysis.closest(".sw-row").querySelector(".sw-num");
+  const analysisBefore = analysis.checked;
+  limit.click();
+  await settle();
+  facts.rowClicks.limitKeptRow = analysis.checked === analysisBefore;
   await next();
 
   qa("button").find((b) => b.textContent === "Add a variable").click();
@@ -80,14 +95,20 @@ function snap(modal, name) {
   snap(modal, "tests-tried");
   await next();
 
-  q('[data-control="policy-ask"]').click();
-  q('[data-control="policy-ask"]').dispatchEvent(new Event("change"));
+  q('[data-control="policy-ask"]').closest(".sw-row").querySelector(".sw-what").click();
+  await settle();
+  facts.rowClicks.policyAskByText = q('[data-control="policy-ask"]').checked && !q('[data-control="policy-skip"]').checked;
+  q('[data-control="policy-skip"]').closest(".sw-row").querySelector(".sw-why").click();
+  await settle();
+  facts.rowClicks.policySkipByText = q('[data-control="policy-skip"]').checked && !q('[data-control="policy-ask"]').checked;
+  q('[data-control="policy-ask"]').closest(".sw-row").querySelector(".sw-what").click();
   await settle();
   snap(modal, "policy-choice");
   fake.gate = new Promise((resolve) => { release = resolve; });
   qa("button").find((b) => b.textContent === "Ask Claude").click();
   await settle();
   snap(modal, "policy-running");
+  facts.rowClicks.askButtonKeptRow = modal.controller.state().policyMode === "ask";
   release();
   fake.gate = null;
   await settle();
@@ -181,6 +202,15 @@ type Screen = {
 };
 
 type Facts = {
+  rowClicks: {
+    checkToggled: boolean;
+    checkToggledBack: boolean;
+    pointer: string;
+    limitKeptRow: boolean;
+    policyAskByText: boolean;
+    policySkipByText: boolean;
+    askButtonKeptRow: boolean;
+  };
   screens: Record<string, Screen>;
   openCalls: string[];
   lifecycle: {
@@ -280,6 +310,19 @@ describe.skipIf(webkit === undefined)(
     it("a click on the scrim closes the wizard and a click inside the dialog does not", () => {
       expect(f.lifecycle.insideClickKept).toBe(true);
       expect(f.lifecycle.scrimClosed).toBe(true);
+    });
+
+    it("clicking an option row's text selects or toggles its control and shows a pointer", () => {
+      expect(f.rowClicks.checkToggled).toBe(true);
+      expect(f.rowClicks.checkToggledBack).toBe(true);
+      expect(f.rowClicks.pointer).toBe("pointer");
+      expect(f.rowClicks.policyAskByText).toBe(true);
+      expect(f.rowClicks.policySkipByText).toBe(true);
+    });
+
+    it("a click on a limit input or the Ask Claude button leaves the row's control unchanged", () => {
+      expect(f.rowClicks.limitKeptRow).toBe(true);
+      expect(f.rowClicks.askButtonKeptRow).toBe(true);
     });
 
     it("closing during Apply stops the run once", () => {

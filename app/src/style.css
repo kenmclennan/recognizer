@@ -4785,6 +4785,19 @@ svg.i.chevron {
   opacity: 0.6;
 }
 
+.setup-modal .sw-row.pick {
+  cursor: pointer;
+}
+
+.setup-modal .sw-row.pick.locked {
+  cursor: default;
+}
+
+.setup-modal .sw-row.pick input[type="number"],
+.setup-modal .sw-row.pick textarea {
+  cursor: text;
+}
+
 .setup-modal .sw-what {
   font-weight: 500;
 }
