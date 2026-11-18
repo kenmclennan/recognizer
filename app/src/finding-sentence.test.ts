@@ -75,7 +75,7 @@ describe("unused_exports test-only names", () => {
     expect(
       unused([{ name: "a", test_files: ["t/test_a.py"] }, { name: "b" }]),
     ).toBe(
-      `plan.py exports 2 names no other module imports: a, b. Only tests import a: if nothing outside the repository uses it, delete it with its tests${hint}.`,
+      `plan.py exports 2 names no other file imports: a, b. Only tests import a: if nothing outside the repository uses it, delete it with its tests${hint}.`,
     );
   });
 
@@ -86,13 +86,13 @@ describe("unused_exports test-only names", () => {
         { name: "b", test_files: ["t/test_a.py"] },
       ]),
     ).toBe(
-      `plan.py exports 2 names no other module imports: a, b. Only tests import a, b: if nothing outside the repository uses them, delete them with their tests${hint}.`,
+      `plan.py exports 2 names no other file imports: a, b. Only tests import a, b: if nothing outside the repository uses them, delete them with their tests${hint}.`,
     );
   });
 
   it("leaves an unmarked sentence unchanged", () => {
     expect(unused([{ name: "a" }])).toBe(
-      "plan.py exports 1 name no other module imports: a.",
+      "plan.py exports 1 name no other file imports: a.",
     );
   });
 });
@@ -127,7 +127,7 @@ describe("sentenceOf orphan", () => {
       },
     });
 
-  it("says nothing imports a module no test imports", () => {
+  it("says nothing imports a file no test imports", () => {
     expect(orphanOf([])).toBe(
       "fake.py is imported by nothing and is not an entry point; a library can list its public API in warnings.orphan.entry_points.",
     );
@@ -227,7 +227,7 @@ describe("sentenceOf", () => {
           members: [{ module: "x/plan.py", name: "a" }],
         },
       }),
-    ).toBe("plan.py exports 1 name no other module imports: a.");
+    ).toBe("plan.py exports 1 name no other file imports: a.");
     expect(
       sentence({
         kind: "mutation",
@@ -253,7 +253,7 @@ describe("sentenceOf", () => {
           ],
         },
       }),
-    ).toBe("plan.py exports 3 names no other module imports: a, b, c.");
+    ).toBe("plan.py exports 3 names no other file imports: a, b, c.");
   });
 
   it("reads a threshold at, over and under its limit", () => {
@@ -339,7 +339,7 @@ describe("the violation sentence for several imports", () => {
     };
 
     expect(several(["depends", "depends"], uses)).toBe(
-      "Application.kt imports 2 modules from adapter, which the policy forbids: config may not use adapter.",
+      "Application.kt imports 2 files from adapter, which the policy forbids: config may not use adapter.",
     );
     expect(
       several(["depends", "depends", "depends"], {
@@ -348,12 +348,12 @@ describe("the violation sentence for several imports", () => {
         to_level: "adapters",
       }),
     ).toBe(
-      "Application.kt imports 3 modules from adapters, which the policy forbids: domain may not use adapters.",
+      "Application.kt imports 3 files from adapters, which the policy forbids: domain may not use adapters.",
     );
     expect(
       several(["depends", "depends"], { type: "forbid", pattern: "y/**" }),
     ).toBe(
-      "Application.kt imports 2 modules, which the policy forbids: nothing may match y/**.",
+      "Application.kt imports 2 files, which the policy forbids: nothing may match y/**.",
     );
   });
 
@@ -361,10 +361,10 @@ describe("the violation sentence for several imports", () => {
     const rule = { type: "forbid", pattern: "y/**" };
 
     expect(several(["inherits", "inherits"], rule)).toContain(
-      "inherits 2 modules",
+      "inherits 2 files",
     );
     expect(several(["depends", "implements"], rule)).toContain(
-      "imports 2 modules",
+      "imports 2 files",
     );
   });
 });
@@ -476,8 +476,8 @@ describe("private_imports sentence", () => {
     });
 
     expect(text).toContain("store.py");
-    expect(text).toContain("3 private names from 2 modules");
-    expect(text).toBe("store.py imports 3 private names from 2 modules.");
+    expect(text).toContain("3 private names from 2 files");
+    expect(text).toBe("store.py imports 3 private names from 2 files.");
   });
 });
 

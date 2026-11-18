@@ -132,7 +132,7 @@ const kindOf = (model: FreshnessModel, key: string) =>
   model.rows.find((row) => row.key === key)?.state.kind;
 const IDS = ["a.py", "b.py", "c.py"];
 
-describe("freshness model module scope", () => {
+describe("freshness model file scope", () => {
   const flagged: RowSensor[] = [
     {
       name: "mutation",
@@ -152,7 +152,7 @@ describe("freshness model module scope", () => {
     },
   ];
 
-  it("counts an unlisted module missing for the scoped row only, whatever the rows are called", () => {
+  it("counts an unlisted file missing for the scoped row only, whatever the rows are called", () => {
     const listed = ["a.py"];
     const model = modelOf(
       IDS,
@@ -194,7 +194,7 @@ describe("freshness model states", () => {
     expect(model.rows[0]?.tickable).toBe(false);
   });
 
-  it("reads a row out of date with the modules whose hash moved", () => {
+  it("reads a row out of date with the files whose hash moved", () => {
     const model = modelOf(IDS, {
       sensors: [ran("crap", IDS, { "b.py": "old" }), ran("mutation", IDS)],
     });
@@ -241,7 +241,7 @@ describe("freshness model states", () => {
     });
   });
 
-  it("reads Structure out of date from changed files that are modules, ignoring one that is not", () => {
+  it("reads Structure out of date from changed files that are files, ignoring one that is not", () => {
     const model = modelOf(IDS, {
       scan: scanState([
         { path: "b.py", kind: "modified" },
@@ -256,7 +256,7 @@ describe("freshness model states", () => {
     expect(model.changed).toEqual(["b.py"]);
   });
 
-  it("reads Structure out of date for every in-scope module when the commit moved", () => {
+  it("reads Structure out of date for every in-scope file when the commit moved", () => {
     const model = modelOf(IDS, { scan: scanState([], true) });
 
     expect(model.changed).toEqual(IDS);
@@ -276,11 +276,11 @@ describe("freshness model wording", () => {
       text: "current, 16 minutes ago",
     });
     expect(text({ kind: "out-of-date", modules: ["a"] }).text).toBe(
-      "1 module out of date",
+      "1 file out of date",
     );
     expect(text({ kind: "out-of-date", modules: ["a", "b"] })).toEqual({
       icon: "circle-alert",
-      text: "2 modules out of date",
+      text: "2 files out of date",
     });
     expect(text({ kind: "never-run" })).toEqual({
       icon: "circle-dashed",
@@ -300,7 +300,7 @@ describe("freshness model wording", () => {
   });
 });
 
-describe("freshness model changed modules", () => {
+describe("freshness model changed files", () => {
   it("leaves a never-run row out of changed and counts a ticked out-of-date row in update", () => {
     const model = modelOf(IDS, {
       sensors: [ran("crap", IDS, { "c.py": "old" })],
@@ -341,7 +341,7 @@ describe("freshness model changed modules", () => {
   });
 });
 
-describe("freshness model sensor gaps and excluded modules", () => {
+describe("freshness model sensor gaps and excluded files", () => {
   const MUTATION_NO_RESULT = "Mutation has no result for";
 
   it("reads a sensor-only gap as behind, not changed, and offers the update", () => {
@@ -353,20 +353,20 @@ describe("freshness model sensor gaps and excluded modules", () => {
     expect(model.update).toEqual(["c.py"]);
     expect(model.summary.shape).toBe("behind");
     expect(model.summary.head).not.toContain("changed since");
-    expect(model.action.primary.label).toBe("Update 1 module");
+    expect(model.action.primary.label).toBe("Update 1 file");
   });
 
-  it("says changed only of Structure's modules and updates both", () => {
+  it("says changed only of Structure's files and updates both", () => {
     const model = modelOf(IDS, {
       scan: scanState([{ path: "a.py", kind: "modified" }]),
       sensors: [ran("crap", IDS, { "c.py": "old" }), ran("mutation", IDS)],
     });
 
-    expect(model.summary.head).toBe("1 module changed since it was scanned");
-    expect(model.action.primary.label).toBe("Update 2 modules");
+    expect(model.summary.head).toBe("1 file changed since it was scanned");
+    expect(model.action.primary.label).toBe("Update 2 files");
   });
 
-  it("settles a fully excluded module and names it with the reason", () => {
+  it("settles a fully excluded file and names it with the reason", () => {
     const model = modelOf(IDS, {
       sensors: [
         ran("crap", IDS),
@@ -384,7 +384,7 @@ describe("freshness model sensor gaps and excluded modules", () => {
     ).toBe(true);
   });
 
-  it("settles a module whose functions have no executable line without naming it", () => {
+  it("settles a file whose functions have no executable line without naming it", () => {
     const model = modelOf(IDS);
 
     expect(model.update).toEqual([]);
@@ -394,7 +394,7 @@ describe("freshness model sensor gaps and excluded modules", () => {
     expect(model.summary.line).not.toContain(MUTATION_NO_RESULT);
   });
 
-  it("names only the excluded modules in scope and not in the gap", () => {
+  it("names only the excluded files in scope and not in the gap", () => {
     const model = modelOf(IDS, {
       sensors: [
         ran("crap", IDS),
@@ -415,7 +415,7 @@ describe("freshness model sensor gaps and excluded modules", () => {
     expect(model.summary.line).not.toContain("c.py:");
   });
 
-  it("uses the plural sentence for two excluded modules", () => {
+  it("uses the plural sentence for two excluded files", () => {
     const model = modelOf(IDS, {
       sensors: [
         ran("crap", IDS),
@@ -428,7 +428,7 @@ describe("freshness model sensor gaps and excluded modules", () => {
     );
   });
 
-  it("settles a fully unowned module and names it with the unowned reason", () => {
+  it("settles a fully unowned file and names it with the unowned reason", () => {
     const model = modelOf(IDS, {
       sensors: [
         ran("crap", IDS),
@@ -449,7 +449,7 @@ describe("freshness model sensor gaps and excluded modules", () => {
     ).toBe(true);
   });
 
-  it("uses the plural sentence for two unowned modules", () => {
+  it("uses the plural sentence for two unowned files", () => {
     const model = modelOf(IDS, {
       sensors: [
         ran("crap", IDS),
@@ -465,7 +465,7 @@ describe("freshness model sensor gaps and excluded modules", () => {
     );
   });
 
-  it("names a module in both lists under both reasons, excluded first", () => {
+  it("names a file in both lists under both reasons, excluded first", () => {
     const model = modelOf(IDS, {
       sensors: [
         ran("crap", IDS),
@@ -492,7 +492,7 @@ describe("freshness model sensor gaps and excluded modules", () => {
     );
   });
 
-  it("does not name an unowned module that is also out of date", () => {
+  it("does not name an unowned file that is also out of date", () => {
     const model = modelOf(IDS, {
       sensors: [
         ran("crap", IDS),
@@ -507,7 +507,7 @@ describe("freshness model sensor gaps and excluded modules", () => {
     expect(model.update).toEqual(["c.py"]);
   });
 
-  it("says nothing about excluded modules when the sensor never ran", () => {
+  it("says nothing about excluded files when the sensor never ran", () => {
     const model = modelOf(IDS, { sensors: [ran("crap", IDS)] });
 
     expect(kindOf(model, "mutation")).toBe("never-run");
@@ -537,16 +537,16 @@ describe("the four situations of the mock", () => {
     });
   });
 
-  it("9 changed: Update 9 modules with the names and no bar", () => {
+  it("9 changed: Update 9 files with the names and no bar", () => {
     const model = modelOf(nine, { scan: scanState(changedNine) });
 
     expect(model.action.primary).toEqual({
-      label: "Update 9 modules",
+      label: "Update 9 files",
       disabled: false,
     });
     expect(model.summary).toMatchObject({
       shape: "changed",
-      head: "9 modules changed since they were scanned",
+      head: "9 files changed since they were scanned",
       bar: null,
     });
     expect(model.summary.line).toContain("m0.py, m1.py, m2.py and 6 more");
@@ -566,7 +566,7 @@ describe("the four situations of the mock", () => {
     });
 
     expect(model.summary.shape).toBe("running");
-    expect(model.summary.head).toBe("Running Mutation on 9 modules");
+    expect(model.summary.head).toBe("Running Mutation on 9 files");
     expect(model.summary.line).toContain("251 of 1,204 functions.");
     expect(model.summary.bar).toEqual({ done: 251, total: 1204 });
     expect(JSON.stringify(model)).not.toContain("Bringing");
@@ -588,7 +588,7 @@ describe("the four situations of the mock", () => {
     expect(model.summary.bar).toBeNull();
   });
 
-  it("counts only the canvas modules for a canvas scope", () => {
+  it("counts only the canvas files for a canvas scope", () => {
     const model = modelOf(nine, {
       view: { name: "x", modules: nine.slice(0, 2) },
       ticks: {
@@ -607,7 +607,7 @@ describe("the four situations of the mock", () => {
   });
 });
 
-describe("the running summary without a changed module", () => {
+describe("the running summary without a changed file", () => {
   it("names the in-scope count, never 0, when only a never-run sensor runs", () => {
     const model = modelOf(IDS, {
       sensors: [ran("crap", IDS)],
@@ -615,18 +615,18 @@ describe("the running summary without a changed module", () => {
       run: run({ running: ["mutation"], started: "mutation" }),
     });
 
-    expect(model.summary.head).toBe("Running Mutation on 3 modules");
+    expect(model.summary.head).toBe("Running Mutation on 3 files");
     expect(model.summary.head).not.toContain(" 0 ");
   });
 
-  it("says 1 module on the boundary", () => {
+  it("says 1 file on the boundary", () => {
     const model = modelOf(IDS, {
       scanning: true,
       runModules: 1,
       run: run({ running: ["mutation"], started: "mutation" }),
     });
 
-    expect(model.summary.head).toBe("Running Mutation on 1 module");
+    expect(model.summary.head).toBe("Running Mutation on 1 file");
   });
 
   it("shows the footer's progress only while a run runs", () => {
@@ -669,7 +669,7 @@ describe("the findings line and groups", () => {
     expect(model.group("mutation")).toBe("none-yet");
   });
 
-  it("names the hidden changed modules before any missing sensor", () => {
+  it("names the hidden changed files before any missing sensor", () => {
     const model = modelOf(IDS, {
       scan: scanState([{ path: "a.py", kind: "modified" }]),
       sensors: [ran("crap", IDS)],
@@ -677,7 +677,7 @@ describe("the findings line and groups", () => {
 
     expect(model.findings).toEqual({
       kind: "hidden",
-      text: "Findings for 1 changed module is hidden.",
+      text: "Findings for 1 changed file is hidden.",
       link: "Update them",
     });
   });
@@ -686,7 +686,7 @@ describe("the findings line and groups", () => {
 describe("the unscoped stale set per sensor", () => {
   const sorted = (set: ReadonlySet<string> | undefined) => [...(set ?? [])];
 
-  it("holds the same stale modules in every row state", () => {
+  it("holds the same stale files in every row state", () => {
     const stale = { "b.py": "old" };
     const states = {
       current: {},
@@ -707,7 +707,7 @@ describe("the unscoped stale set per sensor", () => {
     }
   });
 
-  it("covers modules outside the view when only this view is on", () => {
+  it("covers files outside the view when only this view is on", () => {
     const model = modelOf(IDS, {
       sensors: [ran("crap", IDS, { "c.py": "old" }), ran("mutation", IDS)],
       ticks: {
@@ -727,7 +727,7 @@ describe("the unscoped stale set per sensor", () => {
     expect([...model.modules]).toEqual(IDS);
   });
 
-  it("holds every module when the measurement is not valid", () => {
+  it("holds every file when the measurement is not valid", () => {
     const model = modelOf(IDS, {
       sensors: [
         {
@@ -756,7 +756,7 @@ describe("the unscoped stale set per sensor", () => {
     expect(model.stale.size).toBe(0);
   });
 
-  it("keeps a module stale under one sensor out of the other's set", () => {
+  it("keeps a file stale under one sensor out of the other's set", () => {
     const model = modelOf(IDS, {
       sensors: [ran("crap", IDS, { "a.py": "old" }), ran("mutation", IDS)],
     });
@@ -780,7 +780,7 @@ describe("the model's imports", () => {
 });
 
 describe("the model over committed content", () => {
-  it("names exactly the two changed modules, in scope order", () => {
+  it("names exactly the two changed files, in scope order", () => {
     const scan = JSON.parse(
       readFileSync(
         new URL("../../fixtures/python/expected-scan.json", import.meta.url),
@@ -831,7 +831,7 @@ describe("freshness model counts every row, ticked or not", () => {
 
     expect(model.summary.shape).toBe("behind");
     expect(model.summary.tone).toBe("warn");
-    expect(model.summary.head).toBe("Mutation is out of date on 42 modules");
+    expect(model.summary.head).toBe("Mutation is out of date on 42 files");
     expect(model.changed).toEqual([]);
     expect(model.action.primary).toEqual({
       label: "Nothing ticked to run",
@@ -839,13 +839,13 @@ describe("freshness model counts every row, ticked or not", () => {
     });
   });
 
-  it("reads one module in the singular, and Update 1 module once ticked", () => {
+  it("reads one file in the singular, and Update 1 file once ticked", () => {
     const sensors = [ran("crap", IDS), ran("mutation", IDS, { "a.py": "old" })];
     const unticked = modelOf(IDS, { sensors, ticks: MUTATION_ONLY });
     const ticked = modelOf(IDS, { sensors });
 
-    expect(unticked.summary.head).toBe("Mutation is out of date on 1 module");
-    expect(ticked.action.primary.label).toBe("Update 1 module");
+    expect(unticked.summary.head).toBe("Mutation is out of date on 1 file");
+    expect(ticked.action.primary.label).toBe("Update 1 file");
   });
 
   it("reads two unticked out-of-date rows as nothing to run", () => {
@@ -866,7 +866,7 @@ describe("freshness model counts every row, ticked or not", () => {
     });
 
     expect(model.summary.head).toBe(
-      "C.R.A.P. is out of date on 1 module; Mutation is out of date on 1 module",
+      "C.R.A.P. is out of date on 1 file; Mutation is out of date on 1 file",
     );
     expect(model.action.primary).toEqual({
       label: "Nothing ticked to run",
@@ -918,7 +918,7 @@ describe("freshness model counts every row, ticked or not", () => {
     expect(model.summary.line).toContain(
       "Update C.R.A.P. to bring it up to date.",
     );
-    expect(model.action.primary.label).toBe("Update 1 module");
+    expect(model.action.primary.label).toBe("Update 1 file");
     expect(model.update).toEqual(["a.py"]);
   });
 
@@ -953,7 +953,7 @@ describe("freshness model counts every row, ticked or not", () => {
       mode: "rescan",
     });
 
-    expect(model.action.primary.label).toBe("Rescan 3 modules");
+    expect(model.action.primary.label).toBe("Rescan 3 files");
   });
 
   it("never shows Up to date beside a non-current headline, across every combination", () => {
@@ -1039,7 +1039,7 @@ describe("the Findings panel action", () => {
   it("keeps the link when the primary runs ticked work", () => {
     expect(
       findingsActionOf(
-        { label: "Update 3 modules", disabled: false },
+        { label: "Update 3 files", disabled: false },
         "Update them",
       ),
     ).toEqual({ label: "Update them", openScan: false });
@@ -1107,8 +1107,8 @@ describe("the Nothing ticked to run state", () => {
     const upToDate = modelOf(IDS, { sensors: current });
 
     expect(running.action.primary.label).toBe("Running");
-    expect(rescan.action.primary.label).toBe("Rescan 3 modules");
-    expect(update.action.primary.label).toBe("Update 1 module");
+    expect(rescan.action.primary.label).toBe("Rescan 3 files");
+    expect(update.action.primary.label).toBe("Update 1 file");
     expect(run1.action.primary.label).toBe("Run Mutation");
     expect(upToDate.action.primary.label).toBe("Up to date");
   });

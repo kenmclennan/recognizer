@@ -243,7 +243,7 @@ describe("createRescanner", () => {
     expect(log).toContain("adopted:a1b2c3d");
     expect(log).toContain("described");
     expect(texts(updates)).toContain("Scanning\u2026");
-    expect(texts(updates)).toContain("Describing\u2026 0 of 1 modules");
+    expect(texts(updates)).toContain("Describing\u2026 0 of 1 files");
     expect(updates.at(-1)?.scanning).toBeNull();
   });
 
@@ -466,7 +466,7 @@ describe("createRescanner", () => {
     await rescanner.run();
 
     expect(posted.map((one) => one.text)).toEqual([
-      "Describe wrote 0 lines, 1 modules failed.",
+      "Describe wrote 0 lines, 1 files failed.",
     ]);
     expect(posted[0]?.action?.label).toBe("Show");
     expect(attached.map((one) => one.id)).toEqual([1]);
@@ -1067,7 +1067,7 @@ describe("createRescanner", () => {
     });
   });
 
-  it("sends the module scope in the plan and remembers the switch", async () => {
+  it("sends the file scope in the plan and remembers the switch", async () => {
     const scan = fakeScan({
       defaults: { describe: true, sensors: true },
     });
@@ -1184,11 +1184,11 @@ describe("createRescanner", () => {
 
     expect(posted.at(-1)).toEqual({
       kind: "info",
-      text: "Describe wrote 2 lines, 0 modules failed.",
+      text: "Describe wrote 2 lines, 0 files failed.",
     });
   });
 
-  it("posts the describe result with Show on the first failed module", async () => {
+  it("posts the describe result with Show on the first failed file", async () => {
     const scan = fakeScan({
       steps: [
         current,
@@ -1206,7 +1206,7 @@ describe("createRescanner", () => {
 
     const result = posted.find((input) => input.text.startsWith("Describe"));
 
-    expect(result?.text).toBe("Describe wrote 1 lines, 3 modules failed.");
+    expect(result?.text).toBe("Describe wrote 1 lines, 3 files failed.");
     expect(result?.action?.label).toBe("Show");
 
     result?.action?.run();
@@ -1252,8 +1252,8 @@ describe("createRescanner", () => {
       dropped: [],
       modules: 1,
       idle: false,
-      label: "Rescan 1 module",
-      progress: "Rescanning 1 module\u2026",
+      label: "Rescan 1 file",
+      progress: "Rescanning 1 file\u2026",
       work: {},
     };
 
@@ -1265,7 +1265,7 @@ describe("createRescanner", () => {
 
     expect(shown.length).toBeGreaterThan(0);
     expect(
-      shown.every((text) => text?.startsWith("Rescanning 1 module\u2026 ")),
+      shown.every((text) => text?.startsWith("Rescanning 1 file\u2026 ")),
     ).toBe(true);
   });
 

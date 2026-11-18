@@ -611,7 +611,7 @@ export function describeAskText(
   const tokens = `About ${tokensText(ask.inputTokens)} tokens`;
 
   return {
-    heading: `Describe ${count(ask.modules)} modules?`,
+    heading: `Describe ${count(ask.modules)} files?`,
     model: `Model: ${ask.model}`,
     estimate:
       (ask.costUsd === null
@@ -665,7 +665,7 @@ export function scanningText(
 
     return describe === null
       ? "Scanning\u2026"
-      : `Describing\u2026 ${describe.entries.length} of ${describe.total} modules`;
+      : `Describing\u2026 ${describe.entries.length} of ${describe.total} files`;
   }
 
   const sensors = rows.filter((row) => row.key !== DESCRIBE_PHASE_KEY);

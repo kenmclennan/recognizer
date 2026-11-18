@@ -181,7 +181,7 @@ describe("scanPanel rows", () => {
     const rows = scanPanel(input()).rows;
 
     expect(rows.find((row) => row.key === "describe")?.title).toBe(
-      "Writes one line per module saying what it is responsible for.",
+      "Writes one line per file saying what it is responsible for.",
     );
     expect(rows.find((row) => row.key === "crap")?.title).toBe(
       "C.R.A.P.: Change Risk Anti-Patterns. C.R.A.P. does its thing.",
@@ -470,7 +470,7 @@ describe("scanPanel row states", () => {
     expect(rowOf(model, "describe")?.text.text).toBe("current");
   });
 
-  it("reads Descriptions out of date for every out-of-date or missing module once one has a line", () => {
+  it("reads Descriptions out of date for every out-of-date or missing file once one has a line", () => {
     const modules = Array.from({ length: 40 }, (_, at) => `m${at}.py`);
     const model = scanPanel(
       input({
@@ -486,7 +486,7 @@ describe("scanPanel row states", () => {
       }),
     );
 
-    expect(rowOf(model, "describe")?.text.text).toBe("39 modules out of date");
+    expect(rowOf(model, "describe")?.text.text).toBe("39 files out of date");
   });
 
   it("reads the finished of total count for Descriptions while it runs", () => {
@@ -655,7 +655,7 @@ describe("scanPanel row states", () => {
     );
 
     expect(asked.confirm).toEqual({
-      heading: "Describe 2,040 modules?",
+      heading: "Describe 2,040 files?",
       model: "Model: sonnet",
       estimate: "About 8.0M tokens, $17.54 at API prices",
     });
@@ -981,11 +981,11 @@ const SCANS: Scan[] = [
 ];
 
 describe("functionCount", () => {
-  it("counts function members and the methods of classes, over every module with no scope", () => {
+  it("counts function members and the methods of classes, over every file with no scope", () => {
     expect(functionCount(SCANS, null)).toBe(4);
   });
 
-  it("counts only the scoped modules", () => {
+  it("counts only the scoped files", () => {
     expect(functionCount(SCANS, ["a.py"])).toBe(2);
     expect(functionCount(SCANS, ["b.py", "c.py"])).toBe(2);
     expect(functionCount(SCANS, ["gone.py"])).toBe(0);
@@ -1006,7 +1006,7 @@ describe("scanPanel only this view", () => {
   const row = (model: ReturnType<typeof scanPanel>, key: string) =>
     model.rows.find((one) => one.key === key);
 
-  it("shows the switch for a canvas, captioned with the view's name or This canvas and the module count", () => {
+  it("shows the switch for a canvas, captioned with the view's name or This canvas and the file count", () => {
     expect(scanPanel(input()).scope).toBeNull();
     expect(scanPanel(input({ view })).scope).toEqual({
       caption: "engine-loop, 1",
@@ -1024,7 +1024,7 @@ describe("scanPanel only this view", () => {
     ).toBe("This canvas, 1");
   });
 
-  it("scopes the modules the freshness model counts to the open view when the switch is on", () => {
+  it("scopes the files the freshness model counts to the open view when the switch is on", () => {
     const untitled = { name: null, modules: ["a.py"] };
     const on = scanPanel(
       input({ view: untitled, scans: SCANS, ticks: ticked(true) }),
@@ -1050,14 +1050,14 @@ describe("scanPanel only this view", () => {
     });
   });
 
-  it("reads Descriptions from the view's modules with the switch on and from all of them with it off", () => {
+  it("reads Descriptions from the view's files with the switch on and from all of them with it off", () => {
     const off = scanPanel(input({ view, ticks: ticked(false) }));
     const on = scanPanel(input({ view, ticks: ticked(true) }));
     const other = scanPanel(
       input({ view: { name: "v", modules: ["c.py"] }, ticks: ticked(true) }),
     );
 
-    expect(row(off, "describe")?.text.text).toBe("1 module out of date");
+    expect(row(off, "describe")?.text.text).toBe("1 file out of date");
     expect(row(on, "describe")?.state.kind).toBe("current");
     expect(row(other, "describe")?.state.kind).toBe("never-run");
   });
@@ -1123,7 +1123,7 @@ describe("scanPanel freshness", () => {
       freshness: buildFreshness([freshScan], "t"),
     });
 
-  it("keeps the second line of a ran, partly row when a module gap replaces the state", () => {
+  it("keeps the second line of a ran, partly row when a file gap replaces the state", () => {
     const withWhy = base({ "a.py": "ha", "b.py": "old" });
     const model = scanPanel({
       ...withWhy,
@@ -1136,22 +1136,22 @@ describe("scanPanel freshness", () => {
     });
     const row = model.rows.find(({ key }) => key === "crap");
 
-    expect(row?.text.text).toBe("1 module out of date");
+    expect(row?.text.text).toBe("1 file out of date");
     expect(row?.why).not.toBeNull();
   });
 
-  it("summarises the changed module and offers Update 1 module", () => {
+  it("summarises the changed file and offers Update 1 file", () => {
     const model = scanPanel(base({ "a.py": "ha", "b.py": "old" }));
     const row = model.rows.find(({ key }) => key === "crap");
 
     expect(model.freshness.summary.head).toBe(
-      "C.R.A.P. is out of date on 1 module",
+      "C.R.A.P. is out of date on 1 file",
     );
     expect(model.freshness.update).toEqual(["b.py"]);
-    expect(row?.text.text).toBe("1 module out of date");
+    expect(row?.text.text).toBe("1 file out of date");
     expect(model.button).toEqual({
       scanning: false,
-      label: "Update 1 module",
+      label: "Update 1 file",
       disabled: false,
     });
   });
@@ -1182,7 +1182,7 @@ describe("scanPanel freshness", () => {
     expect(model.button.label).toBe("Run C.R.A.P.");
   });
 
-  it("scopes the summary to the open view's modules", () => {
+  it("scopes the summary to the open view's files", () => {
     const model = scanPanel({
       ...base({ "a.py": "ha", "b.py": "old" }),
       view: { name: "engine", modules: ["a.py"] },
@@ -1451,7 +1451,7 @@ describe("scanPanel remembered refusal", () => {
     expect(row?.why).toEqual(whyOf({ code: "tool-missing", line: "new" }));
   });
 
-  it("does not turn a failed row into out of date for a module gap", () => {
+  it("does not turn a failed row into out of date for a file gap", () => {
     const row = remembered(
       { code: "tests-failed", line: "why" },
       { scans: SCANS },
@@ -1462,7 +1462,7 @@ describe("scanPanel remembered refusal", () => {
 });
 
 describe("the scope's canvasEmpty flag", () => {
-  it("is true at exactly 0 modules and false at 1", () => {
+  it("is true at exactly 0 files and false at 1", () => {
     expect(
       scanPanel(input({ view: { name: "v", modules: [] } })).scope?.canvasEmpty,
     ).toBe(true);
@@ -1824,7 +1824,7 @@ describe("scanPanel estimate line", () => {
     expect(model.estimate?.title).toContain("C.R.A.P.: no estimate yet");
   });
 
-  it("changes with the scope, through the modules the plan gives Mutation", () => {
+  it("changes with the scope, through the files the plan gives Mutation", () => {
     const view = { name: null, modules: ["a.py"] };
     const whole = scanPanel(mutating({ mode: "rescan", view }));
     const scoped = scanPanel(
@@ -1842,7 +1842,7 @@ describe("scanPanel estimate line", () => {
     expect(scoped.estimate?.title).toContain("1 function at recent pace");
   });
 
-  it("changes with the mode through the modules to describe", () => {
+  it("changes with the mode through the files to describe", () => {
     const base = mutating({
       ticks: { ...mutating().ticks, describe: true },
       lines: {

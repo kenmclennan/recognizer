@@ -3,31 +3,31 @@
     {
       "key": "kind:rule-violation",
       "name": "Breaks the policy",
-      "means": "An import your policy forbids: one layer or component using another it may not, or a module matching a pattern nothing may match.",
+      "means": "An import your policy forbids: one layer or component using another it may not, or a file matching a pattern nothing may match.",
       "todo": "Remove the import, or change the policy if the dependency is intended."
     },
     {
       "key": "kind:cycle",
       "name": "Import cycle",
-      "means": "Modules that import each other in a loop, so none can be understood or changed alone.",
+      "means": "Files that import each other in a loop, so none can be understood or changed alone.",
       "todo": "Break the loop: move the shared piece out, or invert one import."
     },
     {
       "key": "kind:orphan",
       "name": "Orphan",
-      "means": "A module no other module imports that is not an entry point. When only test files import it, the card says so.",
+      "means": "A file no other file imports that is not an entry point. When only test files import it, the card says so.",
       "todo": "If it is dead, delete it. If only tests use it, move it next to them. If a tool or user runs it, list it under entry points."
     },
     {
       "key": "kind:unused_exports",
       "name": "Unused exports",
-      "means": "A module exports names that no other module imports. A name only a test file imports still counts as unused.",
+      "means": "A file exports names that no other file imports. A name only a test file imports still counts as unused.",
       "todo": "Remove the export, or keep it if code outside this repository uses it."
     },
     {
       "key": "kind:private_imports",
       "name": "Private imports",
-      "means": "A Python file imports names another module marks private, by an underscore or by leaving them out of its __all__. This reaches past the module's interface, which is all importers may depend on (information hiding, Parnas, 1972).",
+      "means": "A Python file imports names another file marks private, by an underscore or by leaving them out of its __all__. This reaches past the file's interface, which is all importers may depend on (information hiding, Parnas, 1972).",
       "todo": "Check whether the name is meant to be public."
     },
     {

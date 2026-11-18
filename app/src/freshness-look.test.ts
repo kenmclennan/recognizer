@@ -113,7 +113,7 @@ async function observe(tests, changed = false) {
 type Facts = ReturnType<typeof JSON.parse>;
 
 describe.skipIf(webkit === undefined)(
-  "the four surfaces agree on which modules are current",
+  "the four surfaces agree on which files are current",
   () => {
     let f = null as unknown as Facts;
 
@@ -121,10 +121,10 @@ describe.skipIf(webkit === undefined)(
       f = await collectFacts<Facts>(HARNESS, "freshness-look");
     }, scaledTimeout(180000));
 
-    it("shows only the edited-free module on the canvas, the Contents tab, the Findings panel and the disc", () => {
+    it("shows only the edited-free file on the canvas, the Contents tab, the Findings panel and the disc", () => {
       expect(f.matching.rowDisabled).toBe(false);
       expect(f.matching.note).toEqual([
-        "1 module out of date. Run crap from the Scan panel.",
+        "1 file out of date. Run crap from the Scan panel.",
       ]);
       expect(f.matching.barsA).toBe(1);
       expect(f.matching.barsB).toBe(0);
@@ -132,7 +132,7 @@ describe.skipIf(webkit === undefined)(
       expect(f.matching.tablesB).toEqual([["cc -"]]);
       expect(f.matching.line).toBe("1 warning");
       expect(f.matching.staleLine).toBe(
-        "Findings for 1 changed module is hidden.",
+        "Findings for 1 changed file is hidden.",
       );
       expect(f.matching.discA).toContain("amber");
       expect(f.matching.discB).toContain("grey");
@@ -141,7 +141,7 @@ describe.skipIf(webkit === undefined)(
     it("shows nothing once the tests hash differs", () => {
       expect(f.changedTests.rowDisabled).toBe(true);
       expect(f.changedTests.note).toEqual([
-        "2 modules out of date. Run crap from the Scan panel.",
+        "2 files out of date. Run crap from the Scan panel.",
       ]);
       expect(f.changedTests.barsA).toBe(0);
       expect(f.changedTests.barsB).toBe(0);
@@ -150,7 +150,7 @@ describe.skipIf(webkit === undefined)(
       expect(f.changedTests.discA).toContain("grey");
     });
 
-    it("draws a changed module's box with no bars, a grey disc and a quiet changed label, no taller than a box with one bar row", () => {
+    it("draws a changed file's box with no bars, a grey disc and a quiet changed label, no taller than a box with one bar row", () => {
       expect(f.changedModule.labelB).toBe("changed");
       expect(f.changedModule.labelA).toBeNull();
       expect(f.changedModule.barsB).toBe(0);
@@ -161,7 +161,7 @@ describe.skipIf(webkit === undefined)(
       expect(f.matching.labelB).toBeNull();
     });
 
-    it("keeps the changed label clear of a short module name", () => {
+    it("keeps the changed label clear of a short file name", () => {
       expect(f.changedModule.labelLeftB).not.toBeNull();
       expect(f.changedModule.labelLeftB).toBeGreaterThan(
         f.changedModule.nameRightB,

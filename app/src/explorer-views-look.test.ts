@@ -1073,7 +1073,7 @@ describe.skipIf(webkit === undefined)("saved views in the explorer", () => {
     expect(f.selection).toEqual({ kind: "module", id: expect.any(String) });
   });
 
-  it("walks back and forward over modules and selection", () => {
+  it("walks back and forward over files and selection", () => {
     expect(f.afterBackSelection.current).toBeNull();
     expect(f.afterBackSelection.selected).toEqual([]);
     expect(f.afterForwardSelection.current).toEqual(f.selection);
@@ -1158,7 +1158,7 @@ describe.skipIf(webkit === undefined)("saved views in the explorer", () => {
 
   it("gives two rows with different texts for two out-of-date views and none for the current one", () => {
     expect(f.mixed.map((row: { text: string }) => row.text)).toEqual([
-      "two is out of date. Since old1234, deleted.py is missing and 2 modules became relevant.",
+      "two is out of date. Since old1234, deleted.py is missing and 2 files became relevant.",
       "one is out of date. Since old1234, deleted.py is missing, 1 relation changed and d.py became relevant.",
     ]);
   });
@@ -1403,7 +1403,7 @@ describe.skipIf(webkit === undefined)("saved views in the explorer", () => {
     });
   });
 
-  it("reverts a modified view to its saved modules and fitted framing and offers Undo", () => {
+  it("reverts a modified view to its saved files and fitted framing and offers Undo", () => {
     expect(f.revert.modified.bar).toMatchObject({
       revertEnabled: true,
       label: "Revert to saved",
@@ -1422,7 +1422,7 @@ describe.skipIf(webkit === undefined)("saved views in the explorer", () => {
     ]);
   });
 
-  it("undoes a revert to the modules and camera from just before it", () => {
+  it("undoes a revert to the files and camera from just before it", () => {
     expect(f.revert.undone.count).toBe(f.revert.beforeRevert.count);
     expect(f.revert.undone.camera).toBe(true);
     expect(f.revert.undone.bar.marker).toBe(true);

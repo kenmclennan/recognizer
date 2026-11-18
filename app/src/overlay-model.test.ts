@@ -189,7 +189,7 @@ describe("tooltips and per-module freshness", () => {
   });
 });
 
-describe("a member-granularity overlay judged per module", () => {
+describe("a member-granularity overlay judged per file", () => {
   const values = { coverage: { "a.py::f": 3, "b.py::g": 9 } };
   const mixed = (inputs: Record<string, string>, extra = {}) =>
     overlay([{ name: "coverage" }], values, {
@@ -210,7 +210,7 @@ describe("a member-granularity overlay judged per module", () => {
       panel([{ ...ranWith("crap", inputs), measured }]).freshness,
     );
 
-  it("keeps only the current module's values and counts the other", () => {
+  it("keeps only the current file's values and counts the other", () => {
     const model = shown({ "a.py": H1, "b.py": H0 });
     const group = model.groups[0];
     const metric = model.metrics[0] as MetricDescriptor;
@@ -223,14 +223,14 @@ describe("a member-granularity overlay judged per module", () => {
     expect(moduleValue(metric, "b.py")).toBeNull();
   });
 
-  it("shows no note when every module is current", () => {
+  it("shows no note when every file is current", () => {
     const model = shown({ "a.py": H1, "b.py": H2 });
 
     expect(model.groups[0]?.notes).toEqual([]);
     expect(model.metrics[0]?.values).toEqual({ "a.py::f": 3, "b.py::g": 9 });
   });
 
-  it("disables the group and lists no metrics when every module is out of date", () => {
+  it("disables the group and lists no metrics when every file is out of date", () => {
     const model = shown({ "a.py": H0, "b.py": H0 });
 
     expect(model.groups[0]?.enabled).toBe(false);
@@ -620,7 +620,7 @@ describe("per-module values", () => {
     });
   });
 
-  it("does not match a module whose id merely starts with another's", () => {
+  it("does not match a file whose id merely starts with another's", () => {
     const metric = only(
       overlay([{ name: "coverage" }], { coverage: { "ab.py::f": 3 } }),
     );
@@ -638,7 +638,7 @@ describe("per-module values", () => {
     expect(moduleValue(metric, "a.py")).toEqual({ value: true, member: "g" });
   });
 
-  it("leaves unknown modules null rather than zero-filling or dropping them", () => {
+  it("leaves unknown files null rather than zero-filling or dropping them", () => {
     const metric = only(
       overlay([{ name: "coverage" }], {
         coverage: { "one.py::f": 4, "two.py::g": 1, "two.py::h": 6 },
@@ -745,14 +745,14 @@ describe("freshnessNote", () => {
 
   it("warns with the count and the call to action when out of date", () => {
     expect(noteOf({ kind: "out-of-date", modules: ["a", "b"] })).toEqual({
-      text: "2 modules out of date. Run C.R.A.P. from the Scan panel.",
+      text: "2 files out of date. Run C.R.A.P. from the Scan panel.",
       tone: "warn",
     });
   });
 
-  it("uses the singular for one out-of-date module", () => {
+  it("uses the singular for one out-of-date file", () => {
     expect(noteOf({ kind: "out-of-date", modules: ["a"] })?.text).toBe(
-      "1 module out of date. Run C.R.A.P. from the Scan panel.",
+      "1 file out of date. Run C.R.A.P. from the Scan panel.",
     );
   });
 
@@ -816,7 +816,7 @@ describe("freshnessNote against the Scan panel model", () => {
     );
   };
 
-  it("counts the same modules and words the state the same as the row", () => {
+  it("counts the same files and words the state the same as the row", () => {
     const model = panel([ranWith("crap", { "a.py": H1, "b.py": H0 })]);
     const row = model.freshness.rows.find(({ key }) => key === "crap");
     const state = row?.state;
@@ -829,7 +829,7 @@ describe("freshnessNote against the Scan panel model", () => {
     expect(noteFor(model, "crap")?.text).toBe(
       `${text}. Run C.R.A.P. from the Scan panel.`,
     );
-    expect(text).toBe(`${modules} module out of date`);
+    expect(text).toBe(`${modules} file out of date`);
   });
 
   it("gives none, the out-of-date note and none for current, out of date and no row", () => {
@@ -840,7 +840,7 @@ describe("freshnessNote against the Scan panel model", () => {
 
     expect(noteFor(model, "mutation")).toBeNull();
     expect(noteFor(model, "crap")?.text).toBe(
-      "1 module out of date. Run C.R.A.P. from the Scan panel.",
+      "1 file out of date. Run C.R.A.P. from the Scan panel.",
     );
     expect(noteFor(model, "stray")?.tone).toBe("muted");
   });
@@ -1009,7 +1009,7 @@ describe("freshnessNote against the Scan panel model", () => {
       expect(stray?.metrics[0]?.max).toBe(0);
     });
 
-    it("drops a value whose module is not in the model's modules", () => {
+    it("drops a value whose file is not in the model's files", () => {
       const model = buildOverlayModel(
         [
           {
@@ -1050,7 +1050,7 @@ describe("freshnessNote against the Scan panel model", () => {
       }
     });
 
-    it("enables a group whose stale modules are outside the view", () => {
+    it("enables a group whose stale files are outside the view", () => {
       const model = build([file("crap", partly)]);
       const input = panel([ranWith("crap", partly)]).freshness;
       const scoped = scanPanel({

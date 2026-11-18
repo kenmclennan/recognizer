@@ -58,7 +58,7 @@ function severalImports(
     rule === undefined || rule.type === "forbid"
       ? ""
       : ` from ${rule.type === "uses" ? rule.to_component : rule.to_level}`;
-  const head = `${shortName(first.from)} ${verb} ${edges.length} modules${target}`;
+  const head = `${shortName(first.from)} ${verb} ${edges.length} files${target}`;
   const clause = ruleClause(first.rules);
 
   return clause === null
@@ -110,7 +110,7 @@ function unusedExports(record: FindingRecord): string | null {
     return null;
   }
 
-  const base = `${shortName(module)} exports ${names.length} ${plural(names.length, "name", "names")} no other module imports: ${names.join(", ")}.`;
+  const base = `${shortName(module)} exports ${names.length} ${plural(names.length, "name", "names")} no other file imports: ${names.join(", ")}.`;
   const marked = (record.evidence.members ?? []).flatMap((member) =>
     member.test_files === undefined
       ? []
@@ -235,7 +235,7 @@ function privateImports(record: FindingRecord): string | null {
 
   const owners = new Set(members.map((member) => member.module)).size;
 
-  return `${shortName(module)} imports ${members.length} private ${plural(members.length, "name", "names")} from ${owners} ${plural(owners, "module", "modules")}.`;
+  return `${shortName(module)} imports ${members.length} private ${plural(members.length, "name", "names")} from ${owners} ${plural(owners, "file", "files")}.`;
 }
 
 const TEMPLATES: Record<string, (record: FindingRecord) => string | null> = {

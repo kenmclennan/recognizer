@@ -373,7 +373,7 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
     expect(f.other[0].title).toBe("Complexity 1, worst: pick");
   });
 
-  it("draws no element for a metric a module has no value for", () => {
+  it("draws no element for a metric a file has no value for", () => {
     expect(f.none).toEqual([]);
     expect(f.other.length).toBe(1);
     expect(f.noneShape.bars).toBe(0);
@@ -519,7 +519,7 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
 
     expect(crap.title).toBe("C.R.A.P.");
     expect(state.notes).toContainEqual({
-      text: "3 modules out of date. Run C.R.A.P. from the Scan panel.",
+      text: "3 files out of date. Run C.R.A.P. from the Scan panel.",
       cls: "metric-note warn",
     });
     expect(

@@ -204,7 +204,7 @@ export type ScanPanelModel = {
 const NOTHING_TICKED = "Nothing ticked to run";
 
 const DESCRIBE_TITLE =
-  "Writes one line per module saying what it is responsible for.";
+  "Writes one line per file saying what it is responsible for.";
 
 function readConfig(config: string | null): Config | null {
   if (config === null) {

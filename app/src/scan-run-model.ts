@@ -346,7 +346,7 @@ function currentLine(record: ScanRunRecord, view: RunView): string {
     describing !== null &&
     describing.entries.length < describing.total
   ) {
-    return `${DESCRIPTIONS_NAME}: ${describing.entries.length} of ${describing.total} modules`;
+    return `${DESCRIPTIONS_NAME}: ${describing.entries.length} of ${describing.total} files`;
   }
 
   return FINISHING_TEXT;

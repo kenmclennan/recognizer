@@ -33,7 +33,7 @@ const textOf = (parts: Partial<StaleReport>) =>
   });
 
 describe("staleMessage", () => {
-  it("writes the mock's sentence for a rename, relation changes and a newly relevant module", () => {
+  it("writes the mock's sentence for a rename, relation changes and a newly relevant file", () => {
     const message = textOf({
       missing: [missing("engine/loader.py", "engine/workflow_loader.py")],
       changed: {
@@ -82,7 +82,7 @@ describe("staleMessage", () => {
     [
       "many newly relevant",
       { newlyRelevant: ["a", "b", "c"] },
-      "3 modules became relevant",
+      "3 files became relevant",
     ],
     [
       "two clauses",
@@ -99,7 +99,7 @@ describe("staleMessage", () => {
         changed: { removed: [edge("a", "b")], added: [] },
         newlyRelevant: ["n/m.py", "n/o.py"],
       },
-      "x.py is missing, 1 relation changed and 2 modules became relevant",
+      "x.py is missing, 1 relation changed and 2 files became relevant",
     ],
     [
       "four clauses",
@@ -112,7 +112,7 @@ describe("staleMessage", () => {
         changed: { removed: [edge("a", "b")], added: [] },
         newlyRelevant: ["n/m.py", "n/o.py"],
       },
-      "2 files were renamed, d.py is missing, 1 relation changed and 2 modules became relevant",
+      "2 files were renamed, d.py is missing, 1 relation changed and 2 files became relevant",
     ],
   ])("joins %s", (_name, parts, clause) => {
     expect(textOf(parts)?.text).toBe(
