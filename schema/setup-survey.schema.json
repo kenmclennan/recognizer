@@ -15,7 +15,9 @@
     "runners",
     "tools",
     "upgrade",
-    "suites"
+    "fixes",
+    "suites",
+    "policy"
   ],
   "properties": {
     "survey_version": { "const": 1 },
@@ -162,6 +164,29 @@
         }
       }
     },
+    "fixes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "subject",
+          "title",
+          "line",
+          "fix_text",
+          "command"
+        ],
+        "properties": {
+          "code": { "type": "string", "minLength": 1 },
+          "subject": { "type": "string" },
+          "title": { "type": "string", "minLength": 1 },
+          "line": { "type": "string" },
+          "fix_text": { "type": "string" },
+          "command": { "type": ["string", "null"], "minLength": 1 }
+        }
+      }
+    },
     "suites": {
       "type": "array",
       "items": {
@@ -179,6 +204,15 @@
           },
           "mark": { "enum": ["set-up", "gone"] }
         }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["present", "uncovered"],
+      "properties": {
+        "present": { "type": "boolean" },
+        "uncovered": { "type": "array", "items": { "type": "string" } }
       }
     }
   },

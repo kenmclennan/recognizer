@@ -149,5 +149,10 @@
     }
   ],
   "upgrade": [],
-  "suites": []
+  "suites": [],
+  "fixes": [],
+  "policy": {
+    "present": false,
+    "uncovered": []
+  }
 }

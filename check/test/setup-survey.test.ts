@@ -704,3 +704,131 @@ describe("setup survey marks", () => {
     ).toBe("new");
   });
 });
+
+describe("setup survey fixes", () => {
+  it("fixes carry a title and validate against the schema", () => {
+    const loom = JSON.parse(
+      readFileSync(
+        join(REPO, "schema/setup-survey-examples/valid/loom.json"),
+        "utf8",
+      ),
+    );
+    const item = {
+      code: "config-duplicate-suite",
+      subject: "k",
+      title: "Settings moved to new places",
+      line: "l",
+      fix_text: "edit it",
+      command: null,
+    };
+
+    expect(validate({ ...loom, fixes: [item] })).toBe(true);
+    expect(
+      validate({ ...loom, fixes: [{ ...item, command: "recognizer scan" }] }),
+    ).toBe(true);
+
+    const { title: _title, ...untitled } = item;
+
+    expect(validate({ ...loom, fixes: [untitled] })).toBe(false);
+  });
+});
+
+describe("setup survey fix list", () => {
+  it("leaves an unregistered plugin the Checks step offers out of the fixes", async () => {
+    process.env.PATH = shimmedPath(shimDirectory(true, true));
+
+    const directory = copySaga("overlays:\n  x: 1\n");
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.checks.some((check) => check.id === "claude")).toBe(true);
+    expect(
+      survey.fixes.filter((one) => one.code === "unregistered-plugin"),
+    ).toEqual([]);
+    expect(survey.fixes.some((one) => one.code === "config-retired")).toBe(
+      true,
+    );
+  });
+
+  it("lists every problem as a fix, runnable or by hand", async () => {
+    const directory = copySaga(
+      `overlays:\n  x: 1\ntests:\n${suiteYaml("dup", "web")}${suiteYaml("dup", "web")}`,
+    );
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.fixes.length).toBeGreaterThanOrEqual(2);
+
+    const retired = survey.fixes.find((one) => one.code === "config-retired");
+    const duplicate = survey.fixes.find(
+      (one) => one.code === "config-duplicate-suite",
+    );
+
+    expect(retired?.command).not.toBeNull();
+    expect(duplicate?.command).toBeNull();
+    expect(duplicate?.fix_text.length).toBeGreaterThan(0);
+  });
+});
+
+describe("setup survey policy", () => {
+  function scanOf(ids: string[]): string {
+    const base = JSON.parse(readFileSync(join(LOOM, "scan.json"), "utf8")) as {
+      modules: unknown[];
+    };
+    const directory = makeTempDir("recognizer-setup-scan-");
+    const file = join(directory, "scan.json");
+
+    writeFileSync(
+      file,
+      JSON.stringify({
+        ...base,
+        modules: ids.map((id) => ({
+          id,
+          language: "typescript",
+          kind: "module",
+          members: [],
+        })),
+      }),
+    );
+
+    return file;
+  }
+
+  async function uncovered(policy: string | null): Promise<string[]> {
+    const directory = copyLoom();
+
+    if (policy !== null) {
+      mkdirSync(join(directory, ".recognizer"), { recursive: true });
+      writeFileSync(join(directory, ".recognizer/policy.yaml"), policy);
+    }
+
+    const { survey } = await surveyOf([
+      directory,
+      "--scan",
+      scanOf(["server/a.ts", "web/b.ts", "root.ts"]),
+    ]);
+
+    return survey.policy.uncovered;
+  }
+
+  it("policy reports folders no part covers", async () => {
+    expect(await uncovered("entry:\n  - server/**\n")).toEqual([".", "web"]);
+    expect(
+      await uncovered("entry:\n  - server/**\nignore:\n  - web/**\n"),
+    ).toEqual(["."]);
+    expect(await uncovered(null)).toEqual([]);
+    expect(await uncovered("forbid: nonsense\n")).toEqual([]);
+  });
+
+  it("a null scan gives no uncovered folders", async () => {
+    const directory = copyLoom();
+
+    mkdirSync(join(directory, ".recognizer"), { recursive: true });
+    writeFileSync(
+      join(directory, ".recognizer/policy.yaml"),
+      "entry:\n  - server/**\n",
+    );
+
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.policy).toEqual({ present: true, uncovered: [] });
+  });
+});

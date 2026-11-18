@@ -2,7 +2,7 @@ import { basename, join, posix, relative, resolve } from "node:path";
 import { parse } from "yaml";
 import type { Io } from "./cli.js";
 import { packageVersion } from "./cli.js";
-import { configFile } from "./config.js";
+import { configFile, policyFile } from "./config.js";
 import { CORE_KEYS, type KeyEntry } from "./config-keys.js";
 import {
   detectLanguages,
@@ -11,10 +11,14 @@ import {
 } from "./detect.js";
 import { doctorReport } from "./doctor-command.js";
 import { InputError } from "./errors.js";
+import { compileGlob } from "./glob.js";
 import { discoverPlugins } from "./plugin-discovery.js";
+import { type Policy, parsePolicy } from "./policy.js";
 import type { RecordedScan } from "./scan.js";
 import { readCachedScan } from "./scan-command.js";
 import { languageRulesOf } from "./scanners.js";
+import { splitCommand, withoutRepository } from "./setup-changes.js";
+import { commandRefusal } from "./setup-proposal.js";
 import { readShippedSensors } from "./shipped-sensors.js";
 
 export const SURVEY_VERSION = 1;
@@ -80,6 +84,15 @@ export interface SurveyTool {
   cwd: string;
 }
 
+export interface SurveyFix {
+  code: string;
+  subject: string;
+  title: string;
+  line: string;
+  fix_text: string;
+  command: string | null;
+}
+
 export interface SurveyUpgrade {
   code: string;
   subject: string;
@@ -97,6 +110,11 @@ export interface SurveySuite {
   mark: "set-up" | "gone";
 }
 
+export interface SurveyPolicy {
+  present: boolean;
+  uncovered: string[];
+}
+
 export interface Survey {
   survey_version: 1;
   version: string;
@@ -108,7 +126,9 @@ export interface Survey {
   runners: SurveyRunner[];
   tools: SurveyTool[];
   upgrade: SurveyUpgrade[];
+  fixes: SurveyFix[];
   suites: SurveySuite[];
+  policy: SurveyPolicy;
 }
 
 export interface SurveyOptions {
@@ -1029,6 +1049,40 @@ function checksOf(
   ];
 }
 
+function fixesOf(
+  io: Io,
+  root: string,
+  checks: readonly SurveyCheck[],
+): SurveyFix[] {
+  const report = doctorReport(io, root, false);
+  const offered = new Set(checks.map((check) => check.id));
+
+  return report.areas
+    .flatMap((area) => area.problems)
+    .filter((problem) => problem.severity === "problem")
+    .filter(
+      (problem) =>
+        !(
+          problem.code === "unregistered-plugin" && offered.has(problem.subject)
+        ),
+    )
+    .map((problem) => {
+      const command = problem.fix.command;
+      const runnable =
+        command !== null &&
+        commandRefusal(withoutRepository(splitCommand(command))) === null;
+
+      return {
+        code: problem.code,
+        subject: problem.subject,
+        title: problem.title,
+        line: problem.line,
+        fix_text: problem.fix.text,
+        command: runnable ? command : null,
+      };
+    });
+}
+
 const UPGRADE_CODES = ["config-retired", "config-empty", "policy-retired"];
 
 function upgradeOf(io: Io, root: string): SurveyUpgrade[] {
@@ -1138,6 +1192,61 @@ function markLanguages(
   );
 }
 
+function readPolicy(io: Io, root: string): Policy | null {
+  const file = policyFile(root);
+
+  if (!io.exists(file)) {
+    return null;
+  }
+
+  try {
+    return parsePolicy(io.readFile(file));
+  } catch {
+    return null;
+  }
+}
+
+function policyOf(
+  io: Io,
+  root: string,
+  scans: RecordedScan[] | null,
+): SurveyPolicy {
+  const present = io.exists(policyFile(root));
+  const policy = readPolicy(io, root);
+
+  if (policy === null || scans === null) {
+    return { present, uncovered: [] };
+  }
+
+  const matchers = [
+    ...policy.ignore,
+    ...policy.entry,
+    ...policy.forbid.flatMap((rule) =>
+      [...rule.fromGlobs, ...rule.toGlobs]
+        .filter((glob) => !glob.startsWith("foreign:"))
+        .map(compileGlob),
+    ),
+  ];
+  const folders = new Map<string, boolean>();
+
+  for (const scan of scans) {
+    for (const module of scan.modules) {
+      const folder = folderOf(module.id);
+      const covered = matchers.some((matches) => matches(module.id));
+
+      folders.set(folder, (folders.get(folder) ?? false) || covered);
+    }
+  }
+
+  return {
+    present,
+    uncovered: [...folders]
+      .filter(([, covered]) => !covered)
+      .map(([folder]) => folder)
+      .sort(compareText),
+  };
+}
+
 export function surveyRepository(
   io: Io,
   given: string,
@@ -1179,6 +1288,7 @@ export function surveyRepository(
     root,
     new Set(suites.map((suite) => suite.name)),
   );
+  const checks = checksOf(io, document, configured);
 
   return {
     survey_version: SURVEY_VERSION,
@@ -1190,11 +1300,13 @@ export function surveyRepository(
         ? null
         : markLanguages(filesOf(scans), document, suites, configured),
     unread: unreadOf(files, rules),
-    checks: checksOf(io, document, configured),
+    checks,
     runners,
     tools: toolsOf(io, root, runners, files),
     upgrade: upgradeOf(io, root),
+    fixes: fixesOf(io, root, checks),
     suites,
+    policy: policyOf(io, root, scans),
   };
 }
 

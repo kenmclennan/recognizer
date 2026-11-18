@@ -82,7 +82,7 @@ export function splitCommand(text: string): string[] {
   return words;
 }
 
-function withoutRepository(argv: string[]): string[] {
+export function withoutRepository(argv: string[]): string[] {
   const at = argv.indexOf("--repository");
 
   return at === -1 ? argv : [...argv.slice(0, at), ...argv.slice(at + 2)];
