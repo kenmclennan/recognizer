@@ -557,7 +557,7 @@ function npmTools(
         installed,
         why: "vitest writes its coverage report through this package",
         needed_by: members.map((member) => member.name),
-        installs: `${packageRoot === "." ? "the repository root" : packageRoot} package.json and ${LOCKFILE}`,
+        installs: changedFiles(packageRoot, members),
         command: [
           "npm",
           "install",
@@ -570,6 +570,17 @@ function npmTools(
         cwd: packageRoot,
       };
     });
+}
+
+function changedFiles(packageRoot: string, members: SurveyRunner[]): string {
+  const files = [
+    ...new Set([
+      ...members.map((member) => member.from),
+      posix.join(packageRoot, LOCKFILE),
+    ]),
+  ];
+
+  return files.join(", ");
 }
 
 function cargoTool(
