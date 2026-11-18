@@ -292,6 +292,37 @@ function snap(modal, name) {
     up.close();
   }
 
+  facts.progress = {};
+  const shot = (name, m) => {
+    const q = (sel) => m.element.querySelector(sel);
+    const qa = (sel) => [...m.element.querySelectorAll(sel)];
+    const fill = q(".sw-fill");
+    const bar = q(".sw-bar");
+    const icon = q(".sw-row svg");
+    facts.progress[name] = {
+      heading: (q(".sw-body h2") || { textContent: "" }).textContent,
+      text: q(".sw-body").textContent,
+      titles: qa(".sw-row .sw-what").map((n) => n.textContent),
+      spinners: qa(".sw-row svg.sw-icon-spinner").length,
+      ticks: qa(".sw-row svg.sw-icon-tick").length,
+      circles: qa(".sw-row svg.sw-icon-circle").length,
+      glyphLeads: qa(".sw-row .sw-lead").filter((n) => n.querySelector("svg") === null && n.textContent.trim() !== "").length,
+      times: qa(".sw-row .sw-time").length,
+      elapsed: (q(".sw-elapsed") || { textContent: "" }).textContent,
+      fillRatio: fill && bar ? fill.getBoundingClientRect().width / bar.getBoundingClientRect().width : -1,
+      iconSquare: icon ? icon.getBoundingClientRect().width === icon.getBoundingClientRect().height : false,
+      runningLines: qa(".sw-row.state-running .sw-why").map((n) => n.textContent),
+    };
+  };
+  const stepping = openSetupModal({ port: fakeSetup() });
+  await stepping.ready;
+  for (let i = 0; i < 4; i++) stepping.controller.next();
+  await settle();
+  await stepping.controller.apply();
+  await settle();
+  shot("apply-finished", stepping);
+  stepping.close();
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -316,9 +347,25 @@ type Screen = {
   runnerOutputs: ({ hidden: boolean; text: string } | null)[];
 };
 
+type Shot = {
+  heading: string;
+  text: string;
+  titles: string[];
+  spinners: number;
+  ticks: number;
+  circles: number;
+  glyphLeads: number;
+  times: number;
+  elapsed: string;
+  fillRatio: number;
+  iconSquare: boolean;
+  runningLines: string[];
+};
+
 type Facts = {
   disclosure: Record<string, boolean>;
   namedPairs: string[][];
+  progress: Record<string, Shot>;
   rowClicks: {
     checkToggled: boolean;
     checkToggledBack: boolean;
@@ -403,6 +450,20 @@ describe.skipIf(webkit === undefined)(
       "apply-done",
       "apply-failed",
     ];
+
+    describe("progress while reading and applying", () => {
+      const shot = (name: string) => f.progress[name] as Shot;
+
+      it("Apply shows icons and a time on every finished row and the elapsed time in the heading", () => {
+        const done = shot("apply-finished");
+
+        expect(done.spinners).toBe(0);
+        expect(done.glyphLeads).toBe(0);
+        expect(done.iconSquare).toBe(true);
+        expect(done.times).toBe(done.titles.length);
+        expect(done.elapsed).toMatch(/^\d+\.\ds$/);
+      });
+    });
 
     it("fits the modal within the window and the pane within the modal", () => {
       for (const name of names) {

@@ -27,6 +27,7 @@ import {
   type WizardState,
 } from "./setup-model";
 import type { DoctorRead, SetupPort } from "./setup-port";
+import { elapsedText, type Timed } from "./setup-progress";
 
 export type SetupModalDeps = {
   port: SetupPort;
@@ -34,6 +35,7 @@ export type SetupModalDeps = {
   scanAfterApply?: () => void;
   onDoctor?: (read: DoctorRead) => void;
   onClose?: () => void;
+  now?: () => number;
 };
 
 export type SetupModal = {
@@ -63,10 +65,52 @@ const LIMIT_SENTENCES: Record<string, [string, string]> = {
   ],
 };
 
+const SVG = "http://www.w3.org/2000/svg";
+
+type IconKind = "spinner" | "tick" | "circle";
+
+function icon(kind: IconKind): SVGElement {
+  const svg = document.createElementNS(SVG, "svg");
+  const shape = (name: string, attributes: Record<string, string>) => {
+    const node = document.createElementNS(SVG, name);
+
+    for (const [key, value] of Object.entries(attributes)) {
+      node.setAttribute(key, value);
+    }
+
+    svg.append(node);
+  };
+
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("width", "16");
+  svg.setAttribute("height", "16");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.6");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("class", `sw-icon sw-icon-${kind}`);
+
+  if (kind === "spinner") {
+    shape("circle", { cx: "8", cy: "8", r: "6", opacity: "0.25" });
+    shape("path", { d: "M14 8a6 6 0 0 0-6-6" });
+  } else if (kind === "tick") {
+    shape("path", { d: "M3.5 8.5l3 3 6-7" });
+  } else {
+    shape("circle", { cx: "8", cy: "8", r: "5.5" });
+  }
+
+  return svg;
+}
+
+const STATE_ICON: Record<string, IconKind> = {
+  waiting: "circle",
+  running: "spinner",
+  done: "tick",
+};
+
 const GLYPH: Record<string, string> = {
-  waiting: "○",
-  running: "◌",
-  done: "✓",
   failed: "✕",
   undone: "↺",
 };
@@ -165,6 +209,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
       ? {}
       : { scanAfterApply: deps.scanAfterApply }),
     ...(deps.onDoctor === undefined ? {} : { onDoctor: deps.onDoctor }),
+    ...(deps.now === undefined ? {} : { now: deps.now }),
   });
   const scrim = el("div", "settings-scrim");
   const modal = el("div", "settings-modal setup-modal");
@@ -178,8 +223,15 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
   const backButton = button("Back", "sw-btn", () => {});
   const nextButton = button("Next", "sw-btn sw-primary", () => {});
   const open = new Set<string>();
+  const now = deps.now ?? Date.now;
   let closed = false;
   let adding: string | null = null;
+  let elapsed: { node: HTMLElement; text: () => string } | null = null;
+  const clock = setInterval(() => {
+    if (elapsed !== null) {
+      elapsed.node.textContent = elapsed.text();
+    }
+  }, 1000);
 
   modal.setAttribute("role", "dialog");
   modal.setAttribute("aria-modal", "true");
@@ -195,6 +247,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     }
 
     closed = true;
+    clearInterval(clock);
     void controller.stop();
     off();
     document.removeEventListener("keydown", onKey, true);
@@ -235,7 +288,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
   }
 
   function row(
-    lead: HTMLElement | string,
+    lead: HTMLElement | SVGElement | string,
     main: HTMLElement[],
     meta: HTMLElement[] = [],
     className = "",
@@ -675,6 +728,18 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     );
   }
 
+  function timeTag(row: Timed): HTMLElement[] {
+    return row.state === "done" && row.startedAt !== null
+      ? [
+          el(
+            "span",
+            "sw-time sw-mono",
+            elapsedText((row.endedAt ?? 0) - row.startedAt),
+          ),
+        ]
+      : [];
+  }
+
   function rowsList(rows: Row[], id: string): HTMLElement[] {
     return rows.map((one, at) => {
       const main = [el("div", "sw-what", one.title)];
@@ -685,11 +750,28 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
 
       const meta: HTMLElement[] = [];
 
+      if (one.state === "done" && one.startedAt != null) {
+        meta.push(
+          ...timeTag({
+            state: "done",
+            startedAt: one.startedAt,
+            endedAt: one.endedAt ?? one.startedAt,
+          }),
+        );
+      }
+
       if (one.output !== "" && one.state !== "undone") {
         meta.push(...disclosure(`${id}-${at}`, "Output", one.output));
       }
 
-      return row(GLYPH[one.state] ?? "", main, meta, `state-${one.state}`);
+      const kind = STATE_ICON[one.state];
+
+      return row(
+        kind === undefined ? (GLYPH[one.state] ?? "") : icon(kind),
+        main,
+        meta,
+        `state-${one.state}`,
+      );
     });
   }
 
@@ -1201,13 +1283,20 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     const finished = run.rows.filter((one) => one.state === "done").length;
     const bar = el("div", "sw-bar");
     const fill = el("i", `sw-fill ${run.state}`);
+    const headRow = el("div", "sw-headrow");
+    const time = el("span", "sw-elapsed sw-mono");
+    const elapsedNow = () =>
+      elapsedText((run.endedAt ?? now()) - run.startedAt);
 
     fill.style.width =
       run.state === "running"
         ? `${Math.round((finished / Math.max(1, run.rows.length)) * 100)}%`
         : "100%";
     bar.append(fill);
-    body.append(el("h2", "", heading), bar);
+    time.textContent = elapsedNow();
+    elapsed = run.endedAt === null ? { node: time, text: elapsedNow } : null;
+    headRow.append(el("h2", "", heading), time);
+    body.append(headRow, bar);
 
     if (run.state === "done") {
       body.append(
@@ -1346,6 +1435,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     }
 
     body.replaceChildren();
+    elapsed = null;
 
     if (state.kind === "loading") {
       title.textContent = "Set up";
