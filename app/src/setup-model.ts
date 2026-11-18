@@ -81,6 +81,7 @@ export type WizardState = {
   policy: PolicyRun;
   decisions: Record<number, "accept" | "reject">;
   fixes: boolean[];
+  removals: Record<string, boolean>;
   apply: ApplyRun | null;
 };
 
@@ -144,9 +145,18 @@ export function choicesOf(state: WizardState): SetupChoices {
     plugins: pluginChecks(state.survey)
       .filter((check) => state.plugins[check.id] === true)
       .map((check) => check.id),
+    plugins_off: pluginChecks(state.survey)
+      .filter(
+        (check) => check.mark === "set-up" && state.plugins[check.id] !== true,
+      )
+      .map((check) => check.id),
     fixes: state.survey.fixes
       .filter((one, at) => state.fixes[at] === true && one.command !== null)
       .map((one) => one.command as string),
+    remove_suites: state.survey.suites
+      .filter((suite) => suite.mark === "gone")
+      .filter((suite) => state.removals[suite.name] === true)
+      .map((suite) => suite.name),
     runners: wanted
       ? state.survey.runners
           .filter((runner) => state.runners[runner.name]?.on === true)
@@ -227,6 +237,7 @@ export type SetupController = {
   decide(index: number, decision: "accept" | "reject"): void;
   acceptRemaining(): void;
   setFix(index: number, on: boolean): void;
+  setRemoval(name: string, on: boolean): void;
   runOnce(): Promise<void>;
   apply(): Promise<void>;
   stop(): Promise<void>;
@@ -257,7 +268,10 @@ function initial(survey: Survey, doctor: DoctorRead): WizardState {
       ]),
     ),
     plugins: Object.fromEntries(
-      pluginChecks(survey).map((check) => [check.id, !check.enabled]),
+      pluginChecks(survey).map((check) => [
+        check.id,
+        check.mark === null ? !check.enabled : check.mark === "set-up",
+      ]),
     ),
     runners: Object.fromEntries(
       survey.runners.map((runner) => [
@@ -275,6 +289,11 @@ function initial(survey: Survey, doctor: DoctorRead): WizardState {
     policy: { kind: "idle" },
     decisions: {},
     fixes: survey.fixes.map(() => true),
+    removals: Object.fromEntries(
+      survey.suites
+        .filter((suite) => suite.mark === "gone")
+        .map((suite) => [suite.name, true]),
+    ),
     apply: null,
   };
 }
@@ -528,6 +547,8 @@ export function createSetupController(deps: SetupDeps): SetupController {
       edit((wizard) => ({
         fixes: wizard.fixes.map((one, at) => (at === index ? on : one)),
       })),
+    setRemoval: (name, on) =>
+      edit((wizard) => ({ removals: { ...wizard.removals, [name]: on } })),
     async runOnce() {
       if (state.kind !== "wizard" || state.tried.kind === "running") {
         return;
@@ -541,7 +562,8 @@ export function createSetupController(deps: SetupDeps): SetupController {
         (change) =>
           change.id.startsWith("tool-") ||
           change.id.startsWith("tests-") ||
-          change.id.startsWith("plugin-"),
+          (change.id.startsWith("plugin-") &&
+            !change.id.startsWith("plugin-off-")),
       );
       const runners: RunnerResult[] = [];
       let rows = rowsOf(planned);

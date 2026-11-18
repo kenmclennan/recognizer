@@ -11,7 +11,7 @@ const here = (name: string) => fileURLToPath(new URL(name, import.meta.url));
 
 const HARNESS = `
 import { openSetupModal } from ${JSON.stringify(here("setup-modal-view.ts"))};
-import { fakeSetup } from ${JSON.stringify(here("setup-fake.ts"))};
+import { CLEAN_DOCTOR, fakeSetup } from ${JSON.stringify(here("setup-fake.ts"))};
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
 const box = (node) => { const r = node.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; };
@@ -39,6 +39,7 @@ function snap(modal, name) {
     details: [...modal.element.querySelectorAll(".sw-row")].map((r) => { const pre = r.querySelector("pre"); const link = r.querySelector(".sw-link"); return pre ? { label: link.textContent, text: pre.textContent, hidden: pre.hidden } : null; }),
     cards: [...modal.element.querySelectorAll(".sw-rec .sw-what")].map((n) => n.textContent),
     groups: [...modal.element.querySelectorAll(".sw-group")].map((n) => n.textContent),
+    marks: [...modal.element.querySelectorAll(".sw-mark")].map((n) => n.textContent),
     rowBoxes: [...modal.element.querySelectorAll(".sw-row")].map((r) => r.querySelector("input") !== null),
     env: [...modal.element.querySelectorAll(".sw-envrow code")].map((n) => n.textContent),
     runners: [...modal.element.querySelectorAll(".sw-runner")].map((n) => n.textContent),
@@ -198,17 +199,30 @@ function snap(modal, name) {
     fixes: [fixOf(1), fixOf(2), handFix],
     policy: { present: true, uncovered: ["web", "tools"] },
   };
+  const calmSurvey = {
+    ...rerunSurvey,
+    runners: [],
+    tools: [],
+    suites: [suiteOf("server", "set-up")],
+    files: base.files.map((l) => ({ ...l, mark: "set-up" })),
+    fixes: [],
+    policy: { present: true, uncovered: [] },
+  };
   const rerunPort = (extra = {}) => fakeSetup({ surveyRead: { status: "ok", survey: rerunSurvey, doctor: { status: "ok", report: reportOf(3) } }, ...extra });
 
   const rerun = openSetupModal({ port: rerunPort() });
   await rerun.ready;
   await settle();
+  snap(rerun, "rerun-files");
   rerun.controller.next();
   await settle();
+  snap(rerun, "rerun-checks");
   rerun.controller.next();
   await settle();
+  snap(rerun, "rerun-tests");
   rerun.controller.next();
   await settle();
+  snap(rerun, "rerun-policy");
   rerun.controller.setPolicyMode("ask");
   await rerun.controller.askClaude();
   await settle();
@@ -223,6 +237,18 @@ function snap(modal, name) {
   await settle();
   snap(rerun, "rerun-review-unticked");
   rerun.close();
+
+  const calm = openSetupModal({ port: fakeSetup({ surveyRead: { status: "ok", survey: calmSurvey, doctor: CLEAN_DOCTOR } }) });
+  await calm.ready;
+  await settle();
+  snap(calm, "calm-files");
+  for (let i = 0; i < 3; i++) calm.controller.next();
+  await settle();
+  snap(calm, "calm-policy");
+  calm.controller.next();
+  await settle();
+  snap(calm, "calm-review");
+  calm.close();
 
   const finals = { one: reportOf(1), two: reportOf(2), clean: reportOf(0), unavailable: null };
   for (const [name, doctor] of Object.entries(finals)) {
@@ -253,6 +279,7 @@ type Screen = {
   details: ({ label: string; text: string; hidden: boolean } | null)[];
   cards: string[];
   groups: string[];
+  marks: string[];
   rowBoxes: boolean[];
   env: string[];
   runners: string[];
@@ -458,6 +485,49 @@ describe.skipIf(webkit === undefined)(
       expect(f.screens["policy-cards"]?.cards).toHaveLength(4);
     });
 
+    it("files note names what changed", () => {
+      const files = f.screens["rerun-files"] as Screen;
+
+      expect(files.rows).toHaveLength(3);
+      expect(files.marks).toEqual(["Set up", "Gone"]);
+      expect(files.text).toContain("New test runners: engine (engine)");
+      expect(files.text).toContain(
+        "Test suites whose folder is gone: legacy (legacy)",
+      );
+      expect(files.text).toContain("Languages with no files now: Python");
+      expect(files.text).toContain("2 settings an upgrade moved.");
+      expect((f.screens["calm-files"] as Screen).text).toContain(
+        "Nothing has changed since setup.",
+      );
+    });
+
+    it("marks the checks and the tests of a configured repository", () => {
+      expect((f.screens["rerun-checks"] as Screen).marks).toEqual([
+        "Set up",
+        "Set up",
+        "New",
+      ]);
+
+      const tests = f.screens["rerun-tests"] as Screen;
+
+      expect(tests.marks).toEqual(["Gone", "Set up", "New", "New", "New"]);
+      expect(tests.text).toContain("Remove from the config");
+    });
+
+    it("policy names uncovered folders", () => {
+      const policy = f.screens["rerun-policy"] as Screen;
+
+      expect(policy.text).toContain("Keep it as it is");
+      expect(policy.text).toContain("Ask Claude to recommend changes");
+      expect(policy.text).toContain("Not covered by the policy: web, tools.");
+      expect((f.screens["calm-policy"] as Screen).text).not.toContain(
+        "Not covered by the policy",
+      );
+      expect((f.screens["policy-choice"] as Screen).text).toContain(
+        "Skip for now",
+      );
+    });
+
     it("review lists doctor's fixes under their own heading by title", () => {
       const review = f.screens["rerun-review"] as Screen;
 
@@ -491,6 +561,15 @@ describe.skipIf(webkit === undefined)(
       expect((f.screens["rerun-review-unticked"] as Screen).text).toContain(
         "Doctor keeps reporting this until it is fixed. Open Setup again to apply it later.",
       );
+    });
+
+    it("review with nothing to change offers Close", () => {
+      const calm = f.screens["calm-review"] as Screen;
+
+      expect(calm.rows).toHaveLength(0);
+      expect(calm.text).toContain("Nothing to change.");
+      expect(calm.foot).toContain("Close");
+      expect(calm.foot).not.toContain("Close (disabled)");
     });
 
     it("final screen lists what is left", () => {

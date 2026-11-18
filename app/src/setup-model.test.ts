@@ -260,6 +260,45 @@ describe("the setup wizard model", () => {
     expect(choicesOf(wizard(controller)).fixes).toEqual([]);
   });
 
+  it("starts set-up checks and gone suites ticked and new checks unticked", async () => {
+    const survey: Survey = {
+      ...LOOM_SURVEY,
+      configured: true,
+      checks: LOOM_SURVEY.checks.map((check) =>
+        check.id === "crap"
+          ? { ...check, enabled: true, mark: "set-up" as const }
+          : check.id === "mutation"
+            ? { ...check, enabled: false, mark: "new" as const }
+            : check,
+      ),
+      suites: [
+        {
+          name: "legacy",
+          language: "python",
+          directory: "legacy",
+          command: "pytest",
+          mark: "gone",
+        },
+      ],
+    };
+    const { controller } = await opened(
+      fakeSetup({ surveyRead: { status: "ok", survey, doctor: CLEAN_DOCTOR } }),
+    );
+    const state = wizard(controller);
+
+    expect(state.plugins.crap).toBe(true);
+    expect(state.plugins.mutation).toBe(false);
+    expect(state.removals).toEqual({ legacy: true });
+    expect(choicesOf(state).remove_suites).toEqual(["legacy"]);
+    expect(choicesOf(state).plugins_off).toEqual([]);
+
+    controller.setRemoval("legacy", false);
+    controller.setPlugin("crap", false);
+
+    expect(choicesOf(wizard(controller)).remove_suites).toEqual([]);
+    expect(choicesOf(wizard(controller)).plugins_off).toEqual(["crap"]);
+  });
+
   it("applies exactly the chosen changes and shows doctor's result", async () => {
     const { controller, fake } = await opened();
 
