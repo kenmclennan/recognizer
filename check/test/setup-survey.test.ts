@@ -1,5 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { readdirSync, readFileSync, rmSync } from "node:fs";
+import {
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -133,6 +139,43 @@ describe("recognizer setup survey", () => {
       ]),
     );
     expect(validate(survey), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it("lists an installed describer as a check that is on once the config has a describer", async () => {
+    process.env.PATH = shimmedPath(shimDirectory(true, true));
+
+    const directory = copyLoom();
+    const before = await surveyOf([directory]);
+    const claude = before.survey.checks.find((check) => check.id === "claude");
+
+    expect(claude).toEqual({
+      id: "claude",
+      display: "Claude",
+      description: "",
+      always_on: false,
+      enabled: false,
+      runs_tests: false,
+      limits: [],
+    });
+    expect(validate(before.survey), JSON.stringify(validate.errors)).toBe(true);
+
+    mkdirSync(join(directory, ".recognizer"), { recursive: true });
+    writeFileSync(
+      join(directory, ".recognizer/config.yaml"),
+      "describer:\n  command: [recognizer-describe-claude, run, --model, '{model}', '{request}']\n  version: v1\n",
+    );
+
+    const after = await surveyOf([directory]);
+
+    expect(
+      after.survey.checks.find((check) => check.id === "claude")?.enabled,
+    ).toBe(true);
+  });
+
+  it("lists no describer check when none is installed", async () => {
+    const { survey } = await surveyOf([copyLoom()]);
+
+    expect(survey.checks.some((check) => check.id === "claude")).toBe(false);
   });
 
   it("gives no files when the repository has no scan", async () => {

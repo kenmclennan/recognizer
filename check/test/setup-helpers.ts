@@ -32,7 +32,7 @@ function shim(directory: string, program: string, manifest: unknown): void {
   chmodSync(path, 0o755);
 }
 
-export function shimDirectory(sensors = true): string {
+export function shimDirectory(sensors = true, describer = false): string {
   const directory = makeTempDir("recognizer-setup-shims-");
   const scanner = example("scanner");
 
@@ -58,6 +58,10 @@ export function shimDirectory(sensors = true): string {
   if (sensors) {
     shim(directory, "recognizer-sense-crap", example("sensor-crap"));
     shim(directory, "recognizer-sense-mutation", example("sensor-mutation"));
+  }
+
+  if (describer) {
+    shim(directory, "recognizer-describe-claude", example("describer"));
   }
 
   return directory;

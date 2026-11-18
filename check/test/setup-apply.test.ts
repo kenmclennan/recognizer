@@ -24,7 +24,7 @@ import {
   type PlannedChange,
   type SetupChoices,
 } from "../src/setup-changes.js";
-import type { Survey } from "../src/setup-survey.js";
+import { type Survey, surveyRepository } from "../src/setup-survey.js";
 import { capture, REPO } from "./helpers.js";
 import { shimDirectory, shimmedPath } from "./setup-helpers.js";
 
@@ -339,6 +339,37 @@ describe("setup apply", () => {
 
     expect(second.calls.some((argv) => argv[0] === "cargo")).toBe(false);
     expect(second.uninstalled).toEqual([]);
+  });
+
+  it("choosing the installed describer registers it and doctor reports no unregistered plugin", async () => {
+    process.env.PATH = shimmedPath(shimDirectory(false, true));
+
+    const fresh = makeTempDir("recognizer-setup-describer-");
+    const survey = surveyRepository(nodeIo(), fresh);
+    const changes = buildChanges(survey, { plugins: ["claude"] }).changes;
+
+    expect(changes.map((change) => change.title)).toEqual(["Turn on Claude"]);
+    expect(changes[0]?.steps.map((one) => one.argv)).toEqual([
+      ["recognizer", "plugin", "add", "claude"],
+    ]);
+
+    const events: ApplyEvent[] = [];
+    const ok = await applyChanges(
+      fakeIo(fresh, null).io,
+      fresh,
+      changes,
+      (event) => events.push(event),
+    );
+    const result = events[events.length - 1];
+    const problems =
+      result?.event === "result"
+        ? (result.doctor?.areas.flatMap((area) => area.problems) ?? [])
+        : [];
+
+    expect(ok).toBe(true);
+    expect(problems.map((problem) => problem.code)).not.toContain(
+      "unregistered-plugin",
+    );
   });
 
   it("a success writes a setup run log", async () => {
