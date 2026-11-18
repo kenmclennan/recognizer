@@ -64,8 +64,10 @@ describe("scan leaves a run record", () => {
     expect(saved.by).toBe("ken");
     expect(saved.outcome).toBe("failed");
     expect(saved.entries).toBeUndefined();
-    expect(saved.phases).toHaveLength(1);
-    expect(saved.phases[0].phase).toBe("extract");
+    expect(saved.phases.map((one: { phase: string }) => one.phase)).toEqual([
+      "extract",
+      "structure",
+    ]);
 
     const extract = saved.phases[0].entries;
 
@@ -163,7 +165,7 @@ describe("recognizer log", () => {
     expect(result.code).toBe(0);
     expect(lines).toHaveLength(2);
     expect(lines[0]).toMatch(
-      /^\d{8}T\d{9}Z-scan {2}scan {2}\S+ {2}failed {2}1 ok, 1 failed$/,
+      /^\d{8}T\d{9}Z-scan {2}scan {2}\S+ {2}failed {2}2 ok, 1 failed$/,
     );
     expect((lines[0] as string) > (lines[1] as string)).toBe(true);
   });
@@ -236,7 +238,7 @@ describe("recognizer log", () => {
     expect(listed.runs).toHaveLength(2);
     expect(listed.runs[0]).toMatchObject({
       kind: "scan",
-      entries: 2,
+      entries: 3,
       failed: 1,
     });
     expect(last.id).toBe(listed.runs[0].id);
@@ -465,7 +467,7 @@ describe("a scan record from the real run", () => {
     expect(listed.runs).toHaveLength(1);
     expect(listed.runs[0]).toMatchObject({
       kind: "scan",
-      entries: 1,
+      entries: 2,
       failed: 0,
     });
   });

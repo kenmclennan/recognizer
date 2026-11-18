@@ -35,8 +35,10 @@ export interface EntryWork {
 
 export type PhaseName = "extract" | "describe" | "measure" | "sense";
 
+export type RecordedPhaseName = PhaseName | "structure";
+
 export interface RunPhase {
-  phase: PhaseName;
+  phase: RecordedPhaseName;
   entries: RunEntry[];
   duration_ms?: number;
 }

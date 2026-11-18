@@ -41,6 +41,7 @@ import { earlyGaps, readinessGaps } from "./preflight.js";
 import {
   entryFrom,
   openPhasedRunLog,
+  type PhaseName,
   type RunEntry,
   type RunPhase,
   requireBy,
@@ -696,8 +697,9 @@ function* scanFlow(
     );
     const json = options.json;
     const removed: string[] = [];
-    const phases: RunPhase[] = [];
-    const summary = new Map<RunPhase["phase"], EventEntry[]>();
+    const phases: CommandPhase[] = [];
+    let structurePhase: RunPhase | null = null;
+    const summary = new Map<PhaseName, EventEntry[]>();
     const runLog =
       detected.length > 0 || wantsConfig
         ? openPhasedRunLog(io, root, startedAt, options.by, argv)
@@ -710,8 +712,18 @@ function* scanFlow(
       runLog?.skip({ phase, reason });
     };
 
-    const startPhase = (phase: RunPhase["phase"]): RunPhase => {
-      const one: RunPhase = { phase, entries: [] };
+    const recorded = (): RunPhase[] => {
+      if (structurePhase === null) {
+        return phases;
+      }
+
+      const at = phases.findIndex((one) => one.phase === "extract") + 1;
+
+      return [...phases.slice(0, at), structurePhase, ...phases.slice(at)];
+    };
+
+    const startPhase = (phase: PhaseName): CommandPhase => {
+      const one: CommandPhase = { phase, entries: [] };
 
       phases.push(one);
       summary.set(phase, []);
@@ -724,7 +736,7 @@ function* scanFlow(
     };
 
     const finishEntry = (
-      phase: RunPhase,
+      phase: CommandPhase,
       entry: RunEntry,
       extra: Partial<EventEntry> = {},
     ) => {
@@ -732,7 +744,7 @@ function* scanFlow(
 
       phase.entries.push(entry);
       summary.get(phase.phase)?.push(shown);
-      runLog?.update(phases);
+      runLog?.update(recorded());
 
       emit(entryLine(phase.phase, shown));
 
@@ -784,7 +796,7 @@ function* scanFlow(
         skip("sense", reason);
       }
 
-      runLog?.finish(phases, true);
+      runLog?.finish(recorded(), true);
 
       emit(
         summaryLine({
@@ -979,6 +991,26 @@ function* scanFlow(
       }
 
       structureMs = structure.ms ?? undefined;
+
+      if (structure.ran) {
+        structurePhase = {
+          phase: "structure",
+          entries: [
+            {
+              name: "structure",
+              command: [],
+              status: null,
+              outcome: structure.failed ? "failed" : "ok",
+              duration_ms: structure.ms ?? 0,
+              ...(structure.reason === undefined
+                ? {}
+                : { reason: structure.reason }),
+              stderr: "",
+            },
+          ],
+          duration_ms: structure.ms ?? 0,
+        };
+      }
     }
 
     if (describer !== undefined && options.describe !== false) {
@@ -1145,7 +1177,7 @@ function* scanFlow(
       phase.duration_ms = io.awake() - senseFrom;
     }
 
-    runLog?.finish(phases, false, structureMs);
+    runLog?.finish(recorded(), false, structureMs);
 
     const exit = failed ? 1 : 0;
 
@@ -1264,21 +1296,32 @@ export async function runScan(argv: string[], io: Io): Promise<number> {
   }
 }
 
+interface StructureResult {
+  failed: boolean;
+  ran: boolean;
+  ms: number | null;
+  reason?: string;
+}
+
+type CommandPhase = RunPhase & { phase: PhaseName };
+
 function* runStructure(
   io: Io,
   root: string,
   scans: Scan[],
   skipRetired: boolean,
   analysis: boolean,
-): Generator<ScanStep, { failed: boolean; ms: number | null }, ScanAnswer> {
+): Generator<ScanStep, StructureResult, ScanAnswer> {
   if (scans.length === 0 || !analysis) {
-    return { failed: false, ms: null };
+    return { failed: false, ran: false, ms: null };
   }
 
   let began: number | null = null;
-  const timed = (failed: boolean) => ({
+  const timed = (failed: boolean, reason?: string): StructureResult => ({
     failed,
+    ran: true,
     ms: began === null ? null : io.awake() - began,
+    ...(reason === undefined ? {} : { reason }),
   });
 
   try {
@@ -1292,7 +1335,7 @@ function* runStructure(
       io.remove(findingsFile(root, "structure"));
       io.remove(structureOverlayFile(root));
 
-      return { failed: false, ms: null };
+      return { failed: false, ran: false, ms: null };
     }
 
     began = io.awake();
@@ -1326,23 +1369,25 @@ function* runStructure(
     const run = runStructureSensor(io, root, scans, policy, settings, parsers);
 
     if (answer instanceof Error) {
-      io.stderr(
-        `failed structure: ${settings.duplication === false ? "complexity" : "duplication"}: ${answer.message}\n`,
-      );
+      const reason = `${settings.duplication === false ? "complexity" : "duplication"}: ${answer.message}`;
 
-      return timed(true);
+      io.stderr(`failed structure: ${reason}\n`);
+
+      return timed(true, reason);
     }
 
     if (run.error !== null) {
       io.stderr(`failed structure: ${run.error}\n`);
 
-      return timed(true);
+      return timed(true, run.error);
     }
 
     return timed(false);
   } catch (error) {
-    io.stderr(`failed structure: ${(error as Error).message}\n`);
+    const reason = (error as Error).message;
 
-    return timed(true);
+    io.stderr(`failed structure: ${reason}\n`);
+
+    return timed(true, reason);
   }
 }
