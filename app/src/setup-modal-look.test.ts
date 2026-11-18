@@ -409,9 +409,11 @@ function snap(modal, name) {
 
 
   facts.done = {};
+  const handProblem = { code: "config-duplicate-suite", subject: "unit", title: "Two test suites share a name", line: "tests: unit appears twice", fix: { text: "Rename one of the suites", command: null }, severity: "problem" };
   const reportWith = (list) => ({ repository: "/repo", ok: list.length === 0, problems: list.length, warnings: 0, areas: list.length === 0 ? [] : [{ name: "config", skipped: null, problems: list }] });
+  const doneSurvey = { ...base, fixes: [fixOf(1), fixOf(2)] };
   const finishWith = async (applyDoctor, extra = {}) => {
-    const port = fakeSetup({ surveyRead: { status: "ok", survey: base, doctor: { status: "ok", report: reportOf(2) } }, applyDoctor, ...extra });
+    const port = fakeSetup({ surveyRead: { status: "ok", survey: doneSurvey, doctor: { status: "ok", report: reportOf(2) } }, applyDoctor, ...extra });
     const m = openSetupModal({ port });
     await m.ready;
     await settle();
@@ -421,6 +423,36 @@ function snap(modal, name) {
     await settle();
     return { port, m };
   };
+  const doneOf = (m) => {
+    const callout = m.element.querySelector(".sw-body .sw-callout");
+    const rows = [...m.element.querySelectorAll(".sw-body > .sw-row")].map((r) => r.getBoundingClientRect());
+    const calloutBox = callout.getBoundingClientRect();
+    const buttons = [...callout.querySelectorAll("button")];
+    return {
+      heading: m.element.querySelector(".sw-body h2").textContent,
+      calloutClass: callout.className,
+      lead: callout.querySelector(".sw-what").textContent,
+      lastLine: callout.lastElementChild.textContent,
+      calloutAboveRows: rows.length >= 2 && calloutBox.bottom <= rows[0].top,
+      gapBelowCallout: rows.length >= 2 ? rows[0].top - calloutBox.bottom : -1,
+      gapBetweenRows: rows.length >= 2 ? rows[1].top - rows[0].bottom : -2,
+      rowCount: rows.length,
+      blocks: [...callout.querySelectorAll(".sw-problem")].map((b) => { const act = b.querySelector("button"); return { text: b.textContent, button: act ? act.textContent : null, disabled: act ? act.disabled : null, orRun: b.textContent.includes("Or run"), bold: b.querySelector(".sw-what").textContent }; }),
+      buttonsDisabled: buttons.map((b) => b.disabled),
+    };
+  };
+
+  const first = await finishWith(reportWith([problemOf(1), handProblem]));
+  facts.done.two = doneOf(first.m);
+  first.m.close();
+
+  const sameText = await finishWith(reportWith([{ ...problemOf(1), fix: { text: "recognizer config --unset k1", command: "recognizer config --unset k1" } }]));
+  facts.done.sameText = { ...doneOf(sameText.m), mentions: sameText.m.element.querySelector(".sw-problem").textContent.split("recognizer config --unset k1").length - 1 };
+  sameText.m.close();
+
+  const clean = await finishWith(reportWith([]));
+  facts.done.clean = doneOf(clean.m);
+  clean.m.close();
 
   const panelsOf = (m) => [...m.element.querySelectorAll(".sw-body > .sw-row")].map((r) => {
     const panel = r.querySelector(".sw-panel");
@@ -525,8 +557,27 @@ type CardFact = {
   text: string;
   panel: PanelFact | null;
 };
+type DoneFact = {
+  heading: string;
+  calloutClass: string;
+  lead: string;
+  lastLine: string;
+  calloutAboveRows: boolean;
+  gapBelowCallout: number;
+  gapBetweenRows: number;
+  rowCount: number;
+  blocks: {
+    text: string;
+    button: string | null;
+    disabled: boolean | null;
+    orRun: boolean;
+    bold: string;
+  }[];
+  buttonsDisabled: boolean[];
+};
 type Facts = {
-  done: {
+  done: Record<string, DoneFact> & {
+    sameText: DoneFact & { mentions: number };
     panels: CardFact[];
     opened: string;
     failed: {
@@ -971,15 +1022,20 @@ describe.skipIf(webkit === undefined)(
       ]);
     });
 
-    it("final screen lists what is left", () => {
+    it('the done screen lists each remaining problem as a block under "Setup is done"', () => {
       const final = (name: string) => f.screens[`final-${name}`] as Screen;
 
-      expect(final("one").heading).toBe("Updated - 1 thing still to fix");
+      expect(final("one").heading).toBe("Setup is done");
+      expect(final("one").text).toContain("1 thing still to fix");
       expect(final("one").text).toContain("Settings moved to new places 1");
       expect(final("one").text).toContain("Run the move 1");
-      expect(final("two").heading).toBe("Updated - 2 things still to fix");
+      expect(final("two").heading).toBe("Setup is done");
+      expect(final("two").text).toContain("2 things still to fix");
       expect(final("two").text).toContain("Settings moved to new places 2");
-      expect(final("clean").heading).toBe("Everything is up to date");
+      expect(final("clean").heading).toBe("Setup is done");
+      expect(final("clean").text).toContain(
+        "Everything is set up. Doctor finds no problems.",
+      );
       expect(final("clean").text).not.toContain("Run the move");
       expect(final("unavailable").heading).toBe("Updated");
       expect(final("unavailable").text).toContain("Doctor could not run.");
@@ -990,14 +1046,60 @@ describe.skipIf(webkit === undefined)(
         f.screens.review?.foot.some((label) => label.startsWith("Apply ")),
       ).toBe(true);
       expect(f.screens["apply-running"]?.foot).toContain("Stop");
-      expect(f.screens["apply-done"]?.heading).toBe("Everything is up to date");
+      expect(f.screens["apply-done"]?.heading).toBe("Setup is done");
       expect(f.screens["apply-done"]?.foot).toContain("Close");
       expect(f.screens["apply-failed"]?.heading).toBe("Setup stopped");
       expect(f.screens["apply-failed"]?.foot).toContain("Try again");
       expect(f.screens["apply-failed"]?.foot).toContain("Back to review");
     });
 
-    describe("the output panel", () => {
+    describe("the done screen and the output panel", () => {
+      const done = (name: string) => f.done[name] as DoneFact;
+
+      it("the summary callout has the same gap below it as between rows", () => {
+        const two = done("two");
+
+        expect(two.rowCount).toBeGreaterThanOrEqual(2);
+        expect(two.calloutAboveRows).toBe(true);
+        expect(Math.abs(two.gapBelowCallout - two.gapBetweenRows)).toBeLessThan(
+          1,
+        );
+      });
+
+      it("the done screen shows the still-to-fix callout ", () => {
+        const two = done("two");
+
+        expect(two.heading).toBe("Setup is done");
+        expect(two.lead).toBe("2 things still to fix");
+        expect(two.calloutClass).toContain("warn");
+        expect(two.calloutClass).not.toContain("ok");
+        expect(two.blocks.map((b) => b.bold)).toEqual([
+          "Settings moved to new places 1",
+          "Two test suites share a name",
+        ]);
+        expect(two.blocks.map((b) => b.button)).toEqual([null, null]);
+        expect(two.blocks.map((b) => b.orRun)).toEqual([true, false]);
+        expect(two.blocks[0]?.text).toContain("Run the move 1");
+        expect(two.lastLine).toBe("The changes are live in this window.");
+      });
+
+      it("a fix whose text is its command shows the command once", () => {
+        expect(f.done.sameText.mentions).toBe(1);
+        expect(f.done.sameText.blocks[0]?.orRun).toBe(true);
+      });
+
+      it("an all-clear apply shows the green callout", () => {
+        const clean = done("clean");
+
+        expect(clean.calloutClass).toContain("ok");
+        expect(clean.lead).toBe(
+          "Everything is set up. Doctor finds no problems.",
+        );
+        expect(f.screens["apply-done"]?.text).toContain(
+          "Everything is set up. Doctor finds no problems.",
+        );
+      });
+
       it("the output panel is closed on a successful row and open on a failed one", () => {
         const first = f.done.panels[0] as CardFact;
         const panel = first.panel as PanelFact;

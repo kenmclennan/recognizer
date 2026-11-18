@@ -19,6 +19,7 @@ import {
   lineCount,
   linesLabel,
   pluginChecks,
+  problemKey,
   type Row,
   SETUP_STEPS,
   type SetupController,
@@ -369,7 +370,10 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     return box;
   }
 
-  function callout(kind: "" | "ok" | "bad", lines: (HTMLElement | string)[]) {
+  function callout(
+    kind: "" | "ok" | "warn" | "bad",
+    lines: (HTMLElement | string)[],
+  ) {
     const box = el("div", `sw-callout ${kind}`.trim());
 
     box.append(
@@ -1330,20 +1334,17 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     }
 
     const read = run.doctor?.status === "ok" ? run.doctor.report : null;
-    const remaining =
-      read === null
-        ? []
-        : read.areas
-            .flatMap((area) => area.problems)
-            .filter((one) => one.severity === "problem");
-    const clean = read !== null && read.problems === 0;
+    const latest = new Set(
+      (read?.areas.flatMap((area) => area.problems) ?? [])
+        .filter((one) => one.severity === "problem")
+        .map(problemKey),
+    );
+    const open = latest.size;
     const heading =
       run.state === "done"
-        ? clean
-          ? "Everything is up to date"
-          : read === null
-            ? "Updated"
-            : `Updated - ${read.problems} thing${read.problems === 1 ? "" : "s"} still to fix`
+        ? read === null
+          ? "Updated"
+          : "Setup is done"
         : run.state === "running"
           ? "Applying"
           : "Setup stopped";
@@ -1363,26 +1364,49 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
     body.append(headRow, bar);
 
     if (run.state === "done") {
+      const blocks =
+        read === null
+          ? []
+          : run.problems.map((one) => {
+              const block = el("div", "sw-problem");
+              const text = el("div", "sw-problem-text");
+
+              block.dataset.problem = problemKey(one);
+              text.append(el("div", "sw-what", one.title));
+
+              if (one.fix.text !== one.fix.command) {
+                text.append(el("div", "sw-why", one.fix.text));
+              }
+
+              if (one.fix.command !== null) {
+                const line = el("div", "sw-why", "Or run ");
+
+                line.append(el("code", "sw-mono", one.fix.command));
+                text.append(line);
+              }
+
+              block.append(text);
+
+              return block;
+            });
+
       body.append(
-        callout(
-          clean ? "ok" : "",
-          clean || read === null
-            ? [
-                el(
-                  "div",
-                  "sw-what",
-                  clean ? "Doctor finds no problems." : "Doctor could not run.",
-                ),
-                "The changes are live in this window.",
-              ]
-            : [
-                ...remaining.flatMap((one) => [
-                  el("div", "sw-what", one.title),
-                  el("div", "sw-why", one.fix.text),
-                ]),
-                "The changes are live in this window.",
-              ],
-        ),
+        read === null
+          ? callout("", [
+              el("div", "sw-what", "Doctor could not run."),
+              "The changes are live in this window.",
+            ])
+          : callout(open === 0 ? "ok" : "warn", [
+              el(
+                "div",
+                "sw-what",
+                open === 0
+                  ? "Everything is set up. Doctor finds no problems."
+                  : `${open} thing${open === 1 ? "" : "s"} still to fix`,
+              ),
+              ...blocks,
+              "The changes are live in this window.",
+            ]),
       );
     } else if (run.state === "failed" || run.state === "stopped") {
       const failed = run.rows.find((one) => one.state === "failed");

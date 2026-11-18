@@ -7,6 +7,7 @@ import {
   type PolicyCard,
   type Recommendation,
   type SetupChoices,
+  type SetupProblem,
   type Survey,
   type SurveyRunner,
   type TryEvent,
@@ -85,6 +86,7 @@ export type ApplyRun = {
   fill: number;
   checking: Timed;
   loading: Timed;
+  problems: SetupProblem[];
 };
 
 export type WizardState = {
@@ -110,6 +112,18 @@ export type SetupState =
   | { kind: "loading"; progress: LoadingState }
   | { kind: "unavailable"; reason: string }
   | WizardState;
+
+export function problemKey(problem: SetupProblem): string {
+  return `${problem.code}:${problem.subject}`;
+}
+
+export function problemsOf(read: DoctorRead | null): SetupProblem[] {
+  return read !== null && read.status === "ok"
+    ? read.report.areas
+        .flatMap((area) => area.problems)
+        .filter((one) => one.severity === "problem")
+    : [];
+}
 
 export function lineCount(text: string): number {
   if (text === "") {
@@ -699,6 +713,7 @@ export function createSetupController(deps: SetupDeps): SetupController {
             fill: fill(),
             checking,
             loading,
+            problems: [],
             ...patch,
           },
           at: SETUP_STEPS.length - 1,
@@ -779,7 +794,7 @@ export function createSetupController(deps: SetupDeps): SetupController {
           endedAt = now();
           deps.scanAfterApply?.();
           deps.onDoctor?.(doctor);
-          progress({ state: "done", doctor });
+          progress({ state: "done", doctor, problems: problemsOf(doctor) });
         } else {
           endedAt = now();
           progress({
