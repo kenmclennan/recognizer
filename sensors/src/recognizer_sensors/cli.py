@@ -6,6 +6,7 @@ from importlib.metadata import version
 from pathlib import Path
 
 from recognizer_sensors import events
+from recognizer_sensors.cache_ignore import ensure_cache_ignore
 from recognizer_sensors.findings import (
     build_document,
     build_overlay,
@@ -239,6 +240,9 @@ def main(argv: list[str] | None = None) -> int:
 
     sys.setrecursionlimit(RECURSION_LIMIT)
 
+    if sensor.runs_tests:
+        ensure_cache_ignore(args.repository)
+
     scans = read_scans(args.repository)
 
     modified = (
@@ -246,6 +250,9 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     def emit(outcome: Outcome, final: bool) -> None:
+        if outcome.documents or outcome.overlay is not None:
+            ensure_cache_ignore(args.repository)
+
         for path, document in outcome.documents:
             path.parent.mkdir(parents=True, exist_ok=True)
             write_atomically(render(document), path)

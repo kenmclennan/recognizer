@@ -90,6 +90,8 @@ pub fn write_structure(folder: &Path, document: Option<&str>) -> Result<(), Stri
     match document {
         Some(text) => {
             fs::create_dir_all(folder.join(FINDINGS)).map_err(|error| error.to_string())?;
+            crate::fs_safe::ensure_cache_ignore(&folder.join(FINDINGS))
+                .map_err(|error| error.to_string())?;
 
             if fs::symlink_metadata(&target).is_ok_and(|m| m.file_type().is_symlink()) {
                 fs::remove_file(&target).map_err(|error| error.to_string())?;
@@ -361,6 +363,18 @@ mod tests {
         write_structure(dir.path(), Some("{\"a\":2}")).unwrap();
 
         assert!(snapshot_changed(&before, &snapshot(dir.path())));
+    }
+
+    #[test]
+    fn write_structure_adds_the_cache_gitignore() {
+        let dir = TempDir::new().unwrap();
+
+        write_structure(dir.path(), Some("{\"a\":1}")).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(dir.path().join(".recognizer/cache/.gitignore")).unwrap(),
+            "*\n"
+        );
     }
 
     #[test]

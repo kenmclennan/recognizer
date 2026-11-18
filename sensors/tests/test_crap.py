@@ -845,6 +845,7 @@ def test_only_the_findings_and_the_overlay_are_written(sample, tmp_path):
     changed = {k for k in after if before.get(k) != after[k]}
 
     assert changed == {
+        ".recognizer/cache/.gitignore",
         ".recognizer/cache/overlays/crap.json",
         ".recognizer/cache/coverage/last-run.log",
         ".recognizer/cache/suites/crap.json",
