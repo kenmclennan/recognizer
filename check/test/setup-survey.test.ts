@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import {
+  cpSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -589,5 +590,81 @@ describe("setup survey upgrade items", () => {
     const { title: _title, ...untitled } = item;
 
     expect(validate({ ...loom, upgrade: [untitled] })).toBe(false);
+  });
+});
+
+function suiteYaml(name: string, directory: string): string {
+  return `  - name: ${name}\n    language: typescript\n    directory: ${directory}\n    command: npx vitest run\n    coverage:\n      path: c/lcov.info\n      format: lcov\n`;
+}
+
+function copySaga(config: string | null): string {
+  const directory = makeTempDir("recognizer-setup-saga-");
+
+  cpSync(join(REPO, "fixtures/setup-saga"), directory, { recursive: true });
+
+  if (config !== null) {
+    mkdirSync(join(directory, ".recognizer"), { recursive: true });
+    writeFileSync(join(directory, ".recognizer/config.yaml"), config);
+  }
+
+  return directory;
+}
+
+describe("setup survey suites", () => {
+  it("suites follow the config and the repository", async () => {
+    const directory = copySaga(
+      `sensors:\n  crap:\n    command: [recognizer-sense-crap]\ntests:\n${suiteYaml("server", "server")}${suiteYaml("legacy", "legacy")}`,
+    );
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.suites).toHaveLength(2);
+    expect(survey.suites.map((one) => [one.name, one.mark])).toEqual([
+      ["legacy", "gone"],
+      ["server", "set-up"],
+    ]);
+    expect(survey.runners.map((one) => one.name)).toEqual(["web"]);
+    expect(survey.configured).toBe(true);
+    expect(validate(survey), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it("a suite is gone when its folder holds no file", async () => {
+    const directory = copySaga(
+      `tests:\n${suiteYaml("root", ".")}${suiteYaml("empty", "nowhere")}`,
+    );
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.suites).toHaveLength(2);
+    expect(survey.suites.find((one) => one.name === "root")?.mark).toBe(
+      "set-up",
+    );
+    expect(survey.suites.find((one) => one.name === "empty")?.mark).toBe(
+      "gone",
+    );
+  });
+
+  it("a hand-written suite whose folder exists stays set up", async () => {
+    const directory = copySaga(`tests:\n${suiteYaml("hand", "web")}`);
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.suites).toHaveLength(1);
+    expect(survey.suites[0]?.mark).toBe("set-up");
+  });
+
+  it("a moved folder leaves the old suite gone and names the new runner afresh", async () => {
+    const directory = copySaga(`tests:\n${suiteYaml("web", "old/web")}`);
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.suites.map((one) => [one.name, one.mark])).toEqual([
+      ["web", "gone"],
+    ]);
+    expect(survey.runners.map((one) => one.name)).toEqual(["server", "web-2"]);
+  });
+
+  it("without a config suites is empty", async () => {
+    const { survey } = await surveyOf([copySaga(null)]);
+
+    expect(survey.configured).toBe(false);
+    expect(survey.suites).toEqual([]);
+    expect(survey.runners.map((one) => one.name)).toEqual(["server", "web"]);
   });
 });

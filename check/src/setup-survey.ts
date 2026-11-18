@@ -84,6 +84,15 @@ export interface SurveyUpgrade {
   command: string;
 }
 
+export interface SurveySuite {
+  name: string;
+  language: string;
+  directory: string;
+  command: string;
+  env?: Record<string, string>;
+  mark: "set-up" | "gone";
+}
+
 export interface Survey {
   survey_version: 1;
   version: string;
@@ -95,6 +104,7 @@ export interface Survey {
   runners: SurveyRunner[];
   tools: SurveyTool[];
   upgrade: SurveyUpgrade[];
+  suites: SurveySuite[];
 }
 
 export interface SurveyOptions {
@@ -614,19 +624,29 @@ function pythonRunners(io: Io, root: string, files: string[]): Found[] {
     .sort((a, b) => compareText(a.directory, b.directory));
 }
 
-function nameRunners(found: Found[], root: string): SurveyRunner[] {
+function nameRunners(
+  found: Found[],
+  root: string,
+  taken: Set<string> = new Set(),
+): SurveyRunner[] {
   const used = new Map<string, number>();
+  const names = new Set(taken);
 
   return found.map((one) => {
     const base = basename(one.directory === "." ? root : one.directory).replace(
       /^src-/,
       "",
     );
-    const seen = (used.get(base) ?? 0) + 1;
+    let seen = (used.get(base) ?? 0) + 1;
+    let name = seen === 1 ? base : `${base}-${seen}`;
+
+    while (names.has(name)) {
+      seen += 1;
+      name = `${base}-${seen}`;
+    }
 
     used.set(base, seen);
-
-    const name = seen === 1 ? base : `${base}-${seen}`;
+    names.add(name);
 
     return {
       name,
@@ -1000,6 +1020,57 @@ function upgradeOf(io: Io, root: string): SurveyUpgrade[] {
     }));
 }
 
+function suitesOf(
+  io: Io,
+  document: Record<string, unknown>,
+  files: string[],
+  configured: boolean,
+): SurveySuite[] {
+  const list = document.tests;
+
+  if (!configured || !Array.isArray(list)) {
+    return [];
+  }
+
+  const text = (value: unknown) => (typeof value === "string" ? value : "");
+
+  return list
+    .filter(
+      (entry): entry is Record<string, unknown> =>
+        typeof entry === "object" && entry !== null && !Array.isArray(entry),
+    )
+    .map((entry) => {
+      const directory = posix.normalize(text(entry.directory) || ".");
+      const root = directory === "." || directory === "./";
+      const holds =
+        root ||
+        files.some(
+          (file) => file === directory || file.startsWith(`${directory}/`),
+        );
+      const env =
+        typeof entry.env === "object" &&
+        entry.env !== null &&
+        !Array.isArray(entry.env)
+          ? Object.fromEntries(
+              Object.entries(entry.env).filter(
+                (pair): pair is [string, string] => typeof pair[1] === "string",
+              ),
+            )
+          : undefined;
+
+      return {
+        name: text(entry.name),
+        language: text(entry.language),
+        directory: text(entry.directory) || ".",
+        command: text(entry.command),
+        ...(env === undefined || Object.keys(env).length === 0 ? {} : { env }),
+        mark: holds ? ("set-up" as const) : ("gone" as const),
+      };
+    })
+    .filter((suite) => suite.name !== "")
+    .sort((a, b) => compareText(a.name, b.name));
+}
+
 export function surveyRepository(
   io: Io,
   given: string,
@@ -1023,24 +1094,37 @@ export function surveyRepository(
     options.scan !== undefined
       ? [readScanFile(io, options.scan)]
       : cachedScans(io, root, rules);
+  const configured = io.exists(configFile(root));
+  const suites = suitesOf(io, document, files, configured);
   const found = [
     ...typescriptRunners(io, root, files),
     ...rustRunners(io, root, files),
     ...pythonRunners(io, root, files),
-  ];
-  const runners = nameRunners(found, root);
+  ].filter(
+    (one) =>
+      !suites.some(
+        (suite) =>
+          suite.directory === one.directory && suite.language === one.language,
+      ),
+  );
+  const runners = nameRunners(
+    found,
+    root,
+    new Set(suites.map((suite) => suite.name)),
+  );
 
   return {
     survey_version: SURVEY_VERSION,
     version: packageVersion(),
     repository: root,
-    configured: io.exists(configFile(root)),
+    configured,
     files: scans === null ? null : filesOf(scans),
     unread: unreadOf(files, rules),
     checks: checksOf(io, document),
     runners,
     tools: toolsOf(io, root, runners, files),
     upgrade: upgradeOf(io, root),
+    suites,
   };
 }
 

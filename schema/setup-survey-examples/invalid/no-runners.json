@@ -129,5 +129,6 @@
       "cwd": "."
     }
   ],
-  "upgrade": []
+  "upgrade": [],
+  "suites": []
 }

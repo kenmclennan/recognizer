@@ -14,7 +14,8 @@
     "checks",
     "runners",
     "tools",
-    "upgrade"
+    "upgrade",
+    "suites"
   ],
   "properties": {
     "survey_version": { "const": 1 },
@@ -156,6 +157,25 @@
           "title": { "type": "string", "minLength": 1 },
           "line": { "type": "string" },
           "command": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "suites": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "language", "directory", "command", "mark"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "language": { "type": "string" },
+          "directory": { "type": "string" },
+          "command": { "type": "string" },
+          "env": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "mark": { "enum": ["set-up", "gone"] }
         }
       }
     }

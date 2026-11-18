@@ -290,6 +290,7 @@ export type {
   SurveyLanguage,
   SurveyLimit,
   SurveyRunner,
+  SurveySuite,
   SurveyTool,
   SurveyUnread,
   SurveyUpgrade,
