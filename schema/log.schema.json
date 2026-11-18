@@ -81,6 +81,7 @@
           "phase": {
             "enum": [
               "extract",
+              "structure",
               "describe",
               "measure",
               "sense"

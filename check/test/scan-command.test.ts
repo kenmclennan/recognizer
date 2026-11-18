@@ -756,9 +756,9 @@ describe("recognizer scan: phases", () => {
     const { fake } = await scan(setup());
 
     expect(fake.files.has(STRUCTURE)).toBe(true);
-    expect(records(fake)[0].phases).toEqual([
-      { phase: "extract", entries: [] },
-    ]);
+    expect(
+      records(fake)[0].phases.map((one: { phase: string }) => one.phase),
+    ).toEqual(["extract", "structure"]);
   });
 
   it("with --skip-analysis a scan still extracts, writes no structure findings, keeps an existing structure.json and records no structure_ms", async () => {
@@ -885,11 +885,12 @@ describe("recognizer scan: phases", () => {
     expect(record.outcome).toBe("ok");
     expect(record.phases.map((one: { phase: string }) => one.phase)).toEqual([
       "extract",
+      "structure",
       "describe",
       "sense",
     ]);
     expect(
-      record.phases[1].entries.map((one: { name: string }) => one.name),
+      record.phases[2].entries.map((one: { name: string }) => one.name),
     ).toEqual(["m0.py", "m1.py"]);
     expect(records(fake)).toHaveLength(1);
   });
@@ -901,7 +902,9 @@ describe("recognizer scan: phases", () => {
 
     expect(out).not.toContain("describe");
     expect(out).not.toContain("sense");
-    expect(records(fake)[0].phases).toHaveLength(1);
+    expect(
+      records(fake)[0].phases.map((one: { phase: string }) => one.phase),
+    ).toEqual(["extract", "structure"]);
   });
 
   it("describes everything with --describe=all and only stale lines without", async () => {
@@ -1489,7 +1492,7 @@ describe("recognizer scan: phases", () => {
     expect(out).not.toContain("measure");
     expect(
       records(fake)[0].phases.map((one: { phase: string }) => one.phase),
-    ).toEqual(["extract", "describe", "sense"]);
+    ).toEqual(["extract", "structure", "describe", "sense"]);
   });
 
   it("is exit 2 for --measure as an unknown option, running nothing", async () => {
@@ -1916,6 +1919,31 @@ describe("recognizer scan: phases", () => {
 
       expect(typeof records(ran.fake)[0].structure_ms).toBe("number");
       expect(records(off.fake)[0]).not.toHaveProperty("structure_ms");
+    });
+
+    it("records a structure phase that succeeded when structure ran", async () => {
+      const { fake } = await scan(setup());
+      const structure = phaseOf(fake, "structure");
+
+      expect(structure.entries).toHaveLength(1);
+      expect(structure.entries[0].outcome).toBe("ok");
+      expect(structure.entries[0]).not.toHaveProperty("reason");
+      expect(records(fake)[0].outcome).toBe("ok");
+    });
+
+    it("records a failed structure phase with its error, a failed outcome and exit 1 when the policy holds a retired key", async () => {
+      const { fake, code, err } = await scan(
+        setup({}, { [`${ROOT}/.recognizer/policy.yaml`]: "components: {}\n" }),
+      );
+      const record = records(fake)[0];
+      const structure = phaseOf(fake, "structure");
+
+      expect(code).toBe(1);
+      expect(err).toContain("failed structure: policy:");
+      expect(structure.entries[0].outcome).toBe("failed");
+      expect(structure.entries[0].reason).toContain("is retired");
+      expect(record.outcome).toBe("failed");
+      expect(record.exit).toBe(1);
     });
 
     it("records the sense phase duration and a module count on each sense entry", async () => {

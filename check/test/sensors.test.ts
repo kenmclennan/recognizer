@@ -1265,10 +1265,11 @@ describe("scan --sense leaves a running record while it works", () => {
     });
     expect(record.phases.map((one: { phase: string }) => one.phase)).toEqual([
       "extract",
+      "structure",
       "sense",
     ]);
     expect(
-      record.phases[1].entries.map((one: { name: string }) => one.name),
+      record.phases[2].entries.map((one: { name: string }) => one.name),
     ).toEqual(["first"]);
 
     const listed = await run(["log", "--repository", ROOT], fake.io);
