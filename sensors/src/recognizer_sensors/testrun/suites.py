@@ -15,9 +15,11 @@ from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import Refusal, SettingsError, diagnose, relative_path
 from recognizer_sensors.testrun.failures import crap_tests_failed, failing_names, suite_failed
 from recognizer_sensors.testrun.reports import (
+    COVERAGE_CACHE,
     LOG,
     Source,
     covers_nothing,
+    folder_of,
     read_source,
 )
 
@@ -199,20 +201,11 @@ def source_of(suite: Suite) -> Source:
     return Source(report_pattern(suite), suite.coverage_format, directory_of(suite), suite.name)
 
 
-COVERAGE_CACHE = ".recognizer/cache/coverage"
-
 PYCACHE_CACHE = ".recognizer/cache/pycache"
-
-SLUG_UNSAFE = re.compile(r"[^A-Za-z0-9._-]")
 
 
 def suite_folder(suite: Suite) -> str:
-    slug = SLUG_UNSAFE.sub("-", suite.name)
-
-    if slug.startswith("."):
-        slug = f"-{slug[1:]}"
-
-    return f"{COVERAGE_CACHE}/{slug}"
+    return folder_of(suite.name)
 
 
 def suite_environment(repository: Path, suite: Suite) -> dict[str, str]:

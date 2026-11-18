@@ -145,6 +145,34 @@ def test_a_stale_report_is_not_read_when_the_suite_writes_none(tmp_path):
     assert results["api"]["status"] == "failed"
 
 
+def test_an_old_report_in_another_suites_cache_folder_is_not_read(tmp_path):
+    root = committed(tmp_path, {"app/m.py": BODY})
+    old = root / CACHE / "web"
+    old.mkdir(parents=True)
+    (old / "lcov.info").write_text(LCOV_TEXT)
+    other = suite(coverage={"path": f"{CACHE}/web/lcov.info", "format": "lcov"})
+    results: dict = {}
+
+    coverage, diagnosis = collect_suites(
+        root, read_scans(root), parse_suites([other]), results=results
+    )
+
+    assert coverage == {}
+    assert "left no coverage report at" in diagnosis["line"]
+    assert results["api"]["status"] == "failed"
+
+
+def test_a_report_the_run_wrote_in_the_suites_own_cache_folder_is_read(tmp_path):
+    root = committed(tmp_path, {"app/m.py": BODY})
+    writer = suite(
+        command=f"printf 'SF:app/m.py\\nDA:1,1\\nend_of_record\\n' > {CACHE}/api/lcov.info"
+    )
+
+    coverage, _ = collect_suites(root, read_scans(root), parse_suites([writer]))
+
+    assert coverage["app/m.py"]
+
+
 def python_fixture(tmp_path):
     return committed(
         tmp_path,
