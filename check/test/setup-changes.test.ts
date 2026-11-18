@@ -1,4 +1,4 @@
-import { cpSync, readFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../scripts/pool-scale.mjs";
@@ -57,13 +57,13 @@ describe("buildChanges", () => {
     expect(titles(all)).toEqual([
       "analysis-long_function",
       "analysis-pair_min_lines",
+      "plugin-crap",
+      "plugin-mutation",
       "tool-@vitest/coverage-v8",
       "tool-cargo-llvm-cov",
       "tests-engine",
       "tests-app",
       "tests-tauri",
-      "plugin-crap",
-      "plugin-mutation",
       "policy-1",
       "policy-2",
       "policy-3",
@@ -220,6 +220,99 @@ describe("buildChanges", () => {
       "recognizer config --unset sensors.z",
     ]);
   });
+
+  it("returns the groups in the order fixes, checks, tests, policy", () => {
+    const command = "recognizer config --unset sensors.x";
+    const withFix: Survey = {
+      ...survey,
+      upgrade: [
+        {
+          code: "config-retired",
+          subject: "x",
+          title: "t",
+          line: "l",
+          command,
+        },
+      ],
+    };
+    const groups = buildChanges(withFix, { ...all, upgrade: [command] })
+      .changes.map((change) => change.group)
+      .filter((group, at, list) => list.indexOf(group) === at);
+
+    expect(groups).toEqual(["fixes", "checks", "tests", "policy"]);
+  });
+});
+
+function configured(): Survey {
+  return {
+    ...survey,
+    configured: true,
+    runners: survey.runners.filter((runner) => runner.name !== "engine"),
+    suites: [
+      {
+        name: "engine",
+        language: "typescript",
+        directory: "engine",
+        command: "npx vitest run",
+        mark: "set-up",
+      },
+      {
+        name: "legacy",
+        language: "python",
+        directory: "legacy",
+        command: "pytest",
+        mark: "gone",
+      },
+    ],
+    checks: survey.checks.map((check) =>
+      check.id === "crap" ? { ...check, enabled: true, mark: "set-up" } : check,
+    ),
+  };
+}
+
+describe("rerun changes", () => {
+  it("set-up suites are never written and gone ones are removed on request", () => {
+    const from = configured();
+    const built = buildChanges(from, {
+      plugins: ["crap"],
+      runners: [{ name: "app" }],
+      tools: ["@vitest/coverage-v8"],
+      remove_suites: ["legacy", "engine", "nothing"],
+    });
+    const argvs = built.changes.flatMap((change) =>
+      change.steps.map((one) => one.argv.join(" ")),
+    );
+
+    expect(built.changes.map((change) => change.id)).toContain(
+      "suite-remove-legacy",
+    );
+    expect(built.changes.map((change) => change.id)).not.toContain(
+      "suite-remove-engine",
+    );
+    expect(built.changes.map((change) => change.id)).not.toContain(
+      "suite-remove-nothing",
+    );
+    expect(argvs).toContain("recognizer config --remove-section tests.legacy");
+    expect(argvs.some((line) => line.includes("tests.engine."))).toBe(false);
+    expect(argvs.some((line) => line.includes("tests.app."))).toBe(true);
+  });
+
+  it("plugins_off turns a set-up check off", () => {
+    const from = configured();
+    const built = buildChanges(from, {
+      plugins_off: ["crap", "mutation"],
+    });
+
+    expect(built.changes.map((change) => change.id)).toEqual([
+      "plugin-off-crap",
+    ]);
+    expect(built.changes[0]?.steps[0]?.argv).toEqual([
+      "recognizer",
+      "config",
+      "--remove-section",
+      "sensors.crap",
+    ]);
+  });
 });
 
 describe("the built commands", () => {
@@ -290,4 +383,112 @@ describe("upgrade changes", () => {
       },
     ]);
   });
+});
+
+describe("the removal commands against a real config", () => {
+  let directory: string;
+  let savedPath: string | undefined;
+
+  beforeEach(() => {
+    savedPath = process.env.PATH;
+    directory = makeTempDir("recognizer-setup-remove-");
+    mkdirSync(join(directory, ".recognizer"), { recursive: true });
+  });
+
+  afterEach(() => {
+    process.env.PATH = savedPath;
+  });
+
+  async function run(argv: string[]): Promise<void> {
+    const out = capture();
+    const command = COMMANDS.find((one) => one.name === argv[1]);
+    const status = await command?.run(
+      [...argv.slice(2), "--repository", directory],
+      out.io,
+    );
+
+    expect(status, `${argv.join(" ")}: ${out.err()}`).toBe(0);
+  }
+
+  function config(): string {
+    return readFileSync(join(directory, ".recognizer/config.yaml"), "utf8");
+  }
+
+  function suite(name: string): string {
+    return `  - name: ${name}\n    language: python\n    directory: .\n    command: pytest\n    coverage:\n      path: c.lcov\n      format: lcov\n`;
+  }
+
+  it(
+    "removes one suite and then the tests key",
+    async () => {
+      writeFileSync(
+        join(directory, ".recognizer/config.yaml"),
+        `tests:\n${suite("one")}${suite("two")}`,
+      );
+
+      const from: Survey = {
+        ...survey,
+        repository: directory,
+        suites: ["one", "two"].map((name) => ({
+          name,
+          language: "python",
+          directory: ".",
+          command: "pytest",
+          mark: "gone" as const,
+        })),
+      };
+      const built = buildChanges(from, { remove_suites: ["one", "two"] });
+
+      expect(built.changes).toHaveLength(2);
+
+      await run(built.changes[0]?.steps[0]?.argv ?? []);
+
+      expect(config()).toContain("name: two");
+      expect(config()).not.toContain("name: one");
+
+      await run(built.changes[1]?.steps[0]?.argv ?? []);
+
+      expect(config()).not.toContain("tests");
+    },
+    scaledTimeout(30_000),
+  );
+
+  it(
+    "turns a describer off and leaves no describer key",
+    async () => {
+      writeFileSync(
+        join(directory, ".recognizer/config.yaml"),
+        "describer:\n  command: [recognizer-describe-claude, run]\n  version: v1\n",
+      );
+
+      const from: Survey = {
+        ...survey,
+        repository: directory,
+        configured: true,
+        checks: [
+          ...survey.checks,
+          {
+            id: "claude",
+            display: "Claude",
+            description: "",
+            always_on: false,
+            enabled: true,
+            runs_tests: false,
+            limits: [],
+            mark: "set-up",
+          },
+        ],
+      };
+      const built = buildChanges(from, { plugins_off: ["claude"] });
+
+      expect(built.changes).toHaveLength(1);
+
+      for (const one of built.changes[0]?.steps ?? []) {
+        await run(one.argv);
+      }
+
+      expect(config()).not.toContain("describer");
+    },
+    scaledTimeout(30_000),
+  );
 });

@@ -636,7 +636,7 @@ export function unsetValue(
     if (
       map.items.length === 0 &&
       descent.holder !== null &&
-      inWarnings(steps, steps.length - 1)
+      (inWarnings(steps, steps.length - 1) || steps[0]?.name === "describer")
     ) {
       descent.holder.map.delete(descent.holder.name);
     }

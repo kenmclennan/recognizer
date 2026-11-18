@@ -275,6 +275,7 @@ export {
 export {
   type BuiltChanges,
   buildChanges,
+  type ChangeGroup,
   type ChangeStep,
   type DroppedRunner,
   type PlannedChange,
