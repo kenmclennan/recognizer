@@ -35,7 +35,7 @@
     {
       "id": "structure",
       "display": "Structure",
-      "description": "the modules, imports and policy rules of the repository, read from the scan",
+      "description": "the files, imports and policy rules of the repository, read from the scan",
       "always_on": true,
       "enabled": true,
       "runs_tests": false,
