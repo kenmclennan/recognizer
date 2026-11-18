@@ -72,7 +72,7 @@ describe("migrateView and viewNotes", () => {
       JSON.parse(readFileSync(join(EXAMPLES, "valid", name), "utf8")),
     );
 
-  it("turns a version 2 view note and module note into one notes entry", () => {
+  it("turns a version 2 view note and file note into one notes entry", () => {
     const migrated = migrateView(example("with-notes.json"));
 
     expect(migrated.schema_version).toBe(4);
@@ -87,7 +87,7 @@ describe("migrateView and viewNotes", () => {
     expect(migrated).not.toHaveProperty("module_notes");
   });
 
-  it("orders migrated module notes by path", () => {
+  it("orders migrated file notes by path", () => {
     const migrated = migrateView({
       schema_version: 2,
       description: "p",
@@ -138,7 +138,7 @@ describe("resolveView", () => {
     expect(resolved.unresolved).toEqual([]);
   });
 
-  it("puts every module under a folder rule's folder on the view", () => {
+  it("puts every file under a folder rule's folder on the view", () => {
     const resolved = resolve({
       kind: "rule",
       relation: "folder",
@@ -151,7 +151,7 @@ describe("resolveView", () => {
     );
   });
 
-  it("resolves a uses rule to what the module uses", () => {
+  it("resolves a uses rule to what the file uses", () => {
     expect(
       resolve({
         kind: "rule",
@@ -176,7 +176,7 @@ describe("resolveView", () => {
     ).toEqual(["shop/adapters/memory_store.py"]);
   });
 
-  it("removes left-out modules a rule put there", () => {
+  it("removes left-out files a rule put there", () => {
     expect(
       resolve(
         { kind: "rule", relation: "folder", of: "shop/domain" },
@@ -186,7 +186,7 @@ describe("resolveView", () => {
     ).toEqual(["shop/domain/customer.py", "shop/domain/order.py"]);
   });
 
-  it("keeps a picked module that is also left out", () => {
+  it("keeps a picked file that is also left out", () => {
     expect(
       resolve(
         { kind: "pick", module: "shop/domain/order.py" },
@@ -542,7 +542,7 @@ describe("plan views", () => {
     expect(serialiseView(validateView(parsed))).toBe(text);
   });
 
-  it("keeps the last proposed change on a module and warns", () => {
+  it("keeps the last proposed change on a file and warns", () => {
     const doubled = plan(
       [
         { module: ORDER, kind: "new" },
@@ -559,7 +559,7 @@ describe("plan views", () => {
     ]);
   });
 
-  it("puts a new module that is not in the scan on the plan and never stale", () => {
+  it("puts a new file that is not in the scan on the plan and never stale", () => {
     const resolved = resolveView(
       plan([{ module: NEW, kind: "new" }], pick(ORDER)),
       [scan],
@@ -570,7 +570,7 @@ describe("plan views", () => {
     expect(resolved.unresolved).toEqual([]);
   });
 
-  it("leaves exactly the changes module that is not in the scan unresolved", () => {
+  it("leaves exactly the changes file that is not in the scan unresolved", () => {
     const view = plan(
       [
         { module: NEW, kind: "new" },
@@ -589,7 +589,7 @@ describe("plan views", () => {
     ]);
   });
 
-  it("does not plan a changes or removed module that is not in the scan", () => {
+  it("does not plan a changes or removed file that is not in the scan", () => {
     const resolved = resolveView(
       plan([
         { module: "shop/gone.py", kind: "changes" },
@@ -601,7 +601,7 @@ describe("plan views", () => {
     expect(resolved.planned).toEqual([]);
   });
 
-  it("keeps a planned module off the view when a left-out step names it", () => {
+  it("keeps a planned file off the view when a left-out step names it", () => {
     const resolved = resolveView(
       plan([{ module: NEW, kind: "new" }], { kind: "left-out", module: NEW }),
       [scan],
@@ -630,7 +630,7 @@ describe("plan views", () => {
     expect(resolved.planned).toEqual(["shop/new/a.py", "shop/new/b.py"]);
   });
 
-  it("treats a new module that exists in the scan as an ordinary module", () => {
+  it("treats a new file that exists in the scan as an ordinary file", () => {
     const resolved = resolveView(
       plan([{ module: ORDER, kind: "new" }], pick(ORDER)),
       [scan],
@@ -640,11 +640,11 @@ describe("plan views", () => {
     expect(resolved.modules).toEqual([ORDER]);
   });
 
-  it("warns about a proposed change on a module that is not on the view", () => {
+  it("warns about a proposed change on a file that is not on the view", () => {
     const view = plan([{ module: ORDER, kind: "changes" }]);
 
     expect(proposedWarnings(view, resolveView(view, [scan]))).toEqual([
-      `proposed change on ${ORDER} is not drawn: the module is not on the view`,
+      `proposed change on ${ORDER} is not drawn: the file is not on the view`,
     ]);
   });
 });
@@ -681,7 +681,7 @@ describe("member entries in a plan", () => {
     expect(serialiseView(validateView(parsed))).toBe(serialiseView(example));
   });
 
-  it("keeps the last entry on one module and member and warns", () => {
+  it("keeps the last entry on one file and member and warns", () => {
     const doubled = plan(
       [
         { module: ORDER, member: "Order.total", kind: "new" },
@@ -737,7 +737,7 @@ describe("member entries in a plan", () => {
     ]);
   });
 
-  it("ignores a member entry on a planned or wholly removed module with a warning", () => {
+  it("ignores a member entry on a planned or wholly removed file with a warning", () => {
     const view = plan(
       [
         { module: "shop/application/discount.py", kind: "new" },
@@ -760,11 +760,11 @@ describe("member entries in a plan", () => {
     ]);
   });
 
-  it("warns about a member entry whose module is not on the view", () => {
+  it("warns about a member entry whose file is not on the view", () => {
     const view = plan([{ module: ORDER, member: "Order", kind: "changes" }]);
 
     expect(resolveMembers(view, [scan]).warnings).toEqual([
-      `proposed change on ${ORDER}#Order is not drawn: the module is not on the view`,
+      `proposed change on ${ORDER}#Order is not drawn: the file is not on the view`,
     ]);
   });
 });
