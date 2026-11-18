@@ -37,27 +37,27 @@ function ask(
 }
 
 describe("planDrive applies", () => {
-  it("add opens only the modules not yet on the canvas", () => {
+  it("add opens only the files not yet on the canvas", () => {
     expect(ask("add", ["app/a.py", "app/b.py", "app/c.py"])).toEqual({
       apply: [{ kind: "open", ids: ["app/b.py", "app/c.py"] }],
-      summary: "added 2 modules",
+      summary: "added 2 files",
     });
     expect(ask("add", ["app/b.py"])).toMatchObject({
-      summary: "added 1 module",
+      summary: "added 1 file",
     });
   });
 
-  it("add of modules already on the canvas changes nothing", () => {
+  it("add of files already on the canvas changes nothing", () => {
     expect(ask("add", ["app/a.py"])).toEqual({
       apply: [],
       summary: "nothing changed",
     });
   });
 
-  it("remove closes the modules that are on the canvas", () => {
+  it("remove closes the files that are on the canvas", () => {
     expect(ask("remove", ["app/a.py", "app/b.py"])).toEqual({
       apply: [{ kind: "close", ids: ["app/a.py"] }],
-      summary: "removed 1 module",
+      summary: "removed 1 file",
     });
   });
 
@@ -89,7 +89,7 @@ describe("planDrive applies", () => {
     });
   });
 
-  it("select prefers a module over a folder", () => {
+  it("select prefers a file over a folder", () => {
     expect(ask("select", ["app/a.py"])).toEqual({
       apply: [
         { kind: "select", selection: { kind: "module", id: "app/a.py" } },
@@ -121,7 +121,7 @@ describe("planDrive applies", () => {
 
   it.each([
     ["all", "cleared the canvas"],
-    ["modules", "cleared modules"],
+    ["modules", "cleared files"],
     ["folds", "cleared folds"],
     ["focus", "cleared focus"],
     ["selection", "cleared selection"],
@@ -135,11 +135,11 @@ describe("planDrive applies", () => {
 
 describe("planDrive refuses", () => {
   it.each([
-    ["add", ["app/zzz.py"], "no module app/zzz.py in the scan"],
-    ["remove", ["app/zzz.py"], "no module app/zzz.py in the scan"],
-    ["fold", ["nowhere"], "no folder nowhere holds a module in the scan"],
-    ["focus", ["nowhere"], "no folder nowhere holds a module in the scan"],
-    ["select", ["zzz"], "no module or folder zzz in the scan"],
+    ["add", ["app/zzz.py"], "no file app/zzz.py in the scan"],
+    ["remove", ["app/zzz.py"], "no file app/zzz.py in the scan"],
+    ["fold", ["nowhere"], "no folder nowhere holds a file in the scan"],
+    ["focus", ["nowhere"], "no folder nowhere holds a file in the scan"],
+    ["select", ["zzz"], "no file or folder zzz in the scan"],
     ["open-view", ["nope"], "no saved view named nope"],
     [
       "clear",
@@ -162,7 +162,7 @@ describe("planDrive refuses", () => {
     ).toEqual({ refuse: "the trail is empty" });
   });
 
-  it("trail refuses a module that is not a direct neighbour", () => {
+  it("trail refuses a file that is not a direct neighbour", () => {
     expect(ask("trail", ["uses", "app/c.py"])).toEqual({
       refuse: "app/c.py is not a direct dependency of app/a.py",
     });
@@ -174,13 +174,13 @@ describe("planDrive refuses", () => {
   it("a mixed request refuses as a whole, naming the bad argument", () => {
     const plan = ask("add", ["app/b.py", "app/zzz.py", "app/c.py"]);
 
-    expect(plan).toEqual({ refuse: "no module app/zzz.py in the scan" });
+    expect(plan).toEqual({ refuse: "no file app/zzz.py in the scan" });
     expect("apply" in plan).toBe(false);
   });
 
   it("names the missing argument", () => {
     expect(ask("add", [])).toEqual({
-      refuse: "add needs at least one module path",
+      refuse: "add needs at least one file path",
     });
   });
 });

@@ -68,7 +68,7 @@ const PLAN_ROWS: { kind: string; label: string }[] = [
   { kind: "moves", label: "Moves" },
   { kind: "moves-and-changes", label: "Moves + changes" },
   { kind: "removed", label: "Removed" },
-  { kind: "moved-from", label: "Where a moved module was" },
+  { kind: "moved-from", label: "Where a moved file was" },
 ];
 
 const PLAN_MEMBER_ROWS: { word: MemberMarkWord; label: string }[] = [

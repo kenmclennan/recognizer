@@ -569,7 +569,7 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
     expect(f.grouped.line).toBe("1 violation");
     expect(f.grouped.cards).toBe(1);
     expect(f.grouped.sentence).toBe(
-      "Application.kt imports 2 modules, which the policy forbids: nothing may match config/** -> adapter/**.",
+      "Application.kt imports 2 files, which the policy forbids: nothing may match config/** -> adapter/**.",
     );
     expect(f.grouped.rows).toEqual([
       "Application.ktconfigAdd to view",
@@ -685,7 +685,7 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
     ]);
   });
 
-  it("lists an off-view module with Add to view, which adds that one box and nothing else", () => {
+  it("lists an off-view file with Add to view, which adds that one box and nothing else", () => {
     expect(f.offView.adds).toEqual(["Add to view"]);
     expect(f.offView.rows).toEqual([
       "a.pyapp",
@@ -705,7 +705,7 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
     });
   });
 
-  it("shows Add to view only on the rows whose module is absent", () => {
+  it("shows Add to view only on the rows whose file is absent", () => {
     expect(f.mixed).toEqual([
       { text: "a.pyapp", add: false },
       { text: "b.pyappAdd to view", add: true },
@@ -753,7 +753,7 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
     expect(f.only.off).toEqual(f.only.before);
   });
 
-  it("offers the canvas and whole-repository switch on an Untitled canvas and scopes by its open modules", () => {
+  it("offers the canvas and whole-repository switch on an Untitled canvas and scopes by its open files", () => {
     expect(f.noView.shown).toBe(true);
     expect(f.noView.caption).toBe("This canvas, 0");
     expect(f.noView.opened).toBeGreaterThan(0);
@@ -775,11 +775,11 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
   });
 
   it("says why findings are hidden with a link that starts the same run as the primary button; nothing when all are current", () => {
-    expect(f.stale.text).toBe("Findings for 1 changed module is hidden.");
+    expect(f.stale.text).toBe("Findings for 1 changed file is hidden.");
     expect(f.stale.link).toBe("Update them");
     expect(f.staleClick).toEqual({
       ran: 1,
-      label: "Update 3 modules",
+      label: "Update 3 files",
       findings: true,
     });
     expect(f.fresh.shown).toBe(false);

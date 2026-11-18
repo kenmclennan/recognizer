@@ -114,7 +114,7 @@ export function stateText(state: ResultState, now: number): StateText {
     case "out-of-date":
       return {
         icon: "circle-alert",
-        text: `${plural(state.modules.length, "module")} out of date`,
+        text: `${plural(state.modules.length, "file")} out of date`,
       };
     case "never-run":
       return { icon: "circle-dashed", text: "never run" };
@@ -435,7 +435,7 @@ function changedList(ids: string[]): string {
 }
 
 function unitOf(key: string): string {
-  return key === DESCRIBE_KEY ? "modules" : "functions";
+  return key === DESCRIBE_KEY ? "files" : "functions";
 }
 
 function summarize(
@@ -471,7 +471,7 @@ function summarize(
         shape: "running",
         tone: "run",
         icon: "loader",
-        head: `Running ${names} on ${plural(modules, "module")}`,
+        head: `Running ${names} on ${plural(modules, "file")}`,
         line: `${count(done)} of ${count(total)} ${unitOf(counted.key)}.${tail}`,
         bar: { done, total },
       };
@@ -481,7 +481,7 @@ function summarize(
       shape: "running",
       tone: "run",
       icon: "loader",
-      head: `Running ${names} on ${plural(modules, "module")}`,
+      head: `Running ${names} on ${plural(modules, "file")}`,
       line: `Working on it.${tail}`,
       bar: null,
     };
@@ -494,7 +494,7 @@ function summarize(
       shape: "running",
       tone: "run",
       icon: "loader",
-      head: `Updating ${plural(modules, "module")}`,
+      head: `Updating ${plural(modules, "file")}`,
       line: "Working on it.",
       bar: null,
     };
@@ -560,7 +560,7 @@ function summarize(
       shape: "changed",
       tone: "warn",
       icon: "circle-alert",
-      head: `${plural(changed.length, "module")} changed since ${changed.length === 1 ? "it was" : "they were"} scanned`,
+      head: `${plural(changed.length, "file")} changed since ${changed.length === 1 ? "it was" : "they were"} scanned`,
       line: `${changed.length === 1 ? "Its" : "Their"} bars, descriptions and findings are hidden until updated. ${changedList(changed)}.${behindSentence}${noResultSentence}`,
       bar: null,
     };
@@ -576,7 +576,7 @@ function summarize(
       head: lagging
         .map(({ name, state }) =>
           state.kind === "out-of-date"
-            ? `${name} is out of date on ${plural(state.modules.length, "module")}`
+            ? `${name} is out of date on ${plural(state.modules.length, "file")}`
             : name,
         )
         .join("; "),
@@ -592,7 +592,7 @@ function summarize(
     tone: "ok",
     icon: "circle-check",
     head: `Everything on ${whole ? "the repository" : "this canvas"} is current`,
-    line: `Scanned and measured since the last change to ${scopeCount === 1 ? "this module" : `these ${scopeCount} modules`}.${noResultSentence}`,
+    line: `Scanned and measured since the last change to ${scopeCount === 1 ? "this file" : `these ${scopeCount} files`}.${noResultSentence}`,
     bar: null,
   };
 }
@@ -617,7 +617,7 @@ function actionOf(
   if (rescan) {
     return {
       primary: {
-        label: `Rescan ${plural(scopeCount, "module")}`,
+        label: `Rescan ${plural(scopeCount, "file")}`,
         disabled: false,
       },
       mode,
@@ -627,7 +627,7 @@ function actionOf(
   if (update.length > 0) {
     return {
       primary: {
-        label: `Update ${plural(update.length, "module")}`,
+        label: `Update ${plural(update.length, "file")}`,
         disabled: false,
       },
       mode,
@@ -683,7 +683,7 @@ export function findingsActionOf(
 }
 
 export function hiddenText(count: number, whole: boolean): string {
-  return `Findings for ${plural(count, "changed module")} ${count === 1 ? "is" : "are"} hidden${whole ? "" : " on this canvas"}.`;
+  return `Findings for ${plural(count, "changed file")} ${count === 1 ? "is" : "are"} hidden${whole ? "" : " on this canvas"}.`;
 }
 
 function findingsLine(

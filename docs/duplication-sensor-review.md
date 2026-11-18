@@ -6,7 +6,7 @@ An investigation of the duplication sensor's method on lightcycle, per REC-182. 
 
 ## Target and baseline
 
-The target is lightcycle at commit `c1933e0ed5c9c7bd1329ec232078d708b8e6607a`, checked out as a clean `git worktree add` outside the lightcycle checkout, scanned with `recognizer scan --extract` (Python: 429 modules), then `recognizer-sensors duplication` at the defaults (threshold 0.82, min_lines 4, min_nodes 20).
+The target is lightcycle at commit `c1933e0ed5c9c7bd1329ec232078d708b8e6607a`, checked out as a clean `git worktree add` outside the lightcycle checkout, scanned with `recognizer scan --extract` (Python: 429 files), then `recognizer-sensors duplication` at the defaults (threshold 0.82, min_lines 4, min_nodes 20).
 
 The baseline run produced **533 findings**, which does not equal the live file's 537. The live file was made from a working tree with untracked files (`modified: true`); the clean checkout lacks four findings from them. Every number below is from the clean checkout. Lightcycle exercises Python only, so steps 1 to 4 say nothing about TypeScript, Kotlin or Rust; the corpus covers those.
 
@@ -95,7 +95,7 @@ The two detectors barely agree, because they answer different questions. jscpd m
 
 ### Clones with no finding (first ten by file path then start line)
 
-1. `breaker.py` 33-41 and `memory_gate_status.py` 34-42 - adapter classes delegating `load` and `save` to module functions; real boilerplate, but each method is two lines, under `min_lines`.
+1. `breaker.py` 33-41 and `memory_gate_status.py` 34-42 - adapter classes delegating `load` and `save` to module-level functions; real boilerplate, but each method is two lines, under `min_lines`.
 2. `config_reload_status.py` 34-42 and `memory_gate_status.py` 34-42 - same boilerplate.
 3. `github.py` 465-473 and 50-58 - the run, check return code, parse JSON tail inside two longer functions whose whole-function similarity is under 0.82; a real partial copy the sensor cannot see.
 4. `github.py` 549-559 and 519-529 - two branch-protection probes sharing their first eleven lines; a real partial copy.

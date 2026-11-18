@@ -1123,7 +1123,7 @@ function dependencyRows(
     {
       kind: "filter",
       value: inputs.filter,
-      placeholder: `Filter ${total} modules`,
+      placeholder: `Filter ${total} files`,
     },
   ];
 
@@ -1181,7 +1181,7 @@ function foldersGroups(folder: string, inputs: InspectorInputs): Row[] {
     .flatMap((id) => inputs.findingRows(id))
     .filter((row, at, all) => all.findIndex((one) => one.id === row.id) === at);
   const groups = groupRows(rows, inputs);
-  const note = grey ? "Some modules are not measured" : "No findings";
+  const note = grey ? "Some files are not measured" : "No findings";
 
   if (groups.length === 0) {
     return [{ kind: "note", text: note }];

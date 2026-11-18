@@ -2284,7 +2284,7 @@ export function showExplorer(
       case "ok": {
         const extra = [
           ...(info.unmatched > 0
-            ? [`${info.unmatched} changed files matched no module`]
+            ? [`${info.unmatched} changed files matched no file`]
             : []),
           ...(info.headUnreadable === undefined
             ? []
@@ -2293,7 +2293,7 @@ export function showExplorer(
               ]),
           ...(info.baseUnreadable === undefined
             ? []
-            : [`removed modules could not be marked: ${info.baseUnreadable}`]),
+            : [`removed files could not be marked: ${info.baseUnreadable}`]),
         ];
 
         return ` · diffed against ${info.range} ${ageText(info.at, Date.now())}${
@@ -4700,7 +4700,7 @@ export function showExplorer(
     const notes = syncNotes();
 
     onCount(
-      `${onCanvasCount().open} of ${onCanvasCount().total} modules on the canvas${changeFooter()}`,
+      `${onCanvasCount().open} of ${onCanvasCount().total} files on the canvas${changeFooter()}`,
     );
 
     const selection = state.selection();
@@ -4789,11 +4789,11 @@ export function showExplorer(
 
   function findingsEmpty(inputs: ReturnType<typeof findingsInputs>) {
     return inputs.everyChanged
-      ? "Every module on this canvas changed, so there is nothing current to show."
+      ? "Every file on this canvas changed, so there is nothing current to show."
       : allFindings.length === 0
         ? "No findings for this scan."
         : inputs.shownFindings.length === 0
-          ? "No findings on this canvas's modules."
+          ? "No findings on this canvas's files."
           : null;
   }
 
@@ -5189,7 +5189,7 @@ export function showExplorer(
     if (gone > 0) {
       post({
         kind: "info",
-        text: `Rescanned: ${gone} ${gone === 1 ? "module" : "modules"} on the canvas ${gone === 1 ? "is" : "are"} gone`,
+        text: `Rescanned: ${gone} ${gone === 1 ? "file" : "files"} on the canvas ${gone === 1 ? "is" : "are"} gone`,
       });
     }
   }

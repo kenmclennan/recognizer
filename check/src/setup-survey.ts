@@ -1033,7 +1033,7 @@ function readScanFile(io: Io, file: string): RecordedScan {
 function filesOf(scans: RecordedScan[]): SurveyLanguage[] {
   return scans
     .map((scan) => {
-      const paths = scan.files.map((file) => file.path);
+      const paths = scan.modules.map((module) => module.id);
 
       return {
         language: scanLanguage(scan),

@@ -351,7 +351,7 @@ describe.skipIf(webkit === undefined)("the picker as inspector tabs", () => {
     ]);
   });
 
-  it("has no legend row, no title attribute and no row expansion, and one module tip on hover", () => {
+  it("has no legend row, no title attribute and no row expansion, and one file tip on hover", () => {
     expect(f.panelRowHead).toEqual({
       legends: 0,
       titles: 0,
@@ -361,16 +361,16 @@ describe.skipIf(webkit === undefined)("the picker as inspector tabs", () => {
   });
 
   it("clicking an eye in a panel toggles presence without selecting or centring", () => {
-    expect(f.eyeInPanel.count).toBe("3 of 5 modules on the canvas");
+    expect(f.eyeInPanel.count).toBe("3 of 5 files on the canvas");
     expect(f.eyeInPanel.state).toBe("true");
     expect(f.eyeInPanel.tree).toBe("true");
     expect(f.eyeInPanel.selected).toEqual(f.eyeInPanel.hubSelected);
     expect(f.eyeInPanel.hubMoved).toBeLessThan(1);
-    expect(f.eyeInPanelBack.count).toBe("2 of 5 modules on the canvas");
+    expect(f.eyeInPanelBack.count).toBe("2 of 5 files on the canvas");
     expect(f.eyeInPanelBack.selected).toEqual(f.eyeInPanel.hubSelected);
   });
 
-  it("hides the selected module from the tree's eye and clears the selection", () => {
+  it("hides the selected file from the tree's eye and clears the selection", () => {
     expect(f.hideSelectedBefore).toEqual(["app/hub.py"]);
     expect(f.hideSelected).toEqual({ selected: [], tree: "false", box: true });
   });
@@ -378,14 +378,14 @@ describe.skipIf(webkit === undefined)("the picker as inspector tabs", () => {
   it("Show all N puts a group on and does nothing when all are on", () => {
     expect(f.groupOn.selected).toEqual(f.eyeInPanel.hubSelected);
     expect(f.showAllAgain).toEqual({
-      count: "4 of 5 modules on the canvas",
+      count: "4 of 5 files on the canvas",
       layouts: 0,
     });
   });
 
   it("clicking an unchecked name puts it on, ticks it in the tree and Dependencies, centres on its box and keeps the selection", () => {
     expect(f.beforeC).toEqual({ tree: "false", pick: "false" });
-    expect(f.nameOnUnchecked.count).toBe("2 of 5 modules on the canvas");
+    expect(f.nameOnUnchecked.count).toBe("2 of 5 files on the canvas");
     expect(f.nameOnUnchecked.tree).toBe("true");
     expect(f.nameOnUnchecked.pick).toBe("true");
     expect(f.nameOnUnchecked.selected).toEqual(["app/hub.py"]);
@@ -393,7 +393,7 @@ describe.skipIf(webkit === undefined)("the picker as inspector tabs", () => {
   });
 
   it("clicking a checked name centres without changing the canvas", () => {
-    expect(f.nameOnChecked.count).toBe("2 of 5 modules on the canvas");
+    expect(f.nameOnChecked.count).toBe("2 of 5 files on the canvas");
     expect(f.nameOnChecked.layouts).toBe(0);
     expect(f.nameOnChecked.off).toBeLessThan(2);
   });
@@ -408,12 +408,12 @@ describe.skipIf(webkit === undefined)("the picker as inspector tabs", () => {
   });
 
   it("puts every file of a group on with one layout, and unticking takes one off", () => {
-    expect(f.groupOn.count).toBe("4 of 5 modules on the canvas");
+    expect(f.groupOn.count).toBe("4 of 5 files on the canvas");
     expect(f.groupOn.state).toBe("true");
     expect(f.groupOn.layouts).toBe(1);
     expect(f.groupOn.rows).toEqual(["true", "true", "true"]);
     expect(f.untick).toEqual({
-      count: "3 of 5 modules on the canvas",
+      count: "3 of 5 files on the canvas",
       tree: "false",
       group: "mixed",
     });
@@ -421,12 +421,12 @@ describe.skipIf(webkit === undefined)("the picker as inspector tabs", () => {
 
   it("completes a partial tree folder, takes a checked one off, and opens and closes it by name", () => {
     expect(f.treeFolderPartialClick).toEqual({
-      count: "4 of 5 modules on the canvas",
+      count: "4 of 5 files on the canvas",
       state: "true",
       layouts: 1,
     });
     expect(f.treeFolderCheckedClick).toEqual({
-      count: "1 of 5 modules on the canvas",
+      count: "1 of 5 files on the canvas",
       state: "false",
     });
     expect(f.folderNameToggled).toBe(true);
@@ -453,7 +453,7 @@ describe.skipIf(webkit === undefined)("the picker as inspector tabs", () => {
     expect(f.backspace.after).not.toBe(f.backspace.before);
   });
 
-  it("takes a selected module off from the bar's last button", () => {
+  it("takes a selected file off from the bar's last button", () => {
     expect(f.takeOffModule.after).not.toBe(f.takeOffModule.before);
     expect(f.takeOffModule.selected).toEqual([]);
   });

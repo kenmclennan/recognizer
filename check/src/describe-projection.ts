@@ -62,7 +62,7 @@ export function projectDescribe(
 
 export function projectionText(projection: DescribeProjection): string {
   if (projection.modules === 0) {
-    return "projection: 0 modules\n";
+    return "projection: 0 files\n";
   }
 
   const cost =
@@ -70,5 +70,5 @@ export function projectionText(projection: DescribeProjection): string {
       ? "$unknown"
       : `$${projection.cost_usd.toFixed(4)}`;
 
-  return `projection: ${projection.modules} modules, ~${projection.input_tokens} input tokens, ~${cost} (${projection.model}, API-equivalent estimate)\n`;
+  return `projection: ${projection.modules} files, ~${projection.input_tokens} input tokens, ~${cost} (${projection.model}, API-equivalent estimate)\n`;
 }

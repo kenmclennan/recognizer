@@ -29,7 +29,7 @@ export function metricsLine(row: FolderMetrics): string {
 
 export function metricsTable(row: FolderMetrics): [string, string][] {
   return [
-    ["Modules", String(row.modules)],
+    ["Files", String(row.modules)],
     ["Afferent coupling (Ca)", String(row.afferent)],
     ["Efferent coupling (Ce)", String(row.efferent)],
     ["Instability (I)", figure(row.instability)],

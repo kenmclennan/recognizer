@@ -314,7 +314,7 @@ export function resolveMembers(view: View, scans: Scan[]): ResolvedMembers {
 
     if (!onView.has(entry.module)) {
       warnings.push(
-        `proposed change on ${reference} is not drawn: the module is not on the view`,
+        `proposed change on ${reference} is not drawn: the file is not on the view`,
       );
 
       continue;
@@ -376,7 +376,7 @@ export function proposedWarnings(
   for (const entry of viewModuleProposed(view)) {
     if (!present.has(entry.module)) {
       warnings.push(
-        `proposed change on ${entry.module} is not drawn: the module is not on the view`,
+        `proposed change on ${entry.module} is not drawn: the file is not on the view`,
       );
     }
   }

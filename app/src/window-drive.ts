@@ -87,14 +87,14 @@ function planModules(
   adding: boolean,
 ): DrivePlan {
   if (request.args.length === 0) {
-    return needs(request.action, "at least one module path");
+    return needs(request.action, "at least one file path");
   }
 
   const ids = unique(request.args);
   const unknown = ids.find((id) => !facts.modules.has(id));
 
   if (unknown !== undefined) {
-    return refuse(`no module ${unknown} in the scan`);
+    return refuse(`no file ${unknown} in the scan`);
   }
 
   const changing = ids.filter((id) => facts.onCanvas.has(id) !== adding);
@@ -105,7 +105,7 @@ function planModules(
 
   return {
     apply: [{ kind: adding ? "open" : "close", ids: changing }],
-    summary: `${adding ? "added" : "removed"} ${count(changing.length, "module")}`,
+    summary: `${adding ? "added" : "removed"} ${count(changing.length, "file")}`,
   };
 }
 
@@ -120,7 +120,7 @@ function planFold(request: DriveRequest, facts: DriveFacts): DrivePlan {
 
   if (unknown !== -1) {
     return refuse(
-      `no folder ${request.args[unknown]} holds a module in the scan`,
+      `no folder ${request.args[unknown]} holds a file in the scan`,
     );
   }
 
@@ -144,7 +144,7 @@ function planFocus(request: DriveRequest, facts: DriveFacts): DrivePlan {
   const folder = facts.canonical(request.args[0]);
 
   if (!holdsModule(facts, folder)) {
-    return refuse(`no folder ${request.args[0]} holds a module in the scan`);
+    return refuse(`no folder ${request.args[0]} holds a file in the scan`);
   }
 
   if (facts.focus === folder) {
@@ -156,7 +156,7 @@ function planFocus(request: DriveRequest, facts: DriveFacts): DrivePlan {
 
 function planSelect(request: DriveRequest, facts: DriveFacts): DrivePlan {
   if (request.args.length !== 1) {
-    return needs("select", "one module path or folder id");
+    return needs("select", "one file path or folder id");
   }
 
   const id = request.args[0];
@@ -168,7 +168,7 @@ function planSelect(request: DriveRequest, facts: DriveFacts): DrivePlan {
       : null;
 
   if (selection === null) {
-    return refuse(`no module or folder ${id} in the scan`);
+    return refuse(`no file or folder ${id} in the scan`);
   }
 
   if (
@@ -188,7 +188,7 @@ function planTrail(request: DriveRequest, facts: DriveFacts): DrivePlan {
   const [word, id] = request.args;
 
   if (request.args.length !== 2 || (word !== "uses" && word !== "used-by")) {
-    return needs("trail", "uses or used-by, then a module path");
+    return needs("trail", "uses or used-by, then a file path");
   }
 
   if (facts.trail === null || facts.trail.selection === null) {
@@ -243,7 +243,7 @@ function planClear(request: DriveRequest): DrivePlan {
 
   const summary = {
     all: "cleared the canvas",
-    modules: "cleared modules",
+    modules: "cleared files",
     folds: "cleared folds",
     focus: "cleared focus",
     selection: "cleared selection",

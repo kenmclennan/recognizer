@@ -133,7 +133,7 @@ describe("windows", () => {
 
     expect(out).toBe(
       [
-        "w-1  /r/one  view: overview  selection: module app/a.py",
+        "w-1  /r/one  view: overview  selection: file app/a.py",
         "w-2  /r/two  view: -  selection: -",
         "",
       ].join("\n"),
@@ -186,7 +186,7 @@ describe("windows", () => {
 });
 
 describe("window", () => {
-  it("prints the window's modules, folds, focus, selection, trail and inspector tab", () => {
+  it("prints the window's files, folds, focus, selection, trail and inspector tab", () => {
     const { out } = runWith(
       asking(byName("window by id").response),
       "window",
@@ -205,16 +205,16 @@ describe("window", () => {
       [
         "w-1  /r/one",
         "view: overview",
-        "modules: 2",
+        "files: 2",
         "  app/a.py",
         "  app/b.py",
         "folded: 1",
         "  app/util",
         "focus: app",
-        "selection: module app/a.py",
+        "selection: file app/a.py",
         "trail: 2",
-        "  module app/a.py  tab: dependencies",
-        "  module app/b.py  uses  tab: dependencies  (active)",
+        "  file app/a.py  tab: dependencies",
+        "  file app/b.py  uses  tab: dependencies  (active)",
         "inspector: open, tab: dependencies",
         "",
       ].join("\n"),
@@ -277,7 +277,7 @@ describe("window verbs", () => {
       ...(argvOf(fixture.request) as string[]),
     );
 
-    expect(out.out).toBe("added 1 module\n");
+    expect(out.out).toBe("added 1 file\n");
     expect(out.code).toBe(0);
   });
 
@@ -285,7 +285,7 @@ describe("window verbs", () => {
     const fake = asking({
       v: 1,
       status: "done",
-      result: { summary: "added 1 module", changed: true },
+      result: { summary: "added 1 file", changed: true },
     });
 
     runWith(fake, "window", "w-1", "add", "app/a.py");
@@ -301,7 +301,7 @@ describe("window verbs", () => {
     );
 
     expect(out.code).toBe(1);
-    expect(out.err).toBe("no module app/zzz.py in the scan\n");
+    expect(out.err).toBe("no file app/zzz.py in the scan\n");
     expect(out.out).toBe("");
   });
 
@@ -321,7 +321,7 @@ describe("window verbs", () => {
     ["no id", ["window", "add", "a.py"]],
     ["an unknown verb", ["window", "w-1", "dance", "a.py"]],
     ["a missing argument", ["window", "w-1", "add"]],
-    ["a missing trail module", ["window", "w-1", "trail", "uses"]],
+    ["a missing trail file", ["window", "w-1", "trail", "uses"]],
     ["two folders to focus", ["window", "w-1", "focus", "a", "b"]],
     ["a bad --by", ["window", "w-1", "add", "a.py", "--by", "no/good"]],
     ["an empty --by", ["window", "w-1", "add", "a.py", "--by", ""]],
@@ -409,7 +409,7 @@ describe("views new --from-window", () => {
     const saved = JSON.parse(fake.files.get(`${VIEWS}/mine.json`) as string);
 
     expect(code).toBe(0);
-    expect(out).toBe("mine: created; 5 steps, resolves to 2 modules\n");
+    expect(out).toBe("mine: created; 5 steps, resolves to 2 files\n");
     expect(fake.requests).toEqual([
       { socket: SOCKET, text: '{"v":1,"command":"window","id":"w-1"}' },
     ]);
@@ -450,12 +450,12 @@ describe("views new --from-window", () => {
     expect(fake.files.has(`${VIEWS}/mine.json`)).toBe(false);
   });
 
-  it("exits 2 naming a module the scan no longer has", () => {
+  it("exits 2 naming a file the scan no longer has", () => {
     const fake = repository({ modules: ["shop/gone.py"] });
     const { code, err } = create(fake);
 
     expect(code).toBe(2);
-    expect(err).toContain("no such module: shop/gone.py");
+    expect(err).toContain("no such file: shop/gone.py");
     expect(fake.files.has(`${VIEWS}/mine.json`)).toBe(false);
   });
 

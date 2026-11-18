@@ -104,11 +104,11 @@ describe.skipIf(webkit === undefined)(
       f = await collectFacts<Facts>(HARNESS, "explorer-carry");
     }, scaledTimeout(180000));
 
-    it("keeps the surviving modules on the canvas and says how many are gone", () => {
-      expect(f.before).toBe("5 of 5 modules on the canvas");
-      expect(f.afterRescan.count).toBe("3 of 3 modules on the canvas");
+    it("keeps the surviving files on the canvas and says how many are gone", () => {
+      expect(f.before).toBe("5 of 5 files on the canvas");
+      expect(f.afterRescan.count).toBe("3 of 3 files on the canvas");
       expect(f.afterRescan.notes).toContain(
-        "Rescanned: 2 modules on the canvas are gone",
+        "Rescanned: 2 files on the canvas are gone",
       );
     });
 
@@ -127,8 +127,8 @@ describe.skipIf(webkit === undefined)(
     it("walks the same history back and forward", () => {
       expect(f.afterRescan.canBack).toBe(true);
       expect(f.afterRescan.canForward).toBe(false);
-      expect(f.backTwice).toBe("2 of 3 modules on the canvas");
-      expect(f.forwardTwice).toBe("3 of 3 modules on the canvas");
+      expect(f.backTwice).toBe("2 of 3 files on the canvas");
+      expect(f.forwardTwice).toBe("3 of 3 files on the canvas");
     });
   },
 );

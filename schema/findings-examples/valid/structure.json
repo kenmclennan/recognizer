@@ -41,7 +41,7 @@
       "severity": "warning",
       "principle": "levelization",
       "citation": { "author": "John Lakos", "work": "Large-Scale C++ Software Design", "year": 1996 },
-      "summary": "cycle of 2 modules: app/domain/money.py, app/domain/order.py",
+      "summary": "cycle of 2 files: app/domain/money.py, app/domain/order.py",
       "fix_pattern": "break-cycle",
       "evidence": {
         "modules": ["app/domain/money.py", "app/domain/order.py"],
@@ -57,7 +57,7 @@
       "severity": "warning",
       "principle": "dead-code",
       "citation": { "author": "Robert C. Martin", "work": "Clean Code", "year": 2008, "locator": "heuristic G9" },
-      "summary": "app/adapters/audit.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
+      "summary": "app/adapters/audit.py is imported by no file and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
       "fix_pattern": "remove-or-wire-orphan",
       "evidence": { "modules": ["app/adapters/audit.py"] }
     },

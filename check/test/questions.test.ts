@@ -35,9 +35,7 @@ describe("used-by", () => {
     const { code, out } = ask(["used-by", "shop/domain/order.py"]);
 
     expect(code).toBe(0);
-    expect(out.split("\n")[0]).toBe(
-      "shop/domain/order.py is used by 4 modules",
-    );
+    expect(out.split("\n")[0]).toBe("shop/domain/order.py is used by 4 files");
     expect(out.split("\n").filter((line) => line.endsWith("/"))).toEqual([
       "shop/",
       "shop/application/",
@@ -76,10 +74,10 @@ describe("uses", () => {
     const { out } = ask(["uses", "shop/application/place.py"]);
 
     expect(out).toContain("  shop/domain/order.py  new_order, Order");
-    expect(out).toContain("shop/application/place.py uses 2 modules");
+    expect(out).toContain("shop/application/place.py uses 2 files");
   });
 
-  it("is exit 0 with a count of 0 for a module that uses nothing", () => {
+  it("is exit 0 with a count of 0 for a file that uses nothing", () => {
     const { code, out } = ask(["uses", "shop/domain/order.py", "--json"]);
 
     expect(code).toBe(0);
@@ -186,11 +184,11 @@ describe("callers", () => {
 });
 
 describe("question input errors", () => {
-  it("exits 2 for an unknown module", () => {
+  it("exits 2 for an unknown file", () => {
     const { code, err } = ask(["uses", "nope.py"]);
 
     expect(code).toBe(2);
-    expect(err).toBe("no such module: nope.py\n");
+    expect(err).toBe("no such file: nope.py\n");
   });
 
   it("exits 2 for the wrong argument count", () => {
@@ -218,6 +216,6 @@ describe("a scan that runs first", () => {
 
     expect(code).toBe(0);
     expect(JSON.parse(fake.out()).module).toBe("m0.py");
-    expect(fake.err()).toContain("python: 2 modules, 1 edges");
+    expect(fake.err()).toContain("python: 2 files, 1 edges");
   });
 });

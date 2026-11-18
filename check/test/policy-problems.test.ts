@@ -6,7 +6,7 @@ import { scanOf } from "./scan-of.js";
 describe("policyProblems", () => {
   const POLICY = "entry:\n  - app/domain/**\n  - app/ports/**\n";
 
-  it("reports an entry glob matching no scanned module and no folder problem", () => {
+  it("reports an entry glob matching no scanned file and no folder problem", () => {
     const found = policyProblems(
       [
         scanOf(
@@ -21,7 +21,7 @@ describe("policyProblems", () => {
       {
         kind: "entry",
         subject: "app/ports/**",
-        text: "policy entry app/ports/** matches no scanned module",
+        text: "policy entry app/ports/** matches no scanned file",
       },
     ]);
   });
@@ -43,7 +43,7 @@ describe("policyProblems", () => {
     expect(policyProblems([scan], null)).toEqual([]);
   });
 
-  it("does not report a glob matching a module in only one of two scans", () => {
+  it("does not report a glob matching a file in only one of two scans", () => {
     const found = policyProblems(
       [scanOf([], ["app/domain/a.py"]), scanOf([], ["app/ports/p.py"])],
       parsePolicy(POLICY),
@@ -62,7 +62,7 @@ describe("policyProblems", () => {
       {
         kind: "forbid",
         subject: "app/nowhere/**",
-        text: "policy forbid app/domain/** -> app/nowhere/**: app/nowhere/** matches no scanned module",
+        text: "policy forbid app/domain/** -> app/nowhere/**: app/nowhere/** matches no scanned file",
       },
     ]);
   });

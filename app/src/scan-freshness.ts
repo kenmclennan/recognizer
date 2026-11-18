@@ -189,13 +189,13 @@ export function freshnessMessage(
     const count = model.changed.length;
     const text =
       count === 1
-        ? "1 module has changed since it was scanned. Its results are hidden, so this picture is partial."
-        : `${count} modules have changed since they were scanned. Their results are hidden, so this picture is partial.`;
+        ? "1 file has changed since it was scanned. Its results are hidden, so this picture is partial."
+        : `${count} files have changed since they were scanned. Their results are hidden, so this picture is partial.`;
 
     return {
       key: `scan-freshness:${model.changed.join(",")}`,
       text,
-      label: `Update ${plural(count, "module")}`,
+      label: `Update ${plural(count, "file")}`,
     };
   }
 
@@ -297,7 +297,7 @@ export function planFor(
       modules: total,
       idle: false,
       label: model.action.primary.label,
-      progress: `Rescanning ${plural(total, "module")}\u2026`,
+      progress: `Rescanning ${plural(total, "file")}\u2026`,
       work: workOf(
         phases.describe ? total : null,
         phases.sense,
@@ -357,7 +357,7 @@ export function planFor(
     label: model.action.primary.label,
     progress:
       changed > 0
-        ? `Updating ${plural(changed, "module")}\u2026`
+        ? `Updating ${plural(changed, "file")}\u2026`
         : `Running ${joinNames(names)}\u2026`,
     work: workOf(
       describe ? gapOfRow(DESCRIBE_KEY).length : null,

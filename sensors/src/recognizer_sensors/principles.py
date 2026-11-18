@@ -27,7 +27,7 @@ PRINCIPLES = [
             "work": "Code Coverage Best Practices, Google Testing Blog",
             "year": 2020,
             "locator": (
-                "60% acceptable, stated for a whole product; applied here per module and per member"
+                "60% acceptable, stated for a whole product; applied here per file and per member"
             ),
         },
     },

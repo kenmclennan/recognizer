@@ -63,7 +63,7 @@ const orphans = (scan: ReturnType<typeof scanOf>) =>
 
 const TODAY = {
   summary:
-    "a/lonely.py is imported by no module and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
+    "a/lonely.py is imported by no file and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
   fix_pattern: "remove-or-wire-orphan",
   evidence: { modules: ["a/lonely.py"] },
 };
@@ -94,7 +94,7 @@ describe("orphan test importers", () => {
     expect(finding).toMatchObject(TODAY);
   });
 
-  it("says a module only tests import is imported only by them", () => {
+  it("says a file only tests import is imported only by them", () => {
     const [finding] = orphans(scanOf(["a/lonely.py"], [], files(2)));
 
     expect(finding).toEqual({
@@ -201,7 +201,7 @@ describe("orphan test importers", () => {
     expect(shuffled).toEqual(forward);
   });
 
-  it("does not make an imported module an orphan or lift an entry point exemption", () => {
+  it("does not make an imported file an orphan or lift an entry point exemption", () => {
     const imported = orphans(
       scanOf(
         ["a/m.py", "a/n.py"],

@@ -334,7 +334,7 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
           "Batch size",
           [
             batch,
-            el("span", "sm-unit", `modules at a time (1 to ${MAX_BATCH_SIZE})`),
+            el("span", "sm-unit", `files at a time (1 to ${MAX_BATCH_SIZE})`),
           ],
           null,
           null,

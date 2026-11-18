@@ -11,7 +11,7 @@ import {
 const COMMIT = "abc123";
 const PY_CACHE = `${ROOT}/.recognizer/cache/scan.python.json`;
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
-const FILE = "/scope/modules.json";
+const FILE = "/scope/files.json";
 const DESCRIBER =
   'describer:\n  command: [describer, "{module}"]\n  version: "v1"\nsensors:\n  crap: {}\n  mutation: {}\n';
 
@@ -91,7 +91,7 @@ function senseArgs(fake: ReturnType<typeof fakeIo>, name: string) {
 }
 
 describe("recognizer scan --modules", () => {
-  it("limits the describe phase to the named modules and reports their count as the total", async () => {
+  it("limits the describe phase to the named files and reports their count as the total", async () => {
     const { code, out } = await scan(
       JSON.stringify(["m0.py", "m2.py"]),
       "--describe",
@@ -107,7 +107,7 @@ describe("recognizer scan --modules", () => {
     expect(out).not.toContain('"name":"m1.py"');
   });
 
-  it("describes all the named modules with =all and still only those", async () => {
+  it("describes all the named files with =all and still only those", async () => {
     const { out } = await scan(
       JSON.stringify(["m1.py"]),
       "--describe=all",
@@ -118,7 +118,7 @@ describe("recognizer scan --modules", () => {
     expect(describeTotal(out)).toBe(1);
   });
 
-  it("keeps only the stale modules among the named ones", async () => {
+  it("keeps only the stale files among the named ones", async () => {
     const fake = fakeIo(setup(JSON.stringify(["m0.py", "m1.py"])));
 
     await run(["scan", ROOT, "--describe", "--modules", FILE], fake.io);
@@ -136,8 +136,8 @@ describe("recognizer scan --modules", () => {
     );
 
     expect(code).toBe(0);
-    expect(err).toContain("skipped: no such module gone.py\n");
-    expect(err).toContain("skipped: no such module also-gone.py\n");
+    expect(err).toContain("skipped: no such file gone.py\n");
+    expect(err).toContain("skipped: no such file also-gone.py\n");
     expect(out).toContain("described m0.py");
   });
 

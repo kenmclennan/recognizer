@@ -264,7 +264,7 @@ export function parseModuleScope(text: string): string[] {
     parsed.some((id) => typeof id !== "string" || id === "")
   ) {
     throw new InputError([
-      "--modules file must be a JSON array of non-empty module ids",
+      "--modules file must be a JSON array of non-empty file ids",
     ]);
   }
 

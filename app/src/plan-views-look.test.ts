@@ -155,7 +155,7 @@ describe.skipIf(webkit === undefined)("plan views in a real browser", () => {
     f = await collectFacts<Facts>(HARNESS, "plan-views-look");
   }, scaledTimeout(180000));
 
-  it("draws each proposed change on its box, including modules the scan does not hold", () => {
+  it("draws each proposed change on its box, including files the scan does not hold", () => {
     expect(f.plan.classes).toEqual({
       "p/new.py": ["proposed-new"],
       "p/a.py": ["proposed-changes"],
@@ -216,7 +216,7 @@ describe.skipIf(webkit === undefined)("plan views in a real browser", () => {
     expect(f.plain.tag).toBe(true);
   });
 
-  it("marks a note on a planned module", () => {
+  it("marks a note on a planned file", () => {
     expect(f.plan.noteMarks).toContain("p/new.py");
   });
 
@@ -227,7 +227,7 @@ describe.skipIf(webkit === undefined)("plan views in a real browser", () => {
       "Moves",
       "Moves + changes",
       "Removed",
-      "Where a moved module was",
+      "Where a moved file was",
     ]);
     expect(f.legend.change).toBe(0);
     expect(f.change.planRows).toBe(0);
@@ -240,7 +240,7 @@ describe.skipIf(webkit === undefined)("plan views in a real browser", () => {
     expect(f.plannedInspector).toBe("Proposed change: New");
   });
 
-  it("offers Take off on a module in the scan and not on a planned box", () => {
+  it("offers Take off on a file in the scan and not on a planned box", () => {
     expect(f.takeOffOnPlanned).toBe(0);
     expect(f.takeOffOnReal).toBe(1);
   });

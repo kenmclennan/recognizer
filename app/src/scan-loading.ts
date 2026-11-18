@@ -70,7 +70,7 @@ function parseScan(file: string, text: string): LoadedScan | string {
     !isList(document.edges) ||
     !isList(document.foreign)
   ) {
-    return `${file} is not a scan: it lacks the modules, edges and foreign lists`;
+    return `${file} is not a scan: it lacks the files, edges and foreign lists`;
   }
 
   return { file, scan: document as unknown as Scan };

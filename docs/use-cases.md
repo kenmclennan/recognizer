@@ -25,7 +25,7 @@ Running a repository's gates in CI is not one of the use cases. `recognizer chec
 - **Moment**: shaping a feature or fix before any code is written: writing a brief, sizing a ticket, or answering "how hard is this?".
 - **Question**: where does this belong, what will it touch, and is that ground safe to build on: which components it lands in and whether the policy allows the dependencies it needs, how far its effects spread, and how risky the code there is.
 - **Reach**: starting from words, such as "checkout payment retries", and landing on the relevant area of the map.
-- **Presentation**: the area in its layers with what depends on it and what it depends on, coloured by risk. A proposed module or edge can be sketched and checked against the policy before it exists.
+- **Presentation**: the area in its layers with what depends on it and what it depends on, coloured by risk. A proposed file or edge can be sketched and checked against the policy before it exists.
 - **Capture and feedback**: a saved view of the area linked from the brief, notes such as "new adapter goes here" or "test this first", and brief-ready text from the view and its notes, so the person or agent who builds it starts from the same picture.
 
 ## Reviewing a change
@@ -33,7 +33,7 @@ Running a repository's gates in CI is not one of the use cases. `recognizer chec
 - **Moment**: a pull request from an agent or a colleague is ready, just before approving it.
 - **Question**: what does this change do to the structure, and does it add risk where it matters.
 - **Reach**: one step from the pull request to its change view.
-- **Presentation**: the touched modules in their layers, with the edges the change adds or removes, the policy breaks it introduces, and the findings it adds or clears against its base. A change to `.recognizer/` (config, policy or baseline) is called out, because it moves the measure rather than the code.
+- **Presentation**: the touched files in their layers, with the edges the change adds or removes, the policy breaks it introduces, and the findings it adds or clears against its base. A change to `.recognizer/` (config, policy or baseline) is called out, because it moves the measure rather than the code.
 - **Capture and feedback**: a review comment that cites the evidence, as a link to the change view or a finding as text, which reaches whoever reworks the change: a colleague, or an agent through its feedback channel.
 
 ## Periodic steering
@@ -49,5 +49,5 @@ Running a repository's gates in CI is not one of the use cases. `recognizer chec
 - **Moment**: handing a feature to an agent, which should start in the right place under the right rules; or handing over a structural improvement found while steering or reviewing: a C.R.A.P. score to reduce, surviving mutants to kill, a layer break to fix, a hotspot to reduce.
 - **Question**: for the person, whether the task is worth handing over, precise enough to be done well, and verifiably done. For the agent, where it is, what the rules are, what exactly is wrong, and whether its change fixed that without breaking the structure.
 - **Reach**: for the agent, the CLI, `recognizer help agents` and the skills. For the person, one action on a finding or a component that produces the agent's task.
-- **Presentation**: for the agent, exact and checkable evidence: the function and its lines, the measures, each surviving mutant with its line and operator, the fix pattern, the target, and the command that checks the result, scoped to the modules involved. For the person, before and after.
+- **Presentation**: for the agent, exact and checkable evidence: the function and its lines, the measures, each surviving mutant with its line and operator, the fix pattern, the target, and the command that checks the result, scoped to the files involved. For the person, before and after.
 - **Capture and feedback**: the task enters the loop as a brief, an item or a feedback comment. The agent re-runs the scoped check and reports the finding's stable id cleared with before and after figures, and the fix returns as a change to review. That review shows the structure improved, not only the number, and calls out any change to `.recognizer/`, because an agent can game a measure or move its goalposts.

@@ -290,7 +290,7 @@ function requireModules(scans: Scan[], paths: string[]): void {
   const missing = paths.filter((path) => !known.has(path));
 
   if (missing.length > 0) {
-    throw new InputError(missing.map((path) => `no such module: ${path}`));
+    throw new InputError(missing.map((path) => `no such file: ${path}`));
   }
 }
 
@@ -314,7 +314,7 @@ function checkProposed(
   from: string | undefined,
 ): ViewProposedChange {
   if (!MODULE_PATH.test(module)) {
-    throw new InputError([`not a module path: ${module}`]);
+    throw new InputError([`not a file path: ${module}`]);
   }
 
   if (!movesKind(kind)) {
@@ -330,11 +330,11 @@ function checkProposed(
   }
 
   if (!MODULE_PATH.test(from)) {
-    throw new InputError([`not a module path: ${from}`]);
+    throw new InputError([`not a file path: ${from}`]);
   }
 
   if (from === module) {
-    throw new InputError(["--from must differ from the module"]);
+    throw new InputError(["--from must differ from the file"]);
   }
 
   return { module, kind, from };
@@ -408,14 +408,12 @@ function requireMemberTarget(
   const own = viewModuleProposed(view).find((e) => e.module === entry.module);
 
   if (resolved.planned.includes(entry.module)) {
-    throw new InputError([
-      `${entry.module} is wholly new; mark the module only`,
-    ]);
+    throw new InputError([`${entry.module} is wholly new; mark the file only`]);
   }
 
   if (own !== undefined && (own.kind === "new" || own.kind === "removed")) {
     throw new InputError([
-      `${entry.module} is wholly ${own.kind}; mark the module only`,
+      `${entry.module} is wholly ${own.kind}; mark the file only`,
     ]);
   }
 
@@ -437,7 +435,7 @@ function requireNoMemberEntries(view: View, entry: ViewProposedChange): void {
     viewMemberProposed(view).some((e) => e.module === entry.module)
   ) {
     throw new InputError([
-      `${entry.module} is wholly ${entry.kind}; mark the module only`,
+      `${entry.module} is wholly ${entry.kind}; mark the file only`,
     ]);
   }
 }
@@ -472,7 +470,7 @@ function finishMutation(
   emit(
     c,
     { view: name, changed, steps: view.steps.length, modules },
-    `${name}: ${changed ? what : "no change"}; ${plural(view.steps.length, "step")}, resolves to ${plural(modules, "module")}`,
+    `${name}: ${changed ? what : "no change"}; ${plural(view.steps.length, "step")}, resolves to ${plural(modules, "file")}`,
   );
 
   return 0;
@@ -584,7 +582,7 @@ function runNew(argv: string[], io: Io): number {
   emit(
     c,
     { view: name, changed: true, steps: view.steps.length, modules },
-    `${name}: created; ${plural(view.steps.length, "step")}, resolves to ${plural(modules, "module")}`,
+    `${name}: created; ${plural(view.steps.length, "step")}, resolves to ${plural(modules, "file")}`,
   );
 
   return 0;
@@ -612,7 +610,7 @@ function runAdd(argv: string[], io: Io): number {
         const kind = parseKind(kindFlag);
 
         if (typeof fromFlag === "string" && paths.length !== 1) {
-          throw new InputError(["--from takes exactly one module"]);
+          throw new InputError(["--from takes exactly one file"]);
         }
 
         const from = typeof fromFlag === "string" ? fromFlag : undefined;
@@ -981,7 +979,7 @@ function runRemove(argv: string[], io: Io): number {
 
         return {
           view: withProposed(dropped, null, path),
-          what: `removed the planned module ${path}${count > 0 ? `, dropped ${plural(count, "member entry")}` : ""}`,
+          what: `removed the planned file ${path}${count > 0 ? `, dropped ${plural(count, "member entry")}` : ""}`,
         };
       }
 
@@ -1033,7 +1031,7 @@ function runNote(argv: string[], io: Io): number {
       const notes = viewNotes(view);
 
       if (path.includes("#")) {
-        throw new InputError([`notes stay at module level: ${path}`]);
+        throw new InputError([`notes stay at file level: ${path}`]);
       }
 
       const rawBy = c.values.by as string | undefined;
@@ -1066,7 +1064,7 @@ function runNote(argv: string[], io: Io): number {
 
       if (path.endsWith("/")) {
         if (!modules.some((module) => under(module, folderPath(path)))) {
-          throw new InputError([`${path} has no module on the view`]);
+          throw new InputError([`${path} has no file on the view`]);
         }
       } else if (!modules.includes(path)) {
         throw new InputError([`${path} is not on the view`]);
@@ -1315,14 +1313,14 @@ function runDiff(argv: string[], io: Io): number {
     [
       `${name}: ${range} (${facts.baseCommit.slice(0, 7)}..${facts.headCommit.slice(0, 7)})`,
       modules.length === 0
-        ? "no changed modules"
-        : `${plural(modules.length, "changed module")}:`,
+        ? "no changed files"
+        : `${plural(modules.length, "changed file")}:`,
       ...modules.map(
         (entry) =>
           `  ${entry.mark} ${entry.id}${entry.box === "none" ? " (no box)" : ""}`,
       ),
       ...(unmatched > 0
-        ? [`${plural(unmatched, "changed file")} matched no module`]
+        ? [`${plural(unmatched, "changed file")} matched no file`]
         : []),
     ].join("\n"),
   );
@@ -1381,7 +1379,7 @@ function runShow(argv: string[], io: Io): number {
     ...(view.change === undefined ? [] : [`change: ${rangeText(view.change)}`]),
     view.steps.length === 0 ? "no steps" : "steps:",
     ...view.steps.map((step, index) => `  ${index + 1}. ${describeStep(step)}`),
-    `resolves to ${plural(resolved.modules.length, "module")}`,
+    `resolves to ${plural(resolved.modules.length, "file")}`,
     ...resolved.modules.map((module) => `  ${module}`),
     ...viewModuleProposed(view).map(
       (entry) =>
@@ -1420,7 +1418,8 @@ function runShow(argv: string[], io: Io): number {
     lines.push(
       "unresolved:",
       ...resolved.unresolved.map(
-        (u) => `  step ${u.step} ${u.kind} ${u.path} - no such ${u.what}`,
+        (u) =>
+          `  step ${u.step} ${u.kind} ${u.path} - no such ${u.what === "module" ? "file" : u.what}`,
       ),
     );
   }
@@ -1710,7 +1709,7 @@ function runCheck(argv: string[], io: Io): number {
 
     for (const u of result.unresolved) {
       lines.push(
-        `  step ${u.step} ${u.kind} ${u.path} - no such ${u.what}${u.renamedTo === null ? "" : ` (renamed to ${u.renamedTo})`}`,
+        `  step ${u.step} ${u.kind} ${u.path} - no such ${u.what === "module" ? "file" : u.what}${u.renamedTo === null ? "" : ` (renamed to ${u.renamedTo})`}`,
       );
     }
 

@@ -8,7 +8,7 @@ function lines(...text: string[]): string[] {
 function whatItIs(): string[] {
   return lines(
     "1. What a plugin is",
-    "  - Three kinds, one contract. A scanner reads a language into a scan document. A sensor measures and writes findings and overlays. A describer writes one line per module saying what it is responsible for.",
+    "  - Three kinds, one contract. A scanner reads a language into a scan document. A sensor measures and writes findings and overlays. A describer writes one line per file saying what it is responsible for.",
     "  - A process, not a library. A plugin is an executable. Recognizer talks to it through arguments, JSON on stdout and events on stderr, so a plugin can be written in any language.",
     "  - Self-declaring. Everything the CLI and the app show about a plugin comes from its manifest. Recognizer holds no table of plugin names, display names, metric labels, finding sentences, defaults, progress steps or failure codes.",
     "  - No hooks outside a verb. A plugin does work only when Recognizer calls one of its four verbs. There is no before-scan or after-scan hook.",
@@ -38,7 +38,7 @@ function manifest(): string[] {
     "  - install: the command that installs or upgrades it, quoted by doctor and the app when it is missing or out of range.",
     "  - check: whether it has a readiness check.",
     "  - long_running: whether a run may take minutes. When it is false, time_limit_seconds is required: the most a run may take before it is stopped. When it is true, time_limit_seconds is refused.",
-    "  - units: the words its progress counts in (files, modules, functions, ...).",
+    "  - units: the words its progress counts in (files, files, functions, ...).",
     "  - settings: the config keys it reads under its own section; each is an object with key, type (string, integer, number, boolean, enum or path), description and example, and optionally values, multi, default, defaults, default_text, minimum, exclusiveMinimum, maximum, exclusiveMaximum and off (true when the value false switches the number off). `recognizer config --help` lists the key shape.",
     "",
     "A setting may also say how the app shows it, all optional and none changing the key schema `recognizer config` publishes:",

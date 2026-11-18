@@ -187,17 +187,17 @@ describe("scanningText", () => {
     expect(scanningText(rows, null, NO_PROGRESS)).toBe("Scanning\u2026");
   });
 
-  it("counts modules at zero right after the describe phase line", () => {
+  it("counts files at zero right after the describe phase line", () => {
     expect(
       scanningText(
         led,
         "describe",
         fold([extractCurrent, phase("describe", 40)]),
       ),
-    ).toBe("Describing\u2026 0 of 40 modules");
+    ).toBe("Describing\u2026 0 of 40 files");
   });
 
-  it("counts finished modules as entries arrive", () => {
+  it("counts finished files as entries arrive", () => {
     const entries = Array.from({ length: 12 }, (_, at) =>
       entry(`m${at}`, "describe"),
     );
@@ -208,7 +208,7 @@ describe("scanningText", () => {
         "describe",
         fold([extractCurrent, phase("describe", 40), ...entries]),
       ),
-    ).toBe("Describing\u2026 12 of 40 modules");
+    ).toBe("Describing\u2026 12 of 40 files");
   });
 
   it("is null once the scan is done or stopped", () => {
@@ -242,7 +242,7 @@ describe("the extraction settle point", () => {
 });
 
 describe("showTarget", () => {
-  it("targets the first failed module, which wins over a failed sensor", () => {
+  it("targets the first failed file, which wins over a failed sensor", () => {
     const state = fold([
       extractCurrent,
       phase("describe", 2),
@@ -260,7 +260,7 @@ describe("showTarget", () => {
     });
   });
 
-  it("targets the failed sensor row when no module failed", () => {
+  it("targets the failed sensor row when no file failed", () => {
     const state = fold([
       extractCurrent,
       phase("sense", 2),
@@ -566,7 +566,7 @@ describe("the describe confirmation", () => {
         costUsd: 17.54,
       }),
     ).toEqual({
-      heading: "Describe 2,040 modules?",
+      heading: "Describe 2,040 files?",
       model: "Model: sonnet",
       estimate: "About 8.0M tokens, $17.54 at API prices",
     });

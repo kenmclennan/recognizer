@@ -109,7 +109,7 @@
       "id": "cycle",
       "principle": "levelization",
       "fix_pattern": "break-cycle",
-      "summary": "cycle of 3 modules: app/billing/invoice.py, app/orders/place.py, app/shared/money.py",
+      "summary": "cycle of 3 files: app/billing/invoice.py, app/orders/place.py, app/shared/money.py",
       "evidence": {
         "modules": [
           "app/billing/invoice.py",

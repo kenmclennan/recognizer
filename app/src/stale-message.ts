@@ -70,7 +70,7 @@ function clausesOf(report: StaleReport): string[] {
   if (relevant.length === 1) {
     clauses.push(`${leaf(relevant[0])} became relevant`);
   } else if (relevant.length > 1) {
-    clauses.push(`${relevant.length} modules became relevant`);
+    clauses.push(`${relevant.length} files became relevant`);
   }
 
   return clauses;

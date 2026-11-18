@@ -50,7 +50,7 @@ describe("policy problems on check --scan", () => {
     const lines = problemLines(stale.err);
 
     expect(lines).toContain(
-      "warning: p.yaml: policy entry nowhere/** matches no scanned module",
+      "warning: p.yaml: policy entry nowhere/** matches no scanned file",
     );
     expect(stale.code).toBe(covered.code);
     expect(problemLines(covered.err)).toEqual([]);
@@ -92,7 +92,7 @@ describe("policy problems on check in repository mode", () => {
     const lines = problemLines(stale.err);
 
     expect(lines).toContain(
-      `warning: ${POLICY}: policy entry nowhere/** matches no scanned module`,
+      `warning: ${POLICY}: policy entry nowhere/** matches no scanned file`,
     );
     expect(stale.code).toBe(covered.code);
     expect(problemLines(covered.err)).toEqual([]);
@@ -119,7 +119,7 @@ describe("policy problems on scan", () => {
     const lines = problemLines(stale.err);
 
     expect(lines).toContain(
-      "warning: .recognizer/policy.yaml: policy entry gone/** matches no scanned module",
+      "warning: .recognizer/policy.yaml: policy entry gone/** matches no scanned file",
     );
     expect(stale.code).toBe(covered.code);
     expect(problemLines(covered.err)).toEqual([]);

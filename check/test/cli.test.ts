@@ -253,7 +253,7 @@ describe("bad input", () => {
     bad(["check", "--scan", scan, "--policy", policy, "--nope"]));
   it("rejects the removed --hub-threshold flag", () =>
     bad(["check", "--scan", scan, "--policy", policy, "--hub-threshold", "3"]));
-  it("rejects a module argument together with --scan", () =>
+  it("rejects a file argument together with --scan", () =>
     bad(["check", "shop/main.py", "--scan", scan, "--policy", policy]));
   it("rejects --json together with --scan", () =>
     bad(["check", "--scan", scan, "--policy", policy, "--json"]));

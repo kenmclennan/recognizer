@@ -312,8 +312,8 @@ function senseFigure(
   );
   const basis =
     spec.runsTests && !spec.scoped
-      ? `${plural(n, "module")}, last run's pace`
-      : `${plural(n, "module")} at recent pace`;
+      ? `${plural(n, "file")}, last run's pace`
+      : `${plural(n, "file")} at recent pace`;
 
   return { ms: fixed + n * rate, basis };
 }
@@ -368,7 +368,7 @@ export function estimateParts(
               key,
               name,
               ms: rate * n,
-              basis: `${plural(n, "module")} × ${secondsText(rate)} s`,
+              basis: `${plural(n, "file")} × ${secondsText(rate)} s`,
             },
       );
 

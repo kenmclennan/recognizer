@@ -78,7 +78,7 @@ describe("views new", () => {
     const { code, out } = go(fake, "new", "a", "--description", "Why");
 
     expect(code).toBe(0);
-    expect(out).toBe("a: created; 0 steps, resolves to 0 modules\n");
+    expect(out).toBe("a: created; 0 steps, resolves to 0 files\n");
     expect(saved(fake, "a")).toEqual({
       schema_version: 4,
       description: "Why",
@@ -139,7 +139,7 @@ describe("views new", () => {
 });
 
 describe("views add", () => {
-  it("picks two modules", () => {
+  it("picks two files", () => {
     const fake = repository(view("a"));
     const { code, out } = go(
       fake,
@@ -150,7 +150,7 @@ describe("views add", () => {
     );
 
     expect(code).toBe(0);
-    expect(out).toBe("a: added 2 picks; 2 steps, resolves to 2 modules\n");
+    expect(out).toBe("a: added 2 picks; 2 steps, resolves to 2 files\n");
     expect(saved(fake, "a").steps).toEqual([
       { kind: "pick", module: "shop/domain/order.py" },
       { kind: "pick", module: "shop/ports/store.py" },
@@ -158,7 +158,7 @@ describe("views add", () => {
     expect(scans(fake)).toBe(0);
   });
 
-  it("writes nothing and names the unknown module", () => {
+  it("writes nothing and names the unknown file", () => {
     const fake = repository(view("a"));
     const { code, err } = go(
       fake,
@@ -169,7 +169,7 @@ describe("views add", () => {
     );
 
     expect(code).toBe(2);
-    expect(err).toBe("no such module: nope.py\n");
+    expect(err).toBe("no such file: nope.py\n");
     expect(fake.writes).toEqual([]);
   });
 
@@ -190,7 +190,7 @@ describe("views add", () => {
     expect(fake.writes).toEqual([]);
   });
 
-  it("drops a left-out for the module", () => {
+  it("drops a left-out for the file", () => {
     const fake = repository(
       view("a", [
         { kind: "rule", relation: "folder", of: "shop/domain" },
@@ -318,13 +318,13 @@ describe("views remove", () => {
     const { code, out } = go(fake, "remove", "a", "shop/domain/order.py");
 
     expect(code).toBe(0);
-    expect(out).toContain("1 step, resolves to 1 module");
+    expect(out).toContain("1 step, resolves to 1 file");
     expect(saved(fake, "a").steps).toEqual([
       { kind: "pick", module: "shop/ports/store.py" },
     ]);
   });
 
-  it("records a module a rule put there as left out, and add undoes it", () => {
+  it("records a file a rule put there as left out, and add undoes it", () => {
     const fake = repository(
       view("a", [{ kind: "rule", relation: "folder", of: "shop/domain" }]),
     );
@@ -344,7 +344,7 @@ describe("views remove", () => {
     ]);
   });
 
-  it("rejects a module that is not on the view", () => {
+  it("rejects a file that is not on the view", () => {
     const fake = repository(view("a"));
     const { code, err } = go(fake, "remove", "a", "shop/domain/order.py");
 
@@ -398,14 +398,14 @@ describe("views show", () => {
     { kind: "fold", folder: "shop/domain" },
   ];
 
-  it("prints steps, modules and unresolved with exit 0", () => {
+  it("prints steps, files and unresolved with exit 0", () => {
     const { code, out } = go(repository(view("a", steps)), "show", "a");
 
     expect(code).toBe(0);
     expect(out).toContain("a: p\nsaved at abc123\n");
     expect(out).toContain("  1. pick shop/domain/gone.py");
-    expect(out).toContain("resolves to 1 module\n  shop/domain/order.py");
-    expect(out).toContain("  step 1 pick shop/domain/gone.py - no such module");
+    expect(out).toContain("resolves to 1 file\n  shop/domain/order.py");
+    expect(out).toContain("  step 1 pick shop/domain/gone.py - no such file");
     expect(out).toContain("folded: shop/domain");
   });
 
@@ -494,7 +494,7 @@ describe("views check", () => {
 
     expect(code).toBe(1);
     expect(out).toBe(
-      "a: 1 unresolved\n  step 1 pick shop/old.py - no such module\n",
+      "a: 1 unresolved\n  step 1 pick shop/old.py - no such file\n",
     );
   });
 
@@ -654,7 +654,7 @@ describe("views note", () => {
 
     expect(code).toBe(0);
     expect(out).toBe(
-      `a: set the note on ${PLACE}; 2 steps, resolves to 2 modules\n`,
+      `a: set the note on ${PLACE}; 2 steps, resolves to 2 files\n`,
     );
     expect(saved(fake, "a").notes).toEqual([
       noteEntry(PLACE, "Start here", "agent"),
@@ -662,7 +662,7 @@ describe("views note", () => {
     expect(saved(fake, "a").schema_version).toBe(4);
   });
 
-  it("replaces the note on the same module, leaving one", () => {
+  it("replaces the note on the same file, leaving one", () => {
     const fake = repository(view("a", ON_VIEW));
 
     go(fake, "note", "a", PLACE, "One", "--by", "Ken");
@@ -671,7 +671,7 @@ describe("views note", () => {
     expect(saved(fake, "a").notes).toEqual([noteEntry(PLACE, "Two", "Claude")]);
   });
 
-  it("sets a note on a folder that has a module on the view and refuses one that has none", () => {
+  it("sets a note on a folder that has a file on the view and refuses one that has none", () => {
     const fake = repository(view("a", ON_VIEW));
 
     expect(go(fake, "note", "a", "shop/domain/", "Core").code).toBe(0);
@@ -679,7 +679,7 @@ describe("views note", () => {
       noteEntry("shop/domain/", "Core", "agent"),
     ]);
     expect(go(fake, "note", "a", "nowhere/", "x").code).toBe(2);
-    expect(fake.err()).toContain("nowhere/ has no module on the view");
+    expect(fake.err()).toContain("nowhere/ has no file on the view");
   });
 
   it("reports no change and writes nothing for an identical note", () => {
@@ -702,7 +702,7 @@ describe("views note", () => {
     expect(fake.writes).toEqual([]);
   });
 
-  it("removes the note on a module or a folder and keeps the others", () => {
+  it("removes the note on a file or a folder and keeps the others", () => {
     const fake = repository(
       noted(
         "a",
@@ -745,7 +745,7 @@ describe("views note", () => {
     expect(saved(fake, "a").notes).toBeUndefined();
   });
 
-  it("removes a note on a module that has left the view", () => {
+  it("removes a note on a file that has left the view", () => {
     const fake = repository(
       noted(
         "a",
@@ -759,7 +759,7 @@ describe("views note", () => {
     expect(saved(fake, "a").notes).toBeUndefined();
   });
 
-  it("is exit 2 for an absent note, a module not on the view, blank input and the whole-view form", () => {
+  it("is exit 2 for an absent note, a file not on the view, blank input and the whole-view form", () => {
     const fake = repository(view("a", ON_VIEW));
 
     expect(go(fake, "note", "a", PLACE, "--remove").code).toBe(2);
@@ -773,7 +773,7 @@ describe("views note", () => {
     expect(fake.writes).toEqual([]);
   });
 
-  it("names the module that is not on the view", () => {
+  it("names the file that is not on the view", () => {
     const fake = repository(view("a", ON_VIEW));
     const { code } = go(fake, "note", "a", "shop/domain/other.py", "x");
 
@@ -781,7 +781,7 @@ describe("views note", () => {
     expect(fake.err()).toContain("shop/domain/other.py is not on the view");
   });
 
-  it("is shown by show in text and json, marking a module that left the scan and a folder with none on the view", () => {
+  it("is shown by show in text and json, marking a file that left the scan and a folder with none on the view", () => {
     const fake = repository(
       noted(
         "a",
@@ -876,7 +876,7 @@ describe("views note", () => {
     ]);
   });
 
-  it("shows the module notes of a version 2 file before it is rewritten", () => {
+  it("shows the file notes of a version 2 file before it is rewritten", () => {
     const fake = repository(
       noted(
         "a",
@@ -892,7 +892,7 @@ describe("views note", () => {
     expect(fake.writes).toEqual([]);
   });
 
-  it("is kept by every other mutation, and by taking a module off the view", () => {
+  it("is kept by every other mutation, and by taking a file off the view", () => {
     const notes = [noteEntry(PLACE, "M", "Ken")];
     const fake = repository(noted("a", { notes }, ON_VIEW, 3));
 
@@ -997,7 +997,7 @@ describe("views note", () => {
     );
   });
 
-  it("renames the module on the notes of a renamed pick and keeps the last where two land on one path", () => {
+  it("renames the file on the notes of a renamed pick and keeps the last where two land on one path", () => {
     const OLD = "shop/old.py";
     const renamed = `R100\0${OLD}\0${PLACE}\0`;
     const moving = repository(
@@ -1427,7 +1427,7 @@ describe("change views", () => {
     expect(again.out).toContain("no change");
   });
 
-  it("prints the marked modules and the unmatched count from diff", () => {
+  it("prints the marked files and the unmatched count from diff", () => {
     const fake = repo(changeView("c", { base: "main", head: "feat" }));
     const result = go(fake, "diff", "c", "--json");
     const document = JSON.parse(result.out);
@@ -1557,7 +1557,7 @@ describe("plan views", () => {
     expect(saved(fake, "a").proposed).toBeUndefined();
   });
 
-  it("adds a new module that is not in the scan with only a proposed change", () => {
+  it("adds a new file that is not in the scan with only a proposed change", () => {
     const fake = repository(planned());
 
     expect(go(fake, "add", "p", NEW, "--change", "new").code).toBe(0);
@@ -1566,7 +1566,7 @@ describe("plan views", () => {
     expect(go(fake, "check").code).toBe(0);
   });
 
-  it("gives a module in the scan a pick as well as its proposed change", () => {
+  it("gives a file in the scan a pick as well as its proposed change", () => {
     const fake = repository(planned());
 
     go(fake, "add", "p", ORDER, "--change", "changes");
@@ -1577,12 +1577,12 @@ describe("plan views", () => {
     ]);
   });
 
-  it("refuses changes and removed for a module not in the scan", () => {
+  it("refuses changes and removed for a file not in the scan", () => {
     const fake = repository(planned());
     const { code, err } = go(fake, "add", "p", NEW, "--change", "changes");
 
     expect(code).toBe(2);
-    expect(err).toContain(`no such module: ${NEW}`);
+    expect(err).toContain(`no such file: ${NEW}`);
     expect(go(fake, "add", "p", NEW, "--change", "removed").code).toBe(2);
   });
 
@@ -1640,7 +1640,7 @@ describe("plan views", () => {
     expect(saved(fake, "p").steps).toEqual([{ kind: "pick", module: ORDER }]);
   });
 
-  it("refuses to clear the proposed change of a planned module", () => {
+  it("refuses to clear the proposed change of a planned file", () => {
     const fake = repository(
       planned({ proposed: [{ module: NEW, kind: "new" }] }),
     );
@@ -1650,7 +1650,7 @@ describe("plan views", () => {
     expect(err).toContain(`${NEW} is planned; remove it with views remove`);
   });
 
-  it("removes a planned module", () => {
+  it("removes a planned file", () => {
     const fake = repository(
       planned({ proposed: [{ module: NEW, kind: "new" }] }),
     );
@@ -1659,7 +1659,7 @@ describe("plan views", () => {
     expect(saved(fake, "p").proposed).toBeUndefined();
   });
 
-  it("drops the proposed change when an in-scan module is taken off", () => {
+  it("drops the proposed change when an in-scan file is taken off", () => {
     const fake = repository(
       planned({ proposed: [{ module: ORDER, kind: "changes" }] }, [
         { kind: "pick", module: ORDER },
@@ -1672,7 +1672,7 @@ describe("plan views", () => {
     expect(saved(fake, "p").steps).toEqual([]);
   });
 
-  it("takes a note on a planned module and on its folder", () => {
+  it("takes a note on a planned file and on its folder", () => {
     const fake = repository(
       planned({ proposed: [{ module: NEW, kind: "new" }] }),
     );
@@ -1781,7 +1781,7 @@ describe("member entries in a plan", () => {
   ) => noted("p", { plan: true, ...extra }, steps, 4);
   const pickOrder = [{ kind: "pick", module: ORDER }];
 
-  it("adds a new member that is not in the scan and puts its module on the view", () => {
+  it("adds a new member that is not in the scan and puts its file on the view", () => {
     const fake = repository(planned());
     const result = go(
       fake,
@@ -1814,7 +1814,7 @@ describe("member entries in a plan", () => {
     ]);
   });
 
-  it("refuses --from, moves, and a member on a module that is not in the scan", () => {
+  it("refuses --from, moves, and a member on a file that is not in the scan", () => {
     const fake = repository(planned());
 
     expect(
@@ -1836,10 +1836,10 @@ describe("member entries in a plan", () => {
     expect(
       go(fake, "add", "p", "shop/none.py#f", "--change", "new").code,
     ).not.toBe(0);
-    expect(fake.err()).toContain("no such module: shop/none.py");
+    expect(fake.err()).toContain("no such file: shop/none.py");
   });
 
-  it("refuses a member on a planned module and a wholly new module entry on a module holding members", () => {
+  it("refuses a member on a planned file and a wholly new file entry on a file holding members", () => {
     const fake = repository(
       planned(
         {
@@ -1855,11 +1855,9 @@ describe("member entries in a plan", () => {
     expect(
       go(fake, "add", "p", `${NEW}#Discount`, "--change", "new").code,
     ).not.toBe(0);
-    expect(fake.err()).toContain(`${NEW} is wholly new; mark the module only`);
+    expect(fake.err()).toContain(`${NEW} is wholly new; mark the file only`);
     expect(go(fake, "add", "p", ORDER, "--change", "new").code).not.toBe(0);
-    expect(fake.err()).toContain(
-      `${ORDER} is wholly new; mark the module only`,
-    );
+    expect(fake.err()).toContain(`${ORDER} is wholly new; mark the file only`);
   });
 
   it("changes and clears a member entry", () => {
@@ -1882,7 +1880,7 @@ describe("member entries in a plan", () => {
     expect(saved(fake, "p").proposed).toBeUndefined();
   });
 
-  it("removes one member entry and, with its module, the rest and says how many", () => {
+  it("removes one member entry and, with its file, the rest and says how many", () => {
     const fake = repository(
       planned(
         {
@@ -1913,7 +1911,7 @@ describe("member entries in a plan", () => {
       0,
     );
     expect(fake.err()).toContain(
-      `notes stay at module level: ${ORDER}#Order.total`,
+      `notes stay at file level: ${ORDER}#Order.total`,
     );
   });
 

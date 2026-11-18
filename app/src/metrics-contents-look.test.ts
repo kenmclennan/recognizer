@@ -170,7 +170,7 @@ describe.skipIf(webkit === undefined)(
         { key: "crap/coverage", disabled: true },
       ]);
       expect(f.staleNotes).toContain(
-        "1 module out of date. Run crap from the Scan panel.",
+        "1 file out of date. Run crap from the Scan panel.",
       );
       expect(f.staleBarsAfterClick).toEqual([]);
     });

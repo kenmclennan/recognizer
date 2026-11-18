@@ -124,7 +124,9 @@ export function windowOrFail(io: Io, id: string | undefined): WindowState {
 }
 
 function selectionText(selection: Selection | null): string {
-  return selection === null ? "-" : `${selection.kind} ${selection.id}`;
+  return selection === null
+    ? "-"
+    : `${selection.kind === "module" ? "file" : selection.kind} ${selection.id}`;
 }
 
 function parse(argv: string[], usage: string, positionals: number) {
@@ -192,7 +194,7 @@ function windowBlock(state: WindowState): string {
   return [
     `${state.id}  ${state.folder}`,
     `view: ${state.view ?? "-"}`,
-    `modules: ${state.modules.length}`,
+    `files: ${state.modules.length}`,
     ...list(state.modules),
     `folded: ${state.folded.length}`,
     ...list(state.folded),
@@ -206,17 +208,17 @@ function windowBlock(state: WindowState): string {
 
 const DRIVE_VERBS: Record<string, { min: number; max: number; need: string }> =
   {
-    add: { min: 1, max: Infinity, need: "one or more module paths" },
-    remove: { min: 1, max: Infinity, need: "one or more module paths" },
+    add: { min: 1, max: Infinity, need: "one or more file paths" },
+    remove: { min: 1, max: Infinity, need: "one or more file paths" },
     fold: { min: 1, max: Infinity, need: "one or more folder ids" },
     focus: { min: 1, max: 1, need: "one folder id" },
-    select: { min: 1, max: 1, need: "one module path or folder id" },
-    trail: { min: 2, max: 2, need: "uses or used-by, then a module path" },
+    select: { min: 1, max: 1, need: "one file path or folder id" },
+    trail: { min: 2, max: 2, need: "uses or used-by, then a file path" },
     "open-view": { min: 1, max: 1, need: "one saved view name" },
     clear: {
       min: 1,
       max: 1,
-      need: "one of modules, folds, focus, selection, all",
+      need: "one of files, folds, focus, selection, all",
     },
   };
 

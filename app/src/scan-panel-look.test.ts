@@ -137,7 +137,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
 
   const rowEls = a.all(".scan-row:not(.scan-suite)");
   const first = rowEls[0].querySelector(".scan-state");
-  first.textContent = "155 modules described, 34 minutes ago";
+  first.textContent = "155 files described, 34 minutes ago";
   const paneBox = a.q(".scan-panel").getBoundingClientRect();
   const paneStyle = getComputedStyle(a.q(".scan-panel"));
   const contentRight = paneBox.right - parseFloat(paneStyle.paddingRight);
@@ -602,7 +602,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     f = await collectFacts<Facts>(HARNESS, "scan-panel");
   }, scaledTimeout(180000));
 
-  it("offers the canvas and whole-repository switch on an Untitled canvas, captioned This canvas and sized by its open modules", () => {
+  it("offers the canvas and whole-repository switch on an Untitled canvas, captioned This canvas and sized by its open files", () => {
     expect(f.scopeNone.scope.switches).toBe(1);
     expect(f.scopeNone.scope.caption).toBe("This canvas, 0");
     expect(f.scopeNone.scope.all).toBe("Whole repository");
@@ -638,24 +638,24 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.scopeOn.duplication).toBe(f.scopeOff.duplication);
   });
 
-  it("remembers the switch through the port and sends the view's module ids when it is on, and a click on Run with the scope off starts no further run", () => {
+  it("remembers the switch through the port and sends the view's file ids when it is on, and a click on Run with the scope off starts no further run", () => {
     expect(f.scopeOn.written.onlyView).toBe(true);
     expect(f.scopeRan.modules).toEqual([["app/a.py"]]);
     expect(f.scopeOffRan).toEqual([["app/a.py"]]);
   });
 
-  it("summarises one sensor-out-of-date module with no bar and Update 1 module, then everything current with a disabled Up to date once the hashes match", () => {
+  it("summarises one sensor-out-of-date file with no bar and Update 1 file, then everything current with a disabled Up to date once the hashes match", () => {
     expect(f.freshPartial.summary).toMatchObject({
       shape: "behind",
       tone: "warn",
-      head: "C.R.A.P. is out of date on 1 module",
+      head: "C.R.A.P. is out of date on 1 file",
       bar: 0,
     });
     expect(f.freshPartial.rowBars).toBe(0);
     expect(f.freshPartial.rows).toEqual([
-      { state: "1 module out of date", note: null },
+      { state: "1 file out of date", note: null },
     ]);
-    expect(f.freshPartial.button).toBe("Update 1 module");
+    expect(f.freshPartial.button).toBe("Update 1 file");
     expect(f.freshPartial.disabled).toBe(false);
     expect(f.freshPartial.secondary).toBe(0);
     expect(f.freshPartial.mode).toBe("Incremental");
@@ -672,7 +672,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
   });
 
   it("makes Full the mode toggle: it only relabels the primary, never runs, and swaps back", () => {
-    expect(f.freshRescan.button).toBe("Rescan 2 modules");
+    expect(f.freshRescan.button).toBe("Rescan 2 files");
     expect(f.freshRescan.disabled).toBe(false);
     expect(f.freshRescan.secondary).toBe(0);
     expect(f.freshRescan.mode).toBe("Full");
@@ -733,7 +733,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       "Finds import cycles, files nothing imports, unused exports, private imports, long or complex functions, duplication and policy violations. Runs with every scan and needs no tests.",
     );
     expect(title("describe")).toBe(
-      "Writes one line per module saying what it is responsible for.",
+      "Writes one line per file saying what it is responsible for.",
     );
     expect(title("crap")).toBe(
       "C.R.A.P.: Change Risk Anti-Patterns. Runs the tests with coverage.",
@@ -779,7 +779,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       "2h",
     );
     expect(f.changed.buttons[0]).toEqual({
-      text: "Update 1 module",
+      text: "Update 1 file",
       disabled: false,
       spinner: 0,
     });
@@ -857,7 +857,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       },
     ]);
     expect(f.run.first.header).toBe(
-      "Running Descriptions, tally and C.R.A.P.\u2026 Describing\u2026 0 of 1 modules",
+      "Running Descriptions, tally and C.R.A.P.\u2026 Describing\u2026 0 of 1 files",
     );
     expect(
       f.run.first.rows
@@ -873,7 +873,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.run.first.summary).toMatchObject({
       shape: "running",
       tone: "run",
-      head: "Running Descriptions, C.R.A.P. and tally on 2 modules",
+      head: "Running Descriptions, C.R.A.P. and tally on 2 files",
       bar: 1,
       spinning: true,
     });
@@ -883,7 +883,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       { text: "Stop", disabled: false, spinner: 0 },
     ]);
     expect(f.run.footer.text).toBe(
-      "Running Descriptions, tally and C.R.A.P.\u2026 Describing\u2026 0 of 1 modules",
+      "Running Descriptions, tally and C.R.A.P.\u2026 Describing\u2026 0 of 1 files",
     );
     expect(f.run.footer.buttons).toEqual(["bell"]);
     expect(f.run.footerAfter.text).toBe("");
@@ -1022,11 +1022,11 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     ]);
   });
 
-  it("shows a failed module from the message's Show on the inspector with the reason under its header", () => {
+  it("shows a failed file from the message's Show on the inspector with the reason under its header", () => {
     expect(f.moduleFail.footer.buttons).toEqual(["bell"]);
     expect(f.moduleFail.messages).toEqual([
       {
-        text: "Describe wrote 0 lines, 2 modules failed.",
+        text: "Describe wrote 0 lines, 2 files failed.",
         actions: ["Show", "Open log"],
       },
     ]);
@@ -1034,7 +1034,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.moduleFail.reason).toBe("no describer");
   });
 
-  it("shows no text and no Describe button when a module has no line", () => {
+  it("shows no text and no Describe button when a file has no line", () => {
     expect(f.missing.text).toBe("");
     expect(f.missing.describe).toBe(0);
   });

@@ -719,7 +719,7 @@
     ],
     "driven": {
       "result": {
-        "summary": "added 1 module",
+        "summary": "added 1 file",
         "changed": true
       }
     },
@@ -728,7 +728,7 @@
       "v": 1,
       "status": "done",
       "result": {
-        "summary": "added 1 module",
+        "summary": "added 1 file",
         "changed": true
       }
     }
@@ -845,7 +845,7 @@
     ],
     "driven": {
       "result": {
-        "summary": "removed 2 modules",
+        "summary": "removed 2 files",
         "changed": true
       }
     },
@@ -854,7 +854,7 @@
       "v": 1,
       "status": "done",
       "result": {
-        "summary": "removed 2 modules",
+        "summary": "removed 2 files",
         "changed": true
       }
     }
@@ -1348,13 +1348,13 @@
       }
     ],
     "driven": {
-      "refused": "no module app/zzz.py in the scan"
+      "refused": "no file app/zzz.py in the scan"
     },
     "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"add\",\"args\":[\"app/a.py\",\"app/zzz.py\"],\"options\":{},\"by\":\"Claude\"}",
     "response": {
       "v": 1,
       "status": "refused",
-      "reason": "no module app/zzz.py in the scan"
+      "reason": "no file app/zzz.py in the scan"
     }
   },
   {
@@ -1405,13 +1405,13 @@
       }
     ],
     "driven": {
-      "refused": "no module app/zzz.py in the scan"
+      "refused": "no file app/zzz.py in the scan"
     },
     "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"remove\",\"args\":[\"app/zzz.py\"],\"options\":{},\"by\":\"Claude\"}",
     "response": {
       "v": 1,
       "status": "refused",
-      "reason": "no module app/zzz.py in the scan"
+      "reason": "no file app/zzz.py in the scan"
     }
   },
   {
@@ -1462,13 +1462,13 @@
       }
     ],
     "driven": {
-      "refused": "no folder nowhere holds a module in the scan"
+      "refused": "no folder nowhere holds a file in the scan"
     },
     "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"fold\",\"args\":[\"nowhere\"],\"options\":{},\"by\":\"Claude\"}",
     "response": {
       "v": 1,
       "status": "refused",
-      "reason": "no folder nowhere holds a module in the scan"
+      "reason": "no folder nowhere holds a file in the scan"
     }
   },
   {
@@ -1519,13 +1519,13 @@
       }
     ],
     "driven": {
-      "refused": "no folder nowhere holds a module in the scan"
+      "refused": "no folder nowhere holds a file in the scan"
     },
     "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"focus\",\"args\":[\"nowhere\"],\"options\":{},\"by\":\"Claude\"}",
     "response": {
       "v": 1,
       "status": "refused",
-      "reason": "no folder nowhere holds a module in the scan"
+      "reason": "no folder nowhere holds a file in the scan"
     }
   },
   {
@@ -1576,13 +1576,13 @@
       }
     ],
     "driven": {
-      "refused": "no module or folder zzz in the scan"
+      "refused": "no file or folder zzz in the scan"
     },
     "request": "{\"v\":1,\"command\":\"drive\",\"id\":\"w-1\",\"action\":\"select\",\"args\":[\"zzz\"],\"options\":{},\"by\":\"Claude\"}",
     "response": {
       "v": 1,
       "status": "refused",
-      "reason": "no module or folder zzz in the scan"
+      "reason": "no file or folder zzz in the scan"
     }
   },
   {

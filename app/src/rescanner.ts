@@ -348,7 +348,7 @@ export function createRescanner<Carried>(
 
     const id = ports.post({
       kind: "info",
-      text: `Describe wrote ${entries.length - failed.length} lines, ${failed.length} modules failed.`,
+      text: `Describe wrote ${entries.length - failed.length} lines, ${failed.length} files failed.`,
       ...(first === undefined
         ? {}
         : {

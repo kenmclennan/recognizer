@@ -937,7 +937,7 @@ function* scanFlow(
 
         if (!json) {
           io.stdout(
-            `${language}: ${outcome.modules} modules, ${outcome.edges} edges -> ${shown}\n`,
+            `${language}: ${outcome.modules} files, ${outcome.edges} edges -> ${shown}\n`,
           );
         }
 
@@ -1134,7 +1134,7 @@ function* scanFlow(
 
         if (!json) {
           io.stderr(
-            `stopped: ${stopCauseText(stop)}; ${stop.not_described.length} modules not described\n`,
+            `stopped: ${stopCauseText(stop)}; ${stop.not_described.length} files not described\n`,
           );
         }
       }
