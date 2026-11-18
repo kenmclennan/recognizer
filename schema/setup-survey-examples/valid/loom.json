@@ -95,9 +95,9 @@
       "runner": "vitest",
       "directory": "engine",
       "from": "engine/package.json",
-      "command": "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=coverage",
+      "command": "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=../.recognizer/cache/coverage/engine",
       "coverage": {
-        "path": "coverage/lcov.info",
+        "path": ".recognizer/cache/coverage/engine/lcov.info",
         "format": "lcov"
       },
       "tool": "@vitest/coverage-v8"
@@ -108,9 +108,9 @@
       "runner": "vitest",
       "directory": "app",
       "from": "app/package.json",
-      "command": "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=coverage",
+      "command": "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=../.recognizer/cache/coverage/app",
       "coverage": {
-        "path": "coverage/lcov.info",
+        "path": ".recognizer/cache/coverage/app/lcov.info",
         "format": "lcov"
       },
       "tool": "@vitest/coverage-v8"
@@ -121,9 +121,9 @@
       "runner": "cargo",
       "directory": "app/src-tauri",
       "from": "app/src-tauri/Cargo.toml",
-      "command": "cargo llvm-cov --lcov --output-path target/lcov.info",
+      "command": "cargo llvm-cov --lcov --output-path ../../.recognizer/cache/coverage/tauri/lcov.info",
       "coverage": {
-        "path": "target/lcov.info",
+        "path": ".recognizer/cache/coverage/tauri/lcov.info",
         "format": "lcov"
       },
       "tool": "cargo-llvm-cov"

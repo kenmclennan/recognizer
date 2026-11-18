@@ -145,12 +145,38 @@ const LIMIT_KEYS = [
 
 const FOLDER_LIMIT = 5;
 
-const VITEST_COMMAND =
-  "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=coverage";
-const JEST_COMMAND =
-  "npx jest --coverage --coverageReporters=lcov --coverageDirectory=coverage";
-const CARGO_COMMAND = "cargo llvm-cov --lcov --output-path target/lcov.info";
-const PYTEST_COMMAND = "pytest --cov --cov-report=lcov:coverage/lcov.info";
+const CACHE_COVERAGE = ".recognizer/cache/coverage";
+
+export function folderSlug(name: string): string {
+  const slug = name.replace(/[^A-Za-z0-9._-]/g, "-");
+
+  return slug.startsWith(".") ? `-${slug.slice(1)}` : slug;
+}
+
+function reportFolder(name: string): string {
+  return `${CACHE_COVERAGE}/${folderSlug(name)}`;
+}
+
+function reportRoot(name: string, directory: string): string {
+  const depth = directory === "." ? 0 : directory.split("/").length;
+
+  return `${"../".repeat(depth)}${reportFolder(name)}`;
+}
+
+function commandFor(runner: string, name: string, directory: string): string {
+  const where = reportRoot(name, directory);
+
+  switch (runner) {
+    case "vitest":
+      return `npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=${where}`;
+    case "jest":
+      return `npx jest --coverage --coverageReporters=lcov --coverageDirectory=${where}`;
+    case "cargo":
+      return `cargo llvm-cov --lcov --output-path ${where}/lcov.info`;
+    default:
+      return `pytest --cov --cov-report=lcov:${where}/lcov.info`;
+  }
+}
 
 const LOCKFILE = "package-lock.json";
 
@@ -351,7 +377,6 @@ interface Found {
   runner: string;
   directory: string;
   from: string;
-  command: string;
   tool: string | null;
 }
 
@@ -377,7 +402,6 @@ function typescriptRunners(io: Io, root: string, files: string[]): Found[] {
         runner,
         directory: directoryOf(path),
         from: path,
-        command: runner === "vitest" ? VITEST_COMMAND : JEST_COMMAND,
         tool: runner === "vitest" ? "@vitest/coverage-v8" : null,
       });
     }
@@ -402,7 +426,6 @@ function rustRunners(io: Io, root: string, files: string[]): Found[] {
       runner: "cargo",
       directory: directoryOf(file),
       from: file,
-      command: CARGO_COMMAND,
       tool: "cargo-llvm-cov",
     }))
     .sort((a, b) => compareText(a.directory, b.directory));
@@ -435,7 +458,6 @@ function pythonRunners(io: Io, root: string, files: string[]): Found[] {
       runner: "pytest",
       directory,
       from,
-      command: PYTEST_COMMAND,
       tool: "pytest-cov",
     }))
     .sort((a, b) => compareText(a.directory, b.directory));
@@ -453,16 +475,17 @@ function nameRunners(found: Found[], root: string): SurveyRunner[] {
 
     used.set(base, seen);
 
+    const name = seen === 1 ? base : `${base}-${seen}`;
+
     return {
-      name: seen === 1 ? base : `${base}-${seen}`,
+      name,
       language: one.language,
       runner: one.runner,
       directory: one.directory,
       from: one.from,
-      command: one.command,
+      command: commandFor(one.runner, name, one.directory),
       coverage: {
-        path:
-          one.runner === "cargo" ? "target/lcov.info" : "coverage/lcov.info",
+        path: `${reportFolder(name)}/lcov.info`,
         format: "lcov",
       },
       tool: one.tool,

@@ -520,3 +520,38 @@ def test_a_partial_suite_is_not_ticked_by_a_run_of_another_suite(two_suites, tmp
     assert again["web"]["ran"] is True
     assert again["web"]["status"] == "ok"
     assert again["unit"]["ran"] is False
+
+
+def test_a_nested_suite_with_a_root_cache_report_warms_up(two_suites, tmp_path):
+    root, original, _ = two_suites
+    git_run(root, "rm", "-rq", f"{WEB}/coverage")
+    git_run(root, "commit", "-q", "-m", "drop the committed report")
+    report = ".recognizer/cache/coverage/web/lcov.info"
+    lcov = "SF:extra.py\\nDA:1,1\\nDA:2,1\\nend_of_record\\n"
+    web_script = tmp_path / "web_script.py"
+    unit = json.loads(original)["tests"][0]
+    web = {
+        "name": "web",
+        "language": "python",
+        "directory": WEB,
+        "activate": f'pytest() {{ {sys.executable} {web_script} "$@"; }}',
+        "command": (
+            'case "$PWD" in */mutation/work/*/warmup*) '
+            f"mkdir -p ../.recognizer/cache/coverage/web && printf '{lcov}' > ../{report};; "
+            "*) pytest;; esac #"
+        ),
+        "coverage": {"path": report, "format": "lcov"},
+    }
+    settings = json.dumps(
+        {
+            "tests": [unit, web],
+            "max_workers": 1,
+        }
+    )
+
+    assert mutate_suites(root, tmp_path, settings) == 0
+
+    findings = json.loads((tmp_path / "findings.json").read_text())
+
+    assert [suite["status"] for suite in findings["suites"]] == ["ok", "ok"]
+    assert not (root / WEB / "coverage").exists()

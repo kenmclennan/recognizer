@@ -5,7 +5,7 @@ tests:
   - name: core
     language: rust
     directory: .
-    command: cargo llvm-cov --lcov --output-path target/lcov.info
+    command: cargo llvm-cov --lcov --output-path .recognizer/cache/coverage/core/lcov.info
     coverage:
-      path: target/lcov.info
+      path: .recognizer/cache/coverage/core/lcov.info
       format: lcov

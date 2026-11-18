@@ -4,10 +4,11 @@ import shlex
 import subprocess
 import sys
 import time
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
-from conftest import make_repository
+from conftest import REPOSITORY, make_repository
 
 from recognizer_sensors.scans import Scan, ScanModule, read_scans
 from recognizer_sensors.settings import Refusal, SettingsError
@@ -173,6 +174,87 @@ def test_a_suite_in_a_directory_prefixes_its_lcov_paths(tmp_path):
 
     assert coverage == {"svc/app/m.py": {1: 1, 2: 1, 3: 0}}
     assert diagnosis is None
+
+
+ROOT_REPORT = ".recognizer/cache/coverage/web/lcov.info"
+
+NESTED_LCOV = "SF:src/a.py\nDA:1,1\nDA:2,0\nend_of_record\n"
+
+
+def nested(name, command, path):
+    return raw(
+        name=name,
+        directory=f"svc/{name}",
+        command=command,
+        coverage={"path": path, "format": "lcov"},
+    )
+
+
+def nested_repository(tmp_path):
+    return build(tmp_path, {"svc/web/src/a.py": BODY, "svc/api/src/a.py": BODY})
+
+
+def test_a_nested_suite_reads_a_report_under_the_root_cache(tmp_path):
+    root = nested_repository(tmp_path)
+    command = writes(f"../../{ROOT_REPORT}", NESTED_LCOV)
+
+    coverage, diagnosis = run(root, nested("web", command, ROOT_REPORT))
+
+    assert coverage == {"svc/web/src/a.py": {1: 1, 2: 0}}
+    assert diagnosis is None
+    assert sorted(path.name for path in (root / "svc" / "web").iterdir()) == ["src"]
+
+
+def test_a_nested_suite_whose_command_writes_nothing_reports_the_root_path(tmp_path):
+    root = nested_repository(tmp_path)
+
+    coverage, diagnosis = run(root, nested("web", "true", ROOT_REPORT))
+
+    assert coverage == {}
+    assert diagnosis["code"] == "coverage-unavailable"
+    assert f"left no coverage report at {ROOT_REPORT}" in diagnosis["line"]
+    assert f"svc/web/{ROOT_REPORT}" not in diagnosis["line"]
+
+
+def test_two_nested_suites_one_reporting_and_one_not_name_only_the_second(tmp_path):
+    root = nested_repository(tmp_path)
+    api_report = ".recognizer/cache/coverage/api/lcov.info"
+    reporting = nested("web", writes(f"../../{ROOT_REPORT}", NESTED_LCOV), ROOT_REPORT)
+    silent = nested("api", "true", api_report)
+
+    coverage, diagnosis = run(root, reporting, silent)
+
+    assert coverage == {"svc/web/src/a.py": {1: 1, 2: 0}}
+    assert diagnosis["code"] == "coverage-unavailable"
+    assert f"the api suite left no coverage report at {api_report}" in diagnosis["line"]
+    assert "the web suite" not in diagnosis["line"]
+
+
+def test_a_report_left_by_an_earlier_run_does_not_count_for_a_nested_suite(tmp_path):
+    root = nested_repository(tmp_path)
+    planted = root / ROOT_REPORT
+    planted.parent.mkdir(parents=True)
+    planted.write_text(NESTED_LCOV)
+
+    coverage, diagnosis = run(root, nested("web", "true", ROOT_REPORT))
+
+    assert coverage == {}
+    assert diagnosis["code"] == "coverage-unavailable"
+
+
+def test_suite_folder_matches_the_shared_slug_table():
+    rows = json.loads((REPOSITORY / "fixtures" / "suites" / "folder-slugs.json").read_text())
+    names = [row["name"] for row in rows]
+    (parsed,) = parse_suites([raw(name="x")])
+
+    assert names
+    assert any(not all(c.isalnum() or c in "._-" for c in name) for name in names)
+    assert any(name.startswith(".") for name in names)
+
+    for row in rows:
+        suite = replace(parsed, name=row["name"])
+
+        assert suites_module.suite_folder(suite) == f".recognizer/cache/coverage/{row['slug']}"
 
 
 def pin_clock(monkeypatch, moment):

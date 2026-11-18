@@ -1,0 +1,9 @@
+[
+  { "name": "web", "slug": "web" },
+  { "name": "tauri", "slug": "tauri" },
+  { "name": "my app", "slug": "my-app" },
+  { "name": "@scope/pkg", "slug": "-scope-pkg" },
+  { "name": ".hidden", "slug": "-hidden" },
+  { "name": "a_b.c-d", "slug": "a_b.c-d" },
+  { "name": "src-x", "slug": "src-x" }
+]

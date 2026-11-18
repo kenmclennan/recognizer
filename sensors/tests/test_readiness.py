@@ -841,8 +841,8 @@ BINDING_SUITES = (
     ),
     (
         "rust",
-        "cargo llvm-cov --lcov --output-path target/lcov.info",
-        "target/lcov.info",
+        "cargo llvm-cov --lcov --output-path .recognizer/cache/coverage/core/lcov.info",
+        ".recognizer/cache/coverage/core/lcov.info",
     ),
     (
         "csharp",
@@ -856,19 +856,19 @@ BINDING_SUITES = (
     ),
     (
         "rust",
-        "cargo llvm-cov --workspace --lcov --output-path target/lcov.info",
-        "target/lcov.info",
+        "cargo llvm-cov --workspace --lcov --output-path .recognizer/cache/coverage/core/lcov.info",
+        ".recognizer/cache/coverage/core/lcov.info",
     ),
     (
         "rust",
-        "cargo llvm-cov --lcov --output-path lcov.info",
-        "lcov.info",
+        "cargo llvm-cov --lcov --output-path ../../.recognizer/cache/coverage/ignore/lcov.info",
+        ".recognizer/cache/coverage/ignore/lcov.info",
     ),
     (
         "typescript",
         "npx vitest run --config ../../vitest.config.ts --coverage --coverage.reporter=lcov "
-        "--coverage.reportsDirectory=coverage",
-        "coverage/lcov.info",
+        "--coverage.reportsDirectory=../../.recognizer/cache/coverage/web",
+        ".recognizer/cache/coverage/web/lcov.info",
     ),
     (
         "csharp",

@@ -5,7 +5,7 @@ tests:
   - name: ignore
     language: rust
     directory: crates/ignore
-    command: cargo llvm-cov --lcov --output-path lcov.info
+    command: cargo llvm-cov --lcov --output-path ../../.recognizer/cache/coverage/ignore/lcov.info
     coverage:
-      path: lcov.info
+      path: .recognizer/cache/coverage/ignore/lcov.info
       format: lcov
