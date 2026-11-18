@@ -292,6 +292,7 @@ export type {
   SurveyFix,
   SurveyLanguage,
   SurveyLimit,
+  SurveyNote,
   SurveyPolicy,
   SurveyRunner,
   SurveySuite,

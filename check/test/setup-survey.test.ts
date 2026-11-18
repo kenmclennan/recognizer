@@ -806,3 +806,195 @@ describe("setup survey policy", () => {
     expect(survey.policy).toEqual({ present: true, uncovered: [] });
   });
 });
+
+describe("setup survey gradle suites", () => {
+  function tree(files: Record<string, string>): string {
+    const directory = makeTempDir("recognizer-setup-kt-");
+
+    for (const [name, text] of Object.entries(files)) {
+      mkdirSync(dirname(join(directory, name)), { recursive: true });
+      writeFileSync(join(directory, name), text);
+    }
+
+    return directory;
+  }
+
+  const KOTLIN_BUILD = `plugins {\n    kotlin("jvm") version "2.0.0"\n    id("jacoco")\n}\n`;
+  const COMMAND = "./gradlew cleanTest test jacocoTestReport";
+  const DEFAULT_PATH = "build/reports/jacoco/test/jacocoTestReport.xml";
+
+  it("a Kotlin DSL build with JaCoCo gives one runner with the command and the default path", async () => {
+    const directory = tree({
+      "build.gradle.kts": KOTLIN_BUILD,
+      gradlew: "",
+      "src/main/kotlin/A.kt": "class A\n",
+    });
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.runners).toHaveLength(1);
+    expect(survey.runners[0]).toMatchObject({
+      language: "kotlin",
+      runner: "gradle",
+      directory: ".",
+      command: COMMAND,
+      coverage: { path: DEFAULT_PATH, format: "jacoco" },
+      tool: null,
+    });
+    expect(survey.notes).toEqual([]);
+    expect(validate(survey), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it("a Groovy build with xml.outputLocation gives that path", async () => {
+    const groovy = tree({
+      "build.gradle": `plugins {\n    id 'jacoco'\n}\njacocoTestReport {\n    reports {\n        xml.outputLocation = layout.buildDirectory.file('coverage/jacoco.xml')\n    }\n}\n`,
+      gradlew: "",
+    });
+    const kotlin = tree({
+      "build.gradle.kts": `${KOTLIN_BUILD}tasks.jacocoTestReport {\n    reports {\n        xml.outputLocation.set(layout.buildDirectory.file("coverage/j.xml"))\n    }\n}\n`,
+      gradlew: "",
+    });
+    const first = await surveyOf([groovy]);
+    const second = await surveyOf([kotlin]);
+
+    expect(first.survey.runners).toHaveLength(1);
+    expect(first.survey.runners[0]?.coverage.path).toBe(
+      "build/coverage/jacoco.xml",
+    );
+    expect(second.survey.runners).toHaveLength(1);
+    expect(second.survey.runners[0]?.coverage.path).toBe(
+      "build/coverage/j.xml",
+    );
+  });
+
+  it("a build with a pactTest task gives only the test suite", async () => {
+    const directory = tree({
+      "build.gradle.kts": `${KOTLIN_BUILD}val pactTest by tasks.registering(Test::class) { }\ntasks.register<Test>("integrationTest") { }\n`,
+      gradlew: "",
+      "src/pactTest/kotlin/P.kt": "class P\n",
+      "src/main/kotlin/A.kt": "class A\n",
+    });
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.runners).toHaveLength(1);
+    expect(survey.runners[0]?.command).toContain("test");
+    expect(survey.runners[0]?.command).not.toContain("pactTest");
+    expect(survey.runners[0]?.command).not.toContain("integrationTest");
+  });
+
+  it("a build without JaCoCo gives no runner and the add-JaCoCo note", async () => {
+    const directory = tree({
+      "build.gradle.kts": `plugins {\n    id("io.micronaut.application")\n}\n`,
+      gradlew: "",
+      "src/main/kotlin/A.kt": "class A\n",
+    });
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.runners).toEqual([]);
+    expect(survey.notes).toHaveLength(1);
+    expect(survey.notes?.[0]?.directory).toBe(".");
+    expect(survey.notes?.[0]?.text).toContain('id("jacoco")');
+    expect(survey.notes?.[0]?.text).toContain("build.gradle.kts");
+  });
+
+  it("a build with no Kotlin sources and no JaCoCo gives nothing", async () => {
+    const javaOnly = tree({
+      "build.gradle.kts": `plugins {\n    java\n}\n`,
+      "src/main/java/A.java": "class A {}\n",
+    });
+    const untracked = tree({
+      "build.gradle.kts": `plugins {\n    java\n}\n`,
+      "bin/main/A.kt": "class A\n",
+    });
+
+    for (const directory of [javaOnly, untracked]) {
+      const { survey } = await surveyOf([directory]);
+
+      expect(survey.runners).toEqual([]);
+      expect(survey.notes).toEqual([]);
+    }
+  });
+
+  it("an unreadable report path gives the default path and a note", async () => {
+    const dollar = tree({
+      "build.gradle.kts": `${KOTLIN_BUILD}tasks.jacocoTestReport {\n    reports.xml.outputLocation = file("\${buildDir}/x.xml")\n}\n`,
+      gradlew: "",
+    });
+    const two = tree({
+      "build.gradle": `plugins {\n    id 'jacoco'\n}\na { xml.outputLocation = layout.buildDirectory.file('a.xml') }\nb { xml.outputLocation = layout.buildDirectory.file('b.xml') }\n`,
+      gradlew: "",
+    });
+
+    for (const directory of [dollar, two]) {
+      const { survey } = await surveyOf([directory]);
+
+      expect(survey.runners).toHaveLength(1);
+      expect(survey.runners[0]?.coverage.path).toBe(DEFAULT_PATH);
+      expect(
+        survey.notes?.some((note) => note.text.includes("may differ")),
+      ).toBe(true);
+    }
+  });
+
+  it("jacoco applied only from subprojects gives no runner", async () => {
+    const directory = tree({
+      "build.gradle": `subprojects {\n    apply plugin: 'jacoco'\n}\n`,
+      gradlew: "",
+      "src/main/kotlin/A.kt": "class A\n",
+    });
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.runners).toEqual([]);
+    expect(
+      survey.notes?.some((note) => note.text.includes('id("jacoco")')),
+    ).toBe(true);
+  });
+
+  it("each subproject with a build file is its own suite and finds the wrapper above it", async () => {
+    const directory = tree({
+      gradlew: "",
+      "settings.gradle.kts": `include("svc-a", "svc-b")\n`,
+      "svc-a/build.gradle.kts": KOTLIN_BUILD,
+      "svc-a/src/main/kotlin/A.kt": "class A\n",
+      "svc-b/build.gradle.kts": `plugins {\n    kotlin("jvm")\n}\n`,
+      "svc-b/src/main/kotlin/B.kt": "class B\n",
+    });
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.runners).toHaveLength(1);
+    expect(survey.runners[0]).toMatchObject({
+      directory: "svc-a",
+      command: "../gradlew cleanTest test jacocoTestReport",
+    });
+    expect(survey.notes).toHaveLength(1);
+    expect(survey.notes?.[0]?.directory).toBe("svc-b");
+    expect(survey.notes?.[0]?.text).toContain('id("jacoco")');
+  });
+
+  it("no wrapper gives the assumed command and a note", async () => {
+    const directory = tree({
+      "build.gradle.kts": KOTLIN_BUILD,
+      "src/main/kotlin/A.kt": "class A\n",
+    });
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.runners).toHaveLength(1);
+    expect(survey.runners[0]?.command).toBe(COMMAND);
+    expect(
+      survey.notes?.some((note) => note.text.includes("no Gradle wrapper")),
+    ).toBe(true);
+  });
+
+  it("a configured suite hides the runner and the note", async () => {
+    const directory = tree({
+      "build.gradle.kts": KOTLIN_BUILD,
+      "src/main/kotlin/A.kt": "class A\n",
+      ".recognizer/config.yaml":
+        "tests:\n  - name: root\n    language: kotlin\n    directory: .\n    command: ./gradlew test\n    coverage:\n      path: build/x.xml\n      format: jacoco\n",
+    });
+    const { survey } = await surveyOf([directory]);
+
+    expect(survey.suites).toHaveLength(1);
+    expect(survey.runners).toEqual([]);
+    expect(survey.notes).toEqual([]);
+  });
+});

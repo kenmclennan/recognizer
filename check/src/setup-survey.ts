@@ -12,6 +12,11 @@ import {
 import { doctorReport } from "./doctor-command.js";
 import { InputError } from "./errors.js";
 import { compileGlob } from "./glob.js";
+import {
+  appliesJacoco,
+  DEFAULT_JACOCO_REPORT,
+  jacocoReportOf,
+} from "./gradle-build.js";
 import { discoverPlugins } from "./plugin-discovery.js";
 import { type Policy, parsePolicy } from "./policy.js";
 import type { RecordedScan } from "./scan.js";
@@ -73,6 +78,12 @@ export interface SurveyRunner {
   env?: Record<string, string>;
 }
 
+export interface SurveyNote {
+  language: string;
+  directory: string;
+  text: string;
+}
+
 export interface SurveyTool {
   name: string;
   kind: "npm" | "cargo" | "pip";
@@ -116,6 +127,7 @@ export interface Survey {
   unread: SurveyUnread[];
   checks: SurveyCheck[];
   runners: SurveyRunner[];
+  notes?: SurveyNote[];
   tools: SurveyTool[];
   fixes: SurveyFix[];
   suites: SurveySuite[];
@@ -412,6 +424,8 @@ interface Found {
   tool: string | null;
   env?: Record<string, string>;
   args?: string[];
+  command?: string;
+  coverage?: { path: string; format: string };
 }
 
 const VITEST_CONFIG = /^vitest\.config\.(ts|mts|cts|js|mjs|cjs)$/;
@@ -639,6 +653,145 @@ function pythonRunners(io: Io, root: string, files: string[]): Found[] {
     .sort((a, b) => compareText(a.directory, b.directory));
 }
 
+function wrapperFor(directory: string, files: string[]): string | null {
+  const wrappers = new Set(
+    files.filter((file) => posix.basename(file) === "gradlew").map(directoryOf),
+  );
+  let at = directory;
+  let up = 0;
+
+  for (;;) {
+    if (wrappers.has(at)) {
+      return up === 0 ? "./gradlew" : `${"../".repeat(up)}gradlew`;
+    }
+
+    if (at === ".") {
+      return null;
+    }
+
+    at = directoryOf(at);
+    up += 1;
+  }
+}
+
+function insideFolder(file: string, directory: string): boolean {
+  return directory === "." || file.startsWith(`${directory}/`);
+}
+
+function hasKotlinSources(
+  files: string[],
+  directory: string,
+  nearer: string[],
+): boolean {
+  const base = directory === "." ? "" : `${directory}/`;
+
+  return files.some(
+    (file) =>
+      file.endsWith(".kt") &&
+      (file.startsWith(`${base}src/main/kotlin/`) ||
+        file.startsWith(`${base}src/main/java/`)) &&
+      !nearer.some((other) => insideFolder(file, other)),
+  );
+}
+
+function gradleReading(
+  io: Io,
+  root: string,
+  files: string[],
+  suites: SurveySuite[],
+): { found: Found[]; notes: SurveyNote[] } {
+  const builds = new Map<string, string>();
+
+  for (const file of files) {
+    const name = posix.basename(file);
+
+    if (
+      (name === "build.gradle.kts" || name === "build.gradle") &&
+      !file.split("/").includes("buildSrc")
+    ) {
+      const directory = directoryOf(file);
+      const held = builds.get(directory);
+
+      if (held === undefined || name === "build.gradle.kts") {
+        builds.set(directory, file);
+      }
+    }
+  }
+
+  const directories = [...builds.keys()];
+  const found: Found[] = [];
+  const notes: SurveyNote[] = [];
+
+  for (const [directory, from] of builds) {
+    const covered = suites.some(
+      (suite) => suite.directory === directory && suite.language === "kotlin",
+    );
+
+    if (covered) {
+      continue;
+    }
+
+    const text = readText(io, join(root, from)) ?? "";
+    const nearer = directories.filter(
+      (other) =>
+        other !== directory &&
+        other !== "." &&
+        (directory === "." || other.startsWith(`${directory}/`)),
+    );
+
+    if (!appliesJacoco(text)) {
+      if (hasKotlinSources(files, directory, nearer)) {
+        notes.push({
+          language: "kotlin",
+          directory,
+          text: `no JaCoCo: add id("jacoco") to the plugins { } block of ${from} (Groovy: id 'jacoco'); Recognizer does not edit build files`,
+        });
+      }
+      continue;
+    }
+
+    const wrapper = wrapperFor(directory, files);
+    const report = jacocoReportOf(text);
+
+    if (wrapper === null) {
+      notes.push({
+        language: "kotlin",
+        directory,
+        text: "no Gradle wrapper (gradlew) found at or above this folder; the command assumes one",
+      });
+    }
+
+    if (report.kind === "unreadable") {
+      notes.push({
+        language: "kotlin",
+        directory,
+        text: `the report path may differ: this build sets it in a form the survey cannot read; check ${from} before running`,
+      });
+    }
+
+    found.push({
+      language: "kotlin",
+      runner: "gradle",
+      directory,
+      from,
+      tool: null,
+      command: `${wrapper ?? "./gradlew"} cleanTest test jacocoTestReport`,
+      coverage: {
+        path: report.kind === "literal" ? report.path : DEFAULT_JACOCO_REPORT,
+        format: "jacoco",
+      },
+    });
+  }
+
+  return {
+    found: found.sort((a, b) => compareText(a.directory, b.directory)),
+    notes: notes.sort(
+      (a, b) =>
+        compareText(a.directory, b.directory) || compareText(a.text, b.text),
+    ),
+  };
+}
+
 function nameRunners(
   found: Found[],
   root: string,
@@ -669,8 +822,9 @@ function nameRunners(
       runner: one.runner,
       directory: one.directory,
       from: one.from,
-      command: commandFor(one.runner, name, one.directory, one.args),
-      coverage: {
+      command:
+        one.command ?? commandFor(one.runner, name, one.directory, one.args),
+      coverage: one.coverage ?? {
         path: `${reportFolder(name)}/lcov.info`,
         format: "lcov",
       },
@@ -1243,10 +1397,12 @@ export function surveyRepository(
       : cachedScans(io, root, rules);
   const configured = io.exists(configFile(root));
   const suites = suitesOf(io, document, files, configured);
+  const gradle = gradleReading(io, root, files, suites);
   const found = [
     ...typescriptRunners(io, root, files),
     ...rustRunners(io, root, files),
     ...pythonRunners(io, root, files),
+    ...gradle.found,
   ].filter(
     (one) =>
       !suites.some(
@@ -1273,6 +1429,7 @@ export function surveyRepository(
     unread: unreadOf(files, rules),
     checks,
     runners,
+    notes: gradle.notes,
     tools: toolsOf(io, root, runners, files),
     fixes: fixesOf(io, root, checks),
     suites,
