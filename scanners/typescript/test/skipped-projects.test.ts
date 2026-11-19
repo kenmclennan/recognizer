@@ -100,17 +100,23 @@ describe("skipped projects", () => {
   });
 
   it("ignores a syntax error in a file under a skipped directory", () => {
-    const { result } = scanned(
+    const { result, doc } = scanned(
       mixed({ "broken/bad.ts": "export const = ;\n" }),
     );
 
     expect(result.status).toBe(0);
+    expect(doc.modules.length).toBeGreaterThan(0);
+    expect(doc.modules.map((m) => m.id)).not.toContain("broken/bad.ts");
+    expect(result.stderr).not.toContain("damaged file");
   });
 
-  it("still exits 2 for a syntax error in a healthy project", () => {
-    const result = runBin(mixed({ "healthy/bad.ts": "export const = ;\n" }));
+  it("scans past a syntax error in a healthy project", () => {
+    const { result, doc } = scanned(
+      mixed({ "healthy/bad.ts": "export const = ;\n" }),
+    );
 
-    expect(result.status).toBe(2);
-    expect(result.stdout).toBe("");
+    expect(result.status).toBe(0);
+    expect(doc.modules.map((m) => m.id)).toContain("healthy/bad.ts");
+    expect(result.stderr).toContain("damaged file healthy/bad.ts:");
   });
 });

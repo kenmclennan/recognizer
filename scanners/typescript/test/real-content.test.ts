@@ -54,11 +54,11 @@ function scannedFiles(root: string): string[] {
   });
 }
 
-function copiedWithoutTemplates(root: string): string {
+function copiedFiles(root: string, withTemplates: boolean): string {
   const copy = makeTempDir("recognizer-ts-check-");
 
   for (const path of listedFiles(root)) {
-    if (path === "" || path.startsWith("templates/")) {
+    if (path === "" || (!withTemplates && path.startsWith("templates/"))) {
       continue;
     }
 
@@ -69,6 +69,10 @@ function copiedWithoutTemplates(root: string): string {
   }
 
   return copy;
+}
+
+function copiedWithoutTemplates(root: string): string {
+  return copiedFiles(root, false);
 }
 
 describe("scanning check/", () => {
@@ -116,5 +120,34 @@ describe("scanning check/", () => {
     expect(
       doc.edges.some((e: { to: string }) => e.to.includes("scan.schema")),
     ).toBe(false);
+  });
+
+  it("scans check/ with its templates and names the three damaged templates", () => {
+    const copy = copiedFiles(check, true);
+    const result = runBin(copy);
+
+    expect(result.status).toBe(0);
+
+    const doc = JSON.parse(result.stdout);
+    validate(doc);
+
+    const templates = [
+      "templates/typescript/describer/src/main.ts",
+      "templates/typescript/scanner/src/main.ts",
+      "templates/typescript/sensor/src/main.ts",
+    ];
+    const ids = doc.modules.map((m: { id: string }) => m.id);
+
+    for (const template of templates) {
+      expect(ids).toContain(template);
+    }
+
+    const named = result.stderr
+      .split("\n")
+      .filter((line) => line.startsWith("damaged file "))
+      .map((line) => line.slice("damaged file ".length).split(": ")[0]);
+
+    expect(named.sort()).toEqual(templates);
+    expect(result.stderr).toContain("recognizer-scan-typescript: 3 of");
   });
 });

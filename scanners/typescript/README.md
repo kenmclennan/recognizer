@@ -8,6 +8,8 @@ recognizer-scan-typescript run ROOT [--commit SHA] [--output FILE]
 
 `ROOT` is the repository root and the base of every file id. The commit defaults to `git rev-parse HEAD`, or `null` outside git. Output goes to stdout unless `--output` is given.
 
+A file with syntax errors stays in the scan with whatever the parse recovered, and the scan exits 0. Stderr names each damaged file once, as `damaged file <file id>: syntax errors: <count>`, then `recognizer-scan-typescript: <D> of <N> files had damaged spans`. The document carries no marker.
+
 ## Resolution
 
 Each file is resolved with the options of its own `tsconfig.json`: the nearest one, following `references` to the config that lists the file. A `paths` alias, a `baseUrl` path or a workspace package name that lands on a scanned file becomes an edge to that file, never a foreign node. A workspace package whose build output is missing falls back to its `src/index`. Anything TypeScript resolves into `node_modules`, or cannot resolve at all, is a `foreign:` node named by its package.
@@ -75,7 +77,7 @@ The walk for `package.json` and HTML files skips the same directories as source 
 ## Exit codes
 
 - `0` - the scan was written.
-- `2` - a usage error, a `ROOT` that is not a directory, a syntax error in a scanned file. A project whose `tsconfig.json` cannot be read, parsed or resolved is skipped instead, with exit 0: its directory (and everything under it) is left unscanned, named on stderr as `skipped project <directory>: <config>: <message>` and listed in `selection.skip_paths`. On exit 2 nothing is written, and every failure is listed on stderr as `path:line: message`.
+- `2` - a usage error, a `ROOT` that is not a directory, listed as `ROOT is not a directory: <path>`. A project whose `tsconfig.json` cannot be read, parsed or resolved is skipped instead, with exit 0: its directory (and everything under it) is left unscanned, named on stderr as `skipped project <directory>: <config>: <message>` and listed in `selection.skip_paths`.
 
 ## Skipped
 

@@ -146,12 +146,12 @@ function moduleKind(members: Member[]): "module" | "interface" {
     : "module";
 }
 
-function syntaxProblems(
+function damagedFiles(
   program: ts.Program,
   files: string[],
-  root: string,
-): string[] {
-  const problems: string[] = [];
+  idOf: (file: string) => string,
+): [string, number][] {
+  const damaged: [string, number][] = [];
 
   for (const file of files) {
     const source = program.getSourceFile(file);
@@ -160,23 +160,16 @@ function syntaxProblems(
       continue;
     }
 
-    for (const diagnostic of program.getSyntacticDiagnostics(source)) {
-      const line =
-        diagnostic.start === undefined
-          ? 0
-          : source.getLineAndCharacterOfPosition(diagnostic.start).line + 1;
-      const message = ts.flattenDiagnosticMessageText(
-        diagnostic.messageText,
-        "\n",
-      );
+    const count = program.getSyntacticDiagnostics(source).length;
 
-      problems.push(
-        `${relative(root, file).split(sep).join("/")}:${line}: ${message}`,
-      );
+    if (count > 0) {
+      damaged.push([idOf(file), count]);
     }
   }
 
-  return problems;
+  return damaged.sort(([left], [right]) =>
+    left < right ? -1 : left > right ? 1 : 0,
+  );
 }
 
 export function scan(
@@ -292,10 +285,16 @@ export function scan(
 
   progress?.finish();
 
-  const problems = syntaxProblems(program, files, real);
+  const damaged = damagedFiles(program, files, idOf);
 
-  if (problems.length > 0) {
-    throw new ScanError(problems);
+  for (const [id, count] of damaged) {
+    onSkipped(`damaged file ${id}: syntax errors: ${count}\n`);
+  }
+
+  if (damaged.length > 0) {
+    onSkipped(
+      `recognizer-scan-typescript: ${damaged.length} of ${files.length} files had damaged spans\n`,
+    );
   }
 
   const nonSource = new Set<string>();
