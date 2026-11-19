@@ -122,7 +122,7 @@ describe("scanning check/", () => {
     ).toBe(false);
   });
 
-  it("scans check/ with its templates and names the three damaged templates", () => {
+  it("scans check/ with its templates and skips them as unparsed template sources", () => {
     const copy = copiedFiles(check, true);
     const result = runBin(copy);
 
@@ -131,23 +131,9 @@ describe("scanning check/", () => {
     const doc = JSON.parse(result.stdout);
     validate(doc);
 
-    const templates = [
-      "templates/typescript/describer/src/main.ts",
-      "templates/typescript/scanner/src/main.ts",
-      "templates/typescript/sensor/src/main.ts",
-    ];
     const ids = doc.modules.map((m: { id: string }) => m.id);
 
-    for (const template of templates) {
-      expect(ids).toContain(template);
-    }
-
-    const named = result.stderr
-      .split("\n")
-      .filter((line) => line.startsWith("damaged file "))
-      .map((line) => line.slice("damaged file ".length).split(": ")[0]);
-
-    expect(named.sort()).toEqual(templates);
-    expect(result.stderr).toContain("recognizer-scan-typescript: 3 of");
+    expect(ids.filter((id: string) => id.startsWith("templates/"))).toEqual([]);
+    expect(result.stderr).not.toContain("damaged file");
   });
 });
