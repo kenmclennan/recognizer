@@ -32,6 +32,7 @@ import {
 } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
 import { foldRunLine, isActive, type RunInput } from "./scan-run-model";
+import { onlyArmed } from "./suite-ticks";
 
 export type Registered = {
   sensors: Pick<
@@ -791,13 +792,19 @@ export function createRescanner<Carried>(
       registered.describerRegistered,
     );
     const { plan: base } = phasesFor(effective, registered.sensors);
-    const plan = planned?.plan ?? {
-      ...base,
-      modules:
-        modules !== null && (base.describe || base.sense.length > 0)
-          ? modules
-          : null,
-    };
+    const plan = onlyArmed(
+      planned?.plan ?? {
+        ...base,
+        modules:
+          modules !== null && (base.describe || base.sense.length > 0)
+            ? modules
+            : null,
+      },
+      effective.once,
+      registered.sensors
+        .filter(({ runsTests }) => runsTests)
+        .map(({ name }) => name),
+    );
 
     heading = planned?.progress ?? null;
     analysisPlanned = plan.analysis;

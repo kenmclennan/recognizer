@@ -71,6 +71,22 @@ describe("the arguments the app hands the scan command", () => {
     expect(() => parseScanArgs(argsFor(planned.plan))).not.toThrow();
   });
 
+  it("hand Incremental a plain --describe and only Full --describe=all", () => {
+    const ticks = ticksOf({ describe: true });
+    const full = planFor(MODEL, "rescan", ticks, ROWS, null, ["a.py"]);
+    const gapped = {
+      ...MODEL,
+      gaps: new Map([["describe", ["a.py"]]]),
+    } as unknown as FreshnessModel;
+    const incremental = planFor(gapped, "bring", ticks, ROWS, null, ["a.py"]);
+
+    expect(full.plan.describeAll).toBe(true);
+    expect(argsFor(full.plan)).toContain("--describe=all");
+    expect(incremental.plan.describeAll).toBe(false);
+    expect(argsFor(incremental.plan)).toContain("--describe");
+    expect(argsFor(incremental.plan)).not.toContain("--describe=all");
+  });
+
   it("parse for a planned run with C.R.A.P. and its suites", () => {
     const planned = planFor(
       MODEL,

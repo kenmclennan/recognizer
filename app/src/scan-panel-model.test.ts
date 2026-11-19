@@ -1992,3 +1992,24 @@ describe("unregistered plugins", () => {
     expect(effectiveTicks(given, rows, false).describe).toBe(false);
   });
 });
+
+describe("the mode shown while a scan runs", () => {
+  it("is the mode of the in-flight plan, not the chosen one", () => {
+    const full = scanPanel(
+      input({ scanning: true, mode: "bring", runMode: "rescan" }),
+    );
+    const incremental = scanPanel(
+      input({ scanning: true, mode: "rescan", runMode: "bring" }),
+    );
+
+    expect(full.mode.value).toBe("rescan");
+    expect(incremental.mode.value).toBe("bring");
+  });
+
+  it("is the chosen mode when nothing is running", () => {
+    expect(
+      scanPanel(input({ scanning: false, mode: "bring", runMode: "rescan" }))
+        .mode.value,
+    ).toBe("bring");
+  });
+});

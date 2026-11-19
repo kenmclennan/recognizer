@@ -22,6 +22,7 @@ import {
   afterPanelOpen,
   afterSensorTick,
   afterSuiteTick,
+  onlyArmed,
   sensorTickState,
   suiteIsTicked,
   tickedSuites,
@@ -563,5 +564,44 @@ describe("result rows from the findings suites array", () => {
       mutation?.fold?.suites.find((one) => one.name === "integration")?.state
         .text,
     ).toBe("4/12");
+  });
+});
+
+describe("onlyArmed", () => {
+  const plan = {
+    describe: false,
+    describeAll: false,
+    analysis: true,
+    sense: ["mutation", "crap", "structure"],
+    modules: null,
+    suites: { mutation: ["unit"], crap: ["unit"] },
+  };
+  const testing = ["crap", "mutation"];
+
+  it("drops an unarmed test-running sensor and its suites and keeps the armed one", () => {
+    expect(plan.sense[0]).toBe("mutation");
+    expect(plan.suites.mutation).toEqual(["unit"]);
+
+    const result = onlyArmed(plan, ["crap"], testing);
+
+    expect(result.sense).toEqual(["crap", "structure"]);
+    expect(result.suites).toEqual({ crap: ["unit"] });
+  });
+
+  it("returns the plan unchanged when every test-running sensor is armed", () => {
+    expect(onlyArmed(plan, ["crap", "mutation"], testing)).toEqual(plan);
+  });
+
+  it("keeps only plain sensors when none is armed", () => {
+    const result = onlyArmed(plan, [], testing);
+
+    expect(result.sense).toEqual(["structure"]);
+    expect(result.suites).toEqual({});
+  });
+
+  it("keeps a plain sensor that is not armed", () => {
+    expect(onlyArmed({ ...plan, sense: ["alpha"] }, [], testing).sense).toEqual(
+      ["alpha"],
+    );
   });
 });

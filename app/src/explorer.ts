@@ -289,6 +289,17 @@ import {
 import { type DriveAnswer, inertWindow, type WindowPort } from "./window-port";
 import { latestWins, type Snapshot, windowStateOf } from "./window-state";
 
+function runModeOf(
+  running: boolean,
+  planned: PlannedRun | null,
+): ResultsMode | undefined {
+  if (!running || planned === null) {
+    return undefined;
+  }
+
+  return planned.plan.describeAll ? "rescan" : "bring";
+}
+
 export type Carried = {
   history: History<Snapshot>;
   snapshot: Snapshot;
@@ -3024,6 +3035,7 @@ export function showExplorer(
           : { ...ticks, onlyView, describe: false },
       view: { name: savedView(), modules: modules.opened() },
       mode: onlyView === undefined ? resultsMode : "bring",
+      runMode: runModeOf(scanHost.running(), runPlanned),
       scans,
       run: scanHost.runState(),
       scanning: scanHost.running(),
