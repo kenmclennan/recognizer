@@ -109,6 +109,12 @@ fn folder_title(folder: &Path) -> String {
         .unwrap_or_else(|| APP_TITLE.to_string())
 }
 
+fn title_for(folder: Option<PathBuf>) -> String {
+    folder
+        .map(|folder| folder_title(&folder))
+        .unwrap_or_else(|| APP_TITLE.to_string())
+}
+
 fn focus_label(app: &AppHandle, label: &str) {
     if let Some(window) = app.get_webview_window(label) {
         let _ = window.unminimize();
@@ -188,7 +194,7 @@ fn take_folder(app: &AppHandle, label: &str, folder: &Path) -> Result<(), String
         Claim::HeldBy(other) => focus_label(app, &other),
         Claim::Assigned => {
             if let Some(window) = app.get_webview_window(label) {
-                let _ = window.set_title(&folder_title(&canonical));
+                let _ = window.set_title(&title_for(state.folder_of(label)));
             }
 
             let _ = app.emit_to(label, "folder-assigned", ());
@@ -1987,5 +1993,50 @@ mod git_watch_tests {
     #[test]
     fn a_watch_stops_once_unwatch_removed_its_generation() {
         assert!(!git_watch_continues(1, None));
+    }
+}
+
+#[cfg(test)]
+mod title_tests {
+    use super::{folder_title, title_for, APP_TITLE};
+    use crate::windows::WindowState;
+    use tempfile::TempDir;
+
+    #[test]
+    fn a_window_with_no_folder_is_titled_with_the_app_name() {
+        assert_eq!(title_for(None), APP_TITLE);
+    }
+
+    #[test]
+    fn a_claimed_window_is_titled_with_its_own_folder() {
+        let dir = TempDir::new().unwrap();
+        let state = WindowState::default();
+
+        state.claim("w-1", dir.path());
+
+        let folder = state.folder_of("w-1").unwrap();
+
+        assert_eq!(title_for(Some(folder.clone())), folder_title(&folder));
+        assert_ne!(title_for(Some(folder)), APP_TITLE);
+    }
+
+    #[test]
+    fn a_second_claim_leaves_the_first_windows_title_unchanged() {
+        let first = TempDir::new().unwrap();
+        let second = TempDir::new().unwrap();
+        let state = WindowState::default();
+
+        state.claim("w-1", first.path());
+
+        let before = title_for(state.folder_of("w-1"));
+
+        state.claim("w-2", second.path());
+
+        assert_eq!(title_for(state.folder_of("w-1")), before);
+        assert_eq!(
+            title_for(state.folder_of("w-2")),
+            folder_title(&state.folder_of("w-2").unwrap())
+        );
+        assert_ne!(before, title_for(state.folder_of("w-2")));
     }
 }

@@ -125,6 +125,7 @@ export type PanelInput = {
   ticks: ScanTicks;
   view?: PanelView | null;
   mode?: ResultsMode;
+  runMode?: ResultsMode;
   scans?: Scan[];
   run: RunState;
   scanning: boolean;
@@ -529,7 +530,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
         label: input.scanning ? "Running" : "Run",
         disabled: input.scanning,
       },
-      mode: freshness.action.mode,
+      mode: runningMode(input, freshness.action.mode),
       planned: null,
       pending: true,
       mark: panelMark(input),
@@ -727,7 +728,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
     rows,
     reports: reportRows(statuses, input.now),
     button: buttonOf(input, run, freshness.action.primary),
-    mode: freshness.action.mode,
+    mode: runningMode(input, freshness.action.mode),
     planned,
     pending: false,
     mark: panelMark(input),
@@ -819,4 +820,13 @@ function panelMark(input: PanelInput): boolean {
     input.sensors.some(({ status }) => status === "failed") ||
     Object.keys(input.run.failures).length > 0
   );
+}
+
+function runningMode(
+  input: Pick<PanelInput, "scanning" | "runMode">,
+  mode: FreshnessModel["action"]["mode"],
+): FreshnessModel["action"]["mode"] {
+  return input.scanning && input.runMode !== undefined
+    ? { ...mode, value: input.runMode }
+    : mode;
 }

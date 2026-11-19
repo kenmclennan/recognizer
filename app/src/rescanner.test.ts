@@ -10,7 +10,7 @@ import {
   type RescanPorts,
 } from "./rescanner";
 import { fakeScan } from "./scan-fake";
-import { OPEN_RUN } from "./scan-freshness";
+import { OPEN_RUN, type PlannedRun } from "./scan-freshness";
 import type { Loaded } from "./scan-loading";
 
 const ORIGIN: ScanOrigin = { branch: "main", commit: "a1b2c3d" };
@@ -944,6 +944,76 @@ describe("createRescanner", () => {
       expect(scan.written.at(-1)?.suites).toEqual(SUITE_TICKS);
       expect(scan.written.at(-1)?.folds).toEqual(["mut"]);
     }
+  });
+
+  it("does not hand the port a stale plan's test-running sensor that is not armed", async () => {
+    const scan = fakeScan();
+    const { rescanner } = harness(scan);
+
+    await rescanner.loadTicks();
+    rescanner.setTicks({
+      ...rescanner.ticks(),
+      once: [],
+      suites: SUITE_TICKS,
+    });
+
+    const stale = {
+      describe: false,
+      describeAll: false,
+      analysis: true,
+      sense: ["mut", "alpha"],
+      modules: null,
+      suites: { mut: ["unit", "web"] },
+    };
+    const planned = {
+      plan: stale,
+      label: "Run",
+      progress: "Running",
+      modules: 0,
+      idle: false,
+      frozen: null,
+      suiteHistory: null,
+    } as unknown as PlannedRun;
+
+    expect(stale.sense).toContain("mut");
+
+    await rescanner.run(null, planned);
+
+    expect(scan.ran[0].sense).toEqual(["alpha"]);
+    expect(scan.ran[0].suites).toEqual({});
+  });
+
+  it("hands the port a stale plan's test-running sensor that is armed", async () => {
+    const scan = fakeScan();
+    const { rescanner } = harness(scan);
+
+    await rescanner.loadTicks();
+    rescanner.setTicks({
+      ...rescanner.ticks(),
+      once: ["mut"],
+      suites: SUITE_TICKS,
+    });
+
+    const planned = {
+      plan: {
+        describe: false,
+        describeAll: false,
+        analysis: true,
+        sense: ["mut"],
+        modules: null,
+        suites: { mut: ["unit"] },
+      },
+      label: "Run",
+      progress: "Running",
+      modules: 0,
+      idle: false,
+      frozen: null,
+      suiteHistory: null,
+    } as unknown as PlannedRun;
+
+    await rescanner.run(null, planned);
+
+    expect(scan.ran[0].sense).toEqual(["mut"]);
   });
 
   it("re-reads the sensor findings after a stopped Scan", async () => {

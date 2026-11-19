@@ -1267,7 +1267,7 @@ mod tests {
             .arg(&root)
             .args([
                 "grep",
-                "-l",
+                "-c",
                 "-E",
                 "^#\\[cfg\\(test\\)\\]",
                 "--",
@@ -1278,7 +1278,10 @@ mod tests {
         let mut want: Vec<String> = String::from_utf8(grep.stdout)
             .unwrap()
             .lines()
-            .map(|path| format!("{path}#0"))
+            .filter_map(|line| line.rsplit_once(':'))
+            .flat_map(|(path, count)| {
+                (0..count.parse::<usize>().unwrap()).map(move |index| format!("{path}#{index}"))
+            })
             .collect();
 
         want.sort();

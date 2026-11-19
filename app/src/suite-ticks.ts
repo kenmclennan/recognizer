@@ -1,4 +1,4 @@
-import type { ScanTicks } from "./scan-panel-model";
+import type { ScanPlan, ScanTicks } from "./scan-panel-model";
 
 export type SuiteRef = { name: string; language: string };
 
@@ -167,4 +167,26 @@ export function sensorArmed(
   return names.length === 0
     ? ticks.once.includes(sensor.name)
     : sensorTickState(ticks, sensor.name, names) !== "off";
+}
+
+export function onlyArmed(
+  plan: ScanPlan,
+  once: string[],
+  testing: string[],
+): ScanPlan {
+  const dropped = (name: string) =>
+    testing.includes(name) && !once.includes(name);
+  const suites = plan.suites;
+
+  return {
+    ...plan,
+    sense: plan.sense.filter((name) => !dropped(name)),
+    ...(suites === undefined
+      ? {}
+      : {
+          suites: Object.fromEntries(
+            Object.entries(suites).filter(([name]) => !dropped(name)),
+          ),
+        }),
+  };
 }
