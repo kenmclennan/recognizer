@@ -21,6 +21,8 @@ export const PROGRAM_VERBS: Record<TemplateKind, string> = {
 
 export const PROGRAM_FILE = "{{program}}";
 
+export const TEMPLATE_SUFFIX = ".tmpl";
+
 export const NAME_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
 
 export const NAME_MAX = 64;
@@ -92,9 +94,12 @@ export function renderTemplates(
     .sort()
     .map((key) => {
       const relative = key.slice(prefix.length);
+      const written = relative.endsWith(TEMPLATE_SUFFIX)
+        ? relative.slice(0, -TEMPLATE_SUFFIX.length)
+        : relative;
 
       return {
-        path: substitute(relative, values, key),
+        path: substitute(written, values, key),
         content: substitute(set[key] as string, values, key),
         executable: relative === PROGRAM_FILE,
       };
