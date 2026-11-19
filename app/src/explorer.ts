@@ -4885,7 +4885,7 @@ export function showExplorer(
       const kind = kindOfChange(change);
       const ref = kind.kind === "pr" ? `pull/${kind.number}/head` : change.head;
 
-      return `The head of this change is not in this repository's local objects, so its modules cannot be read. Fetch it, then reopen the view: \`git fetch origin ${ref}\``;
+      return `The head of this change is not in this repository's local objects, so its files cannot be read. Fetch it, then reopen the view: \`git fetch origin ${ref}\``;
     }
 
     if (info.state === "ok" && info.headUnreadable !== undefined) {

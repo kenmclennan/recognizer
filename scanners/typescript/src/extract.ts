@@ -460,6 +460,10 @@ export function extract(sf: ts.SourceFile): FileInfo {
   let defaultName: string | null = null;
 
   const add = (member: Member) => {
+    if (member.name === "") {
+      return;
+    }
+
     const existing = members.find(
       (candidate) =>
         candidate.name === member.name && candidate.kind === member.kind,

@@ -1,11 +1,18 @@
 import { execFileSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../scripts/temp-dirs.mjs";
 import { scan } from "../src/index.js";
-import { makeTree, REPO, readJson, runBin, scanTree } from "./helpers.js";
+import {
+  makeTree,
+  REPO,
+  readJson,
+  runBin,
+  scanTree,
+  validate,
+} from "./helpers.js";
 
 describe("skip rules", () => {
   it("keeps only unskipped files", () => {
@@ -149,21 +156,35 @@ describe("failure behaviour", () => {
     ["a.jsx", "const a = <b></c>;\n"],
   ];
 
-  it.each(cases)("exits 2 naming %s", (name, content) => {
-    const root = makeTree({
-      [name]: content,
-      "ok.ts": "export const ok = 1;\n",
-    });
+  it.each(cases)("scans past a damaged %s and names it", (name, content) => {
+    const okSource = "export const ok = 1;\n";
+    const root = makeTree({ [name]: content, "ok.ts": okSource });
     const result = runBin(root);
 
-    expect(result.status).toBe(2);
-    expect(result.stdout).toBe("");
-    expect(result.stderr).toMatch(
-      new RegExp(`${name.replace(".", "\\.")}:\\d+:`),
-    );
+    expect(result.status).toBe(0);
+
+    const doc = JSON.parse(result.stdout);
+    validate(doc);
+
+    const ids = doc.modules.map((m: { id: string }) => m.id);
+
+    expect(ids).toContain("ok.ts");
+    expect(ids).toContain(name);
+
+    const alone = JSON.parse(runBin(makeTree({ "ok.ts": okSource })).stdout);
+    const pick = (d: { modules: { id: string }[] }) =>
+      d.modules.find((m) => m.id === "ok.ts");
+
+    expect(pick(doc)).toEqual(pick(alone));
+    expect(
+      result.stderr.match(
+        new RegExp(`damaged file ${name.replace(".", "\\.")}: `, "g"),
+      ),
+    ).toHaveLength(1);
+    expect(result.stderr).toContain("1 of 2 files had damaged spans");
   });
 
-  it("names every bad file and writes nothing to --output", () => {
+  it("names every damaged file once and writes the scan to --output", () => {
     const root = makeTree({
       "a.ts": "export const = ;\n",
       "b.js": "function (\n",
@@ -171,10 +192,29 @@ describe("failure behaviour", () => {
     const output = join(makeTree({}), "out.json");
     const result = runBin(root, "--output", output);
 
-    expect(result.status).toBe(2);
-    expect(result.stderr).toContain("a.ts:1:");
-    expect(result.stderr).toContain("b.js:1:");
-    expect(() => execFileSync("test", ["-e", output])).toThrow();
+    expect(result.status).toBe(0);
+    expect(() => JSON.parse(readFileSync(output, "utf8"))).not.toThrow();
+    expect(result.stderr.match(/damaged file a\.ts:/g)).toHaveLength(1);
+    expect(result.stderr.match(/damaged file b\.js:/g)).toHaveLength(1);
+    expect(result.stderr).toContain("2 of 2 files had damaged spans");
+    expect(result.stderr).not.toMatch(/^a\.ts:\d+:/m);
+  });
+
+  it("keeps edges between good files beside a damaged file", () => {
+    const root = makeTree({
+      "a.ts": 'import { b } from "./b";\nexport const a = b;\n',
+      "b.ts": "export const b = 1;\n",
+      "c.ts": "export const = ;\n",
+    });
+    const result = runBin(root);
+
+    expect(result.status).toBe(0);
+    expect(
+      JSON.parse(result.stdout).edges.some(
+        (e: { from: string; to: string }) =>
+          e.from === "a.ts" && e.to === "b.ts",
+      ),
+    ).toBe(true);
   });
 
   it("exits 2 for a nonexistent ROOT", () => {
