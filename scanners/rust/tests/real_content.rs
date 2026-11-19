@@ -41,6 +41,8 @@ fn this_repositorys_tauri_crate_scans_to_the_recorded_shape() {
     let scanned = scan(&repository(), None, None)
         .ok()
         .expect("the repository scans");
+    assert!(scanned.damaged.is_empty());
+
     let document = scanned.document;
     let baseline: Value = serde_json::from_str(
         &fs::read_to_string(repository().join("fixtures/rust/recognizer-baseline.json")).unwrap(),

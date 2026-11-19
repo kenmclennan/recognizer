@@ -1,5 +1,6 @@
 import ast
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
@@ -36,12 +37,6 @@ from recognizer_scan_python.source_roots import ROOT_CONFIG_FILES, detect_source
 SCANNER_NAME = "recognizer-scan-python"
 
 
-class ScanError(Exception):
-    def __init__(self, problems: list[str]):
-        super().__init__("\n".join(problems))
-        self.problems = problems
-
-
 @dataclass
 class Parsed:
     module_id: str
@@ -53,29 +48,31 @@ class Parsed:
 
 def parse_all(
     root: Path, module_ids: list[str], progress: Progress | None = None
-) -> dict[str, tuple[ast.Module, str]]:
+) -> tuple[dict[str, tuple[ast.Module, str]], dict[str, str]]:
     trees = {}
-    problems = []
+    damaged = {}
 
     for module_id in module_ids:
+        data = (root / module_id).read_bytes()
+
         try:
-            data = (root / module_id).read_bytes()
             trees[module_id] = (
                 ast.parse(data, filename=module_id),
                 data.decode("utf-8", errors="replace"),
             )
         except SyntaxError as error:
-            problems.append(f"{module_id}:{error.lineno or 0}: {error.msg}")
+            message = " ".join(str(error.msg).split())
+            damaged[module_id] = f"line {error.lineno}: {message}" if error.lineno else message
         except (ValueError, UnicodeDecodeError, RecursionError, MemoryError) as error:
-            problems.append(f"{module_id}:0: {error}")
+            damaged[module_id] = " ".join(str(error).split())
+
+        if module_id in damaged:
+            trees[module_id] = (ast.Module(body=[], type_ignores=[]), "")
 
         if progress is not None:
             progress.advance()
 
-    if problems:
-        raise ScanError(problems)
-
-    return trees
+    return trees, damaged
 
 
 def base_edges(parsed: Parsed, index: ModuleIndex, others: dict[str, Parsed]) -> list[dict]:
@@ -185,6 +182,7 @@ def scan(
     commit: str | None,
     modified: bool | None = None,
     progress: Progress | None = None,
+    report: Callable[[str], None] | None = None,
 ) -> dict:
     root = Path(root)
     listing = git_listing(root)
@@ -192,7 +190,13 @@ def scan(
     if progress is not None:
         progress.start(len(module_ids))
 
-    trees = parse_all(root, module_ids, progress)
+    trees, damaged = parse_all(root, module_ids, progress)
+
+    if report is not None and damaged:
+        for module_id in sorted(damaged):
+            report(f"damaged file {module_id}: {damaged[module_id]}")
+
+        report(f"{SCANNER_NAME}: {len(damaged)} of {len(module_ids)} files had damaged spans")
 
     if progress is not None:
         progress.finish()

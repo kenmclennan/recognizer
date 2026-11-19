@@ -174,11 +174,23 @@ fn main() -> ExitCode {
     ) {
         Ok(result) => result,
         Err(error) => {
-            eprintln!("could not parse:");
+            eprintln!("could not read:");
             eprintln!("{}", error.problems.join("\n"));
             return ExitCode::from(2);
         }
     };
+
+    for file in &result.damaged {
+        eprintln!("damaged file {}: {}", file.path, file.message);
+    }
+
+    if !result.damaged.is_empty() {
+        eprintln!(
+            "recognizer-scan-rust: {} of {} files had damaged spans",
+            result.damaged.len(),
+            result.files
+        );
+    }
 
     if result.missing_mods > 0 {
         eprintln!(

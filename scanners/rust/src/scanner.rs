@@ -16,9 +16,16 @@ pub const SCAN_SCHEMA_VERSION: u64 = 7;
 
 pub const SCANNER_NAME: &str = "recognizer-scan-rust";
 
+pub struct Damaged {
+    pub path: String,
+    pub message: String,
+}
+
 pub struct Scan {
     pub document: Value,
     pub missing_mods: usize,
+    pub damaged: Vec<Damaged>,
+    pub files: usize,
 }
 
 pub struct ScanError {
@@ -247,6 +254,7 @@ pub fn scan_reporting(
     let mut parsed: Vec<Parsed> = Vec::new();
     let mut hashes: Vec<String> = Vec::new();
     let mut problems = Vec::new();
+    let mut damaged: Vec<Damaged> = Vec::new();
 
     for path in &paths {
         let bytes = match fs::read(root.join(path)) {
@@ -259,12 +267,23 @@ pub fn scan_reporting(
 
         hashes.push(hex(&bytes));
 
-        match String::from_utf8(bytes) {
+        let failure = match String::from_utf8(bytes) {
             Ok(source) => match items::parse(&source) {
-                Ok(file) => parsed.push(file),
-                Err(message) => problems.push(format!("{path}: {message}")),
+                Ok(file) => {
+                    parsed.push(file);
+                    None
+                }
+                Err(message) => Some(message),
             },
-            Err(_) => problems.push(format!("{path}: stream did not contain valid UTF-8")),
+            Err(_) => Some("stream did not contain valid UTF-8".to_string()),
+        };
+
+        if let Some(message) = failure {
+            parsed.push(Parsed::default());
+            damaged.push(Damaged {
+                path: path.clone(),
+                message: message.split_whitespace().collect::<Vec<_>>().join(" "),
+            });
         }
 
         if let Some(progress) = progress.as_mut() {
@@ -519,6 +538,8 @@ pub fn scan_reporting(
     Ok(Scan {
         document,
         missing_mods: tree.missing,
+        damaged,
+        files: paths.len(),
     })
 }
 

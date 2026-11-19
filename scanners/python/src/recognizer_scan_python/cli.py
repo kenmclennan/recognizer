@@ -8,7 +8,7 @@ from pathlib import Path
 
 from recognizer_scan_python.events import Progress
 from recognizer_scan_python.manifest import manifest_text
-from recognizer_scan_python.scanner import ScanError, scan
+from recognizer_scan_python.scanner import scan
 from recognizer_scan_python.serialise import render
 
 
@@ -127,18 +127,14 @@ def main(argv: list[str] | None = None) -> int:
 
     modified = args.modified if args.modified is not None else resolve_modified(root)
 
-    try:
-        document = scan(
-            root,
-            None if source_roots is None else [Path(s).as_posix() for s in source_roots],
-            commit,
-            modified,
-            Progress(),
-        )
-    except ScanError as error:
-        print("could not parse:", file=sys.stderr)
-        print("\n".join(error.problems), file=sys.stderr)
-        return 2
+    document = scan(
+        root,
+        None if source_roots is None else [Path(s).as_posix() for s in source_roots],
+        commit,
+        modified,
+        Progress(),
+        lambda line: print(line, file=sys.stderr),
+    )
 
     text = render(document)
 
