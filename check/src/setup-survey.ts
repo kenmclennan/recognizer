@@ -76,6 +76,7 @@ export interface SurveyRunner {
   coverage: { path: string; format: string };
   tool: string | null;
   env?: Record<string, string>;
+  activate?: string;
 }
 
 export interface SurveyNote {
@@ -91,6 +92,7 @@ export interface SurveyTool {
   why: string;
   needed_by: string[];
   installs: string;
+  prepare?: string[][];
   command: string[];
   cwd: string;
 }
@@ -200,6 +202,22 @@ function reportRoot(name: string, directory: string): string {
   const depth = directory === "." ? 0 : directory.split("/").length;
 
   return `${"../".repeat(depth)}${reportFolder(name)}`;
+}
+
+const CACHE_PYTHON = ".recognizer/cache/python";
+
+function pythonEnvironmentOf(
+  project: string | null,
+  name: string,
+  directory: string,
+): string {
+  if (project !== null) {
+    return project;
+  }
+
+  const depth = directory === "." ? 0 : directory.split("/").length;
+
+  return `${"../".repeat(depth)}${CACHE_PYTHON}/${folderSlug(name)}`;
 }
 
 function commandFor(
@@ -426,6 +444,7 @@ interface Found {
   args?: string[];
   command?: string;
   coverage?: { path: string; format: string };
+  python?: { project: string | null };
 }
 
 const VITEST_CONFIG = /^vitest\.config\.(ts|mts|cts|js|mjs|cjs)$/;
@@ -621,7 +640,43 @@ function rustRunners(io: Io, root: string, files: string[]): Found[] {
     .sort((a, b) => compareText(a.directory, b.directory));
 }
 
-function pythonRunners(io: Io, root: string, files: string[]): Found[] {
+function probes(io: Io, root: string, command: string): boolean {
+  const answer = io.run(command, ["--version"], { cwd: root });
+
+  return answer.started && answer.status === 0;
+}
+
+function projectEnvironment(
+  io: Io,
+  root: string,
+  directory: string,
+): string | null {
+  const candidates = [
+    { path: join(root, directory, ".venv"), relative: ".venv" },
+    { path: join(root, directory, "venv"), relative: "venv" },
+  ];
+
+  if (directory !== ".") {
+    const up = "../".repeat(directory.split("/").length);
+
+    candidates.push(
+      { path: join(root, ".venv"), relative: `${up}.venv` },
+      { path: join(root, "venv"), relative: `${up}venv` },
+    );
+  }
+
+  const found = candidates.find((one) =>
+    io.exists(join(one.path, "bin", "python")),
+  );
+
+  return found?.relative ?? null;
+}
+
+function pythonRunners(
+  io: Io,
+  root: string,
+  files: string[],
+): { found: Found[]; notes: SurveyNote[] } {
   const manifests = files.filter(
     (file) =>
       posix.basename(file) === "pyproject.toml" ||
@@ -642,15 +697,46 @@ function pythonRunners(io: Io, root: string, files: string[]): Found[] {
     }
   }
 
-  return [...byDirectory]
-    .map(([directory, from]) => ({
+  if (byDirectory.size === 0) {
+    return { found: [], notes: [] };
+  }
+
+  const uv = probes(io, root, "uv");
+  let python3: boolean | null = null;
+  const found: Found[] = [];
+  const notes: SurveyNote[] = [];
+
+  for (const [directory, from] of byDirectory) {
+    const project = projectEnvironment(io, root, directory);
+
+    if (project === null && !uv) {
+      python3 ??= probes(io, root, "python3");
+
+      if (!python3) {
+        notes.push({
+          language: "python",
+          directory,
+          text: "no Python environment: this folder has no .venv or venv, and neither uv nor python3 is on the PATH; install uv (brew install uv) and run setup again",
+        });
+
+        continue;
+      }
+    }
+
+    found.push({
       language: "python",
       runner: "pytest",
       directory,
       from,
       tool: "pytest-cov",
-    }))
-    .sort((a, b) => compareText(a.directory, b.directory));
+      python: { project },
+    });
+  }
+
+  return {
+    found: found.sort((a, b) => compareText(a.directory, b.directory)),
+    notes,
+  };
 }
 
 function wrapperFor(directory: string, files: string[]): string | null {
@@ -830,6 +916,11 @@ function nameRunners(
       },
       tool: one.tool,
       ...(one.env === undefined ? {} : { env: one.env }),
+      ...(one.python === undefined
+        ? {}
+        : {
+            activate: `source ${pythonEnvironmentOf(one.python.project, name, one.directory)}/bin/activate`,
+          }),
     };
   });
 }
@@ -975,23 +1066,89 @@ function cargoTool(
   ];
 }
 
-function pipTools(io: Io, root: string, runners: SurveyRunner[]): SurveyTool[] {
-  return runners
-    .filter((runner) => runner.tool === "pytest-cov")
-    .map((runner) => {
-      const text = readText(io, join(root, runner.from)) ?? "";
+function pipTools(
+  io: Io,
+  root: string,
+  runners: SurveyRunner[],
+  files: string[],
+): SurveyTool[] {
+  const python = runners.filter(
+    (runner) => runner.tool === "pytest-cov" && runner.activate !== undefined,
+  );
 
+  if (python.length === 0) {
+    return [];
+  }
+
+  const uv = probes(io, root, "uv");
+
+  return python.map((runner) => {
+    const environment = (runner.activate ?? "")
+      .replace(/^source /, "")
+      .replace(/\/bin\/activate$/, "");
+    const own = environment.includes(`${CACHE_PYTHON}/`);
+    const inDirectory = files.filter(
+      (file) => directoryOf(file) === runner.directory,
+    );
+    const requirements = inDirectory
+      .filter(
+        (file) =>
+          /^requirements.*\.txt$/.test(posix.basename(file)) &&
+          /\bpytest\b/.test(readText(io, join(root, file)) ?? ""),
+      )
+      .map((file) => posix.basename(file))
+      .sort(compareText);
+    const declared = inDirectory
+      .filter(
+        (file) =>
+          posix.basename(file) === "pyproject.toml" ||
+          /^requirements.*\.txt$/.test(posix.basename(file)),
+      )
+      .some((file) => /pytest-cov/.test(readText(io, join(root, file)) ?? ""));
+    const python3Path = `${environment}/bin/python`;
+    const base = {
+      name: "pytest-cov",
+      kind: "pip" as const,
+      why: "pytest writes its coverage report through this plugin",
+      needed_by: [runner.name],
+      cwd: runner.directory,
+    };
+
+    if (!own) {
       return {
-        name: "pytest-cov",
-        kind: "pip" as const,
-        installed: /pytest-cov/.test(text),
-        why: "pytest writes its coverage report through this plugin",
-        needed_by: [runner.name],
-        installs: "the active Python environment",
-        command: ["python", "-m", "pip", "install", "pytest-cov"],
-        cwd: runner.directory,
+        ...base,
+        installed: declared,
+        installs: `the project environment at ${environment}`,
+        command: uv
+          ? ["uv", "pip", "install", "--python", python3Path, "pytest-cov"]
+          : [python3Path, "-m", "pip", "install", "pytest-cov"],
       };
-    });
+    }
+
+    const wanted = requirements.flatMap((file) => ["-r", file]);
+
+    return {
+      ...base,
+      installed: false,
+      installs: `a new environment at ${CACHE_PYTHON}/${posix.basename(environment)}`,
+      prepare: [
+        uv
+          ? ["uv", "venv", environment]
+          : ["python3", "-m", "venv", environment],
+      ],
+      command: uv
+        ? [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            python3Path,
+            ...wanted,
+            "pytest-cov",
+          ]
+        : [python3Path, "-m", "pip", "install", ...wanted, "pytest-cov"],
+    };
+  });
 }
 
 function toolsOf(
@@ -1003,7 +1160,7 @@ function toolsOf(
   return [
     ...npmTools(io, root, runners, files),
     ...cargoTool(io, root, runners),
-    ...pipTools(io, root, runners),
+    ...pipTools(io, root, runners, files),
   ];
 }
 
@@ -1399,10 +1556,11 @@ export function surveyRepository(
   const configured = io.exists(configFile(root));
   const suites = suitesOf(io, document, files, configured);
   const gradle = gradleReading(io, root, files, suites);
+  const python = pythonRunners(io, root, files);
   const found = [
     ...typescriptRunners(io, root, files),
     ...rustRunners(io, root, files),
-    ...pythonRunners(io, root, files),
+    ...python.found,
     ...gradle.found,
   ].filter(
     (one) =>
@@ -1417,6 +1575,11 @@ export function surveyRepository(
     new Set(suites.map((suite) => suite.name)),
   );
   const checks = checksOf(io, document, configured);
+  const notes = [
+    ...gradle.notes,
+    ...python.notes,
+    ...pythonDependencyNotes(io, root, files, runners),
+  ];
 
   return {
     survey_version: SURVEY_VERSION,
@@ -1430,12 +1593,77 @@ export function surveyRepository(
     unread: unreadOf(files, rules),
     checks,
     runners,
-    notes: gradle.notes,
+    notes: [...notes, ...gapNotes(files, runners, suites, notes)],
     tools: toolsOf(io, root, runners, files),
     fixes: fixesOf(io, root, checks),
     suites,
     policy: policyOf(io, root, scans),
   };
+}
+
+function pythonDependencyNotes(
+  io: Io,
+  root: string,
+  files: string[],
+  runners: SurveyRunner[],
+): SurveyNote[] {
+  return runners
+    .filter(
+      (runner) =>
+        runner.activate?.includes(`${CACHE_PYTHON}/`) &&
+        !files.some(
+          (file) =>
+            directoryOf(file) === runner.directory &&
+            /^requirements.*\.txt$/.test(posix.basename(file)) &&
+            /\bpytest\b/.test(readText(io, join(root, file)) ?? ""),
+        ),
+    )
+    .map((runner) => ({
+      language: "python",
+      directory: runner.directory,
+      text: "the project's own dependencies are not installed in the new environment: this folder declares them in pyproject.toml; create a .venv with them and run setup again to use it",
+    }));
+}
+
+function gapNotes(
+  files: string[],
+  runners: SurveyRunner[],
+  suites: SurveySuite[],
+  notes: SurveyNote[],
+): SurveyNote[] {
+  const counts = new Map<string, number>();
+
+  for (const file of files) {
+    const language = SOURCE_EXTENSIONS[posix.extname(file)];
+
+    if (language !== undefined) {
+      counts.set(language, (counts.get(language) ?? 0) + 1);
+    }
+  }
+
+  const [top] = [...counts].sort(
+    ([a, x], [b, y]) => y - x || compareText(a, b),
+  );
+
+  if (top === undefined) {
+    return [];
+  }
+
+  const [language, count] = top;
+  const covered =
+    runners.some((one) => one.language === language) ||
+    suites.some((one) => one.language === language) ||
+    notes.some((one) => one.language === language);
+
+  return covered
+    ? []
+    : [
+        {
+          language,
+          directory: ".",
+          text: `${language} is the largest language here (${count} files) and no test runner was found for it, so C.R.A.P. and Mutation will cover only part of this repository`,
+        },
+      ];
 }
 
 function cachedScans(

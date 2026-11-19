@@ -153,6 +153,9 @@ function runnerSteps(
     configStep(survey, key("language"), runner.language),
     configStep(survey, key("directory"), runner.directory),
     configStep(survey, key("command"), choice.command ?? runner.command),
+    ...(runner.activate === undefined
+      ? []
+      : [configStep(survey, key("activate"), runner.activate)]),
     ...(runner.language === "typescript"
       ? [configStep(survey, key("runner"), runner.runner)]
       : []),
@@ -187,15 +190,15 @@ function toolChanges(survey: Survey, choices: SetupChoices): PlannedChange[] {
       id: `tool-${tool.name}${tool.cwd === "." ? "" : `-${tool.cwd}`}`,
       group: "tests" as const,
       title: `Install ${tool.name}`,
-      steps: [
+      steps: [...(tool.prepare ?? []), tool.command].map((argv) =>
         step(
           survey,
-          tool.command,
+          argv,
           tool.cwd === "."
             ? survey.repository
             : `${survey.repository}/${tool.cwd}`,
         ),
-      ],
+      ),
     }));
 }
 
