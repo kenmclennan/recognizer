@@ -59,6 +59,7 @@ pub struct Scope {
     pub inline: BTreeSet<String>,
 }
 
+#[derive(Default)]
 pub struct Parsed {
     pub members: Vec<Value>,
     pub scopes: BTreeMap<Vec<String>, Scope>,

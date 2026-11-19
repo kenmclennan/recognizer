@@ -115,22 +115,94 @@ fn binary() -> Command {
     command
 }
 
+fn module_of<'a>(document: &'a serde_json::Value, id: &str) -> &'a serde_json::Value {
+    document["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|module| module["id"] == id)
+        .unwrap_or_else(|| panic!("{id} is in the scan"))
+}
+
 #[test]
-fn a_parse_failure_exits_two_and_lists_the_file() {
+fn a_parse_failure_is_reported_and_the_scan_goes_on() {
+    let cases: [(&str, &[u8]); 3] = [
+        ("syn.rs", b"pub struct S;\nfn = ;\n"),
+        ("lexer.rs", b"fn ( {\n"),
+        ("bytes.rs", b"\xff\xfe pub fn x(){}\n"),
+    ];
+
+    for (name, content) in cases {
+        let directory = tempfile::tempdir().unwrap();
+
+        write_tree(directory.path(), &[("good.rs", "fn ok() {}\n")]);
+        std::fs::write(directory.path().join(name), content).unwrap();
+
+        let output = binary().arg(directory.path()).output().unwrap();
+        let stderr = without_events(&output.stderr);
+        let document: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+
+        assert_eq!(output.status.code(), Some(0), "{stderr}");
+        assert!(module_of(&document, name)["members"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        module_of(&document, "good.rs");
+        assert_eq!(
+            stderr.matches(&format!("damaged file {name}:")).count(),
+            1,
+            "{stderr}"
+        );
+        assert_eq!(stderr.matches("damaged file ").count(), 1, "{stderr}");
+        assert!(
+            stderr.contains("recognizer-scan-rust: 1 of 2 files had damaged spans"),
+            "{stderr}"
+        );
+        assert!(!stderr.contains("good.rs"), "{stderr}");
+    }
+}
+
+#[test]
+fn two_damaged_files_are_each_named_once_and_the_scan_is_written() {
     let directory = tempfile::tempdir().unwrap();
+    let target = directory.path().join("out.json");
 
     write_tree(
         directory.path(),
-        &[("good.rs", "fn ok() {}\n"), ("bad.rs", "fn ( {\n")],
+        &[
+            ("good.rs", "fn ok() {}\n"),
+            ("bad1.rs", "fn ( {\n"),
+            ("bad2.rs", "fn = ;\n"),
+        ],
     );
 
-    let output = binary().arg(directory.path()).output().unwrap();
+    let output = binary()
+        .arg(directory.path())
+        .arg("--output")
+        .arg(&target)
+        .output()
+        .unwrap();
     let stderr = without_events(&output.stderr);
+    let document: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&target).unwrap()).unwrap();
 
-    assert_eq!(output.status.code(), Some(2));
-    assert!(stderr.starts_with("could not parse:"), "{stderr}");
-    assert!(stderr.contains("bad.rs: "), "{stderr}");
-    assert!(!stderr.contains("good.rs"), "{stderr}");
+    assert_eq!(output.status.code(), Some(0), "{stderr}");
+    module_of(&document, "bad1.rs");
+    module_of(&document, "bad2.rs");
+    assert_eq!(
+        stderr.matches("damaged file bad1.rs:").count(),
+        1,
+        "{stderr}"
+    );
+    assert_eq!(
+        stderr.matches("damaged file bad2.rs:").count(),
+        1,
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("recognizer-scan-rust: 2 of 3 files had damaged spans"),
+        "{stderr}"
+    );
 }
 
 #[test]

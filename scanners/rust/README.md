@@ -6,11 +6,11 @@ Scans a Rust source tree into a scan document, using the `syn` parser.
 recognizer-scan-rust run ROOT [--commit SHA] [--modified true|false] [--output FILE]
 ```
 
-`ROOT` is the repository root and the base of every file id. The commit defaults to `git rev-parse HEAD`, or `null` outside git. Output goes to stdout unless `--output` is given. When a `mod name;` declaration has no file, one line `recognizer-scan-rust: N mod declarations had no file` goes to stderr.
+`ROOT` is the repository root and the base of every file id. The commit defaults to `git rev-parse HEAD`, or `null` outside git. Output goes to stdout unless `--output` is given. When a `mod name;` declaration has no file, one line `recognizer-scan-rust: N mod declarations had no file` goes to stderr. For each file that cannot be parsed, one line `damaged file <file id>: <message>` goes to stderr, followed by `recognizer-scan-rust: D of N files had damaged spans`.
 
 ## Files
 
-The scanner reads `.rs` files outside directories named `target`, `node_modules` or `tests` and dot directories. Inline test code is left out too; `benches/`, `examples/` and `build.rs` are scanned. Symlinked directories are not followed. A file is one box and its id is the file's repository-relative path. A file `syn` rejects fails the scan.
+The scanner reads `.rs` files outside directories named `target`, `node_modules` or `tests` and dot directories. Inline test code is left out too; `benches/`, `examples/` and `build.rs` are scanned. Symlinked directories are not followed. A file is one box and its id is the file's repository-relative path. A file `syn` rejects, or that is not valid UTF-8, stays in the scan as an empty module, because `syn` recovers nothing from a failed parse; the scan document carries no marker for it.
 
 ## Crates
 
@@ -53,4 +53,4 @@ The real-content test scans this repository and checks the `app/src-tauri` files
 ## Exit codes
 
 - `0` - the scan was written.
-- `2` - a usage error, a `ROOT` that is not a directory, or a file that does not parse.
+- `2` - a usage error, a `ROOT` that is not a directory, or a file that cannot be read. A file that does not parse does not change the exit code.

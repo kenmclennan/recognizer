@@ -5,6 +5,7 @@ import sys
 from importlib.metadata import version
 from pathlib import Path
 
+import pytest
 from conftest import EXPECTED_SCAN, FIXTURE_ROOT, build_tree, validate
 
 from recognizer_scan_python import scan
@@ -198,16 +199,53 @@ def test_commit_is_head_sha_of_a_git_repository(tmp_path):
     assert json.loads(run_cli(str(tmp_path)).stdout)["commit"] == sha
 
 
-def test_syntax_errors_exit_2_and_name_every_file(tmp_path):
+def test_names_every_damaged_file_once_and_writes_the_scan(tmp_path):
     build_tree(tmp_path, {"ok.py": "x = 1\n", "bad1.py": "x = 1\ndef (:\n", "bad2.py": "class\n"})
     output = tmp_path.parent / f"{tmp_path.name}-out.json"
     result = run_cli(str(tmp_path), "--output", str(output))
+    lines = result.stderr.splitlines()
 
-    assert result.returncode == 2
+    assert result.returncode == 0
     assert result.stdout == ""
-    assert not output.exists()
-    assert "bad1.py:2" in result.stderr
-    assert "bad2.py:1" in result.stderr
+    assert {m["id"] for m in json.loads(output.read_text())["modules"]} == {
+        "ok.py",
+        "bad1.py",
+        "bad2.py",
+    }
+    assert len([line for line in lines if line.startswith("damaged file bad1.py: line 2:")]) == 1
+    assert len([line for line in lines if line.startswith("damaged file bad2.py: line 1:")]) == 1
+    assert not any(line.startswith("bad1.py:2") for line in lines)
+    assert "recognizer-scan-python: 2 of 3 files had damaged spans" in lines
+
+
+@pytest.mark.parametrize(
+    "name, content",
+    [
+        ("bad.py", b"x = 1\ndef (:\n"),
+        ("nul.py", b"x = 1\x00\n"),
+        ("latin.py", b"x = '\xff\xfe'\n"),
+    ],
+)
+def test_scans_past_a_damaged_file_and_names_it(tmp_path, name, content):
+    alone = tmp_path / "alone"
+    both = tmp_path / "both"
+    build_tree(alone, {"ok.py": "x = 1\n"})
+    build_tree(both, {"ok.py": "x = 1\n"})
+    (both / name).write_bytes(content)
+
+    result = run_cli(str(both))
+    document = json.loads(result.stdout)
+    modules = {m["id"]: m for m in document["modules"]}
+    lines = result.stderr.splitlines()
+
+    assert result.returncode == 0
+    assert modules[name]["members"] == []
+    assert modules["ok.py"] == next(
+        m for m in json.loads(run_cli(str(alone)).stdout)["modules"] if m["id"] == "ok.py"
+    )
+    assert {f["path"] for f in document["files"]} >= {"ok.py", name}
+    assert len([line for line in lines if line.startswith(f"damaged file {name}:")]) == 1
+    assert lines.count("recognizer-scan-python: 1 of 2 files had damaged spans") == 1
 
 
 def test_nonexistent_root_exits_2(tmp_path):
@@ -228,6 +266,7 @@ def test_real_content_own_source():
     files = list(source.rglob("*.py"))
 
     assert result.returncode == 0
+    assert "damaged file" not in result.stderr
     validate(document)
     assert len(document["modules"]) == len(files)
     assert all(m["id"].startswith("recognizer_scan_python/") for m in document["modules"])

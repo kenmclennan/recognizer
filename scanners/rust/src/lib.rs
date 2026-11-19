@@ -7,4 +7,4 @@ pub mod resolve;
 pub mod scanner;
 pub mod tree;
 
-pub use scanner::{render, scan, scan_reporting, Scan, ScanError};
+pub use scanner::{render, scan, scan_reporting, Damaged, Scan, ScanError};
