@@ -66,6 +66,45 @@ export function drawnScans(
   }));
 }
 
+export function addedFromHead(
+  scans: Scan[],
+  marked: MarkedModule[],
+  head: Scan[],
+): Scan[] {
+  const held = new Set(
+    scans.flatMap((scan) => scan.modules.map((entry) => entry.id)),
+  );
+  const wanted = new Set(
+    marked
+      .filter(
+        (entry) =>
+          entry.mark === "added" &&
+          entry.box === "current" &&
+          !held.has(entry.id),
+      )
+      .map((entry) => entry.id),
+  );
+
+  if (wanted.size === 0) {
+    return scans;
+  }
+
+  const modules = head.flatMap((scan) =>
+    scan.modules.filter((entry) => wanted.has(entry.id)),
+  );
+
+  if (modules.length === 0) {
+    return scans;
+  }
+
+  const ids = new Set(modules.map((entry) => entry.id));
+  const edges = head.flatMap((scan) =>
+    scan.edges.filter((edge) => ids.has(edge.from)),
+  );
+
+  return [...scans, { modules, edges, foreign: [] } as unknown as Scan];
+}
+
 export function withoutDrawn(
   model: OverlayModel,
   drawn: ReadonlySet<string>,

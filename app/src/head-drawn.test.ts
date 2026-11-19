@@ -1,6 +1,7 @@
 import type { MarkedModule, Scan } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
+  addedFromHead,
   drawnScans,
   headDrawn,
   withoutDrawn,
@@ -168,5 +169,85 @@ describe("head-drawn responsibility", () => {
     of("p/a.py");
 
     expect(calls).toEqual([]);
+  });
+});
+
+describe("head-drawn added", () => {
+  const added: MarkedModule[] = [
+    { id: "p/new.py", mark: "added", box: "current" },
+    { id: "p/gone.py", mark: "added", box: "current" },
+  ];
+  const member = (name: string) =>
+    ({ name, exported: true, kind: "function", line: 1 }) as never;
+  const headScan: Scan = {
+    modules: [
+      { id: "p/new.py", kind: "module", members: [member("fresh")] },
+      { id: "p/a.py", kind: "module", members: [member("fromHead")] },
+    ],
+    edges: [
+      { from: "p/new.py", to: "p/a.py", kind: "import" },
+      { from: "p/a.py", to: "p/new.py", kind: "import" },
+    ],
+    foreign: [],
+  } as unknown as Scan;
+  const checkout: Scan = {
+    modules: [
+      { id: "p/a.py", kind: "module", members: [member("fromCheckout")] },
+    ],
+    edges: [],
+    foreign: [],
+  } as unknown as Scan;
+  const find = (scans: Scan[], id: string) =>
+    scans.flatMap((scan) => scan.modules).find((entry) => entry.id === id);
+
+  it("gives an added module absent from the checkout its head members", () => {
+    expect(find([headScan], "p/new.py")?.members).toHaveLength(1);
+
+    const result = addedFromHead([checkout], added.slice(0, 1), [headScan]);
+
+    expect(find(result, "p/new.py")?.members).toEqual(
+      find([headScan], "p/new.py")?.members,
+    );
+  });
+
+  it("keeps the checkout entry for a module the checkout holds", () => {
+    const marked: MarkedModule[] = [
+      { id: "p/a.py", mark: "added", box: "current" },
+    ];
+
+    const scans = [checkout];
+
+    expect(find(scans, "p/a.py")).not.toEqual(find([headScan], "p/a.py"));
+    expect(addedFromHead(scans, marked, [headScan])).toBe(scans);
+  });
+
+  it("leaves out an added id the head lacks", () => {
+    const result = addedFromHead([checkout], added, [headScan]);
+
+    expect(find(result, "p/new.py")).toBeDefined();
+    expect(find(result, "p/gone.py")).toBeUndefined();
+  });
+
+  it("returns the same scans without added marks", () => {
+    const scans = [checkout];
+
+    for (const mark of ["modified", "renamed", "removed"] as const) {
+      expect(
+        addedFromHead(
+          scans,
+          [{ id: "p/new.py", mark, box: "current" }],
+          [headScan],
+        ),
+      ).toBe(scans);
+    }
+
+    expect(addedFromHead(scans, [], [headScan])).toBe(scans);
+  });
+
+  it("carries the head edges from the added module only", () => {
+    const result = addedFromHead([checkout], added.slice(0, 1), [headScan]);
+    const edges = result.flatMap((scan) => scan.edges);
+
+    expect(edges).toEqual([{ from: "p/new.py", to: "p/a.py", kind: "import" }]);
   });
 });

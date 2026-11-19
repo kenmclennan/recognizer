@@ -19,6 +19,7 @@ import {
 import { compactFolders } from "./folder-compaction";
 import { HUGE_FUNCTION, LONG_FUNCTION } from "./function-length";
 import { DEFAULT_LIMITS, functionLimits } from "./function-limits";
+import { addedFromHead } from "./head-drawn";
 import { computeHealth } from "./health";
 import {
   dependencyLabels,
@@ -565,6 +566,62 @@ describe("missing data", () => {
 
     expect(card?.label).toBe("Class");
     expect(plainText(card?.lines[0]?.tokens ?? [])).toBe("outline not known");
+  });
+});
+
+describe("head note and added modules", () => {
+  const NOTE =
+    "The head of this change is not in this repository's local objects.";
+  const none: Scan = { modules: [], edges: [], foreign: [] };
+
+  it("lists the class of an added module read from the head", () => {
+    const head = scanOf([klass()], {
+      modules: [
+        {
+          id: "pkg/new.kt",
+          language: "kotlin",
+          kind: "module",
+          members: [klass()],
+        },
+      ],
+    });
+    const scans = addedFromHead(
+      [none],
+      [{ id: "pkg/new.kt", mark: "added", box: "current" }],
+      [head],
+    );
+    const rows = inspectorContent(module("pkg/new.kt"), inputsFor(scans)).rows;
+
+    expect(cardsOf(rows)).toHaveLength(1);
+    expect(rows.some((row) => row.kind === "note")).toBe(false);
+  });
+
+  it("shows the note for a module in no scan", () => {
+    const rows = inspectorContent(
+      module("pkg/new.kt"),
+      inputsFor([none], { headNote: NOTE }),
+    ).rows;
+
+    expect(rows).toEqual([{ kind: "note", text: NOTE }]);
+  });
+
+  it("keeps the not-known text when the note is null or absent", () => {
+    const text = "Not known: this scan has no member outlines for this file.";
+
+    for (const extra of [{ headNote: null }, {}]) {
+      expect(
+        inspectorContent(module("pkg/new.kt"), inputsFor([none], extra)).rows,
+      ).toEqual([{ kind: "note", text }]);
+    }
+  });
+
+  it("keeps the not-known text for an entry without members", () => {
+    expect(rowsOf(scanOf(undefined), { headNote: NOTE })).toEqual([
+      {
+        kind: "note",
+        text: "Not known: this scan has no member outlines for this file.",
+      },
+    ]);
   });
 });
 

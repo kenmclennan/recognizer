@@ -62,6 +62,7 @@ export type InspectorInputs = {
   limits: FunctionLimits;
   proposed?: (id: string) => ViewProposedChange | null;
   members?: InspectorMembers;
+  headNote?: string | null;
 };
 
 export type InspectorMembers = {
@@ -781,10 +782,15 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
   const found = findModule(inputs.scans, module);
 
   if (found?.members === undefined) {
+    const headNote = found === undefined ? inputs.headNote : null;
+
     return [
       {
         kind: "note",
-        text: "Not known: this scan has no member outlines for this file.",
+        text:
+          headNote !== undefined && headNote !== null && headNote !== ""
+            ? headNote
+            : "Not known: this scan has no member outlines for this file.",
       },
     ];
   }
