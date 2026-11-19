@@ -1,3 +1,4 @@
+import fcntl
 import json
 import os
 import re
@@ -15,7 +16,11 @@ from recognizer_sensors.cli import main
 from recognizer_sensors.registry import SHIPPED as REGISTRY
 from recognizer_sensors.scans import Scan, ScanModule
 from recognizer_sensors.testrun import readiness
-from recognizer_sensors.testrun.readiness import check, check_with_notes
+from recognizer_sensors.testrun.readiness import (
+    check,
+    check_with_notes,
+    is_plain_activation,
+)
 from recognizer_sensors.testrun.suites import parse_suites
 
 LCOV = "SF:a.py\nDA:1,1\nend_of_record\n"
@@ -373,17 +378,140 @@ def test_a_failing_activate_names_its_last_output_line_and_skips_the_tool_check(
 
     gaps = check(
         harness.root,
-        settings_of(raw(activate="echo no such environment >&2; false")),
+        settings_of(raw(activate=". no-such/bin/activate")),
         False,
     )
 
-    assert gaps == [
-        {
-            "code": "activate-failed",
-            "suite": "api",
-            "line": "suite api: the activate command failed: no such environment",
-        }
+    assert codes(gaps) == ["activate-failed"]
+    assert gaps[0]["suite"] == "api"
+    assert gaps[0]["line"].startswith("suite api: the activate command failed:")
+    assert "no-such/bin/activate" in gaps[0]["line"]
+
+
+def test_an_activate_that_installs_is_not_run_by_the_check(harness):
+    marker = harness.root / "installed"
+
+    gaps, notes = check_with_notes(
+        harness.root,
+        settings_of(raw(activate=f"touch {marker} && source .venv/bin/activate")),
+        False,
+    )
+
+    assert not marker.exists()
+    assert not harness.log.exists()
+    assert gaps == []
+    assert [(item["code"], item["suite"]) for item in notes] == [("activate-unchecked", "api")]
+
+
+def test_the_unchecked_note_names_the_suite_and_leaves_static_checks_running(harness):
+    kotlin_repository(harness, FIXTURES / "mutation" / "kotlin" / "build.gradle.kts", wrapper=False)
+
+    gaps, notes = check_with_notes(
+        harness.root,
+        settings_of(raw("kotlin", name="app", directory="app", activate="make env")),
+        False,
+    )
+
+    assert codes(gaps) == ["gradlew-missing"]
+    assert [item["code"] for item in notes] == ["activate-unchecked"]
+    assert notes[0]["line"].startswith("suite app: the activate line is not a plain activation")
+    assert not harness.log.exists()
+
+
+@pytest.mark.parametrize(
+    ("line", "plain"),
+    [
+        ("source .venv/bin/activate", True),
+        ("source ../../.venv/bin/activate", True),
+        ("nvm use", True),
+        ("nvm use 20", True),
+        ("sdk env", True),
+        ("conda activate rec", True),
+        ("nvm use 20 && source .venv/bin/activate", True),
+        (". .venv/bin/activate", True),
+        ("source /abs/dir/bin/activate", True),
+        ("uv venv .venv && uv pip install pytest && source .venv/bin/activate", False),
+        ("npm install --no-save vitest && nvm use", False),
+        ("true", False),
+        ("export PATH=/x:$PATH", False),
+        ("echo x; false", False),
+        ("source .venv/bin/activate; pip install pytest", False),
+        ("source $(make env)/bin/activate", False),
+        ("pytest() { x; }", False),
+    ],
+)
+def test_which_activate_lines_are_plain(line, plain):
+    assert is_plain_activation(line) is plain
+
+
+def test_a_plain_activation_still_runs_and_its_tools_are_checked(harness):
+    (harness.root / ".venv" / "bin").mkdir(parents=True)
+    (harness.root / ".venv" / "bin" / "activate").write_text("")
+    harness.missing("pytest")
+
+    gaps, notes = check_with_notes(
+        harness.root, settings_of(raw(activate=". .venv/bin/activate")), False
+    )
+
+    assert codes(gaps) == ["pytest-missing"]
+    assert notes == []
+    assert harness.log.read_text() == "started\n"
+
+
+def test_run_executes_a_non_plain_activate(harness):
+    (harness.root / ".venv" / "bin").mkdir(parents=True)
+    (harness.root / ".venv" / "bin" / "activate").write_text("")
+    marker = harness.root / "ran"
+
+    check_with_notes(
+        harness.root,
+        settings_of(raw(activate=f"touch {marker} && source .venv/bin/activate")),
+        True,
+    )
+
+    assert marker.exists()
+
+
+def test_a_second_check_waits_for_the_first_then_reports_busy(harness, monkeypatch):
+    monkeypatch.setattr(readiness, "LOCK_WAIT_SECONDS", 0.3)
+    descriptor = os.open(harness.root, os.O_RDONLY)
+    fcntl.flock(descriptor, fcntl.LOCK_EX)
+
+    try:
+        gaps, notes = check_with_notes(harness.root, settings_of(raw()), False)
+
+        assert codes(gaps) == ["check-busy"]
+        assert gaps[0]["suite"] is None
+        assert notes == []
+        assert not harness.log.exists()
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+    gaps, _ = check_with_notes(harness.root, settings_of(raw()), False)
+
+    assert "check-busy" not in codes(gaps)
+    assert harness.log.exists()
+
+
+def test_the_check_leaves_no_lock_file(harness):
+    before = sorted(path.name for path in harness.root.iterdir())
+
+    check_with_notes(harness.root, settings_of(raw()), False)
+
+    assert sorted(path.name for path in harness.root.iterdir()) == before
+
+
+def test_the_committed_examples_use_only_plain_activations():
+    lines = [
+        line.split("activate:", 1)[1].strip()
+        for path in sorted(EXAMPLES.glob("*.yaml"))
+        for line in path.read_text().splitlines()
+        if "activate:" in line
     ]
+
+    assert len(lines) == 4
+    assert all(is_plain_activation(line) for line in lines)
 
 
 def test_a_shell_that_does_not_finish_in_time_reads_as_a_timeout(harness, monkeypatch):
@@ -1060,6 +1188,13 @@ def test_the_guide_still_installs_nothing_and_leaves_the_development_config_alon
 
     assert "Never install anything" in out
     assert "Never change the repository's own development config" in out
+
+
+def test_the_guide_says_the_activate_line_only_activates(capsys):
+    out = guide_text(capsys)
+
+    assert "only activates" in out
+    assert "Apply" in out
 
 
 def test_run_alone_is_exit_two(tmp_path, capsys):

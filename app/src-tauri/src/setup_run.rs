@@ -41,6 +41,8 @@ struct Live {
 #[derive(Default)]
 pub struct SetupRuns {
     live: Mutex<HashMap<String, Live>>,
+    reads: Mutex<HashMap<String, Live>>,
+    next_read: std::sync::atomic::AtomicUsize,
 }
 
 impl SetupRuns {
@@ -72,7 +74,50 @@ impl SetupRuns {
         }
     }
 
+    fn lock_reads(&self) -> std::sync::MutexGuard<'_, HashMap<String, Live>> {
+        self.reads.lock().unwrap_or_else(|error| error.into_inner())
+    }
+
+    pub fn begin_read(&self, label: &str) -> String {
+        let number = self
+            .next_read
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let key = format!("{label}#read-{number}");
+
+        self.lock_reads().insert(key.clone(), Live::default());
+
+        key
+    }
+
+    pub fn started_read(&self, key: &str, pid: u32) {
+        let mut reads = self.lock_reads();
+
+        if let Some(read) = reads.get_mut(key) {
+            read.pid = Some(pid);
+
+            if read.stopped {
+                kill_group(pid);
+            }
+        }
+    }
+
+    pub fn finish_read(&self, key: &str) {
+        self.lock_reads().remove(key);
+    }
+
     pub fn stop(&self, label: &str) {
+        let prefix = format!("{label}#read-");
+
+        for (key, read) in self.lock_reads().iter_mut() {
+            if key.starts_with(&prefix) {
+                read.stopped = true;
+
+                if let Some(pid) = read.pid {
+                    kill_group(pid);
+                }
+            }
+        }
+
         let mut live = self.lock();
 
         if let Some(run) = live.get_mut(label) {
@@ -85,7 +130,13 @@ impl SetupRuns {
     }
 
     pub fn stop_all(&self) {
-        let labels: Vec<String> = self.lock().keys().cloned().collect();
+        let mut labels: Vec<String> = self.lock().keys().cloned().collect();
+
+        labels.extend(self.lock_reads().keys().map(|key| {
+            key.split_once("#read-")
+                .map_or(key.as_str(), |(label, _)| label)
+                .to_string()
+        }));
 
         for label in labels {
             self.stop(&label);
@@ -450,24 +501,51 @@ pub fn doctor_from(captured: Result<Captured, ToolFault>) -> DoctorRead {
     }
 }
 
+fn capture_command(
+    runner: &ToolRunner,
+    mut process: Command,
+    started: impl FnOnce(u32),
+) -> Result<Captured, ToolFault> {
+    process
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+
+        process.process_group(0);
+    }
+
+    runner
+        .limited(|| {
+            let child = process.spawn()?;
+
+            started(child.id());
+
+            child.wait_with_output()
+        })
+        .map(|output| Captured {
+            code: output.status.code(),
+            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        })
+        .map_err(|_| ToolFault::Missing {
+            tool: RECOGNIZER_COMMAND.to_string(),
+        })
+}
+
 fn capture_recognizer(
     runner: &ToolRunner,
     folder: &Path,
     args: &[String],
+    started: impl FnOnce(u32),
 ) -> Result<Captured, ToolFault> {
     runner.command(RECOGNIZER_COMMAND).and_then(|mut process| {
-        process.args(args).current_dir(folder).stdin(Stdio::null());
+        process.args(args).current_dir(folder);
 
-        runner
-            .limited(|| process.output())
-            .map(|output| Captured {
-                code: output.status.code(),
-                stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-                stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-            })
-            .map_err(|_| ToolFault::Missing {
-                tool: RECOGNIZER_COMMAND.to_string(),
-            })
+        capture_command(runner, process, started)
     })
 }
 
@@ -475,11 +553,12 @@ fn words(parts: &[&str]) -> Vec<String> {
     parts.iter().map(|part| part.to_string()).collect()
 }
 
-pub fn read_doctor(runner: &ToolRunner, folder: &Path) -> DoctorRead {
+fn read_doctor(runner: &ToolRunner, folder: &Path, started: impl FnOnce(u32)) -> DoctorRead {
     doctor_from(capture_recognizer(
         runner,
         folder,
         &words(&["doctor", "--json"]),
+        started,
     ))
 }
 
@@ -490,12 +569,17 @@ pub enum SurveyRead {
     Unavailable { reason: String },
 }
 
-fn survey_of(runner: &ToolRunner, folder: &Path) -> Result<Value, String> {
+fn survey_of(
+    runner: &ToolRunner,
+    folder: &Path,
+    started: impl FnOnce(u32),
+) -> Result<Value, String> {
     let mut args = words(&["setup", "survey"]);
 
     args.push(folder.display().to_string());
 
-    let captured = capture_recognizer(runner, folder, &args).map_err(|fault| fault.message())?;
+    let captured =
+        capture_recognizer(runner, folder, &args, started).map_err(|fault| fault.message())?;
 
     if captured.code != Some(0) {
         let detail = captured.stderr.trim();
@@ -654,15 +738,24 @@ pub fn read_survey(
     runner: &ToolRunner,
     folder: &Path,
     extract: bool,
+    runs: &SetupRuns,
+    label: &str,
     on_line: impl Fn(String) + Sync,
 ) -> SurveyRead {
-    survey_flow(
+    let key = runs.begin_read(label);
+    let started = |pid: u32| runs.started_read(&key, pid);
+
+    let read = survey_flow(
         extract,
-        || survey_of(runner, folder),
+        || survey_of(runner, folder, started),
         || scan_relayed(runner, folder, &on_line),
-        || read_doctor(runner, folder),
+        || read_doctor(runner, folder, started),
         &on_line,
-    )
+    );
+
+    runs.finish_read(&key);
+
+    read
 }
 
 pub struct TempFile {
@@ -885,7 +978,8 @@ fn recommendation_of(
     args.push("--input".to_string());
     args.push(file.path().display().to_string());
 
-    let captured = capture_recognizer(runner, folder, &args).map_err(|fault| fault.message())?;
+    let captured =
+        capture_recognizer(runner, folder, &args, |_| {}).map_err(|fault| fault.message())?;
 
     if captured.code != Some(0) {
         return Err(tail_chars(captured.stderr.trim()));
@@ -1169,6 +1263,87 @@ mod tests {
         assert!(!runs.stopped("w-2"));
         assert!(runs.finish("w-1"));
         assert!(!runs.running("w-1"));
+    }
+
+    fn shell(script: &str) -> Command {
+        let mut process = Command::new("sh");
+
+        process.args(["-c", script]);
+
+        process
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn capture_command_puts_the_child_in_its_own_process_group() {
+        let runner = crate::tool_runner::runner();
+        let pid = std::sync::atomic::AtomicU32::new(0);
+        let captured = capture_command(runner, shell("ps -o pgid= -p $$"), |started| {
+            pid.store(started, std::sync::atomic::Ordering::SeqCst)
+        })
+        .unwrap();
+
+        let recorded = pid.load(std::sync::atomic::Ordering::SeqCst);
+
+        assert_ne!(recorded, 0);
+        assert_eq!(captured.stdout.trim(), recorded.to_string());
+    }
+
+    #[cfg(unix)]
+    fn stopped_read_returns(stop_after_pid: bool) {
+        let runs = std::sync::Arc::new(SetupRuns::default());
+        let key = runs.begin_read("w-1");
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let worker = {
+            let runs = runs.clone();
+            let key = key.clone();
+
+            std::thread::spawn(move || {
+                let captured =
+                    capture_command(crate::tool_runner::runner(), shell("sleep 30"), |pid| {
+                        if !stop_after_pid {
+                            runs.stop("w-1");
+                        }
+
+                        runs.started_read(&key, pid);
+                        sender.send(()).unwrap();
+                    });
+
+                captured.unwrap().code
+            })
+        };
+
+        receiver.recv_timeout(Duration::from_secs(10)).unwrap();
+
+        if stop_after_pid {
+            runs.stop("w-1");
+        }
+
+        let begun = std::time::Instant::now();
+
+        assert_eq!(worker.join().unwrap(), None);
+        assert!(begun.elapsed() < Duration::from_secs(10));
+
+        runs.finish_read(&key);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stopping_a_read_ends_its_group() {
+        stopped_read_returns(true);
+        stopped_read_returns(false);
+    }
+
+    #[test]
+    fn a_read_does_not_count_as_a_running_setup() {
+        let runs = SetupRuns::default();
+        let key = runs.begin_read("w-1");
+
+        assert_eq!(runs.running_count(), 0);
+        assert!(runs.begin("w-1").is_ok());
+
+        runs.finish("w-1");
+        runs.finish_read(&key);
     }
 
     #[test]

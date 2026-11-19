@@ -1001,9 +1001,18 @@ async fn setup_survey(
     let label = window_label(&window);
 
     tauri::async_runtime::spawn_blocking(move || {
-        setup_run::read_survey(tool_runner::runner(), &folder, extract, |line| {
-            let _ = app.emit_to(label.as_str(), "setup-survey-event", line);
-        })
+        let runs = app.state::<SetupRuns>();
+
+        setup_run::read_survey(
+            tool_runner::runner(),
+            &folder,
+            extract,
+            &runs,
+            &label,
+            |line| {
+                let _ = app.emit_to(label.as_str(), "setup-survey-event", line);
+            },
+        )
     })
     .await
     .map_err(|error| error.to_string())
@@ -1977,8 +1986,10 @@ pub fn run() {
 }
 
 #[cfg(test)]
-mod git_watch_tests {
-    use super::git_watch_continues;
+mod tests {
+    use super::{folder_title, git_watch_continues, title_for, APP_TITLE};
+    use crate::windows::WindowState;
+    use tempfile::TempDir;
 
     #[test]
     fn a_watch_continues_while_its_generation_is_the_stored_one() {
@@ -1994,13 +2005,6 @@ mod git_watch_tests {
     fn a_watch_stops_once_unwatch_removed_its_generation() {
         assert!(!git_watch_continues(1, None));
     }
-}
-
-#[cfg(test)]
-mod title_tests {
-    use super::{folder_title, title_for, APP_TITLE};
-    use crate::windows::WindowState;
-    use tempfile::TempDir;
 
     #[test]
     fn a_window_with_no_folder_is_titled_with_the_app_name() {
