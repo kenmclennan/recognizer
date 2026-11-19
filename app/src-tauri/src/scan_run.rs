@@ -406,9 +406,10 @@ pub fn run_tick(folder: Option<&Path>, seen: &mut RunSeen) -> Vec<RunEmission> {
     out
 }
 
-fn stop_record(run: &ScanRunRecord) {
-    if run.pgid == Some(run.pid) {
+fn stop_record(run: &ScanRunRecord, backstop: Duration) {
+    if run.started_by == "app" || run.pgid == Some(run.pid) {
         kill_group(run.pid);
+        schedule_backstop(run.pid, backstop);
     } else {
         kill_pid(run.pid);
     }
@@ -418,7 +419,7 @@ pub fn stop_scan_for(runs: &ScanRuns, label: &str, folder: Option<&Path>) {
     runs.stop(label);
 
     if let Some(run) = folder.and_then(live_run) {
-        stop_record(&run);
+        stop_record(&run, runs.backstop);
     }
 }
 
@@ -444,7 +445,7 @@ pub fn attached_app_runs(folders: &[(String, PathBuf)], runs: &ScanRuns) -> Vec<
 
 pub fn stop_attached(records: &[ScanRunRecord]) {
     for record in records {
-        stop_record(record);
+        stop_record(record, STOP_BACKSTOP);
     }
 }
 
@@ -2438,6 +2439,133 @@ mod tests {
         stop_scan_for(&runs, "w-1", Some(dir.path()));
 
         assert!(gone(pid));
+    }
+
+    #[test]
+    fn stopping_by_record_an_app_run_with_a_null_pgid_takes_its_group() {
+        let dir = TempDir::new().unwrap();
+        let runs = ScanRuns::default();
+        let mut reaper = Reaper(Vec::new());
+        let child = leader();
+        let pid = child.id();
+        let sleeper = wait_for_children(pid);
+
+        reaper.0.push(child);
+        write_run_with(
+            dir.path(),
+            &run_text(pid, None, "running", "app", "run-1", &now_timestamp()),
+        );
+
+        stop_scan_for(&runs, "w-1", Some(dir.path()));
+
+        assert!(gone(sleeper));
+        assert!(gone(pid));
+    }
+
+    #[test]
+    fn stopping_by_record_an_app_run_with_a_foreign_pgid_takes_its_group() {
+        let dir = TempDir::new().unwrap();
+        let runs = ScanRuns::default();
+        let mut reaper = Reaper(Vec::new());
+        let child = leader();
+        let pid = child.id();
+        let sleeper = wait_for_children(pid);
+
+        reaper.0.push(child);
+        write_run_with(
+            dir.path(),
+            &run_text(pid, Some(1), "running", "app", "run-1", &now_timestamp()),
+        );
+
+        stop_scan_for(&runs, "w-1", Some(dir.path()));
+
+        assert!(gone(sleeper));
+        assert!(gone(pid));
+    }
+
+    #[test]
+    fn stopping_with_no_handle_and_an_app_record_equal_pgid_takes_its_group() {
+        let dir = TempDir::new().unwrap();
+        let runs = ScanRuns::default();
+        let mut reaper = Reaper(Vec::new());
+        let child = leader();
+        let pid = child.id();
+        let sleeper = wait_for_children(pid);
+
+        reaper.0.push(child);
+        write_run(dir.path(), pid, "running", "app");
+
+        stop_scan_for(&runs, "w-1", Some(dir.path()));
+
+        assert!(gone(sleeper));
+        assert!(gone(pid));
+    }
+
+    #[test]
+    fn stopping_a_handle_with_no_pid_yet_takes_the_group_when_the_pid_arrives() {
+        let runs = ScanRuns::default();
+        let mut reaper = Reaper(Vec::new());
+        let child = leader();
+        let pid = child.id();
+        let sleeper = wait_for_children(pid);
+
+        reaper.0.push(child);
+        runs.begin("w-1").unwrap();
+        stop_scan_for(&runs, "w-1", None);
+        runs.started("w-1", pid);
+
+        assert!(gone(sleeper));
+        assert!(gone(pid));
+    }
+
+    #[test]
+    fn stopping_by_record_an_app_run_that_ignores_term_dies_after_the_backstop() {
+        use std::os::unix::process::CommandExt;
+
+        let dir = TempDir::new().unwrap();
+        let runs = ScanRuns::with_backstop(Duration::from_millis(300));
+        let mut reaper = Reaper(Vec::new());
+        let child = Command::new("/bin/sh")
+            .args(["-c", "trap '' TERM; while :; do sleep 1; done"])
+            .process_group(0)
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+
+        reaper.0.push(child);
+        std::thread::sleep(Duration::from_millis(200));
+        write_run_with(
+            dir.path(),
+            &run_text(pid, None, "running", "app", "run-1", &now_timestamp()),
+        );
+
+        stop_scan_for(&runs, "w-1", Some(dir.path()));
+
+        assert!(gone(pid));
+    }
+
+    #[test]
+    fn a_stopped_app_run_reads_stopped_with_an_end_time() {
+        let dir = TempDir::new().unwrap();
+        let runs = ScanRuns::default();
+        let mut child = leader();
+        let pid = child.id();
+
+        write_run_with(
+            dir.path(),
+            &run_text(pid, None, "running", "app", "run-1", &now_timestamp()),
+        );
+
+        stop_scan_for(&runs, "w-1", Some(dir.path()));
+
+        assert!(gone(pid));
+
+        let _ = child.wait();
+
+        let run = read_run(dir.path()).unwrap();
+
+        assert_eq!(run.phase, "stopped");
+        assert!(run.ended_at.is_some());
     }
 
     #[test]
