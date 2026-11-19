@@ -164,6 +164,59 @@ describe("buildChanges", () => {
     ]);
   });
 
+  it("a tool's prepare commands run before its install and a runner's activate is written", () => {
+    const python: Survey = {
+      ...survey,
+      runners: [
+        {
+          name: "x",
+          language: "python",
+          runner: "pytest",
+          directory: "tools/x",
+          from: "tools/x/requirements-dev.txt",
+          command: "pytest --cov",
+          coverage: { path: "c/lcov.info", format: "lcov" },
+          tool: "pytest-cov",
+          activate: "source .venv/bin/activate",
+        },
+      ],
+      tools: [
+        {
+          name: "pytest-cov",
+          kind: "pip",
+          installed: false,
+          why: "w",
+          needed_by: ["x"],
+          installs: "i",
+          prepare: [["uv", "venv", ".venv"]],
+          command: ["uv", "pip", "install", "pytest-cov"],
+          cwd: "tools/x",
+        },
+      ],
+    };
+    const { changes } = buildChanges(python, {
+      ...all,
+      runners: [{ name: "x" }],
+      tools: ["pytest-cov"],
+    });
+    const tool = changes.find(
+      (change) => change.id === "tool-pytest-cov-tools/x",
+    );
+    const tests = changes.find((change) => change.id === "tests-x");
+
+    expect(tool?.steps.map((one) => one.argv.join(" "))).toEqual([
+      "uv venv .venv",
+      "uv pip install pytest-cov",
+    ]);
+    expect(new Set(tool?.steps.map((one) => one.cwd)).size).toBe(1);
+
+    const keys = tests?.steps.map((one) => one.argv.slice(2, 3).join(" "));
+    const command = keys?.findIndex((key) => key === "tests.x.command") ?? -1;
+
+    expect(command).toBeGreaterThan(-1);
+    expect(keys?.[command + 1]).toBe("tests.x.activate");
+  });
+
   it("builds a runner as one config command per key, with env added inline", () => {
     const { changes } = buildChanges(survey, all);
     const app = changes.find((change) => change.id === "tests-app");

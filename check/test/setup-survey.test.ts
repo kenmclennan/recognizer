@@ -998,7 +998,7 @@ describe("setup survey gradle suites", () => {
     expect(survey.notes?.[0]?.text).toContain("build.gradle.kts");
   });
 
-  it("a build with no Kotlin sources and no JaCoCo gives nothing", async () => {
+  it("a build with no Kotlin sources and no JaCoCo gives no Gradle note", async () => {
     const javaOnly = tree({
       "build.gradle.kts": `plugins {\n    java\n}\n`,
       "src/main/java/A.java": "class A {}\n",
@@ -1012,7 +1012,9 @@ describe("setup survey gradle suites", () => {
       const { survey } = await surveyOf([directory]);
 
       expect(survey.runners).toEqual([]);
-      expect(survey.notes).toEqual([]);
+      expect(survey.notes?.some((note) => note.text.includes("JaCoCo"))).toBe(
+        false,
+      );
     }
   });
 
@@ -1147,5 +1149,261 @@ describe("setup survey gradle suites", () => {
           note.text.includes("no JaCoCo"),
       ),
     ).toBe(true);
+    expect(
+      survey.runners.every(
+        (one) => one.language !== "python" || one.activate !== undefined,
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("setup survey python environments", () => {
+  const CACHE = "../../.recognizer/cache/python/x";
+
+  function tree(files: Record<string, string>): string {
+    const directory = makeTempDir("recognizer-setup-py-");
+
+    for (const [name, text] of Object.entries(files)) {
+      mkdirSync(dirname(join(directory, name)), { recursive: true });
+      writeFileSync(join(directory, name), text);
+    }
+
+    return directory;
+  }
+
+  function surveyWith(
+    directory: string,
+    available: { uv: boolean; python3: boolean },
+  ): Survey {
+    const base = nodeIo();
+    const io: Io = {
+      ...base,
+      run: (command, args, options) => {
+        if (command === "uv" || command === "python3") {
+          const present = available[command];
+
+          return {
+            started: present,
+            status: present ? 0 : null,
+            stdout: "",
+            stderr: "",
+          };
+        }
+
+        return base.run(command, args, options);
+      },
+    };
+
+    return surveyRepository(io, directory);
+  }
+
+  const REQUIREMENTS = { "tools/x/requirements-dev.txt": "pytest\n" };
+
+  it("a python runner with a requirements file and no venv builds an environment with uv", () => {
+    const survey = surveyWith(tree(REQUIREMENTS), { uv: true, python3: true });
+    const runner = survey.runners[0];
+
+    expect(validate(survey), JSON.stringify(validate.errors)).toBe(true);
+    expect(survey.runners).toHaveLength(1);
+    expect(runner?.name).toBe("x");
+    expect(runner?.directory).toBe("tools/x");
+    expect(runner?.command).toBe(
+      "pytest --cov --cov-report=lcov:../../.recognizer/cache/coverage/x/lcov.info",
+    );
+    expect(runner?.activate).toBe(`source ${CACHE}/bin/activate`);
+    expect(survey.tools).toHaveLength(1);
+
+    const tool = survey.tools[0];
+
+    expect(tool?.installed).toBe(false);
+    expect(tool?.prepare).toEqual([["uv", "venv", CACHE]]);
+    expect(tool?.command).toEqual([
+      "uv",
+      "pip",
+      "install",
+      "--python",
+      `${CACHE}/bin/python`,
+      "-r",
+      "requirements-dev.txt",
+      "pytest-cov",
+    ]);
+
+    for (const argv of [...(tool?.prepare ?? []), tool?.command ?? []]) {
+      expect(argv[0]).not.toMatch(/^python/);
+    }
+  });
+
+  it("a python runner with a requirements file and no venv or uv builds an environment with python3", () => {
+    const survey = surveyWith(tree(REQUIREMENTS), {
+      uv: false,
+      python3: true,
+    });
+    const tool = survey.tools[0];
+
+    expect(tool?.prepare).toEqual([["python3", "-m", "venv", CACHE]]);
+    expect(tool?.command.slice(0, 4)).toEqual([
+      `${CACHE}/bin/python`,
+      "-m",
+      "pip",
+      "install",
+    ]);
+
+    const argvs = [...(tool?.prepare ?? []), tool?.command ?? []];
+
+    expect(argvs.filter((argv) => argv[0] === "python3")).toHaveLength(1);
+  });
+
+  it("a python runner with no venv, uv or python3 is left out and noted", () => {
+    const survey = surveyWith(tree(REQUIREMENTS), {
+      uv: false,
+      python3: false,
+    });
+
+    expect(survey.runners.some((one) => one.language === "python")).toBe(false);
+    expect(survey.tools.some((tool) => tool.kind === "pip")).toBe(false);
+    expect(survey.notes).toHaveLength(1);
+    expect(survey.notes?.[0]?.directory).toBe("tools/x");
+    expect(survey.notes?.[0]?.text).toContain("no Python environment");
+
+    const mixed = surveyWith(
+      tree({
+        ...REQUIREMENTS,
+        "svc/pyproject.toml": "[tool.pytest]\n",
+        "svc/.venv/bin/python": "",
+      }),
+      { uv: false, python3: false },
+    );
+
+    expect(mixed.runners.map((one) => one.directory)).toEqual(["svc"]);
+    expect(mixed.notes).toHaveLength(1);
+  });
+
+  it("a python runner with a project venv installs into it and activates it", () => {
+    const directory = tree({ ...REQUIREMENTS, "tools/x/.venv/bin/python": "" });
+    const withUv = surveyWith(directory, { uv: true, python3: true });
+
+    expect(withUv.runners[0]?.activate).toBe("source .venv/bin/activate");
+    expect(withUv.tools[0]?.prepare).toBeUndefined();
+    expect(withUv.tools[0]?.command).toEqual([
+      "uv",
+      "pip",
+      "install",
+      "--python",
+      ".venv/bin/python",
+      "pytest-cov",
+    ]);
+
+    const without = surveyWith(directory, { uv: false, python3: false });
+
+    expect(without.tools[0]?.command).toEqual([
+      ".venv/bin/python",
+      "-m",
+      "pip",
+      "install",
+      "pytest-cov",
+    ]);
+
+    const root = surveyWith(
+      tree({
+        "services/api/requirements.txt": "pytest\n",
+        ".venv/bin/python": "",
+      }),
+      { uv: true, python3: true },
+    );
+
+    expect(root.runners[0]?.activate).toBe("source ../../.venv/bin/activate");
+  });
+
+  it("a requirements file listing pytest-cov makes the tool installed", () => {
+    const files = { "tools/x/requirements-dev.txt": "pytest\npytest-cov\n" };
+    const withVenv = surveyWith(
+      tree({ ...files, "tools/x/.venv/bin/python": "" }),
+      { uv: true, python3: true },
+    );
+
+    expect(withVenv.tools).toHaveLength(1);
+    expect(withVenv.tools[0]?.installed).toBe(true);
+
+    const without = surveyWith(tree(files), { uv: true, python3: true });
+
+    expect(without.tools).toHaveLength(1);
+    expect(without.tools[0]?.installed).toBe(false);
+  });
+
+  it("a pyproject only python runner without a venv notes that its dependencies are not installed", () => {
+    const survey = surveyWith(tree({ "tools/x/pyproject.toml": "pytest\n" }), {
+      uv: true,
+      python3: true,
+    });
+
+    expect(survey.tools[0]?.command).toEqual([
+      "uv",
+      "pip",
+      "install",
+      "--python",
+      `${CACHE}/bin/python`,
+      "pytest-cov",
+    ]);
+    expect(
+      survey.notes?.some((note) =>
+        note.text.includes("dependencies are not installed"),
+      ),
+    ).toBe(true);
+  });
+
+  it("the largest language with no runner gets a survey note", () => {
+    const survey = surveyWith(
+      tree({
+        "a/A.kt": "",
+        "a/B.kt": "",
+        "a/C.kt": "",
+        "tools/x/requirements-dev.txt": "pytest\n",
+        "tools/x/t.py": "",
+      }),
+      { uv: true, python3: true },
+    );
+    const gap = survey.notes?.filter((note) => note.language === "kotlin");
+
+    expect(gap).toHaveLength(1);
+    expect(gap?.[0]?.text).toContain("kotlin");
+    expect(gap?.[0]?.text).toContain("3 files");
+
+    const tie = surveyWith(
+      tree({ "a.kt": "", "b.kt": "", "c.rs": "", "d.rs": "" }),
+      { uv: true, python3: true },
+    );
+
+    expect(tie.notes?.map((note) => note.language)).toEqual(["kotlin"]);
+  });
+
+  it("no gap note when every language with files has a runner", () => {
+    const survey = surveyWith(
+      tree({
+        ...REQUIREMENTS,
+        "tools/x/t.py": "",
+        "crates/core/Cargo.toml": '[package]\nname = "core"\n',
+        "crates/core/src/lib.rs": "",
+      }),
+      { uv: true, python3: true },
+    );
+
+    expect(
+      survey.notes?.some((note) =>
+        note.text.includes("is the largest language"),
+      ),
+    ).toBeFalsy();
+  });
+
+  it("a language that already has a note gets no gap note", () => {
+    const survey = surveyWith(
+      tree({
+        "build.gradle.kts": `plugins {\n    kotlin("jvm") version "2.0.0"\n}\n`,
+        "src/main/kotlin/A.kt": "class A\n",
+      }),
+      { uv: true, python3: true },
+    );
+
+    expect(survey.notes).toHaveLength(1);
+    expect(survey.notes?.[0]?.text).toContain("JaCoCo");
   });
 });
