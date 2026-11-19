@@ -1,3 +1,4 @@
+import fcntl
 import json
 import os
 import re
@@ -29,6 +30,10 @@ from recognizer_sensors.testrun.suites import (
 PREFIX = "recognizer-check:"
 
 SHELL_TIMEOUT_SECONDS = 60
+
+LOCK_WAIT_SECONDS = 300
+
+LOCK_POLL_SECONDS = 0.1
 
 OUTPUT_LIMIT = 200
 
@@ -483,20 +488,51 @@ def file_gaps(repository: Path, suite: Suite, directory: Path) -> list[dict]:
     return runner_conflict(suite, directory)
 
 
-def check_suite(repository: Path, suite: Suite) -> list[dict]:
+PLAIN_PART = re.compile(
+    r"(?:source|\.)\s+[A-Za-z0-9_./~-]*activate"
+    r"|nvm use(?:\s+[A-Za-z0-9_.*/-]+)?"
+    r"|sdk env"
+    r"|conda activate\s+[A-Za-z0-9_./-]+"
+)
+
+
+def is_plain_activation(line: str) -> bool:
+    parts = [part.strip() for part in line.split("&&")]
+
+    return all(PLAIN_PART.fullmatch(part) for part in parts)
+
+
+def unchecked_note(suite: Suite) -> dict:
+    return gap(
+        "activate-unchecked",
+        suite.name,
+        f"suite {suite.name}: the activate line is not a plain activation, so its tools were "
+        "not checked; a scan runs it, and recognizer sensors check --run checks it",
+    )
+
+
+def check_suite(repository: Path, suite: Suite, run: bool = True) -> tuple[list[dict], list[dict]]:
     directory = repository / suite.directory
 
     if not directory.is_dir():
-        return [
-            suite_gap("directory-missing", suite, f"the directory {suite.directory} does not exist")
-        ]
+        return (
+            [
+                suite_gap(
+                    "directory-missing", suite, f"the directory {suite.directory} does not exist"
+                )
+            ],
+            [],
+        )
+
+    if not run and suite.activate and not is_plain_activation(suite.activate):
+        return file_gaps(repository, suite, directory), [unchecked_note(suite)]
 
     output, answered, timed_out = ask_shell(repository, suite)
 
     if not (answered and started(output)):
-        return [shell_gap(suite, output, timed_out)]
+        return [shell_gap(suite, output, timed_out)], []
 
-    return [*tool_gaps(suite, missing_tools(output)), *file_gaps(repository, suite, directory)]
+    return [*tool_gaps(suite, missing_tools(output)), *file_gaps(repository, suite, directory)], []
 
 
 def has_well_formed_jacoco(
@@ -618,8 +654,50 @@ def check(
     return check_with_notes(repository, settings, run, names)[0]
 
 
+def locked(repository: Path) -> int | None:
+    descriptor = os.open(repository, os.O_RDONLY)
+    deadline = time.monotonic() + LOCK_WAIT_SECONDS
+
+    while True:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+            return descriptor
+        except BlockingIOError:
+            if time.monotonic() >= deadline:
+                os.close(descriptor)
+
+                return None
+
+            time.sleep(LOCK_POLL_SECONDS)
+
+
 def check_with_notes(
     repository: Path, settings: dict, run: bool, names: list[str] | None = None
+) -> tuple[list[dict], list[dict]]:
+    descriptor = locked(repository)
+
+    if descriptor is None:
+        return (
+            [
+                gap(
+                    "check-busy",
+                    None,
+                    "another readiness check in this repository did not finish within "
+                    f"{LOCK_WAIT_SECONDS} seconds",
+                )
+            ],
+            [],
+        )
+
+    try:
+        return checked(repository, settings, run, names)
+    finally:
+        os.close(descriptor)
+
+
+def checked(
+    repository: Path, settings: dict, run: bool, names: list[str] | None
 ) -> tuple[list[dict], list[dict]]:
     raw = settings.get("suites")
 
@@ -638,18 +716,19 @@ def check_with_notes(
     suites = list(selected((Suite(**item) for item in raw), names))
     gaps: list[dict] = []
     clean: list[Suite] = []
+    notes: list[dict] = []
 
     for suite in suites:
-        found = check_suite(repository, suite)
+        found, unchecked = check_suite(repository, suite, run)
         gaps.extend(found)
+        notes.extend(unchecked)
 
         if not found:
             clean.append(suite)
 
-    notes: list[dict] = []
-
     if run:
-        found, notes = run_gaps(repository, clean)
+        found, run_notes = run_gaps(repository, clean)
         gaps.extend(found)
+        notes.extend(run_notes)
 
     return gaps, notes
