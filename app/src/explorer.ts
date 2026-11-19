@@ -118,6 +118,7 @@ import {
 } from "./freshness-model";
 import { limitsFromText } from "./function-limits";
 import {
+  addedFromHead,
   drawnScans,
   headDrawn,
   withoutDrawn,
@@ -4872,16 +4873,49 @@ export function showExplorer(
     });
   }
 
+  function headNoteOpen(): string | null {
+    const info = changeInfo;
+    const change = openViewValue()?.change;
+
+    if (info === null || info.name !== openView || change === undefined) {
+      return null;
+    }
+
+    if (info.state === "head-missing") {
+      const kind = kindOfChange(change);
+      const ref = kind.kind === "pr" ? `pull/${kind.number}/head` : change.head;
+
+      return `The head of this change is not in this repository's local objects, so its modules cannot be read. Fetch it, then reopen the view: \`git fetch origin ${ref}\``;
+    }
+
+    if (info.state === "ok" && info.headUnreadable !== undefined) {
+      return `The head of this change could not be read: ${info.headUnreadable}`;
+    }
+
+    return null;
+  }
+
+  function inspectorScans(drawn: ReadonlySet<string>, drawnHead: Scan[]) {
+    const base = drawnScans(scans, drawn, drawnHead);
+    const info = changeInfo;
+
+    return info !== null && info.state === "ok" && info.name === openView
+      ? addedFromHead(base, info.marked, info.drawn)
+      : base;
+  }
+
   function renderInspector() {
     const drawn = drawnModules();
     const drawnHead = headScansOpen();
+    const headNote = headNoteOpen();
     const contentOf = (index: number) => {
       const panel = trail.panels[index];
       const root = index === 0;
 
       return inspectorContent(panel.selection, {
         catalog,
-        scans: drawnScans(scans, drawn, drawnHead),
+        scans: inspectorScans(drawn, drawnHead),
+        headNote,
         modules: loaded.modules,
         compaction,
         disc: context.disc,
