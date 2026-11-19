@@ -912,8 +912,9 @@ function npmTools(
       });
       const version = lockedVersion(lock, "vitest");
       const workspaceFlags = members
-        .filter((member) => member.directory !== ".")
-        .flatMap((member) => ["-w", member.directory]);
+        .map((member) => posix.relative(packageRoot, member.directory))
+        .filter((path) => path !== "")
+        .flatMap((path) => ["-w", path]);
 
       return {
         name: "@vitest/coverage-v8",

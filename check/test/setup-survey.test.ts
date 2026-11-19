@@ -336,6 +336,53 @@ describe("recognizer setup survey", () => {
     );
   });
 
+  it("runs the install from a lone package's own folder with no workspace flag", async () => {
+    const directory = makeTempDir("recognizer-setup-lone-");
+
+    mkdirSync(join(directory, "client"), { recursive: true });
+    writeFileSync(
+      join(directory, "client/package.json"),
+      JSON.stringify({
+        name: "client",
+        scripts: { test: "vitest run" },
+        devDependencies: { vitest: "^3.2.4" },
+      }),
+    );
+    writeFileSync(join(directory, "client/package-lock.json"), "{}");
+
+    const { survey } = await surveyOf([directory]);
+    const coverage = survey.tools.find(
+      (tool) => tool.name === "@vitest/coverage-v8",
+    );
+
+    expect(coverage?.cwd).toBe("client");
+    expect(coverage?.command).not.toContain("-w");
+  });
+
+  it("gives a workspace member a flag relative to its lockfile root", async () => {
+    const directory = makeTempDir("recognizer-setup-rel-");
+    const vitest = JSON.stringify({
+      scripts: { test: "vitest run" },
+      devDependencies: { vitest: "^3.2.4" },
+    });
+
+    mkdirSync(join(directory, "packages/a"), { recursive: true });
+    mkdirSync(join(directory, "web/packages/a"), { recursive: true });
+    writeFileSync(join(directory, "package-lock.json"), "{}");
+    writeFileSync(join(directory, "packages/a/package.json"), vitest);
+    writeFileSync(join(directory, "web/package-lock.json"), "{}");
+    writeFileSync(join(directory, "web/packages/a/package.json"), vitest);
+
+    const { survey } = await surveyOf([directory]);
+    const coverage = survey.tools.filter(
+      (tool) => tool.name === "@vitest/coverage-v8",
+    );
+    const at = (cwd: string) => coverage.find((tool) => tool.cwd === cwd);
+
+    expect(at(".")?.command.slice(-2)).toEqual(["-w", "packages/a"]);
+    expect(at("web")?.command.slice(-2)).toEqual(["-w", "packages/a"]);
+  });
+
   it("lists no describer check when none is installed", async () => {
     const { survey } = await surveyOf([copyLoom()]);
 
