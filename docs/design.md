@@ -184,11 +184,11 @@ The application layer is divided by subdomain, so each responsibility has one ho
 | `configuration` | config, policy and responsibilities editing, setup |
 | `history` | changes and commits: past scans, baselines |
 
-Each subdomain is a folder under `application/` holding its use cases and, under `ports/`, the ports they use. A port shared by several subdomains for cross-cutting infrastructure (Git, Store, Clock, Process) lives in `application/shared/ports/`; a domain port belongs to the one subdomain whose use cases call it. A use case reaches another subdomain only through that subdomain's use cases. `domain/` holds the types the subdomains share.
+Each subdomain is a folder under `application/` holding its use cases and, under `ports/`, the ports they use. A port shared by several subdomains for cross-cutting infrastructure (Git, Store, Clock, Process) lives in `application/shared/ports/`; a domain port belongs to the one subdomain whose use cases call it. A use case reaches another subdomain only through that subdomain's use cases. `domain/` is divided the same way: each subdomain's entities and value objects sit in `domain/<subdomain>/`, and only types more than one subdomain reads sit at its top level.
 
 Adapters are grouped by infrastructure, not by subdomain: `plugins/` (scanners, sensors and the describer, one child-process protocol), `git/`, `filesystem/`, `terminal/` (the confirm prompt and event printing) and `system/` (the clock).
 
-Direction: the Store port gives way to repositories over domain entities (a scan, a finding set, a run), and the filesystem adapters change to implement them.
+Direction: the domain holds what Recognizer shows, not only the run: the repository, its folders and files, the dependencies between them, findings, violations and the policy rules they break. Today these exist only as separate copies in the CLI and the app, and core treats the scan, config and policy documents as opaque. Both adapters move to core's types, and the Store port gives way to repositories over those entities, with the filesystem adapters changing to implement them.
 
 #### Scan
 
@@ -223,7 +223,9 @@ Use cases move into core one at a time, and both adapters keep working at every 
 1. Scan, roughed out: `packages/core` with its layers, the Scan port and the ports above. The CLI's existing scan flow moves behind the port unchanged, and `recognizer scan` becomes a thin adapter with the same flags, output and exit codes. The app is untouched: it still runs `recognizer scan` and reads the same files. The acceptance tests drive the Scan port with fake adapters.
 2. Scan, divided: core's application layer takes the subdomain layout above, the scan pipeline moves to `run` with each phase's logic in its own subdomain, and the CLI's adapters regroup by infrastructure. Behaviour and the `recognizer scan` contract do not change.
 3. Scan, refined: the app's planning (`planFor`, sensor freshness, tick rules) moves into core; the app reaches core as a service; the duplicated lock, request checks and structural analysis go; core loses the plugin names it holds.
-4. The remaining use cases, one at a time: describe, setup, config and policy, changes and commits.
+4. Domain, divided: `domain/` takes the subdomain layout, each type moving to the subdomain that owns it. Behaviour does not change.
+5. Domain model: the entities Recognizer shows (repository, folder, file, dependency, finding, violation, policy rule) are defined in core, replace the opaque documents, and the CLI's and the app's own copies go. The names and boundaries are settled in design before this step is filed.
+6. The remaining use cases, one at a time: describe, setup, config and policy, changes and commits.
 
 ### Repository layout
 
