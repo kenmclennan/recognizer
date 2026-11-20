@@ -163,12 +163,32 @@ Each file has a generated one-line statement of what it is for, shown in the ins
 
 ### Architecture
 
-Recognizer is a hexagonal application. `packages/core` holds the domain and the application layer, and exposes each use case through a driving port. Everything outside it is reached through a driven port. The CLI and the desktop app are driving adapters: each has its own `main` and container that wires core to real driven adapters. The acceptance tests are a third driving adapter that wires core to fakes.
+Recognizer is a hexagonal application. `packages/core` holds the domain and the application layer. Use cases reach the world outside through ports, and ports are not split into driving and driven. The CLI and the desktop app are adapters: each has its own `main` and container that wires core to real adapters. The acceptance tests are a third, wiring core to fakes.
 
-- **Core knows no plugin by name.** Scanners, sensors and describers are driven adapters found at runtime through discovery and registration. Behaviour tied to a plugin is declared in its manifest.
+- **Core knows no plugin by name.** Scanners, sensors and describers are plugins found at runtime through discovery and registration. Behaviour tied to a plugin is declared in its manifest.
 - **The CLI calls core in process.** It turns flags into port requests and prints the events.
 - **The app reaches core as a service.** It starts core as a child process and drives the same ports over a protocol whose operations mirror them. Its Rust side keeps windows, process management and the socket; it holds no scan, git or planning logic.
 - **Core plans.** A request states intent and core decides the work. Adapters do not compute plans; they ask core for one when they need to show it.
+
+#### Layout
+
+The application layer is divided by subdomain, so each responsibility has one home as use cases move in:
+
+| Subdomain | Owns |
+| --- | --- |
+| `run` | the scan pipeline: sequences the other subdomains, owns the lock and the event stream, and holds no phase logic |
+| `scanning` | extracting the structure: scanners, scan documents, when to re-extract |
+| `describing` | file descriptions: the describer, staleness, cost confirmation |
+| `sensing` | sensors and findings: discovery, suites, running, freshness |
+| `analysis` | structural analysis and policy: violations, warnings, metrics |
+| `configuration` | config, policy and responsibilities editing, setup |
+| `history` | changes and commits: past scans, baselines |
+
+Each subdomain is a folder under `application/` holding its use cases and, under `ports/`, the ports they use. A port shared by several subdomains (Git, Store, Clock, Process) lives in `application/shared/ports/`. A use case reaches another subdomain only through that subdomain's use cases. `domain/` holds the types the subdomains share.
+
+Adapters are grouped by infrastructure, not by subdomain: `plugins/` (scanners, sensors and the describer, one child-process protocol), `git/`, `filesystem/`, `terminal/` (the confirm prompt and event printing) and `system/` (the clock).
+
+Direction: the Store port gives way to repositories over domain entities (a scan, a finding set, a run), and the filesystem adapters change to implement them.
 
 #### Scan
 
@@ -182,28 +202,29 @@ Recognizer is a hexagonal application. `packages/core` holds the domain and the 
 
 It returns a running scan: a stream of typed events (phases, file progress, sensor progress, preflight gaps, the summary), a final outcome (finished, failed, refused because another scan holds the lock or because preflight found gaps, stopped) and `stop()`. A query on the port reports whether a scan is running in a repository and what it is doing; core owns the lock.
 
-Driven ports:
+Ports, with the subdomain each belongs to:
 
-| Port | Does |
-| --- | --- |
-| Scanners | discovers language scanners and extracts a scan document per language |
-| Sensors | discovers sensors, reads their manifests and runs them |
-| Describer | finds the describer in effect and describes files |
-| Git | reads the commit, the dirty state and the branch |
-| Store | reads and writes the `.recognizer/` files: config, policy, cache, findings, log |
-| Confirm | asks the person running the scan to accept a describing cost |
-| Clock | supplies the time |
-| Process | runs plugin commands and reports their progress |
+| Port | Subdomain | Does |
+| --- | --- | --- |
+| Scanners | scanning | discovers language scanners and extracts a scan document per language |
+| Sensors | sensing | discovers sensors, reads their manifests and runs them |
+| Describer | describing | finds the describer in effect and describes files |
+| Git | shared | reads the commit, the dirty state and the branch |
+| Store | shared | reads and writes the `.recognizer/` files: config, policy, cache, findings, log |
+| Confirm | describing | asks the person running the scan to accept a describing cost |
+| Clock | shared | supplies the time |
+| Process | shared | runs plugin commands and reports their progress |
 
-Structural analysis has no driven port of its own: in phase 1 core reaches it through the Sensors port.
+Structural analysis has no port of its own: in phase 1 core reaches it through the Sensors port.
 
 #### Migration
 
 Use cases move into core one at a time, and both adapters keep working at every step.
 
-1. Scan, roughed out: `packages/core` with its layers, the Scan driving port and the driven ports above. The CLI's existing scan flow moves behind the port unchanged, and `recognizer scan` becomes a thin adapter with the same flags, output and exit codes. The app is untouched: it still runs `recognizer scan` and reads the same files. The acceptance tests drive the Scan port with fake driven adapters.
-2. Scan, refined: the app's planning (`planFor`, sensor freshness, tick rules) moves into core; the app reaches core as a service; the duplicated lock, request checks and structural analysis go; core loses the plugin names it holds.
-3. The remaining use cases, one at a time: describe, setup, config and policy, changes and commits.
+1. Scan, roughed out: `packages/core` with its layers, the Scan port and the ports above. The CLI's existing scan flow moves behind the port unchanged, and `recognizer scan` becomes a thin adapter with the same flags, output and exit codes. The app is untouched: it still runs `recognizer scan` and reads the same files. The acceptance tests drive the Scan port with fake adapters.
+2. Scan, divided: core's application layer takes the subdomain layout above, the scan pipeline moves to `run` with each phase's logic in its own subdomain, and the CLI's adapters regroup by infrastructure. Behaviour and the `recognizer scan` contract do not change.
+3. Scan, refined: the app's planning (`planFor`, sensor freshness, tick rules) moves into core; the app reaches core as a service; the duplicated lock, request checks and structural analysis go; core loses the plugin names it holds.
+4. The remaining use cases, one at a time: describe, setup, config and policy, changes and commits.
 
 ### Repository layout
 
