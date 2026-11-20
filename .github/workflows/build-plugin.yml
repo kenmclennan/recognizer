@@ -41,10 +41,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
-          committed=$(node app/scripts/stamp-version.mjs committed "$UNIT")
-          version=$(gh api --paginate "repos/$RELEASES_REPO/releases" --jq '.[].tag_name' | node app/scripts/next-version.mjs "$committed" "${UNIT}-v")
+          committed=$(node packages/app/scripts/stamp-version.mjs committed "$UNIT")
+          version=$(gh api --paginate "repos/$RELEASES_REPO/releases" --jq '.[].tag_name' | node packages/app/scripts/next-version.mjs "$committed" "${UNIT}-v")
           echo "VERSION=$version" >> "$GITHUB_ENV"
-          node app/scripts/stamp-version.mjs "$version" "$UNIT"
+          node packages/app/scripts/stamp-version.mjs "$version" "$UNIT"
 
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --no-fund

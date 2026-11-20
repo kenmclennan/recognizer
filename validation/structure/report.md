@@ -7,9 +7,9 @@
 ## Method
 
 - Recognizer commit `7c0b0aa`; lightcycle commit `4f7b8a27` for the structure run. The grimp comparison below was last run at lightcycle `c1933e0` and is not re-run here; it compares the Python scanner's edges, which the structure changes since then did not touch.
-- Corpus: `fixtures/structure/corpus/`, fourteen small hand-written descriptions of a scan (modules with their exported kinds, and edges) and `expected.json`. `check/test/structure-corpus.test.ts` expands each into a scan, runs `structureSensor` with only the warning under test on, and compares the finding ids and `evidence.measures` and the folder metric rows to the hand-computed values. Settings that turn warnings off are the test's, so each scan can only produce its own kind of finding.
-- Reference tool: grimp 3.18 (`pydeps` was not needed, grimp loaded the package). The Python scanner is `scanners/python`.
-- Scripts: `validation/structure/folder-metrics.mjs` (prints the table below from `check/dist`, so run `npm run build -w recognizer` first) and `validation/structure/grimp_compare.py --repository <path> --package <name> [--source-root <dir>] --scanner "uv run --project scanners/python recognizer-scan-python"`, run with a Python that has grimp.
+- Corpus: `fixtures/structure/corpus/`, fourteen small hand-written descriptions of a scan (modules with their exported kinds, and edges) and `expected.json`. `packages/cli/test/structure-corpus.test.ts` expands each into a scan, runs `structureSensor` with only the warning under test on, and compares the finding ids and `evidence.measures` and the folder metric rows to the hand-computed values. Settings that turn warnings off are the test's, so each scan can only produce its own kind of finding.
+- Reference tool: grimp 3.18 (`pydeps` was not needed, grimp loaded the package). The Python scanner is `packages/scanners/python`.
+- Scripts: `validation/structure/folder-metrics.mjs` (prints the table below from `packages/cli/dist`, so run `npm run build -w recognizer` first) and `validation/structure/grimp_compare.py --repository <path> --package <name> [--source-root <dir>] --scanner "uv run --project packages/scanners/python recognizer-scan-python"`, run with a Python that has grimp.
 
 ## Comparisons
 
@@ -45,13 +45,13 @@ The hand column is `expected.json`; the sensor column is `measureFolders` output
 
 The build ran this once so that the report has real figures; the driver re-ran it on 2026-11-03 in a clean worktree at lightcycle `c1933e0` (1411 scanner edges, 1303 grimp, 1119 shared, 292 scanner-only, 184 grimp-only; the build's figures below differ by a few edges from its own checkout) and read the seven edges the build left unread. Scanner edges exclude `inferred` edges (a guess from method calls, not an import), as the structure sensor does.
 
-| set                         | edges |
-| --------------------------- | ----- |
-| scanner (`scanners/python`) | 1417  |
-| grimp                       | 1309  |
-| intersection                | 1124  |
-| only in the scanner         | 293   |
-| only in grimp               | 185   |
+| set                                  | edges |
+| ------------------------------------ | ----- |
+| scanner (`packages/scanners/python`) | 1417  |
+| grimp                                | 1309  |
+| intersection                         | 1124  |
+| only in the scanner                  | 293   |
+| only in grimp                        | 185   |
 
 Classification of the edges in only one set:
 
@@ -131,4 +131,4 @@ None open. The Python scanner indexes a source module named `test_*.py` outside 
 
 ## Complexity
 
-The structure sensor now reports `complexity` findings, counted from source with the C.R.A.P. sensor's rules and with no test run; the thresholds sensor no longer judges complexity. The count is checked against the labelled C.R.A.P. corpus (60 cases) and the thresholds corpus planted functions (20 findings) by `check/test/complexity-corpus.test.ts`. The rule was not measured per repository over `validation/corpus`: it applies a published limit (McCabe, 10) to the count C.R.A.P. already measures.
+The structure sensor now reports `complexity` findings, counted from source with the C.R.A.P. sensor's rules and with no test run; the thresholds sensor no longer judges complexity. The count is checked against the labelled C.R.A.P. corpus (60 cases) and the thresholds corpus planted functions (20 findings) by `packages/cli/test/complexity-corpus.test.ts`. The rule was not measured per repository over `validation/corpus`: it applies a published limit (McCabe, 10) to the count C.R.A.P. already measures.

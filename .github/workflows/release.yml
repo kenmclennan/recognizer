@@ -146,9 +146,9 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
           committed=$(node -p "require('./package.json').version")
-          version=$(gh api --paginate "repos/$RELEASES_REPO/releases" --jq '.[].tag_name' | node app/scripts/next-version.mjs "$committed")
+          version=$(gh api --paginate "repos/$RELEASES_REPO/releases" --jq '.[].tag_name' | node packages/app/scripts/next-version.mjs "$committed")
           echo "VERSION=$version" >> "$GITHUB_ENV"
-          node app/scripts/stamp-version.mjs "$version"
+          node packages/app/scripts/stamp-version.mjs "$version"
 
       - name: Install dependencies
         if: steps.released.outputs.skip != 'true'
@@ -171,7 +171,7 @@ jobs:
         if: steps.released.outputs.skip != 'true'
         run: |
           mkdir -p dist-train
-          app_schema=$(node --input-type=module -e 'import { SCAN_SCHEMA_VERSION } from "./check/dist/index.js"; process.stdout.write(String(SCAN_SCHEMA_VERSION))')
+          app_schema=$(node --input-type=module -e 'import { SCAN_SCHEMA_VERSION } from "./packages/cli/dist/index.js"; process.stdout.write(String(SCAN_SCHEMA_VERSION))')
           node scripts/release-train.mjs verify "$app_schema" dist-train
 
       - name: Build the app
@@ -180,7 +180,7 @@ jobs:
           rustup target add aarch64-apple-darwin
           npm run build -w @recognizer/app
           npm run tauri -w @recognizer/app -- build --bundles app --target aarch64-apple-darwin
-          dir=app/src-tauri/target/aarch64-apple-darwin/release/bundle/macos
+          dir=packages/app/src-tauri/target/aarch64-apple-darwin/release/bundle/macos
           count=$(find "$dir" -maxdepth 1 -name 'Recognizer.app' | wc -l | tr -d ' ')
           if [ "$count" != "1" ]; then
             echo "expected exactly one Recognizer.app in $dir, found $count" >&2
@@ -289,8 +289,8 @@ jobs:
         if: always()
         run: |
           lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
-          if [ -d app/src-tauri/target ]; then
-            find app/src-tauri/target -name 'Recognizer.app' -type d -prune | while read -r bundle; do
+          if [ -d packages/app/src-tauri/target ]; then
+            find packages/app/src-tauri/target -name 'Recognizer.app' -type d -prune | while read -r bundle; do
               "$lsregister" -u "$bundle" || true
               rm -rf "$bundle"
             done

@@ -1,8 +1,8 @@
 # Duplication sensor review
 
-Status: the method now lives in `check/src/duplication/`, as the duplication check of the structure sensor; the measurements below stay as history.
+Status: the method now lives in `packages/cli/src/duplication/`, as the duplication check of the structure sensor; the measurements below stay as history.
 
-An investigation of the duplication sensor's method on lightcycle, per REC-182. Nothing in `sensors/src/` changed. The recommendation is at the end.
+An investigation of the duplication sensor's method on lightcycle, per REC-182. Nothing in `packages/sensors/src/` changed. The recommendation is at the end.
 
 ## Target and baseline
 
@@ -151,7 +151,7 @@ Almost all findings score above 0.9 because identifiers and literals normalise a
 
 ## Corpus
 
-`fixtures/duplication/corpus/` holds one small repository per language with planted copies, planted near-copies, non-copies and a four-member accessor family, listed in `manifest.json`. `sensors/tests/test_duplication_corpus.py` checks every pair at the default settings. Building it showed that a copy whose only difference is returning `{}` instead of `None` is not reported, since the literal kinds differ after normalisation. The accessor families are marked `reported` as a known false-positive class; the follow-up may flip them.
+`fixtures/duplication/corpus/` holds one small repository per language with planted copies, planted near-copies, non-copies and a four-member accessor family, listed in `manifest.json`. `packages/sensors/tests/test_duplication_corpus.py` checks every pair at the default settings. Building it showed that a copy whose only difference is returning `{}` instead of `None` is not reported, since the literal kinds differ after normalisation. The accessor families are marked `reported` as a known false-positive class; the follow-up may flip them.
 
 ## Recommendation
 

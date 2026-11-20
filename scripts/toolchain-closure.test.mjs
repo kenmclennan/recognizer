@@ -46,7 +46,7 @@ describe("closureFromLock", () => {
     );
 
     expect([
-      ...closureFromLock(real, ["check", "scanners/typescript"]),
+      ...closureFromLock(real, ["check", "packages/scanners/typescript"]),
     ]).toEqual([
       ["node_modules/ajv", "8.20.0"],
       ["node_modules/fast-deep-equal", "3.1.3"],
@@ -74,12 +74,12 @@ describe("closureFromLock per unit", () => {
   });
 
   it("holds only typescript for the typescript scanner and nothing for the describer", () => {
-    expect([...closureFromLock(real, ["scanners/typescript"]).keys()]).toEqual([
-      "node_modules/typescript",
-    ]);
-    expect([...closureFromLock(real, ["describers/claude"]).keys()]).toEqual(
-      [],
-    );
+    expect([
+      ...closureFromLock(real, ["packages/scanners/typescript"]).keys(),
+    ]).toEqual(["node_modules/typescript"]);
+    expect([
+      ...closureFromLock(real, ["packages/describers/claude"]).keys(),
+    ]).toEqual([]);
   });
 });
 

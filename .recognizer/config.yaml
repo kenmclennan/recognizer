@@ -1,7 +1,7 @@
 describer:
   command:
     - node
-    - "{repository}/describers/claude/dist/bin.js"
+    - "{repository}/packages/describers/claude/dist/bin.js"
     - run
     - --model
     - "{model}"

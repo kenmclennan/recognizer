@@ -1,0 +1,372 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import type { MarkScan } from "../src/change-marks.js";
+import {
+  changeMarks,
+  classifyChanges,
+  classifyOpened,
+  type FileChange,
+  parseNameStatus,
+  scannedBy,
+} from "../src/change-marks.js";
+import type { ScanSelection } from "../src/scan.js";
+
+function selectionOf(extensions: string[]): ScanSelection {
+  return {
+    extensions,
+    skip_directory_names: ["test", "tests"],
+    skip_directory_prefixes: [],
+    skip_directory_suffixes: [],
+    skip_directories_containing: [],
+    skip_file_globs: [],
+  };
+}
+
+function scan(
+  modules: [string, "module" | "package"][],
+  extensions = [".py", ".kt"],
+): MarkScan {
+  return {
+    modules: modules.map(([id, kind]) => ({ id, kind })),
+    selection: selectionOf(extensions),
+  } as MarkScan;
+}
+
+const selectionsOf = (scans: MarkScan[]) => scans.map((one) => one.selection);
+
+const current = [
+  scan([
+    ["src/a.py", "module"],
+    ["src/c.py", "module"],
+  ]),
+];
+const base = [
+  scan([
+    ["src/a.py", "module"],
+    ["src/b.py", "module"],
+  ]),
+];
+
+describe("parseNameStatus", () => {
+  it("parses the measured -z output", () => {
+    expect(parseNameStatus("D\0src/b.py\0A\0src/c.py\0")).toEqual({
+      changes: [
+        { status: "D", path: "src/b.py" },
+        { status: "A", path: "src/c.py" },
+      ],
+      dropped: 0,
+    });
+  });
+
+  it("parseNameStatus reads a rename", () => {
+    expect(parseNameStatus("R100\0old\0new\0M\0a.py\0")).toEqual({
+      changes: [
+        { status: "R", path: "new", from: "old" },
+        { status: "M", path: "a.py" },
+      ],
+      dropped: 0,
+    });
+  });
+
+  it("drops and counts an unknown status letter", () => {
+    expect(parseNameStatus("X\0x.py\0M\0y.py\0")).toEqual({
+      changes: [{ status: "M", path: "y.py" }],
+      dropped: 1,
+    });
+  });
+
+  it("reads an empty string as no changes", () => {
+    expect(parseNameStatus("")).toEqual({ changes: [], dropped: 0 });
+  });
+});
+
+describe("changeMarks", () => {
+  it("marks an added module with a current box", () => {
+    expect(
+      changeMarks([{ status: "A", path: "src/c.py" }], current, base),
+    ).toEqual({
+      modules: [{ id: "src/c.py", mark: "added", box: "current" }],
+      unmatched: 0,
+    });
+  });
+
+  it("marks a modified module", () => {
+    expect(
+      changeMarks([{ status: "M", path: "src/a.py" }], current, base).modules,
+    ).toEqual([{ id: "src/a.py", mark: "modified", box: "current" }]);
+  });
+
+  it("draws a removed module from the base scan", () => {
+    expect(
+      changeMarks([{ status: "D", path: "src/b.py" }], current, base).modules,
+    ).toEqual([{ id: "src/b.py", mark: "removed", box: "base" }]);
+  });
+
+  it("lists a removed module with no box when there is no base scan", () => {
+    expect(
+      changeMarks([{ status: "D", path: "src/b.py" }], current, null).modules,
+    ).toEqual([{ id: "src/b.py", mark: "removed", box: "none" }]);
+  });
+
+  it("ignores a path whose extension is not selected", () => {
+    expect(
+      changeMarks([{ status: "A", path: "README.md" }], current, base),
+    ).toEqual({
+      modules: [],
+      unmatched: 0,
+    });
+  });
+
+  it("counts a selected path that matches no module", () => {
+    expect(
+      changeMarks([{ status: "A", path: "src/zz.py" }], current, base),
+    ).toEqual({
+      modules: [],
+      unmatched: 1,
+    });
+  });
+
+  it("returns matches and counts the rest in a mixed set", () => {
+    const result = changeMarks(
+      [
+        { status: "M", path: "src/a.py" },
+        { status: "A", path: "src/zz.py" },
+      ],
+      current,
+      base,
+    );
+
+    expect(result.modules).toHaveLength(1);
+    expect(result.unmatched).toBe(1);
+  });
+});
+
+describe("classifyChanges", () => {
+  const changes: FileChange[] = [
+    { status: "A", path: "src/c.py" },
+    { status: "M", path: "src/a.py" },
+    { status: "T", path: "src/a.py" },
+    { status: "D", path: "src/b.py" },
+    { status: "D", path: "docs/x.md" },
+    { status: "A", path: "src/new.py" },
+    { status: "M", path: "README.md" },
+    { status: "M", path: "src/A.py" },
+  ];
+
+  it("splits changes into added, modified, removed and elsewhere by name", () => {
+    expect(classifyChanges(changes, selectionsOf(current))).toEqual({
+      added: ["src/c.py", "src/new.py"],
+      modified: ["src/a.py", "src/a.py", "src/A.py"],
+      renamed: [],
+      removed: ["src/b.py"],
+      elsewhere: ["docs/x.md", "README.md"],
+    });
+  });
+
+  it("classifyChanges counts a deleted selected file as removed even when the checked-out scan still has it", () => {
+    expect(
+      classifyChanges(
+        [{ status: "D", path: "src/a.py" }],
+        selectionsOf(current),
+      ),
+    ).toEqual({
+      added: [],
+      modified: [],
+      renamed: [],
+      removed: ["src/a.py"],
+      elsewhere: [],
+    });
+  });
+
+  it("does not filter by extension when no extensions are selected", () => {
+    expect(
+      classifyChanges([{ status: "M", path: "notes.md" }], []).modified,
+    ).toEqual(["notes.md"]);
+  });
+
+  it("counts modules from every scan", () => {
+    const both = [...current, scan([["lib/z.kt", "module"]])];
+
+    expect(
+      classifyChanges([{ status: "A", path: "lib/z.kt" }], selectionsOf(both))
+        .added,
+    ).toEqual(["lib/z.kt"]);
+  });
+
+  it("puts on the canvas exactly the modules changeMarks marks current", () => {
+    const readable = changes.filter(
+      (one) => one.path !== "src/new.py" && one.path !== "src/A.py",
+    );
+    const onCanvas = classifyChanges(readable, selectionsOf(current));
+    const marked = changeMarks(readable, current, base)
+      .modules.map((one) => one.id)
+      .sort();
+
+    expect(
+      [
+        ...new Set([
+          ...onCanvas.added,
+          ...onCanvas.modified,
+          ...onCanvas.renamed,
+          ...onCanvas.removed,
+        ]),
+      ].sort(),
+    ).toEqual(marked);
+  });
+
+  it("classifyChanges and changeMarks agree on a deleted test file: elsewhere in both", () => {
+    const gone: FileChange[] = [{ status: "D", path: "test/test_gone.py" }];
+
+    expect(changeMarks(gone, current, base).modules).toEqual([]);
+    expect(classifyChanges(gone, selectionsOf(current)).elsewhere).toEqual([
+      "test/test_gone.py",
+    ]);
+  });
+});
+
+describe("changeMarks over a recorded name-status list", () => {
+  const recorded = JSON.parse(
+    readFileSync(
+      new URL("../../../fixtures/views/name-status-m.json", import.meta.url),
+      "utf8",
+    ),
+  ) as { stdout: string };
+  const { changes } = parseNameStatus(recorded.stdout);
+  const head = [
+    scan([
+      ["src/mod.py", "module"],
+      ["src/added.py", "module"],
+      ["src/new.py", "module"],
+    ]),
+  ];
+  const before = [
+    scan([
+      ["src/mod.py", "module"],
+      ["src/gone.py", "module"],
+      ["src/old.py", "module"],
+    ]),
+  ];
+
+  it("marks each src file once with its status and keeps every test file off the canvas", () => {
+    expect(changes).toHaveLength(8);
+
+    const marks = changeMarks(changes, head, before);
+
+    expect(marks.modules).toEqual([
+      { id: "src/added.py", mark: "added", box: "current" },
+      { id: "src/gone.py", mark: "removed", box: "base" },
+      { id: "src/mod.py", mark: "modified", box: "current" },
+      { id: "src/new.py", mark: "renamed", box: "current", from: "src/old.py" },
+    ]);
+    expect(marks.unmatched).toBe(0);
+    expect(marks.modules.some((one) => one.id === "src/old.py")).toBe(false);
+
+    const classified = classifyChanges(changes, selectionsOf(head));
+
+    expect(classified.elsewhere.sort()).toEqual([
+      "test/test_added.py",
+      "test/test_gone.py",
+      "test/test_mod.py",
+      "test/test_new.py",
+    ]);
+    expect(
+      classified.added.length +
+        classified.modified.length +
+        classified.renamed.length +
+        classified.removed.length,
+    ).toBe(marks.modules.length);
+  });
+
+  it("counts a file that is a module in neither scan as unmatched and marks the one that is", () => {
+    const result = changeMarks(
+      [
+        { status: "A", path: "src/added.py" },
+        { status: "A", path: "src/lost.py" },
+      ],
+      head,
+      before,
+    );
+
+    expect(result.modules).toEqual([
+      { id: "src/added.py", mark: "added", box: "current" },
+    ]);
+    expect(result.unmatched).toBe(1);
+  });
+});
+
+describe("scannedBy", () => {
+  const parity = JSON.parse(
+    readFileSync(
+      new URL("../../../fixtures/selection-parity.json", import.meta.url),
+      "utf8",
+    ),
+  ) as Record<string, { tree: string[]; accepted: string[] }>;
+
+  for (const language of Object.keys(parity)) {
+    it(`accepts exactly the ${language} files the scanner reads`, () => {
+      const expected = JSON.parse(
+        readFileSync(
+          new URL(
+            `../../../fixtures/${language}/expected-scan.json`,
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      ) as { selection: ScanSelection };
+      const tree = new Set(parity[language]?.tree);
+      const marker = (directory: string, name: string) =>
+        tree.has(`${directory}/${name}`);
+      const accepted = [...tree]
+        .filter((path) => scannedBy(path, expected.selection, marker))
+        .sort();
+
+      expect(accepted).toEqual(parity[language]?.accepted);
+    });
+  }
+
+  it("rejects a path under skip_paths", () => {
+    const selection = { ...selectionOf([".py"]), skip_paths: ["vendor"] };
+
+    expect(scannedBy("vendor/a.py", selection)).toBe(false);
+    expect(scannedBy("vendor2/a.py", selection)).toBe(true);
+  });
+});
+
+describe("classifyOpened", () => {
+  it("classifyOpened counts only files with a node", () => {
+    const csharp = {
+      ...selectionOf([".cs", ".py"]),
+      skip_directory_names: [],
+    };
+    const head = [
+      {
+        modules: [{ id: "src/a.py", kind: "module" }],
+        selection: csharp,
+      } as MarkScan,
+    ];
+    const changes: FileChange[] = [
+      { status: "A", path: "src/a.py" },
+      { status: "M", path: "Tests/T.cs" },
+      { status: "A", path: "src/ghost.py" },
+      { status: "D", path: "src/gone.py" },
+    ];
+
+    expect(changes).toHaveLength(4);
+
+    const found = changeMarks(changes, head, null);
+    const result = classifyOpened(changes, found.modules);
+
+    expect(result.added).toEqual(["src/a.py"]);
+    expect(result.elsewhere).toEqual([
+      "Tests/T.cs",
+      "src/ghost.py",
+      "src/gone.py",
+    ]);
+    expect(
+      result.added.length +
+        result.modified.length +
+        result.renamed.length +
+        result.removed.length,
+    ).toBe(found.modules.filter((one) => one.box !== "none").length);
+  });
+});

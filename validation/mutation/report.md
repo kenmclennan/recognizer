@@ -7,9 +7,9 @@
 ## Method
 
 - Recognizer commit `1dbb09c`; lightcycle commit `c1933e0` (not used, see below).
-- Corpus: `fixtures/mutation/corpus/`, a Python module `app/shop.py` and a TypeScript module `src/shop.ts` of eight functions each, with tests that are deliberately strong, weak or absent, and a hand-written `coverage/lcov.info`. `expected.json` records each function's killed, survived and uncovered counts and each survivor with the reason, written from reading the code and the tests. `sensors/tests/test_corpus.py` runs the real sensor over it in CI (the TypeScript half runs only where `node --experimental-strip-types` works).
+- Corpus: `fixtures/mutation/corpus/`, a Python module `packages/app/shop.py` and a TypeScript module `src/shop.ts` of eight functions each, with tests that are deliberately strong, weak or absent, and a hand-written `coverage/lcov.info`. `expected.json` records each function's killed, survived and uncovered counts and each survivor with the reason, written from reading the code and the tests. `packages/sensors/tests/test_corpus.py` runs the real sensor over it in CI (the TypeScript half runs only where `node --experimental-strip-types` works).
 - Reference tools, versions pinned: mutmut 3.8.1 with pytest 9.2.0 (Python), Stryker 10.1.1 with its command runner and `coverageAnalysis: off` (TypeScript), coverage.py 7.17.1 and c8 12.0.0 to produce the lcov the sensor needs, node 24.13.0.
-- Scripts: `validation/mutation/compare_python.py` and `validation/mutation/compare_typescript.py`, with `common.py`; run them from `sensors/` with `PYTHONPATH=../validation/mutation uv run python ../validation/mutation/compare_python.py --repository <path> --source <file> --pytest <pytest file> --venv <venv with mutmut>` (and `--stryker <path> --c8 <path>` for the TypeScript one). Each copies the repository twice and never writes to it.
+- Scripts: `validation/mutation/compare_python.py` and `validation/mutation/compare_typescript.py`, with `common.py`; run them from `packages/sensors/` with `PYTHONPATH=../validation/mutation uv run python ../validation/mutation/compare_python.py --repository <path> --source <file> --pytest <pytest file> --venv <venv with mutmut>` (and `--stryker <path> --c8 <path>` for the TypeScript one). Each copies the repository twice and never writes to it.
 
 ## Comparisons
 
@@ -19,7 +19,7 @@ Each reference mutant is placed in a bucket by comparing its single-token edit w
 
 | run | reference mutants | matched | outside by design | inside but not generated | sensor sites with no reference mutant |
 | --- | --- | --- | --- | --- | --- |
-| mutmut, corpus `app/shop.py` | 16 | 12 | 4 | 0 | 0 |
+| mutmut, corpus `packages/app/shop.py` | 16 | 12 | 4 | 0 | 0 |
 | mutmut, `fixtures/mutation/sample` | 12 | 4 | 8 | 0 | 0 |
 | Stryker, corpus `src/shop.ts` | 37 | 11 | 22 | 4 | 1 |
 | mutmut, three lightcycle modules | not run | not run | not run | not run | not run |
@@ -114,4 +114,4 @@ The before and after figures for lightcycle at `c1933e0` (`max_minutes: 5`, `max
 
 ## C-sharp
 
-C# is measured against hand counts only: `fixtures/mutation/corpus/csharp/` holds 8 hand-labelled functions (one with a `#if A == B` condition that yields no site and a statement under `#if` that yields one) run through a Python runner script that reads the mutated `.cs` text, and `sensors/tests/test_corpus.py` checks them in CI. No reference tool ran for C# and no .NET SDK was available on the machine that wrote the labels.
+C# is measured against hand counts only: `fixtures/mutation/corpus/csharp/` holds 8 hand-labelled functions (one with a `#if A == B` condition that yields no site and a statement under `#if` that yields one) run through a Python runner script that reads the mutated `.cs` text, and `packages/sensors/tests/test_corpus.py` checks them in CI. No reference tool ran for C# and no .NET SDK was available on the machine that wrote the labels.

@@ -3,19 +3,19 @@ name: scanner-rust
 on:
   pull_request:
     paths:
-      - scanners/rust/**
+      - packages/scanners/rust/**
       - schema/**
       - fixtures/**
-      - app/src-tauri/**
+      - packages/app/src-tauri/**
       - scripts/assert-clean-tmpdir.mjs
       - .github/workflows/scanner-rust.yml
   push:
     branches: [main]
     paths:
-      - scanners/rust/**
+      - packages/scanners/rust/**
       - schema/**
       - fixtures/**
-      - app/src-tauri/**
+      - packages/app/src-tauri/**
       - scripts/assert-clean-tmpdir.mjs
       - .github/workflows/scanner-rust.yml
 
@@ -29,7 +29,7 @@ jobs:
     timeout-minutes: 20
     defaults:
       run:
-        working-directory: scanners/rust
+        working-directory: packages/scanners/rust
     steps:
       - uses: actions/checkout@v4
       - run: cargo fmt --check

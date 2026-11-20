@@ -3,10 +3,10 @@ name: check
 on:
   pull_request:
     paths:
-      - check/**
-      - scanners/**
-      - sensors/**
-      - describers/**
+      - packages/cli/**
+      - packages/scanners/**
+      - packages/sensors/**
+      - packages/describers/**
       - scripts/**
       - packaging/**
       - policies/**
@@ -20,10 +20,10 @@ on:
   push:
     branches: [main]
     paths:
-      - check/**
-      - scanners/**
-      - sensors/**
-      - describers/**
+      - packages/cli/**
+      - packages/scanners/**
+      - packages/sensors/**
+      - packages/describers/**
       - scripts/**
       - packaging/**
       - policies/**
@@ -50,14 +50,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --prefer-offline --no-audit --no-fund
-      - run: npm run lint -w check
+      - run: npm run lint -w packages/cli
       - uses: ./.github/actions/install-uv
-      - run: uv sync --locked --project scanners/python
-      - run: uv sync --locked --project sensors
+      - run: uv sync --locked --project packages/scanners/python
+      - run: uv sync --locked --project packages/sensors
       - run: npm run build -w recognizer-scan-typescript
       - run: npm run build -w recognizer-describe-claude
-      - run: npm run build -w check
-      - run: node scripts/assert-clean-tmpdir.mjs npm test -w check
+      - run: npm run build -w packages/cli
+      - run: node scripts/assert-clean-tmpdir.mjs npm test -w packages/cli
         env:
           RECOGNIZER_REQUIRE_TEMPLATE_TOOLCHAINS: "1"
 
@@ -76,7 +76,7 @@ jobs:
         with:
           node-version: 22
       - run: npm ci --prefer-offline --no-audit --no-fund
-      - run: npm run build -w check
+      - run: npm run build -w packages/cli
       - run: node scripts/build-toolchain.mjs "$RUNNER_TEMP/toolchain"
       - run: |
           extracted=$(mktemp -d)
@@ -104,11 +104,11 @@ jobs:
       - run: npm ci --prefer-offline --no-audit --no-fund
       - uses: ./.github/actions/install-uv
       - run: rustup target add aarch64-apple-darwin
-      - run: npm run build -w check
+      - run: npm run build -w packages/cli
       - run: npm run build -w recognizer-scan-typescript
       - run: npm run build -w recognizer-describe-claude
       - run: |
-          version=$(node app/scripts/stamp-version.mjs committed "${{ matrix.unit }}")
+          version=$(node packages/app/scripts/stamp-version.mjs committed "${{ matrix.unit }}")
           node scripts/build-plugin.mjs "${{ matrix.unit }}" "$version" "$RUNNER_TEMP/plugin-${{ matrix.unit }}"
           extracted=$(mktemp -d)
           tar -xzf "$RUNNER_TEMP/plugin-${{ matrix.unit }}/${{ matrix.unit }}-$version.tar.gz" -C "$extracted"

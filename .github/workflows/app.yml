@@ -3,14 +3,14 @@ name: app
 on:
   pull_request:
     paths:
-      - app/**
-      - check/**
+      - packages/app/**
+      - packages/cli/**
       - schema/**
       - scripts/**
       - packaging/**
-      - scanners/**
-      - sensors/**
-      - describers/**
+      - packages/scanners/**
+      - packages/sensors/**
+      - packages/describers/**
       - THIRD-PARTY-NOTICES.md
       - package.json
       - package-lock.json
@@ -20,8 +20,8 @@ on:
   push:
     branches: [main]
     paths:
-      - app/**
-      - check/**
+      - packages/app/**
+      - packages/cli/**
       - schema/**
       - scripts/**
       - packaging/**

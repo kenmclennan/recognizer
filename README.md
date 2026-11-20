@@ -101,8 +101,8 @@ The same scan drives the command line. Every command reads the cached scan, or s
 recognizer scan                   # extract when the files changed
 recognizer scan --sense all       # then run every registered sensor
 recognizer check                  # violations, baseline growth, metrics and warnings
-recognizer uses app/src/main.ts   # the modules a module uses
-recognizer used-by app/src/main.ts
+recognizer uses packages/app/src/main.ts   # the modules a module uses
+recognizer used-by packages/app/src/main.ts
 recognizer callers <module> <name>
 recognizer path <from> <to>       # the shortest chain of uses
 recognizer find <text>            # modules by path, members by name
@@ -113,7 +113,7 @@ recognizer doctor                 # is the setup valid, and how to fix it
 recognizer log --last             # what the last run did and why it failed
 ```
 
-`recognizer help` lists every command, and `recognizer help <command>` prints one in full: usage, options, output, exit codes and examples. [check/README.md](check/README.md) is the full reference.
+`recognizer help` lists every command, and `recognizer help <command>` prints one in full: usage, options, output, exit codes and examples. [packages/cli/README.md](packages/cli/README.md) is the full reference.
 
 ## Configure a repository
 
@@ -182,7 +182,7 @@ What a repository can add today:
 - **An agent's review.** `recognizer report --as <name>` files review findings in the findings form, and the viewer and `recognizer check` treat them like a sensor's.
 - **A different scanner for a language.** Install a `recognizer-scan-<name>` program whose manifest claims the language, and when two scanners claim it, choose one with `recognizer config scanners.<language> <name>`. The `RECOGNIZER_SCAN_<LANGUAGE>` variables are retired: to run a checkout's scanner, put a launcher named `recognizer-scan-<name>` first on `PATH`.
 
-[check/README.md](check/README.md) gives the contracts in full. `recognizer help plugin-guide` is the guide a plugin author follows.
+[packages/cli/README.md](packages/cli/README.md) gives the contracts in full. `recognizer help plugin-guide` is the guide a plugin author follows.
 
 ## Writing a plugin
 
@@ -202,8 +202,8 @@ Read `recognizer help plugin-guide` for the full guide, and `recognizer plugin s
 
 ## Docs
 
-- [check/README.md](check/README.md): every command, the policy, config and findings formats, exit codes.
+- [packages/cli/README.md](packages/cli/README.md): every command, the policy, config and findings formats, exit codes.
 - [docs/use-cases.md](docs/use-cases.md): what Recognizer is for, and the five use cases every feature serves.
 - [docs/design.md](docs/design.md): what is decided and what is still open; [docs/glossary.md](docs/glossary.md) names the terms.
-- [app/README.md](app/README.md): building the app and how releases are cut.
+- [packages/app/README.md](packages/app/README.md): building the app and how releases are cut.
 - [CLAUDE.md](CLAUDE.md): how the repository is laid out and the rules for working in it.

@@ -3,7 +3,7 @@ name: scanner-kotlin
 on:
   pull_request:
     paths:
-      - scanners/kotlin/**
+      - packages/scanners/kotlin/**
       - schema/**
       - fixtures/**
       - scripts/assert-clean-tmpdir.mjs
@@ -12,7 +12,7 @@ on:
   push:
     branches: [main]
     paths:
-      - scanners/kotlin/**
+      - packages/scanners/kotlin/**
       - schema/**
       - fixtures/**
       - scripts/assert-clean-tmpdir.mjs
@@ -36,7 +36,7 @@ jobs:
         python-version: ["3.11", "3.13"]
     defaults:
       run:
-        working-directory: scanners/kotlin
+        working-directory: packages/scanners/kotlin
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
