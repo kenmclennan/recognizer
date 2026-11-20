@@ -6,8 +6,8 @@ on:
       - packages/app/**
       - packages/cli/**
       - schema/**
-      - scripts/**
-      - packaging/**
+      - tools/scripts/**
+      - tools/packaging/**
       - packages/scanners/**
       - packages/sensors/**
       - packages/describers/**
@@ -23,8 +23,8 @@ on:
       - packages/app/**
       - packages/cli/**
       - schema/**
-      - scripts/**
-      - packaging/**
+      - tools/scripts/**
+      - tools/packaging/**
       - THIRD-PARTY-NOTICES.md
       - package.json
       - package-lock.json

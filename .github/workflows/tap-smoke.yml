@@ -27,4 +27,4 @@ jobs:
           node-version: "22"
 
       - name: Install, check, remove and restore through the tap
-        run: node scripts/tap-smoke.mjs "$PWD"
+        run: node tools/scripts/tap-smoke.mjs "$PWD"

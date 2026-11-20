@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scaledTimeout } from "../../../../scripts/pool-scale.mjs";
+import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import { functionLimits } from "../../src/function-limits";
 import { collectFacts, here, webkit } from "../../src/look-page";
 import { shippedSensors } from "../../src/shipped-fake";

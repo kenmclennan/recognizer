@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { scaledTimeout } from "../../../../scripts/pool-scale.mjs";
+import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import { collectFacts, here, webkit } from "../../src/look-page";
 
 const HARNESS = `

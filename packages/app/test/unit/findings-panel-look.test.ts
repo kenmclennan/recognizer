@@ -1,6 +1,6 @@
 import { parsePolicy, structureSensor, validateScan } from "recognizer";
 import { beforeAll, describe, expect, it } from "vitest";
-import { scaledTimeout } from "../../../../scripts/pool-scale.mjs";
+import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import groupFile from "../../src/finding-groups.json";
 import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
 
@@ -518,8 +518,10 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
     expect(f.policy.without.icon).toBe(1);
     expect(f.policy.without.tip).toContain(".recognizer/policy.yaml");
     expect(f.policy.without.tip).toContain("inner first");
-    expect(f.policy.without.tip).toContain("policies/hexagonal.yaml");
-    expect(f.policy.without.tip).toContain("policies/vertical-slices.yaml");
+    expect(f.policy.without.tip).toContain("docs/policies/hexagonal.yaml");
+    expect(f.policy.without.tip).toContain(
+      "docs/policies/vertical-slices.yaml",
+    );
     expect(f.policy.without.banners).toBe(1);
     expect(f.policy.with.shown).toBe(false);
     expect(f.policy.with.nodes).toBe(0);

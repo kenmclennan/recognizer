@@ -1,6 +1,6 @@
 import type { ScanRunRecord } from "recognizer";
 import { describe, expect, it, vi } from "vitest";
-import { scaledTimeout } from "../../../../scripts/pool-scale.mjs";
+import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import type { ScanOrigin } from "../../src/footer-scan";
 import { registeredWith } from "../../src/look-support";
 import type { MessageAction, MessageInput } from "../../src/message-tray";

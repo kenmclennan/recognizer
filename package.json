@@ -20,12 +20,12 @@
   },
   "scripts": {
     "app": "npm run tauri -w @recognizer/app -- dev",
-    "open-check": "node scripts/open-check.mjs",
+    "open-check": "node tools/scripts/open-check.mjs",
     "install-app": "node packages/app/scripts/install-app.mjs",
     "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#THIRD-PARTY-NOTICES.md\" \"#packages/app/node_modules\" \"#packages/app/src-tauri/target\" \"#packages/scanners/python/.venv\" \"#packages/scanners/kotlin/.venv\" \"#packages/scanners/csharp/.venv\" \"#packages/sensors/.venv\" \"#packages/describers/claude/prompt.md\"",
     "check:rust": "node packages/app/scripts/check-rust.mjs",
-    "check": "node scripts/require-install.mjs && npm run lint -w packages/cli && npm run build -w packages/cli && node scripts/assert-clean-tmpdir.mjs npm test -w packages/cli && node scripts/assert-clean-tmpdir.mjs npm test -w recognizer-describe-claude && npm run lint -w recognizer-describe-claude",
-    "check:app": "node scripts/require-install.mjs && npm run typecheck -w @recognizer/app && npm run lint -w @recognizer/app && npm run format:check -w @recognizer/app && node scripts/assert-clean-tmpdir.mjs npm run test -w @recognizer/app && npm run check:rust && npm run build -w @recognizer/app"
+    "check": "node tools/scripts/require-install.mjs && npm run lint -w packages/cli && npm run build -w packages/cli && node tools/scripts/assert-clean-tmpdir.mjs npm test -w packages/cli && node tools/scripts/assert-clean-tmpdir.mjs npm test -w recognizer-describe-claude && npm run lint -w recognizer-describe-claude",
+    "check:app": "node tools/scripts/require-install.mjs && npm run typecheck -w @recognizer/app && npm run lint -w @recognizer/app && npm run format:check -w @recognizer/app && node tools/scripts/assert-clean-tmpdir.mjs npm run test -w @recognizer/app && npm run check:rust && npm run build -w @recognizer/app"
   },
   "license": "MIT"
 }

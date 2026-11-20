@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
 import { describe, expect, it } from "vitest";
-import { makeTempDir } from "../../../../scripts/temp-dirs.mjs";
+import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
 import { REPO, runBin, validate } from "./helpers.js";
 
 const SOURCE_EXTENSION = /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$/;

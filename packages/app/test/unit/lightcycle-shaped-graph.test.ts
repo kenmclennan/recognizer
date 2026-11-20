@@ -1,6 +1,6 @@
 import type { ElkNode } from "elkjs/lib/elk-api";
 import { describe, expect, it } from "vitest";
-import { scaledTimeout } from "../../../../scripts/pool-scale.mjs";
+import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import { layoutOnMainThread } from "../../src/layout-source";
 import {
   lightcycleShapedGraph,

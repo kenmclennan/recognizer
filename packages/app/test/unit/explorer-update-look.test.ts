@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
-import { scaledTimeout } from "../../../../scripts/pool-scale.mjs";
+import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
 
 const SCAN_COMMIT = "0123456789abcdef0123456789abcdef01234567";

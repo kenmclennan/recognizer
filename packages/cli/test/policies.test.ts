@@ -5,7 +5,9 @@ import { check, parsePolicy } from "../src/index.js";
 import { REPO } from "./helpers.js";
 
 function template(name: string) {
-  return parsePolicy(readFileSync(join(REPO, "policies", name), "utf8"));
+  return parsePolicy(
+    readFileSync(join(REPO, "docs", "policies", name), "utf8"),
+  );
 }
 
 function scanOf(edges: Array<[string, string]>, modules: string[] = []) {

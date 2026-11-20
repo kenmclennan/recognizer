@@ -7,9 +7,9 @@ on:
       - packages/scanners/**
       - packages/sensors/**
       - packages/describers/**
-      - scripts/**
-      - packaging/**
-      - policies/**
+      - tools/scripts/**
+      - tools/packaging/**
+      - docs/policies/**
       - schema/**
       - fixtures/**
       - package.json
@@ -24,9 +24,9 @@ on:
       - packages/scanners/**
       - packages/sensors/**
       - packages/describers/**
-      - scripts/**
-      - packaging/**
-      - policies/**
+      - tools/scripts/**
+      - tools/packaging/**
+      - docs/policies/**
       - schema/**
       - fixtures/**
       - package.json
@@ -57,7 +57,7 @@ jobs:
       - run: npm run build -w recognizer-scan-typescript
       - run: npm run build -w recognizer-describe-claude
       - run: npm run build -w packages/cli
-      - run: node scripts/assert-clean-tmpdir.mjs npm test -w packages/cli
+      - run: node tools/scripts/assert-clean-tmpdir.mjs npm test -w packages/cli
         env:
           RECOGNIZER_REQUIRE_TEMPLATE_TOOLCHAINS: "1"
 
@@ -77,11 +77,11 @@ jobs:
           node-version: 22
       - run: npm ci --prefer-offline --no-audit --no-fund
       - run: npm run build -w packages/cli
-      - run: node scripts/build-toolchain.mjs "$RUNNER_TEMP/toolchain"
+      - run: node tools/scripts/build-toolchain.mjs "$RUNNER_TEMP/toolchain"
       - run: |
           extracted=$(mktemp -d)
           tar -xzf "$RUNNER_TEMP/toolchain/recognizer-toolchain.tar.gz" -C "$extracted"
-          node scripts/verify-toolchain.mjs "$extracted"
+          node tools/scripts/verify-toolchain.mjs "$extracted"
 
       - if: failure()
         uses: ./.github/actions/cancel-on-failure
@@ -109,10 +109,10 @@ jobs:
       - run: npm run build -w recognizer-describe-claude
       - run: |
           version=$(node packages/app/scripts/stamp-version.mjs committed "${{ matrix.unit }}")
-          node scripts/build-plugin.mjs "${{ matrix.unit }}" "$version" "$RUNNER_TEMP/plugin-${{ matrix.unit }}"
+          node tools/scripts/build-plugin.mjs "${{ matrix.unit }}" "$version" "$RUNNER_TEMP/plugin-${{ matrix.unit }}"
           extracted=$(mktemp -d)
           tar -xzf "$RUNNER_TEMP/plugin-${{ matrix.unit }}/${{ matrix.unit }}-$version.tar.gz" -C "$extracted"
-          node scripts/verify-plugin.mjs "${{ matrix.unit }}" "$extracted"
+          node tools/scripts/verify-plugin.mjs "${{ matrix.unit }}" "$extracted"
 
       - if: failure()
         uses: ./.github/actions/cancel-on-failure

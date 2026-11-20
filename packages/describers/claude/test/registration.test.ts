@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { beforeAll, describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { makeTempDir } from "../../../../scripts/temp-dirs.mjs";
+import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
 import { promptVersion } from "../src/prompt.js";
 import { REPO, REQUEST, sandbox, writeRequest } from "./helpers.js";
 

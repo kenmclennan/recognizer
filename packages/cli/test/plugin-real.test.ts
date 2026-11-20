@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scaledTimeout } from "../../../scripts/pool-scale.mjs";
+import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { run } from "../src/cli.js";
 import { capture } from "./helpers.js";
 import { realTools } from "./plugin-tools.js";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scaledTimeout } from "../../../../scripts/pool-scale.mjs";
+import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import { collectFacts, here, webkit } from "../../src/look-page";
 
 const HOSTS = `<div style="display:flex;flex-direction:column;width:1400px;height:500px"><div class="explorer" id="first"></div></div><div style="display:flex;flex-direction:column;width:1400px;height:500px"><div class="explorer" id="second"></div></div>`;

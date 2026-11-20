@@ -5,7 +5,7 @@ from coverage import CoverageData
 
 REPOSITORY = Path(__file__).parents[3]
 SPEC = importlib.util.spec_from_file_location(
-    "selection_spread", REPOSITORY / "validation" / "mutation" / "selection_spread.py"
+    "selection_spread", REPOSITORY / "tools" / "validation" / "mutation" / "selection_spread.py"
 )
 spread_tool = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(spread_tool)

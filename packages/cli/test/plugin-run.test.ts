@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { scaledTimeout } from "../../../scripts/pool-scale.mjs";
-import { makeTempDir } from "../../../scripts/temp-dirs.mjs";
+import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
+import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { type Io, nodeIo } from "../src/cli.js";
 import type { PluginEvent } from "../src/plugin-events.js";
 import {

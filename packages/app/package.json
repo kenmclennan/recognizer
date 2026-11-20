@@ -14,9 +14,9 @@
     "test": "vitest run",
     "pretest:layout": "npm run build -w recognizer",
     "test:layout": "vitest run --config vitest.layout.config.ts",
-    "lint": "biome check --error-on-warnings src/ test/ scripts/ ../../scripts/ ../../validation/corpus/ vite.config.ts vitest.layout.config.ts",
-    "lint:fix": "biome check --write src/ test/ scripts/ ../../scripts/ ../../validation/corpus/ vite.config.ts vitest.layout.config.ts",
-    "format:check": "biome format src/ test/ scripts/ ../../scripts/ ../../validation/corpus/ vite.config.ts vitest.layout.config.ts",
+    "lint": "biome check --error-on-warnings src/ test/ scripts/ ../../tools/scripts/ ../../tools/validation/corpus/ vite.config.ts vitest.layout.config.ts",
+    "lint:fix": "biome check --write src/ test/ scripts/ ../../tools/scripts/ ../../tools/validation/corpus/ vite.config.ts vitest.layout.config.ts",
+    "format:check": "biome format src/ test/ scripts/ ../../tools/scripts/ ../../tools/validation/corpus/ vite.config.ts vitest.layout.config.ts",
     "tauri": "tauri"
   },
   "dependencies": {

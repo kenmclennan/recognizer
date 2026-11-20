@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { makeTempDir } from "../../../scripts/temp-dirs.mjs";
+import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { bundleTemplates } from "../scripts/build-templates.mjs";
 import { bundledTemplates } from "../src/plugin-templates.js";
 import { REPO } from "./helpers.js";

@@ -6,7 +6,7 @@ import {
   readFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { scaledTimeout } from "../../../../scripts/pool-scale.mjs";
+import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 
 const args = process.argv.slice(2);
 const repository = args[0];

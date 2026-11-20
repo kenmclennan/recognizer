@@ -6,7 +6,7 @@
       "packages/scanners/typescript/**",
       "packages/describers/**",
       "packages/app/**",
-      "scripts/**",
+      "tools/scripts/**",
       "!**/dist",
       "!packages/cli/templates",
       "!**/src/generated",

@@ -1,7 +1,7 @@
 import { cpSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { makeTempDir } from "../../../scripts/temp-dirs.mjs";
+import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { type Io, nodeIo } from "../src/cli.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
