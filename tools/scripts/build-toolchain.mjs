@@ -21,7 +21,11 @@ import {
 
 export const ARCHIVE = "recognizer-toolchain.tar.gz";
 
-const OWN_PACKAGES = ["recognizer"];
+const OWN_PACKAGES = ["recognizer", "@recognizer/core"];
+
+function tarballName(name, version) {
+  return `${name.replace(/^@/, "").replace("/", "-")}-${version}.tgz`;
+}
 const COMMANDS_FOLDER = "commands";
 const FOLDER = "toolchain";
 
@@ -107,9 +111,16 @@ export function buildToolchain(root, outDir) {
     rmSync(folder, { recursive: true, force: true });
     mkdirSync(folder, { recursive: true });
 
-    run("npm", ["pack", "-w", "recognizer", "--pack-destination", packed], {
-      cwd: root,
-    });
+    run(
+      "npm",
+      [
+        "pack",
+        ...OWN_PACKAGES.flatMap((name) => ["-w", name]),
+        "--pack-destination",
+        packed,
+      ],
+      { cwd: root },
+    );
 
     for (const name of OWN_PACKAGES) {
       const dir = join(folder, "node_modules", name);
@@ -117,12 +128,15 @@ export function buildToolchain(root, outDir) {
       mkdirSync(dir, { recursive: true });
       run("tar", [
         "-xzf",
-        join(packed, `${name}-${version}.tgz`),
+        join(packed, tarballName(name, version)),
         "-C",
         dir,
         "--strip-components=1",
       ]);
-      chmodSync(join(dir, "dist", "bin.js"), 0o755);
+
+      if (name === "recognizer") {
+        chmodSync(join(dir, "dist", "bin.js"), 0o755);
+      }
     }
 
     const versions = {};

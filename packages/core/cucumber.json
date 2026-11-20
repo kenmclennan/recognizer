@@ -1,0 +1,7 @@
+{
+  "default": {
+    "paths": ["test/features/**/*.feature"],
+    "import": ["dist/test/steps/**/*.js"],
+    "publishQuiet": true
+  }
+}

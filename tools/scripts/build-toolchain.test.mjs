@@ -23,6 +23,7 @@ describe("archiveEntries", () => {
   it("names the vendored packages, the installed Python folder, the wrappers, the notices and the licence", () => {
     expect(archiveEntries(closure)).toEqual([
       "node_modules/recognizer/package.json",
+      "node_modules/@recognizer/core/package.json",
       "node_modules/recognizer/grammars/python.wasm",
       "node_modules/recognizer/grammars/typescript.wasm",
       "node_modules/recognizer/grammars/tsx.wasm",

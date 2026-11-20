@@ -43,6 +43,11 @@ The words recognizer's code, docs and interface use. A term is added here before
 | --- | --- |
 | Stratum | A horizontal layer of responsibility, such as domain, application or adapters. |
 | Slice | A vertical cut through the strata that makes one use case or feature work, from the thing that drives it to the things it drives. |
+| Core | The package `@recognizer/core`: the domain, the ports and the use cases, with no knowledge of the CLI, the app, the file system or any process. Drivers and adapters depend on it, never the reverse. |
+| Use case | One thing a person asks recognizer to do, such as Scan, written once in the core as a flow over ports. |
+| Driving port | The interface a use case offers to whatever starts it: a request in, a Running scan out. The CLI is one driver of it. |
+| Driven port | An interface a use case needs from the outside world, such as Scanners, Sensors, Describer, Git, Store, Confirm, Clock or Process. An adapter implements it for real and a fake implements it in tests. |
+| Running scan | What the Scan driving port returns: a stream of typed events, a final outcome and `stop()`. |
 | Policy | The one file a repository's owners write: the entries to ignore, the entry points and the forbid rules. |
 | Violation | A file's imports that break one rule the policy declares, reported as one finding. Baselined per import; the only finding that fails a run. |
 | Warning | A heuristic over the graph, tied to a principle and carrying its evidence. Never baselined, never fails a run. |

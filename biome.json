@@ -3,6 +3,7 @@
   "files": {
     "includes": [
       "packages/cli/**",
+      "packages/core/**",
       "packages/scanners/typescript/**",
       "packages/describers/**",
       "packages/app/**",

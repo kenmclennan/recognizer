@@ -105,6 +105,7 @@ describe("scanning check/", () => {
       ),
     ).toBe(true);
     expect(doc.foreign.map((f: { name: string }) => f.name)).toEqual([
+      "@recognizer/core",
       "ajv",
       "node:child_process",
       "node:crypto",

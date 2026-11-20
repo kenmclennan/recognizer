@@ -160,6 +160,10 @@ function liveOwner(io: Io, path: string): ScanRunRecord | null {
     : null;
 }
 
+export function readLiveMarker(io: Io, root: string): ScanRunRecord | null {
+  return liveOwner(io, markerPath(root));
+}
+
 export function acquireMarker(
   io: Io,
   root: string,
