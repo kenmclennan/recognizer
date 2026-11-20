@@ -1,4 +1,5 @@
 import { createScan, type Scan, type ScanPorts } from "../../src/index.js";
+import { FakeAnalysis } from "./fake-analysis.js";
 import { FakeClock } from "./fake-clock.js";
 import { FakeConfirm } from "./fake-confirm.js";
 import { FakeDescriber } from "./fake-describer.js";
@@ -10,6 +11,7 @@ import { FakeStore } from "./fake-store.js";
 
 export interface Fakes {
   scanners: FakeScanners;
+  analysis: FakeAnalysis;
   sensors: FakeSensors;
   describer: FakeDescriber;
   git: FakeGit;
@@ -29,6 +31,7 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
 
   return {
     scanners: new FakeScanners(store, log),
+    analysis: new FakeAnalysis(),
     sensors,
     describer: new FakeDescriber(),
     git: new FakeGit(commit),

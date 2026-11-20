@@ -2,17 +2,17 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ScanOutcome } from "@recognizer/core";
 import { describe, expect, it, vi } from "vitest";
-import { ClockAdapter } from "../src/adapters/clock-adapter.js";
-import { ConfirmAdapter } from "../src/adapters/confirm-adapter.js";
-import { DescriberAdapter } from "../src/adapters/describer-adapter.js";
-import { GitAdapter } from "../src/adapters/git-adapter.js";
-import { ProcessAdapter } from "../src/adapters/process-adapter.js";
+import { StoreAdapter } from "../src/adapters/filesystem/store-adapter.js";
+import { GitAdapter } from "../src/adapters/git/git-adapter.js";
+import { DescriberAdapter } from "../src/adapters/plugins/describer-adapter.js";
+import { ProcessAdapter } from "../src/adapters/plugins/process-adapter.js";
 import {
   ScannersAdapter,
   SyncScannersAdapter,
-} from "../src/adapters/scanners-adapter.js";
-import { SensorsAdapter } from "../src/adapters/sensors-adapter.js";
-import { StoreAdapter } from "../src/adapters/store-adapter.js";
+} from "../src/adapters/plugins/scanners-adapter.js";
+import { SensorsAdapter } from "../src/adapters/plugins/sensors-adapter.js";
+import { ClockAdapter } from "../src/adapters/system/clock-adapter.js";
+import { ConfirmAdapter } from "../src/adapters/terminal/confirm-adapter.js";
 import { InputError } from "../src/errors.js";
 import { runScan, runScanSync } from "../src/scan-command.js";
 import { scanPorts, syncScanPorts } from "../src/scan-container.js";
@@ -39,12 +39,13 @@ function document(): string {
 }
 
 describe("scan container", () => {
-  it("the container wires one real adapter per driven port", () => {
+  it("the container wires one real adapter per port", () => {
     const { io } = fakeIo({ commit: COMMIT, files: {} });
     const ports = scanPorts(io, "all");
 
     expect(ports.scanners).toBeInstanceOf(ScannersAdapter);
     expect(ports.sensors).toBeInstanceOf(SensorsAdapter);
+    expect(ports.analysis).toBe(ports.sensors);
     expect(ports.describer).toBeInstanceOf(DescriberAdapter);
     expect(ports.git).toBeInstanceOf(GitAdapter);
     expect(ports.store).toBeInstanceOf(StoreAdapter);
@@ -52,6 +53,7 @@ describe("scan container", () => {
     expect(ports.clock).toBeInstanceOf(ClockAdapter);
     expect(ports.process).toBeInstanceOf(ProcessAdapter);
     expect(Object.keys(ports).sort()).toEqual([
+      "analysis",
       "clock",
       "confirm",
       "describer",

@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -8,16 +8,31 @@ import { cachePath } from "./fakes/fake-store.js";
 const here = dirname(fileURLToPath(import.meta.url));
 
 describe("fakes", () => {
-  it("every driven port has a fake", () => {
-    const ports = readdirSync(resolve(here, "../src/ports/driven"))
+  it("every port except Scan has a fake", () => {
+    const application = resolve(here, "../src/application");
+    const ports = readdirSync(application, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .flatMap((entry) =>
+        existsSync(join(application, entry.name, "ports"))
+          ? readdirSync(join(application, entry.name, "ports")).map(
+              (name) => `${entry.name}/ports/${name}`,
+            )
+          : [],
+      )
       .filter((name) => name.endsWith(".ts"))
-      .map((name) => name.replace(/\.ts$/, ""))
-      .filter((name) => !["index", "opaque"].includes(name))
+      .filter(
+        (name) =>
+          !["describing/ports/describer-ref.ts", "run/ports/scan.ts"].includes(
+            name,
+          ),
+      )
+      .map((name) => (name.split("/").pop() as string).replace(/\.ts$/, ""))
       .sort();
     const fakes = createFakes();
     const fakeKeys = Object.keys(fakes).sort();
 
     expect(ports).toEqual([
+      "analysis",
       "clock",
       "confirm",
       "describer",

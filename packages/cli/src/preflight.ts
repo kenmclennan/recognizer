@@ -11,14 +11,22 @@ export interface PreflightSensor {
   command: string[];
 }
 
-export interface EarlyInput {
-  io: Io;
-  root: string;
+export interface CommitInput {
   commit: string | null;
   sensors: PreflightSensor[];
+}
+
+export interface DescriberInput {
+  io: Io;
+  root: string;
   describe: boolean;
   describer: Describer | null;
-  model: string;
+  install: Record<string, string>;
+}
+
+export interface ProgramInput {
+  io: Io;
+  sensors: PreflightSensor[];
   install: Record<string, string>;
 }
 
@@ -53,7 +61,7 @@ function isReference(command: string[]): boolean {
 
 function describerArgumentsGap(
   io: Io,
-  input: EarlyInput,
+  input: DescriberInput,
   describer: Describer,
 ): Gap | null {
   const prefix = pluginPrefix(describer.command);
@@ -100,7 +108,7 @@ function describerArgumentsGap(
   };
 }
 
-function describerGaps(input: EarlyInput): Gap[] {
+export function describerGaps(input: DescriberInput): Gap[] {
   if (!input.describe) {
     return [];
   }
@@ -139,7 +147,7 @@ function describerGaps(input: EarlyInput): Gap[] {
       ];
 }
 
-function sensorProgramGaps(input: EarlyInput): Gap[] {
+export function sensorProgramGaps(input: ProgramInput): Gap[] {
   return input.sensors.flatMap((sensor) => {
     const name = shippedSensorOf(sensor.command);
 
@@ -163,21 +171,17 @@ function sensorProgramGaps(input: EarlyInput): Gap[] {
   });
 }
 
-export function earlyGaps(input: EarlyInput): Gap[] {
-  const gaps: Gap[] = [];
-
-  if (input.commit === null && input.sensors.length > 0) {
-    gaps.push({
-      id: "no-commit",
-      line: "the folder has no git commit",
-      needs: input.sensors.map((one) => one.name),
-      fix: outside(NO_COMMIT_FIX),
-    });
-  }
-
-  gaps.push(...describerGaps(input), ...sensorProgramGaps(input));
-
-  return gaps;
+export function commitGaps(input: CommitInput): Gap[] {
+  return input.commit === null && input.sensors.length > 0
+    ? [
+        {
+          id: "no-commit",
+          line: "the folder has no git commit",
+          needs: input.sensors.map((one) => one.name),
+          fix: outside(NO_COMMIT_FIX),
+        },
+      ]
+    : [];
 }
 
 export function readinessGaps(

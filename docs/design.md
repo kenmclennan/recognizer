@@ -184,7 +184,7 @@ The application layer is divided by subdomain, so each responsibility has one ho
 | `configuration` | config, policy and responsibilities editing, setup |
 | `history` | changes and commits: past scans, baselines |
 
-Each subdomain is a folder under `application/` holding its use cases and, under `ports/`, the ports they use. A port shared by several subdomains (Git, Store, Clock, Process) lives in `application/shared/ports/`. A use case reaches another subdomain only through that subdomain's use cases. `domain/` holds the types the subdomains share.
+Each subdomain is a folder under `application/` holding its use cases and, under `ports/`, the ports they use. A port shared by several subdomains for cross-cutting infrastructure (Git, Store, Clock, Process) lives in `application/shared/ports/`; a domain port belongs to the one subdomain whose use cases call it. A use case reaches another subdomain only through that subdomain's use cases. `domain/` holds the types the subdomains share.
 
 Adapters are grouped by infrastructure, not by subdomain: `plugins/` (scanners, sensors and the describer, one child-process protocol), `git/`, `filesystem/`, `terminal/` (the confirm prompt and event printing) and `system/` (the clock).
 
@@ -208,14 +208,13 @@ Ports, with the subdomain each belongs to:
 | --- | --- | --- |
 | Scanners | scanning | discovers language scanners and extracts a scan document per language |
 | Sensors | sensing | discovers sensors, reads their manifests and runs them |
+| Analysis | analysis | loads parsers and runs structural analysis; in phase 1 the same adapter implements it and Sensors |
 | Describer | describing | finds the describer in effect and describes files |
 | Git | shared | reads the commit, the dirty state and the branch |
 | Store | shared | reads and writes the `.recognizer/` files: config, policy, cache, findings, log |
 | Confirm | describing | asks the person running the scan to accept a describing cost |
 | Clock | shared | supplies the time |
 | Process | shared | runs plugin commands and reports their progress |
-
-Structural analysis has no port of its own: in phase 1 core reaches it through the Sensors port.
 
 #### Migration
 

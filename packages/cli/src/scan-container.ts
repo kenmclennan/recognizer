@@ -4,26 +4,28 @@ import {
   type ScanPorts,
   type SyncPorts,
 } from "@recognizer/core";
-import { ClockAdapter } from "./adapters/clock-adapter.js";
-import { ConfirmAdapter } from "./adapters/confirm-adapter.js";
-import { DescriberAdapter } from "./adapters/describer-adapter.js";
-import { GitAdapter } from "./adapters/git-adapter.js";
-import { ProcessAdapter } from "./adapters/process-adapter.js";
+import { StoreAdapter } from "./adapters/filesystem/store-adapter.js";
+import { GitAdapter } from "./adapters/git/git-adapter.js";
+import { DescriberAdapter } from "./adapters/plugins/describer-adapter.js";
+import { ProcessAdapter } from "./adapters/plugins/process-adapter.js";
 import {
   ScannersAdapter,
   SyncScannersAdapter,
-} from "./adapters/scanners-adapter.js";
-import { SensorsAdapter } from "./adapters/sensors-adapter.js";
-import { StoreAdapter } from "./adapters/store-adapter.js";
+} from "./adapters/plugins/scanners-adapter.js";
+import { SensorsAdapter } from "./adapters/plugins/sensors-adapter.js";
+import { ClockAdapter } from "./adapters/system/clock-adapter.js";
+import { ConfirmAdapter } from "./adapters/terminal/confirm-adapter.js";
 import type { Io } from "./cli.js";
 import type { ConfigRead } from "./config-parse.js";
 
 export function scanPorts(io: Io, read: ConfigRead): ScanPorts {
   const scanners = new ScannersAdapter(io);
+  const sensors = new SensorsAdapter(io);
 
   return {
     scanners,
-    sensors: new SensorsAdapter(io),
+    analysis: sensors,
+    sensors,
     describer: new DescriberAdapter(io),
     git: new GitAdapter(io),
     store: new StoreAdapter(io, read),
