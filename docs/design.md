@@ -161,12 +161,55 @@ Each file has a generated one-line statement of what it is for, shown in the ins
 - **Only regenerated when needed.** A line is current while the file's source hash and the describer and version both match. Editing the file, or changing the describer or its version, makes its line out of date; a change in another file does not, because a file's responsibility is its own. `describe` redoes exactly the out-of-date lines.
 - **In the app.** The inspector's header shows the current line under the file's name, above the tabs, and hovering a box on the canvas shows the same line with the note's first words beneath it. The inspector shows the sentence alone, with no tag and no button; describing runs from the Scan panel's Descriptions row. When the repository's scan includes the Describe phase, extraction finishes and the canvas is usable first, then the files whose line is missing or out of date are described in the background, the footer shows how many are done of how many with a Stop that keeps what was written, and hover text and inspector headers fill in as each line lands. Failures are counted once in the footer; Show opens the inspector on the failed file with the describer's reason, and Open log opens that run's record. When every file failed the same way, the footer says why once instead of counting. The tree never changes for descriptions. The app never describes unless the phase is ticked.
 
+### Architecture
+
+Recognizer is a hexagonal application. `packages/core` holds the domain and the application layer, and exposes each use case through a driving port. Everything outside it is reached through a driven port. The CLI and the desktop app are driving adapters: each has its own `main` and container that wires core to real driven adapters. The acceptance tests are a third driving adapter that wires core to fakes.
+
+- **Core knows no plugin by name.** Scanners, sensors and describers are driven adapters found at runtime through discovery and registration. Behaviour tied to a plugin is declared in its manifest.
+- **The CLI calls core in process.** It turns flags into port requests and prints the events.
+- **The app reaches core as a service.** It starts core as a child process and drives the same ports over a protocol whose operations mirror them. Its Rust side keeps windows, process management and the socket; it holds no scan, git or planning logic.
+- **Core plans.** A request states intent and core decides the work. Adapters do not compute plans; they ask core for one when they need to show it.
+
+#### Scan
+
+`scan(request)` takes intent:
+
+- the repository;
+- the mode, incremental or full;
+- the wanted sensors, each with its chosen suites;
+- whether to describe, and whether to run structural analysis;
+- the cost above which describing asks for confirmation.
+
+It returns a running scan: a stream of typed events (phases, file progress, sensor progress, preflight gaps, the summary), a final outcome (finished, failed, refused because another scan holds the lock, stopped) and `stop()`. A query on the port reports whether a scan is running in a repository and what it is doing; core owns the lock.
+
+Driven ports:
+
+| Port | Does |
+| --- | --- |
+| Scanners | discovers language scanners and extracts a scan document per language |
+| Sensors | discovers sensors, reads their manifests and runs them |
+| Describer | finds the describer in effect and describes files |
+| Git | reads the commit, the dirty state and the branch |
+| Store | reads and writes the `.recognizer/` files: config, policy, cache, findings, log |
+| Confirm | asks the person running the scan to accept a describing cost |
+| Clock | supplies the time |
+| Process | runs plugin commands and reports their progress |
+
+#### Migration
+
+Use cases move into core one at a time, and both adapters keep working at every step.
+
+1. Scan, roughed out: `packages/core` with its layers, the Scan driving port and the driven ports above. The CLI's existing scan flow moves behind the port unchanged, and `recognizer scan` becomes a thin adapter with the same flags, output and exit codes. The app is untouched: it still runs `recognizer scan` and reads the same files. The acceptance tests drive the Scan port with fake driven adapters.
+2. Scan, refined: the app's planning (`planFor`, sensor freshness, tick rules) moves into core; the app reaches core as a service; the duplicated lock, request checks and structural analysis go; core loses the plugin names it holds.
+3. The remaining use cases, one at a time: describe, setup, config and policy, changes and commits.
+
 ### Repository layout
 
 One repository with a directory per part, so every scanner is tested against the same schema and fixtures in one CI run:
 
 ```text
 schema/               the JSON Schemas (scan document, view, config, findings, overlay, run log and more) and their examples
+packages/core/               the hexagonal core: domain, use cases and their ports
 packages/cli/                CLI and library: recognizer and its commands, structural analysis
 packages/scanners/python/      CLI: recognizer-scan-python
 packages/scanners/typescript/  CLI: recognizer-scan-typescript
