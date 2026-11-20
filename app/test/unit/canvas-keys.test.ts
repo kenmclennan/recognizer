@@ -1,0 +1,180 @@
+import { describe, expect, it } from "vitest";
+import { type KeyInput, keyAction } from "../../src/canvas-keys";
+
+const press = (key: string, extra: Partial<KeyInput> = {}): KeyInput => ({
+  key,
+  metaKey: false,
+  ctrlKey: false,
+  altKey: false,
+  targetEditable: false,
+  ...extra,
+});
+
+const folder = { kind: "folder", id: "a" } as const;
+const module = { kind: "module", id: "a/x.py" } as const;
+
+describe("canvas keys", () => {
+  it("maps F and Z on a folder, in either case", () => {
+    expect(keyAction(press("f"), folder)).toBe("focus");
+    expect(keyAction(press("F", {}), folder)).toBe("focus");
+    expect(keyAction(press("z"), folder)).toBe("fold");
+  });
+
+  it("ignores F and Z on a module and with nothing selected", () => {
+    expect(keyAction(press("f"), module)).toBeNull();
+    expect(keyAction(press("z"), null)).toBeNull();
+  });
+
+  it("takes off a module or folder but not an edge", () => {
+    expect(keyAction(press("Backspace"), module)).toBe("take-off");
+    expect(keyAction(press("Backspace"), folder)).toBe("take-off");
+    expect(keyAction(press("Backspace"), { kind: "edge", id: "e" })).toBeNull();
+  });
+
+  it("escapes with or without a selection", () => {
+    expect(keyAction(press("Escape"), null)).toBe("escape");
+    expect(keyAction(press("Escape"), module)).toBe("escape");
+  });
+
+  it("maps I to the contents for a module or a folder only", () => {
+    expect(keyAction(press("i"), folder)).toBe("contents");
+    expect(keyAction(press("i"), module)).toBe("contents");
+    expect(keyAction(press("I"), module)).toBe("contents");
+    expect(keyAction(press("i"), { kind: "edge", id: "e" })).toBeNull();
+    expect(keyAction(press("i"), null)).toBeNull();
+    expect(keyAction(press("i", { targetEditable: true }), module)).toBeNull();
+    expect(keyAction(press("i", { metaKey: true }), module)).toBeNull();
+  });
+
+  it("maps D to the dependencies and U to nothing for a module or a folder", () => {
+    for (const selection of [module, folder]) {
+      expect(keyAction(press("d"), selection)).toBe("dependencies");
+      expect(keyAction(press("D"), selection)).toBe("dependencies");
+      expect(keyAction(press("u"), selection)).toBeNull();
+      expect(keyAction(press("U"), selection)).toBeNull();
+    }
+
+    expect(keyAction(press("u"), null)).toBeNull();
+  });
+
+  it("maps W to the findings action for a module or a folder, and not for an edge", () => {
+    expect(keyAction(press("w"), { kind: "module", id: "a.py" })).toBe(
+      "findings",
+    );
+    expect(keyAction(press("W"), { kind: "folder", id: "src" })).toBe(
+      "findings",
+    );
+    expect(keyAction(press("w"), { kind: "edge", id: "e" })).toBeNull();
+  });
+
+  it("ignores U and D for an edge, no selection, a modifier or an editable target", () => {
+    expect(keyAction(press("u"), { kind: "edge", id: "e" })).toBeNull();
+    expect(keyAction(press("d"), null)).toBeNull();
+    expect(keyAction(press("w"), null)).toBeNull();
+    expect(keyAction(press("u", { metaKey: true }), module)).toBeNull();
+    expect(keyAction(press("u", { targetEditable: true }), module)).toBeNull();
+  });
+
+  it("never acts on Escape in an editable target", () => {
+    expect(
+      keyAction(press("Escape", { targetEditable: true }), null),
+    ).toBeNull();
+  });
+
+  it("ignores keys typed into an input and chords with a modifier", () => {
+    expect(keyAction(press("f", { targetEditable: true }), folder)).toBeNull();
+    expect(
+      keyAction(press("Backspace", { targetEditable: true }), module),
+    ).toBeNull();
+    expect(
+      keyAction(press("Escape", { targetEditable: true }), module),
+    ).toBeNull();
+    expect(keyAction(press("f", { metaKey: true }), folder)).toBeNull();
+    expect(keyAction(press("z", { ctrlKey: true }), folder)).toBeNull();
+  });
+
+  it("maps N to add-note for a module or a folder, not an edge", () => {
+    expect(keyAction(press("n"), module)).toBe("add-note");
+    expect(keyAction(press("N"), module)).toBe("add-note");
+    expect(keyAction(press("n"), folder)).toBe("add-note");
+    expect(keyAction(press("n"), { kind: "edge", id: "e" })).toBeNull();
+    expect(keyAction(press("n"), null)).toBeNull();
+    expect(keyAction(press("n", { metaKey: true }), module)).toBeNull();
+    expect(keyAction(press("n", { targetEditable: true }), module)).toBeNull();
+  });
+
+  it("maps J and K to walking the notes only with the panel open", () => {
+    const open = { notesOpen: true, noteActive: false, findingsOpen: false };
+
+    expect(keyAction(press("j"), module, open)).toBe("next-note");
+    expect(keyAction(press("K"), null, open)).toBe("previous-note");
+    expect(keyAction(press("j"), module)).toBeNull();
+    expect(keyAction(press("k", { altKey: true }), module, open)).toBeNull();
+    expect(
+      keyAction(press("j", { targetEditable: true }), module, open),
+    ).toBeNull();
+  });
+
+  it("removes the active note on Backspace instead of taking the box off", () => {
+    const active = { notesOpen: true, noteActive: true, findingsOpen: false };
+
+    expect(keyAction(press("Backspace"), module, active)).toBe("remove-note");
+    expect(
+      keyAction(press("Backspace"), module, {
+        notesOpen: true,
+        noteActive: false,
+        findingsOpen: false,
+      }),
+    ).toBe("take-off");
+    expect(
+      keyAction(press("Backspace"), module, {
+        notesOpen: false,
+        noteActive: true,
+        findingsOpen: false,
+      }),
+    ).toBe("take-off");
+    expect(
+      keyAction(press("Backspace", { targetEditable: true }), module, active),
+    ).toBeNull();
+  });
+
+  it("maps J and K to walking the findings only with the Findings panel open", () => {
+    const open = { notesOpen: false, noteActive: false, findingsOpen: true };
+
+    expect(keyAction(press("j"), module, open)).toBe("next-finding");
+    expect(keyAction(press("K"), null, open)).toBe("previous-finding");
+    expect(keyAction(press("j"), module)).toBeNull();
+    expect(
+      keyAction(press("j", { targetEditable: true }), module, open),
+    ).toBeNull();
+    expect(keyAction(press("Escape"), module, open)).toBe("escape");
+  });
+});
+
+describe("stepping notes with the arrows", () => {
+  const stepping = {
+    notesOpen: false,
+    noteActive: true,
+    findingsOpen: false,
+    stepping: true,
+  };
+  const arrow = (key: string, extra = {}) => ({ ...press(key), ...extra });
+
+  it("steps only when stepping", () => {
+    expect(keyAction(arrow("ArrowRight"), null, stepping)).toBe("next-note");
+    expect(keyAction(arrow("ArrowLeft"), null, stepping)).toBe("previous-note");
+    expect(
+      keyAction(arrow("ArrowRight"), null, { ...stepping, stepping: false }),
+    ).toBeNull();
+    expect(keyAction(arrow("ArrowRight"), null)).toBeNull();
+  });
+
+  it("leaves the arrows to an editable field and to the inspector", () => {
+    expect(
+      keyAction(arrow("ArrowRight", { targetEditable: true }), null, stepping),
+    ).toBeNull();
+    expect(
+      keyAction(arrow("ArrowRight", { inInspector: true }), null, stepping),
+    ).toBeNull();
+  });
+});

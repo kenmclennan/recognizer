@@ -15,15 +15,15 @@ export default defineConfig({
   test: poolTestOptions({
     environment: "node",
     include: [
-      "src/**/*.test.ts",
+      "test/**/*.test.ts",
       "scripts/**/*.test.mjs",
       "../scripts/**/*.test.mjs",
       "../validation/corpus/*.test.mjs",
     ],
     exclude: [
       ...configDefaults.exclude,
-      "src/layout-worker-build.test.ts",
-      "src/lightcycle-shaped-graph.test.ts",
+      "test/unit/layout-worker-build.test.ts",
+      "test/unit/lightcycle-shaped-graph.test.ts",
     ],
     setupFiles: ["../scripts/vitest-remove-temp-dirs.mjs"],
   }),

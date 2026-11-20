@@ -1,0 +1,189 @@
+import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../../scripts/pool-scale.mjs";
+import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
+
+const HARNESS = `
+window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
+import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
+import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
+${FAKE_WORKER}
+const plainWorker = window.__fakeWorker;
+window.__fakeWorker = () => {
+  const worker = plainWorker();
+  const listen = worker.addEventListener.bind(worker);
+  const routed = (node) => {
+    for (const line of node.edges || []) line.sections = [{ startPoint: { x: 20, y: 20 }, endPoint: { x: 120, y: 90 } }];
+    for (const child of node.children || []) routed(child);
+  };
+  worker.addEventListener = (type, listener) => listen(type, (event) => { routed(event.data.data); listener(event); });
+  return worker;
+};
+
+const edge = (from, to, name) => ({ from, to, kind: "depends", line: 1, names: [name] });
+const scan = {
+  modules: ["app/hub.py", "lib/a.py", "lib/b.py"].map((id) => ({ id, kind: "module" })),
+  edges: [edge("app/hub.py", "lib/a.py", "A"), edge("app/hub.py", "lib/b.py", "B")],
+  foreign: [],
+};
+const loaded = loadedOf({ modules: scan.modules.map((m) => m.id), scans: [{ file: "scan.json", scan }] });
+
+const tick = () => new Promise((resolve) => setTimeout(resolve, 40));
+const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+const key = (k) => document.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true }));
+
+const facts = {};
+
+(async () => {
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "flex:none;height:800px;display:flex;flex-direction:column;width:1800px";
+  document.getElementById("content").append(wrap);
+  const win = fakeWindow();
+  const store = { getItem: () => JSON.stringify({ tree: 280, inspector: 340 }), setItem() {} };
+  mountExplorer({ container: wrap, loaded, title: "demo", storage: store, windowPort: win });
+  const q = (selector) => wrap.querySelector(selector);
+  await tick();
+
+  facts.opening = win.last();
+
+  click(q('.tree .row[data-path="app"] .name'));
+  click(q('.tree .row[data-path="lib"] .name'));
+  click(q('.tree .row[data-path="app/hub.py"] .reye'));
+  click(q('.tree .row[data-path="lib/a.py"] .reye'));
+  await tick();
+  click(q('.frame-label[data-kind="folder"][data-id="lib"]'));
+  await tick();
+  key("z");
+  await tick();
+  facts.closedBeforeEdge = win.last();
+  click(q('.line-hit[data-kind="edge"]'));
+  await tick();
+  facts.closedAfterEdge = win.last();
+  click(q('.box[data-id="app/hub.py"] .box-body'));
+  await tick();
+  click(q('.selection-bar [aria-label^="Dependencies"]'));
+  await tick();
+  click(q('.row[data-id="lib/a.py"][data-follow="uses"]').parentElement.querySelector(".follow"));
+  await tick();
+
+  facts.arrived = win.last();
+  facts.arrivedKeys = Object.keys(facts.arrived).sort();
+
+  const before = win.published.length;
+  click(q(".itabs button.on"));
+  await tick();
+  facts.unchanged = win.published.length - before;
+
+  const beforeTab = win.published.length;
+  click(q('.selection-bar [aria-label^="Contents"]'));
+  await tick();
+  facts.afterTab = { added: win.published.length - beforeTab, state: win.last() };
+
+  facts.openBeforeEdge = win.last();
+  click(q('.line-hit[data-kind="edge"]'));
+  await tick();
+  facts.openAfterEdge = win.last();
+
+  facts.neverTwiceInARow = win.published.every((text, index) => index === 0 || text !== win.published[index - 1]);
+
+  document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
+})().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
+`;
+
+type Panel = {
+  selection: { kind: string; id: string } | null;
+  relation: string | null;
+  tab: string;
+  active: boolean;
+};
+
+type State = {
+  view: string | null;
+  modules: string[];
+  folded: string[];
+  focus: string | null;
+  selection: { kind: string; id: string } | null;
+  trail: Panel[];
+  inspector: { open: boolean; tab: string };
+};
+
+type Facts = {
+  opening: State;
+  arrived: State;
+  arrivedKeys: string[];
+  unchanged: number;
+  afterTab: { added: number; state: State };
+  neverTwiceInARow: boolean;
+  closedBeforeEdge: State;
+  closedAfterEdge: State;
+  openBeforeEdge: State;
+  openAfterEdge: State;
+};
+
+describe.skipIf(webkit === undefined)("the window's published state", () => {
+  let f: Facts;
+
+  beforeAll(async () => {
+    f = await collectFacts<Facts>(HARNESS, "window");
+  }, scaledTimeout(120000));
+
+  it("selecting an edge with the inspector closed leaves it closed", () => {
+    expect(f.closedBeforeEdge.inspector.open).toBe(false);
+    expect(f.closedAfterEdge.selection?.kind).toBe("edge");
+    expect(f.closedAfterEdge.inspector).toEqual(f.closedBeforeEdge.inspector);
+    expect(f.closedAfterEdge.trail).toEqual(f.closedBeforeEdge.trail);
+  });
+
+  it("selecting an edge with the inspector open on a module keeps that module showing", () => {
+    expect(f.openBeforeEdge.inspector.open).toBe(true);
+    expect(f.openBeforeEdge.trail[0].selection).toEqual({
+      kind: "module",
+      id: "app/hub.py",
+    });
+    expect(f.openAfterEdge.selection?.kind).toBe("edge");
+    expect(f.openAfterEdge.inspector).toEqual(f.openBeforeEdge.inspector);
+    expect(f.openAfterEdge.trail).toEqual(f.openBeforeEdge.trail);
+  });
+
+  it("publishes once the window has rendered, with nothing on the canvas", () => {
+    expect(f.opening.modules).toEqual([]);
+    expect(f.opening.trail).toHaveLength(1);
+    expect(f.opening.inspector.open).toBe(false);
+  });
+
+  it("holds the fields `recognizer window` documents, without id or folder", () => {
+    expect(f.arrivedKeys).toEqual([
+      "focus",
+      "folded",
+      "inspector",
+      "modules",
+      "selection",
+      "trail",
+      "view",
+    ]);
+  });
+
+  it("holds the modules, fold, selection, a two-panel trail and the Dependencies tab", () => {
+    expect(f.arrived.modules).toEqual(["app/hub.py", "lib/a.py"]);
+    expect(f.arrived.folded).toEqual(["lib"]);
+    expect(f.arrived.focus).toBeNull();
+    expect(f.arrived.selection).toEqual({ kind: "module", id: "app/hub.py" });
+    expect(f.arrived.trail).toHaveLength(2);
+    expect(f.arrived.trail.map((panel) => panel.active)).toEqual([false, true]);
+    expect(f.arrived.trail[1]?.relation).toBe("uses");
+    expect(f.arrived.trail[1]?.selection).toEqual({
+      kind: "module",
+      id: "lib/a.py",
+    });
+    expect(f.arrived.inspector).toEqual({ open: true, tab: "dependencies" });
+  });
+
+  it("publishes nothing for a render that changes nothing", () => {
+    expect(f.unchanged).toBe(0);
+    expect(f.neverTwiceInARow).toBe(true);
+  });
+
+  it("publishes a tab change that made no history record", () => {
+    expect(f.afterTab.added).toBeGreaterThan(0);
+    expect(f.afterTab.state.inspector.tab).toBe("contents");
+  });
+});

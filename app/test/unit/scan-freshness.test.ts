@@ -1,0 +1,600 @@
+import { readFileSync } from "node:fs";
+import type { Scan } from "recognizer";
+import { buildFreshness, scanHashes } from "recognizer";
+import { describe, expect, it } from "vitest";
+import type { FreshnessModel, ResultState } from "../../src/freshness-model";
+import {
+  freshnessMessage,
+  freshnessScope,
+  gapOf,
+  markStale,
+  modulesWithFunctions,
+  planFor,
+  sensorFreshness,
+} from "../../src/scan-freshness";
+import type { ScanTicks } from "../../src/scan-panel-model";
+import type { SensorStatus } from "../../src/sensor-run";
+
+function scanOf(files: Record<string, string>, withFunction: string[]) {
+  return {
+    modules: Object.keys(files).map((id) => ({
+      id,
+      kind: "module",
+      members: withFunction.includes(id)
+        ? [{ name: "f", exported: true, kind: "function" }]
+        : [],
+    })),
+    edges: [],
+    foreign: [],
+    files: Object.entries(files).map(([path, hash]) => ({ path, hash })),
+  } as unknown as Scan;
+}
+
+const SCAN = scanOf({ "a.py": "ha", "b.py": "hb", "c.py": "hc" }, [
+  "a.py",
+  "b.py",
+  "c.py",
+]);
+const MODULES = ["a.py", "b.py", "c.py"];
+const FRESH = buildFreshness([SCAN], "t1");
+const SCOPE = freshnessScope(MODULES, [SCAN], FRESH);
+
+describe("sensorFreshness", () => {
+  it("is never-run without a findings document", () => {
+    expect(sensorFreshness(SCOPE, null, false)).toEqual({ kind: "never-run" });
+    expect(gapOf({ kind: "never-run" }, MODULES)).toEqual(MODULES);
+  });
+
+  it("marks every file out of date when the document has no inputs", () => {
+    expect(sensorFreshness(SCOPE, {}, false)).toEqual({
+      kind: "known",
+      outOfDate: MODULES,
+      missing: [],
+    });
+  });
+
+  it("marks every file out of date when the tests hash differs", () => {
+    const measured = { inputs: { "a.py": "ha" }, tests: "other" };
+
+    expect(sensorFreshness(SCOPE, measured, false)).toMatchObject({
+      outOfDate: MODULES,
+    });
+  });
+
+  it("counts a changed hash as out of date", () => {
+    const measured = { inputs: { "a.py": "ha", "b.py": "old" }, tests: "t1" };
+
+    expect(sensorFreshness(SCOPE, measured, false)).toEqual({
+      kind: "known",
+      outOfDate: ["b.py"],
+      missing: [],
+    });
+  });
+
+  it("does not count a file an unscoped sensor never listed", () => {
+    const measured = { inputs: { "a.py": "ha" }, tests: "t1" };
+
+    expect(sensorFreshness(SCOPE, measured, false)).toEqual({
+      kind: "known",
+      outOfDate: [],
+      missing: [],
+    });
+  });
+
+  it("counts a file with functions that the scoped sensor never listed as missing", () => {
+    const measured = { inputs: { "a.py": "ha" }, tests: "t1" };
+
+    expect(sensorFreshness(SCOPE, measured, true)).toEqual({
+      kind: "known",
+      outOfDate: [],
+      missing: ["b.py", "c.py"],
+    });
+  });
+
+  it("does not count a missing file that has no function", () => {
+    const scan = scanOf({ "a.py": "ha", "b.py": "hb" }, ["a.py"]);
+    const scope = freshnessScope(
+      ["a.py", "b.py"],
+      [scan],
+      buildFreshness([scan], "t1"),
+    );
+    const measured = { inputs: { "a.py": "ha" }, tests: "t1" };
+
+    expect(sensorFreshness(scope, measured, true)).toMatchObject({
+      missing: [],
+    });
+  });
+
+  it("splits the mixed case into out of date and missing", () => {
+    const measured = {
+      inputs: { "a.py": "ha", "b.py": "changed" },
+      tests: "t1",
+    };
+    const result = sensorFreshness(SCOPE, measured, true);
+
+    expect(result).toEqual({
+      kind: "known",
+      outOfDate: ["b.py"],
+      missing: ["c.py"],
+    });
+    expect(gapOf(result, MODULES)).toEqual(["b.py", "c.py"]);
+  });
+
+  it("ignores a file no scan hashes", () => {
+    const scope = freshnessScope([...MODULES, "ghost.py"], [SCAN], FRESH);
+    const measured = {
+      inputs: { "a.py": "ha", "b.py": "hb", "c.py": "hc", "ghost.py": "x" },
+      tests: "t1",
+    };
+
+    expect(sensorFreshness(scope, measured, true)).toMatchObject({
+      outOfDate: [],
+      missing: [],
+    });
+  });
+
+  it("finds no missing file when a complete Mutation run lists every file with a function", () => {
+    const measured = {
+      inputs: { "a.py": "ha", "b.py": "hb", "c.py": "hc" },
+      tests: "t1",
+    };
+
+    expect(sensorFreshness(SCOPE, measured, true)).toMatchObject({
+      outOfDate: [],
+      missing: [],
+    });
+  });
+});
+
+describe("sensorFreshness with an excluded file in inputs", () => {
+  const one = freshnessScope(
+    ["a.py"],
+    [scanOf({ "a.py": "ha" }, ["a.py"])],
+    FRESH,
+  );
+
+  it("is neither missing nor out of date while its hash is current", () => {
+    const measured = { inputs: { "a.py": "ha" }, tests: "t1" };
+    const result = sensorFreshness(one, measured, true);
+
+    expect(result).toEqual({ kind: "known", outOfDate: [], missing: [] });
+    expect(gapOf(result, ["a.py"])).toEqual([]);
+  });
+
+  it("is out of date once its hash changed", () => {
+    const measured = { inputs: { "a.py": "old" }, tests: "t1" };
+
+    expect(sensorFreshness(one, measured, true)).toEqual({
+      kind: "known",
+      outOfDate: ["a.py"],
+      missing: [],
+    });
+  });
+
+  it("is missing when the document predates the change and lists no inputs", () => {
+    const measured = { inputs: {}, tests: "t1" };
+
+    expect(sensorFreshness(one, measured, true)).toEqual({
+      kind: "known",
+      outOfDate: [],
+      missing: ["a.py"],
+    });
+  });
+});
+
+const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
+
+describe("sensorFreshness on committed content", () => {
+  it("leaves no file of the committed Mutation sample counted missing when its inputs list every file with a function", () => {
+    const scan = JSON.parse(
+      readFileSync(
+        new URL("../../fixtures/mutation/sample/scan.python.json", srcUrl),
+        "utf8",
+      ),
+    ) as Scan;
+    const withFunctions = [...modulesWithFunctions([scan])];
+    const hashes = scanHashes([scan]);
+    const inputs = Object.fromEntries(
+      withFunctions.map((id) => [id, hashes.get(id) as string]),
+    );
+    const modules = scan.modules.map(({ id }) => id);
+    const scope = freshnessScope(modules, [scan], buildFreshness([scan], "t"));
+
+    expect(sensorFreshness(scope, { inputs, tests: "t" }, true)).toEqual({
+      kind: "known",
+      outOfDate: [],
+      missing: [],
+    });
+  });
+});
+
+describe("markStale", () => {
+  const ran = (name: string, measured: SensorStatus["measured"]) =>
+    ({ name, status: "ran", measured }) as SensorStatus;
+
+  it("never marks a sensor stale whose every file is current", () => {
+    const out = markStale(
+      [ran("crap", { inputs: { "a.py": "ha" }, tests: "t1" })],
+      FRESH,
+    );
+
+    expect(out[0]?.status).toBe("ran");
+  });
+
+  it("marks a sensor stale when a file changed or the file has no inputs", () => {
+    const out = markStale(
+      [ran("crap", { inputs: { "a.py": "x" }, tests: "t1" }), ran("lint", {})],
+      FRESH,
+    );
+
+    expect(out.map(({ status }) => status)).toEqual(["stale", "stale"]);
+  });
+});
+
+function stub(
+  states: Record<string, ResultState>,
+  gaps: Record<string, string[]>,
+  changed: string[],
+  label: string,
+  ticked: string[] = Object.keys(states),
+  update: string[] = changed,
+  scopedKeys: string[] = ["mutation"],
+): FreshnessModel {
+  return {
+    rows: Object.entries(states).map(([key, state]) => ({
+      key,
+      name: key[0]?.toUpperCase() + key.slice(1),
+      state,
+      tickable: true,
+      scoped: scopedKeys.includes(key),
+    })),
+    gaps: new Map(Object.entries(gaps)),
+    changed,
+    update,
+    ticked: (key: string) => ticked.includes(key),
+    action: {
+      primary: { label, disabled: label === "Up to date" },
+      mode: { value: "bring", disabled: false },
+    },
+  } as unknown as FreshnessModel;
+}
+
+const CURRENT_STATE: ResultState = { kind: "current", at: null };
+
+describe("planFor", () => {
+  const rows = [
+    { name: "crap", display: "C.R.A.P.", runsTests: false, scoped: false },
+    { name: "mutation", display: "Mutation", runsTests: true, scoped: true },
+  ];
+  const ticks: ScanTicks = {
+    describe: true,
+    analysis: true,
+    ticked: ["crap"],
+    once: ["mutation"],
+    onlyView: false,
+    suites: {},
+    folds: [],
+  };
+
+  it("leaves a current sensor out and hands Mutation and Descriptions the union of their gaps", () => {
+    const planned = planFor(
+      stub(
+        {
+          describe: { kind: "out-of-date", modules: ["a.py"] },
+          crap: CURRENT_STATE,
+          mutation: { kind: "out-of-date", modules: ["b.py", "c.py"] },
+        },
+        { describe: ["a.py"], crap: [], mutation: ["b.py", "c.py"] },
+        ["a.py", "b.py", "c.py"],
+        "Update 3 files",
+      ),
+      "bring",
+      ticks,
+      rows,
+      null,
+      MODULES,
+    );
+
+    expect(planned.plan).toEqual({
+      describe: true,
+      describeAll: false,
+      analysis: true,
+      sense: ["mutation"],
+      modules: ["a.py", "b.py", "c.py"],
+    });
+    expect(planned.label).toBe("Update 3 files");
+    expect(planned.progress).toBe("Updating 3 files\u2026");
+    expect(planned.modules).toBe(3);
+    expect(planned.idle).toBe(false);
+  });
+
+  it("takes the file scope from the scoped flag, not from a sensor called mutation", () => {
+    const flagged = [
+      { name: "mutation", display: "Mutation", runsTests: true, scoped: false },
+      { name: "other", display: "Other", runsTests: true, scoped: true },
+    ];
+    const both: ScanTicks = {
+      ...ticks,
+      describe: false,
+      analysis: true,
+      ticked: [],
+      once: ["mutation", "other"],
+    };
+    const planned = planFor(
+      stub(
+        {
+          mutation: { kind: "out-of-date", modules: ["b.py", "c.py"] },
+          other: { kind: "out-of-date", modules: ["b.py"] },
+        },
+        { mutation: ["b.py", "c.py"], other: ["b.py"] },
+        ["b.py", "c.py"],
+        "Update 2 files",
+        ["mutation", "other"],
+        undefined,
+        ["other"],
+      ),
+      "bring",
+      both,
+      flagged,
+      null,
+      MODULES,
+    );
+
+    expect(planned.plan.modules).toEqual(["b.py"]);
+    expect(planned.work).toEqual({ mutation: MODULES.length, other: 1 });
+  });
+
+  it("reruns an unscoped sensor whole and sends no file list when no scoped phase runs", () => {
+    const planned = planFor(
+      stub(
+        { crap: { kind: "out-of-date", modules: ["b.py"] } },
+        { crap: ["b.py"] },
+        ["b.py"],
+        "Update 1 file",
+      ),
+      "bring",
+      { ...ticks, describe: false, once: [] },
+      rows,
+      null,
+      MODULES,
+    );
+
+    expect(planned.plan).toEqual({
+      describe: false,
+      describeAll: false,
+      analysis: true,
+      sense: ["crap"],
+      modules: null,
+    });
+    expect(planned.progress).toBe("Updating 1 file\u2026");
+  });
+
+  it("gives a Structure-only change a runnable extract-only plan", () => {
+    const planned = planFor(
+      stub(
+        {
+          structure: { kind: "out-of-date", modules: ["a.py"] },
+          crap: CURRENT_STATE,
+        },
+        { crap: [] },
+        ["a.py"],
+        "Update 1 file",
+      ),
+      "bring",
+      { ...ticks, describe: false, once: [] },
+      rows,
+      null,
+      MODULES,
+    );
+
+    expect(planned.plan).toEqual({
+      describe: false,
+      describeAll: false,
+      analysis: true,
+      sense: [],
+      modules: null,
+    });
+    expect(planned.idle).toBe(false);
+    expect(planned.modules).toBe(1);
+  });
+
+  it("is idle and reads Up to date when nothing has a gap", () => {
+    const planned = planFor(
+      stub(
+        {
+          describe: CURRENT_STATE,
+          crap: CURRENT_STATE,
+          mutation: CURRENT_STATE,
+        },
+        { describe: [], crap: [], mutation: [] },
+        [],
+        "Up to date",
+      ),
+      "bring",
+      ticks,
+      rows,
+      null,
+      MODULES,
+    );
+
+    expect(planned.idle).toBe(true);
+    expect(planned.label).toBe("Up to date");
+    expect(planned.plan.sense).toEqual([]);
+    expect(planned.plan.describe).toBe(false);
+    expect(planned.plan.modules).toBeNull();
+  });
+
+  it("never says Bringing 0 files when only a never-run sensor runs", () => {
+    const planned = planFor(
+      stub(
+        { mutation: { kind: "never-run" } },
+        { mutation: MODULES },
+        [],
+        "Run Mutation",
+      ),
+      "bring",
+      { ...ticks, describe: false, ticked: [] },
+      rows,
+      null,
+      MODULES,
+    );
+
+    expect(planned.label).toBe("Run Mutation");
+    expect(planned.progress).toBe("Running Mutation\u2026");
+    expect(planned.progress).not.toContain("Bringing");
+    expect(planned.plan.sense).toEqual(["mutation"]);
+    expect(planned.plan.modules).toEqual(MODULES);
+  });
+
+  it("runs every ticked sensor over the scope and describes everything when rescanning", () => {
+    const model = stub({}, {}, [], "Rescan 2 files");
+    const planned = planFor(
+      model,
+      "rescan",
+      ticks,
+      rows,
+      ["a.py", "b.py"],
+      MODULES,
+    );
+
+    expect(planned.plan).toEqual({
+      describe: true,
+      describeAll: true,
+      analysis: true,
+      sense: ["crap", "mutation"],
+      modules: ["a.py", "b.py"],
+    });
+    expect(planned.label).toBe("Rescan 2 files");
+    expect(planned.progress).toBe("Rescanning 2 files\u2026");
+    expect(
+      planFor(model, "rescan", ticks, rows, null, MODULES).plan.modules,
+    ).toBeNull();
+  });
+
+  it("keeps the run enabled when nothing is ticked so a plain rescan stays reachable", () => {
+    const planned = planFor(
+      stub({}, {}, [], "Rescan 3 files"),
+      "rescan",
+      {
+        describe: false,
+        analysis: true,
+        ticked: [],
+        once: [],
+        onlyView: false,
+        suites: {},
+        folds: [],
+      },
+      rows,
+      null,
+      MODULES,
+    );
+
+    expect(planned.idle).toBe(false);
+  });
+});
+
+describe("a sensor-only gap", () => {
+  const rows = [
+    { name: "crap", display: "C.R.A.P.", runsTests: false, scoped: false },
+  ];
+  const gap = (changed: string[], update: string[]) =>
+    stub(
+      { crap: { kind: "out-of-date", modules: ["c.py"] } },
+      { crap: ["c.py"] },
+      changed,
+      "Update 1 file",
+      ["crap"],
+      update,
+    );
+  const ticks: ScanTicks = {
+    describe: false,
+    analysis: true,
+    ticked: ["crap"],
+    once: [],
+    onlyView: false,
+    suites: {},
+    folds: [],
+  };
+
+  it("plans one file and shows no canvas banner", () => {
+    const model = gap([], ["c.py"]);
+    const planned = planFor(model, "bring", ticks, rows, null, MODULES);
+
+    expect(planned.modules).toBe(1);
+    expect(planned.progress).toBe("Updating 1 file\u2026");
+    expect(freshnessMessage(model)).toBeNull();
+  });
+
+  it("names one changed file in the banner when Structure changed it", () => {
+    const message = freshnessMessage(gap(["a.py"], ["a.py", "c.py"]));
+
+    expect(message?.text.startsWith("1 file has changed")).toBe(true);
+  });
+});
+
+describe("freshnessMessage", () => {
+  it("says nothing when nothing changed and nothing ticked never ran", () => {
+    expect(
+      freshnessMessage(stub({ crap: CURRENT_STATE }, {}, [], "Up to date")),
+    ).toBeNull();
+  });
+
+  it("counts the changed files, keys the message by their set and labels the button", () => {
+    const one = freshnessMessage(stub({}, {}, ["b.py"], "Update 1 file"));
+    const two = freshnessMessage(
+      stub({}, {}, ["a.py", "b.py"], "Update 2 files"),
+    );
+
+    expect(one?.text).toBe(
+      "1 file has changed since it was scanned. Its results are hidden, so this picture is partial.",
+    );
+    expect(one?.label).toBe("Update 1 file");
+    expect(two?.text.startsWith("2 files have changed")).toBe(true);
+    expect(one?.key).not.toBe(two?.key);
+  });
+
+  it("reports a ticked never-run sensor when nothing changed, and ignores an unticked one", () => {
+    const states: Record<string, ResultState> = {
+      mutation: { kind: "never-run" },
+    };
+
+    expect(
+      freshnessMessage(stub(states, {}, [], "Run Mutation")),
+    )?.toMatchObject({
+      text: "Mutation has not run here yet. Its results are missing from this picture.",
+      label: "Run Mutation",
+    });
+    expect(freshnessMessage(stub(states, {}, [], "Up to date", []))).toBeNull();
+  });
+
+  it("words the notice for any scoped sensor by its display name and ignores an unscoped one", () => {
+    const states: Record<string, ResultState> = {
+      other: { kind: "never-run" },
+    };
+
+    expect(
+      freshnessMessage(
+        stub(states, {}, [], "Run Other", ["other"], [], ["other"]),
+      ),
+    ).toMatchObject({
+      text: "Other has not run here yet. Its results are missing from this picture.",
+      label: "Run Other",
+    });
+    expect(
+      freshnessMessage(stub(states, {}, [], "Run Other", ["other"], [], [])),
+    ).toBeNull();
+    expect(
+      freshnessMessage(
+        stub(
+          { mutation: { kind: "never-run" } },
+          {},
+          [],
+          "Run Mutation",
+          ["mutation"],
+          [],
+          [],
+        ),
+      ),
+    ).toBeNull();
+  });
+});
