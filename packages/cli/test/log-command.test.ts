@@ -1,7 +1,7 @@
 import { cpSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { makeTempDir } from "../../../scripts/temp-dirs.mjs";
+import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { type Io, run } from "../src/cli.js";
 import { capture, REPO } from "./helpers.js";
 import {

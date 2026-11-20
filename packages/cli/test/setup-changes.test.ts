@@ -1,8 +1,8 @@
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { scaledTimeout } from "../../../scripts/pool-scale.mjs";
-import { makeTempDir } from "../../../scripts/temp-dirs.mjs";
+import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
+import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { COMMANDS } from "../src/commands.js";
 import { buildChanges, type SetupChoices } from "../src/setup-changes.js";
 import type { Survey } from "../src/setup-survey.js";

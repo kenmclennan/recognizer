@@ -133,7 +133,7 @@ const NO_POLICY_LINE = "No policy: dependency direction isn't checked";
 const NO_POLICY_HELP: GroupHelp = {
   means:
     "Dependency direction is only checked against a policy, and this repository has none.",
-  todo: "Add .recognizer/policy.yaml naming the layers, inner first. Examples ship in policies/hexagonal.yaml and policies/vertical-slices.yaml.",
+  todo: "Add .recognizer/policy.yaml naming the layers, inner first. Examples ship in docs/policies/hexagonal.yaml and docs/policies/vertical-slices.yaml.",
 };
 
 function infoControl(

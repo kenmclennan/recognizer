@@ -10,7 +10,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { expect } from "vitest";
-import { makeTempDir } from "../../../../scripts/temp-dirs.mjs";
+import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
 import { type ScanDocument, type ScanEdge, scan } from "../src/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));

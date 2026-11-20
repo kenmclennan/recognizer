@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { makeTempDir } from "../../../../scripts/temp-dirs.mjs";
+import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
 import { scan } from "../src/index.js";
 import {
   ajvValidate,

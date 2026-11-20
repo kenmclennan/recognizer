@@ -51,7 +51,10 @@ if (!available("cargo")) {
     "node",
     [
       fileURLToPath(
-        new URL("../../../scripts/assert-clean-tmpdir.mjs", import.meta.url),
+        new URL(
+          "../../../tools/scripts/assert-clean-tmpdir.mjs",
+          import.meta.url,
+        ),
       ),
       "cargo",
       "test",

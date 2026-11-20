@@ -11,8 +11,8 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { scaledTimeout } from "../../../scripts/pool-scale.mjs";
-import { makeTempDir } from "../../../scripts/temp-dirs.mjs";
+import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
+import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { run } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
 import { entriesOf } from "../src/run-log.js";

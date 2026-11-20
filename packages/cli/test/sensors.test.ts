@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { makeTempDir } from "../../../scripts/temp-dirs.mjs";
+import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { run, stopEverything } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
 import { capture, REPO } from "./helpers.js";

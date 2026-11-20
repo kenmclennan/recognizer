@@ -57,7 +57,7 @@ jobs:
             describe-claude) npm run build -w recognizer-describe-claude ;;
             scan-rust) rustup target add aarch64-apple-darwin ;;
           esac
-          node scripts/build-plugin.mjs "$UNIT" "$VERSION" dist-release
+          node tools/scripts/build-plugin.mjs "$UNIT" "$VERSION" dist-release
 
       - name: Smoke-test the archive
         run: |
@@ -67,9 +67,9 @@ jobs:
           tar -xzf "dist-release/$UNIT-$VERSION.tar.gz" -C "$smoke"
           printf '#!/bin/sh\nexec node "%s/check/dist/bin.js" "$@"\n' "$repo" > "$shim/recognizer"
           chmod +x "$shim/recognizer"
-          node scripts/verify-plugin.mjs "$UNIT" "$smoke"
+          node tools/scripts/verify-plugin.mjs "$UNIT" "$smoke"
           export PATH="$smoke/bin:$shim:$(dirname "$(command -v node)"):/usr/bin:/bin"
-          for command in $(node -p "require('./packaging/units.json').units.find((entry) => entry.unit === process.env.UNIT).formulae.map((one) => one.command).join(' ')"); do
+          for command in $(node -p "require('./tools/packaging/units.json').units.find((entry) => entry.unit === process.env.UNIT).formulae.map((one) => one.command).join(' ')"); do
             got=$("$command" --version)
             if [ "$got" != "$VERSION" ]; then
               echo "$command --version printed $got, expected $VERSION" >&2

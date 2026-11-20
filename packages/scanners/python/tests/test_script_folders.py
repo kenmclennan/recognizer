@@ -152,10 +152,10 @@ def test_script_folder_fixture_matches_expected_scan():
 
 def test_real_content_scripts_resolve_their_common_helper():
     document = scan(REPOSITORY, None, None)
-    common = "validation/mutation/common.py"
+    common = "tools/validation/mutation/common.py"
 
     for script in ("compare_python.py", "compare_typescript.py"):
-        source = f"validation/mutation/{script}"
+        source = f"tools/validation/mutation/{script}"
         targets = [e["to"] for e in document["edges"] if e["from"] == source]
 
         assert common in targets

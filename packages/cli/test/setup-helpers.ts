@@ -1,6 +1,6 @@
 import { chmodSync, cpSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { makeTempDir } from "../../../scripts/temp-dirs.mjs";
+import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { REPO } from "./helpers.js";
 
 const FIXTURE = join(REPO, "fixtures/setup-loom");

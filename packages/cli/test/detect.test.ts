@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { makeTempDir } from "../../../scripts/temp-dirs.mjs";
+import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { nodeIo } from "../src/cli.js";
 import { detectLanguages, type LanguageRule } from "../src/detect.js";
 import { REPO } from "./helpers.js";

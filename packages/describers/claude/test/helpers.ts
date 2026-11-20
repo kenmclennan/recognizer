@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { makeTempDir } from "../../../../scripts/temp-dirs.mjs";
+import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 

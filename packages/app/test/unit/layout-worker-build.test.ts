@@ -8,7 +8,7 @@ import type { ElkNode } from "elkjs/lib/elk-api";
 import { webkit as playwright } from "playwright";
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
-import { scaledTimeout } from "../../../../scripts/pool-scale.mjs";
+import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import { lightcycleShapedGraph } from "../../src/lightcycle-shaped-graph";
 import { webkit } from "../../src/look-page";
 

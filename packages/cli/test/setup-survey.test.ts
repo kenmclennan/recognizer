@@ -10,7 +10,7 @@ import {
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { makeTempDir } from "../../../scripts/temp-dirs.mjs";
+import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { type Io, nodeIo } from "../src/cli.js";
 import validate from "../src/generated/setup-survey-validator.js";
 import { runSetup } from "../src/setup-command.js";

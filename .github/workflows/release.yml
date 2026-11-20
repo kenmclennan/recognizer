@@ -70,7 +70,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          units=$(node scripts/release-train.mjs plan "$HEAD_SHA")
+          units=$(node tools/scripts/release-train.mjs plan "$HEAD_SHA")
           echo "units=$units" >> "$GITHUB_OUTPUT"
           if [ "$units" = "[]" ]; then
             echo "has_units=false" >> "$GITHUB_OUTPUT"
@@ -158,7 +158,7 @@ jobs:
         if: steps.released.outputs.skip != 'true'
         run: |
           npm run build -w recognizer
-          node scripts/build-toolchain.mjs dist-release
+          node tools/scripts/build-toolchain.mjs dist-release
 
       - name: Download the built plugin archives
         if: steps.released.outputs.skip != 'true'
@@ -172,7 +172,7 @@ jobs:
         run: |
           mkdir -p dist-train
           app_schema=$(node --input-type=module -e 'import { SCAN_SCHEMA_VERSION } from "./packages/cli/dist/index.js"; process.stdout.write(String(SCAN_SCHEMA_VERSION))')
-          node scripts/release-train.mjs verify "$app_schema" dist-train
+          node tools/scripts/release-train.mjs verify "$app_schema" dist-train
 
       - name: Build the app
         if: steps.released.outputs.skip != 'true'
@@ -200,7 +200,7 @@ jobs:
           smoke=$(mktemp -d)
           tar -xzf dist-release/recognizer.app.tar.gz -C "$smoke"
           toolchain="$smoke/Recognizer.app/Contents/Resources/toolchain"
-          node scripts/verify-toolchain.mjs "$toolchain"
+          node tools/scripts/verify-toolchain.mjs "$toolchain"
           export PATH="$toolchain/commands:$(dirname "$(command -v node)"):/usr/bin:/bin"
           got=$(recognizer --version)
           if [ "$got" != "$VERSION" ]; then
@@ -210,7 +210,7 @@ jobs:
 
       - name: Open the app ten times
         if: steps.released.outputs.skip != 'true'
-        run: node scripts/open-check.mjs --toolchain dist-release/toolchain
+        run: node tools/scripts/open-check.mjs --toolchain dist-release/toolchain
 
       - name: Require the commit on main
         if: steps.released.outputs.skip != 'true'
@@ -329,9 +329,9 @@ jobs:
           app_version=${app_tag#v}
           gh release download "$app_tag" --repo "$RELEASES_REPO" --pattern recognizer.app.tar.gz --dir assets --clobber
           app_sha=$(shasum -a 256 assets/recognizer.app.tar.gz | cut -d' ' -f1)
-          node scripts/render-homebrew.mjs cask "$app_version" "$app_sha" tap-repo
+          node tools/scripts/render-homebrew.mjs cask "$app_version" "$app_sha" tap-repo
 
-          for unit in $(node -p "require('./packaging/units.json').units.map((entry) => entry.unit).join(' ')"); do
+          for unit in $(node -p "require('./tools/packaging/units.json').units.map((entry) => entry.unit).join(' ')"); do
             tag=$(grep -E "^${unit}-v[0-9]+\.[0-9]+\.[0-9]+$" tags.txt | sort -V | tail -n 1 || true)
             if [ -z "$tag" ]; then
               echo "$unit has no published release" >&2
@@ -340,10 +340,10 @@ jobs:
             built=${tag#"${unit}-v"}
             gh release download "$tag" --repo "$RELEASES_REPO" --pattern "$unit-$built.tar.gz" --dir assets --clobber
             sha=$(shasum -a 256 "assets/$unit-$built.tar.gz" | cut -d' ' -f1)
-            node scripts/render-homebrew.mjs unit "$unit" "$built" "$sha" tap-repo
+            node tools/scripts/render-homebrew.mjs unit "$unit" "$built" "$sha" tap-repo
           done
 
-          node scripts/render-homebrew.mjs members | sort > members.txt
+          node tools/scripts/render-homebrew.mjs members | sort > members.txt
           current=""
           if [ -f tap-repo/Formula/recognizer-plugins.rb ]; then
             current=$(grep -oE 'depends_on "[^"]+"' tap-repo/Formula/recognizer-plugins.rb | sed -E 's/depends_on "([^"]+)"/\1/' | sort)
@@ -358,7 +358,7 @@ jobs:
               --notes "The member list of the recognizer-plugins bundle formula." \
               "assets/recognizer-plugins-$bundle.tar.gz"
             bundle_sha=$(shasum -a 256 "assets/recognizer-plugins-$bundle.tar.gz" | cut -d' ' -f1)
-            node scripts/render-homebrew.mjs bundle "$bundle" "$bundle_sha" tap-repo
+            node tools/scripts/render-homebrew.mjs bundle "$bundle" "$bundle_sha" tap-repo
           fi
 
           cd tap-repo

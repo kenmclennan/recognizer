@@ -6,7 +6,7 @@ on:
       - packages/scanners/kotlin/**
       - schema/**
       - fixtures/**
-      - scripts/assert-clean-tmpdir.mjs
+      - tools/scripts/assert-clean-tmpdir.mjs
       - .github/workflows/scanner-kotlin.yml
       - .github/actions/install-uv/**
   push:
@@ -15,7 +15,7 @@ on:
       - packages/scanners/kotlin/**
       - schema/**
       - fixtures/**
-      - scripts/assert-clean-tmpdir.mjs
+      - tools/scripts/assert-clean-tmpdir.mjs
       - .github/workflows/scanner-kotlin.yml
       - .github/actions/install-uv/**
 
@@ -50,7 +50,7 @@ jobs:
       - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: node "$GITHUB_WORKSPACE/scripts/assert-clean-tmpdir.mjs" uv run pytest
+      - run: node "$GITHUB_WORKSPACE/tools/scripts/assert-clean-tmpdir.mjs" uv run pytest
 
       - if: failure()
         uses: ./.github/actions/cancel-on-failure

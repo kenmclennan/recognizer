@@ -38,7 +38,7 @@ jobs:
       - run: npm ci --prefer-offline --no-audit --no-fund
       - run: npm run lint -w packages/scanners/typescript
       - run: npm run build -w packages/scanners/typescript
-      - run: node scripts/assert-clean-tmpdir.mjs npm test -w packages/scanners/typescript
+      - run: node tools/scripts/assert-clean-tmpdir.mjs npm test -w packages/scanners/typescript
 
       - if: failure()
         uses: ./.github/actions/cancel-on-failure

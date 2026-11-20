@@ -59,7 +59,7 @@ Foreign nodes are never violations unless a `forbid` names them. A self-edge is 
 
 ### Starter policies
 
-[`policies/`](../../policies) holds two complete, commented policies to copy into `.recognizer/policy.yaml`: `hexagonal.yaml` (inner folders may not import outer ones) and `vertical-slices.yaml` (one rule per slice naming the others).
+[`docs/policies/`](../../docs/policies) holds two complete, commented policies to copy into `.recognizer/policy.yaml`: `hexagonal.yaml` (inner folders may not import outer ones) and `vertical-slices.yaml` (one rule per slice naming the others).
 
 ### Globs
 

@@ -24,4 +24,4 @@ jobs:
           cache: npm
       - run: npm ci --prefer-offline --no-audit --no-fund
       - run: npm run build -w recognizer
-      - run: node scripts/schema-compat.mjs "${{ github.event.pull_request.head.sha || github.sha }}"
+      - run: node tools/scripts/schema-compat.mjs "${{ github.event.pull_request.head.sha || github.sha }}"

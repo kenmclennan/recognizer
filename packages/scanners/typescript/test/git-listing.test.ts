@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { makeTempDir } from "../../../../scripts/temp-dirs.mjs";
+import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
 import { gitListing, listSourceFiles, listTestFiles } from "../src/files.js";
 import { scan } from "../src/index.js";
 import { TsconfigOptions } from "../src/tsconfig-options.js";

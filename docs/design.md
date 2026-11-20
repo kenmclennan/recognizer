@@ -55,7 +55,7 @@ Recognizer scans a codebase into a language-neutral model of its files and depen
 
 A native app: Tauri 2, with the domain, application and drawing code in TypeScript in the webview, and Rust as a narrow boundary for files, running scanners, watching for changes and dialogs.
 
-- **Built from the template.** The app starts from `kenmclennan/tauri-starter`: its `npm run init` is run in a scratch clone (name Recognizer, slug `recognizer`) and the renamed `packages/app/` is copied into `packages/app/` here and added to the root workspaces. Its CI is the `app` workflow, filtered on `packages/app/**` and on every part the app bundles or imports (`packages/cli/`, `schema/`, `scripts/`, `packaging/`, `packages/scanners/`, `packages/sensors/`, `packages/describers/`). The template's updater and its Check for Updates menu item are not used: the toolchain is released and upgraded as one, through Homebrew (Scanners, above). The design of record for the app's internals (pure files behind thin adapters, the Rust trust boundary, the terminal command) is the engineering knowledgebase's `desktop-apps/` topic.
+- **Built from the template.** The app starts from `kenmclennan/tauri-starter`: its `npm run init` is run in a scratch clone (name Recognizer, slug `recognizer`) and the renamed `packages/app/` is copied into `packages/app/` here and added to the root workspaces. Its CI is the `app` workflow, filtered on `packages/app/**` and on every part the app bundles or imports (`packages/cli/`, `schema/`, `tools/scripts/`, `tools/packaging/`, `packages/scanners/`, `packages/sensors/`, `packages/describers/`). The template's updater and its Check for Updates menu item are not used: the toolchain is released and upgraded as one, through Homebrew (Scanners, above). The design of record for the app's internals (pure files behind thin adapters, the Rust trust boundary, the terminal command) is the engineering knowledgebase's `desktop-apps/` topic.
 - **Opened from the terminal with `recognizer open [folder]`.** A subcommand of the `recognizer` CLI launches the app on a folder, defaulting to the current directory. The app ships no terminal command of its own: the template's command is removed, so `recognizer` stays the one command for scanning, checking and opening.
 - **Links open a repository and a view: `recognizer://open?repo=<absolute path>&view=<name>`.** The app registers the `recognizer` URL scheme with the operating system (Tauri's deep-link plugin, with the single-instance plugin so a link reaches the running app), so a link clicked anywhere, in a browser, a chat or a terminal that makes URLs clickable, or run with `open`, opens Recognizer on that folder with that saved view, or brings forward the window already showing it. `view` is optional; without it the folder opens on an empty canvas. `recognizer open` accepts the same link, so a script or a terminal can open one too. An agent that answers a question with a view ends its answer with the view's link. A link can come from anywhere, so it only ever opens: the folder must exist, the view must be a saved view in it, and a link never runs a command, describes, or changes a file. Anything else is refused with a message saying why.
 - **It runs `recognizer scan`, never a bundled scanner.** The viewer scans exactly as CI and audits do. Rust runs the command on the folder the window opened through a Rust dialog and reads the result from that repository's `.recognizer/cache/`. An app launched from Finder has no shell `PATH`, so Rust resolves the command through the user's login shell, with an absolute path in the app's config as an override; a missing command is reported with what to install. A scan whose `schema_version` the app does not know is refused.
@@ -176,10 +176,10 @@ packages/scanners/rust/        CLI: recognizer-scan-rust
 packages/sensors/              CLIs: recognizer-sense-<name>, the shipped sensors
 packages/describers/claude/    CLI: recognizer-describe-claude, the reference describer
 packages/app/                  the Tauri viewer
-policies/             starter policies a repository copies
-scripts/              the CLI toolchain and plugin archive builders, the Homebrew renderer and the test guards
-packaging/            the release units and the cask, plugin and bundle templates
-validation/           each sensor's validation report and the measurement corpus
+docs/policies/             starter policies a repository copies
+tools/scripts/              the CLI toolchain and plugin archive builders, the Homebrew renderer and the test guards
+tools/packaging/            the release units and the cask, plugin and bundle templates
+tools/validation/           each sensor's validation report and the measurement corpus
 fixtures/             small sample codebases per language, each with its expected scan
 docs/                 this document and the glossary
 ```
@@ -224,7 +224,7 @@ ignore: [tests/**, "**/fixtures/**"]
 - **A policy is `ignore`, `entry` and `forbid`.** A forbid rule is `from` globs and `to` globs, or a `"<from-glob> -> <to-glob>"` string for one pair: any import from a file matching `from` to a file matching `to` is a violation, drawn red and counted by the ratchet. The setup step reads as plain rules ("files in A must not import B, C"), because naming layers assumes a layered architecture.
 - **`entry` names the files nothing imports on purpose**, so structural analysis never reports them as orphans.
 - **There is no allow list.** A way to mark an edge as acceptable becomes a place for violations to hide. An existing violation goes in the ratchet baseline (`.recognizer/baselines/`), where it is counted and may only shrink, never into the policy.
-- **Components, ordering keys and dependency tables are retired.** An earlier policy named components and ordered them or listed the components each may use; `recognizer policy --migrate` rewrites one into forbid rules and entry points that report the same imports. Starter policies live in `policies/`.
+- **Components, ordering keys and dependency tables are retired.** An earlier policy named components and ordered them or listed the components each may use; `recognizer policy --migrate` rewrites one into forbid rules and entry points that report the same imports. Starter policies live in `docs/policies/`.
 
 ### Scan document
 
@@ -402,7 +402,7 @@ Not detectable from scan facts, so not reported:
 
 Metrics derived from the scan graph alone (fan-in, fan-out, cycles, instability, abstractness, distance from the main sequence, and the same per folder as folder metrics) are structural facts and are computed by structural analysis. Duplication is derived from source text by structural analysis's duplication check, which needs no run. Anything measured by running something (tests, mutation, git history) is measured by a sensor, which writes it as an overlay, and a sensor that judges it reads the overlay.
 
-A named architecture is a policy template: a starter `.recognizer/policy.yaml` under `policies/` in this repository, copied into a scanned repository and edited there. Recognizer has no setting that names an architecture and never reads anything but the policy in front of it.
+A named architecture is a policy template: a starter `.recognizer/policy.yaml` under `docs/policies/` in this repository, copied into a scanned repository and edited there. Recognizer has no setting that names an architecture and never reads anything but the policy in front of it.
 
 ### Violations and warnings
 
