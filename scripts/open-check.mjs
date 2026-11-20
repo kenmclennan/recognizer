@@ -215,9 +215,9 @@ function checkPreconditions(toolchain) {
     );
   }
 
-  if (!existsSync(join(REPO, "app", "dist"))) {
+  if (!existsSync(join(REPO, "packages/app", "dist"))) {
     throw new Precondition(
-      "app/dist is missing; run npm run build -w @recognizer/app",
+      "packages/app/dist is missing; run npm run build -w @recognizer/app",
     );
   }
 
@@ -257,7 +257,7 @@ function buildBundle(id, toolchain) {
 
   const macos = join(
     REPO,
-    "app/src-tauri/target/aarch64-apple-darwin/release/bundle/macos",
+    "packages/app/src-tauri/target/aarch64-apple-darwin/release/bundle/macos",
   );
   const bundles = readdirSync(macos).filter((name) => name.endsWith(".app"));
 

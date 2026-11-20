@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Ajv2020 } from "ajv/dist/2020.js";
-import { judgeScanVersion } from "../check/dist/index.js";
+import { judgeScanVersion } from "../packages/cli/dist/index.js";
 
 const SCHEMA = "schema/scan.schema.json";
 const EXAMPLES = "schema/examples/valid/";

@@ -3,7 +3,7 @@ name: scanner-python
 on:
   pull_request:
     paths:
-      - scanners/python/**
+      - packages/scanners/python/**
       - schema/**
       - fixtures/**
       - scripts/assert-clean-tmpdir.mjs
@@ -12,7 +12,7 @@ on:
   push:
     branches: [main]
     paths:
-      - scanners/python/**
+      - packages/scanners/python/**
       - schema/**
       - fixtures/**
       - scripts/assert-clean-tmpdir.mjs
@@ -32,7 +32,7 @@ jobs:
         python-version: ["3.11", "3.13"]
     defaults:
       run:
-        working-directory: scanners/python
+        working-directory: packages/scanners/python
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/install-uv

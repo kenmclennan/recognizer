@@ -104,7 +104,7 @@ describe("packaging/units.json", () => {
 
   it("equals the shipped sensors of the CLI", () => {
     const source = readFileSync(
-      join(ROOT, "check/src/shipped-sensors.ts"),
+      join(ROOT, "packages/cli/src/shipped-sensors.ts"),
       "utf8",
     );
     const list = /SHIPPED_SENSORS[^=]*=\s*\[([^\]]*)\]/.exec(source)[1];
@@ -121,13 +121,16 @@ describe("packaging/units.json", () => {
 
   it("states each plugin's install line as a brew upgrade or install of its own formula", () => {
     const files = {
-      "scan-python": "scanners/python/src/recognizer_scan_python/manifest.py",
-      "scan-kotlin": "scanners/kotlin/src/recognizer_scan_kotlin/manifest.py",
-      "scan-csharp": "scanners/csharp/src/recognizer_scan_csharp/manifest.py",
-      "scan-typescript": "scanners/typescript/src/manifest.ts",
-      "scan-rust": "scanners/rust/src/manifest.rs",
-      "describe-claude": "describers/claude/src/manifest.ts",
-      sensors: "sensors/src/recognizer_sensors/manifest.py",
+      "scan-python":
+        "packages/scanners/python/src/recognizer_scan_python/manifest.py",
+      "scan-kotlin":
+        "packages/scanners/kotlin/src/recognizer_scan_kotlin/manifest.py",
+      "scan-csharp":
+        "packages/scanners/csharp/src/recognizer_scan_csharp/manifest.py",
+      "scan-typescript": "packages/scanners/typescript/src/manifest.ts",
+      "scan-rust": "packages/scanners/rust/src/manifest.rs",
+      "describe-claude": "packages/describers/claude/src/manifest.ts",
+      sensors: "packages/sensors/src/recognizer_sensors/manifest.py",
     };
 
     for (const { unit, formula } of FORMULAE) {
@@ -149,7 +152,7 @@ describe("packaging/units.json", () => {
 describe("parseUnits", () => {
   const unit = {
     unit: "x",
-    folder: "check",
+    folder: "packages/cli",
     ci_workflow: "x",
     runtime: null,
     formulae: [{ formula: "f", command: "f", desc: "d" }],

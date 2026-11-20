@@ -3,7 +3,7 @@ name: scanner-csharp
 on:
   pull_request:
     paths:
-      - scanners/csharp/**
+      - packages/scanners/csharp/**
       - schema/**
       - fixtures/**
       - scripts/assert-clean-tmpdir.mjs
@@ -12,7 +12,7 @@ on:
   push:
     branches: [main]
     paths:
-      - scanners/csharp/**
+      - packages/scanners/csharp/**
       - schema/**
       - fixtures/**
       - scripts/assert-clean-tmpdir.mjs
@@ -36,7 +36,7 @@ jobs:
         python-version: ["3.11", "3.13"]
     defaults:
       run:
-        working-directory: scanners/csharp
+        working-directory: packages/scanners/csharp
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4

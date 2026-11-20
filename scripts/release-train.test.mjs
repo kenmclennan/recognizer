@@ -14,10 +14,14 @@ import { makeTempDir } from "./temp-dirs.mjs";
 const UNITS = [
   {
     unit: "scan-python",
-    folder: "scanners/python",
+    folder: "packages/scanners/python",
     ci_workflow: "scanner-python",
   },
-  { unit: "scan-rust", folder: "scanners/rust", ci_workflow: "scanner-rust" },
+  {
+    unit: "scan-rust",
+    folder: "packages/scanners/rust",
+    ci_workflow: "scanner-rust",
+  },
   { unit: "sensors", folder: "sensors", ci_workflow: "sensors" },
 ];
 
@@ -89,7 +93,7 @@ describe("plannedUnits", () => {
         "scan-rust": "scan-rust-v0.1.1",
         sensors: "sensors-v0.1.1",
       },
-      changed: ["scanners/rust"],
+      changed: ["packages/scanners/rust"],
     };
 
     expect(plannedUnits(UNITS, facts(all))).toEqual(["scan-rust"]);
@@ -196,7 +200,7 @@ describe("plan", () => {
     const result = plan(
       UNITS,
       "c3",
-      facts({ tags, changed: ["scanners/rust"], runs }),
+      facts({ tags, changed: ["packages/scanners/rust"], runs }),
     );
 
     expect(result.units).toEqual(["scan-rust"]);

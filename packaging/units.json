@@ -2,7 +2,7 @@
   "units": [
     {
       "unit": "scan-python",
-      "folder": "scanners/python",
+      "folder": "packages/scanners/python",
       "ci_workflow": "scanner-python",
       "runtime": "python@3.13",
       "formulae": [
@@ -15,7 +15,7 @@
     },
     {
       "unit": "scan-typescript",
-      "folder": "scanners/typescript",
+      "folder": "packages/scanners/typescript",
       "ci_workflow": "scanner-typescript",
       "runtime": "node",
       "formulae": [
@@ -28,7 +28,7 @@
     },
     {
       "unit": "scan-kotlin",
-      "folder": "scanners/kotlin",
+      "folder": "packages/scanners/kotlin",
       "ci_workflow": "scanner-kotlin",
       "runtime": "python@3.13",
       "formulae": [
@@ -41,7 +41,7 @@
     },
     {
       "unit": "scan-csharp",
-      "folder": "scanners/csharp",
+      "folder": "packages/scanners/csharp",
       "ci_workflow": "scanner-csharp",
       "runtime": "python@3.13",
       "formulae": [
@@ -54,7 +54,7 @@
     },
     {
       "unit": "scan-rust",
-      "folder": "scanners/rust",
+      "folder": "packages/scanners/rust",
       "ci_workflow": "scanner-rust",
       "runtime": null,
       "formulae": [
@@ -67,7 +67,7 @@
     },
     {
       "unit": "sensors",
-      "folder": "sensors",
+      "folder": "packages/sensors",
       "ci_workflow": "sensors",
       "runtime": "python@3.13",
       "formulae": [
@@ -85,7 +85,7 @@
     },
     {
       "unit": "describe-claude",
-      "folder": "describers/claude",
+      "folder": "packages/describers/claude",
       "ci_workflow": "describer-claude",
       "runtime": "node",
       "formulae": [

@@ -115,7 +115,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     verifyClosure(dir, entry, lock);
     verifyPlugins(dir, entry, [
       process.execPath,
-      join(root, "check/dist/bin.js"),
+      join(root, "packages/cli/dist/bin.js"),
     ]);
   } catch (error) {
     process.stderr.write(`${error.message}\n`);

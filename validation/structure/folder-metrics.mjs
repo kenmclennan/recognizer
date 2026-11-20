@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parsePolicy, structureSensor } from "../../check/dist/index.js";
+import { parsePolicy, structureSensor } from "../../packages/cli/dist/index.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const corpus = join(root, "fixtures/structure/corpus");

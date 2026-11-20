@@ -3,7 +3,7 @@ name: scanner-typescript
 on:
   pull_request:
     paths:
-      - scanners/typescript/**
+      - packages/scanners/typescript/**
       - schema/**
       - fixtures/**
       - package.json
@@ -13,7 +13,7 @@ on:
   push:
     branches: [main]
     paths:
-      - scanners/typescript/**
+      - packages/scanners/typescript/**
       - schema/**
       - fixtures/**
       - package.json
@@ -36,9 +36,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --prefer-offline --no-audit --no-fund
-      - run: npm run lint -w scanners/typescript
-      - run: npm run build -w scanners/typescript
-      - run: node scripts/assert-clean-tmpdir.mjs npm test -w scanners/typescript
+      - run: npm run lint -w packages/scanners/typescript
+      - run: npm run build -w packages/scanners/typescript
+      - run: node scripts/assert-clean-tmpdir.mjs npm test -w packages/scanners/typescript
 
       - if: failure()
         uses: ./.github/actions/cancel-on-failure

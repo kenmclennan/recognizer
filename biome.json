@@ -2,13 +2,13 @@
   "$schema": "https://biomejs.dev/schemas/latest/schema.json",
   "files": {
     "includes": [
-      "check/**",
-      "scanners/typescript/**",
-      "describers/**",
-      "app/**",
+      "packages/cli/**",
+      "packages/scanners/typescript/**",
+      "packages/describers/**",
+      "packages/app/**",
       "scripts/**",
       "!**/dist",
-      "!check/templates",
+      "!packages/cli/templates",
       "!**/src/generated",
       "!**/node_modules",
       "!**/src-tauri/target"
@@ -28,7 +28,7 @@
   },
   "overrides": [
     {
-      "includes": ["app/src/style.css"],
+      "includes": ["packages/app/src/style.css"],
       "linter": {
         "rules": {
           "complexity": {

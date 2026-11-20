@@ -340,7 +340,7 @@ describe("buildPlugin on the describer", () => {
 describe("the grammar wheel", () => {
   const pyproject = readFileSync(
     fileURLToPath(
-      new URL("../scanners/csharp/pyproject.toml", import.meta.url),
+      new URL("../packages/scanners/csharp/pyproject.toml", import.meta.url),
     ),
     "utf8",
   );
@@ -353,7 +353,7 @@ describe("the grammar wheel", () => {
   });
 
   it("reads each grammar's pin from its own project's pyproject, the Kotlin scanner and the sensors alike", () => {
-    for (const project of ["scanners/kotlin", "sensors"]) {
+    for (const project of ["packages/scanners/kotlin", "packages/sensors"]) {
       const text = readFileSync(
         fileURLToPath(new URL(`../${project}/pyproject.toml`, import.meta.url)),
         "utf8",

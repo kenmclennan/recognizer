@@ -1,0 +1,171 @@
+import { beforeAll, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../../../scripts/pool-scale.mjs";
+import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
+
+const HARNESS = `
+window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
+import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
+import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
+${FAKE_WORKER}
+Element.prototype.setPointerCapture = () => {};
+Element.prototype.releasePointerCapture = () => {};
+
+const IDS = ["p/a.py", "p/b.py", "p/c.py", "p/d.py"];
+const edge = { from: "p/a.py", to: "p/b.py", kind: "depends", line: 1, names: ["f"] };
+const scan = { commit: "cur1234", modules: IDS.map((id) => ({ id, kind: "module" })), edges: [edge], foreign: [] };
+const loaded = loadedOf({ modules: IDS, scans: [{ file: "scan.json", scan }] });
+
+const NOTES = [
+  { module: "p/c.py", text: "First stop", by: "Ken" },
+  { module: "p/a.py", text: "Second stop", by: "Ken" },
+  { module: "p/b.py", text: "Third stop", by: "Ken" },
+];
+const make = (extra) => JSON.stringify({ schema_version: 4, description: "d", commit: "cur1234", ...extra, notes: NOTES, steps: IDS.map((module) => ({ kind: "pick", module })) }, null, 2) + "\\n";
+
+const tick = (ms = 40) => new Promise((resolve) => setTimeout(resolve, ms));
+const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+const press = (key) => document.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+
+async function mount(text) {
+  const host = document.createElement("div");
+  host.style.cssText = "width:1400px;height:800px;display:flex;flex-direction:column";
+  document.body.append(host);
+  const port = fakeViews({ order: text });
+  const lines = [];
+  const post = (input) => { if (input.action && input.action.label === "Undo") lines.push({ text: input.text, onUndo: input.action.run }); return lines.length; };
+  const withdraw = () => lines.push(null);
+  mountExplorer({ container: host, loaded, title: "demo", views: port, post, withdraw });
+  const q = (selector) => host.querySelector(selector);
+  const all = (selector) => [...host.querySelectorAll(selector)];
+  const m = { host, port, lines, q, all };
+  m.saved = () => JSON.parse(port.files.get("order"));
+  m.order = () => (m.saved().notes || []).map((n) => n.module);
+  m.rows = () => all(".note-row").map((n) => n.dataset.path);
+  m.numberCount = () => all(".note-row .note-number").length;
+  m.bubble = () => q(".note-layer:not([hidden]) .note-bubble:not(.idle)");
+  m.bubblePos = () => { const r = m.bubble().getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; };
+  m.marks = () => all("[data-note-mark]").map((n) => [n.dataset.noteMark, n.querySelectorAll("svg.i path").length, n.textContent.trim(), n.classList.contains("active")]);
+  m.open = async () => { click(q(".view-list")); click(all(".view-item")[0]); await tick(); };
+  m.notesPanel = async () => { click(q('[data-label="Notes"]') || all(".rail button").find((b) => b.getAttribute("data-label") === "Notes")); await tick(); };
+  m.drag = async (from, toRow, below) => {
+    const handle = all(".note-row")[from];
+    const target = all(".note-row")[toRow].getBoundingClientRect();
+    const start = handle.getBoundingClientRect();
+    const y = below ? target.bottom - 2 : target.top + 2;
+    const fire = (type, clientY) => handle.dispatchEvent(new PointerEvent(type, { pointerId: 1, bubbles: true, clientX: start.left + 30, clientY }));
+    fire("pointerdown", start.top + start.height / 2);
+    for (let i = 1; i <= 5; i += 1) { fire("pointermove", start.top + ((y - start.top) * i) / 5); await tick(10); }
+    return { fire, y };
+  };
+  await tick();
+  return m;
+}
+
+const facts = {};
+(async () => {
+
+  const m = await mount(make({}));
+  await m.open();
+  facts.landing = { text: m.bubble() && m.bubble().querySelector(".note-text").textContent, position: m.bubble() && m.bubble().querySelector(".note-position").textContent };
+  await m.notesPanel();
+  facts.panel = { rows: m.rows(), numbers: m.numberCount(), draggable: m.all(".note-row.draggable").length, handles: m.all(".note-handle").length, toggle: m.q(".notes-order-toggle") };
+  facts.marks = m.marks();
+
+  const drag = await m.drag(0, 2, true);
+  drag.fire("pointerup", drag.y);
+  await tick(80);
+  facts.dragged = { rows: m.rows(), file: m.order(), numbers: m.numberCount() };
+  m.lines.at(-1).onUndo();
+  await tick(80);
+  facts.undone = { rows: m.rows(), file: m.order() };
+
+  const cancel = await m.drag(0, 2, true);
+  press("Escape");
+  cancel.fire("pointerup", cancel.y);
+  await tick(80);
+  facts.escaped = { rows: m.rows(), file: m.order() };
+
+  const same = await m.drag(1, 1, false);
+  same.fire("pointerup", same.y);
+  await tick(80);
+  facts.sameSpot = m.order();
+
+  const w = await mount(make({}));
+  await w.open();
+  facts.step = { first: w.bubble().querySelector(".note-position").textContent, prevDisabled: w.bubble().querySelector(".note-previous").disabled };
+  const before = w.bubblePos();
+  click(w.bubble().querySelector(".note-next"));
+  let after = null;
+  for (let i = 0; i < 20; i += 1) { await tick(50); after = w.bubblePos(); }
+  facts.step.second = w.bubble().querySelector(".note-position").textContent;
+  facts.step.text = w.bubble().querySelector(".note-text").textContent;
+  facts.step.stayed = [before, after];
+  press("ArrowRight");
+  for (let i = 0; i < 20; i += 1) await tick(50);
+  facts.step.third = w.bubble().querySelector(".note-position").textContent;
+  facts.step.nextDisabled = w.bubble().querySelector(".note-next").disabled;
+  press("ArrowLeft");
+  for (let i = 0; i < 20; i += 1) await tick(50);
+  facts.step.back = w.bubble().querySelector(".note-position").textContent;
+  facts.step.marks = w.marks();
+
+  document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
+})().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack + " FACTS " + JSON.stringify(facts)); });
+`;
+
+type Facts = ReturnType<typeof JSON.parse>;
+
+describe.skipIf(webkit === undefined)("notes in order", () => {
+  let f = null as unknown as Facts;
+
+  beforeAll(async () => {
+    f = await collectFacts<Facts>(HARNESS, "notes-order");
+  }, scaledTimeout(240000));
+
+  it("lands on note 1 with its bubble open when a view with notes opens", () => {
+    expect(f.landing).toEqual({ text: "First stop", position: "1 of 3" });
+  });
+
+  it("lists the panel rows in list order with no numbers, each draggable as a whole with no handle strip and no order toggle", () => {
+    expect(f.panel.rows).toEqual(["p/c.py", "p/a.py", "p/b.py"]);
+    expect(f.panel.numbers).toBe(0);
+    expect(f.panel.draggable).toBe(3);
+    expect(f.panel.handles).toBe(0);
+    expect(f.panel.toggle).toBeNull();
+  });
+
+  it("draws one plain sticky-note icon per box, the open one highlighted", () => {
+    expect(f.marks).toEqual([
+      ["p/a.py", 2, "", false],
+      ["p/b.py", 2, "", false],
+      ["p/c.py", 2, "", true],
+    ]);
+  });
+
+  it("reorders by a real pointer drag and writes the file", () => {
+    expect(f.dragged.rows).toEqual(["p/a.py", "p/b.py", "p/c.py"]);
+    expect(f.dragged.file).toEqual(["p/a.py", "p/b.py", "p/c.py"]);
+    expect(f.dragged.numbers).toBe(0);
+  });
+
+  it("cancels on Escape and does nothing when dropped on its own place", () => {
+    expect(f.escaped.file).toEqual(f.undone.file);
+    expect(f.sameSpot).toEqual(f.undone.file);
+  });
+
+  it("(non-gating) restores the order from the footer Undo", () => {
+    expect(f.undone.file).toEqual(["p/c.py", "p/a.py", "p/b.py"]);
+    expect(f.undone.rows).toEqual(["p/c.py", "p/a.py", "p/b.py"]);
+  });
+
+  it("steps with Next and the arrows, keeps the bubble where it was and disables the ends", () => {
+    expect(f.step.first).toBe("1 of 3");
+    expect(f.step.prevDisabled).toBe(true);
+    expect(f.step.second).toBe("2 of 3");
+    expect(f.step.text).toBe("Second stop");
+    expect(f.step.stayed[1]).toEqual(f.step.stayed[0]);
+    expect(f.step.third).toBe("3 of 3");
+    expect(f.step.nextDisabled).toBe(true);
+    expect(f.step.back).toBe("2 of 3");
+  });
+});

@@ -27,8 +27,8 @@ const PYTHON_INTERPRETER = "/opt/homebrew/opt/python@3.13/bin/python3.13";
 const RUST_TARGET = "aarch64-apple-darwin";
 
 export const GRAMMARS = [
-  { package: "tree-sitter-kotlin", project: "scanners/kotlin" },
-  { package: "tree-sitter-c-sharp", project: "scanners/csharp" },
+  { package: "tree-sitter-kotlin", project: "packages/scanners/kotlin" },
+  { package: "tree-sitter-c-sharp", project: "packages/scanners/csharp" },
 ];
 
 const KOTLIN = GRAMMARS[0];
