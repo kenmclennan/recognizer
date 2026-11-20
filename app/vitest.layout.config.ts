@@ -5,8 +5,8 @@ export default defineConfig({
   test: poolTestOptions({
     environment: "node",
     include: [
-      "src/layout-worker-build.test.ts",
-      "src/lightcycle-shaped-graph.test.ts",
+      "test/unit/layout-worker-build.test.ts",
+      "test/unit/lightcycle-shaped-graph.test.ts",
     ],
     setupFiles: ["../scripts/vitest-remove-temp-dirs.mjs"],
   }),
