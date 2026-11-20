@@ -14,3 +14,5 @@ __pycache__/
 .ruff_cache/
 packages/cli/src/generated/
 packages/cli/.vitest/
+.vscode/
+.recognizer/views/
