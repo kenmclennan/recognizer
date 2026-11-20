@@ -1,4 +1,4 @@
-export const TOOLCHAIN_WORKSPACES = ["check"];
+export const TOOLCHAIN_WORKSPACES = ["packages/cli", "packages/core"];
 
 function resolve(packages, fromPath, name) {
   let base = fromPath;

@@ -46,7 +46,10 @@ describe("closureFromLock", () => {
     );
 
     expect([
-      ...closureFromLock(real, ["check", "packages/scanners/typescript"]),
+      ...closureFromLock(real, [
+        "packages/cli",
+        "packages/scanners/typescript",
+      ]),
     ]).toEqual([
       ["node_modules/ajv", "8.20.0"],
       ["node_modules/fast-deep-equal", "3.1.3"],
