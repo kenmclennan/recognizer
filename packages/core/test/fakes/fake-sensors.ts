@@ -1,19 +1,15 @@
 import type {
-  ConfigDocument,
-  EarlyGapsInput,
+  CommitGapsInput,
   Gap,
-  ParserSet,
   PlannedSensor,
-  PolicyDocument,
+  ProgramGapsInput,
   RunEntry,
-  ScanDocument,
   SenseCall,
   SensorPlan,
   SensorPlanInput,
   SensorSelection,
   SensorSelectionInput,
   Sensors,
-  StructurePlan,
 } from "../../src/index.js";
 
 export interface InventedSensor {
@@ -76,7 +72,11 @@ export class FakeSensors implements Sensors {
     return { selected, chosen };
   }
 
-  earlyGaps(input: EarlyGapsInput): Gap[] {
+  commitGaps(_input: CommitGapsInput): Gap[] {
+    return [];
+  }
+
+  programGaps(input: ProgramGapsInput): Gap[] {
     return input.sensors.flatMap(({ name }) =>
       (this.installed.get(name)?.needs ?? []).map((need) => ({
         id: need,
@@ -85,7 +85,7 @@ export class FakeSensors implements Sensors {
         fix: {
           text: `install ${need}`,
           command: null,
-          cwd: input.root,
+          cwd: "",
           env: {},
           kind: "outside" as const,
         },
@@ -95,27 +95,6 @@ export class FakeSensors implements Sensors {
 
   readinessGaps(): Gap[] {
     return [];
-  }
-
-  structurePlan(_config: ConfigDocument | null): StructurePlan | "off" {
-    return "off";
-  }
-
-  structurePrepare(
-    _plan: StructurePlan,
-    _root: string,
-    _scans: ScanDocument[],
-    _policy: PolicyDocument,
-  ): { parserLanguages: string[] | null; label: string } {
-    return { parserLanguages: null, label: "structure" };
-  }
-
-  loadParsers(): Promise<ParserSet> {
-    return Promise.resolve({ parserSet: true });
-  }
-
-  structureRun(): { error: string | null } {
-    return { error: null };
   }
 
   async run(call: SenseCall): Promise<void> {

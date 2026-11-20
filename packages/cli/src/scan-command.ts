@@ -2,7 +2,7 @@ import type { Io } from "./cli.js";
 import type { ConfigRead } from "./config-parse.js";
 import { scanMain, scanSyncMain } from "./scan-main.js";
 
-export type { ExtractInput } from "./adapters/scanners-adapter.js";
+export type { ExtractInput } from "./adapters/plugins/scanners-adapter.js";
 export {
   cacheFile,
   dirtyPaths,
