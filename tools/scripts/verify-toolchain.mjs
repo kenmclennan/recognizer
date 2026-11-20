@@ -11,7 +11,12 @@ import { fileURLToPath } from "node:url";
 import { COMMAND_LINKS } from "./build-toolchain.mjs";
 import { closureFromLock, verifyVendored } from "./toolchain-closure.mjs";
 
-const OWN = new Set(["recognizer", ".bin", ".package-lock.json"]);
+const OWN = new Set([
+  "recognizer",
+  "@recognizer",
+  ".bin",
+  ".package-lock.json",
+]);
 
 function vendoredPaths(nodeModules, prefix = "node_modules") {
   const paths = [];
