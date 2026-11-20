@@ -180,7 +180,7 @@ Recognizer is a hexagonal application. `packages/core` holds the domain and the 
 - whether to describe, and whether to run structural analysis;
 - the cost above which describing asks for confirmation.
 
-It returns a running scan: a stream of typed events (phases, file progress, sensor progress, preflight gaps, the summary), a final outcome (finished, failed, refused because another scan holds the lock, stopped) and `stop()`. A query on the port reports whether a scan is running in a repository and what it is doing; core owns the lock.
+It returns a running scan: a stream of typed events (phases, file progress, sensor progress, preflight gaps, the summary), a final outcome (finished, failed, refused because another scan holds the lock or because preflight found gaps, stopped) and `stop()`. A query on the port reports whether a scan is running in a repository and what it is doing; core owns the lock.
 
 Driven ports:
 
@@ -194,6 +194,8 @@ Driven ports:
 | Confirm | asks the person running the scan to accept a describing cost |
 | Clock | supplies the time |
 | Process | runs plugin commands and reports their progress |
+
+Structural analysis has no driven port of its own: in phase 1 core reaches it through the Sensors port.
 
 #### Migration
 
