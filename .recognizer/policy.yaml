@@ -1,0 +1,13 @@
+ignore:
+  - fixtures/**
+forbid:
+  - from: [packages/core/**]
+    to: [packages/cli/**, packages/app/**]
+  - from: [packages/core/src/domain/**]
+    to: [packages/core/src/application/**]
+  - from: [packages/core/src/application/shared/**]
+    to: [packages/core/src/application/run/**, packages/core/src/application/scanning/**, packages/core/src/application/describing/**, packages/core/src/application/sensing/**, packages/core/src/application/analysis/**]
+  - from: [packages/cli/**]
+    to: [packages/app/**]
+  - from: [packages/app/**]
+    to: [packages/cli/**]
