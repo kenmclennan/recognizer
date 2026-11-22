@@ -227,6 +227,15 @@ Use cases move into core one at a time, and both adapters keep working at every 
 5. Domain model: the entities Recognizer shows (repository, folder, file, dependency, finding, violation, policy rule) are defined in core, replace the opaque documents, and the CLI's and the app's own copies go. The names and boundaries are settled in design before this step is filed.
 6. The remaining use cases, one at a time: describe, setup, config and policy, changes and commits.
 
+The migration is done when all of these hold on main:
+
+- `recognizer check` reports no rule violations against the repository's own policy, including the rule that `packages/app` does not import `packages/cli`.
+- The policy states the layering: the CLI and the app import core only through its package root, and core imports neither.
+- The domain model (repository, folder, file, dependency, finding, violation, policy rule) is defined in core, and the CLI and the app keep no copies of their own.
+- Scan, describe, setup, config and policy, and changes and commits each run through core's ports, with acceptance scenarios driving them through fakes.
+- The app reaches core as a service and holds no planning, scan or git logic.
+- `packages/core` names no scanner, sensor or describer.
+
 ### Repository layout
 
 One repository with a directory per part, so every scanner is tested against the same schema and fixtures in one CI run:
