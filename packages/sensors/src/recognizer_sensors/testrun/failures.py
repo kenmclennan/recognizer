@@ -3,6 +3,9 @@ import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 
 from recognizer_sensors.settings import MAX_FAILING_NAMES, Refusal, diagnose
+from recognizer_sensors.testrun.reports import REASON_LIMIT, last_meaningful_line
+
+SHELL_NOISE = re.compile(r"can't access tty|job control turned off|no job control in this shell")
 
 KOTLIN_RESULTS_GLOB = "**/build/test-results/test/TEST-*.xml"
 
@@ -115,11 +118,35 @@ def crap_tests_failed(names: list[str], suite: str | None = None) -> dict:
     return diagnose("tests-failed", line, failing=failing_object(names), suite=suite)
 
 
-def mutation_tests_failed(names: list[str], suite: str | None = None) -> dict:
-    line = "the test suite fails before any mutation"
+CARRY_TAIL_LINES = 20
+
+MISSING_PATH_SIGNATURES = re.compile(
+    r"no such file or directory|ModuleNotFoundError|cannot find module|command not found"
+    r"|[\w./-]+: not found",
+    re.IGNORECASE,
+)
+
+
+def carry_could_help(output: str) -> bool:
+    tail = "\n".join(output.splitlines()[-CARRY_TAIL_LINES:])
+
+    if "bad interpreter" in tail.lower():
+        return False
+
+    return MISSING_PATH_SIGNATURES.search(tail) is not None
+
+
+def mutation_tests_failed(suite: str, names: list[str], output: str = "") -> dict:
+    line = f"the {suite} suite fails before any mutation"
 
     if names:
         line = f"{line}: {named(names)}"
+    else:
+        quiet = "\n".join(row for row in output.splitlines() if not SHELL_NOISE.search(row))
+        error = last_meaningful_line(quiet)
+
+        if error:
+            line = f"{line}: {error[:REASON_LIMIT]}"
 
     return diagnose("tests-failed", line, failing=failing_object(names), suite=suite)
 

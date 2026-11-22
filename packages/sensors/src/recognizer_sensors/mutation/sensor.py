@@ -77,7 +77,12 @@ from recognizer_sensors.settings import (
     diagnose,
     relative_path,
 )
-from recognizer_sensors.testrun.failures import log_names, mutation_tests_failed, not_installed
+from recognizer_sensors.testrun.failures import (
+    carry_could_help,
+    log_names,
+    mutation_tests_failed,
+    not_installed,
+)
 from recognizer_sensors.testrun.records import (
     composed_tests,
     merged_entries,
@@ -457,12 +462,13 @@ def run_baseline(
             stream.write(f"== baseline {command_text(command)}\n{output_tail(result.output)}\n")
             stream.write(f"== omitted from the copy: {', '.join(omitted) or 'none'}\n")
 
-    print(CARRY_HINT, file=sys.stderr)
+    if carry_could_help(result.output):
+        print(CARRY_HINT, file=sys.stderr)
 
     if result.exit_code is None:
         raise not_installed(command.split()[0] if isinstance(command, str) else command[0])
 
-    raise Refusal(mutation_tests_failed(log_names(None, result.output)))
+    raise Refusal(mutation_tests_failed(suite.name, log_names(None, result.output), result.output))
 
 
 def command_text(command: list[str] | str) -> str:

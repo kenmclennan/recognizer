@@ -284,10 +284,11 @@ def test_a_failing_or_unstartable_baseline_is_exit_two_and_writes_nothing(
     settings = suite_settings(command)
 
     assert run_mutate(root, output, settings) == 2
-    assert capsys.readouterr().err.strip().splitlines()[-1] in {
-        "the test suite fails before any mutation",
-        "/no/such/program is not installed",
-    }
+    last = capsys.readouterr().err.strip().splitlines()[-1]
+
+    assert last.startswith("the sample suite fails before any mutation") or last == (
+        "/no/such/program is not installed"
+    )
     assert not output.exists()
     assert not (root / SURVIVORS).exists()
     assert not (root / ".recognizer" / "cache" / "mutation" / "work").exists()
@@ -309,7 +310,7 @@ def test_a_failing_baseline_names_the_failing_tests_in_both_stderr_lines(tmp_pat
 
     assert diagnosis["event"] == "diagnosis"
     assert diagnosis["code"] == "tests-failed"
-    assert plain == ["the test suite fails before any mutation: tests/test_a.py::test_x"]
+    assert plain == ["the sample suite fails before any mutation: tests/test_a.py::test_x"]
     assert diagnosis["text"] == plain[0]
     assert not any(line.startswith("recognizer-reason ") for line in lines)
 
@@ -321,7 +322,9 @@ def test_the_baseline_failure_is_one_sentence_and_the_tail_goes_to_the_log(tmp_p
     settings = suite_settings(["python3", "-c", script])
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
-    assert capsys.readouterr().err.splitlines()[-1] == "the test suite fails before any mutation"
+    assert (
+        capsys.readouterr().err.splitlines()[-1] == "the sample suite fails before any mutation: 39"
+    )
 
     log = (root / ".recognizer" / "cache" / "mutation" / "baseline.log").read_text()
 
@@ -2471,3 +2474,39 @@ def test_crap_answers_check_without_a_work_key(tmp_path, capsys):
 
     assert code == 0
     assert "work" not in json.loads(capsys.readouterr().out)
+
+
+@pytest.mark.usefixtures("unprimed")
+def test_a_failing_suite_names_itself_and_its_error_line(tmp_path, capsys):
+    root, _ = mutate_repository(tmp_path)
+    failing = tmp_path / "f.py"
+    failing.write_text(
+        "import sys; print('/v/bin/pytest: bad interpreter: No such file or directory'); sys.exit(1)"
+    )
+    settings = json.dumps({"tests": [python_suite(str(failing))]})
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
+    assert capsys.readouterr().err.splitlines()[-1] == (
+        "the sample suite fails before any mutation: "
+        "/v/bin/pytest: bad interpreter: No such file or directory"
+    )
+
+
+@pytest.mark.usefixtures("unprimed")
+@pytest.mark.parametrize(
+    ("printed", "hinted"),
+    [
+        ("/v/bin/pytest: bad interpreter: No such file or directory", False),
+        ("ModuleNotFoundError: No module named 'x'", True),
+        ("FAILED tests/test_a.py::test_x", False),
+    ],
+)
+def test_the_carry_hint_follows_the_error(tmp_path, capsys, printed, hinted):
+    root, _ = mutate_repository(tmp_path)
+    failing = tmp_path / "f.py"
+    failing.write_text(f"import sys; print({printed!r}); sys.exit(1)")
+    settings = json.dumps({"tests": [python_suite(str(failing))]})
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
+
+    assert (CARRY_HINT in capsys.readouterr().err.splitlines()) is hinted

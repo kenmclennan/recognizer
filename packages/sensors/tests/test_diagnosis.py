@@ -18,6 +18,7 @@ from recognizer_sensors.cli import main
 from recognizer_sensors.mutation.warmup import CARRY_HINT
 from recognizer_sensors.settings import MeasurementError, Refusal, diagnose
 from recognizer_sensors.testrun.failures import (
+    carry_could_help,
     crap_tests_failed,
     csharp_names,
     kotlin_names,
@@ -50,9 +51,30 @@ def test_failing_names_are_capped_at_five_and_counted_in_full():
 
     assert crap_tests_failed(names)["failing"] == {"count": 7, "names": names[:5]}
     assert crap_tests_failed(names)["line"] == "7 tests failed, so coverage may read low"
-    assert mutation_tests_failed(names)["line"] == (
-        "the test suite fails before any mutation: t0 and 6 more"
+    assert mutation_tests_failed("api", names)["line"] == (
+        "the api suite fails before any mutation: t0 and 6 more"
     )
+
+
+@pytest.mark.parametrize(
+    ("output", "expected"),
+    [
+        ("ModuleNotFoundError: No module named 'x'", True),
+        ("sh: 1: foo: command not found", True),
+        ("zsh: foo: not found", True),
+        ("Error: Cannot find module 'left-pad'", True),
+        ("/venv/bin/pytest: bad interpreter: /old/python: no such file or directory", False),
+        ("FAILED tests/test_a.py::t - assert 1 == 2", False),
+        ("", False),
+        (
+            "bad interpreter: /old/python: no such file or directory\n"
+            "ModuleNotFoundError: No module named 'x'",
+            False,
+        ),
+    ],
+)
+def test_carry_could_help(output, expected):
+    assert carry_could_help(output) is expected
 
 
 def test_a_log_with_nothing_parseable_has_no_failing_field():
@@ -60,7 +82,7 @@ def test_a_log_with_nothing_parseable_has_no_failing_field():
 
     assert "failing" not in diagnosis
     assert diagnosis["line"] == "the tests failed, so coverage may read low"
-    assert mutation_tests_failed([])["line"] == "the test suite fails before any mutation"
+    assert mutation_tests_failed("api", [])["line"] == "the api suite fails before any mutation"
 
 
 def test_the_kotlin_reader_lists_failed_cases(tmp_path):
@@ -156,6 +178,15 @@ def test_mutation_over_a_red_suite_refuses_and_leaves_no_work_folder(tmp_path, c
     assert status == 2
     assert event_lines("\n".join(lines))[-1]["code"] == "tests-failed"
     assert not any(line.startswith("recognizer-reason ") for line in lines)
-    assert lines[-1] == "the test suite fails before any mutation: t/a.py::bad"
+    assert lines[-1] == "the sample suite fails before any mutation: t/a.py::bad"
     assert not output.exists()
     assert not (root / ".recognizer/cache/mutation/work").exists()
+
+
+def test_a_shell_tty_warning_is_not_the_error_line():
+    output = "/bin/sh: 0: can't access tty; job control turned off\n"
+
+    assert mutation_tests_failed("app", [], output)["line"] == (
+        "the app suite fails before any mutation"
+    )
+    assert mutation_tests_failed("app", [], "boom\n" + output)["line"].endswith(": boom")

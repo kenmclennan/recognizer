@@ -30,6 +30,7 @@ from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import MeasurementError, Refusal, diagnose
 from recognizer_sensors.testrun.contexts import PYTHON_DATA, ContextSelection, PythonContexts
 from recognizer_sensors.testrun.failures import (
+    carry_could_help,
     failing_names,
     mutation_tests_failed,
     not_installed,
@@ -738,14 +739,16 @@ def coverage_run(
             events.progress(position + 1, len(runnable), "suites", suite.name)
 
         if suite_failed(suite.language, exit_code, output):
-            print(CARRY_HINT, file=sys.stderr)
+            if carry_could_help(output):
+                print(CARRY_HINT, file=sys.stderr)
+
             names = (
                 []
                 if suite.language == "csharp"
                 else failing_names(copy, suite.language, output, directory_of(suite))
             )
 
-            raise Refusal(mutation_tests_failed(names, suite.name))
+            raise Refusal(mutation_tests_failed(suite.name, names, output))
 
         if seconds is not None:
             seconds[suite.name] = elapsed

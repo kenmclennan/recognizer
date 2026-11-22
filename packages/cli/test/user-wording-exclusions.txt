@@ -61,6 +61,7 @@ packages/sensors/src/recognizer_sensors/mutation/inline_tests.py| not found by m
 packages/sensors/src/recognizer_sensors/mutation/sensor.py|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/sensors/src/recognizer_sensors/mutation/sensor.py|modules|key, count unit or socket target named by a contract, not wording
 packages/sensors/src/recognizer_sensors/scans.py|modules|key, count unit or socket target named by a contract, not wording
+packages/sensors/src/recognizer_sensors/testrun/failures.py|no such file or directory|ModuleNotFoundError|cannot find module|command not found|[\w./-]+: not found|error signatures matched against a tool's output, not wording shown to a user
 packages/sensors/src/recognizer_sensors/testrun/guide.py|Kotlin, Gradle modules: one suite at the root. The path finds the report of every module:|Gradle modules, a build-tool construct
 packages/sensors/src/recognizer_sensors/testrun/guide.py|JaCoCo with its XML report must be applied to every module whose tests count; this guide|Gradle modules, a build-tool construct
 packages/sensors/src/recognizer_sensors/testrun/guide.py|does not do that for the reader. A module that cannot build fails the whole run and leaves|Gradle modules, a build-tool construct
