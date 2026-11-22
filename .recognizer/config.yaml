@@ -7,3 +7,89 @@ describer:
     - "{model}"
     - "{request}"
   version: "prompt-a78718fb99ab"
+sensors:
+  crap: {}
+  mutation: {}
+install:
+  recognizer-sense-crap: brew upgrade kenmclennan/tap/recognizer-sense-crap || brew install kenmclennan/tap/recognizer-sense-crap
+  recognizer-sense-mutation: brew upgrade kenmclennan/tap/recognizer-sense-mutation || brew install kenmclennan/tap/recognizer-sense-mutation
+tests:
+  - name: core
+    language: typescript
+    directory: packages/core
+    runner: vitest
+    command: npx vitest run --coverage.enabled --coverage.reporter=lcov --coverage.reportsDirectory=./.recognizer/cache/coverage/core
+    coverage:
+      path: .recognizer/cache/coverage/core/lcov.info
+      format: lcov
+  - name: cli
+    language: typescript
+    directory: packages/cli
+    runner: vitest
+    command: npx vitest run --config test/vitest.config.ts --coverage.enabled --coverage.reporter=lcov --coverage.reportsDirectory=./.recognizer/cache/coverage/cli
+    coverage:
+      path: .recognizer/cache/coverage/cli/lcov.info
+      format: lcov
+  - name: app
+    language: typescript
+    directory: packages/app
+    runner: vitest
+    command: npx vitest run --coverage.enabled --coverage.reporter=lcov --coverage.reportsDirectory=./.recognizer/cache/coverage/app
+    coverage:
+      path: .recognizer/cache/coverage/app/lcov.info
+      format: lcov
+  - name: describer-claude
+    language: typescript
+    directory: packages/describers/claude
+    runner: vitest
+    command: npx vitest run --config test/vitest.config.ts --coverage.enabled --coverage.reporter=lcov --coverage.reportsDirectory=./.recognizer/cache/coverage/describer-claude
+    coverage:
+      path: .recognizer/cache/coverage/describer-claude/lcov.info
+      format: lcov
+  - name: scanner-typescript
+    language: typescript
+    directory: packages/scanners/typescript
+    runner: vitest
+    command: npx vitest run --config test/vitest.config.ts --coverage.enabled --coverage.reporter=lcov --coverage.reportsDirectory=./.recognizer/cache/coverage/scanner-typescript
+    coverage:
+      path: .recognizer/cache/coverage/scanner-typescript/lcov.info
+      format: lcov
+  - name: sensors
+    language: python
+    directory: packages/sensors
+    command: pytest --cov=src --cov-report=lcov:./.recognizer/cache/coverage/sensors/lcov.info
+    coverage:
+      path: .recognizer/cache/coverage/sensors/lcov.info
+      format: lcov
+    activate: uv sync -q && source .venv/bin/activate
+  - name: scanner-python
+    language: python
+    directory: packages/scanners/python
+    command: pytest --cov=src --cov-report=lcov:./.recognizer/cache/coverage/scanner-python/lcov.info
+    coverage:
+      path: .recognizer/cache/coverage/scanner-python/lcov.info
+      format: lcov
+    activate: uv sync -q && source .venv/bin/activate && uv pip install -q pytest-cov
+  - name: scanner-kotlin
+    language: python
+    directory: packages/scanners/kotlin
+    command: pytest --cov=src --cov-report=lcov:./.recognizer/cache/coverage/scanner-kotlin/lcov.info
+    coverage:
+      path: .recognizer/cache/coverage/scanner-kotlin/lcov.info
+      format: lcov
+    activate: uv sync -q && source .venv/bin/activate && uv pip install -q pytest-cov
+  - name: scanner-csharp
+    language: python
+    directory: packages/scanners/csharp
+    command: pytest --cov=src --cov-report=lcov:./.recognizer/cache/coverage/scanner-csharp/lcov.info
+    coverage:
+      path: .recognizer/cache/coverage/scanner-csharp/lcov.info
+      format: lcov
+    activate: uv sync -q && source .venv/bin/activate && uv pip install -q pytest-cov
+  - name: scanner-rust
+    language: rust
+    directory: packages/scanners/rust
+    command: mkdir -p .recognizer/cache/coverage/scanner-rust && cargo llvm-cov --lcov --output-path .recognizer/cache/coverage/scanner-rust/lcov.info
+    coverage:
+      path: .recognizer/cache/coverage/scanner-rust/lcov.info
+      format: lcov

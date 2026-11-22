@@ -275,10 +275,10 @@ describe.skipIf(!HAS_UV)(
 );
 
 describe("this repository's own registration", () => {
-  it("registers a describer and no sensors, so --sense all is exit 2", async () => {
-    const captured = capture();
+  it("registers a describer and the crap and mutation sensors", () => {
+    const config = readFileSync(join(REPO, ".recognizer/config.yaml"), "utf8");
 
-    expect(await run(["scan", REPO, "--sense", "all"], captured.io)).toBe(2);
-    expect(captured.err()).toContain("no sensors are registered");
+    expect(config).toMatch(/^describer:/m);
+    expect(config).toMatch(/^sensors:\n {2}crap: \{\}\n {2}mutation: \{\}$/m);
   });
 });

@@ -9,7 +9,7 @@ __pycache__/
 .DS_Store
 .worktrees/
 .claude/worktrees/
-.recognizer/cache/
+**/.recognizer/cache/
 .pytest_cache/
 .ruff_cache/
 packages/cli/src/generated/

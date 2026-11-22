@@ -132,36 +132,33 @@ describe("recognizer setup survey", () => {
     ]);
   });
 
-  it("the survey of this repository lists its real runners", async () => {
+  it("the survey of this repository lists only the runners its config does not yet cover", async () => {
     const { survey, status } = await surveyOf([REPO]);
     const names = survey.runners.map(
       (runner) => `${runner.language}:${runner.directory}`,
     );
 
     expect(status).toBe(0);
-    expect(names).toEqual(
-      expect.arrayContaining([
-        "typescript:packages/cli",
-        "typescript:packages/app",
-        "typescript:packages/scanners/typescript",
-        "typescript:packages/describers/claude",
-        "rust:packages/app/src-tauri",
-      ]),
-    );
-    const commandOf = (directory: string) =>
-      survey.runners.find((runner) => runner.directory === directory)?.command;
+    expect(names).toContain("rust:packages/app/src-tauri");
 
-    for (const directory of [
+    for (const configured of [
+      "packages/core",
       "packages/cli",
+      "packages/app",
       "packages/describers/claude",
       "packages/scanners/typescript",
+      "packages/sensors",
+      "packages/scanners/python",
+      "packages/scanners/kotlin",
+      "packages/scanners/csharp",
+      "packages/scanners/rust",
     ]) {
-      const command = commandOf(directory) ?? "";
-
-      expect(command).toContain("--config test/vitest.config.ts --coverage");
+      expect(
+        survey.runners.map((runner) => runner.directory),
+        configured,
+      ).not.toContain(configured);
     }
 
-    expect(commandOf("packages/app")).not.toContain("--config");
     expect(validate(survey), JSON.stringify(validate.errors)).toBe(true);
   });
 
