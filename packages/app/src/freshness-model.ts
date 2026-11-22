@@ -1,21 +1,21 @@
-import { scanHashes } from "recognizer";
-import { ageText } from "./footer-scan";
-import type { IconName } from "./icons";
 import {
-  DESCRIBE_KEY,
+  describeGap,
   freshnessScope,
   gapOf,
-  type ResultsMode,
+  scanHashes,
+  sensorArmed,
   sensorFreshness,
   staleModules,
-} from "./scan-freshness";
+} from "recognizer";
+import { ageText } from "./footer-scan";
+import type { IconName } from "./icons";
+import { DESCRIBE_KEY, type ResultsMode } from "./scan-freshness";
 import {
   describerRegistered,
   type PanelInput,
   type RowSensor,
 } from "./scan-panel-model";
 import { scansCommit } from "./scans-commit";
-import { sensorArmed } from "./suite-ticks";
 
 export { DESCRIBE_KEY };
 
@@ -251,25 +251,6 @@ function inScopeOrder(modules: string[], ids: Set<string>): string[] {
   return modules.filter((id) => ids.has(id));
 }
 
-function describeGap(input: PanelInput, modules: string[]) {
-  const stale: string[] = [];
-  let described = 0;
-
-  for (const id of modules) {
-    const kind = input.lines.of(id).kind;
-
-    if (kind === "current" || kind === "out-of-date") {
-      described += 1;
-    }
-
-    if (kind === "out-of-date" || kind === "missing") {
-      stale.push(id);
-    }
-  }
-
-  return { stale, described };
-}
-
 function currentAt(key: string, input: PanelInput): number | null {
   const status = input.sensors.find((one) => one.name === key);
 
@@ -335,7 +316,10 @@ function describeState(
     return running;
   }
 
-  const { stale, described } = describeGap(input, modules);
+  const { stale, described } = describeGap(
+    (id) => input.lines.of(id).kind,
+    modules,
+  );
 
   gaps.set(DESCRIBE_KEY, stale);
 

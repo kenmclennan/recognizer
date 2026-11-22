@@ -2,7 +2,9 @@ import {
   type Diagnosis,
   idlePhases,
   nothingRanText,
+  onlyArmed,
   type ScanRunRecord,
+  tickedPhases,
 } from "recognizer";
 import type { ScanOrigin } from "./footer-scan";
 import { ANALYSIS_KEY } from "./freshness-model";
@@ -15,7 +17,6 @@ import {
   DESCRIBE_KEY,
   effectiveTicks,
   NO_RUN,
-  phasesFor,
   type RowSensor,
   type RunState,
   type ScanTicks,
@@ -32,7 +33,6 @@ import {
 } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
 import { foldRunLine, isActive, type RunInput } from "./scan-run-model";
-import { onlyArmed } from "./suite-ticks";
 
 export type Registered = {
   sensors: Pick<
@@ -791,7 +791,15 @@ export function createRescanner<Carried>(
       registered.sensors,
       registered.describerRegistered,
     );
-    const { plan: base } = phasesFor(effective, registered.sensors);
+    const phases = tickedPhases(effective, registered.sensors);
+    const base = {
+      describe: phases.describe,
+      describeAll: false,
+      analysis: effective.analysis,
+      sense: phases.sense,
+      modules: null,
+      suites: phases.suites,
+    };
     const plan = onlyArmed(
       planned?.plan ?? {
         ...base,

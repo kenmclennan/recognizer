@@ -9,6 +9,11 @@ import type {
 } from "../../../domain/run-record.js";
 import type { ScanEvent } from "../../../domain/scan-event.js";
 import type { ScanStatus } from "../../../domain/scan-outcome.js";
+import type {
+  Measured,
+  ResponsibilityKinds,
+  ScanFacts,
+} from "../../../domain/scan-plan.js";
 
 export interface HeldLock {
   append(event: ScanEvent): void;
@@ -58,4 +63,8 @@ export interface Store {
   ): RunLog;
   acquireLock(root: string, details: LockDetails): AcquiredLock;
   status(root: string): ScanStatus;
+  cachedScans(root: string): ScanFacts[];
+  measuredOf(root: string, sensor: string): Measured | null;
+  testsDigest(root: string): string | null;
+  responsibilityKinds(root: string): ResponsibilityKinds;
 }

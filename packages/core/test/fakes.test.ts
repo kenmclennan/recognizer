@@ -121,3 +121,40 @@ describe("fakes", () => {
     expect(fakes.store.files.has(cachePath("/repo", "alpha"))).toBe(true);
   });
 });
+
+describe("the fake store reads", () => {
+  it("the_fake_store_reads_what_it_was_given", () => {
+    const { store } = createFakes();
+    const python = {
+      modules: [{ id: "a.py" }],
+      files: [{ path: "a.py", hash: "ha" }],
+    };
+    const kotlin = {
+      modules: [{ id: "B.kt" }],
+      files: [{ path: "B.kt", hash: "hb" }],
+    };
+
+    store.files.set(cachePath("/repo", "python"), JSON.stringify(python));
+    store.files.set(cachePath("/repo", "kotlin"), JSON.stringify(kotlin));
+    store.measured.set("/repo::crap", { inputs: { "a.py": "ha" }, tests: "t" });
+    store.tests = "t";
+    store.kinds.set("/repo", {
+      registered: true,
+      kinds: { "a.py": "current", "B.kt": "missing" },
+    });
+
+    expect(store.cachedScans("/repo")).toEqual([python, kotlin]);
+    expect(store.cachedScans("/other")).toEqual([]);
+    expect(store.measuredOf("/repo", "crap")).toEqual({
+      inputs: { "a.py": "ha" },
+      tests: "t",
+    });
+    expect(store.measuredOf("/repo", "mutation")).toBeNull();
+    expect(store.testsDigest()).toBe("t");
+    expect(store.responsibilityKinds("/repo").kinds["B.kt"]).toBe("missing");
+    expect(store.responsibilityKinds("/other")).toEqual({
+      registered: false,
+      kinds: {},
+    });
+  });
+});

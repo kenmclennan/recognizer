@@ -1,5 +1,5 @@
 import type { Diagnosis, Scan, ScanRunRecord } from "recognizer";
-import { buildFreshness } from "recognizer";
+import { buildFreshness, tickedPhases } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { ScanState } from "../../src/footer-scan";
 import { NO_CHANGES } from "../../src/footer-scan";
@@ -11,9 +11,9 @@ import {
   functionCount,
   NO_RUN,
   type PanelInput,
-  phasesFor,
   type RunState,
   rowSensors,
+  type ScanTicks,
   scanPanel,
 } from "../../src/scan-panel-model";
 import { describeStopText, NO_PROGRESS } from "../../src/scan-progress";
@@ -864,6 +864,22 @@ describe("scanPanel ticks", () => {
     ).toEqual(["structure"]);
   });
 });
+
+function phasesFor(ticks: ScanTicks, rows: Parameters<typeof tickedPhases>[1]) {
+  const phases = tickedPhases(ticks, rows);
+
+  return {
+    plan: {
+      describe: phases.describe,
+      describeAll: false,
+      analysis: ticks.analysis,
+      sense: phases.sense,
+      modules: null,
+      suites: phases.suites,
+    },
+    dropped: phases.dropped,
+  };
+}
 
 describe("phasesFor", () => {
   const rows = [

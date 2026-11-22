@@ -3,6 +3,7 @@ import type { Gap } from "../../../domain/gap.js";
 import type { RunEntry } from "../../../domain/run-record.js";
 import type { ScanDocument } from "../../../domain/scan-document.js";
 import type { PluginProgress } from "../../../domain/scan-event.js";
+import type { SensorRow } from "../../../domain/scan-plan.js";
 import type { SensorRequest } from "../../../domain/scan-request.js";
 import type { PluginLimits, Say } from "../../shared/ports/process.js";
 
@@ -70,4 +71,5 @@ export interface Sensors {
     limits: PluginLimits,
   ): Gap[];
   run(call: SenseCall): Promise<void>;
+  registered(root: string): SensorRow[];
 }

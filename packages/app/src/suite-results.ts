@@ -1,6 +1,6 @@
 import { ageText } from "./footer-scan";
 import type { IconName } from "./icons";
-import type { SuiteRef } from "./suite-ticks";
+import type { SuiteRef } from "./scan-panel-model";
 
 export type SuiteResult = {
   name: string;
