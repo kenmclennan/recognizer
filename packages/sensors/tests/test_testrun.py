@@ -13,8 +13,9 @@ from recognizer_sensors.cli import main
 from recognizer_sensors.mutation.warmup import coverage_run
 from recognizer_sensors.scans import Scan, ScanModule, read_scans
 from recognizer_sensors.settings import Refusal
-from recognizer_sensors.testrun.reports import exit_reason
-from recognizer_sensors.testrun.suites import collect_suites, parse_suites
+from recognizer_sensors.testrun.readiness import shell_gap
+from recognizer_sensors.testrun.reports import exit_reason, last_meaningful_line
+from recognizer_sensors.testrun.suites import Suite, collect_suites, parse_suites
 
 LCOV = ".recognizer/cache/coverage/python.lcov"
 TS_LCOV = ".recognizer/cache/coverage/typescript/lcov.info"
@@ -247,6 +248,30 @@ def test_the_exit_sentence_keeps_the_summary_line_and_the_log_path():
     assert exit_reason("the test command", 2, "x" * 500 + "\n") == (
         f"the test command exited 2: {'x' * 200} (see {LOG})"
     )
+
+
+BAD_INTERPRETER = "bash: ./run: /no/such/python: bad interpreter: No such file or directory"
+
+TTY_WARNINGS = "bash: cannot set terminal process group (-1): Inappropriate ioctl for device\nbash: no job control in this shell\nsh: can't access tty; job control turned off\n"
+
+
+def test_a_login_shell_tty_warning_never_stands_in_for_the_suites_error():
+    output = BAD_INTERPRETER + "\n" + TTY_WARNINGS
+
+    assert last_meaningful_line(output) == BAD_INTERPRETER
+    assert last_meaningful_line(TTY_WARNINGS.splitlines()[1]) is None
+    assert exit_reason("the test command", 126, output) == (
+        f"the test command exited 126: {BAD_INTERPRETER} (see {LOG})"
+    )
+
+
+def test_the_readiness_activate_failure_skips_a_tty_warning_for_the_real_error():
+    suite = Suite("api", "python", ".", "pytest", ". venv/bin/activate", {}, "c", "lcov", None)
+
+    gap = shell_gap(suite, BAD_INTERPRETER + "\n" + TTY_WARNINGS, False)
+
+    assert BAD_INTERPRETER in gap["line"]
+    assert "tty" not in gap["line"]
 
 
 def test_a_refusal_or_a_missing_coverage_file_leaves_a_prior_overlay_untouched(tmp_path):

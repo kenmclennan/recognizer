@@ -5,8 +5,6 @@ from pathlib import Path
 from recognizer_sensors.settings import MAX_FAILING_NAMES, Refusal, diagnose
 from recognizer_sensors.testrun.reports import REASON_LIMIT, last_meaningful_line
 
-SHELL_NOISE = re.compile(r"can't access tty|job control turned off|no job control in this shell")
-
 KOTLIN_RESULTS_GLOB = "**/build/test-results/test/TEST-*.xml"
 
 COVERAGE_ROOT = ".recognizer/cache/coverage"
@@ -142,8 +140,7 @@ def mutation_tests_failed(suite: str, names: list[str], output: str = "") -> dic
     if names:
         line = f"{line}: {named(names)}"
     else:
-        quiet = "\n".join(row for row in output.splitlines() if not SHELL_NOISE.search(row))
-        error = last_meaningful_line(quiet)
+        error = last_meaningful_line(output)
 
         if error:
             line = f"{line}: {error[:REASON_LIMIT]}"

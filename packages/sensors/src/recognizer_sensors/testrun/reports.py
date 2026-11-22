@@ -18,6 +18,11 @@ NANOSECONDS = 1_000_000_000
 
 DECORATION = re.compile(r"^[=!\-\s]*$")
 
+SHELL_NOISE = re.compile(
+    r"can't access tty|cannot set terminal process group"
+    r"|job control turned off|no job control in this shell"
+)
+
 
 @dataclass(frozen=True)
 class Source:
@@ -29,7 +34,7 @@ class Source:
 
 def last_meaningful_line(text: str) -> str | None:
     for line in reversed(text.splitlines()):
-        if not DECORATION.match(line):
+        if not DECORATION.match(line) and not SHELL_NOISE.search(line):
             return " ".join(line.strip("=!- \t").split())
 
     return None
