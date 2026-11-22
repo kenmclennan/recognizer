@@ -344,7 +344,7 @@ export const inertScanHost: ScanHost = {
     describe: false,
     analysis: true,
     ticked: null,
-    once: [],
+    armed: [],
     onlyView: false,
     suites: {},
     folds: [],
@@ -1069,9 +1069,9 @@ export function showExplorer(
         return;
       }
 
-      const once = ticks.once.filter((one) => one !== key);
+      const armed = ticks.armed.filter((one) => one !== key);
 
-      scanHost.setTicks({ ...ticks, once: ticked ? [...once, key] : once });
+      scanHost.setTicks({ ...ticks, armed: ticked ? [...armed, key] : armed });
       render();
 
       return;

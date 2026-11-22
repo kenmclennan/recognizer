@@ -22,7 +22,7 @@ export type StoredTicks = {
   folds?: string[];
 };
 
-export type WrittenTicks = Omit<ScanTicks, "ticked" | "once"> & {
+export type WrittenTicks = Omit<ScanTicks, "ticked" | "armed"> & {
   ticked: string[];
 };
 

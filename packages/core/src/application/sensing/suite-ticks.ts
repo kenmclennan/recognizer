@@ -33,13 +33,13 @@ export function tickedSuites(
 }
 
 export function sensorTickState(
-  ticks: Pick<ScanTicks, "suites" | "once">,
+  ticks: Pick<ScanTicks, "suites" | "armed">,
   sensor: string,
   all: string[],
 ): TickState {
   const ticked = tickedSuites(ticks.suites, sensor, all);
 
-  if (!ticks.once.includes(sensor) || ticked.length === 0) {
+  if (!ticks.armed.includes(sensor) || ticked.length === 0) {
     return "off";
   }
 
@@ -65,7 +65,7 @@ export function afterSensorTick(
 ): ScanTicks {
   if (sensorTickState(ticks, sensor, all) !== "off") {
     return withSuites(
-      { ...ticks, once: ticks.once.filter((name) => name !== sensor) },
+      { ...ticks, armed: ticks.armed.filter((name) => name !== sensor) },
       sensor,
       [],
       all,
@@ -75,7 +75,7 @@ export function afterSensorTick(
   return withSuites(
     {
       ...ticks,
-      once: [...ticks.once.filter((name) => name !== sensor), sensor],
+      armed: [...ticks.armed.filter((name) => name !== sensor), sensor],
     },
     sensor,
     [...all],
@@ -90,17 +90,17 @@ export function afterSuiteTick(
   ticked: boolean,
   all: string[],
 ): ScanTicks {
-  const current = ticks.once.includes(sensor)
+  const current = ticks.armed.includes(sensor)
     ? tickedSuites(ticks.suites, sensor, all).filter((name) => name !== suite)
     : [];
   const next = ticked ? [...current, suite] : current;
   const order = all.filter((name) => next.includes(name));
   const written = withSuites(ticks, sensor, order, all);
-  const others = ticks.once.filter((name) => name !== sensor);
+  const others = ticks.armed.filter((name) => name !== sensor);
 
   return {
     ...written,
-    once: order.length === 0 ? others : [...others, sensor],
+    armed: order.length === 0 ? others : [...others, sensor],
   };
 }
 
@@ -109,11 +109,11 @@ export function afterPanelOpen(ticks: ScanTicks): ScanTicks {
 }
 
 export function visibleSuiteTicks(
-  ticks: Pick<ScanTicks, "suites" | "once">,
+  ticks: Pick<ScanTicks, "suites" | "armed">,
   sensor: string,
   all: string[],
 ): string[] {
-  return ticks.once.includes(sensor)
+  return ticks.armed.includes(sensor)
     ? tickedSuites(ticks.suites, sensor, all)
     : [];
 }
@@ -158,23 +158,23 @@ export function suitePlan(
 }
 
 export function sensorArmed(
-  ticks: Pick<ScanTicks, "suites" | "once">,
+  ticks: Pick<ScanTicks, "suites" | "armed">,
   sensor: { name: string; suites?: SuiteRef[] },
 ): boolean {
   const names = (sensor.suites ?? []).map(({ name }) => name);
 
   return names.length === 0
-    ? ticks.once.includes(sensor.name)
+    ? ticks.armed.includes(sensor.name)
     : sensorTickState(ticks, sensor.name, names) !== "off";
 }
 
 export function onlyArmed(
   plan: ScanIntent,
-  once: string[],
+  armed: string[],
   testing: string[],
 ): ScanIntent {
   const dropped = (name: string) =>
-    testing.includes(name) && !once.includes(name);
+    testing.includes(name) && !armed.includes(name);
   const suites = plan.suites;
 
   return {

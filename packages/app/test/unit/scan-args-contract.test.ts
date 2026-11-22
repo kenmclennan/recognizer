@@ -45,7 +45,7 @@ function ticksOf(overrides: Partial<ScanTicks>): ScanTicks {
     describe: false,
     analysis: true,
     ticked: [],
-    once: [],
+    armed: [],
     onlyView: false,
     suites: {},
     folds: [],
@@ -95,7 +95,7 @@ describe("the arguments the app hands the scan command", () => {
       MODEL,
       "rescan",
       ticksOf({
-        once: ["crap"],
+        armed: ["crap"],
         suites: { crap: { ticked: ["unit"], known: ["unit"] } },
       }),
       [

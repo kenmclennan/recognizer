@@ -947,7 +947,7 @@ describe("createRescanner", () => {
       await rescanner.loadTicks();
       rescanner.setTicks({
         ...rescanner.ticks(),
-        once: ["mut"],
+        armed: ["mut"],
         onlyView: false,
         suites: SUITE_TICKS,
         folds: ["mut"],
@@ -961,7 +961,7 @@ describe("createRescanner", () => {
 
       expect(scan.ran[0].sense).toContain("mut");
       expect(scan.written.at(-1)?.ticked).toContain("mut");
-      expect(rescanner.ticks().once).toEqual(["mut"]);
+      expect(rescanner.ticks().armed).toEqual(["mut"]);
       expect(rescanner.ticks().suites).toEqual(SUITE_TICKS);
       expect(rescanner.ticks().folds).toEqual(["mut"]);
       expect(scan.written.at(-1)?.suites).toEqual(SUITE_TICKS);
@@ -976,7 +976,7 @@ describe("createRescanner", () => {
     await rescanner.loadTicks();
     rescanner.setTicks({
       ...rescanner.ticks(),
-      once: [],
+      armed: [],
       suites: SUITE_TICKS,
     });
 
@@ -1013,7 +1013,7 @@ describe("createRescanner", () => {
     await rescanner.loadTicks();
     rescanner.setTicks({
       ...rescanner.ticks(),
-      once: ["mut"],
+      armed: ["mut"],
       suites: SUITE_TICKS,
     });
 
@@ -1060,7 +1060,7 @@ describe("createRescanner", () => {
       await rescanner.loadTicks();
       rescanner.setTicks({
         ...rescanner.ticks(),
-        once: ["mut"],
+        armed: ["mut"],
         onlyView: false,
         suites: SUITE_TICKS,
         folds: ["mut"],
@@ -1070,7 +1070,7 @@ describe("createRescanner", () => {
 
       await rescanner.run();
 
-      expect(rescanner.ticks().once).toEqual(["mut"]);
+      expect(rescanner.ticks().armed).toEqual(["mut"]);
       expect(rescanner.ticks().suites).toEqual(SUITE_TICKS);
       expect(rescanner.ticks().folds).toEqual(["mut"]);
     }
@@ -1106,7 +1106,7 @@ describe("createRescanner", () => {
     await rescanner.loadTicks();
     rescanner.setTicks({
       ...rescanner.ticks(),
-      once: ["crap"],
+      armed: ["crap"],
       suites,
       folds: ["crap", "mut"],
     });
@@ -1118,7 +1118,7 @@ describe("createRescanner", () => {
 
     expect(scan.ran[0]?.sense).toEqual(["crap"]);
     expect(scan.ran[0]?.suites).toEqual({ crap: ["unit", "web"] });
-    expect(rescanner.ticks().once).toEqual(["crap"]);
+    expect(rescanner.ticks().armed).toEqual(["crap"]);
     expect(rescanner.ticks().suites).toEqual(suites);
     expect(rescanner.ticks().folds).toEqual(["crap", "mut"]);
   });
@@ -1210,7 +1210,7 @@ describe("createRescanner", () => {
       describe: true,
       analysis: true,
       ticked: null,
-      once: [],
+      armed: [],
       onlyView: false,
       suites: {},
       folds: [],
@@ -1231,7 +1231,7 @@ describe("createRescanner", () => {
       describe: true,
       analysis: true,
       ticked: null,
-      once: [],
+      armed: [],
       onlyView: false,
       suites: {},
       folds: [],
@@ -1956,16 +1956,16 @@ describe("the preflight flow", () => {
     const { rescanner } = harness(scan);
 
     await rescanner.loadTicks();
-    rescanner.setTicks({ ...rescanner.ticks(), once: ["mut"] });
+    rescanner.setTicks({ ...rescanner.ticks(), armed: ["mut"] });
     await rescanner.run();
 
-    expect(rescanner.ticks().once).toEqual(["mut"]);
+    expect(rescanner.ticks().armed).toEqual(["mut"]);
 
     scan.result = { status: "finished", exitCode: 0 };
     await rescanner.run();
 
     expect(scan.ran[1]?.sense).toContain("mut");
-    expect(rescanner.ticks().once).toEqual(["mut"]);
+    expect(rescanner.ticks().armed).toEqual(["mut"]);
 
     await rescanner.run();
 
@@ -2001,10 +2001,10 @@ describe("the preflight flow", () => {
       });
 
       await rescanner.loadTicks();
-      rescanner.setTicks({ ...rescanner.ticks(), once: ticked });
+      rescanner.setTicks({ ...rescanner.ticks(), armed: ticked });
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      expect(rescanner.ticks().once).toEqual(ticked);
+      expect(rescanner.ticks().armed).toEqual(ticked);
 
       for (const name of ticked) {
         expect(scan.written.at(-1)?.ticked).toContain(name);
@@ -2012,7 +2012,7 @@ describe("the preflight flow", () => {
 
       await rescanner.run();
 
-      expect(rescanner.ticks().once).toEqual(ticked);
+      expect(rescanner.ticks().armed).toEqual(ticked);
       expect(
         (scan.written.at(-1)?.ticked ?? []).filter((name) =>
           ["crap", "mut"].includes(name),
@@ -2034,7 +2034,7 @@ describe("the preflight flow", () => {
     first.rescanner.setTicks({
       ...first.rescanner.ticks(),
       ticked: ["alpha"],
-      once: ["crap"],
+      armed: ["crap"],
     });
     await new Promise((resolve) => setTimeout(resolve, 10));
 
@@ -2043,7 +2043,7 @@ describe("the preflight flow", () => {
     await second.rescanner.loadTicks();
     await flush();
 
-    expect(second.rescanner.ticks().once).toEqual(["crap"]);
+    expect(second.rescanner.ticks().armed).toEqual(["crap"]);
     expect(second.rescanner.ticks().ticked).toEqual(["alpha"]);
   });
 
@@ -2069,7 +2069,7 @@ describe("the preflight flow", () => {
     await flush();
 
     expect(rescanner.ticks().ticked).toEqual(["alpha", "ghost"]);
-    expect(rescanner.ticks().once).toEqual(["crap"]);
+    expect(rescanner.ticks().armed).toEqual(["crap"]);
   });
 
   it("applies the fresh sensor results before the finished state shows", async () => {

@@ -6,7 +6,7 @@ export type ScanTicks = {
   describe: boolean;
   analysis: boolean;
   ticked: string[] | null;
-  once: string[];
+  armed: string[];
   onlyView: boolean;
   suites: Record<string, SuiteTickEntry>;
   folds: string[];

@@ -68,7 +68,7 @@ function ticks(over: Partial<ScanTicks> = {}): ScanTicks {
     describe: false,
     analysis: true,
     ticked: [],
-    once: [],
+    armed: [],
     onlyView: false,
     suites: {},
     folds: [],
@@ -113,7 +113,7 @@ describe("suite ticks", () => {
 
     expect(visibleSuiteTicks(stale, "crap", ALL)).toEqual([]);
     expect(
-      visibleSuiteTicks({ ...stale, once: ["crap"] }, "crap", ALL),
+      visibleSuiteTicks({ ...stale, armed: ["crap"] }, "crap", ALL),
     ).toEqual(ALL);
 
     const model = panel({ ticks: stale });
@@ -128,14 +128,14 @@ describe("suite ticks", () => {
 
   it("reads the sensor as some while only part of its suites are ticked", () => {
     const next = afterSuiteTick(
-      ticks({ once: ["crap"], suites: { crap: entry(ALL) } }),
+      ticks({ armed: ["crap"], suites: { crap: entry(ALL) } }),
       "crap",
       "unit",
       false,
       ALL,
     );
 
-    expect(next.once).toEqual(["crap"]);
+    expect(next.armed).toEqual(["crap"]);
     expect(sensorTickState(next, "crap", ALL)).toBe("some");
     expect(row(panel({ ticks: next }), "crap")?.tick).toBe("some");
   });
@@ -281,7 +281,7 @@ describe("result rows from the findings suites array", () => {
     ...(suites === undefined ? {} : { suites }),
   });
   const armed = ticks({
-    once: ["crap"],
+    armed: ["crap"],
     suites: { crap: entry(["unit", "web"]) },
     folds: ["crap"],
   });
@@ -338,7 +338,7 @@ describe("result rows from the findings suites array", () => {
   it("reads the fold closed by default and the sensor row still ticked after a scan", () => {
     const after = panel({
       ticks: ticks({
-        once: ["crap"],
+        armed: ["crap"],
         suites: { crap: entry(ALL) },
         folds: [],
       }),
@@ -354,7 +354,7 @@ describe("result rows from the findings suites array", () => {
 
   it("names the running suite on the sensor row and the suite row", () => {
     const model = panel({
-      ticks: ticks({ once: ["mutation"], suites: { mutation: entry(ALL) } }),
+      ticks: ticks({ armed: ["mutation"], suites: { mutation: entry(ALL) } }),
       scanning: true,
       run: { ...NO_RUN, running: ["mutation"] },
       sensorProgress: {

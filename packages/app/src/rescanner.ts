@@ -89,7 +89,7 @@ const DEFAULT_TICKS: ScanTicks = {
   describe: false,
   analysis: true,
   ticked: [],
-  once: [],
+  armed: [],
   onlyView: false,
   suites: {},
   folds: [],
@@ -224,7 +224,7 @@ export function createRescanner<Carried>(
       analysis: ticks.analysis,
       ticked: [
         ...(ticks.ticked ?? plain).filter((name) => plain.includes(name)),
-        ...ticks.once.filter(
+        ...ticks.armed.filter(
           (name) =>
             !plain.includes(name) &&
             registered.sensors.some(
@@ -821,7 +821,7 @@ export function createRescanner<Carried>(
       ).intent;
     const plan = onlyArmed(
       { ...intent, ...(planned === undefined ? { describeAll: false } : {}) },
-      effective.once,
+      effective.armed,
       registered.sensors
         .filter(({ runsTests }) => runsTests)
         .map(({ name }) => name),
@@ -1008,7 +1008,7 @@ export function createRescanner<Carried>(
       describe: stored.describe,
       analysis: stored.analysis !== false,
       ticked: storedTicked ?? (stored.sensors ? null : []),
-      once: ticks.once,
+      armed: ticks.armed,
       onlyView: stored.onlyView === true,
       suites: stored.suites ?? {},
       folds: stored.folds ?? [],
@@ -1029,13 +1029,13 @@ export function createRescanner<Carried>(
           return;
         }
 
-        const armed = (name: string) =>
+        const isArmed = (name: string) =>
           registered.sensors.some((one) => one.name === name && one.runsTests);
 
         ticks = {
           ...loaded,
-          ticked: storedTicked.filter((name) => !armed(name)),
-          once: storedTicked.filter(armed),
+          ticked: storedTicked.filter((name) => !isArmed(name)),
+          armed: storedTicked.filter(isArmed),
         };
       })
       .catch(() => {});
