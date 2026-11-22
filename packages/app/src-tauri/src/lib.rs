@@ -7,6 +7,7 @@ use tauri::{
 pub mod changes;
 pub mod commits;
 pub mod config_write;
+pub mod core_client;
 pub mod editor;
 pub mod fs_safe;
 pub mod in_file_tests;
@@ -34,10 +35,10 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use changes::{Baseline, Changes, Origin, ScanOrigin};
+use core_client::{Baselines, CoreClient, Sink};
 use launch::{launch_for, Launch};
 use recent::{open_target, OpenTarget};
 use repository::ScanReport;
-use scan_run::{ScanRun, ScanRuns};
 use setup_run::SetupRuns;
 use socket::{Drives, Entry, Snapshots};
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -422,13 +423,12 @@ fn start_signal_listener(app: &AppHandle) {
 
     let listening = shutdown::listen(move || {
         let state = handle.state::<WindowState>();
-        let scans = handle.state::<ScanRuns>();
-        let attached = scan_run::attached_app_runs(&state.folders(), &scans);
+        let core = handle.state::<CoreClient>();
 
         shutdown::stop_for_signal(
-            &scans,
+            core.runs(),
             &handle.state::<SetupRuns>(),
-            &attached,
+            || core.shutdown(&state.folder_paths()),
             || state.confirm_quit(),
             || handle.exit(0),
         );
@@ -624,7 +624,7 @@ fn handle_window_event(window: &tauri::Window, event: &WindowEvent) {
         WindowEvent::CloseRequested { api, .. } => {
             if window
                 .app_handle()
-                .state::<ScanRuns>()
+                .state::<CoreClient>()
                 .in_progress(window.label())
             {
                 api.prevent_close();
@@ -638,7 +638,10 @@ fn handle_window_event(window: &tauri::Window, event: &WindowEvent) {
                 .state::<Snapshots>()
                 .closed(window.label());
             window.app_handle().state::<Drives>().closed(window.label());
-            window.app_handle().state::<ScanRuns>().stop(window.label());
+            window
+                .app_handle()
+                .state::<CoreClient>()
+                .window_closed(window.label());
             window
                 .app_handle()
                 .state::<SetupRuns>()
@@ -682,7 +685,7 @@ fn ask_to_close(window: &tauri::Window) {
                     app.state::<WindowState>().dialog_closed();
 
                     if stop {
-                        app.state::<ScanRuns>().stop(answered.label());
+                        app.state::<CoreClient>().stop_window(answered.label());
                         let _ = answered.destroy();
                     }
                 });
@@ -725,13 +728,12 @@ fn ask_to_quit(app: &AppHandle, count: usize) {
                     state.dialog_closed();
 
                     if stop {
-                        let scans = answered.state::<ScanRuns>();
-                        let attached = scan_run::attached_app_runs(&state.folders(), &scans);
+                        let core = answered.state::<CoreClient>();
 
                         shutdown::stop_for_signal(
-                            &scans,
+                            core.runs(),
                             &answered.state::<SetupRuns>(),
-                            &attached,
+                            || core.shutdown(&state.folder_paths()),
                             || state.confirm_quit(),
                             || answered.exit(0),
                         );
@@ -843,23 +845,6 @@ async fn shipped_sensors() -> Result<repository::ShippedSensors, String> {
 }
 
 #[tauri::command]
-async fn planned_work(
-    app: AppHandle,
-    window: WebviewWindow,
-    sensor: String,
-    modules: Option<Vec<String>>,
-    suites: Option<Vec<String>>,
-) -> Result<Option<repository::PlannedWork>, String> {
-    let folder = window_folder_path(&app, &window)?;
-
-    tauri::async_runtime::spawn_blocking(move || {
-        repository::planned_work(&folder, &sensor, modules.as_deref(), suites.as_deref())
-    })
-    .await
-    .map_err(|error| error.to_string())?
-}
-
-#[tauri::command]
 async fn read_config_keys() -> Result<config_write::ConfigKeys, String> {
     tauri::async_runtime::spawn_blocking(config_write::read_config_keys)
         .await
@@ -895,100 +880,53 @@ async fn shipped_describer(
 }
 
 #[tauri::command]
-#[allow(clippy::too_many_arguments)]
-async fn run_scan(
+async fn core_call(
     app: AppHandle,
     window: WebviewWindow,
-    describe: bool,
-    describe_all: bool,
-    sense: Vec<String>,
-    modules: Option<Vec<String>>,
-    suites: Option<std::collections::BTreeMap<String, Vec<String>>>,
-    analysis: Option<bool>,
-) -> Result<ScanRun, String> {
-    let folder = window_folder_path(&app, &window)?;
+    op: String,
+    args: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let folder = app.state::<WindowState>().folder_of(&window_label(&window));
     let label = window_label(&window);
+    let core = app.state::<CoreClient>().inner().clone();
 
-    if let Err(reason) = sensors::check_names(&sense) {
-        return Ok(ScanRun::Refused { reason });
-    }
+    tauri::async_runtime::spawn_blocking(move || core.call(&label, folder.as_deref(), &op, args))
+        .await
+        .map_err(|error| error.to_string())?
+}
 
-    if let Some(plan) = &suites {
-        if let Err(reason) = scan_run::check_suites(plan) {
-            return Ok(ScanRun::Refused { reason });
+struct WindowSink(AppHandle);
+
+impl Sink for WindowSink {
+    fn emit(&self, label: &str, item: &serde_json::Value) {
+        let mut stamped = item.clone();
+
+        if let Some(map) = stamped.as_object_mut() {
+            map.insert("window".to_string(), serde_json::json!(label));
         }
+
+        let _ = self.0.emit_to(label, core_client::SERVICE_EVENT, stamped);
+    }
+}
+
+struct WindowBaselines(AppHandle);
+
+impl Baselines for WindowBaselines {
+    fn take(&self, label: &str, repository: &str) {
+        let origin = changes::take_origin(Path::new(repository));
+
+        let _ = self
+            .0
+            .state::<ScanBaselines>()
+            .with(label, |window| window.pending = Some(origin));
     }
 
-    let confirm_above = if describe {
-        Some(
-            settings::read(&config_file(&app)?)?
-                .describing
-                .confirm_above_usd,
-        )
-    } else {
-        None
-    };
-
-    tauri::async_runtime::spawn_blocking(move || {
-        let runs = app.state::<ScanRuns>();
-
-        let result = scan_run::run_with_suites(
-            &runs,
-            &label,
-            &folder,
-            tool_runner::runner(),
-            repository::RECOGNIZER_COMMAND,
-            repository::Describe::from_flags(describe, describe_all),
-            &sense,
-            modules.as_deref(),
-            suites.as_ref(),
-            analysis.unwrap_or(true),
-            confirm_above,
-            || {
-                let origin = changes::take_origin(&folder);
-
-                let _ = app
-                    .state::<ScanBaselines>()
-                    .with(&label, |window| window.pending = Some(origin));
-            },
-        );
-
-        emit_run_emissions(&app, &label, runs.tick(&label, Some(&folder)));
-
-        Ok(result)
-    })
-    .await
-    .map_err(|error| error.to_string())?
-}
-
-fn emit_run_emissions(app: &AppHandle, label: &str, emissions: Vec<scan_run::RunEmission>) -> bool {
-    for emission in emissions {
-        let sent = match emission {
-            scan_run::RunEmission::Run(run) => app.emit_to(label, "scan-run", run),
-            scan_run::RunEmission::Line(line) => app.emit_to(label, "scan-run-line", line),
-        };
-
-        if sent.is_err() {
-            return false;
-        }
+    fn clear(&self, label: &str) {
+        let _ = self
+            .0
+            .state::<ScanBaselines>()
+            .with(label, |window| window.pending = None);
     }
-
-    true
-}
-
-#[tauri::command]
-fn answer_describe(app: AppHandle, window: WebviewWindow, describe: bool) -> Result<(), String> {
-    let folder = window_folder_path(&app, &window)?;
-
-    scan_run::answer_describe(&folder, describe)
-}
-
-#[tauri::command]
-fn stop_scan(app: AppHandle, window: WebviewWindow) {
-    let label = window_label(&window);
-    let folder = app.state::<WindowState>().folder_of(&label);
-
-    scan_run::stop_scan_for(&app.state::<ScanRuns>(), &label, folder.as_deref());
 }
 
 #[tauri::command]
@@ -1002,8 +940,10 @@ async fn setup_survey(
 
     tauri::async_runtime::spawn_blocking(move || {
         let runs = app.state::<SetupRuns>();
+        let core = app.state::<CoreClient>();
 
         setup_run::read_survey(
+            &core,
             tool_runner::runner(),
             &folder,
             extract,
@@ -1032,8 +972,10 @@ async fn setup_recommend(
 
     tauri::async_runtime::spawn_blocking(move || {
         let runs = app.state::<SetupRuns>();
+        let core = app.state::<CoreClient>();
 
         setup_run::run_recommend(
+            &core,
             &runs,
             &label,
             &folder,
@@ -1065,8 +1007,10 @@ fn run_setup_verb_for(
 
         tauri::async_runtime::spawn_blocking(move || {
             let runs = app.state::<SetupRuns>();
+            let core = app.state::<CoreClient>();
 
             setup_run::run_setup_verb(
+                &core,
                 &runs,
                 &label,
                 &folder,
@@ -1213,46 +1157,6 @@ fn adopt_scan(app: AppHandle, window: WebviewWindow) -> Result<ScanOrigin, Strin
 }
 
 #[tauri::command]
-fn watch_external_scan(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
-    let label = window_label(&window);
-
-    let first = WATCHING_EXTERNAL
-        .lock()
-        .map_err(|error| error.to_string())?
-        .get_or_insert_with(HashSet::new)
-        .insert(label.clone());
-
-    if !first {
-        return Ok(());
-    }
-
-    std::thread::spawn(move || {
-        loop {
-            std::thread::sleep(app.state::<ScanRuns>().interval(&label));
-
-            if app.get_webview_window(&label).is_none() {
-                break;
-            }
-
-            let folder = app.state::<WindowState>().folder_of(&label);
-            let emissions = app.state::<ScanRuns>().tick(&label, folder.as_deref());
-
-            if !emit_run_emissions(&app, &label, emissions) {
-                break;
-            }
-        }
-
-        if let Ok(mut watching) = WATCHING_EXTERNAL.lock() {
-            if let Some(set) = watching.as_mut() {
-                set.remove(&label);
-            }
-        }
-    });
-
-    Ok(())
-}
-
-#[tauri::command]
 fn watch_changes(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
     let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
@@ -1323,7 +1227,6 @@ fn window_folder_path(app: &AppHandle, window: &WebviewWindow) -> Result<PathBuf
 }
 
 static WATCHING: Mutex<Option<HashSet<String>>> = Mutex::new(None);
-static WATCHING_EXTERNAL: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 static WATCHING_CHANGES: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 static WATCHING_RESPONSIBILITIES: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 static WATCHING_SENSOR_INPUTS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
@@ -1447,15 +1350,6 @@ fn watch_responsibilities(app: AppHandle, window: WebviewWindow) -> Result<(), S
     });
 
     Ok(())
-}
-
-#[tauri::command]
-fn write_structure(
-    app: AppHandle,
-    window: WebviewWindow,
-    document: Option<String>,
-) -> Result<(), String> {
-    sensors::write_structure(&window_folder_path(&app, &window)?, document.as_deref())
 }
 
 #[tauri::command]
@@ -1841,7 +1735,11 @@ pub fn run() {
             app.manage(WindowState::default());
             app.manage(ScanBaselines::default());
             std::thread::spawn(views::sweep_stale_temp_dirs);
-            app.manage(ScanRuns::default());
+            app.manage(CoreClient::new(
+                core_client::runner_launcher(tool_runner::runner(), repository::RECOGNIZER_COMMAND),
+                Arc::new(WindowSink(handle.clone())),
+                Arc::new(WindowBaselines(handle.clone())),
+            ));
             app.manage(SetupRuns::default());
             app.manage(Snapshots::default());
             app.manage(Drives::default());
@@ -1874,6 +1772,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             adopt_scan,
+            core_call,
             answer_window_drive,
             change_range,
             choose_folder,
@@ -1893,7 +1792,6 @@ pub fn run() {
             record_recent_view,
             remove_findings,
             shipped_sensors,
-            planned_work,
             shipped_describer,
             remove_view,
             rename_view,
@@ -1901,7 +1799,6 @@ pub fn run() {
             read_recent_views,
             read_scan_cache,
             read_scan_ticks,
-            run_scan,
             range_members,
             list_history,
             list_branches,
@@ -1909,19 +1806,16 @@ pub fn run() {
             change_detail,
             read_pull_requests,
             scans_at,
-            stop_scan,
             setup_survey,
             setup_recommend,
             setup_apply,
             setup_try,
             stop_setup,
-            answer_describe,
             take_pending_view,
             unwatch_git,
             view_author,
             view_link,
             watch_changes,
-            watch_external_scan,
             watch_git,
             watch_responsibilities,
             watch_sensor_inputs,
@@ -1930,7 +1824,6 @@ pub fn run() {
             write_repository_config,
             write_scan_ticks,
             write_settings,
-            write_structure,
             write_view
         ])
         .build(context)
@@ -1946,13 +1839,8 @@ pub fn run() {
                 }
             }
             RunEvent::ExitRequested { code, api, .. } => {
-                let running = app.state::<ScanRuns>().in_progress_labels().len()
-                    + app.state::<SetupRuns>().running_count()
-                    + scan_run::attached_app_runs(
-                        &app.state::<WindowState>().folders(),
-                        &app.state::<ScanRuns>(),
-                    )
-                    .len();
+                let running = app.state::<CoreClient>().in_progress_labels().len()
+                    + app.state::<SetupRuns>().running_count();
 
                 if running > 0 && !app.state::<WindowState>().quit_confirmed() {
                     api.prevent_exit();

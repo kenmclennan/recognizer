@@ -5,7 +5,6 @@ import {
   NO_RUN,
   type PanelInput,
   type ScanTicks,
-  scanPanel,
   sensorTickState,
   visibleSuiteTicks,
 } from "../../src/scan-panel-model";
@@ -18,6 +17,7 @@ import {
   shortAge,
   suiteState,
 } from "../../src/suite-results";
+import { scanPanelSync as scanPanel } from "../fixtures";
 
 const MINUTE = 60000;
 const HOUR = 60 * MINUTE;

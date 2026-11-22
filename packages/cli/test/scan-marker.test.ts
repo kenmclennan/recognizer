@@ -1,14 +1,18 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { run, stopEverything } from "../src/cli.js";
+import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
+import { nodeIo, run, stopEverything } from "../src/cli.js";
 import {
   boundReason,
   markerPath,
   parseMarker,
   progressPath,
   REASON_LIMIT,
+  readRun,
   type ScanRunRecord,
+  startedNoLaterThan,
 } from "../src/scan-marker.js";
 import { REPO } from "./helpers.js";
 import {
@@ -583,5 +587,155 @@ describe("scan marker: examples", () => {
     expect(
       parseMarker(readFileSync(join(EXAMPLES, "invalid", file), "utf8")),
     ).toBeNull();
+  });
+});
+
+describe("the guarded readRun", () => {
+  function plantedRun(
+    changes: Partial<ScanRunRecord>,
+    withProgress = true,
+  ): { root: string; io: ReturnType<typeof nodeIo> } {
+    const root = makeTempDir("scan-marker-run-");
+    const cache = join(root, ".recognizer", "cache");
+
+    mkdirSync(cache, { recursive: true });
+    writeFileSync(
+      join(cache, "scan-running.json"),
+      markerFor({ repository: root, ...changes }),
+    );
+
+    if (withProgress) {
+      writeFileSync(join(cache, "scan-running.progress.jsonl"), "");
+    }
+
+    return { root, io: nodeIo() };
+  }
+
+  function deadPid(): number {
+    const child = spawnSync(process.execPath, ["-e", ""]);
+
+    return child.pid;
+  }
+
+  it("every valid example run parses and every invalid one is rejected", () => {
+    const valid = readdirSync(join(EXAMPLES, "valid"));
+    const invalid = readdirSync(join(EXAMPLES, "invalid"));
+
+    expect(valid).toHaveLength(9);
+    expect(invalid).toHaveLength(15);
+
+    const phases = valid
+      .map(
+        (file) =>
+          parseMarker(readFileSync(join(EXAMPLES, "valid", file), "utf8"))
+            ?.phase,
+      )
+      .sort();
+
+    expect(phases).toEqual([
+      "checking",
+      "failed",
+      "failed",
+      "failed",
+      "finished",
+      "finished",
+      "refused",
+      "running",
+      "stopped",
+    ]);
+    expect(
+      invalid.every(
+        (file) =>
+          parseMarker(readFileSync(join(EXAMPLES, "invalid", file), "utf8")) ===
+          null,
+      ),
+    ).toBe(true);
+  });
+
+  it("a failure code of any non empty string is accepted and an empty one rejected", () => {
+    const text = readdirSync(join(EXAMPLES, "valid"))
+      .map((file) => readFileSync(join(EXAMPLES, "valid", file), "utf8"))
+      .find((one) => one.includes("the test run timed out")) as string;
+
+    const withCode = (code: string) =>
+      text.replace('"code": null', `"code": ${code}`);
+
+    expect(parseMarker(withCode('"custom-code"'))?.failure?.code).toBe(
+      "custom-code",
+    );
+    expect(parseMarker(withCode('""'))).toBeNull();
+  });
+
+  it("a run whose process is dead reads stopped", () => {
+    const { root, io } = plantedRun({ pid: deadPid() });
+    const run = readRun(io, root) as ScanRunRecord;
+    const modified = io.modified?.(progressPath(root)) as number;
+
+    expect(run.phase).toBe("stopped");
+    expect(run.ended_at).toBe(
+      new Date(Math.floor(modified / 1000) * 1000).toISOString(),
+    );
+  });
+
+  it("a running record naming this process reads running", () => {
+    const { root, io } = plantedRun({
+      pid: process.pid,
+      started_at: new Date().toISOString(),
+    });
+
+    expect(readRun(io, root)?.phase).toBe("running");
+  });
+
+  it("a dead run with no progress file ends when it started", () => {
+    const { root, io } = plantedRun(
+      {
+        pid: deadPid(),
+        phase: "checking",
+        started_at: "2026-11-12T09:00:00.000Z",
+      },
+      false,
+    );
+
+    expect(readRun(io, root)?.ended_at).toBe("2026-11-12T09:00:00.000Z");
+  });
+
+  it("a process that started long after the run is a recycled pid", () => {
+    const recorded = "2026-11-12T09:00:00.000Z";
+
+    expect(startedNoLaterThan("Thu Nov 12 09:00:00 2026", recorded)).toBe(true);
+    expect(startedNoLaterThan("Thu Nov 12 08:00:00 2026", recorded)).toBe(true);
+    expect(startedNoLaterThan("Thu Nov 12 09:00:10 2026", recorded)).toBe(
+      false,
+    );
+    expect(startedNoLaterThan("Thu Nov 12 09:00:05 2026", recorded)).toBe(true);
+    expect(startedNoLaterThan("Thu Nov 12 09:00:06 2026", recorded)).toBe(
+      false,
+    );
+    expect(startedNoLaterThan("Thu Nov  5 09:00:06 2026", recorded)).toBe(true);
+    expect(startedNoLaterThan("Thu 12 Nov 09:00:05 2026", recorded)).toBe(true);
+    expect(startedNoLaterThan("Thu 12 Nov 09:00:06 2026", recorded)).toBe(
+      false,
+    );
+  });
+
+  it("a live pid that started after the record reads stopped", () => {
+    const { root, io } = plantedRun({
+      pid: process.pid,
+      started_at: "2020-01-01T00:00:00.000Z",
+    });
+
+    expect(readRun(io, root)?.phase).toBe("stopped");
+  });
+
+  it("a stopped app run reads stopped with an end time", () => {
+    const { root, io } = plantedRun({
+      pid: deadPid(),
+      started_by: "app",
+      started_at: new Date().toISOString(),
+    });
+    const run = readRun(io, root) as ScanRunRecord;
+
+    expect(run.phase).toBe("stopped");
+    expect(run.ended_at).not.toBeNull();
   });
 });

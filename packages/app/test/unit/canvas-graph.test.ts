@@ -7,7 +7,7 @@ import {
   type GraphInput,
   presenceOf,
 } from "../../src/canvas-graph";
-import { expectedScan } from "../../src/fixtures";
+import { expectedScan } from "../fixtures";
 
 function graphOf(scan: Scan, overrides: Partial<GraphInput> = {}) {
   const modules = scan.modules.map((module) => module.id);

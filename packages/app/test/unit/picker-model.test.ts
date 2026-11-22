@@ -1,13 +1,13 @@
 import type { Scan } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { buildCanvasGraph } from "../../src/canvas-graph";
-import { expectedScan } from "../../src/fixtures";
 import { compactFolders } from "../../src/folder-compaction";
 import {
   createPicker,
   LONG_LIST,
   type PickerSource,
 } from "../../src/picker-model";
+import { expectedScan } from "../fixtures";
 
 type EdgeSpec = {
   from: string;

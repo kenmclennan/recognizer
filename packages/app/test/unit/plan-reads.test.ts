@@ -3,10 +3,10 @@ import {
   type LoadedPlanData,
   latestPlanOnly,
   type PlanRequest,
-  planThrough,
   type ScanFacts,
   type ScanPlanView,
 } from "../../src/plan-reads";
+import { planThrough } from "../../src/scan-fake";
 
 const FILES = { "a.py": "ha", "b.py": "hb", "c.py": "hc" };
 

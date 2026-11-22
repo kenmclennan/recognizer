@@ -4,7 +4,6 @@ import {
   nothingRanText,
   onlyArmed,
   type ScanRunRecord,
-  tickedPhases,
 } from "recognizer";
 import type { ScanOrigin } from "./footer-scan";
 import { ANALYSIS_KEY } from "./freshness-model";
@@ -791,23 +790,19 @@ export function createRescanner<Carried>(
       registered.sensors,
       registered.describerRegistered,
     );
-    const phases = tickedPhases(effective, registered.sensors);
-    const base = {
-      describe: phases.describe,
-      describeAll: false,
-      analysis: effective.analysis,
-      sense: phases.sense,
-      modules: null,
-      suites: phases.suites,
-    };
+    const intent =
+      planned?.plan ??
+      (
+        await ports.port.plan({
+          repository: ".",
+          mode: "rescan",
+          ticks: effective,
+          scope: modules,
+          changed: [],
+        })
+      ).intent;
     const plan = onlyArmed(
-      planned?.plan ?? {
-        ...base,
-        modules:
-          modules !== null && (base.describe || base.sense.length > 0)
-            ? modules
-            : null,
-      },
+      { ...intent, ...(planned === undefined ? { describeAll: false } : {}) },
       effective.once,
       registered.sensors
         .filter(({ runsTests }) => runsTests)
@@ -966,6 +961,14 @@ export function createRescanner<Carried>(
 
     progress = { ...progress, done: true };
     publish();
+
+    if (!ports.hasExplorer()) {
+      await settle();
+      publish();
+
+      return;
+    }
+
     ports.settled();
   }
 

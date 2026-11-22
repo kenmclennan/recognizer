@@ -14,12 +14,12 @@ import {
   type RunState,
   rowSensors,
   type ScanTicks,
-  scanPanel,
 } from "../../src/scan-panel-model";
 import { describeStopText, NO_PROGRESS } from "../../src/scan-progress";
 import { whyOf } from "../../src/scan-why";
 import type { ShippedSensor, ShippedSensors } from "../../src/sensor-run";
 import { plainSensor, shippedSensors } from "../../src/shipped-fake";
+import { scanPanelSync as scanPanel } from "../fixtures";
 
 const CONFIG = `describer:
   command: [describer, "{request}"]

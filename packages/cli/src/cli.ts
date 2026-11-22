@@ -9,17 +9,23 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { type AwakeClock, systemAwakeClock } from "./awake-clock.js";
 import { ensureCacheIgnore } from "./cache-ignore.js";
 import { COMMANDS } from "./commands.js";
 import { errorText, InputError } from "./errors.js";
 import { commandHelp, shortHelp } from "./help.js";
-import { promotePending } from "./pending-checkpoints.js";
-import { releaseHeldMarkers } from "./scan-marker.js";
+import {
+  awakeClock,
+  liveScopes,
+  processScope,
+  STOP_GRACE_MS,
+  type StopScope,
+  wasStopped,
+} from "./stop-scope.js";
 
 const CEILING_EXIT = 124;
 
@@ -88,6 +94,8 @@ export interface RequestResult {
 }
 
 export interface Io {
+  scope?: StopScope;
+  modified?(path: string): number | null;
   exists(path: string): boolean;
   readFile(path: string): string;
   readStdin(): string;
@@ -137,101 +145,24 @@ const REQUEST_SCRIPT = [
   'connection.on("end", () => process.exit(1));',
 ].join("\n");
 
-let sharedClock: AwakeClock | undefined;
-
-function awakeClock(): AwakeClock {
-  sharedClock ??= systemAwakeClock();
-
-  return sharedClock;
-}
-
-const liveChildren = new Set<ChildProcess>();
-
-const stoppedChildren = new WeakSet<ChildProcess>();
-
-const liveTempDirs = new Set<string>();
-
-export const STOP_GRACE_MS = 10_000;
-
-const stopHooks = new Set<() => Promise<void>>();
+export { STOP_GRACE_MS };
 
 export function onStop(hook: () => Promise<void>): () => void {
-  stopHooks.add(hook);
-
-  return () => {
-    stopHooks.delete(hook);
-  };
-}
-
-async function runStopHooks(): Promise<void> {
-  await Promise.all([...stopHooks].map((hook) => hook()));
-}
-
-function exited(child: ChildProcess): Promise<void> {
-  return new Promise((resolve) => {
-    if (child.exitCode !== null || child.signalCode !== null) {
-      resolve();
-
-      return;
-    }
-
-    child.once("exit", () => resolve());
-  });
-}
-
-function finishStop(): void {
-  for (const directory of liveTempDirs) {
-    rmSync(directory, { recursive: true, force: true });
-  }
-
-  liveTempDirs.clear();
-  promotePending();
+  return processScope.onStop(hook);
 }
 
 export function stopEverything(
   exit?: number,
   graceMs: number = STOP_GRACE_MS,
 ): Promise<void> {
-  releaseHeldMarkers(exit);
-
-  const stopping = [...liveChildren];
-
-  if (stopping.length === 0) {
-    if (stopHooks.size === 0) {
-      finishStop();
-
-      return Promise.resolve();
-    }
-
-    return runStopHooks().then(finishStop);
-  }
-
-  for (const child of stopping) {
-    stoppedChildren.add(child);
-    child.kill("SIGTERM");
-  }
-
-  let cancel: (() => void) | undefined;
-
-  return Promise.race([
-    Promise.all(stopping.map(exited)),
-    new Promise<void>((resolve) => {
-      cancel = awakeClock().after(graceMs, resolve);
-    }),
-  ]).then(() => {
-    cancel?.();
-
-    for (const child of stopping) {
-      if (child.exitCode === null && child.signalCode === null) {
-        child.kill("SIGKILL");
-      }
-    }
-
-    return runStopHooks().then(finishStop);
-  });
+  return Promise.all([
+    processScope.stop(exit, graceMs),
+    ...[...liveScopes].map((scope) => scope.stop(exit, graceMs)),
+  ]).then(() => undefined);
 }
 
 function spawnAsync(
+  scope: StopScope,
   command: string,
   args: string[],
   options?: RunOptions,
@@ -247,7 +178,7 @@ function spawnAsync(
         ? {}
         : { env: { ...process.env, ...options.env } }),
     });
-    liveChildren.add(child);
+    scope.children.add(child);
 
     let stdout = "";
     let stderr = "";
@@ -280,7 +211,7 @@ function spawnAsync(
       settled = true;
       timer?.();
       grace?.();
-      liveChildren.delete(child);
+      scope.children.delete(child);
       resolve(value);
     };
 
@@ -313,7 +244,7 @@ function spawnAsync(
         stdout,
         stderr,
         ...(timedOut ? { timedOut } : {}),
-        ...(stoppedChildren.has(child) && !timedOut ? { stopped: true } : {}),
+        ...(wasStopped(child) && !timedOut ? { stopped: true } : {}),
       });
     });
 
@@ -381,8 +312,9 @@ function readStdinLine(signal?: AbortSignal): Promise<string | null> {
   });
 }
 
-export function nodeIo(): Io {
+export function nodeIo(scope: StopScope = processScope): Io {
   return {
+    scope,
     exists: (path) => existsSync(path),
     readFile: (path) => readFileSync(path, "utf8"),
     readStdin: () => readFileSync(0, "utf8"),
@@ -411,16 +343,23 @@ export function nodeIo(): Io {
             ? "file"
             : "other",
       })),
+    modified: (path) => {
+      try {
+        return statSync(path).mtimeMs;
+      } catch {
+        return null;
+      }
+    },
     remove: (path) => rmSync(path, { force: true }),
     makeTempDir: () => {
       const directory = mkdtempSync(join(tmpdir(), "recognizer-scan-"));
 
-      liveTempDirs.add(directory);
+      scope.tempDirs.add(directory);
 
       return directory;
     },
     removeDir: (path) => {
-      liveTempDirs.delete(path);
+      scope.tempDirs.delete(path);
       rmSync(path, { recursive: true, force: true });
     },
     run: (command, args, options) => {
@@ -460,7 +399,8 @@ export function nodeIo(): Io {
         ...(timedOut ? { timedOut } : {}),
       };
     },
-    runAsync: (command, args, options) => spawnAsync(command, args, options),
+    runAsync: (command, args, options) =>
+      spawnAsync(scope, command, args, options),
     launch: (command, args) => {
       try {
         const child = spawn(command, args, { detached: true, stdio: "ignore" });

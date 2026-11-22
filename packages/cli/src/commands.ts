@@ -20,6 +20,7 @@ import { runFind, runModules, runShow } from "./read-commands.js";
 import { runReport } from "./report-command.js";
 import { runScan } from "./scan-command.js";
 import { runSensors } from "./sensors-command.js";
+import { runServe } from "./serve-command.js";
 import { runSetup } from "./setup-command.js";
 import { runViews } from "./views-command.js";
 import { runWindow, runWindows } from "./window-commands.js";
@@ -242,6 +243,29 @@ export const COMMANDS: Command[] = [
       },
     ],
     run: runScan,
+  },
+  {
+    name: "serve",
+    summary:
+      "serve the scan operations to the app over standard input and output, one JSON request per line",
+    usage: "recognizer serve",
+    arguments: [],
+    options: [],
+    output: {
+      text: "one JSON line per reply or stream item on stdout, and nothing else; a request is { id, op, args } with op one of scan.start, scan.stop, scan.status, scan.watch, scan.unwatch, scan.plan, confirm.answer or sensor.work",
+      json: "the same lines: { id, ok } or { id, error } per request, and { stream, event | outcome | run | line } items",
+    },
+    exitCodes: [
+      { code: 0, meaning: "standard input closed and every scan was stopped" },
+      { code: 2, meaning: "bad input - an argument was given" },
+    ],
+    examples: [
+      {
+        command: "recognizer serve",
+        note: "start the service the app talks to; it is not meant to be run by hand",
+      },
+    ],
+    run: runServe,
   },
   {
     name: "open",

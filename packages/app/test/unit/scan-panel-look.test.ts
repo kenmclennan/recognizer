@@ -13,6 +13,7 @@ import { fakeScan } from ${JSON.stringify(here("scan-fake.ts"))};
 import REASONS from ${JSON.stringify(here("../../../fixtures/sensor-reasons/states.json"))};
 import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
 import { createRescanner } from ${JSON.stringify(here("rescanner.ts"))};
+import { scansCommit } from ${JSON.stringify(here("scans-commit.ts"))};
 import { withSensors } from ${JSON.stringify(here("sensor-run.ts"))};
 import { NO_CHANGES } from ${JSON.stringify(here("footer-scan.ts"))};
 import { describerRegistered, rowSensors } from ${JSON.stringify(here("scan-panel-model.ts"))};
@@ -43,10 +44,14 @@ const entry = (phase, name, reason) => json({ event: "entry", phase, name, outco
 const summary = json({ event: "summary" });
 const gate = () => { let release = () => {}; const promise = new Promise((resolve) => { release = resolve; }); return { promise, release }; };
 
+const structureFor = (loaded) => { const { commit, modified } = scansCommit(loaded.scans.map((s) => s.scan)); return commit === null ? null : JSON.stringify({ findings_version: 1, sensor: { name: "structure", version: "1" }, commit, modified, settings: { duplication: { threshold: 0.8, min_lines: 4, pair_min_lines: 6, min_nodes: 20 }, complexity_limit: 10 }, findings: [] }); };
+
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
-async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED), scanned = true, viewFiles = {}, files = FILES) {
+async function mount(fake, given = undefined, scanned = true, viewFiles = {}, files = FILES) {
+  const sensors = given ?? fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
+  const sensed = (loaded) => { const text = scanned ? structureFor(loaded) : null; if (text !== null) sensors.files.set("structure", text); return withSensors(loaded, sensors); };
   for (const old of document.querySelectorAll(".mount-root")) old.remove();
   const root = document.createElement("div");
   root.className = "mount-root";
@@ -87,8 +92,8 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
     port: fake,
     registered: async () => { const { config } = await sensors.readInputs(); return registeredOf(rowSensors(config, await sensors.shipped()), describerRegistered(config)); },
     load: () => base,
-    sense: (loaded) => withSensors(loaded, sensors),
-    resense: async () => withSensors(wired.current, sensors),
+    sense: (loaded) => sensed(loaded),
+    resense: async () => sensed(wired.current),
     adopt: async () => ORIGIN,
     carry: () => wired.explorer?.carry() ?? null,
     replace: (loaded, carried) => { wired.explorer?.dispose(); wired.explorer = build(loaded, carried); },
@@ -107,7 +112,7 @@ async function mount(fake, sensors = fakeSensors({}, { config: CONFIG }, {}, SHI
   await wired.rescanner.loadTicks();
   wired.current = base;
   if (scanned) setScan(withProgress({ origin: ORIGIN, scannedAt: Date.now(), changes: NO_CHANGES }));
-  wired.explorer = build(await withSensors(base, sensors), null);
+  wired.explorer = build(await sensed(base), null);
   await tick();
 
   const q = (selector) => root.querySelector(selector);

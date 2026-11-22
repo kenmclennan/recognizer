@@ -112,6 +112,7 @@ describe("scanning check/", () => {
       "node:fs",
       "node:os",
       "node:path",
+      "node:readline",
       "node:url",
       "node:util",
       "smol-toml",

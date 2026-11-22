@@ -2,13 +2,10 @@ import type { Scan } from "recognizer";
 import { buildFreshness } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { FreshnessModel, ResultState } from "../../src/freshness-model";
-import {
-  freshnessMessage,
-  markStale,
-  plannedRun,
-} from "../../src/scan-freshness";
+import { freshnessMessage, markStale } from "../../src/scan-freshness";
 import type { ScanTicks } from "../../src/scan-panel-model";
 import type { SensorStatus } from "../../src/sensor-run";
+import { plannedRun } from "../fixtures";
 
 function scanOf(files: Record<string, string>, withFunction: string[]) {
   return {

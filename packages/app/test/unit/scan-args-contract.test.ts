@@ -3,8 +3,9 @@ import { fileURLToPath } from "node:url";
 import { parseScanArgs, suitesForSense } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { FreshnessModel } from "../../src/freshness-model";
-import { OPEN_RUN, plannedRun } from "../../src/scan-freshness";
+import { OPEN_RUN } from "../../src/scan-freshness";
 import type { ScanPlan, ScanTicks } from "../../src/scan-panel-model";
+import { plannedRun } from "../fixtures";
 
 const FOLDER = "/work/repo";
 const SUITES_FILE = "/work/repo/.recognizer/cache/scan-suites-w-1.json";

@@ -18,9 +18,10 @@ import {
   type OverlayGroup,
   pruneTicks,
 } from "../../src/overlay-model";
-import { NO_RUN, type PanelInput, scanPanel } from "../../src/scan-panel-model";
+import { NO_RUN, type PanelInput } from "../../src/scan-panel-model";
 import type { SensorStatus, ShippedSensors } from "../../src/sensor-run";
 import { plainSensor, shippedSensors } from "../../src/shipped-fake";
+import { scanPanelSync as scanPanel } from "../fixtures";
 
 function buildOverlayModel(
   files: Parameters<typeof buildWithAnalysis>[0],
@@ -115,6 +116,7 @@ const panel = (sensors: PanelInput["sensors"]) =>
     shipped: shippedList,
     scans: [fileScan],
     freshness: buildFreshness([fileScan], TESTS),
+    tests: TESTS,
   });
 
 type Declared = {

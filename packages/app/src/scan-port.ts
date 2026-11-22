@@ -1,4 +1,4 @@
-import type { ScanRunRecord } from "recognizer";
+import type { PlanRequest, ScanPlanView, ScanRunRecord } from "recognizer";
 import type { ScanPlan, ScanTicks } from "./scan-panel-model";
 import type { ScanReport } from "./scan-report";
 
@@ -45,6 +45,7 @@ export type ScanPort = {
   writeTicks(ticks: WrittenTicks): Promise<void>;
   readDescribing(): Promise<DescribingSettings>;
   watchExternal(): Promise<void>;
+  plan(request: PlanRequest): Promise<ScanPlanView>;
   onRun(handler: (event: RunEvent) => void): () => void;
 };
 
@@ -75,5 +76,20 @@ export const inertScan: ScanPort = {
     confirmAboveUsd: 5,
   }),
   watchExternal: async () => {},
+  plan: async () => ({
+    intent: {
+      describe: false,
+      describeAll: false,
+      analysis: true,
+      sense: [],
+      modules: null,
+    },
+    dropped: [],
+    modules: 0,
+    idle: true,
+    work: {},
+    gaps: {},
+    never: [],
+  }),
   onRun: () => () => {},
 };

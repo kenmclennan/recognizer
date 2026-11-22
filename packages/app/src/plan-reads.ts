@@ -1,11 +1,10 @@
-import {
-  createPlanner,
-  type LineKind,
-  type Measured,
-  type PlanRequest,
-  type ScanFacts,
-  type ScanPlanView,
-  type SensorRow,
+import type {
+  LineKind,
+  Measured,
+  PlanRequest,
+  ScanFacts,
+  ScanPlanView,
+  SensorRow,
 } from "./scan-freshness";
 
 export type { PlanRequest, ScanFacts, ScanPlanView, SensorRow };
@@ -38,10 +37,6 @@ export function planReads(data: LoadedPlanData) {
     },
     sensors: { registered: () => data.sensors },
   };
-}
-
-export function planThrough(data: LoadedPlanData) {
-  return createPlanner(planReads(data));
 }
 
 export function latestPlanOnly(

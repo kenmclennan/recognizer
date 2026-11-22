@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { expectedModuleIds } from "../../src/fixtures";
 import { compactFolders } from "../../src/folder-compaction";
+import { expectedModuleIds } from "../fixtures";
 
 const kotlin = [
   "core/data/src/main/kotlin/com/example/A.kt",

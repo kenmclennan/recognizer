@@ -4,6 +4,7 @@ import type { Io } from "./cli.js";
 import validate from "./generated/scan-marker-validator.js";
 import type { Diagnosis } from "./plugin-events.js";
 import type { PhaseName } from "./run-log.js";
+import { processScope } from "./stop-scope.js";
 
 export const MARKER_FILE = "scan-running.json";
 export const PROGRESS_FILE = "scan-running.progress.jsonl";
@@ -83,9 +84,6 @@ export type Acquired =
   | { ok: false; marker: ScanRunRecord; path: string };
 
 const STOPPED_BY_SIGNAL = 143;
-
-const held = new Set<HeldMarker>();
-const stops = new Map<HeldMarker, (exit: number) => void>();
 
 export function markerPath(root: string): string {
   return join(root, ".recognizer", "cache", MARKER_FILE);
@@ -169,6 +167,7 @@ export function acquireMarker(
   root: string,
   details: MarkerDetails,
 ): Acquired {
+  const scope = io.scope ?? processScope;
   const path = markerPath(root);
   const progress = progressPath(root);
   let record: ScanRunRecord = {
@@ -290,7 +289,7 @@ export function acquireMarker(
       crash = text;
     },
     release: () => {
-      held.delete(handle);
+      scope.markers.delete(handle);
 
       if (active()) {
         write({
@@ -308,20 +307,142 @@ export function acquireMarker(
     },
   };
 
-  stops.set(handle, (exit) => {
+  scope.markers.set(handle, (exit) => {
     if (active()) {
       write({ phase: "stopped", ended_at: ended(), exit });
     }
   });
 
-  held.add(handle);
-
   return { ok: true, held: handle };
 }
 
 export function releaseHeldMarkers(exit: number = STOPPED_BY_SIGNAL): void {
-  for (const one of [...held]) {
-    stops.get(one)?.(exit);
-    one.release();
+  processScope.releaseMarkers(exit);
+}
+
+const RECYCLE_SLACK_SECONDS = 5;
+
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+export function epochOfLstart(text: string): number | null {
+  const words = text.split(/\s+/).filter((word) => word !== "");
+
+  if (words.length !== 5) {
+    return null;
   }
+
+  const [, second, third, clock, year] = words as [
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
+  const [monthWord, dayWord] = MONTHS.includes(second)
+    ? [second, third]
+    : [third, second];
+  const month = MONTHS.indexOf(monthWord);
+  const day = Number(dayWord);
+  const parts = clock.split(":").map(Number);
+
+  if (
+    month === -1 ||
+    !Number.isInteger(day) ||
+    !/^\d+$/.test(year) ||
+    parts.length !== 3 ||
+    parts.some((part) => !Number.isInteger(part))
+  ) {
+    return null;
+  }
+
+  return (
+    Date.UTC(
+      Number(year),
+      month,
+      day,
+      parts[0] as number,
+      parts[1] as number,
+      parts[2] as number,
+    ) / 1000
+  );
+}
+
+export function startedNoLaterThan(lstart: string, startedAt: string): boolean {
+  const start = epochOfLstart(lstart);
+  const recorded = Date.parse(startedAt);
+
+  if (start === null || Number.isNaN(recorded)) {
+    return true;
+  }
+
+  return start <= recorded / 1000 + RECYCLE_SLACK_SECONDS;
+}
+
+function processIsTheScan(io: Io, record: ScanRunRecord): boolean {
+  if (!io.pidAlive(record.pid)) {
+    return false;
+  }
+
+  const result = io.run("env", [
+    "TZ=UTC",
+    "ps",
+    "-o",
+    "lstart=",
+    "-p",
+    String(record.pid),
+  ]);
+
+  if (!result.started || result.status !== 0) {
+    return true;
+  }
+
+  return startedNoLaterThan(result.stdout.trim(), record.started_at);
+}
+
+function endedAtFor(io: Io, root: string, record: ScanRunRecord): string {
+  const modified = io.modified?.(progressPath(root)) ?? null;
+
+  return modified === null
+    ? record.started_at
+    : new Date(Math.floor(modified / 1000) * 1000).toISOString();
+}
+
+export function readRun(io: Io, root: string): ScanRunRecord | null {
+  const path = markerPath(root);
+
+  if (!io.exists(path)) {
+    return null;
+  }
+
+  const record = readMarker(io, path);
+
+  if (record === null) {
+    return null;
+  }
+
+  if (
+    (record.phase !== "checking" && record.phase !== "running") ||
+    processIsTheScan(io, record)
+  ) {
+    return record;
+  }
+
+  return {
+    ...record,
+    phase: "stopped",
+    ended_at: endedAtFor(io, root, record),
+  };
 }

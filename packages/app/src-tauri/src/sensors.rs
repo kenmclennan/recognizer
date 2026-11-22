@@ -1,12 +1,10 @@
-use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
+use std::path::Path;
 use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
 
-use crate::fs_safe::{checked_relative, write_atomic};
+use crate::fs_safe::checked_relative;
 use crate::overlays::{overlay_names, OVERLAYS};
 
 const FINDINGS: &str = ".recognizer/cache/findings";
@@ -66,7 +64,7 @@ impl Default for SensorInputs {
     }
 }
 
-pub fn sensor_name_ok(name: &str) -> bool {
+fn findings_name_ok(name: &str) -> bool {
     let mut chars = name.chars();
 
     chars
@@ -75,69 +73,8 @@ pub fn sensor_name_ok(name: &str) -> bool {
         && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
 }
 
-pub fn check_names(names: &[String]) -> Result<(), String> {
-    match names.iter().find(|name| !sensor_name_ok(name)) {
-        Some(name) => Err(format!("{name} is not a sensor name")),
-        None => Ok(()),
-    }
-}
-
 fn findings_relative(name: &str) -> String {
     format!("{FINDINGS}/{name}.json")
-}
-
-type OwnStamp = (u128, u64);
-
-fn own_structure_stamps() -> &'static Mutex<HashMap<PathBuf, OwnStamp>> {
-    static STAMPS: OnceLock<Mutex<HashMap<PathBuf, OwnStamp>>> = OnceLock::new();
-
-    STAMPS.get_or_init(|| Mutex::new(HashMap::new()))
-}
-
-fn record_own_structure_stamp(folder: &Path) {
-    let relative = findings_relative("structure");
-
-    if let Some((_, modified, length)) = stamp(folder, &relative) {
-        if let Ok(mut stamps) = own_structure_stamps().lock() {
-            stamps.insert(folder.to_path_buf(), (modified, length));
-        }
-    }
-}
-
-fn is_own_structure_stamp(folder: &Path, modified: u128, length: u64) -> bool {
-    own_structure_stamps()
-        .lock()
-        .ok()
-        .and_then(|stamps| stamps.get(folder).copied())
-        .is_some_and(|own| own == (modified, length))
-}
-
-pub fn write_structure(folder: &Path, document: Option<&str>) -> Result<(), String> {
-    let target = folder.join(findings_relative("structure"));
-
-    match document {
-        Some(text) => {
-            fs::create_dir_all(folder.join(FINDINGS)).map_err(|error| error.to_string())?;
-            crate::fs_safe::ensure_cache_ignore(&folder.join(FINDINGS))
-                .map_err(|error| error.to_string())?;
-
-            if fs::symlink_metadata(&target).is_ok_and(|m| m.file_type().is_symlink()) {
-                fs::remove_file(&target).map_err(|error| error.to_string())?;
-            } else if fs::read_to_string(&target).is_ok_and(|existing| existing == text) {
-                return Ok(());
-            }
-
-            write_atomic(&target, text).map_err(|error| error.to_string())?;
-            record_own_structure_stamp(folder);
-
-            Ok(())
-        }
-        None => match fs::remove_file(&target) {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(error) => Err(error.to_string()),
-        },
-    }
 }
 
 pub fn modified_ms(path: &Path) -> Option<f64> {
@@ -237,7 +174,7 @@ pub fn read_run_records(folder: &Path) -> RunRecordsRead {
 
 pub fn remove_findings(folder: &Path, names: &[String]) -> Result<(), String> {
     for name in names {
-        if !sensor_name_ok(name) {
+        if !findings_name_ok(name) {
             return Err(format!("{name} is not a sensor name"));
         }
     }
@@ -317,10 +254,6 @@ pub fn snapshot(folder: &Path) -> Snapshot {
         .chain(overlays)
         .chain(findings)
         .filter_map(|relative| stamp(folder, &relative))
-        .filter(|(relative, modified, length)| {
-            *relative != findings_relative("structure")
-                || !is_own_structure_stamp(folder, *modified, *length)
-        })
         .collect()
 }
 
@@ -330,133 +263,11 @@ pub fn snapshot_changed(previous: &Snapshot, next: &Snapshot) -> bool {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn run_scan_refuses_a_bad_sensor_name_before_spawning_and_accepts_an_empty_list() {
-        assert!(check_names(&[]).is_ok());
-        assert_eq!(
-            check_names(&["ok".to_string(), "-x".to_string()]),
-            Err("-x is not a sensor name".to_string())
-        );
-
-        for bad in ["Bad Name", "a,b", "$(x)", "--extract", "", "-x", "a$(x)"] {
-            assert_eq!(
-                check_names(&[bad.to_string()]),
-                Err(format!("{bad} is not a sensor name"))
-            );
-        }
-
-        assert!(check_names(&["unused-exports".to_string()]).is_ok());
-    }
-
     use super::*;
     use tempfile::TempDir;
 
     fn findings_path(dir: &TempDir, name: &str) -> std::path::PathBuf {
         dir.path().join(findings_relative(name))
-    }
-
-    #[test]
-    fn write_structure_writes_the_file_and_none_removes_it() {
-        let dir = TempDir::new().unwrap();
-
-        write_structure(dir.path(), Some("{\"a\":1}")).unwrap();
-
-        assert_eq!(
-            fs::read_to_string(findings_path(&dir, "structure")).unwrap(),
-            "{\"a\":1}"
-        );
-        assert!(!findings_path(&dir, "structure.json").exists());
-
-        write_structure(dir.path(), None).unwrap();
-
-        assert!(!findings_path(&dir, "structure").exists());
-        write_structure(dir.path(), None).unwrap();
-    }
-
-    #[test]
-    fn the_snapshot_ignores_the_structure_file_the_app_wrote_but_not_one_written_elsewhere() {
-        let dir = TempDir::new().unwrap();
-        let target = dir.path().join(findings_relative("structure"));
-
-        let before = snapshot(dir.path());
-
-        write_structure(dir.path(), Some("{\"a\":1}")).unwrap();
-
-        assert!(target.exists());
-        assert_eq!(before, snapshot(dir.path()));
-
-        write_structure(dir.path(), Some("{\"a\":1}")).unwrap();
-
-        assert_eq!(before, snapshot(dir.path()));
-
-        fs::write(&target, "{\"edited\":true,\"by\":\"someone else\"}").unwrap();
-
-        let after_external = snapshot(dir.path());
-
-        assert!(snapshot_changed(&before, &after_external));
-        assert!(after_external
-            .iter()
-            .any(|(path, _, _)| *path == findings_relative("structure")));
-
-        write_structure(dir.path(), Some("{\"a\":2}")).unwrap();
-
-        assert_eq!(before, snapshot(dir.path()));
-    }
-
-    #[test]
-    fn the_snapshot_ignores_the_app_removing_the_structure_file() {
-        let dir = TempDir::new().unwrap();
-
-        write_structure(dir.path(), Some("{\"a\":1}")).unwrap();
-
-        let before = snapshot(dir.path());
-
-        write_structure(dir.path(), None).unwrap();
-
-        let removed = snapshot(dir.path());
-
-        assert!(!findings_path(&dir, "structure").exists());
-        assert_eq!(before, removed);
-
-        fs::create_dir_all(dir.path().join(FINDINGS)).unwrap();
-        fs::write(findings_path(&dir, "structure"), "{\"x\":1}").unwrap();
-
-        let external = snapshot(dir.path());
-
-        write_structure(dir.path(), None).unwrap();
-
-        assert!(snapshot_changed(&external, &snapshot(dir.path())));
-        assert_eq!(before, snapshot(dir.path()));
-    }
-
-    #[test]
-    fn write_structure_adds_the_cache_gitignore() {
-        let dir = TempDir::new().unwrap();
-
-        write_structure(dir.path(), Some("{\"a\":1}")).unwrap();
-
-        assert_eq!(
-            fs::read_to_string(dir.path().join(".recognizer/cache/.gitignore")).unwrap(),
-            "*\n"
-        );
-    }
-
-    #[test]
-    fn write_structure_replaces_a_symlink_without_writing_through_it() {
-        let dir = TempDir::new().unwrap();
-        let outside = TempDir::new().unwrap();
-        let target = outside.path().join("victim.json");
-
-        fs::write(&target, "keep").unwrap();
-        fs::create_dir_all(dir.path().join(FINDINGS)).unwrap();
-        std::os::unix::fs::symlink(&target, findings_path(&dir, "structure")).unwrap();
-        write_structure(dir.path(), Some("new")).unwrap();
-
-        assert_eq!(fs::read_to_string(&target).unwrap(), "keep");
-        assert_eq!(
-            fs::read_to_string(findings_path(&dir, "structure")).unwrap(),
-            "new"
-        );
     }
 
     #[test]

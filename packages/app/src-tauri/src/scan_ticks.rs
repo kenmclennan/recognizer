@@ -5,9 +5,6 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::fs_safe::write_atomic;
-use crate::sensors::check_names;
-
-const SUITE_NAME_LIMIT: usize = 200;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct SuiteTicks {
@@ -89,27 +86,7 @@ pub fn read(path: &Path, folder: &Path) -> ScanTicks {
     }
 }
 
-fn check_suites(suites: &BTreeMap<String, SuiteTicks>) -> Result<(), String> {
-    let sensors: Vec<String> = suites.keys().cloned().collect();
-
-    check_names(&sensors)?;
-
-    for entry in suites.values() {
-        for name in entry.ticked.iter().chain(entry.known.iter()) {
-            if name.is_empty() || name.chars().count() > SUITE_NAME_LIMIT {
-                return Err("a suite name is empty or over 200 characters".to_string());
-            }
-        }
-    }
-
-    Ok(())
-}
-
 pub fn write(path: &Path, folder: &Path, ticks: StoredTicks) -> Result<(), String> {
-    check_names(&ticks.ticked)?;
-    check_suites(&ticks.suites)?;
-    check_names(&ticks.folds)?;
-
     let mut all = read_all(path);
 
     all.insert(folder.display().to_string(), ticks);
@@ -323,15 +300,6 @@ mod tests {
     }
 
     #[test]
-    fn a_ticked_name_that_is_not_a_sensor_name_is_refused() {
-        let dir = TempDir::new().unwrap();
-        let file = ticks_file_in(dir.path());
-
-        assert!(write(&file, Path::new("/repo"), stored(false, &["$(x)"])).is_err());
-        assert!(!file.exists());
-    }
-
-    #[test]
     fn suite_ticks_and_folds_round_trip_and_survive_a_second_write_of_the_same_entry() {
         let dir = TempDir::new().unwrap();
         let file = ticks_file_in(dir.path());
@@ -365,31 +333,5 @@ mod tests {
 
         assert!(read_back.suites.is_empty());
         assert!(read_back.folds.is_empty());
-    }
-
-    #[test]
-    fn an_empty_or_overlong_suite_name_or_a_bad_sensor_key_is_refused() {
-        let dir = TempDir::new().unwrap();
-        let file = ticks_file_in(dir.path());
-
-        for (sensor, name) in [
-            ("crap", String::new()),
-            ("crap", "x".repeat(201)),
-            ("$(x)", "unit".to_string()),
-        ] {
-            let mut ticks = stored(false, &[]);
-
-            ticks.suites.insert(
-                sensor.to_string(),
-                SuiteTicks {
-                    ticked: vec![name],
-                    known: vec![],
-                },
-            );
-
-            assert!(write(&file, Path::new("/repo"), ticks).is_err());
-        }
-
-        assert!(!file.exists());
     }
 }

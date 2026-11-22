@@ -171,7 +171,9 @@ import {
   pruneTicks,
 } from "./overlay-model";
 import { mountPanelResizers } from "./panel-resizer-view";
+import { createPlanAnswers, planStampOf } from "./plan-answers";
 import { type PlanOverlay, planOverlay } from "./plan-overlay";
+import type { LoadedPlanData } from "./plan-reads";
 import { createPlannedWork, fingerprint } from "./planned-work";
 import { changedKeys, type ProgressKeys, progressKeys } from "./progress-keys";
 import { buildRailView, type LeftPanel } from "./rail-view";
@@ -187,6 +189,8 @@ import {
   responsibilityStates,
 } from "./responsibility-model";
 import { nextCheck } from "./row-model";
+import { NO_PLAN_DATA, planFromFacts } from "./scan-fake";
+import type { PlanRequest, ScanPlanView } from "./scan-freshness";
 import {
   freshnessMessage,
   MUTATION_KEY,
@@ -197,6 +201,8 @@ import type { Loaded } from "./scan-loading";
 import {
   DESCRIBE_KEY,
   NO_RUN,
+  planFactsOf,
+  planRequestOf,
   type RunState,
   rowSensors,
   type ScanTicks,
@@ -308,6 +314,7 @@ export type Carried = {
 
 export type ScanHost = {
   port: SensorsPort;
+  plan: (request: PlanRequest, facts: LoadedPlanData) => Promise<ScanPlanView>;
   scan: () => ScanState | null;
   ticks: () => ScanTicks;
   setTicks: (next: ScanTicks) => void;
@@ -331,6 +338,7 @@ export type ScanHost = {
 
 export const inertScanHost: ScanHost = {
   port: inertSensors,
+  plan: planFromFacts,
   scan: () => null,
   ticks: () => ({
     describe: false,
@@ -454,6 +462,11 @@ export function showExplorer(
   const measure = createMeasure();
   const scans = loaded.scans.map(({ scan }) => scan);
   const plannedWork = createPlannedWork(scanHost.port, () => render());
+  let planFacts: LoadedPlanData = NO_PLAN_DATA;
+  const planAnswers = createPlanAnswers(
+    (request) => scanHost.plan(request, planFacts),
+    () => renderProgress(),
+  );
   const expanded = new Set<string>();
   const filter: FilterState = {
     text: "",
@@ -3050,9 +3063,23 @@ export function showExplorer(
       now: Date.now(),
       shipped: shippedSensors,
       freshness: freshnessOf(loaded),
+      tests: loaded.tests ?? null,
       ...(loaded.history === undefined ? {} : { history: loaded.history }),
     };
-    const first = scanPanel(input);
+    const request = planRequestOf(input);
+
+    planFacts = planFactsOf(input);
+
+    const stamp = planStampOf(planFacts);
+
+    planAnswers.ask(request, stamp);
+
+    const answered = {
+      ...input,
+      plan: planAnswers.answerFor(request, stamp),
+    };
+
+    const first = scanPanel(answered);
     const plan = first.planned?.plan;
 
     if (plan === undefined || !plan.sense.includes(MUTATION_KEY)) {
@@ -3072,7 +3099,7 @@ export function showExplorer(
 
     return Object.keys(work).length === 0
       ? first
-      : scanPanel({ ...input, work });
+      : scanPanel({ ...answered, work });
   }
 
   function showTarget(target: ShowTarget) {
