@@ -1,6 +1,7 @@
 import { relative, resolve } from "node:path";
 import type {
   Analysis,
+  AnalysisPlan,
   CommitGapsInput,
   ConfigDocument,
   Gap,
@@ -17,7 +18,6 @@ import type {
   SensorSelection,
   SensorSelectionInput,
   Sensors,
-  StructurePlan,
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
 import { policyFile } from "../../config.js";
@@ -83,6 +83,8 @@ function readSuitesFile(io: Io, file: string): string {
 }
 
 export class SensorsAdapter implements Sensors, Analysis {
+  readonly name = "structure";
+
   constructor(private readonly io: Io) {}
 
   select(input: SensorSelectionInput): SensorSelection {
@@ -216,18 +218,18 @@ export class SensorsAdapter implements Sensors, Analysis {
     );
   }
 
-  structurePlan(config: ConfigDocument | null): StructurePlan | "off" {
+  analysisPlan(config: ConfigDocument | null): AnalysisPlan | "off" {
     const settings = resolveStructureSettings(
       config as unknown as Config | null,
     );
 
     return settings === "off"
       ? "off"
-      : ({ settings } as unknown as StructurePlan);
+      : ({ settings } as unknown as AnalysisPlan);
   }
 
-  structurePrepare(
-    plan: StructurePlan,
+  analysisPrepare(
+    plan: AnalysisPlan,
     root: string,
     scans: ScanDocument[],
     policy: PolicyDocument,
@@ -262,8 +264,8 @@ export class SensorsAdapter implements Sensors, Analysis {
     return loadParsers(languages) as unknown as Promise<ParserSet>;
   }
 
-  structureRun(
-    plan: StructurePlan,
+  analysisRun(
+    plan: AnalysisPlan,
     root: string,
     scans: ScanDocument[],
     policy: PolicyDocument,

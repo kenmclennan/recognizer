@@ -359,4 +359,37 @@ describe("core layers", () => {
       );
     }
   });
+
+  it("core names no plugin", () => {
+    const word = ["struc", "ture"].join("");
+
+    const everyFile = (directory: string): string[] =>
+      readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+        const path = join(directory, entry.name);
+
+        if (entry.isDirectory()) {
+          return ["node_modules", "dist"].includes(entry.name)
+            ? []
+            : everyFile(path);
+        }
+
+        return [path];
+      });
+
+    const files = everyFile(core);
+
+    expect(files.length).toBeGreaterThan(0);
+
+    for (const file of files) {
+      expect(relative(core, file).toLowerCase(), file).not.toContain(word);
+
+      const lines = readFileSync(file, "utf8")
+        .replace(/infrastructure/gi, "")
+        .split("\n");
+
+      for (const line of lines) {
+        expect(line.toLowerCase(), file).not.toContain(word);
+      }
+    }
+  });
 });

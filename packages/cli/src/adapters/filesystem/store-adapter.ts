@@ -1,6 +1,7 @@
 import type {
   AcquiredLock,
   ConfigDocument,
+  RunPhase as CoreRunPhase,
   HeldLock,
   LockDetails,
   PolicyDocument,
@@ -63,7 +64,7 @@ export class StoreAdapter implements Store {
       : null) as unknown as ConfigDocument | null;
   }
 
-  structureConfig(root: string, skipRetired: boolean): ConfigDocument | null {
+  analysisConfig(root: string, skipRetired: boolean): ConfigDocument | null {
     return readConfig(this.io, root, ["sensors"], {
       skipRetired,
     }) as unknown as ConfigDocument | null;
@@ -91,7 +92,7 @@ export class StoreAdapter implements Store {
     return true;
   }
 
-  removeStructureOutputs(root: string, off: boolean): void {
+  removeAnalysisOutputs(root: string, off: boolean): void {
     this.io.remove(findingsFile(root, "duplication"));
 
     if (off) {
@@ -106,13 +107,19 @@ export class StoreAdapter implements Store {
     by: string | undefined,
     invocation: string[],
   ): RunLog {
-    return openPhasedRunLog(
-      this.io,
-      root,
-      startedAt,
-      by,
-      invocation,
-    ) as unknown as RunLog;
+    const log = openPhasedRunLog(this.io, root, startedAt, by, invocation);
+    const recorded = (phases: CoreRunPhase[]) =>
+      phases.map((phase) =>
+        phase.phase === "analysis" ? { ...phase, phase: "structure" } : phase,
+      ) as unknown as Parameters<typeof log.update>[0];
+
+    return {
+      skip: (phase) => log.skip(phase),
+      update: (phases) => log.update(recorded(phases)),
+      finish: (phases, failed, analysisMs) =>
+        log.finish(recorded(phases), failed, analysisMs),
+      id: () => log.id() as string,
+    };
   }
 
   acquireLock(root: string, details: LockDetails): AcquiredLock {

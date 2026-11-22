@@ -371,3 +371,25 @@ Then(
     assert.deepEqual(summary?.removed, [cachePath(REPOSITORY, "gamma")]);
   },
 );
+
+When(
+  "a full scan runs with an empty module scope",
+  async function (this: ScanWorld) {
+    await this.run({
+      mode: "full",
+      sensors: [{ name: "tally" }],
+      modules: { file: "/work/modules.json", names: [] },
+    });
+  },
+);
+
+Then(
+  "the scan fails as an invalid request saying the module scope is empty",
+  function (this: ScanWorld) {
+    assert.deepEqual(this.outcome, {
+      status: "failed",
+      reason: "invalid-request",
+      messages: ["the module scope is empty"],
+    });
+  },
+);

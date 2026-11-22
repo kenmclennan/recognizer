@@ -49,7 +49,7 @@ export class FakeStore implements Store {
     return null;
   }
 
-  structureConfig(): ConfigDocument | null {
+  analysisConfig(): ConfigDocument | null {
     return null;
   }
 
@@ -69,7 +69,7 @@ export class FakeStore implements Store {
     return this.files.delete(path);
   }
 
-  removeStructureOutputs(): void {}
+  removeAnalysisOutputs(): void {}
 
   openRunLog(): RunLog {
     const record = { skipped: [] as SkippedPhase[], phases: [] as RunPhase[] };

@@ -7,22 +7,23 @@ export interface ParserSet {
   readonly parserSet: true;
 }
 
-export interface StructurePlan {
-  readonly structurePlan: true;
+export interface AnalysisPlan {
+  readonly analysisPlan: true;
 }
 
 export interface Analysis {
-  structurePlan(config: ConfigDocument | null): StructurePlan | "off";
-  structurePrepare(
-    plan: StructurePlan,
+  readonly name: string;
+  analysisPlan(config: ConfigDocument | null): AnalysisPlan | "off";
+  analysisPrepare(
+    plan: AnalysisPlan,
     root: string,
     scans: ScanDocument[],
     policy: PolicyDocument,
     say: Say,
   ): { parserLanguages: string[] | null; label: string };
   loadParsers(languages: string[]): Promise<ParserSet>;
-  structureRun(
-    plan: StructurePlan,
+  analysisRun(
+    plan: AnalysisPlan,
     root: string,
     scans: ScanDocument[],
     policy: PolicyDocument,

@@ -1,8 +1,8 @@
 import type { Gap } from "../../domain/gap.js";
 import type { ScanOutcome } from "../../domain/scan-outcome.js";
 import type { ScanRequest } from "../../domain/scan-request.js";
-import { InvalidRequest } from "../../domain/scan-request.js";
-import type { StructureOutcome } from "../analysis/analyse-structure.js";
+import { InvalidRequest, requestFaults } from "../../domain/scan-request.js";
+import type { AnalysisOutcome } from "../analysis/run-analysis.js";
 import type { DescribeOutcome } from "../describing/describe-files.js";
 import type { DescribingSettings } from "../describing/describing-settings.js";
 import type { LocatedDescriber } from "../describing/locate-describer.js";
@@ -24,7 +24,7 @@ export interface RunPorts {
 }
 
 export interface RunStep {
-  kind: "extract" | "structure" | "describe" | "sense";
+  kind: "extract" | "analysis" | "describe" | "sense";
   invoke: () => unknown;
 }
 
@@ -56,6 +56,12 @@ export function* scanFlow(
     }
 
     folderKnown = true;
+
+    const faults = requestFaults(request);
+
+    if (faults.length > 0) {
+      throw new InvalidRequest(faults);
+    }
 
     const setup = phases.readScannerSetup(root);
 
@@ -215,29 +221,29 @@ export function* scanFlow(
     ctx.emit({ type: "preflight", state: "ok" });
     taken?.running();
 
-    const structure = (yield {
-      kind: "structure",
+    const analysed = (yield {
+      kind: "analysis",
       invoke: () =>
-        phases.analyseStructure({
+        phases.runAnalysis({
           root,
           scans,
           analysis: request.analysis,
           ignoreRetiredConfig: request.ignoreRetiredConfig,
           sink: ctx,
         }),
-    }) as StructureOutcome;
+    }) as AnalysisOutcome;
 
     if (ctx.stopped) {
       return { status: "stopped" };
     }
 
-    if (structure.failed) {
+    if (analysed.failed) {
       recorder.failed = true;
     }
 
-    recorder.structure(structure.phase);
+    recorder.analysis(analysed.phase);
 
-    const structureMs = structure.ms ?? undefined;
+    const analysisMs = analysed.ms ?? undefined;
     if (phases.isDescriberRegistered(located) && describeOn) {
       const described = (yield {
         kind: "describe",
@@ -287,7 +293,7 @@ export function* scanFlow(
       }
     }
 
-    runLog?.finish(recorder.recorded(), false, structureMs);
+    runLog?.finish(recorder.recorded(), false, analysisMs);
 
     const exit = recorder.failed ? 1 : 0;
     const firstFailed = recorder.firstFailed();

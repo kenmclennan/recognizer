@@ -28,7 +28,7 @@ export class RunRecorder implements PhaseRecorder {
   readonly skipped: SkippedPhase[] = [];
   private readonly phases: RecordedPhase[] = [];
   private readonly summary = new Map<PhaseName, EventEntry[]>();
-  private structurePhase: RunPhase | null = null;
+  private analysisPhase: RunPhase | null = null;
 
   constructor(
     private readonly sink: ScanSink,
@@ -78,12 +78,12 @@ export class RunRecorder implements PhaseRecorder {
     this.removedFiles.push(file);
   }
 
-  structure(phase: RunPhase | null): void {
-    this.structurePhase = phase;
+  analysis(phase: RunPhase | null): void {
+    this.analysisPhase = phase;
   }
 
   recorded(): RunPhase[] {
-    if (this.structurePhase === null) {
+    if (this.analysisPhase === null) {
       return this.phases;
     }
 
@@ -91,7 +91,7 @@ export class RunRecorder implements PhaseRecorder {
 
     return [
       ...this.phases.slice(0, at),
-      this.structurePhase,
+      this.analysisPhase,
       ...this.phases.slice(at),
     ];
   }

@@ -33,7 +33,7 @@ export interface LockDetails {
 export interface RunLog {
   skip(phase: SkippedPhase): void;
   update(phases: RunPhase[]): void;
-  finish(phases: RunPhase[], failed: boolean, structureMs?: number): void;
+  finish(phases: RunPhase[], failed: boolean, analysisMs?: number): void;
   id(): string;
 }
 
@@ -44,12 +44,12 @@ export interface Store {
     install: Record<string, string>;
   };
   runConfig(root: string, skipRetired: boolean): ConfigDocument | null;
-  structureConfig(root: string, skipRetired: boolean): ConfigDocument | null;
+  analysisConfig(root: string, skipRetired: boolean): ConfigDocument | null;
   readsSensorConfig(): boolean;
   policy(root: string): PolicyDocument;
   writeScan(root: string, language: string, bytes: string): void;
   remove(path: string): boolean;
-  removeStructureOutputs(root: string, off: boolean): void;
+  removeAnalysisOutputs(root: string, off: boolean): void;
   openRunLog(
     root: string,
     startedAt: number,

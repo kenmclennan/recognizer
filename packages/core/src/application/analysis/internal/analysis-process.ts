@@ -4,7 +4,7 @@ import type { ScanSink } from "../../../domain/scan-sink.js";
 import type { ParserSet } from "../ports/analysis.js";
 import type { AnalysisPorts } from "./analysis-ports.js";
 
-export interface AnalyseStructureInput {
+export interface RunAnalysisInput {
   root: string;
   scans: ScanDocument[];
   analysis: boolean;
@@ -12,7 +12,7 @@ export interface AnalyseStructureInput {
   sink: ScanSink;
 }
 
-export interface StructureOutcome {
+export interface AnalysisOutcome {
   ran: boolean;
   failed: boolean;
   ms: number | null;
@@ -30,9 +30,9 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function* structureProcess(
+export function* analysisProcess(
   ports: AnalysisPorts,
-  input: AnalyseStructureInput,
+  input: RunAnalysisInput,
 ): Generator<string[], Measured, ParserSet | Error | null> {
   const { analysis, store, clock } = ports;
   const { root, scans, sink } = input;
@@ -49,28 +49,28 @@ export function* structureProcess(
     ...(reason === undefined ? {} : { reason }),
   });
   const fail = (reason: string): Measured => {
-    sink.say("stderr", `failed structure: ${reason}\n`);
+    sink.say("stderr", `failed ${analysis.name}: ${reason}\n`);
 
     return timed(true, reason);
   };
 
   try {
-    const plan = analysis.structurePlan(
-      store.structureConfig(root, input.ignoreRetiredConfig),
+    const plan = analysis.analysisPlan(
+      store.analysisConfig(root, input.ignoreRetiredConfig),
     );
 
-    store.removeStructureOutputs(root, plan === "off");
+    store.removeAnalysisOutputs(root, plan === "off");
 
     if (plan === "off") {
       return { failed: false, ran: false, ms: null };
     }
 
-    sink.emit({ type: "structure", state: "run" });
+    sink.emit({ type: "analysis", state: "run" });
 
     began = clock.awake();
 
     const policy = store.policy(root);
-    const prepared = analysis.structurePrepare(
+    const prepared = analysis.analysisPrepare(
       plan,
       root,
       scans,
@@ -80,7 +80,7 @@ export function* structureProcess(
     const answer =
       prepared.parserLanguages === null ? null : yield prepared.parserLanguages;
     const parsers = answer === null || answer instanceof Error ? null : answer;
-    const run = analysis.structureRun(
+    const run = analysis.analysisRun(
       plan,
       root,
       scans,
@@ -103,15 +103,16 @@ export function* structureProcess(
   }
 }
 
-export function finishStructure(
-  input: AnalyseStructureInput,
+export function finishAnalysis(
+  ports: AnalysisPorts,
+  input: RunAnalysisInput,
   measured: Measured,
-): StructureOutcome {
+): AnalysisOutcome {
   const { scans, sink } = input;
 
   if (!sink.stopped && measured.ran) {
     sink.emit({
-      type: "structure",
+      type: "analysis",
       state: measured.failed ? "failed" : "done",
       files: scans.reduce((sum, scan) => sum + scan.files.length, 0),
     });
@@ -123,10 +124,10 @@ export function finishStructure(
     ms: measured.ms,
     phase: measured.ran
       ? {
-          phase: "structure",
+          phase: "analysis",
           entries: [
             {
-              name: "structure",
+              name: ports.analysis.name,
               command: [],
               status: null,
               outcome: measured.failed ? "failed" : "ok",
