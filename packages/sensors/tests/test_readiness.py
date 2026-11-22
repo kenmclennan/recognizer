@@ -572,6 +572,40 @@ def test_a_suite_that_leaves_a_parseable_report_is_ready_under_run(harness):
     assert check(harness.root, run_settings(WRITES_LCOV), True) == []
 
 
+def test_a_nested_suite_with_a_root_cache_report_is_ready_under_run(harness):
+    prepared(harness)
+    (harness.root / "core").mkdir()
+    report = ".recognizer/cache/coverage/core/lcov.info"
+    command = f"mkdir -p ../.recognizer/cache/coverage/core && printf '%s' '{LCOV}' > ../{report}"
+    settings = settings_of(
+        raw(
+            name="core",
+            directory="core",
+            command=command,
+            coverage={"path": report, "format": "lcov"},
+        )
+    )
+
+    assert check(harness.root, settings, True) == []
+
+
+def test_a_nested_suite_that_writes_nothing_names_the_root_cache_path(harness):
+    (harness.root / "core").mkdir()
+    report = ".recognizer/cache/coverage/core/lcov.info"
+    settings = settings_of(
+        raw(
+            name="core",
+            directory="core",
+            command="true",
+            coverage={"path": report, "format": "lcov"},
+        )
+    )
+
+    gaps = check(harness.root, settings, True)
+
+    assert gaps[0]["line"] == f"suite core: the suite left no coverage report at {report}"
+
+
 def test_a_suite_that_writes_nothing_and_exits_one_gives_coverage_missing_with_its_status(
     harness,
 ):
