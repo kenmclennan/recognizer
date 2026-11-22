@@ -335,16 +335,20 @@ describe("result rows from the findings suites array", () => {
     expect(row(panel({ config: null }), "crap")).toBeUndefined();
   });
 
-  it("reads the fold closed by default and the sensor row unticked after a scan cleared once", () => {
+  it("reads the fold closed by default and the sensor row still ticked after a scan", () => {
     const after = panel({
-      ticks: ticks({ suites: { crap: entry(ALL) }, folds: [] }),
+      ticks: ticks({
+        once: ["crap"],
+        suites: { crap: entry(ALL) },
+        folds: [],
+      }),
     });
 
     expect(row(after, "crap")?.fold?.open).toBe(false);
-    expect(row(after, "crap")?.ticked).toBe(false);
-    expect(row(after, "crap")?.tick).toBe("off");
-    expect(row(after, "crap")?.fold?.suites.some((one) => one.ticked)).toBe(
-      false,
+    expect(row(after, "crap")?.ticked).toBe(true);
+    expect(row(after, "crap")?.tick).toBe("on");
+    expect(row(after, "crap")?.fold?.suites.every((one) => one.ticked)).toBe(
+      true,
     );
   });
 

@@ -278,7 +278,7 @@ describe("createRescanner", () => {
 
     await rescanner.run();
 
-    expect(log.filter((entry) => entry === "resense")).toHaveLength(2);
+    expect(log.filter((entry) => entry === "resense")).toHaveLength(3);
     expect(seen).toEqual([["alpha", "beta"], ["beta"]]);
     expect(rescanner.runState().failures).toEqual({ beta: "boom" });
     expect(Object.keys(rescanner.runState().ranAt)).toEqual(["alpha", "beta"]);
@@ -931,13 +931,12 @@ describe("createRescanner", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 10));
     await rescanner.refresh();
+    expect(log).not.toContain("resense");
     release();
     await first;
-
-    expect(log).not.toContain("resense");
   });
 
-  it("never writes a test-running sensor and clears once after every Scan however it ends", async () => {
+  it("writes a test-running sensor's tick with the others and keeps it after every Scan however it ends", async () => {
     for (const steps of [
       [current, summary],
       [current, "not json at all"],
@@ -961,10 +960,8 @@ describe("createRescanner", () => {
       await rescanner.run();
 
       expect(scan.ran[0].sense).toContain("mut");
-      expect(scan.written.every((one) => !one.ticked.includes("mut"))).toBe(
-        true,
-      );
-      expect(rescanner.ticks().once).toEqual([]);
+      expect(scan.written.at(-1)?.ticked).toContain("mut");
+      expect(rescanner.ticks().once).toEqual(["mut"]);
       expect(rescanner.ticks().suites).toEqual(SUITE_TICKS);
       expect(rescanner.ticks().folds).toEqual(["mut"]);
       expect(scan.written.at(-1)?.suites).toEqual(SUITE_TICKS);
@@ -1052,7 +1049,7 @@ describe("createRescanner", () => {
     expect(log).toContain("resense");
   });
 
-  it("clears once when the Scan fails or is stopped", async () => {
+  it("keeps the ticks as set when the Scan fails or is stopped", async () => {
     for (const result of [
       { status: "failed" as const, exitCode: 1, stderr: "boom" },
       { status: "stopped" as const },
@@ -1073,13 +1070,13 @@ describe("createRescanner", () => {
 
       await rescanner.run();
 
-      expect(rescanner.ticks().once).toEqual([]);
+      expect(rescanner.ticks().once).toEqual(["mut"]);
       expect(rescanner.ticks().suites).toEqual(SUITE_TICKS);
       expect(rescanner.ticks().folds).toEqual(["mut"]);
     }
   });
 
-  it("clears only the armed sensor's once entry and keeps both sensors' suite ticks", async () => {
+  it("keeps both sensors' armed entries and suite ticks after a Scan", async () => {
     const scan = fakeScan({ steps: [current, summary] });
     const { rescanner } = harness(scan, {
       registered: async () =>
@@ -1121,7 +1118,7 @@ describe("createRescanner", () => {
 
     expect(scan.ran[0]?.sense).toEqual(["crap"]);
     expect(scan.ran[0]?.suites).toEqual({ crap: ["unit", "web"] });
-    expect(rescanner.ticks().once).toEqual([]);
+    expect(rescanner.ticks().once).toEqual(["crap"]);
     expect(rescanner.ticks().suites).toEqual(suites);
     expect(rescanner.ticks().folds).toEqual(["crap", "mut"]);
   });
@@ -1951,7 +1948,7 @@ describe("the preflight flow", () => {
     });
   });
 
-  it("keeps a once-ticked sensor ticked after a refusal so Check again and scan includes it", async () => {
+  it("keeps a ticked sensor ticked through a refusal and a finished Scan, and both Scans include it", async () => {
     const scan = fakeScan({
       defaults: { describe: false, sensors: true },
       result: gapsResult,
@@ -1968,7 +1965,138 @@ describe("the preflight flow", () => {
     await rescanner.run();
 
     expect(scan.ran[1]?.sense).toContain("mut");
-    expect(rescanner.ticks().once).toEqual([]);
+    expect(rescanner.ticks().once).toEqual(["mut"]);
+
+    await rescanner.run();
+
+    expect(scan.ran[2]?.sense).toContain("mut");
+  });
+
+  describe.each([
+    { label: "C.R.A.P. only", ticked: ["crap"] },
+    { label: "Mutation only", ticked: ["mut"] },
+    { label: "C.R.A.P. and Mutation", ticked: ["crap", "mut"] },
+    { label: "none", ticked: [] as string[] },
+  ])("keeps the ticks as set after a Scan ends", ({ label, ticked }) => {
+    it.each([
+      {
+        end: "finished",
+        steps: [current, summary],
+        result: { status: "finished", exitCode: 0 } as const,
+      },
+      {
+        end: "stopped",
+        steps: [] as string[],
+        result: { status: "stopped" } as const,
+      },
+    ])(`with ${label} when it $end`, async ({ steps, result }) => {
+      const scan = fakeScan({ steps, result });
+      const { rescanner } = harness(scan, {
+        registered: async () =>
+          registeredWith([
+            { name: "alpha", display: "Alpha", runsTests: false },
+            { name: "crap", display: "C.R.A.P.", runsTests: true },
+            { name: "mut", display: "Mutation", runsTests: true },
+          ]),
+      });
+
+      await rescanner.loadTicks();
+      rescanner.setTicks({ ...rescanner.ticks(), once: ticked });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(rescanner.ticks().once).toEqual(ticked);
+
+      for (const name of ticked) {
+        expect(scan.written.at(-1)?.ticked).toContain(name);
+      }
+
+      await rescanner.run();
+
+      expect(rescanner.ticks().once).toEqual(ticked);
+      expect(
+        (scan.written.at(-1)?.ticked ?? []).filter((name) =>
+          ["crap", "mut"].includes(name),
+        ),
+      ).toEqual(ticked);
+    });
+  });
+
+  it("restores a tests-running sensor tick from the stored list", async () => {
+    const scan = fakeScan();
+    const registered = async () =>
+      registeredWith([
+        { name: "alpha", display: "Alpha", runsTests: false },
+        { name: "crap", display: "C.R.A.P.", runsTests: true },
+      ]);
+    const first = harness(scan, { registered });
+
+    await first.rescanner.loadTicks();
+    first.rescanner.setTicks({
+      ...first.rescanner.ticks(),
+      ticked: ["alpha"],
+      once: ["crap"],
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const second = harness(scan, { registered });
+
+    await second.rescanner.loadTicks();
+    await flush();
+
+    expect(second.rescanner.ticks().once).toEqual(["crap"]);
+    expect(second.rescanner.ticks().ticked).toEqual(["alpha"]);
+  });
+
+  it("splits a stored list into plain, armed and unregistered names", async () => {
+    const scan = fakeScan();
+    const { rescanner } = harness(scan, {
+      registered: async () =>
+        registeredWith([
+          { name: "alpha", display: "Alpha", runsTests: false },
+          { name: "crap", display: "C.R.A.P.", runsTests: true },
+        ]),
+    });
+
+    await scan.writeTicks({
+      describe: false,
+      analysis: true,
+      ticked: ["alpha", "crap", "ghost"],
+      onlyView: false,
+      suites: {},
+      folds: [],
+    });
+    await rescanner.loadTicks();
+    await flush();
+
+    expect(rescanner.ticks().ticked).toEqual(["alpha", "ghost"]);
+    expect(rescanner.ticks().once).toEqual(["crap"]);
+  });
+
+  it("applies the fresh sensor results before the finished state shows", async () => {
+    for (const steps of [[current, summary], []]) {
+      const scan = fakeScan({
+        steps,
+        result: { status: "finished", exitCode: 0 },
+      });
+      const shown: (string | null)[] = [];
+      const holder: { updates?: ProgressUpdate[] } = {};
+      const made = harness(scan, {
+        resense: async () => {
+          shown.push(holder.updates?.at(-1)?.scanning ?? "none");
+
+          return { ...OK, modules: ["fresh.py"] };
+        },
+      });
+
+      holder.updates = made.updates;
+      await made.rescanner.loadTicks();
+      await made.rescanner.run();
+
+      expect(shown.length).toBeGreaterThan(0);
+      expect(shown[0]).not.toBeNull();
+      expect(made.updates.at(-1)?.scanning).toBeNull();
+      expect(made.rescanner.progress().done).toBe(true);
+    }
   });
 
   it("shows the stopped card with no gaps when the user stops the scan", async () => {
@@ -2255,7 +2383,7 @@ describe("one fold of the run record", () => {
 
     await rescanner.run();
 
-    expect(log.filter((one) => one === "resense")).toHaveLength(2);
+    expect(log.filter((one) => one === "resense")).toHaveLength(3);
     expect(log.filter((one) => one === "described")).toHaveLength(2);
   });
 
