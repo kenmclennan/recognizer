@@ -47,12 +47,12 @@ describe("a plan", () => {
       describe: true,
       describeAll: false,
       analysis: true,
-      sense: ["mutation"],
+      sense: ["crap", "mutation"],
       modules: ["a.py", "b.py", "c.py"],
     });
     expect(union.modules).toBe(3);
     expect(union.idle).toBe(false);
-    expect(union.work).toEqual({ describe: 1, mutation: 3 });
+    expect(union.work).toEqual({ describe: 1, crap: 3, mutation: 3 });
 
     const flagged = world();
 
@@ -72,8 +72,8 @@ describe("a plan", () => {
       changed: ["b.py", "c.py"],
     });
 
-    expect(byFlag.intent.modules).toEqual(["b.py"]);
-    expect(byFlag.work).toEqual({ mutation: 3, other: 1 });
+    expect(byFlag.intent.modules).toEqual(["b.py", "c.py"]);
+    expect(byFlag.work).toEqual({ mutation: 3, other: 2 });
 
     const unscoped = world();
 
@@ -165,6 +165,58 @@ describe("a plan", () => {
 
     expect(gapped.gaps.mutation).toEqual(["c.py"]);
     expect(gapped.idle).toBe(false);
+  });
+
+  it("a_bring_after_an_edit_plans_every_ticked_sensor_over_the_changed_files", async () => {
+    const edited = world();
+
+    edited.measure("crap", CURRENT);
+    edited.measure("mutation", CURRENT);
+
+    const planned = await edited.plan({
+      ticks: ticksOf({ ticked: ["crap"], armed: ["mutation"] }),
+      changed: ["a.py"],
+    });
+
+    expect(planned.intent.sense).toEqual(["crap", "mutation"]);
+    expect(planned.intent.modules).toEqual(["a.py"]);
+    expect(planned.work).toEqual({ crap: 3, mutation: 1 });
+    expect(planned.idle).toBe(false);
+    expect(planned.gaps).toEqual({ crap: [], mutation: [] });
+  });
+
+  it("a_bring_with_no_edit_stays_idle", async () => {
+    const current = world();
+
+    current.measure("crap", CURRENT);
+    current.measure("mutation", CURRENT);
+
+    const planned = await current.plan({
+      ticks: ticksOf({ ticked: ["crap"], armed: ["mutation"] }),
+      changed: [],
+    });
+
+    expect(planned.gaps).toEqual({ crap: [], mutation: [] });
+    expect(planned.intent.sense).toEqual([]);
+    expect(planned.idle).toBe(true);
+  });
+
+  it("a_bring_unites_recorded_gaps_with_changed_files", async () => {
+    const mixed = world();
+
+    mixed.measure("crap", CURRENT);
+    mixed.measure("mutation", {
+      inputs: { ...FILES, "b.py": "x" },
+      tests: "t1",
+    });
+
+    const planned = await mixed.plan({
+      ticks: ticksOf({ ticked: ["crap"], armed: ["mutation"] }),
+      changed: ["a.py"],
+    });
+
+    expect(planned.intent.modules).toEqual(["a.py", "b.py"]);
+    expect(planned.work.mutation).toBe(2);
   });
 
   it("a_ticked_name_mixed_registered_and_not", async () => {

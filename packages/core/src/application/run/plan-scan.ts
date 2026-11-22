@@ -160,6 +160,7 @@ export function planFor(
     (name) =>
       !facts.gaps.has(name) ||
       facts.never.has(name) ||
+      changed.length > 0 ||
       gapOfRow(name).length > 0,
   );
   const scopedIds = new Set<string>();
@@ -171,7 +172,7 @@ export function planFor(
   }
 
   for (const name of sense.filter((one) => scopedNames.has(one))) {
-    for (const id of gapOfRow(name)) {
+    for (const id of [...gapOfRow(name), ...changed]) {
       scopedIds.add(id);
     }
   }

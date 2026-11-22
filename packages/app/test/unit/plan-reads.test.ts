@@ -69,7 +69,7 @@ describe("plan reads", () => {
       describe: true,
       describeAll: false,
       analysis: true,
-      sense: ["mutation"],
+      sense: ["crap", "mutation"],
       modules: ["a.py", "b.py"],
     });
     expect(view.gaps).toEqual({
@@ -78,7 +78,7 @@ describe("plan reads", () => {
       describe: ["a.py"],
     });
     expect(view.never).toEqual([]);
-    expect(view.work).toEqual({ describe: 1, mutation: 2 });
+    expect(view.work).toEqual({ describe: 1, crap: 3, mutation: 2 });
     expect(view.modules).toBe(2);
   });
 
