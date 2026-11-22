@@ -23,6 +23,7 @@
     "build": "npm run build -w @recognizer/core && mkdir -p src/generated && cp ../../schema/scan.schema.json src/generated/scan.schema.json && cp ../../schema/scan-breaking-versions.json src/generated/scan-breaking-versions.json && cp ../../schema/view.schema.json src/generated/view.schema.json && cp ../../schema/overlay.schema.json src/generated/overlay.schema.json && cp ../../schema/findings.schema.json src/generated/findings.schema.json && cp ../../schema/log.schema.json src/generated/log.schema.json && cp ../../schema/config-keys.schema.json src/generated/config-keys.schema.json && cp ../../schema/protocol.json src/generated/protocol.json && cp ../../schema/manifest.schema.json src/generated/manifest.schema.json && cp ../../schema/events.schema.json src/generated/events.schema.json && cp ../../schema/check.schema.json src/generated/check.schema.json && cp ../../schema/setup-survey.schema.json src/generated/setup-survey.schema.json && node scripts/build-templates.mjs && node scripts/build-validators.mjs && tsc -p tsconfig.json && cp src/generated/*-validator.js dist/generated/",
     "pretest": "npm run build && npm run build -w recognizer-scan-typescript && npm run build -w recognizer-describe-claude",
     "test": "vitest run --config test/vitest.config.ts",
+    "check:ratchets": "npm run build && vitest run --config test/vitest.config.ts test/app-no-plan-logic.test.ts test/app-no-scan-logic.test.ts test/ceiling-run.test.ts",
     "lint": "biome check ."
   },
   "dependencies": {
