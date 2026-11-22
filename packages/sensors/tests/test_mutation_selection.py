@@ -394,7 +394,7 @@ def test_a_selected_command_whose_baseline_fails_runs_its_mutants_under_the_whol
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 0
 
     assert (
-        "the selected test command: the test suite fails before any mutation;"
+        "the selected test command: the sample suite fails before any mutation;"
         " running the whole suite"
     ) in capsys.readouterr().err
     assert seen.count(SELECTED_COMMAND) == 1
@@ -418,7 +418,7 @@ def test_a_failing_whole_suite_baseline_still_ends_the_run(tmp_path, monkeypatch
 
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
     assert capsys.readouterr().err.strip().splitlines()[-1] == (
-        "the test suite fails before any mutation"
+        "the sample suite fails before any mutation"
     )
 
 
@@ -961,7 +961,7 @@ def refusing_after(monkeypatch, finished):
             number = calls["count"]
 
         if number > finished:
-            raise sensor.Refusal(sensor.mutation_tests_failed([]))
+            raise sensor.Refusal(sensor.mutation_tests_failed("sample", []))
 
         return real(*args, **extra)
 
@@ -1008,7 +1008,7 @@ def test_a_refusal_before_any_function_finished_is_unchanged(tmp_path, monkeypat
 
     assert not (root / SURVIVORS).exists()
     assert capsys.readouterr().err.strip().splitlines()[-1] == (
-        "the test suite fails before any mutation"
+        "the sample suite fails before any mutation"
     )
 
 
@@ -1034,7 +1034,10 @@ def test_a_failing_baseline_leaves_its_tail_and_the_omitted_paths(tmp_path, monk
 
     assert "boom" in log
     assert ".venv/" in log
-    assert sensor.CARRY_HINT in capsys.readouterr().err
+    err = capsys.readouterr().err
+
+    assert "the sample suite fails before any mutation: boom" in err
+    assert sensor.CARRY_HINT not in err.splitlines()
 
     with contextlib.suppress(Refusal):
         coverage_run(
@@ -1045,6 +1048,26 @@ def test_a_failing_baseline_leaves_its_tail_and_the_omitted_paths(tmp_path, monk
         )
 
     assert (root / sensor.BASELINE_LOG).read_text() == log
+
+
+def test_a_baseline_with_a_missing_path_keeps_the_carry_hint(tmp_path, monkeypatch, capsys):
+    root, _ = mutate_repository(tmp_path)
+    fake_selection(monkeypatch, {})
+    real = runner.run_test_command
+    monkeypatch.setattr(
+        sensor,
+        "run_test_command",
+        lambda c, cwd, t, suite=None, extra=None: real(
+            [sys.executable, "-c", "print('No such file or directory'); exit(1)"],
+            cwd,
+            t,
+            suite=suite,
+        ),
+    )
+    settings = strong_settings(incremental=False, max_workers=1)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
+    assert sensor.CARRY_HINT in capsys.readouterr().err.splitlines()
 
 
 @pytest.mark.parametrize(
@@ -1318,3 +1341,20 @@ def test_a_node_selection_leaves_the_record_the_file_selection_writes(tmp_path, 
 
     assert len(records[0]["functions"]) > 0
     assert records[0] == records[1]
+
+
+@pytest.mark.usefixtures("unprimed")
+def test_the_failing_suite_of_two_is_the_one_named(tmp_path, capsys):
+    root, _ = mutate_repository(tmp_path)
+    second = {
+        **python_suite("tests/strong.py", name="second", directory="tests"),
+        "command": "echo boom; exit 1 #",
+    }
+    settings = json.dumps({"tests": [python_suite("tests/strong.py", name="first"), second]})
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
+    assert (
+        capsys.readouterr()
+        .err.splitlines()[-1]
+        .startswith("the second suite fails before any mutation")
+    )
