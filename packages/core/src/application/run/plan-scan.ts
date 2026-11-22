@@ -51,7 +51,7 @@ export function tickedPhases(
   const planned = suitePlan(
     ticks,
     rows.filter(({ runsTests }) => runsTests),
-    ticks.once,
+    ticks.armed,
   );
 
   return {

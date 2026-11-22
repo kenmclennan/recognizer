@@ -11,7 +11,7 @@ const request = (changed: string[] = []): PlanRequest => ({
     describe: false,
     analysis: true,
     ticked: [],
-    once: [],
+    armed: [],
     onlyView: false,
     suites: {},
     folds: [],

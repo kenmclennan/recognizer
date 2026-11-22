@@ -52,7 +52,7 @@ const REQUEST: PlanRequest = {
     describe: true,
     analysis: true,
     ticked: ["crap"],
-    once: ["mutation"],
+    armed: ["mutation"],
     onlyView: false,
     suites: {},
     folds: [],

@@ -19,7 +19,7 @@ function ticks(over: Partial<ScanTicks> = {}): ScanTicks {
     describe: false,
     analysis: true,
     ticked: [],
-    once: [],
+    armed: [],
     onlyView: false,
     suites: {},
     folds: [],
@@ -44,31 +44,35 @@ describe("suite ticks", () => {
     expect(tickedSuites({}, "crap", ALL)).toEqual([]);
   });
 
-  it("reads the sensor tick as on, some or off from once and the suite ticks", () => {
-    const once = ["crap"];
+  it("reads the sensor tick as on, some or off from armed and the suite ticks", () => {
+    const armed = ["crap"];
 
     expect(
-      sensorTickState({ once, suites: { crap: entry(ALL) } }, "crap", ALL),
+      sensorTickState({ armed, suites: { crap: entry(ALL) } }, "crap", ALL),
     ).toBe("on");
     expect(
-      sensorTickState({ once, suites: { crap: entry(["unit"]) } }, "crap", ALL),
+      sensorTickState(
+        { armed, suites: { crap: entry(["unit"]) } },
+        "crap",
+        ALL,
+      ),
     ).toBe("some");
     expect(
-      sensorTickState({ once, suites: { crap: entry([]) } }, "crap", ALL),
+      sensorTickState({ armed, suites: { crap: entry([]) } }, "crap", ALL),
     ).toBe("off");
-    expect(sensorTickState({ once, suites: {} }, "crap", ALL)).toBe("off");
+    expect(sensorTickState({ armed, suites: {} }, "crap", ALL)).toBe("off");
   });
 
-  it("reads the sensor tick off when it is not in once even with every suite ticked", () => {
+  it("reads the sensor tick off when it is not in armed even with every suite ticked", () => {
     expect(
-      sensorTickState({ once: [], suites: { crap: entry(ALL) } }, "crap", ALL),
+      sensorTickState({ armed: [], suites: { crap: entry(ALL) } }, "crap", ALL),
     ).toBe("off");
   });
 
   it("arms a sensor by ticking every suite, whatever selection was remembered", () => {
     const none = afterSensorTick(ticks(), "crap", ALL);
 
-    expect(none.once).toEqual(["crap"]);
+    expect(none.armed).toEqual(["crap"]);
     expect(none.suites.crap).toEqual(entry(ALL));
 
     const some = afterSensorTick(
@@ -77,18 +81,18 @@ describe("suite ticks", () => {
       ALL,
     );
 
-    expect(some.once).toEqual(["crap"]);
+    expect(some.armed).toEqual(["crap"]);
     expect(some.suites.crap?.ticked).toEqual(ALL);
   });
 
   it("disarms an on or some sensor and unticks every one of its suites", () => {
     const armed = ticks({
-      once: ["crap", "mutation"],
+      armed: ["crap", "mutation"],
       suites: { crap: entry(["unit", "web"]), mutation: entry(ALL) },
     });
     const next = afterSensorTick(armed, "crap", ALL);
 
-    expect(next.once).toEqual(["mutation"]);
+    expect(next.armed).toEqual(["mutation"]);
     expect(next.suites.crap?.ticked).toEqual([]);
     expect(next.suites.mutation).toEqual(entry(ALL));
     expect(sensorTickState(next, "crap", ALL)).toBe("off");
@@ -101,7 +105,7 @@ describe("suite ticks", () => {
       ALL,
     );
 
-    expect(next.once).toEqual(["crap"]);
+    expect(next.armed).toEqual(["crap"]);
     expect(next.suites.crap?.ticked).toEqual(ALL);
     expect(sensorTickState(next, "crap", ALL)).toBe("on");
   });
@@ -115,19 +119,19 @@ describe("suite ticks", () => {
       ALL,
     );
 
-    expect(next.once).toEqual(["crap"]);
+    expect(next.armed).toEqual(["crap"]);
     expect(next.suites.crap?.ticked).toEqual(["web"]);
     expect(sensorTickState(next, "crap", ALL)).toBe("some");
   });
 
   it("disarms the sensor when the last ticked suite is unticked", () => {
     const armed = ticks({
-      once: ["crap", "mutation"],
+      armed: ["crap", "mutation"],
       suites: { crap: entry(["web"]) },
     });
     const next = afterSuiteTick(armed, "crap", "web", false, ALL);
 
-    expect(next.once).toEqual(["mutation"]);
+    expect(next.armed).toEqual(["mutation"]);
     expect(sensorTickState(next, "crap", ALL)).toBe("off");
   });
 
@@ -142,12 +146,12 @@ describe("suite ticks", () => {
     const next = afterSuiteTick(ticks(), "crap", "web", true, ALL);
 
     expect(next.suites.crap).toEqual({ ticked: ["web"], known: ALL });
-    expect(next.once).toEqual(["crap"]);
+    expect(next.armed).toEqual(["crap"]);
 
     const off = afterSuiteTick(next, "crap", "web", false, ALL);
 
     expect(off.suites.crap?.ticked).toEqual([]);
-    expect(off.once).toEqual([]);
+    expect(off.armed).toEqual([]);
     expect(sensorTickState(off, "crap", ALL)).toBe("off");
   });
 
@@ -206,16 +210,16 @@ describe("phasesFor with suites", () => {
     },
   ];
 
-  it("leaves a sensor out of sense when it is not in once however its suites are ticked", () => {
+  it("leaves a sensor out of sense when it is not in armed however its suites are ticked", () => {
     const plan = tickedPhases(ticks({ suites: { crap: entry(ALL) } }), rows);
 
     expect(plan.sense).toEqual([]);
     expect(plan.suites).toEqual({});
   });
 
-  it("leaves a sensor out of sense when it is in once with no suite ticked", () => {
+  it("leaves a sensor out of sense when it is in armed with no suite ticked", () => {
     const plan = tickedPhases(
-      ticks({ once: ["crap"], suites: { crap: entry([]) } }),
+      ticks({ armed: ["crap"], suites: { crap: entry([]) } }),
       rows,
     );
 
@@ -225,7 +229,7 @@ describe("phasesFor with suites", () => {
   it("returns the ticked suites in config order for each armed sensor", () => {
     const plan = tickedPhases(
       ticks({
-        once: ["crap", "mutation"],
+        armed: ["crap", "mutation"],
         suites: {
           crap: entry(["web", "unit"]),
           mutation: entry(["integration"]),

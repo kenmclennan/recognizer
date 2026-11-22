@@ -91,7 +91,7 @@ function input(over: Partial<PanelInput> = {}): PanelInput {
       describe: false,
       analysis: true,
       ticked: [],
-      once: [],
+      armed: [],
       onlyView: false,
       suites: {},
       folds: [],
@@ -543,7 +543,7 @@ describe("scanPanel row states", () => {
             describe: false,
             analysis: true,
             ticked: [],
-            once: ["mutation"],
+            armed: ["mutation"],
             onlyView: false,
             suites: { mutation: { ticked: ["unit"], known: ["unit"] } },
             folds: [],
@@ -805,14 +805,14 @@ describe("scanPanel ticks", () => {
     ).toEqual(["structure"]);
   });
 
-  it("ticks a plain sensor from the stored names and a tests-running one from once and its suite ticks", () => {
+  it("ticks a plain sensor from the stored names and a tests-running one from armed and its suite ticks", () => {
     const model = scanPanel(
       input({
         ticks: {
           describe: true,
           analysis: true,
           ticked: ["alpha"],
-          once: ["crap"],
+          armed: ["crap"],
           onlyView: false,
           suites: {},
           folds: [],
@@ -831,7 +831,7 @@ describe("scanPanel ticks", () => {
           describe: false,
           analysis: true,
           ticked: null,
-          once: [],
+          armed: [],
           onlyView: false,
           suites: {},
           folds: [],
@@ -851,7 +851,7 @@ describe("scanPanel ticks", () => {
           describe: false,
           analysis: true,
           ticked: [],
-          once: [],
+          armed: [],
           onlyView: false,
           suites: {},
           folds: [],
@@ -894,7 +894,7 @@ describe("phasesFor", () => {
         describe: true,
         analysis: true,
         ticked: ["duplication", "alpha", "ghost"],
-        once: [],
+        armed: [],
         onlyView: false,
         suites: {},
         folds: [],
@@ -913,14 +913,14 @@ describe("phasesFor", () => {
     expect(dropped).toEqual(["ghost"]);
   });
 
-  it("adds a tests-running sensor only when it is in once and one of its suites is ticked", () => {
+  it("adds a tests-running sensor only when it is in armed and one of its suites is ticked", () => {
     expect(
       phasesFor(
         {
           describe: false,
           analysis: true,
           ticked: [],
-          once: ["crap"],
+          armed: ["crap"],
           onlyView: false,
           suites: {},
           folds: [],
@@ -934,7 +934,7 @@ describe("phasesFor", () => {
           describe: false,
           analysis: true,
           ticked: ["crap"],
-          once: [],
+          armed: [],
           onlyView: false,
           suites: {},
           folds: [],
@@ -951,7 +951,7 @@ describe("phasesFor", () => {
           describe: false,
           analysis: true,
           ticked: null,
-          once: [],
+          armed: [],
           onlyView: false,
           suites: {},
           folds: [],
@@ -1014,7 +1014,7 @@ describe("scanPanel only this view", () => {
     describe: true,
     analysis: true,
     ticked: [],
-    once: ["mutation"],
+    armed: ["mutation"],
     onlyView,
     suites: {},
     folds: [],
@@ -1131,7 +1131,7 @@ describe("scanPanel freshness", () => {
         describe: true,
         analysis: true,
         ticked: [],
-        once: ["crap"],
+        armed: ["crap"],
         onlyView: false,
         suites: {},
         folds: [],
@@ -1206,7 +1206,7 @@ describe("scanPanel freshness", () => {
         describe: true,
         analysis: true,
         ticked: [],
-        once: ["crap"],
+        armed: ["crap"],
         onlyView: true,
         suites: {},
         folds: [],
@@ -1550,7 +1550,7 @@ const bothTicked = {
   describe: false,
   analysis: true,
   ticked: [],
-  once: ["crap", "mutation"],
+  armed: ["crap", "mutation"],
   onlyView: false,
   suites: {},
   folds: [],
@@ -1605,7 +1605,7 @@ describe("the run card", () => {
   it("drops a gap whose only sensor is unticked, from the list and the help lines", () => {
     const model = scanPanel(
       input({
-        ticks: { ...bothTicked, once: ["mutation"] },
+        ticks: { ...bothTicked, armed: ["mutation"] },
         ...refused(GAP_PY, GAP_RUST),
       }),
     );
@@ -1619,7 +1619,7 @@ describe("the run card", () => {
   it("does not block on a gap in an unticked sensor", () => {
     const model = scanPanel(
       input({
-        ticks: { ...bothTicked, once: [] },
+        ticks: { ...bothTicked, armed: [] },
         ...refused(GAP_PY, GAP_RUST),
       }),
     );
@@ -1633,7 +1633,7 @@ describe("the run card", () => {
     const shared: PreflightGap = { ...GAP_PY, needs: ["crap", "mutation"] };
     const model = scanPanel(
       input({
-        ticks: { ...bothTicked, once: ["mutation"] },
+        ticks: { ...bothTicked, armed: ["mutation"] },
         ...refused(shared),
       }),
     );
@@ -1646,7 +1646,7 @@ describe("the run card", () => {
       describe: true,
       analysis: true,
       ticked: [],
-      once: ["crap", "mutation"],
+      armed: ["crap", "mutation"],
       onlyView: false,
       suites: {},
       folds: [],
@@ -1785,7 +1785,7 @@ describe("scanPanel estimate line", () => {
         describe: false,
         analysis: true,
         ticked: [],
-        once: ["mutation"],
+        armed: ["mutation"],
         onlyView: false,
         suites: {},
         folds: [],
@@ -1826,7 +1826,7 @@ describe("scanPanel estimate line", () => {
           describe: false,
           analysis: true,
           ticked: [],
-          once: ["mutation", "crap"],
+          armed: ["mutation", "crap"],
           onlyView: false,
           suites: {},
           folds: [],
@@ -1915,10 +1915,10 @@ describe("unregistered plugins", () => {
       describe: true,
       analysis: true,
       ticked: ["mutation", "crap"],
-      once: ["mutation", "crap"],
+      armed: ["mutation", "crap"],
     });
 
-    expect(stored.once).toContain("mutation");
+    expect(stored.armed).toContain("mutation");
 
     const model = scanPanel(input({ config: ONLY_CRAP, ticks: stored }));
     const crap = model.rows.find((row) => row.key === "crap");
@@ -1949,7 +1949,7 @@ describe("unregistered plugins", () => {
     const model = scanPanel(
       input({
         config: null,
-        ticks: ticks({ describe: true, ticked: null, once: [] }),
+        ticks: ticks({ describe: true, ticked: null, armed: [] }),
       }),
     );
 
@@ -1979,7 +1979,7 @@ describe("unregistered plugins", () => {
     expect(describerRegistered("sensors: [unclosed")).toBe(false);
   });
 
-  it("drops only the unregistered names from ticked, once and suites and leaves the rest", () => {
+  it("drops only the unregistered names from ticked, armed and suites and leaves the rest", () => {
     const rows = [
       { name: "alpha", runsTests: false, registered: true },
       { name: "beta", runsTests: false, registered: false },
@@ -1990,7 +1990,7 @@ describe("unregistered plugins", () => {
       describe: true,
       analysis: true,
       ticked: ["alpha", "beta"],
-      once: ["crap", "mutation"],
+      armed: ["crap", "mutation"],
       onlyView: true,
       folds: ["crap", "mutation"],
       suites: {
@@ -2002,7 +2002,7 @@ describe("unregistered plugins", () => {
     expect(effectiveTicks(given, rows, true)).toEqual({
       ...given,
       ticked: ["alpha"],
-      once: ["crap"],
+      armed: ["crap"],
       suites: { crap: { ticked: ["unit"], known: ["unit"] } },
     });
     expect(effectiveTicks(given, rows, false).describe).toBe(false);

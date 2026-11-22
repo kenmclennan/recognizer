@@ -161,7 +161,7 @@ describe("recognizer serve: the wire", () => {
           describe: false,
           analysis: true,
           ticked: [],
-          once: [],
+          armed: [],
           onlyView: false,
           suites: {},
           folds: [],
@@ -1089,7 +1089,7 @@ describe("recognizer serve: plans", () => {
       describe: false,
       analysis: true,
       ticked: [],
-      once: [],
+      armed: [],
       onlyView: false,
       suites: {},
       folds: [],
@@ -1122,7 +1122,7 @@ describe("recognizer serve: plans", () => {
         await serve.call("scan.plan", {
           repository,
           mode: "bring",
-          ticks: ticks({ ticked: ["crap", "nonesuch"], once: ["crap"] }),
+          ticks: ticks({ ticked: ["crap", "nonesuch"], armed: ["crap"] }),
           scope: null,
           changed: [],
         })
@@ -1164,7 +1164,7 @@ describe("recognizer serve: plans", () => {
         await serve.call("scan.plan", {
           repository,
           mode: "bring",
-          ticks: ticks({ once: shipped }),
+          ticks: ticks({ armed: shipped }),
           scope: null,
           changed: [],
         })

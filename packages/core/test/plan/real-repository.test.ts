@@ -25,7 +25,7 @@ describe("a plan over committed content", () => {
     expect(scan.modules.length).toBeGreaterThan(0);
 
     const view = await planned.plan({
-      ticks: ticksOf({ ticked: [], once: shipped }),
+      ticks: ticksOf({ ticked: [], armed: shipped }),
     });
 
     expect(view.never).toEqual(shipped);

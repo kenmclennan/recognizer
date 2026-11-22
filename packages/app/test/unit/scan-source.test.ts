@@ -204,7 +204,7 @@ describe("scan source", () => {
         describe: false,
         analysis: true,
         ticked: [],
-        once: [],
+        armed: [],
         onlyView: false,
         suites: {},
         folds: [],

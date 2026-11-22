@@ -30,7 +30,7 @@ export function ticksOf(over: Partial<ScanTicks> = {}): ScanTicks {
     describe: false,
     analysis: true,
     ticked: [],
-    once: [],
+    armed: [],
     onlyView: false,
     suites: {},
     folds: [],

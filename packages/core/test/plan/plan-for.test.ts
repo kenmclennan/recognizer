@@ -23,7 +23,7 @@ function world(): PlanWorld {
 const ticks = ticksOf({
   describe: true,
   ticked: ["crap"],
-  once: ["mutation"],
+  armed: ["mutation"],
 });
 
 describe("a plan", () => {
@@ -68,7 +68,7 @@ describe("a plan", () => {
     });
 
     const byFlag = await flagged.plan({
-      ticks: ticksOf({ ticked: [], once: ["mutation", "other"] }),
+      ticks: ticksOf({ ticked: [], armed: ["mutation", "other"] }),
       changed: ["b.py", "c.py"],
     });
 
@@ -84,7 +84,7 @@ describe("a plan", () => {
     unscoped.measure("mutation", CURRENT);
 
     const plain = await unscoped.plan({
-      ticks: ticksOf({ ticked: ["crap"], once: [] }),
+      ticks: ticksOf({ ticked: ["crap"], armed: [] }),
       changed: ["b.py"],
     });
 
@@ -97,7 +97,7 @@ describe("a plan", () => {
     });
 
     const never = await world().plan({
-      ticks: ticksOf({ ticked: [], once: ["mutation"] }),
+      ticks: ticksOf({ ticked: [], armed: ["mutation"] }),
     });
 
     expect(never.intent.sense).toEqual(["mutation"]);
@@ -160,7 +160,7 @@ describe("a plan", () => {
     });
 
     const gapped = await oneGap.plan({
-      ticks: ticksOf({ ticked: ["crap"], once: [] }),
+      ticks: ticksOf({ ticked: ["crap"], armed: [] }),
     });
 
     expect(gapped.gaps.mutation).toEqual(["c.py"]);
@@ -173,7 +173,7 @@ describe("a plan", () => {
     mixed.measure("crap", { inputs: { ...FILES, "a.py": "x" }, tests: "t1" });
 
     const planned = await mixed.plan({
-      ticks: ticksOf({ ticked: ["crap", "ghost", "phantom"], once: [] }),
+      ticks: ticksOf({ ticked: ["crap", "ghost", "phantom"], armed: [] }),
     });
 
     expect(planned.intent.sense).toEqual(["crap"]);
@@ -189,7 +189,7 @@ describe("a plan", () => {
       tests: "t1",
     });
 
-    const own = ticksOf({ ticked: [], once: ["mutation"] });
+    const own = ticksOf({ ticked: [], armed: ["mutation"] });
     const one = await scoped.plan({ ticks: own, scope: ["b.py"] });
     const all = await scoped.plan({ ticks: own });
 

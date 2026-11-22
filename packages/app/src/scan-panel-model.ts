@@ -380,7 +380,7 @@ export function effectiveTicks(
           ? null
           : plain
         : ticks.ticked.filter(kept),
-    once: ticks.once.filter(kept),
+    armed: ticks.armed.filter(kept),
     suites: Object.fromEntries(
       Object.entries(ticks.suites).filter(([name]) => kept(name)),
     ),
@@ -731,7 +731,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
         : row.key === DESCRIBE_KEY
           ? input.ticks.describe
           : sensor?.runsTests === true
-            ? input.ticks.once.includes(row.key)
+            ? input.ticks.armed.includes(row.key)
             : (input.ticks.ticked ?? plain).includes(row.key);
 
       return {
