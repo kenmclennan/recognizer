@@ -303,6 +303,39 @@ describe("recognizer policy lists a list rule", () => {
   });
 });
 
+describe("recognizer policy --unset forbid with a mapping rule", () => {
+  const WITH_RULE =
+    "forbid:\n  - from: [a/**]\n    to: [b/**, c/**]\n  - x/** -> y/**\n";
+
+  it("removes the rule named as --list prints it", () => {
+    const fake = setup(WITH_RULE);
+
+    expect(
+      policy(
+        fake,
+        "--unset",
+        "forbid",
+        'forbid={"from":["a/**"],"to":["b/**","c/**"]}',
+      ),
+    ).toBe(0);
+    expect(fake.files.get(POLICY)).toBe("forbid:\n  - x/** -> y/**\n");
+  });
+
+  it("exits 1 and changes nothing when no rule matches", () => {
+    const fake = setup(WITH_RULE);
+
+    expect(
+      policy(
+        fake,
+        "--unset",
+        "forbid",
+        'forbid={"from":["z/**"],"to":["b/**"]}',
+      ),
+    ).toBe(1);
+    expect(fake.files.get(POLICY)).toBe(WITH_RULE);
+  });
+});
+
 describe("recognizer policy keeps the file's text", () => {
   function lines(text: string): string[] {
     return text.split("\n");

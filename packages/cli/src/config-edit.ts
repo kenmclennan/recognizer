@@ -575,6 +575,33 @@ function unsetRetired(text: string, path: string[]): EditOutcome {
   return { status: "ok", text: emit(opened.doc, text) };
 }
 
+function unsetForbidRule(
+  doc: Document,
+  text: string,
+  map: YAMLMap,
+  name: string,
+  existing: YAMLSeq,
+  raw: string,
+): EditOutcome {
+  const wanted = raw.replace(/^forbid=/, "");
+
+  const at = existing.items.findIndex(
+    (item) => isMap(item) && JSON.stringify(item.toJSON()) === wanted,
+  );
+
+  if (at === -1) {
+    return { status: "absent" };
+  }
+
+  existing.items.splice(at, 1);
+
+  if (existing.items.length === 0) {
+    map.delete(name);
+  }
+
+  return { status: "ok", text: emit(doc, text) };
+}
+
 export function unsetValue(
   text: string,
   published: PublishedKeys,
@@ -646,6 +673,15 @@ export function unsetValue(
 
   if (entry.found.multi !== true) {
     return refuse(`${key} holds one value; unset it without a value`);
+  }
+
+  if (
+    published.subject === "policy" &&
+    key === "forbid" &&
+    isSeq(existing) &&
+    (raw.startsWith("forbid={") || raw.startsWith("{"))
+  ) {
+    return unsetForbidRule(doc, text, map, name, existing, raw);
   }
 
   const value = typedValue(entry.found, raw);
