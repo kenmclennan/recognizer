@@ -2,8 +2,8 @@ import type {
   ScanIntent,
   ScanTicks,
   SuiteRef,
-  TickState,
 } from "../../domain/scan-plan.js";
+import type { TickState } from "../../domain/sensing/tick-state.js";
 
 export const EMPTY_SUITE_TICKS: Pick<ScanTicks, "suites" | "folds"> = {
   suites: {},

@@ -1,7 +1,7 @@
+import type { ScanOutcome } from "../domain/run/scan-outcome.js";
+import type { PlanRequest, ScanPlanView } from "../domain/run/scan-plan.js";
+import type { ScanRequest } from "../domain/run/scan-request.js";
 import type { ScanEvent } from "../domain/scan-event.js";
-import type { ScanOutcome } from "../domain/scan-outcome.js";
-import type { PlanRequest, ScanPlanView } from "../domain/scan-plan.js";
-import type { ScanRequest } from "../domain/scan-request.js";
 import type { AnalysisPorts } from "./analysis/internal/analysis-ports.js";
 import type { Analysis } from "./analysis/ports/analysis.js";
 import { runAnalysis } from "./analysis/run-analysis.js";

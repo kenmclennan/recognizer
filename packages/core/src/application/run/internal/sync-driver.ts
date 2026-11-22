@@ -1,5 +1,5 @@
-import type { ScanOutcome } from "../../../domain/scan-outcome.js";
-import type { ScanRequest } from "../../../domain/scan-request.js";
+import type { ScanOutcome } from "../../../domain/run/scan-outcome.js";
+import type { ScanRequest } from "../../../domain/run/scan-request.js";
 import type { RunPhases } from "../phases.js";
 import { type RunPorts, scanFlow } from "../scan-flow.js";
 import type { FlowContext } from "./flow-context.js";

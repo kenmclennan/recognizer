@@ -8,12 +8,12 @@ import type {
   SkippedPhase,
 } from "../../../domain/run-record.js";
 import type { ScanEvent } from "../../../domain/scan-event.js";
-import type { ScanStatus } from "../../../domain/scan-outcome.js";
 import type {
   Measured,
   ResponsibilityKinds,
   ScanFacts,
 } from "../../../domain/scan-plan.js";
+import type { ScanStatus } from "../../../domain/scan-status.js";
 
 export interface HeldLock {
   append(event: ScanEvent): void;
