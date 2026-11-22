@@ -1,5 +1,6 @@
 import type { ScanEvent } from "../domain/scan-event.js";
 import type { ScanOutcome } from "../domain/scan-outcome.js";
+import type { PlanRequest, ScanPlanView } from "../domain/scan-plan.js";
 import type { ScanRequest } from "../domain/scan-request.js";
 import type { AnalysisPorts } from "./analysis/internal/analysis-ports.js";
 import type { Analysis } from "./analysis/ports/analysis.js";
@@ -7,6 +8,7 @@ import { runAnalysis } from "./analysis/run-analysis.js";
 import { runAnalysisSync } from "./analysis/run-analysis-sync.js";
 import { describeFiles } from "./describing/describe-files.js";
 import { describingSettings } from "./describing/describing-settings.js";
+import { findDescribeGap } from "./describing/find-describe-gap.js";
 import { findDescriberGaps } from "./describing/find-describer-gaps.js";
 import type { DescribingPorts } from "./describing/internal/describing-ports.js";
 import { isDescriberRegistered } from "./describing/is-describer-registered.js";
@@ -19,6 +21,8 @@ import { EventQueue } from "./run/internal/event-queue.js";
 import { FlowContext } from "./run/internal/flow-context.js";
 import { driveSync } from "./run/internal/sync-driver.js";
 import type { RunPhases } from "./run/phases.js";
+import type { PlanPhases } from "./run/plan-scan.js";
+import { planScan } from "./run/plan-scan.js";
 import type { RunningScan, Scan } from "./run/ports/scan.js";
 import type { RunPorts } from "./run/scan-flow.js";
 import { detectLanguages } from "./scanning/detect-languages.js";
@@ -31,10 +35,12 @@ import { readScannerSetup } from "./scanning/read-scanner-setup.js";
 import { findCommitGaps } from "./sensing/find-commit-gaps.js";
 import { findProgramGaps } from "./sensing/find-program-gaps.js";
 import { findReadinessGaps } from "./sensing/find-readiness-gaps.js";
+import { findSensorGaps } from "./sensing/find-sensor-gaps.js";
 import type { SensingPorts } from "./sensing/internal/sensing-ports.js";
 import { planSensors } from "./sensing/plan-sensors.js";
 import type { Sensors } from "./sensing/ports/sensors.js";
 import { readRunConfig } from "./sensing/read-run-config.js";
+import { readSensorRows } from "./sensing/read-sensor-rows.js";
 import { runSensors } from "./sensing/run-sensors.js";
 import { selectSensors } from "./sensing/select-sensors.js";
 import type { Clock } from "./shared/ports/clock.js";
@@ -107,6 +113,35 @@ function bindDecisions(
   };
 }
 
+export interface PlanningPorts {
+  store: Pick<
+    Store,
+    "cachedScans" | "measuredOf" | "testsDigest" | "responsibilityKinds"
+  >;
+  sensors: Pick<Sensors, "registered">;
+}
+
+function planPhasesOver(ports: PlanningPorts): PlanPhases {
+  return {
+    readSensorRows: (root) => readSensorRows(ports, root),
+    readModules: (root) =>
+      ports.store
+        .cachedScans(root)
+        .flatMap((scan) => scan.modules.map(({ id }) => id)),
+    findSensorGaps: (root, rows, modules) =>
+      findSensorGaps(ports, root, rows, modules),
+    findDescribeGap: (root, modules) => findDescribeGap(ports, root, modules),
+  };
+}
+
+export function createPlanner(
+  ports: PlanningPorts,
+): (request: PlanRequest) => Promise<ScanPlanView> {
+  const phases = planPhasesOver(ports);
+
+  return (request) => Promise.resolve(planScan(phases, request));
+}
+
 function analysisOver(ports: CommonPorts): AnalysisPorts {
   return { analysis: ports.analysis, store: ports.store, clock: ports.clock };
 }
@@ -136,6 +171,7 @@ function syncPhasesOver(ports: SyncPorts): RunPhases {
 export function createScan(ports: ScanPorts): Scan {
   const run = runPorts(ports);
   const phases = phasesOver(ports);
+  const plan = createPlanner(ports);
 
   return {
     start(request: ScanRequest): RunningScan {
@@ -159,6 +195,7 @@ export function createScan(ports: ScanPorts): Scan {
       };
     },
     status: (repository) => Promise.resolve(ports.store.status(repository)),
+    plan,
   };
 }
 

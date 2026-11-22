@@ -1,116 +1,37 @@
-import type { Scan } from "recognizer";
-import { type Freshness, type Measured, scanHashes } from "recognizer";
-import type { FreshnessModel } from "./freshness-model";
-import type { ScanPlan, ScanTicks } from "./scan-panel-model";
-import type { SensorStatus } from "./sensor-run";
-import { type SuiteRef, suitePlan } from "./suite-ticks";
+import {
+  createPlanner,
+  type Freshness,
+  type LineKind,
+  type Measured,
+  type PlanMode,
+  type PlanRequest,
+  type PlanRow,
+  planFor,
+  type ScanFacts,
+  type ScanIntent,
+  type ScanPlanView,
+  type ScanTicks,
+  type SensorRow,
+} from "recognizer";
 
-export type ResultsMode = "bring" | "rescan";
+export {
+  createPlanner,
+  type LineKind,
+  type Measured,
+  type PlanRequest,
+  type ScanFacts,
+  type ScanPlanView,
+  type SensorRow,
+};
+
+import type { FreshnessModel } from "./freshness-model";
+import type { SensorStatus } from "./sensor-run";
+
+export type ResultsMode = PlanMode;
 
 export const DESCRIBE_KEY = "describe";
 
 export const MUTATION_KEY = "mutation";
-
-export type SensorFreshness =
-  | { kind: "never-run" }
-  | { kind: "known"; outOfDate: string[]; missing: string[] };
-
-export type FreshnessScope = {
-  modules: string[];
-  hashes: ReadonlyMap<string, string>;
-  withFunctions: ReadonlySet<string>;
-  freshness: Freshness;
-};
-
-export function modulesWithFunctions(scans: readonly Scan[]): Set<string> {
-  const ids = new Set<string>();
-
-  for (const scan of scans) {
-    for (const module of scan.modules) {
-      const has = (module.members ?? []).some(
-        (member) =>
-          member.kind === "function" ||
-          (member.kind === "class" && (member.methods?.length ?? 0) > 0),
-      );
-
-      if (has) {
-        ids.add(module.id);
-      }
-    }
-  }
-
-  return ids;
-}
-
-export function freshnessScope(
-  modules: string[],
-  scans: readonly Scan[],
-  freshness: Freshness,
-): FreshnessScope {
-  return {
-    modules,
-    hashes: scanHashes(scans),
-    withFunctions: modulesWithFunctions(scans),
-    freshness,
-  };
-}
-
-export function sensorFreshness(
-  scope: FreshnessScope,
-  measured: Measured | null,
-  scoped: boolean,
-): SensorFreshness {
-  if (measured === null) {
-    return { kind: "never-run" };
-  }
-
-  const { freshness, hashes, modules, withFunctions } = scope;
-
-  if (!freshness.valid(measured)) {
-    return { kind: "known", outOfDate: [...modules], missing: [] };
-  }
-
-  const outOfDate: string[] = [];
-  const missing: string[] = [];
-
-  for (const id of modules) {
-    if (!hashes.has(id)) {
-      continue;
-    }
-
-    if (measured.inputs?.[id] !== undefined) {
-      if (!freshness.current(measured, id)) {
-        outOfDate.push(id);
-      }
-    } else if (scoped && withFunctions.has(id)) {
-      missing.push(id);
-    }
-  }
-
-  return { kind: "known", outOfDate, missing };
-}
-
-export function staleModules(
-  modules: readonly string[],
-  measured: Measured,
-  freshness: Freshness,
-): Set<string> {
-  if (!freshness.valid(measured)) {
-    return new Set(modules);
-  }
-
-  return new Set(modules.filter((id) => !freshness.current(measured, id)));
-}
-
-export function gapOf(result: SensorFreshness, modules: string[]): string[] {
-  if (result.kind === "never-run") {
-    return [...modules];
-  }
-
-  const wanted = new Set([...result.outOfDate, ...result.missing]);
-
-  return modules.filter((id) => wanted.has(id));
-}
 
 export function markStale(
   statuses: SensorStatus[],
@@ -135,15 +56,8 @@ export type FreshnessMessage = {
   label: string;
 };
 
-export type PlanRow = {
-  name: string;
-  runsTests: boolean;
-  scoped: boolean;
-  suites?: SuiteRef[];
-};
-
 export type PlannedRun = {
-  plan: ScanPlan;
+  plan: ScanIntent;
   dropped: string[];
   modules: number;
   idle: boolean;
@@ -215,58 +129,7 @@ export function freshnessMessage(
   };
 }
 
-export function tickedPhases(
-  ticks: ScanTicks,
-  rows: PlanRow[],
-): {
-  describe: boolean;
-  sense: string[];
-  suites: Record<string, string[]>;
-  dropped: string[];
-} {
-  const testing = rows
-    .filter(({ runsTests }) => runsTests)
-    .map(({ name }) => name);
-  const plain = rows
-    .filter(({ runsTests }) => !runsTests)
-    .map(({ name }) => name);
-  const wanted = ticks.ticked ?? plain;
-  const known = [...plain, ...testing];
-  const planned = suitePlan(
-    ticks,
-    rows.filter(({ runsTests }) => runsTests),
-    ticks.once,
-  );
-
-  return {
-    describe: ticks.describe,
-    sense: [
-      ...wanted.filter((name) => plain.includes(name)),
-      ...testing.filter((name) => planned.sense.includes(name)),
-    ],
-    suites: planned.suites,
-    dropped: wanted.filter((name) => !known.includes(name)),
-  };
-}
-
-function inOrder(ids: Set<string>, order: string[]): string[] {
-  return order.filter((id) => ids.has(id));
-}
-
-export function suitesForSense(
-  sense: string[],
-  suites: Record<string, string[]>,
-): Record<string, string[]> | undefined {
-  const sensed = Object.fromEntries(
-    Object.entries(suites).filter(
-      ([name, names]) => sense.includes(name) && names.length > 0,
-    ),
-  );
-
-  return Object.keys(sensed).length > 0 ? sensed : undefined;
-}
-
-export function planFor(
+export function plannedRun(
   model: FreshnessModel,
   mode: ResultsMode,
   ticks: ScanTicks,
@@ -274,117 +137,50 @@ export function planFor(
   scope: string[] | null,
   all: string[],
 ): PlannedRun {
-  const phases = tickedPhases(ticks, rows);
-  const display = new Map(
-    rows.map(({ name, display }) => [name, display ?? name]),
+  const view = planFor(
+    { mode, ticks, scope, changed: model.update },
+    rows,
+    {
+      gaps: model.gaps,
+      never: new Set(
+        model.rows
+          .filter(({ state }) => state.kind === "never-run")
+          .map(({ key }) => key),
+      ),
+    },
+    all,
   );
-  const order = scope ?? all;
+  const label = model.action.primary.label;
+  const base = {
+    plan: view.intent,
+    dropped: view.dropped,
+    modules: view.modules,
+    label,
+    work: view.work,
+  };
 
   if (mode === "rescan") {
-    const total = order.length;
-    const any = phases.describe || phases.sense.length > 0;
-
     return {
-      plan: {
-        describe: phases.describe,
-        describeAll: true,
-        analysis: ticks.analysis,
-        sense: phases.sense,
-        modules: scope !== null && any ? scope : null,
-        suites: suitesForSense(phases.sense, phases.suites),
-      },
-      dropped: phases.dropped,
-      modules: total,
+      ...base,
       idle: false,
-      label: model.action.primary.label,
-      progress: `Rescanning ${plural(total, "file")}\u2026`,
-      work: workOf(
-        phases.describe ? total : null,
-        phases.sense,
-        scope !== null && any ? scope.length : null,
-        all.length,
-        new Set(rows.filter(({ scoped }) => scoped).map(({ name }) => name)),
-      ),
+      progress: `Rescanning ${plural(view.modules, "file")}\u2026`,
     };
   }
 
-  const gapOfRow = (name: string): string[] => model.gaps.get(name) ?? [];
-  const kindOf = (name: string) =>
-    model.rows.find(({ key }) => key === name)?.state.kind;
-  const describe = phases.describe && gapOfRow(DESCRIBE_KEY).length > 0;
-  const sense = phases.sense.filter(
-    (name) =>
-      !model.gaps.has(name) ||
-      kindOf(name) === "never-run" ||
-      gapOfRow(name).length > 0,
+  const display = new Map(
+    rows.map(({ name, display }) => [name, display ?? name]),
   );
-  const scopedIds = new Set<string>();
-  const scopedNames = new Set(
-    rows.filter(({ scoped }) => scoped).map(({ name }) => name),
-  );
-
-  if (describe) {
-    for (const id of gapOfRow(DESCRIBE_KEY)) {
-      scopedIds.add(id);
-    }
-  }
-
-  for (const name of sense.filter((one) => scopedNames.has(one))) {
-    for (const id of gapOfRow(name)) {
-      scopedIds.add(id);
-    }
-  }
-
-  const planModules = scopedIds.size === 0 ? null : inOrder(scopedIds, order);
-  const changed = model.update.length;
   const names = [
-    ...(describe ? ["Descriptions"] : []),
-    ...sense.map((name) => display.get(name) ?? name),
+    ...(view.intent.describe ? ["Descriptions"] : []),
+    ...view.intent.sense.map((name) => display.get(name) ?? name),
   ];
 
   return {
-    plan: {
-      describe,
-      describeAll: false,
-      analysis: ticks.analysis,
-      sense,
-      modules: planModules,
-      suites: suitesForSense(sense, phases.suites),
-    },
-    dropped: phases.dropped,
-    modules: changed,
-    idle: model.action.primary.label === "Up to date",
-    label: model.action.primary.label,
+    ...base,
+    idle: label === "Up to date",
     progress:
-      changed > 0
-        ? `Updating ${plural(changed, "file")}\u2026`
+      view.modules > 0
+        ? `Updating ${plural(view.modules, "file")}\u2026`
         : `Running ${joinNames(names)}\u2026`,
-    work: workOf(
-      describe ? gapOfRow(DESCRIBE_KEY).length : null,
-      sense,
-      planModules === null ? null : planModules.length,
-      all.length,
-      scopedNames,
-    ),
   };
-}
-
-function workOf(
-  describe: number | null,
-  sense: string[],
-  scoped: number | null,
-  all: number,
-  scopedNames: ReadonlySet<string>,
-): Record<string, number> {
-  const work: Record<string, number> = {};
-
-  if (describe !== null) {
-    work[DESCRIBE_KEY] = describe;
-  }
-
-  for (const name of sense) {
-    work[name] = scopedNames.has(name) ? (scoped ?? all) : all;
-  }
-
-  return work;
 }

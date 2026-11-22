@@ -15,12 +15,13 @@ import type {
   SenseCall,
   SensorPlan,
   SensorPlanInput,
+  SensorRow,
   SensorSelection,
   SensorSelectionInput,
   Sensors,
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
-import { policyFile } from "../../config.js";
+import { policyFile, readConfig } from "../../config.js";
 import { type Config, registeredSensors } from "../../config-parse.js";
 import type { Parsers } from "../../duplication/parsers.js";
 import { loadParsers } from "../../duplication/parsers.js";
@@ -283,6 +284,42 @@ export class SensorsAdapter implements Sensors, Analysis {
     );
 
     return { error: run.error };
+  }
+
+  registered(root: string): SensorRow[] {
+    const config = readConfig(this.io, root, ["sensors", "tests"]);
+    const suites = (config?.tests ?? []).map(({ name, language }) => ({
+      name,
+      language,
+    }));
+    const names = new Set(registeredSensors(config).map(({ name }) => name));
+    const shipped = readShippedSensors(this.io);
+    const rows: SensorRow[] = shipped.sensors
+      .filter(({ listed }) => listed)
+      .sort((a, b) => a.display.localeCompare(b.display))
+      .map((one) => ({
+        name: one.name,
+        display: one.display,
+        runsTests: one.runs_tests,
+        scoped: one.scoped,
+        registered: names.has(one.name),
+        ...(one.runs_tests && suites.length > 0 ? { suites } : {}),
+      }));
+    const known = new Set(shippedSensorNames());
+
+    for (const name of names) {
+      if (!known.has(name)) {
+        rows.push({
+          name,
+          display: name,
+          runsTests: false,
+          scoped: false,
+          registered: true,
+        });
+      }
+    }
+
+    return rows;
   }
 
   async run(call: SenseCall): Promise<void> {

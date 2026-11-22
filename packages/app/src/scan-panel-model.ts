@@ -1,10 +1,19 @@
 import type { Diagnosis, Freshness } from "recognizer";
 import {
+  afterSuiteTick,
   type Config,
   parseConfig,
   registeredSensors,
   type Scan,
+  type ScanIntent,
+  type ScanTicks,
+  type SuiteRef,
+  sensorArmed,
+  sensorTickState,
   shippedSensorNames,
+  type TickState,
+  tickedSuites,
+  visibleSuiteTicks,
 } from "recognizer";
 import { scopeCaption } from "./findings-scope";
 import { ageText, type ScanState } from "./footer-scan";
@@ -33,7 +42,7 @@ import {
   DESCRIBE_KEY,
   markStale,
   type PlannedRun,
-  planFor,
+  plannedRun,
   type ResultsMode,
 } from "./scan-freshness";
 import {
@@ -56,16 +65,6 @@ import {
   suiteRows,
   tickedResults,
 } from "./suite-results";
-import {
-  type SuiteRef,
-  type SuiteTickEntry,
-  sensorArmed,
-  sensorTickState,
-  suitePlan,
-  type TickState,
-  tickedSuites,
-  visibleSuiteTicks,
-} from "./suite-ticks";
 
 export type RunState = {
   running: string[];
@@ -83,26 +82,10 @@ export const NO_RUN: RunState = {
   ranAt: {},
 };
 
-export { DESCRIBE_KEY };
+export type { ScanTicks, SuiteRef };
+export { afterSuiteTick, DESCRIBE_KEY, sensorTickState, visibleSuiteTicks };
 
-export type ScanTicks = {
-  describe: boolean;
-  analysis: boolean;
-  ticked: string[] | null;
-  once: string[];
-  onlyView: boolean;
-  suites: Record<string, SuiteTickEntry>;
-  folds: string[];
-};
-
-export type ScanPlan = {
-  describe: boolean;
-  describeAll: boolean;
-  analysis: boolean;
-  sense: string[];
-  modules: string[] | null;
-  suites?: Record<string, string[]>;
-};
+export type ScanPlan = ScanIntent;
 
 export type PanelView = { name: string | null; modules: string[] };
 
@@ -318,44 +301,6 @@ export function effectiveTicks(
   };
 }
 
-export function phasesFor(
-  ticks: ScanTicks,
-  every: (Pick<RowSensor, "name" | "runsTests" | "suites"> & {
-    registered?: boolean;
-  })[],
-): { plan: ScanPlan; dropped: string[] } {
-  const rows = every.filter(({ registered }) => registered !== false);
-  const testing = rows
-    .filter(({ runsTests }) => runsTests)
-    .map(({ name }) => name);
-  const planned = suitePlan(
-    ticks,
-    rows.filter(({ runsTests }) => runsTests),
-    ticks.once,
-  );
-  const plain = rows
-    .filter(({ runsTests }) => !runsTests)
-    .map(({ name }) => name);
-  const wanted = ticks.ticked ?? plain;
-  const known = [...plain, ...testing];
-  const sense = [
-    ...wanted.filter((name) => plain.includes(name)),
-    ...testing.filter((name) => planned.sense.includes(name)),
-  ];
-
-  return {
-    plan: {
-      describe: ticks.describe,
-      describeAll: false,
-      analysis: ticks.analysis,
-      sense,
-      modules: null,
-      suites: planned.suites,
-    },
-    dropped: wanted.filter((name) => !known.includes(name)),
-  };
-}
-
 export function functionCount(scans: Scan[], ids: string[] | null): number {
   const wanted = ids === null ? null : new Set(ids);
   let count = 0;
@@ -539,7 +484,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
     };
   }
 
-  const unplanned = planFor(
+  const unplanned = plannedRun(
     freshness,
     input.mode ?? "bring",
     input.ticks,

@@ -3,11 +3,13 @@ import type {
   RunningScan,
   ScanEvent,
   ScanOutcome,
+  ScanPlanView,
   ScanRequest,
   ScanStatus,
 } from "../../src/index.js";
 import { createFakes, type Fakes, scanOver } from "./container.js";
 import { cachePath } from "./fake-store.js";
+import { PlanWorld } from "./plan-world.js";
 
 export const REPOSITORY = "/work/repository";
 
@@ -20,6 +22,9 @@ export class ScanWorld {
   secondOutcome: ScanOutcome | null = null;
   statusSeen: ScanStatus | null = null;
   confirmAbove: number | undefined;
+  plans: PlanWorld = new PlanWorld();
+  view: ScanPlanView | null = null;
+  ticked: string[] = [];
 
   addLanguage(language: string, fails = false): void {
     this.fakes.scanners.languages.set(language, {

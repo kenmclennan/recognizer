@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { parseScanArgs } from "recognizer";
+import { parseScanArgs, suitesForSense } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { FreshnessModel } from "../../src/freshness-model";
-import { OPEN_RUN, planFor, suitesForSense } from "../../src/scan-freshness";
+import { OPEN_RUN, plannedRun } from "../../src/scan-freshness";
 import type { ScanPlan, ScanTicks } from "../../src/scan-panel-model";
 
 const FOLDER = "/work/repo";
@@ -58,7 +58,7 @@ describe("the arguments the app hands the scan command", () => {
   });
 
   it("parse for a planned run with no tests-running sensor due", () => {
-    const planned = planFor(
+    const planned = plannedRun(
       MODEL,
       "rescan",
       ticksOf({ ticked: ["structure"] }),
@@ -73,12 +73,14 @@ describe("the arguments the app hands the scan command", () => {
 
   it("hand Incremental a plain --describe and only Full --describe=all", () => {
     const ticks = ticksOf({ describe: true });
-    const full = planFor(MODEL, "rescan", ticks, ROWS, null, ["a.py"]);
+    const full = plannedRun(MODEL, "rescan", ticks, ROWS, null, ["a.py"]);
     const gapped = {
       ...MODEL,
       gaps: new Map([["describe", ["a.py"]]]),
     } as unknown as FreshnessModel;
-    const incremental = planFor(gapped, "bring", ticks, ROWS, null, ["a.py"]);
+    const incremental = plannedRun(gapped, "bring", ticks, ROWS, null, [
+      "a.py",
+    ]);
 
     expect(full.plan.describeAll).toBe(true);
     expect(argsFor(full.plan)).toContain("--describe=all");
@@ -88,7 +90,7 @@ describe("the arguments the app hands the scan command", () => {
   });
 
   it("parse for a planned run with C.R.A.P. and its suites", () => {
-    const planned = planFor(
+    const planned = plannedRun(
       MODEL,
       "rescan",
       ticksOf({

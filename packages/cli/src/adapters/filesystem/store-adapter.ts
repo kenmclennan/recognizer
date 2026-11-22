@@ -1,11 +1,16 @@
+import { join } from "node:path";
 import type {
   AcquiredLock,
   ConfigDocument,
   RunPhase as CoreRunPhase,
   HeldLock,
+  LineKind,
   LockDetails,
+  Measured,
   PolicyDocument,
+  ResponsibilityKinds,
   RunLog,
+  ScanFacts,
   ScanStatus,
   Store,
 } from "@recognizer/core";
@@ -16,12 +21,21 @@ import {
   readsAnyConfig,
   readsSensors,
 } from "../../config-parse.js";
+import { findDescriber } from "../../describer-in-effect.js";
+import type { Language } from "../../detect.js";
 import { errorText } from "../../errors.js";
-import { findingsFile } from "../../findings-files.js";
+import { validateFindings } from "../../findings-document.js";
+import { findingsFile, findingsFolder } from "../../findings-files.js";
 import { readPolicy } from "../../load-findings.js";
+import {
+  lineStatus,
+  type ResponsibilityEntry,
+  validateResponsibilities,
+} from "../../responsibilities.js";
+import { scanHashes } from "../../result-freshness.js";
 import { openPhasedRunLog } from "../../run-log.js";
 import { awaitDescribeAnswer } from "../../scan-answer.js";
-import { cacheFile } from "../../scan-facts.js";
+import { CACHE, cacheFile, readCachedScan } from "../../scan-facts.js";
 import {
   acquireMarker,
   readLiveMarker,
@@ -166,5 +180,120 @@ export class StoreAdapter implements Store {
           describe: marker.describe,
           startedBy: marker.started_by,
         };
+  }
+
+  cachedScans(root: string): ScanFacts[] {
+    let names: string[] = [];
+
+    try {
+      names = this.io.readDir(join(root, CACHE)).map(({ name }) => name);
+    } catch {
+      return [];
+    }
+
+    return names
+      .map((name) => /^scan\.(.+)\.json$/.exec(name)?.[1])
+      .filter((language): language is string => language !== undefined)
+      .sort()
+      .flatMap((language) => {
+        const scan = readCachedScan(this.io, root, language as Language);
+
+        return scan === null ? [] : [scan as unknown as ScanFacts];
+      });
+  }
+
+  measuredOf(root: string, sensor: string): Measured | null {
+    const file = findingsFile(root, sensor);
+
+    if (!this.io.exists(file)) {
+      return null;
+    }
+
+    try {
+      const document = validateFindings(JSON.parse(this.io.readFile(file)), {
+        name: sensor,
+      });
+
+      return {
+        ...(document.inputs !== undefined ? { inputs: document.inputs } : {}),
+        ...(document.tests !== undefined ? { tests: document.tests } : {}),
+      };
+    } catch {
+      return {};
+    }
+  }
+
+  testsDigest(root: string): string | null {
+    let names: string[] = [];
+
+    try {
+      names = this.io.readDir(findingsFolder(root)).map(({ name }) => name);
+    } catch {
+      return null;
+    }
+
+    for (const name of names.filter((one) => one.endsWith(".json")).sort()) {
+      const measured = this.measuredOf(root, name.replace(/\.json$/, ""));
+
+      if (measured?.tests !== undefined) {
+        return measured.tests;
+      }
+    }
+
+    return null;
+  }
+
+  responsibilityKinds(root: string): ResponsibilityKinds {
+    const configured = readConfig(this.io, root, ["describer"])?.describer;
+
+    if (configured === undefined) {
+      return { registered: false, kinds: {} };
+    }
+
+    const scans = this.cachedScans(root);
+    const modules = scans.flatMap((scan) => scan.modules.map(({ id }) => id));
+    const file = join(root, ".recognizer", "responsibilities.json");
+    const kinds: Record<string, LineKind> = {};
+
+    let entries: Record<string, ResponsibilityEntry> = {};
+
+    if (this.io.exists(file)) {
+      try {
+        entries = validateResponsibilities(
+          JSON.parse(this.io.readFile(file)),
+        ).modules;
+      } catch {
+        for (const id of modules) {
+          kinds[id] = "unknown";
+        }
+
+        return { registered: true, kinds };
+      }
+    }
+
+    const describer = findDescriber(this.io, root);
+    const hashes = scanHashes(scans as never);
+
+    for (const id of modules) {
+      const entry = entries[id];
+
+      if (entry === undefined) {
+        kinds[id] = "missing";
+      } else if (describer === null || !hashes.has(id)) {
+        kinds[id] = "out-of-date";
+      } else {
+        kinds[id] =
+          lineStatus(
+            entry,
+            hashes.get(id) as string,
+            describer.command,
+            describer.version,
+          ).status === "current"
+            ? "current"
+            : "out-of-date";
+      }
+    }
+
+    return { registered: true, kinds };
   }
 }

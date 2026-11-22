@@ -4,12 +4,15 @@ import type {
   GapRecord,
   HeldLock,
   LockDetails,
+  Measured,
   PolicyDocument,
+  ResponsibilityKinds,
   RunFailure,
   RunLog,
   RunPhase,
   RunSummary,
   ScanEvent,
+  ScanFacts,
   ScanStatus,
   SkippedPhase,
   Store,
@@ -31,6 +34,9 @@ export interface LockRecord {
 export class FakeStore implements Store {
   readonly files = new Map<string, string>();
   readonly locks: LockRecord[] = [];
+  readonly measured = new Map<string, Measured>();
+  readonly kinds = new Map<string, ResponsibilityKinds>();
+  tests: string | null = null;
   readonly runLogs: { skipped: SkippedPhase[]; phases: RunPhase[] }[] = [];
   private holder: LockRecord | null = null;
 
@@ -132,6 +138,39 @@ export class FakeStore implements Store {
     this.holder = record;
 
     return { ok: true, lock };
+  }
+
+  cachedScans(root: string): ScanFacts[] {
+    const prefix = `${root}/.recognizer/cache/scan.`;
+    const found: ScanFacts[] = [];
+
+    for (const [path, bytes] of this.files) {
+      if (!path.startsWith(prefix)) {
+        continue;
+      }
+
+      try {
+        const parsed = JSON.parse(bytes) as ScanFacts;
+
+        if (Array.isArray(parsed.modules)) {
+          found.push(parsed);
+        }
+      } catch {}
+    }
+
+    return found;
+  }
+
+  measuredOf(root: string, sensor: string): Measured | null {
+    return this.measured.get(`${root}::${sensor}`) ?? null;
+  }
+
+  testsDigest(): string | null {
+    return this.tests;
+  }
+
+  responsibilityKinds(root: string): ResponsibilityKinds {
+    return this.kinds.get(root) ?? { registered: false, kinds: {} };
   }
 
   status(): ScanStatus {

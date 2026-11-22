@@ -1,10 +1,9 @@
-import type { ScanPlan, ScanTicks } from "./scan-panel-model";
-
-export type SuiteRef = { name: string; language: string };
-
-export type SuiteTickEntry = { ticked: string[]; known: string[] };
-
-export type TickState = "off" | "some" | "on";
+import type {
+  ScanIntent,
+  ScanTicks,
+  SuiteRef,
+  TickState,
+} from "../../domain/scan-plan.js";
 
 export const EMPTY_SUITE_TICKS: Pick<ScanTicks, "suites" | "folds"> = {
   suites: {},
@@ -170,10 +169,10 @@ export function sensorArmed(
 }
 
 export function onlyArmed(
-  plan: ScanPlan,
+  plan: ScanIntent,
   once: string[],
   testing: string[],
-): ScanPlan {
+): ScanIntent {
   const dropped = (name: string) =>
     testing.includes(name) && !once.includes(name);
   const suites = plan.suites;

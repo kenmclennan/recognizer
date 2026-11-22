@@ -1,4 +1,8 @@
 import {
+  afterFoldToggle,
+  afterPanelOpen,
+  afterSensorTick,
+  afterSuiteTick,
   buildFreshness,
   type ChangeFacts,
   changeChip,
@@ -214,12 +218,6 @@ import {
 } from "./sensor-run";
 import { loadShowPrivate, saveShowPrivate } from "./show-private";
 import { currentCommit, hasEntries, staleReport } from "./stale-report";
-import {
-  afterFoldToggle,
-  afterPanelOpen,
-  afterSensorTick,
-  afterSuiteTick,
-} from "./suite-ticks";
 import {
   bringBack,
   CANVAS_FLOOR,

@@ -7,6 +7,7 @@ import type {
   SenseCall,
   SensorPlan,
   SensorPlanInput,
+  SensorRow,
   SensorSelection,
   SensorSelectionInput,
   Sensors,
@@ -17,6 +18,9 @@ export interface InventedSensor {
   runsTests: boolean;
   needs: string[];
   held: boolean;
+  scoped?: boolean;
+  display?: string;
+  registered?: boolean;
 }
 
 export class FakeSensors implements Sensors {
@@ -35,6 +39,16 @@ export class FakeSensors implements Sensors {
     this.releasing = new Promise((resolve) => {
       this.release = resolve;
     });
+  }
+
+  registered(): SensorRow[] {
+    return [...this.installed.values()].map((sensor) => ({
+      name: sensor.name,
+      display: sensor.display ?? sensor.name,
+      runsTests: sensor.runsTests,
+      scoped: sensor.scoped ?? false,
+      registered: sensor.registered ?? true,
+    }));
   }
 
   releaseHeld(): void {
