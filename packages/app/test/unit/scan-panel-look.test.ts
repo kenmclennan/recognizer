@@ -526,6 +526,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   await tick();
   facts.suiteReopened = { sensor: sensorRow(reopened, "crap"), fold: foldOf(reopened, "crap") };
   await reopened.setTick("crap", true);
+  await reopened.setTick("crap", true);
   facts.suiteArmed = sensorRow(reopened, "crap");
   click(reopened.q(".scan-run-mode-full"));
   await tick();
@@ -643,10 +644,10 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.scopeOn.duplication).toBe(f.scopeOff.duplication);
   });
 
-  it("remembers the switch through the port and sends the view's file ids when it is on, and a click on Run with the scope off starts no further run", () => {
+  it("remembers the switch through the port and sends the view's file ids when it is on, and a click on Run with the scope off runs the still-ticked sensor on the whole repository", () => {
     expect(f.scopeOn.written.onlyView).toBe(true);
     expect(f.scopeRan.modules).toEqual([["app/a.py"]]);
-    expect(f.scopeOffRan).toEqual([["app/a.py"]]);
+    expect(f.scopeOffRan).toEqual([["app/a.py"], ["app/a.py", "app/b.py"]]);
   });
 
   it("summarises one sensor-out-of-date file with no bar and Update 1 file, then everything current with a disabled Up to date once the hashes match", () => {
@@ -790,17 +791,17 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     });
   });
 
-  it("remembers a tick and a suite tick through the port, never a tests-running sensor's own tick, and a reopened window reads them back", () => {
+  it("remembers a tick, a tests-running sensor's tick and a suite tick through the port, and a reopened window reads them back", () => {
     expect(f.ticked.rows).toEqual(["structure", "describe", "crap", "tally"]);
     expect(f.ticked.written).toEqual({
       describe: true,
       analysis: true,
-      ticked: ["tally"],
+      ticked: ["tally", "crap"],
       onlyView: false,
       suites: {},
       folds: [],
     });
-    expect(f.reopened).toEqual(["structure", "describe", "tally"]);
+    expect(f.reopened).toEqual(["structure", "describe", "crap", "tally"]);
     expect(f.suiteStart.crap).toEqual({
       ticked: false,
       indeterminate: false,
@@ -824,16 +825,16 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.suiteReopened.fold.open).toBe(false);
     expect(f.suiteReopened.sensor).toMatchObject({
       ticked: false,
-      indeterminate: false,
+      indeterminate: true,
     });
   });
 
-  it("ticks every suite with the sensor and shows the sensor and its suites unticked after a scan clears the sensor tick", () => {
+  it("ticks every suite with the sensor and shows the sensor and its suites still ticked after a scan", () => {
     expect(f.suiteArmed).toMatchObject({ ticked: true, indeterminate: false });
     expect(f.suiteAfterScan.plan.suites).toEqual({
       crap: ["unit", "a-suite-with-a-very-long-name-indeed", "web"],
     });
-    expect(f.suiteAfterScan.sensor.ticked).toBe(false);
+    expect(f.suiteAfterScan.sensor.ticked).toBe(true);
     expect(f.suiteAfterScan.sensor.indeterminate).toBe(false);
     expect(f.suiteAfterScan.fold.open).toBe(false);
   });
@@ -912,11 +913,9 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.run.after.summary.shape).not.toBe("running");
   });
 
-  it("clears a tests-running tick after the scan it ran in and never writes it", () => {
-    expect(f.run.crapTickAfter).toBe(false);
-    expect(
-      f.run.written.every((ticked: string[]) => !ticked.includes("crap")),
-    ).toBe(true);
+  it("keeps a tests-running tick after the scan it ran in and writes it", () => {
+    expect(f.run.crapTickAfter).toBe(true);
+    expect(f.run.written.at(-1)).toContain("crap");
   });
 
   it("refuses a second scan while one runs", () => {

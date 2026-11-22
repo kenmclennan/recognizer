@@ -150,6 +150,7 @@ export function createRescanner<Carried>(
   let rows: RunRow[] = [];
   let heading: string | null = null;
   let failureIds: number[] = [];
+  let splitting: Promise<void> = Promise.resolve();
   let lastUpdate: ProgressUpdate = { scanning: null };
   let record: ScanRunRecord | null = null;
   let begunRunId: string | null = null;
@@ -164,7 +165,6 @@ export function createRescanner<Carried>(
   let ownRunId: string | null = null;
   let adoptedAtOpen: string | null = null;
   let seenFirst = false;
-  let keepOnce = false;
   let adoptedThisScan = false;
   const wallNow = ports.now ?? Date.now;
   const now = ports.awake ?? wallNow;
@@ -222,7 +222,16 @@ export function createRescanner<Carried>(
     await ports.port.writeTicks({
       describe: ticks.describe,
       analysis: ticks.analysis,
-      ticked: (ticks.ticked ?? plain).filter((name) => plain.includes(name)),
+      ticked: [
+        ...(ticks.ticked ?? plain).filter((name) => plain.includes(name)),
+        ...ticks.once.filter(
+          (name) =>
+            !plain.includes(name) &&
+            registered.sensors.some(
+              (one) => one.name === name && one.runsTests,
+            ),
+        ),
+      ],
       onlyView: ticks.onlyView,
       suites: ticks.suites,
       folds: ticks.folds,
@@ -599,7 +608,6 @@ export function createRescanner<Carried>(
     starting = null;
 
     if (scan.phase === "refused") {
-      keepOnce = keepOnce || busy;
       const text = refusedText(scan.gaps);
 
       ports.post({ kind: "warning", text: `Scan refused - ${text}` });
@@ -650,6 +658,17 @@ export function createRescanner<Carried>(
     if (!progress.extractSettled) {
       progress = { ...progress, extractSettled: true };
       await settle();
+    }
+
+    if (adoptedThisScan || ports.hasExplorer()) {
+      try {
+        await reload();
+      } catch (error) {
+        ports.post({
+          kind: "error",
+          text: `Sensors failed: ${String(error)}`,
+        });
+      }
     }
 
     progress = { ...progress, done: true };
@@ -768,12 +787,11 @@ export function createRescanner<Carried>(
 
   async function execute(modules: string[] | null, planned?: PlannedRun) {
     try {
+      await splitting;
       await executeScan(modules, planned);
     } finally {
       scanStartedAt = null;
       scanStartedWall = null;
-      ticks = keepOnce ? ticks : { ...ticks, once: [] };
-      keepOnce = false;
       heading = null;
     }
   }
@@ -916,7 +934,6 @@ export function createRescanner<Carried>(
     }
 
     if (result.status === "gaps") {
-      keepOnce = true;
       progress = NO_PROGRESS;
       emit({ scanning: null });
       const refusal = refusedText(result.gaps);
@@ -959,6 +976,17 @@ export function createRescanner<Carried>(
       return;
     }
 
+    if (adoptedThisScan || ports.hasExplorer()) {
+      try {
+        await reload();
+      } catch (error) {
+        ports.post({
+          kind: "error",
+          text: `Sensors failed: ${String(error)}`,
+        });
+      }
+    }
+
     progress = { ...progress, done: true };
     publish();
 
@@ -974,18 +1002,43 @@ export function createRescanner<Carried>(
 
   async function loadTicks() {
     const stored = await ports.port.readTicks();
+    const storedTicked = stored.ticked ?? null;
 
-    ticks = {
+    const loaded: ScanTicks = {
       describe: stored.describe,
       analysis: stored.analysis !== false,
-      ticked: stored.ticked ?? (stored.sensors ? null : []),
+      ticked: storedTicked ?? (stored.sensors ? null : []),
       once: ticks.once,
       onlyView: stored.onlyView === true,
       suites: stored.suites ?? {},
       folds: stored.folds ?? [],
     };
+
+    ticks = loaded;
     remembered = stored.remembered;
     ticksLoaded = true;
+
+    if (storedTicked === null) {
+      return;
+    }
+
+    splitting = ports
+      .registered()
+      .then((registered) => {
+        if (ticks !== loaded) {
+          return;
+        }
+
+        const armed = (name: string) =>
+          registered.sensors.some((one) => one.name === name && one.runsTests);
+
+        ticks = {
+          ...loaded,
+          ticked: storedTicked.filter((name) => !armed(name)),
+          once: storedTicked.filter(armed),
+        };
+      })
+      .catch(() => {});
   }
 
   return {
