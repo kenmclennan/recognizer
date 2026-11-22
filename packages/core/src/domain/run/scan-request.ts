@@ -1,16 +1,8 @@
+import type { ScopeFile, SensorRequest } from "../sensor-request.js";
+
 export type ScanMode = "incremental" | "full";
 
 export type DescribeIntent = false | "stale" | "all";
-
-export interface SensorRequest {
-  name: string;
-  suites?: string[];
-}
-
-export interface ScopeFile {
-  file: string;
-  names: string[];
-}
 
 export interface ScanRequest {
   repository: string;

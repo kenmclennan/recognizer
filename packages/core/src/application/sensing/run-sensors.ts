@@ -1,7 +1,7 @@
 import type { PhaseRecorder } from "../../domain/phase-recorder.js";
 import type { ScanDocument } from "../../domain/scan-document.js";
-import type { ScopeFile } from "../../domain/scan-request.js";
 import type { ScanSink } from "../../domain/scan-sink.js";
+import type { ScopeFile } from "../../domain/sensor-request.js";
 import type { PluginLimits } from "../shared/ports/process.js";
 import type { SensingPorts } from "./internal/sensing-ports.js";
 import type { PlannedSensor } from "./ports/sensors.js";

@@ -1,5 +1,5 @@
-import type { ScanOutcome } from "../../../domain/scan-outcome.js";
-import { InvalidRequest } from "../../../domain/scan-request.js";
+import type { ScanOutcome } from "../../../domain/run/scan-outcome.js";
+import { InvalidRequest } from "../../../domain/run/scan-request.js";
 
 export function toOutcome(error: unknown): ScanOutcome {
   return error instanceof InvalidRequest

@@ -140,6 +140,54 @@ function offencesOutside(
     );
 }
 
+const DOMAIN_FOLDERS = [
+  "run",
+  "scanning",
+  "describing",
+  "sensing",
+  "analysis",
+  "configuration",
+  "history",
+];
+
+const domain = join(source, "domain");
+
+function readsDomainFolder(file: string, specifier: string): boolean {
+  if (!specifier.startsWith(".")) {
+    return false;
+  }
+
+  const segments = targetOf(file, specifier).split("/");
+
+  if (segments[0] !== ".." || segments[1] !== "domain") {
+    return false;
+  }
+
+  const folder = segments[2] as string;
+
+  if (!DOMAIN_FOLDERS.includes(folder) || segments.length < 4) {
+    return false;
+  }
+
+  const own = file === "compose.ts" ? "run" : file.split("/")[0];
+
+  return own !== folder;
+}
+
+function reachesDomainSubfolder(file: string, specifier: string): boolean {
+  if (!specifier.startsWith(".")) {
+    return false;
+  }
+
+  const segments = targetOf(file, specifier).split("/");
+
+  return (
+    DOMAIN_FOLDERS.includes(segments[0] as string) &&
+    segments.length > 1 &&
+    file.split("/")[0] !== segments[0]
+  );
+}
+
 describe("core layers", () => {
   it("domain imports only the domain", () => {
     expect(layerFiles("domain").length).toBeGreaterThan(0);
@@ -391,5 +439,103 @@ describe("core layers", () => {
         expect(line.toLowerCase(), file).not.toContain(word);
       }
     }
+  });
+
+  it("domain holds only the folders the design names", () => {
+    const unnamed = (names: string[]) =>
+      names.filter((name) => !DOMAIN_FOLDERS.includes(name));
+    const actual = readdirSync(domain, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+
+    expect(unnamed(["shared"])).toEqual(["shared"]);
+    expect(actual).toContain("run");
+    expect(actual).toContain("sensing");
+    expect(unnamed(actual)).toEqual([]);
+  });
+
+  it("a type read by one subdomain lives in its folder", () => {
+    for (const file of [
+      "scan-plan.ts",
+      "scan-status.ts",
+      "sensor-request.ts",
+      "run/scan-outcome.ts",
+      "run/scan-request.ts",
+      "run/scan-plan.ts",
+      "sensing/tick-state.ts",
+    ]) {
+      expect(existsSync(join(domain, file)), file).toBe(true);
+    }
+
+    for (const file of ["scan-outcome.ts", "scan-request.ts"]) {
+      expect(existsSync(join(domain, file)), file).toBe(false);
+    }
+  });
+
+  it("a subdomain's domain folder is read only by its own application folder", () => {
+    expect(
+      readsDomainFolder("scanning/x.ts", "../../domain/run/scan-request.js"),
+    ).toBe(true);
+    expect(
+      readsDomainFolder("run/scan-flow.ts", "../../domain/run/scan-request.js"),
+    ).toBe(false);
+    expect(
+      readsDomainFolder(
+        "shared/ports/store.ts",
+        "../../../domain/sensing/tick-state.js",
+      ),
+    ).toBe(true);
+    expect(
+      readsDomainFolder("compose.ts", "../domain/run/scan-outcome.js"),
+    ).toBe(false);
+    expect(
+      readsDomainFolder("compose.ts", "../domain/sensing/tick-state.js"),
+    ).toBe(true);
+    expect(readsDomainFolder("run/x.ts", "../../domain/gap.js")).toBe(false);
+
+    expect(filesUnder(application).length).toBeGreaterThan(0);
+    expect(offencesOutside(() => false, readsDomainFolder)).toEqual([]);
+  });
+
+  it("domain files reach a subfolder only from inside it", () => {
+    expect(reachesDomainSubfolder("scan-plan.ts", "./run/scan-plan.js")).toBe(
+      true,
+    );
+    expect(reachesDomainSubfolder("run/x.ts", "../gap.js")).toBe(false);
+    expect(reachesDomainSubfolder("run/x.ts", "./y.js")).toBe(false);
+    expect(reachesDomainSubfolder("run/x.ts", "../sensing/tick-state.js")).toBe(
+      true,
+    );
+
+    const files = filesUnder(domain);
+
+    expect(files.length).toBeGreaterThan(0);
+
+    const found = files.flatMap((file) => {
+      const name = relative(domain, file);
+
+      return specifiersOf(file)
+        .filter((specifier) => reachesDomainSubfolder(name, specifier))
+        .map((specifier) => `${name} imports ${specifier}`);
+    });
+
+    expect(found).toEqual([]);
+  });
+
+  it("the root re-exports every domain file", () => {
+    const missing = (root: string, files: string[]) =>
+      files.filter(
+        (file) => !root.includes(`export * from "./domain/${file}.js";`),
+      );
+    const files = filesUnder(domain).map((file) =>
+      relative(domain, file).replace(/\.ts$/, ""),
+    );
+    const root = readFileSync(join(source, "index.ts"), "utf8");
+
+    expect(
+      missing('export * from "./domain/gap.js";', ["gap", "run/x"]),
+    ).toEqual(["run/x"]);
+    expect(files.length).toBeGreaterThan(0);
+    expect(missing(root, files)).toEqual([]);
   });
 });

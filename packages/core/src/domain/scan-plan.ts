@@ -2,8 +2,6 @@ export type SuiteRef = { name: string; language: string };
 
 export type SuiteTickEntry = { ticked: string[]; known: string[] };
 
-export type TickState = "off" | "some" | "on";
-
 export type ScanTicks = {
   describe: boolean;
   analysis: boolean;
@@ -23,16 +21,6 @@ export type ScanIntent = {
   suites?: Record<string, string[]>;
 };
 
-export type PlanMode = "bring" | "rescan";
-
-export type PlanRequest = {
-  repository: string;
-  mode: PlanMode;
-  ticks: ScanTicks;
-  scope: string[] | null;
-  changed: string[];
-};
-
 export type SensorRow = {
   name: string;
   display: string;
@@ -40,16 +28,6 @@ export type SensorRow = {
   scoped: boolean;
   registered: boolean;
   suites?: SuiteRef[];
-};
-
-export type ScanPlanView = {
-  intent: ScanIntent;
-  dropped: string[];
-  modules: number;
-  idle: boolean;
-  work: Record<string, number>;
-  gaps: Record<string, string[]>;
-  never: string[];
 };
 
 export type LineKind = "current" | "out-of-date" | "missing" | "unknown";

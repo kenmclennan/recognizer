@@ -1,7 +1,6 @@
+import type { PlanRequest, ScanPlanView } from "../../domain/run/scan-plan.js";
 import type {
-  PlanRequest,
   ScanIntent,
-  ScanPlanView,
   ScanTicks,
   SensorRow,
 } from "../../domain/scan-plan.js";

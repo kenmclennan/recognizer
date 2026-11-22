@@ -1,7 +1,10 @@
 import type { Gap } from "../../domain/gap.js";
-import type { ScanOutcome } from "../../domain/scan-outcome.js";
-import type { ScanRequest } from "../../domain/scan-request.js";
-import { InvalidRequest, requestFaults } from "../../domain/scan-request.js";
+import type { ScanOutcome } from "../../domain/run/scan-outcome.js";
+import type { ScanRequest } from "../../domain/run/scan-request.js";
+import {
+  InvalidRequest,
+  requestFaults,
+} from "../../domain/run/scan-request.js";
 import type { AnalysisOutcome } from "../analysis/run-analysis.js";
 import type { DescribeOutcome } from "../describing/describe-files.js";
 import type { DescribingSettings } from "../describing/describing-settings.js";
