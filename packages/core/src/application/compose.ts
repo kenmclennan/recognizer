@@ -1,10 +1,10 @@
 import type { ScanEvent } from "../domain/scan-event.js";
 import type { ScanOutcome } from "../domain/scan-outcome.js";
 import type { ScanRequest } from "../domain/scan-request.js";
-import { analyseStructure } from "./analysis/analyse-structure.js";
-import { analyseStructureSync } from "./analysis/analyse-structure-sync.js";
 import type { AnalysisPorts } from "./analysis/internal/analysis-ports.js";
 import type { Analysis } from "./analysis/ports/analysis.js";
+import { runAnalysis } from "./analysis/run-analysis.js";
+import { runAnalysisSync } from "./analysis/run-analysis-sync.js";
 import { describeFiles } from "./describing/describe-files.js";
 import { describingSettings } from "./describing/describing-settings.js";
 import { findDescriberGaps } from "./describing/find-describer-gaps.js";
@@ -73,7 +73,7 @@ function runPorts(ports: CommonPorts): RunPorts {
 function bindDecisions(
   ports: CommonPorts,
   scanning: ScanningQueries,
-): Omit<RunPhases, "extractScans" | "analyseStructure"> {
+): Omit<RunPhases, "extractScans" | "runAnalysis"> {
   const sensing: SensingPorts = {
     sensors: ports.sensors,
     store: ports.store,
@@ -118,7 +118,7 @@ function phasesOver(ports: ScanPorts): RunPhases {
   return {
     ...bindDecisions(ports, scanning),
     extractScans: (input) => extractScans(scanning, input),
-    analyseStructure: (input) => analyseStructure(analysis, input),
+    runAnalysis: (input) => runAnalysis(analysis, input),
   };
 }
 
@@ -129,7 +129,7 @@ function syncPhasesOver(ports: SyncPorts): RunPhases {
   return {
     ...bindDecisions(ports, scanning),
     extractScans: (input) => extractScansSync(scanning, input),
-    analyseStructure: (input) => analyseStructureSync(analysis, input),
+    runAnalysis: (input) => runAnalysisSync(analysis, input),
   };
 }
 

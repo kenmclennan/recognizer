@@ -1,6 +1,6 @@
 export type PhaseName = "extract" | "describe" | "measure" | "sense";
 
-export type RecordedPhaseName = PhaseName | "structure";
+export type RecordedPhaseName = PhaseName | "analysis";
 
 export interface Diagnosis {
   suite?: string | null;

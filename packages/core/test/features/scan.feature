@@ -97,3 +97,10 @@ Feature: Scanning a repository
     Then the summary lists the extract phase with the Alpha entry
     And the summary lists the sense phase with the Tally entry
     And the summary lists the old Gamma scan as removed
+
+  Scenario: A request the checks refuse starts nothing
+    Given a repository with Alpha files
+    And a Tally sensor is registered
+    When a full scan runs with an empty module scope
+    Then the scan fails as an invalid request saying the module scope is empty
+    And nothing is extracted

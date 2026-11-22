@@ -71,7 +71,7 @@ describe("scanSync", () => {
       fails: false,
     });
     fakes.store.readsSensorConfig = () => true;
-    fakes.analysis.structure = { enabled: true, parserLanguages: ["python"] };
+    fakes.analysis.analysis = { enabled: true, parserLanguages: ["python"] };
 
     const { ports, extracted } = syncOver(fakes);
     const events: ScanEvent[] = [];
@@ -82,10 +82,12 @@ describe("scanSync", () => {
     expect(
       events.filter((event) => event.type === "entry").length,
     ).toBeGreaterThan(0);
-    expect(events.filter((event) => event.type === "structure")).toContainEqual(
-      { type: "structure", state: "done", files: 3 },
-    );
-    expect(fakes.analysis.structureParsers).toEqual([null]);
+    expect(events.filter((event) => event.type === "analysis")).toContainEqual({
+      type: "analysis",
+      state: "done",
+      files: 3,
+    });
+    expect(fakes.analysis.analysisParsers).toEqual([null]);
   });
 
   it("a synchronous scan refuses to describe", () => {

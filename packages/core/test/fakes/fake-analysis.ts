@@ -1,32 +1,33 @@
 import type {
   Analysis,
+  AnalysisPlan,
   ConfigDocument,
   ParserSet,
   PolicyDocument,
   ScanDocument,
-  StructurePlan,
 } from "../../src/index.js";
 
 export class FakeAnalysis implements Analysis {
-  readonly structureParsers: (ParserSet | null)[] = [];
-  structure: { enabled: boolean; parserLanguages: string[] | null } = {
+  readonly name = "analysis";
+  readonly analysisParsers: (ParserSet | null)[] = [];
+  analysis: { enabled: boolean; parserLanguages: string[] | null } = {
     enabled: false,
     parserLanguages: null,
   };
 
-  structurePlan(_config: ConfigDocument | null): StructurePlan | "off" {
-    return this.structure.enabled ? { structurePlan: true } : "off";
+  analysisPlan(_config: ConfigDocument | null): AnalysisPlan | "off" {
+    return this.analysis.enabled ? { analysisPlan: true } : "off";
   }
 
-  structurePrepare(
-    _plan: StructurePlan,
+  analysisPrepare(
+    _plan: AnalysisPlan,
     _root: string,
     _scans: ScanDocument[],
     _policy: PolicyDocument,
   ): { parserLanguages: string[] | null; label: string } {
     return {
-      parserLanguages: this.structure.parserLanguages,
-      label: "structure",
+      parserLanguages: this.analysis.parserLanguages,
+      label: "analysis",
     };
   }
 
@@ -34,14 +35,14 @@ export class FakeAnalysis implements Analysis {
     return Promise.resolve({ parserSet: true });
   }
 
-  structureRun(
-    _plan: StructurePlan,
+  analysisRun(
+    _plan: AnalysisPlan,
     _root: string,
     _scans: ScanDocument[],
     _policy: PolicyDocument,
     parsers: ParserSet | null,
   ): { error: string | null } {
-    this.structureParsers.push(parsers);
+    this.analysisParsers.push(parsers);
 
     return { error: null };
   }

@@ -1,19 +1,19 @@
 import type { AnalysisPorts } from "./internal/analysis-ports.js";
 import {
-  type AnalyseStructureInput,
-  finishStructure,
-  type StructureOutcome,
-  structureProcess,
-} from "./internal/structure-process.js";
+  type AnalysisOutcome,
+  analysisProcess,
+  finishAnalysis,
+  type RunAnalysisInput,
+} from "./internal/analysis-process.js";
 import type { ParserSet } from "./ports/analysis.js";
 
-export type { AnalyseStructureInput, StructureOutcome };
+export type { AnalysisOutcome, RunAnalysisInput };
 
-export async function analyseStructure(
+export async function runAnalysis(
   ports: AnalysisPorts,
-  input: AnalyseStructureInput,
-): Promise<StructureOutcome> {
-  const process = structureProcess(ports, input);
+  input: RunAnalysisInput,
+): Promise<AnalysisOutcome> {
+  const process = analysisProcess(ports, input);
   let step = process.next();
 
   while (!step.done) {
@@ -28,5 +28,5 @@ export async function analyseStructure(
     step = process.next(answer);
   }
 
-  return finishStructure(input, step.value);
+  return finishAnalysis(ports, input, step.value);
 }

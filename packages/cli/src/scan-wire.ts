@@ -45,7 +45,7 @@ export function fileLine(event: ScanEvent): string | null {
       );
     case "entry":
       return entryLine(event.phase, event.entry as EventEntry);
-    case "structure":
+    case "analysis":
       return structureLine({
         state: event.state,
         ...(event.files === undefined ? {} : { files: event.files }),

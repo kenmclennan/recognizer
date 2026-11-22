@@ -1,9 +1,9 @@
 import type { ConfigDocument } from "../../domain/config-document.js";
 import type { Gap } from "../../domain/gap.js";
 import type {
-  AnalyseStructureInput,
-  StructureOutcome,
-} from "../analysis/analyse-structure.js";
+  AnalysisOutcome,
+  RunAnalysisInput,
+} from "../analysis/run-analysis.js";
 import type {
   DescribeFilesInput,
   DescribeOutcome,
@@ -46,9 +46,9 @@ export interface RunPhases {
   extractScans(
     input: ExtractScansInput,
   ): Promise<ExtractOutcome> | ExtractOutcome;
-  analyseStructure(
-    input: AnalyseStructureInput,
-  ): Promise<StructureOutcome> | StructureOutcome;
+  runAnalysis(
+    input: RunAnalysisInput,
+  ): Promise<AnalysisOutcome> | AnalysisOutcome;
   describeFiles(input: DescribeFilesInput): Promise<DescribeOutcome>;
   runSensors(input: RunSensorsInput): Promise<void>;
 }

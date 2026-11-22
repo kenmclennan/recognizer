@@ -47,7 +47,7 @@ export type ScanEvent =
   | { type: "start"; phase: PhaseName; name: string }
   | { type: "plugin"; phase: PhaseName; name: string; data: PluginProgress }
   | { type: "entry"; phase: PhaseName; entry: EventEntry; file?: string }
-  | { type: "structure"; state: "run" | "done" | "failed"; files?: number }
+  | { type: "analysis"; state: "run" | "done" | "failed"; files?: number }
   | { type: "projection"; projection: Projection }
   | { type: "confirmation-asked"; projection: Projection }
   | { type: "confirmation-answered"; describe: boolean }
