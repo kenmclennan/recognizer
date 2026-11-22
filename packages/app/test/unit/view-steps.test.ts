@@ -1,7 +1,7 @@
 import { resolveView, type ViewStep } from "recognizer";
 import { describe, expect, it } from "vitest";
-import { expectedScan } from "../../src/fixtures";
 import { stepsFor } from "../../src/view-steps";
+import { expectedScan } from "../fixtures";
 
 const scans = [expectedScan("python")];
 const view = (steps: ViewStep[]) => ({

@@ -15,6 +15,7 @@ import {
   type RowSensor,
   type RunState,
 } from "../../src/scan-panel-model";
+import { withPlan } from "../fixtures";
 
 const MINUTE = 60000;
 const NOW = 100 * MINUTE;
@@ -124,7 +125,7 @@ function modelOf(
 
   input.sensors = withAnalysis(input.sensors);
 
-  return buildFreshnessModel(input, sensors);
+  return buildFreshnessModel(withPlan(input, sensors), sensors);
 }
 
 const run = (over: Partial<RunState>): RunState => ({ ...NO_RUN, ...over });

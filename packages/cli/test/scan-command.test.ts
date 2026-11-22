@@ -654,7 +654,7 @@ describe("recognizer scan: usage", () => {
     await run([], fake.io);
 
     expect(fake.err()).toContain(
-      "usage: recognizer <check|scan|open|uses|used-by|callers|path|find|show|modules|views|sensors|config|policy|doctor|plugin|plugins|windows|window|describe|report|log|agents|setup|help> ...",
+      "usage: recognizer <check|scan|serve|open|uses|used-by|callers|path|find|show|modules|views|sensors|config|policy|doctor|plugin|plugins|windows|window|describe|report|log|agents|setup|help> ...",
     );
   });
 });

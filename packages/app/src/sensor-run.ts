@@ -1,6 +1,5 @@
 import {
   type Config,
-  carryMeasured,
   complexityUnmeasured,
   type Diagnosis,
   duplicationUnmeasured,
@@ -12,9 +11,7 @@ import {
   parsePolicy,
   registeredSensors,
   resolveStructureSettings,
-  type StructureSettings,
   scanHashes,
-  structureSensor,
   validateFindings,
 } from "recognizer";
 import {
@@ -129,7 +126,6 @@ export type WorkRequest = {
 };
 
 export type SensorsPort = {
-  writeStructure(document: string | null): Promise<void>;
   readFindings(): Promise<FindingsFiles>;
   readOverlays(): Promise<OverlayFiles>;
   readRunRecords(): Promise<RunRecordFiles>;
@@ -143,7 +139,6 @@ export type SensorsPort = {
 };
 
 export const inertSensors: SensorsPort = {
-  writeStructure: async () => {},
   readFindings: async () => ({ files: [], refused: [] }),
   readOverlays: async () => ({ files: [], refused: [] }),
   readRunRecords: async () => ({ files: [], refused: [] }),
@@ -223,38 +218,14 @@ function readPolicy(
   }
 }
 
-function carried(
-  read: FindingsFiles,
-  fresh: FindingsDocument,
-  settings: StructureSettings,
-): FindingsDocument {
-  const file = read.files.find(({ name }) => name === "structure");
-
-  if (file === undefined) {
-    return fresh;
-  }
-
-  try {
-    return carryMeasured(
-      validateFindings(JSON.parse(file.text), { name: "structure" }),
-      fresh,
-      settings,
-    );
-  } catch {
-    return fresh;
-  }
-}
-
 export async function senseRepository(
-  scans: LoadedScan[],
+  _scans: LoadedScan[],
   inputs: Pick<SensorInputs, "policy" | "config"> & { analysis?: boolean },
   port: SensorsPort,
 ): Promise<SensorRun> {
   const statuses: SensorStatus[] = [];
   const config = readConfig(inputs.config, statuses);
-  const policy = readPolicy(inputs.policy, statuses);
-  const plain = scans.map(({ scan }) => scan);
-  const { commit, modified } = scansCommit(plain);
+  readPolicy(inputs.policy, statuses);
   const settings = resolveStructureSettings(config);
   const documents: FindingsDocument[] = [];
   const read = await port.readFindings();
@@ -262,9 +233,8 @@ export async function senseRepository(
   let structureRan = false;
 
   if (settings === "off") {
-    await port.writeStructure(null);
     statuses.push({ name: "structure", status: "off" });
-  } else if (inputs.analysis === false) {
+  } else {
     const file = read.files.find(({ name }) => name === "structure");
 
     if (file === undefined) {
@@ -296,46 +266,6 @@ export async function senseRepository(
           reason: (error as Error).message,
         });
       }
-    }
-  } else {
-    const context = { commit: commit ?? "", modified };
-
-    try {
-      const sensed = structureSensor(plain, policy, settings, context);
-
-      structure = carried(read, sensed.document, settings);
-    } catch (error) {
-      statuses.push({
-        name: "policy.yaml",
-        status: "failed",
-        reason: messagesOf(error),
-      });
-      const sensed = structureSensor(plain, null, settings, context);
-
-      structure = carried(read, sensed.document, settings);
-    }
-
-    const notMeasured = [
-      ...(duplicationUnmeasured(structure, settings) ? ["duplication"] : []),
-      ...(complexityUnmeasured(structure, settings) ? ["complexity"] : []),
-    ];
-
-    try {
-      await port.writeStructure(
-        commit === null ? null : `${JSON.stringify(structure, null, 2)}\n`,
-      );
-      statuses.push({
-        name: "structure",
-        status: "ran",
-        ...(notMeasured.length > 0 ? { notMeasured } : {}),
-      });
-      structureRan = true;
-    } catch (error) {
-      statuses.push({
-        name: "structure",
-        status: "failed",
-        reason: String(error),
-      });
     }
   }
 

@@ -1,4 +1,10 @@
-import type { ScanRunRecord } from "recognizer";
+import {
+  createPlanner,
+  type PlanRequest,
+  type ScanPlanView,
+  type ScanRunRecord,
+} from "recognizer";
+import { type LoadedPlanData, planReads } from "./plan-reads";
 import type { ScanPlan } from "./scan-panel-model";
 import type {
   DescribingSettings,
@@ -10,6 +16,26 @@ import type {
 } from "./scan-port";
 import { parseScanLine, type ScanEvent } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
+
+export const NO_PLAN_DATA: LoadedPlanData = {
+  scans: [],
+  measured: {},
+  tests: null,
+  describerRegistered: false,
+  lineKinds: () => "unknown",
+  sensors: [],
+};
+
+export function planFromFacts(
+  request: PlanRequest,
+  facts: LoadedPlanData,
+): Promise<ScanPlanView> {
+  return createPlanner(planReads(facts))(request);
+}
+
+export function planThrough(data: LoadedPlanData) {
+  return createPlanner(planReads(data));
+}
 
 export type ScanStep = string | Promise<void>;
 
@@ -29,6 +55,8 @@ export type FakeScan = ScanPort & {
   records: boolean;
   record: Partial<ScanRunRecord>;
   now: () => number;
+  planData: LoadedPlanData;
+  planned: PlanRequest[];
 };
 
 const SPAWNS_NO_RECORD = new Set<ScanRunResult["status"]>([
@@ -89,6 +117,13 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
     records: true,
     record: {},
     now: Date.now,
+    planData: NO_PLAN_DATA,
+    planned: [],
+    async plan(request) {
+      fake.planned.push(request);
+
+      return planFromFacts(request, fake.planData);
+    },
     emitRun(event) {
       for (const handler of runs) {
         handler(event);

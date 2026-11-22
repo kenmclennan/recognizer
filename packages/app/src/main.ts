@@ -26,7 +26,7 @@ import { type Loaded, loadScans } from "./scan-loading";
 import { openProgressModel, STOPPED_MODEL } from "./scan-open-model";
 import { type OpenView, showOpen } from "./scan-open-view";
 import { describerRegistered, rowSensors } from "./scan-panel-model";
-import { scanSource } from "./scan-source";
+import { scanSource, setScanRepository } from "./scan-source";
 import { withSensors } from "./sensor-run";
 import { sensorsSource } from "./sensors-source";
 import { settingsModalSource } from "./settings-modal-source";
@@ -141,6 +141,7 @@ function adoptedOrigin(origin: ScanOrigin) {
 
 const scanHost: ScanHost = {
   port: sensorsSource,
+  plan: (request) => scanSource.plan(request),
   scan: () => scanState,
   ticks: () => rescanner.ticks(),
   setTicks: (next) => rescanner.setTicks(next),
@@ -376,6 +377,7 @@ async function start(): Promise<void> {
     return;
   }
 
+  setScanRepository(folder);
   folderName = folder.split(/[\\/]/).filter(Boolean).pop() ?? folder;
   content.replaceChildren();
 

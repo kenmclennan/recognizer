@@ -94,6 +94,39 @@ describe("stopEverything", () => {
   );
 
   it(
+    "a_stopped_plugin_leaves_no_process_of_its_test_run_alive_after_the_grace",
+    async () => {
+      const directory = makeTempDir("plugin-stop-tree-");
+      const grandchildFile = join(directory, "grandchild.pid");
+      const plugin = spawnPlugin(
+        directory,
+        "parent",
+        `const child = require("child_process").spawn(process.execPath, ["-e", ${JSON.stringify(
+          `require("fs").writeFileSync(${JSON.stringify(grandchildFile)}, String(process.pid)); process.on("SIGTERM", () => {}); setInterval(() => {}, 1000);`,
+        )}], { stdio: "ignore" });
+        process.on("SIGTERM", () => process.exit(0));`,
+      );
+
+      await until(
+        () =>
+          existsSync(grandchildFile) &&
+          readFileSync(grandchildFile, "utf8") !== "",
+      );
+
+      const grandchild = Number(readFileSync(grandchildFile, "utf8"));
+
+      expect(alive(grandchild)).toBe(true);
+
+      await stopEverything(undefined, GRACE);
+      await plugin.running.result;
+      await until(() => !alive(grandchild), 2000);
+
+      expect(alive(grandchild)).toBe(false);
+    },
+    scaledTimeout(30_000),
+  );
+
+  it(
     "returns at once when no plugin is running and still promotes checkpoints",
     async () => {
       const calls: string[] = [];

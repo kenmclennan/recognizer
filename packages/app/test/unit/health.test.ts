@@ -1,20 +1,20 @@
 import type { FindingsDocument } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
-  CURRENT,
-  fixtureBaseline,
-  fixturePolicy,
-  fixtureScan,
-  secondSensorDocument,
-  structureDocument,
-} from "../../src/fixtures";
-import {
   computeHealth,
   describeTree,
   type Health,
   violationLine,
 } from "../../src/health";
 import { buildTree } from "../../src/tree-model";
+import {
+  CURRENT,
+  fixtureBaseline,
+  fixturePolicy,
+  fixtureScan,
+  secondSensorDocument,
+  structureDocument,
+} from "../fixtures";
 
 function healthFor(
   name: string,

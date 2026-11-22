@@ -1,12 +1,4 @@
-import {
-  describeGap,
-  freshnessScope,
-  gapOf,
-  scanHashes,
-  sensorArmed,
-  sensorFreshness,
-  staleModules,
-} from "recognizer";
+import { type Freshness, scanHashes, sensorArmed } from "recognizer";
 import { ageText } from "./footer-scan";
 import type { IconName } from "./icons";
 import { DESCRIBE_KEY, type ResultsMode } from "./scan-freshness";
@@ -16,6 +8,7 @@ import {
   type RowSensor,
 } from "./scan-panel-model";
 import { scansCommit } from "./scans-commit";
+import type { SensorStatus } from "./sensor-run";
 
 export { DESCRIBE_KEY };
 
@@ -161,7 +154,7 @@ function isTicked(input: PanelInput, sensors: RowSensor[], key: string) {
   return (input.ticks.ticked ?? plain).includes(key);
 }
 
-function scopeModules(input: PanelInput): string[] {
+export function scopeModules(input: PanelInput): string[] {
   return input.ticks.onlyView && input.view
     ? input.view.modules
     : input.lines.modules;
@@ -231,7 +224,10 @@ function runningState(
   return { kind: "running", done: null, total: null };
 }
 
-function structureChanged(input: PanelInput, modules: string[]): string[] {
+export function structureChanged(
+  input: PanelInput,
+  modules: string[],
+): string[] {
   if (input.scan === null) {
     return [];
   }
@@ -287,16 +283,15 @@ function sensorState(
       : { kind: "current", at: currentAt(one.name, input) };
   }
 
-  const scope = freshnessScope(modules, input.scans ?? [], input.freshness);
-  const result = sensorFreshness(scope, measured, one.scoped);
+  const answer = input.plan?.view;
 
-  if (result.kind === "never-run") {
+  if (answer?.never.includes(one.name) === true) {
     gaps.set(one.name, [...modules]);
 
     return { kind: "never-run" };
   }
 
-  const gap = gapOf(result, modules);
+  const gap = answer?.gaps[one.name] ?? [];
 
   gaps.set(one.name, gap);
 
@@ -316,10 +311,12 @@ function describeState(
     return running;
   }
 
-  const { stale, described } = describeGap(
-    (id) => input.lines.of(id).kind,
-    modules,
-  );
+  const stale = input.plan?.view.gaps[DESCRIBE_KEY] ?? [];
+  const described = modules.filter((id) => {
+    const kind = input.lines.of(id).kind;
+
+    return kind === "current" || kind === "out-of-date";
+  }).length;
 
   gaps.set(DESCRIBE_KEY, stale);
 
@@ -581,6 +578,12 @@ function summarize(
   };
 }
 
+function awaitingPlan(action: Action, input: PanelInput): Action {
+  return input.plan?.settled === true
+    ? action
+    : { ...action, primary: { ...action.primary, disabled: true } };
+}
+
 function actionOf(
   input: PanelInput,
   rows: ResultRow[],
@@ -708,6 +711,18 @@ function findingsLine(
   };
 }
 
+function staleOf(
+  modules: readonly string[],
+  measured: NonNullable<SensorStatus["measured"]>,
+  freshness: Freshness,
+): Set<string> {
+  if (!freshness.valid(measured)) {
+    return new Set(modules);
+  }
+
+  return new Set(modules.filter((id) => !freshness.current(measured, id)));
+}
+
 function staleBySensor(
   input: PanelInput,
   sensors: RowSensor[],
@@ -726,7 +741,7 @@ function staleBySensor(
     if (measured !== undefined) {
       stale.set(
         one.name,
-        staleModules(input.lines.modules, measured, input.freshness),
+        staleOf(input.lines.modules, measured, input.freshness),
       );
     }
   }
@@ -859,7 +874,10 @@ export function buildFreshnessModel(
       runModules,
       noResult,
     ),
-    action: actionOf(input, rows, update, ticked, modules.length),
+    action: awaitingPlan(
+      actionOf(input, rows, update, ticked, modules.length),
+      input,
+    ),
     findings: findingsLine(rows, changed, whole),
     group: (sensor) => {
       const kind = sensorKind.get(sensor);

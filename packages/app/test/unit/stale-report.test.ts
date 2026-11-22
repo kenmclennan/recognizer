@@ -1,7 +1,7 @@
 import type { Scan, View } from "recognizer";
 import { describe, expect, it } from "vitest";
-import { expectedScan } from "../../src/fixtures";
 import { currentCommit, hasEntries, staleReport } from "../../src/stale-report";
+import { expectedScan } from "../fixtures";
 
 type Committed = Scan & { commit: string | null };
 

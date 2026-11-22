@@ -9,7 +9,7 @@ import {
   type ProgressUpdate,
   type RescanPorts,
 } from "../../src/rescanner";
-import { fakeScan } from "../../src/scan-fake";
+import { fakeScan, NO_PLAN_DATA, planFromFacts } from "../../src/scan-fake";
 import { OPEN_RUN, type PlannedRun } from "../../src/scan-freshness";
 import type { Loaded } from "../../src/scan-loading";
 
@@ -145,6 +145,16 @@ function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
     ...over,
   };
 
+  scan.plan = async (request) => {
+    const registered = await ports.registered();
+
+    return planFromFacts(request, {
+      ...NO_PLAN_DATA,
+      describerRegistered: registered.describerRegistered,
+      sensors: registered.sensors.map((one) => ({ ...one, scoped: false })),
+    });
+  };
+
   if (over.now) {
     scan.now = over.now;
   }
@@ -177,7 +187,6 @@ describe("createRescanner", () => {
         describeAll: false,
         sense: ["alpha", "beta"],
         modules: null,
-        suites: {},
       },
     ]);
     expect(scan.written).toEqual([
@@ -502,6 +511,23 @@ describe("createRescanner", () => {
     expect(posted[0]?.action).toBeUndefined();
     expect(posted[1]?.action?.label).toBe("Show");
     expect(attached.map((one) => one.id)).toEqual([1, 2]);
+  });
+
+  it("opens the explorer from the cache when the service's outcome arrives before any run record", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [],
+      records: false,
+      result: { status: "finished", exitCode: 0 },
+    });
+    const { log, rescanner } = harness(scan);
+
+    await rescanner.run();
+
+    const opened = log.indexOf("replace:carried");
+
+    expect(opened).toBeGreaterThan(-1);
+    expect(log.indexOf("settled")).toBeGreaterThan(opened);
   });
 
   it("attaches nothing when the run has no log or was stopped", async () => {

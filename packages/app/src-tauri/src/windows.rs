@@ -208,6 +208,13 @@ impl WindowState {
             .collect()
     }
 
+    pub fn folder_paths(&self) -> Vec<PathBuf> {
+        self.folders()
+            .into_iter()
+            .map(|(_, folder)| folder)
+            .collect()
+    }
+
     pub fn order(&self) -> Vec<String> {
         self.focus_order.lock().unwrap().clone()
     }

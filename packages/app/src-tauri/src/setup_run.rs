@@ -2,15 +2,16 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::core_client::{CoreClient, ScanStatus};
 use crate::repository::{clean_output, RECOGNIZER_COMMAND};
-use crate::scan_run::{appended_lines, kill_group, live_run, read_run, refusal_text};
+use crate::scan_run::kill_group;
 use crate::tool_runner::{Captured, ToolFault, ToolRunner};
 
 const FEED_POLL: Duration = Duration::from_millis(250);
@@ -363,6 +364,7 @@ pub fn outcome_of(facts: Option<ResultFacts>, code: Option<i32>, stderr: &str) -
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_check(
+    core: &CoreClient,
     runs: &SetupRuns,
     label: &str,
     folder: &Path,
@@ -372,10 +374,8 @@ pub fn run_check(
     schema: &str,
     on_line: impl Fn(String),
 ) -> SetupCheck {
-    if let Some(run) = live_run(folder) {
-        return SetupCheck::Refused {
-            reason: refusal_text(&run, folder),
-        };
+    if let Some(reason) = core.refusal(folder) {
+        return SetupCheck::Refused { reason };
     }
 
     let mut process = match runner.external_command("claude") {
@@ -599,38 +599,60 @@ fn step_line(step: &str, state: &str) -> String {
     serde_json::json!({ "event": "step", "step": step, "state": state }).to_string()
 }
 
+const HELD_LINES: usize = 1000;
+
+#[derive(PartialEq)]
+enum Run {
+    Unknown,
+    Ours,
+    Foreign,
+}
+
 struct FeedRelay {
-    offset: u64,
-    armed: bool,
+    run: Run,
+    held: Vec<String>,
 }
 
 impl FeedRelay {
     fn new() -> Self {
         FeedRelay {
-            offset: 0,
-            armed: false,
+            run: Run::Unknown,
+            held: Vec::new(),
         }
     }
 
-    fn tick(&mut self, folder: &Path, child: u32, on_line: &impl Fn(String)) {
-        if !self.armed {
-            match read_run(folder) {
-                Some(run) if run.pid == child || run.pgid == Some(child) => self.armed = true,
-                _ => return,
+    fn item(&mut self, item: &Value, child: u32, on_line: &impl Fn(String)) {
+        if let Some(run) = item.get("run") {
+            let ours = run.get("pid").and_then(Value::as_u64) == Some(u64::from(child))
+                || run.get("pgid").and_then(Value::as_u64) == Some(u64::from(child));
+
+            self.run = if ours { Run::Ours } else { Run::Foreign };
+
+            if ours {
+                for line in std::mem::take(&mut self.held) {
+                    on_line(line);
+                }
+            } else {
+                self.held.clear();
             }
+
+            return;
         }
 
-        let (lines, next) = appended_lines(folder, self.offset);
+        let Some(line) = item.get("line").and_then(Value::as_str) else {
+            return;
+        };
 
-        self.offset = next;
-
-        for line in lines {
-            on_line(line);
+        if self.run == Run::Ours {
+            on_line(line.to_string());
+        } else if self.run == Run::Unknown && self.held.len() < HELD_LINES {
+            self.held.push(line.to_string());
         }
     }
 }
 
 fn scan_relayed(
+    core: &CoreClient,
     runner: &ToolRunner,
     folder: &Path,
     on_line: &(impl Fn(String) + Sync),
@@ -663,28 +685,65 @@ fn scan_relayed(
         }
         .message()
     };
+    let child_pid = Arc::new(AtomicU32::new(0));
+    let relay = Arc::new(Mutex::new(FeedRelay::new()));
+    let (sender, receiver) = mpsc::channel::<String>();
+    let watch = {
+        let child_pid = Arc::clone(&child_pid);
+        let relay = Arc::clone(&relay);
+
+        core.watch(folder, move |item| {
+            let pid = child_pid.load(Ordering::SeqCst);
+
+            if pid == 0 {
+                return;
+            }
+
+            relay
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .item(item, pid, &|line| {
+                    let _ = sender.send(line);
+                });
+        })
+    };
     let mut child = process.spawn().map_err(|_| missing())?;
-    let pid = child.id();
+
+    child_pid.store(child.id(), Ordering::SeqCst);
+
     let finished = AtomicBool::new(false);
+    let receiver = Mutex::new(receiver);
+    let drain = || {
+        let receiver = receiver.lock().unwrap_or_else(|error| error.into_inner());
 
-    std::thread::scope(|scope| {
+        while let Ok(line) = receiver.try_recv() {
+            on_line(line);
+        }
+    };
+
+    let waited = std::thread::scope(|scope| {
         scope.spawn(|| {
-            let mut relay = FeedRelay::new();
-
             while !finished.load(Ordering::SeqCst) {
-                relay.tick(folder, pid, on_line);
+                drain();
                 std::thread::sleep(FEED_POLL);
             }
 
-            relay.tick(folder, pid, on_line);
+            std::thread::sleep(FEED_POLL * 2);
+            drain();
         });
 
         let waited = runner.limited(|| child.wait());
 
         finished.store(true, Ordering::SeqCst);
 
-        waited.map(|_| ()).map_err(|_| missing())
-    })
+        waited
+    });
+
+    if let Some(watch) = watch {
+        core.unwatch(&watch);
+    }
+
+    waited.map(|_| ()).map_err(|_| missing())
 }
 
 fn survey_flow(
@@ -735,6 +794,7 @@ fn survey_flow(
 }
 
 pub fn read_survey(
+    core: &CoreClient,
     runner: &ToolRunner,
     folder: &Path,
     extract: bool,
@@ -748,7 +808,7 @@ pub fn read_survey(
     let read = survey_flow(
         extract,
         || survey_of(runner, folder, started),
-        || scan_relayed(runner, folder, &on_line),
+        || scan_relayed(core, runner, folder, &on_line),
         || read_doctor(runner, folder, started),
         &on_line,
     );
@@ -885,6 +945,7 @@ pub fn stream_child(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_setup_verb(
+    core: &CoreClient,
     runs: &SetupRuns,
     label: &str,
     folder: &Path,
@@ -893,10 +954,8 @@ pub fn run_setup_verb(
     choices: &str,
     on_line: impl Fn(String),
 ) -> SetupRun {
-    if let Some(run) = live_run(folder) {
-        return SetupRun::Refused {
-            reason: refusal_text(&run, folder),
-        };
+    if let Some(reason) = core.refusal(folder) {
+        return SetupRun::Refused { reason };
     }
 
     let file = match TempFile::write(label, "choices", choices) {
@@ -932,6 +991,7 @@ pub fn run_setup_verb(
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_recommend(
+    core: &CoreClient,
     runs: &SetupRuns,
     label: &str,
     folder: &Path,
@@ -941,7 +1001,9 @@ pub fn run_recommend(
     schema: &str,
     on_line: impl Fn(String),
 ) -> SetupCheck {
-    match run_check(runs, label, folder, runner, model, prompt, schema, on_line) {
+    match run_check(
+        core, runs, label, folder, runner, model, prompt, schema, on_line,
+    ) {
         SetupCheck::Proposal {
             output,
             cost_usd,
@@ -1362,51 +1424,29 @@ mod tests {
         assert_eq!(runs.running_count(), 1);
     }
 
-    fn marker_text(pid: u32) -> String {
-        format!(
-            r#"{{"version":5,"run_id":"r","pid":{pid},"pgid":{pid},"started_at":"2026-01-01T00:00:00.000Z","started_by":"app","repository":"/work/shop","sensors":[],"describe":false,"suites":{{}},"phase":"running","ended_at":null,"exit":null,"gaps":[],"failure":null,"commit":null,"ran":null}}"#
-        )
+    fn run_item(pid: u32) -> Value {
+        serde_json::json!({ "run": { "pid": pid, "pgid": pid, "phase": "running" } })
     }
 
-    fn cache(folder: &Path) -> PathBuf {
-        let cache = folder.join(".recognizer/cache");
-
-        std::fs::create_dir_all(&cache).unwrap();
-
-        cache
+    fn line_item(text: &str) -> Value {
+        serde_json::json!({ "line": text })
     }
 
-    fn append(folder: &Path, text: &str) {
-        use std::io::Write;
-
-        let mut file = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(cache(folder).join("scan-running.progress.jsonl"))
-            .unwrap();
-
-        file.write_all(text.as_bytes()).unwrap();
-    }
-
-    fn collected(relay: &mut FeedRelay, folder: &Path, child: u32, seen: &RefCell<Vec<String>>) {
-        relay.tick(folder, child, &|line| seen.borrow_mut().push(line));
+    fn collected(relay: &mut FeedRelay, item: Value, child: u32, seen: &RefCell<Vec<String>>) {
+        relay.item(&item, child, &|line| seen.borrow_mut().push(line));
     }
 
     #[test]
     fn the_relay_forwards_feed_lines_appended_in_two_chunks_and_holds_a_partial_line() {
-        let dir = tempfile::tempdir().unwrap();
-        let folder = dir.path();
         let seen = RefCell::new(Vec::new());
         let mut relay = FeedRelay::new();
 
-        std::fs::write(cache(folder).join("scan-running.json"), marker_text(4242)).unwrap();
-        append(folder, "{\"event\":\"a\"}\n{\"event\":");
-        collected(&mut relay, folder, 4242, &seen);
+        collected(&mut relay, run_item(4242), 4242, &seen);
+        collected(&mut relay, line_item("{\"event\":\"a\"}"), 4242, &seen);
 
         assert_eq!(*seen.borrow(), strings(&["{\"event\":\"a\"}"]));
 
-        append(folder, "\"b\"}\n");
-        collected(&mut relay, folder, 4242, &seen);
+        collected(&mut relay, line_item("{\"event\":\"b\"}"), 4242, &seen);
 
         assert_eq!(
             *seen.borrow(),
@@ -1416,25 +1456,27 @@ mod tests {
 
     #[test]
     fn the_relay_forwards_nothing_until_the_marker_names_the_child() {
-        let dir = tempfile::tempdir().unwrap();
-        let folder = dir.path();
         let seen = RefCell::new(Vec::new());
         let mut relay = FeedRelay::new();
 
-        append(folder, "{\"event\":\"stale\"}\n");
-        collected(&mut relay, folder, 4242, &seen);
+        collected(&mut relay, line_item("{\"event\":\"stale\"}"), 4242, &seen);
 
         assert!(seen.borrow().is_empty());
 
-        std::fs::write(cache(folder).join("scan-running.json"), marker_text(9999)).unwrap();
-        collected(&mut relay, folder, 4242, &seen);
+        collected(&mut relay, run_item(9999), 4242, &seen);
+        collected(
+            &mut relay,
+            line_item("{\"event\":\"foreign\"}"),
+            4242,
+            &seen,
+        );
 
         assert!(seen.borrow().is_empty());
 
-        std::fs::write(cache(folder).join("scan-running.json"), marker_text(4242)).unwrap();
-        collected(&mut relay, folder, 4242, &seen);
+        collected(&mut relay, run_item(4242), 4242, &seen);
+        collected(&mut relay, line_item("{\"event\":\"own\"}"), 4242, &seen);
 
-        assert_eq!(*seen.borrow(), strings(&["{\"event\":\"stale\"}"]));
+        assert_eq!(*seen.borrow(), strings(&["{\"event\":\"own\"}"]));
     }
 
     fn flow(files_null: bool, extract: bool) -> Vec<String> {

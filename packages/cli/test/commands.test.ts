@@ -67,6 +67,7 @@ describe("command table", () => {
     expect(COMMANDS.map((command) => command.name)).toEqual([
       "check",
       "scan",
+      "serve",
       "open",
       "uses",
       "used-by",

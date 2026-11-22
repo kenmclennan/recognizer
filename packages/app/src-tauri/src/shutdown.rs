@@ -1,19 +1,19 @@
 use signal_hook::consts::{SIGINT, SIGTERM};
 use signal_hook::iterator::Signals;
 
-use crate::scan_run::{stop_attached, ScanRunRecord, ScanRuns};
+use crate::core_client::ScanRuns;
 use crate::setup_run::SetupRuns;
 
 pub fn stop_for_signal(
     scans: &ScanRuns,
     setups: &SetupRuns,
-    attached: &[ScanRunRecord],
+    stop_service: impl FnOnce(),
     confirm_quit: impl FnOnce(),
     exit: impl FnOnce(),
 ) {
     scans.stop_all();
     setups.stop_all();
-    stop_attached(attached);
+    stop_service();
     confirm_quit();
     exit();
 }
@@ -63,7 +63,7 @@ mod tests {
         stop_for_signal(
             &scans,
             &setups,
-            &[],
+            || {},
             || *confirmed.borrow_mut() += 1,
             || {
                 exits.borrow_mut().push((
@@ -88,7 +88,7 @@ mod tests {
         stop_for_signal(
             &scans,
             &setups,
-            &[],
+            || {},
             || {},
             || {
                 *stopped_at_exit.borrow_mut() = Some(setups.stopped("w-1"));
@@ -106,7 +106,7 @@ mod tests {
         stop_for_signal(
             &scans,
             &setups,
-            &[],
+            || {},
             || events.borrow_mut().push("confirm"),
             || {
                 let stopped = scans.in_progress_labels().is_empty() && setups.stopped("w-1");

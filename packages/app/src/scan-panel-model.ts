@@ -1,4 +1,9 @@
-import type { Diagnosis, Freshness } from "recognizer";
+import type {
+  Diagnosis,
+  Freshness,
+  PlanRequest,
+  ScanPlanView,
+} from "recognizer";
 import {
   afterSuiteTick,
   type Config,
@@ -24,8 +29,11 @@ import {
   type ResultState,
   SCAN_KEY,
   type StateText,
+  scopeModules,
   stateText,
+  structureChanged,
 } from "./freshness-model";
+import type { LoadedPlanData } from "./plan-reads";
 import type { ResponsibilityState } from "./responsibility-model";
 import {
   describeRateMs,
@@ -127,7 +135,85 @@ export type PanelInput = {
   runView?: RunInput | null;
   history?: ScanHistory;
   work?: Record<string, PlannedWork>;
+  plan?: PlanAnswer | null;
+  tests?: string | null;
 };
+
+export type PlanAnswer = { view: ScanPlanView; settled: boolean };
+
+const NO_PLAN: ScanPlanView = {
+  intent: {
+    describe: false,
+    describeAll: false,
+    analysis: true,
+    sense: [],
+    modules: null,
+  },
+  dropped: [],
+  modules: 0,
+  idle: true,
+  work: {},
+  gaps: {},
+  never: [],
+};
+
+function pendingIntent(input: PanelInput): ScanPlanView["intent"] {
+  return { ...NO_PLAN.intent, analysis: input.ticks.analysis };
+}
+
+function effectiveInput(given: PanelInput, sensors: RowSensor[]): PanelInput {
+  return {
+    ...given,
+    ticks: effectiveTicks(
+      given.ticks,
+      sensors,
+      describerRegistered(given.config),
+    ),
+  };
+}
+
+export function planRequestOf(
+  given: PanelInput,
+  sensors: RowSensor[] = rowSensors(given.config, given.shipped),
+): PlanRequest {
+  const input = effectiveInput(given, sensors);
+
+  return {
+    repository: ".",
+    mode: input.mode ?? "bring",
+    ticks: input.ticks,
+    scope: scopedIds(input),
+    changed: structureChanged(input, scopeModules(input)),
+  };
+}
+
+export function planFactsOf(
+  given: PanelInput,
+  sensors: RowSensor[] = rowSensors(given.config, given.shipped),
+): LoadedPlanData {
+  return {
+    scans: given.scans ?? [],
+    measured: Object.fromEntries(
+      given.sensors.map(({ name, status, measured }) => [
+        name,
+        status === "not run" ? null : (measured ?? {}),
+      ]),
+    ),
+    tests: given.tests ?? null,
+    describerRegistered: describerRegistered(given.config),
+    lineKinds: (id) => given.lines.of(id).kind,
+    sensors: sensors.map(
+      ({ name, display, runsTests, scoped, registered, suites }) => ({
+        name,
+        display,
+        runsTests,
+        scoped,
+        registered,
+        ...(suites === undefined ? {} : { suites }),
+      }),
+    ),
+  };
+}
 
 export type ScanRow = {
   key: string;
@@ -487,10 +573,8 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
   const unplanned = plannedRun(
     freshness,
     input.mode ?? "bring",
-    input.ticks,
+    input.plan?.view ?? { ...NO_PLAN, intent: pendingIntent(input) },
     sensors,
-    scopedIds(input),
-    input.lines.modules,
   );
   const history = input.history ?? NO_HISTORY;
   const parts = estimateParts(

@@ -10,12 +10,6 @@ import {
 import { describe, expect, it } from "vitest";
 import { buildCatalog } from "../../src/finding-catalog";
 import { type FindingRow, findingRows } from "../../src/findings-order";
-import {
-  CURRENT,
-  expectedScan,
-  fixtureScan,
-  secondSensorDocument,
-} from "../../src/fixtures";
 import { compactFolders } from "../../src/folder-compaction";
 import { HUGE_FUNCTION, LONG_FUNCTION } from "../../src/function-length";
 import { DEFAULT_LIMITS, functionLimits } from "../../src/function-limits";
@@ -33,6 +27,12 @@ import {
 import type { MetricDescriptor } from "../../src/overlay-model";
 import { metricEntryOf } from "../../src/overlay-model";
 import { shippedSensors } from "../../src/shipped-fake";
+import {
+  CURRENT,
+  expectedScan,
+  fixtureScan,
+  secondSensorDocument,
+} from "../fixtures";
 
 const scanOf = (
   members: ScanMember[] | undefined,

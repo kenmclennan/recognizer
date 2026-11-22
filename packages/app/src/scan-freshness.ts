@@ -1,27 +1,23 @@
-import {
-  createPlanner,
-  type Freshness,
-  type LineKind,
-  type Measured,
-  type PlanMode,
-  type PlanRequest,
-  type PlanRow,
-  planFor,
-  type ScanFacts,
-  type ScanIntent,
-  type ScanPlanView,
-  type ScanTicks,
-  type SensorRow,
+import type {
+  Freshness,
+  LineKind,
+  Measured,
+  PlanMode,
+  PlanRequest,
+  PlanRow,
+  ScanFacts,
+  ScanIntent,
+  ScanPlanView,
+  SensorRow,
 } from "recognizer";
 
-export {
-  createPlanner,
-  type LineKind,
-  type Measured,
-  type PlanRequest,
-  type ScanFacts,
-  type ScanPlanView,
-  type SensorRow,
+export type {
+  LineKind,
+  Measured,
+  PlanRequest,
+  ScanFacts,
+  ScanPlanView,
+  SensorRow,
 };
 
 import type { FreshnessModel } from "./freshness-model";
@@ -132,29 +128,14 @@ export function freshnessMessage(
 export function plannedRun(
   model: FreshnessModel,
   mode: ResultsMode,
-  ticks: ScanTicks,
+  view: ScanPlanView,
   rows: (PlanRow & { display?: string })[],
-  scope: string[] | null,
-  all: string[],
 ): PlannedRun {
-  const view = planFor(
-    { mode, ticks, scope, changed: model.update },
-    rows,
-    {
-      gaps: model.gaps,
-      never: new Set(
-        model.rows
-          .filter(({ state }) => state.kind === "never-run")
-          .map(({ key }) => key),
-      ),
-    },
-    all,
-  );
   const label = model.action.primary.label;
   const base = {
     plan: view.intent,
     dropped: view.dropped,
-    modules: view.modules,
+    modules: mode === "rescan" ? view.modules : model.update.length,
     label,
     work: view.work,
   };
@@ -163,7 +144,7 @@ export function plannedRun(
     return {
       ...base,
       idle: false,
-      progress: `Rescanning ${plural(view.modules, "file")}\u2026`,
+      progress: `Rescanning ${plural(base.modules, "file")}\u2026`,
     };
   }
 
@@ -179,8 +160,8 @@ export function plannedRun(
     ...base,
     idle: label === "Up to date",
     progress:
-      view.modules > 0
-        ? `Updating ${plural(view.modules, "file")}\u2026`
+      base.modules > 0
+        ? `Updating ${plural(base.modules, "file")}\u2026`
         : `Running ${joinNames(names)}\u2026`,
   };
 }

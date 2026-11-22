@@ -26,8 +26,6 @@ export type FakeSensors = SensorsPort & {
   runRecordsRefused: string[];
   testsHash: string | null;
   removed: string[];
-  written: (string | null)[];
-  failWrite: boolean;
   list: ShippedSensors;
   modified: Map<string, number>;
   shippedVersion: string | null;
@@ -74,8 +72,6 @@ export function fakeSensors(
     runRecordsRefused: [],
     testsHash: null,
     removed: [],
-    written: [],
-    failWrite: false,
     list: Array.isArray(shipped) ? { status: "ok", sensors: shipped } : shipped,
     modified: new Map(),
     shippedVersion: "prompt-0123456789ab",
@@ -137,19 +133,6 @@ export function fakeSensors(
     },
     async shipped() {
       return fake.list;
-    },
-    async writeStructure(document) {
-      if (fake.failWrite) {
-        throw new Error("disk full");
-      }
-
-      fake.written.push(document);
-
-      if (document === null) {
-        fake.files.delete("structure");
-      } else {
-        fake.files.set("structure", document);
-      }
     },
     async readFindings(): Promise<FindingsFiles> {
       return {

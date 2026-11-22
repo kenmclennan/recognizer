@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { expectedModuleIds } from "../../src/fixtures";
 import { buildTree, fileLabel, filesOf } from "../../src/tree-model";
+import { expectedModuleIds } from "../fixtures";
 
 describe("buildTree", () => {
   it("holds every python fixture module as a file", () => {

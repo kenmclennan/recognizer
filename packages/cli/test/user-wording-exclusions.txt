@@ -32,6 +32,9 @@ packages/cli/src/member-marks.ts|modules|key, count unit or socket target named 
 packages/cli/src/overlays.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/read-commands.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/scan.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
+packages/cli/src/serve/scan-files.ts|modules|key, count unit or socket target named by a contract, not wording
+packages/cli/src/serve/service.ts|modules|key, count unit or socket target named by a contract, not wording
+packages/cli/src/serve/start-request.ts|modules|key, count unit or socket target named by a contract, not wording
 packages/cli/src/sensors-check.ts|modules|key, count unit or socket target named by a contract, not wording
 packages/cli/src/shipped-sensors.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/structure-overlay.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording

@@ -1,18 +1,18 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type Rule, validateFindings, violationId } from "recognizer";
+import { type Rule, violationId } from "recognizer";
 import { describe, expect, it } from "vitest";
+import { loadScans } from "../../src/scan-loading";
+import { senseRepository, withSensors } from "../../src/sensor-run";
+import { fakeSensors } from "../../src/sensors-fake";
 import {
   CURRENT,
   fixturePolicy,
   fixtureScan,
   secondSensorDocument,
   structureDocument,
-} from "../../src/fixtures";
-import { loadScans } from "../../src/scan-loading";
-import { senseRepository, withSensors } from "../../src/sensor-run";
-import { fakeSensors } from "../../src/sensors-fake";
+} from "../fixtures";
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 
@@ -20,56 +20,28 @@ const REPO = resolve(dirname(fileURLToPath(srcUrl)), "../../..");
 const scans = [fixtureScan("check", "scan.json", CURRENT)];
 const policy = fixturePolicy("check");
 
+type Args = Parameters<typeof fakeSensors>;
+
+function stored(
+  files: Record<string, string> = {},
+  second?: Args[1],
+  third?: Args[2],
+): ReturnType<typeof fakeSensors> {
+  return fakeSensors(
+    {
+      structure: JSON.stringify(structureDocument("check", policy)),
+      ...files,
+    },
+    second,
+    third,
+  );
+}
+
 function statusOf(run: { statuses: { name: string }[] }, name: string) {
   return run.statuses.find((status) => status.name === name);
 }
 
 describe("senseRepository", () => {
-  it("writes the structure file when the scans carry a commit", async () => {
-    const port = fakeSensors();
-    const run = await senseRepository(scans, { policy, config: null }, port);
-    const text = port.written[0];
-
-    expect(typeof text).toBe("string");
-    expect(
-      validateFindings(JSON.parse(text as string), { name: "structure" })
-        .commit,
-    ).toBe(CURRENT);
-    expect(run.documents[0]?.commit).toBe(CURRENT);
-  });
-
-  it("does not run or write the analysis when it is unticked", async () => {
-    const first = fakeSensors();
-
-    await senseRepository(scans, { policy, config: null }, first);
-
-    const stored = first.written[0] as string;
-    const unticked = fakeSensors({ structure: stored });
-    const run = await senseRepository(
-      scans,
-      { policy, config: null, analysis: false },
-      unticked,
-    );
-
-    expect(unticked.written).toEqual([]);
-    expect(run.documents[0]?.commit).toBe(CURRENT);
-    expect(statusOf(run, "structure")).toMatchObject({
-      name: "structure",
-      status: "ran",
-      commit: CURRENT,
-    });
-
-    const ticked = fakeSensors({ structure: stored });
-
-    await senseRepository(
-      scans,
-      { policy, config: null, analysis: true },
-      ticked,
-    );
-
-    expect(ticked.written).toHaveLength(1);
-  });
-
   it("reports not run when it is unticked and there is no stored file", async () => {
     const port = fakeSensors();
     const run = await senseRepository(
@@ -78,154 +50,11 @@ describe("senseRepository", () => {
       port,
     );
 
-    expect(port.written).toEqual([]);
     expect(run.documents).toEqual([]);
     expect(statusOf(run, "structure")).toEqual({
       name: "structure",
       status: "not run",
     });
-  });
-
-  it("carries the stored duplication findings through a rewrite of the structure file", async () => {
-    const first = await senseRepository(
-      scans,
-      { policy, config: null },
-      fakeSensors(),
-    );
-    const settings = {
-      threshold: 0.82,
-      min_lines: 4,
-      pair_min_lines: 6,
-      min_nodes: 20,
-    };
-    const kept = {
-      ...first.documents[0],
-      settings: { ...first.documents[0]?.settings, duplication: settings },
-      findings: [
-        ...(first.documents[0]?.findings ?? []),
-        {
-          id: "duplication:a.py::f|a.py::g",
-          kind: "duplication",
-          severity: "warning",
-          principle: "dont-repeat-yourself",
-          summary: "f in a.py is 90% similar to g in a.py",
-          evidence: { modules: ["a.py"] },
-        },
-      ],
-    };
-    const port = fakeSensors({ structure: JSON.stringify(kept) });
-    const run = await senseRepository(scans, { policy, config: null }, port);
-
-    expect(
-      run.documents[0]?.findings.filter((one) => one.kind === "duplication"),
-    ).toHaveLength(1);
-    expect(statusOf(run, "structure")).toEqual({
-      name: "structure",
-      status: "ran",
-      notMeasured: ["complexity"],
-    });
-  });
-
-  it("carries stored complexity findings when commit, inputs and limit match", async () => {
-    const first = await senseRepository(
-      scans,
-      { policy, config: null },
-      fakeSensors(),
-    );
-    const kept = {
-      ...first.documents[0],
-      settings: { ...first.documents[0]?.settings, complexity_limit: 10 },
-      findings: [
-        ...(first.documents[0]?.findings ?? []),
-        {
-          id: "complexity:a.py::f",
-          kind: "complexity",
-          severity: "warning",
-          principle: "cyclomatic-complexity-limit",
-          summary: "f has complexity 11, over the limit of 10",
-          evidence: { modules: ["a.py"] },
-        },
-      ],
-    };
-    const run = await senseRepository(
-      scans,
-      { policy, config: null },
-      fakeSensors({ structure: JSON.stringify(kept) }),
-    );
-
-    expect(
-      run.documents[0]?.findings.filter((one) => one.kind === "complexity"),
-    ).toHaveLength(1);
-    expect(statusOf(run, "structure")).toEqual({
-      name: "structure",
-      status: "ran",
-      notMeasured: ["duplication"],
-    });
-  });
-
-  it("reports complexity as not measured without a stored limit", async () => {
-    const run = await senseRepository(
-      scans,
-      { policy, config: null },
-      fakeSensors(),
-    );
-
-    expect(statusOf(run, "structure")).toMatchObject({
-      notMeasured: expect.arrayContaining(["complexity"]),
-    });
-  });
-
-  it("reports duplication as not measured when the stored document does not match", async () => {
-    const run = await senseRepository(
-      scans,
-      { policy, config: null },
-      fakeSensors(),
-    );
-
-    expect(statusOf(run, "structure")).toEqual({
-      name: "structure",
-      status: "ran",
-      notMeasured: ["duplication", "complexity"],
-    });
-  });
-
-  it.each([
-    ["after", false],
-    ["before", true],
-  ])(
-    "writes the same document twice over scans with an empty suite scan %s a normal one",
-    async (_label, emptyFirst) => {
-      const normal = fixtureScan("check", "scan.json", CURRENT);
-      const empty = {
-        file: "scan.typescript.json",
-        scan: {
-          ...normal.scan,
-          modules: [],
-          files: [],
-          edges: [],
-          foreign: [],
-        },
-      };
-      const both = emptyFirst ? [empty, normal] : [normal, empty];
-      const port = fakeSensors();
-
-      await senseRepository(both, { policy, config: null }, port);
-      await senseRepository(both, { policy, config: null }, port);
-
-      expect(port.written).toHaveLength(2);
-      expect(port.written[0]).not.toBeNull();
-      expect(port.written[1]).toBe(port.written[0]);
-    },
-  );
-
-  it("keeps the structure document in memory when the scans carry no commit", async () => {
-    const port = fakeSensors();
-    const bare = [fixtureScan("check")];
-    const run = await senseRepository(bare, { policy, config: null }, port);
-
-    expect(port.written).toEqual([null]);
-    expect(run.documents[0]?.commit).toBe("");
-    expect(statusOf(run, "structure")).toMatchObject({ status: "ran" });
   });
 
   it("matches the violation and warning ids of fixtures/check/expected.json", async () => {
@@ -238,7 +67,7 @@ describe("senseRepository", () => {
     const run = await senseRepository(
       scans,
       { policy, config: null },
-      fakeSensors(),
+      stored(),
     );
     const findings = run.documents[0]?.findings ?? [];
     const violations = findings
@@ -259,7 +88,6 @@ describe("senseRepository", () => {
       port,
     );
 
-    expect(port.written).toEqual([null]);
     expect(statusOf(run, "structure")).toEqual({
       name: "structure",
       status: "off",
@@ -276,7 +104,7 @@ describe("senseRepository", () => {
   });
 
   it("reports a file the port refused as failed and removes it", async () => {
-    const port = fakeSensors();
+    const port = stored();
 
     port.refused = ["evil"];
 
@@ -312,7 +140,7 @@ describe("senseRepository", () => {
         config:
           "sensors:\n  coverage:\n    command: [coverage-sensor, '{repository}']\n",
       },
-      fakeSensors(),
+      stored(),
     );
 
     expect(statusOf(run, "coverage")).toEqual({
@@ -323,7 +151,7 @@ describe("senseRepository", () => {
 
   it("shows ran, failed and not run together", async () => {
     const stale = secondSensorDocument("shop/main.py", "x", "y", "old");
-    const port = fakeSensors({
+    const port = stored({
       lint: JSON.stringify(stale),
       broken: "[]",
     });
@@ -388,7 +216,7 @@ describe("senseRepository", () => {
 
   it("reads a current file from a second sensor", async () => {
     const document = secondSensorDocument("shop/main.py");
-    const port = fakeSensors({ lint: JSON.stringify(document) });
+    const port = stored({ lint: JSON.stringify(document) });
     const run = await senseRepository(scans, { policy, config: null }, port);
 
     expect(statusOf(run, "lint")).toMatchObject({
@@ -409,24 +237,11 @@ describe("senseRepository", () => {
     const run = await senseRepository(
       scans,
       { policy, config: "sensors: [" },
-      fakeSensors(),
+      stored(),
     );
 
     expect(statusOf(run, "config.yaml")).toMatchObject({ status: "failed" });
     expect(statusOf(run, "structure")).toMatchObject({ status: "ran" });
-  });
-
-  it("names an invalid policy and runs the structure sensor without one", async () => {
-    const run = await senseRepository(
-      scans,
-      { policy: "levels: [", config: null },
-      fakeSensors(),
-    );
-
-    expect(statusOf(run, "policy.yaml")).toMatchObject({ status: "failed" });
-    expect(
-      run.documents[0]?.findings.some((r) => r.severity === "violation"),
-    ).toBe(false);
   });
 
   it("falls back without a policy when the policy uses a retired key", async () => {
@@ -436,32 +251,11 @@ describe("senseRepository", () => {
         policy: "components:\n  one: shop/**\n",
         config: null,
       },
-      fakeSensors(),
+      stored(),
     );
 
     expect(statusOf(run, "policy.yaml")).toMatchObject({ status: "failed" });
     expect(statusOf(run, "structure")).toMatchObject({ status: "ran" });
-  });
-
-  it("names a structure file the port could not write as failed", async () => {
-    const port = fakeSensors();
-
-    port.failWrite = true;
-
-    const run = await senseRepository(scans, { policy, config: null }, port);
-
-    expect(statusOf(run, "structure")).toMatchObject({ status: "failed" });
-    expect(run.documents).toEqual([]);
-  });
-
-  it("is the same document the fixtures helper builds", async () => {
-    const run = await senseRepository(
-      scans,
-      { policy, config: null },
-      fakeSensors(),
-    );
-
-    expect(run.documents[0]).toEqual(structureDocument("check", policy));
   });
 });
 
@@ -527,7 +321,7 @@ describe("withSensors tests hash", () => {
   };
 
   it("stores the hash the port reads, handing it the scans' file hashes", async () => {
-    const port = fakeSensors();
+    const port = stored();
     const seen: Record<string, string>[] = [];
 
     port.testsHash = "a".repeat(64);
@@ -560,8 +354,8 @@ describe("withSensors tests hash", () => {
   });
 
   it("is null when the port has none and when it throws", async () => {
-    const none = await withSensors(empty, fakeSensors());
-    const port = fakeSensors();
+    const none = await withSensors(empty, stored());
+    const port = stored();
 
     port.readTestsHash = async () => {
       throw new Error("no git");
@@ -576,7 +370,7 @@ describe("withSensors tests hash", () => {
 
 describe("withSensors", () => {
   it("carries the documents, statuses, policy and baseline on Loaded", async () => {
-    const port = fakeSensors({}, { policy, baseline: "{}" });
+    const port = stored({}, { policy, baseline: "{}" });
     const loaded = {
       ...loadScans({
         status: "scanned",
@@ -601,6 +395,9 @@ describe("withSensors", () => {
       {
         name: "structure",
         status: "ran",
+        commit: CURRENT,
+        modified: false,
+        modifiedMs: null,
         notMeasured: ["duplication", "complexity"],
       },
     ]);
