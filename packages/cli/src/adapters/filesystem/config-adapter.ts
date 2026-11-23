@@ -1,11 +1,17 @@
-import type { ConfigDocument, ConfigRepository } from "@recognizer/core";
+import type {
+  ConfigDocument,
+  ConfigRepository,
+  StructureSettings,
+} from "@recognizer/core";
 import type { Io } from "../../cli.js";
 import { readConfig } from "../../config.js";
 import {
   type ConfigRead,
   readsAnyConfig,
   readsSensors,
+  registeredSensors,
 } from "../../config-parse.js";
+import { resolveStructureSettings } from "../../structure-sensor.js";
 
 export class ConfigAdapter implements ConfigRepository {
   constructor(
@@ -39,5 +45,15 @@ export class ConfigAdapter implements ConfigRepository {
 
   readsSensorConfig(): boolean {
     return readsSensors(this.read);
+  }
+
+  structureSettings(root: string): StructureSettings | "off" {
+    return resolveStructureSettings(readConfig(this.io, root, ["sensors"]));
+  }
+
+  sensorNames(root: string): string[] {
+    return registeredSensors(readConfig(this.io, root, ["sensors"])).map(
+      ({ name }) => name,
+    );
   }
 }

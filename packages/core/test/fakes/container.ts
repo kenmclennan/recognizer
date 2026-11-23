@@ -5,14 +5,17 @@ import { FakeClock } from "./fake-clock.js";
 import { FakeConfigRepository } from "./fake-config-repository.js";
 import { FakeConfirm } from "./fake-confirm.js";
 import { FakeDescriber } from "./fake-describer.js";
+import { FakeDigest } from "./fake-digest.js";
 import { FakeFindingsRepository } from "./fake-findings-repository.js";
 import { FakeGit } from "./fake-git.js";
+import { FakeParsing } from "./fake-parsing.js";
 import { FakePolicyRepository } from "./fake-policy-repository.js";
 import { FakeProcess } from "./fake-process.js";
 import { FakeRunLogRepository } from "./fake-run-log-repository.js";
 import { FakeScanLock } from "./fake-scan-lock.js";
 import { FakeScanners } from "./fake-scanners.js";
 import { FakeSensors } from "./fake-sensors.js";
+import { FakeSourceFiles } from "./fake-source-files.js";
 import { FakeStructureRepository } from "./fake-structure-repository.js";
 
 export interface Fakes {
@@ -31,6 +34,9 @@ export interface Fakes {
   confirm: FakeConfirm;
   clock: FakeClock;
   process: FakeProcess;
+  source: FakeSourceFiles;
+  digest: FakeDigest;
+  parsing: FakeParsing;
 }
 
 export function createFakes(commit: string | null = "c0ffee"): Fakes {
@@ -57,6 +63,9 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     confirm: new FakeConfirm(true),
     clock: new FakeClock(),
     process,
+    source: new FakeSourceFiles(),
+    digest: new FakeDigest(),
+    parsing: new FakeParsing(),
   };
 }
 

@@ -1,6 +1,14 @@
-import type { ConfigDocument, ConfigRepository } from "../../src/index.js";
+import {
+  type ConfigDocument,
+  type ConfigRepository,
+  DEFAULT_STRUCTURE_SETTINGS,
+  type StructureSettings,
+} from "../../src/index.js";
 
 export class FakeConfigRepository implements ConfigRepository {
+  settings: StructureSettings | "off" = DEFAULT_STRUCTURE_SETTINGS;
+  sensors: string[] = [];
+
   scannerSetup(): {
     scanners: Record<string, string>;
     install: Record<string, string>;
@@ -18,5 +26,13 @@ export class FakeConfigRepository implements ConfigRepository {
 
   readsSensorConfig(): boolean {
     return false;
+  }
+
+  structureSettings(): StructureSettings | "off" {
+    return this.settings;
+  }
+
+  sensorNames(): string[] {
+    return [...this.sensors];
   }
 }

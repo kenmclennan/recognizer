@@ -1,14 +1,14 @@
-import { describe, expect, it } from "vitest";
-import { principleOf } from "../src/principles.js";
-import { orphanFindings } from "../src/structure-warnings.js";
 import {
   LIBRARY_API_HINT,
   libraryApiHint,
+  orphanFindings,
+  principleOf,
   testImportersOf,
   testOnlySummary,
   unusedTestOnlyClause,
   unusedTestOnlySentence,
-} from "../src/test-importers.js";
+} from "@recognizer/core";
+import { describe, expect, it } from "vitest";
 import { validatedRepository as validateScan } from "./repository-from.js";
 
 type Records = { from: string; to: string; names?: string[] }[];

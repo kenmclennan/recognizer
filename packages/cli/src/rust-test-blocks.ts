@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { join, posix } from "node:path";
+import { isTestFile } from "@recognizer/core";
 import { parse } from "smol-toml";
 import type { Io } from "./cli.js";
-import { isTestFile } from "./entry-points.js";
 
 const SPACE = new Set([0x20, 0x09, 0x0a, 0x0d, 0x0b, 0x0c]);
 

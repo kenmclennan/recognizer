@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
-import { Repository } from "@recognizer/core";
-import { describe, expect, it } from "vitest";
 import {
   DEFAULT_DUPLICATION_SETTINGS,
   type DuplicationSettings,
-} from "../src/duplication/findings.js";
-import { measureDuplication } from "../src/duplication/measure.js";
-import { readUnitCache, unitCachePath } from "../src/duplication/unit-cache.js";
+  measureDuplication,
+  Repository,
+  readUnitCache,
+} from "@recognizer/core";
+import { describe, expect, it } from "vitest";
+import { unitCachePath } from "../src/adapters/filesystem/findings-adapter.js";
+import { analysisPortsOf, sayOf } from "./analysis-ports.js";
 import { allParsers, measuredFixture, ROOT } from "./duplication-helpers.js";
 
 function hashed(
@@ -29,7 +31,8 @@ async function measure(
   settings: DuplicationSettings = DEFAULT_DUPLICATION_SETTINGS,
 ) {
   return measureDuplication(
-    setup.fake.io,
+    analysisPortsOf(setup.fake.io),
+    sayOf(setup.fake.io),
     ROOT,
     hashed(setup.scans, setup.fake),
     settings,
@@ -131,7 +134,9 @@ describe("reusing results for unchanged files", () => {
       JSON.stringify({ ...written, port: "2" }),
     );
 
-    expect(readUnitCache(setup.fake.io, ROOT)).toEqual({});
+    expect(
+      analysisPortsOf(setup.fake.io).findings.readUnitCache(ROOT).cache,
+    ).toEqual({});
 
     await measure(setup);
 
@@ -156,7 +161,9 @@ describe("reusing results for unchanged files", () => {
       JSON.stringify({ ...written, port: "2" }),
     );
 
-    expect(readUnitCache(setup.fake.io, ROOT)).toEqual({});
+    expect(
+      analysisPortsOf(setup.fake.io).findings.readUnitCache(ROOT).cache,
+    ).toEqual({});
 
     await measure(setup);
 

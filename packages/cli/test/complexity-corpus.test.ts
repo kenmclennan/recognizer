@@ -1,10 +1,14 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import {
+  DEFAULT_STRUCTURE_SETTINGS,
+  grammarFor,
+  measureComplexity,
+  measureSource,
+  type Parsers,
+} from "@recognizer/core";
 import { beforeAll, describe, expect, it } from "vitest";
-import { measureComplexity, measureSource } from "../src/complexity/measure.js";
-import { grammarFor } from "../src/duplication/grammars.js";
-import type { Parsers } from "../src/duplication/parsers.js";
-import { DEFAULT_STRUCTURE_SETTINGS } from "../src/structure-sensor.js";
+import { analysisPortsOf, sayOf } from "./analysis-ports.js";
 import {
   allParsers,
   measuredSources,
@@ -99,7 +103,8 @@ describe("the findings against the thresholds corpus", () => {
     ).planted;
     const { fake, scans } = measuredSources(texts);
     const findings = measureComplexity(
-      fake.io,
+      analysisPortsOf(fake.io).source,
+      sayOf(fake.io),
       ROOT,
       scans,
       null,

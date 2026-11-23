@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { GRAMMAR_NAMES } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { GRAMMAR_NAMES } from "../src/duplication/grammars.js";
-import { GRAMMAR_DIRECTORY } from "../src/duplication/parsers.js";
+import { GRAMMAR_DIRECTORY } from "../src/adapters/filesystem/parsing-adapter.js";
 
 interface Provenance {
   grammars: Record<

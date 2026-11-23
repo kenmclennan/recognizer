@@ -1,15 +1,19 @@
 import { join } from "node:path";
-import type { Finding, SensorFindings } from "@recognizer/core";
+import {
+  readFindingsFiles as classifyFindings,
+  type Freshness,
+  type Measured,
+  type ReadOutcome,
+  type SensorFindings,
+  type StoredFindings,
+} from "@recognizer/core";
 import {
   readSensorFindings,
   sensorFindingsDocument,
 } from "./adapters/filesystem/findings-translator.js";
-import type { DirEntry, Io } from "./cli.js";
-import {
-  type Freshness,
-  type Measured,
-  splitFindings,
-} from "./result-freshness.js";
+import type { Io } from "./cli.js";
+
+export type { ReadOutcome };
 
 export function findingsFolder(root: string): string {
   return join(root, ".recognizer", "cache", "findings");
@@ -40,31 +44,33 @@ export function writeFindings(
   }
 }
 
-export type ReadOutcome =
-  | {
-      name: string;
-      status: "read";
-      document: SensorFindings;
-      hidden: Finding[];
-      valid: boolean;
-      reported?: true;
-    }
-  | { name: string; status: "invalid"; reason: string }
-  | { name: string; status: "unregistered" };
-
-function listed(io: Io, root: string): string[] {
-  let entries: DirEntry[];
+export function readStoredFindings(io: Io, root: string): StoredFindings[] {
+  let names: string[];
 
   try {
-    entries = io.readDir(findingsFolder(root));
+    names = io
+      .readDir(findingsFolder(root))
+      .filter((entry) => entry.kind === "file" && entry.name.endsWith(".json"))
+      .map((entry) => entry.name.slice(0, -".json".length))
+      .sort();
   } catch {
     return [];
   }
 
-  return entries
-    .filter((entry) => entry.kind === "file" && entry.name.endsWith(".json"))
-    .map((entry) => entry.name.slice(0, -".json".length))
-    .sort();
+  return names.map((name): StoredFindings => {
+    try {
+      return {
+        name,
+        status: "read",
+        document: readSensorFindings(
+          JSON.parse(io.readFile(findingsFile(root, name))),
+          { name },
+        ),
+      };
+    } catch (error) {
+      return { name, status: "invalid", reason: (error as Error).message };
+    }
+  });
 }
 
 export function readFindingsFiles(
@@ -74,41 +80,10 @@ export function readFindingsFiles(
   skip: string[] = [],
   allowed: string[] | null = null,
 ): ReadOutcome[] {
-  return listed(io, root)
-    .filter((name) => !skip.includes(name))
-    .map((name): ReadOutcome => {
-      const outside = allowed !== null && !allowed.includes(name);
-      let document: SensorFindings;
-
-      try {
-        document = readSensorFindings(
-          JSON.parse(io.readFile(findingsFile(root, name))),
-          { name },
-        );
-      } catch (error) {
-        return outside
-          ? { name, status: "unregistered" }
-          : { name, status: "invalid", reason: (error as Error).message };
-      }
-
-      if (
-        outside &&
-        (name === "structure" || document.reportedAt === undefined)
-      ) {
-        return { name, status: "unregistered" };
-      }
-
-      const reported = outside ? { reported: true as const } : {};
-      const freshness = freshnessOf(document);
-      const { current, hidden } = splitFindings(document, freshness);
-
-      return {
-        name,
-        status: "read",
-        document: { ...document, findings: current },
-        hidden,
-        valid: freshness.valid(document),
-        ...reported,
-      };
-    });
+  return classifyFindings(
+    readStoredFindings(io, root),
+    freshnessOf,
+    skip,
+    allowed,
+  );
 }

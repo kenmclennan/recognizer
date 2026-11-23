@@ -1,9 +1,5 @@
+import { bodyLength, functionLength, LONG_FUNCTION } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import {
-  bodyLength,
-  functionLength,
-  LONG_FUNCTION,
-} from "../src/function-length.js";
 
 describe("functionLength", () => {
   it("counts the first and the last line", () => {

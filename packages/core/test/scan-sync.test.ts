@@ -74,7 +74,7 @@ describe("scanSync", () => {
       fails: false,
     });
     fakes.config.readsSensorConfig = () => true;
-    fakes.analysis.analysis = { enabled: true, parserLanguages: ["python"] };
+    fakes.analysis.analysis = { enabled: true };
 
     const { ports, extracted } = syncOver(fakes);
     const events: ScanEvent[] = [];
@@ -90,7 +90,8 @@ describe("scanSync", () => {
       state: "done",
       files: 3,
     });
-    expect(fakes.analysis.analysisParsers).toEqual([null]);
+    expect(fakes.parsing.loaded).toEqual([]);
+    expect(fakes.findings.overlays).toEqual([]);
   });
 
   it("a synchronous scan refuses to describe", () => {

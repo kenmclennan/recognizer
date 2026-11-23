@@ -1,12 +1,13 @@
-import { beforeAll, describe, expect, it } from "vitest";
-import { parsePolicy } from "../src/adapters/filesystem/policy-translator.js";
-import type { Parsers } from "../src/duplication/parsers.js";
-import { runStructureSensor } from "../src/structure-run.js";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
-  resolveStructureSettings,
+  type Parsers,
+  runStructureAnalysis,
   type StructureSettings,
-} from "../src/structure-sensor.js";
+} from "@recognizer/core";
+import { beforeAll, describe, expect, it } from "vitest";
+import { parsePolicy } from "../src/adapters/filesystem/policy-translator.js";
+import { resolveStructureSettings } from "../src/structure-sensor.js";
+import { analysisPortsOf, sayOf } from "./analysis-ports.js";
 import { allParsers, measuredSources, ROOT } from "./duplication-helpers.js";
 
 let parsers: Parsers;
@@ -35,14 +36,14 @@ function sense(
     duplication: false,
     ...overrides,
   };
-  const run = runStructureSensor(
-    fake.io,
-    ROOT,
-    scans,
-    policyText === null ? null : parsePolicy(policyText),
-    settings,
-    parsers,
-  );
+  const run = runStructureAnalysis(analysisPortsOf(fake.io), {
+    say: sayOf(fake.io),
+    root: ROOT,
+    repository: scans,
+    policy: policyText === null ? null : parsePolicy(policyText),
+    settings: settings,
+    parsers: parsers,
+  });
 
   return {
     run,
@@ -203,14 +204,14 @@ describe("a failure in one measure", () => {
     const partial = new Map(
       [...parsers].filter(([grammar]) => grammar !== "python"),
     );
-    const run = runStructureSensor(
-      fake.io,
-      ROOT,
-      scans,
-      null,
-      DEFAULT_STRUCTURE_SETTINGS,
-      partial,
-    );
+    const run = runStructureAnalysis(analysisPortsOf(fake.io), {
+      say: sayOf(fake.io),
+      root: ROOT,
+      repository: scans,
+      policy: null,
+      settings: DEFAULT_STRUCTURE_SETTINGS,
+      parsers: partial,
+    });
 
     expect(run.error).toMatch(/^complexity: /);
     expect(
@@ -233,14 +234,14 @@ describe("a failure in one measure", () => {
         return fake.io.readBytes(path);
       },
     };
-    const run = runStructureSensor(
-      failing,
-      ROOT,
-      scans,
-      null,
-      DEFAULT_STRUCTURE_SETTINGS,
+    const run = runStructureAnalysis(analysisPortsOf(failing), {
+      say: sayOf(failing),
+      root: ROOT,
+      repository: scans,
+      policy: null,
+      settings: DEFAULT_STRUCTURE_SETTINGS,
       parsers,
-    );
+    });
 
     expect(
       run.sensed.document.findings.some(

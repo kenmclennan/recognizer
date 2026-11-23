@@ -68,14 +68,17 @@ describe("scan container", () => {
       "config",
       "confirm",
       "describer",
+      "digest",
       "findings",
       "git",
       "lock",
+      "parsing",
       "policy",
       "process",
       "runLog",
       "scanners",
       "sensors",
+      "source",
       "structure",
     ]);
     expect(syncScanPorts(io, "all").scanners).toBeInstanceOf(

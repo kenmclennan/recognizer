@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { orphanFindings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { orphanFindings } from "../src/structure-warnings.js";
 import { REPO } from "./helpers.js";
 import { validatedRepository as validateScan } from "./repository-from.js";
 

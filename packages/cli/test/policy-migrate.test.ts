@@ -1,12 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PolicyRule } from "@recognizer/core";
+import { orphanFindings, PolicyRule } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { run } from "../src/cli.js";
 import { check, parsePolicy } from "../src/index.js";
 import { migratePolicy } from "../src/policy-migrate.js";
-import { orphanFindings } from "../src/structure-warnings.js";
 import { REPO } from "./helpers.js";
 import { repositoryFrom } from "./repository-from.js";
 import { fakeIo, ROOT } from "./scan-helpers.js";

@@ -38,11 +38,14 @@ describe("fakes", () => {
       "clock",
       "confirm",
       "describer",
+      "digest",
       "git",
+      "parsing",
       "process",
       "scan-lock",
       "scanners",
       "sensors",
+      "source-files",
     ]);
     expect(fakeKeys).toEqual(
       [
@@ -52,14 +55,17 @@ describe("fakes", () => {
         "config",
         "confirm",
         "describer",
+        "digest",
         "findings",
         "git",
         "lock",
+        "parsing",
         "policy",
         "process",
         "runLog",
         "scanners",
         "sensors",
+        "source",
         "structure",
       ].sort(),
     );

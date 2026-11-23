@@ -1,11 +1,12 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { Repository } from "@recognizer/core";
+import { freshnessFor, Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
-import { nodeIo } from "../src/cli.js";
-import { currentTestsHash, freshnessFor } from "../src/tests-hash.js";
+import { SourceFilesAdapter } from "../src/adapters/filesystem/source-files-adapter.js";
+import { type Io, nodeIo } from "../src/cli.js";
+import { currentTestsHash } from "../src/tests-hash.js";
 
 const WORKED =
   "9a49fc96a1cf8fd7663d83897d346b14a4f4de85c8114981854191414ab6df5a";
@@ -80,8 +81,12 @@ describe("freshnessFor", () => {
 
         return { started: true, status: 1, stdout: "", stderr: "" };
       },
-    } as unknown as Parameters<typeof freshnessFor>[0];
-    const judge = freshnessFor(io, "/r", Repository.empty);
+    } as unknown as Io;
+    const judge = freshnessFor(
+      new SourceFilesAdapter(io),
+      "/r",
+      Repository.empty,
+    );
 
     judge({ inputs: {} });
 

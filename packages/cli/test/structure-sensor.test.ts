@@ -1,22 +1,23 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { Repository, type ViolatedRule } from "@recognizer/core";
-import { describe, expect, it } from "vitest";
-import { sensorFindingsDocument } from "../src/adapters/filesystem/findings-translator.js";
-import {
-  parseBaseline,
-  serialiseBaseline,
-  violationId,
-} from "../src/baseline.js";
-import { rankAgainstBaseline } from "../src/check.js";
-import { validateFindings } from "../src/findings-document.js";
-import { parsePolicy, principleOf, validateScan } from "../src/index.js";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
   measuredInputs,
   measuredModules,
-  structureSensor,
-} from "../src/structure-sensor.js";
+  Repository,
+  rankAgainstBaseline,
+  senseStructure as structureSensor,
+  type ViolatedRule,
+  violationId,
+} from "@recognizer/core";
+import { describe, expect, it } from "vitest";
+import {
+  parseBaseline,
+  serialiseBaseline,
+} from "../src/adapters/filesystem/baseline-adapter.js";
+import { sensorFindingsDocument } from "../src/adapters/filesystem/findings-translator.js";
+import { validateFindings } from "../src/findings-document.js";
+import { parsePolicy, principleOf, validateScan } from "../src/index.js";
 import { REPO } from "./helpers.js";
 import { repositoryFrom } from "./repository-from.js";
 

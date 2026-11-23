@@ -1,9 +1,8 @@
 import { readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { compileGlob, PolicyRule } from "@recognizer/core";
+import { measureModules as analyse, PolicyRule } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
-import { analyse } from "../src/analyse.js";
 import { run } from "../src/cli.js";
 import { capture } from "./helpers.js";
 import { validatedRepository as validateScan } from "./repository-from.js";

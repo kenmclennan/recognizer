@@ -1,15 +1,18 @@
 import type { Repository } from "@recognizer/core";
-import { describe, expect, it } from "vitest";
 import {
+  bodyOf,
+  countNodes,
   DEFAULT_DUPLICATION_SETTINGS,
   type DuplicationSettings,
-} from "../src/duplication/findings.js";
-import { fingerprints } from "../src/duplication/fingerprint.js";
-import { findFunctions } from "../src/duplication/functions.js";
-import type { Grammar } from "../src/duplication/grammars.js";
-import { measureDuplication } from "../src/duplication/measure.js";
-import { countNodes, normalise } from "../src/duplication/normalise.js";
-import { bodyOf } from "../src/duplication/shapes.js";
+  findFunctions,
+  fingerprints,
+  type Grammar,
+  measureDuplication,
+  normalise,
+} from "@recognizer/core";
+import { describe, expect, it } from "vitest";
+import { DigestAdapter } from "../src/adapters/system/digest-adapter.js";
+import { analysisPortsOf, sayOf } from "./analysis-ports.js";
 import {
   allParsers,
   measuredSources,
@@ -54,7 +57,8 @@ async function find(
 ) {
   const { fake, scans: listed } = measuredSources(files);
   const findings = measureDuplication(
-    fake.io,
+    analysisPortsOf(fake.io),
+    sayOf(fake.io),
     ROOT,
     scans ?? listed,
     { ...DEFAULT_DUPLICATION_SETTINGS, ...overrides },
@@ -358,7 +362,9 @@ async function prints(grammar: Grammar, source: string): Promise<string> {
 
   expect(normalised).not.toBeNull();
 
-  return [...fingerprints(normalised as never)].sort().join("|");
+  return [...fingerprints(normalised as never, new DigestAdapter().sha1Prefix)]
+    .sort()
+    .join("|");
 }
 
 function reorder(grammar: Grammar, source: string): string {

@@ -232,7 +232,7 @@ Ports, with the subdomain each belongs to:
 | --- | --- | --- |
 | Scanners | scanning | discovers language scanners and extracts a scan document per language |
 | Sensors | sensing | discovers sensors, reads their manifests and runs them |
-| Analysis | analysis | loads parsers and runs structural analysis; in phase 1 the same adapter implements it and Sensors |
+| Analysis | analysis | reads the structure settings and the shipped sensor names, reports policy problems; the SensorsAdapter implements it and Sensors |
 | Describer | describing | finds the describer in effect and describes files |
 | Git | shared | reads the commit, the dirty state and the branch |
 | Scan lock | shared | acquires the scan lock and reports whether a scan is running |
@@ -253,7 +253,7 @@ Use cases move into core one at a time, and both adapters keep working at every 
    2. Findings: Finding, from the findings files, pointing at a file or a member.
    3. Policy: PolicyRule, Violation and Warning, with violations and warnings worked out in `analysis`.
 6. Repositories: the Store port gives way to repositories the domain owns. Core's `domain/` defines a repository interface per aggregate (structure, findings, policy, config, run log, baseline) and `application/shared/ports/` holds a scan lock port; the CLI's filesystem adapters implement them through the translators; the core fakes implement the same interfaces. The structure repository saves the extraction as an entity, the scan translator writing the document. On-disk formats do not change.
-7. The remaining use cases, one at a time: describe, setup, config and policy, changes and commits.
+7. The remaining use cases, one at a time: describe, check and report, setup, config and policy, changes and commits.
 8. Formats from the model: each document's format moves to core's entities, one document at a time, with its schema generated from them; only the translators change.
 
 The migration is done when all of these hold on main:
@@ -262,7 +262,7 @@ The migration is done when all of these hold on main:
 - The policy states the layering: the CLI and the app import core only through its package root, and core imports neither.
 - The domain model (repository, folder, file, member, dependency, finding, policy rule, violation, warning) is defined in core, and the CLI and the app keep no copies of their own.
 - Every document's format and schema come from core's entities.
-- Scan, describe, setup, config and policy, and changes and commits each run through core's ports, with acceptance scenarios driving them through fakes.
+- Scan, describe, check and report, setup, config and policy, and changes and commits each run through core's ports, with acceptance scenarios driving them through fakes.
 - Every aggregate is stored through a repository interface the domain owns, and core names no filesystem adapter.
 - The app reaches core as a service and holds no planning, scan or git logic.
 - `packages/core` names no scanner, sensor or describer.

@@ -1,15 +1,13 @@
 import type { Finding, SensorFindings } from "@recognizer/core";
-import { describe, expect, it } from "vitest";
 import {
   carryMeasured as carryDuplication,
   carryMeasured,
   complexityUnmeasured,
-} from "../src/duplication/carry.js";
-import { DEFAULT_DUPLICATION_SETTINGS } from "../src/duplication/findings.js";
-import {
+  DEFAULT_DUPLICATION_SETTINGS,
   DEFAULT_STRUCTURE_SETTINGS,
   type StructureSettings,
-} from "../src/structure-sensor.js";
+} from "@recognizer/core";
+import { describe, expect, it } from "vitest";
 
 const SETTINGS: StructureSettings = DEFAULT_STRUCTURE_SETTINGS;
 

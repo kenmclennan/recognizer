@@ -1,3 +1,5 @@
+import { InvalidRequest } from "@recognizer/core";
+
 export class InputError extends Error {
   readonly messages: string[];
 
@@ -22,4 +24,16 @@ export function errorText(error: unknown): string {
   return error instanceof InputError
     ? error.messages.join("\n")
     : (error as Error).message;
+}
+
+export function asInputError<T>(run: () => T): T {
+  try {
+    return run();
+  } catch (error) {
+    if (error instanceof InvalidRequest) {
+      throw new InputError(error.messages);
+    }
+
+    throw error;
+  }
 }

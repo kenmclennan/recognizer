@@ -1,13 +1,8 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import type { Repository } from "@recognizer/core";
+import { isTestFile } from "@recognizer/core";
 import type { Io } from "./cli.js";
-import { isTestFile } from "./entry-points.js";
-import {
-  buildFreshness,
-  type Freshness,
-  type Measured,
-} from "./result-freshness.js";
 import { inFileTestHashes } from "./rust-test-blocks.js";
 
 function compareUtf8(left: string, right: string): number {
@@ -59,20 +54,4 @@ export function currentTestsHash(
     .map((key) => `${key}\t${hashes.get(key)}\n`);
 
   return createHash("sha256").update(lines.join("")).digest("hex");
-}
-
-export function freshnessFor(
-  io: Io,
-  root: string,
-  repository: Repository,
-): (measured: Measured) => Freshness {
-  let tests: string | null | undefined;
-
-  return (measured) => {
-    if (measured.tests !== undefined && tests === undefined) {
-      tests = currentTestsHash(io, root, repository);
-    }
-
-    return buildFreshness(repository, tests ?? null);
-  };
 }

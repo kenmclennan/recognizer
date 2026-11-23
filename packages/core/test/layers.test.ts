@@ -55,7 +55,14 @@ function violations(layer: string, allowed: string[]): string[] {
 }
 
 const application = join(source, "application");
-const SUBDOMAINS = ["run", "scanning", "describing", "sensing", "analysis"];
+const SUBDOMAINS = [
+  "run",
+  "scanning",
+  "describing",
+  "sensing",
+  "analysis",
+  "history",
+];
 const SHARED_PORTS = ["clock", "git", "process", "scan-lock"];
 const RUN_PORTS = SHARED_PORTS;
 
@@ -341,6 +348,39 @@ describe("core layers", () => {
     ).toEqual([]);
   });
 
+  it("analysis reaches history only through its use-case files", () => {
+    const toHistory = (file: string, specifier: string) =>
+      specifier.startsWith(".") &&
+      targetOf(file, specifier).split("/")[0] === "history";
+    const readsHistoryDomain = (file: string, specifier: string) =>
+      specifier.startsWith(".") &&
+      targetOf(file, specifier).startsWith("../domain/history/");
+
+    expect(applicationFiles("history").length).toBeGreaterThan(0);
+    expect(toHistory("analysis/x.ts", "../history/settle-baseline.js")).toBe(
+      true,
+    );
+    expect(
+      reachesInside("analysis/x.ts", "../history/settle-baseline.js"),
+    ).toBe(false);
+    expect(reachesInside("analysis/x.ts", "../history/ports/x.js")).toBe(true);
+    expect(
+      readsHistoryDomain("analysis/x.ts", "../../domain/history/baseline.js"),
+    ).toBe(true);
+    expect(readsHistoryDomain("history/x.ts", "../shared/ports/git.js")).toBe(
+      false,
+    );
+    expect(
+      applicationFiles("analysis").some((file) =>
+        specifiersOf(join(application, file)).some((specifier) =>
+          toHistory(file, specifier),
+        ),
+      ),
+    ).toBe(true);
+    expect(offences("analysis", reachesInside)).toEqual([]);
+    expect(offences("analysis", readsHistoryDomain)).toEqual([]);
+  });
+
   it("shared reaches no subdomain", () => {
     expect(applicationFiles("shared").length).toBeGreaterThan(0);
     expect(reachesSubdomain("shared/ports/x.ts", "../../run/phases.js")).toBe(
@@ -405,10 +445,8 @@ describe("core layers", () => {
   });
 
   it("core names no plugin", () => {
-    const word = ["struc", "ture"].join("");
-    const repositoryUse = new RegExp(
-      `${word}-?repository|\\b${word}(?="?\\s*[=:,}]|\\.(read|save|discard|exists|responsibilityKinds|scans|kinds)\\b)`,
-      "gi",
+    const words = ["scan", "sense", "describe"].map((kind) =>
+      ["recognizer", kind, ""].join("-"),
     );
 
     const everyFile = (directory: string): string[] =>
@@ -429,18 +467,12 @@ describe("core layers", () => {
     expect(files.length).toBeGreaterThan(0);
 
     for (const file of files) {
-      expect(
-        relative(core, file).toLowerCase().replace(repositoryUse, ""),
-        file,
-      ).not.toContain(word);
+      for (const word of words) {
+        expect(relative(core, file).toLowerCase(), file).not.toContain(word);
 
-      const lines = readFileSync(file, "utf8")
-        .replace(/infrastructure/gi, "")
-        .replace(repositoryUse, "")
-        .split("\n");
-
-      for (const line of lines) {
-        expect(line.toLowerCase(), file).not.toContain(word);
+        for (const line of readFileSync(file, "utf8").split("\n")) {
+          expect(line.toLowerCase(), file).not.toContain(word);
+        }
       }
     }
   });

@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { BaselineAdapter } from "../src/adapters/filesystem/baseline-adapter.js";
-import { parseBaseline } from "../src/baseline.js";
+import {
+  BaselineAdapter,
+  parseBaseline,
+} from "../src/adapters/filesystem/baseline-adapter.js";
 import { fakeIo, ROOT } from "./scan-helpers.js";
 
 const PATH = `${ROOT}/.recognizer/baselines/violations.json`;

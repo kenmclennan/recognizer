@@ -1,10 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  DEFAULT_DUPLICATION_SETTINGS,
+  STRUCTURE_SENSOR_VERSION,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
-import { DEFAULT_DUPLICATION_SETTINGS } from "../src/duplication/findings.js";
 import { loadFindings } from "../src/load-findings.js";
-import { STRUCTURE_SENSOR_VERSION } from "../src/structure-sensor.js";
 import { REPO } from "./helpers.js";
 import { repositoryFrom } from "./repository-from.js";
 import {

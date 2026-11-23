@@ -1,7 +1,5 @@
+import { bodyOf, findFunctions, type Grammar } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { findFunctions } from "../src/duplication/functions.js";
-import type { Grammar } from "../src/duplication/grammars.js";
-import { bodyOf } from "../src/duplication/shapes.js";
 import { allParsers } from "./duplication-helpers.js";
 
 async function bodies(

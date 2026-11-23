@@ -1,11 +1,11 @@
-import { type Member, Repository } from "@recognizer/core";
-import { describe, expect, it } from "vitest";
 import {
   type FolderMetrics,
+  type Member,
   measureFolders,
-  metricsLine,
-  metricsTable,
-} from "../src/folder-metrics.js";
+  Repository,
+} from "@recognizer/core";
+import { describe, expect, it } from "vitest";
+import { metricsLine, metricsTable } from "../src/folder-metrics.js";
 import { parsePolicy } from "../src/index.js";
 import { scanOf, WORKED, WORKED_EDGES } from "./folder-fixtures.js";
 

@@ -1,11 +1,9 @@
+import { DEFAULT_STRUCTURE_SETTINGS } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
 import { CORE_KEYS } from "../src/config-keys.js";
 import { parseConfig } from "../src/config-parse.js";
-import {
-  DEFAULT_STRUCTURE_SETTINGS,
-  resolveStructureSettings,
-} from "../src/structure-sensor.js";
+import { resolveStructureSettings } from "../src/structure-sensor.js";
 import { fakeIo, ROOT } from "./scan-helpers.js";
 
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;

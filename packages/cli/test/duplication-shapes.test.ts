@@ -1,17 +1,22 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { DEFAULT_DUPLICATION_SETTINGS } from "../src/duplication/findings.js";
-import { findFunctions } from "../src/duplication/functions.js";
-import { grammarFor } from "../src/duplication/grammars.js";
-import { assignIdentities } from "../src/duplication/identity.js";
 import {
+  assignIdentities,
+  DEFAULT_DUPLICATION_SETTINGS,
+  findFunctions,
+  grammarFor,
+  isTrivialShape,
   measureDuplication,
+  normalise,
   unitsInSource,
-} from "../src/duplication/measure.js";
-import { normalise } from "../src/duplication/normalise.js";
-import { GRAMMAR_DIRECTORY, loadParsers } from "../src/duplication/parsers.js";
-import { isTrivialShape } from "../src/duplication/shapes.js";
+} from "@recognizer/core";
+import { describe, expect, it } from "vitest";
+import {
+  GRAMMAR_DIRECTORY,
+  loadParsers,
+} from "../src/adapters/filesystem/parsing-adapter.js";
+import { DigestAdapter } from "../src/adapters/system/digest-adapter.js";
+import { analysisPortsOf, sayOf } from "./analysis-ports.js";
 import {
   allParsers,
   measuredFixture,
@@ -78,7 +83,8 @@ describe("the C# shapes and normalisation held over from the Python sensor", () 
 
     expect(
       measureDuplication(
-        fake.io,
+        analysisPortsOf(fake.io),
+        sayOf(fake.io),
         ROOT,
         scans,
         DEFAULT_DUPLICATION_SETTINGS,
@@ -94,7 +100,8 @@ describe("the C# shapes and normalisation held over from the Python sensor", () 
 
     expect(
       measureDuplication(
-        io,
+        analysisPortsOf(io),
+        sayOf(io),
         ROOT,
         scans,
         DEFAULT_DUPLICATION_SETTINGS,
@@ -107,16 +114,17 @@ describe("the C# shapes and normalisation held over from the Python sensor", () 
   it("measures this repository's own TypeScript without throwing and with unique ids", async () => {
     const parsers = await allParsers();
     const source = readFileSync(
-      join(REPO, "packages/cli/src/duplication/shapes.ts"),
+      join(REPO, "packages/core/src/domain/analysis/duplication/shapes.ts"),
       "utf8",
     );
     const units = unitsInSource(
-      "packages/cli/src/duplication/shapes.ts",
-      "packages/cli/src/duplication/shapes.ts",
+      "packages/core/src/domain/analysis/duplication/shapes.ts",
+      "packages/core/src/domain/analysis/duplication/shapes.ts",
       source,
       grammarFor("shapes.ts") as "typescript",
       parsers,
       { ...DEFAULT_DUPLICATION_SETTINGS, min_lines: 1, min_nodes: 1 },
+      new DigestAdapter().sha1Prefix,
     );
     const identities = assignIdentities(
       units.map(
