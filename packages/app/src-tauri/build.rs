@@ -18,7 +18,6 @@ fn main() {
         "read_sensor_inputs",
         "read_config_keys",
         "read_settings",
-        "read_tests_hash",
         "record_recent_view",
         "remove_findings",
         "remove_view",

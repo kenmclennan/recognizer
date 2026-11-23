@@ -17,7 +17,13 @@ export const sensorsSource: SensorsPort = {
   readFindings: () => invoke<FindingsFiles>("read_findings"),
   readOverlays: () => invoke<OverlayFiles>("read_overlays"),
   readRunRecords: () => invoke<RunRecordFiles>("read_run_records"),
-  readTestsHash: (known) => invoke<string>("read_tests_hash", { known }),
+  readTestsHash: async (known) =>
+    coreReply<string | null>(
+      await invoke<unknown>("core_call", {
+        op: "tests.hash",
+        args: { known },
+      }),
+    ),
   removeFindings: (names) => invoke<void>("remove_findings", { names }),
   readInputs: () => invoke<SensorInputs>("read_sensor_inputs"),
   shipped: () => invoke<ShippedSensors>("shipped_sensors"),

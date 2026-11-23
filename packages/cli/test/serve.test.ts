@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import {
   cpSync,
   existsSync,
@@ -39,6 +39,7 @@ import {
   typescriptLaunchers,
   typescriptRepository,
 } from "./serve-harness.js";
+import { writeStubScanner } from "./stub-test-reporter.js";
 
 const TIMEOUT = scaledTimeout(60_000);
 
@@ -1242,6 +1243,132 @@ describe("recognizer serve: plans", () => {
       for (const name of shipped) {
         expect(plan.work[name]).toBe(expected.modules.length);
       }
+
+      await serve.close();
+    },
+    TIMEOUT,
+  );
+});
+
+describe("recognizer serve: tests hash", () => {
+  const WORKED =
+    "9a49fc96a1cf8fd7663d83897d346b14a4f4de85c8114981854191414ab6df5a";
+  const FIXTURE_DIRECTORY = join(REPO, "fixtures/sensors/tests-digest");
+
+  function gitRepository(files: Record<string, string>): string {
+    const root = makeTempDir("recognizer-serve-tests-hash-");
+
+    for (const [path, text] of Object.entries(files)) {
+      mkdirSync(dirname(join(root, path)), { recursive: true });
+      writeFileSync(join(root, path), text);
+    }
+
+    execFileSync("git", ["-C", root, "init", "-q"]);
+
+    return root;
+  }
+
+  function stubScanner(entries: unknown, status = 0): string {
+    const directory = makeTempDir("recognizer-serve-tests-hash-stub-");
+
+    writeStubScanner(directory, join(directory, "runs.log"), {
+      name: "stub",
+      stdout: JSON.stringify({ entries }),
+      status,
+    });
+
+    return directory;
+  }
+
+  const WORKED_FILES = {
+    "tests/a.py": "a",
+    "tests/b.py": "b",
+    "src/app.py": "x",
+  };
+
+  it(
+    "tests.hash replies with the digest of the repository's test files",
+    async () => {
+      const repository = gitRepository(WORKED_FILES);
+      const serve = new Serve(makeTempDir("recognizer-serve-empty-path-"));
+      const reply = await serve.call("tests.hash", { repository, known: {} });
+
+      expect(reply.ok).toBe(WORKED);
+
+      await serve.close();
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "tests.hash combines a scanner's tests report with the files' hashes",
+    async () => {
+      const expected = JSON.parse(
+        readFileSync(join(FIXTURE_DIRECTORY, "expected.json"), "utf8"),
+      ) as { digest: string; entries: Record<string, string> };
+      const own = Object.fromEntries(
+        Object.entries(expected.entries).filter(([key]) => key.includes("#")),
+      );
+      const repository = makeTempDir("recognizer-serve-tests-hash-");
+
+      cpSync(join(FIXTURE_DIRECTORY, "rust-in-file"), repository, {
+        recursive: true,
+      });
+      execFileSync("git", ["-C", repository, "init", "-q"]);
+
+      const serve = new Serve(stubScanner(own));
+      const reply = await serve.call("tests.hash", { repository, known: {} });
+
+      expect(own).not.toEqual({});
+      expect(reply.ok).toBe(expected.digest);
+
+      await serve.close();
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "tests.hash is null when git cannot list the files or a scanner's answer fails",
+    async () => {
+      const outside = makeTempDir("recognizer-serve-not-git-");
+      const repository = gitRepository(WORKED_FILES);
+      const serve = new Serve(makeTempDir("recognizer-serve-empty-path-"));
+      const failing = new Serve(stubScanner({}, 1));
+      const notGit = await serve.call("tests.hash", {
+        repository: outside,
+        known: {},
+      });
+      const failed = await failing.call("tests.hash", {
+        repository,
+        known: {},
+      });
+
+      expect(notGit.ok).toBeNull();
+      expect("ok" in notGit).toBe(true);
+      expect(failed.ok).toBeNull();
+      expect("ok" in failed).toBe(true);
+
+      await serve.close();
+      await failing.close();
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "tests.hash refuses a known that is not an object of strings",
+    async () => {
+      const repository = gitRepository(WORKED_FILES);
+      const serve = new Serve(makeTempDir("recognizer-serve-empty-path-"));
+      const asList = await serve.call("tests.hash", { repository, known: [] });
+      const asNumber = await serve.call("tests.hash", {
+        repository,
+        known: { a: 1 },
+      });
+
+      expect(typeof asList.error).toBe("string");
+      expect(asList).not.toHaveProperty("ok");
+      expect(typeof asNumber.error).toBe("string");
+      expect(asNumber).not.toHaveProperty("ok");
 
       await serve.close();
     },

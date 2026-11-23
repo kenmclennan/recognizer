@@ -5,13 +5,17 @@ import {
   type RunningScan,
   requestFaults,
   type Scan,
+  testsHashOf,
   View,
   type ViewFields,
 } from "@recognizer/core";
+import { SourceFilesAdapter } from "../adapters/filesystem/source-files-adapter.js";
 import {
   parseViewFile,
   serialiseView,
 } from "../adapters/filesystem/view-translator.js";
+import { TestReportsAdapter } from "../adapters/plugins/test-reports-adapter.js";
+import { DigestAdapter } from "../adapters/system/digest-adapter.js";
 import { type Io, nodeIo } from "../cli.js";
 import { errorText } from "../errors.js";
 import { scanPorts } from "../scan-container.js";
@@ -37,6 +41,7 @@ import {
 import { isActive, newWatchState, pollInterval, watchTick } from "./watch.js";
 import {
   ArgsError,
+  knownHashes,
   type Request,
   text,
   textList,
@@ -140,6 +145,10 @@ export class Service {
         reply(this.work(args));
 
         return;
+      case "tests.hash":
+        reply(this.testsHash(args));
+
+        return;
       case "view.parse": {
         const parsed = parseViewFile(text(args, "text"));
 
@@ -193,6 +202,20 @@ export class Service {
       sensor,
       textList(args, "modules"),
       textList(args, "suites"),
+    );
+  }
+
+  private testsHash(args: Record<string, unknown>): string | null {
+    const repository = resolve(text(args, "repository"));
+
+    return testsHashOf(
+      {
+        source: new SourceFilesAdapter(this.shared),
+        digest: new DigestAdapter(),
+        testReports: new TestReportsAdapter(this.shared),
+      },
+      repository,
+      knownHashes(args, "known"),
     );
   }
 

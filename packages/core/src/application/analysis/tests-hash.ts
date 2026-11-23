@@ -16,18 +16,29 @@ export function currentTestsHash(
   root: string,
   repository: Repository,
 ): string | null {
+  return testsHashOf(ports, root, repository.scannedHashes());
+}
+
+export function testsHashOf(
+  ports: TestsHashPorts,
+  root: string,
+  known: ReadonlyMap<string, string>,
+): string | null {
   const listed = ports.source.listFiles(root);
 
   if (listed === null) {
     return null;
   }
 
-  const known = repository.scannedHashes();
   const listedPaths = [...new Set(listed.filter((path) => path !== ""))];
   const hashes = new Map<string, string>();
 
   for (const path of listedPaths.filter(isTestFile)) {
-    const hash = known.get(path) ?? ports.source.hashOf(root, path);
+    const knownHash = known.get(path);
+    const hash =
+      knownHash !== undefined && knownHash !== ""
+        ? knownHash
+        : ports.source.hashOf(root, path);
 
     if (hash !== null && hash !== undefined) {
       hashes.set(path, hash);
