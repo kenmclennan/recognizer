@@ -6,6 +6,7 @@ const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { buildInspectorView } from ${JSON.stringify(here("inspector-view.ts"))};
 import { inspectorContent } from ${JSON.stringify(here("inspector-model.ts"))};
+import { repositoryFrom } from ${JSON.stringify(here("../test/unit/repository-from.ts"))};
 import { compactFolders } from ${JSON.stringify(here("folder-compaction.ts"))};
 import { filterTree } from ${JSON.stringify(here("tree-filter.ts"))};
 import { buildTree } from ${JSON.stringify(here("tree-model.ts"))};
@@ -25,7 +26,7 @@ const scan = {
 };
 const lineOf = (id) => LINES[id] ? { kind: "current", line: LINES[id] } : { kind: "missing" };
 const inputs = {
-  scans: [scan], modules: ids, compaction: compactFolders(ids), disc: () => "green", findings: () => [], findingRows: () => [], onCanvas: () => false,
+  scans: repositoryFrom([scan]), modules: ids, compaction: compactFolders(ids), disc: () => "green", findings: () => [], findingRows: () => [], onCanvas: () => false,
   expanded: new Set(), showPrivate: true, tab: "dependencies", counts: () => ({ uses: 2, usedBy: 0 }), filter: "", followed: null, metrics: [],
   responsibility: (id) => ({ state: lineOf(id), failure: null }),
 };

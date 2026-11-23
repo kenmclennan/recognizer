@@ -1,11 +1,11 @@
 import { resolve } from "node:path";
+import type { Repository } from "@recognizer/core";
 import { parse, stringify } from "yaml";
 import type { Io } from "./cli.js";
 import { policyFile } from "./config.js";
 import { InputError } from "./errors.js";
 import { type Policy, parsePolicy } from "./policy.js";
 import { collectViolations } from "./rules.js";
-import type { Scan } from "./scan.js";
 import {
   type DroppedCard,
   type ForbidCard,
@@ -129,7 +129,7 @@ function policyOf(
 function todayFor(
   card: ForbidCard,
   document: Record<string, unknown>,
-  scans: Scan[],
+  repository: Repository,
 ): { count: number; example: string | null } {
   const directions = [{ from: card.from, to: card.to }];
 
@@ -141,12 +141,10 @@ function todayFor(
   let count = 0;
   let example: string | null = null;
 
-  for (const scan of scans) {
-    for (const violation of collectViolations(scan, policy).violations) {
-      for (const one of violation.imports) {
-        count += 1;
-        example ??= `${violation.from} -> ${one.to}`;
-      }
+  for (const violation of collectViolations(repository, policy).violations) {
+    for (const one of violation.imports) {
+      count += 1;
+      example ??= `${violation.from} -> ${one.to}`;
     }
   }
 
@@ -157,7 +155,7 @@ export function recommend(
   io: Io,
   given: string,
   input: unknown,
-  scans: Scan[],
+  repository: Repository,
 ): Recommendation {
   const root = resolve(given);
 
@@ -203,7 +201,7 @@ export function recommend(
 
     entries.push(
       card.kind === "forbid"
-        ? { ...card, today: todayFor(card, document, scans) }
+        ? { ...card, today: todayFor(card, document, repository) }
         : card,
     );
   });

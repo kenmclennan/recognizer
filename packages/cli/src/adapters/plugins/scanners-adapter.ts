@@ -4,8 +4,8 @@ import type {
   ExtractionDecision,
   ExtractResult,
   PluginProgress,
+  Repository,
   RunEntry,
-  ScanDocument,
   ScannerQueries,
   Scanners,
   SyncScanners,
@@ -21,12 +21,8 @@ import {
 import type { PluginEvent } from "../../plugin-events.js";
 import { type createPluginLimits, prepareCall } from "../../plugin-run.js";
 import { entryFrom } from "../../run-log.js";
-import {
-  judgeScanVersion,
-  SCAN_SCHEMA_VERSION,
-  validateAcceptedScan,
-} from "../../scan.js";
-import { CACHE, cacheFile, readCachedScan } from "../../scan-facts.js";
+import { judgeScanVersion, SCAN_SCHEMA_VERSION } from "../../scan.js";
+import { CACHE, cacheFile, readCachedRepository } from "../../scan-facts.js";
 import { extractionNeeded, extractionPrecheck } from "../../scan-phases.js";
 import {
   buildArgs,
@@ -34,6 +30,7 @@ import {
   languageRulesOf,
   type ScannerChoice,
 } from "../../scanners.js";
+import { readRepository } from "../filesystem/scan-translator.js";
 import { sinkIo } from "./sink-io.js";
 
 type FailureReason =
@@ -53,7 +50,7 @@ function failure(reason: FailureReason, message: string): Outcome {
   return { ok: false, reason, message };
 }
 
-function checkScan(bytes: string): Outcome {
+function checkScan(bytes: string, language: string): Outcome {
   let parsed: unknown;
 
   try {
@@ -80,13 +77,13 @@ function checkScan(bytes: string): Outcome {
   }
 
   try {
-    const scan = validateAcceptedScan(parsed);
+    const repository = readRepository([{ language, document: parsed }]);
 
     return {
       ok: true,
       bytes,
-      modules: scan.modules.length,
-      edges: scan.edges.length,
+      modules: repository.files.length,
+      edges: repository.dependencies.length,
     };
   } catch (error) {
     const messages =
@@ -116,6 +113,7 @@ export interface ExtractInput {
 }
 
 interface Prepared {
+  language: string;
   scanner: InstalledPlugin;
   command: string;
   args: string[];
@@ -160,6 +158,7 @@ function prepareScanner(
 
   return {
     ready: {
+      language,
       scanner: choice.scanner,
       command: choice.scanner.command,
       args: buildArgs(root, output, commit, modified),
@@ -175,7 +174,7 @@ function concludeScanner(
   result: RunResult,
   began: number,
 ): Scanned {
-  const { scanner, command, args, output } = prepared;
+  const { language, scanner, command, args, output } = prepared;
   const scanned = (outcome: Outcome): Scanned => ({
     outcome,
     command: [command, ...args],
@@ -211,7 +210,7 @@ function concludeScanner(
     return scanned(failure("invalid-scan", "scanner wrote no output file"));
   }
 
-  return scanned(checkScan(bytes));
+  return scanned(checkScan(bytes, language));
 }
 
 function runScannerSync(input: ExtractInput): Scanned {
@@ -302,12 +301,12 @@ function decideExtraction(
   dirty: boolean,
 ) {
   const languages = detected.map((language) => {
-    const cached = readCachedScan(io, root, language);
+    const cached = readCachedRepository(io, root, language)?.extractions[0];
 
     return {
       language,
       cachedScan:
-        cached === null
+        cached === undefined
           ? null
           : {
               commit: cached.commit,
@@ -411,12 +410,8 @@ class ScannerQueriesAdapter implements ScannerQueries {
     return cachedLanguages(this.io, root);
   }
 
-  readCached(root: string, language: string): ScanDocument | null {
-    return readCachedScan(
-      this.io,
-      root,
-      language,
-    ) as unknown as ScanDocument | null;
+  readCached(root: string, language: string): Repository | null {
+    return readCachedRepository(this.io, root, language);
   }
 
   scanFile(root: string, language: string): string {

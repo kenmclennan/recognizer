@@ -454,11 +454,11 @@ describe("row builders and ordering", () => {
     const selection = [
       {
         extensions: [".py"],
-        skip_directory_names: [],
-        skip_directory_prefixes: [],
-        skip_directory_suffixes: [],
-        skip_directories_containing: [],
-        skip_file_globs: [],
+        skipDirectoryNames: [],
+        skipDirectoryPrefixes: [],
+        skipDirectorySuffixes: [],
+        skipDirectoriesContaining: [],
+        skipFileGlobs: [],
       },
     ];
 

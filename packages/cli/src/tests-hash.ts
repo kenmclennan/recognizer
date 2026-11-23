@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
+import type { Repository } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import { isTestFile } from "./entry-points.js";
 import {
@@ -9,7 +10,6 @@ import {
   scanHashes,
 } from "./result-freshness.js";
 import { inFileTestHashes } from "./rust-test-blocks.js";
-import type { Scan } from "./scan.js";
 
 function compareUtf8(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
@@ -18,7 +18,7 @@ function compareUtf8(left: string, right: string): number {
 export function currentTestsHash(
   io: Io,
   root: string,
-  scans: readonly Scan[],
+  repository: Repository,
 ): string | null {
   const listed = io.run("git", [
     "-C",
@@ -37,7 +37,7 @@ export function currentTestsHash(
     return null;
   }
 
-  const known = scanHashes(scans);
+  const known = scanHashes(repository);
   const listedPaths = [
     ...new Set(listed.stdout.split("\0").filter((path) => path !== "")),
   ];
@@ -65,15 +65,15 @@ export function currentTestsHash(
 export function freshnessFor(
   io: Io,
   root: string,
-  scans: readonly Scan[],
+  repository: Repository,
 ): (measured: Measured) => Freshness {
   let tests: string | null | undefined;
 
   return (measured) => {
     if (measured.tests !== undefined && tests === undefined) {
-      tests = currentTestsHash(io, root, scans);
+      tests = currentTestsHash(io, root, repository);
     }
 
-    return buildFreshness(scans, tests ?? null);
+    return buildFreshness(repository, tests ?? null);
   };
 }

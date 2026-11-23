@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
+import { joinRepositories, type Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import type { MarkScan } from "../src/change-marks.js";
 import {
   changeMarks,
   classifyChanges,
@@ -9,9 +9,20 @@ import {
   parseNameStatus,
   scannedBy,
 } from "../src/change-marks.js";
-import type { ScanSelection } from "../src/scan.js";
+import { repositoryFrom } from "./repository-from.js";
 
-function selectionOf(extensions: string[]): ScanSelection {
+function selectionOf(extensions: string[]) {
+  return {
+    extensions,
+    skipDirectoryNames: ["test", "tests"],
+    skipDirectoryPrefixes: [],
+    skipDirectorySuffixes: [],
+    skipDirectoriesContaining: [],
+    skipFileGlobs: [],
+  };
+}
+
+function documentSelection(extensions: string[]) {
   return {
     extensions,
     skip_directory_names: ["test", "tests"],
@@ -25,27 +36,24 @@ function selectionOf(extensions: string[]): ScanSelection {
 function scan(
   modules: [string, "module" | "package"][],
   extensions = [".py", ".kt"],
-): MarkScan {
-  return {
+): Repository {
+  return repositoryFrom({
     modules: modules.map(([id, kind]) => ({ id, kind })),
-    selection: selectionOf(extensions),
-  } as MarkScan;
+    selection: documentSelection(extensions),
+  });
 }
 
-const selectionsOf = (scans: MarkScan[]) => scans.map((one) => one.selection);
+const selectionsOf = (repository: Repository) =>
+  repository.extractions.map((one) => one.selection);
 
-const current = [
-  scan([
-    ["src/a.py", "module"],
-    ["src/c.py", "module"],
-  ]),
-];
-const base = [
-  scan([
-    ["src/a.py", "module"],
-    ["src/b.py", "module"],
-  ]),
-];
+const current = scan([
+  ["src/a.py", "module"],
+  ["src/c.py", "module"],
+]);
+const base = scan([
+  ["src/a.py", "module"],
+  ["src/b.py", "module"],
+]);
 
 describe("parseNameStatus", () => {
   it("parses the measured -z output", () => {
@@ -85,26 +93,26 @@ describe("changeMarks", () => {
     expect(
       changeMarks([{ status: "A", path: "src/c.py" }], current, base),
     ).toEqual({
-      modules: [{ id: "src/c.py", mark: "added", box: "current" }],
+      files: [{ id: "src/c.py", mark: "added", box: "current" }],
       unmatched: 0,
     });
   });
 
   it("marks a modified module", () => {
     expect(
-      changeMarks([{ status: "M", path: "src/a.py" }], current, base).modules,
+      changeMarks([{ status: "M", path: "src/a.py" }], current, base).files,
     ).toEqual([{ id: "src/a.py", mark: "modified", box: "current" }]);
   });
 
   it("draws a removed module from the base scan", () => {
     expect(
-      changeMarks([{ status: "D", path: "src/b.py" }], current, base).modules,
+      changeMarks([{ status: "D", path: "src/b.py" }], current, base).files,
     ).toEqual([{ id: "src/b.py", mark: "removed", box: "base" }]);
   });
 
   it("lists a removed module with no box when there is no base scan", () => {
     expect(
-      changeMarks([{ status: "D", path: "src/b.py" }], current, null).modules,
+      changeMarks([{ status: "D", path: "src/b.py" }], current, null).files,
     ).toEqual([{ id: "src/b.py", mark: "removed", box: "none" }]);
   });
 
@@ -112,7 +120,7 @@ describe("changeMarks", () => {
     expect(
       changeMarks([{ status: "A", path: "README.md" }], current, base),
     ).toEqual({
-      modules: [],
+      files: [],
       unmatched: 0,
     });
   });
@@ -121,7 +129,7 @@ describe("changeMarks", () => {
     expect(
       changeMarks([{ status: "A", path: "src/zz.py" }], current, base),
     ).toEqual({
-      modules: [],
+      files: [],
       unmatched: 1,
     });
   });
@@ -136,7 +144,7 @@ describe("changeMarks", () => {
       base,
     );
 
-    expect(result.modules).toHaveLength(1);
+    expect(result.files).toHaveLength(1);
     expect(result.unmatched).toBe(1);
   });
 });
@@ -185,7 +193,7 @@ describe("classifyChanges", () => {
   });
 
   it("counts modules from every scan", () => {
-    const both = [...current, scan([["lib/z.kt", "module"]])];
+    const both = joinRepositories([current, scan([["lib/z.kt", "module"]])]);
 
     expect(
       classifyChanges([{ status: "A", path: "lib/z.kt" }], selectionsOf(both))
@@ -199,7 +207,7 @@ describe("classifyChanges", () => {
     );
     const onCanvas = classifyChanges(readable, selectionsOf(current));
     const marked = changeMarks(readable, current, base)
-      .modules.map((one) => one.id)
+      .files.map((one) => one.id)
       .sort();
 
     expect(
@@ -217,7 +225,7 @@ describe("classifyChanges", () => {
   it("classifyChanges and changeMarks agree on a deleted test file: elsewhere in both", () => {
     const gone: FileChange[] = [{ status: "D", path: "test/test_gone.py" }];
 
-    expect(changeMarks(gone, current, base).modules).toEqual([]);
+    expect(changeMarks(gone, current, base).files).toEqual([]);
     expect(classifyChanges(gone, selectionsOf(current)).elsewhere).toEqual([
       "test/test_gone.py",
     ]);
@@ -232,34 +240,30 @@ describe("changeMarks over a recorded name-status list", () => {
     ),
   ) as { stdout: string };
   const { changes } = parseNameStatus(recorded.stdout);
-  const head = [
-    scan([
-      ["src/mod.py", "module"],
-      ["src/added.py", "module"],
-      ["src/new.py", "module"],
-    ]),
-  ];
-  const before = [
-    scan([
-      ["src/mod.py", "module"],
-      ["src/gone.py", "module"],
-      ["src/old.py", "module"],
-    ]),
-  ];
+  const head = scan([
+    ["src/mod.py", "module"],
+    ["src/added.py", "module"],
+    ["src/new.py", "module"],
+  ]);
+  const before = scan([
+    ["src/mod.py", "module"],
+    ["src/gone.py", "module"],
+    ["src/old.py", "module"],
+  ]);
 
   it("marks each src file once with its status and keeps every test file off the canvas", () => {
     expect(changes).toHaveLength(8);
 
     const marks = changeMarks(changes, head, before);
 
-    expect(marks.modules).toEqual([
+    expect(marks.files).toEqual([
       { id: "src/added.py", mark: "added", box: "current" },
       { id: "src/gone.py", mark: "removed", box: "base" },
       { id: "src/mod.py", mark: "modified", box: "current" },
       { id: "src/new.py", mark: "renamed", box: "current", from: "src/old.py" },
     ]);
     expect(marks.unmatched).toBe(0);
-    expect(marks.modules.some((one) => one.id === "src/old.py")).toBe(false);
+    expect(marks.files.some((one) => one.id === "src/old.py")).toBe(false);
 
     const classified = classifyChanges(changes, selectionsOf(head));
 
@@ -274,7 +278,7 @@ describe("changeMarks over a recorded name-status list", () => {
         classified.modified.length +
         classified.renamed.length +
         classified.removed.length,
-    ).toBe(marks.modules.length);
+    ).toBe(marks.files.length);
   });
 
   it("counts a file that is a module in neither scan as unmatched and marks the one that is", () => {
@@ -287,7 +291,7 @@ describe("changeMarks over a recorded name-status list", () => {
       before,
     );
 
-    expect(result.modules).toEqual([
+    expect(result.files).toEqual([
       { id: "src/added.py", mark: "added", box: "current" },
     ]);
     expect(result.unmatched).toBe(1);
@@ -312,12 +316,19 @@ describe("scannedBy", () => {
           ),
           "utf8",
         ),
-      ) as { selection: ScanSelection };
+      ) as { selection: Record<string, unknown> };
       const tree = new Set(parity[language]?.tree);
       const marker = (directory: string, name: string) =>
         tree.has(`${directory}/${name}`);
       const accepted = [...tree]
-        .filter((path) => scannedBy(path, expected.selection, marker))
+        .filter((path) =>
+          scannedBy(
+            path,
+            repositoryFrom({ modules: [], selection: expected.selection })
+              .extractions[0]?.selection as never,
+            marker,
+          ),
+        )
         .sort();
 
       expect(accepted).toEqual(parity[language]?.accepted);
@@ -325,7 +336,7 @@ describe("scannedBy", () => {
   }
 
   it("rejects a path under skip_paths", () => {
-    const selection = { ...selectionOf([".py"]), skip_paths: ["vendor"] };
+    const selection = { ...selectionOf([".py"]), skipPaths: ["vendor"] };
 
     expect(scannedBy("vendor/a.py", selection)).toBe(false);
     expect(scannedBy("vendor2/a.py", selection)).toBe(true);
@@ -335,15 +346,13 @@ describe("scannedBy", () => {
 describe("classifyOpened", () => {
   it("classifyOpened counts only files with a node", () => {
     const csharp = {
-      ...selectionOf([".cs", ".py"]),
+      ...documentSelection([".cs", ".py"]),
       skip_directory_names: [],
     };
-    const head = [
-      {
-        modules: [{ id: "src/a.py", kind: "module" }],
-        selection: csharp,
-      } as MarkScan,
-    ];
+    const head = repositoryFrom({
+      modules: [{ id: "src/a.py", kind: "module" }],
+      selection: csharp,
+    });
     const changes: FileChange[] = [
       { status: "A", path: "src/a.py" },
       { status: "M", path: "Tests/T.cs" },
@@ -354,7 +363,7 @@ describe("classifyOpened", () => {
     expect(changes).toHaveLength(4);
 
     const found = changeMarks(changes, head, null);
-    const result = classifyOpened(changes, found.modules);
+    const result = classifyOpened(changes, found.files);
 
     expect(result.added).toEqual(["src/a.py"]);
     expect(result.elsewhere).toEqual([
@@ -367,6 +376,6 @@ describe("classifyOpened", () => {
         result.modified.length +
         result.renamed.length +
         result.removed.length,
-    ).toBe(found.modules.filter((one) => one.box !== "none").length);
+    ).toBe(found.files.filter((one) => one.box !== "none").length);
   });
 });

@@ -1,12 +1,10 @@
+import type { Dependency, Member, Repository } from "@recognizer/core";
 import {
   dependencyEdges,
   fieldTokens,
   folderOf,
   memberHeadTokens,
   methodTokens,
-  type Scan,
-  type ScanEdge,
-  type ScanMember,
   type Token,
   type ViewProposedChange,
 } from "recognizer";
@@ -43,7 +41,7 @@ export type InspectorTab = "contents" | "findings" | "dependencies";
 
 export type InspectorInputs = {
   catalog: FindingCatalog;
-  scans: Scan[];
+  scans: Repository;
   modules: string[];
   compaction: Compaction;
   disc: (id: string) => Disc;
@@ -68,7 +66,7 @@ export type InspectorInputs = {
 export type InspectorMembers = {
   mark: (module: string, key: string) => MemberMarkWord | null;
   planned: (module: string) => string[];
-  start: (module: string) => ScanMember[] | null;
+  start: (module: string) => readonly Member[] | null;
   note: (module: string) => string | null;
   whole: (module: string) => WholeModule | null;
 };
@@ -279,13 +277,11 @@ function proposedHeader(
   };
 }
 
-function findModule(scans: Scan[], id: string) {
-  for (const scan of scans) {
-    const found = scan.modules.find((module) => module.id === id);
+function findModule(scans: Repository, id: string) {
+  const found = scans.files.find((file) => file.path === id);
 
-    if (found) {
-      return found;
-    }
+  if (found) {
+    return found;
   }
 
   return undefined;
@@ -365,13 +361,13 @@ function sizeOf(
   };
 }
 
-function lengthsOf(members: readonly ScanMember[]): number[] {
+function lengthsOf(members: readonly Member[]): number[] {
   return members.flatMap((member) => {
     if (member.kind === "function") {
       const lines = measuredLength(
         member.line,
-        member.body_line,
-        member.end_line,
+        member.bodyLine,
+        member.endLine,
       );
 
       return lines === null ? [] : [lines];
@@ -380,8 +376,8 @@ function lengthsOf(members: readonly ScanMember[]): number[] {
     return (member.methods ?? []).flatMap((method) => {
       const lines = measuredLength(
         method.line,
-        method.body_line,
-        method.end_line,
+        method.bodyLine,
+        method.endLine,
       );
 
       return lines === null ? [] : [lines];
@@ -392,7 +388,7 @@ function lengthsOf(members: readonly ScanMember[]): number[] {
 type MemberContext = {
   module: string;
   mark: (module: string, key: string) => MemberMarkWord | null;
-  start: ScanMember[] | null;
+  start: readonly Member[] | null;
 };
 
 function markOf(
@@ -441,8 +437,8 @@ function insertRemoved<T>(
 }
 
 function classCard(
-  member: ScanMember,
-  edges: ScanEdge[],
+  member: Member,
+  edges: Dependency[],
   showPrivate: boolean,
   module: string,
   metrics: readonly MetricDescriptor[],
@@ -509,8 +505,8 @@ function classCard(
         private: method.private === true,
         size: sizeOf(
           method.line,
-          method.body_line,
-          method.end_line,
+          method.bodyLine,
+          method.endLine,
           largest,
           longAt,
         ),
@@ -557,7 +553,7 @@ function classCard(
 }
 
 function withRemovedMethods(
-  member: ScanMember,
+  member: Member,
   visible: CardLine[],
   keyed: Map<CardLine, string>,
   context: MemberContext | null,
@@ -628,7 +624,7 @@ function metricOf(
 }
 
 function functionMetricsRow(
-  member: ScanMember,
+  member: Member,
   module: string,
   metrics: readonly MetricDescriptor[],
   limits: FunctionLimits,
@@ -661,7 +657,7 @@ function functionMetricsRow(
 }
 
 function plainCard(
-  member: ScanMember,
+  member: Member,
   module: string,
   largest: number,
   inputs: InspectorInputs,
@@ -685,8 +681,8 @@ function plainCard(
     size: isFunction
       ? sizeOf(
           member.line,
-          member.body_line,
-          member.end_line,
+          member.bodyLine,
+          member.endLine,
           largest,
           inputs.limits.longAt,
         )
@@ -781,8 +777,8 @@ function plannedCards(
 function moduleContents(module: string, inputs: InspectorInputs): Row[] {
   const found = findModule(inputs.scans, module);
 
-  if (found?.members === undefined) {
-    const headNote = found === undefined ? inputs.headNote : null;
+  if (found === undefined) {
+    const headNote = inputs.headNote;
 
     return [
       {
@@ -795,8 +791,8 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
     ];
   }
 
-  const edges = inputs.scans.flatMap((scan) =>
-    dependencyEdges(scan.edges).filter((edge) => edge.from === module),
+  const edges = dependencyEdges(inputs.scans.dependencies).filter(
+    (edge) => edge.from === module,
   );
   const shown = found.members.filter(
     (member) => inputs.showPrivate || member.exported,
@@ -811,7 +807,7 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
           mark: members.mark,
           start: members.start(module),
         };
-  const build = (member: ScanMember, using: MemberContext | null) =>
+  const build = (member: Member, using: MemberContext | null) =>
     member.kind === "class" || member.kind === "interface"
       ? classCard(
           member,
@@ -1343,10 +1339,10 @@ export function emphasisedLines(
   name: string,
   lines: Pick<Line, "id" | "edges">[],
 ): Set<string> {
-  const carries = (edge: ScanEdge) =>
+  const carries = (edge: Dependency) =>
     edge.to === module &&
     (edge.names?.includes(name) === true ||
-      edge.to_member === name ||
+      edge.toMember === name ||
       edge.inferred?.class === name);
 
   return new Set(

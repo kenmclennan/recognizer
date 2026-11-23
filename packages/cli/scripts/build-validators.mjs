@@ -23,6 +23,7 @@ for (const name of [
   "events",
   "check",
   "setup-survey",
+  "scan",
 ]) {
   const schema = JSON.parse(
     readFileSync(

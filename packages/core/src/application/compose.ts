@@ -116,7 +116,7 @@ function bindDecisions(
 export interface PlanningPorts {
   store: Pick<
     Store,
-    "cachedScans" | "measuredOf" | "testsDigest" | "responsibilityKinds"
+    "cachedRepository" | "measuredOf" | "testsDigest" | "responsibilityKinds"
   >;
   sensors: Pick<Sensors, "registered">;
 }
@@ -125,9 +125,7 @@ function planPhasesOver(ports: PlanningPorts): PlanPhases {
   return {
     readSensorRows: (root) => readSensorRows(ports, root),
     readModules: (root) =>
-      ports.store
-        .cachedScans(root)
-        .flatMap((scan) => scan.modules.map(({ id }) => id)),
+      ports.store.cachedRepository(root).files.map(({ path }) => path),
     findSensorGaps: (root, rows, modules) =>
       findSensorGaps(ports, root, rows, modules),
     findDescribeGap: (root, modules) => findDescribeGap(ports, root, modules),

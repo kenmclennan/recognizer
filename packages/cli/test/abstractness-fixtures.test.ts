@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { isAbstract, measureFolders } from "../src/folder-metrics.js";
-import { validateScan } from "../src/index.js";
+import { validatedRepository as validateScan } from "./repository-from.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../../../fixtures");
 
@@ -32,7 +32,7 @@ describe.each(Object.keys(expected))("abstractness fixture %s", (language) => {
   );
 
   it("measures the labelled folder", () => {
-    const { rows } = measureFolders([scan], null);
+    const { rows } = measureFolders(scan, null);
 
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
@@ -45,8 +45,8 @@ describe.each(Object.keys(expected))("abstractness fixture %s", (language) => {
   });
 
   it("agrees with every member label and has none unlabelled", () => {
-    const exported = scan.modules
-      .flatMap((module) => module.members ?? [])
+    const exported = scan.files
+      .flatMap((file) => file.members)
       .filter((member) => member.exported);
     const names = exported.map((member) => member.name);
 

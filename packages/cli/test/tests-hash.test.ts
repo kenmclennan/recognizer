@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { EMPTY_REPOSITORY } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { nodeIo } from "../src/cli.js";
@@ -28,7 +29,9 @@ function repository(): string {
 
 describe("currentTestsHash", () => {
   it("reproduces the worked example digest", () => {
-    expect(currentTestsHash(nodeIo(), repository(), [])).toBe(WORKED);
+    expect(currentTestsHash(nodeIo(), repository(), EMPTY_REPOSITORY)).toBe(
+      WORKED,
+    );
   });
 
   it("changes when a test file is edited", () => {
@@ -36,7 +39,7 @@ describe("currentTestsHash", () => {
 
     writeFileSync(join(root, "tests/a.py"), "changed");
 
-    expect(currentTestsHash(nodeIo(), root, [])).not.toBe(WORKED);
+    expect(currentTestsHash(nodeIo(), root, EMPTY_REPOSITORY)).not.toBe(WORKED);
   });
 
   it("orders paths by UTF-8 bytes, as the sensors and the app do", () => {
@@ -52,14 +55,18 @@ describe("currentTestsHash", () => {
 
     execFileSync("git", ["-C", root, "init", "-q"]);
 
-    expect(currentTestsHash(nodeIo(), root, [])).toBe(
+    expect(currentTestsHash(nodeIo(), root, EMPTY_REPOSITORY)).toBe(
       "9ca05192c8d29e058594e8b9e90288c94ad179315ab6b649529d9d09c4623d06",
     );
   });
 
   it("is null when git fails", () => {
     expect(
-      currentTestsHash(nodeIo(), makeTempDir("recognizer-tests-hash-"), []),
+      currentTestsHash(
+        nodeIo(),
+        makeTempDir("recognizer-tests-hash-"),
+        EMPTY_REPOSITORY,
+      ),
     ).toBeNull();
   });
 });
@@ -74,7 +81,7 @@ describe("freshnessFor", () => {
         return { started: true, status: 1, stdout: "", stderr: "" };
       },
     } as unknown as Parameters<typeof freshnessFor>[0];
-    const judge = freshnessFor(io, "/r", []);
+    const judge = freshnessFor(io, "/r", EMPTY_REPOSITORY);
 
     judge({ inputs: {} });
 
@@ -97,7 +104,7 @@ describe("a result recorded before in-file tests were hashed", () => {
 
     const old =
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
-    const current = currentTestsHash(nodeIo(), root, []);
+    const current = currentTestsHash(nodeIo(), root, EMPTY_REPOSITORY);
 
     expect(current).not.toBeNull();
     expect(current).not.toBe(old);

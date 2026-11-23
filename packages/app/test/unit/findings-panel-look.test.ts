@@ -1,4 +1,9 @@
-import { parsePolicy, structureSensor, validateScan } from "recognizer";
+import {
+  parsePolicy,
+  readRepository,
+  structureSensor,
+  validateScan,
+} from "recognizer";
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import groupFile from "../../src/finding-groups.json";
@@ -39,7 +44,7 @@ const groupedScan = validateScan({
 const GROUPED_POLICY =
   "forbid:\n  - config/** -> adapter/**\n  - adapter/** -> config/**\n";
 const groupedDocument = structureSensor(
-  [groupedScan],
+  readRepository([{ language: "kotlin", document: groupedScan }]),
   parsePolicy(GROUPED_POLICY),
   {
     duplication: false,
@@ -64,8 +69,8 @@ const groupedScan = ${JSON.stringify(groupedScan)};
 const groupedDocument = ${JSON.stringify(groupedDocument)};
 const groupedIds = ${JSON.stringify(GROUPED_IDS)};
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { loadedOf, scanHostOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
-import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
+import { loadedOf, scanHostOf, mountExplorer } from ${JSON.stringify(here("../test/unit/look-support.ts"))};
+import { fakeViews } from ${JSON.stringify(here("../test/unit/views-fake.ts"))};
 import { fakeEditor } from ${JSON.stringify(here("editor-fake.ts"))};
 import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
 ${FAKE_WORKER}
@@ -120,7 +125,7 @@ async function mount(loaded, picks, status) {
   const counts = [];
   const runs = [];
   const scanHost = scanHostOf({ scan: () => ({ origin: { branch: "main", commit: "abc1234" }, scannedAt: Date.now(), changes: { files: [], moved: null }, scanning: null }), port: fake, run: (modules, planned) => runs.push({ modules, planned }) });
-  mountExplorer({ container: host, loaded: { ...base, ...loaded, sensors: [{ name: "structure", status: "ran" }, ...(status ?? [{ name: "alpha", status: "ran" }])] }, title: "demo", onCount: (text) => counts.push(text), views: port, post: () => null, storage: { getItem: () => null, setItem: () => {} }, editor, scanHost });
+  mountExplorer({ container: host, loaded: loadedOf({ ...base, ...loaded, sensors: [{ name: "structure", status: "ran" }, ...(status ?? [{ name: "alpha", status: "ran" }])] }), title: "demo", onCount: (text) => counts.push(text), views: port, post: () => null, storage: { getItem: () => null, setItem: () => {} }, editor, scanHost });
   await tick();
   const q = (selector) => host.querySelector(selector);
   const all = (selector) => [...host.querySelectorAll(selector)];

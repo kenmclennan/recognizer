@@ -1,7 +1,8 @@
 import { join } from "node:path";
+import type { Repository } from "@recognizer/core";
+import { readRepository } from "./adapters/filesystem/scan-translator.js";
 import type { Io } from "./cli.js";
 import type { Language } from "./detect.js";
-import { type RecordedScan, validateAcceptedScan } from "./scan.js";
 
 export const CACHE = ".recognizer/cache";
 
@@ -43,15 +44,18 @@ export function isDirty(io: Io, root: string): boolean {
   return paths === null || paths.length > 0;
 }
 
-export function readCachedScan(
+export function readCachedRepository(
   io: Io,
   root: string,
   language: Language,
-): RecordedScan | null {
+): Repository | null {
   try {
-    return validateAcceptedScan(
-      JSON.parse(io.readFile(cacheFile(root, language))),
-    ) as RecordedScan;
+    return readRepository([
+      {
+        language,
+        document: JSON.parse(io.readFile(cacheFile(root, language))),
+      },
+    ]);
   } catch {
     return null;
   }

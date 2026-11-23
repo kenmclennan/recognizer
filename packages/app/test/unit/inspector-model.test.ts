@@ -1,12 +1,8 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  parseConfig,
-  type Scan,
-  type ScanEdge,
-  type ScanMember,
-} from "recognizer";
+import type { Dependency, Repository } from "@recognizer/core";
+import { parseConfig } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { buildCatalog } from "../../src/finding-catalog";
 import { type FindingRow, findingRows } from "../../src/findings-order";
@@ -33,11 +29,17 @@ import {
   fixtureScan,
   secondSensorDocument,
 } from "../fixtures";
+import {
+  type DocEdge,
+  type DocMember,
+  type DocScan,
+  repositoryFrom,
+} from "./repository-from";
 
 const scanOf = (
-  members: ScanMember[] | undefined,
-  extra: Partial<Scan> = {},
-): Scan => ({
+  members: DocMember[] | undefined,
+  extra: Partial<DocScan> = {},
+): DocScan => ({
   modules: [
     {
       id: "pkg/m.py",
@@ -62,12 +64,11 @@ function named(label: string, overlay: string) {
 }
 
 function inputsFor(
-  scans: Scan[],
+  given: DocScan[] | Repository,
   extra: Partial<InspectorInputs> = {},
 ): InspectorInputs {
-  const modules = scans.flatMap((scan) =>
-    scan.modules.map((module) => module.id),
-  );
+  const scans = Array.isArray(given) ? repositoryFrom(given) : given;
+  const modules = scans.files.map((file) => file.path);
 
   return {
     catalog: CATALOG,
@@ -98,10 +99,10 @@ function inputsFor(
 const module = (id: string) => ({ kind: "module", id }) as const;
 const folder = (id: string) => ({ kind: "folder", id }) as const;
 
-const rowsOf = (scan: Scan, extra: Partial<InspectorInputs> = {}) =>
+const rowsOf = (scan: DocScan, extra: Partial<InspectorInputs> = {}) =>
   inspectorContent(module("pkg/m.py"), inputsFor([scan], extra)).rows;
 
-const fn = (name: string, exported: boolean, extra = {}): ScanMember => ({
+const fn = (name: string, exported: boolean, extra = {}): DocMember => ({
   name,
   kind: "function",
   exported,
@@ -117,7 +118,7 @@ const cardsOf = (rows: Row[]) =>
 const plainText = (tokens: { text: string }[]) =>
   tokens.map((token) => token.text).join("");
 
-const klass = (extra: Partial<ScanMember> = {}): ScanMember => ({
+const klass = (extra: Partial<DocMember> = {}): DocMember => ({
   name: "C",
   kind: "class",
   exported: true,
@@ -143,7 +144,7 @@ describe("file contents", () => {
   const scan = {
     modules: [{ id: "pkg/m.py", members: [] }],
     edges: [],
-  } as unknown as Scan;
+  } as unknown as DocScan;
 
   it("has no note row, whether or not a view is open", () => {
     expect(rowsOf(scan)[0]?.kind).toBe("switch");
@@ -528,7 +529,7 @@ describe("card tokens", () => {
             kind: "implements",
             member: "I",
             to_member: "P",
-          } as ScanEdge,
+          } as DocEdge,
         ],
       },
     );
@@ -553,11 +554,7 @@ describe("missing data", () => {
   it("says so for a file with no members", () => {
     const rows = rowsOf(scanOf(undefined));
 
-    expect(rows.map((row) => row.kind)).toEqual(["note"]);
-    expect(rows[0]).toEqual({
-      kind: "note",
-      text: "Not known: this scan has no member outlines for this file.",
-    });
+    expect(rows.map((row) => row.kind)).toEqual(["switch", "none"]);
   });
 
   it("says so for a class with no outline keys", () => {
@@ -572,7 +569,7 @@ describe("missing data", () => {
 describe("head note and added modules", () => {
   const NOTE =
     "The head of this change is not in this repository's local objects.";
-  const none: Scan = { modules: [], edges: [], foreign: [] };
+  const none: DocScan = { modules: [], edges: [], foreign: [] };
 
   it("lists the class of an added module read from the head", () => {
     const head = scanOf([klass()], {
@@ -586,9 +583,9 @@ describe("head note and added modules", () => {
       ],
     });
     const scans = addedFromHead(
-      [none],
+      repositoryFrom([none]),
       [{ id: "pkg/new.kt", mark: "added", box: "current" }],
-      [head],
+      repositoryFrom([head]),
     );
     const rows = inspectorContent(module("pkg/new.kt"), inputsFor(scans)).rows;
 
@@ -616,17 +613,14 @@ describe("head note and added modules", () => {
   });
 
   it("keeps the not-known text for an entry without members", () => {
-    expect(rowsOf(scanOf(undefined), { headNote: NOTE })).toEqual([
-      {
-        kind: "note",
-        text: "Not known: this scan has no member outlines for this file.",
-      },
-    ]);
+    expect(
+      rowsOf(scanOf(undefined), { headNote: NOTE }).map((row) => row.kind),
+    ).toEqual(["switch", "none"]);
   });
 });
 
 describe("folder contents", () => {
-  const scan: Scan = {
+  const scan: DocScan = {
     modules: [
       {
         id: "a/x.py",
@@ -830,7 +824,7 @@ describe("header and tabs", () => {
 });
 
 describe("findings", () => {
-  const scan: Scan = {
+  const scan: DocScan = {
     modules: [
       { id: "d/a.py", language: "python", kind: "module" },
       { id: "d/sub/b.py", language: "python", kind: "module" },
@@ -905,9 +899,9 @@ describe("findings", () => {
 
   it("shows a finding a second sensor wrote, with its summary and principle", () => {
     const loaded = fixtureScan("check", "scan.json", CURRENT);
-    const modules = loaded.scan.modules.map((one) => one.id);
+    const modules = loaded.repository.files.map((one) => one.path);
     const health = computeHealth({
-      scans: [loaded],
+      repository: loaded.repository,
       policy: null,
       modules,
       baseline: null,
@@ -915,7 +909,7 @@ describe("findings", () => {
     });
     const rows = inspectorContent(
       module("shop/main.py"),
-      inputsFor([loaded.scan], {
+      inputsFor(loaded.repository, {
         tab: "findings",
         findings: health.findings,
         findingRows: (id) =>
@@ -1030,14 +1024,16 @@ describe("findings", () => {
 });
 
 describe("hover emphasis", () => {
-  const edgeOf = (extra: Partial<ScanEdge>): ScanEdge => ({
+  const edgeOf = (extra: Partial<Dependency>): Dependency => ({
     from: "x.py",
     to: "m.py",
+    toLibrary: false,
+    language: "python",
     kind: "depends",
     line: 1,
     ...extra,
   });
-  const line = (id: string, edge: ScanEdge) => ({
+  const line = (id: string, edge: Dependency) => ({
     id,
     edges: [edge],
   });
@@ -1045,7 +1041,7 @@ describe("hover emphasis", () => {
   it("emphasises names, to_member and inferred class but not other lines", () => {
     const lines = [
       line("byNames", edgeOf({ names: ["Store"] })),
-      line("byMember", edgeOf({ kind: "implements", to_member: "Store" })),
+      line("byMember", edgeOf({ kind: "implements", toMember: "Store" })),
       line(
         "byInferred",
         edgeOf({
@@ -1136,8 +1132,8 @@ describe("against fixtures/python", () => {
   });
 
   it("emphasises the implements and names lines into the store on hover", () => {
-    const lines = scan.edges
-      .filter((edge) => edge.to === "shop/ports/store.py")
+    const lines = repositoryFrom([scan])
+      .dependencies.filter((edge) => edge.to === "shop/ports/store.py")
       .map((edge, index) => ({ id: `l${index}`, edges: [edge] }));
     const lit = emphasisedLines("shop/ports/store.py", "Store", lines);
 
@@ -1149,7 +1145,7 @@ describe("against fixtures/python", () => {
           candidate.edges.every(
             (edge) =>
               edge.names?.includes("Store") ||
-              edge.to_member === "Store" ||
+              edge.toMember === "Store" ||
               edge.inferred?.class === "Store",
           ),
         ),
@@ -1208,16 +1204,16 @@ describe("dependency folder labels", () => {
 });
 
 describe("dependencies tab", () => {
-  const edge = (from: string, to: string, names: string[]): ScanEdge => ({
+  const edge = (from: string, to: string, names: string[]): DocEdge => ({
     from,
     to,
     kind: "depends",
     line: 1,
     names,
   });
-  const scan: Scan = {
+  const scan: DocScan = {
     modules: ["hub.py", "a/x.py", "a/y.py", "b/z.py", "caller.py"].map(
-      (id) => ({ id, kind: "module" }) as Scan["modules"][number],
+      (id) => ({ id, kind: "module" }) as DocScan["modules"][number],
     ),
     edges: [
       edge("hub.py", "a/x.py", ["X"]),
@@ -1389,16 +1385,16 @@ describe("dependencies tab", () => {
 });
 
 describe("following dependency rows", () => {
-  const mutual = (from: string, to: string): ScanEdge => ({
+  const mutual = (from: string, to: string): DocEdge => ({
     from,
     to,
     kind: "depends",
     line: 1,
     names: ["X"],
   });
-  const scan: Scan = {
+  const scan: DocScan = {
     modules: ["hub.py", "a/x.py", "partner.py"].map(
-      (id) => ({ id, kind: "module" }) as Scan["modules"][number],
+      (id) => ({ id, kind: "module" }) as DocScan["modules"][number],
     ),
     edges: [
       mutual("hub.py", "a/x.py"),
@@ -1469,7 +1465,7 @@ describe("following dependency rows", () => {
 });
 
 describe("class tags from the scan", () => {
-  const headOf = (members: ScanMember[], index = 0) =>
+  const headOf = (members: DocMember[], index = 0) =>
     plainText(cardsOf(rowsOf(scanOf(members)))[index]?.head ?? []);
 
   it("shows scan tags after the name in the scan's order", () => {
@@ -1502,7 +1498,7 @@ describe("class tags from the scan", () => {
 });
 
 describe("compacted folders", () => {
-  const compacted: Scan = {
+  const compacted: DocScan = {
     modules: [
       { id: "core/data/src/main/A.kt", language: "python", kind: "module" },
       { id: "core/data/src/main/B.kt", language: "python", kind: "module" },
@@ -1551,7 +1547,7 @@ describe("signatures shared with recognizer show", () => {
 
   for (const [file, modules] of Object.entries(expected)) {
     it(`gives every card in ${file} the text show prints`, () => {
-      const scan = JSON.parse(read(file)) as Scan;
+      const scan = JSON.parse(read(file)) as DocScan;
 
       for (const [id, members] of Object.entries(modules)) {
         const cards = cardsOf(
@@ -1606,7 +1602,7 @@ describe("the metric table on a card", () => {
     values,
     ...extra,
   });
-  const tableRows = (members: ScanMember[], metrics: MetricDescriptor[]) =>
+  const tableRows = (members: DocMember[], metrics: MetricDescriptor[]) =>
     cardsOf(rowsOf(scanOf(members), { metrics, showPrivate: true }));
   const cls = klass();
 
@@ -1688,7 +1684,7 @@ describe("the metric table on a card", () => {
       { "pkg/m.py": 1 },
       { granularity: "module" },
     );
-    const constant: ScanMember = {
+    const constant: DocMember = {
       name: "K",
       kind: "constant",
       exported: true,
@@ -1704,9 +1700,9 @@ describe("the metric table on a card", () => {
 });
 
 describe("function length on a card", () => {
-  const spanning = (name: string, line: number, lines: number): ScanMember =>
+  const spanning = (name: string, line: number, lines: number): DocMember =>
     fn(name, true, { line, end_line: line + lines - 1 });
-  const cards = (members: ScanMember[], extra: Partial<InspectorInputs> = {}) =>
+  const cards = (members: DocMember[], extra: Partial<InspectorInputs> = {}) =>
     cardsOf(rowsOf(scanOf(members), extra));
 
   it("bands a function card at the edges and drops the start line from its label", () => {

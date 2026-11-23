@@ -7,7 +7,7 @@ export {
   cacheFile,
   dirtyPaths,
   isDirty,
-  readCachedScan,
+  readCachedRepository,
   resolveCommit,
 } from "./scan-facts.js";
 

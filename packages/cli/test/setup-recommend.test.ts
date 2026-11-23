@@ -1,9 +1,9 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { EMPTY_REPOSITORY } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { nodeIo } from "../src/cli.js";
-import type { Scan } from "../src/scan.js";
 import {
   type PolicyCard,
   parseCard,
@@ -11,10 +11,11 @@ import {
   recommend,
 } from "../src/setup-recommend.js";
 import { REPO } from "./helpers.js";
+import { repositoryFrom } from "./repository-from.js";
 
-const scan = JSON.parse(
-  readFileSync(join(REPO, "fixtures/setup-loom/scan.json"), "utf8"),
-) as Scan;
+const scan = repositoryFrom(
+  JSON.parse(readFileSync(join(REPO, "fixtures/setup-loom/scan.json"), "utf8")),
+);
 
 function repository(policy: string | null): string {
   const root = makeTempDir("recognizer-setup-recommend-");
@@ -110,7 +111,7 @@ describe("setup recommend", () => {
           },
         ],
       },
-      [scan],
+      scan,
     );
 
     expect(answer.entries).toHaveLength(1);
@@ -136,7 +137,7 @@ describe("setup recommend", () => {
           forbid([" "], ["app/**"]),
         ],
       },
-      [scan],
+      scan,
     );
     const today = answer.entries.map((card) =>
       card.kind === "forbid" ? card.today : undefined,
@@ -155,13 +156,13 @@ describe("setup recommend", () => {
       nodeIo(),
       repository(null),
       { entries: [forbid(["app/**"], ["engine/**"], true)] },
-      [scan],
+      scan,
     );
     const ignoring = recommend(
       nodeIo(),
       repository("ignore:\n  - engine/src/index.ts\n"),
       { entries: [forbid(["app/**"], ["engine/**"])] },
-      [scan],
+      scan,
     );
 
     expect(both.entries[0]).toMatchObject({ today: { count: 1 } });
@@ -170,10 +171,15 @@ describe("setup recommend", () => {
 
   it("refuses an input that is not a recommendation", () => {
     expect(() =>
-      recommend(nodeIo(), repository(null), { entries: [{ kind: "x" }] }, []),
+      recommend(
+        nodeIo(),
+        repository(null),
+        { entries: [{ kind: "x" }] },
+        EMPTY_REPOSITORY,
+      ),
     ).toThrow(/wrong shape/);
-    expect(() => recommend(nodeIo(), repository(null), [], [])).toThrow(
-      /no entries/,
-    );
+    expect(() =>
+      recommend(nodeIo(), repository(null), [], EMPTY_REPOSITORY),
+    ).toThrow(/no entries/);
   });
 });

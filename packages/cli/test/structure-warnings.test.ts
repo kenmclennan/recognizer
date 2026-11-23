@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseConfig } from "../src/config-parse.js";
 import { InputError } from "../src/errors.js";
-import { functionLength, parsePolicy, validateScan } from "../src/index.js";
+import {
+  functionLength,
+  parsePolicy,
+  validateScan as validateDocument,
+} from "../src/index.js";
 import { policyProblems } from "../src/policy-problems.js";
 import { principleOf } from "../src/principles.js";
 import {
@@ -26,7 +30,11 @@ import {
   WORKED_EDGES,
 } from "./folder-fixtures.js";
 import { REPO } from "./helpers.js";
-import { scanOf } from "./scan-of.js";
+import { repositoryFrom } from "./repository-from.js";
+import { documentOf, scanOf } from "./scan-of.js";
+
+const validateScan = (document: unknown) =>
+  repositoryFrom(validateDocument(document));
 
 const CONTEXT = { commit: "abc", modified: false };
 
@@ -172,16 +180,16 @@ describe("orphan actual_of", () => {
     modules: string[],
     actualOf: Record<string, string[]>,
   ) => {
-    const base = scanOf(edges, modules);
+    const base = documentOf(edges, modules);
 
-    return {
+    return repositoryFrom({
       ...base,
       modules: base.modules.map((module) =>
         actualOf[module.id] === undefined
           ? module
           : { ...module, actual_of: actualOf[module.id] },
       ),
-    };
+    });
   };
   const orphansOf = (
     edges: [string, string][],
@@ -288,12 +296,12 @@ describe("orphan over Kotlin dependency injection", () => {
     modules: Record<string, string[] | undefined>,
     language = "kotlin",
   ) => {
-    const base = scanOf(
+    const base = documentOf(
       edges.map(([from, to]) => [from, to] as [string, string]),
       Object.keys(modules),
     );
 
-    return {
+    return repositoryFrom({
       ...base,
       modules: base.modules.map((module) => {
         const annotations = modules[module.id];
@@ -308,7 +316,7 @@ describe("orphan over Kotlin dependency injection", () => {
         ...edge,
         kind: (edges[index] as Edge)[2],
       })),
-    };
+    });
   };
 
   const orphans = (
@@ -331,10 +339,10 @@ describe("orphan over Kotlin dependency injection", () => {
     });
     const flagged = {
       ...scan,
-      modules: scan.modules.map((module) =>
-        module.id === "UserController.kt"
-          ? { ...module, entry_point: true as const }
-          : module,
+      files: scan.files.map((file) =>
+        file.path === "UserController.kt"
+          ? { ...file, entryPoint: true as const }
+          : file,
       ),
     };
 
@@ -348,7 +356,7 @@ describe("orphan over Kotlin dependency injection", () => {
       "Stray.kt": undefined,
     });
 
-    expect(scan.modules.map((module) => module.id)).toContain("GetUserPort.kt");
+    expect(scan.files.map((file) => file.path)).toContain("GetUserPort.kt");
     expect(orphans(scan)).toEqual([
       "orphan:GetUserPort.kt",
       "orphan:GetUserUseCase.kt",
@@ -394,10 +402,8 @@ describe("orphan over Kotlin dependency injection", () => {
     );
     const flagged = {
       ...scan,
-      modules: scan.modules.map((module) =>
-        module.id === "C.kt"
-          ? { ...module, entry_point: true as const }
-          : module,
+      files: scan.files.map((file) =>
+        file.path === "C.kt" ? { ...file, entryPoint: true as const } : file,
       ),
     };
 
@@ -476,7 +482,7 @@ describe("structure settings", () => {
 
   it("records settings in key order", () => {
     const { document } = structureSensor(
-      [scanOf([], ["a.py"])],
+      scanOf([], ["a.py"]),
       null,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
@@ -513,9 +519,7 @@ describe("structure settings", () => {
       );
       const policy = parsePolicy("forbid:\n  - a/** -> gone/**\n");
       const run = (settings: StructureSettings) =>
-        ids(
-          structureSensor([scan], policy, settings, CONTEXT).document.findings,
-        );
+        ids(structureSensor(scan, policy, settings, CONTEXT).document.findings);
       const all = run(DEFAULT_STRUCTURE_SETTINGS);
       const off = run({
         ...DEFAULT_STRUCTURE_SETTINGS,
@@ -584,7 +588,7 @@ describe("the removed hub keys", () => {
 
   it("carries neither key in the defaults, the description or the document", () => {
     const { document } = structureSensor(
-      [scanOf([], ["a.py"])],
+      scanOf([], ["a.py"]),
       null,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
@@ -659,14 +663,14 @@ describe("the removed policy_drift warning", () => {
     );
     const policy = parsePolicy("entry:\n  - app/domain/**\n  - app/ports/**\n");
     const { document } = structureSensor(
-      [scan],
+      scan,
       policy,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
     );
     const warnings = (document.settings as { warnings: object }).warnings;
 
-    expect(policyProblems([scan], policy).length).toBeGreaterThan(0);
+    expect(policyProblems(scan, policy).length).toBeGreaterThan(0);
     expect(
       document.findings.filter(
         (finding) =>
@@ -711,7 +715,7 @@ describe("fixtures/check-warnings", () => {
       readFileSync(join(dir, ".recognizer/policy.yaml"), "utf8"),
     );
     const { document } = structureSensor(
-      [scan],
+      scan,
       policy,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
@@ -734,7 +738,7 @@ describe("retired stable_abstractions finding", () => {
 
   it("reports none on the worked example and keeps the folder numbers", () => {
     const { document, folder_metrics } = structureSensor(
-      [scan],
+      scan,
       null,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
@@ -773,7 +777,7 @@ describe("switches for the package metric warnings", () => {
 
   const run = (on: boolean) =>
     structureSensor(
-      [scan],
+      scan,
       null,
       {
         ...DEFAULT_STRUCTURE_SETTINGS,
@@ -844,7 +848,7 @@ describe("the removed stable dependencies keys", () => {
 
   it("carries none of the three in the defaults, the description or the document", () => {
     const { document } = structureSensor(
-      [scanOf([], ["a.py"])],
+      scanOf([], ["a.py"]),
       null,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
@@ -873,7 +877,7 @@ describe("real committed content", () => {
       readFileSync(join(dir, ".recognizer", "policy.yaml"), "utf8"),
     );
     const result = structureSensor(
-      [scan],
+      scan,
       policy,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
@@ -1188,10 +1192,10 @@ describe("unused_exports test-only names", () => {
     );
     const found = unusedExportsFindings(scan, null, []);
     const members = found.flatMap((finding) => finding.evidence.members ?? []);
-    const used = (name: string, names: string[]) =>
+    const used = (name: string, names: readonly string[]) =>
       names.includes(name) || names.includes(name.split(".", 1)[0] as string);
     const expected = members.filter((member) =>
-      (scan.test_imports ?? []).some(
+      (scan.testImports ?? []).some(
         (record) =>
           record.to === member.module && used(member.name, record.names ?? []),
       ),
@@ -1204,7 +1208,7 @@ describe("unused_exports test-only names", () => {
     for (const member of members) {
       for (const file of member.test_files ?? []) {
         expect(
-          (scan.test_imports ?? []).some(
+          (scan.testImports ?? []).some(
             (record) =>
               record.from === file &&
               record.to === member.module &&
@@ -1693,13 +1697,13 @@ describe("unused_exports", () => {
   it("is off by default and on when switched", () => {
     const scan = unusedScan([{ id: "shop/a.py", exports: ["a"] }]);
     const off = structureSensor(
-      [scan],
+      scan,
       null,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
     );
     const on = structureSensor(
-      [scan],
+      scan,
       null,
       {
         ...DEFAULT_STRUCTURE_SETTINGS,
@@ -2105,14 +2109,9 @@ describe("private_imports", () => {
       [owner([{ name: "_a", exported: false }]), importer()],
       [{ from: "app/store.py", to: "lib/shared.py", names: ["_a"] }],
     );
-    const on = structureSensor(
-      [scan],
-      null,
-      DEFAULT_STRUCTURE_SETTINGS,
-      CONTEXT,
-    );
+    const on = structureSensor(scan, null, DEFAULT_STRUCTURE_SETTINGS, CONTEXT);
     const off = structureSensor(
-      [scan],
+      scan,
       null,
       {
         ...DEFAULT_STRUCTURE_SETTINGS,
@@ -2539,14 +2538,9 @@ describe("long_function", () => {
     const scan = scanWith([
       { id: "lib/store.py", functions: [span("a", 1, 40)] },
     ]);
-    const on = structureSensor(
-      [scan],
-      null,
-      DEFAULT_STRUCTURE_SETTINGS,
-      CONTEXT,
-    );
+    const on = structureSensor(scan, null, DEFAULT_STRUCTURE_SETTINGS, CONTEXT);
     const off = structureSensor(
-      [scan],
+      scan,
       null,
       {
         ...DEFAULT_STRUCTURE_SETTINGS,
@@ -2623,12 +2617,12 @@ describe("long_function", () => {
       const scan = validateScan(
         JSON.parse(readFileSync(join(REPO, path), "utf8")),
       );
-      const lengths = scan.modules.flatMap((module) =>
-        (module.members ?? []).flatMap((member) =>
+      const lengths = scan.files.flatMap((file) =>
+        file.members.flatMap((member) =>
           member.kind === "function"
-            ? [functionLength(member.line, member.end_line)]
+            ? [functionLength(member.line, member.endLine)]
             : (member.methods ?? []).map((method) =>
-                functionLength(method.line, method.end_line),
+                functionLength(method.line, method.endLine),
               ),
         ),
       );

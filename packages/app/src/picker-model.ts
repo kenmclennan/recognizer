@@ -1,3 +1,4 @@
+import type { Repository } from "@recognizer/core";
 import {
   dependencyEdges,
   edgeNames,
@@ -6,7 +7,6 @@ import {
   folderUses,
   moduleLabel,
   type NeighbourRow,
-  type Scan,
   usedByOf,
   usesOf,
 } from "recognizer";
@@ -48,7 +48,7 @@ export type PickerModel = {
 };
 
 export type PickerInput = {
-  scans: Scan[];
+  scans: Repository;
   modules: string[];
   compaction: Compaction;
   onCanvas: (id: string) => boolean;
@@ -65,7 +65,7 @@ const compare = (a: string, b: string) => a.localeCompare(b);
 
 export function createPicker(input: PickerInput): PickerModel {
   const { source, onCanvas } = input;
-  const allEdges = input.scans.flatMap((scan) => dependencyEdges(scan.edges));
+  const allEdges = dependencyEdges(input.scans.dependencies);
   const filter = input.filter.trim().toLowerCase();
 
   const withGroup = (rows: NeighbourRow[]): RawRow[] =>
@@ -156,11 +156,9 @@ export function createPicker(input: PickerInput): PickerModel {
       return null;
     }
 
-    const own = input.scans
-      .flatMap((scan) => scan.modules)
-      .find((module) => module.id === source.id);
+    const own = input.scans.files.find((file) => file.path === source.id);
 
-    if (!own?.members) {
+    if (!own) {
       return null;
     }
 

@@ -1,9 +1,9 @@
-import type { MarkedModule } from "./change-marks.js";
-import type { RecordedScan, ScanMember } from "./scan.js";
+import type { Member, Repository } from "@recognizer/core";
+import type { MarkedFile } from "./change-marks.js";
 
 export type MemberMarkKind = "added" | "modified" | "removed";
 
-export type MemberScan = Pick<RecordedScan, "modules">;
+export type MemberScan = Repository;
 
 export type MemberFile = {
   path: string;
@@ -13,9 +13,9 @@ export type MemberFile = {
 };
 
 export type MemberMarksInput = {
-  modules: MarkedModule[];
-  base: MemberScan[] | null;
-  head: MemberScan[] | null;
+  marked: MarkedFile[];
+  base: MemberScan | null;
+  head: MemberScan | null;
   files: MemberFile[] | null;
 };
 
@@ -33,16 +33,13 @@ function trimTrailingBlank(lines: string[]): string {
   return lines.slice(0, end).join("\n");
 }
 
-function membersOf(scans: MemberScan[], module: string): ScanMember[] | null {
-  for (const scan of scans) {
-    const found = scan.modules.find((entry) => entry.id === module);
+function membersOf(
+  repository: MemberScan,
+  module: string,
+): readonly Member[] | null {
+  const found = repository.files.find((entry) => entry.path === module);
 
-    if (found !== undefined) {
-      return found.members ?? [];
-    }
-  }
-
-  return null;
+  return found === undefined ? null : found.members;
 }
 
 type Span = { start: number; end: number };
@@ -87,7 +84,7 @@ function bracketEnd(lines: string[], line: number, cap: number): number {
 }
 
 function collect(
-  members: ScanMember[],
+  members: readonly Member[],
   lines: string[],
 ): Map<string, Occurrence[]> {
   const result = new Map<string, Occurrence[]>();
@@ -108,7 +105,7 @@ function collect(
     const end = siblingEnd(
       topStarts,
       member.line,
-      member.end_line,
+      member.endLine,
       lines.length,
     );
     const span = { start: member.line, end };
@@ -129,7 +126,7 @@ function collect(
 
       const methodSpan = {
         start: method.line,
-        end: siblingEnd(siblingStarts, method.line, method.end_line, end),
+        end: siblingEnd(siblingStarts, method.line, method.endLine, end),
       };
 
       for (let n = methodSpan.start; n <= methodSpan.end; n += 1) {
@@ -247,7 +244,7 @@ export function memberMarks(
   input: MemberMarksInput,
 ): Map<string, Map<string, MemberMarkKind> | null> {
   const result = new Map<string, Map<string, MemberMarkKind> | null>();
-  const modified = input.modules.filter(
+  const modified = input.marked.filter(
     (entry) =>
       (entry.mark === "modified" || entry.mark === "renamed") &&
       entry.box === "current",
@@ -272,8 +269,8 @@ export function memberMarks(
       entry.mark === "renamed"
         ? (file?.base_path ?? entry.from ?? entry.id)
         : entry.id;
-    const startMembers = membersOf(input.base as MemberScan[], baseId);
-    const endMembers = membersOf(input.head as MemberScan[], entry.id);
+    const startMembers = membersOf(input.base as MemberScan, baseId);
+    const endMembers = membersOf(input.head as MemberScan, entry.id);
 
     if (
       file === undefined ||

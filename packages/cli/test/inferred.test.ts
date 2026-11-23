@@ -4,8 +4,9 @@ import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { analyse } from "../src/analyse.js";
 import { run } from "../src/cli.js";
-import { check, InputError, parsePolicy, validateScan } from "../src/index.js";
+import { check, InputError, parsePolicy } from "../src/index.js";
 import { capture } from "./helpers.js";
+import { validatedRepository as validateScan } from "./repository-from.js";
 
 const POLICY = `
 forbid:

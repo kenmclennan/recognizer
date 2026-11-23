@@ -1,6 +1,6 @@
 import type { Gap } from "../../../domain/gap.js";
+import type { Repository } from "../../../domain/repository.js";
 import type { RunEntry } from "../../../domain/run-record.js";
-import type { ScanDocument } from "../../../domain/scan-document.js";
 import type {
   DescribeResult,
   PluginProgress,
@@ -16,7 +16,7 @@ export interface LocatedDescriber {
 
 export interface DescribeCall {
   root: string;
-  scans: ScanDocument[];
+  repository: Repository;
   describer: DescriberRef;
   model: string;
   batchSize: number;

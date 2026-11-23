@@ -1,10 +1,15 @@
-import type { Scan } from "recognizer";
+import type { Repository } from "@recognizer/core";
 import {
   type ChangeRange,
   type RangeMembers,
   VIEW_NAME,
   type ViewsPort,
-} from "./views-port";
+} from "../../src/views-port";
+import { type DocScan, repositoryFrom } from "./repository-from";
+
+function asRepository(value: Repository | DocScan[]): Repository {
+  return Array.isArray(value) ? repositoryFrom(value) : value;
+}
 
 export type FakeViews = ViewsPort & {
   files: Map<string, string>;
@@ -12,7 +17,7 @@ export type FakeViews = ViewsPort & {
   pending: string[];
   renames: { from: string; to: string }[];
   renamed: { from: string; to: string }[];
-  scansByCommit: Map<string, Scan[] | null>;
+  scansByCommit: Map<string, Repository | DocScan[] | null>;
   ranges: Map<string, ChangeRange | null>;
   members: Map<string, RangeMembers | null>;
   memberCalls: string[];
@@ -39,7 +44,7 @@ export function fakeViews(
   const listeners = new Set<() => void>();
   const copied: string[] = [];
   const pending: string[] = [];
-  const scansByCommit = new Map<string, Scan[] | null>();
+  const scansByCommit = new Map<string, Repository | DocScan[] | null>();
   const ranges = new Map<string, ChangeRange | null>();
   const members = new Map<string, RangeMembers | null>();
   const reasons = new Map<string, string>();
@@ -158,7 +163,10 @@ export function fakeViews(
 
       return found === undefined || found === null
         ? { ok: false, reason: reasons.get(commit) ?? "no scans seeded" }
-        : { ok: true, value: found };
+        : {
+            ok: true,
+            value: Array.isArray(found) ? repositoryFrom(found) : found,
+          };
     },
     async rangeMembers(base, head) {
       fake.memberCalls.push(`${base}..${head}`);
@@ -168,7 +176,14 @@ export function fakeViews(
 
       return found === undefined || found === null
         ? { ok: false, reason: reasons.get(range) ?? "no members seeded" }
-        : { ok: true, value: found };
+        : {
+            ok: true,
+            value: {
+              ...found,
+              baseScans: asRepository(found.baseScans),
+              headScans: asRepository(found.headScans),
+            },
+          };
     },
     async copy(text) {
       copied.push(text);

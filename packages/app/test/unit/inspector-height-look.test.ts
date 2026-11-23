@@ -14,10 +14,11 @@ const here = (name: string) => fileURLToPath(new URL(name, srcUrl));
 const HARNESS = `
 import { buildInspectorView } from ${JSON.stringify(here("inspector-view.ts"))};
 import { inspectorContent } from ${JSON.stringify(here("inspector-model.ts"))};
+import { repositoryFrom } from ${JSON.stringify(here("../test/unit/repository-from.ts"))};
 
 const scan = { modules: [{ id: "p/m.py", kind: "module" }], edges: [], foreign: [], calls: [] };
 const inputs = {
-  scans: [scan],
+  scans: repositoryFrom([scan]),
   modules: ["p/m.py"],
   disc: () => "green",
   findings: () => [],

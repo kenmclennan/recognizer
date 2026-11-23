@@ -1,6 +1,9 @@
-import type { Measured, ScanFacts } from "../../domain/scan-plan.js";
+import { type Repository, scannedHashes } from "../../domain/repository.js";
+import type { Measured } from "../../domain/scan-plan.js";
 
 export type { Measured };
+
+export const scanHashes = scannedHashes;
 
 export type Freshness = {
   valid(measured: Measured): boolean;
@@ -18,23 +21,11 @@ export function moduleOf(key: string): string {
   return at === -1 ? key : key.slice(0, at);
 }
 
-export function scanHashes(scans: readonly ScanFacts[]): Map<string, string> {
-  const hashes = new Map<string, string>();
-
-  for (const scan of scans) {
-    for (const file of scan.files ?? []) {
-      hashes.set(file.path, file.hash);
-    }
-  }
-
-  return hashes;
-}
-
 export function buildFreshness(
-  scans: readonly ScanFacts[],
+  repository: Repository,
   tests: string | null = null,
 ): Freshness {
-  const hashes = scanHashes(scans);
+  const hashes = scannedHashes(repository);
 
   const valid = (measured: Measured) =>
     measured.inputs !== undefined &&

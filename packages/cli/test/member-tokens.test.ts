@@ -1,3 +1,4 @@
+import type { Dependency, Member } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   classHeritage,
@@ -8,20 +9,23 @@ import {
   tokensText,
   typeAliasTokens,
 } from "../src/index.js";
-import type { ScanEdge, ScanMember } from "../src/scan.js";
 
 const roles = (tokens: Token[]) =>
   tokens.map((token) => `${token.role}:${token.text}`);
 
-const klass = (extra: Partial<ScanMember> = {}): ScanMember => ({
+const klass = (extra: Partial<Member> = {}): Member => ({
   name: "C",
   kind: "class",
   exported: true,
   ...extra,
 });
 
-const edge = (kind: ScanEdge["kind"], member: string, to: string): ScanEdge =>
-  ({ from: "m", to: "n", kind, member, to_member: to }) as ScanEdge;
+const edge = (
+  kind: Dependency["kind"],
+  member: string,
+  to: string,
+): Dependency =>
+  ({ from: "m", to: "n", kind, member, toMember: to }) as Dependency;
 
 describe("member tokens", () => {
   it("colours a typed and an untyped parameter and the return type", () => {

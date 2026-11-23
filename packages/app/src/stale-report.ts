@@ -1,9 +1,8 @@
+import type { Dependency, Repository } from "@recognizer/core";
 import {
   dependencyEdges,
   moduleNames,
   resolveView,
-  type Scan,
-  type ScanEdge,
   type View,
   type ViewStep,
 } from "recognizer";
@@ -17,7 +16,7 @@ export type MissingStep = {
   renamedTo: string | null;
 };
 
-export type EdgeKey = { from: string; to: string; kind: ScanEdge["kind"] };
+export type EdgeKey = { from: string; to: string; kind: Dependency["kind"] };
 
 export type StaleReport = {
   missing: MissingStep[];
@@ -26,12 +25,10 @@ export type StaleReport = {
   unavailable: string | null;
 };
 
-type Committed = Scan & { commit?: string | null };
-
-export function currentCommit(scans: Scan[]): string | null {
-  for (const scan of scans as Committed[]) {
-    if (typeof scan.commit === "string") {
-      return scan.commit;
+export function currentCommit(scans: Repository): string | null {
+  for (const extraction of scans.extractions) {
+    if (typeof extraction.commit === "string") {
+      return extraction.commit;
     }
   }
 
@@ -42,13 +39,11 @@ function keyOf(edge: EdgeKey): string {
   return `${edge.from}\u0000${edge.to}\u0000${edge.kind}`;
 }
 
-function edgesOf(scans: Scan[]): Map<string, EdgeKey> {
+function edgesOf(scans: Repository): Map<string, EdgeKey> {
   const edges = new Map<string, EdgeKey>();
 
-  for (const scan of scans) {
-    for (const { from, to, kind } of dependencyEdges(scan.edges)) {
-      edges.set(keyOf({ from, to, kind }), { from, to, kind });
-    }
+  for (const { from, to, kind } of dependencyEdges(scans.dependencies)) {
+    edges.set(keyOf({ from, to, kind }), { from, to, kind });
   }
 
   return edges;
@@ -66,8 +61,8 @@ function neighbourPairs(edges: Map<string, EdgeKey>): Set<string> {
 
 export function staleReport(input: {
   view: View;
-  now: Scan[];
-  before: Scan[] | null;
+  now: Repository;
+  before: Repository | null;
   renames: Rename[];
   reason?: string | null;
 }): StaleReport {

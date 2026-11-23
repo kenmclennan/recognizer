@@ -6,17 +6,18 @@ import type {
   LockDetails,
   Measured,
   PolicyDocument,
+  Repository,
   ResponsibilityKinds,
   RunFailure,
   RunLog,
   RunPhase,
   RunSummary,
   ScanEvent,
-  ScanFacts,
   ScanStatus,
   SkippedPhase,
   Store,
 } from "../../src/index.js";
+import { joinRepositories } from "../../src/index.js";
 
 export function cachePath(root: string, language: string): string {
   return `${root}/.recognizer/cache/scan.${language}.json`;
@@ -33,6 +34,7 @@ export interface LockRecord {
 
 export class FakeStore implements Store {
   readonly files = new Map<string, string>();
+  readonly repositories = new Map<string, Repository>();
   readonly locks: LockRecord[] = [];
   readonly measured = new Map<string, Measured>();
   readonly kinds = new Map<string, ResponsibilityKinds>();
@@ -140,25 +142,15 @@ export class FakeStore implements Store {
     return { ok: true, lock };
   }
 
-  cachedScans(root: string): ScanFacts[] {
+  cachedRepository(root: string): Repository {
     const prefix = `${root}/.recognizer/cache/scan.`;
-    const found: ScanFacts[] = [];
 
-    for (const [path, bytes] of this.files) {
-      if (!path.startsWith(prefix)) {
-        continue;
-      }
-
-      try {
-        const parsed = JSON.parse(bytes) as ScanFacts;
-
-        if (Array.isArray(parsed.modules)) {
-          found.push(parsed);
-        }
-      } catch {}
-    }
-
-    return found;
+    return joinRepositories(
+      [...this.repositories.keys()]
+        .filter((path) => path.startsWith(prefix))
+        .sort()
+        .flatMap((path) => this.repositories.get(path) ?? []),
+    );
   }
 
   measuredOf(root: string, sensor: string): Measured | null {

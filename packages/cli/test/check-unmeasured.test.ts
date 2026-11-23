@@ -4,9 +4,9 @@ import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
 import { DEFAULT_DUPLICATION_SETTINGS } from "../src/duplication/findings.js";
 import { loadFindings } from "../src/load-findings.js";
-import type { Scan } from "../src/scan.js";
 import { STRUCTURE_SENSOR_VERSION } from "../src/structure-sensor.js";
 import { REPO } from "./helpers.js";
+import { repositoryFrom } from "./repository-from.js";
 import {
   fakeIo,
   hashedScan,
@@ -209,7 +209,7 @@ describe("check never reports unmeasured parts as measured", () => {
       version: "20",
       findings: [duplicate("duplication:x")],
     });
-    const scans = [hashedScan(checkScan, COMMIT)] as unknown as Scan[];
+    const scans = repositoryFrom(hashedScan(checkScan, COMMIT));
     const documents = loadFindings(fake.io, ROOT, scans);
     const rewritten = JSON.parse(fake.files.get(STRUCTURE) as string);
 

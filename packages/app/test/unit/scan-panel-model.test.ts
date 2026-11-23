@@ -1,4 +1,4 @@
-import type { Diagnosis, Scan, ScanRunRecord } from "recognizer";
+import type { Diagnosis, ScanRunRecord } from "recognizer";
 import { buildFreshness, tickedPhases } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { ScanState } from "../../src/footer-scan";
@@ -20,6 +20,7 @@ import { whyOf } from "../../src/scan-why";
 import type { ShippedSensor, ShippedSensors } from "../../src/sensor-run";
 import { plainSensor, shippedSensors } from "../../src/shipped-fake";
 import { scanPanelSync as scanPanel } from "../fixtures";
+import { type DocScan, repositoryFrom } from "./repository-from";
 
 const CONFIG = `describer:
   command: [describer, "{request}"]
@@ -306,7 +307,7 @@ describe("scanPanel and the structure sensor's duplication check", () => {
   it("reads an unticked Structural analysis row as its last result, with no off state", () => {
     const scans = [
       { modules: [], edges: [], foreign: [], commit: "new", modified: false },
-    ] as unknown as Scan[];
+    ] as unknown as DocScan[];
     const stored = {
       name: "structure",
       status: "ran" as const,
@@ -315,7 +316,7 @@ describe("scanPanel and the structure sensor's duplication check", () => {
       modifiedMs: NOW - MINUTE,
     };
     const given = input({
-      scans,
+      scans: repositoryFrom(scans),
       sensors: [stored],
       ticks: { ...input().ticks, analysis: false },
     });
@@ -962,7 +963,7 @@ describe("phasesFor", () => {
   });
 });
 
-const SCANS: Scan[] = [
+const SCANS: DocScan[] = [
   {
     modules: [
       {
@@ -993,18 +994,18 @@ const SCANS: Scan[] = [
     ],
     edges: [],
     foreign: [],
-  } as unknown as Scan,
+  } as unknown as DocScan,
 ];
 
 describe("functionCount", () => {
   it("counts function members and the methods of classes, over every file with no scope", () => {
-    expect(functionCount(SCANS, null)).toBe(4);
+    expect(functionCount(repositoryFrom(SCANS), null)).toBe(4);
   });
 
   it("counts only the scoped files", () => {
-    expect(functionCount(SCANS, ["a.py"])).toBe(2);
-    expect(functionCount(SCANS, ["b.py", "c.py"])).toBe(2);
-    expect(functionCount(SCANS, ["gone.py"])).toBe(0);
+    expect(functionCount(repositoryFrom(SCANS), ["a.py"])).toBe(2);
+    expect(functionCount(repositoryFrom(SCANS), ["b.py", "c.py"])).toBe(2);
+    expect(functionCount(repositoryFrom(SCANS), ["gone.py"])).toBe(0);
   });
 });
 
@@ -1043,10 +1044,18 @@ describe("scanPanel only this view", () => {
   it("scopes the files the freshness model counts to the open view when the switch is on", () => {
     const untitled = { name: null, modules: ["a.py"] };
     const on = scanPanel(
-      input({ view: untitled, scans: SCANS, ticks: ticked(true) }),
+      input({
+        view: untitled,
+        scans: repositoryFrom(SCANS),
+        ticks: ticked(true),
+      }),
     );
     const off = scanPanel(
-      input({ view: untitled, scans: SCANS, ticks: ticked(false) }),
+      input({
+        view: untitled,
+        scans: repositoryFrom(SCANS),
+        ticks: ticked(false),
+      }),
     );
 
     expect(on.freshness.scopeCount).toBe(1);
@@ -1079,15 +1088,21 @@ describe("scanPanel only this view", () => {
   });
 
   it("leaves the other rows alone when the scope changes", () => {
-    const off = scanPanel(input({ scans: SCANS, ticks: ticked(false) }));
-    const on = scanPanel(input({ view, scans: SCANS, ticks: ticked(true) }));
+    const off = scanPanel(
+      input({ scans: repositoryFrom(SCANS), ticks: ticked(false) }),
+    );
+    const on = scanPanel(
+      input({ view, scans: repositoryFrom(SCANS), ticks: ticked(true) }),
+    );
 
     expect(row(on, "crap")?.state).toEqual(row(off, "crap")?.state);
     expect(row(on, "alpha")?.state).toEqual(row(off, "alpha")?.state);
   });
 
   it("ignores the stored switch when no view is open", () => {
-    const model = scanPanel(input({ scans: SCANS, ticks: ticked(true) }));
+    const model = scanPanel(
+      input({ scans: repositoryFrom(SCANS), ticks: ticked(true) }),
+    );
 
     expect(model.freshness.scopeCount).toBe(3);
     expect(model.scope).toBeNull();
@@ -1107,7 +1122,7 @@ describe("scanPanel freshness", () => {
       { path: "a.py", hash: "ha" },
       { path: "b.py", hash: "hb" },
     ],
-  } as unknown as Scan;
+  } as unknown as DocScan;
 
   const crap = (inputs: Record<string, string>) => ({
     name: "crap",
@@ -1125,7 +1140,7 @@ describe("scanPanel freshness", () => {
   const base = (inputs: Record<string, string>) =>
     input({
       sensors: [crap(inputs), ...others],
-      scans: [freshScan],
+      scans: repositoryFrom([freshScan]),
       lines: allCurrent(["a.py", "b.py"]),
       ticks: {
         describe: true,
@@ -1136,7 +1151,7 @@ describe("scanPanel freshness", () => {
         suites: {},
         folds: [],
       },
-      freshness: buildFreshness([freshScan], "t"),
+      freshness: buildFreshness(repositoryFrom([freshScan]), "t"),
     });
 
   it("keeps the second line of a ran, partly row when a file gap replaces the state", () => {
@@ -1470,7 +1485,7 @@ describe("scanPanel remembered refusal", () => {
   it("does not turn a failed row into out of date for a file gap", () => {
     const row = remembered(
       { code: "tests-failed", line: "why" },
-      { scans: SCANS },
+      { scans: repositoryFrom(SCANS) },
     );
 
     expect(row?.state.kind).toBe("failed");

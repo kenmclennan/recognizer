@@ -70,7 +70,7 @@ export class DescriberAdapter implements Describer {
     return (await describeModules({
       io: sinkIo(this.io, call.say),
       root: call.root,
-      scans: call.scans as never,
+      repository: call.repository,
       describer: call.describer as unknown as CliDescriber,
       model: call.model,
       batchSize: call.batchSize,

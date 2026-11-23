@@ -305,18 +305,14 @@ describe("core layers", () => {
   it("opaque.ts is gone and the core root exports the moved types", () => {
     expect(existsSync(join(application, "shared/ports/opaque.ts"))).toBe(false);
 
-    for (const file of [
-      "scan-document",
-      "config-document",
-      "policy-document",
-    ]) {
+    for (const file of ["repository", "config-document", "policy-document"]) {
       expect(existsSync(join(source, "domain", `${file}.ts`)), file).toBe(true);
     }
 
     const root = readFileSync(join(source, "index.ts"), "utf8");
 
     expect(root).not.toMatch(/opaque/);
-    expect(root).toMatch(/domain\/scan-document\.js/);
+    expect(root).toMatch(/domain\/repository\.js/);
   });
 
   it("a subdomain imports another only from its use-case files", () => {

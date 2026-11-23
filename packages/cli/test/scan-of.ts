@@ -1,6 +1,7 @@
 import { validateScan } from "../src/index.js";
+import { repositoryFrom } from "./repository-from.js";
 
-export function scanOf(
+export function documentOf(
   edges: [string, string][],
   modules: string[] = [],
   entryPoints: string[] = [],
@@ -38,4 +39,12 @@ export function scanOf(
     })),
     foreign: [],
   });
+}
+
+export function scanOf(
+  edges: [string, string][],
+  modules: string[] = [],
+  entryPoints: string[] = [],
+) {
+  return repositoryFrom(documentOf(edges, modules, entryPoints));
 }

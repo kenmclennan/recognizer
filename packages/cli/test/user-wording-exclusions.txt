@@ -4,7 +4,6 @@ packages/app/src/canvas-graph.ts|module|kind value or code-level key of a scan, 
 packages/app/src/canvas-scene.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/app/src/canvas-state.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/app/src/canvas-view.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
-packages/app/src/change-union.ts|modules|key, count unit or socket target named by a contract, not wording
 packages/app/src/explorer.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/app/src/explorer.ts|modules|key, count unit or socket target named by a contract, not wording
 packages/app/src/finding-card.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
@@ -24,21 +23,19 @@ packages/app/src/window-drive.ts|modules|key, count unit or socket target named 
 packages/app/src/window-drive.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/app/src/window-state.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/analyse.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
-packages/cli/src/change-marks.ts|modules|key, count unit or socket target named by a contract, not wording
 packages/cli/src/commands.ts|modules|key, count unit or socket target named by a contract, not wording
 packages/cli/src/describe-modules.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/duplication/functions.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
-packages/cli/src/member-marks.ts|modules|key, count unit or socket target named by a contract, not wording
 packages/cli/src/overlays.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/read-commands.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
-packages/cli/src/scan.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
+packages/cli/src/adapters/filesystem/scan-document-types.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
+packages/cli/src/adapters/filesystem/scan-translator.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/serve/scan-files.ts|modules|key, count unit or socket target named by a contract, not wording
 packages/cli/src/serve/service.ts|modules|key, count unit or socket target named by a contract, not wording
 packages/cli/src/serve/start-request.ts|modules|key, count unit or socket target named by a contract, not wording
 packages/cli/src/sensors-check.ts|modules|key, count unit or socket target named by a contract, not wording
 packages/cli/src/shipped-sensors.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/structure-overlay.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
-packages/cli/src/structure-warnings.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/views-command.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/views.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 docs/design.md|- Python uses its own `ast` module. TypeScript uses the TypeScript compiler API, so module resolution (tsconfig paths, workspace packages) is right. Kotlin uses tree-sitter-kotlin and C# uses tree-sitter-c-sharp, each proved by a spike (below). Rust uses the `syn` parser, in a scanner written in Rust; a Rust file is a source file, and edges come from `use` paths and `mod` declarations resolved through the crate's file tree. Crates reached by a Cargo path dependency inside the repository are resolved in-repo and every other crate is foreign; `pub use` re-exports are followed and recorded in `via`; a trait implementation is an `implements` edge; `exported` is any `pub` form. Detection is by `.rs` file alone.|a Python and a TypeScript language construct, not a box

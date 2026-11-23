@@ -368,9 +368,7 @@ export async function withSensors(
   const inputs = await port.readInputs();
   const run = await senseRepository(loaded.scans, inputs, port);
   const overlays = await port.readOverlays();
-  const known = Object.fromEntries(
-    scanHashes(loaded.scans.map(({ scan }) => scan)),
-  );
+  const known = Object.fromEntries(scanHashes(loaded.repository));
   const tests = await port.readTestsHash(known).catch(() => null);
   const records = await port
     .readRunRecords()

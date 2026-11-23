@@ -1,5 +1,5 @@
+import type { Repository } from "@recognizer/core";
 import type { TestImporter } from "./findings-document.js";
-import type { Scan } from "./scan.js";
 
 export const SUMMARY_TEST_FILES = 3;
 
@@ -7,10 +7,12 @@ function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-export function testImportersOf(scan: Scan): Map<string, TestImporter[]> {
+export function testImportersOf(
+  repository: Repository,
+): Map<string, TestImporter[]> {
   const grouped = new Map<string, Map<string, Set<string>>>();
 
-  for (const record of scan.test_imports ?? []) {
+  for (const record of repository.testImports) {
     const files = grouped.get(record.to) ?? new Map<string, Set<string>>();
     const names = files.get(record.from) ?? new Set<string>();
 

@@ -1,7 +1,7 @@
+import type { Repository } from "@recognizer/core";
 import { InputError } from "./errors.js";
 import validate from "./generated/view-validator.js";
 import { moduleNames, under, usedByOf, usesOf } from "./neighbours.js";
-import type { Scan } from "./scan.js";
 
 export type ViewStep =
   | { kind: "pick"; module: string }
@@ -244,29 +244,27 @@ export function viewMemberProposed(view: View): ViewProposedChange[] {
 }
 
 export function scanHoldsMember(
-  scans: Scan[],
+  repository: Repository,
   module: string,
   member: string,
 ): boolean {
   const { name, method } = splitMember(member);
 
-  for (const scan of scans) {
-    for (const entry of scan.modules) {
-      if (entry.id !== module) {
+  for (const entry of repository.files) {
+    if (entry.path !== module) {
+      continue;
+    }
+
+    for (const held of entry.members) {
+      if (held.name !== name) {
         continue;
       }
 
-      for (const held of entry.members ?? []) {
-        if (held.name !== name) {
-          continue;
-        }
-
-        if (
-          method === null ||
-          (held.methods ?? []).some((m) => m.name === method)
-        ) {
-          return true;
-        }
+      if (
+        method === null ||
+        (held.methods ?? []).some((m) => m.name === method)
+      ) {
+        return true;
       }
     }
   }
@@ -274,7 +272,10 @@ export function scanHoldsMember(
   return false;
 }
 
-export function resolveMembers(view: View, scans: Scan[]): ResolvedMembers {
+export function resolveMembers(
+  view: View,
+  repository: Repository,
+): ResolvedMembers {
   const byModule = new Map<string, ResolvedMemberEntry[]>();
   const warnings: string[] = [];
 
@@ -282,7 +283,7 @@ export function resolveMembers(view: View, scans: Scan[]): ResolvedMembers {
     return { byModule, warnings };
   }
 
-  const resolved = resolveView(view, scans);
+  const resolved = resolveView(view, repository);
   const onView = new Set(resolved.modules);
   const moduleEntries = new Map(
     viewModuleProposed(view).map((entry) => [entry.module, entry]),
@@ -320,7 +321,7 @@ export function resolveMembers(view: View, scans: Scan[]): ResolvedMembers {
       continue;
     }
 
-    const inScan = scanHoldsMember(scans, entry.module, member);
+    const inScan = scanHoldsMember(repository, entry.module, member);
 
     if (!inScan && entry.kind !== "new") {
       warnings.push(
@@ -347,7 +348,7 @@ export function resolveMembers(view: View, scans: Scan[]): ResolvedMembers {
 export function proposedWarnings(
   view: View,
   resolved: ResolvedView,
-  scans?: Scan[],
+  repository?: Repository,
 ): string[] {
   const all = view.proposed ?? [];
   const warnings: string[] = [];
@@ -381,8 +382,8 @@ export function proposedWarnings(
     }
   }
 
-  if (scans !== undefined) {
-    warnings.push(...resolveMembers(view, scans).warnings);
+  if (repository !== undefined) {
+    warnings.push(...resolveMembers(view, repository).warnings);
   }
 
   return warnings;
@@ -499,8 +500,8 @@ export function orderedStep(step: ViewStep): ViewStep {
   }
 }
 
-export function resolveView(view: View, scans: Scan[]): ResolvedView {
-  const modules = moduleNames(scans);
+export function resolveView(view: View, repository: Repository): ResolvedView {
+  const modules = moduleNames(repository);
   const known = new Set(modules);
   const hasFolder = (folder: string) =>
     modules.some((module) => under(module, folder));
@@ -571,8 +572,8 @@ export function resolveView(view: View, scans: Scan[]): ResolvedView {
         } else {
           const rows =
             step.relation === "uses"
-              ? usesOf(scans, modules, step.of)
-              : usedByOf(scans, modules, step.of);
+              ? usesOf(repository, modules, step.of)
+              : usedByOf(repository, modules, step.of);
 
           for (const row of rows) {
             if (

@@ -1,5 +1,7 @@
 import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import type { Repository } from "@recognizer/core";
+import { readScanFile } from "./adapters/filesystem/scan-translator.js";
 import type { ModuleMetrics, Warning } from "./analyse.js";
 import {
   type BaselineEntry,
@@ -29,7 +31,6 @@ import { moduleNames } from "./neighbours.js";
 import { type Policy, parsePolicy } from "./policy.js";
 import { warnPolicyProblems } from "./policy-problems.js";
 import type { Violation } from "./rules.js";
-import { type Scan, validateAcceptedScan } from "./scan.js";
 import { shippedSensorNames } from "./shipped-sensors.js";
 import { runStructureSensor } from "./structure-run.js";
 import {
@@ -433,7 +434,7 @@ function executeScanReplay(
     warnPolicyProblems(
       io.stderr,
       values.policy as string,
-      [validateAcceptedScan(scan)],
+      readScanFile(scan),
       policy,
     );
   }
@@ -453,15 +454,10 @@ function executeScanReplay(
     long_function_limit: LONG_FUNCTION,
     complexity_limit: COMPLEXITY_LIMIT,
   };
-  const sensed = structureSensor(
-    [validateAcceptedScan(scan)],
-    policy,
-    settings,
-    {
-      commit: "",
-      modified: false,
-    },
-  );
+  const sensed = structureSensor(readScanFile(scan), policy, settings, {
+    commit: "",
+    modified: false,
+  });
   const warnings = warningsOf([sensed.document]);
 
   if (policy === null) {
@@ -525,11 +521,11 @@ function defaultPolicyFile(io: Io, root: string): string | null {
 function gather(
   io: Io,
   root: string,
-  scans: Scan[],
+  repository: Repository,
   policy: Policy | null,
 ): Gathered {
   const config = readConfig(io, root, ["sensors"]);
-  const { commit } = scansCommit(scans);
+  const { commit } = scansCommit(repository);
   const hiddenKeys = new Set<string>();
   const sensors: SensorStatus[] = [];
   const documents: FindingsDocument[] = [];
@@ -547,7 +543,7 @@ function gather(
     io.remove(findingsFile(root, "structure"));
     sensors.push({ name: "structure", status: "off" });
   } else {
-    const run = runStructureSensor(io, root, scans, policy, resolved);
+    const run = runStructureSensor(io, root, repository, policy, resolved);
     const { sensed } = run;
 
     metrics = sensed.metrics;
@@ -599,7 +595,7 @@ function gather(
     for (const outcome of readFindingsFiles(
       io,
       root,
-      freshnessFor(io, root, scans),
+      freshnessFor(io, root, repository),
       [],
       allowed,
     )) {
@@ -719,8 +715,8 @@ function executeRepository(
     ]);
   }
 
-  const { scans } = freshScans(io, root, ["sensors"]);
-  const known = new Set(moduleNames(scans));
+  const { repository } = freshScans(io, root, ["sensors"]);
+  const known = new Set(moduleNames(repository));
   const unknown = named.filter((id) => !known.has(id));
 
   if (unknown.length > 0) {
@@ -735,10 +731,10 @@ function executeRepository(
       : parsePolicy(readInput(io, policyFile, "policy"));
 
   if (policyFile !== null) {
-    warnPolicyProblems(io.stderr, policyFile, scans, policy);
+    warnPolicyProblems(io.stderr, policyFile, repository, policy);
   }
 
-  const gathered = gather(io, root, scans, policy);
+  const gathered = gather(io, root, repository, policy);
 
   if (flags.init) {
     refuseInitWithHiddenFindings(gathered.sensors);

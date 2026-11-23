@@ -1,4 +1,6 @@
-import { type Scan, validateScan } from "../src/index.js";
+import type { Repository } from "@recognizer/core";
+import { validateScan } from "../src/index.js";
+import { repositoryFrom } from "./repository-from.js";
 
 export interface Spec {
   id: string;
@@ -30,49 +32,51 @@ export function scanOf(
   specs: Spec[],
   edges: [string, string][],
   extra: { inferred?: [string, string][] } = {},
-): Scan {
-  return validateScan({
-    schema_version: 7,
-    scanner: { name: "t", version: "0" },
-    commit: null,
-    modified: false,
-    files: [],
-    selection: {
-      extensions: [],
-      skip_directory_names: [],
-      skip_directory_prefixes: [],
-      skip_directory_suffixes: [],
-      skip_directories_containing: [],
-      skip_file_globs: [],
-    },
-    modules: specs.map((spec) => ({
-      id: spec.id,
-      language: "typescript",
-      kind: "module",
-      members: (spec.exports ?? []).map(member),
-    })),
-    edges: [
-      ...edges.map(([from, to], index) => ({
-        from,
-        to,
-        kind: "depends",
-        line: index + 1,
+): Repository {
+  return repositoryFrom(
+    validateScan({
+      schema_version: 7,
+      scanner: { name: "t", version: "0" },
+      commit: null,
+      modified: false,
+      files: [],
+      selection: {
+        extensions: [],
+        skip_directory_names: [],
+        skip_directory_prefixes: [],
+        skip_directory_suffixes: [],
+        skip_directories_containing: [],
+        skip_file_globs: [],
+      },
+      modules: specs.map((spec) => ({
+        id: spec.id,
+        language: "typescript",
+        kind: "module",
+        members: (spec.exports ?? []).map(member),
       })),
-      ...(extra.inferred ?? []).map(([from, to]) => ({
-        from,
-        to,
-        kind: "depends",
-        line: 1,
-        inferred: {
-          parameter: "p",
-          methods: ["m"],
-          class: "C",
-          implementations: [],
-        },
-      })),
-    ],
-    foreign: [],
-  });
+      edges: [
+        ...edges.map(([from, to], index) => ({
+          from,
+          to,
+          kind: "depends",
+          line: index + 1,
+        })),
+        ...(extra.inferred ?? []).map(([from, to]) => ({
+          from,
+          to,
+          kind: "depends",
+          line: 1,
+          inferred: {
+            parameter: "p",
+            methods: ["m"],
+            class: "C",
+            implementations: [],
+          },
+        })),
+      ],
+      foreign: [],
+    }),
+  );
 }
 
 export const WORKED: Spec[] = [

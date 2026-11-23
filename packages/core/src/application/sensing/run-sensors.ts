@@ -1,5 +1,5 @@
 import type { PhaseRecorder } from "../../domain/phase-recorder.js";
-import type { ScanDocument } from "../../domain/scan-document.js";
+import type { Repository } from "../../domain/repository.js";
 import type { ScanSink } from "../../domain/scan-sink.js";
 import type { ScopeFile } from "../../domain/sensor-request.js";
 import type { PluginLimits } from "../shared/ports/process.js";
@@ -11,7 +11,7 @@ export interface RunSensorsInput {
   selected: PlannedSensor[];
   scope: ScopeFile | undefined;
   commit: string | null;
-  scans: ScanDocument[];
+  repository: Repository;
   limits: PluginLimits;
   sink: ScanSink;
   recorder: PhaseRecorder;
@@ -22,7 +22,7 @@ export async function runSensors(
   input: RunSensorsInput,
 ): Promise<void> {
   const { sensors, clock } = ports;
-  const { root, selected, scope, commit, scans, limits, sink, recorder } =
+  const { root, selected, scope, commit, repository, limits, sink, recorder } =
     input;
   const phase = recorder.start("sense");
 
@@ -43,7 +43,7 @@ export async function runSensors(
         : {}),
     })),
     commit: commit ?? "",
-    scans,
+    repository,
     limits,
     onStart: (name) => {
       sink.emit({ type: "start", phase: "sense", name });

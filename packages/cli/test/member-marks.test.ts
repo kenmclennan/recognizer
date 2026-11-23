@@ -1,26 +1,27 @@
+import type { Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import type { MarkedModule } from "../src/change-marks.js";
+import type { DocumentMember } from "../src/adapters/filesystem/scan-document-types.js";
+import type { MarkedFile } from "../src/change-marks.js";
 import {
   MEMBER_TEXT_LIMIT,
   type MemberFile,
   memberMarks,
 } from "../src/member-marks.js";
-import type { RecordedScan, ScanMember } from "../src/scan.js";
+import { repositoryFrom } from "./repository-from.js";
 
 const HEAD = "head1";
 const MOD = "m/a.py";
 const OTHER = "m/b.py";
 
 function scan(
-  modules: Record<string, ScanMember[]>,
-  extra: Partial<RecordedScan> = {},
-): RecordedScan {
-  return {
+  modules: Record<string, DocumentMember[]>,
+  extra: { commit?: string | null; modified?: boolean } = {},
+): Repository {
+  return repositoryFrom({
     scanner: { name: "t", version: "1" },
     commit: HEAD,
     modified: false,
     files: [],
-    selection: {} as RecordedScan["selection"],
     modules: Object.entries(modules).map(([id, members]) => ({
       id,
       kind: "module" as const,
@@ -29,10 +30,10 @@ function scan(
     edges: [],
     foreign: [],
     ...extra,
-  };
+  });
 }
 
-const fn = (name: string, line: number, end_line?: number): ScanMember => ({
+const fn = (name: string, line: number, end_line?: number): DocumentMember => ({
   name,
   exported: true,
   kind: "function",
@@ -40,7 +41,7 @@ const fn = (name: string, line: number, end_line?: number): ScanMember => ({
   ...(end_line === undefined ? {} : { end_line }),
 });
 
-const marked = (...ids: string[]): MarkedModule[] =>
+const marked = (...ids: string[]): MarkedFile[] =>
   ids.map((id) => ({ id, mark: "modified", box: "current" }));
 
 const file = (
@@ -63,15 +64,15 @@ const F_START = fn("f", 1, 3);
 const G_START = fn("g", 5, 8);
 
 function run(
-  startMembers: ScanMember[],
-  endMembers: ScanMember[],
+  startMembers: DocumentMember[],
+  endMembers: DocumentMember[],
   head: string,
   start = START,
 ) {
   const result = memberMarks({
-    modules: marked(MOD),
-    base: [scan({ [MOD]: startMembers }, { commit: null })],
-    head: [scan({ [MOD]: endMembers })],
+    marked: marked(MOD),
+    base: scan({ [MOD]: startMembers }, { commit: null }),
+    head: scan({ [MOD]: endMembers }),
     files: [file(MOD, start, head)],
   });
 
@@ -163,7 +164,7 @@ describe("memberMarks on a class", () => {
   const klass = (
     end: number,
     methods: { name: string; line: number; end_line: number }[],
-  ): ScanMember => ({
+  ): DocumentMember => ({
     name: "C",
     exported: true,
     kind: "class",
@@ -283,21 +284,21 @@ describe("memberMarks absence and scope", () => {
   const input = (
     overrides: Partial<Parameters<typeof memberMarks>[0]> = {},
   ) => ({
-    modules: marked(MOD),
-    base: [scan({ [MOD]: [F_START] }, { commit: null })],
-    head: [scan({ [MOD]: [F_START] })],
+    marked: marked(MOD),
+    base: scan({ [MOD]: [F_START] }, { commit: null }),
+    head: scan({ [MOD]: [F_START] }),
     files: [file(MOD, START, START)],
     ...overrides,
   });
 
   it("gives no marks to an added or removed module or one with no box", () => {
-    const modules: MarkedModule[] = [
+    const modules: MarkedFile[] = [
       { id: "x.py", mark: "added", box: "current" },
       { id: "y.py", mark: "removed", box: "base" },
       { id: "z.py", mark: "modified", box: "none" },
     ];
 
-    expect(memberMarks(input({ modules })).size).toBe(0);
+    expect(memberMarks(input({ marked: modules })).size).toBe(0);
   });
 
   it("uses a head scan whatever its commit or modified value", () => {
@@ -306,7 +307,7 @@ describe("memberMarks absence and scope", () => {
     );
     const stale = memberMarks(
       input({
-        head: [scan({ [MOD]: [F_START] }, { commit: "old", modified: true })],
+        head: scan({ [MOD]: [F_START] }, { commit: "old", modified: true }),
         files: [file(MOD, START, START.replace("    a", "    A"))],
       }),
     );
@@ -318,9 +319,9 @@ describe("memberMarks absence and scope", () => {
   it("is unknown when the head scans are absent or lack the module", () => {
     const result = memberMarks(
       input({
-        modules: marked(MOD, OTHER),
-        base: [scan({ [MOD]: [F_START], [OTHER]: [F_START] })],
-        head: [scan({ [MOD]: [F_START] })],
+        marked: marked(MOD, OTHER),
+        base: scan({ [MOD]: [F_START], [OTHER]: [F_START] }),
+        head: scan({ [MOD]: [F_START] }),
         files: [
           file(MOD, START, START.replace("    a", "    A")),
           file(OTHER, START, START),
@@ -345,11 +346,9 @@ describe("memberMarks absence and scope", () => {
     const big = "x".repeat(MEMBER_TEXT_LIMIT + 1);
     const result = memberMarks(
       input({
-        modules: marked(MOD, OTHER),
-        base: [
-          scan({ [MOD]: [F_START], [OTHER]: [F_START] }, { commit: null }),
-        ],
-        head: [scan({ [MOD]: [F_START], [OTHER]: [F_START] })],
+        marked: marked(MOD, OTHER),
+        base: scan({ [MOD]: [F_START], [OTHER]: [F_START] }, { commit: null }),
+        head: scan({ [MOD]: [F_START], [OTHER]: [F_START] }),
         files: [
           file(MOD, START, START.replace("    a", "    A")),
           file(OTHER, big, START),
@@ -366,7 +365,7 @@ describe("memberMarks on class fields", () => {
   const cls = (
     fields: { name: string; line: number }[],
     methods: { name: string; line: number; end_line?: number }[] = [],
-  ): ScanMember => ({
+  ): DocumentMember => ({
     name: "C",
     exported: true,
     kind: "class",
@@ -544,16 +543,16 @@ describe("memberMarks on class fields", () => {
 describe("memberMarks on a renamed file", () => {
   const OLD = "m/old.py";
   const NEW = "m/new.py";
-  const renamed: MarkedModule[] = [
+  const renamed: MarkedFile[] = [
     { id: NEW, mark: "renamed", box: "current", from: OLD },
   ];
 
   it("memberMarks reads a renamed file from its old and new texts", () => {
     const head = START.replace("    d", "    D");
     const result = memberMarks({
-      modules: renamed,
-      base: [scan({ [OLD]: [F_START, G_START] }, { commit: null })],
-      head: [scan({ [NEW]: [F_START, G_START] })],
+      marked: renamed,
+      base: scan({ [OLD]: [F_START, G_START] }, { commit: null }),
+      head: scan({ [NEW]: [F_START, G_START] }),
       files: [{ path: NEW, base_path: OLD, base_text: START, head_text: head }],
     });
 
@@ -570,9 +569,9 @@ describe("memberMarks on a renamed file", () => {
 
   it("memberMarks leaves a renamed file unknown when the old path is not in the base scan", () => {
     const result = memberMarks({
-      modules: renamed,
-      base: [scan({ "m/other.py": [F_START] }, { commit: null })],
-      head: [scan({ [NEW]: [F_START, G_START] })],
+      marked: renamed,
+      base: scan({ "m/other.py": [F_START] }, { commit: null }),
+      head: scan({ [NEW]: [F_START, G_START] }),
       files: [
         { path: NEW, base_path: OLD, base_text: START, head_text: START },
       ],

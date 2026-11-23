@@ -1,6 +1,6 @@
+import type { Repository } from "@recognizer/core";
 import type { Matcher } from "./glob.js";
 import { isForeign, keptGraph } from "./graph.js";
-import type { Scan } from "./scan.js";
 import { sealedGroups } from "./sealed-hierarchy.js";
 
 export interface ModuleMetrics {
@@ -86,12 +86,15 @@ export function strongComponents(
   return components;
 }
 
-export function analyse(scan: Scan, ignore: Matcher[] = []): Analysis {
-  const { edges, ids } = keptGraph(scan, ignore);
+export function analyse(
+  repository: Repository,
+  ignore: Matcher[] = [],
+): Analysis {
+  const { edges, ids } = keptGraph(repository, ignore);
   const kinds = new Map<string, ModuleMetrics["kind"]>();
 
-  for (const module of scan.modules) {
-    kinds.set(module.id, module.kind);
+  for (const file of repository.files) {
+    kinds.set(file.path, file.kind === "source" ? "module" : file.kind);
   }
 
   const internal = new Map<string, Set<string>>();
@@ -137,7 +140,7 @@ export function analyse(scan: Scan, ignore: Matcher[] = []): Analysis {
     };
   });
 
-  const groups = sealedGroups(scan, edges);
+  const groups = sealedGroups(repository, edges);
   const groupOf = (id: string) => groups.get(id) ?? id;
   const crossing = new Map<string, Set<string>>();
   const groupSuccessors = new Map<string, Set<string>>();

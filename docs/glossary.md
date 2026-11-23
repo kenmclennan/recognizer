@@ -30,6 +30,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Script folder | A directory that holds no `__init__.py`. Python puts a running script's own directory on the import path, so the Python scanner resolves an import of a file beside a file in a script folder when no source root matches; a file inside a package never gets this. |
 | Re-export | A file that makes another file's names importable from itself, such as a Python `__init__.py` or a TypeScript `index.ts`. |
 | Dependency | An edge from a file to the file that defines a name it uses. |
+| Extraction | One language's scan run: the scanner, commit, dirty state, selection and scanned-files list. It holds what is true of a run and not of a file. |
 | Declaration | A `mod x;` the Rust scanner records as a `declares` edge. It makes the child reached for the orphan check and is not a dependency. |
 | Dependent | A file on the other end of a dependency: the one that uses. |
 | Route | The re-exports a name passed through on its way from its defining file to the file that imports it. Stored as `via`. |

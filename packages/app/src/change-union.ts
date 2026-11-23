@@ -1,25 +1,26 @@
-import type { Scan } from "recognizer";
+import {
+  EMPTY_REPOSITORY,
+  type File,
+  joinRepositories,
+  type Repository,
+} from "@recognizer/core";
 
 export function unionScans(
-  head: Scan[],
-  base: Scan[] | null,
+  head: Repository,
+  base: Repository | null,
   removed: readonly string[],
-): Scan[] {
+): Repository {
   if (base === null || removed.length === 0) {
     return head;
   }
 
   const gone = new Set(removed);
-  const present = new Set(
-    head.flatMap((scan) => scan.modules.map((module) => module.id)),
-  );
-  const modules = new Map<string, Scan["modules"][number]>();
+  const present = new Set(head.files.map((file) => file.path));
+  const modules = new Map<string, File>();
 
-  for (const scan of base) {
-    for (const module of scan.modules) {
-      if (gone.has(module.id) && !present.has(module.id)) {
-        modules.set(module.id, module);
-      }
+  for (const file of base.files) {
+    if (gone.has(file.path) && !present.has(file.path)) {
+      modules.set(file.path, file);
     }
   }
 
@@ -28,14 +29,15 @@ export function unionScans(
   }
 
   const inUnion = (id: string) => present.has(id) || modules.has(id);
-  const edges = base
-    .flatMap((scan) => scan.edges)
-    .filter(
-      (edge) =>
-        (modules.has(edge.from) || modules.has(edge.to)) &&
-        inUnion(edge.from) &&
-        inUnion(edge.to),
-    );
+  const dependencies = base.dependencies.filter(
+    (edge) =>
+      (modules.has(edge.from) || modules.has(edge.to)) &&
+      inUnion(edge.from) &&
+      inUnion(edge.to),
+  );
 
-  return [...head, { modules: [...modules.values()], edges, foreign: [] }];
+  return joinRepositories([
+    head,
+    { ...EMPTY_REPOSITORY, files: [...modules.values()], dependencies },
+  ]);
 }

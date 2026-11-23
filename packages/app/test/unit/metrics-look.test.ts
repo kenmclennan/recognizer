@@ -32,9 +32,9 @@ const stale = JSON.stringify({
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { loadedOf, mountExplorer, scanHostOf } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer, scanHostOf } from ${JSON.stringify(here("../test/unit/look-support.ts"))};
 import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
-import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
+import { fakeViews } from ${JSON.stringify(here("../test/unit/views-fake.ts"))};
 ${FAKE_WORKER}
 
 const ids = ["app/risk.py", "src/other.ts", "lib/none.py"];

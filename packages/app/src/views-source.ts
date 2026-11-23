@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { Scan } from "recognizer";
+import { readRepositoryFiles } from "./scan-loading";
 import type {
   ChangeRange,
   RangeMembers,
@@ -30,7 +30,12 @@ export const viewsSource: ViewsPort = {
       ? { ok: false, reason: outcome.Err }
       : {
           ok: true,
-          value: outcome.Ok.map(({ text }) => JSON.parse(text) as Scan),
+          value: readRepositoryFiles(
+            outcome.Ok.map(({ file, text }) => ({
+              file,
+              document: JSON.parse(text),
+            })),
+          ),
         };
   },
   async rangeMembers(base, head) {
@@ -54,8 +59,18 @@ export const viewsSource: ViewsPort = {
     return {
       ok: true,
       value: {
-        baseScans: found.base_scans.map(({ text }) => JSON.parse(text) as Scan),
-        headScans: found.head_scans.map(({ text }) => JSON.parse(text) as Scan),
+        baseScans: readRepositoryFiles(
+          found.base_scans.map(({ file, text }) => ({
+            file,
+            document: JSON.parse(text),
+          })),
+        ),
+        headScans: readRepositoryFiles(
+          found.head_scans.map(({ file, text }) => ({
+            file,
+            document: JSON.parse(text),
+          })),
+        ),
         files: found.files,
       },
     };

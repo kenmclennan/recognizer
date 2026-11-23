@@ -5,7 +5,24 @@ import type { ScanReport } from "../../src/scan-report";
 function scanText(ids: string[], overrides: Record<string, unknown> = {}) {
   return JSON.stringify({
     schema_version: 7,
-    modules: ids.map((id) => ({ id, language: "python", kind: "module" })),
+    scanner: { name: "recognizer-scan-python", version: "0" },
+    commit: null,
+    modified: null,
+    files: [],
+    selection: {
+      extensions: [".py"],
+      skip_directory_names: [],
+      skip_directory_prefixes: [],
+      skip_directory_suffixes: [],
+      skip_directories_containing: [],
+      skip_file_globs: [],
+    },
+    modules: ids.map((id) => ({
+      id,
+      language: "python",
+      kind: "module",
+      members: [],
+    })),
     edges: [],
     foreign: [],
     ...overrides,

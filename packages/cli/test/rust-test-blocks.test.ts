@@ -7,6 +7,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { EMPTY_REPOSITORY } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { nodeIo } from "../src/cli.js";
@@ -71,7 +72,7 @@ function edit(root: string, path: string, from: string, to: string): void {
 }
 
 function digest(root: string): string | null {
-  return currentTestsHash(nodeIo(), root, []);
+  return currentTestsHash(nodeIo(), root, EMPTY_REPOSITORY);
 }
 
 describe("the parity fixture", () => {

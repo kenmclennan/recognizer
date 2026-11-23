@@ -1,3 +1,4 @@
+import type { Dependency, Repository } from "@recognizer/core";
 import {
   dependencyEdges,
   folderCounts,
@@ -6,8 +7,6 @@ import {
   moduleCounts,
   moduleLabel,
   neighbourSets,
-  type Scan,
-  type ScanEdge,
   under,
 } from "recognizer";
 import type { Selection } from "./canvas-state";
@@ -43,7 +42,7 @@ export type Line = {
   to: string;
   style: EdgeStyle;
   count: number;
-  edges: ScanEdge[];
+  edges: Dependency[];
 };
 
 export type Counts = { uses: number; usedBy: number };
@@ -58,7 +57,7 @@ export type CanvasGraph = {
 };
 
 export type GraphInput = {
-  scans: Scan[];
+  scans: Repository;
   modules: string[];
   opened: string[];
   disc: (path: string) => Disc;
@@ -74,13 +73,13 @@ export function lineId(
   from: string,
   to: string,
   style: EdgeStyle,
-  edges: ScanEdge[],
+  edges: Dependency[],
 ): string {
   return `${from}>${to}:${style}:${edges.map((edge) => edge.line).join(",")}`;
 }
 
 function styleOf(
-  edge: ScanEdge,
+  edge: Dependency,
   members: Map<string, Map<string, boolean>>,
 ): EdgeStyle {
   if (edge.inferred) {
@@ -102,18 +101,14 @@ function styleOf(
 
 export function buildCanvasGraph(input: GraphInput): CanvasGraph {
   const known = new Set(input.modules);
-  const allEdges = input.scans.flatMap((scan) => dependencyEdges(scan.edges));
+  const allEdges = dependencyEdges(input.scans.dependencies);
   const members = new Map<string, Map<string, boolean>>();
 
-  for (const scan of input.scans) {
-    for (const module of scan.modules) {
-      if (module.members) {
-        members.set(
-          module.id,
-          new Map(module.members.map((m) => [m.name, m.exported])),
-        );
-      }
-    }
+  for (const file of input.scans.files) {
+    members.set(
+      file.path,
+      new Map(file.members.map((m) => [m.name, m.exported])),
+    );
   }
 
   const { focus } = input;
@@ -214,7 +209,7 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
       from: string;
       to: string;
       style: EdgeStyle;
-      edges: ScanEdge[];
+      edges: Dependency[];
     }
   >();
 

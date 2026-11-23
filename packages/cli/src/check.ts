@@ -1,3 +1,4 @@
+import { readScanFile } from "./adapters/filesystem/scan-translator.js";
 import {
   type BaselineEntry,
   compareEntries,
@@ -7,7 +8,6 @@ import {
 } from "./baseline.js";
 import type { Policy } from "./policy.js";
 import { collectViolations, type Violation } from "./rules.js";
-import { validateAcceptedScan } from "./scan.js";
 
 export type ReportedNew = Violation & { grown?: true };
 
@@ -92,7 +92,7 @@ export function check(
   policy: Policy,
   baseline: Identity[] | null,
 ): CheckResult {
-  const { violations } = collectViolations(validateAcceptedScan(scan), policy);
+  const { violations } = collectViolations(readScanFile(scan), policy);
 
   return rankAgainstBaseline(violations, baseline);
 }

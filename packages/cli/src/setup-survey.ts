@@ -1,5 +1,7 @@
 import { basename, join, posix, relative, resolve } from "node:path";
+import { joinRepositories, type Repository } from "@recognizer/core";
 import { parse } from "yaml";
+import { readUncheckedScanFile } from "./adapters/filesystem/scan-translator.js";
 import type { Io } from "./cli.js";
 import { packageVersion } from "./cli.js";
 import { configFile, policyFile } from "./config.js";
@@ -19,8 +21,7 @@ import {
 } from "./gradle-build.js";
 import { discoverPlugins } from "./plugin-discovery.js";
 import { type Policy, parsePolicy } from "./policy.js";
-import type { RecordedScan } from "./scan.js";
-import { readCachedScan } from "./scan-command.js";
+import { readCachedRepository } from "./scan-command.js";
 import { languageRulesOf } from "./scanners.js";
 import { splitCommand, withoutRepository } from "./setup-changes.js";
 import { commandRefusal } from "./setup-proposal.js";
@@ -1164,23 +1165,9 @@ function toolsOf(
   ];
 }
 
-function scanLanguage(scan: RecordedScan): string {
-  const counts = new Map<string, number>();
-
-  for (const module of scan.modules) {
-    counts.set(module.language, (counts.get(module.language) ?? 0) + 1);
-  }
-
-  const [top] = [...counts].sort(
-    ([a, x], [b, y]) => y - x || compareText(a, b),
-  );
-
-  return top?.[0] ?? scan.scanner.name.replace(/^recognizer-scan-/, "");
-}
-
-function readScanFile(io: Io, file: string): RecordedScan {
+function readScan(io: Io, file: string): Repository {
   try {
-    return JSON.parse(io.readFile(resolve(file))) as RecordedScan;
+    return readUncheckedScanFile(JSON.parse(io.readFile(resolve(file))));
   } catch (error) {
     throw new InputError([
       `cannot read --scan file ${file}: ${(error as Error).message}`,
@@ -1188,13 +1175,15 @@ function readScanFile(io: Io, file: string): RecordedScan {
   }
 }
 
-function filesOf(scans: RecordedScan[]): SurveyLanguage[] {
-  return scans
-    .map((scan) => {
-      const paths = scan.modules.map((module) => module.id);
+function filesOf(repository: Repository): SurveyLanguage[] {
+  return repository.extractions
+    .map((extraction) => {
+      const paths = repository.files
+        .filter((file) => file.language === extraction.language)
+        .map((file) => file.path);
 
       return {
-        language: scanLanguage(scan),
+        language: extraction.language,
         files: paths.length,
         folders: foldersOf(paths),
         mark: null,
@@ -1492,12 +1481,12 @@ function readPolicy(io: Io, root: string): Policy | null {
 function policyOf(
   io: Io,
   root: string,
-  scans: RecordedScan[] | null,
+  repository: Repository | null,
 ): SurveyPolicy {
   const present = io.exists(policyFile(root));
   const policy = readPolicy(io, root);
 
-  if (policy === null || scans === null) {
+  if (policy === null || repository === null) {
     return { present, uncovered: [] };
   }
 
@@ -1512,13 +1501,11 @@ function policyOf(
   ];
   const folders = new Map<string, boolean>();
 
-  for (const scan of scans) {
-    for (const module of scan.modules) {
-      const folder = folderOf(module.id);
-      const covered = matchers.some((matches) => matches(module.id));
+  for (const file of repository.files) {
+    const folder = folderOf(file.path);
+    const covered = matchers.some((matches) => matches(file.path));
 
-      folders.set(folder, (folders.get(folder) ?? false) || covered);
-    }
+    folders.set(folder, (folders.get(folder) ?? false) || covered);
   }
 
   return {
@@ -1549,10 +1536,10 @@ export function surveyRepository(
   const document = configDocument(
     io.exists(configFile(root)) ? io.readFile(configFile(root)) : null,
   );
-  const scans: RecordedScan[] | null =
+  const scans: Repository | null =
     options.scan !== undefined
-      ? [readScanFile(io, options.scan)]
-      : cachedScans(io, root, rules);
+      ? readScan(io, options.scan)
+      : cachedRepository(io, root, rules);
   const configured = io.exists(configFile(root));
   const suites = suitesOf(io, document, files, configured);
   const gradle = gradleReading(io, root, files, suites);
@@ -1666,16 +1653,18 @@ function gapNotes(
       ];
 }
 
-function cachedScans(
+function cachedRepository(
   io: Io,
   root: string,
   rules: readonly LanguageRule[],
-): RecordedScan[] | null {
+): Repository | null {
   const languages = detectLanguages(io, root, rules);
-  const scans = languages.map((language) => readCachedScan(io, root, language));
+  const parts = languages.map((language) =>
+    readCachedRepository(io, root, language),
+  );
 
-  return scans.length > 0 && scans.every((scan) => scan !== null)
-    ? (scans as RecordedScan[])
+  return parts.length > 0 && parts.every((part) => part !== null)
+    ? joinRepositories(parts as Repository[])
     : null;
 }
 

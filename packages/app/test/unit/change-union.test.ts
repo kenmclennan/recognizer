@@ -1,8 +1,8 @@
-import type { Scan } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { unionScans } from "../../src/change-union";
+import { type DocScan, repositoryFrom } from "./repository-from";
 
-const scan = (ids: string[], edges: [string, string][]): Scan => ({
+const scan = (ids: string[], edges: [string, string][]): DocScan => ({
   modules: ids.map((id) => ({ id, language: "python", kind: "module" })),
   edges: edges.map(([from, to], line) => ({
     from,
@@ -14,8 +14,10 @@ const scan = (ids: string[], edges: [string, string][]): Scan => ({
 });
 
 describe("unionScans", () => {
-  const head = [scan(["p/a.py", "p/b.py"], [["p/a.py", "p/b.py"]])];
-  const base = [
+  const head = repositoryFrom([
+    scan(["p/a.py", "p/b.py"], [["p/a.py", "p/b.py"]]),
+  ]);
+  const base = repositoryFrom([
     scan(
       ["p/a.py", "p/b.py", "p/gone.py", "q/other.py"],
       [
@@ -24,14 +26,12 @@ describe("unionScans", () => {
         ["p/gone.py", "q/other.py"],
       ],
     ),
-  ];
+  ]);
 
   it("adds a removed base module in its folder with its edge to a surviving module", () => {
     const union = unionScans(head, base, ["p/gone.py"]);
-    const ids = union.flatMap((one) => one.modules.map((m) => m.id));
-    const edges = union.flatMap((one) =>
-      one.edges.map((edge) => `${edge.from}>${edge.to}`),
-    );
+    const ids = union.files.map((file) => file.path);
+    const edges = union.dependencies.map((edge) => `${edge.from}>${edge.to}`);
 
     expect(ids).toEqual(["p/a.py", "p/b.py", "p/gone.py"]);
     expect(edges).toEqual(["p/a.py>p/b.py", "p/gone.py>p/a.py"]);
@@ -40,9 +40,7 @@ describe("unionScans", () => {
   it("omits an edge whose far end is in neither scan", () => {
     const union = unionScans(head, base, ["p/gone.py"]);
 
-    expect(
-      union.flatMap((one) => one.edges).some((e) => e.to === "q/other.py"),
-    ).toBe(false);
+    expect(union.dependencies.some((e) => e.to === "q/other.py")).toBe(false);
   });
 
   it("returns the head scans unchanged without a base or removed ids", () => {

@@ -1,14 +1,12 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import type { Repository } from "@recognizer/core";
 import { GRAMMAR_DIRECTORY, loadParsers } from "../src/duplication/parsers.js";
-import type { RecordedScan } from "../src/scan.js";
 import { REPO } from "./helpers.js";
+import { repositoryFrom } from "./repository-from.js";
 import { type Fake, fakeIo, ROOT } from "./scan-helpers.js";
 
-const LANGUAGE_BY_SUFFIX: Record<
-  string,
-  RecordedScan["modules"][number]["language"]
-> = {
+const LANGUAGE_BY_SUFFIX: Record<string, string> = {
   ".py": "python",
   ".ts": "typescript",
   ".tsx": "typescript",
@@ -33,10 +31,10 @@ function filesUnder(directory: string): string[] {
 
 export interface Measured {
   fake: Fake;
-  scans: RecordedScan[];
+  scans: Repository;
 }
 
-export function scansOf(files: Record<string, string>): RecordedScan[] {
+export function scansOf(files: Record<string, string>): Repository {
   const byLanguage = new Map<string, string[]>();
 
   for (const path of Object.keys(files).sort()) {
@@ -47,22 +45,21 @@ export function scansOf(files: Record<string, string>): RecordedScan[] {
     }
   }
 
-  return [...byLanguage].map(
-    ([language, paths]) =>
-      ({
-        scanner: { name: language, version: "0" },
-        commit: "c1",
-        modified: false,
-        files: paths.map((path) => ({ path, hash: "0".repeat(64) })),
-        selection: {},
-        modules: paths.map((path) => ({
-          id: path,
-          language,
-          kind: "module",
-        })),
-        edges: [],
-        foreign: [],
-      }) as unknown as RecordedScan,
+  return repositoryFrom(
+    [...byLanguage].map(([language, paths]) => ({
+      scanner: { name: language, version: "0" },
+      commit: "c1",
+      modified: false,
+      files: paths.map((path) => ({ path, hash: "0".repeat(64) })),
+      selection: {},
+      modules: paths.map((path) => ({
+        id: path,
+        language,
+        kind: "module",
+      })),
+      edges: [],
+      foreign: [],
+    })),
   );
 }
 

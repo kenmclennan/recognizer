@@ -5,8 +5,8 @@ import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { analyse } from "../src/analyse.js";
 import { run } from "../src/cli.js";
 import { compileGlob } from "../src/glob.js";
-import { validateScan } from "../src/scan.js";
 import { capture } from "./helpers.js";
+import { validatedRepository as validateScan } from "./repository-from.js";
 
 type Edge = [string, string] | [string, string, string];
 

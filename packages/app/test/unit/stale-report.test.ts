@@ -1,9 +1,10 @@
-import type { Scan, View } from "recognizer";
+import type { View } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { currentCommit, hasEntries, staleReport } from "../../src/stale-report";
 import { expectedScan } from "../fixtures";
+import { type DocScan, repositoryFrom } from "./repository-from";
 
-type Committed = Scan & { commit: string | null };
+type Committed = DocScan & { commit: string | null };
 
 const place = "shop/application/place.py";
 const order = "shop/domain/order.py";
@@ -57,8 +58,8 @@ describe("staleReport", () => {
   it("lists a missing pick with the rename git records", () => {
     const report = staleReport({
       view: view(picks(refund, place)),
-      now: [derived()],
-      before: [original()],
+      now: repositoryFrom([derived()]),
+      before: repositoryFrom([original()]),
       renames: [{ from: refund, to: refunds }],
     });
 
@@ -70,8 +71,8 @@ describe("staleReport", () => {
   it("reports removed and added relations among the view's modules and the newly relevant ones", () => {
     const report = staleReport({
       view: view(picks(place, order, store)),
-      now: [derived()],
-      before: [original()],
+      now: repositoryFrom([derived()]),
+      before: repositoryFrom([original()]),
       renames: [],
     });
 
@@ -89,7 +90,7 @@ describe("staleReport", () => {
   it("is unknown, never healthy, when the earlier scan is unavailable", () => {
     const report = staleReport({
       view: view(picks(place)),
-      now: [derived()],
+      now: repositoryFrom([derived()]),
       before: null,
       renames: [],
     });
@@ -103,7 +104,7 @@ describe("staleReport", () => {
   it("names why the earlier scan failed", () => {
     const report = staleReport({
       view: view(picks(place)),
-      now: [derived()],
+      now: repositoryFrom([derived()]),
       before: null,
       renames: [],
       reason: "retired config key",
@@ -117,7 +118,7 @@ describe("staleReport", () => {
   it("keeps the view without a commit text when a reason is given", () => {
     const report = staleReport({
       view: view(picks(place), null),
-      now: [derived()],
+      now: repositoryFrom([derived()]),
       before: null,
       renames: [],
       reason: "ignored",
@@ -129,8 +130,8 @@ describe("staleReport", () => {
   it("ignores a reason when the earlier scan succeeded", () => {
     const report = staleReport({
       view: view(picks(place)),
-      now: [derived()],
-      before: [original()],
+      now: repositoryFrom([derived()]),
+      before: repositoryFrom([original()]),
       renames: [],
       reason: "stale",
     });
@@ -141,7 +142,7 @@ describe("staleReport", () => {
   it("names a view without a commit", () => {
     const report = staleReport({
       view: view(picks(place), null),
-      now: [derived()],
+      now: repositoryFrom([derived()]),
       before: null,
       renames: [],
     });
@@ -152,7 +153,7 @@ describe("staleReport", () => {
   it("has empty sections when the view's commit is the current one", () => {
     const report = staleReport({
       view: view(picks(place, refund), "def5678"),
-      now: [derived()],
+      now: repositoryFrom([derived()]),
       before: null,
       renames: [],
     });
@@ -166,8 +167,8 @@ describe("staleReport", () => {
   it("lists a rename, a plain missing path and a missing path whose rename target is absent", () => {
     const report = staleReport({
       view: view(picks(refund, "shop/gone.py", "shop/moved.py", place)),
-      now: [derived()],
-      before: [original()],
+      now: repositoryFrom([derived()]),
+      before: repositoryFrom([original()]),
       renames: [
         { from: refund, to: refunds },
         { from: "shop/moved.py", to: "shop/nowhere.py" },
@@ -182,7 +183,7 @@ describe("staleReport", () => {
   });
 
   it("reads the current commit from the scans", () => {
-    expect(currentCommit([derived()])).toBe("def5678");
-    expect(currentCommit([expectedScan("python")])).toBeNull();
+    expect(currentCommit(repositoryFrom([derived()]))).toBe("def5678");
+    expect(currentCommit(repositoryFrom([expectedScan("python")]))).toBeNull();
   });
 });

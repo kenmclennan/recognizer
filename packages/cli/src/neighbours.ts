@@ -1,5 +1,5 @@
+import type { Dependency, Repository } from "@recognizer/core";
 import { dependencyEdges } from "./graph.js";
-import type { Scan, ScanEdge } from "./scan.js";
 
 export type NeighbourRow = {
   id: string;
@@ -46,49 +46,45 @@ export function folderOf(id: string): string {
   return id.slice(0, Math.max(0, id.lastIndexOf("/")));
 }
 
-export function edgeNames(edge: ScanEdge): string[] {
+export function edgeNames(edge: Dependency): string[] {
   if (edge.names && edge.names.length > 0) {
-    return edge.names;
+    return [...edge.names];
   }
 
-  return edge.to_member === undefined ? [] : [edge.to_member];
+  return edge.toMember === undefined ? [] : [edge.toMember];
 }
 
-export function moduleNames(scans: Scan[]): string[] {
+export function moduleNames(repository: Repository): string[] {
   const names: string[] = [];
   const seen = new Set<string>();
 
-  for (const scan of scans) {
-    for (const module of scan.modules) {
-      if (!seen.has(module.id)) {
-        seen.add(module.id);
-        names.push(module.id);
-      }
+  for (const file of repository.files) {
+    if (!seen.has(file.path)) {
+      seen.add(file.path);
+      names.push(file.path);
     }
   }
 
   return names;
 }
 
-export function membersOf(scans: Scan[]): Map<string, Map<string, boolean>> {
+export function membersOf(
+  repository: Repository,
+): Map<string, Map<string, boolean>> {
   const members = new Map<string, Map<string, boolean>>();
 
-  for (const scan of scans) {
-    for (const module of scan.modules) {
-      if (module.members) {
-        members.set(
-          module.id,
-          new Map(module.members.map((m) => [m.name, m.exported])),
-        );
-      }
-    }
+  for (const file of repository.files) {
+    members.set(
+      file.path,
+      new Map(file.members.map((m) => [m.name, m.exported])),
+    );
   }
 
   return members;
 }
 
 export function neighbourSets(
-  edges: ScanEdge[],
+  edges: readonly Dependency[],
   known: Set<string>,
 ): NeighbourSets {
   const uses = new Map<string, Set<string>>();
@@ -139,29 +135,23 @@ export function folderCounts(
 }
 
 function rowsFrom(
-  scans: Scan[],
+  repository: Repository,
   modules: string[],
-  pick: (edge: ScanEdge) => string | null,
+  pick: (edge: Dependency) => string | null,
 ): NeighbourRow[] {
   const known = new Set(modules);
-  const members = membersOf(scans);
-  const byId = new Map<string, ScanEdge[]>();
+  const members = membersOf(repository);
+  const byId = new Map<string, Dependency[]>();
 
-  for (const scan of scans) {
-    for (const edge of dependencyEdges(scan.edges)) {
-      if (
-        edge.from === edge.to ||
-        !known.has(edge.from) ||
-        !known.has(edge.to)
-      ) {
-        continue;
-      }
+  for (const edge of dependencyEdges(repository.dependencies)) {
+    if (edge.from === edge.to || !known.has(edge.from) || !known.has(edge.to)) {
+      continue;
+    }
 
-      const id = pick(edge);
+    const id = pick(edge);
 
-      if (id !== null) {
-        byId.set(id, [...(byId.get(id) ?? []), edge]);
-      }
+    if (id !== null) {
+      byId.set(id, [...(byId.get(id) ?? []), edge]);
     }
   }
 
@@ -188,41 +178,41 @@ function rowsFrom(
 }
 
 export function usesOf(
-  scans: Scan[],
+  repository: Repository,
   modules: string[],
   id: string,
 ): NeighbourRow[] {
-  return rowsFrom(scans, modules, (edge) =>
+  return rowsFrom(repository, modules, (edge) =>
     edge.from === id ? edge.to : null,
   );
 }
 
 export function usedByOf(
-  scans: Scan[],
+  repository: Repository,
   modules: string[],
   id: string,
 ): NeighbourRow[] {
-  return rowsFrom(scans, modules, (edge) =>
+  return rowsFrom(repository, modules, (edge) =>
     edge.to === id ? edge.from : null,
   );
 }
 
 export function folderUses(
-  scans: Scan[],
+  repository: Repository,
   modules: string[],
   folder: string,
 ): NeighbourRow[] {
-  return rowsFrom(scans, modules, (edge) =>
+  return rowsFrom(repository, modules, (edge) =>
     under(edge.from, folder) && !under(edge.to, folder) ? edge.to : null,
   );
 }
 
 export function folderUsedBy(
-  scans: Scan[],
+  repository: Repository,
   modules: string[],
   folder: string,
 ): NeighbourRow[] {
-  return rowsFrom(scans, modules, (edge) =>
+  return rowsFrom(repository, modules, (edge) =>
     under(edge.to, folder) && !under(edge.from, folder) ? edge.from : null,
   );
 }

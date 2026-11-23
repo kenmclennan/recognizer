@@ -1,10 +1,10 @@
+import type { Repository } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import { type FindingsWork, validateFindings } from "./findings-document.js";
 import { findingsFile, writeFindings } from "./findings-files.js";
 import type { Diagnosis, PluginEvent } from "./plugin-events.js";
 import { createPluginLimits, runPlugin } from "./plugin-run.js";
 import { type EntryWork, entryFrom, type RunEntry } from "./run-log.js";
-import type { Scan } from "./scan.js";
 import { measuredInputs } from "./structure-sensor.js";
 
 export interface RunSensorsInput {
@@ -17,7 +17,7 @@ export interface RunSensorsInput {
     modules?: number;
   }[];
   commit: string;
-  scans: Scan[];
+  repository: Repository;
   limits?: ReturnType<typeof createPluginLimits>;
   onStart?: (name: string) => void;
   onEntry?: (entry: RunEntry) => void;
@@ -28,7 +28,7 @@ function recordInputs(
   io: Io,
   root: string,
   name: string,
-  scans: Scan[],
+  repository: Repository,
 ): {
   diagnosis: Diagnosis | undefined;
   incomplete: boolean;
@@ -40,7 +40,7 @@ function recordInputs(
   writeFindings(io, root, {
     ...document,
     findings_version: 2,
-    inputs: document.inputs ?? measuredInputs(scans),
+    inputs: document.inputs ?? measuredInputs(repository),
   });
 
   return {
@@ -54,8 +54,8 @@ function recordInputs(
   };
 }
 
-function moduleCount(scans: Scan[]): number {
-  return scans.reduce((total, scan) => total + scan.modules.length, 0);
+function moduleCount(repository: Repository): number {
+  return repository.files.length;
 }
 
 export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
@@ -100,7 +100,7 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
 
     if (reason === null) {
       try {
-        const recorded = recordInputs(io, root, name, input.scans);
+        const recorded = recordInputs(io, root, name, input.repository);
 
         diagnosis = recorded.diagnosis;
         incomplete = recorded.incomplete;
@@ -124,7 +124,7 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
       status: run.status,
       stderr: run.stderr,
       duration_ms: finished - began,
-      modules: modules ?? moduleCount(input.scans),
+      modules: modules ?? moduleCount(input.repository),
       ...(fixedFrom === null ? {} : { fixed_ms: fixedFrom - began }),
       ...(incomplete ? { incomplete: true } : {}),
       ...(work === undefined ? {} : { work }),

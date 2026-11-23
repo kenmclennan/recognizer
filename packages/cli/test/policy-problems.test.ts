@@ -1,13 +1,18 @@
+import { joinRepositories, type Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { parsePolicy } from "../src/index.js";
+import type { Policy } from "../src/policy.js";
 import { policyProblems } from "../src/policy-problems.js";
 import { scanOf } from "./scan-of.js";
+
+const problems = (scans: Repository[], policy: Policy | null) =>
+  policyProblems(joinRepositories(scans), policy);
 
 describe("policyProblems", () => {
   const POLICY = "entry:\n  - app/domain/**\n  - app/ports/**\n";
 
   it("reports an entry glob matching no scanned file and no folder problem", () => {
-    const found = policyProblems(
+    const found = problems(
       [
         scanOf(
           [["app/domain/a.py", "app/misc/m.py"]],
@@ -27,7 +32,7 @@ describe("policyProblems", () => {
   });
 
   it("reports a glob listed twice once", () => {
-    const found = policyProblems(
+    const found = problems(
       [scanOf([], ["x/a.py"])],
       parsePolicy("entry:\n  - gone/**\n  - gone/**\n  - x/**\n"),
     );
@@ -38,13 +43,13 @@ describe("policyProblems", () => {
   it("reports nothing with empty entry or without a policy", () => {
     const scan = scanOf([], ["x/a.py"]);
 
-    expect(policyProblems([scan], parsePolicy("ignore: []\n"))).toEqual([]);
-    expect(policyProblems([scan], parsePolicy("entry: []\n"))).toEqual([]);
-    expect(policyProblems([scan], null)).toEqual([]);
+    expect(problems([scan], parsePolicy("ignore: []\n"))).toEqual([]);
+    expect(problems([scan], parsePolicy("entry: []\n"))).toEqual([]);
+    expect(problems([scan], null)).toEqual([]);
   });
 
   it("does not report a glob matching a file in only one of two scans", () => {
-    const found = policyProblems(
+    const found = problems(
       [scanOf([], ["app/domain/a.py"]), scanOf([], ["app/ports/p.py"])],
       parsePolicy(POLICY),
     );
@@ -53,7 +58,7 @@ describe("policyProblems", () => {
   });
 
   it("reports a forbid rule's to glob matching nothing once, naming the glob", () => {
-    const found = policyProblems(
+    const found = problems(
       [scanOf([], ["app/domain/a.py", "app/adapters/b.py"])],
       parsePolicy("forbid:\n  - app/domain/** -> app/nowhere/**\n"),
     );
@@ -68,7 +73,7 @@ describe("policyProblems", () => {
   });
 
   it("reports an unmatched glob inside a list forbid rule", () => {
-    const found = policyProblems(
+    const found = problems(
       [scanOf([], ["app/domain/a.py", "app/adapters/b.py"])],
       parsePolicy(
         "forbid:\n  - from: [app/domain/**, app/typo/**]\n    to: app/adapters/**\n",
@@ -79,7 +84,7 @@ describe("policyProblems", () => {
   });
 
   it("reports nothing for a forbid rule whose globs all match", () => {
-    const found = policyProblems(
+    const found = problems(
       [scanOf([], ["app/domain/a.py", "app/adapters/b.py"])],
       parsePolicy("forbid:\n  - app/domain/** -> app/adapters/**\n"),
     );
@@ -88,7 +93,7 @@ describe("policyProblems", () => {
   });
 
   it("does not report a forbid rule aimed at a foreign group", () => {
-    const found = policyProblems(
+    const found = problems(
       [scanOf([], ["app/domain/a.py"])],
       parsePolicy("forbid:\n  - app/domain/** -> foreign:requests\n"),
     );

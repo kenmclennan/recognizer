@@ -209,7 +209,7 @@ export function* scanFlow(
       return { status: "stopped" };
     }
 
-    const { scans, missing } = extracted;
+    const { repository, missing } = extracted;
     const later = phases.findReadinessGaps({
       root,
       commit,
@@ -229,7 +229,7 @@ export function* scanFlow(
       invoke: () =>
         phases.runAnalysis({
           root,
-          scans,
+          repository,
           analysis: request.analysis,
           ignoreRetiredConfig: request.ignoreRetiredConfig,
           sink: ctx,
@@ -253,7 +253,7 @@ export function* scanFlow(
         invoke: () =>
           phases.describeFiles({
             root,
-            scans,
+            repository,
             missing,
             located,
             settings: describing as DescribingSettings,
@@ -284,7 +284,7 @@ export function* scanFlow(
             selected,
             scope: request.modules,
             commit,
-            scans,
+            repository,
             limits,
             sink: ctx,
             recorder,

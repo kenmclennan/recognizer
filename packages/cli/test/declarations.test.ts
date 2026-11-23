@@ -1,15 +1,11 @@
 import { describe, expect, it } from "vitest";
-import {
-  dependencyEdges,
-  type Scan,
-  structureSensor,
-  validateScan,
-} from "../src/index.js";
+import { dependencyEdges, structureSensor } from "../src/index.js";
 import { DEFAULT_STRUCTURE_SETTINGS } from "../src/structure-sensor.js";
 import {
   orphanFindings,
   unusedExportsFindings,
 } from "../src/structure-warnings.js";
+import { validatedRepository as validateScan } from "./repository-from.js";
 
 type Edge = [string, string, "depends" | "declares"];
 
@@ -52,7 +48,7 @@ function scanOf(
       line: index + 1,
     })),
     foreign: [],
-  }) as Scan;
+  });
 }
 
 const SETTINGS = {
@@ -63,8 +59,8 @@ const SETTINGS = {
   },
 };
 
-function sensor(scan: Scan) {
-  return structureSensor([scan], null, SETTINGS, {
+function sensor(scan: ReturnType<typeof scanOf>) {
+  return structureSensor(scan, null, SETTINGS, {
     commit: "c",
     modified: false,
   });
@@ -134,7 +130,7 @@ describe("declares edges", () => {
       ["a.rs", "c.rs", "depends"],
     ]);
 
-    expect(dependencyEdges(scan.edges).map((edge) => edge.to)).toEqual([
+    expect(dependencyEdges(scan.dependencies).map((edge) => edge.to)).toEqual([
       "c.rs",
     ]);
   });

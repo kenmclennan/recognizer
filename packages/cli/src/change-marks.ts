@@ -1,6 +1,4 @@
-import type { RecordedScan, ScanSelection } from "./scan.js";
-
-export type MarkScan = Pick<RecordedScan, "modules" | "selection">;
+import type { ExtractionSelection, Repository } from "@recognizer/core";
 
 export type Mark = "added" | "modified" | "removed" | "renamed";
 
@@ -10,7 +8,7 @@ export type FileChange = {
   from?: string;
 };
 
-export type MarkedModule = {
+export type MarkedFile = {
   id: string;
   mark: Mark;
   box: "current" | "base" | "none";
@@ -107,8 +105,11 @@ function globMatches(pattern: string, name: string): boolean {
   return remaining.length >= last.length && remaining.endsWith(last);
 }
 
-function underSkipPath(selection: ScanSelection, relative: string): boolean {
-  return (selection.skip_paths ?? []).some(
+function underSkipPath(
+  selection: ExtractionSelection,
+  relative: string,
+): boolean {
+  return (selection.skipPaths ?? []).some(
     (skipped) =>
       skipped === "." ||
       relative === skipped ||
@@ -117,7 +118,7 @@ function underSkipPath(selection: ScanSelection, relative: string): boolean {
 }
 
 function skipsDirectory(
-  selection: ScanSelection,
+  selection: ExtractionSelection,
   directory: string,
   markerExists: MarkerCheck | undefined,
 ): boolean {
@@ -126,13 +127,11 @@ function skipsDirectory(
   return (
     name === RECOGNIZER_FOLDER ||
     underSkipPath(selection, directory) ||
-    selection.skip_directory_names.includes(name) ||
-    selection.skip_directory_prefixes.some((prefix) =>
-      name.startsWith(prefix),
-    ) ||
-    selection.skip_directory_suffixes.some((suffix) => name.endsWith(suffix)) ||
+    selection.skipDirectoryNames.includes(name) ||
+    selection.skipDirectoryPrefixes.some((prefix) => name.startsWith(prefix)) ||
+    selection.skipDirectorySuffixes.some((suffix) => name.endsWith(suffix)) ||
     (markerExists !== undefined &&
-      selection.skip_directories_containing.some((marker) =>
+      selection.skipDirectoriesContaining.some((marker) =>
         markerExists(directory, marker),
       ))
   );
@@ -142,7 +141,7 @@ export type MarkerCheck = (directory: string, marker: string) => boolean;
 
 export function scannedBy(
   path: string,
-  selection: ScanSelection,
+  selection: ExtractionSelection,
   markerExists?: MarkerCheck,
 ): boolean {
   const parts = path.split("/");
@@ -160,23 +159,23 @@ export function scannedBy(
   return (
     !underSkipPath(selection, path) &&
     selection.extensions.some((extension) => name.endsWith(extension)) &&
-    !selection.skip_file_globs.some((glob) => globMatches(glob, name))
+    !selection.skipFileGlobs.some((glob) => globMatches(glob, name))
   );
 }
 
-function selectionsOf(scans: MarkScan[]): ScanSelection[] {
-  return scans.flatMap((scan) => (scan.selection ? [scan.selection] : []));
+function selectionsOf(repository: Repository): ExtractionSelection[] {
+  return repository.extractions.map(({ selection }) => selection);
 }
 
-function modulesOf(scans: MarkScan[]): Set<string> {
-  return new Set(scans.flatMap((scan) => scan.modules.map((m) => m.id)));
+function modulesOf(repository: Repository): Set<string> {
+  return new Set(repository.files.map((file) => file.path));
 }
 
 export type ChangeStatus = Mark | "elsewhere";
 
 export function statusOf(
   change: FileChange,
-  selections: ScanSelection[],
+  selections: ExtractionSelection[],
 ): ChangeStatus {
   if (
     selections.length > 0 &&
@@ -199,16 +198,16 @@ export function statusOf(
 
 export function changeMarks(
   changes: FileChange[],
-  head: MarkScan[],
-  base: MarkScan[] | null,
-): { modules: MarkedModule[]; unmatched: number } {
+  head: Repository,
+  base: Repository | null,
+): { files: MarkedFile[]; unmatched: number } {
   const now = modulesOf(head);
   const before = base === null ? null : modulesOf(base);
   const selections = [
     ...selectionsOf(head),
     ...(base === null ? [] : selectionsOf(base)),
   ];
-  const marked = new Map<string, MarkedModule>();
+  const marked = new Map<string, MarkedFile>();
   let unmatched = 0;
 
   for (const change of changes) {
@@ -249,7 +248,7 @@ export function changeMarks(
   }
 
   return {
-    modules: [...marked.values()].sort((a, b) => a.id.localeCompare(b.id)),
+    files: [...marked.values()].sort((a, b) => a.id.localeCompare(b.id)),
     unmatched,
   };
 }
@@ -264,7 +263,7 @@ export type ChangeClassification = {
 
 export function classifyChanges(
   changes: FileChange[],
-  selections: ScanSelection[],
+  selections: ExtractionSelection[],
 ): ChangeClassification {
   const result: ChangeClassification = {
     added: [],
@@ -283,7 +282,7 @@ export function classifyChanges(
 
 export function classifyOpened(
   changes: FileChange[],
-  marked: MarkedModule[],
+  marked: MarkedFile[],
 ): ChangeClassification {
   const result: ChangeClassification = {
     added: [],

@@ -1,5 +1,6 @@
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { EMPTY_REPOSITORY, type Repository } from "@recognizer/core";
 import { changeMarks, parseNameStatus } from "./change-marks.js";
 import type { Io } from "./cli.js";
 import { InputError, Refusal } from "./errors.js";
@@ -7,7 +8,6 @@ import { freshScans } from "./freshness.js";
 import { changeFacts, diffNameStatus, parseChangeFlag } from "./git-range.js";
 import { moduleNames, under } from "./neighbours.js";
 import { appendNote, placeNote, reorderNotes } from "./notes-order.js";
-import type { RecordedScan, Scan } from "./scan.js";
 import { resolveCommit } from "./scan-command.js";
 import {
   type ChangeFacts,
@@ -279,14 +279,14 @@ function usageError(subcommand: Subcommand): InputError {
   return new InputError([`usage: ${USAGE[subcommand]}`]);
 }
 
-function requireFolder(scans: Scan[], folder: string): void {
-  if (!moduleNames(scans).some((module) => under(module, folder))) {
+function requireFolder(repository: Repository, folder: string): void {
+  if (!moduleNames(repository).some((module) => under(module, folder))) {
     throw new InputError([`no such folder: ${folder}`]);
   }
 }
 
-function requireModules(scans: Scan[], paths: string[]): void {
-  const known = new Set(moduleNames(scans));
+function requireModules(repository: Repository, paths: string[]): void {
+  const known = new Set(moduleNames(repository));
   const missing = paths.filter((path) => !known.has(path));
 
   if (missing.length > 0) {
@@ -401,10 +401,10 @@ function checkMemberProposed(
 
 function requireMemberTarget(
   view: View,
-  scans: Scan[],
+  repository: Repository,
   entry: ViewProposedChange,
 ): void {
-  const resolved = resolveView(view, scans);
+  const resolved = resolveView(view, repository);
   const own = viewModuleProposed(view).find((e) => e.module === entry.module);
 
   if (resolved.planned.includes(entry.module)) {
@@ -417,11 +417,14 @@ function requireMemberTarget(
     ]);
   }
 
-  requireModules(scans, [entry.module]);
+  requireModules(repository, [entry.module]);
 
   const member = entry.member as string;
 
-  if (entry.kind !== "new" && !scanHoldsMember(scans, entry.module, member)) {
+  if (
+    entry.kind !== "new" &&
+    !scanHoldsMember(repository, entry.module, member)
+  ) {
     throw new InputError([
       `no such member: ${memberReference(entry.module, member)}`,
     ]);
@@ -446,9 +449,12 @@ function requirePlan(view: View, what: string): void {
   }
 }
 
-function requireScanFor(scans: Scan[], entry: ViewProposedChange): void {
+function requireScanFor(
+  repository: Repository,
+  entry: ViewProposedChange,
+): void {
   if (entry.kind === "changes" || entry.kind === "removed") {
-    requireModules(scans, [entry.module]);
+    requireModules(repository, [entry.module]);
   }
 }
 
@@ -457,11 +463,11 @@ function finishMutation(
   name: string,
   view: View,
   before: View,
-  scans: Scan[],
+  repository: Repository,
   what: string,
 ): number {
   const changed = serialiseView(view) !== serialiseView(before);
-  const modules = resolveView(view, scans).modules.length;
+  const modules = resolveView(view, repository).modules.length;
 
   if (changed) {
     writeViewFile(c.io, viewFile(c.root, name), view);
@@ -480,7 +486,7 @@ function mutate(
   subcommand: Subcommand,
   argv: string[],
   io: Io,
-  change: (c: Context, view: View, scans: Scan[]) => Changed,
+  change: (c: Context, view: View, repository: Repository) => Changed,
   arity: (positionals: number) => boolean,
 ): number {
   const c = context(subcommand, argv, io);
@@ -491,10 +497,10 @@ function mutate(
 
   const name = checkName(c.positionals[0]);
   const before = readView(io, c.root, name);
-  const { scans } = freshScans(io, c.root, []);
-  const { view, what } = change(c, structuredClone(before), scans);
+  const { repository } = freshScans(io, c.root, []);
+  const { view, what } = change(c, structuredClone(before), repository);
 
-  return finishMutation(c, name, view, before, scans, what);
+  return finishMutation(c, name, view, before, repository, what);
 }
 
 function byText(a: string, b: string): number {
@@ -504,16 +510,16 @@ function byText(a: string, b: string): number {
 function windowSteps(
   c: Context,
   id: string,
-): { steps: ViewStep[]; scans: Scan[] } {
+): { steps: ViewStep[]; repository: Repository } {
   const state = windowOrFail(c.io, id);
 
   if (folderPath(state.folder) !== folderPath(c.root)) {
     throw new InputError([`${state.id} shows ${state.folder}, not ${c.root}`]);
   }
 
-  const { scans } = freshScans(c.io, c.root, []);
+  const { repository } = freshScans(c.io, c.root, []);
 
-  requireModules(scans, state.modules);
+  requireModules(repository, state.modules);
 
   return {
     steps: [
@@ -527,7 +533,7 @@ function windowSteps(
         ? []
         : [{ kind: "focus" as const, folder: state.focus }]),
     ],
-    scans,
+    repository,
   };
 }
 
@@ -576,7 +582,7 @@ function runNew(argv: string[], io: Io): number {
   writeViewFile(io, viewFile(c.root, name), view);
 
   const modules = fromWindow
-    ? resolveView(view, fromWindow.scans).modules.length
+    ? resolveView(view, fromWindow.repository).modules.length
     : 0;
 
   emit(
@@ -593,7 +599,7 @@ function runAdd(argv: string[], io: Io): number {
     "add",
     argv,
     io,
-    (c, view, scans) => {
+    (c, view, repository) => {
       const paths = [...new Set(c.positionals.slice(1))];
       const kindFlag = c.values.change;
       const fromFlag = c.values.from;
@@ -624,9 +630,9 @@ function runAdd(argv: string[], io: Io): number {
         for (const entry of entries) {
           if (entry.member === undefined) {
             requireNoMemberEntries(view, entry);
-            requireScanFor(scans, entry);
+            requireScanFor(repository, entry);
           } else {
-            requireMemberTarget(view, scans, entry);
+            requireMemberTarget(view, repository, entry);
           }
         }
       } else {
@@ -636,10 +642,10 @@ function runAdd(argv: string[], io: Io): number {
           ]);
         }
 
-        requireModules(scans, paths);
+        requireModules(repository, paths);
       }
 
-      const known = new Set(moduleNames(scans));
+      const known = new Set(moduleNames(repository));
       const targets =
         entries.length === 0 ? paths : entries.map((e) => e.module);
       const toPick =
@@ -681,7 +687,7 @@ function runChange(argv: string[], io: Io): number {
     "change",
     argv,
     io,
-    (c, view, scans) => {
+    (c, view, repository) => {
       const target = c.positionals[1] as string;
       const kindText = c.positionals[2];
       const clearing = c.values.clear === true;
@@ -720,7 +726,7 @@ function runChange(argv: string[], io: Io): number {
           c.values.from as string | undefined,
         );
 
-        requireMemberTarget(view, scans, memberEntry);
+        requireMemberTarget(view, repository, memberEntry);
 
         return {
           view: withProposed(view, memberEntry, split.module, split.member),
@@ -729,7 +735,7 @@ function runChange(argv: string[], io: Io): number {
       }
 
       const module = target;
-      const resolved = resolveView(view, scans);
+      const resolved = resolveView(view, repository);
       const planned = resolved.planned.includes(module);
 
       if (!planned && !resolved.modules.includes(module)) {
@@ -760,7 +766,7 @@ function runChange(argv: string[], io: Io): number {
       );
 
       requireNoMemberEntries(view, entry);
-      requireScanFor(scans, entry);
+      requireScanFor(repository, entry);
 
       return {
         view: withProposed(view, entry, module),
@@ -776,7 +782,7 @@ function runRule(argv: string[], io: Io): number {
     "rule",
     argv,
     io,
-    (c, view, scans) => {
+    (c, view, repository) => {
       const relations = RELATIONS.filter(
         (relation) => c.values[relation] !== undefined,
       );
@@ -803,15 +809,15 @@ function runRule(argv: string[], io: Io): number {
       if (relation === "folder") {
         const of = folderPath(c.values.folder as string);
 
-        requireFolder(scans, of);
+        requireFolder(repository, of);
         step = { kind: "rule", relation, of };
       } else {
         const of = c.values[relation] as string;
 
-        requireModules(scans, [of]);
+        requireModules(repository, [of]);
 
         if (within !== undefined) {
-          requireFolder(scans, within);
+          requireFolder(repository, within);
         }
 
         step = {
@@ -837,10 +843,10 @@ function runFold(argv: string[], io: Io): number {
     "fold",
     argv,
     io,
-    (c, view, scans) => {
+    (c, view, repository) => {
       const folder = folderPath(c.positionals[1] as string);
 
-      requireFolder(scans, folder);
+      requireFolder(repository, folder);
 
       const step: ViewStep = { kind: "fold", folder };
 
@@ -859,10 +865,10 @@ function runFocus(argv: string[], io: Io): number {
     "focus",
     argv,
     io,
-    (c, view, scans) => {
+    (c, view, repository) => {
       const folder = folderPath(c.positionals[1] as string);
 
-      requireFolder(scans, folder);
+      requireFolder(repository, folder);
 
       const step: ViewStep = { kind: "focus", folder };
       const position = view.steps.findIndex(
@@ -886,7 +892,7 @@ function runRemove(argv: string[], io: Io): number {
     "remove",
     argv,
     io,
-    (c, view, scans) => {
+    (c, view, repository) => {
       const path = c.positionals[1] as string;
       const chosen = [
         c.values.fold === true,
@@ -972,7 +978,7 @@ function runRemove(argv: string[], io: Io): number {
         };
       }
 
-      const before = resolveView(view, scans);
+      const before = resolveView(view, repository);
 
       if (before.planned.includes(path)) {
         const [dropped, count] = withoutMemberEntries(view, path);
@@ -991,7 +997,7 @@ function runRemove(argv: string[], io: Io): number {
         (s) => !(s.kind === "pick" && s.module === path),
       );
 
-      if (resolveView(view, scans).modules.includes(path)) {
+      if (resolveView(view, repository).modules.includes(path)) {
         view.steps.push({ kind: "left-out", module: path });
       }
 
@@ -1026,7 +1032,7 @@ function runNote(argv: string[], io: Io): number {
     "note",
     argv,
     io,
-    (c, view, scans) => {
+    (c, view, repository) => {
       const path = c.positionals[1] as string;
       const notes = viewNotes(view);
 
@@ -1059,7 +1065,7 @@ function runNote(argv: string[], io: Io): number {
         };
       }
 
-      const resolved = resolveView(view, scans);
+      const resolved = resolveView(view, repository);
       const modules = [...resolved.modules, ...resolved.planned];
 
       if (path.endsWith("/")) {
@@ -1253,12 +1259,12 @@ function staleOf(
   io: Io,
   root: string,
   view: View,
-  scans: Scan[],
+  repository: Repository,
 ): StaleReason[] {
   const facts: ChangeFacts | null =
     view.change === undefined ? null : changeFacts(io, root, view.change);
 
-  return staleReasons(view, resolveView(view, scans).unresolved, facts);
+  return staleReasons(view, resolveView(view, repository).unresolved, facts);
 }
 
 function runDiff(argv: string[], io: Io): number {
@@ -1291,13 +1297,20 @@ function runDiff(argv: string[], io: Io): number {
     throw new Refusal(["git could not diff the range"]);
   }
 
-  const scans = freshScans(io, c.root, []).scans as RecordedScan[];
+  const repository = freshScans(io, c.root, []).repository;
   const parsed = parseNameStatus(stdout);
   const base =
-    scans.length > 0 && scans.every((scan) => scan.commit === facts.baseCommit)
-      ? scans
+    repository.extractions.length > 0 &&
+    repository.extractions.every(
+      (extraction) => extraction.commit === facts.baseCommit,
+    )
+      ? repository
       : null;
-  const { modules, unmatched } = changeMarks(parsed.changes, scans, base);
+  const { files: modules, unmatched } = changeMarks(
+    parsed.changes,
+    repository,
+    base,
+  );
   const range = rangeText(view.change);
 
   emit(
@@ -1337,8 +1350,8 @@ function runShow(argv: string[], io: Io): number {
 
   const name = checkName(c.positionals[0]);
   const view = readView(io, c.root, name);
-  const { scans } = freshScans(io, c.root, []);
-  const resolved = resolveView(view, scans);
+  const { repository } = freshScans(io, c.root, []);
+  const resolved = resolveView(view, repository);
 
   if (c.json) {
     emit(
@@ -1361,7 +1374,7 @@ function runShow(argv: string[], io: Io): number {
         unresolved: resolved.unresolved,
         warnings: [
           ...noteWarnings(view),
-          ...proposedWarnings(view, resolved, scans),
+          ...proposedWarnings(view, resolved, repository),
         ],
       },
       "",
@@ -1409,9 +1422,10 @@ function runShow(argv: string[], io: Io): number {
   }
 
   lines.push(
-    ...[...noteWarnings(view), ...proposedWarnings(view, resolved, scans)].map(
-      (warning) => `warning: ${warning}`,
-    ),
+    ...[
+      ...noteWarnings(view),
+      ...proposedWarnings(view, resolved, repository),
+    ].map((warning) => `warning: ${warning}`),
   );
 
   if (resolved.unresolved.length > 0) {
@@ -1445,7 +1459,10 @@ function runList(argv: string[], io: Io): number {
   }
 
   const listed = viewNames(io, c.root);
-  const scans = listed.length === 0 ? [] : freshScans(io, c.root, []).scans;
+  const repository =
+    listed.length === 0
+      ? EMPTY_REPOSITORY
+      : freshScans(io, c.root, []).repository;
   const rows = listed.map((name) => {
     try {
       const view = parseView(io, viewFile(c.root, name), name);
@@ -1458,7 +1475,7 @@ function runList(argv: string[], io: Io): number {
         steps: view.steps.length,
         ...(view.change === undefined ? {} : { change: view.change }),
         ...(view.plan === true ? { plan: true } : {}),
-        stale: staleOf(io, c.root, view, scans),
+        stale: staleOf(io, c.root, view, repository),
       };
     } catch (error) {
       return { name, error: (error as InputError).messages.join("; ") };
@@ -1535,8 +1552,8 @@ function runCheck(argv: string[], io: Io): number {
   const results: CheckedView[] = [];
 
   if (names.length > 0) {
-    const { scans } = freshScans(io, c.root, []);
-    const known = new Set(moduleNames(scans));
+    const { repository } = freshScans(io, c.root, []);
+    const known = new Set(moduleNames(repository));
     const renameCache = new Map<string, Map<string, string>>();
     const renamesSince = (commit: string): Map<string, string> => {
       const cached = renameCache.get(commit);
@@ -1587,11 +1604,11 @@ function runCheck(argv: string[], io: Io): number {
 
       const warnings = [
         ...noteWarnings(view),
-        ...proposedWarnings(view, resolveView(view, scans), scans),
+        ...proposedWarnings(view, resolveView(view, repository), repository),
       ];
 
       const annotate = (current: View): CheckedStep[] =>
-        resolveView(current, scans).unresolved.map((u) => {
+        resolveView(current, repository).unresolved.map((u) => {
           const renamed =
             u.kind === "pick" && current.commit !== null
               ? renamesSince(current.commit).get(u.path)
@@ -1673,7 +1690,7 @@ function runCheck(argv: string[], io: Io): number {
         unresolved,
         fixed,
         warnings,
-        stale: staleOf(io, c.root, view, scans),
+        stale: staleOf(io, c.root, view, repository),
       });
     }
   }

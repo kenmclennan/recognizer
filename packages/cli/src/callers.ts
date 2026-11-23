@@ -1,5 +1,5 @@
+import type { Call, Repository } from "@recognizer/core";
 import { moduleLabel } from "./neighbours.js";
-import type { Scan, ScanCall } from "./scan.js";
 
 export type Caller = { module: string; through: string | null };
 
@@ -28,22 +28,24 @@ function byLabel(a: Caller, b: Caller): number {
   );
 }
 
-export function buildCallerIndex(scans: Scan[]): CallerIndex {
-  const into = new Map<string, ScanCall[]>();
+export function buildCallerIndex(repository: Repository): CallerIndex {
+  const into = new Map<string, Call[]>();
   const knownModules = new Set<string>();
+  const languageOf = new Map(
+    repository.files.map((file) => [file.path, file.language]),
+  );
+  const withCalls = new Set(
+    repository.calls.map((call) => languageOf.get(moduleOf(call.from))),
+  );
 
-  for (const scan of scans) {
-    if (scan.calls === undefined) {
-      continue;
+  for (const file of repository.files) {
+    if (withCalls.has(file.language)) {
+      knownModules.add(file.path);
     }
+  }
 
-    for (const module of scan.modules) {
-      knownModules.add(module.id);
-    }
-
-    for (const call of scan.calls) {
-      into.set(call.to, [...(into.get(call.to) ?? []), call]);
-    }
+  for (const call of repository.calls) {
+    into.set(call.to, [...(into.get(call.to) ?? []), call]);
   }
 
   function callersOf(

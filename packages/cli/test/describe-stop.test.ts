@@ -8,13 +8,15 @@ import {
   describeModules,
   describeSummaryText,
 } from "../src/describe-modules.js";
-import type { Scan } from "../src/scan.js";
 import { capture, REPO } from "./helpers.js";
+import { repositoryFrom } from "./repository-from.js";
 
-const scan = JSON.parse(
-  readFileSync(join(REPO, "fixtures/python/expected-scan.json"), "utf8"),
-) as Scan;
-const IDS = scan.modules.map((module) => module.id).sort();
+const scan = repositoryFrom(
+  JSON.parse(
+    readFileSync(join(REPO, "fixtures/python/expected-scan.json"), "utf8"),
+  ),
+);
+const IDS = scan.files.map((file) => file.path).sort();
 
 type Outcome = "ok" | "fail" | "limit" | "hold";
 
@@ -99,7 +101,7 @@ function run(
   return describeModules({
     io: box.io,
     root: box.root,
-    scans: [scan],
+    repository: scan,
     describer: {
       command: ["describer", "{request}"],
       version: "v1",

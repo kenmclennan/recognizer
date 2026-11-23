@@ -2,8 +2,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { analyse } from "../src/analyse.js";
-import { check, parsePolicy, validateScan } from "../src/index.js";
+import { check, parsePolicy } from "../src/index.js";
 import { REPO } from "./helpers.js";
+import { validatedRepository as validateScan } from "./repository-from.js";
 
 const POLICY = `
 forbid:

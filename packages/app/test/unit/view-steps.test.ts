@@ -2,6 +2,7 @@ import { resolveView, type ViewStep } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { stepsFor } from "../../src/view-steps";
 import { expectedScan } from "../fixtures";
+import { repositoryFrom } from "./repository-from";
 
 const scans = [expectedScan("python")];
 const view = (steps: ViewStep[]) => ({
@@ -20,7 +21,7 @@ const canvas = (
   focus,
 });
 const roundTrip = (steps: ViewStep[]) =>
-  resolveView(view(steps), scans).modules;
+  resolveView(view(steps), repositoryFrom(scans)).modules;
 
 const A = "shop/application/place.py";
 const B = "shop/application/refund.py";
@@ -29,7 +30,7 @@ const D = "shop/domain/aliases.py";
 
 describe("stepsFor", () => {
   it("saves a new view of three modules as three picks in order", () => {
-    const steps = stepsFor([], canvas([A, B, C]), scans);
+    const steps = stepsFor([], canvas([A, B, C]), repositoryFrom(scans));
 
     expect(steps).toEqual([
       { kind: "pick", module: A },
@@ -43,8 +44,8 @@ describe("stepsFor", () => {
     const base: ViewStep[] = [
       { kind: "rule", relation: "folder", of: "shop/domain" },
     ];
-    const domain = resolveView(view(base), scans).modules;
-    const steps = stepsFor(base, canvas([...domain, A]), scans);
+    const domain = resolveView(view(base), repositoryFrom(scans)).modules;
+    const steps = stepsFor(base, canvas([...domain, A]), repositoryFrom(scans));
 
     expect(steps).toEqual([...base, { kind: "pick", module: A }]);
   });
@@ -54,7 +55,7 @@ describe("stepsFor", () => {
       { kind: "pick", module: A },
       { kind: "pick", module: B },
     ];
-    const steps = stepsFor(base, canvas([B]), scans);
+    const steps = stepsFor(base, canvas([B]), repositoryFrom(scans));
 
     expect(steps).toEqual([{ kind: "pick", module: B }]);
   });
@@ -63,16 +64,16 @@ describe("stepsFor", () => {
     const base: ViewStep[] = [
       { kind: "rule", relation: "folder", of: "shop/domain" },
     ];
-    const domain = resolveView(view(base), scans).modules;
+    const domain = resolveView(view(base), repositoryFrom(scans)).modules;
     const without = domain.filter((id) => id !== D);
-    const off = stepsFor(base, canvas(without), scans);
+    const off = stepsFor(base, canvas(without), repositoryFrom(scans));
 
     expect(off).toEqual([...base, { kind: "left-out", module: D }]);
     expect(roundTrip(off)).toEqual(without);
     expect(domain).toHaveLength(4);
     expect(without).toHaveLength(3);
 
-    const back = stepsFor(off, canvas(domain), scans);
+    const back = stepsFor(off, canvas(domain), repositoryFrom(scans));
 
     expect(back).toEqual(base);
   });
@@ -82,9 +83,9 @@ describe("stepsFor", () => {
       { kind: "rule", relation: "folder", of: "shop/domain" },
       { kind: "pick", module: D },
     ];
-    const domain = resolveView(view(base), scans).modules;
+    const domain = resolveView(view(base), repositoryFrom(scans)).modules;
     const without = domain.filter((id) => id !== D);
-    const steps = stepsFor(base, canvas(without), scans);
+    const steps = stepsFor(base, canvas(without), repositoryFrom(scans));
 
     expect(steps.filter((step) => step.kind === "pick")).toEqual([]);
     expect(steps).toContainEqual({ kind: "left-out", module: D });
@@ -100,7 +101,7 @@ describe("stepsFor", () => {
     const steps = stepsFor(
       base,
       canvas([A], ["shop/domain", "shop/application"], "shop/domain"),
-      scans,
+      repositoryFrom(scans),
     );
 
     expect(steps).toEqual([
@@ -115,12 +116,13 @@ describe("stepsFor", () => {
     const base: ViewStep[] = [
       { kind: "rule", relation: "folder", of: "shop/domain" },
     ];
-    const without = resolveView(view(base), scans).modules.filter(
-      (id) => id !== D,
-    );
+    const without = resolveView(
+      view(base),
+      repositoryFrom(scans),
+    ).modules.filter((id) => id !== D);
     const resolved = resolveView(
-      view(stepsFor(base, canvas(without), scans)),
-      scans,
+      view(stepsFor(base, canvas(without), repositoryFrom(scans))),
+      repositoryFrom(scans),
     );
 
     expect(resolved.modules).toEqual(without);

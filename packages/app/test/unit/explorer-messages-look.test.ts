@@ -5,9 +5,9 @@ import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 window.__TAURI_INTERNALS__ = { invoke: async () => "0.0.0" };
-import { loadedOf, mountExplorer, scanHostOf } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer, scanHostOf } from ${JSON.stringify(here("../test/unit/look-support.ts"))};
 import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
-import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
+import { fakeViews } from ${JSON.stringify(here("../test/unit/views-fake.ts"))};
 import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
 import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
 ${FAKE_WORKER}

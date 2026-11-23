@@ -1,5 +1,8 @@
 import type { PhaseRecorder } from "../../../domain/phase-recorder.js";
-import type { ScanDocument } from "../../../domain/scan-document.js";
+import {
+  joinRepositories,
+  type Repository,
+} from "../../../domain/repository.js";
 import type { ScanSink } from "../../../domain/scan-sink.js";
 import type { PluginLimits } from "../../shared/ports/process.js";
 import type { ExtractCall, ExtractResult } from "../ports/scanners.js";
@@ -18,7 +21,7 @@ export interface ExtractScansInput {
 
 export type ExtractOutcome =
   | { stopped: true }
-  | { stopped: false; scans: ScanDocument[]; missing: string[] };
+  | { stopped: false; repository: Repository; missing: string[] };
 
 function relativeTo(root: string, file: string): string {
   const prefix = root.endsWith("/") ? root : `${root}/`;
@@ -128,7 +131,7 @@ export function* extractProcess(
     recorder.entry(extract, scanned.entry);
   }
 
-  const scans: ScanDocument[] = [];
+  const parts: Repository[] = [];
   const missing: string[] = [];
 
   for (const language of detected) {
@@ -137,9 +140,9 @@ export function* extractProcess(
     if (cached === null) {
       missing.push(language);
     } else {
-      scans.push(cached);
+      parts.push(cached);
     }
   }
 
-  return { stopped: false, scans, missing };
+  return { stopped: false, repository: joinRepositories(parts), missing };
 }

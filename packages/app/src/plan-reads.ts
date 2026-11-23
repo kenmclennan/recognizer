@@ -1,16 +1,16 @@
+import type { Repository } from "@recognizer/core";
 import type {
   LineKind,
   Measured,
   PlanRequest,
-  ScanFacts,
   ScanPlanView,
   SensorRow,
 } from "./scan-freshness";
 
-export type { PlanRequest, ScanFacts, ScanPlanView, SensorRow };
+export type { PlanRequest, ScanPlanView, SensorRow };
 
 export type LoadedPlanData = {
-  scans: ScanFacts[];
+  scans: Repository;
   measured: Record<string, Measured | null>;
   tests: string | null;
   describerRegistered: boolean;
@@ -19,9 +19,7 @@ export type LoadedPlanData = {
 };
 
 export function planReads(data: LoadedPlanData) {
-  const modules = data.scans.flatMap((scan) =>
-    scan.modules.map(({ id }) => id),
-  );
+  const modules = data.scans.files.map(({ path }) => path);
   const lines = {
     registered: data.describerRegistered,
     kinds: Object.fromEntries(modules.map((id) => [id, data.lineKinds(id)])),
@@ -29,7 +27,7 @@ export function planReads(data: LoadedPlanData) {
 
   return {
     store: {
-      cachedScans: () => data.scans,
+      cachedRepository: () => data.scans,
       measuredOf: (_root: string, sensor: string) =>
         data.measured[sensor] ?? null,
       testsDigest: () => data.tests,

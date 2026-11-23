@@ -1,24 +1,27 @@
-import type { MarkedModule, MemberMarkKind, Scan } from "recognizer";
+import {
+  EMPTY_REPOSITORY,
+  joinRepositories,
+  type Repository,
+} from "@recognizer/core";
+import type { MarkedFile, MemberMarkKind } from "recognizer";
 import { moduleOf } from "recognizer";
 import type { MetricDescriptor, OverlayModel } from "./overlay-model";
 import { largest } from "./overlay-model";
 import type { ResponsibilityRow } from "./responsibility-model";
 import { currentCommit } from "./stale-report";
 
-type Tracked = Scan & { modified?: boolean | null };
-
 export type HeadDrawnInputs = {
-  scans: Scan[];
+  scans: Repository;
   headCommit: string;
-  marked: MarkedModule[];
+  marked: MarkedFile[];
   marks: Map<string, Map<string, MemberMarkKind> | null>;
-  head: Scan[];
+  head: Repository;
 };
 
-function checkoutIsCleanHead(scans: Scan[], headCommit: string): boolean {
+function checkoutIsCleanHead(scans: Repository, headCommit: string): boolean {
   return (
     currentCommit(scans) === headCommit &&
-    (scans as Tracked[]).every((scan) => scan.modified === false)
+    scans.extractions.every((extraction) => extraction.modified === false)
   );
 }
 
@@ -27,9 +30,7 @@ export function headDrawn(inputs: HeadDrawnInputs): ReadonlySet<string> {
     return new Set();
   }
 
-  const held = new Set(
-    inputs.head.flatMap((scan) => scan.modules.map((entry) => entry.id)),
-  );
+  const held = new Set(inputs.head.files.map((entry) => entry.path));
 
   return new Set(
     inputs.marked
@@ -46,34 +47,30 @@ export function headDrawn(inputs: HeadDrawnInputs): ReadonlySet<string> {
 }
 
 export function drawnScans(
-  scans: Scan[],
+  scans: Repository,
   drawn: ReadonlySet<string>,
-  headScans: Scan[],
-): Scan[] {
+  headScans: Repository,
+): Repository {
   if (drawn.size === 0) {
     return scans;
   }
 
-  const fromHead = new Map(
-    headScans.flatMap((scan) => scan.modules.map((entry) => [entry.id, entry])),
-  );
+  const fromHead = new Map(headScans.files.map((entry) => [entry.path, entry]));
 
-  return scans.map((scan) => ({
-    ...scan,
-    modules: scan.modules.map((entry) =>
-      drawn.has(entry.id) ? (fromHead.get(entry.id) ?? entry) : entry,
+  return {
+    ...scans,
+    files: scans.files.map((entry) =>
+      drawn.has(entry.path) ? (fromHead.get(entry.path) ?? entry) : entry,
     ),
-  }));
+  };
 }
 
 export function addedFromHead(
-  scans: Scan[],
-  marked: MarkedModule[],
-  head: Scan[],
-): Scan[] {
-  const held = new Set(
-    scans.flatMap((scan) => scan.modules.map((entry) => entry.id)),
-  );
+  scans: Repository,
+  marked: MarkedFile[],
+  head: Repository,
+): Repository {
+  const held = new Set(scans.files.map((entry) => entry.path));
   const wanted = new Set(
     marked
       .filter(
@@ -89,20 +86,19 @@ export function addedFromHead(
     return scans;
   }
 
-  const modules = head.flatMap((scan) =>
-    scan.modules.filter((entry) => wanted.has(entry.id)),
-  );
+  const files = head.files.filter((entry) => wanted.has(entry.path));
 
-  if (modules.length === 0) {
+  if (files.length === 0) {
     return scans;
   }
 
-  const ids = new Set(modules.map((entry) => entry.id));
-  const edges = head.flatMap((scan) =>
-    scan.edges.filter((edge) => ids.has(edge.from)),
-  );
+  const ids = new Set(files.map((entry) => entry.path));
+  const dependencies = head.dependencies.filter((edge) => ids.has(edge.from));
 
-  return [...scans, { modules, edges, foreign: [] } as unknown as Scan];
+  return joinRepositories([
+    scans,
+    { ...EMPTY_REPOSITORY, files, dependencies },
+  ]);
 }
 
 export function withoutDrawn(

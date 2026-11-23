@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
+import type { Repository } from "@recognizer/core";
 import type { Io } from "./cli.js";
-import type { RecordedScan, Scan } from "./scan.js";
 
 export interface ModuleSource {
   files: string[];
@@ -9,21 +9,25 @@ export interface ModuleSource {
   hash: string;
 }
 
-function sourceFiles(scans: Scan[], id: string): string[] {
-  const listing = scans.find((scan) =>
-    scan.modules.some((module) => module.id === id),
-  ) as RecordedScan | undefined;
+function sourceFiles(repository: Repository, id: string): string[] {
+  if (!repository.files.some((file) => file.path === id)) {
+    return [];
+  }
 
-  return (listing?.files ?? []).some((file) => file.path === id) ? [id] : [];
+  return repository.extractions.some(({ files }) =>
+    files.some((file) => file.path === id),
+  )
+    ? [id]
+    : [];
 }
 
 export function moduleSource(
   io: Io,
   root: string,
-  scans: Scan[],
+  repository: Repository,
   id: string,
 ): ModuleSource | null {
-  const files = sourceFiles(scans, id);
+  const files = sourceFiles(repository, id);
 
   if (files.length === 0) {
     return null;

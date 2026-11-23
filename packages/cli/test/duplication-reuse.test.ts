@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_DUPLICATION_SETTINGS,
@@ -6,22 +7,21 @@ import {
 } from "../src/duplication/findings.js";
 import { measureDuplication } from "../src/duplication/measure.js";
 import { readUnitCache, unitCachePath } from "../src/duplication/unit-cache.js";
-import type { RecordedScan } from "../src/scan.js";
 import { allParsers, measuredFixture, ROOT } from "./duplication-helpers.js";
 
 function hashed(
-  scans: RecordedScan[],
+  repository: Repository,
   fake: ReturnType<typeof measuredFixture>["fake"],
 ) {
-  for (const scan of scans) {
-    for (const file of scan.files) {
-      file.hash = createHash("sha256")
+  for (const extraction of repository.extractions) {
+    for (const file of extraction.files) {
+      (file as { hash: string }).hash = createHash("sha256")
         .update(fake.files.get(`${ROOT}/${file.path}`) ?? "")
         .digest("hex");
     }
   }
 
-  return scans;
+  return repository;
 }
 
 async function measure(
@@ -170,7 +170,15 @@ describe("reusing results for unchanged files", () => {
 
     await measure(setup);
 
-    const only = { ...setup, scans: setup.scans.slice(0, 1) };
+    const first = setup.scans.extractions[0]?.language;
+    const only = {
+      ...setup,
+      scans: {
+        ...setup.scans,
+        extractions: setup.scans.extractions.slice(0, 1),
+        files: setup.scans.files.filter((file) => file.language === first),
+      },
+    };
 
     await measure(only);
 

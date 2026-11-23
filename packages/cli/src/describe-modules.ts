@@ -1,4 +1,10 @@
 import { join } from "node:path";
+import type { File, Repository } from "@recognizer/core";
+import type { DocumentMember } from "./adapters/filesystem/scan-document-types.js";
+import {
+  documentKind,
+  documentMember,
+} from "./adapters/filesystem/scan-translator.js";
 import type { Io, Running, RunResult } from "./cli.js";
 import {
   type DescribeProjection,
@@ -22,14 +28,13 @@ import {
   validateResponsibilities,
 } from "./responsibilities.js";
 import { entryFrom, type RunEntry } from "./run-log.js";
-import type { Scan, ScanMember } from "./scan.js";
 
 export interface DescribeRequest {
   module: string;
   kind: "module" | "package" | "interface";
   files: string[];
   source: string;
-  members: ScanMember[];
+  members: DocumentMember[];
   uses: NeighbourRow[];
   used_by: NeighbourRow[];
 }
@@ -100,12 +105,12 @@ function writeResponsibilities(
 export function subjectFor(
   io: Io,
   root: string,
-  scans: Scan[],
+  repository: Repository,
   id: string,
   entries: Record<string, ResponsibilityEntry>,
   describer: Describer,
 ): Subject {
-  const found = moduleSource(io, root, scans, id);
+  const found = moduleSource(io, root, repository, id);
 
   if (found === null) {
     return {
@@ -131,16 +136,8 @@ export function subjectFor(
   };
 }
 
-function find(scans: Scan[], id: string) {
-  for (const scan of scans) {
-    const found = scan.modules.find((module) => module.id === id);
-
-    if (found !== undefined) {
-      return found;
-    }
-  }
-
-  return undefined;
+function find(repository: Repository, id: string): File | undefined {
+  return repository.files.find((file) => file.path === id);
 }
 
 function fill(
@@ -188,20 +185,20 @@ function failureReason(result: RunResult, program: string): string | null {
 }
 
 function buildRequest(
-  scans: Scan[],
+  repository: Repository,
   modules: string[],
   subject: Subject,
 ): DescribeRequest {
-  const module = find(scans, subject.id);
+  const module = find(repository, subject.id);
 
   return {
     module: subject.id,
-    kind: module?.kind ?? "module",
+    kind: module === undefined ? "module" : documentKind(module.kind),
     files: subject.files,
     source: subject.source,
-    members: module?.members ?? [],
-    uses: usesOf(scans, modules, subject.id),
-    used_by: usedByOf(scans, modules, subject.id),
+    members: (module?.members ?? []).map(documentMember),
+    uses: usesOf(repository, modules, subject.id),
+    used_by: usedByOf(repository, modules, subject.id),
   };
 }
 
@@ -232,7 +229,7 @@ export interface DescribeResult {
 export interface DescribeInput {
   io: Io;
   root: string;
-  scans: Scan[];
+  repository: Repository;
   describer: Describer;
   selection: DescribeSelection;
   model: string;
@@ -247,9 +244,9 @@ export interface DescribeInput {
 export async function describeModules(
   input: DescribeInput,
 ): Promise<DescribeResult> {
-  const { io, root, scans, describer, selection } = input;
+  const { io, root, repository, describer, selection } = input;
   const entries = { ...readResponsibilities(io, root).modules };
-  const modules = moduleNames(scans);
+  const modules = moduleNames(repository);
   const within = selection.kind === "names" ? undefined : selection.within;
 
   for (const id of within ?? []) {
@@ -262,7 +259,7 @@ export async function describeModules(
     .slice()
     .sort()
     .filter((id) => within === undefined || within.includes(id))
-    .map((id) => subjectFor(io, root, scans, id, entries, describer));
+    .map((id) => subjectFor(io, root, repository, id, entries, describer));
   const candidates = subjects.filter((subject) => {
     if (selection.kind === "all") {
       return true;
@@ -290,7 +287,7 @@ export async function describeModules(
   const projection = projectDescribe(
     candidates
       .filter((subject) => subject.hash !== null)
-      .map((subject) => buildRequest(scans, modules, subject)),
+      .map((subject) => buildRequest(repository, modules, subject)),
     input.model,
   );
 
@@ -370,7 +367,7 @@ export async function describeModules(
 
     io.writeFile(
       requestFile,
-      `${JSON.stringify(buildRequest(scans, modules, subject), null, 2)}\n`,
+      `${JSON.stringify(buildRequest(repository, modules, subject), null, 2)}\n`,
     );
 
     const filled = describer.command.map((item) =>

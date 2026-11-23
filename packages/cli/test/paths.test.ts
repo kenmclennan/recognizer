@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { type Scan, shortestPath } from "../src/index.js";
+import { shortestPath } from "../src/index.js";
+import { repositoryFrom } from "./repository-from.js";
 
-const scan: Scan = {
+const scan = repositoryFrom({
   modules: ["s", "a", "b", "t", "lone"].map((id) => ({
     id,
     kind: "module" as const,
@@ -13,12 +14,12 @@ const scan: Scan = {
     { from: "a", to: "t", kind: "depends", line: 1, names: ["T"] },
   ],
   foreign: [],
-};
-const modules = scan.modules.map((module) => module.id);
+});
+const modules = scan.files.map((file) => file.path);
 
 describe("shortestPath", () => {
   it("takes the lower id when two routes are equally short", () => {
-    const steps = shortestPath([scan], modules, "s", "t");
+    const steps = shortestPath(scan, modules, "s", "t");
 
     expect(steps?.map((step) => `${step.from}>${step.to}`)).toEqual([
       "s>a",
@@ -34,11 +35,11 @@ describe("shortestPath", () => {
   });
 
   it("is empty from a module to itself", () => {
-    expect(shortestPath([scan], modules, "s", "s")).toEqual([]);
+    expect(shortestPath(scan, modules, "s", "s")).toEqual([]);
   });
 
   it("is null when unreachable", () => {
-    expect(shortestPath([scan], modules, "t", "s")).toBeNull();
-    expect(shortestPath([scan], modules, "s", "lone")).toBeNull();
+    expect(shortestPath(scan, modules, "t", "s")).toBeNull();
+    expect(shortestPath(scan, modules, "s", "lone")).toBeNull();
   });
 });

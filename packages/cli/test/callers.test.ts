@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildCallerIndex, type Scan } from "../src/index.js";
+import { buildCallerIndex } from "../src/index.js";
+import { repositoryFrom } from "./repository-from.js";
 
-const scan: Scan = {
+const scan = {
   modules: ["m/api.py", "m/impl.py", "m/use.py"].map((id) => ({
     id,
     kind: "module" as const,
@@ -26,7 +27,7 @@ const scan: Scan = {
 };
 
 describe("buildCallerIndex", () => {
-  const index = buildCallerIndex([scan]);
+  const index = buildCallerIndex(repositoryFrom(scan));
 
   it("reaches an implementation through its abstraction", () => {
     expect(index.of("m/impl.py", "Impl.run").callers).toEqual([
@@ -41,7 +42,9 @@ describe("buildCallerIndex", () => {
 
   it("does not know modules of a scan without calls", () => {
     expect(
-      buildCallerIndex([{ ...scan, calls: undefined }]).known("m/api.py"),
+      buildCallerIndex(repositoryFrom({ ...scan, calls: undefined })).known(
+        "m/api.py",
+      ),
     ).toBe(false);
     expect(index.known("m/api.py")).toBe(true);
   });

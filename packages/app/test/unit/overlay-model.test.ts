@@ -1,4 +1,4 @@
-import { buildFreshness, type Scan } from "recognizer";
+import { buildFreshness } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { NO_CHANGES } from "../../src/footer-scan";
 import {
@@ -22,6 +22,7 @@ import { NO_RUN, type PanelInput } from "../../src/scan-panel-model";
 import type { SensorStatus, ShippedSensors } from "../../src/sensor-run";
 import { plainSensor, shippedSensors } from "../../src/shipped-fake";
 import { scanPanelSync as scanPanel } from "../fixtures";
+import { type DocScan, repositoryFrom } from "./repository-from";
 
 function buildOverlayModel(
   files: Parameters<typeof buildWithAnalysis>[0],
@@ -68,7 +69,7 @@ const fileScan = {
     { path: "a.py", hash: H1 },
     { path: "b.py", hash: H2 },
   ],
-} as unknown as Scan;
+} as unknown as DocScan;
 const shippedList: ShippedSensors = {
   status: "ok",
   sensors: ["crap", "mutation", "duplication"].map((name) =>
@@ -114,8 +115,8 @@ const panel = (sensors: PanelInput["sensors"]) =>
     scanning: false,
     now: NOW,
     shipped: shippedList,
-    scans: [fileScan],
-    freshness: buildFreshness([fileScan], TESTS),
+    scans: repositoryFrom([fileScan]),
+    freshness: buildFreshness(repositoryFrom([fileScan]), TESTS),
     tests: TESTS,
   });
 
@@ -852,7 +853,7 @@ describe("freshnessNote against the Scan panel model", () => {
   });
 
   describe("applyFreshness", () => {
-    const FILE_FRESH = buildFreshness([fileScan], TESTS);
+    const FILE_FRESH = buildFreshness(repositoryFrom([fileScan]), TESTS);
     const values = { coverage: { "a.py::f": 1, "b.py::f": 2 } };
     const file = (name: string, inputs: Record<string, string>) => ({
       name,
@@ -1087,8 +1088,8 @@ describe("freshnessNote against the Scan panel model", () => {
         scanning: false,
         now: NOW,
         shipped: shippedList,
-        scans: [fileScan],
-        freshness: buildFreshness([fileScan], TESTS),
+        scans: repositoryFrom([fileScan]),
+        freshness: buildFreshness(repositoryFrom([fileScan]), TESTS),
       }).freshness;
       const row = scoped.rows.find((one) => one.key === "crap");
       const applied = applyFreshness(model, scoped);

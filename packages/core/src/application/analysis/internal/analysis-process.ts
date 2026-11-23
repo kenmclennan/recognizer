@@ -1,12 +1,12 @@
+import type { Repository } from "../../../domain/repository.js";
 import type { RunPhase } from "../../../domain/run-record.js";
-import type { ScanDocument } from "../../../domain/scan-document.js";
 import type { ScanSink } from "../../../domain/scan-sink.js";
 import type { ParserSet } from "../ports/analysis.js";
 import type { AnalysisPorts } from "./analysis-ports.js";
 
 export interface RunAnalysisInput {
   root: string;
-  scans: ScanDocument[];
+  repository: Repository;
   analysis: boolean;
   ignoreRetiredConfig: boolean;
   sink: ScanSink;
@@ -35,9 +35,13 @@ export function* analysisProcess(
   input: RunAnalysisInput,
 ): Generator<string[], Measured, ParserSet | Error | null> {
   const { analysis, store, clock } = ports;
-  const { root, scans, sink } = input;
+  const { root, repository, sink } = input;
 
-  if (!store.readsSensorConfig() || scans.length === 0 || !input.analysis) {
+  if (
+    !store.readsSensorConfig() ||
+    repository.extractions.length === 0 ||
+    !input.analysis
+  ) {
     return { failed: false, ran: false, ms: null };
   }
 
@@ -73,7 +77,7 @@ export function* analysisProcess(
     const prepared = analysis.analysisPrepare(
       plan,
       root,
-      scans,
+      repository,
       policy,
       sink.say,
     );
@@ -83,7 +87,7 @@ export function* analysisProcess(
     const run = analysis.analysisRun(
       plan,
       root,
-      scans,
+      repository,
       policy,
       parsers,
       sink.say,
@@ -108,13 +112,16 @@ export function finishAnalysis(
   input: RunAnalysisInput,
   measured: Measured,
 ): AnalysisOutcome {
-  const { scans, sink } = input;
+  const { repository, sink } = input;
 
   if (!sink.stopped && measured.ran) {
     sink.emit({
       type: "analysis",
       state: measured.failed ? "failed" : "done",
-      files: scans.reduce((sum, scan) => sum + scan.files.length, 0),
+      files: repository.extractions.reduce(
+        (sum, extraction) => sum + extraction.files.length,
+        0,
+      ),
     });
   }
 

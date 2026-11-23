@@ -3,26 +3,21 @@ import type {
   Measured,
   PlanMode,
   PlanRequest,
-  ScanFacts,
+  Repository,
   ScanPlanView,
   ScanTicks,
 } from "../../src/index.js";
 import { createFakes, type Fakes, scanOver } from "./container.js";
 import { cachePath } from "./fake-store.js";
+import { repositoryOf } from "./repository-of.js";
 
 export const PLAN_REPOSITORY = "/work/planned";
 
 export function scanOf(
   files: Record<string, string>,
   withFunction: string[],
-): ScanFacts {
-  return {
-    modules: Object.keys(files).map((id) => ({
-      id,
-      members: withFunction.includes(id) ? [{ kind: "function" }] : [],
-    })),
-    files: Object.entries(files).map(([path, hash]) => ({ path, hash })),
-  };
+): Repository {
+  return repositoryOf(files, withFunction);
 }
 
 export function ticksOf(over: Partial<ScanTicks> = {}): ScanTicks {
@@ -41,10 +36,10 @@ export function ticksOf(over: Partial<ScanTicks> = {}): ScanTicks {
 export class PlanWorld {
   readonly fakes: Fakes = createFakes();
 
-  seedScan(scan: ScanFacts, language = "python"): void {
-    this.fakes.store.files.set(
+  seedScan(repository: Repository, language = "python"): void {
+    this.fakes.store.repositories.set(
       cachePath(PLAN_REPOSITORY, language),
-      JSON.stringify(scan),
+      repository,
     );
   }
 
