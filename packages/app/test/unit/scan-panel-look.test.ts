@@ -533,6 +533,28 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   click(reopened.q(".scan-run"));
   await tick(); await tick(); await tick();
   facts.suiteAfterScan = { sensor: sensorRow(reopened, "crap"), fold: foldOf(reopened, "crap"), plan: suiteFake.ran.at(-1) };
+  const foldRun = await mount(suiteFake, suiteSensors());
+  click(foldRun.q(".rail-scan"));
+  await tick();
+  if (foldOf(foldRun, "crap").open) { click(foldRun.q('.scan-row[data-sensor="crap"] .scan-fold')); await tick(); }
+  click(foldRun.q('.scan-row[data-sensor="crap"] .scan-fold'));
+  await tick();
+  const foldBefore = { instance: foldRun.wired.explorer, chevron: foldRun.q('.scan-row[data-sensor="crap"] .scan-fold').getAttribute("aria-expanded"), suites: foldOf(foldRun, "crap").suites.length, folds: [...foldRun.wired.rescanner.ticks().folds] };
+  click(foldRun.q(".scan-run-mode-full"));
+  await tick();
+  click(foldRun.q(".scan-run"));
+  await tick(); await tick(); await tick();
+  facts.foldAcrossRebuild = { before: foldBefore, rebuilt: foldRun.wired.explorer !== foldBefore.instance, chevron: foldRun.q('.scan-row[data-sensor="crap"] .scan-fold').getAttribute("aria-expanded"), suites: foldOf(foldRun, "crap").suites.length, folds: [...foldRun.wired.rescanner.ticks().folds] };
+  click(foldRun.q(".rail-files"));
+  await tick();
+  click(foldRun.q(".rail-scan"));
+  await tick();
+  facts.foldReopened = { chevron: foldRun.q('.scan-row[data-sensor="crap"] .scan-fold').getAttribute("aria-expanded"), folds: [...foldRun.wired.rescanner.ticks().folds] };
+  click(foldRun.q('.scan-row[data-sensor="crap"] .scan-fold'));
+  await tick();
+  click(foldRun.q(".scan-run"));
+  await tick(); await tick(); await tick();
+  facts.foldSecondScan = { chevron: foldRun.q('.scan-row[data-sensor="crap"] .scan-fold').getAttribute("aria-expanded") };
   facts.suiteWidths = {};
   for (const width of [PANEL_LIMITS.tree.min, PANEL_LIMITS.tree.initial]) {
     const explorerEl = reopened.q(".explorer");
@@ -837,6 +859,26 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.suiteAfterScan.sensor.ticked).toBe(true);
     expect(f.suiteAfterScan.sensor.indeterminate).toBe(false);
     expect(f.suiteAfterScan.fold.open).toBe(false);
+  });
+
+  it("keeps an open suites fold open when a Scan rebuilds the explorer", () => {
+    const r = f.foldAcrossRebuild;
+    expect(r.before.chevron).toBe("true");
+    expect(r.before.suites).toBeGreaterThan(0);
+    expect(r.before.folds).toEqual(["crap"]);
+    expect(r.rebuilt).toBe(true);
+    expect(r.chevron).toBe("true");
+    expect(r.suites).toBe(r.before.suites);
+    expect(r.folds).toEqual(["crap"]);
+  });
+
+  it("closes an open suites fold when the Scan panel is reopened", () => {
+    expect(f.foldReopened.chevron).toBe("false");
+    expect(f.foldReopened.folds).toEqual([]);
+  });
+
+  it("keeps the fold open on a second Scan that updates the explorer in place (non-gating)", () => {
+    expect(f.foldSecondScan.chevron).toBe("true");
   });
 
   it.each([200, 280])(

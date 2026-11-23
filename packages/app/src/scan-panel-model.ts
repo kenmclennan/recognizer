@@ -857,3 +857,10 @@ function runningMode(
     ? { ...mode, value: input.runMode }
     : mode;
 }
+
+export function opensScanPanel(
+  previous: string | null,
+  current: string | null,
+): boolean {
+  return current === "scan" && previous !== "scan";
+}

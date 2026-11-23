@@ -10,6 +10,7 @@ import {
   effectiveTicks,
   functionCount,
   NO_RUN,
+  opensScanPanel,
   type PanelInput,
   type RunState,
   rowSensors,
@@ -2042,5 +2043,20 @@ describe("the mode shown while a scan runs", () => {
       scanPanel(input({ scanning: false, mode: "bring", runMode: "rescan" }))
         .mode.value,
     ).toBe("bring");
+  });
+});
+
+describe("opensScanPanel", () => {
+  it.each([
+    ["files", "scan", true],
+    [null, "scan", true],
+    ["findings", "scan", true],
+    ["scan", "scan", false],
+    ["scan", "files", false],
+    ["files", "files", false],
+    ["scan", null, false],
+    [null, null, false],
+  ] as const)("reads %s to %s as opens: %s", (previous, current, expected) => {
+    expect(opensScanPanel(previous, current)).toBe(expected);
   });
 });
