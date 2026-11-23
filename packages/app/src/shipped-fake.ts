@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ShippedSensor } from "./sensor-run";
@@ -8,10 +8,22 @@ const EXAMPLES = join(
   "../../../schema/manifest-examples/valid",
 );
 
-export const SHIPPED_NAMES = ["crap", "mutation"];
+const SENSOR_EXAMPLE = /^sensor-(.+)\.json$/;
 
-type ManifestDocument = Omit<ShippedSensor, "runsTests" | "listed"> & {
+export function shippedNames(): string[] {
+  return readdirSync(EXAMPLES)
+    .map((file) => SENSOR_EXAMPLE.exec(file)?.[1])
+    .filter((name): name is string => name !== undefined)
+    .sort();
+}
+
+type ManifestDocument = Omit<
+  ShippedSensor,
+  "runsTests" | "listed" | "plannedWork" | "logPath"
+> & {
   runs_tests: boolean;
+  planned_work?: { verb: string };
+  log_path?: string;
 };
 
 export function shippedSensor(name: string): ShippedSensor {
@@ -29,6 +41,10 @@ export function shippedSensor(name: string): ShippedSensor {
       : { settings_title: rest.settings_title }),
     runsTests: runs_tests,
     scoped: rest.scoped,
+    ...(rest.planned_work === undefined
+      ? {}
+      : { plannedWork: rest.planned_work }),
+    ...(rest.log_path === undefined ? {} : { logPath: rest.log_path }),
     listed: rest.metrics.length > 0,
     metrics: rest.metrics,
     findings: rest.findings,
@@ -37,7 +53,7 @@ export function shippedSensor(name: string): ShippedSensor {
 }
 
 export function shippedSensors(): ShippedSensor[] {
-  return SHIPPED_NAMES.map(shippedSensor);
+  return shippedNames().map(shippedSensor);
 }
 
 export function plainSensor(

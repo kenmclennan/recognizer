@@ -72,6 +72,8 @@ export type ShippedSensor = {
   settings_title?: string;
   runsTests: boolean;
   scoped: boolean;
+  plannedWork?: { verb: string };
+  logPath?: string;
   listed: boolean;
   metrics: ShippedMetric[];
   findings: FindingEntry[];
@@ -87,6 +89,7 @@ export type ShippedMetric = {
   granularity: "module" | "member";
   bad: "high" | "low";
   cell?: number;
+  unlisted?: boolean;
   published?: { value: number; source: string };
 };
 

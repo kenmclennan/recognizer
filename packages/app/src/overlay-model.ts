@@ -104,8 +104,16 @@ const ANALYSIS_SENSOR: ShippedSensor = {
   ],
 };
 
-function listedHere(group: string, metric: string): boolean {
-  return !(group === "crap" && metric === "complexity");
+export function listedHere(
+  shipped: readonly ShippedSensor[],
+  group: string,
+  metric: string,
+): boolean {
+  const declared = shipped
+    .find(({ name }) => name === group)
+    ?.metrics.find(({ name }) => name === metric);
+
+  return declared?.unlisted !== true;
 }
 
 function tooltipOf(overlay: Overlay): string {
@@ -290,7 +298,7 @@ export function buildOverlayModel(
       enabled: !nothing,
       tooltip: tooltipOf(overlay),
       metrics: overlay.metrics
-        .filter((metric) => listedHere(file.name, metric.name))
+        .filter((metric) => listedHere(shipped, file.name, metric.name))
         .map((metric) =>
           describe(shipped, file.name, metric, values(metric.name)),
         ),
@@ -342,7 +350,7 @@ export function buildOverlayModel(
       enabled: false,
       tooltip: "",
       metrics: sensor.metrics
-        .filter((metric) => listedHere(sensor.name, metric.name))
+        .filter((metric) => listedHere(shipped, sensor.name, metric.name))
         .map((metric) => describe(shipped, sensor.name, metric, {})),
     });
   }

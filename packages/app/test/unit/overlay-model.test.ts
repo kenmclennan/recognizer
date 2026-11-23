@@ -12,6 +12,7 @@ import {
   currentMetricNamed,
   freshnessNote,
   groupHeader,
+  listedHere,
   type MetricDescriptor,
   metricEntryOf,
   moduleValue,
@@ -1189,5 +1190,31 @@ describe("the Structural analysis group", () => {
     expect(
       first?.metrics.every((metric) => Object.keys(metric.values).length === 0),
     ).toBe(true);
+  });
+});
+
+describe("listedHere", () => {
+  const metric = (name: string, unlisted?: boolean) => ({
+    name,
+    label: name,
+    title: name,
+    help: "h",
+    type: "count" as const,
+    granularity: "member" as const,
+    bad: "high" as const,
+    ...(unlisted === undefined ? {} : { unlisted }),
+  });
+  const shipped = [
+    plainSensor("owner", { metrics: [metric("one"), metric("two", true)] }),
+    plainSensor("other", { metrics: [metric("two")] }),
+  ];
+
+  it("listedHere hides only an unlisted metric of the sensor that declares it", () => {
+    expect(shipped[0]?.metrics.length).toBeGreaterThan(0);
+    expect(listedHere(shipped, "owner", "one")).toBe(true);
+    expect(listedHere(shipped, "owner", "two")).toBe(false);
+    expect(listedHere(shipped, "other", "two")).toBe(true);
+    expect(listedHere(shipped, "nobody", "two")).toBe(true);
+    expect(listedHere([], "owner", "two")).toBe(true);
   });
 });

@@ -1,5 +1,5 @@
 import type { PlannedWork } from "./scan-estimate";
-import type { SensorsPort, WorkRequest } from "./sensor-run";
+import type { SensorsPort, ShippedSensors, WorkRequest } from "./sensor-run";
 
 export type WorkScope = WorkRequest & { stamp: string };
 
@@ -9,6 +9,44 @@ export type PlannedWorkCache = {
   ensure(scope: WorkScope): void;
   answers(scopes: readonly WorkScope[]): Record<string, PlannedWork>;
 };
+
+export function workScopes(
+  plan: {
+    sense: readonly string[];
+    modules: string[] | null;
+    suites?: Record<string, string[]>;
+  },
+  shipped: ShippedSensors | null,
+  stamp: string,
+): WorkScope[] {
+  if (shipped?.status !== "ok") {
+    return [];
+  }
+
+  return plan.sense
+    .filter((name) =>
+      shipped.sensors.some(
+        (one) => one.name === name && one.plannedWork !== undefined,
+      ),
+    )
+    .map((name) => ({
+      sensor: name,
+      modules: plan.modules,
+      suites: plan.suites?.[name] ?? null,
+      stamp,
+    }));
+}
+
+export function declaredLogPath(shipped: ShippedSensors | null): string | null {
+  if (shipped?.status !== "ok") {
+    return null;
+  }
+
+  return (
+    shipped.sensors.find((one) => one.runsTests && one.logPath !== undefined)
+      ?.logPath ?? null
+  );
+}
 
 export function fingerprint(text: string): string {
   let hash = 0x811c9dc5;

@@ -169,7 +169,12 @@ import { mountPanelResizers } from "./panel-resizer-view";
 import { createPlanAnswers, planStampOf } from "./plan-answers";
 import { type PlanOverlay, planOverlay } from "./plan-overlay";
 import type { LoadedPlanData } from "./plan-reads";
-import { createPlannedWork, fingerprint } from "./planned-work";
+import {
+  createPlannedWork,
+  declaredLogPath,
+  fingerprint,
+  workScopes,
+} from "./planned-work";
 import { changedKeys, type ProgressKeys, progressKeys } from "./progress-keys";
 import { buildRailView, type LeftPanel } from "./rail-view";
 import {
@@ -188,7 +193,6 @@ import { NO_PLAN_DATA, planFromFacts } from "./scan-fake";
 import type { PlanRequest, ScanPlanView } from "./scan-freshness";
 import {
   freshnessMessage,
-  MUTATION_KEY,
   type PlannedRun,
   type ResultsMode,
 } from "./scan-freshness";
@@ -417,7 +421,6 @@ const LOSS_WARNING =
   "Your changes since it was saved will be lost unless you save them.";
 const CLEAR_BODY = `Clearing closes the view. ${LOSS_WARNING}`;
 const METRIC_AGE_TICK_MS = 60_000;
-const SENSOR_LOG = ".recognizer/cache/coverage/last-run.log";
 
 export function showExplorer(
   container: HTMLElement,
@@ -1137,10 +1140,17 @@ export function showExplorer(
     clearReport: (name) => void clearReport(name),
     copy: (text) =>
       void views.copy(text).catch((error: unknown) => fail(String(error))),
-    openLog: () =>
-      void editor
-        .openFile(SENSOR_LOG)
-        .catch((error: unknown) => fail(String(error))),
+    openLog: () => {
+      const path = declaredLogPath(shippedSensors);
+
+      if (path === null) {
+        fail("No sensor has declared a log file");
+
+        return;
+      }
+
+      void editor.openFile(path).catch((error: unknown) => fail(String(error)));
+    },
     openRunLog: (path) =>
       void editor.openFile(path).catch((error: unknown) => fail(String(error))),
   });
@@ -3080,20 +3090,21 @@ export function showExplorer(
     const first = scanPanel(answered);
     const plan = first.planned?.plan;
 
-    if (plan === undefined || !plan.sense.includes(MUTATION_KEY)) {
+    if (plan === undefined) {
       return first;
     }
 
-    const scope = {
-      sensor: MUTATION_KEY,
-      modules: plan.modules,
-      suites: plan.suites?.[MUTATION_KEY] ?? null,
-      stamp: workStampOf(),
-    };
+    const scopes = workScopes(plan, shippedSensors, workStampOf());
 
-    plannedWork.ensure(scope);
+    if (scopes.length === 0) {
+      return first;
+    }
 
-    const work = plannedWork.answers([scope]);
+    for (const scope of scopes) {
+      plannedWork.ensure(scope);
+    }
+
+    const work = plannedWork.answers(scopes);
 
     return Object.keys(work).length === 0
       ? first

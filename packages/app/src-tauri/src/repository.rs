@@ -55,6 +55,20 @@ pub struct ShippedSensor {
     pub runs_tests: bool,
     #[serde(default)]
     pub scoped: bool,
+    #[serde(
+        default,
+        rename = "plannedWork",
+        alias = "planned_work",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub planned_work: Option<ShippedPlannedWork>,
+    #[serde(
+        default,
+        rename = "logPath",
+        alias = "log_path",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub log_path: Option<String>,
     #[serde(default = "listed_by_default")]
     pub listed: bool,
     #[serde(default)]
@@ -80,8 +94,15 @@ pub struct ShippedMetric {
     pub bad: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cell: Option<i64>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub unlisted: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub published: Option<ShippedPublished>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShippedPlannedWork {
+    pub verb: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -828,6 +849,34 @@ mod tests {
                 assert!(out.get("defaults").is_none());
                 assert!(out.get("expansion").is_none());
                 assert!(out["metrics"][0].get("published").is_none());
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_shipped_list_keeps_planned_work_log_path_and_unlisted() {
+        let declared = r#"[{"name":"m","display":"M","description":"d","runs_tests":true,"scoped":true,"planned_work":{"verb":"mutate"},"log_path":".recognizer/cache/coverage/last-run.log","listed":true,"metrics":[{"name":"k","label":"k","title":"K","help":"h","type":"count","granularity":"member","bad":"low","unlisted":true}],"findings":[],"settings":[]}]"#;
+        let bare = r#"[{"name":"m","display":"M","description":"d","runs_tests":true,"scoped":true,"listed":true,"metrics":[{"name":"k","label":"k","title":"K","help":"h","type":"count","granularity":"member","bad":"low"}],"findings":[],"settings":[]}]"#;
+
+        match shipped_sensors_for(Some(0), declared, "") {
+            ShippedSensors::Ok { sensors } => {
+                let out = serde_json::to_value(&sensors[0]).unwrap();
+
+                assert_eq!(out["plannedWork"]["verb"], "mutate");
+                assert_eq!(out["logPath"], ".recognizer/cache/coverage/last-run.log");
+                assert_eq!(out["metrics"][0]["unlisted"], true);
+            }
+            other => panic!("{other:?}"),
+        }
+
+        match shipped_sensors_for(Some(0), bare, "") {
+            ShippedSensors::Ok { sensors } => {
+                let out = serde_json::to_value(&sensors[0]).unwrap();
+
+                assert!(out.get("plannedWork").is_none());
+                assert!(out.get("logPath").is_none());
+                assert!(out["metrics"][0].get("unlisted").is_none());
             }
             other => panic!("{other:?}"),
         }

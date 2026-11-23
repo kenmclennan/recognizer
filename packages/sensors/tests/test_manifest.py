@@ -15,6 +15,7 @@ from recognizer_sensors.crap.sensor import PUBLISHED_COVERAGE_LIMIT, PUBLISHED_T
 from recognizer_sensors.manifest import PROTOCOL, build, install_line
 from recognizer_sensors.registry import SHIPPED
 from recognizer_sensors.testrun import records
+from recognizer_sensors.testrun.reports import LOG
 
 NAMES = ("crap", "mutation")
 LAUNCH = "import sys; from recognizer_sensors.entry import {name}; sys.exit({name}())"
@@ -142,6 +143,36 @@ def test_runs_tests_and_scoped_equal_the_registry_flags(name):
 
     assert manifest["runs_tests"] is SHIPPED[name].runs_tests
     assert manifest["scoped"] is SHIPPED[name].scoped
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_planned_work_is_declared_exactly_when_the_registry_has_a_work_function(name):
+    manifest = build(name)
+
+    if SHIPPED[name].work is None:
+        assert "planned_work" not in manifest
+    else:
+        assert manifest["planned_work"] == {"verb": "mutate"}
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_the_log_path_equals_the_run_log_constant(name):
+    assert build(name)["log_path"] == LOG.as_posix()
+
+
+def test_only_crap_complexity_is_unlisted():
+    crap = {entry["name"]: entry for entry in build("crap")["metrics"]}
+
+    assert "complexity" in crap
+
+    unlisted = {
+        (name, entry["name"])
+        for name in NAMES
+        for entry in build(name)["metrics"]
+        if entry.get("unlisted")
+    }
+
+    assert unlisted == {("crap", "complexity")}
 
 
 @pytest.mark.parametrize("name", NAMES)

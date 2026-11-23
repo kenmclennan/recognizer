@@ -1,6 +1,6 @@
 import { validateRunRecord } from "recognizer";
 import { ANALYSIS_KEY } from "./freshness-model";
-import { DESCRIBE_KEY, MUTATION_KEY, type PlannedRun } from "./scan-freshness";
+import { DESCRIBE_KEY, type PlannedRun } from "./scan-freshness";
 import type { RunWork, ScanProgress, SuiteHistory } from "./scan-progress";
 import { median, SUITES_UNIT, suitePace } from "./suite-pace";
 
@@ -36,6 +36,7 @@ export type PartSpec = {
   name: string;
   runsTests: boolean;
   scoped: boolean;
+  workVerb: string | null;
 };
 
 export type EstimatePart = {
@@ -287,7 +288,7 @@ function senseFigure(
   n: number,
   work: PlannedWork | null,
 ): { ms: number; basis: string } | null {
-  if (spec.key === MUTATION_KEY || work !== null) {
+  if (spec.workVerb !== null || work !== null) {
     return workFigure(samples, work);
   }
 
@@ -387,7 +388,7 @@ export function estimateParts(
     if (figure !== null) {
       parts.push({ key, name, ms: figure.ms, basis: figure.basis });
     } else if (
-      key === MUTATION_KEY &&
+      spec.workVerb !== null &&
       plannedWork !== null &&
       plannedWork.to_perform > 0
     ) {
@@ -395,7 +396,7 @@ export function estimateParts(
         key,
         name,
         ms: null,
-        basis: `${plural(plannedWork.to_perform, "function")} to mutate, no pace yet`,
+        basis: `${plural(plannedWork.to_perform, "function")} to ${spec.workVerb}, no pace yet`,
       });
     } else {
       parts.push({ key, name, ms: null, basis: null });

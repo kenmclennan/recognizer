@@ -19,8 +19,6 @@ export type ResultsMode = PlanMode;
 
 export const DESCRIBE_KEY = "describe";
 
-export const MUTATION_KEY = "mutation";
-
 export function markStale(
   statuses: SensorStatus[],
   freshness: Freshness,

@@ -181,6 +181,16 @@ export function pluginChecks(survey: Survey) {
   );
 }
 
+export function testRunnerNames(survey: Survey): string {
+  const names = pluginChecks(survey)
+    .filter((check) => check.runs_tests)
+    .map((check) => check.display);
+
+  return names.length < 2
+    ? names.join("")
+    : `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`;
+}
+
 export function testsWanted(state: WizardState): boolean {
   return pluginChecks(state.survey).some(
     (check) => state.plugins[check.id] === true && check.runs_tests,

@@ -63,7 +63,8 @@
         "value": 10,
         "source": "McCabe"
       },
-      "cell": 1
+      "cell": 1,
+      "unlisted": true
     },
     {
       "name": "crap",
@@ -197,5 +198,6 @@
     }
   ],
   "runs_tests": true,
-  "scoped": false
+  "scoped": false,
+  "log_path": ".recognizer/cache/coverage/last-run.log"
 }

@@ -1,7 +1,9 @@
+import { readShippedSensors } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
+import { shippedPorts } from "../src/manifest-ports.js";
 import { fakeIo, ROOT } from "./scan-helpers.js";
-import { readExamples } from "./shipped-read.js";
+import { exampleManifest, readExamples } from "./shipped-read.js";
 
 describe("readShippedSensors", () => {
   it("returns three entries in names order, listed for those with a metric", () => {
@@ -28,6 +30,45 @@ describe("readShippedSensors", () => {
     const [, mutation] = readExamples().sensors;
 
     expect(Object.keys(mutation ?? {})).not.toContain("expansion");
+  });
+
+  it("passes planned_work, log_path and unlisted through when declared and omits them when not", () => {
+    const declaring = exampleManifest("mutation");
+    const crap = exampleManifest("crap");
+    const bare = { ...crap, metrics: [{ ...(crap.metrics?.[0] as object) }] };
+
+    delete (bare as { log_path?: string }).log_path;
+    delete (bare.metrics[0] as { unlisted?: boolean }).unlisted;
+
+    const manifests = { mutation: declaring, crap: bare as typeof crap };
+    const read = readShippedSensors(
+      shippedPorts({} as Io),
+      (prefix) => ({
+        ok: true,
+        manifest:
+          manifests[
+            (prefix[0] as string).replace(
+              "recognizer-sense-",
+              "",
+            ) as keyof typeof manifests
+          ],
+      }),
+      ["mutation", "crap"],
+    );
+    const first = read.sensors.find((one) => one.name === "mutation");
+    const second = read.sensors.find((one) => one.name === "crap");
+
+    expect(first?.planned_work).toEqual({ verb: "mutate" });
+    expect(first?.log_path).toBe(".recognizer/cache/coverage/last-run.log");
+    expect(Object.keys(second ?? {})).not.toContain("planned_work");
+    expect(Object.keys(second ?? {})).not.toContain("log_path");
+    expect(Object.keys(second?.metrics[0] ?? {})).not.toContain("unlisted");
+
+    const full = readExamples().sensors[0];
+
+    expect(
+      full?.metrics.filter((one) => one.unlisted).map((one) => one.name),
+    ).toEqual(["complexity"]);
   });
 
   it("names the unreadable sensor with its reason and keeps the others", () => {

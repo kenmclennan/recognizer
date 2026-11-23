@@ -31,7 +31,7 @@ const scan = {
 };
 const base = loadedOf({ modules: ids, scans: [{ file: "scan.python.json", scan }] });
 const SHIPPED = [
-  { name: "mutation", display: "Mutation", description: "Mutates and tests.", runsTests: true, scoped: true, listed: true, metrics: [], findings: [], settings: [] },
+  { name: "mutation", display: "Mutation", description: "Mutates and tests.", runsTests: true, scoped: true, plannedWork: { verb: "mutate" }, logPath: ".recognizer/cache/coverage/last-run.log", listed: true, metrics: [], findings: [], settings: [] },
   { name: "crap", display: "C.R.A.P.", description: "Runs the tests with coverage.", expansion: "C.R.A.P.: Change Risk Anti-Patterns.", runsTests: true, scoped: false, listed: true, metrics: [], findings: [], settings: [] },
 ];
 const CONFIG = "describer:\\n  command: [describer, '{request}']\\n  version: v1\\nsensors:\\n  crap: {}\\n  mutation: {}\\n  tally:\\n    command: [node, '{repository}/t.mjs', '{commit}', '{output}']\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n  beta:\\n    command: [node, '{repository}/b.mjs', '{commit}', '{output}']\\n";

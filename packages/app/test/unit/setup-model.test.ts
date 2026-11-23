@@ -25,6 +25,7 @@ import {
   SETUP_STEPS,
   type SetupController,
   type StepKey,
+  testRunnerNames,
   testsWanted,
   type WizardState,
 } from "../../src/setup-model";
@@ -742,5 +743,27 @@ describe("the setup wizard model", () => {
     expect(linesLabel(1)).toBe("1 line");
     expect(linesLabel(0)).toBe("0 lines");
     expect(linesLabel(3)).toBe("3 lines");
+  });
+});
+
+describe("testRunnerNames", () => {
+  it("names the checks that run tests, following the survey", () => {
+    expect(testRunnerNames(LOOM_SURVEY)).toBe("C.R.A.P. or Mutation");
+
+    const foo = {
+      ...LOOM_SURVEY,
+      checks: [
+        {
+          ...(LOOM_SURVEY.checks[0] as Survey["checks"][number]),
+          id: "foo",
+          display: "Foo",
+          always_on: false,
+          runs_tests: true,
+        },
+      ],
+    };
+
+    expect(testRunnerNames(foo)).toBe("Foo");
+    expect(testRunnerNames({ ...LOOM_SURVEY, checks: [] })).toBe("");
   });
 });
