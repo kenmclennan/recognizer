@@ -1,4 +1,4 @@
-import { chooseScanner } from "./choose-scanner.js";
+import { chooseScanner, claimsLanguage } from "./choose-scanner.js";
 import {
   CASK_UPGRADE,
   type InstalledPlugin,
@@ -41,6 +41,7 @@ export type ProblemCode =
   | "plugin-manifest"
   | "plugin-protocol"
   | "plugin-scan-schema"
+  | "plugin-tests-report"
   | "plugin-settings"
   | "describer-gap"
   | "unregistered-plugin";
@@ -419,6 +420,30 @@ export function scannerProblems(
                 : (install[`recognizer-scan-${choice.scanner.name}`] ??
                     choice.scanner.manifest.install),
             ),
+          ),
+        );
+      }
+
+      const reporter = scanners.find(
+        (one) =>
+          one !== choice.scanner &&
+          claimsLanguage(one, language) &&
+          one.manifest.reports_tests === true,
+      );
+
+      if (
+        reporter !== undefined &&
+        choice.scanner.manifest.reports_tests !== true
+      ) {
+        const program = `recognizer-scan-${choice.scanner.name}`;
+
+        found.push(
+          problem(
+            "plugin-tests-report",
+            language,
+            `${program} does not declare reports_tests, though recognizer-scan-${reporter.name} does for ${language}, so tests kept inside source files are not hashed and the repository reads as out of date`,
+            textFix(install[program] ?? choice.scanner.manifest.install),
+            "warning",
           ),
         );
       }

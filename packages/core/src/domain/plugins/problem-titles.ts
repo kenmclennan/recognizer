@@ -38,6 +38,8 @@ export const PROBLEM_TITLES: Record<ProblemCode, (name: string) => string> = {
     `The ${name} plugin speaks another protocol version`,
   "plugin-scan-schema": (name) =>
     `The ${language(name)} scanner's output is invalid`,
+  "plugin-tests-report": (name) =>
+    `The ${language(name)} scanner cannot report its tests`,
   "plugin-settings": (name) => `A ${name} setting is wrong`,
   "describer-gap": (name) => `The ${name} describer is not ready`,
   "unregistered-plugin": (name) => `The ${name} plugin is not registered`,

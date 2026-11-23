@@ -23,6 +23,7 @@ const CODES = [
   "plugin-manifest",
   "plugin-protocol",
   "plugin-scan-schema",
+  "plugin-tests-report",
   "plugin-settings",
   "describer-gap",
   "unregistered-plugin",

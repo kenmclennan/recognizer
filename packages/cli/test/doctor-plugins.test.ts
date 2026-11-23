@@ -329,6 +329,75 @@ describe("doctor: a scanner's scan schema", () => {
   });
 });
 
+describe("doctor: a scanner that does not report tests", () => {
+  const CHOSEN = "scanners:\n  acme: old\n";
+
+  async function withTwo(older: Record<string, unknown>, newer: object) {
+    const fixture = setup(CHOSEN, { "a.acme": "" });
+
+    writeShim(
+      fixture.bin,
+      "recognizer-scan-old",
+      manifestFor("scanner", "old", {
+        ...RULES("acme", ".acme"),
+        install: "brew upgrade tap/recognizer-scan-old",
+        ...older,
+      }),
+    );
+    writeShim(
+      fixture.bin,
+      "recognizer-scan-new",
+      manifestFor("scanner", "new", { ...RULES("acme", ".acme"), ...newer }),
+    );
+
+    return doctor(fixture);
+  }
+
+  it("names the chosen scanner as a warning when another claimant declares reports_tests", async () => {
+    const { report } = await withTwo({}, { reports_tests: true });
+    const found = problemsOf(report, "scanners");
+
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      code: "plugin-tests-report",
+      severity: "warning",
+      title: "The acme scanner cannot report its tests",
+    });
+    expect(found[0]?.line).toContain("recognizer-scan-old");
+    expect(found[0]?.line).toContain("recognizer-scan-new");
+    expect(found[0]?.fix.text).toBe("brew upgrade tap/recognizer-scan-old");
+  });
+
+  it("reports nothing when the chosen scanner declares reports_tests", async () => {
+    const { report } = await withTwo(
+      { reports_tests: true },
+      { reports_tests: true },
+    );
+
+    expect(problemsOf(report, "scanners")).toEqual([]);
+  });
+
+  it("reports nothing when no claimant declares reports_tests", async () => {
+    const { report } = await withTwo({}, {});
+
+    expect(problemsOf(report, "scanners")).toEqual([]);
+  });
+
+  it("reports nothing for a lone scanner without reports_tests", async () => {
+    const fixture = setup(undefined, { "a.acme": "" });
+
+    writeShim(
+      fixture.bin,
+      "recognizer-scan-old",
+      manifestFor("scanner", "old", RULES("acme", ".acme")),
+    );
+
+    const { report } = await doctor(fixture);
+
+    expect(problemsOf(report, "scanners")).toEqual([]);
+  });
+});
+
 describe("doctor: registered plugins", () => {
   const SENSOR =
     "sensors:\n  mine:\n    command: [recognizer-sense-mine, run, --repository, '{repository}']\n";
