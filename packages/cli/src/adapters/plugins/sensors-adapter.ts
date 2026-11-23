@@ -1,28 +1,23 @@
 import { relative } from "node:path";
-import type {
-  Analysis,
-  CommitGapsInput,
-  ConfigDocument,
-  Gap,
-  PluginLimits,
-  PolicyRule,
-  ProgramGapsInput,
-  Repository,
-  Say,
-  SenseCall,
-  Sensors,
-  StructureSettings,
+import {
+  type Analysis,
+  type ConfigDocument,
+  checkSensors,
+  type PluginLimits,
+  type PolicyRule,
+  type Repository,
+  type Say,
+  type SenseCall,
+  type SensorReport,
+  type Sensors,
+  type StructureSettings,
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
 import { policyFile } from "../../config.js";
 import type { Config } from "../../config-parse.js";
+import { shippedPorts } from "../../manifest-ports.js";
 import type { createPluginLimits } from "../../plugin-run.js";
 import { warnPolicyProblems } from "../../policy-problems.js";
-import {
-  commitGaps,
-  readinessGaps,
-  sensorProgramGaps,
-} from "../../preflight.js";
 import { runSensors } from "../../run-sensors.js";
 import { resolveStructureSettings } from "../../structure-sensor.js";
 import { diagnosisOf } from "../filesystem/diagnosis-translator.js";
@@ -36,23 +31,25 @@ export class SensorsAdapter implements Sensors, Analysis {
 
   constructor(private readonly io: Io) {}
 
-  commitGaps(input: CommitGapsInput): Gap[] {
-    return commitGaps(input);
+  probe(
+    program: string,
+    args: string[],
+  ): { started: boolean; status: number | null } {
+    const { started, status } = this.io.run(program, args);
+
+    return { started, status };
   }
 
-  programGaps(input: ProgramGapsInput): Gap[] {
-    return sensorProgramGaps({ io: this.io, ...input });
-  }
-
-  readinessGaps(
+  readinessReports(
     root: string,
     sensors: { name: string; command: string[] }[],
     limits: PluginLimits,
-  ): Gap[] {
-    return readinessGaps(
-      this.io,
+  ): SensorReport[] {
+    return checkSensors(
+      shippedPorts(this.io),
       root,
       sensors,
+      {},
       (limits as unknown as Limits).readOf,
     );
   }

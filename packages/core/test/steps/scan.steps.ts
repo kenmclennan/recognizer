@@ -72,10 +72,12 @@ Given(
 );
 
 Given(
-  "the Tally sensor needs {string} and {string}",
-  function (this: ScanWorld, first: string, second: string) {
-    this.requireOfSensor("tally", first);
-    this.requireOfSensor("tally", second);
+  "a Pencil sensor and a Ruler sensor are registered whose programs do not start",
+  function (this: ScanWorld) {
+    for (const name of ["pencil", "ruler"]) {
+      this.addSensor(name, false);
+      this.fakes.sensors.unavailable.add(name);
+    }
   },
 );
 
@@ -117,6 +119,16 @@ When(
   "a full scan runs ticking the Tally sensor",
   async function (this: ScanWorld) {
     await this.run({ mode: "full", sensors: [{ name: "tally" }] });
+  },
+);
+
+When(
+  "a full scan runs ticking the Pencil and Ruler sensors",
+  async function (this: ScanWorld) {
+    await this.run({
+      mode: "full",
+      sensors: [{ name: "pencil" }, { name: "ruler" }],
+    });
   },
 );
 
@@ -237,6 +249,13 @@ Then("the Tally sensor does not run", function (this: ScanWorld) {
     false,
   );
 });
+
+Then(
+  "neither the Pencil sensor nor the Ruler sensor runs",
+  function (this: ScanWorld) {
+    assert.deepEqual(this.fakes.sensors.ran, []);
+  },
+);
 
 Then(
   "the Tally sensor receives only the suite {string}",

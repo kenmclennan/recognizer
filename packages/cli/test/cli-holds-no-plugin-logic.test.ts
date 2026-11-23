@@ -115,7 +115,7 @@ describe("the CLI holds no plugin logic", () => {
 
   it("keeps the sensors adapter to process and file access", () => {
     const forbidden =
-      /\b(select|plan|registered|registeredSensors|readShippedSensors|selectSensors|refuseUnregistered|isScoped)\b|\brunsTests\(/;
+      /\b(select|plan|registered|registeredSensors|readShippedSensors|selectSensors|refuseUnregistered|isScoped|commitGaps|programGaps|readinessGaps|installFix)\b|\brunsTests\(/;
     const text = readFileSync(
       join(SRC, "adapters/plugins/sensors-adapter.ts"),
       "utf8",
@@ -124,7 +124,20 @@ describe("the CLI holds no plugin logic", () => {
     expect(forbidden.test(text)).toBe(false);
     expect(forbidden.test("  select(input: X): Y {")).toBe(true);
     expect(forbidden.test("  registered(root: string) {")).toBe(true);
-    expect(forbidden.test("  commitGaps(input: X): Gap[] {")).toBe(false);
+    expect(forbidden.test("  commitGaps(input: X): Gap[] {")).toBe(true);
+  });
+
+  it("keeps the describer adapter and the preflight module free of gap decisions", () => {
+    const forbidden =
+      /\b(commitGaps|programGaps|readinessGaps|describerGaps|installFix|sensorProgramGaps)\b/;
+    const text = readFileSync(
+      join(SRC, "adapters/plugins/describer-adapter.ts"),
+      "utf8",
+    );
+
+    expect(existsSync(join(SRC, "preflight.ts"))).toBe(false);
+    expect(forbidden.test(text)).toBe(false);
+    expect(forbidden.test("  describerGaps(input: X): Gap[] {")).toBe(true);
   });
 
   it("the matchers flag a known offending string and pass a clean one", () => {

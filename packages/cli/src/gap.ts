@@ -1,17 +1,6 @@
-export interface Fix {
-  text: string;
-  command: string[] | null;
-  cwd: string;
-  env: Record<string, string>;
-  kind: "repository" | "outside";
-}
+import type { Fix, Gap } from "@recognizer/core";
 
-export interface Gap {
-  id: string;
-  line: string;
-  needs: string[];
-  fix: Fix;
-}
+export type { Fix, Gap };
 
 function isFix(value: unknown): value is Fix {
   if (typeof value !== "object" || value === null) {

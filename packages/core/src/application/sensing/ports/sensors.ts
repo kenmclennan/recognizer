@@ -1,9 +1,9 @@
 import type { ConfigDocument } from "../../../domain/config-document.js";
-import type { Gap } from "../../../domain/gap.js";
 import type { Repository } from "../../../domain/repository.js";
 import type { RunEntry } from "../../../domain/run-record.js";
 import type { PluginProgress } from "../../../domain/scan-event.js";
 import type { SensorRequest } from "../../../domain/sensor-request.js";
+import type { SensorReport } from "../../plugins/check-sensor.js";
 import type { ShippedRead } from "../../plugins/shipped-plugins.js";
 import type { PluginLimits, Say } from "../../shared/ports/process.js";
 
@@ -39,16 +39,6 @@ export interface SensorPlan {
   chosen: Record<string, string[]>;
 }
 
-export interface CommitGapsInput {
-  commit: string | null;
-  sensors: { name: string; command: string[] }[];
-}
-
-export interface ProgramGapsInput {
-  sensors: { name: string; command: string[] }[];
-  install: Record<string, string>;
-}
-
 export interface SenseCall {
   root: string;
   selected: (PlannedSensor & { modules?: number })[];
@@ -62,12 +52,14 @@ export interface SenseCall {
 }
 
 export interface Sensors {
-  commitGaps(input: CommitGapsInput): Gap[];
-  programGaps(input: ProgramGapsInput): Gap[];
-  readinessGaps(
+  probe(
+    program: string,
+    args: string[],
+  ): { started: boolean; status: number | null };
+  readinessReports(
     root: string,
     sensors: { name: string; command: string[] }[],
     limits: PluginLimits,
-  ): Gap[];
+  ): SensorReport[];
   run(call: SenseCall): Promise<void>;
 }

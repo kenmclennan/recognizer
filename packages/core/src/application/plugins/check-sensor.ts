@@ -15,6 +15,8 @@ import type { PluginPorts } from "./internal/plugin-ports.js";
 import { readManifestOf } from "./read-manifest.js";
 import type { ManifestReader } from "./shipped-plugins.js";
 
+export type { SensorReport };
+
 type CheckPorts = Pick<PluginPorts, "programs" | "validators">;
 
 export function checkSensor(
