@@ -243,7 +243,7 @@ Then(
   function (this: ScanWorld, suite: string) {
     const ran = this.fakes.sensors.ran.find((one) => one.name === "tally");
 
-    assert.deepEqual(ran?.command.slice(1), [
+    assert.deepEqual(ran?.command.slice(-2), [
       "--suites",
       JSON.stringify([suite]),
     ]);
@@ -253,7 +253,7 @@ Then(
 Then("the Margin sensor receives no suites", function (this: ScanWorld) {
   const ran = this.fakes.sensors.ran.find((one) => one.name === "margin");
 
-  assert.deepEqual(ran?.command, ["margin"]);
+  assert.ok(!ran?.command.includes("--suites"));
 });
 
 Then("confirmation is asked", function (this: ScanWorld) {

@@ -2,10 +2,12 @@ import type {
   ConfigDocument,
   ConfigRepository,
   StructureSettings,
+  SuiteEntry,
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
 import { readConfig } from "../../config.js";
 import {
+  type Config,
   type ConfigRead,
   readsAnyConfig,
   readsSensors,
@@ -49,6 +51,23 @@ export class ConfigAdapter implements ConfigRepository {
 
   structureSettings(root: string): StructureSettings | "off" {
     return resolveStructureSettings(readConfig(this.io, root, ["sensors"]));
+  }
+
+  registeredSensors(
+    config: ConfigDocument | null,
+  ): { name: string; command: string[] }[] {
+    return registeredSensors(config as unknown as Config | null);
+  }
+
+  tests(config: ConfigDocument | null): SuiteEntry[] | undefined {
+    return (config as unknown as Config | null)?.tests;
+  }
+
+  sensorConfig(root: string): ConfigDocument | null {
+    return readConfig(this.io, root, [
+      "sensors",
+      "tests",
+    ]) as unknown as ConfigDocument | null;
   }
 
   sensorNames(root: string): string[] {

@@ -21,7 +21,11 @@ import { ClockAdapter } from "../src/adapters/system/clock-adapter.js";
 import { ConfirmAdapter } from "../src/adapters/terminal/confirm-adapter.js";
 import { InputError } from "../src/errors.js";
 import { runScan, runScanSync } from "../src/scan-command.js";
-import { scanPorts, syncScanPorts } from "../src/scan-container.js";
+import {
+  createScanContainer,
+  scanPorts,
+  syncScanPorts,
+} from "../src/scan-container.js";
 import { exitOf } from "../src/scan-main.js";
 import { REPO } from "./helpers.js";
 import { fakeIo, PYTHON, ROOT, scanJson } from "./scan-helpers.js";
@@ -66,11 +70,13 @@ describe("scan container", () => {
     expect(ports.testReports).toBeInstanceOf(TestReportsAdapter);
     expect(Object.keys(ports).sort()).toEqual([
       "analysis",
+      "catalog",
       "clock",
       "config",
       "confirm",
       "describer",
       "digest",
+      "files",
       "findings",
       "git",
       "lock",
@@ -115,6 +121,29 @@ describe("scan container", () => {
 
     expect(runScanSync([ROOT, "--extract"], fake.io, "all")).toBe(0);
     expect(typeof runScan).toBe("function");
+  });
+
+  it("refuses a bad sensor request with its messages", async () => {
+    const { io } = fakeIo({
+      commit: COMMIT,
+      files: { [`${ROOT}/.recognizer/config.yaml`]: "" },
+    });
+    const running = createScanContainer(io, "all").start({
+      repository: ROOT,
+      mode: "incremental",
+      sensors: [{ name: "ghost" }],
+      describe: false,
+      analysis: false,
+      ignoreRetiredConfig: false,
+      invocation: ["scan"],
+    });
+    const outcome = await running.outcome;
+
+    expect(outcome.status).toBe("failed");
+    expect(outcome).toMatchObject({
+      reason: "invalid-request",
+      messages: expect.arrayContaining(["no such sensor: ghost"]),
+    });
   });
 
   it("outcomes map to exit codes", () => {

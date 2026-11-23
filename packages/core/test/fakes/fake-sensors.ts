@@ -1,15 +1,9 @@
 import type {
   CommitGapsInput,
   Gap,
-  PlannedSensor,
   ProgramGapsInput,
   RunEntry,
   SenseCall,
-  SensorPlan,
-  SensorPlanInput,
-  SensorRow,
-  SensorSelection,
-  SensorSelectionInput,
   Sensors,
 } from "../../src/index.js";
 
@@ -21,6 +15,7 @@ export interface InventedSensor {
   scoped?: boolean;
   display?: string;
   registered?: boolean;
+  listed?: boolean;
 }
 
 export class FakeSensors implements Sensors {
@@ -41,49 +36,8 @@ export class FakeSensors implements Sensors {
     });
   }
 
-  registered(): SensorRow[] {
-    return [...this.installed.values()].map((sensor) => ({
-      name: sensor.name,
-      display: sensor.display ?? sensor.name,
-      runsTests: sensor.runsTests,
-      scoped: sensor.scoped ?? false,
-      registered: sensor.registered ?? true,
-    }));
-  }
-
   releaseHeld(): void {
     this.release();
-  }
-
-  select(input: SensorSelectionInput): SensorSelection {
-    return { sensorSelection: true, ...input } as SensorSelection;
-  }
-
-  plan(input: SensorPlanInput): SensorPlan {
-    const names =
-      input.sense === null
-        ? []
-        : input.sense === "all"
-          ? [...this.installed.keys()]
-          : input.sense.map((one) => one.name);
-    const chosen: Record<string, string[]> = {};
-    const selected: PlannedSensor[] = names.map((name) => {
-      const sensor = this.installed.get(name) as InventedSensor;
-      const asked =
-        input.sense === null || input.sense === "all"
-          ? undefined
-          : input.sense.find((one) => one.name === name)?.suites;
-      const command = [name];
-
-      if (sensor.runsTests) {
-        chosen[name] = asked ?? this.suites;
-        command.push("--suites", JSON.stringify(chosen[name]));
-      }
-
-      return { name, command, runsTests: sensor.runsTests, scoped: false };
-    });
-
-    return { selected, chosen };
   }
 
   commitGaps(_input: CommitGapsInput): Gap[] {
