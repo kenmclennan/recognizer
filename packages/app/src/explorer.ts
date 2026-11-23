@@ -200,6 +200,7 @@ import type { Loaded } from "./scan-loading";
 import {
   DESCRIBE_KEY,
   NO_RUN,
+  opensScanPanel,
   planFactsOf,
   planRequestOf,
   type RunState,
@@ -5004,14 +5005,14 @@ export function showExplorer(
     });
   }
 
-  let scanWasOpen = false;
+  let previousPanel: LeftPanel | null = carried?.leftPanel ?? null;
 
   function render() {
-    if (leftPanel === "scan" && !scanWasOpen) {
+    if (opensScanPanel(previousPanel, leftPanel)) {
       scanHost.setTicks(afterPanelOpen(scanHost.ticks()));
     }
 
-    scanWasOpen = leftPanel === "scan";
+    previousPanel = leftPanel;
 
     const filtered = filterTree(root, filter, context);
     const selection = state.selection();
