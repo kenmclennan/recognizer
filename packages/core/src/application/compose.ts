@@ -1,7 +1,12 @@
+import type { ConfigRepository } from "../domain/config-repository.js";
+import type { FindingsRepository } from "../domain/findings-repository.js";
+import type { PolicyRepository } from "../domain/policy-repository.js";
 import type { ScanOutcome } from "../domain/run/scan-outcome.js";
 import type { PlanRequest, ScanPlanView } from "../domain/run/scan-plan.js";
 import type { ScanRequest } from "../domain/run/scan-request.js";
+import type { RunLogRepository } from "../domain/run-log-repository.js";
 import type { ScanEvent } from "../domain/scan-event.js";
+import type { StructureRepository } from "../domain/structure-repository.js";
 import type { AnalysisPorts } from "./analysis/internal/analysis-ports.js";
 import type { Analysis } from "./analysis/ports/analysis.js";
 import { runAnalysis } from "./analysis/run-analysis.js";
@@ -46,14 +51,19 @@ import { selectSensors } from "./sensing/select-sensors.js";
 import type { Clock } from "./shared/ports/clock.js";
 import type { Git } from "./shared/ports/git.js";
 import type { ProcessControl } from "./shared/ports/process.js";
-import type { Store } from "./shared/ports/store.js";
+import type { ScanLock } from "./shared/ports/scan-lock.js";
 
 interface CommonPorts {
   analysis: Analysis;
   sensors: Sensors;
   describer: Describer;
   git: Git;
-  store: Store;
+  structure: StructureRepository;
+  findings: FindingsRepository;
+  policy: PolicyRepository;
+  config: ConfigRepository;
+  runLog: RunLogRepository;
+  lock: ScanLock;
   confirm: Confirm;
   clock: Clock;
   process: ProcessControl;
@@ -70,7 +80,9 @@ export interface SyncPorts extends CommonPorts {
 function runPorts(ports: CommonPorts): RunPorts {
   return {
     git: ports.git,
-    store: ports.store,
+    structure: ports.structure,
+    lock: ports.lock,
+    runLog: ports.runLog,
     clock: ports.clock,
     process: ports.process,
   };
@@ -82,7 +94,7 @@ function bindDecisions(
 ): Omit<RunPhases, "extractScans" | "runAnalysis"> {
   const sensing: SensingPorts = {
     sensors: ports.sensors,
-    store: ports.store,
+    config: ports.config,
     clock: ports.clock,
   };
   const describing: DescribingPorts = {
@@ -114,10 +126,8 @@ function bindDecisions(
 }
 
 export interface PlanningPorts {
-  store: Pick<
-    Store,
-    "cachedRepository" | "measuredOf" | "testsDigest" | "responsibilityKinds"
-  >;
+  structure: Pick<StructureRepository, "read" | "responsibilityKinds">;
+  findings: Pick<FindingsRepository, "measuredOf" | "testsDigest">;
   sensors: Pick<Sensors, "registered">;
 }
 
@@ -125,7 +135,7 @@ function planPhasesOver(ports: PlanningPorts): PlanPhases {
   return {
     readSensorRows: (root) => readSensorRows(ports, root),
     readModules: (root) =>
-      ports.store.cachedRepository(root).files.map(({ path }) => path),
+      ports.structure.read(root).files.map(({ path }) => path),
     findSensorGaps: (root, rows, modules) =>
       findSensorGaps(ports, root, rows, modules),
     findDescribeGap: (root, modules) => findDescribeGap(ports, root, modules),
@@ -141,11 +151,21 @@ export function createPlanner(
 }
 
 function analysisOver(ports: CommonPorts): AnalysisPorts {
-  return { analysis: ports.analysis, store: ports.store, clock: ports.clock };
+  return {
+    analysis: ports.analysis,
+    config: ports.config,
+    findings: ports.findings,
+    policy: ports.policy,
+    clock: ports.clock,
+  };
 }
 
 function phasesOver(ports: ScanPorts): RunPhases {
-  const scanning = { scanners: ports.scanners, store: ports.store };
+  const scanning = {
+    scanners: ports.scanners,
+    structure: ports.structure,
+    config: ports.config,
+  };
   const analysis = analysisOver(ports);
 
   return {
@@ -156,7 +176,11 @@ function phasesOver(ports: ScanPorts): RunPhases {
 }
 
 function syncPhasesOver(ports: SyncPorts): RunPhases {
-  const scanning = { scanners: ports.scanners, store: ports.store };
+  const scanning = {
+    scanners: ports.scanners,
+    structure: ports.structure,
+    config: ports.config,
+  };
   const analysis = analysisOver(ports);
 
   return {
@@ -192,7 +216,7 @@ export function createScan(ports: ScanPorts): Scan {
         },
       };
     },
-    status: (repository) => Promise.resolve(ports.store.status(repository)),
+    status: (repository) => Promise.resolve(ports.lock.status(repository)),
     plan,
   };
 }

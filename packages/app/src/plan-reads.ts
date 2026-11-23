@@ -26,12 +26,14 @@ export function planReads(data: LoadedPlanData) {
   };
 
   return {
-    store: {
-      cachedRepository: () => data.scans,
+    structure: {
+      read: () => data.scans,
+      responsibilityKinds: () => lines,
+    },
+    findings: {
       measuredOf: (_root: string, sensor: string) =>
         data.measured[sensor] ?? null,
       testsDigest: () => data.tests,
-      responsibilityKinds: () => lines,
     },
     sensors: { registered: () => data.sensors },
   };

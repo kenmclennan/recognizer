@@ -2,6 +2,7 @@ import type {
   PhaseRecorder,
   RecordedPhase,
 } from "../../../domain/phase-recorder.js";
+import type { RunLog } from "../../../domain/run-log-repository.js";
 import type {
   EventEntry,
   PhaseName,
@@ -11,7 +12,6 @@ import type {
   SkippedPhase,
 } from "../../../domain/run-record.js";
 import type { ScanSink } from "../../../domain/scan-sink.js";
-import type { RunLog } from "../../shared/ports/store.js";
 
 function eventEntry(entry: RunEntry): EventEntry {
   return {

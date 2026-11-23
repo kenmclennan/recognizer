@@ -12,6 +12,8 @@ export interface ExtractionSelection {
   readonly inputAbsentPaths?: readonly string[];
 }
 
+export type OptionalSection = "calls" | "unresolved_imports" | "test_imports";
+
 export interface Extraction {
   readonly language: Language;
   readonly scanner: { readonly name: string; readonly version: string };
@@ -19,4 +21,5 @@ export interface Extraction {
   readonly modified: boolean | null;
   readonly selection: ExtractionSelection;
   readonly files: readonly { readonly path: string; readonly hash: string }[];
+  readonly sections?: readonly OptionalSection[];
 }

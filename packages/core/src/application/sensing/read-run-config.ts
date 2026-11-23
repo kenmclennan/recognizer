@@ -6,5 +6,5 @@ export function readRunConfig(
   root: string,
   skipRetired: boolean,
 ): ConfigDocument | null {
-  return ports.store.runConfig(root, skipRetired);
+  return ports.config.run(root, skipRetired);
 }

@@ -1,18 +1,14 @@
-import type { Finding, Violation } from "@recognizer/core";
+import type {
+  BaselineEntry,
+  Finding,
+  IdEntry,
+  Identity,
+  Violation,
+} from "@recognizer/core";
 import { InputError } from "./errors.js";
 import { importText, ruleText } from "./findings.js";
 
-export interface Identity {
-  from: string;
-  to: string;
-  kind: string;
-}
-
-export interface IdEntry {
-  id: string;
-}
-
-export type BaselineEntry = Identity | IdEntry;
+export type { BaselineEntry, IdEntry, Identity };
 
 const KINDS = new Set(["depends", "inherits", "implements"]);
 const VIOLATION_PREFIX = "rule-violation:";

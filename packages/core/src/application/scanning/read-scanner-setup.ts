@@ -9,5 +9,5 @@ export function readScannerSetup(
   ports: ScanningQueries,
   root: string,
 ): ScannerSetup {
-  return ports.store.scannerSetup(root);
+  return ports.config.scannerSetup(root);
 }

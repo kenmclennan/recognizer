@@ -1,4 +1,5 @@
-import type { Store } from "../../shared/ports/store.js";
+import type { ConfigRepository } from "../../../domain/config-repository.js";
+import type { StructureRepository } from "../../../domain/structure-repository.js";
 import type {
   ScannerQueries,
   Scanners,
@@ -7,7 +8,8 @@ import type {
 
 export interface ScanningQueries {
   scanners: ScannerQueries;
-  store: Store;
+  structure: StructureRepository;
+  config: ConfigRepository;
 }
 
 export interface ScanningPorts extends ScanningQueries {

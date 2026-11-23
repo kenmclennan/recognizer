@@ -340,7 +340,9 @@ describe("recognizer scan: outcomes", () => {
       expect(err).toContain(`python: ${reason} - `);
       expect(fake.files.has(PY_CACHE)).toBe(false);
       expect(fake.removed).toContain(PY_CACHE);
-      expect(fake.files.get(TS_CACHE)).toBe(okTypescript.output);
+      expect(JSON.parse(fake.files.get(TS_CACHE) as string)).toEqual(
+        JSON.parse(okTypescript.output),
+      );
     },
   );
 
@@ -473,14 +475,14 @@ describe("recognizer scan: outcomes", () => {
     expect(fake.files.has(PY_CACHE)).toBe(false);
   });
 
-  it("writes the scanner's bytes exactly", async () => {
-    const odd = scanJson(1, 0, {}, "\t   ");
+  it("writes the scan in the scanners' own format", async () => {
+    const canonical = `${JSON.stringify(JSON.parse(scanJson(1, 0, { calls: [] })), null, 2)}\n`;
     const { fake } = await scan({
       files: { [`${ROOT}/a.py`]: "" },
-      scanners: { [PYTHON]: { output: odd } },
+      scanners: { [PYTHON]: { output: canonical } },
     });
 
-    expect(fake.files.get(PY_CACHE)).toBe(odd);
+    expect(fake.files.get(PY_CACHE)).toBe(canonical);
   });
 });
 

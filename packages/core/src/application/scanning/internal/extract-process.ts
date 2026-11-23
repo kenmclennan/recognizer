@@ -30,7 +30,7 @@ export function* extractProcess(
   ports: ScanningQueries,
   input: ExtractScansInput,
 ): Generator<ExtractCall, ExtractOutcome, ExtractResult> {
-  const { scanners, store } = ports;
+  const { scanners, structure } = ports;
   const { root, commit, modified, detected, limits, sink, recorder } = input;
   const decision = scanners.decide(
     root,
@@ -64,7 +64,7 @@ export function* extractProcess(
 
     const file = scanners.scanFile(root, language);
 
-    if (store.remove(file)) {
+    if (structure.discard(root, language)) {
       recorder.removed(file);
       sink.say(
         "stderr",
@@ -107,7 +107,7 @@ export function* extractProcess(
     }
 
     if (scanned.ok) {
-      store.writeScan(root, language, scanned.bytes);
+      structure.save(root, language, scanned.repository);
       recorder.entry(
         extract,
         scanned.entry,
@@ -120,7 +120,7 @@ export function* extractProcess(
 
     sink.say("stderr", `${language}: ${scanned.reason} - ${scanned.message}\n`);
 
-    if (store.remove(file)) {
+    if (structure.discard(root, language)) {
       recorder.removed(file);
       sink.say("stderr", `${language}: removed stale ${shown}\n`);
     }

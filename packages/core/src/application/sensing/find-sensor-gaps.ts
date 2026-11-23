@@ -1,5 +1,6 @@
+import type { FindingsRepository } from "../../domain/findings-repository.js";
 import type { SensorRow } from "../../domain/scan-plan.js";
-import type { Store } from "../shared/ports/store.js";
+import type { StructureRepository } from "../../domain/structure-repository.js";
 import { buildFreshness } from "./freshness.js";
 import { freshnessScope, gapOf, sensorFreshness } from "./sensor-freshness.js";
 
@@ -10,14 +11,18 @@ export interface SensorGaps {
 
 export function findSensorGaps(
   ports: {
-    store: Pick<Store, "cachedRepository" | "measuredOf" | "testsDigest">;
+    structure: Pick<StructureRepository, "read">;
+    findings: Pick<FindingsRepository, "measuredOf" | "testsDigest">;
   },
   root: string,
   rows: readonly SensorRow[],
   modules: string[],
 ): SensorGaps {
-  const repository = ports.store.cachedRepository(root);
-  const freshness = buildFreshness(repository, ports.store.testsDigest(root));
+  const repository = ports.structure.read(root);
+  const freshness = buildFreshness(
+    repository,
+    ports.findings.testsDigest(root),
+  );
   const scope = freshnessScope(modules, repository, freshness);
   const gaps: Record<string, string[]> = {};
   const never: string[] = [];
@@ -25,7 +30,7 @@ export function findSensorGaps(
   for (const row of rows.filter(({ registered }) => registered)) {
     const result = sensorFreshness(
       scope,
-      ports.store.measuredOf(root, row.name),
+      ports.findings.measuredOf(root, row.name),
       row.scoped,
     );
 

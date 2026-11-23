@@ -21,7 +21,7 @@ export type ExtractResult =
   | {
       ok: true;
       entry: RunEntry;
-      bytes: string;
+      repository: Repository;
       modules: number;
       edges: number;
     }

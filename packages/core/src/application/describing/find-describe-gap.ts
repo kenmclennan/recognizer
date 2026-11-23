@@ -1,12 +1,12 @@
-import type { Store } from "../shared/ports/store.js";
+import type { StructureRepository } from "../../domain/structure-repository.js";
 import { describeGap } from "./describe-gap.js";
 
 export function findDescribeGap(
-  ports: { store: Pick<Store, "responsibilityKinds"> },
+  ports: { structure: Pick<StructureRepository, "responsibilityKinds"> },
   root: string,
   modules: string[],
 ): string[] | null {
-  const lines = ports.store.responsibilityKinds(root);
+  const lines = ports.structure.responsibilityKinds(root);
 
   if (!lines.registered) {
     return null;

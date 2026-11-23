@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { StoreAdapter } from "../src/adapters/filesystem/store-adapter.js";
+import { FindingsAdapter } from "../src/adapters/filesystem/findings-adapter.js";
+import { StructureAdapter } from "../src/adapters/filesystem/structure-adapter.js";
 import { fakeIo, ROOT, scanJson } from "./scan-helpers.js";
 
 const H1 = "1".repeat(64);
@@ -59,11 +60,12 @@ function seeded() {
   });
 }
 
-describe("the store adapter plan reads", () => {
-  it("the_adapter_reads_the_cached_scans_measured_inputs_and_lines", () => {
-    const store = new StoreAdapter(seeded().io, "all");
-
-    const cached = store.cachedRepository(ROOT);
+describe("the filesystem repositories plan reads", () => {
+  it("the_repositories_read_the_cached_scans_measured_inputs_and_lines", () => {
+    const { io } = seeded();
+    const structure = new StructureAdapter(io);
+    const findings = new FindingsAdapter(io);
+    const cached = structure.read(ROOT);
 
     expect(
       cached.extractions.map((extraction) =>
@@ -72,23 +74,23 @@ describe("the store adapter plan reads", () => {
           .map(({ path }) => path),
       ),
     ).toEqual([["B.kt"], ["m0.py", "m1.py"]]);
-    expect(store.cachedRepository("/nowhere").files).toEqual([]);
-    expect(store.measuredOf(ROOT, "crap")).toEqual({
+    expect(structure.read("/nowhere").files).toEqual([]);
+    expect(findings.measuredOf(ROOT, "crap")).toEqual({
       inputs: { "m0.py": H1 },
       tests: D,
     });
-    expect(store.measuredOf(ROOT, "mutation")).toBeNull();
-    expect(store.testsDigest(ROOT)).toBe(D);
-    expect(store.responsibilityKinds(ROOT)).toEqual({
+    expect(findings.measuredOf(ROOT, "mutation")).toBeNull();
+    expect(findings.testsDigest(ROOT)).toBe(D);
+    expect(structure.responsibilityKinds(ROOT)).toEqual({
       registered: true,
       kinds: { "B.kt": "missing", "m0.py": "current", "m1.py": "out-of-date" },
     });
   });
 
   it("reads no lines when no describer is registered", () => {
-    const store = new StoreAdapter(fakeIo().io, "all");
+    const structure = new StructureAdapter(fakeIo().io);
 
-    expect(store.responsibilityKinds(ROOT)).toEqual({
+    expect(structure.responsibilityKinds(ROOT)).toEqual({
       registered: false,
       kinds: {},
     });

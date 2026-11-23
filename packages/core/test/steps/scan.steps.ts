@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { Given, Then, When } from "@cucumber/cucumber";
 import type { SensorRequest } from "../../src/index.js";
-import { cachePath } from "../fakes/fake-store.js";
+import { cachePath } from "../fakes/fake-structure-repository.js";
 import { REPOSITORY, type ScanWorld } from "../fakes/world.js";
 
 const language = (word: string): string => word.toLowerCase();
@@ -176,7 +176,7 @@ Then(
   /^the (Alpha|Beta) scan is written to the cache$/,
   function (this: ScanWorld, word: string) {
     assert.ok(
-      this.fakes.store.files.has(cachePath(REPOSITORY, language(word))),
+      this.fakes.structure.scans.has(cachePath(REPOSITORY, language(word))),
     );
   },
 );
@@ -191,7 +191,7 @@ Then("the Alpha entry is reported as failed", function (this: ScanWorld) {
 
 Then("the old Alpha scan is removed", function (this: ScanWorld) {
   assert.equal(
-    this.fakes.store.files.has(cachePath(REPOSITORY, "alpha")),
+    this.fakes.structure.scans.has(cachePath(REPOSITORY, "alpha")),
     false,
   );
 });
@@ -303,9 +303,9 @@ Then(
 );
 
 Then("the first scan's lock is untouched", function (this: ScanWorld) {
-  const [first] = this.fakes.store.locks;
+  const [first] = this.fakes.lock.locks;
 
-  assert.equal(this.fakes.store.locks.length, 1);
+  assert.equal(this.fakes.lock.locks.length, 1);
   assert.equal(first?.released, false);
   assert.equal(first?.phase, "running");
 
@@ -330,7 +330,7 @@ Then("the Tally sensor's process is stopped", function (this: ScanWorld) {
 });
 
 Then("the lock is released", function (this: ScanWorld) {
-  assert.equal(this.fakes.store.locks[0]?.released, true);
+  assert.equal(this.fakes.lock.locks[0]?.released, true);
 });
 
 Then("the scan ends stopped", function (this: ScanWorld) {

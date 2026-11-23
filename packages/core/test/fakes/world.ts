@@ -8,8 +8,8 @@ import type {
   ScanStatus,
 } from "../../src/index.js";
 import { createFakes, type Fakes, scanOver } from "./container.js";
-import { cachePath } from "./fake-store.js";
 import { PlanWorld } from "./plan-world.js";
+import { repositoryOf } from "./repository-of.js";
 
 export const REPOSITORY = "/work/repository";
 
@@ -43,7 +43,11 @@ export class ScanWorld {
   }
 
   cacheLanguage(language: string, commit: string): void {
-    this.fakes.store.files.set(cachePath(REPOSITORY, language), "3");
+    this.fakes.structure.save(
+      REPOSITORY,
+      language,
+      repositoryOf({ f0: "", f1: "", f2: "" }, [], language),
+    );
     this.fakes.scanners.cachedAt.set(language, commit);
   }
 

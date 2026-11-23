@@ -5,6 +5,8 @@ import {
   InvalidRequest,
   requestFaults,
 } from "../../domain/run/scan-request.js";
+import type { RunLogRepository } from "../../domain/run-log-repository.js";
+import type { StructureRepository } from "../../domain/structure-repository.js";
 import type { AnalysisOutcome } from "../analysis/run-analysis.js";
 import type { DescribeOutcome } from "../describing/describe-files.js";
 import type { DescribingSettings } from "../describing/describing-settings.js";
@@ -14,14 +16,16 @@ import type { PlannedSensor } from "../sensing/plan-sensors.js";
 import type { Clock } from "../shared/ports/clock.js";
 import type { Git } from "../shared/ports/git.js";
 import type { ProcessControl } from "../shared/ports/process.js";
-import type { HeldLock, Store } from "../shared/ports/store.js";
+import type { HeldLock, ScanLock } from "../shared/ports/scan-lock.js";
 import type { FlowContext } from "./internal/flow-context.js";
 import { RunRecorder } from "./internal/run-recorder.js";
 import type { RunPhases } from "./phases.js";
 
 export interface RunPorts {
   git: Git;
-  store: Store;
+  structure: StructureRepository;
+  lock: ScanLock;
+  runLog: RunLogRepository;
   clock: Clock;
   process: ProcessControl;
 }
@@ -37,7 +41,7 @@ export function* scanFlow(
   phases: RunPhases,
   ctx: FlowContext,
 ): Generator<RunStep, ScanOutcome, unknown> {
-  const { git, store, clock } = ports;
+  const { git, structure, lock, runLog: runLogs, clock } = ports;
   const root = request.repository;
   const sense = request.sensors;
   const describeOn = request.describe !== false;
@@ -54,7 +58,7 @@ export function* scanFlow(
   let folderKnown = false;
 
   try {
-    if (!store.isDirectory(root)) {
+    if (!structure.exists(root)) {
       throw new InvalidRequest([`repository is not a directory: ${root}`]);
     }
 
@@ -94,7 +98,7 @@ export function* scanFlow(
   } catch (error) {
     if (ctx.takeLock && folderKnown) {
       try {
-        const acquired = store.acquireLock(root, {
+        const acquired = lock.acquire(root, {
           sensors: senseNames,
           describe: describeOn,
         });
@@ -112,7 +116,7 @@ export function* scanFlow(
   }
 
   if (ctx.takeLock) {
-    const acquired = store.acquireLock(root, {
+    const acquired = lock.acquire(root, {
       sensors: selected.map((one) => one.name),
       describe: describeOn,
       suites: chosen,
@@ -140,7 +144,7 @@ export function* scanFlow(
     });
     const runLog =
       detected.length > 0 || wantsConfig
-        ? store.openRunLog(root, startedAt, request.by, request.invocation)
+        ? runLogs.open(root, startedAt, request.by, request.invocation)
         : null;
     const recorder = new RunRecorder(ctx, runLog);
     const ticked = selected.map(({ name, command }) => ({ name, command }));

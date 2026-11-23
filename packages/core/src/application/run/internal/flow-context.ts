@@ -1,6 +1,6 @@
 import type { ScanEvent } from "../../../domain/scan-event.js";
 import type { ScanSink } from "../../../domain/scan-sink.js";
-import type { HeldLock } from "../../shared/ports/store.js";
+import type { HeldLock } from "../../shared/ports/scan-lock.js";
 
 export class FlowContext implements ScanSink {
   lock: HeldLock | null = null;

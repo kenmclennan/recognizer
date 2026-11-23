@@ -2,7 +2,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ScanOutcome } from "@recognizer/core";
 import { describe, expect, it, vi } from "vitest";
-import { StoreAdapter } from "../src/adapters/filesystem/store-adapter.js";
+import { ConfigAdapter } from "../src/adapters/filesystem/config-adapter.js";
+import { FindingsAdapter } from "../src/adapters/filesystem/findings-adapter.js";
+import { PolicyAdapter } from "../src/adapters/filesystem/policy-adapter.js";
+import { RunLogAdapter } from "../src/adapters/filesystem/run-log-adapter.js";
+import { ScanLockAdapter } from "../src/adapters/filesystem/scan-lock-adapter.js";
+import { StructureAdapter } from "../src/adapters/filesystem/structure-adapter.js";
 import { GitAdapter } from "../src/adapters/git/git-adapter.js";
 import { DescriberAdapter } from "../src/adapters/plugins/describer-adapter.js";
 import { ProcessAdapter } from "../src/adapters/plugins/process-adapter.js";
@@ -48,20 +53,30 @@ describe("scan container", () => {
     expect(ports.analysis).toBe(ports.sensors);
     expect(ports.describer).toBeInstanceOf(DescriberAdapter);
     expect(ports.git).toBeInstanceOf(GitAdapter);
-    expect(ports.store).toBeInstanceOf(StoreAdapter);
+    expect(ports.structure).toBeInstanceOf(StructureAdapter);
+    expect(ports.findings).toBeInstanceOf(FindingsAdapter);
+    expect(ports.policy).toBeInstanceOf(PolicyAdapter);
+    expect(ports.config).toBeInstanceOf(ConfigAdapter);
+    expect(ports.runLog).toBeInstanceOf(RunLogAdapter);
+    expect(ports.lock).toBeInstanceOf(ScanLockAdapter);
     expect(ports.confirm).toBeInstanceOf(ConfirmAdapter);
     expect(ports.clock).toBeInstanceOf(ClockAdapter);
     expect(ports.process).toBeInstanceOf(ProcessAdapter);
     expect(Object.keys(ports).sort()).toEqual([
       "analysis",
       "clock",
+      "config",
       "confirm",
       "describer",
+      "findings",
       "git",
+      "lock",
+      "policy",
       "process",
+      "runLog",
       "scanners",
       "sensors",
-      "store",
+      "structure",
     ]);
     expect(syncScanPorts(io, "all").scanners).toBeInstanceOf(
       SyncScannersAdapter,

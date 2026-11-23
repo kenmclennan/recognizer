@@ -1,9 +1,13 @@
+import type { ConfigRepository } from "../../../domain/config-repository.js";
+import type { FindingsRepository } from "../../../domain/findings-repository.js";
+import type { PolicyRepository } from "../../../domain/policy-repository.js";
 import type { Clock } from "../../shared/ports/clock.js";
-import type { Store } from "../../shared/ports/store.js";
 import type { Analysis } from "../ports/analysis.js";
 
 export interface AnalysisPorts {
   analysis: Analysis;
-  store: Store;
+  config: ConfigRepository;
+  findings: FindingsRepository;
+  policy: PolicyRepository;
   clock: Clock;
 }

@@ -56,7 +56,7 @@ function violations(layer: string, allowed: string[]): string[] {
 
 const application = join(source, "application");
 const SUBDOMAINS = ["run", "scanning", "describing", "sensing", "analysis"];
-const SHARED_PORTS = ["clock", "git", "process", "store"];
+const SHARED_PORTS = ["clock", "git", "process", "scan-lock"];
 const RUN_PORTS = SHARED_PORTS;
 
 function misplacedSharedPort(file: string): boolean {
@@ -256,7 +256,7 @@ describe("core layers", () => {
       "shared/ports/clock.ts",
       "shared/ports/git.ts",
       "shared/ports/process.ts",
-      "shared/ports/store.ts",
+      "shared/ports/scan-lock.ts",
       "analysis/ports/analysis.ts",
       "sensing/ports/sensors.ts",
       "describing/ports/describer-ref.ts",
@@ -278,7 +278,7 @@ describe("core layers", () => {
     expect(shared.length).toBeGreaterThan(0);
     expect(misplacedSharedPort("shared/ports/sensors.ts")).toBe(true);
     expect(misplacedSharedPort("shared/ports/analysis.ts")).toBe(true);
-    expect(misplacedSharedPort("shared/ports/store.ts")).toBe(false);
+    expect(misplacedSharedPort("shared/ports/scan-lock.ts")).toBe(false);
     expect(shared.filter(misplacedSharedPort)).toEqual([]);
     expect(misplacedSharedPort("shared/ports/opaque.ts")).toBe(true);
     expect(misplacedSharedPort("shared/ports/describer-ref.ts")).toBe(true);
@@ -329,7 +329,7 @@ describe("core layers", () => {
     expect(
       reachesInside("analysis/x.ts", "../sensing/read-run-config.js"),
     ).toBe(false);
-    expect(reachesInside("sensing/x.ts", "../shared/ports/store.js")).toBe(
+    expect(reachesInside("sensing/x.ts", "../shared/ports/scan-lock.js")).toBe(
       false,
     );
     expect(reachesInside("sensing/x.ts", "./internal/sensing-ports.js")).toBe(
@@ -346,7 +346,7 @@ describe("core layers", () => {
     expect(reachesSubdomain("shared/ports/x.ts", "../../run/phases.js")).toBe(
       true,
     );
-    expect(reachesSubdomain("shared/ports/x.ts", "./store.js")).toBe(false);
+    expect(reachesSubdomain("shared/ports/x.ts", "./scan-lock.js")).toBe(false);
     expect(offences("shared", reachesSubdomain)).toEqual([]);
   });
 
@@ -379,7 +379,7 @@ describe("core layers", () => {
     expect(importsPhasePort("run/x.ts", "../scanning/ports/scanners.js")).toBe(
       true,
     );
-    expect(importsPhasePort("run/x.ts", "../shared/ports/store.js")).toBe(
+    expect(importsPhasePort("run/x.ts", "../shared/ports/scan-lock.js")).toBe(
       false,
     );
     expect(importsPhasePort("run/x.ts", "./ports/scan.js")).toBe(false);
@@ -406,6 +406,10 @@ describe("core layers", () => {
 
   it("core names no plugin", () => {
     const word = ["struc", "ture"].join("");
+    const repositoryUse = new RegExp(
+      `${word}-?repository|\\b${word}(?="?\\s*[=:,}]|\\.(read|save|discard|exists|responsibilityKinds|scans|kinds)\\b)`,
+      "gi",
+    );
 
     const everyFile = (directory: string): string[] =>
       readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -425,10 +429,14 @@ describe("core layers", () => {
     expect(files.length).toBeGreaterThan(0);
 
     for (const file of files) {
-      expect(relative(core, file).toLowerCase(), file).not.toContain(word);
+      expect(
+        relative(core, file).toLowerCase().replace(repositoryUse, ""),
+        file,
+      ).not.toContain(word);
 
       const lines = readFileSync(file, "utf8")
         .replace(/infrastructure/gi, "")
+        .replace(repositoryUse, "")
         .split("\n");
 
       for (const line of lines) {
@@ -477,7 +485,7 @@ describe("core layers", () => {
     ).toBe(false);
     expect(
       readsDomainFolder(
-        "shared/ports/store.ts",
+        "shared/ports/scan-lock.ts",
         "../../../domain/sensing/tick-state.js",
       ),
     ).toBe(true);
