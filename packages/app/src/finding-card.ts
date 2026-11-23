@@ -1,4 +1,4 @@
-import type { Finding } from "@recognizer/core";
+import { type Finding, Folder } from "@recognizer/core";
 import { EMPTY_CATALOG, type FindingCatalog } from "./finding-catalog";
 import { sentenceOf, shortName } from "./finding-sentence";
 import type { FindingRow } from "./findings-order";
@@ -23,12 +23,6 @@ export type CardModel = {
   rows: CardRowModel[];
 };
 
-function folderOf(path: string): string {
-  const at = path.lastIndexOf("/");
-
-  return at === -1 ? "" : path.slice(0, at);
-}
-
 function isMemberFinding(record: Finding): boolean {
   return (
     (record.members?.length ?? 0) > 0 &&
@@ -44,13 +38,13 @@ function subjectOf(row: FindingRow): { name: string; folder: string } {
     const member = record.members?.[0];
 
     if (member !== undefined) {
-      return { name: member.name, folder: folderOf(member.file) };
+      return { name: member.name, folder: Folder.containing(member.file) };
     }
   }
 
   const module = record.files[0] ?? "";
 
-  return { name: shortName(module), folder: folderOf(module) };
+  return { name: shortName(module), folder: Folder.containing(module) };
 }
 
 export function cardOf(
@@ -67,7 +61,7 @@ export function cardOf(
         kind: "member",
         module: member.file,
         name: member.name,
-        folder: folderOf(member.file),
+        folder: Folder.containing(member.file),
       });
     }
   } else {
@@ -76,7 +70,7 @@ export function cardOf(
         kind: "module",
         module,
         name: shortName(module),
-        folder: folderOf(module),
+        folder: Folder.containing(module),
       });
     }
   }
@@ -87,7 +81,7 @@ export function cardOf(
         kind: "test",
         file: importer.file,
         name: shortName(importer.file),
-        folder: folderOf(importer.file),
+        folder: Folder.containing(importer.file),
         names: importer.names,
       });
     }
@@ -107,7 +101,7 @@ export function cardOf(
         kind: "test",
         file,
         name: shortName(file),
-        folder: folderOf(file),
+        folder: Folder.containing(file),
         names: byFile.get(file) ?? [],
       });
     }

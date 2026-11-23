@@ -1,12 +1,12 @@
 import {
   type Dependency,
   File,
+  Folder,
   type Member,
   type Repository,
 } from "@recognizer/core";
 import {
   fieldTokens,
-  folderOf,
   memberHeadTokens,
   methodTokens,
   type Token,
@@ -1115,7 +1115,9 @@ function dependencyRows(
   }));
   const total = built.reduce((sum, item) => sum + item.picker.rowCount(), 0);
   const own =
-    selection.kind === "folder" ? selection.id : folderOf(selection.id);
+    selection.kind === "folder"
+      ? selection.id
+      : Folder.containing(selection.id);
   const labels = dependencyLabels(
     built.flatMap((item) => item.picker.groups().map((group) => group.key)),
     own,

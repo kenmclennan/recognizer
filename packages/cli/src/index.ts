@@ -198,7 +198,6 @@ export {
   type FolderGroup,
   folderChain,
   folderCounts,
-  folderOf,
   folderUsedBy,
   folderUses,
   groupByFolder,

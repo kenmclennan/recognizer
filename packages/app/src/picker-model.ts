@@ -1,7 +1,6 @@
-import { File, type Repository } from "@recognizer/core";
+import { File, Folder, type Repository } from "@recognizer/core";
 import {
   edgeNames,
-  folderOf,
   folderUsedBy,
   folderUses,
   moduleLabel,
@@ -67,7 +66,7 @@ export function createPicker(input: PickerInput): PickerModel {
   const filter = input.filter.trim().toLowerCase();
 
   const withGroup = (rows: NeighbourRow[]): RawRow[] =>
-    rows.map((row) => ({ ...row, group: folderOf(row.id) }));
+    rows.map((row) => ({ ...row, group: Folder.containing(row.id) }));
 
   function buildRows(): RawRow[] {
     const uses = source.direction === "uses";

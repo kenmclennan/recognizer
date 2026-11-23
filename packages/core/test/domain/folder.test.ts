@@ -26,6 +26,11 @@ describe("Folder", () => {
     expect(Folder.chainOf("c.py")).toEqual([]);
   });
 
+  it("containing names the folder holding a path, empty at the root", () => {
+    expect(Folder.containing("a/b/c.py")).toBe("a/b");
+    expect(Folder.containing("c.py")).toBe("");
+  });
+
   it("accepts a path of one segment whose parent is null", () => {
     const folder = new Folder("a", null);
 

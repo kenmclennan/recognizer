@@ -67,6 +67,10 @@ export class Folder {
     );
   }
 
+  static containing(path: string): string {
+    return parentPath(path) ?? "";
+  }
+
   static chainOf(path: string): Folder[] {
     const chain: Folder[] = [];
     let folder = parentPath(path);

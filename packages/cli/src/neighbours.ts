@@ -42,10 +42,6 @@ export function under(path: string, folder: string): boolean {
   return path === folder || path.startsWith(`${folder}/`);
 }
 
-export function folderOf(id: string): string {
-  return id.slice(0, Math.max(0, id.lastIndexOf("/")));
-}
-
 export function edgeNames(edge: Dependency): string[] {
   if (edge.names && edge.names.length > 0) {
     return [...edge.names];
@@ -223,7 +219,7 @@ export function groupByFolder(rows: NeighbourRow[]): FolderGroup[] {
   const byFolder = new Map<string, NeighbourRow[]>();
 
   for (const row of rows) {
-    const folder = folderOf(row.id);
+    const folder = Folder.containing(row.id);
 
     byFolder.set(folder, [...(byFolder.get(folder) ?? []), row]);
   }
