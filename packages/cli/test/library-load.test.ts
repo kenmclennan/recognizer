@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { REPO } from "./helpers.js";
 
 const DIST = join(REPO, "packages/cli/dist");
+const CORE = join(REPO, "packages/core/dist/src/index.js");
 const FIXTURE = join(REPO, "fixtures/check");
 
 function noEval(script: string) {
@@ -27,7 +28,6 @@ describe("library load without code generation", () => {
     );
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("collectViolations");
     expect(result.stdout).toContain("SCAN_SCHEMA_VERSION");
     expect(result.stdout).toContain("usesOf");
     expect(result.stdout).toContain("shortestPath");
@@ -77,15 +77,14 @@ describe("library load without code generation", () => {
   it("runs policy, analysis and rules directly on the check fixture", () => {
     const script = `
       import { readFileSync } from "node:fs";
-      const policy = await import(${JSON.stringify(join(DIST, "policy.js"))});
-      const analyse = await import(${JSON.stringify(join(DIST, "analyse.js"))});
-      const rules = await import(${JSON.stringify(join(DIST, "rules.js"))});
+      const policy = await import(${JSON.stringify(join(DIST, "adapters/filesystem/policy-translator.js"))});
+      const core = await import(${JSON.stringify(CORE)});
       const translator = await import(${JSON.stringify(join(DIST, "adapters/filesystem/scan-translator.js"))});
       const scan = translator.readRepository([{ language: "python", document: JSON.parse(readFileSync(${JSON.stringify(join(FIXTURE, "scan.json"))}, "utf8")) }]);
       const parsed = policy.parsePolicy(readFileSync(${JSON.stringify(join(FIXTURE, ".recognizer/policy.yaml"))}, "utf8"));
-      const found = rules.collectViolations(scan, parsed);
-      const analysis = analyse.analyse(scan, parsed.ignore);
-      console.log(JSON.stringify({ violations: found.violations.length, warnings: analysis.warnings.length }));
+      const violations = core.findViolations(scan, parsed);
+      const warnings = core.findCycleWarnings(scan, parsed);
+      console.log(JSON.stringify({ violations: violations.length, warnings: warnings.length }));
     `;
     const result = noEval(script);
 

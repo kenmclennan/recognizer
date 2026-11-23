@@ -10,6 +10,7 @@ const expected: Record<string, string[]> = {
   filesystem: [
     "findings-document-types.ts",
     "findings-translator.ts",
+    "policy-translator.ts",
     "scan-document-types.ts",
     "scan-translator.ts",
     "store-adapter.ts",

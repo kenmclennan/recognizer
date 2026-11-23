@@ -1,3 +1,4 @@
+import { compilePolicy } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { type InputError, parsePolicy } from "../src/index.js";
 
@@ -17,20 +18,24 @@ describe("parsePolicy forbid entries", () => {
       "forbid:\n  - a/** -> b/**\n  - from: [c/**, d/**]\n    to: [e/**, f/**]\n",
     );
 
-    expect(policy.forbid.map((rule) => rule.pattern)).toEqual([
+    const { forbid } = compilePolicy(policy);
+
+    expect(forbid.map((rule) => rule.pattern)).toEqual([
       "a/** -> b/**",
       "c/**, d/** -> e/**, f/**",
     ]);
-    expect(policy.forbid[1]?.from("d/x")).toBe(true);
-    expect(policy.forbid[1]?.from("e/x")).toBe(false);
-    expect(policy.forbid[1]?.to("f/x")).toBe(true);
-    expect(policy.forbid[1]?.to("c/x")).toBe(false);
+    expect(forbid[1]?.from("d/x")).toBe(true);
+    expect(forbid[1]?.from("e/x")).toBe(false);
+    expect(forbid[1]?.to("f/x")).toBe(true);
+    expect(forbid[1]?.to("c/x")).toBe(false);
   });
 
   it("reads a single glob for from and to", () => {
     const policy = parsePolicy("forbid:\n  - from: a/**\n    to: b/**\n");
 
-    expect(policy.forbid[0]?.pattern).toBe("a/** -> b/**");
+    expect(policy).toEqual([
+      { type: "forbid", pattern: "a/** -> b/**", from: ["a/**"], to: ["b/**"] },
+    ]);
   });
 
   it.each([
@@ -53,12 +58,12 @@ describe("parsePolicy entry", () => {
   it("accepts a list of globs", () => {
     const policy = parsePolicy("entry: [src/main.ts, 'src/jobs/**']\n");
 
-    expect(policy.entryGlobs).toEqual(["src/main.ts", "src/jobs/**"]);
-    expect(policy.entry.some((matches) => matches("src/main.ts"))).toBe(true);
-    expect(policy.entry.some((matches) => matches("src/jobs/a/b.ts"))).toBe(
-      true,
-    );
-    expect(policy.entry.some((matches) => matches("src/other.ts"))).toBe(false);
+    const { entry, entryGlobs } = compilePolicy(policy);
+
+    expect(entryGlobs).toEqual(["src/main.ts", "src/jobs/**"]);
+    expect(entry.some((matches) => matches("src/main.ts"))).toBe(true);
+    expect(entry.some((matches) => matches("src/jobs/a/b.ts"))).toBe(true);
+    expect(entry.some((matches) => matches("src/other.ts"))).toBe(false);
   });
 
   it("rejects a non-list", () => {

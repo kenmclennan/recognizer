@@ -7,6 +7,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import type { Violation } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { run } from "../src/cli.js";
@@ -21,6 +22,15 @@ import { capture, checkArgs, copyFixture, FIXTURE, REPO } from "./helpers.js";
 const expected = JSON.parse(
   readFileSync(join(FIXTURE, "expected.json"), "utf8"),
 );
+
+function printed(violation: Violation & { grown?: true }) {
+  return {
+    from: violation.file,
+    rule: violation.rule,
+    imports: violation.dependencies,
+    ...(violation.grown === true ? { grown: true } : {}),
+  };
+}
 
 function execute(args: string[]) {
   const captured = capture();
@@ -53,7 +63,11 @@ describe("check against the fixture", () => {
     );
     const result = check(scan, policy, baseline);
 
-    expect(result).toEqual({
+    expect({
+      violations: result.violations.map(printed),
+      new: result.new.map(printed),
+      fixed: result.fixed,
+    }).toEqual({
       violations: expected.violations,
       new: expected.new,
       fixed: expected.fixed,
@@ -302,7 +316,7 @@ describe("check against the migrated uses-form fixture", () => {
       null,
     );
 
-    expect(result.violations).toEqual(usesExpected.violations);
+    expect(result.violations.map(printed)).toEqual(usesExpected.violations);
   });
 
   it("has a scan that validates against the schema", () => {

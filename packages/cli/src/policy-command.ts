@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { parseDocument } from "yaml";
+import { parsePolicy } from "./adapters/filesystem/policy-translator.js";
 import type { Io } from "./cli.js";
 import { policyFile } from "./config.js";
 import { emit } from "./config-edit.js";
@@ -13,7 +14,6 @@ import {
   save,
   usageFor,
 } from "./key-command.js";
-import { parsePolicy } from "./policy.js";
 import { POLICY_KEYS } from "./policy-keys.js";
 import { appendRules, migratePolicy } from "./policy-migrate.js";
 

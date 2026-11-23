@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { RETIRED_KEYS as RETIRED_POLICY } from "../src/adapters/filesystem/policy-translator.js";
 import { RETIRED_KEYS as RETIRED_CONFIG } from "../src/config-retired.js";
-import { RETIRED_KEYS as RETIRED_POLICY } from "../src/policy.js";
 import { LANGUAGE_NAMES, PROBLEM_TITLES } from "../src/problem-titles.js";
 
 const CODES = [

@@ -1,3 +1,5 @@
+import type { ViolatedRule } from "./policy-rule.js";
+
 export interface Citation {
   readonly author: string;
   readonly work: string;
@@ -5,25 +7,12 @@ export interface Citation {
   readonly locator?: string;
 }
 
-export type FindingRule =
-  | {
-      readonly type: "level";
-      readonly fromLevel: string;
-      readonly toLevel: string;
-    }
-  | {
-      readonly type: "uses";
-      readonly fromComponent: string;
-      readonly toComponent: string;
-    }
-  | { readonly type: "forbid"; readonly pattern: string };
-
 export interface FindingDependency {
   readonly from: string;
   readonly to: string;
   readonly kind?: string;
   readonly lines?: readonly number[];
-  readonly rules?: readonly FindingRule[];
+  readonly rules?: readonly ViolatedRule[];
 }
 
 export interface FindingMember {

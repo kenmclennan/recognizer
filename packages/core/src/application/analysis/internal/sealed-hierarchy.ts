@@ -1,4 +1,5 @@
-import type { Dependency, Repository } from "@recognizer/core";
+import type { Dependency } from "../../../domain/dependency.js";
+import type { Repository } from "../../../domain/repository.js";
 
 export function sealedGroups(
   repository: Repository,

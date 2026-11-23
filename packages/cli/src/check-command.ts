@@ -1,13 +1,20 @@
 import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import type { Finding, Repository, SensorFindings } from "@recognizer/core";
+import type {
+  Finding,
+  PolicyRule,
+  Repository,
+  SensorFindings,
+  Violation,
+  Warning,
+} from "@recognizer/core";
 import {
+  documentRuleOf,
   findingRecordOf,
-  findingRuleOf,
-  policyRuleOf,
 } from "./adapters/filesystem/findings-translator.js";
+import { parsePolicy } from "./adapters/filesystem/policy-translator.js";
 import { readScanFile } from "./adapters/filesystem/scan-translator.js";
-import type { ModuleMetrics, Warning } from "./analyse.js";
+import type { ModuleMetrics } from "./analyse.js";
 import {
   type BaselineEntry,
   type Identity,
@@ -32,9 +39,7 @@ import { freshScans } from "./freshness.js";
 import { COMPLEXITY_LIMIT, LONG_FUNCTION } from "./function-length.js";
 import { scansCommit } from "./load-findings.js";
 import { moduleNames } from "./neighbours.js";
-import { type Policy, parsePolicy } from "./policy.js";
 import { warnPolicyProblems } from "./policy-problems.js";
-import type { Violation } from "./rules.js";
 import { shippedSensorNames } from "./shipped-sensors.js";
 import { runStructureSensor } from "./structure-run.js";
 import {
@@ -46,7 +51,7 @@ import {
 import { folderOf } from "./structure-warnings.js";
 import { freshnessFor } from "./tests-hash.js";
 
-type PrintedEvidence = ReturnType<typeof findingRecordOf>["evidence"];
+type FindingEvidence = ReturnType<typeof findingRecordOf>["evidence"];
 
 type BaselineAction = "none" | "initialised" | "shrunk";
 
@@ -55,13 +60,90 @@ interface OtherFinding {
   principle: string;
   fix_pattern?: string;
   summary: string;
-  evidence: PrintedEvidence;
+  evidence: FindingEvidence;
   finding_id?: string;
 }
 
-type GrownViolation = Violation & { grown?: true };
-type ReportedViolation = GrownViolation | OtherFinding;
-type ReportedWarning = Warning | OtherFinding;
+interface PrintedCycle {
+  id: "cycle";
+  principle: "levelization";
+  fix_pattern: "break-cycle";
+  summary: string;
+  evidence: { modules: string[]; edges: { from: string; to: string }[] };
+}
+
+interface PrintedViolation {
+  from: string;
+  rule: ReturnType<typeof documentRuleOf>;
+  imports: { to: string; kind: string; lines: number[] }[];
+  grown?: true;
+}
+
+type GrownViolation = { violation: Violation; grown: boolean };
+type ReportedViolation =
+  | { type: "violation"; value: GrownViolation }
+  | { type: "other"; value: OtherFinding };
+type ReportedWarning =
+  | { type: "cycle"; value: Warning }
+  | { type: "finding"; value: Finding };
+
+function printViolation({
+  violation,
+  grown,
+}: GrownViolation): PrintedViolation {
+  const printed: PrintedViolation = {
+    from: violation.file,
+    rule: documentRuleOf(violation.rule),
+    imports: violation.dependencies.map((one) => ({
+      to: one.to,
+      kind: one.kind,
+      lines: [...one.lines],
+    })),
+  };
+
+  return grown ? { ...printed, grown: true } : printed;
+}
+
+function printWarning(reported: ReportedWarning): PrintedCycle | OtherFinding {
+  if (reported.type === "cycle") {
+    return {
+      id: "cycle",
+      principle: reported.value.principle,
+      fix_pattern: reported.value.fixPattern,
+      summary: reported.value.summary,
+      evidence: {
+        modules: [...reported.value.files],
+        edges: reported.value.dependencies.map(({ from, to }) => ({
+          from,
+          to,
+        })),
+      },
+    };
+  }
+
+  return otherFindingOf(reported.value);
+}
+
+function otherFindingOf(record: Finding): OtherFinding {
+  return {
+    id: record.kind,
+    principle: record.principle,
+    fix_pattern: record.fixPattern,
+    summary: record.summary,
+    evidence: findingRecordOf(record).evidence,
+  };
+}
+
+function printRanked(result: Ranked) {
+  const printOne = (one: ReportedViolation) =>
+    one.type === "violation" ? printViolation(one.value) : one.value;
+
+  return {
+    violations: result.violations.map(printOne),
+    new: result.new.map(printOne),
+    fixed: result.fixed,
+  };
+}
 
 interface Candidate {
   entries: BaselineEntry[];
@@ -101,25 +183,21 @@ function readInput(io: Io, path: string, what: string): string {
   }
 }
 
-function ruleLine(violation: GrownViolation): string {
-  const imports = violation.imports
+function ruleLine({ violation, grown }: GrownViolation): string {
+  const imports = violation.dependencies
     .map((one) => `${one.to} (${one.kind}) line ${one.lines.join(", ")}`)
     .join("; ");
-  const grew = violation.grown === true ? " (grew an existing violation)" : "";
+  const grew = grown ? " (grew an existing violation)" : "";
 
-  return `${violation.from}: ${ruleText(findingRuleOf(violation.rule))} - ${imports}${grew}`;
-}
-
-function isStructureViolation(value: ReportedViolation): value is Violation {
-  return "from" in value;
+  return `${violation.file}: ${ruleText(violation.rule)} - ${imports}${grew}`;
 }
 
 const TEST_FILE_LINES_SHOWN = 10;
 
 function testFileLines(warning: ReportedWarning): string[] {
   const importers =
-    warning.id === "orphan" && "test_importers" in warning.evidence
-      ? warning.evidence.test_importers
+    warning.type === "finding" && warning.value.kind === "orphan"
+      ? warning.value.testImporters
       : undefined;
 
   if (!importers || importers.length === 0) {
@@ -148,9 +226,9 @@ function summary(
   listWarnings = false,
 ): string {
   const lines = (result?.new ?? []).map((violation) =>
-    isStructureViolation(violation)
-      ? ruleLine(violation)
-      : `${violation.summary} (${violation.id})`,
+    violation.type === "violation"
+      ? ruleLine(violation.value)
+      : `${violation.value.summary} (${violation.value.id})`,
   );
 
   if (result) {
@@ -167,7 +245,10 @@ function summary(
 
   if (listWarnings) {
     for (const warning of warnings) {
-      lines.push(`warning: ${warning.summary}`, ...testFileLines(warning));
+      lines.push(
+        `warning: ${warning.value.summary}`,
+        ...testFileLines(warning),
+      );
     }
   }
 
@@ -195,13 +276,19 @@ function violationOf(sensor: string, record: Finding): Candidate {
       entries,
       keys: entries.map(identityKey),
       value: {
-        from,
-        rule: policyRuleOf(rule),
-        imports: edges.map((edge) => ({
-          to: edge.to,
-          kind: edge.kind as string,
-          lines: edge.lines as number[],
-        })),
+        type: "violation",
+        value: {
+          violation: {
+            file: from,
+            rule,
+            dependencies: edges.map((edge) => ({
+              to: edge.to,
+              kind: edge.kind as string,
+              lines: edge.lines as number[],
+            })),
+          },
+          grown: false,
+        },
       },
     };
   }
@@ -210,12 +297,8 @@ function violationOf(sensor: string, record: Finding): Candidate {
     entries: [{ id: record.id }],
     keys: [identityKey({ id: record.id })],
     value: {
-      id: record.kind,
-      principle: record.principle,
-      fix_pattern: record.fixPattern,
-      summary: record.summary,
-      evidence: findingRecordOf(record).evidence,
-      finding_id: record.id,
+      type: "other",
+      value: { ...otherFindingOf(record), finding_id: record.id },
     },
   };
 }
@@ -223,13 +306,14 @@ function violationOf(sensor: string, record: Finding): Candidate {
 function warningOf(sensor: string, record: Finding): ReportedWarning {
   if (sensor === "structure" && record.kind === "cycle") {
     return {
-      id: "cycle",
-      principle: "levelization",
-      fix_pattern: "break-cycle",
-      summary: record.summary,
-      evidence: {
-        modules: [...record.files],
-        edges: (record.dependencies ?? []).map(({ from, to }) => ({
+      type: "cycle",
+      value: {
+        kind: "cycle",
+        principle: "levelization",
+        fixPattern: "break-cycle",
+        summary: record.summary,
+        files: [...record.files],
+        dependencies: (record.dependencies ?? []).map(({ from, to }) => ({
           from,
           to,
         })),
@@ -237,13 +321,7 @@ function warningOf(sensor: string, record: Finding): ReportedWarning {
     };
   }
 
-  return {
-    id: record.kind,
-    principle: record.principle,
-    fix_pattern: record.fixPattern,
-    summary: record.summary,
-    evidence: findingRecordOf(record).evidence,
-  };
+  return { type: "finding", value: record };
 }
 
 function candidatesOf(documents: SensorFindings[]): Candidate[] {
@@ -271,20 +349,26 @@ function rankCandidates(
   return {
     violations: candidates.map((one) => one.value),
     new: ranking.new.map(({ candidate, fresh, grown }) => {
-      const value = candidate.value;
+      const reported = candidate.value;
 
-      if (!isStructureViolation(value)) {
-        return value;
+      if (reported.type === "other") {
+        return reported;
       }
 
-      const narrowed: GrownViolation = {
-        ...value,
-        imports: value.imports.filter((_, index) =>
-          fresh.has(candidate.keys[index] as string),
-        ),
-      };
+      const { violation } = reported.value;
 
-      return grown ? { ...narrowed, grown: true } : narrowed;
+      return {
+        type: "violation",
+        value: {
+          violation: {
+            ...violation,
+            dependencies: violation.dependencies.filter((_, index) =>
+              fresh.has(candidate.keys[index] as string),
+            ),
+          },
+          grown,
+        },
+      };
     }),
     fixed: ranking.fixed,
   };
@@ -394,7 +478,7 @@ function analysisReport(
   folderMetrics: FolderMetrics[],
 ) {
   return {
-    warnings,
+    warnings: warnings.map(printWarning),
     metrics,
     folder_metrics: folderMetrics,
   };
@@ -486,7 +570,7 @@ function executeScanReplay(
   );
 
   io.stdout(
-    `${JSON.stringify({ ...result, baseline: report, ...analysisReport(warnings, sensed.metrics, sensed.folder_metrics) }, null, 2)}\n`,
+    `${JSON.stringify({ ...printRanked(result), baseline: report, ...analysisReport(warnings, sensed.metrics, sensed.folder_metrics) }, null, 2)}\n`,
   );
   io.stderr(summary(result, warnings));
 
@@ -494,18 +578,23 @@ function executeScanReplay(
 }
 
 function violationModules(value: ReportedViolation): string[] {
-  if (isStructureViolation(value)) {
-    return [value.from, ...value.imports.map((one) => one.to)];
+  if (value.type === "violation") {
+    const { violation } = value.value;
+
+    return [violation.file, ...violation.dependencies.map((one) => one.to)];
   }
 
   return [
-    ...value.evidence.modules,
-    ...(value.evidence.edges ?? []).flatMap((edge) => [edge.from, edge.to]),
+    ...value.value.evidence.modules,
+    ...(value.value.evidence.edges ?? []).flatMap((edge) => [
+      edge.from,
+      edge.to,
+    ]),
   ];
 }
 
 function warningModules(warning: ReportedWarning): string[] {
-  return (warning.evidence as { modules: string[] }).modules;
+  return [...warning.value.files];
 }
 
 function entryModules(entry: BaselineEntry): string[] {
@@ -528,7 +617,7 @@ function gather(
   io: Io,
   root: string,
   repository: Repository,
-  policy: Policy | null,
+  policy: readonly PolicyRule[] | null,
 ): Gathered {
   const config = readConfig(io, root, ["sensors"]);
   const { commit } = scansCommit(repository);
@@ -813,7 +902,7 @@ function executeRepository(
 
   io.stdout(
     values.json
-      ? `${JSON.stringify({ ...result, baseline: settled.report, ...analysis, sensors: gathered.sensors }, null, 2)}\n`
+      ? `${JSON.stringify({ ...printRanked(result), baseline: settled.report, ...analysis, sensors: gathered.sensors }, null, 2)}\n`
       : `${sensorLine}${summary(result, warnings, true)}`,
   );
 

@@ -42,6 +42,6 @@ export function compileGlob(pattern: string): Matcher {
   return (id) => regExp.test(id);
 }
 
-export function matchesAny(matchers: Matcher[], id: string): boolean {
+export function matchesAny(matchers: readonly Matcher[], id: string): boolean {
   return matchers.some((matcher) => matcher(id));
 }

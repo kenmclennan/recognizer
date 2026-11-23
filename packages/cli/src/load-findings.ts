@@ -1,5 +1,6 @@
-import type { Repository, SensorFindings } from "@recognizer/core";
+import type { PolicyRule, Repository, SensorFindings } from "@recognizer/core";
 import { readSensorFindings } from "./adapters/filesystem/findings-translator.js";
+import { parsePolicy } from "./adapters/filesystem/policy-translator.js";
 import type { Io } from "./cli.js";
 import { policyFile, readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
@@ -11,7 +12,6 @@ import {
   readFindingsFiles,
   writeFindings,
 } from "./findings-files.js";
-import { type Policy, parsePolicy } from "./policy.js";
 import { shippedSensorNames } from "./shipped-sensors.js";
 import {
   resolveStructureSettings,
@@ -21,7 +21,7 @@ import {
 } from "./structure-sensor.js";
 import { freshnessFor } from "./tests-hash.js";
 
-export function readPolicy(io: Io, root: string): Policy | null {
+export function readPolicy(io: Io, root: string): PolicyRule[] | null {
   const file = policyFile(root);
 
   if (!io.exists(file)) {

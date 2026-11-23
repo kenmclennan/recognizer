@@ -1,3 +1,5 @@
+import type { PolicyRule, Violation } from "@recognizer/core";
+import { findViolations } from "@recognizer/core";
 import { readScanFile } from "./adapters/filesystem/scan-translator.js";
 import {
   type BaselineEntry,
@@ -6,8 +8,6 @@ import {
   identityKey,
   violationKeys,
 } from "./baseline.js";
-import type { Policy } from "./policy.js";
-import { collectViolations, type Violation } from "./rules.js";
 
 export type ReportedNew = Violation & { grown?: true };
 
@@ -76,7 +76,7 @@ export function rankAgainstBaseline(
       const keys = candidate.keys;
       const narrowed: ReportedNew = {
         ...candidate.violation,
-        imports: candidate.violation.imports.filter((_, index) =>
+        dependencies: candidate.violation.dependencies.filter((_, index) =>
           fresh.has(keys[index] as string),
         ),
       };
@@ -89,10 +89,10 @@ export function rankAgainstBaseline(
 
 export function check(
   scan: unknown,
-  policy: Policy,
+  policy: readonly PolicyRule[],
   baseline: Identity[] | null,
 ): CheckResult {
-  const { violations } = collectViolations(readScanFile(scan), policy);
+  const violations = findViolations(readScanFile(scan), policy);
 
   return rankAgainstBaseline(violations, baseline);
 }

@@ -1,6 +1,9 @@
-import type { Repository } from "@recognizer/core";
-import { compileGlob } from "./glob.js";
-import type { Policy } from "./policy.js";
+import {
+  compileGlob,
+  compilePolicy,
+  type PolicyRule,
+  type Repository,
+} from "@recognizer/core";
 
 export interface PolicyProblem {
   kind: "entry" | "forbid";
@@ -16,12 +19,11 @@ function compare(a: string, b: string): number {
 
 export function policyProblems(
   repository: Repository,
-  policy: Policy | null,
+  policy: readonly PolicyRule[] | null,
 ): PolicyProblem[] {
-  if (
-    policy === null ||
-    (policy.entryGlobs.length === 0 && policy.forbid.length === 0)
-  ) {
+  const compiled = compilePolicy(policy);
+
+  if (compiled.entryGlobs.length === 0 && compiled.forbid.length === 0) {
     return [];
   }
 
@@ -37,7 +39,7 @@ export function policyProblems(
     return ![...scanned].some((id) => matches(id));
   };
 
-  const entries = [...new Set(policy.entryGlobs)]
+  const entries = [...new Set(compiled.entryGlobs)]
     .filter(matchesNothing)
     .map((glob) => ({
       kind: "entry" as const,
@@ -47,7 +49,7 @@ export function policyProblems(
 
   const forbids = new Map<string, PolicyProblem>();
 
-  for (const rule of policy.forbid) {
+  for (const rule of compiled.forbid) {
     for (const glob of [...rule.fromGlobs, ...rule.toGlobs]) {
       const text = `policy forbid ${rule.pattern}: ${glob} matches no scanned file`;
 
@@ -73,7 +75,7 @@ export function warnPolicyProblems(
   stderr: (text: string) => void,
   policyFile: string,
   repository: Repository,
-  policy: Policy | null,
+  policy: readonly PolicyRule[] | null,
 ): void {
   for (const problem of policyProblems(repository, policy)) {
     stderr(`warning: ${policyFile}: ${problem.text}\n`);

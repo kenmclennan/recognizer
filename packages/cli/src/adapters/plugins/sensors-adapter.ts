@@ -8,7 +8,7 @@ import type {
   ParserSet,
   PlannedSensor,
   PluginLimits,
-  PolicyDocument,
+  PolicyRule,
   ProgramGapsInput,
   Repository,
   Say,
@@ -26,7 +26,6 @@ import { type Config, registeredSensors } from "../../config-parse.js";
 import type { Parsers } from "../../duplication/parsers.js";
 import { loadParsers } from "../../duplication/parsers.js";
 import { InputError } from "../../errors.js";
-import type { readPolicy } from "../../load-findings.js";
 import type { createPluginLimits } from "../../plugin-run.js";
 import { warnPolicyProblems } from "../../policy-problems.js";
 import {
@@ -54,8 +53,6 @@ import { refuseUnregistered } from "../../unregistered-plugins.js";
 import { sinkIo } from "./sink-io.js";
 
 type Limits = ReturnType<typeof createPluginLimits>;
-
-type Policy = ReturnType<typeof readPolicy>;
 
 interface Selection {
   selected: { name: string; command: string[] }[];
@@ -232,7 +229,7 @@ export class SensorsAdapter implements Sensors, Analysis {
     plan: AnalysisPlan,
     root: string,
     repository: Repository,
-    policy: PolicyDocument,
+    policy: readonly PolicyRule[] | null,
     say: Say,
   ): { parserLanguages: string[] | null; label: string } {
     const { settings } = plan as unknown as Structure;
@@ -241,7 +238,7 @@ export class SensorsAdapter implements Sensors, Analysis {
       (text) => say("stderr", text),
       relative(root, policyFile(root)),
       repository,
-      policy as unknown as Policy | null,
+      policy,
     );
 
     return {
@@ -261,7 +258,7 @@ export class SensorsAdapter implements Sensors, Analysis {
     plan: AnalysisPlan,
     root: string,
     repository: Repository,
-    policy: PolicyDocument,
+    policy: readonly PolicyRule[] | null,
     parsers: ParserSet | null,
     say: Say,
   ): { error: string | null } {
@@ -270,7 +267,7 @@ export class SensorsAdapter implements Sensors, Analysis {
       sinkIo(this.io, say),
       root,
       repository,
-      policy as unknown as Policy | null,
+      policy,
       settings,
       parsers as unknown as Parsers | null,
     );

@@ -1,4 +1,5 @@
-import type { Dependency, Repository } from "@recognizer/core";
+import type { Dependency } from "../../domain/dependency.js";
+import type { Repository } from "../../domain/repository.js";
 import { type Matcher, matchesAny } from "./glob.js";
 
 const FOREIGN_PREFIX = "foreign:";
@@ -13,7 +14,7 @@ export function dependencyEdges<T extends { kind: string }>(
   return edges.filter((edge) => edge.kind !== "declares");
 }
 
-export function keptGraph(repository: Repository, ignore: Matcher[]) {
+export function keptGraph(repository: Repository, ignore: readonly Matcher[]) {
   const dropped = (id: string) => !isForeign(id) && matchesAny(ignore, id);
 
   const ids = new Set<string>();

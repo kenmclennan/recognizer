@@ -1,11 +1,14 @@
 import { resolve } from "node:path";
-import type { Repository } from "@recognizer/core";
+import {
+  findViolations,
+  type PolicyRule,
+  type Repository,
+} from "@recognizer/core";
 import { parse, stringify } from "yaml";
+import { parsePolicy } from "./adapters/filesystem/policy-translator.js";
 import type { Io } from "./cli.js";
 import { policyFile } from "./config.js";
 import { InputError } from "./errors.js";
-import { type Policy, parsePolicy } from "./policy.js";
-import { collectViolations } from "./rules.js";
 import {
   type DroppedCard,
   type ForbidCard,
@@ -117,7 +120,7 @@ function refusalOf(card: PolicyCard): string | null {
 function policyOf(
   document: Record<string, unknown>,
   forbid: unknown[],
-): Policy {
+): PolicyRule[] {
   return parsePolicy(
     stringify({
       ...(document.ignore === undefined ? {} : { ignore: document.ignore }),
@@ -141,10 +144,10 @@ function todayFor(
   let count = 0;
   let example: string | null = null;
 
-  for (const violation of collectViolations(repository, policy).violations) {
-    for (const one of violation.imports) {
+  for (const violation of findViolations(repository, policy)) {
+    for (const one of violation.dependencies) {
       count += 1;
-      example ??= `${violation.from} -> ${one.to}`;
+      example ??= `${violation.file} -> ${one.to}`;
     }
   }
 

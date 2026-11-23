@@ -5,7 +5,7 @@ import type {
   HeldLock,
   LockDetails,
   Measured,
-  PolicyDocument,
+  PolicyRule,
   Repository,
   ResponsibilityKinds,
   RunFailure,
@@ -65,8 +65,8 @@ export class FakeStore implements Store {
     return false;
   }
 
-  policy(): PolicyDocument {
-    return { policyDocument: true };
+  policy(): readonly PolicyRule[] | null {
+    return [];
   }
 
   writeScan(root: string, language: string, bytes: string): void {

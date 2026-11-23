@@ -1,5 +1,11 @@
 import { join } from "node:path";
-import type { Finding, Repository } from "@recognizer/core";
+import {
+  compilePolicy,
+  type Finding,
+  keptGraph,
+  type PolicyRule,
+  type Repository,
+} from "@recognizer/core";
 import type { Io } from "../cli.js";
 import { findFunctions } from "../duplication/functions.js";
 import { type Grammar, grammarFor } from "../duplication/grammars.js";
@@ -8,8 +14,6 @@ import { decode } from "../duplication/measure.js";
 import type { Parsers } from "../duplication/parsers.js";
 import { isTestFile } from "../entry-points.js";
 import { COMPLEXITY_LIMIT } from "../function-length.js";
-import { keptGraph } from "../graph.js";
-import type { Policy } from "../policy.js";
 import { principleOf } from "../principles.js";
 import type { StructureSettings } from "../structure-sensor.js";
 import { cyclomaticComplexity } from "./count.js";
@@ -111,7 +115,7 @@ export function measureComplexityValues(
   io: Io,
   root: string,
   repository: Repository,
-  policy: Policy | null,
+  policy: readonly PolicyRule[] | null,
   settings: StructureSettings,
   parsers: Parsers,
 ): ComplexityMeasure {
@@ -119,7 +123,7 @@ export function measureComplexityValues(
   const findings: Finding[] = [];
   const values: Record<string, number> = {};
 
-  const { ids } = keptGraph(repository, policy?.ignore ?? []);
+  const { ids } = keptGraph(repository, compilePolicy(policy).ignore);
 
   for (const module of repository.files) {
     const grammar = grammarFor(module.path);
@@ -167,7 +171,7 @@ export function measureComplexity(
   io: Io,
   root: string,
   repository: Repository,
-  policy: Policy | null,
+  policy: readonly PolicyRule[] | null,
   settings: StructureSettings,
   parsers: Parsers,
 ): Finding[] {

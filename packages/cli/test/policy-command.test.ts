@@ -1,9 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { compilePolicy } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
+import { parsePolicy } from "../src/adapters/filesystem/policy-translator.js";
 import { nodeIo, run } from "../src/cli.js";
-import { parsePolicy } from "../src/policy.js";
 import { REPO } from "./helpers.js";
 import { fakeIo, ROOT } from "./scan-helpers.js";
 
@@ -206,7 +207,9 @@ describe("recognizer policy --add-forbid", () => {
     expect(after).toContain(
       "  - from: [src/domain/**, src/ports/**]\n    to: [src/adapters/**]\n",
     );
-    expect(parsePolicy(after).forbid).toHaveLength(2);
+    expect(
+      parsePolicy(after).filter((rule) => rule.type === "forbid"),
+    ).toHaveLength(2);
     expect(
       policy(
         fake,
@@ -428,9 +431,9 @@ describe("recognizer policy with no policy file", () => {
 
     expect(code).toBe(0);
     expect(existsSync(file)).toBe(true);
-    expect(parsePolicy(readFileSync(file, "utf8")).entryGlobs).toEqual([
-      "src/main.ts",
-    ]);
+    expect(
+      compilePolicy(parsePolicy(readFileSync(file, "utf8"))).entryGlobs,
+    ).toEqual(["src/main.ts"]);
   });
 });
 

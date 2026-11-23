@@ -3,7 +3,7 @@ import type {
   AnalysisPlan,
   ConfigDocument,
   ParserSet,
-  PolicyDocument,
+  PolicyRule,
   Repository,
 } from "../../src/index.js";
 
@@ -23,7 +23,7 @@ export class FakeAnalysis implements Analysis {
     _plan: AnalysisPlan,
     _root: string,
     _repository: Repository,
-    _policy: PolicyDocument,
+    _policy: readonly PolicyRule[] | null,
   ): { parserLanguages: string[] | null; label: string } {
     return {
       parserLanguages: this.analysis.parserLanguages,
@@ -39,7 +39,7 @@ export class FakeAnalysis implements Analysis {
     _plan: AnalysisPlan,
     _root: string,
     _repository: Repository,
-    _policy: PolicyDocument,
+    _policy: readonly PolicyRule[] | null,
     parsers: ParserSet | null,
   ): { error: string | null } {
     this.analysisParsers.push(parsers);

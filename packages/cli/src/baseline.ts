@@ -1,8 +1,6 @@
-import type { Finding } from "@recognizer/core";
-import { findingRuleOf } from "./adapters/filesystem/findings-translator.js";
+import type { Finding, Violation } from "@recognizer/core";
 import { InputError } from "./errors.js";
 import { importText, ruleText } from "./findings.js";
-import type { Violation } from "./rules.js";
 
 export interface Identity {
   from: string;
@@ -19,8 +17,8 @@ export type BaselineEntry = Identity | IdEntry;
 const KINDS = new Set(["depends", "inherits", "implements"]);
 const VIOLATION_PREFIX = "rule-violation:";
 
-export function violationId(violation: Pick<Violation, "from" | "rule">) {
-  return `${VIOLATION_PREFIX}${ruleText(findingRuleOf(violation.rule))}:${violation.from}`;
+export function violationId(violation: Pick<Violation, "file" | "rule">) {
+  return `${VIOLATION_PREFIX}${ruleText(violation.rule)}:${violation.file}`;
 }
 
 export function edgeId(identity: Identity): string {
@@ -28,8 +26,8 @@ export function edgeId(identity: Identity): string {
 }
 
 export function violationKeys(violation: Violation): string[] {
-  return violation.imports.map((one) =>
-    identityKey({ from: violation.from, to: one.to, kind: one.kind }),
+  return violation.dependencies.map((one) =>
+    identityKey({ from: violation.file, to: one.to, kind: one.kind }),
   );
 }
 

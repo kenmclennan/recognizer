@@ -7,7 +7,7 @@ import type {
   LineKind,
   LockDetails,
   Measured,
-  PolicyDocument,
+  PolicyRule,
   Repository,
   ResponsibilityKinds,
   RunLog,
@@ -89,8 +89,8 @@ export class StoreAdapter implements Store {
     return readsSensors(this.read);
   }
 
-  policy(root: string): PolicyDocument {
-    return readPolicy(this.io, root) as unknown as PolicyDocument;
+  policy(root: string): readonly PolicyRule[] | null {
+    return readPolicy(this.io, root);
   }
 
   writeScan(root: string, language: string, bytes: string): void {

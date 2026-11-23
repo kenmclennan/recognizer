@@ -1,5 +1,8 @@
-import type { Dependency, Repository } from "@recognizer/core";
-import { dependencyEdges } from "./graph.js";
+import {
+  type Dependency,
+  dependencyEdges,
+  type Repository,
+} from "@recognizer/core";
 
 export type NeighbourRow = {
   id: string;

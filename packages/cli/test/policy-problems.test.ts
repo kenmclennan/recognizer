@@ -1,11 +1,14 @@
-import { joinRepositories, type Repository } from "@recognizer/core";
+import {
+  joinRepositories,
+  type PolicyRule,
+  type Repository,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { parsePolicy } from "../src/index.js";
-import type { Policy } from "../src/policy.js";
 import { policyProblems } from "../src/policy-problems.js";
 import { scanOf } from "./scan-of.js";
 
-const problems = (scans: Repository[], policy: Policy | null) =>
+const problems = (scans: Repository[], policy: PolicyRule[] | null) =>
   policyProblems(joinRepositories(scans), policy);
 
 describe("policyProblems", () => {

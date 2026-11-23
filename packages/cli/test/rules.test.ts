@@ -1,13 +1,12 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { Violation } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   check,
-  findingRuleOf,
   InputError,
   parsePolicy,
   ruleText,
-  type Violation,
   validateScan,
 } from "../src/index.js";
 import { FIXTURE, REPO } from "./helpers.js";
@@ -128,7 +127,7 @@ describe("forbid rule", () => {
       "forbid d/* -> x/*",
       "forbid d/** -> p/**, a/**, x/**, main.py",
     ]);
-    expect(both.violations.map((v) => v.imports)).toEqual([
+    expect(both.violations.map((v) => v.dependencies)).toEqual([
       [{ to: "x/b.py", kind: "depends", lines: [1] }],
       [{ to: "x/b.py", kind: "depends", lines: [1] }],
     ]);
@@ -141,7 +140,7 @@ describe("forbid rule", () => {
     ]);
 
     expect(result.violations).toHaveLength(1);
-    expect(result.violations[0]?.imports).toEqual([
+    expect(result.violations[0]?.dependencies).toEqual([
       { to: "x/b.py", kind: "depends", lines: [2, 9] },
     ]);
   });
@@ -153,11 +152,11 @@ describe("forbid rule", () => {
     ]);
 
     expect(result.violations).toHaveLength(1);
-    expect(result.violations[0]?.from).toBe("d/a.py");
+    expect(result.violations[0]?.file).toBe("d/a.py");
     expect(ruleText((result.violations[0] as Violation).rule)).toBe(
       "forbid d/** -> p/**, a/**, x/**, main.py",
     );
-    expect(result.violations[0]?.imports).toEqual([
+    expect(result.violations[0]?.dependencies).toEqual([
       { to: "x/m1.py", kind: "depends", lines: [3] },
       { to: "x/m2.py", kind: "depends", lines: [7] },
     ]);
@@ -172,7 +171,7 @@ describe("forbid rule", () => {
 
     expect(rules.violations).toHaveLength(2);
     expect(modules.violations).toHaveLength(2);
-    expect(modules.violations.map((v) => v.from)).toEqual(["d/a.py", "d/b.py"]);
+    expect(modules.violations.map((v) => v.file)).toEqual(["d/a.py", "d/b.py"]);
   });
 });
 
@@ -195,7 +194,9 @@ describe("baseline over grouped violations", () => {
     expect(ranked.violations).toHaveLength(1);
     expect(ranked.new).toHaveLength(1);
     expect(ranked.new[0]?.grown).toBe(true);
-    expect(ranked.new[0]?.imports.map((one) => one.to)).toEqual(["x/m2.py"]);
+    expect(ranked.new[0]?.dependencies.map((one) => one.to)).toEqual([
+      "x/m2.py",
+    ]);
     expect(ranked.fixed).toEqual([]);
   });
 
@@ -212,7 +213,7 @@ describe("baseline over grouped violations", () => {
 
     expect(ranked.new).toHaveLength(1);
     expect(ranked.new[0]?.grown).toBe(true);
-    expect(ranked.new[0]?.imports.map((one) => one.to)).toEqual([
+    expect(ranked.new[0]?.dependencies.map((one) => one.to)).toEqual([
       "p/s.py",
       "x/m2.py",
     ]);
@@ -253,7 +254,7 @@ describe("baseline over grouped violations", () => {
 
 function violatingImports(edges: object[], policy: string) {
   return run(edges, policy).violations.flatMap((violation) =>
-    violation.imports.map((one) => [violation.from, one.to]),
+    violation.dependencies.map((one) => [violation.file, one.to]),
   );
 }
 
@@ -295,7 +296,7 @@ describe("forbid rule forms", () => {
     );
 
     expect(result.violations).toHaveLength(1);
-    expect(result.violations[0]?.imports.map((one) => one.to)).toEqual([
+    expect(result.violations[0]?.dependencies.map((one) => one.to)).toEqual([
       "c/1.py",
       "d/1.py",
     ]);
@@ -338,22 +339,18 @@ describe("forbid rule forms", () => {
 describe("a findings file written before the upgrade", () => {
   it("still names a level and a uses rule", () => {
     expect(
-      ruleText(
-        findingRuleOf({
-          type: "level",
-          from_level: "domain",
-          to_level: "ports",
-        }),
-      ),
+      ruleText({
+        type: "level",
+        fromLevel: "domain",
+        toLevel: "ports",
+      }),
     ).toBe("level domain -> ports");
     expect(
-      ruleText(
-        findingRuleOf({
-          type: "uses",
-          from_component: "orders",
-          to_component: "billing",
-        }),
-      ),
+      ruleText({
+        type: "uses",
+        fromComponent: "orders",
+        toComponent: "billing",
+      }),
     ).toBe("uses orders -> billing");
   });
 });

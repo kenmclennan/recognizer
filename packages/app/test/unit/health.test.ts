@@ -434,28 +434,28 @@ describe("hover truncation", () => {
 });
 
 describe("violationLine", () => {
-  const base = { from: "a" };
-  const imports = (kind: string) => [{ to: "b", kind, lines: [3, 5] }];
+  const base = { file: "a" };
+  const dependencies = (kind: string) => [{ to: "b", kind, lines: [3, 5] }];
 
   it("names each rule kind", () => {
     expect(
       violationLine({
         ...base,
-        imports: imports("depends"),
-        rule: { type: "level", from_level: "domain", to_level: "adapters" },
+        dependencies: dependencies("depends"),
+        rule: { type: "level", fromLevel: "domain", toLevel: "adapters" },
       }),
     ).toBe("violation: depends on b at line 3, 5 (level domain -> adapters)");
     expect(
       violationLine({
         ...base,
-        imports: imports("inherits"),
-        rule: { type: "uses", from_component: "x", to_component: "y" },
+        dependencies: dependencies("inherits"),
+        rule: { type: "uses", fromComponent: "x", toComponent: "y" },
       }),
     ).toBe("violation: inherits b at line 3, 5 (uses x -> y)");
     expect(
       violationLine({
         ...base,
-        imports: imports("implements"),
+        dependencies: dependencies("implements"),
         rule: { type: "forbid", pattern: "* -> foreign:requests" },
       }),
     ).toBe(

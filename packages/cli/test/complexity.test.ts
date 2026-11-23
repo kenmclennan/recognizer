@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { parsePolicy } from "../src/adapters/filesystem/policy-translator.js";
 import type { Parsers } from "../src/duplication/parsers.js";
-import { parsePolicy } from "../src/policy.js";
 import { runStructureSensor } from "../src/structure-run.js";
 import {
   DEFAULT_STRUCTURE_SETTINGS,

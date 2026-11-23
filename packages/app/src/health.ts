@@ -1,21 +1,18 @@
-import type { SensorFindings } from "@recognizer/core";
+import type { PolicyRule, SensorFindings, Violation } from "@recognizer/core";
 import {
   buildFreshness,
   type FindingNote,
-  findingRuleOf,
   findingsByModuleFrom,
   InputError,
   identityKey,
   measuredModules,
   narrowViolationRecord,
-  type Policy,
   type PolicyProblem,
   parseBaseline,
   parsePolicy,
   policyProblems,
   ruleText,
   splitFindings,
-  type Violation,
   violationText,
 } from "recognizer";
 import type { Loaded } from "./scan-loading";
@@ -41,7 +38,7 @@ const MAX_HOVER_LINES = 10;
 const RANK: Record<Disc, number> = { green: 0, grey: 1, amber: 2, red: 3 };
 
 export function violationLine(violation: Violation): string {
-  return `violation: ${violationText(violation)} (${ruleText(findingRuleOf(violation.rule))})`;
+  return `violation: ${violationText(violation)} (${ruleText(violation.rule)})`;
 }
 
 function messagesOf(error: unknown): string {
@@ -64,7 +61,7 @@ function readBaseline(text: string | null, notices: string[]): Set<string> {
   }
 }
 
-function readPolicy(text: string | null): Policy | null {
+function readPolicy(text: string | null): PolicyRule[] | null {
   if (text === null) {
     return null;
   }

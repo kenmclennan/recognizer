@@ -50,7 +50,7 @@ function outcome(
 
   return {
     rules: result.violations.flatMap((v) =>
-      v.imports.map((one) => [v.from, one.to, v.rule.type]),
+      v.dependencies.map((one) => [v.file, one.to, v.rule.type]),
     ),
   };
 }
