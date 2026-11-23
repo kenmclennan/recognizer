@@ -197,7 +197,7 @@ export function createScanSource(deps: ScanSourceDeps): ScanPort {
 
     try {
       scan = await call<string>("scan.start", {
-        describe: plan.describeAll ? "all" : plan.describe ? "stale" : false,
+        describe: plan.describe ? (plan.describeAll ? "all" : "stale") : false,
         analysis: plan.analysis,
         sense: plan.sense,
         modules: plan.modules,

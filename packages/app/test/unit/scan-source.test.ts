@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { FreshnessModel } from "../../src/freshness-model";
+import type { ScanTicks } from "../../src/scan-panel-model";
 import {
   type CoreOutcome,
   type CoreStreamItem,
@@ -6,6 +8,32 @@ import {
   outcomeResult,
   unavailableResult,
 } from "../../src/scan-source";
+import { plannedRun } from "../fixtures";
+
+const MODEL = {
+  rows: [],
+  gaps: new Map<string, string[]>(),
+  update: [],
+  action: { primary: { label: "Up to date" } },
+} as unknown as FreshnessModel;
+
+const ROWS = [
+  { name: "structure", runsTests: false, scoped: false },
+  { name: "crap", runsTests: true, scoped: false },
+];
+
+function ticksOf(overrides: Partial<ScanTicks>): ScanTicks {
+  return {
+    describe: false,
+    analysis: true,
+    ticked: [],
+    armed: [],
+    onlyView: false,
+    suites: {},
+    folds: [],
+    ...overrides,
+  };
+}
 
 const REPOSITORY = "/work/repo";
 const GAP = { id: "crap", line: "crap needs coverage", needs: ["coverage"] };
@@ -176,6 +204,62 @@ describe("scan source", () => {
         },
       },
     });
+  });
+
+  it("a rescan with Descriptions unticked starts the scan with describe false", async () => {
+    const planned = plannedRun(
+      MODEL,
+      "rescan",
+      ticksOf({ describe: false, ticked: ["structure"] }),
+      ROWS,
+      null,
+      [],
+    );
+
+    expect(planned.plan.describe).toBe(false);
+    expect(planned.plan.describeAll).toBe(true);
+
+    const { source, calls } = stubbed({ "scan.start": "s1" }, (op) =>
+      op === "scan.start"
+        ? [{ stream: "s1", outcome: { status: "finished" } }]
+        : [],
+    );
+
+    await source.run(planned.plan);
+
+    const start = calls.find(({ args }) => args.op === "scan.start");
+
+    expect(
+      (start?.args.args as { describe: unknown } | undefined)?.describe,
+    ).toBe(false);
+  });
+
+  it("a rescan with Descriptions ticked starts the scan with describe all", async () => {
+    const planned = plannedRun(
+      MODEL,
+      "rescan",
+      ticksOf({ describe: true }),
+      ROWS,
+      null,
+      [],
+    );
+
+    expect(planned.plan.describe).toBe(true);
+    expect(planned.plan.describeAll).toBe(true);
+
+    const { source, calls } = stubbed({ "scan.start": "s1" }, (op) =>
+      op === "scan.start"
+        ? [{ stream: "s1", outcome: { status: "finished" } }]
+        : [],
+    );
+
+    await source.run(planned.plan);
+
+    const start = calls.find(({ args }) => args.op === "scan.start");
+
+    expect(
+      (start?.args.args as { describe: unknown } | undefined)?.describe,
+    ).toBe("all");
   });
 
   it("an unavailable reply becomes the matching result", async () => {
