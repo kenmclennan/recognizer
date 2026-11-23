@@ -1,4 +1,4 @@
-import type { View } from "recognizer";
+import { View } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { currentCommit, hasEntries, staleReport } from "../../src/stale-report";
 import { expectedScan } from "../fixtures";
@@ -41,15 +41,13 @@ function derived(): Committed {
   };
 }
 
-const view = (
-  steps: View["steps"],
-  commit: string | null = "abc1234",
-): View => ({
-  schema_version: 1,
-  description: "d",
-  commit,
-  steps,
-});
+const view = (steps: View["steps"], commit: string | null = "abc1234"): View =>
+  View.of({
+    schema_version: 1,
+    description: "d",
+    commit,
+    steps,
+  });
 
 const picks = (...modules: string[]): View["steps"] =>
   modules.map((module) => ({ kind: "pick", module }));

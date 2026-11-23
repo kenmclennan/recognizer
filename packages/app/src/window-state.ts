@@ -1,4 +1,4 @@
-import type { ViewChange } from "recognizer";
+import type { ViewChange } from "@recognizer/core";
 import type { InspectorTab } from "./inspector-model";
 import type { Trail } from "./trail-model";
 

@@ -1,27 +1,24 @@
-import { Repository } from "@recognizer/core";
+import {
+  type ChangeFacts,
+  Neighbours,
+  Repository,
+  View,
+  type ViewChange,
+  type ViewFields,
+  ViewRange,
+} from "@recognizer/core";
 import {
   afterFoldToggle,
   afterPanelOpen,
   afterSensorTick,
   afterSuiteTick,
   buildFreshness,
-  type ChangeFacts,
-  changeChip,
   changeMarks,
   classifyOpened,
   type FileChange,
-  folderUsedBy,
-  folderUses,
   type MarkedFile,
   type MemberMarkKind,
   memberMarks,
-  rangeText,
-  resolveView,
-  usedByOf,
-  usesOf,
-  type View,
-  type ViewChange,
-  viewNotes,
 } from "recognizer";
 import { agentLineOf, backLabel, forwardLabel } from "./agent-line";
 import { type Scheduler, timerScheduler } from "./bar-hover";
@@ -254,7 +251,6 @@ import {
   createViewComparisons,
   type ViewComparisons,
 } from "./view-comparisons";
-import { parseViewFile, serialiseView } from "./view-file";
 import type { Heading } from "./view-heading";
 import {
   createHistory,
@@ -283,6 +279,8 @@ import {
   type ReadOutcome,
   type ViewsPort,
 } from "./views-port";
+import { createVisualisationFake } from "./visualisation-fake";
+import type { ParsedView, VisualisationPort } from "./visualisation-port";
 import {
   type DriveAction,
   type DriveFacts,
@@ -445,6 +443,7 @@ export function showExplorer(
   openSettings: () => void = () => {},
   openSetup: () => void = () => {},
   timeZone: string = Intl.DateTimeFormat().resolvedOptions().timeZone,
+  visualisation: VisualisationPort = createVisualisationFake(),
 ): Explorer {
   let loaded = initial;
   let health = computeHealth(loaded);
@@ -569,6 +568,21 @@ export function showExplorer(
     ref: string;
   } | null = null;
   const viewTexts = new Map<string, string>();
+  const parsedTexts = new Map<string, ParsedView>();
+  let draftView: View | null = null;
+
+  const parsedOf = (text: string): ParsedView =>
+    parsedTexts.get(text) ?? { ok: false, reason: "not parsed" };
+
+  async function remember(texts: string[]) {
+    await Promise.all(
+      texts
+        .filter((text) => !parsedTexts.has(text))
+        .map(async (text) => {
+          parsedTexts.set(text, await visualisation.parse(text));
+        }),
+    );
+  }
   const history =
     carried?.history ??
     createHistory<Snapshot>({
@@ -1547,7 +1561,7 @@ export function showExplorer(
       return planCache.value;
     }
 
-    const value = planOverlay(view, resolveView(view, scans), scans);
+    const value = planOverlay(view, view.resolve(scans), scans);
 
     planCache = { view, scans, value };
 
@@ -1845,7 +1859,7 @@ export function showExplorer(
 
     await Promise.all(
       viewList.map(async ({ name, text }) => {
-        const parsed = parseViewFile(text);
+        const parsed = parsedOf(text);
 
         if (!parsed.ok || parsed.view.change === undefined) {
           return;
@@ -1963,7 +1977,7 @@ export function showExplorer(
       return;
     }
 
-    const range = rangeText(view.change);
+    const range = ViewRange.text(view.change);
 
     if (heldDetail !== null && heldDetail.key !== range) {
       heldDetail = null;
@@ -2199,12 +2213,12 @@ export function showExplorer(
 
     const change = view.change;
     const held =
-      heldDetail !== null && heldDetail.key === rangeText(change)
+      heldDetail !== null && heldDetail.key === ViewRange.text(change)
         ? heldDetail
         : null;
     const known = commitFacts.get(change.head) ?? null;
     const info =
-      changeInfo?.state === "ok" && changeInfo.range === rangeText(change)
+      changeInfo?.state === "ok" && changeInfo.range === ViewRange.text(change)
         ? changeInfo
         : null;
 
@@ -2757,7 +2771,7 @@ export function showExplorer(
   }
 
   function draftOf(range: ViewChange): View {
-    const view: View = {
+    const view = View.of({
       schema_version: 4,
       description: "",
       commit: null,
@@ -2767,9 +2781,9 @@ export function showExplorer(
         head: range.head,
         ...(range.name === undefined ? {} : { name: range.name }),
       },
-    };
+    });
 
-    viewTexts.set(DRAFT_VIEW, serialiseView(view));
+    draftView = view;
 
     return view;
   }
@@ -3184,7 +3198,7 @@ export function showExplorer(
     }
 
     const positions = notePositions();
-    const first = viewNotes(view).find((note) => positions.has(note.module));
+    const first = view.noteList().find((note) => positions.has(note.module));
 
     if (first !== undefined) {
       orientNote(first.module, false);
@@ -3539,7 +3553,7 @@ export function showExplorer(
       restored !== null &&
       snap.draft !== null &&
       (changeInfo?.name !== DRAFT_VIEW ||
-        changeInfo.range !== rangeText(snap.draft))
+        changeInfo.range !== ViewRange.text(snap.draft))
     ) {
       void loadChange(DRAFT_VIEW, restored, openToken);
     }
@@ -3552,14 +3566,15 @@ export function showExplorer(
       return null;
     }
 
+    const neighbours = new Neighbours(scans, loaded.modules);
     const rows = (uses: boolean) =>
       (selection.kind === "module"
         ? uses
-          ? usesOf(scans, loaded.modules, selection.id)
-          : usedByOf(scans, loaded.modules, selection.id)
+          ? neighbours.usesOf(selection.id)
+          : neighbours.usedByOf(selection.id)
         : uses
-          ? folderUses(scans, loaded.modules, selection.id)
-          : folderUsedBy(scans, loaded.modules, selection.id)
+          ? neighbours.folderUses(selection.id)
+          : neighbours.folderUsedBy(selection.id)
       ).map((row) => row.id);
 
     return { selection, uses: rows(true), usedBy: rows(false) };
@@ -3700,6 +3715,8 @@ export function showExplorer(
     try {
       const listing = await views.list();
 
+      await remember(listing.views.map((entry) => entry.text));
+
       listNotice =
         listing.refused.length === 0
           ? null
@@ -3737,10 +3754,10 @@ export function showExplorer(
       viewList.find((entry) => entry.name === name)?.text;
 
     if (name === DRAFT_VIEW) {
-      return text === undefined ? null : (JSON.parse(text) as View);
+      return draftView?.clone() ?? null;
     }
 
-    const parsed = text === undefined ? null : parseViewFile(text);
+    const parsed = text === undefined ? null : parsedOf(text);
 
     return parsed?.ok ? parsed.view : null;
   }
@@ -3767,7 +3784,7 @@ export function showExplorer(
       openView === null
         ? undefined
         : viewList.find((entry) => entry.name === openView)?.text;
-    const parsed = text === undefined ? null : parseViewFile(text);
+    const parsed = text === undefined ? null : parsedOf(text);
 
     return parsed?.ok === true
       ? viewModified(parsed.view, canvasContent(), scans)
@@ -3793,7 +3810,7 @@ export function showExplorer(
     comparisons.drop(name);
 
     if (name === DRAFT_VIEW) {
-      viewTexts.delete(DRAFT_VIEW);
+      draftView = null;
     }
 
     if (revertMessage !== null) {
@@ -3846,7 +3863,7 @@ export function showExplorer(
     const name = openView;
     const text =
       name === null ? undefined : viewList.find((e) => e.name === name)?.text;
-    const parsed = text === undefined ? null : parseViewFile(text);
+    const parsed = text === undefined ? null : parsedOf(text);
 
     if (name === null || parsed === null || !parsed.ok) {
       return;
@@ -3860,7 +3877,7 @@ export function showExplorer(
     }
 
     const before = { ...canvasContent(), camera: canvas.camera() };
-    const resolved = resolveView(parsed.view, scans);
+    const resolved = parsed.view.resolve(scans);
 
     if (revertMessage !== null) {
       withdraw(revertMessage);
@@ -3901,7 +3918,7 @@ export function showExplorer(
         viewList.map((entry) => entry.name),
         recentNames,
       ).map((name) => {
-        const parsed = parseViewFile(
+        const parsed = parsedOf(
           viewList.find((entry) => entry.name === name)?.text ?? "",
         );
 
@@ -3944,7 +3961,7 @@ export function showExplorer(
       return null;
     }
 
-    const chip = changeChip(view.change);
+    const chip = ViewRange.chip(view.change);
     const summary = summaryOf(view);
 
     return summary === null ? chip : { text: summary.chip, title: chip.title };
@@ -3974,7 +3991,9 @@ export function showExplorer(
     withRenames: boolean,
     landing = false,
   ) {
-    const parsed = parseViewFile(text);
+    await remember([text]);
+
+    const parsed = parsedOf(text);
 
     if (!parsed.ok) {
       viewNotice = `${name} is not a valid view: ${parsed.reason}`;
@@ -3995,7 +4014,7 @@ export function showExplorer(
     }
 
     const token = ++openToken;
-    const resolved = resolveView(view, scans);
+    const resolved = view.resolve(scans);
     const missingPicks = resolved.unresolved.filter(
       (entry) => entry.kind === "pick",
     );
@@ -4021,7 +4040,7 @@ export function showExplorer(
     heldViewKeys.delete(`view-invalid:${name}`);
     viewTexts.set(name, text);
     openView = name;
-    pendingLanding = landing && viewNotes(view).length > 0 ? name : null;
+    pendingLanding = landing && view.noteList().length > 0 ? name : null;
     changeInfo = null;
     setCanvas(
       [...resolved.modules, ...renamed],
@@ -4035,7 +4054,7 @@ export function showExplorer(
 
   async function recompare(name: string) {
     const text = viewList.find((view) => view.name === name)?.text;
-    const parsed = text === undefined ? null : parseViewFile(text);
+    const parsed = text === undefined ? null : parsedOf(text);
 
     if (
       text === undefined ||
@@ -4047,9 +4066,9 @@ export function showExplorer(
     }
 
     const token = ++openToken;
-    const missingPicks = resolveView(parsed.view, scans).unresolved.filter(
-      (entry) => entry.kind === "pick",
-    );
+    const missingPicks = parsed.view
+      .resolve(scans)
+      .unresolved.filter((entry) => entry.kind === "pick");
     const renames =
       parsed.view.commit !== null && missingPicks.length > 0
         ? await renamesFor(name, parsed.view.commit)
@@ -4178,7 +4197,7 @@ export function showExplorer(
 
   async function writeView(
     name: string,
-    view: Parameters<typeof serialiseView>[0],
+    view: ViewFields,
   ): Promise<string | null> {
     const fail = (problem: string) => {
       viewNotice = problem;
@@ -4189,8 +4208,10 @@ export function showExplorer(
     };
 
     try {
-      const text = serialiseView(view);
-      const checked = parseViewFile(text);
+      const text = await visualisation.serialise(view);
+      await remember([text]);
+
+      const checked = parsedOf(text);
 
       if (!checked.ok) {
         return fail(`${name} is not a valid view: ${checked.reason}`);
@@ -4214,7 +4235,7 @@ export function showExplorer(
   async function writeOpen(): Promise<boolean> {
     const name = savedView();
     const text = name === null ? undefined : viewTexts.get(name);
-    const parsed = text === undefined ? null : parseViewFile(text);
+    const parsed = text === undefined ? null : parsedOf(text);
 
     if (name === null || parsed === null || !parsed.ok) {
       return false;
@@ -4298,7 +4319,7 @@ export function showExplorer(
       comparisons.drop(name);
 
       if (draft !== null) {
-        viewTexts.delete(DRAFT_VIEW);
+        draftView = null;
 
         if (changeInfo?.name === DRAFT_VIEW) {
           changeInfo = { ...changeInfo, name };
@@ -4475,7 +4496,7 @@ export function showExplorer(
 
   async function applyUpdate(name: string) {
     const text = viewList.find((entry) => entry.name === name)?.text;
-    const parsed = text === undefined ? null : parseViewFile(text);
+    const parsed = text === undefined ? null : parsedOf(text);
 
     if (openView !== name || parsed === null || !parsed.ok) {
       return;
@@ -4523,7 +4544,7 @@ export function showExplorer(
       }
     }
 
-    const next = { ...view, commit: currentCommit(scans), steps };
+    const next = view.with({ commit: currentCommit(scans), steps });
 
     if ((await writeView(name, next)) !== null) {
       return;
@@ -4533,7 +4554,7 @@ export function showExplorer(
     postConditions();
     openToken += 1;
 
-    const resolved = resolveView(next, scans);
+    const resolved = next.resolve(scans);
 
     setCanvas(resolved.modules, resolved.folded, resolved.focus);
   }
@@ -5035,7 +5056,7 @@ export function showExplorer(
     scanView.render(scanModelNow);
     viewsPanel.render(
       leftPanel === "views"
-        ? viewsPanelModel(viewList, scans, viewFacts)
+        ? viewsPanelModel(viewList, scans, viewFacts, parsedOf)
         : null,
       savedView(),
     );
@@ -5119,7 +5140,7 @@ export function showExplorer(
   }
 
   function noteTotalOf(view: ReturnType<typeof openViewValue>) {
-    return view === null ? 0 : viewNotes(view).length;
+    return view === null ? 0 : view.noteList().length;
   }
 
   function renderProgress() {

@@ -10,6 +10,8 @@ export const OPERATIONS = [
   "scan.plan",
   "confirm.answer",
   "sensor.work",
+  "view.parse",
+  "view.serialise",
 ] as const;
 
 export type Operation = (typeof OPERATIONS)[number];

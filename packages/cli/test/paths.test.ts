@@ -1,5 +1,5 @@
+import { Neighbours } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { shortestPath } from "../src/index.js";
 import { repositoryFrom } from "./repository-from.js";
 
 const scan = repositoryFrom({
@@ -19,7 +19,7 @@ const modules = scan.files.map((file) => file.path);
 
 describe("shortestPath", () => {
   it("takes the lower id when two routes are equally short", () => {
-    const steps = shortestPath(scan, modules, "s", "t");
+    const steps = new Neighbours(scan, modules).shortestPath("s", "t");
 
     expect(steps?.map((step) => `${step.from}>${step.to}`)).toEqual([
       "s>a",
@@ -35,11 +35,11 @@ describe("shortestPath", () => {
   });
 
   it("is empty from a module to itself", () => {
-    expect(shortestPath(scan, modules, "s", "s")).toEqual([]);
+    expect(new Neighbours(scan, modules).shortestPath("s", "s")).toEqual([]);
   });
 
   it("is null when unreachable", () => {
-    expect(shortestPath(scan, modules, "t", "s")).toBeNull();
-    expect(shortestPath(scan, modules, "s", "lone")).toBeNull();
+    expect(new Neighbours(scan, modules).shortestPath("t", "s")).toBeNull();
+    expect(new Neighbours(scan, modules).shortestPath("s", "lone")).toBeNull();
   });
 });

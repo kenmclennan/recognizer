@@ -1,5 +1,4 @@
-import type { Repository } from "@recognizer/core";
-import { resolveView, type ViewStep } from "recognizer";
+import { type Repository, View, type ViewStep } from "@recognizer/core";
 
 export type CanvasContent = {
   modules: string[];
@@ -9,10 +8,12 @@ export type CanvasContent = {
 
 function resolved(steps: ViewStep[], scans: Repository): Set<string> {
   return new Set(
-    resolveView(
-      { schema_version: 1, description: "-", commit: null, steps },
-      scans,
-    ).modules,
+    View.of({
+      schema_version: 1,
+      description: "-",
+      commit: null,
+      steps,
+    }).resolve(scans).modules,
   );
 }
 

@@ -7,7 +7,7 @@ window.addEventListener("error", (e) => { document.getElementById("out").textCon
 import { loadedOf, mountExplorer } from ${JSON.stringify(here("../test/unit/look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("../test/unit/views-fake.ts"))};
 import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
-import { parseViewFile } from ${JSON.stringify(here("view-file.ts"))};
+import { parseViewFile } from ${JSON.stringify(here("visualisation-fake.ts"))};
 import { headingMetrics } from ${JSON.stringify(here("view-heading.ts"))};
 
 window.__fakeWorker = () => {

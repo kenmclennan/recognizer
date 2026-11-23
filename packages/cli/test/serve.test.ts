@@ -11,6 +11,10 @@ import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
+import {
+  parseViewFile,
+  serialiseView,
+} from "../src/adapters/filesystem/view-translator.js";
 import { nodeIo } from "../src/cli.js";
 import { progressPath } from "../src/scan-marker.js";
 import { writeScopeFiles } from "../src/serve/scan-files.js";
@@ -179,6 +183,46 @@ describe("recognizer serve: the wire", () => {
       expect(
         (await serve.call("sensor.work", { repository, sensor: "crap" })).ok,
       ).toBe(null);
+
+      await serve.close();
+    },
+    TIMEOUT,
+  );
+});
+
+describe("recognizer serve: saved views", () => {
+  it(
+    "view_parse_and_serialise_reply_over_the_wire",
+    async () => {
+      const serve = new Serve(typescriptLaunchers());
+      const text = readFileSync(
+        join(REPO, "schema/view-examples/valid/version-4-notes.json"),
+        "utf8",
+      );
+      const parsed = await serve.call("view.parse", { text });
+      const expected = parseViewFile(text);
+
+      expect(parsed.ok).toMatchObject({ ok: true });
+      expect(expected.ok).toBe(true);
+
+      const view = (parsed.ok as { view: Record<string, unknown> }).view;
+
+      expect(view).toEqual(JSON.parse(text));
+
+      const bad = await serve.call("view.parse", { text: "{ not json" });
+
+      expect(bad.ok).toMatchObject({ ok: false });
+      expect((bad.ok as { reason: string }).reason).toContain("not valid JSON");
+
+      const serialised = await serve.call("view.serialise", { view });
+
+      expect(serialised.ok).toEqual({
+        text: serialiseView(
+          parseViewFile(text).ok
+            ? (expected as { view: never }).view
+            : (view as never),
+        ),
+      });
 
       await serve.close();
     },

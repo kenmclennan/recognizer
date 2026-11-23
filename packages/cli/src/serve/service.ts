@@ -5,7 +5,13 @@ import {
   type RunningScan,
   requestFaults,
   type Scan,
+  View,
+  type ViewFields,
 } from "@recognizer/core";
+import {
+  parseViewFile,
+  serialiseView,
+} from "../adapters/filesystem/view-translator.js";
 import { type Io, nodeIo } from "../cli.js";
 import { errorText } from "../errors.js";
 import { scanPorts } from "../scan-container.js";
@@ -132,6 +138,30 @@ export class Service {
         return;
       case "sensor.work":
         reply(this.work(args));
+
+        return;
+      case "view.parse": {
+        const parsed = parseViewFile(text(args, "text"));
+
+        reply(
+          parsed.ok
+            ? { ok: true, view: { ...parsed.view }, warnings: parsed.warnings }
+            : { ok: false, reason: parsed.reason },
+        );
+
+        return;
+      }
+      case "view.serialise": {
+        const fields = args.view;
+
+        if (typeof fields !== "object" || fields === null) {
+          throw new ArgsError(["view must be an object"]);
+        }
+
+        reply({ text: serialiseView(View.of(fields as ViewFields)) });
+
+        return;
+      }
     }
   }
 

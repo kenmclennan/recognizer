@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { Neighbours } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
 import { COMMANDS } from "../src/commands.js";
-import { moduleCounts, moduleNames, neighbourSets } from "../src/index.js";
 import { REPO } from "./helpers.js";
 import { validatedRepository as validateScan } from "./repository-from.js";
 import { type FakeOptions, fakeIo, ROOT } from "./scan-helpers.js";
@@ -361,9 +361,9 @@ describe("show", () => {
 });
 
 describe("modules", () => {
-  const sets = neighbourSets(
+  const sets = Neighbours.neighbourSets(
     python.edges,
-    new Set(moduleNames(validateScan(python))),
+    new Set(Neighbours.moduleNames(validateScan(python))),
   );
   const rows = (argv: string[], scan = python, extra = {}) =>
     JSON.parse(ask(scan, ["modules", ...argv, "--json"], extra).out);
@@ -381,8 +381,8 @@ describe("modules", () => {
   it("agrees with moduleCounts", () => {
     for (const row of rows([]).modules) {
       expect({ uses: row.uses, usedBy: row.usedBy }).toEqual({
-        uses: moduleCounts(sets, row.id).uses,
-        usedBy: moduleCounts(sets, row.id).usedBy,
+        uses: Neighbours.moduleCounts(sets, row.id).uses,
+        usedBy: Neighbours.moduleCounts(sets, row.id).usedBy,
       });
     }
   });
@@ -397,11 +397,11 @@ describe("modules", () => {
   });
 
   it("filters by used-by and uses minimums from the counts", () => {
-    const expectedUsedBy = moduleNames(validateScan(python))
-      .filter((id) => moduleCounts(sets, id).usedBy >= 4)
+    const expectedUsedBy = Neighbours.moduleNames(validateScan(python))
+      .filter((id) => Neighbours.moduleCounts(sets, id).usedBy >= 4)
       .sort();
-    const expectedUses = moduleNames(validateScan(python))
-      .filter((id) => moduleCounts(sets, id).uses >= 2)
+    const expectedUses = Neighbours.moduleNames(validateScan(python))
+      .filter((id) => Neighbours.moduleCounts(sets, id).uses >= 2)
       .sort();
 
     expect(

@@ -1,4 +1,4 @@
-import { type View, viewNotes } from "recognizer";
+import type { View } from "@recognizer/core";
 import type { Rect } from "./canvas-layout";
 import type { Selection } from "./canvas-state";
 
@@ -53,7 +53,7 @@ export function noteRows(
   positions: ReadonlyMap<string, Rect>,
   active: string | null,
 ): NoteRow[] {
-  return viewNotes(view).map((note, index) => ({
+  return view.noteList().map((note, index) => ({
     path: note.module,
     kind: noteKind(note.module),
     text: note.text,
@@ -110,7 +110,7 @@ export function bubbleSet(
   const held = (path: string) =>
     view === null
       ? null
-      : (viewNotes(view).find((note) => note.module === path) ?? null);
+      : (view.noteList().find((note) => note.module === path) ?? null);
   const bubbles: BubbleModel[] = [];
 
   if (focus !== null) {

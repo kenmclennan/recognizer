@@ -1,14 +1,13 @@
+import { staleReasonText, View } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { staleReasons, staleReasonText } from "../src/view-staleness.js";
-import type { View } from "../src/views.js";
 
-const change: View = {
+const change = View.of({
   schema_version: 4,
   description: "p",
   commit: null,
   change: { base: "main", head: "feat" },
   steps: [],
-};
+});
 
 const pick = {
   step: 2,
@@ -20,7 +19,7 @@ const pick = {
 describe("staleReasons", () => {
   it("reports a head git does not know", () => {
     expect(
-      staleReasons(change, [], {
+      change.staleReasons([], {
         headCommit: null,
         baseCommit: "b",
         merged: false,
@@ -30,7 +29,7 @@ describe("staleReasons", () => {
 
   it("reports a merged head", () => {
     expect(
-      staleReasons(change, [], {
+      change.staleReasons([], {
         headCommit: "h",
         baseCommit: "b",
         merged: true,
@@ -40,7 +39,7 @@ describe("staleReasons", () => {
 
   it("keeps a head ahead of or equal to its base live", () => {
     expect(
-      staleReasons(change, [], {
+      change.staleReasons([], {
         headCommit: "h",
         baseCommit: "b",
         merged: false,
@@ -49,14 +48,14 @@ describe("staleReasons", () => {
   });
 
   it("reports an unresolved pick alone", () => {
-    expect(staleReasons(change, [pick], null)).toEqual([
+    expect(change.staleReasons([pick], null)).toEqual([
       { kind: "pick-unresolved", step: 2, path: "a.py" },
     ]);
   });
 
   it("reports a missing pick and a merged head together", () => {
     expect(
-      staleReasons(change, [pick], {
+      change.staleReasons([pick], {
         headCommit: "h",
         baseCommit: "b",
         merged: true,
@@ -65,9 +64,9 @@ describe("staleReasons", () => {
   });
 
   it("adds no git reason with no answer from git or no range", () => {
-    expect(staleReasons(change, [], null)).toEqual([]);
+    expect(change.staleReasons([], null)).toEqual([]);
     expect(
-      staleReasons({ ...change, change: undefined }, [], {
+      change.with({ change: undefined }).staleReasons([], {
         headCommit: null,
         baseCommit: null,
         merged: false,
@@ -77,7 +76,7 @@ describe("staleReasons", () => {
 
   it("adds no reason for an unknown base", () => {
     expect(
-      staleReasons(change, [], {
+      change.staleReasons([], {
         headCommit: "h",
         baseCommit: null,
         merged: false,

@@ -1,4 +1,4 @@
-import type { View } from "recognizer";
+import { View } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   noteAt,
@@ -10,14 +10,14 @@ import {
   withOrder,
 } from "../../src/view-notes";
 
-const base: View = {
+const base = View.of({
   schema_version: 1,
   description: "d",
   commit: null,
   steps: [{ kind: "pick", module: "a.py" }],
-};
+});
 
-const withNotes: View = {
+const withNotes = View.of({
   schema_version: 3,
   description: "d",
   commit: null,
@@ -26,9 +26,9 @@ const withNotes: View = {
     { module: "pkg/", text: "P", by: "Claude" },
   ],
   steps: [],
-};
+});
 
-const version2: View = {
+const version2 = View.of({
   schema_version: 2,
   description: "d",
   commit: null,
@@ -38,7 +38,7 @@ const version2: View = {
     "a.py": { text: "A", by: "Claude" },
   },
   steps: [],
-};
+});
 
 describe("setNote", () => {
   it("appends a note at version 3, trimming the text and keeping the steps", () => {
@@ -114,13 +114,13 @@ describe("noteAt and notedPaths", () => {
   });
 
   it("read the last of several notes on one path", () => {
-    const legacy: View = {
+    const legacy = View.of({
       ...withNotes,
       notes: [
         { module: "a.py", text: "first", by: "Ken" },
         { module: "a.py", text: "second", by: "Claude" },
       ],
-    };
+    });
 
     expect(noteAt(legacy, "a.py")?.text).toBe("second");
     expect(notedPaths(legacy).size).toBe(1);
@@ -128,7 +128,7 @@ describe("noteAt and notedPaths", () => {
 });
 
 describe("note order", () => {
-  const three: View = {
+  const three = View.of({
     schema_version: 4,
     description: "d",
     commit: null,
@@ -138,7 +138,7 @@ describe("note order", () => {
       by: "Ken",
     })),
     steps: [],
-  };
+  });
 
   it("moves a note and keeps the others in order", () => {
     expect(orderOf(withNoteMoved(three, "c", 0)).paths).toEqual([

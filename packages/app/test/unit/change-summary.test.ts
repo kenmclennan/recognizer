@@ -1,4 +1,4 @@
-import type { ViewChange } from "recognizer";
+import type { ViewChange } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import type { CommitDetail, PullDetail } from "../../src/change-detail-parse";
 import {

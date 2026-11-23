@@ -1,49 +1,18 @@
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { Repository } from "@recognizer/core";
-import { changeMarks, parseNameStatus } from "./change-marks.js";
+import {
+  type CheckedView,
+  Neighbours,
+  type ResolvedView,
+  staleReasonText,
+  View,
+  type ViewMutation,
+  ViewRange,
+  type ViewStep,
+} from "@recognizer/core";
 import type { Io } from "./cli.js";
 import { InputError, Refusal } from "./errors.js";
-import { freshScans } from "./freshness.js";
-import { changeFacts, diffNameStatus, parseChangeFlag } from "./git-range.js";
-import { moduleNames, under } from "./neighbours.js";
-import { appendNote, placeNote, reorderNotes } from "./notes-order.js";
-import { resolveCommit } from "./scan-command.js";
-import {
-  type ChangeFacts,
-  type StaleReason,
-  staleReasons,
-  staleReasonText,
-} from "./view-staleness.js";
-import {
-  lastNotePerPath,
-  lastProposedPerModule,
-  MEMBER_PROPOSED_KINDS,
-  memberReference,
-  migrateView,
-  movesKind,
-  noteWarnings,
-  orderedStep,
-  PROPOSED_KINDS,
-  type ProposedKind,
-  proposedWarnings,
-  type ResolvedView,
-  rangeText,
-  resolveView,
-  scanHoldsMember,
-  serialiseView,
-  splitMemberReference,
-  type View,
-  type ViewNote,
-  type ViewProposedChange,
-  type ViewStep,
-  validateView,
-  viewMemberProposed,
-  viewModuleProposed,
-  viewNotes,
-  viewProposed,
-} from "./views.js";
-import { windowOrFail } from "./window-commands.js";
+import { visualisationFor } from "./visualisation-container.js";
 
 export const VIEW_SUBCOMMANDS = [
   "new",
@@ -132,35 +101,12 @@ const USAGE: Record<Subcommand, string> = {
   rm: "recognizer views rm <name> [--repository <dir>] [--json]",
 };
 
-const NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
-const RELATIONS = ["folder", "uses", "used-by"];
-
 interface Context {
   io: Io;
   root: string;
   json: boolean;
   values: Record<string, string | boolean | undefined>;
   positionals: string[];
-}
-
-interface Changed {
-  view: View;
-  what: string;
-}
-
-function viewsDirectory(root: string): string {
-  return join(root, ".recognizer", "views");
-}
-
-function viewFile(root: string, name: string): string {
-  return join(viewsDirectory(root), `${name}.json`);
-}
-
-function writeViewFile(io: Io, file: string, view: View): void {
-  const temp = `${file}.tmp`;
-
-  io.writeFile(temp, serialiseView(view));
-  io.rename(temp, file);
 }
 
 function folderPath(path: string): string {
@@ -177,58 +123,6 @@ function emit(context: Context, document: unknown, text: string): void {
   );
 }
 
-function checkName(name: string | undefined): string {
-  if (name === undefined || !NAME.test(name)) {
-    throw new InputError([
-      `invalid view name: ${name ?? ""} (letters, digits, - and _, starting with a letter or digit, at most 64)`,
-    ]);
-  }
-
-  return name;
-}
-
-function readView(io: Io, root: string, name: string): View {
-  const file = viewFile(root, name);
-
-  if (!io.exists(file)) {
-    throw new InputError([`no such view: ${name}`]);
-  }
-
-  return parseView(io, file, name);
-}
-
-function parseView(io: Io, file: string, name: string): View {
-  let parsed: unknown;
-
-  try {
-    parsed = JSON.parse(io.readFile(file));
-  } catch {
-    throw new InputError([`view ${name} is not valid JSON`]);
-  }
-
-  try {
-    return validateView(parsed);
-  } catch (error) {
-    throw new InputError([
-      `view ${name} is invalid`,
-      ...(error as InputError).messages,
-    ]);
-  }
-}
-
-function viewNames(io: Io, root: string): string[] {
-  try {
-    return io
-      .readDir(viewsDirectory(root))
-      .filter((entry) => entry.kind === "file" && entry.name.endsWith(".json"))
-      .map((entry) => entry.name.slice(0, -".json".length))
-      .filter((name) => NAME.test(name))
-      .sort((a, b) => a.localeCompare(b));
-  } catch {
-    return [];
-  }
-}
-
 function describeStep(step: ViewStep): string {
   switch (step.kind) {
     case "pick":
@@ -242,10 +136,6 @@ function describeStep(step: ViewStep): string {
     case "rule":
       return `rule ${step.relation} ${step.of}${step.relation !== "folder" && step.within !== undefined ? ` within ${step.within}` : ""}`;
   }
-}
-
-function sameStep(a: ViewStep, b: ViewStep): boolean {
-  return JSON.stringify(orderedStep(a)) === JSON.stringify(orderedStep(b));
 }
 
 function context(subcommand: Subcommand, argv: string[], io: Io): Context {
@@ -279,215 +169,31 @@ function usageError(subcommand: Subcommand): InputError {
   return new InputError([`usage: ${USAGE[subcommand]}`]);
 }
 
-function requireFolder(repository: Repository, folder: string): void {
-  if (!moduleNames(repository).some((module) => under(module, folder))) {
-    throw new InputError([`no such folder: ${folder}`]);
-  }
+function text(value: string | boolean | undefined): string | undefined {
+  return typeof value === "string" ? value : undefined;
 }
 
-function requireModules(repository: Repository, paths: string[]): void {
-  const known = new Set(moduleNames(repository));
-  const missing = paths.filter((path) => !known.has(path));
-
-  if (missing.length > 0) {
-    throw new InputError(missing.map((path) => `no such file: ${path}`));
-  }
-}
-
-const MODULE_PATH = /^(?!\.\/)(?!\/)[^\\]*[^\\/]$/;
-
-function parseKind(text: string): ProposedKind {
-  const kind = PROPOSED_KINDS.find((entry) => entry === text);
-
-  if (kind === undefined) {
-    throw new InputError([
-      `a proposed change is one of ${PROPOSED_KINDS.join(", ")}, not ${text}`,
-    ]);
-  }
-
-  return kind;
-}
-
-function checkProposed(
-  kind: ProposedKind,
-  module: string,
-  from: string | undefined,
-): ViewProposedChange {
-  if (!MODULE_PATH.test(module)) {
-    throw new InputError([`not a file path: ${module}`]);
-  }
-
-  if (!movesKind(kind)) {
-    if (from !== undefined) {
-      throw new InputError([`--from does not apply to ${kind}`]);
-    }
-
-    return { module, kind };
-  }
-
-  if (from === undefined) {
-    throw new InputError([`${kind} needs --from <path> naming where it was`]);
-  }
-
-  if (!MODULE_PATH.test(from)) {
-    throw new InputError([`not a file path: ${from}`]);
-  }
-
-  if (from === module) {
-    throw new InputError(["--from must differ from the file"]);
-  }
-
-  return { module, kind, from };
-}
-
-function withProposed(
-  view: View,
-  entry: ViewProposedChange | null,
-  module: string,
-  member?: string,
-): View {
-  const migrated = migrateView(view);
-  const kept = viewProposed(migrated).filter(
-    (e) => !(e.module === module && e.member === member),
-  );
-  const next = entry === null ? kept : [...kept, entry];
-
-  if (next.length === 0) {
-    delete migrated.proposed;
-  } else {
-    migrated.proposed = next;
-  }
-
-  return migrated;
-}
-
-function withoutMemberEntries(view: View, module: string): [View, number] {
-  const migrated = migrateView(view);
-  const all = viewProposed(migrated);
-  const kept = all.filter(
-    (e) => !(e.module === module && e.member !== undefined),
-  );
-
-  if (kept.length === 0) {
-    delete migrated.proposed;
-  } else {
-    migrated.proposed = kept;
-  }
-
-  return [migrated, all.length - kept.length];
-}
-
-function checkMemberProposed(
-  kind: ProposedKind,
-  reference: string,
-  from: string | undefined,
-): ViewProposedChange {
-  const split = splitMemberReference(reference);
-
-  if (split === null || !MODULE_PATH.test(split.module)) {
-    throw new InputError([`not a member reference: ${reference}`]);
-  }
-
-  if (!MEMBER_PROPOSED_KINDS.some((k) => k === kind)) {
-    throw new InputError(["a member takes new, changes or removed"]);
-  }
-
-  if (from !== undefined) {
-    throw new InputError([`--from does not apply to a member: ${reference}`]);
-  }
-
-  return { module: split.module, member: split.member, kind };
-}
-
-function requireMemberTarget(
-  view: View,
-  repository: Repository,
-  entry: ViewProposedChange,
-): void {
-  const resolved = resolveView(view, repository);
-  const own = viewModuleProposed(view).find((e) => e.module === entry.module);
-
-  if (resolved.planned.includes(entry.module)) {
-    throw new InputError([`${entry.module} is wholly new; mark the file only`]);
-  }
-
-  if (own !== undefined && (own.kind === "new" || own.kind === "removed")) {
-    throw new InputError([
-      `${entry.module} is wholly ${own.kind}; mark the file only`,
-    ]);
-  }
-
-  requireModules(repository, [entry.module]);
-
-  const member = entry.member as string;
-
-  if (
-    entry.kind !== "new" &&
-    !scanHoldsMember(repository, entry.module, member)
-  ) {
-    throw new InputError([
-      `no such member: ${memberReference(entry.module, member)}`,
-    ]);
-  }
-}
-
-function requireNoMemberEntries(view: View, entry: ViewProposedChange): void {
-  if (
-    entry.member === undefined &&
-    (entry.kind === "new" || entry.kind === "removed") &&
-    viewMemberProposed(view).some((e) => e.module === entry.module)
-  ) {
-    throw new InputError([
-      `${entry.module} is wholly ${entry.kind}; mark the file only`,
-    ]);
-  }
-}
-
-function requirePlan(view: View, what: string): void {
-  if (view.plan !== true) {
-    throw new InputError([`${what} applies only to a plan`]);
-  }
-}
-
-function requireScanFor(
-  repository: Repository,
-  entry: ViewProposedChange,
-): void {
-  if (entry.kind === "changes" || entry.kind === "removed") {
-    requireModules(repository, [entry.module]);
-  }
-}
-
-function finishMutation(
-  c: Context,
-  name: string,
-  view: View,
-  before: View,
-  repository: Repository,
-  what: string,
-): number {
-  const changed = serialiseView(view) !== serialiseView(before);
-  const modules = resolveView(view, repository).modules.length;
-
-  if (changed) {
-    writeViewFile(c.io, viewFile(c.root, name), view);
-  }
-
+function finishMutation(c: Context, result: ViewMutation): number {
   emit(
     c,
-    { view: name, changed, steps: view.steps.length, modules },
-    `${name}: ${changed ? what : "no change"}; ${plural(view.steps.length, "step")}, resolves to ${plural(modules, "file")}`,
+    {
+      view: result.view,
+      changed: result.changed,
+      steps: result.steps,
+      modules: result.modules,
+    },
+    `${result.view}: ${result.changed ? result.what : "no change"}; ${plural(result.steps, "step")}, resolves to ${plural(result.modules, "file")}`,
   );
 
   return 0;
 }
 
-function mutate(
+function mutation(
   subcommand: Subcommand,
   argv: string[],
   io: Io,
-  change: (c: Context, view: View, repository: Repository) => Changed,
   arity: (positionals: number) => boolean,
+  run: (c: Context, core: ReturnType<typeof visualisationFor>) => ViewMutation,
 ): number {
   const c = context(subcommand, argv, io);
 
@@ -495,46 +201,7 @@ function mutate(
     throw usageError(subcommand);
   }
 
-  const name = checkName(c.positionals[0]);
-  const before = readView(io, c.root, name);
-  const { repository } = freshScans(io, c.root, []);
-  const { view, what } = change(c, structuredClone(before), repository);
-
-  return finishMutation(c, name, view, before, repository, what);
-}
-
-function byText(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
-function windowSteps(
-  c: Context,
-  id: string,
-): { steps: ViewStep[]; repository: Repository } {
-  const state = windowOrFail(c.io, id);
-
-  if (folderPath(state.folder) !== folderPath(c.root)) {
-    throw new InputError([`${state.id} shows ${state.folder}, not ${c.root}`]);
-  }
-
-  const { repository } = freshScans(c.io, c.root, []);
-
-  requireModules(repository, state.modules);
-
-  return {
-    steps: [
-      ...[...state.modules]
-        .sort(byText)
-        .map((module) => ({ kind: "pick" as const, module })),
-      ...[...state.folded]
-        .sort(byText)
-        .map((folder) => ({ kind: "fold" as const, folder })),
-      ...(state.focus === null
-        ? []
-        : [{ kind: "focus" as const, folder: state.focus }]),
-    ],
-    repository,
-  };
+  return finishMutation(c, run(c, visualisationFor(io, c.root)));
 }
 
 function runNew(argv: string[], io: Io): number {
@@ -544,471 +211,120 @@ function runNew(argv: string[], io: Io): number {
     throw usageError("new");
   }
 
-  const name = checkName(c.positionals[0]);
-  const description = c.values.description;
-
-  if (typeof description !== "string" || description.trim() === "") {
-    throw new InputError(["--description is required and must not be blank"]);
-  }
-
-  if (io.exists(viewFile(c.root, name))) {
-    throw new InputError([`view already exists: ${name}`]);
-  }
-
-  const changeFlag = c.values.change;
-  const plan = c.values.plan === true;
-
-  if (plan && changeFlag !== undefined) {
-    throw new InputError(["a plan has no change range"]);
-  }
-
-  const change =
-    typeof changeFlag === "string"
-      ? parseChangeFlag(io, c.root, changeFlag)
-      : undefined;
-  const windowId = c.values["from-window"];
-  const fromWindow =
-    typeof windowId === "string" ? windowSteps(c, windowId) : null;
-
-  const view: View = {
-    schema_version: 4,
-    description,
-    commit: resolveCommit(io, c.root),
-    ...(change === undefined ? {} : { change }),
-    ...(plan ? { plan: true as const } : {}),
-    steps: fromWindow?.steps ?? [],
-  };
-
-  writeViewFile(io, viewFile(c.root, name), view);
-
-  const modules = fromWindow
-    ? resolveView(view, fromWindow.repository).modules.length
-    : 0;
-
-  emit(
+  return finishMutation(
     c,
-    { view: name, changed: true, steps: view.steps.length, modules },
-    `${name}: created; ${plural(view.steps.length, "step")}, resolves to ${plural(modules, "file")}`,
+    visualisationFor(io, c.root).createView({
+      root: c.root,
+      name: c.positionals[0],
+      description: text(c.values.description),
+      change: text(c.values.change),
+      plan: c.values.plan === true,
+      fromWindow: text(c.values["from-window"]),
+    }),
   );
-
-  return 0;
 }
 
 function runAdd(argv: string[], io: Io): number {
-  return mutate(
+  return mutation(
     "add",
     argv,
     io,
-    (c, view, repository) => {
-      const paths = [...new Set(c.positionals.slice(1))];
-      const kindFlag = c.values.change;
-      const fromFlag = c.values.from;
-
-      if (kindFlag === undefined && fromFlag !== undefined) {
-        throw new InputError(["--from needs --change"]);
-      }
-
-      let entries: ViewProposedChange[] = [];
-
-      if (typeof kindFlag === "string") {
-        requirePlan(view, "--change");
-
-        const kind = parseKind(kindFlag);
-
-        if (typeof fromFlag === "string" && paths.length !== 1) {
-          throw new InputError(["--from takes exactly one file"]);
-        }
-
-        const from = typeof fromFlag === "string" ? fromFlag : undefined;
-
-        entries = paths.map((path) =>
-          path.includes("#")
-            ? checkMemberProposed(kind, path, from)
-            : checkProposed(kind, path, from),
-        );
-
-        for (const entry of entries) {
-          if (entry.member === undefined) {
-            requireNoMemberEntries(view, entry);
-            requireScanFor(repository, entry);
-          } else {
-            requireMemberTarget(view, repository, entry);
-          }
-        }
-      } else {
-        if (paths.some((path) => path.includes("#"))) {
-          throw new InputError([
-            "a member reference needs --change new, changes or removed",
-          ]);
-        }
-
-        requireModules(repository, paths);
-      }
-
-      const known = new Set(moduleNames(repository));
-      const targets =
-        entries.length === 0 ? paths : entries.map((e) => e.module);
-      const toPick =
-        entries.length === 0
-          ? paths
-          : [...new Set(targets)].filter((p) => known.has(p));
-      const picked = new Set(
-        view.steps.flatMap((s) => (s.kind === "pick" ? [s.module] : [])),
-      );
-      const added = toPick.filter((path) => !picked.has(path));
-
-      view.steps = view.steps.filter(
-        (s) => !(s.kind === "left-out" && targets.includes(s.module)),
-      );
-      view.steps.push(
-        ...added.map((module) => ({ kind: "pick" as const, module })),
-      );
-
-      let next = view;
-
-      for (const entry of entries) {
-        next = withProposed(next, entry, entry.module, entry.member);
-      }
-
-      return {
-        view: next,
-        what:
-          entries.length === 0
-            ? `added ${plural(added.length, "pick")}`
-            : `added ${plural(added.length, "pick")}, set ${plural(entries.length, "proposed change")}`,
-      };
-    },
     (count) => count >= 2,
+    (c, core) =>
+      core.addToView({
+        root: c.root,
+        name: c.positionals[0],
+        paths: c.positionals.slice(1),
+        change: text(c.values.change),
+        from: text(c.values.from),
+      }),
   );
 }
 
 function runChange(argv: string[], io: Io): number {
-  return mutate(
+  return mutation(
     "change",
     argv,
     io,
-    (c, view, repository) => {
-      const target = c.positionals[1] as string;
-      const kindText = c.positionals[2];
-      const clearing = c.values.clear === true;
-
-      requirePlan(view, "views change");
-
-      if (clearing === (kindText !== undefined)) {
-        throw usageError("change");
-      }
-
-      if (target.includes("#")) {
-        const split = splitMemberReference(target);
-
-        if (split === null) {
-          throw new InputError([`not a member reference: ${target}`]);
-        }
-
-        if (clearing) {
-          if (
-            !viewMemberProposed(view).some(
-              (e) => e.module === split.module && e.member === split.member,
-            )
-          ) {
-            throw new InputError([`no proposed change on ${target}`]);
-          }
-
-          return {
-            view: withProposed(view, null, split.module, split.member),
-            what: `cleared the proposed change on ${target}`,
-          };
-        }
-
-        const memberEntry = checkMemberProposed(
-          parseKind(kindText as string),
-          target,
-          c.values.from as string | undefined,
-        );
-
-        requireMemberTarget(view, repository, memberEntry);
-
-        return {
-          view: withProposed(view, memberEntry, split.module, split.member),
-          what: `set the proposed change on ${target} to ${memberEntry.kind}`,
-        };
-      }
-
-      const module = target;
-      const resolved = resolveView(view, repository);
-      const planned = resolved.planned.includes(module);
-
-      if (!planned && !resolved.modules.includes(module)) {
-        throw new InputError([`${module} is not on the view`]);
-      }
-
-      if (clearing) {
-        if (planned) {
-          throw new InputError([
-            `${module} is planned; remove it with views remove`,
-          ]);
-        }
-
-        if (!viewProposed(view).some((entry) => entry.module === module)) {
-          throw new InputError([`no proposed change on ${module}`]);
-        }
-
-        return {
-          view: withProposed(view, null, module),
-          what: `cleared the proposed change on ${module}`,
-        };
-      }
-
-      const entry = checkProposed(
-        parseKind(kindText as string),
-        module,
-        c.values.from as string | undefined,
-      );
-
-      requireNoMemberEntries(view, entry);
-      requireScanFor(repository, entry);
-
-      return {
-        view: withProposed(view, entry, module),
-        what: `set the proposed change on ${module} to ${entry.kind}`,
-      };
-    },
     (count) => count === 2 || count === 3,
+    (c, core) =>
+      core.changeView({
+        root: c.root,
+        name: c.positionals[0],
+        target: c.positionals[1] as string,
+        kind: c.positionals[2],
+        clear: c.values.clear === true,
+        from: text(c.values.from),
+        usage: USAGE.change,
+      }),
   );
 }
 
 function runRule(argv: string[], io: Io): number {
-  return mutate(
+  return mutation(
     "rule",
     argv,
     io,
-    (c, view, repository) => {
-      const relations = RELATIONS.filter(
-        (relation) => c.values[relation] !== undefined,
-      );
-
-      if (relations.length !== 1) {
-        throw new InputError([
-          "exactly one of --folder, --uses or --used-by is required",
-          `usage: ${USAGE.rule}`,
-        ]);
-      }
-
-      const relation = relations[0] as "folder" | "uses" | "used-by";
-      const within =
-        c.values.within === undefined
-          ? undefined
-          : folderPath(c.values.within as string);
-
-      if (relation === "folder" && within !== undefined) {
-        throw new InputError(["--within does not apply to --folder"]);
-      }
-
-      let step: ViewStep;
-
-      if (relation === "folder") {
-        const of = folderPath(c.values.folder as string);
-
-        requireFolder(repository, of);
-        step = { kind: "rule", relation, of };
-      } else {
-        const of = c.values[relation] as string;
-
-        requireModules(repository, [of]);
-
-        if (within !== undefined) {
-          requireFolder(repository, within);
-        }
-
-        step = {
-          kind: "rule",
-          relation,
-          of,
-          ...(within === undefined ? {} : { within }),
-        };
-      }
-
-      if (!view.steps.some((existing) => sameStep(existing, step))) {
-        view.steps.push(step);
-      }
-
-      return { view, what: `added ${describeStep(step)}` };
-    },
     (count) => count === 1,
+    (c, core) =>
+      core.ruleView({
+        root: c.root,
+        name: c.positionals[0],
+        folder: text(c.values.folder),
+        uses: text(c.values.uses),
+        usedBy: text(c.values["used-by"]),
+        within: text(c.values.within),
+        usage: USAGE.rule,
+      }),
   );
 }
 
 function runFold(argv: string[], io: Io): number {
-  return mutate(
+  return mutation(
     "fold",
     argv,
     io,
-    (c, view, repository) => {
-      const folder = folderPath(c.positionals[1] as string);
-
-      requireFolder(repository, folder);
-
-      const step: ViewStep = { kind: "fold", folder };
-
-      if (!view.steps.some((existing) => sameStep(existing, step))) {
-        view.steps.push(step);
-      }
-
-      return { view, what: `added ${describeStep(step)}` };
-    },
     (count) => count === 2,
+    (c, core) =>
+      core.foldView({
+        root: c.root,
+        name: c.positionals[0],
+        folder: c.positionals[1] as string,
+      }),
   );
 }
 
 function runFocus(argv: string[], io: Io): number {
-  return mutate(
+  return mutation(
     "focus",
     argv,
     io,
-    (c, view, repository) => {
-      const folder = folderPath(c.positionals[1] as string);
-
-      requireFolder(repository, folder);
-
-      const step: ViewStep = { kind: "focus", folder };
-      const position = view.steps.findIndex(
-        (existing) => existing.kind === "focus",
-      );
-
-      if (position === -1) {
-        view.steps.push(step);
-      } else {
-        view.steps[position] = step;
-      }
-
-      return { view, what: `set ${describeStep(step)}` };
-    },
     (count) => count === 2,
+    (c, core) =>
+      core.focusView({
+        root: c.root,
+        name: c.positionals[0],
+        folder: c.positionals[1] as string,
+      }),
   );
 }
 
 function runRemove(argv: string[], io: Io): number {
-  return mutate(
+  return mutation(
     "remove",
     argv,
     io,
-    (c, view, repository) => {
-      const path = c.positionals[1] as string;
-      const chosen = [
-        c.values.fold === true,
-        c.values.focus === true,
-        c.values.rule !== undefined,
-      ].filter(Boolean).length;
-
-      if (chosen > 1) {
-        throw new InputError(["use at most one of --fold, --focus and --rule"]);
-      }
-
-      if (c.values.within !== undefined && c.values.rule === undefined) {
-        throw new InputError(["--within needs --rule"]);
-      }
-
-      if (c.values.fold === true || c.values.focus === true) {
-        const kind = c.values.fold === true ? "fold" : "focus";
-        const folder = folderPath(path);
-        const kept = view.steps.filter(
-          (s) => !(s.kind === kind && s.folder === folder),
-        );
-
-        if (kept.length === view.steps.length) {
-          throw new InputError([`no ${kind} step for ${folder}`]);
-        }
-
-        view.steps = kept;
-
-        return { view, what: `removed ${kind} ${folder}` };
-      }
-
-      if (c.values.rule !== undefined) {
-        const relation = c.values.rule as string;
-
-        if (!RELATIONS.includes(relation)) {
-          throw new InputError([
-            `--rule takes ${RELATIONS.join(", ")}, not ${relation}`,
-          ]);
-        }
-
-        const of = relation === "folder" ? folderPath(path) : path;
-        const within =
-          c.values.within === undefined
-            ? undefined
-            : folderPath(c.values.within as string);
-        const kept = view.steps.filter(
-          (s) =>
-            !(
-              s.kind === "rule" &&
-              s.relation === relation &&
-              s.of === of &&
-              (s.relation === "folder" ? undefined : s.within) === within
-            ),
-        );
-
-        if (kept.length === view.steps.length) {
-          throw new InputError([`no ${relation} rule for ${of}`]);
-        }
-
-        view.steps = kept;
-
-        return { view, what: `removed rule ${relation} ${of}` };
-      }
-
-      const split = path.includes("#") ? splitMemberReference(path) : null;
-
-      if (path.includes("#") && split === null) {
-        throw new InputError([`not a member reference: ${path}`]);
-      }
-
-      if (split !== null) {
-        if (
-          !viewMemberProposed(view).some(
-            (e) => e.module === split.module && e.member === split.member,
-          )
-        ) {
-          throw new InputError([`no proposed change on ${path}`]);
-        }
-
-        return {
-          view: withProposed(view, null, split.module, split.member),
-          what: `removed the proposed change on ${path}`,
-        };
-      }
-
-      const before = resolveView(view, repository);
-
-      if (before.planned.includes(path)) {
-        const [dropped, count] = withoutMemberEntries(view, path);
-
-        return {
-          view: withProposed(dropped, null, path),
-          what: `removed the planned file ${path}${count > 0 ? `, dropped ${plural(count, "member entry")}` : ""}`,
-        };
-      }
-
-      if (!before.modules.includes(path)) {
-        throw new InputError([`${path} is not on the view`]);
-      }
-
-      view.steps = view.steps.filter(
-        (s) => !(s.kind === "pick" && s.module === path),
-      );
-
-      if (resolveView(view, repository).modules.includes(path)) {
-        view.steps.push({ kind: "left-out", module: path });
-      }
-
-      const [stripped, dropped] = withoutMemberEntries(view, path);
-
-      return {
-        view: withProposed(stripped, null, path),
-        what: `took ${path} off${dropped > 0 ? `, dropped ${plural(dropped, "member entry")}` : ""}`,
-      };
-    },
     (count) => count === 2,
+    (c, core) =>
+      core.removeFromView({
+        root: c.root,
+        name: c.positionals[0],
+        path: c.positionals[1] as string,
+        fold: c.values.fold === true,
+        focus: c.values.focus === true,
+        rule: text(c.values.rule),
+        within: text(c.values.within),
+      }),
   );
 }
 
@@ -1028,222 +344,69 @@ function runNote(argv: string[], io: Io): number {
     ]);
   }
 
-  return mutate(
+  return mutation(
     "note",
     argv,
     io,
-    (c, view, repository) => {
-      const path = c.positionals[1] as string;
-      const notes = viewNotes(view);
-
-      if (path.includes("#")) {
-        throw new InputError([`notes stay at file level: ${path}`]);
-      }
-
-      const rawBy = c.values.by as string | undefined;
-
-      if (removing) {
-        const author = rawBy?.trim();
-        const existing = notes.find((note) => note.module === path);
-
-        if (existing === undefined) {
-          throw new InputError([`no note on ${path}`]);
-        }
-
-        if (author !== undefined && existing.by !== author) {
-          throw new InputError([
-            `the note on ${path} is by ${existing.by}, not ${author}`,
-          ]);
-        }
-
-        return {
-          view: withNotes(
-            view,
-            notes.filter((note) => note.module !== path),
-          ),
-          what: `removed the note on ${path}`,
-        };
-      }
-
-      const resolved = resolveView(view, repository);
-      const modules = [...resolved.modules, ...resolved.planned];
-
-      if (path.endsWith("/")) {
-        if (!modules.some((module) => under(module, folderPath(path)))) {
-          throw new InputError([`${path} has no file on the view`]);
-        }
-      } else if (!modules.includes(path)) {
-        throw new InputError([`${path} is not on the view`]);
-      }
-
-      const text = (c.positionals[2] as string).trim();
-      const by = (rawBy ?? "agent").trim();
-
-      if (text === "") {
-        throw new InputError(["the note text must not be blank"]);
-      }
-
-      if (by === "" || by.length > 64) {
-        throw new InputError([
-          "--by must not be blank and is at most 64 characters",
-        ]);
-      }
-
-      const entry = { module: path, text, by };
-      const next =
-        typeof after === "string"
-          ? placeNote(notes, entry, { after })
-          : first
-            ? placeNote(notes, entry, "first")
-            : appendNote(notes, entry);
-
-      return {
-        view: withNotes(view, next),
-        what: `set the note on ${path}`,
-      };
-    },
     (count) => (removing ? count === 2 : count === 3),
+    (c, core) =>
+      core.noteView({
+        root: c.root,
+        name: c.positionals[0],
+        path: c.positionals[1] as string,
+        text: c.positionals[2],
+        by: text(c.values.by),
+        remove: removing,
+        after: text(after),
+        first,
+      }),
   );
 }
 
 function runReorder(argv: string[], io: Io): number {
-  return mutate(
+  return mutation(
     "reorder",
     argv,
     io,
-    (c, view) => {
-      const notes = viewNotes(view);
-
-      if (notes.length === 0) {
-        throw new InputError(["no notes to reorder"]);
-      }
-
-      return {
-        view: withNotes(view, reorderNotes(notes, c.positionals.slice(1))),
-        what: "reordered the notes",
-      };
-    },
     (count) => count >= 2,
+    (c, core) =>
+      core.reorderViewNotes({
+        root: c.root,
+        name: c.positionals[0],
+        paths: c.positionals.slice(1),
+      }),
   );
 }
 
 function runSet(argv: string[], io: Io): number {
   const probe = context("set", argv, io);
-  const changeFlag = probe.values.change;
-  const titleFlag = probe.values.title;
-  const descriptionFlag = probe.values.description;
-  const planFlag = probe.values.plan === true;
-  const noPlanFlag = probe.values["no-plan"] === true;
 
   if (
-    changeFlag === undefined &&
-    titleFlag === undefined &&
-    descriptionFlag === undefined &&
-    !planFlag &&
-    !noPlanFlag
+    probe.values.change === undefined &&
+    probe.values.title === undefined &&
+    probe.values.description === undefined &&
+    probe.values.plan !== true &&
+    probe.values["no-plan"] !== true
   ) {
     throw usageError("set");
   }
 
-  if (planFlag && noPlanFlag) {
-    throw new InputError(["--plan and --no-plan cannot be combined"]);
-  }
-
-  if (planFlag && typeof changeFlag === "string" && changeFlag !== "none") {
-    throw new InputError(["a view is never both a plan and a change view"]);
-  }
-
-  if (typeof descriptionFlag === "string" && descriptionFlag.trim() === "") {
-    throw new InputError(["--description must not be blank"]);
-  }
-
-  const change =
-    typeof changeFlag === "string" && changeFlag !== "none"
-      ? parseChangeFlag(io, probe.root, changeFlag)
-      : undefined;
-
-  return mutate(
+  return mutation(
     "set",
     argv,
     io,
-    (_c, view) => {
-      const migrated = migrateView(view);
-      const what: string[] = [];
-
-      if (typeof titleFlag === "string") {
-        const title = titleFlag.trim();
-
-        if (title === "") {
-          delete migrated.title;
-          what.push("removed the title");
-        } else {
-          migrated.title = title;
-          what.push("set the title");
-        }
-      }
-
-      if (typeof descriptionFlag === "string") {
-        migrated.description = descriptionFlag;
-        what.push("set the description");
-      }
-
-      if (planFlag) {
-        if (migrated.change !== undefined && changeFlag !== "none") {
-          throw new InputError([
-            "a view is never both a plan and a change view",
-          ]);
-        }
-
-        if (changeFlag === "none") {
-          delete migrated.change;
-        }
-
-        migrated.plan = true;
-        what.push("made it a plan");
-      }
-
-      if (noPlanFlag && migrated.plan === true) {
-        const dropped = viewProposed(migrated).length;
-
-        delete migrated.plan;
-        delete migrated.proposed;
-        what.push(
-          `cleared the plan, dropped ${plural(dropped, "proposed change")}`,
-        );
-      }
-
-      if (changeFlag !== undefined && !planFlag) {
-        if (change !== undefined && migrated.plan === true) {
-          throw new InputError([
-            "a view is never both a plan and a change view",
-          ]);
-        }
-
-        if (change === undefined) {
-          delete migrated.change;
-          what.push("removed the range");
-        } else {
-          migrated.change = change;
-          what.push(`set the range to ${rangeText(change)}`);
-        }
-      }
-
-      return { view: migrated, what: what.join(", ") };
-    },
     (count) => count === 1,
+    (c, core) =>
+      core.setView({
+        root: c.root,
+        name: c.positionals[0],
+        change: text(c.values.change),
+        title: text(c.values.title),
+        description: text(c.values.description),
+        plan: c.values.plan === true,
+        noPlan: c.values["no-plan"] === true,
+      }),
   );
-}
-
-function withNotes(view: View, notes: ViewNote[]): View {
-  const migrated = migrateView(view);
-
-  if (notes.length === 0) {
-    delete migrated.notes;
-  } else {
-    migrated.notes = notes;
-  }
-
-  return migrated;
 }
 
 function resolvedJson(resolved: ResolvedView, view: View) {
@@ -1255,18 +418,6 @@ function resolvedJson(resolved: ResolvedView, view: View) {
   };
 }
 
-function staleOf(
-  io: Io,
-  root: string,
-  view: View,
-  repository: Repository,
-): StaleReason[] {
-  const facts: ChangeFacts | null =
-    view.change === undefined ? null : changeFacts(io, root, view.change);
-
-  return staleReasons(view, resolveView(view, repository).unresolved, facts);
-}
-
 function runDiff(argv: string[], io: Io): number {
   const c = context("diff", argv, io);
 
@@ -1274,57 +425,24 @@ function runDiff(argv: string[], io: Io): number {
     throw usageError("diff");
   }
 
-  const name = checkName(c.positionals[0]);
-  const view = readView(io, c.root, name);
-
-  if (view.change === undefined) {
-    throw new Refusal([`view ${name} is not a change view`]);
-  }
-
-  const facts = changeFacts(io, c.root, view.change);
-
-  if (facts.headCommit === null) {
-    throw new Refusal([`head ${view.change.head} is not in the repository`]);
-  }
-
-  if (facts.baseCommit === null) {
-    throw new Refusal([`base ${view.change.base} is not in the repository`]);
-  }
-
-  const stdout = diffNameStatus(io, c.root, view.change);
-
-  if (stdout === null) {
-    throw new Refusal(["git could not diff the range"]);
-  }
-
-  const repository = freshScans(io, c.root, []).repository;
-  const parsed = parseNameStatus(stdout);
-  const base =
-    repository.extractions.length > 0 &&
-    repository.extractions.every(
-      (extraction) => extraction.commit === facts.baseCommit,
-    )
-      ? repository
-      : null;
-  const { files: modules, unmatched } = changeMarks(
-    parsed.changes,
-    repository,
-    base,
-  );
-  const range = rangeText(view.change);
+  const diffed = visualisationFor(io, c.root).diffView({
+    root: c.root,
+    name: c.positionals[0],
+  });
+  const { modules, unmatched, range } = diffed;
 
   emit(
     c,
     {
-      view: name,
+      view: diffed.view,
       range,
-      baseCommit: facts.baseCommit,
-      headCommit: facts.headCommit,
+      baseCommit: diffed.baseCommit,
+      headCommit: diffed.headCommit,
       modules,
       unmatched,
     },
     [
-      `${name}: ${range} (${facts.baseCommit.slice(0, 7)}..${facts.headCommit.slice(0, 7)})`,
+      `${diffed.view}: ${range} (${diffed.baseCommit.slice(0, 7)}..${diffed.headCommit.slice(0, 7)})`,
       modules.length === 0
         ? "no changed files"
         : `${plural(modules.length, "changed file")}:`,
@@ -1348,10 +466,10 @@ function runShow(argv: string[], io: Io): number {
     throw usageError("show");
   }
 
-  const name = checkName(c.positionals[0]);
-  const view = readView(io, c.root, name);
-  const { repository } = freshScans(io, c.root, []);
-  const resolved = resolveView(view, repository);
+  const { name, view, resolved, warnings } = visualisationFor(
+    io,
+    c.root,
+  ).showView({ root: c.root, name: c.positionals[0] });
 
   if (c.json) {
     emit(
@@ -1363,19 +481,16 @@ function runShow(argv: string[], io: Io): number {
         commit: view.commit,
         ...(view.change === undefined ? {} : { change: view.change }),
         ...(view.plan === true
-          ? { plan: true, proposed: viewProposed(view) }
+          ? { plan: true, proposed: view.proposedList() }
           : {}),
         steps: view.steps,
-        notes: viewNotes(view).map((note, index) => ({
+        notes: view.noteList().map((note, index) => ({
           ...note,
           number: index + 1,
         })),
         resolved: resolvedJson(resolved, view),
         unresolved: resolved.unresolved,
-        warnings: [
-          ...noteWarnings(view),
-          ...proposedWarnings(view, resolved, repository),
-        ],
+        warnings,
       },
       "",
     );
@@ -1389,27 +504,33 @@ function runShow(argv: string[], io: Io): number {
       : [`${name}: ${view.title}`, view.description]),
     ...(view.plan === true ? ["plan"] : []),
     `saved at ${view.commit ?? "none"}`,
-    ...(view.change === undefined ? [] : [`change: ${rangeText(view.change)}`]),
+    ...(view.change === undefined
+      ? []
+      : [`change: ${ViewRange.text(view.change)}`]),
     view.steps.length === 0 ? "no steps" : "steps:",
     ...view.steps.map((step, index) => `  ${index + 1}. ${describeStep(step)}`),
     `resolves to ${plural(resolved.modules.length, "file")}`,
     ...resolved.modules.map((module) => `  ${module}`),
-    ...viewModuleProposed(view).map(
-      (entry) =>
-        `  ${entry.kind} ${entry.module}${entry.from === undefined ? "" : ` (from ${entry.from})`}${resolved.planned.includes(entry.module) ? " (planned)" : ""}`,
-    ),
-    ...viewMemberProposed(view).map(
-      (entry) =>
-        `  ${entry.kind} ${memberReference(entry.module, entry.member as string)}`,
-    ),
+    ...view
+      .moduleProposed()
+      .map(
+        (entry) =>
+          `  ${entry.kind} ${entry.module}${entry.from === undefined ? "" : ` (from ${entry.from})`}${resolved.planned.includes(entry.module) ? " (planned)" : ""}`,
+      ),
+    ...view
+      .memberProposed()
+      .map(
+        (entry) =>
+          `  ${entry.kind} ${View.memberReference(entry.module, entry.member as string)}`,
+      ),
   ];
 
   const onView = new Set([...resolved.modules, ...resolved.planned]);
   const notedOnView = (path: string) =>
     path.endsWith("/")
-      ? [...onView].some((module) => under(module, folderPath(path)))
+      ? [...onView].some((module) => Neighbours.under(module, folderPath(path)))
       : onView.has(path);
-  const notes = viewNotes(view);
+  const notes = view.noteList();
 
   if (notes.length > 0) {
     lines.push(
@@ -1421,12 +542,7 @@ function runShow(argv: string[], io: Io): number {
     );
   }
 
-  lines.push(
-    ...[
-      ...noteWarnings(view),
-      ...proposedWarnings(view, resolved, repository),
-    ].map((warning) => `warning: ${warning}`),
-  );
+  lines.push(...warnings.map((warning) => `warning: ${warning}`));
 
   if (resolved.unresolved.length > 0) {
     lines.push(
@@ -1458,29 +574,7 @@ function runList(argv: string[], io: Io): number {
     throw usageError("list");
   }
 
-  const listed = viewNames(io, c.root);
-  const repository =
-    listed.length === 0
-      ? Repository.empty
-      : freshScans(io, c.root, []).repository;
-  const rows = listed.map((name) => {
-    try {
-      const view = parseView(io, viewFile(c.root, name), name);
-
-      return {
-        name,
-        ...(view.title === undefined ? {} : { title: view.title }),
-        description: view.description,
-        commit: view.commit,
-        steps: view.steps.length,
-        ...(view.change === undefined ? {} : { change: view.change }),
-        ...(view.plan === true ? { plan: true } : {}),
-        stale: staleOf(io, c.root, view, repository),
-      };
-    } catch (error) {
-      return { name, error: (error as InputError).messages.join("; ") };
-    }
-  });
+  const rows = visualisationFor(io, c.root).listViews({ root: c.root });
 
   emit(
     c,
@@ -1490,7 +584,7 @@ function runList(argv: string[], io: Io): number {
         "error" in row
           ? `${row.name}  invalid: ${row.error}`
           : [
-              `${row.name}  ${"plan" in row && row.plan === true ? "plan  " : ""}${row.change === undefined ? "" : `${rangeText(row.change)}  `}${plural(row.steps, "step")}  ${row.commit ?? "none"}  ${"title" in row && row.title !== undefined ? `${row.title} - ` : ""}${row.description}`,
+              `${row.name}  ${row.plan === true ? "plan  " : ""}${row.change === undefined ? "" : `${ViewRange.text(row.change)}  `}${plural(row.steps, "step")}  ${row.commit ?? "none"}  ${row.title !== undefined ? `${row.title} - ` : ""}${row.description}`,
               ...row.stale.map(
                 (reason) => `  stale: ${staleReasonText(reason)}`,
               ),
@@ -1502,207 +596,7 @@ function runList(argv: string[], io: Io): number {
   return 0;
 }
 
-interface CheckedStep {
-  step: number;
-  kind: ViewStep["kind"];
-  path: string;
-  what: "module" | "folder";
-  renamedTo: string | null;
-}
-
-interface CheckedView {
-  name: string;
-  ok: boolean;
-  error?: string;
-  unresolved: CheckedStep[];
-  fixed: { step: number; from: string; to: string }[];
-  warnings: string[];
-  stale: StaleReason[];
-}
-
-function parseRenames(stdout: string): Map<string, string> {
-  const tokens = stdout.split("\0").filter((token) => token !== "");
-  const renames = new Map<string, string>();
-
-  for (let index = 0; index + 2 < tokens.length; index += 3) {
-    if ((tokens[index] as string).startsWith("R")) {
-      renames.set(tokens[index + 1] as string, tokens[index + 2] as string);
-    }
-  }
-
-  return renames;
-}
-
-function runCheck(argv: string[], io: Io): number {
-  const c = context("check", argv, io);
-
-  if (c.positionals.length > 1) {
-    throw usageError("check");
-  }
-
-  const existing = viewNames(io, c.root);
-  const requested = c.positionals[0];
-  const names = requested === undefined ? existing : [checkName(requested)];
-
-  if (requested !== undefined && !existing.includes(requested)) {
-    throw new InputError([`no such view: ${requested}`]);
-  }
-
-  const fix = c.values.fix === true;
-  const results: CheckedView[] = [];
-
-  if (names.length > 0) {
-    const { repository } = freshScans(io, c.root, []);
-    const known = new Set(moduleNames(repository));
-    const renameCache = new Map<string, Map<string, string>>();
-    const renamesSince = (commit: string): Map<string, string> => {
-      const cached = renameCache.get(commit);
-
-      if (cached !== undefined) {
-        return cached;
-      }
-
-      const result = io.run("git", [
-        "-C",
-        c.root,
-        "diff",
-        "-M",
-        "--relative",
-        "--name-status",
-        "--diff-filter=R",
-        "-z",
-        commit,
-      ]);
-      const renames =
-        result.started && result.status === 0
-          ? parseRenames(result.stdout)
-          : new Map<string, string>();
-
-      renameCache.set(commit, renames);
-
-      return renames;
-    };
-
-    for (const name of names) {
-      let view: View;
-
-      try {
-        view = parseView(io, viewFile(c.root, name), name);
-      } catch (error) {
-        results.push({
-          name,
-          ok: false,
-          error: (error as InputError).messages.join("; "),
-          unresolved: [],
-          fixed: [],
-          warnings: [],
-          stale: [],
-        });
-
-        continue;
-      }
-
-      const warnings = [
-        ...noteWarnings(view),
-        ...proposedWarnings(view, resolveView(view, repository), repository),
-      ];
-
-      const annotate = (current: View): CheckedStep[] =>
-        resolveView(current, repository).unresolved.map((u) => {
-          const renamed =
-            u.kind === "pick" && current.commit !== null
-              ? renamesSince(current.commit).get(u.path)
-              : undefined;
-
-          return {
-            ...u,
-            renamedTo:
-              renamed !== undefined && known.has(renamed) ? renamed : null,
-          };
-        });
-
-      let unresolved = annotate(view);
-      const fixed: CheckedView["fixed"] = [];
-
-      if (fix && unresolved.some((u) => u.renamedTo !== null)) {
-        const renames = new Map(
-          unresolved
-            .filter((u) => u.renamedTo !== null)
-            .map((u) => [u.step, u.renamedTo as string]),
-        );
-        const steps: ViewStep[] = [];
-        const picked = new Set(
-          view.steps.flatMap((s) => (s.kind === "pick" ? [s.module] : [])),
-        );
-
-        view.steps.forEach((step, index) => {
-          const to = renames.get(index + 1);
-
-          if (step.kind !== "pick" || to === undefined) {
-            steps.push(step);
-
-            return;
-          }
-
-          fixed.push({ step: index + 1, from: step.module, to });
-
-          if (!picked.has(to)) {
-            picked.add(to);
-            steps.push({ kind: "pick", module: to });
-          }
-        });
-
-        const renamed = new Map(fixed.map(({ from, to }) => [from, to]));
-
-        view = {
-          ...migrateView(view),
-          steps,
-        };
-
-        if (view.proposed !== undefined) {
-          view.proposed = lastProposedPerModule(
-            view.proposed.map((entry) => ({
-              ...entry,
-              module: renamed.get(entry.module) ?? entry.module,
-              ...(entry.from === undefined
-                ? {}
-                : { from: renamed.get(entry.from) ?? entry.from }),
-            })),
-          );
-        }
-
-        if (view.notes !== undefined) {
-          view.notes = lastNotePerPath(
-            view.notes.map((note) => ({
-              ...note,
-              module: renamed.get(note.module) ?? note.module,
-            })),
-          );
-        }
-
-        writeViewFile(io, viewFile(c.root, name), view);
-        unresolved = annotate(view);
-      }
-
-      results.push({
-        name,
-        ok: unresolved.length === 0,
-        unresolved,
-        fixed,
-        warnings,
-        stale: staleOf(io, c.root, view, repository),
-      });
-    }
-  }
-
-  const ok = results.every((result) => result.ok);
-
-  if (c.json) {
-    io.stdout(`${JSON.stringify({ ok, views: results }, null, 2)}\n`);
-
-    return ok ? 0 : 1;
-  }
-
+function checkLines(results: CheckedView[]): string[] {
   const lines: string[] = [];
 
   for (const result of results) {
@@ -1741,6 +635,31 @@ function runCheck(argv: string[], io: Io): number {
     }
   }
 
+  return lines;
+}
+
+function runCheck(argv: string[], io: Io): number {
+  const c = context("check", argv, io);
+
+  if (c.positionals.length > 1) {
+    throw usageError("check");
+  }
+
+  const results = visualisationFor(io, c.root).checkViews({
+    root: c.root,
+    name: c.positionals[0],
+    fix: c.values.fix === true,
+  });
+  const ok = results.every((result) => result.ok);
+
+  if (c.json) {
+    io.stdout(`${JSON.stringify({ ok, views: results }, null, 2)}\n`);
+
+    return ok ? 0 : 1;
+  }
+
+  const lines = checkLines(results);
+
   if (lines.length > 0) {
     io.stdout(`${lines.join("\n")}\n`);
   }
@@ -1755,16 +674,12 @@ function runRm(argv: string[], io: Io): number {
     throw usageError("rm");
   }
 
-  const name = checkName(c.positionals[0]);
+  const removed = visualisationFor(io, c.root).removeView({
+    root: c.root,
+    name: c.positionals[0],
+  });
 
-  const file = viewFile(c.root, name);
-
-  if (!io.exists(file)) {
-    throw new InputError([`no such view: ${name}`]);
-  }
-
-  io.remove(file);
-  emit(c, { view: name, removed: true }, `${name}: removed`);
+  emit(c, removed, `${removed.view}: removed`);
 
   return 0;
 }

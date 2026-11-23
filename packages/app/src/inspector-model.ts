@@ -4,13 +4,13 @@ import {
   Folder,
   type Member,
   type Repository,
+  type ViewProposedChange,
 } from "@recognizer/core";
 import {
   fieldTokens,
   memberHeadTokens,
   methodTokens,
   type Token,
-  type ViewProposedChange,
 } from "recognizer";
 import { type Counts, type Line, lastSegment, under } from "./canvas-graph";
 import type { Selection } from "./canvas-state";

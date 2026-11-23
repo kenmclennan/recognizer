@@ -1958,3 +1958,16 @@ describe("member entries in a plan", () => {
     ]);
   });
 });
+
+describe("views refusals", () => {
+  it("maps_a_core_refusal_to_the_same_exit_code_as_before", () => {
+    const fake = repository(view("plain"));
+    const missing = go(fake, "show", "nosuch");
+    const refused = go(fake, "diff", "plain");
+
+    expect(missing.code).toBe(2);
+    expect(missing.err).toContain("no such view: nosuch");
+    expect(refused.code).toBe(1);
+    expect(refused.err).toContain("view plain is not a change view");
+  });
+});

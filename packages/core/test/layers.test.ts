@@ -62,6 +62,7 @@ const SUBDOMAINS = [
   "sensing",
   "analysis",
   "history",
+  "visualisation",
 ];
 const SHARED_PORTS = ["clock", "git", "process", "scan-lock"];
 const RUN_PORTS = SHARED_PORTS;
@@ -155,6 +156,7 @@ const DOMAIN_FOLDERS = [
   "analysis",
   "configuration",
   "history",
+  "visualisation",
 ];
 
 const domain = join(source, "domain");
@@ -268,6 +270,8 @@ describe("core layers", () => {
       "sensing/ports/sensors.ts",
       "describing/ports/describer-ref.ts",
       "run/ports/scan.ts",
+      "visualisation/ports/changes.ts",
+      "visualisation/ports/windows.ts",
     ];
 
     for (const folder of [...SUBDOMAINS, "shared"]) {

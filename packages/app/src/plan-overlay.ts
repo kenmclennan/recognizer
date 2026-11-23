@@ -1,14 +1,12 @@
-import { Repository } from "@recognizer/core";
 import {
   type Ghost,
   type ProposedKind,
+  Repository,
   type ResolvedMemberEntry,
   type ResolvedView,
-  resolveMembers,
   type View,
   type ViewProposedChange,
-  viewModuleProposed,
-} from "recognizer";
+} from "@recognizer/core";
 
 export type PlanOverlay = {
   proposed: ReadonlyMap<string, ViewProposedChange>;
@@ -30,11 +28,12 @@ export function planOverlay(
 
   return {
     proposed: new Map(
-      viewModuleProposed(view)
+      view
+        .moduleProposed()
         .filter((entry) => drawn.has(entry.module))
         .map((entry) => [entry.module, entry]),
     ),
-    members: resolveMembers(view, scans).byModule,
+    members: view.resolveMembers(scans).byModule,
     planned: resolved.planned,
     ghosts: resolved.ghosts,
   };

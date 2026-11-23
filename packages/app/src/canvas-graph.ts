@@ -1,13 +1,11 @@
-import { type Dependency, Folder, type Repository } from "@recognizer/core";
 import {
-  folderCounts,
+  type Dependency,
+  File,
+  Folder,
   type Ghost,
-  lastSegment,
-  moduleCounts,
-  moduleLabel,
-  neighbourSets,
-  under,
-} from "recognizer";
+  Neighbours,
+  type Repository,
+} from "@recognizer/core";
 import type { Selection } from "./canvas-state";
 import { compactFolders } from "./folder-compaction";
 import type { Disc } from "./health";
@@ -65,6 +63,10 @@ export type GraphInput = {
   showInferred: boolean;
   ghosts?: Ghost[];
 };
+
+const lastSegment = (path: string): string => File.nameOf(path);
+const moduleLabel = Neighbours.moduleLabel;
+const under = Neighbours.under;
 
 export { lastSegment, moduleLabel, under };
 
@@ -139,7 +141,7 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
   const held = (folder: string) =>
     input.modules.filter((id) => under(id, folder)).length;
 
-  const sets = neighbourSets(allEdges, known);
+  const sets = Neighbours.neighbourSets(allEdges, known);
   const boxes = new Map<string, Box>();
   const frameChains = new Map<string, string[]>();
 
@@ -255,10 +257,10 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
     }
 
     if (selection.kind === "module") {
-      return moduleCounts(sets, selection.id);
+      return Neighbours.moduleCounts(sets, selection.id);
     }
 
-    return folderCounts(sets, input.modules, selection.id);
+    return Neighbours.folderCounts(sets, input.modules, selection.id);
   }
 
   return { frames, boxes: [...boxes.values()], lines, counts, held, openIn };

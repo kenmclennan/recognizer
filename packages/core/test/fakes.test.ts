@@ -35,6 +35,7 @@ describe("fakes", () => {
 
     expect(ports).toEqual([
       "analysis",
+      "changes",
       "clock",
       "confirm",
       "describer",
@@ -47,11 +48,13 @@ describe("fakes", () => {
       "sensors",
       "source-files",
       "toml",
+      "windows",
     ]);
     expect(fakeKeys).toEqual(
       [
         "analysis",
         "baseline",
+        "changes",
         "clock",
         "config",
         "confirm",
@@ -69,6 +72,8 @@ describe("fakes", () => {
         "source",
         "structure",
         "toml",
+        "views",
+        "windows",
       ].sort(),
     );
     expect(
@@ -106,6 +111,24 @@ describe("fakes", () => {
     git.modified = true;
 
     expect(git.dirty()).toBe(true);
+  });
+
+  it("git resolves only valid refs it knows, and treats equal commits as ancestors", () => {
+    const { git } = createFakes();
+
+    git.refs.set("main", "c1");
+    git.refs.set("a..b", "never");
+    git.ancestors.add("c1>c2");
+    git.renames.set("c1", new Map([["a", "b"]]));
+
+    expect(git.resolveRef("/r", "main")).toBe("c1");
+    expect(git.resolveRef("/r", "a..b")).toBeNull();
+    expect(git.resolveRef("/r", "unknown")).toBeNull();
+    expect(git.isAncestor("/r", "c1", "c2")).toBe(true);
+    expect(git.isAncestor("/r", "c1", "c1")).toBe(true);
+    expect(git.isAncestor("/r", "c2", "c1")).toBe(false);
+    expect(git.renamesSince("/r", "c1").get("a")).toBe("b");
+    expect(git.renamesSince("/r", "c9").size).toBe(0);
   });
 
   it("scanners report the counts they were told and remove nothing themselves", async () => {

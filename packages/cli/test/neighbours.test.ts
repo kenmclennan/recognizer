@@ -1,16 +1,5 @@
-import { Repository } from "@recognizer/core";
+import { Neighbours, Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import {
-  folderCounts,
-  folderUsedBy,
-  folderUses,
-  groupByFolder,
-  moduleCounts,
-  moduleNames,
-  neighbourSets,
-  usedByOf,
-  usesOf,
-} from "../src/index.js";
 import { repositoryFrom } from "./repository-from.js";
 
 const edge = (from: string, to: string, extra: object = {}) => ({
@@ -51,62 +40,72 @@ const scan = repositoryFrom({
   ],
   foreign: [],
 });
-const modules = moduleNames(scan);
+const modules = Neighbours.moduleNames(scan);
 
 describe("neighbours", () => {
   it("names every module once", () => {
-    expect(moduleNames(Repository.join([scan, Repository.empty]))).toEqual(
-      modules,
-    );
+    expect(
+      Neighbours.moduleNames(Repository.join([scan, Repository.empty])),
+    ).toEqual(modules);
   });
 
   it("skips self edges and edges to foreign ids", () => {
-    expect(usesOf(scan, modules, "a/x.py").map((row) => row.id)).toEqual([
-      "b/z.py",
-    ]);
+    expect(
+      new Neighbours(scan, modules).usesOf("a/x.py").map((row) => row.id),
+    ).toEqual(["b/z.py"]);
   });
 
   it("marks a row private when any name is not exported", () => {
-    const [row] = usedByOf(scan, modules, "b/z.py");
+    const [row] = new Neighbours(scan, modules).usedByOf("b/z.py");
 
     expect(row).toMatchObject({
       id: "a/x.py",
       names: ["_hidden", "Public"],
       private: true,
     });
-    expect(usedByOf(scan, modules, "b/z.py")[1]).toMatchObject({
+    expect(new Neighbours(scan, modules).usedByOf("b/z.py")[1]).toMatchObject({
       id: "a/y.py",
       private: false,
     });
   });
 
   it("marks a row inferred only when every edge is", () => {
-    expect(usesOf(scan, modules, "root.py")[0]?.inferred).toBe(true);
-    expect(usesOf(scan, modules, "a/x.py")[0]?.inferred).toBe(false);
+    expect(new Neighbours(scan, modules).usesOf("root.py")[0]?.inferred).toBe(
+      true,
+    );
+    expect(new Neighbours(scan, modules).usesOf("a/x.py")[0]?.inferred).toBe(
+      false,
+    );
   });
 
   it("groups by folder with the root folder empty", () => {
-    const groups = groupByFolder([
-      ...usedByOf(scan, modules, "a/y.py"),
-      ...usedByOf(scan, modules, "b/z.py"),
+    const groups = Neighbours.groupByFolder([
+      ...new Neighbours(scan, modules).usedByOf("a/y.py"),
+      ...new Neighbours(scan, modules).usedByOf("b/z.py"),
     ]);
 
     expect(groups.map((group) => group.folder)).toEqual(["", "a"]);
   });
 
   it("counts a module's and a folder's neighbours", () => {
-    const sets = neighbourSets(scan.dependencies, new Set(modules));
+    const sets = Neighbours.neighbourSets(scan.dependencies, new Set(modules));
 
-    expect(moduleCounts(sets, "b/z.py")).toEqual({ uses: 0, usedBy: 2 });
-    expect(folderCounts(sets, modules, "a")).toEqual({ uses: 1, usedBy: 1 });
+    expect(Neighbours.moduleCounts(sets, "b/z.py")).toEqual({
+      uses: 0,
+      usedBy: 2,
+    });
+    expect(Neighbours.folderCounts(sets, modules, "a")).toEqual({
+      uses: 1,
+      usedBy: 1,
+    });
   });
 
   it("lists only the edges crossing a folder's boundary", () => {
-    expect(folderUses(scan, modules, "a").map((row) => row.id)).toEqual([
-      "b/z.py",
-    ]);
-    expect(folderUsedBy(scan, modules, "a").map((row) => row.id)).toEqual([
-      "root.py",
-    ]);
+    expect(
+      new Neighbours(scan, modules).folderUses("a").map((row) => row.id),
+    ).toEqual(["b/z.py"]);
+    expect(
+      new Neighbours(scan, modules).folderUsedBy("a").map((row) => row.id),
+    ).toEqual(["root.py"]);
   });
 });

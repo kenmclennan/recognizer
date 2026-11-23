@@ -1,4 +1,4 @@
-import { resolveView, type View } from "recognizer";
+import { View } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { PROPOSED_WORDS, planOverlay } from "../../src/plan-overlay";
 import { type DocScan, repositoryFrom } from "./repository-from";
@@ -11,30 +11,29 @@ const scan = {
   foreign: [],
 } as unknown as DocScan;
 
-const plan = (proposed: View["proposed"]): View => ({
-  schema_version: 4,
-  description: "d",
-  commit: "cur",
-  plan: true,
-  proposed,
-  steps: [{ kind: "pick", module: "app/a.py" }],
-});
+const plan = (proposed: View["proposed"]): View =>
+  View.of({
+    schema_version: 4,
+    description: "d",
+    commit: "cur",
+    plan: true,
+    proposed,
+    steps: [{ kind: "pick", module: "app/a.py" }],
+  });
 
 describe("planOverlay", () => {
   it("is null for a view that is not a plan and for no view", () => {
-    const plain: View = {
+    const plain = View.of({
       schema_version: 4,
       description: "d",
       commit: "cur",
       steps: [],
-    };
+    });
 
     expect(
-      planOverlay(plain, resolveView(plain, repositoryFrom([scan]))),
+      planOverlay(plain, plain.resolve(repositoryFrom([scan]))),
     ).toBeNull();
-    expect(
-      planOverlay(null, resolveView(plain, repositoryFrom([scan]))),
-    ).toBeNull();
+    expect(planOverlay(null, plain.resolve(repositoryFrom([scan])))).toBeNull();
   });
 
   it("maps proposed changes, planned ids and ghosts", () => {
@@ -43,10 +42,7 @@ describe("planOverlay", () => {
       { module: "app/new.py", kind: "new" },
       { module: "lib/m.py", kind: "moves", from: "app/b.py" },
     ]);
-    const overlay = planOverlay(
-      view,
-      resolveView(view, repositoryFrom([scan])),
-    );
+    const overlay = planOverlay(view, view.resolve(repositoryFrom([scan])));
 
     expect([...(overlay?.proposed.keys() ?? [])]).toEqual([
       "app/a.py",
@@ -66,8 +62,7 @@ describe("planOverlay", () => {
     const view = plan([{ module: "app/b.py", kind: "changes" }]);
 
     expect(
-      planOverlay(view, resolveView(view, repositoryFrom([scan])))?.proposed
-        .size,
+      planOverlay(view, view.resolve(repositoryFrom([scan])))?.proposed.size,
     ).toBe(0);
   });
 
