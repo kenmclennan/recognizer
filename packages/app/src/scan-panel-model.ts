@@ -1,8 +1,4 @@
-import {
-  type Diagnosis,
-  EMPTY_REPOSITORY,
-  type Repository,
-} from "@recognizer/core";
+import { type Diagnosis, Repository } from "@recognizer/core";
 import type { Freshness, PlanRequest, ScanPlanView } from "recognizer";
 import {
   afterSuiteTick,
@@ -191,7 +187,7 @@ export function planFactsOf(
   sensors: RowSensor[] = rowSensors(given.config, given.shipped),
 ): LoadedPlanData {
   return {
-    scans: given.scans ?? EMPTY_REPOSITORY,
+    scans: given.scans ?? Repository.empty,
     measured: Object.fromEntries(
       given.sensors.map(({ name, status, measured }) => [
         name,

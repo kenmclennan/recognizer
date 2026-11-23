@@ -1,6 +1,7 @@
+import { InvalidEntity } from "./invalid-entity.js";
 import type { Language } from "./language.js";
 
-export interface Dependency {
+export interface DependencyFields {
   readonly from: string;
   readonly to: string;
   readonly toLibrary: boolean;
@@ -19,9 +20,61 @@ export interface Dependency {
   };
 }
 
-export interface Library {
+export class Dependency {
+  readonly from: string;
+  readonly to: string;
+  readonly toLibrary: boolean;
+  readonly language: Language;
+  readonly kind: DependencyFields["kind"];
+  readonly line: number;
+  declare readonly names?: readonly string[];
+  declare readonly via?: readonly string[];
+  declare readonly member?: string;
+  declare readonly toMember?: string;
+  declare readonly inferred?: DependencyFields["inferred"];
+
+  constructor(fields: DependencyFields) {
+    if (fields.from === "") {
+      throw new InvalidEntity("Dependency", "from is empty", fields.from);
+    }
+
+    if (fields.to === "") {
+      throw new InvalidEntity("Dependency", "to is empty", fields.to);
+    }
+
+    this.from = fields.from;
+    this.to = fields.to;
+    this.toLibrary = fields.toLibrary;
+    this.language = fields.language;
+    this.kind = fields.kind;
+    this.line = fields.line;
+
+    if (fields.names !== undefined) this.names = fields.names;
+    if (fields.via !== undefined) this.via = fields.via;
+    if (fields.member !== undefined) this.member = fields.member;
+    if (fields.toMember !== undefined) this.toMember = fields.toMember;
+    if (fields.inferred !== undefined) this.inferred = fields.inferred;
+  }
+
+  get countsAsEdge(): boolean {
+    return this.kind !== "declares";
+  }
+}
+
+const FOREIGN_PREFIX = "foreign:";
+
+export class Library {
   readonly id: string;
   readonly name: string;
+
+  constructor(fields: { readonly id: string; readonly name: string }) {
+    this.id = fields.id;
+    this.name = fields.name;
+  }
+
+  static owns(id: string): boolean {
+    return id.startsWith(FOREIGN_PREFIX);
+  }
 }
 
 export interface Call {

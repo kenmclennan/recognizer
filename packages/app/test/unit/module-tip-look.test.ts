@@ -26,7 +26,7 @@ const scan = {
 };
 const lineOf = (id) => LINES[id] ? { kind: "current", line: LINES[id] } : { kind: "missing" };
 const inputs = {
-  scans: repositoryFrom([scan]), modules: ids, compaction: compactFolders(ids), disc: () => "green", findings: () => [], findingRows: () => [], onCanvas: () => false,
+  scans: repositoryFrom([scan]), modules: ids, compaction: compactFolders(repositoryFrom([scan]).folders), disc: () => "green", findings: () => [], findingRows: () => [], onCanvas: () => false,
   expanded: new Set(), showPrivate: true, tab: "dependencies", counts: () => ({ uses: 2, usedBy: 0 }), filter: "", followed: null, metrics: [],
   responsibility: (id) => ({ state: lineOf(id), failure: null }),
 };

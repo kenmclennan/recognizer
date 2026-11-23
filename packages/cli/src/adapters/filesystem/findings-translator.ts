@@ -1,9 +1,9 @@
-import type {
+import {
   Finding,
-  FindingDependency,
-  FindingMember,
-  SensorFindings,
-  ViolatedRule,
+  type FindingDependency,
+  type FindingMember,
+  type SensorFindings,
+  type ViolatedRule,
 } from "@recognizer/core";
 import {
   type ExpectedSensor,
@@ -81,7 +81,7 @@ function memberOf(member: DocumentFindingMember): FindingMember {
 function findingOf(record: FindingRecord): Finding {
   const { evidence } = record;
 
-  return {
+  return Finding.stored({
     id: record.id,
     kind: record.kind,
     severity: record.severity,
@@ -96,7 +96,7 @@ function findingOf(record: FindingRecord): Finding {
     ...given("measures", evidence.measures),
     ...given("testImporters", evidence.test_importers),
     ...given("producer", evidence.producer),
-  };
+  });
 }
 
 export function documentRuleOf(rule: ViolatedRule): DocumentRule {

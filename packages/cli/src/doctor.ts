@@ -1,4 +1,4 @@
-import { compilePolicy, type PolicyRule } from "@recognizer/core";
+import { PolicyRule } from "@recognizer/core";
 import { parse } from "yaml";
 import {
   parsePolicy,
@@ -415,10 +415,9 @@ function policyArea(facts: DoctorFacts): Found[] {
     ];
   }
 
-  const compiled = compilePolicy(policy);
-
   if (
-    (compiled.entryGlobs.length === 0 && compiled.forbid.length === 0) ||
+    (PolicyRule.entries(policy).length === 0 &&
+      PolicyRule.forbids(policy).length === 0) ||
     facts.languages.length === 0
   ) {
     return [];

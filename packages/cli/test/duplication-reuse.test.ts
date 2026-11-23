@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Repository } from "@recognizer/core";
+import { Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_DUPLICATION_SETTINGS,
@@ -173,11 +173,11 @@ describe("reusing results for unchanged files", () => {
     const first = setup.scans.extractions[0]?.language;
     const only = {
       ...setup,
-      scans: {
+      scans: Repository.of({
         ...setup.scans,
         extractions: setup.scans.extractions.slice(0, 1),
         files: setup.scans.files.filter((file) => file.language === first),
-      },
+      }),
     };
 
     await measure(only);

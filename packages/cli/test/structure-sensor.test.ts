@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { findViolations, type ViolatedRule } from "@recognizer/core";
+import { Repository, type ViolatedRule } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { sensorFindingsDocument } from "../src/adapters/filesystem/findings-translator.js";
 import {
@@ -114,7 +114,7 @@ describe("structureSensor ids", () => {
 
   it("gives the same cycle ids when the scans are reordered", () => {
     const { scan, policy } = fixture("check-warnings");
-    const other = { ...scan, files: [...scan.files].reverse() };
+    const other = Repository.of({ ...scan, files: [...scan.files].reverse() });
     const ids = (scans: typeof scan) =>
       structureSensor(scans, policy, DEFAULT_STRUCTURE_SETTINGS, CONTEXT)
         .document.findings.filter((f) => f.kind === "cycle")
@@ -133,10 +133,10 @@ describe("structureSensor ids", () => {
       (f) => f.kind === "orphan",
     );
     const to = orphan?.files[0] as string;
-    const withTests = {
+    const withTests = Repository.of({
       ...scan,
       testImports: [{ from: "tests/test_x.py", to }],
-    };
+    });
     const run = (scans: typeof scan) =>
       structureSensor(scans, policy, DEFAULT_STRUCTURE_SETTINGS, CONTEXT)
         .document.findings;
@@ -233,7 +233,12 @@ describe("grouped violation records", () => {
         skip_directories_containing: [],
         skip_file_globs: [],
       },
-      modules: [],
+      modules: ["d/a.py", "x/m1.py", "x/m2.py"].map((id) => ({
+        id,
+        language: "python",
+        kind: "module",
+        members: [],
+      })),
       edges,
       foreign: [],
     });
@@ -320,7 +325,7 @@ describe("baseline compatibility", () => {
   it("reads the committed fixtures/check baseline against the new ids", () => {
     const { baselineText, scan, policy } = fixture("check");
     const baseline = parseBaseline(baselineText);
-    const ranked = rankAgainstBaseline(findViolations(scan, policy), baseline);
+    const ranked = rankAgainstBaseline(scan.violations(policy), baseline);
 
     expect(baseline).toHaveLength(2);
     expect(ranked.violations).toHaveLength(4);
@@ -337,7 +342,7 @@ describe("baseline compatibility", () => {
   it("reads the committed fixtures/check-warnings baseline against the new ids", () => {
     const { baselineText, scan, policy } = fixture("check-warnings");
     const baseline = parseBaseline(baselineText);
-    const ranked = rankAgainstBaseline(findViolations(scan, policy), baseline);
+    const ranked = rankAgainstBaseline(scan.violations(policy), baseline);
 
     expect(baseline).toHaveLength(1);
     expect(ranked.violations).toHaveLength(1);

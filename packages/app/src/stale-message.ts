@@ -1,3 +1,4 @@
+import { File } from "@recognizer/core";
 import { hasEntries, type StaleReport } from "./stale-report";
 
 export type StaleMessage = {
@@ -20,7 +21,7 @@ function short(commit: string): string {
 }
 
 function leaf(id: string): string {
-  return id.slice(id.lastIndexOf("/") + 1);
+  return File.nameOf(id);
 }
 
 export function staleKey(

@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { loadScans } from "../../src/scan-loading";
 import type { ScanReport } from "../../src/scan-report";
 
-function scanText(ids: string[], overrides: Record<string, unknown> = {}) {
+function scanText(
+  ids: string[],
+  overrides: Record<string, unknown> = {},
+  language = "python",
+) {
   return JSON.stringify({
     schema_version: 7,
     scanner: { name: "recognizer-scan-python", version: "0" },
@@ -19,7 +23,7 @@ function scanText(ids: string[], overrides: Record<string, unknown> = {}) {
     },
     modules: ids.map((id) => ({
       id,
-      language: "python",
+      language,
       kind: "module",
       members: [],
     })),
@@ -129,7 +133,10 @@ describe("loadScans", () => {
     const loaded = loadScans(
       scanned([
         { file: "scan.python.json", text: scanText(["a.py", "shared"]) },
-        { file: "scan.typescript.json", text: scanText(["shared", "b.ts"]) },
+        {
+          file: "scan.typescript.json",
+          text: scanText(["shared", "b.ts"], {}, "typescript"),
+        },
       ]),
     );
 

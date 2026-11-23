@@ -6,7 +6,6 @@ import type {
   LockDetails,
   Measured,
   PolicyRule,
-  Repository,
   ResponsibilityKinds,
   RunFailure,
   RunLog,
@@ -17,7 +16,7 @@ import type {
   SkippedPhase,
   Store,
 } from "../../src/index.js";
-import { joinRepositories } from "../../src/index.js";
+import { Repository } from "../../src/index.js";
 
 export function cachePath(root: string, language: string): string {
   return `${root}/.recognizer/cache/scan.${language}.json`;
@@ -145,7 +144,7 @@ export class FakeStore implements Store {
   cachedRepository(root: string): Repository {
     const prefix = `${root}/.recognizer/cache/scan.`;
 
-    return joinRepositories(
+    return Repository.join(
       [...this.repositories.keys()]
         .filter((path) => path.startsWith(prefix))
         .sort()

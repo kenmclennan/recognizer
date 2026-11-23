@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { EMPTY_REPOSITORY, type ViolatedRule } from "@recognizer/core";
+import { Repository, type ViolatedRule } from "@recognizer/core";
 import { violationId } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { loadScans } from "../../src/scan-loading";
@@ -319,7 +319,7 @@ describe("withSensors tests hash", () => {
   const empty = {
     modules: [],
     scans: [],
-    repository: EMPTY_REPOSITORY,
+    repository: Repository.empty,
     policy: null,
     baseline: null,
     notices: [],
@@ -423,7 +423,7 @@ describe("withSensors", () => {
       {
         modules: [],
         scans: [],
-        repository: EMPTY_REPOSITORY,
+        repository: Repository.empty,
         policy: null,
         baseline: null,
         notices: [],

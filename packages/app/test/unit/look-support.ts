@@ -1,8 +1,4 @@
-import {
-  EMPTY_REPOSITORY,
-  joinRepositories,
-  type SensorFindings,
-} from "@recognizer/core";
+import { Repository, type SensorFindings } from "@recognizer/core";
 import type { Scheduler } from "../../src/bar-hover";
 import type { CommitsPort } from "../../src/commits-port";
 import type { EditorPort } from "../../src/editor-port";
@@ -30,7 +26,7 @@ import {
 const BASE: Loaded = {
   modules: [],
   scans: [],
-  repository: EMPTY_REPOSITORY,
+  repository: Repository.empty,
   policy: null,
   baseline: null,
   notices: [],
@@ -75,7 +71,7 @@ export function loadedOf(
     repository:
       given === undefined
         ? BASE.repository
-        : joinRepositories(scans.map((one) => one.repository)),
+        : Repository.join(scans.map((one) => one.repository)),
   };
 }
 

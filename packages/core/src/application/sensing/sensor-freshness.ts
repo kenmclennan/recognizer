@@ -1,4 +1,4 @@
-import { type Repository, scannedHashes } from "../../domain/repository.js";
+import type { Repository } from "../../domain/repository.js";
 import type { Measured } from "../../domain/scan-plan.js";
 import type { Freshness } from "./freshness.js";
 
@@ -38,7 +38,7 @@ export function freshnessScope(
 ): FreshnessScope {
   return {
     modules,
-    hashes: scannedHashes(repository),
+    hashes: repository.scannedHashes(),
     withFunctions: modulesWithFunctions(repository),
     freshness,
   };

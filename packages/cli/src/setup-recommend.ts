@@ -1,9 +1,5 @@
 import { resolve } from "node:path";
-import {
-  findViolations,
-  type PolicyRule,
-  type Repository,
-} from "@recognizer/core";
+import type { PolicyRule, Repository } from "@recognizer/core";
 import { parse, stringify } from "yaml";
 import { parsePolicy } from "./adapters/filesystem/policy-translator.js";
 import type { Io } from "./cli.js";
@@ -144,7 +140,7 @@ function todayFor(
   let count = 0;
   let example: string | null = null;
 
-  for (const violation of findViolations(repository, policy)) {
+  for (const violation of repository.violations(policy)) {
     for (const one of violation.dependencies) {
       count += 1;
       example ??= `${violation.file} -> ${one.to}`;

@@ -1,9 +1,4 @@
-import {
-  compileGlob,
-  compilePolicy,
-  type PolicyRule,
-  type Repository,
-} from "@recognizer/core";
+import { compileGlob, PolicyRule, type Repository } from "@recognizer/core";
 
 export interface PolicyProblem {
   kind: "entry" | "forbid";
@@ -21,9 +16,10 @@ export function policyProblems(
   repository: Repository,
   policy: readonly PolicyRule[] | null,
 ): PolicyProblem[] {
-  const compiled = compilePolicy(policy);
+  const entryRules = PolicyRule.entries(policy);
+  const forbidRules = PolicyRule.forbids(policy);
 
-  if (compiled.entryGlobs.length === 0 && compiled.forbid.length === 0) {
+  if (entryRules.length === 0 && forbidRules.length === 0) {
     return [];
   }
 
@@ -39,7 +35,7 @@ export function policyProblems(
     return ![...scanned].some((id) => matches(id));
   };
 
-  const entries = [...new Set(compiled.entryGlobs)]
+  const entries = [...new Set(entryRules.map((rule) => rule.glob))]
     .filter(matchesNothing)
     .map((glob) => ({
       kind: "entry" as const,
@@ -49,8 +45,8 @@ export function policyProblems(
 
   const forbids = new Map<string, PolicyProblem>();
 
-  for (const rule of compiled.forbid) {
-    for (const glob of [...rule.fromGlobs, ...rule.toGlobs]) {
+  for (const rule of forbidRules) {
+    for (const glob of [...rule.from, ...rule.to]) {
       const text = `policy forbid ${rule.pattern}: ${glob} matches no scanned file`;
 
       if (

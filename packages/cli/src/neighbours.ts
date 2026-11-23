@@ -1,6 +1,7 @@
 import {
   type Dependency,
-  dependencyEdges,
+  File,
+  Folder,
   type Repository,
 } from "@recognizer/core";
 
@@ -23,7 +24,7 @@ export type NeighbourCounts = { uses: number; usedBy: number };
 const compare = (a: string, b: string) => a.localeCompare(b);
 
 export function lastSegment(path: string): string {
-  return path.slice(path.lastIndexOf("/") + 1);
+  return File.nameOf(path);
 }
 
 export function moduleLabel(id: string): string {
@@ -34,11 +35,7 @@ export function moduleLabel(id: string): string {
 }
 
 export function folderChain(id: string): string[] {
-  const parts = id.split("/");
-
-  return parts
-    .slice(0, -1)
-    .map((_, index) => parts.slice(0, index + 1).join("/"));
+  return Folder.chainOf(id).map((folder) => folder.path);
 }
 
 export function under(path: string, folder: string): boolean {
@@ -146,7 +143,9 @@ function rowsFrom(
   const members = membersOf(repository);
   const byId = new Map<string, Dependency[]>();
 
-  for (const edge of dependencyEdges(repository.dependencies)) {
+  for (const edge of repository.dependencies.filter(
+    (edge) => edge.countsAsEdge,
+  )) {
     if (edge.from === edge.to || !known.has(edge.from) || !known.has(edge.to)) {
       continue;
     }

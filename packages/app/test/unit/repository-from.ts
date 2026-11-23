@@ -1,19 +1,22 @@
-import type {
+import {
   Dependency,
-  Extraction,
-  ExtractionSelection,
+  type DependencyFields,
+  type Extraction,
+  type ExtractionSelection,
   File,
+  Library,
   Member,
+  type MemberFields,
   Repository,
 } from "@recognizer/core";
 
 type DocMethod = Omit<
-  NonNullable<Member["methods"]>[number],
+  NonNullable<MemberFields["methods"]>[number],
   "endLine" | "bodyLine"
 > & { end_line?: number; body_line?: number };
 
 export type DocMember = Omit<
-  Member,
+  MemberFields,
   "endLine" | "bodyLine" | "methods" | "tags"
 > & {
   end_line?: number;
@@ -23,7 +26,7 @@ export type DocMember = Omit<
 };
 
 export type DocEdge = Omit<
-  Dependency,
+  DependencyFields,
   "toLibrary" | "language" | "toMember"
 > & {
   to_member?: string;
@@ -78,16 +81,10 @@ function selectionOf(selection: DocScan["selection"]): ExtractionSelection {
   };
 }
 
-function folderOf(path: string): string | null {
-  const at = path.lastIndexOf("/");
-
-  return at === -1 ? null : path.slice(0, at);
-}
-
 function memberOf(member: DocMember): Member {
   const { end_line, body_line, methods, tags, ...rest } = member;
 
-  return {
+  return new Member({
     ...rest,
     ...(end_line === undefined ? {} : { endLine: end_line }),
     ...(body_line === undefined ? {} : { bodyLine: body_line }),
@@ -103,26 +100,38 @@ function memberOf(member: DocMember): Member {
           ),
         }),
     ...(tags === undefined ? {} : { tags: tags as Member["tags"] }),
-  };
+  });
 }
 
-function partOf(scan: DocScan, language: string): Repository {
+type Part = {
+  files: File[];
+  dependencies: Dependency[];
+  libraries: Library[];
+  calls: Repository["calls"];
+  unresolvedImports: Repository["unresolvedImports"];
+  testImports: Repository["testImports"];
+  extractions: Extraction[];
+};
+
+function partOf(scan: DocScan, language: string): Part {
   const hashes = new Map((scan.files ?? []).map((one) => [one.path, one.hash]));
   const libraries = new Set((scan.foreign ?? []).map(({ id }) => id));
-  const files: File[] = (scan.modules ?? []).map((module) => ({
-    path: module.id,
-    language: module.language ?? language,
-    folder: folderOf(module.id),
-    kind:
-      module.kind === "module" || module.kind === undefined
-        ? "source"
-        : module.kind,
-    hash: hashes.get(module.id) ?? null,
-    members: (module.members ?? []).map(memberOf),
-    entryPoint: module.entry_point ?? false,
-    annotations: module.annotations ?? [],
-    actualOf: module.actual_of ?? [],
-  }));
+  const files: File[] = (scan.modules ?? []).map(
+    (module) =>
+      new File({
+        path: module.id,
+        language: module.language ?? language,
+        kind:
+          module.kind === "module" || module.kind === undefined
+            ? "source"
+            : module.kind,
+        hash: hashes.get(module.id) ?? null,
+        members: (module.members ?? []).map(memberOf),
+        entryPoint: module.entry_point ?? false,
+        annotations: module.annotations ?? [],
+        actualOf: module.actual_of ?? [],
+      }),
+  );
   const languageOf = new Map(files.map((file) => [file.path, file.language]));
   const extraction: Extraction = {
     language,
@@ -134,15 +143,17 @@ function partOf(scan: DocScan, language: string): Repository {
   };
 
   return {
-    folders: [],
     files,
-    dependencies: (scan.edges ?? []).map(({ to_member, ...edge }) => ({
-      ...edge,
-      toLibrary: libraries.has(edge.to),
-      language: languageOf.get(edge.from) ?? language,
-      ...(to_member === undefined ? {} : { toMember: to_member }),
-    })),
-    libraries: scan.foreign ?? [],
+    dependencies: (scan.edges ?? []).map(
+      ({ to_member, ...edge }) =>
+        new Dependency({
+          ...edge,
+          toLibrary: libraries.has(edge.to),
+          language: languageOf.get(edge.from) ?? language,
+          ...(to_member === undefined ? {} : { toMember: to_member }),
+        }),
+    ),
+    libraries: (scan.foreign ?? []).map((one) => new Library(one)),
     calls: scan.calls ?? [],
     unresolvedImports: scan.unresolved_imports ?? [],
     testImports: scan.test_imports ?? [],
@@ -156,28 +167,15 @@ export function repositoryFrom(
 ): Repository {
   const parts = scans.map((scan) => partOf(scan, language));
 
-  const files = parts.flatMap((part) => part.files);
-  const folders = new Map<string, { path: string; parent: string | null }>();
-
-  for (const file of files) {
-    let folder = file.folder;
-
-    while (folder !== null && !folders.has(folder)) {
-      folders.set(folder, { path: folder, parent: folderOf(folder) });
-      folder = folderOf(folder);
-    }
-  }
-
-  return {
-    folders: [...folders.values()],
-    files,
+  return Repository.of({
+    files: parts.flatMap((part) => part.files),
     dependencies: parts.flatMap((part) => part.dependencies),
     libraries: parts.flatMap((part) => part.libraries),
     calls: parts.flatMap((part) => part.calls),
     unresolvedImports: parts.flatMap((part) => part.unresolvedImports),
     testImports: parts.flatMap((part) => part.testImports),
     extractions: parts.flatMap((part) => part.extractions),
-  };
+  });
 }
 
 export type DocField = NonNullable<Member["fields"]>[number];

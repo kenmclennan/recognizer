@@ -1,6 +1,6 @@
 import { readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { compileGlob, findCycleWarnings } from "@recognizer/core";
+import { compileGlob, PolicyRule } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { analyse } from "../src/analyse.js";
@@ -75,7 +75,7 @@ function analysed(
 
   return {
     ...analyse(repository),
-    warnings: findCycleWarnings(repository, []),
+    warnings: repository.cycleWarnings([]),
   };
 }
 
@@ -177,11 +177,13 @@ describe("metrics", () => {
         ["a", "b", "tests/t"],
       ),
     );
-    const result = analyse(scan, [compileGlob("tests/**")]);
+    const result = analyse(scan, [
+      PolicyRule.of({ type: "ignore", glob: "tests/**" }),
+    ]);
 
     expect(result.metrics.map((metric) => metric.id)).toEqual(["a", "b"]);
     expect(
-      findCycleWarnings(scan, [{ type: "ignore", glob: "tests/**" }]),
+      scan.cycleWarnings([PolicyRule.of({ type: "ignore", glob: "tests/**" })]),
     ).toEqual([]);
   });
 });
@@ -258,7 +260,7 @@ describe("cycle warning - sealed hierarchies", () => {
     const scan = scanOf(hierarchy, hierarchyModules, 0, ["Event"]);
 
     expect(scan.edges).toHaveLength(4);
-    expect(findCycleWarnings(validateScan(scan), [])).toEqual([]);
+    expect(validateScan(scan).cycleWarnings([])).toEqual([]);
   });
 
   it("cycle warning - a real dependency of a subtype is reported alone", () => {
@@ -358,7 +360,7 @@ describe("determinism", () => {
     const forward = validateScan(scanOf(edges, modules));
     const reversed = validateScan(scanOf(edges, modules, 1));
     const both = (repository: typeof forward) =>
-      JSON.stringify([analyse(repository), findCycleWarnings(repository, [])]);
+      JSON.stringify([analyse(repository), repository.cycleWarnings([])]);
 
     expect(both(reversed)).toBe(both(forward));
   });

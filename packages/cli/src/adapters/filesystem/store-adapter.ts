@@ -8,13 +8,12 @@ import type {
   LockDetails,
   Measured,
   PolicyRule,
-  Repository,
   ResponsibilityKinds,
   RunLog,
   ScanStatus,
   Store,
 } from "@recognizer/core";
-import { EMPTY_REPOSITORY, joinRepositories } from "@recognizer/core";
+import { Repository } from "@recognizer/core";
 import type { Io } from "../../cli.js";
 import { readConfig } from "../../config.js";
 import {
@@ -32,7 +31,6 @@ import {
   type ResponsibilityEntry,
   validateResponsibilities,
 } from "../../responsibilities.js";
-import { scanHashes } from "../../result-freshness.js";
 import { openPhasedRunLog } from "../../run-log.js";
 import { awaitDescribeAnswer } from "../../scan-answer.js";
 import { CACHE, cacheFile, readCachedRepository } from "../../scan-facts.js";
@@ -189,10 +187,10 @@ export class StoreAdapter implements Store {
     try {
       names = this.io.readDir(join(root, CACHE)).map(({ name }) => name);
     } catch {
-      return EMPTY_REPOSITORY;
+      return Repository.empty;
     }
 
-    return joinRepositories(
+    return Repository.join(
       names
         .map((name) => /^scan\.(.+)\.json$/.exec(name)?.[1])
         .filter((language): language is string => language !== undefined)
@@ -279,7 +277,7 @@ export class StoreAdapter implements Store {
     }
 
     const describer = findDescriber(this.io, root);
-    const hashes = scanHashes(repository);
+    const hashes = repository.scannedHashes();
 
     for (const id of modules) {
       const entry = entries[id];

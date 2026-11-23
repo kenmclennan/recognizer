@@ -1,3 +1,4 @@
+import { File, Folder } from "@recognizer/core";
 import { type Compaction, compactFolders } from "./folder-compaction";
 
 export type FileNode = { kind: "file"; name: string; path: string };
@@ -29,13 +30,9 @@ function sorted(folder: FolderNode): void {
   }
 }
 
-export function fileLabel(id: string): string {
-  return id.slice(id.lastIndexOf("/") + 1);
-}
-
 export function buildTree(
   ids: readonly string[],
-  compaction: Compaction = compactFolders(ids),
+  compaction: Compaction = compactFolders(Folder.derive(ids)),
 ): FolderNode {
   const root: FolderNode = { kind: "folder", name: "", path: "", children: [] };
   const folders = new Map<string, FolderNode>([["", root]]);
@@ -62,7 +59,7 @@ export function buildTree(
 
     parent.children.push({
       kind: "file",
-      name: fileLabel(id),
+      name: File.nameOf(id),
       path: id,
     });
   }

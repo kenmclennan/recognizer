@@ -2,7 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { EMPTY_REPOSITORY } from "@recognizer/core";
+import { Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
@@ -112,7 +112,7 @@ describe("runSensors ceiling", () => {
         io,
         root,
         commit: COMMIT,
-        repository: EMPTY_REPOSITORY,
+        repository: Repository.empty,
         selected: [
           { name: "hung", command: pluginCommand(hung) },
           {
@@ -192,7 +192,7 @@ describe("runSensors ceiling", () => {
         io,
         root,
         commit: COMMIT,
-        repository: EMPTY_REPOSITORY,
+        repository: Repository.empty,
         selected: [
           { name: "quick", command: pluginCommand(limited) },
           { name: "quick", command: pluginCommand(open) },
@@ -235,7 +235,7 @@ describe("runSensors ceiling", () => {
       io,
       root,
       commit: COMMIT,
-      repository: EMPTY_REPOSITORY,
+      repository: Repository.empty,
       selected: [
         { name: "quick", runsTests: true, command: pluginCommand(live) },
       ],
@@ -276,7 +276,7 @@ describe("runSensors ceiling", () => {
       io,
       root,
       commit: COMMIT,
-      repository: EMPTY_REPOSITORY,
+      repository: Repository.empty,
       selected: [
         { name: "quick", runsTests: true, command: pluginCommand(script) },
       ],
@@ -300,7 +300,7 @@ describe("runSensors ceiling", () => {
         io: nodeIo(),
         root: process.cwd(),
         commit: "abc123",
-        repository: EMPTY_REPOSITORY,
+        repository: Repository.empty,
         selected: [{ name: "slow", command: ["sh", "-c", "sleep ${marker} & wait"] }],
       });
     `;
@@ -435,7 +435,7 @@ process.exit(2);`,
         io,
         root,
         commit: COMMIT,
-        repository: EMPTY_REPOSITORY,
+        repository: Repository.empty,
         selected: [
           { name: "quick", runsTests, command: pluginCommand(refusing) },
         ],
@@ -461,7 +461,7 @@ process.exit(2);`,
       io,
       root,
       commit: COMMIT,
-      repository: EMPTY_REPOSITORY,
+      repository: Repository.empty,
       selected: [{ name: "quick", command: pluginCommand(writing) }],
     });
 
@@ -481,7 +481,7 @@ process.exit(2);`,
       io,
       root,
       commit: COMMIT,
-      repository: EMPTY_REPOSITORY,
+      repository: Repository.empty,
       selected: [{ name: "quick", command: pluginCommand(refusing) }],
     });
 
@@ -506,7 +506,7 @@ process.exit(2);`,
       io,
       root,
       commit: COMMIT,
-      repository: EMPTY_REPOSITORY,
+      repository: Repository.empty,
       selected: [{ name: "quick", command: pluginCommand(noisy) }],
       onEvent: () => {
         void stopEverything();
@@ -530,7 +530,7 @@ process.exit(2);`,
         io,
         root,
         commit: COMMIT,
-        repository: EMPTY_REPOSITORY,
+        repository: Repository.empty,
         selected: [{ name: "quick", command: pluginCommand(writing) }],
       });
 
@@ -556,7 +556,7 @@ process.exit(2);`,
         io,
         root,
         commit: COMMIT,
-        repository: EMPTY_REPOSITORY,
+        repository: Repository.empty,
         selected: [{ name: "quick", command: pluginCommand(writing) }],
       });
 
@@ -589,7 +589,7 @@ process.exit(2);`,
         io,
         root,
         commit: COMMIT,
-        repository: EMPTY_REPOSITORY,
+        repository: Repository.empty,
         selected: [{ name: "quick", command: pluginCommand(refusing) }],
       });
 

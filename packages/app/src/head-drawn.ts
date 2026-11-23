@@ -1,8 +1,4 @@
-import {
-  EMPTY_REPOSITORY,
-  joinRepositories,
-  type Repository,
-} from "@recognizer/core";
+import { Repository } from "@recognizer/core";
 import type { MarkedFile, MemberMarkKind } from "recognizer";
 import { moduleOf } from "recognizer";
 import type { MetricDescriptor, OverlayModel } from "./overlay-model";
@@ -57,12 +53,12 @@ export function drawnScans(
 
   const fromHead = new Map(headScans.files.map((entry) => [entry.path, entry]));
 
-  return {
+  return Repository.of({
     ...scans,
     files: scans.files.map((entry) =>
       drawn.has(entry.path) ? (fromHead.get(entry.path) ?? entry) : entry,
     ),
-  };
+  });
 }
 
 export function addedFromHead(
@@ -95,10 +91,7 @@ export function addedFromHead(
   const ids = new Set(files.map((entry) => entry.path));
   const dependencies = head.dependencies.filter((edge) => ids.has(edge.from));
 
-  return joinRepositories([
-    scans,
-    { ...EMPTY_REPOSITORY, files, dependencies },
-  ]);
+  return Repository.join([scans, Repository.of({ files, dependencies })]);
 }
 
 export function withoutDrawn(

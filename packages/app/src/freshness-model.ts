@@ -1,5 +1,5 @@
-import { EMPTY_REPOSITORY } from "@recognizer/core";
-import { type Freshness, scanHashes, sensorArmed } from "recognizer";
+import { File, Repository } from "@recognizer/core";
+import { type Freshness, sensorArmed } from "recognizer";
 import { ageText } from "./footer-scan";
 import type { IconName } from "./icons";
 import { DESCRIBE_KEY, type ResultsMode } from "./scan-freshness";
@@ -406,7 +406,7 @@ function analysisState(input: PanelInput, modules: string[]): ResultState {
 }
 
 function shortModule(id: string): string {
-  return id.split("/").pop() ?? id;
+  return File.nameOf(id);
 }
 
 function changedList(ids: string[]): string {
@@ -756,7 +756,7 @@ function noResultOf(
   rows: ResultRow[],
   modules: string[],
 ): NoResult[] {
-  const hashes = scanHashes(input.scans ?? EMPTY_REPOSITORY);
+  const hashes = (input.scans ?? Repository.empty).scannedHashes();
   const inScope = new Set(modules);
   const found: NoResult[] = [];
 

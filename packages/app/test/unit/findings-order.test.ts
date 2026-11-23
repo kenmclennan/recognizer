@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { Finding, SensorFindings } from "@recognizer/core";
+import { Finding, type SensorFindings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   badge,
@@ -16,14 +16,14 @@ function record(
   severity: "violation" | "warning",
   module: string,
 ): Finding {
-  return {
+  return Finding.stored({
     id,
     kind,
     severity,
     principle: "p",
     summary: `${kind} ${id}`,
     files: [module],
-  };
+  });
 }
 
 function document(name: string, findings: Finding[]): SensorFindings {
@@ -54,15 +54,14 @@ function duplicate(
   sizes: number[],
   severity = "warning" as const,
 ): Finding {
-  return {
-    ...record(id, "duplication", severity, "m.py"),
+  return record(id, "duplication", severity, "m.py").with({
     files: ["m.py"],
     members: sizes.map((size, index) => ({
       file: "m.py",
       name: `n${index}`,
       lines: [1, size] as [number, number],
     })),
-  };
+  });
 }
 
 describe("duplication order", () => {

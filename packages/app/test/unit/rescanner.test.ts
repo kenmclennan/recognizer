@@ -1,4 +1,4 @@
-import { EMPTY_REPOSITORY } from "@recognizer/core";
+import { Repository } from "@recognizer/core";
 import type { ScanRunRecord } from "recognizer";
 import { describe, expect, it, vi } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
@@ -18,7 +18,7 @@ const ORIGIN: ScanOrigin = { branch: "main", commit: "a1b2c3d" };
 const OK: Loaded = {
   modules: ["a.py"],
   scans: [],
-  repository: EMPTY_REPOSITORY,
+  repository: Repository.empty,
   policy: null,
   baseline: null,
   notices: [],

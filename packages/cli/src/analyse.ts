@@ -1,9 +1,4 @@
-import {
-  isForeign,
-  keptGraph,
-  type Matcher,
-  type Repository,
-} from "@recognizer/core";
+import { Library, type PolicyRule, type Repository } from "@recognizer/core";
 
 export interface ModuleMetrics {
   id: string;
@@ -24,9 +19,9 @@ const byCodeUnit = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 export function analyse(
   repository: Repository,
-  ignore: readonly Matcher[] = [],
+  policy: readonly PolicyRule[] | null = null,
 ): Analysis {
-  const { edges, ids } = keptGraph(repository, ignore);
+  const { edges, ids } = repository.graphKeeping(policy);
   const kinds = new Map<string, ModuleMetrics["kind"]>();
 
   for (const file of repository.files) {
@@ -46,7 +41,7 @@ export function analyse(
       continue;
     }
 
-    if (isForeign(edge.to)) {
+    if (Library.owns(edge.to)) {
       continue;
     }
 

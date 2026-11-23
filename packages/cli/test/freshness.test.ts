@@ -2,7 +2,14 @@ import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { InputError } from "../src/errors.js";
 import { freshScans } from "../src/freshness.js";
-import { fakeIo, PYTHON, ROOT, scanJson, TYPESCRIPT } from "./scan-helpers.js";
+import {
+  fakeIo,
+  PYTHON,
+  ROOT,
+  scanJson,
+  TYPESCRIPT,
+  typescriptScanJson,
+} from "./scan-helpers.js";
 
 const sha256 = (text: string) =>
   createHash("sha256").update(text).digest("hex");
@@ -172,7 +179,7 @@ describe("freshScans", () => {
       { commit: COMMIT, files: [{ path: "a.py", hash: sha256("") }] },
       "  ",
     );
-    const typescript = scanJson(
+    const typescript = typescriptScanJson(
       2,
       1,
       { commit: COMMIT, files: [{ path: "b.ts", hash: sha256("old") }] },
@@ -188,7 +195,9 @@ describe("freshScans", () => {
       },
       scanners: {
         [PYTHON]: { output: scanJson(2, 1, { commit: COMMIT }) },
-        [TYPESCRIPT]: { output: scanJson(2, 1, { commit: COMMIT }) },
+        [TYPESCRIPT]: {
+          output: typescriptScanJson(2, 1, { commit: COMMIT }),
+        },
       },
     });
 

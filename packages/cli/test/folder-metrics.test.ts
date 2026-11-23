@@ -1,5 +1,4 @@
-import type { Member } from "@recognizer/core";
-import { joinRepositories } from "@recognizer/core";
+import { type Member, Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   type FolderMetrics,
@@ -209,7 +208,7 @@ describe("measureFolders", () => {
 
   it("measures two scans with disjoint modules as one graph", () => {
     const { rows } = measureFolders(
-      joinRepositories([
+      Repository.join([
         scanOf([{ id: "a/x.ts" }], [["a/x.ts", "b/y.ts"]]),
         scanOf([{ id: "b/y.ts" }], []),
       ]),

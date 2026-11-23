@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { Finding, SensorFindings } from "@recognizer/core";
+import { Finding, type SensorFindings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { buildCatalog, EMPTY_CATALOG } from "../../src/finding-catalog";
 import groupFile from "../../src/finding-groups.json";
@@ -21,7 +21,7 @@ function record(
   severity: "violation" | "warning" = "warning",
   measures?: Record<string, number>,
 ): Finding {
-  return {
+  return Finding.stored({
     id,
     kind,
     severity,
@@ -29,7 +29,7 @@ function record(
     summary: id,
     files: [`${id}.py`],
     ...(measures ? { measures } : {}),
-  };
+  });
 }
 
 function document(
@@ -93,10 +93,9 @@ describe("groupsOf", () => {
 
   it("shows a stable_dependencies record from another file under its kind with its own summary", () => {
     const old = document("review", [
-      {
-        ...record("sd", "stable_dependencies"),
+      record("sd", "stable_dependencies").with({
         summary: "folder a depends on folder b, which is less stable",
-      },
+      }),
       record("c", "cycle"),
     ]);
     const rows = findingRows([old]);
@@ -118,10 +117,9 @@ describe("groupsOf", () => {
 
   it("shows a hub record without used_by from another file under its kind with its own summary", () => {
     const old = document("review", [
-      {
-        ...record("hu", "hub"),
+      record("hu", "hub").with({
         summary: "app/place.py is imported by 3 modules and imports 3",
-      },
+      }),
       record("c", "cycle"),
     ]);
     const groups = groupsOf(findingRows([old]));
@@ -142,10 +140,9 @@ describe("groupsOf", () => {
 
   it("shows a folder_cycle record from an old file under its kind with its own summary", () => {
     const old = document("review", [
-      {
-        ...record("fc", "folder_cycle"),
+      record("fc", "folder_cycle").with({
         summary: "folders a and b import each other",
-      },
+      }),
     ]);
     const rows = findingRows([old]);
     const [group] = groupsOf(rows, CATALOG);
@@ -161,10 +158,9 @@ describe("groupsOf", () => {
 
   it("shows a policy_drift record from an old file under its kind with its own summary", () => {
     const old = document("review", [
-      {
-        ...record("pd", "policy_drift"),
+      record("pd", "policy_drift").with({
         summary: "folder a holds 1 scanned modules that no component covers",
-      },
+      }),
     ]);
     const rows = findingRows([old]);
     const [group] = groupsOf(rows, CATALOG);

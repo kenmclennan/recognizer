@@ -1,4 +1,4 @@
-import type { Finding, FindingMember } from "@recognizer/core";
+import { Finding, type FindingMember } from "@recognizer/core";
 import { principleOf } from "../principles.js";
 import {
   type Pair,
@@ -118,7 +118,7 @@ export function findingFor(unsorted: readonly Unit[], score: number): Finding {
         : `${members.length} methods of ${prefix} share one structure`;
   }
 
-  return {
+  return Finding.stored({
     id,
     kind: "duplication",
     severity: "warning",
@@ -130,7 +130,7 @@ export function findingFor(unsorted: readonly Unit[], score: number): Finding {
     ),
     members: members.map(memberOf),
     measures: { similarity: roundSimilarity(score) },
-  };
+  });
 }
 
 export function families(
@@ -213,7 +213,7 @@ function moduleFinding(
   );
   const suffix = sorted.length === 2 ? "" : `#${sorted.length}`;
 
-  return {
+  return Finding.stored({
     id: `duplication:modules:${sorted[0]}|${sorted[1]}${suffix}`,
     kind: "duplication",
     severity: "warning",
@@ -223,7 +223,7 @@ function moduleFinding(
     files: sorted,
     members: members.map(memberOf),
     measures: { similarity: roundSimilarity(lowest) },
-  };
+  });
 }
 
 function moduleFindings(

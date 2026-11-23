@@ -1,5 +1,5 @@
-import type { Dependency } from "../../../domain/dependency.js";
-import type { Repository } from "../../../domain/repository.js";
+import type { Dependency } from "./dependency.js";
+import type { Repository } from "./repository.js";
 
 export function sealedGroups(
   repository: Repository,

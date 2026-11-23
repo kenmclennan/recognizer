@@ -37,7 +37,7 @@ function membersOf(
   repository: MemberScan,
   module: string,
 ): readonly Member[] | null {
-  const found = repository.files.find((entry) => entry.path === module);
+  const found = repository.file(module);
 
   return found === undefined ? null : found.members;
 }

@@ -1,15 +1,11 @@
-import {
-  joinRepositories,
-  type PolicyRule,
-  type Repository,
-} from "@recognizer/core";
+import { type PolicyRule, Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { parsePolicy } from "../src/index.js";
 import { policyProblems } from "../src/policy-problems.js";
 import { scanOf } from "./scan-of.js";
 
 const problems = (scans: Repository[], policy: PolicyRule[] | null) =>
-  policyProblems(joinRepositories(scans), policy);
+  policyProblems(Repository.join(scans), policy);
 
 describe("policyProblems", () => {
   const POLICY = "entry:\n  - app/domain/**\n  - app/ports/**\n";

@@ -39,7 +39,7 @@ const scan = {
 const inputs = {
   scans: repositoryFrom([scan]),
   modules: scan.modules.map((m) => m.id),
-  compaction: compactFolders(scan.modules.map((m) => m.id)),
+  compaction: compactFolders(repositoryFrom([scan]).folders),
   disc: () => "green",
   findings: () => [],
   onCanvas: (id) => id === "p/m.py",

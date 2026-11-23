@@ -5,7 +5,6 @@ import {
   freshnessScope,
   gapOf,
   modulesWithFunctions,
-  scanHashes,
   sensorFreshness,
 } from "../../src/index.js";
 import { repositoryFromFacts, repositoryOf } from "../fakes/repository-of.js";
@@ -178,7 +177,7 @@ describe("sensorFreshness on committed content", () => {
       "python",
     );
     const withFunctions = [...modulesWithFunctions(scan)];
-    const hashes = scanHashes(scan);
+    const hashes = scan.scannedHashes();
     const inputs = Object.fromEntries(
       withFunctions.map((id) => [id, hashes.get(id) as string]),
     );

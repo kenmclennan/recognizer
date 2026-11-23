@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { File, Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { parseConfig } from "../src/config-parse.js";
 import { InputError } from "../src/errors.js";
@@ -337,14 +338,14 @@ describe("orphan over Kotlin dependency injection", () => {
       "GetUserUseCase.kt": undefined,
       "Stray.kt": undefined,
     });
-    const flagged = {
+    const flagged = Repository.of({
       ...scan,
       files: scan.files.map((file) =>
         file.path === "UserController.kt"
-          ? { ...file, entryPoint: true as const }
+          ? new File({ ...file, entryPoint: true })
           : file,
       ),
-    };
+    });
 
     expect(orphans(flagged)).toEqual(["orphan:Stray.kt"]);
   });
@@ -400,12 +401,12 @@ describe("orphan over Kotlin dependency injection", () => {
         "ImplB.kt": undefined,
       },
     );
-    const flagged = {
+    const flagged = Repository.of({
       ...scan,
       files: scan.files.map((file) =>
-        file.path === "C.kt" ? { ...file, entryPoint: true as const } : file,
+        file.path === "C.kt" ? new File({ ...file, entryPoint: true }) : file,
       ),
-    };
+    });
 
     expect(orphans(flagged)).toEqual(["orphan:ImplB.kt", "orphan:PortB.kt"]);
   });

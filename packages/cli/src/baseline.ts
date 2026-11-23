@@ -90,8 +90,7 @@ export function narrowViolationRecord(
     return record;
   }
 
-  return {
-    ...record,
+  return record.with({
     summary: kept
       .map((edge) =>
         importText({
@@ -102,7 +101,7 @@ export function narrowViolationRecord(
       )
       .join("; "),
     dependencies: kept,
-  };
+  });
 }
 
 export function isIdEntry(entry: BaselineEntry): entry is IdEntry {

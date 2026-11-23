@@ -1,4 +1,4 @@
-import { EMPTY_REPOSITORY, type Repository } from "@recognizer/core";
+import { Repository } from "@recognizer/core";
 import {
   afterFoldToggle,
   afterPanelOpen,
@@ -17,7 +17,6 @@ import {
   memberMarks,
   rangeText,
   resolveView,
-  scanHashes,
   usedByOf,
   usesOf,
   type View,
@@ -450,7 +449,7 @@ export function showExplorer(
   let loaded = initial;
   let health = computeHealth(loaded);
   const knownModules = new Set(loaded.modules);
-  const compaction = compactFolders(loaded.modules);
+  const compaction = compactFolders(loaded.repository.folders);
   const root = buildTree(loaded.modules, compaction);
   let described = describeTree(root, health);
   let setupProblems: number | null = null;
@@ -1247,7 +1246,7 @@ export function showExplorer(
 
   function emptyGraph(): CanvasGraph {
     return buildCanvasGraph({
-      scans: EMPTY_REPOSITORY,
+      scans: Repository.empty,
       modules: [],
       opened: [],
       disc: () => "grey",
@@ -1612,7 +1611,7 @@ export function showExplorer(
             : module;
 
         {
-          const entry = found.start.files.find((one) => one.path === baseId);
+          const entry = found.start.file(baseId);
 
           if (entry !== undefined) {
             return entry.members;
@@ -3007,7 +3006,7 @@ export function showExplorer(
     if (workStamp === null || workStamp.scans !== scans) {
       workStamp = {
         scans,
-        text: fingerprint(JSON.stringify([...scanHashes(scans)])),
+        text: fingerprint(JSON.stringify([...scans.scannedHashes()])),
       };
     }
 
@@ -4867,10 +4866,10 @@ export function showExplorer(
     const info = changeInfo;
 
     if (info === null || info.state !== "ok" || info.name !== openView) {
-      return EMPTY_REPOSITORY;
+      return Repository.empty;
     }
 
-    return loadedMembers(info.members)?.head ?? EMPTY_REPOSITORY;
+    return loadedMembers(info.members)?.head ?? Repository.empty;
   }
 
   function drawnModules(): ReadonlySet<string> {
@@ -4945,7 +4944,7 @@ export function showExplorer(
         findingRows: (id) =>
           drawn.has(id)
             ? []
-            : allFindings.filter((one) => one.record.files.includes(id)),
+            : allFindings.filter((one) => one.record.touches(id)),
         onCanvas: modules.isOpen,
         expanded: root ? folds : panel.folds,
         showPrivate,

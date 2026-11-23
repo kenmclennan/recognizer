@@ -1,6 +1,10 @@
-import type { Dependency, Member, Repository } from "@recognizer/core";
 import {
-  dependencyEdges,
+  type Dependency,
+  File,
+  type Member,
+  type Repository,
+} from "@recognizer/core";
+import {
   fieldTokens,
   folderOf,
   memberHeadTokens,
@@ -35,7 +39,6 @@ import { createPicker, type PickerSource } from "./picker-model";
 import { PROPOSED_WORDS } from "./plan-overlay";
 import type { ResponsibilityRow } from "./responsibility-model";
 import { type CheckState, checkState } from "./row-model";
-import { fileLabel } from "./tree-model";
 
 export type InspectorTab = "contents" | "findings" | "dependencies";
 
@@ -278,7 +281,7 @@ function proposedHeader(
 }
 
 function findModule(scans: Repository, id: string) {
-  const found = scans.files.find((file) => file.path === id);
+  const found = scans.file(id);
 
   if (found) {
     return found;
@@ -791,9 +794,9 @@ function moduleContents(module: string, inputs: InspectorInputs): Row[] {
     ];
   }
 
-  const edges = dependencyEdges(inputs.scans.dependencies).filter(
-    (edge) => edge.from === module,
-  );
+  const edges = inputs.scans.dependencies
+    .filter((edge) => edge.countsAsEdge)
+    .filter((edge) => edge.from === module);
   const shown = found.members.filter(
     (member) => inputs.showPrivate || member.exported,
   );
@@ -1120,7 +1123,7 @@ function dependencyRows(
   const name =
     selection.kind === "folder"
       ? `${inputs.compaction.label(selection.id)}/`
-      : fileLabel(selection.id);
+      : File.nameOf(selection.id);
   const rows: Row[] = [
     {
       kind: "filter",

@@ -1,4 +1,4 @@
-import type { Dependency, Repository } from "../../src/index.js";
+import { Dependency, Repository } from "../../src/index.js";
 import { repositoryOf } from "./repository-of.js";
 
 export function edge(
@@ -7,7 +7,14 @@ export function edge(
   line = 1,
   kind: Dependency["kind"] = "depends",
 ): Dependency {
-  return { from, to, toLibrary: false, language: "python", kind, line };
+  return new Dependency({
+    from,
+    to,
+    toLibrary: false,
+    language: "python",
+    kind,
+    line,
+  });
 }
 
 export function repositoryWith(
@@ -16,5 +23,7 @@ export function repositoryWith(
 ): Repository {
   const files = Object.fromEntries(paths.map((path) => [path, "h"]));
 
-  return { ...repositoryOf(files, []), dependencies };
+  const base = repositoryOf(files, []);
+
+  return Repository.of({ ...base, dependencies });
 }

@@ -1,4 +1,4 @@
-import type { Finding } from "@recognizer/core";
+import { File, type Finding } from "@recognizer/core";
 import {
   findingRecordOf,
   libraryApiHint,
@@ -13,7 +13,7 @@ export type SentenceInput = {
 };
 
 export function shortName(path: string): string {
-  return path.slice(path.lastIndexOf("/") + 1);
+  return File.nameOf(path);
 }
 
 function num(value: number): string {

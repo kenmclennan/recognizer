@@ -1,3 +1,4 @@
+import { Folder } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { buildCanvasGraph } from "../../src/canvas-graph";
 import { compactFolders } from "../../src/folder-compaction";
@@ -62,7 +63,7 @@ function pickerOf(
   return createPicker({
     scans: repositoryFrom([scan]),
     modules,
-    compaction: compactFolders(modules),
+    compaction: compactFolders(Folder.derive(modules)),
     onCanvas,
     source,
     filter: extra.filter ?? "",

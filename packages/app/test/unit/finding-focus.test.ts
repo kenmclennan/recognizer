@@ -52,7 +52,7 @@ describe("keepsFocus", () => {
     expect(
       keepsFocus(
         { kind: "folder", id: "src" },
-        { ...violation, files: ["src/a.py"], dependencies: [] },
+        violation.with({ files: ["src/a.py"], dependencies: [] }),
         boxFor,
       ),
     ).toBe(true);

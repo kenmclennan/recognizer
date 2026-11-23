@@ -1,6 +1,8 @@
+import { Folder } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { compactFolders } from "../../src/folder-compaction";
 import { expectedModuleIds } from "../fixtures";
+import { repositoryFrom } from "./repository-from";
 
 const kotlin = [
   "core/data/src/main/kotlin/com/example/A.kt",
@@ -11,7 +13,7 @@ const kotlin = [
 
 describe("compactFolders", () => {
   it("compacts a chain of empty single-child folders into its deepest folder", () => {
-    const compaction = compactFolders(kotlin);
+    const compaction = compactFolders(Folder.derive(kotlin));
 
     expect([...compaction.folders].sort()).toEqual([
       "core",
@@ -27,20 +29,20 @@ describe("compactFolders", () => {
   });
 
   it("ends a chain at a folder holding a module", () => {
-    const compaction = compactFolders(["a/b/m.py"]);
+    const compaction = compactFolders(Folder.derive(["a/b/m.py"]));
 
     expect([...compaction.folders]).toEqual(["a/b"]);
     expect(compaction.label("a/b")).toBe("a/b");
   });
 
   it("ends a chain at a folder with two subfolders", () => {
-    const compaction = compactFolders(["a/b/m.py", "a/c/n.py"]);
+    const compaction = compactFolders(Folder.derive(["a/b/m.py", "a/c/n.py"]));
 
     expect([...compaction.folders].sort()).toEqual(["a", "a/b", "a/c"]);
   });
 
   it("never merges the root", () => {
-    const compaction = compactFolders(["src/m.py"]);
+    const compaction = compactFolders(Folder.derive(["src/m.py"]));
 
     expect([...compaction.folders]).toEqual(["src"]);
     expect(compaction.parent("src")).toBeNull();
@@ -48,7 +50,7 @@ describe("compactFolders", () => {
   });
 
   it("maps an inner folder to its compacted folder and leaves others unchanged", () => {
-    const compaction = compactFolders(kotlin);
+    const compaction = compactFolders(Folder.derive(kotlin));
 
     expect(compaction.canonical("core/data/src")).toBe(
       "core/data/src/main/kotlin/com/example",
@@ -59,7 +61,7 @@ describe("compactFolders", () => {
   });
 
   it("lists compacted ancestors only, outermost first", () => {
-    const compaction = compactFolders(kotlin);
+    const compaction = compactFolders(Folder.derive(kotlin));
 
     expect(
       compaction.ancestors("core/data/src/main/kotlin/com/example/A.kt"),
@@ -73,10 +75,9 @@ describe("compactFolders", () => {
   });
 
   it("recomputes after a rescan adds a file in the middle of a chain", () => {
-    const rescanned = compactFolders([
-      ...kotlin,
-      "core/data/src/main/Extra.kt",
-    ]);
+    const rescanned = compactFolders(
+      Folder.derive([...kotlin, "core/data/src/main/Extra.kt"]),
+    );
 
     expect(rescanned.folders.has("core/data/src/main")).toBe(true);
     expect(rescanned.label("core/data/src/main")).toBe("data/src/main");
@@ -91,11 +92,41 @@ describe("compactFolders", () => {
 
   it("compacts the module ids of the typescript fixture scan", () => {
     const ids = expectedModuleIds("typescript");
-    const compaction = compactFolders(ids);
+    const compaction = compactFolders(Folder.derive(ids));
 
     expect(compaction.folders.size).toBeGreaterThan(0);
     expect(compaction.folders.size).toBeLessThanOrEqual(
       new Set(ids.map((id) => id.slice(0, id.lastIndexOf("/")))).size,
     );
+  });
+
+  it("agrees with the Repository folders", () => {
+    const ids = expectedModuleIds("typescript");
+    const repository = repositoryFrom([
+      {
+        modules: ids.map((id) => ({ id, kind: "module" as const })),
+        edges: [],
+      },
+    ]);
+
+    expect(repository.folders.length).toBeGreaterThan(0);
+
+    const fromRepository = compactFolders(repository.folders);
+    const fromPaths = compactFolders(Folder.derive(ids));
+
+    expect([...fromRepository.folders].sort()).toEqual(
+      [...fromPaths.folders].sort(),
+    );
+
+    for (const folder of fromRepository.folders) {
+      expect(fromRepository.canonical(folder)).toBe(
+        fromPaths.canonical(folder),
+      );
+      expect(fromRepository.label(folder)).toBe(fromPaths.label(folder));
+    }
+
+    for (const id of ids) {
+      expect(fromRepository.ancestors(id)).toEqual(fromPaths.ancestors(id));
+    }
   });
 });

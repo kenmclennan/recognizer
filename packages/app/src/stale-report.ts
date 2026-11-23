@@ -1,11 +1,5 @@
 import type { Dependency, Repository } from "@recognizer/core";
-import {
-  dependencyEdges,
-  moduleNames,
-  resolveView,
-  type View,
-  type ViewStep,
-} from "recognizer";
+import { moduleNames, resolveView, type View, type ViewStep } from "recognizer";
 
 export type Rename = { from: string; to: string };
 
@@ -42,7 +36,9 @@ function keyOf(edge: EdgeKey): string {
 function edgesOf(scans: Repository): Map<string, EdgeKey> {
   const edges = new Map<string, EdgeKey>();
 
-  for (const { from, to, kind } of dependencyEdges(scans.dependencies)) {
+  for (const { from, to, kind } of scans.dependencies.filter(
+    (edge) => edge.countsAsEdge,
+  )) {
     edges.set(keyOf({ from, to, kind }), { from, to, kind });
   }
 

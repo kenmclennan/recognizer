@@ -3,7 +3,6 @@ export {
   type Freshness,
   type Measured,
   moduleOf,
-  scanHashes,
 } from "@recognizer/core";
 
 import type { Finding, Freshness, SensorFindings } from "@recognizer/core";
