@@ -23,6 +23,7 @@ import {
   type Sensors,
   type ShippedRead,
   type StructureSettings,
+  selectSensors,
   shippedSensorOf,
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
@@ -38,7 +39,7 @@ import {
   sensorProgramGaps,
 } from "../../preflight.js";
 import { runSensors } from "../../run-sensors.js";
-import { parseSuiteSelection, selectSensors } from "../../scan-phases.js";
+import { parseSuiteSelection } from "../../scan-phases.js";
 import { resolveStructureSettings } from "../../structure-sensor.js";
 import { diagnosisOf } from "../filesystem/diagnosis-translator.js";
 import { shippedSensorNames } from "./shipped-plugins-adapter.js";
@@ -105,12 +106,14 @@ export class SensorsAdapter implements Sensors, Analysis {
     const registered = registeredSensors(config).map((one) => one.name);
 
     if (sense !== null) {
-      selected = selectSensors(
-        registeredSensors(config),
-        namesOf(sense),
-        shippedSensorNames(),
-        config?.tests,
-        shipped,
+      selected = asInputError(() =>
+        selectSensors(
+          registeredSensors(config),
+          namesOf(sense),
+          shippedSensorNames(),
+          config?.tests,
+          shipped,
+        ),
       );
     }
 

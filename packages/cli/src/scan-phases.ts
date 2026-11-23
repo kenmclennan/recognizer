@@ -1,10 +1,4 @@
-import type { Diagnosis } from "@recognizer/core";
-import {
-  type PluginEvent,
-  type ShippedRead,
-  shippedCommand,
-  withSuiteSettings,
-} from "@recognizer/core";
+import type { Diagnosis, PluginEvent } from "@recognizer/core";
 import { InputError } from "./errors.js";
 import type { PhaseName } from "./run-log.js";
 import type { ScanRunRecord } from "./scan-marker.js";
@@ -270,59 +264,6 @@ export function parseModuleScope(text: string): string[] {
   }
 
   return [...new Set(parsed as string[])];
-}
-
-export function selectSensors(
-  registered: { name: string; command: string[] }[],
-  requested: "all" | string[],
-  shipped: readonly string[] = [],
-  suites?: readonly unknown[],
-  read: ShippedRead = { sensors: [], unreadable: [] },
-): { name: string; command: string[] }[] {
-  const given = (one: { name: string; command: string[] }) => ({
-    ...one,
-    command: withSuiteSettings(one.command, read, suites),
-  });
-
-  if (requested === "all") {
-    if (registered.length === 0) {
-      throw new InputError([
-        "no sensors are registered: name one, or add it to .recognizer/config.yaml",
-      ]);
-    }
-
-    return registered.map(given);
-  }
-
-  if (requested.includes("duplication")) {
-    throw new InputError([
-      "duplication is part of structural analysis and runs with every scan",
-    ]);
-  }
-
-  const names = registered.map((one) => one.name);
-  const unknown = requested.filter(
-    (name) => !names.includes(name) && !shipped.includes(name),
-  );
-
-  if (unknown.length > 0) {
-    throw new InputError([
-      ...unknown.map((name) => `no such sensor: ${name}`),
-      `registered sensors: ${names.join(", ")}`,
-      `shipped sensors: ${shipped.join(", ")}`,
-    ]);
-  }
-
-  return [
-    ...registered.filter((one) => requested.includes(one.name)).map(given),
-    ...requested
-      .filter((name, index) => requested.indexOf(name) === index)
-      .filter((name) => !names.includes(name))
-      .map((name) => ({
-        name,
-        command: withSuiteSettings(shippedCommand(name, {}), read, suites),
-      })),
-  ];
 }
 
 export interface CachedScan {

@@ -38,7 +38,18 @@ export class FakeRepositoryChecks implements RepositoryChecks {
     return this.policyProblems;
   }
 
+  registered: { name: string; command: string[] }[] = [];
+  suiteReads = 0;
+
+  registeredSensors(): { name: string; command: string[] }[] {
+    return this.registered.filter(
+      (one) => one.name !== "structure" && one.command.length > 0,
+    );
+  }
+
   suites(): readonly unknown[] | undefined {
+    this.suiteReads += 1;
+
     return this.suiteList;
   }
 

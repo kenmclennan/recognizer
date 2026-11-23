@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { run } from "../src/cli.js";
 import {
   CHECK_TIMEOUT_MS,
   checkArguments,
   strippedArguments,
-} from "../src/sensors-check.js";
+} from "@recognizer/core";
+import { describe, expect, it } from "vitest";
+import { run } from "../src/cli.js";
 import { fakeIo, ROOT } from "./scan-helpers.js";
 
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;

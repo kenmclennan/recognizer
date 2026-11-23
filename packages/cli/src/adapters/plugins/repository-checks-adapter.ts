@@ -466,6 +466,10 @@ export class RepositoryChecksAdapter implements RepositoryChecks {
     });
   }
 
+  registeredSensors(root: string): { name: string; command: string[] }[] {
+    return registeredSensors(readConfig(this.io, root, ["sensors"]));
+  }
+
   suites(root: string): readonly unknown[] | undefined {
     try {
       return readConfig(this.io, root, ["tests"])?.tests;

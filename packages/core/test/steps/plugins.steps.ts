@@ -1,15 +1,21 @@
 import assert from "node:assert/strict";
 import { Given, Then, When } from "@cucumber/cucumber";
 import {
+  type CheckableSensor,
+  checkSensors,
   type Discovery,
   diagnose,
   discoverPlugins,
+  guideSensor,
   InvalidRequest,
   type PluginCheckReport,
   type PluginKind,
+  type ProgramRun,
   pluginCheck,
   type RegisterResult,
   registerPlugin,
+  type SensorReport,
+  sensorsToCheck,
 } from "../../src/index.js";
 import { pluginPortsOf } from "../fakes/container.js";
 import type { ScanWorld } from "../fakes/world.js";
@@ -26,6 +32,10 @@ interface PluginState {
   refusal: string | null;
   report: ReturnType<typeof diagnose> | null;
   check: PluginCheckReport | null;
+  reports: SensorReport[];
+  answers: Map<string, Partial<ProgramRun>>;
+  selection: CheckableSensor[];
+  guide: { text: string } | { failure: string } | null;
 }
 
 const states = new WeakMap<ScanWorld, PluginState>();
@@ -40,6 +50,10 @@ function state(world: ScanWorld): PluginState {
       refusal: null,
       report: null,
       check: null,
+      reports: [],
+      answers: new Map(),
+      selection: [],
+      guide: null,
     };
     states.set(world, found);
   }
@@ -385,5 +399,342 @@ Then(
     const entry = state(this).check?.results.find((one) => one.name === name);
 
     assert.equal(entry?.status, "fail");
+  },
+);
+
+function sensorCommand(name: string): string[] {
+  return [
+    `/bin/recognizer-sense-${name}`,
+    "run",
+    "--repository",
+    "{repository}",
+  ];
+}
+
+function installSensor(
+  world: ScanWorld,
+  name: string,
+  declaresCheck: boolean,
+): void {
+  const answers = state(world).answers;
+
+  world.fakes.programs.install("/bin", `recognizer-sense-${name}`, (args) => {
+    if (args[0] === "manifest") {
+      return {
+        stdout: JSON.stringify({
+          ...manifest(
+            "sensor",
+            name,
+            world.fakes.documentValidators.facts.protocol,
+          ),
+          check: declaresCheck,
+        }),
+      };
+    }
+
+    return answers.get(name) ?? { stdout: '{"gaps":[]}' };
+  });
+}
+
+function reportOf(world: ScanWorld, name: string): SensorReport {
+  const found = state(world).reports.find((one) => one.name === name);
+
+  assert.ok(found !== undefined, `a report for ${name}`);
+
+  return found;
+}
+
+function checkCalls(world: ScanWorld) {
+  return world.fakes.programs.runs.filter((one) => one.args[0] === "check");
+}
+
+Given(
+  "the sensor {string} declares a readiness check",
+  function (this: ScanWorld, name: string) {
+    installSensor(this, name, true);
+  },
+);
+
+Given(
+  "the sensor {string} declares no readiness check",
+  function (this: ScanWorld, name: string) {
+    installSensor(this, name, false);
+  },
+);
+
+Given(
+  "the check of {string} prints {string} and exits {int} with stderr {string}",
+  function (
+    this: ScanWorld,
+    name: string,
+    stdout: string,
+    status: number,
+    stderr: string,
+  ) {
+    state(this).answers.set(name, { stdout, status, stderr });
+  },
+);
+
+Given(
+  "the check of {string} times out",
+  function (this: ScanWorld, name: string) {
+    state(this).answers.set(name, { timedOut: true, status: null });
+  },
+);
+
+Given(
+  "the repository registers the checkable sensors {string} and {string}",
+  function (this: ScanWorld, first: string, second: string) {
+    this.fakes.repositoryChecks.registered = [first, second].map((name) => ({
+      name,
+      command: sensorCommand(name),
+    }));
+    this.fakes.shippedPlugins.sensorNames = ["crap"];
+  },
+);
+
+Given("the repository registers no sensor", function (this: ScanWorld) {
+  this.fakes.repositoryChecks.registered = [];
+  this.fakes.shippedPlugins.sensorNames = ["crap"];
+});
+
+When(
+  "the sensors {string} are checked",
+  function (this: ScanWorld, names: string) {
+    state(this).reports = checkSensors(
+      ports(this),
+      "/repo",
+      names.split(",").map((name) => ({ name, command: sensorCommand(name) })),
+      {},
+    );
+  },
+);
+
+When(
+  "the sensors {string} are checked with --run",
+  function (this: ScanWorld, names: string) {
+    state(this).reports = checkSensors(
+      ports(this),
+      "/repo",
+      names.split(",").map((name) => ({ name, command: sensorCommand(name) })),
+      { run: true },
+    );
+  },
+);
+
+When(
+  "the command {string} is checked as {string}",
+  function (this: ScanWorld, command: string, name: string) {
+    state(this).reports = checkSensors(
+      ports(this),
+      "/repo",
+      [{ name, command: command.split(" ") }],
+      {},
+    );
+  },
+);
+
+When(
+  "the sensors to check are chosen with name {string}",
+  function (this: ScanWorld, name: string) {
+    try {
+      state(this).selection = sensorsToCheck(
+        ports(this),
+        "/repo",
+        name === "" ? undefined : name,
+      );
+    } catch (error) {
+      assert.ok(error instanceof InvalidRequest);
+      state(this).refusal = error.messages.join("\n");
+    }
+  },
+);
+
+When(
+  "the sensors to check are chosen without suites",
+  function (this: ScanWorld) {
+    state(this).selection = sensorsToCheck(
+      ports(this),
+      "/repo",
+      undefined,
+      false,
+    );
+  },
+);
+
+When(
+  "the setup guide of the command {string} is read",
+  function (this: ScanWorld, command: string) {
+    state(this).guide = guideSensor(ports(this), "/repo", {
+      name: "alpha",
+      command: command.split(" "),
+    });
+  },
+);
+
+Then("no check call was made", function (this: ScanWorld) {
+  assert.deepEqual(checkCalls(this), []);
+});
+
+Then("no program was run", function (this: ScanWorld) {
+  assert.deepEqual(this.fakes.programs.runs, []);
+});
+
+Then(
+  "the report of {string} is ready and unchecked",
+  function (this: ScanWorld, name: string) {
+    const report = reportOf(this, name);
+
+    assert.deepEqual(
+      [report.ready, report.checked, report.gaps],
+      [true, false, []],
+    );
+  },
+);
+
+Then(
+  "the report of {string} is ready and checked",
+  function (this: ScanWorld, name: string) {
+    const report = reportOf(this, name);
+
+    assert.deepEqual(
+      [report.ready, report.checked, report.gaps],
+      [true, true, []],
+    );
+  },
+);
+
+Then(
+  "the report of {string} has the gap {string} reading {string}",
+  function (this: ScanWorld, name: string, code: string, line: string) {
+    const report = reportOf(this, name);
+
+    assert.equal(report.ready, false);
+    assert.deepEqual(
+      report.gaps.map((gap) => [gap.code, gap.line]),
+      [[code, line]],
+    );
+  },
+);
+
+Then(
+  "the reports come in the order {string}",
+  function (this: ScanWorld, names: string) {
+    assert.deepEqual(
+      state(this).reports.map((one) => one.name),
+      names.split(","),
+    );
+  },
+);
+
+Then(
+  "the report of {string} has a gap with code {string}",
+  function (this: ScanWorld, name: string, code: string) {
+    assert.deepEqual(
+      reportOf(this, name).gaps.map((gap) => gap.code),
+      [code],
+    );
+  },
+);
+
+Then(
+  "the report of {string} has no work",
+  function (this: ScanWorld, name: string) {
+    assert.equal(reportOf(this, name).work, undefined);
+  },
+);
+
+Then(
+  "the report of {string} has the work {string} with {int} to perform and {int} reusable",
+  function (
+    this: ScanWorld,
+    name: string,
+    unit: string,
+    perform: number,
+    reusable: number,
+  ) {
+    assert.deepEqual(reportOf(this, name).work, {
+      unit,
+      to_perform: perform,
+      reusable,
+    });
+  },
+);
+
+Then(
+  "the check call has a timeout of {int} ms",
+  function (this: ScanWorld, ms: number) {
+    assert.equal(checkCalls(this)[0]?.options?.timeoutMs, ms);
+  },
+);
+
+Then("the check call has no timeout", function (this: ScanWorld) {
+  const [call] = checkCalls(this);
+
+  assert.ok(call !== undefined);
+  assert.equal(call.options?.timeoutMs, undefined);
+});
+
+Then(
+  "the sensors to check are {string}",
+  function (this: ScanWorld, names: string) {
+    assert.deepEqual(
+      state(this).selection.map((one) => one.name),
+      names.split(","),
+    );
+  },
+);
+
+Then(
+  "the shipped sensor {string} is run with its shipped command",
+  function (this: ScanWorld, name: string) {
+    assert.equal(
+      state(this).selection[0]?.command[0],
+      `recognizer-sense-${name}`,
+    );
+  },
+);
+
+Then(
+  "the request is refused with {string}",
+  function (this: ScanWorld, text: string) {
+    assert.ok(state(this).refusal?.includes(text), state(this).refusal ?? "");
+  },
+);
+
+Then(
+  "the refusal lists {string} before {string} before {string}",
+  function (this: ScanWorld, a: string, b: string, c: string) {
+    const text = state(this).refusal ?? "";
+
+    assert.ok(text.indexOf(a) !== -1 && text.indexOf(a) < text.indexOf(b));
+    assert.ok(text.indexOf(b) < text.indexOf(c));
+  },
+);
+
+Then(
+  "the suites were read {int} times",
+  function (this: ScanWorld, count: number) {
+    assert.equal(this.fakes.repositoryChecks.suiteReads, count);
+  },
+);
+
+Then("the setup guide is empty", function (this: ScanWorld) {
+  assert.deepEqual(state(this).guide, { text: "" });
+});
+
+Then(
+  "the setup guide fails with {string}",
+  function (this: ScanWorld, failure: string) {
+    assert.deepEqual(state(this).guide, { failure });
+  },
+);
+
+Given(
+  "the guide of {string} exits {int} with stderr {string}",
+  function (this: ScanWorld, name: string, status: number, stderr: string) {
+    this.fakes.programs.install("/bin", `recognizer-sense-${name}`, (args) =>
+      args[0] === "guide" ? { status, stderr } : {},
+    );
   },
 );

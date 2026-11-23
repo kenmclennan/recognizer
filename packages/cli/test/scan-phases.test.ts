@@ -1,3 +1,4 @@
+import { selectSensors } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { InputError } from "../src/errors.js";
 import {
@@ -9,7 +10,6 @@ import {
   parseScanArgs,
   parseSuiteSelection,
   phaseLine,
-  selectSensors,
   summaryLine,
 } from "../src/scan-phases.js";
 

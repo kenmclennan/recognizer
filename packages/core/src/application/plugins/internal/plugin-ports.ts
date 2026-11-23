@@ -4,7 +4,6 @@ import type { PluginRegistry } from "../ports/plugin-registry.js";
 import type { PluginTemplates } from "../ports/plugin-templates.js";
 import type { Programs } from "../ports/programs.js";
 import type { RepositoryChecks } from "../ports/repository-checks.js";
-import type { SensorChecks } from "../ports/sensor-checks.js";
 import type { ShippedPlugins } from "../ports/shipped-plugins.js";
 
 export interface PluginPorts {
@@ -14,6 +13,5 @@ export interface PluginPorts {
   registry: PluginRegistry;
   templates: PluginTemplates;
   shipped: ShippedPlugins;
-  sensorChecks: SensorChecks;
   repository: RepositoryChecks;
 }

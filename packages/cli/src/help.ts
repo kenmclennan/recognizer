@@ -1,12 +1,13 @@
 import { resolve } from "node:path";
+import { guideSensor, sensorsToCheck } from "@recognizer/core";
 import { agentGuide } from "./agent-guide.js";
 import type { Io } from "./cli.js";
 import { COMMANDS, type Command } from "./commands.js";
 import { configKeysHelp } from "./config-command.js";
-import { InputError } from "./errors.js";
+import { asInputError, InputError } from "./errors.js";
 import { pluginGuide } from "./plugin-guide.js";
+import { pluginPorts } from "./plugins-container.js";
 import { policyKeysHelp } from "./policy-command.js";
-import { guideText, sensorsToCheck } from "./sensors-check.js";
 
 export function shortHelp(commands: Command[] = COMMANDS): string {
   const width = Math.max(...commands.map((command) => command.name.length));
@@ -75,10 +76,11 @@ export function commandHelp(command: Command, io: Io): string {
 
 function runSensorGuide(sensor: string, io: Io): number {
   const root = resolve(".");
-  const [selected] = sensorsToCheck(io, root, sensor, false) as [
-    { name: string; command: string[] },
-  ];
-  const guide = guideText(io, root, selected);
+  const ports = pluginPorts(io);
+  const [selected] = asInputError(() =>
+    sensorsToCheck(ports, root, sensor, false),
+  ) as [{ name: string; command: string[] }];
+  const guide = guideSensor(ports, root, selected);
 
   if ("failure" in guide) {
     io.stderr(`${guide.failure}\n`);
