@@ -183,6 +183,8 @@ The application layer is divided by subdomain, so each responsibility has one ho
 | `analysis` | structural analysis and policy: violations, warnings, metrics |
 | `configuration` | config, policy and responsibilities editing, setup |
 | `history` | changes and commits: past scans, baselines |
+| `visualisation` | what a view contains: saved views and their staleness, and the graph queries (neighbours, callers, entry points); never how it is drawn, which stays in the app |
+| `plugins` | the plugins themselves: discovery, install and upgrade, manifests, and the doctor checks over them |
 
 Each subdomain is a folder under `application/` holding its use cases and, under `ports/`, the ports they use. A port shared by several subdomains for cross-cutting infrastructure (Git, Store, Clock, Process) lives in `application/shared/ports/`; a domain port belongs to the one subdomain whose use cases call it. A use case reaches another subdomain only through that subdomain's use cases. `domain/` is divided the same way: each subdomain's entities and value objects sit in `domain/<subdomain>/`, and only types more than one subdomain reads sit at its top level.
 
