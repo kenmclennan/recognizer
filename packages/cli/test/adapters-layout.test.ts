@@ -8,6 +8,7 @@ const adapters = resolve(here, "../src/adapters");
 
 const expected: Record<string, string[]> = {
   filesystem: [
+    "diagnosis-translator.ts",
     "findings-document-types.ts",
     "findings-translator.ts",
     "policy-translator.ts",

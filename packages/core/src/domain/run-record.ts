@@ -1,12 +1,8 @@
+import type { Diagnosis } from "./diagnosis.js";
+
 export type PhaseName = "extract" | "describe" | "measure" | "sense";
 
 export type RecordedPhaseName = PhaseName | "analysis";
-
-export interface Diagnosis {
-  suite?: string | null;
-  code?: string | null;
-  readonly [detail: string]: unknown;
-}
 
 export interface RunEntry {
   name: string;

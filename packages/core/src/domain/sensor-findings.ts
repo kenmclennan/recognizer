@@ -1,3 +1,4 @@
+import type { Diagnosis } from "./diagnosis.js";
 import type { Finding } from "./finding.js";
 
 export type SuiteStatus = "ok" | "failed" | "partial" | "never";
@@ -10,18 +11,6 @@ export interface SuiteResult {
   readonly measured?: number;
   readonly total?: number;
   readonly ran?: boolean;
-}
-
-export interface SensorDiagnosis {
-  readonly code: string;
-  readonly line: string;
-  readonly suite?: string;
-  readonly fix?: string;
-  readonly failing?: {
-    readonly count?: number;
-    readonly names: readonly string[];
-  };
-  readonly unmeasured?: boolean;
 }
 
 export interface SensorWork {
@@ -56,5 +45,5 @@ export interface SensorFindings {
   readonly tests?: string;
   readonly suites?: readonly SuiteResult[];
   readonly work?: SensorWork;
-  readonly diagnosis?: SensorDiagnosis;
+  readonly diagnosis?: Diagnosis;
 }

@@ -1,5 +1,5 @@
+import type { Diagnosis } from "@recognizer/core";
 import {
-  type Diagnosis,
   idlePhases,
   nothingRanText,
   onlyArmed,

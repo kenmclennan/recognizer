@@ -1,4 +1,5 @@
-import type { Diagnosis, ScanRunRecord } from "recognizer";
+import type { Diagnosis } from "@recognizer/core";
+import type { ScanRunRecord } from "recognizer";
 import { buildFreshness, tickedPhases } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { ScanState } from "../../src/footer-scan";

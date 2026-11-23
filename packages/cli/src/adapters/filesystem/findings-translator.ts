@@ -2,7 +2,6 @@ import type {
   Finding,
   FindingDependency,
   FindingMember,
-  SensorDiagnosis,
   SensorFindings,
   ViolatedRule,
 } from "@recognizer/core";
@@ -10,8 +9,8 @@ import {
   type ExpectedSensor,
   validateFindings,
 } from "../../findings-document.js";
+import { diagnosisDocumentOf, diagnosisOf } from "./diagnosis-translator.js";
 import type {
-  DocumentDiagnosis,
   DocumentEdge,
   DocumentFindingMember,
   DocumentRule,
@@ -204,7 +203,10 @@ export function sensorFindingsOf(document: FindingsDocument): SensorFindings {
       })),
     ),
     ...given("work", document.work),
-    ...given("diagnosis", document.diagnosis),
+    ...given(
+      "diagnosis",
+      document.diagnosis && diagnosisOf(document.diagnosis),
+    ),
   };
 }
 
@@ -213,17 +215,6 @@ export function readSensorFindings(
   expected: ExpectedSensor = {},
 ): SensorFindings {
   return sensorFindingsOf(validateFindings(value, expected));
-}
-
-function diagnosisDocumentOf(diagnosis: SensorDiagnosis): DocumentDiagnosis {
-  const { failing, ...rest } = diagnosis;
-
-  return {
-    ...rest,
-    ...(failing === undefined
-      ? {}
-      : { failing: { ...failing, names: [...failing.names] } }),
-  };
 }
 
 export function sensorFindingsDocument(

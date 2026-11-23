@@ -1,7 +1,7 @@
+import type { Diagnosis } from "@recognizer/core";
 import type { Io, RunOptions } from "./cli.js";
 import {
   createEventReader,
-  type Diagnosis,
   type EventReader,
   type PluginEvent,
   type SuiteDuration,

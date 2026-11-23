@@ -1,3 +1,4 @@
+import type { Diagnosis } from "@recognizer/core";
 import validate from "./generated/events-validator.js";
 
 export const EVENT_PREFIX = "recognizer-event ";
@@ -23,15 +24,6 @@ export type PluginEvent =
     }
   | { event: "note"; text: string }
   | { event: "diagnosis"; code: string; text: string; fix?: string };
-
-export interface Diagnosis {
-  code: string;
-  line: string;
-  suite?: string;
-  fix?: string;
-  failing?: { count?: number; names: readonly string[] };
-  unmeasured?: boolean;
-}
 
 export type ParsedLine =
   | { kind: "event"; event: PluginEvent }

@@ -1,8 +1,10 @@
 import { basename, join } from "node:path";
+import type { Diagnosis } from "@recognizer/core";
+import { diagnosisDocumentOf } from "./adapters/filesystem/diagnosis-translator.js";
+import type { DocumentDiagnosis } from "./adapters/filesystem/findings-document-types.js";
 import type { Io } from "./cli.js";
 import { InputError } from "./errors.js";
 import { validateRunRecord } from "./log-document.js";
-import type { Diagnosis } from "./plugin-events.js";
 
 export type RunKind = "scan" | "sense" | "describe" | "measure" | "setup";
 
@@ -13,7 +15,7 @@ export interface RunEntry {
   outcome: "ok" | "failed" | "stopped";
   duration_ms: number;
   reason?: string;
-  diagnosis?: Diagnosis;
+  diagnosis?: DocumentDiagnosis;
   stderr: string;
   stderr_truncated?: true;
   modules?: number;
@@ -152,7 +154,7 @@ export function entryFrom(name: string, timing: EntryTiming): RunEntry {
   }
 
   if (timing.diagnosis !== undefined) {
-    entry.diagnosis = timing.diagnosis;
+    entry.diagnosis = diagnosisDocumentOf(timing.diagnosis);
   }
 
   if (truncated) {

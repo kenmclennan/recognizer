@@ -1,4 +1,5 @@
 import type {
+  Diagnosis,
   PolicyRule,
   SensorExclusion,
   SensorFindings,
@@ -7,7 +8,6 @@ import type {
 import {
   type Config,
   complexityUnmeasured,
-  type Diagnosis,
   duplicationUnmeasured,
   type FindingEntry,
   InputError,

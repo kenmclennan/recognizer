@@ -1,10 +1,9 @@
-import { EMPTY_REPOSITORY, type Repository } from "@recognizer/core";
-import type {
-  Diagnosis,
-  Freshness,
-  PlanRequest,
-  ScanPlanView,
-} from "recognizer";
+import {
+  type Diagnosis,
+  EMPTY_REPOSITORY,
+  type Repository,
+} from "@recognizer/core";
+import type { Freshness, PlanRequest, ScanPlanView } from "recognizer";
 import {
   afterSuiteTick,
   type Config,

@@ -309,8 +309,8 @@ export function* scanFlow(
         ? null
         : {
             sensor: firstFailed?.name ?? "scan",
-            suite: (firstFailed?.diagnosis?.suite as string | null) ?? null,
-            code: (firstFailed?.diagnosis?.code as string | null) ?? null,
+            suite: firstFailed?.diagnosis?.suite ?? null,
+            code: firstFailed?.diagnosis?.code ?? null,
             reason: firstFailed?.reason ?? `recognizer scan exited ${exit}`,
           },
       recorder.ranSummary(commit),

@@ -5,6 +5,7 @@ import { validateRunRecord } from "../src/log-document.js";
 import {
   asker,
   bound,
+  entryFrom,
   KEEP,
   latestRun,
   listRuns,
@@ -315,5 +316,26 @@ describe("log schema examples", () => {
     );
 
     expect(() => validateRunRecord(value)).toThrow();
+  });
+
+  it("writes an entry's diagnosis as the plain document", () => {
+    const made = entryFrom("crap", {
+      command: ["recognizer-sense-crap"],
+      status: 1,
+      stderr: "",
+      duration_ms: 3,
+      reason: "failed",
+      diagnosis: {
+        code: "tests-failed",
+        line: "tests failed",
+        failing: { count: 2, names: ["a", "b"] },
+      },
+    });
+
+    expect(JSON.parse(JSON.stringify(made.diagnosis))).toStrictEqual({
+      code: "tests-failed",
+      line: "tests failed",
+      failing: { count: 2, names: ["a", "b"] },
+    });
   });
 });

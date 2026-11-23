@@ -41,6 +41,11 @@ export {
   workOf,
 } from "@recognizer/core";
 export {
+  diagnosisDocumentOf,
+  diagnosisOf,
+  readDiagnosis,
+} from "./adapters/filesystem/diagnosis-translator.js";
+export {
   findingRecordOf,
   readSensorFindings,
   sensorFindingsDocument,
@@ -220,7 +225,7 @@ export {
   validateOverlay,
 } from "./overlays.js";
 export { type PathStep, shortestPath } from "./paths.js";
-export type { Diagnosis, PluginEvent } from "./plugin-events.js";
+export type { PluginEvent } from "./plugin-events.js";
 export {
   CURRENT_PROTOCOL,
   interpretManifest,
