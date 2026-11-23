@@ -16,6 +16,7 @@ import {
   SyncScannersAdapter,
 } from "../src/adapters/plugins/scanners-adapter.js";
 import { SensorsAdapter } from "../src/adapters/plugins/sensors-adapter.js";
+import { TestReportsAdapter } from "../src/adapters/plugins/test-reports-adapter.js";
 import { ClockAdapter } from "../src/adapters/system/clock-adapter.js";
 import { ConfirmAdapter } from "../src/adapters/terminal/confirm-adapter.js";
 import { InputError } from "../src/errors.js";
@@ -62,6 +63,7 @@ describe("scan container", () => {
     expect(ports.confirm).toBeInstanceOf(ConfirmAdapter);
     expect(ports.clock).toBeInstanceOf(ClockAdapter);
     expect(ports.process).toBeInstanceOf(ProcessAdapter);
+    expect(ports.testReports).toBeInstanceOf(TestReportsAdapter);
     expect(Object.keys(ports).sort()).toEqual([
       "analysis",
       "clock",
@@ -80,7 +82,7 @@ describe("scan container", () => {
       "sensors",
       "source",
       "structure",
-      "toml",
+      "testReports",
     ]);
     expect(syncScanPorts(io, "all").scanners).toBeInstanceOf(
       SyncScannersAdapter,

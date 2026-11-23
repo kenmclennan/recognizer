@@ -45,7 +45,7 @@ export function checkPortsOf(fakes: Fakes): CheckPorts {
     baselines: fakes.baseline,
     source: fakes.source,
     digest: fakes.digest,
-    toml: fakes.toml,
+    testReports: fakes.testReports,
   };
 }
 

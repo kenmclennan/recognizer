@@ -13,8 +13,8 @@ import { FindingsAdapter } from "./adapters/filesystem/findings-adapter.js";
 import { readSensorFindings } from "./adapters/filesystem/findings-translator.js";
 import { parsePolicy } from "./adapters/filesystem/policy-translator.js";
 import { SourceFilesAdapter } from "./adapters/filesystem/source-files-adapter.js";
-import { TomlAdapter } from "./adapters/filesystem/toml-adapter.js";
 import { shippedSensorNames } from "./adapters/plugins/shipped-plugins-adapter.js";
+import { TestReportsAdapter } from "./adapters/plugins/test-reports-adapter.js";
 import { DigestAdapter } from "./adapters/system/digest-adapter.js";
 import type { Io } from "./cli.js";
 import { policyFile, readConfig } from "./config.js";
@@ -173,7 +173,7 @@ export function loadFindings(
       {
         source: new SourceFilesAdapter(io),
         digest: new DigestAdapter(),
-        toml: new TomlAdapter(),
+        testReports: new TestReportsAdapter(io),
       },
       root,
       repository,

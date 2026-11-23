@@ -1,0 +1,6 @@
+{
+  "entries": {
+    "src/lib.rs#0": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "src/more.rs#file": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  }
+}

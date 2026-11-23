@@ -19,7 +19,7 @@ import type { Analysis } from "./analysis/ports/analysis.js";
 import type { Digest } from "./analysis/ports/digest.js";
 import type { Parsing } from "./analysis/ports/parsing.js";
 import type { SourceFiles } from "./analysis/ports/source-files.js";
-import type { Toml } from "./analysis/ports/toml.js";
+import type { TestReports } from "./analysis/ports/test-reports.js";
 import {
   type ReportOutcome,
   reportFindings,
@@ -107,7 +107,7 @@ interface CommonPorts {
   source: SourceFiles;
   digest: Digest;
   parsing: Parsing;
-  toml: Toml;
+  testReports: TestReports;
 }
 
 export interface ScanPorts extends CommonPorts {

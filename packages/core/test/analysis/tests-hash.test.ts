@@ -1,13 +1,11 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   compareUtf8,
   currentTestsHash,
   freshnessFor,
-  indexOfBytes,
-  inFileTestHashes,
-  latin1,
   Repository,
-  rustTestFiles,
   type TestsHashPorts,
 } from "../../src/index.js";
 import { createFakes } from "../fakes/container.js";
@@ -18,7 +16,7 @@ function world() {
   const ports: TestsHashPorts = {
     source: fakes.source,
     digest: fakes.digest,
-    toml: fakes.toml,
+    testReports: fakes.testReports,
   };
 
   return { fakes, ports };
@@ -60,34 +58,6 @@ describe("currentTestsHash", () => {
     expect(fakes.source.calls).toContain("hashOf tests/b.py");
   });
 
-  it("skips an unreadable file and hashes the rest", () => {
-    const { fakes, ports } = world();
-    const item = (name: string) => `#[test]\nfn ${name}() {}\n`;
-
-    fakes.source.files.set(`${ROOT}/src/a.rs`, item("a"));
-    fakes.source.files.set(`${ROOT}/src/b.rs`, item("b"));
-
-    fakes.source.listed = ["src/a.rs", "src/b.rs", "src/c.rs"];
-
-    const withUnreadable = currentTestsHash(ports, ROOT, Repository.empty);
-
-    fakes.source.listed = ["src/a.rs", "src/b.rs"];
-
-    expect(withUnreadable).not.toBeNull();
-    expect(withUnreadable).toBe(
-      currentTestsHash(ports, ROOT, Repository.empty),
-    );
-    expect(
-      [
-        ...inFileTestHashes(ports, ROOT, [
-          "src/a.rs",
-          "src/b.rs",
-          "src/c.rs",
-        ]).keys(),
-      ].sort(),
-    ).toEqual(["src/a.rs#0", "src/b.rs#0"]);
-  });
-
   it("sorts an astral path after a BMP one", () => {
     const { fakes, ports } = world();
     const bmp = "tests/\u{ffff}.py";
@@ -102,33 +72,55 @@ describe("currentTestsHash", () => {
     );
   });
 
-  it("leaves the files of an unparseable manifest to name inference", () => {
+  it("returns null when a scanner's answer fails", () => {
     const { fakes, ports } = world();
 
-    fakes.source.files.set(`${ROOT}/Cargo.toml`, "[package");
-    fakes.source.files.set(`${ROOT}/src/lib.rs`, "#[cfg(test)]\nmod t;\n");
-    fakes.source.files.set(`${ROOT}/src/t.rs`, "fn a() {}\n");
+    fakes.source.listed = ["tests/a.py"];
+    fakes.source.hashes.set(`${ROOT}/tests/a.py`, "h");
 
-    expect([
-      ...rustTestFiles(ports, ROOT, ["Cargo.toml", "src/lib.rs", "src/t.rs"]),
-    ]).toEqual(["src/t.rs"]);
+    expect(currentTestsHash(ports, ROOT, Repository.empty)).not.toBeNull();
+
+    fakes.testReports.reported = null;
+
+    expect(currentTestsHash(ports, ROOT, Repository.empty)).toBeNull();
+  });
+
+  it("combines a test report with the generic entries to the shared digest", () => {
+    const { fakes, ports } = world();
+    const expected = JSON.parse(
+      readFileSync(
+        join(
+          import.meta.dirname,
+          "../../../../fixtures/sensors/tests-digest/expected.json",
+        ),
+        "utf8",
+      ),
+    ) as { digest: string; entries: Record<string, string> };
+    const own = Object.entries(expected.entries).filter(([key]) =>
+      key.includes("#"),
+    );
+    const generic = Object.entries(expected.entries).filter(
+      ([key]) => !key.includes("#"),
+    );
+
+    fakes.testReports.reported = new Map(own);
+    fakes.source.listed = [
+      ...generic.map(([path]) => path),
+      "src/lib.rs",
+      "src/more.rs",
+    ];
+
+    for (const [path, hash] of generic) {
+      fakes.source.hashes.set(`${ROOT}/${path}`, hash);
+    }
+
+    expect(currentTestsHash(ports, ROOT, Repository.empty)).toBe(
+      expected.digest,
+    );
   });
 });
 
 describe("byte helpers", () => {
-  it("finds a closer at the last byte of the data and none past the end", () => {
-    const data = new Uint8Array([0x61, 0x22, 0x23, 0x23]);
-
-    expect(indexOfBytes(data, [0x22, 0x23, 0x23], 0)).toBe(1);
-    expect(indexOfBytes(data, [0x22, 0x23, 0x23], 2)).toBe(-1);
-    expect(indexOfBytes(data, [0x23], 3)).toBe(3);
-    expect(indexOfBytes(data, [0x23], 4)).toBe(-1);
-  });
-
-  it("decodes latin1 byte for byte", () => {
-    expect(latin1(new Uint8Array([0x00, 0x80, 0xff]))).toBe("\u0000\u0080ÿ");
-  });
-
   it("compares by UTF-8 bytes", () => {
     expect(compareUtf8("\u{ffff}", "\u{10000}")).toBeLessThan(0);
     expect(compareUtf8("a", "a")).toBe(0);

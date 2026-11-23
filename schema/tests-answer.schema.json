@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://recognizer.dev/schema/tests-answer.schema.json",
+  "title": "Recognizer tests report",
+  "description": "What a scanner prints for `<command> tests ROOT`: the hash of each test input it owns. A key is a repository-relative path, a #, and a suffix the scanner chooses.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "entries"
+  ],
+  "properties": {
+    "entries": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^.+#"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    }
+  }
+}

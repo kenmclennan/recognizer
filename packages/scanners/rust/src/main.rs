@@ -3,9 +3,10 @@ use std::process::{Command, ExitCode};
 
 use recognizer_scan_rust::events::Progress;
 use recognizer_scan_rust::manifest;
+use recognizer_scan_rust::test_report;
 use recognizer_scan_rust::{render, scan_reporting};
 
-const VERBS: &str = "manifest, check, run, guide";
+const VERBS: &str = "manifest, check, run, guide, tests";
 
 struct Arguments {
     root: PathBuf,
@@ -112,6 +113,28 @@ fn write_atomically(path: &std::path::Path, text: &str) -> std::io::Result<()> {
     written
 }
 
+fn run_tests_verb(rest: &[String]) -> ExitCode {
+    let [root] = rest else {
+        eprintln!("recognizer-scan-rust tests: exactly one ROOT is required");
+        return ExitCode::from(2);
+    };
+    let root = PathBuf::from(root);
+
+    if !root.is_dir() {
+        eprintln!("ROOT is not a directory: {}", root.display());
+        return ExitCode::from(2);
+    }
+
+    let Some(entries) = test_report::report(&root) else {
+        eprintln!("recognizer-scan-rust tests: git could not list the files of ROOT");
+        return ExitCode::from(2);
+    };
+
+    println!("{}", serde_json::json!({ "entries": entries }));
+
+    ExitCode::SUCCESS
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
@@ -127,6 +150,12 @@ fn main() -> ExitCode {
     if args == ["--version"] || args == ["-V"] {
         println!("{}", env!("CARGO_PKG_VERSION"));
         return ExitCode::SUCCESS;
+    }
+
+    if let Some((verb, rest)) = args.split_first() {
+        if verb == "tests" {
+            return run_tests_verb(rest);
+        }
     }
 
     let rest = match args.split_first() {
