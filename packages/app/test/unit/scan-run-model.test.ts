@@ -271,6 +271,43 @@ describe("the run model", () => {
     expect(bare?.card.line).toBe("x".repeat(60));
   });
 
+  describe("a failure of the whole scan", () => {
+    const REASON =
+      "claude is not registered in .recognizer/config.yaml; register it with 'recognizer plugin add claude'.";
+    const whole = (over: Partial<ScanRunRecord> = {}) => ({
+      phase: "failed" as const,
+      ended_at: ENDED,
+      exit: 1,
+      failure: { sensor: "scan", suite: null, code: null, reason: REASON },
+      ...over,
+    });
+    const named = {
+      display: (name: string) =>
+        name === "scan" ? "Structure" : display(name),
+    };
+
+    it("a failure before any phase reads Scan did not start with the reason", () => {
+      const run = model(view(whole(), {}, named));
+
+      expect(run?.card.head).toBe("Scan did not start");
+      expect(run?.card.line).toBe(REASON.slice(0, 60));
+      expect(run?.card.lineTitle).toBe(REASON);
+      expect(run?.card.tone).toBe("bad");
+    });
+
+    it("a scan failure after extract began reads Scan failed", () => {
+      const run = model(view(whole(), { extract: "run" }, named));
+
+      expect(run?.card.head).toBe("Scan failed");
+    });
+
+    it("a scan failure with a summary reads Scan failed", () => {
+      const run = model(view(whole({ ran: ["extract"] }), {}, named));
+
+      expect(run?.card.head).toBe("Scan failed");
+    });
+  });
+
   it.each(["tests-failed", "custom-code"])(
     "reads the reason of a %s failure cut to the limit",
     (code) => {

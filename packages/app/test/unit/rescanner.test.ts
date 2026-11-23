@@ -1545,6 +1545,41 @@ describe("createRescanner", () => {
       expect(rescanner.progress()).toBe(before);
     });
 
+    it("gives a pre-phase failure none of an earlier run's progress", async () => {
+      const earlier = fakeScan({
+        defaults: { describe: false, sensors: true },
+        steps: [extract, current, preflightOk, sensing(1), summary],
+      });
+      const made = harness(earlier);
+
+      await made.rescanner.run();
+      await flush();
+
+      expect(made.rescanner.runView().progress.extract).not.toBe("pending");
+
+      made.scan.emitRun({
+        kind: "run",
+        run: record({
+          run_id: "refused-before-phase",
+          phase: "failed",
+          ended_at: "2026-11-10T09:02:00.000Z",
+          exit: 1,
+          failure: {
+            sensor: "scan",
+            suite: null,
+            code: null,
+            reason: "claude is not registered in .recognizer/config.yaml",
+          },
+        }),
+      });
+      await flush();
+
+      const view = made.rescanner.runView();
+
+      expect(view.record?.run_id).toBe("refused-before-phase");
+      expect(view.progress.extract).toBe("pending");
+    });
+
     it("stops through the port once for a command-line run", async () => {
       const { scan, rescanner } = await observed();
 

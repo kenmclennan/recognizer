@@ -571,6 +571,21 @@ function cardOf(
         };
       }
 
+      if (failure.sensor === WHOLE_SCAN_FAILURE) {
+        const nothingBegan =
+          record.ran === null && view.progress.extract === "pending";
+
+        return {
+          ...base,
+          icon: "circle-x",
+          tone: "bad",
+          head: nothingBegan ? "Scan did not start" : "Scan failed",
+          line: shortReason(failure),
+          lineTitle: failure.reason,
+          showLog,
+        };
+      }
+
       const sensor = view.display(failure.sensor);
 
       return {
@@ -596,6 +611,8 @@ function cardOf(
       };
   }
 }
+
+const WHOLE_SCAN_FAILURE = "scan";
 
 function startingCard(at: number): RunCard {
   return {

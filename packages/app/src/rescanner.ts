@@ -712,6 +712,17 @@ export function createRescanner<Carried>(
     }
   }
 
+  function progressOfRecord(): ScanProgress {
+    const owned =
+      record === null ||
+      isActive(record) ||
+      starting !== null ||
+      record.run_id === begunRunId ||
+      record.run_id === ownRunId;
+
+    return owned ? progress : NO_PROGRESS;
+  }
+
   async function takeRecord(next: ScanRunRecord | null) {
     if (next === null) {
       record = null;
@@ -1110,7 +1121,7 @@ export function createRescanner<Carried>(
     progress: () => progress,
     runView: () => ({
       record,
-      progress,
+      progress: progressOfRecord(),
       starting,
       adoptedAtOpen,
       awakeNow: now(),
