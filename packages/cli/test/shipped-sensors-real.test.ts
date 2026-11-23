@@ -6,6 +6,7 @@ import type { Io, RunResult } from "../src/cli.js";
 import { nodeIo } from "../src/cli.js";
 import { shippedPorts } from "../src/manifest-ports.js";
 import { REPO } from "./helpers.js";
+import { requireSensorsVenv } from "./sensors-venv.js";
 
 const io: Io = {
   ...nodeIo(),
@@ -28,6 +29,8 @@ const io: Io = {
 };
 
 describe("the committed sensor manifests", () => {
+  requireSensorsVenv(REPO);
+
   const read = readShippedSensors(shippedPorts(io));
   const by = (name: string) => read.sensors.find((one) => one.name === name);
   const published = (sensor: string, metric: string) =>
