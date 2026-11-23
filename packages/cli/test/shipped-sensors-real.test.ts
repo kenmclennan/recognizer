@@ -36,7 +36,7 @@ describe("the committed sensor manifests", () => {
   const published = (sensor: string, metric: string) =>
     by(sensor)?.metrics.find((one) => one.name === metric)?.published?.value;
 
-  it("reads all three sensors", () => {
+  it("reads the crap and mutation sensors", () => {
     expect(read.unreadable).toEqual([]);
     expect(read.sensors.map((one) => one.name)).toEqual(["crap", "mutation"]);
   });
