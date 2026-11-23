@@ -5,6 +5,10 @@ import type { Manifest } from "@recognizer/core";
 import { beforeAll } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { REPO } from "./helpers.js";
+import {
+  requirePythonScannerVenv,
+  requireSensorsVenv,
+} from "./sensors-venv.js";
 
 beforeAll(() => {
   if (!existsSync(join(REPO, "packages/describers/claude/dist/bin.js"))) {
@@ -27,6 +31,9 @@ function shim(directory: string, name: string, script: string): RealTool {
 }
 
 export function realTools(): RealTool[] {
+  requirePythonScannerVenv(REPO);
+  requireSensorsVenv(REPO);
+
   const directory = makeTempDir("recognizer-plugin-tools-");
 
   return [
