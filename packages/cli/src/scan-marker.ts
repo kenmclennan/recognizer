@@ -11,6 +11,7 @@ export const PROGRESS_FILE = "scan-running.progress.jsonl";
 export const ANSWER_FILE = "scan-running.answer.json";
 export const STARTED_BY_VARIABLE = "RECOGNIZER_STARTED_BY";
 export const REFUSED_EXIT = 3;
+export const CRASHED_EXIT = 2;
 export const REASON_LIMIT = 8192;
 const GENERIC_REASON = "the scan ended on an error";
 
@@ -295,7 +296,7 @@ export function acquireMarker(
         write({
           phase: "failed",
           ended_at: ended(),
-          exit: 1,
+          exit: CRASHED_EXIT,
           failure: {
             sensor: "scan",
             suite: null,

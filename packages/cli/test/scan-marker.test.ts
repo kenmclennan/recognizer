@@ -265,7 +265,7 @@ describe("scan marker: release", () => {
 
     expect(code).toBe(2);
     expect(fake.files.has(PROGRESS)).toBe(true);
-    expect(recordOf(fake.files)).toMatchObject({ phase: "failed", exit: 1 });
+    expect(recordOf(fake.files)).toMatchObject({ phase: "failed", exit: 2 });
     expect(recordOf(fake.files).failure).toEqual({
       sensor: "scan",
       suite: null,
@@ -284,6 +284,21 @@ describe("scan marker: release", () => {
     expect(record.ran).toBeNull();
     expect(fake.err()).toBe(`${record.failure?.reason}\n`);
     expect(record.failure?.reason.length).toBeGreaterThan(0);
+  });
+
+  it("records exit 2 and no run log entry when the scan throws before any phase", async () => {
+    const { code, fake } = await scan({}, "--sense", "nosuch");
+    const record = recordOf(fake.files);
+
+    expect(record).toMatchObject({ phase: "failed", ran: null, exit: 2 });
+    expect(record.failure?.sensor).toBe("scan");
+    expect(record.failure?.reason).toContain("no such sensor");
+    expect(code).toBe(2);
+    expect(
+      [...fake.files.keys()].some((key) =>
+        key.startsWith(`${ROOT}/.recognizer/cache/log/`),
+      ),
+    ).toBe(false);
   });
 
   it("records no marker for an error before the folder is known", async () => {
