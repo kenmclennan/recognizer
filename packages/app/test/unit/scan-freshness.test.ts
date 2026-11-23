@@ -121,7 +121,7 @@ describe("planFor", () => {
       describe: true,
       describeAll: false,
       analysis: true,
-      sense: ["mutation"],
+      sense: ["crap", "mutation"],
       modules: ["a.py", "b.py", "c.py"],
     });
     expect(planned.label).toBe("Update 3 files");
@@ -162,8 +162,8 @@ describe("planFor", () => {
       MODULES,
     );
 
-    expect(planned.plan.modules).toEqual(["b.py"]);
-    expect(planned.work).toEqual({ mutation: MODULES.length, other: 1 });
+    expect(planned.plan.modules).toEqual(["b.py", "c.py"]);
+    expect(planned.work).toEqual({ mutation: MODULES.length, other: 2 });
   });
 
   it("reruns an unscoped sensor whole and sends no file list when no scoped phase runs", () => {
@@ -213,7 +213,7 @@ describe("planFor", () => {
       describe: false,
       describeAll: false,
       analysis: true,
-      sense: [],
+      sense: ["crap"],
       modules: null,
     });
     expect(planned.idle).toBe(false);
