@@ -219,7 +219,6 @@ describe("the fake repositories read", () => {
       inputs: { "a.py": "ha" },
       tests: "t",
     });
-    findings.tests = "t";
     expect(structure.read("/repo")).toEqual(Repository.join([kotlin, python]));
     expect(structure.read("/other")).toEqual(Repository.join([]));
     expect(findings.measuredOf("/repo", "crap")).toEqual({
@@ -227,7 +226,6 @@ describe("the fake repositories read", () => {
       tests: "t",
     });
     expect(findings.measuredOf("/repo", "mutation")).toBeNull();
-    expect(findings.testsDigest()).toBe("t");
   });
 
   it("the fake repositories agree with the adapters on absent data", () => {

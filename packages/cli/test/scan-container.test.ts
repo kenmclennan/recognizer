@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ScanOutcome } from "@recognizer/core";
+import { createScan, type ScanOutcome } from "@recognizer/core";
 import { describe, expect, it, vi } from "vitest";
 import { ConfigAdapter } from "../src/adapters/filesystem/config-adapter.js";
 import { FindingsAdapter } from "../src/adapters/filesystem/findings-adapter.js";
@@ -172,5 +173,63 @@ describe("scan container", () => {
     expect(() =>
       exitOf({ status: "failed", reason: "crashed", error: crash }),
     ).toThrow(crash);
+  });
+
+  it("the plan reads the tests from disk and ignores the scan's cached hashes", async () => {
+    const sha = (text: string) =>
+      createHash("sha256").update(text).digest("hex");
+    const testFile = "tests/test_a.py";
+    const digestOf = (content: string) => sha(`${testFile}\t${sha(content)}\n`);
+    const inputs = { "m0.py": HASH };
+    const crap = {
+      findings_version: 1,
+      sensor: { name: "crap", version: "1" },
+      commit: COMMIT,
+      modified: false,
+      settings: {},
+      findings: [],
+      inputs,
+      tests: digestOf("v1"),
+    };
+    const scan = scanJson(1, 0, {
+      files: [
+        { path: "m0.py", hash: HASH },
+        { path: testFile, hash: "f".repeat(64) },
+      ],
+    });
+    const { io } = fakeIo({
+      commit: COMMIT,
+      tracked: ["m0.py", testFile],
+      sensorManifests: true,
+      files: {
+        [`${ROOT}/m0.py`]: "",
+        [`${ROOT}/${testFile}`]: "v1",
+        [`${ROOT}/.recognizer/cache/scan.python.json`]: scan,
+        [`${ROOT}/.recognizer/cache/findings/crap.json`]: JSON.stringify(crap),
+        [`${ROOT}/.recognizer/config.yaml`]: "sensors:\n  crap: {}\n",
+      },
+    });
+    const request = {
+      repository: ROOT,
+      mode: "bring" as const,
+      ticks: {
+        describe: false,
+        analysis: true,
+        ticked: ["crap"],
+        armed: [],
+        onlyView: false,
+        suites: {},
+        folds: [],
+      },
+      scope: null,
+      changed: [],
+    };
+    const plan = createScan(scanPorts(io, "all")).plan;
+
+    expect((await plan(request)).gaps.crap).toEqual([]);
+
+    io.writeFile(`${ROOT}/${testFile}`, "v2");
+
+    expect((await plan(request)).gaps.crap).toEqual(["m0.py"]);
   });
 });

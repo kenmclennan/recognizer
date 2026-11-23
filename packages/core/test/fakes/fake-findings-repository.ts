@@ -16,14 +16,9 @@ export class FakeFindingsRepository implements FindingsRepository {
   readonly saved: SensorFindings[] = [];
   readonly removed: string[] = [];
   unitCache: UnitCache = {};
-  tests: string | null = null;
 
   measuredOf(root: string, sensor: string): Measured | null {
     return this.measured.get(`${root}::${sensor}`) ?? null;
-  }
-
-  testsDigest(): string | null {
-    return this.tests;
   }
 
   discardAnalysis(): void {}

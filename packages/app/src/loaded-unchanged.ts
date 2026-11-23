@@ -8,6 +8,7 @@ function sensed(loaded: Loaded): string {
     loaded.sensors,
     loaded.overlays ?? null,
     loaded.overlaysUnreadable ?? null,
+    loaded.tests ?? null,
   ]);
 }
 

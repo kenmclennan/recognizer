@@ -65,8 +65,8 @@ export function planReads(data: LoadedPlanData) {
     findings: {
       measuredOf: (_root: string, sensor: string) =>
         data.measured[sensor] ?? null,
-      testsDigest: () => data.tests,
     },
+    tests: { current: () => data.tests },
     sensors: { registered: () => data.sensors },
   };
 }

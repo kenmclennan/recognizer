@@ -27,6 +27,7 @@ import {
 } from "./analysis/report-findings.js";
 import { runAnalysis } from "./analysis/run-analysis.js";
 import { runAnalysisSync } from "./analysis/run-analysis-sync.js";
+import { testsHashOf } from "./analysis/tests-hash.js";
 import { applySetup } from "./configuration/apply-setup.js";
 import { buildSetupChanges } from "./configuration/build-setup-changes.js";
 import type {
@@ -201,7 +202,8 @@ export interface PlanningPorts {
   structure: Pick<StructureRepository, "read">;
   describer: Pick<Describer, "locate">;
   responsibilities: Parameters<typeof findDescribeGap>[0]["responsibilities"];
-  findings: Pick<FindingsRepository, "measuredOf" | "testsDigest">;
+  findings: Pick<FindingsRepository, "measuredOf">;
+  tests: { current(root: string): string | null };
   sensors: { registered(root: string): SensorRow[] };
 }
 
@@ -211,6 +213,9 @@ function planningOver(ports: CommonPorts): PlanningPorts {
     describer: ports.describer,
     responsibilities: ports.responsibilities,
     findings: ports.findings,
+    tests: {
+      current: (root) => testsHashOf(ports, root, new Map()),
+    },
     sensors: {
       registered: (root) =>
         readSensorRows({ config: ports.config, catalog: ports.catalog }, root),

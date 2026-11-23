@@ -12,27 +12,29 @@ export interface SensorGaps {
 export function findSensorGaps(
   ports: {
     structure: Pick<StructureRepository, "read">;
-    findings: Pick<FindingsRepository, "measuredOf" | "testsDigest">;
+    findings: Pick<FindingsRepository, "measuredOf">;
+    tests: { current(root: string): string | null };
   },
   root: string,
   rows: readonly SensorRow[],
   modules: string[],
 ): SensorGaps {
   const repository = ports.structure.read(root);
-  const freshness = buildFreshness(
-    repository,
-    ports.findings.testsDigest(root),
-  );
+  const registered = rows.filter(({ registered }) => registered);
+  const measured = registered.map((row) => ({
+    row,
+    found: ports.findings.measuredOf(root, row.name),
+  }));
+  const digest = measured.some(({ found }) => found?.tests !== undefined)
+    ? ports.tests.current(root)
+    : null;
+  const freshness = buildFreshness(repository, digest);
   const scope = freshnessScope(modules, repository, freshness);
   const gaps: Record<string, string[]> = {};
   const never: string[] = [];
 
-  for (const row of rows.filter(({ registered }) => registered)) {
-    const result = sensorFreshness(
-      scope,
-      ports.findings.measuredOf(root, row.name),
-      row.scoped,
-    );
+  for (const { row, found } of measured) {
+    const result = sensorFreshness(scope, found, row.scoped);
 
     gaps[row.name] = gapOf(result, modules);
 
