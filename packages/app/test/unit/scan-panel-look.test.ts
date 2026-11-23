@@ -191,11 +191,14 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   fake.run = realRun;
   facts.run = { plans: fake.ran, heldSamples, heldPlans, first: during[0] ?? null, footer: duringFooter[0] ?? null };
   facts.run.second = await fake.run({ describe: false, sense: [] });
-  g1.release(); await tick();
+  g1.release();
+  await until(() => during.length >= 3, "the sample after the describe step");
   facts.run.afterDescribe = c.panel();
-  g2.release(); await tick();
+  g2.release();
+  await until(() => during.length >= 4, "the sample after the duplication step");
   facts.run.afterDuplication = c.panel();
-  g3.release(); await tick(); await tick();
+  g3.release();
+  await until(() => c.q(".scan-stop") === null, "the scan to finish");
   facts.run.after = c.panel();
   facts.run.footerAfter = { text: c.scanLineText(), buttons: c.footerButtons() };
   facts.run.written = fake.written.map((w) => w.ticked);
