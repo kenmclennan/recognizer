@@ -12,6 +12,7 @@ import {
   supportedRange,
 } from "./manifest.js";
 import { PROBLEM_TITLES } from "./problem-titles.js";
+import { NO_RUN_LINE } from "./sensor-check.js";
 import { UNREGISTERED_FIX, unregisteredMessage } from "./unregistered.js";
 
 export type AreaName =
@@ -345,7 +346,11 @@ export function pluginProblems(
           "describer-gap",
           subject,
           line,
-          textFix(`run ${program} check`),
+          line === NO_RUN_LINE
+            ? textFix(
+                "add the run word to the describer command with recognizer config describer.command",
+              )
+            : textFix(`run ${program} check`),
           "problem",
           state.manifest.display,
         ),

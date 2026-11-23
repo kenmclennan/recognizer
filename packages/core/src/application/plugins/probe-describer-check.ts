@@ -1,7 +1,6 @@
-import { splitAtRun } from "../../domain/plugins/sensor-check.js";
+import { NO_RUN_LINE, splitAtRun } from "../../domain/plugins/sensor-check.js";
 
-export const NO_RUN_LINE =
-  "the describer does not speak the plugin verbs: its command has no run element";
+export { NO_RUN_LINE };
 
 export type DescriberCheck =
   | { kind: "no-run" }

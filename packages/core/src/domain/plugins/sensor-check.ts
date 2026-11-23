@@ -162,6 +162,9 @@ export function strippedArguments(
   return kept;
 }
 
+export const NO_RUN_LINE =
+  "the describer does not speak the plugin verbs: its command has no run element";
+
 export function splitAtRun(
   command: readonly string[],
 ): { prefix: string[]; rest: string[] } | null {
