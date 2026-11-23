@@ -132,6 +132,7 @@ export function* scanFlow(
   }
 
   const taken: HeldLock | null = ctx.lock;
+  const openLog: { close: (() => void) | null } = { close: null };
 
   function* scanRest(): Generator<RunStep, ScanOutcome, unknown> {
     const commit = git.commit(root);
@@ -147,6 +148,11 @@ export function* scanFlow(
         ? runLogs.open(root, startedAt, request.by, request.invocation)
         : null;
     const recorder = new RunRecorder(ctx, runLog);
+
+    if (runLog !== null) {
+      openLog.close = () => runLog.finish(recorder.recorded(), true);
+    }
+
     const ticked = selected.map(({ name, command }) => ({ name, command }));
     const describing: DescribingSettings | null = describeOn
       ? phases.describingSettings()
@@ -329,6 +335,12 @@ export function* scanFlow(
     return yield* scanRest();
   } catch (error) {
     taken?.crashed(error);
+
+    try {
+      openLog.close?.();
+    } catch {
+      throw error;
+    }
 
     throw error;
   } finally {

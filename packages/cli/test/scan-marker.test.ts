@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { nodeIo, run, stopEverything } from "../src/cli.js";
+import { validateRunRecord } from "../src/log-document.js";
 import {
   boundReason,
   markerPath,
@@ -54,6 +55,16 @@ function markerFor(changes: Partial<ScanRunRecord> = {}): string {
 
 function recordOf(files: Map<string, string>): ScanRunRecord {
   return parseMarker(files.get(MARKER) ?? "") as ScanRunRecord;
+}
+
+const LOG_DIR = `${ROOT}/.recognizer/cache/log/`;
+
+function logEntries(files: Map<string, string>) {
+  const keys = [...files.keys()].filter((key) => key.startsWith(LOG_DIR));
+
+  expect(keys).toHaveLength(1);
+
+  return JSON.parse(files.get(keys[0] as string) as string);
 }
 
 function options(extra: FakeOptions = {}): FakeOptions {
@@ -273,6 +284,69 @@ describe("scan marker: release", () => {
       reason: "sensor blew up",
     });
     expect(recordOf(fake.files).ran).toBeNull();
+
+    const entry = logEntries(fake.files);
+
+    expect(entry).toMatchObject({ outcome: "failed", exit: 1 });
+    expect(entry.finished).not.toBeNull();
+    expect(entry.phases).toEqual([{ phase: "extract", entries: [] }]);
+    expect(() => validateRunRecord(entry)).not.toThrow();
+  });
+
+  it("closes the run log entry as failed when the scan throws before any phase", async () => {
+    const { code, fake } = await scan(
+      {
+        sensorsPreflight: {
+          version: () => {
+            throw new Error("probe blew up");
+          },
+        },
+      },
+      "--sense",
+      "all",
+    );
+    const entry = logEntries(fake.files);
+
+    expect(code).toBe(2);
+    expect(recordOf(fake.files)).toMatchObject({ phase: "failed", exit: 2 });
+    expect(entry).toMatchObject({ outcome: "failed", exit: 1, phases: [] });
+    expect(entry.finished).not.toBeNull();
+    expect(() => validateRunRecord(entry)).not.toThrow();
+  });
+
+  it("a throw after the log opens does not replace the error", async () => {
+    let calls = 0;
+    let held: Map<string, string> | null = null;
+    const fake = fakeIo(
+      options({
+        now: () => {
+          const opened =
+            held !== null &&
+            [...held.keys()].some((key) => key.startsWith(LOG_DIR));
+
+          if (!opened) {
+            return 1;
+          }
+
+          calls += 1;
+
+          if (calls <= 2) {
+            throw new Error(`boom${calls}`);
+          }
+
+          return 2;
+        },
+      }),
+    );
+
+    held = fake.files;
+
+    const code = await run(["scan", ROOT], fake.io);
+
+    expect(code).toBe(2);
+    expect(fake.err()).toBe("boom1\n");
+    expect(recordOf(fake.files).failure?.reason).toBe("boom1");
+    expect(logEntries(fake.files).outcome).toBe("running");
   });
 
   it("records the message of an error thrown before the marker is held", async () => {

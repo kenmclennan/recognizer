@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
+import { validateRunRecord } from "../src/log-document.js";
 import {
   APP_CONFIG,
   type FakeOptions,
@@ -145,6 +146,17 @@ describe("scan preflight: the early stage", () => {
         },
       ],
     });
+  });
+
+  it("writes a valid failed record for a preflight refusal before extraction", async () => {
+    const options = { ...setup(""), commit: undefined };
+    const { code, fake } = await scan(options, "--sense", "crap");
+    const found = records(fake);
+
+    expect(code).toBe(4);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ outcome: "failed", phases: [] });
+    expect(() => validateRunRecord(found[0])).not.toThrow();
   });
 
   it("is no gap with --describe alone and no commit", async () => {

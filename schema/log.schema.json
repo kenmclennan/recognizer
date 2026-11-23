@@ -306,7 +306,23 @@
           "entries": {
             "type": "array",
             "minItems": 1
-          },
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "ok"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "properties": {
           "phases": {
             "type": "array",
             "minItems": 1
