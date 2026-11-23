@@ -1,9 +1,6 @@
-export interface Citation {
-  author: string;
-  work: string;
-  year: number;
-  locator?: string;
-}
+import type { Citation } from "@recognizer/core";
+
+export type { Citation };
 
 export interface Principle {
   id: string;

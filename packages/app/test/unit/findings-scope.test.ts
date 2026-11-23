@@ -1,4 +1,4 @@
-import type { FindingRecord, FindingsDocument } from "recognizer";
+import type { Finding, SensorFindings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { groupsOf, headerLine } from "../../src/findings-groups";
 import { findingRows } from "../../src/findings-order";
@@ -9,20 +9,19 @@ function record(
   kind: string,
   modules: string[],
   severity: "violation" | "warning" = "warning",
-): FindingRecord {
+): Finding {
   return {
     id,
     kind,
     severity,
     principle: "p",
     summary: id,
-    evidence: { modules },
+    files: modules,
   };
 }
 
-function rowsOf(findings: FindingRecord[], sensor = "structure") {
-  const document: FindingsDocument = {
-    findings_version: 1,
+function rowsOf(findings: Finding[], sensor = "structure") {
+  const document: SensorFindings = {
     sensor: { name: sensor, version: "1" },
     commit: "c",
     modified: false,

@@ -1,4 +1,10 @@
-import { type Repository, scanHashes } from "@recognizer/core";
+import {
+  type Finding,
+  type Repository,
+  type SensorFindings,
+  scanHashes,
+} from "@recognizer/core";
+import { findingRuleOf } from "./adapters/filesystem/findings-translator.js";
 import { type Analysis, analyse, type ModuleMetrics } from "./analyse.js";
 import { violationId } from "./baseline.js";
 import type { Config } from "./config-parse.js";
@@ -7,7 +13,6 @@ import {
   type DuplicationSettings,
 } from "./duplication/findings.js";
 import { violationText } from "./findings.js";
-import type { FindingRecord, FindingsDocument } from "./findings-document.js";
 import { type FolderMetrics, measureFolders } from "./folder-metrics.js";
 import { COMPLEXITY_LIMIT, LONG_FUNCTION } from "./function-length.js";
 import { keptGraph } from "./graph.js";
@@ -40,8 +45,8 @@ export interface StructureSettings {
 }
 
 export interface Measured {
-  duplication: FindingRecord[] | null;
-  complexity: FindingRecord[] | null;
+  duplication: Finding[] | null;
+  complexity: Finding[] | null;
 }
 
 export interface StructureContext {
@@ -50,7 +55,7 @@ export interface StructureContext {
 }
 
 export interface StructureResult {
-  document: FindingsDocument;
+  document: SensorFindings;
   metrics: ModuleMetrics[];
   folder_metrics: FolderMetrics[];
 }
@@ -147,18 +152,16 @@ export function violationPrinciple(rules: readonly Rule[]): string {
     : "repository-policy";
 }
 
-function warningFinding(warning: Analysis["warnings"][number]): FindingRecord {
+function warningFinding(warning: Analysis["warnings"][number]): Finding {
   return {
     id: `cycle:${warning.evidence.modules.join(",")}`,
     kind: "cycle",
     severity: "warning",
     ...principleOf(warning.principle),
     summary: warning.summary,
-    fix_pattern: warning.fix_pattern,
-    evidence: {
-      modules: warning.evidence.modules,
-      edges: warning.evidence.edges,
-    },
+    fixPattern: warning.fix_pattern,
+    files: warning.evidence.modules,
+    dependencies: warning.evidence.edges,
   };
 }
 
@@ -186,12 +189,12 @@ export function structureSensor(
   context: StructureContext,
   measured: Measured = { duplication: null, complexity: null },
 ): StructureResult {
-  const findings: FindingRecord[] = [];
+  const findings: Finding[] = [];
   const seen = new Set<string>();
   const metrics: ModuleMetrics[] = [];
-  const warnings: FindingRecord[] = [];
+  const warnings: Finding[] = [];
 
-  const add = (target: FindingRecord[], finding: FindingRecord) => {
+  const add = (target: Finding[], finding: Finding) => {
     if (!seen.has(finding.id)) {
       seen.add(finding.id);
       target.push(finding);
@@ -208,16 +211,14 @@ export function structureSensor(
         severity: "violation",
         ...principleOf(violationPrinciple([violation.rule])),
         summary: violationText(violation),
-        evidence: {
-          modules: [violation.from],
-          edges: violation.imports.map((one) => ({
-            from: violation.from,
-            to: one.to,
-            kind: one.kind,
-            lines: one.lines,
-            rules: [violation.rule],
-          })),
-        },
+        files: [violation.from],
+        dependencies: violation.imports.map((one) => ({
+          from: violation.from,
+          to: one.to,
+          kind: one.kind,
+          lines: one.lines,
+          rules: [findingRuleOf(violation.rule)],
+        })),
       });
     }
   }
@@ -260,7 +261,6 @@ export function structureSensor(
 
   return {
     document: {
-      findings_version: 2,
       sensor: { name: "structure", version: STRUCTURE_SENSOR_VERSION },
       commit: context.commit,
       modified: context.modified,

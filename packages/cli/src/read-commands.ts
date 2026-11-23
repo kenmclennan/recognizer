@@ -5,7 +5,7 @@ import { documentKind } from "./adapters/filesystem/scan-translator.js";
 import type { Io } from "./cli.js";
 import { type ConfigRead, readConfig } from "./config.js";
 import { InputError } from "./errors.js";
-import { type Finding, findingsByModuleFrom } from "./findings.js";
+import { type FindingNote, findingsByModuleFrom } from "./findings.js";
 import { measureFolders, metricsLine, metricsTable } from "./folder-metrics.js";
 import { freshScans } from "./freshness.js";
 import { dependencyEdges } from "./graph.js";
@@ -76,7 +76,7 @@ function load(
   };
 }
 
-function findingsOf(loaded: Loaded, io: Io): Map<string, Finding[]> {
+function findingsOf(loaded: Loaded, io: Io): Map<string, FindingNote[]> {
   return findingsByModuleFrom(loadFindings(io, loaded.root, loaded.repository));
 }
 

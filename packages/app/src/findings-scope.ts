@@ -8,13 +8,13 @@ export function scopeOf(opened: Iterable<string>): ViewScope {
 
 function subjectIds(row: FindingRow): string[] {
   const { record } = row;
-  const ids = [...record.evidence.modules];
+  const ids = [...record.files];
 
-  for (const member of record.evidence.members ?? []) {
-    ids.push(member.module);
+  for (const member of record.members ?? []) {
+    ids.push(member.file);
   }
 
-  for (const edge of record.evidence.edges ?? []) {
+  for (const edge of record.dependencies ?? []) {
     ids.push(edge.from, edge.to);
   }
 

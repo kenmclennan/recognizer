@@ -75,7 +75,7 @@ describe("what the duplication check compares", () => {
     expect(ids(findings)).toEqual([
       "duplication:modules:GetGroupMembersUseCase.kt|GetGroupUsersUseCase.kt",
     ]);
-    expect(findings[0]?.evidence.modules).toEqual([
+    expect(findings[0]?.files).toEqual([
       "GetGroupMembersUseCase.kt",
       "GetGroupUsersUseCase.kt",
     ]);
@@ -106,7 +106,7 @@ describe("what the duplication check compares", () => {
     const { findings } = await measure("bounds/component");
 
     expect(ids(findings)).toEqual(["duplication:modules:a.py|b.py#3"]);
-    expect(findings[0]?.evidence.modules).toEqual(["a.py", "b.py", "c.py"]);
+    expect(findings[0]?.files).toEqual(["a.py", "b.py", "c.py"]);
   });
 
   it("a single copied function is a plain pair", async () => {

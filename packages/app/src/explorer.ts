@@ -4945,9 +4945,7 @@ export function showExplorer(
         findingRows: (id) =>
           drawn.has(id)
             ? []
-            : allFindings.filter((one) =>
-                one.record.evidence.modules.includes(id),
-              ),
+            : allFindings.filter((one) => one.record.files.includes(id)),
         onCanvas: modules.isOpen,
         expanded: root ? folds : panel.folds,
         showPrivate,

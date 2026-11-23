@@ -1,6 +1,6 @@
-import type { Repository } from "@recognizer/core";
+import type { Repository, SensorDiagnosis, SensorWork } from "@recognizer/core";
+import { readSensorFindings } from "./adapters/filesystem/findings-translator.js";
 import type { Io } from "./cli.js";
-import { type FindingsWork, validateFindings } from "./findings-document.js";
 import { findingsFile, writeFindings } from "./findings-files.js";
 import type { Diagnosis, PluginEvent } from "./plugin-events.js";
 import { createPluginLimits, runPlugin } from "./plugin-run.js";
@@ -30,16 +30,17 @@ function recordInputs(
   name: string,
   repository: Repository,
 ): {
-  diagnosis: Diagnosis | undefined;
+  diagnosis: SensorDiagnosis | undefined;
   incomplete: boolean;
-  work: FindingsWork | undefined;
+  work: SensorWork | undefined;
 } {
   const output = findingsFile(root, name);
-  const document = validateFindings(JSON.parse(io.readFile(output)), { name });
+  const document = readSensorFindings(JSON.parse(io.readFile(output)), {
+    name,
+  });
 
   writeFindings(io, root, {
     ...document,
-    findings_version: 2,
     inputs: document.inputs ?? measuredInputs(repository),
   });
 
@@ -69,7 +70,7 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
     const output = findingsFile(root, name);
     const began = io.awake();
     const validate = (document: unknown, anyCommit?: boolean) => {
-      validateFindings(document, anyCommit ? { name } : { name, commit });
+      readSensorFindings(document, anyCommit ? { name } : { name, commit });
     };
     const run = await runPlugin(
       io,
@@ -84,7 +85,7 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
       input.onEvent,
     );
     let { reason } = run;
-    let diagnosis: Diagnosis | undefined = run.diagnosis ?? undefined;
+    let diagnosis: SensorDiagnosis | undefined = run.diagnosis ?? undefined;
     let incomplete = false;
     let work: EntryWork | undefined;
 

@@ -1,7 +1,8 @@
+import type { SensorFindings } from "@recognizer/core";
 import {
   buildFreshness,
-  type Finding,
-  type FindingsDocument,
+  type FindingNote,
+  findingRuleOf,
   findingsByModuleFrom,
   InputError,
   identityKey,
@@ -20,16 +21,16 @@ import {
 import type { Loaded } from "./scan-loading";
 import type { FolderNode, TreeNode } from "./tree-model";
 
-export type { Finding };
+export type { FindingNote };
 
 export type Disc = "red" | "amber" | "grey" | "green";
 
 export type Health = {
-  documents: FindingsDocument[];
-  hidden: FindingsDocument[];
+  documents: SensorFindings[];
+  hidden: SensorFindings[];
   disc: (id: string) => Disc;
   lines: (id: string) => string[];
-  findings: (id: string) => Finding[];
+  findings: (id: string) => FindingNote[];
   notices: string[];
   policyProblems: PolicyProblem[];
 };
@@ -40,7 +41,7 @@ const MAX_HOVER_LINES = 10;
 const RANK: Record<Disc, number> = { green: 0, grey: 1, amber: 2, red: 3 };
 
 export function violationLine(violation: Violation): string {
-  return `violation: ${violationText(violation)} (${ruleText(violation.rule)})`;
+  return `violation: ${violationText(violation)} (${ruleText(findingRuleOf(violation.rule))})`;
 }
 
 function messagesOf(error: unknown): string {
@@ -89,8 +90,8 @@ export function computeHealth(
   const scans = loaded.repository;
   const freshness = buildFreshness(scans, loaded.tests ?? null);
   const measured = new Set<string>();
-  const shown: FindingsDocument[] = [];
-  const hidden: FindingsDocument[] = [];
+  const shown: SensorFindings[] = [];
+  const hidden: SensorFindings[] = [];
 
   for (const document of loaded.findings) {
     const { current: keep, hidden: drop } = splitFindings(document, freshness);

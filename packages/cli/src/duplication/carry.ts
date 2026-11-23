@@ -1,4 +1,4 @@
-import type { FindingsDocument } from "../findings-document.js";
+import type { SensorFindings } from "@recognizer/core";
 import type { StructureSettings } from "../structure-sensor.js";
 import type { DuplicationSettings } from "./findings.js";
 
@@ -32,7 +32,7 @@ function sameInputs(
 }
 
 function sameComplexity(
-  stored: FindingsDocument,
+  stored: SensorFindings,
   settings: StructureSettings,
 ): boolean {
   return (
@@ -42,10 +42,10 @@ function sameComplexity(
 }
 
 export function carryMeasured(
-  stored: FindingsDocument | null,
-  fresh: FindingsDocument,
+  stored: SensorFindings | null,
+  fresh: SensorFindings,
   settings: StructureSettings,
-): FindingsDocument {
+): SensorFindings {
   if (
     stored === null ||
     stored.sensor.version !== fresh.sensor.version ||
@@ -86,19 +86,19 @@ export function carryMeasured(
   };
 }
 
-export function isDuplicationMeasured(document: FindingsDocument): boolean {
+export function isDuplicationMeasured(document: SensorFindings): boolean {
   return document.settings.duplication !== undefined;
 }
 
 export function duplicationUnmeasured(
-  document: FindingsDocument,
+  document: SensorFindings,
   settings: StructureSettings,
 ): boolean {
   return settings.duplication !== false && !isDuplicationMeasured(document);
 }
 
 export function complexityUnmeasured(
-  document: FindingsDocument,
+  document: SensorFindings,
   settings: StructureSettings,
 ): boolean {
   return (

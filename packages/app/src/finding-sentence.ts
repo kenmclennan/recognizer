@@ -1,5 +1,6 @@
+import type { Finding } from "@recognizer/core";
 import {
-  type FindingRecord,
+  findingRecordOf,
   libraryApiHint,
   renderSentence,
   unusedTestOnlySentence,
@@ -7,7 +8,7 @@ import {
 import { EMPTY_CATALOG, type FindingCatalog } from "./finding-catalog";
 
 export type SentenceInput = {
-  record: FindingRecord;
+  record: Finding;
   reported: boolean;
 };
 
@@ -24,7 +25,7 @@ function plural(count: number, one: string, many: string): string {
 }
 
 function ruleClause(
-  rule: NonNullable<FindingRecord["evidence"]["edges"]>[number]["rules"],
+  rule: NonNullable<Finding["dependencies"]>[number]["rules"],
 ): string | null {
   const first = rule?.[0];
 
@@ -33,19 +34,17 @@ function ruleClause(
   }
 
   if (first.type === "level") {
-    return `${first.from_level} may not use ${first.to_level}`;
+    return `${first.fromLevel} may not use ${first.toLevel}`;
   }
 
   if (first.type === "uses") {
-    return `${first.from_component} may not use ${first.to_component}`;
+    return `${first.fromComponent} may not use ${first.toComponent}`;
   }
 
   return `nothing may match ${first.pattern}`;
 }
 
-function severalImports(
-  edges: NonNullable<FindingRecord["evidence"]["edges"]>,
-): string {
+function severalImports(edges: NonNullable<Finding["dependencies"]>): string {
   const first = edges[0] as (typeof edges)[number];
   const rule = first.rules?.[0];
   const kinds = new Set(edges.map((edge) => edge.kind ?? "depends"));
@@ -57,7 +56,7 @@ function severalImports(
   const target =
     rule === undefined || rule.type === "forbid"
       ? ""
-      : ` from ${rule.type === "uses" ? rule.to_component : rule.to_level}`;
+      : ` from ${rule.type === "uses" ? rule.toComponent : rule.toLevel}`;
   const head = `${shortName(first.from)} ${verb} ${edges.length} files${target}`;
   const clause = ruleClause(first.rules);
 
@@ -66,8 +65,8 @@ function severalImports(
     : `${head}, which the policy forbids: ${clause}.`;
 }
 
-function violation(record: FindingRecord): string | null {
-  const edges = record.evidence.edges ?? [];
+function violation(record: Finding): string | null {
+  const edges = record.dependencies ?? [];
   const edge = edges[0];
 
   if (edge === undefined) {
@@ -88,8 +87,8 @@ function violation(record: FindingRecord): string | null {
     : `${head}, which the policy forbids: ${clause}.`;
 }
 
-function cycle(record: FindingRecord): string | null {
-  const names = record.evidence.modules.map(shortName);
+function cycle(record: Finding): string | null {
+  const names = record.files.map(shortName);
 
   if (names.length < 2) {
     return null;
@@ -102,19 +101,19 @@ function cycle(record: FindingRecord): string | null {
   return `${names.slice(0, -1).join(", ")} and ${names.at(-1)} form a cycle of ${names.length}.`;
 }
 
-function unusedExports(record: FindingRecord): string | null {
-  const module = record.evidence.modules[0];
-  const names = (record.evidence.members ?? []).map((member) => member.name);
+function unusedExports(record: Finding): string | null {
+  const module = record.files[0];
+  const names = (record.members ?? []).map((member) => member.name);
 
   if (module === undefined || names.length === 0) {
     return null;
   }
 
   const base = `${shortName(module)} exports ${names.length} ${plural(names.length, "name", "names")} no other file imports: ${names.join(", ")}.`;
-  const marked = (record.evidence.members ?? []).flatMap((member) =>
-    member.test_files === undefined
+  const marked = (record.members ?? []).flatMap((member) =>
+    member.testFiles === undefined
       ? []
-      : [{ name: member.name, testFiles: member.test_files }],
+      : [{ name: member.name, testFiles: member.testFiles }],
   );
 
   return marked.length === 0
@@ -122,10 +121,8 @@ function unusedExports(record: FindingRecord): string | null {
     : `${base} ${unusedTestOnlySentence(marked)}`;
 }
 
-function sharedPrefix(
-  members: NonNullable<FindingRecord["evidence"]["members"]>,
-): string | null {
-  const files = new Set(members.map((member) => member.file));
+function sharedPrefix(members: NonNullable<Finding["members"]>): string | null {
+  const files = new Set(members.map((member) => member.sourceFile));
 
   if (files.size !== 1 || files.has(undefined)) {
     return null;
@@ -141,8 +138,8 @@ function sharedPrefix(
   return prefixes.size === 1 && only !== undefined && only !== "" ? only : null;
 }
 
-function duplication(record: FindingRecord): string | null {
-  const members = record.evidence.members ?? [];
+function duplication(record: Finding): string | null {
+  const members = record.members ?? [];
   const [first, second, third] = members;
 
   if (first === undefined || second === undefined) {
@@ -161,11 +158,11 @@ function duplication(record: FindingRecord): string | null {
   }
 
   if (third === undefined) {
-    return `${first.name} in ${shortName(first.module)} repeats the structure of ${second.name} in ${shortName(second.module)}${tail}.`;
+    return `${first.name} in ${shortName(first.file)} repeats the structure of ${second.name} in ${shortName(second.file)}${tail}.`;
   }
 
   const named = [first, second, third].map(
-    (member) => `${member.name} in ${shortName(member.module)}`,
+    (member) => `${member.name} in ${shortName(member.file)}`,
   );
   const rest = members.length - 3;
   const list =
@@ -176,26 +173,26 @@ function duplication(record: FindingRecord): string | null {
   return `${members.length} functions repeat one structure: ${list}${tail}.`;
 }
 
-function longFunction(record: FindingRecord): string | null {
-  const member = record.evidence.members?.[0];
-  const lines = record.evidence.measures?.lines;
+function longFunction(record: Finding): string | null {
+  const member = record.members?.[0];
+  const lines = record.measures?.lines;
 
   if (member === undefined || lines === undefined) {
     return null;
   }
 
-  const limit = record.evidence.measures?.limit ?? 20;
+  const limit = record.measures?.limit ?? 20;
 
-  if (record.evidence.measures?.body_line !== undefined) {
+  if (record.measures?.body_line !== undefined) {
     return `${member.name} has a ${num(lines)}-line body, over the limit of ${num(limit)}.`;
   }
 
   return `${member.name} is ${num(lines)} lines, over the limit of ${num(limit)}.`;
 }
 
-function complexity(record: FindingRecord): string | null {
-  const member = record.evidence.members?.[0];
-  const measures = record.evidence.measures;
+function complexity(record: Finding): string | null {
+  const member = record.members?.[0];
+  const measures = record.measures;
 
   if (
     member === undefined ||
@@ -208,14 +205,14 @@ function complexity(record: FindingRecord): string | null {
   return `${member.name} has complexity ${num(measures.complexity)}, over the limit of ${num(measures.limit)}.`;
 }
 
-function orphan(record: FindingRecord): string | null {
-  const module = record.evidence.modules[0];
+function orphan(record: Finding): string | null {
+  const module = record.files[0];
 
   if (module === undefined) {
     return null;
   }
 
-  const tests = record.evidence.test_importers?.length ?? 0;
+  const tests = record.testImporters?.length ?? 0;
   const hint = `${libraryApiHint(module)}.`;
 
   if (tests === 0) {
@@ -225,20 +222,20 @@ function orphan(record: FindingRecord): string | null {
   return `${shortName(module)} is imported only by ${tests === 1 ? "1 test file" : `${tests} test files`} and is not an entry point; if it only supports tests, move it next to ${tests === 1 ? "it" : "them"}${hint}`;
 }
 
-function privateImports(record: FindingRecord): string | null {
-  const module = record.evidence.modules[0];
-  const members = record.evidence.members ?? [];
+function privateImports(record: Finding): string | null {
+  const module = record.files[0];
+  const members = record.members ?? [];
 
   if (module === undefined || members.length === 0) {
     return null;
   }
 
-  const owners = new Set(members.map((member) => member.module)).size;
+  const owners = new Set(members.map((member) => member.file)).size;
 
   return `${shortName(module)} imports ${members.length} private ${plural(members.length, "name", "names")} from ${owners} ${plural(owners, "file", "files")}.`;
 }
 
-const TEMPLATES: Record<string, (record: FindingRecord) => string | null> = {
+const TEMPLATES: Record<string, (record: Finding) => string | null> = {
   "rule-violation": violation,
   cycle,
   orphan,
@@ -269,7 +266,7 @@ export function sentenceOf(
         help: "",
         sentence: planned.sentence,
       },
-      record,
+      findingRecordOf(record),
     );
   }
 

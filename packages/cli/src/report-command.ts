@@ -1,10 +1,11 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
+import type { SensorFindings } from "@recognizer/core";
+import { sensorFindingsOfReport } from "./adapters/filesystem/findings-translator.js";
 import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
 import { InputError } from "./errors.js";
-import { validateFindings } from "./findings-document.js";
 import { findingsFile, writeFindings } from "./findings-files.js";
 import { freshScans } from "./freshness.js";
 import { isDirty, resolveCommit } from "./scan-command.js";
@@ -109,21 +110,18 @@ export function runReport(argv: string[], io: Io): number {
       : {};
   const { findings } = source;
   const { repository } = freshScans(io, root, ["sensors"]);
-  const completed = {
-    findings_version: 2,
-    sensor: { name, version: ownVersion(parsed) },
-    commit,
-    modified: isDirty(io, root),
-    settings: {},
-    reported_at: new Date(io.now()).toISOString(),
-    findings,
-    inputs: measuredInputs(repository),
-  };
-
-  let document: ReturnType<typeof validateFindings>;
+  let document: SensorFindings;
 
   try {
-    document = validateFindings(completed, { name });
+    document = sensorFindingsOfReport({
+      name,
+      version: ownVersion(parsed),
+      commit,
+      modified: isDirty(io, root),
+      reportedAt: new Date(io.now()).toISOString(),
+      findings,
+      inputs: measuredInputs(repository),
+    });
   } catch (error) {
     io.stderr(`${(error as Error).message}\n`);
 

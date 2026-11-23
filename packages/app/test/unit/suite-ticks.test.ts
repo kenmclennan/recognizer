@@ -1,3 +1,4 @@
+import type { SuiteResult } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import type { ResponsibilityState } from "../../src/responsibility-model";
 import {
@@ -13,7 +14,6 @@ import { plainSensor } from "../../src/shipped-fake";
 import {
   foldSummary,
   languageTag,
-  type SuiteResult,
   shortAge,
   suiteState,
 } from "../../src/suite-results";
@@ -104,7 +104,7 @@ const ago = (ms: number) => new Date(NOW - ms).toISOString();
 const ok = (name: string, ms: number): SuiteResult => ({
   name,
   status: "ok",
-  ran_at: ago(ms),
+  ranAt: ago(ms),
 });
 
 describe("suite ticks", () => {
@@ -167,7 +167,7 @@ describe("suite states", () => {
         {
           name: "web",
           status: "failed",
-          ran_at: ago(5 * MINUTE),
+          ranAt: ago(5 * MINUTE),
           reason: "no coverage report",
         },
         NOW,
@@ -183,7 +183,7 @@ describe("suite states", () => {
         {
           name: "unit",
           status: "partial",
-          ran_at: ago(2 * DAY),
+          ranAt: ago(2 * DAY),
           measured: 11,
           total: 29,
         },
@@ -223,12 +223,12 @@ describe("closed fold summary", () => {
     const failed: SuiteResult = {
       name: "web",
       status: "failed",
-      ran_at: ago(MINUTE),
+      ranAt: ago(MINUTE),
     };
     const partial: SuiteResult = {
       name: "integration",
       status: "partial",
-      ran_at: ago(MINUTE),
+      ranAt: ago(MINUTE),
       measured: 1,
       total: 2,
     };
@@ -292,11 +292,11 @@ describe("result rows from the findings suites array", () => {
       sensors: [
         status([
           ok("unit", 3 * HOUR),
-          { name: "integration", status: "never", ran_at: null },
+          { name: "integration", status: "never", ranAt: null },
           {
             name: "web",
             status: "failed",
-            ran_at: ago(2 * DAY),
+            ranAt: ago(2 * DAY),
             reason: "no coverage report",
           },
         ]),

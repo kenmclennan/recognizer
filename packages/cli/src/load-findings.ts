@@ -1,13 +1,10 @@
-import type { Repository } from "@recognizer/core";
+import type { Repository, SensorFindings } from "@recognizer/core";
+import { readSensorFindings } from "./adapters/filesystem/findings-translator.js";
 import type { Io } from "./cli.js";
 import { policyFile, readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
 import { carryMeasured } from "./duplication/carry.js";
 import { readStoredStructure } from "./duplication/stored.js";
-import {
-  type FindingsDocument,
-  validateFindings,
-} from "./findings-document.js";
 import {
   findingsFile,
   type ReadOutcome,
@@ -59,7 +56,7 @@ function withoutMeasured(
 }
 
 function complexityAgrees(
-  document: FindingsDocument,
+  document: SensorFindings,
   settings: StructureSettings,
 ): boolean {
   const recorded = document.settings.complexity_limit;
@@ -72,7 +69,7 @@ function complexityAgrees(
 }
 
 function duplicationAgrees(
-  document: FindingsDocument,
+  document: SensorFindings,
   settings: StructureSettings,
 ): boolean {
   const recorded = document.settings.duplication;
@@ -92,9 +89,9 @@ function storedStructure(
   root: string,
   commit: string,
   settings: StructureSettings,
-): FindingsDocument | null {
+): SensorFindings | null {
   try {
-    const document = validateFindings(
+    const document = readSensorFindings(
       JSON.parse(io.readFile(findingsFile(root, "structure"))),
       { name: "structure", commit },
     );
@@ -133,11 +130,11 @@ export function loadFindings(
   io: Io,
   root: string,
   repository: Repository,
-): FindingsDocument[] {
+): SensorFindings[] {
   const config = readConfig(io, root, ["sensors"]);
   const settings = resolveStructureSettings(config);
   const { commit, modified } = scansCommit(repository);
-  const documents: FindingsDocument[] = [];
+  const documents: SensorFindings[] = [];
 
   if (settings !== "off") {
     const context = { commit: commit ?? "", modified };

@@ -1,6 +1,11 @@
 import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import type { Repository } from "@recognizer/core";
+import type { Finding, Repository, SensorFindings } from "@recognizer/core";
+import {
+  findingRecordOf,
+  findingRuleOf,
+  policyRuleOf,
+} from "./adapters/filesystem/findings-translator.js";
 import { readScanFile } from "./adapters/filesystem/scan-translator.js";
 import type { ModuleMetrics, Warning } from "./analyse.js";
 import {
@@ -21,7 +26,6 @@ import {
 } from "./duplication/carry.js";
 import { InputError } from "./errors.js";
 import { orderDuplication, ruleText } from "./findings.js";
-import type { FindingRecord, FindingsDocument } from "./findings-document.js";
 import { findingsFile, readFindingsFiles } from "./findings-files.js";
 import type { FolderMetrics } from "./folder-metrics.js";
 import { freshScans } from "./freshness.js";
@@ -42,6 +46,8 @@ import {
 import { folderOf } from "./structure-warnings.js";
 import { freshnessFor } from "./tests-hash.js";
 
+type PrintedEvidence = ReturnType<typeof findingRecordOf>["evidence"];
+
 type BaselineAction = "none" | "initialised" | "shrunk";
 
 interface OtherFinding {
@@ -49,7 +55,7 @@ interface OtherFinding {
   principle: string;
   fix_pattern?: string;
   summary: string;
-  evidence: FindingRecord["evidence"];
+  evidence: PrintedEvidence;
   finding_id?: string;
 }
 
@@ -80,7 +86,7 @@ interface SensorStatus {
 }
 
 interface Gathered {
-  documents: FindingsDocument[];
+  documents: SensorFindings[];
   metrics: ModuleMetrics[];
   folderMetrics: FolderMetrics[];
   sensors: SensorStatus[];
@@ -101,7 +107,7 @@ function ruleLine(violation: GrownViolation): string {
     .join("; ");
   const grew = violation.grown === true ? " (grew an existing violation)" : "";
 
-  return `${violation.from}: ${ruleText(violation.rule)} - ${imports}${grew}`;
+  return `${violation.from}: ${ruleText(findingRuleOf(violation.rule))} - ${imports}${grew}`;
 }
 
 function isStructureViolation(value: ReportedViolation): value is Violation {
@@ -112,8 +118,8 @@ const TEST_FILE_LINES_SHOWN = 10;
 
 function testFileLines(warning: ReportedWarning): string[] {
   const importers =
-    warning.id === "orphan"
-      ? (warning.evidence as FindingRecord["evidence"]).test_importers
+    warning.id === "orphan" && "test_importers" in warning.evidence
+      ? warning.evidence.test_importers
       : undefined;
 
   if (!importers || importers.length === 0) {
@@ -168,8 +174,8 @@ function summary(
   return `${lines.join("\n")}\n`;
 }
 
-function violationOf(sensor: string, record: FindingRecord): Candidate {
-  const edges = record.evidence.edges ?? [];
+function violationOf(sensor: string, record: Finding): Candidate {
+  const edges = record.dependencies ?? [];
   const rule = edges[0]?.rules?.[0];
 
   if (
@@ -190,7 +196,7 @@ function violationOf(sensor: string, record: FindingRecord): Candidate {
       keys: entries.map(identityKey),
       value: {
         from,
-        rule,
+        rule: policyRuleOf(rule),
         imports: edges.map((edge) => ({
           to: edge.to,
           kind: edge.kind as string,
@@ -206,15 +212,15 @@ function violationOf(sensor: string, record: FindingRecord): Candidate {
     value: {
       id: record.kind,
       principle: record.principle,
-      fix_pattern: record.fix_pattern,
+      fix_pattern: record.fixPattern,
       summary: record.summary,
-      evidence: record.evidence,
+      evidence: findingRecordOf(record).evidence,
       finding_id: record.id,
     },
   };
 }
 
-function warningOf(sensor: string, record: FindingRecord): ReportedWarning {
+function warningOf(sensor: string, record: Finding): ReportedWarning {
   if (sensor === "structure" && record.kind === "cycle") {
     return {
       id: "cycle",
@@ -222,8 +228,8 @@ function warningOf(sensor: string, record: FindingRecord): ReportedWarning {
       fix_pattern: "break-cycle",
       summary: record.summary,
       evidence: {
-        modules: record.evidence.modules,
-        edges: (record.evidence.edges ?? []).map(({ from, to }) => ({
+        modules: [...record.files],
+        edges: (record.dependencies ?? []).map(({ from, to }) => ({
           from,
           to,
         })),
@@ -234,13 +240,13 @@ function warningOf(sensor: string, record: FindingRecord): ReportedWarning {
   return {
     id: record.kind,
     principle: record.principle,
-    fix_pattern: record.fix_pattern,
+    fix_pattern: record.fixPattern,
     summary: record.summary,
-    evidence: record.evidence,
-  } as OtherFinding;
+    evidence: findingRecordOf(record).evidence,
+  };
 }
 
-function candidatesOf(documents: FindingsDocument[]): Candidate[] {
+function candidatesOf(documents: SensorFindings[]): Candidate[] {
   return documents.flatMap((document) =>
     document.findings
       .filter((record) => record.severity === "violation")
@@ -248,7 +254,7 @@ function candidatesOf(documents: FindingsDocument[]): Candidate[] {
   );
 }
 
-function warningsOf(documents: FindingsDocument[]): ReportedWarning[] {
+function warningsOf(documents: SensorFindings[]): ReportedWarning[] {
   return documents.flatMap((document) =>
     orderDuplication(document.findings)
       .filter((record) => record.severity === "warning")
@@ -528,7 +534,7 @@ function gather(
   const { commit } = scansCommit(repository);
   const hiddenKeys = new Set<string>();
   const sensors: SensorStatus[] = [];
-  const documents: FindingsDocument[] = [];
+  const documents: SensorFindings[] = [];
   const resolved = resolveStructureSettings(config);
   let metrics: ModuleMetrics[] = [];
   let folderMetrics: FolderMetrics[] = [];

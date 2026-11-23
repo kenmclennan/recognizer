@@ -1,15 +1,15 @@
-import type { FindingRecord } from "recognizer";
+import type { Finding } from "@recognizer/core";
 
 export type LitSet = Set<string>;
 
 export function offCanvasModules(
-  record: FindingRecord,
+  record: Finding,
   boxFor: (id: string) => string,
   boxIds: ReadonlySet<string>,
 ): string[] {
-  const ids = new Set(record.evidence.modules);
+  const ids = new Set(record.files);
 
-  for (const edge of record.evidence.edges ?? []) {
+  for (const edge of record.dependencies ?? []) {
     ids.add(edge.from);
     ids.add(edge.to);
   }
@@ -18,7 +18,7 @@ export function offCanvasModules(
 }
 
 export function litSet(
-  record: FindingRecord,
+  record: Finding,
   boxFor: (id: string) => string,
   sceneLines: readonly string[],
   boxIds: ReadonlySet<string>,
@@ -34,11 +34,11 @@ export function litSet(
     return box;
   };
 
-  for (const id of record.evidence.modules) {
+  for (const id of record.files) {
     light(id);
   }
 
-  for (const edge of record.evidence.edges ?? []) {
+  for (const edge of record.dependencies ?? []) {
     const from = light(edge.from);
     const to = light(edge.to);
 

@@ -1,5 +1,4 @@
-import type { Repository } from "@recognizer/core";
-import type { TestImporter } from "./findings-document.js";
+import type { Repository, TestImporter } from "@recognizer/core";
 
 export const SUMMARY_TEST_FILES = 3;
 
@@ -59,7 +58,7 @@ export function testOnlySummary(id: string, importers: TestImporter[]): string {
 
 export interface TestOnlyName {
   name: string;
-  testFiles: string[];
+  testFiles: readonly string[];
 }
 
 function filesClause(files: string[]): string {

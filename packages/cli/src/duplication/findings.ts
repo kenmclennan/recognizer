@@ -1,4 +1,4 @@
-import type { FindingRecord } from "../findings-document.js";
+import type { Finding, FindingMember } from "@recognizer/core";
 import { principleOf } from "../principles.js";
 import {
   type Pair,
@@ -52,11 +52,11 @@ export function nested(a: Unit, b: Unit): boolean {
   );
 }
 
-function memberOf(unit: Unit) {
+function memberOf(unit: Unit): FindingMember {
   return {
-    module: unit.module,
+    file: unit.module,
     name: unit.qualified,
-    file: unit.file,
+    sourceFile: unit.file,
     lines: [unit.startLine, unit.endLine] as [number, number],
   };
 }
@@ -83,8 +83,8 @@ function sharedPrefix(members: readonly Unit[]): string | null {
   return prefix === "" || prefix === undefined ? null : prefix;
 }
 
-export function linesOf(finding: FindingRecord): number {
-  return (finding.evidence.members ?? []).reduce(
+export function linesOf(finding: Finding): number {
+  return (finding.members ?? []).reduce(
     (sum, member) =>
       sum +
       ((member.lines as [number, number])[1] -
@@ -94,10 +94,7 @@ export function linesOf(finding: FindingRecord): number {
   );
 }
 
-export function findingFor(
-  unsorted: readonly Unit[],
-  score: number,
-): FindingRecord {
+export function findingFor(unsorted: readonly Unit[], score: number): Finding {
   const members = [...unsorted].sort((a, b) =>
     compareCodePoints(a.identity, b.identity),
   );
@@ -126,15 +123,13 @@ export function findingFor(
     kind: "duplication",
     severity: "warning",
     ...principleOf(PRINCIPLE),
-    fix_pattern: FIX_PATTERN,
+    fixPattern: FIX_PATTERN,
     summary,
-    evidence: {
-      modules: [...new Set(members.map((unit) => unit.module))].sort(
-        compareCodePoints,
-      ),
-      members: members.map(memberOf),
-      measures: { similarity: roundSimilarity(score) },
-    },
+    files: [...new Set(members.map((unit) => unit.module))].sort(
+      compareCodePoints,
+    ),
+    members: members.map(memberOf),
+    measures: { similarity: roundSimilarity(score) },
   };
 }
 
@@ -190,7 +185,7 @@ function moduleFinding(
   modules: readonly string[],
   edges: readonly Edge[],
   units: readonly Unit[],
-): FindingRecord {
+): Finding {
   const sorted = [...modules].sort(compareCodePoints);
   const touched = new Map<number, Unit>();
   const pairs: string[] = [];
@@ -223,13 +218,11 @@ function moduleFinding(
     kind: "duplication",
     severity: "warning",
     ...principleOf(PRINCIPLE),
-    fix_pattern: FIX_PATTERN,
+    fixPattern: FIX_PATTERN,
     summary: `${sorted.join(", ")} copy each other: ${pairs.sort(compareCodePoints).join("; ")}`,
-    evidence: {
-      modules: sorted,
-      members: members.map(memberOf),
-      measures: { similarity: roundSimilarity(lowest) },
-    },
+    files: sorted,
+    members: members.map(memberOf),
+    measures: { similarity: roundSimilarity(lowest) },
   };
 }
 
@@ -237,7 +230,7 @@ function moduleFindings(
   units: readonly Unit[],
   edges: readonly Edge[],
   settings: DuplicationSettings,
-): { findings: FindingRecord[]; absorbed: Set<Edge> } {
+): { findings: Finding[]; absorbed: Set<Edge> } {
   const floor = Math.max(settings.min_lines, settings.pair_min_lines);
   const lines = (unit: Unit) => unit.floorLines;
   const eligible = new Map<string, number>();
@@ -348,7 +341,7 @@ function moduleFindings(
 export function findingsForUnits(
   units: readonly Unit[],
   settings: DuplicationSettings,
-): FindingRecord[] {
+): Finding[] {
   const sets = units.map((unit) => unit.fingerprints);
   const edges = prunedPairs(sets, settings.threshold)
     .filter(([i, j]: Pair) => !nested(units[i] as Unit, units[j] as Unit))
@@ -358,7 +351,7 @@ export function findingsForUnits(
     );
   const pairFloor = Math.max(settings.min_lines, settings.pair_min_lines);
   const grouped = moduleFindings(units, edges, settings);
-  const findings: FindingRecord[] = [...grouped.findings];
+  const findings: Finding[] = [...grouped.findings];
   const rest = edges.filter((edge) => !grouped.absorbed.has(edge));
 
   for (const [indices, score] of families(rest)) {
@@ -377,7 +370,7 @@ export function findingsForUnits(
   return findings;
 }
 
-export function orderFindings(findings: FindingRecord[]): FindingRecord[] {
+export function orderFindings(findings: Finding[]): Finding[] {
   return [...findings].sort(
     (a, b) => linesOf(b) - linesOf(a) || compareCodePoints(a.id, b.id),
   );

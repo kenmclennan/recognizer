@@ -1,8 +1,8 @@
-import type { FindingRecord } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { litSet, offCanvasModules } from "../../src/findings-card";
+import { findingFrom } from "./sensor-findings-from";
 
-const violation: FindingRecord = {
+const violation = findingFrom({
   id: "v",
   kind: "rule-violation",
   severity: "violation",
@@ -12,9 +12,9 @@ const violation: FindingRecord = {
     modules: ["a.py"],
     edges: [{ from: "a.py", to: "b.py", kind: "depends", lines: [4, 12] }],
   },
-};
+});
 
-const cycle: FindingRecord = {
+const cycle = findingFrom({
   id: "c",
   kind: "cycle",
   severity: "warning",
@@ -28,7 +28,7 @@ const cycle: FindingRecord = {
       { from: "b.py", to: "a.py" },
     ],
   },
-};
+});
 
 describe("litSet", () => {
   const same = (id: string) => id;

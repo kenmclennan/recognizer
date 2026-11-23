@@ -2,9 +2,9 @@ import {
   EMPTY_REPOSITORY,
   joinRepositories,
   type Repository,
+  type SensorFindings,
 } from "@recognizer/core";
 import {
-  type FindingsDocument,
   judgeScanVersion,
   readRepository,
   SCAN_SCHEMA_VERSION,
@@ -23,7 +23,7 @@ export type Loaded = {
   baseline: string | null;
   notices: string[];
   blocking: string | null;
-  findings: FindingsDocument[];
+  findings: SensorFindings[];
   sensors: SensorStatus[];
   overlays?: { name: string; text: string; modifiedMs?: number | null }[];
   overlaysUnreadable?: string[];

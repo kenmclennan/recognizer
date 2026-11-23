@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { Finding } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   findingsByModuleFrom,
   linesDuplicated,
   orderDuplication,
 } from "../src/findings.js";
-import type { FindingRecord } from "../src/findings-document.js";
 import { parsePolicy } from "../src/index.js";
 import { structureSensor } from "../src/structure-sensor.js";
 import { REPO } from "./helpers.js";
@@ -50,19 +50,18 @@ function findingsByModule(
 }
 
 describe("findingsByModuleFrom principle text", () => {
-  const record = (id: string, principle: string): FindingRecord => ({
+  const record = (id: string, principle: string): Finding => ({
     id,
     kind: "orphan",
     severity: "warning",
     principle,
     summary: id,
-    evidence: { modules: ["a.py"] },
+    files: ["a.py"],
   });
 
   it("names a registered principle and keeps an unregistered one as written", () => {
     const found = findingsByModuleFrom([
       {
-        findings_version: 1,
         sensor: { name: "structure", version: "18" },
         commit: "c",
         modified: false,
@@ -134,20 +133,18 @@ describe("linesDuplicated and orderDuplication", () => {
     id: string,
     kind: string,
     sizes: (number | null)[],
-  ): FindingRecord => ({
+  ): Finding => ({
     id,
     kind,
     severity: "warning",
     principle: "p",
     summary: id,
-    evidence: {
-      modules: ["m"],
-      members: sizes.map((size, index) => ({
-        module: "m",
-        name: `n${index}`,
-        ...(size === null ? {} : { lines: [1, size] as [number, number] }),
-      })),
-    },
+    files: ["m"],
+    members: sizes.map((size, index) => ({
+      file: "m",
+      name: `n${index}`,
+      ...(size === null ? {} : { lines: [1, size] as [number, number] }),
+    })),
   });
 
   it("sums unequal members and counts a member without lines as 0", () => {

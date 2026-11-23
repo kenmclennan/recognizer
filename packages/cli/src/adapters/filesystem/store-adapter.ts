@@ -25,7 +25,6 @@ import {
 import { findDescriber } from "../../describer-in-effect.js";
 import type { Language } from "../../detect.js";
 import { errorText } from "../../errors.js";
-import { validateFindings } from "../../findings-document.js";
 import { findingsFile, findingsFolder } from "../../findings-files.js";
 import { readPolicy } from "../../load-findings.js";
 import {
@@ -44,6 +43,7 @@ import {
 } from "../../scan-marker.js";
 import { fileLine } from "../../scan-wire.js";
 import { structureOverlayFile } from "../../structure-overlay.js";
+import { readSensorFindings } from "./findings-translator.js";
 
 export class StoreAdapter implements Store {
   constructor(
@@ -217,7 +217,7 @@ export class StoreAdapter implements Store {
     }
 
     try {
-      const document = validateFindings(JSON.parse(this.io.readFile(file)), {
+      const document = readSensorFindings(JSON.parse(this.io.readFile(file)), {
         name: sensor,
       });
 

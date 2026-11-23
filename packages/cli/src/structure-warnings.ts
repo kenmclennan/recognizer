@@ -1,6 +1,11 @@
-import type { Dependency, Member, Repository } from "@recognizer/core";
+import type {
+  Dependency,
+  Finding,
+  FindingMember,
+  Member,
+  Repository,
+} from "@recognizer/core";
 import { isEntryPoint, isTestFile } from "./entry-points.js";
-import type { FindingRecord } from "./findings-document.js";
 import { LONG_FUNCTION, measuredLength } from "./function-length.js";
 import { isForeign, keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
@@ -78,7 +83,7 @@ export function orphanFindings(
   policy: Policy | null,
   entryPoints: string[],
   entryAnnotations: string[],
-): FindingRecord[] {
+): Finding[] {
   const { ids, edges, declarations } = keptGraph(
     repository,
     policy?.ignore ?? [],
@@ -126,7 +131,7 @@ export function orphanFindings(
   return [...ids]
     .filter((id) => !reached.has(id))
     .sort(compare)
-    .map((id): FindingRecord => {
+    .map((id): Finding => {
       const importers = testImporters.get(id) ?? [];
       const base = {
         id: `orphan:${id}`,
@@ -139,16 +144,17 @@ export function orphanFindings(
         return {
           ...base,
           summary: `${id} is imported by no file and is not an entry point${libraryApiHint(id)}`,
-          fix_pattern: "remove-or-wire-orphan",
-          evidence: { modules: [id] },
+          fixPattern: "remove-or-wire-orphan",
+          files: [id],
         };
       }
 
       return {
         ...base,
         summary: testOnlySummary(id, importers),
-        fix_pattern: "move-orphan-to-tests",
-        evidence: { modules: [id], test_importers: importers },
+        fixPattern: "move-orphan-to-tests",
+        files: [id],
+        testImporters: importers,
       };
     });
 }
@@ -263,7 +269,7 @@ export function unusedExportsFindings(
   repository: Repository,
   policy: Policy | null,
   entryPoints: string[],
-): FindingRecord[] {
+): Finding[] {
   const { edges, declarations, ids } = keptGraph(
     repository,
     policy?.ignore ?? [],
@@ -272,7 +278,7 @@ export function unusedExportsFindings(
   const viaExpect = usedThroughExpect(repository, ids, named, whole);
   const policyEntry = policy?.entry ?? [];
   const testImporters = testImportersOf(repository);
-  const findings: FindingRecord[] = [];
+  const findings: Finding[] = [];
 
   for (const module of repository.files) {
     if (
@@ -329,20 +335,21 @@ export function unusedExportsFindings(
       severity: "warning",
       ...principleOf("information-hiding"),
       summary: `${module.path} exports ${unused.length} ${noun} no other file imports: ${names}${marked.length > 0 ? unusedTestOnlyClause(marked) : ""}`,
-      fix_pattern: "narrow-exports",
-      evidence: {
-        modules: [module.path],
-        members: unused.map((member) => ({
-          module: module.path,
-          name: member.name,
-          ...(module.kind === "source" && member.line !== undefined
-            ? { file: module.path, lines: [member.line, member.line] }
-            : {}),
-          ...(testFiles.has(member.name)
-            ? { test_files: testFiles.get(member.name) }
-            : {}),
-        })),
-      },
+      fixPattern: "narrow-exports",
+      files: [module.path],
+      members: unused.map((member) => ({
+        file: module.path,
+        name: member.name,
+        ...(module.kind === "source" && member.line !== undefined
+          ? {
+              sourceFile: module.path,
+              lines: [member.line, member.line] as [number, number],
+            }
+          : {}),
+        ...(testFiles.has(member.name)
+          ? { testFiles: testFiles.get(member.name) }
+          : {}),
+      })),
     });
   }
 
@@ -352,7 +359,7 @@ export function unusedExportsFindings(
 export function privateImportsFindings(
   repository: Repository,
   policy: Policy | null,
-): FindingRecord[] {
+): Finding[] {
   const { edges } = keptGraph(repository, policy?.ignore ?? []);
   const modules = new Map(repository.files.map((file) => [file.path, file]));
   const byImporter = new Map<
@@ -413,11 +420,11 @@ export function privateImportsFindings(
     byImporter.set(edge.from, owners);
   }
 
-  const findings: FindingRecord[] = [];
+  const findings: Finding[] = [];
 
   for (const [importer, owners] of byImporter) {
     const ownerIds = [...owners.keys()].sort(compare);
-    const members: NonNullable<FindingRecord["evidence"]["members"]> = [];
+    const members: FindingMember[] = [];
     let count = 0;
 
     for (const ownerId of ownerIds) {
@@ -431,10 +438,13 @@ export function privateImportsFindings(
 
         count += 1;
         members.push({
-          module: ownerId,
+          file: ownerId,
           name,
           ...(member?.line !== undefined
-            ? { file: ownerId, lines: [member.line, member.line] }
+            ? {
+                sourceFile: ownerId,
+                lines: [member.line, member.line] as [number, number],
+              }
             : {}),
         });
       }
@@ -449,16 +459,14 @@ export function privateImportsFindings(
       severity: "warning",
       ...principleOf("information-hiding"),
       summary: `${importer} imports ${count} private ${count === 1 ? "name" : "names"} from ${ownerIds.length} ${ownerIds.length === 1 ? "file" : "files"} (${first}${more})`,
-      evidence: {
-        modules: [importer],
-        members,
-        edges: ownerIds.map((ownerId) => ({
-          from: importer,
-          to: ownerId,
-          kind: "depends",
-          lines: [...(owners.get(ownerId)?.lines ?? [])].sort((a, b) => a - b),
-        })),
-      },
+      files: [importer],
+      members,
+      dependencies: ownerIds.map((ownerId) => ({
+        from: importer,
+        to: ownerId,
+        kind: "depends",
+        lines: [...(owners.get(ownerId)?.lines ?? [])].sort((a, b) => a - b),
+      })),
     });
   }
 
@@ -532,9 +540,9 @@ export function longFunctionFindings(
   repository: Repository,
   policy: Policy | null,
   limit: number = LONG_FUNCTION,
-): FindingRecord[] {
+): Finding[] {
   const { ids } = keptGraph(repository, policy?.ignore ?? []);
-  const findings: FindingRecord[] = [];
+  const findings: Finding[] = [];
 
   for (const module of repository.files) {
     if (!ids.has(module.path) || isTestFile(module.path)) {
@@ -574,22 +582,20 @@ export function longFunctionFindings(
           fn.bodyLine === undefined
             ? `${fn.qualified} is ${length} lines, over the limit of ${limit}`
             : `${fn.qualified} has a ${length}-line body, over the limit of ${limit}`,
-        evidence: {
-          modules: [module.path],
-          members: [
-            {
-              module: module.path,
-              name: fn.qualified,
-              file: module.path,
-              lines: [fn.line, fn.endLine],
-            },
-          ],
-          measures: {
-            lines: length,
-            limit,
-            ...(fn.bodyLine === undefined ? {} : { body_line: fn.bodyLine }),
-            ...(limit === LONG_FUNCTION ? {} : { published: LONG_FUNCTION }),
+        files: [module.path],
+        members: [
+          {
+            file: module.path,
+            name: fn.qualified,
+            sourceFile: module.path,
+            lines: [fn.line, fn.endLine],
           },
+        ],
+        measures: {
+          lines: length,
+          limit,
+          ...(fn.bodyLine === undefined ? {} : { body_line: fn.bodyLine }),
+          ...(limit === LONG_FUNCTION ? {} : { published: LONG_FUNCTION }),
         },
       });
     }

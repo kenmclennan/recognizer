@@ -1,11 +1,14 @@
-import type { FindingRecord } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { cardOf, isAbsent } from "../../src/finding-card";
 import { findingRows } from "../../src/findings-order";
+import {
+  type FindingLiteral,
+  sensorFindingsFrom,
+} from "./sensor-findings-from";
 
-function rowOf(partial: Partial<FindingRecord>) {
+function rowOf(partial: FindingLiteral) {
   const [row] = findingRows([
-    {
+    sensorFindingsFrom({
       findings_version: 1,
       sensor: { name: "s", version: "1" },
       commit: "c",
@@ -22,7 +25,7 @@ function rowOf(partial: Partial<FindingRecord>) {
           ...partial,
         },
       ],
-    },
+    }),
   ]);
 
   return row as NonNullable<typeof row>;

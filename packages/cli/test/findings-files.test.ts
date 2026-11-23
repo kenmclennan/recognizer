@@ -1,6 +1,7 @@
+import type { SensorFindings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
+import type { FindingsDocument } from "../src/adapters/filesystem/findings-document-types.js";
 import type { Io } from "../src/cli.js";
-import type { FindingsDocument } from "../src/findings-document.js";
 import { findingsFile, readFindingsFiles } from "../src/findings-files.js";
 import { buildFreshness } from "../src/result-freshness.js";
 import { repositoryFrom } from "./repository-from.js";
@@ -239,7 +240,7 @@ describe("readFindingsFiles tolerates a stored thresholds.complexity record", ()
     ]);
 
     expect(
-      (outcome as { document: FindingsDocument }).document.findings,
+      (outcome as { document: SensorFindings }).document.findings,
     ).toHaveLength(1);
   });
 });

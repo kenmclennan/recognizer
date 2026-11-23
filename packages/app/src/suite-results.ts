@@ -1,15 +1,7 @@
+import type { SuiteResult } from "@recognizer/core";
 import { ageText } from "./footer-scan";
 import type { IconName } from "./icons";
 import type { SuiteRef } from "./scan-panel-model";
-
-export type SuiteResult = {
-  name: string;
-  status: "ok" | "failed" | "partial" | "never";
-  ran_at: string | null;
-  reason?: string;
-  measured?: number;
-  total?: number;
-};
 
 export type SuiteTone = "ok" | "bad" | "muted" | "run";
 
@@ -66,7 +58,7 @@ export function shortAge(ms: number): string {
 }
 
 function ranAt(result: SuiteResult): number | null {
-  const at = result.ran_at === null ? Number.NaN : Date.parse(result.ran_at);
+  const at = result.ranAt === null ? Number.NaN : Date.parse(result.ranAt);
 
   return Number.isNaN(at) ? null : at;
 }
@@ -227,7 +219,7 @@ export function suiteRows(input: {
   sensor: string;
   suites: SuiteRef[];
   ticked: string[];
-  results: SuiteResult[] | undefined;
+  results: readonly SuiteResult[] | undefined;
   running: SuiteRunning | null;
   locked: boolean;
   now: number;
@@ -249,7 +241,7 @@ export function suiteRows(input: {
 export function tickedResults(
   suites: SuiteRef[],
   ticked: string[],
-  results: SuiteResult[] | undefined,
+  results: readonly SuiteResult[] | undefined,
 ): (SuiteResult | undefined)[] {
   return suites
     .filter(({ name }) => ticked.includes(name))

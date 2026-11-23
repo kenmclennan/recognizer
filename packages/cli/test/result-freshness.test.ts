@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Repository } from "@recognizer/core";
+import type { Repository, SensorFindings } from "@recognizer/core";
 import { joinRepositories } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
@@ -163,7 +163,7 @@ describe("splitFindings", () => {
       severity: "warning" as const,
       principle: "p",
       summary: id,
-      evidence: { modules },
+      files: modules,
     };
   }
 
@@ -176,14 +176,13 @@ describe("splitFindings", () => {
 
   function documentOf(overrides: Record<string, unknown>) {
     return {
-      findings_version: 2,
       sensor: { name: "s", version: "1" },
       commit: "c",
       modified: false,
       settings: {},
       findings,
       ...overrides,
-    } as unknown as import("../src/findings-document.js").FindingsDocument;
+    } as unknown as SensorFindings;
   }
 
   const ids = (records: { id: string }[]) => records.map((one) => one.id);

@@ -1,7 +1,6 @@
 import { join } from "node:path";
-import type { Repository } from "@recognizer/core";
+import type { Finding, Repository } from "@recognizer/core";
 import type { Io } from "./cli.js";
-import type { FindingRecord } from "./findings-document.js";
 import {
   type MetricDeclaration,
   type Overlay,
@@ -31,27 +30,27 @@ export interface StructureMeasures {
   repository: Repository;
   complexity: Record<string, number> | null;
   functionLength: Record<string, number>;
-  duplication: FindingRecord[] | null;
+  duplication: Finding[] | null;
 }
 
 export function duplicatedLines(
-  findings: readonly FindingRecord[],
+  findings: readonly Finding[],
 ): Record<string, number> {
   const lines = new Map<string, Set<number>>();
 
   for (const finding of findings) {
-    for (const member of finding.evidence.members ?? []) {
+    for (const member of finding.members ?? []) {
       if (member.lines === undefined) {
         continue;
       }
 
-      const held = lines.get(member.module) ?? new Set<number>();
+      const held = lines.get(member.file) ?? new Set<number>();
 
       for (let line = member.lines[0]; line <= member.lines[1]; line += 1) {
         held.add(line);
       }
 
-      lines.set(member.module, held);
+      lines.set(member.file, held);
     }
   }
 
