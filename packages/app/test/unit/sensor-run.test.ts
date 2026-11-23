@@ -15,6 +15,7 @@ import {
   structureDocument,
 } from "../fixtures";
 import { repositoryFrom } from "./repository-from";
+import { documentText } from "./sensor-findings-from";
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 
@@ -31,7 +32,7 @@ function stored(
 ): ReturnType<typeof fakeSensors> {
   return fakeSensors(
     {
-      structure: JSON.stringify(structureDocument("check", policy)),
+      structure: documentText(structureDocument("check", policy)),
       ...files,
     },
     second,
@@ -118,7 +119,7 @@ describe("senseRepository", () => {
 
   it("keeps a file from another commit and reports it ran, leaving staleness to the freshness answer", async () => {
     const stale = secondSensorDocument("shop/main.py", "x", "y", "old");
-    const port = fakeSensors({ lint: JSON.stringify(stale) });
+    const port = fakeSensors({ lint: documentText(stale) });
     const run = await senseRepository(scans, { policy, config: null }, port);
 
     expect(statusOf(run, "lint")).toMatchObject({
@@ -154,7 +155,7 @@ describe("senseRepository", () => {
   it("shows ran, failed and not run together", async () => {
     const stale = secondSensorDocument("shop/main.py", "x", "y", "old");
     const port = stored({
-      lint: JSON.stringify(stale),
+      lint: documentText(stale),
       broken: "[]",
     });
     const run = await senseRepository(
@@ -181,7 +182,7 @@ describe("senseRepository", () => {
       stopped: { measured: 1, total: 3 },
       partial: { measured: 1, total: 3 },
     };
-    const port = fakeSensors({ lint: JSON.stringify(document) });
+    const port = fakeSensors({ lint: documentText(document) });
     const run = await senseRepository(scans, { policy, config: null }, port);
 
     expect(statusOf(run, "lint")).toMatchObject({
@@ -193,32 +194,32 @@ describe("senseRepository", () => {
   it("carries a findings document's excluded key onto its status", async () => {
     const document = {
       ...secondSensorDocument("shop/main.py"),
-      excluded: { functions: 2, modules: ["shop/main.py"] },
+      excluded: { functions: 2, files: ["shop/main.py"] },
     };
-    const port = fakeSensors({ lint: JSON.stringify(document) });
+    const port = fakeSensors({ lint: documentText(document) });
     const run = await senseRepository(scans, { policy, config: null }, port);
 
     expect(statusOf(run, "lint")).toMatchObject({
-      excluded: { functions: 2, modules: ["shop/main.py"] },
+      excluded: { functions: 2, files: ["shop/main.py"] },
     });
   });
 
   it("carries a findings document's unowned key onto its status", async () => {
     const document = {
       ...secondSensorDocument("shop/main.py"),
-      unowned: { functions: 2, modules: ["shop/main.py"] },
+      unowned: { functions: 2, files: ["shop/main.py"] },
     };
-    const port = fakeSensors({ lint: JSON.stringify(document) });
+    const port = fakeSensors({ lint: documentText(document) });
     const run = await senseRepository(scans, { policy, config: null }, port);
 
     expect(statusOf(run, "lint")).toMatchObject({
-      unowned: { functions: 2, modules: ["shop/main.py"] },
+      unowned: { functions: 2, files: ["shop/main.py"] },
     });
   });
 
   it("reads a current file from a second sensor", async () => {
     const document = secondSensorDocument("shop/main.py");
-    const port = stored({ lint: JSON.stringify(document) });
+    const port = stored({ lint: documentText(document) });
     const run = await senseRepository(scans, { policy, config: null }, port);
 
     expect(statusOf(run, "lint")).toMatchObject({
@@ -263,10 +264,10 @@ describe("senseRepository", () => {
 
 describe("senseRepository and reports", () => {
   const reported = (name: string, commit: string) =>
-    JSON.stringify({
+    documentText({
       ...secondSensorDocument("shop/main.py", "x", "y", commit),
       sensor: { name, version: "reported" },
-      reported_at: "2026-11-02T10:00:00.000Z",
+      reportedAt: "2026-11-02T10:00:00.000Z",
     });
 
   it("marks a document with reported_at as reported and keeps ran or stale", async () => {
@@ -294,7 +295,7 @@ describe("senseRepository and reports", () => {
   it("leaves a registered name carrying the mark unmarked and an unmarked file unmarked", async () => {
     const port = fakeSensors({
       lint: reported("lint", CURRENT),
-      plain: JSON.stringify({
+      plain: documentText({
         ...secondSensorDocument("shop/main.py"),
         sensor: { name: "plain", version: "1" },
       }),

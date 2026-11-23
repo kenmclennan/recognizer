@@ -1,9 +1,9 @@
-import type { FindingRecord } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { keepsFocus } from "../../src/finding-focus";
 import { findingRows } from "../../src/findings-order";
+import { findingFrom } from "./sensor-findings-from";
 
-const violation: FindingRecord = {
+const violation = findingFrom({
   id: "v",
   kind: "rule-violation",
   severity: "violation",
@@ -13,9 +13,9 @@ const violation: FindingRecord = {
     modules: ["a.py"],
     edges: [{ from: "a.py", to: "b.py", kind: "depends", lines: [4, 12] }],
   },
-};
+});
 
-const cycle: FindingRecord = {
+const cycle = findingFrom({
   id: "c",
   kind: "cycle",
   severity: "warning",
@@ -29,7 +29,7 @@ const cycle: FindingRecord = {
       { from: "b.py", to: "a.py", kind: "depends" },
     ],
   },
-};
+});
 
 describe("keepsFocus", () => {
   it("keeps it for the finding's module, an evidence module and an edge end", () => {
@@ -52,7 +52,7 @@ describe("keepsFocus", () => {
     expect(
       keepsFocus(
         { kind: "folder", id: "src" },
-        { ...violation, evidence: { modules: ["src/a.py"] } },
+        { ...violation, files: ["src/a.py"], dependencies: [] },
         boxFor,
       ),
     ).toBe(true);
@@ -60,19 +60,18 @@ describe("keepsFocus", () => {
 });
 
 describe("a finding with no module", () => {
-  const lint: FindingRecord = {
+  const lint = findingFrom({
     id: "lint:whole-repository",
     kind: "lint",
     severity: "warning",
     principle: "tidy",
     summary: "the repository has a lint problem",
     evidence: { modules: [] },
-  };
+  });
 
   it("makes a row with an empty module", () => {
     const [row] = findingRows([
       {
-        findings_version: 1,
         sensor: { name: "structure", version: "2" },
         commit: "c",
         modified: false,

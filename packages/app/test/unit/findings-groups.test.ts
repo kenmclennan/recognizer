@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { FindingRecord, FindingsDocument } from "recognizer";
+import type { Finding, SensorFindings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { buildCatalog, EMPTY_CATALOG } from "../../src/finding-catalog";
 import groupFile from "../../src/finding-groups.json";
@@ -20,34 +20,34 @@ function record(
   kind: string,
   severity: "violation" | "warning" = "warning",
   measures?: Record<string, number>,
-): FindingRecord {
+): Finding {
   return {
     id,
     kind,
     severity,
     principle: "p",
     summary: id,
-    evidence: { modules: [`${id}.py`], ...(measures ? { measures } : {}) },
+    files: [`${id}.py`],
+    ...(measures ? { measures } : {}),
   };
 }
 
 function document(
   name: string,
-  findings: FindingRecord[],
+  findings: Finding[],
   reported = false,
-): FindingsDocument {
+): SensorFindings {
   return {
-    findings_version: 1,
     sensor: { name, version: "1" },
     commit: "c",
     modified: false,
     settings: {},
-    ...(reported ? { reported_at: "2026-11-02T10:00:00.000Z" } : {}),
+    ...(reported ? { reportedAt: "2026-11-02T10:00:00.000Z" } : {}),
     findings,
   };
 }
 
-const names = (documents: FindingsDocument[], catalog = CATALOG) =>
+const names = (documents: SensorFindings[], catalog = CATALOG) =>
   groupsOf(findingRows(documents), catalog).map((group) => group.name);
 
 describe("groupsOf", () => {
@@ -108,7 +108,7 @@ describe("groupsOf", () => {
     expect(
       sentenceOf(
         {
-          record: shown?.rows[0]?.record as FindingRecord,
+          record: shown?.rows[0]?.record as Finding,
           reported: false,
         },
         CATALOG,
@@ -132,7 +132,7 @@ describe("groupsOf", () => {
     expect(
       sentenceOf(
         {
-          record: shown?.rows[0]?.record as FindingRecord,
+          record: shown?.rows[0]?.record as Finding,
           reported: false,
         },
         CATALOG,
@@ -155,7 +155,7 @@ describe("groupsOf", () => {
     const [row] = rows;
 
     expect(
-      sentenceOf({ record: row?.record as FindingRecord, reported: false }),
+      sentenceOf({ record: row?.record as Finding, reported: false }),
     ).toBe("folders a and b import each other");
   });
 
@@ -174,7 +174,7 @@ describe("groupsOf", () => {
     const [row] = rows;
 
     expect(
-      sentenceOf({ record: row?.record as FindingRecord, reported: false }),
+      sentenceOf({ record: row?.record as Finding, reported: false }),
     ).toBe("folder a holds 1 scanned modules that no component covers");
   });
 

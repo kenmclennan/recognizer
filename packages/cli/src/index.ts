@@ -39,6 +39,12 @@ export {
   visibleSuiteTicks,
   workOf,
 } from "@recognizer/core";
+export {
+  findingRecordOf,
+  findingRuleOf,
+  readSensorFindings,
+  sensorFindingsDocument,
+} from "./adapters/filesystem/findings-translator.js";
 export { readRepository } from "./adapters/filesystem/scan-translator.js";
 export {
   type Analysis,
@@ -121,7 +127,7 @@ export {
 } from "./duplication/carry.js";
 export { InputError } from "./errors.js";
 export {
-  type Finding,
+  type FindingNote,
   findingsByModuleFrom,
   importText,
   linesDuplicated,
@@ -129,14 +135,6 @@ export {
   ruleText,
   violationText,
 } from "./findings.js";
-export {
-  type FindingEdge,
-  type FindingRecord,
-  type FindingsDocument,
-  type SuiteResult,
-  type SuiteStatus,
-  validateFindings,
-} from "./findings-document.js";
 export {
   type FolderMetrics,
   measureFolders,

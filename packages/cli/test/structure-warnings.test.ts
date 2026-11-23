@@ -97,10 +97,10 @@ describe("orphan", () => {
       kind: "orphan",
       severity: "warning",
       ...principleOf("dead-code"),
-      fix_pattern: "remove-or-wire-orphan",
+      fixPattern: "remove-or-wire-orphan",
       summary:
         "app/plain.py is imported by no file and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
-      evidence: { modules: ["app/plain.py"] },
+      files: ["app/plain.py"],
     });
   });
 
@@ -1053,8 +1053,8 @@ function unusedOf(
 
   return Object.fromEntries(
     found.map((finding) => [
-      finding.evidence.modules[0],
-      (finding.evidence.members ?? []).map((member) => member.name),
+      finding.files[0],
+      (finding.members ?? []).map((member) => member.name),
     ]),
   );
 }
@@ -1090,16 +1090,16 @@ describe("unused_exports test-only names", () => {
       [imp("t/test_z.py", ["b"]), imp("t/test_a.py", ["b"])],
     );
 
-    expect(finding.evidence.members).toEqual([
-      { module: "a/m.py", name: "a", file: "a/m.py", lines: [10, 10] },
+    expect(finding.members).toEqual([
+      { file: "a/m.py", name: "a", sourceFile: "a/m.py", lines: [10, 10] },
       {
-        module: "a/m.py",
-        name: "b",
         file: "a/m.py",
+        name: "b",
+        sourceFile: "a/m.py",
         lines: [11, 11],
-        test_files: ["t/test_a.py", "t/test_z.py"],
+        testFiles: ["t/test_a.py", "t/test_z.py"],
       },
-      { module: "a/m.py", name: "c", file: "a/m.py", lines: [12, 12] },
+      { file: "a/m.py", name: "c", sourceFile: "a/m.py", lines: [12, 12] },
     ]);
     expect(finding.summary).toBe(
       `a/m.py exports 3 names no other file imports: a, b, c; only tests import b (t/test_a.py, t/test_z.py), so if nothing outside the repository uses it, delete it with its tests${HINT}`,
@@ -1109,7 +1109,7 @@ describe("unused_exports test-only names", () => {
   it("marks a dotted member through its leading segment", () => {
     const finding = unusedWithTests(["Foo.bar"], [imp("t/test_a.py", ["Foo"])]);
 
-    expect(finding.evidence.members?.[0]?.test_files).toEqual(["t/test_a.py"]);
+    expect(finding.members?.[0]?.testFiles).toEqual(["t/test_a.py"]);
     expect(finding.summary).toContain(
       "only tests import Foo.bar (t/test_a.py), so if nothing outside the repository uses it, delete it with its tests",
     );
@@ -1141,10 +1141,7 @@ describe("unused_exports test-only names", () => {
     );
 
     expect(
-      found[0]?.evidence.members?.map((member) => [
-        member.name,
-        member.test_files,
-      ]),
+      found[0]?.members?.map((member) => [member.name, member.testFiles]),
     ).toEqual([["b", ["t/test_a.py"]]]);
   });
 
@@ -1191,27 +1188,27 @@ describe("unused_exports test-only names", () => {
       ),
     );
     const found = unusedExportsFindings(scan, null, []);
-    const members = found.flatMap((finding) => finding.evidence.members ?? []);
+    const members = found.flatMap((finding) => finding.members ?? []);
     const used = (name: string, names: readonly string[]) =>
       names.includes(name) || names.includes(name.split(".", 1)[0] as string);
     const expected = members.filter((member) =>
       (scan.testImports ?? []).some(
         (record) =>
-          record.to === member.module && used(member.name, record.names ?? []),
+          record.to === member.file && used(member.name, record.names ?? []),
       ),
     );
 
-    expect(members.filter((member) => member.test_files !== undefined)).toEqual(
+    expect(members.filter((member) => member.testFiles !== undefined)).toEqual(
       expected,
     );
 
     for (const member of members) {
-      for (const file of member.test_files ?? []) {
+      for (const file of member.testFiles ?? []) {
         expect(
           (scan.testImports ?? []).some(
             (record) =>
               record.from === file &&
-              record.to === member.module &&
+              record.to === member.file &&
               used(member.name, record.names ?? []),
           ),
         ).toBe(true);
@@ -1485,7 +1482,7 @@ describe("unused_exports", () => {
     expect(finding?.summary).toBe(
       "shop/a.py exports 3 names no other file imports: a, b, c",
     );
-    expect(finding?.evidence.members?.map((member) => member.name)).toEqual([
+    expect(finding?.members?.map((member) => member.name)).toEqual([
       "a",
       "b",
       "c",
@@ -1626,14 +1623,17 @@ describe("unused_exports", () => {
       kind: "unused_exports",
       severity: "warning",
       ...principleOf("information-hiding"),
-      fix_pattern: "narrow-exports",
+      fixPattern: "narrow-exports",
     });
-    expect(module?.evidence.members).toEqual([
-      { module: "shop/a.py", name: "a", file: "shop/a.py", lines: [10, 10] },
+    expect(module?.members).toEqual([
+      {
+        file: "shop/a.py",
+        name: "a",
+        sourceFile: "shop/a.py",
+        lines: [10, 10],
+      },
     ]);
-    expect(pkg?.evidence.members).toEqual([
-      { module: "app/domain", name: "Zed" },
-    ]);
+    expect(pkg?.members).toEqual([{ file: "app/domain", name: "Zed" }]);
   });
 
   it("sorts findings by id", () => {
@@ -1805,8 +1805,8 @@ describe("unused_exports", () => {
       expect(
         Object.fromEntries(
           found.map((finding) => [
-            finding.evidence.modules[0],
-            (finding.evidence.members ?? []).map((member) => member.name),
+            finding.files[0],
+            (finding.members ?? []).map((member) => member.name),
           ]),
         ),
       ).toEqual(names);
@@ -1926,13 +1926,13 @@ describe("private_imports", () => {
       severity: "warning",
       ...principleOf("information-hiding"),
     });
-    expect(result[0]?.fix_pattern).toBeUndefined();
+    expect(result[0]?.fixPattern).toBeUndefined();
     expect(result[0]?.summary).not.toContain("Parnas");
-    expect(result[0]?.evidence.members).toEqual([
+    expect(result[0]?.members).toEqual([
       {
-        module: "lib/shared.py",
-        name: "_COLUMNS",
         file: "lib/shared.py",
+        name: "_COLUMNS",
+        sourceFile: "lib/shared.py",
         lines: [4, 4],
       },
     ]);
@@ -1955,7 +1955,7 @@ describe("private_imports", () => {
       [{ from: "app/store.py", to: "lib/shared.py", names: ["helper"] }],
     );
 
-    expect(result[0]?.evidence.members?.map((member) => member.name)).toEqual([
+    expect(result[0]?.members?.map((member) => member.name)).toEqual([
       "helper",
     ]);
   });
@@ -2023,9 +2023,7 @@ describe("private_imports", () => {
     );
 
     expect(ids(result)).toEqual(["private_imports:app/store.py"]);
-    expect(result[0]?.evidence.members?.map((member) => member.name)).toEqual([
-      "_a",
-    ]);
+    expect(result[0]?.members?.map((member) => member.name)).toEqual(["_a"]);
   });
 
   it("merges several imports across two owners", () => {
@@ -2054,13 +2052,15 @@ describe("private_imports", () => {
     );
 
     expect(result).toHaveLength(1);
-    expect(result[0]?.evidence.edges).toEqual([
+    expect(result[0]?.dependencies).toEqual([
       { from: "app/store.py", to: "lib/a.py", kind: "depends", lines: [3, 9] },
       { from: "app/store.py", to: "lib/b.py", kind: "depends", lines: [5] },
     ]);
-    expect(
-      result[0]?.evidence.members?.map((m) => `${m.module}:${m.name}`),
-    ).toEqual(["lib/a.py:_x", "lib/b.py:_y", "lib/b.py:_z"]);
+    expect(result[0]?.members?.map((m) => `${m.file}:${m.name}`)).toEqual([
+      "lib/a.py:_x",
+      "lib/b.py:_y",
+      "lib/b.py:_z",
+    ]);
     expect(result[0]?.summary).toContain("from 2 files");
   });
 
@@ -2194,8 +2194,8 @@ describe("private_imports", () => {
     ]);
     expect(
       python.map((finding) => [
-        finding.evidence.members?.map((m) => `${m.module}:${m.name}`),
-        finding.evidence.edges?.map((edge) => edge.lines),
+        finding.members?.map((m) => `${m.file}:${m.name}`),
+        finding.dependencies?.map((edge) => edge.lines),
       ]),
     ).toEqual([
       [["shop/domain/order.py:new_order"], [[1]]],
@@ -2310,7 +2310,7 @@ describe("long_function", () => {
     );
 
     expect(finding?.summary).toBe("f is 34 lines, over the limit of 30");
-    expect(finding?.evidence.measures).toEqual({
+    expect(finding?.measures).toEqual({
       lines: 34,
       limit: 30,
       published: 20,
@@ -2324,7 +2324,7 @@ describe("long_function", () => {
       20,
     );
 
-    expect(finding?.evidence.measures).toEqual({ lines: 34, limit: 20 });
+    expect(finding?.measures).toEqual({ lines: 34, limit: 20 });
   });
 
   it("gives none at 20 lines and one at 21", () => {
@@ -2341,10 +2341,10 @@ describe("long_function", () => {
       severity: "warning",
       ...principleOf("small-functions"),
     });
-    expect(result[0]?.fix_pattern).toBeUndefined();
+    expect(result[0]?.fixPattern).toBeUndefined();
     expect(result[0]?.summary).toBe("b is 21 lines, over the limit of 20");
     expect(result[0]?.summary).not.toContain("Martin");
-    expect(result[0]?.evidence.modules).toEqual(["lib/store.py"]);
+    expect(result[0]?.files).toEqual(["lib/store.py"]);
   });
 
   describe("measuring the body", () => {
@@ -2376,12 +2376,12 @@ describe("long_function", () => {
       expect(result[0]?.summary).toBe(
         "f has a 25-line body, over the limit of 20",
       );
-      expect(result[0]?.evidence.measures).toEqual({
+      expect(result[0]?.measures).toEqual({
         lines: 25,
         limit: 20,
         body_line: 10,
       });
-      expect(result[0]?.evidence.members?.[0]?.lines).toEqual([1, 34]);
+      expect(result[0]?.members?.[0]?.lines).toEqual([1, 34]);
     });
 
     it("gives none at a 20-line body and one at a 21-line body", () => {
@@ -2449,15 +2449,15 @@ describe("long_function", () => {
     ]);
 
     expect(ids(result)).toEqual(["long_function:lib/store.py::Store.save"]);
-    expect(result[0]?.evidence.members).toEqual([
+    expect(result[0]?.members).toEqual([
       {
-        module: "lib/store.py",
-        name: "Store.save",
         file: "lib/store.py",
+        name: "Store.save",
+        sourceFile: "lib/store.py",
         lines: [10, 40],
       },
     ]);
-    expect(result[0]?.evidence.measures).toEqual({ lines: 31, limit: 20 });
+    expect(result[0]?.measures).toEqual({ lines: 31, limit: 20 });
     expect(result[0]?.summary).toContain("Store.save is 31 lines");
   });
 

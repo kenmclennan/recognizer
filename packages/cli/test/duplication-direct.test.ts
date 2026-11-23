@@ -220,7 +220,7 @@ describe("class summaries", () => {
 
     expect(findings).toHaveLength(1);
     expect(findings[0]?.summary).toBe("3 methods of C share one structure");
-    expect(findings[0]?.evidence.members).toHaveLength(3);
+    expect(findings[0]?.members).toHaveLength(3);
     expect(findings[0]?.id.endsWith("#3")).toBe(true);
   });
 

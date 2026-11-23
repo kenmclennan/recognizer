@@ -217,12 +217,11 @@ ${Array.from({ length: inner }, (_, i) => `        val v${i} = compute(a, ${i}, 
 
     expect(findings.length).toBe(1);
 
-    const members = (
-      (findings[0] as { evidence: unknown }).evidence as {
-        members: { lines: [number, number] }[];
-      }
-    ).members;
-    const spans = members.map((m) => m.lines[1] - m.lines[0] + 1);
+    const members = findings[0]?.members ?? [];
+    const spans = members.map(
+      (m) =>
+        (m.lines as [number, number])[1] - (m.lines as [number, number])[0] + 1,
+    );
 
     expect(spans.sort()).toEqual([8, 8]);
   });

@@ -1,4 +1,8 @@
-import { EMPTY_REPOSITORY, joinRepositories } from "@recognizer/core";
+import {
+  EMPTY_REPOSITORY,
+  joinRepositories,
+  type SensorFindings,
+} from "@recognizer/core";
 import type { Scheduler } from "../../src/bar-hover";
 import type { CommitsPort } from "../../src/commits-port";
 import type { EditorPort } from "../../src/editor-port";
@@ -18,6 +22,10 @@ import type { ViewComparisons } from "../../src/view-comparisons";
 import type { ViewsPort } from "../../src/views-port";
 import type { WindowPort } from "../../src/window-port";
 import { type DocScan, repositoryFrom } from "./repository-from";
+import {
+  type FindingsLiteral,
+  sensorFindingsFrom,
+} from "./sensor-findings-from";
 
 const BASE: Loaded = {
   modules: [],
@@ -38,9 +46,17 @@ type GivenScan = {
 };
 
 export function loadedOf(
-  overrides: Omit<Partial<Loaded>, "scans"> & { scans?: GivenScan[] } = {},
+  overrides: Omit<Partial<Loaded>, "scans" | "findings"> & {
+    scans?: GivenScan[];
+    findings?: (SensorFindings | FindingsLiteral)[];
+  } = {},
 ): Loaded {
-  const { scans: given, ...rest } = overrides;
+  const { scans: given, findings: givenFindings, ...rest } = overrides;
+  const findings = (givenFindings ?? []).map((one) =>
+    "findings_version" in one
+      ? sensorFindingsFrom(one)
+      : (one as SensorFindings),
+  );
   const scans = (given ?? []).map(({ file, scan, repository }) => ({
     file,
     repository:
@@ -54,6 +70,7 @@ export function loadedOf(
   return {
     ...BASE,
     ...rest,
+    findings,
     scans,
     repository:
       given === undefined

@@ -223,7 +223,7 @@ describe("structure corpus", () => {
           }
 
           expect(finding).toBeDefined();
-          expect(finding?.evidence.measures ?? {}).toEqual(one.measures);
+          expect(finding?.measures ?? {}).toEqual(one.measures);
 
           if (one.summary_includes !== undefined) {
             expect(finding?.summary).toContain(one.summary_includes);

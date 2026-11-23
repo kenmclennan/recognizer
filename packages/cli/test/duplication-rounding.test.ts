@@ -31,7 +31,7 @@ describe("rounding and ordering as Python does them", () => {
   it("writes both figures into a finding", () => {
     const finding = findingFor([unit("a"), unit("b")], 13 / 16);
 
-    expect(finding.evidence.measures).toEqual({ similarity: 0.812 });
+    expect(finding.measures).toEqual({ similarity: 0.812 });
     expect(finding.summary).toContain("is 81% similar to");
   });
 

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   check,
+  findingRuleOf,
   InputError,
   parsePolicy,
   ruleText,
@@ -337,14 +338,22 @@ describe("forbid rule forms", () => {
 describe("a findings file written before the upgrade", () => {
   it("still names a level and a uses rule", () => {
     expect(
-      ruleText({ type: "level", from_level: "domain", to_level: "ports" }),
+      ruleText(
+        findingRuleOf({
+          type: "level",
+          from_level: "domain",
+          to_level: "ports",
+        }),
+      ),
     ).toBe("level domain -> ports");
     expect(
-      ruleText({
-        type: "uses",
-        from_component: "orders",
-        to_component: "billing",
-      }),
+      ruleText(
+        findingRuleOf({
+          type: "uses",
+          from_component: "orders",
+          to_component: "billing",
+        }),
+      ),
     ).toBe("uses orders -> billing");
   });
 });

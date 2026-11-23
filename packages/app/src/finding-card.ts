@@ -1,4 +1,4 @@
-import type { FindingRecord } from "recognizer";
+import type { Finding } from "@recognizer/core";
 import { EMPTY_CATALOG, type FindingCatalog } from "./finding-catalog";
 import { sentenceOf, shortName } from "./finding-sentence";
 import type { FindingRow } from "./findings-order";
@@ -6,13 +6,13 @@ import type { FindingRow } from "./findings-order";
 export type CardRowModel =
   | { kind: "module"; module: string; name: string; folder: string }
   | { kind: "member"; module: string; name: string; folder: string }
-  | { kind: "edge"; from: string; to: string; lines?: number[] }
+  | { kind: "edge"; from: string; to: string; lines?: readonly number[] }
   | {
       kind: "test";
       file: string;
       name: string;
       folder: string;
-      names: string[];
+      names: readonly string[];
     };
 
 export type CardModel = {
@@ -29,9 +29,9 @@ function folderOf(path: string): string {
   return at === -1 ? "" : path.slice(0, at);
 }
 
-function isMemberFinding(record: FindingRecord): boolean {
+function isMemberFinding(record: Finding): boolean {
   return (
-    (record.evidence.members?.length ?? 0) > 0 &&
+    (record.members?.length ?? 0) > 0 &&
     record.kind !== "unused_exports" &&
     record.kind !== "private_imports"
   );
@@ -41,14 +41,14 @@ function subjectOf(row: FindingRow): { name: string; folder: string } {
   const { record } = row;
 
   if (isMemberFinding(record)) {
-    const member = record.evidence.members?.[0];
+    const member = record.members?.[0];
 
     if (member !== undefined) {
-      return { name: member.name, folder: folderOf(member.module) };
+      return { name: member.name, folder: folderOf(member.file) };
     }
   }
 
-  const module = record.evidence.modules[0] ?? "";
+  const module = record.files[0] ?? "";
 
   return { name: shortName(module), folder: folderOf(module) };
 }
@@ -62,16 +62,16 @@ export function cardOf(
   const rows: CardRowModel[] = [];
 
   if (isMemberFinding(record) || record.kind === "private_imports") {
-    for (const member of record.evidence.members ?? []) {
+    for (const member of record.members ?? []) {
       rows.push({
         kind: "member",
-        module: member.module,
+        module: member.file,
         name: member.name,
-        folder: folderOf(member.module),
+        folder: folderOf(member.file),
       });
     }
   } else {
-    for (const module of record.evidence.modules) {
+    for (const module of record.files) {
       rows.push({
         kind: "module",
         module,
@@ -82,7 +82,7 @@ export function cardOf(
   }
 
   if (record.kind === "orphan") {
-    for (const importer of record.evidence.test_importers ?? []) {
+    for (const importer of record.testImporters ?? []) {
       rows.push({
         kind: "test",
         file: importer.file,
@@ -96,8 +96,8 @@ export function cardOf(
   if (record.kind === "unused_exports") {
     const byFile = new Map<string, string[]>();
 
-    for (const member of record.evidence.members ?? []) {
-      for (const file of member.test_files ?? []) {
+    for (const member of record.members ?? []) {
+      for (const file of member.testFiles ?? []) {
         byFile.set(file, [...(byFile.get(file) ?? []), member.name]);
       }
     }
@@ -115,7 +115,7 @@ export function cardOf(
 
   for (const edge of record.kind === "private_imports"
     ? []
-    : (record.evidence.edges ?? [])) {
+    : (record.dependencies ?? [])) {
     rows.push({
       kind: "edge",
       from: edge.from,

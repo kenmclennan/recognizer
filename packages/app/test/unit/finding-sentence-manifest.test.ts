@@ -1,11 +1,12 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { FindingRecord, FindingsDocument } from "recognizer";
+import type { Finding } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { buildCatalog } from "../../src/finding-catalog";
 import { sentenceOf } from "../../src/finding-sentence";
 import { shippedSensors } from "../../src/shipped-fake";
+import { findingFrom, sensorFindingsFrom } from "./sensor-findings-from";
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 
@@ -70,16 +71,12 @@ const OLD_HAND_SENTENCES: Record<string, string[]> = {
 
 function exampleRecords(
   match: (kind: string) => boolean,
-): { file: string; record: FindingRecord }[] {
+): { file: string; record: Finding }[] {
   return readdirSync(EXAMPLES)
     .filter((name) => name.endsWith(".json"))
     .flatMap((name) =>
-      (
-        JSON.parse(
-          readFileSync(join(EXAMPLES, name), "utf8"),
-        ) as FindingsDocument
-      ).findings
-        .filter((record) => match(record.kind))
+      sensorFindingsFrom(JSON.parse(readFileSync(join(EXAMPLES, name), "utf8")))
+        .findings.filter((record) => match(record.kind))
         .map((record) => ({ file: name, record })),
     );
 }
@@ -88,20 +85,20 @@ function record(
   kind: string,
   evidence: Record<string, unknown>,
   summary = "the summary",
-): FindingRecord {
-  return {
+): Finding {
+  return findingFrom({
     id: `${kind}:x`,
     kind,
     severity: "warning",
     principle: "p",
     summary,
     evidence: { modules: ["app/m.py"], ...evidence },
-  } as unknown as FindingRecord;
+  });
 }
 
 const MEMBER = { module: "app/m.py", name: "f" };
 
-const HAND_BUILT: Record<string, FindingRecord[]> = {
+const HAND_BUILT: Record<string, Finding[]> = {
   crap: [
     record("crap", { members: [MEMBER], measures: { complexity: 8.456 } }),
     record("crap", {
@@ -139,7 +136,7 @@ const HAND_BUILT: Record<string, FindingRecord[]> = {
   ],
 };
 
-const catalogSentence = (one: FindingRecord) =>
+const catalogSentence = (one: Finding) =>
   sentenceOf({ record: one, reported: false }, CATALOG);
 
 describe.each(KINDS)("the $sensor catalog sentence", ({ sensor, match }) => {
@@ -161,7 +158,7 @@ describe.each(KINDS)("the $sensor catalog sentence", ({ sensor, match }) => {
   });
 
   it.each(
-    (HAND_BUILT[sensor] as FindingRecord[]).map(
+    (HAND_BUILT[sensor] as Finding[]).map(
       (one, index) => [`${one.kind} case ${index}`, one, index] as const,
     ),
   )(

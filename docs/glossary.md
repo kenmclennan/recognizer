@@ -228,6 +228,7 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Principle | The published principle a finding rests on, named by a stable id from the registry in `packages/cli/src/principles.ts` and shown by its name. |
 | Citation | The author, work, year and optional locator a finding carries for its principle, taken from the registry; absent for the repository's own policy rule. |
 | Finding | A violation or warning a sensor wrote for the current scan: a stable id, a kind, a principle, a citation where the principle is published, a one-line summary, its evidence by scan id and, where one is named, a fix pattern. Attached to the files in its evidence; a health disc shows the summary. |
+| SensorFindings | One sensor's stored findings with the freshness they were measured under: the sensor, the commit, whether the working tree was dirty, its settings, the hashes of the inputs and tests it ran over, and its Findings. One per sensor, kept in `.recognizer/cache/findings/<sensor>.json`. |
 | Needs attention | The tree filter that keeps only files with an amber or red disc. |
 | Focus | Narrowing the canvas to one folder's files. |
 | Legend | The panel on the canvas, opened from its bottom-right controls, that names every edge style, every disc and what a frame's figure counts, and holds the inferred-edges switch. |

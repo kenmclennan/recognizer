@@ -1,16 +1,14 @@
+import type { SensorFindings } from "@recognizer/core";
+import { readSensorFindings } from "../adapters/filesystem/findings-translator.js";
 import type { Io } from "../cli.js";
-import {
-  type FindingsDocument,
-  validateFindings,
-} from "../findings-document.js";
 import { findingsFile } from "../findings-files.js";
 
 export function readStoredStructure(
   io: Io,
   root: string,
-): FindingsDocument | null {
+): SensorFindings | null {
   try {
-    return validateFindings(
+    return readSensorFindings(
       JSON.parse(io.readFile(findingsFile(root, "structure"))),
       { name: "structure" },
     );

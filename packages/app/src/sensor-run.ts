@@ -1,18 +1,22 @@
+import type {
+  SensorExclusion,
+  SensorFindings,
+  SuiteResult,
+} from "@recognizer/core";
 import {
   type Config,
   complexityUnmeasured,
   type Diagnosis,
   duplicationUnmeasured,
   type FindingEntry,
-  type FindingsDocument,
   InputError,
   type Policy,
   parseConfig,
   parsePolicy,
+  readSensorFindings,
   registeredSensors,
   resolveStructureSettings,
   scanHashes,
-  validateFindings,
 } from "recognizer";
 import {
   type Refusal,
@@ -22,7 +26,6 @@ import {
 import { type PlannedWork, scanHistory } from "./scan-estimate";
 import type { Loaded, LoadedScan } from "./scan-loading";
 import { scansCommit } from "./scans-commit";
-import type { SuiteResult } from "./suite-results";
 
 export type SensorStatus = {
   name: string;
@@ -36,12 +39,12 @@ export type SensorStatus = {
   modified?: boolean;
   stopped?: { measured: number; total: number };
   partial?: { measured: number; total: number };
-  excluded?: { functions: number; modules: string[] };
-  unowned?: { functions: number; modules: string[] };
+  excluded?: SensorExclusion;
+  unowned?: SensorExclusion;
   diagnosis?: Diagnosis;
   refusal?: Refusal;
   measured?: { inputs?: Record<string, string>; tests?: string };
-  suites?: SuiteResult[];
+  suites?: readonly SuiteResult[];
 };
 
 export type FindingsFiles = {
@@ -164,7 +167,7 @@ export const inertSensors: SensorsPort = {
 };
 
 export type SensorRun = {
-  documents: FindingsDocument[];
+  documents: SensorFindings[];
   statuses: SensorStatus[];
 };
 
@@ -227,9 +230,9 @@ export async function senseRepository(
   const config = readConfig(inputs.config, statuses);
   readPolicy(inputs.policy, statuses);
   const settings = resolveStructureSettings(config);
-  const documents: FindingsDocument[] = [];
+  const documents: SensorFindings[] = [];
   const read = await port.readFindings();
-  let structure: FindingsDocument | null = null;
+  let structure: SensorFindings | null = null;
   let structureRan = false;
 
   if (settings === "off") {
@@ -241,7 +244,7 @@ export async function senseRepository(
       statuses.push({ name: "structure", status: "not run" });
     } else {
       try {
-        const stored = validateFindings(JSON.parse(file.text), {
+        const stored = readSensorFindings(JSON.parse(file.text), {
           name: "structure",
         });
         const notMeasured = [
@@ -283,7 +286,7 @@ export async function senseRepository(
     }
 
     try {
-      const document = validateFindings(JSON.parse(file.text), {
+      const document = readSensorFindings(JSON.parse(file.text), {
         name: file.name,
       });
 
@@ -314,9 +317,8 @@ export async function senseRepository(
           ? { diagnosis: document.diagnosis }
           : {}),
         ...(document.suites !== undefined ? { suites: document.suites } : {}),
-        ...(document.reported_at !== undefined &&
-        !registered.includes(file.name)
-          ? { reported: { at: document.reported_at, commit: document.commit } }
+        ...(document.reportedAt !== undefined && !registered.includes(file.name)
+          ? { reported: { at: document.reportedAt, commit: document.commit } }
           : {}),
       });
     } catch (error) {

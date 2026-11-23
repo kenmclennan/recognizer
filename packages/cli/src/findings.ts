@@ -1,20 +1,20 @@
-import type { FindingRecord, FindingsDocument } from "./findings-document.js";
+import type { Finding, FindingRule, SensorFindings } from "@recognizer/core";
 import { principleName } from "./principles.js";
-import type { Rule, Violation, ViolationImport } from "./rules.js";
+import type { Violation, ViolationImport } from "./rules.js";
 
-export type Finding = {
+export type FindingNote = {
   severity: "violation" | "warning";
   text: string;
   why: string;
 };
 
-export function ruleText(rule: Rule): string {
+export function ruleText(rule: FindingRule): string {
   if (rule.type === "level") {
-    return `level ${rule.from_level} -> ${rule.to_level}`;
+    return `level ${rule.fromLevel} -> ${rule.toLevel}`;
   }
 
   if (rule.type === "uses") {
-    return `uses ${rule.from_component} -> ${rule.to_component}`;
+    return `uses ${rule.fromComponent} -> ${rule.toComponent}`;
   }
 
   return `forbid ${rule.pattern}`;
@@ -31,25 +31,29 @@ export function violationText(violation: Violation): string {
 }
 
 export function findingsByModuleFrom(
-  documents: FindingsDocument[],
-): Map<string, Finding[]> {
-  const violations = new Map<string, Finding[]>();
-  const warnings = new Map<string, Finding[]>();
+  documents: SensorFindings[],
+): Map<string, FindingNote[]> {
+  const violations = new Map<string, FindingNote[]>();
+  const warnings = new Map<string, FindingNote[]>();
 
-  function add(target: Map<string, Finding[]>, id: string, finding: Finding) {
+  function add(
+    target: Map<string, FindingNote[]>,
+    id: string,
+    finding: FindingNote,
+  ) {
     target.set(id, [...(target.get(id) ?? []), finding]);
   }
 
   for (const document of documents) {
     for (const record of document.findings) {
       const isViolation = record.severity === "violation";
-      const rule = record.evidence.edges?.[0]?.rules?.[0];
+      const rule = record.dependencies?.[0]?.rules?.[0];
       const why =
         isViolation && rule !== undefined
           ? ruleText(rule)
           : principleName(record.principle);
 
-      for (const id of record.evidence.modules) {
+      for (const id of record.files) {
         add(isViolation ? violations : warnings, id, {
           severity: record.severity,
           text: record.summary,
@@ -59,7 +63,7 @@ export function findingsByModuleFrom(
     }
   }
 
-  const merged = new Map<string, Finding[]>();
+  const merged = new Map<string, FindingNote[]>();
 
   for (const id of new Set([...violations.keys(), ...warnings.keys()])) {
     merged.set(id, [
@@ -71,8 +75,8 @@ export function findingsByModuleFrom(
   return merged;
 }
 
-export function linesDuplicated(record: FindingRecord): number {
-  return (record.evidence.members ?? []).reduce(
+export function linesDuplicated(record: Finding): number {
+  return (record.members ?? []).reduce(
     (sum, member) =>
       member.lines === undefined
         ? sum
@@ -81,7 +85,7 @@ export function linesDuplicated(record: FindingRecord): number {
   );
 }
 
-export function orderDuplication(records: FindingRecord[]): FindingRecord[] {
+export function orderDuplication(records: readonly Finding[]): Finding[] {
   const ranked = records
     .filter((record) => record.kind === "duplication")
     .sort(
@@ -92,6 +96,6 @@ export function orderDuplication(records: FindingRecord[]): FindingRecord[] {
   let next = 0;
 
   return records.map((record) =>
-    record.kind === "duplication" ? (ranked[next++] as FindingRecord) : record,
+    record.kind === "duplication" ? (ranked[next++] as Finding) : record,
   );
 }

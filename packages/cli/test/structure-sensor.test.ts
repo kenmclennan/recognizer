@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { sensorFindingsDocument } from "../src/adapters/filesystem/findings-translator.js";
 import {
   parseBaseline,
   serialiseBaseline,
@@ -131,7 +132,7 @@ describe("structureSensor ids", () => {
     const orphan = sense("check-warnings").document.findings.find(
       (f) => f.kind === "orphan",
     );
-    const to = orphan?.evidence.modules[0] as string;
+    const to = orphan?.files[0] as string;
     const withTests = {
       ...scan,
       testImports: [{ from: "tests/test_x.py", to }],
@@ -152,14 +153,16 @@ describe("structureSensor ids", () => {
         .filter((f) => f.kind === "orphan")
         .map((f) => f.id),
     );
-    expect(run(withTests).find((f) => f.id === orphan?.id)?.fix_pattern).toBe(
+    expect(run(withTests).find((f) => f.id === orphan?.id)?.fixPattern).toBe(
       "move-orphan-to-tests",
     );
   });
 
   it("produces a document that validates against the schema", () => {
     expect(() =>
-      validateFindings(sense("check").document, { name: "structure" }),
+      validateFindings(sensorFindingsDocument(sense("check").document), {
+        name: "structure",
+      }),
     ).not.toThrow();
   });
 
@@ -246,8 +249,8 @@ describe("grouped violation records", () => {
 
     expect(found).toHaveLength(1);
     expect(found[0]?.id).toBe("rule-violation:forbid d/** -> x/**:d/a.py");
-    expect(found[0]?.evidence.modules).toEqual(["d/a.py"]);
-    expect(found[0]?.evidence.edges).toEqual([
+    expect(found[0]?.files).toEqual(["d/a.py"]);
+    expect(found[0]?.dependencies).toEqual([
       {
         from: "d/a.py",
         to: "x/m1.py",
@@ -288,9 +291,7 @@ describe("the principle each finding cites", () => {
 
   it("cites the repository policy, with no citation key, on forbid violations", () => {
     const found = cited("check", "rule-violation").filter((finding) =>
-      finding.evidence.edges?.[0]?.rules?.every(
-        (rule) => rule.type === "forbid",
-      ),
+      finding.dependencies?.[0]?.rules?.every((rule) => rule.type === "forbid"),
     );
 
     expect(found.length).toBeGreaterThan(0);
@@ -303,7 +304,7 @@ describe("the principle each finding cites", () => {
 
   it("cites by the rules on each edge in the check fixture", () => {
     for (const finding of cited("check", "rule-violation")) {
-      const level = finding.evidence.edges?.[0]?.rules?.some(
+      const level = finding.dependencies?.[0]?.rules?.some(
         (rule) => rule.type === "level",
       );
 
@@ -411,7 +412,7 @@ describe("structure sensor inputs", () => {
   it("writes findings version 2 with the inputs and no tests", () => {
     const result = sense("check-warnings");
 
-    expect(result.document.findings_version).toBe(2);
+    expect(sensorFindingsDocument(result.document).findings_version).toBe(2);
     expect(result.document.inputs).toBeDefined();
     expect(result.document.tests).toBeUndefined();
   });

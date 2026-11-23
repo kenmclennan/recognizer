@@ -1,4 +1,5 @@
 import type { Repository } from "@recognizer/core";
+import { findingRuleOf } from "./adapters/filesystem/findings-translator.js";
 import { ruleText } from "./findings.js";
 import { keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
@@ -47,7 +48,7 @@ export function collectViolations(repository: Repository, policy: Policy) {
     }
 
     for (const rule of rules) {
-      const key = `${edge.from}\u0000${ruleText(rule)}`;
+      const key = `${edge.from}\u0000${ruleText(findingRuleOf(rule))}`;
       let group = found.get(key);
 
       if (group === undefined) {
@@ -74,7 +75,10 @@ export function collectViolations(repository: Repository, policy: Policy) {
   const violations = [...found.values()].sort(
     (a, b) =>
       compareText(a.from, b.from) ||
-      compareText(ruleText(a.rule), ruleText(b.rule)),
+      compareText(
+        ruleText(findingRuleOf(a.rule)),
+        ruleText(findingRuleOf(b.rule)),
+      ),
   );
 
   for (const violation of violations) {

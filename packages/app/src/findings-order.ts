@@ -1,8 +1,5 @@
-import {
-  type FindingRecord,
-  type FindingsDocument,
-  linesDuplicated,
-} from "recognizer";
+import type { Finding, SensorFindings } from "@recognizer/core";
+import { linesDuplicated } from "recognizer";
 
 export type FindingRow = {
   id: string;
@@ -13,7 +10,7 @@ export type FindingRow = {
   principle: string;
   sensor: string;
   reported: boolean;
-  record: FindingRecord;
+  record: Finding;
 };
 
 export type BadgeTone = "none" | "amber" | "red";
@@ -24,17 +21,17 @@ function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-export function findingRows(documents: FindingsDocument[]): FindingRow[] {
+export function findingRows(documents: SensorFindings[]): FindingRow[] {
   return documents.flatMap((document) =>
     document.findings.map((record) => ({
       id: record.id,
-      module: record.evidence.modules[0] ?? "",
+      module: record.files[0] ?? "",
       kind: record.kind,
       severity: record.severity,
       summary: record.summary,
       principle: record.principle,
       sensor: document.sensor.name,
-      reported: document.reported_at !== undefined,
+      reported: document.reportedAt !== undefined,
       record,
     })),
   );

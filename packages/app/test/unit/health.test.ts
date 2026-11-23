@@ -1,4 +1,4 @@
-import type { FindingsDocument } from "recognizer";
+import type { Finding, SensorFindings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   computeHealth,
@@ -20,7 +20,7 @@ import { type DocScan, repositoryFrom } from "./repository-from";
 function healthFor(
   name: string,
   policy: string | null,
-  findings: FindingsDocument[],
+  findings: SensorFindings[],
   baseline: string | null = null,
   modules?: string[],
 ) {
@@ -261,8 +261,8 @@ describe("computeHealth narrows a grouped finding by import", () => {
   const PLACE = "shop/application/place.py";
   const rule = {
     type: "level" as const,
-    from_level: "domain",
-    to_level: "adapters",
+    fromLevel: "domain",
+    toLevel: "adapters",
   };
   const edge = (to: string, line: number) => ({
     from: FROM,
@@ -277,17 +277,18 @@ describe("computeHealth narrows a grouped finding by import", () => {
     severity: "violation" as const,
     principle: "dependency-inversion-principle",
     summary: `depends on ${MEMORY} at line 4; depends on ${PLACE} at line 7`,
-    evidence: { modules: [FROM], edges: [edge(MEMORY, 4), edge(PLACE, 7)] },
+    files: [FROM],
+    dependencies: [edge(MEMORY, 4), edge(PLACE, 7)],
   };
   const baselineOf = (violations: object[]) =>
     JSON.stringify({ schema_version: 1, violations });
-  const visible = (violations: object[], extra: object[] = []) => {
+  const visible = (violations: object[], extra: Finding[] = []) => {
     const document = structureDocument("check", policy);
 
     return healthFor(
       "check",
       policy,
-      [{ ...document, findings: [grouped, ...extra] } as FindingsDocument],
+      [{ ...document, findings: [grouped, ...extra] }],
       baselineOf(violations),
     ).health.documents[0]?.findings;
   };
@@ -296,7 +297,7 @@ describe("computeHealth narrows a grouped finding by import", () => {
     const found = visible([{ from: FROM, to: MEMORY, kind: "depends" }]);
 
     expect(found).toHaveLength(1);
-    expect(found?.[0]?.evidence.edges?.map((one) => one.to)).toEqual([PLACE]);
+    expect(found?.[0]?.dependencies?.map((one) => one.to)).toEqual([PLACE]);
     expect(found?.[0]?.summary).toBe(`depends on ${PLACE} at line 7`);
   });
 
@@ -316,7 +317,7 @@ describe("computeHealth narrows a grouped finding by import", () => {
       severity: "violation" as const,
       principle: "p",
       summary: "s",
-      evidence: { modules: [FROM] },
+      files: [FROM],
     };
 
     expect(
@@ -490,18 +491,17 @@ describe("computeHealth judged per file", () => {
   function crap(
     inputs: Record<string, string> | undefined,
     tests: string | undefined = T,
-  ): FindingsDocument {
+  ): SensorFindings {
     const finding = (id: string, modules: string[]) => ({
       id,
       kind: "crap",
       severity: "warning" as const,
       principle: "reduce-risk",
       summary: id,
-      evidence: { modules },
+      files: modules,
     });
 
     return {
-      findings_version: 2,
       sensor: { name: "crap", version: "1" },
       commit: "whatever",
       modified: false,
@@ -516,7 +516,7 @@ describe("computeHealth judged per file", () => {
     };
   }
 
-  const healthOfDocument = (document: FindingsDocument, tests = T) =>
+  const healthOfDocument = (document: SensorFindings, tests = T) =>
     computeHealth({
       repository: repositoryFrom([scan]),
       policy: null,

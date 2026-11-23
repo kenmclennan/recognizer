@@ -852,7 +852,7 @@ describe("findings", () => {
       severity,
       principle,
       summary,
-      evidence: { modules: ["d/a.py"] },
+      files: ["d/a.py"],
     },
   });
   const violationRow = findingRow("violation", "v", "level 1 -> 2");
@@ -914,7 +914,7 @@ describe("findings", () => {
         findings: health.findings,
         findingRows: (id) =>
           findingRows(health.documents).filter((row) =>
-            row.record.evidence.modules.includes(id),
+            row.record.files.includes(id),
           ),
       }),
     ).rows;

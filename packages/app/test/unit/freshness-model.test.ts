@@ -69,8 +69,8 @@ function ran(
   name: string,
   ids: string[],
   hashes: Record<string, string> = {},
-  excluded?: { functions: number; modules: string[] },
-  unowned?: { functions: number; modules: string[] },
+  excluded?: { functions: number; files: string[] },
+  unowned?: { functions: number; files: string[] },
 ): PanelInput["sensors"][number] {
   return {
     ...(excluded !== undefined ? { excluded } : {}),
@@ -372,7 +372,7 @@ describe("freshness model sensor gaps and excluded files", () => {
     const model = modelOf(IDS, {
       sensors: [
         ran("crap", IDS),
-        ran("mutation", IDS, {}, { functions: 2, modules: ["a.py"] }),
+        ran("mutation", IDS, {}, { functions: 2, files: ["a.py"] }),
       ],
     });
 
@@ -404,7 +404,7 @@ describe("freshness model sensor gaps and excluded files", () => {
           "mutation",
           IDS,
           { "c.py": "old" },
-          { functions: 3, modules: ["a.py", "gone.py", "c.py"] },
+          { functions: 3, files: ["a.py", "gone.py", "c.py"] },
         ),
       ],
     });
@@ -421,7 +421,7 @@ describe("freshness model sensor gaps and excluded files", () => {
     const model = modelOf(IDS, {
       sensors: [
         ran("crap", IDS),
-        ran("mutation", IDS, {}, { functions: 2, modules: ["a.py", "b.py"] }),
+        ran("mutation", IDS, {}, { functions: 2, files: ["a.py", "b.py"] }),
       ],
     });
 
@@ -436,7 +436,7 @@ describe("freshness model sensor gaps and excluded files", () => {
         ran("crap", IDS),
         ran("mutation", IDS, {}, undefined, {
           functions: 2,
-          modules: ["a.py"],
+          files: ["a.py"],
         }),
       ],
     });
@@ -457,7 +457,7 @@ describe("freshness model sensor gaps and excluded files", () => {
         ran("crap", IDS),
         ran("mutation", IDS, {}, undefined, {
           functions: 2,
-          modules: ["a.py", "b.py"],
+          files: ["a.py", "b.py"],
         }),
       ],
     });
@@ -475,8 +475,8 @@ describe("freshness model sensor gaps and excluded files", () => {
           "mutation",
           IDS,
           {},
-          { functions: 1, modules: ["a.py"] },
-          { functions: 1, modules: ["a.py"] },
+          { functions: 1, files: ["a.py"] },
+          { functions: 1, files: ["a.py"] },
         ),
       ],
     });
@@ -500,7 +500,7 @@ describe("freshness model sensor gaps and excluded files", () => {
         ran("crap", IDS),
         ran("mutation", IDS, { "c.py": "old" }, undefined, {
           functions: 1,
-          modules: ["c.py"],
+          files: ["c.py"],
         }),
       ],
     });

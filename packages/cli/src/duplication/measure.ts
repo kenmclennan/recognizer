@@ -1,7 +1,11 @@
 import { join } from "node:path";
-import { type File, type Repository, scannedHashes } from "@recognizer/core";
+import {
+  type File,
+  type Finding,
+  type Repository,
+  scannedHashes,
+} from "@recognizer/core";
 import type { Io } from "../cli.js";
-import type { FindingRecord } from "../findings-document.js";
 import {
   type DuplicationSettings,
   findingsForUnits,
@@ -225,7 +229,7 @@ export function measureDuplication(
   settings: DuplicationSettings,
   parsers: Parsers,
   reuse = false,
-): FindingRecord[] {
+): Finding[] {
   const cache = reuse ? readUnitCache(io, root) : null;
   const next: UnitCache = {};
   const tally: Tally = { parsed: 0, reused: 0 };

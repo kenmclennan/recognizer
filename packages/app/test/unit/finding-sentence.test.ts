@@ -1,12 +1,16 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { FindingRecord, FindingsDocument } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { buildCatalog } from "../../src/finding-catalog";
 import { sentenceOf } from "../../src/finding-sentence";
 import { findingRows } from "../../src/findings-order";
 import { shippedSensors } from "../../src/shipped-fake";
+import {
+  type FindingLiteral,
+  findingFrom,
+  sensorFindingsFrom,
+} from "./sensor-findings-from";
 
 const CATALOG = buildCatalog({ status: "ok", sensors: shippedSensors() });
 
@@ -17,10 +21,10 @@ const examples = join(
   "../../../schema/findings-examples/valid",
 );
 
-function load(name: string): FindingsDocument {
-  return JSON.parse(
-    readFileSync(join(examples, `${name}.json`), "utf8"),
-  ) as FindingsDocument;
+function load(name: string) {
+  return sensorFindingsFrom(
+    JSON.parse(readFileSync(join(examples, `${name}.json`), "utf8")),
+  );
 }
 
 const FILES = [
@@ -45,8 +49,8 @@ const PINNED = [
   "The order total is stored without checking it against its lines.",
 ];
 
-function record(over: Partial<FindingRecord>): FindingRecord {
-  return {
+function record(over: FindingLiteral) {
+  return findingFrom({
     id: "x",
     kind: "cycle",
     severity: "warning",
@@ -54,10 +58,10 @@ function record(over: Partial<FindingRecord>): FindingRecord {
     summary: "the summary",
     evidence: { modules: [] },
     ...over,
-  };
+  });
 }
 
-const sentence = (over: Partial<FindingRecord>, reported = false) =>
+const sentence = (over: FindingLiteral, reported = false) =>
   sentenceOf({ record: record(over), reported }, CATALOG);
 
 describe("unused_exports test-only names", () => {

@@ -29,7 +29,7 @@ export interface Diagnosis {
   line: string;
   suite?: string;
   fix?: string;
-  failing?: { count?: number; names: string[] };
+  failing?: { count?: number; names: readonly string[] };
   unmeasured?: boolean;
 }
 

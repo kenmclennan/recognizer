@@ -1,6 +1,7 @@
+import type { Finding } from "@recognizer/core";
+import { findingRuleOf } from "./adapters/filesystem/findings-translator.js";
 import { InputError } from "./errors.js";
 import { importText, ruleText } from "./findings.js";
-import type { FindingRecord } from "./findings-document.js";
 import type { Violation } from "./rules.js";
 
 export interface Identity {
@@ -19,7 +20,7 @@ const KINDS = new Set(["depends", "inherits", "implements"]);
 const VIOLATION_PREFIX = "rule-violation:";
 
 export function violationId(violation: Pick<Violation, "from" | "rule">) {
-  return `${VIOLATION_PREFIX}${ruleText(violation.rule)}:${violation.from}`;
+  return `${VIOLATION_PREFIX}${ruleText(findingRuleOf(violation.rule))}:${violation.from}`;
 }
 
 export function edgeId(identity: Identity): string {
@@ -59,10 +60,10 @@ export function identityKey(entry: BaselineEntry): string {
 }
 
 export function narrowViolationRecord(
-  record: FindingRecord,
+  record: Finding,
   accepted: Set<string>,
-): FindingRecord | null {
-  const edges = record.evidence.edges ?? [];
+): Finding | null {
+  const edges = record.dependencies ?? [];
 
   if (
     record.kind !== "rule-violation" ||
@@ -98,11 +99,11 @@ export function narrowViolationRecord(
         importText({
           to: edge.to,
           kind: edge.kind as string,
-          lines: edge.lines ?? [],
+          lines: [...(edge.lines ?? [])],
         }),
       )
       .join("; "),
-    evidence: { ...record.evidence, edges: kept },
+    dependencies: kept,
   };
 }
 

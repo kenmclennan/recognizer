@@ -1,10 +1,10 @@
 import { join } from "node:path";
-import type { DirEntry, Io } from "./cli.js";
+import type { Finding, SensorFindings } from "@recognizer/core";
 import {
-  type FindingRecord,
-  type FindingsDocument,
-  validateFindings,
-} from "./findings-document.js";
+  readSensorFindings,
+  sensorFindingsDocument,
+} from "./adapters/filesystem/findings-translator.js";
+import type { DirEntry, Io } from "./cli.js";
 import {
   type Freshness,
   type Measured,
@@ -22,13 +22,16 @@ export function findingsFile(root: string, name: string): string {
 export function writeFindings(
   io: Io,
   root: string,
-  document: FindingsDocument,
+  findings: SensorFindings,
 ): void {
-  const target = findingsFile(root, document.sensor.name);
+  const target = findingsFile(root, findings.sensor.name);
   const temp = `${target}.tmp`;
 
   try {
-    io.writeFile(temp, `${JSON.stringify(document, null, 2)}\n`);
+    io.writeFile(
+      temp,
+      `${JSON.stringify(sensorFindingsDocument(findings), null, 2)}\n`,
+    );
     io.rename(temp, target);
   } catch (error) {
     io.remove(temp);
@@ -41,8 +44,8 @@ export type ReadOutcome =
   | {
       name: string;
       status: "read";
-      document: FindingsDocument;
-      hidden: FindingRecord[];
+      document: SensorFindings;
+      hidden: Finding[];
       valid: boolean;
       reported?: true;
     }
@@ -75,10 +78,10 @@ export function readFindingsFiles(
     .filter((name) => !skip.includes(name))
     .map((name): ReadOutcome => {
       const outside = allowed !== null && !allowed.includes(name);
-      let document: FindingsDocument;
+      let document: SensorFindings;
 
       try {
-        document = validateFindings(
+        document = readSensorFindings(
           JSON.parse(io.readFile(findingsFile(root, name))),
           { name },
         );
@@ -90,7 +93,7 @@ export function readFindingsFiles(
 
       if (
         outside &&
-        (name === "structure" || document.reported_at === undefined)
+        (name === "structure" || document.reportedAt === undefined)
       ) {
         return { name, status: "unregistered" };
       }

@@ -1,4 +1,4 @@
-import type { Repository } from "@recognizer/core";
+import type { Finding, Repository } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import { packageVersion } from "./cli.js";
 import { measureComplexityValues } from "./complexity/measure.js";
@@ -7,7 +7,6 @@ import type { DuplicationSettings } from "./duplication/findings.js";
 import { measureDuplication } from "./duplication/measure.js";
 import type { Parsers } from "./duplication/parsers.js";
 import { readStoredStructure } from "./duplication/stored.js";
-import type { FindingRecord } from "./findings-document.js";
 import { writeFindings } from "./findings-files.js";
 import { scansCommit } from "./load-findings.js";
 import type { Policy } from "./policy.js";
@@ -41,14 +40,14 @@ export function runStructureSensor(
   const errors: string[] = [];
   let sensed: StructureResult;
   let complexityValues: Record<string, number> | null = null;
-  let duplicationFindings: FindingRecord[] | null = null;
+  let duplicationFindings: Finding[] | null = null;
 
   if (parsers !== null) {
     const attempt = (
       label: string,
       wanted: boolean,
-      measure: (loaded: Parsers) => FindingRecord[],
-    ): FindingRecord[] | null => {
+      measure: (loaded: Parsers) => Finding[],
+    ): Finding[] | null => {
       if (!wanted) {
         return null;
       }

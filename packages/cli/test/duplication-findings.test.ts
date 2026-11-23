@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { findingRecordOf } from "../src/adapters/filesystem/findings-translator.js";
 import { DEFAULT_DUPLICATION_SETTINGS } from "../src/duplication/findings.js";
 import { measureDuplication } from "../src/duplication/measure.js";
 import {
@@ -48,7 +49,7 @@ describe("duplication findings against the Python sensor's goldens", () => {
         await allParsers(),
       );
 
-      expect(findings).toEqual(golden);
+      expect(findings.map(findingRecordOf)).toEqual(golden);
 
       if (name in COUNTS) {
         expect(findings).toHaveLength(COUNTS[name] as number);
@@ -84,8 +85,8 @@ describe("the corpus manifest", () => {
       );
       const pairs = new Set(
         findings.flatMap((finding) => {
-          const names = (finding.evidence.members ?? []).map(
-            (member) => `${member.file}::${member.name}`,
+          const names = (finding.members ?? []).map(
+            (member) => `${member.sourceFile}::${member.name}`,
           );
 
           return names.flatMap((x) => names.map((y) => `${x}|${y}`));

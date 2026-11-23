@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { Repository } from "@recognizer/core";
+import type { Finding, Repository } from "@recognizer/core";
 import type { Io } from "../cli.js";
 import { findFunctions } from "../duplication/functions.js";
 import { type Grammar, grammarFor } from "../duplication/grammars.js";
@@ -7,7 +7,6 @@ import { assignIdentities } from "../duplication/identity.js";
 import { decode } from "../duplication/measure.js";
 import type { Parsers } from "../duplication/parsers.js";
 import { isTestFile } from "../entry-points.js";
-import type { FindingRecord } from "../findings-document.js";
 import { COMPLEXITY_LIMIT } from "../function-length.js";
 import { keptGraph } from "../graph.js";
 import type { Policy } from "../policy.js";
@@ -79,34 +78,32 @@ function findingOf(
   module: string,
   fn: MeasuredFunction,
   limit: number,
-): FindingRecord {
+): Finding {
   return {
     id: `complexity:${fn.identity}`,
     kind: "complexity",
     severity: "warning",
     ...principleOf("cyclomatic-complexity-limit"),
     summary: `${fn.qualified} has complexity ${fn.complexity}, over the limit of ${limit}`,
-    evidence: {
-      modules: [module],
-      members: [
-        {
-          module,
-          name: fn.qualified,
-          file: module,
-          lines: [fn.startLine, fn.endLine],
-        },
-      ],
-      measures: {
-        complexity: fn.complexity,
-        limit,
-        ...(limit === COMPLEXITY_LIMIT ? {} : { published: COMPLEXITY_LIMIT }),
+    files: [module],
+    members: [
+      {
+        file: module,
+        name: fn.qualified,
+        sourceFile: module,
+        lines: [fn.startLine, fn.endLine],
       },
+    ],
+    measures: {
+      complexity: fn.complexity,
+      limit,
+      ...(limit === COMPLEXITY_LIMIT ? {} : { published: COMPLEXITY_LIMIT }),
     },
   };
 }
 
 export interface ComplexityMeasure {
-  findings: FindingRecord[];
+  findings: Finding[];
   values: Record<string, number>;
 }
 
@@ -119,7 +116,7 @@ export function measureComplexityValues(
   parsers: Parsers,
 ): ComplexityMeasure {
   const limit = settings.complexity_limit;
-  const findings: FindingRecord[] = [];
+  const findings: Finding[] = [];
   const values: Record<string, number> = {};
 
   const { ids } = keptGraph(repository, policy?.ignore ?? []);
@@ -173,7 +170,7 @@ export function measureComplexity(
   policy: Policy | null,
   settings: StructureSettings,
   parsers: Parsers,
-): FindingRecord[] {
+): Finding[] {
   return measureComplexityValues(
     io,
     root,

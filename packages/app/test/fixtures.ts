@@ -1,11 +1,14 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { EMPTY_REPOSITORY, joinRepositories } from "@recognizer/core";
+import {
+  EMPTY_REPOSITORY,
+  joinRepositories,
+  type SensorFindings,
+} from "@recognizer/core";
 import {
   buildFreshness,
   describeGap,
-  type FindingsDocument,
   freshnessScope,
   gapOf,
   measuredInputs,
@@ -94,7 +97,7 @@ export function structureDocument(
   name: string,
   policyText: string | null,
   commit = CURRENT,
-): FindingsDocument {
+): SensorFindings {
   const { repository } = fixtureScan(name, "scan.json", commit);
   const policy = policyText === null ? null : parsePolicy(policyText);
   const { document } = structureSensor(
@@ -121,7 +124,7 @@ export function structureDocument(
   return commit === CURRENT ? document : outOfDate(document);
 }
 
-function outOfDate(document: FindingsDocument): FindingsDocument {
+function outOfDate(document: SensorFindings): SensorFindings {
   return {
     ...document,
     inputs: Object.fromEntries(
@@ -141,9 +144,8 @@ export function secondSensorDocument(
   summary = "too many magic numbers",
   principle = "name-your-constants",
   commit = CURRENT,
-): FindingsDocument {
-  const document: FindingsDocument = {
-    findings_version: 1,
+): SensorFindings {
+  const document: SensorFindings = {
     sensor: { name: "lint", version: "1" },
     commit,
     modified: false,
@@ -156,7 +158,7 @@ export function secondSensorDocument(
         severity: "warning",
         principle,
         summary,
-        evidence: { modules: [module] },
+        files: [module],
       },
     ],
   };

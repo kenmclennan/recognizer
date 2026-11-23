@@ -1,5 +1,3 @@
-import type { FindingRecord, FindingsDocument } from "./findings-document.js";
-
 export {
   buildFreshness,
   type Freshness,
@@ -8,21 +6,21 @@ export {
   scanHashes,
 } from "@recognizer/core";
 
-import type { Freshness } from "@recognizer/core";
+import type { Finding, Freshness, SensorFindings } from "@recognizer/core";
 
-export function namedModules(record: FindingRecord): string[] {
+export function namedModules(record: Finding): string[] {
   return [
-    ...record.evidence.modules,
-    ...(record.evidence.members ?? []).map((member) => member.module),
+    ...record.files,
+    ...(record.members ?? []).map((member) => member.file),
   ];
 }
 
 export function splitFindings(
-  document: FindingsDocument,
+  document: SensorFindings,
   freshness: Freshness,
-): { current: FindingRecord[]; hidden: FindingRecord[] } {
-  const current: FindingRecord[] = [];
-  const hidden: FindingRecord[] = [];
+): { current: Finding[]; hidden: Finding[] } {
+  const current: Finding[] = [];
+  const hidden: Finding[] = [];
 
   for (const record of document.findings) {
     const named = namedModules(record);

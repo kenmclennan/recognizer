@@ -64,8 +64,8 @@ const orphans = (scan: ReturnType<typeof scanOf>) =>
 const TODAY = {
   summary:
     "a/lonely.py is imported by no file and is not an entry point; a library can list its public API in warnings.orphan.entry_points",
-  fix_pattern: "remove-or-wire-orphan",
-  evidence: { modules: ["a/lonely.py"] },
+  fixPattern: "remove-or-wire-orphan",
+  files: ["a/lonely.py"],
 };
 
 describe("orphan test importers", () => {
@@ -104,14 +104,12 @@ describe("orphan test importers", () => {
       ...principleOf("dead-code"),
       summary:
         "a/lonely.py is imported only by 2 test files: t/test_a.py, t/test_b.py; it is not an entry point, so if it only supports tests move it next to them rather than deleting it; a library can list its public API in warnings.orphan.entry_points",
-      fix_pattern: "move-orphan-to-tests",
-      evidence: {
-        modules: ["a/lonely.py"],
-        test_importers: [
-          { file: "t/test_a.py", names: [] },
-          { file: "t/test_b.py", names: [] },
-        ],
-      },
+      fixPattern: "move-orphan-to-tests",
+      files: ["a/lonely.py"],
+      testImporters: [
+        { file: "t/test_a.py", names: [] },
+        { file: "t/test_b.py", names: [] },
+      ],
     });
   });
 
@@ -121,7 +119,7 @@ describe("orphan test importers", () => {
     expect(finding?.summary).toContain(
       "imported only by 5 test files: t/test_a.py, t/test_b.py, t/test_c.py and 2 more;",
     );
-    expect(finding?.evidence.test_importers).toHaveLength(5);
+    expect(finding?.testImporters).toHaveLength(5);
   });
 
   it("words one, three and four test files at the boundary", () => {
@@ -151,7 +149,7 @@ describe("orphan test importers", () => {
     );
     const found = orphans(scan);
 
-    expect(found.map((finding) => [finding.id, finding.fix_pattern])).toEqual([
+    expect(found.map((finding) => [finding.id, finding.fixPattern])).toEqual([
       ["orphan:a/none.py", "remove-or-wire-orphan"],
       ["orphan:a/tested.py", "move-orphan-to-tests"],
       ["orphan:a/user.py", "remove-or-wire-orphan"],
@@ -170,7 +168,7 @@ describe("orphan test importers", () => {
       ),
     );
 
-    expect(finding?.evidence.test_importers).toEqual([
+    expect(finding?.testImporters).toEqual([
       { file: "t/test_a.py", names: ["One", "Two"] },
       { file: "t/test_b.py", names: [] },
     ]);

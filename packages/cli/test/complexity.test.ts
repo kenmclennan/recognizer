@@ -74,17 +74,15 @@ describe("the complexity warning", () => {
       severity: "warning",
       principle: "cyclomatic-complexity-limit",
       summary: "f has complexity 11, over the limit of 10",
-      evidence: {
-        modules: ["a.py"],
-        members: [{ module: "a.py", name: "f", file: "a.py" }],
-        measures: { complexity: 11, limit: 10 },
-      },
+      files: ["a.py"],
+      members: [{ file: "a.py", name: "f", sourceFile: "a.py" }],
+      measures: { complexity: 11, limit: 10 },
     });
     expect(finding?.citation).toMatchObject({
       author: "Thomas J. McCabe",
       year: 1976,
     });
-    expect(finding?.evidence.measures).not.toHaveProperty("published");
+    expect(finding?.measures).not.toHaveProperty("published");
   });
 
   it("names both figures when the limit is tuned and keeps the citation", () => {
@@ -96,7 +94,7 @@ describe("the complexity warning", () => {
     expect(findings.map((finding) => finding.id)).toEqual([
       "complexity:a.py::thirteen",
     ]);
-    expect(findings[0]?.evidence.measures).toEqual({
+    expect(findings[0]?.measures).toEqual({
       complexity: 13,
       limit: 12,
       published: 10,
@@ -159,10 +157,7 @@ describe("the complexity warning", () => {
     const { findings } = sense({ "a.py": source });
 
     expect(
-      findings.map((finding) => [
-        finding.id,
-        finding.evidence.measures?.complexity,
-      ]),
+      findings.map((finding) => [finding.id, finding.measures?.complexity]),
     ).toEqual([
       ["complexity:a.py::outer", 11],
       ["complexity:a.py::outer.inner", 11],

@@ -22,7 +22,7 @@ import {
   measuredLength,
 } from "./function-length";
 import type { FunctionLimits } from "./function-limits";
-import type { Disc, Finding } from "./health";
+import type { Disc, FindingNote } from "./health";
 import {
   type MemberMark,
   type MemberMarkWord,
@@ -45,7 +45,7 @@ export type InspectorInputs = {
   modules: string[];
   compaction: Compaction;
   disc: (id: string) => Disc;
-  findings: (id: string) => Finding[];
+  findings: (id: string) => FindingNote[];
   findingRows: (id: string) => FindingRow[];
   onCanvas: (id: string) => boolean;
   expanded: ReadonlySet<string>;
@@ -1197,7 +1197,7 @@ type FindingInputs = Pick<InspectorInputs, "findings" | "modules">;
 function findingsUnder(
   selection: NonNullable<Selection>,
   inputs: FindingInputs,
-): Finding[] {
+): FindingNote[] {
   if (selection.kind === "module") {
     return inputs.findings(selection.id);
   }

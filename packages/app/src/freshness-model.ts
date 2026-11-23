@@ -777,7 +777,7 @@ function noResultOf(
         continue;
       }
 
-      const named = listed.modules.filter(
+      const named = listed.files.filter(
         (id) => inScope.has(id) && hashes.has(id) && !gap.has(id),
       );
 

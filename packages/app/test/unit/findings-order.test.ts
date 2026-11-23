@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { FindingRecord, FindingsDocument } from "recognizer";
+import type { Finding, SensorFindings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   badge,
@@ -8,26 +8,26 @@ import {
   orderFindings,
   walkFindings,
 } from "../../src/findings-order";
+import { sensorFindingsFrom } from "./sensor-findings-from";
 
 function record(
   id: string,
   kind: string,
   severity: "violation" | "warning",
   module: string,
-): FindingRecord {
+): Finding {
   return {
     id,
     kind,
     severity,
     principle: "p",
     summary: `${kind} ${id}`,
-    evidence: { modules: [module] },
+    files: [module],
   };
 }
 
-function document(name: string, findings: FindingRecord[]): FindingsDocument {
+function document(name: string, findings: Finding[]): SensorFindings {
   return {
-    findings_version: 1,
     sensor: { name, version: "1" },
     commit: "c",
     modified: false,
@@ -53,17 +53,15 @@ function duplicate(
   id: string,
   sizes: number[],
   severity = "warning" as const,
-): FindingRecord {
+): Finding {
   return {
     ...record(id, "duplication", severity, "m.py"),
-    evidence: {
-      modules: ["m.py"],
-      members: sizes.map((size, index) => ({
-        module: "m.py",
-        name: `n${index}`,
-        lines: [1, size] as [number, number],
-      })),
-    },
+    files: ["m.py"],
+    members: sizes.map((size, index) => ({
+      file: "m.py",
+      name: `n${index}`,
+      lines: [1, size] as [number, number],
+    })),
   };
 }
 
@@ -112,7 +110,7 @@ describe("findingRows", () => {
       ),
       "utf8",
     );
-    const real = findingRows([JSON.parse(text) as FindingsDocument]);
+    const real = findingRows([sensorFindingsFrom(JSON.parse(text))]);
     const ordered = orderFindings(real);
 
     expect(ordered.map((row) => row.kind)).toEqual([

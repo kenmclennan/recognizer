@@ -1,3 +1,4 @@
+import type { Finding, SensorFindings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   carryMeasured as carryDuplication,
@@ -5,10 +6,6 @@ import {
   complexityUnmeasured,
 } from "../src/duplication/carry.js";
 import { DEFAULT_DUPLICATION_SETTINGS } from "../src/duplication/findings.js";
-import type {
-  FindingRecord,
-  FindingsDocument,
-} from "../src/findings-document.js";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
   type StructureSettings,
@@ -16,20 +13,19 @@ import {
 
 const SETTINGS: StructureSettings = DEFAULT_STRUCTURE_SETTINGS;
 
-function duplicate(id: string): FindingRecord {
+function duplicate(id: string): Finding {
   return {
     id,
     kind: "duplication",
     severity: "warning",
     principle: "dont-repeat-yourself",
     summary: id,
-    evidence: { modules: ["a.py"] },
+    files: ["a.py"],
   };
 }
 
-function document(overrides: Partial<FindingsDocument> = {}): FindingsDocument {
+function document(overrides: Partial<SensorFindings> = {}): SensorFindings {
   return {
-    findings_version: 2,
     sensor: { name: "structure", version: "18" },
     commit: "c1",
     modified: false,
@@ -40,7 +36,7 @@ function document(overrides: Partial<FindingsDocument> = {}): FindingsDocument {
   };
 }
 
-function stored(overrides: Partial<FindingsDocument> = {}): FindingsDocument {
+function stored(overrides: Partial<SensorFindings> = {}): SensorFindings {
   return document({
     settings: { entry_points: [], duplication: { ...SETTINGS.duplication } },
     findings: [duplicate("duplication:a"), duplicate("duplication:b")],
@@ -115,18 +111,18 @@ describe("carryDuplication", () => {
   });
 });
 
-function complexityFinding(id: string): FindingRecord {
+function complexityFinding(id: string): Finding {
   return {
     id,
     kind: "complexity",
     severity: "warning",
     principle: "cyclomatic-complexity-limit",
     summary: id,
-    evidence: { modules: ["a.py"] },
+    files: ["a.py"],
   };
 }
 
-function storedBoth(limit: number | null = 10): FindingsDocument {
+function storedBoth(limit: number | null = 10): SensorFindings {
   return stored({
     settings: {
       entry_points: [],
