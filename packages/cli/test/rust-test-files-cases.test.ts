@@ -24,7 +24,7 @@ const CASES = JSON.parse(
 ) as FileCase[];
 
 describe("rustTestFiles against the shared file cases", () => {
-  it("reads a table with more than fifteen cases", () => {
+  it("reads a table with more than twenty-two cases", () => {
     expect(CASES.length).toBeGreaterThan(22);
   });
 
