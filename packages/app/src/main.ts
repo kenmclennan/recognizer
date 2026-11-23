@@ -21,6 +21,7 @@ import { repositorySource } from "./repository-source";
 import { createRescanner } from "./rescanner";
 import { responsibilitiesSource } from "./responsibilities-source";
 import { runLogPath } from "./run-log-path";
+import { createChangesHandler } from "./scan-changes";
 import { OPEN_RUN } from "./scan-freshness";
 import { type Loaded, loadScans } from "./scan-loading";
 import { openProgressModel, STOPPED_MODEL } from "./scan-open-model";
@@ -439,11 +440,13 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-void repositorySource.onChanges((changes) => {
-  if (scanState !== null) {
-    setScanState({ ...scanState, changes });
-  }
-});
+void repositorySource.onChanges(
+  createChangesHandler({
+    state: () => scanState,
+    setState: setScanState,
+    refreshPanel: () => explorer?.refreshPanel(),
+  }),
+);
 
 void repositorySource.onFolderAssigned(() => void start());
 
