@@ -10,6 +10,7 @@ export const OPERATIONS = [
   "scan.plan",
   "confirm.answer",
   "sensor.work",
+  "tests.hash",
   "view.parse",
   "view.serialise",
 ] as const;
@@ -183,4 +184,27 @@ export function suiteMap(
   }
 
   return value as Record<string, string[]>;
+}
+
+export function knownHashes(
+  args: Record<string, unknown>,
+  name: string,
+): Map<string, string> {
+  const value = args[name];
+
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new ArgsError([`${name} must map a path to its hash`]);
+  }
+
+  const known = new Map<string, string>();
+
+  for (const [path, hash] of Object.entries(value)) {
+    if (typeof hash !== "string") {
+      throw new ArgsError([`${name} must map a path to its hash`]);
+    }
+
+    known.set(path, hash);
+  }
+
+  return known;
 }

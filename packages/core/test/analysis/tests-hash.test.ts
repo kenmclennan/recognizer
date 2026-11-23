@@ -7,6 +7,7 @@ import {
   freshnessFor,
   Repository,
   type TestsHashPorts,
+  testsHashOf,
 } from "../../src/index.js";
 import { createFakes } from "../fakes/container.js";
 import { ROOT } from "./analysis-world.js";
@@ -116,6 +117,62 @@ describe("currentTestsHash", () => {
 
     expect(currentTestsHash(ports, ROOT, Repository.empty)).toBe(
       expected.digest,
+    );
+  });
+});
+
+describe("testsHashOf", () => {
+  it("takes a known hash over the disk and reads the disk otherwise", () => {
+    const { fakes, ports } = world();
+
+    fakes.source.listed = ["tests/a.py", "tests/b.py", "tests/c.py"];
+    fakes.source.hashes.set(`${ROOT}/tests/a.py`, "disk-a");
+    fakes.source.hashes.set(`${ROOT}/tests/b.py`, "disk-b");
+    fakes.source.hashes.set(`${ROOT}/tests/c.py`, "disk-c");
+
+    const digest = testsHashOf(
+      ports,
+      ROOT,
+      new Map([
+        ["tests/a.py", "known-a"],
+        ["tests/b.py", "known-b"],
+        ["tests/c.py", ""],
+      ]),
+    );
+
+    expect(digest).toBe(
+      fakes.digest.sha256(
+        "tests/a.py\tknown-a\ntests/b.py\tknown-b\ntests/c.py\tdisk-c\n",
+      ),
+    );
+    expect(fakes.source.calls).toContain("hashOf tests/c.py");
+    expect(fakes.source.calls).not.toContain("hashOf tests/a.py");
+  });
+
+  it("skips a file it cannot read", () => {
+    const { fakes, ports } = world();
+
+    fakes.source.listed = ["tests/a.py", "tests/b.py"];
+    fakes.source.hashes.set(`${ROOT}/tests/b.py`, "disk-b");
+
+    expect(testsHashOf(ports, ROOT, new Map())).toBe(
+      fakes.digest.sha256("tests/b.py\tdisk-b\n"),
+    );
+    expect(fakes.source.calls).toContain("hashOf tests/a.py");
+  });
+
+  it("currentTestsHash gives the same digest through the repository and through the known map", () => {
+    const { fakes, ports } = world();
+    const hashes = { "tests/a.py": "scanned-a" };
+
+    fakes.source.listed = ["tests/a.py", "tests/b.py"];
+    fakes.source.hashes.set(`${ROOT}/tests/b.py`, "disk-b");
+
+    expect(currentTestsHash(ports, ROOT, scannedAs(hashes))).toBe(
+      testsHashOf(ports, ROOT, new Map(Object.entries(hashes))),
+    );
+    expect(testsHashOf(ports, ROOT, new Map(Object.entries(hashes)))).toBe(
+      fakes.digest.sha256("tests/a.py\tscanned-a\ntests/b.py\tdisk-b\n"),
     );
   });
 });
