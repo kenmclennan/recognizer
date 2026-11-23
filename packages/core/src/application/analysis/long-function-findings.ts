@@ -1,10 +1,9 @@
 import { isTestFile } from "../../domain/analysis/entry-points.js";
-import { Finding } from "../../domain/finding.js";
 import { LONG_FUNCTION, measuredLength } from "../../domain/function-length.js";
 import type { Member } from "../../domain/member.js";
 import type { PolicyRule } from "../../domain/policy-rule.js";
-import { principleOf } from "../../domain/principles.js";
 import type { Repository } from "../../domain/repository.js";
+import { Warning } from "../../domain/warning.js";
 
 function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
@@ -73,13 +72,13 @@ export function functionLengths(
   return lengths;
 }
 
-export function longFunctionFindings(
+export function longFunctionWarnings(
   repository: Repository,
   policy: readonly PolicyRule[] | null,
   limit: number = LONG_FUNCTION,
-): Finding[] {
+): Warning[] {
   const { ids } = repository.graphKeeping(policy);
-  const findings: Finding[] = [];
+  const findings: Warning[] = [];
 
   for (const module of repository.files) {
     if (!ids.has(module.path) || isTestFile(module.path)) {
@@ -111,11 +110,10 @@ export function longFunctionFindings(
           : `${module.path}::${fn.qualified}`;
 
       findings.push(
-        Finding.stored({
+        new Warning({
           id: `long_function:${identity}`,
           kind: "long_function",
-          severity: "warning",
-          ...principleOf("small-functions"),
+          principle: "small-functions",
           summary:
             fn.bodyLine === undefined
               ? `${fn.qualified} is ${length} lines, over the limit of ${limit}`

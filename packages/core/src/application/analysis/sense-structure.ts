@@ -10,16 +10,16 @@ import {
 } from "../../domain/structure-settings.js";
 import type { Warning } from "../../domain/warning.js";
 import { violationId } from "../history/settle-baseline.js";
-import { longFunctionFindings } from "./long-function-findings.js";
+import { longFunctionWarnings } from "./long-function-findings.js";
 import { type FolderMetrics, measureFolders } from "./measure-folders.js";
 import { type ModuleMetrics, measureModules } from "./measure-modules.js";
-import { orphanFindings } from "./orphan-findings.js";
-import { privateImportsFindings } from "./private-imports-findings.js";
-import { unusedExportsFindings } from "./unused-exports-findings.js";
+import { orphanWarnings } from "./orphan-findings.js";
+import { privateImportsWarnings } from "./private-imports-findings.js";
+import { unusedExportsWarnings } from "./unused-exports-findings.js";
 
-export interface MeasuredFindings {
-  duplication: Finding[] | null;
-  complexity: Finding[] | null;
+export interface MeasuredWarnings {
+  duplication: Warning[] | null;
+  complexity: Warning[] | null;
 }
 
 export interface StructureContext {
@@ -46,19 +46,6 @@ export function violationPrinciple(rules: readonly ViolatedRule[]): string {
     : "repository-policy";
 }
 
-function warningFinding(warning: Warning): Finding {
-  return Finding.stored({
-    id: `cycle:${warning.files.join(",")}`,
-    kind: "cycle",
-    severity: "warning",
-    ...principleOf(warning.principle),
-    summary: warning.summary,
-    fixPattern: warning.fixPattern,
-    files: warning.files,
-    dependencies: warning.dependencies,
-  });
-}
-
 export function measuredInputs(repository: Repository): Record<string, string> {
   const inputs: Record<string, string> = {};
   const hashes = repository.scannedHashes();
@@ -81,24 +68,30 @@ export function senseStructure(
   policy: readonly PolicyRule[] | null,
   settings: StructureSettings,
   context: StructureContext,
-  measured: MeasuredFindings = { duplication: null, complexity: null },
+  measured: MeasuredWarnings = { duplication: null, complexity: null },
 ): StructureResult {
   const findings: Finding[] = [];
   const seen = new Set<string>();
   const metrics: ModuleMetrics[] = [];
-  const warnings: Finding[] = [];
+  const warnings: Warning[] = [];
 
-  const add = (target: Finding[], finding: Finding) => {
+  const addFinding = (finding: Finding) => {
     if (!seen.has(finding.id)) {
       seen.add(finding.id);
-      target.push(finding);
+      findings.push(finding);
+    }
+  };
+
+  const addWarning = (warning: Warning) => {
+    if (!seen.has(warning.id)) {
+      seen.add(warning.id);
+      warnings.push(warning);
     }
   };
 
   if (policy !== null) {
     for (const violation of repository.violations(policy)) {
-      add(
-        findings,
+      addFinding(
         Finding.stored({
           id: violationId(violation),
           kind: "rule-violation",
@@ -124,13 +117,13 @@ export function senseStructure(
 
   if (settings.warnings.cycle) {
     for (const warning of repository.cycleWarnings(policy ?? [])) {
-      add(warnings, warningFinding(warning));
+      addWarning(warning);
     }
   }
 
   const extra = [
     ...(settings.warnings.orphan
-      ? orphanFindings(
+      ? orphanWarnings(
           repository,
           policy,
           settings.entry_points,
@@ -138,18 +131,18 @@ export function senseStructure(
         )
       : []),
     ...(settings.warnings.unused_exports
-      ? unusedExportsFindings(repository, policy, settings.entry_points)
+      ? unusedExportsWarnings(repository, policy, settings.entry_points)
       : []),
     ...(settings.warnings.private_imports
-      ? privateImportsFindings(repository, policy)
+      ? privateImportsWarnings(repository, policy)
       : []),
     ...(settings.warnings.long_function
-      ? longFunctionFindings(repository, policy, settings.long_function_limit)
+      ? longFunctionWarnings(repository, policy, settings.long_function_limit)
       : []),
   ];
 
-  for (const finding of extra) {
-    add(warnings, finding);
+  for (const warning of extra) {
+    addWarning(warning);
   }
 
   const folders = measureFolders(repository, policy);
@@ -180,9 +173,9 @@ export function senseStructure(
       },
       findings: [
         ...findings,
-        ...warnings,
-        ...(measured.duplication ?? []),
-        ...(measured.complexity ?? []),
+        ...warnings.map((warning) => warning.toFinding()),
+        ...(measured.duplication ?? []).map((warning) => warning.toFinding()),
+        ...(measured.complexity ?? []).map((warning) => warning.toFinding()),
       ],
       inputs: measuredInputs(repository),
     },

@@ -75,20 +75,26 @@ function printViolation({
 }
 
 function printWarning(reported: ReportedWarning): PrintedCycle | OtherFinding {
-  if (reported.type === "cycle") {
-    return {
-      id: "cycle",
-      principle: reported.value.principle,
-      fix_pattern: reported.value.fixPattern,
-      summary: reported.value.summary,
-      evidence: {
-        modules: [...reported.value.files],
-        edges: reported.value.dependencies.map(({ from, to }) => ({
-          from,
-          to,
-        })),
-      },
-    };
+  if (reported.type === "warning") {
+    const warning = reported.value;
+
+    if (warning.kind === "cycle") {
+      return {
+        id: "cycle",
+        principle: warning.principle,
+        fix_pattern: warning.fixPattern,
+        summary: warning.summary,
+        evidence: {
+          modules: [...warning.files],
+          edges: (warning.dependencies ?? []).map(({ from, to }) => ({
+            from,
+            to,
+          })),
+        },
+      };
+    }
+
+    return otherFindingOf(warning.toFinding());
   }
 
   return otherFindingOf(reported.value);
@@ -139,9 +145,7 @@ const TEST_FILE_LINES_SHOWN = 10;
 
 function testFileLines(warning: ReportedWarning): string[] {
   const importers =
-    warning.type === "finding" && warning.value.kind === "orphan"
-      ? warning.value.testImporters
-      : undefined;
+    warning.value.kind === "orphan" ? warning.value.testImporters : undefined;
 
   if (!importers || importers.length === 0) {
     return [];

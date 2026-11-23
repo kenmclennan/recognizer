@@ -5,14 +5,14 @@ import {
   DEFAULT_STRUCTURE_SETTINGS,
   describeSettings,
   File,
-  longFunctionFindings,
-  orphanFindings,
+  longFunctionWarnings,
+  orphanWarnings,
   principleOf,
-  privateImportsFindings,
+  privateImportsWarnings,
   Repository,
   type StructureSettings,
   senseStructure as structureSensor,
-  unusedExportsFindings,
+  unusedExportsWarnings,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { parseConfig } from "../src/config-parse.js";
@@ -50,7 +50,7 @@ describe("orphan", () => {
     edges: [string, string][] = [],
   ) =>
     ids(
-      orphanFindings(
+      orphanWarnings(
         scanOf(edges, modules),
         policy === null ? null : parsePolicy(policy),
         entryPoints,
@@ -63,13 +63,13 @@ describe("orphan", () => {
   });
 
   it("skips a file the scan flags as an entry point", () => {
-    const flagged = orphanFindings(
+    const flagged = orphanWarnings(
       scanOf([], ["app/run.py", "app/plain.py"], ["app/run.py"]),
       null,
       [],
       [],
     );
-    const unflagged = orphanFindings(scanOf([], ["app/run.py"]), null, [], []);
+    const unflagged = orphanWarnings(scanOf([], ["app/run.py"]), null, [], []);
 
     expect(ids(flagged)).toEqual(["orphan:app/plain.py"]);
     expect(ids(unflagged)).toEqual(["orphan:app/run.py"]);
@@ -86,14 +86,14 @@ describe("orphan", () => {
   });
 
   it("describes the finding", () => {
-    const [finding] = orphanFindings(
+    const [finding] = orphanWarnings(
       scanOf([], ["app/plain.py"]),
       null,
       [],
       [],
     );
 
-    expect(finding).toMatchObject({
+    expect(finding?.toFinding()).toMatchObject({
       kind: "orphan",
       severity: "warning",
       ...principleOf("dead-code"),
@@ -149,7 +149,7 @@ describe("orphan", () => {
       ["orphan:app/index.ts"],
     );
     expect(
-      orphanFindings(scanOf([], ["app/index.ts"]), null, [], [])[0]?.summary,
+      orphanWarnings(scanOf([], ["app/index.ts"]), null, [], [])[0]?.summary,
     ).toMatch(/entry_points$/);
   });
 
@@ -198,7 +198,7 @@ describe("orphan actual_of", () => {
     policy: string | null = null,
   ) =>
     ids(
-      orphanFindings(
+      orphanWarnings(
         scanWith(edges, modules, actualOf),
         policy === null ? null : parsePolicy(policy),
         [],
@@ -271,7 +271,7 @@ describe("orphan actual_of", () => {
   });
 
   it("ends the summary of every orphan with the library hint", () => {
-    const kt = orphanFindings(
+    const kt = orphanWarnings(
       scanOf([], ["a/M.kt", "a/N.cs", "a/p.py"]),
       null,
       [],
@@ -322,7 +322,7 @@ describe("orphan over Kotlin dependency injection", () => {
   const orphans = (
     scan: ReturnType<typeof injected>,
     annotations: string[] = [],
-  ) => ids(orphanFindings(scan, null, [], annotations));
+  ) => ids(orphanWarnings(scan, null, [], annotations));
 
   const WIRED: Edge[] = [
     ["UserController.kt", "GetUserPort.kt", "depends"],
@@ -1045,7 +1045,7 @@ function unusedOf(
   policyYaml: string | null = null,
   calls: UnusedCall[] = [],
 ) {
-  const found = unusedExportsFindings(
+  const found = unusedExportsWarnings(
     unusedScan(modules, edges, calls),
     policyYaml === null ? null : parsePolicy(policyYaml),
     entryPoints,
@@ -1068,7 +1068,7 @@ function unusedWithTests(
   id = "a/m.py",
   language = "python",
 ) {
-  const found = unusedExportsFindings(
+  const found = unusedExportsWarnings(
     unusedScan([{ id, exports }], [], [], testImports, language),
     null,
     [],
@@ -1126,7 +1126,7 @@ describe("unused_exports test-only names", () => {
   });
 
   it("leaves a name used by a non-test file unlisted even when a test imports it", () => {
-    const found = unusedExportsFindings(
+    const found = unusedExportsWarnings(
       unusedScan(
         [
           { id: "a/m.py", exports: ["a", "b"] },
@@ -1187,7 +1187,7 @@ describe("unused_exports test-only names", () => {
         ),
       ),
     );
-    const found = unusedExportsFindings(scan, null, []);
+    const found = unusedExportsWarnings(scan, null, []);
     const members = found.flatMap((finding) => finding.members ?? []);
     const used = (name: string, names: readonly string[]) =>
       names.includes(name) || names.includes(name.split(".", 1)[0] as string);
@@ -1221,8 +1221,8 @@ describe("unused_exports test-only names", () => {
       readFileSync(join(REPO, "fixtures/python/expected-scan.json"), "utf8"),
     );
     const { test_imports: _dropped, ...stripped } = raw;
-    const withTests = unusedExportsFindings(validateScan(raw), null, []);
-    const without = unusedExportsFindings(validateScan(stripped), null, []);
+    const withTests = unusedExportsWarnings(validateScan(raw), null, []);
+    const without = unusedExportsWarnings(validateScan(stripped), null, []);
 
     expect(withTests).toEqual(without);
   });
@@ -1435,7 +1435,7 @@ describe("unused_exports", () => {
   });
 
   it("lists only the unused name of a partly used file", () => {
-    const found = unusedExportsFindings(
+    const found = unusedExportsWarnings(
       unusedScan(
         [
           { id: "shop/a.py", exports: ["a", "b", "c"] },
@@ -1473,7 +1473,7 @@ describe("unused_exports", () => {
       ),
     ).toEqual({});
 
-    const [finding] = unusedExportsFindings(
+    const [finding] = unusedExportsWarnings(
       unusedScan([{ id: "shop/a.py", exports: ["c", "a", "b"] }]),
       null,
       [],
@@ -1607,18 +1607,18 @@ describe("unused_exports", () => {
   });
 
   it("gives a file the file and lines, and a package neither", () => {
-    const [module] = unusedExportsFindings(
+    const [module] = unusedExportsWarnings(
       unusedScan([{ id: "shop/a.py", exports: ["a"] }]),
       null,
       [],
     );
-    const [pkg] = unusedExportsFindings(
+    const [pkg] = unusedExportsWarnings(
       unusedScan([{ id: "app/domain", kind: "package", exports: ["Zed"] }]),
       null,
       [],
     );
 
-    expect(module).toMatchObject({
+    expect(module?.toFinding()).toMatchObject({
       id: "unused_exports:shop/a.py",
       kind: "unused_exports",
       severity: "warning",
@@ -1637,7 +1637,7 @@ describe("unused_exports", () => {
   });
 
   it("sorts findings by id", () => {
-    const found = unusedExportsFindings(
+    const found = unusedExportsWarnings(
       unusedScan([
         { id: "shop/z.py", exports: ["z"] },
         { id: "shop/a.py", exports: ["a"] },
@@ -1800,7 +1800,7 @@ describe("unused_exports", () => {
           ),
         ),
       );
-      const found = unusedExportsFindings(scan, null, []);
+      const found = unusedExportsWarnings(scan, null, []);
 
       expect(
         Object.fromEntries(
@@ -1904,7 +1904,7 @@ describe("private_imports", () => {
     edges: PrivateEdge[],
     policy: string | null = null,
   ) =>
-    privateImportsFindings(
+    privateImportsWarnings(
       privateScan(modules, edges),
       policy === null ? null : parsePolicy(policy),
     );
@@ -1921,7 +1921,7 @@ describe("private_imports", () => {
     );
 
     expect(ids(result)).toEqual(["private_imports:app/store.py"]);
-    expect(result[0]).toMatchObject({
+    expect(result[0]?.toFinding()).toMatchObject({
       kind: "private_imports",
       severity: "warning",
       ...principleOf("information-hiding"),
@@ -2180,7 +2180,7 @@ describe("private_imports", () => {
 
   it("measures the committed fixture scans", () => {
     const run = (path: string) =>
-      privateImportsFindings(
+      privateImportsWarnings(
         validateScan(
           JSON.parse(readFileSync(join(REPO, "fixtures", path), "utf8")),
         ),
@@ -2277,13 +2277,13 @@ describe("long_function", () => {
     });
 
   const found = (modules: Mod[], policy: string | null = null) =>
-    longFunctionFindings(
+    longFunctionWarnings(
       scanWith(modules),
       policy === null ? null : parsePolicy(policy),
     );
 
   const foundAt = (modules: Mod[], limit: number) =>
-    longFunctionFindings(scanWith(modules), null, limit);
+    longFunctionWarnings(scanWith(modules), null, limit);
 
   const span = (name: string, line: number, end_line: number): Fn => ({
     name,
@@ -2315,7 +2315,7 @@ describe("long_function", () => {
       limit: 30,
       published: 20,
     });
-    expect(finding).toMatchObject(principleOf("small-functions"));
+    expect(finding?.toFinding()).toMatchObject(principleOf("small-functions"));
   });
 
   it("carries no published measure at the published limit", () => {
@@ -2336,7 +2336,7 @@ describe("long_function", () => {
     ]);
 
     expect(ids(result)).toEqual(["long_function:lib/store.py::b"]);
-    expect(result[0]).toMatchObject({
+    expect(result[0]?.toFinding()).toMatchObject({
       kind: "long_function",
       severity: "warning",
       ...principleOf("small-functions"),
@@ -2632,7 +2632,7 @@ describe("long_function", () => {
 
       withFunctions += measured.length > 0 ? 1 : 0;
       expect(Math.max(0, ...measured), path).toBeLessThan(21);
-      expect(longFunctionFindings(scan, null), path).toEqual([]);
+      expect(longFunctionWarnings(scan, null), path).toEqual([]);
     }
 
     expect(withFunctions).toBeGreaterThanOrEqual(paths.length - 1);

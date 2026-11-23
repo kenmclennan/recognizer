@@ -18,7 +18,6 @@ import {
 import { isTrivialShape } from "../../domain/analysis/duplication/shapes.js";
 import { comparedSpan } from "../../domain/analysis/duplication/span.js";
 import type { File } from "../../domain/file.js";
-import type { Finding } from "../../domain/finding.js";
 import type { FindingsRepository } from "../../domain/findings-repository.js";
 import type { Repository } from "../../domain/repository.js";
 import {
@@ -26,6 +25,7 @@ import {
   reusable,
   type UnitCache,
 } from "../../domain/unit-cache.js";
+import type { Warning } from "../../domain/warning.js";
 import type { Say } from "../shared/ports/process.js";
 import type { Digest } from "./ports/digest.js";
 import type { Parsers } from "./ports/parsing.js";
@@ -242,7 +242,7 @@ export function measureDuplication(
   settings: DuplicationSettings,
   parsers: Parsers,
   reuse = false,
-): Finding[] {
+): Warning[] {
   let cache: UnitCache | null = null;
 
   if (reuse) {

@@ -1,6 +1,6 @@
 import type { DuplicationSettings } from "../../duplication-settings.js";
-import { Finding, type FindingMember } from "../../finding.js";
-import { principleOf } from "../../principles.js";
+import type { FindingMember } from "../../finding.js";
+import { Warning } from "../../warning.js";
 import {
   type Pair,
   prunedPairs,
@@ -75,7 +75,7 @@ function sharedPrefix(members: readonly Unit[]): string | null {
   return prefix === "" || prefix === undefined ? null : prefix;
 }
 
-export function linesOf(finding: Finding): number {
+export function linesOf(finding: Warning): number {
   return (finding.members ?? []).reduce(
     (sum, member) =>
       sum +
@@ -86,7 +86,7 @@ export function linesOf(finding: Finding): number {
   );
 }
 
-export function findingFor(unsorted: readonly Unit[], score: number): Finding {
+export function findingFor(unsorted: readonly Unit[], score: number): Warning {
   const members = [...unsorted].sort((a, b) =>
     compareCodePoints(a.identity, b.identity),
   );
@@ -110,11 +110,10 @@ export function findingFor(unsorted: readonly Unit[], score: number): Finding {
         : `${members.length} methods of ${prefix} share one structure`;
   }
 
-  return Finding.stored({
+  return new Warning({
     id,
     kind: "duplication",
-    severity: "warning",
-    ...principleOf(PRINCIPLE),
+    principle: PRINCIPLE,
     fixPattern: FIX_PATTERN,
     summary,
     files: [...new Set(members.map((unit) => unit.module))].sort(
@@ -177,7 +176,7 @@ function moduleFinding(
   modules: readonly string[],
   edges: readonly Edge[],
   units: readonly Unit[],
-): Finding {
+): Warning {
   const sorted = [...modules].sort(compareCodePoints);
   const touched = new Map<number, Unit>();
   const pairs: string[] = [];
@@ -205,11 +204,10 @@ function moduleFinding(
   );
   const suffix = sorted.length === 2 ? "" : `#${sorted.length}`;
 
-  return Finding.stored({
+  return new Warning({
     id: `duplication:modules:${sorted[0]}|${sorted[1]}${suffix}`,
     kind: "duplication",
-    severity: "warning",
-    ...principleOf(PRINCIPLE),
+    principle: PRINCIPLE,
     fixPattern: FIX_PATTERN,
     summary: `${sorted.join(", ")} copy each other: ${pairs.sort(compareCodePoints).join("; ")}`,
     files: sorted,
@@ -222,7 +220,7 @@ function moduleFindings(
   units: readonly Unit[],
   edges: readonly Edge[],
   settings: DuplicationSettings,
-): { findings: Finding[]; absorbed: Set<Edge> } {
+): { findings: Warning[]; absorbed: Set<Edge> } {
   const floor = Math.max(settings.min_lines, settings.pair_min_lines);
   const lines = (unit: Unit) => unit.floorLines;
   const eligible = new Map<string, number>();
@@ -333,7 +331,7 @@ function moduleFindings(
 export function findingsForUnits(
   units: readonly Unit[],
   settings: DuplicationSettings,
-): Finding[] {
+): Warning[] {
   const sets = units.map((unit) => unit.fingerprints);
   const edges = prunedPairs(sets, settings.threshold)
     .filter(([i, j]: Pair) => !nested(units[i] as Unit, units[j] as Unit))
@@ -343,7 +341,7 @@ export function findingsForUnits(
     );
   const pairFloor = Math.max(settings.min_lines, settings.pair_min_lines);
   const grouped = moduleFindings(units, edges, settings);
-  const findings: Finding[] = [...grouped.findings];
+  const findings: Warning[] = [...grouped.findings];
   const rest = edges.filter((edge) => !grouped.absorbed.has(edge));
 
   for (const [indices, score] of families(rest)) {
@@ -362,7 +360,7 @@ export function findingsForUnits(
   return findings;
 }
 
-export function orderFindings(findings: Finding[]): Finding[] {
+export function orderFindings(findings: Warning[]): Warning[] {
   return [...findings].sort(
     (a, b) => linesOf(b) - linesOf(a) || compareCodePoints(a.id, b.id),
   );

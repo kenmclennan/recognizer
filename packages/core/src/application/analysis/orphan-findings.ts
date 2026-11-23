@@ -5,10 +5,9 @@ import {
   testOnlySummary,
 } from "../../domain/analysis/test-importers.js";
 import { Library } from "../../domain/dependency.js";
-import { Finding } from "../../domain/finding.js";
 import { PolicyRule } from "../../domain/policy-rule.js";
-import { principleOf } from "../../domain/principles.js";
 import type { Repository } from "../../domain/repository.js";
+import { Warning } from "../../domain/warning.js";
 
 function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
@@ -65,12 +64,12 @@ function reachedModules(
   return reached;
 }
 
-export function orphanFindings(
+export function orphanWarnings(
   repository: Repository,
   policy: readonly PolicyRule[] | null,
   entryPoints: string[],
   entryAnnotations: string[],
-): Finding[] {
+): Warning[] {
   const { ids, edges, declarations } = repository.graphKeeping(policy);
   const kotlin = new Set(
     repository.files
@@ -115,17 +114,16 @@ export function orphanFindings(
   return [...ids]
     .filter((id) => !reached.has(id))
     .sort(compare)
-    .map((id): Finding => {
+    .map((id): Warning => {
       const importers = testImporters.get(id) ?? [];
       const base = {
         id: `orphan:${id}`,
-        kind: "orphan",
-        severity: "warning" as const,
-        ...principleOf("dead-code"),
+        kind: "orphan" as const,
+        principle: "dead-code",
       };
 
       if (importers.length === 0) {
-        return Finding.stored({
+        return new Warning({
           ...base,
           summary: `${id} is imported by no file and is not an entry point${libraryApiHint(id)}`,
           fixPattern: "remove-or-wire-orphan",
@@ -133,7 +131,7 @@ export function orphanFindings(
         });
       }
 
-      return Finding.stored({
+      return new Warning({
         ...base,
         summary: testOnlySummary(id, importers),
         fixPattern: "move-orphan-to-tests",

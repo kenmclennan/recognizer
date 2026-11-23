@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { longFunctionFindings } from "@recognizer/core";
+import { longFunctionWarnings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { REPO } from "./helpers.js";
 import { validatedRepository as validateScan } from "./repository-from.js";
@@ -17,7 +17,7 @@ const PLACE =
 describe("long_function over a committed scan", () => {
   it("measures the body of a method whose braces sit on their own lines", () => {
     const at = (limit: number) =>
-      longFunctionFindings(scan, null, limit).find(
+      longFunctionWarnings(scan, null, limit).find(
         (record) => record.id === PLACE,
       );
 

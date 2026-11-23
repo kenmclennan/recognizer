@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { orphanFindings, PolicyRule } from "@recognizer/core";
+import { orphanWarnings, PolicyRule } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { run } from "../src/cli.js";
@@ -464,7 +464,7 @@ levels:
     );
     const scan = repositoryFrom(document);
     const orphans = (policyText: string) =>
-      orphanFindings(scan, parsePolicy(policyText), [], []).map(
+      orphanWarnings(scan, parsePolicy(policyText), [], []).map(
         (finding) => finding.id,
       );
     const migratedCheck = migrated(OLD_CHECK);
@@ -476,7 +476,7 @@ levels:
     expect(orphans(migratedCheck)).not.toContain("orphan:shop/main.py");
 
     const lonely = (policyText: string) =>
-      orphanFindings(
+      orphanWarnings(
         repositoryFrom({
           ...document,
           modules: [
