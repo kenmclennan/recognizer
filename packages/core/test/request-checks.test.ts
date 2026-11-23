@@ -19,9 +19,9 @@ const scope = (names: string[]) => ({ file: "/work/modules.json", names });
 describe("request checks", () => {
   it("refuses each malformed request with its message", () => {
     const cases: [Partial<ScanRequest>, string][] = [
-      [{ modules: scope([]) }, "the module scope is empty"],
-      [{ modules: scope(["a", ""]) }, "a module id in the scope is empty"],
-      [{ modules: scope(["a\0b"]) }, "a module id in the scope holds a NUL"],
+      [{ modules: scope([]) }, "the file scope is empty"],
+      [{ modules: scope(["a", ""]) }, "a file id in the scope is empty"],
+      [{ modules: scope(["a\0b"]) }, "a file id in the scope holds a NUL"],
       [
         { sensors: [{ name: "tally", suites: ["x".repeat(201)] }] },
         "a suite name is empty, over 200 characters or holds a NUL",

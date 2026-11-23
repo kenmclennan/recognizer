@@ -101,5 +101,5 @@ Feature: Scanning a repository
     Given a repository with Alpha files
     And a Tally sensor is registered
     When a full scan runs with an empty module scope
-    Then the scan fails as an invalid request saying the module scope is empty
+    Then the scan fails as an invalid request saying the file scope is empty
     And nothing is extracted

@@ -177,6 +177,7 @@ function sourceFiles(): string[] {
   return [
     "packages/app/src",
     "packages/cli/src",
+    "packages/core/src",
     "packages/describers/claude/src",
     "packages/scanners/typescript/src",
   ]
@@ -303,6 +304,12 @@ describe("user wording", () => {
     expect(exclusions.length).toBeGreaterThan(0);
     expect(offending(exclusions, hits)).toEqual([]);
     expect(staleExclusions(exclusions, hits)).toEqual([]);
+  });
+
+  it("the source walk reaches core's source", () => {
+    expect(sourceFiles()).toContain(
+      join(REPO, "packages/core/src/domain/run/scan-request.ts"),
+    );
   });
 
   it("the guard flags a module word in a string but not in an identifier or comment", () => {
