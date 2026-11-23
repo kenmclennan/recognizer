@@ -17,6 +17,7 @@ for (const name of [
   "log",
   "scan-marker",
   "scan-answer",
+  "tests-answer",
   "overlay",
   "config-keys",
   "manifest",

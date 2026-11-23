@@ -30,7 +30,7 @@ import { FakeSensors } from "./fake-sensors.js";
 import { FakeShippedPlugins } from "./fake-shipped-plugins.js";
 import { FakeSourceFiles } from "./fake-source-files.js";
 import { FakeStructureRepository } from "./fake-structure-repository.js";
-import { FakeToml } from "./fake-toml.js";
+import { FakeTestReports } from "./fake-test-reports.js";
 import { FakeViewRepository } from "./fake-view-repository.js";
 import { FakeWindows } from "./fake-windows.js";
 
@@ -53,7 +53,7 @@ export interface Fakes {
   source: FakeSourceFiles;
   digest: FakeDigest;
   parsing: FakeParsing;
-  toml: FakeToml;
+  testReports: FakeTestReports;
   changes: FakeChanges;
   views: FakeViewRepository;
   windows: FakeWindows;
@@ -93,7 +93,7 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     source: new FakeSourceFiles(),
     digest: new FakeDigest(),
     parsing: new FakeParsing(),
-    toml: new FakeToml(),
+    testReports: new FakeTestReports(),
     changes: new FakeChanges(),
     views: new FakeViewRepository(),
     windows: new FakeWindows(),

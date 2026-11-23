@@ -54,7 +54,7 @@ describe("fakes", () => {
       "sensors",
       "shipped-plugins",
       "source-files",
-      "toml",
+      "test-reports",
       "windows",
     ]);
     expect(fakeKeys).toEqual(
@@ -85,7 +85,7 @@ describe("fakes", () => {
         "shippedPlugins",
         "source",
         "structure",
-        "toml",
+        "testReports",
         "views",
         "windows",
       ].sort(),

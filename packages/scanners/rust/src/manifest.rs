@@ -16,6 +16,7 @@ pub fn build() -> Value {
         "protocol": PROTOCOL,
         "install": INSTALL,
         "check": false,
+        "reports_tests": true,
         "long_running": true,
         "units": ["files"],
         "settings": [],

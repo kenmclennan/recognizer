@@ -1,35 +1,3 @@
-export function indexOfBytes(
-  data: Uint8Array,
-  needle: readonly number[],
-  start: number,
-): number {
-  const last = data.length - needle.length;
-
-  for (let i = Math.max(start, 0); i <= last; i += 1) {
-    let k = 0;
-
-    while (k < needle.length && data[i + k] === needle[k]) {
-      k += 1;
-    }
-
-    if (k === needle.length) {
-      return i;
-    }
-  }
-
-  return -1;
-}
-
-export function latin1(data: Uint8Array): string {
-  let text = "";
-
-  for (const byte of data) {
-    text += String.fromCharCode(byte);
-  }
-
-  return text;
-}
-
 function codePointBytes(codePoint: number): number[] {
   if (codePoint < 0x80) {
     return [codePoint];

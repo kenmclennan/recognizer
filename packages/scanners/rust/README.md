@@ -8,6 +8,14 @@ recognizer-scan-rust run ROOT [--commit SHA] [--modified true|false] [--output F
 
 `ROOT` is the repository root and the base of every file id. The commit defaults to `git rev-parse HEAD`, or `null` outside git. Output goes to stdout unless `--output` is given. When a `mod name;` declaration has no file, one line `recognizer-scan-rust: N mod declarations had no file` goes to stderr. For each file that cannot be parsed, one line `damaged file <file id>: <message>` goes to stderr, followed by `recognizer-scan-rust: D of N files had damaged spans`.
 
+## Tests verb
+
+```sh
+recognizer-scan-rust tests ROOT
+```
+
+Prints `{"entries": {...}}` on stdout, the scanner's tests report (`schema/tests-answer.schema.json`), and exits 0; the manifest sets `reports_tests`. It lists the repository with `git -C ROOT ls-files --cached --others --exclude-standard -z -- . :!.recognizer`, so it reads the `.rs` files, including those under `tests/`, that the generic part of the Tests hash reasons about. Each `.rs` file outside the test files that holds a test gate gets one entry `<path>#<n>` per test item, numbered in source order, and each file reached only through a test-gated `mod` declaration, with the files it declares in turn, gets `<path>#file`. A value is the sha256 of the item's bytes, or of the whole file. Exit 2 when ROOT is not a directory or git cannot list it.
+
 ## Files
 
 The scanner reads `.rs` files outside directories named `target`, `node_modules` or `tests` and dot directories. Inline test code is left out too; `benches/`, `examples/` and `build.rs` are scanned. Symlinked directories are not followed. A file is one box and its id is the file's repository-relative path. A file `syn` rejects, or that is not valid UTF-8, stays in the scan as an empty module, because `syn` recovers nothing from a failed parse; the scan document carries no marker for it.

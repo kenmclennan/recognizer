@@ -115,7 +115,6 @@ describe("scanning check/", () => {
       "node:readline",
       "node:url",
       "node:util",
-      "smol-toml",
       "web-tree-sitter",
       "yaml",
     ]);

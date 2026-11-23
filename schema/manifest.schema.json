@@ -96,6 +96,9 @@
     "runs_tests": {
       "type": "boolean"
     },
+    "reports_tests": {
+      "type": "boolean"
+    },
     "scoped": {
       "type": "boolean"
     },
@@ -676,7 +679,8 @@
         "properties": {
           "languages": false,
           "prompt_version": false,
-          "scan_schema_version": false
+          "scan_schema_version": false,
+          "reports_tests": false
         }
       }
     },
@@ -700,7 +704,8 @@
           "scoped": false,
           "expansion": false,
           "settings_title": false,
-          "scan_schema_version": false
+          "scan_schema_version": false,
+          "reports_tests": false
         }
       }
     }

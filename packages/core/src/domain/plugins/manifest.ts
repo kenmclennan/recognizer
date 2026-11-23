@@ -24,6 +24,7 @@ export interface Manifest {
   metrics?: unknown[];
   findings?: FindingEntry[];
   runs_tests?: boolean;
+  reports_tests?: boolean;
   scoped?: boolean;
   prompt_version?: string;
 }

@@ -12,7 +12,6 @@ import { RunLogAdapter } from "./adapters/filesystem/run-log-adapter.js";
 import { ScanLockAdapter } from "./adapters/filesystem/scan-lock-adapter.js";
 import { SourceFilesAdapter } from "./adapters/filesystem/source-files-adapter.js";
 import { StructureAdapter } from "./adapters/filesystem/structure-adapter.js";
-import { TomlAdapter } from "./adapters/filesystem/toml-adapter.js";
 import { GitAdapter } from "./adapters/git/git-adapter.js";
 import { DescriberAdapter } from "./adapters/plugins/describer-adapter.js";
 import { ProcessAdapter } from "./adapters/plugins/process-adapter.js";
@@ -21,6 +20,7 @@ import {
   SyncScannersAdapter,
 } from "./adapters/plugins/scanners-adapter.js";
 import { SensorsAdapter } from "./adapters/plugins/sensors-adapter.js";
+import { TestReportsAdapter } from "./adapters/plugins/test-reports-adapter.js";
 import { ClockAdapter } from "./adapters/system/clock-adapter.js";
 import { DigestAdapter } from "./adapters/system/digest-adapter.js";
 import { ConfirmAdapter } from "./adapters/terminal/confirm-adapter.js";
@@ -49,7 +49,7 @@ export function scanPorts(io: Io, read: ConfigRead): ScanPorts {
     source: new SourceFilesAdapter(io),
     digest: new DigestAdapter(),
     parsing: new ParsingAdapter(),
-    toml: new TomlAdapter(),
+    testReports: new TestReportsAdapter(io),
   };
 }
 
