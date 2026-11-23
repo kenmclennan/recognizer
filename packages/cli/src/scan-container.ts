@@ -4,7 +4,12 @@ import {
   type ScanPorts,
   type SyncPorts,
 } from "@recognizer/core";
-import { StoreAdapter } from "./adapters/filesystem/store-adapter.js";
+import { ConfigAdapter } from "./adapters/filesystem/config-adapter.js";
+import { FindingsAdapter } from "./adapters/filesystem/findings-adapter.js";
+import { PolicyAdapter } from "./adapters/filesystem/policy-adapter.js";
+import { RunLogAdapter } from "./adapters/filesystem/run-log-adapter.js";
+import { ScanLockAdapter } from "./adapters/filesystem/scan-lock-adapter.js";
+import { StructureAdapter } from "./adapters/filesystem/structure-adapter.js";
 import { GitAdapter } from "./adapters/git/git-adapter.js";
 import { DescriberAdapter } from "./adapters/plugins/describer-adapter.js";
 import { ProcessAdapter } from "./adapters/plugins/process-adapter.js";
@@ -28,7 +33,12 @@ export function scanPorts(io: Io, read: ConfigRead): ScanPorts {
     sensors,
     describer: new DescriberAdapter(io),
     git: new GitAdapter(io),
-    store: new StoreAdapter(io, read),
+    structure: new StructureAdapter(io),
+    findings: new FindingsAdapter(io),
+    policy: new PolicyAdapter(io),
+    config: new ConfigAdapter(io, read),
+    runLog: new RunLogAdapter(io),
+    lock: new ScanLockAdapter(io),
     confirm: new ConfirmAdapter(io),
     clock: new ClockAdapter(io),
     process: new ProcessAdapter(io, () => scanners.installedPlugins()),

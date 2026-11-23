@@ -186,7 +186,7 @@ The application layer is divided by subdomain, so each responsibility has one ho
 | `visualisation` | what a view contains: saved views and their staleness, and the graph queries (neighbours, callers, entry points); never how it is drawn, which stays in the app |
 | `plugins` | the plugins themselves: discovery, install and upgrade, manifests, and the doctor checks over them |
 
-Each subdomain is a folder under `application/` holding its use cases and, under `ports/`, the ports they use. A port shared by several subdomains for cross-cutting infrastructure (Git, Store, Clock, Process) lives in `application/shared/ports/`; a domain port belongs to the one subdomain whose use cases call it. A use case reaches another subdomain only through that subdomain's use cases. `domain/` is divided the same way: each subdomain's entities and value objects sit in `domain/<subdomain>/`, and only types more than one subdomain reads sit at its top level.
+Each subdomain is a folder under `application/` holding its use cases and, under `ports/`, the ports they use. A port shared by several subdomains for cross-cutting infrastructure (Git, Scan lock, Clock, Process) lives in `application/shared/ports/`; a domain port belongs to the one subdomain whose use cases call it. A use case reaches another subdomain only through that subdomain's use cases. `domain/` is divided the same way: each subdomain's entities and value objects sit in `domain/<subdomain>/`, and only types more than one subdomain reads sit at its top level.
 
 Adapters are grouped by infrastructure, not by subdomain: `plugins/` (scanners, sensors and the describer, one child-process protocol), `git/`, `filesystem/`, `terminal/` (the confirm prompt and event printing) and `system/` (the clock).
 
@@ -212,7 +212,7 @@ The domain holds what Recognizer shows, not only the run. Core defines nine enti
 - **The entities are the model the formats will move to.** They are designed as Recognizer's own model, not as mirrors of today's documents, so that moving the formats to them later changes only the translators.
 - **The entities carry their behaviour and enforce their invariants at construction.** Each entity is a class: lookups, folder derivation, dependency queries, violation evaluation and finding validity are methods on it, and a breach of an invariant throws `InvalidEntity` when the entity is built. No free helper function stands beside the entities, and callers in core, the CLI and the app use the methods. A Finding built from a scan is checked against its Repository, while a Finding read from a findings file holds paths only, so a finding about a file the scan lacks still loads.
 
-The Store port gives way to repositories over these entities, with the filesystem adapters changing to implement them.
+Entities are stored and read through repositories the domain owns: a repository interface per aggregate (structure, findings, policy, config, run log, baseline) in `domain/`, implemented by the filesystem adapters through the translators.
 
 #### Scan
 
@@ -235,7 +235,7 @@ Ports, with the subdomain each belongs to:
 | Analysis | analysis | loads parsers and runs structural analysis; in phase 1 the same adapter implements it and Sensors |
 | Describer | describing | finds the describer in effect and describes files |
 | Git | shared | reads the commit, the dirty state and the branch |
-| Store | shared | reads and writes the `.recognizer/` files: config, policy, cache, findings, log |
+| Scan lock | shared | acquires the scan lock and reports whether a scan is running |
 | Confirm | describing | asks the person running the scan to accept a describing cost |
 | Clock | shared | supplies the time |
 | Process | shared | runs plugin commands and reports their progress |
@@ -252,8 +252,9 @@ Use cases move into core one at a time, and both adapters keep working at every 
    1. Structure: Repository, Folder, File, Member and Dependency, from the scan documents.
    2. Findings: Finding, from the findings files, pointing at a file or a member.
    3. Policy: PolicyRule, Violation and Warning, with violations and warnings worked out in `analysis`.
-6. The remaining use cases, one at a time: describe, setup, config and policy, changes and commits.
-7. Formats from the model: each document's format moves to core's entities, one document at a time, with its schema generated from them; only the translators change.
+6. Repositories: the Store port gives way to repositories the domain owns. Core's `domain/` defines a repository interface per aggregate (structure, findings, policy, config, run log, baseline) and `application/shared/ports/` holds a scan lock port; the CLI's filesystem adapters implement them through the translators; the core fakes implement the same interfaces. The structure repository saves the extraction as an entity, the scan translator writing the document. On-disk formats do not change.
+7. The remaining use cases, one at a time: describe, setup, config and policy, changes and commits.
+8. Formats from the model: each document's format moves to core's entities, one document at a time, with its schema generated from them; only the translators change.
 
 The migration is done when all of these hold on main:
 
@@ -262,6 +263,7 @@ The migration is done when all of these hold on main:
 - The domain model (repository, folder, file, member, dependency, finding, policy rule, violation, warning) is defined in core, and the CLI and the app keep no copies of their own.
 - Every document's format and schema come from core's entities.
 - Scan, describe, setup, config and policy, and changes and commits each run through core's ports, with acceptance scenarios driving them through fakes.
+- Every aggregate is stored through a repository interface the domain owns, and core names no filesystem adapter.
 - The app reaches core as a service and holds no planning, scan or git logic.
 - `packages/core` names no scanner, sensor or describer.
 

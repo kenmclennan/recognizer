@@ -100,6 +100,7 @@ export interface DocumentModule {
 }
 
 export interface ScanDoc {
+  schema_version?: number;
   scanner: { name: string; version: string };
   commit: string | null;
   modified: boolean | null;

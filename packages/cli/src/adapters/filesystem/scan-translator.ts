@@ -5,12 +5,14 @@ import {
   File,
   Library,
   Member,
+  type OptionalSection,
   Repository,
   type TestImport,
   type UnresolvedImport,
 } from "@recognizer/core";
-import { validateAcceptedScan } from "../../scan.js";
+import { SCAN_SCHEMA_VERSION, validateAcceptedScan } from "../../scan.js";
 import type {
+  DocumentEdge,
   DocumentMember,
   DocumentMethod,
   DocumentModule,
@@ -137,7 +139,116 @@ function translate(language: string, document: ScanDoc): Part {
       modified: document.modified,
       selection: selectionOf(document.selection),
       files: document.files,
+      sections: OPTIONAL_SECTIONS.filter((key) => document[key] !== undefined),
     },
+  };
+}
+
+const OPTIONAL_SECTIONS: readonly OptionalSection[] = [
+  "calls",
+  "unresolved_imports",
+  "test_imports",
+];
+
+export function scanDocumentOf(repository: Repository): ScanDoc {
+  const [extraction] = repository.extractions;
+
+  if (repository.extractions.length !== 1 || extraction === undefined) {
+    throw new Error(
+      `a scan document holds one extraction, not ${repository.extractions.length}`,
+    );
+  }
+
+  const written = (key: OptionalSection, values: readonly unknown[]) =>
+    extraction.sections === undefined
+      ? values.length > 0
+      : extraction.sections.includes(key);
+
+  return {
+    schema_version: SCAN_SCHEMA_VERSION,
+    scanner: {
+      name: extraction.scanner.name,
+      version: extraction.scanner.version,
+    },
+    commit: extraction.commit,
+    modified: extraction.modified,
+    files: extraction.files.map(({ path, hash }) => ({ path, hash })),
+    selection: selectionDocument(extraction.selection),
+    modules: repository.files.map(moduleDocument),
+    edges: repository.dependencies.map(edgeDocument),
+    foreign: repository.libraries.map(({ id, name }) => ({ id, name })),
+    ...(written("calls", repository.calls)
+      ? { calls: [...repository.calls] }
+      : {}),
+    ...(written("unresolved_imports", repository.unresolvedImports)
+      ? { unresolved_imports: [...repository.unresolvedImports] }
+      : {}),
+    ...(written("test_imports", repository.testImports)
+      ? { test_imports: [...repository.testImports] }
+      : {}),
+  } as ScanDoc;
+}
+
+export function scanFileText(repository: Repository): string {
+  return `${JSON.stringify(scanDocumentOf(repository), null, 2)}\n`;
+}
+
+function moduleDocument(file: File): DocumentModule {
+  return {
+    id: file.path,
+    language: file.language,
+    kind: documentKind(file.kind),
+    members: file.members.map(documentMember),
+    ...(file.annotations.length === 0
+      ? {}
+      : { annotations: [...file.annotations] }),
+    ...(file.actualOf.length === 0 ? {} : { actual_of: [...file.actualOf] }),
+    ...(file.entryPoint ? { entry_point: true } : {}),
+  };
+}
+
+function edgeDocument(edge: Dependency): DocumentEdge {
+  return {
+    from: edge.from,
+    to: edge.to,
+    kind: edge.kind,
+    line: edge.line,
+    ...(edge.member === undefined ? {} : { member: edge.member }),
+    ...(edge.toMember === undefined ? {} : { to_member: edge.toMember }),
+    ...(edge.names === undefined ? {} : { names: [...edge.names] }),
+    ...(edge.via === undefined ? {} : { via: [...edge.via] }),
+    ...(edge.inferred === undefined
+      ? {}
+      : {
+          inferred: {
+            parameter: edge.inferred.parameter,
+            methods: [...edge.inferred.methods],
+            class: edge.inferred.class,
+            implementations: [...edge.inferred.implementations],
+          },
+        }),
+  };
+}
+
+function selectionDocument(
+  selection: Extraction["selection"],
+): DocumentSelection {
+  return {
+    extensions: [...selection.extensions],
+    skip_directory_names: [...selection.skipDirectoryNames],
+    skip_directory_prefixes: [...selection.skipDirectoryPrefixes],
+    skip_directory_suffixes: [...selection.skipDirectorySuffixes],
+    skip_directories_containing: [...selection.skipDirectoriesContaining],
+    skip_file_globs: [...selection.skipFileGlobs],
+    ...(selection.skipPaths === undefined
+      ? {}
+      : { skip_paths: [...selection.skipPaths] }),
+    ...(selection.inputFileGlobs === undefined
+      ? {}
+      : { input_file_globs: [...selection.inputFileGlobs] }),
+    ...(selection.inputAbsentPaths === undefined
+      ? {}
+      : { input_absent_paths: [...selection.inputAbsentPaths] }),
   };
 }
 

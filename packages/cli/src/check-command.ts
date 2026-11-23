@@ -1,6 +1,7 @@
 import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
+  type BaselineRepository,
   type Finding,
   type PolicyRule,
   type Repository,
@@ -8,6 +9,7 @@ import {
   Violation,
   type Warning,
 } from "@recognizer/core";
+import { BaselineAdapter } from "./adapters/filesystem/baseline-adapter.js";
 import {
   documentRuleOf,
   findingRecordOf,
@@ -20,8 +22,6 @@ import {
   type Identity,
   identityKey,
   identityOfViolationId,
-  parseBaseline,
-  serialiseBaseline,
 } from "./baseline.js";
 import { type Ranking, rankByKeys } from "./check.js";
 import type { Io } from "./cli.js";
@@ -388,7 +388,7 @@ interface BaselineFlags {
 }
 
 function settleBaseline(
-  io: Io,
+  baselines: BaselineRepository,
   flags: BaselineFlags,
   baselinePath: string,
   candidates: Candidate[],
@@ -397,10 +397,8 @@ function settleBaseline(
   result: Ranked;
   report: { path: string; present: boolean; action: BaselineAction };
 } {
-  const present = io.exists(baselinePath);
-  const baseline = present
-    ? parseBaseline(readInput(io, baselinePath, "baseline"))
-    : null;
+  const present = baselines.exists(baselinePath);
+  const baseline = present ? baselines.read(baselinePath) : null;
 
   if (flags.init && present) {
     throw new InputError([`baseline already exists: ${baselinePath}`]);
@@ -430,7 +428,7 @@ function settleBaseline(
 
     const entries = [...written.values()];
 
-    io.writeFile(baselinePath, serialiseBaseline(entries));
+    baselines.write(baselinePath, entries);
     result = rankCandidates(candidates, entries);
     action = "initialised";
   } else if (
@@ -442,7 +440,7 @@ function settleBaseline(
     const kept = (baseline ?? []).filter(
       (entry) => !fixedKeys.has(identityKey(entry)),
     );
-    io.writeFile(baselinePath, serialiseBaseline(kept));
+    baselines.write(baselinePath, kept);
     action = "shrunk";
   }
 
@@ -560,7 +558,7 @@ function executeScanReplay(
     values.baseline ??
     join(dirname(values.policy as string), "baselines", "violations.json");
   const { result, report } = settleBaseline(
-    io,
+    new BaselineAdapter(io),
     flags,
     baselinePath,
     candidatesOf([sensed.document]),
@@ -877,7 +875,7 @@ function executeRepository(
       "violations.json",
     );
   const settled = settleBaseline(
-    io,
+    new BaselineAdapter(io),
     flags,
     baselinePath,
     candidates,

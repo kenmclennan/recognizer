@@ -8,6 +8,7 @@ import {
   scanSync,
 } from "../src/index.js";
 import { createFakes } from "./fakes/container.js";
+import { repositoryOf } from "./fakes/repository-of.js";
 
 const REPOSITORY = "/work/repository";
 
@@ -37,8 +38,10 @@ function syncOver(fakes: ReturnType<typeof createFakes>) {
     previousProtocolNote: (language) =>
       fakes.scanners.previousProtocolNote(language),
     extract: (call): ExtractResult => {
+      const scanned = repositoryOf({ a: "", b: "", c: "" }, [], call.language);
+
       extracted.push(call);
-      fakes.store.writeScan(call.root, call.language, "3");
+      fakes.structure.save(call.root, call.language, scanned);
       fakes.scanners.cachedAt.set(call.language, call.commit ?? "");
 
       return {
@@ -51,7 +54,7 @@ function syncOver(fakes: ReturnType<typeof createFakes>) {
           duration_ms: 1,
           stderr: "",
         },
-        bytes: "3",
+        repository: scanned,
         modules: 3,
         edges: 2,
       };
@@ -70,7 +73,7 @@ describe("scanSync", () => {
       edges: 2,
       fails: false,
     });
-    fakes.store.readsSensorConfig = () => true;
+    fakes.config.readsSensorConfig = () => true;
     fakes.analysis.analysis = { enabled: true, parserLanguages: ["python"] };
 
     const { ports, extracted } = syncOver(fakes);

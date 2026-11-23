@@ -1,9 +1,14 @@
 import { readFileSync } from "node:fs";
-import type { Repository } from "@recognizer/core";
+import { Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { readRepository } from "../src/adapters/filesystem/scan-translator.js";
+import {
+  readRepository,
+  scanDocumentOf,
+} from "../src/adapters/filesystem/scan-translator.js";
+import { StructureAdapter } from "../src/adapters/filesystem/structure-adapter.js";
 import type { InputError } from "../src/errors.js";
 import { SCAN_SCHEMA_VERSION, validateAcceptedScan } from "../src/scan.js";
+import { fakeIo, ROOT } from "./scan-helpers.js";
 
 const root = new URL("../../../", import.meta.url);
 
@@ -175,5 +180,81 @@ describe("readRepository", () => {
     ).toEqual([
       `scan has schema_version ${SCAN_SCHEMA_VERSION + 1}, recognizer accepts ${SCAN_SCHEMA_VERSION}`,
     ]);
+  });
+});
+
+function withoutSections(repository: Repository): Repository {
+  return Repository.of({
+    files: repository.files,
+    dependencies: repository.dependencies,
+    libraries: repository.libraries,
+    calls: repository.calls,
+    unresolvedImports: repository.unresolvedImports,
+    testImports: repository.testImports,
+    extractions: repository.extractions.map(
+      ({ sections: _sections, ...rest }) => rest,
+    ),
+  });
+}
+
+describe("scan translator", () => {
+  it("writes_what_was_read_for_a_hand_built_extraction", () => {
+    const empty = withoutSections(
+      readRepository([
+        {
+          language: "python",
+          document: { ...documentOf(["a.py"]), calls: [] },
+        },
+      ]),
+    );
+
+    expect(empty.files.length).toBe(1);
+    expect(Object.keys(scanDocumentOf(empty))).not.toContain("calls");
+
+    const called = withoutSections(
+      readRepository([
+        {
+          language: "python",
+          document: {
+            ...documentOf(["a.py", "b.py"]),
+            calls: [{ from: "a.py::f", to: "b.py::g", line: 1, how: "call" }],
+          },
+        },
+      ]),
+    );
+
+    expect(Object.keys(scanDocumentOf(called))).toContain("calls");
+
+    const { io, files } = fakeIo();
+    const structure = new StructureAdapter(io);
+
+    structure.save(ROOT, "python", called);
+
+    expect(files.has(`${ROOT}/.recognizer/cache/scan.python.json`)).toBe(true);
+
+    const back = structure.read(ROOT);
+
+    expect(back.files.length).toBe(2);
+    expect(back.calls).toEqual(called.calls);
+    expect(back.files).toEqual(called.files);
+  });
+
+  it("refuses to save a repository that is not one extraction of the language", () => {
+    const { io } = fakeIo();
+    const structure = new StructureAdapter(io);
+    const python = readRepository([
+      { language: "python", document: documentOf(["a.py"]) },
+    ]);
+    const both = Repository.join([
+      python,
+      readRepository([{ language: "kotlin", document: documentOf(["B.kt"]) }]),
+    ]);
+
+    expect(() => structure.save(ROOT, "kotlin", python)).toThrow(
+      "cannot save kotlin: the repository holds python",
+    );
+    expect(() => structure.save(ROOT, "python", both)).toThrow(
+      "cannot save python: the repository holds python, kotlin",
+    );
   });
 });

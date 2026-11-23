@@ -9,7 +9,7 @@ function world(): PlanWorld {
   const planned = new PlanWorld();
 
   planned.seedScan(scanOf(FILES, MODULES));
-  planned.fakes.store.tests = "t1";
+  planned.fakes.findings.tests = "t1";
   planned.addSensor("crap", { display: "C.R.A.P." });
   planned.addSensor("mutation", {
     display: "Mutation",

@@ -8,7 +8,7 @@ import type {
   ScanTicks,
 } from "../../src/index.js";
 import { createFakes, type Fakes, scanOver } from "./container.js";
-import { cachePath } from "./fake-store.js";
+import { cachePath } from "./fake-structure-repository.js";
 import { repositoryOf } from "./repository-of.js";
 
 export const PLAN_REPOSITORY = "/work/planned";
@@ -37,7 +37,7 @@ export class PlanWorld {
   readonly fakes: Fakes = createFakes();
 
   seedScan(repository: Repository, language = "python"): void {
-    this.fakes.store.repositories.set(
+    this.fakes.structure.scans.set(
       cachePath(PLAN_REPOSITORY, language),
       repository,
     );
@@ -58,11 +58,14 @@ export class PlanWorld {
   }
 
   measure(sensor: string, measured: Measured): void {
-    this.fakes.store.measured.set(`${PLAN_REPOSITORY}::${sensor}`, measured);
+    this.fakes.findings.measured.set(`${PLAN_REPOSITORY}::${sensor}`, measured);
   }
 
   describeLines(kinds: Record<string, LineKind>): void {
-    this.fakes.store.kinds.set(PLAN_REPOSITORY, { registered: true, kinds });
+    this.fakes.structure.kinds.set(PLAN_REPOSITORY, {
+      registered: true,
+      kinds,
+    });
   }
 
   request(over: Partial<PlanRequest> & { mode?: PlanMode } = {}): PlanRequest {

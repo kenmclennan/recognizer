@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { Repository } from "../src/index.js";
 import { createFakes } from "./fakes/container.js";
-import { cachePath } from "./fakes/fake-store.js";
+import { cachePath } from "./fakes/fake-structure-repository.js";
 import { repositoryOf } from "./fakes/repository-of.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -40,35 +40,53 @@ describe("fakes", () => {
       "describer",
       "git",
       "process",
+      "scan-lock",
       "scanners",
       "sensors",
-      "store",
     ]);
-    expect(fakeKeys).toEqual(ports);
+    expect(fakeKeys).toEqual(
+      [
+        "analysis",
+        "baseline",
+        "clock",
+        "config",
+        "confirm",
+        "describer",
+        "findings",
+        "git",
+        "lock",
+        "policy",
+        "process",
+        "runLog",
+        "scanners",
+        "sensors",
+        "structure",
+      ].sort(),
+    );
     expect(
       readdirSync(join(here, "fakes")).filter((name) =>
         name.startsWith("fake-"),
       ),
-    ).toHaveLength(ports.length);
+    ).toHaveLength(fakeKeys.length);
   });
 
-  it("the store lock refuses a second acquire and release is idempotent", () => {
-    const { store } = createFakes();
-    const first = store.acquireLock("/repo", { sensors: [], describe: false });
+  it("the scan lock refuses a second acquire and release is idempotent", () => {
+    const { lock } = createFakes();
+    const first = lock.acquire("/repo", { sensors: [], describe: false });
 
     expect(first.ok).toBe(true);
-    expect(
-      store.acquireLock("/repo", { sensors: [], describe: false }).ok,
-    ).toBe(false);
+    expect(lock.acquire("/repo", { sensors: [], describe: false }).ok).toBe(
+      false,
+    );
 
     if (first.ok) {
       first.lock.release();
       first.lock.release();
     }
 
-    expect(
-      store.acquireLock("/repo", { sensors: [], describe: false }).ok,
-    ).toBe(true);
+    expect(lock.acquire("/repo", { sensors: [], describe: false }).ok).toBe(
+      true,
+    );
   });
 
   it("git returns the commit it was given and the dirty flag", () => {
@@ -90,7 +108,7 @@ describe("fakes", () => {
       edges: 7,
       fails: false,
     });
-    fakes.store.files.set(cachePath("/repo", "alpha"), "old");
+    fakes.structure.save("/repo", "alpha", repositoryOf({}, [], "alpha"));
 
     const result = await fakes.scanners.extract({
       root: "/repo",
@@ -120,39 +138,65 @@ describe("fakes", () => {
       say: () => {},
     });
 
-    expect(fakes.store.files.has(cachePath("/repo", "alpha"))).toBe(true);
+    expect(fakes.structure.scans.has(cachePath("/repo", "alpha"))).toBe(true);
   });
 });
 
-describe("the fake store reads", () => {
-  it("the_fake_store_reads_what_it_was_given", () => {
-    const { store } = createFakes();
+describe("the fake repositories read", () => {
+  it("the_fake_repositories_read_what_they_were_given", () => {
+    const { structure, findings } = createFakes();
     const python = repositoryOf({ "a.py": "ha" }, [], "python");
     const kotlin = repositoryOf({ "B.kt": "hb" }, [], "kotlin");
 
-    store.repositories.set(cachePath("/repo", "python"), python);
-    store.repositories.set(cachePath("/repo", "kotlin"), kotlin);
-    store.measured.set("/repo::crap", { inputs: { "a.py": "ha" }, tests: "t" });
-    store.tests = "t";
-    store.kinds.set("/repo", {
+    structure.save("/repo", "python", python);
+    structure.save("/repo", "kotlin", kotlin);
+    findings.measured.set("/repo::crap", {
+      inputs: { "a.py": "ha" },
+      tests: "t",
+    });
+    findings.tests = "t";
+    structure.kinds.set("/repo", {
       registered: true,
       kinds: { "a.py": "current", "B.kt": "missing" },
     });
 
-    expect(store.cachedRepository("/repo")).toEqual(
-      Repository.join([kotlin, python]),
-    );
-    expect(store.cachedRepository("/other")).toEqual(Repository.join([]));
-    expect(store.measuredOf("/repo", "crap")).toEqual({
+    expect(structure.read("/repo")).toEqual(Repository.join([kotlin, python]));
+    expect(structure.read("/other")).toEqual(Repository.join([]));
+    expect(findings.measuredOf("/repo", "crap")).toEqual({
       inputs: { "a.py": "ha" },
       tests: "t",
     });
-    expect(store.measuredOf("/repo", "mutation")).toBeNull();
-    expect(store.testsDigest()).toBe("t");
-    expect(store.responsibilityKinds("/repo").kinds["B.kt"]).toBe("missing");
-    expect(store.responsibilityKinds("/other")).toEqual({
+    expect(findings.measuredOf("/repo", "mutation")).toBeNull();
+    expect(findings.testsDigest()).toBe("t");
+    expect(structure.responsibilityKinds("/repo").kinds["B.kt"]).toBe(
+      "missing",
+    );
+    expect(structure.responsibilityKinds("/other")).toEqual({
       registered: false,
       kinds: {},
     });
+  });
+
+  it("the fake repositories agree with the adapters on absent data", () => {
+    const { structure, findings } = createFakes();
+
+    expect(structure.read("/nowhere")).toEqual(Repository.empty);
+    expect(findings.measuredOf("/nowhere", "crap")).toBeNull();
+    expect(structure.responsibilityKinds("/nowhere")).toEqual({
+      registered: false,
+      kinds: {},
+    });
+    expect(structure.discard("/repo", "python")).toBe(false);
+
+    structure.save("/repo", "python", repositoryOf({ "a.py": "h" }, []));
+    structure.save(
+      "/repo",
+      "kotlin",
+      repositoryOf({ "B.kt": "h" }, [], "kotlin"),
+    );
+
+    expect(structure.discard("/repo", "python")).toBe(true);
+    expect(structure.scans.has(cachePath("/repo", "kotlin"))).toBe(true);
+    expect(structure.discard("/repo", "python")).toBe(false);
   });
 });

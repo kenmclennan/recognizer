@@ -2,7 +2,7 @@ import type { PhaseRecorder } from "../../domain/phase-recorder.js";
 import type { Repository } from "../../domain/repository.js";
 import type { DescribeResult, Projection } from "../../domain/scan-event.js";
 import type { ScanSink } from "../../domain/scan-sink.js";
-import type { HeldLock } from "../shared/ports/store.js";
+import type { HeldLock } from "../shared/ports/scan-lock.js";
 import type { DescribingSettings } from "./describing-settings.js";
 import type { DescribingPorts } from "./internal/describing-ports.js";
 import type { LocatedDescriber } from "./ports/describer.js";

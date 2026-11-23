@@ -6,7 +6,10 @@ import type {
   RunEntry,
   Scanners,
 } from "../../src/index.js";
-import { cachePath, type FakeStore } from "./fake-store.js";
+import {
+  cachePath,
+  type FakeStructureRepository,
+} from "./fake-structure-repository.js";
 import { repositoryOf } from "./repository-of.js";
 
 export interface InventedLanguage {
@@ -34,7 +37,7 @@ export class FakeScanners implements Scanners {
   readonly cachedAt = new Map<string, string>();
 
   constructor(
-    private readonly store: FakeStore,
+    private readonly structure: FakeStructureRepository,
     log: string[],
   ) {
     this.log = log;
@@ -59,7 +62,7 @@ export class FakeScanners implements Scanners {
 
     for (const language of this.languages.keys()) {
       if (
-        !this.store.files.has(cachePath(root, language)) ||
+        !this.structure.scans.has(cachePath(root, language)) ||
         this.cachedAt.get(language) !== commit
       ) {
         return { run: true, reason: `no-scan:${language}` };
@@ -72,24 +75,14 @@ export class FakeScanners implements Scanners {
   cachedLanguages(root: string): string[] {
     const prefix = `${root}/.recognizer/cache/scan.`;
 
-    return [...this.store.files.keys()]
+    return [...this.structure.scans.keys()]
       .filter((path) => path.startsWith(prefix) && path.endsWith(".json"))
       .map((path) => path.slice(prefix.length, -".json".length))
       .sort();
   }
 
   readCached(root: string, language: string): Repository | null {
-    const bytes = this.store.files.get(cachePath(root, language));
-
-    return bytes === undefined
-      ? null
-      : repositoryOf(
-          Object.fromEntries(
-            Array.from({ length: Number(bytes) }, (_, at) => [`f${at}`, ""]),
-          ),
-          [],
-          language,
-        );
+    return this.structure.scans.get(cachePath(root, language)) ?? null;
   }
 
   scanFile(root: string, language: string): string {
@@ -120,7 +113,13 @@ export class FakeScanners implements Scanners {
     return Promise.resolve({
       ok: true,
       entry: entryFor(call.language, null),
-      bytes: String(invented.modules),
+      repository: repositoryOf(
+        Object.fromEntries(
+          Array.from({ length: invented.modules }, (_, at) => [`f${at}`, ""]),
+        ),
+        [],
+        call.language,
+      ),
       modules: invented.modules,
       edges: invented.edges,
     });

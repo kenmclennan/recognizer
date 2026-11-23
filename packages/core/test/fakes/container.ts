@@ -1,13 +1,19 @@
 import { createScan, type Scan, type ScanPorts } from "../../src/index.js";
 import { FakeAnalysis } from "./fake-analysis.js";
+import { FakeBaselineRepository } from "./fake-baseline-repository.js";
 import { FakeClock } from "./fake-clock.js";
+import { FakeConfigRepository } from "./fake-config-repository.js";
 import { FakeConfirm } from "./fake-confirm.js";
 import { FakeDescriber } from "./fake-describer.js";
+import { FakeFindingsRepository } from "./fake-findings-repository.js";
 import { FakeGit } from "./fake-git.js";
+import { FakePolicyRepository } from "./fake-policy-repository.js";
 import { FakeProcess } from "./fake-process.js";
+import { FakeRunLogRepository } from "./fake-run-log-repository.js";
+import { FakeScanLock } from "./fake-scan-lock.js";
 import { FakeScanners } from "./fake-scanners.js";
 import { FakeSensors } from "./fake-sensors.js";
-import { FakeStore } from "./fake-store.js";
+import { FakeStructureRepository } from "./fake-structure-repository.js";
 
 export interface Fakes {
   scanners: FakeScanners;
@@ -15,7 +21,13 @@ export interface Fakes {
   sensors: FakeSensors;
   describer: FakeDescriber;
   git: FakeGit;
-  store: FakeStore;
+  structure: FakeStructureRepository;
+  findings: FakeFindingsRepository;
+  policy: FakePolicyRepository;
+  config: FakeConfigRepository;
+  runLog: FakeRunLogRepository;
+  lock: FakeScanLock;
+  baseline: FakeBaselineRepository;
   confirm: FakeConfirm;
   clock: FakeClock;
   process: FakeProcess;
@@ -23,19 +35,25 @@ export interface Fakes {
 
 export function createFakes(commit: string | null = "c0ffee"): Fakes {
   const log: string[] = [];
-  const store = new FakeStore();
+  const structure = new FakeStructureRepository();
   const sensors = new FakeSensors(log);
   const process = new FakeProcess();
 
   process.onStop(() => sensors.releaseHeld());
 
   return {
-    scanners: new FakeScanners(store, log),
+    scanners: new FakeScanners(structure, log),
     analysis: new FakeAnalysis(),
     sensors,
     describer: new FakeDescriber(),
     git: new FakeGit(commit),
-    store,
+    structure,
+    findings: new FakeFindingsRepository(),
+    policy: new FakePolicyRepository(),
+    config: new FakeConfigRepository(),
+    runLog: new FakeRunLogRepository(),
+    lock: new FakeScanLock(),
+    baseline: new FakeBaselineRepository(),
     confirm: new FakeConfirm(true),
     clock: new FakeClock(),
     process,

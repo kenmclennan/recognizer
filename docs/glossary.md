@@ -46,7 +46,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Slice | A vertical cut through the strata that makes one use case or feature work, from the thing that drives it to the things it drives. |
 | Core | The package `@recognizer/core`: the domain, the ports and the use cases, with no knowledge of the CLI, the app, the file system or any process. Adapters depend on it, never the reverse. |
 | Use case | One thing a person asks recognizer to do, such as Scan, written once in the core as a flow over ports. |
-| Port | An interface a use case uses to reach the world outside core, such as Scan, Scanners, Sensors, Describer, Git, Store, Confirm, Clock or Process. It lives with the subdomain that uses it; an adapter implements it for real and a fake implements it in tests. |
+| Port | An interface a use case uses to reach the world outside core, such as Scan, Scanners, Sensors, Describer, Git, Scan lock, Confirm, Clock or Process. It lives with the subdomain that uses it; an adapter implements it for real and a fake implements it in tests. |
+| Entity repository | An interface the domain owns through which one aggregate is stored and read: structure, findings, policy, config, run log or baseline. A filesystem adapter implements it; a fake implements it in tests. |
 | Subdomain | One responsibility of the application layer, such as scanning, describing or sensing, with its own use cases and ports in one folder. |
 | Running scan | What the Scan port returns: a stream of typed events, a final outcome and `stop()`. |
 | Policy | The one file a repository's owners write: the entries to ignore, the entry points and the forbid rules. |

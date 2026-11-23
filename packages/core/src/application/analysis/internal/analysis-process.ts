@@ -34,11 +34,11 @@ export function* analysisProcess(
   ports: AnalysisPorts,
   input: RunAnalysisInput,
 ): Generator<string[], Measured, ParserSet | Error | null> {
-  const { analysis, store, clock } = ports;
+  const { analysis, config, findings, policy: policies, clock } = ports;
   const { root, repository, sink } = input;
 
   if (
-    !store.readsSensorConfig() ||
+    !config.readsSensorConfig() ||
     repository.extractions.length === 0 ||
     !input.analysis
   ) {
@@ -60,10 +60,10 @@ export function* analysisProcess(
 
   try {
     const plan = analysis.analysisPlan(
-      store.analysisConfig(root, input.ignoreRetiredConfig),
+      config.analysis(root, input.ignoreRetiredConfig),
     );
 
-    store.removeAnalysisOutputs(root, plan === "off");
+    findings.discardAnalysis(root, plan === "off");
 
     if (plan === "off") {
       return { failed: false, ran: false, ms: null };
@@ -73,7 +73,7 @@ export function* analysisProcess(
 
     began = clock.awake();
 
-    const policy = store.policy(root);
+    const policy = policies.rules(root);
     const prepared = analysis.analysisPrepare(
       plan,
       root,

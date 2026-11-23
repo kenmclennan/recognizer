@@ -43,7 +43,7 @@ type FailureReason =
   | "unknown-schema-version";
 
 type Outcome =
-  | { ok: true; bytes: string; modules: number; edges: number }
+  | { ok: true; repository: Repository; modules: number; edges: number }
   | { ok: false; reason: FailureReason; message: string };
 
 function failure(reason: FailureReason, message: string): Outcome {
@@ -81,7 +81,7 @@ function checkScan(bytes: string, language: string): Outcome {
 
     return {
       ok: true,
-      bytes,
+      repository,
       modules: repository.files.length,
       edges: repository.dependencies.length,
     };
@@ -349,7 +349,7 @@ function resultOf(language: string, scanned: Scanned): ExtractResult {
     ? {
         ok: true,
         entry,
-        bytes: outcome.bytes,
+        repository: outcome.repository,
         modules: outcome.modules,
         edges: outcome.edges,
       }
