@@ -1607,6 +1607,28 @@ describe("the run card", () => {
     );
   });
 
+  it("reads Scan did not start for a whole-scan failure through the real display lookup", () => {
+    const model = scanPanel(
+      input(
+        runOf({
+          phase: "failed",
+          ended_at: "2026-11-12T09:00:01.000Z",
+          exit: 1,
+          failure: {
+            sensor: "scan",
+            suite: null,
+            code: null,
+            reason: "claude is not registered",
+          },
+        }),
+      ),
+    );
+
+    expect(model.run?.card.head).toBe("Scan did not start");
+    expect(model.run?.card.line).toBe("claude is not registered");
+    expect(model.run?.card.head).not.toContain("Structure");
+  });
+
   it("offers Check again and scan, enabled, whenever the current run is refused", () => {
     const model = scanPanel(
       input({ ticks: bothTicked, ...refused(GAP_PY, GAP_RUST) }),
