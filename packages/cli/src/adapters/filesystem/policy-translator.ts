@@ -1,21 +1,6 @@
+import type { PolicyRule } from "@recognizer/core";
 import { parse } from "yaml";
-import { InputError } from "./errors.js";
-import { compileGlob, type Matcher } from "./glob.js";
-
-export interface ForbidRule {
-  pattern: string;
-  fromGlobs: string[];
-  toGlobs: string[];
-  from: Matcher;
-  to: Matcher;
-}
-
-export interface Policy {
-  forbid: ForbidRule[];
-  ignore: Matcher[];
-  entry: Matcher[];
-  entryGlobs: string[];
-}
+import { InputError } from "../../errors.js";
 
 export const RETIRED_KEYS = [
   "components",
@@ -53,7 +38,7 @@ function readGlobList(
   return globs;
 }
 
-export function parsePolicy(yamlText: string): Policy {
+export function parsePolicy(yamlText: string): PolicyRule[] {
   let document: unknown;
 
   try {
@@ -80,7 +65,7 @@ export function parsePolicy(yamlText: string): Policy {
     }
   }
 
-  const forbid: ForbidRule[] = [];
+  const forbid: PolicyRule[] = [];
 
   if (document.forbid !== undefined) {
     if (!Array.isArray(document.forbid)) {
@@ -96,13 +81,13 @@ export function parsePolicy(yamlText: string): Policy {
     }
   }
 
-  let ignore: Matcher[] = [];
+  let ignore: string[] = [];
 
   if (document.ignore !== undefined) {
     if (!Array.isArray(document.ignore)) {
       errors.push("ignore: must be a list of globs");
     } else {
-      ignore = readGlobList(document.ignore, "ignore", errors).map(compileGlob);
+      ignore = readGlobList(document.ignore, "ignore", errors);
     }
   }
 
@@ -120,10 +105,14 @@ export function parsePolicy(yamlText: string): Policy {
     throw new InputError(errors);
   }
 
-  return { forbid, ignore, entry: entryGlobs.map(compileGlob), entryGlobs };
+  return [
+    ...forbid,
+    ...ignore.map((glob): PolicyRule => ({ type: "ignore", glob })),
+    ...entryGlobs.map((glob): PolicyRule => ({ type: "entry", glob })),
+  ];
 }
 
-function parseForbid(entry: unknown, errors: string[]): ForbidRule | null {
+function parseForbid(entry: unknown, errors: string[]): PolicyRule | null {
   if (isPlainObject(entry)) {
     return parseListRule(entry, errors);
   }
@@ -148,19 +137,13 @@ function parseForbid(entry: unknown, errors: string[]): ForbidRule | null {
     return null;
   }
 
-  return {
-    pattern: entry,
-    fromGlobs: [from],
-    toGlobs: [to],
-    from: compileGlob(from),
-    to: compileGlob(to),
-  };
+  return { type: "forbid", pattern: entry, from: [from], to: [to] };
 }
 
 function parseListRule(
   entry: Record<string, unknown>,
   errors: string[],
-): ForbidRule | null {
+): PolicyRule | null {
   const shown = JSON.stringify(entry);
   const keys = Object.keys(entry);
 
@@ -190,14 +173,11 @@ function parseListRule(
   }
 
   const [from, to] = sides as [string[], string[]];
-  const matchesFrom = from.map(compileGlob);
-  const matchesTo = to.map(compileGlob);
 
   return {
+    type: "forbid",
     pattern: `${from.join(", ")} -> ${to.join(", ")}`,
-    fromGlobs: from,
-    toGlobs: to,
-    from: (id) => matchesFrom.some((one) => one(id)),
-    to: (id) => matchesTo.some((one) => one(id)),
+    from,
+    to,
   };
 }

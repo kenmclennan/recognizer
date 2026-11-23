@@ -1,4 +1,9 @@
+import { compilePolicy, type PolicyRule } from "@recognizer/core";
 import { parse } from "yaml";
+import {
+  parsePolicy,
+  RETIRED_KEYS,
+} from "./adapters/filesystem/policy-translator.js";
 import {
   duplicateSuites,
   emptySections,
@@ -23,7 +28,6 @@ import {
   pluginProblems,
   scannerProblems,
 } from "./plugin-doctor.js";
-import { parsePolicy, RETIRED_KEYS } from "./policy.js";
 import { policyProblems } from "./policy-problems.js";
 import { PROBLEM_TITLES } from "./problem-titles.js";
 import { SHIPPED_DESCRIBER_NAME } from "./shipped-describer.js";
@@ -390,7 +394,7 @@ function policyArea(facts: DoctorFacts): Found[] {
     });
   }
 
-  let policy: ReturnType<typeof parsePolicy>;
+  let policy: PolicyRule[];
 
   try {
     policy = parsePolicy(facts.policyText);
@@ -411,8 +415,10 @@ function policyArea(facts: DoctorFacts): Found[] {
     ];
   }
 
+  const compiled = compilePolicy(policy);
+
   if (
-    (policy.entryGlobs.length === 0 && policy.forbid.length === 0) ||
+    (compiled.entryGlobs.length === 0 && compiled.forbid.length === 0) ||
     facts.languages.length === 0
   ) {
     return [];

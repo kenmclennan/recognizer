@@ -305,7 +305,7 @@ describe("core layers", () => {
   it("opaque.ts is gone and the core root exports the moved types", () => {
     expect(existsSync(join(application, "shared/ports/opaque.ts"))).toBe(false);
 
-    for (const file of ["repository", "config-document", "policy-document"]) {
+    for (const file of ["repository", "config-document", "policy-rule"]) {
       expect(existsSync(join(source, "domain", `${file}.ts`)), file).toBe(true);
     }
 

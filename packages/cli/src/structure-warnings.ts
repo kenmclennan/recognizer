@@ -1,14 +1,16 @@
-import type {
-  Dependency,
-  Finding,
-  FindingMember,
-  Member,
-  Repository,
+import {
+  compilePolicy,
+  type Dependency,
+  type Finding,
+  type FindingMember,
+  isForeign,
+  keptGraph,
+  type Member,
+  type PolicyRule,
+  type Repository,
 } from "@recognizer/core";
 import { isEntryPoint, isTestFile } from "./entry-points.js";
 import { LONG_FUNCTION, measuredLength } from "./function-length.js";
-import { isForeign, keptGraph } from "./graph.js";
-import type { Policy } from "./policy.js";
 import { principleOf } from "./principles.js";
 import {
   libraryApiHint,
@@ -80,13 +82,13 @@ function reachedModules(
 
 export function orphanFindings(
   repository: Repository,
-  policy: Policy | null,
+  policy: readonly PolicyRule[] | null,
   entryPoints: string[],
   entryAnnotations: string[],
 ): Finding[] {
   const { ids, edges, declarations } = keptGraph(
     repository,
-    policy?.ignore ?? [],
+    compilePolicy(policy).ignore,
   );
   const kotlin = new Set(
     repository.files
@@ -108,7 +110,7 @@ export function orphanFindings(
       .map((edge) => edge.to),
     ...declarations.map((edge) => edge.to),
   ]);
-  const policyEntry = policy?.entry ?? [];
+  const policyEntry = compilePolicy(policy).entry;
   const scanned = new Set(
     repository.files
       .filter(
@@ -267,16 +269,16 @@ function usedThroughExpect(
 
 export function unusedExportsFindings(
   repository: Repository,
-  policy: Policy | null,
+  policy: readonly PolicyRule[] | null,
   entryPoints: string[],
 ): Finding[] {
   const { edges, declarations, ids } = keptGraph(
     repository,
-    policy?.ignore ?? [],
+    compilePolicy(policy).ignore,
   );
   const { named, whole } = usedNames([...edges, ...declarations]);
   const viaExpect = usedThroughExpect(repository, ids, named, whole);
-  const policyEntry = policy?.entry ?? [];
+  const policyEntry = compilePolicy(policy).entry;
   const testImporters = testImportersOf(repository);
   const findings: Finding[] = [];
 
@@ -358,9 +360,9 @@ export function unusedExportsFindings(
 
 export function privateImportsFindings(
   repository: Repository,
-  policy: Policy | null,
+  policy: readonly PolicyRule[] | null,
 ): Finding[] {
-  const { edges } = keptGraph(repository, policy?.ignore ?? []);
+  const { edges } = keptGraph(repository, compilePolicy(policy).ignore);
   const modules = new Map(repository.files.map((file) => [file.path, file]));
   const byImporter = new Map<
     string,
@@ -510,10 +512,10 @@ function functionsOf(members: readonly Member[]): MeasuredFunction[] {
 
 export function functionLengths(
   repository: Repository,
-  policy: Policy | null,
+  policy: readonly PolicyRule[] | null,
 ): Record<string, number> {
   const lengths: Record<string, number> = {};
-  const { ids } = keptGraph(repository, policy?.ignore ?? []);
+  const { ids } = keptGraph(repository, compilePolicy(policy).ignore);
 
   for (const file of repository.files) {
     if (!ids.has(file.path) || isTestFile(file.path)) {
@@ -538,10 +540,10 @@ export function functionLengths(
 
 export function longFunctionFindings(
   repository: Repository,
-  policy: Policy | null,
+  policy: readonly PolicyRule[] | null,
   limit: number = LONG_FUNCTION,
 ): Finding[] {
-  const { ids } = keptGraph(repository, policy?.ignore ?? []);
+  const { ids } = keptGraph(repository, compilePolicy(policy).ignore);
   const findings: Finding[] = [];
 
   for (const module of repository.files) {

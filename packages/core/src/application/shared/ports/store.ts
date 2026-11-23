@@ -1,6 +1,6 @@
 import type { ConfigDocument } from "../../../domain/config-document.js";
 import type { GapRecord } from "../../../domain/gap.js";
-import type { PolicyDocument } from "../../../domain/policy-document.js";
+import type { PolicyRule } from "../../../domain/policy-rule.js";
 import type { Repository } from "../../../domain/repository.js";
 import type {
   RunFailure,
@@ -51,7 +51,7 @@ export interface Store {
   runConfig(root: string, skipRetired: boolean): ConfigDocument | null;
   analysisConfig(root: string, skipRetired: boolean): ConfigDocument | null;
   readsSensorConfig(): boolean;
-  policy(root: string): PolicyDocument;
+  policy(root: string): readonly PolicyRule[] | null;
   writeScan(root: string, language: string, bytes: string): void;
   remove(path: string): boolean;
   removeAnalysisOutputs(root: string, off: boolean): void;

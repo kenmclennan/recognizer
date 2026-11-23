@@ -2,19 +2,19 @@ import type {
   Finding,
   FindingDependency,
   FindingMember,
-  FindingRule,
   SensorDiagnosis,
   SensorFindings,
+  ViolatedRule,
 } from "@recognizer/core";
 import {
   type ExpectedSensor,
   validateFindings,
 } from "../../findings-document.js";
-import type { Rule } from "../../rules.js";
 import type {
   DocumentDiagnosis,
   DocumentEdge,
   DocumentFindingMember,
+  DocumentRule,
   FindingRecord,
   FindingsDocument,
 } from "./findings-document-types.js";
@@ -26,31 +26,27 @@ function given<K extends string, V>(
   return value === undefined ? {} : ({ [key]: value } as { [P in K]?: V });
 }
 
-export function findingRuleOf(rule: Rule): FindingRule {
+function ruleOfDocument(value: unknown): ViolatedRule | null {
+  const rule = value as Partial<DocumentRule> & { type?: string };
+
   if (rule.type === "level") {
     return {
       type: "level",
-      fromLevel: rule.from_level,
-      toLevel: rule.to_level,
+      fromLevel: (rule as { from_level: string }).from_level,
+      toLevel: (rule as { to_level: string }).to_level,
     };
   }
 
   if (rule.type === "uses") {
     return {
       type: "uses",
-      fromComponent: rule.from_component,
-      toComponent: rule.to_component,
+      fromComponent: (rule as { from_component: string }).from_component,
+      toComponent: (rule as { to_component: string }).to_component,
     };
   }
 
-  return { type: "forbid", pattern: rule.pattern };
-}
-
-function ruleOfDocument(value: unknown): FindingRule | null {
-  const rule = value as Partial<Rule> & { type?: string };
-
-  if (rule.type === "level" || rule.type === "uses" || rule.type === "forbid") {
-    return findingRuleOf(rule as Rule);
+  if (rule.type === "forbid") {
+    return { type: "forbid", pattern: (rule as { pattern: string }).pattern };
   }
 
   return null;
@@ -62,7 +58,7 @@ function dependencyOf(edge: DocumentEdge): FindingDependency {
       ? undefined
       : edge.rules
           .map(ruleOfDocument)
-          .filter((rule): rule is FindingRule => rule !== null);
+          .filter((rule): rule is ViolatedRule => rule !== null);
 
   return {
     from: edge.from,
@@ -104,7 +100,7 @@ function findingOf(record: FindingRecord): Finding {
   };
 }
 
-export function policyRuleOf(rule: FindingRule): Rule {
+export function documentRuleOf(rule: ViolatedRule): DocumentRule {
   if (rule.type === "level") {
     return {
       type: "level",
@@ -131,7 +127,7 @@ export function findingRecordOf(finding: Finding): FindingRecord {
       to: dependency.to,
       ...given("kind", dependency.kind),
       ...given("lines", dependency.lines && [...dependency.lines]),
-      ...given("rules", dependency.rules?.map(policyRuleOf)),
+      ...given("rules", dependency.rules?.map(documentRuleOf)),
     }),
   );
   const members = finding.members?.map(

@@ -1,4 +1,5 @@
 import type {
+  PolicyRule,
   SensorExclusion,
   SensorFindings,
   SuiteResult,
@@ -10,7 +11,6 @@ import {
   duplicationUnmeasured,
   type FindingEntry,
   InputError,
-  type Policy,
   parseConfig,
   parsePolicy,
   readSensorFindings,
@@ -203,7 +203,7 @@ function readConfig(
 function readPolicy(
   text: string | null,
   statuses: SensorStatus[],
-): Policy | null {
+): PolicyRule[] | null {
   if (text === null) {
     return null;
   }

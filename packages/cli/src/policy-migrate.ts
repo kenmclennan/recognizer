@@ -6,8 +6,8 @@ import {
   type YAMLMap,
   YAMLSeq,
 } from "yaml";
+import { RETIRED_KEYS } from "./adapters/filesystem/policy-translator.js";
 import { emit } from "./config-edit.js";
-import { RETIRED_KEYS } from "./policy.js";
 
 export type MigrateOutcome =
   | { status: "ok"; text: string; changes: string[] }

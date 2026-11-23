@@ -1,6 +1,13 @@
 import { basename, join, posix, relative, resolve } from "node:path";
-import { joinRepositories, type Repository } from "@recognizer/core";
+import {
+  compileGlob,
+  compilePolicy,
+  joinRepositories,
+  type PolicyRule,
+  type Repository,
+} from "@recognizer/core";
 import { parse } from "yaml";
+import { parsePolicy } from "./adapters/filesystem/policy-translator.js";
 import { readUncheckedScanFile } from "./adapters/filesystem/scan-translator.js";
 import type { Io } from "./cli.js";
 import { packageVersion } from "./cli.js";
@@ -13,14 +20,12 @@ import {
 } from "./detect.js";
 import { doctorReport } from "./doctor-command.js";
 import { InputError } from "./errors.js";
-import { compileGlob } from "./glob.js";
 import {
   appliesJacoco,
   DEFAULT_JACOCO_REPORT,
   jacocoReportOf,
 } from "./gradle-build.js";
 import { discoverPlugins } from "./plugin-discovery.js";
-import { type Policy, parsePolicy } from "./policy.js";
 import { readCachedRepository } from "./scan-command.js";
 import { languageRulesOf } from "./scanners.js";
 import { splitCommand, withoutRepository } from "./setup-changes.js";
@@ -1464,7 +1469,7 @@ function markLanguages(
   );
 }
 
-function readPolicy(io: Io, root: string): Policy | null {
+function readPolicy(io: Io, root: string): PolicyRule[] | null {
   const file = policyFile(root);
 
   if (!io.exists(file)) {
@@ -1490,10 +1495,11 @@ function policyOf(
     return { present, uncovered: [] };
   }
 
+  const compiled = compilePolicy(policy);
   const matchers = [
-    ...policy.ignore,
-    ...policy.entry,
-    ...policy.forbid.flatMap((rule) =>
+    ...compiled.ignore,
+    ...compiled.entry,
+    ...compiled.forbid.flatMap((rule) =>
       [...rule.fromGlobs, ...rule.toGlobs]
         .filter((glob) => !glob.startsWith("foreign:"))
         .map(compileGlob),

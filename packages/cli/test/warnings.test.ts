@@ -1,10 +1,10 @@
 import { readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { compileGlob, findCycleWarnings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { analyse } from "../src/analyse.js";
 import { run } from "../src/cli.js";
-import { compileGlob } from "../src/glob.js";
 import { capture } from "./helpers.js";
 import { validatedRepository as validateScan } from "./repository-from.js";
 
@@ -71,7 +71,12 @@ function analysed(
   modules: Array<string | [string, string]> = [],
   sealed: string[] = [],
 ) {
-  return analyse(validateScan(scanOf(edges, modules, 0, sealed)));
+  const repository = validateScan(scanOf(edges, modules, 0, sealed));
+
+  return {
+    ...analyse(repository),
+    warnings: findCycleWarnings(repository, []),
+  };
 }
 
 function row(result: ReturnType<typeof analysed>, id: string) {
@@ -175,7 +180,9 @@ describe("metrics", () => {
     const result = analyse(scan, [compileGlob("tests/**")]);
 
     expect(result.metrics.map((metric) => metric.id)).toEqual(["a", "b"]);
-    expect(result.warnings).toEqual([]);
+    expect(
+      findCycleWarnings(scan, [{ type: "ignore", glob: "tests/**" }]),
+    ).toEqual([]);
   });
 });
 
@@ -188,17 +195,15 @@ describe("cycle warning", () => {
 
     expect(warnings).toEqual([
       {
-        id: "cycle",
+        kind: "cycle",
         principle: "levelization",
-        fix_pattern: "break-cycle",
+        fixPattern: "break-cycle",
         summary: "cycle of 2 files: a, b",
-        evidence: {
-          modules: ["a", "b"],
-          edges: [
-            { from: "a", to: "b" },
-            { from: "b", to: "a" },
-          ],
-        },
+        files: ["a", "b"],
+        dependencies: [
+          { from: "a", to: "b" },
+          { from: "b", to: "a" },
+        ],
       },
     ]);
   });
@@ -211,7 +216,7 @@ describe("cycle warning", () => {
     ]);
 
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]?.evidence).toMatchObject({ modules: ["a", "b", "c"] });
+    expect(warnings[0]?.files).toEqual(["a", "b", "c"]);
   });
 
   it("reports two disjoint cycles in order of first file", () => {
@@ -253,7 +258,7 @@ describe("cycle warning - sealed hierarchies", () => {
     const scan = scanOf(hierarchy, hierarchyModules, 0, ["Event"]);
 
     expect(scan.edges).toHaveLength(4);
-    expect(analyse(validateScan(scan)).warnings).toEqual([]);
+    expect(findCycleWarnings(validateScan(scan), [])).toEqual([]);
   });
 
   it("cycle warning - a real dependency of a subtype is reported alone", () => {
@@ -265,13 +270,11 @@ describe("cycle warning - sealed hierarchies", () => {
 
     expect(warnings).toHaveLength(1);
     expect(warnings[0]?.summary).toBe("cycle of 2 files: Audit, Created");
-    expect(warnings[0]?.evidence).toEqual({
-      modules: ["Audit", "Created"],
-      edges: [
-        { from: "Audit", to: "Created" },
-        { from: "Created", to: "Audit" },
-      ],
-    });
+    expect(warnings[0]?.files).toEqual(["Audit", "Created"]);
+    expect(warnings[0]?.dependencies).toEqual([
+      { from: "Audit", to: "Created" },
+      { from: "Created", to: "Audit" },
+    ]);
   });
 
   it("cycle warning - a cycle through the base omits the hierarchy edges", () => {
@@ -282,13 +285,11 @@ describe("cycle warning - sealed hierarchies", () => {
     );
 
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]?.evidence).toEqual({
-      modules: ["Audit", "Created", "Event"],
-      edges: [
-        { from: "Audit", to: "Event" },
-        { from: "Created", to: "Audit" },
-      ],
-    });
+    expect(warnings[0]?.files).toEqual(["Audit", "Created", "Event"]);
+    expect(warnings[0]?.dependencies).toEqual([
+      { from: "Audit", to: "Event" },
+      { from: "Created", to: "Audit" },
+    ]);
   });
 
   it("cycle warning - a hierarchy with no edge out of it reports nothing", () => {
@@ -354,10 +355,12 @@ describe("determinism", () => {
       ["d", "foreign:z"],
     ];
     const modules = ["a", "b", "c", "d"];
-    const forward = analyse(validateScan(scanOf(edges, modules)));
-    const reversed = analyse(validateScan(scanOf(edges, modules, 1)));
+    const forward = validateScan(scanOf(edges, modules));
+    const reversed = validateScan(scanOf(edges, modules, 1));
+    const both = (repository: typeof forward) =>
+      JSON.stringify([analyse(repository), findCycleWarnings(repository, [])]);
 
-    expect(JSON.stringify(reversed)).toBe(JSON.stringify(forward));
+    expect(both(reversed)).toBe(both(forward));
   });
 });
 

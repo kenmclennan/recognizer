@@ -4,6 +4,7 @@ export {
   afterSensorTick,
   afterSuiteTick,
   createPlanner,
+  dependencyEdges,
   describeGap,
   EMPTY_SUITE_TICKS,
   freshnessScope,
@@ -41,16 +42,15 @@ export {
 } from "@recognizer/core";
 export {
   findingRecordOf,
-  findingRuleOf,
   readSensorFindings,
   sensorFindingsDocument,
 } from "./adapters/filesystem/findings-translator.js";
+export { parsePolicy } from "./adapters/filesystem/policy-translator.js";
 export { readRepository } from "./adapters/filesystem/scan-translator.js";
 export {
   type Analysis,
   analyse,
   type ModuleMetrics,
-  type Warning,
 } from "./analyse.js";
 export {
   AWAKE_GAP_MS,
@@ -150,7 +150,6 @@ export {
 } from "./function-length.js";
 export type { Fix, Gap } from "./gap.js";
 export { gapText, isGap } from "./gap.js";
-export { dependencyEdges } from "./graph.js";
 export {
   checkLink,
   isLink,
@@ -242,7 +241,6 @@ export {
   sentenceProblems,
   type Variant,
 } from "./plugin-sentence.js";
-export { type Policy, parsePolicy } from "./policy.js";
 export { type PolicyProblem, policyProblems } from "./policy-problems.js";
 export {
   type Citation,
@@ -267,8 +265,6 @@ export {
   scanHashes,
   splitFindings,
 } from "./result-freshness.js";
-export type { Rule, Violation, ViolationImport } from "./rules.js";
-export { collectViolations } from "./rules.js";
 export type { RunEntry, RunPhase, RunRecord } from "./run-log.js";
 export {
   judgeScanVersion,

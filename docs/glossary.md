@@ -50,8 +50,9 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Subdomain | One responsibility of the application layer, such as scanning, describing or sensing, with its own use cases and ports in one folder. |
 | Running scan | What the Scan port returns: a stream of typed events, a final outcome and `stop()`. |
 | Policy | The one file a repository's owners write: the entries to ignore, the entry points and the forbid rules. |
+| PolicyRule | A statement the user makes in the policy: one forbid entry, one ignore glob or one entry glob. |
 | Violation | A file's imports that break one rule the policy declares, reported as one finding. Baselined per import; the only finding that fails a run. |
-| Warning | A heuristic over the graph, tied to a principle and carrying its evidence. Never baselined, never fails a run. |
+| Warning | A heuristic over the graph, tied to a principle and carrying its evidence. Never baselined, never fails a run. The Warning entity is the structural problem worked out from the Dependencies and the rules (today the cycle); other warning-severity results are Findings. |
 | Baseline | The recorded violations a repository has accepted for now; it may only shrink. |
 | Scratch folder | A rebuildable folder under `.recognizer/cache/` (the Mutation work folder `mutation/work`, which holds the Warm-up copy and every Mutant copy). Results (overlays, findings, coverage, logs, Mutation's `survivors.json` and `record.json`, scans) are never scratch and stay backed up. |
 | Overlay | Measurements a sensor writes (coverage, churn, mutation), as one file per overlay to `.recognizer/cache/overlays/` and painted onto files and members. |

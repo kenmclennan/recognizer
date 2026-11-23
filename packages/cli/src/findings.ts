@@ -1,6 +1,11 @@
-import type { Finding, FindingRule, SensorFindings } from "@recognizer/core";
+import type {
+  Finding,
+  SensorFindings,
+  ViolatedRule,
+  Violation,
+  ViolationDependency,
+} from "@recognizer/core";
 import { principleName } from "./principles.js";
-import type { Violation, ViolationImport } from "./rules.js";
 
 export type FindingNote = {
   severity: "violation" | "warning";
@@ -8,7 +13,7 @@ export type FindingNote = {
   why: string;
 };
 
-export function ruleText(rule: FindingRule): string {
+export function ruleText(rule: ViolatedRule): string {
   if (rule.type === "level") {
     return `level ${rule.fromLevel} -> ${rule.toLevel}`;
   }
@@ -20,14 +25,14 @@ export function ruleText(rule: FindingRule): string {
   return `forbid ${rule.pattern}`;
 }
 
-export function importText(one: ViolationImport): string {
+export function importText(one: ViolationDependency): string {
   const verb = one.kind === "depends" ? "depends on" : one.kind;
 
   return `${verb} ${one.to} at line ${one.lines.join(", ")}`;
 }
 
 export function violationText(violation: Violation): string {
-  return violation.imports.map(importText).join("; ");
+  return violation.dependencies.map(importText).join("; ");
 }
 
 export function findingsByModuleFrom(

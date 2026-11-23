@@ -1,11 +1,17 @@
+import type { Warning } from "@recognizer/core";
 import {
+  compilePolicy,
   type Finding,
+  findCycleWarnings,
+  findViolations,
+  keptGraph,
+  type PolicyRule,
   type Repository,
   type SensorFindings,
   scanHashes,
+  type ViolatedRule,
 } from "@recognizer/core";
-import { findingRuleOf } from "./adapters/filesystem/findings-translator.js";
-import { type Analysis, analyse, type ModuleMetrics } from "./analyse.js";
+import { analyse, type ModuleMetrics } from "./analyse.js";
 import { violationId } from "./baseline.js";
 import type { Config } from "./config-parse.js";
 import {
@@ -15,10 +21,7 @@ import {
 import { violationText } from "./findings.js";
 import { type FolderMetrics, measureFolders } from "./folder-metrics.js";
 import { COMPLEXITY_LIMIT, LONG_FUNCTION } from "./function-length.js";
-import { keptGraph } from "./graph.js";
-import type { Policy } from "./policy.js";
 import { principleOf } from "./principles.js";
-import { collectViolations, type Rule } from "./rules.js";
 import {
   longFunctionFindings,
   orphanFindings,
@@ -125,9 +128,9 @@ export function resolveStructureSettings(
 
 export function measuredModules(
   repository: Repository,
-  policy: Policy | null,
+  policy: readonly PolicyRule[] | null,
 ): Set<string> {
-  return new Set(keptGraph(repository, policy?.ignore ?? []).ids);
+  return new Set(keptGraph(repository, compilePolicy(policy).ignore).ids);
 }
 
 export function describeSettings(settings: StructureSettings): string {
@@ -146,22 +149,22 @@ export function describeSettings(settings: StructureSettings): string {
   return `cycle ${on(w.cycle)}, orphan ${on(w.orphan)}, unused_exports ${on(w.unused_exports)}, private_imports ${on(w.private_imports)}, long_function ${on(w.long_function)}, long_function_limit ${settings.long_function_limit}, complexity ${on(w.complexity)}, complexity_limit ${settings.complexity_limit}${entries}${annotations}`;
 }
 
-export function violationPrinciple(rules: readonly Rule[]): string {
+export function violationPrinciple(rules: readonly ViolatedRule[]): string {
   return rules.some((rule) => rule.type === "level")
     ? "dependency-inversion-principle"
     : "repository-policy";
 }
 
-function warningFinding(warning: Analysis["warnings"][number]): Finding {
+function warningFinding(warning: Warning): Finding {
   return {
-    id: `cycle:${warning.evidence.modules.join(",")}`,
+    id: `cycle:${warning.files.join(",")}`,
     kind: "cycle",
     severity: "warning",
     ...principleOf(warning.principle),
     summary: warning.summary,
-    fixPattern: warning.fix_pattern,
-    files: warning.evidence.modules,
-    dependencies: warning.evidence.edges,
+    fixPattern: warning.fixPattern,
+    files: warning.files,
+    dependencies: warning.dependencies,
   };
 }
 
@@ -184,7 +187,7 @@ export function measuredInputs(repository: Repository): Record<string, string> {
 
 export function structureSensor(
   repository: Repository,
-  policy: Policy | null,
+  policy: readonly PolicyRule[] | null,
   settings: StructureSettings,
   context: StructureContext,
   measured: Measured = { duplication: null, complexity: null },
@@ -202,33 +205,31 @@ export function structureSensor(
   };
 
   if (policy !== null) {
-    const collected = collectViolations(repository, policy);
-
-    for (const violation of collected.violations) {
+    for (const violation of findViolations(repository, policy)) {
       add(findings, {
         id: violationId(violation),
         kind: "rule-violation",
         severity: "violation",
         ...principleOf(violationPrinciple([violation.rule])),
         summary: violationText(violation),
-        files: [violation.from],
-        dependencies: violation.imports.map((one) => ({
-          from: violation.from,
+        files: [violation.file],
+        dependencies: violation.dependencies.map((one) => ({
+          from: violation.file,
           to: one.to,
           kind: one.kind,
           lines: one.lines,
-          rules: [findingRuleOf(violation.rule)],
+          rules: [violation.rule],
         })),
       });
     }
   }
 
-  const analysis = analyse(repository, policy?.ignore);
+  const analysis = analyse(repository, compilePolicy(policy).ignore);
 
   metrics.push(...analysis.metrics);
 
-  for (const warning of analysis.warnings) {
-    if (settings.warnings.cycle) {
+  if (settings.warnings.cycle) {
+    for (const warning of findCycleWarnings(repository, policy ?? [])) {
       add(warnings, warningFinding(warning));
     }
   }

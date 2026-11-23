@@ -1,6 +1,11 @@
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import type { Dependency, Member, Repository } from "@recognizer/core";
+import {
+  type Dependency,
+  dependencyEdges,
+  type Member,
+  type Repository,
+} from "@recognizer/core";
 import { documentKind } from "./adapters/filesystem/scan-translator.js";
 import type { Io } from "./cli.js";
 import { type ConfigRead, readConfig } from "./config.js";
@@ -8,7 +13,6 @@ import { InputError } from "./errors.js";
 import { type FindingNote, findingsByModuleFrom } from "./findings.js";
 import { measureFolders, metricsLine, metricsTable } from "./folder-metrics.js";
 import { freshScans } from "./freshness.js";
-import { dependencyEdges } from "./graph.js";
 import { loadFindings, readPolicy } from "./load-findings.js";
 import {
   fieldTokens,

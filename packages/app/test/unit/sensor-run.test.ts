@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { EMPTY_REPOSITORY } from "@recognizer/core";
-import { type Rule, violationId } from "recognizer";
+import { EMPTY_REPOSITORY, type ViolatedRule } from "@recognizer/core";
+import { violationId } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { loadScans } from "../../src/scan-loading";
 import { senseRepository, withSensors } from "../../src/sensor-run";
@@ -64,7 +64,7 @@ describe("senseRepository", () => {
     const expected = JSON.parse(
       readFileSync(join(REPO, "fixtures/check/expected.json"), "utf8"),
     ) as {
-      violations: { from: string; rule: Rule }[];
+      violations: { from: string; rule: ViolatedRule }[];
       warnings: { id: string; evidence: { modules?: string[] } }[];
     };
     const run = await senseRepository(
@@ -79,7 +79,11 @@ describe("senseRepository", () => {
       .sort();
     const warnings = findings.filter((record) => record.severity === "warning");
 
-    expect(violations).toEqual(expected.violations.map(violationId).sort());
+    expect(violations).toEqual(
+      expected.violations
+        .map((one) => violationId({ file: one.from, rule: one.rule }))
+        .sort(),
+    );
     expect(warnings).toHaveLength(expected.warnings.length);
   });
 

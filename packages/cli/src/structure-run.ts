@@ -1,4 +1,4 @@
-import type { Finding, Repository } from "@recognizer/core";
+import type { Finding, PolicyRule, Repository } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import { packageVersion } from "./cli.js";
 import { measureComplexityValues } from "./complexity/measure.js";
@@ -9,7 +9,6 @@ import type { Parsers } from "./duplication/parsers.js";
 import { readStoredStructure } from "./duplication/stored.js";
 import { writeFindings } from "./findings-files.js";
 import { scansCommit } from "./load-findings.js";
-import type { Policy } from "./policy.js";
 import {
   buildStructureOverlay,
   writeStructureOverlay,
@@ -31,7 +30,7 @@ export function runStructureSensor(
   io: Io,
   root: string,
   repository: Repository,
-  policy: Policy | null,
+  policy: readonly PolicyRule[] | null,
   settings: StructureSettings,
   parsers: Parsers | null = null,
 ): StructureRun {

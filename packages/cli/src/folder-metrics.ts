@@ -1,6 +1,11 @@
-import type { Member, Repository } from "@recognizer/core";
-import { isForeign, keptGraph } from "./graph.js";
-import type { Policy } from "./policy.js";
+import {
+  compilePolicy,
+  isForeign,
+  keptGraph,
+  type Member,
+  type PolicyRule,
+  type Repository,
+} from "@recognizer/core";
 import { folderOf } from "./structure-warnings.js";
 
 export interface FolderMetrics {
@@ -68,14 +73,14 @@ export function isAbstract(member: Member): boolean {
 
 export function measureFolders(
   repository: Repository,
-  policy: Policy | null,
+  policy: readonly PolicyRule[] | null,
 ): FolderMeasures {
   const ids = new Set<string>();
   const members = new Map<string, readonly Member[]>();
   const seenEdges = new Set<string>();
   const edges: { from: string; to: string }[] = [];
 
-  const kept = keptGraph(repository, policy?.ignore ?? []);
+  const kept = keptGraph(repository, compilePolicy(policy).ignore);
 
   for (const id of kept.ids) {
     ids.add(id);

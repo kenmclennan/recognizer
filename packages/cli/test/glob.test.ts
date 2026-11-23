@@ -1,5 +1,5 @@
+import { compileGlob } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { compileGlob } from "../src/glob.js";
 
 const cases: [string, string, boolean][] = [
   ["shop/domain/**", "shop/domain/order.py", true],

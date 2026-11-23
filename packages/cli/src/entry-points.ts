@@ -1,4 +1,4 @@
-import { compileGlob, type Matcher } from "./glob.js";
+import { compileGlob, type Matcher } from "@recognizer/core";
 
 const TEST_DIRECTORIES = new Set(["test", "tests", "__tests__"]);
 export const SCRIPT_EXTENSIONS = [
@@ -49,8 +49,8 @@ export function isTestFile(id: string): boolean {
 
 export function isEntryPoint(
   id: string,
-  policyEntry: Matcher[],
-  entryGlobs: string[],
+  policyEntry: readonly Matcher[],
+  entryGlobs: readonly string[],
   scanned: boolean,
 ): boolean {
   if (scanned || policyEntry.some((matches) => matches(id)) || isTestFile(id)) {

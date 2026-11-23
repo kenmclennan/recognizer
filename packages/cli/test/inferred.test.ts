@@ -1,5 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { findCycleWarnings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { analyse } from "../src/analyse.js";
@@ -103,18 +104,17 @@ describe("inferred edges", () => {
   });
 
   it("add no fan-out and no cycle", () => {
-    const withInferred = analyse(
-      validateScan(
-        scanOf([
-          inferredEdge("i/a.py", "o/b.py"),
-          inferredEdge("o/b.py", "i/a.py"),
-        ]),
-      ),
+    const inferred = validateScan(
+      scanOf([
+        inferredEdge("i/a.py", "o/b.py"),
+        inferredEdge("o/b.py", "i/a.py"),
+      ]),
     );
+    const withInferred = analyse(inferred);
     const without = analyse(validateScan(scanOf([])));
 
     expect(withInferred).toEqual(without);
-    expect(withInferred.warnings).toEqual([]);
+    expect(findCycleWarnings(inferred, [])).toEqual([]);
   });
 
   it("do not add a module to the node set", () => {
@@ -125,12 +125,12 @@ describe("inferred edges", () => {
   });
 
   it("count as edges when the same scan has them non-inferred", () => {
-    const result = analyse(
-      validateScan(
-        scanOf([plainEdge("i/a.py", "o/b.py"), plainEdge("o/b.py", "i/a.py")]),
-      ),
+    const repository = validateScan(
+      scanOf([plainEdge("i/a.py", "o/b.py"), plainEdge("o/b.py", "i/a.py")]),
     );
 
-    expect(result.warnings.map((warning) => warning.id)).toContain("cycle");
+    expect(
+      findCycleWarnings(repository, []).map((warning) => warning.kind),
+    ).toContain("cycle");
   });
 });

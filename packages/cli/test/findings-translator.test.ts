@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import type { SensorFindings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
-  findingRuleOf,
   readSensorFindings,
   sensorFindingsDocument,
 } from "../src/adapters/filesystem/findings-translator.js";
@@ -184,17 +183,30 @@ describe("readSensorFindings", () => {
   });
 });
 
-describe("findingRuleOf", () => {
-  it("maps the three policy forms", () => {
+describe("rule objects in a findings file", () => {
+  it("reads the three forms with camelCase names", () => {
+    const document = JSON.parse(
+      readFileSync(join(EXAMPLES, "valid", "structure.json"), "utf8"),
+    );
+
+    document.findings[0].evidence.edges = [
+      {
+        from: "a",
+        to: "b",
+        rules: [
+          { type: "level", from_level: "a", to_level: "b" },
+          { type: "uses", from_component: "a", to_component: "b" },
+          { type: "forbid", pattern: "x/**" },
+        ],
+      },
+    ];
+
     expect(
-      findingRuleOf({ type: "level", from_level: "a", to_level: "b" }),
-    ).toEqual({ type: "level", fromLevel: "a", toLevel: "b" });
-    expect(
-      findingRuleOf({ type: "uses", from_component: "a", to_component: "b" }),
-    ).toEqual({ type: "uses", fromComponent: "a", toComponent: "b" });
-    expect(findingRuleOf({ type: "forbid", pattern: "x/**" })).toEqual({
-      type: "forbid",
-      pattern: "x/**",
-    });
+      readSensorFindings(document).findings[0]?.dependencies?.[0]?.rules,
+    ).toEqual([
+      { type: "level", fromLevel: "a", toLevel: "b" },
+      { type: "uses", fromComponent: "a", toComponent: "b" },
+      { type: "forbid", pattern: "x/**" },
+    ]);
   });
 });
