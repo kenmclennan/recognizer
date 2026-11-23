@@ -403,12 +403,12 @@ When(
 );
 
 Then(
-  "the scan fails as an invalid request saying the module scope is empty",
+  "the scan fails as an invalid request saying the file scope is empty",
   function (this: ScanWorld) {
     assert.deepEqual(this.outcome, {
       status: "failed",
       reason: "invalid-request",
-      messages: ["the module scope is empty"],
+      messages: ["the file scope is empty"],
     });
   },
 );

@@ -32,11 +32,11 @@ export function requestFaults(request: ScanRequest): string[] {
 
   if (names !== undefined) {
     if (names.length === 0) {
-      faults.push("the module scope is empty");
+      faults.push("the file scope is empty");
     } else if (names.some((id) => id === "")) {
-      faults.push("a module id in the scope is empty");
+      faults.push("a file id in the scope is empty");
     } else if (names.some((id) => id.includes("\0"))) {
-      faults.push("a module id in the scope holds a NUL");
+      faults.push("a file id in the scope holds a NUL");
     }
   }
 
