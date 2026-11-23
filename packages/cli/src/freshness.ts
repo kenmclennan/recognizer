@@ -1,5 +1,5 @@
 import { join, resolve } from "node:path";
-import { joinRepositories, type Repository } from "@recognizer/core";
+import { Repository } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import { type ConfigRead, readConfig } from "./config.js";
 import { readsAnyConfig } from "./config-parse.js";
@@ -29,7 +29,7 @@ function readAll(
   );
 
   return parts.every((part) => part !== null)
-    ? joinRepositories(parts as Repository[])
+    ? Repository.join(parts as Repository[])
     : null;
 }
 

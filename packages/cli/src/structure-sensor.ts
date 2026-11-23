@@ -1,15 +1,10 @@
-import type { Warning } from "@recognizer/core";
 import {
-  compilePolicy,
-  type Finding,
-  findCycleWarnings,
-  findViolations,
-  keptGraph,
+  Finding,
   type PolicyRule,
   type Repository,
   type SensorFindings,
-  scanHashes,
   type ViolatedRule,
+  type Warning,
 } from "@recognizer/core";
 import { analyse, type ModuleMetrics } from "./analyse.js";
 import { violationId } from "./baseline.js";
@@ -130,7 +125,7 @@ export function measuredModules(
   repository: Repository,
   policy: readonly PolicyRule[] | null,
 ): Set<string> {
-  return new Set(keptGraph(repository, compilePolicy(policy).ignore).ids);
+  return new Set(repository.graphKeeping(policy).ids);
 }
 
 export function describeSettings(settings: StructureSettings): string {
@@ -156,7 +151,7 @@ export function violationPrinciple(rules: readonly ViolatedRule[]): string {
 }
 
 function warningFinding(warning: Warning): Finding {
-  return {
+  return Finding.stored({
     id: `cycle:${warning.files.join(",")}`,
     kind: "cycle",
     severity: "warning",
@@ -165,12 +160,12 @@ function warningFinding(warning: Warning): Finding {
     fixPattern: warning.fixPattern,
     files: warning.files,
     dependencies: warning.dependencies,
-  };
+  });
 }
 
 export function measuredInputs(repository: Repository): Record<string, string> {
   const inputs: Record<string, string> = {};
-  const hashes = scanHashes(repository);
+  const hashes = repository.scannedHashes();
 
   for (const file of repository.files) {
     const hash = hashes.get(file.path);
@@ -205,31 +200,34 @@ export function structureSensor(
   };
 
   if (policy !== null) {
-    for (const violation of findViolations(repository, policy)) {
-      add(findings, {
-        id: violationId(violation),
-        kind: "rule-violation",
-        severity: "violation",
-        ...principleOf(violationPrinciple([violation.rule])),
-        summary: violationText(violation),
-        files: [violation.file],
-        dependencies: violation.dependencies.map((one) => ({
-          from: violation.file,
-          to: one.to,
-          kind: one.kind,
-          lines: one.lines,
-          rules: [violation.rule],
-        })),
-      });
+    for (const violation of repository.violations(policy)) {
+      add(
+        findings,
+        Finding.stored({
+          id: violationId(violation),
+          kind: "rule-violation",
+          severity: "violation",
+          ...principleOf(violationPrinciple([violation.rule])),
+          summary: violationText(violation),
+          files: [violation.file],
+          dependencies: violation.dependencies.map((one) => ({
+            from: violation.file,
+            to: one.to,
+            kind: one.kind,
+            lines: one.lines,
+            rules: [violation.rule],
+          })),
+        }),
+      );
     }
   }
 
-  const analysis = analyse(repository, compilePolicy(policy).ignore);
+  const analysis = analyse(repository, policy);
 
   metrics.push(...analysis.metrics);
 
   if (settings.warnings.cycle) {
-    for (const warning of findCycleWarnings(repository, policy ?? [])) {
+    for (const warning of repository.cycleWarnings(policy ?? [])) {
       add(warnings, warningFinding(warning));
     }
   }

@@ -1,7 +1,5 @@
 import {
-  compilePolicy,
-  isForeign,
-  keptGraph,
+  Library,
   type Member,
   type PolicyRule,
   type Repository,
@@ -80,7 +78,7 @@ export function measureFolders(
   const seenEdges = new Set<string>();
   const edges: { from: string; to: string }[] = [];
 
-  const kept = keptGraph(repository, compilePolicy(policy).ignore);
+  const kept = repository.graphKeeping(policy);
 
   for (const id of kept.ids) {
     ids.add(id);
@@ -122,7 +120,7 @@ export function measureFolders(
   for (const edge of edges) {
     const source = folderOf(edge.from);
 
-    if (isForeign(edge.to)) {
+    if (Library.owns(edge.to)) {
       continue;
     }
 

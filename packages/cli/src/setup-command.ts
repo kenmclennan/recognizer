@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { joinRepositories, type Repository } from "@recognizer/core";
+import { Repository } from "@recognizer/core";
 import { readUncheckedScanFile } from "./adapters/filesystem/scan-translator.js";
 import type { Io } from "./cli.js";
 import { detectLanguages } from "./detect.js";
@@ -63,7 +63,7 @@ function scansFor(io: Io, root: string, file: string | undefined): Repository {
 
   const rules = languageRulesOf(discoverPlugins(io, ["scanner"]).plugins);
 
-  return joinRepositories(
+  return Repository.join(
     detectLanguages(io, root, rules)
       .map((language) => readCachedRepository(io, root, language))
       .filter((part): part is Repository => part !== null),

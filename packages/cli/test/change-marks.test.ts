@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { joinRepositories, type Repository } from "@recognizer/core";
+import { Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   changeMarks,
@@ -193,7 +193,7 @@ describe("classifyChanges", () => {
   });
 
   it("counts modules from every scan", () => {
-    const both = joinRepositories([current, scan([["lib/z.kt", "module"]])]);
+    const both = Repository.join([current, scan([["lib/z.kt", "module"]])]);
 
     expect(
       classifyChanges([{ status: "A", path: "lib/z.kt" }], selectionsOf(both))

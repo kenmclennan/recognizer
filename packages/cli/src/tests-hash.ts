@@ -7,7 +7,6 @@ import {
   buildFreshness,
   type Freshness,
   type Measured,
-  scanHashes,
 } from "./result-freshness.js";
 import { inFileTestHashes } from "./rust-test-blocks.js";
 
@@ -37,7 +36,7 @@ export function currentTestsHash(
     return null;
   }
 
-  const known = scanHashes(repository);
+  const known = repository.scannedHashes();
   const listedPaths = [
     ...new Set(listed.stdout.split("\0").filter((path) => path !== "")),
   ];

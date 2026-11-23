@@ -1,6 +1,5 @@
-import type { Repository } from "@recognizer/core";
+import { File, type Repository } from "@recognizer/core";
 import {
-  dependencyEdges,
   edgeNames,
   folderOf,
   folderUsedBy,
@@ -12,7 +11,6 @@ import {
 } from "recognizer";
 import type { Compaction } from "./folder-compaction";
 import { type CheckState, checkState } from "./row-model";
-import { fileLabel } from "./tree-model";
 
 export const LONG_LIST = 18;
 
@@ -65,7 +63,7 @@ const compare = (a: string, b: string) => a.localeCompare(b);
 
 export function createPicker(input: PickerInput): PickerModel {
   const { source, onCanvas } = input;
-  const allEdges = dependencyEdges(input.scans.dependencies);
+  const allEdges = input.scans.dependencies.filter((edge) => edge.countsAsEdge);
   const filter = input.filter.trim().toLowerCase();
 
   const withGroup = (rows: NeighbourRow[]): RawRow[] =>
@@ -113,7 +111,7 @@ export function createPicker(input: PickerInput): PickerModel {
 
   const view = (row: RawRow): PickerRow => ({
     id: row.id,
-    label: fileLabel(row.id),
+    label: File.nameOf(row.id),
     names: row.names,
     private: row.private,
     inferred: row.inferred,
@@ -156,7 +154,7 @@ export function createPicker(input: PickerInput): PickerModel {
       return null;
     }
 
-    const own = input.scans.files.find((file) => file.path === source.id);
+    const own = input.scans.file(source.id);
 
     if (!own) {
       return null;

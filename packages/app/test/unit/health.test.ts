@@ -1,4 +1,4 @@
-import type { Finding, SensorFindings } from "@recognizer/core";
+import { Finding, type SensorFindings, Violation } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   computeHealth,
@@ -271,15 +271,15 @@ describe("computeHealth narrows a grouped finding by import", () => {
     lines: [line],
     rules: [rule],
   });
-  const grouped = {
+  const grouped = Finding.stored({
     id: "rule-violation:level domain -> adapters:shop/domain/order.py",
     kind: "rule-violation",
-    severity: "violation" as const,
+    severity: "violation",
     principle: "dependency-inversion-principle",
     summary: `depends on ${MEMORY} at line 4; depends on ${PLACE} at line 7`,
     files: [FROM],
     dependencies: [edge(MEMORY, 4), edge(PLACE, 7)],
-  };
+  });
   const baselineOf = (violations: object[]) =>
     JSON.stringify({ schema_version: 1, violations });
   const visible = (violations: object[], extra: Finding[] = []) => {
@@ -311,14 +311,14 @@ describe("computeHealth narrows a grouped finding by import", () => {
   });
 
   it("a non-structure violation is still accepted by its id", () => {
-    const other = {
+    const other = Finding.stored({
       id: "lint:1",
       kind: "lint",
-      severity: "violation" as const,
+      severity: "violation",
       principle: "p",
       summary: "s",
       files: [FROM],
-    };
+    });
 
     expect(
       visible([{ id: "lint:1" }], [other])?.some((one) => one.id === "lint:1"),
@@ -439,25 +439,31 @@ describe("violationLine", () => {
 
   it("names each rule kind", () => {
     expect(
-      violationLine({
-        ...base,
-        dependencies: dependencies("depends"),
-        rule: { type: "level", fromLevel: "domain", toLevel: "adapters" },
-      }),
+      violationLine(
+        new Violation({
+          ...base,
+          dependencies: dependencies("depends"),
+          rule: { type: "level", fromLevel: "domain", toLevel: "adapters" },
+        }),
+      ),
     ).toBe("violation: depends on b at line 3, 5 (level domain -> adapters)");
     expect(
-      violationLine({
-        ...base,
-        dependencies: dependencies("inherits"),
-        rule: { type: "uses", fromComponent: "x", toComponent: "y" },
-      }),
+      violationLine(
+        new Violation({
+          ...base,
+          dependencies: dependencies("inherits"),
+          rule: { type: "uses", fromComponent: "x", toComponent: "y" },
+        }),
+      ),
     ).toBe("violation: inherits b at line 3, 5 (uses x -> y)");
     expect(
-      violationLine({
-        ...base,
-        dependencies: dependencies("implements"),
-        rule: { type: "forbid", pattern: "* -> foreign:requests" },
-      }),
+      violationLine(
+        new Violation({
+          ...base,
+          dependencies: dependencies("implements"),
+          rule: { type: "forbid", pattern: "* -> foreign:requests" },
+        }),
+      ),
     ).toBe(
       "violation: implements b at line 3, 5 (forbid * -> foreign:requests)",
     );
@@ -492,14 +498,15 @@ describe("computeHealth judged per file", () => {
     inputs: Record<string, string> | undefined,
     tests: string | undefined = T,
   ): SensorFindings {
-    const finding = (id: string, modules: string[]) => ({
-      id,
-      kind: "crap",
-      severity: "warning" as const,
-      principle: "reduce-risk",
-      summary: id,
-      files: modules,
-    });
+    const finding = (id: string, modules: string[]) =>
+      Finding.stored({
+        id,
+        kind: "crap",
+        severity: "warning",
+        principle: "reduce-risk",
+        summary: id,
+        files: modules,
+      });
 
     return {
       sensor: { name: "crap", version: "1" },

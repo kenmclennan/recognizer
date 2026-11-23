@@ -1,11 +1,5 @@
 import { basename, join, posix, relative, resolve } from "node:path";
-import {
-  compileGlob,
-  compilePolicy,
-  joinRepositories,
-  type PolicyRule,
-  type Repository,
-} from "@recognizer/core";
+import { compileGlob, PolicyRule, Repository } from "@recognizer/core";
 import { parse } from "yaml";
 import { parsePolicy } from "./adapters/filesystem/policy-translator.js";
 import { readUncheckedScanFile } from "./adapters/filesystem/scan-translator.js";
@@ -1495,12 +1489,13 @@ function policyOf(
     return { present, uncovered: [] };
   }
 
-  const compiled = compilePolicy(policy);
   const matchers = [
-    ...compiled.ignore,
-    ...compiled.entry,
-    ...compiled.forbid.flatMap((rule) =>
-      [...rule.fromGlobs, ...rule.toGlobs]
+    ...PolicyRule.ignores(policy).map(
+      (rule) => (id: string) => rule.ignores(id),
+    ),
+    ...PolicyRule.entries(policy).map((rule) => (id: string) => rule.marks(id)),
+    ...PolicyRule.forbids(policy).flatMap((rule) =>
+      [...rule.from, ...rule.to]
         .filter((glob) => !glob.startsWith("foreign:"))
         .map(compileGlob),
     ),
@@ -1670,7 +1665,7 @@ function cachedRepository(
   );
 
   return parts.length > 0 && parts.every((part) => part !== null)
-    ? joinRepositories(parts as Repository[])
+    ? Repository.join(parts as Repository[])
     : null;
 }
 

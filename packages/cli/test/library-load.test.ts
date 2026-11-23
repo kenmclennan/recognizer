@@ -82,8 +82,8 @@ describe("library load without code generation", () => {
       const translator = await import(${JSON.stringify(join(DIST, "adapters/filesystem/scan-translator.js"))});
       const scan = translator.readRepository([{ language: "python", document: JSON.parse(readFileSync(${JSON.stringify(join(FIXTURE, "scan.json"))}, "utf8")) }]);
       const parsed = policy.parsePolicy(readFileSync(${JSON.stringify(join(FIXTURE, ".recognizer/policy.yaml"))}, "utf8"));
-      const violations = core.findViolations(scan, parsed);
-      const warnings = core.findCycleWarnings(scan, parsed);
+      const violations = scan.violations(parsed);
+      const warnings = scan.cycleWarnings(parsed);
       console.log(JSON.stringify({ violations: violations.length, warnings: warnings.length }));
     `;
     const result = noEval(script);

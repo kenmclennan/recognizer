@@ -1,11 +1,5 @@
 import { join } from "node:path";
-import {
-  compilePolicy,
-  type Finding,
-  keptGraph,
-  type PolicyRule,
-  type Repository,
-} from "@recognizer/core";
+import { Finding, type PolicyRule, type Repository } from "@recognizer/core";
 import type { Io } from "../cli.js";
 import { findFunctions } from "../duplication/functions.js";
 import { type Grammar, grammarFor } from "../duplication/grammars.js";
@@ -83,7 +77,7 @@ function findingOf(
   fn: MeasuredFunction,
   limit: number,
 ): Finding {
-  return {
+  return Finding.stored({
     id: `complexity:${fn.identity}`,
     kind: "complexity",
     severity: "warning",
@@ -103,7 +97,7 @@ function findingOf(
       limit,
       ...(limit === COMPLEXITY_LIMIT ? {} : { published: COMPLEXITY_LIMIT }),
     },
-  };
+  });
 }
 
 export interface ComplexityMeasure {
@@ -123,7 +117,7 @@ export function measureComplexityValues(
   const findings: Finding[] = [];
   const values: Record<string, number> = {};
 
-  const { ids } = keptGraph(repository, compilePolicy(policy).ignore);
+  const { ids } = repository.graphKeeping(policy);
 
   for (const module of repository.files) {
     const grammar = grammarFor(module.path);

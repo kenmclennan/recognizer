@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { compilePolicy } from "@recognizer/core";
+import { PolicyRule } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { run } from "../src/cli.js";
@@ -55,7 +55,7 @@ function migrated(text: string): string {
 function globMatches(glob: string, id: string): boolean {
   const policy = parsePolicy(`entry: ['${glob}']\n`);
 
-  return compilePolicy(policy).entry.some((matches) => matches(id));
+  return PolicyRule.entries(policy).some((rule) => rule.marks(id));
 }
 
 function oldTriples(text: string, edges: [string, string][]): string[] {

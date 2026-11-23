@@ -6,7 +6,6 @@ import {
   type Overlay,
   validateOverlay,
 } from "./overlays.js";
-import { scanHashes } from "./result-freshness.js";
 
 export const STRUCTURE_OVERLAY_METRICS: MetricDeclaration[] = [
   { name: "complexity", type: "count", granularity: "member", bad: "high" },
@@ -66,7 +65,7 @@ function moduleOfKey(key: string): string {
 }
 
 export function buildStructureOverlay(measures: StructureMeasures): Overlay {
-  const hashes = scanHashes(measures.repository);
+  const hashes = measures.repository.scannedHashes();
   const duplication =
     measures.duplication === null
       ? null

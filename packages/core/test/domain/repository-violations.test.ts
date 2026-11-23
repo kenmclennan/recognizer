@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { findViolations, type PolicyRule } from "../../src/index.js";
+import { PolicyRule } from "../../src/index.js";
 import { edge, repositoryWith } from "../fakes/dependency-of.js";
 
-const forbid = (pattern: string, from: string, to: string): PolicyRule => ({
-  type: "forbid",
-  pattern,
-  from: [from],
-  to: [to],
-});
+const forbid = (pattern: string, from: string, to: string): PolicyRule =>
+  PolicyRule.of({
+    type: "forbid",
+    pattern,
+    from: [from],
+    to: [to],
+  });
 
-describe("findViolations", () => {
+describe("Repository.violations", () => {
   it("groups two imports from one file under one rule into one violation", () => {
     const repository = repositoryWith(
       ["a/x.py", "b/y.py", "b/z.py"],
@@ -20,7 +21,7 @@ describe("findViolations", () => {
       ],
     );
 
-    const found = findViolations(repository, [
+    const found = repository.violations([
       forbid("a/** -> b/**", "a/**", "b/**"),
     ]);
 
@@ -43,20 +44,18 @@ describe("findViolations", () => {
     );
     const rules: PolicyRule[] = [
       forbid("a/** -> b/**", "a/**", "b/**"),
-      { type: "ignore", glob: "b/**" },
+      PolicyRule.of({ type: "ignore", glob: "b/**" }),
     ];
 
     expect(repository.dependencies).toHaveLength(1);
-    expect(findViolations(repository, rules)).toEqual([]);
+    expect(repository.violations(rules)).toEqual([]);
   });
 
   it("never flags a self-edge", () => {
     const repository = repositoryWith(["a/x.py"], [edge("a/x.py", "a/x.py")]);
 
     expect(repository.dependencies).toHaveLength(1);
-    expect(
-      findViolations(repository, [forbid("** -> **", "**", "**")]),
-    ).toEqual([]);
+    expect(repository.violations([forbid("** -> **", "**", "**")])).toEqual([]);
   });
 
   it("of three rules one matches, so one violation is returned and the other two rules name nothing", () => {
@@ -65,7 +64,7 @@ describe("findViolations", () => {
       [edge("a/x.py", "b/y.py")],
     );
 
-    const found = findViolations(repository, [
+    const found = repository.violations([
       forbid("b/** -> a/**", "b/**", "a/**"),
       forbid("a/** -> b/**", "a/**", "b/**"),
       forbid("c/** -> a/**", "c/**", "a/**"),

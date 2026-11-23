@@ -1,3 +1,5 @@
+import { InvalidEntity } from "./invalid-entity.js";
+
 export type MemberTag =
   | "property"
   | "static"
@@ -36,7 +38,7 @@ export interface Method {
   readonly tags?: readonly MemberTag[];
 }
 
-export interface Member {
+export interface MemberFields {
   readonly name: string;
   readonly exported: boolean;
   readonly visibility?: "public" | "protected" | "internal" | "private";
@@ -57,4 +59,41 @@ export interface Member {
   readonly returns?: string;
   readonly tags?: readonly MemberTag[] | readonly ClassTag[];
   readonly value?: string;
+}
+
+export class Member {
+  declare readonly name: string;
+  declare readonly exported: boolean;
+  declare readonly visibility?: MemberFields["visibility"];
+  declare readonly kind?: MemberFields["kind"];
+  declare readonly line?: number;
+  declare readonly endLine?: number;
+  declare readonly bodyLine?: number;
+  declare readonly bases?: readonly string[];
+  declare readonly fields?: readonly Field[];
+  declare readonly methods?: readonly Method[];
+  declare readonly params?: readonly Parameter[];
+  declare readonly returns?: string;
+  declare readonly tags?: MemberFields["tags"];
+  declare readonly value?: string;
+
+  constructor(fields: MemberFields) {
+    if (fields.name === "") {
+      throw new InvalidEntity("Member", "name is empty", fields.name);
+    }
+
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== undefined) {
+        (this as Record<string, unknown>)[key] = value;
+      }
+    }
+  }
+
+  method(name: string): Method | undefined {
+    return this.methods?.find((method) => method.name === name);
+  }
+
+  field(name: string): Field | undefined {
+    return this.fields?.find((field) => field.name === name);
+  }
 }

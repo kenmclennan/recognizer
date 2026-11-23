@@ -42,7 +42,7 @@ click(barFolder);
 
 const scan = { modules: [{ id: "p/m.py", kind: "module" }, { id: "p/q.py", kind: "module" }], edges: [], foreign: [], calls: [] };
 const inputs = {
-  scans: repositoryFrom([scan]), modules: scan.modules.map((m) => m.id), compaction: compactFolders(scan.modules.map((m) => m.id)), disc: () => "green", findings: () => [], onCanvas: () => true,
+  scans: repositoryFrom([scan]), modules: scan.modules.map((m) => m.id), compaction: compactFolders(repositoryFrom([scan]).folders), disc: () => "green", findings: () => [], onCanvas: () => true,
   expanded: new Set(), tab: "contents", counts: () => ({ uses: 0, usedBy: 0 }), noteRows: () => [], canAddNote: false, filter: "", responsibility: () => ({ state: { kind: "missing" }, failure: null }),
 };
 const inspectorActions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, setFilter() {}, openInEditor: (target) => calls.push("inspector:" + target.kind + ":" + target.id) };

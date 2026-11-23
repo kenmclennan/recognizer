@@ -1,4 +1,4 @@
-import { EMPTY_REPOSITORY, type Repository } from "@recognizer/core";
+import { Repository } from "@recognizer/core";
 import {
   type Ghost,
   type ProposedKind,
@@ -20,7 +20,7 @@ export type PlanOverlay = {
 export function planOverlay(
   view: View | null,
   resolved: ResolvedView,
-  scans: Repository = EMPTY_REPOSITORY,
+  scans: Repository = Repository.empty,
 ): PlanOverlay | null {
   if (view === null || view.plan !== true) {
     return null;

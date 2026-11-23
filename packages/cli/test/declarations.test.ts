@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dependencyEdges, structureSensor } from "../src/index.js";
+import { structureSensor } from "../src/index.js";
 import { DEFAULT_STRUCTURE_SETTINGS } from "../src/structure-sensor.js";
 import {
   orphanFindings,
@@ -124,14 +124,16 @@ describe("declares edges", () => {
     expect(unusedExportsFindings(scan, null, ["src/lib.rs"])).toEqual([]);
   });
 
-  it("are removed by dependencyEdges and nothing else is", () => {
+  it("are removed as edges and nothing else is", () => {
     const scan = scanOf([
       ["a.rs", "b.rs", "declares"],
       ["a.rs", "c.rs", "depends"],
     ]);
 
-    expect(dependencyEdges(scan.dependencies).map((edge) => edge.to)).toEqual([
-      "c.rs",
-    ]);
+    expect(
+      scan.dependencies
+        .filter((edge) => edge.countsAsEdge)
+        .map((edge) => edge.to),
+    ).toEqual(["c.rs"]);
   });
 });

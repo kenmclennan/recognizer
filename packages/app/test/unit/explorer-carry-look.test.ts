@@ -6,6 +6,7 @@ const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
 import { loadedOf, mountExplorer } from ${JSON.stringify(here("../test/unit/look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("../test/unit/views-fake.ts"))};
+import { Repository } from "@recognizer/core";
 import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
 import { createViewComparisons } from ${JSON.stringify(here("view-comparisons.ts"))};
 ${FAKE_WORKER}
@@ -60,7 +61,7 @@ const facts = {};
   document.body.append(footerEl);
   const footer = buildFooter(footerEl);
   const rows = () => [...footerEl.querySelectorAll(".message-list .msg-text")].map((n) => n.textContent);
-  const withCommit = (commit) => { const l = loadedFor(before); const repository = { ...l.repository, extractions: l.repository.extractions.map((e) => ({ ...e, commit })) }; return { ...l, repository, scans: l.scans.map((s) => ({ ...s, repository })) }; };
+  const withCommit = (commit) => { const l = loadedFor(before); const repository = Repository.of({ ...l.repository, extractions: l.repository.extractions.map((e) => ({ ...e, commit })) }); return { ...l, repository, scans: l.scans.map((s) => ({ ...s, repository })) }; };
   const staleText = JSON.stringify({ schema_version: 1, description: "d", commit: "old1234", steps: [{ kind: "pick", module: "app/hub.py" }, { kind: "pick", module: "lib/gone.py" }] });
   const stalePort = fakeViews({ stale: staleText });
   const scanCalls = [];

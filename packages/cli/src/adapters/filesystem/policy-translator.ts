@@ -1,4 +1,4 @@
-import type { PolicyRule } from "@recognizer/core";
+import { PolicyRule } from "@recognizer/core";
 import { parse } from "yaml";
 import { InputError } from "../../errors.js";
 
@@ -107,8 +107,12 @@ export function parsePolicy(yamlText: string): PolicyRule[] {
 
   return [
     ...forbid,
-    ...ignore.map((glob): PolicyRule => ({ type: "ignore", glob })),
-    ...entryGlobs.map((glob): PolicyRule => ({ type: "entry", glob })),
+    ...ignore.map(
+      (glob): PolicyRule => PolicyRule.of({ type: "ignore", glob }),
+    ),
+    ...entryGlobs.map(
+      (glob): PolicyRule => PolicyRule.of({ type: "entry", glob }),
+    ),
   ];
 }
 
@@ -137,7 +141,12 @@ function parseForbid(entry: unknown, errors: string[]): PolicyRule | null {
     return null;
   }
 
-  return { type: "forbid", pattern: entry, from: [from], to: [to] };
+  return PolicyRule.of({
+    type: "forbid",
+    pattern: entry,
+    from: [from],
+    to: [to],
+  });
 }
 
 function parseListRule(
@@ -174,10 +183,10 @@ function parseListRule(
 
   const [from, to] = sides as [string[], string[]];
 
-  return {
+  return PolicyRule.of({
     type: "forbid",
     pattern: `${from.join(", ")} -> ${to.join(", ")}`,
     from,
     to,
-  };
+  });
 }

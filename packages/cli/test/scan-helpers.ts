@@ -206,6 +206,34 @@ export function scanJson(
   return `${JSON.stringify(scan, null, spacing)}\n\n`;
 }
 
+export function typescriptScanJson(
+  modules: number,
+  edges: number,
+  overrides: Record<string, unknown> = {},
+  spacing = "\t",
+): string {
+  return scanJson(
+    modules,
+    edges,
+    {
+      modules: Array.from({ length: modules }, (_, index) => ({
+        id: `t${index}.ts`,
+        language: "typescript",
+        kind: "module",
+        members: [],
+      })),
+      edges: Array.from({ length: edges }, () => ({
+        from: "t0.ts",
+        to: "t1.ts",
+        kind: "depends",
+        line: 1,
+      })),
+      ...overrides,
+    },
+    spacing,
+  );
+}
+
 function isMarkerFile(path: string): boolean {
   return /\/scan-running[^/]*$/.test(path);
 }

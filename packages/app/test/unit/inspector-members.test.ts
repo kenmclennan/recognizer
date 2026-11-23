@@ -1,3 +1,4 @@
+import { Folder } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { EMPTY_CATALOG } from "../../src/finding-catalog";
 import { compactFolders } from "../../src/folder-compaction";
@@ -56,7 +57,7 @@ function cards(
     catalog: EMPTY_CATALOG,
     scans: repositoryFrom([scanOf(members)]),
     modules: [ID],
-    compaction: compactFolders([ID]),
+    compaction: compactFolders(Folder.derive([ID])),
     disc: () => "green",
     findings: () => [],
     findingRows: () => [],
@@ -231,7 +232,7 @@ describe("member marks in the inspector contents", () => {
         catalog: EMPTY_CATALOG,
         scans: repositoryFrom([scanOf([ORDER])]),
         modules: [ID],
-        compaction: compactFolders([ID]),
+        compaction: compactFolders(Folder.derive([ID])),
         disc: () => "green",
         findings: () => [],
         findingRows: () => [],
@@ -352,7 +353,7 @@ describe("member marks in the inspector contents", () => {
         catalog: EMPTY_CATALOG,
         scans: repositoryFrom([scanOf([ORDER])]),
         modules: [ID],
-        compaction: compactFolders([ID]),
+        compaction: compactFolders(Folder.derive([ID])),
         disc: () => "green",
         findings: () => [],
         findingRows: () => [],

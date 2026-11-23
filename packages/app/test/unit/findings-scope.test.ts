@@ -1,4 +1,4 @@
-import type { Finding, SensorFindings } from "@recognizer/core";
+import { Finding, type SensorFindings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { groupsOf, headerLine } from "../../src/findings-groups";
 import { findingRows } from "../../src/findings-order";
@@ -10,14 +10,14 @@ function record(
   modules: string[],
   severity: "violation" | "warning" = "warning",
 ): Finding {
-  return {
+  return Finding.stored({
     id,
     kind,
     severity,
     principle: "p",
     summary: id,
     files: modules,
-  };
+  });
 }
 
 function rowsOf(findings: Finding[], sensor = "structure") {

@@ -1,11 +1,6 @@
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import {
-  type Dependency,
-  dependencyEdges,
-  type Member,
-  type Repository,
-} from "@recognizer/core";
+import type { Dependency, Member, Repository } from "@recognizer/core";
 import { documentKind } from "./adapters/filesystem/scan-translator.js";
 import type { Io } from "./cli.js";
 import { type ConfigRead, readConfig } from "./config.js";
@@ -93,7 +88,7 @@ function plural(count: number, word: string): string {
 }
 
 function kindOf(repository: Repository, id: string): string {
-  const found = repository.files.find((file) => file.path === id);
+  const found = repository.file(id);
 
   return found === undefined ? "module" : documentKind(found.kind);
 }
@@ -341,16 +336,16 @@ export function runShow(argv: string[], io: Io): number {
   }
 
   const sets = neighbourSets(
-    dependencyEdges(loaded.repository.dependencies),
+    loaded.repository.dependencies.filter((one) => one.countsAsEdge),
     new Set(loaded.modules),
   );
   const counts = moduleCounts(sets, id);
-  const scanned = loaded.repository.files.find((file) => file.path === id);
+  const scanned = loaded.repository.file(id);
   const { shown, hidden } = shownMembers(
     scanned?.members ?? [],
-    dependencyEdges(loaded.repository.dependencies).filter(
-      (edge) => edge.from === id,
-    ),
+    loaded.repository.dependencies
+      .filter((one) => one.countsAsEdge)
+      .filter((edge) => edge.from === id),
     loaded.values.private === true,
   );
   const responsibility = responsibilityOf(
@@ -464,7 +459,7 @@ export function runModules(argv: string[], io: Io): number {
   }
 
   const sets = neighbourSets(
-    dependencyEdges(loaded.repository.dependencies),
+    loaded.repository.dependencies.filter((one) => one.countsAsEdge),
     new Set(loaded.modules),
   );
   const findings = findingsOf(loaded, io);

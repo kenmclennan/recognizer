@@ -1,8 +1,5 @@
 import type { PhaseRecorder } from "../../../domain/phase-recorder.js";
-import {
-  joinRepositories,
-  type Repository,
-} from "../../../domain/repository.js";
+import { Repository } from "../../../domain/repository.js";
 import type { ScanSink } from "../../../domain/scan-sink.js";
 import type { PluginLimits } from "../../shared/ports/process.js";
 import type { ExtractCall, ExtractResult } from "../ports/scanners.js";
@@ -144,5 +141,5 @@ export function* extractProcess(
     }
   }
 
-  return { stopped: false, repository: joinRepositories(parts), missing };
+  return { stopped: false, repository: Repository.join(parts), missing };
 }

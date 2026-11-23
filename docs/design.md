@@ -210,6 +210,7 @@ The domain holds what Recognizer shows, not only the run. Core defines nine enti
 - **Violations and warnings are always worked out** from the current dependencies and policy rules, never stored. The baseline that "grown" violations are measured against is saved history and belongs to `history`.
 - **The files are read into the model, not the model into the files.** The schemas in `schema/` stay the format on disk and between processes. Each adapter that reads or writes a document holds the one translator between it and the entities, and nothing else sees a document's shape.
 - **The entities are the model the formats will move to.** They are designed as Recognizer's own model, not as mirrors of today's documents, so that moving the formats to them later changes only the translators.
+- **The entities carry their behaviour and enforce their invariants at construction.** Each entity is a class: lookups, folder derivation, dependency queries, violation evaluation and finding validity are methods on it, and a breach of an invariant throws `InvalidEntity` when the entity is built. No free helper function stands beside the entities, and callers in core, the CLI and the app use the methods. A Finding built from a scan is checked against its Repository, while a Finding read from a findings file holds paths only, so a finding about a file the scan lacks still loads.
 
 The Store port gives way to repositories over these entities, with the filesystem adapters changing to implement them.
 

@@ -42,7 +42,7 @@ const metrics = [
 const calls = [];
 const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, toggleGroup() {}, setFilter() {}, openInEditor: (target, line) => calls.push([target.id, line ?? null]), setShowPrivate() {} };
 const base = {
-  scans: repositoryFrom([scan]), modules: ["p/m.py"], compaction: compactFolders(["p/m.py"]), disc: () => "green", findings: () => [], findingRows: () => [], onCanvas: () => true,
+  scans: repositoryFrom([scan]), modules: ["p/m.py"], compaction: compactFolders(repositoryFrom([scan]).folders), disc: () => "green", findings: () => [], findingRows: () => [], onCanvas: () => true,
   expanded: new Set(), showPrivate: true, tab: "contents", counts: () => ({ uses: 0, usedBy: 0 }), filter: "", collapsed: new Set(), followed: null,
   responsibility: () => ({ state: { kind: "missing" }, failure: null }), metrics, metricsOn: false, limits: DEFAULT_LIMITS,
 };

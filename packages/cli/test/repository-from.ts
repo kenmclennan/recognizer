@@ -1,5 +1,4 @@
-import type { Repository } from "@recognizer/core";
-import { joinRepositories } from "@recognizer/core";
+import { Repository } from "@recognizer/core";
 import type { ScanDoc } from "../src/adapters/filesystem/scan-document-types.js";
 import { assemble } from "../src/adapters/filesystem/scan-translator.js";
 import { SCAN_SCHEMA_VERSION, validateScan } from "../src/scan.js";
@@ -52,7 +51,7 @@ export function repositoryFrom(
 ): Repository {
   const list = Array.isArray(documents) ? documents : [documents];
 
-  return joinRepositories(
+  return Repository.join(
     list.map((one) => {
       const document = completed(one);
 

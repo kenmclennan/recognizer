@@ -1,10 +1,13 @@
-import type {
+import {
+  type Call,
   Dependency,
-  Extraction,
+  type Extraction,
   File,
-  Folder,
+  Library,
   Member,
   Repository,
+  type TestImport,
+  type UnresolvedImport,
 } from "@recognizer/core";
 import { validateAcceptedScan } from "../../scan.js";
 import type {
@@ -62,21 +65,24 @@ export function assemble(
     translate(language, document),
   );
 
-  const files = parts.flatMap((part) => part.files);
-
-  return {
-    folders: foldersOf(files.map(({ path }) => path)),
-    files,
+  return Repository.of({
+    files: parts.flatMap((part) => part.files),
     dependencies: parts.flatMap((part) => part.dependencies),
     libraries: parts.flatMap((part) => part.libraries),
     calls: parts.flatMap((part) => part.calls),
     unresolvedImports: parts.flatMap((part) => part.unresolvedImports),
     testImports: parts.flatMap((part) => part.testImports),
     extractions: parts.map((part) => part.extraction),
-  };
+  });
 }
 
-type Part = Omit<Repository, "folders" | "extractions"> & {
+type Part = {
+  files: File[];
+  dependencies: Dependency[];
+  libraries: Library[];
+  calls: Call[];
+  unresolvedImports: UnresolvedImport[];
+  testImports: TestImport[];
   extraction: Extraction;
 };
 
@@ -84,38 +90,43 @@ function translate(language: string, document: ScanDoc): Part {
   const hashes = new Map(document.files.map(({ path, hash }) => [path, hash]));
   const libraries = new Set((document.foreign ?? []).map(({ id }) => id));
 
-  const files: File[] = document.modules.map((module) => ({
-    path: module.id,
-    language: module.language ?? language,
-    folder: parentOf(module.id),
-    kind: module.kind === "module" ? "source" : module.kind,
-    hash: hashes.get(module.id) ?? null,
-    members: (module.members ?? []).map(memberOf),
-    entryPoint: module.entry_point ?? false,
-    annotations: module.annotations ?? [],
-    actualOf: module.actual_of ?? [],
-  }));
+  const files: File[] = document.modules.map(
+    (module) =>
+      new File({
+        path: module.id,
+        language: module.language ?? language,
+        kind: module.kind === "module" ? "source" : module.kind,
+        hash: hashes.get(module.id) ?? null,
+        members: (module.members ?? []).map(memberOf),
+        entryPoint: module.entry_point ?? false,
+        annotations: module.annotations ?? [],
+        actualOf: module.actual_of ?? [],
+      }),
+  );
 
   const languageOf = new Map(files.map((file) => [file.path, file.language]));
 
-  const dependencies: Dependency[] = document.edges.map((edge) => ({
-    from: edge.from,
-    to: edge.to,
-    toLibrary: libraries.has(edge.to),
-    language: languageOf.get(edge.from) ?? language,
-    kind: edge.kind,
-    line: edge.line,
-    ...(edge.names === undefined ? {} : { names: edge.names }),
-    ...(edge.via === undefined ? {} : { via: edge.via }),
-    ...(edge.member === undefined ? {} : { member: edge.member }),
-    ...(edge.to_member === undefined ? {} : { toMember: edge.to_member }),
-    ...(edge.inferred === undefined ? {} : { inferred: edge.inferred }),
-  }));
+  const dependencies: Dependency[] = document.edges.map(
+    (edge) =>
+      new Dependency({
+        from: edge.from,
+        to: edge.to,
+        toLibrary: libraries.has(edge.to),
+        language: languageOf.get(edge.from) ?? language,
+        kind: edge.kind,
+        line: edge.line,
+        ...(edge.names === undefined ? {} : { names: edge.names }),
+        ...(edge.via === undefined ? {} : { via: edge.via }),
+        ...(edge.member === undefined ? {} : { member: edge.member }),
+        ...(edge.to_member === undefined ? {} : { toMember: edge.to_member }),
+        ...(edge.inferred === undefined ? {} : { inferred: edge.inferred }),
+      }),
+  );
 
   return {
     files,
     dependencies,
-    libraries: document.foreign ?? [],
+    libraries: (document.foreign ?? []).map((one) => new Library(one)),
     calls: document.calls ?? [],
     unresolvedImports: document.unresolved_imports ?? [],
     testImports: document.test_imports ?? [],
@@ -153,13 +164,13 @@ function selectionOf(selection: DocumentSelection): Extraction["selection"] {
 export function memberOf(member: DocumentMember): Member {
   const { end_line, body_line, methods, tags, ...rest } = member;
 
-  return {
+  return new Member({
     ...rest,
     ...(end_line === undefined ? {} : { endLine: end_line }),
     ...(body_line === undefined ? {} : { bodyLine: body_line }),
     ...(methods === undefined ? {} : { methods: methods.map(methodOf) }),
     ...(tags === undefined ? {} : { tags: tags as Member["tags"] }),
-  };
+  });
 }
 
 export function documentMember(member: Member): DocumentMember {
@@ -197,25 +208,4 @@ function methodOf(
     ...(end_line === undefined ? {} : { endLine: end_line }),
     ...(body_line === undefined ? {} : { bodyLine: body_line }),
   };
-}
-
-function parentOf(path: string): string | null {
-  const at = path.lastIndexOf("/");
-
-  return at === -1 ? null : path.slice(0, at);
-}
-
-function foldersOf(paths: readonly string[]): Folder[] {
-  const seen = new Map<string, Folder>();
-
-  for (const path of paths) {
-    let folder = parentOf(path);
-
-    while (folder !== null && !seen.has(folder)) {
-      seen.set(folder, { path: folder, parent: parentOf(folder) });
-      folder = parentOf(folder);
-    }
-  }
-
-  return [...seen.values()];
 }

@@ -2,7 +2,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { joinRepositories } from "../src/index.js";
+import { Repository } from "../src/index.js";
 import { createFakes } from "./fakes/container.js";
 import { cachePath } from "./fakes/fake-store.js";
 import { repositoryOf } from "./fakes/repository-of.js";
@@ -140,9 +140,9 @@ describe("the fake store reads", () => {
     });
 
     expect(store.cachedRepository("/repo")).toEqual(
-      joinRepositories([kotlin, python]),
+      Repository.join([kotlin, python]),
     );
-    expect(store.cachedRepository("/other")).toEqual(joinRepositories([]));
+    expect(store.cachedRepository("/other")).toEqual(Repository.join([]));
     expect(store.measuredOf("/repo", "crap")).toEqual({
       inputs: { "a.py": "ha" },
       tests: "t",

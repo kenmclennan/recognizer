@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Dependency, Repository } from "@recognizer/core";
+import {
+  Dependency,
+  type DependencyFields,
+  Finding,
+  Folder,
+  type Repository,
+} from "@recognizer/core";
 import { parseConfig } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { buildCatalog } from "../../src/finding-catalog";
@@ -74,7 +80,7 @@ function inputsFor(
     catalog: CATALOG,
     scans,
     modules,
-    compaction: compactFolders(modules),
+    compaction: compactFolders(Folder.derive(modules)),
     disc: () => "green",
     findings: () => [],
     findingRows: () => [],
@@ -846,14 +852,14 @@ describe("findings", () => {
     principle,
     sensor: "structure",
     reported: false,
-    record: {
+    record: Finding.stored({
       id: `${severity}-${summary}`,
       kind: "rule",
       severity,
       principle,
       summary,
       files: ["d/a.py"],
-    },
+    }),
   });
   const violationRow = findingRow("violation", "v", "level 1 -> 2");
   const warningRow = findingRow("warning", "w", "levelization");
@@ -1024,15 +1030,16 @@ describe("findings", () => {
 });
 
 describe("hover emphasis", () => {
-  const edgeOf = (extra: Partial<Dependency>): Dependency => ({
-    from: "x.py",
-    to: "m.py",
-    toLibrary: false,
-    language: "python",
-    kind: "depends",
-    line: 1,
-    ...extra,
-  });
+  const edgeOf = (extra: Partial<DependencyFields>): Dependency =>
+    new Dependency({
+      from: "x.py",
+      to: "m.py",
+      toLibrary: false,
+      language: "python",
+      kind: "depends",
+      line: 1,
+      ...extra,
+    });
   const line = (id: string, edge: Dependency) => ({
     id,
     edges: [edge],

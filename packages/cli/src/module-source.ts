@@ -10,7 +10,7 @@ export interface ModuleSource {
 }
 
 function sourceFiles(repository: Repository, id: string): string[] {
-  if (!repository.files.some((file) => file.path === id)) {
+  if (!repository.hasFile(id)) {
     return [];
   }
 

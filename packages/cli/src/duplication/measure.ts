@@ -1,10 +1,5 @@
 import { join } from "node:path";
-import {
-  type File,
-  type Finding,
-  type Repository,
-  scannedHashes,
-} from "@recognizer/core";
+import type { File, Finding, Repository } from "@recognizer/core";
 import type { Io } from "../cli.js";
 import {
   type DuplicationSettings,
@@ -233,7 +228,7 @@ export function measureDuplication(
   const cache = reuse ? readUnitCache(io, root) : null;
   const next: UnitCache = {};
   const tally: Tally = { parsed: 0, reused: 0 };
-  const hashes = scannedHashes(repository);
+  const hashes = repository.scannedHashes();
   const findings = repository.extractions.flatMap(({ language }) =>
     findingsForUnits(
       collectUnits(

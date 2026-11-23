@@ -1,3 +1,5 @@
+import { Folder } from "@recognizer/core";
+
 export type Compaction = {
   folders: ReadonlySet<string>;
   canonical: (folder: string) => string;
@@ -6,26 +8,23 @@ export type Compaction = {
   ancestors: (id: string) => string[];
 };
 
-export function compactFolders(ids: Iterable<string>): Compaction {
+export function compactFolders(all: readonly Folder[]): Compaction {
   const holdsModule = new Set<string>();
-  const subfolders = new Map<string, Set<string>>();
+  const subfolders = new Map<string, Set<string>>([["", new Set<string>()]]);
 
-  for (const id of ids) {
-    const parts = id.split("/");
+  for (const folder of all) {
+    if (folder.holdsFile) {
+      holdsModule.add(folder.path);
+    }
 
-    holdsModule.add(parts.slice(0, -1).join("/"));
+    const above = folder.parent ?? "";
+    const children = subfolders.get(above) ?? new Set<string>();
 
-    for (let depth = 1; depth < parts.length; depth += 1) {
-      const parent = parts.slice(0, depth - 1).join("/");
-      const path = parts.slice(0, depth).join("/");
-      const children = subfolders.get(parent) ?? new Set<string>();
+    children.add(folder.path);
+    subfolders.set(above, children);
 
-      children.add(path);
-      subfolders.set(parent, children);
-
-      if (!subfolders.has(path)) {
-        subfolders.set(path, new Set<string>());
-      }
+    if (!subfolders.has(folder.path)) {
+      subfolders.set(folder.path, new Set<string>());
     }
   }
 
@@ -50,14 +49,10 @@ export function compactFolders(ids: Iterable<string>): Compaction {
     return current;
   };
 
-  const ancestors = (id: string) => {
-    const parts = id.split("/");
-
-    return parts
-      .slice(0, -1)
-      .map((_, index) => parts.slice(0, index + 1).join("/"))
-      .filter((path) => folders.has(path) && path !== id);
-  };
+  const ancestors = (id: string) =>
+    Folder.chainOf(id)
+      .map((folder) => folder.path)
+      .filter((path) => folders.has(path));
 
   const parent = (folder: string) => ancestors(folder).pop() ?? null;
 

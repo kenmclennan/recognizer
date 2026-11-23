@@ -1,4 +1,4 @@
-import { joinRepositories } from "@recognizer/core";
+import { Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   folderCounts,
@@ -55,7 +55,9 @@ const modules = moduleNames(scan);
 
 describe("neighbours", () => {
   it("names every module once", () => {
-    expect(moduleNames(joinRepositories([scan, scan]))).toEqual(modules);
+    expect(moduleNames(Repository.join([scan, Repository.empty]))).toEqual(
+      modules,
+    );
   });
 
   it("skips self edges and edges to foreign ids", () => {

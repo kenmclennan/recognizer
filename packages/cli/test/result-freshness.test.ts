@@ -1,8 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Repository, SensorFindings } from "@recognizer/core";
-import { joinRepositories } from "@recognizer/core";
+import { Repository, type SensorFindings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   buildFreshness,
@@ -122,7 +121,7 @@ describe("buildFreshness", () => {
 
   it("finds a module's hash in any loaded scan", () => {
     const freshness = buildFreshness(
-      joinRepositories([scanOf({ "a.py": H1 }), scanOf({ "c.ts": H2 })]),
+      Repository.join([scanOf({ "a.py": H1 }), scanOf({ "c.ts": H2 })]),
       null,
     );
 

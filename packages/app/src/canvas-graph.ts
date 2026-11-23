@@ -1,6 +1,5 @@
-import type { Dependency, Repository } from "@recognizer/core";
+import { type Dependency, Folder, type Repository } from "@recognizer/core";
 import {
-  dependencyEdges,
   folderCounts,
   type Ghost,
   lastSegment,
@@ -101,7 +100,7 @@ function styleOf(
 
 export function buildCanvasGraph(input: GraphInput): CanvasGraph {
   const known = new Set(input.modules);
-  const allEdges = dependencyEdges(input.scans.dependencies);
+  const allEdges = input.scans.dependencies.filter((edge) => edge.countsAsEdge);
   const members = new Map<string, Map<string, boolean>>();
 
   for (const file of input.scans.files) {
@@ -130,10 +129,9 @@ export function buildCanvasGraph(input: GraphInput): CanvasGraph {
   const ghosts = (input.ghosts ?? []).filter(
     (ghost) => inFocus(ghost.from) && foldOf(ghost.from) === null,
   );
-  const compaction = compactFolders([
-    ...input.modules,
-    ...ghosts.map((ghost) => ghost.from),
-  ]);
+  const compaction = compactFolders(
+    Folder.derive([...input.modules, ...ghosts.map((ghost) => ghost.from)]),
+  );
   const chainOf = (box: string) => compaction.ancestors(box).filter(inFocus);
 
   const openIn = (folder: string) =>

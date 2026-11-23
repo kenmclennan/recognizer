@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { findCycleWarnings } from "../../src/index.js";
+import { File, Member, Repository } from "../../src/index.js";
 import { edge, repositoryWith } from "../fakes/dependency-of.js";
 
-describe("findCycleWarnings", () => {
+describe("Repository.cycleWarnings", () => {
   it("gives one warning for a two-file cycle with files sorted", () => {
     const repository = repositoryWith(
       ["b.py", "a.py"],
       [edge("b.py", "a.py"), edge("a.py", "b.py")],
     );
 
-    expect(findCycleWarnings(repository, [])).toEqual([
+    expect(repository.cycleWarnings([])).toEqual([
       {
         kind: "cycle",
         principle: "levelization",
@@ -31,7 +31,7 @@ describe("findCycleWarnings", () => {
     );
 
     expect(repository.files).toHaveLength(3);
-    expect(findCycleWarnings(repository, [])).toEqual([]);
+    expect(repository.cycleWarnings([])).toEqual([]);
   });
 
   it("does not count a sealed type with its subtypes as a cycle", () => {
@@ -42,26 +42,26 @@ describe("findCycleWarnings", () => {
         edge("Shape.kt", "Circle.kt"),
       ],
     );
-    const repository = {
+    const repository = Repository.of({
       ...base,
       files: base.files.map((file) =>
         file.path === "Shape.kt"
-          ? {
+          ? new File({
               ...file,
               members: [
-                {
+                new Member({
                   name: "Shape",
                   exported: true,
-                  kind: "class" as const,
+                  kind: "class",
                   tags: ["sealed"],
-                },
+                }),
               ],
-            }
+            })
           : file,
       ),
-    };
+    });
 
     expect(repository.files).toHaveLength(2);
-    expect(findCycleWarnings(repository, [])).toEqual([]);
+    expect(repository.cycleWarnings([])).toEqual([]);
   });
 });

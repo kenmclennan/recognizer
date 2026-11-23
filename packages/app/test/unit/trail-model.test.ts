@@ -1,3 +1,4 @@
+import { Folder } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { compactFolders } from "../../src/folder-compaction";
 import {
@@ -262,7 +263,7 @@ describe("crumbs", () => {
     expect(
       crumbs(
         trail,
-        compactFolders(["app/core/x.py", "app/other/y.py"]),
+        compactFolders(Folder.derive(["app/core/x.py", "app/other/y.py"])),
         () => "grey",
       )[0].label,
     ).toBe("core/");

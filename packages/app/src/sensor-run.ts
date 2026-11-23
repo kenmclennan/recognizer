@@ -16,7 +16,6 @@ import {
   readSensorFindings,
   registeredSensors,
   resolveStructureSettings,
-  scanHashes,
 } from "recognizer";
 import {
   type Refusal,
@@ -370,7 +369,7 @@ export async function withSensors(
   const inputs = await port.readInputs();
   const run = await senseRepository(loaded.scans, inputs, port);
   const overlays = await port.readOverlays();
-  const known = Object.fromEntries(scanHashes(loaded.repository));
+  const known = Object.fromEntries(loaded.repository.scannedHashes());
   const tests = await port.readTestsHash(known).catch(() => null);
   const records = await port
     .readRunRecords()

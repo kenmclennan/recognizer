@@ -1,9 +1,4 @@
-import {
-  EMPTY_REPOSITORY,
-  type File,
-  joinRepositories,
-  type Repository,
-} from "@recognizer/core";
+import { type File, Repository } from "@recognizer/core";
 
 export function unionScans(
   head: Repository,
@@ -36,8 +31,8 @@ export function unionScans(
       inUnion(edge.to),
   );
 
-  return joinRepositories([
+  return Repository.join([
     head,
-    { ...EMPTY_REPOSITORY, files: [...modules.values()], dependencies },
+    Repository.of({ files: [...modules.values()], dependencies }),
   ]);
 }

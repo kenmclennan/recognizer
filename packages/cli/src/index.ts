@@ -4,7 +4,6 @@ export {
   afterSensorTick,
   afterSuiteTick,
   createPlanner,
-  dependencyEdges,
   describeGap,
   EMPTY_SUITE_TICKS,
   freshnessScope,
@@ -267,7 +266,6 @@ export {
   type Measured,
   moduleOf,
   namedModules,
-  scanHashes,
   splitFindings,
 } from "./result-freshness.js";
 export type { RunEntry, RunPhase, RunRecord } from "./run-log.js";

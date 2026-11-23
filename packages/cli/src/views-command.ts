@@ -1,6 +1,6 @@
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { EMPTY_REPOSITORY, type Repository } from "@recognizer/core";
+import { Repository } from "@recognizer/core";
 import { changeMarks, parseNameStatus } from "./change-marks.js";
 import type { Io } from "./cli.js";
 import { InputError, Refusal } from "./errors.js";
@@ -1461,7 +1461,7 @@ function runList(argv: string[], io: Io): number {
   const listed = viewNames(io, c.root);
   const repository =
     listed.length === 0
-      ? EMPTY_REPOSITORY
+      ? Repository.empty
       : freshScans(io, c.root, []).repository;
   const rows = listed.map((name) => {
     try {

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { compilePolicy } from "@recognizer/core";
+import { PolicyRule } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { parsePolicy } from "../src/adapters/filesystem/policy-translator.js";
@@ -432,7 +432,9 @@ describe("recognizer policy with no policy file", () => {
     expect(code).toBe(0);
     expect(existsSync(file)).toBe(true);
     expect(
-      compilePolicy(parsePolicy(readFileSync(file, "utf8"))).entryGlobs,
+      PolicyRule.entries(parsePolicy(readFileSync(file, "utf8"))).map(
+        (rule) => rule.glob,
+      ),
     ).toEqual(["src/main.ts"]);
   });
 });

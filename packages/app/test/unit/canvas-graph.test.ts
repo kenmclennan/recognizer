@@ -424,6 +424,25 @@ describe("planned boxes and ghosts", () => {
     expect(graph.boxes.some((one) => one.id === "shop/b.py")).toBe(true);
   });
 
+  it("a ghost gains its folder chain", () => {
+    const graph = planned(
+      ["fresh/one.py"],
+      [
+        { from: "gone/deep/a.py", to: "fresh/one.py" },
+        { from: "gone/deep/b.py", to: "fresh/one.py" },
+        { from: "gone/other/c.py", to: "fresh/one.py" },
+      ],
+    );
+    const paths = graph.frames.map((frame) => frame.path);
+
+    expect(paths).toContain("gone");
+    expect(paths).toContain("gone/deep");
+    expect(paths).toContain("gone/other");
+    expect(
+      graph.boxes.find((one) => one.id === "ghost:gone/deep/a.py")?.parent,
+    ).toBe("gone/deep");
+  });
+
   it("draws a ghost whose old path is not in the scan", () => {
     const graph = planned(
       ["fresh/one.py"],

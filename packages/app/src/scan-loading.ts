@@ -1,9 +1,4 @@
-import {
-  EMPTY_REPOSITORY,
-  joinRepositories,
-  type Repository,
-  type SensorFindings,
-} from "@recognizer/core";
+import { Repository, type SensorFindings } from "@recognizer/core";
 import {
   judgeScanVersion,
   readRepository,
@@ -34,7 +29,7 @@ export type Loaded = {
 const EMPTY: Loaded = {
   modules: [],
   scans: [],
-  repository: EMPTY_REPOSITORY,
+  repository: Repository.empty,
   policy: null,
   baseline: null,
   notices: [],
@@ -144,7 +139,7 @@ export function loadScans(report: ScanReport): Loaded {
   return {
     modules,
     scans,
-    repository: joinRepositories(scans.map((one) => one.repository)),
+    repository: Repository.join(scans.map((one) => one.repository)),
     policy: report.policy,
     baseline: report.baseline ?? null,
     notices,

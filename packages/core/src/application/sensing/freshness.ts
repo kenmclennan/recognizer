@@ -1,9 +1,7 @@
-import { type Repository, scannedHashes } from "../../domain/repository.js";
+import type { Repository } from "../../domain/repository.js";
 import type { Measured } from "../../domain/scan-plan.js";
 
 export type { Measured };
-
-export const scanHashes = scannedHashes;
 
 export type Freshness = {
   valid(measured: Measured): boolean;
@@ -25,7 +23,7 @@ export function buildFreshness(
   repository: Repository,
   tests: string | null = null,
 ): Freshness {
-  const hashes = scannedHashes(repository);
+  const hashes = repository.scannedHashes();
 
   const valid = (measured: Measured) =>
     measured.inputs !== undefined &&

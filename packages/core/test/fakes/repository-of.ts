@@ -1,4 +1,4 @@
-import type { Extraction, File, Member, Repository } from "../../src/index.js";
+import { type Extraction, File, Member, Repository } from "../../src/index.js";
 
 const SELECTION = {
   extensions: [],
@@ -14,25 +14,19 @@ export function repositoryOf(
   withFunction: string[],
   language = "python",
 ): Repository {
-  const members: Member[] = [{ name: "f", exported: true, kind: "function" }];
+  const members = [new Member({ name: "f", exported: true, kind: "function" })];
 
-  return {
-    folders: [],
+  return Repository.of({
     files: Object.entries(files).map(([path, hash]) =>
       fileOf(path, language, hash, withFunction.includes(path) ? members : []),
     ),
-    dependencies: [],
-    libraries: [],
-    calls: [],
-    unresolvedImports: [],
-    testImports: [],
     extractions: [
       extractionOf(
         language,
         Object.entries(files).map(([path, hash]) => ({ path, hash })),
       ),
     ],
-  };
+  });
 }
 
 export function repositoryFromFacts(
@@ -46,18 +40,12 @@ export function repositoryFromFacts(
     (document.files ?? []).map(({ path, hash }) => [path, hash]),
   );
 
-  return {
-    folders: [],
+  return Repository.of({
     files: document.modules.map(({ id, members }) =>
       fileOf(id, language, hashes.get(id) ?? null, members ?? []),
     ),
-    dependencies: [],
-    libraries: [],
-    calls: [],
-    unresolvedImports: [],
-    testImports: [],
     extractions: [extractionOf(language, document.files ?? [])],
-  };
+  });
 }
 
 function fileOf(
@@ -66,17 +54,16 @@ function fileOf(
   hash: string | null,
   members: readonly Member[],
 ): File {
-  return {
+  return new File({
     path,
     language,
-    folder: null,
     kind: "source",
     hash,
     members,
     entryPoint: false,
     annotations: [],
     actualOf: [],
-  };
+  });
 }
 
 function extractionOf(

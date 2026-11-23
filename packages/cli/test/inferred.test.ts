@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { findCycleWarnings } from "@recognizer/core";
+
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { analyse } from "../src/analyse.js";
@@ -114,7 +114,7 @@ describe("inferred edges", () => {
     const without = analyse(validateScan(scanOf([])));
 
     expect(withInferred).toEqual(without);
-    expect(findCycleWarnings(inferred, [])).toEqual([]);
+    expect(inferred.cycleWarnings([])).toEqual([]);
   });
 
   it("do not add a module to the node set", () => {
@@ -130,7 +130,7 @@ describe("inferred edges", () => {
     );
 
     expect(
-      findCycleWarnings(repository, []).map((warning) => warning.kind),
+      repository.cycleWarnings([]).map((warning) => warning.kind),
     ).toContain("cycle");
   });
 });

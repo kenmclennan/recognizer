@@ -1,5 +1,6 @@
+import { File } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { buildTree, fileLabel, filesOf } from "../../src/tree-model";
+import { buildTree, filesOf } from "../../src/tree-model";
 import { expectedModuleIds } from "../fixtures";
 
 describe("buildTree", () => {
@@ -50,17 +51,17 @@ describe("buildTree", () => {
   });
 });
 
-describe("fileLabel", () => {
+describe("File.nameOf", () => {
   it("keeps the file extension and drops the folders", () => {
-    expect(fileLabel("a/b/x.py")).toBe("x.py");
-    expect(fileLabel("top.ts")).toBe("top.ts");
+    expect(File.nameOf("a/b/x.py")).toBe("x.py");
+    expect(File.nameOf("top.ts")).toBe("top.ts");
   });
 
   it("is the name a tree file row shows", () => {
     const tree = buildTree(["a/b/x.py"]);
 
     expect(filesOf(tree).map((file) => file.name)).toEqual([
-      fileLabel("a/b/x.py"),
+      File.nameOf("a/b/x.py"),
     ]);
   });
 });

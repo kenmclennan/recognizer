@@ -35,7 +35,23 @@ function both(extra: Record<string, string> = {}): Record<string, string> {
 }
 
 const okPython = { output: scanJson(2, 1) };
-const okTypescript = { output: scanJson(3, 2) };
+const typescriptScan = (modules: number, edges: number) =>
+  scanJson(modules, edges, {
+    modules: Array.from({ length: modules }, (_, index) => ({
+      id: `t${index}.ts`,
+      language: "typescript",
+      kind: "module",
+      members: [],
+    })),
+    edges: Array.from({ length: edges }, () => ({
+      from: "t0.ts",
+      to: "t1.ts",
+      kind: "depends",
+      line: 1,
+    })),
+  });
+
+const okTypescript = { output: typescriptScan(3, 2) };
 
 describe("recognizer scan: command building", () => {
   it("passes the exact argv with a commit", async () => {

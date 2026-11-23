@@ -1,11 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  EMPTY_REPOSITORY,
-  joinRepositories,
-  type SensorFindings,
-} from "@recognizer/core";
+import { Finding, Repository, type SensorFindings } from "@recognizer/core";
 import {
   buildFreshness,
   describeGap,
@@ -152,14 +148,14 @@ export function secondSensorDocument(
     settings: {},
     inputs: checkInputs(),
     findings: [
-      {
+      Finding.stored({
         id: `magic:${module}`,
         kind: "magic-numbers",
         severity: "warning",
         principle,
         summary,
         files: [module],
-      },
+      }),
     ],
   };
 
@@ -217,14 +213,14 @@ export function withPlan(
     input.sensors.find(({ measured }) => measured?.tests !== undefined)
       ?.measured?.tests;
   const known = new Set(
-    (input.scans ?? EMPTY_REPOSITORY).files.map(({ path }) => path),
+    (input.scans ?? Repository.empty).files.map(({ path }) => path),
   );
   const missing = input.lines.modules.filter((id) => !known.has(id));
   const scans =
     missing.length === 0
-      ? (input.scans ?? EMPTY_REPOSITORY)
-      : joinRepositories([
-          input.scans ?? EMPTY_REPOSITORY,
+      ? (input.scans ?? Repository.empty)
+      : Repository.join([
+          input.scans ?? Repository.empty,
           repositoryFrom([
             {
               modules: missing.map((id) => ({

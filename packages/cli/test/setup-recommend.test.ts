@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { EMPTY_REPOSITORY } from "@recognizer/core";
+import { Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { nodeIo } from "../src/cli.js";
@@ -175,11 +175,11 @@ describe("setup recommend", () => {
         nodeIo(),
         repository(null),
         { entries: [{ kind: "x" }] },
-        EMPTY_REPOSITORY,
+        Repository.empty,
       ),
     ).toThrow(/wrong shape/);
     expect(() =>
-      recommend(nodeIo(), repository(null), [], EMPTY_REPOSITORY),
+      recommend(nodeIo(), repository(null), [], Repository.empty),
     ).toThrow(/no entries/);
   });
 });

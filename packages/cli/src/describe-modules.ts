@@ -137,7 +137,7 @@ export function subjectFor(
 }
 
 function find(repository: Repository, id: string): File | undefined {
-  return repository.files.find((file) => file.path === id);
+  return repository.file(id);
 }
 
 function fill(

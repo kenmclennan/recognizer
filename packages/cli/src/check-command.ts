@@ -1,12 +1,12 @@
 import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import type {
-  Finding,
-  PolicyRule,
-  Repository,
-  SensorFindings,
+import {
+  type Finding,
+  type PolicyRule,
+  type Repository,
+  type SensorFindings,
   Violation,
-  Warning,
+  type Warning,
 } from "@recognizer/core";
 import {
   documentRuleOf,
@@ -278,15 +278,15 @@ function violationOf(sensor: string, record: Finding): Candidate {
       value: {
         type: "violation",
         value: {
-          violation: {
+          violation: new Violation({
             file: from,
             rule,
             dependencies: edges.map((edge) => ({
               to: edge.to,
               kind: edge.kind as string,
-              lines: edge.lines as number[],
+              lines: [...new Set(edge.lines as number[])].sort((a, b) => a - b),
             })),
-          },
+          }),
           grown: false,
         },
       },
@@ -360,12 +360,9 @@ function rankCandidates(
       return {
         type: "violation",
         value: {
-          violation: {
-            ...violation,
-            dependencies: violation.dependencies.filter((_, index) =>
-              fresh.has(candidate.keys[index] as string),
-            ),
-          },
+          violation: violation.narrowedTo((_, index) =>
+            fresh.has(candidate.keys[index] as string),
+          ),
           grown,
         },
       };

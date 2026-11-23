@@ -1,4 +1,4 @@
-import { EMPTY_REPOSITORY } from "@recognizer/core";
+import { Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { loadedUnchanged, sameStructure } from "../../src/loaded-unchanged";
 import type { Loaded } from "../../src/scan-loading";
@@ -7,7 +7,7 @@ import { repositoryFrom } from "./repository-from";
 const BASE: Loaded = {
   modules: [],
   scans: [],
-  repository: EMPTY_REPOSITORY,
+  repository: Repository.empty,
   policy: "p",
   baseline: "b",
   notices: [],
@@ -24,7 +24,7 @@ describe("loadedUnchanged", () => {
   });
 
   it("is true for equal sensed fields, whatever the scans are", () => {
-    const scans = [{ file: "scan.python.json", repository: EMPTY_REPOSITORY }];
+    const scans = [{ file: "scan.python.json", repository: Repository.empty }];
 
     expect(loadedUnchanged(BASE, { ...BASE })).toBe(true);
     expect(loadedUnchanged(BASE, { ...BASE, scans })).toBe(true);
