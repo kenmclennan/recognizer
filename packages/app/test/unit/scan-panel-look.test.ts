@@ -16,6 +16,7 @@ import { createRescanner } from ${JSON.stringify(here("rescanner.ts"))};
 import { scansCommit } from ${JSON.stringify(here("scans-commit.ts"))};
 import { withSensors } from ${JSON.stringify(here("sensor-run.ts"))};
 import { NO_CHANGES } from ${JSON.stringify(here("footer-scan.ts"))};
+import { createChangesHandler } from ${JSON.stringify(here("scan-changes.ts"))};
 import { describerRegistered, rowSensors } from ${JSON.stringify(here("scan-panel-model.ts"))};
 import { PANEL_LIMITS } from ${JSON.stringify(here("panel-widths.ts"))};
 ${FAKE_WORKER}
@@ -109,6 +110,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
     openLog: (log) => { void editor.openFile(log); },
     show: (target) => wired.explorer.show(target),
   });
+  wired.changesChanged = createChangesHandler({ state: () => wired.scanState, setState: setScan, refreshPanel: () => wired.explorer?.refreshPanel() });
   await wired.rescanner.loadTicks();
   wired.current = base;
   if (scanned) setScan(withProgress({ origin: ORIGIN, scannedAt: Date.now(), changes: NO_CHANGES }));
@@ -128,7 +130,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   const setTick = async (key, checked) => { const box = q('.scan-row[data-sensor="' + key + '"] .scan-tick'); box.checked = checked; box.dispatchEvent(new Event("change", { bubbles: true })); await tick(); };
   const panel = () => ({ header: q(".scan-sub").textContent, amber: q(".scan-sub .warn")?.textContent ?? null, amberColor: q(".scan-sub .warn") ? getComputedStyle(q(".scan-sub .warn")).color : null, rows: rows(), buttons: all(".scan-buttons button").map((b) => ({ text: b.textContent, disabled: b.disabled, spinner: b.querySelectorAll("svg").length })), summary: q(".summary") ? { shape: q(".summary").dataset.shape, tone: q(".summary").className.replace("summary", "").trim(), head: q(".summary-head").textContent, line: q(".summary-line").textContent, bar: all(".summary-bar").length, spinning: q(".summary .scan-spin") !== null } : null, rowBars: all(".scan-bar").length, strays: all(".scan-block, .scan-block-title, .sensor-add, .sensor-remove, .scan-summary, .scan-stop-button, .scan-panel h2, .scan-panel h3, .scan-extract, .scan-describe, .measure-row").length, subLines: all(".scan-row *").filter((n) => n.matches("div")).length });
 
-  return { host, q, all, visible, rows, text, scanLineText, footerButtons, messages, act, setTick, panel, fake, editor, wired, sensors };
+  return { host, q, all, visible, rows, text, scanLineText, footerButtons, messages, act, setTick, panel, fake, editor, wired, sensors, emitChangesChanged: (changes) => wired.changesChanged(changes) };
 }
 
 (async () => {
@@ -210,10 +212,12 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   facts.stop = { footer: s.scanLineText(), footerButtons: s.footerButtons(), stopAfter: s.all(".scan-stop").length, button: s.q(".scan-run")?.textContent ?? "", disabled: s.q(".scan-run")?.disabled };
 
   const changed = await mount(fakeScan());
-  changed.wired.scanState = { ...changed.wired.scanState, scannedAt: Date.now() - 2 * 3600000, changes: { files: [{ path: "app/a.py", kind: "modified" }], moved: null } };
+  changed.wired.scanState = { ...changed.wired.scanState, scannedAt: Date.now() - 2 * 3600000, changes: NO_CHANGES };
   click(changed.q(".rail-scan"));
   await tick();
-  changed.wired.explorer.refreshPanel();
+  facts.changedBefore = changed.panel();
+  changed.emitChangesChanged({ files: [{ path: "app/a.py", kind: "modified" }], moved: null });
+  await tick();
   facts.changed = changed.panel();
 
   const failFake = fakeScan({
@@ -796,6 +800,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
   });
 
   it("carries no amber phrase in the header with files changed, and says so in the summary and the Structure row", () => {
+    expect(f.changedBefore.buttons[0].text).not.toBe("Update 1 file");
     expect(f.changed.header).toBe("Ran 2 hours ago");
     expect(f.changed.amber).toBeNull();
     expect(f.changed.summary).toMatchObject({
