@@ -2,7 +2,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
-import { requireSensorsVenv } from "./sensors-venv.js";
+import {
+  requirePythonScannerVenv,
+  requireSensorsVenv,
+} from "./sensors-venv.js";
 
 const COMMAND = "uv sync --locked --project packages/sensors";
 
@@ -41,5 +44,28 @@ describe("requireSensorsVenv", () => {
     expect(() =>
       requireSensorsVenv(repoWith("crap", "mutation")),
     ).not.toThrow();
+  });
+});
+
+describe("requirePythonScannerVenv", () => {
+  it("names the scanner binary and the command when it is missing", () => {
+    const root = makeTempDir("scanner-venv-");
+
+    expect(() => requirePythonScannerVenv(root)).toThrow(
+      /packages\/scanners\/python\/\.venv has no recognizer-scan-python/,
+    );
+    expect(() => requirePythonScannerVenv(root)).toThrow(
+      "uv sync --locked --project packages/scanners/python",
+    );
+  });
+
+  it("returns when the scanner binary exists", () => {
+    const root = makeTempDir("scanner-venv-");
+    const bin = join(root, "packages/scanners/python/.venv/bin");
+
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, "recognizer-scan-python"), "");
+
+    expect(() => requirePythonScannerVenv(root)).not.toThrow();
   });
 });

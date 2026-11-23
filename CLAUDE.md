@@ -88,6 +88,8 @@ The look tests need Playwright's WebKit (`npx -w @recognizer/app playwright inst
 
 The shipped-sensors real test (`packages/cli/test/shipped-sensors-real.test.ts`) needs the sensors venv, which a fresh worktree lacks: run `uv sync --locked --project packages/sensors` once, as CI's `check` job does, or the test refuses and names that command.
 
+The plugin manifest and real-plugin tests (`plugin-manifests.test.ts`, `plugin-real.test.ts`) also need the Python scanner venv: run `uv sync --locked --project packages/scanners/python`, or they refuse and name that command.
+
 ## Stack-specific gate and review risks
 
 - A test that needs a temp folder makes it with `makeTempDir` from `tools/scripts/temp-dirs.mjs` (look tests use `look-page.ts`), so it is removed after the file; every suite runs under `tools/scripts/assert-clean-tmpdir.mjs`, which fails on anything left in `TMPDIR`.
