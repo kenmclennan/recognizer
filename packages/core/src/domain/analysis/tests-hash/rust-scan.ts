@@ -1,23 +1,17 @@
-import { createHash } from "node:crypto";
-import { join, posix } from "node:path";
-import { isTestFile } from "@recognizer/core";
-import { parse } from "smol-toml";
-import type { Io } from "./cli.js";
+import { indexOfBytes, latin1 } from "./bytes.js";
 
 const SPACE = new Set([0x20, 0x09, 0x0a, 0x0d, 0x0b, 0x0c]);
 
-const ROOT_NAMES = new Set(["lib.rs", "main.rs", "build.rs"]);
-
 const PATH_VALUE = /^\s*path\s*=\s*"((?:[^"\\]|\\.)*)"\s*$/s;
 
-type Declaration = {
+export type Declaration = {
   scope: string[];
   name: string;
   path: string | null;
   isTest: boolean;
 };
 
-type Scanned = {
+export type Scanned = {
   items: [number, number][];
   fileLevel: boolean;
   declarations: Declaration[];
@@ -34,11 +28,7 @@ function isIdentifierByte(byte: number): boolean {
   );
 }
 
-function sha256(data: Uint8Array): string {
-  return createHash("sha256").update(data).digest("hex");
-}
-
-function startsWith(data: Buffer, text: string, at: number): boolean {
+function startsWith(data: Uint8Array, text: string, at: number): boolean {
   for (let k = 0; k < text.length; k += 1) {
     if (data[at + k] !== text.charCodeAt(k)) {
       return false;
@@ -48,7 +38,7 @@ function startsWith(data: Buffer, text: string, at: number): boolean {
   return true;
 }
 
-function skipBlockComment(data: Buffer, start: number): number {
+function skipBlockComment(data: Uint8Array, start: number): number {
   let depth = 0;
   let i = start;
 
@@ -71,7 +61,7 @@ function skipBlockComment(data: Buffer, start: number): number {
   return data.length;
 }
 
-function skipQuoted(data: Buffer, start: number): number {
+function skipQuoted(data: Uint8Array, start: number): number {
   let i = start + 1;
 
   while (i < data.length) {
@@ -87,14 +77,14 @@ function skipQuoted(data: Buffer, start: number): number {
   return data.length;
 }
 
-function skipRaw(data: Buffer, start: number, hashes: number): number {
-  const closing = Buffer.from(`"${"#".repeat(hashes)}`);
-  const end = data.indexOf(closing, start);
+function skipRaw(data: Uint8Array, start: number, hashes: number): number {
+  const closing = [0x22, ...new Array<number>(hashes).fill(0x23)];
+  const end = indexOfBytes(data, closing, start);
 
   return end < 0 ? data.length : end + closing.length;
 }
 
-function skipCharacter(data: Buffer, start: number): number {
+function skipCharacter(data: Uint8Array, start: number): number {
   const i = start + 1;
 
   if (i >= data.length) {
@@ -117,7 +107,7 @@ function skipCharacter(data: Buffer, start: number): number {
   return start + 1;
 }
 
-function rawStart(data: Buffer, start: number): number | null {
+function rawStart(data: Uint8Array, start: number): number | null {
   let i = start + 1;
   let hashes = 0;
 
@@ -133,7 +123,7 @@ function rawStart(data: Buffer, start: number): number | null {
   return null;
 }
 
-function skipLiteral(data: Buffer, i: number): number | null {
+function skipLiteral(data: Uint8Array, i: number): number | null {
   const byte = data[i] as number;
 
   if (byte === 0x2f && startsWith(data, "//", i)) {
@@ -182,7 +172,7 @@ function skipLiteral(data: Buffer, i: number): number | null {
   return null;
 }
 
-function skipTrivia(data: Buffer, start: number): number {
+function skipTrivia(data: Uint8Array, start: number): number {
   let i = start;
 
   while (i < data.length) {
@@ -198,7 +188,7 @@ function skipTrivia(data: Buffer, start: number): number {
   return i;
 }
 
-function attributeEnd(data: Buffer, start: number): number {
+function attributeEnd(data: Uint8Array, start: number): number {
   let depth = 1;
   let i = start;
 
@@ -343,15 +333,15 @@ export function isTestAttribute(inner: string): boolean {
 }
 
 function attributeInner(
-  data: Buffer,
+  data: Uint8Array,
   start: number,
   end: number,
   opener: number,
 ): string {
-  return data.subarray(start + opener, end - 1).toString("latin1");
+  return latin1(data.subarray(start + opener, end - 1));
 }
 
-function itemEnd(data: Buffer, start: number): number {
+function itemEnd(data: Uint8Array, start: number): number {
   let depth = 0;
   let firstBrace: number | null = null;
   let i = start;
@@ -392,7 +382,7 @@ function itemEnd(data: Buffer, start: number): number {
   return data.length;
 }
 
-function moduleHead(text: Buffer, start: number): ModuleHead | null {
+function moduleHead(text: Uint8Array, start: number): ModuleHead | null {
   const n = text.length;
   const skipSpace = (at: number): number => {
     let k = at;
@@ -435,9 +425,7 @@ function moduleHead(text: Buffer, start: number): ModuleHead | null {
 
   i = skipSpace(after);
 
-  const name = /^[A-Za-z_][A-Za-z0-9_]*/.exec(
-    text.subarray(i).toString("latin1"),
-  );
+  const name = /^[A-Za-z_][A-Za-z0-9_]*/.exec(latin1(text.subarray(i)));
 
   if (name === null) {
     return null;
@@ -462,7 +450,7 @@ function pathValue(inner: string): string | null {
   return match === null ? null : (match[1] as string);
 }
 
-function scan(data: Buffer): Scanned {
+export function scan(data: Uint8Array): Scanned {
   const items: [number, number][] = [];
   const declarations: Declaration[] = [];
   const scope: [string, number][] = [];
@@ -585,357 +573,4 @@ function scan(data: Buffer): Scanned {
   }
 
   return { items, fileLevel, declarations };
-}
-
-function isRootFile(path: string): boolean {
-  const name = posix.basename(path);
-  const parent = posix.dirname(path);
-
-  if (ROOT_NAMES.has(name)) {
-    return true;
-  }
-
-  const parentName = posix.basename(parent);
-
-  if (parentName === "examples" || parentName === "benches") {
-    return true;
-  }
-
-  return (
-    parentName === "bin" && posix.basename(posix.dirname(parent)) === "src"
-  );
-}
-
-export type Roots = {
-  roots: ReadonlySet<string>;
-  covered: ReadonlySet<string>;
-};
-
-function joinRoot(directory: string, relative: string): string | null {
-  const parts: string[] = [];
-
-  for (const part of (directory === ""
-    ? relative
-    : `${directory}/${relative}`
-  ).split("/")) {
-    if (part === "" || part === ".") {
-      continue;
-    }
-
-    if (part === "..") {
-      if (parts.length === 0) {
-        return null;
-      }
-
-      parts.pop();
-    } else {
-      parts.push(part);
-    }
-  }
-
-  return parts.join("/");
-}
-
-function asTable(value: unknown): Record<string, unknown> | null {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function parseManifest(text: string | null): Record<string, unknown> | null {
-  if (text === null) {
-    return null;
-  }
-
-  try {
-    return parse(text) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-export function manifestRoots(
-  listed: readonly string[],
-  read: (path: string) => string | null,
-): Roots {
-  const paths = new Set(listed);
-  const sources = [...paths].filter((path) => path.endsWith(".rs")).sort();
-  const roots = new Set<string>();
-  const covered = new Set<string>();
-
-  for (const manifest of [...paths].sort()) {
-    if (posix.basename(manifest) !== "Cargo.toml") {
-      continue;
-    }
-
-    const table = parseManifest(read(manifest));
-    const packageTable = asTable(table?.package);
-
-    if (table === null || typeof packageTable?.name !== "string") {
-      continue;
-    }
-
-    const parent = posix.dirname(manifest);
-    const directory = parent === "." ? "" : parent;
-
-    covered.add(directory);
-
-    const declare = (relative: string): void => {
-      const found = joinRoot(directory, relative);
-
-      if (found !== null && paths.has(found)) {
-        roots.add(found);
-      }
-    };
-    const libraryPath = asTable(table.lib)?.path;
-
-    declare(typeof libraryPath === "string" ? libraryPath : "src/lib.rs");
-    declare("src/main.rs");
-
-    const build = packageTable.build;
-
-    if (build !== false) {
-      declare(typeof build === "string" ? build : "build.rs");
-    }
-
-    for (const kind of ["bin", "example", "bench", "test"]) {
-      const entries = table[kind];
-
-      for (const entry of Array.isArray(entries) ? entries : []) {
-        const path = asTable(entry)?.path;
-
-        if (typeof path === "string") {
-          declare(path);
-        }
-      }
-    }
-
-    for (const folder of ["src/bin", "examples", "benches"]) {
-      const prefix =
-        directory === "" ? `${folder}/` : `${directory}/${folder}/`;
-
-      for (const path of sources) {
-        if (!path.startsWith(prefix)) {
-          continue;
-        }
-
-        const rest = path.slice(prefix.length);
-        const slashes = rest.split("/").length - 1;
-
-        if (slashes === 0 || (slashes === 1 && rest.endsWith("/main.rs"))) {
-          roots.add(path);
-        }
-      }
-    }
-  }
-
-  return { roots, covered };
-}
-
-function isRootIn(roots: Roots, path: string): boolean {
-  let directory = posix.dirname(path);
-
-  for (;;) {
-    if (roots.covered.has(directory === "." ? "" : directory)) {
-      return roots.roots.has(path);
-    }
-
-    const next = posix.dirname(directory);
-
-    if (next === directory) {
-      return isRootFile(path);
-    }
-
-    directory = next;
-  }
-}
-
-function joinModule(base: string, tail: string): string | null {
-  if (tail.startsWith("/")) {
-    return null;
-  }
-
-  const joined = posix.normalize(base === "" ? tail : `${base}/${tail}`);
-
-  return joined.startsWith("..") || joined === "." ? null : joined;
-}
-
-function moduleCandidates(
-  file: string,
-  declaration: Declaration,
-  roots: Roots,
-): string[] {
-  const parent = posix.dirname(file);
-  const directory = parent === "." ? "" : parent;
-
-  if (declaration.path !== null) {
-    const found = joinModule(directory, declaration.path);
-
-    return found === null ? [] : [found];
-  }
-
-  const name = posix.basename(file);
-  const stem = name.slice(0, -3);
-  let base =
-    isRootIn(roots, file) || name === "mod.rs"
-      ? directory
-      : (joinModule(directory, stem) ?? "");
-
-  for (const segment of declaration.scope) {
-    base = joinModule(base, segment) ?? "";
-  }
-
-  return [`${declaration.name}.rs`, `${declaration.name}/mod.rs`]
-    .map((tail) => joinModule(base, tail))
-    .filter((found): found is string => found !== null);
-}
-
-function resolvedDeclaration(
-  file: string,
-  declaration: Declaration,
-  index: ReadonlySet<string>,
-  roots: Roots,
-): string | null {
-  return (
-    moduleCandidates(file, declaration, roots).find((found) =>
-      index.has(found),
-    ) ?? null
-  );
-}
-
-function readOrNull(io: Io, path: string): Buffer | null {
-  try {
-    return io.readBytes(path);
-  } catch {
-    return null;
-  }
-}
-
-function firstPass(
-  io: Io,
-  root: string,
-  sources: readonly string[],
-): Map<string, { data: Buffer; scanned: Scanned }> {
-  const found = new Map<string, { data: Buffer; scanned: Scanned }>();
-
-  for (const path of sources) {
-    if (isTestFile(path)) {
-      continue;
-    }
-
-    const data = readOrNull(io, join(root, path));
-
-    if (data === null || data.indexOf("test") < 0) {
-      continue;
-    }
-
-    found.set(path, { data, scanned: scan(data) });
-  }
-
-  return found;
-}
-
-function testFileSet(
-  io: Io,
-  root: string,
-  sources: readonly string[],
-  first: Map<string, { data: Buffer; scanned: Scanned }>,
-  roots: Roots,
-): Set<string> {
-  const index = new Set(sources);
-  const marked = new Set<string>();
-  const pending: string[] = [];
-  const mark = (path: string | null): void => {
-    if (path !== null && !marked.has(path)) {
-      marked.add(path);
-      pending.push(path);
-    }
-  };
-
-  for (const [path, { scanned }] of first) {
-    if (scanned.fileLevel) {
-      mark(path);
-    }
-
-    for (const declaration of scanned.declarations) {
-      if (declaration.isTest) {
-        mark(resolvedDeclaration(path, declaration, index, roots));
-      }
-    }
-  }
-
-  while (pending.length > 0) {
-    const file = pending.pop() as string;
-    let declarations = first.get(file)?.scanned.declarations;
-
-    if (declarations === undefined) {
-      const data = readOrNull(io, join(root, file));
-
-      declarations = data === null ? [] : scan(data).declarations;
-    }
-
-    for (const declaration of declarations) {
-      mark(resolvedDeclaration(file, declaration, index, roots));
-    }
-  }
-
-  return marked;
-}
-
-function readText(io: Io, root: string, path: string): string | null {
-  const data = readOrNull(io, join(root, path));
-
-  return data === null ? null : data.toString("utf8");
-}
-
-function rootsOf(io: Io, root: string, paths: readonly string[]): Roots {
-  return manifestRoots(paths, (path) => readText(io, root, path));
-}
-
-function rustSources(paths: readonly string[]): string[] {
-  return [...new Set(paths.filter((path) => path.endsWith(".rs")))].sort();
-}
-
-export function rustTestFiles(
-  io: Io,
-  root: string,
-  paths: readonly string[],
-): Set<string> {
-  const sources = rustSources(paths);
-
-  return testFileSet(
-    io,
-    root,
-    sources,
-    firstPass(io, root, sources),
-    rootsOf(io, root, paths),
-  );
-}
-
-export function inFileTestHashes(
-  io: Io,
-  root: string,
-  paths: readonly string[],
-): Map<string, string> {
-  const sources = rustSources(paths);
-  const first = firstPass(io, root, sources);
-  const entries = new Map<string, string>();
-
-  for (const [path, { data, scanned }] of first) {
-    scanned.items.forEach(([start, stop], number) => {
-      entries.set(`${path}#${number}`, sha256(data.subarray(start, stop)));
-    });
-  }
-
-  for (const path of [
-    ...testFileSet(io, root, sources, first, rootsOf(io, root, paths)),
-  ].sort()) {
-    const data = readOrNull(io, join(root, path));
-
-    if (data !== null) {
-      entries.set(`${path}#file`, sha256(data));
-    }
-  }
-
-  return entries;
 }

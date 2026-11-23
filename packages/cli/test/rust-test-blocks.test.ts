@@ -7,12 +7,15 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import { Repository } from "@recognizer/core";
+import {
+  currentTestsHash,
+  inFileTestHashes,
+  Repository,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { nodeIo } from "../src/cli.js";
-import { inFileTestHashes } from "../src/rust-test-blocks.js";
-import { currentTestsHash } from "../src/tests-hash.js";
+import { testsHashPortsOf } from "./analysis-ports.js";
 
 const FIXTURE = join(
   import.meta.dirname,
@@ -59,7 +62,11 @@ function entriesOf(files: Record<string, string>): string[] {
   const root = repository(files);
 
   return [
-    ...inFileTestHashes(nodeIo(), root, Object.keys(files)).keys(),
+    ...inFileTestHashes(
+      testsHashPortsOf(nodeIo()),
+      root,
+      Object.keys(files),
+    ).keys(),
   ].sort();
 }
 
@@ -72,7 +79,7 @@ function edit(root: string, path: string, from: string, to: string): void {
 }
 
 function digest(root: string): string | null {
-  return currentTestsHash(nodeIo(), root, Repository.empty);
+  return currentTestsHash(testsHashPortsOf(nodeIo()), root, Repository.empty);
 }
 
 describe("the parity fixture", () => {
@@ -85,7 +92,9 @@ describe("the parity fixture", () => {
     const paths = Object.keys(EXPECTED.entries).map((key) =>
       String(key.split("#")[0]),
     );
-    const entries = Object.fromEntries(inFileTestHashes(nodeIo(), root, paths));
+    const entries = Object.fromEntries(
+      inFileTestHashes(testsHashPortsOf(nodeIo()), root, paths),
+    );
     const expected = Object.fromEntries(
       Object.entries(EXPECTED.entries).filter(([key]) => key.includes("#")),
     );
@@ -220,7 +229,11 @@ describe("the lexer", () => {
 
     expect(entriesOf(files)).toEqual(["src/a.rs#0"]);
 
-    const hashes = inFileTestHashes(nodeIo(), repository(files), ["src/a.rs"]);
+    const hashes = inFileTestHashes(
+      testsHashPortsOf(nodeIo()),
+      repository(files),
+      ["src/a.rs"],
+    );
     const text = `#[test]\n${body}`.trimEnd();
 
     expect(hashes.get("src/a.rs#0")).toBe(
@@ -345,9 +358,11 @@ describe("real committed content", () => {
       .sort();
 
     expect(expected.length).toBeGreaterThan(0);
-    expect([...inFileTestHashes(nodeIo(), root, listed).keys()].sort()).toEqual(
-      expected,
-    );
+    expect(
+      [
+        ...inFileTestHashes(testsHashPortsOf(nodeIo()), root, listed).keys(),
+      ].sort(),
+    ).toEqual(expected);
   });
 });
 

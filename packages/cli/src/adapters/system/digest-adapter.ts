@@ -9,4 +9,8 @@ export class DigestAdapter implements Digest {
       .subarray(0, 8)
       .toString("hex");
   }
+
+  sha256(data: Uint8Array | string): string {
+    return createHash("sha256").update(data).digest("hex");
+  }
 }

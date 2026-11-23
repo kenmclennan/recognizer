@@ -13,6 +13,8 @@ import { FindingsAdapter } from "./adapters/filesystem/findings-adapter.js";
 import { readSensorFindings } from "./adapters/filesystem/findings-translator.js";
 import { parsePolicy } from "./adapters/filesystem/policy-translator.js";
 import { SourceFilesAdapter } from "./adapters/filesystem/source-files-adapter.js";
+import { TomlAdapter } from "./adapters/filesystem/toml-adapter.js";
+import { DigestAdapter } from "./adapters/system/digest-adapter.js";
 import type { Io } from "./cli.js";
 import { policyFile, readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
@@ -167,7 +169,15 @@ export function loadFindings(
   for (const outcome of readFindingsFiles(
     io,
     root,
-    freshnessFor(new SourceFilesAdapter(io), root, repository),
+    freshnessFor(
+      {
+        source: new SourceFilesAdapter(io),
+        digest: new DigestAdapter(),
+        toml: new TomlAdapter(),
+      },
+      root,
+      repository,
+    ),
     ["structure"],
     registered,
   )) {

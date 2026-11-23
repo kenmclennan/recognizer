@@ -1,7 +1,6 @@
 import { join } from "node:path";
-import type { Repository, SourceFiles } from "@recognizer/core";
+import type { SourceFiles } from "@recognizer/core";
 import type { Io } from "../../cli.js";
-import { currentTestsHash } from "../../tests-hash.js";
 
 export class SourceFilesAdapter implements SourceFiles {
   constructor(private readonly io: Io) {}
@@ -14,7 +13,32 @@ export class SourceFilesAdapter implements SourceFiles {
     return this.io.hashFile(join(root, path));
   }
 
-  testsHash(root: string, repository: Repository): string | null {
-    return currentTestsHash(this.io, root, repository);
+  listFiles(root: string): string[] | null {
+    const listed = this.io.run("git", [
+      "-C",
+      root,
+      "ls-files",
+      "--cached",
+      "--others",
+      "--exclude-standard",
+      "-z",
+      "--",
+      ".",
+      ":!.recognizer",
+    ]);
+
+    if (!listed.started || listed.status !== 0) {
+      return null;
+    }
+
+    return listed.stdout.split("\0").filter((path) => path !== "");
+  }
+
+  readText(root: string, path: string): string | null {
+    try {
+      return Buffer.from(this.io.readBytes(join(root, path))).toString("utf8");
+    } catch {
+      return null;
+    }
   }
 }

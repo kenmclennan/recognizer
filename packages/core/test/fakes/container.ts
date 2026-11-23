@@ -17,6 +17,7 @@ import { FakeScanners } from "./fake-scanners.js";
 import { FakeSensors } from "./fake-sensors.js";
 import { FakeSourceFiles } from "./fake-source-files.js";
 import { FakeStructureRepository } from "./fake-structure-repository.js";
+import { FakeToml } from "./fake-toml.js";
 
 export interface Fakes {
   scanners: FakeScanners;
@@ -37,6 +38,7 @@ export interface Fakes {
   source: FakeSourceFiles;
   digest: FakeDigest;
   parsing: FakeParsing;
+  toml: FakeToml;
 }
 
 export function createFakes(commit: string | null = "c0ffee"): Fakes {
@@ -66,6 +68,7 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     source: new FakeSourceFiles(),
     digest: new FakeDigest(),
     parsing: new FakeParsing(),
+    toml: new FakeToml(),
   };
 }
 

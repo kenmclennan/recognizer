@@ -80,6 +80,7 @@ describe("scan container", () => {
       "sensors",
       "source",
       "structure",
+      "toml",
     ]);
     expect(syncScanPorts(io, "all").scanners).toBeInstanceOf(
       SyncScannersAdapter,

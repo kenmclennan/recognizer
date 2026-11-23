@@ -7,8 +7,8 @@ import {
   type Freshness,
   type Measured,
 } from "../sensing/freshness.js";
-import type { SourceFiles } from "./ports/source-files.js";
 import { splitFindings } from "./split-findings.js";
+import { currentTestsHash, type TestsHashPorts } from "./tests-hash.js";
 
 export type ReadOutcome =
   | {
@@ -23,7 +23,7 @@ export type ReadOutcome =
   | { name: string; status: "unregistered" };
 
 export function freshnessFor(
-  source: SourceFiles,
+  ports: TestsHashPorts,
   root: string,
   repository: Repository,
 ): (measured: Measured) => Freshness {
@@ -31,7 +31,7 @@ export function freshnessFor(
 
   return (measured) => {
     if (measured.tests !== undefined && tests === undefined) {
-      tests = source.testsHash(root, repository);
+      tests = currentTestsHash(ports, root, repository);
     }
 
     return buildFreshness(repository, tests ?? null);
