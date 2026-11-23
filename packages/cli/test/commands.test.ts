@@ -1,7 +1,10 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
 import { COMMANDS } from "../src/commands.js";
 import { fullHelp, shortHelp } from "../src/help.js";
+import { capture, REPO } from "./helpers.js";
 import { fakeIo } from "./scan-helpers.js";
 
 function call(argv: string[]) {
@@ -199,5 +202,25 @@ describe("command table", () => {
 
     expect(result.code).toBe(2);
     expect(result.err).toBe(shortHelp());
+  });
+});
+
+describe("the scan --modules help", () => {
+  it("the scan --modules help names no sensor", async () => {
+    const source = readFileSync(
+      join(REPO, "packages/cli/src/commands.ts"),
+      "utf8",
+    );
+    const captured = capture();
+
+    expect(await run(["help", "scan"], captured.io)).toBe(0);
+
+    for (const text of [source, captured.out()]) {
+      expect(text).not.toContain("mutation sensor");
+      expect(text).not.toContain("no other sensor takes it");
+    }
+
+    expect(source).toContain("whose manifest declares it scoped");
+    expect(captured.out()).toContain("whose manifest declares it scoped");
   });
 });

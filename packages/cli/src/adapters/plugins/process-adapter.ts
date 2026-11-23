@@ -1,6 +1,9 @@
-import type { PluginLimits, ProcessControl } from "@recognizer/core";
+import type {
+  InstalledPlugin,
+  PluginLimits,
+  ProcessControl,
+} from "@recognizer/core";
 import type { Io } from "../../cli.js";
-import type { InstalledPlugin } from "../../plugin-discovery.js";
 import { createPluginLimits } from "../../plugin-run.js";
 import { processScope } from "../../stop-scope.js";
 

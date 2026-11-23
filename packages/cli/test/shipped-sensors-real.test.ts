@@ -1,9 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
+import { readShippedSensors } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import type { Io, RunResult } from "../src/cli.js";
 import { nodeIo } from "../src/cli.js";
-import { readShippedSensors } from "../src/shipped-sensors.js";
+import { shippedPorts } from "../src/manifest-ports.js";
 import { REPO } from "./helpers.js";
 
 const io: Io = {
@@ -27,7 +28,7 @@ const io: Io = {
 };
 
 describe("the committed sensor manifests", () => {
-  const read = readShippedSensors(io);
+  const read = readShippedSensors(shippedPorts(io));
   const by = (name: string) => read.sensors.find((one) => one.name === name);
   const published = (sensor: string, metric: string) =>
     by(sensor)?.metrics.find((one) => one.name === metric)?.published?.value;

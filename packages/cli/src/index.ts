@@ -8,13 +8,16 @@ export {
   type CheckResult,
   type Citation,
   COMPLEXITY_LIMIT,
+  type Condition,
   carryMeasured,
   compareIdentities,
   complexityUnmeasured,
   createPlanner,
+  type DoctorReport,
   describeGap,
   duplicationUnmeasured,
   EMPTY_SUITE_TICKS,
+  type FindingEntry,
   type FindingNote,
   findingsByModuleFrom,
   freshnessScope,
@@ -23,13 +26,18 @@ export {
   type Identity,
   identityKey,
   importText,
+  interpretManifest,
+  judgeProtocol,
   LIBRARY_API_HINT,
   type LineKind,
   LONG_FUNCTION,
   libraryApiHint,
   linesDuplicated,
+  type Manifest,
+  type ManifestRead,
   type ModuleAnalysis as Analysis,
   type ModuleMetrics,
+  matchKind,
   measuredInputs,
   measuredLength,
   measuredModules,
@@ -44,20 +52,28 @@ export {
   type PlanningPorts,
   type PlanRequest,
   type PlanRow,
+  type PluginEvent,
+  type PluginKind,
   PRINCIPLES,
   type Principle,
+  type ProtocolJudgement,
   planFor,
   planScan,
   principleName,
   principleOf,
   type ResponsibilityKinds,
   rankAgainstBaseline,
+  renderSentence,
   ruleText,
   type ScanIntent,
   type ScanPlanView,
   type ScanTicks,
   type SensorFreshness,
   type SensorRow,
+  type Sentence,
+  type SentenceRecord,
+  type SetupProblem,
+  type ShippedSensorEntry,
   type StructureSettings,
   type SuiteRef,
   type SuiteTickEntry,
@@ -65,6 +81,7 @@ export {
   sensorArmed,
   sensorFreshness,
   sensorTickState,
+  sentenceProblems,
   staleModules,
   suiteIsTicked,
   suitePlan,
@@ -72,7 +89,11 @@ export {
   type TickState,
   tickedPhases,
   tickedSuites,
+  UNREGISTERED_FIX,
+  unregisteredMessage,
+  unregisteredSensors,
   unusedTestOnlySentence,
+  type Variant,
   violationId,
   violationText,
   visibleSuiteTicks,
@@ -98,6 +119,10 @@ export {
   serialiseView,
   validateView,
 } from "./adapters/filesystem/view-translator.js";
+export {
+  shippedDescriberInvocation,
+  shippedSensorNames,
+} from "./adapters/plugins/shipped-plugins-adapter.js";
 export {
   AWAKE_GAP_MS,
   AWAKE_TICK_MS,
@@ -148,7 +173,6 @@ export {
 } from "./config-parse.js";
 export { PRICES_PER_MILLION, priceFor } from "./describe-projection.js";
 export { describerVersion } from "./describer-version.js";
-export type { DoctorReport, SetupProblem } from "./doctor.js";
 export { InputError } from "./errors.js";
 export {
   type FolderMetrics,
@@ -195,27 +219,6 @@ export {
   type Overlay,
   validateOverlay,
 } from "./overlays.js";
-export type { PluginEvent } from "./plugin-events.js";
-export {
-  CURRENT_PROTOCOL,
-  interpretManifest,
-  judgeProtocol,
-  type Manifest,
-  type ManifestRead,
-  type PluginKind,
-  type ProtocolJudgement,
-  readManifest,
-} from "./plugin-manifest.js";
-export {
-  type Condition,
-  type FindingEntry,
-  matchKind,
-  renderSentence,
-  type Sentence,
-  type SentenceRecord,
-  sentenceProblems,
-  type Variant,
-} from "./plugin-sentence.js";
 export { type PolicyProblem, policyProblems } from "./policy-problems.js";
 export {
   type LineStatus,
@@ -295,19 +298,5 @@ export type {
   SurveyUnread,
 } from "./setup-survey.js";
 export type { TryEvent } from "./setup-try.js";
-export {
-  SHIPPED_DESCRIBER_COMMAND,
-  SHIPPED_DESCRIBER_NAME,
-} from "./shipped-describer.js";
-export {
-  readShippedSensors,
-  type ShippedSensorEntry,
-  shippedSensorNames,
-} from "./shipped-sensors.js";
 export { SETUP_SKILL } from "./skills.js";
 export { resolveStructureSettings } from "./structure-sensor.js";
-export {
-  UNREGISTERED_FIX,
-  unregisteredMessage,
-  unregisteredSensors,
-} from "./unregistered-plugins.js";

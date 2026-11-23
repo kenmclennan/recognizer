@@ -1,24 +1,23 @@
 import { join } from "node:path";
-import type {
-  ExtractCall,
-  ExtractionDecision,
-  ExtractResult,
-  PluginProgress,
-  Repository,
-  RunEntry,
-  ScannerQueries,
-  Scanners,
-  SyncScanners,
+import {
+  discoverPlugins,
+  type ExtractCall,
+  type ExtractionDecision,
+  type ExtractResult,
+  type InstalledPlugin,
+  type PluginEvent,
+  type PluginProgress,
+  type Repository,
+  type RunEntry,
+  type ScannerQueries,
+  type Scanners,
+  type SyncScanners,
+  unsupportedMessage,
 } from "@recognizer/core";
 import type { Io, RunResult } from "../../cli.js";
 import { detectLanguages, type Language } from "../../detect.js";
 import { InputError } from "../../errors.js";
-import {
-  discoverPlugins,
-  type InstalledPlugin,
-  unsupportedMessage,
-} from "../../plugin-discovery.js";
-import type { PluginEvent } from "../../plugin-events.js";
+import { documentValidators, manifestPorts } from "../../manifest-ports.js";
 import { type createPluginLimits, prepareCall } from "../../plugin-run.js";
 import { entryFrom } from "../../run-log.js";
 import { judgeScanVersion, SCAN_SCHEMA_VERSION } from "../../scan.js";
@@ -143,7 +142,7 @@ function prepareScanner(
       failed: {
         outcome: failure(
           "unsupported-protocol",
-          unsupportedMessage(choice.scanner),
+          unsupportedMessage(choice.scanner, documentValidators.facts.protocol),
         ),
         command: [],
         status: null,
@@ -368,7 +367,7 @@ class ScannerQueriesAdapter implements ScannerQueries {
   }
 
   discover(): { installed: number } {
-    this.plugins = discoverPlugins(this.io, ["scanner"]).plugins;
+    this.plugins = discoverPlugins(manifestPorts(this.io), ["scanner"]).plugins;
 
     return { installed: this.plugins.length };
   }

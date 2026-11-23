@@ -1,18 +1,51 @@
-import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { run } from "../src/cli.js";
-import { runInit } from "../src/plugin-init.js";
+import { join, resolve } from "node:path";
+import { parseArgs } from "node:util";
 import {
-  bundledTemplates,
   KINDS,
   LANGUAGES,
   programName,
   renderTemplates,
+  scaffoldPlugin,
   type TemplateKind,
   type TemplateLanguage,
-  templateValues,
-} from "../src/plugin-templates.js";
+  type TemplateSet,
+  templateValues as valuesOf,
+} from "@recognizer/core";
+import { describe, expect, it } from "vitest";
+import { PluginTemplatesAdapter } from "../src/adapters/plugins/plugin-templates-adapter.js";
+import { type Io, run } from "../src/cli.js";
+import { documentValidators } from "../src/manifest-ports.js";
+import { pluginPorts } from "../src/plugins-container.js";
 import { fakeIo } from "./scan-helpers.js";
+
+const bundledTemplates = () => new PluginTemplatesAdapter().bundled();
+
+const templateValues = (kind: TemplateKind, name: string) =>
+  valuesOf(kind, name, documentValidators.facts);
+
+function runInit(argv: string[], io: Io, templates: TemplateSet): number {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    options: {
+      kind: { type: "string" },
+      language: { type: "string" },
+      name: { type: "string" },
+    },
+  });
+
+  scaffoldPlugin(
+    { ...pluginPorts(io), templates: { bundled: () => templates } },
+    {
+      kind: values.kind,
+      language: values.language,
+      name: values.name,
+      folder: resolve(positionals[0] ?? "."),
+    },
+  );
+
+  return 0;
+}
 
 const FOLDER = "/work/out";
 

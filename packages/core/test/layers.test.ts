@@ -63,6 +63,7 @@ const SUBDOMAINS = [
   "analysis",
   "history",
   "visualisation",
+  "plugins",
 ];
 const SHARED_PORTS = ["clock", "git", "process", "scan-lock"];
 const RUN_PORTS = SHARED_PORTS;
@@ -157,6 +158,7 @@ const DOMAIN_FOLDERS = [
   "configuration",
   "history",
   "visualisation",
+  "plugins",
 ];
 
 const domain = join(source, "domain");
@@ -466,11 +468,27 @@ describe("core layers", () => {
         return [path];
       });
 
+    const NAMING_PLUGINS = [
+      "src/application/plugins/diagnose.ts",
+      "src/application/plugins/scaffold-plugin.ts",
+      "src/application/plugins/shipped-plugins.ts",
+      "src/domain/plugins/choose-scanner.ts",
+      "src/domain/plugins/doctor-report.ts",
+      "src/domain/plugins/installed-plugin.ts",
+      "test/features/plugins.feature",
+      "test/plugins/shipped-plugins.test.ts",
+      "test/steps/plugins.steps.ts",
+    ];
+    const ownsPluginNaming = (file: string): boolean =>
+      NAMING_PLUGINS.includes(relative(core, file));
     const files = everyFile(core);
 
     expect(files.length).toBeGreaterThan(0);
+    expect(ownsPluginNaming(join(core, "src/application/plugins/x.ts"))).toBe(
+      false,
+    );
 
-    for (const file of files) {
+    for (const file of files.filter((one) => !ownsPluginNaming(one))) {
       for (const word of words) {
         expect(relative(core, file).toLowerCase(), file).not.toContain(word);
 

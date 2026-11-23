@@ -1,11 +1,11 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { Repository } from "@recognizer/core";
+import { discoverPlugins, Repository } from "@recognizer/core";
 import { readUncheckedScanFile } from "./adapters/filesystem/scan-translator.js";
 import type { Io } from "./cli.js";
 import { detectLanguages } from "./detect.js";
 import { InputError } from "./errors.js";
-import { discoverPlugins } from "./plugin-discovery.js";
+import { manifestPorts } from "./manifest-ports.js";
 import { readCachedRepository } from "./scan-command.js";
 import { languageRulesOf } from "./scanners.js";
 import { applyChanges } from "./setup-apply.js";
@@ -61,7 +61,9 @@ function scansFor(io: Io, root: string, file: string | undefined): Repository {
     return readUncheckedScanFile(readJsonFile(io, file, "--scan"));
   }
 
-  const rules = languageRulesOf(discoverPlugins(io, ["scanner"]).plugins);
+  const rules = languageRulesOf(
+    discoverPlugins(manifestPorts(io), ["scanner"]).plugins,
+  );
 
   return Repository.join(
     detectLanguages(io, root, rules)

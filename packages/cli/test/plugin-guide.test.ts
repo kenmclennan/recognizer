@@ -1,13 +1,26 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  pluginCheck as checkPlugin,
+  type PluginCheckOptions,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { run } from "../src/cli.js";
+import { type Io, run } from "../src/cli.js";
 import { COMMANDS } from "../src/commands.js";
 import { shortHelp } from "../src/help.js";
-import { pluginCheck } from "../src/plugin-check.js";
+import { documentValidators } from "../src/manifest-ports.js";
 import { pluginGuide } from "../src/plugin-guide.js";
-import { CURRENT_PROTOCOL } from "../src/plugin-manifest.js";
+import { pluginPorts } from "../src/plugins-container.js";
 import { capture, REPO } from "./helpers.js";
+
+const CURRENT_PROTOCOL = documentValidators.facts.protocol;
+
+const pluginCheck = (
+  io: Io,
+  command: string,
+  current?: number,
+  options?: PluginCheckOptions,
+) => checkPlugin(pluginPorts(io), command, current, options);
 
 const MANIFEST = JSON.parse(
   readFileSync(join(REPO, "schema/manifest.schema.json"), "utf8"),

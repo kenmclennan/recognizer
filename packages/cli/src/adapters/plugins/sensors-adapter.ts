@@ -1,28 +1,35 @@
 import { relative, resolve } from "node:path";
-import type {
-  Analysis,
-  CommitGapsInput,
-  ConfigDocument,
-  Gap,
-  PlannedSensor,
-  PluginLimits,
-  PolicyRule,
-  ProgramGapsInput,
-  Repository,
-  Say,
-  SenseCall,
-  SensorPlan,
-  SensorPlanInput,
-  SensorRow,
-  SensorSelection,
-  SensorSelectionInput,
-  Sensors,
-  StructureSettings,
+import {
+  type Analysis,
+  type CommitGapsInput,
+  type ConfigDocument,
+  type Gap,
+  isScoped,
+  type PlannedSensor,
+  type PluginLimits,
+  type PolicyRule,
+  type ProgramGapsInput,
+  type Repository,
+  readShippedSensors,
+  refuseUnregistered,
+  runsTests,
+  type Say,
+  type SenseCall,
+  type SensorPlan,
+  type SensorPlanInput,
+  type SensorRow,
+  type SensorSelection,
+  type SensorSelectionInput,
+  type Sensors,
+  type ShippedRead,
+  type StructureSettings,
+  shippedSensorOf,
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
 import { policyFile, readConfig } from "../../config.js";
 import { type Config, registeredSensors } from "../../config-parse.js";
-import { InputError } from "../../errors.js";
+import { asInputError, InputError } from "../../errors.js";
+import { shippedPorts } from "../../manifest-ports.js";
 import type { createPluginLimits } from "../../plugin-run.js";
 import { warnPolicyProblems } from "../../policy-problems.js";
 import {
@@ -32,18 +39,9 @@ import {
 } from "../../preflight.js";
 import { runSensors } from "../../run-sensors.js";
 import { parseSuiteSelection, selectSensors } from "../../scan-phases.js";
-import {
-  isScoped,
-  readShippedSensors,
-  runsTests,
-  SHIPPED_SENSORS,
-  type ShippedRead,
-  shippedSensorNames,
-  shippedSensorOf,
-} from "../../shipped-sensors.js";
 import { resolveStructureSettings } from "../../structure-sensor.js";
-import { refuseUnregistered } from "../../unregistered-plugins.js";
 import { diagnosisOf } from "../filesystem/diagnosis-translator.js";
+import { shippedSensorNames } from "./shipped-plugins-adapter.js";
 import { sinkIo } from "./sink-io.js";
 
 type Limits = ReturnType<typeof createPluginLimits>;
@@ -77,6 +75,7 @@ export class SensorsAdapter implements Sensors, Analysis {
   select(input: SensorSelectionInput): SensorSelection {
     const config = input.config as unknown as Config | null;
     const { sense } = input;
+    const shippedNames = shippedSensorNames();
     let shipped: ShippedRead = { sensors: [], unreadable: [] };
     let selected: { name: string; command: string[] }[] = [];
 
@@ -84,12 +83,12 @@ export class SensorsAdapter implements Sensors, Analysis {
       const requested = namesOf(sense);
       const wanted = new Set<string>(
         Array.isArray(requested)
-          ? requested.filter((name) => SHIPPED_SENSORS.includes(name))
+          ? requested.filter((name) => shippedNames.includes(name))
           : [],
       );
 
       for (const one of registeredSensors(config)) {
-        const name = shippedSensorOf(one.command);
+        const name = shippedSensorOf(one.command, shippedNames);
 
         if (name !== undefined) {
           wanted.add(name);
@@ -97,7 +96,7 @@ export class SensorsAdapter implements Sensors, Analysis {
       }
 
       shipped = readShippedSensors(
-        this.io,
+        shippedPorts(this.io),
         (input.limits as unknown as Limits).readOf,
         [...wanted],
       );
@@ -115,11 +114,14 @@ export class SensorsAdapter implements Sensors, Analysis {
       );
     }
 
-    refuseUnregistered(
-      registered,
-      Array.isArray(namesOf(sense)) && sense !== null
-        ? (namesOf(sense) as string[])
-        : [],
+    asInputError(() =>
+      refuseUnregistered(
+        registered,
+        Array.isArray(namesOf(sense)) && sense !== null
+          ? (namesOf(sense) as string[])
+          : [],
+        shippedNames,
+      ),
     );
 
     const selection: Selection = { selected, shipped };
@@ -235,7 +237,7 @@ export class SensorsAdapter implements Sensors, Analysis {
       language,
     }));
     const names = new Set(registeredSensors(config).map(({ name }) => name));
-    const shipped = readShippedSensors(this.io);
+    const shipped = readShippedSensors(shippedPorts(this.io));
     const rows: SensorRow[] = shipped.sensors
       .filter(({ listed }) => listed)
       .sort((a, b) => a.display.localeCompare(b.display))

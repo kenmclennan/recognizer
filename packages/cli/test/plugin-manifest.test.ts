@@ -1,14 +1,23 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { judgeProtocol as judge, readManifest as read } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import {
-  CURRENT_PROTOCOL,
-  judgeProtocol,
-  readManifest,
-  validateManifest,
-} from "../src/plugin-manifest.js";
+import type { Io } from "../src/cli.js";
+import { documentValidators, manifestPorts } from "../src/manifest-ports.js";
 import { REPO } from "./helpers.js";
 import { fakeIo } from "./scan-helpers.js";
+
+const CURRENT_PROTOCOL = documentValidators.facts.protocol;
+
+const validateManifest = (value: unknown) => documentValidators.manifest(value);
+
+const readManifest = (io: Io, command: string) =>
+  read(manifestPorts(io), command);
+
+const judgeProtocol = (
+  manifest: { protocol: number },
+  current: number = CURRENT_PROTOCOL,
+) => judge(manifest, current);
 
 const VALID = readFileSync(
   join(REPO, "schema/manifest-examples/valid/scanner.json"),

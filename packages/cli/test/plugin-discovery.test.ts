@@ -1,14 +1,29 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import {
+  discoverPlugins as discover,
+  judgeScanSchema as judgeSchema,
+  type PluginKind,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { discoverPlugins } from "../src/plugin-discovery.js";
-import { judgeScanSchema } from "../src/plugin-manifest.js";
+import type { Io } from "../src/cli.js";
+import { manifestPorts } from "../src/manifest-ports.js";
+import { SCAN_BREAKING_VERSIONS, SCAN_SCHEMA_VERSION } from "../src/scan.js";
 import {
   ioWithPath,
   manifestFor,
   tempDirectory,
   writeShim,
 } from "./plugin-path.js";
+
+const discoverPlugins = (io: Io, kinds?: readonly PluginKind[]) =>
+  discover(manifestPorts(io), kinds);
+
+const judgeScanSchema = (
+  declared: number | undefined,
+  current: number = SCAN_SCHEMA_VERSION,
+  breaks: readonly number[] = SCAN_BREAKING_VERSIONS,
+) => judgeSchema(declared, current, breaks);
 
 function setup() {
   const first = tempDirectory("recognizer-discovery-");

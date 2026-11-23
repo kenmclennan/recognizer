@@ -9,12 +9,12 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { KINDS, LANGUAGES } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { run } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
-import { KINDS, LANGUAGES } from "../src/plugin-templates.js";
 import { validateScan } from "../src/scan.js";
 import { capture } from "./helpers.js";
 

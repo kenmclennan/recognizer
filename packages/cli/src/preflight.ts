@@ -1,10 +1,14 @@
 import { dirname, isAbsolute, relative } from "node:path";
+import { type ManifestReader, shippedSensorOf } from "@recognizer/core";
+import {
+  shippedDescriberName,
+  shippedPlugins,
+} from "./adapters/plugins/shipped-plugins-adapter.js";
 import type { Io } from "./cli.js";
 import type { Describer } from "./describe-modules.js";
 import type { Fix, Gap } from "./gap.js";
 import { pluginPrefix } from "./plugin-run.js";
 import { checkSensors } from "./sensors-check.js";
-import { type ManifestReader, shippedSensorOf } from "./shipped-sensors.js";
 
 export interface PreflightSensor {
   name: string;
@@ -30,7 +34,9 @@ export interface ProgramInput {
   install: Record<string, string>;
 }
 
-const REFERENCE_PROGRAM = "recognizer-describe-claude";
+function referenceProgram(): string {
+  return `recognizer-describe-${shippedDescriberName()}`;
+}
 
 const IN_TREE_DESCRIBER = "packages/describers/claude/dist/bin.js";
 
@@ -54,7 +60,7 @@ function fillDescriber(item: string, root: string): string {
 
 function isReference(command: string[]): boolean {
   return (
-    command[0] === REFERENCE_PROGRAM ||
+    command[0] === referenceProgram() ||
     command.some((item) => item.endsWith(IN_TREE_DESCRIBER))
   );
 }
@@ -121,7 +127,7 @@ export function describerGaps(input: DescriberInput): Gap[] {
         id: "describe:missing",
         line: "no describer is registered and recognizer-describe-claude is not installed",
         needs: ["describe"],
-        fix: installFix(input.install, REFERENCE_PROGRAM),
+        fix: installFix(input.install, referenceProgram()),
       },
     ];
   }
@@ -149,7 +155,7 @@ export function describerGaps(input: DescriberInput): Gap[] {
 
 export function sensorProgramGaps(input: ProgramInput): Gap[] {
   return input.sensors.flatMap((sensor) => {
-    const name = shippedSensorOf(sensor.command);
+    const name = shippedSensorOf(sensor.command, shippedPlugins().sensors());
 
     if (name === undefined) {
       return [];

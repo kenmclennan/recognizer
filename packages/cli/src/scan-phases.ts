@@ -1,13 +1,13 @@
 import type { Diagnosis } from "@recognizer/core";
-import { InputError } from "./errors.js";
-import type { PluginEvent } from "./plugin-events.js";
-import type { PhaseName } from "./run-log.js";
-import type { ScanRunRecord } from "./scan-marker.js";
 import {
+  type PluginEvent,
   type ShippedRead,
   shippedCommand,
   withSuiteSettings,
-} from "./shipped-sensors.js";
+} from "@recognizer/core";
+import { InputError } from "./errors.js";
+import type { PhaseName } from "./run-log.js";
+import type { ScanRunRecord } from "./scan-marker.js";
 
 export const SCAN_USAGE =
   "recognizer scan [REPOSITORY] [--extract] [--describe[=all]] [--sense <all|name[,name...]>] [--modules <file>] [--suites <file>] [--confirm-above <usd>] [--by <name>] [--skip-analysis] [--ignore-retired-config] [--json]";

@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import type { InstalledPlugin } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import type { InstalledPlugin } from "../src/plugin-discovery.js";
 import { chooseScanner } from "../src/scanners.js";
 
 function scanner(name: string, languages: string[]): InstalledPlugin {

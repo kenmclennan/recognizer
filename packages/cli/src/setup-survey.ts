@@ -1,5 +1,11 @@
 import { basename, join, posix, relative, resolve } from "node:path";
-import { compileGlob, PolicyRule, Repository } from "@recognizer/core";
+import {
+  compileGlob,
+  discoverPlugins,
+  PolicyRule,
+  Repository,
+  readShippedSensors,
+} from "@recognizer/core";
 import { parse } from "yaml";
 import { parsePolicy } from "./adapters/filesystem/policy-translator.js";
 import { readUncheckedScanFile } from "./adapters/filesystem/scan-translator.js";
@@ -19,12 +25,11 @@ import {
   DEFAULT_JACOCO_REPORT,
   jacocoReportOf,
 } from "./gradle-build.js";
-import { discoverPlugins } from "./plugin-discovery.js";
+import { manifestPorts, shippedPorts } from "./manifest-ports.js";
 import { readCachedRepository } from "./scan-command.js";
 import { languageRulesOf } from "./scanners.js";
 import { splitCommand, withoutRepository } from "./setup-changes.js";
 import { commandRefusal } from "./setup-proposal.js";
-import { readShippedSensors } from "./shipped-sensors.js";
 
 export const SURVEY_VERSION = 1;
 
@@ -1280,8 +1285,8 @@ function checksOf(
 ): SurveyCheck[] {
   const structure = valueAt(document, ["sensors", "structure"]);
   const registered = valueAt(document, ["sensors"]);
-  const shipped = readShippedSensors(io).sensors;
-  const describers = discoverPlugins(io, ["describer"]).plugins;
+  const shipped = readShippedSensors(shippedPorts(io)).sensors;
+  const describers = discoverPlugins(manifestPorts(io), ["describer"]).plugins;
 
   return [
     {
@@ -1531,7 +1536,7 @@ export function surveyRepository(
     throw new InputError([`repository is not a directory: ${root}`]);
   }
 
-  const scanners = discoverPlugins(io, ["scanner"]).plugins;
+  const scanners = discoverPlugins(manifestPorts(io), ["scanner"]).plugins;
   const rules = languageRulesOf(scanners);
   const files = listRepositoryFiles(io, root);
   const document = configDocument(

@@ -1,6 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  expandShortForms,
+  isScoped,
+  receivesSuites,
+  runsTests,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
+import { shippedSensorNames } from "../src/adapters/plugins/shipped-plugins-adapter.js";
 import {
   parseConfig,
   registeredSensors,
@@ -9,16 +16,10 @@ import {
 import { InputError } from "../src/errors.js";
 import { SCAN_SCHEMA_VERSION } from "../src/scan.js";
 import { selectSensors } from "../src/scan-phases.js";
-import {
-  expandShortForms,
-  isScoped,
-  receivesSuites,
-  runsTests,
-  SHIPPED_SENSORS,
-  shippedSensorNames,
-} from "../src/shipped-sensors.js";
 import { REPO } from "./helpers.js";
 import { readExamples } from "./shipped-read.js";
+
+const SHIPPED_SENSORS: readonly string[] = shippedSensorNames();
 
 const command = (settings: string) => [
   "recognizer-sense-crap",

@@ -1,6 +1,11 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { Neighbours, type Repository } from "@recognizer/core";
+import {
+  Neighbours,
+  type Repository,
+  unregisteredMessage,
+} from "@recognizer/core";
+import { shippedDescriberName } from "./adapters/plugins/shipped-plugins-adapter.js";
 import { readDescribing } from "./app-settings.js";
 import type { Io } from "./cli.js";
 import {
@@ -24,8 +29,6 @@ import {
   type RunEntry,
   requireBy,
 } from "./run-log.js";
-import { SHIPPED_DESCRIBER_NAME } from "./shipped-describer.js";
-import { unregisteredMessage } from "./unregistered-plugins.js";
 
 const OPTIONS = {
   all: { type: "boolean" },
@@ -175,7 +178,7 @@ async function runDescribe(loaded: Loaded, io: Io): Promise<number> {
   const startedAt = io.now();
 
   if (loaded.describerSource === "shipped") {
-    throw new InputError([unregisteredMessage(SHIPPED_DESCRIBER_NAME)]);
+    throw new InputError([unregisteredMessage(shippedDescriberName())]);
   }
 
   const recorded: RunEntry[] = [];

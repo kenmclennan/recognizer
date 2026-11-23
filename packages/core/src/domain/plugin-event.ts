@@ -1,5 +1,6 @@
-import type { Diagnosis } from "@recognizer/core";
-import validate from "./generated/events-validator.js";
+import type { Diagnosis } from "./diagnosis.js";
+
+export type EventValidator = (value: unknown) => boolean;
 
 export const EVENT_PREFIX = "recognizer-event ";
 
@@ -30,7 +31,10 @@ export type ParsedLine =
   | { kind: "invalid" }
   | { kind: "text" };
 
-export function parseEventLine(line: string): ParsedLine {
+export function parseEventLine(
+  line: string,
+  validate: EventValidator,
+): ParsedLine {
   if (!line.startsWith(EVENT_PREFIX)) {
     return { kind: "text" };
   }
@@ -62,6 +66,7 @@ export interface SuiteDuration {
 }
 
 export function createEventReader(
+  validate: EventValidator,
   onEvent?: (event: PluginEvent) => void,
   now: () => number = () => Date.now(),
 ): EventReader {
@@ -73,7 +78,7 @@ export function createEventReader(
 
   return {
     line: (line) => {
-      const parsed = parseEventLine(line);
+      const parsed = parseEventLine(line, validate);
 
       if (parsed.kind === "invalid") {
         invalid += 1;

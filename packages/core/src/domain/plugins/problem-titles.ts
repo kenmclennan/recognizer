@@ -1,4 +1,4 @@
-import type { ProblemCode } from "./doctor.js";
+import type { ProblemCode } from "./doctor-report.js";
 
 export const LANGUAGE_NAMES: Record<string, string> = {
   typescript: "TypeScript",

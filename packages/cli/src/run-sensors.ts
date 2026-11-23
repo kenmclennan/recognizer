@@ -1,3 +1,4 @@
+import type { PluginEvent } from "@recognizer/core";
 import {
   type Diagnosis,
   measuredInputs,
@@ -7,7 +8,6 @@ import {
 import { readSensorFindings } from "./adapters/filesystem/findings-translator.js";
 import type { Io } from "./cli.js";
 import { findingsFile, writeFindings } from "./findings-files.js";
-import type { PluginEvent } from "./plugin-events.js";
 import { createPluginLimits, runPlugin } from "./plugin-run.js";
 import { type EntryWork, entryFrom, type RunEntry } from "./run-log.js";
 

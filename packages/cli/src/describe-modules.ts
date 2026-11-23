@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { PluginEvent } from "@recognizer/core";
 import {
   type File,
   type NeighbourRow,
@@ -17,7 +18,6 @@ import {
 } from "./describe-projection.js";
 import { InputError } from "./errors.js";
 import { moduleSource } from "./module-source.js";
-import type { PluginEvent } from "./plugin-events.js";
 import { createPluginLimits, prepareCall } from "./plugin-run.js";
 import {
   type LineStatus,

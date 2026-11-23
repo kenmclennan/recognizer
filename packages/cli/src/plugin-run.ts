@@ -1,16 +1,15 @@
-import type { Diagnosis } from "@recognizer/core";
-import type { Io, RunOptions } from "./cli.js";
 import {
   createEventReader,
+  type Diagnosis,
   type EventReader,
-  type PluginEvent,
-  type SuiteDuration,
-} from "./plugin-events.js";
-import {
   type Manifest,
   type ManifestRead,
+  type PluginEvent,
   readManifestOf,
-} from "./plugin-manifest.js";
+  type SuiteDuration,
+} from "@recognizer/core";
+import type { Io, RunOptions } from "./cli.js";
+import { documentValidators, manifestPorts } from "./manifest-ports.js";
 import {
   fill,
   type RegisteredRun,
@@ -54,7 +53,7 @@ export function createPluginLimits(
       return known;
     }
 
-    const read = readManifestOf(io, filled);
+    const read = readManifestOf(manifestPorts(io), filled);
 
     reads.set(key, read);
 
@@ -104,6 +103,7 @@ export function prepareCall(
   const name = limits.nameOf(prefix, fallbackName);
   const limit = limits.limitMs(prefix);
   const reader = createEventReader(
+    (value) => documentValidators.event(value),
     onEvent === undefined ? undefined : (event) => onEvent(name, event),
     () => io.awake(),
   );

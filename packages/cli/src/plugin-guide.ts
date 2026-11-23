@@ -1,4 +1,7 @@
-import { CURRENT_PROTOCOL } from "./plugin-manifest.js";
+import { documentValidators } from "./manifest-ports.js";
+
+const CURRENT_PROTOCOL = documentValidators.facts.protocol;
+
 import { SCHEMA_NAMES } from "./plugin-schema.js";
 
 function lines(...text: string[]): string[] {

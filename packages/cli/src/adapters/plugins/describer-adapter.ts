@@ -8,6 +8,7 @@ import type {
   LocatedDescriber,
   Projection,
 } from "@recognizer/core";
+import { unregisteredMessage } from "@recognizer/core";
 import { readDescribing } from "../../app-settings.js";
 import type { Io } from "../../cli.js";
 import {
@@ -18,8 +19,7 @@ import {
 import { findDescriber } from "../../describer-in-effect.js";
 import { InputError } from "../../errors.js";
 import { describerGaps } from "../../preflight.js";
-import { SHIPPED_DESCRIBER_NAME } from "../../shipped-describer.js";
-import { unregisteredMessage } from "../../unregistered-plugins.js";
+import { shippedDescriberName } from "./shipped-plugins-adapter.js";
 import { sinkIo } from "./sink-io.js";
 
 export class DescriberAdapter implements Describer {
@@ -44,7 +44,7 @@ export class DescriberAdapter implements Describer {
 
   refuseShipped(located: LocatedDescriber): void {
     if (located.shipped && located.describer !== null) {
-      throw new InputError([unregisteredMessage(SHIPPED_DESCRIBER_NAME)]);
+      throw new InputError([unregisteredMessage(shippedDescriberName())]);
     }
   }
 

@@ -1,12 +1,12 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { PROBLEM_TITLES } from "@recognizer/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { run } from "../src/cli.js";
 import { setValue, unsetValue } from "../src/config-edit.js";
 import { loadKeys } from "../src/config-keys.js";
 import { RETIRED_KEYS } from "../src/config-retired.js";
 import { cachedScansState } from "../src/freshness.js";
-import { PROBLEM_TITLES } from "../src/problem-titles.js";
 import { REPO } from "./helpers.js";
 import {
   describerManifestText,
