@@ -1,4 +1,8 @@
 import { type Gap, installFix } from "../../domain/gap.js";
+import {
+  NO_RUN_LINE,
+  probeDescriberCheck,
+} from "../plugins/probe-describer-check.js";
 import { describerProgram } from "../plugins/shipped-plugins.js";
 import type { DescribingPorts } from "./internal/describing-ports.js";
 import type { LocatedDescriber } from "./ports/describer.js";
@@ -13,10 +17,6 @@ export interface FindDescriberGapsInput {
 
 const IN_TREE_DESCRIBER = "packages/describers/claude/dist/bin.js";
 
-function fillDescriber(item: string, root: string): string {
-  return item.split("{repository}").join(root);
-}
-
 function isReference(command: readonly string[], program: string): boolean {
   return (
     command[0] === program ||
@@ -29,30 +29,26 @@ function argumentsGap(
   input: FindDescriberGapsInput,
   describer: DescriberRef,
 ): Gap | null {
-  const at = describer.command.indexOf("run");
+  const check = probeDescriberCheck(
+    (program, args, cwd) => ports.describer.probe(program, args, cwd),
+    input.root,
+    describer.command,
+  );
 
-  if (at === -1) {
+  if (check.kind === "passed") {
+    return null;
+  }
+
+  if (check.kind === "no-run") {
     return {
       id: "describe:arguments",
-      line: "the describer does not speak the plugin verbs: its command has no run element",
+      line: NO_RUN_LINE,
       needs: ["describe"],
       fix: installFix(input.install, describer.command[0] as string),
     };
   }
 
-  const filled = describer.command
-    .slice(0, at)
-    .map((item) => fillDescriber(item, input.root));
-  const result = ports.describer.probe(
-    filled[0] as string,
-    [...filled.slice(1), "check"],
-    input.root,
-  );
-
-  if (result.started && result.status === 0) {
-    return null;
-  }
-
+  const filled = check.words;
   const tree = filled.find((item) => item.endsWith(IN_TREE_DESCRIBER));
   const folder =
     tree === undefined

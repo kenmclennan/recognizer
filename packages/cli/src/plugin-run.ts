@@ -7,6 +7,7 @@ import {
   type PluginEvent,
   readManifestOf,
   type SuiteDuration,
+  splitAtRun,
 } from "@recognizer/core";
 import type { Io, RunOptions } from "./cli.js";
 import { documentValidators, manifestPorts } from "./manifest-ports.js";
@@ -17,12 +18,6 @@ import {
 } from "./registered-command.js";
 
 export const PLUGIN_GRACE_MS = 10_000;
-
-export function pluginPrefix(command: readonly string[]): string[] | null {
-  const at = command.indexOf("run");
-
-  return at === -1 ? null : command.slice(0, at);
-}
 
 export interface PluginLimits {
   readOf(prefix: string[]): ManifestRead;
@@ -99,7 +94,7 @@ export function prepareCall(
   fallbackName: string,
   onEvent?: (name: string, event: PluginEvent) => void,
 ): PluginCall {
-  const prefix = pluginPrefix(command);
+  const prefix = splitAtRun(command)?.prefix ?? null;
   const name = limits.nameOf(prefix, fallbackName);
   const limit = limits.limitMs(prefix);
   const reader = createEventReader(

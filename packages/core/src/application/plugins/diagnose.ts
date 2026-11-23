@@ -10,6 +10,7 @@ import { judgeProtocol } from "../../domain/plugins/manifest.js";
 import { checkSensor } from "./check-sensor.js";
 import { discoverPlugins } from "./discover-plugins.js";
 import type { PluginPorts } from "./internal/plugin-ports.js";
+import { NO_RUN_LINE, probeDescriberCheck } from "./probe-describer-check.js";
 import { readManifest, readManifestOf } from "./read-manifest.js";
 import {
   readShippedSensors,
@@ -22,21 +23,29 @@ type DiagnosePorts = Pick<
   "programs" | "validators" | "shipped" | "repository"
 >;
 
-function describerGaps(
+function describerCheckLines(
   ports: DiagnosePorts,
   root: string,
-  program: string,
+  command: readonly string[],
 ): string[] {
-  const result = ports.programs.run(program, ["check"], { cwd: root });
+  const check = probeDescriberCheck(
+    (program, args, cwd) => ports.programs.run(program, args, { cwd }),
+    root,
+    command,
+  );
 
-  if (result.started && result.status === 0) {
+  if (check.kind === "passed") {
     return [];
   }
 
+  if (check.kind === "no-run") {
+    return [NO_RUN_LINE];
+  }
+
   return [
-    result.started
-      ? `${program} check exited ${result.status ?? "without a status"}`
-      : `${program} check could not be started`,
+    check.started
+      ? `${check.program} check exited ${check.status ?? "without a status"}`
+      : `${check.program} check could not be started`,
   ];
 }
 
@@ -98,7 +107,7 @@ function pluginFact(
         ? null
         : report !== null
           ? report.gaps.map((gap) => gap.line)
-          : describerGaps(ports, root, found),
+          : describerCheckLines(ports, root, [found, ...spec.command.slice(1)]),
     },
   };
 }

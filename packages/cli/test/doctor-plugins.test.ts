@@ -1,4 +1,10 @@
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import type { DoctorReport } from "@recognizer/core";
 import { afterEach, describe, expect, it } from "vitest";
@@ -584,6 +590,74 @@ describe("doctor: registered plugins", () => {
       code: "describer-gap",
       subject: "describer",
     });
+  });
+
+  it("reports a describer-gap when the describer's command has no run element", async () => {
+    const fixture = setup(
+      "describer:\n  command: [recognizer-describe-d, --model, '{model}']\n  version: v1\n",
+    );
+
+    writeShim(
+      fixture.bin,
+      "recognizer-describe-d",
+      manifestFor("describer", "d", { check: true }),
+    );
+
+    const problems = problemsOf((await doctor(fixture)).report, "describers");
+
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toMatchObject({ code: "describer-gap" });
+    expect(problems[0]?.line).toBe(
+      "the describer does not speak the plugin verbs: its command has no run element",
+    );
+  });
+
+  it("passes the words before run to the describer's check", async () => {
+    const fixture = setup(
+      "describer:\n  command: [recognizer-describe-d, --flag, '{repository}', run, --model, '{model}', '{request}']\n  version: v1\n",
+    );
+    const log = join(fixture.repo, "arguments.log");
+    const program = join(fixture.bin, "recognizer-describe-d");
+
+    writeShim(
+      fixture.bin,
+      "recognizer-describe-d",
+      manifestFor("describer", "d", { check: true }),
+    );
+    writeFileSync(
+      program,
+      readFileSync(program, "utf8").replace(
+        'if [ "$1" = "check" ]; then',
+        `if [ "$#" -gt 0 ] && [ "$3" = "check" ]; then\necho "$@" >> '${log}'\nfi\nif [ "$1" = "check" ]; then`,
+      ),
+    );
+    chmodSync(program, 0o755);
+
+    await doctor(fixture);
+
+    expect(existsSync(log)).toBe(true);
+    expect(
+      readFileSync(log, "utf8").startsWith(`--flag ${fixture.repo} check`),
+    ).toBe(true);
+  });
+
+  it("the failure line keeps its wording", async () => {
+    const fixture = setup(
+      "describer:\n  command: [recognizer-describe-d, run, --model, '{model}', '{request}']\n  version: v1\n",
+    );
+
+    writeShim(
+      fixture.bin,
+      "recognizer-describe-d",
+      manifestFor("describer", "d", { check: true }),
+      { checkStatus: 3 },
+    );
+
+    const [problem] = problemsOf((await doctor(fixture)).report, "describers");
+
+    expect(problem?.line).toBe(
+      `${join(fixture.bin, "recognizer-describe-d")} check exited 3`,
+    );
   });
 
   it("reports plugin-settings for a key the manifest does not declare", async () => {

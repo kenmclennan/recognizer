@@ -5,11 +5,7 @@ import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { type Io, nodeIo } from "../src/cli.js";
-import {
-  createPluginLimits,
-  pluginPrefix,
-  runPlugin,
-} from "../src/plugin-run.js";
+import { createPluginLimits, runPlugin } from "../src/plugin-run.js";
 import { pluginLine } from "../src/scan-phases.js";
 
 function manifest(extra: Record<string, unknown> = {}) {
@@ -265,7 +261,6 @@ describe("runPlugin time limits", () => {
       expect(existsSync(marker)).toBe(true);
       expect(existsSync(join(h.directory, "manifest-calls"))).toBe(false);
       expect(result.status).toBe(0);
-      expect(pluginPrefix([process.execPath, "-e", "x"])).toBeNull();
     },
     scaledTimeout(20_000),
   );
