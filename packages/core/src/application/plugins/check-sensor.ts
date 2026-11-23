@@ -1,5 +1,4 @@
 import {
-  afterRun,
   CHECK_TIMEOUT_MS,
   type CheckableSensor,
   type CheckOptions,
@@ -9,6 +8,7 @@ import {
   notInstalled,
   parseAnswer,
   type SensorReport,
+  splitAtRun,
   unanswered,
 } from "../../domain/plugins/sensor-check.js";
 import type { PluginPorts } from "./internal/plugin-ports.js";
@@ -39,7 +39,7 @@ export function checkSensor(
   }
 
   const declared = read(
-    afterRun(sensor.command).prefix.map((item) =>
+    (splitAtRun(sensor.command)?.prefix ?? []).map((item) =>
       item.split("{repository}").join(root),
     ),
   );
@@ -132,7 +132,7 @@ export function guideSensor(
     return { text: "" };
   }
 
-  const { prefix } = afterRun(sensor.command);
+  const prefix = splitAtRun(sensor.command)?.prefix ?? [];
   const result = ports.programs.run(
     prefix[0] as string,
     [...prefix.slice(1), "guide"],

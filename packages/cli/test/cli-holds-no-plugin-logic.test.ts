@@ -140,6 +140,14 @@ describe("the CLI holds no plugin logic", () => {
     expect(forbidden.test("  describerGaps(input: X): Gap[] {")).toBe(true);
   });
 
+  it("reads a command's run element only in core", () => {
+    const text = readFileSync(join(SRC, "plugin-run.ts"), "utf8");
+
+    expect(/indexOf\("run"\)/.test(text)).toBe(false);
+    expect(text.includes("pluginPrefix")).toBe(false);
+    expect(/splitAtRun/.test(text)).toBe(true);
+  });
+
   it("the matchers flag a known offending string and pass a clean one", () => {
     expect(namesShippedPlugin('const x = "crap";')).toBe(true);
     expect(namesShippedPlugin("export const SHIPPED_SENSORS = [];")).toBe(true);

@@ -44,7 +44,7 @@ function programName(path: string): string {
 
 export function checkable(command: readonly string[]): boolean {
   return (
-    command.indexOf("run") !== -1 &&
+    splitAtRun(command) !== null &&
     /^recognizer-sense-./.test(programName(command[0] ?? ""))
   );
 }
@@ -162,13 +162,14 @@ export function strippedArguments(
   return kept;
 }
 
-export function afterRun(command: string[]): {
-  prefix: string[];
-  rest: string[];
-} {
+export function splitAtRun(
+  command: readonly string[],
+): { prefix: string[]; rest: string[] } | null {
   const at = command.indexOf("run");
 
-  return { prefix: command.slice(0, at), rest: command.slice(at + 1) };
+  return at === -1
+    ? null
+    : { prefix: command.slice(0, at), rest: command.slice(at + 1) };
 }
 
 export function checkArguments(
@@ -177,7 +178,7 @@ export function checkArguments(
   run: boolean,
   options: Pick<CheckOptions, "work" | "modules" | "suites"> = {},
 ): string[] {
-  const { prefix, rest } = afterRun(command);
+  const { prefix, rest } = splitAtRun(command) ?? { prefix: [], rest: [] };
 
   return [
     ...prefix,
