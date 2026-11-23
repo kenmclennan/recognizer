@@ -1,10 +1,11 @@
+import { readManifestOf } from "@recognizer/core";
+import { shippedDescriberInvocation } from "./adapters/plugins/shipped-plugins-adapter.js";
 import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import type { Describer } from "./describe-modules.js";
 import { describerVersion } from "./describer-version.js";
 import { InputError } from "./errors.js";
-import { readManifestOf } from "./plugin-manifest.js";
-import { SHIPPED_DESCRIBER_COMMAND } from "./shipped-describer.js";
+import { manifestPorts } from "./manifest-ports.js";
 
 export { describerVersion };
 
@@ -36,7 +37,8 @@ export function findDescriber(io: Io, root: string): DescriberInEffect | null {
     };
   }
 
-  const read = readManifestOf(io, [SHIPPED_DESCRIBER_COMMAND[0] as string]);
+  const invocation = shippedDescriberInvocation();
+  const read = readManifestOf(manifestPorts(io), [invocation[0] as string]);
   const version =
     read.ok && read.manifest.prompt_version !== undefined
       ? read.manifest.prompt_version
@@ -46,7 +48,7 @@ export function findDescriber(io: Io, root: string): DescriberInEffect | null {
     return null;
   }
 
-  const shipped = { command: [...SHIPPED_DESCRIBER_COMMAND], version };
+  const shipped = { command: invocation, version };
 
   return {
     ...shipped,

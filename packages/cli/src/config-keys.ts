@@ -1,7 +1,8 @@
+import { readShippedSensors } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import { InputError } from "./errors.js";
 import validateKeySchema from "./generated/config-keys-validator.js";
-import { readShippedSensors } from "./shipped-sensors.js";
+import { shippedPorts } from "./manifest-ports.js";
 import { SUITE_KEYS, SUITE_SECTION } from "./suite-keys.js";
 
 export const REGISTRATION_KEY = "sensors.<name>.command";
@@ -409,7 +410,7 @@ export interface SensorSchemaRead {
 }
 
 export function loadSensorSchema(io: Io): SensorSchemaRead {
-  const shipped = readShippedSensors(io);
+  const shipped = readShippedSensors(shippedPorts(io));
   const keys: KeyEntry[] = [...SUITE_KEYS];
 
   for (const sensor of shipped.sensors) {

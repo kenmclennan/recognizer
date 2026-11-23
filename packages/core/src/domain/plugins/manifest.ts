@@ -1,19 +1,8 @@
-import type { Io } from "./cli.js";
-import validate from "./generated/manifest-validator.js";
-import protocol from "./generated/protocol.json" with { type: "json" };
-import type { FindingEntry } from "./plugin-sentence.js";
-import {
-  judgeScanVersion,
-  SCAN_BREAKING_VERSIONS,
-  SCAN_SCHEMA_VERSION,
-  type ScanVersionVerdict,
-} from "./scan.js";
-
-export const CURRENT_PROTOCOL: number = protocol.protocol;
-
-export const MANIFEST_TIMEOUT_MS = 10_000;
+import type { FindingEntry } from "./sentence.js";
 
 export type PluginKind = "scanner" | "sensor" | "describer";
+
+export const MANIFEST_TIMEOUT_MS = 10_000;
 
 export interface Manifest {
   kind: PluginKind;
@@ -53,33 +42,37 @@ export interface ManifestRun {
   timedOut?: boolean;
 }
 
-export function runManifest(
-  io: Io,
-  command: string,
-  cwd?: string,
-  leading: string[] = [],
-): ManifestRun {
-  return io.run(command, [...leading, "manifest"], {
-    timeoutMs: MANIFEST_TIMEOUT_MS,
-    ...(cwd === undefined ? {} : { cwd }),
-  });
+export type ScanVersionVerdict = "current" | "older" | "newer" | "broken";
+
+export type ScanSchemaJudgement = ScanVersionVerdict | "undeclared";
+
+export interface PluginFacts {
+  protocol: number;
+  scanSchemaVersion: number;
+  scanBreakingVersions: readonly number[];
+  findingsVersion: number;
 }
 
-export function validateManifest(value: unknown): string | null {
-  if (validate(value)) {
-    return null;
+export function judgeScanVersion(
+  found: number,
+  current: number,
+  breaks: readonly number[],
+): ScanVersionVerdict {
+  if (found === current) {
+    return "current";
   }
 
-  const first = validate.errors?.[0];
+  if (found > current) {
+    return "newer";
+  }
 
-  return first === undefined
-    ? "the manifest is invalid"
-    : `${first.instancePath === "" ? "the manifest" : first.instancePath} ${first.message ?? "is invalid"}`;
+  return breaks.some((b) => found < b && b <= current) ? "broken" : "older";
 }
 
 export function interpretManifest(
   command: string,
   run: ManifestRun,
+  validate: (value: unknown) => string | null,
 ): ManifestRead {
   if (!run.started) {
     return { ok: false, reason: `${command} could not be started` };
@@ -104,29 +97,16 @@ export function interpretManifest(
     return { ok: false, reason: `${command} manifest did not print JSON` };
   }
 
-  const problem = validateManifest(document);
+  const problem = validate(document);
 
   return problem === null
     ? { ok: true, manifest: document as Manifest }
     : { ok: false, reason: `${command} manifest: ${problem}` };
 }
 
-export function readManifest(io: Io, command: string): ManifestRead {
-  return interpretManifest(command, runManifest(io, command));
-}
-
-export function readManifestOf(io: Io, prefix: string[]): ManifestRead {
-  const [program, ...leading] = prefix as [string, ...string[]];
-
-  return interpretManifest(
-    prefix.join(" "),
-    runManifest(io, program, undefined, leading),
-  );
-}
-
 export function judgeProtocol(
   manifest: { protocol: number },
-  current: number = CURRENT_PROTOCOL,
+  current: number,
 ): ProtocolJudgement {
   if (manifest.protocol === current) {
     return "current";
@@ -137,14 +117,31 @@ export function judgeProtocol(
     : "unsupported";
 }
 
-export type ScanSchemaJudgement = ScanVersionVerdict | "undeclared";
-
 export function judgeScanSchema(
   declared: number | undefined,
-  current: number = SCAN_SCHEMA_VERSION,
-  breaks: readonly number[] = SCAN_BREAKING_VERSIONS,
+  current: number,
+  breaks: readonly number[],
 ): ScanSchemaJudgement {
   return declared === undefined
     ? "undeclared"
     : judgeScanVersion(declared, current, breaks);
+}
+
+export function supportedRange(current: number): string {
+  return current > 1
+    ? `protocols ${current - 1} and ${current}`
+    : `protocol ${current}`;
+}
+
+export function joinPath(...parts: string[]): string {
+  return parts
+    .filter((part) => part !== "")
+    .join("/")
+    .replace(/\/+/g, "/");
+}
+
+export function baseName(path: string): string {
+  const at = path.lastIndexOf("/");
+
+  return at === -1 ? path : path.slice(at + 1);
 }

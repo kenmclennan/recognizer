@@ -1,7 +1,7 @@
 import {
   describerVersion,
   parseConfig,
-  SHIPPED_DESCRIBER_COMMAND,
+  shippedDescriberInvocation,
 } from "recognizer";
 import type { RunRecordFiles } from "./refusal-record";
 import type { PlannedWork } from "./scan-estimate";
@@ -123,9 +123,9 @@ export function fakeSensors(
           }
         : {
             status: "ok",
-            command: [...SHIPPED_DESCRIBER_COMMAND],
+            command: shippedDescriberInvocation(),
             version: describerVersion({
-              command: [...SHIPPED_DESCRIBER_COMMAND],
+              command: shippedDescriberInvocation(),
               version: fake.shippedVersion,
             }),
             source: "shipped",

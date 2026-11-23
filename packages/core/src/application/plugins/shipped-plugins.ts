@@ -1,10 +1,14 @@
-import type { Io } from "./cli.js";
+import { InvalidRequest } from "../../domain/invalid-request.js";
+import type { Manifest, ManifestRead } from "../../domain/plugins/manifest.js";
+import type { FindingEntry } from "../../domain/plugins/sentence.js";
 import {
-  type Manifest,
-  type ManifestRead,
-  readManifestOf,
-} from "./plugin-manifest.js";
-import type { FindingEntry } from "./plugin-sentence.js";
+  unregisteredMessage,
+  unregisteredSensors,
+} from "../../domain/plugins/unregistered.js";
+import type { DocumentValidators } from "./ports/document-validators.js";
+import type { Programs } from "./ports/programs.js";
+import type { ShippedPlugins } from "./ports/shipped-plugins.js";
+import { readManifestOf } from "./read-manifest.js";
 
 export interface ShippedMetric {
   name: string;
@@ -44,16 +48,13 @@ export interface ShippedRead {
 
 export type ManifestReader = (prefix: string[]) => ManifestRead;
 
-export const SHIPPED_SENSORS: readonly string[] = ["crap", "mutation"];
-
-export function shippedSensorNames(): string[] {
-  return [...SHIPPED_SENSORS];
-}
-
 const SENSE_PREFIX = "recognizer-sense-";
+
+const DESCRIBE_PREFIX = "recognizer-describe-";
 
 export function shippedSensorOf(
   command: readonly string[],
+  shipped: readonly string[],
 ): string | undefined {
   const program = command[0];
 
@@ -63,7 +64,29 @@ export function shippedSensorOf(
 
   const name = program.slice(SENSE_PREFIX.length);
 
-  return SHIPPED_SENSORS.includes(name) ? name : undefined;
+  return shipped.includes(name) ? name : undefined;
+}
+
+export function shippedDescriberCommand(name: string): string[] {
+  return [
+    `${DESCRIBE_PREFIX}${name}`,
+    "run",
+    "--model",
+    "{model}",
+    "{request}",
+  ];
+}
+
+export function refuseUnregistered(
+  registered: readonly string[],
+  requested: readonly string[],
+  shipped: readonly string[],
+): void {
+  const names = unregisteredSensors(registered, requested, shipped);
+
+  if (names.length > 0) {
+    throw new InvalidRequest(names.map(unregisteredMessage));
+  }
 }
 
 function entryOf(manifest: Manifest): ShippedSensorEntry {
@@ -91,13 +114,19 @@ function entryOf(manifest: Manifest): ShippedSensorEntry {
 }
 
 export function readShippedSensors(
-  io: Io,
-  read: ManifestReader = (prefix) => readManifestOf(io, prefix),
-  names: readonly string[] = SHIPPED_SENSORS,
+  ports: {
+    programs: Programs;
+    validators: DocumentValidators;
+    shipped: ShippedPlugins;
+  },
+  read: ManifestReader = (prefix) => readManifestOf(ports, prefix),
+  names: readonly string[] = ports.shipped.sensors(),
 ): ShippedRead {
   const result: ShippedRead = { sensors: [], unreadable: [] };
 
-  for (const name of SHIPPED_SENSORS.filter((one) => names.includes(one))) {
+  for (const name of ports.shipped
+    .sensors()
+    .filter((one) => names.includes(one))) {
     const manifest = read([`${SENSE_PREFIX}${name}`]);
 
     if (manifest.ok && manifest.manifest.kind === "sensor") {
@@ -119,7 +148,13 @@ function entryFor(
   command: readonly string[],
   shipped: ShippedRead,
 ): ShippedSensorEntry | undefined {
-  const name = shippedSensorOf(command);
+  const program = command[0];
+
+  if (program === undefined || !program.startsWith(SENSE_PREFIX)) {
+    return undefined;
+  }
+
+  const name = program.slice(SENSE_PREFIX.length);
 
   return shipped.sensors.find((entry) => entry.name === name);
 }
@@ -149,7 +184,7 @@ export function withSuiteSettings(
   shipped: ShippedRead,
   suites: readonly unknown[] | undefined,
 ): string[] {
-  const name = shippedSensorOf(command);
+  const name = entryFor(command, shipped)?.name;
 
   if (
     suites === undefined ||

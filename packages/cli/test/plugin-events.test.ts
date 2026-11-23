@@ -1,10 +1,18 @@
-import { describe, expect, it } from "vitest";
 import {
-  createEventReader,
+  createEventReader as createReader,
   EVENT_PREFIX,
   type PluginEvent,
-  parseEventLine,
-} from "../src/plugin-events.js";
+  parseEventLine as parseLine,
+} from "@recognizer/core";
+import { describe, expect, it } from "vitest";
+import { documentValidators } from "../src/manifest-ports.js";
+
+const valid = (value: unknown) => documentValidators.event(value);
+const createEventReader = (
+  onEvent?: (event: PluginEvent) => void,
+  now?: () => number,
+) => createReader(valid, onEvent, now);
+const parseEventLine = (text: string) => parseLine(text, valid);
 
 const line = (value: unknown) => `${EVENT_PREFIX}${JSON.stringify(value)}`;
 

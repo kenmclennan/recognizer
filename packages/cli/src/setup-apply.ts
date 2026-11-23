@@ -1,6 +1,6 @@
 import { join, posix } from "node:path";
+import type { DoctorReport } from "@recognizer/core";
 import { type Io, onStop } from "./cli.js";
-import type { DoctorReport } from "./doctor.js";
 import { doctorReport } from "./doctor-command.js";
 import { buildRecord, entryFrom, type RunEntry, recordRun } from "./run-log.js";
 import type { PlannedChange } from "./setup-changes.js";

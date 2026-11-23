@@ -1,11 +1,23 @@
-import { describe, expect, it } from "vitest";
-import { InputError } from "../src/errors.js";
 import {
-  refuseUnregistered,
+  refuseUnregistered as refuse,
   UNREGISTERED_FIX,
+  unregisteredSensors as unregistered,
   unregisteredMessage,
-  unregisteredSensors,
-} from "../src/unregistered-plugins.js";
+} from "@recognizer/core";
+import { describe, expect, it } from "vitest";
+import { shippedPlugins } from "../src/adapters/plugins/shipped-plugins-adapter.js";
+import { asInputError, InputError } from "../src/errors.js";
+
+const refuseUnregistered = (
+  registered: readonly string[],
+  requested: readonly string[],
+) =>
+  asInputError(() => refuse(registered, requested, shippedPlugins().sensors()));
+
+const unregisteredSensors = (
+  registered: readonly string[],
+  requested: readonly string[],
+) => unregistered(registered, requested, shippedPlugins().sensors());
 
 function refusal(registered: string[], requested: string[]): string[] | null {
   try {

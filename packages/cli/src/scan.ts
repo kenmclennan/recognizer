@@ -1,3 +1,7 @@
+import {
+  judgeScanVersion as judgeVersion,
+  type ScanVersionVerdict,
+} from "@recognizer/core";
 import type { ScanDoc } from "./adapters/filesystem/scan-document-types.js";
 import { InputError } from "./errors.js";
 import schema from "./generated/scan.schema.json" with { type: "json" };
@@ -11,22 +15,14 @@ export const SCAN_SCHEMA_VERSION: number =
 
 export const SCAN_BREAKING_VERSIONS: number[] = breaking;
 
-export type ScanVersionVerdict = "current" | "older" | "newer" | "broken";
+export type { ScanVersionVerdict } from "@recognizer/core";
 
 export function judgeScanVersion(
   found: number,
   current: number = SCAN_SCHEMA_VERSION,
   breaks: readonly number[] = SCAN_BREAKING_VERSIONS,
 ): ScanVersionVerdict {
-  if (found === current) {
-    return "current";
-  }
-
-  if (found > current) {
-    return "newer";
-  }
-
-  return breaks.some((b) => found < b && b <= current) ? "broken" : "older";
+  return judgeVersion(found, current, breaks);
 }
 
 export function validateScan(value: unknown): ScanDoc {

@@ -1,4 +1,6 @@
+import { expandShortForms, shippedSensorOf } from "@recognizer/core";
 import { parse } from "yaml";
+import { shippedPlugins } from "./adapters/plugins/shipped-plugins-adapter.js";
 import {
   retiredKeysIn,
   withoutRetiredKeysAndEmptiedSections,
@@ -6,11 +8,6 @@ import {
 } from "./config-retired.js";
 import { InputError } from "./errors.js";
 import validate from "./generated/config-validator.js";
-import {
-  expandShortForms,
-  SHIPPED_SENSORS,
-  shippedSensorOf,
-} from "./shipped-sensors.js";
 
 export interface SensorRegistration {
   command: string[];
@@ -77,7 +74,10 @@ export function shippedSensorSettings(
   );
   const command = registered?.command;
 
-  if (command === undefined || shippedSensorOf(command) === undefined) {
+  if (
+    command === undefined ||
+    shippedSensorOf(command, shippedPlugins().sensors()) === undefined
+  ) {
     return null;
   }
 
@@ -113,7 +113,7 @@ function expandConfig(document: unknown): unknown {
   const record = document as Record<string, unknown>;
   const sensors = expandShortForms(
     record.sensors as Record<string, unknown> | undefined,
-    SHIPPED_SENSORS,
+    shippedPlugins().sensors(),
   );
 
   return {

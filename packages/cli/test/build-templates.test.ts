@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { bundleTemplates } from "../scripts/build-templates.mjs";
-import { bundledTemplates } from "../src/plugin-templates.js";
+import { PluginTemplatesAdapter } from "../src/adapters/plugins/plugin-templates-adapter.js";
 import { REPO } from "./helpers.js";
 
 describe("build-templates", () => {
@@ -40,7 +40,7 @@ describe("build-templates", () => {
   });
 
   it("is the bundle the build wrote into the CLI", () => {
-    expect(bundledTemplates()).toEqual(
+    expect(new PluginTemplatesAdapter().bundled()).toEqual(
       bundleTemplates(join(REPO, "packages/cli/templates")),
     );
   });

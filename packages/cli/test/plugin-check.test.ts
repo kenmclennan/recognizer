@@ -1,15 +1,32 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { type Io, type RunOptions, run } from "../src/cli.js";
 import {
   checkLimits,
+  pluginCheck as checkPlugin,
+  type Manifest,
+  type PluginCheckOptions,
   type PluginCheckResult,
-  pluginCheck,
-  stopResult,
-} from "../src/plugin-check.js";
-import type { Manifest } from "../src/plugin-manifest.js";
+  stopResult as stopPlugin,
+} from "@recognizer/core";
+import { describe, expect, it } from "vitest";
+import { type Io, type RunOptions, run } from "../src/cli.js";
+import { pluginPorts } from "../src/plugins-container.js";
 import { capture, REPO } from "./helpers.js";
+
+const pluginCheck = (
+  io: Io,
+  command: string,
+  current?: number,
+  options?: PluginCheckOptions,
+) => checkPlugin(pluginPorts(io), command, current, options);
+
+const stopResult = (
+  io: Io,
+  command: string,
+  manifest: Manifest,
+  workspace: Parameters<typeof stopPlugin>[3],
+  options: PluginCheckOptions,
+) => stopPlugin(pluginPorts(io), command, manifest, workspace, options);
 
 const FIXTURES = join(REPO, "fixtures/plugins");
 

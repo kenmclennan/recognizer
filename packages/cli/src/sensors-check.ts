@@ -1,16 +1,20 @@
 import { basename } from "node:path";
+import {
+  type ManifestReader,
+  readManifestOf,
+  readShippedSensors,
+  shippedSensorOf,
+} from "@recognizer/core";
+import {
+  shippedPlugins,
+  shippedSensorNames,
+} from "./adapters/plugins/shipped-plugins-adapter.js";
 import type { Io } from "./cli.js";
 import { readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
-import { readManifestOf } from "./plugin-manifest.js";
+import { manifestPorts, shippedPorts } from "./manifest-ports.js";
 import { pluginPrefix } from "./plugin-run.js";
 import { selectSensors } from "./scan-phases.js";
-import {
-  type ManifestReader,
-  readShippedSensors,
-  shippedSensorNames,
-  shippedSensorOf,
-} from "./shipped-sensors.js";
 
 export interface SensorGap {
   code: string;
@@ -246,7 +250,7 @@ export function checkSensor(
   root: string,
   sensor: CheckableSensor,
   options: CheckOptions,
-  read: ManifestReader = (prefix) => readManifestOf(io, prefix),
+  read: ManifestReader = (prefix) => readManifestOf(manifestPorts(io), prefix),
 ): SensorReport {
   const run = options.run === true;
 
@@ -404,7 +408,7 @@ export function sensorsToCheck(
   const wanted = new Set<string>(name === undefined ? [] : [name]);
 
   for (const one of registered) {
-    const shipped = shippedSensorOf(one.command);
+    const shipped = shippedSensorOf(one.command, shippedPlugins().sensors());
 
     if (shipped !== undefined) {
       wanted.add(shipped);
@@ -416,6 +420,6 @@ export function sensorsToCheck(
     name === undefined ? "all" : [name],
     shippedSensorNames(),
     config?.tests,
-    readShippedSensors(io, undefined, [...wanted]),
+    readShippedSensors(shippedPorts(io), undefined, [...wanted]),
   );
 }

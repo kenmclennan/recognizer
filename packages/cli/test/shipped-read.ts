@@ -1,11 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Io } from "../src/cli.js";
-import type { Manifest, ManifestRead } from "../src/plugin-manifest.js";
 import {
+  type Manifest,
+  type ManifestRead,
   readShippedSensors,
   type ShippedRead,
-} from "../src/shipped-sensors.js";
+} from "@recognizer/core";
+import type { Io } from "../src/cli.js";
+import { shippedPorts } from "../src/manifest-ports.js";
 import { REPO } from "./helpers.js";
 
 export function exampleManifest(name: string): Manifest {
@@ -29,5 +31,5 @@ export function readExamples(
       : { ok: true, manifest: exampleManifest(name) };
   };
 
-  return readShippedSensors({} as Io, read, names);
+  return readShippedSensors(shippedPorts({} as Io), read, names);
 }

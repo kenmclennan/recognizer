@@ -1,8 +1,8 @@
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { DoctorReport } from "@recognizer/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
-import type { DoctorReport } from "../src/doctor.js";
 import {
   ioWithPath,
   manifestFor,

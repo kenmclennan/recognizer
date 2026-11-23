@@ -170,7 +170,7 @@ export const COMMANDS: Command[] = [
       {
         flag: "--modules <file>",
         description:
-          "a JSON array of file ids that limits --describe to those files (the stale ones among them, or all of them with =all) and passes the file to the mutation sensor, which mutates only those files' functions; needs --describe or --sense, and no other sensor takes it",
+          "a JSON array of file ids that limits --describe to those files (the stale ones among them, or all of them with =all) and passes the file to every sensor whose manifest declares it scoped, which then measures only those files' functions; needs --describe or --sense",
       },
       {
         flag: "--suites <file>",

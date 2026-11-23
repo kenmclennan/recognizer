@@ -103,14 +103,10 @@ describe("tools/packaging/units.json", () => {
   });
 
   it("equals the shipped sensors of the CLI", () => {
-    const source = readFileSync(
-      join(ROOT, "packages/cli/src/shipped-sensors.ts"),
-      "utf8",
+    const names = JSON.parse(
+      readFileSync(join(ROOT, "fixtures/sensors/shipped.json"), "utf8"),
     );
-    const list = /SHIPPED_SENSORS[^=]*=\s*\[([^\]]*)\]/.exec(source)[1];
-    const shipped = [...list.matchAll(/"([a-z0-9-]+)"/g)].map(
-      ([, name]) => `recognizer-sense-${name}`,
-    );
+    const shipped = names.map((name) => `recognizer-sense-${name}`);
     const sensors = FORMULAE.filter(({ unit }) => unit === "sensors").map(
       ({ formula }) => formula,
     );

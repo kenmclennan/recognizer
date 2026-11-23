@@ -1,11 +1,11 @@
-import { describe, expect, it } from "vitest";
 import {
   type FindingEntry,
   matchKind,
   renderSentence,
   type Sentence,
   sentenceProblems,
-} from "../src/plugin-sentence.js";
+} from "@recognizer/core";
+import { describe, expect, it } from "vitest";
 
 const ENTRY: FindingEntry = {
   kind: "thresholds.<metric>",

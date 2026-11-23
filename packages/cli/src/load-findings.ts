@@ -14,6 +14,7 @@ import { readSensorFindings } from "./adapters/filesystem/findings-translator.js
 import { parsePolicy } from "./adapters/filesystem/policy-translator.js";
 import { SourceFilesAdapter } from "./adapters/filesystem/source-files-adapter.js";
 import { TomlAdapter } from "./adapters/filesystem/toml-adapter.js";
+import { shippedSensorNames } from "./adapters/plugins/shipped-plugins-adapter.js";
 import { DigestAdapter } from "./adapters/system/digest-adapter.js";
 import type { Io } from "./cli.js";
 import { policyFile, readConfig } from "./config.js";
@@ -24,7 +25,6 @@ import {
   readFindingsFiles,
   writeFindings,
 } from "./findings-files.js";
-import { shippedSensorNames } from "./shipped-sensors.js";
 import { resolveStructureSettings } from "./structure-sensor.js";
 
 export function readPolicy(io: Io, root: string): PolicyRule[] | null {

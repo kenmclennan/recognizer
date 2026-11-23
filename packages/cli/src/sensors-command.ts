@@ -1,14 +1,15 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { readShippedSensors } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import { InputError } from "./errors.js";
+import { shippedPorts } from "./manifest-ports.js";
 import {
   checkSensors,
   reportJson,
   reportText,
   sensorsToCheck,
 } from "./sensors-check.js";
-import { readShippedSensors } from "./shipped-sensors.js";
 
 const USAGE = [
   "usage: recognizer sensors [--json]",
@@ -93,7 +94,7 @@ export function runSensors(argv: string[], io: Io): number {
     return reports.every((report) => report.ready) ? 0 : 1;
   }
 
-  const { sensors, unreadable } = readShippedSensors(io);
+  const { sensors, unreadable } = readShippedSensors(shippedPorts(io));
 
   if (values.json === true) {
     io.stdout(`${JSON.stringify(sensors, null, 2)}\n`);

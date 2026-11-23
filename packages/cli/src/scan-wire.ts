@@ -1,4 +1,4 @@
-import type { ScanEvent } from "@recognizer/core";
+import type { PluginEvent, ScanEvent } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import {
   type DescribeResult as CliDescribeResult,
@@ -10,7 +10,6 @@ import {
   projectionText,
 } from "./describe-projection.js";
 import { type Gap, gapText, preflightLine } from "./gap.js";
-import type { PluginEvent } from "./plugin-events.js";
 import {
   type EventEntry,
   entryLine,

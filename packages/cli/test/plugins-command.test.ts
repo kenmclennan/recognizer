@@ -1,8 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { InstalledPlugin } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
-import type { InstalledPlugin } from "../src/plugin-discovery.js";
 import { schemaMismatchLines } from "../src/plugins-command.js";
 import {
   ioWithPath,

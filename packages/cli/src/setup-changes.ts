@@ -1,7 +1,7 @@
+import { shippedDescriberName } from "./adapters/plugins/shipped-plugins-adapter.js";
 import { type PolicyCard, policyCommands, summaryOf } from "./setup-cards.js";
 import { commandRefusal, quoteCommand } from "./setup-proposal.js";
 import type { Survey, SurveyRunner } from "./setup-survey.js";
-import { SHIPPED_DESCRIBER_NAME } from "./shipped-describer.js";
 
 export interface ChangeStep {
   argv: string[];
@@ -297,7 +297,7 @@ function pluginOffChanges(
     }
 
     const steps =
-      name === SHIPPED_DESCRIBER_NAME
+      name === shippedDescriberName()
         ? ["describer.command", "describer.version"].map((key) =>
             step(survey, ["recognizer", "config", "--unset", key]),
           )

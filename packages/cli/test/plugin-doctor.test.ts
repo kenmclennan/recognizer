@@ -1,15 +1,65 @@
+import {
+  buildReport as build,
+  type InstalledPlugin,
+  type Manifest,
+  type PluginFact,
+  type PluginSpec,
+  scannerProblems as scannerProblemsOf,
+  settingProblems,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
-  buildReport,
-  type DoctorFacts,
-  reportJson,
-  reportText,
-} from "../src/doctor.js";
-import type { InstalledPlugin } from "../src/plugin-discovery.js";
-import type { PluginFact, PluginSpec } from "../src/plugin-doctor.js";
-import { scannerProblems, settingProblems } from "../src/plugin-doctor.js";
-import type { Manifest } from "../src/plugin-manifest.js";
+  type Context,
+  readConfigArea,
+  readPolicyArea,
+} from "../src/adapters/plugins/repository-checks-adapter.js";
+import {
+  shippedDescriberName,
+  shippedPlugins,
+} from "../src/adapters/plugins/shipped-plugins-adapter.js";
+import { reportJson, reportText } from "../src/doctor.js";
+import { documentValidators } from "../src/manifest-ports.js";
 import { manifestFor } from "./plugin-path.js";
+
+type DoctorFacts = Context & {
+  shipped: { sensors: string[]; describer: boolean };
+  scanners: InstalledPlugin[];
+  plugins(specs: PluginSpec[]): PluginFact[];
+  shippedDisplay?(kind: PluginSpec["kind"], name: string): string | undefined;
+};
+
+function buildReport(given: DoctorFacts) {
+  const config = readConfigArea(given, shippedPlugins().sensors());
+
+  return build({
+    repository: given.repository,
+    configProblems: config.problems,
+    registered: config.registered,
+    policyProblems: readPolicyArea(given),
+    languages: given.languages,
+    scanners: given.scanners,
+    plugins: given.plugins,
+    shipped: { ...given.shipped, describerName: shippedDescriberName() },
+    ...(given.shippedDisplay === undefined
+      ? {}
+      : { shippedDisplay: given.shippedDisplay }),
+    protocol: documentValidators.facts,
+  });
+}
+
+const scannerProblems = (
+  languages: readonly string[],
+  scanners: readonly InstalledPlugin[],
+  named: Record<string, string>,
+  install: Record<string, string>,
+) =>
+  scannerProblemsOf(
+    languages,
+    scanners,
+    named,
+    install,
+    documentValidators.facts,
+  );
 
 const CONFIG = "sensors:\n  mine:\n    command: [recognizer-sense-mine, run]\n";
 

@@ -1,18 +1,20 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import type { Io } from "./cli.js";
-import { type Config, readConfig } from "./config.js";
-import { registeredSensors } from "./config-parse.js";
-import { detectLanguages } from "./detect.js";
-import { InputError } from "./errors.js";
 import {
+  chooseScanner,
   discoverPlugins,
   type InstalledPlugin,
   KINDS,
   programName,
   scanSchemaMessage,
-} from "./plugin-discovery.js";
-import { chooseScanner, languageRulesOf } from "./scanners.js";
+} from "@recognizer/core";
+import type { Io } from "./cli.js";
+import { type Config, readConfig } from "./config.js";
+import { registeredSensors } from "./config-parse.js";
+import { detectLanguages } from "./detect.js";
+import { InputError } from "./errors.js";
+import { documentValidators, manifestPorts } from "./manifest-ports.js";
+import { languageRulesOf } from "./scanners.js";
 
 const USAGE = ["usage: recognizer plugins [REPOSITORY] [--json]"];
 
@@ -66,7 +68,7 @@ function schemaColumn(plugin: InstalledPlugin): string {
 
 export function schemaMismatchLines(plugins: InstalledPlugin[]): string[] {
   return plugins.flatMap((plugin) => {
-    const line = scanSchemaMessage(plugin);
+    const line = scanSchemaMessage(plugin, documentValidators.facts);
 
     return line === null ? [] : [line];
   });
@@ -94,7 +96,7 @@ export function runPlugins(argv: string[], io: Io): number {
     throw new InputError([`repository is not a directory: ${root}`]);
   }
 
-  const { plugins, unreadable } = discoverPlugins(io);
+  const { plugins, unreadable } = discoverPlugins(manifestPorts(io));
   const config = readRegistration(io, root);
   const scanners = plugins.filter((one) => one.kind === "scanner");
   const chosen =

@@ -1,17 +1,76 @@
-import type { RawProblem, SetupProblem } from "./doctor.js";
-import type { InstalledPlugin } from "./plugin-discovery.js";
+import { chooseScanner } from "./choose-scanner.js";
 import {
   CASK_UPGRADE,
+  type InstalledPlugin,
   scanSchemaMessage,
-  supportedRange,
-} from "./plugin-discovery.js";
+} from "./installed-plugin.js";
 import {
-  CURRENT_PROTOCOL,
   type Manifest,
+  type PluginFacts,
   type PluginKind,
   type ProtocolJudgement,
-} from "./plugin-manifest.js";
-import { chooseScanner } from "./scanners.js";
+  supportedRange,
+} from "./manifest.js";
+import { PROBLEM_TITLES } from "./problem-titles.js";
+import { UNREGISTERED_FIX, unregisteredMessage } from "./unregistered.js";
+
+export type AreaName =
+  | "config"
+  | "policy"
+  | "scanners"
+  | "sensors"
+  | "describers";
+
+export type ProblemCode =
+  | "config-yaml"
+  | "config-retired"
+  | "config-empty"
+  | "config-duplicate-suite"
+  | "config-invalid"
+  | "policy-invalid"
+  | "scan-missing"
+  | "scan-stale"
+  | "policy-entry"
+  | "policy-forbid"
+  | "policy-retired"
+  | "scanner-missing"
+  | "scanner-ambiguous"
+  | "scanner-choice"
+  | "sensor-gap"
+  | "plugin-missing"
+  | "plugin-manifest"
+  | "plugin-protocol"
+  | "plugin-scan-schema"
+  | "plugin-settings"
+  | "describer-gap"
+  | "unregistered-plugin";
+
+export interface SetupProblem {
+  code: ProblemCode;
+  subject: string;
+  title: string;
+  line: string;
+  fix: { text: string; command: string | null };
+  severity: "problem" | "warning";
+}
+
+export type RawProblem = Omit<SetupProblem, "title"> & { display?: string };
+
+export type Found = Omit<RawProblem, "severity">;
+
+export interface Area {
+  name: AreaName;
+  skipped: string | null;
+  problems: SetupProblem[];
+}
+
+export interface DoctorReport {
+  repository: string;
+  ok: boolean;
+  problems: number;
+  warnings: number;
+  areas: Area[];
+}
 
 export interface PluginSpec {
   kind: "sensor" | "describer";
@@ -70,10 +129,11 @@ function protocolLine(
   program: string,
   protocol: number,
   judgement: ProtocolJudgement,
+  current: number,
 ): string {
   return judgement === "unsupported"
-    ? `${program} speaks protocol ${protocol} and recognizer supports ${supportedRange()}`
-    : `${program} speaks the previous protocol ${protocol} and recognizer is at ${CURRENT_PROTOCOL}`;
+    ? `${program} speaks protocol ${protocol} and recognizer supports ${supportedRange(current)}`
+    : `${program} speaks the previous protocol ${protocol} and recognizer is at ${current}`;
 }
 
 function protocolProblem(
@@ -82,6 +142,7 @@ function protocolProblem(
   manifest: Manifest,
   judgement: ProtocolJudgement,
   installLine: string | null,
+  current: number,
   display?: string,
 ): RawProblem[] {
   if (judgement === "current") {
@@ -92,7 +153,7 @@ function protocolProblem(
     problem(
       "plugin-protocol",
       subject,
-      protocolLine(program, manifest.protocol, judgement),
+      protocolLine(program, manifest.protocol, judgement, current),
       textFix(installLine ?? manifest.install),
       judgement === "previous" ? "warning" : "problem",
       display,
@@ -224,7 +285,10 @@ function missingFix(fact: PluginFact): SetupProblem["fix"] {
   );
 }
 
-export function pluginProblems(fact: PluginFact): RawProblem[] {
+export function pluginProblems(
+  fact: PluginFact,
+  facts: PluginFacts,
+): RawProblem[] {
   const { state, subject, program } = fact;
 
   if (state.status === "missing") {
@@ -255,6 +319,7 @@ export function pluginProblems(fact: PluginFact): RawProblem[] {
     state.manifest,
     state.judgement,
     fact.installLine,
+    facts.protocol,
     state.manifest.display,
   );
 
@@ -302,6 +367,7 @@ export function scannerProblems(
   scanners: readonly InstalledPlugin[],
   named: Record<string, string>,
   install: Record<string, string>,
+  facts: PluginFacts,
 ): RawProblem[] {
   const found: RawProblem[] = [];
 
@@ -331,11 +397,13 @@ export function scannerProblems(
           choice.scanner.manifest,
           choice.scanner.judgement,
           install[`recognizer-scan-${choice.scanner.name}`] ?? null,
+          facts.protocol,
         ),
       );
 
       const line = scanSchemaMessage(
         choice.scanner,
+        facts,
         install[`recognizer-scan-${choice.scanner.name}`] ?? undefined,
       );
 
@@ -414,4 +482,145 @@ export function kindOfProgram(program: string): PluginKind | null {
   }
 
   return /^recognizer-describe-.+/.test(program) ? "describer" : null;
+}
+
+export interface RegisteredPlugins {
+  specs: PluginSpec[];
+  named: Record<string, string>;
+  install: Record<string, string>;
+  sensors: string[];
+  describer: boolean;
+}
+
+export type ConfigRegistration = RegisteredPlugins | { skipped: string };
+
+export interface DoctorFacts {
+  repository: string;
+  configProblems: Found[];
+  registered: ConfigRegistration;
+  policyProblems: Found[];
+  languages: string[];
+  scanners: InstalledPlugin[];
+  plugins(specs: PluginSpec[]): PluginFact[];
+  shipped: { sensors: string[]; describer: boolean; describerName: string };
+  shippedDisplay?(kind: PluginSpec["kind"], name: string): string | undefined;
+  protocol: PluginFacts;
+}
+
+const NONE: RegisteredPlugins = {
+  specs: [],
+  named: {},
+  install: {},
+  sensors: [],
+  describer: false,
+};
+
+function unregisteredProblems(
+  facts: DoctorFacts,
+  registered: RegisteredPlugins,
+  kind: PluginSpec["kind"],
+): Found[] {
+  const names =
+    kind === "sensor"
+      ? facts.shipped.sensors.filter(
+          (name) => !registered.sensors.includes(name),
+        )
+      : facts.shipped.describer && !registered.describer
+        ? [facts.shipped.describerName]
+        : [];
+
+  return names.map(
+    (name): Found => ({
+      code: "unregistered-plugin",
+      subject: name,
+      line: unregisteredMessage(name),
+      fix: { text: UNREGISTERED_FIX(name), command: UNREGISTERED_FIX(name) },
+      display: facts.shippedDisplay?.(kind, name),
+    }),
+  );
+}
+
+function pluginArea(
+  facts: DoctorFacts,
+  registered: ConfigRegistration,
+  kind: PluginSpec["kind"],
+): { skipped: string | null; problems: Found[] } {
+  if ("skipped" in registered) {
+    return { skipped: registered.skipped, problems: [] };
+  }
+
+  const specs = registered.specs.filter((spec) => spec.kind === kind);
+
+  return {
+    skipped: null,
+    problems: [
+      ...(specs.length === 0
+        ? []
+        : facts
+            .plugins(specs)
+            .flatMap((fact) => pluginProblems(fact, facts.protocol))),
+      ...unregisteredProblems(facts, registered, kind),
+    ],
+  };
+}
+
+function withSeverity(problems: Found[]): SetupProblem[] {
+  return problems.map(({ display, ...one }) => ({
+    severity: "problem" as const,
+    ...one,
+    title: PROBLEM_TITLES[one.code](display ?? one.subject),
+  }));
+}
+
+export function buildReport(facts: DoctorFacts): DoctorReport {
+  const known = "skipped" in facts.registered ? NONE : facts.registered;
+  const areas: Area[] = [
+    {
+      name: "config",
+      skipped: null,
+      problems: withSeverity(facts.configProblems),
+    },
+    {
+      name: "policy",
+      skipped: null,
+      problems: withSeverity(facts.policyProblems),
+    },
+    {
+      name: "scanners",
+      skipped: null,
+      problems: withSeverity(
+        scannerProblems(
+          facts.languages,
+          facts.scanners,
+          known.named,
+          known.install,
+          facts.protocol,
+        ),
+      ),
+    },
+    ...(["sensor", "describer"] as const).map((kind): Area => {
+      const area = pluginArea(facts, facts.registered, kind);
+
+      return {
+        name: kind === "sensor" ? "sensors" : "describers",
+        skipped: area.skipped,
+        problems: withSeverity(area.problems),
+      };
+    }),
+  ];
+  const count = (severity: SetupProblem["severity"]) =>
+    areas.reduce(
+      (sum, area) =>
+        sum + area.problems.filter((one) => one.severity === severity).length,
+      0,
+    );
+  const problems = count("problem");
+
+  return {
+    repository: facts.repository,
+    ok: problems === 0,
+    problems,
+    warnings: count("warning"),
+    areas,
+  };
 }
