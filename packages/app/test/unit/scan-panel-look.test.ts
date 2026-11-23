@@ -48,6 +48,7 @@ const gate = () => { let release = () => {}; const promise = new Promise((resolv
 const structureFor = (loaded) => { const { commit, modified } = scansCommit(loaded.repository); return commit === null ? null : JSON.stringify({ findings_version: 1, sensor: { name: "structure", version: "1" }, commit, modified, settings: { duplication: { threshold: 0.8, min_lines: 4, pair_min_lines: 6, min_nodes: 20 }, complexity_limit: 10 }, findings: [] }); };
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
+const until = async (ready, what) => { for (let waited = 0; !ready(); waited += 5) { if (waited >= 20000) throw new Error("timed out waiting for " + what); await new Promise((resolve) => setTimeout(resolve, 5)); } };
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
 async function mount(fake, given = undefined, scanned = true, viewFiles = {}, files = FILES) {
@@ -178,9 +179,17 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   fake.onStep = (index) => { if ([1, 3, 5, 8].includes(index)) { during.push(c.panel()); duringFooter.push({ text: c.scanLineText(), buttons: c.footerButtons() }); } if (index === 6) c.sensors.files.set("tally", json({ findings_version: 1, sensor: { name: "tally", version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: { "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, findings: [] })); };
   await c.setTick("describe", true);
   await c.setTick("crap", true);
+  const realRun = fake.run;
+  const firstRun = gate();
+  fake.run = async (plan) => { await firstRun.promise; return realRun.call(fake, plan); };
   click(c.q(".scan-run"));
   await tick();
-  facts.run = { plans: fake.ran, first: during[0] ?? null, footer: duringFooter[0] ?? null };
+  const heldSamples = during.length;
+  const heldPlans = fake.ran.length;
+  firstRun.release();
+  await until(() => during.length > 0, "the first scan sample");
+  fake.run = realRun;
+  facts.run = { plans: fake.ran, heldSamples, heldPlans, first: during[0] ?? null, footer: duringFooter[0] ?? null };
   facts.run.second = await fake.run({ describe: false, sense: [] });
   g1.release(); await tick();
   facts.run.afterDescribe = c.panel();
@@ -900,6 +909,9 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
   );
 
   it("matches the mock while running: Scanning…, every planned row running, the one summary bar and a row bar, a disabled Running button and a Stop beside it", () => {
+    expect(f.run.first).not.toBeNull();
+    expect(f.run.heldSamples).toBe(0);
+    expect(f.run.heldPlans).toBe(0);
     expect(f.run.plans).toEqual([
       {
         describe: true,
