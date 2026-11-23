@@ -188,7 +188,28 @@ Each subdomain is a folder under `application/` holding its use cases and, under
 
 Adapters are grouped by infrastructure, not by subdomain: `plugins/` (scanners, sensors and the describer, one child-process protocol), `git/`, `filesystem/`, `terminal/` (the confirm prompt and event printing) and `system/` (the clock).
 
-Direction: the domain holds what Recognizer shows, not only the run: the repository, its folders and files, the dependencies between them, findings, violations and the policy rules they break. Today these exist only as separate copies in the CLI and the app, and core treats the scan, config and policy documents as opaque. Both adapters move to core's types, and the Store port gives way to repositories over those entities, with the filesystem adapters changing to implement them.
+#### Domain model
+
+The domain holds what Recognizer shows, not only the run. Core defines nine entities, and the CLI and the app use only these, keeping no copies of their own:
+
+| Entity | Is | Stored |
+| --- | --- | --- |
+| Repository | the scanned repository: every folder and file in all its languages | yes, from scanning |
+| Folder | a folder in the repository | yes, from scanning |
+| File | a source file, the box on the canvas, with its language | yes, from scanning |
+| Member | a file's class, function or constant, shown in the inspector | yes, from scanning |
+| Dependency | one file using another; always between files of the same language | yes, from scanning |
+| Finding | a sensor's measurement of a file or a member | yes, per sensor, with its freshness |
+| PolicyRule | a rule the user states in the policy | yes, edited by the user |
+| Violation | a dependency that breaks a policy rule | no, worked out from the current dependencies and rules |
+| Warning | a structural problem that breaks no rule, such as a cycle | no, worked out the same way |
+
+- **One repository for all languages.** The scan documents stay one per language and are never merged, so no dependency crosses a language; the split lives in how documents are read, not in the model.
+- **Violations and warnings are always worked out** from the current dependencies and policy rules, never stored. The baseline that "grown" violations are measured against is saved history and belongs to `history`.
+- **The files are read into the model, not the model into the files.** The schemas in `schema/` stay the format on disk and between processes. Each adapter that reads or writes a document holds the one translator between it and the entities, and nothing else sees a document's shape.
+- **The entities are the model the formats will move to.** They are designed as Recognizer's own model, not as mirrors of today's documents, so that moving the formats to them later changes only the translators.
+
+The Store port gives way to repositories over these entities, with the filesystem adapters changing to implement them.
 
 #### Scan
 
@@ -224,14 +245,19 @@ Use cases move into core one at a time, and both adapters keep working at every 
 2. Scan, divided: core's application layer takes the subdomain layout above, the scan pipeline moves to `run` with each phase's logic in its own subdomain, and the CLI's adapters regroup by infrastructure. Behaviour and the `recognizer scan` contract do not change.
 3. Scan, refined: the app's planning (`planFor`, sensor freshness, tick rules) moves into core; the app reaches core as a service; the duplicated lock, request checks and structural analysis go; core loses the plugin names it holds.
 4. Domain, divided: `domain/` takes the subdomain layout, each type moving to the subdomain that owns it. Behaviour does not change.
-5. Domain model: the entities Recognizer shows (repository, folder, file, dependency, finding, violation, policy rule) are defined in core, replace the opaque documents, and the CLI's and the app's own copies go. The names and boundaries are settled in design before this step is filed.
+5. Domain model, in three phases, each defining its entities in core with the translators for its documents and removing the CLI's and the app's own copies:
+   1. Structure: Repository, Folder, File, Member and Dependency, from the scan documents.
+   2. Findings: Finding, from the findings files, pointing at a file or a member.
+   3. Policy: PolicyRule, Violation and Warning, with violations and warnings worked out in `analysis`.
 6. The remaining use cases, one at a time: describe, setup, config and policy, changes and commits.
+7. Formats from the model: each document's format moves to core's entities, one document at a time, with its schema generated from them; only the translators change.
 
 The migration is done when all of these hold on main:
 
 - `recognizer check` reports no rule violations against the repository's own policy, including the rule that `packages/app` does not import `packages/cli`.
 - The policy states the layering: the CLI and the app import core only through its package root, and core imports neither.
-- The domain model (repository, folder, file, dependency, finding, violation, policy rule) is defined in core, and the CLI and the app keep no copies of their own.
+- The domain model (repository, folder, file, member, dependency, finding, policy rule, violation, warning) is defined in core, and the CLI and the app keep no copies of their own.
+- Every document's format and schema come from core's entities.
 - Scan, describe, setup, config and policy, and changes and commits each run through core's ports, with acceptance scenarios driving them through fakes.
 - The app reaches core as a service and holds no planning, scan or git logic.
 - `packages/core` names no scanner, sensor or describer.
