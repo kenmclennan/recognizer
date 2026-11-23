@@ -1,5 +1,10 @@
-import type { Dependency, Repository } from "@recognizer/core";
-import { moduleNames, resolveView, type View, type ViewStep } from "recognizer";
+import {
+  type Dependency,
+  Neighbours,
+  type Repository,
+  type View,
+  type ViewStep,
+} from "@recognizer/core";
 
 export type Rename = { from: string; to: string };
 
@@ -63,8 +68,8 @@ export function staleReport(input: {
   reason?: string | null;
 }): StaleReport {
   const { view, now, before: earlier, renames, reason = null } = input;
-  const resolved = resolveView(view, now);
-  const current = new Set(moduleNames(now));
+  const resolved = view.resolve(now);
+  const current = new Set(Neighbours.moduleNames(now));
   const missing = resolved.unresolved.map((entry) => ({
     step: entry.step,
     kind: entry.kind,
@@ -100,7 +105,7 @@ export function staleReport(input: {
   }
 
   const inView = new Set(resolved.modules);
-  const before = new Set(moduleNames(earlier));
+  const before = new Set(Neighbours.moduleNames(earlier));
   const both = new Set(resolved.modules.filter((id) => before.has(id)));
   const edgesNow = edgesOf(now);
   const edgesThen = edgesOf(earlier);

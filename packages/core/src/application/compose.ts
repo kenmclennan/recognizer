@@ -69,6 +69,26 @@ import type { Clock } from "./shared/ports/clock.js";
 import type { Git } from "./shared/ports/git.js";
 import type { ProcessControl, Say } from "./shared/ports/process.js";
 import type { ScanLock } from "./shared/ports/scan-lock.js";
+import { addToView } from "./visualisation/add-to-view.js";
+import { askCallers } from "./visualisation/ask-callers.js";
+import { askPath } from "./visualisation/ask-path.js";
+import { askUsedBy } from "./visualisation/ask-used-by.js";
+import { askUses } from "./visualisation/ask-uses.js";
+import { changeView } from "./visualisation/change-view.js";
+import { checkViews } from "./visualisation/check-views.js";
+import { createView } from "./visualisation/create-view.js";
+import { diffView } from "./visualisation/diff-view.js";
+import { focusView } from "./visualisation/focus-view.js";
+import { foldView } from "./visualisation/fold-view.js";
+import type { VisualisationPorts } from "./visualisation/internal/visualisation-ports.js";
+import { listViews } from "./visualisation/list-views.js";
+import { noteView } from "./visualisation/note-view.js";
+import { removeFromView } from "./visualisation/remove-from-view.js";
+import { removeView } from "./visualisation/remove-view.js";
+import { reorderViewNotes } from "./visualisation/reorder-view-notes.js";
+import { ruleView } from "./visualisation/rule-view.js";
+import { setView } from "./visualisation/set-view.js";
+import { showView } from "./visualisation/show-view.js";
 
 interface CommonPorts {
   analysis: Analysis;
@@ -321,4 +341,67 @@ export function reportFindingsFresh(
     repository: () =>
       freshStructure(freshSources(ports, request), request.root).repository,
   });
+}
+
+export interface VisualisationBase {
+  views: VisualisationPorts["views"];
+  changes: VisualisationPorts["changes"];
+  windows: VisualisationPorts["windows"];
+}
+
+export function visualisationFresh(
+  ports: FreshPorts & VisualisationBase,
+  request: (root: string) => FreshRequest,
+): VisualisationPorts {
+  return {
+    views: ports.views,
+    git: ports.git,
+    changes: ports.changes,
+    windows: ports.windows,
+    freshRepository: (root) =>
+      freshScansOver(ports, request(root), root).repository,
+  };
+}
+
+export function visualisationOver(ports: VisualisationPorts) {
+  return {
+    addToView: (request: Parameters<typeof addToView>[1]) =>
+      addToView(ports, request),
+    askCallers: (request: Parameters<typeof askCallers>[1]) =>
+      askCallers(ports, request),
+    askPath: (request: Parameters<typeof askPath>[1]) =>
+      askPath(ports, request),
+    askUsedBy: (request: Parameters<typeof askUsedBy>[1]) =>
+      askUsedBy(ports, request),
+    askUses: (request: Parameters<typeof askUses>[1]) =>
+      askUses(ports, request),
+    changeView: (request: Parameters<typeof changeView>[1]) =>
+      changeView(ports, request),
+    checkViews: (request: Parameters<typeof checkViews>[1]) =>
+      checkViews(ports, request),
+    createView: (request: Parameters<typeof createView>[1]) =>
+      createView(ports, request),
+    diffView: (request: Parameters<typeof diffView>[1]) =>
+      diffView(ports, request),
+    focusView: (request: Parameters<typeof focusView>[1]) =>
+      focusView(ports, request),
+    foldView: (request: Parameters<typeof foldView>[1]) =>
+      foldView(ports, request),
+    listViews: (request: Parameters<typeof listViews>[1]) =>
+      listViews(ports, request),
+    noteView: (request: Parameters<typeof noteView>[1]) =>
+      noteView(ports, request),
+    removeFromView: (request: Parameters<typeof removeFromView>[1]) =>
+      removeFromView(ports, request),
+    removeView: (request: Parameters<typeof removeView>[1]) =>
+      removeView(ports, request),
+    reorderViewNotes: (request: Parameters<typeof reorderViewNotes>[1]) =>
+      reorderViewNotes(ports, request),
+    ruleView: (request: Parameters<typeof ruleView>[1]) =>
+      ruleView(ports, request),
+    setView: (request: Parameters<typeof setView>[1]) =>
+      setView(ports, request),
+    showView: (request: Parameters<typeof showView>[1]) =>
+      showView(ports, request),
+  };
 }

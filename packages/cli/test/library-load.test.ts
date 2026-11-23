@@ -29,11 +29,12 @@ describe("library load without code generation", () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("SCAN_SCHEMA_VERSION");
-    expect(result.stdout).toContain("usesOf");
-    expect(result.stdout).toContain("shortestPath");
-    expect(result.stdout).toContain("buildCallerIndex");
     expect(result.stdout).toContain("validateView");
-    expect(result.stdout).toContain("resolveView");
+    expect(result.stdout).toContain("serialiseView");
+    expect(result.stdout).not.toContain("usesOf");
+    expect(result.stdout).not.toContain("shortestPath");
+    expect(result.stdout).not.toContain("buildCallerIndex");
+    expect(result.stdout).not.toContain("resolveView");
     expect(result.stdout).toContain("validateResponsibilities");
     expect(result.stdout).toContain("lineStatus");
     expect(result.stdout).toContain("findingsByModuleFrom");

@@ -1,4 +1,4 @@
-import { InvalidRequest } from "@recognizer/core";
+import { InvalidRequest, RequestRefused } from "@recognizer/core";
 
 export class InputError extends Error {
   readonly messages: string[];
@@ -32,6 +32,18 @@ export function asInputError<T>(run: () => T): T {
   } catch (error) {
     if (error instanceof InvalidRequest) {
       throw new InputError(error.messages);
+    }
+
+    throw error;
+  }
+}
+
+export function asRefusal<T>(run: () => T): T {
+  try {
+    return run();
+  } catch (error) {
+    if (error instanceof RequestRefused) {
+      throw new Refusal(error.messages);
     }
 
     throw error;

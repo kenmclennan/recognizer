@@ -9,7 +9,7 @@ import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
 import { createViewComparisons } from ${JSON.stringify(here("view-comparisons.ts"))};
 import { fakeViews } from ${JSON.stringify(here("../test/unit/views-fake.ts"))};
 import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
-import { parseViewFile } from ${JSON.stringify(here("view-file.ts"))};
+import { parseViewFile } from ${JSON.stringify(here("visualisation-fake.ts"))};
 
 window.__fakeWorker = () => {
   const listeners = [];

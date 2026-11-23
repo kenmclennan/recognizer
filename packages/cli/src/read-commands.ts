@@ -6,6 +6,7 @@ import {
   findingsByModuleFrom,
   type Member,
   measureFolders,
+  Neighbours,
   type Repository,
 } from "@recognizer/core";
 import { documentKind } from "./adapters/filesystem/scan-translator.js";
@@ -22,12 +23,6 @@ import {
   tokensText,
 } from "./member-tokens.js";
 import { moduleSource } from "./module-source.js";
-import {
-  moduleCounts,
-  moduleNames,
-  neighbourSets,
-  under,
-} from "./neighbours.js";
 import {
   lineStatus,
   type ResponsibilityEntry,
@@ -75,7 +70,7 @@ function load(
     root,
     json: values.json === true,
     repository,
-    modules: moduleNames(repository),
+    modules: Neighbours.moduleNames(repository),
     values,
     positionals,
   };
@@ -341,11 +336,11 @@ export function runShow(argv: string[], io: Io): number {
     return showFolder(loaded, io, id);
   }
 
-  const sets = neighbourSets(
+  const sets = Neighbours.neighbourSets(
     loaded.repository.dependencies.filter((one) => one.countsAsEdge),
     new Set(loaded.modules),
   );
-  const counts = moduleCounts(sets, id);
+  const counts = Neighbours.moduleCounts(sets, id);
   const scanned = loaded.repository.file(id);
   const { shown, hidden } = shownMembers(
     scanned?.members ?? [],
@@ -464,7 +459,7 @@ export function runModules(argv: string[], io: Io): number {
     ]);
   }
 
-  const sets = neighbourSets(
+  const sets = Neighbours.neighbourSets(
     loaded.repository.dependencies.filter((one) => one.countsAsEdge),
     new Set(loaded.modules),
   );
@@ -473,13 +468,13 @@ export function runModules(argv: string[], io: Io): number {
   const all = loaded.modules.map((id) => ({
     id,
     kind: kindOf(loaded.repository, id),
-    uses: moduleCounts(sets, id).uses,
-    usedBy: moduleCounts(sets, id).usedBy,
+    uses: Neighbours.moduleCounts(sets, id).uses,
+    usedBy: Neighbours.moduleCounts(sets, id).usedBy,
     findings: findings.get(id)?.length ?? 0,
   }));
   const kept = all.filter(
     (row) =>
-      (folder === undefined || under(row.id, folder)) &&
+      (folder === undefined || Neighbours.under(row.id, folder)) &&
       (values.findings !== true || row.findings > 0) &&
       (minUses === null || row.uses >= minUses) &&
       (minUsedBy === null || row.usedBy >= minUsedBy),

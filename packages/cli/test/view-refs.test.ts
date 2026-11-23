@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { ViewRange } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { isValidRef, parseRange } from "../src/views.js";
 import { REPO } from "./helpers.js";
 
 const refs = JSON.parse(
@@ -10,16 +10,19 @@ const refs = JSON.parse(
 
 describe("view refs", () => {
   it.each(refs.accept)("accepts %j", (ref) => {
-    expect(isValidRef(ref)).toBe(true);
+    expect(ViewRange.isValidRef(ref)).toBe(true);
   });
 
   it.each(refs.reject)("rejects %j", (ref) => {
-    expect(isValidRef(ref)).toBe(false);
+    expect(ViewRange.isValidRef(ref)).toBe(false);
   });
 
   it("splits a range at the first dots", () => {
-    expect(parseRange("main..feat")).toEqual({ base: "main", head: "feat" });
-    expect(parseRange("main")).toBeNull();
-    expect(parseRange("--x..feat")).toBeNull();
+    expect(ViewRange.parse("main..feat")).toEqual({
+      base: "main",
+      head: "feat",
+    });
+    expect(ViewRange.parse("main")).toBeNull();
+    expect(ViewRange.parse("--x..feat")).toBeNull();
   });
 });

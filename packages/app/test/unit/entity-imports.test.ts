@@ -9,6 +9,11 @@ const ENTITIES = [
   "Member",
   "Dependency",
   "Extraction",
+  "View",
+  "Neighbours",
+  "CallerIndex",
+  "ViewNotes",
+  "ViewRange",
 ];
 const root = new URL("../../", import.meta.url).pathname;
 

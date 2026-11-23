@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import type { Repository } from "@recognizer/core";
+import { Neighbours, type Repository } from "@recognizer/core";
 import { readDescribing } from "./app-settings.js";
 import type { Io } from "./cli.js";
 import {
@@ -17,7 +17,6 @@ import {
 import { describerInEffect } from "./describer-in-effect.js";
 import { InputError } from "./errors.js";
 import { freshScans } from "./freshness.js";
-import { moduleNames } from "./neighbours.js";
 import type { ResponsibilityEntry } from "./responsibilities.js";
 import {
   type OpenRunLog,
@@ -80,7 +79,7 @@ function load(argv: string[], io: Io): Loaded {
   const { source: describerSource, ...describer } = describerInEffect(io, root);
 
   const entries = readResponsibilities(io, root).modules;
-  const modules = moduleNames(repository);
+  const modules = Neighbours.moduleNames(repository);
   const unknown = positionals.filter((name) => !modules.includes(name));
 
   if (unknown.length > 0) {

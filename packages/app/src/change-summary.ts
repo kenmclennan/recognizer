@@ -1,4 +1,4 @@
-import { changeChip, type ViewChange } from "recognizer";
+import { type ViewChange, ViewRange } from "@recognizer/core";
 import type {
   BranchTip,
   CommitDetail,
@@ -228,7 +228,7 @@ export function summariseChange(
   zone: string,
 ): ChangeSummary {
   const kind = kindOfChange(change);
-  const plain = changeChip(change).text;
+  const plain = ViewRange.chip(change).text;
   const counts = countsText(facts.counts);
   let title = plain;
   let chip = plain;

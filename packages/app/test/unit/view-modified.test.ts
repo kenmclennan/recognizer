@@ -1,4 +1,4 @@
-import type { View } from "recognizer";
+import { View } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { viewModified } from "../../src/view-modified";
 import { type DocScan, repositoryFrom } from "./repository-from";
@@ -15,7 +15,7 @@ const scan: DocScan = {
 } as unknown as DocScan;
 
 const view = (steps: View["steps"]): View =>
-  ({ schema_version: 1, description: "d", commit: "cur", steps }) as View;
+  View.of({ schema_version: 1, description: "d", commit: "cur", steps });
 
 const content = (
   modules: string[],
@@ -123,7 +123,7 @@ describe("viewModified", () => {
   });
 
   it("is false for a freshly opened plan holding a planned module and a ghost", () => {
-    const saved = {
+    const saved = View.of({
       ...view([{ kind: "pick", module: "app/a.py" }]),
       schema_version: 4,
       plan: true,
@@ -131,7 +131,7 @@ describe("viewModified", () => {
         { module: "app/new.py", kind: "new" },
         { module: "lib/m.py", kind: "moves", from: "app/b.py" },
       ],
-    } as View;
+    });
 
     expect(
       viewModified(saved, content(["app/a.py"]), repositoryFrom([scan])),

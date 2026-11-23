@@ -1,15 +1,12 @@
-import type { Repository } from "@recognizer/core";
 import {
   type ChangeFacts,
-  rangeText,
-  resolveView,
+  type Repository,
   type StaleReason,
-  staleReasons,
   staleReasonText,
   type View,
-  viewNotes,
-} from "recognizer";
-import { parseViewFile } from "./view-file";
+  ViewRange,
+} from "@recognizer/core";
+import type { ParsedView } from "./visualisation-port";
 
 export const RECENT_LIMIT = 5;
 
@@ -32,7 +29,7 @@ export type ViewsPanelModel = {
 export type ViewEntry = { name: string; text: string };
 
 export function rangeOf(view: View): string | null {
-  return view.change === undefined ? null : rangeText(view.change);
+  return view.change === undefined ? null : ViewRange.text(view.change);
 }
 
 function shortRef(ref: string): string {
@@ -41,7 +38,7 @@ function shortRef(ref: string): string {
 
 export function metaOf(view: View): string | null {
   const parts: string[] = [];
-  const notes = viewNotes(view).length;
+  const notes = view.noteList().length;
 
   if (view.change !== undefined) {
     parts.push(
@@ -61,13 +58,14 @@ export function reasonsOf(
   scans: Repository,
   facts: ChangeFacts | null,
 ): StaleReason[] {
-  return staleReasons(view, resolveView(view, scans).unresolved, facts);
+  return view.staleReasons(view.resolve(scans).unresolved, facts);
 }
 
 export function viewsPanelModel(
   entries: ViewEntry[],
   scans: Repository,
   facts: ReadonlyMap<string, ChangeFacts | null>,
+  parse: (text: string) => ParsedView,
 ): ViewsPanelModel {
   const live: ViewRow[] = [];
   const stale: ViewRow[] = [];
@@ -76,7 +74,7 @@ export function viewsPanelModel(
   for (const { name, text } of [...entries].sort((a, b) =>
     a.name.localeCompare(b.name),
   )) {
-    const parsed = parseViewFile(text);
+    const parsed = parse(text);
 
     if (!parsed.ok) {
       invalid.push({ name, problem: parsed.reason });

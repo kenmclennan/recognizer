@@ -1,6 +1,7 @@
 import { createScan, type Scan, type ScanPorts } from "../../src/index.js";
 import { FakeAnalysis } from "./fake-analysis.js";
 import { FakeBaselineRepository } from "./fake-baseline-repository.js";
+import { FakeChanges } from "./fake-changes.js";
 import { FakeClock } from "./fake-clock.js";
 import { FakeConfigRepository } from "./fake-config-repository.js";
 import { FakeConfirm } from "./fake-confirm.js";
@@ -18,6 +19,8 @@ import { FakeSensors } from "./fake-sensors.js";
 import { FakeSourceFiles } from "./fake-source-files.js";
 import { FakeStructureRepository } from "./fake-structure-repository.js";
 import { FakeToml } from "./fake-toml.js";
+import { FakeViewRepository } from "./fake-view-repository.js";
+import { FakeWindows } from "./fake-windows.js";
 
 export interface Fakes {
   scanners: FakeScanners;
@@ -39,6 +42,9 @@ export interface Fakes {
   digest: FakeDigest;
   parsing: FakeParsing;
   toml: FakeToml;
+  changes: FakeChanges;
+  views: FakeViewRepository;
+  windows: FakeWindows;
 }
 
 export function createFakes(commit: string | null = "c0ffee"): Fakes {
@@ -69,11 +75,16 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     digest: new FakeDigest(),
     parsing: new FakeParsing(),
     toml: new FakeToml(),
+    changes: new FakeChanges(),
+    views: new FakeViewRepository(),
+    windows: new FakeWindows(),
   };
 }
 
 export function portsOf(fakes: Fakes): ScanPorts {
-  return { ...fakes };
+  const { changes, views, windows, ...scan } = fakes;
+
+  return scan;
 }
 
 export function scanOver(fakes: Fakes): Scan {

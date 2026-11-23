@@ -95,18 +95,16 @@ export {
 export { parsePolicy } from "./adapters/filesystem/policy-translator.js";
 export { readRepository } from "./adapters/filesystem/scan-translator.js";
 export {
+  serialiseView,
+  validateView,
+} from "./adapters/filesystem/view-translator.js";
+export {
   AWAKE_GAP_MS,
   AWAKE_TICK_MS,
   type AwakeClock,
   createAwakeClock,
   systemAwakeClock,
 } from "./awake-clock.js";
-export {
-  buildCallerIndex,
-  type Caller,
-  type CallerIndex,
-  type CallerSummary,
-} from "./callers.js";
 export {
   type ChangeClassification,
   changeMarks,
@@ -194,41 +192,9 @@ export {
   valueTokens,
 } from "./member-tokens.js";
 export {
-  edgeNames,
-  type FolderGroup,
-  folderChain,
-  folderCounts,
-  folderUsedBy,
-  folderUses,
-  groupByFolder,
-  lastSegment,
-  membersOf,
-  moduleCounts,
-  moduleLabel,
-  moduleNames,
-  type NeighbourCounts,
-  type NeighbourRow,
-  type NeighbourSets,
-  neighbourSets,
-  under,
-  usedByOf,
-  usesOf,
-} from "./neighbours.js";
-export {
-  appendNote,
-  dropIndex,
-  moveNote,
-  NoteOrderError,
-  type NotePlace,
-  numberOf,
-  placeNote,
-  reorderNotes,
-} from "./notes-order.js";
-export {
   type Overlay,
   validateOverlay,
 } from "./overlays.js";
-export { type PathStep, shortestPath } from "./paths.js";
 export type { PluginEvent } from "./plugin-events.js";
 export {
   CURRENT_PROTOCOL,
@@ -345,38 +311,3 @@ export {
   unregisteredMessage,
   unregisteredSensors,
 } from "./unregistered-plugins.js";
-export {
-  type ChangeFacts,
-  type StaleReason,
-  staleReasons,
-  staleReasonText,
-} from "./view-staleness.js";
-export {
-  changeChip,
-  type Ghost,
-  isValidRef,
-  migrateView,
-  movesKind,
-  type Note,
-  noteWarnings,
-  orderedStep,
-  type ProposedKind,
-  parseRange,
-  type ResolvedMemberEntry,
-  type ResolvedMembers,
-  type ResolvedView,
-  rangeText,
-  resolveMembers,
-  resolveView,
-  serialiseView,
-  type View,
-  type ViewChange,
-  type ViewNote,
-  type ViewProposedChange,
-  type ViewStep,
-  validateView,
-  viewMemberProposed,
-  viewModuleProposed,
-  viewNotes,
-  viewProposed,
-} from "./views.js";

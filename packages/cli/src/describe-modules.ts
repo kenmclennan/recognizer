@@ -1,5 +1,10 @@
 import { join } from "node:path";
-import type { File, Repository } from "@recognizer/core";
+import {
+  type File,
+  type NeighbourRow,
+  Neighbours,
+  type Repository,
+} from "@recognizer/core";
 import type { DocumentMember } from "./adapters/filesystem/scan-document-types.js";
 import {
   documentKind,
@@ -12,12 +17,6 @@ import {
 } from "./describe-projection.js";
 import { InputError } from "./errors.js";
 import { moduleSource } from "./module-source.js";
-import {
-  moduleNames,
-  type NeighbourRow,
-  usedByOf,
-  usesOf,
-} from "./neighbours.js";
 import type { PluginEvent } from "./plugin-events.js";
 import { createPluginLimits, prepareCall } from "./plugin-run.js";
 import {
@@ -190,6 +189,7 @@ function buildRequest(
   subject: Subject,
 ): DescribeRequest {
   const module = find(repository, subject.id);
+  const neighbours = new Neighbours(repository, modules);
 
   return {
     module: subject.id,
@@ -197,8 +197,8 @@ function buildRequest(
     files: subject.files,
     source: subject.source,
     members: (module?.members ?? []).map(documentMember),
-    uses: usesOf(repository, modules, subject.id),
-    used_by: usedByOf(repository, modules, subject.id),
+    uses: neighbours.usesOf(subject.id),
+    used_by: neighbours.usedByOf(subject.id),
   };
 }
 
@@ -246,7 +246,7 @@ export async function describeModules(
 ): Promise<DescribeResult> {
   const { io, root, repository, describer, selection } = input;
   const entries = { ...readResponsibilities(io, root).modules };
-  const modules = moduleNames(repository);
+  const modules = Neighbours.moduleNames(repository);
   const within = selection.kind === "names" ? undefined : selection.within;
 
   for (const id of within ?? []) {

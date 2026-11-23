@@ -38,6 +38,7 @@ import type { DoctorRead } from "./setup-port";
 import { setupSource } from "./setup-source";
 import { createViewComparisons } from "./view-comparisons";
 import { viewsSource } from "./views-source";
+import { createVisualisationSource } from "./visualisation-source";
 import { windowSource } from "./window-source";
 
 const content = document.getElementById("content") as HTMLElement;
@@ -198,6 +199,8 @@ function buildExplorer(loaded: Loaded, carried: Carried | null): Explorer {
     commitsSource,
     openSettings,
     openSetup,
+    undefined,
+    createVisualisationSource(),
   );
 }
 

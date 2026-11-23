@@ -1,24 +1,15 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import type { Repository } from "@recognizer/core";
-import { buildCallerIndex } from "./callers.js";
+import type { NeighbourRow, PathStep } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import { InputError } from "./errors.js";
-import { freshScans } from "./freshness.js";
-import {
-  groupByFolder,
-  moduleNames,
-  type NeighbourRow,
-  usedByOf,
-  usesOf,
-} from "./neighbours.js";
-import { type PathStep, shortestPath } from "./paths.js";
+import { visualisationFor } from "./visualisation-container.js";
 
 interface Question {
+  io: Io;
+  root: string;
   json: boolean;
   positionals: string[];
-  repository: Repository;
-  modules: string[];
 }
 
 function plural(count: number, word: string): string {
@@ -37,28 +28,12 @@ function load(argv: string[], io: Io, usage: string, arity: number): Question {
     throw new InputError([`usage: ${usage}`]);
   }
 
-  const { repository } = freshScans(io, resolve(values.repository ?? "."), []);
-  const modules = moduleNames(repository);
-
-  return { json: values.json === true, positionals, repository, modules };
-}
-
-function question(
-  argv: string[],
-  io: Io,
-  usage: string,
-  arity: number,
-  moduleArguments: number,
-): Question {
-  const loaded = load(argv, io, usage, arity);
-
-  for (const path of loaded.positionals.slice(0, moduleArguments)) {
-    if (!loaded.modules.includes(path)) {
-      throw new InputError([`no such file: ${path}`]);
-    }
-  }
-
-  return loaded;
+  return {
+    io,
+    root: resolve(values.repository ?? "."),
+    json: values.json === true,
+    positionals,
+  };
 }
 
 function rowLine(row: NeighbourRow): string {
@@ -74,20 +49,16 @@ function neighbours(
   direction: "uses" | "usedBy",
 ): number {
   const command = direction === "uses" ? "uses" : "used-by";
-  const asked = question(
+  const asked = load(
     argv,
     io,
     `recognizer ${command} <module> [--repository <dir>] [--json]`,
     1,
-    1,
   );
-  const module = asked.positionals[0] as string;
-  const rows = (direction === "uses" ? usesOf : usedByOf)(
-    asked.repository,
-    asked.modules,
-    module,
-  );
-  const groups = groupByFolder(rows);
+  const core = visualisationFor(io, asked.root);
+  const request = { root: asked.root, module: asked.positionals[0] as string };
+  const { module, rows, groups } =
+    direction === "uses" ? core.askUses(request) : core.askUsedBy(request);
 
   if (asked.json) {
     io.stdout(
@@ -131,21 +102,18 @@ export function runUsedBy(argv: string[], io: Io): number {
 }
 
 export function runCallers(argv: string[], io: Io): number {
-  const asked = question(
+  const asked = load(
     argv,
     io,
     "recognizer callers <module> <name> [--repository <dir>] [--json]",
     2,
-    1,
   );
   const [module, name] = asked.positionals as [string, string];
-  const index = buildCallerIndex(asked.repository);
-
-  if (!index.known(module)) {
-    throw new InputError([`scan has no call data for ${module}`]);
-  }
-
-  const { callers, constructed } = index.of(module, name);
+  const { callers, constructed } = visualisationFor(io, asked.root).askCallers({
+    root: asked.root,
+    module,
+    name,
+  });
 
   if (asked.json) {
     io.stdout(
@@ -176,15 +144,18 @@ function stepLine(step: PathStep): string {
 }
 
 export function runPath(argv: string[], io: Io): number {
-  const asked = question(
+  const asked = load(
     argv,
     io,
     "recognizer path <from> <to> [--repository <dir>] [--json]",
     2,
-    2,
   );
   const [from, to] = asked.positionals as [string, string];
-  const steps = shortestPath(asked.repository, asked.modules, from, to);
+  const { steps } = visualisationFor(io, asked.root).askPath({
+    root: asked.root,
+    from,
+    to,
+  });
 
   if (asked.json) {
     io.stdout(

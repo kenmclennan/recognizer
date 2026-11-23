@@ -1,22 +1,36 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
-import { InputError } from "../src/errors.js";
 import {
-  changeChip,
-  migrateView,
-  noteWarnings,
-  proposedWarnings,
-  resolveMembers,
-  resolveView,
-  serialiseView,
-  type View,
+  type Repository,
+  View,
+  type ViewFields,
+  ViewRange,
   type ViewStep,
+} from "@recognizer/core";
+import { describe, expect, it, vi } from "vitest";
+import {
+  serialiseView,
   validateView,
-  viewNotes,
-} from "../src/views.js";
+} from "../src/adapters/filesystem/view-translator.js";
+import { InputError } from "../src/errors.js";
 import { REPO } from "./helpers.js";
 import { repositoryFrom } from "./repository-from.js";
+
+const entity = (value: View | ViewFields): View =>
+  value instanceof View ? value : View.of(value);
+const migrateView = (value: View | ViewFields) => entity(value).migrated();
+const viewNotes = (value: View | ViewFields) => entity(value).noteList();
+const noteWarnings = (value: View | ViewFields) => entity(value).noteWarnings();
+const resolveView = (value: View | ViewFields, repository: Repository) =>
+  entity(value).resolve(repository);
+const resolveMembers = (value: View | ViewFields, repository: Repository) =>
+  entity(value).resolveMembers(repository);
+const proposedWarnings = (
+  value: View | ViewFields,
+  resolved: ReturnType<typeof resolveView>,
+  repository?: Repository,
+) => entity(value).proposedWarnings(resolved, repository);
+const changeChip = ViewRange.chip;
 
 const EXAMPLES = join(REPO, "schema/view-examples");
 const scan = repositoryFrom(
@@ -26,7 +40,7 @@ const scan = repositoryFrom(
 );
 
 function view(...steps: ViewStep[]): View {
-  return { schema_version: 1, description: "p", commit: null, steps };
+  return View.of({ schema_version: 1, description: "p", commit: null, steps });
 }
 
 function resolve(...steps: ViewStep[]) {
@@ -52,7 +66,7 @@ describe("validateView", () => {
 
   it("compiles the schema without writing to stderr or the console", async () => {
     vi.resetModules();
-    const fresh = await import("../src/views.js");
+    const fresh = await import("../src/adapters/filesystem/view-translator.js");
     const sinks = [
       vi.spyOn(console, "warn"),
       vi.spyOn(console, "error"),

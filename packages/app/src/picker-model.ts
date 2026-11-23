@@ -1,13 +1,10 @@
-import { File, Folder, type Repository } from "@recognizer/core";
 import {
-  edgeNames,
-  folderUsedBy,
-  folderUses,
-  moduleLabel,
+  File,
+  Folder,
   type NeighbourRow,
-  usedByOf,
-  usesOf,
-} from "recognizer";
+  Neighbours,
+  type Repository,
+} from "@recognizer/core";
 import type { Compaction } from "./folder-compaction";
 import { type CheckState, checkState } from "./row-model";
 
@@ -56,6 +53,8 @@ export type PickerInput = {
 
 type RawRow = NeighbourRow & { group: string };
 
+const edgeNames = Neighbours.edgeNames;
+
 export { edgeNames };
 
 const compare = (a: string, b: string) => a.localeCompare(b);
@@ -69,20 +68,19 @@ export function createPicker(input: PickerInput): PickerModel {
     rows.map((row) => ({ ...row, group: Folder.containing(row.id) }));
 
   function buildRows(): RawRow[] {
+    const neighbours = new Neighbours(input.scans, input.modules);
     const uses = source.direction === "uses";
 
     if (source.kind === "module") {
       return withGroup(
-        uses
-          ? usesOf(input.scans, input.modules, source.id)
-          : usedByOf(input.scans, input.modules, source.id),
+        uses ? neighbours.usesOf(source.id) : neighbours.usedByOf(source.id),
       );
     }
 
     return withGroup(
       uses
-        ? folderUses(input.scans, input.modules, source.id)
-        : folderUsedBy(input.scans, input.modules, source.id),
+        ? neighbours.folderUses(source.id)
+        : neighbours.folderUsedBy(source.id),
     );
   }
 
@@ -185,7 +183,7 @@ export function createPicker(input: PickerInput): PickerModel {
   function title(): string {
     const label =
       source.kind === "module"
-        ? moduleLabel(source.id)
+        ? Neighbours.moduleLabel(source.id)
         : input.compaction.label(source.id);
 
     return source.direction === "uses"

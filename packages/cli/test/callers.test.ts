@@ -1,5 +1,5 @@
+import { CallerIndex } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { buildCallerIndex } from "../src/index.js";
 import { repositoryFrom } from "./repository-from.js";
 
 const scan = {
@@ -27,7 +27,7 @@ const scan = {
 };
 
 describe("buildCallerIndex", () => {
-  const index = buildCallerIndex(repositoryFrom(scan));
+  const index = CallerIndex.of(repositoryFrom(scan));
 
   it("reaches an implementation through its abstraction", () => {
     expect(index.of("m/impl.py", "Impl.run").callers).toEqual([
@@ -42,7 +42,7 @@ describe("buildCallerIndex", () => {
 
   it("does not know modules of a scan without calls", () => {
     expect(
-      buildCallerIndex(repositoryFrom({ ...scan, calls: undefined })).known(
+      CallerIndex.of(repositoryFrom({ ...scan, calls: undefined })).known(
         "m/api.py",
       ),
     ).toBe(false);

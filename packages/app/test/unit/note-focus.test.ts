@@ -1,4 +1,4 @@
-import type { View } from "recognizer";
+import { View } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import type { Rect } from "../../src/canvas-layout";
 import {
@@ -15,13 +15,14 @@ import {
 
 const rect = (x: number, y: number): Rect => ({ x, y, width: 100, height: 30 });
 
-const viewOf = (...paths: string[]): View => ({
-  schema_version: 4,
-  description: "d",
-  commit: null,
-  notes: paths.map((module) => ({ module, text: `t ${module}`, by: "Ken" })),
-  steps: [],
-});
+const viewOf = (...paths: string[]): View =>
+  View.of({
+    schema_version: 4,
+    description: "d",
+    commit: null,
+    notes: paths.map((module) => ({ module, text: `t ${module}`, by: "Ken" })),
+    steps: [],
+  });
 
 describe("notePathOf", () => {
   it("is the id for a module, the id and a slash for a folder, and null otherwise", () => {
@@ -107,7 +108,7 @@ describe("noteRows", () => {
 
   it("returns no rows for a view with no notes", () => {
     expect(
-      noteRows({ ...viewOf(), notes: undefined }, new Map(), null),
+      noteRows(viewOf().with({ notes: undefined }), new Map(), null),
     ).toEqual([]);
   });
 });

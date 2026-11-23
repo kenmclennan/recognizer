@@ -72,6 +72,6 @@ describe("the app holds no planning logic", () => {
       .filter((line) => line !== "");
 
     expect(listed.length).toBeGreaterThan(0);
-    expect(listed.length).toBeLessThanOrEqual(90);
+    expect(listed.length).toBeLessThanOrEqual(57);
   });
 });

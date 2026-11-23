@@ -1,4 +1,4 @@
-import { dropIndex } from "recognizer";
+import { ViewNotes } from "@recognizer/core";
 import { button, el } from "./dom";
 import type { NoteRow } from "./note-focus";
 
@@ -133,7 +133,7 @@ export function buildNotesPanelView(
       let listTop = 0;
 
       const place = (y: number) => {
-        const index = dropIndex(midpoints, y);
+        const index = ViewNotes.dropIndex(midpoints, y);
         const edge =
           index >= rects.length
             ? (rects.at(-1) as DOMRect).bottom

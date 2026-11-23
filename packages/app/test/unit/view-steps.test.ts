@@ -1,16 +1,17 @@
-import { resolveView, type ViewStep } from "recognizer";
+import { View, type ViewStep } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { stepsFor } from "../../src/view-steps";
 import { expectedScan } from "../fixtures";
 import { repositoryFrom } from "./repository-from";
 
 const scans = [expectedScan("python")];
-const view = (steps: ViewStep[]) => ({
-  schema_version: 1 as const,
-  description: "d",
-  commit: null,
-  steps,
-});
+const view = (steps: ViewStep[]) =>
+  View.of({
+    schema_version: 1 as const,
+    description: "d",
+    commit: null,
+    steps,
+  });
 const canvas = (
   modules: string[],
   folded: string[] = [],
@@ -21,7 +22,7 @@ const canvas = (
   focus,
 });
 const roundTrip = (steps: ViewStep[]) =>
-  resolveView(view(steps), repositoryFrom(scans)).modules;
+  view(steps).resolve(repositoryFrom(scans)).modules;
 
 const A = "shop/application/place.py";
 const B = "shop/application/refund.py";
@@ -44,7 +45,7 @@ describe("stepsFor", () => {
     const base: ViewStep[] = [
       { kind: "rule", relation: "folder", of: "shop/domain" },
     ];
-    const domain = resolveView(view(base), repositoryFrom(scans)).modules;
+    const domain = view(base).resolve(repositoryFrom(scans)).modules;
     const steps = stepsFor(base, canvas([...domain, A]), repositoryFrom(scans));
 
     expect(steps).toEqual([...base, { kind: "pick", module: A }]);
@@ -64,7 +65,7 @@ describe("stepsFor", () => {
     const base: ViewStep[] = [
       { kind: "rule", relation: "folder", of: "shop/domain" },
     ];
-    const domain = resolveView(view(base), repositoryFrom(scans)).modules;
+    const domain = view(base).resolve(repositoryFrom(scans)).modules;
     const without = domain.filter((id) => id !== D);
     const off = stepsFor(base, canvas(without), repositoryFrom(scans));
 
@@ -83,7 +84,7 @@ describe("stepsFor", () => {
       { kind: "rule", relation: "folder", of: "shop/domain" },
       { kind: "pick", module: D },
     ];
-    const domain = resolveView(view(base), repositoryFrom(scans)).modules;
+    const domain = view(base).resolve(repositoryFrom(scans)).modules;
     const without = domain.filter((id) => id !== D);
     const steps = stepsFor(base, canvas(without), repositoryFrom(scans));
 
@@ -116,14 +117,12 @@ describe("stepsFor", () => {
     const base: ViewStep[] = [
       { kind: "rule", relation: "folder", of: "shop/domain" },
     ];
-    const without = resolveView(
-      view(base),
-      repositoryFrom(scans),
-    ).modules.filter((id) => id !== D);
-    const resolved = resolveView(
-      view(stepsFor(base, canvas(without), repositoryFrom(scans))),
-      repositoryFrom(scans),
-    );
+    const without = view(base)
+      .resolve(repositoryFrom(scans))
+      .modules.filter((id) => id !== D);
+    const resolved = view(
+      stepsFor(base, canvas(without), repositoryFrom(scans)),
+    ).resolve(repositoryFrom(scans));
 
     expect(resolved.modules).toEqual(without);
     expect(resolved.modules).toEqual([

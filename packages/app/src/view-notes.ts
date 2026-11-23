@@ -1,11 +1,4 @@
-import {
-  appendNote,
-  migrateView,
-  moveNote,
-  type View,
-  type ViewNote,
-  viewNotes,
-} from "recognizer";
+import { type View, type ViewNote, ViewNotes } from "@recognizer/core";
 import type { OrderState } from "./view-history";
 
 export const NOTE_AUTHOR_LIMIT = 64;
@@ -23,40 +16,34 @@ export function setNote(
     return view;
   }
 
-  const notes = viewNotes(view);
+  const notes = view.noteList();
   const entry: ViewNote = { module: path, text: trimmed, by: author };
 
-  return { ...migrateView(view), notes: appendNote(notes, entry) };
+  return view.migrated().with({ notes: ViewNotes.appendNote(notes, entry) });
 }
 
 export function orderOf(view: View): OrderState {
   return {
-    paths: viewNotes(view).map((note) => note.module),
+    paths: view.noteList().map((note) => note.module),
   };
 }
 
 export function withOrder(view: View, state: OrderState): View {
-  const notes = viewNotes(view);
+  const notes = view.noteList();
   const named = state.paths.flatMap((path) => {
     const held = notes.find((note) => note.module === path);
 
     return held === undefined ? [] : [held];
   });
   const rest = notes.filter((note) => !state.paths.includes(note.module));
-  const migrated = migrateView(view);
+  const migrated = view.migrated();
   const all = [...named, ...rest];
 
-  if (all.length === 0) {
-    const { notes: _notes, ...bare } = migrated;
-
-    return bare;
-  }
-
-  return { ...migrated, notes: all };
+  return migrated.with({ notes: all.length === 0 ? undefined : all });
 }
 
 export function withNoteMoved(view: View, path: string, toIndex: number): View {
-  const moved = moveNote(viewNotes(view), path, toIndex).map(
+  const moved = ViewNotes.moveNote(view.noteList(), path, toIndex).map(
     (note) => note.module,
   );
 
@@ -64,23 +51,21 @@ export function withNoteMoved(view: View, path: string, toIndex: number): View {
 }
 
 export function removeNote(view: View, path: string): View {
-  const notes = viewNotes(view);
-  const migrated = migrateView(view);
+  const notes = view.noteList();
+  const migrated = view.migrated();
   const kept = notes.filter((note) => note.module !== path);
 
   if (kept.length === notes.length) {
     return migrated;
   }
 
-  const { notes: _dropped, ...rest } = migrated;
-
-  return kept.length === 0 ? rest : { ...rest, notes: kept };
+  return migrated.with({ notes: kept.length === 0 ? undefined : kept });
 }
 
 export function noteAt(view: View, path: string): ViewNote | null {
-  return viewNotes(view).find((note) => note.module === path) ?? null;
+  return view.noteList().find((note) => note.module === path) ?? null;
 }
 
 export function notedPaths(view: View): Set<string> {
-  return new Set(viewNotes(view).map((note) => note.module));
+  return new Set(view.noteList().map((note) => note.module));
 }

@@ -1,4 +1,4 @@
-import type { View } from "recognizer";
+import { View } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   dropdownNames,
@@ -7,6 +7,7 @@ import {
   showsAllLink,
   viewsPanelModel,
 } from "../../src/views-panel-model";
+import { parseViewFile } from "../../src/visualisation-fake";
 import { type DocScan, repositoryFrom } from "./repository-from";
 
 const scan = {
@@ -42,6 +43,7 @@ describe("viewsPanelModel", () => {
       ],
       repositoryFrom([scan]),
       facts,
+      parseViewFile,
     );
 
     expect(model.live.map((row) => [row.name, row.meta])).toEqual([
@@ -63,6 +65,7 @@ describe("viewsPanelModel", () => {
       ],
       repositoryFrom([scan]),
       new Map(),
+      parseViewFile,
     );
 
     expect(model.live.map((row) => row.title)).toEqual(["A title", null]);
@@ -81,6 +84,7 @@ describe("viewsPanelModel", () => {
       ],
       repositoryFrom([scan]),
       new Map(),
+      parseViewFile,
     );
 
     expect(model.live[0]).toMatchObject({
@@ -93,13 +97,13 @@ describe("viewsPanelModel", () => {
 
 describe("metaOf", () => {
   const view = (extra: Record<string, unknown>) =>
-    ({
+    View.of({
       schema_version: 4,
       description: "d",
       commit: null,
       steps: [],
       ...extra,
-    }) as unknown as View;
+    });
   const note = (module: string) => ({ module, text: "x", by: "K" });
 
   it("counts notes on an ordinary view and is null with none", () => {
@@ -146,13 +150,15 @@ describe("dropdownNames", () => {
 
   it("names a change view by its range", () => {
     expect(
-      rangeOf({
-        schema_version: 4,
-        description: "d",
-        commit: null,
-        change: { base: "a", head: "b" },
-        steps: [],
-      }),
+      rangeOf(
+        View.of({
+          schema_version: 4,
+          description: "d",
+          commit: null,
+          change: { base: "a", head: "b" },
+          steps: [],
+        }),
+      ),
     ).toBe("a..b");
   });
 });
