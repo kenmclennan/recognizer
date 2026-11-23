@@ -1,3 +1,5 @@
+export { InvalidRequest } from "../invalid-request.js";
+
 import type { ScopeFile, SensorRequest } from "../sensor-request.js";
 
 export type ScanMode = "incremental" | "full";
@@ -16,16 +18,6 @@ export interface ScanRequest {
   ignoreRetiredConfig: boolean;
   suitesFile?: string;
   invocation: string[];
-}
-
-export class InvalidRequest extends Error {
-  readonly messages: string[];
-
-  constructor(messages: string[]) {
-    super(messages.join("\n"));
-    this.name = "InvalidRequest";
-    this.messages = messages;
-  }
 }
 
 const NAME_LIMIT = 200;

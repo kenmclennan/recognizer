@@ -3,29 +3,65 @@ export {
   afterPanelOpen,
   afterSensorTick,
   afterSuiteTick,
+  type BaselineEntry,
+  bodyLength,
+  type CheckResult,
+  type Citation,
+  COMPLEXITY_LIMIT,
+  carryMeasured,
+  compareIdentities,
+  complexityUnmeasured,
   createPlanner,
   describeGap,
+  duplicationUnmeasured,
   EMPTY_SUITE_TICKS,
+  type FindingNote,
+  findingsByModuleFrom,
   freshnessScope,
+  functionLength,
   gapOf,
+  type Identity,
+  identityKey,
+  importText,
+  LIBRARY_API_HINT,
   type LineKind,
+  LONG_FUNCTION,
+  libraryApiHint,
+  linesDuplicated,
+  type ModuleAnalysis as Analysis,
+  type ModuleMetrics,
+  measuredInputs,
+  measuredLength,
+  measuredModules,
+  measureFolders,
+  measureModules as analyse,
   modulesWithFunctions,
+  narrowViolationRecord,
   onlyArmed,
+  orderDuplication,
   type PlanFacts,
   type PlanMode,
   type PlanningPorts,
   type PlanRequest,
   type PlanRow,
+  PRINCIPLES,
+  type Principle,
   planFor,
   planScan,
+  principleName,
+  principleOf,
   type ResponsibilityKinds,
+  rankAgainstBaseline,
+  ruleText,
   type ScanIntent,
   type ScanPlanView,
   type ScanTicks,
   type SensorFreshness,
   type SensorRow,
+  type StructureSettings,
   type SuiteRef,
   type SuiteTickEntry,
+  senseStructure as structureSensor,
   sensorArmed,
   sensorFreshness,
   sensorTickState,
@@ -36,9 +72,16 @@ export {
   type TickState,
   tickedPhases,
   tickedSuites,
+  unusedTestOnlySentence,
+  violationId,
+  violationText,
   visibleSuiteTicks,
   workOf,
 } from "@recognizer/core";
+export {
+  parseBaseline,
+  serialiseBaseline,
+} from "./adapters/filesystem/baseline-adapter.js";
 export {
   diagnosisDocumentOf,
   diagnosisOf,
@@ -52,27 +95,12 @@ export {
 export { parsePolicy } from "./adapters/filesystem/policy-translator.js";
 export { readRepository } from "./adapters/filesystem/scan-translator.js";
 export {
-  type Analysis,
-  analyse,
-  type ModuleMetrics,
-} from "./analyse.js";
-export {
   AWAKE_GAP_MS,
   AWAKE_TICK_MS,
   type AwakeClock,
   createAwakeClock,
   systemAwakeClock,
 } from "./awake-clock.js";
-export {
-  type BaselineEntry,
-  compareIdentities,
-  type Identity,
-  identityKey,
-  narrowViolationRecord,
-  parseBaseline,
-  serialiseBaseline,
-  violationId,
-} from "./baseline.js";
 export {
   buildCallerIndex,
   type Caller,
@@ -94,7 +122,6 @@ export {
   scannedBy,
   statusOf,
 } from "./change-marks.js";
-export { type CheckResult, check, rankAgainstBaseline } from "./check.js";
 export {
   addSection,
   type EditOutcome,
@@ -124,36 +151,15 @@ export {
 export { PRICES_PER_MILLION, priceFor } from "./describe-projection.js";
 export { describerVersion } from "./describer-version.js";
 export type { DoctorReport, SetupProblem } from "./doctor.js";
-export {
-  carryMeasured,
-  complexityUnmeasured,
-  duplicationUnmeasured,
-} from "./duplication/carry.js";
 export { InputError } from "./errors.js";
 export {
-  type FindingNote,
-  findingsByModuleFrom,
-  importText,
-  linesDuplicated,
-  orderDuplication,
-  ruleText,
-  violationText,
-} from "./findings.js";
-export {
   type FolderMetrics,
-  measureFolders,
   metricsLine,
   metricsTable,
 } from "./folder-metrics.js";
-export {
-  bodyLength,
-  COMPLEXITY_LIMIT,
-  functionLength,
-  LONG_FUNCTION,
-  measuredLength,
-} from "./function-length.js";
 export type { Fix, Gap } from "./gap.js";
 export { gapText, isGap } from "./gap.js";
+export { check } from "./library-check.js";
 export {
   checkLink,
   isLink,
@@ -247,13 +253,6 @@ export {
 } from "./plugin-sentence.js";
 export { type PolicyProblem, policyProblems } from "./policy-problems.js";
 export {
-  type Citation,
-  PRINCIPLES,
-  type Principle,
-  principleName,
-  principleOf,
-} from "./principles.js";
-export {
   type LineStatus,
   lineStatus,
   type Responsibilities,
@@ -341,18 +340,7 @@ export {
   shippedSensorNames,
 } from "./shipped-sensors.js";
 export { SETUP_SKILL } from "./skills.js";
-export {
-  measuredInputs,
-  measuredModules,
-  resolveStructureSettings,
-  type StructureSettings,
-  structureSensor,
-} from "./structure-sensor.js";
-export {
-  LIBRARY_API_HINT,
-  libraryApiHint,
-  unusedTestOnlySentence,
-} from "./test-importers.js";
+export { resolveStructureSettings } from "./structure-sensor.js";
 export {
   UNREGISTERED_FIX,
   unregisteredMessage,

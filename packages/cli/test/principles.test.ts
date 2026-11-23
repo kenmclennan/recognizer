@@ -1,8 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  PRINCIPLES,
+  principleName,
+  principleOf,
+  violationPrinciple,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { PRINCIPLES, principleName, principleOf } from "../src/principles.js";
-import { violationPrinciple } from "../src/structure-sensor.js";
 import { REPO } from "./helpers.js";
 
 const shared = JSON.parse(

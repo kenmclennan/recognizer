@@ -1,11 +1,21 @@
-import type { PolicyRule, Repository, SensorFindings } from "@recognizer/core";
+import {
+  carryMeasured,
+  freshnessFor,
+  type PolicyRule,
+  type Repository,
+  type SensorFindings,
+  STRUCTURE_SENSOR_VERSION,
+  type StructureSettings,
+  scansCommit,
+  senseStructure,
+} from "@recognizer/core";
+import { FindingsAdapter } from "./adapters/filesystem/findings-adapter.js";
 import { readSensorFindings } from "./adapters/filesystem/findings-translator.js";
 import { parsePolicy } from "./adapters/filesystem/policy-translator.js";
+import { SourceFilesAdapter } from "./adapters/filesystem/source-files-adapter.js";
 import type { Io } from "./cli.js";
 import { policyFile, readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
-import { carryMeasured } from "./duplication/carry.js";
-import { readStoredStructure } from "./duplication/stored.js";
 import {
   findingsFile,
   type ReadOutcome,
@@ -13,13 +23,7 @@ import {
   writeFindings,
 } from "./findings-files.js";
 import { shippedSensorNames } from "./shipped-sensors.js";
-import {
-  resolveStructureSettings,
-  STRUCTURE_SENSOR_VERSION,
-  type StructureSettings,
-  structureSensor,
-} from "./structure-sensor.js";
-import { freshnessFor } from "./tests-hash.js";
+import { resolveStructureSettings } from "./structure-sensor.js";
 
 export function readPolicy(io: Io, root: string): PolicyRule[] | null {
   const file = policyFile(root);
@@ -29,18 +33,6 @@ export function readPolicy(io: Io, root: string): PolicyRule[] | null {
   }
 
   return parsePolicy(io.readFile(file));
-}
-
-export function scansCommit(repository: Repository): {
-  commit: string | null;
-  modified: boolean;
-} {
-  const { extractions } = repository;
-
-  return {
-    commit: extractions[0]?.commit ?? null,
-    modified: extractions.some((extraction) => extraction.modified !== false),
-  };
 }
 
 function withoutMeasured(
@@ -140,8 +132,8 @@ export function loadFindings(
     const context = { commit: commit ?? "", modified };
     const compute = () =>
       carryMeasured(
-        readStoredStructure(io, root),
-        structureSensor(repository, readPolicy(io, root), settings, context)
+        new FindingsAdapter(io).readStructure(root),
+        senseStructure(repository, readPolicy(io, root), settings, context)
           .document,
         settings,
       );
@@ -175,7 +167,7 @@ export function loadFindings(
   for (const outcome of readFindingsFiles(
     io,
     root,
-    freshnessFor(io, root, repository),
+    freshnessFor(new SourceFilesAdapter(io), root, repository),
     ["structure"],
     registered,
   )) {

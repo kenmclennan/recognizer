@@ -1,10 +1,11 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { assignIdentities, findFunctions, grammarFor } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { findFunctions } from "../src/duplication/functions.js";
-import { grammarFor } from "../src/duplication/grammars.js";
-import { assignIdentities } from "../src/duplication/identity.js";
-import { GRAMMAR_DIRECTORY, loadParsers } from "../src/duplication/parsers.js";
+import {
+  GRAMMAR_DIRECTORY,
+  loadParsers,
+} from "../src/adapters/filesystem/parsing-adapter.js";
 import { EQUIVALENCE, readJson } from "./duplication-helpers.js";
 import { REPO } from "./helpers.js";
 

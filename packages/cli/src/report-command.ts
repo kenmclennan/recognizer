@@ -1,16 +1,11 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import type { SensorFindings } from "@recognizer/core";
-import { sensorFindingsOfReport } from "./adapters/filesystem/findings-translator.js";
+import { reportFindingsFresh } from "@recognizer/core";
 import type { Io } from "./cli.js";
-import { readConfig } from "./config.js";
-import { registeredSensors } from "./config-parse.js";
-import { InputError } from "./errors.js";
-import { findingsFile, writeFindings } from "./findings-files.js";
-import { freshScans } from "./freshness.js";
-import { isDirty, resolveCommit } from "./scan-command.js";
-import { shippedSensorNames } from "./shipped-sensors.js";
-import { measuredInputs } from "./structure-sensor.js";
+import { asInputError, InputError } from "./errors.js";
+import { findingsFile } from "./findings-files.js";
+import { freshPorts } from "./fresh-ports.js";
+import { requestFrom } from "./scan-main.js";
 
 const OPTIONS = {
   as: { type: "string" },
@@ -19,36 +14,6 @@ const OPTIONS = {
 } as const;
 
 export const REPORT_FLAGS = Object.keys(OPTIONS).map((name) => `--${name}`);
-
-const NAME_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
-
-function requireName(io: Io, root: string, name: string | undefined): string {
-  if (name === undefined) {
-    throw new InputError(["report needs --as <name>"]);
-  }
-
-  if (!NAME_PATTERN.test(name) || name.length > 64) {
-    throw new InputError([
-      `--as ${name} is not a sensor name: lowercase letters, digits, - and _, at most 64`,
-    ]);
-  }
-
-  const taken = [
-    "structure",
-    ...registeredSensors(readConfig(io, root, ["sensors"])).map(
-      (sensor) => sensor.name,
-    ),
-    ...shippedSensorNames(),
-  ];
-
-  if (taken.includes(name)) {
-    throw new InputError([
-      `--as ${name} is a sensor the scan runs; a report needs a name of its own`,
-    ]);
-  }
-
-  return name;
-}
 
 function readSource(io: Io, file: string | undefined): string {
   if (file === undefined) {
@@ -60,15 +25,6 @@ function readSource(io: Io, file: string | undefined): string {
   } catch {
     throw new InputError([`cannot read findings file: ${file}`]);
   }
-}
-
-function ownVersion(document: unknown): string {
-  const sensor = (document as { sensor?: { version?: unknown } } | null)
-    ?.sensor;
-
-  return typeof sensor?.version === "string" && sensor.version !== ""
-    ? sensor.version
-    : "reported";
 }
 
 export function runReport(argv: string[], io: Io): number {
@@ -84,51 +40,22 @@ export function runReport(argv: string[], io: Io): number {
   }
 
   const root = resolve(values.repository ?? ".");
-  const name = requireName(io, root, values.as);
-  const commit = resolveCommit(io, root);
+  const outcome = asInputError(() =>
+    reportFindingsFresh(freshPorts(io, ["sensors"]), {
+      root,
+      as: values.as,
+      findingsText: () => readSource(io, positionals[0]),
+      scan: requestFrom([root, "--extract"], io).request,
+    }),
+  );
 
-  if (commit === null) {
-    throw new InputError([
-      "a report is stamped with the commit it was made at, and this folder has none",
-    ]);
-  }
-
-  const text = readSource(io, positionals[0]);
-  let parsed: unknown;
-
-  try {
-    parsed = JSON.parse(text);
-  } catch (error) {
-    io.stderr(`findings are not JSON: ${(error as Error).message}\n`);
+  if (!outcome.ok) {
+    io.stderr(`${outcome.message}\n`);
 
     return 1;
   }
 
-  const source =
-    typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : {};
-  const { findings } = source;
-  const { repository } = freshScans(io, root, ["sensors"]);
-  let document: SensorFindings;
-
-  try {
-    document = sensorFindingsOfReport({
-      name,
-      version: ownVersion(parsed),
-      commit,
-      modified: isDirty(io, root),
-      reportedAt: new Date(io.now()).toISOString(),
-      findings,
-      inputs: measuredInputs(repository),
-    });
-  } catch (error) {
-    io.stderr(`${(error as Error).message}\n`);
-
-    return 1;
-  }
-
-  writeFindings(io, root, document);
+  const { name, commit, document } = outcome;
 
   if (values.json === true) {
     io.stdout(

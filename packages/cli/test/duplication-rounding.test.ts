@@ -1,7 +1,11 @@
+import {
+  compareCodePoints,
+  findingFor,
+  roundPercent,
+  roundSimilarity,
+  type Unit,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { findingFor, type Unit } from "../src/duplication/findings.js";
-import { roundPercent, roundSimilarity } from "../src/duplication/score.js";
-import { compareCodePoints } from "../src/duplication/syntax.js";
 
 function unit(identity: string, module = "m"): Unit {
   return {

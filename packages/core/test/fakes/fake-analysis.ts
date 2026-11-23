@@ -1,49 +1,34 @@
-import type {
-  Analysis,
-  AnalysisPlan,
-  ConfigDocument,
-  ParserSet,
-  PolicyRule,
-  Repository,
+import {
+  type Analysis,
+  type ConfigDocument,
+  DEFAULT_STRUCTURE_SETTINGS,
+  type PolicyRule,
+  type Repository,
+  type Say,
+  type StructureSettings,
 } from "../../src/index.js";
 
 export class FakeAnalysis implements Analysis {
   readonly name = "analysis";
-  readonly analysisParsers: (ParserSet | null)[] = [];
-  analysis: { enabled: boolean; parserLanguages: string[] | null } = {
-    enabled: false,
-    parserLanguages: null,
-  };
+  readonly shipped: string[] = [];
+  readonly problems: string[] = [];
+  analysis: { enabled: boolean } = { enabled: false };
 
-  analysisPlan(_config: ConfigDocument | null): AnalysisPlan | "off" {
-    return this.analysis.enabled ? { analysisPlan: true } : "off";
+  analysisPlan(_config: ConfigDocument | null): StructureSettings | "off" {
+    return this.analysis.enabled ? DEFAULT_STRUCTURE_SETTINGS : "off";
   }
 
-  analysisPrepare(
-    _plan: AnalysisPlan,
+  shippedSensorNames(): string[] {
+    return [...this.shipped];
+  }
+
+  reportPolicyProblems(
     _root: string,
     _repository: Repository,
-    _policy: readonly PolicyRule[] | null,
-  ): { parserLanguages: string[] | null; label: string } {
-    return {
-      parserLanguages: this.analysis.parserLanguages,
-      label: "analysis",
-    };
-  }
-
-  loadParsers(): Promise<ParserSet> {
-    return Promise.resolve({ parserSet: true });
-  }
-
-  analysisRun(
-    _plan: AnalysisPlan,
-    _root: string,
-    _repository: Repository,
-    _policy: readonly PolicyRule[] | null,
-    parsers: ParserSet | null,
-  ): { error: string | null } {
-    this.analysisParsers.push(parsers);
-
-    return { error: null };
+    _rules: readonly PolicyRule[] | null,
+    _say: Say,
+    file?: string,
+  ): void {
+    this.problems.push(file ?? "");
   }
 }

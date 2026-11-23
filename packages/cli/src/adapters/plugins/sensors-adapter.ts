@@ -1,11 +1,9 @@
 import { relative, resolve } from "node:path";
 import type {
   Analysis,
-  AnalysisPlan,
   CommitGapsInput,
   ConfigDocument,
   Gap,
-  ParserSet,
   PlannedSensor,
   PluginLimits,
   PolicyRule,
@@ -19,12 +17,11 @@ import type {
   SensorSelection,
   SensorSelectionInput,
   Sensors,
+  StructureSettings,
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
 import { policyFile, readConfig } from "../../config.js";
 import { type Config, registeredSensors } from "../../config-parse.js";
-import type { Parsers } from "../../duplication/parsers.js";
-import { loadParsers } from "../../duplication/parsers.js";
 import { InputError } from "../../errors.js";
 import type { createPluginLimits } from "../../plugin-run.js";
 import { warnPolicyProblems } from "../../policy-problems.js";
@@ -44,11 +41,7 @@ import {
   shippedSensorNames,
   shippedSensorOf,
 } from "../../shipped-sensors.js";
-import { runStructureSensor } from "../../structure-run.js";
-import {
-  resolveStructureSettings,
-  type StructureSettings,
-} from "../../structure-sensor.js";
+import { resolveStructureSettings } from "../../structure-sensor.js";
 import { refuseUnregistered } from "../../unregistered-plugins.js";
 import { diagnosisOf } from "../filesystem/diagnosis-translator.js";
 import { sinkIo } from "./sink-io.js";
@@ -58,10 +51,6 @@ type Limits = ReturnType<typeof createPluginLimits>;
 interface Selection {
   selected: { name: string; command: string[] }[];
   shipped: ShippedRead;
-}
-
-interface Structure {
-  settings: StructureSettings;
 }
 
 function namesOf(sense: null | "all" | { name: string }[]): "all" | string[] {
@@ -216,64 +205,27 @@ export class SensorsAdapter implements Sensors, Analysis {
     );
   }
 
-  analysisPlan(config: ConfigDocument | null): AnalysisPlan | "off" {
-    const settings = resolveStructureSettings(
-      config as unknown as Config | null,
-    );
-
-    return settings === "off"
-      ? "off"
-      : ({ settings } as unknown as AnalysisPlan);
+  analysisPlan(config: ConfigDocument | null): StructureSettings | "off" {
+    return resolveStructureSettings(config as unknown as Config | null);
   }
 
-  analysisPrepare(
-    plan: AnalysisPlan,
+  shippedSensorNames(): string[] {
+    return shippedSensorNames();
+  }
+
+  reportPolicyProblems(
     root: string,
     repository: Repository,
-    policy: readonly PolicyRule[] | null,
+    rules: readonly PolicyRule[] | null,
     say: Say,
-  ): { parserLanguages: string[] | null; label: string } {
-    const { settings } = plan as unknown as Structure;
-
+    file?: string,
+  ): void {
     warnPolicyProblems(
       (text) => say("stderr", text),
-      relative(root, policyFile(root)),
+      file ?? relative(root, policyFile(root)),
       repository,
-      policy,
+      rules,
     );
-
-    return {
-      parserLanguages:
-        settings.duplication === false && !settings.warnings.complexity
-          ? null
-          : [...new Set(repository.files.map((file) => file.language))],
-      label: settings.duplication === false ? "complexity" : "duplication",
-    };
-  }
-
-  loadParsers(languages: string[]): Promise<ParserSet> {
-    return loadParsers(languages) as unknown as Promise<ParserSet>;
-  }
-
-  analysisRun(
-    plan: AnalysisPlan,
-    root: string,
-    repository: Repository,
-    policy: readonly PolicyRule[] | null,
-    parsers: ParserSet | null,
-    say: Say,
-  ): { error: string | null } {
-    const { settings } = plan as unknown as Structure;
-    const run = runStructureSensor(
-      sinkIo(this.io, say),
-      root,
-      repository,
-      policy,
-      settings,
-      parsers as unknown as Parsers | null,
-    );
-
-    return { error: run.error };
   }
 
   registered(root: string): SensorRow[] {

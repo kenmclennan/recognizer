@@ -1,21 +1,22 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  DEFAULT_STRUCTURE_SETTINGS,
+  grammarFor,
+  measureSource,
+  type Parsers,
+  runStructureAnalysis,
+  type StructureSettings,
+} from "@recognizer/core";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { DocumentMember } from "../src/adapters/filesystem/scan-document-types.js";
 import { memberOf } from "../src/adapters/filesystem/scan-translator.js";
-import { measureSource } from "../src/complexity/measure.js";
-import { grammarFor } from "../src/duplication/grammars.js";
-import type { Parsers } from "../src/duplication/parsers.js";
 import { type Overlay, validateOverlay } from "../src/overlays.js";
 import {
   STRUCTURE_OVERLAY_METRICS,
   structureOverlayFile,
 } from "../src/structure-overlay.js";
-import { runStructureSensor } from "../src/structure-run.js";
-import {
-  DEFAULT_STRUCTURE_SETTINGS,
-  type StructureSettings,
-} from "../src/structure-sensor.js";
+import { analysisPortsOf, sayOf } from "./analysis-ports.js";
 import { allParsers, measuredSources, ROOT } from "./duplication-helpers.js";
 import { REPO } from "./helpers.js";
 
@@ -48,14 +49,18 @@ function sense(
     ).map(memberOf);
   }
 
-  const run = runStructureSensor(
-    fake.io,
-    ROOT,
-    scans,
-    null,
-    { ...DEFAULT_STRUCTURE_SETTINGS, duplication: false, ...overrides },
-    withParsers,
-  );
+  const run = runStructureAnalysis(analysisPortsOf(fake.io), {
+    say: sayOf(fake.io),
+    root: ROOT,
+    repository: scans,
+    policy: null,
+    settings: {
+      ...DEFAULT_STRUCTURE_SETTINGS,
+      duplication: false,
+      ...overrides,
+    },
+    parsers: withParsers,
+  });
   const text = fake.files.get(structureOverlayFile(ROOT));
   const overlay = text === undefined ? null : (JSON.parse(text) as Overlay);
 

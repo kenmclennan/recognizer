@@ -1,14 +1,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Finding } from "@recognizer/core";
-import { describe, expect, it } from "vitest";
 import {
   findingsByModuleFrom,
   linesDuplicated,
   orderDuplication,
-} from "../src/findings.js";
+  senseStructure as structureSensor,
+} from "@recognizer/core";
+import { describe, expect, it } from "vitest";
 import { parsePolicy } from "../src/index.js";
-import { structureSensor } from "../src/structure-sensor.js";
 import { REPO } from "./helpers.js";
 import { validatedRepository as validateScan } from "./repository-from.js";
 

@@ -1,5 +1,5 @@
+import { edgeId, identityOfViolationId } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { edgeId, identityOfViolationId } from "../src/baseline.js";
 import { InputError, parseBaseline, serialiseBaseline } from "../src/index.js";
 
 const entry = (from: string, to: string, kind = "depends") => ({

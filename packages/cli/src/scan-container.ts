@@ -6,9 +6,11 @@ import {
 } from "@recognizer/core";
 import { ConfigAdapter } from "./adapters/filesystem/config-adapter.js";
 import { FindingsAdapter } from "./adapters/filesystem/findings-adapter.js";
+import { ParsingAdapter } from "./adapters/filesystem/parsing-adapter.js";
 import { PolicyAdapter } from "./adapters/filesystem/policy-adapter.js";
 import { RunLogAdapter } from "./adapters/filesystem/run-log-adapter.js";
 import { ScanLockAdapter } from "./adapters/filesystem/scan-lock-adapter.js";
+import { SourceFilesAdapter } from "./adapters/filesystem/source-files-adapter.js";
 import { StructureAdapter } from "./adapters/filesystem/structure-adapter.js";
 import { GitAdapter } from "./adapters/git/git-adapter.js";
 import { DescriberAdapter } from "./adapters/plugins/describer-adapter.js";
@@ -19,6 +21,7 @@ import {
 } from "./adapters/plugins/scanners-adapter.js";
 import { SensorsAdapter } from "./adapters/plugins/sensors-adapter.js";
 import { ClockAdapter } from "./adapters/system/clock-adapter.js";
+import { DigestAdapter } from "./adapters/system/digest-adapter.js";
 import { ConfirmAdapter } from "./adapters/terminal/confirm-adapter.js";
 import type { Io } from "./cli.js";
 import type { ConfigRead } from "./config-parse.js";
@@ -42,6 +45,9 @@ export function scanPorts(io: Io, read: ConfigRead): ScanPorts {
     confirm: new ConfirmAdapter(io),
     clock: new ClockAdapter(io),
     process: new ProcessAdapter(io, () => scanners.installedPlugins()),
+    source: new SourceFilesAdapter(io),
+    digest: new DigestAdapter(),
+    parsing: new ParsingAdapter(),
   };
 }
 

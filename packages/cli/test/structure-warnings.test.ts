@@ -1,7 +1,19 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { File, Repository } from "@recognizer/core";
+import {
+  DEFAULT_STRUCTURE_SETTINGS,
+  describeSettings,
+  File,
+  longFunctionFindings,
+  orphanFindings,
+  principleOf,
+  privateImportsFindings,
+  Repository,
+  type StructureSettings,
+  senseStructure as structureSensor,
+  unusedExportsFindings,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { parseConfig } from "../src/config-parse.js";
 import { InputError } from "../src/errors.js";
@@ -11,20 +23,7 @@ import {
   validateScan as validateDocument,
 } from "../src/index.js";
 import { policyProblems } from "../src/policy-problems.js";
-import { principleOf } from "../src/principles.js";
-import {
-  DEFAULT_STRUCTURE_SETTINGS,
-  describeSettings,
-  resolveStructureSettings,
-  type StructureSettings,
-  structureSensor,
-} from "../src/structure-sensor.js";
-import {
-  longFunctionFindings,
-  orphanFindings,
-  privateImportsFindings,
-  unusedExportsFindings,
-} from "../src/structure-warnings.js";
+import { resolveStructureSettings } from "../src/structure-sensor.js";
 import {
   scanOf as foldersOf,
   WORKED,

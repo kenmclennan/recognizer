@@ -1,11 +1,12 @@
-import { describe, expect, it } from "vitest";
 import {
   DEFAULT_DUPLICATION_SETTINGS,
+  findFunctions,
   MODULE_MATCH_SHARE,
   MODULE_MIN_FUNCTIONS,
-} from "../src/duplication/findings.js";
-import { findFunctions } from "../src/duplication/functions.js";
-import { measureDuplication } from "../src/duplication/measure.js";
+  measureDuplication,
+} from "@recognizer/core";
+import { describe, expect, it } from "vitest";
+import { analysisPortsOf, sayOf } from "./analysis-ports.js";
 import { allParsers, measuredFixture, ROOT } from "./duplication-helpers.js";
 
 async function measure(directory: string) {
@@ -14,7 +15,8 @@ async function measure(directory: string) {
   );
   const parsers = await allParsers();
   const findings = measureDuplication(
-    fake.io,
+    analysisPortsOf(fake.io),
+    sayOf(fake.io),
     ROOT,
     scans,
     DEFAULT_DUPLICATION_SETTINGS,

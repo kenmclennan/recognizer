@@ -1,10 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { STRUCTURE_SENSOR_VERSION } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { parseBaseline, serialiseBaseline } from "../src/baseline.js";
+import {
+  parseBaseline,
+  serialiseBaseline,
+} from "../src/adapters/filesystem/baseline-adapter.js";
 import { run } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
-import { STRUCTURE_SENSOR_VERSION } from "../src/structure-sensor.js";
 import { REPO } from "./helpers.js";
 import {
   type FakeOptions,

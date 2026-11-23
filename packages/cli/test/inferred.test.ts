@@ -1,9 +1,8 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-
+import { measureModules as analyse } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
-import { analyse } from "../src/analyse.js";
 import { run } from "../src/cli.js";
 import { check, InputError, parsePolicy } from "../src/index.js";
 import { capture } from "./helpers.js";

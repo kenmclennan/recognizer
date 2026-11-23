@@ -1,7 +1,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { Repository } from "@recognizer/core";
-import { GRAMMAR_DIRECTORY, loadParsers } from "../src/duplication/parsers.js";
+import {
+  GRAMMAR_DIRECTORY,
+  loadParsers,
+} from "../src/adapters/filesystem/parsing-adapter.js";
 import { REPO } from "./helpers.js";
 import { repositoryFrom } from "./repository-from.js";
 import { type Fake, fakeIo, ROOT } from "./scan-helpers.js";

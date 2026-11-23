@@ -1,14 +1,28 @@
 import type { ConfigRepository } from "../domain/config-repository.js";
 import type { FindingsRepository } from "../domain/findings-repository.js";
 import type { PolicyRepository } from "../domain/policy-repository.js";
+import type { Repository } from "../domain/repository.js";
 import type { ScanOutcome } from "../domain/run/scan-outcome.js";
 import type { PlanRequest, ScanPlanView } from "../domain/run/scan-plan.js";
 import type { ScanRequest } from "../domain/run/scan-request.js";
 import type { RunLogRepository } from "../domain/run-log-repository.js";
 import type { ScanEvent } from "../domain/scan-event.js";
 import type { StructureRepository } from "../domain/structure-repository.js";
+import {
+  type CheckReport,
+  type CheckRequest,
+  checkRepository,
+  refuseBadCheckRequest,
+} from "./analysis/check-repository.js";
 import type { AnalysisPorts } from "./analysis/internal/analysis-ports.js";
 import type { Analysis } from "./analysis/ports/analysis.js";
+import type { Digest } from "./analysis/ports/digest.js";
+import type { Parsing } from "./analysis/ports/parsing.js";
+import type { SourceFiles } from "./analysis/ports/source-files.js";
+import {
+  type ReportOutcome,
+  reportFindings,
+} from "./analysis/report-findings.js";
 import { runAnalysis } from "./analysis/run-analysis.js";
 import { runAnalysisSync } from "./analysis/run-analysis-sync.js";
 import { describeFiles } from "./describing/describe-files.js";
@@ -21,6 +35,8 @@ import { locateDescriber } from "./describing/locate-describer.js";
 import type { Confirm } from "./describing/ports/confirm.js";
 import type { Describer } from "./describing/ports/describer.js";
 import { refuseShippedDescriber } from "./describing/refuse-shipped-describer.js";
+import type { BaselineRepository } from "./history/settle-baseline.js";
+import { type FreshSources, freshStructure } from "./run/fresh-structure.js";
 import { drive } from "./run/internal/async-driver.js";
 import { EventQueue } from "./run/internal/event-queue.js";
 import { FlowContext } from "./run/internal/flow-context.js";
@@ -50,7 +66,7 @@ import { runSensors } from "./sensing/run-sensors.js";
 import { selectSensors } from "./sensing/select-sensors.js";
 import type { Clock } from "./shared/ports/clock.js";
 import type { Git } from "./shared/ports/git.js";
-import type { ProcessControl } from "./shared/ports/process.js";
+import type { ProcessControl, Say } from "./shared/ports/process.js";
 import type { ScanLock } from "./shared/ports/scan-lock.js";
 
 interface CommonPorts {
@@ -67,6 +83,9 @@ interface CommonPorts {
   confirm: Confirm;
   clock: Clock;
   process: ProcessControl;
+  source: SourceFiles;
+  digest: Digest;
+  parsing: Parsing;
 }
 
 export interface ScanPorts extends CommonPorts {
@@ -157,6 +176,9 @@ function analysisOver(ports: CommonPorts): AnalysisPorts {
     findings: ports.findings,
     policy: ports.policy,
     clock: ports.clock,
+    source: ports.source,
+    digest: ports.digest,
+    parsing: ports.parsing,
   };
 }
 
@@ -229,4 +251,72 @@ export function scanSync(
   const ctx = new FlowContext(false, onEvent);
 
   return driveSync(request, runPorts(ports), syncPhasesOver(ports), ctx);
+}
+
+export interface FreshPorts extends SyncPorts {
+  baselines: BaselineRepository;
+  onScanEvent: (event: ScanEvent) => void;
+}
+
+export interface FreshRequest {
+  scan: ScanRequest;
+}
+
+function freshSources(ports: FreshPorts, request: FreshRequest): FreshSources {
+  return {
+    isDirectory: (root) => ports.structure.exists(root),
+    validateConfig: (root) => {
+      ports.config.run(root, false);
+    },
+    detect: (root) => {
+      ports.scanners.discover();
+
+      return ports.scanners.detect(root, {});
+    },
+    readCached: (root, language) => ports.scanners.readCached(root, language),
+    commit: (root) => ports.git.commit(root),
+    dirty: (root) => ports.git.dirty(root),
+    hashOf: (root, path) => ports.source.hashOf(root, path),
+    extract: () => scanSync(request.scan, ports, ports.onScanEvent),
+  };
+}
+
+export function freshScansOver(
+  ports: FreshPorts,
+  request: FreshRequest,
+  root: string,
+): { repository: Repository; scanned: boolean } {
+  return freshStructure(freshSources(ports, request), root);
+}
+
+export function checkRepositoryFresh(
+  ports: FreshPorts,
+  say: Say,
+  request: CheckRequest & FreshRequest,
+): CheckReport {
+  refuseBadCheckRequest(request);
+
+  const { repository } = freshStructure(
+    freshSources(ports, request),
+    request.root,
+  );
+
+  return checkRepository(ports, say, request, repository);
+}
+
+export function reportFindingsFresh(
+  ports: FreshPorts,
+  request: FreshRequest & {
+    root: string;
+    as: string | undefined;
+    findingsText: () => string;
+  },
+): ReportOutcome {
+  return reportFindings(ports, {
+    root: request.root,
+    as: request.as,
+    findingsText: request.findingsText,
+    repository: () =>
+      freshStructure(freshSources(ports, request), request.root).repository,
+  });
 }

@@ -14,12 +14,14 @@ const expected: Record<string, string[]> = {
     "findings-adapter.ts",
     "findings-document-types.ts",
     "findings-translator.ts",
+    "parsing-adapter.ts",
     "policy-adapter.ts",
     "policy-translator.ts",
     "run-log-adapter.ts",
     "scan-document-types.ts",
     "scan-lock-adapter.ts",
     "scan-translator.ts",
+    "source-files-adapter.ts",
     "structure-adapter.ts",
   ],
   git: ["git-adapter.ts"],
@@ -30,7 +32,7 @@ const expected: Record<string, string[]> = {
     "sensors-adapter.ts",
     "sink-io.ts",
   ],
-  system: ["clock-adapter.ts"],
+  system: ["clock-adapter.ts", "digest-adapter.ts"],
   terminal: ["confirm-adapter.ts"],
 };
 

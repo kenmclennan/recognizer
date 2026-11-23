@@ -1,5 +1,5 @@
+import { bruteForcePairs, prunedPairs } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { bruteForcePairs, prunedPairs } from "../src/duplication/score.js";
 
 function seeded(seed: number): () => number {
   let state = seed;

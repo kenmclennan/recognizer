@@ -1,7 +1,8 @@
 import type { Repository } from "../../../domain/repository.js";
 import type { RunPhase } from "../../../domain/run-record.js";
 import type { ScanSink } from "../../../domain/scan-sink.js";
-import type { ParserSet } from "../ports/analysis.js";
+import type { Parsers } from "../ports/parsing.js";
+import { runStructureAnalysis } from "../run-structure-analysis.js";
 import type { AnalysisPorts } from "./analysis-ports.js";
 
 export interface RunAnalysisInput {
@@ -33,7 +34,7 @@ function errorMessage(error: unknown): string {
 export function* analysisProcess(
   ports: AnalysisPorts,
   input: RunAnalysisInput,
-): Generator<string[], Measured, ParserSet | Error | null> {
+): Generator<string[], Measured, Parsers | Error | null> {
   const { analysis, config, findings, policy: policies, clock } = ports;
   const { root, repository, sink } = input;
 
@@ -74,27 +75,26 @@ export function* analysisProcess(
     began = clock.awake();
 
     const policy = policies.rules(root);
-    const prepared = analysis.analysisPrepare(
-      plan,
-      root,
-      repository,
-      policy,
-      sink.say,
-    );
-    const answer =
-      prepared.parserLanguages === null ? null : yield prepared.parserLanguages;
+    analysis.reportPolicyProblems(root, repository, policy, sink.say);
+
+    const languages =
+      plan.duplication === false && !plan.warnings.complexity
+        ? null
+        : [...new Set(repository.files.map((file) => file.language))];
+    const label = plan.duplication === false ? "complexity" : "duplication";
+    const answer = languages === null ? null : yield languages;
     const parsers = answer === null || answer instanceof Error ? null : answer;
-    const run = analysis.analysisRun(
-      plan,
+    const run = runStructureAnalysis(ports, {
+      say: sink.say,
       root,
       repository,
       policy,
+      settings: plan,
       parsers,
-      sink.say,
-    );
+    });
 
     if (answer instanceof Error) {
-      return fail(`${prepared.label}: ${answer.message}`);
+      return fail(`${label}: ${answer.message}`);
     }
 
     if (run.error !== null) {

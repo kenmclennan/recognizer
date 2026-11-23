@@ -1,11 +1,13 @@
-import { describe, expect, it } from "vitest";
 import {
+  comparedSpan,
   DEFAULT_DUPLICATION_SETTINGS,
+  findFunctions,
   findingsForUnits,
-} from "../src/duplication/findings.js";
-import { findFunctions } from "../src/duplication/functions.js";
-import { unitsInSource, withIdentities } from "../src/duplication/measure.js";
-import { comparedSpan } from "../src/duplication/span.js";
+  unitsInSource,
+  withIdentities,
+} from "@recognizer/core";
+import { describe, expect, it } from "vitest";
+import { DigestAdapter } from "../src/adapters/system/digest-adapter.js";
 import { allParsers } from "./duplication-helpers.js";
 
 const SETTINGS = DEFAULT_DUPLICATION_SETTINGS;
@@ -14,7 +16,15 @@ async function unitsOf(source: string, settings = SETTINGS) {
   const parsers = await allParsers();
 
   return withIdentities(
-    unitsInSource("m", "m.kt", source, "kotlin", parsers, settings),
+    unitsInSource(
+      "m",
+      "m.kt",
+      source,
+      "kotlin",
+      parsers,
+      settings,
+      new DigestAdapter().sha1Prefix,
+    ),
   );
 }
 

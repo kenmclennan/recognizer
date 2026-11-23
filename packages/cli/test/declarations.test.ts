@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { structureSensor } from "../src/index.js";
-import { DEFAULT_STRUCTURE_SETTINGS } from "../src/structure-sensor.js";
 import {
+  DEFAULT_STRUCTURE_SETTINGS,
   orphanFindings,
   unusedExportsFindings,
-} from "../src/structure-warnings.js";
+} from "@recognizer/core";
+import { describe, expect, it } from "vitest";
+import { structureSensor } from "../src/index.js";
 import { validatedRepository as validateScan } from "./repository-from.js";
 
 type Edge = [string, string, "depends" | "declares"];

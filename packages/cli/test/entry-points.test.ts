@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { isEntryPoint } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { isEntryPoint } from "../src/entry-points.js";
 import { REPO } from "./helpers.js";
 
 const CASES = JSON.parse(

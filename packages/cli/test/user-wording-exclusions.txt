@@ -22,10 +22,8 @@ packages/app/src/trail-model.ts|module|kind value or code-level key of a scan, s
 packages/app/src/window-drive.ts|modules|key, count unit or socket target named by a contract, not wording
 packages/app/src/window-drive.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/app/src/window-state.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
-packages/cli/src/analyse.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/commands.ts|modules|key, count unit or socket target named by a contract, not wording
 packages/cli/src/describe-modules.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
-packages/cli/src/duplication/functions.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/overlays.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/read-commands.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/adapters/filesystem/scan-document-types.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
@@ -41,8 +39,6 @@ packages/cli/src/views.ts|module|kind value or code-level key of a scan, selecti
 docs/design.md|- Python uses its own `ast` module. TypeScript uses the TypeScript compiler API, so module resolution (tsconfig paths, workspace packages) is right. Kotlin uses tree-sitter-kotlin and C# uses tree-sitter-c-sharp, each proved by a spike (below). Rust uses the `syn` parser, in a scanner written in Rust; a Rust file is a source file, and edges come from `use` paths and `mod` declarations resolved through the crate's file tree. Crates reached by a Cargo path dependency inside the repository are resolved in-repo and every other crate is foreign; `pub use` re-exports are followed and recorded in `via`; a trait implementation is an `implements` edge; `exported` is any `pub` form. Detection is by `.rs` file alone.|a Python and a TypeScript language construct, not a box
 docs/glossary.md|| File | One box: a source file, identified by its repository-relative path. The JSON keys and schema names `modules` and `module`, and code identifiers, keep the word module. ||the glossary sentence that names the contract keeping the word module
 packages/cli/src/window-commands.ts|module|kind value of a window selection: a contract, not wording
-packages/cli/src/duplication/findings.ts|duplication:modules:|stable finding id prefix: a contract, not wording
-packages/cli/src/principles.ts|On the Criteria To Be Used in Decomposing Systems into Modules|quoted work title
 docs/design.md|| `unused_exports` | Information hiding | David Parnas, "On the Criteria To Be Used in Decomposing Systems into Modules", 1972 | the exported members no other file imports | nothing ||quoted work title
 docs/design.md|| `private_imports` | Information hiding, with PEP 8's definition of private (a leading underscore) | David Parnas, "On the Criteria To Be Used in Decomposing Systems into Modules", 1972 | the private names a Python file imports from other files | nothing ||quoted work title
 packages/describers/claude/src/describe.ts|request needs a string module and source and arrays members, uses and used_by|validation message naming the request key module, a contract key

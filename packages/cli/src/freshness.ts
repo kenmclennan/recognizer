@@ -1,18 +1,16 @@
 import { join, resolve } from "node:path";
-import { Repository } from "@recognizer/core";
+import { freshScansOver, Repository } from "@recognizer/core";
 import type { Io } from "./cli.js";
-import { type ConfigRead, readConfig } from "./config.js";
-import { readsAnyConfig } from "./config-parse.js";
-import { detectLanguages, type Language } from "./detect.js";
-import { InputError } from "./errors.js";
-import { discoverPlugins } from "./plugin-discovery.js";
+import type { ConfigRead } from "./config.js";
+import type { Language } from "./detect.js";
+import { asInputError } from "./errors.js";
+import { freshPorts } from "./fresh-ports.js";
 import {
   dirtyPaths,
   readCachedRepository,
   resolveCommit,
-  runScanSync,
 } from "./scan-command.js";
-import { languageRulesOf } from "./scanners.js";
+import { requestFrom } from "./scan-main.js";
 
 export interface FreshScans {
   repository: Repository;
@@ -86,48 +84,11 @@ export function cachedScansState(
 export function freshScans(io: Io, root: string, read: ConfigRead): FreshScans {
   const directory = resolve(root);
 
-  try {
-    io.readDir(directory);
-  } catch {
-    throw new InputError([`repository is not a directory: ${directory}`]);
-  }
-
-  if (readsAnyConfig(read)) {
-    readConfig(io, directory, read);
-  }
-
-  const detected = detectLanguages(
-    io,
-    directory,
-    languageRulesOf(discoverPlugins(io, ["scanner"]).plugins),
+  return asInputError(() =>
+    freshScansOver(
+      freshPorts(io, read),
+      { scan: requestFrom([directory, "--extract"], io).request },
+      directory,
+    ),
   );
-
-  if (detected.length > 0) {
-    const cached = cachedScansState(io, directory, detected);
-
-    if (cached.state === "current") {
-      return { repository: cached.repository, scanned: false };
-    }
-  }
-
-  const status = runScanSync(
-    [directory, "--extract"],
-    {
-      ...io,
-      stdout: io.stderr,
-    },
-    read,
-  );
-
-  if (status !== 0) {
-    throw new InputError([`recognizer scan failed in ${directory}`]);
-  }
-
-  const repository = readAll(io, directory, detected);
-
-  if (repository === null || repository.extractions.length === 0) {
-    throw new InputError([`recognizer scan wrote no scan for ${directory}`]);
-  }
-
-  return { repository, scanned: true };
 }

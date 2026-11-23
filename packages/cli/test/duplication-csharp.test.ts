@@ -1,6 +1,9 @@
+import {
+  DEFAULT_DUPLICATION_SETTINGS,
+  measureDuplication,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_DUPLICATION_SETTINGS } from "../src/duplication/findings.js";
-import { measureDuplication } from "../src/duplication/measure.js";
+import { analysisPortsOf, sayOf } from "./analysis-ports.js";
 import { allParsers, measuredFixture, ROOT } from "./duplication-helpers.js";
 
 describe("duplication", () => {
@@ -14,7 +17,8 @@ describe("duplication", () => {
         "fixtures/duplication/corpus/csharp",
       );
       const findings = measureDuplication(
-        fake.io,
+        analysisPortsOf(fake.io),
+        sayOf(fake.io),
         ROOT,
         scans,
         DEFAULT_DUPLICATION_SETTINGS,

@@ -1,7 +1,10 @@
+import {
+  DEFAULT_DUPLICATION_SETTINGS,
+  measureDuplication,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { findingRecordOf } from "../src/adapters/filesystem/findings-translator.js";
-import { DEFAULT_DUPLICATION_SETTINGS } from "../src/duplication/findings.js";
-import { measureDuplication } from "../src/duplication/measure.js";
+import { analysisPortsOf, sayOf } from "./analysis-ports.js";
 import {
   allParsers,
   EQUIVALENCE,
@@ -42,7 +45,8 @@ describe("duplication findings against the Python sensor's goldens", () => {
       }
 
       const findings = measureDuplication(
-        fake.io,
+        analysisPortsOf(fake.io),
+        sayOf(fake.io),
         ROOT,
         scans,
         DEFAULT_DUPLICATION_SETTINGS,
@@ -77,7 +81,8 @@ describe("the corpus manifest", () => {
         `fixtures/duplication/corpus/${language}`,
       );
       const findings = measureDuplication(
-        fake.io,
+        analysisPortsOf(fake.io),
+        sayOf(fake.io),
         ROOT,
         scans,
         DEFAULT_DUPLICATION_SETTINGS,
