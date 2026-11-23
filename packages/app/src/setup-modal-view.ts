@@ -27,6 +27,7 @@ import {
   type SetupController,
   type SetupState,
   sharedBy,
+  testRunnerNames,
   testsWanted,
   undecidedCards,
   type WizardState,
@@ -734,13 +735,17 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
 
       content.push(grid);
     } else {
-      content.push(
-        el(
-          "div",
-          "sw-warnline",
-          `${runner.directory}/ gets no C.R.A.P. or Mutation results.`,
-        ),
-      );
+      const names = testRunnerNames(state.survey);
+
+      if (names !== "") {
+        content.push(
+          el(
+            "div",
+            "sw-warnline",
+            `${runner.directory}/ gets no ${names} results.`,
+          ),
+        );
+      }
     }
 
     return row(

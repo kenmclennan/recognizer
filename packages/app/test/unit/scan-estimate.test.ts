@@ -117,24 +117,28 @@ const MUTATION: PartSpec = {
   name: "Mutation",
   runsTests: true,
   scoped: true,
+  workVerb: "mutate",
 };
 const CRAP: PartSpec = {
   key: "crap",
   name: "C.R.A.P.",
   runsTests: true,
   scoped: false,
+  workVerb: null,
 };
 const STRUCTURE: PartSpec = {
   key: "structure",
   name: "Structure",
   runsTests: false,
   scoped: false,
+  workVerb: null,
 };
 const DESCRIBE: PartSpec = {
   key: "describe",
   name: "Descriptions",
   runsTests: false,
   scoped: false,
+  workVerb: null,
 };
 
 function planned(
@@ -373,7 +377,7 @@ describe("scanHistory with a part that runs tests", () => {
     ];
     const part = (key: string, runsTests: boolean, scoped: boolean) =>
       estimateParts(scanHistory(files), planned({ [key]: 5 }, [key]), [
-        { key, name: key, runsTests, scoped },
+        { key, name: key, runsTests, scoped, workVerb: null },
       ])[0]?.basis;
 
     expect(part("a", true, false)).toBe("5 files, last run's pace");
@@ -465,6 +469,49 @@ describe("the Mutation estimate counts the functions it will measure", () => {
       basis: "3 functions to mutate, no pace yet",
     });
     expect(mutationLine([old], 0).parts[0]?.ms).toBe(5000);
+  });
+
+  it("no-pace basis uses the declared verb", () => {
+    const old = scanFile("20261101T090000000Z", {
+      structure_ms: 0,
+      sense: [
+        { name: "mutation", duration_ms: 20000, fixed_ms: 5000, modules: 4 },
+      ],
+    });
+    const basis = (workVerb: string) =>
+      estimateParts(
+        scanHistory([old]),
+        planned({ mutation: 40 }, ["mutation"]),
+        [{ ...MUTATION, workVerb }],
+        { mutation: { unit: "functions", to_perform: 3 } },
+      )[0]?.basis;
+
+    expect(basis("mutate")).toBe("3 functions to mutate, no pace yet");
+    expect(basis("check")).toBe("3 functions to check, no pace yet");
+  });
+
+  it("a sensor key never decides the work path", () => {
+    const parts = estimateParts(
+      scanHistory(MUTATION_RUNS),
+      planned({ mutation: 40 }, ["mutation"]),
+      [{ ...MUTATION, workVerb: null }],
+    );
+
+    expect(parts[0]?.basis).not.toContain("to mutate");
+    expect(parts[0]?.ms).not.toBeNull();
+  });
+
+  it("exactly zero planned work gives the fixed-time basis and no no-pace row", () => {
+    const old = scanFile("20261101T090000000Z", {
+      structure_ms: 0,
+      sense: [
+        { name: "mutation", duration_ms: 20000, fixed_ms: 5000, modules: 4 },
+      ],
+    });
+    const part = mutationLine([old], 0).parts[0];
+
+    expect(part?.ms).toBe(5000);
+    expect(part?.basis).not.toContain("no pace yet");
   });
 
   it("gives no estimate for Mutation before the sensor has answered, never a file figure", () => {
@@ -744,6 +791,7 @@ describe("old records", () => {
           name: "coverage-gaps",
           runsTests: false,
           scoped: false,
+          workVerb: null,
         },
       ],
     );

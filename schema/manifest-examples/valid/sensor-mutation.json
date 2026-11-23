@@ -148,5 +148,9 @@
     }
   ],
   "runs_tests": true,
-  "scoped": true
+  "scoped": true,
+  "planned_work": {
+    "verb": "mutate"
+  },
+  "log_path": ".recognizer/cache/coverage/last-run.log"
 }

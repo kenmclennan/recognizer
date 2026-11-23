@@ -98,6 +98,7 @@ export type RowSensor = {
   title: string;
   runsTests: boolean;
   scoped: boolean;
+  workVerb?: string | null;
   registered: boolean;
   suites?: SuiteRef[];
 };
@@ -323,6 +324,7 @@ export function rowSensors(
         title: titleFor(one),
         runsTests: one.runsTests,
         scoped: one.scoped,
+        workVerb: one.plannedWork?.verb ?? null,
         registered: registeredNames.has(one.name),
         ...(one.runsTests && suites.length > 0 ? { suites } : {}),
       });
@@ -340,6 +342,7 @@ export function rowSensors(
           title: name,
           runsTests: false,
           scoped: false,
+          workVerb: null,
           registered: true,
         });
       }
@@ -579,6 +582,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
       runsTests:
         sensors.find((one) => one.name === row.key)?.runsTests === true,
       scoped: sensors.find((one) => one.name === row.key)?.scoped === true,
+      workVerb: sensors.find((one) => one.name === row.key)?.workVerb ?? null,
     })),
     input.work ?? {},
   );

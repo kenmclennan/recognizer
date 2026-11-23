@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   createPlannedWork,
+  declaredLogPath,
   fingerprint,
   workKey,
+  workScopes,
 } from "../../src/planned-work";
 import { fakeSensors } from "../../src/sensors-fake";
+import { plainSensor } from "../../src/shipped-fake";
 
 const SCOPE = {
   sensor: "mutation",
@@ -103,5 +106,51 @@ describe("workKey and fingerprint", () => {
   it("gives equal text equal fingerprints and different text different ones", () => {
     expect(fingerprint("abc")).toBe(fingerprint("abc"));
     expect(fingerprint("abc")).not.toBe(fingerprint("abd"));
+  });
+});
+
+describe("workScopes", () => {
+  const plan = {
+    sense: ["alpha", "beta", "gamma", "missing"],
+    modules: ["a.py"],
+    suites: { alpha: ["unit"] },
+  };
+  const shipped = {
+    status: "ok" as const,
+    sensors: [
+      plainSensor("alpha", { plannedWork: { verb: "mutate" } }),
+      plainSensor("beta", { plannedWork: { verb: "check" } }),
+      plainSensor("gamma"),
+    ],
+  };
+
+  it("workScopes returns one scope per declaring sensor in the plan", () => {
+    expect(workScopes(plan, shipped, "s1")).toEqual([
+      { sensor: "alpha", modules: ["a.py"], suites: ["unit"], stamp: "s1" },
+      { sensor: "beta", modules: ["a.py"], suites: null, stamp: "s1" },
+    ]);
+  });
+
+  it("workScopes returns nothing when the shipped list is unavailable", () => {
+    expect(workScopes(plan, null, "s1")).toEqual([]);
+    expect(
+      workScopes(plan, { status: "unavailable", reason: "x" }, "s1"),
+    ).toEqual([]);
+  });
+});
+
+describe("declaredLogPath", () => {
+  it("takes the first test-running sensor that declares a log path", () => {
+    expect(
+      declaredLogPath({
+        status: "ok",
+        sensors: [
+          plainSensor("a", { logPath: "no.log" }),
+          plainSensor("b", { runsTests: true }),
+          plainSensor("c", { runsTests: true, logPath: "c.log" }),
+        ],
+      }),
+    ).toBe("c.log");
+    expect(declaredLogPath(null)).toBeNull();
   });
 });

@@ -102,6 +102,23 @@
     "scoped": {
       "type": "boolean"
     },
+    "planned_work": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verb"
+      ],
+      "properties": {
+        "verb": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "log_path": {
+      "type": "string",
+      "minLength": 1
+    },
     "prompt_version": {
       "type": "string",
       "minLength": 1
@@ -516,6 +533,9 @@
           "type": "integer",
           "minimum": 1
         },
+        "unlisted": {
+          "type": "boolean"
+        },
         "published": {
           "type": "object",
           "additionalProperties": false,
@@ -654,6 +674,8 @@
           "findings": false,
           "runs_tests": false,
           "scoped": false,
+          "planned_work": false,
+          "log_path": false,
           "prompt_version": false,
           "description": false,
           "expansion": false,
@@ -702,6 +724,8 @@
           "findings": false,
           "runs_tests": false,
           "scoped": false,
+          "planned_work": false,
+          "log_path": false,
           "expansion": false,
           "settings_title": false,
           "scan_schema_version": false,

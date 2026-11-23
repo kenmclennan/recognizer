@@ -26,6 +26,8 @@ export interface Manifest {
   runs_tests?: boolean;
   reports_tests?: boolean;
   scoped?: boolean;
+  planned_work?: { verb: string };
+  log_path?: string;
   prompt_version?: string;
 }
 

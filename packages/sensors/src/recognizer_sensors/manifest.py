@@ -2,8 +2,11 @@ import json
 from importlib.metadata import version
 
 from recognizer_sensors.config_schema import CRAP_KEYS, MUTATION_KEYS
+from recognizer_sensors.testrun.reports import LOG
 
 PROTOCOL = 1
+
+UNLISTED = {("crap", "complexity")}
 
 
 def install_line(name: str) -> str:
@@ -154,7 +157,7 @@ GROUPS = {
 }
 
 
-def metric(name: str) -> dict:
+def metric(name: str, sensor: str | None = None) -> dict:
     fields = dict(METRIC_FIELDS[name])
     published = fields.pop("published", None)
     entry = {
@@ -170,6 +173,9 @@ def metric(name: str) -> dict:
 
     if name in CELLS:
         entry["cell"] = CELLS[name]
+
+    if (sensor, name) in UNLISTED:
+        entry["unlisted"] = True
 
     return entry
 
@@ -281,7 +287,7 @@ def build(name: str) -> dict:
     if name == "crap":
         return {
             **common("crap", "C.R.A.P.", True, "functions", strip("sensors.crap.", CRAP_KEYS)),
-            "metrics": [metric("complexity"), metric("crap"), metric("coverage")],
+            "metrics": [metric(n, "crap") for n in ("complexity", "crap", "coverage")],
             "findings": [
                 finding(
                     "crap",
@@ -298,6 +304,7 @@ def build(name: str) -> dict:
             ],
             "runs_tests": True,
             "scoped": False,
+            "log_path": LOG.as_posix(),
         }
 
     return {
@@ -319,6 +326,8 @@ def build(name: str) -> dict:
         ],
         "runs_tests": True,
         "scoped": True,
+        "planned_work": {"verb": "mutate"},
+        "log_path": LOG.as_posix(),
     }
 
 

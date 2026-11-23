@@ -19,6 +19,7 @@ export interface ShippedMetric {
   granularity: "module" | "member";
   bad: "high" | "low";
   cell?: number;
+  unlisted?: boolean;
   published?: { value: number; source: string };
 }
 
@@ -30,6 +31,8 @@ export interface ShippedSensorEntry {
   settings_title?: string;
   runs_tests: boolean;
   scoped: boolean;
+  planned_work?: { verb: string };
+  log_path?: string;
   listed: boolean;
   metrics: ShippedMetric[];
   findings: FindingEntry[];
@@ -114,6 +117,10 @@ function entryOf(manifest: Manifest): ShippedSensorEntry {
       : { settings_title: manifest.settings_title }),
     runs_tests: manifest.runs_tests === true,
     scoped: manifest.scoped === true,
+    ...(manifest.planned_work === undefined
+      ? {}
+      : { planned_work: manifest.planned_work }),
+    ...(manifest.log_path === undefined ? {} : { log_path: manifest.log_path }),
     listed: metrics.length > 0,
     metrics,
     findings: manifest.findings ?? [],
