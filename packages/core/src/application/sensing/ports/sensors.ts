@@ -3,8 +3,8 @@ import type { Gap } from "../../../domain/gap.js";
 import type { Repository } from "../../../domain/repository.js";
 import type { RunEntry } from "../../../domain/run-record.js";
 import type { PluginProgress } from "../../../domain/scan-event.js";
-import type { SensorRow } from "../../../domain/scan-plan.js";
 import type { SensorRequest } from "../../../domain/sensor-request.js";
+import type { ShippedRead } from "../../plugins/shipped-plugins.js";
 import type { PluginLimits, Say } from "../../shared/ports/process.js";
 
 export interface SensorSelectionInput {
@@ -15,7 +15,8 @@ export interface SensorSelectionInput {
 }
 
 export interface SensorSelection {
-  readonly sensorSelection: true;
+  selected: { name: string; command: string[] }[];
+  shipped: ShippedRead;
 }
 
 export interface SensorPlanInput {
@@ -61,8 +62,6 @@ export interface SenseCall {
 }
 
 export interface Sensors {
-  select(input: SensorSelectionInput): SensorSelection;
-  plan(input: SensorPlanInput): SensorPlan;
   commitGaps(input: CommitGapsInput): Gap[];
   programGaps(input: ProgramGapsInput): Gap[];
   readinessGaps(
@@ -71,5 +70,4 @@ export interface Sensors {
     limits: PluginLimits,
   ): Gap[];
   run(call: SenseCall): Promise<void>;
-  registered(root: string): SensorRow[];
 }

@@ -3,11 +3,20 @@ import {
   type ConfigRepository,
   DEFAULT_STRUCTURE_SETTINGS,
   type StructureSettings,
+  type SuiteEntry,
+  shippedCommand,
 } from "../../src/index.js";
+import type { FakeSensors } from "./fake-sensors.js";
+
+const DOCUMENT = {} as ConfigDocument;
 
 export class FakeConfigRepository implements ConfigRepository {
+  present = true;
+  unshipped: string[] = [];
   settings: StructureSettings | "off" = DEFAULT_STRUCTURE_SETTINGS;
   sensors: string[] = [];
+
+  constructor(private readonly invented: FakeSensors) {}
 
   scannerSetup(): {
     scanners: Record<string, string>;
@@ -17,11 +26,41 @@ export class FakeConfigRepository implements ConfigRepository {
   }
 
   run(): ConfigDocument | null {
-    return null;
+    return this.document();
   }
 
   analysis(): ConfigDocument | null {
-    return null;
+    return this.document();
+  }
+
+  sensorConfig(): ConfigDocument | null {
+    return this.document();
+  }
+
+  registeredSensors(
+    config: ConfigDocument | null,
+  ): { name: string; command: string[] }[] {
+    return config === null
+      ? []
+      : [
+          ...[...this.invented.installed.values()]
+            .filter((sensor) => sensor.registered ?? true)
+            .map((sensor) => ({
+              name: sensor.name,
+              command: shippedCommand(sensor.name, {}),
+            })),
+          ...this.unshipped.map((name) => ({ name, command: [name] })),
+        ];
+  }
+
+  tests(config: ConfigDocument | null): SuiteEntry[] | undefined {
+    return config === null || this.invented.suites.length === 0
+      ? undefined
+      : this.invented.suites.map((name) => ({ name, language: "python" }));
+  }
+
+  private document(): ConfigDocument | null {
+    return this.present ? DOCUMENT : null;
   }
 
   readsSensorConfig(): boolean {

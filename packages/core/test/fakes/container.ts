@@ -26,6 +26,8 @@ import { FakeRepositoryChecks } from "./fake-repository-checks.js";
 import { FakeRunLogRepository } from "./fake-run-log-repository.js";
 import { FakeScanLock } from "./fake-scan-lock.js";
 import { FakeScanners } from "./fake-scanners.js";
+import { FakeSelectionFiles } from "./fake-selection-files.js";
+import { FakeSensorCatalog } from "./fake-sensor-catalog.js";
 import { FakeSensors } from "./fake-sensors.js";
 import { FakeShippedPlugins } from "./fake-shipped-plugins.js";
 import { FakeSourceFiles } from "./fake-source-files.js";
@@ -38,6 +40,8 @@ export interface Fakes {
   scanners: FakeScanners;
   analysis: FakeAnalysis;
   sensors: FakeSensors;
+  catalog: FakeSensorCatalog;
+  files: FakeSelectionFiles;
   describer: FakeDescriber;
   git: FakeGit;
   structure: FakeStructureRepository;
@@ -78,12 +82,14 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     scanners: new FakeScanners(structure, log),
     analysis: new FakeAnalysis(),
     sensors,
+    catalog: new FakeSensorCatalog(sensors),
+    files: new FakeSelectionFiles(),
     describer: new FakeDescriber(),
     git: new FakeGit(commit),
     structure,
     findings: new FakeFindingsRepository(),
     policy: new FakePolicyRepository(),
-    config: new FakeConfigRepository(),
+    config: new FakeConfigRepository(sensors),
     runLog: new FakeRunLogRepository(),
     lock: new FakeScanLock(),
     baseline: new FakeBaselineRepository(),

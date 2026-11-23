@@ -441,6 +441,29 @@ describe("recognizer serve: starting a scan", () => {
   );
 });
 
+describe("recognizer serve: sensor refusals", () => {
+  it(
+    "reports a refused sensor as an invalid request",
+    async () => {
+      const serve = new Serve(typescriptLaunchers());
+      const started = await serve.call("scan.start", {
+        repository: typescriptRepository(),
+        describe: false,
+        analysis: false,
+        sense: ["ghost"],
+      });
+      const outcome = await serve.outcome(started.ok);
+
+      expect(outcome.status).toBe("failed");
+      expect(outcome.reason).toBe("invalid-request");
+      expect(outcome.messages.join("\n")).toContain("no such sensor: ghost");
+
+      await serve.close();
+    },
+    TIMEOUT,
+  );
+});
+
 describe("recognizer serve: stopping", () => {
   it(
     "stop_ends_the_scan_and_its_plugins",

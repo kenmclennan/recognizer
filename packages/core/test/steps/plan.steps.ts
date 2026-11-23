@@ -63,7 +63,10 @@ When("a bring is planned", async function (this: ScanWorld) {
 Then(
   /^the plan names (\w+) and (\w+)$/,
   function (this: ScanWorld, first: string, second: string) {
-    assert.deepEqual(view(this).intent.sense, [lower(first), lower(second)]);
+    assert.deepEqual(
+      [...view(this).intent.sense].sort(),
+      [lower(first), lower(second)].sort(),
+    );
   },
 );
 
@@ -89,7 +92,10 @@ Then("the plan covers {int} files", function (this: ScanWorld, count: number) {
 Then(
   /^the plan lists (\w+) and (\w+) as never run$/,
   function (this: ScanWorld, first: string, second: string) {
-    assert.deepEqual(view(this).never, [lower(first), lower(second)]);
+    assert.deepEqual(
+      [...view(this).never].sort(),
+      [lower(first), lower(second)].sort(),
+    );
   },
 );
 

@@ -6,6 +6,10 @@ import type {
   ScanPlanView,
   ScanRequest,
   ScanStatus,
+  SensorPlan,
+  SensorRequest,
+  SensorRow,
+  SensorSelection,
 } from "../../src/index.js";
 import { createFakes, type Fakes, scanOver } from "./container.js";
 import { PlanWorld } from "./plan-world.js";
@@ -25,6 +29,15 @@ export class ScanWorld {
   plans: PlanWorld = new PlanWorld();
   view: ScanPlanView | null = null;
   ticked: string[] = [];
+  trial: {
+    selection?: SensorSelection;
+    plan?: SensorPlan;
+    rows?: SensorRow[];
+    refused?: string[];
+    sense: null | "all" | SensorRequest[];
+    suitesFile?: string;
+    modulesFile?: string;
+  } = { sense: null };
 
   addLanguage(language: string, fails = false): void {
     this.fakes.scanners.languages.set(language, {

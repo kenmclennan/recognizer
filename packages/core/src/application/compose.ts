@@ -7,6 +7,7 @@ import type { PlanRequest, ScanPlanView } from "../domain/run/scan-plan.js";
 import type { ScanRequest } from "../domain/run/scan-request.js";
 import type { RunLogRepository } from "../domain/run-log-repository.js";
 import type { ScanEvent } from "../domain/scan-event.js";
+import type { SensorRow } from "../domain/scan-plan.js";
 import type { StructureRepository } from "../domain/structure-repository.js";
 import {
   type CheckReport,
@@ -60,6 +61,8 @@ import { findReadinessGaps } from "./sensing/find-readiness-gaps.js";
 import { findSensorGaps } from "./sensing/find-sensor-gaps.js";
 import type { SensingPorts } from "./sensing/internal/sensing-ports.js";
 import { planSensors } from "./sensing/plan-sensors.js";
+import type { SelectionFiles } from "./sensing/ports/selection-files.js";
+import type { SensorCatalog } from "./sensing/ports/sensor-catalog.js";
 import type { Sensors } from "./sensing/ports/sensors.js";
 import { readRunConfig } from "./sensing/read-run-config.js";
 import { readSensorRows } from "./sensing/read-sensor-rows.js";
@@ -93,6 +96,8 @@ import { showView } from "./visualisation/show-view.js";
 interface CommonPorts {
   analysis: Analysis;
   sensors: Sensors;
+  catalog: SensorCatalog;
+  files: SelectionFiles;
   describer: Describer;
   git: Git;
   structure: StructureRepository;
@@ -137,6 +142,8 @@ function bindDecisions(
     sensors: ports.sensors,
     config: ports.config,
     clock: ports.clock,
+    catalog: ports.catalog,
+    files: ports.files,
   };
   const describing: DescribingPorts = {
     describer: ports.describer,
@@ -169,12 +176,23 @@ function bindDecisions(
 export interface PlanningPorts {
   structure: Pick<StructureRepository, "read" | "responsibilityKinds">;
   findings: Pick<FindingsRepository, "measuredOf" | "testsDigest">;
-  sensors: Pick<Sensors, "registered">;
+  sensors: { registered(root: string): SensorRow[] };
+}
+
+function planningOver(ports: CommonPorts): PlanningPorts {
+  return {
+    structure: ports.structure,
+    findings: ports.findings,
+    sensors: {
+      registered: (root) =>
+        readSensorRows({ config: ports.config, catalog: ports.catalog }, root),
+    },
+  };
 }
 
 function planPhasesOver(ports: PlanningPorts): PlanPhases {
   return {
-    readSensorRows: (root) => readSensorRows(ports, root),
+    readSensorRows: (root) => ports.sensors.registered(root),
     readModules: (root) =>
       ports.structure.read(root).files.map(({ path }) => path),
     findSensorGaps: (root, rows, modules) =>
@@ -237,7 +255,7 @@ function syncPhasesOver(ports: SyncPorts): RunPhases {
 export function createScan(ports: ScanPorts): Scan {
   const run = runPorts(ports);
   const phases = phasesOver(ports);
-  const plan = createPlanner(ports);
+  const plan = createPlanner(planningOver(ports));
 
   return {
     start(request: ScanRequest): RunningScan {

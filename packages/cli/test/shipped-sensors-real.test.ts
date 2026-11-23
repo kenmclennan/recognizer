@@ -1,7 +1,10 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { readShippedSensors } from "@recognizer/core";
+import { readSensorRows, readShippedSensors } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
+import { ConfigAdapter } from "../src/adapters/filesystem/config-adapter.js";
+import { SensorCatalogAdapter } from "../src/adapters/plugins/sensor-catalog-adapter.js";
 import type { Io, RunResult } from "../src/cli.js";
 import { nodeIo } from "../src/cli.js";
 import { shippedPorts } from "../src/manifest-ports.js";
@@ -39,6 +42,24 @@ describe("the committed sensor manifests", () => {
   it("reads the crap and mutation sensors", () => {
     expect(read.unreadable).toEqual([]);
     expect(read.sensors.map((one) => one.name)).toEqual(["crap", "mutation"]);
+  });
+
+  it("lists the sensors the committed list marks, in display order", () => {
+    const committed = JSON.parse(
+      readFileSync(join(REPO, "fixtures/sensors/shipped.json"), "utf8"),
+    ) as string[];
+    const rows = readSensorRows(
+      {
+        config: new ConfigAdapter(io, "all"),
+        catalog: new SensorCatalogAdapter(io),
+      },
+      REPO,
+    );
+
+    expect(rows.map((row) => row.name).sort()).toEqual([...committed].sort());
+    expect(rows.map((row) => row.display)).toEqual(
+      rows.map((row) => row.display).sort((a, b) => a.localeCompare(b)),
+    );
   });
 
   it("carries the flags the code used to hold", () => {

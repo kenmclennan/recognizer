@@ -1,4 +1,8 @@
-import { selectSensors } from "@recognizer/core";
+import {
+  InvalidRequest,
+  parseSuiteSelection,
+  selectSensors,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { InputError } from "../src/errors.js";
 import {
@@ -8,7 +12,6 @@ import {
   idlePhases,
   nothingRanText,
   parseScanArgs,
-  parseSuiteSelection,
   phaseLine,
   summaryLine,
 } from "../src/scan-phases.js";
@@ -499,7 +502,7 @@ describe("parseSuiteSelection", () => {
     ["a non-array", '{"crap":"unit"}', /array of non-empty suite names/],
   ])("refuses %s with an InputError", (_, text, message) => {
     expect(() => parseSuiteSelection(text, configured, sensors)).toThrow(
-      InputError,
+      InvalidRequest,
     );
     expect(() => parseSuiteSelection(text, configured, sensors)).toThrow(
       message,

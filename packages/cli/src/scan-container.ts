@@ -19,6 +19,8 @@ import {
   ScannersAdapter,
   SyncScannersAdapter,
 } from "./adapters/plugins/scanners-adapter.js";
+import { SelectionFilesAdapter } from "./adapters/plugins/selection-files-adapter.js";
+import { SensorCatalogAdapter } from "./adapters/plugins/sensor-catalog-adapter.js";
 import { SensorsAdapter } from "./adapters/plugins/sensors-adapter.js";
 import { TestReportsAdapter } from "./adapters/plugins/test-reports-adapter.js";
 import { ClockAdapter } from "./adapters/system/clock-adapter.js";
@@ -35,6 +37,8 @@ export function scanPorts(io: Io, read: ConfigRead): ScanPorts {
     scanners,
     analysis: sensors,
     sensors,
+    catalog: new SensorCatalogAdapter(io),
+    files: new SelectionFilesAdapter(io),
     describer: new DescriberAdapter(io),
     git: new GitAdapter(io),
     structure: new StructureAdapter(io),

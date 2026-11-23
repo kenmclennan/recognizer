@@ -1,6 +1,11 @@
 import type { ConfigDocument } from "./config-document.js";
 import type { StructureSettings } from "./structure-settings.js";
 
+export interface SuiteEntry {
+  name: string;
+  language: string;
+}
+
 export interface ConfigRepository {
   scannerSetup(root: string): {
     scanners: Record<string, string>;
@@ -11,4 +16,9 @@ export interface ConfigRepository {
   readsSensorConfig(): boolean;
   structureSettings(root: string): StructureSettings | "off";
   sensorNames(root: string): string[];
+  registeredSensors(
+    config: ConfigDocument | null,
+  ): { name: string; command: string[] }[];
+  tests(config: ConfigDocument | null): SuiteEntry[] | undefined;
+  sensorConfig(root: string): ConfigDocument | null;
 }

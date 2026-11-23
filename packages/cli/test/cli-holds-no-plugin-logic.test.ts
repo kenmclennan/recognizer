@@ -113,6 +113,20 @@ describe("the CLI holds no plugin logic", () => {
     ).toBe(false);
   });
 
+  it("keeps the sensors adapter to process and file access", () => {
+    const forbidden =
+      /\b(select|plan|registered|registeredSensors|readShippedSensors|selectSensors|refuseUnregistered|isScoped)\b|\brunsTests\(/;
+    const text = readFileSync(
+      join(SRC, "adapters/plugins/sensors-adapter.ts"),
+      "utf8",
+    );
+
+    expect(forbidden.test(text)).toBe(false);
+    expect(forbidden.test("  select(input: X): Y {")).toBe(true);
+    expect(forbidden.test("  registered(root: string) {")).toBe(true);
+    expect(forbidden.test("  commitGaps(input: X): Gap[] {")).toBe(false);
+  });
+
   it("the matchers flag a known offending string and pass a clean one", () => {
     expect(namesShippedPlugin('const x = "crap";')).toBe(true);
     expect(namesShippedPlugin("export const SHIPPED_SENSORS = [];")).toBe(true);
