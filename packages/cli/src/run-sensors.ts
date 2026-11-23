@@ -1,8 +1,8 @@
-import type { Repository, SensorDiagnosis, SensorWork } from "@recognizer/core";
+import type { Diagnosis, Repository, SensorWork } from "@recognizer/core";
 import { readSensorFindings } from "./adapters/filesystem/findings-translator.js";
 import type { Io } from "./cli.js";
 import { findingsFile, writeFindings } from "./findings-files.js";
-import type { Diagnosis, PluginEvent } from "./plugin-events.js";
+import type { PluginEvent } from "./plugin-events.js";
 import { createPluginLimits, runPlugin } from "./plugin-run.js";
 import { type EntryWork, entryFrom, type RunEntry } from "./run-log.js";
 import { measuredInputs } from "./structure-sensor.js";
@@ -30,7 +30,7 @@ function recordInputs(
   name: string,
   repository: Repository,
 ): {
-  diagnosis: SensorDiagnosis | undefined;
+  diagnosis: Diagnosis | undefined;
   incomplete: boolean;
   work: SensorWork | undefined;
 } {
@@ -85,7 +85,7 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
       input.onEvent,
     );
     let { reason } = run;
-    let diagnosis: SensorDiagnosis | undefined = run.diagnosis ?? undefined;
+    let diagnosis: Diagnosis | undefined = run.diagnosis ?? undefined;
     let incomplete = false;
     let work: EntryWork | undefined;
 

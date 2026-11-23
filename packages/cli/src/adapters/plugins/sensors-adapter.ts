@@ -50,6 +50,7 @@ import {
   type StructureSettings,
 } from "../../structure-sensor.js";
 import { refuseUnregistered } from "../../unregistered-plugins.js";
+import { diagnosisOf } from "../filesystem/diagnosis-translator.js";
 import { sinkIo } from "./sink-io.js";
 
 type Limits = ReturnType<typeof createPluginLimits>;
@@ -327,7 +328,13 @@ export class SensorsAdapter implements Sensors, Analysis {
       onStart: call.onStart,
       onEvent: (name, event) =>
         call.onEvent(name, event as unknown as Record<string, unknown>),
-      onEntry: (entry) => call.onEntry(entry as never),
+      onEntry: (entry) =>
+        call.onEntry({
+          ...entry,
+          ...(entry.diagnosis === undefined
+            ? {}
+            : { diagnosis: diagnosisOf(entry.diagnosis) }),
+        }),
     });
   }
 }

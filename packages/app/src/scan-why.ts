@@ -1,4 +1,4 @@
-import type { Diagnosis } from "recognizer";
+import type { Diagnosis } from "@recognizer/core";
 
 export type ScanWhy = {
   segments: { text: string; code: boolean }[];

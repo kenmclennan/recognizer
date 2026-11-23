@@ -1,4 +1,5 @@
-import { type Diagnosis, type Gap, isGap, type PluginEvent } from "recognizer";
+import type { Diagnosis } from "@recognizer/core";
+import { type Gap, isGap, type PluginEvent, readDiagnosis } from "recognizer";
 import { roundedTime } from "./scan-estimate";
 
 export type ScanEvent =
@@ -387,7 +388,7 @@ function entryEvent(line: Record<string, unknown>): ScanEvent | null {
     return null;
   }
 
-  const diagnosis = diagnosisOf(line.diagnosis);
+  const diagnosis = readDiagnosis(line.diagnosis);
 
   return {
     event: "entry",
@@ -401,59 +402,6 @@ function entryEvent(line: Record<string, unknown>): ScanEvent | null {
 
 function nonEmpty(value: unknown): value is string {
   return typeof value === "string" && value !== "";
-}
-
-function failingOf(value: unknown): Diagnosis["failing"] | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return null;
-  }
-
-  const { count, names } = value as Record<string, unknown>;
-
-  if (!Array.isArray(names) || !names.every(nonEmpty)) {
-    return null;
-  }
-
-  return {
-    names,
-    ...(typeof count === "number" && Number.isInteger(count) && count >= 1
-      ? { count }
-      : {}),
-  };
-}
-
-export function diagnosisOf(value: unknown): Diagnosis | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return null;
-  }
-
-  const { code, line, fix, failing, unmeasured } = value as Record<
-    string,
-    unknown
-  >;
-
-  if (
-    !nonEmpty(code) ||
-    !nonEmpty(line) ||
-    (fix !== undefined && !nonEmpty(fix)) ||
-    (unmeasured !== undefined && typeof unmeasured !== "boolean")
-  ) {
-    return null;
-  }
-
-  const names = failing === undefined ? undefined : failingOf(failing);
-
-  if (names === null) {
-    return null;
-  }
-
-  return {
-    code,
-    line,
-    ...(fix === undefined ? {} : { fix }),
-    ...(unmeasured === undefined ? {} : { unmeasured }),
-    ...(names === undefined ? {} : { failing: names }),
-  };
 }
 
 function foldPlugin(

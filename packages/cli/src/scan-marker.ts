@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
+import type { Diagnosis } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import validate from "./generated/scan-marker-validator.js";
-import type { Diagnosis } from "./plugin-events.js";
 import type { PhaseName } from "./run-log.js";
 import { processScope } from "./stop-scope.js";
 

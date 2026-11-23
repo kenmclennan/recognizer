@@ -1,5 +1,6 @@
+import type { Diagnosis } from "@recognizer/core";
 import { InputError } from "./errors.js";
-import type { Diagnosis, PluginEvent } from "./plugin-events.js";
+import type { PluginEvent } from "./plugin-events.js";
 import type { PhaseName } from "./run-log.js";
 import type { ScanRunRecord } from "./scan-marker.js";
 import {

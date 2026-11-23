@@ -24,6 +24,7 @@ export * from "./domain/analysis/violation.js";
 export * from "./domain/analysis/warning.js";
 export * from "./domain/config-document.js";
 export * from "./domain/dependency.js";
+export * from "./domain/diagnosis.js";
 export * from "./domain/extraction.js";
 export * from "./domain/file.js";
 export * from "./domain/finding.js";

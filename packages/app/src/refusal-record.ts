@@ -1,5 +1,5 @@
-import { type Diagnosis, validateRunRecord } from "recognizer";
-import { diagnosisOf } from "./scan-progress";
+import type { Diagnosis } from "@recognizer/core";
+import { readDiagnosis, validateRunRecord } from "recognizer";
 
 export type Refusal = { reason: string; diagnosis?: Diagnosis; at: number };
 
@@ -53,7 +53,7 @@ export function refusalsOf(
         const modifiedMs = statuses.find(
           (one) => one.name === name,
         )?.modifiedMs;
-        const diagnosis = diagnosisOf(entry.diagnosis);
+        const diagnosis = readDiagnosis(entry.diagnosis);
 
         if (!Number.isNaN(at) && (modifiedMs == null || at > modifiedMs)) {
           found[name] = {
