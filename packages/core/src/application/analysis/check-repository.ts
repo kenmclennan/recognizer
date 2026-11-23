@@ -34,6 +34,7 @@ import type { ModuleMetrics } from "./measure-modules.js";
 import type { Analysis } from "./ports/analysis.js";
 import type { Digest } from "./ports/digest.js";
 import type { SourceFiles } from "./ports/source-files.js";
+import type { Toml } from "./ports/toml.js";
 import { freshnessFor, readFindingsFiles } from "./read-findings-files.js";
 import { runStructureAnalysis } from "./run-structure-analysis.js";
 
@@ -55,6 +56,7 @@ export interface CheckPorts {
   baselines: BaselineRepository;
   source: SourceFiles;
   digest: Digest;
+  toml: Toml;
 }
 
 export interface CheckRequest {
@@ -202,7 +204,11 @@ function gather(
 
     for (const outcome of readFindingsFiles(
       ports.findings.readAll(root),
-      freshnessFor(ports.source, root, repository),
+      freshnessFor(
+        { source: ports.source, digest: ports.digest, toml: ports.toml },
+        root,
+        repository,
+      ),
       [],
       allowed,
     )) {

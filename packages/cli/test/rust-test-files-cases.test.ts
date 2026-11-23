@@ -1,9 +1,11 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { manifestRoots, rustTestFiles } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
+import { TomlAdapter } from "../src/adapters/filesystem/toml-adapter.js";
 import { nodeIo } from "../src/cli.js";
-import { manifestRoots, rustTestFiles } from "../src/rust-test-blocks.js";
+import { testsHashPortsOf } from "./analysis-ports.js";
 
 type FileCase = {
   name: string;
@@ -34,7 +36,11 @@ describe("rustTestFiles against the shared file cases", () => {
       writeFileSync(join(root, path), text);
     }
 
-    const found = rustTestFiles(nodeIo(), root, Object.keys(entry.files));
+    const found = rustTestFiles(
+      testsHashPortsOf(nodeIo()),
+      root,
+      Object.keys(entry.files),
+    );
 
     expect([...found].sort()).toEqual([...entry.test_files].sort());
   });
@@ -50,7 +56,7 @@ function listing(files: Record<string, string>): Set<string> {
     writeFileSync(join(root, path), text);
   }
 
-  return rustTestFiles(nodeIo(), root, Object.keys(files));
+  return rustTestFiles(testsHashPortsOf(nodeIo()), root, Object.keys(files));
 }
 
 describe("manifest roots", () => {
@@ -84,6 +90,7 @@ describe("manifest roots", () => {
     const roots = manifestRoots(
       Object.keys(files),
       (path) => files[path] ?? null,
+      (text) => new TomlAdapter().parse(text),
     );
 
     expect(roots.covered.size).toBe(0);
@@ -106,6 +113,7 @@ describe("manifest roots", () => {
     const roots = manifestRoots(
       Object.keys(files),
       (path) => files[path] ?? null,
+      (text) => new TomlAdapter().parse(text),
     );
 
     expect([...roots.roots].sort()).toEqual(
@@ -133,6 +141,7 @@ describe("manifest roots", () => {
     const roots = manifestRoots(
       Object.keys(files),
       (path) => files[path] ?? null,
+      (text) => new TomlAdapter().parse(text),
     );
 
     expect(roots.roots.has("build.rs")).toBe(false);

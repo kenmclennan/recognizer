@@ -46,6 +46,7 @@ describe("fakes", () => {
       "scanners",
       "sensors",
       "source-files",
+      "toml",
     ]);
     expect(fakeKeys).toEqual(
       [
@@ -67,6 +68,7 @@ describe("fakes", () => {
         "sensors",
         "source",
         "structure",
+        "toml",
       ].sort(),
     );
     expect(

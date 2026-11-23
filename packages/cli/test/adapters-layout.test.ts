@@ -23,6 +23,7 @@ const expected: Record<string, string[]> = {
     "scan-translator.ts",
     "source-files-adapter.ts",
     "structure-adapter.ts",
+    "toml-adapter.ts",
   ],
   git: ["git-adapter.ts"],
   plugins: [

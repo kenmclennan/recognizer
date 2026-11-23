@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { isTestAttribute } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { isTestAttribute } from "../src/rust-test-blocks.js";
 
 const CASES = JSON.parse(
   readFileSync(
