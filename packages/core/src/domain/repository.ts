@@ -361,6 +361,10 @@ export class Repository {
         ].sort(byCodeUnit);
 
         return new Warning({
+          kind: "cycle",
+          id: `cycle:${files.join(",")}`,
+          principle: "levelization",
+          fixPattern: "break-cycle",
           summary: `cycle of ${files.length} files: ${files.join(", ")}`,
           files,
           dependencies: inside,

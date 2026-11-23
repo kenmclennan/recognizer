@@ -1,7 +1,7 @@
 import {
   DEFAULT_STRUCTURE_SETTINGS,
-  orphanFindings,
-  unusedExportsFindings,
+  orphanWarnings,
+  unusedExportsWarnings,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { structureSensor } from "../src/index.js";
@@ -91,14 +91,14 @@ describe("declares edges", () => {
     const scan = scanOf([["src/lib.rs", "src/child.rs", "declares"]]);
 
     expect(
-      orphanFindings(scan, null, ["src/lib.rs"], []).map((found) => found.id),
+      orphanWarnings(scan, null, ["src/lib.rs"], []).map((found) => found.id),
     ).toEqual([]);
   });
 
   it("leave a module with no edge at all an orphan", () => {
     const scan = scanOf([], ["src/stray.rs"]);
 
-    expect(orphanFindings(scan, null, [], []).map((found) => found.id)).toEqual(
+    expect(orphanWarnings(scan, null, [], []).map((found) => found.id)).toEqual(
       ["orphan:src/stray.rs"],
     );
   });
@@ -110,7 +110,7 @@ describe("declares edges", () => {
     );
 
     expect(
-      orphanFindings(scan, null, ["src/lib.rs"], []).map((found) => found.id),
+      orphanWarnings(scan, null, ["src/lib.rs"], []).map((found) => found.id),
     ).toEqual(["orphan:src/stray.rs"]);
   });
 
@@ -121,7 +121,7 @@ describe("declares edges", () => {
       ["src/child.rs"],
     );
 
-    expect(unusedExportsFindings(scan, null, ["src/lib.rs"])).toEqual([]);
+    expect(unusedExportsWarnings(scan, null, ["src/lib.rs"])).toEqual([]);
   });
 
   it("are removed as edges and nothing else is", () => {

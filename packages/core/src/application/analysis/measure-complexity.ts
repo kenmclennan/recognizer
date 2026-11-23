@@ -6,12 +6,11 @@ import {
 } from "../../domain/analysis/duplication/grammars.js";
 import { assignIdentities } from "../../domain/analysis/duplication/identity.js";
 import { isTestFile } from "../../domain/analysis/entry-points.js";
-import { Finding } from "../../domain/finding.js";
 import { COMPLEXITY_LIMIT } from "../../domain/function-length.js";
 import type { PolicyRule } from "../../domain/policy-rule.js";
-import { principleOf } from "../../domain/principles.js";
 import type { Repository } from "../../domain/repository.js";
 import type { StructureSettings } from "../../domain/structure-settings.js";
+import { Warning } from "../../domain/warning.js";
 import type { Say } from "../shared/ports/process.js";
 import { decode } from "./measure-duplication.js";
 import type { Parsers } from "./ports/parsing.js";
@@ -77,16 +76,15 @@ function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-function findingOf(
+function warningOf(
   module: string,
   fn: MeasuredFunction,
   limit: number,
-): Finding {
-  return Finding.stored({
+): Warning {
+  return new Warning({
     id: `complexity:${fn.identity}`,
     kind: "complexity",
-    severity: "warning",
-    ...principleOf("cyclomatic-complexity-limit"),
+    principle: "cyclomatic-complexity-limit",
     summary: `${fn.qualified} has complexity ${fn.complexity}, over the limit of ${limit}`,
     files: [module],
     members: [
@@ -106,7 +104,7 @@ function findingOf(
 }
 
 export interface ComplexityMeasure {
-  findings: Finding[];
+  warnings: Warning[];
   values: Record<string, number>;
 }
 
@@ -120,7 +118,7 @@ export function measureComplexityValues(
   parsers: Parsers,
 ): ComplexityMeasure {
   const limit = settings.complexity_limit;
-  const findings: Finding[] = [];
+  const warnings: Warning[] = [];
   const values: Record<string, number> = {};
 
   const { ids } = repository.graphKeeping(policy);
@@ -152,7 +150,7 @@ export function measureComplexityValues(
       values[key] = Math.max(values[key] ?? 0, fn.complexity);
 
       if (fn.complexity > limit) {
-        findings.push(findingOf(module.path, fn, limit));
+        warnings.push(warningOf(module.path, fn, limit));
       }
     }
   }
@@ -160,8 +158,8 @@ export function measureComplexityValues(
   const seen = new Set<string>();
 
   return {
-    findings: findings
-      .filter((finding) => !seen.has(finding.id) && seen.add(finding.id))
+    warnings: warnings
+      .filter((warning) => !seen.has(warning.id) && seen.add(warning.id))
       .sort((a, b) => compare(a.id, b.id)),
     values,
   };
@@ -175,7 +173,7 @@ export function measureComplexity(
   policy: readonly PolicyRule[] | null,
   settings: StructureSettings,
   parsers: Parsers,
-): Finding[] {
+): Warning[] {
   return measureComplexityValues(
     source,
     say,
@@ -184,5 +182,5 @@ export function measureComplexity(
     policy,
     settings,
     parsers,
-  ).findings;
+  ).warnings;
 }

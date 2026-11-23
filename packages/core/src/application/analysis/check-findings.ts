@@ -2,7 +2,7 @@ import type { Finding } from "../../domain/finding.js";
 import { orderDuplication } from "../../domain/finding-text.js";
 import type { SensorFindings } from "../../domain/sensor-findings.js";
 import { Violation } from "../../domain/violation.js";
-import type { Warning } from "../../domain/warning.js";
+import { Warning } from "../../domain/warning.js";
 import {
   type Candidate,
   type Identity,
@@ -10,7 +10,7 @@ import {
 } from "../history/settle-baseline.js";
 
 export type ReportedWarning =
-  | { type: "cycle"; value: Warning }
+  | { type: "warning"; value: Warning }
   | { type: "finding"; value: Finding };
 
 export function violationOf(sensor: string, record: Finding): Candidate {
@@ -59,21 +59,12 @@ export function violationOf(sensor: string, record: Finding): Candidate {
 }
 
 export function warningOf(sensor: string, record: Finding): ReportedWarning {
-  if (sensor === "structure" && record.kind === "cycle") {
-    return {
-      type: "cycle",
-      value: {
-        kind: "cycle",
-        principle: "levelization",
-        fixPattern: "break-cycle",
-        summary: record.summary,
-        files: [...record.files],
-        dependencies: (record.dependencies ?? []).map(({ from, to }) => ({
-          from,
-          to,
-        })),
-      },
-    };
+  if (sensor === "structure") {
+    const warning = Warning.ofFinding(record);
+
+    if (warning !== null) {
+      return { type: "warning", value: warning };
+    }
   }
 
   return { type: "finding", value: record };

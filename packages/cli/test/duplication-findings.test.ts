@@ -53,7 +53,9 @@ describe("duplication findings against the Python sensor's goldens", () => {
         await allParsers(),
       );
 
-      expect(findings.map(findingRecordOf)).toEqual(golden);
+      expect(
+        findings.map((warning) => findingRecordOf(warning.toFinding())),
+      ).toEqual(golden);
 
       if (name in COUNTS) {
         expect(findings).toHaveLength(COUNTS[name] as number);

@@ -1,19 +1,19 @@
 import { isTestFile } from "../../domain/analysis/entry-points.js";
 import { Library } from "../../domain/dependency.js";
-import { Finding, type FindingMember } from "../../domain/finding.js";
+import type { FindingMember } from "../../domain/finding.js";
 import type { Member } from "../../domain/member.js";
 import type { PolicyRule } from "../../domain/policy-rule.js";
-import { principleOf } from "../../domain/principles.js";
 import type { Repository } from "../../domain/repository.js";
+import { Warning } from "../../domain/warning.js";
 
 function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-export function privateImportsFindings(
+export function privateImportsWarnings(
   repository: Repository,
   policy: readonly PolicyRule[] | null,
-): Finding[] {
+): Warning[] {
   const { edges } = repository.graphKeeping(policy);
   const modules = new Map(repository.files.map((file) => [file.path, file]));
   const byImporter = new Map<
@@ -74,7 +74,7 @@ export function privateImportsFindings(
     byImporter.set(edge.from, owners);
   }
 
-  const findings: Finding[] = [];
+  const findings: Warning[] = [];
 
   for (const [importer, owners] of byImporter) {
     const ownerIds = [...owners.keys()].sort(compare);
@@ -108,11 +108,10 @@ export function privateImportsFindings(
     const more = ownerIds.length > 3 ? ` and ${ownerIds.length - 3} more` : "";
 
     findings.push(
-      Finding.stored({
+      new Warning({
         id: `private_imports:${importer}`,
         kind: "private_imports",
-        severity: "warning",
-        ...principleOf("information-hiding"),
+        principle: "information-hiding",
         summary: `${importer} imports ${count} private ${count === 1 ? "name" : "names"} from ${ownerIds.length} ${ownerIds.length === 1 ? "file" : "files"} (${first}${more})`,
         files: [importer],
         members,

@@ -3,7 +3,9 @@ import {
   checkRepository,
   DEFAULT_STRUCTURE_SETTINGS,
   Finding,
+  measuredInputs,
   type SensorFindings,
+  Warning,
 } from "../../src/index.js";
 import {
   BASELINE,
@@ -129,5 +131,105 @@ describe("checkRepository", () => {
       "duplication not measured since the last scan: run recognizer scan\n",
       "complexity not measured since the last scan: run recognizer scan\n",
     ]);
+  });
+});
+
+describe("checkRepository warnings", () => {
+  function withWarnings() {
+    const { fakes, say } = worldOf();
+    const crap: SensorFindings = {
+      sensor: { name: "crap", version: "1" },
+      commit: "c0ffee",
+      modified: false,
+      settings: {},
+      findings: [
+        Finding.stored({
+          id: "coverage:a/x.py",
+          kind: "coverage",
+          severity: "warning",
+          principle: "p",
+          summary: "s",
+          files: ["a/x.py"],
+        }),
+      ],
+      inputs: measuredInputs(breaching("c0ffee")),
+    };
+
+    fakes.config.settings = DEFAULT_STRUCTURE_SETTINGS;
+    fakes.analysis.shipped.push("crap");
+    fakes.findings.stored.set("crap", {
+      name: "crap",
+      status: "read",
+      document: crap,
+    });
+
+    return { fakes, say };
+  }
+
+  it("reports a structure warning as a Warning entity", () => {
+    const { fakes, say } = withWarnings();
+
+    const save = fakes.findings.save.bind(fakes.findings);
+
+    fakes.findings.save = (root, document) =>
+      save(
+        root,
+        document.sensor.name === "structure"
+          ? {
+              ...document,
+              findings: [
+                ...document.findings,
+                Finding.stored({
+                  id: "crap:a/x.py",
+                  kind: "crap",
+                  severity: "warning",
+                  principle: "p",
+                  summary: "not a structure warning",
+                  files: ["a/x.py"],
+                }),
+              ],
+            }
+          : document,
+      );
+
+    const report = checkRepository(
+      checkPortsOf(fakes),
+      say,
+      requestOf(),
+      breaching("c0ffee"),
+    );
+    const orphan = report.warnings.find(
+      (one) => one.value instanceof Warning && one.value.kind === "orphan",
+    );
+    const coverage = report.warnings.find(
+      (one) => one.type === "finding" && one.value.kind === "coverage",
+    );
+    const crapKind = report.warnings.find(
+      (one) => one.type === "finding" && one.value.kind === "crap",
+    );
+
+    expect(report.warnings.length).toBeGreaterThan(0);
+    expect(orphan?.type).toBe("warning");
+    expect(orphan?.value).toBeInstanceOf(Warning);
+    expect(coverage?.type).toBe("finding");
+    expect(crapKind?.type).toBe("finding");
+  });
+
+  it("narrows warnings to the named files", () => {
+    const run = (named: string[]) => {
+      const { fakes, say } = withWarnings();
+
+      return checkRepository(
+        checkPortsOf(fakes),
+        say,
+        requestOf({ named }),
+        breaching("c0ffee"),
+      ).warnings.filter(
+        (one) => one.type === "warning" && one.value.kind === "orphan",
+      );
+    };
+
+    expect(run(["a/x.py"]).map((one) => one.value.files)).toEqual([["a/x.py"]]);
+    expect(run(["b/y.py"])).toEqual([]);
   });
 });

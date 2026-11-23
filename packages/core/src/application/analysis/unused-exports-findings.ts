@@ -4,11 +4,10 @@ import {
   unusedTestOnlyClause,
 } from "../../domain/analysis/test-importers.js";
 import { type Dependency, Library } from "../../domain/dependency.js";
-import { Finding } from "../../domain/finding.js";
 import type { Member } from "../../domain/member.js";
 import { PolicyRule } from "../../domain/policy-rule.js";
-import { principleOf } from "../../domain/principles.js";
 import type { Repository } from "../../domain/repository.js";
+import { Warning } from "../../domain/warning.js";
 
 function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
@@ -120,17 +119,17 @@ function usedThroughExpect(
     through(id, name, new Set<string>());
 }
 
-export function unusedExportsFindings(
+export function unusedExportsWarnings(
   repository: Repository,
   policy: readonly PolicyRule[] | null,
   entryPoints: string[],
-): Finding[] {
+): Warning[] {
   const { edges, declarations, ids } = repository.graphKeeping(policy);
   const { named, whole } = usedNames([...edges, ...declarations]);
   const viaExpect = usedThroughExpect(repository, ids, named, whole);
   const policyEntry = PolicyRule.entries(policy);
   const testImporters = testImportersOf(repository);
-  const findings: Finding[] = [];
+  const findings: Warning[] = [];
 
   for (const module of repository.files) {
     if (
@@ -182,11 +181,10 @@ export function unusedExportsFindings(
       }));
 
     findings.push(
-      Finding.stored({
+      new Warning({
         id: `unused_exports:${module.path}`,
         kind: "unused_exports",
-        severity: "warning",
-        ...principleOf("information-hiding"),
+        principle: "information-hiding",
         summary: `${module.path} exports ${unused.length} ${noun} no other file imports: ${names}${marked.length > 0 ? unusedTestOnlyClause(marked) : ""}`,
         fixPattern: "narrow-exports",
         files: [module.path],

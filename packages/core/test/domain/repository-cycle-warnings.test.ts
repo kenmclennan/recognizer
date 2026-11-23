@@ -12,6 +12,7 @@ describe("Repository.cycleWarnings", () => {
     expect(repository.cycleWarnings([])).toEqual([
       {
         kind: "cycle",
+        id: "cycle:a.py,b.py",
         principle: "levelization",
         fixPattern: "break-cycle",
         summary: "cycle of 2 files: a.py, b.py",

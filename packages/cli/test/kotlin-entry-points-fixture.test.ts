@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { orphanFindings } from "@recognizer/core";
+import { orphanWarnings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { REPO } from "./helpers.js";
 import { validatedRepository as validateScan } from "./repository-from.js";
@@ -17,7 +17,7 @@ describe("the Kotlin entry-points fixture", () => {
     ) as { orphans: string[] };
 
     expect(
-      orphanFindings(scan, null, [], []).map((finding) => finding.id),
+      orphanWarnings(scan, null, [], []).map((finding) => finding.id),
     ).toEqual(expected.orphans.map((id) => `orphan:${id}`));
   });
 });
@@ -33,7 +33,7 @@ describe("the Kotlin di-orphans fixture", () => {
     ) as { orphans: string[] };
 
     expect(
-      orphanFindings(scan, null, [], []).map((finding) => finding.id),
+      orphanWarnings(scan, null, [], []).map((finding) => finding.id),
     ).toEqual(expected.orphans.map((id) => `orphan:${id}`));
   });
 });

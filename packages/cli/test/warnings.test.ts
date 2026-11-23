@@ -197,6 +197,7 @@ describe("cycle warning", () => {
     expect(warnings).toEqual([
       {
         kind: "cycle",
+        id: "cycle:a,b",
         principle: "levelization",
         fixPattern: "break-cycle",
         summary: "cycle of 2 files: a, b",

@@ -1,7 +1,7 @@
 import {
   LIBRARY_API_HINT,
   libraryApiHint,
-  orphanFindings,
+  orphanWarnings,
   principleOf,
   testImportersOf,
   testOnlySummary,
@@ -59,7 +59,7 @@ function files(count: number, to = "a/lonely.py"): Records {
 }
 
 const orphans = (scan: ReturnType<typeof scanOf>) =>
-  orphanFindings(scan, null, [], []);
+  orphanWarnings(scan, null, [], []);
 
 const TODAY = {
   summary:
@@ -74,7 +74,7 @@ describe("orphan test importers", () => {
       scanOf(["a/lonely.py"]),
       scanOf(["a/lonely.py"], [], []),
     ]) {
-      expect(orphans(scan)).toEqual([
+      expect(orphans(scan).map((warning) => warning.toFinding())).toEqual([
         {
           id: "orphan:a/lonely.py",
           kind: "orphan",
@@ -97,7 +97,7 @@ describe("orphan test importers", () => {
   it("says a file only tests import is imported only by them", () => {
     const [finding] = orphans(scanOf(["a/lonely.py"], [], files(2)));
 
-    expect(finding).toEqual({
+    expect(finding?.toFinding()).toEqual({
       id: "orphan:a/lonely.py",
       kind: "orphan",
       severity: "warning",

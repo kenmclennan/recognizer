@@ -67,13 +67,28 @@ describe("Violation", () => {
 describe("Warning", () => {
   it("refuses a warning without a file", () => {
     expect(
-      () => new Warning({ summary: "s", files: [], dependencies: [] }),
+      () =>
+        new Warning({
+          kind: "cycle",
+          id: "cycle:",
+          principle: "levelization",
+          summary: "s",
+          files: [],
+          dependencies: [],
+        }),
     ).toThrow(InvalidEntity);
   });
 
   it("accepts one file", () => {
     expect(
-      new Warning({ summary: "s", files: ["a"], dependencies: [] }).kind,
+      new Warning({
+        kind: "cycle",
+        id: "cycle:a",
+        principle: "levelization",
+        summary: "s",
+        files: ["a"],
+        dependencies: [],
+      }).kind,
     ).toBe("cycle");
   });
 });

@@ -1,11 +1,11 @@
 import { carryMeasured } from "../../domain/analysis/duplication/carry.js";
 import type { DuplicationSettings } from "../../domain/analysis/duplication/findings.js";
 import { scansCommit } from "../../domain/analysis/scans-commit.js";
-import type { Finding } from "../../domain/finding.js";
 import type { FindingsRepository } from "../../domain/findings-repository.js";
 import type { PolicyRule } from "../../domain/policy-rule.js";
 import type { Repository } from "../../domain/repository.js";
 import type { StructureSettings } from "../../domain/structure-settings.js";
+import type { Warning } from "../../domain/warning.js";
 import type { Say } from "../shared/ports/process.js";
 import { functionLengths } from "./long-function-findings.js";
 import { measureComplexityValues } from "./measure-complexity.js";
@@ -50,14 +50,14 @@ export function runStructureAnalysis(
   const errors: string[] = [];
   let sensed: StructureResult;
   let complexityValues: Record<string, number> | null = null;
-  let duplicationFindings: Finding[] | null = null;
+  let duplicationWarnings: Warning[] | null = null;
 
   if (parsers !== null) {
     const attempt = (
       label: string,
       wanted: boolean,
-      measure: (loaded: Parsers) => Finding[],
-    ): Finding[] | null => {
+      measure: (loaded: Parsers) => Warning[],
+    ): Warning[] | null => {
       if (!wanted) {
         return null;
       }
@@ -71,7 +71,7 @@ export function runStructureAnalysis(
       }
     };
 
-    duplicationFindings = attempt(
+    duplicationWarnings = attempt(
       "duplication",
       settings.duplication !== false,
       (loaded) =>
@@ -102,12 +102,12 @@ export function runStructureAnalysis(
 
         complexityValues = measured.values;
 
-        return measured.findings;
+        return measured.warnings;
       },
     );
 
     sensed = senseStructure(repository, policy, settings, context, {
-      duplication: duplicationFindings,
+      duplication: duplicationWarnings,
       complexity,
     });
   } else {
@@ -139,7 +139,8 @@ export function runStructureAnalysis(
         repository,
         complexity: complexityValues,
         functionLength: functionLengths(repository, policy),
-        duplication: duplicationFindings,
+        duplication:
+          duplicationWarnings?.map((warning) => warning.toFinding()) ?? null,
       });
     }
 
