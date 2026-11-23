@@ -610,6 +610,9 @@ describe("doctor: registered plugins", () => {
     expect(problems[0]?.line).toBe(
       "the describer does not speak the plugin verbs: its command has no run element",
     );
+    expect(problems[0]?.fix.text).toBe(
+      "add the run word to the describer command with recognizer config describer.command",
+    );
   });
 
   it("passes the words before run to the describer's check", async () => {
