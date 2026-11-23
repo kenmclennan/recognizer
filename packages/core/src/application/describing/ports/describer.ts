@@ -1,4 +1,3 @@
-import type { Gap } from "../../../domain/gap.js";
 import type { Repository } from "../../../domain/repository.js";
 import type { RunEntry } from "../../../domain/run-record.js";
 import type {
@@ -29,17 +28,16 @@ export interface DescribeCall {
   say: Say;
 }
 
-export interface DescriberGapsInput {
-  root: string;
-  describe: boolean;
-  describer: DescriberRef | null;
-  install: Record<string, string>;
-}
-
 export interface Describer {
   locate(root: string): LocatedDescriber;
   refuseShipped(located: LocatedDescriber): void;
-  gaps(input: DescriberGapsInput): Gap[];
+  probe(
+    program: string,
+    args: string[],
+    cwd: string,
+  ): { started: boolean; status: number | null };
+  shippedName(): string;
+  folderInRepository(root: string, file: string): string | null;
   settings(): { model: string; batchSize: number };
   describe(call: DescribeCall): Promise<DescribeResult>;
 }

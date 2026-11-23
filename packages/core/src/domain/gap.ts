@@ -18,3 +18,17 @@ export interface GapRecord {
   line: string;
   needs: string[];
 }
+
+export const NO_COMMIT_FIX =
+  "make the first commit (git add the files, then git commit)";
+
+export function outside(text: string, cwd = ""): Fix {
+  return { text, command: null, cwd, env: {}, kind: "outside" };
+}
+
+export function installFix(
+  install: Record<string, string> | undefined,
+  program: string,
+): Fix {
+  return outside(install?.[program] ?? `install ${program}`);
+}

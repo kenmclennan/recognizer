@@ -1,16 +1,13 @@
 import type {
-  CommitGapsInput,
-  Gap,
-  ProgramGapsInput,
   RunEntry,
   SenseCall,
+  SensorReport,
   Sensors,
 } from "../../src/index.js";
 
 export interface InventedSensor {
   name: string;
   runsTests: boolean;
-  needs: string[];
   held: boolean;
   scoped?: boolean;
   display?: string;
@@ -21,6 +18,8 @@ export interface InventedSensor {
 export class FakeSensors implements Sensors {
   readonly installed = new Map<string, InventedSensor>();
   readonly suites: string[] = [];
+  readonly unavailable = new Set<string>();
+  readonly reports: SensorReport[] = [];
   readonly ran: { name: string; command: string[] }[] = [];
   started: Promise<void>;
   private signalStarted: () => void = () => {};
@@ -40,29 +39,14 @@ export class FakeSensors implements Sensors {
     this.release();
   }
 
-  commitGaps(_input: CommitGapsInput): Gap[] {
-    return [];
+  probe(program: string): { started: boolean; status: number | null } {
+    return [...this.unavailable].some((name) => program.endsWith(name))
+      ? { started: false, status: null }
+      : { started: true, status: 0 };
   }
 
-  programGaps(input: ProgramGapsInput): Gap[] {
-    return input.sensors.flatMap(({ name }) =>
-      (this.installed.get(name)?.needs ?? []).map((need) => ({
-        id: need,
-        line: `${name} cannot run`,
-        needs: [need],
-        fix: {
-          text: `install ${need}`,
-          command: null,
-          cwd: "",
-          env: {},
-          kind: "outside" as const,
-        },
-      })),
-    );
-  }
-
-  readinessGaps(): Gap[] {
-    return [];
+  readinessReports(): SensorReport[] {
+    return this.reports;
   }
 
   async run(call: SenseCall): Promise<void> {

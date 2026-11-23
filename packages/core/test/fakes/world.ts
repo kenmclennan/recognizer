@@ -68,13 +68,8 @@ export class ScanWorld {
     this.fakes.sensors.installed.set(name, {
       name,
       runsTests,
-      needs: [],
       held,
     });
-  }
-
-  requireOfSensor(name: string, need: string): void {
-    this.fakes.sensors.installed.get(name)?.needs.push(need);
   }
 
   request(overrides: Partial<ScanRequest> = {}): ScanRequest {

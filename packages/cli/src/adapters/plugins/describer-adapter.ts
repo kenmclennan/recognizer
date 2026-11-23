@@ -1,10 +1,9 @@
+import { dirname, isAbsolute, relative } from "node:path";
 import type {
   DescribeCall,
   DescribeResult,
   Describer,
-  DescriberGapsInput,
   DescriberRef,
-  Gap,
   LocatedDescriber,
   Projection,
 } from "@recognizer/core";
@@ -18,7 +17,6 @@ import {
 } from "../../describe-modules.js";
 import { findDescriber } from "../../describer-in-effect.js";
 import { InputError } from "../../errors.js";
-import { describerGaps } from "../../preflight.js";
 import { shippedDescriberName } from "./shipped-plugins-adapter.js";
 import { sinkIo } from "./sink-io.js";
 
@@ -48,14 +46,24 @@ export class DescriberAdapter implements Describer {
     }
   }
 
-  gaps(input: DescriberGapsInput): Gap[] {
-    return describerGaps({
-      io: this.io,
-      root: input.root,
-      describe: input.describe,
-      describer: input.describer as unknown as CliDescriber | null,
-      install: input.install,
-    });
+  probe(
+    program: string,
+    args: string[],
+    cwd: string,
+  ): { started: boolean; status: number | null } {
+    const { started, status } = this.io.run(program, args, { cwd });
+
+    return { started, status };
+  }
+
+  shippedName(): string {
+    return shippedDescriberName();
+  }
+
+  folderInRepository(root: string, file: string): string | null {
+    const folder = relative(root, dirname(dirname(file)));
+
+    return folder.startsWith("..") || isAbsolute(folder) ? null : folder;
   }
 
   settings(): { model: string; batchSize: number } {

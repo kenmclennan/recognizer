@@ -2,9 +2,7 @@ import type {
   DescribeCall,
   DescribeResult,
   Describer,
-  DescriberGapsInput,
   DescriberRef,
-  Gap,
   LocatedDescriber,
   Projection,
   RunEntry,
@@ -14,12 +12,14 @@ export class FakeDescriber implements Describer {
   registered = false;
   projected: Projection = { modules: 2, cost_usd: 8 };
   described: string[] = [];
-  needs: Gap[] = [];
+  command: readonly string[] = ["quill", "run"];
+  unavailable = new Set<string>();
+  folder: string | null = null;
 
   locate(): LocatedDescriber {
     return {
       describer: this.registered
-        ? ({ describerRef: true } as DescriberRef)
+        ? ({ describerRef: true, command: this.command } as DescriberRef)
         : null,
       shipped: false,
     };
@@ -27,8 +27,18 @@ export class FakeDescriber implements Describer {
 
   refuseShipped(): void {}
 
-  gaps(_input: DescriberGapsInput): Gap[] {
-    return this.needs;
+  probe(program: string): { started: boolean; status: number | null } {
+    return this.unavailable.has(program)
+      ? { started: false, status: null }
+      : { started: true, status: 0 };
+  }
+
+  shippedName(): string {
+    return "claude";
+  }
+
+  folderInRepository(): string | null {
+    return this.folder;
   }
 
   settings(): { model: string; batchSize: number } {

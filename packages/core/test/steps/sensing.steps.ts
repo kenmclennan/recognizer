@@ -76,7 +76,6 @@ function install(
   world.fakes.sensors.installed.set(name, {
     name,
     runsTests: more.runsTests ?? false,
-    needs: [],
     held: false,
     ...(more.scoped === undefined ? {} : { scoped: more.scoped }),
     ...(more.registered === undefined ? {} : { registered: more.registered }),

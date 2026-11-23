@@ -64,12 +64,11 @@ Feature: Scanning a repository
 
   Scenario: A preflight gap refuses the scan before any sensor runs
     Given a repository with Alpha files
-    And a Tally sensor is registered
-    And the Tally sensor needs "pencil" and "ruler"
-    When a full scan runs ticking the Tally sensor
+    And a Pencil sensor and a Ruler sensor are registered whose programs do not start
+    When a full scan runs ticking the Pencil and Ruler sensors
     Then the scan is refused by preflight
-    And the gaps "pencil" and "ruler" are reported
-    And the Tally sensor does not run
+    And the gaps "sensors:missing:pencil" and "sensors:missing:ruler" are reported
+    And neither the Pencil sensor nor the Ruler sensor runs
 
   Scenario: A scan started while another runs is refused
     Given a repository with Alpha files

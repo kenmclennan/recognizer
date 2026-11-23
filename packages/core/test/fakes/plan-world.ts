@@ -52,7 +52,6 @@ export class PlanWorld {
       runsTests: options.runsTests ?? false,
       scoped: options.scoped ?? false,
       ...(options.display === undefined ? {} : { display: options.display }),
-      needs: [],
       held: false,
     });
   }

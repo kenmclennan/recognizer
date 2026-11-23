@@ -1,12 +1,19 @@
-import type { Gap } from "../../domain/gap.js";
-import type { SensingPorts } from "./internal/sensing-ports.js";
-import type { CommitGapsInput } from "./ports/sensors.js";
+import { type Gap, NO_COMMIT_FIX, outside } from "../../domain/gap.js";
 
-export type { CommitGapsInput };
+export interface CommitGapsInput {
+  commit: string | null;
+  sensors: { name: string; command: string[] }[];
+}
 
-export function findCommitGaps(
-  ports: SensingPorts,
-  input: CommitGapsInput,
-): Gap[] {
-  return ports.sensors.commitGaps(input);
+export function findCommitGaps(input: CommitGapsInput): Gap[] {
+  return input.commit === null && input.sensors.length > 0
+    ? [
+        {
+          id: "no-commit",
+          line: "the folder has no git commit",
+          needs: input.sensors.map((one) => one.name),
+          fix: outside(NO_COMMIT_FIX),
+        },
+      ]
+    : [];
 }

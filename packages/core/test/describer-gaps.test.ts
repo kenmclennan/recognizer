@@ -1,21 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Gap } from "../src/index.js";
 import { createFakes, scanOver } from "./fakes/container.js";
-
-function gap(id: string): Gap {
-  return {
-    id,
-    line: `${id} is not ready`,
-    needs: ["describe"],
-    fix: {
-      text: `fix ${id}`,
-      command: null,
-      cwd: "",
-      env: {},
-      kind: "outside",
-    },
-  };
-}
 
 describe("describer preflight", () => {
   it("reports the describer's gaps before the sensors' in the run's order", async () => {
@@ -27,11 +11,11 @@ describe("describer preflight", () => {
       fails: false,
     });
     fakes.describer.registered = true;
-    fakes.describer.needs = [gap("describe:program")];
+    fakes.describer.unavailable.add("quill");
+    fakes.sensors.unavailable.add("ruler");
     fakes.sensors.installed.set("ruler", {
       name: "ruler",
       runsTests: false,
-      needs: ["ruler"],
       held: false,
     });
 
@@ -49,6 +33,6 @@ describe("describer preflight", () => {
     expect(outcome.status).toBe("refused");
     expect(
       outcome.status === "refused" ? outcome.gaps.map((one) => one.id) : [],
-    ).toEqual(["describe:program", "ruler"]);
+    ).toEqual(["describe:program", "sensors:missing:ruler"]);
   });
 });

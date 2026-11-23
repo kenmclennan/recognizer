@@ -52,6 +52,14 @@ const SENSE_PREFIX = "recognizer-sense-";
 
 const DESCRIBE_PREFIX = "recognizer-describe-";
 
+export function sensorProgram(name: string): string {
+  return `${SENSE_PREFIX}${name}`;
+}
+
+export function describerProgram(name: string): string {
+  return `${DESCRIBE_PREFIX}${name}`;
+}
+
 export function shippedSensorOf(
   command: readonly string[],
   shipped: readonly string[],
