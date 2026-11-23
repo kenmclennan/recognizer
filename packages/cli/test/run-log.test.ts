@@ -269,7 +269,7 @@ describe("a phased scan record", () => {
     expect(() => validateRunRecord(record(undefined, "sense"))).not.toThrow();
   });
 
-  it("refuses phases on a describe record and an empty finished phase list", () => {
+  it("refuses phases on a describe record and an empty finished ok phase list", () => {
     const describing = JSON.parse(JSON.stringify(phased()));
 
     describing.kind = "describe";
@@ -279,6 +279,11 @@ describe("a phased scan record", () => {
     const empty = JSON.parse(JSON.stringify(phased()));
 
     empty.phases = [];
+
+    expect(() => validateRunRecord(empty)).not.toThrow();
+
+    empty.outcome = "ok";
+    empty.exit = 0;
 
     expect(() => validateRunRecord(empty)).toThrow();
   });
@@ -299,7 +304,7 @@ describe("log schema examples", () => {
   });
 
   it("holds the expected count of valid examples", () => {
-    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(16);
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(17);
   });
 
   it.each(readdirSync(join(EXAMPLES, "valid")))("accepts %s", (file) => {
