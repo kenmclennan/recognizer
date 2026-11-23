@@ -7,6 +7,7 @@ import {
   type PluginSpec,
 } from "../../domain/plugins/doctor-report.js";
 import { judgeProtocol } from "../../domain/plugins/manifest.js";
+import { checkSensor } from "./check-sensor.js";
 import { discoverPlugins } from "./discover-plugins.js";
 import type { PluginPorts } from "./internal/plugin-ports.js";
 import { readManifest, readManifestOf } from "./read-manifest.js";
@@ -18,7 +19,7 @@ import {
 
 type DiagnosePorts = Pick<
   PluginPorts,
-  "programs" | "validators" | "shipped" | "sensorChecks" | "repository"
+  "programs" | "validators" | "shipped" | "repository"
 >;
 
 function describerGaps(
@@ -62,7 +63,8 @@ function pluginFact(
   const wantsCheck = manifest.check && judgement !== "unsupported";
   const report =
     wantsCheck && spec.kind === "sensor"
-      ? ports.sensorChecks.check(
+      ? checkSensor(
+          ports,
           root,
           {
             name: spec.subject,

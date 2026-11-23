@@ -50,6 +50,12 @@ function importsRemoved(text: string): boolean {
   );
 }
 
+function importsLogic(text: string): boolean {
+  return /from "(node:[^"]*|\.\/(cli|plugin-run|config|config-parse|manifest-ports)\.js)"/.test(
+    text,
+  );
+}
+
 function exportedNames(text: string): string[] {
   return [
     ...text.matchAll(
@@ -87,6 +93,24 @@ describe("the CLI holds no plugin logic", () => {
         false,
       );
     }
+  });
+
+  it("keeps sensors-check.ts to its rendering", () => {
+    const text = readFileSync(join(SRC, "sensors-check.ts"), "utf8");
+
+    expect(exportedNames(text).sort()).toEqual(["reportJson", "reportText"]);
+    expect(importsLogic(text)).toBe(false);
+    expect(importsLogic('import { run } from "./plugin-run.js";')).toBe(true);
+    expect(importsLogic('import { basename } from "node:path";')).toBe(true);
+    expect(importsLogic('import type { Io } from "./cli.js";')).toBe(true);
+    expect(importsLogic('import type { X } from "@recognizer/core";')).toBe(
+      false,
+    );
+    expect(
+      readFileSync(join(SRC, "scan-phases.ts"), "utf8").includes(
+        "function selectSensors",
+      ),
+    ).toBe(false);
   });
 
   it("the matchers flag a known offending string and pass a clean one", () => {

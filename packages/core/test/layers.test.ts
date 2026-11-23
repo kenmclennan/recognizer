@@ -475,6 +475,7 @@ describe("core layers", () => {
       "src/domain/plugins/choose-scanner.ts",
       "src/domain/plugins/doctor-report.ts",
       "src/domain/plugins/installed-plugin.ts",
+      "src/domain/plugins/sensor-check.ts",
       "test/features/plugins.feature",
       "test/plugins/shipped-plugins.test.ts",
       "test/steps/plugins.steps.ts",

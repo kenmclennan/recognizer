@@ -5,6 +5,7 @@ import {
   isScoped,
   receivesSuites,
   runsTests,
+  selectSensors,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { shippedSensorNames } from "../src/adapters/plugins/shipped-plugins-adapter.js";
@@ -15,7 +16,6 @@ import {
 } from "../src/config-parse.js";
 import { InputError } from "../src/errors.js";
 import { SCAN_SCHEMA_VERSION } from "../src/scan.js";
-import { selectSensors } from "../src/scan-phases.js";
 import { REPO } from "./helpers.js";
 import { readExamples } from "./shipped-read.js";
 

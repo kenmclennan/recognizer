@@ -31,7 +31,6 @@ packages/cli/src/adapters/filesystem/scan-translator.ts|module|kind value or cod
 packages/cli/src/serve/scan-files.ts|modules|key, count unit or socket target named by a contract, not wording
 packages/cli/src/serve/service.ts|modules|key, count unit or socket target named by a contract, not wording
 packages/cli/src/serve/start-request.ts|modules|key, count unit or socket target named by a contract, not wording
-packages/cli/src/sensors-check.ts|modules|key, count unit or socket target named by a contract, not wording
 packages/cli/src/structure-overlay.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/views-command.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 docs/design.md|- Python uses its own `ast` module. TypeScript uses the TypeScript compiler API, so module resolution (tsconfig paths, workspace packages) is right. Kotlin uses tree-sitter-kotlin and C# uses tree-sitter-c-sharp, each proved by a spike (below). Rust uses the `syn` parser, in a scanner written in Rust; a Rust file is a source file, and edges come from `use` paths and `mod` declarations resolved through the crate's file tree. Crates reached by a Cargo path dependency inside the repository are resolved in-repo and every other crate is foreign; `pub use` re-exports are followed and recorded in `via`; a trait implementation is an `implements` edge; `exported` is any `pub` form. Detection is by `.rs` file alone.|a Python and a TypeScript language construct, not a box

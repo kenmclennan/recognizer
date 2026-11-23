@@ -1,15 +1,15 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { readShippedSensors } from "@recognizer/core";
-import type { Io } from "./cli.js";
-import { InputError } from "./errors.js";
-import { shippedPorts } from "./manifest-ports.js";
 import {
   checkSensors,
-  reportJson,
-  reportText,
+  readShippedSensors,
   sensorsToCheck,
-} from "./sensors-check.js";
+} from "@recognizer/core";
+import type { Io } from "./cli.js";
+import { asInputError, InputError } from "./errors.js";
+import { shippedPorts } from "./manifest-ports.js";
+import { pluginPorts } from "./plugins-container.js";
+import { reportJson, reportText } from "./sensors-check.js";
 
 const USAGE = [
   "usage: recognizer sensors [--json]",
@@ -78,16 +78,22 @@ export function runSensors(argv: string[], io: Io): number {
 
   if (verb === "check") {
     const root = resolve(values.repository ?? ".");
-    const reports = checkSensors(io, root, sensorsToCheck(io, root, name), {
-      run: values.run === true,
-      work: values.work === true,
-      ...(values.modules === undefined
-        ? {}
-        : { modules: resolve(values.modules) }),
-      ...(values.suites === undefined
-        ? {}
-        : { suites: suitesText(io, values.suites) }),
-    });
+    const ports = pluginPorts(io);
+    const reports = checkSensors(
+      ports,
+      root,
+      asInputError(() => sensorsToCheck(ports, root, name)),
+      {
+        run: values.run === true,
+        work: values.work === true,
+        ...(values.modules === undefined
+          ? {}
+          : { modules: resolve(values.modules) }),
+        ...(values.suites === undefined
+          ? {}
+          : { suites: suitesText(io, values.suites) }),
+      },
+    );
 
     io.stdout(values.json === true ? reportJson(reports) : reportText(reports));
 
