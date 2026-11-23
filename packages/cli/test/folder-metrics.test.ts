@@ -1,3 +1,5 @@
+import type { Member } from "@recognizer/core";
+import { joinRepositories } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   type FolderMetrics,
@@ -13,7 +15,7 @@ const row = (rows: ReturnType<typeof measureFolders>["rows"], id: string) =>
 
 describe("measureFolders", () => {
   it("reproduces the worked example exactly", () => {
-    const { rows } = measureFolders([scanOf(WORKED, WORKED_EDGES)], null);
+    const { rows } = measureFolders(scanOf(WORKED, WORKED_EDGES), null);
 
     expect(rows).toEqual([
       folder("app/adapters", 1, 0, 1, 1, 1, 0, 0, 0),
@@ -27,16 +29,14 @@ describe("measureFolders", () => {
 
   it("adds nothing to efferent coupling for a foreign target", () => {
     const { rows } = measureFolders(
-      [
-        scanOf(
-          [{ id: "c/z.ts" }, { id: "d/w.ts" }, { id: "e/v.ts" }],
-          [
-            ["c/z.ts", "foreign:os"],
-            ["d/w.ts", "foreign:os"],
-            ["e/v.ts", "d/w.ts"],
-          ],
-        ),
-      ],
+      scanOf(
+        [{ id: "c/z.ts" }, { id: "d/w.ts" }, { id: "e/v.ts" }],
+        [
+          ["c/z.ts", "foreign:os"],
+          ["d/w.ts", "foreign:os"],
+          ["e/v.ts", "d/w.ts"],
+        ],
+      ),
       null,
     );
 
@@ -60,12 +60,10 @@ describe("measureFolders", () => {
 
   it("keeps a and a/b as separate folders and uses . for a bare id", () => {
     const { rows } = measureFolders(
-      [
-        scanOf(
-          [{ id: "a/x.ts" }, { id: "a/b/y.ts" }, { id: "z.ts" }],
-          [["a/x.ts", "a/b/y.ts"]],
-        ),
-      ],
+      scanOf(
+        [{ id: "a/x.ts" }, { id: "a/b/y.ts" }, { id: "z.ts" }],
+        [["a/x.ts", "a/b/y.ts"]],
+      ),
       null,
     );
 
@@ -76,7 +74,7 @@ describe("measureFolders", () => {
 
   it("gives a module imported only inside its folder an afferent of 0", () => {
     const { rows } = measureFolders(
-      [scanOf([{ id: "a/x.ts" }, { id: "a/y.ts" }], [["a/x.ts", "a/y.ts"]])],
+      scanOf([{ id: "a/x.ts" }, { id: "a/y.ts" }], [["a/x.ts", "a/y.ts"]]),
       null,
     );
 
@@ -90,11 +88,9 @@ describe("measureFolders", () => {
 
   it("ignores self edges and inferred edges", () => {
     const { rows } = measureFolders(
-      [
-        scanOf([{ id: "a/x.ts" }, { id: "b/y.ts" }], [["a/x.ts", "a/x.ts"]], {
-          inferred: [["a/x.ts", "b/y.ts"]],
-        }),
-      ],
+      scanOf([{ id: "a/x.ts" }, { id: "b/y.ts" }], [["a/x.ts", "a/x.ts"]], {
+        inferred: [["a/x.ts", "b/y.ts"]],
+      }),
       null,
     );
 
@@ -105,7 +101,7 @@ describe("measureFolders", () => {
   it("leaves ignored modules out", () => {
     const policy = parsePolicy("ignore:\n  - b/**\n");
     const { rows } = measureFolders(
-      [scanOf([{ id: "a/x.ts" }, { id: "b/y.ts" }], [["a/x.ts", "b/y.ts"]])],
+      scanOf([{ id: "a/x.ts" }, { id: "b/y.ts" }], [["a/x.ts", "b/y.ts"]]),
       policy,
     );
 
@@ -121,13 +117,13 @@ describe("measureFolders", () => {
       ],
       [],
     );
-    base.modules[0]?.members?.push({
+    (base.files[0]?.members as Member[] | undefined)?.push({
       name: "hidden",
       exported: false,
       kind: "interface",
     });
 
-    const { rows } = measureFolders([base], null);
+    const { rows } = measureFolders(base, null);
 
     expect(row(rows, "a")).toMatchObject({
       exported_members: 3,
@@ -138,7 +134,7 @@ describe("measureFolders", () => {
 
   it("treats a plain type as concrete and counts only tagged types and classes", () => {
     const { rows } = measureFolders(
-      [scanOf([{ id: "a/x.ts", exports: ["type"] }], [])],
+      scanOf([{ id: "a/x.ts", exports: ["type"] }], []),
       null,
     );
 
@@ -154,14 +150,14 @@ describe("measureFolders", () => {
       [{ id: "a/x.ts", exports: ["abstract-type", "abstract", "interface"] }],
       [],
     );
-    const members = base.modules[0]?.members ?? [];
+    const members = (base.files[0]?.members ?? []) as Member[];
 
     members.push(
       { name: "s", exported: true, kind: "type", line: 9, tags: ["static"] },
       { name: "h", exported: false, kind: "type", line: 9, tags: ["abstract"] },
     );
 
-    expect(row(measureFolders([base], null).rows, "a")).toMatchObject({
+    expect(row(measureFolders(base, null).rows, "a")).toMatchObject({
       exported_members: 4,
       abstract_members: 3,
     });
@@ -169,7 +165,7 @@ describe("measureFolders", () => {
 
   it("does not count a class without the abstract tag", () => {
     const { rows } = measureFolders(
-      [scanOf([{ id: "a/x.ts", exports: ["class"] }], [])],
+      scanOf([{ id: "a/x.ts", exports: ["class"] }], []),
       null,
     );
 
@@ -178,17 +174,15 @@ describe("measureFolders", () => {
 
   it("measures a mixed folder as two abstract members of four", () => {
     const { rows } = measureFolders(
-      [
-        scanOf(
-          [
-            {
-              id: "a/x.ts",
-              exports: ["interface", "abstract-type", "type", "class"],
-            },
-          ],
-          [],
-        ),
-      ],
+      scanOf(
+        [
+          {
+            id: "a/x.ts",
+            exports: ["interface", "abstract-type", "type", "class"],
+          },
+        ],
+        [],
+      ),
       null,
     );
 
@@ -201,7 +195,7 @@ describe("measureFolders", () => {
 
   it("leaves abstractness and distance null with no exported member", () => {
     const { rows } = measureFolders(
-      [scanOf([{ id: "a/x.ts" }, { id: "b/y.ts" }], [["a/x.ts", "b/y.ts"]])],
+      scanOf([{ id: "a/x.ts" }, { id: "b/y.ts" }], [["a/x.ts", "b/y.ts"]]),
       null,
     );
 
@@ -215,10 +209,10 @@ describe("measureFolders", () => {
 
   it("measures two scans with disjoint modules as one graph", () => {
     const { rows } = measureFolders(
-      [
+      joinRepositories([
         scanOf([{ id: "a/x.ts" }], [["a/x.ts", "b/y.ts"]]),
         scanOf([{ id: "b/y.ts" }], []),
-      ],
+      ]),
       null,
     );
 

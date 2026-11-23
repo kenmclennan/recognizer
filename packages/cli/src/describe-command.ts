@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
+import type { Repository } from "@recognizer/core";
 import { readDescribing } from "./app-settings.js";
 import type { Io } from "./cli.js";
 import {
@@ -24,7 +25,6 @@ import {
   type RunEntry,
   requireBy,
 } from "./run-log.js";
-import type { Scan } from "./scan.js";
 import { SHIPPED_DESCRIBER_NAME } from "./shipped-describer.js";
 import { unregisteredMessage } from "./unregistered-plugins.js";
 
@@ -45,7 +45,7 @@ const USAGE =
 interface Loaded {
   root: string;
   json: boolean;
-  scans: Scan[];
+  repository: Repository;
   modules: string[];
   describer: Describer;
   describerSource: "config" | "shipped";
@@ -76,11 +76,11 @@ function load(argv: string[], io: Io): Loaded {
   requireBy(values.by);
 
   const root = resolve(values.repository ?? ".");
-  const { scans } = freshScans(io, root, ["describer"]);
+  const { repository } = freshScans(io, root, ["describer"]);
   const { source: describerSource, ...describer } = describerInEffect(io, root);
 
   const entries = readResponsibilities(io, root).modules;
-  const modules = moduleNames(scans);
+  const modules = moduleNames(repository);
   const unknown = positionals.filter((name) => !modules.includes(name));
 
   if (unknown.length > 0) {
@@ -90,7 +90,7 @@ function load(argv: string[], io: Io): Loaded {
   return {
     root,
     json: values.json === true,
-    scans,
+    repository,
     modules,
     describer,
     describerSource,
@@ -107,7 +107,7 @@ function runCheck(loaded: Loaded, io: Io): number {
   const { root, describer, entries, names } = loaded;
   const ids = (names.length > 0 ? names : loaded.modules).slice().sort();
   const subjects = ids.map((id) =>
-    subjectFor(io, root, loaded.scans, id, entries, describer),
+    subjectFor(io, root, loaded.repository, id, entries, describer),
   );
   const gone =
     names.length > 0
@@ -190,7 +190,7 @@ async function runDescribe(loaded: Loaded, io: Io): Promise<number> {
     root: loaded.root,
     model,
     batchSize,
-    scans: loaded.scans,
+    repository: loaded.repository,
     describer: loaded.describer,
     selection: loaded.all
       ? { kind: "all" }

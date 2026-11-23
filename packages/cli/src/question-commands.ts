@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
+import type { Repository } from "@recognizer/core";
 import { buildCallerIndex } from "./callers.js";
 import type { Io } from "./cli.js";
 import { InputError } from "./errors.js";
@@ -12,12 +13,11 @@ import {
   usesOf,
 } from "./neighbours.js";
 import { type PathStep, shortestPath } from "./paths.js";
-import type { Scan } from "./scan.js";
 
 interface Question {
   json: boolean;
   positionals: string[];
-  scans: Scan[];
+  repository: Repository;
   modules: string[];
 }
 
@@ -37,10 +37,10 @@ function load(argv: string[], io: Io, usage: string, arity: number): Question {
     throw new InputError([`usage: ${usage}`]);
   }
 
-  const { scans } = freshScans(io, resolve(values.repository ?? "."), []);
-  const modules = moduleNames(scans);
+  const { repository } = freshScans(io, resolve(values.repository ?? "."), []);
+  const modules = moduleNames(repository);
 
-  return { json: values.json === true, positionals, scans, modules };
+  return { json: values.json === true, positionals, repository, modules };
 }
 
 function question(
@@ -83,7 +83,7 @@ function neighbours(
   );
   const module = asked.positionals[0] as string;
   const rows = (direction === "uses" ? usesOf : usedByOf)(
-    asked.scans,
+    asked.repository,
     asked.modules,
     module,
   );
@@ -139,7 +139,7 @@ export function runCallers(argv: string[], io: Io): number {
     1,
   );
   const [module, name] = asked.positionals as [string, string];
-  const index = buildCallerIndex(asked.scans);
+  const index = buildCallerIndex(asked.repository);
 
   if (!index.known(module)) {
     throw new InputError([`scan has no call data for ${module}`]);
@@ -184,7 +184,7 @@ export function runPath(argv: string[], io: Io): number {
     2,
   );
   const [from, to] = asked.positionals as [string, string];
-  const steps = shortestPath(asked.scans, asked.modules, from, to);
+  const steps = shortestPath(asked.repository, asked.modules, from, to);
 
   if (asked.json) {
     io.stdout(

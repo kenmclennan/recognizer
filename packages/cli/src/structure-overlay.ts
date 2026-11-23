@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { Repository } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import type { FindingRecord } from "./findings-document.js";
 import {
@@ -7,7 +8,6 @@ import {
   validateOverlay,
 } from "./overlays.js";
 import { scanHashes } from "./result-freshness.js";
-import type { Scan } from "./scan.js";
 
 export const STRUCTURE_OVERLAY_METRICS: MetricDeclaration[] = [
   { name: "complexity", type: "count", granularity: "member", bad: "high" },
@@ -28,7 +28,7 @@ export interface StructureMeasures {
   commit: string;
   modified: boolean;
   version: string;
-  scans: Scan[];
+  repository: Repository;
   complexity: Record<string, number> | null;
   functionLength: Record<string, number>;
   duplication: FindingRecord[] | null;
@@ -67,7 +67,7 @@ function moduleOfKey(key: string): string {
 }
 
 export function buildStructureOverlay(measures: StructureMeasures): Overlay {
-  const hashes = scanHashes(measures.scans);
+  const hashes = scanHashes(measures.repository);
   const duplication =
     measures.duplication === null
       ? null

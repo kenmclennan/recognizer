@@ -17,6 +17,7 @@ document.body.insertAdjacentHTML("beforeend", ${JSON.stringify(HOSTS)});
 import { buildInspectorView } from ${JSON.stringify(here("inspector-view.ts"))};
 import { compactFolders } from ${JSON.stringify(here("folder-compaction.ts"))};
 import { inspectorContent } from ${JSON.stringify(here("inspector-model.ts"))};
+import { repositoryFrom } from ${JSON.stringify(here("../test/unit/repository-from.ts"))};
 const DEFAULT_LIMITS = ${JSON.stringify(REAL_LIMITS)};
 
 const scan = {
@@ -36,7 +37,7 @@ const scan = {
   calls: [{ from: "p/o.py::x", to: "p/m.py::C.go", line: 1, how: "call" }],
 };
 const inputs = {
-  scans: [scan],
+  scans: repositoryFrom([scan]),
   modules: scan.modules.map((m) => m.id),
   compaction: compactFolders(scan.modules.map((m) => m.id)),
   disc: () => "green",

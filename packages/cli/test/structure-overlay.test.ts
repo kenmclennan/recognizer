@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
+import type { DocumentMember } from "../src/adapters/filesystem/scan-document-types.js";
+import { memberOf } from "../src/adapters/filesystem/scan-translator.js";
 import { measureSource } from "../src/complexity/measure.js";
 import { grammarFor } from "../src/duplication/grammars.js";
 import type { Parsers } from "../src/duplication/parsers.js";
@@ -40,10 +42,10 @@ function sense(
 ) {
   const { fake, scans } = measuredSources(files);
 
-  for (const scan of scans) {
-    for (const module of scan.modules) {
-      (module as { members?: unknown[] }).members = members[module.id] ?? [];
-    }
+  for (const file of scans.files) {
+    (file as { members: unknown }).members = (
+      (members[file.path] ?? []) as DocumentMember[]
+    ).map(memberOf);
   }
 
   const run = runStructureSensor(

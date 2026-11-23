@@ -78,7 +78,7 @@ function readPolicy(text: string | null): Policy | null {
 export function computeHealth(
   loaded: Pick<
     Loaded,
-    "scans" | "policy" | "modules" | "baseline" | "findings"
+    "repository" | "policy" | "modules" | "baseline" | "findings"
   > &
     Partial<Pick<Loaded, "tests">>,
 ): Health {
@@ -86,7 +86,7 @@ export function computeHealth(
   const known = new Set(loaded.modules);
   const policy = readPolicy(loaded.policy);
   const accepted = readBaseline(loaded.baseline ?? null, notices);
-  const scans = loaded.scans.map(({ scan }) => scan);
+  const scans = loaded.repository;
   const freshness = buildFreshness(scans, loaded.tests ?? null);
   const measured = new Set<string>();
   const shown: FindingsDocument[] = [];

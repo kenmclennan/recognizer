@@ -1,3 +1,4 @@
+import type { Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_DUPLICATION_SETTINGS,
@@ -9,7 +10,6 @@ import type { Grammar } from "../src/duplication/grammars.js";
 import { measureDuplication } from "../src/duplication/measure.js";
 import { countNodes, normalise } from "../src/duplication/normalise.js";
 import { bodyOf } from "../src/duplication/shapes.js";
-import type { RecordedScan } from "../src/scan.js";
 import {
   allParsers,
   measuredSources,
@@ -50,7 +50,7 @@ function methodClass(name: string, methods: string[], lines: number): string {
 async function find(
   files: Record<string, string>,
   overrides: Partial<DuplicationSettings> = {},
-  scans?: RecordedScan[],
+  scans?: Repository,
 ) {
   const { fake, scans: listed } = measuredSources(files);
   const findings = measureDuplication(

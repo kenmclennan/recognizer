@@ -1,3 +1,4 @@
+import { EMPTY_REPOSITORY, type Repository } from "@recognizer/core";
 import {
   afterFoldToggle,
   afterPanelOpen,
@@ -11,13 +12,11 @@ import {
   type FileChange,
   folderUsedBy,
   folderUses,
-  type MarkedModule,
-  type MarkScan,
+  type MarkedFile,
   type MemberMarkKind,
   memberMarks,
   rangeText,
   resolveView,
-  type Scan,
   scanHashes,
   usedByOf,
   usesOf,
@@ -386,7 +385,7 @@ type ChangeInfo =
       name: string;
       range: string;
       state: "ok";
-      marked: MarkedModule[];
+      marked: MarkedFile[];
       unmatched: number;
       at: number;
       headCommit: string;
@@ -395,13 +394,13 @@ type ChangeInfo =
       members: ChangeMembers;
       baseUnreadable?: string;
       headUnreadable?: string;
-      drawn: Scan[];
+      drawn: Repository;
     };
 
 type LoadedMembers = {
   marks: Map<string, Map<string, MemberMarkKind> | null>;
-  start: Scan[];
-  head: Scan[];
+  start: Repository;
+  head: Repository;
 };
 
 type ChangeMembers = "loading" | null | { unreadable: string } | LoadedMembers;
@@ -413,10 +412,7 @@ function loadedMembers(members: ChangeMembers): LoadedMembers | null {
 }
 
 function freshnessOf(loaded: Loaded) {
-  return buildFreshness(
-    loaded.scans.map(({ scan }) => scan),
-    loaded.tests ?? null,
-  );
+  return buildFreshness(loaded.repository, loaded.tests ?? null);
 }
 
 const LOSS_WARNING =
@@ -460,7 +456,7 @@ export function showExplorer(
   const modules = createOpenModules(loaded.modules);
   const state = createCanvasState(modules);
   const measure = createMeasure();
-  const scans = loaded.scans.map(({ scan }) => scan);
+  const scans = loaded.repository;
   const plannedWork = createPlannedWork(scanHost.port, () => render());
   let planFacts: LoadedPlanData = NO_PLAN_DATA;
   const planAnswers = createPlanAnswers(
@@ -487,7 +483,7 @@ export function showExplorer(
   let changeInfo: ChangeInfo | null = null;
   let planCache: {
     view: View;
-    scans: Scan[];
+    scans: Repository;
     value: PlanOverlay | null;
   } | null = null;
   let overlayCache: {
@@ -495,7 +491,7 @@ export function showExplorer(
     scene: Scene;
     value: ChangeOverlay;
   } | null = null;
-  const rangeScanCache = new Map<string, ReadOutcome<Scan[]> | null>();
+  const rangeScanCache = new Map<string, ReadOutcome<Repository> | null>();
   const deletionUndos = new Set<number>();
   let scanConfig: string | null = null;
   let shippedSensors: ShippedSensors | null = null;
@@ -1250,7 +1246,7 @@ export function showExplorer(
 
   function emptyGraph(): CanvasGraph {
     return buildCanvasGraph({
-      scans: [],
+      scans: EMPTY_REPOSITORY,
       modules: [],
       opened: [],
       disc: () => "grey",
@@ -1479,11 +1475,7 @@ export function showExplorer(
     const drawnIds =
       drawn === null
         ? null
-        : new Set(
-            drawn.drawn.flatMap((scan) =>
-              scan.modules.map((module) => module.id),
-            ),
-          );
+        : new Set(drawn.drawn.files.map((file) => file.path));
 
     drawnCount =
       drawnIds === null || drawn === null
@@ -1618,11 +1610,11 @@ export function showExplorer(
             ? marked.from
             : module;
 
-        for (const scan of found.start) {
-          const entry = scan.modules.find((one) => one.id === baseId);
+        {
+          const entry = found.start.files.find((one) => one.path === baseId);
 
           if (entry !== undefined) {
-            return entry.members ?? null;
+            return entry.members;
           }
         }
 
@@ -2036,7 +2028,7 @@ export function showExplorer(
       }
     }
 
-    const present = scans as unknown as MarkScan[];
+    const present = scans;
     const [headOutcome, baseOutcome] = await Promise.all([
       rangeScansAt(answer.headCommit),
       rangeScansAt(answer.baseCommit),
@@ -2046,12 +2038,8 @@ export function showExplorer(
       return;
     }
 
-    const headScans = headOutcome?.ok
-      ? (headOutcome.value as unknown as MarkScan[])
-      : present;
-    const baseScans = baseOutcome?.ok
-      ? (baseOutcome.value as unknown as MarkScan[])
-      : null;
+    const headScans = headOutcome?.ok ? headOutcome.value : present;
+    const baseScans = baseOutcome?.ok ? baseOutcome.value : null;
     const headUnreadable =
       headOutcome?.ok === false
         ? headOutcome.reason
@@ -2066,21 +2054,21 @@ export function showExplorer(
           : undefined;
     const found = changeMarks(files, headScans, baseScans);
     const drawn = unionScans(
-      headScans as unknown as Scan[],
-      baseScans as unknown as Scan[] | null,
-      found.modules
+      headScans,
+      baseScans,
+      found.files
         .filter((one) => one.mark === "removed" && one.box === "base")
         .map((one) => one.id),
     );
 
-    const anyModified = found.modules.some(
+    const anyModified = found.files.some(
       (one) =>
         (one.mark === "modified" || one.mark === "renamed") &&
         one.box === "current",
     );
     const classified = classify(
       files,
-      present.flatMap((scan) => (scan.selection ? [scan.selection] : [])),
+      present.extractions.map((extraction) => extraction.selection),
     );
     const okInfo = {
       name,
@@ -2093,7 +2081,7 @@ export function showExplorer(
               onCanvas: onCanvas(classified),
               elsewhere: classified.elsewhere.length,
             },
-      marked: found.modules,
+      marked: found.files,
       unmatched: found.unmatched,
       at: Date.now(),
       headCommit: answer.headCommit,
@@ -2128,7 +2116,7 @@ export function showExplorer(
           : fetched.ok
             ? {
                 marks: memberMarks({
-                  modules: found.modules,
+                  marked: found.files,
                   base: fetched.value.baseScans,
                   head: fetched.value.headScans,
                   files: fetched.value.files,
@@ -2242,7 +2230,7 @@ export function showExplorer(
 
   async function rangeScansAt(
     commit: string,
-  ): Promise<ReadOutcome<Scan[]> | null> {
+  ): Promise<ReadOutcome<Repository> | null> {
     if (commit === currentCommit(scans)) {
       return { ok: true, value: scans };
     }
@@ -2575,11 +2563,7 @@ export function showExplorer(
 
   function commitsPanelModel() {
     const now = Date.now();
-    const present = scans.flatMap((scan) =>
-      (scan as unknown as MarkScan).selection
-        ? [(scan as unknown as MarkScan).selection]
-        : [],
-    );
+    const present = scans.extractions.map((extraction) => extraction.selection);
     const historyShas = historyLoad.rows.map((row) => row.sha);
     const shaded = commitsSelection.between(historyShas);
     const first = commitsSelection.first();
@@ -3016,7 +3000,7 @@ export function showExplorer(
     await loadScanConfig();
   }
 
-  let workStamp: { scans: Scan[]; text: string } | null = null;
+  let workStamp: { scans: Repository; text: string } | null = null;
 
   function workStampOf(): string {
     if (workStamp === null || workStamp.scans !== scans) {
@@ -4878,14 +4862,14 @@ export function showExplorer(
     });
   }
 
-  function headScansOpen(): Scan[] {
+  function headScansOpen(): Repository {
     const info = changeInfo;
 
     if (info === null || info.state !== "ok" || info.name !== openView) {
-      return [];
+      return EMPTY_REPOSITORY;
     }
 
-    return loadedMembers(info.members)?.head ?? [];
+    return loadedMembers(info.members)?.head ?? EMPTY_REPOSITORY;
   }
 
   function drawnModules(): ReadonlySet<string> {
@@ -4932,7 +4916,7 @@ export function showExplorer(
     return null;
   }
 
-  function inspectorScans(drawn: ReadonlySet<string>, drawnHead: Scan[]) {
+  function inspectorScans(drawn: ReadonlySet<string>, drawnHead: Repository) {
     const base = drawnScans(scans, drawn, drawnHead);
     const info = changeInfo;
 

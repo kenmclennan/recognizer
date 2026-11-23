@@ -1,8 +1,8 @@
+import type { Repository } from "@recognizer/core";
 import {
   type ChangeFacts,
   rangeText,
   resolveView,
-  type Scan,
   type StaleReason,
   staleReasons,
   staleReasonText,
@@ -58,7 +58,7 @@ export function metaOf(view: View): string | null {
 
 export function reasonsOf(
   view: View,
-  scans: Scan[],
+  scans: Repository,
   facts: ChangeFacts | null,
 ): StaleReason[] {
   return staleReasons(view, resolveView(view, scans).unresolved, facts);
@@ -66,7 +66,7 @@ export function reasonsOf(
 
 export function viewsPanelModel(
   entries: ViewEntry[],
-  scans: Scan[],
+  scans: Repository,
   facts: ReadonlyMap<string, ChangeFacts | null>,
 ): ViewsPanelModel {
   const live: ViewRow[] = [];

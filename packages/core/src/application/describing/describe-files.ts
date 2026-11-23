@@ -1,5 +1,5 @@
 import type { PhaseRecorder } from "../../domain/phase-recorder.js";
-import type { ScanDocument } from "../../domain/scan-document.js";
+import type { Repository } from "../../domain/repository.js";
 import type { DescribeResult, Projection } from "../../domain/scan-event.js";
 import type { ScanSink } from "../../domain/scan-sink.js";
 import type { HeldLock } from "../shared/ports/store.js";
@@ -9,7 +9,7 @@ import type { LocatedDescriber } from "./ports/describer.js";
 
 export interface DescribeFilesInput {
   root: string;
-  scans: ScanDocument[];
+  repository: Repository;
   missing: string[];
   located: LocatedDescriber;
   settings: DescribingSettings;
@@ -30,7 +30,7 @@ export async function describeFiles(
   input: DescribeFilesInput,
 ): Promise<DescribeOutcome> {
   const { describer, confirm, clock } = ports;
-  const { root, scans, lock, sink, recorder, settings } = input;
+  const { root, repository, lock, sink, recorder, settings } = input;
   const phase = recorder.start("describe");
   let describeFrom = clock.awake();
 
@@ -42,7 +42,7 @@ export async function describeFiles(
   const limit = input.confirmAbove;
   const result: DescribeResult = await describer.describe({
     root,
-    scans,
+    repository,
     describer: input.located.describer as NonNullable<
       LocatedDescriber["describer"]
     >,

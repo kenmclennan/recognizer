@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { Repository } from "@recognizer/core";
 import type { Io } from "../cli.js";
 import { findFunctions } from "../duplication/functions.js";
 import { type Grammar, grammarFor } from "../duplication/grammars.js";
@@ -11,7 +12,6 @@ import { COMPLEXITY_LIMIT } from "../function-length.js";
 import { keptGraph } from "../graph.js";
 import type { Policy } from "../policy.js";
 import { principleOf } from "../principles.js";
-import type { Scan } from "../scan.js";
 import type { StructureSettings } from "../structure-sensor.js";
 import { cyclomaticComplexity } from "./count.js";
 
@@ -113,7 +113,7 @@ export interface ComplexityMeasure {
 export function measureComplexityValues(
   io: Io,
   root: string,
-  scans: Scan[],
+  repository: Repository,
   policy: Policy | null,
   settings: StructureSettings,
   parsers: Parsers,
@@ -122,38 +122,36 @@ export function measureComplexityValues(
   const findings: FindingRecord[] = [];
   const values: Record<string, number> = {};
 
-  for (const scan of scans) {
-    const { ids } = keptGraph(scan, policy?.ignore ?? []);
+  const { ids } = keptGraph(repository, policy?.ignore ?? []);
 
-    for (const module of scan.modules) {
-      const grammar = grammarFor(module.id);
+  for (const module of repository.files) {
+    const grammar = grammarFor(module.path);
 
-      if (grammar === null || !ids.has(module.id) || isTestFile(module.id)) {
-        continue;
-      }
+    if (grammar === null || !ids.has(module.path) || isTestFile(module.path)) {
+      continue;
+    }
 
-      let bytes: Buffer;
+    let bytes: Buffer;
 
-      try {
-        bytes = io.readBytes(join(root, module.id));
-      } catch {
-        continue;
-      }
+    try {
+      bytes = io.readBytes(join(root, module.path));
+    } catch {
+      continue;
+    }
 
-      const source = decode(io, module.id, bytes, "complexity");
+    const source = decode(io, module.path, bytes, "complexity");
 
-      if (source === null) {
-        continue;
-      }
+    if (source === null) {
+      continue;
+    }
 
-      for (const fn of measureSource(module.id, source, grammar, parsers)) {
-        const key = `${module.id}::${fn.qualified}`;
+    for (const fn of measureSource(module.path, source, grammar, parsers)) {
+      const key = `${module.path}::${fn.qualified}`;
 
-        values[key] = Math.max(values[key] ?? 0, fn.complexity);
+      values[key] = Math.max(values[key] ?? 0, fn.complexity);
 
-        if (fn.complexity > limit) {
-          findings.push(findingOf(module.id, fn, limit));
-        }
+      if (fn.complexity > limit) {
+        findings.push(findingOf(module.path, fn, limit));
       }
     }
   }
@@ -171,11 +169,17 @@ export function measureComplexityValues(
 export function measureComplexity(
   io: Io,
   root: string,
-  scans: Scan[],
+  repository: Repository,
   policy: Policy | null,
   settings: StructureSettings,
   parsers: Parsers,
 ): FindingRecord[] {
-  return measureComplexityValues(io, root, scans, policy, settings, parsers)
-    .findings;
+  return measureComplexityValues(
+    io,
+    root,
+    repository,
+    policy,
+    settings,
+    parsers,
+  ).findings;
 }

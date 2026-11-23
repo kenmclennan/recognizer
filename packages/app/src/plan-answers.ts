@@ -9,11 +9,11 @@ export type PlanAnswers = {
 };
 
 export function planStampOf(facts: LoadedPlanData): string {
-  const lines = facts.scans.flatMap((scan) =>
-    scan.modules.map(({ id }) => `${id}=${facts.lineKinds(id)}`),
+  const lines = facts.scans.files.map(
+    ({ path }) => `${path}=${facts.lineKinds(path)}`,
   );
-  const hashes = facts.scans.flatMap((scan) =>
-    (scan.files ?? []).map(({ path, hash }) => `${path}:${hash}`),
+  const hashes = facts.scans.extractions.flatMap((extraction) =>
+    extraction.files.map(({ path, hash }) => `${path}:${hash}`),
   );
 
   return fingerprint(

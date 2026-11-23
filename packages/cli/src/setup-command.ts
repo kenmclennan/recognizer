@@ -1,11 +1,12 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { joinRepositories, type Repository } from "@recognizer/core";
+import { readUncheckedScanFile } from "./adapters/filesystem/scan-translator.js";
 import type { Io } from "./cli.js";
 import { detectLanguages } from "./detect.js";
 import { InputError } from "./errors.js";
 import { discoverPlugins } from "./plugin-discovery.js";
-import type { RecordedScan } from "./scan.js";
-import { readCachedScan } from "./scan-command.js";
+import { readCachedRepository } from "./scan-command.js";
 import { languageRulesOf } from "./scanners.js";
 import { applyChanges } from "./setup-apply.js";
 import { buildChanges, type SetupChoices } from "./setup-changes.js";
@@ -55,20 +56,18 @@ function choicesOf(io: Io, file: string | undefined): SetupChoices {
   return value as SetupChoices;
 }
 
-function scansFor(
-  io: Io,
-  root: string,
-  file: string | undefined,
-): RecordedScan[] {
+function scansFor(io: Io, root: string, file: string | undefined): Repository {
   if (file !== undefined) {
-    return [readJsonFile(io, file, "--scan") as RecordedScan];
+    return readUncheckedScanFile(readJsonFile(io, file, "--scan"));
   }
 
   const rules = languageRulesOf(discoverPlugins(io, ["scanner"]).plugins);
 
-  return detectLanguages(io, root, rules)
-    .map((language) => readCachedScan(io, root, language))
-    .filter((scan): scan is RecordedScan => scan !== null);
+  return joinRepositories(
+    detectLanguages(io, root, rules)
+      .map((language) => readCachedRepository(io, root, language))
+      .filter((part): part is Repository => part !== null),
+  );
 }
 
 export async function runSetup(argv: string[], io: Io): Promise<number> {

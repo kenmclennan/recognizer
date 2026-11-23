@@ -1,5 +1,6 @@
-import type { Measured, ScanFacts } from "../../domain/scan-plan.js";
-import { type Freshness, scanHashes } from "./freshness.js";
+import { type Repository, scannedHashes } from "../../domain/repository.js";
+import type { Measured } from "../../domain/scan-plan.js";
+import type { Freshness } from "./freshness.js";
 
 export type SensorFreshness =
   | { kind: "never-run" }
@@ -12,20 +13,18 @@ export type FreshnessScope = {
   freshness: Freshness;
 };
 
-export function modulesWithFunctions(scans: readonly ScanFacts[]): Set<string> {
+export function modulesWithFunctions(repository: Repository): Set<string> {
   const ids = new Set<string>();
 
-  for (const scan of scans) {
-    for (const module of scan.modules) {
-      const has = (module.members ?? []).some(
-        (member) =>
-          member.kind === "function" ||
-          (member.kind === "class" && (member.methods?.length ?? 0) > 0),
-      );
+  for (const file of repository.files) {
+    const has = file.members.some(
+      (member) =>
+        member.kind === "function" ||
+        (member.kind === "class" && (member.methods?.length ?? 0) > 0),
+    );
 
-      if (has) {
-        ids.add(module.id);
-      }
+    if (has) {
+      ids.add(file.path);
     }
   }
 
@@ -34,13 +33,13 @@ export function modulesWithFunctions(scans: readonly ScanFacts[]): Set<string> {
 
 export function freshnessScope(
   modules: string[],
-  scans: readonly ScanFacts[],
+  repository: Repository,
   freshness: Freshness,
 ): FreshnessScope {
   return {
     modules,
-    hashes: scanHashes(scans),
-    withFunctions: modulesWithFunctions(scans),
+    hashes: scannedHashes(repository),
+    withFunctions: modulesWithFunctions(repository),
     freshness,
   };
 }

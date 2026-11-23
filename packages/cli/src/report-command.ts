@@ -108,7 +108,7 @@ export function runReport(argv: string[], io: Io): number {
       ? (parsed as Record<string, unknown>)
       : {};
   const { findings } = source;
-  const { scans } = freshScans(io, root, ["sensors"]);
+  const { repository } = freshScans(io, root, ["sensors"]);
   const completed = {
     findings_version: 2,
     sensor: { name, version: ownVersion(parsed) },
@@ -117,7 +117,7 @@ export function runReport(argv: string[], io: Io): number {
     settings: {},
     reported_at: new Date(io.now()).toISOString(),
     findings,
-    inputs: measuredInputs(scans),
+    inputs: measuredInputs(repository),
   };
 
   let document: ReturnType<typeof validateFindings>;

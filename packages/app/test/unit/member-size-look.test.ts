@@ -14,6 +14,7 @@ window.addEventListener("error", (e) => { document.getElementById("out").textCon
 import { buildInspectorView } from ${JSON.stringify(here("inspector-view.ts"))};
 import { compactFolders } from ${JSON.stringify(here("folder-compaction.ts"))};
 import { inspectorContent } from ${JSON.stringify(here("inspector-model.ts"))};
+import { repositoryFrom } from ${JSON.stringify(here("../test/unit/repository-from.ts"))};
 const DEFAULT_LIMITS = ${JSON.stringify(REAL_LIMITS)};
 
 const LONG = ${LONG_FUNCTION};
@@ -41,7 +42,7 @@ const metrics = [
 const calls = [];
 const actions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, toggleGroup() {}, setFilter() {}, openInEditor: (target, line) => calls.push([target.id, line ?? null]), setShowPrivate() {} };
 const base = {
-  scans: [scan], modules: ["p/m.py"], compaction: compactFolders(["p/m.py"]), disc: () => "green", findings: () => [], findingRows: () => [], onCanvas: () => true,
+  scans: repositoryFrom([scan]), modules: ["p/m.py"], compaction: compactFolders(["p/m.py"]), disc: () => "green", findings: () => [], findingRows: () => [], onCanvas: () => true,
   expanded: new Set(), showPrivate: true, tab: "contents", counts: () => ({ uses: 0, usedBy: 0 }), filter: "", collapsed: new Set(), followed: null,
   responsibility: () => ({ state: { kind: "missing" }, failure: null }), metrics, metricsOn: false, limits: DEFAULT_LIMITS,
 };

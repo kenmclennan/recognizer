@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { EMPTY_REPOSITORY, joinRepositories } from "@recognizer/core";
 import {
   buildFreshness,
   describeGap,
@@ -13,7 +14,6 @@ import {
   parsePolicy,
   planFor,
   planScan,
-  type Scan,
   type ScanPlanView,
   sensorFreshness,
   structureSensor,
@@ -36,6 +36,8 @@ import {
   type ScanTicks,
   scanPanel,
 } from "../src/scan-panel-model";
+import type { DocScan } from "./unit/repository-from";
+import { repositoryFrom } from "./unit/repository-from";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -43,11 +45,15 @@ export function fixtureScan(
   name: string,
   file = "scan.json",
   commit: string | null = null,
-): LoadedScan {
+): LoadedScan & { document: DocScan } {
   const text = readFileSync(join(REPO, "fixtures", name, file), "utf8");
-  const scan = { ...JSON.parse(text), commit } as Scan;
+  const document = { ...JSON.parse(text), commit } as DocScan;
 
-  return { file: "scan.python.json", scan };
+  return {
+    file: "scan.python.json",
+    repository: repositoryFrom([document]),
+    document,
+  };
 }
 
 export function fixturePolicy(name: string): string {
@@ -70,16 +76,16 @@ export function expectedModuleIds(language: string): string[] {
     "utf8",
   );
 
-  return (JSON.parse(text) as Scan).modules.map((module) => module.id);
+  return (JSON.parse(text) as DocScan).modules.map((module) => module.id);
 }
 
-export function expectedScan(language: string): Scan {
+export function expectedScan(language: string): DocScan {
   const text = readFileSync(
     join(REPO, "fixtures", language, "expected-scan.json"),
     "utf8",
   );
 
-  return JSON.parse(text) as Scan;
+  return JSON.parse(text) as DocScan;
 }
 
 export const CURRENT = "abc1234";
@@ -89,10 +95,10 @@ export function structureDocument(
   policyText: string | null,
   commit = CURRENT,
 ): FindingsDocument {
-  const { scan } = fixtureScan(name, "scan.json", commit);
+  const { repository } = fixtureScan(name, "scan.json", commit);
   const policy = policyText === null ? null : parsePolicy(policyText);
   const { document } = structureSensor(
-    [scan],
+    repository,
     policy,
     {
       duplication: false,
@@ -125,9 +131,9 @@ function outOfDate(document: FindingsDocument): FindingsDocument {
 }
 
 function checkInputs(): Record<string, string> {
-  const { scan } = fixtureScan("check", "scan.json", CURRENT);
+  const { repository } = fixtureScan("check", "scan.json", CURRENT);
 
-  return measuredInputs([scan]);
+  return measuredInputs(repository);
 }
 
 export function secondSensorDocument(
@@ -162,8 +168,8 @@ export function planSync(
   request: PlanRequest,
   facts: LoadedPlanData,
 ): ScanPlanView {
-  const scans = facts.scans as unknown as Scan[];
-  const all = scans.flatMap((scan) => scan.modules.map(({ id }) => id));
+  const scans = facts.scans;
+  const all = scans.files.map(({ path }) => path);
 
   return planScan(
     {
@@ -209,22 +215,25 @@ export function withPlan(
     input.sensors.find(({ measured }) => measured?.tests !== undefined)
       ?.measured?.tests;
   const known = new Set(
-    (input.scans ?? []).flatMap((scan) => scan.modules.map(({ id }) => id)),
+    (input.scans ?? EMPTY_REPOSITORY).files.map(({ path }) => path),
   );
   const missing = input.lines.modules.filter((id) => !known.has(id));
   const scans =
     missing.length === 0
-      ? (input.scans ?? [])
-      : [
-          ...(input.scans ?? []),
-          {
-            modules: missing.map((id) => ({
-              id,
-              members: [{ kind: "function" }],
-            })),
-            files: [],
-          } as unknown as Scan,
-        ];
+      ? (input.scans ?? EMPTY_REPOSITORY)
+      : joinRepositories([
+          input.scans ?? EMPTY_REPOSITORY,
+          repositoryFrom([
+            {
+              modules: missing.map((id) => ({
+                id,
+                members: [{ kind: "function" }],
+              })),
+              edges: [],
+              files: [],
+            } as unknown as DocScan,
+          ]),
+        ]);
   const given = { ...input, scans, tests: tests ?? null };
 
   return {

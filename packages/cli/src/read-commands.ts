@@ -1,5 +1,7 @@
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import type { Dependency, Member, Repository } from "@recognizer/core";
+import { documentKind } from "./adapters/filesystem/scan-translator.js";
 import type { Io } from "./cli.js";
 import { type ConfigRead, readConfig } from "./config.js";
 import { InputError } from "./errors.js";
@@ -26,14 +28,13 @@ import {
   type ResponsibilityEntry,
   validateResponsibilities,
 } from "./responsibilities.js";
-import type { Scan, ScanEdge, ScanMember } from "./scan.js";
 
 const byId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 interface Loaded {
   root: string;
   json: boolean;
-  scans: Scan[];
+  repository: Repository;
   modules: string[];
   values: Record<string, string | boolean | undefined>;
   positionals: string[];
@@ -63,20 +64,20 @@ function load(
   }
 
   const root = resolve((values.repository as string | undefined) ?? ".");
-  const { scans } = freshScans(io, root, read);
+  const { repository } = freshScans(io, root, read);
 
   return {
     root,
     json: values.json === true,
-    scans,
-    modules: moduleNames(scans),
+    repository,
+    modules: moduleNames(repository),
     values,
     positionals,
   };
 }
 
 function findingsOf(loaded: Loaded, io: Io): Map<string, Finding[]> {
-  return findingsByModuleFrom(loadFindings(io, loaded.root, loaded.scans));
+  return findingsByModuleFrom(loadFindings(io, loaded.root, loaded.repository));
 }
 
 function row(parts: (string | number | undefined)[]): string {
@@ -87,16 +88,10 @@ function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
 
-function kindOf(scans: Scan[], id: string): string {
-  for (const scan of scans) {
-    const found = scan.modules.find((module) => module.id === id);
+function kindOf(repository: Repository, id: string): string {
+  const found = repository.files.find((file) => file.path === id);
 
-    if (found !== undefined) {
-      return found.kind;
-    }
-  }
-
-  return "module";
+  return found === undefined ? "module" : documentKind(found.kind);
 }
 
 function print(io: Io, loaded: Loaded, document: unknown, text: string[]) {
@@ -123,28 +118,26 @@ export function runFind(argv: string[], io: Io): number {
   }[] = [];
   const seen = new Set<string>();
 
-  for (const scan of loaded.scans) {
-    for (const module of scan.modules) {
-      if (seen.has(module.id)) {
-        continue;
-      }
+  for (const file of loaded.repository.files) {
+    if (seen.has(file.path)) {
+      continue;
+    }
 
-      seen.add(module.id);
+    seen.add(file.path);
 
-      if (module.id.toLowerCase().includes(needle)) {
-        modules.push({ id: module.id, kind: module.kind });
-      }
+    if (file.path.toLowerCase().includes(needle)) {
+      modules.push({ id: file.path, kind: documentKind(file.kind) });
+    }
 
-      for (const member of module.members ?? []) {
-        if (member.name.toLowerCase().includes(needle)) {
-          members.push({
-            module: module.id,
-            name: member.name,
-            kind: member.kind,
-            line: member.line,
-            exported: member.exported,
-          });
-        }
+    for (const member of file.members) {
+      if (member.name.toLowerCase().includes(needle)) {
+        members.push({
+          module: file.path,
+          name: member.name,
+          kind: member.kind,
+          line: member.line,
+          exported: member.exported,
+        });
       }
     }
   }
@@ -182,7 +175,7 @@ type Status = "current" | "out-of-date" | "missing" | "unchecked";
 function responsibilityOf(
   io: Io,
   root: string,
-  scans: Scan[],
+  repository: Repository,
   id: string,
 ): { status: Status; line: string | null } {
   const file = join(root, ".recognizer", "responsibilities.json");
@@ -208,7 +201,7 @@ function responsibilityOf(
     return { status: "unchecked", line: entry.line };
   }
 
-  const found = moduleSource(io, root, scans, id);
+  const found = moduleSource(io, root, repository, id);
 
   if (found === null) {
     return { status: "unchecked", line: entry.line };
@@ -235,8 +228,8 @@ interface ShownMember {
 }
 
 function shownMembers(
-  members: ScanMember[],
-  edges: readonly ScanEdge[],
+  members: readonly Member[],
+  edges: readonly Dependency[],
   withPrivate: boolean,
 ): { shown: ShownMember[]; hidden: number } {
   const shown: ShownMember[] = [];
@@ -309,7 +302,7 @@ const SHOW_USAGE =
 function showFolder(loaded: Loaded, io: Io, id: string): number {
   const folder = id.replace(/\/+$/, "");
   const row = measureFolders(
-    loaded.scans,
+    loaded.repository,
     readPolicy(io, loaded.root),
   ).rows.find((one) => one.id === folder);
 
@@ -344,23 +337,26 @@ export function runShow(argv: string[], io: Io): number {
   }
 
   const sets = neighbourSets(
-    loaded.scans.flatMap((scan) => dependencyEdges(scan.edges)),
+    dependencyEdges(loaded.repository.dependencies),
     new Set(loaded.modules),
   );
   const counts = moduleCounts(sets, id);
-  const scanned = loaded.scans
-    .flatMap((scan) => scan.modules)
-    .find((module) => module.id === id);
+  const scanned = loaded.repository.files.find((file) => file.path === id);
   const { shown, hidden } = shownMembers(
     scanned?.members ?? [],
-    loaded.scans.flatMap((scan) =>
-      dependencyEdges(scan.edges).filter((edge) => edge.from === id),
+    dependencyEdges(loaded.repository.dependencies).filter(
+      (edge) => edge.from === id,
     ),
     loaded.values.private === true,
   );
-  const responsibility = responsibilityOf(io, loaded.root, loaded.scans, id);
+  const responsibility = responsibilityOf(
+    io,
+    loaded.root,
+    loaded.repository,
+    id,
+  );
   const findings = findingsOf(loaded, io).get(id) ?? [];
-  const kind = kindOf(loaded.scans, id);
+  const kind = kindOf(loaded.repository, id);
   const document = {
     module: id,
     kind,
@@ -464,14 +460,14 @@ export function runModules(argv: string[], io: Io): number {
   }
 
   const sets = neighbourSets(
-    loaded.scans.flatMap((scan) => dependencyEdges(scan.edges)),
+    dependencyEdges(loaded.repository.dependencies),
     new Set(loaded.modules),
   );
   const findings = findingsOf(loaded, io);
   const folder = (values.folder as string | undefined)?.replace(/\/+$/, "");
   const all = loaded.modules.map((id) => ({
     id,
-    kind: kindOf(loaded.scans, id),
+    kind: kindOf(loaded.repository, id),
     uses: moduleCounts(sets, id).uses,
     usedBy: moduleCounts(sets, id).usedBy,
     findings: findings.get(id)?.length ?? 0,

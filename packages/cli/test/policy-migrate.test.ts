@@ -7,8 +7,9 @@ import { check, parsePolicy } from "../src/index.js";
 import { migratePolicy } from "../src/policy-migrate.js";
 import { orphanFindings } from "../src/structure-warnings.js";
 import { REPO } from "./helpers.js";
+import { repositoryFrom } from "./repository-from.js";
 import { fakeIo, ROOT } from "./scan-helpers.js";
-import { scanOf } from "./scan-of.js";
+import { documentOf } from "./scan-of.js";
 
 const LOOM = `components:
   application: [engine/src/application/**]
@@ -98,7 +99,7 @@ function oldTriples(text: string, edges: [string, string][]): string[] {
 }
 
 function newTriples(policyText: string, edges: [string, string][]): string[] {
-  const result = check(scanOf(edges), parsePolicy(policyText), null);
+  const result = check(documentOf(edges), parsePolicy(policyText), null);
 
   return result.violations
     .flatMap((violation) =>
@@ -458,9 +459,10 @@ levels:
   });
 
   it("keeps the orphan warnings, and a literal path stays unflagged both as the old literal and as the migrated entry", () => {
-    const scan = JSON.parse(
+    const document = JSON.parse(
       readFileSync(join(REPO, "fixtures/check/scan.json"), "utf8"),
     );
+    const scan = repositoryFrom(document);
     const orphans = (policyText: string) =>
       orphanFindings(scan, parsePolicy(policyText), [], []).map(
         (finding) => finding.id,
@@ -475,10 +477,10 @@ levels:
 
     const lonely = (policyText: string) =>
       orphanFindings(
-        {
-          ...scan,
+        repositoryFrom({
+          ...document,
           modules: [
-            ...scan.modules,
+            ...document.modules,
             {
               id: "shop/tool.py",
               language: "python",
@@ -486,7 +488,7 @@ levels:
               members: [],
             },
           ],
-        },
+        }),
         parsePolicy(policyText),
         [],
         [],

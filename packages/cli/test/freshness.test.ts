@@ -48,7 +48,7 @@ describe("freshScans", () => {
     const result = freshScans(fake.io, ROOT, "all");
 
     expect(result.scanned).toBe(false);
-    expect(result.scans).toHaveLength(1);
+    expect(result.repository.extractions).toHaveLength(1);
     expect(scannerRuns(fake)).toBe(0);
   });
 

@@ -10,8 +10,8 @@ import type {
   PluginLimits,
   PolicyDocument,
   ProgramGapsInput,
+  Repository,
   Say,
-  ScanDocument,
   SenseCall,
   SensorPlan,
   SensorPlanInput,
@@ -35,7 +35,6 @@ import {
   sensorProgramGaps,
 } from "../../preflight.js";
 import { runSensors } from "../../run-sensors.js";
-import type { Scan } from "../../scan.js";
 import { parseSuiteSelection, selectSensors } from "../../scan-phases.js";
 import {
   isScoped,
@@ -232,17 +231,16 @@ export class SensorsAdapter implements Sensors, Analysis {
   analysisPrepare(
     plan: AnalysisPlan,
     root: string,
-    scans: ScanDocument[],
+    repository: Repository,
     policy: PolicyDocument,
     say: Say,
   ): { parserLanguages: string[] | null; label: string } {
     const { settings } = plan as unknown as Structure;
-    const recorded = scans as unknown as Scan[];
 
     warnPolicyProblems(
       (text) => say("stderr", text),
       relative(root, policyFile(root)),
-      recorded,
+      repository,
       policy as unknown as Policy | null,
     );
 
@@ -250,13 +248,7 @@ export class SensorsAdapter implements Sensors, Analysis {
       parserLanguages:
         settings.duplication === false && !settings.warnings.complexity
           ? null
-          : [
-              ...new Set(
-                recorded.flatMap((scan) =>
-                  scan.modules.map((module) => module.language),
-                ),
-              ),
-            ],
+          : [...new Set(repository.files.map((file) => file.language))],
       label: settings.duplication === false ? "complexity" : "duplication",
     };
   }
@@ -268,7 +260,7 @@ export class SensorsAdapter implements Sensors, Analysis {
   analysisRun(
     plan: AnalysisPlan,
     root: string,
-    scans: ScanDocument[],
+    repository: Repository,
     policy: PolicyDocument,
     parsers: ParserSet | null,
     say: Say,
@@ -277,7 +269,7 @@ export class SensorsAdapter implements Sensors, Analysis {
     const run = runStructureSensor(
       sinkIo(this.io, say),
       root,
-      scans as unknown as Scan[],
+      repository,
       policy as unknown as Policy | null,
       settings,
       parsers as unknown as Parsers | null,
@@ -333,7 +325,7 @@ export class SensorsAdapter implements Sensors, Analysis {
         ...(one.modules === undefined ? {} : { modules: one.modules }),
       })),
       commit: call.commit,
-      scans: call.scans as unknown as Scan[],
+      repository: call.repository,
       limits: call.limits as unknown as Limits,
       onStart: call.onStart,
       onEvent: (name, event) =>

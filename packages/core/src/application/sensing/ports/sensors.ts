@@ -1,7 +1,7 @@
 import type { ConfigDocument } from "../../../domain/config-document.js";
 import type { Gap } from "../../../domain/gap.js";
+import type { Repository } from "../../../domain/repository.js";
 import type { RunEntry } from "../../../domain/run-record.js";
-import type { ScanDocument } from "../../../domain/scan-document.js";
 import type { PluginProgress } from "../../../domain/scan-event.js";
 import type { SensorRow } from "../../../domain/scan-plan.js";
 import type { SensorRequest } from "../../../domain/sensor-request.js";
@@ -52,7 +52,7 @@ export interface SenseCall {
   root: string;
   selected: (PlannedSensor & { modules?: number })[];
   commit: string;
-  scans: ScanDocument[];
+  repository: Repository;
   limits: PluginLimits;
   onStart: (name: string) => void;
   onEvent: (name: string, event: PluginProgress) => void;

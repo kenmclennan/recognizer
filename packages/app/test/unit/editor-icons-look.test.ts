@@ -7,6 +7,7 @@ window.addEventListener("error", (e) => { document.getElementById("out").textCon
 import { buildSelectionBar } from ${JSON.stringify(here("selection-bar-view.ts"))};
 import { buildInspectorView } from ${JSON.stringify(here("inspector-view.ts"))};
 import { inspectorContent } from ${JSON.stringify(here("inspector-model.ts"))};
+import { repositoryFrom } from ${JSON.stringify(here("../test/unit/repository-from.ts"))};
 import { compactFolders } from ${JSON.stringify(here("folder-compaction.ts"))};
 import { filterTree } from ${JSON.stringify(here("tree-filter.ts"))};
 import { buildTree } from ${JSON.stringify(here("tree-model.ts"))};
@@ -41,7 +42,7 @@ click(barFolder);
 
 const scan = { modules: [{ id: "p/m.py", kind: "module" }, { id: "p/q.py", kind: "module" }], edges: [], foreign: [], calls: [] };
 const inputs = {
-  scans: [scan], modules: scan.modules.map((m) => m.id), compaction: compactFolders(scan.modules.map((m) => m.id)), disc: () => "green", findings: () => [], onCanvas: () => true,
+  scans: repositoryFrom([scan]), modules: scan.modules.map((m) => m.id), compaction: compactFolders(scan.modules.map((m) => m.id)), disc: () => "green", findings: () => [], onCanvas: () => true,
   expanded: new Set(), tab: "contents", counts: () => ({ uses: 0, usedBy: 0 }), noteRows: () => [], canAddNote: false, filter: "", responsibility: () => ({ state: { kind: "missing" }, failure: null }),
 };
 const inspectorActions = { open() {}, close() {}, setTab() {}, toggleFold() {}, openFile() {}, hover() {}, putOnCanvas() {}, takeOff() {}, pickName() {}, setFilter() {}, openInEditor: (target) => calls.push("inspector:" + target.kind + ":" + target.id) };

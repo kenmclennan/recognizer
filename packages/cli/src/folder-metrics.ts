@@ -1,6 +1,6 @@
+import type { Member, Repository } from "@recognizer/core";
 import { isForeign, keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
-import type { Scan, ScanMember } from "./scan.js";
 import { folderOf } from "./structure-warnings.js";
 
 export interface FolderMetrics {
@@ -55,7 +55,7 @@ export function round(value: number): number {
   return Math.round(value * 10000) / 10000;
 }
 
-export function isAbstract(member: ScanMember): boolean {
+export function isAbstract(member: Member): boolean {
   if (member.kind === "interface") {
     return true;
   }
@@ -67,34 +67,32 @@ export function isAbstract(member: ScanMember): boolean {
 }
 
 export function measureFolders(
-  scans: Scan[],
+  repository: Repository,
   policy: Policy | null,
 ): FolderMeasures {
   const ids = new Set<string>();
-  const members = new Map<string, ScanMember[]>();
+  const members = new Map<string, readonly Member[]>();
   const seenEdges = new Set<string>();
   const edges: { from: string; to: string }[] = [];
 
-  for (const scan of scans) {
-    const kept = keptGraph(scan, policy?.ignore ?? []);
+  const kept = keptGraph(repository, policy?.ignore ?? []);
 
-    for (const id of kept.ids) {
-      ids.add(id);
+  for (const id of kept.ids) {
+    ids.add(id);
+  }
+
+  for (const file of repository.files) {
+    if (kept.ids.has(file.path) && !members.has(file.path)) {
+      members.set(file.path, file.members);
     }
+  }
 
-    for (const module of scan.modules) {
-      if (kept.ids.has(module.id) && !members.has(module.id)) {
-        members.set(module.id, module.members ?? []);
-      }
-    }
+  for (const edge of kept.edges) {
+    const key = pairKey(edge.from, edge.to);
 
-    for (const edge of kept.edges) {
-      const key = pairKey(edge.from, edge.to);
-
-      if (edge.from !== edge.to && !seenEdges.has(key)) {
-        seenEdges.add(key);
-        edges.push({ from: edge.from, to: edge.to });
-      }
+    if (edge.from !== edge.to && !seenEdges.has(key)) {
+      seenEdges.add(key);
+      edges.push({ from: edge.from, to: edge.to });
     }
   }
 

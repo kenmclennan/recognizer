@@ -1,6 +1,6 @@
+import type { Repository } from "@recognizer/core";
 import { compileGlob } from "./glob.js";
 import type { Policy } from "./policy.js";
-import type { Scan } from "./scan.js";
 
 export interface PolicyProblem {
   kind: "entry" | "forbid";
@@ -15,7 +15,7 @@ function compare(a: string, b: string): number {
 }
 
 export function policyProblems(
-  scans: Scan[],
+  repository: Repository,
   policy: Policy | null,
 ): PolicyProblem[] {
   if (
@@ -27,10 +27,8 @@ export function policyProblems(
 
   const scanned = new Set<string>();
 
-  for (const scan of scans) {
-    for (const module of scan.modules) {
-      scanned.add(module.id);
-    }
+  for (const file of repository.files) {
+    scanned.add(file.path);
   }
 
   const matchesNothing = (glob: string): boolean => {
@@ -74,10 +72,10 @@ export function policyProblems(
 export function warnPolicyProblems(
   stderr: (text: string) => void,
   policyFile: string,
-  scans: Scan[],
+  repository: Repository,
   policy: Policy | null,
 ): void {
-  for (const problem of policyProblems(scans, policy)) {
+  for (const problem of policyProblems(repository, policy)) {
     stderr(`warning: ${policyFile}: ${problem.text}\n`);
   }
 }

@@ -1,8 +1,9 @@
-import type { Scan, View } from "recognizer";
+import type { View } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { viewModified } from "../../src/view-modified";
+import { type DocScan, repositoryFrom } from "./repository-from";
 
-const scan: Scan = {
+const scan: DocScan = {
   schema_version: 1,
   commit: "cur",
   modules: ["app/a.py", "app/b.py", "lib/c.py"].map((id) => ({
@@ -11,7 +12,7 @@ const scan: Scan = {
   })),
   edges: [],
   foreign: [],
-} as unknown as Scan;
+} as unknown as DocScan;
 
 const view = (steps: View["steps"]): View =>
   ({ schema_version: 1, description: "d", commit: "cur", steps }) as View;
@@ -29,9 +30,13 @@ describe("viewModified", () => {
       { kind: "pick", module: "app/b.py" },
     ]);
 
-    expect(viewModified(saved, content(["app/a.py", "app/b.py"]), [scan])).toBe(
-      false,
-    );
+    expect(
+      viewModified(
+        saved,
+        content(["app/a.py", "app/b.py"]),
+        repositoryFrom([scan]),
+      ),
+    ).toBe(false);
   });
 
   it("is false when the steps list a fold before the picks", () => {
@@ -40,37 +45,59 @@ describe("viewModified", () => {
       { kind: "pick", module: "app/a.py" },
     ]);
 
-    expect(viewModified(saved, content(["app/a.py"], ["app"]), [scan])).toBe(
-      false,
-    );
+    expect(
+      viewModified(
+        saved,
+        content(["app/a.py"], ["app"]),
+        repositoryFrom([scan]),
+      ),
+    ).toBe(false);
   });
 
   it("is true after adding or removing a module", () => {
     const saved = view([{ kind: "pick", module: "app/a.py" }]);
 
-    expect(viewModified(saved, content(["app/a.py", "lib/c.py"]), [scan])).toBe(
-      true,
-    );
-    expect(viewModified(saved, content([]), [scan])).toBe(true);
+    expect(
+      viewModified(
+        saved,
+        content(["app/a.py", "lib/c.py"]),
+        repositoryFrom([scan]),
+      ),
+    ).toBe(true);
+    expect(viewModified(saved, content([]), repositoryFrom([scan]))).toBe(true);
   });
 
   it("is true after folding or changing focus, and false again when undone", () => {
     const saved = view([{ kind: "pick", module: "app/a.py" }]);
 
-    expect(viewModified(saved, content(["app/a.py"], ["app"]), [scan])).toBe(
-      true,
-    );
-    expect(viewModified(saved, content(["app/a.py"], [], "app"), [scan])).toBe(
-      true,
-    );
-    expect(viewModified(saved, content(["app/a.py"]), [scan])).toBe(false);
+    expect(
+      viewModified(
+        saved,
+        content(["app/a.py"], ["app"]),
+        repositoryFrom([scan]),
+      ),
+    ).toBe(true);
+    expect(
+      viewModified(
+        saved,
+        content(["app/a.py"], [], "app"),
+        repositoryFrom([scan]),
+      ),
+    ).toBe(true);
+    expect(
+      viewModified(saved, content(["app/a.py"]), repositoryFrom([scan])),
+    ).toBe(false);
   });
 
   it("is true for a pick the scan does not know", () => {
     const saved = view([{ kind: "pick", module: "app/a.py" }]);
 
     expect(
-      viewModified(saved, content(["app/a.py", "lib/gone.py"]), [scan]),
+      viewModified(
+        saved,
+        content(["app/a.py", "lib/gone.py"]),
+        repositoryFrom([scan]),
+      ),
     ).toBe(true);
   });
 
@@ -80,7 +107,9 @@ describe("viewModified", () => {
       { kind: "pick", module: "lib/gone.py" },
     ]);
 
-    expect(viewModified(saved, content(["app/a.py"]), [scan])).toBe(false);
+    expect(
+      viewModified(saved, content(["app/a.py"]), repositoryFrom([scan])),
+    ).toBe(false);
   });
 
   it("takes no camera input, so a camera-only change cannot count", () => {
@@ -88,8 +117,8 @@ describe("viewModified", () => {
     const same = { ...content(["app/a.py"]) };
 
     expect(viewModified.length).toBe(3);
-    expect(viewModified(saved, same, [scan])).toBe(
-      viewModified(saved, content(["app/a.py"]), [scan]),
+    expect(viewModified(saved, same, repositoryFrom([scan]))).toBe(
+      viewModified(saved, content(["app/a.py"]), repositoryFrom([scan])),
     );
   });
 
@@ -104,6 +133,8 @@ describe("viewModified", () => {
       ],
     } as View;
 
-    expect(viewModified(saved, content(["app/a.py"]), [scan])).toBe(false);
+    expect(
+      viewModified(saved, content(["app/a.py"]), repositoryFrom([scan])),
+    ).toBe(false);
   });
 });

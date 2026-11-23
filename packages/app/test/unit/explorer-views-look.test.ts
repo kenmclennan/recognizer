@@ -4,10 +4,10 @@ import { collectFacts, here, webkit } from "../../src/look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer } from ${JSON.stringify(here("../test/unit/look-support.ts"))};
 import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
 import { createViewComparisons } from ${JSON.stringify(here("view-comparisons.ts"))};
-import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
+import { fakeViews } from ${JSON.stringify(here("../test/unit/views-fake.ts"))};
 import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
 import { parseViewFile } from ${JSON.stringify(here("view-file.ts"))};
 

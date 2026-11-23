@@ -1,5 +1,5 @@
+import type { Dependency, Repository } from "@recognizer/core";
 import { type Matcher, matchesAny } from "./glob.js";
-import type { Scan, ScanEdge } from "./scan.js";
 
 const FOREIGN_PREFIX = "foreign:";
 
@@ -13,18 +13,18 @@ export function dependencyEdges<T extends { kind: string }>(
   return edges.filter((edge) => edge.kind !== "declares");
 }
 
-export function keptGraph(scan: Scan, ignore: Matcher[]) {
+export function keptGraph(repository: Repository, ignore: Matcher[]) {
   const dropped = (id: string) => !isForeign(id) && matchesAny(ignore, id);
 
   const ids = new Set<string>();
 
-  for (const module of scan.modules) {
-    if (!dropped(module.id)) {
-      ids.add(module.id);
+  for (const file of repository.files) {
+    if (!dropped(file.path)) {
+      ids.add(file.path);
     }
   }
 
-  const kept: ScanEdge[] = scan.edges.filter(
+  const kept: Dependency[] = repository.dependencies.filter(
     (edge) =>
       edge.inferred === undefined && !dropped(edge.from) && !dropped(edge.to),
   );

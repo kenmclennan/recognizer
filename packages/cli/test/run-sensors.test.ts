@@ -2,13 +2,14 @@ import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { EMPTY_REPOSITORY } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { nodeIo, stopEverything } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
 import { runSensors } from "../src/run-sensors.js";
-import type { Scan } from "../src/scan.js";
+import { repositoryFrom } from "./repository-from.js";
 
 const COMMIT = "abc123";
 
@@ -111,7 +112,7 @@ describe("runSensors ceiling", () => {
         io,
         root,
         commit: COMMIT,
-        scans: [],
+        repository: EMPTY_REPOSITORY,
         selected: [
           { name: "hung", command: pluginCommand(hung) },
           {
@@ -191,7 +192,7 @@ describe("runSensors ceiling", () => {
         io,
         root,
         commit: COMMIT,
-        scans: [],
+        repository: EMPTY_REPOSITORY,
         selected: [
           { name: "quick", command: pluginCommand(limited) },
           { name: "quick", command: pluginCommand(open) },
@@ -234,7 +235,7 @@ describe("runSensors ceiling", () => {
       io,
       root,
       commit: COMMIT,
-      scans: [],
+      repository: EMPTY_REPOSITORY,
       selected: [
         { name: "quick", runsTests: true, command: pluginCommand(live) },
       ],
@@ -275,7 +276,7 @@ describe("runSensors ceiling", () => {
       io,
       root,
       commit: COMMIT,
-      scans: [],
+      repository: EMPTY_REPOSITORY,
       selected: [
         { name: "quick", runsTests: true, command: pluginCommand(script) },
       ],
@@ -299,7 +300,7 @@ describe("runSensors ceiling", () => {
         io: nodeIo(),
         root: process.cwd(),
         commit: "abc123",
-        scans: [],
+        repository: EMPTY_REPOSITORY,
         selected: [{ name: "slow", command: ["sh", "-c", "sleep ${marker} & wait"] }],
       });
     `;
@@ -330,12 +331,12 @@ describe("runSensors ceiling", () => {
   describe("recording inputs", () => {
     const HASH = "a".repeat(64);
     const OWN = "b".repeat(64);
-    const scans = [
+    const scans = repositoryFrom([
       {
         modules: [{ id: "shop/a.py" }],
         files: [{ path: "shop/a.py", hash: HASH }],
       },
-    ] as unknown as Scan[];
+    ]);
     const writing = (extra: string) => `
       const fs = require("fs");
       const [commit, output] = process.argv.slice(1);
@@ -353,7 +354,7 @@ describe("runSensors ceiling", () => {
         io,
         root,
         commit: COMMIT,
-        scans,
+        repository: scans,
         selected: [
           {
             name: "quick",
@@ -434,7 +435,7 @@ process.exit(2);`,
         io,
         root,
         commit: COMMIT,
-        scans: [],
+        repository: EMPTY_REPOSITORY,
         selected: [
           { name: "quick", runsTests, command: pluginCommand(refusing) },
         ],
@@ -460,7 +461,7 @@ process.exit(2);`,
       io,
       root,
       commit: COMMIT,
-      scans: [],
+      repository: EMPTY_REPOSITORY,
       selected: [{ name: "quick", command: pluginCommand(writing) }],
     });
 
@@ -480,7 +481,7 @@ process.exit(2);`,
       io,
       root,
       commit: COMMIT,
-      scans: [],
+      repository: EMPTY_REPOSITORY,
       selected: [{ name: "quick", command: pluginCommand(refusing) }],
     });
 
@@ -505,7 +506,7 @@ process.exit(2);`,
       io,
       root,
       commit: COMMIT,
-      scans: [],
+      repository: EMPTY_REPOSITORY,
       selected: [{ name: "quick", command: pluginCommand(noisy) }],
       onEvent: () => {
         void stopEverything();
@@ -529,7 +530,7 @@ process.exit(2);`,
         io,
         root,
         commit: COMMIT,
-        scans: [],
+        repository: EMPTY_REPOSITORY,
         selected: [{ name: "quick", command: pluginCommand(writing) }],
       });
 
@@ -555,7 +556,7 @@ process.exit(2);`,
         io,
         root,
         commit: COMMIT,
-        scans: [],
+        repository: EMPTY_REPOSITORY,
         selected: [{ name: "quick", command: pluginCommand(writing) }],
       });
 
@@ -588,7 +589,7 @@ process.exit(2);`,
         io,
         root,
         commit: COMMIT,
-        scans: [],
+        repository: EMPTY_REPOSITORY,
         selected: [{ name: "quick", command: pluginCommand(refusing) }],
       });
 
@@ -600,12 +601,12 @@ process.exit(2);`,
 });
 
 describe("sense entry figures", () => {
-  const scans = [
+  const scans = repositoryFrom([
     {
       modules: [{ id: "a.py" }, { id: "b.py" }, { id: "c.py" }],
       files: [],
     },
-  ] as unknown as Scan[];
+  ]);
   const finishing = (extra: string) => `
     const fs = require("fs");
     fs.mkdirSync(require("path").dirname(output), { recursive: true });
@@ -641,7 +642,7 @@ describe("sense entry figures", () => {
       io: ticking,
       root,
       commit: COMMIT,
-      scans,
+      repository: scans,
       selected: [
         {
           name: "quick",

@@ -2,7 +2,6 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { InputError } from "../src/errors.js";
-import type { Scan } from "../src/scan.js";
 import {
   changeChip,
   migrateView,
@@ -17,18 +16,21 @@ import {
   viewNotes,
 } from "../src/views.js";
 import { REPO } from "./helpers.js";
+import { repositoryFrom } from "./repository-from.js";
 
 const EXAMPLES = join(REPO, "schema/view-examples");
-const scan = JSON.parse(
-  readFileSync(join(REPO, "fixtures/python/expected-scan.json"), "utf8"),
-) as Scan;
+const scan = repositoryFrom(
+  JSON.parse(
+    readFileSync(join(REPO, "fixtures/python/expected-scan.json"), "utf8"),
+  ),
+);
 
 function view(...steps: ViewStep[]): View {
   return { schema_version: 1, description: "p", commit: null, steps };
 }
 
 function resolve(...steps: ViewStep[]) {
-  return resolveView(view(...steps), [scan]);
+  return resolveView(view(...steps), scan);
 }
 
 describe("validateView", () => {
@@ -554,7 +556,7 @@ describe("plan views", () => {
     expect(migrateView(doubled).proposed).toEqual([
       { module: ORDER, kind: "removed" },
     ]);
-    expect(proposedWarnings(doubled, resolveView(doubled, [scan]))).toEqual([
+    expect(proposedWarnings(doubled, resolveView(doubled, scan))).toEqual([
       `view holds 1 proposed change on ${ORDER}; kept the last on each`,
     ]);
   });
@@ -562,7 +564,7 @@ describe("plan views", () => {
   it("puts a new file that is not in the scan on the plan and never stale", () => {
     const resolved = resolveView(
       plan([{ module: NEW, kind: "new" }], pick(ORDER)),
-      [scan],
+      scan,
     );
 
     expect(resolved.planned).toEqual([NEW]);
@@ -580,7 +582,7 @@ describe("plan views", () => {
       pick(ORDER),
       pick("shop/domain/gone.py"),
     );
-    const resolved = resolveView(view, [scan]);
+    const resolved = resolveView(view, scan);
 
     expect(resolved.planned).toEqual([NEW]);
     expect(resolved.modules).toEqual([ORDER]);
@@ -595,7 +597,7 @@ describe("plan views", () => {
         { module: "shop/gone.py", kind: "changes" },
         { module: "shop/also-gone.py", kind: "removed" },
       ]),
-      [scan],
+      scan,
     );
 
     expect(resolved.planned).toEqual([]);
@@ -604,7 +606,7 @@ describe("plan views", () => {
   it("keeps a planned file off the view when a left-out step names it", () => {
     const resolved = resolveView(
       plan([{ module: NEW, kind: "new" }], { kind: "left-out", module: NEW }),
-      [scan],
+      scan,
     );
 
     expect(resolved.planned).toEqual([]);
@@ -620,7 +622,7 @@ describe("plan views", () => {
           from: "shop/never/was.py",
         },
       ]),
-      [scan],
+      scan,
     );
 
     expect(resolved.ghosts).toEqual([
@@ -633,7 +635,7 @@ describe("plan views", () => {
   it("treats a new file that exists in the scan as an ordinary file", () => {
     const resolved = resolveView(
       plan([{ module: ORDER, kind: "new" }], pick(ORDER)),
-      [scan],
+      scan,
     );
 
     expect(resolved.planned).toEqual([]);
@@ -643,7 +645,7 @@ describe("plan views", () => {
   it("warns about a proposed change on a file that is not on the view", () => {
     const view = plan([{ module: ORDER, kind: "changes" }]);
 
-    expect(proposedWarnings(view, resolveView(view, [scan]))).toEqual([
+    expect(proposedWarnings(view, resolveView(view, scan))).toEqual([
       `proposed change on ${ORDER} is not drawn: the file is not on the view`,
     ]);
   });
@@ -695,7 +697,7 @@ describe("member entries in a plan", () => {
       { module: ORDER, member: "Order.total", kind: "changes" },
       { module: ORDER, kind: "changes" },
     ]);
-    expect(proposedWarnings(doubled, resolveView(doubled, [scan]))).toEqual([
+    expect(proposedWarnings(doubled, resolveView(doubled, scan))).toEqual([
       `view holds 1 proposed change on ${ORDER}#Order.total; kept the last on each`,
     ]);
   });
@@ -709,7 +711,7 @@ describe("member entries in a plan", () => {
       ],
       pick(ORDER),
     );
-    const resolved = resolveMembers(view, [scan]);
+    const resolved = resolveMembers(view, scan);
 
     expect(resolved.byModule.get(ORDER)).toEqual([
       { module: ORDER, member: "Order.total", kind: "changes", inScan: true },
@@ -723,7 +725,7 @@ describe("member entries in a plan", () => {
     expect(resolved.warnings).toEqual([
       `proposed change on ${ORDER}#Order.vanished is not drawn: the member is not in the scan`,
     ]);
-    expect(resolveView(view, [scan]).unresolved).toEqual([]);
+    expect(resolveView(view, scan).unresolved).toEqual([]);
   });
 
   it("draws a new member the scan already holds as an ordinary row", () => {
@@ -732,7 +734,7 @@ describe("member entries in a plan", () => {
       pick(ORDER),
     );
 
-    expect(resolveMembers(view, [scan]).byModule.get(ORDER)).toEqual([
+    expect(resolveMembers(view, scan).byModule.get(ORDER)).toEqual([
       { module: ORDER, member: "new_order", kind: "new", inScan: true },
     ]);
   });
@@ -751,7 +753,7 @@ describe("member entries in a plan", () => {
       ],
       pick(ORDER),
     );
-    const resolved = resolveMembers(view, [scan]);
+    const resolved = resolveMembers(view, scan);
 
     expect(resolved.byModule.size).toBe(0);
     expect(resolved.warnings).toEqual([
@@ -763,7 +765,7 @@ describe("member entries in a plan", () => {
   it("warns about a member entry whose file is not on the view", () => {
     const view = plan([{ module: ORDER, member: "Order", kind: "changes" }]);
 
-    expect(resolveMembers(view, [scan]).warnings).toEqual([
+    expect(resolveMembers(view, scan).warnings).toEqual([
       `proposed change on ${ORDER}#Order is not drawn: the file is not on the view`,
     ]);
   });

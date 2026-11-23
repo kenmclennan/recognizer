@@ -1,8 +1,16 @@
-import type { ScanEdge } from "recognizer";
+import type { Dependency } from "@recognizer/core";
+
 import { describe, expect, it } from "vitest";
 import { describeEdge, describeLine } from "../../src/edge-evidence";
 
-const base: ScanEdge = { from: "a.py", to: "b.py", kind: "depends", line: 3 };
+const base: Dependency = {
+  from: "a.py",
+  to: "b.py",
+  toLibrary: false,
+  language: "python",
+  kind: "depends",
+  line: 3,
+};
 
 describe("hover text", () => {
   it("names the imported names, or the target when there are none", () => {
@@ -18,11 +26,11 @@ describe("hover text", () => {
         ...base,
         kind: "implements",
         member: "SqliteStore",
-        to_member: "Store",
+        toMember: "Store",
       }),
     ).toBe("SqliteStore implements Store");
     expect(
-      describeEdge({ ...base, kind: "inherits", member: "A", to_member: "B" }),
+      describeEdge({ ...base, kind: "inherits", member: "A", toMember: "B" }),
     ).toBe("A inherits B");
   });
 

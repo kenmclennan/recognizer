@@ -1,4 +1,5 @@
-import { resolveView, type Scan, type ViewStep } from "recognizer";
+import type { Repository } from "@recognizer/core";
+import { resolveView, type ViewStep } from "recognizer";
 
 export type CanvasContent = {
   modules: string[];
@@ -6,7 +7,7 @@ export type CanvasContent = {
   focus: string | null;
 };
 
-function resolved(steps: ViewStep[], scans: Scan[]): Set<string> {
+function resolved(steps: ViewStep[], scans: Repository): Set<string> {
   return new Set(
     resolveView(
       { schema_version: 1, description: "-", commit: null, steps },
@@ -18,7 +19,7 @@ function resolved(steps: ViewStep[], scans: Scan[]): Set<string> {
 export function stepsFor(
   base: ViewStep[],
   canvas: CanvasContent,
-  scans: Scan[],
+  scans: Repository,
 ): ViewStep[] {
   const onCanvas = new Set(canvas.modules);
   let steps: ViewStep[] = base.filter(

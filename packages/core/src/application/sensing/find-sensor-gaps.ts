@@ -9,14 +9,16 @@ export interface SensorGaps {
 }
 
 export function findSensorGaps(
-  ports: { store: Pick<Store, "cachedScans" | "measuredOf" | "testsDigest"> },
+  ports: {
+    store: Pick<Store, "cachedRepository" | "measuredOf" | "testsDigest">;
+  },
   root: string,
   rows: readonly SensorRow[],
   modules: string[],
 ): SensorGaps {
-  const scans = ports.store.cachedScans(root);
-  const freshness = buildFreshness(scans, ports.store.testsDigest(root));
-  const scope = freshnessScope(modules, scans, freshness);
+  const repository = ports.store.cachedRepository(root);
+  const freshness = buildFreshness(repository, ports.store.testsDigest(root));
+  const scope = freshnessScope(modules, repository, freshness);
   const gaps: Record<string, string[]> = {};
   const never: string[] = [];
 

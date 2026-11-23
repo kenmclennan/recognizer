@@ -1,6 +1,7 @@
 import type { ConfigDocument } from "../../../domain/config-document.js";
 import type { GapRecord } from "../../../domain/gap.js";
 import type { PolicyDocument } from "../../../domain/policy-document.js";
+import type { Repository } from "../../../domain/repository.js";
 import type {
   RunFailure,
   RunPhase,
@@ -11,7 +12,6 @@ import type { ScanEvent } from "../../../domain/scan-event.js";
 import type {
   Measured,
   ResponsibilityKinds,
-  ScanFacts,
 } from "../../../domain/scan-plan.js";
 import type { ScanStatus } from "../../../domain/scan-status.js";
 
@@ -63,7 +63,7 @@ export interface Store {
   ): RunLog;
   acquireLock(root: string, details: LockDetails): AcquiredLock;
   status(root: string): ScanStatus;
-  cachedScans(root: string): ScanFacts[];
+  cachedRepository(root: string): Repository;
   measuredOf(root: string, sensor: string): Measured | null;
   testsDigest(root: string): string | null;
   responsibilityKinds(root: string): ResponsibilityKinds;

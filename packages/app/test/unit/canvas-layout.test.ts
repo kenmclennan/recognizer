@@ -1,5 +1,4 @@
 import ELK from "elkjs/lib/elk.bundled.js";
-import type { Scan } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { buildCanvasGraph, type GraphInput } from "../../src/canvas-graph";
 import {
@@ -26,11 +25,12 @@ import {
   BAR_ROW,
   SOURCES_GAP,
 } from "../../src/metric-bars";
+import { type DocScan, repositoryFrom } from "./repository-from";
 
 const elk = new ELK();
 const measure = (text: string) => text.length * 7;
 
-function scanOf(ids: string[], edges: [string, string][]): Scan {
+function scanOf(ids: string[], edges: [string, string][]): DocScan {
   return {
     modules: ids.map((id) => ({
       id,
@@ -48,14 +48,14 @@ function scanOf(ids: string[], edges: [string, string][]): Scan {
 }
 
 async function layoutOf(
-  scan: Scan,
+  scan: DocScan,
   overrides: Partial<GraphInput> = {},
   fixedMeasure = measure,
   noted: ReadonlySet<string> = new Set(),
 ) {
   const modules = scan.modules.map((module) => module.id);
   const graph = buildCanvasGraph({
-    scans: [scan],
+    scans: repositoryFrom([scan]),
     modules,
     opened: modules,
     disc: () => "green",
@@ -129,7 +129,7 @@ describe("frame sizing", () => {
     const scan = scanOf(["refund.py", "other.py"], []);
     const ids = scan.modules.map((module) => module.id);
     const graph = buildCanvasGraph({
-      scans: [scan],
+      scans: repositoryFrom([scan]),
       modules: ids,
       opened: ids,
       disc: () => "green",
@@ -231,7 +231,7 @@ describe("metric bar rows", () => {
   const scan = scanOf(["a/x.py", "b/y.py"], []);
   const graphOf = (folded: string[] = []) =>
     buildCanvasGraph({
-      scans: [scan],
+      scans: repositoryFrom([scan]),
       modules: scan.modules.map((module) => module.id),
       opened: scan.modules.map((module) => module.id),
       disc: () => "green",

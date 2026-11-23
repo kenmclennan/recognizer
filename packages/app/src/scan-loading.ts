@@ -1,18 +1,24 @@
 import {
+  EMPTY_REPOSITORY,
+  joinRepositories,
+  type Repository,
+} from "@recognizer/core";
+import {
   type FindingsDocument,
   judgeScanVersion,
+  readRepository,
   SCAN_SCHEMA_VERSION,
-  type Scan,
 } from "recognizer";
 import type { ScanHistory } from "./scan-estimate";
 import type { ScanReport } from "./scan-report";
 import type { SensorStatus } from "./sensor-run";
 
-export type LoadedScan = { file: string; scan: Scan };
+export type LoadedScan = { file: string; repository: Repository };
 
 export type Loaded = {
   modules: string[];
   scans: LoadedScan[];
+  repository: Repository;
   policy: string | null;
   baseline: string | null;
   notices: string[];
@@ -28,6 +34,7 @@ export type Loaded = {
 const EMPTY: Loaded = {
   modules: [],
   scans: [],
+  repository: EMPTY_REPOSITORY,
   policy: null,
   baseline: null,
   notices: [],
@@ -35,6 +42,19 @@ const EMPTY: Loaded = {
   findings: [],
   sensors: [],
 };
+
+export function readRepositoryFiles(
+  documents: { file: string; document: unknown }[],
+): Repository {
+  return readRepository(
+    documents.map(({ file, document }) => ({
+      language:
+        /^scan\.(.+)\.json$/.exec(file.split("/").pop() ?? "")?.[1] ??
+        "unknown",
+      document,
+    })),
+  );
+}
 
 function isList(value: unknown): boolean {
   return Array.isArray(value);
@@ -73,7 +93,11 @@ function parseScan(file: string, text: string): LoadedScan | string {
     return `${file} is not a scan: it lacks the files, edges and foreign lists`;
   }
 
-  return { file, scan: document as unknown as Scan };
+  try {
+    return { file, repository: readRepositoryFiles([{ file, document }]) };
+  } catch (error) {
+    return `${file} is not a valid scan: ${(error as Error).message}`;
+  }
 }
 
 export function loadScans(report: ScanReport): Loaded {
@@ -109,10 +133,10 @@ export function loadScans(report: ScanReport): Loaded {
 
     scans.push(loaded);
 
-    for (const module of loaded.scan.modules) {
-      if (!seen.has(module.id)) {
-        seen.add(module.id);
-        modules.push(module.id);
+    for (const file of loaded.repository.files) {
+      if (!seen.has(file.path)) {
+        seen.add(file.path);
+        modules.push(file.path);
       }
     }
   }
@@ -120,6 +144,7 @@ export function loadScans(report: ScanReport): Loaded {
   return {
     modules,
     scans,
+    repository: joinRepositories(scans.map((one) => one.repository)),
     policy: report.policy,
     baseline: report.baseline ?? null,
     notices,

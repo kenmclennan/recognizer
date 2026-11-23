@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { buildFreshness, type Scan } from "recognizer";
+import { buildFreshness } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { FileChange, ScanState } from "../../src/footer-scan";
 import {
@@ -16,6 +16,7 @@ import {
   type RunState,
 } from "../../src/scan-panel-model";
 import { withPlan } from "../fixtures";
+import { type DocScan, repositoryFrom } from "./repository-from";
 
 const MINUTE = 60000;
 const NOW = 100 * MINUTE;
@@ -39,7 +40,7 @@ const SENSORS: RowSensor[] = [
   },
 ];
 
-function scanOf(ids: string[]): Scan {
+function scanOf(ids: string[]): DocScan {
   return {
     modules: ids.map((id) => ({
       id,
@@ -49,7 +50,7 @@ function scanOf(ids: string[]): Scan {
     edges: [],
     foreign: [],
     files: ids.map((path) => ({ path, hash: `h-${path}` })),
-  } as unknown as Scan;
+  } as unknown as DocScan;
 }
 
 function scanState(files: FileChange[] = [], moved = false): ScanState {
@@ -118,8 +119,8 @@ function modelOf(
     scanning: false,
     now: NOW,
     shipped: null,
-    scans: [scan],
-    freshness: buildFreshness([scan], "t"),
+    scans: repositoryFrom([scan]),
+    freshness: buildFreshness(repositoryFrom([scan]), "t"),
     ...over,
   };
 
@@ -789,11 +790,11 @@ describe("the model over committed content", () => {
         new URL("../../../fixtures/python/expected-scan.json", srcUrl),
         "utf8",
       ),
-    ) as Scan;
+    ) as DocScan;
     const ids = scan.modules.map(({ id }) => id);
     const model = modelOf(ids, {
-      scans: [scan],
-      freshness: buildFreshness([scan], "t"),
+      scans: repositoryFrom([scan]),
+      freshness: buildFreshness(repositoryFrom([scan]), "t"),
       sensors: [],
       lines: { modules: ids, of: () => ({ kind: "current", line: "x" }) },
       scan: scanState([

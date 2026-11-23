@@ -2,11 +2,12 @@ import type {
   ExtractCall,
   ExtractionDecision,
   ExtractResult,
+  Repository,
   RunEntry,
-  ScanDocument,
   Scanners,
 } from "../../src/index.js";
 import { cachePath, type FakeStore } from "./fake-store.js";
+import { repositoryOf } from "./repository-of.js";
 
 export interface InventedLanguage {
   modules: number;
@@ -77,12 +78,18 @@ export class FakeScanners implements Scanners {
       .sort();
   }
 
-  readCached(root: string, language: string): ScanDocument | null {
+  readCached(root: string, language: string): Repository | null {
     const bytes = this.store.files.get(cachePath(root, language));
 
     return bytes === undefined
       ? null
-      : { files: Array.from({ length: Number(bytes) }, () => null) };
+      : repositoryOf(
+          Object.fromEntries(
+            Array.from({ length: Number(bytes) }, (_, at) => [`f${at}`, ""]),
+          ),
+          [],
+          language,
+        );
   }
 
   scanFile(root: string, language: string): string {

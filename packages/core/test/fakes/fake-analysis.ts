@@ -4,7 +4,7 @@ import type {
   ConfigDocument,
   ParserSet,
   PolicyDocument,
-  ScanDocument,
+  Repository,
 } from "../../src/index.js";
 
 export class FakeAnalysis implements Analysis {
@@ -22,7 +22,7 @@ export class FakeAnalysis implements Analysis {
   analysisPrepare(
     _plan: AnalysisPlan,
     _root: string,
-    _scans: ScanDocument[],
+    _repository: Repository,
     _policy: PolicyDocument,
   ): { parserLanguages: string[] | null; label: string } {
     return {
@@ -38,7 +38,7 @@ export class FakeAnalysis implements Analysis {
   analysisRun(
     _plan: AnalysisPlan,
     _root: string,
-    _scans: ScanDocument[],
+    _repository: Repository,
     _policy: PolicyDocument,
     parsers: ParserSet | null,
   ): { error: string | null } {

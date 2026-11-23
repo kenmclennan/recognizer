@@ -4,13 +4,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
 import { COMMANDS } from "../src/commands.js";
-import {
-  moduleCounts,
-  moduleNames,
-  neighbourSets,
-  validateScan,
-} from "../src/index.js";
+import { moduleCounts, moduleNames, neighbourSets } from "../src/index.js";
 import { REPO } from "./helpers.js";
+import { validatedRepository as validateScan } from "./repository-from.js";
 import { type FakeOptions, fakeIo, ROOT } from "./scan-helpers.js";
 
 const COMMIT = "abc123";
@@ -367,7 +363,7 @@ describe("show", () => {
 describe("modules", () => {
   const sets = neighbourSets(
     python.edges,
-    new Set(moduleNames([validateScan(python)])),
+    new Set(moduleNames(validateScan(python))),
   );
   const rows = (argv: string[], scan = python, extra = {}) =>
     JSON.parse(ask(scan, ["modules", ...argv, "--json"], extra).out);
@@ -401,10 +397,10 @@ describe("modules", () => {
   });
 
   it("filters by used-by and uses minimums from the counts", () => {
-    const expectedUsedBy = moduleNames([validateScan(python)])
+    const expectedUsedBy = moduleNames(validateScan(python))
       .filter((id) => moduleCounts(sets, id).usedBy >= 4)
       .sort();
-    const expectedUses = moduleNames([validateScan(python)])
+    const expectedUses = moduleNames(validateScan(python))
       .filter((id) => moduleCounts(sets, id).uses >= 2)
       .sort();
 

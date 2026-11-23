@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { validateScan } from "../src/scan.js";
 import { orphanFindings } from "../src/structure-warnings.js";
 import { REPO } from "./helpers.js";
+import { validatedRepository as validateScan } from "./repository-from.js";
 
 const ROOT = join(REPO, "fixtures/kotlin/entry-points");
 

@@ -8,12 +8,13 @@ import type {
   LockDetails,
   Measured,
   PolicyDocument,
+  Repository,
   ResponsibilityKinds,
   RunLog,
-  ScanFacts,
   ScanStatus,
   Store,
 } from "@recognizer/core";
+import { EMPTY_REPOSITORY, joinRepositories } from "@recognizer/core";
 import type { Io } from "../../cli.js";
 import { readConfig } from "../../config.js";
 import {
@@ -35,7 +36,7 @@ import {
 import { scanHashes } from "../../result-freshness.js";
 import { openPhasedRunLog } from "../../run-log.js";
 import { awaitDescribeAnswer } from "../../scan-answer.js";
-import { CACHE, cacheFile, readCachedScan } from "../../scan-facts.js";
+import { CACHE, cacheFile, readCachedRepository } from "../../scan-facts.js";
 import {
   acquireMarker,
   readLiveMarker,
@@ -182,24 +183,30 @@ export class StoreAdapter implements Store {
         };
   }
 
-  cachedScans(root: string): ScanFacts[] {
+  cachedRepository(root: string): Repository {
     let names: string[] = [];
 
     try {
       names = this.io.readDir(join(root, CACHE)).map(({ name }) => name);
     } catch {
-      return [];
+      return EMPTY_REPOSITORY;
     }
 
-    return names
-      .map((name) => /^scan\.(.+)\.json$/.exec(name)?.[1])
-      .filter((language): language is string => language !== undefined)
-      .sort()
-      .flatMap((language) => {
-        const scan = readCachedScan(this.io, root, language as Language);
+    return joinRepositories(
+      names
+        .map((name) => /^scan\.(.+)\.json$/.exec(name)?.[1])
+        .filter((language): language is string => language !== undefined)
+        .sort()
+        .flatMap((language) => {
+          const cached = readCachedRepository(
+            this.io,
+            root,
+            language as Language,
+          );
 
-        return scan === null ? [] : [scan as unknown as ScanFacts];
-      });
+          return cached === null ? [] : [cached];
+        }),
+    );
   }
 
   measuredOf(root: string, sensor: string): Measured | null {
@@ -250,8 +257,8 @@ export class StoreAdapter implements Store {
       return { registered: false, kinds: {} };
     }
 
-    const scans = this.cachedScans(root);
-    const modules = scans.flatMap((scan) => scan.modules.map(({ id }) => id));
+    const repository = this.cachedRepository(root);
+    const modules = repository.files.map(({ path }) => path);
     const file = join(root, ".recognizer", "responsibilities.json");
     const kinds: Record<string, LineKind> = {};
 
@@ -272,7 +279,7 @@ export class StoreAdapter implements Store {
     }
 
     const describer = findDescriber(this.io, root);
-    const hashes = scanHashes(scans as never);
+    const hashes = scanHashes(repository);
 
     for (const id of modules) {
       const entry = entries[id];

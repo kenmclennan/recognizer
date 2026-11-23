@@ -1,7 +1,7 @@
+import type { Repository } from "@recognizer/core";
 import { ruleText } from "./findings.js";
 import { keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
-import type { Scan } from "./scan.js";
 
 export type Rule =
   | { type: "level"; from_level: string; to_level: string }
@@ -28,8 +28,8 @@ function compareText(a: string, b: string): number {
   return a > b ? 1 : 0;
 }
 
-export function collectViolations(scan: Scan, policy: Policy) {
-  const { edges } = keptGraph(scan, policy.ignore);
+export function collectViolations(repository: Repository, policy: Policy) {
+  const { edges } = keptGraph(repository, policy.ignore);
 
   const found = new Map<string, Violation>();
 

@@ -3,11 +3,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   parsePolicy,
-  type Scan,
   type StructureSettings,
   structureSensor,
 } from "../src/index.js";
 import { REPO } from "./helpers.js";
+import { repositoryFrom } from "./repository-from.js";
 
 const here = join(REPO, "fixtures/structure/corpus");
 
@@ -61,7 +61,7 @@ function read(name: string): ScanDescription {
   ) as ScanDescription;
 }
 
-function scanFrom(description: ScanDescription): Scan {
+function scanFrom(description: ScanDescription) {
   const foreign = [
     ...new Set(
       description.edges
@@ -70,7 +70,7 @@ function scanFrom(description: ScanDescription): Scan {
     ),
   ];
 
-  return {
+  return repositoryFrom({
     schema_version: 7,
     scanner: { name: "hand-written", version: "0" },
     commit: null,
@@ -117,7 +117,7 @@ function scanFrom(description: ScanDescription): Scan {
       ...(kind === "implements" ? { member: "m0", to_member: "m0" } : {}),
     })),
     foreign: foreign.map((id) => ({ id, name: id.slice(8) })),
-  } as unknown as Scan;
+  });
 }
 
 function settingsFrom(description: ScanDescription): StructureSettings {
@@ -142,7 +142,7 @@ function runScan(name: string) {
     description.policy === undefined ? null : parsePolicy(description.policy);
 
   return structureSensor(
-    [scanFrom(description)],
+    scanFrom(description),
     policy,
     settingsFrom(description),
     { commit: "c", modified: false },

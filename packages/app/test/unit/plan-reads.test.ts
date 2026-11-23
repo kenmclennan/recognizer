@@ -3,23 +3,26 @@ import {
   type LoadedPlanData,
   latestPlanOnly,
   type PlanRequest,
-  type ScanFacts,
   type ScanPlanView,
 } from "../../src/plan-reads";
 import { planThrough } from "../../src/scan-fake";
+import { type DocScan, repositoryFrom } from "./repository-from";
 
 const FILES = { "a.py": "ha", "b.py": "hb", "c.py": "hc" };
 
-const SCAN: ScanFacts = {
-  modules: Object.keys(FILES).map((id) => ({
-    id,
-    members: [{ kind: "function" }],
-  })),
-  files: Object.entries(FILES).map(([path, hash]) => ({ path, hash })),
-};
+const SCAN = repositoryFrom([
+  {
+    modules: Object.keys(FILES).map((id) => ({
+      id,
+      members: [{ kind: "function" }],
+    })),
+    edges: [],
+    files: Object.entries(FILES).map(([path, hash]) => ({ path, hash })),
+  } as unknown as DocScan,
+]);
 
 const DATA: LoadedPlanData = {
-  scans: [SCAN],
+  scans: SCAN,
   measured: {
     crap: { inputs: FILES, tests: "t1" },
     mutation: { inputs: { ...FILES, "b.py": "x" }, tests: "t1" },

@@ -1,7 +1,7 @@
 import { join } from "node:path";
+import { type File, type Repository, scannedHashes } from "@recognizer/core";
 import type { Io } from "../cli.js";
 import type { FindingRecord } from "../findings-document.js";
-import type { RecordedScan, Scan } from "../scan.js";
 import {
   type DuplicationSettings,
   findingsForUnits,
@@ -150,35 +150,30 @@ function unitOf(module: string, cached: CachedUnit): Unit {
 function collectUnits(
   io: Io,
   root: string,
-  scan: Scan,
+  files: readonly File[],
+  hashes: ReadonlyMap<string, string>,
   settings: DuplicationSettings,
   parsers: Parsers,
   cache: UnitCache | null,
   next: UnitCache,
   tally: Tally,
 ): Unit[] {
-  const hashes = new Map(
-    ((scan as Partial<RecordedScan>).files ?? []).map((file) => [
-      file.path,
-      file.hash,
-    ]),
-  );
   const units: Unit[] = [];
 
-  for (const module of scan.modules) {
-    const grammar = grammarFor(module.id);
+  for (const module of files) {
+    const grammar = grammarFor(module.path);
 
-    if (!hashes.has(module.id) || grammar === null) {
+    if (!hashes.has(module.path) || grammar === null) {
       continue;
     }
 
-    const hash = hashes.get(module.id);
-    const kept = cache?.[module.id];
+    const hash = hashes.get(module.path);
+    const kept = cache?.[module.path];
 
     if (cache !== null && reusable(kept, hash, grammar, settings)) {
-      next[module.id] = kept;
+      next[module.path] = kept;
       tally.reused += 1;
-      units.push(...kept.units.map((one) => unitOf(module.id, one)));
+      units.push(...kept.units.map((one) => unitOf(module.path, one)));
 
       continue;
     }
@@ -186,20 +181,20 @@ function collectUnits(
     let bytes: Buffer;
 
     try {
-      bytes = io.readBytes(join(root, module.id));
+      bytes = io.readBytes(join(root, module.path));
     } catch {
       continue;
     }
 
-    const source = decode(io, module.id, bytes);
+    const source = decode(io, module.path, bytes);
 
     if (source === null) {
       continue;
     }
 
     const found = unitsInSource(
-      module.id,
-      module.id,
+      module.path,
+      module.path,
       source,
       grammar,
       parsers,
@@ -210,7 +205,7 @@ function collectUnits(
     units.push(...found);
 
     if (cache !== null && hash !== undefined) {
-      next[module.id] = {
+      next[module.path] = {
         hash,
         grammar,
         min_lines: settings.min_lines,
@@ -226,7 +221,7 @@ function collectUnits(
 export function measureDuplication(
   io: Io,
   root: string,
-  scans: Scan[],
+  repository: Repository,
   settings: DuplicationSettings,
   parsers: Parsers,
   reuse = false,
@@ -234,9 +229,20 @@ export function measureDuplication(
   const cache = reuse ? readUnitCache(io, root) : null;
   const next: UnitCache = {};
   const tally: Tally = { parsed: 0, reused: 0 };
-  const findings = scans.flatMap((scan) =>
+  const hashes = scannedHashes(repository);
+  const findings = repository.extractions.flatMap(({ language }) =>
     findingsForUnits(
-      collectUnits(io, root, scan, settings, parsers, cache, next, tally),
+      collectUnits(
+        io,
+        root,
+        repository.files.filter((file) => file.language === language),
+        hashes,
+        settings,
+        parsers,
+        cache,
+        next,
+        tally,
+      ),
       settings,
     ),
   );

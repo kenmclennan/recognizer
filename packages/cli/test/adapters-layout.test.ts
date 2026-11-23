@@ -7,7 +7,11 @@ const here = dirname(fileURLToPath(import.meta.url));
 const adapters = resolve(here, "../src/adapters");
 
 const expected: Record<string, string[]> = {
-  filesystem: ["store-adapter.ts"],
+  filesystem: [
+    "scan-document-types.ts",
+    "scan-translator.ts",
+    "store-adapter.ts",
+  ],
   git: ["git-adapter.ts"],
   plugins: [
     "describer-adapter.ts",

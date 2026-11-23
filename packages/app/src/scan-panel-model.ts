@@ -1,3 +1,4 @@
+import { EMPTY_REPOSITORY, type Repository } from "@recognizer/core";
 import type {
   Diagnosis,
   Freshness,
@@ -9,7 +10,6 @@ import {
   type Config,
   parseConfig,
   registeredSensors,
-  type Scan,
   type ScanIntent,
   type ScanTicks,
   type SuiteRef,
@@ -117,7 +117,7 @@ export type PanelInput = {
   view?: PanelView | null;
   mode?: ResultsMode;
   runMode?: ResultsMode;
-  scans?: Scan[];
+  scans?: Repository;
   run: RunState;
   scanning: boolean;
   external?: boolean;
@@ -192,7 +192,7 @@ export function planFactsOf(
   sensors: RowSensor[] = rowSensors(given.config, given.shipped),
 ): LoadedPlanData {
   return {
-    scans: given.scans ?? [],
+    scans: given.scans ?? EMPTY_REPOSITORY,
     measured: Object.fromEntries(
       given.sensors.map(({ name, status, measured }) => [
         name,
@@ -387,22 +387,20 @@ export function effectiveTicks(
   };
 }
 
-export function functionCount(scans: Scan[], ids: string[] | null): number {
+export function functionCount(scans: Repository, ids: string[] | null): number {
   const wanted = ids === null ? null : new Set(ids);
   let count = 0;
 
-  for (const scan of scans) {
-    for (const module of scan.modules) {
-      if (wanted !== null && !wanted.has(module.id)) {
-        continue;
-      }
+  for (const file of scans.files) {
+    if (wanted !== null && !wanted.has(file.path)) {
+      continue;
+    }
 
-      for (const member of module.members ?? []) {
-        if (member.kind === "function") {
-          count += 1;
-        } else if (member.kind === "class") {
-          count += member.methods?.length ?? 0;
-        }
+    for (const member of file.members) {
+      if (member.kind === "function") {
+        count += 1;
+      } else if (member.kind === "class") {
+        count += member.methods?.length ?? 0;
       }
     }
   }

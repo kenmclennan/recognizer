@@ -1,4 +1,5 @@
-import type { MarkedModule, Scan } from "recognizer";
+import type { Repository } from "@recognizer/core";
+import type { MarkedFile } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
   addedFromHead,
@@ -8,9 +9,10 @@ import {
   withoutDrawnResponsibility,
 } from "../../src/head-drawn";
 import type { OverlayModel } from "../../src/overlay-model";
+import { type DocScan, repositoryFrom } from "./repository-from";
 
 const HEAD = "head1";
-const marked: MarkedModule[] = [
+const marked: MarkedFile[] = [
   { id: "p/a.py", mark: "modified", box: "current" },
   { id: "p/b.py", mark: "modified", box: "current" },
 ];
@@ -22,7 +24,7 @@ const marks = new Map<string, Map<string, "added"> | null>([
 function scanOf(
   members: string[],
   extra: { commit: string; modified: boolean | null },
-): Scan {
+): DocScan {
   return {
     ...extra,
     modules: ["p/a.py", "p/b.py"].map((id) => ({
@@ -37,7 +39,7 @@ function scanOf(
     })),
     edges: [],
     foreign: [],
-  } as unknown as Scan;
+  } as unknown as DocScan;
 }
 
 const head = [scanOf(["helper"], { commit: HEAD, modified: false })];
@@ -60,8 +62,14 @@ function model(): OverlayModel {
   } as unknown as OverlayModel;
 }
 
-function drawnFor(scans: Scan[]) {
-  return headDrawn({ scans, headCommit: HEAD, marked, marks, head });
+function drawnFor(scans: DocScan[]) {
+  return headDrawn({
+    scans: repositoryFrom(scans),
+    headCommit: HEAD,
+    marked,
+    marks,
+    head: repositoryFrom(head),
+  });
 }
 
 describe("head-drawn", () => {
@@ -102,23 +110,29 @@ describe("head-drawn", () => {
 
   it("replaces a drawn module's entry with the head scan's and keeps the rest", () => {
     const scans = [scanOf(["other"], { commit: "else", modified: false })];
-    const out = drawnScans(scans, new Set(["p/a.py"]), head);
+    const out = drawnScans(
+      repositoryFrom(scans),
+      new Set(["p/a.py"]),
+      repositoryFrom(head),
+    );
 
-    expect(out[0].modules[0].members?.map((m) => m.name)).toEqual(["helper"]);
-    expect(out[0].modules[1].members?.map((m) => m.name)).toEqual(["other"]);
+    expect(out.files[0]?.members.map((m) => m.name)).toEqual(["helper"]);
+    expect(out.files[1]?.members.map((m) => m.name)).toEqual(["other"]);
   });
 });
 
 describe("head-drawn renamed", () => {
   it("headDrawn includes a renamed module with marks held in the head scan", () => {
     const drawn = headDrawn({
-      scans: [scanOf(["other"], { commit: "else", modified: false })],
+      scans: repositoryFrom([
+        scanOf(["other"], { commit: "else", modified: false }),
+      ]),
       headCommit: HEAD,
       marked: [
         { id: "p/a.py", mark: "renamed", box: "current", from: "p/old.py" },
       ],
       marks: new Map([["p/a.py", new Map([["helper", "added"]])]]),
-      head,
+      head: repositoryFrom(head),
     });
 
     expect([...drawn]).toEqual(["p/a.py"]);
@@ -173,13 +187,13 @@ describe("head-drawn responsibility", () => {
 });
 
 describe("head-drawn added", () => {
-  const added: MarkedModule[] = [
+  const added: MarkedFile[] = [
     { id: "p/new.py", mark: "added", box: "current" },
     { id: "p/gone.py", mark: "added", box: "current" },
   ];
   const member = (name: string) =>
     ({ name, exported: true, kind: "function", line: 1 }) as never;
-  const headScan: Scan = {
+  const headScan: DocScan = {
     modules: [
       { id: "p/new.py", kind: "module", members: [member("fresh")] },
       { id: "p/a.py", kind: "module", members: [member("fromHead")] },
@@ -189,64 +203,86 @@ describe("head-drawn added", () => {
       { from: "p/a.py", to: "p/new.py", kind: "import" },
     ],
     foreign: [],
-  } as unknown as Scan;
-  const checkout: Scan = {
+  } as unknown as DocScan;
+  const checkout: DocScan = {
     modules: [
       { id: "p/a.py", kind: "module", members: [member("fromCheckout")] },
     ],
     edges: [],
     foreign: [],
-  } as unknown as Scan;
-  const find = (scans: Scan[], id: string) =>
-    scans.flatMap((scan) => scan.modules).find((entry) => entry.id === id);
+  } as unknown as DocScan;
+  const find = (scans: Repository, id: string) =>
+    scans.files.find((entry) => entry.path === id);
 
   it("gives an added module absent from the checkout its head members", () => {
-    expect(find([headScan], "p/new.py")?.members).toHaveLength(1);
+    expect(find(repositoryFrom([headScan]), "p/new.py")?.members).toHaveLength(
+      1,
+    );
 
-    const result = addedFromHead([checkout], added.slice(0, 1), [headScan]);
+    const result = addedFromHead(
+      repositoryFrom([checkout]),
+      added.slice(0, 1),
+      repositoryFrom([headScan]),
+    );
 
     expect(find(result, "p/new.py")?.members).toEqual(
-      find([headScan], "p/new.py")?.members,
+      find(repositoryFrom([headScan]), "p/new.py")?.members,
     );
   });
 
   it("keeps the checkout entry for a module the checkout holds", () => {
-    const marked: MarkedModule[] = [
+    const marked: MarkedFile[] = [
       { id: "p/a.py", mark: "added", box: "current" },
     ];
 
-    const scans = [checkout];
+    const scans = repositoryFrom([checkout]);
 
-    expect(find(scans, "p/a.py")).not.toEqual(find([headScan], "p/a.py"));
-    expect(addedFromHead(scans, marked, [headScan])).toBe(scans);
+    expect(find(scans, "p/a.py")).not.toEqual(
+      find(repositoryFrom([headScan]), "p/a.py"),
+    );
+    expect(addedFromHead(scans, marked, repositoryFrom([headScan]))).toBe(
+      scans,
+    );
   });
 
   it("leaves out an added id the head lacks", () => {
-    const result = addedFromHead([checkout], added, [headScan]);
+    const result = addedFromHead(
+      repositoryFrom([checkout]),
+      added,
+      repositoryFrom([headScan]),
+    );
 
     expect(find(result, "p/new.py")).toBeDefined();
     expect(find(result, "p/gone.py")).toBeUndefined();
   });
 
   it("returns the same scans without added marks", () => {
-    const scans = [checkout];
+    const scans = repositoryFrom([checkout]);
 
     for (const mark of ["modified", "renamed", "removed"] as const) {
       expect(
         addedFromHead(
           scans,
           [{ id: "p/new.py", mark, box: "current" }],
-          [headScan],
+          repositoryFrom([headScan]),
         ),
       ).toBe(scans);
     }
 
-    expect(addedFromHead(scans, [], [headScan])).toBe(scans);
+    expect(addedFromHead(scans, [], repositoryFrom([headScan]))).toBe(scans);
   });
 
   it("carries the head edges from the added module only", () => {
-    const result = addedFromHead([checkout], added.slice(0, 1), [headScan]);
-    const edges = result.flatMap((scan) => scan.edges);
+    const result = addedFromHead(
+      repositoryFrom([checkout]),
+      added.slice(0, 1),
+      repositoryFrom([headScan]),
+    );
+    const edges = result.dependencies.map(({ from, to, kind }) => ({
+      from,
+      to,
+      kind,
+    }));
 
     expect(edges).toEqual([{ from: "p/new.py", to: "p/a.py", kind: "import" }]);
   });

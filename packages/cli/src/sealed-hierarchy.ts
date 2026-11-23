@@ -1,18 +1,18 @@
-import type { Scan, ScanEdge } from "./scan.js";
+import type { Dependency, Repository } from "@recognizer/core";
 
 export function sealedGroups(
-  scan: Scan,
-  edges: readonly ScanEdge[],
+  repository: Repository,
+  edges: readonly Dependency[],
 ): Map<string, string> {
   const sealed = new Map<string, Set<string>>();
 
-  for (const module of scan.modules) {
-    for (const member of module.members ?? []) {
+  for (const file of repository.files) {
+    for (const member of file.members) {
       if ((member.tags as string[] | undefined)?.includes("sealed")) {
-        const names = sealed.get(module.id) ?? new Set<string>();
+        const names = sealed.get(file.path) ?? new Set<string>();
 
         names.add(member.name);
-        sealed.set(module.id, names);
+        sealed.set(file.path, names);
       }
     }
   }
@@ -50,8 +50,8 @@ export function sealedGroups(
     }
 
     if (
-      edge.to_member !== undefined &&
-      sealed.get(edge.to)?.has(edge.to_member)
+      edge.toMember !== undefined &&
+      sealed.get(edge.to)?.has(edge.toMember)
     ) {
       union(edge.from, edge.to);
     }
@@ -59,8 +59,8 @@ export function sealedGroups(
 
   const groups = new Map<string, string>();
 
-  for (const module of scan.modules) {
-    groups.set(module.id, find(module.id));
+  for (const file of repository.files) {
+    groups.set(file.path, find(file.path));
   }
 
   for (const edge of edges) {

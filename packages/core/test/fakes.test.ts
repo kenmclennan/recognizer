@@ -2,8 +2,10 @@ import { existsSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { joinRepositories } from "../src/index.js";
 import { createFakes } from "./fakes/container.js";
 import { cachePath } from "./fakes/fake-store.js";
+import { repositoryOf } from "./fakes/repository-of.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -125,17 +127,11 @@ describe("fakes", () => {
 describe("the fake store reads", () => {
   it("the_fake_store_reads_what_it_was_given", () => {
     const { store } = createFakes();
-    const python = {
-      modules: [{ id: "a.py" }],
-      files: [{ path: "a.py", hash: "ha" }],
-    };
-    const kotlin = {
-      modules: [{ id: "B.kt" }],
-      files: [{ path: "B.kt", hash: "hb" }],
-    };
+    const python = repositoryOf({ "a.py": "ha" }, [], "python");
+    const kotlin = repositoryOf({ "B.kt": "hb" }, [], "kotlin");
 
-    store.files.set(cachePath("/repo", "python"), JSON.stringify(python));
-    store.files.set(cachePath("/repo", "kotlin"), JSON.stringify(kotlin));
+    store.repositories.set(cachePath("/repo", "python"), python);
+    store.repositories.set(cachePath("/repo", "kotlin"), kotlin);
     store.measured.set("/repo::crap", { inputs: { "a.py": "ha" }, tests: "t" });
     store.tests = "t";
     store.kinds.set("/repo", {
@@ -143,8 +139,10 @@ describe("the fake store reads", () => {
       kinds: { "a.py": "current", "B.kt": "missing" },
     });
 
-    expect(store.cachedScans("/repo")).toEqual([python, kotlin]);
-    expect(store.cachedScans("/other")).toEqual([]);
+    expect(store.cachedRepository("/repo")).toEqual(
+      joinRepositories([kotlin, python]),
+    );
+    expect(store.cachedRepository("/other")).toEqual(joinRepositories([]));
     expect(store.measuredOf("/repo", "crap")).toEqual({
       inputs: { "a.py": "ha" },
       tests: "t",

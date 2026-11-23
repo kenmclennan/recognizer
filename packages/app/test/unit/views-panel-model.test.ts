@@ -1,4 +1,4 @@
-import type { Scan, View } from "recognizer";
+import type { View } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
   dropdownNames,
@@ -7,12 +7,13 @@ import {
   showsAllLink,
   viewsPanelModel,
 } from "../../src/views-panel-model";
+import { type DocScan, repositoryFrom } from "./repository-from";
 
 const scan = {
   modules: [{ id: "a.py", kind: "module" }],
   edges: [],
   foreign: [],
-} as unknown as Scan;
+} as unknown as DocScan;
 
 const text = (extra: Record<string, unknown>, module = "a.py") =>
   JSON.stringify({
@@ -39,7 +40,7 @@ describe("viewsPanelModel", () => {
         { name: "alpha", text: text({}) },
         { name: "bad", text: "{nope" },
       ],
-      [scan],
+      repositoryFrom([scan]),
       facts,
     );
 
@@ -60,7 +61,7 @@ describe("viewsPanelModel", () => {
         { name: "a", text: text({ title: "A title" }) },
         { name: "b", text: text({}) },
       ],
-      [scan],
+      repositoryFrom([scan]),
       new Map(),
     );
 
@@ -78,7 +79,7 @@ describe("viewsPanelModel", () => {
           }),
         },
       ],
-      [scan],
+      repositoryFrom([scan]),
       new Map(),
     );
 

@@ -3,7 +3,7 @@ import type { Io } from "../src/cli.js";
 import type { FindingsDocument } from "../src/findings-document.js";
 import { findingsFile, readFindingsFiles } from "../src/findings-files.js";
 import { buildFreshness } from "../src/result-freshness.js";
-import type { Scan } from "../src/scan.js";
+import { repositoryFrom } from "./repository-from.js";
 
 const ROOT = "/repo";
 
@@ -49,7 +49,7 @@ const H0 = "0".repeat(64);
 const H1 = "1".repeat(64);
 const H2 = "2".repeat(64);
 
-const SCAN = {
+const SCAN = repositoryFrom({
   modules: [
     { id: "pkg/a.py", kind: "module" },
     { id: "pkg/b.py", kind: "module" },
@@ -60,7 +60,7 @@ const SCAN = {
     { path: "pkg/a.py", hash: H1 },
     { path: "pkg/b.py", hash: H2 },
   ],
-} as unknown as Scan;
+});
 
 function read(
   value: FindingsDocument,
@@ -70,7 +70,7 @@ function read(
   return readFindingsFiles(
     ioHolding(value),
     ROOT,
-    () => buildFreshness([SCAN], tests),
+    () => buildFreshness(SCAN, tests),
     [],
     allowed,
   )[0];
@@ -197,7 +197,7 @@ describe("readFindingsFiles tolerates a stored thresholds.complexity record", ()
         },
       } as unknown as Io,
       ROOT,
-      () => buildFreshness([SCAN], null),
+      () => buildFreshness(SCAN, null),
       [],
       allowed,
     )[0];

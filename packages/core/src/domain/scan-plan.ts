@@ -38,14 +38,3 @@ export type ResponsibilityKinds = {
 };
 
 export type Measured = { inputs?: Record<string, string>; tests?: string };
-
-export type ScanFacts = {
-  modules: readonly {
-    id: string;
-    members?: readonly {
-      kind?: string;
-      methods?: readonly unknown[];
-    }[];
-  }[];
-  files?: readonly { path: string; hash: string }[];
-};

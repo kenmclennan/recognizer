@@ -1,8 +1,5 @@
-import type {
-  ChangeClassification,
-  FileChange,
-  ScanSelection,
-} from "recognizer";
+import type { ExtractionSelection } from "@recognizer/core";
+import type { ChangeClassification, FileChange } from "recognizer";
 import { classifyChanges } from "recognizer";
 import type { BranchRow, HistoryRow, PullRequestRow } from "./commits-parse";
 import type { RefFacts } from "./commits-port";
@@ -305,7 +302,7 @@ export type Classification = ChangeClassification;
 
 export function classify(
   changes: readonly FileChange[] | null,
-  selections: readonly ScanSelection[] | null,
+  selections: readonly ExtractionSelection[] | null,
 ): Classification | null {
   return changes === null || selections === null || selections.length === 0
     ? null

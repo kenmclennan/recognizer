@@ -21,6 +21,7 @@ import {
   structureSensor,
 } from "../src/structure-sensor.js";
 import { REPO } from "./helpers.js";
+import { repositoryFrom } from "./repository-from.js";
 
 const EXAMPLES = join(REPO, "schema/findings-examples");
 const CONTEXT = { commit: "abc", modified: false };
@@ -30,7 +31,7 @@ function fixture(name: string) {
   const read = (path: string) => readFileSync(join(dir, path), "utf8");
 
   return {
-    scan: validateScan(JSON.parse(read("scan.json"))),
+    scan: repositoryFrom(validateScan(JSON.parse(read("scan.json")))),
     policy: parsePolicy(read(".recognizer/policy.yaml")),
     baselineText: read(".recognizer/baselines/violations.json"),
     expected: (file: string) => JSON.parse(read(file)),
@@ -41,7 +42,7 @@ function sense(name: string, cycle = true) {
   const { scan, policy } = fixture(name);
 
   return structureSensor(
-    [scan],
+    scan,
     policy,
     {
       entry_points: [],
@@ -112,13 +113,13 @@ describe("structureSensor ids", () => {
 
   it("gives the same cycle ids when the scans are reordered", () => {
     const { scan, policy } = fixture("check-warnings");
-    const other = { ...scan, modules: [...scan.modules].reverse() };
-    const ids = (scans: (typeof scan)[]) =>
+    const other = { ...scan, files: [...scan.files].reverse() };
+    const ids = (scans: typeof scan) =>
       structureSensor(scans, policy, DEFAULT_STRUCTURE_SETTINGS, CONTEXT)
         .document.findings.filter((f) => f.kind === "cycle")
         .map((f) => f.id);
 
-    expect(ids([other])).toEqual(ids([scan]));
+    expect(ids(other)).toEqual(ids(scan));
   });
 
   it("records the current sensor version", () => {
@@ -133,25 +134,25 @@ describe("structureSensor ids", () => {
     const to = orphan?.evidence.modules[0] as string;
     const withTests = {
       ...scan,
-      test_imports: [{ from: "tests/test_x.py", to }],
+      testImports: [{ from: "tests/test_x.py", to }],
     };
-    const run = (scans: (typeof scan)[]) =>
+    const run = (scans: typeof scan) =>
       structureSensor(scans, policy, DEFAULT_STRUCTURE_SETTINGS, CONTEXT)
         .document.findings;
     const other = (findings: ReturnType<typeof run>) =>
       findings.filter((f) => f.kind !== "orphan");
 
-    expect(other(run([withTests]))).toEqual(other(run([scan])));
+    expect(other(run(withTests))).toEqual(other(run(scan)));
     expect(
-      run([withTests])
+      run(withTests)
         .filter((f) => f.kind === "orphan")
         .map((f) => f.id),
     ).toEqual(
-      run([scan])
+      run(scan)
         .filter((f) => f.kind === "orphan")
         .map((f) => f.id),
     );
-    expect(run([withTests]).find((f) => f.id === orphan?.id)?.fix_pattern).toBe(
+    expect(run(withTests).find((f) => f.id === orphan?.id)?.fix_pattern).toBe(
       "move-orphan-to-tests",
     );
   });
@@ -215,7 +216,7 @@ describe("grouped violation records", () => {
       { from: "d/a.py", to: "x/m1.py", kind: "depends", line: 3 },
       { from: "d/a.py", to: "x/m2.py", kind: "depends", line: 7 },
     ];
-    const scan = validateScan({
+    const scan = repositoryFrom({
       schema_version: 7,
       scanner: { name: "t", version: "0" },
       commit: null,
@@ -235,7 +236,7 @@ describe("grouped violation records", () => {
     });
     const policy = parsePolicy("forbid:\n  - d/** -> x/**\n");
     const document = structureSensor(
-      [scan],
+      scan,
       policy,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
@@ -362,8 +363,8 @@ describe("baseline compatibility", () => {
 describe("measuredModules", () => {
   it("lists the modules the sensor measures, leaving out an ignored one", () => {
     const { scan, policy } = fixture("check");
-    const withPolicy = measuredModules([scan], policy);
-    const without = measuredModules([scan], null);
+    const withPolicy = measuredModules(scan, policy);
+    const without = measuredModules(scan, null);
 
     expect(withPolicy.has("shop/main.py")).toBe(true);
     expect(withPolicy.has("tests/test_order.py")).toBe(false);
@@ -373,13 +374,13 @@ describe("measuredModules", () => {
   it("equals the ids of the metrics the sensor reports", () => {
     const { scan, policy } = fixture("check");
     const { metrics } = structureSensor(
-      [scan],
+      scan,
       policy,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
     );
 
-    expect([...measuredModules([scan], policy)].sort()).toEqual(
+    expect([...measuredModules(scan, policy)].sort()).toEqual(
       metrics.map((metric) => metric.id).sort(),
     );
   });
@@ -387,18 +388,18 @@ describe("measuredModules", () => {
 
 describe("structure sensor inputs", () => {
   const scanWith = (files: { path: string; hash: string }[]) =>
-    ({
+    repositoryFrom({
       modules: [{ id: "a.py" }, { id: "b.py" }, { id: "c.py" }],
       files,
-    }) as unknown as Parameters<typeof measuredInputs>[0][number];
+    });
 
   it("maps each hashed module to the scan's hash and omits one with no files entry", () => {
-    const inputs = measuredInputs([
+    const inputs = measuredInputs(
       scanWith([
         { path: "b.py", hash: "b".repeat(64) },
         { path: "a.py", hash: "a".repeat(64) },
       ]),
-    ]);
+    );
 
     expect(inputs).toEqual({
       "a.py": "a".repeat(64),

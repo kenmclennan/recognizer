@@ -1,4 +1,3 @@
-import type { Scan } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { buildCanvasGraph } from "../../src/canvas-graph";
 import { compactFolders } from "../../src/folder-compaction";
@@ -8,6 +7,7 @@ import {
   type PickerSource,
 } from "../../src/picker-model";
 import { expectedScan } from "../fixtures";
+import { type DocScan, repositoryFrom } from "./repository-from";
 
 type EdgeSpec = {
   from: string;
@@ -22,7 +22,7 @@ function scanOf(
   ids: string[],
   edges: EdgeSpec[],
   members: Record<string, { name: string; exported: boolean }[]> = {},
-): Scan {
+): DocScan {
   return {
     modules: ids.map((id) => ({
       id,
@@ -48,11 +48,11 @@ function scanOf(
         : {}),
     })),
     foreign: [],
-  } as unknown as Scan;
+  } as unknown as DocScan;
 }
 
 function pickerOf(
-  scan: Scan,
+  scan: DocScan,
   source: PickerSource,
   onCanvas: (id: string) => boolean = () => false,
   extra: { filter?: string; collapsed?: Set<string> } = {},
@@ -60,7 +60,7 @@ function pickerOf(
   const modules = scan.modules.map((module) => module.id);
 
   return createPicker({
-    scans: [scan],
+    scans: repositoryFrom([scan]),
     modules,
     compaction: compactFolders(modules),
     onCanvas,
@@ -123,7 +123,7 @@ describe("picker rows", () => {
   it("agrees with the bar's counts", () => {
     const modules = star.modules.map((module) => module.id);
     const graph = buildCanvasGraph({
-      scans: [star],
+      scans: repositoryFrom([star]),
       modules,
       opened: modules,
       disc: () => "green",

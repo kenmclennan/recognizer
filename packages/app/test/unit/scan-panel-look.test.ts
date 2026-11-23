@@ -4,8 +4,8 @@ import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { loadedOf, registeredOf, scanHostOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
-import { fakeViews } from ${JSON.stringify(here("views-fake.ts"))};
+import { loadedOf, registeredOf, scanHostOf, mountExplorer } from ${JSON.stringify(here("../test/unit/look-support.ts"))};
+import { fakeViews } from ${JSON.stringify(here("../test/unit/views-fake.ts"))};
 import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
 import { fakeEditor } from ${JSON.stringify(here("editor-fake.ts"))};
 import { fakeResponsibilities } from ${JSON.stringify(here("responsibilities-fake.ts"))};
@@ -44,7 +44,7 @@ const entry = (phase, name, reason) => json({ event: "entry", phase, name, outco
 const summary = json({ event: "summary" });
 const gate = () => { let release = () => {}; const promise = new Promise((resolve) => { release = resolve; }); return { promise, release }; };
 
-const structureFor = (loaded) => { const { commit, modified } = scansCommit(loaded.scans.map((s) => s.scan)); return commit === null ? null : JSON.stringify({ findings_version: 1, sensor: { name: "structure", version: "1" }, commit, modified, settings: { duplication: { threshold: 0.8, min_lines: 4, pair_min_lines: 6, min_nodes: 20 }, complexity_limit: 10 }, findings: [] }); };
+const structureFor = (loaded) => { const { commit, modified } = scansCommit(loaded.repository); return commit === null ? null : JSON.stringify({ findings_version: 1, sensor: { name: "structure", version: "1" }, commit, modified, settings: { duplication: { threshold: 0.8, min_lines: 4, pair_min_lines: 6, min_nodes: 20 }, complexity_limit: 10 }, findings: [] }); };
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));

@@ -1,6 +1,7 @@
-import { resolveView, type Scan, type View } from "recognizer";
+import { resolveView, type View } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { PROPOSED_WORDS, planOverlay } from "../../src/plan-overlay";
+import { type DocScan, repositoryFrom } from "./repository-from";
 
 const scan = {
   schema_version: 1,
@@ -8,7 +9,7 @@ const scan = {
   modules: ["app/a.py", "app/b.py"].map((id) => ({ id, kind: "module" })),
   edges: [],
   foreign: [],
-} as unknown as Scan;
+} as unknown as DocScan;
 
 const plan = (proposed: View["proposed"]): View => ({
   schema_version: 4,
@@ -28,8 +29,12 @@ describe("planOverlay", () => {
       steps: [],
     };
 
-    expect(planOverlay(plain, resolveView(plain, [scan]))).toBeNull();
-    expect(planOverlay(null, resolveView(plain, [scan]))).toBeNull();
+    expect(
+      planOverlay(plain, resolveView(plain, repositoryFrom([scan]))),
+    ).toBeNull();
+    expect(
+      planOverlay(null, resolveView(plain, repositoryFrom([scan]))),
+    ).toBeNull();
   });
 
   it("maps proposed changes, planned ids and ghosts", () => {
@@ -38,7 +43,10 @@ describe("planOverlay", () => {
       { module: "app/new.py", kind: "new" },
       { module: "lib/m.py", kind: "moves", from: "app/b.py" },
     ]);
-    const overlay = planOverlay(view, resolveView(view, [scan]));
+    const overlay = planOverlay(
+      view,
+      resolveView(view, repositoryFrom([scan])),
+    );
 
     expect([...(overlay?.proposed.keys() ?? [])]).toEqual([
       "app/a.py",
@@ -57,7 +65,10 @@ describe("planOverlay", () => {
   it("leaves out a proposed change on a module that is not drawn", () => {
     const view = plan([{ module: "app/b.py", kind: "changes" }]);
 
-    expect(planOverlay(view, resolveView(view, [scan]))?.proposed.size).toBe(0);
+    expect(
+      planOverlay(view, resolveView(view, repositoryFrom([scan])))?.proposed
+        .size,
+    ).toBe(0);
   });
 
   it("words every kind", () => {

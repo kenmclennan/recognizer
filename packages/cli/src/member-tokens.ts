@@ -1,12 +1,12 @@
 import type {
-  ScanEdge,
-  ScanField,
-  ScanMember,
-  ScanMethod,
-  ScanParam,
-} from "./scan.js";
+  Dependency,
+  Field,
+  Member,
+  Method,
+  Parameter,
+} from "@recognizer/core";
 
-type ScanTag = NonNullable<ScanMember["tags"]>[number];
+type MemberTag = NonNullable<Member["tags"]>[number];
 
 export type TokenRole =
   | "keyword"
@@ -27,7 +27,7 @@ const BUILT_IN = new Set([
   "undefined",
   "readonly",
 ]);
-const SHOWN_TAGS: ScanTag[] = ["static", "classmethod", "abstract", "async"];
+const SHOWN_TAGS: MemberTag[] = ["static", "classmethod", "abstract", "async"];
 const WORD = /([A-Za-z_$][\w$]*)/;
 
 const token = (text: string, role: TokenRole): Token => ({ text, role });
@@ -50,7 +50,7 @@ export function valueTokens(text: string): Token[] {
   return [token(text, BUILT_IN.has(text) ? "keyword" : "value")];
 }
 
-function paramTokens(param: ScanParam): Token[] {
+function paramTokens(param: Parameter): Token[] {
   const head = token(param.name, "param");
 
   return param.type === undefined
@@ -58,7 +58,7 @@ function paramTokens(param: ScanParam): Token[] {
     : [head, plain(": "), ...typeTokens(param.type)];
 }
 
-function tagTokens(tags: readonly ScanTag[] | undefined): Token[] {
+function tagTokens(tags: readonly MemberTag[] | undefined): Token[] {
   return SHOWN_TAGS.filter((tag) => tags?.includes(tag)).flatMap((tag) => [
     plain(" "),
     keyword(tag),
@@ -67,9 +67,9 @@ function tagTokens(tags: readonly ScanTag[] | undefined): Token[] {
 
 type Callable = {
   name: string;
-  params?: ScanParam[];
+  params?: readonly Parameter[];
   returns?: string;
-  tags?: readonly ScanTag[];
+  tags?: readonly MemberTag[];
 };
 
 function callableTokens(item: Callable): Token[] {
@@ -104,11 +104,11 @@ export function functionTokens(item: Callable): Token[] {
   return callableTokens(item);
 }
 
-export function methodTokens(item: ScanMethod): Token[] {
+export function methodTokens(item: Method): Token[] {
   return callableTokens(item);
 }
 
-export function fieldTokens(field: ScanField): Token[] {
+export function fieldTokens(field: Field): Token[] {
   return field.type === undefined
     ? [name(field.name)]
     : [name(field.name), plain(": "), ...typeTokens(field.type)];
@@ -195,16 +195,16 @@ const ABSTRACT_BASES = new Set(["ABC", "Protocol"]);
 const EXCEPTION = /(Exception|Error)$/;
 
 export function classHeritage(
-  member: ScanMember,
-  edges: readonly ScanEdge[],
+  member: Member,
+  edges: readonly Dependency[],
 ): Heritage {
   const bases = member.bases ?? [];
-  const resolved = (base: string, kind: ScanEdge["kind"]) =>
+  const resolved = (base: string, kind: Dependency["kind"]) =>
     edges.some(
       (edge) =>
         edge.kind === kind &&
         edge.member === member.name &&
-        edge.to_member === base,
+        edge.toMember === base,
     );
   const isResolved = (base: string) =>
     resolved(base, "implements") || resolved(base, "inherits");
@@ -221,7 +221,7 @@ export function classHeritage(
       (resolved(base, "inherits") ||
         (!exceptions.includes(base) && !NEVER_SHOWN_BASES.has(base))),
   );
-  const scanned: string[] = member.tags ?? [];
+  const scanned: readonly string[] = member.tags ?? [];
   const tags = [
     ...new Set([...scanned, ...exceptions, ...(abstract ? ["abstract"] : [])]),
   ];
@@ -230,8 +230,8 @@ export function classHeritage(
 }
 
 export function memberHeadTokens(
-  member: ScanMember,
-  edges: readonly ScanEdge[],
+  member: Member,
+  edges: readonly Dependency[],
 ): Token[] | null {
   if (member.kind === "class") {
     return classHeadTokens(member.name, classHeritage(member, edges));

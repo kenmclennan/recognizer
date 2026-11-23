@@ -1,18 +1,13 @@
-import type { Scan } from "recognizer";
+import type { Repository } from "@recognizer/core";
 
-type RecordedScan = Scan & {
-  commit?: string | null;
-  modified?: boolean | null;
-};
-
-export function scansCommit(scans: Scan[]): {
+export function scansCommit(repository: Repository): {
   commit: string | null;
   modified: boolean;
 } {
-  const recorded = scans as RecordedScan[];
+  const { extractions } = repository;
 
   return {
-    commit: recorded[0]?.commit ?? null,
-    modified: recorded.some((scan) => scan.modified !== false),
+    commit: extractions[0]?.commit ?? null,
+    modified: extractions.some((extraction) => extraction.modified !== false),
   };
 }

@@ -5,20 +5,12 @@ import type {
   PlanMode,
   PlanRequest,
   PlanRow,
-  ScanFacts,
   ScanIntent,
   ScanPlanView,
   SensorRow,
 } from "recognizer";
 
-export type {
-  LineKind,
-  Measured,
-  PlanRequest,
-  ScanFacts,
-  ScanPlanView,
-  SensorRow,
-};
+export type { LineKind, Measured, PlanRequest, ScanPlanView, SensorRow };
 
 import type { FreshnessModel } from "./freshness-model";
 import type { SensorStatus } from "./sensor-run";

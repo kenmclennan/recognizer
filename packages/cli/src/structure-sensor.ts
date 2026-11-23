@@ -1,3 +1,4 @@
+import { type Repository, scanHashes } from "@recognizer/core";
 import { type Analysis, analyse, type ModuleMetrics } from "./analyse.js";
 import { violationId } from "./baseline.js";
 import type { Config } from "./config-parse.js";
@@ -13,7 +14,6 @@ import { keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
 import { principleOf } from "./principles.js";
 import { collectViolations, type Rule } from "./rules.js";
-import type { RecordedScan, Scan } from "./scan.js";
 import {
   longFunctionFindings,
   orphanFindings,
@@ -119,18 +119,10 @@ export function resolveStructureSettings(
 }
 
 export function measuredModules(
-  scans: Scan[],
+  repository: Repository,
   policy: Policy | null,
 ): Set<string> {
-  const measured = new Set<string>();
-
-  for (const scan of scans) {
-    for (const id of keptGraph(scan, policy?.ignore ?? []).ids) {
-      measured.add(id);
-    }
-  }
-
-  return measured;
+  return new Set(keptGraph(repository, policy?.ignore ?? []).ids);
 }
 
 export function describeSettings(settings: StructureSettings): string {
@@ -170,23 +162,15 @@ function warningFinding(warning: Analysis["warnings"][number]): FindingRecord {
   };
 }
 
-export function measuredInputs(scans: Scan[]): Record<string, string> {
+export function measuredInputs(repository: Repository): Record<string, string> {
   const inputs: Record<string, string> = {};
+  const hashes = scanHashes(repository);
 
-  for (const scan of scans) {
-    const hashes = new Map(
-      ((scan as Partial<RecordedScan>).files ?? []).map((file) => [
-        file.path,
-        file.hash,
-      ]),
-    );
+  for (const file of repository.files) {
+    const hash = hashes.get(file.path);
 
-    for (const module of scan.modules) {
-      const hash = hashes.get(module.id);
-
-      if (hash !== undefined) {
-        inputs[module.id] = hash;
-      }
+    if (hash !== undefined) {
+      inputs[file.path] = hash;
     }
   }
 
@@ -196,7 +180,7 @@ export function measuredInputs(scans: Scan[]): Record<string, string> {
 }
 
 export function structureSensor(
-  scans: Scan[],
+  repository: Repository,
   policy: Policy | null,
   settings: StructureSettings,
   context: StructureContext,
@@ -214,67 +198,65 @@ export function structureSensor(
     }
   };
 
-  for (const scan of scans) {
-    if (policy !== null) {
-      const collected = collectViolations(scan, policy);
+  if (policy !== null) {
+    const collected = collectViolations(repository, policy);
 
-      for (const violation of collected.violations) {
-        add(findings, {
-          id: violationId(violation),
-          kind: "rule-violation",
-          severity: "violation",
-          ...principleOf(violationPrinciple([violation.rule])),
-          summary: violationText(violation),
-          evidence: {
-            modules: [violation.from],
-            edges: violation.imports.map((one) => ({
-              from: violation.from,
-              to: one.to,
-              kind: one.kind,
-              lines: one.lines,
-              rules: [violation.rule],
-            })),
-          },
-        });
-      }
-    }
-
-    const analysis = analyse(scan, policy?.ignore);
-
-    metrics.push(...analysis.metrics);
-
-    for (const warning of analysis.warnings) {
-      if (settings.warnings.cycle) {
-        add(warnings, warningFinding(warning));
-      }
-    }
-
-    const extra = [
-      ...(settings.warnings.orphan
-        ? orphanFindings(
-            scan,
-            policy,
-            settings.entry_points,
-            settings.entry_annotations,
-          )
-        : []),
-      ...(settings.warnings.unused_exports
-        ? unusedExportsFindings(scan, policy, settings.entry_points)
-        : []),
-      ...(settings.warnings.private_imports
-        ? privateImportsFindings(scan, policy)
-        : []),
-      ...(settings.warnings.long_function
-        ? longFunctionFindings(scan, policy, settings.long_function_limit)
-        : []),
-    ];
-
-    for (const finding of extra) {
-      add(warnings, finding);
+    for (const violation of collected.violations) {
+      add(findings, {
+        id: violationId(violation),
+        kind: "rule-violation",
+        severity: "violation",
+        ...principleOf(violationPrinciple([violation.rule])),
+        summary: violationText(violation),
+        evidence: {
+          modules: [violation.from],
+          edges: violation.imports.map((one) => ({
+            from: violation.from,
+            to: one.to,
+            kind: one.kind,
+            lines: one.lines,
+            rules: [violation.rule],
+          })),
+        },
+      });
     }
   }
 
-  const folders = measureFolders(scans, policy);
+  const analysis = analyse(repository, policy?.ignore);
+
+  metrics.push(...analysis.metrics);
+
+  for (const warning of analysis.warnings) {
+    if (settings.warnings.cycle) {
+      add(warnings, warningFinding(warning));
+    }
+  }
+
+  const extra = [
+    ...(settings.warnings.orphan
+      ? orphanFindings(
+          repository,
+          policy,
+          settings.entry_points,
+          settings.entry_annotations,
+        )
+      : []),
+    ...(settings.warnings.unused_exports
+      ? unusedExportsFindings(repository, policy, settings.entry_points)
+      : []),
+    ...(settings.warnings.private_imports
+      ? privateImportsFindings(repository, policy)
+      : []),
+    ...(settings.warnings.long_function
+      ? longFunctionFindings(repository, policy, settings.long_function_limit)
+      : []),
+  ];
+
+  for (const finding of extra) {
+    add(warnings, finding);
+  }
+
+  const folders = measureFolders(repository, policy);
 
   return {
     document: {
@@ -307,7 +289,7 @@ export function structureSensor(
         ...(measured.duplication ?? []),
         ...(measured.complexity ?? []),
       ],
-      inputs: measuredInputs(scans),
+      inputs: measuredInputs(repository),
     },
     metrics,
     folder_metrics: folders.rows,

@@ -1,3 +1,4 @@
+import type { Repository } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import { policyFile, readConfig } from "./config.js";
 import { registeredSensors } from "./config-parse.js";
@@ -14,7 +15,6 @@ import {
   writeFindings,
 } from "./findings-files.js";
 import { type Policy, parsePolicy } from "./policy.js";
-import type { RecordedScan, Scan } from "./scan.js";
 import { shippedSensorNames } from "./shipped-sensors.js";
 import {
   resolveStructureSettings,
@@ -34,15 +34,15 @@ export function readPolicy(io: Io, root: string): Policy | null {
   return parsePolicy(io.readFile(file));
 }
 
-export function scansCommit(scans: Scan[]): {
+export function scansCommit(repository: Repository): {
   commit: string | null;
   modified: boolean;
 } {
-  const recorded = scans as RecordedScan[];
+  const { extractions } = repository;
 
   return {
-    commit: recorded[0]?.commit ?? null,
-    modified: recorded.some((scan) => scan.modified !== false),
+    commit: extractions[0]?.commit ?? null,
+    modified: extractions.some((extraction) => extraction.modified !== false),
   };
 }
 
@@ -132,11 +132,11 @@ function noteOutOfDate(
 export function loadFindings(
   io: Io,
   root: string,
-  scans: Scan[],
+  repository: Repository,
 ): FindingsDocument[] {
   const config = readConfig(io, root, ["sensors"]);
   const settings = resolveStructureSettings(config);
-  const { commit, modified } = scansCommit(scans);
+  const { commit, modified } = scansCommit(repository);
   const documents: FindingsDocument[] = [];
 
   if (settings !== "off") {
@@ -144,7 +144,7 @@ export function loadFindings(
     const compute = () =>
       carryMeasured(
         readStoredStructure(io, root),
-        structureSensor(scans, readPolicy(io, root), settings, context)
+        structureSensor(repository, readPolicy(io, root), settings, context)
           .document,
         settings,
       );
@@ -178,7 +178,7 @@ export function loadFindings(
   for (const outcome of readFindingsFiles(
     io,
     root,
-    freshnessFor(io, root, scans),
+    freshnessFor(io, root, repository),
     ["structure"],
     registered,
   )) {

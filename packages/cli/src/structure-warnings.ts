@@ -1,10 +1,10 @@
+import type { Dependency, Member, Repository } from "@recognizer/core";
 import { isEntryPoint, isTestFile } from "./entry-points.js";
 import type { FindingRecord } from "./findings-document.js";
 import { LONG_FUNCTION, measuredLength } from "./function-length.js";
 import { isForeign, keptGraph } from "./graph.js";
 import type { Policy } from "./policy.js";
 import { principleOf } from "./principles.js";
-import type { Scan, ScanEdge, ScanMember } from "./scan.js";
 import {
   libraryApiHint,
   testImportersOf,
@@ -25,7 +25,7 @@ export function folderOf(id: string): string {
 const SUPERTYPE_KINDS = new Set(["inherits", "implements"]);
 
 function reachedModules(
-  scan: Scan,
+  repository: Repository,
   ids: Set<string>,
   imported: Set<string>,
   isEntry: (id: string) => boolean,
@@ -39,20 +39,20 @@ function reachedModules(
     }
   }
 
-  const actuals = scan.modules.filter(
-    (module) => module.actual_of !== undefined && ids.has(module.id),
+  const actuals = repository.files.filter(
+    (file) => file.actualOf.length > 0 && ids.has(file.path),
   );
   let grew = true;
 
   while (grew) {
     grew = false;
 
-    for (const module of actuals) {
+    for (const file of actuals) {
       if (
-        !reached.has(module.id) &&
-        (module.actual_of ?? []).some((expect) => reached.has(expect))
+        !reached.has(file.path) &&
+        file.actualOf.some((expect) => reached.has(expect))
       ) {
-        reached.add(module.id);
+        reached.add(file.path);
         grew = true;
       }
     }
@@ -74,16 +74,19 @@ function reachedModules(
 }
 
 export function orphanFindings(
-  scan: Scan,
+  repository: Repository,
   policy: Policy | null,
   entryPoints: string[],
   entryAnnotations: string[],
 ): FindingRecord[] {
-  const { ids, edges, declarations } = keptGraph(scan, policy?.ignore ?? []);
+  const { ids, edges, declarations } = keptGraph(
+    repository,
+    policy?.ignore ?? [],
+  );
   const kotlin = new Set(
-    scan.modules
-      .filter((module) => module.language === "kotlin")
-      .map((module) => module.id),
+    repository.files
+      .filter((file) => file.language === "kotlin")
+      .map((file) => file.path),
   );
   const real = edges.filter(
     (edge) => edge.from !== edge.to && !isForeign(edge.to),
@@ -102,20 +105,18 @@ export function orphanFindings(
   ]);
   const policyEntry = policy?.entry ?? [];
   const scanned = new Set(
-    scan.modules
+    repository.files
       .filter(
-        (module) =>
-          module.entry_point === true ||
-          (module.annotations ?? []).some((name) =>
-            entryAnnotations.includes(name),
-          ),
+        (file) =>
+          file.entryPoint ||
+          file.annotations.some((name) => entryAnnotations.includes(name)),
       )
-      .map((module) => module.id),
+      .map((file) => file.path),
   );
 
-  const testImporters = testImportersOf(scan);
+  const testImporters = testImportersOf(repository);
   const reached = reachedModules(
-    scan,
+    repository,
     ids,
     imported,
     (id) => isEntryPoint(id, policyEntry, entryPoints, scanned.has(id)),
@@ -152,7 +153,7 @@ export function orphanFindings(
     });
 }
 
-function usedNames(edges: ScanEdge[]) {
+function usedNames(edges: Dependency[]) {
   const named = new Map<string, Set<string>>();
   const whole = new Set<string>();
 
@@ -175,10 +176,10 @@ function usedNames(edges: ScanEdge[]) {
       } else {
         whole.add(edge.to);
       }
-    } else if (edge.to_member !== undefined) {
+    } else if (edge.toMember !== undefined) {
       const held = named.get(edge.to) ?? new Set<string>();
 
-      held.add(edge.to_member);
+      held.add(edge.toMember);
       named.set(edge.to, held);
     }
   }
@@ -191,15 +192,15 @@ function isUsed(name: string, used: Set<string>): boolean {
 }
 
 function usedThroughExpect(
-  scan: Scan,
+  repository: Repository,
   ids: Set<string>,
   named: Map<string, Set<string>>,
   whole: Set<string>,
 ): (id: string, name: string) => boolean {
-  const modules = new Map(scan.modules.map((module) => [module.id, module]));
+  const modules = new Map(repository.files.map((file) => [file.path, file]));
   const called = new Set<string>();
 
-  for (const call of scan.calls ?? []) {
+  for (const call of repository.calls) {
     if (call.from !== call.to) {
       called.add(call.to);
     }
@@ -207,15 +208,15 @@ function usedThroughExpect(
 
   const actualNames = new Map<string, Set<string>>();
 
-  for (const module of scan.modules) {
-    if (!ids.has(module.id)) {
+  for (const file of repository.files) {
+    if (!ids.has(file.path)) {
       continue;
     }
 
-    for (const expectId of module.actual_of ?? []) {
+    for (const expectId of file.actualOf) {
       const held = actualNames.get(expectId) ?? new Set<string>();
 
-      for (const member of module.members ?? []) {
+      for (const member of file.members) {
         held.add(member.name);
       }
 
@@ -230,7 +231,7 @@ function usedThroughExpect(
 
     seen.add(id);
 
-    for (const expectId of modules.get(id)?.actual_of ?? []) {
+    for (const expectId of modules.get(id)?.actualOf ?? []) {
       const expectModule = modules.get(expectId);
 
       if (
@@ -259,44 +260,42 @@ function usedThroughExpect(
 }
 
 export function unusedExportsFindings(
-  scan: Scan,
+  repository: Repository,
   policy: Policy | null,
   entryPoints: string[],
 ): FindingRecord[] {
-  const { edges, declarations, ids } = keptGraph(scan, policy?.ignore ?? []);
+  const { edges, declarations, ids } = keptGraph(
+    repository,
+    policy?.ignore ?? [],
+  );
   const { named, whole } = usedNames([...edges, ...declarations]);
-  const viaExpect = usedThroughExpect(scan, ids, named, whole);
+  const viaExpect = usedThroughExpect(repository, ids, named, whole);
   const policyEntry = policy?.entry ?? [];
-  const testImporters = testImportersOf(scan);
+  const testImporters = testImportersOf(repository);
   const findings: FindingRecord[] = [];
 
-  for (const module of scan.modules) {
+  for (const module of repository.files) {
     if (
-      !ids.has(module.id) ||
-      whole.has(module.id) ||
-      isEntryPoint(
-        module.id,
-        policyEntry,
-        entryPoints,
-        module.entry_point === true,
-      )
+      !ids.has(module.path) ||
+      whole.has(module.path) ||
+      isEntryPoint(module.path, policyEntry, entryPoints, module.entryPoint)
     ) {
       continue;
     }
 
-    const first = new Map<string, ScanMember>();
+    const first = new Map<string, Member>();
 
-    for (const member of module.members ?? []) {
+    for (const member of module.members) {
       if (member.exported && !first.has(member.name)) {
         first.set(member.name, member);
       }
     }
 
-    const used = named.get(module.id) ?? new Set<string>();
+    const used = named.get(module.path) ?? new Set<string>();
     const unused = [...first.keys()]
       .sort(compare)
-      .filter((name) => !isUsed(name, used) && !viaExpect(module.id, name))
-      .map((name) => first.get(name) as ScanMember);
+      .filter((name) => !isUsed(name, used) && !viaExpect(module.path, name))
+      .map((name) => first.get(name) as Member);
 
     if (unused.length === 0) {
       continue;
@@ -304,7 +303,7 @@ export function unusedExportsFindings(
 
     const noun = unused.length === 1 ? "name" : "names";
     const names = unused.map((member) => member.name).join(", ");
-    const importers = testImporters.get(module.id) ?? [];
+    const importers = testImporters.get(module.path) ?? [];
     const testFiles = new Map<string, string[]>();
 
     for (const member of unused) {
@@ -325,19 +324,19 @@ export function unusedExportsFindings(
       }));
 
     findings.push({
-      id: `unused_exports:${module.id}`,
+      id: `unused_exports:${module.path}`,
       kind: "unused_exports",
       severity: "warning",
       ...principleOf("information-hiding"),
-      summary: `${module.id} exports ${unused.length} ${noun} no other file imports: ${names}${marked.length > 0 ? unusedTestOnlyClause(marked) : ""}`,
+      summary: `${module.path} exports ${unused.length} ${noun} no other file imports: ${names}${marked.length > 0 ? unusedTestOnlyClause(marked) : ""}`,
       fix_pattern: "narrow-exports",
       evidence: {
-        modules: [module.id],
+        modules: [module.path],
         members: unused.map((member) => ({
-          module: module.id,
+          module: module.path,
           name: member.name,
-          ...(module.kind === "module" && member.line !== undefined
-            ? { file: module.id, lines: [member.line, member.line] }
+          ...(module.kind === "source" && member.line !== undefined
+            ? { file: module.path, lines: [member.line, member.line] }
             : {}),
           ...(testFiles.has(member.name)
             ? { test_files: testFiles.get(member.name) }
@@ -351,17 +350,14 @@ export function unusedExportsFindings(
 }
 
 export function privateImportsFindings(
-  scan: Scan,
+  repository: Repository,
   policy: Policy | null,
 ): FindingRecord[] {
-  const { edges } = keptGraph(scan, policy?.ignore ?? []);
-  const modules = new Map(scan.modules.map((module) => [module.id, module]));
+  const { edges } = keptGraph(repository, policy?.ignore ?? []);
+  const modules = new Map(repository.files.map((file) => [file.path, file]));
   const byImporter = new Map<
     string,
-    Map<
-      string,
-      { names: Map<string, ScanMember | undefined>; lines: Set<number> }
-    >
+    Map<string, { names: Map<string, Member | undefined>; lines: Set<number> }>
   >();
 
   for (const edge of edges) {
@@ -381,12 +377,12 @@ export function privateImportsFindings(
     if (
       importer?.language !== "python" ||
       owner?.language !== "python" ||
-      owner.members === undefined
+      owner.members.length === 0
     ) {
       continue;
     }
 
-    const privateNames = new Map<string, ScanMember>();
+    const privateNames = new Map<string, Member>();
 
     for (const name of edge.names) {
       const member = owner.members.find((candidate) => candidate.name === name);
@@ -404,7 +400,7 @@ export function privateImportsFindings(
       byImporter.get(edge.from) ??
       new Map<
         string,
-        { names: Map<string, ScanMember | undefined>; lines: Set<number> }
+        { names: Map<string, Member | undefined>; lines: Set<number> }
       >();
     const entry = owners.get(edge.to) ?? { names: new Map(), lines: new Set() };
 
@@ -426,7 +422,7 @@ export function privateImportsFindings(
 
     for (const ownerId of ownerIds) {
       const entry = owners.get(ownerId) as {
-        names: Map<string, ScanMember | undefined>;
+        names: Map<string, Member | undefined>;
         lines: Set<number>;
       };
 
@@ -472,11 +468,11 @@ export function privateImportsFindings(
 interface MeasuredFunction {
   qualified: string;
   line?: number;
-  end_line?: number;
-  body_line?: number;
+  endLine?: number;
+  bodyLine?: number;
 }
 
-function functionsOf(members: ScanMember[]): MeasuredFunction[] {
+function functionsOf(members: readonly Member[]): MeasuredFunction[] {
   const functions: MeasuredFunction[] = [];
 
   for (const member of members) {
@@ -484,8 +480,8 @@ function functionsOf(members: ScanMember[]): MeasuredFunction[] {
       functions.push({
         qualified: member.name,
         line: member.line,
-        end_line: member.end_line,
-        body_line: member.body_line,
+        endLine: member.endLine,
+        bodyLine: member.bodyLine,
       });
 
       continue;
@@ -495,8 +491,8 @@ function functionsOf(members: ScanMember[]): MeasuredFunction[] {
       functions.push({
         qualified: `${member.name}.${method.name}`,
         line: method.line,
-        end_line: method.end_line,
-        body_line: method.body_line,
+        endLine: method.endLine,
+        bodyLine: method.bodyLine,
       });
     }
   }
@@ -505,30 +501,27 @@ function functionsOf(members: ScanMember[]): MeasuredFunction[] {
 }
 
 export function functionLengths(
-  scans: Scan[],
+  repository: Repository,
   policy: Policy | null,
 ): Record<string, number> {
   const lengths: Record<string, number> = {};
+  const { ids } = keptGraph(repository, policy?.ignore ?? []);
 
-  for (const scan of scans) {
-    const { ids } = keptGraph(scan, policy?.ignore ?? []);
+  for (const file of repository.files) {
+    if (!ids.has(file.path) || isTestFile(file.path)) {
+      continue;
+    }
 
-    for (const module of scan.modules) {
-      if (!ids.has(module.id) || isTestFile(module.id)) {
+    for (const fn of functionsOf(file.members)) {
+      const length = measuredLength(fn.line, fn.bodyLine, fn.endLine);
+
+      if (length === null) {
         continue;
       }
 
-      for (const fn of functionsOf(module.members ?? [])) {
-        const length = measuredLength(fn.line, fn.body_line, fn.end_line);
+      const key = `${file.path}::${fn.qualified}`;
 
-        if (length === null) {
-          continue;
-        }
-
-        const key = `${module.id}::${fn.qualified}`;
-
-        lengths[key] = Math.max(lengths[key] ?? 0, length);
-      }
+      lengths[key] = Math.max(lengths[key] ?? 0, length);
     }
   }
 
@@ -536,19 +529,19 @@ export function functionLengths(
 }
 
 export function longFunctionFindings(
-  scan: Scan,
+  repository: Repository,
   policy: Policy | null,
   limit: number = LONG_FUNCTION,
 ): FindingRecord[] {
-  const { ids } = keptGraph(scan, policy?.ignore ?? []);
+  const { ids } = keptGraph(repository, policy?.ignore ?? []);
   const findings: FindingRecord[] = [];
 
-  for (const module of scan.modules) {
-    if (!ids.has(module.id) || isTestFile(module.id)) {
+  for (const module of repository.files) {
+    if (!ids.has(module.path) || isTestFile(module.path)) {
       continue;
     }
 
-    const functions = functionsOf(module.members ?? []);
+    const functions = functionsOf(module.members);
     const counts = new Map<string, number>();
 
     for (const fn of functions) {
@@ -556,21 +549,21 @@ export function longFunctionFindings(
     }
 
     for (const fn of functions) {
-      const length = measuredLength(fn.line, fn.body_line, fn.end_line);
+      const length = measuredLength(fn.line, fn.bodyLine, fn.endLine);
 
       if (
         length === null ||
         length <= limit ||
         fn.line === undefined ||
-        fn.end_line === undefined
+        fn.endLine === undefined
       ) {
         continue;
       }
 
       const identity =
         (counts.get(fn.qualified) ?? 0) > 1
-          ? `${module.id}::${fn.qualified}@${fn.line}`
-          : `${module.id}::${fn.qualified}`;
+          ? `${module.path}::${fn.qualified}@${fn.line}`
+          : `${module.path}::${fn.qualified}`;
 
       findings.push({
         id: `long_function:${identity}`,
@@ -578,23 +571,23 @@ export function longFunctionFindings(
         severity: "warning",
         ...principleOf("small-functions"),
         summary:
-          fn.body_line === undefined
+          fn.bodyLine === undefined
             ? `${fn.qualified} is ${length} lines, over the limit of ${limit}`
             : `${fn.qualified} has a ${length}-line body, over the limit of ${limit}`,
         evidence: {
-          modules: [module.id],
+          modules: [module.path],
           members: [
             {
-              module: module.id,
+              module: module.path,
               name: fn.qualified,
-              file: module.id,
-              lines: [fn.line, fn.end_line],
+              file: module.path,
+              lines: [fn.line, fn.endLine],
             },
           ],
           measures: {
             lines: length,
             limit,
-            ...(fn.body_line === undefined ? {} : { body_line: fn.body_line }),
+            ...(fn.bodyLine === undefined ? {} : { body_line: fn.bodyLine }),
             ...(limit === LONG_FUNCTION ? {} : { published: LONG_FUNCTION }),
           },
         },

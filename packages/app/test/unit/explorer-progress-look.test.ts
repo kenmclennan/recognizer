@@ -11,7 +11,7 @@ const MEASURE = process.env.RECOGNIZER_MEASURE_PROGRESS === "1";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { loadedOf, mountExplorer, scanHostOf } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer, scanHostOf } from ${JSON.stringify(here("../test/unit/look-support.ts"))};
 import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
 ${FAKE_WORKER}
 

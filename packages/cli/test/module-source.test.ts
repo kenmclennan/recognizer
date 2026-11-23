@@ -14,8 +14,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type Io, run } from "../src/cli.js";
 import { moduleSource } from "../src/module-source.js";
-import type { Scan } from "../src/scan.js";
 import { capture, REPO } from "./helpers.js";
+import { repositoryFrom } from "./repository-from.js";
 import { useScannerShim } from "./scan-helpers.js";
 
 const FAKE = join(REPO, "packages/cli/test/fixtures/fake-describer.mjs");
@@ -125,14 +125,14 @@ afterEach(() => {
 });
 
 describe("moduleSource", () => {
-  const scan = {
+  const scan = repositoryFrom({
     modules: [{ id: "shop/A.kt" }, { id: "solo.py" }, { id: "dir" }],
     files: [
       { path: "shop/A.kt", hash: "x" },
       { path: "shop/B.kt", hash: "x" },
       { path: "solo.py", hash: "x" },
     ],
-  } as unknown as Scan;
+  });
 
   function io(files: Record<string, string | Buffer>): Io {
     return {
@@ -157,7 +157,7 @@ describe("moduleSource", () => {
   };
 
   it("hashes a file module as the file's text with files as a one-element array", () => {
-    const found = moduleSource(io(files), "/r", [scan], "shop/A.kt");
+    const found = moduleSource(io(files), "/r", scan, "shop/A.kt");
 
     expect(found?.files).toEqual(["shop/A.kt"]);
     expect(found?.source).toBe("package shop\n\nclass A\n");
@@ -165,7 +165,7 @@ describe("moduleSource", () => {
   });
 
   it("hashes a Python file module as the file's text", () => {
-    const found = moduleSource(io(files), "/r", [scan], "solo.py");
+    const found = moduleSource(io(files), "/r", scan, "solo.py");
 
     expect(found?.files).toEqual(["solo.py"]);
     expect(found?.source).toBe("print(1)");
@@ -177,7 +177,7 @@ describe("moduleSource", () => {
     const found = moduleSource(
       io({ "/r/solo.py": bytes }),
       "/r",
-      [scan],
+      scan,
       "solo.py",
     );
 
@@ -188,9 +188,9 @@ describe("moduleSource", () => {
   it("is unreadable when the file is missing or the id names no scanned file", () => {
     const { "/r/shop/A.kt": _, ...rest } = files;
 
-    expect(moduleSource(io(rest), "/r", [scan], "shop/A.kt")).toBeNull();
-    expect(moduleSource(io(files), "/r", [scan], "nowhere")).toBeNull();
-    expect(moduleSource(io(files), "/r", [scan], "dir")).toBeNull();
+    expect(moduleSource(io(rest), "/r", scan, "shop/A.kt")).toBeNull();
+    expect(moduleSource(io(files), "/r", scan, "nowhere")).toBeNull();
+    expect(moduleSource(io(files), "/r", scan, "dir")).toBeNull();
   });
 });
 

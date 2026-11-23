@@ -1,4 +1,4 @@
-import type { Scan } from "recognizer";
+import type { Repository } from "@recognizer/core";
 
 export type ViewListing = {
   views: { name: string; text: string }[];
@@ -15,8 +15,8 @@ export type ChangeRange = {
 };
 
 export type RangeMembers = {
-  baseScans: Scan[];
-  headScans: Scan[];
+  baseScans: Repository;
+  headScans: Repository;
   files: {
     path: string;
     base_path?: string;
@@ -39,7 +39,7 @@ export type ViewsPort = {
   rename(from: string, to: string): Promise<void>;
   link(name: string): Promise<string>;
   renamesSince(commit: string): Promise<{ from: string; to: string }[]>;
-  scansAt(commit: string): Promise<ReadOutcome<Scan[]>>;
+  scansAt(commit: string): Promise<ReadOutcome<Repository>>;
   rangeMembers(base: string, head: string): Promise<ReadOutcome<RangeMembers>>;
   takePendingView(): Promise<string | null>;
   copy(text: string): Promise<void>;

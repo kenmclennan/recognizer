@@ -1,7 +1,8 @@
-import { resolveView, type Scan, serialiseView, type View } from "recognizer";
+import type { Repository } from "@recognizer/core";
+import { resolveView, serialiseView, type View } from "recognizer";
 import { type CanvasContent, stepsFor } from "./view-steps";
 
-function contentOf(view: View, scans: Scan[]): CanvasContent {
+function contentOf(view: View, scans: Repository): CanvasContent {
   const resolved = resolveView(view, scans);
 
   return {
@@ -14,7 +15,7 @@ function contentOf(view: View, scans: Scan[]): CanvasContent {
 export function viewModified(
   saved: View,
   canvas: CanvasContent,
-  scans: Scan[],
+  scans: Repository,
 ): boolean {
   const candidate = serialiseView({
     ...saved,

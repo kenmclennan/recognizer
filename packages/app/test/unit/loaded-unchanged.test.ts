@@ -1,10 +1,13 @@
+import { EMPTY_REPOSITORY } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { loadedUnchanged, sameStructure } from "../../src/loaded-unchanged";
 import type { Loaded } from "../../src/scan-loading";
+import { repositoryFrom } from "./repository-from";
 
 const BASE: Loaded = {
   modules: [],
   scans: [],
+  repository: EMPTY_REPOSITORY,
   policy: "p",
   baseline: "b",
   notices: [],
@@ -21,7 +24,7 @@ describe("loadedUnchanged", () => {
   });
 
   it("is true for equal sensed fields, whatever the scans are", () => {
-    const scans = [{ file: "scan.python.json", scan: {} as never }];
+    const scans = [{ file: "scan.python.json", repository: EMPTY_REPOSITORY }];
 
     expect(loadedUnchanged(BASE, { ...BASE })).toBe(true);
     expect(loadedUnchanged(BASE, { ...BASE, scans })).toBe(true);
@@ -40,7 +43,10 @@ describe("loadedUnchanged", () => {
 });
 
 describe("sameStructure", () => {
-  const scan = { file: "scan.python.json", scan: { commit: "c1" } as never };
+  const scan = {
+    file: "scan.python.json",
+    repository: repositoryFrom([{ modules: [], edges: [], commit: "c1" }]),
+  };
   const WITH_SCAN: Loaded = { ...BASE, modules: ["a.py"], scans: [scan] };
 
   it("is false when nothing was applied yet", () => {
@@ -69,7 +75,16 @@ describe("sameStructure", () => {
     ],
     [
       "a scan commit",
-      { scans: [{ ...scan, scan: { commit: "c2" } as never }] },
+      {
+        scans: [
+          {
+            ...scan,
+            repository: repositoryFrom([
+              { modules: [], edges: [], commit: "c2" },
+            ]),
+          },
+        ],
+      },
     ],
   ])("is false when %s differs", (_name, change) => {
     expect(sameStructure(WITH_SCAN, { ...WITH_SCAN, ...change })).toBe(false);

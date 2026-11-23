@@ -462,7 +462,7 @@ function policyArea(facts: DoctorFacts): Found[] {
     ];
   }
 
-  return policyProblems(state.scans, policy).map((problem) =>
+  return policyProblems(state.repository, policy).map((problem) =>
     problem.kind === "entry"
       ? {
           code: "policy-entry" as const,

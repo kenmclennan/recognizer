@@ -1,3 +1,4 @@
+import type { Repository } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import { packageVersion } from "./cli.js";
 import { measureComplexityValues } from "./complexity/measure.js";
@@ -10,7 +11,6 @@ import type { FindingRecord } from "./findings-document.js";
 import { writeFindings } from "./findings-files.js";
 import { scansCommit } from "./load-findings.js";
 import type { Policy } from "./policy.js";
-import type { Scan } from "./scan.js";
 import {
   buildStructureOverlay,
   writeStructureOverlay,
@@ -31,12 +31,12 @@ export interface StructureRun {
 export function runStructureSensor(
   io: Io,
   root: string,
-  scans: Scan[],
+  repository: Repository,
   policy: Policy | null,
   settings: StructureSettings,
   parsers: Parsers | null = null,
 ): StructureRun {
-  const { commit, modified } = scansCommit(scans);
+  const { commit, modified } = scansCommit(repository);
   const context = { commit: commit ?? "", modified };
   const errors: string[] = [];
   let sensed: StructureResult;
@@ -69,7 +69,7 @@ export function runStructureSensor(
         measureDuplication(
           io,
           root,
-          scans,
+          repository,
           settings.duplication as DuplicationSettings,
           loaded,
           true,
@@ -83,7 +83,7 @@ export function runStructureSensor(
         const measured = measureComplexityValues(
           io,
           root,
-          scans,
+          repository,
           policy,
           settings,
           loaded,
@@ -95,12 +95,12 @@ export function runStructureSensor(
       },
     );
 
-    sensed = structureSensor(scans, policy, settings, context, {
+    sensed = structureSensor(repository, policy, settings, context, {
       duplication: duplicationFindings,
       complexity,
     });
   } else {
-    const plain = structureSensor(scans, policy, settings, context);
+    const plain = structureSensor(repository, policy, settings, context);
 
     sensed = {
       ...plain,
@@ -129,9 +129,9 @@ export function runStructureSensor(
           commit,
           modified,
           version: packageVersion(),
-          scans,
+          repository,
           complexity: complexityValues,
-          functionLength: functionLengths(scans, policy),
+          functionLength: functionLengths(repository, policy),
           duplication: duplicationFindings,
         }),
       );

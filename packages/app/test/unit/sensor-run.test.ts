@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { EMPTY_REPOSITORY } from "@recognizer/core";
 import { type Rule, violationId } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { loadScans } from "../../src/scan-loading";
@@ -13,6 +14,7 @@ import {
   secondSensorDocument,
   structureDocument,
 } from "../fixtures";
+import { repositoryFrom } from "./repository-from";
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 
@@ -312,6 +314,7 @@ describe("withSensors tests hash", () => {
   const empty = {
     modules: [],
     scans: [],
+    repository: EMPTY_REPOSITORY,
     policy: null,
     baseline: null,
     notices: [],
@@ -331,20 +334,19 @@ describe("withSensors tests hash", () => {
       return port.testsHash;
     };
 
+    const repository = repositoryFrom([
+      {
+        modules: [],
+        edges: [],
+        foreign: [],
+        files: [{ path: "tests/a.py", hash: "h" }],
+      },
+    ]);
     const next = await withSensors(
       {
         ...empty,
-        scans: [
-          {
-            file: "scan.json",
-            scan: {
-              modules: [],
-              edges: [],
-              foreign: [],
-              files: [{ path: "tests/a.py", hash: "h" }],
-            } as never,
-          },
-        ],
+        scans: [{ file: "scan.json", repository }],
+        repository,
       },
       port,
     );
@@ -379,7 +381,7 @@ describe("withSensors", () => {
         scans: [
           {
             file: "scan.python.json",
-            text: JSON.stringify({ ...scans[0]?.scan, commit: CURRENT }),
+            text: JSON.stringify({ ...scans[0]?.document, commit: CURRENT }),
           },
         ],
         policy: null,
@@ -416,6 +418,7 @@ describe("withSensors", () => {
       {
         modules: [],
         scans: [],
+        repository: EMPTY_REPOSITORY,
         policy: null,
         baseline: null,
         notices: [],

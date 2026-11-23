@@ -63,10 +63,16 @@ describe("the store adapter plan reads", () => {
   it("the_adapter_reads_the_cached_scans_measured_inputs_and_lines", () => {
     const store = new StoreAdapter(seeded().io, "all");
 
+    const cached = store.cachedRepository(ROOT);
+
     expect(
-      store.cachedScans(ROOT).map((scan) => scan.modules.map(({ id }) => id)),
+      cached.extractions.map((extraction) =>
+        cached.files
+          .filter((file) => file.language === extraction.language)
+          .map(({ path }) => path),
+      ),
     ).toEqual([["B.kt"], ["m0.py", "m1.py"]]);
-    expect(store.cachedScans("/nowhere")).toEqual([]);
+    expect(store.cachedRepository("/nowhere").files).toEqual([]);
     expect(store.measuredOf(ROOT, "crap")).toEqual({
       inputs: { "m0.py": H1 },
       tests: D,

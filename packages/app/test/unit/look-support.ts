@@ -1,25 +1,28 @@
-import type { Scheduler } from "./bar-hover";
-import type { CommitsPort } from "./commits-port";
-import type { EditorPort } from "./editor-port";
+import { EMPTY_REPOSITORY, joinRepositories } from "@recognizer/core";
+import type { Scheduler } from "../../src/bar-hover";
+import type { CommitsPort } from "../../src/commits-port";
+import type { EditorPort } from "../../src/editor-port";
 import {
   type Carried,
   type Explorer,
   inertScanHost,
   type ScanHost,
   showExplorer,
-} from "./explorer";
-import type { MessageInput } from "./message-tray";
-import type { Registered } from "./rescanner";
-import type { ResponsibilitiesPort } from "./responsibilities-port";
-import type { Loaded } from "./scan-loading";
-import type { RowSensor } from "./scan-panel-model";
-import type { ViewComparisons } from "./view-comparisons";
-import type { ViewsPort } from "./views-port";
-import type { WindowPort } from "./window-port";
+} from "../../src/explorer";
+import type { MessageInput } from "../../src/message-tray";
+import type { Registered } from "../../src/rescanner";
+import type { ResponsibilitiesPort } from "../../src/responsibilities-port";
+import type { Loaded } from "../../src/scan-loading";
+import type { RowSensor } from "../../src/scan-panel-model";
+import type { ViewComparisons } from "../../src/view-comparisons";
+import type { ViewsPort } from "../../src/views-port";
+import type { WindowPort } from "../../src/window-port";
+import { type DocScan, repositoryFrom } from "./repository-from";
 
 const BASE: Loaded = {
   modules: [],
   scans: [],
+  repository: EMPTY_REPOSITORY,
   policy: null,
   baseline: null,
   notices: [],
@@ -28,8 +31,35 @@ const BASE: Loaded = {
   sensors: [],
 };
 
-export function loadedOf(overrides: Partial<Loaded> = {}): Loaded {
-  return { ...BASE, ...overrides };
+type GivenScan = {
+  file: string;
+  scan?: DocScan;
+  repository?: Loaded["repository"];
+};
+
+export function loadedOf(
+  overrides: Omit<Partial<Loaded>, "scans"> & { scans?: GivenScan[] } = {},
+): Loaded {
+  const { scans: given, ...rest } = overrides;
+  const scans = (given ?? []).map(({ file, scan, repository }) => ({
+    file,
+    repository:
+      repository ??
+      repositoryFrom(
+        scan === undefined ? [] : [scan],
+        /^scan\.(.+)\.json$/.exec(file)?.[1] ?? "python",
+      ),
+  }));
+
+  return {
+    ...BASE,
+    ...rest,
+    scans,
+    repository:
+      given === undefined
+        ? BASE.repository
+        : joinRepositories(scans.map((one) => one.repository)),
+  };
 }
 
 export function scanHostOf(overrides: Partial<ScanHost> = {}): ScanHost {

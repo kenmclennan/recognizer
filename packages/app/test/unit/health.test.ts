@@ -15,6 +15,7 @@ import {
   secondSensorDocument,
   structureDocument,
 } from "../fixtures";
+import { type DocScan, repositoryFrom } from "./repository-from";
 
 function healthFor(
   name: string,
@@ -24,11 +25,11 @@ function healthFor(
   modules?: string[],
 ) {
   const loaded = fixtureScan(name, "scan.json", CURRENT);
-  const ids = modules ?? loaded.scan.modules.map((module) => module.id);
+  const ids = modules ?? loaded.repository.files.map((file) => file.path);
 
   return {
     health: computeHealth({
-      scans: [loaded],
+      repository: loaded.repository,
       policy,
       modules: ids,
       baseline,
@@ -337,7 +338,7 @@ describe("computeHealth without a policy", () => {
 
   it("drops a finding on an id that is not a file", () => {
     const modules = fixtureScan("check", "scan.json", CURRENT)
-      .scan.modules.map((module) => module.id)
+      .repository.files.map((file) => file.path)
       .filter((id) => id !== "shop/domain/order.py");
     const { health } = healthFor(
       "check",
@@ -468,21 +469,23 @@ describe("computeHealth judged per file", () => {
   const H0 = "0".repeat(64);
   const T = "a".repeat(64);
 
-  const scan = {
-    file: "scan.python.json",
-    scan: {
-      modules: [
-        { id: "a.py", kind: "module" },
-        { id: "b.py", kind: "module" },
-      ],
-      edges: [],
-      foreign: [],
-      files: [
-        { path: "a.py", hash: H1 },
-        { path: "b.py", hash: H2 },
-      ],
-    },
-  } as unknown as Parameters<typeof computeHealth>[0]["scans"][number];
+  const scan = (
+    {
+      file: "scan.python.json",
+      scan: {
+        modules: [
+          { id: "a.py", kind: "module" },
+          { id: "b.py", kind: "module" },
+        ],
+        edges: [],
+        foreign: [],
+        files: [
+          { path: "a.py", hash: H1 },
+          { path: "b.py", hash: H2 },
+        ],
+      },
+    } as unknown as { scan: DocScan }
+  ).scan;
 
   function crap(
     inputs: Record<string, string> | undefined,
@@ -515,7 +518,7 @@ describe("computeHealth judged per file", () => {
 
   const healthOfDocument = (document: FindingsDocument, tests = T) =>
     computeHealth({
-      scans: [scan],
+      repository: repositoryFrom([scan]),
       policy: null,
       modules: ["a.py", "b.py"],
       baseline: null,

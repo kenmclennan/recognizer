@@ -4,7 +4,7 @@ import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { loadedOf, mountExplorer } from ${JSON.stringify(here("look-support.ts"))};
+import { loadedOf, mountExplorer } from ${JSON.stringify(here("../test/unit/look-support.ts"))};
 ${FAKE_WORKER}
 
 const members = [

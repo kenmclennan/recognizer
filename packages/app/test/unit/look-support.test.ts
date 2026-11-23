@@ -5,7 +5,7 @@ import {
   mountExplorer,
   registeredOf,
   scanHostOf,
-} from "../../src/look-support";
+} from "./look-support";
 
 vi.mock("../../src/explorer", async () => {
   const actual =
@@ -25,6 +25,7 @@ describe("look-support", () => {
         "modules",
         "notices",
         "policy",
+        "repository",
         "scans",
         "sensors",
       ].sort(),

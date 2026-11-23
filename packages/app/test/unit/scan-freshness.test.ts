@@ -1,4 +1,3 @@
-import type { Scan } from "recognizer";
 import { buildFreshness } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { FreshnessModel, ResultState } from "../../src/freshness-model";
@@ -6,6 +5,7 @@ import { freshnessMessage, markStale } from "../../src/scan-freshness";
 import type { ScanTicks } from "../../src/scan-panel-model";
 import type { SensorStatus } from "../../src/sensor-run";
 import { plannedRun } from "../fixtures";
+import { type DocScan, repositoryFrom } from "./repository-from";
 
 function scanOf(files: Record<string, string>, withFunction: string[]) {
   return {
@@ -19,7 +19,7 @@ function scanOf(files: Record<string, string>, withFunction: string[]) {
     edges: [],
     foreign: [],
     files: Object.entries(files).map(([path, hash]) => ({ path, hash })),
-  } as unknown as Scan;
+  } as unknown as DocScan;
 }
 
 const SCAN = scanOf({ "a.py": "ha", "b.py": "hb", "c.py": "hc" }, [
@@ -28,7 +28,7 @@ const SCAN = scanOf({ "a.py": "ha", "b.py": "hb", "c.py": "hc" }, [
   "c.py",
 ]);
 const MODULES = ["a.py", "b.py", "c.py"];
-const FRESH = buildFreshness([SCAN], "t1");
+const FRESH = buildFreshness(repositoryFrom([SCAN]), "t1");
 
 describe("markStale", () => {
   const ran = (name: string, measured: SensorStatus["measured"]) =>

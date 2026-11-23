@@ -1,4 +1,3 @@
-import type { Scan } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
   boxSubline,
@@ -8,12 +7,13 @@ import {
   presenceOf,
 } from "../../src/canvas-graph";
 import { expectedScan } from "../fixtures";
+import { type DocScan, repositoryFrom } from "./repository-from";
 
-function graphOf(scan: Scan, overrides: Partial<GraphInput> = {}) {
+function graphOf(scan: DocScan, overrides: Partial<GraphInput> = {}) {
   const modules = scan.modules.map((module) => module.id);
 
   return buildCanvasGraph({
-    scans: [scan],
+    scans: repositoryFrom([scan]),
     modules,
     opened: modules,
     disc: () => "green",
@@ -24,7 +24,7 @@ function graphOf(scan: Scan, overrides: Partial<GraphInput> = {}) {
   });
 }
 
-const chain: Scan = {
+const chain: DocScan = {
   modules: [
     { id: "top.py", language: "python", kind: "module" },
     {
@@ -171,7 +171,7 @@ describe("folding", () => {
 });
 
 describe("counts", () => {
-  const scan: Scan = {
+  const scan: DocScan = {
     modules: ["a.py", "b.py", "c.py", "d.py"].map((id) => ({
       id,
       language: "python" as const,
@@ -207,7 +207,7 @@ describe("counts", () => {
 });
 
 describe("edge styles", () => {
-  const scan: Scan = {
+  const scan: DocScan = {
     modules: [
       { id: "a.py", language: "python", kind: "module" },
       {
@@ -376,7 +376,7 @@ describe("selection helpers", () => {
 });
 
 describe("planned boxes and ghosts", () => {
-  const base: Scan = {
+  const base: DocScan = {
     modules: [
       { id: "shop/a.py", language: "python", kind: "module" },
       { id: "shop/b.py", language: "python", kind: "module" },
@@ -441,7 +441,7 @@ describe("planned boxes and ghosts", () => {
 });
 
 describe("declarations", () => {
-  const scan: Scan = {
+  const scan: DocScan = {
     modules: ["lib.rs", "child.rs", "used.rs"].map((id) => ({
       id,
       language: "python" as const,

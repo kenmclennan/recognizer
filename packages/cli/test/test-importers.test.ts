@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { principleOf } from "../src/principles.js";
-import { validateScan } from "../src/scan.js";
 import { orphanFindings } from "../src/structure-warnings.js";
 import {
   LIBRARY_API_HINT,
@@ -10,6 +9,7 @@ import {
   unusedTestOnlyClause,
   unusedTestOnlySentence,
 } from "../src/test-importers.js";
+import { validatedRepository as validateScan } from "./repository-from.js";
 
 type Records = { from: string; to: string; names?: string[] }[];
 

@@ -1,10 +1,10 @@
+import type { Repository } from "@recognizer/core";
 import { type NeighbourRow, usesOf } from "./neighbours.js";
-import type { Scan } from "./scan.js";
 
 export type PathStep = Omit<NeighbourRow, "id"> & { from: string; to: string };
 
 export function shortestPath(
-  scans: Scan[],
+  repository: Repository,
   modules: string[],
   from: string,
   to: string,
@@ -21,7 +21,7 @@ export function shortestPath(
     const next: string[] = [];
 
     for (const id of frontier) {
-      for (const row of usesOf(scans, modules, id)) {
+      for (const row of usesOf(repository, modules, id)) {
         if (seen.has(row.id)) {
           continue;
         }

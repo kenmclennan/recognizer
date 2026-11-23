@@ -1,5 +1,5 @@
+import type { Repository } from "../../../domain/repository.js";
 import type { RunEntry } from "../../../domain/run-record.js";
-import type { ScanDocument } from "../../../domain/scan-document.js";
 import type { PluginProgress } from "../../../domain/scan-event.js";
 import type { PluginLimits, Say } from "../../shared/ports/process.js";
 
@@ -37,7 +37,7 @@ export interface ScannerQueries {
     dirty: boolean,
   ): ExtractionDecision;
   cachedLanguages(root: string): string[];
-  readCached(root: string, language: string): ScanDocument | null;
+  readCached(root: string, language: string): Repository | null;
   scanFile(root: string, language: string): string;
   previousProtocolNote(
     language: string,

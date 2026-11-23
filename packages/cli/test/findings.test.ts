@@ -7,9 +7,10 @@ import {
   orderDuplication,
 } from "../src/findings.js";
 import type { FindingRecord } from "../src/findings-document.js";
-import { parsePolicy, validateScan } from "../src/index.js";
+import { parsePolicy } from "../src/index.js";
 import { structureSensor } from "../src/structure-sensor.js";
 import { REPO } from "./helpers.js";
+import { validatedRepository as validateScan } from "./repository-from.js";
 
 function fixture(name: string) {
   const dir = join(REPO, "fixtures", name);
@@ -25,7 +26,7 @@ function fixture(name: string) {
 }
 
 function findingsByModule(
-  scans: ReturnType<typeof validateScan>[],
+  scans: ReturnType<typeof validateScan>,
   policy: ReturnType<typeof parsePolicy> | null,
 ) {
   const { document } = structureSensor(
@@ -80,7 +81,7 @@ describe("findingsByModuleFrom principle text", () => {
 describe("findingsByModuleFrom over the structure document", () => {
   it("attaches a cycle warning to every module in it", () => {
     const { scan, policy } = fixture("check-warnings");
-    const found = findingsByModule([scan], policy);
+    const found = findingsByModule(scan, policy);
 
     expect(found.get("app/domain/money.py")?.map((f) => f.severity)).toEqual([
       "warning",
@@ -92,7 +93,7 @@ describe("findingsByModuleFrom over the structure document", () => {
 
   it("lists a module's violation before its warnings", () => {
     const { scan, policy } = fixture("check-warnings");
-    const found = findingsByModule([scan], policy);
+    const found = findingsByModule(scan, policy);
     const withBoth = [...found.values()].find(
       (list) =>
         list.some((f) => f.severity === "violation") &&
@@ -105,7 +106,7 @@ describe("findingsByModuleFrom over the structure document", () => {
 
   it("reports only warnings when there is no policy", () => {
     const { scan } = fixture("check-warnings");
-    const found = findingsByModule([scan], null);
+    const found = findingsByModule(scan, null);
 
     expect(
       [...found.values()].flat().every((f) => f.severity === "warning"),
@@ -119,10 +120,10 @@ describe("findingsByModuleFrom over the structure document", () => {
       `${readFileSync(join(REPO, "fixtures/check-warnings/.recognizer/policy.yaml"), "utf8")}\nignore: [app/domain/**]\n`,
     );
 
-    expect(findingsByModule([scan], policy).has("app/domain/money.py")).toBe(
+    expect(findingsByModule(scan, policy).has("app/domain/money.py")).toBe(
       true,
     );
-    expect(findingsByModule([scan], ignoring).has("app/domain/money.py")).toBe(
+    expect(findingsByModule(scan, ignoring).has("app/domain/money.py")).toBe(
       false,
     );
   });

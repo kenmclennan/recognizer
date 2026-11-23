@@ -1,3 +1,4 @@
+import { EMPTY_REPOSITORY } from "@recognizer/core";
 import { type Freshness, scanHashes, sensorArmed } from "recognizer";
 import { ageText } from "./footer-scan";
 import type { IconName } from "./icons";
@@ -755,7 +756,7 @@ function noResultOf(
   rows: ResultRow[],
   modules: string[],
 ): NoResult[] {
-  const hashes = scanHashes(input.scans ?? []);
+  const hashes = scanHashes(input.scans ?? EMPTY_REPOSITORY);
   const inScope = new Set(modules);
   const found: NoResult[] = [];
 

@@ -1,3 +1,4 @@
+import { EMPTY_REPOSITORY } from "@recognizer/core";
 import {
   createPlanner,
   type PlanRequest,
@@ -18,7 +19,7 @@ import { parseScanLine, type ScanEvent } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
 
 export const NO_PLAN_DATA: LoadedPlanData = {
-  scans: [],
+  scans: EMPTY_REPOSITORY,
   measured: {},
   tests: null,
   describerRegistered: false,

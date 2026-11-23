@@ -1,6 +1,6 @@
 import type { ConfigDocument } from "../../../domain/config-document.js";
 import type { PolicyDocument } from "../../../domain/policy-document.js";
-import type { ScanDocument } from "../../../domain/scan-document.js";
+import type { Repository } from "../../../domain/repository.js";
 import type { Say } from "../../shared/ports/process.js";
 
 export interface ParserSet {
@@ -17,7 +17,7 @@ export interface Analysis {
   analysisPrepare(
     plan: AnalysisPlan,
     root: string,
-    scans: ScanDocument[],
+    repository: Repository,
     policy: PolicyDocument,
     say: Say,
   ): { parserLanguages: string[] | null; label: string };
@@ -25,7 +25,7 @@ export interface Analysis {
   analysisRun(
     plan: AnalysisPlan,
     root: string,
-    scans: ScanDocument[],
+    repository: Repository,
     policy: PolicyDocument,
     parsers: ParserSet | null,
     say: Say,

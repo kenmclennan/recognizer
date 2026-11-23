@@ -1,4 +1,3 @@
-import type { Scan, ScanField, ScanMember } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { EMPTY_CATALOG } from "../../src/finding-catalog";
 import { compactFolders } from "../../src/folder-compaction";
@@ -10,10 +9,17 @@ import {
   inspectorContent,
 } from "../../src/inspector-model";
 import type { MemberMarkWord } from "../../src/member-mark";
+import {
+  type DocField,
+  type DocMember,
+  type DocScan,
+  membersFrom,
+  repositoryFrom,
+} from "./repository-from";
 
 const ID = "pkg/m.py";
 
-const fn = (name: string, line: number, end_line: number): ScanMember => ({
+const fn = (name: string, line: number, end_line: number): DocMember => ({
   name,
   exported: true,
   kind: "function",
@@ -25,7 +31,7 @@ const klass = (
   name: string,
   line: number,
   methods: { name: string; line: number; end_line: number }[],
-): ScanMember => ({
+): DocMember => ({
   name,
   exported: true,
   kind: "class",
@@ -33,7 +39,7 @@ const klass = (
   methods,
 });
 
-function scanOf(members: ScanMember[]): Scan {
+function scanOf(members: DocMember[]): DocScan {
   return {
     modules: [{ id: ID, language: "python", kind: "module", members }],
     edges: [],
@@ -42,13 +48,13 @@ function scanOf(members: ScanMember[]): Scan {
 }
 
 function cards(
-  members: ScanMember[],
+  members: DocMember[],
   marks: Record<string, MemberMarkWord>,
   extra: Partial<InspectorMembers> = {},
 ): CardRow[] {
   const inputs: InspectorInputs = {
     catalog: EMPTY_CATALOG,
-    scans: [scanOf(members)],
+    scans: repositoryFrom([scanOf(members)]),
     modules: [ID],
     compaction: compactFolders([ID]),
     disc: () => "green",
@@ -152,7 +158,7 @@ describe("member marks in the inspector contents", () => {
   });
 
   it("draws marks on added, changed and removed field rows", () => {
-    const withFields = (fields: ScanField[]): ScanMember => ({
+    const withFields = (fields: DocField[]): DocMember => ({
       ...klass("Cart", 1, [{ name: "total", line: 9, end_line: 10 }]),
       fields,
     });
@@ -167,7 +173,7 @@ describe("member marks in the inspector contents", () => {
     const [cart] = cards(
       [head],
       { "Cart#a": "added", "Cart#b": "modified", "Cart#c": "removed" },
-      { start: () => [base] },
+      { start: () => membersFrom([base]) },
     );
     const row = (text: string) =>
       cart?.lines.find(
@@ -184,7 +190,7 @@ describe("member marks in the inspector contents", () => {
   });
 
   it("counts a marked private field in the hidden line", () => {
-    const priv: ScanMember = {
+    const priv: DocMember = {
       ...klass("Cart", 1, [{ name: "_m", line: 5, end_line: 6 }]),
       fields: [{ name: "_x", line: 2, private: true }],
     };
@@ -202,15 +208,15 @@ describe("member marks in the inspector contents", () => {
   });
 
   it("shows a removed private field with Show private off and does not count it", () => {
-    const base: ScanMember = {
+    const base: DocMember = {
       ...klass("Cart", 1, []),
       fields: [{ name: "_x", line: 2, private: true }],
     };
-    const head: ScanMember = { ...klass("Cart", 1, []), fields: [] };
+    const head: DocMember = { ...klass("Cart", 1, []), fields: [] };
     const [cart] = cards(
       [head],
       { "Cart#_x": "removed" },
-      { start: () => [base] },
+      { start: () => membersFrom([base]) },
     );
 
     expect(cart?.lines).toHaveLength(1);
@@ -223,7 +229,7 @@ describe("member marks in the inspector contents", () => {
       { kind: "module", id: ID },
       {
         catalog: EMPTY_CATALOG,
-        scans: [scanOf([ORDER])],
+        scans: repositoryFrom([scanOf([ORDER])]),
         modules: [ID],
         compaction: compactFolders([ID]),
         disc: () => "green",
@@ -288,7 +294,11 @@ describe("member marks in the inspector contents", () => {
   it("draws a removed member from the start scan after its nearest surviving predecessor", () => {
     const start = [fn("first", 1, 2), fn("gone", 4, 5), fn("last", 7, 8)];
     const end = [fn("first", 1, 2), fn("last", 4, 5)];
-    const rows = cards(end, { gone: "removed" }, { start: () => start });
+    const rows = cards(
+      end,
+      { gone: "removed" },
+      { start: () => membersFrom(start) },
+    );
 
     expect(
       rows.map((row) => row.head.map((token) => token.text).join("")),
@@ -309,7 +319,7 @@ describe("member marks in the inspector contents", () => {
     const rows = cards(
       [fn("kept", 1, 2)],
       { gone: "removed" },
-      { start: () => start },
+      { start: () => membersFrom(start) },
     );
 
     expect(rows[0]?.look).toBe("removed");
@@ -328,7 +338,7 @@ describe("member marks in the inspector contents", () => {
     const [order] = cards(
       [end],
       { "Order.old": "removed" },
-      { start: () => [start] },
+      { start: () => membersFrom([start]) },
     );
 
     expect(order?.lines).toHaveLength(3);
@@ -340,7 +350,7 @@ describe("member marks in the inspector contents", () => {
       { kind: "module", id: ID },
       {
         catalog: EMPTY_CATALOG,
-        scans: [scanOf([ORDER])],
+        scans: repositoryFrom([scanOf([ORDER])]),
         modules: [ID],
         compaction: compactFolders([ID]),
         disc: () => "green",
