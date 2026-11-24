@@ -46,6 +46,7 @@ import { writeConfigEdits } from "./configuration/write-config-edits.js";
 import { checkDescriptions } from "./describing/check-descriptions.js";
 import { describeFiles } from "./describing/describe-files.js";
 import { describeModules } from "./describing/describe-modules.js";
+import { describeRecorded } from "./describing/describe-recorded.js";
 import { describingSettings } from "./describing/describing-settings.js";
 import { findDescribeGap } from "./describing/find-describe-gap.js";
 import { findDescriberGaps } from "./describing/find-describer-gaps.js";
@@ -179,6 +180,7 @@ function bindDecisions(
     confirm: ports.confirm,
     clock: ports.clock,
     responsibilities: ports.responsibilities,
+    runLog: ports.runLog,
   };
 
   return {
@@ -243,6 +245,8 @@ export function describingOver(ports: DescribingPorts) {
   return {
     describeModules: (request: Parameters<typeof describeModules>[1]) =>
       describeModules(ports, request),
+    describeRecorded: (request: Parameters<typeof describeRecorded>[1]) =>
+      describeRecorded(ports, request),
     checkDescriptions: (request: Parameters<typeof checkDescriptions>[1]) =>
       checkDescriptions(ports, request),
     readDescriber: (root: string) => readDescriber(ports, root),

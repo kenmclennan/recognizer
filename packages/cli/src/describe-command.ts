@@ -13,12 +13,7 @@ import { describeSummaryText, projectionText } from "./describe-projection.js";
 import { describingFor } from "./describing-container.js";
 import { InputError } from "./errors.js";
 import { freshScans } from "./freshness.js";
-import {
-  type OpenRunLog,
-  openRunLog,
-  type RunEntry,
-  requireBy,
-} from "./run-log.js";
+import { requireBy } from "./run-log.js";
 
 const OPTIONS = {
   all: { type: "boolean" },
@@ -133,75 +128,42 @@ function runCheck(loaded: Loaded, io: Io): number {
 }
 
 async function runDescribe(loaded: Loaded, io: Io): Promise<number> {
-  const startedAt = io.now();
-
   if (loaded.describerSource === "shipped") {
     throw new InputError([unregisteredMessage(shippedDescriberName())]);
   }
 
-  const recorded: RunEntry[] = [];
-  let runLog: OpenRunLog | null = null;
   let projection: DescribeProjection | null = null;
 
   const { model, batch_size: batchSize } = readDescribing(io);
 
-  let result: Awaited<
-    ReturnType<ReturnType<typeof describingFor>["describeModules"]>
-  >;
+  const result = await describingFor(io).describeRecorded({
+    root: loaded.root,
+    model,
+    batchSize,
+    repository: loaded.repository,
+    describer: loaded.describer,
+    selection: loaded.all
+      ? { kind: "all" }
+      : loaded.names.length > 0
+        ? { kind: "names", names: loaded.names }
+        : { kind: "stale" },
+    by: loaded.by,
+    invocation: loaded.argv,
+    say: (stream, text) =>
+      stream === "stdout" ? io.stdout(text) : io.stderr(text),
+    onProjection: (one) => {
+      projection = one;
 
-  try {
-    result = await describingFor(io).describeModules({
-      root: loaded.root,
-      model,
-      batchSize,
-      repository: loaded.repository,
-      describer: loaded.describer,
-      selection: loaded.all
-        ? { kind: "all" }
-        : loaded.names.length > 0
-          ? { kind: "names", names: loaded.names }
-          : { kind: "stale" },
-      say: (stream, text) =>
-        stream === "stdout" ? io.stdout(text) : io.stderr(text),
-      onProjection: (one) => {
-        projection = one;
-
-        if (!loaded.json) {
-          io.stdout(projectionText(one));
-        }
-      },
-      onStart: (total) => {
-        if (total > 0) {
-          runLog = openRunLog(
-            io,
-            loaded.root,
-            "describe",
-            startedAt,
-            loaded.by,
-            loaded.argv,
-          );
-        }
-      },
-      onEntry: (entry) => {
-        recorded.push(entry as RunEntry);
-        (runLog as OpenRunLog | null)?.update(recorded);
-
-        if (entry.outcome === "ok" && !loaded.json) {
-          io.stdout(`described ${entry.name}\n`);
-        }
-      },
-    });
-  } catch (error) {
-    try {
-      (runLog as OpenRunLog | null)?.finish(recorded, true);
-    } catch {
-      throw error;
-    }
-
-    throw error;
-  }
-
-  (runLog as OpenRunLog | null)?.finish(recorded);
+      if (!loaded.json) {
+        io.stdout(projectionText(one));
+      }
+    },
+    onEntry: (entry) => {
+      if (entry.outcome === "ok" && !loaded.json) {
+        io.stdout(`described ${entry.name}\n`);
+      }
+    },
+  });
 
   if (loaded.json) {
     const { described, failed, current, pruned, stopped } = result;
