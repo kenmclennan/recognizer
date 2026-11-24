@@ -1,12 +1,37 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { nodeIo, stopEverything } from "../src/cli.js";
 import { registerPending } from "../src/pending-checkpoints.js";
 
 const GRACE = 400;
+const LIFETIME_CAP = scaledTimeout(30_000) + 5000;
+
+const recordedPidFiles = new Set<string>();
+
+function recordPidFile(file: string): string {
+  recordedPidFiles.add(file);
+
+  return file;
+}
+
+function reapRecorded(): void {
+  for (const file of recordedPidFiles) {
+    const pid = existsSync(file) ? Number(readFileSync(file, "utf8")) : 0;
+
+    if (pid > 0 && alive(pid)) {
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {}
+    }
+  }
+
+  recordedPidFiles.clear();
+}
+
+afterEach(reapRecorded);
 
 function alive(pid: number): boolean {
   return nodeIo().pidAlive(pid);
@@ -20,10 +45,11 @@ async function until(done: () => boolean, ms = 10_000): Promise<void> {
 
 function spawnPlugin(directory: string, name: string, body: string) {
   const io = nodeIo();
-  const pidFile = join(directory, `${name}.pid`);
+  const pidFile = recordPidFile(join(directory, `${name}.pid`));
   const script = `
     require("fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));
     ${body}
+    setTimeout(() => process.exit(0), ${LIFETIME_CAP});
     setInterval(() => {}, 1000);
   `;
   const running = io.runAsync(process.execPath, ["-e", script]);
@@ -97,12 +123,12 @@ describe("stopEverything", () => {
     "a_stopped_plugin_leaves_no_process_of_its_test_run_alive_after_the_grace",
     async () => {
       const directory = makeTempDir("plugin-stop-tree-");
-      const grandchildFile = join(directory, "grandchild.pid");
+      const grandchildFile = recordPidFile(join(directory, "grandchild.pid"));
       const plugin = spawnPlugin(
         directory,
         "parent",
         `const child = require("child_process").spawn(process.execPath, ["-e", ${JSON.stringify(
-          `require("fs").writeFileSync(${JSON.stringify(grandchildFile)}, String(process.pid)); process.on("SIGTERM", () => {}); setInterval(() => {}, 1000);`,
+          `require("fs").writeFileSync(${JSON.stringify(grandchildFile)}, String(process.pid)); process.on("SIGTERM", () => {}); setTimeout(() => process.exit(0), ${LIFETIME_CAP}); setInterval(() => {}, 1000);`,
         )}], { stdio: "ignore" });
         process.on("SIGTERM", () => process.exit(0));`,
       );
@@ -164,6 +190,35 @@ describe("stopEverything", () => {
 
       expect(Date.now() - began).toBeLessThan(4000);
       await quick.running.result;
+    },
+    scaledTimeout(15_000),
+  );
+});
+
+describe("reapRecorded", () => {
+  it(
+    "kills_a_grandchild_left_alive_by_a_body_that_failed_before_stopping_it",
+    async () => {
+      const directory = makeTempDir("plugin-stop-reap-");
+      const pidFile = recordPidFile(join(directory, "leaked.pid"));
+      const leaked = nodeIo().runAsync(process.execPath, [
+        "-e",
+        `require("fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); process.on("SIGTERM", () => {}); setTimeout(() => process.exit(0), ${LIFETIME_CAP}); setInterval(() => {}, 1000);`,
+      ]);
+
+      await until(
+        () => existsSync(pidFile) && readFileSync(pidFile, "utf8") !== "",
+      );
+
+      const pid = Number(readFileSync(pidFile, "utf8"));
+
+      expect(alive(pid)).toBe(true);
+
+      reapRecorded();
+      await leaked.result;
+      await until(() => !alive(pid), 2000);
+
+      expect(alive(pid)).toBe(false);
     },
     scaledTimeout(15_000),
   );
