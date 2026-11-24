@@ -357,6 +357,14 @@ describe("show", () => {
     it("is missing with no entry", () => {
       expect(status({})).toEqual({ status: "missing", line: null });
     });
+
+    it("is unchecked with no line when the responsibilities file is invalid", () => {
+      expect(
+        status({
+          [`${ROOT}/.recognizer/responsibilities.json`]: "not json",
+        }),
+      ).toEqual({ status: "unchecked", line: null });
+    });
   });
 });
 

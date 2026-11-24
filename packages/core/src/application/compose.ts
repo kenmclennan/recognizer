@@ -50,6 +50,7 @@ import { locateDescriber } from "./describing/locate-describer.js";
 import type { Confirm } from "./describing/ports/confirm.js";
 import type { Describer } from "./describing/ports/describer.js";
 import { readDescriber } from "./describing/read-describer.js";
+import { readResponsibility } from "./describing/read-responsibility.js";
 import { refuseShippedDescriber } from "./describing/refuse-shipped-describer.js";
 import type { BaselineRepository } from "./history/settle-baseline.js";
 import { diagnose } from "./plugins/diagnose.js";
@@ -236,6 +237,8 @@ export function describingOver(ports: DescribingPorts) {
     checkDescriptions: (request: Parameters<typeof checkDescriptions>[1]) =>
       checkDescriptions(ports, request),
     readDescriber: (root: string) => readDescriber(ports, root),
+    readResponsibility: (request: Parameters<typeof readResponsibility>[1]) =>
+      readResponsibility(ports, request),
   };
 }
 

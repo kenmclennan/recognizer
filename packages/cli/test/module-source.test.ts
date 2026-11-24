@@ -13,9 +13,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type Io, run } from "../src/cli.js";
-import { moduleSource } from "../src/module-source.js";
+import { readSource } from "../src/module-source.js";
 import { capture, REPO } from "./helpers.js";
-import { repositoryFrom } from "./repository-from.js";
 import { useScannerShim } from "./scan-helpers.js";
 
 const FAKE = join(REPO, "packages/cli/test/fixtures/fake-describer.mjs");
@@ -124,73 +123,16 @@ afterEach(() => {
   }
 });
 
-describe("moduleSource", () => {
-  const scan = repositoryFrom({
-    modules: [{ id: "shop/A.kt" }, { id: "solo.py" }, { id: "dir" }],
-    files: [
-      { path: "shop/A.kt", hash: "x" },
-      { path: "shop/B.kt", hash: "x" },
-      { path: "solo.py", hash: "x" },
-    ],
-  });
-
-  function io(files: Record<string, string | Buffer>): Io {
-    return {
-      readBytes: (path: string) => {
-        const content = files[path];
-
-        if (content === undefined) {
-          throw new Error("missing");
-        }
-
-        return typeof content === "string"
-          ? Buffer.from(content, "utf8")
-          : content;
-      },
-    } as unknown as Io;
-  }
-
-  const files = {
-    "/r/shop/A.kt": "package shop\n\nclass A\n",
-    "/r/shop/B.kt": "package shop\n\nclass B",
-    "/r/solo.py": "print(1)",
-  };
-
-  it("hashes a file module as the file's text with files as a one-element array", () => {
-    const found = moduleSource(io(files), "/r", scan, "shop/A.kt");
-
-    expect(found?.files).toEqual(["shop/A.kt"]);
-    expect(found?.source).toBe("package shop\n\nclass A\n");
-    expect(found?.hash).toBe(sha("package shop\n\nclass A\n"));
-  });
-
-  it("hashes a Python file module as the file's text", () => {
-    const found = moduleSource(io(files), "/r", scan, "solo.py");
-
-    expect(found?.files).toEqual(["solo.py"]);
-    expect(found?.source).toBe("print(1)");
-    expect(found?.hash).toBe(sha("print(1)"));
-  });
-
+describe("readSource", () => {
   it("hashes the raw bytes of a file that is not valid UTF-8", () => {
     const bytes = Buffer.from([0x70, 0x72, 0xff, 0x0a]);
-    const found = moduleSource(
-      io({ "/r/solo.py": bytes }),
-      "/r",
-      scan,
-      "solo.py",
-    );
+    const io = {
+      readBytes: () => bytes,
+    } as unknown as Io;
+    const found = readSource(io, "/r", "solo.py");
 
     expect(found?.hash).toBe(createHash("sha256").update(bytes).digest("hex"));
     expect(found?.hash).not.toBe(sha(bytes.toString("utf8")));
-  });
-
-  it("is unreadable when the file is missing or the id names no scanned file", () => {
-    const { "/r/shop/A.kt": _, ...rest } = files;
-
-    expect(moduleSource(io(rest), "/r", scan, "shop/A.kt")).toBeNull();
-    expect(moduleSource(io(files), "/r", scan, "nowhere")).toBeNull();
-    expect(moduleSource(io(files), "/r", scan, "dir")).toBeNull();
   });
 });
 
