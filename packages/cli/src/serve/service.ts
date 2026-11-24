@@ -18,6 +18,7 @@ import {
   View,
   type ViewFields,
 } from "@recognizer/core";
+import { ActiveRunAdapter } from "../adapters/filesystem/active-run-adapter.js";
 import { ScanCacheAdapter } from "../adapters/filesystem/scan-cache-adapter.js";
 import { SourceFilesAdapter } from "../adapters/filesystem/source-files-adapter.js";
 import {
@@ -45,6 +46,7 @@ import { liveScopes, processScope, StopScope } from "../stop-scope.js";
 import { configKeys, configWrite } from "./config-run.js";
 import { HistoryChannel } from "./history-channel.js";
 import { quiet } from "./quiet.js";
+import { RepositoryChannel } from "./repository-channel.js";
 import { type ScopeFiles, writeScopeFiles } from "./scan-files.js";
 import { sensorWork } from "./sensor-work.js";
 import {
@@ -54,6 +56,7 @@ import {
   stopControl,
 } from "./setup-run.js";
 import { parseStart, withFiles } from "./start-request.js";
+import { StopBackstops } from "./stop-backstops.js";
 import {
   SIGNAL_BACKSTOP_MS,
   type Signals,
@@ -61,7 +64,13 @@ import {
   stopMarkerProcess,
   systemSignals,
 } from "./stop-by-repository.js";
-import { isActive, newWatchState, pollInterval, watchTick } from "./watch.js";
+import {
+  ACTIVE_POLL_MS,
+  isActive,
+  newWatchState,
+  pollInterval,
+  watchTick,
+} from "./watch.js";
 import {
   ArgsError,
   knownHashes,
@@ -97,13 +106,29 @@ export class Service {
   private readonly planner: Scan;
   private readonly historical: HistoricalPorts;
   private readonly historyChannel = new HistoryChannel();
+  private readonly backstops = new StopBackstops();
+  private readonly repositories: RepositoryChannel;
   private counter = 0;
 
   constructor(private readonly options: ServiceOptions) {
     this.signals = options.signals ?? systemSignals();
     this.backstopMs = options.backstopMs ?? SIGNAL_BACKSTOP_MS;
     this.shared = quiet((options.base ?? (() => nodeIo(processScope)))());
-    this.planner = createScan(scanPorts(this.shared, "all"));
+    const ports = scanPorts(this.shared, "all");
+
+    this.planner = createScan(ports);
+    this.repositories = new RepositoryChannel(
+      () => ({
+        active: new ActiveRunAdapter(this.shared),
+        runLog: ports.runLog,
+        config: ports.config,
+        catalog: ports.catalog,
+        findings: ports.findings,
+        structure: ports.structure,
+      }),
+      (message) => this.write(message),
+      () => this.nextId("r"),
+    );
 
     const scratch = new ScratchAdapter();
     const clock = new ClockAdapter(this.shared);
@@ -196,6 +221,19 @@ export class Service {
 
         return;
       }
+      case "repository.watch":
+        reply(this.repositories.watch(resolve(text(args, "repository"))));
+
+        return;
+      case "repository.unwatch":
+        this.repositories.unwatch(text(args, "watch"));
+        reply(null);
+
+        return;
+      case "repository.state":
+        reply(this.repositories.state(resolve(text(args, "repository"))));
+
+        return;
       case "scan.plan":
         text(args, "repository");
         reply(await this.planner.plan(args as unknown as PlanRequest));
@@ -554,9 +592,21 @@ export class Service {
       owner,
       this.signals,
       this.backstopMs,
+      this.backstops,
     );
 
     return null;
+  }
+
+  backstopsSettled(): Promise<void> {
+    let timer: NodeJS.Timeout | undefined;
+    const bound = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, this.backstopMs + ACTIVE_POLL_MS);
+    });
+
+    return Promise.race([this.backstops.settled(), bound]).finally(() => {
+      clearTimeout(timer);
+    });
   }
 
   stopAll(exit: number): Promise<void> {
@@ -567,6 +617,7 @@ export class Service {
     }
 
     this.watches.clear();
+    this.repositories.closeAll();
 
     return Promise.all([
       processScope.stop(exit),

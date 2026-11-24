@@ -12,6 +12,13 @@ export interface DescribeLog {
   finish(entries: RunEntry[], crashed?: boolean): void;
 }
 
+export interface KilledRun {
+  runId: string;
+  startedAt: string;
+  startedBy: string;
+  running: string[];
+}
+
 export interface RunLogRepository {
   open(
     root: string,
@@ -25,4 +32,5 @@ export interface RunLogRepository {
     by: string | undefined,
     invocation: string[],
   ): DescribeLog;
+  settleKilled(root: string, killed: KilledRun): void;
 }

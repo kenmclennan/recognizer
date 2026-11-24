@@ -1,0 +1,482 @@
+import type { ConfigRepository } from "../../domain/config-repository.js";
+import type {
+  FindingsRepository,
+  StoredFindings,
+} from "../../domain/findings-repository.js";
+import { InvalidEntity } from "../../domain/invalid-entity.js";
+import type { Repository } from "../../domain/repository.js";
+import type {
+  ActiveRunRead,
+  ActiveRunRepository,
+  MarkerFacts,
+  ReadCursor,
+} from "../../domain/run/active-run-repository.js";
+import type { RepositoryState } from "../../domain/run/repository-state.js";
+import { ResultFreshness } from "../../domain/run/result-freshness.js";
+import { type ResultEntry, ResultSet } from "../../domain/run/result-set.js";
+import { Run, type RunReport } from "../../domain/run/run.js";
+import {
+  type InstalledFacts,
+  type ManifestFacts,
+  SensorRegistry,
+} from "../../domain/run/sensor-registry.js";
+import type { RunLogRepository } from "../../domain/run-log-repository.js";
+import type { StructureRepository } from "../../domain/structure-repository.js";
+import type { InstalledRead } from "../plugins/installed-sensors.js";
+import { workOutFreshness } from "./work-out-freshness.js";
+
+export interface HeldCatalog {
+  installedNames(): string[];
+  unreadableFolders(): string[];
+  readInstalled(): InstalledRead;
+}
+
+export interface RepositoryStateDependencies {
+  active: ActiveRunRepository;
+  runLog: RunLogRepository;
+  config: ConfigRepository;
+  catalog: HeldCatalog;
+  findings: FindingsRepository;
+  structure: StructureRepository;
+}
+
+export type StateListener = (state: RepositoryState) => void;
+
+interface Settling {
+  runId: string;
+  log: boolean;
+  marker: boolean;
+}
+
+function reasonOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function factsOf(read: InstalledRead): InstalledFacts {
+  const readable = new Map<string, ManifestFacts>();
+
+  for (const sensor of read.sensors) {
+    readable.set(sensor.name, {
+      display: sensor.display,
+      runsTests: sensor.runs_tests,
+      scoped: sensor.scoped,
+      listed: sensor.listed,
+    });
+  }
+
+  return {
+    readable,
+    unreadable: new Map(read.unreadable.map((one) => [one.name, one.reason])),
+  };
+}
+
+export class RepositoryStateHolder {
+  private revision = 0;
+  private published: RepositoryState | null = null;
+  private serialised: string | null = null;
+  private readonly listeners = new Set<StateListener>();
+  private run: Run | null = null;
+  private cursor: ReadCursor | null = null;
+  private registry = SensorRegistry.unknown();
+  private registered: string[] = [];
+  private configHash: string | null = null;
+  private installed: InstalledFacts | null = null;
+  private catalogNames: string | null = null;
+  private results = ResultSet.empty();
+  private readonly finishedSeen = new Set<string>();
+  private freshness = new Map<string, ResultFreshness>();
+  private freshnessKey: string | null = null;
+  private unreadableReports = 0;
+  private settling: Settling | null = null;
+  private readonly settled = new Set<string>();
+  private killedRunning: string[] = [];
+
+  constructor(
+    readonly root: string,
+    private readonly deps: RepositoryStateDependencies,
+  ) {}
+
+  current(): RepositoryState {
+    if (this.published === null) {
+      this.refresh();
+    }
+
+    return this.published as RepositoryState;
+  }
+
+  active(): boolean {
+    return this.run?.active === true;
+  }
+
+  subscribe(listener: StateListener): () => void {
+    listener(this.current());
+    this.listeners.add(listener);
+
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  refresh(): void {
+    this.readRun();
+    this.readRegistry();
+    this.readResults();
+    this.workOutFreshness();
+    this.publish();
+  }
+
+  private readRun(): void {
+    let read: ActiveRunRead;
+
+    try {
+      read = this.deps.active.read(this.root, this.cursor);
+    } catch (error) {
+      read = { kind: "unreadable", reason: reasonOf(error) };
+    }
+
+    if (read.kind === "none") {
+      this.run = null;
+      this.cursor = null;
+
+      return;
+    }
+
+    if (read.kind === "unreadable") {
+      return;
+    }
+
+    const { record } = read;
+
+    if (this.run === null || this.run.id !== record.runId) {
+      this.run = Run.begin({
+        id: record.runId,
+        startedBy: record.startedBy,
+        startedAt: record.startedAt,
+        scope: record.scope,
+        choices: {
+          sensors: record.sensors,
+          describe: record.describe,
+          suites: record.suites,
+        },
+      });
+    }
+
+    for (const report of read.reports) {
+      this.apply(report);
+    }
+
+    this.cursor = { runId: record.runId, offset: read.offset };
+    this.reconcile(read, record);
+
+    if (read.kind === "killed") {
+      this.settleKilled(record);
+    }
+  }
+
+  private apply(report: RunReport): void {
+    if (this.run === null) {
+      return;
+    }
+
+    if (report.kind === "unreadable") {
+      this.unreadableReports += 1;
+
+      return;
+    }
+
+    try {
+      this.run = this.run.apply(report);
+
+      if (report.kind === "plugin-result") {
+        this.results = this.results.reported(
+          report.name,
+          report.at,
+          report.result,
+        );
+      }
+    } catch (error) {
+      if (error instanceof InvalidEntity) {
+        this.unreadableReports += 1;
+
+        return;
+      }
+
+      throw error;
+    }
+  }
+
+  private reconcile(read: ActiveRunRead, record: MarkerFacts): void {
+    if (this.run === null || !this.run.active) {
+      return;
+    }
+
+    if (read.kind === "killed") {
+      this.killedRunning = this.run.running();
+      this.run = this.run.stopped(record.endedAt);
+
+      return;
+    }
+
+    if (read.kind === "ended") {
+      this.apply({
+        kind: "ended",
+        end: {
+          state: record.phase as "finished" | "failed" | "stopped" | "refused",
+          endedAt: record.endedAt,
+          exit: record.exit,
+        },
+      });
+
+      return;
+    }
+
+    if (record.phase === "running" && this.run.state === "checking") {
+      this.apply({ kind: "running" });
+    }
+  }
+
+  private settleKilled(record: MarkerFacts): void {
+    if (this.settled.has(record.runId)) {
+      return;
+    }
+
+    const progress: Settling =
+      this.settling !== null && this.settling.runId === record.runId
+        ? this.settling
+        : { runId: record.runId, log: false, marker: false };
+
+    this.settling = progress;
+
+    try {
+      if (!progress.log) {
+        this.deps.runLog.settleKilled(this.root, {
+          runId: record.runId,
+          startedAt: record.startedAt,
+          startedBy: record.startedBy,
+          running: this.killedRunning,
+        });
+        progress.log = true;
+      }
+
+      if (!progress.marker) {
+        this.deps.active.settleKilled(this.root, record);
+        progress.marker = true;
+      }
+
+      this.settled.add(record.runId);
+    } catch {
+      return;
+    }
+  }
+
+  private readRegistry(): void {
+    let hash: string;
+
+    try {
+      hash = this.deps.config.text(this.root).hash;
+    } catch (error) {
+      this.registry = this.registry.unreadable(
+        reasonOf(error),
+        this.registered,
+      );
+
+      return;
+    }
+
+    if (hash !== this.configHash) {
+      try {
+        const document = this.deps.config.sensorConfig(this.root);
+        const names = this.deps.config
+          .registeredSensors(document)
+          .map(({ name }) => name);
+
+        this.registered = [...new Set(names)];
+        this.configHash = hash;
+      } catch (error) {
+        this.registry = this.registry.unreadable(
+          reasonOf(error),
+          this.registered,
+        );
+
+        return;
+      }
+    }
+
+    try {
+      const folders = this.deps.catalog.unreadableFolders();
+
+      if (folders.length > 0) {
+        if (this.installed === null) {
+          throw new Error(
+            `the plugin folders ${folders.join(", ")} cannot be read`,
+          );
+        }
+
+        this.registry = SensorRegistry.read(this.registered, this.installed);
+
+        return;
+      }
+
+      const names = this.deps.catalog.installedNames().join("\n");
+
+      if (this.installed === null || names !== this.catalogNames) {
+        this.installed = factsOf(this.deps.catalog.readInstalled());
+        this.catalogNames = names;
+      }
+    } catch (error) {
+      this.catalogNames = null;
+      this.registry = this.registry.unreadable(
+        reasonOf(error),
+        this.registered,
+      );
+
+      return;
+    }
+
+    this.registry = SensorRegistry.read(
+      this.registered,
+      this.installed as InstalledFacts,
+    );
+  }
+
+  private readResults(): void {
+    let stored: StoredFindings[];
+
+    try {
+      stored = this.deps.findings.readAll(this.root);
+    } catch {
+      return;
+    }
+
+    const wanted = new Set(this.registered);
+    const fresh = new Map<string, ResultEntry>();
+
+    for (const one of stored) {
+      if (!wanted.has(one.name)) {
+        continue;
+      }
+
+      if (one.status === "invalid") {
+        this.results = this.results.flaggedUnreadable(one.name);
+
+        continue;
+      }
+
+      const { document } = one;
+      const at = { commit: document.commit, modified: document.modified };
+      const result = {
+        findings: `findings:${one.name}`,
+        overlay: null,
+        inputsDigest:
+          document.inputs === undefined
+            ? null
+            : ResultSet.inputsDigestOf(document.inputs),
+        testsDigest: document.tests ?? null,
+        reportedAt: document.reportedAt ?? null,
+        inputs: document.inputs ?? null,
+      };
+
+      this.results = this.results.reported(one.name, at, result);
+      fresh.set(one.name, {
+        at,
+        result: { ...result, unreadable: false },
+      });
+    }
+
+    this.replaceFinished(fresh);
+  }
+
+  private replaceFinished(fresh: ReadonlyMap<string, ResultEntry>): void {
+    const run = this.run;
+
+    if (run === null || run.scope.kind !== "working-tree") {
+      return;
+    }
+
+    for (const plugin of run.plugins) {
+      const key = `${run.id}:${plugin.name}`;
+      const entry = fresh.get(plugin.name);
+
+      if (
+        plugin.state !== "finished" ||
+        this.finishedSeen.has(key) ||
+        entry === undefined
+      ) {
+        continue;
+      }
+
+      this.finishedSeen.add(key);
+      this.results = this.results.replaced(plugin.name, run, [entry]);
+    }
+  }
+
+  private structureOf(): Repository | null {
+    try {
+      return this.deps.structure.exists(this.root)
+        ? this.deps.structure.read(this.root)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private workOutFreshness(): void {
+    const key = JSON.stringify([
+      this.registered,
+      this.results.view(this.registered),
+      this.run?.id ?? null,
+      this.run?.state ?? null,
+    ]);
+
+    if (key === this.freshnessKey) {
+      return;
+    }
+
+    const structure = this.structureOf();
+    const next = new Map<string, ResultFreshness>();
+
+    for (const name of this.registered) {
+      const scoped =
+        this.registry.entries.find((entry) => entry.name === name)?.manifest
+          ?.scoped ?? false;
+
+      next.set(
+        name,
+        workOutFreshness(this.results.of(name), structure, scoped),
+      );
+    }
+
+    this.freshness = next;
+    this.freshnessKey = key;
+  }
+
+  private publish(): void {
+    const state: RepositoryState = {
+      repository: this.root,
+      revision: 0,
+      registry: this.registry.view(),
+      run: this.run === null ? null : this.run.view(),
+      results: this.results.view(this.registered),
+      freshness: Object.fromEntries(
+        this.registered.map((name) => [
+          name,
+          (this.freshness.get(name) ?? ResultFreshness.checking()).view(),
+        ]),
+      ),
+      unreadableReports: this.unreadableReports,
+    };
+    const text = JSON.stringify(state);
+
+    if (text === this.serialised) {
+      return;
+    }
+
+    this.serialised = text;
+    this.revision += 1;
+    this.published = { ...state, revision: this.revision };
+
+    for (const listener of [...this.listeners]) {
+      listener(this.published);
+    }
+  }
+}

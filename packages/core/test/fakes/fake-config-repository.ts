@@ -65,8 +65,13 @@ export class FakeConfigRepository implements ConfigRepository {
 
   held: string | null = null;
   saves: string[] = [];
+  failText = false;
 
   text(): RepositoryText {
+    if (this.failText) {
+      throw new Error("the config cannot be read");
+    }
+
     const text = this.held ?? "";
 
     return {

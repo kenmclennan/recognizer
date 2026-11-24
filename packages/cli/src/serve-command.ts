@@ -30,6 +30,7 @@ export async function runServe(argv: string[], _io: Io): Promise<number> {
 
   await ended;
   await service.stopAll(143);
+  await service.backstopsSettled();
   front.postMessage({ close: true });
   await stopped;
 

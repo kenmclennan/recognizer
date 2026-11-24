@@ -7,14 +7,28 @@ import type { FakeSensors } from "./fake-sensors.js";
 
 export class FakeSensorCatalog implements SensorCatalog {
   readonly reads: (readonly string[] | undefined)[] = [];
+  failReads = false;
+  readonly unreadable: string[] = [];
 
   constructor(private readonly sensors: FakeSensors) {}
 
   installedNames(): string[] {
+    if (this.failReads) {
+      throw new Error("the plugin listing failed");
+    }
+
     return [...this.sensors.installed.keys()].sort();
   }
 
+  unreadableFolders(): string[] {
+    return [...this.unreadable];
+  }
+
   readInstalled(names?: readonly string[]): InstalledRead {
+    if (this.failReads) {
+      throw new Error("the plugin listing failed");
+    }
+
     this.reads.push(names);
 
     const chosen = [...this.sensors.installed.values()]

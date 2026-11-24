@@ -17,6 +17,10 @@ export class FakeFindingsRepository implements FindingsRepository {
   readonly removed: string[] = [];
   unitCache: UnitCache = {};
 
+  invalidate(name: string, reason = "the document is not valid"): void {
+    this.stored.set(name, { name, status: "invalid", reason });
+  }
+
   measuredOf(root: string, sensor: string): Measured | null {
     return this.measured.get(`${root}::${sensor}`) ?? null;
   }

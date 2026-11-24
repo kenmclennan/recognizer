@@ -6,6 +6,7 @@ import {
   type ScanPorts,
   setupReadsOver,
 } from "../../src/index.js";
+import { FakeActiveRunRepository } from "./fake-active-run-repository.js";
 import { FakeAnalysis } from "./fake-analysis.js";
 import { FakeAssistant } from "./fake-assistant.js";
 import { FakeBaselineRepository } from "./fake-baseline-repository.js";
@@ -54,6 +55,7 @@ import { FakeWorkTree } from "./fake-work-tree.js";
 import { FIXTURE_LANGUAGES } from "./fixture-languages.js";
 
 export interface Fakes {
+  active: FakeActiveRunRepository;
   scanners: FakeScanners;
   analysis: FakeAnalysis;
   sensors: FakeSensors;
@@ -110,6 +112,7 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
   process.onStop(() => sensors.releaseHeld());
 
   return {
+    active: new FakeActiveRunRepository(),
     scanners: new FakeScanners(structure, log),
     analysis: new FakeAnalysis(),
     sensors,
@@ -160,6 +163,7 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
 
 export function portsOf(fakes: Fakes): ScanPorts {
   const {
+    active,
     changes,
     views,
     windows,

@@ -30,6 +30,7 @@ export interface ProgramOnPath {
 export interface Programs {
   find(name: string): string | null;
   listOnPath(prefixes: readonly string[]): ProgramOnPath[];
+  unreadableOnPath(): string[];
   run(program: string, args: string[], options?: ProgramRunOptions): ProgramRun;
   start(
     program: string,

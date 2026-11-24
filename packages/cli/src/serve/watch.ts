@@ -24,7 +24,7 @@ export function pollInterval(state: WatchState): number {
   return isActive(state.run) ? ACTIVE_POLL_MS : IDLE_POLL_MS;
 }
 
-function appendedLines(
+export function appendedLines(
   io: Io,
   root: string,
   offset: number,
