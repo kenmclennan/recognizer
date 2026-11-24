@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import {
   DEFAULT_DUPLICATION_SETTINGS,
   type DuplicationSettings,
+  type GrammarRule,
   measureDuplication,
   Repository,
   readUnitCache,
@@ -34,6 +35,7 @@ function hashed(
 async function measure(
   setup: ReturnType<typeof measuredFixture>,
   settings: DuplicationSettings = DEFAULT_DUPLICATION_SETTINGS,
+  rules: GrammarRule[] = GRAMMAR_RULES,
 ) {
   return measureDuplication(
     analysisPortsOf(setup.fake.io),
@@ -42,7 +44,7 @@ async function measure(
     hashed(setup.scans, setup.fake),
     settings,
     await allParsers(),
-    GRAMMAR_RULES,
+    rules,
     true,
   );
 }
@@ -133,7 +135,7 @@ describe("reusing results for unchanged files", () => {
       setup.fake.files.get(unitCachePath(ROOT)) as string,
     ) as { port: string };
 
-    expect(written.port).toBe("3");
+    expect(written.port).toBe("4");
 
     setup.fake.files.set(
       unitCachePath(ROOT),
@@ -160,7 +162,7 @@ describe("reusing results for unchanged files", () => {
       setup.fake.files.get(unitCachePath(ROOT)) as string,
     ) as { port: string };
 
-    expect(written.port).toBe("3");
+    expect(written.port).toBe("4");
 
     setup.fake.files.set(
       unitCachePath(ROOT),
@@ -175,6 +177,33 @@ describe("reusing results for unchanged files", () => {
 
     expect(lastSummary(setup.fake.err())).toBe(
       "duplication: 2 files parsed, 0 reused",
+    );
+  });
+
+  it("reparses only the language whose grammar data changed", async () => {
+    const setup = measuredFixture("fixtures/duplication/sample");
+
+    await measure(setup);
+
+    const changed = GRAMMAR_RULES.map((rule) =>
+      rule.name === "python"
+        ? {
+            ...rule,
+            vocabulary: {
+              ...rule.vocabulary,
+              comment_markers: [
+                ...(rule.vocabulary?.comment_markers ?? []),
+                "//",
+              ],
+            },
+          }
+        : rule,
+    );
+
+    await measure(setup, DEFAULT_DUPLICATION_SETTINGS, changed);
+
+    expect(lastSummary(setup.fake.err())).toBe(
+      "duplication: 1 files parsed, 1 reused",
     );
   });
 

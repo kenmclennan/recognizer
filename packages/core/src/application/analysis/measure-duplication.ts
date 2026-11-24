@@ -189,9 +189,10 @@ function collectUnits(
     }
 
     const hash = hashes.get(module.path);
+    const ruleHash = ports.digest.sha1Prefix(JSON.stringify(rule));
     const kept = cache?.[module.path];
 
-    if (cache !== null && reusable(kept, hash, rule.name, settings)) {
+    if (cache !== null && reusable(kept, hash, rule.name, ruleHash, settings)) {
       next[module.path] = kept;
       tally.reused += 1;
       units.push(...kept.units.map((one) => unitOf(module.path, one)));
@@ -230,6 +231,7 @@ function collectUnits(
       next[module.path] = {
         hash,
         grammar: rule.name,
+        rule_hash: ruleHash,
         min_lines: settings.min_lines,
         min_nodes: settings.min_nodes,
         units: found.map(cachedOf),
