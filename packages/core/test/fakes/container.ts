@@ -20,6 +20,8 @@ import { FakeDigest } from "./fake-digest.js";
 import { FakeDocumentValidators } from "./fake-document-validators.js";
 import { FakeFindingsRepository } from "./fake-findings-repository.js";
 import { FakeGit } from "./fake-git.js";
+import { FakeKeyOwners } from "./fake-key-owners.js";
+import { FakeKeyedText } from "./fake-keyed-text.js";
 import { FakeParsing } from "./fake-parsing.js";
 import { FakePluginRegistry } from "./fake-plugin-registry.js";
 import { FakePluginTemplates } from "./fake-plugin-templates.js";
@@ -86,6 +88,8 @@ export interface Fakes {
   assistant: FakeAssistant;
   setupScan: FakeSetupScan;
   configKeys: FakeConfigKeys;
+  keyedText: FakeKeyedText;
+  keyOwners: FakeKeyOwners;
 }
 
 export function createFakes(commit: string | null = "c0ffee"): Fakes {
@@ -136,6 +140,8 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     assistant: new FakeAssistant(),
     setupScan: new FakeSetupScan(),
     configKeys: new FakeConfigKeys(),
+    keyedText: new FakeKeyedText(),
+    keyOwners: new FakeKeyOwners(),
   };
 }
 
@@ -158,6 +164,8 @@ export function portsOf(fakes: Fakes): ScanPorts {
     assistant,
     setupScan,
     configKeys,
+    keyedText,
+    keyOwners,
     ...scan
   } = fakes;
 
@@ -187,6 +195,8 @@ export function configurationPortsOf(fakes: Fakes): ConfigurationPorts {
     assistant: fakes.assistant,
     scan: fakes.setupScan,
     keys: fakes.configKeys,
+    keyedText: fakes.keyedText,
+    keyOwners: fakes.keyOwners,
     config: fakes.config,
     policy: fakes.policy,
     programs: fakes.programs,

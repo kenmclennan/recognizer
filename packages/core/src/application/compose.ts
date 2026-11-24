@@ -30,15 +30,19 @@ import { runAnalysisSync } from "./analysis/run-analysis-sync.js";
 import { testsHashOf } from "./analysis/tests-hash.js";
 import { applySetup } from "./configuration/apply-setup.js";
 import { buildSetupChanges } from "./configuration/build-setup-changes.js";
+import { editKey } from "./configuration/edit-key.js";
 import type {
   ConfigurationPorts,
   LanguageClaim,
   SetupReads,
 } from "./configuration/internal/configuration-ports.js";
+import { addForbid, migratePolicy } from "./configuration/migrate-policy.js";
+import { readKeySchema } from "./configuration/read-key-schema.js";
 import { readSetup } from "./configuration/read-setup.js";
 import { recommendPolicy } from "./configuration/recommend-policy.js";
 import { surveySetup } from "./configuration/survey-setup.js";
 import { trySetup } from "./configuration/try-setup.js";
+import { writeConfigEdits } from "./configuration/write-config-edits.js";
 import { checkDescriptions } from "./describing/check-descriptions.js";
 import { describeFiles } from "./describing/describe-files.js";
 import { describeModules } from "./describing/describe-modules.js";
@@ -535,5 +539,14 @@ export function configurationOver(ports: ConfigurationPorts) {
       trySetup(ports, request),
     readSetup: (request: Parameters<typeof readSetup>[1]) =>
       readSetup(ports, request),
+    editKey: (request: Parameters<typeof editKey>[1]) =>
+      editKey(ports, request),
+    readKeySchema: () => readKeySchema(ports),
+    migratePolicy: (request: Parameters<typeof migratePolicy>[1]) =>
+      migratePolicy(ports, request),
+    addForbid: (request: Parameters<typeof addForbid>[1]) =>
+      addForbid(ports, request),
+    writeConfigEdits: (request: Parameters<typeof writeConfigEdits>[1]) =>
+      writeConfigEdits(ports, request),
   };
 }

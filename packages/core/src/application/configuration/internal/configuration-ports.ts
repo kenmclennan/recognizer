@@ -6,6 +6,8 @@ import type { Clock } from "../../shared/ports/clock.js";
 import type { ScanLock } from "../../shared/ports/scan-lock.js";
 import type { Assistant } from "../ports/assistant.js";
 import type { ConfigKeys } from "../ports/config-keys.js";
+import type { KeyOwners } from "../ports/key-owners.js";
+import type { KeyedText } from "../ports/keyed-text.js";
 import type { SetupFiles } from "../ports/setup-files.js";
 import type { SetupPrograms } from "../ports/setup-programs.js";
 import type { SetupScan } from "../ports/setup-scan.js";
@@ -40,6 +42,8 @@ export interface ConfigurationPorts {
   assistant: Assistant;
   scan: SetupScan;
   keys: ConfigKeys;
+  keyedText: KeyedText;
+  keyOwners: KeyOwners;
   config: ConfigRepository;
   policy: PolicyRepository;
   programs: SetupPrograms;

@@ -1,15 +1,51 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { orphanWarnings, PolicyRule } from "@recognizer/core";
+import {
+  migratePolicy as migratePolicyUseCase,
+  orphanWarnings,
+  PolicyRule,
+  type RepositoryText,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { PolicyAdapter } from "../src/adapters/filesystem/policy-adapter.js";
+import { YamlKeyedTextAdapter } from "../src/adapters/filesystem/yaml-keyed-text-adapter.js";
 import { run } from "../src/cli.js";
 import { check, parsePolicy } from "../src/index.js";
-import { migratePolicy } from "../src/policy-migrate.js";
 import { REPO } from "./helpers.js";
 import { repositoryFrom } from "./repository-from.js";
 import { fakeIo, ROOT } from "./scan-helpers.js";
 import { documentOf } from "./scan-of.js";
+
+type Migrated =
+  | { status: "ok"; text: string; changes: string[] }
+  | { status: "refused"; messages: string[] };
+
+function migratePolicy(text: string): Migrated {
+  let held = text;
+  const stand = new PolicyAdapter(fakeIo().io);
+  const policy = {
+    text: (): RepositoryText => ({ present: true, text: held, hash: "" }),
+    saveText: (_root: string, next: string): void => {
+      held = next;
+    },
+    problems: (next: string) => stand.problems(next),
+  };
+  const outcome = migratePolicyUseCase(
+    { policy, keyedText: new YamlKeyedTextAdapter() },
+    { root: ROOT },
+  );
+
+  if (outcome.status === "refused") {
+    return outcome;
+  }
+
+  return {
+    status: "ok",
+    text: held,
+    changes: outcome.status === "migrated" ? outcome.changes : [],
+  };
+}
 
 const LOOM = `components:
   application: [engine/src/application/**]

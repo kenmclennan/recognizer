@@ -1,4 +1,4 @@
-import type { KeyEntry, SectionEntry } from "./config-keys.js";
+import type { KeyEntry, SectionEntry } from "./published-keys.js";
 
 export const SUITE_SECTION: SectionEntry = {
   key: "tests.<name>",

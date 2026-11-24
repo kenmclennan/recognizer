@@ -1,6 +1,7 @@
 import type {
   ConfigDocument,
   ConfigRepository,
+  RepositoryText,
   StructureSettings,
   SuiteEntry,
 } from "@recognizer/core";
@@ -15,6 +16,7 @@ import {
   registeredSensors,
 } from "../../config-parse.js";
 import { resolveStructureSettings } from "../../structure-sensor.js";
+import { readRepositoryText, saveRepositoryText } from "./repository-text.js";
 
 export class ConfigAdapter implements ConfigRepository {
   constructor(
@@ -75,6 +77,14 @@ export class ConfigAdapter implements ConfigRepository {
     return registeredSensors(readConfig(this.io, root, ["sensors"])).map(
       ({ name }) => name,
     );
+  }
+
+  text(root: string): RepositoryText {
+    return readRepositoryText(this.io, configFile(root));
+  }
+
+  saveText(root: string, text: string): void {
+    saveRepositoryText(this.io, configFile(root), text);
   }
 
   setupDocument(root: string): {

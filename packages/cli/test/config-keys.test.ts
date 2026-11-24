@@ -1,12 +1,8 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { CORE_KEYS, type KeySchema, publish } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import {
-  CORE_KEYS,
-  type KeySchema,
-  parseKeySchema,
-  publish,
-} from "../src/config-keys.js";
+import { parseKeySchema } from "../src/config-keys.js";
 import { keysHelp } from "../src/key-command.js";
 import { REPO } from "./helpers.js";
 

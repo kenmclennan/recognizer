@@ -838,10 +838,19 @@ async fn shipped_sensors() -> Result<repository::ShippedSensors, String> {
 }
 
 #[tauri::command]
-async fn read_config_keys() -> Result<config_write::ConfigKeys, String> {
-    tauri::async_runtime::spawn_blocking(config_write::read_config_keys)
-        .await
-        .map_err(|error| error.to_string())
+async fn read_config_keys(
+    app: AppHandle,
+    window: WebviewWindow,
+) -> Result<config_write::ConfigKeys, String> {
+    let folder = app.state::<WindowState>().folder_of(&window_label(&window));
+    let label = window_label(&window);
+    let core = app.state::<CoreClient>().inner().clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        config_write::read_config_keys(&core, &label, folder.as_deref())
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -852,9 +861,11 @@ async fn write_repository_config(
     base_hash: String,
 ) -> Result<config_write::ConfigWrite, String> {
     let folder = window_folder_path(&app, &window)?;
+    let label = window_label(&window);
+    let core = app.state::<CoreClient>().inner().clone();
 
     tauri::async_runtime::spawn_blocking(move || {
-        config_write::write_repository_config(&folder, &edits, &base_hash)
+        config_write::write_repository_config(&core, &label, &folder, &edits, &base_hash)
     })
     .await
     .map_err(|error| error.to_string())

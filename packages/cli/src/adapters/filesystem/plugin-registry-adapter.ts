@@ -1,19 +1,18 @@
-import type {
-  PluginRegistry,
-  Registered,
-  RegisterOutcome,
-  Registration,
+import {
+  type EditKeyOutcome,
+  editKey,
+  type KeyEditPorts,
+  type PluginRegistry,
+  type Registered,
+  type RegisterOutcome,
+  type Registration,
 } from "@recognizer/core";
 import { parse } from "yaml";
 import type { Io } from "../../cli.js";
 import { configFile } from "../../config.js";
-import {
-  addSection,
-  addValue,
-  type EditOutcome,
-  setValue,
-} from "../../config-edit.js";
-import { CORE_KEYS, publish } from "../../config-keys.js";
+import { PolicyAdapter } from "./policy-adapter.js";
+import { saveRepositoryText } from "./repository-text.js";
+import { YamlKeyedTextAdapter } from "./yaml-keyed-text-adapter.js";
 
 class Refused extends Error {}
 
@@ -44,12 +43,60 @@ function existingOf(text: string): Registered {
   };
 }
 
-function unwrap(outcome: EditOutcome, text: string): string {
-  if (outcome.status === "refused") {
-    throw new Refused(outcome.reason);
+const NO_OWNERS: KeyEditPorts["keyOwners"] = {
+  schemas: () => ({
+    schema: {
+      keys_version: 1,
+      owner: "sensors",
+      placeholders: {},
+      sections: [],
+      keys: [],
+    },
+    notAnswering: [],
+  }),
+};
+
+class Edits {
+  private held: string;
+
+  constructor(
+    original: string,
+    private readonly io: Io,
+  ) {
+    this.held = original;
   }
 
-  return outcome.status === "ok" ? outcome.text : text;
+  get text(): string {
+    return this.held;
+  }
+
+  private ports(): KeyEditPorts {
+    return {
+      config: {
+        text: () => ({ present: true, text: this.held, hash: "" }),
+        saveText: (_root, text) => {
+          this.held = text;
+        },
+      },
+      policy: new PolicyAdapter(this.io),
+      keyedText: new YamlKeyedTextAdapter(),
+      keyOwners: NO_OWNERS,
+    };
+  }
+
+  apply(verb: "set" | "add" | "add-section", key: string, value?: string) {
+    const outcome: EditKeyOutcome = editKey(this.ports(), {
+      subject: "config",
+      root: "",
+      verb,
+      key,
+      ...(value === undefined ? {} : { value }),
+    });
+
+    if (outcome.status === "refused") {
+      throw new Refused(`${outcome.reason}${outcome.suffix}`);
+    }
+  }
 }
 
 function sensorWords(program: string): string[] {
@@ -73,10 +120,10 @@ function edited(
   original: string,
   existing: Registered,
   registration: Registration,
+  io: Io,
 ): { text: string; registered: boolean } {
   const { kind, name, program, manifest } = registration;
-  const published = publish([CORE_KEYS], "config");
-  let text = original;
+  const edits = new Edits(original, io);
 
   const registered =
     kind === "sensor"
@@ -85,40 +132,27 @@ function edited(
 
   if (!registered) {
     if (kind === "sensor" && registration.shipped) {
-      text = unwrap(addSection(text, published, `sensors.${name}`), text);
+      edits.apply("add-section", `sensors.${name}`);
     } else if (kind === "sensor") {
       for (const word of sensorWords(program)) {
-        text = unwrap(
-          addValue(text, published, `sensors.${name}.command`, word),
-          text,
-        );
+        edits.apply("add", `sensors.${name}.command`, word);
       }
     } else {
       for (const word of describerWords(program)) {
-        text = unwrap(
-          addValue(text, published, "describer.command", word),
-          text,
-        );
+        edits.apply("add", "describer.command", word);
       }
 
-      text = unwrap(
-        setValue(
-          text,
-          published,
-          "describer.version",
-          manifest.prompt_version as string,
-        ),
-        text,
+      edits.apply(
+        "set",
+        "describer.version",
+        manifest.prompt_version as string,
       );
     }
   }
 
-  text = unwrap(
-    setValue(text, published, `install.${program}`, manifest.install),
-    text,
-  );
+  edits.apply("set", `install.${program}`, manifest.install);
 
-  return { text, registered };
+  return { text: edits.text, registered };
 }
 
 export class PluginRegistryAdapter implements PluginRegistry {
@@ -140,7 +174,7 @@ export class PluginRegistryAdapter implements PluginRegistry {
     let result: { text: string; registered: boolean };
 
     try {
-      result = edited(original, existingOf(original), registration);
+      result = edited(original, existingOf(original), registration, this.io);
     } catch (error) {
       if (error instanceof Refused) {
         return { status: "refused", reason: error.message };
@@ -150,10 +184,7 @@ export class PluginRegistryAdapter implements PluginRegistry {
     }
 
     if (result.text !== original || !this.io.exists(file)) {
-      const temporary = `${file}.${this.io.pid()}.tmp`;
-
-      this.io.writeFile(temporary, result.text);
-      this.io.rename(temporary, file);
+      saveRepositoryText(this.io, file, result.text);
     }
 
     return { status: result.registered ? "already-registered" : "registered" };

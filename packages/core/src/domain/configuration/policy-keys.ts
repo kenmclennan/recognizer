@@ -1,4 +1,4 @@
-import type { KeySchema } from "./config-keys.js";
+import type { KeySchema } from "./published-keys.js";
 
 export const POLICY_KEYS: KeySchema = {
   keys_version: 1,

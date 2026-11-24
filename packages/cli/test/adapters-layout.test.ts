@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -19,6 +19,7 @@ const expected: Record<string, string[]> = {
     "plugin-registry-adapter.ts",
     "policy-adapter.ts",
     "policy-translator.ts",
+    "repository-text.ts",
     "responsibilities-adapter.ts",
     "run-log-adapter.ts",
     "scan-cache-adapter.ts",
@@ -30,12 +31,14 @@ const expected: Record<string, string[]> = {
     "structure-adapter.ts",
     "view-adapter.ts",
     "view-translator.ts",
+    "yaml-keyed-text-adapter.ts",
   ],
   git: ["changes-adapter.ts", "git-adapter.ts"],
   plugins: [
     "check-sandbox-adapter.ts",
     "describer-adapter.ts",
     "document-validators-adapter.ts",
+    "key-owners-adapter.ts",
     "plugin-templates-adapter.ts",
     "process-adapter.ts",
     "programs-adapter.ts",
@@ -72,5 +75,31 @@ describe("adapters layout", () => {
     for (const [folder, files] of Object.entries(expected)) {
       expect(readdirSync(join(adapters, folder)).sort()).toEqual(files);
     }
+  });
+
+  it("only seven modules import the yaml library", () => {
+    const sources = resolve(here, "../src");
+    const walk = (directory: string): string[] =>
+      readdirSync(directory, { withFileTypes: true }).flatMap((entry) =>
+        entry.isDirectory()
+          ? walk(join(directory, entry.name))
+          : entry.name.endsWith(".ts")
+            ? [join(directory, entry.name)]
+            : [],
+      );
+    const importers = walk(sources)
+      .filter((file) => /from "yaml"/.test(readFileSync(file, "utf8")))
+      .map((file) => file.slice(file.lastIndexOf("/") + 1))
+      .sort();
+
+    expect(importers).toEqual([
+      "config-adapter.ts",
+      "config-parse.ts",
+      "plugin-registry-adapter.ts",
+      "policy-adapter.ts",
+      "policy-translator.ts",
+      "repository-checks-adapter.ts",
+      "yaml-keyed-text-adapter.ts",
+    ]);
   });
 });
