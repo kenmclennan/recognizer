@@ -1,13 +1,11 @@
 import { cpSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { DescribeResult } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import type { Io, Running, RunResult } from "../src/cli.js";
-import {
-  type DescribeResult,
-  describeModules,
-  describeSummaryText,
-} from "../src/describe-modules.js";
+import { describeSummaryText } from "../src/describe-projection.js";
+import { describingFor } from "../src/describing-container.js";
 import { capture, REPO } from "./helpers.js";
 import { repositoryFrom } from "./repository-from.js";
 
@@ -98,17 +96,19 @@ function run(
   box: ReturnType<typeof harness>,
   batchSize: number,
 ): Promise<DescribeResult> {
-  return describeModules({
-    io: box.io,
+  return describingFor(box.io).describeModules({
     root: box.root,
     repository: scan,
     describer: {
+      describerRef: true,
       command: ["describer", "{request}"],
       version: "v1",
     },
     selection: { kind: "all" },
     model: "haiku",
     batchSize,
+    say: (stream, text) =>
+      stream === "stdout" ? box.io.stdout(text) : box.io.stderr(text),
   });
 }
 

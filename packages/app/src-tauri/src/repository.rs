@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::core_client::CoreClient;
 use crate::fs_safe::checked_relative;
 use crate::tool_runner::{runner, Captured, ToolRunner};
 
@@ -158,60 +159,45 @@ pub fn sensors_args() -> Vec<String> {
     vec!["sensors".to_string(), "--json".to_string()]
 }
 
-pub fn describer_args(folder: &Path) -> Vec<String> {
-    vec![
-        "describe".to_string(),
-        "--describer".to_string(),
-        "--json".to_string(),
-        "--repository".to_string(),
-        folder.display().to_string(),
-    ]
-}
-
-pub fn shipped_describer_for(exit: Option<i32>, stdout: &str, stderr: &str) -> ShippedDescriber {
+pub fn shipped_describer_from(reply: Result<serde_json::Value, String>) -> ShippedDescriber {
     let unavailable = |reason: String| ShippedDescriber::Unavailable { reason };
-    let stdout = clean_output(stdout);
 
-    match exit {
-        Some(127) => unavailable(missing_hint()),
-        Some(0) => match serde_json::from_str::<DescriberJson>(stdout.trim()) {
+    let value = match reply {
+        Ok(value) => value,
+        Err(message) => return unavailable(message),
+    };
+
+    if let Some(ok) = value.get("ok") {
+        return match serde_json::from_value::<DescriberJson>(ok.clone()) {
             Ok(found) => ShippedDescriber::Ok {
                 command: found.command,
                 version: found.version,
                 source: found.source,
             },
-            Err(_) => unavailable(
-                "recognizer describe --describer printed something that is not the describer"
-                    .to_string(),
-            ),
-        },
-        other => unavailable(format!(
-            "recognizer describe --describer exited {}: {}",
-            other.map_or("without a status".to_string(), |code| code.to_string()),
-            stderr.trim()
-        )),
+            Err(_) => {
+                unavailable("the service answered something that is not the describer".to_string())
+            }
+        };
+    }
+
+    if let Some(error) = value.get("error").and_then(serde_json::Value::as_str) {
+        return unavailable(error.to_string());
+    }
+
+    match value.get("unavailable") {
+        Some(body) => unavailable(
+            ["hint", "reason", "kind"]
+                .iter()
+                .find_map(|key| body.get(key).and_then(serde_json::Value::as_str))
+                .unwrap_or("the service is unavailable")
+                .to_string(),
+        ),
+        None => unavailable("the service gave no answer".to_string()),
     }
 }
 
-pub fn shipped_describer(folder: &Path) -> ShippedDescriber {
-    shipped_describer_with(runner(), RECOGNIZER_COMMAND, folder)
-}
-
-pub fn shipped_describer_with(
-    runner: &ToolRunner,
-    command: &str,
-    folder: &Path,
-) -> ShippedDescriber {
-    match runner.capture(command, &describer_args(folder), true) {
-        Err(fault) => ShippedDescriber::Unavailable {
-            reason: fault.message(),
-        },
-        Ok(Captured {
-            code,
-            stdout,
-            stderr,
-        }) => shipped_describer_for(code, &stdout, &stderr),
-    }
+pub fn shipped_describer(core: &CoreClient, label: &str, folder: &Path) -> ShippedDescriber {
+    shipped_describer_from(core.call(label, Some(folder), "describer.read", serde_json::json!({})))
 }
 
 pub const RECOGNIZER_COMMAND: &str = "recognizer";
@@ -442,17 +428,7 @@ mod tests {
     }
 
     #[test]
-    fn the_describer_and_sensors_argv_carry_only_their_flags() {
-        assert_eq!(
-            describer_args(Path::new("/tmp/repo")),
-            [
-                "describe",
-                "--describer",
-                "--json",
-                "--repository",
-                "/tmp/repo"
-            ]
-        );
+    fn the_sensors_argv_carries_only_its_flags() {
         assert_eq!(sensors_args(), ["sensors", "--json"]);
     }
 
@@ -853,11 +829,14 @@ mod tests {
     }
 
     #[test]
-    fn the_shipped_describer_is_read_from_the_json_and_a_failure_is_unavailable() {
-        let json = r#"{"command":["recognizer-describe-claude","{request}"],"version":"p1","source":"shipped"}"#;
+    fn the_shipped_describer_is_read_from_the_service_reply_and_a_failure_is_unavailable() {
+        let ok = serde_json::json!({
+            "id": 1,
+            "ok": {"command": ["recognizer-describe-claude", "{request}"], "version": "p1", "source": "shipped"}
+        });
 
         assert_eq!(
-            shipped_describer_for(Some(0), json, ""),
+            shipped_describer_from(Ok(ok)),
             ShippedDescriber::Ok {
                 command: vec![
                     "recognizer-describe-claude".to_string(),
@@ -867,20 +846,34 @@ mod tests {
                 source: "shipped".to_string()
             }
         );
+        assert_eq!(
+            shipped_describer_from(Ok(
+                serde_json::json!({"id": 1, "error": "no describer is registered"})
+            )),
+            ShippedDescriber::Unavailable {
+                reason: "no describer is registered".to_string()
+            }
+        );
+        assert_eq!(
+            shipped_describer_from(Ok(
+                serde_json::json!({"unavailable": {"kind": "missing", "hint": "install it"}})
+            )),
+            ShippedDescriber::Unavailable {
+                reason: "install it".to_string()
+            }
+        );
+        assert_eq!(
+            shipped_describer_from(Err("the arguments are not an object".to_string())),
+            ShippedDescriber::Unavailable {
+                reason: "the arguments are not an object".to_string()
+            }
+        );
         assert!(matches!(
-            shipped_describer_for(Some(2), "", "no describer"),
-            ShippedDescriber::Unavailable { reason } if reason.contains("exited 2: no describer")
-        ));
-        assert!(matches!(
-            shipped_describer_for(Some(0), "nope", ""),
+            shipped_describer_from(Ok(serde_json::json!({"id": 1, "ok": "nope"}))),
             ShippedDescriber::Unavailable { .. }
         ));
         assert!(matches!(
-            shipped_describer_with(
-                &working_runner(TempDir::new().unwrap().path()),
-                "/nonexistent/recognizer",
-                Path::new("/tmp")
-            ),
+            shipped_describer_from(Ok(serde_json::json!({}))),
             ShippedDescriber::Unavailable { .. }
         ));
     }
@@ -910,12 +903,6 @@ mod tests {
         assert_eq!(
             shipped_sensors_with(&runner, RECOGNIZER_COMMAND),
             ShippedSensors::Unavailable {
-                reason: missing_hint()
-            }
-        );
-        assert_eq!(
-            shipped_describer_with(&runner, RECOGNIZER_COMMAND, dir.path()),
-            ShippedDescriber::Unavailable {
                 reason: missing_hint()
             }
         );

@@ -1,5 +1,6 @@
-import type { Describer } from "./describe-modules.js";
-
-export function describerVersion(describer: Describer): string {
+export function describerVersion(describer: {
+  command: readonly string[];
+  version: string;
+}): string {
   return describer.version;
 }

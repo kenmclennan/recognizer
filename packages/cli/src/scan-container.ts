@@ -8,6 +8,7 @@ import { ConfigAdapter } from "./adapters/filesystem/config-adapter.js";
 import { FindingsAdapter } from "./adapters/filesystem/findings-adapter.js";
 import { ParsingAdapter } from "./adapters/filesystem/parsing-adapter.js";
 import { PolicyAdapter } from "./adapters/filesystem/policy-adapter.js";
+import { ResponsibilitiesAdapter } from "./adapters/filesystem/responsibilities-adapter.js";
 import { RunLogAdapter } from "./adapters/filesystem/run-log-adapter.js";
 import { ScanLockAdapter } from "./adapters/filesystem/scan-lock-adapter.js";
 import { SourceFilesAdapter } from "./adapters/filesystem/source-files-adapter.js";
@@ -40,6 +41,7 @@ export function scanPorts(io: Io, read: ConfigRead): ScanPorts {
     catalog: new SensorCatalogAdapter(io),
     files: new SelectionFilesAdapter(io),
     describer: new DescriberAdapter(io),
+    responsibilities: new ResponsibilitiesAdapter(io),
     git: new GitAdapter(io),
     structure: new StructureAdapter(io),
     findings: new FindingsAdapter(io),

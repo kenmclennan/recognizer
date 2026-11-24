@@ -1,4 +1,8 @@
-import type { Repository } from "@recognizer/core";
+import type {
+  LocatedDescriber,
+  Repository,
+  Responsibility,
+} from "@recognizer/core";
 import type {
   LineKind,
   Measured,
@@ -20,15 +24,43 @@ export type LoadedPlanData = {
 
 export function planReads(data: LoadedPlanData) {
   const modules = data.scans.files.map(({ path }) => path);
-  const lines = {
-    registered: data.describerRegistered,
-    kinds: Object.fromEntries(modules.map((id) => [id, data.lineKinds(id)])),
-  };
+  const hashes = data.scans.scannedHashes();
+  const kinds = modules.map((id) => data.lineKinds(id));
+  const describer = ["describer"];
+  const located: LocatedDescriber = data.describerRegistered
+    ? {
+        describer: { describerRef: true, command: describer, version: "v" },
+        shipped: false,
+      }
+    : { describer: null, shipped: false };
 
   return {
-    structure: {
-      read: () => data.scans,
-      responsibilityKinds: () => lines,
+    structure: { read: () => data.scans },
+    describer: { locate: () => located },
+    responsibilities: {
+      read: () => {
+        if (kinds.includes("unknown")) {
+          throw Object.assign(new Error("responsibilities are unreadable"), {
+            name: "InvalidRequest",
+          });
+        }
+
+        return {
+          get: (id: string): Responsibility | undefined => {
+            const kind = data.lineKinds(id);
+
+            return kind === "missing"
+              ? undefined
+              : {
+                  line: "",
+                  sourceHash:
+                    kind === "current" ? (hashes.get(id) ?? "") : "stale",
+                  describer,
+                  version: "v",
+                };
+          },
+        };
+      },
     },
     findings: {
       measuredOf: (_root: string, sensor: string) =>

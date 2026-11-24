@@ -1,28 +1,18 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
-  Neighbours,
+  type DescribeProjection,
+  type DescriberRef,
   type Repository,
   unregisteredMessage,
 } from "@recognizer/core";
 import { shippedDescriberName } from "./adapters/plugins/shipped-plugins-adapter.js";
 import { readDescribing } from "./app-settings.js";
 import type { Io } from "./cli.js";
-import {
-  type Describer,
-  describeModules,
-  describeSummaryText,
-  readResponsibilities,
-  subjectFor,
-} from "./describe-modules.js";
-import {
-  type DescribeProjection,
-  projectionText,
-} from "./describe-projection.js";
-import { describerInEffect } from "./describer-in-effect.js";
+import { describeSummaryText, projectionText } from "./describe-projection.js";
+import { describingFor } from "./describing-container.js";
 import { InputError } from "./errors.js";
 import { freshScans } from "./freshness.js";
-import type { ResponsibilityEntry } from "./responsibilities.js";
 import {
   type OpenRunLog,
   openRunLog,
@@ -48,10 +38,8 @@ interface Loaded {
   root: string;
   json: boolean;
   repository: Repository;
-  modules: string[];
-  describer: Describer;
+  describer: DescriberRef;
   describerSource: "config" | "shipped";
-  entries: Record<string, ResponsibilityEntry>;
   names: string[];
   all: boolean;
   check: boolean;
@@ -79,24 +67,18 @@ function load(argv: string[], io: Io): Loaded {
 
   const root = resolve(values.repository ?? ".");
   const { repository } = freshScans(io, root, ["describer"]);
-  const { source: describerSource, ...describer } = describerInEffect(io, root);
-
-  const entries = readResponsibilities(io, root).modules;
-  const modules = Neighbours.moduleNames(repository);
-  const unknown = positionals.filter((name) => !modules.includes(name));
-
-  if (unknown.length > 0) {
-    throw new InputError(unknown.map((name) => `no such file: ${name}`));
-  }
+  const found = describingFor(io).readDescriber(root);
 
   return {
     root,
     json: values.json === true,
     repository,
-    modules,
-    describer,
-    describerSource,
-    entries,
+    describer: {
+      describerRef: true,
+      command: found.command,
+      version: found.version,
+    },
+    describerSource: found.source,
     names: positionals,
     all: values.all === true,
     check: values.check === true,
@@ -106,41 +88,17 @@ function load(argv: string[], io: Io): Loaded {
 }
 
 function runCheck(loaded: Loaded, io: Io): number {
-  const { root, describer, entries, names } = loaded;
-  const ids = (names.length > 0 ? names : loaded.modules).slice().sort();
-  const subjects = ids.map((id) =>
-    subjectFor(io, root, loaded.repository, id, entries, describer),
-  );
-  const gone =
-    names.length > 0
-      ? []
-      : Object.keys(entries)
-          .filter((id) => !loaded.modules.includes(id))
-          .sort();
-  const counts = { current: 0, outOfDate: 0, missing: 0, unreadable: 0 };
-
-  const rows = subjects.map((subject) => {
-    const status = subject.status.status;
-
-    if (status === "current") {
-      counts.current += 1;
-    } else if (status === "out-of-date") {
-      counts.outOfDate += 1;
-    } else if (status === "missing") {
-      counts.missing += 1;
-    } else {
-      counts.unreadable += 1;
-    }
-
-    return {
-      module: subject.id,
-      status,
-      line: entries[subject.id]?.line ?? null,
-      reasons:
-        subject.status.status === "out-of-date" ? subject.status.reasons : [],
-    };
+  const {
+    ok,
+    counts,
+    modules: rows,
+    gone,
+  } = describingFor(io).checkDescriptions({
+    root: loaded.root,
+    repository: loaded.repository,
+    describer: loaded.describer,
+    names: loaded.names,
   });
-  const ok = rows.every((row) => row.status === "current");
 
   if (loaded.json) {
     io.stdout(
@@ -187,8 +145,7 @@ async function runDescribe(loaded: Loaded, io: Io): Promise<number> {
 
   const { model, batch_size: batchSize } = readDescribing(io);
 
-  const result = await describeModules({
-    io,
+  const result = await describingFor(io).describeModules({
     root: loaded.root,
     model,
     batchSize,
@@ -199,6 +156,8 @@ async function runDescribe(loaded: Loaded, io: Io): Promise<number> {
       : loaded.names.length > 0
         ? { kind: "names", names: loaded.names }
         : { kind: "stale" },
+    say: (stream, text) =>
+      stream === "stdout" ? io.stdout(text) : io.stderr(text),
     onProjection: (one) => {
       projection = one;
 
@@ -219,7 +178,7 @@ async function runDescribe(loaded: Loaded, io: Io): Promise<number> {
       }
     },
     onEntry: (entry) => {
-      recorded.push(entry);
+      recorded.push(entry as RunEntry);
       (runLog as OpenRunLog | null)?.update(recorded);
 
       if (entry.outcome === "ok" && !loaded.json) {
@@ -266,7 +225,9 @@ function runDescriber(argv: string[], io: Io): number {
     ]);
   }
 
-  const found = describerInEffect(io, resolve(values.repository ?? "."));
+  const found = describingFor(io).readDescriber(
+    resolve(values.repository ?? "."),
+  );
 
   if (values.json === true) {
     io.stdout(

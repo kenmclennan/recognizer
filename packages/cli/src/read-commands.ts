@@ -4,6 +4,7 @@ import {
   type Dependency,
   type FindingNote,
   findingsByModuleFrom,
+  lineStatus,
   type Member,
   measureFolders,
   Neighbours,
@@ -24,8 +25,8 @@ import {
 } from "./member-tokens.js";
 import { moduleSource } from "./module-source.js";
 import {
-  lineStatus,
   type ResponsibilityEntry,
+  toResponsibility,
   validateResponsibilities,
 } from "./responsibilities.js";
 
@@ -208,7 +209,7 @@ function responsibilityOf(
   }
 
   const status = lineStatus(
-    entry,
+    toResponsibility(entry),
     found.hash,
     describer.command,
     describer.version,

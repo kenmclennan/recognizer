@@ -1,9 +1,9 @@
 import { InvalidRequest } from "../../domain/invalid-request.js";
+import { Neighbours } from "../../domain/neighbours.js";
 import {
   type Caller,
   CallerIndex,
 } from "../../domain/visualisation/caller-index.js";
-import { Neighbours } from "../../domain/visualisation/neighbours.js";
 import type { VisualisationPorts } from "./internal/visualisation-ports.js";
 
 export interface AskCallersRequest {

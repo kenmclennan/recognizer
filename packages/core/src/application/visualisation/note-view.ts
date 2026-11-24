@@ -1,5 +1,5 @@
 import { InvalidRequest } from "../../domain/invalid-request.js";
-import { Neighbours } from "../../domain/visualisation/neighbours.js";
+import { Neighbours } from "../../domain/neighbours.js";
 import { ViewNotes } from "../../domain/visualisation/view-notes.js";
 import { mutateView, type ViewMutation } from "./internal/mutate-view.js";
 import { folderPath } from "./internal/view-access.js";

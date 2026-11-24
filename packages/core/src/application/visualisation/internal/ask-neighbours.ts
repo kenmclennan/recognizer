@@ -3,7 +3,7 @@ import {
   type FolderGroup,
   type NeighbourRow,
   Neighbours,
-} from "../../../domain/visualisation/neighbours.js";
+} from "../../../domain/neighbours.js";
 import type { VisualisationPorts } from "./visualisation-ports.js";
 
 export interface AskNeighboursRequest {

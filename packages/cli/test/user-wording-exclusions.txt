@@ -23,7 +23,6 @@ packages/app/src/window-drive.ts|modules|key, count unit or socket target named 
 packages/app/src/window-drive.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/app/src/window-state.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/commands.ts|modules|key, count unit or socket target named by a contract, not wording
-packages/cli/src/describe-modules.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/overlays.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/read-commands.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/cli/src/adapters/filesystem/scan-document-types.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording

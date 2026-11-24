@@ -1,6 +1,6 @@
 import type { Call } from "../dependency.js";
+import { Neighbours } from "../neighbours.js";
 import type { Repository } from "../repository.js";
-import { Neighbours } from "./neighbours.js";
 
 export type Caller = { module: string; through: string | null };
 

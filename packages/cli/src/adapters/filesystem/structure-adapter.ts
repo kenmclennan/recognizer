@@ -1,19 +1,8 @@
 import { join } from "node:path";
-import type {
-  LineKind,
-  ResponsibilityKinds,
-  StructureRepository,
-} from "@recognizer/core";
+import type { StructureRepository } from "@recognizer/core";
 import { Repository } from "@recognizer/core";
 import type { Io } from "../../cli.js";
-import { readConfig } from "../../config.js";
-import { findDescriber } from "../../describer-in-effect.js";
 import type { Language } from "../../detect.js";
-import {
-  lineStatus,
-  type ResponsibilityEntry,
-  validateResponsibilities,
-} from "../../responsibilities.js";
 import { CACHE, cacheFile, readCachedRepository } from "../../scan-facts.js";
 import { scanFileText } from "./scan-translator.js";
 
@@ -81,59 +70,5 @@ export class StructureAdapter implements StructureRepository {
           return cached === null ? [] : [cached];
         }),
     );
-  }
-
-  responsibilityKinds(root: string): ResponsibilityKinds {
-    const configured = readConfig(this.io, root, ["describer"])?.describer;
-
-    if (configured === undefined) {
-      return { registered: false, kinds: {} };
-    }
-
-    const repository = this.read(root);
-    const modules = repository.files.map(({ path }) => path);
-    const file = join(root, ".recognizer", "responsibilities.json");
-    const kinds: Record<string, LineKind> = {};
-
-    let entries: Record<string, ResponsibilityEntry> = {};
-
-    if (this.io.exists(file)) {
-      try {
-        entries = validateResponsibilities(
-          JSON.parse(this.io.readFile(file)),
-        ).modules;
-      } catch {
-        for (const id of modules) {
-          kinds[id] = "unknown";
-        }
-
-        return { registered: true, kinds };
-      }
-    }
-
-    const describer = findDescriber(this.io, root);
-    const hashes = repository.scannedHashes();
-
-    for (const id of modules) {
-      const entry = entries[id];
-
-      if (entry === undefined) {
-        kinds[id] = "missing";
-      } else if (describer === null || !hashes.has(id)) {
-        kinds[id] = "out-of-date";
-      } else {
-        kinds[id] =
-          lineStatus(
-            entry,
-            hashes.get(id) as string,
-            describer.command,
-            describer.version,
-          ).status === "current"
-            ? "current"
-            : "out-of-date";
-      }
-    }
-
-    return { registered: true, kinds };
   }
 }

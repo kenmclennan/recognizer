@@ -4,6 +4,7 @@ import {
   lineStatus,
   parseConfig,
   type Responsibilities,
+  toResponsibility,
   validateResponsibilities,
 } from "recognizer";
 
@@ -112,7 +113,7 @@ export function responsibilityStates(
     }
 
     const status = lineStatus(
-      entry,
+      toResponsibility(entry),
       hash,
       describer.command,
       describer.version,

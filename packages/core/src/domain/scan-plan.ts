@@ -32,9 +32,4 @@ export type SensorRow = {
 
 export type LineKind = "current" | "out-of-date" | "missing" | "unknown";
 
-export type ResponsibilityKinds = {
-  registered: boolean;
-  kinds: Record<string, LineKind>;
-};
-
 export type Measured = { inputs?: Record<string, string>; tests?: string };

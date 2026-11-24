@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { Given, Then, When } from "@cucumber/cucumber";
-import type { SensorRequest } from "../../src/index.js";
+import {
+  DescribeRequest,
+  projectDescribe,
+  type SensorRequest,
+} from "../../src/index.js";
 import { cachePath } from "../fakes/fake-structure-repository.js";
 import { REPOSITORY, type ScanWorld } from "../fakes/world.js";
 
@@ -88,7 +92,18 @@ Given("a Quill describer is registered", function (this: ScanWorld) {
 Given(
   "describing would cost {int} dollars",
   function (this: ScanWorld, cost: number) {
-    this.fakes.describer.projected = { modules: 2, cost_usd: cost };
+    const sample = projectDescribe(
+      [new DescribeRequest("f0", "source", ["f0"], "source of f0", [], [], [])],
+      "opus",
+    );
+    const files = Math.round(cost / (sample.cost_usd ?? 1));
+
+    this.fakes.describer.model = "opus";
+    this.fakes.scanners.languages.set("alpha", {
+      modules: files,
+      edges: 0,
+      fails: false,
+    });
   },
 );
 
@@ -153,6 +168,13 @@ When(
   },
 );
 
+When(
+  "a full scan runs describing everything",
+  async function (this: ScanWorld) {
+    await this.run({ mode: "full", describe: "all" });
+  },
+);
+
 When("a second scan starts", async function (this: ScanWorld) {
   await this.readStatus();
   await this.beginSecond({ mode: "full", sensors: [{ name: "tally" }] });
@@ -174,6 +196,23 @@ Then("nothing is extracted", function (this: ScanWorld) {
 
 Then("the scan finishes", function (this: ScanWorld) {
   assert.deepEqual(this.outcome, { status: "finished" });
+});
+
+Then("each described module has its line saved", function (this: ScanWorld) {
+  const saved = this.fakes.responsibilities.read(REPOSITORY);
+
+  assert.deepEqual(saved.ids(), [...this.fakes.describer.described].sort());
+  assert.ok(saved.ids().length > 0);
+  assert.equal(saved.get("f0")?.line, "line for f0");
+});
+
+Then("the scan reports the described count", function (this: ScanWorld) {
+  const finished = this.events.find(
+    (event) => event.type === "describing-finished",
+  );
+
+  assert.ok(finished !== undefined && finished.type === "describing-finished");
+  assert.equal(finished.result.described.length, 3);
 });
 
 Then("the scan fails", function (this: ScanWorld) {
@@ -288,7 +327,10 @@ Then("nothing is described", function (this: ScanWorld) {
 });
 
 Then("every module is described", function (this: ScanWorld) {
-  assert.equal(this.fakes.describer.described.length, 2);
+  assert.equal(
+    this.fakes.describer.described.length,
+    this.fakes.scanners.languages.get("alpha")?.modules,
+  );
 });
 
 Then("the scan is refused by preflight", function (this: ScanWorld) {

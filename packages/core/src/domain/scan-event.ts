@@ -1,10 +1,12 @@
 import type { Gap } from "./gap.js";
 import type { EventEntry, PhaseName, SkippedPhase } from "./run-record.js";
 
-export interface Projection {
+export interface DescribeProjection {
   modules: number;
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
   cost_usd: number | null;
-  readonly [detail: string]: unknown;
 }
 
 export interface DescribeStop {
@@ -17,8 +19,11 @@ export interface DescribeStop {
 }
 
 export interface DescribeResult {
+  described: string[];
+  failed: { module: string; reason: string }[];
+  current: number;
+  pruned: string[];
   stopped: DescribeStop | null;
-  readonly [detail: string]: unknown;
 }
 
 export type PluginProgress = { readonly [field: string]: unknown };
@@ -48,8 +53,8 @@ export type ScanEvent =
   | { type: "plugin"; phase: PhaseName; name: string; data: PluginProgress }
   | { type: "entry"; phase: PhaseName; entry: EventEntry; file?: string }
   | { type: "analysis"; state: "run" | "done" | "failed"; files?: number }
-  | { type: "projection"; projection: Projection }
-  | { type: "confirmation-asked"; projection: Projection }
+  | { type: "projection"; projection: DescribeProjection }
+  | { type: "confirmation-asked"; projection: DescribeProjection }
   | { type: "confirmation-answered"; describe: boolean }
   | { type: "describing-stopped"; stop: DescribeStop }
   | { type: "describing-finished"; result: DescribeResult }

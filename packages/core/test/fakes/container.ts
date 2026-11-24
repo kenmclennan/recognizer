@@ -27,6 +27,7 @@ import { FakePolicyRepository } from "./fake-policy-repository.js";
 import { FakeProcess } from "./fake-process.js";
 import { FakePrograms } from "./fake-programs.js";
 import { FakeRepositoryChecks } from "./fake-repository-checks.js";
+import { FakeResponsibilitiesRepository } from "./fake-responsibilities-repository.js";
 import { FakeRunLogRepository } from "./fake-run-log-repository.js";
 import { FakeScanCache } from "./fake-scan-cache.js";
 import { FakeScanLock } from "./fake-scan-lock.js";
@@ -52,6 +53,7 @@ export interface Fakes {
   catalog: FakeSensorCatalog;
   files: FakeSelectionFiles;
   describer: FakeDescriber;
+  responsibilities: FakeResponsibilitiesRepository;
   git: FakeGit;
   structure: FakeStructureRepository;
   findings: FakeFindingsRepository;
@@ -101,6 +103,7 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     catalog: new FakeSensorCatalog(sensors),
     files: new FakeSelectionFiles(),
     describer: new FakeDescriber(),
+    responsibilities: new FakeResponsibilitiesRepository(),
     git: new FakeGit(commit),
     structure,
     findings: new FakeFindingsRepository(),

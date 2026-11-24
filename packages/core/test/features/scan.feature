@@ -62,6 +62,15 @@ Feature: Scanning a repository
     And every module is described
     And the scan finishes
 
+  Scenario: A scan that describes a stale file writes its line
+    Given a repository with Alpha files
+    And a Quill describer is registered
+    When a full scan runs describing everything
+    Then every module is described
+    And each described module has its line saved
+    And the scan reports the described count
+    And the scan finishes
+
   Scenario: A preflight gap refuses the scan before any sensor runs
     Given a repository with Alpha files
     And a Pencil sensor and a Ruler sensor are registered whose programs do not start

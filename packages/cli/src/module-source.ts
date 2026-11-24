@@ -21,6 +21,23 @@ function sourceFiles(repository: Repository, id: string): string[] {
     : [];
 }
 
+export function readSource(
+  io: Io,
+  root: string,
+  path: string,
+): { text: string; hash: string } | null {
+  try {
+    const raw = io.readBytes(join(root, path));
+
+    return {
+      text: raw.toString("utf8"),
+      hash: createHash("sha256").update(raw).digest("hex"),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function moduleSource(
   io: Io,
   root: string,
@@ -33,13 +50,9 @@ export function moduleSource(
     return null;
   }
 
-  try {
-    const raw = io.readBytes(join(root, id));
-    const source = raw.toString("utf8");
-    const hash = createHash("sha256").update(raw).digest("hex");
+  const found = readSource(io, root, id);
 
-    return { files, source, hash };
-  } catch {
-    return null;
-  }
+  return found === null
+    ? null
+    : { files, source: found.text, hash: found.hash };
 }

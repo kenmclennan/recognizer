@@ -1,8 +1,5 @@
 import { InvalidRequest } from "../../domain/invalid-request.js";
-import {
-  Neighbours,
-  type PathStep,
-} from "../../domain/visualisation/neighbours.js";
+import { Neighbours, type PathStep } from "../../domain/neighbours.js";
 import type { VisualisationPorts } from "./internal/visualisation-ports.js";
 
 export interface AskPathRequest {
