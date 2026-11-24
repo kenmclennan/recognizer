@@ -21,30 +21,30 @@ Feature: Sensor selection, planning and rows
     When sensors are selected for "duplication"
     Then the sensor request is refused with "duplication is part of structural analysis and runs with every scan"
 
-  Scenario: An unknown name lists the registered and shipped sensors
+  Scenario: An unknown name lists the registered and installed sensors
     Given a Tally sensor and a Margin sensor are installed and registered
     When sensors are selected for "ghost"
-    Then the sensor request is refused with "no such sensor: ghost | registered sensors: tally, margin | shipped sensors: tally, margin"
+    Then the sensor request is refused with "no such sensor: ghost | registered sensors: tally, margin | installed sensors: margin, tally"
 
-  Scenario: A mix of registered, shipped and unknown names is refused for the unknown one only
-    Given a Tally sensor is registered and a Margin sensor is shipped but not registered
+  Scenario: A mix of registered, installed and unknown names is refused for the unknown one only
+    Given a Tally sensor is registered and a Margin sensor is installed but not registered
     When sensors are selected for "tally, margin, ghost"
-    Then the sensor request is refused with "no such sensor: ghost | registered sensors: tally | shipped sensors: tally, margin"
+    Then the sensor request is refused with "no such sensor: ghost | registered sensors: tally | installed sensors: margin, tally"
 
-  Scenario: A shipped sensor that is not registered is refused after selection resolves it
-    Given a Tally sensor is registered and a Margin sensor is shipped but not registered
+  Scenario: An installed sensor that is not registered is refused after selection resolves it
+    Given a Tally sensor is registered and a Margin sensor is installed but not registered
     When sensors are selected for "tally, margin"
     Then the sensor request is refused with "margin is not registered in .recognizer/config.yaml; register it with `recognizer plugin add margin`."
 
-  Scenario: A registered shipped command has its manifest read once even when unnamed
+  Scenario: A registered installed command has its manifest read once even when unnamed
     Given a Tally sensor and a Margin sensor are installed and registered
     When sensors are selected for "tally, tally"
     Then the manifests read were "tally, margin"
 
   Scenario: A selection refusal wins over the unregistered check
-    Given a Tally sensor is registered and a Margin sensor is shipped but not registered
+    Given a Tally sensor is registered and a Margin sensor is installed but not registered
     When sensors are selected for "ghost, margin"
-    Then the sensor request is refused with "no such sensor: ghost | registered sensors: tally | shipped sensors: tally, margin"
+    Then the sensor request is refused with "no such sensor: ghost | registered sensors: tally | installed sensors: margin, tally"
 
   Scenario: With no suites file a tests-running sensor chooses every suite and gets no suites argument
     Given the suites "unit" and "slow" are configured
@@ -109,7 +109,7 @@ Feature: Sensor selection, planning and rows
     When sensors are planned for "tally"
     Then the sensor request is refused with "cannot read --suites file missing.json: ENOENT"
 
-  Scenario: Rows list shipped sensors by display with the registered ones flagged
+  Scenario: Rows list installed sensors by display with the registered ones flagged
     Given a Zed sensor that runs tests with the display "Zed" is installed and registered
     And a Tally sensor is installed with the display "Alpha" and is not registered
     And a Margin sensor that is not listed is installed and registered
@@ -119,13 +119,13 @@ Feature: Sensor selection, planning and rows
     And the "zed" row carries the suite "unit"
     And the "tally" row carries no suites
 
-  Scenario: A registered name that is not shipped is appended in config order
+  Scenario: A registered name that is not installed is appended in config order
     Given a Tally sensor is installed and registered
-    And the config registers the unshipped sensors "bespoke, custom"
+    And the config registers the uninstalled sensors "bespoke, custom"
     When the sensor rows are read
     Then the rows are "tally:true, bespoke:true, custom:true"
 
-  Scenario: With no config only the shipped rows appear unregistered
+  Scenario: With no config only the installed rows appear unregistered
     Given a Tally sensor and a Margin sensor are installed and registered
     And the repository has no config
     When the sensor rows are read

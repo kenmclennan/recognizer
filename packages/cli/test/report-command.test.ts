@@ -187,11 +187,11 @@ describe("recognizer report", () => {
     }
   });
 
-  it("refuses the name of a shipped sensor that is not registered", () => {
+  it("accepts the name of an installed sensor that is not registered", () => {
     const result = reporting(["--as", "crap"], { stdin: document() });
 
-    expect(result.code).toBe(2);
-    expect(result.fake.writes).toEqual([]);
+    expect(result.code).toBe(0);
+    expect(result.fake.writes).not.toEqual([]);
   });
 
   it("needs --as", () => {

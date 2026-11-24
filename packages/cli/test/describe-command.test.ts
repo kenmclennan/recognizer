@@ -15,6 +15,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { noneRegistered } from "@recognizer/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type Io, run } from "../src/cli.js";
 import { COMMANDS } from "../src/commands.js";
@@ -721,11 +722,11 @@ describe("describe prune", () => {
   });
 });
 
-const SHIPPED_VERSION = "prompt-0123456789ab";
+const INSTALLED_VERSION = "prompt-0123456789ab";
 const originalPath = process.env.PATH;
 const binDirs: string[] = [];
 
-function withoutShippedDescriber(): void {
+function withoutDescriberPlugin(): void {
   const dir = mkdtempSync(join(tmpdir(), "recognizer-bin-"));
 
   binDirs.push(dir);
@@ -737,7 +738,7 @@ function withoutShippedDescriber(): void {
   process.env.PATH = `${dir}:/usr/bin:/bin`;
 }
 
-function shippedManifest() {
+function installedManifest() {
   return {
     ...JSON.parse(
       readFileSync(
@@ -745,11 +746,11 @@ function shippedManifest() {
         "utf8",
       ),
     ),
-    prompt_version: SHIPPED_VERSION,
+    prompt_version: INSTALLED_VERSION,
   };
 }
 
-function installShippedDescriber(): void {
+function installDescriberPlugin(): void {
   const dir = mkdtempSync(join(tmpdir(), "recognizer-bin-"));
 
   binDirs.push(dir);
@@ -760,10 +761,10 @@ function installShippedDescriber(): void {
     script,
     [
       "#!/usr/bin/env node",
-      `if (process.argv[2] === "manifest") { process.stdout.write(${JSON.stringify(JSON.stringify(shippedManifest()))} + "\\n"); process.exit(0); }`,
+      `if (process.argv[2] === "manifest") { process.stdout.write(${JSON.stringify(JSON.stringify(installedManifest()))} + "\\n"); process.exit(0); }`,
       'import { readFileSync } from "node:fs";',
       'const { module } = JSON.parse(readFileSync(process.argv[process.argv.length - 1], "utf8"));',
-      'process.stdout.write("shipped " + module + "\\n");',
+      'process.stdout.write("installed " + module + "\\n");',
       "",
     ].join("\n"),
     { mode: 0o755 },
@@ -784,7 +785,7 @@ afterEach(() => {
 });
 
 describe("describer in effect", () => {
-  it("reports the configured describer with source config", async () => {
+  it("prints the describer in effect without a source", async () => {
     const root = ready("v7");
     const result = await exec(root, "describe", "--describer", "--json");
 
@@ -792,12 +793,11 @@ describe("describer in effect", () => {
     expect(JSON.parse(result.out)).toEqual({
       command: ["node", FAKE, "{repository}", "{request}"],
       version: "v7",
-      source: "config",
     });
   });
 
-  it("reports the shipped describer when none is configured", async () => {
-    installShippedDescriber();
+  it("refuses --describer when none is configured", async () => {
+    installDescriberPlugin();
 
     const result = await exec(
       repository(),
@@ -806,63 +806,49 @@ describe("describer in effect", () => {
       "--json",
     );
 
-    expect(result.code).toBe(0);
-    expect(JSON.parse(result.out)).toEqual({
-      command: [
-        "recognizer-describe-claude",
-        "run",
-        "--model",
-        "{model}",
-        "{request}",
-      ],
-      version: SHIPPED_VERSION,
-      source: "shipped",
-    });
+    expect(result.code).toBe(2);
+    expect(result.err).toBe(`${noneRegistered()}\n`);
+    expect(result.out).toBe("");
   });
 
   it("prints one plain line without --json", async () => {
-    installShippedDescriber();
+    const result = await exec(ready("v7"), "describe", "--describer");
 
-    const result = await exec(repository(), "describe", "--describer");
-
-    expect(result.out).toBe(
-      `recognizer-describe-claude run --model {model} {request}  ${SHIPPED_VERSION}  shipped\n`,
-    );
+    expect(result.out).toBe(`node ${FAKE} {repository} {request}  v7\n`);
   });
 
   it("exits 2 naming the missing describer when neither exists", async () => {
     const root = repository();
 
-    withoutShippedDescriber();
+    withoutDescriberPlugin();
 
     const result = await exec(root, "describe", "--describer");
 
     expect(result.code).toBe(2);
-    expect(result.err).toContain("no describer is registered");
-    expect(result.err).toContain("recognizer-describe-claude is not installed");
+    expect(result.err).toBe(`${noneRegistered()}\n`);
   });
 
   it("prefers a configured describer over an installed fallback", async () => {
-    installShippedDescriber();
+    installDescriberPlugin();
 
     const root = ready("v3");
 
     expect(
       JSON.parse((await exec(root, "describe", "--describer", "--json")).out)
-        .source,
-    ).toBe("config");
+        .command[0],
+    ).toBe("node");
     expect((await exec(root, "describe", "--all")).code).toBe(0);
     expect(responsibilities(root).modules[ORDER].describer[0]).toBe("node");
   });
 
   it("describes with the fallback and records its command and version", async () => {
-    installShippedDescriber();
+    installDescriberPlugin();
 
     const root = repository();
 
     writeFileSync(
       join(root, ".recognizer/config.yaml"),
-      `describer:\n  command: [recognizer-describe-claude, run, --model, "{model}", "{request}"]\n  version: ${SHIPPED_VERSION}\n`,
+      `describer:\n  command: [recognizer-describe-claude, run, --model, "{model}", "{request}"]\n  version: ${INSTALLED_VERSION}\n`,
     );
 
     expect((await exec(root, "describe", "--all")).code).toBe(0);
@@ -876,18 +862,17 @@ describe("describer in effect", () => {
       "{model}",
       "{request}",
     ]);
-    expect(entry.version).toBe(SHIPPED_VERSION);
-    expect(entry.line).toBe(`shipped ${ORDER}`);
+    expect(entry.version).toBe(INSTALLED_VERSION);
+    expect(entry.line).toBe(`installed ${ORDER}`);
     expect((await statuses(root)).parsed.ok).toBe(true);
   });
 });
 
 describe("unregistered describer refusal", () => {
-  const LINE =
-    "claude is not registered in .recognizer/config.yaml; register it with `recognizer plugin add claude`.\n";
+  const LINE = `${noneRegistered()}\n`;
 
-  it("refuses before any model call when describing with the shipped describer", async () => {
-    installShippedDescriber();
+  it("refuses before any model call when no describer is registered", async () => {
+    installDescriberPlugin();
 
     const root = repository();
     const result = await exec(root, "describe", "--all");
@@ -898,7 +883,7 @@ describe("unregistered describer refusal", () => {
   });
 
   it("refuses nothing when a describer is registered", async () => {
-    installShippedDescriber();
+    installDescriberPlugin();
 
     const root = ready("v3");
     const result = await exec(root, "describe", "--all");
@@ -909,9 +894,9 @@ describe("unregistered describer refusal", () => {
   });
 
   it("refuses nothing for --describer and --check", async () => {
-    installShippedDescriber();
+    installDescriberPlugin();
 
-    const root = repository();
+    const root = ready("v3");
 
     expect((await exec(root, "describe", "--describer")).code).toBe(0);
     expect((await exec(root, "describe", "--describer")).err).toBe("");
@@ -925,7 +910,7 @@ describe("describe config", () => {
   it("exits 2 with a config message when there is no describer", async () => {
     const root = repository();
 
-    withoutShippedDescriber();
+    withoutDescriberPlugin();
 
     expect((await exec(root, "describe")).err).toContain("config");
 

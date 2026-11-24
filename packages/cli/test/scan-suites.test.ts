@@ -3,6 +3,7 @@ import { run } from "../src/cli.js";
 import {
   type FakeOptions,
   fakeIo,
+  OFFICIAL_ON_PATH,
   PYTHON,
   ROOT,
   scanJson,
@@ -57,8 +58,9 @@ function setup(selection: string | undefined): FakeOptions {
     },
     scanners: { [PYTHON]: { output: scanJson(1, 0) } },
     sensorManifests: true,
+    onPath: OFFICIAL_ON_PATH,
     programs: {
-      "shipped-sensors": (args, files) =>
+      "installed-sensors": (args, files) =>
         findingsFor(args[0] as string)(args, files),
     },
   };

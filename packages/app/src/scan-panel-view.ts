@@ -97,6 +97,7 @@ function rowNode(row: ScanRow, actions: ScanPanelActions): HTMLElement {
 
   node.dataset.sensor = row.key;
   node.dataset.state = row.state.kind;
+  node.dataset.registered = row.unregistered === true ? "false" : "true";
   node.dataset.tip = row.title;
 
   attachHoverTip(

@@ -5,14 +5,14 @@ import type { Finding } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { buildCatalog } from "../../src/finding-catalog";
 import { sentenceOf } from "../../src/finding-sentence";
-import { shippedSensors } from "../../src/shipped-fake";
+import { installedSensors } from "../../src/installed-fake";
 import { findingFrom, sensorFindingsFrom } from "./sensor-findings-from";
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 
 const REPO = join(dirname(fileURLToPath(srcUrl)), "../../..");
 const EXAMPLES = join(REPO, "schema/findings-examples/valid");
-const CATALOG = buildCatalog({ status: "ok", sensors: shippedSensors() });
+const CATALOG = buildCatalog({ status: "ok", sensors: installedSensors() });
 
 const KINDS = [
   { sensor: "crap", match: (kind: string) => kind === "crap" },

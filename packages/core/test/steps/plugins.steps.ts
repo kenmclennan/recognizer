@@ -489,13 +489,13 @@ Given(
       name,
       command: sensorCommand(name),
     }));
-    this.fakes.shippedPlugins.sensorNames = ["crap"];
+    installSensor(this, "margin", false);
   },
 );
 
 Given("the repository registers no sensor", function (this: ScanWorld) {
   this.fakes.repositoryChecks.registered = [];
-  this.fakes.shippedPlugins.sensorNames = ["crap"];
+  installSensor(this, "margin", false);
 });
 
 When(
@@ -686,7 +686,7 @@ Then(
 );
 
 Then(
-  "the shipped sensor {string} is run with its shipped command",
+  "the installed sensor {string} is run with its own command",
   function (this: ScanWorld, name: string) {
     assert.equal(
       state(this).selection[0]?.command[0],

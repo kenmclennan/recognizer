@@ -6,7 +6,7 @@ import { selectSensors } from "../../src/application/sensing/select-sensors.js";
 import {
   InvalidRequest,
   type SensorRequest,
-  shippedCommand,
+  sensorCommand,
 } from "../../src/index.js";
 import type { ScanWorld } from "../fakes/world.js";
 
@@ -122,7 +122,7 @@ Given(
 );
 
 Given(
-  "a Tally sensor is registered and a Margin sensor is shipped but not registered",
+  "a Tally sensor is registered and a Margin sensor is installed but not registered",
   function (this: ScanWorld) {
     install(this, "tally");
     install(this, "margin", { registered: false });
@@ -163,9 +163,9 @@ Given(
 );
 
 Given(
-  "the config registers the unshipped sensors {string}",
+  "the config registers the uninstalled sensors {string}",
   function (this: ScanWorld, list: string) {
-    this.fakes.config.unshipped = names(list);
+    this.fakes.config.uninstalled = names(list);
   },
 );
 
@@ -254,13 +254,13 @@ Then(
 );
 
 Then(
-  "the {string} sensor runs the shipped command",
+  "the {string} sensor runs its own command",
   function (this: ScanWorld, name: string) {
     const one = this.trial.selection?.selected.find((s) => s.name === name);
 
     assert.deepEqual(
       one?.command.slice(0, 1),
-      shippedCommand(name, {}).slice(0, 1),
+      sensorCommand(name, {}).slice(0, 1),
     );
     assert.ok(one?.command.includes("--repository"));
   },

@@ -5,7 +5,6 @@ import {
   type SetupChoices,
   type Survey,
 } from "@recognizer/core";
-import { shippedDescriberName } from "./adapters/plugins/shipped-plugins-adapter.js";
 
 export {
   afterFoldToggle,
@@ -45,6 +44,7 @@ export {
   gapOf,
   type Identity,
   type IgnoreCard,
+  type InstalledSensorEntry,
   identityKey,
   importText,
   interpretManifest,
@@ -114,7 +114,6 @@ export {
   type SetupChoices,
   type SetupMark,
   type SetupProblem,
-  type ShippedSensorEntry,
   type StructureSettings,
   type SuiteRef,
   type SuiteTickEntry,
@@ -176,10 +175,6 @@ export {
 } from "./adapters/filesystem/view-translator.js";
 export { parseNameStatus } from "./adapters/git/name-status-parse.js";
 export {
-  shippedDescriberInvocation,
-  shippedSensorNames,
-} from "./adapters/plugins/shipped-plugins-adapter.js";
-export {
   AWAKE_GAP_MS,
   AWAKE_TICK_MS,
   type AwakeClock,
@@ -200,8 +195,8 @@ export { parseKeySchema } from "./config-keys.js";
 export {
   type Config,
   parseConfig,
+  registeredSensorSettings,
   registeredSensors,
-  shippedSensorSettings,
   type TestSuite,
 } from "./config-parse.js";
 export { describerVersion } from "./describer-version.js";
@@ -295,6 +290,6 @@ export {
 } from "./scan-phases.js";
 export type ApplyEvent = CoreApplyEvent<DoctorReport>;
 export const buildChanges = (survey: Survey, choices: SetupChoices) =>
-  coreBuildChanges(survey, choices, shippedDescriberName());
+  coreBuildChanges(survey, choices);
 export { SETUP_SKILL } from "./skills.js";
 export { resolveStructureSettings } from "./structure-sensor.js";

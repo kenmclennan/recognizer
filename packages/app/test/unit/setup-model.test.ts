@@ -708,6 +708,7 @@ describe("the setup wizard model", () => {
         always_on: false,
         enabled: false,
         runs_tests: false,
+        kind: "describer" as const,
         limits: [],
         mark: null,
       };

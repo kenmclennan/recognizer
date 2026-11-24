@@ -255,15 +255,15 @@ describe("selectSensors", () => {
     expect(selectSensors(registered, "all")).toEqual(registered);
   });
 
-  it("names the unknown sensor, the registered ones and the shipped ones, selecting none", () => {
+  it("names the unknown sensor, the registered ones and the installed ones, selecting none", () => {
     expect(() =>
       selectSensors(registered, ["a", "nope", "b"], ["crap"]),
     ).toThrow(
-      /no such sensor: nope[\s\S]*registered sensors: a, b[\s\S]*shipped sensors: crap/,
+      /no such sensor: nope[\s\S]*registered sensors: a, b[\s\S]*installed sensors: crap/,
     );
   });
 
-  it("accepts a shipped name that is not registered and runs it with no settings", () => {
+  it("accepts an installed name that is not registered and runs it with no settings", () => {
     const selected = selectSensors(registered, ["crap", "a"], ["crap"]);
 
     expect(selected.map(({ name }) => name)).toEqual(["a", "crap"]);
@@ -272,7 +272,7 @@ describe("selectSensors", () => {
     expect(selected[1]?.command.at(-1)).toBe("{}");
   });
 
-  it("does not list a shipped name as unknown when another name is", () => {
+  it("does not list an installed name as unknown when another name is", () => {
     let message = "";
 
     try {

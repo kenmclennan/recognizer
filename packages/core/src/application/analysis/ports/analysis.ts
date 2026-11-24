@@ -7,7 +7,6 @@ import type { Say } from "../../shared/ports/process.js";
 export interface Analysis {
   readonly name: string;
   analysisPlan(config: ConfigDocument | null): StructureSettings | "off";
-  shippedSensorNames(): string[];
   reportPolicyProblems(
     root: string,
     repository: Repository,

@@ -40,6 +40,18 @@ function filesUnder(directory: string): string[] {
   });
 }
 
+function allFilesUnder(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+
+    return entry.isDirectory()
+      ? entry.name === "generated"
+        ? []
+        : allFilesUnder(path)
+      : [path];
+  });
+}
+
 function namesShippedPlugin(text: string): boolean {
   return SHIPPED_NAME.test(text);
 }
@@ -72,6 +84,50 @@ describe("the CLI holds no plugin logic", () => {
     expect(
       files.filter((file) => namesShippedPlugin(readFileSync(file, "utf8"))),
     ).toEqual([]);
+  });
+
+  it("the shipped category is gone", () => {
+    const gone = [
+      "packages/core/src/application/plugins/ports/shipped-plugins.ts",
+      "packages/cli/src/adapters/plugins/shipped-plugins-adapter.ts",
+      "packages/cli/scripts/build-shipped.mjs",
+    ];
+    const manifest = readFileSync(
+      join(REPO, "packages/cli/package.json"),
+      "utf8",
+    );
+
+    expect(gone.filter((file) => existsSync(join(REPO, file)))).toEqual([]);
+    expect(manifest.includes("build-shipped")).toBe(false);
+  });
+
+  it("uses the word shipped only in the Kotlin entry annotation line", () => {
+    const trees = [
+      "packages/core/src",
+      "packages/cli/src",
+      "packages/cli/scripts",
+      "packages/app/src",
+      "packages/app/src-tauri/src",
+      "packages/app/src-tauri/permissions",
+    ].map((tree) => join(REPO, tree));
+    const files = [
+      ...trees.flatMap((tree) => allFilesUnder(tree)),
+      join(REPO, "packages/app/src-tauri/build.rs"),
+      join(REPO, "packages/cli/package.json"),
+    ];
+    const hits = files.flatMap((file) =>
+      readFileSync(file, "utf8")
+        .split("\n")
+        .filter((line) => /shipped/i.test(line))
+        .map((line) => `${file.slice(REPO.length + 1)}: ${line.trim()}`),
+    );
+
+    expect(files.length).toBeGreaterThan(0);
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toContain(
+      "packages/core/src/domain/configuration/published-keys.ts",
+    );
+    expect(hits[0]).toContain("beside the shipped container annotations");
   });
 
   it("has none of the moved modules", () => {
@@ -115,7 +171,7 @@ describe("the CLI holds no plugin logic", () => {
 
   it("keeps the sensors adapter to process and file access", () => {
     const forbidden =
-      /\b(select|plan|registered|registeredSensors|readShippedSensors|selectSensors|refuseUnregistered|isScoped|commitGaps|programGaps|readinessGaps|installFix)\b|\brunsTests\(/;
+      /\b(select|plan|registered|registeredSensors|readInstalledSensors|selectSensors|refuseUnregistered|isScoped|commitGaps|programGaps|readinessGaps|installFix)\b|\brunsTests\(/;
     const text = readFileSync(
       join(SRC, "adapters/plugins/sensors-adapter.ts"),
       "utf8",

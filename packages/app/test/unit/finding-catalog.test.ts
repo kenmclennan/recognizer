@@ -4,9 +4,9 @@ import {
   EMPTY_CATALOG,
   groupKeyOf,
 } from "../../src/finding-catalog";
-import { plainSensor, shippedSensors } from "../../src/shipped-fake";
+import { installedSensors, plainSensor } from "../../src/installed-fake";
 
-const REAL = buildCatalog({ status: "ok", sensors: shippedSensors() });
+const REAL = buildCatalog({ status: "ok", sensors: installedSensors() });
 
 describe("groupKeyOf", () => {
   it.each([

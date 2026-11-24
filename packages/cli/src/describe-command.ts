@@ -1,12 +1,10 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import {
-  type DescribeProjection,
-  type DescriberRef,
-  type Repository,
-  unregisteredMessage,
+import type {
+  DescribeProjection,
+  DescriberRef,
+  Repository,
 } from "@recognizer/core";
-import { shippedDescriberName } from "./adapters/plugins/shipped-plugins-adapter.js";
 import { readDescribing } from "./app-settings.js";
 import type { Io } from "./cli.js";
 import { describeSummaryText, projectionText } from "./describe-projection.js";
@@ -34,7 +32,6 @@ interface Loaded {
   json: boolean;
   repository: Repository;
   describer: DescriberRef;
-  describerSource: "config" | "shipped";
   names: string[];
   all: boolean;
   check: boolean;
@@ -73,7 +70,6 @@ function load(argv: string[], io: Io): Loaded {
       command: found.command,
       version: found.version,
     },
-    describerSource: found.source,
     names: positionals,
     all: values.all === true,
     check: values.check === true,
@@ -128,10 +124,6 @@ function runCheck(loaded: Loaded, io: Io): number {
 }
 
 async function runDescribe(loaded: Loaded, io: Io): Promise<number> {
-  if (loaded.describerSource === "shipped") {
-    throw new InputError([unregisteredMessage(shippedDescriberName())]);
-  }
-
   let projection: DescribeProjection | null = null;
 
   const { model, batch_size: batchSize } = readDescribing(io);
@@ -207,12 +199,10 @@ function runDescriber(argv: string[], io: Io): number {
 
   if (values.json === true) {
     io.stdout(
-      `${JSON.stringify({ command: found.command, version: found.version, source: found.source })}\n`,
+      `${JSON.stringify({ command: found.command, version: found.version })}\n`,
     );
   } else {
-    io.stdout(
-      `${found.command.join(" ")}  ${found.version}  ${found.source}\n`,
-    );
+    io.stdout(`${found.command.join(" ")}  ${found.version}\n`);
   }
 
   return 0;

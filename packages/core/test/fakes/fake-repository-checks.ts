@@ -20,7 +20,6 @@ export class FakeRepositoryChecks implements RepositoryChecks {
   };
   policyProblems: Found[] = [];
   suiteList: readonly unknown[] | undefined;
-  shippedDescriber = false;
 
   isDirectory(root: string): boolean {
     return this.directories.has(root);
@@ -51,9 +50,5 @@ export class FakeRepositoryChecks implements RepositoryChecks {
     this.suiteReads += 1;
 
     return this.suiteList;
-  }
-
-  describerShipped(): boolean {
-    return this.shippedDescriber;
   }
 }

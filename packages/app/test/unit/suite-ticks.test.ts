@@ -1,5 +1,6 @@
 import type { SuiteResult } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
+import { plainSensor } from "../../src/installed-fake";
 import type { ResponsibilityState } from "../../src/responsibility-model";
 import {
   afterSuiteTick,
@@ -9,8 +10,7 @@ import {
   sensorTickState,
   visibleSuiteTicks,
 } from "../../src/scan-panel-model";
-import type { SensorStatus, ShippedSensors } from "../../src/sensor-run";
-import { plainSensor } from "../../src/shipped-fake";
+import type { InstalledSensors, SensorStatus } from "../../src/sensor-run";
 import {
   foldSummary,
   languageTag,
@@ -47,7 +47,7 @@ tests:
     coverage: { path: coverage/lcov.info, format: lcov }
 `;
 
-const SHIPPED: ShippedSensors = {
+const INSTALLED: InstalledSensors = {
   status: "ok",
   sensors: ["crap", "mutation", "duplication"].map((name) =>
     plainSensor(name, {
@@ -92,7 +92,7 @@ function panel(over: Partial<PanelInput> = {}) {
     run: NO_RUN,
     scanning: false,
     now: NOW,
-    shipped: SHIPPED,
+    installed: INSTALLED,
     ...over,
   });
 }
@@ -331,8 +331,14 @@ describe("result rows from the findings suites array", () => {
   });
 
   it("has no row for an unregistered sensor", () => {
-    expect(row(panel(), "duplication")).toBeUndefined();
-    expect(row(panel({ config: null }), "crap")).toBeUndefined();
+    expect(row(panel(), "duplication")).toMatchObject({
+      unregistered: true,
+      tickable: false,
+    });
+    expect(row(panel({ config: null }), "crap")).toMatchObject({
+      unregistered: true,
+      tickable: false,
+    });
   });
 
   it("reads the fold closed by default and the sensor row still ticked after a scan", () => {

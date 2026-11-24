@@ -6,6 +6,7 @@ import {
   type ResultState,
   stateText,
 } from "../../src/freshness-model";
+import { installedSensors, plainSensor } from "../../src/installed-fake";
 import {
   applyFreshness,
   buildOverlayModel as buildWithAnalysis,
@@ -20,8 +21,7 @@ import {
   pruneTicks,
 } from "../../src/overlay-model";
 import { NO_RUN, type PanelInput } from "../../src/scan-panel-model";
-import type { SensorStatus, ShippedSensors } from "../../src/sensor-run";
-import { plainSensor, shippedSensors } from "../../src/shipped-fake";
+import type { InstalledSensors, SensorStatus } from "../../src/sensor-run";
 import { scanPanelSync as scanPanel } from "../fixtures";
 import { type DocScan, repositoryFrom } from "./repository-from";
 
@@ -71,7 +71,7 @@ const fileScan = {
     { path: "b.py", hash: H2 },
   ],
 } as unknown as DocScan;
-const shippedList: ShippedSensors = {
+const installedList: InstalledSensors = {
   status: "ok",
   sensors: ["crap", "mutation", "duplication"].map((name) =>
     plainSensor(name, {
@@ -115,7 +115,7 @@ const panel = (sensors: PanelInput["sensors"]) =>
     run: NO_RUN,
     scanning: false,
     now: NOW,
-    shipped: shippedList,
+    installed: installedList,
     scans: repositoryFrom([fileScan]),
     freshness: buildFreshness(repositoryFrom([fileScan]), TESTS),
     tests: TESTS,
@@ -163,9 +163,9 @@ function overlay(
 function only(
   text: string,
   name = "crap",
-  shipped: ShippedSensors | null = null,
+  installed: InstalledSensors | null = null,
 ): MetricDescriptor {
-  const model = buildOverlayModel([{ name, text }], { sensors: [], shipped });
+  const model = buildOverlayModel([{ name, text }], { sensors: [], installed });
 
   return (model.metrics.find((metric) => metric.overlay === name) ??
     model.metrics[0]) as MetricDescriptor;
@@ -213,7 +213,7 @@ describe("a member-granularity overlay judged per file", () => {
     applyFreshness(
       buildOverlayModel([{ name: "crap", text: mixed(inputs, extra) }], {
         sensors: [],
-        shipped: shippedList,
+        installed: installedList,
       }),
       panel([{ ...ranWith("crap", inputs), measured }]).freshness,
     );
@@ -264,12 +264,12 @@ describe("a member-granularity overlay judged per file", () => {
   });
 });
 
-const SHIPPED: ShippedSensors = {
+const INSTALLED: InstalledSensors = {
   status: "ok",
-  sensors: shippedSensors().filter((sensor) => sensor.metrics.length > 0),
+  sensors: installedSensors().filter((sensor) => sensor.metrics.length > 0),
 };
 
-const FULL: ShippedSensors = { status: "ok", sensors: shippedSensors() };
+const FULL: InstalledSensors = { status: "ok", sensors: installedSensors() };
 
 function ran(name: string, over: Partial<SensorStatus> = {}): SensorStatus {
   return { name, status: "ran", commit: COMMIT, findings: 0, ...over };
@@ -289,7 +289,7 @@ function groupOf(
         modifiedMs,
       },
     ],
-    { sensors: statuses, shipped: SHIPPED },
+    { sensors: statuses, installed: INSTALLED },
   );
 
   return model.groups.find((group) => group.name === name);
@@ -395,10 +395,10 @@ describe("the group header model", () => {
     expect(group?.enabled).toBe(true);
   });
 
-  it("shows a sensor that never ran as a disabled group built from the shipped list", () => {
+  it("shows a sensor that never ran as a disabled group built from the installed list", () => {
     const model = buildOverlayModel([], {
       sensors: [],
-      shipped: SHIPPED,
+      installed: INSTALLED,
     });
     const mutation = model.groups.find((group) => group.name === "mutation");
 
@@ -411,7 +411,7 @@ describe("the group header model", () => {
   it("builds the never-run groups from the real committed list", () => {
     const model = buildOverlayModel([], {
       sensors: [],
-      shipped: SHIPPED,
+      installed: INSTALLED,
     });
 
     expect(model.groups.map((group) => group.title)).toEqual([
@@ -430,7 +430,7 @@ describe("the group header model", () => {
           modifiedMs: 1000,
         },
       ],
-      { sensors: [ran("crap")], shipped: SHIPPED },
+      { sensors: [ran("crap")], installed: INSTALLED },
     );
     const [crap, mutation] = model.groups;
 
@@ -533,11 +533,11 @@ describe("descriptors", () => {
   });
 
   it("shows raw names everywhere when the list is unavailable or null", () => {
-    for (const shipped of [
+    for (const installed of [
       null,
-      { status: "unavailable", reason: "x" } as ShippedSensors,
+      { status: "unavailable", reason: "x" } as InstalledSensors,
     ]) {
-      const metric = only(overlay([{ name: "crap" }], {}), "crap", shipped);
+      const metric = only(overlay([{ name: "crap" }], {}), "crap", installed);
 
       expect(metric.title).toBe("crap");
       expect(metric.short).toBe("crap");
@@ -546,9 +546,9 @@ describe("descriptors", () => {
   });
 
   it("skips an entry that lacks the metric and finds it in another sensor", () => {
-    const list: ShippedSensors = {
+    const list: InstalledSensors = {
       status: "ok",
-      sensors: [plainSensor("custom"), ...shippedSensors()],
+      sensors: [plainSensor("custom"), ...installedSensors()],
     };
 
     expect(metricEntryOf(list.sensors, "custom", "score")?.label).toBe("mut");
@@ -691,7 +691,7 @@ describe("pruneTicks", () => {
 
     const disabled = buildOverlayModel([], {
       sensors: [],
-      shipped: SHIPPED,
+      installed: INSTALLED,
     });
 
     expect(pruneTicks(["mutation/survived"], disabled.metrics)).toEqual([
@@ -725,7 +725,7 @@ describe("freshnessNote", () => {
     scoped: false,
   });
   const noteOf = (state: ResultState) =>
-    freshnessNote(group, rowOf(state), NOW, shippedList);
+    freshnessNote(group, rowOf(state), NOW, installedList);
 
   it("has no note for a current sensor or a group with no row", () => {
     expect(noteOf({ kind: "current", at: 1 })).toBeNull();
@@ -733,7 +733,7 @@ describe("freshnessNote", () => {
   });
 
   it("notes a group with no row as not written by a sensor this repository runs", () => {
-    expect(freshnessNote(group, undefined, NOW, shippedList)).toEqual({
+    expect(freshnessNote(group, undefined, NOW, installedList)).toEqual({
       text: "Not written by a sensor this repository runs, so its values are not shown.",
       tone: "muted",
     });
@@ -820,7 +820,7 @@ describe("freshnessNote against the Scan panel model", () => {
       groupFor(name, row?.name ?? name),
       row,
       NOW,
-      shippedList,
+      installedList,
     );
   };
 
@@ -862,8 +862,8 @@ describe("freshnessNote against the Scan panel model", () => {
     });
     const build = (
       files: ReturnType<typeof file>[],
-      shipped: ShippedSensors = shippedList,
-    ) => buildOverlayModel(files, { sensors: [], shipped });
+      installed: InstalledSensors = installedList,
+    ) => buildOverlayModel(files, { sensors: [], installed });
     const stale = { "a.py": H0, "b.py": H0 };
     const partly = { "a.py": H1, "b.py": H0 };
     const whole = { "a.py": H1, "b.py": H2 };
@@ -950,8 +950,8 @@ describe("freshnessNote against the Scan panel model", () => {
       expect(applied.metrics).toEqual([]);
     });
 
-    it("keeps a shipped sensor with no file disabled whatever its row says", () => {
-      const model = build([], SHIPPED);
+    it("keeps an installed sensor with no file disabled whatever its row says", () => {
+      const model = build([], INSTALLED);
       const applied = applyFreshness(model, rowState("current"));
 
       expect(enabledOf(model, "crap")).toBe(false);
@@ -991,7 +991,7 @@ describe("freshnessNote against the Scan panel model", () => {
           { ...group, title: "C.R.A.P." },
           row,
           NOW,
-          shippedList,
+          installedList,
         );
         const outOfDate = row?.state.kind === "out-of-date";
         const empty = applied.groups[0]?.metrics.every(
@@ -1030,7 +1030,7 @@ describe("freshnessNote against the Scan panel model", () => {
             ),
           },
         ],
-        { sensors: [], shipped: shippedList },
+        { sensors: [], installed: installedList },
       );
       const applied = applyFreshness(
         model,
@@ -1089,7 +1089,7 @@ describe("freshnessNote against the Scan panel model", () => {
         run: NO_RUN,
         scanning: false,
         now: NOW,
-        shipped: shippedList,
+        installed: installedList,
         scans: repositoryFrom([fileScan]),
         freshness: buildFreshness(repositoryFrom([fileScan]), TESTS),
       }).freshness;
@@ -1106,7 +1106,7 @@ describe("freshnessNote against the Scan panel model", () => {
           { name: "crap", title: "C.R.A.P." } as OverlayGroup,
           row,
           NOW,
-          shippedList,
+          installedList,
         ),
       ).toBeNull();
     });
@@ -1142,7 +1142,7 @@ describe("the Structural analysis group", () => {
         { name: "crap", text: crapOverlay },
         { name: "structure", text: structureOverlay },
       ],
-      { sensors: [], shipped: SHIPPED },
+      { sensors: [], installed: INSTALLED },
     );
     const [first] = model.groups;
 
@@ -1168,7 +1168,7 @@ describe("the Structural analysis group", () => {
 
     const model = buildWithAnalysis([{ name: "crap", text: crapOverlay }], {
       sensors: [],
-      shipped: SHIPPED,
+      installed: INSTALLED,
     });
     const crap = model.groups.find((group) => group.name === "crap");
 
@@ -1181,7 +1181,7 @@ describe("the Structural analysis group", () => {
   it("shows the Structural analysis group disabled when no structure overlay exists", () => {
     const model = buildWithAnalysis([], {
       sensors: [{ name: "structure", status: "ran" }],
-      shipped: SHIPPED,
+      installed: INSTALLED,
     });
     const [first] = model.groups;
 
@@ -1205,17 +1205,17 @@ describe("listedHere", () => {
     bad: "high" as const,
     ...(unlisted === undefined ? {} : { unlisted }),
   });
-  const shipped = [
+  const installed = [
     plainSensor("owner", { metrics: [metric("one"), metric("two", true)] }),
     plainSensor("other", { metrics: [metric("two")] }),
   ];
 
   it("listedHere hides only an unlisted metric of the sensor that declares it", () => {
-    expect(shipped[0]?.metrics.length).toBeGreaterThan(0);
-    expect(listedHere(shipped, "owner", "one")).toBe(true);
-    expect(listedHere(shipped, "owner", "two")).toBe(false);
-    expect(listedHere(shipped, "other", "two")).toBe(true);
-    expect(listedHere(shipped, "nobody", "two")).toBe(true);
+    expect(installed[0]?.metrics.length).toBeGreaterThan(0);
+    expect(listedHere(installed, "owner", "one")).toBe(true);
+    expect(listedHere(installed, "owner", "two")).toBe(false);
+    expect(listedHere(installed, "other", "two")).toBe(true);
+    expect(listedHere(installed, "nobody", "two")).toBe(true);
     expect(listedHere([], "owner", "two")).toBe(true);
   });
 });

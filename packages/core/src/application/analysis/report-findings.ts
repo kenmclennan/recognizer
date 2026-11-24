@@ -44,11 +44,7 @@ function requireName(
     ]);
   }
 
-  const taken = [
-    "structure",
-    ...ports.config.sensorNames(root),
-    ...ports.analysis.shippedSensorNames(),
-  ];
+  const taken = ["structure", ...ports.config.sensorNames(root)];
 
   if (taken.includes(name)) {
     throw new InvalidRequest([

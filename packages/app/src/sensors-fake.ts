@@ -1,17 +1,13 @@
-import {
-  describerVersion,
-  parseConfig,
-  shippedDescriberInvocation,
-} from "recognizer";
+import { describerVersion, parseConfig } from "recognizer";
 import type { RunRecordFiles } from "./refusal-record";
 import type { PlannedWork } from "./scan-estimate";
 import type {
   FindingsFiles,
+  InstalledSensor,
+  InstalledSensors,
   OverlayFiles,
   SensorInputs,
   SensorsPort,
-  ShippedSensor,
-  ShippedSensors,
   WorkRequest,
 } from "./sensor-run";
 
@@ -27,9 +23,8 @@ export type FakeSensors = SensorsPort & {
   testsHash: string | null;
   watched: number;
   removed: string[];
-  list: ShippedSensors;
+  list: InstalledSensors;
   modified: Map<string, number>;
-  shippedVersion: string | null;
   work: Map<string, PlannedWork | null>;
   workRequests: WorkRequest[];
   holdWork: boolean;
@@ -41,12 +36,12 @@ export function fakeSensors(
   files: Record<string, string> = {},
   inputs: Partial<SensorInputs> = {},
   overlays: Record<string, string> = {},
-  shipped: ShippedSensors | ShippedSensor[] = [],
+  installed: InstalledSensors | InstalledSensor[] = [],
 ): FakeSensors {
-  const listed: ShippedSensor[] = Array.isArray(shipped)
-    ? shipped
-    : shipped.status === "ok"
-      ? shipped.sensors
+  const listed: InstalledSensor[] = Array.isArray(installed)
+    ? installed
+    : installed.status === "ok"
+      ? installed.sensors
       : [];
   const registersEverything = [
     "describer:\n  command: [describer]\n  version: v1",
@@ -74,9 +69,10 @@ export function fakeSensors(
     testsHash: null,
     watched: 0,
     removed: [],
-    list: Array.isArray(shipped) ? { status: "ok", sensors: shipped } : shipped,
+    list: Array.isArray(installed)
+      ? { status: "ok", sensors: installed }
+      : installed,
     modified: new Map(),
-    shippedVersion: "prompt-0123456789ab",
     work: new Map(),
     workRequests: [],
     holdWork: false,
@@ -108,32 +104,17 @@ export function fakeSensors(
         configured = undefined;
       }
 
-      if (configured !== undefined) {
-        return {
-          status: "ok",
-          ...configured,
-          version: describerVersion(configured),
-          source: "config",
-        };
+      if (configured === undefined) {
+        return { status: "unavailable", reason: "no describer is registered" };
       }
 
-      return fake.shippedVersion === null
-        ? {
-            status: "unavailable",
-            reason:
-              "no describer is registered and recognizer-describe-claude is not installed",
-          }
-        : {
-            status: "ok",
-            command: shippedDescriberInvocation(),
-            version: describerVersion({
-              command: shippedDescriberInvocation(),
-              version: fake.shippedVersion,
-            }),
-            source: "shipped",
-          };
+      return {
+        status: "ok",
+        ...configured,
+        version: describerVersion(configured),
+      };
     },
-    async shipped() {
+    async installed() {
       return fake.list;
     },
     async readFindings(): Promise<FindingsFiles> {

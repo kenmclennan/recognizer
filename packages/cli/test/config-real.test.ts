@@ -1,5 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
@@ -10,6 +16,7 @@ import { REPO } from "./helpers.js";
 
 const HAS_UV = spawnSync("uv", ["--version"]).status === 0;
 const BIN = join(REPO, "packages/cli/dist/bin.js");
+
 const GUIDE_RUNS = [
   "python",
   "typescript-vitest",
@@ -23,6 +30,21 @@ const GUIDE_RUNS = [
   "typescript-package",
   "csharp-solution",
 ];
+
+function linkTool(directory: string, name: string, target: string): void {
+  if (target !== "") {
+    symlinkSync(target, join(directory, name));
+  }
+}
+
+function toolPath(directory: string): string {
+  const uv = spawnSync("which", ["uv"], { encoding: "utf8" }).stdout.trim();
+
+  linkTool(directory, "node", process.execPath);
+  linkTool(directory, "uv", uv);
+
+  return `${directory}:/usr/bin:/bin`;
+}
 
 function launcher(directory: string, name: string, body: string): void {
   const path = join(directory, name);
@@ -107,7 +129,7 @@ describe.skipIf(!HAS_UV)(
         `exec uv run --quiet --project ${REPO}/packages/sensors recognizer-sense-mutation "$@"`,
       );
       launcher(launchers, "recognizer", `exec node ${BIN} "$@"`);
-      process.env.PATH = `${launchers}:${savedPath}`;
+      process.env.PATH = toolPath(launchers);
     });
 
     afterEach(() => {

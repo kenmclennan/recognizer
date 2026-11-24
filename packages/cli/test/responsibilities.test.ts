@@ -81,7 +81,7 @@ describe("parseConfig", () => {
     );
   });
 
-  it("expands the crap short form to the shipped command", () => {
+  it("expands a short form to its command", () => {
     const text = readFileSync(
       join(CONFIGS, "valid/sensors-crap-short.yaml"),
       "utf8",
@@ -110,15 +110,6 @@ describe("parseConfig", () => {
     );
 
     expect(() => parseConfig(text)).toThrow(/config\/sensors\/crap/);
-  });
-
-  it("names the sensor when a command-less entry is not shipped", () => {
-    const text = readFileSync(
-      join(CONFIGS, "invalid/sensors-unknown-shipped.yaml"),
-      "utf8",
-    );
-
-    expect(() => parseConfig(text)).toThrow(/config\/sensors\/nonesuch/);
   });
 
   it("registers the short form as an ordinary sensor", () => {

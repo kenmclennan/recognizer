@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { installedSensors } from "../../src/installed-fake";
 import { fakeSensors } from "../../src/sensors-fake";
-import { shippedSensors } from "../../src/shipped-fake";
 
 describe("fakeSensors describer", () => {
   it("returns the config's describer when it has one", async () => {
@@ -13,22 +13,6 @@ describe("fakeSensors describer", () => {
       status: "ok",
       command: ["d", "{request}"],
       version: "v9",
-      source: "config",
-    });
-  });
-
-  it("falls back to the shipped describer when the config has none", async () => {
-    expect(await fakeSensors().describer()).toEqual({
-      status: "ok",
-      command: [
-        "recognizer-describe-claude",
-        "run",
-        "--model",
-        "{model}",
-        "{request}",
-      ],
-      version: "prompt-0123456789ab",
-      source: "shipped",
     });
   });
 
@@ -46,10 +30,8 @@ describe("fakeSensors describer", () => {
     );
   });
 
-  it("is unavailable when none is configured and the shipped one is not installed", async () => {
+  it("is unavailable when none is configured", async () => {
     const fake = fakeSensors();
-
-    fake.shippedVersion = null;
 
     expect((await fake.describer()).status).toBe("unavailable");
   });
@@ -83,10 +65,10 @@ describe("fakeSensors readRunRecords", () => {
   });
 });
 
-describe("the shipped list a fake serves", () => {
+describe("the installed list a fake serves", () => {
   it("has entries that derive listed from their metrics and carry findings and settings arrays", async () => {
-    const fake = fakeSensors({}, {}, {}, shippedSensors());
-    const list = await fake.shipped();
+    const fake = fakeSensors({}, {}, {}, installedSensors());
+    const list = await fake.installed();
 
     expect(list.status).toBe("ok");
 

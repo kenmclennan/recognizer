@@ -1,3 +1,4 @@
+import { noneRegistered } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
 import { answerPath, markerPath, progressPath } from "../src/scan-marker.js";
@@ -185,7 +186,7 @@ describe("recognizer scan: scanner choice", () => {
     );
   });
 
-  it("scans a language no shipped scanner knows with the scanner that claims it", async () => {
+  it("scans a language no installed scanner knows with the scanner that claims it", async () => {
     const { code, fake } = await scan({
       files: { [`${ROOT}/Sources/App.swift`]: "" },
       scanners: {
@@ -1442,28 +1443,20 @@ describe("recognizer scan: phases", () => {
     },
   );
 
-  it("is exit 4 with a describer gap for --describe with no describer registered and no recognizer-describe-claude to start", async () => {
+  it("refuses --describe with no describer registered and nothing installed to start", async () => {
     const { code, fake, err } = await scan(
       setup({}, { [CONFIG]: "" }),
       "--describe",
     );
 
-    expect(code).toBe(4);
-    expect(err).toContain(
-      "no describer is registered and recognizer-describe-claude is not installed (describe): install recognizer-describe-claude",
-    );
+    expect(code).toBe(2);
+    expect(err).toBe(`${noneRegistered()}\n`);
     expect(extractCalls(fake)).toEqual([]);
   });
 
-  it("describes with the shipped fallback when no describer is registered", async () => {
-    const base = setup(
-      {},
-      {
-        [CONFIG]:
-          'describer:\n  command: [recognizer-describe-claude, run, --model, "{model}", "{request}"]\n  version: prompt-0123456789ab\n',
-      },
-    );
-    const { code, fake } = await scan(
+  it("refuses --describe with no describer registered and runs nothing", async () => {
+    const base = setup({}, { [CONFIG]: "" });
+    const { code, err, fake } = await scan(
       {
         ...base,
         programs: {
@@ -1471,28 +1464,21 @@ describe("recognizer scan: phases", () => {
           "recognizer-describe-claude": (args) =>
             args[0] === "manifest"
               ? { stdout: describerManifestText("prompt-0123456789ab") }
-              : { stdout: "a shipped line\n" },
+              : { stdout: "a line\n" },
         },
       },
       "--describe",
     );
-    const written = JSON.parse(
-      fake.files.get(`${ROOT}/.recognizer/responsibilities.json`) as string,
-    );
-    const entry = Object.values(written.modules)[0] as {
-      describer: string[];
-      version: string;
-    };
 
-    expect(code).toBe(0);
-    expect(entry.describer).toEqual([
-      "recognizer-describe-claude",
-      "run",
-      "--model",
-      "{model}",
-      "{request}",
-    ]);
-    expect(entry.version).toBe("prompt-0123456789ab");
+    expect(code).toBe(2);
+    expect(err).toBe(`${noneRegistered()}\n`);
+    expect(
+      fake.calls.filter(
+        (call) =>
+          call.command === "recognizer-describe-claude" &&
+          call.args[0] === "run",
+      ),
+    ).toEqual([]);
   });
 
   it("emits no start line without --json", async () => {
@@ -1668,20 +1654,24 @@ describe("recognizer scan: phases", () => {
     });
   });
 
-  describe("an unregistered shipped plugin", () => {
+  describe("an unregistered installed plugin", () => {
     const crapLine =
       "crap is not registered in .recognizer/config.yaml; register it with `recognizer plugin add crap`.\n";
     const mutationLine = crapLine.replaceAll("crap", "mutation");
-    const claudeLine = crapLine.replaceAll("crap", "claude");
 
-    function shippedRun(config: string, describe = false) {
+    function installedRun(config: string, describe = false) {
       const base = setup({}, { [CONFIG]: config });
 
       return {
         ...base,
+        onPath: [
+          ...(base.onPath ?? []),
+          "recognizer-sense-crap",
+          "recognizer-sense-mutation",
+        ],
         programs: {
           ...base.programs,
-          "shipped-sensors": (args: string[], files: Map<string, string>) => {
+          "installed-sensors": (args: string[], files: Map<string, string>) => {
             files.set(
               args[args.indexOf("--output") + 1] as string,
               JSON.stringify({
@@ -1701,7 +1691,7 @@ describe("recognizer scan: phases", () => {
                 "recognizer-describe-claude": (args: string[]) =>
                   args[0] === "manifest"
                     ? { stdout: describerManifestText("prompt-0123456789ab") }
-                    : { stdout: "a shipped line\n" },
+                    : { stdout: "a described line\n" },
               }
             : {}),
         },
@@ -1720,14 +1710,18 @@ describe("recognizer scan: phases", () => {
     }
 
     it("refuses the sensor and runs nothing", async () => {
-      const { code, err, fake } = await scan(shippedRun(""), "--sense", "crap");
+      const { code, err, fake } = await scan(
+        installedRun(""),
+        "--sense",
+        "crap",
+      );
 
       expect(code).toBe(2);
       expect(err).toBe(crapLine);
       expect(pluginRuns(fake)).toEqual([]);
 
       const registered = await scan(
-        shippedRun("sensors:\n  crap: {}\n"),
+        installedRun("sensors:\n  crap: {}\n"),
         "--sense",
         "crap",
       );
@@ -1737,14 +1731,14 @@ describe("recognizer scan: phases", () => {
     });
 
     it("refuses a name requested twice once", async () => {
-      const { err } = await scan(shippedRun(""), "--sense", "crap,crap");
+      const { err } = await scan(installedRun(""), "--sense", "crap,crap");
 
       expect(err).toBe(crapLine);
     });
 
     it("refuses each unregistered sensor", async () => {
       const { code, err } = await scan(
-        shippedRun(""),
+        installedRun(""),
         "--sense",
         "crap,mutation",
       );
@@ -1755,7 +1749,7 @@ describe("recognizer scan: phases", () => {
 
     it("refuses nothing when the sensor is registered", async () => {
       const { code, out, err } = await scan(
-        shippedRun("sensors:\n  crap: {}\n"),
+        installedRun("sensors:\n  crap: {}\n"),
         "--sense",
         "crap",
       );
@@ -1767,7 +1761,7 @@ describe("recognizer scan: phases", () => {
 
     it("refuses nothing for --sense all", async () => {
       const { code, err } = await scan(
-        shippedRun("sensors:\n  crap: {}\n"),
+        installedRun("sensors:\n  crap: {}\n"),
         "--sense",
         "all",
       );
@@ -1776,20 +1770,9 @@ describe("recognizer scan: phases", () => {
       expect(err).not.toContain("not registered");
     });
 
-    it("refuses --describe with the shipped describer and runs nothing", async () => {
-      const { code, err, fake } = await scan(
-        shippedRun("", true),
-        "--describe",
-      );
-
-      expect(code).toBe(2);
-      expect(err).toBe(claudeLine);
-      expect(pluginRuns(fake)).toEqual([]);
-    });
-
     it("refuses nothing when a describer is registered", async () => {
       const { code, err } = await scan(
-        shippedRun(DESCRIBER, true),
+        installedRun(DESCRIBER, true),
         "--describe",
       );
 
@@ -1798,7 +1781,7 @@ describe("recognizer scan: phases", () => {
     });
 
     it("scans an unconfigured repository by default", async () => {
-      const { code, err } = await scan(shippedRun("", true));
+      const { code, err } = await scan(installedRun("", true));
 
       expect(code).toBe(0);
       expect(err).not.toContain("not registered");
@@ -1820,7 +1803,7 @@ describe("recognizer scan: phases", () => {
       return setup(
         {
           programs: {
-            "shipped-sensors": (args, files) => {
+            "installed-sensors": (args, files) => {
               files.set(
                 args[args.indexOf("--output") + 1] as string,
                 JSON.stringify({

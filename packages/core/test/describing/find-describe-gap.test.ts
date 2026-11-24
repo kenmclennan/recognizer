@@ -24,14 +24,6 @@ function setup() {
 }
 
 describe("findDescribeGap", () => {
-  it("is not registered for a describer that is only the shipped one", () => {
-    const { world, gap } = setup();
-
-    world.describer.shipped = true;
-
-    expect(gap()).toBeNull();
-  });
-
   it("is not registered when there is no describer", () => {
     const { world, gap } = setup();
 

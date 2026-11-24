@@ -7,7 +7,7 @@ window.addEventListener("error", (e) => { document.getElementById("out").textCon
 import { scanPanel, NO_RUN } from ${JSON.stringify(here("scan-panel-model.ts"))};
 import { buildScanPanelView } from ${JSON.stringify(here("scan-panel-view.ts"))};
 
-const SHIPPED = {
+const INSTALLED = {
   status: "ok",
   sensors: [
     { name: "crap", display: "C.R.A.P.", line: "Runs tests.", defaults: {}, runsTests: true, listed: true },
@@ -37,7 +37,7 @@ function render(over, scanning = false) {
   const model = scanPanel({
     scan: null, config: "sensors:\\n  crap: {}\\n  mutation: {}\\n", sensors: [], lines: { modules: [], of: () => ({ kind: "missing" }) },
     describedAt: null, ticks: { describe: false, ticked: [], armed: ["crap", "mutation"], onlyView: false, suites: {}, folds: [] },
-    run: NO_RUN, scanning, now: 0, shipped: SHIPPED, runView: runView(over),
+    run: NO_RUN, scanning, now: 0, installed: INSTALLED, runView: runView(over),
   });
   view.render(model);
 }

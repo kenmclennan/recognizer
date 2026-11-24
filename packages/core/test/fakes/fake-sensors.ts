@@ -13,6 +13,7 @@ export interface InventedSensor {
   display?: string;
   registered?: boolean;
   listed?: boolean;
+  unreadable?: string;
 }
 
 export class FakeSensors implements Sensors {

@@ -28,6 +28,7 @@ export interface SurveyCheck {
   always_on: boolean;
   enabled: boolean;
   runs_tests: boolean;
+  kind?: "sensor" | "describer";
   limits: SurveyLimit[];
   mark: SetupMark | null;
 }

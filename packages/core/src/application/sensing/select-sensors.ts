@@ -1,9 +1,9 @@
-import { selectSensors as selectFrom } from "../plugins/select-sensors.js";
 import {
+  type InstalledRead,
   refuseUnregistered,
-  type ShippedRead,
-  shippedSensorOf,
-} from "../plugins/shipped-plugins.js";
+  sensorNameOf,
+} from "../plugins/installed-sensors.js";
+import { selectSensors as selectFrom } from "../plugins/select-sensors.js";
 import type { SensingPorts } from "./internal/sensing-ports.js";
 import type { SensorSelection, SensorSelectionInput } from "./ports/sensors.js";
 
@@ -14,43 +14,43 @@ export function selectSensors(
   input: SensorSelectionInput,
 ): SensorSelection {
   const { sense, config, limits } = input;
-  const shippedNames = ports.catalog.shippedNames();
+  const installedNames = ports.catalog.installedNames();
   const registered = ports.config.registeredSensors(config);
   const requested: "all" | string[] =
     sense === "all" || sense === null ? "all" : sense.map((one) => one.name);
-  let shipped: ShippedRead = { sensors: [], unreadable: [] };
+  let installed: InstalledRead = { sensors: [], unreadable: [] };
   let selected: { name: string; command: string[] }[] = [];
 
   if (sense !== null) {
     const wanted = new Set<string>(
       Array.isArray(requested)
-        ? requested.filter((name) => shippedNames.includes(name))
+        ? requested.filter((name) => installedNames.includes(name))
         : [],
     );
 
     for (const one of registered) {
-      const name = shippedSensorOf(one.command, shippedNames);
+      const name = sensorNameOf(one.command);
 
       if (name !== undefined) {
         wanted.add(name);
       }
     }
 
-    shipped = ports.catalog.readShipped([...wanted], limits);
+    installed = ports.catalog.readInstalled([...wanted], limits);
     selected = selectFrom(
       registered,
       requested,
-      shippedNames,
+      installedNames,
       ports.config.tests(config),
-      shipped,
+      installed,
     );
   }
 
   refuseUnregistered(
     registered.map((one) => one.name),
     Array.isArray(requested) && sense !== null ? requested : [],
-    shippedNames,
+    installedNames,
   );
 
-  return { selected, shipped };
+  return { selected, installed };
 }

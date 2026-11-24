@@ -229,12 +229,12 @@ const rescanner = createRescanner<Carried>({
   port: scanSource,
   registered: async () => {
     const { config } = await sensorsSource.readInputs();
-    const shipped = await sensorsSource
-      .shipped()
+    const installed = await sensorsSource
+      .installed()
       .catch(() => ({ status: "unavailable" as const, reason: "" }));
 
     return {
-      sensors: rowSensors(config, shipped),
+      sensors: rowSensors(config, installed),
       describerRegistered: describerRegistered(config),
     };
   },

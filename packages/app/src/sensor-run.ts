@@ -66,7 +66,7 @@ export type SensorInputs = {
   analysis: boolean;
 };
 
-export type ShippedSensor = {
+export type InstalledSensor = {
   name: string;
   display: string;
   description: string;
@@ -77,12 +77,12 @@ export type ShippedSensor = {
   plannedWork?: { verb: string };
   logPath?: string;
   listed: boolean;
-  metrics: ShippedMetric[];
+  metrics: InstalledMetric[];
   findings: FindingEntry[];
-  settings: ShippedSetting[];
+  settings: InstalledSetting[];
 };
 
-export type ShippedMetric = {
+export type InstalledMetric = {
   name: string;
   label: string;
   title: string;
@@ -95,7 +95,7 @@ export type ShippedMetric = {
   published?: { value: number; source: string };
 };
 
-export type ShippedSetting = {
+export type InstalledSetting = {
   key: string;
   type: string;
   values?: string[];
@@ -118,12 +118,11 @@ export type DescriberInEffect =
       status: "ok";
       command: string[];
       version: string;
-      source: "config" | "shipped";
     }
   | { status: "unavailable"; reason: string };
 
-export type ShippedSensors =
-  | { status: "ok"; sensors: ShippedSensor[] }
+export type InstalledSensors =
+  | { status: "ok"; sensors: InstalledSensor[] }
   | { status: "unavailable"; reason: string };
 
 export type WorkRequest = {
@@ -141,7 +140,7 @@ export type SensorsPort = {
   readInputs(): Promise<SensorInputs>;
   onInputsChanged(run: () => void): () => void;
   watchInputs(): Promise<void>;
-  shipped(): Promise<ShippedSensors>;
+  installed(): Promise<InstalledSensors>;
   describer(): Promise<DescriberInEffect>;
   plannedWork(request: WorkRequest): Promise<PlannedWork | null>;
 };
@@ -161,9 +160,9 @@ export const inertSensors: SensorsPort = {
   }),
   onInputsChanged: () => () => {},
   watchInputs: async () => {},
-  shipped: async () => ({
+  installed: async () => ({
     status: "unavailable",
-    reason: "the shipped sensors are not available",
+    reason: "the installed sensors are not available",
   }),
   describer: async () => ({
     status: "unavailable",

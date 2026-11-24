@@ -28,11 +28,8 @@ export function planReads(data: LoadedPlanData) {
   const kinds = modules.map((id) => data.lineKinds(id));
   const describer = ["describer"];
   const located: LocatedDescriber = data.describerRegistered
-    ? {
-        describer: { describerRef: true, command: describer, version: "v" },
-        shipped: false,
-      }
-    : { describer: null, shipped: false };
+    ? { describer: { describerRef: true, command: describer, version: "v" } }
+    : { describer: null };
 
   return {
     structure: { read: () => data.scans },

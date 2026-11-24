@@ -4,6 +4,7 @@ import { buildFreshness, tickedPhases } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { ScanState } from "../../src/footer-scan";
 import { NO_CHANGES } from "../../src/footer-scan";
+import { installedSensors, plainSensor } from "../../src/installed-fake";
 import type { ResponsibilityState } from "../../src/responsibility-model";
 import { scanHistory } from "../../src/scan-estimate";
 import {
@@ -20,8 +21,7 @@ import {
 } from "../../src/scan-panel-model";
 import { describeStopText, NO_PROGRESS } from "../../src/scan-progress";
 import { whyOf } from "../../src/scan-why";
-import type { ShippedSensor, ShippedSensors } from "../../src/sensor-run";
-import { plainSensor, shippedSensors } from "../../src/shipped-fake";
+import type { InstalledSensor, InstalledSensors } from "../../src/sensor-run";
 import { scanPanelSync as scanPanel } from "../fixtures";
 import { type DocScan, repositoryFrom } from "./repository-from";
 
@@ -47,11 +47,11 @@ const SCAN: ScanState = {
   scanning: null,
 };
 
-function shipped(
+function installed(
   name: string,
   display: string,
-  over: Partial<ShippedSensor> = {},
-): ShippedSensor {
+  over: Partial<InstalledSensor> = {},
+): InstalledSensor {
   return plainSensor(name, {
     display,
     description: `${display} does its thing.`,
@@ -59,15 +59,15 @@ function shipped(
   });
 }
 
-const LIST: ShippedSensors = {
+const LIST: InstalledSensors = {
   status: "ok",
   sensors: [
-    shipped("mutation", "Mutation", { runsTests: true, scoped: true }),
-    shipped("crap", "C.R.A.P.", {
+    installed("mutation", "Mutation", { runsTests: true, scoped: true }),
+    installed("crap", "C.R.A.P.", {
       runsTests: true,
       expansion: "C.R.A.P.: Change Risk Anti-Patterns.",
     }),
-    shipped("quiet", "Quiet", { listed: false }),
+    installed("quiet", "Quiet", { listed: false }),
   ],
 };
 
@@ -103,7 +103,7 @@ function input(over: Partial<PanelInput> = {}): PanelInput {
     run: NO_RUN,
     scanning: false,
     now: NOW,
-    shipped: LIST,
+    installed: LIST,
     ...over,
   });
 }
@@ -143,7 +143,7 @@ describe("scanPanel rows", () => {
     expect(scanPanel(input()).rows[0]?.key).toBe("structure");
   });
 
-  it("lists Structural analysis, Descriptions, shipped sensors by display name, then third-party sensors in config order", () => {
+  it("lists Structural analysis, Descriptions, installed sensors by display name, then third-party sensors in config order", () => {
     expect(scanPanel(input()).rows.map((row) => row.name)).toEqual([
       "Structural analysis",
       "Descriptions",
@@ -154,7 +154,7 @@ describe("scanPanel rows", () => {
     ]);
   });
 
-  it("omits a shipped sensor that is not listed and makes every listed row tickable", () => {
+  it("omits an installed sensor that is not listed and makes every listed row tickable", () => {
     const rows = scanPanel(input()).rows;
 
     expect(rows.map((row) => row.key)).not.toContain("quiet");
@@ -181,7 +181,7 @@ describe("scanPanel rows", () => {
     );
   });
 
-  it("titles a shipped row with the registry's sentence and Descriptions with the mock's wording", () => {
+  it("titles an installed row with the registry's sentence and Descriptions with the mock's wording", () => {
     const rows = scanPanel(input()).rows;
 
     expect(rows.find((row) => row.key === "describe")?.title).toBe(
@@ -221,21 +221,23 @@ describe("scanPanel rows", () => {
     expect(rows.find((row) => row.name === "alpha")?.scoped).toBe(false);
   });
 
-  it("shows Structural analysis, Descriptions and third-party rows only when the shipped list is unavailable", () => {
+  it("shows Structural analysis, Descriptions and third-party rows only when the installed list is unavailable", () => {
     const model = scanPanel(
-      input({ shipped: { status: "unavailable", reason: "old" } }),
+      input({ installed: { status: "unavailable", reason: "old" } }),
     );
 
     expect(model.rows.map((row) => row.name)).toEqual([
       "Structural analysis",
       "Descriptions",
+      "crap",
+      "mutation",
       "alpha",
       "beta",
     ]);
   });
 
-  it("is pending with no rows, reports or Scan button content while the shipped list is unread", () => {
-    const model = scanPanel(input({ shipped: null }));
+  it("is pending with no rows, reports or Scan button content while the installed list is unread", () => {
+    const model = scanPanel(input({ installed: null }));
 
     expect(model.pending).toBe(true);
     expect(model.rows).toEqual([]);
@@ -243,7 +245,62 @@ describe("scanPanel rows", () => {
     expect(scanPanel(input()).pending).toBe(false);
   });
 
-  it("does not list a shipped sensor a repository also registers as third-party", () => {
+  it("lists an installed sensor once", () => {
+    const coverage = plainSensor("coverage", { display: "Coverage" });
+    const list: InstalledSensors = { status: "ok", sensors: [coverage] };
+
+    expect(rowSensors(null, list).map((row) => row.display)).toEqual([
+      "Coverage",
+    ]);
+
+    const registered = rowSensors(
+      "sensors:\n  coverage:\n    command: [recognizer-sense-coverage]\n",
+      list,
+    );
+
+    expect(registered).toHaveLength(1);
+    expect(registered[0]?.registered).toBe(true);
+    expect(
+      rowSensors("sensors:\n  bespoke:\n    command: [b]\n", list).map(
+        (row) => `${row.name}:${row.display}`,
+      ),
+    ).toEqual(["coverage:Coverage", "bespoke:bespoke"]);
+    expect(
+      rowSensors(
+        "sensors:\n  coverage:\n    command: [c]\n  bespoke:\n    command: [b]\n",
+        {
+          status: "unavailable",
+          reason: "x",
+        },
+      ).map((row) => row.name),
+    ).toEqual(["coverage", "bespoke"]);
+  });
+
+  it("shows an installed unregistered sensor as one row flagged unregistered that cannot be ticked", () => {
+    const coverage = plainSensor("coverage", { display: "Coverage" });
+    const model = scanPanel(
+      input({
+        config: "sensors:\n  alpha:\n    command: [a]\n",
+        installed: { status: "ok", sensors: [coverage] },
+      }),
+    );
+    const rows = model.rows.filter((row) => row.key === "coverage");
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      name: "Coverage",
+      unregistered: true,
+      tickable: false,
+      ticked: false,
+      disabled: true,
+    });
+    expect(rows[0]?.text.text).toBe("not registered");
+    expect(model.rows.find((row) => row.key === "alpha")?.unregistered).toBe(
+      undefined,
+    );
+  });
+
+  it("does not list an installed sensor a repository also registers as third-party", () => {
     expect(
       rowSensors("sensors:\n  mutation: {}\n", LIST).filter(
         (one) => one.name === "mutation",
@@ -253,13 +310,13 @@ describe("scanPanel rows", () => {
 });
 
 describe("scanPanel and the structure sensor's duplication check", () => {
-  const real: ShippedSensors = {
+  const real: InstalledSensors = {
     status: "ok",
-    sensors: shippedSensors(),
+    sensors: installedSensors(),
   };
 
-  it("builds no Duplication row from the shipped list", () => {
-    const names = scanPanel(input({ shipped: real })).rows.map(
+  it("builds no Duplication row from the installed list", () => {
+    const names = scanPanel(input({ installed: real })).rows.map(
       (row) => row.name,
     );
 
@@ -892,7 +949,7 @@ describe("phasesFor", () => {
     { name: "alpha", runsTests: false },
   ];
 
-  it("plans a shipped, a registered and reports an unknown sensor as dropped", () => {
+  it("plans an installed, a registered and reports an unknown sensor as dropped", () => {
     const { plan, dropped } = phasesFor(
       {
         describe: true,
@@ -1909,7 +1966,7 @@ describe("scanPanel estimate line", () => {
     const base = input({
       history,
       config: "",
-      shipped: { status: "ok", sensors: [plainSensor("alpha")] },
+      installed: { status: "ok", sensors: [plainSensor("alpha")] },
     });
     const checking = scanPanelAsked({ ...base, plan: null });
     const nothing = scanPanel(base);
@@ -2030,7 +2087,7 @@ describe("unregistered plugins", () => {
     ...over,
   });
 
-  it("leaves an unregistered shipped sensor out of the rows and the plan, even when the stored ticks list it", () => {
+  it("gives an unregistered installed sensor one untickable not-registered row and keeps it out of the plan, even when the stored ticks list it", () => {
     const stored = ticks({
       describe: true,
       analysis: true,
@@ -2045,18 +2102,24 @@ describe("unregistered plugins", () => {
     const mutation = model.rows.find((row) => row.key === "mutation");
 
     expect(crap).toMatchObject({ tickable: true });
-    expect(mutation).toBeUndefined();
-    expect(model.rows.map((row) => row.key)).toEqual(["structure", "crap"]);
+    expect(mutation).toMatchObject({ unregistered: true, tickable: false });
+    expect(model.rows.map((row) => row.key)).toEqual([
+      "structure",
+      "crap",
+      "mutation",
+    ]);
     expect(model.planned?.plan.sense).toEqual(["crap"]);
     expect(model.planned?.plan.describe).toBe(false);
   });
 
-  it("leaves an unregistered sensor out of the summary", () => {
+  it("shows an unregistered installed sensor as a not-registered row but leaves it out of the summary", () => {
     const model = scanPanel(input({ config: ONLY_CRAP }));
     const text = `${model.summary.head} ${model.summary.line}`;
 
     expect(text).not.toMatch(/Mutation/);
-    expect(model.rows.find((row) => row.key === "mutation")).toBeUndefined();
+    expect(model.rows.find((row) => row.key === "mutation")).toMatchObject({
+      unregistered: true,
+    });
 
     const bare = scanPanel(input({ config: null }));
 
@@ -2073,7 +2136,9 @@ describe("unregistered plugins", () => {
       }),
     );
 
-    expect(model.rows.map((row) => row.key)).toEqual(["structure"]);
+    expect(
+      model.rows.filter((row) => !row.unregistered).map((row) => row.key),
+    ).toEqual(["structure"]);
 
     const rows = rowSensors(null, LIST);
     const { plan } = phasesFor(ticks({ describe: false, ticked: null }), rows);

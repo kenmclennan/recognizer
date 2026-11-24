@@ -773,7 +773,7 @@ export const COMMANDS: Command[] = [
   {
     name: "sensors",
     summary:
-      "list the shipped sensors, with what each judges, and check their readiness",
+      "list the installed sensors, with what each judges, and check their readiness",
     usage:
       "recognizer sensors [--json]\nrecognizer sensors check [name] [--run] [--work] [--modules <file>] [--suites <file>] [--json] [--repository <dir>]",
     arguments: [
@@ -812,7 +812,7 @@ export const COMMANDS: Command[] = [
       },
     ],
     output: {
-      text: "one `<name>  <description>` line per shipped sensor; with check, one block per sensor: `<name>: ready`, or `<name>: N gaps` followed by one indented sentence per gap",
+      text: "one `<name>  <description>` line per installed sensor; with check, one block per sensor: `<name>: ready`, or `<name>: N gaps` followed by one indented sentence per gap",
       json: "[{ name, display, description, expansion, runs_tests, scoped, listed, metrics, findings, settings }], read from each sensor's manifest; with check, { ready, sensors: [{ name, ready, gaps: [{ code, suite, line, output? }], notes: [{ code, suite, line }], work?: { unit, to_perform, reusable } }] }",
     },
     exitCodes: [
@@ -830,7 +830,7 @@ export const COMMANDS: Command[] = [
     examples: [
       {
         command: "recognizer sensors --json",
-        note: "the shipped sensors, read from their manifests",
+        note: "the sensors installed on PATH, read from their manifests",
       },
       {
         command: "recognizer sensors check crap --run",
@@ -907,7 +907,7 @@ export const COMMANDS: Command[] = [
       {
         flag: "--schema",
         description:
-          "print the key schema the sensors publish as JSON, with keys_version 1; exits 1 when a shipped sensor's manifest cannot be read; takes no other verb",
+          "print the key schema the sensors publish as JSON, with keys_version 1; exits 1 when an installed sensor's manifest cannot be read; takes no other verb",
       },
       {
         flag: "--repository <dir>",
@@ -1098,7 +1098,7 @@ export const COMMANDS: Command[] = [
     ],
     options: [{ flag: "--json", description: "print JSON instead of text" }],
     output: {
-      text: "for each area with a problem, its name and one indented line per problem with `fix: <command or instruction>` under it, then `not checked: <reason>` lines for a skipped area, and last `No problems` or `<n> problems`, then `<n> warnings` when there are any. An installed shipped sensor or describer that the config does not register is a problem with code `unregistered-plugin` and the fix `recognizer plugin add <name>`",
+      text: "for each area with a problem, its name and one indented line per problem with `fix: <command or instruction>` under it, then `not checked: <reason>` lines for a skipped area, and last `No problems` or `<n> problems`, then `<n> warnings` when there are any. When the config has a tests list and no registered sensor runs tests, each installed sensor that runs tests is a problem with code `unregistered-plugin` and the fix `recognizer plugin add <name>`",
       json: "{ repository, ok, problems, areas: [{ name: config|policy|scanners|sensors, skipped: string | null, problems: [{ code, subject, line, fix: { text, command: string | null }, severity: problem|warning }] }], warnings }",
     },
     exitCodes: [
@@ -1412,7 +1412,7 @@ export const COMMANDS: Command[] = [
       {
         flag: "--describer",
         description:
-          "print the describer in effect (command, version, and whether it comes from config or is the shipped recognizer-describe-claude) and exit; reads only config.yaml",
+          "print the describer in effect (command and version) and exit, refusing when none is registered; reads only config.yaml",
       },
       {
         flag: "--repository <dir>",

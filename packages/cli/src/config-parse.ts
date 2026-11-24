@@ -1,12 +1,12 @@
-import { expandShortForms, shippedSensorOf } from "@recognizer/core";
+import { expandShortForms, sensorNameOf } from "@recognizer/core";
 import { parse } from "yaml";
-import { shippedPlugins } from "./adapters/plugins/shipped-plugins-adapter.js";
 import {
   retiredKeysIn,
   withoutRetiredKeysAndEmptiedSections,
   withoutToleratedKeys,
 } from "./config-retired.js";
 import { InputError } from "./errors.js";
+import configSchema from "./generated/config.schema.json" with { type: "json" };
 import validate from "./generated/config-validator.js";
 
 export interface SensorRegistration {
@@ -69,7 +69,7 @@ export function registeredSensors(
   );
 }
 
-export function shippedSensorSettings(
+export function registeredSensorSettings(
   config: Config | null,
   name: string,
 ): Record<string, unknown> | null {
@@ -78,10 +78,7 @@ export function shippedSensorSettings(
   );
   const command = registered?.command;
 
-  if (
-    command === undefined ||
-    shippedSensorOf(command, shippedPlugins().sensors()) === undefined
-  ) {
+  if (command === undefined || sensorNameOf(command) === undefined) {
     return null;
   }
 
@@ -117,12 +114,32 @@ function expandConfig(document: unknown): unknown {
   const record = document as Record<string, unknown>;
   const sensors = expandShortForms(
     record.sensors as Record<string, unknown> | undefined,
-    shippedPlugins().sensors(),
   );
 
   return {
     ...record,
     ...(sensors === undefined ? {} : { sensors }),
+  };
+}
+
+const SCHEMA_SENSORS: readonly string[] = Object.keys(
+  configSchema.properties.sensors.properties,
+);
+
+function withShortFormsExpanded(document: unknown): unknown {
+  if (!isPlainObject(document) || !isPlainObject(document.sensors)) {
+    return document;
+  }
+
+  const open = Object.fromEntries(
+    Object.entries(document.sensors).filter(
+      ([name]) => !SCHEMA_SENSORS.includes(name),
+    ),
+  );
+
+  return {
+    ...document,
+    sensors: { ...document.sensors, ...expandShortForms(open) },
   };
 }
 
@@ -199,6 +216,20 @@ function rejectRetiredDuplicationSensor(document: unknown): void {
   ) {
     throw new InputError([
       "config/sensors/duplication was removed: duplication is now part of structural analysis and runs with every scan; move its settings to sensors.structure.duplication (threshold, min_lines, pair_min_lines, min_nodes), or set sensors.structure.duplication to false to switch it off, and delete the sensors.duplication key",
+    ]);
+  }
+}
+
+function rejectRetiredUnusedExportsSensor(document: unknown): void {
+  if (!isPlainObject(document) || !isPlainObject(document.sensors)) {
+    return;
+  }
+
+  const entry = document.sensors["unused-exports"];
+
+  if (isPlainObject(entry) && !("command" in entry)) {
+    throw new InputError([
+      "config/sensors/unused-exports was removed: it is now the structure warning unused_exports; add unused_exports: true under sensors.structure.warnings, move any entry_points it listed under warnings.orphan.entry_points, and delete the sensors.unused-exports key",
     ]);
   }
 }
@@ -477,9 +508,12 @@ export function parseConfig(
 
   rejectRetiredOverlays(document);
   rejectRetiredDuplicationSensor(document);
+  rejectRetiredUnusedExportsSensor(document);
   rejectBadDuplication(document);
   rejectEmptySections(document);
   rejectRetiredWarnings(document);
+
+  document = withShortFormsExpanded(document);
 
   if (validate(document)) {
     rejectDuplicateSuites(document);

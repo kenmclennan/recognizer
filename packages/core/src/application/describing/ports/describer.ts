@@ -6,7 +6,6 @@ import type { DescriberRef } from "./describer-ref.js";
 
 export interface LocatedDescriber {
   describer: DescriberRef | null;
-  shipped: boolean;
 }
 
 export interface EntryTiming {
@@ -42,14 +41,11 @@ export interface DescribeSession {
 
 export interface Describer {
   locate(root: string): LocatedDescriber;
-  refuseShipped(located: LocatedDescriber): void;
   probe(
     program: string,
     args: string[],
     cwd: string,
   ): { started: boolean; status: number | null };
-  shippedName(): string;
-  shippedProgram(): string;
   settings(): { model: string; batchSize: number };
   readSource(root: string, path: string): { text: string; hash: string } | null;
   requestDocument(request: DescribeRequest): unknown;

@@ -11,20 +11,14 @@ import type {
   RunningCall,
   Say,
 } from "@recognizer/core";
-import { unregisteredMessage } from "@recognizer/core";
 import { readDescribing } from "../../app-settings.js";
 import type { Io } from "../../cli.js";
 import { findDescriber } from "../../describer-in-effect.js";
-import { InputError } from "../../errors.js";
 import { readSource } from "../../module-source.js";
 import { createPluginLimits, prepareCall } from "../../plugin-run.js";
 import { entryFrom } from "../../run-log.js";
 import { ResponsibilitiesAdapter } from "../filesystem/responsibilities-adapter.js";
 import { documentKind, documentMember } from "../filesystem/scan-translator.js";
-import {
-  shippedDescriberInvocation,
-  shippedDescriberName,
-} from "./shipped-plugins-adapter.js";
 import { sinkIo } from "./sink-io.js";
 
 export class DescriberAdapter implements Describer {
@@ -33,7 +27,6 @@ export class DescriberAdapter implements Describer {
   locate(root: string): LocatedDescriber {
     const found = findDescriber(this.io, root);
     let describer: DescriberRef | null = null;
-    let shipped = false;
 
     if (found !== null) {
       describer = {
@@ -41,18 +34,11 @@ export class DescriberAdapter implements Describer {
         command: found.command,
         version: found.version,
       };
-      shipped = found.source === "shipped";
     }
 
     new ResponsibilitiesAdapter(this.io).read(root);
 
-    return { describer, shipped };
-  }
-
-  refuseShipped(located: LocatedDescriber): void {
-    if (located.shipped && located.describer !== null) {
-      throw new InputError([unregisteredMessage(shippedDescriberName())]);
-    }
+    return { describer };
   }
 
   probe(
@@ -63,14 +49,6 @@ export class DescriberAdapter implements Describer {
     const { started, status } = this.io.run(program, args, { cwd });
 
     return { started, status };
-  }
-
-  shippedName(): string {
-    return shippedDescriberName();
-  }
-
-  shippedProgram(): string {
-    return shippedDescriberInvocation()[0] as string;
   }
 
   settings(): { model: string; batchSize: number } {

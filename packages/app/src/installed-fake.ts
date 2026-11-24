@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ShippedSensor } from "./sensor-run";
+import type { InstalledSensor } from "./sensor-run";
 
 const EXAMPLES = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -10,7 +10,7 @@ const EXAMPLES = join(
 
 const SENSOR_EXAMPLE = /^sensor-(.+)\.json$/;
 
-export function shippedNames(): string[] {
+export function installedNames(): string[] {
   return readdirSync(EXAMPLES)
     .map((file) => SENSOR_EXAMPLE.exec(file)?.[1])
     .filter((name): name is string => name !== undefined)
@@ -18,7 +18,7 @@ export function shippedNames(): string[] {
 }
 
 type ManifestDocument = Omit<
-  ShippedSensor,
+  InstalledSensor,
   "runsTests" | "listed" | "plannedWork" | "logPath"
 > & {
   runs_tests: boolean;
@@ -26,7 +26,7 @@ type ManifestDocument = Omit<
   log_path?: string;
 };
 
-export function shippedSensor(name: string): ShippedSensor {
+export function installedSensor(name: string): InstalledSensor {
   const { runs_tests, ...rest } = JSON.parse(
     readFileSync(join(EXAMPLES, `sensor-${name}.json`), "utf8"),
   ) as ManifestDocument;
@@ -52,14 +52,14 @@ export function shippedSensor(name: string): ShippedSensor {
   };
 }
 
-export function shippedSensors(): ShippedSensor[] {
-  return shippedNames().map(shippedSensor);
+export function installedSensors(): InstalledSensor[] {
+  return installedNames().map(installedSensor);
 }
 
 export function plainSensor(
   name: string,
-  over: Partial<ShippedSensor> = {},
-): ShippedSensor {
+  over: Partial<InstalledSensor> = {},
+): InstalledSensor {
   return {
     name,
     display: name,

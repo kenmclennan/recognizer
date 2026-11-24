@@ -8,18 +8,17 @@ import {
   selectSensors,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { shippedSensorNames } from "../src/adapters/plugins/shipped-plugins-adapter.js";
 import {
   parseConfig,
+  registeredSensorSettings,
   registeredSensors,
-  shippedSensorSettings,
 } from "../src/config-parse.js";
 import { InputError } from "../src/errors.js";
 import { SCAN_SCHEMA_VERSION } from "../src/scan.js";
 import { REPO } from "./helpers.js";
-import { readExamples } from "./shipped-read.js";
+import { readExamples } from "./installed-read.js";
 
-const SHIPPED_SENSORS: readonly string[] = shippedSensorNames();
+const INSTALLED: readonly string[] = ["crap", "mutation"];
 
 const command = (settings: string) => [
   "recognizer-sense-crap",
@@ -34,22 +33,11 @@ const command = (settings: string) => [
   settings,
 ];
 
-describe("SHIPPED_SENSORS", () => {
-  it("equals fixtures/sensors/shipped.json", () => {
-    expect(SHIPPED_SENSORS).toEqual(
-      JSON.parse(
-        readFileSync(join(REPO, "fixtures/sensors/shipped.json"), "utf8"),
-      ),
-    );
-  });
-});
-
 describe("expandShortForms for crap", () => {
   it("puts the settings JSON last", () => {
-    const expanded = expandShortForms(
-      { crap: { threshold: 20 } },
-      SHIPPED_SENSORS,
-    ) as { crap: { command: string[] } };
+    const expanded = expandShortForms({
+      crap: { threshold: 20 },
+    }) as { crap: { command: string[] } };
 
     expect(expanded.crap.command[0]).toBe("recognizer-sense-crap");
     expect(expanded.crap.command[1]).toBe("run");
@@ -59,10 +47,9 @@ describe("expandShortForms for crap", () => {
 
 describe("expandShortForms for thresholds", () => {
   it("carries the mapping as the settings JSON", () => {
-    const expanded = expandShortForms(
-      { crap: { coverage_limit: 0.7 } },
-      SHIPPED_SENSORS,
-    ) as { crap: { command: string[] } };
+    const expanded = expandShortForms({ crap: { coverage_limit: 0.7 } }) as {
+      crap: { command: string[] };
+    };
 
     expect(expanded.crap.command[0]).toBe("recognizer-sense-crap");
     expect(expanded.crap.command[1]).toBe("run");
@@ -72,37 +59,47 @@ describe("expandShortForms for thresholds", () => {
 
 describe("expandShortForms", () => {
   it("expands an empty mapping", () => {
-    expect(expandShortForms({ crap: {} }, SHIPPED_SENSORS)).toEqual({
+    expect(expandShortForms({ crap: {} })).toEqual({
       crap: { command: command("{}") },
     });
   });
 
   it("carries the settings as JSON", () => {
-    expect(
-      expandShortForms({ crap: { threshold: 0.9 } }, SHIPPED_SENSORS),
-    ).toEqual({ crap: { command: command('{"threshold":0.9}') } });
+    expect(expandShortForms({ crap: { threshold: 0.9 } })).toEqual({
+      crap: { command: command('{"threshold":0.9}') },
+    });
   });
 
   it("leaves an entry with a command untouched", () => {
     const entries = { crap: { command: ["mine"] } };
 
-    expect(expandShortForms(entries, SHIPPED_SENSORS)).toEqual(entries);
+    expect(expandShortForms(entries)).toEqual(entries);
   });
 
-  it("leaves an unknown name untouched", () => {
-    expect(expandShortForms({ nonesuch: {} }, SHIPPED_SENSORS)).toEqual({
-      nonesuch: {},
+  it("expands every name but structure", () => {
+    expect(
+      expandShortForms({ tally: {}, structure: {}, nonesuch: { limit: 3 } }),
+    ).toEqual({
+      tally: {
+        command: command("{}").map((word) =>
+          word === "recognizer-sense-crap" ? "recognizer-sense-tally" : word,
+        ),
+      },
+      structure: {},
+      nonesuch: {
+        command: command('{"limit":3}').map((word) =>
+          word === "recognizer-sense-crap" ? "recognizer-sense-nonesuch" : word,
+        ),
+      },
     });
   });
 
-  it("expands nothing for an empty shipped set", () => {
-    expect(expandShortForms({ crap: {} }, [])).toEqual({
-      crap: {},
-    });
+  it("needs no second argument", () => {
+    expect(expandShortForms({ tally: {} })).toBeDefined();
   });
 
   it("passes undefined through", () => {
-    expect(expandShortForms(undefined, SHIPPED_SENSORS)).toBeUndefined();
+    expect(expandShortForms(undefined)).toBeUndefined();
   });
 });
 
@@ -125,45 +122,45 @@ describe("the thresholds config examples", () => {
 });
 
 describe("the registry", () => {
-  const shipped = readExamples();
+  const installed = readExamples();
 
   it("lists crap and mutation and hides the configuration-only sensors", () => {
     expect(
-      shipped.sensors.filter(({ listed }) => listed).map(({ name }) => name),
+      installed.sensors.filter(({ listed }) => listed).map(({ name }) => name),
     ).toEqual(["crap", "mutation"]);
     expect(
-      shipped.sensors.filter(({ listed }) => !listed).map(({ name }) => name),
+      installed.sensors.filter(({ listed }) => !listed).map(({ name }) => name),
     ).toEqual([]);
   });
 
   it("marks only crap and mutation as running tests", () => {
     expect(
-      shipped.sensors
+      installed.sensors
         .filter(({ runs_tests }) => runs_tests)
         .map(({ name }) => name),
     ).toEqual(["crap", "mutation"]);
   });
 
-  it("names the shipped sensors", () => {
-    expect(shippedSensorNames()).toEqual([...SHIPPED_SENSORS]);
-  });
-
   it("marks only mutation as taking a module scope, read from the manifests", () => {
-    expect(isScoped(["recognizer-sense-mutation", "run"], shipped)).toBe(true);
+    expect(isScoped(["recognizer-sense-mutation", "run"], installed)).toBe(
+      true,
+    );
 
     for (const name of ["crap"]) {
-      expect(isScoped([`recognizer-sense-${name}`, "run"], shipped)).toBe(
+      expect(isScoped([`recognizer-sense-${name}`, "run"], installed)).toBe(
         false,
       );
     }
 
-    expect(isScoped(["my-mutation", "mutation"], shipped)).toBe(false);
+    expect(isScoped(["my-mutation", "mutation"], installed)).toBe(false);
   });
 
   it("tests the run command, not the name alone, for runs_tests", () => {
-    expect(runsTests(["recognizer-sense-crap", "run"], shipped)).toBe(true);
-    expect(runsTests(["recognizer-sense-mutation", "run"], shipped)).toBe(true);
-    expect(runsTests(["my-crap", "crap"], shipped)).toBe(false);
+    expect(runsTests(["recognizer-sense-crap", "run"], installed)).toBe(true);
+    expect(runsTests(["recognizer-sense-mutation", "run"], installed)).toBe(
+      true,
+    );
+    expect(runsTests(["my-crap", "crap"], installed)).toBe(false);
   });
 
   it("answers false for every sensor when no manifest was read", () => {
@@ -250,14 +247,14 @@ describe("the sensor config examples", () => {
   });
 });
 
-describe("shippedSensorSettings", () => {
+describe("registeredSensorSettings", () => {
   it("returns the settings a short-form entry was expanded with", () => {
     const config = parseConfig(
       "sensors:\n  crap:\n    threshold: 25\n  mutation:\n    max_workers: 2\n",
     );
 
-    expect(shippedSensorSettings(config, "crap")).toEqual({ threshold: 25 });
-    expect(shippedSensorSettings(config, "mutation")).toEqual({
+    expect(registeredSensorSettings(config, "crap")).toEqual({ threshold: 25 });
+    expect(registeredSensorSettings(config, "mutation")).toEqual({
       max_workers: 2,
     });
   });
@@ -265,8 +262,8 @@ describe("shippedSensorSettings", () => {
   it("returns null when the sensor is not registered or there is no config", () => {
     const config = parseConfig("sensors:\n  crap:\n    threshold: 25\n");
 
-    expect(shippedSensorSettings(config, "mutation")).toBeNull();
-    expect(shippedSensorSettings(null, "crap")).toBeNull();
+    expect(registeredSensorSettings(config, "mutation")).toBeNull();
+    expect(registeredSensorSettings(null, "crap")).toBeNull();
   });
 
   it("returns null for a custom command and for settings that do not parse", () => {
@@ -277,8 +274,8 @@ describe("shippedSensorSettings", () => {
       "sensors:\n  crap:\n    command: [recognizer-sensors, crap, --settings, '{nope']\n",
     );
 
-    expect(shippedSensorSettings(custom, "crap")).toBeNull();
-    expect(shippedSensorSettings(broken, "crap")).toBeNull();
+    expect(registeredSensorSettings(custom, "crap")).toBeNull();
+    expect(registeredSensorSettings(broken, "crap")).toBeNull();
   });
 
   it("reads scan schema version 7", () => {
@@ -366,7 +363,7 @@ describe("the tests list", () => {
     const selected = selectSensors(
       registeredSensors(config),
       "all",
-      SHIPPED_SENSORS,
+      INSTALLED,
       config.tests,
       readExamples(),
     );
@@ -384,7 +381,7 @@ describe("the tests list", () => {
     const selected = selectSensors(
       registeredSensors(config),
       "all",
-      SHIPPED_SENSORS,
+      INSTALLED,
       config.tests,
       readExamples(),
     );
@@ -397,7 +394,7 @@ describe("the tests list", () => {
     const selected = selectSensors(
       [],
       ["crap", "mutation"],
-      SHIPPED_SENSORS,
+      INSTALLED,
       suites,
       readExamples(),
     );
@@ -407,14 +404,46 @@ describe("the tests list", () => {
   });
 
   it("builds a requested mutation with no tests key when the config has none", () => {
-    const selected = selectSensors([], ["mutation"], SHIPPED_SENSORS);
+    const selected = selectSensors([], ["mutation"], INSTALLED);
 
     expect(settingsOf(selected[0])).toEqual({});
   });
 
   it("builds a requested crap with no tests key when the config has none", () => {
-    const selected = selectSensors([], ["crap"], SHIPPED_SENSORS);
+    const selected = selectSensors([], ["crap"], INSTALLED);
 
     expect(settingsOf(selected[0])).toEqual({});
+  });
+});
+
+describe("parseConfig short form for any sensor name", () => {
+  const words = (name: string, settings: string) =>
+    command(settings).map((word) =>
+      word === "recognizer-sense-crap" ? `recognizer-sense-${name}` : word,
+    );
+
+  it("expands tally: {} and a mapping to the command with the settings JSON", () => {
+    const config = parseConfig(
+      "sensors:\n  tally: {}\n  margin:\n    threshold: 3\n",
+    );
+
+    expect(config.sensors?.tally).toEqual({ command: words("tally", "{}") });
+    expect(config.sensors?.margin).toEqual({
+      command: words("margin", '{"threshold":3}'),
+    });
+  });
+
+  it("leaves a command-form entry as written", () => {
+    const config = parseConfig(
+      "sensors:\n  tally:\n    command: [mine, run]\n",
+    );
+
+    expect(config.sensors?.tally).toEqual({ command: ["mine", "run"] });
+  });
+
+  it("refuses a command-less unused-exports naming its config path", () => {
+    expect(() => parseConfig("sensors:\n  unused-exports: {}\n")).toThrow(
+      /config\/sensors\/unused-exports/,
+    );
   });
 });

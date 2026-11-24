@@ -1,18 +1,22 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { readSensorRows, readShippedSensors } from "@recognizer/core";
+import { readInstalledSensors, readSensorRows } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { ConfigAdapter } from "../src/adapters/filesystem/config-adapter.js";
 import { SensorCatalogAdapter } from "../src/adapters/plugins/sensor-catalog-adapter.js";
 import type { Io, RunResult } from "../src/cli.js";
 import { nodeIo } from "../src/cli.js";
-import { shippedPorts } from "../src/manifest-ports.js";
+import { manifestPorts } from "../src/manifest-ports.js";
 import { REPO } from "./helpers.js";
 import { requireSensorsVenv } from "./sensors-venv.js";
 
 const io: Io = {
   ...nodeIo(),
+  env: (name) =>
+    name === "PATH"
+      ? join(REPO, "packages/sensors/.venv/bin")
+      : nodeIo().env(name),
   run: (command, args): RunResult => {
     const result = spawnSync(
       join(REPO, `packages/sensors/.venv/bin/${command}`),
@@ -34,7 +38,7 @@ const io: Io = {
 describe("the committed sensor manifests", () => {
   requireSensorsVenv(REPO);
 
-  const read = readShippedSensors(shippedPorts(io));
+  const read = readInstalledSensors(manifestPorts(io));
   const by = (name: string) => read.sensors.find((one) => one.name === name);
   const published = (sensor: string, metric: string) =>
     by(sensor)?.metrics.find((one) => one.name === metric)?.published?.value;

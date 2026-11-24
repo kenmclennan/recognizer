@@ -1,7 +1,10 @@
-import type { ShippedRead } from "../../plugins/shipped-plugins.js";
+import type { InstalledRead } from "../../plugins/installed-sensors.js";
 import type { PluginLimits } from "../../shared/ports/process.js";
 
 export interface SensorCatalog {
-  shippedNames(): string[];
-  readShipped(names?: readonly string[], limits?: PluginLimits): ShippedRead;
+  installedNames(): string[];
+  readInstalled(
+    names?: readonly string[],
+    limits?: PluginLimits,
+  ): InstalledRead;
 }

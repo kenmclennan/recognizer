@@ -7,7 +7,7 @@ import {
 } from "recognizer";
 import { configHash } from "./config-hash";
 import { button, el } from "./dom";
-import type { SensorInputs, ShippedSensors } from "./sensor-run";
+import type { InstalledSensors, SensorInputs } from "./sensor-run";
 import {
   checkDescribing,
   checkSetup,
@@ -29,7 +29,7 @@ export type SettingsModalDeps = {
   port: SettingsModalPort;
   sensors: {
     readInputs(): Promise<SensorInputs>;
-    shipped(): Promise<ShippedSensors>;
+    installed(): Promise<InstalledSensors>;
   };
   repository: boolean;
   onClose?: () => void;
@@ -816,13 +816,13 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
       app = { ...loaded };
 
       if (deps.repository) {
-        const [keys, inputs, shipped] = await Promise.all([
+        const [keys, inputs, installed] = await Promise.all([
           deps.port.readConfigKeys(),
           deps.sensors.readInputs(),
           deps.sensors
-            .shipped()
+            .installed()
             .catch(
-              (): ShippedSensors => ({ status: "unavailable", reason: "" }),
+              (): InstalledSensors => ({ status: "unavailable", reason: "" }),
             ),
         ]);
         const schemas: KeySchema[] = [CORE_KEYS];
@@ -837,7 +837,7 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
 
         published = publish(schemas, "config");
         configText = inputs.config;
-        const sensors = shipped.status === "ok" ? shipped.sensors : [];
+        const sensors = installed.status === "ok" ? installed.sensors : [];
 
         specs = sectionSpecs(sensors, published);
         model = createRepositoryModel(published, configText, specs);

@@ -1,12 +1,12 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { HUGE_FUNCTION, LONG_FUNCTION } from "../../src/function-length";
 import { functionLimits } from "../../src/function-limits";
+import { installedSensors } from "../../src/installed-fake";
 import { collectFacts, here, webkit } from "../../src/look-page";
-import { shippedSensors } from "../../src/shipped-fake";
 
 const REAL_LIMITS = functionLimits(null, {
   status: "ok",
-  sensors: shippedSensors(),
+  sensors: installedSensors(),
 });
 
 const HARNESS = `

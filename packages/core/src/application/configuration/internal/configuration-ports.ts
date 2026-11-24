@@ -28,7 +28,6 @@ export interface SetupReads {
   cachedScans(root: string): Repository | null;
   sensors(): InstalledCheck[];
   describers(): InstalledCheck[];
-  describerName(): string;
   diagnose(root: string): SetupDoctorReport;
 }
 

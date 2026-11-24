@@ -181,6 +181,7 @@ export function checksOf(
         always_on: false,
         enabled,
         runs_tests: sensor.runs_tests,
+        kind: "sensor" as const,
         limits: [],
         mark: checkMark(configured, enabled),
       };
@@ -195,6 +196,7 @@ export function checksOf(
         always_on: false,
         enabled,
         runs_tests: false,
+        kind: "describer" as const,
         limits: [],
         mark: checkMark(configured, enabled),
       };

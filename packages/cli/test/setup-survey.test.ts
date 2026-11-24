@@ -139,6 +139,7 @@ describe("recognizer setup survey", () => {
       always_on: false,
       enabled: false,
       runs_tests: false,
+      kind: "describer",
       limits: [],
       mark: null,
     });

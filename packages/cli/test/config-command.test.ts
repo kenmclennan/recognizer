@@ -4,7 +4,12 @@ import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
 import { loadKeys, parseKeySchema } from "../src/config-keys.js";
 import { REPO } from "./helpers.js";
-import { fakeIo, type ProgramEffect, ROOT } from "./scan-helpers.js";
+import {
+  fakeIo,
+  OFFICIAL_ON_PATH,
+  type ProgramEffect,
+  ROOT,
+} from "./scan-helpers.js";
 
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
 
@@ -26,6 +31,7 @@ function setup(
   return fakeIo({
     files,
     sensorManifests: true,
+    onPath: OFFICIAL_ON_PATH,
     programs: unreadable(silent),
   });
 }

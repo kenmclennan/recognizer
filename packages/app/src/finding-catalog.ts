@@ -1,5 +1,5 @@
 import { type FindingEntry, matchKind, type Sentence } from "recognizer";
-import type { ShippedSensors } from "./sensor-run";
+import type { InstalledSensors } from "./sensor-run";
 
 export type CatalogGroup = {
   key: string;
@@ -41,11 +41,13 @@ function groupOf(sensor: string, entry: FindingEntry): CatalogGroup {
   };
 }
 
-export function buildCatalog(shipped: ShippedSensors | null): FindingCatalog {
+export function buildCatalog(
+  installed: InstalledSensors | null,
+): FindingCatalog {
   const groups =
-    shipped === null || shipped.status !== "ok"
+    installed === null || installed.status !== "ok"
       ? []
-      : shipped.sensors.flatMap((sensor) =>
+      : installed.sensors.flatMap((sensor) =>
           sensor.findings.map((entry) => groupOf(sensor.name, entry)),
         );
 

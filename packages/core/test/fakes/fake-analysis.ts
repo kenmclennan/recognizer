@@ -10,16 +10,11 @@ import {
 
 export class FakeAnalysis implements Analysis {
   readonly name = "analysis";
-  readonly shipped: string[] = [];
   readonly problems: string[] = [];
   analysis: { enabled: boolean } = { enabled: false };
 
   analysisPlan(_config: ConfigDocument | null): StructureSettings | "off" {
     return this.analysis.enabled ? DEFAULT_STRUCTURE_SETTINGS : "off";
-  }
-
-  shippedSensorNames(): string[] {
-    return [...this.shipped];
   }
 
   reportPolicyProblems(

@@ -295,7 +295,6 @@ function pluginChanges(survey: Survey, choices: SetupChoices): PlannedChange[] {
 function pluginOffChanges(
   survey: Survey,
   choices: SetupChoices,
-  describerName: string,
 ): PlannedChange[] {
   return [...new Set(choices.plugins_off ?? [])].flatMap((name) => {
     const check = survey.checks.find((one) => one.id === name);
@@ -310,7 +309,7 @@ function pluginOffChanges(
     }
 
     const steps =
-      name === describerName
+      check.kind === "describer"
         ? ["describer.command", "describer.version"].map((key) =>
             step(survey, ["recognizer", "config", "--unset", key]),
           )
@@ -421,7 +420,6 @@ function fixChanges(
 export function buildChanges(
   survey: Survey,
   choices: SetupChoices,
-  describerName: string,
 ): BuiltChanges {
   const dropped = droppedRunners(survey, choices);
   const fixes = fixChanges(survey, choices);
@@ -431,7 +429,7 @@ export function buildChanges(
       ...fixes.changes,
       ...analysisChanges(survey, choices),
       ...pluginChanges(survey, choices),
-      ...pluginOffChanges(survey, choices, describerName),
+      ...pluginOffChanges(survey, choices),
       ...suiteRemoveChanges(survey, choices),
       ...toolChanges(survey, choices),
       ...runnerChanges(survey, choices, dropped),

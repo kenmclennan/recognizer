@@ -25,6 +25,6 @@ export async function buildSetupChanges(
 
   return {
     survey,
-    built: buildChanges(survey, choices, ports.reads.describerName()),
+    built: buildChanges(survey, choices),
   };
 }

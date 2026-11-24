@@ -6,7 +6,7 @@ It has four parts, installed together:
 
 - **Scanners.** One command per language (Python, TypeScript, Kotlin, C#, Rust) that reads a source tree and prints the same JSON scan document.
 - **The `recognizer` command.** Scans a repository, checks it against the repository's policy, answers questions about its files, builds saved views, and runs the describer and the sensors.
-- **Sensors.** Judgements beyond structure. Structural analysis is built in: policy violations, cycles, orphans, unused exports, private imports, long functions, duplication and folder metrics. The shipped sensors are C.R.A.P. (which also reports low coverage) and Mutation; a repository can register its own.
+- **Sensors.** Judgements beyond structure. Structural analysis is built in: policy violations, cycles, orphans, unused exports, private imports, long functions, duplication and folder metrics. The official sensors are C.R.A.P. (which also reports low coverage) and Mutation; a repository can register its own.
 - **The viewer.** A native macOS app (Tauri) that draws the files and their dependencies, colours findings and health, opens a file to show its members, and keeps saved views and notes an agent can build and link to.
 
 ## Install
@@ -120,7 +120,7 @@ recognizer log --last             # what the last run did and why it failed
 A repository configures Recognizer in its `.recognizer/` folder. Edit it with `recognizer config` and `recognizer policy`, which check every key and value as they write, or ask an agent to do it with the setup skill (see [Agents](#agents)).
 
 - `policy.yaml` declares the rules: the entry points, the files to ignore and the imports to forbid (files in `A` must not import `B` or `C`). An import that breaks a rule is a violation. Start from a policy in [`docs/policies/`](policies) (`hexagonal.yaml` or `vertical-slices.yaml`), or build one with `recognizer policy --add-forbid --from '<glob>' --to '<glob>'`. `recognizer check --init-baseline` records today's violations in `baselines/violations.json`, and from then on `recognizer check` fails on any new one. The baseline may only shrink.
-- `config.yaml` registers the sensors to run and, optionally, a describer. `recognizer config --add-section sensors.crap` registers a shipped sensor with its defaults. C.R.A.P. and Mutation run the repository's own test suites, set under `tests:`; `recognizer help sensors crap` prints the setup guide and `recognizer sensors check --run` confirms it works. With no describer registered, `recognizer describe` uses the shipped `recognizer-describe-claude`. `recognizer help config` lists every key.
+- `config.yaml` registers the sensors to run and, optionally, a describer. `recognizer plugin add crap` registers an installed sensor with its defaults. C.R.A.P. and Mutation run the repository's own test suites, set under `tests:`; `recognizer help sensors crap` prints the setup guide and `recognizer sensors check --run` confirms it works. With no describer registered, `recognizer describe` refuses and says how to register one (`recognizer plugin add claude` for the official one). `recognizer help config` lists every key.
 
 Commit `policy.yaml`, `config.yaml`, `views/`, `responsibilities.json` and `baselines/`. `.recognizer/cache/` holds scans, findings, overlays and run logs and ignores itself with its own `.gitignore`, so the repository needs no line for it.
 

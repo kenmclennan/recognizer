@@ -150,16 +150,12 @@ When("the changes are tried", async function (this: ScanWorld) {
     root: ROOT,
     changes: rehearsalChanges(
       survey,
-      buildChanges(
-        survey,
-        {
-          analysis: { on: true, limits: { pair_min_lines: 12 } },
-          plugins: ["crap"],
-          runners: [{ name: "tauri" }, { name: "engine" }],
-          tools: ["@vitest/coverage-v8", "cargo-llvm-cov"],
-        },
-        "claude",
-      ).changes,
+      buildChanges(survey, {
+        analysis: { on: true, limits: { pair_min_lines: 12 } },
+        plugins: ["crap"],
+        runners: [{ name: "tauri" }, { name: "engine" }],
+        tools: ["@vitest/coverage-v8", "cargo-llvm-cov"],
+      }).changes,
     ),
     onEvent: () => {},
   });

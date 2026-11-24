@@ -42,7 +42,7 @@ pub enum ScanReport {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ShippedSensor {
+pub struct InstalledSensor {
     pub name: String,
     #[serde(default)]
     pub display: String,
@@ -62,7 +62,7 @@ pub struct ShippedSensor {
         alias = "planned_work",
         skip_serializing_if = "Option::is_none"
     )]
-    pub planned_work: Option<ShippedPlannedWork>,
+    pub planned_work: Option<InstalledPlannedWork>,
     #[serde(
         default,
         rename = "logPath",
@@ -73,7 +73,7 @@ pub struct ShippedSensor {
     #[serde(default = "listed_by_default")]
     pub listed: bool,
     #[serde(default)]
-    pub metrics: Vec<ShippedMetric>,
+    pub metrics: Vec<InstalledMetric>,
     #[serde(default)]
     pub findings: Vec<serde_json::Value>,
     #[serde(default)]
@@ -81,7 +81,7 @@ pub struct ShippedSensor {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ShippedMetric {
+pub struct InstalledMetric {
     pub name: String,
     #[serde(default)]
     pub label: String,
@@ -98,16 +98,16 @@ pub struct ShippedMetric {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub unlisted: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub published: Option<ShippedPublished>,
+    pub published: Option<InstalledPublished>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ShippedPlannedWork {
+pub struct InstalledPlannedWork {
     pub verb: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ShippedPublished {
+pub struct InstalledPublished {
     pub value: f64,
     pub source: String,
 }
@@ -118,11 +118,10 @@ fn listed_by_default() -> bool {
 
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(tag = "status", rename_all = "kebab-case")]
-pub enum ShippedDescriber {
+pub enum DescriberInEffect {
     Ok {
         command: Vec<String>,
         version: String,
-        source: String,
     },
     Unavailable {
         reason: String,
@@ -133,13 +132,12 @@ pub enum ShippedDescriber {
 struct DescriberJson {
     command: Vec<String>,
     version: String,
-    source: String,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(tag = "status", rename_all = "kebab-case")]
-pub enum ShippedSensors {
-    Ok { sensors: Vec<ShippedSensor> },
+pub enum InstalledSensors {
+    Ok { sensors: Vec<InstalledSensor> },
     Unavailable { reason: String },
 }
 
@@ -159,8 +157,8 @@ pub fn sensors_args() -> Vec<String> {
     vec!["sensors".to_string(), "--json".to_string()]
 }
 
-pub fn shipped_describer_from(reply: Result<serde_json::Value, String>) -> ShippedDescriber {
-    let unavailable = |reason: String| ShippedDescriber::Unavailable { reason };
+pub fn describer_in_effect_from(reply: Result<serde_json::Value, String>) -> DescriberInEffect {
+    let unavailable = |reason: String| DescriberInEffect::Unavailable { reason };
 
     let value = match reply {
         Ok(value) => value,
@@ -169,10 +167,9 @@ pub fn shipped_describer_from(reply: Result<serde_json::Value, String>) -> Shipp
 
     if let Some(ok) = value.get("ok") {
         return match serde_json::from_value::<DescriberJson>(ok.clone()) {
-            Ok(found) => ShippedDescriber::Ok {
+            Ok(found) => DescriberInEffect::Ok {
                 command: found.command,
                 version: found.version,
-                source: found.source,
             },
             Err(_) => {
                 unavailable("the service answered something that is not the describer".to_string())
@@ -196,8 +193,13 @@ pub fn shipped_describer_from(reply: Result<serde_json::Value, String>) -> Shipp
     }
 }
 
-pub fn shipped_describer(core: &CoreClient, label: &str, folder: &Path) -> ShippedDescriber {
-    shipped_describer_from(core.call(label, Some(folder), "describer.read", serde_json::json!({})))
+pub fn describer_in_effect(core: &CoreClient, label: &str, folder: &Path) -> DescriberInEffect {
+    describer_in_effect_from(core.call(
+        label,
+        Some(folder),
+        "describer.read",
+        serde_json::json!({}),
+    ))
 }
 
 pub const RECOGNIZER_COMMAND: &str = "recognizer";
@@ -349,15 +351,15 @@ pub fn clean_output(stdout: &str) -> String {
     strip_escapes(body)
 }
 
-pub fn shipped_sensors_for(exit: Option<i32>, stdout: &str, stderr: &str) -> ShippedSensors {
-    let unavailable = |reason: String| ShippedSensors::Unavailable { reason };
+pub fn installed_sensors_for(exit: Option<i32>, stdout: &str, stderr: &str) -> InstalledSensors {
+    let unavailable = |reason: String| InstalledSensors::Unavailable { reason };
     let stdout = clean_output(stdout);
     let stdout = stdout.as_str();
 
     match exit {
         Some(127) => unavailable(missing_hint()),
-        Some(0) => match serde_json::from_str::<Vec<ShippedSensor>>(stdout) {
-            Ok(sensors) => ShippedSensors::Ok { sensors },
+        Some(0) => match serde_json::from_str::<Vec<InstalledSensor>>(stdout) {
+            Ok(sensors) => InstalledSensors::Ok { sensors },
             Err(_) => {
                 unavailable("recognizer sensors printed something that is not the list".to_string())
             }
@@ -370,20 +372,20 @@ pub fn shipped_sensors_for(exit: Option<i32>, stdout: &str, stderr: &str) -> Shi
     }
 }
 
-pub fn shipped_sensors() -> ShippedSensors {
-    shipped_sensors_with(runner(), RECOGNIZER_COMMAND)
+pub fn installed_sensors() -> InstalledSensors {
+    installed_sensors_with(runner(), RECOGNIZER_COMMAND)
 }
 
-pub fn shipped_sensors_with(runner: &ToolRunner, command: &str) -> ShippedSensors {
+pub fn installed_sensors_with(runner: &ToolRunner, command: &str) -> InstalledSensors {
     match runner.capture(command, &sensors_args(), true) {
-        Err(fault) => ShippedSensors::Unavailable {
+        Err(fault) => InstalledSensors::Unavailable {
             reason: fault.message(),
         },
         Ok(Captured {
             code,
             stdout,
             stderr,
-        }) => shipped_sensors_for(code, &stdout, &stderr),
+        }) => installed_sensors_for(code, &stdout, &stderr),
     }
 }
 
@@ -618,7 +620,7 @@ mod tests {
     }
 
     #[test]
-    fn the_shipped_list_is_read_from_the_command_and_failures_are_unavailable() {
+    fn the_installed_list_is_read_from_the_command_and_failures_are_unavailable() {
         let dir = TempDir::new().unwrap();
         let good = fake_command(
             dir.path(),
@@ -629,8 +631,8 @@ mod tests {
 
         let runner = working_runner(dir.path());
 
-        match shipped_sensors_with(&runner, &good.display().to_string()) {
-            ShippedSensors::Ok { sensors } => {
+        match installed_sensors_with(&runner, &good.display().to_string()) {
+            InstalledSensors::Ok { sensors } => {
                 assert_eq!(sensors.len(), 1);
                 assert_eq!(sensors[0].name, "duplication");
             }
@@ -638,16 +640,16 @@ mod tests {
         }
 
         assert!(matches!(
-            shipped_sensors_with(&runner, &bad.display().to_string()),
-            ShippedSensors::Unavailable { .. }
+            installed_sensors_with(&runner, &bad.display().to_string()),
+            InstalledSensors::Unavailable { .. }
         ));
         assert!(matches!(
-            shipped_sensors_with(&runner, "/nonexistent/recognizer"),
-            ShippedSensors::Unavailable { .. }
+            installed_sensors_with(&runner, "/nonexistent/recognizer"),
+            InstalledSensors::Unavailable { .. }
         ));
         assert!(matches!(
-            shipped_sensors_for(Some(2), "", "bad"),
-            ShippedSensors::Unavailable { reason } if reason.contains("exited 2: bad")
+            installed_sensors_for(Some(2), "", "bad"),
+            InstalledSensors::Unavailable { reason } if reason.contains("exited 2: bad")
         ));
     }
 
@@ -680,8 +682,8 @@ mod tests {
         );
 
         assert!(matches!(
-            shipped_sensors_with(&runner, &sensors.display().to_string()),
-            ShippedSensors::Ok { sensors } if sensors.len() == 1
+            installed_sensors_with(&runner, &sensors.display().to_string()),
+            InstalledSensors::Ok { sensors } if sensors.len() == 1
         ));
     }
 
@@ -701,7 +703,7 @@ mod tests {
     }
 
     #[test]
-    fn a_full_shipped_entry_passes_findings_and_settings_through_unchanged() {
+    fn a_full_installed_entry_passes_findings_and_settings_through_unchanged() {
         let findings = serde_json::json!([{"kind":"crap","group":{"name":"C.R.A.P.","means":"m","todo":"t"},"help":"h","sentence":{"requires":["a.b"],"parts":[[{"when":[{"has":"a.b"}],"text":"x {a.b|num}"}]]}}]);
         let settings = serde_json::json!([{"key":"threshold","type":"number","default":30,"description":"d","example":"e"}]);
         let list = serde_json::json!([{
@@ -718,8 +720,8 @@ mod tests {
         }])
         .to_string();
 
-        match shipped_sensors_for(Some(0), &list, "") {
-            ShippedSensors::Ok { sensors } => {
+        match installed_sensors_for(Some(0), &list, "") {
+            InstalledSensors::Ok { sensors } => {
                 let out = serde_json::to_value(&sensors[0]).unwrap();
 
                 assert_eq!(out["findings"], findings);
@@ -747,8 +749,8 @@ mod tests {
         }])
         .to_string();
 
-        match shipped_sensors_for(Some(0), &list, "") {
-            ShippedSensors::Ok { sensors } => {
+        match installed_sensors_for(Some(0), &list, "") {
+            InstalledSensors::Ok { sensors } => {
                 let out = serde_json::to_value(&sensors[0]).unwrap();
 
                 assert_eq!(out["settings_title"], "Complexity and coverage");
@@ -763,8 +765,8 @@ mod tests {
     fn an_entry_without_expansion_or_published_parses_and_a_defaults_key_is_dropped() {
         let list = r#"[{"name":"m","display":"M","description":"d","defaults":{"threshold":1},"runs_tests":false,"scoped":false,"listed":true,"metrics":[{"name":"k","label":"k","title":"K","help":"h","type":"count","granularity":"member","bad":"low"}],"findings":[],"settings":[]}]"#;
 
-        match shipped_sensors_for(Some(0), list, "") {
-            ShippedSensors::Ok { sensors } => {
+        match installed_sensors_for(Some(0), list, "") {
+            InstalledSensors::Ok { sensors } => {
                 let out = serde_json::to_value(&sensors[0]).unwrap();
 
                 assert!(sensors[0].expansion.is_none());
@@ -778,12 +780,12 @@ mod tests {
     }
 
     #[test]
-    fn the_shipped_list_keeps_planned_work_log_path_and_unlisted() {
+    fn the_installed_list_keeps_planned_work_log_path_and_unlisted() {
         let declared = r#"[{"name":"m","display":"M","description":"d","runs_tests":true,"scoped":true,"planned_work":{"verb":"mutate"},"log_path":".recognizer/cache/coverage/last-run.log","listed":true,"metrics":[{"name":"k","label":"k","title":"K","help":"h","type":"count","granularity":"member","bad":"low","unlisted":true}],"findings":[],"settings":[]}]"#;
         let bare = r#"[{"name":"m","display":"M","description":"d","runs_tests":true,"scoped":true,"listed":true,"metrics":[{"name":"k","label":"k","title":"K","help":"h","type":"count","granularity":"member","bad":"low"}],"findings":[],"settings":[]}]"#;
 
-        match shipped_sensors_for(Some(0), declared, "") {
-            ShippedSensors::Ok { sensors } => {
+        match installed_sensors_for(Some(0), declared, "") {
+            InstalledSensors::Ok { sensors } => {
                 let out = serde_json::to_value(&sensors[0]).unwrap();
 
                 assert_eq!(out["plannedWork"]["verb"], "mutate");
@@ -793,8 +795,8 @@ mod tests {
             other => panic!("{other:?}"),
         }
 
-        match shipped_sensors_for(Some(0), bare, "") {
-            ShippedSensors::Ok { sensors } => {
+        match installed_sensors_for(Some(0), bare, "") {
+            InstalledSensors::Ok { sensors } => {
                 let out = serde_json::to_value(&sensors[0]).unwrap();
 
                 assert!(out.get("plannedWork").is_none());
@@ -806,11 +808,11 @@ mod tests {
     }
 
     #[test]
-    fn the_shipped_list_keeps_display_runs_tests_and_listed() {
+    fn the_installed_list_keeps_display_runs_tests_and_listed() {
         let list = r#"[{"name":"crap","display":"C.R.A.P.","description":"d","runs_tests":true,"listed":true,"metrics":[{"name":"crap","label":"CRAP","title":"C.R.A.P.","help":"h","type":"number","granularity":"member","bad":"high","published":{"value":30.0,"source":"s"}}]},{"name":"quiet","display":"Q","description":"d","runs_tests":false,"listed":false,"metrics":[]}]"#;
 
-        match shipped_sensors_for(Some(0), list, "") {
-            ShippedSensors::Ok { sensors } => {
+        match installed_sensors_for(Some(0), list, "") {
+            InstalledSensors::Ok { sensors } => {
                 assert_eq!(sensors[0].display, "C.R.A.P.");
                 assert!(sensors[0].runs_tests);
                 assert!(sensors[0].listed);
@@ -829,59 +831,58 @@ mod tests {
     }
 
     #[test]
-    fn the_shipped_describer_is_read_from_the_service_reply_and_a_failure_is_unavailable() {
+    fn the_describer_in_effect_is_read_from_the_service_reply_and_a_failure_is_unavailable() {
         let ok = serde_json::json!({
             "id": 1,
-            "ok": {"command": ["recognizer-describe-claude", "{request}"], "version": "p1", "source": "shipped"}
+            "ok": {"command": ["recognizer-describe-claude", "{request}"], "version": "p1"}
         });
 
         assert_eq!(
-            shipped_describer_from(Ok(ok)),
-            ShippedDescriber::Ok {
+            describer_in_effect_from(Ok(ok)),
+            DescriberInEffect::Ok {
                 command: vec![
                     "recognizer-describe-claude".to_string(),
                     "{request}".to_string()
                 ],
-                version: "p1".to_string(),
-                source: "shipped".to_string()
+                version: "p1".to_string()
             }
         );
         assert_eq!(
-            shipped_describer_from(Ok(
+            describer_in_effect_from(Ok(
                 serde_json::json!({"id": 1, "error": "no describer is registered"})
             )),
-            ShippedDescriber::Unavailable {
+            DescriberInEffect::Unavailable {
                 reason: "no describer is registered".to_string()
             }
         );
         assert_eq!(
-            shipped_describer_from(Ok(
+            describer_in_effect_from(Ok(
                 serde_json::json!({"unavailable": {"kind": "missing", "hint": "install it"}})
             )),
-            ShippedDescriber::Unavailable {
+            DescriberInEffect::Unavailable {
                 reason: "install it".to_string()
             }
         );
         assert_eq!(
-            shipped_describer_from(Err("the arguments are not an object".to_string())),
-            ShippedDescriber::Unavailable {
+            describer_in_effect_from(Err("the arguments are not an object".to_string())),
+            DescriberInEffect::Unavailable {
                 reason: "the arguments are not an object".to_string()
             }
         );
         assert!(matches!(
-            shipped_describer_from(Ok(serde_json::json!({"id": 1, "ok": "nope"}))),
-            ShippedDescriber::Unavailable { .. }
+            describer_in_effect_from(Ok(serde_json::json!({"id": 1, "ok": "nope"}))),
+            DescriberInEffect::Unavailable { .. }
         ));
         assert!(matches!(
-            shipped_describer_from(Ok(serde_json::json!({}))),
-            ShippedDescriber::Unavailable { .. }
+            describer_in_effect_from(Ok(serde_json::json!({}))),
+            DescriberInEffect::Unavailable { .. }
         ));
     }
 
     #[test]
-    fn the_shipped_list_serialises_to_the_webview_contract() {
+    fn the_installed_list_serialises_to_the_webview_contract() {
         assert_eq!(
-            serde_json::to_value(ShippedSensors::Unavailable {
+            serde_json::to_value(InstalledSensors::Unavailable {
                 reason: "r".to_string()
             })
             .unwrap(),
@@ -901,8 +902,8 @@ mod tests {
             ScanReport::CommandMissing { .. }
         ));
         assert_eq!(
-            shipped_sensors_with(&runner, RECOGNIZER_COMMAND),
-            ShippedSensors::Unavailable {
+            installed_sensors_with(&runner, RECOGNIZER_COMMAND),
+            InstalledSensors::Unavailable {
                 reason: missing_hint()
             }
         );
@@ -920,8 +921,8 @@ mod tests {
         );
 
         assert_eq!(
-            shipped_sensors_with(&runner, RECOGNIZER_COMMAND),
-            ShippedSensors::Unavailable {
+            installed_sensors_with(&runner, RECOGNIZER_COMMAND),
+            InstalledSensors::Unavailable {
                 reason: missing_hint()
             }
         );

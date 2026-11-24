@@ -5,7 +5,7 @@ import {
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
-import { fakeIo, ROOT } from "./scan-helpers.js";
+import { fakeIo, OFFICIAL_ON_PATH, ROOT } from "./scan-helpers.js";
 
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
 
@@ -59,6 +59,7 @@ function setup(
   return fakeIo({
     files: { [CONFIG]: config },
     sensorManifests: true,
+    onPath: OFFICIAL_ON_PATH,
     sensorsPreflight: { run: answer },
   });
 }
@@ -275,7 +276,7 @@ describe("recognizer sensors check", () => {
     ]);
   });
 
-  it("hands a shipped sensor that is not registered the tests list the scan would pass", () => {
+  it("hands an installed sensor that is not registered the tests list the scan would pass", () => {
     const fake = setup(REGISTERED.replace("  mutation: {}\n", ""), gapsBy({}));
 
     check(fake, "mutation");
@@ -295,8 +296,8 @@ describe("recognizer sensors check", () => {
     expect(check(setup(REGISTERED, gapsBy({})), "crap", "extra")).toBe(2);
   });
 
-  it("keeps listing the shipped sensors and rejects --run without check", () => {
-    const listed = fakeIo({ sensorManifests: true });
+  it("keeps listing the installed sensors and rejects --run without check", () => {
+    const listed = fakeIo({ sensorManifests: true, onPath: OFFICIAL_ON_PATH });
 
     expect(run(["sensors"], listed.io)).toBe(0);
     expect(listed.out()).toContain("mutation");
@@ -332,7 +333,7 @@ describe("recognizer sensors check", () => {
     }
   });
 
-  it("reports sensors-missing when a shipped sensor's program does not start", () => {
+  it("reports sensors-missing when an installed sensor's program does not start", () => {
     const fake = setup(REGISTERED, () => ({ started: false }));
 
     expect(check(fake, "crap", "--json")).toBe(1);
@@ -434,6 +435,7 @@ describe("recognizer help sensors <name>", () => {
   const guided = (stdout: string) =>
     fakeIo({
       files: { [CONFIG]: REGISTERED },
+      onPath: OFFICIAL_ON_PATH,
       programs: {
         "recognizer-sense-crap": () => ({ stdout }),
         "recognizer-sense-mutation": () => ({ stdout }),

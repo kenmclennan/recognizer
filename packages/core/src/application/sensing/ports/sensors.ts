@@ -4,7 +4,7 @@ import type { RunEntry } from "../../../domain/run-record.js";
 import type { PluginProgress } from "../../../domain/scan-event.js";
 import type { SensorRequest } from "../../../domain/sensor-request.js";
 import type { SensorReport } from "../../plugins/check-sensor.js";
-import type { ShippedRead } from "../../plugins/shipped-plugins.js";
+import type { InstalledRead } from "../../plugins/installed-sensors.js";
 import type { PluginLimits, Say } from "../../shared/ports/process.js";
 
 export interface SensorSelectionInput {
@@ -16,7 +16,7 @@ export interface SensorSelectionInput {
 
 export interface SensorSelection {
   selected: { name: string; command: string[] }[];
-  shipped: ShippedRead;
+  installed: InstalledRead;
 }
 
 export interface SensorPlanInput {

@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
+import { installedSensors } from "../../src/installed-fake";
 import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
-import { shippedSensors } from "../../src/shipped-fake";
 
 const SCAN_COMMIT = "0123456789abcdef0123456789abcdef01234567";
 
-const shipped = JSON.parse(
+const installed = JSON.parse(
   readFileSync(
     here("../../../schema/overlay-examples/valid/crap.json"),
     "utf8",
@@ -20,12 +20,12 @@ const inputsAt = (hash: string) => ({
   "lib/none.py": hash,
 });
 const fresh = JSON.stringify({
-  ...shipped,
+  ...installed,
   commit: SCAN_COMMIT,
   inputs: inputsAt(HASH),
 });
 const stale = JSON.stringify({
-  ...shipped,
+  ...installed,
   commit: "ffffffffffffffffffffffffffffffffffffffff",
   inputs: inputsAt(EDITED),
 });
@@ -59,8 +59,8 @@ const loadedFor = (overlay) => loadedOf({
   sensors: overlay === null ? [] : [{ name: "crap", status: "ran", measured: { inputs: JSON.parse(overlay).inputs } }, { name: "structure", status: "ran", commit: JSON.parse(overlay).commit, modified: false }],
 });
 
-const SHIPPED = ${JSON.stringify(
-  shippedSensors()
+const INSTALLED = ${JSON.stringify(
+  installedSensors()
     .filter((sensor) => sensor.metrics.length > 0)
     .map((sensor) => ({ ...sensor, findings: [] })),
 )};
@@ -114,8 +114,8 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
 }));
 
 (async () => {
-  const crapHost = () => scanHostOf({ port: fakeSensors({}, {}, {}, SHIPPED.filter((one) => one.name === "crap").map((one) => ({ ...one, display: "crap" }))) });
-  const mount = (overlay, carried) => mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", views: port, post: () => null, carried, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, overlay === null ? [] : SHIPPED.filter((one) => one.name === "crap").map((one) => ({ ...one, display: "crap" }))) }) });
+  const crapHost = () => scanHostOf({ port: fakeSensors({}, {}, {}, INSTALLED.filter((one) => one.name === "crap").map((one) => ({ ...one, display: "crap" }))) });
+  const mount = (overlay, carried) => mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", views: port, post: () => null, carried, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, overlay === null ? [] : INSTALLED.filter((one) => one.name === "crap").map((one) => ({ ...one, display: "crap" }))) }) });
   let explorer = mount(${JSON.stringify(fresh)}, null);
   await tick();
   for (const folder of ["app", "src", "lib"]) {
@@ -189,10 +189,10 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   await tick();
   facts.staleClick = barsOf("app/risk.py").length;
 
-  const stateOf = async (overlays, sensors, shippedList = SHIPPED, hostOver = {}) => {
+  const stateOf = async (overlays, sensors, installedList = INSTALLED, hostOver = {}) => {
     explorer.dispose();
     host.replaceChildren();
-    explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays, sensors }), title: "demo", views: port, post: () => null, carried: null, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, shippedList), ...hostOver }) });
+    explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays, sensors }), title: "demo", views: port, post: () => null, carried: null, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, installedList), ...hostOver }) });
     await tick();
     for (const folder of ["app", "src", "lib"]) {
       click(q('.tree .row[data-path="' + folder + '"] .reye'));
@@ -218,7 +218,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   facts.partialState = await stateOf([{ name: "mutation", text: mutationOverlay(), modifiedMs: Date.now() - 5 * 60000 }], [status("mutation", { stopped: { measured: 245, total: 1545 }, partial: { measured: 245, total: 1545 } })]);
   facts.stoppedNothingState = await stateOf([{ name: "mutation", text: mutationOverlay(), modifiedMs: Date.now() - 5 * 60000 }], [status("mutation", { stopped: { measured: 0, total: 1545 }, partial: { measured: 0, total: 1545 } })]);
   facts.neverRunState = await stateOf([], []);
-  facts.runningState = await stateOf([{ name: "crap", text: crapOverlay(${JSON.stringify(SCAN_COMMIT)}), modifiedMs: Date.now() - 2 * DAY }], [status("crap")], SHIPPED, { running: () => true, runState: () => ({ running: ["crap"], started: Date.now(), failures: {}, diagnoses: {}, ranAt: {} }) });
+  facts.runningState = await stateOf([{ name: "crap", text: crapOverlay(${JSON.stringify(SCAN_COMMIT)}), modifiedMs: Date.now() - 2 * DAY }], [status("crap")], INSTALLED, { running: () => true, runState: () => ({ running: ["crap"], started: Date.now(), failures: {}, diagnoses: {}, ranAt: {} }) });
 
   explorer.dispose();
   host.replaceChildren();

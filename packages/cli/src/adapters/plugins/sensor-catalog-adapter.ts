@@ -1,26 +1,29 @@
 import {
+  type InstalledRead,
+  installedSensorNames,
   type PluginLimits,
-  readShippedSensors,
+  readInstalledSensors,
   type SensorCatalog,
-  type ShippedRead,
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
-import { shippedPorts } from "../../manifest-ports.js";
+import { manifestPorts } from "../../manifest-ports.js";
 import type { createPluginLimits } from "../../plugin-run.js";
-import { shippedSensorNames } from "./shipped-plugins-adapter.js";
 
 type Limits = ReturnType<typeof createPluginLimits>;
 
 export class SensorCatalogAdapter implements SensorCatalog {
   constructor(private readonly io: Io) {}
 
-  shippedNames(): string[] {
-    return shippedSensorNames();
+  installedNames(): string[] {
+    return installedSensorNames(manifestPorts(this.io));
   }
 
-  readShipped(names?: readonly string[], limits?: PluginLimits): ShippedRead {
-    return readShippedSensors(
-      shippedPorts(this.io),
+  readInstalled(
+    names?: readonly string[],
+    limits?: PluginLimits,
+  ): InstalledRead {
+    return readInstalledSensors(
+      manifestPorts(this.io),
       limits === undefined ? undefined : (limits as unknown as Limits).readOf,
       names,
     );

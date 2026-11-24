@@ -1,7 +1,7 @@
 import type {
+  InstalledRead,
+  InstalledSensorEntry,
   SensorCatalog,
-  ShippedRead,
-  ShippedSensorEntry,
 } from "../../src/index.js";
 import type { FakeSensors } from "./fake-sensors.js";
 
@@ -10,15 +10,18 @@ export class FakeSensorCatalog implements SensorCatalog {
 
   constructor(private readonly sensors: FakeSensors) {}
 
-  shippedNames(): string[] {
-    return [...this.sensors.installed.keys()];
+  installedNames(): string[] {
+    return [...this.sensors.installed.keys()].sort();
   }
 
-  readShipped(names?: readonly string[]): ShippedRead {
+  readInstalled(names?: readonly string[]): InstalledRead {
     this.reads.push(names);
 
-    const entries: ShippedSensorEntry[] = [...this.sensors.installed.values()]
+    const chosen = [...this.sensors.installed.values()]
       .filter((sensor) => names === undefined || names.includes(sensor.name))
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    const entries: InstalledSensorEntry[] = chosen
+      .filter((sensor) => sensor.unreadable === undefined)
       .map((sensor) => ({
         name: sensor.name,
         display: sensor.display ?? sensor.name,
@@ -30,7 +33,12 @@ export class FakeSensorCatalog implements SensorCatalog {
         findings: [],
         settings: [],
       }));
+    const unreadable = chosen.flatMap((sensor) =>
+      sensor.unreadable === undefined
+        ? []
+        : [{ name: sensor.name, reason: sensor.unreadable }],
+    );
 
-    return { sensors: entries, unreadable: [] };
+    return { sensors: entries, unreadable };
   }
 }

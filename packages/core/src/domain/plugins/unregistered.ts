@@ -9,13 +9,13 @@ export function unregisteredMessage(name: string): string {
 export function unregisteredSensors(
   registered: readonly string[],
   requested: readonly string[],
-  shipped: readonly string[],
+  installed: readonly string[],
 ): string[] {
   const names: string[] = [];
 
   for (const name of requested) {
     if (
-      shipped.includes(name) &&
+      installed.includes(name) &&
       !registered.includes(name) &&
       !names.includes(name)
     ) {

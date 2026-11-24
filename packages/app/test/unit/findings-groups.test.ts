@@ -11,9 +11,9 @@ import {
   withEmptyGroups,
 } from "../../src/findings-groups";
 import { findingRows } from "../../src/findings-order";
-import { shippedSensors } from "../../src/shipped-fake";
+import { installedSensors } from "../../src/installed-fake";
 
-const CATALOG = buildCatalog({ status: "ok", sensors: shippedSensors() });
+const CATALOG = buildCatalog({ status: "ok", sensors: installedSensors() });
 
 function record(
   id: string,
@@ -197,7 +197,7 @@ describe("groupsOf", () => {
     expect(groups[0]?.rows).toHaveLength(2);
   });
 
-  it("gives the three shipped sensors' keys in the order crap, coverage, mutation after the structure groups", () => {
+  it("gives the three installed sensors' keys in the order crap, coverage, mutation after the structure groups", () => {
     const groups = groupsOf(
       findingRows([
         document("t", [

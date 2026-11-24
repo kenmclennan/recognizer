@@ -570,8 +570,7 @@ export interface DoctorFacts {
   languages: string[];
   scanners: InstalledPlugin[];
   plugins(specs: PluginSpec[]): PluginFact[];
-  shipped: { sensors: string[]; describer: boolean; describerName: string };
-  shippedDisplay?(kind: PluginSpec["kind"], name: string): string | undefined;
+  testsUnrun: { name: string; display?: string }[];
   protocol: PluginFacts;
 }
 
@@ -585,25 +584,19 @@ const NONE: RegisteredPlugins = {
 
 function unregisteredProblems(
   facts: DoctorFacts,
-  registered: RegisteredPlugins,
   kind: PluginSpec["kind"],
 ): Found[] {
-  const names =
-    kind === "sensor"
-      ? facts.shipped.sensors.filter(
-          (name) => !registered.sensors.includes(name),
-        )
-      : facts.shipped.describer && !registered.describer
-        ? [facts.shipped.describerName]
-        : [];
+  if (kind !== "sensor") {
+    return [];
+  }
 
-  return names.map(
-    (name): Found => ({
+  return facts.testsUnrun.map(
+    ({ name, display }): Found => ({
       code: "unregistered-plugin",
       subject: name,
       line: unregisteredMessage(name),
       fix: { text: UNREGISTERED_FIX(name), command: UNREGISTERED_FIX(name) },
-      display: facts.shippedDisplay?.(kind, name),
+      display,
     }),
   );
 }
@@ -627,7 +620,7 @@ function pluginArea(
         : facts
             .plugins(specs)
             .flatMap((fact) => pluginProblems(fact, facts.protocol))),
-      ...unregisteredProblems(facts, registered, kind),
+      ...unregisteredProblems(facts, kind),
     ],
   };
 }

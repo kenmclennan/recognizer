@@ -1,6 +1,6 @@
 import { InvalidRequest } from "../../domain/invalid-request.js";
 import { parseSuiteSelection } from "../../domain/sensing/suite-selection.js";
-import { isScoped, runsTests } from "../plugins/shipped-plugins.js";
+import { isScoped, runsTests } from "../plugins/installed-sensors.js";
 import type { SensingPorts } from "./internal/sensing-ports.js";
 import type {
   PlannedSensor,
@@ -26,7 +26,7 @@ export function planSensors(
   ports: SensingPorts,
   input: SensorPlanInput,
 ): SensorPlan {
-  const { selected, shipped } = input.selection;
+  const { selected, installed } = input.selection;
   const configured = (ports.config.tests(input.config) ?? []).map(
     (suite) => suite.name,
   );
@@ -38,7 +38,7 @@ export function planSensors(
           configured,
           selected.map((one) => ({
             name: one.name,
-            runsTests: runsTests(one.command, shipped),
+            runsTests: runsTests(one.command, installed),
           })),
         );
   const explicit: Record<string, string[]> = { ...parsed };
@@ -54,7 +54,7 @@ export function planSensors(
   const chosen: Record<string, string[]> = {};
 
   for (const one of selected.filter((entry) =>
-    runsTests(entry.command, shipped),
+    runsTests(entry.command, installed),
   )) {
     const names = explicit[one.name] ?? configured;
 
@@ -63,13 +63,13 @@ export function planSensors(
 
   const { modulesFile } = input;
   const scoped = (command: string[]): string[] =>
-    modulesFile !== undefined && isScoped(command, shipped)
+    modulesFile !== undefined && isScoped(command, installed)
       ? [...command, "--modules", ports.files.absolute(modulesFile)]
       : command;
   const withSuites = (name: string, command: string[]): string[] => {
     const names = explicit[name];
 
-    return names !== undefined && runsTests(command, shipped)
+    return names !== undefined && runsTests(command, installed)
       ? [...command, "--suites", JSON.stringify(chosen[name] ?? names)]
       : command;
   };
@@ -77,8 +77,8 @@ export function planSensors(
   const planned: PlannedSensor[] = selected.map(({ name, command }) => ({
     name,
     command: withSuites(name, scoped(command)),
-    runsTests: runsTests(command, shipped),
-    scoped: isScoped(command, shipped),
+    runsTests: runsTests(command, installed),
+    scoped: isScoped(command, installed),
   }));
 
   return { selected: planned, chosen };

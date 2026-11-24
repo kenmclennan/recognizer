@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
+import { installedSensor } from "../../src/installed-fake";
 import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
-import { shippedSensor } from "../../src/shipped-fake";
 
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const H1 = "1".repeat(64);
@@ -35,7 +35,7 @@ const scan = {
 const inputs = { "app/a.py": ${JSON.stringify(H1)}, "app/b.py": ${JSON.stringify(H2)} };
 const overlay = JSON.stringify({ overlay_version: 2, commit: ${JSON.stringify(COMMIT)}, modified: false, inputs, tests: ${JSON.stringify(TESTS)}, producer: { name: "crap", version: "0.1.0" }, metrics: [{ name: "crap", type: "count", granularity: "member", bad: "high" }], values: { crap: { "app/a.py::f": 8, "app/b.py::f": 5 } } });
 const loaded = loadedOf({ modules: ids, scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", text: overlay, modifiedMs: Date.now() }], sensors: [{ name: "crap", status: "ran", measured: { inputs, tests: ${JSON.stringify(TESTS)} } }], tests: ${JSON.stringify(TESTS)} });
-const SHIPPED = ${JSON.stringify([{ ...shippedSensor("crap"), display: "crap", description: "x", runsTests: true, metrics: shippedSensor("crap").metrics.slice(0, 1) }])};
+const INSTALLED = ${JSON.stringify([{ ...installedSensor("crap"), display: "crap", description: "x", runsTests: true, metrics: installedSensor("crap").metrics.slice(0, 1) }])};
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
@@ -47,7 +47,7 @@ const idle = () => ({ running: false, runState: { running: [], started: null, fa
 let st = idle();
 const scanState = () => ({ origin: { branch: "main", commit: "abc1234" }, scannedAt: Date.now(), changes: { files: [{ path: "app/b.py", kind: "modified" }], moved: null }, scanning: st.progressText });
 const scanHost = scanHostOf({
-  port: fakeSensors({}, {}, {}, SHIPPED),
+  port: fakeSensors({}, {}, {}, INSTALLED),
   scan: scanState,
   runState: () => st.runState,
   running: () => st.running,

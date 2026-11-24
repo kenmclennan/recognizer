@@ -34,7 +34,6 @@ export interface RunPhases {
   readRunConfig(root: string, skipRetired: boolean): ConfigDocument | null;
   locateDescriber(root: string): LocatedDescriber;
   selectSensors(input: SensorSelectionInput): SensorSelection;
-  refuseShippedDescriber(located: LocatedDescriber): void;
   planSensors(input: SensorPlanInput): SensorPlan;
   detectLanguages(input: DetectLanguagesInput): string[];
   describingSettings(): DescribingSettings;

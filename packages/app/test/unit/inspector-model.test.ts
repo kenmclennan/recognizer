@@ -26,9 +26,9 @@ import {
   inspectorContent,
   type Row,
 } from "../../src/inspector-model";
+import { installedSensors } from "../../src/installed-fake";
 import type { MetricDescriptor } from "../../src/overlay-model";
 import { metricEntryOf } from "../../src/overlay-model";
-import { shippedSensors } from "../../src/shipped-fake";
 import {
   CURRENT,
   expectedScan,
@@ -59,12 +59,12 @@ const scanOf = (
   ...extra,
 });
 
-const SHIPPED = { status: "ok" as const, sensors: shippedSensors() };
-const REAL_LIMITS = functionLimits(null, SHIPPED);
-const CATALOG = buildCatalog(SHIPPED);
+const INSTALLED = { status: "ok" as const, sensors: installedSensors() };
+const REAL_LIMITS = functionLimits(null, INSTALLED);
+const CATALOG = buildCatalog(INSTALLED);
 
 function named(label: string, overlay: string) {
-  const entry = metricEntryOf(SHIPPED.sensors, overlay, label);
+  const entry = metricEntryOf(INSTALLED.sensors, overlay, label);
 
   return { title: entry?.title ?? label, short: entry?.label ?? label };
 }
@@ -1896,7 +1896,7 @@ describe("the metrics row on a function card", () => {
   it("colours a cell red when its severity setting is violation", () => {
     const limits = functionLimits(
       parseConfig("sensors:\n  crap:\n    coverage_limit: 0.7\n"),
-      SHIPPED,
+      INSTALLED,
     );
 
     expect(

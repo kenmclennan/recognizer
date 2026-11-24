@@ -11,9 +11,9 @@ import {
   splitAtRun,
   unanswered,
 } from "../../domain/plugins/sensor-check.js";
+import type { ManifestReader } from "./installed-sensors.js";
 import type { PluginPorts } from "./internal/plugin-ports.js";
 import { readManifestOf } from "./read-manifest.js";
-import type { ManifestReader } from "./shipped-plugins.js";
 
 export type { SensorReport };
 

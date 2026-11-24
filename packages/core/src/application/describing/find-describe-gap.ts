@@ -24,7 +24,7 @@ export function findDescribeGap(
   try {
     const located = ports.describer.locate(root);
 
-    if (located.describer === null || located.shipped) {
+    if (located.describer === null) {
       return null;
     }
 

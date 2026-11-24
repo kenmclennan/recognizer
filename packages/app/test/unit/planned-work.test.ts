@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { plainSensor } from "../../src/installed-fake";
 import {
   createPlannedWork,
   declaredLogPath,
@@ -7,7 +8,6 @@ import {
   workScopes,
 } from "../../src/planned-work";
 import { fakeSensors } from "../../src/sensors-fake";
-import { plainSensor } from "../../src/shipped-fake";
 
 const SCOPE = {
   sensor: "mutation",
@@ -115,7 +115,7 @@ describe("workScopes", () => {
     modules: ["a.py"],
     suites: { alpha: ["unit"] },
   };
-  const shipped = {
+  const installed = {
     status: "ok" as const,
     sensors: [
       plainSensor("alpha", { plannedWork: { verb: "mutate" } }),
@@ -125,13 +125,13 @@ describe("workScopes", () => {
   };
 
   it("workScopes returns one scope per declaring sensor in the plan", () => {
-    expect(workScopes(plan, shipped, "s1")).toEqual([
+    expect(workScopes(plan, installed, "s1")).toEqual([
       { sensor: "alpha", modules: ["a.py"], suites: ["unit"], stamp: "s1" },
       { sensor: "beta", modules: ["a.py"], suites: null, stamp: "s1" },
     ]);
   });
 
-  it("workScopes returns nothing when the shipped list is unavailable", () => {
+  it("workScopes returns nothing when the installed list is unavailable", () => {
     expect(workScopes(plan, null, "s1")).toEqual([]);
     expect(
       workScopes(plan, { status: "unavailable", reason: "x" }, "s1"),

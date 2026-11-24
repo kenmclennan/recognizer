@@ -45,52 +45,42 @@ function fresh() {
 }
 
 describe("recognizer plugin add", () => {
-  it("registers a shipped-named sensor as an empty mapping and records its install line", async () => {
-    const { bin, repo } = fresh();
+  it("registers an installed sensor of any name as an empty mapping and records its install line", async () => {
+    for (const name of ["crap", "tally", "coverage"]) {
+      const { bin, repo } = fresh();
 
-    writeShim(
-      bin,
-      "recognizer-sense-crap",
-      manifestFor("sensor", "crap", { install: "get crap" }),
-    );
+      writeShim(
+        bin,
+        `recognizer-sense-${name}`,
+        manifestFor("sensor", name, { install: `get ${name}` }),
+      );
 
-    const { code, out } = await add(bin, repo, ["crap"]);
+      const { code, out } = await add(bin, repo, [name]);
 
-    expect(code).toBe(0);
-    expect(out).toContain("registered as sensors.crap");
-    expect(parse(configOf(repo))).toEqual({
-      sensors: { crap: {} },
-      install: { "recognizer-sense-crap": "get crap" },
-    });
+      expect(code).toBe(0);
+      expect(out).toContain(`registered as sensors.${name}`);
+      expect(parse(configOf(repo))).toEqual({
+        sensors: { [name]: {} },
+        install: { [`recognizer-sense-${name}`]: `get ${name}` },
+      });
+    }
   });
 
-  it("registers a third-party sensor with the words of its command", async () => {
+  it("reports an installed sensor as already registered and keeps its settings", async () => {
     const { bin, repo } = fresh();
 
-    writeShim(
-      bin,
-      "recognizer-sense-mine",
-      manifestFor("sensor", "mine", { install: "get mine" }),
+    writeShim(bin, "recognizer-sense-tally", manifestFor("sensor", "tally"));
+    mkdirSync(join(repo, ".recognizer"));
+    writeFileSync(
+      join(repo, ".recognizer", "config.yaml"),
+      "sensors:\n  tally:\n    threshold: 3\n",
     );
 
-    expect((await add(bin, repo, ["mine"])).code).toBe(0);
-    expect(parse(configOf(repo))).toEqual({
-      sensors: {
-        mine: {
-          command: [
-            "recognizer-sense-mine",
-            "run",
-            "--repository",
-            "{repository}",
-            "--commit",
-            "{commit}",
-            "--output",
-            "{output}",
-          ],
-        },
-      },
-      install: { "recognizer-sense-mine": "get mine" },
-    });
+    const { code, out } = await add(bin, repo, ["tally"]);
+
+    expect(code).toBe(0);
+    expect(out).toContain("already registered");
+    expect(parse(configOf(repo)).sensors.tally).toEqual({ threshold: 3 });
   });
 
   it("registers a describer with its command, version and install line", async () => {
@@ -247,7 +237,7 @@ describe("recognizer plugin add", () => {
     });
   });
 
-  it("keeps the settings of an already registered shipped sensor", async () => {
+  it("keeps the settings of an already registered official sensor", async () => {
     const { bin, repo } = fresh();
 
     writeShim(bin, "recognizer-sense-crap", manifestFor("sensor", "crap"));

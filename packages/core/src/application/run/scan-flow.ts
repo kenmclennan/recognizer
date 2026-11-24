@@ -54,7 +54,7 @@ export function* scanFlow(
   let named: Record<string, string> = {};
   let install: Record<string, string> = {};
   let describerBuild: DescriberBuild | null = null;
-  let located: LocatedDescriber = { describer: null, shipped: false };
+  let located: LocatedDescriber = { describer: null };
   let selected: PlannedSensor[] = [];
   let chosen: Record<string, string[]> = {};
   let folderKnown = false;
@@ -85,8 +85,6 @@ export function* scanFlow(
     }
 
     const selection = phases.selectSensors({ root, config, limits, sense });
-
-    phases.refuseShippedDescriber(located);
 
     const plan = phases.planSensors({
       selection,

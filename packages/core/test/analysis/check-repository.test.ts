@@ -94,7 +94,7 @@ describe("checkRepository", () => {
       inputs: { "a/x.py": "other" },
     };
 
-    fakes.analysis.shipped.push("crap", "mutation");
+    fakes.config.sensors.push("crap", "mutation");
     fakes.findings.stored.set("crap", {
       name: "crap",
       status: "read",
@@ -157,7 +157,7 @@ describe("checkRepository warnings", () => {
     };
 
     fakes.config.settings = DEFAULT_STRUCTURE_SETTINGS;
-    fakes.analysis.shipped.push("crap");
+    fakes.config.sensors.push("crap");
     fakes.findings.stored.set("crap", {
       name: "crap",
       status: "read",

@@ -15,13 +15,12 @@ import {
 import type { Io } from "../../cli.js";
 import { policyFile } from "../../config.js";
 import type { Config } from "../../config-parse.js";
-import { shippedPorts } from "../../manifest-ports.js";
+import { manifestPorts } from "../../manifest-ports.js";
 import type { createPluginLimits } from "../../plugin-run.js";
 import { warnPolicyProblems } from "../../policy-problems.js";
 import { runSensors } from "../../run-sensors.js";
 import { resolveStructureSettings } from "../../structure-sensor.js";
 import { diagnosisOf } from "../filesystem/diagnosis-translator.js";
-import { shippedSensorNames } from "./shipped-plugins-adapter.js";
 import { sinkIo } from "./sink-io.js";
 
 type Limits = ReturnType<typeof createPluginLimits>;
@@ -46,7 +45,7 @@ export class SensorsAdapter implements Sensors, Analysis {
     limits: PluginLimits,
   ): SensorReport[] {
     return checkSensors(
-      shippedPorts(this.io),
+      manifestPorts(this.io),
       root,
       sensors,
       {},
@@ -56,10 +55,6 @@ export class SensorsAdapter implements Sensors, Analysis {
 
   analysisPlan(config: ConfigDocument | null): StructureSettings | "off" {
     return resolveStructureSettings(config as unknown as Config | null);
-  }
-
-  shippedSensorNames(): string[] {
-    return shippedSensorNames();
   }
 
   reportPolicyProblems(

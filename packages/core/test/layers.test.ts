@@ -487,15 +487,14 @@ describe("core layers", () => {
 
     const NAMING_PLUGINS = [
       "src/application/plugins/diagnose.ts",
+      "src/application/plugins/installed-sensors.ts",
       "src/application/plugins/scaffold-plugin.ts",
-      "src/application/plugins/shipped-plugins.ts",
       "src/domain/configuration/published-keys.ts",
       "src/domain/plugins/choose-scanner.ts",
       "src/domain/plugins/doctor-report.ts",
       "src/domain/plugins/installed-plugin.ts",
       "src/domain/plugins/sensor-check.ts",
       "test/features/plugins.feature",
-      "test/plugins/shipped-plugins.test.ts",
       "test/steps/plugins.steps.ts",
     ];
     const ownsPluginNaming = (file: string): boolean =>

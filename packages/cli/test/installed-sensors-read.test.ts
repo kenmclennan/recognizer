@@ -1,11 +1,14 @@
-import { readShippedSensors } from "@recognizer/core";
+import { readInstalledSensors } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
-import { shippedPorts } from "../src/manifest-ports.js";
-import { fakeIo, ROOT } from "./scan-helpers.js";
-import { exampleManifest, readExamples } from "./shipped-read.js";
+import {
+  exampleManifest,
+  examplePorts,
+  readExamples,
+} from "./installed-read.js";
+import { fakeIo, OFFICIAL_ON_PATH, ROOT } from "./scan-helpers.js";
 
-describe("readShippedSensors", () => {
+describe("readInstalledSensors", () => {
   it("returns three entries in names order, listed for those with a metric", () => {
     const read = readExamples();
 
@@ -41,8 +44,8 @@ describe("readShippedSensors", () => {
     delete (bare.metrics[0] as { unlisted?: boolean }).unlisted;
 
     const manifests = { mutation: declaring, crap: bare as typeof crap };
-    const read = readShippedSensors(
-      shippedPorts({} as Io),
+    const read = readInstalledSensors(
+      examplePorts(),
       (prefix) => ({
         ok: true,
         manifest:
@@ -94,6 +97,7 @@ describe("one manifest read per plugin in a scan", () => {
   it("runs no more manifests than the sensors a scan selects", async () => {
     const fake = fakeIo({
       sensorManifests: true,
+      onPath: OFFICIAL_ON_PATH,
       commit: "abc",
       files: {
         [`${ROOT}/.recognizer/config.yaml`]:
