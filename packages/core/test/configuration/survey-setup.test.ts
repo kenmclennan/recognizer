@@ -122,7 +122,7 @@ describe("surveySetup", () => {
     ]);
   });
 
-  it("filterListing keeps a target folder and drops node_modules, dist and .git parts", async () => {
+  it("filterListing keeps target and node_modules folders and drops dist and .git parts", async () => {
     const world = worldOf();
 
     seedFiles(world, [
@@ -136,6 +136,7 @@ describe("surveySetup", () => {
 
     expect(world.fakes.surveyPlugins.requests[0]?.files).toEqual([
       "a.ts",
+      "node_modules/y.ts",
       "target/c.rs",
     ]);
   });
@@ -152,7 +153,7 @@ describe("surveySetup", () => {
     expect(world.fakes.surveyPlugins.requests).toEqual([
       {
         root: ROOT,
-        files: ["a.ts", "b.ts", "target/c.rs"],
+        files: ["a.ts", "b.ts", "node_modules/x/a.ts", "target/c.rs"],
         suites: [{ language: "python", directory: "legacy" }],
       },
     ]);

@@ -7,7 +7,7 @@ from pathlib import Path
 SOURCE_EXTENSIONS = (".cs",)
 MARKUP_EXTENSIONS = (".razor", ".cshtml", ".xaml")
 LEFT_OUT_EXTENSIONS = (".fs", ".vb")
-SKIPPED_DIRECTORY_NAMES = ("bin", "obj")
+SKIPPED_DIRECTORY_NAMES = ("bin", "obj", "node_modules")
 SKIPPED_DIRECTORY_PREFIXES = (".",)
 SKIPPED_FILE_PATTERNS = ("*.g.cs", "*.g.i.cs", "*.Designer.cs")
 SOLUTION_EXTENSIONS = (".sln", ".slnx")

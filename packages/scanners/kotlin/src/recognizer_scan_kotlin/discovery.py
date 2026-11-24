@@ -9,6 +9,7 @@ from pathlib import Path
 SOURCE_EXTENSIONS = (".kt",)
 SKIPPED_DIRECTORY_NAMES = (
     "build",
+    "node_modules",
     "test",
     "androidTest",
     "integrationTest",
