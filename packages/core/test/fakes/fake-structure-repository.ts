@@ -8,7 +8,13 @@ export function cachePath(root: string, language: string): string {
 export class FakeStructureRepository implements StructureRepository {
   readonly scans = new Map<string, Repository>();
 
+  unreadable = false;
+
   exists(): boolean {
+    if (this.unreadable) {
+      throw new Error("the scan document cannot be read");
+    }
+
     return true;
   }
 

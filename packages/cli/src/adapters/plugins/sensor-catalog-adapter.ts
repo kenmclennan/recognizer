@@ -18,6 +18,10 @@ export class SensorCatalogAdapter implements SensorCatalog {
     return installedSensorNames(manifestPorts(this.io));
   }
 
+  unreadableFolders(): string[] {
+    return manifestPorts(this.io).programs.unreadableOnPath();
+  }
+
   readInstalled(
     names?: readonly string[],
     limits?: PluginLimits,

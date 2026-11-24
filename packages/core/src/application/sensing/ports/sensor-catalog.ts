@@ -3,6 +3,7 @@ import type { PluginLimits } from "../../shared/ports/process.js";
 
 export interface SensorCatalog {
   installedNames(): string[];
+  unreadableFolders(): string[];
   readInstalled(
     names?: readonly string[],
     limits?: PluginLimits,

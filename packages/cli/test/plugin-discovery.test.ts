@@ -63,6 +63,15 @@ describe("discoverPlugins", () => {
     expect(found.unreadable[0]?.reason).toContain("did not print JSON");
   });
 
+  it("names a PATH folder that cannot be read apart from one with no plugins", () => {
+    const { first, second } = setup();
+    const missing = join(second, "gone");
+    const io = ioWithPath([first, missing]);
+
+    expect(manifestPorts(io).programs.unreadableOnPath()).toEqual([missing]);
+    expect(manifestPorts(io).programs.listOnPath(["recognizer-"])).toEqual([]);
+  });
+
   it("skips a directory with a plugin name and a name with nothing after the prefix", () => {
     const { first, io } = setup();
 

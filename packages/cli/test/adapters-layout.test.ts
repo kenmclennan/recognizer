@@ -8,6 +8,7 @@ const adapters = resolve(here, "../src/adapters");
 
 const expected: Record<string, string[]> = {
   filesystem: [
+    "active-run-adapter.ts",
     "baseline-adapter.ts",
     "config-adapter.ts",
     "config-keys-adapter.ts",
@@ -19,6 +20,7 @@ const expected: Record<string, string[]> = {
     "plugin-registry-adapter.ts",
     "policy-adapter.ts",
     "policy-translator.ts",
+    "progress-translator.ts",
     "recorded-scans-adapter.ts",
     "repository-text.ts",
     "responsibilities-adapter.ts",

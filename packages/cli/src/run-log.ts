@@ -103,6 +103,7 @@ export const KEEP = 50;
 const NAME = /^\d{8}T\d{9}Z-(scan|sense|describe|measure|setup)\.json$/;
 const ID = /^\d{8}T\d{9}Z-(scan|sense|describe|measure)$/;
 const BY_LIMIT = 64;
+const RECYCLE_SLACK_MS = 5000;
 
 export function logDirectory(root: string): string {
   return join(root, ".recognizer", "cache", "log");
@@ -538,4 +539,130 @@ export function latestRun(
   const newest = runs[0];
 
   return newest === undefined ? null : readRun(io, root, newest.id);
+}
+
+export interface KilledRunDetails {
+  runId: string;
+  startedAt: string;
+  startedBy: string;
+  running: string[];
+}
+
+const KILLED_REASON = "the run was killed outright";
+
+function stoppedEntry(name: string): RunEntry {
+  return {
+    name,
+    command: [],
+    status: null,
+    outcome: "stopped",
+    duration_ms: 0,
+    reason: KILLED_REASON,
+    stderr: "",
+  };
+}
+
+function withStoppedEntries(phases: RunPhase[], names: string[]): RunPhase[] {
+  const has = (phase: RunPhase, name: string) =>
+    phase.entries.some((entry) => entry.name === name);
+  const fresh = names.filter(
+    (name) => !phases.some((phase) => has(phase, name)),
+  );
+
+  if (fresh.length === 0) {
+    return phases;
+  }
+
+  const entries = fresh.map(stoppedEntry);
+  const sense = phases.find((phase) => phase.phase === "sense");
+
+  return sense === undefined
+    ? [...phases, { phase: "sense", entries }]
+    : phases.map((phase) =>
+        phase === sense
+          ? { ...phase, entries: [...phase.entries, ...entries] }
+          : phase,
+      );
+}
+
+function openScanRecord(
+  io: Io,
+  root: string,
+  startedAt: string,
+): { file: string; record: RunRecord } | null {
+  const directory = logDirectory(root);
+  const names = io
+    .readDir(directory)
+    .map((entry) => entry.name)
+    .filter((name) => NAME.test(name) && name.endsWith("-scan.json"))
+    .sort()
+    .reverse();
+  const earliest = Date.parse(startedAt) - RECYCLE_SLACK_MS;
+
+  for (const name of names) {
+    const file = join(directory, name);
+    let record: RunRecord;
+
+    try {
+      record = validateRunRecord(JSON.parse(io.readFile(file)));
+    } catch {
+      continue;
+    }
+
+    if (Date.parse(record.started) < earliest) {
+      return null;
+    }
+
+    if (
+      record.kind === "scan" &&
+      record.outcome === "running" &&
+      record.finished === null
+    ) {
+      return { file, record };
+    }
+  }
+
+  return null;
+}
+
+export function settleKilledRun(
+  io: Io,
+  root: string,
+  killed: KilledRunDetails,
+): void {
+  let open: { file: string; record: RunRecord } | null = null;
+
+  try {
+    open = openScanRecord(io, root, killed.startedAt);
+  } catch {
+    open = null;
+  }
+
+  const finished = new Date(io.now()).toISOString();
+
+  if (open !== null) {
+    writeAtomic(io, open.file, {
+      ...open.record,
+      finished,
+      outcome: "failed",
+      exit: 1,
+      phases: withStoppedEntries(open.record.phases ?? [], killed.running),
+    });
+
+    return;
+  }
+
+  const record: RunRecord = {
+    log_version: 1,
+    kind: "scan",
+    started: killed.startedAt,
+    finished,
+    by: asker(io, killed.startedBy),
+    arguments: ["scan"],
+    outcome: "failed",
+    exit: 1,
+    phases: withStoppedEntries([], killed.running),
+  };
+
+  placeRunLog(io, root, record);
 }

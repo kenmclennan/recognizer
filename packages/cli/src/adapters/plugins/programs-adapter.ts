@@ -58,6 +58,20 @@ export class ProgramsAdapter implements Programs {
     return found;
   }
 
+  unreadableOnPath(): string[] {
+    const folders: string[] = [];
+
+    for (const directory of this.directories()) {
+      try {
+        this.io.readDir(directory);
+      } catch {
+        folders.push(directory);
+      }
+    }
+
+    return folders;
+  }
+
   run(
     program: string,
     args: string[],

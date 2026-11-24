@@ -252,7 +252,7 @@ export const COMMANDS: Command[] = [
     arguments: [],
     options: [],
     output: {
-      text: "one JSON line per reply or stream item on stdout, and nothing else; a request is { id, op, args } with op one of scan.start, scan.stop, scan.status, scan.watch, scan.unwatch, scan.plan, confirm.answer or sensor.work",
+      text: "one JSON line per reply or stream item on stdout, and nothing else; a request is { id, op, args } with op one of scan.start, scan.stop, scan.status, scan.watch, scan.unwatch, repository.watch, repository.unwatch, repository.state, scan.plan, confirm.answer or sensor.work",
       json: "the same lines: { id, ok } or { id, error } per request, and { stream, event | outcome | run | line } items",
     },
     exitCodes: [

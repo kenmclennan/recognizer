@@ -1,5 +1,6 @@
 import type {
   DescribeLog,
+  KilledRun,
   RunEntry,
   RunLog,
   RunLogRepository,
@@ -21,6 +22,46 @@ export class FakeRunLogRepository implements RunLogRepository {
   }[] = [];
 
   failClose = false;
+  failSettles = 0;
+
+  readonly settledKills: KilledRun[] = [];
+
+  readonly records: {
+    runId: string;
+    outcome: "running" | "failed";
+    stopped: string[];
+  }[] = [];
+
+  openRecord(runId: string): void {
+    this.records.push({ runId, outcome: "running", stopped: [] });
+  }
+
+  settleKilled(_root: string, killed: KilledRun): void {
+    if (this.failSettles > 0) {
+      this.failSettles -= 1;
+
+      throw new Error("the log directory cannot be written");
+    }
+
+    this.settledKills.push(killed);
+
+    const open = this.records.find(
+      (one) => one.runId === killed.runId && one.outcome === "running",
+    );
+
+    if (open === undefined) {
+      this.records.push({
+        runId: killed.runId,
+        outcome: "failed",
+        stopped: [...killed.running],
+      });
+
+      return;
+    }
+
+    open.outcome = "failed";
+    open.stopped = [...killed.running];
+  }
 
   openDescribe(
     _root: string,

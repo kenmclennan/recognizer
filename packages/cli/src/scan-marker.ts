@@ -392,7 +392,7 @@ export function startedNoLaterThan(lstart: string, startedAt: string): boolean {
   return start <= recorded / 1000 + RECYCLE_SLACK_SECONDS;
 }
 
-function processIsTheScan(io: Io, record: ScanRunRecord): boolean {
+export function processIsTheScan(io: Io, record: ScanRunRecord): boolean {
   if (!io.pidAlive(record.pid)) {
     return false;
   }
@@ -413,7 +413,11 @@ function processIsTheScan(io: Io, record: ScanRunRecord): boolean {
   return startedNoLaterThan(result.stdout.trim(), record.started_at);
 }
 
-function endedAtFor(io: Io, root: string, record: ScanRunRecord): string {
+export function endedAtFor(
+  io: Io,
+  root: string,
+  record: ScanRunRecord,
+): string {
   const modified = io.modified?.(progressPath(root)) ?? null;
 
   return modified === null
@@ -446,4 +450,37 @@ export function readRun(io: Io, root: string): ScanRunRecord | null {
     phase: "stopped",
     ended_at: endedAtFor(io, root, record),
   };
+}
+
+export function settleKilledMarker(
+  io: Io,
+  root: string,
+  runId: string,
+): "settled" | "not-owned" {
+  const path = markerPath(root);
+  const current = parseMarker(io.readFile(path));
+
+  if (current === null) {
+    throw new Error(`the scan marker ${path} cannot be read`);
+  }
+
+  if (
+    current.run_id !== runId ||
+    (current.phase !== "checking" && current.phase !== "running") ||
+    processIsTheScan(io, current)
+  ) {
+    return "not-owned";
+  }
+
+  const settled: ScanRunRecord = {
+    ...current,
+    phase: "stopped",
+    ended_at: endedAtFor(io, root, current),
+  };
+  const temporary = `${path}.settle.tmp`;
+
+  io.writeFile(temporary, `${JSON.stringify(settled, null, 2)}\n`);
+  io.rename(temporary, path);
+
+  return "settled";
 }

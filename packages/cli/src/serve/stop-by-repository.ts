@@ -1,8 +1,10 @@
 import type { Io } from "../cli.js";
 import { readRun, type ScanRunRecord } from "../scan-marker.js";
+import type { StopBackstops } from "./stop-backstops.js";
 import { isActive } from "./watch.js";
 
 export const SIGNAL_BACKSTOP_MS = 15_000;
+export const BACKSTOP_CHECK_MS = 250;
 
 export type StopOwner = "any" | "app";
 
@@ -19,7 +21,7 @@ export function systemSignals(): Signals {
       } catch {}
     },
     later: (ms, action) => {
-      setTimeout(action, ms).unref();
+      setTimeout(action, ms);
     },
   };
 }
@@ -30,6 +32,7 @@ export function stopMarkerProcess(
   owner: StopOwner,
   signals: Signals,
   backstopMs: number = SIGNAL_BACKSTOP_MS,
+  backstops?: StopBackstops,
 ): void {
   const run: ScanRunRecord | null = readRun(io, repository);
 
@@ -43,10 +46,49 @@ export function stopMarkerProcess(
 
   if (run.started_by === "app" || run.pgid === run.pid) {
     signals.signal(run.pid, true, "SIGTERM");
-    signals.later(backstopMs, () => signals.signal(run.pid, true, "SIGKILL"));
+    holdBackstop(io, repository, run, signals, backstopMs, backstops);
 
     return;
   }
 
   signals.signal(run.pid, false, "SIGTERM");
+}
+
+function holdBackstop(
+  io: Io,
+  repository: string,
+  run: ScanRunRecord,
+  signals: Signals,
+  backstopMs: number,
+  backstops: StopBackstops | undefined,
+): void {
+  const release = backstops?.begin() ?? (() => {});
+  let waited = 0;
+
+  const check = () => {
+    const now = readRun(io, repository);
+
+    if (now === null || !isActive(now) || now.run_id !== run.run_id) {
+      release();
+
+      return;
+    }
+
+    if (waited >= backstopMs) {
+      signals.signal(run.pid, true, "SIGKILL");
+      release();
+
+      return;
+    }
+
+    const next = Math.min(BACKSTOP_CHECK_MS, backstopMs - waited);
+
+    waited += next;
+    signals.later(next, check);
+  };
+
+  const first = Math.min(BACKSTOP_CHECK_MS, backstopMs);
+
+  waited += first;
+  signals.later(first, check);
 }

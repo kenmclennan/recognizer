@@ -75,6 +75,7 @@ describe("fakes", () => {
     ]);
     expect(fakeKeys).toEqual(
       [
+        "active",
         "analysis",
         "assistant",
         "baseline",

@@ -75,6 +75,10 @@ export class FakePrograms implements Programs {
     return found;
   }
 
+  unreadableOnPath(): string[] {
+    return this.path.filter((directory) => this.unreadable.has(directory));
+  }
+
   run(
     program: string,
     args: string[],
