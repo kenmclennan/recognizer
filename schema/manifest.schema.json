@@ -781,7 +781,201 @@
         },
         "span": {
           "$ref": "#/$defs/spanRule"
+        },
+        "vocabulary": {
+          "$ref": "#/$defs/grammarVocabulary"
         }
+      }
+    },
+    "grammarVocabulary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "comment_markers": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "literal_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "literal_suffixes": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "call_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "identifier_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "identifier_suffixes": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "block_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "return_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "jump_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "return_keywords": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "assignment_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "positional_assignment_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "member_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "subscript_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "identifier_leaf_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "self_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "self_texts": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "shorthand_initialiser_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "field_initialiser_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "struct_literal_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "plain_name_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "expression_statement_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "docstring_string_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "argument_wrapper_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "argument_list_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "call_suffix_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "subscript_argument_list_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "parameter_list_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "expression_bodied_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "expression_body_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "function_body_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "name_leaf_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "binding_declarator_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "binding_name_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "operator_node_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "member_fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/memberField"
+          }
+        },
+        "node_names": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nodeNameRule"
+          }
+        }
+      }
+    },
+    "memberField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "field": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "nodeNameRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name_field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "strip_after": {
+          "type": "string",
+          "minLength": 1
+        },
+        "literal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "default": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "name_field"
+          ]
+        },
+        {
+          "required": [
+            "literal"
+          ]
+        },
+        {
+          "required": [
+            "default"
+          ]
+        }
+      ],
+      "dependentRequired": {
+        "strip_after": [
+          "name_field"
+        ]
       }
     },
     "nodeList": {

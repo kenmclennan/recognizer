@@ -104,6 +104,7 @@ const TOY: GrammarRule = {
   bound_function_types: [],
   function_names: [],
   span: null,
+  vocabulary: null,
 };
 
 describe("function finding driven by a rule", () => {
@@ -155,9 +156,18 @@ describe("complexity driven by a rule", () => {
       ],
     });
 
-    expect(cyclomaticComplexity(body, TOY, new Set())).toBe(4);
+    const operators = {
+      ...TOY,
+      vocabulary: { operator_node_types: ["binary_expression"] },
+    };
+
+    expect(cyclomaticComplexity(body, operators, new Set())).toBe(4);
     expect(
-      cyclomaticComplexity(body, { ...TOY, boolean_operators: [] }, new Set()),
+      cyclomaticComplexity(
+        body,
+        { ...operators, boolean_operators: [] },
+        new Set(),
+      ),
     ).toBe(3);
   });
 });

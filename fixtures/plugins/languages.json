@@ -30,7 +30,72 @@
           "or"
         ],
         "bound_function_types": [],
-        "function_names": []
+        "function_names": [],
+        "vocabulary": {
+          "comment_markers": [
+            "comment"
+          ],
+          "literal_types": [
+            "string",
+            "string_content",
+            "integer",
+            "float",
+            "true",
+            "false",
+            "none"
+          ],
+          "call_types": [
+            "call"
+          ],
+          "identifier_types": [
+            "identifier"
+          ],
+          "block_types": [
+            "block"
+          ],
+          "member_fields": [
+            {
+              "type": "attribute",
+              "field": "attribute"
+            }
+          ],
+          "return_types": [
+            "return_statement"
+          ],
+          "assignment_types": [
+            "assignment"
+          ],
+          "positional_assignment_types": [
+            "assignment"
+          ],
+          "member_types": [
+            "attribute"
+          ],
+          "subscript_types": [
+            "subscript"
+          ],
+          "identifier_leaf_types": [
+            "identifier"
+          ],
+          "self_texts": [
+            "self"
+          ],
+          "plain_name_types": [
+            "identifier"
+          ],
+          "expression_statement_types": [
+            "expression_statement"
+          ],
+          "docstring_string_types": [
+            "string"
+          ],
+          "name_leaf_types": [
+            "identifier"
+          ],
+          "operator_node_types": [
+            "boolean_operator"
+          ]
+        }
       }
     ],
     "extensions": [
@@ -122,7 +187,80 @@
           "function_expression",
           "function"
         ],
-        "function_names": []
+        "function_names": [],
+        "vocabulary": {
+          "comment_markers": [
+            "comment"
+          ],
+          "literal_types": [
+            "string",
+            "string_fragment",
+            "template_string",
+            "number",
+            "true",
+            "false",
+            "null",
+            "undefined",
+            "regex"
+          ],
+          "call_types": [
+            "call_expression"
+          ],
+          "identifier_types": [
+            "identifier"
+          ],
+          "identifier_suffixes": [
+            "_identifier"
+          ],
+          "member_fields": [
+            {
+              "type": "member_expression",
+              "field": "property"
+            }
+          ],
+          "return_types": [
+            "return_statement"
+          ],
+          "assignment_types": [
+            "assignment_expression"
+          ],
+          "member_types": [
+            "member_expression"
+          ],
+          "subscript_types": [
+            "subscript_expression"
+          ],
+          "identifier_leaf_types": [
+            "identifier",
+            "property_identifier"
+          ],
+          "self_types": [
+            "this"
+          ],
+          "self_texts": [
+            "self"
+          ],
+          "plain_name_types": [
+            "identifier"
+          ],
+          "expression_statement_types": [
+            "expression_statement"
+          ],
+          "name_leaf_types": [
+            "identifier",
+            "type_identifier",
+            "property_identifier"
+          ],
+          "binding_declarator_types": [
+            "variable_declarator"
+          ],
+          "binding_name_types": [
+            "identifier"
+          ],
+          "operator_node_types": [
+            "binary_expression"
+          ]
+        }
       },
       {
         "name": "tsx",
@@ -165,7 +303,80 @@
           "function_expression",
           "function"
         ],
-        "function_names": []
+        "function_names": [],
+        "vocabulary": {
+          "comment_markers": [
+            "comment"
+          ],
+          "literal_types": [
+            "string",
+            "string_fragment",
+            "template_string",
+            "number",
+            "true",
+            "false",
+            "null",
+            "undefined",
+            "regex"
+          ],
+          "call_types": [
+            "call_expression"
+          ],
+          "identifier_types": [
+            "identifier"
+          ],
+          "identifier_suffixes": [
+            "_identifier"
+          ],
+          "member_fields": [
+            {
+              "type": "member_expression",
+              "field": "property"
+            }
+          ],
+          "return_types": [
+            "return_statement"
+          ],
+          "assignment_types": [
+            "assignment_expression"
+          ],
+          "member_types": [
+            "member_expression"
+          ],
+          "subscript_types": [
+            "subscript_expression"
+          ],
+          "identifier_leaf_types": [
+            "identifier",
+            "property_identifier"
+          ],
+          "self_types": [
+            "this"
+          ],
+          "self_texts": [
+            "self"
+          ],
+          "plain_name_types": [
+            "identifier"
+          ],
+          "expression_statement_types": [
+            "expression_statement"
+          ],
+          "name_leaf_types": [
+            "identifier",
+            "type_identifier",
+            "property_identifier"
+          ],
+          "binding_declarator_types": [
+            "variable_declarator"
+          ],
+          "binding_name_types": [
+            "identifier"
+          ],
+          "operator_node_types": [
+            "binary_expression"
+          ]
+        }
       }
     ],
     "extensions": [
@@ -280,6 +491,101 @@
           "function_body_type": "function_body",
           "object_literal_type": "object_literal",
           "object_body_type": "class_body"
+        },
+        "vocabulary": {
+          "comment_markers": [
+            "comment"
+          ],
+          "literal_types": [
+            "string_content",
+            "true",
+            "false"
+          ],
+          "literal_suffixes": [
+            "_literal"
+          ],
+          "call_types": [
+            "call_expression"
+          ],
+          "identifier_types": [
+            "identifier"
+          ],
+          "identifier_suffixes": [
+            "_identifier"
+          ],
+          "block_types": [
+            "statements"
+          ],
+          "member_fields": [
+            {
+              "type": "navigation_expression"
+            },
+            {
+              "type": "navigation_suffix"
+            }
+          ],
+          "jump_types": [
+            "jump_expression"
+          ],
+          "return_keywords": [
+            "return"
+          ],
+          "assignment_types": [
+            "assignment"
+          ],
+          "positional_assignment_types": [
+            "assignment"
+          ],
+          "member_types": [
+            "navigation_expression"
+          ],
+          "subscript_types": [
+            "indexing_expression"
+          ],
+          "identifier_leaf_types": [
+            "identifier",
+            "simple_identifier"
+          ],
+          "self_types": [
+            "this",
+            "this_expression"
+          ],
+          "self_texts": [
+            "self"
+          ],
+          "plain_name_types": [
+            "identifier",
+            "simple_identifier"
+          ],
+          "argument_wrapper_types": [
+            "value_argument"
+          ],
+          "argument_list_types": [
+            "value_arguments"
+          ],
+          "call_suffix_types": [
+            "call_suffix"
+          ],
+          "subscript_argument_list_types": [
+            "indexing_suffix"
+          ],
+          "parameter_list_types": [
+            "function_value_parameters"
+          ],
+          "function_body_types": [
+            "function_body"
+          ],
+          "name_leaf_types": [
+            "identifier",
+            "type_identifier",
+            "simple_identifier"
+          ],
+          "node_names": [
+            {
+              "type": "companion_object",
+              "default": "Companion"
+            }
+          ]
         }
       }
     ],
@@ -355,7 +661,99 @@
           "||"
         ],
         "bound_function_types": [],
-        "function_names": []
+        "function_names": [],
+        "vocabulary": {
+          "comment_markers": [
+            "comment"
+          ],
+          "literal_types": [
+            "string_content",
+            "true",
+            "false"
+          ],
+          "literal_suffixes": [
+            "_literal"
+          ],
+          "call_types": [
+            "call_expression"
+          ],
+          "identifier_types": [
+            "identifier",
+            "self"
+          ],
+          "identifier_suffixes": [
+            "_identifier"
+          ],
+          "block_types": [
+            "block"
+          ],
+          "member_fields": [
+            {
+              "type": "attribute",
+              "field": "attribute"
+            },
+            {
+              "type": "field_expression",
+              "field": "field"
+            },
+            {
+              "type": "scoped_identifier",
+              "field": "name"
+            }
+          ],
+          "return_types": [
+            "return_expression"
+          ],
+          "assignment_types": [
+            "assignment_expression"
+          ],
+          "member_types": [
+            "attribute",
+            "field_expression"
+          ],
+          "subscript_types": [
+            "index_expression"
+          ],
+          "identifier_leaf_types": [
+            "identifier",
+            "field_identifier"
+          ],
+          "self_types": [
+            "self"
+          ],
+          "self_texts": [
+            "self"
+          ],
+          "shorthand_initialiser_types": [
+            "shorthand_field_initializer"
+          ],
+          "field_initialiser_types": [
+            "field_initializer"
+          ],
+          "struct_literal_types": [
+            "struct_expression"
+          ],
+          "plain_name_types": [
+            "identifier"
+          ],
+          "expression_statement_types": [
+            "expression_statement"
+          ],
+          "name_leaf_types": [
+            "identifier",
+            "type_identifier"
+          ],
+          "operator_node_types": [
+            "binary_expression"
+          ],
+          "node_names": [
+            {
+              "type": "impl_item",
+              "name_field": "type",
+              "strip_after": "<"
+            }
+          ]
+        }
       }
     ],
     "extensions": [
@@ -488,7 +886,92 @@
             "requires_field_type": "arrow_expression_clause",
             "literal": "this"
           }
-        ]
+        ],
+        "vocabulary": {
+          "comment_markers": [
+            "comment"
+          ],
+          "literal_types": [
+            "string_content",
+            "true",
+            "false"
+          ],
+          "literal_suffixes": [
+            "_literal"
+          ],
+          "call_types": [
+            "invocation_expression"
+          ],
+          "identifier_types": [
+            "identifier"
+          ],
+          "block_types": [
+            "block"
+          ],
+          "member_fields": [
+            {
+              "type": "attribute",
+              "field": "attribute"
+            },
+            {
+              "type": "member_access_expression",
+              "field": "name"
+            }
+          ],
+          "return_types": [
+            "return_statement"
+          ],
+          "assignment_types": [
+            "assignment_expression"
+          ],
+          "member_types": [
+            "attribute",
+            "member_access_expression"
+          ],
+          "subscript_types": [
+            "element_access_expression"
+          ],
+          "identifier_leaf_types": [
+            "identifier"
+          ],
+          "self_types": [
+            "this"
+          ],
+          "self_texts": [
+            "self"
+          ],
+          "plain_name_types": [
+            "identifier"
+          ],
+          "expression_statement_types": [
+            "expression_statement"
+          ],
+          "argument_wrapper_types": [
+            "argument"
+          ],
+          "subscript_argument_list_types": [
+            "bracketed_argument_list"
+          ],
+          "expression_bodied_types": [
+            "property_declaration",
+            "indexer_declaration"
+          ],
+          "expression_body_types": [
+            "arrow_expression_clause"
+          ],
+          "name_leaf_types": [
+            "identifier"
+          ],
+          "operator_node_types": [
+            "binary_expression"
+          ],
+          "node_names": [
+            {
+              "type": "indexer_declaration",
+              "literal": "this"
+            }
+          ]
+        }
       }
     ],
     "extensions": [

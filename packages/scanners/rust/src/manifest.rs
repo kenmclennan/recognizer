@@ -7,6 +7,101 @@ pub const PROTOCOL: u64 = 2;
 
 pub const INSTALL: &str = "brew upgrade kenmclennan/tap/recognizer-scan-rust || brew install kenmclennan/tap/recognizer-scan-rust";
 
+fn vocabulary() -> Value {
+    json!({
+        "comment_markers": [
+            "comment"
+        ],
+        "literal_types": [
+            "string_content",
+            "true",
+            "false"
+        ],
+        "literal_suffixes": [
+            "_literal"
+        ],
+        "call_types": [
+            "call_expression"
+        ],
+        "identifier_types": [
+            "identifier",
+            "self"
+        ],
+        "identifier_suffixes": [
+            "_identifier"
+        ],
+        "block_types": [
+            "block"
+        ],
+        "member_fields": [
+            {
+                "type": "attribute",
+                "field": "attribute"
+            },
+            {
+                "type": "field_expression",
+                "field": "field"
+            },
+            {
+                "type": "scoped_identifier",
+                "field": "name"
+            }
+        ],
+        "return_types": [
+            "return_expression"
+        ],
+        "assignment_types": [
+            "assignment_expression"
+        ],
+        "member_types": [
+            "attribute",
+            "field_expression"
+        ],
+        "subscript_types": [
+            "index_expression"
+        ],
+        "identifier_leaf_types": [
+            "identifier",
+            "field_identifier"
+        ],
+        "self_types": [
+            "self"
+        ],
+        "self_texts": [
+            "self"
+        ],
+        "shorthand_initialiser_types": [
+            "shorthand_field_initializer"
+        ],
+        "field_initialiser_types": [
+            "field_initializer"
+        ],
+        "struct_literal_types": [
+            "struct_expression"
+        ],
+        "plain_name_types": [
+            "identifier"
+        ],
+        "expression_statement_types": [
+            "expression_statement"
+        ],
+        "name_leaf_types": [
+            "identifier",
+            "type_identifier"
+        ],
+        "operator_node_types": [
+            "binary_expression"
+        ],
+        "node_names": [
+            {
+                "type": "impl_item",
+                "name_field": "type",
+                "strip_after": "<"
+            }
+        ]
+    })
+}
+
 pub fn build() -> Value {
     json!({
         "kind": "scanner",
@@ -33,6 +128,7 @@ pub fn build() -> Value {
                 "branch_types": ["if_expression", "for_expression", "while_expression", "match_arm"],
                 "boolean_operators": ["&&", "||"],
                 "bound_function_types": [],
+                "vocabulary": vocabulary(),
                 "function_names": [],
             }],
             "extensions": EXTENSIONS,

@@ -155,6 +155,7 @@ export * from "./domain/analysis/duplication/score.js";
 export * from "./domain/analysis/duplication/shapes.js";
 export * from "./domain/analysis/duplication/span.js";
 export * from "./domain/analysis/duplication/syntax.js";
+export * from "./domain/analysis/duplication/vocabulary.js";
 export * from "./domain/analysis/entry-points.js";
 export * from "./domain/analysis/folder-of.js";
 export * from "./domain/analysis/language-behaviour.js";

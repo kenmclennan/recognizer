@@ -6,6 +6,7 @@ import {
 import { isComment } from "./normalise.js";
 import { bodyOf } from "./shapes.js";
 import { childrenOf, namedChildrenOf, type SyntaxNode } from "./syntax.js";
+import { type Vocabulary, vocabularyOf } from "./vocabulary.js";
 
 export interface ComparedSpan {
   node: SyntaxNode;
@@ -19,12 +20,13 @@ function linesOf(node: SyntaxNode): number {
 function statementsIn(
   container: SyntaxNode,
   span: SpanVocabulary,
+  vocabulary: Vocabulary,
 ): SyntaxNode[] {
   const named = namedChildrenOf(container);
   const block = named.find((child) => child.type === span.statements);
 
   return (block === undefined ? named : namedChildrenOf(block)).filter(
-    (child) => !isComment(child.type),
+    (child) => !isComment(child.type, vocabulary),
   );
 }
 
@@ -53,6 +55,7 @@ function calleeName(call: SyntaxNode, span: SpanVocabulary): string | null {
 function lambdaStatements(
   call: SyntaxNode,
   span: SpanVocabulary,
+  vocabulary: Vocabulary,
 ): SyntaxNode | null {
   const suffix = childrenOf(call).find(
     (child) => child.type === span.callSuffix,
@@ -72,7 +75,8 @@ function lambdaStatements(
     (child) => child.type === span.statements,
   );
 
-  return block !== undefined && statementsIn(literal, span).length > 0
+  return block !== undefined &&
+    statementsIn(literal, span, vocabulary).length > 0
     ? block
     : null;
 }
@@ -80,6 +84,7 @@ function lambdaStatements(
 function soleCall(
   statements: SyntaxNode[],
   span: SpanVocabulary,
+  vocabulary: Vocabulary,
 ): SyntaxNode | null {
   const only = statements.length === 1 ? (statements[0] as SyntaxNode) : null;
 
@@ -102,22 +107,30 @@ function soleCall(
   }
 
   const operands = namedChildrenOf(only).filter(
-    (child) => child.type !== span.label && !isComment(child.type),
+    (child) => child.type !== span.label && !isComment(child.type, vocabulary),
   );
   const operand = operands.length === 1 ? (operands[0] as SyntaxNode) : null;
 
   return operand?.type === span.call ? operand : null;
 }
 
-function unwrap(container: SyntaxNode, span: SpanVocabulary): SyntaxNode {
+function unwrap(
+  container: SyntaxNode,
+  span: SpanVocabulary,
+  vocabulary: Vocabulary,
+): SyntaxNode {
   let current = container;
 
   for (;;) {
-    const call = soleCall(statementsIn(current, span), span);
+    const call = soleCall(
+      statementsIn(current, span, vocabulary),
+      span,
+      vocabulary,
+    );
     const name = call === null ? null : calleeName(call, span);
     const inner =
       call !== null && name !== null && span.scopeCalls.has(name)
-        ? lambdaStatements(call, span)
+        ? lambdaStatements(call, span, vocabulary)
         : null;
 
     if (inner === null) {
@@ -131,13 +144,14 @@ function unwrap(container: SyntaxNode, span: SpanVocabulary): SyntaxNode {
 function expressionInterior(
   body: SyntaxNode,
   span: SpanVocabulary,
+  vocabulary: Vocabulary,
 ): SyntaxNode | null {
   if (body.type !== span.functionBody) {
     return null;
   }
 
   const expression = namedChildrenOf(body)
-    .filter((child) => !isComment(child.type))
+    .filter((child) => !isComment(child.type, vocabulary))
     .at(-1);
 
   if (expression?.type === span.objectLiteral) {
@@ -161,7 +175,8 @@ export function comparedSpan(
   fn: SyntaxNode,
   rule: GrammarRule,
 ): ComparedSpan | null {
-  const body = bodyOf(fn);
+  const vocabulary = vocabularyOf(rule);
+  const body = bodyOf(fn, vocabulary);
 
   if (body === null) {
     return null;
@@ -172,7 +187,11 @@ export function comparedSpan(
   }
 
   const span = spanVocabularyOf(rule.span);
-  const node = unwrap(expressionInterior(body, span) ?? body, span);
+  const node = unwrap(
+    expressionInterior(body, span, vocabulary) ?? body,
+    span,
+    vocabulary,
+  );
 
   return { node, lines: linesOf(node) };
 }

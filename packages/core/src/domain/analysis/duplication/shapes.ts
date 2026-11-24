@@ -1,102 +1,66 @@
 import { isComment, isLiteral } from "./normalise.js";
 import { childrenOf, namedChildrenOf, type SyntaxNode } from "./syntax.js";
+import type { Vocabulary } from "./vocabulary.js";
 
-const BLOCK_TYPES = new Set(["block", "statements"]);
-const RETURN_TYPES = new Set([
-  "return_statement",
-  "return_expression",
-  "jump_expression",
-]);
-const ASSIGNMENT_TYPES = new Set(["assignment", "assignment_expression"]);
-const MEMBER_TYPES = new Set([
-  "attribute",
-  "member_expression",
-  "field_expression",
-  "navigation_expression",
-  "member_access_expression",
-]);
-const SUBSCRIPT_TYPES = new Set([
-  "subscript",
-  "subscript_expression",
-  "index_expression",
-  "indexing_expression",
-  "element_access_expression",
-]);
-const CALL_TYPES = new Set([
-  "call",
-  "call_expression",
-  "invocation_expression",
-]);
-const IDENTIFIER_LEAVES = new Set([
-  "identifier",
-  "simple_identifier",
-  "field_identifier",
-  "property_identifier",
-]);
-const SELF_TYPES = new Set(["self", "this", "this_expression"]);
-const INITIALISER_TYPES = new Set([
-  "shorthand_field_initializer",
-  "field_initializer",
-]);
-const PLAIN_NAMES = new Set(["identifier", "simple_identifier"]);
-const CALLEE_TYPES = new Set([
-  ...MEMBER_TYPES,
-  ...SUBSCRIPT_TYPES,
-  "identifier",
-  "simple_identifier",
-]);
-
-function isDocstring(node: SyntaxNode): boolean {
+function isDocstring(node: SyntaxNode, vocabulary: Vocabulary): boolean {
   return (
-    node.type === "expression_statement" &&
+    vocabulary.expressionStatementTypes.has(node.type) &&
     node.namedChildCount === 1 &&
-    namedChildrenOf(node)[0]?.type === "string"
+    vocabulary.docstringStringTypes.has(
+      namedChildrenOf(node)[0]?.type as string,
+    )
   );
 }
 
-export function bodyOf(fn: SyntaxNode): SyntaxNode | null {
+export function bodyOf(
+  fn: SyntaxNode,
+  vocabulary: Vocabulary,
+): SyntaxNode | null {
   let body = fn.childForFieldName("body");
 
-  if (
-    body === null &&
-    (fn.type === "property_declaration" || fn.type === "indexer_declaration")
-  ) {
+  if (body === null && vocabulary.expressionBodiedTypes.has(fn.type)) {
     const value = fn.childForFieldName("value");
 
     body =
-      value !== null && value.type === "arrow_expression_clause" ? value : null;
+      value !== null && vocabulary.expressionBodyTypes.has(value.type)
+        ? value
+        : null;
   }
 
-  return body ?? childrenOf(fn).find((c) => c.type === "function_body") ?? null;
+  return (
+    body ??
+    childrenOf(fn).find((c) => vocabulary.functionBodyTypes.has(c.type)) ??
+    null
+  );
 }
 
-function statementsOf(fn: SyntaxNode): SyntaxNode[] {
-  const body = bodyOf(fn);
+function statementsOf(fn: SyntaxNode, vocabulary: Vocabulary): SyntaxNode[] {
+  const body = bodyOf(fn, vocabulary);
 
   if (body === null) {
     return [];
   }
 
   const named = namedChildrenOf(body);
-  let block = named.find((c) => BLOCK_TYPES.has(c.type)) ?? null;
+  let block = named.find((c) => vocabulary.blockTypes.has(c.type)) ?? null;
 
-  if (block === null && BLOCK_TYPES.has(body.type)) {
+  if (block === null && vocabulary.blockTypes.has(body.type)) {
     block = body;
   }
 
   if (block === null) {
-    return named.filter((c) => !isComment(c.type));
+    return named.filter((c) => !isComment(c.type, vocabulary));
   }
 
   return namedChildrenOf(block).filter(
-    (c) => !isComment(c.type) && !isDocstring(c),
+    (c) => !isComment(c.type, vocabulary) && !isDocstring(c, vocabulary),
   );
 }
 
-function parameterNames(fn: SyntaxNode): Set<string> {
+function parameterNames(fn: SyntaxNode, vocabulary: Vocabulary): Set<string> {
   const parameters =
     fn.childForFieldName("parameters") ??
-    childrenOf(fn).find((c) => c.type === "function_value_parameters") ??
+    childrenOf(fn).find((c) => vocabulary.parameterListTypes.has(c.type)) ??
     null;
   const names = new Set<string>();
 
@@ -107,14 +71,16 @@ function parameterNames(fn: SyntaxNode): Set<string> {
       parameter.childForFieldName("pattern") ??
       parameter.childForFieldName("name");
 
-    if (name === null && PLAIN_NAMES.has(parameter.type)) {
+    if (name === null && vocabulary.plainNameTypes.has(parameter.type)) {
       name = parameter;
     }
 
     name ??=
-      namedChildrenOf(parameter).find((c) => PLAIN_NAMES.has(c.type)) ?? null;
+      namedChildrenOf(parameter).find((c) =>
+        vocabulary.plainNameTypes.has(c.type),
+      ) ?? null;
 
-    if (name !== null && PLAIN_NAMES.has(name.type)) {
+    if (name !== null && vocabulary.plainNameTypes.has(name.type)) {
       names.add(name.text);
     }
   }
@@ -122,38 +88,41 @@ function parameterNames(fn: SyntaxNode): Set<string> {
   return names;
 }
 
-function isSelf(node: SyntaxNode): boolean {
-  return SELF_TYPES.has(node.type) || node.text === "self";
+function isSelf(node: SyntaxNode, vocabulary: Vocabulary): boolean {
+  return (
+    vocabulary.selfTypes.has(node.type) || vocabulary.selfTexts.has(node.text)
+  );
 }
 
-function isAtom(node: SyntaxNode): boolean {
-  return isLiteral(node.type) || isSelf(node);
+function isAtom(node: SyntaxNode, vocabulary: Vocabulary): boolean {
+  return isLiteral(node.type, vocabulary) || isSelf(node, vocabulary);
 }
 
-function unwrapArgument(node: SyntaxNode): SyntaxNode {
+function unwrapArgument(node: SyntaxNode, vocabulary: Vocabulary): SyntaxNode {
   const first = namedChildrenOf(node)[0];
 
-  if ((node.type === "value_argument" || node.type === "argument") && first) {
+  if (vocabulary.argumentWrapperTypes.has(node.type) && first) {
     return first;
   }
 
   return node;
 }
 
-function callArguments(call: SyntaxNode): SyntaxNode[] {
+function callArguments(call: SyntaxNode, vocabulary: Vocabulary): SyntaxNode[] {
+  const isList = (c: SyntaxNode) => vocabulary.argumentListTypes.has(c.type);
   let args = call.childForFieldName("arguments");
 
-  args ??=
-    namedChildrenOf(call).find((c) => c.type === "value_arguments") ?? null;
+  args ??= namedChildrenOf(call).find(isList) ?? null;
 
   if (args === null) {
-    const suffix = namedChildrenOf(call).find((c) => c.type === "call_suffix");
+    const suffix = namedChildrenOf(call).find((c) =>
+      vocabulary.callSuffixTypes.has(c.type),
+    );
 
     args =
       suffix === undefined
         ? null
-        : (namedChildrenOf(suffix).find((c) => c.type === "value_arguments") ??
-          null);
+        : (namedChildrenOf(suffix).find(isList) ?? null);
   }
 
   if (args === null) {
@@ -161,36 +130,42 @@ function callArguments(call: SyntaxNode): SyntaxNode[] {
   }
 
   return namedChildrenOf(args)
-    .filter((c) => !isComment(c.type))
-    .map(unwrapArgument);
+    .filter((c) => !isComment(c.type, vocabulary))
+    .map((c) => unwrapArgument(c, vocabulary));
 }
 
-function subscriptAtoms(node: SyntaxNode): SyntaxNode[] {
-  if (
-    node.type === "bracketed_argument_list" ||
-    node.type === "indexing_suffix"
-  ) {
+function subscriptAtoms(
+  node: SyntaxNode,
+  vocabulary: Vocabulary,
+): SyntaxNode[] {
+  if (vocabulary.subscriptArgumentListTypes.has(node.type)) {
     return namedChildrenOf(node)
-      .filter((c) => !isComment(c.type))
-      .map(unwrapArgument);
+      .filter((c) => !isComment(c.type, vocabulary))
+      .map((c) => unwrapArgument(c, vocabulary));
   }
 
   return [node];
 }
 
-function lookupChain(start: SyntaxNode): boolean {
+function lookupChain(start: SyntaxNode, vocabulary: Vocabulary): boolean {
   let node = start;
 
   for (;;) {
     if (node.childCount === 0) {
-      return IDENTIFIER_LEAVES.has(node.type) || isSelf(node);
+      return (
+        vocabulary.identifierLeafTypes.has(node.type) ||
+        isSelf(node, vocabulary)
+      );
     }
 
-    if (node.type === "this_expression") {
+    if (vocabulary.selfTypes.has(node.type)) {
       return true;
     }
 
-    if (MEMBER_TYPES.has(node.type) || SUBSCRIPT_TYPES.has(node.type)) {
+    const isMember = vocabulary.memberTypes.has(node.type);
+    const isSubscript = vocabulary.subscriptTypes.has(node.type);
+
+    if (isMember || isSubscript) {
       const children = namedChildrenOf(node);
       const [head, ...rest] = children;
 
@@ -199,8 +174,10 @@ function lookupChain(start: SyntaxNode): boolean {
       }
 
       if (
-        SUBSCRIPT_TYPES.has(node.type) &&
-        !rest.every((c) => subscriptAtoms(c).every(isAtom))
+        isSubscript &&
+        !rest.every((c) =>
+          subscriptAtoms(c, vocabulary).every((a) => isAtom(a, vocabulary)),
+        )
       ) {
         return false;
       }
@@ -210,14 +187,14 @@ function lookupChain(start: SyntaxNode): boolean {
       continue;
     }
 
-    if (CALL_TYPES.has(node.type)) {
+    if (vocabulary.callTypes.has(node.type)) {
       const callee =
         node.childForFieldName("function") ?? namedChildrenOf(node)[0] ?? null;
 
       if (
         callee === null ||
-        !CALLEE_TYPES.has(callee.type) ||
-        !callArguments(node).every(isAtom)
+        !vocabulary.calleeTypes.has(callee.type) ||
+        !callArguments(node, vocabulary).every((a) => isAtom(a, vocabulary))
       ) {
         return false;
       }
@@ -231,50 +208,72 @@ function lookupChain(start: SyntaxNode): boolean {
   }
 }
 
-function isAccessorShape(fn: SyntaxNode): boolean {
-  const statements = statementsOf(fn);
+function isAccessorShape(fn: SyntaxNode, vocabulary: Vocabulary): boolean {
+  const statements = statementsOf(fn, vocabulary);
 
   if (statements.length !== 1) {
     return false;
   }
 
   const statement = statements[0] as SyntaxNode;
+  const isJump = vocabulary.jumpTypes.has(statement.type);
 
   if (
-    statement.type === "jump_expression" &&
-    !statement.text.startsWith("return")
+    isJump &&
+    !vocabulary.returnKeywords.some((keyword) =>
+      statement.text.startsWith(keyword),
+    )
   ) {
     return false;
   }
 
-  const expression = RETURN_TYPES.has(statement.type)
-    ? (namedChildrenOf(statement)[0] ?? null)
-    : statement;
+  const expression =
+    vocabulary.returnTypes.has(statement.type) || isJump
+      ? (namedChildrenOf(statement)[0] ?? null)
+      : statement;
 
   return (
     expression !== null &&
-    expression.type !== "expression_statement" &&
-    lookupChain(expression) &&
-    expression.type !== "identifier"
+    !vocabulary.expressionStatementTypes.has(expression.type) &&
+    lookupChain(expression, vocabulary) &&
+    !isBareIdentifier(expression, vocabulary)
   );
 }
 
-function isStoredValue(node: SyntaxNode, parameters: Set<string>): boolean {
-  if (isLiteral(node.type)) {
+function isBareIdentifier(node: SyntaxNode, vocabulary: Vocabulary): boolean {
+  return (
+    vocabulary.identifierTypes.has(node.type) &&
+    !vocabulary.selfTypes.has(node.type)
+  );
+}
+
+function isStoredValue(
+  node: SyntaxNode,
+  parameters: Set<string>,
+  vocabulary: Vocabulary,
+): boolean {
+  if (isLiteral(node.type, vocabulary)) {
     return true;
   }
 
-  return PLAIN_NAMES.has(node.type) && parameters.has(node.text);
+  return vocabulary.plainNameTypes.has(node.type) && parameters.has(node.text);
 }
 
-function storesAParameter(start: SyntaxNode, parameters: Set<string>): boolean {
+function storesAParameter(
+  start: SyntaxNode,
+  parameters: Set<string>,
+  vocabulary: Vocabulary,
+): boolean {
   let node = start;
 
-  if (node.type === "expression_statement" && node.namedChildCount === 1) {
+  if (
+    vocabulary.expressionStatementTypes.has(node.type) &&
+    node.namedChildCount === 1
+  ) {
     node = namedChildrenOf(node)[0] as SyntaxNode;
   }
 
-  if (!ASSIGNMENT_TYPES.has(node.type)) {
+  if (!vocabulary.assignmentTypes.has(node.type)) {
     return false;
   }
 
@@ -286,7 +285,11 @@ function storesAParameter(start: SyntaxNode, parameters: Set<string>): boolean {
 
   let right = node.childForFieldName("right");
 
-  if (right === null && node.type === "assignment" && node.childCount >= 3) {
+  if (
+    right === null &&
+    vocabulary.positionalAssignmentTypes.has(node.type) &&
+    node.childCount >= 3
+  ) {
     const children = childrenOf(node);
 
     if ((children[1] as SyntaxNode).text !== "=") {
@@ -296,14 +299,15 @@ function storesAParameter(start: SyntaxNode, parameters: Set<string>): boolean {
     right = children.at(-1) as SyntaxNode;
   }
 
-  return right !== null && isStoredValue(right, parameters);
+  return right !== null && isStoredValue(right, parameters, vocabulary);
 }
 
 function buildsFromParameters(
   node: SyntaxNode,
   parameters: Set<string>,
+  vocabulary: Vocabulary,
 ): boolean {
-  if (node.type !== "struct_expression") {
+  if (!vocabulary.structLiteralTypes.has(node.type)) {
     return false;
   }
 
@@ -314,50 +318,57 @@ function buildsFromParameters(
   }
 
   const fields = namedChildrenOf(initialisers).filter(
-    (c) => !isComment(c.type),
+    (c) => !isComment(c.type, vocabulary),
   );
 
   if (
     fields.length === 0 ||
-    fields.some((c) => !INITIALISER_TYPES.has(c.type))
+    fields.some(
+      (c) =>
+        !vocabulary.shorthandInitialiserTypes.has(c.type) &&
+        !vocabulary.fieldInitialiserTypes.has(c.type),
+    )
   ) {
     return false;
   }
 
   return fields.every((c) => {
-    if (c.type === "shorthand_field_initializer" && parameters.has(c.text)) {
-      return true;
+    if (vocabulary.shorthandInitialiserTypes.has(c.type)) {
+      return parameters.has(c.text);
     }
 
     const value = c.childForFieldName("value");
 
     return (
-      c.type === "field_initializer" &&
+      vocabulary.fieldInitialiserTypes.has(c.type) &&
       value !== null &&
-      isStoredValue(value, parameters)
+      isStoredValue(value, parameters, vocabulary)
     );
   });
 }
 
-function isConstructorShape(fn: SyntaxNode): boolean {
-  const statements = statementsOf(fn);
+function isConstructorShape(fn: SyntaxNode, vocabulary: Vocabulary): boolean {
+  const statements = statementsOf(fn, vocabulary);
 
   if (statements.length === 0) {
     return false;
   }
 
-  const parameters = parameterNames(fn);
+  const parameters = parameterNames(fn, vocabulary);
 
   if (
     statements.length === 1 &&
-    buildsFromParameters(statements[0] as SyntaxNode, parameters)
+    buildsFromParameters(statements[0] as SyntaxNode, parameters, vocabulary)
   ) {
     return true;
   }
 
-  return statements.every((s) => storesAParameter(s, parameters));
+  return statements.every((s) => storesAParameter(s, parameters, vocabulary));
 }
 
-export function isTrivialShape(fn: SyntaxNode): boolean {
-  return isConstructorShape(fn) || isAccessorShape(fn);
+export function isTrivialShape(
+  fn: SyntaxNode,
+  vocabulary: Vocabulary,
+): boolean {
+  return isConstructorShape(fn, vocabulary) || isAccessorShape(fn, vocabulary);
 }

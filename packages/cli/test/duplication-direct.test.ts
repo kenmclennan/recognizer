@@ -1,4 +1,3 @@
-import type { Repository } from "@recognizer/core";
 import {
   bodyOf,
   countNodes,
@@ -9,6 +8,8 @@ import {
   type Grammar,
   measureDuplication,
   normalise,
+  type Repository,
+  vocabularyOf,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { DigestAdapter } from "../src/adapters/system/digest-adapter.js";
@@ -140,7 +141,12 @@ describe("the size gates", () => {
     const parsers = await allParsers();
     const tree = parsers.get("python")?.parse(BODY("f"));
     const [first] = findFunctions(tree?.rootNode as never, ruleNamed("python"));
-    const nodes = countNodes(bodyOf((first as { node: never }).node) as never);
+    const nodes = countNodes(
+      bodyOf(
+        (first as { node: never }).node,
+        vocabularyOf(ruleNamed("python")),
+      ) as never,
+    );
     const files = { "a.py": BODY("f"), "b.py": BODY("g") };
 
     expect((await find(files, { min_nodes: nodes })).findings).toHaveLength(1);
@@ -361,7 +367,11 @@ async function prints(grammar: Grammar, source: string): Promise<string> {
   expect(first).toBeDefined();
   expect((first.node as { hasError: boolean }).hasError).toBe(false);
 
-  const normalised = normalise(first.node, new Set());
+  const normalised = normalise(
+    first.node,
+    new Set(),
+    vocabularyOf(ruleNamed(grammar)),
+  );
 
   expect(normalised).not.toBeNull();
 

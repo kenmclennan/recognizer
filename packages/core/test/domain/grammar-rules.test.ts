@@ -10,6 +10,9 @@ function rule(name: string, extensions: string[]): GrammarRule {
     branch_types: [],
     boolean_operators: [],
     bound_function_types: [],
+    function_names: [],
+    span: null,
+    vocabulary: null,
   };
 }
 

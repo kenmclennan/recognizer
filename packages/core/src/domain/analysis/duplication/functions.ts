@@ -1,12 +1,6 @@
 import type { FunctionNameRule, GrammarRule } from "./grammars.js";
 import { childrenOf, type SyntaxNode } from "./syntax.js";
-
-const NAME_LEAF_TYPES = new Set([
-  "identifier",
-  "type_identifier",
-  "property_identifier",
-  "simple_identifier",
-]);
+import { type Vocabulary, vocabularyOf } from "./vocabulary.js";
 
 export interface FoundFunction {
   node: SyntaxNode;
@@ -17,38 +11,46 @@ function textOf(node: SyntaxNode | null): string | null {
   return node === null ? null : node.text;
 }
 
-function nodeName(node: SyntaxNode): string | null {
+function nodeName(node: SyntaxNode, vocabulary: Vocabulary): string | null {
   const named = node.childForFieldName("name");
 
   if (named !== null) {
     return named.text;
   }
 
-  if (node.type === "impl_item") {
-    const target = node.childForFieldName("type");
+  const rule = vocabulary.nodeNames.get(node.type);
 
-    return target === null ? null : (target.text.split("<")[0] as string);
+  if (rule?.name_field !== undefined) {
+    const field = node.childForFieldName(rule.name_field);
+
+    if (field === null) {
+      return null;
+    }
+
+    return rule.strip_after === undefined
+      ? field.text
+      : (field.text.split(rule.strip_after)[0] as string);
   }
 
-  if (node.type === "indexer_declaration") {
-    return "this";
+  if (rule?.literal !== undefined) {
+    return rule.literal;
   }
 
   const leaf = childrenOf(node).find((child) =>
-    NAME_LEAF_TYPES.has(child.type),
+    vocabulary.nameLeafTypes.has(child.type),
   );
 
-  if (node.type === "companion_object") {
-    return leaf === undefined ? "Companion" : leaf.text;
+  if (leaf !== undefined) {
+    return leaf.text;
   }
 
-  return leaf === undefined ? null : leaf.text;
+  return rule?.default ?? null;
 }
 
-function boundName(node: SyntaxNode): string | null {
+function boundName(node: SyntaxNode, vocabulary: Vocabulary): string | null {
   const parent = node.parent;
 
-  if (parent === null || parent.type !== "variable_declarator") {
+  if (parent === null || !vocabulary.bindingDeclaratorTypes.has(parent.type)) {
     return null;
   }
 
@@ -59,7 +61,7 @@ function boundName(node: SyntaxNode): string | null {
     value === null ||
     value.id !== node.id ||
     name === null ||
-    name.type !== "identifier"
+    !vocabulary.bindingNameTypes.has(name.type)
   ) {
     return null;
   }
@@ -93,15 +95,21 @@ function namedByRule(node: SyntaxNode, rule: FunctionNameRule): string | null {
   return rule.prefix === undefined ? base : `${rule.prefix}${base ?? ""}`;
 }
 
-function functionName(node: SyntaxNode, rule: GrammarRule): string | null {
+function functionName(
+  node: SyntaxNode,
+  rule: GrammarRule,
+  vocabulary: Vocabulary,
+): string | null {
   if (rule.function_types.includes(node.type)) {
     const naming = rule.function_names.find((one) => one.type === node.type);
 
-    return naming === undefined ? nodeName(node) : namedByRule(node, naming);
+    return naming === undefined
+      ? nodeName(node, vocabulary)
+      : namedByRule(node, naming);
   }
 
   if (rule.bound_function_types.includes(node.type)) {
-    return boundName(node);
+    return boundName(node, vocabulary);
   }
 
   return null;
@@ -113,18 +121,19 @@ export function findFunctions(
 ): FoundFunction[] {
   const found: FoundFunction[] = [];
   const scopeTypes = new Set(rule.scope_types);
+  const vocabulary = vocabularyOf(rule);
   const stack: [SyntaxNode, readonly string[]][] = [[root, []]];
 
   for (let entry = stack.pop(); entry !== undefined; entry = stack.pop()) {
     const [node, scope] = entry;
     let inner = scope;
-    const name = functionName(node, rule);
+    const name = functionName(node, rule, vocabulary);
 
     if (name !== null) {
       found.push({ node, qualified: [...scope, name].join(".") });
       inner = [...scope, name];
     } else if (scopeTypes.has(node.type)) {
-      const scopeName = nodeName(node);
+      const scopeName = nodeName(node, vocabulary);
 
       if (scopeName !== null) {
         inner = [...scope, scopeName];

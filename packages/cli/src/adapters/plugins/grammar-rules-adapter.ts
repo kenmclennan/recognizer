@@ -25,6 +25,7 @@ export class GrammarRulesAdapter implements GrammarRules {
               ...rule,
               function_names: rule.function_names ?? [],
               span: rule.span ?? null,
+              vocabulary: rule.vocabulary ?? null,
             });
           }
         }
