@@ -8,8 +8,16 @@
   "modified": false,
   "files": [
     {
+      "path": "app/package.json",
+      "hash": "c06936c327ce0b7defd0ec6f268626b11476a7d00c1b45cd3408c5fd5f9e318c"
+    },
+    {
       "path": "app/src/main.ts",
       "hash": "1fc472d3ebf13d32ffefc7c92e45602c50ec8c7b99d1d274591d035507641f75"
+    },
+    {
+      "path": "engine/package.json",
+      "hash": "4eedea2c4a6402286802d02709b9369fa2a872bcb30c067226e115fec1447866"
     },
     {
       "path": "engine/src/index.ts",
@@ -18,19 +26,52 @@
     {
       "path": "engine/src/util.ts",
       "hash": "d1a08267bb17902991a9357bae55070e6063446f4c05b5c13df21c7685d14e1c"
+    },
+    {
+      "path": "package.json",
+      "hash": "d2fb08883f530fcffb4e41d3b57e8e9787d8bcd7d732c3e3e1bb092e20a3af29"
+    },
+    {
+      "path": "scripts/x.mjs",
+      "hash": "b40dedde60828bf61d1fadbfc3bb7ea2e0421e9511d22f1b5fb44ae5ba07dbb3"
     }
   ],
   "selection": {
     "extensions": [
-      ".ts"
+      ".ts",
+      ".tsx",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".cjs",
+      ".mts",
+      ".cts"
     ],
     "skip_directory_names": [
-      "node_modules"
+      "node_modules",
+      "dist",
+      "build",
+      "test",
+      "tests",
+      "__tests__"
     ],
-    "skip_directory_prefixes": [],
+    "skip_directory_prefixes": [
+      "."
+    ],
     "skip_directory_suffixes": [],
     "skip_directories_containing": [],
-    "skip_file_globs": []
+    "skip_file_globs": [
+      "*.d.ts",
+      "*.d.mts",
+      "*.d.cts",
+      "*.test.*",
+      "*.spec.*"
+    ],
+    "input_file_globs": [
+      "package.json",
+      "tsconfig.json",
+      "*.html"
+    ]
   },
   "modules": [
     {
@@ -43,28 +84,82 @@
       "id": "engine/src/index.ts",
       "language": "typescript",
       "kind": "module",
-      "members": []
+      "members": [
+        {
+          "name": "limit",
+          "kind": "constant",
+          "line": 3,
+          "exported": true,
+          "value": "clamp(5, 0, 3)"
+        }
+      ]
     },
     {
       "id": "engine/src/util.ts",
       "language": "typescript",
       "kind": "module",
-      "members": []
+      "members": [
+        {
+          "name": "clamp",
+          "kind": "function",
+          "line": 1,
+          "exported": true,
+          "end_line": 3,
+          "params": [
+            {
+              "name": "value",
+              "type": "number"
+            },
+            {
+              "name": "low",
+              "type": "number"
+            },
+            {
+              "name": "high",
+              "type": "number"
+            }
+          ],
+          "body_line": 2,
+          "returns": "number"
+        }
+      ]
+    },
+    {
+      "id": "scripts/x.mjs",
+      "language": "typescript",
+      "kind": "module",
+      "members": [
+        {
+          "name": "x",
+          "kind": "constant",
+          "line": 1,
+          "exported": true,
+          "value": "1"
+        }
+      ]
     }
   ],
   "edges": [
     {
-      "from": "engine/src/index.ts",
-      "to": "engine/src/util.ts",
-      "kind": "import",
-      "line": 1
-    },
-    {
       "from": "app/src/main.ts",
       "to": "engine/src/index.ts",
-      "kind": "import",
-      "line": 1
+      "kind": "depends",
+      "line": 1,
+      "names": [
+        "limit"
+      ]
+    },
+    {
+      "from": "engine/src/index.ts",
+      "to": "engine/src/util.ts",
+      "kind": "depends",
+      "line": 1,
+      "names": [
+        "clamp"
+      ]
     }
   ],
-  "foreign": []
+  "foreign": [],
+  "calls": [],
+  "test_imports": []
 }

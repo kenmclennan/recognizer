@@ -377,7 +377,7 @@ describe("setup survey marks", () => {
     ).toBe(2);
   });
 
-  it("a scan whose files and modules coincide keeps its count", async () => {
+  it("a scan listing more files than modules reports the module count, as the setup-loom scan lists package.json and .mjs inputs", async () => {
     const { survey } = await surveyOf([
       LOOM,
       "--scan",
@@ -391,7 +391,7 @@ describe("setup survey marks", () => {
       (one) => one.language === "typescript",
     );
 
-    expect(scan.files).toHaveLength(scan.modules.length);
+    expect(scan.files.length).toBeGreaterThan(scan.modules.length);
     expect(typescript?.files).toBe(scan.modules.length);
   });
 

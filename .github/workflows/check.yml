@@ -27,7 +27,6 @@ concurrency:
 
 permissions:
   contents: read
-  actions: write
 
 jobs:
   test:
@@ -53,9 +52,6 @@ jobs:
         env:
           RECOGNIZER_REQUIRE_TEMPLATE_TOOLCHAINS: "1"
 
-      - if: failure()
-        uses: ./.github/actions/cancel-on-failure
-
   toolchain:
     needs: test
     runs-on: [self-hosted, macOS, ARM64]
@@ -74,9 +70,6 @@ jobs:
           extracted=$(mktemp -d)
           tar -xzf "$RUNNER_TEMP/toolchain/recognizer-toolchain.tar.gz" -C "$extracted"
           node tools/scripts/verify-toolchain.mjs "$extracted"
-
-      - if: failure()
-        uses: ./.github/actions/cancel-on-failure
 
   plugins:
     needs: test
@@ -105,6 +98,3 @@ jobs:
           extracted=$(mktemp -d)
           tar -xzf "$RUNNER_TEMP/plugin-${{ matrix.unit }}/${{ matrix.unit }}-$version.tar.gz" -C "$extracted"
           node tools/scripts/verify-plugin.mjs "${{ matrix.unit }}" "$extracted"
-
-      - if: failure()
-        uses: ./.github/actions/cancel-on-failure

@@ -1,0 +1,52 @@
+name: regenerate
+
+on:
+  pull_request:
+    paths:
+      - packages/**
+      - fixtures/**
+      - schema/**
+      - tools/scripts/**
+      - package.json
+      - .github/workflows/regenerate.yml
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
+
+env:
+  RECOGNIZER_REQUIRE_REAL_CONTENT: "1"
+  RECOGNIZER_KOTLIN_PETCLINIC: ${{ github.workspace }}/petclinic
+  RECOGNIZER_CSHARP_ESHOP: ${{ github.workspace }}/eshop
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ArnauAregall/micronaut-kotlin-petclinic-clean-architecture
+          ref: e6e3b49140a55daa148de19111a060e2f62e32be
+          path: petclinic
+      - uses: actions/checkout@v4
+        with:
+          repository: dotnet/eShop
+          ref: 913acea66708a59595351174cee9b29f37179d29
+          path: eshop
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: ./.github/actions/install-uv
+      - run: rustup toolchain install stable --profile minimal
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - run: printf 'petclinic/\neshop/\n' >> .git/info/exclude
+      - run: npm run regenerate
+      - run: node tools/scripts/regenerate-check.mjs .

@@ -55,11 +55,23 @@
       "tests",
       "__tests__"
     ],
-    "skip_directory_prefixes": ["."],
+    "skip_directory_prefixes": [
+      "."
+    ],
     "skip_directory_suffixes": [],
     "skip_directories_containing": [],
-    "skip_file_globs": ["*.d.ts", "*.d.mts", "*.d.cts", "*.test.*", "*.spec.*"],
-    "input_file_globs": ["package.json", "tsconfig.json", "*.html"]
+    "skip_file_globs": [
+      "*.d.ts",
+      "*.d.mts",
+      "*.d.cts",
+      "*.test.*",
+      "*.spec.*"
+    ],
+    "input_file_globs": [
+      "package.json",
+      "tsconfig.json",
+      "*.html"
+    ]
   },
   "modules": [
     {
@@ -98,7 +110,9 @@
           "kind": "class",
           "line": 3,
           "exported": true,
-          "bases": ["Dispatcher"],
+          "bases": [
+            "Dispatcher"
+          ],
           "fields": [],
           "methods": [
             {
@@ -144,7 +158,9 @@
               ],
               "private": false,
               "returns": "void",
-              "tags": ["abstract"]
+              "tags": [
+                "abstract"
+              ]
             }
           ]
         }
@@ -160,7 +176,9 @@
           "kind": "class",
           "line": 3,
           "exported": true,
-          "bases": ["Dispatcher"],
+          "bases": [
+            "Dispatcher"
+          ],
           "fields": [
             {
               "name": "inner",
@@ -211,7 +229,9 @@
           "kind": "class",
           "line": 3,
           "exported": true,
-          "bases": ["Base"],
+          "bases": [
+            "Base"
+          ],
           "fields": [],
           "methods": []
         }
@@ -246,7 +266,9 @@
       "to": "src/dispatcher.ts",
       "kind": "depends",
       "line": 1,
-      "names": ["Dispatcher"]
+      "names": [
+        "Dispatcher"
+      ]
     },
     {
       "from": "src/logging-dispatcher.ts",
@@ -269,7 +291,9 @@
       "to": "src/dispatcher.ts",
       "kind": "depends",
       "line": 1,
-      "names": ["Dispatcher"]
+      "names": [
+        "Dispatcher"
+      ]
     }
   ],
   "foreign": [],

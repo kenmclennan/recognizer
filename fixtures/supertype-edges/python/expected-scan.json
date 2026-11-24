@@ -33,7 +33,9 @@
     }
   ],
   "selection": {
-    "extensions": [".py"],
+    "extensions": [
+      ".py"
+    ],
     "skip_directory_names": [
       "__pycache__",
       "test",
@@ -43,11 +45,21 @@
       "node_modules",
       "site-packages"
     ],
-    "skip_directory_prefixes": ["."],
-    "skip_directory_suffixes": [".egg-info"],
-    "skip_directories_containing": ["pyvenv.cfg"],
-    "skip_file_globs": ["conftest.py"],
-    "input_file_globs": ["pyproject.toml"]
+    "skip_directory_prefixes": [
+      "."
+    ],
+    "skip_directory_suffixes": [
+      ".egg-info"
+    ],
+    "skip_directories_containing": [
+      "pyvenv.cfg"
+    ],
+    "skip_file_globs": [
+      "conftest.py"
+    ],
+    "input_file_globs": [
+      "pyproject.toml"
+    ]
   },
   "modules": [
     {
@@ -92,7 +104,9 @@
           "kind": "interface",
           "line": 4,
           "exported": true,
-          "bases": ["Protocol"],
+          "bases": [
+            "Protocol"
+          ],
           "fields": [],
           "methods": [
             {
@@ -108,7 +122,9 @@
               ],
               "private": false,
               "returns": "None",
-              "tags": ["abstract"]
+              "tags": [
+                "abstract"
+              ]
             }
           ]
         }
@@ -124,7 +140,9 @@
           "kind": "class",
           "line": 4,
           "exported": true,
-          "bases": ["Dispatcher"],
+          "bases": [
+            "Dispatcher"
+          ],
           "fields": [],
           "methods": [
             {
@@ -155,7 +173,9 @@
           "kind": "class",
           "line": 4,
           "exported": true,
-          "bases": ["Dispatcher"],
+          "bases": [
+            "Dispatcher"
+          ],
           "fields": [
             {
               "name": "inner",
@@ -206,7 +226,9 @@
           "kind": "class",
           "line": 4,
           "exported": true,
-          "bases": ["Handler"],
+          "bases": [
+            "Handler"
+          ],
           "fields": [],
           "methods": [
             {
@@ -243,7 +265,9 @@
       "to": "pkg/contracts.py",
       "kind": "depends",
       "line": 1,
-      "names": ["Dispatcher"]
+      "names": [
+        "Dispatcher"
+      ]
     },
     {
       "from": "pkg/logging_dispatcher.py",
