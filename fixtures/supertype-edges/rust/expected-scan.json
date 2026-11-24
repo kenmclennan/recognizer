@@ -21,11 +21,15 @@
     },
     {
       "path": "src/lib.rs",
-      "hash": "59b48881e9de4a53767664b3e711c02e0891c1a4cd52758d0ebdccd937bc2285"
+      "hash": "791fcd2fa09da29324d3a8623161b86d233b44f49f6d7d83cf03a3103b41d5ca"
     },
     {
       "path": "src/logging.rs",
       "hash": "7909d61cbe01d5fcfe5a5b2d98c87bc5c8542d6e3e29a7d5f17cf1d1b1e2d668"
+    },
+    {
+      "path": "src/sub.rs",
+      "hash": "78f5eed4c07600f27a1008ff6e7ba902438628c2718e3362630ddb8b98376b1a"
     },
     {
       "path": "src/unused.rs",
@@ -33,13 +37,23 @@
     }
   ],
   "selection": {
-    "extensions": [".rs"],
-    "skip_directory_names": ["target", "node_modules", "tests"],
-    "skip_directory_prefixes": ["."],
+    "extensions": [
+      ".rs"
+    ],
+    "skip_directory_names": [
+      "target",
+      "node_modules",
+      "tests"
+    ],
+    "skip_directory_prefixes": [
+      "."
+    ],
     "skip_directory_suffixes": [],
     "skip_directories_containing": [],
     "skip_file_globs": [],
-    "input_file_globs": ["Cargo.toml"]
+    "input_file_globs": [
+      "Cargo.toml"
+    ]
   },
   "modules": [
     {
@@ -65,7 +79,9 @@
                 }
               ],
               "private": false,
-              "tags": ["abstract"]
+              "tags": [
+                "abstract"
+              ]
             }
           ]
         },
@@ -82,7 +98,9 @@
               "end_line": 6,
               "params": [],
               "private": false,
-              "tags": ["abstract"]
+              "tags": [
+                "abstract"
+              ]
             }
           ]
         }
@@ -161,6 +179,23 @@
       ]
     },
     {
+      "id": "src/sub.rs",
+      "language": "rust",
+      "kind": "interface",
+      "members": [
+        {
+          "name": "Sub",
+          "kind": "interface",
+          "line": 3,
+          "exported": true,
+          "bases": [
+            "Dispatcher"
+          ],
+          "methods": []
+        }
+      ]
+    },
+    {
       "id": "src/unused.rs",
       "language": "rust",
       "kind": "module",
@@ -205,16 +240,24 @@
     },
     {
       "from": "src/lib.rs",
-      "to": "src/unused.rs",
+      "to": "src/sub.rs",
       "kind": "declares",
       "line": 4
+    },
+    {
+      "from": "src/lib.rs",
+      "to": "src/unused.rs",
+      "kind": "declares",
+      "line": 5
     },
     {
       "from": "src/logging.rs",
       "to": "src/contract.rs",
       "kind": "depends",
       "line": 1,
-      "names": ["Dispatcher"]
+      "names": [
+        "Dispatcher"
+      ]
     },
     {
       "from": "src/logging.rs",
@@ -225,11 +268,21 @@
       "to_member": "Dispatcher"
     },
     {
+      "from": "src/sub.rs",
+      "to": "src/contract.rs",
+      "kind": "inherits",
+      "line": 3,
+      "member": "Sub",
+      "to_member": "Dispatcher"
+    },
+    {
       "from": "src/unused.rs",
       "to": "src/contract.rs",
       "kind": "depends",
       "line": 1,
-      "names": ["Idle"]
+      "names": [
+        "Idle"
+      ]
     }
   ],
   "foreign": []

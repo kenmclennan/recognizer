@@ -46,6 +46,14 @@ pub struct ImplRef {
     pub type_name: String,
 }
 
+pub struct SuperRef {
+    pub scope: Vec<String>,
+    pub line: usize,
+    pub trait_path: Vec<String>,
+    pub leading_colon: bool,
+    pub trait_name: String,
+}
+
 pub struct ExprPath {
     pub scope: Vec<String>,
     pub line: usize,
@@ -69,6 +77,7 @@ pub struct Parsed {
     pub macro_calls: Vec<MacroCall>,
     pub inner_test: bool,
     pub impls: Vec<ImplRef>,
+    pub supers: Vec<SuperRef>,
     pub expr_paths: Vec<ExprPath>,
     pub supertype_only: BTreeSet<String>,
 }
@@ -456,6 +465,7 @@ pub fn parse(source: &str) -> Result<Parsed, String> {
         macro_calls: Vec::new(),
         inner_test: file.attrs.iter().any(is_test_attribute),
         impls: Vec::new(),
+        supers: Vec::new(),
         expr_paths: Vec::new(),
         supertype_only: BTreeSet::new(),
     };
@@ -474,7 +484,7 @@ pub fn parse(source: &str) -> Result<Parsed, String> {
 
     parsed.scopes.entry(Vec::new()).or_default();
     collect(&file.items, &mut Vec::new(), &mut parsed, &text, &methods);
-    parsed.supertype_only = supertype_only_names(&file, &parsed.impls);
+    parsed.supertype_only = supertype_only_names(&file, &parsed.impls, &parsed.supers);
 
     Ok(parsed)
 }
@@ -511,7 +521,11 @@ impl<'ast> Visit<'ast> for IdentCounter {
     }
 }
 
-fn supertype_only_names(file: &syn::File, impls: &[ImplRef]) -> BTreeSet<String> {
+fn supertype_only_names(
+    file: &syn::File,
+    impls: &[ImplRef],
+    supers: &[SuperRef],
+) -> BTreeSet<String> {
     let mut counter = IdentCounter::default();
 
     counter.visit_file(file);
@@ -520,6 +534,12 @@ fn supertype_only_names(file: &syn::File, impls: &[ImplRef]) -> BTreeSet<String>
 
     for implementation in impls {
         for segment in &implementation.trait_path {
+            *in_impls.entry(segment.as_str()).or_default() += 1;
+        }
+    }
+
+    for supertrait in supers {
+        for segment in &supertrait.trait_path {
             *in_impls.entry(segment.as_str()).or_default() += 1;
         }
     }
@@ -818,6 +838,25 @@ fn collect(
                 }
 
                 if top {
+                    for bound in &found.supertraits {
+                        if let TypeParamBound::Trait(bound) = bound {
+                            if last_segment(&bound.path).is_some() {
+                                parsed.supers.push(SuperRef {
+                                    scope: scope.clone(),
+                                    line: line_of(bound.span()),
+                                    trait_path: bound
+                                        .path
+                                        .segments
+                                        .iter()
+                                        .map(|s| name_of(&s.ident))
+                                        .collect(),
+                                    leading_colon: bound.path.leading_colon.is_some(),
+                                    trait_name: name.clone(),
+                                });
+                            }
+                        }
+                    }
+
                     let mut value = member(
                         &name,
                         "interface",

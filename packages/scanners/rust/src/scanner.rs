@@ -391,13 +391,15 @@ pub fn scan_reporting(
         let supertype_targets: HashSet<usize> = source
             .impls
             .iter()
-            .filter_map(|implementation| {
-                match resolver.resolve_trait(
-                    file,
-                    &implementation.scope,
-                    &implementation.trait_path,
-                    implementation.leading_colon,
-                ) {
+            .map(|r| (&r.scope, &r.trait_path, r.leading_colon))
+            .chain(
+                source
+                    .supers
+                    .iter()
+                    .map(|r| (&r.scope, &r.trait_path, r.leading_colon)),
+            )
+            .filter_map(|(scope, path, colon)| {
+                match resolver.resolve_trait(file, scope, path, colon) {
                     Final::Target { file: target, .. } if target != file => Some(target),
                     _ => None,
                 }
@@ -527,6 +529,40 @@ pub fn scan_reporting(
                         kind: "implements",
                         line: implementation.line,
                         member: Some(implementation.type_name.clone()),
+                        to_member,
+                        names: Vec::new(),
+                        via: Vec::new(),
+                    });
+                }
+            }
+        }
+
+        for supertrait in &source.supers {
+            let resolved = resolver.resolve_trait(
+                file,
+                &supertrait.scope,
+                &supertrait.trait_path,
+                supertrait.leading_colon,
+            );
+
+            if let Final::Target {
+                file: target,
+                names,
+                ..
+            } = resolved
+            {
+                if target != file {
+                    let to_member = names
+                        .first()
+                        .cloned()
+                        .or_else(|| supertrait.trait_path.last().cloned());
+
+                    edges.push(Edge {
+                        from: id.clone(),
+                        to: paths[target].clone(),
+                        kind: "inherits",
+                        line: supertrait.line,
+                        member: Some(supertrait.trait_name.clone()),
                         to_member,
                         names: Vec::new(),
                         via: Vec::new(),
