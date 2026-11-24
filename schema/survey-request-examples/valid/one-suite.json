@@ -1,0 +1,13 @@
+{
+  "root": "/abs/repository",
+  "files": [
+    "package.json",
+    "src/a.ts"
+  ],
+  "suites": [
+    {
+      "language": "kotlin",
+      "directory": "app"
+    }
+  ]
+}

@@ -10,6 +10,7 @@ from recognizer_scan_python.events import Progress
 from recognizer_scan_python.manifest import manifest_text
 from recognizer_scan_python.scanner import scan
 from recognizer_scan_python.serialise import render
+from recognizer_scan_python.survey import survey_file
 
 
 def resolve_commit(root: Path) -> str | None:
@@ -66,7 +67,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 PROG = "recognizer-scan-python"
 
-VERBS_TEXT = "manifest, check, run, guide"
+VERBS_TEXT = "manifest, check, run, guide, survey"
 
 
 def write_atomically(text: str, output: Path) -> None:
@@ -81,6 +82,24 @@ def write_atomically(text: str, output: Path) -> None:
         Path(temporary).unlink(missing_ok=True)
 
         raise
+
+
+def run_survey(rest: list[str]) -> int:
+    if len(rest) != 1:
+        print(f"usage: {PROG} survey REQUEST_FILE", file=sys.stderr)
+
+        return 2
+
+    try:
+        text = survey_file(rest[0])
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        print(f"could not survey: {error}", file=sys.stderr)
+
+        return 2
+
+    sys.stdout.write(text)
+
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -98,6 +117,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if verb == "guide" and not rest:
         return 0
+
+    if verb == "survey":
+        return run_survey(rest)
 
     if verb == "check":
         print(f"{PROG}: no check verb; the verbs are {VERBS_TEXT}", file=sys.stderr)

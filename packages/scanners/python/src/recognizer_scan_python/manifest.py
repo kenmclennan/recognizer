@@ -32,6 +32,7 @@ def build() -> dict:
         "units": ["files"],
         "settings": [],
         "scan_schema_version": SCAN_SCHEMA_VERSION,
+        "setup_survey": {"order": 3},
         "languages": [
             {
                 "name": "python",

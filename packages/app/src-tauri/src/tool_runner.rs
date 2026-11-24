@@ -727,6 +727,12 @@ impl ToolRunner {
         pairs
     }
 
+    pub fn environment_pairs(&self) -> Vec<(String, String)> {
+        self.environment_for()
+            .map(|environment| self.pairs_for(&environment))
+            .unwrap_or_default()
+    }
+
     fn resolve(&self, name: &str, environment: &Environment) -> Result<PathBuf, ToolFault> {
         match self.toolchain.folder() {
             Some(folder) => {

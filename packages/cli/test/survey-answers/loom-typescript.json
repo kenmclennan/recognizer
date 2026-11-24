@@ -1,0 +1,60 @@
+{
+  "runners": [
+    {
+      "language": "typescript",
+      "runner": "vitest",
+      "directory": "engine",
+      "from": "engine/package.json",
+      "command": "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory={up}.recognizer/cache/coverage/{slug}",
+      "coverage": {
+        "path": ".recognizer/cache/coverage/{slug}/lcov.info",
+        "format": "lcov"
+      },
+      "tool": "@vitest/coverage-v8"
+    },
+    {
+      "language": "typescript",
+      "runner": "vitest",
+      "directory": "app",
+      "from": "app/package.json",
+      "command": "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory={up}.recognizer/cache/coverage/{slug}",
+      "coverage": {
+        "path": ".recognizer/cache/coverage/{slug}/lcov.info",
+        "format": "lcov"
+      },
+      "tool": "@vitest/coverage-v8"
+    }
+  ],
+  "tools": [
+    {
+      "name": "@vitest/coverage-v8",
+      "kind": "npm",
+      "installed": false,
+      "why": "vitest writes its coverage report through this package",
+      "needed_by": ["engine/package.json", "app/package.json"],
+      "installs": "engine/package.json, app/package.json, package-lock.json",
+      "command": [
+        "npm",
+        "install",
+        "--save-dev",
+        "@vitest/coverage-v8@3.2.4",
+        "-w",
+        "engine",
+        "-w",
+        "app"
+      ],
+      "cwd": ".",
+      "files": [
+        "package.json",
+        "package-lock.json",
+        "npm-shrinkwrap.json",
+        "yarn.lock",
+        "pnpm-lock.yaml",
+        "engine/package.json",
+        "app/package.json"
+      ],
+      "undo_note": "package.json and the lockfile are restored; the package stays in node_modules until the next npm install"
+    }
+  ],
+  "notes": []
+}

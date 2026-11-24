@@ -43,6 +43,12 @@ import {
 import { liveScopes, processScope, StopScope } from "../stop-scope.js";
 import { type ScopeFiles, writeScopeFiles } from "./scan-files.js";
 import { sensorWork } from "./sensor-work.js";
+import {
+  parseSetup,
+  runSetupAction,
+  type SetupStopControl,
+  stopControl,
+} from "./setup-run.js";
 import { parseStart, withFiles } from "./start-request.js";
 import {
   SIGNAL_BACKSTOP_MS,
@@ -88,6 +94,7 @@ function quiet(io: Io): Io {
 export class Service {
   private readonly started = new Map<string, Started>();
   private readonly watches = new Map<string, () => void>();
+  private readonly setups = new Map<string, SetupStopControl>();
   private readonly signals: Signals;
   private readonly backstopMs: number;
   private readonly shared: Io;
@@ -143,6 +150,23 @@ export class Service {
         this.start(id, args);
 
         return;
+      case "setup.start":
+        this.setupStart(id, args);
+
+        return;
+      case "setup.stop": {
+        const setup = text(args, "setup");
+        const held = this.setups.get(setup);
+
+        if (held === undefined) {
+          throw new Error(`no setup ${setup} is running`);
+        }
+
+        held.request();
+        reply(null);
+
+        return;
+      }
       case "scan.stop":
         reply(this.stop(args));
 
@@ -440,6 +464,30 @@ export class Service {
     this.started.delete(scanId);
     liveScopes.delete(scope);
     this.write({ stream: scanId, outcome: wireOutcome(outcome) });
+  }
+
+  private setupStart(id: number, args: Record<string, unknown>): void {
+    const request = parseSetup(args);
+    const setupId = this.nextId("u");
+    const scope = new StopScope();
+    const control = stopControl();
+
+    liveScopes.add(scope);
+    this.setups.set(setupId, control);
+    this.write({ id, ok: setupId });
+
+    void (async () => {
+      const outcome = await runSetupAction(
+        quiet(nodeIo(scope)),
+        request,
+        control,
+        (line) => this.write({ stream: setupId, event: line }),
+      );
+
+      this.setups.delete(setupId);
+      liveScopes.delete(scope);
+      this.write({ stream: setupId, outcome });
+    })();
   }
 
   private stop(args: Record<string, unknown>): null {

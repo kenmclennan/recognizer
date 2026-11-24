@@ -164,7 +164,17 @@
             "minItems": 1,
             "items": { "type": "string" }
           },
-          "cwd": { "type": "string", "minLength": 1 }
+          "cwd": { "type": "string", "minLength": 1 },
+          "files": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "undo": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "undo_note": { "type": "string" }
         }
       }
     },

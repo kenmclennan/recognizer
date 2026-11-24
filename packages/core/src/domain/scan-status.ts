@@ -6,4 +6,5 @@ export type ScanStatus =
       sensors: string[];
       describe: boolean;
       startedBy: string;
+      refusal?: string;
     };

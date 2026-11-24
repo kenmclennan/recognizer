@@ -1,0 +1,9 @@
+{
+  "root": "/r",
+  "files": [],
+  "suites": [
+    {
+      "language": "kotlin"
+    }
+  ]
+}

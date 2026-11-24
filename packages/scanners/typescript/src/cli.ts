@@ -1,11 +1,18 @@
 import { execFileSync } from "node:child_process";
-import { renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { ScanError } from "./errors.js";
 import { progressTo } from "./events.js";
 import { manifestText } from "./manifest.js";
 import { scan } from "./scan.js";
 import { render } from "./serialise.js";
+import { type SurveyRequest, survey } from "./survey.js";
 import { scannerVersion } from "./version.js";
 
 export interface Io {
@@ -45,7 +52,7 @@ interface Args {
   output: string | null;
 }
 
-const VERBS = "manifest, check, run, guide";
+const VERBS = "manifest, check, run, guide, survey";
 
 const USAGE =
   "usage: recognizer-scan-typescript run ROOT [--commit SHA] [--modified true|false] [--output FILE]";
@@ -122,6 +129,28 @@ export function resolveModified(root: string): boolean | null {
   }
 }
 
+function runSurvey(argv: string[], io: Io): number {
+  const [file] = argv;
+
+  if (argv.length !== 1 || file === undefined) {
+    io.stderr("usage: recognizer-scan-typescript survey REQUEST_FILE\n");
+
+    return 2;
+  }
+
+  try {
+    const request = JSON.parse(readFileSync(file, "utf8")) as SurveyRequest;
+
+    io.stdout(`${JSON.stringify(survey(request), null, 2)}\n`);
+
+    return 0;
+  } catch (error) {
+    io.stderr(`could not survey: ${(error as Error).message}\n`);
+
+    return 2;
+  }
+}
+
 export function run(argv: string[], io: Io = nodeIo()): number {
   const [verb, ...rest] = argv;
 
@@ -139,6 +168,10 @@ export function run(argv: string[], io: Io = nodeIo()): number {
 
   if (argv.length === 1 && verb === "guide") {
     return 0;
+  }
+
+  if (verb === "survey") {
+    return runSurvey(rest, io);
   }
 
   if (verb === "check") {

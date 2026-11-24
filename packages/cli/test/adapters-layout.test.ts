@@ -10,6 +10,7 @@ const expected: Record<string, string[]> = {
   filesystem: [
     "baseline-adapter.ts",
     "config-adapter.ts",
+    "config-keys-adapter.ts",
     "diagnosis-translator.ts",
     "findings-adapter.ts",
     "findings-document-types.ts",
@@ -23,6 +24,7 @@ const expected: Record<string, string[]> = {
     "scan-document-types.ts",
     "scan-lock-adapter.ts",
     "scan-translator.ts",
+    "setup-files-adapter.ts",
     "source-files-adapter.ts",
     "structure-adapter.ts",
     "view-adapter.ts",
@@ -43,9 +45,11 @@ const expected: Record<string, string[]> = {
     "sensors-adapter.ts",
     "shipped-plugins-adapter.ts",
     "sink-io.ts",
+    "survey-plugins-adapter.ts",
     "test-reports-adapter.ts",
   ],
   system: [
+    "assistant-adapter.ts",
     "clock-adapter.ts",
     "digest-adapter.ts",
     "scratch-adapter.ts",

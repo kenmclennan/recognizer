@@ -1,10 +1,10 @@
+import { joinPath } from "../../domain/path.js";
 import {
   type Discovery,
   KINDS,
   PREFIXES,
 } from "../../domain/plugins/installed-plugin.js";
 import {
-  joinPath,
   judgeProtocol,
   judgeScanSchema,
   type PluginKind,

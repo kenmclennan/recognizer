@@ -9,18 +9,14 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Survey } from "@recognizer/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
-import { type Io, nodeIo } from "../src/cli.js";
 import validate from "../src/generated/setup-survey-validator.js";
 import { runSetup } from "../src/setup-command.js";
-import {
-  folderSlug,
-  type Survey,
-  surveyRepository,
-} from "../src/setup-survey.js";
 import { capture, REPO } from "./helpers.js";
 import { copyLoom, LOOM, shimDirectory, shimmedPath } from "./setup-helpers.js";
+import { writeStubSurveyPlugin } from "./stub-survey-plugin.js";
 
 const BIN = join(dirname(fileURLToPath(import.meta.url)), "../dist/bin.js");
 
@@ -132,36 +128,6 @@ describe("recognizer setup survey", () => {
     ]);
   });
 
-  it("the survey of this repository lists only the runners its config does not yet cover", async () => {
-    const { survey, status } = await surveyOf([REPO]);
-    const names = survey.runners.map(
-      (runner) => `${runner.language}:${runner.directory}`,
-    );
-
-    expect(status).toBe(0);
-    expect(names).toContain("rust:packages/app/src-tauri");
-
-    for (const configured of [
-      "packages/core",
-      "packages/cli",
-      "packages/app",
-      "packages/describers/claude",
-      "packages/scanners/typescript",
-      "packages/sensors",
-      "packages/scanners/python",
-      "packages/scanners/kotlin",
-      "packages/scanners/csharp",
-      "packages/scanners/rust",
-    ]) {
-      expect(
-        survey.runners.map((runner) => runner.directory),
-        configured,
-      ).not.toContain(configured);
-    }
-
-    expect(validate(survey), JSON.stringify(validate.errors)).toBe(true);
-  });
-
   it("lists an installed describer as a check that is on once the config has a describer", async () => {
     process.env.PATH = shimmedPath(shimDirectory(true, true));
 
@@ -194,192 +160,6 @@ describe("recognizer setup survey", () => {
     ).toBe(true);
   });
 
-  it("names the root package.json and the lockfile for a vitest suite at the root", async () => {
-    const directory = makeTempDir("recognizer-setup-root-");
-
-    writeFileSync(
-      join(directory, "package.json"),
-      JSON.stringify({
-        name: "solo",
-        scripts: { test: "vitest run" },
-        devDependencies: { vitest: "^3.2.4" },
-      }),
-    );
-    writeFileSync(join(directory, "package-lock.json"), "{}");
-
-    const { survey } = await surveyOf([directory]);
-    const coverage = survey.tools.find(
-      (tool) => tool.name === "@vitest/coverage-v8",
-    );
-
-    expect(coverage?.installs).toBe("package.json, package-lock.json");
-  });
-
-  it("suggests a report path under the repository's root cache for every runner", async () => {
-    const directory = makeTempDir("recognizer-setup-cache-");
-    const write = (path: string, text: string) => {
-      mkdirSync(dirname(join(directory, path)), { recursive: true });
-      writeFileSync(join(directory, path), text);
-    };
-    const vitest = JSON.stringify({
-      scripts: { test: "vitest run" },
-      devDependencies: { vitest: "^3.2.4" },
-    });
-
-    write("package.json", vitest);
-    write("packages/web/package.json", vitest);
-    write(
-      "packages/jt/package.json",
-      JSON.stringify({
-        scripts: { test: "jest" },
-        devDependencies: { jest: "^30.0.0" },
-      }),
-    );
-    write("services/api/pyproject.toml", "[tool.pytest]\n");
-    write("crates/core/Cargo.toml", '[package]\nname = "core"\n');
-
-    const { survey } = await surveyOf([directory]);
-    const runners = survey.runners;
-
-    expect(runners.map((runner) => runner.directory).sort()).toEqual([
-      ".",
-      "crates/core",
-      "packages/jt",
-      "packages/web",
-      "services/api",
-    ]);
-
-    for (const runner of runners) {
-      const depth =
-        runner.directory === "." ? 0 : runner.directory.split("/").length;
-      const folder = `.recognizer/cache/coverage/${folderSlug(runner.name)}`;
-
-      expect(runner.coverage.path).toBe(`${folder}/lcov.info`);
-      expect(runner.command).toContain(`${"../".repeat(depth)}${folder}`);
-
-      if (depth === 0) {
-        expect(runner.command).not.toContain("..");
-      } else {
-        expect(runner.command).not.toContain(
-          `${"../".repeat(depth + 1)}.recognizer`,
-        );
-      }
-    }
-  });
-
-  it("slugs a suite name as the sensors do", () => {
-    const rows = JSON.parse(
-      readFileSync(join(REPO, "fixtures/suites/folder-slugs.json"), "utf8"),
-    ) as { name: string; slug: string }[];
-
-    expect(rows.length).toBeGreaterThan(0);
-    expect(rows.some((row) => /[^A-Za-z0-9._-]/.test(row.name))).toBe(true);
-    expect(rows.some((row) => row.name.startsWith("."))).toBe(true);
-
-    for (const row of rows) {
-      expect(folderSlug(row.name)).toBe(row.slug);
-    }
-  });
-
-  it("the loom example puts every runner's report under the root cache", () => {
-    const survey = JSON.parse(
-      readFileSync(
-        join(REPO, "schema/setup-survey-examples/valid/loom.json"),
-        "utf8",
-      ),
-    ) as Survey;
-
-    expect(survey.runners.map((runner) => runner.name)).toEqual([
-      "engine",
-      "app",
-      "tauri",
-    ]);
-
-    for (const runner of survey.runners) {
-      const depth = runner.directory.split("/").length;
-      const folder = `.recognizer/cache/coverage/${runner.name}`;
-
-      expect(runner.coverage.path).toBe(`${folder}/lcov.info`);
-      expect(runner.command).toContain(`${"../".repeat(depth)}${folder}`);
-    }
-  });
-
-  it("prefixes each path with a package root in a subfolder", async () => {
-    const directory = makeTempDir("recognizer-setup-sub-");
-    const sub = join(directory, "web");
-
-    mkdirSync(join(sub, "engine"), { recursive: true });
-    writeFileSync(
-      join(sub, "package.json"),
-      JSON.stringify({ name: "web", private: true, workspaces: ["engine"] }),
-    );
-    writeFileSync(
-      join(sub, "engine/package.json"),
-      JSON.stringify({
-        name: "engine",
-        scripts: { test: "vitest run" },
-        devDependencies: { vitest: "^3.2.4" },
-      }),
-    );
-    writeFileSync(join(sub, "package-lock.json"), "{}");
-
-    const { survey } = await surveyOf([directory]);
-    const coverage = survey.tools.find(
-      (tool) => tool.name === "@vitest/coverage-v8",
-    );
-
-    expect(coverage?.installs).toBe(
-      "web/engine/package.json, web/package-lock.json",
-    );
-  });
-
-  it("runs the install from a lone package's own folder with no workspace flag", async () => {
-    const directory = makeTempDir("recognizer-setup-lone-");
-
-    mkdirSync(join(directory, "client"), { recursive: true });
-    writeFileSync(
-      join(directory, "client/package.json"),
-      JSON.stringify({
-        name: "client",
-        scripts: { test: "vitest run" },
-        devDependencies: { vitest: "^3.2.4" },
-      }),
-    );
-    writeFileSync(join(directory, "client/package-lock.json"), "{}");
-
-    const { survey } = await surveyOf([directory]);
-    const coverage = survey.tools.find(
-      (tool) => tool.name === "@vitest/coverage-v8",
-    );
-
-    expect(coverage?.cwd).toBe("client");
-    expect(coverage?.command).not.toContain("-w");
-  });
-
-  it("gives a workspace member a flag relative to its lockfile root", async () => {
-    const directory = makeTempDir("recognizer-setup-rel-");
-    const vitest = JSON.stringify({
-      scripts: { test: "vitest run" },
-      devDependencies: { vitest: "^3.2.4" },
-    });
-
-    mkdirSync(join(directory, "packages/a"), { recursive: true });
-    mkdirSync(join(directory, "web/packages/a"), { recursive: true });
-    writeFileSync(join(directory, "package-lock.json"), "{}");
-    writeFileSync(join(directory, "packages/a/package.json"), vitest);
-    writeFileSync(join(directory, "web/package-lock.json"), "{}");
-    writeFileSync(join(directory, "web/packages/a/package.json"), vitest);
-
-    const { survey } = await surveyOf([directory]);
-    const coverage = survey.tools.filter(
-      (tool) => tool.name === "@vitest/coverage-v8",
-    );
-    const at = (cwd: string) => coverage.find((tool) => tool.cwd === cwd);
-
-    expect(at(".")?.command.slice(-2)).toEqual(["-w", "packages/a"]);
-    expect(at("web")?.command.slice(-2)).toEqual(["-w", "packages/a"]);
-  });
-
   it("lists no describer check when none is installed", async () => {
     const { survey } = await surveyOf([copyLoom()]);
 
@@ -405,197 +185,6 @@ describe("recognizer setup survey", () => {
     expect(readFileSync(join(LOOM, "package.json"), "utf8")).toContain(
       "workspaces",
     );
-  });
-});
-
-function chainRepository(
-  server: Record<string, unknown>,
-  config = true,
-): string {
-  const directory = makeTempDir("recognizer-setup-chain-");
-
-  mkdirSync(join(directory, "server"), { recursive: true });
-  mkdirSync(join(directory, "web"), { recursive: true });
-  writeFileSync(
-    join(directory, "package.json"),
-    JSON.stringify({
-      name: "root",
-      workspaces: ["server", "web"],
-      devDependencies: { vitest: "^3.2.4" },
-    }),
-  );
-  writeFileSync(join(directory, "server/package.json"), JSON.stringify(server));
-  writeFileSync(
-    join(directory, "web/package.json"),
-    JSON.stringify({ name: "web", scripts: { test: "vitest run" } }),
-  );
-  writeFileSync(join(directory, "web/vitest.config.ts"), "");
-
-  if (config) {
-    writeFileSync(join(directory, "server/vitest.config.ts"), "");
-  }
-
-  return directory;
-}
-
-const SAGA_SERVER = {
-  name: "server",
-  scripts: {
-    test: "npm run test:unit && npm run test:integration && npm run test:feature",
-    "test:unit": "NODE_CONFIG_DIR=./config vitest run",
-    "test:integration":
-      "NODE_CONFIG_DIR=./config vitest run --config vitest.integration.config.ts",
-    "test:feature": "cucumber-js",
-  },
-  devDependencies: { "@vitest/coverage-v8": "^3.2.4" },
-};
-
-describe("a vitest suite behind an npm run chain", () => {
-  it("finds a vitest suite behind an npm run chain and carries its env", async () => {
-    const { survey } = await surveyOf([chainRepository(SAGA_SERVER)]);
-
-    expect(survey.runners).toHaveLength(2);
-
-    const [server, web] = survey.runners;
-
-    expect(server?.name).toBe("server");
-    expect(server?.env).toEqual({ NODE_CONFIG_DIR: "./config" });
-    expect(server?.directory).toBe("server");
-    expect(server?.from).toBe("server/package.json");
-    expect(server?.command).toBe(
-      "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=../.recognizer/cache/coverage/server",
-    );
-    expect(web?.name).toBe("web");
-    expect(web).not.toHaveProperty("env");
-    expect(
-      survey.runners.some((runner) => runner.command.includes("integration")),
-    ).toBe(false);
-  });
-
-  it("follows nothing without a vitest config beside the package", async () => {
-    const { survey } = await surveyOf([chainRepository(SAGA_SERVER, false)]);
-
-    expect(survey.runners.map((runner) => runner.name)).toEqual(["web"]);
-  });
-
-  it.each([
-    ["cucumber-js", { test: "cucumber-js" }],
-    ["a coverage flag", { test: "vitest run --coverage" }],
-    ["a coverage setting", { test: "vitest run --coverage.enabled" }],
-    ["a watch flag", { test: "vitest --watch" }],
-    ["a reporter flag", { test: "vitest run -r dot" }],
-    ["another subcommand", { test: "vitest watch" }],
-    ["a glob word", { test: "vitest run src/**/*.test.ts" }],
-    ["a bare double dash", { test: "vitest run -- x" }],
-    ["a cycle", { test: "npm run a", a: "npm run a" }],
-    ["a missing script", { test: "npm run missing" }],
-    ["a quote in an env value", { test: 'FOO="a b" vitest run' }],
-    ["npm run with a workspace flag", { test: "npm run test -w x" }],
-  ])(
-    "gives no runner when no step is a safe vitest step: %s",
-    async (_title, scripts) => {
-      const { survey } = await surveyOf([
-        chainRepository({ name: "server", scripts }),
-      ]);
-
-      expect(survey.runners.map((runner) => runner.name)).toEqual(["web"]);
-    },
-  );
-
-  it("keeps a vitest script's own arguments in the command", async () => {
-    const directory = chainRepository({
-      name: "server",
-      scripts: { test: "vitest run --config test/vitest.config.ts" },
-    });
-
-    rmSync(join(directory, "server/vitest.config.ts"));
-    mkdirSync(join(directory, "server/test"), { recursive: true });
-    writeFileSync(join(directory, "server/test/vitest.config.ts"), "");
-
-    const { survey } = await surveyOf([directory]);
-    const server = survey.runners.find((runner) => runner.name === "server");
-
-    expect(server).toBeDefined();
-    expect(server?.command).toBe(
-      "npx vitest run --config test/vitest.config.ts --coverage --coverage.reporter=lcov --coverage.reportsDirectory=../.recognizer/cache/coverage/server",
-    );
-  });
-
-  it("keeps the arguments of a chain step and its env", async () => {
-    const { survey } = await surveyOf([
-      chainRepository({
-        name: "server",
-        scripts: {
-          test: "npm run unit",
-          unit: "NODE_CONFIG_DIR=./config vitest run --project web",
-        },
-      }),
-    ]);
-    const server = survey.runners.find((runner) => runner.name === "server");
-
-    expect(server).toBeDefined();
-    expect(server?.env).toEqual({ NODE_CONFIG_DIR: "./config" });
-    expect(server?.command).toContain("run --project web --coverage");
-  });
-
-  it.each([
-    [
-      "a package with vitest listed and a watch script",
-      { test: "vitest --watch" },
-    ],
-    [
-      "a package whose chain names a missing script",
-      { test: "npm run missing" },
-    ],
-  ])(
-    "gives no runner for %s without a config beside it",
-    async (_title, scripts) => {
-      const { survey } = await surveyOf([
-        chainRepository(
-          {
-            name: "server",
-            scripts,
-            devDependencies: { vitest: "^3.2.4" },
-          },
-          false,
-        ),
-      ]);
-
-      expect(survey.runners.map((runner) => runner.name)).toEqual(["web"]);
-    },
-  );
-
-  it("a hit and a stop in one survey are each their own result", async () => {
-    const directory = makeTempDir("recognizer-setup-mixed-");
-
-    for (const [name, test] of [
-      ["alpha", "vitest run --config a.ts"],
-      ["beta", "vitest run --coverage"],
-    ]) {
-      mkdirSync(join(directory, name as string), { recursive: true });
-      writeFileSync(
-        join(directory, name as string, "package.json"),
-        JSON.stringify({ name, scripts: { test } }),
-      );
-    }
-
-    const { survey } = await surveyOf([directory]);
-
-    expect(survey.runners.map((runner) => runner.name)).toEqual(["alpha"]);
-    expect(survey.runners[0]?.command).toContain(
-      "run --config a.ts --coverage",
-    );
-  });
-
-  it("the survey of the Saga-shaped fixture lists server and web", async () => {
-    const { survey } = await surveyOf([join(REPO, "fixtures/setup-saga")]);
-
-    expect(survey.runners.map((runner) => runner.name)).toEqual([
-      "server",
-      "web",
-    ]);
-    expect(survey.runners[0]?.env).toEqual({ NODE_CONFIG_DIR: "./config" });
-    expect(validate(survey), JSON.stringify(validate.errors)).toBe(true);
   });
 });
 
@@ -651,8 +240,10 @@ function suiteYaml(name: string, directory: string): string {
   return `  - name: ${name}\n    language: typescript\n    directory: ${directory}\n    command: npx vitest run\n    coverage:\n      path: c/lcov.info\n      format: lcov\n`;
 }
 
-function copySaga(config: string | null): string {
+function copySaga(config: string | null, describer = false): string {
   const directory = makeTempDir("recognizer-setup-saga-");
+
+  process.env.PATH = shimmedPath(shimDirectory(true, describer, "saga"));
 
   cpSync(join(REPO, "fixtures/setup-saga"), directory, { recursive: true });
 
@@ -808,9 +399,7 @@ describe("setup survey marks", () => {
   });
 
   it("leaves an unregistered plugin the Checks step offers out of the fixes", async () => {
-    process.env.PATH = shimmedPath(shimDirectory(true, true));
-
-    const directory = copySaga("overlays:\n  x: 1\n");
+    const directory = copySaga("overlays:\n  x: 1\n", true);
     const { survey } = await surveyOf([directory]);
 
     expect(survey.checks.some((check) => check.id === "claude")).toBe(true);
@@ -906,9 +495,9 @@ describe("setup survey policy", () => {
   });
 });
 
-describe("setup survey gradle suites", () => {
+describe("setup survey gap notes", () => {
   function tree(files: Record<string, string>): string {
-    const directory = makeTempDir("recognizer-setup-kt-");
+    const directory = makeTempDir("recognizer-setup-gap-");
 
     for (const [name, text] of Object.entries(files)) {
       mkdirSync(dirname(join(directory, name)), { recursive: true });
@@ -918,446 +507,60 @@ describe("setup survey gradle suites", () => {
     return directory;
   }
 
-  const KOTLIN_BUILD = `plugins {\n    kotlin("jvm") version "2.0.0"\n    id("jacoco")\n}\n`;
-  const COMMAND = "./gradlew cleanTest test jacocoTestReport";
-  const DEFAULT_PATH = "build/reports/jacoco/test/jacocoTestReport.xml";
-
-  it("a Kotlin DSL build with JaCoCo gives one runner with the command and the default path", async () => {
-    const directory = tree({
-      "build.gradle.kts": KOTLIN_BUILD,
-      gradlew: "",
-      "src/main/kotlin/A.kt": "class A\n",
-    });
-    const { survey } = await surveyOf([directory]);
-
-    expect(survey.runners).toHaveLength(1);
-    expect(survey.runners[0]).toMatchObject({
-      language: "kotlin",
-      runner: "gradle",
-      directory: ".",
-      command: COMMAND,
-      coverage: { path: DEFAULT_PATH, format: "jacoco" },
+  function runner(language: string, from: string): Record<string, unknown> {
+    return {
+      language,
+      runner: language,
+      directory: dirname(from),
+      from,
+      command: `run ${language}`,
+      coverage: { path: "c/lcov.info", format: "lcov" },
       tool: null,
-    });
-    expect(survey.notes).toEqual([]);
-    expect(validate(survey), JSON.stringify(validate.errors)).toBe(true);
-  });
-
-  it("a Groovy build with xml.outputLocation gives that path", async () => {
-    const groovy = tree({
-      "build.gradle": `plugins {\n    id 'jacoco'\n}\njacocoTestReport {\n    reports {\n        xml.outputLocation = layout.buildDirectory.file('coverage/jacoco.xml')\n    }\n}\n`,
-      gradlew: "",
-    });
-    const kotlin = tree({
-      "build.gradle.kts": `${KOTLIN_BUILD}tasks.jacocoTestReport {\n    reports {\n        xml.outputLocation.set(layout.buildDirectory.file("coverage/j.xml"))\n    }\n}\n`,
-      gradlew: "",
-    });
-    const first = await surveyOf([groovy]);
-    const second = await surveyOf([kotlin]);
-
-    expect(first.survey.runners).toHaveLength(1);
-    expect(first.survey.runners[0]?.coverage.path).toBe(
-      "build/coverage/jacoco.xml",
-    );
-    expect(second.survey.runners).toHaveLength(1);
-    expect(second.survey.runners[0]?.coverage.path).toBe(
-      "build/coverage/j.xml",
-    );
-  });
-
-  it("a build with a pactTest task gives only the test suite", async () => {
-    const directory = tree({
-      "build.gradle.kts": `${KOTLIN_BUILD}val pactTest by tasks.registering(Test::class) { }\ntasks.register<Test>("integrationTest") { }\n`,
-      gradlew: "",
-      "src/pactTest/kotlin/P.kt": "class P\n",
-      "src/main/kotlin/A.kt": "class A\n",
-    });
-    const { survey } = await surveyOf([directory]);
-
-    expect(survey.runners).toHaveLength(1);
-    expect(survey.runners[0]?.command).toContain("test");
-    expect(survey.runners[0]?.command).not.toContain("pactTest");
-    expect(survey.runners[0]?.command).not.toContain("integrationTest");
-  });
-
-  it("a build without JaCoCo gives no runner and the add-JaCoCo note", async () => {
-    const directory = tree({
-      "build.gradle.kts": `plugins {\n    id("io.micronaut.application")\n}\n`,
-      gradlew: "",
-      "src/main/kotlin/A.kt": "class A\n",
-    });
-    const { survey } = await surveyOf([directory]);
-
-    expect(survey.runners).toEqual([]);
-    expect(survey.notes).toHaveLength(1);
-    expect(survey.notes?.[0]?.directory).toBe(".");
-    expect(survey.notes?.[0]?.text).toContain('id("jacoco")');
-    expect(survey.notes?.[0]?.text).toContain("build.gradle.kts");
-  });
-
-  it("a build with no Kotlin sources and no JaCoCo gives no Gradle note", async () => {
-    const javaOnly = tree({
-      "build.gradle.kts": `plugins {\n    java\n}\n`,
-      "src/main/java/A.java": "class A {}\n",
-    });
-    const untracked = tree({
-      "build.gradle.kts": `plugins {\n    java\n}\n`,
-      "bin/main/A.kt": "class A\n",
-    });
-
-    for (const directory of [javaOnly, untracked]) {
-      const { survey } = await surveyOf([directory]);
-
-      expect(survey.runners).toEqual([]);
-      expect(survey.notes?.some((note) => note.text.includes("JaCoCo"))).toBe(
-        false,
-      );
-    }
-  });
-
-  it("an unreadable report path gives the default path and a note", async () => {
-    const dollar = tree({
-      "build.gradle.kts": `${KOTLIN_BUILD}tasks.jacocoTestReport {\n    reports.xml.outputLocation = file("\${buildDir}/x.xml")\n}\n`,
-      gradlew: "",
-    });
-    const two = tree({
-      "build.gradle": `plugins {\n    id 'jacoco'\n}\na { xml.outputLocation = layout.buildDirectory.file('a.xml') }\nb { xml.outputLocation = layout.buildDirectory.file('b.xml') }\n`,
-      gradlew: "",
-    });
-
-    for (const directory of [dollar, two]) {
-      const { survey } = await surveyOf([directory]);
-
-      expect(survey.runners).toHaveLength(1);
-      expect(survey.runners[0]?.coverage.path).toBe(DEFAULT_PATH);
-      expect(
-        survey.notes?.some((note) => note.text.includes("may differ")),
-      ).toBe(true);
-    }
-  });
-
-  it("jacoco applied only from subprojects gives no runner", async () => {
-    const directory = tree({
-      "build.gradle": `subprojects {\n    apply plugin: 'jacoco'\n}\n`,
-      gradlew: "",
-      "src/main/kotlin/A.kt": "class A\n",
-    });
-    const { survey } = await surveyOf([directory]);
-
-    expect(survey.runners).toEqual([]);
-    expect(
-      survey.notes?.some((note) => note.text.includes('id("jacoco")')),
-    ).toBe(true);
-  });
-
-  it("each subproject with a build file is its own suite and finds the wrapper above it", async () => {
-    const directory = tree({
-      gradlew: "",
-      "settings.gradle.kts": `include("svc-a", "svc-b")\n`,
-      "svc-a/build.gradle.kts": KOTLIN_BUILD,
-      "svc-a/src/main/kotlin/A.kt": "class A\n",
-      "svc-b/build.gradle.kts": `plugins {\n    kotlin("jvm")\n}\n`,
-      "svc-b/src/main/kotlin/B.kt": "class B\n",
-    });
-    const { survey } = await surveyOf([directory]);
-
-    expect(survey.runners).toHaveLength(1);
-    expect(survey.runners[0]).toMatchObject({
-      directory: "svc-a",
-      command: "../gradlew cleanTest test jacocoTestReport",
-    });
-    expect(survey.notes).toHaveLength(1);
-    expect(survey.notes?.[0]?.directory).toBe("svc-b");
-    expect(survey.notes?.[0]?.text).toContain('id("jacoco")');
-  });
-
-  it("no wrapper gives the assumed command and a note", async () => {
-    const directory = tree({
-      "build.gradle.kts": KOTLIN_BUILD,
-      "src/main/kotlin/A.kt": "class A\n",
-    });
-    const { survey } = await surveyOf([directory]);
-
-    expect(survey.runners).toHaveLength(1);
-    expect(survey.runners[0]?.command).toBe(COMMAND);
-    expect(
-      survey.notes?.some((note) => note.text.includes("no Gradle wrapper")),
-    ).toBe(true);
-  });
-
-  it("a configured suite hides the runner and the note", async () => {
-    const directory = tree({
-      "build.gradle.kts": KOTLIN_BUILD,
-      "src/main/kotlin/A.kt": "class A\n",
-      ".recognizer/config.yaml":
-        "tests:\n  - name: root\n    language: kotlin\n    directory: .\n    command: ./gradlew test\n    coverage:\n      path: build/x.xml\n      format: jacoco\n",
-    });
-    const { survey } = await surveyOf([directory]);
-
-    expect(survey.suites).toHaveLength(1);
-    expect(survey.runners).toEqual([]);
-    expect(survey.notes).toEqual([]);
-  });
-
-  it("the survey reads the build and runs no Gradle", () => {
-    const directory = tree({
-      "build.gradle.kts": KOTLIN_BUILD,
-      gradlew: "",
-      "src/main/kotlin/A.kt": "class A\n",
-    });
-    const calls: string[][] = [];
-    const base = nodeIo();
-    const io: Io = {
-      ...base,
-      run: (command, args, options) => {
-        calls.push([command, ...args]);
-
-        return base.run(command, args, options);
-      },
     };
-    const survey = surveyRepository(io, directory);
-
-    expect(survey.runners).toHaveLength(1);
-    expect(calls.length).toBeGreaterThan(0);
-    expect(calls.flat().some((part) => part.includes("gradle"))).toBe(false);
-  });
-
-  it("the survey of this repository lists its real Gradle fixtures", async () => {
-    const { survey } = await surveyOf([REPO]);
-    const runner = survey.runners.find(
-      (one) =>
-        one.language === "kotlin" &&
-        one.directory === "fixtures/mutation/kotlin",
-    );
-
-    expect(runner?.command).toBe(COMMAND);
-    expect(runner?.coverage.path).toBe(DEFAULT_PATH);
-    expect(
-      survey.notes?.some(
-        (note) =>
-          note.directory === "fixtures/mutation/kotlin" &&
-          note.text.includes("no Gradle wrapper"),
-      ),
-    ).toBe(true);
-    expect(
-      survey.notes?.some(
-        (note) =>
-          note.directory === "fixtures/kotlin/sample/app" &&
-          note.text.includes("no JaCoCo"),
-      ),
-    ).toBe(true);
-    expect(
-      survey.runners.every(
-        (one) => one.language !== "python" || one.activate !== undefined,
-      ),
-    ).toBe(true);
-  });
-});
-
-describe("setup survey python environments", () => {
-  const CACHE = "../../.recognizer/cache/python/x";
-
-  function tree(files: Record<string, string>): string {
-    const directory = makeTempDir("recognizer-setup-py-");
-
-    for (const [name, text] of Object.entries(files)) {
-      mkdirSync(dirname(join(directory, name)), { recursive: true });
-      writeFileSync(join(directory, name), text);
-    }
-
-    return directory;
   }
 
-  function surveyWith(
+  async function surveyWith(
     directory: string,
-    available: { uv: boolean; python3: boolean },
-  ): Survey {
-    const base = nodeIo();
-    const io: Io = {
-      ...base,
-      run: (command, args, options) => {
-        if (command === "uv" || command === "python3") {
-          const present = available[command];
-
-          return {
-            started: present,
-            status: present ? 0 : null,
-            stdout: "",
-            stderr: "",
-          };
-        }
-
-        return base.run(command, args, options);
-      },
+    answers: { name: string; answer: Record<string, unknown> }[],
+  ): Promise<Survey> {
+    const shims = makeTempDir("recognizer-setup-gap-shims-");
+    const extensions: Record<string, string[]> = {
+      python: [".py"],
+      rust: [".rs"],
+      kotlin: [".kt"],
     };
 
-    return surveyRepository(io, directory);
+    for (const [order, { name, answer }] of answers.entries()) {
+      writeStubSurveyPlugin(shims, {
+        name,
+        order,
+        extensions: extensions[name] ?? [],
+        stdout: JSON.stringify(answer),
+      });
+    }
+
+    process.env.PATH = shimmedPath(shims);
+
+    return (await surveyOf([directory])).survey;
   }
 
-  const REQUIREMENTS = { "tools/x/requirements-dev.txt": "pytest\n" };
-
-  it("a python runner with a requirements file and no venv builds an environment with uv", () => {
-    const survey = surveyWith(tree(REQUIREMENTS), { uv: true, python3: true });
-    const runner = survey.runners[0];
-
-    expect(validate(survey), JSON.stringify(validate.errors)).toBe(true);
-    expect(survey.runners).toHaveLength(1);
-    expect(runner?.name).toBe("x");
-    expect(runner?.directory).toBe("tools/x");
-    expect(runner?.command).toBe(
-      "pytest --cov --cov-report=lcov:../../.recognizer/cache/coverage/x/lcov.info",
-    );
-    expect(runner?.activate).toBe(`source ${CACHE}/bin/activate`);
-    expect(survey.tools).toHaveLength(1);
-
-    const tool = survey.tools[0];
-
-    expect(tool?.installed).toBe(false);
-    expect(tool?.prepare).toEqual([["uv", "venv", CACHE]]);
-    expect(tool?.command).toEqual([
-      "uv",
-      "pip",
-      "install",
-      "--python",
-      `${CACHE}/bin/python`,
-      "-r",
-      "requirements-dev.txt",
-      "pytest-cov",
-    ]);
-
-    for (const argv of [...(tool?.prepare ?? []), tool?.command ?? []]) {
-      expect(argv[0]).not.toMatch(/^python/);
-    }
-  });
-
-  it("a python runner with a requirements file and no venv or uv builds an environment with python3", () => {
-    const survey = surveyWith(tree(REQUIREMENTS), {
-      uv: false,
-      python3: true,
-    });
-    const tool = survey.tools[0];
-
-    expect(tool?.prepare).toEqual([["python3", "-m", "venv", CACHE]]);
-    expect(tool?.command.slice(0, 4)).toEqual([
-      `${CACHE}/bin/python`,
-      "-m",
-      "pip",
-      "install",
-    ]);
-
-    const argvs = [...(tool?.prepare ?? []), tool?.command ?? []];
-
-    expect(argvs.filter((argv) => argv[0] === "python3")).toHaveLength(1);
-  });
-
-  it("a python runner with no venv, uv or python3 is left out and noted", () => {
-    const survey = surveyWith(tree(REQUIREMENTS), {
-      uv: false,
-      python3: false,
-    });
-
-    expect(survey.runners.some((one) => one.language === "python")).toBe(false);
-    expect(survey.tools.some((tool) => tool.kind === "pip")).toBe(false);
-    expect(survey.notes).toHaveLength(1);
-    expect(survey.notes?.[0]?.directory).toBe("tools/x");
-    expect(survey.notes?.[0]?.text).toContain("no Python environment");
-
-    const mixed = surveyWith(
-      tree({
-        ...REQUIREMENTS,
-        "svc/pyproject.toml": "[tool.pytest]\n",
-        "svc/.venv/bin/python": "",
-      }),
-      { uv: false, python3: false },
-    );
-
-    expect(mixed.runners.map((one) => one.directory)).toEqual(["svc"]);
-    expect(mixed.notes).toHaveLength(1);
-  });
-
-  it("a python runner with a project venv installs into it and activates it", () => {
-    const directory = tree({ ...REQUIREMENTS, "tools/x/.venv/bin/python": "" });
-    const withUv = surveyWith(directory, { uv: true, python3: true });
-
-    expect(withUv.runners[0]?.activate).toBe("source .venv/bin/activate");
-    expect(withUv.tools[0]?.prepare).toBeUndefined();
-    expect(withUv.tools[0]?.command).toEqual([
-      "uv",
-      "pip",
-      "install",
-      "--python",
-      ".venv/bin/python",
-      "pytest-cov",
-    ]);
-
-    const without = surveyWith(directory, { uv: false, python3: false });
-
-    expect(without.tools[0]?.command).toEqual([
-      ".venv/bin/python",
-      "-m",
-      "pip",
-      "install",
-      "pytest-cov",
-    ]);
-
-    const root = surveyWith(
-      tree({
-        "services/api/requirements.txt": "pytest\n",
-        ".venv/bin/python": "",
-      }),
-      { uv: true, python3: true },
-    );
-
-    expect(root.runners[0]?.activate).toBe("source ../../.venv/bin/activate");
-  });
-
-  it("a requirements file listing pytest-cov makes the tool installed", () => {
-    const files = { "tools/x/requirements-dev.txt": "pytest\npytest-cov\n" };
-    const withVenv = surveyWith(
-      tree({ ...files, "tools/x/.venv/bin/python": "" }),
-      { uv: true, python3: true },
-    );
-
-    expect(withVenv.tools).toHaveLength(1);
-    expect(withVenv.tools[0]?.installed).toBe(true);
-
-    const without = surveyWith(tree(files), { uv: true, python3: true });
-
-    expect(without.tools).toHaveLength(1);
-    expect(without.tools[0]?.installed).toBe(false);
-  });
-
-  it("a pyproject only python runner without a venv notes that its dependencies are not installed", () => {
-    const survey = surveyWith(tree({ "tools/x/pyproject.toml": "pytest\n" }), {
-      uv: true,
-      python3: true,
-    });
-
-    expect(survey.tools[0]?.command).toEqual([
-      "uv",
-      "pip",
-      "install",
-      "--python",
-      `${CACHE}/bin/python`,
-      "pytest-cov",
-    ]);
-    expect(
-      survey.notes?.some((note) =>
-        note.text.includes("dependencies are not installed"),
-      ),
-    ).toBe(true);
-  });
-
-  it("the largest language with no runner gets a survey note", () => {
-    const survey = surveyWith(
+  it("the largest language with no runner gets a survey note", async () => {
+    const python = {
+      name: "python",
+      answer: {
+        runners: [runner("python", "tools/x/requirements-dev.txt")],
+        tools: [],
+        notes: [],
+      },
+    };
+    const survey = await surveyWith(
       tree({
         "a/A.kt": "",
         "a/B.kt": "",
         "a/C.kt": "",
-        "tools/x/requirements-dev.txt": "pytest\n",
         "tools/x/t.py": "",
       }),
-      { uv: true, python3: true },
+      [python],
     );
     const gap = survey.notes?.filter((note) => note.language === "kotlin");
 
@@ -1365,23 +568,35 @@ describe("setup survey python environments", () => {
     expect(gap?.[0]?.text).toContain("kotlin");
     expect(gap?.[0]?.text).toContain("3 files");
 
-    const tie = surveyWith(
+    const tie = await surveyWith(
       tree({ "a.kt": "", "b.kt": "", "c.rs": "", "d.rs": "" }),
-      { uv: true, python3: true },
+      [python],
     );
 
     expect(tie.notes?.map((note) => note.language)).toEqual(["kotlin"]);
   });
 
-  it("no gap note when every language with files has a runner", () => {
-    const survey = surveyWith(
-      tree({
-        ...REQUIREMENTS,
-        "tools/x/t.py": "",
-        "crates/core/Cargo.toml": '[package]\nname = "core"\n',
-        "crates/core/src/lib.rs": "",
-      }),
-      { uv: true, python3: true },
+  it("no gap note when every language with files has a runner", async () => {
+    const survey = await surveyWith(
+      tree({ "tools/x/t.py": "", "crates/core/src/lib.rs": "" }),
+      [
+        {
+          name: "python",
+          answer: {
+            runners: [runner("python", "tools/x/requirements-dev.txt")],
+            tools: [],
+            notes: [],
+          },
+        },
+        {
+          name: "rust",
+          answer: {
+            runners: [runner("rust", "crates/core/Cargo.toml")],
+            tools: [],
+            notes: [],
+          },
+        },
+      ],
     );
 
     expect(
@@ -1391,13 +606,21 @@ describe("setup survey python environments", () => {
     ).toBeFalsy();
   });
 
-  it("a language that already has a note gets no gap note", () => {
-    const survey = surveyWith(
-      tree({
-        "build.gradle.kts": `plugins {\n    kotlin("jvm") version "2.0.0"\n}\n`,
-        "src/main/kotlin/A.kt": "class A\n",
-      }),
-      { uv: true, python3: true },
+  it("a language that already has a note gets no gap note", async () => {
+    const survey = await surveyWith(
+      tree({ "src/main/kotlin/A.kt": "class A\n" }),
+      [
+        {
+          name: "kotlin",
+          answer: {
+            runners: [],
+            tools: [],
+            notes: [
+              { language: "kotlin", directory: ".", text: "no JaCoCo: add it" },
+            ],
+          },
+        },
+      ],
     );
 
     expect(survey.notes).toHaveLength(1);

@@ -22,6 +22,7 @@ export function manifest() {
     units: ["files"],
     settings: [],
     scan_schema_version: SCAN_SCHEMA_VERSION,
+    setup_survey: { order: 1 },
     languages: [
       {
         name: "typescript",

@@ -1,0 +1,204 @@
+{
+  "kind": "sensor",
+  "name": "crap",
+  "display": "C.R.A.P.",
+  "description": "Runs the tests under coverage and flags functions that are complex and poorly covered, where a change is most likely to break something.",
+  "expansion": "C.R.A.P.: Change Risk Anti-Patterns.",
+  "version": "0.1.0",
+  "protocol": 1,
+  "install": "brew upgrade kenmclennan/tap/recognizer-sense-crap || brew install kenmclennan/tap/recognizer-sense-crap",
+  "check": true,
+  "long_running": true,
+  "units": [
+    "functions"
+  ],
+  "settings": [
+    {
+      "key": "threshold",
+      "type": "number",
+      "description": "the C.R.A.P. score above which a function is reported, above 0; default 30",
+      "example": "sensors.crap.threshold 20",
+      "exclusiveMinimum": 0,
+      "default": 30,
+      "label": "Report above",
+      "unit": "score",
+      "limit": {
+        "metric": "crap",
+        "direction": "above"
+      }
+    },
+    {
+      "key": "coverage_limit",
+      "type": "number",
+      "description": "the line coverage below which a function is reported, above 0 and at most 1; false turns the coverage finding off; default 0.6",
+      "example": "sensors.crap.coverage_limit 0.7",
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "off": true,
+      "default": 0.6,
+      "label": "Report coverage below",
+      "unit": "0 to 1",
+      "limit": {
+        "metric": "coverage",
+        "direction": "below"
+      }
+    },
+    {
+      "key": "overlay",
+      "type": "path",
+      "description": "where the sensor writes its overlay, relative to the repository; default .recognizer/cache/overlays/crap.json",
+      "example": "sensors.crap.overlay .recognizer/cache/overlays/crap.json"
+    }
+  ],
+  "metrics": [
+    {
+      "name": "complexity",
+      "label": "cc",
+      "title": "Complexity",
+      "help": "How many independent paths run through the function; more paths are harder to test and to change.",
+      "type": "count",
+      "granularity": "member",
+      "bad": "high",
+      "published": {
+        "value": 10,
+        "source": "McCabe"
+      },
+      "cell": 1
+    },
+    {
+      "name": "crap",
+      "label": "CRAP",
+      "title": "C.R.A.P. score",
+      "help": "Complexity weighed against how well tests cover each function.",
+      "type": "number",
+      "granularity": "member",
+      "bad": "high",
+      "published": {
+        "value": 30,
+        "source": "Savoia and Evans"
+      },
+      "cell": 2
+    },
+    {
+      "name": "coverage",
+      "label": "cov",
+      "title": "Coverage",
+      "help": "Share of each function's lines the tests run.",
+      "type": "ratio",
+      "granularity": "member",
+      "bad": "low",
+      "published": {
+        "value": 0.6,
+        "source": "Google's guidelines"
+      },
+      "cell": 3
+    }
+  ],
+  "findings": [
+    {
+      "kind": "crap",
+      "group": {
+        "name": "C.R.A.P.",
+        "means": "A function that is both complex and poorly covered by tests, so changing it is risky. The published threshold is 30 (Savoia and Evans).",
+        "todo": "Add tests for it, or simplify it; either lowers the score."
+      },
+      "help": "One finding per function whose C.R.A.P. score is over the threshold.",
+      "sentence": {
+        "requires": [
+          "evidence.members.0.name",
+          "evidence.members.0.module",
+          "evidence.measures.complexity"
+        ],
+        "parts": [
+          [
+            {
+              "text": "{evidence.members.0.name} in {evidence.members.0.module|short} has complexity {evidence.measures.complexity|num}"
+            }
+          ],
+          [
+            {
+              "when": [
+                {
+                  "has": "evidence.measures.coverage"
+                },
+                {
+                  "has": "evidence.measures.crap"
+                }
+              ],
+              "text": " and {evidence.measures.coverage|percent}% coverage, C.R.A.P. {evidence.measures.crap|whole}"
+            },
+            {
+              "text": " and unknown coverage"
+            }
+          ],
+          [
+            {
+              "when": [
+                {
+                  "has": "evidence.measures.limit"
+                }
+              ],
+              "text": ", over the limit of {evidence.measures.limit|num}"
+            }
+          ],
+          [
+            {
+              "text": "."
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "kind": "coverage",
+      "group": {
+        "name": "Low coverage",
+        "means": "A function the tests cover less than the limit. The published line is coverage below 60% (Google's guidelines).",
+        "todo": "Add tests that run it, or raise the limit if it is wrong."
+      },
+      "help": "One finding per function whose line coverage is under the limit.",
+      "sentence": {
+        "requires": [
+          "evidence.measures.coverage",
+          "evidence.measures.limit",
+          "evidence.modules.0"
+        ],
+        "parts": [
+          [
+            {
+              "when": [
+                {
+                  "has": "evidence.members.0.name"
+                }
+              ],
+              "text": "{evidence.members.0.name} in {evidence.members.0.module|short}"
+            },
+            {
+              "text": "{evidence.modules.0|short}"
+            }
+          ],
+          [
+            {
+              "text": " has coverage {evidence.measures.coverage|num}, "
+            }
+          ],
+          [
+            {
+              "text": "under the limit of {evidence.measures.limit|num}"
+            }
+          ],
+          [
+            {
+              "text": "."
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "runs_tests": true,
+  "scoped": false,
+  "setup_survey": {
+    "order": 1
+  }
+}

@@ -21,4 +21,8 @@ export interface ConfigRepository {
   ): { name: string; command: string[] }[];
   tests(config: ConfigDocument | null): SuiteEntry[] | undefined;
   sensorConfig(root: string): ConfigDocument | null;
+  setupDocument(root: string): {
+    present: boolean;
+    document: Record<string, unknown>;
+  };
 }

@@ -1,0 +1,31 @@
+{
+  "runners": [
+    {
+      "language": "rust",
+      "runner": "cargo",
+      "directory": "app/src-tauri",
+      "from": "app/src-tauri/Cargo.toml",
+      "command": "cargo llvm-cov --lcov --output-path {up}.recognizer/cache/coverage/{slug}/lcov.info",
+      "coverage": {
+        "path": ".recognizer/cache/coverage/{slug}/lcov.info",
+        "format": "lcov"
+      },
+      "tool": "cargo-llvm-cov"
+    }
+  ],
+  "tools": [
+    {
+      "name": "cargo-llvm-cov",
+      "kind": "cargo",
+      "installed": false,
+      "why": "cargo writes its coverage report through this subcommand",
+      "needed_by": ["app/src-tauri/Cargo.toml"],
+      "installs": "the cargo bin folder, outside the repository",
+      "command": ["cargo", "install", "cargo-llvm-cov", "--locked"],
+      "cwd": ".",
+      "undo": ["cargo", "uninstall", "cargo-llvm-cov"],
+      "undo_note": "cargo-llvm-cov was uninstalled"
+    }
+  ],
+  "notes": []
+}

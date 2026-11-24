@@ -4,8 +4,9 @@ import type {
   StructureSettings,
   SuiteEntry,
 } from "@recognizer/core";
+import { parse } from "yaml";
 import type { Io } from "../../cli.js";
-import { readConfig } from "../../config.js";
+import { configFile, readConfig } from "../../config.js";
 import {
   type Config,
   type ConfigRead,
@@ -74,5 +75,30 @@ export class ConfigAdapter implements ConfigRepository {
     return registeredSensors(readConfig(this.io, root, ["sensors"])).map(
       ({ name }) => name,
     );
+  }
+
+  setupDocument(root: string): {
+    present: boolean;
+    document: Record<string, unknown>;
+  } {
+    const file = configFile(root);
+
+    if (!this.io.exists(file)) {
+      return { present: false, document: {} };
+    }
+
+    try {
+      const value: unknown = parse(this.io.readFile(file));
+
+      return {
+        present: true,
+        document:
+          typeof value === "object" && value !== null && !Array.isArray(value)
+            ? (value as Record<string, unknown>)
+            : {},
+      };
+    } catch {
+      return { present: true, document: {} };
+    }
   }
 }

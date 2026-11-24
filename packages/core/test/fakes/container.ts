@@ -1,14 +1,18 @@
 import {
+  type ConfigurationPorts,
   createScan,
   type PluginPorts,
   type Scan,
   type ScanPorts,
+  setupReadsOver,
 } from "../../src/index.js";
 import { FakeAnalysis } from "./fake-analysis.js";
+import { FakeAssistant } from "./fake-assistant.js";
 import { FakeBaselineRepository } from "./fake-baseline-repository.js";
 import { FakeChanges } from "./fake-changes.js";
 import { FakeCheckSandbox } from "./fake-check-sandbox.js";
 import { FakeClock } from "./fake-clock.js";
+import { FakeConfigKeys } from "./fake-config-keys.js";
 import { FakeConfigRepository } from "./fake-config-repository.js";
 import { FakeConfirm } from "./fake-confirm.js";
 import { FakeDescriber } from "./fake-describer.js";
@@ -31,9 +35,12 @@ import { FakeScratch } from "./fake-scratch.js";
 import { FakeSelectionFiles } from "./fake-selection-files.js";
 import { FakeSensorCatalog } from "./fake-sensor-catalog.js";
 import { FakeSensors } from "./fake-sensors.js";
+import { FakeSetupFiles } from "./fake-setup-files.js";
+import { FakeSetupScan } from "./fake-setup-scan.js";
 import { FakeShippedPlugins } from "./fake-shipped-plugins.js";
 import { FakeSourceFiles } from "./fake-source-files.js";
 import { FakeStructureRepository } from "./fake-structure-repository.js";
+import { FakeSurveyPlugins } from "./fake-survey-plugins.js";
 import { FakeTestReports } from "./fake-test-reports.js";
 import { FakeViewRepository } from "./fake-view-repository.js";
 import { FakeWindows } from "./fake-windows.js";
@@ -72,6 +79,11 @@ export interface Fakes {
   repositoryChecks: FakeRepositoryChecks;
   scratch: FakeScratch;
   scanCache: FakeScanCache;
+  setupFiles: FakeSetupFiles;
+  surveyPlugins: FakeSurveyPlugins;
+  assistant: FakeAssistant;
+  setupScan: FakeSetupScan;
+  configKeys: FakeConfigKeys;
 }
 
 export function createFakes(commit: string | null = "c0ffee"): Fakes {
@@ -116,6 +128,11 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     repositoryChecks: new FakeRepositoryChecks(),
     scratch: new FakeScratch(),
     scanCache: new FakeScanCache(),
+    setupFiles: new FakeSetupFiles(),
+    surveyPlugins: new FakeSurveyPlugins(),
+    assistant: new FakeAssistant(),
+    setupScan: new FakeSetupScan(),
+    configKeys: new FakeConfigKeys(),
   };
 }
 
@@ -133,6 +150,11 @@ export function portsOf(fakes: Fakes): ScanPorts {
     repositoryChecks,
     scratch,
     scanCache,
+    setupFiles,
+    surveyPlugins,
+    assistant,
+    setupScan,
+    configKeys,
     ...scan
   } = fakes;
 
@@ -152,5 +174,25 @@ export function pluginPortsOf(fakes: Fakes): PluginPorts {
     templates: fakes.pluginTemplates,
     shipped: fakes.shippedPlugins,
     repository: fakes.repositoryChecks,
+  };
+}
+
+export function configurationPortsOf(fakes: Fakes): ConfigurationPorts {
+  return {
+    files: fakes.setupFiles,
+    plugins: fakes.surveyPlugins,
+    assistant: fakes.assistant,
+    scan: fakes.setupScan,
+    keys: fakes.configKeys,
+    config: fakes.config,
+    policy: fakes.policy,
+    programs: fakes.programs,
+    lock: fakes.lock,
+    clock: fakes.clock,
+    version: "0.0.0-test",
+    reads: setupReadsOver({
+      plugins: pluginPortsOf(fakes),
+      scanners: fakes.scanners,
+    }),
   };
 }

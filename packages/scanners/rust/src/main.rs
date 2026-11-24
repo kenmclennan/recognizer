@@ -3,10 +3,11 @@ use std::process::{Command, ExitCode};
 
 use recognizer_scan_rust::events::Progress;
 use recognizer_scan_rust::manifest;
+use recognizer_scan_rust::survey;
 use recognizer_scan_rust::test_report;
 use recognizer_scan_rust::{render, scan_reporting};
 
-const VERBS: &str = "manifest, check, run, guide, tests";
+const VERBS: &str = "manifest, check, run, guide, tests, survey";
 
 struct Arguments {
     root: PathBuf,
@@ -135,6 +136,28 @@ fn run_tests_verb(rest: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+fn run_survey_verb(rest: &[String]) -> ExitCode {
+    let [file] = rest else {
+        eprintln!("usage: recognizer-scan-rust survey REQUEST_FILE");
+        return ExitCode::from(2);
+    };
+    let request = std::fs::read_to_string(file)
+        .map_err(|error| error.to_string())
+        .and_then(|text| serde_json::from_str(&text).map_err(|error| error.to_string()))
+        .and_then(|request| survey::answer(&request));
+
+    match request {
+        Ok(answer) => {
+            println!("{}", serde_json::to_string_pretty(&answer).unwrap());
+            ExitCode::SUCCESS
+        }
+        Err(message) => {
+            eprintln!("could not survey: {message}");
+            ExitCode::from(2)
+        }
+    }
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
@@ -155,6 +178,10 @@ fn main() -> ExitCode {
     if let Some((verb, rest)) = args.split_first() {
         if verb == "tests" {
             return run_tests_verb(rest);
+        }
+
+        if verb == "survey" {
+            return run_survey_verb(rest);
         }
     }
 

@@ -11,6 +11,8 @@ export const OPERATIONS = [
   "confirm.answer",
   "sensor.work",
   "tests.hash",
+  "setup.start",
+  "setup.stop",
   "view.parse",
   "view.serialise",
   "view.range",

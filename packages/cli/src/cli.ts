@@ -74,6 +74,8 @@ export interface RunOptions {
   timeoutMs?: number;
   graceMs?: number;
   env?: Record<string, string>;
+  input?: string;
+  onStdoutLine?: (line: string) => void;
   onStderrLine?: (line: string) => void;
 }
 
@@ -173,16 +175,22 @@ function spawnAsync(
   const result = new Promise<RunResult>((resolve) => {
     child = spawn(command, args, {
       cwd: options?.cwd,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [options?.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
       ...(options?.env === undefined
         ? {}
         : { env: { ...process.env, ...options.env } }),
     });
     scope.children.add(child);
 
+    if (options?.input !== undefined) {
+      child.stdin?.on("error", () => {});
+      child.stdin?.end(options.input);
+    }
+
     let stdout = "";
     let stderr = "";
     let pending = "";
+    let pendingOut = "";
     let timedOut = false;
     let settled = false;
     let grace: (() => void) | undefined;
@@ -219,6 +227,20 @@ function spawnAsync(
     child.stderr?.setEncoding("utf8");
     child.stdout?.on("data", (chunk: string) => {
       stdout += chunk;
+
+      if (options?.onStdoutLine === undefined) {
+        return;
+      }
+
+      pendingOut += chunk;
+
+      const lines = pendingOut.split("\n");
+
+      pendingOut = lines.pop() ?? "";
+
+      for (const line of lines) {
+        options.onStdoutLine(line);
+      }
     });
     child.stderr?.on("data", (chunk: string) => {
       stderr += chunk;
@@ -233,6 +255,11 @@ function spawnAsync(
       });
     });
     child.on("close", (status, signal) => {
+      if (pendingOut !== "") {
+        options?.onStdoutLine?.(pendingOut);
+        pendingOut = "";
+      }
+
       if (pending !== "") {
         options?.onStderrLine?.(pending);
         pending = "";
@@ -370,6 +397,9 @@ export function nodeIo(scope: StopScope = processScope): Io {
               cwd: options?.cwd,
               encoding: "utf8",
               maxBuffer: 256 * 1024 * 1024,
+              ...(options?.env === undefined
+                ? {}
+                : { env: { ...process.env, ...options.env } }),
             })
           : spawnSync(
               "sh",
@@ -385,6 +415,9 @@ export function nodeIo(scope: StopScope = processScope): Io {
                 cwd: options?.cwd,
                 encoding: "utf8",
                 maxBuffer: 256 * 1024 * 1024,
+                ...(options?.env === undefined
+                  ? {}
+                  : { env: { ...process.env, ...options.env } }),
               },
             );
       const code = (result.error as NodeJS.ErrnoException | undefined)?.code;
