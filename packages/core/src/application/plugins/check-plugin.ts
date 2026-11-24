@@ -4,7 +4,10 @@ import {
   type PluginEvent,
   parseEventLine,
 } from "../../domain/plugin-event.js";
-import { grammarsWithoutVocabulary } from "../../domain/plugins/grammar-vocabulary.js";
+import {
+  grammarsWithoutFields,
+  grammarsWithoutVocabulary,
+} from "../../domain/plugins/grammar-vocabulary.js";
 import {
   judgeProtocol,
   MANIFEST_TIMEOUT_MS,
@@ -373,13 +376,23 @@ export function checkGrammars(context: Context): PluginCheckResult {
   }
 
   const missing = grammarsWithoutVocabulary(manifest);
+  const fieldless = grammarsWithoutFields(manifest);
+  const problems = [
+    ...(missing.length === 0
+      ? []
+      : [
+          `grammar ${missing.join(", ")} publishes no vocabulary, so its comments and literals enter fingerprints and no function shape is trivial`,
+        ]),
+    ...(fieldless.length === 0
+      ? []
+      : [
+          `grammar ${fieldless.join(", ")} publishes no fields declaration, so it is unknown whether a function can be named or operator-based complexity counted`,
+        ]),
+  ];
 
-  return missing.length === 0
+  return problems.length === 0
     ? ok("grammars")
-    : fail(
-        "grammars",
-        `grammar ${missing.join(", ")} publishes no vocabulary, so its comments and literals enter fingerprints and no function shape is trivial`,
-      );
+    : fail("grammars", problems.join("; "));
 }
 
 async function verbResults(

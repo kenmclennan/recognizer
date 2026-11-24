@@ -445,7 +445,36 @@ describe("checkGrammars", () => {
 
   it("passes a grammar that publishes a vocabulary", () => {
     expect(
-      grammarsOf(withGrammar({ name: "acme-grammar", vocabulary: {} })),
+      grammarsOf(
+        withGrammar({ name: "acme-grammar", vocabulary: { fields: {} } }),
+      ),
+    ).toEqual({ name: "grammars", status: "ok" });
+  });
+
+  it("fails a grammar whose vocabulary has no fields key", () => {
+    const outcome = grammarsOf(
+      withGrammar({ name: "python", vocabulary: { comment_markers: ["x"] } }),
+    );
+
+    expect(outcome.status).toBe("fail");
+    expect(outcome.reason).toContain("python");
+    expect(outcome.reason).toContain("fields");
+  });
+
+  it("passes a grammar that publishes a fields role", () => {
+    expect(
+      grammarsOf(
+        withGrammar({
+          name: "python",
+          vocabulary: { fields: { name: "name" } },
+        }),
+      ),
+    ).toEqual({ name: "grammars", status: "ok" });
+  });
+
+  it("passes a grammar whose empty fields object declares no field carries a role", () => {
+    expect(
+      grammarsOf(withGrammar({ name: "kotlin", vocabulary: { fields: {} } })),
     ).toEqual({ name: "grammars", status: "ok" });
   });
 

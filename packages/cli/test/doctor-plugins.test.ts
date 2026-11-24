@@ -382,6 +382,48 @@ describe("doctor: a scanner grammar with no vocabulary", () => {
   });
 });
 
+describe("doctor: a scanner grammar with no fields declaration", () => {
+  it("names the scanner and the grammar as a problem", async () => {
+    const fixture = setup(undefined, { "a.acme": "" });
+    const rules = RULES("acme", ".acme");
+
+    writeShim(
+      fixture.bin,
+      "recognizer-scan-acme",
+      manifestFor("scanner", "acme", {
+        ...rules,
+        languages: [
+          {
+            ...(rules.languages as Record<string, unknown>[])[0],
+            grammars: [
+              {
+                name: "python",
+                extensions: [".acme"],
+                function_types: [],
+                scope_types: [],
+                branch_types: [],
+                boolean_operators: [],
+                bound_function_types: [],
+                vocabulary: {},
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const { report } = await doctor(fixture);
+    const found = problemsOf(report, "scanners");
+
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      code: "plugin-grammar-fields",
+      severity: "problem",
+    });
+    expect(found[0]?.line).toContain("python");
+  });
+});
+
 describe("doctor: a scanner that does not report tests", () => {
   const CHOSEN = "scanners:\n  acme: old\n";
 

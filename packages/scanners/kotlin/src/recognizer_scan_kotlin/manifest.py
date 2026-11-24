@@ -36,6 +36,7 @@ GRAMMARS = [
         "boolean_operators": [],
         "bound_function_types": [],
         "vocabulary": {
+            "fields": {},
             "comment_markers": ["comment"],
             "literal_types": ["string_content", "true", "false"],
             "literal_suffixes": ["_literal"],
