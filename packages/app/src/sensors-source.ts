@@ -35,9 +35,8 @@ export const sensorsSource: SensorsPort = {
         args: { sensor, modules, suites },
       }),
     ),
+  watchInputs: () => invoke<void>("watch_sensor_inputs"),
   onInputsChanged(run) {
-    void invoke<void>("watch_sensor_inputs");
-
     const pending = listen("sensor-inputs-changed", () => run());
 
     return () => void pending.then((stop) => stop());

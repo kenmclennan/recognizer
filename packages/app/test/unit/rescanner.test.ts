@@ -922,6 +922,60 @@ describe("createRescanner", () => {
     expect(log).toEqual([]);
   });
 
+  it("does not present a refresh as running and starts no scan or sensor run", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const scan = fakeScan();
+    const { log, rescanner } = harness(scan, {
+      resense: async () => {
+        log.push("resense");
+        await gate;
+
+        return OK;
+      },
+    });
+
+    const pending = rescanner.refresh();
+
+    expect(rescanner.running()).toBe(false);
+    expect(rescanner.external()).toBe(false);
+    release();
+    await pending;
+
+    expect(rescanner.running()).toBe(false);
+    expect(scan.ran).toHaveLength(0);
+  });
+
+  it("reads again once when an input changes during a refresh, so a later edit is not dropped", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let reads = 0;
+    const { rescanner } = harness(fakeScan(), {
+      resense: async () => {
+        reads += 1;
+
+        if (reads === 1) {
+          await gate;
+        }
+
+        return OK;
+      },
+    });
+
+    const first = rescanner.refresh();
+    const second = rescanner.refresh();
+    const third = rescanner.refresh();
+
+    release();
+    await Promise.all([first, second, third]);
+
+    expect(reads).toBe(2);
+  });
+
   it("does not refresh while a scan is running", async () => {
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => {
@@ -936,6 +990,45 @@ describe("createRescanner", () => {
     expect(log).not.toContain("resense");
     release();
     await first;
+  });
+
+  it("reads again once the scan ends when an input changed while it ran", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const scan = fakeScan({ steps: [gate] });
+    const { log, rescanner } = harness(scan);
+
+    const first = rescanner.run();
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await rescanner.refresh();
+
+    const during = log.filter((line) => line === "resense").length;
+
+    release();
+    await first;
+    await vi.waitFor(() =>
+      expect(log.filter((line) => line === "resense").length).toBeGreaterThan(
+        during,
+      ),
+    );
+
+    expect(scan.ran).toHaveLength(1);
+  });
+
+  it("does not read again after a scan when no input changed while it ran", async () => {
+    const scan = fakeScan();
+    const { log, rescanner } = harness(scan);
+
+    await rescanner.run();
+
+    const after = log.filter((line) => line === "resense").length;
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(log.filter((line) => line === "resense").length).toBe(after);
   });
 
   it("writes a test-running sensor's tick with the others and keeps it after every Scan however it ends", async () => {

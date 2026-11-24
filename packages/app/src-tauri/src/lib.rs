@@ -1225,7 +1225,8 @@ fn window_folder_path(app: &AppHandle, window: &WebviewWindow) -> Result<PathBuf
 static WATCHING: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 static WATCHING_CHANGES: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 static WATCHING_RESPONSIBILITIES: Mutex<Option<HashSet<String>>> = Mutex::new(None);
-static WATCHING_SENSOR_INPUTS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+static WATCHING_SENSOR_INPUTS: Mutex<Option<HashMap<String, u64>>> = Mutex::new(None);
+static SENSOR_INPUTS_GENERATION: AtomicU64 = AtomicU64::new(0);
 static WATCHING_GIT: Mutex<Option<HashMap<String, u64>>> = Mutex::new(None);
 static GIT_GENERATION: AtomicU64 = AtomicU64::new(0);
 
@@ -1395,15 +1396,13 @@ fn watch_sensor_inputs(app: AppHandle, window: WebviewWindow) -> Result<(), Stri
     let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
 
-    let first = WATCHING_SENSOR_INPUTS
+    let held = SENSOR_INPUTS_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+
+    WATCHING_SENSOR_INPUTS
         .lock()
         .map_err(|error| error.to_string())?
-        .get_or_insert_with(HashSet::new)
-        .insert(label.clone());
-
-    if !first {
-        return Ok(());
-    }
+        .get_or_insert_with(HashMap::new)
+        .insert(label.clone(), held);
 
     std::thread::spawn(move || {
         let mut last = sensors::snapshot(&folder);
@@ -1411,7 +1410,12 @@ fn watch_sensor_inputs(app: AppHandle, window: WebviewWindow) -> Result<(), Stri
         loop {
             std::thread::sleep(Duration::from_millis(500));
 
-            if app.get_webview_window(&label).is_none() {
+            let stored = WATCHING_SENSOR_INPUTS
+                .lock()
+                .ok()
+                .and_then(|watching| watching.as_ref().and_then(|map| map.get(&label).copied()));
+
+            if !git_watch_continues(held, stored) || app.get_webview_window(&label).is_none() {
                 break;
             }
 
@@ -1427,8 +1431,10 @@ fn watch_sensor_inputs(app: AppHandle, window: WebviewWindow) -> Result<(), Stri
         }
 
         if let Ok(mut watching) = WATCHING_SENSOR_INPUTS.lock() {
-            if let Some(set) = watching.as_mut() {
-                set.remove(&label);
+            if let Some(map) = watching.as_mut() {
+                if map.get(&label) == Some(&held) {
+                    map.remove(&label);
+                }
             }
         }
     });

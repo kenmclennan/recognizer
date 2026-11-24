@@ -1174,6 +1174,71 @@ describe("scanPanel freshness", () => {
     expect(row?.why).not.toBeNull();
   });
 
+  it("reads a test-running sensor with suites out of date on its row when the button offers an update", () => {
+    const suited = `${CONFIG}tests:
+  - name: unit
+    language: python
+    directory: tests/unit
+    command: pytest
+    coverage: { path: coverage.xml, format: lcov }
+`;
+    const ranAt = new Date(NOW - MINUTE).toISOString();
+    const given = base({ "a.py": "ha", "b.py": "old" });
+    const model = scanPanel({
+      ...given,
+      config: suited,
+      sensors: [
+        {
+          ...crap({ "a.py": "ha", "b.py": "old" }),
+          suites: [{ name: "unit", status: "ok", ranAt }],
+        },
+        ...others,
+      ],
+      ticks: {
+        ...given.ticks,
+        suites: { crap: { ticked: ["unit"], known: ["unit"] } },
+      },
+    });
+    const row = model.rows.find(({ key }) => key === "crap");
+
+    expect(row?.fold).not.toBeNull();
+    expect(model.button.label).toBe("Update 1 file");
+    expect(row?.text.text).toBe("1 file out of date");
+    expect(row?.tone).toBeNull();
+    expect(row?.state.kind).toBe("out-of-date");
+  });
+
+  it("keeps a test-running sensor's suite summary on its row when it is current", () => {
+    const suited = `${CONFIG}tests:
+  - name: unit
+    language: python
+    directory: tests/unit
+    command: pytest
+    coverage: { path: coverage.xml, format: lcov }
+`;
+    const ranAt = new Date(NOW - MINUTE).toISOString();
+    const given = base({ "a.py": "ha", "b.py": "hb" });
+    const model = scanPanel({
+      ...given,
+      config: suited,
+      sensors: [
+        {
+          ...crap({ "a.py": "ha", "b.py": "hb" }),
+          suites: [{ name: "unit", status: "ok", ranAt }],
+        },
+        ...others,
+      ],
+      ticks: {
+        ...given.ticks,
+        suites: { crap: { ticked: ["unit"], known: ["unit"] } },
+      },
+    });
+    const row = model.rows.find(({ key }) => key === "crap");
+
+    expect(row?.state.kind).toBe("current");
+    expect(row?.tone).toBe("ok");
+  });
+
   it("summarises the changed file and offers Update 1 file", () => {
     const model = scanPanel(base({ "a.py": "ha", "b.py": "old" }));
     const row = model.rows.find(({ key }) => key === "crap");

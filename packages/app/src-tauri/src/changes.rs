@@ -228,6 +228,43 @@ fn git_output(folder: &Path, args: &[&str]) -> Option<Vec<u8>> {
         .map(|output| output.stdout)
 }
 
+pub fn dirty_entries(folder: &Path) -> Vec<(String, String)> {
+    let Some(stdout) = git_output(
+        folder,
+        &[
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            "--",
+            ".",
+            ":!.recognizer",
+        ],
+    ) else {
+        return Vec::new();
+    };
+
+    let text = String::from_utf8_lossy(&stdout).into_owned();
+    let mut tokens = text.split('\0').filter(|token| !token.is_empty());
+    let mut entries = Vec::new();
+
+    while let Some(entry) = tokens.next() {
+        if entry.len() < 4 {
+            continue;
+        }
+
+        let code = &entry[..2];
+
+        if code.contains('R') || code.contains('C') {
+            tokens.next();
+        }
+
+        entries.push((code.to_string(), entry[3..].to_string()));
+    }
+
+    entries
+}
+
 fn git_text(folder: &Path, args: &[&str]) -> Option<String> {
     let text = String::from_utf8(git_output(folder, args)?).ok()?;
     let trimmed = text.trim();
@@ -472,7 +509,7 @@ pub fn compare(folder: &Path, baseline: &Baseline) -> Changes {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::path::PathBuf;
     use tempfile::TempDir;
@@ -484,7 +521,7 @@ mod tests {
         fs::write(path, text).unwrap();
     }
 
-    fn git(dir: &Path, args: &[&str]) {
+    pub(crate) fn git(dir: &Path, args: &[&str]) {
         let status = Command::new("git")
             .arg("-C")
             .arg(dir)
