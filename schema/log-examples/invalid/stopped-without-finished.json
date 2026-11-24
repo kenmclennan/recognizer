@@ -1,0 +1,11 @@
+{
+  "log_version": 1,
+  "kind": "scan",
+  "started": "2026-11-10T09:00:00.000Z",
+  "finished": null,
+  "by": "ken",
+  "arguments": ["/work/shop"],
+  "outcome": "stopped",
+  "exit": 1,
+  "phases": []
+}

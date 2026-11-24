@@ -122,7 +122,11 @@ export function scanHistory(
       continue;
     }
 
-    if (record.kind !== "scan" || record.outcome === "running") {
+    if (
+      record.kind !== "scan" ||
+      record.outcome === "running" ||
+      record.outcome === "stopped"
+    ) {
       continue;
     }
 

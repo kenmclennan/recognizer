@@ -1,0 +1,39 @@
+{
+  "log_version": 1,
+  "kind": "scan",
+  "started": "2026-11-10T09:00:00.000Z",
+  "finished": "2026-11-10T09:00:12.000Z",
+  "by": "ken",
+  "arguments": ["/work/shop"],
+  "outcome": "stopped",
+  "exit": 1,
+  "phases": [
+    {
+      "phase": "extract",
+      "entries": [
+        {
+          "name": "python",
+          "command": ["recognizer-scan-python", "/work/shop"],
+          "status": 0,
+          "outcome": "ok",
+          "duration_ms": 1800,
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "phase": "sense",
+      "entries": [
+        {
+          "name": "mutation",
+          "command": ["recognizer-sense-mutation", "run"],
+          "status": null,
+          "outcome": "stopped",
+          "duration_ms": 9000,
+          "reason": "stopped by the user",
+          "stderr": ""
+        }
+      ]
+    }
+  ]
+}

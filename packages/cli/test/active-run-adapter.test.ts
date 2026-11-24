@@ -219,7 +219,7 @@ describe("active run adapter", () => {
     const records = logRecords(root);
 
     expect(records).toHaveLength(1);
-    expect(records[0]).toMatchObject({ outcome: "failed", exit: 1 });
+    expect(records[0]).toMatchObject({ outcome: "stopped", exit: 1 });
     expect(records[0]?.finished).not.toBeNull();
 
     const entries = records[0]?.phases?.flatMap((phase) => phase.entries);
@@ -246,12 +246,41 @@ describe("active run adapter", () => {
     expect(records).toHaveLength(1);
     expect(records[0]).toMatchObject({
       kind: "scan",
-      outcome: "failed",
+      outcome: "stopped",
       exit: 1,
     });
     expect(
       records[0]?.phases?.flatMap((phase) => phase.entries)[0],
     ).toMatchObject({ name: "tally", outcome: "stopped" });
+  });
+
+  it("settle_killed_leaves_an_old_failed_record_alone", () => {
+    const root = makeTempDir("active-run-log-old-failed-");
+    const directory = logDirectory(root);
+    const old = join(directory, "20200101T000000000Z-scan.json");
+    const text = readFileSync(
+      join(REPO, "schema/log-examples/valid/scan-phases-killed-failed.json"),
+      "utf8",
+    );
+
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(old, text);
+
+    new RunLogAdapter(nodeIo()).settleKilled(root, {
+      runId: RUN_ID,
+      startedAt: new Date().toISOString(),
+      startedBy: "cli",
+      running: ["tally"],
+    });
+
+    const records = logRecords(root);
+
+    expect(records).toHaveLength(2);
+    expect(records.map(({ outcome }) => outcome)).toEqual([
+      "failed",
+      "stopped",
+    ]);
+    expect(readFileSync(old, "utf8")).toBe(text);
   });
 
   it("an_unreadable_marker_deletes_nothing", () => {

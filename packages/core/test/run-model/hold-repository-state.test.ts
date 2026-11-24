@@ -206,7 +206,7 @@ describe("repository state holder", () => {
     expect(fakes.runLog.settledKills).toHaveLength(1);
     expect(fakes.active.settled).toHaveLength(1);
     expect(fakes.runLog.records).toEqual([
-      { runId: "run-1", outcome: "failed", stopped: ["tally"] },
+      { runId: "run-1", outcome: "stopped", stopped: ["tally"] },
     ]);
   });
 
@@ -230,7 +230,7 @@ describe("repository state holder", () => {
     holder.refresh();
 
     expect(fakes.runLog.records).toEqual([
-      { runId: "run-1", outcome: "failed", stopped: ["tally"] },
+      { runId: "run-1", outcome: "stopped", stopped: ["tally"] },
     ]);
     expect(fakes.active.settled).toEqual(["run-1"]);
   });

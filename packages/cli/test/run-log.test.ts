@@ -9,6 +9,7 @@ import {
   KEEP,
   latestRun,
   listRuns,
+  openPhasedRunLog,
   type RunEntry,
   type RunKind,
   type RunRecord,
@@ -289,6 +290,68 @@ describe("a phased scan record", () => {
   });
 });
 
+describe("a stopped scan record", () => {
+  const example = (folder: string, name: string) =>
+    JSON.parse(readFileSync(join(EXAMPLES, folder, name), "utf8"));
+
+  it("a_stopped_record_validates", () => {
+    const value = example("valid", "scan-phases-stopped.json");
+
+    expect(value.outcome).toBe("stopped");
+    expect(typeof value.finished).toBe("string");
+    expect(value.exit).toBe(1);
+    expect(() => validateRunRecord(value)).not.toThrow();
+  });
+
+  it("a_stopped_record_without_finished_is_invalid", () => {
+    const value = example("valid", "scan-phases-stopped.json");
+
+    value.finished = null;
+
+    expect(() => validateRunRecord(value)).toThrow();
+    expect(() =>
+      validateRunRecord(example("invalid", "stopped-without-finished.json")),
+    ).toThrow();
+  });
+
+  it("an_old_failed_record_with_a_stopped_entry_still_reads_failed", () => {
+    const value = example("valid", "scan-phases-killed-failed.json");
+    const fake = fakeIo();
+
+    expect(value.outcome).toBe("failed");
+    expect(value.phases[0].entries[0].outcome).toBe("stopped");
+    expect(() => validateRunRecord(value)).not.toThrow();
+
+    writeRunLog(fake.io, ROOT, value);
+
+    const read = latestRun(fake.io, ROOT, "scan");
+
+    expect(read?.outcome).toBe("failed");
+    expect(listRuns(fake.io, ROOT).runs[0]?.outcome).toBe("failed");
+  });
+
+  it("a_record_left_running_still_reads", () => {
+    expect(() =>
+      validateRunRecord(example("valid", "scan-phases-running.json")),
+    ).not.toThrow();
+  });
+
+  it("stop_finishes_a_phased_log_as_stopped", () => {
+    const fake = fakeIo();
+    const open = openPhasedRunLog(fake.io, ROOT, Date.now(), "ken", ["scan"]);
+
+    open.update([{ phase: "extract", entries: [entry()] }]);
+    open.stop([{ phase: "extract", entries: [entry()] }]);
+
+    const read = latestRun(fake.io, ROOT, "scan");
+
+    expect(names(fake)).toHaveLength(1);
+    expect(read).toMatchObject({ outcome: "stopped", exit: 1 });
+    expect(typeof read?.finished).toBe("string");
+    expect(read?.phases).toHaveLength(1);
+  });
+});
+
 describe("log schema examples", () => {
   it("shares the diagnosis definition with the findings schema", () => {
     const findings = JSON.parse(
@@ -319,7 +382,7 @@ describe("log schema examples", () => {
   });
 
   it("holds the expected count of valid examples", () => {
-    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(18);
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(20);
   });
 
   it.each(readdirSync(join(EXAMPLES, "valid")))("accepts %s", (file) => {

@@ -24,7 +24,7 @@ type SenseEntry = {
   modules?: number;
   fixed_ms?: number;
   incomplete?: boolean;
-  outcome?: "ok" | "failed";
+  outcome?: "ok" | "failed" | "stopped";
   work?: { unit: string; performed: number };
   suites?: { name: string; duration_ms: number }[];
 };
@@ -32,7 +32,7 @@ type SenseEntry = {
 function entry(one: {
   name: string;
   duration_ms: number;
-  outcome?: "ok" | "failed";
+  outcome?: "ok" | "failed" | "stopped";
   modules?: number;
   fixed_ms?: number;
   incomplete?: boolean;
@@ -58,7 +58,7 @@ function scanFile(
     extract?: number;
     describe?: { ms: number; entries: number[] };
     sense?: SenseEntry[];
-    outcome?: "ok" | "failed" | "running";
+    outcome?: "ok" | "failed" | "running" | "stopped";
     kind?: "scan" | "sense";
   } = {},
 ): { name: string; text: string } {
@@ -100,7 +100,7 @@ function scanFile(
     by: "ken",
     arguments: [],
     outcome,
-    exit: outcome === "failed" ? 1 : 0,
+    exit: outcome === "failed" || outcome === "stopped" ? 1 : 0,
     ...(over.structure_ms === undefined
       ? {}
       : { structure_ms: over.structure_ms }),
@@ -592,6 +592,31 @@ describe("scanHistory exclusions", () => {
 
     expect(scanHistory([good, running]).sense.mutation).toHaveLength(1);
     expect(figure([good, running])).toBe(figure([good]));
+  });
+
+  it("ignores a stopped record", () => {
+    const stopped = wrong({ outcome: "stopped" });
+
+    expect(scanHistory([good, stopped]).sense.mutation).toHaveLength(1);
+    expect(figure([good, stopped])).toBe(figure([good]));
+  });
+
+  it("keeps_an_old_failed_record_with_a_stopped_entry", () => {
+    const killed = wrong({
+      outcome: "failed",
+      sense: [
+        {
+          name: "mutation",
+          duration_ms: 100000,
+          fixed_ms: 10000,
+          modules: 40,
+          work: fns(40),
+        },
+        { name: "margin", duration_ms: 0, outcome: "stopped" },
+      ],
+    });
+
+    expect(scanHistory([good, killed]).sense.mutation).toHaveLength(2);
   });
 
   it("ignores a failed entry", () => {

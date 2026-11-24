@@ -1,0 +1,26 @@
+{
+  "log_version": 1,
+  "kind": "scan",
+  "started": "2026-11-10T09:00:00.000Z",
+  "finished": "2026-11-10T09:00:12.000Z",
+  "by": "ken",
+  "arguments": ["scan"],
+  "outcome": "failed",
+  "exit": 1,
+  "phases": [
+    {
+      "phase": "sense",
+      "entries": [
+        {
+          "name": "mutation",
+          "command": [],
+          "status": null,
+          "outcome": "stopped",
+          "duration_ms": 0,
+          "reason": "the run was killed outright",
+          "stderr": ""
+        }
+      ]
+    }
+  ]
+}
