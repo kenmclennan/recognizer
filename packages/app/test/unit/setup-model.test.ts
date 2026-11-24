@@ -1,4 +1,8 @@
-import { type ConfigurationPorts, surveySetup } from "@recognizer/core";
+import {
+  type ConfigurationPorts,
+  readSetup,
+  surveySetup,
+} from "@recognizer/core";
 import {
   type ApplyEvent,
   buildChanges,
@@ -850,5 +854,114 @@ describe("a rerun of Setup on a configured repository", () => {
     expect(planned.filter((change) => change.title.includes("claude"))).toEqual(
       [],
     );
+  });
+});
+
+describe("Setup's opening screen on the survey events the service emits", () => {
+  const event = (value: unknown) => JSON.stringify(value);
+  const scanEvents = [
+    event({
+      event: "phase",
+      phase: "extract",
+      state: "run",
+      commit: null,
+      languages: ["typescript"],
+    }),
+    event({
+      event: "plugin",
+      phase: "extract",
+      name: "typescript",
+      data: { event: "start", total: 125, unit: "files" },
+    }),
+    event({
+      event: "entry",
+      phase: "extract",
+      name: "typescript",
+      outcome: "ok",
+      modules: 3,
+      edges: 2,
+    }),
+    event({ event: "structure", state: "run" }),
+    event({ event: "structure", state: "done", files: 125 }),
+  ];
+  const doctor: DoctorReport = {
+    repository: "/repo",
+    ok: true,
+    problems: 0,
+    warnings: 0,
+    areas: [],
+  };
+  const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+  const ports = {
+    version: "0.0.0-test",
+    files: { children: () => [], list: () => [], exists: () => false },
+    config: {
+      setupDocument: () => ({ present: true, document: { sensors: {} } }),
+    },
+    plugins: { answers: async () => [] },
+    keys: { entries: () => [] },
+    policy: { rules: () => [] },
+    reads: {
+      cachedScans: () => null,
+      sensors: () => [],
+      describers: () => [],
+      languageRules: () => [],
+      diagnose: () => doctor,
+    },
+    scan: {
+      extract: async (_root: string, onLine: (line: string) => void) => {
+        for (const line of scanEvents) {
+          onLine(line);
+
+          await tick();
+        }
+
+        return { ok: true };
+      },
+    },
+  } as unknown as ConfigurationPorts;
+
+  it("keeps the read row pending until the scan row has finished", async () => {
+    const fake = fakeSetup();
+    const port: FakeSetup = {
+      ...fake,
+      survey: async (extract, onLine) => {
+        const read = await readSetup(ports, {
+          root: "/repo",
+          extract,
+          onLine,
+        });
+
+        return read as typeof fake.surveyRead;
+      },
+    };
+    const seen: Array<{ scan: string; reading: string }> = [];
+    const controller = createSetupController({
+      port,
+      reloadSensors: () => {},
+      scanAfterApply: () => {},
+    });
+
+    controller.subscribe(() => {
+      const state = controller.state();
+
+      if (state.kind === "loading" && state.progress.scan !== null) {
+        seen.push({
+          scan: state.progress.scan.state,
+          reading: state.progress.reading.state,
+        });
+      }
+    });
+
+    await controller.open();
+
+    expect(seen.length).toBeGreaterThan(scanEvents.length);
+    expect(seen.some((one) => one.scan === "running")).toBe(true);
+    expect(
+      seen.filter((one) => one.scan !== "done").map((one) => one.reading),
+    ).not.toContain("running");
+    expect(
+      seen.filter((one) => one.scan !== "done").map((one) => one.reading),
+    ).not.toContain("done");
   });
 });
