@@ -1,8 +1,16 @@
-export { thresholdsMigration as toleratedMigration } from "./config-thresholds.js";
+import {
+  RETIRED_KEYS,
+  type RetiredKey,
+  retiredKeyFor,
+  thresholdsMigration,
+} from "@recognizer/core";
 
-import { RETIRED_KEYS, type RetiredKey, retiredKeyFor } from "@recognizer/core";
-
-export { RETIRED_KEYS, type RetiredKey, retiredKeyFor };
+export {
+  RETIRED_KEYS,
+  type RetiredKey,
+  retiredKeyFor,
+  thresholdsMigration as toleratedMigration,
+};
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
