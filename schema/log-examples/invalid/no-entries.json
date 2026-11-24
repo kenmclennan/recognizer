@@ -8,7 +8,7 @@
     "--repository",
     "/work/shop"
   ],
-  "outcome": "failed",
-  "exit": 1,
+  "outcome": "ok",
+  "exit": 0,
   "entries": []
 }

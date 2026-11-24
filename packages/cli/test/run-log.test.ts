@@ -303,8 +303,23 @@ describe("log schema examples", () => {
     );
   });
 
+  it("a finished failed describe record may hold no entries and an ok one may not", () => {
+    const value = JSON.parse(
+      readFileSync(join(EXAMPLES, "valid", "describe-failed.json"), "utf8"),
+    );
+
+    value.entries = [];
+
+    expect(() => validateRunRecord(value)).not.toThrow();
+
+    value.outcome = "ok";
+    value.exit = 0;
+
+    expect(() => validateRunRecord(value)).toThrow();
+  });
+
   it("holds the expected count of valid examples", () => {
-    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(17);
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(18);
   });
 
   it.each(readdirSync(join(EXAMPLES, "valid")))("accepts %s", (file) => {
