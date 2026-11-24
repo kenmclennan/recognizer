@@ -211,6 +211,17 @@ describe("refusalsOf", () => {
     });
   });
 
+  it("reads a refusal from a stopped record's failed sense entry", () => {
+    const files = [
+      file(
+        "20261102T090000000Z-scan.json",
+        scan([failed("crap")], { outcome: "stopped", exit: 1 }),
+      ),
+    ];
+
+    expect(Object.keys(refusalsOf(files, ["crap"], []))).toEqual(["crap"]);
+  });
+
   it("gives exactly one refusal for three registered sensors", () => {
     const files = [
       file(

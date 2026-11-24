@@ -376,7 +376,7 @@ describe("serve repository state", () => {
           .map((name) => JSON.parse(readFileSync(join(logs, name), "utf8")));
 
         expect(records).toHaveLength(1);
-        expect(records[0]).toMatchObject({ outcome: "failed", exit: 1 });
+        expect(records[0]).toMatchObject({ outcome: "stopped", exit: 1 });
         expect(records[0].finished).not.toBeNull();
         expect(
           records[0].phases

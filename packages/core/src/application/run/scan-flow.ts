@@ -151,8 +151,17 @@ export function* scanFlow(
     const recorder = new RunRecorder(ctx, runLog);
 
     if (runLog !== null) {
-      openLog.close = () => runLog.finish(recorder.recorded(), true);
+      openLog.close = () =>
+        ctx.stopped
+          ? runLog.stop(recorder.recorded())
+          : runLog.finish(recorder.recorded(), true);
     }
+
+    const stoppedOutcome = (analysisMs?: number): ScanOutcome => {
+      runLog?.stop(recorder.recorded(), analysisMs);
+
+      return { status: "stopped" };
+    };
 
     const ticked = selected.map(({ name, command }) => ({ name, command }));
     const describing: DescribingSettings | null = describeOn
@@ -218,7 +227,7 @@ export function* scanFlow(
     }) as ExtractOutcome;
 
     if (ctx.stopped || extracted.stopped) {
-      return { status: "stopped" };
+      return stoppedOutcome();
     }
 
     const { repository, missing } = extracted;
@@ -249,7 +258,7 @@ export function* scanFlow(
     }) as AnalysisOutcome;
 
     if (ctx.stopped) {
-      return { status: "stopped" };
+      return stoppedOutcome();
     }
 
     if (analysed.failed) {
@@ -279,7 +288,7 @@ export function* scanFlow(
       }) as DescribeOutcome;
 
       if (ctx.stopped || described.halted) {
-        return { status: "stopped" };
+        return stoppedOutcome(analysisMs);
       }
 
       if (described.failed) {
@@ -304,7 +313,7 @@ export function* scanFlow(
       };
 
       if (ctx.stopped) {
-        return { status: "stopped" };
+        return stoppedOutcome(analysisMs);
       }
     }
 

@@ -57,7 +57,7 @@ export interface RunRecord {
   finished: string | null;
   by: string;
   arguments: string[];
-  outcome: "ok" | "failed" | "running";
+  outcome: "ok" | "failed" | "running" | "stopped";
   exit: 0 | 1;
   entries?: RunEntry[];
   phases?: RunPhase[];
@@ -77,7 +77,7 @@ export interface RunSummary {
   started: string;
   finished: string | null;
   by: string;
-  outcome: "ok" | "failed" | "running";
+  outcome: "ok" | "failed" | "running" | "stopped";
   entries: number;
   failed: number;
 }
@@ -219,6 +219,7 @@ export function buildPhasedRecord(
   skipped: SkippedPhase[] = [],
   refused = false,
   structureMs?: number,
+  stopped = false,
 ): RunRecord {
   const failed =
     refused ||
@@ -233,8 +234,14 @@ export function buildPhasedRecord(
     finished: running ? null : new Date(io.now()).toISOString(),
     by: asker(io, by),
     arguments: argv,
-    outcome: running ? "running" : failed ? "failed" : "ok",
-    exit: running ? 0 : failed ? 1 : 0,
+    outcome: running
+      ? "running"
+      : stopped
+        ? "stopped"
+        : failed
+          ? "failed"
+          : "ok",
+    exit: running ? 0 : stopped || failed ? 1 : 0,
     phases,
     ...(skipped.length === 0 ? {} : { skipped: [...skipped] }),
     ...(structureMs === undefined ? {} : { structure_ms: structureMs }),
@@ -337,6 +344,7 @@ export interface OpenPhasedRunLog {
   skip(skipped: SkippedPhase): void;
   update(phases: RunPhase[]): void;
   finish(phases: RunPhase[], refused?: boolean, structureMs?: number): void;
+  stop(phases: RunPhase[], structureMs?: number): void;
 }
 
 function openWriter(
@@ -417,6 +425,21 @@ export function openPhasedRunLog(
           skipped,
           refused,
           structureMs,
+        ),
+      ),
+    stop: (phases, structureMs) =>
+      write(
+        buildPhasedRecord(
+          io,
+          startedAt,
+          by,
+          argv,
+          snapshot(phases),
+          false,
+          skipped,
+          false,
+          structureMs,
+          true,
         ),
       ),
   };
@@ -644,7 +667,7 @@ export function settleKilledRun(
     writeAtomic(io, open.file, {
       ...open.record,
       finished,
-      outcome: "failed",
+      outcome: "stopped",
       exit: 1,
       phases: withStoppedEntries(open.record.phases ?? [], killed.running),
     });
@@ -659,7 +682,7 @@ export function settleKilledRun(
     finished,
     by: asker(io, killed.startedBy),
     arguments: ["scan"],
-    outcome: "failed",
+    outcome: "stopped",
     exit: 1,
     phases: withStoppedEntries([], killed.running),
   };

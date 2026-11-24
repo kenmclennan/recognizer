@@ -299,6 +299,63 @@ describe("recognizer log", () => {
     expect(result.out.trimEnd().split("\n")).toHaveLength(2);
   });
 
+  describe("a stopped record", () => {
+    const example = (name: string) =>
+      readFileSync(join(REPO, "schema/log-examples/valid", name), "utf8");
+
+    function seeded(...names: string[]) {
+      const fake = fakeIo();
+
+      names.forEach((name, at) => {
+        fake.files.set(
+          `${DIRECTORY}/2026111${at}T090000000Z-scan.json`,
+          example(name),
+        );
+      });
+
+      return fake;
+    }
+
+    it("a_stopped_record_lists_and_prints_stopped", async () => {
+      const fake = seeded("scan-phases-stopped.json");
+      const listed = await log(fake);
+      const last = await log(fake, "--last");
+
+      expect(listed.out.trimEnd().split("\n")).toHaveLength(1);
+      expect(listed.out).toMatch(/ {2}stopped {2}/);
+      expect(last.out).toContain("outcome: stopped (exit 1)");
+      expect(last.out).toContain("finished: 2026-11-10T09:00:12.000Z");
+      expect(last.out).not.toContain("no finish recorded");
+    });
+
+    it("a_running_record_still_prints_stopped", async () => {
+      const fake = seeded("scan-phases-running.json");
+      const listed = await log(fake);
+      const last = await log(fake, "--last");
+
+      expect(listed.out).toMatch(/ {2}stopped {2}/);
+      expect(last.out).toContain("stopped: no finish recorded");
+    });
+
+    it("lists_each_outcome_with_its_own_word", async () => {
+      const fake = seeded(
+        "scan-phases-ok.json",
+        "scan-phases-sense-failed.json",
+        "scan-phases-stopped.json",
+        "scan-phases-running.json",
+      );
+      const lines = (await log(fake)).out.trimEnd().split("\n");
+
+      expect(lines).toHaveLength(4);
+      expect(lines.map((line) => line.split(/ {2}/)[3]).sort()).toEqual([
+        "failed",
+        "ok",
+        "stopped",
+        "stopped",
+      ]);
+    });
+  });
+
   it("writes no record and never scans", async () => {
     const fake = await twoRuns();
     const before = records(fake).length;

@@ -9,7 +9,14 @@ import type {
 } from "../../src/index.js";
 
 export class FakeRunLogRepository implements RunLogRepository {
-  readonly runLogs: { skipped: SkippedPhase[]; phases: RunPhase[] }[] = [];
+  readonly runLogs: {
+    skipped: SkippedPhase[];
+    phases: RunPhase[];
+    ended: "finish" | "stop" | null;
+    failed: boolean;
+    stops: number;
+    finishes: number;
+  }[] = [];
 
   readonly describeRuns: {
     startedAt: number;
@@ -28,7 +35,7 @@ export class FakeRunLogRepository implements RunLogRepository {
 
   readonly records: {
     runId: string;
-    outcome: "running" | "failed";
+    outcome: "running" | "failed" | "stopped";
     stopped: string[];
   }[] = [];
 
@@ -52,14 +59,14 @@ export class FakeRunLogRepository implements RunLogRepository {
     if (open === undefined) {
       this.records.push({
         runId: killed.runId,
-        outcome: "failed",
+        outcome: "stopped",
         stopped: [...killed.running],
       });
 
       return;
     }
 
-    open.outcome = "failed";
+    open.outcome = "stopped";
     open.stopped = [...killed.running];
   }
 
@@ -99,7 +106,14 @@ export class FakeRunLogRepository implements RunLogRepository {
   }
 
   open(): RunLog {
-    const record = { skipped: [] as SkippedPhase[], phases: [] as RunPhase[] };
+    const record = {
+      skipped: [] as SkippedPhase[],
+      phases: [] as RunPhase[],
+      ended: null as "finish" | "stop" | null,
+      failed: false,
+      stops: 0,
+      finishes: 0,
+    };
 
     this.runLogs.push(record);
 
@@ -110,8 +124,16 @@ export class FakeRunLogRepository implements RunLogRepository {
       update: (phases) => {
         record.phases = phases;
       },
-      finish: (phases) => {
+      finish: (phases, failed) => {
         record.phases = phases;
+        record.ended = "finish";
+        record.failed = failed;
+        record.finishes += 1;
+      },
+      stop: (phases) => {
+        record.phases = phases;
+        record.ended = "stop";
+        record.stops += 1;
       },
       id: () => "log-1",
     };
