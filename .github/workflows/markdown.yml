@@ -10,12 +10,10 @@ on:
       - .github/workflows/markdown.yml
   push:
     branches: [main]
-    paths:
-      - "**/*.md"
-      - .markdownlint.json
-      - package.json
-      - package-lock.json
-      - .github/workflows/markdown.yml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
 
 permissions:
   contents: read

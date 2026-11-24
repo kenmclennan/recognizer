@@ -23,8 +23,10 @@ function declaredName(text) {
   return /^name:\s*(\S+)/m.exec(text)[1];
 }
 
-function pushPaths(text) {
-  const push = /^ {2}push:\n([\s\S]*?)(?=^ {2}\S|^\S|(?![\s\S]))/m.exec(text);
+function pullRequestPaths(text) {
+  const push = /^ {2}pull_request:\n([\s\S]*?)(?=^ {2}\S|^\S|(?![\s\S]))/m.exec(
+    text,
+  );
   const paths = /^ {4}paths:\n((?: {6}- .*\n)+)/m.exec(push?.[1] ?? "");
 
   return (paths?.[1] ?? "")
@@ -61,9 +63,10 @@ describe("tools/packaging/units.json", () => {
       const match = workflows().find(({ text }) => declaredName(text) === ci);
 
       expect(match, `${unit}: no workflow named ${ci}`).toBeDefined();
-      expect(pushPaths(match.text), `${unit}: ${ci} push paths`).toContain(
-        `${folder}/**`,
-      );
+      expect(
+        pullRequestPaths(match.text),
+        `${unit}: ${ci} pull request paths`,
+      ).toContain(`${folder}/**`);
     }
   });
 

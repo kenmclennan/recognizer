@@ -13,15 +13,10 @@ on:
       - .github/workflows/describer-claude.yml
   push:
     branches: [main]
-    paths:
-      - packages/describers/claude/**
-      - packages/cli/**
-      - schema/**
-      - fixtures/**
-      - package.json
-      - package-lock.json
-      - biome.json
-      - .github/workflows/describer-claude.yml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
 
 permissions:
   contents: read
