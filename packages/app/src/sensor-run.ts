@@ -138,6 +138,7 @@ export type SensorsPort = {
   removeFindings(names: string[]): Promise<void>;
   readInputs(): Promise<SensorInputs>;
   onInputsChanged(run: () => void): () => void;
+  watchInputs(): Promise<void>;
   shipped(): Promise<ShippedSensors>;
   describer(): Promise<DescriberInEffect>;
   plannedWork(request: WorkRequest): Promise<PlannedWork | null>;
@@ -157,6 +158,7 @@ export const inertSensors: SensorsPort = {
     analysis: true,
   }),
   onInputsChanged: () => () => {},
+  watchInputs: async () => {},
   shipped: async () => ({
     status: "unavailable",
     reason: "the shipped sensors are not available",
@@ -372,8 +374,7 @@ export async function withSensors(
   const inputs = await port.readInputs();
   const run = await senseRepository(loaded.scans, inputs, port);
   const overlays = await port.readOverlays();
-  const known = Object.fromEntries(loaded.repository.scannedHashes());
-  const tests = await port.readTestsHash(known).catch(() => null);
+  const tests = await port.readTestsHash({}).catch(() => null);
   const records = await port
     .readRunRecords()
     .catch((): RunRecordFiles => ({ files: [], refused: [] }));

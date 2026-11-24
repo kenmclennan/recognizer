@@ -138,6 +138,9 @@ export function createRescanner<Carried>(
   ports: RescanPorts<Carried>,
 ): Rescanner {
   let busy = false;
+  let refreshing: Promise<void> | null = null;
+  let refreshWanted = false;
+  let refreshDeferred = false;
   let applied: Loaded | null = null;
   let ticks: ScanTicks = DEFAULT_TICKS;
   let remembered = false;
@@ -763,6 +766,10 @@ export function createRescanner<Carried>(
 
     record = next;
 
+    if (!isActive(next)) {
+      flushDeferred();
+    }
+
     const own = busy && next.run_id === ownRunId;
 
     if (isActive(next)) {
@@ -778,6 +785,15 @@ export function createRescanner<Carried>(
     } else if (liveRunId === next.run_id) {
       await endRun(next);
     }
+  }
+
+  function flushDeferred() {
+    if (!refreshDeferred || busy || isActive(record)) {
+      return;
+    }
+
+    refreshDeferred = false;
+    void rescanner.refresh();
   }
 
   function onRun(event: RunEvent) {
@@ -1052,10 +1068,14 @@ export function createRescanner<Carried>(
       .catch(() => {});
   }
 
-  return {
+  const rescanner: Rescanner = {
     run(modules = null, planned) {
       if (busy || isActive(record)) {
         return Promise.resolve();
+      }
+
+      if (refreshing !== null) {
+        return refreshing.then(() => rescanner.run(modules, planned));
       }
 
       busy = true;
@@ -1067,6 +1087,7 @@ export function createRescanner<Carried>(
         .finally(() => {
           busy = false;
           ports.progress(lastUpdate);
+          flushDeferred();
         });
 
       return current;
@@ -1093,20 +1114,40 @@ export function createRescanner<Carried>(
         ports.post({ kind: "error", text: String(error) });
       }
     },
-    async refresh() {
+    refresh() {
       if (busy || isActive(record)) {
-        return;
+        refreshDeferred = true;
+
+        return Promise.resolve();
       }
 
-      busy = true;
+      if (refreshing !== null) {
+        refreshWanted = true;
 
-      try {
-        await reload();
-      } catch (error) {
-        ports.post({ kind: "error", text: `Sensors failed: ${String(error)}` });
-      } finally {
-        busy = false;
+        return refreshing;
       }
+
+      refreshing = (async () => {
+        try {
+          do {
+            refreshWanted = false;
+
+            try {
+              await reload();
+            } catch (error) {
+              ports.post({
+                kind: "error",
+                text: `Sensors failed: ${String(error)}`,
+              });
+            }
+          } while (refreshWanted && !busy && !isActive(record));
+        } finally {
+          refreshing = null;
+          refreshWanted = false;
+        }
+      })();
+
+      return refreshing;
     },
     loadTicks,
     ticks: () => ticks,
@@ -1129,4 +1170,6 @@ export function createRescanner<Carried>(
       analysis: analysisPlanned,
     }),
   };
+
+  return rescanner;
 }

@@ -25,6 +25,7 @@ export type FakeSensors = SensorsPort & {
   runRecords: Map<string, string>;
   runRecordsRefused: string[];
   testsHash: string | null;
+  watched: number;
   removed: string[];
   list: ShippedSensors;
   modified: Map<string, number>;
@@ -71,6 +72,7 @@ export function fakeSensors(
     runRecords: new Map(),
     runRecordsRefused: [],
     testsHash: null,
+    watched: 0,
     removed: [],
     list: Array.isArray(shipped) ? { status: "ok", sensors: shipped } : shipped,
     modified: new Map(),
@@ -174,6 +176,9 @@ export function fakeSensors(
     },
     async readInputs() {
       return fake.inputs;
+    },
+    async watchInputs() {
+      fake.watched += 1;
     },
     onInputsChanged(run) {
       listeners.add(run);

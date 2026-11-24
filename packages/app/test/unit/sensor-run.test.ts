@@ -328,7 +328,7 @@ describe("withSensors tests hash", () => {
     sensors: [],
   };
 
-  it("stores the hash the port reads, handing it the scans' file hashes", async () => {
+  it("stores the hash the port reads, handing it no known hashes so tests are hashed from disk", async () => {
     const port = stored();
     const seen: Record<string, string>[] = [];
 
@@ -357,7 +357,7 @@ describe("withSensors tests hash", () => {
     );
 
     expect(next.tests).toBe("a".repeat(64));
-    expect(seen).toEqual([{ "tests/a.py": "h" }]);
+    expect(seen).toEqual([{}]);
   });
 
   it("is null when the port has none and when it throws", async () => {

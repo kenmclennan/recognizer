@@ -698,14 +698,16 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
           now: input.now,
         });
         const tick = sensorTickState(input.ticks, row.key, names);
+        const behind =
+          row.state.kind === "out-of-date" && summary.tone === "ok";
 
         return {
           ...base,
           ticked: tick === "on",
           tick,
-          tone: summary.tone,
-          text: { icon: summary.icon, text: summary.text },
-          stateTitle: `${summary.text}`,
+          tone: behind ? null : summary.tone,
+          text: behind ? full : { icon: summary.icon, text: summary.text },
+          stateTitle: behind ? titled : `${summary.text}`,
           fold: {
             open: input.ticks.folds.includes(row.key),
             suites: suiteRows({

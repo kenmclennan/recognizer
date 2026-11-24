@@ -382,6 +382,7 @@ async function start(): Promise<void> {
   }
 
   setScanRepository(folder);
+  void sensorsSource.watchInputs().catch(() => {});
   folderName = folder.split(/[\\/]/).filter(Boolean).pop() ?? folder;
   content.replaceChildren();
 
