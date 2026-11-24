@@ -1,6 +1,9 @@
+import { findDescribeGap } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { FindingsAdapter } from "../src/adapters/filesystem/findings-adapter.js";
+import { ResponsibilitiesAdapter } from "../src/adapters/filesystem/responsibilities-adapter.js";
 import { StructureAdapter } from "../src/adapters/filesystem/structure-adapter.js";
+import { DescriberAdapter } from "../src/adapters/plugins/describer-adapter.js";
 import { fakeIo, ROOT, scanJson } from "./scan-helpers.js";
 
 const H1 = "1".repeat(64);
@@ -81,18 +84,21 @@ describe("the filesystem repositories plan reads", () => {
     });
     expect(findings.measuredOf(ROOT, "mutation")).toBeNull();
     expect(findings.testsDigest(ROOT)).toBe(D);
-    expect(structure.responsibilityKinds(ROOT)).toEqual({
-      registered: true,
-      kinds: { "B.kt": "missing", "m0.py": "current", "m1.py": "out-of-date" },
-    });
-  });
 
-  it("reads no lines when no describer is registered", () => {
-    const structure = new StructureAdapter(fakeIo().io);
+    const lines = new ResponsibilitiesAdapter(io).read(ROOT);
 
-    expect(structure.responsibilityKinds(ROOT)).toEqual({
-      registered: false,
-      kinds: {},
-    });
+    expect(lines.ids()).toEqual(["m0.py", "m1.py"]);
+    expect(lines.get("m0.py")?.sourceHash).toBe(H1);
+    expect(
+      findDescribeGap(
+        {
+          structure,
+          describer: new DescriberAdapter(io),
+          responsibilities: new ResponsibilitiesAdapter(io),
+        },
+        ROOT,
+        ["B.kt", "m0.py", "m1.py"],
+      ),
+    ).toEqual(["B.kt", "m1.py"]);
   });
 });

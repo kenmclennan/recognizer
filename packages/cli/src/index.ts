@@ -48,8 +48,10 @@ export {
   judgeProtocol,
   LIBRARY_API_HINT,
   type LineKind,
+  type LineStatus,
   LONG_FUNCTION,
   libraryApiHint,
+  lineStatus,
   linesDuplicated,
   type Manifest,
   type ManifestRead,
@@ -76,6 +78,7 @@ export {
   POLICY_RECOMMENDATION_PROMPT,
   POLICY_RECOMMENDATION_SCHEMA,
   type PolicyCard,
+  PRICES_PER_MILLION,
   PRINCIPLES,
   type Principle,
   type ProtocolJudgement,
@@ -83,11 +86,11 @@ export {
   planFor,
   planScan,
   policyCommands,
+  priceFor,
   principleName,
   principleOf,
   quoteCommand,
   type Recommendation,
-  type ResponsibilityKinds,
   type RunnerChoice,
   rankAgainstBaseline,
   renderSentence,
@@ -214,7 +217,6 @@ export {
   shippedSensorSettings,
   type TestSuite,
 } from "./config-parse.js";
-export { PRICES_PER_MILLION, priceFor } from "./describe-projection.js";
 export { describerVersion } from "./describer-version.js";
 export { InputError } from "./errors.js";
 export {
@@ -264,10 +266,9 @@ export {
 } from "./overlays.js";
 export { type PolicyProblem, policyProblems } from "./policy-problems.js";
 export {
-  type LineStatus,
-  lineStatus,
   type Responsibilities,
   type ResponsibilityEntry,
+  toResponsibility,
   validateResponsibilities,
 } from "./responsibilities.js";
 export {

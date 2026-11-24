@@ -1,5 +1,5 @@
+import { Neighbours } from "../neighbours.js";
 import type { Repository } from "../repository.js";
-import { Neighbours } from "./neighbours.js";
 import type { ChangeFacts, StaleReason } from "./stale-reason.js";
 import { ViewNotes } from "./view-notes.js";
 

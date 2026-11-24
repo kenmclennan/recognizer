@@ -30,6 +30,7 @@ import { ClockAdapter } from "../adapters/system/clock-adapter.js";
 import { DigestAdapter } from "../adapters/system/digest-adapter.js";
 import { ScratchAdapter } from "../adapters/system/scratch-adapter.js";
 import { type Io, nodeIo } from "../cli.js";
+import { describingFor } from "../describing-container.js";
 import { errorText } from "../errors.js";
 import { scanPorts } from "../scan-container.js";
 import {
@@ -204,6 +205,14 @@ export class Service {
         return;
       case "tests.hash":
         reply(this.testsHash(args));
+
+        return;
+      case "describer.read":
+        reply(
+          describingFor(this.shared).readDescriber(
+            resolve(text(args, "repository")),
+          ),
+        );
 
         return;
       case "view.parse": {

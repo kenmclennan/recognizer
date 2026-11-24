@@ -19,6 +19,7 @@ const expected: Record<string, string[]> = {
     "plugin-registry-adapter.ts",
     "policy-adapter.ts",
     "policy-translator.ts",
+    "responsibilities-adapter.ts",
     "run-log-adapter.ts",
     "scan-cache-adapter.ts",
     "scan-document-types.ts",

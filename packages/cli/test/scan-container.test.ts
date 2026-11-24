@@ -83,6 +83,7 @@ describe("scan container", () => {
       "parsing",
       "policy",
       "process",
+      "responsibilities",
       "runLog",
       "scanners",
       "sensors",

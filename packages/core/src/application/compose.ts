@@ -38,7 +38,9 @@ import { readSetup } from "./configuration/read-setup.js";
 import { recommendPolicy } from "./configuration/recommend-policy.js";
 import { surveySetup } from "./configuration/survey-setup.js";
 import { trySetup } from "./configuration/try-setup.js";
+import { checkDescriptions } from "./describing/check-descriptions.js";
 import { describeFiles } from "./describing/describe-files.js";
+import { describeModules } from "./describing/describe-modules.js";
 import { describingSettings } from "./describing/describing-settings.js";
 import { findDescribeGap } from "./describing/find-describe-gap.js";
 import { findDescriberGaps } from "./describing/find-describer-gaps.js";
@@ -47,6 +49,7 @@ import { isDescriberRegistered } from "./describing/is-describer-registered.js";
 import { locateDescriber } from "./describing/locate-describer.js";
 import type { Confirm } from "./describing/ports/confirm.js";
 import type { Describer } from "./describing/ports/describer.js";
+import { readDescriber } from "./describing/read-describer.js";
 import { refuseShippedDescriber } from "./describing/refuse-shipped-describer.js";
 import type { BaselineRepository } from "./history/settle-baseline.js";
 import { diagnose } from "./plugins/diagnose.js";
@@ -118,6 +121,7 @@ interface CommonPorts {
   catalog: SensorCatalog;
   files: SelectionFiles;
   describer: Describer;
+  responsibilities: DescribingPorts["responsibilities"];
   git: Git;
   structure: StructureRepository;
   findings: FindingsRepository;
@@ -168,6 +172,7 @@ function bindDecisions(
     describer: ports.describer,
     confirm: ports.confirm,
     clock: ports.clock,
+    responsibilities: ports.responsibilities,
   };
 
   return {
@@ -193,7 +198,9 @@ function bindDecisions(
 }
 
 export interface PlanningPorts {
-  structure: Pick<StructureRepository, "read" | "responsibilityKinds">;
+  structure: Pick<StructureRepository, "read">;
+  describer: Pick<Describer, "locate">;
+  responsibilities: Parameters<typeof findDescribeGap>[0]["responsibilities"];
   findings: Pick<FindingsRepository, "measuredOf" | "testsDigest">;
   sensors: { registered(root: string): SensorRow[] };
 }
@@ -201,6 +208,8 @@ export interface PlanningPorts {
 function planningOver(ports: CommonPorts): PlanningPorts {
   return {
     structure: ports.structure,
+    describer: ports.describer,
+    responsibilities: ports.responsibilities,
     findings: ports.findings,
     sensors: {
       registered: (root) =>
@@ -217,6 +226,16 @@ function planPhasesOver(ports: PlanningPorts): PlanPhases {
     findSensorGaps: (root, rows, modules) =>
       findSensorGaps(ports, root, rows, modules),
     findDescribeGap: (root, modules) => findDescribeGap(ports, root, modules),
+  };
+}
+
+export function describingOver(ports: DescribingPorts) {
+  return {
+    describeModules: (request: Parameters<typeof describeModules>[1]) =>
+      describeModules(ports, request),
+    checkDescriptions: (request: Parameters<typeof checkDescriptions>[1]) =>
+      checkDescriptions(ports, request),
+    readDescriber: (root: string) => readDescriber(ports, root),
   };
 }
 

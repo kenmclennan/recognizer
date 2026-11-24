@@ -866,10 +866,14 @@ async fn shipped_describer(
     window: WebviewWindow,
 ) -> Result<repository::ShippedDescriber, String> {
     let folder = window_folder_path(&app, &window)?;
+    let label = window_label(&window);
+    let core = app.state::<CoreClient>().inner().clone();
 
-    tauri::async_runtime::spawn_blocking(move || repository::shipped_describer(&folder))
-        .await
-        .map_err(|error| error.to_string())
+    tauri::async_runtime::spawn_blocking(move || {
+        repository::shipped_describer(&core, &label, &folder)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

@@ -1,3 +1,4 @@
+import type { Responsibility } from "@recognizer/core";
 import { InputError } from "./errors.js";
 import validate from "./generated/responsibilities-validator.js";
 
@@ -12,11 +13,6 @@ export interface Responsibilities {
   schema_version: 1;
   modules: Record<string, ResponsibilityEntry>;
 }
-
-export type LineStatus =
-  | { status: "missing" }
-  | { status: "current" }
-  | { status: "out-of-date"; reasons: ("source" | "describer" | "version")[] };
 
 export function validateResponsibilities(value: unknown): Responsibilities {
   if (validate(value)) {
@@ -33,46 +29,11 @@ export function validateResponsibilities(value: unknown): Responsibilities {
   );
 }
 
-function versionMatches(
-  recorded: string,
-  current: string,
-  describer: string[],
-): boolean {
-  if (recorded === current) {
-    return true;
-  }
-
-  return (
-    describer.some((item) => item.includes("{model}")) &&
-    recorded.startsWith(`${current}+`)
-  );
-}
-
-export function lineStatus(
-  entry: ResponsibilityEntry | undefined,
-  sourceHash: string,
-  describer: string[],
-  version: string,
-): LineStatus {
-  if (entry === undefined) {
-    return { status: "missing" };
-  }
-
-  const reasons: ("source" | "describer" | "version")[] = [];
-
-  if (entry.source_hash !== sourceHash) {
-    reasons.push("source");
-  }
-
-  if (JSON.stringify(entry.describer) !== JSON.stringify(describer)) {
-    reasons.push("describer");
-  }
-
-  if (!versionMatches(entry.version, version, describer)) {
-    reasons.push("version");
-  }
-
-  return reasons.length === 0
-    ? { status: "current" }
-    : { status: "out-of-date", reasons };
+export function toResponsibility(entry: ResponsibilityEntry): Responsibility {
+  return {
+    line: entry.line,
+    sourceHash: entry.source_hash,
+    describer: entry.describer,
+    version: entry.version,
+  };
 }

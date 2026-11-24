@@ -1,7 +1,7 @@
-import type { Dependency } from "../dependency.js";
-import { File } from "../file.js";
-import { Folder } from "../folder.js";
-import type { Repository } from "../repository.js";
+import type { Dependency } from "./dependency.js";
+import { File } from "./file.js";
+import { Folder } from "./folder.js";
+import type { Repository } from "./repository.js";
 
 export type NeighbourRow = {
   id: string;

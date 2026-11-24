@@ -93,6 +93,7 @@ describe("fakes", () => {
         "process",
         "programs",
         "repositoryChecks",
+        "responsibilities",
         "runLog",
         "scanCache",
         "scanners",
@@ -219,11 +220,6 @@ describe("the fake repositories read", () => {
       tests: "t",
     });
     findings.tests = "t";
-    structure.kinds.set("/repo", {
-      registered: true,
-      kinds: { "a.py": "current", "B.kt": "missing" },
-    });
-
     expect(structure.read("/repo")).toEqual(Repository.join([kotlin, python]));
     expect(structure.read("/other")).toEqual(Repository.join([]));
     expect(findings.measuredOf("/repo", "crap")).toEqual({
@@ -232,13 +228,6 @@ describe("the fake repositories read", () => {
     });
     expect(findings.measuredOf("/repo", "mutation")).toBeNull();
     expect(findings.testsDigest()).toBe("t");
-    expect(structure.responsibilityKinds("/repo").kinds["B.kt"]).toBe(
-      "missing",
-    );
-    expect(structure.responsibilityKinds("/other")).toEqual({
-      registered: false,
-      kinds: {},
-    });
   });
 
   it("the fake repositories agree with the adapters on absent data", () => {
@@ -246,10 +235,6 @@ describe("the fake repositories read", () => {
 
     expect(structure.read("/nowhere")).toEqual(Repository.empty);
     expect(findings.measuredOf("/nowhere", "crap")).toBeNull();
-    expect(structure.responsibilityKinds("/nowhere")).toEqual({
-      registered: false,
-      kinds: {},
-    });
     expect(structure.discard("/repo", "python")).toBe(false);
 
     structure.save("/repo", "python", repositoryOf({ "a.py": "h" }, []));

@@ -13,6 +13,7 @@ export const OPERATIONS = [
   "tests.hash",
   "setup.start",
   "setup.stop",
+  "describer.read",
   "view.parse",
   "view.serialise",
   "view.range",

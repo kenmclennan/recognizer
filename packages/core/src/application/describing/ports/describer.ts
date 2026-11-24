@@ -1,10 +1,6 @@
-import type { Repository } from "../../../domain/repository.js";
+import type { DescribeRequest } from "../../../domain/describing/describe-request.js";
 import type { RunEntry } from "../../../domain/run-record.js";
-import type {
-  DescribeResult,
-  PluginProgress,
-  Projection,
-} from "../../../domain/scan-event.js";
+import type { PluginProgress } from "../../../domain/scan-event.js";
 import type { Say } from "../../shared/ports/process.js";
 import type { DescriberRef } from "./describer-ref.js";
 
@@ -13,19 +9,35 @@ export interface LocatedDescriber {
   shipped: boolean;
 }
 
-export interface DescribeCall {
-  root: string;
-  repository: Repository;
-  describer: DescriberRef;
-  model: string;
-  batchSize: number;
-  selection: { kind: "all" | "stale"; within?: string[] };
-  confirm?: (projection: Projection) => Promise<boolean>;
-  onProjection: (projection: Projection) => void;
-  onStart: (total: number) => void;
-  onEvent: (name: string, event: PluginProgress) => void;
-  onEntry: (entry: RunEntry) => void;
-  say: Say;
+export interface EntryTiming {
+  command: string[];
+  status: number | null;
+  stderr: string;
+  duration_ms: number;
+  reason?: string;
+}
+
+export interface CallResult {
+  started: boolean;
+  status: number | null;
+  stdout: string;
+  stderr: string;
+}
+
+export interface RunningCall {
+  result: Promise<CallResult>;
+  kill(): void;
+}
+
+export interface DescribeSession {
+  readSource(path: string): { text: string; hash: string } | null;
+  writeRequest(index: number, document: unknown): string;
+  start(
+    command: readonly string[],
+    onEvent: (name: string, event: PluginProgress) => void,
+  ): RunningCall;
+  entry(name: string, timing: EntryTiming): RunEntry;
+  close(): void;
 }
 
 export interface Describer {
@@ -37,7 +49,10 @@ export interface Describer {
     cwd: string,
   ): { started: boolean; status: number | null };
   shippedName(): string;
+  shippedProgram(): string;
   folderInRepository(root: string, file: string): string | null;
   settings(): { model: string; batchSize: number };
-  describe(call: DescribeCall): Promise<DescribeResult>;
+  readSource(root: string, path: string): { text: string; hash: string } | null;
+  requestDocument(request: DescribeRequest): unknown;
+  open(root: string, say: Say): DescribeSession;
 }

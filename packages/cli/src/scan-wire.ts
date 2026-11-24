@@ -1,13 +1,9 @@
 import type { PluginEvent, ScanEvent } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import {
-  type DescribeResult as CliDescribeResult,
   describeSummaryText,
-  stopCauseText,
-} from "./describe-modules.js";
-import {
-  type DescribeProjection,
   projectionText,
+  stopCauseText,
 } from "./describe-projection.js";
 import { type Gap, gapText, preflightLine } from "./gap.js";
 import {
@@ -134,9 +130,7 @@ export function printEvent(event: ScanEvent, json: boolean, io: Io): void {
 
   if (event.type === "describing-finished") {
     if (!json) {
-      io.stdout(
-        describeSummaryText(event.result as unknown as CliDescribeResult),
-      );
+      io.stdout(describeSummaryText(event.result));
     }
 
     return;
@@ -163,9 +157,7 @@ export function printEvent(event: ScanEvent, json: boolean, io: Io): void {
       io.stdout(text);
     }
   } else if (event.type === "projection") {
-    io.stdout(
-      projectionText(event.projection as unknown as DescribeProjection),
-    );
+    io.stdout(projectionText(event.projection));
   } else if (event.type === "describing-stopped") {
     io.stderr(
       `stopped: ${stopCauseText(event.stop)}; ${event.stop.not_described.length} files not described\n`,

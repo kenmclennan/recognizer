@@ -1,5 +1,5 @@
 import { InvalidRequest } from "../../domain/invalid-request.js";
-import { Neighbours } from "../../domain/visualisation/neighbours.js";
+import { Neighbours } from "../../domain/neighbours.js";
 import type { StaleReason } from "../../domain/visualisation/stale-reason.js";
 import { View, type ViewStep } from "../../domain/visualisation/view.js";
 import { ViewNotes } from "../../domain/visualisation/view-notes.js";

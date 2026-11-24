@@ -1,27 +1,46 @@
 import type {
-  DescribeCall,
-  DescribeResult,
+  CallResult,
+  DescribeRequest,
   Describer,
   DescriberRef,
+  DescribeSession,
+  EntryTiming,
   LocatedDescriber,
-  Projection,
   RunEntry,
+  RunningCall,
 } from "../../src/index.js";
 
 export class FakeDescriber implements Describer {
   registered = false;
-  projected: Projection = { modules: 2, cost_usd: 8 };
+  shipped = false;
   described: string[] = [];
-  command: readonly string[] = ["quill", "run"];
+  command: readonly string[] = ["quill", "run", "{module}"];
+  version = "v1";
+  model = "quill";
+  batchSize = 2;
   unavailable = new Set<string>();
   folder: string | null = null;
+  results = new Map<
+    string,
+    { status: number; stdout: string; stderr?: string; started?: boolean }
+  >();
+  unreadable = new Set<string>();
+  held = new Set<string>();
+  killed: string[] = [];
+  opened = 0;
+  closed = 0;
+  started: string[][] = [];
 
   locate(): LocatedDescriber {
     return {
       describer: this.registered
-        ? ({ describerRef: true, command: this.command } as DescriberRef)
+        ? ({
+            describerRef: true,
+            command: this.command,
+            version: this.version,
+          } satisfies DescriberRef)
         : null,
-      shipped: false,
+      shipped: this.shipped,
     };
   }
 
@@ -37,38 +56,86 @@ export class FakeDescriber implements Describer {
     return "claude";
   }
 
+  shippedProgram(): string {
+    return "quill-describe-claude";
+  }
+
   folderInRepository(): string | null {
     return this.folder;
   }
 
   settings(): { model: string; batchSize: number } {
-    return { model: "quill", batchSize: 2 };
+    return { model: this.model, batchSize: this.batchSize };
   }
 
-  async describe(call: DescribeCall): Promise<DescribeResult> {
-    call.onProjection(this.projected);
+  readSource(
+    _root: string,
+    path: string,
+  ): { text: string; hash: string } | null {
+    return this.unreadable.has(path)
+      ? null
+      : { text: `source of ${path}`, hash: `hash-${path}` };
+  }
 
-    if (call.confirm !== undefined && !(await call.confirm(this.projected))) {
-      return { stopped: null };
-    }
+  requestDocument(request: DescribeRequest): unknown {
+    return request;
+  }
 
-    call.onStart(this.projected.modules);
+  open(): DescribeSession {
+    this.opened += 1;
 
-    for (let index = 0; index < this.projected.modules; index += 1) {
-      const name = `module-${index}`;
-      const entry: RunEntry = {
+    return {
+      readSource: (path) => this.readSource("", path),
+      writeRequest: (index) => `/tmp/request-${index}.json`,
+      start: (command) => this.call(command),
+      entry: (name: string, timing: EntryTiming): RunEntry => ({
         name,
-        command: ["quill"],
-        status: 0,
-        outcome: "ok",
-        duration_ms: 1,
-        stderr: "",
-      };
+        command: timing.command,
+        status: timing.status,
+        outcome: timing.reason === undefined ? "ok" : "failed",
+        duration_ms: timing.duration_ms,
+        stderr: timing.stderr,
+        ...(timing.reason === undefined ? {} : { reason: timing.reason }),
+      }),
+      close: () => {
+        this.closed += 1;
+      },
+    };
+  }
 
-      this.described.push(name);
-      call.onEntry(entry);
+  private call(command: readonly string[]): RunningCall {
+    const module = command[command.length - 1] as string;
+
+    this.started.push([...command]);
+
+    let settle: (result: CallResult) => void = () => {};
+    const result = new Promise<CallResult>((resolve) => {
+      settle = resolve;
+    });
+
+    if (this.held.has(module)) {
+      return {
+        result,
+        kill: () => {
+          this.killed.push(module);
+          settle({ started: true, status: null, stdout: "", stderr: "" });
+        },
+      };
     }
 
-    return { stopped: null };
+    const seeded = this.results.get(module) ?? {
+      status: 0,
+      stdout: `line for ${module}`,
+    };
+
+    this.described.push(module);
+    settle({
+      started: seeded.started ?? true,
+      status: seeded.status,
+      stdout: seeded.stdout,
+      stderr: seeded.stderr ?? "",
+    });
+
+    return { result, kill: () => {} };
   }
 }

@@ -291,6 +291,16 @@ describe("core layers", () => {
     }
   });
 
+  it("the describer port has no describe(call member", () => {
+    const text = readFileSync(
+      join(application, "describing/ports/describer.ts"),
+      "utf8",
+    );
+
+    expect(text).not.toMatch(/describe\(call/);
+    expect(text).not.toMatch(/DescribeCall/);
+  });
+
   it("shared ports hold only cross-cutting infrastructure", () => {
     const shared = applicationFiles("shared/ports");
 

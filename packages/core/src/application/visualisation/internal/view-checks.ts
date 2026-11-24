@@ -1,6 +1,6 @@
 import { InvalidRequest } from "../../../domain/invalid-request.js";
+import { Neighbours } from "../../../domain/neighbours.js";
 import type { Repository } from "../../../domain/repository.js";
-import { Neighbours } from "../../../domain/visualisation/neighbours.js";
 import {
   type ProposedKind,
   View,

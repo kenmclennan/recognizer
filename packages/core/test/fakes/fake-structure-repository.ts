@@ -1,7 +1,4 @@
-import type {
-  ResponsibilityKinds,
-  StructureRepository,
-} from "../../src/index.js";
+import type { StructureRepository } from "../../src/index.js";
 import { Repository } from "../../src/index.js";
 
 export function cachePath(root: string, language: string): string {
@@ -10,7 +7,6 @@ export function cachePath(root: string, language: string): string {
 
 export class FakeStructureRepository implements StructureRepository {
   readonly scans = new Map<string, Repository>();
-  readonly kinds = new Map<string, ResponsibilityKinds>();
 
   exists(): boolean {
     return true;
@@ -33,9 +29,5 @@ export class FakeStructureRepository implements StructureRepository {
 
   discard(root: string, language: string): boolean {
     return this.scans.delete(cachePath(root, language));
-  }
-
-  responsibilityKinds(root: string): ResponsibilityKinds {
-    return this.kinds.get(root) ?? { registered: false, kinds: {} };
   }
 }

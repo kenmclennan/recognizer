@@ -1,11 +1,12 @@
-import type {
-  LineKind,
-  Measured,
-  PlanMode,
-  PlanRequest,
-  Repository,
-  ScanPlanView,
-  ScanTicks,
+import {
+  type LineKind,
+  type Measured,
+  type PlanMode,
+  type PlanRequest,
+  type Repository,
+  Responsibilities,
+  type ScanPlanView,
+  type ScanTicks,
 } from "../../src/index.js";
 import { createFakes, type Fakes, scanOver } from "./container.js";
 import { cachePath } from "./fake-structure-repository.js";
@@ -61,10 +62,29 @@ export class PlanWorld {
   }
 
   describeLines(kinds: Record<string, LineKind>): void {
-    this.fakes.structure.kinds.set(PLAN_REPOSITORY, {
-      registered: true,
-      kinds,
-    });
+    const { describer, responsibilities, structure } = this.fakes;
+    const hashes = structure.read(PLAN_REPOSITORY).scannedHashes();
+    const held = new Responsibilities();
+
+    describer.registered = true;
+
+    for (const [id, kind] of Object.entries(kinds)) {
+      if (kind === "unknown") {
+        responsibilities.invalid.set(
+          PLAN_REPOSITORY,
+          "responsibilities is invalid",
+        );
+      } else if (kind !== "missing") {
+        held.set(id, {
+          line: "a line",
+          sourceHash: kind === "current" ? (hashes.get(id) ?? "") : "stale",
+          describer: describer.command,
+          version: describer.version,
+        });
+      }
+    }
+
+    responsibilities.write(PLAN_REPOSITORY, held);
   }
 
   request(over: Partial<PlanRequest> & { mode?: PlanMode } = {}): PlanRequest {
