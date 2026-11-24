@@ -14,13 +14,11 @@ import type {
   SurveySuite,
 } from "../../../domain/configuration/setup-survey.js";
 import { compileGlob } from "../../../domain/glob.js";
-import { baseName } from "../../../domain/path.js";
 import { PolicyRule } from "../../../domain/policy-rule.js";
 import type { Repository } from "../../../domain/repository.js";
 import type { ConfigKeyEntry } from "../ports/config-keys.js";
 import type {
   InstalledCheck,
-  LanguageClaim,
   SetupDoctorReport,
 } from "./configuration-ports.js";
 import { compareText, normalizeDirectory } from "./text-paths.js";
@@ -95,13 +93,6 @@ export function filesOf(repository: Repository): SurveyLanguage[] {
       };
     })
     .sort((a, b) => compareText(a.language, b.language));
-}
-
-export function claimedBy(rule: LanguageClaim, path: string): boolean {
-  return (
-    rule.files.includes(baseName(path)) ||
-    rule.extensions.some((extension) => path.endsWith(extension))
-  );
 }
 
 function valueAt(document: unknown, path: string[]): unknown {

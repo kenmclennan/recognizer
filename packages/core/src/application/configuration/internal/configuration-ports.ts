@@ -1,4 +1,5 @@
 import type { ConfigRepository } from "../../../domain/config-repository.js";
+import type { LanguageRule } from "../../../domain/language-rule.js";
 import type { PolicyRepository } from "../../../domain/policy-repository.js";
 import type { Repository } from "../../../domain/repository.js";
 import type { diagnose } from "../../plugins/diagnose.js";
@@ -22,14 +23,8 @@ export interface InstalledCheck {
   runs_tests: boolean;
 }
 
-export interface LanguageClaim {
-  name: string;
-  files: string[];
-  extensions: string[];
-}
-
 export interface SetupReads {
-  languageRules(): LanguageClaim[];
+  languageRules(): LanguageRule[];
   cachedScans(root: string): Repository | null;
   sensors(): InstalledCheck[];
   describers(): InstalledCheck[];

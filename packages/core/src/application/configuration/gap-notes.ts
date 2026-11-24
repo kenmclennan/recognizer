@@ -3,22 +3,24 @@ import type {
   SurveyRunner,
   SurveySuite,
 } from "../../domain/configuration/setup-survey.js";
-import type { LanguageClaim } from "./internal/configuration-ports.js";
-import { claimedBy } from "./internal/survey-facts.js";
+import { type LanguageRule, readsPath } from "../../domain/language-rule.js";
 import { compareText } from "./internal/text-paths.js";
 
 export function gapNotes(
   files: string[],
-  rules: readonly LanguageClaim[],
+  rules: readonly LanguageRule[],
   runners: SurveyRunner[],
   suites: SurveySuite[],
   notes: SurveyNote[],
 ): SurveyNote[] {
   const counts = new Map<string, number>();
+  const listed = new Set(files);
 
   for (const file of files) {
     const languages = new Set(
-      rules.filter((rule) => claimedBy(rule, file)).map((rule) => rule.name),
+      rules
+        .filter((rule) => readsPath(rule, file, (path) => listed.has(path)))
+        .map((rule) => rule.name),
     );
 
     for (const language of languages) {
