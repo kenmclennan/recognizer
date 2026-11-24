@@ -10,7 +10,6 @@
     "repository",
     "configured",
     "files",
-    "unread",
     "checks",
     "runners",
     "tools",
@@ -26,10 +25,6 @@
     "files": {
       "type": ["array", "null"],
       "items": { "$ref": "#/$defs/languageMarked" }
-    },
-    "unread": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/languageFiles" }
     },
     "checks": {
       "type": "array",
@@ -257,27 +252,6 @@
           }
         },
         "mark": { "$ref": "#/$defs/mark" }
-      }
-    },
-    "languageFiles": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["language", "files", "folders"],
-      "properties": {
-        "language": { "type": "string", "minLength": 1 },
-        "files": { "type": "integer", "minimum": 0 },
-        "folders": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["path", "files"],
-            "properties": {
-              "path": { "type": "string", "minLength": 1 },
-              "files": { "type": "integer", "minimum": 1 }
-            }
-          }
-        }
       }
     }
   }

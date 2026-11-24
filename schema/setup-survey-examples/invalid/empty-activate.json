@@ -20,18 +20,6 @@
       "mark": null
     }
   ],
-  "unread": [
-    {
-      "language": "typescript",
-      "files": 1,
-      "folders": [
-        {
-          "path": "scripts",
-          "files": 1
-        }
-      ]
-    }
-  ],
   "checks": [
     {
       "id": "structure",

@@ -14,12 +14,6 @@ export interface SurveyLanguage {
   mark: SetupMark | null;
 }
 
-export interface SurveyUnread {
-  language: string;
-  files: number;
-  folders: SurveyFolder[];
-}
-
 export interface SurveyLimit {
   key: string;
   label: string;
@@ -102,7 +96,6 @@ export interface Survey {
   repository: string;
   configured: boolean;
   files: SurveyLanguage[] | null;
-  unread: SurveyUnread[];
   checks: SurveyCheck[];
   runners: SurveyRunner[];
   notes?: SurveyNote[];

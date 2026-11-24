@@ -403,7 +403,7 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
   }
 
   function filesStep(state: WizardState) {
-    const { files, unread } = state.survey;
+    const { files } = state.survey;
 
     body.append(
       el("h2", "", "Files Recognizer reads"),
@@ -453,24 +453,6 @@ export function openSetupModal(deps: SetupModalDeps): SetupModal {
             el("div", "sw-why", folderText(language.folders)),
           ],
           markTag(language.mark),
-          "found",
-        ),
-      );
-    }
-
-    for (const miss of unread) {
-      body.append(
-        row(
-          "i",
-          [
-            el("div", "sw-what", `${miss.files} files not read`),
-            el(
-              "div",
-              "sw-why",
-              `${folderText(miss.folders)}: no scanner for ${languageName(miss.language)} is installed.`,
-            ),
-          ],
-          [],
           "found",
         ),
       );

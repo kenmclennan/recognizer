@@ -1,6 +1,36 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { InvalidRequest, surveySetup } from "../../src/index.js";
-import { ignoring, ROOT, scanOfFiles, seedFiles, worldOf } from "./world.js";
+import {
+  type ConfigurationWorld,
+  ignoring,
+  ROOT,
+  scanOfFiles,
+  seedFiles,
+  worldOf,
+} from "./world.js";
+
+const PYTHON = { name: "python", extensions: [".py"], files: [] };
+const TYPESCRIPT = {
+  name: "typescript",
+  extensions: [".ts"],
+  files: ["tsconfig.json"],
+};
+
+function claiming(
+  world: ConfigurationWorld,
+  claims: { name: string; extensions: string[]; files: string[] }[],
+): void {
+  world.ports.reads = { ...world.ports.reads, languageRules: () => claims };
+}
+
+const NO_RUNNER_NOTE = (language: string, count: number) => ({
+  language,
+  directory: ".",
+  text: `${language} is the largest language here (${count} files) and no test runner was found for it, so C.R.A.P. and Mutation will cover only part of this repository`,
+});
 
 const CONFIG_PATH = `${ROOT}/.recognizer/config.yaml`;
 const POLICY_PATH = `${ROOT}/.recognizer/policy.yaml`;
@@ -189,22 +219,99 @@ describe("setup survey gap notes", () => {
   it("the largest language with no runner gets a survey note", async () => {
     const world = worldOf();
 
+    claiming(world, [TYPESCRIPT]);
     seedFiles(world, ["a.go", "b.go", "c.ts"]);
 
     const survey = await surveySetup(world.ports, { root: ROOT });
 
-    expect(survey.notes).toEqual([
-      {
-        language: "go",
-        directory: ".",
-        text: "go is the largest language here (2 files) and no test runner was found for it, so C.R.A.P. and Mutation will cover only part of this repository",
-      },
+    expect(survey.notes).toEqual([NO_RUNNER_NOTE("typescript", 1)]);
+  });
+
+  it("a tie breaks by name and a file claimed by base name counts", async () => {
+    const world = worldOf();
+
+    claiming(world, [TYPESCRIPT, PYTHON]);
+    seedFiles(world, ["a.py", "b.py", "c.ts", "tsconfig.json"]);
+
+    expect((await surveySetup(world.ports, { root: ROOT })).notes).toEqual([
+      NO_RUNNER_NOTE("python", 2),
+    ]);
+  });
+
+  it("an undeclared language gets no note", async () => {
+    const world = worldOf();
+
+    claiming(world, []);
+    seedFiles(world, ["a.go"]);
+
+    expect((await surveySetup(world.ports, { root: ROOT })).notes).toEqual([]);
+  });
+
+  it("claimed files are counted and unclaimed ones appear nowhere", async () => {
+    const world = worldOf();
+
+    claiming(world, [TYPESCRIPT, PYTHON]);
+    seedFiles(world, [
+      "a.py",
+      "b.py",
+      "c.py",
+      "d.ts",
+      "tsconfig.json",
+      "e.java",
+      "f.java",
+      "g.java",
+      "h.md",
+    ]);
+
+    const survey = await surveySetup(world.ports, { root: ROOT });
+
+    expect(survey.notes).toEqual([NO_RUNNER_NOTE("python", 3)]);
+    expect(JSON.stringify(survey)).not.toMatch(/java|\.md/);
+  });
+
+  it("the survey has no unread field", async () => {
+    const world = worldOf();
+
+    claiming(world, [PYTHON]);
+    seedFiles(world, ["a.py", "b.go"]);
+
+    expect(await surveySetup(world.ports, { root: ROOT })).not.toHaveProperty(
+      "unread",
+    );
+  });
+
+  it("the committed language rules give the expected note data", async () => {
+    const world = worldOf();
+    const here = dirname(fileURLToPath(import.meta.url));
+    const rules = JSON.parse(
+      readFileSync(
+        resolve(here, "../../../../fixtures/plugins/languages.json"),
+        "utf8",
+      ),
+    );
+
+    claiming(world, rules);
+    seedFiles(world, [
+      "a.py",
+      "b.py",
+      "c.py",
+      "d.ts",
+      "tsconfig.json",
+      "e.java",
+      "f.java",
+      "g.java",
+      "h.md",
+    ]);
+
+    expect((await surveySetup(world.ports, { root: ROOT })).notes).toEqual([
+      NO_RUNNER_NOTE("python", 3),
     ]);
   });
 
   it("no gap note when every language with files has a runner", async () => {
     const world = worldOf();
 
+    claiming(world, [TYPESCRIPT]);
     seedFiles(world, ["a.ts", "b.ts"]);
     world.fakes.surveyPlugins.seeded = [
       {
@@ -235,6 +342,7 @@ describe("setup survey gap notes", () => {
   it("a language that already has a note gets no gap note", async () => {
     const world = worldOf();
 
+    claiming(world, [PYTHON]);
     seedFiles(world, ["a.py", "b.py"]);
     world.fakes.surveyPlugins.seeded = [
       {

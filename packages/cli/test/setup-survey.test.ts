@@ -99,13 +99,10 @@ describe("recognizer setup survey", () => {
         .filter((check) => check.runs_tests)
         .map((check) => check.id),
     ).toEqual(["crap", "mutation"]);
-    expect(survey.unread.map((entry) => entry.language)).toEqual([
-      "typescript",
-    ]);
-    expect(survey.unread[0]?.files).toBe(1);
     expect(survey.files?.map((entry) => entry.language)).toEqual([
       "typescript",
     ]);
+    expect(survey).not.toHaveProperty("unread");
   });
 
   it("the analysis entry carries pair_min_lines with its schema default", async () => {
@@ -544,6 +541,10 @@ describe("setup survey gap notes", () => {
     return (await surveyOf([directory])).survey;
   }
 
+  const EMPTY_ANSWER = { runners: [], tools: [], notes: [] };
+  const EMPTY_KOTLIN = { name: "kotlin", answer: EMPTY_ANSWER };
+  const EMPTY_RUST = { name: "rust", answer: EMPTY_ANSWER };
+
   it("the largest language with no runner gets a survey note", async () => {
     const python = {
       name: "python",
@@ -560,7 +561,7 @@ describe("setup survey gap notes", () => {
         "a/C.kt": "",
         "tools/x/t.py": "",
       }),
-      [python],
+      [python, EMPTY_KOTLIN],
     );
     const gap = survey.notes?.filter((note) => note.language === "kotlin");
 
@@ -570,7 +571,7 @@ describe("setup survey gap notes", () => {
 
     const tie = await surveyWith(
       tree({ "a.kt": "", "b.kt": "", "c.rs": "", "d.rs": "" }),
-      [python],
+      [python, EMPTY_KOTLIN, EMPTY_RUST],
     );
 
     expect(tie.notes?.map((note) => note.language)).toEqual(["kotlin"]);
