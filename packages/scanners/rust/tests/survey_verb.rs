@@ -99,6 +99,7 @@ fn a_package_manifest_gives_a_cargo_runner_with_the_placeholders_and_an_undo() {
     let runner = &answer["runners"][0];
     let tool = &answer["tools"][0];
 
+    assert!(runner.get("settings").is_none());
     assert_eq!(froms(&answer), ["core/Cargo.toml"]);
     assert_eq!(runner["directory"], "core");
     assert_eq!(

@@ -343,3 +343,20 @@ def test_the_pinned_sensors_schema_fixture_equals_the_published_schema():
     assert {entry["key"]: entry for entry in sensor_keys()} == {
         entry["key"]: entry for entry in pinned["keys"] if entry["key"] in declared
     }
+
+
+def test_the_suite_keys_of_the_test_running_manifests_equal_the_pinned_tests_entries():
+    from recognizer_sensors.manifest import build
+
+    pinned = key_schema()
+    expected_keys = [entry for entry in pinned["keys"] if entry["key"].startswith("tests.")]
+    expected_section = [entry for entry in pinned["sections"] if entry["key"] == "tests.<name>"]
+
+    assert expected_keys
+    assert len(expected_section) == 1
+
+    for name in ("crap", "mutation"):
+        suite_keys = build(name)["suite_keys"]
+
+        assert suite_keys["keys"] == expected_keys
+        assert suite_keys["section"] == expected_section[0]

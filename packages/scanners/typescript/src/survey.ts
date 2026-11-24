@@ -10,6 +10,7 @@ export interface SurveyRequest {
 export interface AnswerRunner {
   language: string;
   runner: string;
+  settings?: Record<string, string>;
   directory: string;
   from: string;
   command: string;
@@ -474,6 +475,7 @@ export function survey(request: SurveyRequest): SurveyAnswer {
     runners: found.map((one) => ({
       language: "typescript",
       runner: one.runner,
+      settings: { runner: one.runner },
       directory: one.directory,
       from: one.from,
       command: commandFor(one),

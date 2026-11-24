@@ -1,0 +1,42 @@
+{
+  "runners": [
+    {
+      "language": "typescript",
+      "runner": "vitest",
+      "settings": { "runner": "" },
+      "directory": "engine",
+      "from": "engine/package.json",
+      "command": "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory={up}.recognizer/cache/coverage/{slug}",
+      "coverage": {
+        "path": ".recognizer/cache/coverage/{slug}/lcov.info",
+        "format": "lcov"
+      },
+      "tool": "@vitest/coverage-v8"
+    }
+  ],
+  "tools": [
+    {
+      "name": "@vitest/coverage-v8",
+      "kind": "npm",
+      "installed": false,
+      "why": "vitest coverage",
+      "needed_by": [
+        "engine/package.json"
+      ],
+      "installs": "npm install --save-dev @vitest/coverage-v8",
+      "command": [
+        "npm",
+        "install",
+        "--save-dev",
+        "@vitest/coverage-v8"
+      ],
+      "cwd": "engine",
+      "files": [
+        "engine/package.json",
+        "engine/package-lock.json"
+      ],
+      "undo_note": "@vitest/coverage-v8 was removed from engine/package.json"
+    }
+  ],
+  "notes": []
+}

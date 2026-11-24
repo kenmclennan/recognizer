@@ -256,6 +256,42 @@ describe("buildChanges", () => {
     );
   });
 
+  it("writes the settings a runner carries, whatever its language", () => {
+    const stepsOf = (language: string, settings?: Record<string, string>) => {
+      const from: Survey = {
+        ...survey,
+        runners: survey.runners.map((one) => {
+          const { settings: _dropped, ...rest } = one;
+
+          return one.name === "app"
+            ? {
+                ...rest,
+                language,
+                ...(settings === undefined ? {} : { settings }),
+              }
+            : one;
+        }),
+      };
+
+      return buildChanges(from, all)
+        .changes.find((change) => change.id === "tests-app")
+        ?.steps.map((step) => step.argv.slice(2, 4).join(" "));
+    };
+
+    const typescript = stepsOf("typescript", { runner: "vitest" });
+
+    expect(typescript?.slice(3, 5)).toEqual([
+      "tests.app.runner vitest",
+      "tests.app.env.NODE_ENV test",
+    ]);
+    expect(stepsOf("python", { runner: "vitest" })).toContain(
+      "tests.app.runner vitest",
+    );
+    expect(stepsOf("typescript")?.some((one) => one.includes(".runner"))).toBe(
+      false,
+    );
+  });
+
   it("writes a detected env when the choice names none", () => {
     const detected: Survey = {
       ...survey,

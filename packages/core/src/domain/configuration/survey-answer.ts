@@ -19,11 +19,12 @@ export interface AnsweredRunner {
   tool: string | null;
   env?: Record<string, string>;
   activate?: string;
+  settings?: Record<string, string>;
 }
 
 export interface AnsweredTool {
   name: string;
-  kind: "npm" | "cargo" | "pip";
+  kind: string;
   installed: boolean;
   why: string;
   needed_by: string[];
@@ -128,6 +129,15 @@ function runnerTexts(runner: AnsweredRunner): string[] {
   ];
 }
 
+const RESERVED_SETTINGS = [
+  "language",
+  "directory",
+  "command",
+  "activate",
+  "env",
+  "coverage",
+];
+
 function refusalOf(answer: SurveyAnswer): string | null {
   const froms = new Set<string>();
 
@@ -140,6 +150,16 @@ function refusalOf(answer: SurveyAnswer): string | null {
 
     for (const text of runnerTexts(runner)) {
       if (substituted(text, { up: "", slug: "" }) === null) {
+        return `a runner of ${runner.from} holds a brace that is not a placeholder`;
+      }
+    }
+
+    for (const [key, value] of Object.entries(runner.settings ?? {})) {
+      if (RESERVED_SETTINGS.includes(key)) {
+        return `a runner of ${runner.from} sets ${key}, which core writes itself`;
+      }
+
+      if (/[{}]/.test(value)) {
         return `a runner of ${runner.from} holds a brace that is not a placeholder`;
       }
     }
@@ -256,6 +276,7 @@ export function assembleRunners(
         ...(runner.activate === undefined
           ? {}
           : { activate: fill(runner.activate) }),
+        ...(runner.settings === undefined ? {} : { settings: runner.settings }),
       };
 
       byFrom.set(runner.from, named);

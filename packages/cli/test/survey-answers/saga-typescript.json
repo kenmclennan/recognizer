@@ -3,6 +3,7 @@
     {
       "language": "typescript",
       "runner": "vitest",
+      "settings": { "runner": "vitest" },
       "directory": "server",
       "from": "server/package.json",
       "command": "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory={up}.recognizer/cache/coverage/{slug}",
@@ -18,6 +19,7 @@
     {
       "language": "typescript",
       "runner": "vitest",
+      "settings": { "runner": "vitest" },
       "directory": "web",
       "from": "web/package.json",
       "command": "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory={up}.recognizer/cache/coverage/{slug}",

@@ -49,6 +49,7 @@ def test_a_python_runner_with_a_requirements_file_and_no_venv_builds_an_environm
     tool = answer["tools"][0]
 
     assert len(answer["runners"]) == 1
+    assert "settings" not in runner
     assert runner["directory"] == "tools/x"
     assert runner["from"] == "tools/x/requirements-dev.txt"
     assert runner["command"] == (

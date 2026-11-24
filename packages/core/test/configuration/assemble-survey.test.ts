@@ -271,6 +271,76 @@ describe("assembling the survey answers", () => {
     expect(shared.notes[0]?.text).toMatch(/more than one runner/);
   });
 
+  it("passes runner settings through unchanged and refuses reserved or braced ones", () => {
+    const settings = { runner: "vitest" };
+    const kept = assembleRunners(
+      [
+        answered("a", 1, {
+          runners: [runner("app", "app/package.json", { settings })],
+        }),
+      ],
+      ROOT,
+    );
+    const reserved = assembleRunners(
+      [
+        answered("b", 2, {
+          runners: [
+            runner("x", "x/package.json", { settings: { language: "rust" } }),
+          ],
+        }),
+      ],
+      ROOT,
+    );
+    const braced = assembleRunners(
+      [
+        answered("c", 3, {
+          runners: [
+            runner("y", "y/package.json", { settings: { runner: "{slug}" } }),
+          ],
+        }),
+      ],
+      ROOT,
+    );
+    const mixed = assembleRunners(
+      [
+        answered("a", 1, {
+          runners: [runner("app", "app/package.json", { settings })],
+        }),
+        answered("b", 2, {
+          runners: [
+            runner("x", "x/package.json", { settings: { env: "FOO" } }),
+          ],
+        }),
+      ],
+      ROOT,
+    );
+
+    expect(kept.runners[0]?.settings).toEqual(settings);
+    expect(reserved.runners).toEqual([]);
+    expect(reserved.notes[0]?.text).toBe(
+      "b did not answer the setup survey: a runner of x/package.json sets language, which core writes itself",
+    );
+    expect(braced.runners).toEqual([]);
+    expect(braced.notes[0]?.text).toMatch(/brace that is not a placeholder/);
+    expect(mixed.runners.map((one) => one.name)).toEqual(["app"]);
+    expect(mixed.notes).toHaveLength(1);
+    expect(mixed.notes[0]?.text).toMatch(/sets env, which core writes itself/);
+  });
+
+  it("carries a tool of any kind through to the survey unchanged", () => {
+    const assembled = assembleRunners(
+      [
+        answered("a", 1, {
+          runners: [runner("app", "app/package.json")],
+          tools: [tool("cov", ["app/package.json"], { kind: "yarn" })],
+        }),
+      ],
+      ROOT,
+    );
+
+    expect(assembled.tools[0]?.kind).toBe("yarn");
+  });
+
   it("keeps the first plugin's runners when one fails and one answers an invalid document", () => {
     const assembled = assembleRunners(
       [

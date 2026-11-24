@@ -137,7 +137,7 @@
   "tools": [
     {
       "name": "@vitest/coverage-v8",
-      "kind": "gem",
+      "kind": "",
       "installed": false,
       "why": "vitest writes its coverage report through this package",
       "needed_by": [

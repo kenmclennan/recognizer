@@ -24,6 +24,7 @@ export interface Manifest {
   metrics?: unknown[];
   findings?: FindingEntry[];
   runs_tests?: boolean;
+  suite_keys?: { section: unknown; keys: unknown[] };
   reports_tests?: boolean;
   scoped?: boolean;
   planned_work?: { verb: string };

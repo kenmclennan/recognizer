@@ -1,7 +1,7 @@
 import json
 from importlib.metadata import version
 
-from recognizer_sensors.config_schema import CRAP_KEYS, MUTATION_KEYS
+from recognizer_sensors.config_schema import CRAP_KEYS, MUTATION_KEYS, SUITE_KEYS, SUITE_SECTION
 from recognizer_sensors.testrun.reports import LOG
 
 PROTOCOL = 1
@@ -303,6 +303,7 @@ def build(name: str) -> dict:
                 ),
             ],
             "runs_tests": True,
+            "suite_keys": suite_keys(),
             "scoped": False,
             "log_path": LOG.as_posix(),
         }
@@ -325,10 +326,15 @@ def build(name: str) -> dict:
             )
         ],
         "runs_tests": True,
+        "suite_keys": suite_keys(),
         "scoped": True,
         "planned_work": {"verb": "mutate"},
         "log_path": LOG.as_posix(),
     }
+
+
+def suite_keys() -> dict:
+    return {"section": SUITE_SECTION, "keys": list(SUITE_KEYS)}
 
 
 def manifest_text(name: str) -> str:

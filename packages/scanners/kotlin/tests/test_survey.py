@@ -64,6 +64,7 @@ def test_a_kotlin_dsl_build_with_jacoco_gives_one_runner_with_the_command_and_th
         "coverage": {"path": DEFAULT_PATH, "format": "jacoco"},
         "tool": None,
     }
+    assert "settings" not in answer["runners"][0]
     assert answer["tools"] == []
     assert answer["notes"] == []
 

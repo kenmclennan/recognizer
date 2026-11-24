@@ -13,7 +13,7 @@ function load(kind: string, name: string): unknown {
 describe("survey answer: examples", () => {
   it("holds the expected count of examples", () => {
     expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(4);
-    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(6);
+    expect(readdirSync(join(EXAMPLES, "invalid"))).toHaveLength(7);
   });
 
   it.each(readdirSync(join(EXAMPLES, "valid")))("accepts %s", (file) => {

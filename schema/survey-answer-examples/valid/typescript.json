@@ -3,6 +3,7 @@
     {
       "language": "typescript",
       "runner": "vitest",
+      "settings": { "runner": "vitest" },
       "directory": "engine",
       "from": "engine/package.json",
       "command": "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory={up}.recognizer/cache/coverage/{slug}",
