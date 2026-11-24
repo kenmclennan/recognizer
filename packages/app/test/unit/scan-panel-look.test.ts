@@ -65,7 +65,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   document.body.append(root);
   const editor = fakeEditor();
   const responsibilities = fakeResponsibilities(files);
-  const wired = { tray: [], posted: [], explorer: null, current: null, scanState: null, scanning: null, rescanner: null };
+  const wired = { tray: [], useRunView: false, posted: [], explorer: null, current: null, scanState: null, scanning: null, rescanner: null };
   const withProgress = (state) => ({ ...state, scanning: wired.scanning });
   const footer = buildFooter(footerEl);
   const scanHost = scanHostOf({
@@ -77,6 +77,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
     running: () => wired.rescanner.running(),
     run: (modules, planned) => void wired.rescanner.run(modules, planned),
     stop: () => void wired.rescanner.stop(),
+    runView: () => (wired.useRunView ? wired.rescanner.runView() : null),
     refresh: () => void wired.rescanner.refresh(),
     footer: (text) => footer.setScan(text),
     progressText: () => wired.scanning,
@@ -131,7 +132,9 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   const setTick = async (key, checked) => { const box = q('.scan-row[data-sensor="' + key + '"] .scan-tick'); box.checked = checked; box.dispatchEvent(new Event("change", { bubbles: true })); await tick(); };
   const panel = () => ({ header: q(".scan-sub").textContent, amber: q(".scan-sub .warn")?.textContent ?? null, amberColor: q(".scan-sub .warn") ? getComputedStyle(q(".scan-sub .warn")).color : null, rows: rows(), buttons: all(".scan-buttons button").map((b) => ({ text: b.textContent, disabled: b.disabled, spinner: b.querySelectorAll("svg").length })), summary: q(".summary") ? { shape: q(".summary").dataset.shape, tone: q(".summary").className.replace("summary", "").trim(), head: q(".summary-head").textContent, line: q(".summary-line").textContent, bar: all(".summary-bar").length, spinning: q(".summary .scan-spin") !== null } : null, rowBars: all(".scan-bar").length, strays: all(".scan-block, .scan-block-title, .sensor-add, .sensor-remove, .scan-summary, .scan-stop-button, .scan-panel h2, .scan-panel h3, .scan-extract, .scan-describe, .measure-row").length, subLines: all(".scan-row *").filter((n) => n.matches("div")).length });
 
-  return { host, q, all, visible, rows, text, scanLineText, footerButtons, messages, act, setTick, panel, fake, editor, wired, sensors, emitChangesChanged: (changes) => wired.changesChanged(changes) };
+  const markScanned = () => { scanned = true; };
+  const showRunView = () => { wired.useRunView = true; };
+  return { host, q, all, visible, rows, markScanned, showRunView, text, scanLineText, footerButtons, messages, act, setTick, panel, fake, editor, wired, sensors, emitChangesChanged: (changes) => wired.changesChanged(changes) };
 }
 
 (async () => {
@@ -615,6 +618,15 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   facts.unregistered = { keys: bareKeys(), fixLines: unregMount.q(".scan-panel").textContent.split("recognizer plugin add").length - 1 };
   facts.unregisteredSummary = unregMount.q(".summary").textContent;
 
+  const bareMount = await mount(fakeScan({ steps: [current, summary] }), fakeSensors({}, { config: "sensors: {}\\n" }, {}, SHIPPED), false);
+  click(bareMount.q(".rail-scan"));
+  await tick();
+  bareMount.markScanned();
+  bareMount.showRunView();
+  click(bareMount.q(".scan-run"));
+  await tick(); await tick(); await tick();
+  facts.afterRunUnregistered = { shape: bareMount.q(".summary")?.dataset.shape ?? null, card: bareMount.all(".scan-run-card, .scan-card").length, text: bareMount.q(".scan-panel").textContent, button: bareMount.q(".scan-run")?.textContent ?? null, fixLines: bareMount.q(".scan-panel").textContent.split("recognizer plugin add").length - 1 };
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -658,6 +670,12 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.unregistered.keys).toEqual(["structure", "crap"]);
     expect(f.unregistered.fixLines).toBe(0);
     expect(f.unregisteredSummary).not.toMatch(/Mutation/);
+  });
+
+  it("shows the unregistered summary and its fix lines after a run when nothing is registered", () => {
+    expect(f.afterRunUnregistered.shape).toBe("unregistered");
+    expect(f.afterRunUnregistered.button).toBe("Nothing to run");
+    expect(f.afterRunUnregistered.fixLines).toBeGreaterThan(0);
   });
 
   it("captions a saved view by name and locks the switch during a run", () => {

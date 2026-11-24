@@ -1,5 +1,5 @@
 import { File, Repository } from "@recognizer/core";
-import { type Freshness, sensorArmed } from "recognizer";
+import { type Freshness, sensorArmed, unregisteredMessage } from "recognizer";
 import { ageText } from "./footer-scan";
 import type { IconName } from "./icons";
 import { DESCRIBE_KEY, type ResultsMode } from "./scan-freshness";
@@ -35,7 +35,13 @@ export type ResultRow = {
 export type SummaryTone = "ok" | "warn" | "bad" | "run";
 
 export type Summary = {
-  shape: "running" | "attention" | "changed" | "behind" | "current";
+  shape:
+    | "running"
+    | "attention"
+    | "changed"
+    | "behind"
+    | "unregistered"
+    | "current";
   tone: SummaryTone;
   icon: IconName;
   head: string;
@@ -78,6 +84,8 @@ export type FreshnessModel = {
   modules: ReadonlySet<string>;
   stale: ReadonlyMap<string, ReadonlySet<string>>;
 };
+
+export type Unregistered = { name: string; display: string };
 
 export type StateText = { icon: IconName; text: string };
 
@@ -428,6 +436,7 @@ function summarize(
   scopeCount: number,
   runModules: number,
   noResult: NoResult[],
+  nothingToRun: Unregistered[],
 ): Summary {
   const running = rows.filter(({ state }) => state.kind === "running");
 
@@ -567,6 +576,17 @@ function summarize(
     };
   }
 
+  if (nothingToRun.length > 0) {
+    return {
+      shape: "unregistered",
+      tone: "warn",
+      icon: "circle-dashed",
+      head: "Nothing to run",
+      line: nothingToRun.map(({ name }) => unregisteredMessage(name)).join(" "),
+      bar: null,
+    };
+  }
+
   const whole = !(input.ticks.onlyView && input.view);
 
   return {
@@ -591,6 +611,7 @@ function actionOf(
   update: string[],
   ticked: (key: string) => boolean,
   scopeCount: number,
+  nothingToRun: Unregistered[],
 ): Action {
   const rescan = (input.mode ?? "bring") === "rescan";
   const mode = {
@@ -656,6 +677,14 @@ function actionOf(
       primary: { label: "Nothing ticked to run", disabled: true },
       mode,
     };
+  }
+
+  if (input.plan === null || input.plan === undefined) {
+    return { primary: { label: "Checking", disabled: true }, mode };
+  }
+
+  if (nothingToRun.length > 0) {
+    return { primary: { label: "Nothing to run", disabled: true }, mode };
   }
 
   return { primary: { label: "Up to date", disabled: true }, mode };
@@ -857,6 +886,11 @@ export function buildFreshnessModel(
   const noResult = noResultOf(input, sensors, rows, modules);
   const runModules = input.runModules ?? 0;
   const whole = !(input.ticks.onlyView && input.view);
+  const nothingToRun = sensors.some(({ registered }) => registered)
+    ? []
+    : sensors
+        .filter(({ registered }) => !registered)
+        .map(({ name, display }) => ({ name, display }));
 
   return {
     rows,
@@ -874,9 +908,10 @@ export function buildFreshnessModel(
       modules.length,
       runModules,
       noResult,
+      nothingToRun,
     ),
     action: awaitingPlan(
-      actionOf(input, rows, update, ticked, modules.length),
+      actionOf(input, rows, update, ticked, modules.length, nothingToRun),
       input,
     ),
     findings: findingsLine(rows, changed, whole),

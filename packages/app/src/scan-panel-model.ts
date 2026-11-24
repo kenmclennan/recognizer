@@ -269,6 +269,8 @@ export type ScanPanelModel = {
 
 const NOTHING_TICKED = "Nothing ticked to run";
 
+const INERT_LABELS = [NOTHING_TICKED, "Nothing to run", "Checking"];
+
 const DESCRIBE_TITLE =
   "Writes one line per file saying what it is responsible for.";
 
@@ -765,7 +767,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
     estimate:
       locked ||
       planned.idle ||
-      freshness.action.primary.label === NOTHING_TICKED
+      INERT_LABELS.includes(freshness.action.primary.label)
         ? null
         : estimateLine(parts),
   };
