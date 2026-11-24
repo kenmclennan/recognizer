@@ -706,3 +706,60 @@ def test_kotlin_fallback_mutant_command_drops_clean_and_report_per_project():
     )[0]
 
     assert mutant_command(suite, stop=True) == ("./gradlew :a:test --no-daemon --fail-fast :b:test")
+
+
+JVM_GRADLE = """#!/bin/sh
+echo "$@" >> "$FAKE_LOG"
+mkdir -p build/test-results/jvmTest build/reports/jacoco/jvmTest
+: > build/test-results/jvmTest/TEST-p.AddTest.xml
+{
+  echo '<report name="x"><package name="p"><sourcefile name="Calc.kt">'
+  echo '<line nr="4" mi="0" ci="1"/>'
+  echo '</sourcefile></package></report>'
+} > build/reports/jacoco/jvmTest/jacocoJvmTestReport.xml
+"""
+
+JVM_COVERAGE_SUITE = {
+    **KOTLIN_SUITE_RAW,
+    "command": "./gradlew jvmTest jacocoJvmTestReport",
+    "coverage": {
+        "path": "**/build/reports/jacoco/jvmTest/jacocoJvmTestReport.xml",
+        "format": "jacoco",
+    },
+}
+
+
+@pytest.mark.parametrize(
+    ("task", "coverage", "glob"),
+    [
+        ("test", "jacocoTestReport", "**/build/reports/jacoco/test/jacocoTestReport.xml"),
+        (
+            "jvmTest",
+            "jacocoJvmTestReport",
+            "**/build/reports/jacoco/jvmTest/jacocoJvmTestReport.xml",
+        ),
+    ],
+)
+def test_the_coverage_task_and_report_follow_the_test_task(task, coverage, glob):
+    assert commands.kotlin_coverage_task(task) == coverage
+    assert commands.kotlin_report_glob(task) == glob
+    assert kotlin_class_command(":lib", ["p.A"], task)[-1] == f":lib:{coverage}"
+
+
+def test_a_jvm_test_suite_gets_its_by_file_coverage_from_the_jvm_report(tmp_path, monkeypatch):
+    root, scan = make(tmp_path, {CALC: SOURCES[CALC], ADD: SOURCES[ADD]}, "p.AddTest", monkeypatch)
+    (root / "gradlew").write_text(JVM_GRADLE)
+    git_commit(root)
+    suite = parse_suites([JVM_COVERAGE_SUITE])[0]
+    work = tmp_path / "work"
+    work.mkdir()
+
+    _, selection = coverage_run(root, [scan], [suite], work)
+
+    assert selection[CALC] == {4: frozenset({ADD})}
+
+    runs = (tmp_path / "log").read_text().splitlines()
+
+    assert "jvmTest --no-daemon --rerun --tests p.AddTest jacocoJvmTestReport" in runs
+    assert KOTLIN_CLASSES[ADD] == [("", "p.AddTest")]
+    KOTLIN_CLASSES.clear()

@@ -91,14 +91,24 @@ def mutant_command(suite: Suite, stop: bool = False, workers: int = 1) -> str:
     return command
 
 
+def kotlin_coverage_task(task: str = "test") -> str:
+    return f"jacoco{task[:1].upper()}{task[1:]}Report"
+
+
+def kotlin_report_glob(task: str = "test") -> str:
+    return f"**/build/reports/jacoco/{task}/{kotlin_coverage_task(task)}.xml"
+
+
 def kotlin_class_command(project: str, classes: list[str], task: str = "test") -> list[str]:
+    coverage = kotlin_coverage_task(task)
+
     return [
         "./gradlew",
         f"{project}:{task}" if project else task,
         "--no-daemon",
         "--rerun",
         *[arg for name in classes for arg in ("--tests", name)],
-        f"{project}:jacocoTestReport" if project else "jacocoTestReport",
+        f"{project}:{coverage}" if project else coverage,
     ]
 
 

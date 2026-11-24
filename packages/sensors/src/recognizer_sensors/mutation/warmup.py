@@ -58,8 +58,6 @@ from recognizer_sensors.testrun.suites import (
     unavailable,
 )
 
-KOTLIN_REPORT_GLOB = "**/build/reports/jacoco/test/jacocoTestReport.xml"
-
 KOTLIN_TEST_MARKER = re.compile(
     r"@(?:Test|ParameterizedTest|RepeatedTest|TestFactory|TestTemplate)\b"
 )
@@ -303,7 +301,7 @@ def kotlin_selection(
         except MeasurementError as error:
             return kotlin_fallback(str(error))
 
-        reports = fresh_reports(copy, KOTLIN_REPORT_GLOB, started)
+        reports = fresh_reports(copy, commands.kotlin_report_glob(task), started)
 
         if not reports:
             return kotlin_fallback(f"no coverage report for {file}")
