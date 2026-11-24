@@ -1,5 +1,7 @@
 import { chooseScanner, claimsLanguage } from "./choose-scanner.js";
 import {
+  grammarFieldsMessage,
+  grammarsWithoutFields,
   grammarsWithoutVocabulary,
   grammarVocabularyMessage,
 } from "./grammar-vocabulary.js";
@@ -48,6 +50,7 @@ export type ProblemCode =
   | "plugin-scan-schema"
   | "plugin-tests-report"
   | "plugin-grammar-vocabulary"
+  | "plugin-grammar-fields"
   | "plugin-settings"
   | "describer-gap"
   | "unregistered-plugin";
@@ -444,6 +447,21 @@ export function scannerProblems(
             "plugin-grammar-vocabulary",
             language,
             grammarVocabularyMessage(program, unvocabularied),
+            textFix(install[program] ?? choice.scanner.manifest.install),
+          ),
+        );
+      }
+
+      const fieldless = grammarsWithoutFields(choice.scanner.manifest);
+
+      if (fieldless.length > 0) {
+        const program = `recognizer-scan-${choice.scanner.name}`;
+
+        found.push(
+          problem(
+            "plugin-grammar-fields",
+            language,
+            grammarFieldsMessage(program, fieldless),
             textFix(install[program] ?? choice.scanner.manifest.install),
           ),
         );

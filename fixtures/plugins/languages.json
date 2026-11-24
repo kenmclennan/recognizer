@@ -533,6 +533,7 @@
           "object_body_type": "class_body"
         },
         "vocabulary": {
+          "fields": {},
           "comment_markers": [
             "comment"
           ],

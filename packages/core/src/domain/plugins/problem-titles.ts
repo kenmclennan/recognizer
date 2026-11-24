@@ -38,6 +38,8 @@ export const PROBLEM_TITLES: Record<
     `The ${display(name)} scanner cannot report its tests`,
   "plugin-grammar-vocabulary": (name, display = PLAIN) =>
     `The ${display(name)} scanner publishes a grammar with no vocabulary`,
+  "plugin-grammar-fields": (name, display = PLAIN) =>
+    `The ${display(name)} scanner publishes a grammar with no fields declaration`,
   "plugin-settings": (name) => `A ${name} setting is wrong`,
   "describer-gap": (name) => `The ${name} describer is not ready`,
   "unregistered-plugin": (name) => `The ${name} plugin is not registered`,
