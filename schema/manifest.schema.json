@@ -148,6 +148,50 @@
       "type": "string",
       "minLength": 1
     },
+    "placeholders": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "description"
+        ],
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "minLength": 1
+          },
+          "values": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "pattern"
+            ]
+          },
+          {
+            "required": [
+              "values"
+            ]
+          }
+        ]
+      }
+    },
     "suite_keys": {
       "type": "object",
       "additionalProperties": false,

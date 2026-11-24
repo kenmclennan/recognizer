@@ -150,7 +150,7 @@ describe("recognizer plugins", () => {
       name: "alpha",
       command: join(bin, "recognizer-scan-alpha"),
       version: "0.1.0",
-      protocol: 1,
+      protocol: 2,
       range: "current",
       scan_schema_version: 7,
       schema_range: "current",

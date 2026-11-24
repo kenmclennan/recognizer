@@ -3,7 +3,7 @@
   "name": "crap",
   "display": "C.R.A.P.",
   "version": "0.1.0",
-  "protocol": 1,
+  "protocol": 2,
   "install": "brew install --cask kenmclennan/tap/recognizer",
   "check": true,
   "long_running": true,

@@ -4,7 +4,7 @@
   "display": "C.R.A.P.",
   "description": "Turns any overlay metric over a configured line into a finding, with complexity and coverage lines built in.",
   "version": "0.1.0",
-  "protocol": 1,
+  "protocol": 2,
   "install": "brew install --cask kenmclennan/tap/recognizer",
   "check": false,
   "long_running": false,
@@ -147,5 +147,11 @@
     }
   ],
   "runs_tests": false,
-  "scoped": false
+  "scoped": false,
+  "placeholders": {
+    "metric": {
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "description": "a metric the sensor reports"
+    }
+  }
 }

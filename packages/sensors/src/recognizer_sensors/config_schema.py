@@ -115,6 +115,17 @@ MUTATION_KEYS = (
 )
 
 
+SUITE_PLACEHOLDERS = {
+    "name": {
+        "pattern": "^.+$",
+        "description": "the name of a test suite",
+    },
+    "variable": {
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+        "description": "the name of an environment variable a suite's command runs with",
+    },
+}
+
 SUITE_SECTION = {
     "key": "tests.<name>",
     "shape": "list-entry",

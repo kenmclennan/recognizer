@@ -1188,7 +1188,7 @@ export const COMMANDS: Command[] = [
       { flag: "--json", description: "with check: print JSON instead of text" },
     ],
     output: {
-      text: "check: one line per result: ok, warn or fail, the result's name and, for a warning or a failure, the reason; the results are starts, clean-output, valid, named-for-command, protocol, side-effect-free, sentences, limits, check-verb, guide-verb, run-verb, events and stop. add: one line saying the plugin was registered or was already registered. init: each file written, relative to the folder, then the next steps for that language and kind. schema: the schema as JSON, indented, and a newline",
+      text: "check: one line per result: ok, warn or fail, the result's name and, for a warning or a failure, the reason; the results are starts, clean-output, valid, named-for-command, protocol, side-effect-free, sentences, placeholders, limits, check-verb, guide-verb, run-verb, events and stop. add: one line saying the plugin was registered or was already registered. init: each file written, relative to the folder, then the next steps for that language and kind. schema: the schema as JSON, indented, and a newline",
       json: "check: { command, manifest, results: [{ name, status: ok|warn|fail, reason? }] } where manifest is the plugin's manifest, or null when it gave no valid one. add, init and schema have no --json: schema always prints JSON",
     },
     exitCodes: [

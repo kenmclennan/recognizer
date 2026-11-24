@@ -3,8 +3,7 @@
   "owner": "sensors",
   "placeholders": {
     "name": "^.+$",
-    "variable": "^[A-Za-z_][A-Za-z0-9_]*$",
-    "metric": "^(?!command$)[A-Za-z0-9_-]+$"
+    "variable": "^[A-Za-z_][A-Za-z0-9_]*$"
   },
   "sections": [
     {

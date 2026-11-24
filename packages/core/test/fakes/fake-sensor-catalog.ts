@@ -25,6 +25,7 @@ export class FakeSensorCatalog implements SensorCatalog {
         runs_tests: sensor.runsTests,
         scoped: sensor.scoped ?? false,
         listed: sensor.listed ?? true,
+        placeholders: {},
         metrics: [],
         findings: [],
         settings: [],

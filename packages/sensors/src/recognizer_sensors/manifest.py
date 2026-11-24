@@ -1,10 +1,16 @@
 import json
 from importlib.metadata import version
 
-from recognizer_sensors.config_schema import CRAP_KEYS, MUTATION_KEYS, SUITE_KEYS, SUITE_SECTION
+from recognizer_sensors.config_schema import (
+    CRAP_KEYS,
+    MUTATION_KEYS,
+    SUITE_KEYS,
+    SUITE_PLACEHOLDERS,
+    SUITE_SECTION,
+)
 from recognizer_sensors.testrun.reports import LOG
 
-PROTOCOL = 1
+PROTOCOL = 2
 
 UNLISTED = {("crap", "complexity")}
 
@@ -304,6 +310,7 @@ def build(name: str) -> dict:
             ],
             "runs_tests": True,
             "suite_keys": suite_keys(),
+            "placeholders": SUITE_PLACEHOLDERS,
             "scoped": False,
             "log_path": LOG.as_posix(),
         }
@@ -327,6 +334,7 @@ def build(name: str) -> dict:
         ],
         "runs_tests": True,
         "suite_keys": suite_keys(),
+        "placeholders": SUITE_PLACEHOLDERS,
         "scoped": True,
         "planned_work": {"verb": "mutate"},
         "log_path": LOG.as_posix(),
