@@ -40,6 +40,7 @@ function stateTone(state: ResultState): string {
     case "out-of-date":
       return "warn";
     case "never-run":
+    case "checking":
       return "muted";
     case "failed":
       return "bad";
@@ -421,7 +422,9 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
           ? []
           : [
               model.run == null ||
-              (model.summary.shape === "unregistered" && !model.run.active)
+              (model.summary.shape === "unregistered" && !model.run.active) ||
+              (model.summary.shape === "checking" &&
+                model.run.card.phase === "finished")
                 ? summaryNode(model.summary)
                 : cardNode(model.run.card, actions),
             ]),

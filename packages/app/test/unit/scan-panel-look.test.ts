@@ -9,7 +9,7 @@ import { fakeViews } from ${JSON.stringify(here("../test/unit/views-fake.ts"))};
 import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
 import { fakeEditor } from ${JSON.stringify(here("editor-fake.ts"))};
 import { fakeResponsibilities } from ${JSON.stringify(here("responsibilities-fake.ts"))};
-import { fakeScan } from ${JSON.stringify(here("scan-fake.ts"))};
+import { fakeScan, planFromFacts } from ${JSON.stringify(here("scan-fake.ts"))};
 import REASONS from ${JSON.stringify(here("../../../fixtures/sensor-reasons/states.json"))};
 import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
 import { createRescanner } from ${JSON.stringify(here("rescanner.ts"))};
@@ -51,7 +51,7 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 const until = async (ready, what) => { for (let waited = 0; !ready(); waited += 5) { if (waited >= 20000) throw new Error("timed out waiting for " + what); await new Promise((resolve) => setTimeout(resolve, 5)); } };
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
-async function mount(fake, given = undefined, scanned = true, viewFiles = {}, files = FILES) {
+async function mount(fake, given = undefined, scanned = true, viewFiles = {}, files = FILES, planGate = undefined) {
   const sensors = given ?? fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
   const sensed = (loaded) => { const text = scanned ? structureFor(loaded) : null; if (text !== null) sensors.files.set("structure", text); return withSensors(loaded, sensors); };
   for (const old of document.querySelectorAll(".mount-root")) old.remove();
@@ -70,6 +70,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   const footer = buildFooter(footerEl);
   const scanHost = scanHostOf({
     port: sensors,
+    plan: (request, facts) => (planGate === undefined ? planFromFacts(request, facts) : planGate.promise.then(() => planFromFacts(request, facts))),
     scan: () => wired.scanState,
     ticks: () => wired.rescanner.ticks(),
     setTicks: (next) => wired.rescanner.setTicks(next),
@@ -627,6 +628,20 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   await tick(); await tick(); await tick();
   facts.afterRunUnregistered = { shape: bareMount.q(".summary")?.dataset.shape ?? null, card: bareMount.all(".scan-run-card, .scan-card").length, text: bareMount.q(".scan-panel").textContent, button: bareMount.q(".scan-run")?.textContent ?? null, fixLines: bareMount.q(".scan-panel").textContent.split("recognizer plugin add").length - 1 };
 
+  const planGate = gate();
+  const pendingFake = fakeScan({ steps: [current, summary] });
+  const pending = await mount(pendingFake, undefined, true, {}, FILES, planGate);
+  click(pending.q(".rail-scan"));
+  await tick();
+  facts.beforePlan = pending.panel();
+  pending.showRunView();
+  await pending.wired.rescanner.run(null);
+  await tick(); await tick();
+  facts.beforePlanAfterRun = pending.panel();
+  planGate.release();
+  await tick(); await tick();
+  facts.afterPlan = pending.panel();
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -676,6 +691,22 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.afterRunUnregistered.shape).toBe("unregistered");
     expect(f.afterRunUnregistered.button).toBe("Nothing to run");
     expect(f.afterRunUnregistered.fixLines).toBeGreaterThan(0);
+  });
+
+  it("reads Checking on the rows and the headline until the first plan answer arrives, then reads the real state", () => {
+    for (const panel of [f.beforePlan, f.beforePlanAfterRun]) {
+      expect(panel.summary.shape).toBe("checking");
+      expect(panel.summary.head).toBe("Checking what is out of date");
+      expect(panel.rows.find((r: Facts) => r.key === "structure").state).toBe(
+        "checking",
+      );
+      expect(panel.rows.find((r: Facts) => r.key === "crap").state).toBe(
+        "checking",
+      );
+    }
+
+    expect(f.afterPlan.summary.shape).not.toBe("checking");
+    expect(states(f.afterPlan)).not.toContain("checking");
   });
 
   it("captions a saved view by name and locks the switch during a run", () => {
