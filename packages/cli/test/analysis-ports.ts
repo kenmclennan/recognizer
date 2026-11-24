@@ -5,6 +5,7 @@ import { SourceFilesAdapter } from "../src/adapters/filesystem/source-files-adap
 import { TestReportsAdapter } from "../src/adapters/plugins/test-reports-adapter.js";
 import { DigestAdapter } from "../src/adapters/system/digest-adapter.js";
 import type { Io } from "../src/cli.js";
+import { GRAMMAR_RULES } from "./duplication-helpers.js";
 
 export function analysisPortsOf(io: Io) {
   return {
@@ -12,6 +13,7 @@ export function analysisPortsOf(io: Io) {
     digest: new DigestAdapter(),
     findings: new FindingsAdapter(io),
     parsing: new ParsingAdapter(),
+    grammarRules: { rules: () => GRAMMAR_RULES },
   };
 }
 

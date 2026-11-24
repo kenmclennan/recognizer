@@ -4,5 +4,5 @@ import type { SyntaxParser } from "../../../domain/analysis/duplication/syntax.j
 export type Parsers = ReadonlyMap<Grammar, SyntaxParser>;
 
 export interface Parsing {
-  loadParsers(languages: readonly string[]): Promise<Parsers>;
+  loadParsers(grammars: readonly string[]): Promise<Parsers>;
 }

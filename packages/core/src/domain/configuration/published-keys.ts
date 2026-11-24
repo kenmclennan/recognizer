@@ -101,7 +101,7 @@ export const CORE_KEYS: KeySchema = {
       type: "string",
       description:
         "the scanner that reads a language when two installed scanners claim it, by its manifest name",
-      example: "scanners.python python-alt",
+      example: "scanners.mylang mylang-alt",
     },
     {
       key: "install.<program>",
@@ -245,7 +245,7 @@ export const CORE_KEYS: KeySchema = {
       type: "string",
       multi: true,
       description:
-        "simple names of annotations that make a Kotlin file an entry point for the orphan and unused_exports warnings, beside the shipped container annotations",
+        "simple names of annotations that make a file an entry point for the orphan and unused_exports warnings, beside the shipped container annotations",
       example:
         "--add sensors.structure.warnings.orphan.entry_annotations UseCase",
     },

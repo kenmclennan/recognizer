@@ -10,6 +10,7 @@ export * from "./application/analysis/measure-modules.js";
 export * from "./application/analysis/orphan-findings.js";
 export * from "./application/analysis/ports/analysis.js";
 export * from "./application/analysis/ports/digest.js";
+export * from "./application/analysis/ports/grammar-rules.js";
 export * from "./application/analysis/ports/parsing.js";
 export * from "./application/analysis/ports/source-files.js";
 export * from "./application/analysis/ports/test-reports.js";

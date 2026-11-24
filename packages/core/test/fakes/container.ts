@@ -21,6 +21,7 @@ import { FakeDocumentValidators } from "./fake-document-validators.js";
 import { FakeFindingsRepository } from "./fake-findings-repository.js";
 import { FakeForge } from "./fake-forge.js";
 import { FakeGit } from "./fake-git.js";
+import { FakeGrammarRules } from "./fake-grammar-rules.js";
 import { FakeKeyOwners } from "./fake-key-owners.js";
 import { FakeKeyedText } from "./fake-keyed-text.js";
 import { FakeParsing } from "./fake-parsing.js";
@@ -76,6 +77,7 @@ export interface Fakes {
   source: FakeSourceFiles;
   digest: FakeDigest;
   parsing: FakeParsing;
+  grammarRules: FakeGrammarRules;
   testReports: FakeTestReports;
   changes: FakeChanges;
   views: FakeViewRepository;
@@ -131,6 +133,7 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     source: new FakeSourceFiles(),
     digest: new FakeDigest(),
     parsing: new FakeParsing(),
+    grammarRules: new FakeGrammarRules(),
     testReports: new FakeTestReports(),
     changes: new FakeChanges(),
     views: new FakeViewRepository(),

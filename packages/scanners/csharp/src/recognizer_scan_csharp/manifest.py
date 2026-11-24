@@ -17,6 +17,47 @@ INSTALL = (
     "|| brew install kenmclennan/tap/recognizer-scan-csharp"
 )
 
+GRAMMARS = [
+    {
+        "name": "csharp",
+        "extensions": [".cs"],
+        "function_types": [
+            "method_declaration",
+            "constructor_declaration",
+            "local_function_statement",
+            "accessor_declaration",
+            "destructor_declaration",
+            "operator_declaration",
+            "conversion_operator_declaration",
+            "property_declaration",
+            "indexer_declaration",
+        ],
+        "scope_types": [
+            "class_declaration",
+            "struct_declaration",
+            "record_declaration",
+            "interface_declaration",
+            "property_declaration",
+            "indexer_declaration",
+            "event_declaration",
+        ],
+        "branch_types": [
+            "if_statement",
+            "for_statement",
+            "foreach_statement",
+            "while_statement",
+            "do_statement",
+            "switch_section",
+            "switch_expression_arm",
+            "catch_clause",
+            "conditional_expression",
+            "conditional_access_expression",
+        ],
+        "boolean_operators": ["&&", "||", "??"],
+        "bound_function_types": [],
+    }
+]
+
 
 def build() -> dict:
     return {
@@ -34,6 +75,8 @@ def build() -> dict:
         "languages": [
             {
                 "name": "csharp",
+                "display": "C#",
+                "grammars": GRAMMARS,
                 "extensions": [*SOURCE_EXTENSIONS, *MARKUP_EXTENSIONS],
                 "files": [],
                 "skip": {

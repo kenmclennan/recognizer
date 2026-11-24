@@ -11,6 +11,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { analysisPortsOf, sayOf } from "./analysis-ports.js";
 import {
   allParsers,
+  GRAMMAR_RULES,
   measuredSources,
   ROOT,
   readJson,
@@ -40,7 +41,7 @@ function sourcesUnder(base: string): Record<string, string> {
   const texts: Record<string, string> = {};
 
   for (const file of filesUnder(base)) {
-    if (grammarFor(file) !== null) {
+    if (grammarFor(file, GRAMMAR_RULES) !== null) {
       texts[relative(base, file).split("\\").join("/")] = readFileSync(
         file,
         "utf8",
@@ -67,13 +68,13 @@ describe("the count against the C.R.A.P. corpus", () => {
     const counted = new Map<string, number>();
 
     for (const [module, text] of Object.entries(texts)) {
-      const grammar = grammarFor(module);
+      const rule = grammarFor(module, GRAMMAR_RULES);
 
-      if (grammar === null) {
+      if (rule === null) {
         continue;
       }
 
-      for (const fn of measureSource(module, text, grammar, parsers)) {
+      for (const fn of measureSource(module, text, rule, parsers)) {
         counted.set(fn.identity, fn.complexity);
       }
     }
@@ -110,6 +111,7 @@ describe("the findings against the thresholds corpus", () => {
       null,
       DEFAULT_STRUCTURE_SETTINGS,
       parsers,
+      GRAMMAR_RULES,
     );
     const bare = (id: string) => id.replace(/::(?:[^:]*\.)?/, "::");
     const expected = planted

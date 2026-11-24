@@ -1,4 +1,5 @@
 import { baseName } from "../path.js";
+import { refusedSuiteValues } from "./key-value.js";
 import type { SurveyNote, SurveyRunner, SurveyTool } from "./setup-survey.js";
 
 export const ANSWER_PLACEHOLDERS = ["up", "slug"] as const;
@@ -138,13 +139,11 @@ const RESERVED_SETTINGS = [
   "coverage",
 ];
 
-export function coverageFormatKey(): string {
-  return ["tests", "<name>", "coverage", "format"].join(".");
-}
+export type PublishedValues = readonly { key: string; values?: string[] }[];
 
 function refusalOf(
   answer: SurveyAnswer,
-  formats: readonly string[] | null,
+  keys: PublishedValues | null,
 ): string | null {
   const froms = new Set<string>();
 
@@ -155,8 +154,20 @@ function refusalOf(
 
     froms.add(runner.from);
 
-    if (formats !== null && !formats.includes(runner.coverage.format)) {
-      return `a runner of ${runner.from} answers coverage format ${runner.coverage.format}, which no installed sensor reads (they read: ${formats.join(", ")})`;
+    const refused =
+      keys === null
+        ? undefined
+        : refusedSuiteValues(
+            {
+              language: runner.language,
+              runner: runner.settings?.runner,
+              format: runner.coverage.format,
+            },
+            keys,
+          )[0];
+
+    if (refused !== undefined) {
+      return `a runner of ${runner.from} answers ${refused.field} ${refused.value}, which no installed sensor reads (they read: ${refused.allowed.join(", ")})`;
     }
 
     for (const text of runnerTexts(runner)) {
@@ -244,7 +255,7 @@ export function assembleRunners(
   answers: PluginAnswer[],
   root: string,
   taken: ReadonlySet<string> = new Set(),
-  formats: readonly string[] | null = null,
+  keys: PublishedValues | null = null,
 ): AssembledAnswers {
   const used = new Map<string, number>();
   const names = new Set(taken);
@@ -257,7 +268,7 @@ export function assembleRunners(
       continue;
     }
 
-    const refusal = refusalOf(one.answer, formats);
+    const refusal = refusalOf(one.answer, keys);
 
     if (refusal !== null) {
       assembled.notes.push(failureNote(one, refusal));

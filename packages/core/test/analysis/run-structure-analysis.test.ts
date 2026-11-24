@@ -5,6 +5,7 @@ import { Language, Parser } from "web-tree-sitter";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
   Finding,
+  type GrammarRule,
   measuredInputs,
   type Parsers,
   type Repository,
@@ -23,6 +24,16 @@ const GRAMMARS = join(
   "cli",
   "grammars",
 );
+
+const PYTHON_RULE: GrammarRule = {
+  name: "python",
+  extensions: [".py"],
+  function_types: ["function_definition"],
+  scope_types: ["class_definition"],
+  branch_types: ["if_statement"],
+  boolean_operators: ["and", "or"],
+  bound_function_types: [],
+};
 
 async function pythonParsers(): Promise<Parsers> {
   await Parser.init();
@@ -77,6 +88,7 @@ describe("runStructureAnalysis", () => {
       repository,
       policy: null,
       settings: DEFAULT_STRUCTURE_SETTINGS,
+      rules: [PYTHON_RULE],
     };
 
     fakes.source.files.set(`${ROOT}/a/x.py`, "import b.y\n");

@@ -187,7 +187,7 @@ def assert_key_matches(key, name, property_schema):
     kind = json_type(property_schema)
 
     if kind == "string":
-        assert key["type"] in ("string", "path"), name
+        assert key["type"] in ("string", "path", "enum"), name
     else:
         assert key["type"] == kind, name
 

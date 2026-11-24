@@ -8,7 +8,12 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { parsePolicy } from "../src/adapters/filesystem/policy-translator.js";
 import { resolveStructureSettings } from "../src/structure-sensor.js";
 import { analysisPortsOf, sayOf } from "./analysis-ports.js";
-import { allParsers, measuredSources, ROOT } from "./duplication-helpers.js";
+import {
+  allParsers,
+  GRAMMAR_RULES,
+  measuredSources,
+  ROOT,
+} from "./duplication-helpers.js";
 
 let parsers: Parsers;
 
@@ -43,6 +48,7 @@ function sense(
     policy: policyText === null ? null : parsePolicy(policyText),
     settings: settings,
     parsers: parsers,
+    rules: GRAMMAR_RULES,
   });
 
   return {
@@ -211,6 +217,7 @@ describe("a failure in one measure", () => {
       policy: null,
       settings: DEFAULT_STRUCTURE_SETTINGS,
       parsers: partial,
+      rules: GRAMMAR_RULES,
     });
 
     expect(run.error).toMatch(/^complexity: /);
@@ -241,6 +248,7 @@ describe("a failure in one measure", () => {
       policy: null,
       settings: DEFAULT_STRUCTURE_SETTINGS,
       parsers,
+      rules: GRAMMAR_RULES,
     });
 
     expect(

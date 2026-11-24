@@ -1,5 +1,6 @@
 import { carryMeasured } from "../../domain/analysis/duplication/carry.js";
 import type { DuplicationSettings } from "../../domain/analysis/duplication/findings.js";
+import type { GrammarRule } from "../../domain/analysis/duplication/grammars.js";
 import { scansCommit } from "../../domain/analysis/scans-commit.js";
 import type { FindingsRepository } from "../../domain/findings-repository.js";
 import type { PolicyRule } from "../../domain/policy-rule.js";
@@ -31,6 +32,7 @@ export interface StructureAnalysisInput {
   policy: readonly PolicyRule[] | null;
   settings: StructureSettings;
   parsers: Parsers | null;
+  rules: readonly GrammarRule[];
 }
 
 export interface StructureRun {
@@ -43,7 +45,7 @@ export function runStructureAnalysis(
   ports: StructureAnalysisPorts,
   input: StructureAnalysisInput,
 ): StructureRun {
-  const { say, root, repository, policy, settings, parsers } = input;
+  const { say, root, repository, policy, settings, parsers, rules } = input;
   const measuring: MeasurePorts = ports;
   const { commit, modified } = scansCommit(repository);
   const context = { commit: commit ?? "", modified };
@@ -82,6 +84,7 @@ export function runStructureAnalysis(
           repository,
           settings.duplication as DuplicationSettings,
           loaded,
+          rules,
           true,
         ),
     );
@@ -98,6 +101,7 @@ export function runStructureAnalysis(
           policy,
           settings,
           loaded,
+          rules,
         );
 
         complexityValues = measured.values;

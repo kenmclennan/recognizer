@@ -1,6 +1,37 @@
 [
   {
     "name": "python",
+    "display": "Python",
+    "grammars": [
+      {
+        "name": "python",
+        "extensions": [
+          ".py"
+        ],
+        "function_types": [
+          "function_definition"
+        ],
+        "scope_types": [
+          "class_definition"
+        ],
+        "branch_types": [
+          "if_statement",
+          "elif_clause",
+          "for_statement",
+          "while_statement",
+          "except_clause",
+          "conditional_expression",
+          "for_in_clause",
+          "if_clause",
+          "case_clause"
+        ],
+        "boolean_operators": [
+          "and",
+          "or"
+        ],
+        "bound_function_types": []
+      }
+    ],
     "extensions": [
       ".py"
     ],
@@ -31,6 +62,91 @@
   },
   {
     "name": "typescript",
+    "display": "TypeScript",
+    "grammars": [
+      {
+        "name": "typescript",
+        "extensions": [
+          ".ts",
+          ".mts",
+          ".cts"
+        ],
+        "function_types": [
+          "function_declaration",
+          "method_definition"
+        ],
+        "scope_types": [
+          "class_declaration",
+          "abstract_class_declaration",
+          "class",
+          "internal_module",
+          "module"
+        ],
+        "branch_types": [
+          "if_statement",
+          "for_statement",
+          "for_in_statement",
+          "while_statement",
+          "do_statement",
+          "switch_case",
+          "catch_clause",
+          "ternary_expression",
+          "optional_chain"
+        ],
+        "boolean_operators": [
+          "&&",
+          "||",
+          "??"
+        ],
+        "bound_function_types": [
+          "arrow_function",
+          "function_expression",
+          "function"
+        ]
+      },
+      {
+        "name": "tsx",
+        "extensions": [
+          ".tsx",
+          ".jsx",
+          ".js",
+          ".mjs",
+          ".cjs"
+        ],
+        "function_types": [
+          "function_declaration",
+          "method_definition"
+        ],
+        "scope_types": [
+          "class_declaration",
+          "abstract_class_declaration",
+          "class",
+          "internal_module",
+          "module"
+        ],
+        "branch_types": [
+          "if_statement",
+          "for_statement",
+          "for_in_statement",
+          "while_statement",
+          "do_statement",
+          "switch_case",
+          "catch_clause",
+          "ternary_expression",
+          "optional_chain"
+        ],
+        "boolean_operators": [
+          "&&",
+          "||",
+          "??"
+        ],
+        "bound_function_types": [
+          "arrow_function",
+          "function_expression",
+          "function"
+        ]
+      }
+    ],
     "extensions": [
       ".ts",
       ".tsx",
@@ -69,6 +185,35 @@
   },
   {
     "name": "kotlin",
+    "display": "Kotlin",
+    "grammars": [
+      {
+        "name": "kotlin",
+        "extensions": [
+          ".kt"
+        ],
+        "function_types": [
+          "function_declaration"
+        ],
+        "scope_types": [
+          "class_declaration",
+          "object_declaration",
+          "companion_object"
+        ],
+        "branch_types": [
+          "if_expression",
+          "for_statement",
+          "while_statement",
+          "do_while_statement",
+          "when_entry",
+          "catch_block",
+          "conjunction_expression",
+          "disjunction_expression"
+        ],
+        "boolean_operators": [],
+        "bound_function_types": []
+      }
+    ],
     "extensions": [
       ".kt"
     ],
@@ -98,6 +243,34 @@
   },
   {
     "name": "rust",
+    "display": "Rust",
+    "grammars": [
+      {
+        "name": "rust",
+        "extensions": [
+          ".rs"
+        ],
+        "function_types": [
+          "function_item"
+        ],
+        "scope_types": [
+          "impl_item",
+          "trait_item",
+          "mod_item"
+        ],
+        "branch_types": [
+          "if_expression",
+          "for_expression",
+          "while_expression",
+          "match_arm"
+        ],
+        "boolean_operators": [
+          "&&",
+          "||"
+        ],
+        "bound_function_types": []
+      }
+    ],
     "extensions": [
       ".rs"
     ],
@@ -118,6 +291,53 @@
   },
   {
     "name": "csharp",
+    "display": "C#",
+    "grammars": [
+      {
+        "name": "csharp",
+        "extensions": [
+          ".cs"
+        ],
+        "function_types": [
+          "method_declaration",
+          "constructor_declaration",
+          "local_function_statement",
+          "accessor_declaration",
+          "destructor_declaration",
+          "operator_declaration",
+          "conversion_operator_declaration",
+          "property_declaration",
+          "indexer_declaration"
+        ],
+        "scope_types": [
+          "class_declaration",
+          "struct_declaration",
+          "record_declaration",
+          "interface_declaration",
+          "property_declaration",
+          "indexer_declaration",
+          "event_declaration"
+        ],
+        "branch_types": [
+          "if_statement",
+          "for_statement",
+          "foreach_statement",
+          "while_statement",
+          "do_statement",
+          "switch_section",
+          "switch_expression_arm",
+          "catch_clause",
+          "conditional_expression",
+          "conditional_access_expression"
+        ],
+        "boolean_operators": [
+          "&&",
+          "||",
+          "??"
+        ],
+        "bound_function_types": []
+      }
+    ],
     "extensions": [
       ".cs",
       ".razor",

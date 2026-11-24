@@ -4,7 +4,12 @@ import {
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { analysisPortsOf, sayOf } from "./analysis-ports.js";
-import { allParsers, measuredFixture, ROOT } from "./duplication-helpers.js";
+import {
+  allParsers,
+  GRAMMAR_RULES,
+  measuredFixture,
+  ROOT,
+} from "./duplication-helpers.js";
 
 describe("duplication", () => {
   it("measures C# fixtures without dotnet installed", async () => {
@@ -23,6 +28,7 @@ describe("duplication", () => {
         scans,
         DEFAULT_DUPLICATION_SETTINGS,
         await allParsers(),
+        GRAMMAR_RULES,
       );
 
       expect(findings).toHaveLength(7);

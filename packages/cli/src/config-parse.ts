@@ -38,13 +38,13 @@ export type SensorEntry = SensorRegistration | StructureSettingsInput | "off";
 
 export interface TestSuite {
   name: string;
-  language: "python" | "typescript" | "kotlin" | "rust" | "csharp";
+  language: string;
   directory: string;
   command: string;
   activate?: string;
   env?: Record<string, string>;
-  coverage: { path: string; format: "lcov" | "jacoco" };
-  runner?: "vitest" | "jest";
+  coverage: { path: string; format: string };
+  runner?: string;
 }
 
 export interface Config {

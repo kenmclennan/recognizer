@@ -8,6 +8,7 @@ import { analysisPortsOf, sayOf } from "./analysis-ports.js";
 import {
   allParsers,
   EQUIVALENCE,
+  GRAMMAR_RULES,
   measuredFixture,
   ROOT,
   readJson,
@@ -51,6 +52,7 @@ describe("duplication findings against the Python sensor's goldens", () => {
         scans,
         DEFAULT_DUPLICATION_SETTINGS,
         await allParsers(),
+        GRAMMAR_RULES,
       );
 
       expect(
@@ -89,6 +91,7 @@ describe("the corpus manifest", () => {
         scans,
         DEFAULT_DUPLICATION_SETTINGS,
         await allParsers(),
+        GRAMMAR_RULES,
       );
       const pairs = new Set(
         findings.flatMap((finding) => {

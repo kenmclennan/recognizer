@@ -519,4 +519,120 @@ describe("setup survey gap notes", () => {
       expect(world.fakes.keyOwners.reads).toBe(0);
     });
   });
+
+  describe("published suite values", () => {
+    const SUITE_KEYS = [
+      ["tests.<name>.language", ["python", "typescript", "kotlin"]],
+      ["tests.<name>.runner", ["vitest", "jest"]],
+      ["tests.<name>.coverage.format", ["lcov", "jacoco"]],
+    ] as const;
+
+    function publishingSuiteKeys(world: ConfigurationWorld): void {
+      world.fakes.keyOwners.schema = {
+        ...world.fakes.keyOwners.schema,
+        keys: SUITE_KEYS.map(([key, values]) => ({
+          key,
+          type: "enum" as const,
+          description: "d",
+          example: "e",
+          values: [...values],
+        })),
+      };
+    }
+
+    function plugin(
+      name: string,
+      order: number,
+      given: { language: string; runner?: string; format: string },
+    ) {
+      return {
+        plugin: name,
+        order,
+        language: given.language,
+        answer: {
+          runners: [
+            {
+              language: given.language,
+              runner: "vitest",
+              directory: name,
+              from: `${name}/package.json`,
+              command: "npx vitest run",
+              coverage: { path: "c/lcov.info", format: given.format },
+              tool: null,
+              ...(given.runner === undefined
+                ? {}
+                : { settings: { runner: given.runner } }),
+            },
+          ],
+          tools: [],
+          notes: [],
+        },
+      };
+    }
+
+    async function surveyOf(
+      ...answers: ReturnType<typeof plugin>[]
+    ): Promise<Awaited<ReturnType<typeof surveySetup>>> {
+      const world = worldOf();
+
+      publishingSuiteKeys(world);
+      seedFiles(
+        world,
+        answers.map((one) => `${one.plugin}/package.json`),
+      );
+      world.fakes.surveyPlugins.seeded = answers;
+
+      return surveySetup(world.ports, { root: ROOT });
+    }
+
+    it("keeps a runner whose language, runner and format are all published", async () => {
+      const survey = await surveyOf(
+        plugin("good", 1, {
+          language: "typescript",
+          runner: "jest",
+          format: "lcov",
+        }),
+      );
+
+      expect(survey.runners.map((one) => one.name)).toEqual(["good"]);
+      expect(survey.notes).toEqual([]);
+    });
+
+    it("drops a runner whose language no sensor publishes", async () => {
+      const survey = await surveyOf(
+        plugin("odd", 1, { language: "zig", format: "lcov" }),
+      );
+
+      expect(survey.runners).toEqual([]);
+      expect(survey.notes[0]?.text).toContain(
+        "answers language zig, which no installed sensor reads (they read: python, typescript, kotlin)",
+      );
+    });
+
+    it("drops a runner whose runner setting no sensor publishes", async () => {
+      const survey = await surveyOf(
+        plugin("odd", 1, {
+          language: "typescript",
+          runner: "mocha",
+          format: "lcov",
+        }),
+      );
+
+      expect(survey.runners).toEqual([]);
+      expect(survey.notes[0]?.text).toContain(
+        "answers runner mocha, which no installed sensor reads (they read: vitest, jest)",
+      );
+    });
+
+    it("keeps the good runner and drops the bad one in the same survey", async () => {
+      const survey = await surveyOf(
+        plugin("good", 1, { language: "python", format: "jacoco" }),
+        plugin("bad", 2, { language: "python", format: "tap" }),
+      );
+
+      expect(survey.runners.map((one) => one.name)).toEqual(["good"]);
+      expect(survey.notes).toHaveLength(1);
+      expect(survey.notes[0]?.text).toContain("bad did not answer");
+    });
+  });
 });

@@ -1,7 +1,10 @@
-import { LANGUAGE_NAMES, PROBLEM_TITLES } from "@recognizer/core";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { PROBLEM_TITLES } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { RETIRED_KEYS as RETIRED_POLICY } from "../src/adapters/filesystem/policy-translator.js";
 import { RETIRED_KEYS as RETIRED_CONFIG } from "../src/config-retired.js";
+import { REPO } from "./helpers.js";
 
 const CODES = [
   "config-yaml",
@@ -55,19 +58,27 @@ describe("problem titles", () => {
     }
   });
 
-  it("language names match the app", () => {
-    expect(LANGUAGE_NAMES).toEqual({
-      typescript: "TypeScript",
-      rust: "Rust",
-      python: "Python",
-      kotlin: "Kotlin",
-      csharp: "C#",
-    });
-    expect(PROBLEM_TITLES["scanner-missing"]("csharp")).toBe(
+  it("problem titles name a language by the display the scanners publish", () => {
+    const published = JSON.parse(
+      readFileSync(join(REPO, "fixtures/plugins/languages.json"), "utf8"),
+    ) as { name: string; display: string }[];
+    const display = (id: string) =>
+      published.find((language) => language.name === id)?.display ?? id;
+
+    expect(published.map((language) => display(language.name))).toEqual([
+      "Python",
+      "TypeScript",
+      "Kotlin",
+      "Rust",
+      "C#",
+    ]);
+    expect(PROBLEM_TITLES["scanner-missing"]("csharp", display)).toBe(
       "No scanner for C#",
     );
-    expect(PROBLEM_TITLES["scanner-missing"]("zig")).toBe("No scanner for zig");
-    expect(PROBLEM_TITLES["scanner-missing"]("scanners")).toBe(
+    expect(PROBLEM_TITLES["scanner-missing"]("zig", display)).toBe(
+      "No scanner for zig",
+    );
+    expect(PROBLEM_TITLES["scanner-missing"]("scanners", display)).toBe(
       "No scanner is installed",
     );
   });

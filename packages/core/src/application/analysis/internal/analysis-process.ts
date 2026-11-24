@@ -1,3 +1,4 @@
+import { grammarFor } from "../../../domain/analysis/duplication/grammars.js";
 import type { Repository } from "../../../domain/repository.js";
 import type { RunPhase } from "../../../domain/run-record.js";
 import type { ScanSink } from "../../../domain/scan-sink.js";
@@ -35,7 +36,14 @@ export function* analysisProcess(
   ports: AnalysisPorts,
   input: RunAnalysisInput,
 ): Generator<string[], Measured, Parsers | Error | null> {
-  const { analysis, config, findings, policy: policies, clock } = ports;
+  const {
+    analysis,
+    config,
+    findings,
+    policy: policies,
+    clock,
+    grammarRules: grammars,
+  } = ports;
   const { root, repository, sink } = input;
 
   if (
@@ -77,12 +85,21 @@ export function* analysisProcess(
     const policy = policies.rules(root);
     analysis.reportPolicyProblems(root, repository, policy, sink.say);
 
-    const languages =
+    const rules = grammars.rules();
+    const wanted =
       plan.duplication === false && !plan.warnings.complexity
         ? null
-        : [...new Set(repository.files.map((file) => file.language))];
+        : [
+            ...new Set(
+              repository.files.flatMap((file) => {
+                const rule = grammarFor(file.path, rules);
+
+                return rule === null ? [] : [rule.name];
+              }),
+            ),
+          ];
     const label = plan.duplication === false ? "complexity" : "duplication";
-    const answer = languages === null ? null : yield languages;
+    const answer = wanted === null ? null : yield wanted;
     const parsers = answer === null || answer instanceof Error ? null : answer;
     const run = runStructureAnalysis(ports, {
       say: sink.say,
@@ -91,6 +108,7 @@ export function* analysisProcess(
       policy,
       settings: plan,
       parsers,
+      rules,
     });
 
     if (answer instanceof Error) {

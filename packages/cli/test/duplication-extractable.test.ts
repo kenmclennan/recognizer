@@ -7,7 +7,13 @@ import {
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { analysisPortsOf, sayOf } from "./analysis-ports.js";
-import { allParsers, measuredFixture, ROOT } from "./duplication-helpers.js";
+import {
+  allParsers,
+  GRAMMAR_RULES,
+  measuredFixture,
+  ROOT,
+  ruleNamed,
+} from "./duplication-helpers.js";
 
 async function measure(directory: string) {
   const { fake, scans } = measuredFixture(
@@ -21,6 +27,7 @@ async function measure(directory: string) {
     scans,
     DEFAULT_DUPLICATION_SETTINGS,
     parsers,
+    GRAMMAR_RULES,
   );
 
   return { findings, fake, parsers };
@@ -32,7 +39,7 @@ function functionsIn(
 ): string[] {
   const tree = parsers.get("kotlin")?.parse(source);
 
-  return findFunctions(tree?.rootNode as never, "kotlin").map(
+  return findFunctions(tree?.rootNode as never, ruleNamed("kotlin")).map(
     (one) => one.qualified,
   );
 }

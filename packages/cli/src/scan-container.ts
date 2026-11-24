@@ -15,6 +15,7 @@ import { SourceFilesAdapter } from "./adapters/filesystem/source-files-adapter.j
 import { StructureAdapter } from "./adapters/filesystem/structure-adapter.js";
 import { GitAdapter } from "./adapters/git/git-adapter.js";
 import { DescriberAdapter } from "./adapters/plugins/describer-adapter.js";
+import { GrammarRulesAdapter } from "./adapters/plugins/grammar-rules-adapter.js";
 import { ProcessAdapter } from "./adapters/plugins/process-adapter.js";
 import {
   ScannersAdapter,
@@ -55,6 +56,7 @@ export function scanPorts(io: Io, read: ConfigRead): ScanPorts {
     source: new SourceFilesAdapter(io),
     digest: new DigestAdapter(),
     parsing: new ParsingAdapter(),
+    grammarRules: new GrammarRulesAdapter(() => scanners.installedPlugins()),
     testReports: new TestReportsAdapter(io),
   };
 }
@@ -66,6 +68,7 @@ export function syncScanPorts(io: Io, read: ConfigRead): SyncPorts {
     ...scanPorts(io, read),
     scanners,
     process: new ProcessAdapter(io, () => scanners.installedPlugins()),
+    grammarRules: new GrammarRulesAdapter(() => scanners.installedPlugins()),
   };
 }
 

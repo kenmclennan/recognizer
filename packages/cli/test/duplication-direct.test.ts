@@ -15,8 +15,10 @@ import { DigestAdapter } from "../src/adapters/system/digest-adapter.js";
 import { analysisPortsOf, sayOf } from "./analysis-ports.js";
 import {
   allParsers,
+  GRAMMAR_RULES,
   measuredSources,
   ROOT,
+  ruleNamed,
   scansOf,
 } from "./duplication-helpers.js";
 
@@ -63,6 +65,7 @@ async function find(
     scans ?? listed,
     { ...DEFAULT_DUPLICATION_SETTINGS, ...overrides },
     await allParsers(),
+    GRAMMAR_RULES,
   );
 
   return { findings, err: fake.err() };
@@ -136,7 +139,7 @@ describe("the size gates", () => {
   it("gives a finding at exactly the node count of the function body and none one above", async () => {
     const parsers = await allParsers();
     const tree = parsers.get("python")?.parse(BODY("f"));
-    const [first] = findFunctions(tree?.rootNode as never, "python");
+    const [first] = findFunctions(tree?.rootNode as never, ruleNamed("python"));
     const nodes = countNodes(bodyOf((first as { node: never }).node) as never);
     const files = { "a.py": BODY("f"), "b.py": BODY("g") };
 
@@ -352,7 +355,7 @@ const CASES: [Grammar, string, string][] = [
 async function prints(grammar: Grammar, source: string): Promise<string> {
   const parsers = await allParsers();
   const tree = parsers.get(grammar)?.parse(source);
-  const found = findFunctions(tree?.rootNode as never, grammar);
+  const found = findFunctions(tree?.rootNode as never, ruleNamed(grammar));
   const first = found[0] as { node: never };
 
   expect(first).toBeDefined();
