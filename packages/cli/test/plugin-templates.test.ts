@@ -9,17 +9,20 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { KINDS, LANGUAGES } from "@recognizer/core";
+import { KINDS, templateLanguages } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
+import { PluginTemplatesAdapter } from "../src/adapters/plugins/plugin-templates-adapter.js";
 import { run } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
 import { validateScan } from "../src/scan.js";
 import { capture } from "./helpers.js";
 
 type Kind = (typeof KINDS)[number];
-type Language = (typeof LANGUAGES)[number];
+const LANGUAGES = templateLanguages(new PluginTemplatesAdapter().bundled());
+
+type Language = string;
 
 const VERB: Record<Kind, string> = {
   scanner: "scan",

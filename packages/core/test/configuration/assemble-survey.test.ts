@@ -375,4 +375,88 @@ describe("assembling the survey answers", () => {
       directory: ".",
     });
   });
+
+  describe("coverage format", () => {
+    const FORMATS = ["lcov", "jacoco"];
+
+    function withFormat(plugin: string, order: number, format: string) {
+      return answered(plugin, order, {
+        runners: [
+          runner(plugin, `${plugin}/package.json`, {
+            coverage: { path: "c", format },
+          }),
+        ],
+      });
+    }
+
+    it("accepts the last published format and the first", () => {
+      const assembled = assembleRunners(
+        [withFormat("a", 1, "jacoco"), withFormat("b", 2, "lcov")],
+        ROOT,
+        new Set(),
+        FORMATS,
+      );
+
+      expect(assembled.runners.map((one) => one.coverage.format)).toEqual([
+        "jacoco",
+        "lcov",
+      ]);
+      expect(assembled.notes).toEqual([]);
+    });
+
+    it("refuses a format no sensor publishes with one note", () => {
+      const assembled = assembleRunners(
+        [withFormat("vitest-scanner", 1, "cobertura")],
+        ROOT,
+        new Set(),
+        FORMATS,
+      );
+
+      expect(assembled.runners).toEqual([]);
+      expect(assembled.notes).toEqual([
+        {
+          language: "vitest-scanner",
+          directory: ".",
+          text: "vitest-scanner did not answer the setup survey: a runner of vitest-scanner/package.json answers coverage format cobertura, which no installed sensor reads (they read: lcov, jacoco)",
+        },
+      ]);
+    });
+
+    it("judges against a published list of one", () => {
+      const assembled = assembleRunners(
+        [withFormat("a", 1, "lcov"), withFormat("b", 2, "jacoco")],
+        ROOT,
+        new Set(),
+        ["lcov"],
+      );
+
+      expect(assembled.runners.map((one) => one.name)).toEqual(["a"]);
+      expect(assembled.notes).toHaveLength(1);
+    });
+
+    it("checks nothing when nothing is published", () => {
+      const assembled = assembleRunners(
+        [withFormat("a", 1, "cobertura")],
+        ROOT,
+        new Set(),
+        null,
+      );
+
+      expect(assembled.runners).toHaveLength(1);
+      expect(assembled.notes).toEqual([]);
+    });
+
+    it("lists the good runner and refuses the other plugin in one note", () => {
+      const assembled = assembleRunners(
+        [withFormat("good", 1, "lcov"), withFormat("bad", 2, "cobertura")],
+        ROOT,
+        new Set(),
+        FORMATS,
+      );
+
+      expect(assembled.runners.map((one) => one.name)).toEqual(["good"]);
+      expect(assembled.notes).toHaveLength(1);
+      expect(assembled.notes[0]?.text).toContain("bad did not answer");
+    });
+  });
 });

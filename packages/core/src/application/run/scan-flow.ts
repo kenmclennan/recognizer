@@ -1,3 +1,4 @@
+import type { DescriberBuild } from "../../domain/config-repository.js";
 import type { Gap } from "../../domain/gap.js";
 import type { ScanOutcome } from "../../domain/run/scan-outcome.js";
 import type { ScanRequest } from "../../domain/run/scan-request.js";
@@ -52,6 +53,7 @@ export function* scanFlow(
   const limits = ports.process.limits(root);
   let named: Record<string, string> = {};
   let install: Record<string, string> = {};
+  let describerBuild: DescriberBuild | null = null;
   let located: LocatedDescriber = { describer: null, shipped: false };
   let selected: PlannedSensor[] = [];
   let chosen: Record<string, string[]> = {};
@@ -74,6 +76,7 @@ export function* scanFlow(
 
     named = setup.scanners;
     install = setup.install;
+    describerBuild = setup.describerBuild;
 
     const config = phases.readRunConfig(root, request.ignoreRetiredConfig);
 
@@ -192,6 +195,7 @@ export function* scanFlow(
         describe: describeOn,
         located,
         install,
+        build: describerBuild,
       }),
       ...phases.findProgramGaps({ sensors: ticked, install }),
     ];

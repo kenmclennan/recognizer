@@ -4,11 +4,11 @@ import { KINDS, programName } from "../../domain/plugins/installed-plugin.js";
 import type { PluginFacts } from "../../domain/plugins/manifest.js";
 import type { PluginPorts } from "./internal/plugin-ports.js";
 
-export const LANGUAGES = ["python", "typescript", "rust"] as const;
-
 export type TemplateKind = (typeof KINDS)[number];
 
-export type TemplateLanguage = (typeof LANGUAGES)[number];
+export type TemplateLanguage = string;
+
+export const LANGUAGE_FILE = "language.json";
 
 export const PROGRAM_FILE = "{{program}}";
 
@@ -67,6 +67,74 @@ function substitute(text: string, values: TemplateValues, where: string) {
   return replaced;
 }
 
+export interface LanguageFacts {
+  order: number;
+  launch?: string;
+  build?: string;
+}
+
+const LANGUAGE_MEMBERS = new Set(["order", "launch", "build"]);
+
+function languageFacts(set: TemplateSet, language: string): LanguageFacts {
+  const key = `${language}/${LANGUAGE_FILE}`;
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(set[key] as string);
+  } catch {
+    throw new Error(`${key} is not JSON`);
+  }
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`${key} is not an object`);
+  }
+
+  const facts = parsed as Record<string, unknown>;
+
+  if (!Number.isInteger(facts.order)) {
+    throw new Error(`${key} lacks an integer order`);
+  }
+
+  for (const member of Object.keys(facts)) {
+    if (!LANGUAGE_MEMBERS.has(member)) {
+      throw new Error(`${key} holds an unknown member ${member}`);
+    }
+  }
+
+  for (const member of ["launch", "build"]) {
+    if (member in facts && typeof facts[member] !== "string") {
+      throw new Error(`${key} member ${member} is not a string`);
+    }
+  }
+
+  return facts as unknown as LanguageFacts;
+}
+
+export function templateLanguages(set: TemplateSet): string[] {
+  const suffix = `/${LANGUAGE_FILE}`;
+
+  return Object.keys(set)
+    .filter(
+      (key) =>
+        key.endsWith(suffix) && key.indexOf("/") === key.length - suffix.length,
+    )
+    .map((key) => key.slice(0, -suffix.length))
+    .map((language) => ({
+      language,
+      order: languageFacts(set, language).order,
+    }))
+    .sort(
+      (left, right) =>
+        left.order - right.order ||
+        (left.language < right.language
+          ? -1
+          : left.language > right.language
+            ? 1
+            : 0),
+    )
+    .map((entry) => entry.language);
+}
+
 export function renderTemplates(
   set: TemplateSet,
   language: TemplateLanguage,
@@ -92,46 +160,65 @@ export function renderTemplates(
     });
 }
 
-const EXAMPLE =
-  "recognizer plugin init --kind scanner --language python --name mylang ./recognizer-scan-mylang";
+function exampleOf(languages: readonly string[]): string {
+  return `recognizer plugin init --kind scanner --language ${languages[0]} --name mylang ./recognizer-scan-mylang`;
+}
 
-const USAGE =
-  "usage: recognizer plugin init --kind <scanner|sensor|describer> --language <python|typescript|rust> --name <name> [folder]";
+function usageOf(languages: readonly string[]): string {
+  return `usage: recognizer plugin init --kind <scanner|sensor|describer> --language <${languages.join("|")}> --name <name> [folder]`;
+}
 
-export function refuseScaffold(problem: string, choices: string[]): never {
-  throw new InvalidRequest([problem, ...choices, `example: ${EXAMPLE}`]);
+export function refuseScaffold(
+  problem: string,
+  choices: string[],
+  languages: readonly string[],
+): never {
+  throw new InvalidRequest([
+    problem,
+    ...choices,
+    `example: ${exampleOf(languages)}`,
+  ]);
 }
 
 function chosen<T extends string>(
   flag: string,
   value: string | undefined,
   choices: readonly T[],
+  languages: readonly string[],
 ): T {
   const listed = [`${flag} is one of: ${choices.join(", ")}`];
+  const usage = usageOf(languages);
 
   if (value === undefined) {
-    refuseScaffold(`${flag} is required`, [USAGE, ...listed]);
+    refuseScaffold(`${flag} is required`, [usage, ...listed], languages);
   }
 
   if (!choices.includes(value as T)) {
-    refuseScaffold(`unknown ${flag} ${value}`, [USAGE, ...listed]);
+    refuseScaffold(`unknown ${flag} ${value}`, [usage, ...listed], languages);
   }
 
   return value as T;
 }
 
-function validName(value: string | undefined): string {
+function validName(
+  value: string | undefined,
+  languages: readonly string[],
+): string {
   const choices = [
-    USAGE,
+    usageOf(languages),
     `--name matches ${NAME_PATTERN.source} and is at most ${NAME_MAX} characters`,
   ];
 
   if (value === undefined) {
-    refuseScaffold("--name is required", choices);
+    refuseScaffold("--name is required", choices, languages);
   }
 
   if (!NAME_PATTERN.test(value) || value.length > NAME_MAX) {
-    refuseScaffold(`invalid --name ${JSON.stringify(value)}`, choices);
+    refuseScaffold(
+      `invalid --name ${JSON.stringify(value)}`,
+      choices,
+      languages,
+    );
   }
 
   return value;
@@ -158,13 +245,12 @@ function firstEntry(
 }
 
 function nextSteps(
-  language: TemplateLanguage,
+  facts: { launch: string; build: string | null },
   kind: TemplateKind,
   name: string,
   program: string,
 ): string[] {
-  const command =
-    language === "rust" ? `target/debug/${program}` : `./${program}`;
+  const command = facts.launch;
   const request =
     kind === "describer" ? " --request <a request file, as in the README>" : "";
   const choose =
@@ -176,7 +262,7 @@ function nextSteps(
 
   return [
     "next:",
-    ...(language === "rust" ? ["  - build it: cargo build"] : []),
+    ...(facts.build === null ? [] : [`  - build it: ${facts.build}`]),
     `  - check it: recognizer plugin check ${command}${request}`,
     `  - put ${program} on PATH (the README explains the three ways)`,
     ...choose,
@@ -199,17 +285,17 @@ export function scaffoldPlugin(
   ports: Pick<PluginPorts, "sandbox" | "templates" | "validators">,
   request: ScaffoldRequest,
 ): ScaffoldResult {
-  const kind = chosen("--kind", request.kind, KINDS);
-  const language = chosen("--language", request.language, LANGUAGES);
-  const name = validName(request.name);
+  const set = ports.templates.bundled();
+  const languages = templateLanguages(set);
+  const kind = chosen("--kind", request.kind, KINDS, languages);
+  const language = chosen("--language", request.language, languages, languages);
+  const name = validName(request.name, languages);
   const program = programName(kind, name);
   const { folder } = request;
-  const files = renderTemplates(
-    ports.templates.bundled(),
-    language,
-    kind,
-    templateValues(kind, name, ports.validators.facts),
-  );
+  const values = templateValues(kind, name, ports.validators.facts);
+  const files = renderTemplates(set, language, kind, values);
+  const facts = languageFacts(set, language);
+  const where = `${language}/${LANGUAGE_FILE}`;
   const entry = firstEntry(ports, folder);
 
   if (entry !== null) {
@@ -236,7 +322,22 @@ export function scaffoldPlugin(
       `wrote ${kind} ${name} in ${language} to ${folder}:`,
       ...files.map((file) => `  ${file.path}`),
       "",
-      ...nextSteps(language, kind, name, program),
+      ...nextSteps(
+        {
+          launch: substitute(
+            facts.launch ?? `./${PROGRAM_FILE}`,
+            values,
+            where,
+          ),
+          build:
+            facts.build === undefined
+              ? null
+              : substitute(facts.build, values, where),
+        },
+        kind,
+        name,
+        program,
+      ),
     ].join("\n")}\n`,
   };
 }

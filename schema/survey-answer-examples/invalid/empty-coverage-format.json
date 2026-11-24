@@ -8,7 +8,7 @@
       "command": "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory={up}.recognizer/cache/coverage/{slug}",
       "coverage": {
         "path": "x",
-        "format": "cobertura"
+        "format": ""
       },
       "tool": "@vitest/coverage-v8"
     }

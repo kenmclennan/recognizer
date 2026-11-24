@@ -1,4 +1,4 @@
-import { dirname, isAbsolute, join, relative } from "node:path";
+import { join } from "node:path";
 import type {
   CallResult,
   DescribeRequest,
@@ -71,12 +71,6 @@ export class DescriberAdapter implements Describer {
 
   shippedProgram(): string {
     return shippedDescriberInvocation()[0] as string;
-  }
-
-  folderInRepository(root: string, file: string): string | null {
-    const folder = relative(root, dirname(dirname(file)));
-
-    return folder.startsWith("..") || isAbsolute(folder) ? null : folder;
   }
 
   settings(): { model: string; batchSize: number } {

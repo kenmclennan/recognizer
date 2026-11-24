@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
@@ -24,19 +24,40 @@ describe("build-templates", () => {
     ]);
   });
 
-  it("holds 9 trees and 31 files for the committed templates", () => {
+  it("holds 9 trees, 3 language files and 34 files for the committed templates", () => {
     const bundle = bundleTemplates(join(REPO, "packages/cli/templates"));
     const keys = Object.keys(bundle);
+    const languageFiles = keys.filter((key) => key.endsWith("/language.json"));
     const trees = new Set(
-      keys.map((key) => key.split("/").slice(0, 2).join("/")),
+      keys
+        .filter((key) => !languageFiles.includes(key))
+        .map((key) => key.split("/").slice(0, 2).join("/")),
     );
 
     expect(trees.size).toBe(9);
-    expect(keys).toHaveLength(31);
+    expect(languageFiles).toHaveLength(3);
+    expect(keys).toHaveLength(34);
     expect(keys).toContain("rust/scanner/src/sha256.rs");
     expect(keys.filter((key) => key.endsWith("sha256.rs"))).toHaveLength(1);
     expect(keys).toContain("python/describer/{{program}}");
     expect(keys).toContain("rust/sensor/.gitignore");
+  });
+
+  it("holds a valid language.json in every language folder", () => {
+    const root = join(REPO, "packages/cli/templates");
+    const folders = readdirSync(root, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+
+    expect(folders.length).toBeGreaterThan(0);
+
+    for (const folder of folders) {
+      const facts = JSON.parse(
+        readFileSync(join(root, folder, "language.json"), "utf8"),
+      );
+
+      expect(Number.isInteger(facts.order), folder).toBe(true);
+    }
   });
 
   it("is the bundle the build wrote into the CLI", () => {

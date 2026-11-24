@@ -7,10 +7,16 @@ export interface SuiteEntry {
   language: string;
 }
 
+export interface DescriberBuild {
+  command: string[];
+  directory: string;
+}
+
 export interface ConfigRepository {
   scannerSetup(root: string): {
     scanners: Record<string, string>;
     install: Record<string, string>;
+    describerBuild: DescriberBuild | null;
   };
   run(root: string, skipRetired: boolean): ConfigDocument | null;
   analysis(root: string, skipRetired: boolean): ConfigDocument | null;

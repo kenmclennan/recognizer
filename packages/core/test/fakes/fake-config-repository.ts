@@ -3,6 +3,7 @@ import {
   type ConfigDocument,
   type ConfigRepository,
   DEFAULT_STRUCTURE_SETTINGS,
+  type DescriberBuild,
   type RepositoryText,
   type StructureSettings,
   type SuiteEntry,
@@ -23,8 +24,9 @@ export class FakeConfigRepository implements ConfigRepository {
   scannerSetup(): {
     scanners: Record<string, string>;
     install: Record<string, string>;
+    describerBuild: DescriberBuild | null;
   } {
-    return { scanners: {}, install: {} };
+    return { scanners: {}, install: {}, describerBuild: null };
   }
 
   run(): ConfigDocument | null {

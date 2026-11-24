@@ -1,3 +1,4 @@
+import type { DescriberBuild } from "../../domain/config-repository.js";
 import { type Gap, installFix } from "../../domain/gap.js";
 import {
   NO_RUN_LINE,
@@ -13,15 +14,15 @@ export interface FindDescriberGapsInput {
   describe: boolean;
   located: LocatedDescriber;
   install: Record<string, string>;
+  build: DescriberBuild | null;
 }
 
-const IN_TREE_DESCRIBER = "packages/describers/claude/dist/bin.js";
-
-function isReference(command: readonly string[], program: string): boolean {
-  return (
-    command[0] === program ||
-    command.some((item) => item.endsWith(IN_TREE_DESCRIBER))
-  );
+function isReference(
+  command: readonly string[],
+  program: string,
+  build: DescriberBuild | null,
+): boolean {
+  return command[0] === program || build !== null;
 }
 
 function argumentsGap(
@@ -49,23 +50,19 @@ function argumentsGap(
   }
 
   const filled = check.words;
-  const tree = filled.find((item) => item.endsWith(IN_TREE_DESCRIBER));
-  const folder =
-    tree === undefined
-      ? null
-      : ports.describer.folderInRepository(input.root, tree);
+  const { build } = input;
 
   return {
     id: "describe:arguments",
     line: "the describer rejects the arguments the scan passes",
     needs: ["describe"],
     fix:
-      folder === null
+      build === null
         ? installFix(input.install, filled[0] as string)
         : {
-            text: "npm run build",
-            command: ["npm", "run", "build"],
-            cwd: folder,
+            text: build.command.join(" "),
+            command: build.command,
+            cwd: build.directory,
             env: {},
             kind: "repository",
           },
@@ -94,7 +91,7 @@ export function findDescriberGaps(
     ];
   }
 
-  if (isReference(describer.command, reference)) {
+  if (isReference(describer.command, reference, input.build)) {
     const gap = argumentsGap(ports, input, describer);
 
     return gap === null ? [] : [gap];

@@ -3,7 +3,11 @@ import { findDescriberGaps } from "../src/application/describing/find-describer-
 import { findCommitGaps } from "../src/application/sensing/find-commit-gaps.js";
 import { findProgramGaps } from "../src/application/sensing/find-program-gaps.js";
 import { findReadinessGaps } from "../src/application/sensing/find-readiness-gaps.js";
-import type { PluginLimits, SensorReport } from "../src/index.js";
+import type {
+  DescriberBuild,
+  PluginLimits,
+  SensorReport,
+} from "../src/index.js";
 import { createFakes } from "./fakes/container.js";
 
 const SENSE = ["recognizer", "sense", ""].join("-");
@@ -229,12 +233,14 @@ describe("describer gaps", () => {
     world: ReturnType<typeof describing>,
     describe = true,
     install: Record<string, string> = {},
+    build: DescriberBuild | null = null,
   ) {
     return findDescriberGaps(world.ports, {
       root: "/work",
       describe,
       located: world.fakes.describer.locate(),
       install,
+      build,
     });
   }
 
@@ -269,36 +275,35 @@ describe("describer gaps", () => {
     expect(gap?.fix.text).toBe(`install ${DESCRIBE}claude`);
   });
 
-  it("reports a failing check with the build fix when the package is in the repository", () => {
-    const world = describing([
-      "node",
-      "/work/packages/describers/claude/dist/bin.js",
-      "run",
-    ]);
+  it("reports a failing check with the declared build fix", () => {
+    const world = describing(["node", "/work/x/dist/bin.js", "run"]);
 
     world.fakes.describer.unavailable.add("node");
-    world.fakes.describer.folder = "packages/describers/claude";
 
-    const [gap] = gapsOf(world);
+    const [gap] = gapsOf(
+      world,
+      true,
+      {},
+      {
+        command: ["make", "all"],
+        directory: "tools/d",
+      },
+    );
 
     expect(gap?.line).toBe(
       "the describer rejects the arguments the scan passes",
     );
     expect(gap?.fix).toEqual({
-      text: "npm run build",
-      command: ["npm", "run", "build"],
-      cwd: "packages/describers/claude",
+      text: "make all",
+      command: ["make", "all"],
+      cwd: "tools/d",
       env: {},
       kind: "repository",
     });
   });
 
-  it("falls back to the install fix when the package is outside the repository", () => {
-    const world = describing([
-      "node",
-      "/elsewhere/packages/describers/claude/dist/bin.js",
-      "run",
-    ]);
+  it("falls back to the install fix when no build is declared", () => {
+    const world = describing(["node", "/work/x/dist/bin.js", "run"]);
 
     world.fakes.describer.unavailable.add("node");
 
@@ -311,6 +316,15 @@ describe("describer gaps", () => {
       env: {},
       kind: "outside",
     });
+  });
+
+  it("holds a shipped-program describer to the arguments check without a build", () => {
+    const world = describing([`${DESCRIBE}claude`]);
+
+    const [gap] = gapsOf(world);
+
+    expect(gap?.id).toBe("describe:arguments");
+    expect(gap?.fix.text).toBe(`install ${DESCRIBE}claude`);
   });
 
   it("reports a non-reference describer that does not start, and only that", () => {

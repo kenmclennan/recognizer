@@ -138,7 +138,14 @@ const RESERVED_SETTINGS = [
   "coverage",
 ];
 
-function refusalOf(answer: SurveyAnswer): string | null {
+export function coverageFormatKey(): string {
+  return ["tests", "<name>", "coverage", "format"].join(".");
+}
+
+function refusalOf(
+  answer: SurveyAnswer,
+  formats: readonly string[] | null,
+): string | null {
   const froms = new Set<string>();
 
   for (const runner of answer.runners) {
@@ -147,6 +154,10 @@ function refusalOf(answer: SurveyAnswer): string | null {
     }
 
     froms.add(runner.from);
+
+    if (formats !== null && !formats.includes(runner.coverage.format)) {
+      return `a runner of ${runner.from} answers coverage format ${runner.coverage.format}, which no installed sensor reads (they read: ${formats.join(", ")})`;
+    }
 
     for (const text of runnerTexts(runner)) {
       if (substituted(text, { up: "", slug: "" }) === null) {
@@ -233,6 +244,7 @@ export function assembleRunners(
   answers: PluginAnswer[],
   root: string,
   taken: ReadonlySet<string> = new Set(),
+  formats: readonly string[] | null = null,
 ): AssembledAnswers {
   const used = new Map<string, number>();
   const names = new Set(taken);
@@ -245,7 +257,7 @@ export function assembleRunners(
       continue;
     }
 
-    const refusal = refusalOf(one.answer);
+    const refusal = refusalOf(one.answer, formats);
 
     if (refusal !== null) {
       assembled.notes.push(failureNote(one, refusal));
