@@ -9,6 +9,7 @@ import {
   type ResultState,
   stateText,
 } from "../../src/freshness-model";
+import { DESCRIBE_KEY } from "../../src/scan-freshness";
 import {
   NO_RUN,
   type PanelInput,
@@ -1109,6 +1110,27 @@ describe("the button with unregistered sensors and no plan", () => {
     const model = modelOf(IDS, { plan: null });
 
     expect(model.action.primary).toEqual({ label: "Checking", disabled: true });
+  });
+
+  it("reads checking on the plan-dependent rows and the headline while no plan answer has arrived", () => {
+    const model = modelOf(IDS, { plan: null });
+    const states = Object.fromEntries(
+      model.rows.map(({ key, state }) => [key, state.kind]),
+    );
+
+    expect(states[SENSORS[0].name]).toBe("checking");
+    expect(states[DESCRIBE_KEY]).toBe("checking");
+    expect(model.summary.shape).toBe("checking");
+    expect(model.summary.head).toBe("Checking what is out of date");
+  });
+
+  it("reads the row and headline states once the plan answer arrives", () => {
+    const model = modelOf(IDS, {});
+
+    expect(model.rows.some(({ state }) => state.kind === "checking")).toBe(
+      false,
+    );
+    expect(model.summary.shape).not.toBe("checking");
   });
 
   it("reads the stale answer's label, not Checking, for an unsettled plan", () => {

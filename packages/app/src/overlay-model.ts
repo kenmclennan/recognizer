@@ -217,7 +217,7 @@ export function freshnessNote(
   const state = stateText(row.state, now).text;
   const text = state.charAt(0).toUpperCase() + state.slice(1);
 
-  if (row.state.kind === "running") {
+  if (row.state.kind === "running" || row.state.kind === "checking") {
     return { text, tone: "muted" };
   }
 

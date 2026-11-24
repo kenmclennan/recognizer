@@ -877,6 +877,7 @@ describe("freshnessNote against the Scan panel model", () => {
       const state = {
         current: { kind: "current", at: null },
         "never-run": { kind: "never-run" },
+        checking: { kind: "checking" },
         failed: { kind: "failed", at: null },
         running: { kind: "running", done: null, total: null },
         "out-of-date": { kind: "out-of-date", modules: ["a.py"] },

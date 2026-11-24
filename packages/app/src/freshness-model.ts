@@ -21,6 +21,7 @@ export type ResultState =
   | { kind: "current"; at: number | null }
   | { kind: "out-of-date"; modules: string[] }
   | { kind: "never-run" }
+  | { kind: "checking" }
   | { kind: "failed"; at: number | null }
   | { kind: "running"; done: number | null; total: number | null };
 
@@ -40,6 +41,7 @@ export type Summary = {
     | "attention"
     | "changed"
     | "behind"
+    | "checking"
     | "unregistered"
     | "current";
   tone: SummaryTone;
@@ -120,6 +122,8 @@ export function stateText(state: ResultState, now: number): StateText {
       };
     case "never-run":
       return { icon: "circle-dashed", text: "never run" };
+    case "checking":
+      return { icon: "circle-dashed", text: "checking" };
     case "failed":
       return {
         icon: "circle-x",
@@ -294,13 +298,17 @@ function sensorState(
 
   const answer = input.plan?.view;
 
-  if (answer?.never.includes(one.name) === true) {
+  if (answer === undefined) {
+    return { kind: "checking" };
+  }
+
+  if (answer.never.includes(one.name) === true) {
     gaps.set(one.name, [...modules]);
 
     return { kind: "never-run" };
   }
 
-  const gap = answer?.gaps[one.name] ?? [];
+  const gap = answer.gaps[one.name] ?? [];
 
   gaps.set(one.name, gap);
 
@@ -321,6 +329,7 @@ function describeState(
   }
 
   const stale = input.plan?.view.gaps[DESCRIBE_KEY] ?? [];
+  const planned = input.plan !== null && input.plan !== undefined;
   const described = modules.filter((id) => {
     const kind = input.lines.of(id).kind;
 
@@ -335,6 +344,10 @@ function describeState(
 
   if (described === 0) {
     return { kind: "never-run" };
+  }
+
+  if (!planned) {
+    return { kind: "checking" };
   }
 
   if (stale.length > 0) {
@@ -394,6 +407,10 @@ function analysisState(input: PanelInput, modules: string[]): ResultState {
     status.modifiedMs ??
     input.scan?.scannedAt ??
     null;
+
+  if (input.plan === null || input.plan === undefined) {
+    return { kind: "checking" };
+  }
 
   if (status.commit === undefined || input.scans === undefined) {
     return { kind: "current", at };
@@ -487,6 +504,17 @@ function summarize(
       icon: "loader",
       head: `Updating ${plural(modules, "file")}`,
       line: "Working on it.",
+      bar: null,
+    };
+  }
+
+  if (input.plan === null || input.plan === undefined) {
+    return {
+      shape: "checking",
+      tone: "run",
+      icon: "circle-dashed",
+      head: "Checking what is out of date",
+      line: "Results show here once the check answers.",
       bar: null,
     };
   }

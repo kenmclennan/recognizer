@@ -681,7 +681,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
         title: titles.get(row.key) ?? row.name,
       };
 
-      if (foldable && sensor !== undefined) {
+      if (foldable && sensor !== undefined && row.state.kind !== "checking") {
         const ticked = tickedSuites(input.ticks.suites, row.key, names);
         const results = statuses.find((one) => one.name === row.key)?.suites;
         const live =
