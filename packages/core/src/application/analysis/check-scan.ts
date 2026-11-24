@@ -83,6 +83,7 @@ export function checkScan(
     metrics: sensed.metrics,
     folderMetrics: sensed.folder_metrics,
     sensors: [],
+    unknownFiles: sensed.document.unknownFiles ?? null,
   };
 
   if (rules === null) {

@@ -7,6 +7,7 @@ import {
   type SensorFindings,
   Warning,
 } from "../../src/index.js";
+import { repositoryInLanguages } from "../fakes/files-in-languages.js";
 import {
   BASELINE,
   breaching,
@@ -231,5 +232,79 @@ describe("checkRepository warnings", () => {
 
     expect(run(["a/x.py"]).map((one) => one.value.files)).toEqual([["a/x.py"]]);
     expect(run(["b/y.py"])).toEqual([]);
+  });
+});
+
+describe("checkRepository unknown files", () => {
+  const scan = () =>
+    repositoryInLanguages({
+      "a/x.swift": "swift",
+      "a/y.swift": "swift",
+      "b/z.zig": "zig",
+      "b/ok.py": "python",
+    });
+
+  const run = (
+    over: Parameters<typeof requestOf>[0] = {},
+    settings:
+      | "off"
+      | typeof DEFAULT_STRUCTURE_SETTINGS = DEFAULT_STRUCTURE_SETTINGS,
+    repository = scan(),
+  ) => {
+    const { fakes, say } = worldOf();
+
+    fakes.config.settings = settings;
+
+    return checkRepository(
+      checkPortsOf(fakes),
+      say,
+      requestOf(over),
+      repository,
+    );
+  };
+
+  it("reports files of an unpublished language", () => {
+    expect(run().unknownFiles).toEqual({
+      languages: ["swift", "zig"],
+      files: ["a/x.swift", "a/y.swift", "b/z.zig"],
+    });
+  });
+
+  it("narrows unknown files to the named files", () => {
+    expect(run({ named: ["a/x.swift", "b/ok.py"] }).unknownFiles).toEqual({
+      languages: ["swift"],
+      files: ["a/x.swift"],
+    });
+    expect(run({ named: ["b/ok.py"] }).unknownFiles).toBeNull();
+  });
+
+  it("reports none when structure is off", () => {
+    expect(run({}, "off").unknownFiles).toBeNull();
+  });
+
+  it("reports none when every language is published", () => {
+    expect(
+      run(
+        {},
+        DEFAULT_STRUCTURE_SETTINGS,
+        repositoryInLanguages({ "b/ok.py": "python" }),
+      ).unknownFiles,
+    ).toBeNull();
+  });
+
+  it("exits as it does for the same scan with the language published", () => {
+    const unpublished = run(
+      {},
+      DEFAULT_STRUCTURE_SETTINGS,
+      repositoryInLanguages({ "a/x.swift": "swift" }),
+    );
+    const published = run(
+      {},
+      DEFAULT_STRUCTURE_SETTINGS,
+      repositoryInLanguages({ "a/x.py": "python" }),
+    );
+
+    expect(unpublished.unknownFiles).not.toBeNull();
+    expect(unpublished.exit).toBe(published.exit);
   });
 });

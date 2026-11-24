@@ -217,12 +217,31 @@ function analysisReport(
   warnings: ReportedWarning[],
   metrics: CheckReport["metrics"],
   folderMetrics: FolderMetrics[],
+  unknownFiles: CheckReport["unknownFiles"],
 ) {
   return {
     warnings: warnings.map(printWarning),
     metrics,
     folder_metrics: folderMetrics,
+    ...(unknownFiles === null
+      ? {}
+      : {
+          unknown_files: {
+            languages: [...unknownFiles.languages],
+            files: [...unknownFiles.files],
+          },
+        }),
   };
+}
+
+function unknownLine(unknownFiles: CheckReport["unknownFiles"]): string {
+  if (unknownFiles === null) {
+    return "";
+  }
+
+  const count = unknownFiles.files.length;
+
+  return `unknown: ${count} ${count === 1 ? "file" : "files"} in ${unknownFiles.languages.join(", ")}: no installed scanner publishes rules for them, so their test-file, supertype and private-import findings are unknown, not clean\n`;
 }
 
 function executeScanReplay(
@@ -287,11 +306,13 @@ function executeScanReplay(
     report.warnings,
     report.metrics,
     report.folderMetrics,
+    report.unknownFiles,
   );
 
   if (report.ranked === null) {
     io.stdout(`${JSON.stringify(analysis, null, 2)}\n`);
     io.stderr(summary(null, report.warnings));
+    io.stderr(unknownLine(report.unknownFiles));
 
     return report.exit;
   }
@@ -300,6 +321,7 @@ function executeScanReplay(
     `${JSON.stringify({ ...printRanked(report.ranked), baseline: report.baseline, ...analysis }, null, 2)}\n`,
   );
   io.stderr(summary(report.ranked, report.warnings));
+  io.stderr(unknownLine(report.unknownFiles));
 
   return report.exit;
 }
@@ -360,6 +382,7 @@ function executeRepository(
     report.warnings,
     report.metrics,
     report.folderMetrics,
+    report.unknownFiles,
   );
   const sensorLine = sensorLineOf(report.sensors);
 
@@ -369,6 +392,7 @@ function executeRepository(
         ? `${JSON.stringify({ ...analysis, sensors: report.sensors }, null, 2)}\n`
         : `${sensorLine}${summary(null, report.warnings, true)}`,
     );
+    io.stderr(unknownLine(report.unknownFiles));
 
     return report.exit;
   }
@@ -378,6 +402,7 @@ function executeRepository(
       ? `${JSON.stringify({ ...printRanked(report.ranked), baseline: report.baseline, ...analysis, sensors: report.sensors }, null, 2)}\n`
       : `${sensorLine}${summary(report.ranked, report.warnings, true)}`,
   );
+  io.stderr(unknownLine(report.unknownFiles));
 
   return report.exit;
 }

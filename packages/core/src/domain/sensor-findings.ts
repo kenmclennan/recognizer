@@ -1,5 +1,6 @@
 import type { Diagnosis } from "./diagnosis.js";
 import type { Finding } from "./finding.js";
+import type { UnknownFiles } from "./unknown-files.js";
 
 export type SuiteStatus = "ok" | "failed" | "partial" | "never";
 
@@ -40,6 +41,7 @@ export interface SensorFindings {
   readonly counts?: SensorCounts;
   readonly excluded?: SensorExclusion;
   readonly unowned?: SensorExclusion;
+  readonly unknownFiles?: UnknownFiles;
   readonly findings: readonly Finding[];
   readonly inputs?: Readonly<Record<string, string>>;
   readonly tests?: string;

@@ -1,0 +1,23 @@
+{
+  "findings_version": 2,
+  "sensor": {
+    "name": "structure",
+    "version": "1"
+  },
+  "commit": "abc",
+  "modified": false,
+  "settings": {},
+  "findings": [],
+  "inputs": {
+    "a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "unknown_files": {
+    "languages": [
+      "swift"
+    ],
+    "files": [
+      "a/x.swift"
+    ],
+    "modules": []
+  }
+}

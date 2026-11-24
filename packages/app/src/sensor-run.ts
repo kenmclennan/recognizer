@@ -4,6 +4,7 @@ import type {
   SensorExclusion,
   SensorFindings,
   SuiteResult,
+  UnknownFiles,
 } from "@recognizer/core";
 import {
   type Config,
@@ -40,6 +41,7 @@ export type SensorStatus = {
   partial?: { measured: number; total: number };
   excluded?: SensorExclusion;
   unowned?: SensorExclusion;
+  unknownFiles?: UnknownFiles;
   diagnosis?: Diagnosis;
   refusal?: Refusal;
   measured?: { inputs?: Record<string, string>; tests?: string };
@@ -265,6 +267,9 @@ export async function senseRepository(
           modified: stored.modified,
           modifiedMs: file.modifiedMs ?? null,
           ...(notMeasured.length > 0 ? { notMeasured } : {}),
+          ...(stored.unknownFiles === undefined
+            ? {}
+            : { unknownFiles: stored.unknownFiles }),
         });
       } catch (error) {
         statuses.push({

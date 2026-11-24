@@ -4,6 +4,7 @@ import {
 } from "../../domain/analysis/duplication/carry.js";
 import { folderOf } from "../../domain/analysis/folder-of.js";
 import { scansCommit } from "../../domain/analysis/scans-commit.js";
+import { narrowUnknownFiles } from "../../domain/analysis/unknown-files.js";
 import type { ConfigRepository } from "../../domain/config-repository.js";
 import type { FindingsRepository } from "../../domain/findings-repository.js";
 import { InvalidRequest } from "../../domain/invalid-request.js";
@@ -12,6 +13,7 @@ import type { PolicyRule } from "../../domain/policy-rule.js";
 import type { Repository } from "../../domain/repository.js";
 import type { SensorFindings } from "../../domain/sensor-findings.js";
 import type { StructureSettings } from "../../domain/structure-settings.js";
+import type { UnknownFiles } from "../../domain/unknown-files.js";
 import {
   type BaselineEntry,
   type BaselineFlags,
@@ -76,6 +78,7 @@ export interface CheckReport {
   metrics: ModuleMetrics[];
   folderMetrics: FolderMetrics[];
   sensors: SensorStatus[];
+  unknownFiles: UnknownFiles | null;
   exit: 0 | 1;
 }
 
@@ -118,6 +121,7 @@ interface Gathered {
   folderMetrics: FolderMetrics[];
   sensors: SensorStatus[];
   hiddenKeys: Set<string>;
+  unknownFiles: UnknownFiles | null;
 }
 
 function gather(
@@ -135,6 +139,7 @@ function gather(
   const registered = ports.config.sensorNames(root);
   let metrics: ModuleMetrics[] = [];
   let folderMetrics: FolderMetrics[] = [];
+  let unknownFiles: UnknownFiles | null = null;
 
   const fail = (name: string, reason: string) => {
     ports.findings.remove(root, name);
@@ -163,6 +168,8 @@ function gather(
     if (run.error !== null) {
       fail("structure", run.error);
     } else {
+      unknownFiles = sensed.document.unknownFiles ?? null;
+
       if (commit === null) {
         documents.push(sensed.document);
       }
@@ -277,7 +284,14 @@ function gather(
     }
   }
 
-  return { documents, metrics, folderMetrics, sensors, hiddenKeys };
+  return {
+    documents,
+    metrics,
+    folderMetrics,
+    sensors,
+    hiddenKeys,
+    unknownFiles,
+  };
 }
 
 const REASON: Record<string, string> = { ran: "out of date", stale: "stale" };
@@ -380,6 +394,9 @@ export function checkRepository(
         named.some((id) => folderOf(id) === row.id),
       )
     : gathered.folderMetrics;
+  const unknownFiles = narrowed
+    ? narrowUnknownFiles(gathered.unknownFiles, repository, listed)
+    : gathered.unknownFiles;
   const candidates = candidatesOf(gathered.documents);
   const exit = (fresh: number): 0 | 1 => (failed ? 1 : fresh > 0 ? 1 : 0);
 
@@ -391,6 +408,7 @@ export function checkRepository(
       metrics,
       folderMetrics,
       sensors: gathered.sensors,
+      unknownFiles,
       exit: exit(0),
     };
   }
@@ -423,6 +441,7 @@ export function checkRepository(
     metrics,
     folderMetrics,
     sensors: gathered.sensors,
+    unknownFiles,
     exit: exit(ranked.new.length),
   };
 }

@@ -541,6 +541,66 @@ describe("freshness model sensor gaps and excluded files", () => {
   });
 });
 
+describe("unknown files of the structure row", () => {
+  const withUnknown = (
+    files: string[],
+    hashes: Record<string, string> = {},
+  ): PanelInput["sensors"] => [
+    {
+      name: "structure",
+      status: "ran",
+      unknownFiles: { languages: ["python"], files },
+    },
+    ran("crap", IDS, hashes),
+    ran("mutation", IDS, hashes),
+  ];
+  const UNKNOWN_TEXT =
+    "no installed scanner publishes rules for python, so their test-file, supertype and private-import findings are unknown, not clean.";
+
+  it("names unknown files of the structure row in the summary", () => {
+    const model = modelOf(IDS, { sensors: withUnknown(["a.py", "b.py"]) });
+
+    expect(model.noResult).toContainEqual({
+      sensor: "Structural analysis",
+      reason: "unknown",
+      modules: ["a.py", "b.py"],
+      languages: ["python"],
+    });
+    expect(model.summary.line).toContain(
+      `Structural analysis has no result for a.py and b.py: ${UNKNOWN_TEXT}`,
+    );
+  });
+
+  it("uses the singular for one file", () => {
+    const model = modelOf(IDS, { sensors: withUnknown(["a.py"]) });
+
+    expect(model.summary.line).toContain(
+      "Structural analysis has no result for a.py: no installed scanner publishes rules for python, so its test-file",
+    );
+  });
+
+  it("names only in-scope unknown files", () => {
+    const model = modelOf(IDS, { sensors: withUnknown(["a.py", "gone.py"]) });
+
+    expect(model.noResult).toContainEqual({
+      sensor: "Structural analysis",
+      reason: "unknown",
+      modules: ["a.py"],
+      languages: ["python"],
+    });
+    expect(model.summary.line).not.toContain("gone.py");
+  });
+
+  it("adds nothing when none are unknown", () => {
+    const model = modelOf(IDS);
+
+    expect(model.noResult.filter(({ reason }) => reason === "unknown")).toEqual(
+      [],
+    );
+    expect(model.summary.line).not.toContain("unknown, not clean");
+  });
+});
+
 describe("the four situations of the mock", () => {
   const nine = Array.from({ length: 12 }, (_, at) => `m${at}.py`);
   const changedNine = nine.slice(0, 9).map((path) => ({

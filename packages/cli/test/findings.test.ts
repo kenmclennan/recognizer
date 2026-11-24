@@ -8,10 +8,16 @@ import {
   senseStructure as structureSensor,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
+import { findingsFile } from "../src/findings-files.js";
 import { parsePolicy } from "../src/index.js";
+import { loadFindings } from "../src/load-findings.js";
 import { REPO } from "./helpers.js";
 import { BEHAVIOUR } from "./language-behaviour-fixture.js";
-import { validatedRepository as validateScan } from "./repository-from.js";
+import {
+  repositoryFrom,
+  validatedRepository as validateScan,
+} from "./repository-from.js";
+import { fakeIo, hashedScan, ROOT, TYPESCRIPT } from "./scan-helpers.js";
 
 function fixture(name: string) {
   const dir = join(REPO, "fixtures", name);
@@ -172,5 +178,55 @@ describe("linesDuplicated and orderDuplication", () => {
       "d-b",
       "d-small",
     ]);
+  });
+});
+
+describe("loadFindings with a stored structure document", () => {
+  const COMMIT = "abc123";
+  const scan = JSON.parse(
+    readFileSync(join(REPO, "fixtures/check/scan.json"), "utf8"),
+  );
+  const stored = findingsFile(ROOT, "structure");
+
+  function loaded(files: Map<string, string>, publishesPython: boolean) {
+    const fake = fakeIo({
+      commit: COMMIT,
+      files: Object.fromEntries(files),
+      ...(publishesPython ? {} : { scanners: { [TYPESCRIPT]: {} } }),
+    });
+    const documents = loadFindings(
+      fake.io,
+      ROOT,
+      repositoryFrom(hashedScan(scan, COMMIT)),
+    );
+
+    return { fake, document: documents[0] };
+  }
+
+  it("recomputes a stored structure document when the unknown files changed", () => {
+    const first = loaded(new Map(), false);
+
+    expect(first.document?.unknownFiles?.languages).toEqual(["python"]);
+    expect(JSON.parse(first.fake.files.get(stored) as string)).toHaveProperty(
+      "unknown_files",
+    );
+
+    const second = loaded(first.fake.files, true);
+
+    expect(second.document?.unknownFiles).toBeUndefined();
+    expect(
+      JSON.parse(second.fake.files.get(stored) as string),
+    ).not.toHaveProperty("unknown_files");
+  });
+
+  it("reuses one whose unknown files match", () => {
+    const first = loaded(new Map(), false);
+    const before = first.fake.files.get(stored);
+    const second = loaded(first.fake.files, false);
+
+    expect(first.document?.unknownFiles).toBeDefined();
+    expect(second.document?.unknownFiles).toEqual(first.document?.unknownFiles);
+    expect(second.fake.writes.filter((path) => path === stored)).toEqual([]);
+    expect(second.fake.files.get(stored)).toBe(before);
   });
 });

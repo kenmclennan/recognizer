@@ -114,3 +114,21 @@ describe("LanguageBehaviour flags", () => {
     expect(behaviour.checksPrivateImports("other")).toBe(false);
   });
 });
+
+describe("LanguageBehaviour.publishes", () => {
+  it("publishes a language a rule names", () => {
+    expect(new LanguageBehaviour([language()]).publishes("toy")).toBe(true);
+  });
+
+  it("publishes a language whose rule sets no optional field", () => {
+    expect(new LanguageBehaviour([language()]).linksSupertypes("toy")).toBe(
+      false,
+    );
+    expect(new LanguageBehaviour([language()]).publishes("toy")).toBe(true);
+  });
+
+  it("does not publish an unlisted language", () => {
+    expect(new LanguageBehaviour([language()]).publishes("swift")).toBe(false);
+    expect(new LanguageBehaviour([]).publishes("toy")).toBe(false);
+  });
+});
