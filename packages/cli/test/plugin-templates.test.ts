@@ -167,7 +167,7 @@ describe("plugin templates conform as written", () => {
         const { command } = prepare(language, kind);
         const { status, report, err } = await checked(command, kind);
 
-        expect(report.results, err).toHaveLength(14);
+        expect(report.results, err).toHaveLength(15);
 
         for (const entry of report.results.filter(
           (result) => result.name !== "stop",
@@ -308,7 +308,7 @@ describe("typescript templates through a symlink", () => {
 
         const { status, report } = await checked(link, kind);
 
-        expect(report.results).toHaveLength(14);
+        expect(report.results).toHaveLength(15);
         expect(
           report.results.filter((entry) => entry.status === "fail"),
         ).toEqual([]);

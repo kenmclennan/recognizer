@@ -4,6 +4,7 @@ import {
   type PluginEvent,
   parseEventLine,
 } from "../../domain/plugin-event.js";
+import { grammarsWithoutVocabulary } from "../../domain/plugins/grammar-vocabulary.js";
 import {
   judgeProtocol,
   MANIFEST_TIMEOUT_MS,
@@ -362,6 +363,23 @@ export function checkLimits(context: Context): PluginCheckResult {
   return problems.length === 0
     ? ok("limits")
     : fail("limits", problems.join("; "));
+}
+
+export function checkGrammars(context: Context): PluginCheckResult {
+  const { manifest } = context;
+
+  if (manifest === null) {
+    return needsManifest("grammars");
+  }
+
+  const missing = grammarsWithoutVocabulary(manifest);
+
+  return missing.length === 0
+    ? ok("grammars")
+    : fail(
+        "grammars",
+        `grammar ${missing.join(", ")} publishes no vocabulary, so its comments and literals enter fingerprints and no function shape is trivial`,
+      );
 }
 
 async function verbResults(
@@ -969,6 +987,7 @@ export async function pluginCheck(
     checkSentences(context),
     checkPlaceholders(context),
     checkLimits(context),
+    checkGrammars(context),
   ];
 
   return {

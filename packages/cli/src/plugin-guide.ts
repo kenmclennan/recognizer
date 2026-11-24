@@ -121,6 +121,7 @@ function kit(): string[] {
     "      sentences        each finding sentence is well formed",
     "      placeholders     each key placeholder is declared with a pattern that compiles, each declaration is used, and labels, units and defaults entries match it",
     "      limits           each setting limit names a metric and severity the manifest holds",
+    "      grammars         each grammar a scanner publishes carries a vocabulary, so comments and literals stay out of fingerprints",
     "      check-verb       check prints a valid check document, or the manifest declares none",
     "      guide-verb       guide exits 0 and writes nothing to stderr",
     "      run-verb         run writes a valid document, or exits non-zero after a diagnosis event",

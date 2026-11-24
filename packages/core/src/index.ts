@@ -216,6 +216,7 @@ export * from "./domain/phase-recorder.js";
 export * from "./domain/plugin-event.js";
 export * from "./domain/plugins/choose-scanner.js";
 export * from "./domain/plugins/doctor-report.js";
+export * from "./domain/plugins/grammar-vocabulary.js";
 export * from "./domain/plugins/installed-plugin.js";
 export * from "./domain/plugins/manifest.js";
 export * from "./domain/plugins/problem-titles.js";
