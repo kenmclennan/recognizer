@@ -18,7 +18,7 @@ const LOG = `${ROOT}/.recognizer/cache/log`;
 const REFERENCE =
   'describer:\n  command: [recognizer-describe-claude, run, --model, "{model}", "{request}"]\n  version: "v1"\n';
 const IN_TREE =
-  'describer:\n  command: [node, "{repository}/packages/describers/claude/dist/bin.js", run, --model, "{model}", "{request}"]\n  version: "v1"\n';
+  'describer:\n  command: [node, "{repository}/packages/describers/claude/dist/bin.js", run, --model, "{model}", "{request}"]\n  version: "v1"\n  build:\n    command: [npm, run, build]\n    directory: packages/describers/claude\n';
 const CUSTOM =
   'describer:\n  command: [custom-describer, "{module}"]\n  version: "v1"\n';
 
@@ -206,7 +206,7 @@ describe("scan preflight: the early stage", () => {
     );
   });
 
-  it("gives an npm run build fix for the in-tree describer", async () => {
+  it("gives the declared build fix for a describer the repository builds", async () => {
     const options = setup(IN_TREE, undefined, {
       programs: { node: () => ({ status: 2 }) },
     });

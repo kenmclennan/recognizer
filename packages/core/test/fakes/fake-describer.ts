@@ -19,7 +19,6 @@ export class FakeDescriber implements Describer {
   model = "quill";
   batchSize = 2;
   unavailable = new Set<string>();
-  folder: string | null = null;
   results = new Map<
     string,
     { status: number; stdout: string; stderr?: string; started?: boolean }
@@ -58,10 +57,6 @@ export class FakeDescriber implements Describer {
 
   shippedProgram(): string {
     return "quill-describe-claude";
-  }
-
-  folderInRepository(): string | null {
-    return this.folder;
   }
 
   settings(): { model: string; batchSize: number } {

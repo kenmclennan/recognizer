@@ -94,7 +94,7 @@
             "required": ["path", "format"],
             "properties": {
               "path": { "type": "string", "minLength": 1 },
-              "format": { "enum": ["lcov", "jacoco"] }
+              "format": { "type": "string", "minLength": 1 }
             }
           },
           "tool": { "type": ["string", "null"] },

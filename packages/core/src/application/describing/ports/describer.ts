@@ -50,7 +50,6 @@ export interface Describer {
   ): { started: boolean; status: number | null };
   shippedName(): string;
   shippedProgram(): string;
-  folderInRepository(root: string, file: string): string | null;
   settings(): { model: string; batchSize: number };
   readSource(root: string, path: string): { text: string; hash: string } | null;
   requestDocument(request: DescribeRequest): unknown;

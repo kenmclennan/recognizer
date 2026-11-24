@@ -126,6 +126,21 @@ export const CORE_KEYS: KeySchema = {
       example: "describer.version 1",
     },
     {
+      key: "describer.build.command",
+      type: "string",
+      multi: true,
+      description:
+        "the words of the command that builds the describer, run from describer.build.directory when the describer is not built",
+      example: '--add describer.build.command "npm"',
+    },
+    {
+      key: "describer.build.directory",
+      type: "path",
+      description:
+        "the folder in the repository the describer's build command runs in",
+      example: "describer.build.directory tools/describer",
+    },
+    {
       key: REGISTRATION_KEY,
       type: "string",
       multi: true,

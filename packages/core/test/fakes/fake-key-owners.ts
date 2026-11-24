@@ -11,7 +11,11 @@ export class FakeKeyOwners implements KeyOwners {
 
   notAnswering: string[] = [];
 
+  reads = 0;
+
   schemas(): { schema: KeySchema; notAnswering: string[] } {
+    this.reads += 1;
+
     return { schema: this.schema, notAnswering: this.notAnswering };
   }
 }

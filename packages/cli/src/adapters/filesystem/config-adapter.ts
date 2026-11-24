@@ -1,6 +1,7 @@
 import type {
   ConfigDocument,
   ConfigRepository,
+  DescriberBuild,
   RepositoryText,
   StructureSettings,
   SuiteEntry,
@@ -27,13 +28,23 @@ export class ConfigAdapter implements ConfigRepository {
   scannerSetup(root: string): {
     scanners: Record<string, string>;
     install: Record<string, string>;
+    describerBuild: DescriberBuild | null;
   } {
     const registered = readConfig(this.io, root, ["scanners", "install"]);
 
     return {
       scanners: registered?.scanners ?? {},
       install: registered?.install ?? {},
+      describerBuild: this.describerBuild(root),
     };
+  }
+
+  private describerBuild(root: string): DescriberBuild | null {
+    try {
+      return readConfig(this.io, root, ["describer"])?.describer?.build ?? null;
+    } catch {
+      return null;
+    }
   }
 
   run(root: string, skipRetired: boolean): ConfigDocument | null {

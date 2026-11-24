@@ -87,11 +87,18 @@ describe("the core's own key table", () => {
     const warnings = structure.warnings.properties;
     const seen: string[] = [];
 
-    expect(Object.keys(describer).length).toBe(2);
+    expect(Object.keys(describer).length).toBe(3);
     expect(core("describer.command").multi).toBe(true);
     expect(core("describer.command").type).toBe("string");
     expect(core("describer.version").type).toBe("string");
-    seen.push("describer.command", "describer.version");
+    expect(core("describer.build.command").multi).toBe(true);
+    expect(core("describer.build.directory").type).toBe("path");
+    seen.push(
+      "describer.command",
+      "describer.version",
+      "describer.build.command",
+      "describer.build.directory",
+    );
 
     expect(sensors.additionalProperties.properties.command.type).toBe("array");
     expect(core("sensors.<name>.command").multi).toBe(true);

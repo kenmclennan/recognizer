@@ -2,13 +2,13 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
   KINDS,
-  LANGUAGES,
   programName,
   renderTemplates,
   scaffoldPlugin,
   type TemplateKind,
   type TemplateLanguage,
   type TemplateSet,
+  templateLanguages,
   templateValues as valuesOf,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
@@ -48,6 +48,8 @@ function runInit(argv: string[], io: Io, templates: TemplateSet): number {
 }
 
 const FOLDER = "/work/out";
+
+const LANGUAGES = templateLanguages(new PluginTemplatesAdapter().bundled());
 
 const VERB = { scanner: "scan", sensor: "sense", describer: "describe" };
 
@@ -140,6 +142,19 @@ describe("recognizer plugin init", () => {
       );
     },
   );
+
+  it("offers the bundle's languages in order with the usage text unchanged", () => {
+    expect(LANGUAGES).toEqual(["python", "typescript", "rust"]);
+
+    const { fake } = init(["--kind", "scanner", "--name", "demo"]);
+
+    expect(fake.err()).toContain(
+      "usage: recognizer plugin init --kind <scanner|sensor|describer> --language <python|typescript|rust> --name <name> [folder]",
+    );
+    expect(fake.err()).toContain(
+      "example: recognizer plugin init --kind scanner --language python --name mylang ./recognizer-scan-mylang",
+    );
+  });
 
   it("starts no process and registers nothing", () => {
     const { fake } = init(full("scanner", "python"));

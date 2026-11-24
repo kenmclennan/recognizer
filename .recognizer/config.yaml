@@ -7,6 +7,12 @@ describer:
     - "{model}"
     - "{request}"
   version: "prompt-a78718fb99ab"
+  build:
+    command:
+      - npm
+      - run
+      - build
+    directory: packages/describers/claude
 sensors:
   crap: {}
   mutation: {}

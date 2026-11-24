@@ -48,7 +48,11 @@ export interface TestSuite {
 }
 
 export interface Config {
-  describer?: { command: string[]; version: string };
+  describer?: {
+    command: string[];
+    version: string;
+    build?: { command: string[]; directory: string };
+  };
   scanners?: Record<string, string>;
   install?: Record<string, string>;
   sensors?: Record<string, SensorEntry>;

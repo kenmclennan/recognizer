@@ -59,10 +59,8 @@
                 "minLength": 1
               },
               "format": {
-                "enum": [
-                  "lcov",
-                  "jacoco"
-                ]
+                "type": "string",
+                "minLength": 1
               }
             }
           },

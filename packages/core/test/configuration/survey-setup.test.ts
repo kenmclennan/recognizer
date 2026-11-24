@@ -422,4 +422,82 @@ describe("setup survey gap notes", () => {
       { language: "python", directory: ".", text: "no env" },
     ]);
   });
+
+  describe("coverage format", () => {
+    const KEY = ["tests", "<name>", "coverage", "format"].join(".");
+
+    function publishing(world: ConfigurationWorld, values?: string[]): void {
+      world.fakes.keyOwners.schema = {
+        ...world.fakes.keyOwners.schema,
+        keys: [
+          {
+            key: KEY,
+            type: "enum",
+            description: "d",
+            example: "e",
+            ...(values === undefined ? {} : { values }),
+          },
+        ],
+      };
+    }
+
+    function answering(world: ConfigurationWorld, format: string): void {
+      seedFiles(world, ["engine/package.json", "engine/src/a.ts"]);
+      world.fakes.surveyPlugins.seeded = [
+        {
+          plugin: "typescript",
+          order: 1,
+          language: "typescript",
+          answer: {
+            runners: [
+              {
+                language: "typescript",
+                runner: "vitest",
+                directory: "engine",
+                from: "engine/package.json",
+                command: "npx vitest run",
+                coverage: { path: "c/lcov.info", format },
+                tool: null,
+              },
+            ],
+            tools: [],
+            notes: [],
+          },
+        },
+      ];
+    }
+
+    it("refuses a format the sensors do not publish", async () => {
+      const world = worldOf();
+
+      publishing(world, ["lcov", "jacoco"]);
+      answering(world, "cobertura");
+
+      const survey = await surveySetup(world.ports, { root: ROOT });
+
+      expect(survey.runners).toEqual([]);
+      expect(survey.notes[0]?.text).toContain(
+        "which no installed sensor reads (they read: lcov, jacoco)",
+      );
+    });
+
+    it("accepts any format when the sensors publish no values", async () => {
+      const world = worldOf();
+
+      publishing(world);
+      answering(world, "cobertura");
+
+      const survey = await surveySetup(world.ports, { root: ROOT });
+
+      expect(survey.runners.map((runner) => runner.name)).toEqual(["engine"]);
+    });
+
+    it("reads no key schema when no runner was answered", async () => {
+      const world = worldOf();
+
+      await surveySetup(world.ports, { root: ROOT });
+
+      expect(world.fakes.keyOwners.reads).toBe(0);
+    });
+  });
 });
