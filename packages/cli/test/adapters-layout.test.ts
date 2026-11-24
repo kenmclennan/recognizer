@@ -35,7 +35,12 @@ const expected: Record<string, string[]> = {
     "work-tree-adapter.ts",
     "yaml-keyed-text-adapter.ts",
   ],
-  git: ["changes-adapter.ts", "forge-adapter.ts", "git-adapter.ts"],
+  git: [
+    "changes-adapter.ts",
+    "forge-adapter.ts",
+    "git-adapter.ts",
+    "name-status-parse.ts",
+  ],
   plugins: [
     "check-sandbox-adapter.ts",
     "describer-adapter.ts",

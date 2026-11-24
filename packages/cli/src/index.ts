@@ -174,6 +174,7 @@ export {
   serialiseView,
   validateView,
 } from "./adapters/filesystem/view-translator.js";
+export { parseNameStatus } from "./adapters/git/name-status-parse.js";
 export {
   shippedDescriberInvocation,
   shippedSensorNames,
@@ -193,11 +194,6 @@ export {
   type FileChange,
   type Mark,
   type MarkedFile,
-  type MarkerCheck,
-  type ParsedChanges,
-  parseNameStatus,
-  parseNameStatusLine,
-  scannedBy,
   statusOf,
 } from "./change-marks.js";
 export { parseKeySchema } from "./config-keys.js";

@@ -1,13 +1,12 @@
 import { readFileSync } from "node:fs";
-import { Repository } from "@recognizer/core";
+import { Repository, ScanSelection } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
+import { parseNameStatus } from "../src/adapters/git/name-status-parse.js";
 import {
   changeMarks,
   classifyChanges,
   classifyOpened,
   type FileChange,
-  parseNameStatus,
-  scannedBy,
 } from "../src/change-marks.js";
 import { repositoryFrom } from "./repository-from.js";
 
@@ -54,39 +53,6 @@ const base = scan([
   ["src/a.py", "module"],
   ["src/b.py", "module"],
 ]);
-
-describe("parseNameStatus", () => {
-  it("parses the measured -z output", () => {
-    expect(parseNameStatus("D\0src/b.py\0A\0src/c.py\0")).toEqual({
-      changes: [
-        { status: "D", path: "src/b.py" },
-        { status: "A", path: "src/c.py" },
-      ],
-      dropped: 0,
-    });
-  });
-
-  it("parseNameStatus reads a rename", () => {
-    expect(parseNameStatus("R100\0old\0new\0M\0a.py\0")).toEqual({
-      changes: [
-        { status: "R", path: "new", from: "old" },
-        { status: "M", path: "a.py" },
-      ],
-      dropped: 0,
-    });
-  });
-
-  it("drops and counts an unknown status letter", () => {
-    expect(parseNameStatus("X\0x.py\0M\0y.py\0")).toEqual({
-      changes: [{ status: "M", path: "y.py" }],
-      dropped: 1,
-    });
-  });
-
-  it("reads an empty string as no changes", () => {
-    expect(parseNameStatus("")).toEqual({ changes: [], dropped: 0 });
-  });
-});
 
 describe("changeMarks", () => {
   it("marks an added module with a current box", () => {
@@ -239,7 +205,7 @@ describe("changeMarks over a recorded name-status list", () => {
       "utf8",
     ),
   ) as { stdout: string };
-  const { changes } = parseNameStatus(recorded.stdout);
+  const changes = parseNameStatus(recorded.stdout);
   const head = scan([
     ["src/mod.py", "module"],
     ["src/added.py", "module"],
@@ -298,7 +264,7 @@ describe("changeMarks over a recorded name-status list", () => {
   });
 });
 
-describe("scannedBy", () => {
+describe("ScanSelection.accepts", () => {
   const parity = JSON.parse(
     readFileSync(
       new URL("../../../fixtures/selection-parity.json", import.meta.url),
@@ -318,16 +284,12 @@ describe("scannedBy", () => {
         ),
       ) as { selection: Record<string, unknown> };
       const tree = new Set(parity[language]?.tree);
-      const marker = (directory: string, name: string) =>
-        tree.has(`${directory}/${name}`);
       const accepted = [...tree]
         .filter((path) =>
-          scannedBy(
-            path,
+          new ScanSelection(
             repositoryFrom({ modules: [], selection: expected.selection })
               .extractions[0]?.selection as never,
-            marker,
-          ),
+          ).accepts(path, tree),
         )
         .sort();
 
@@ -338,8 +300,8 @@ describe("scannedBy", () => {
   it("rejects a path under skip_paths", () => {
     const selection = { ...selectionOf([".py"]), skipPaths: ["vendor"] };
 
-    expect(scannedBy("vendor/a.py", selection)).toBe(false);
-    expect(scannedBy("vendor2/a.py", selection)).toBe(true);
+    expect(new ScanSelection(selection).accepts("vendor/a.py")).toBe(false);
+    expect(new ScanSelection(selection).accepts("vendor2/a.py")).toBe(true);
   });
 });
 

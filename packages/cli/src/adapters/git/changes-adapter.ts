@@ -4,8 +4,9 @@ import type {
   Repository,
   ViewChange,
 } from "@recognizer/core";
-import { changeMarks, parseNameStatus } from "../../change-marks.js";
+import { changeMarks } from "../../change-marks.js";
 import type { Io } from "../../cli.js";
+import { parseNameStatus } from "./name-status-parse.js";
 
 export class ChangesAdapter implements Changes {
   constructor(private readonly io: Io) {}
@@ -30,10 +31,6 @@ export class ChangesAdapter implements Changes {
       return null;
     }
 
-    return changeMarks(
-      parseNameStatus(result.stdout).changes,
-      repository,
-      base,
-    );
+    return changeMarks(parseNameStatus(result.stdout), repository, base);
   }
 }

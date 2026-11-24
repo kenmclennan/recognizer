@@ -8,6 +8,7 @@ import {
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
 import { isDirty, resolveCommit } from "../../scan-facts.js";
+import { parseNameStatus } from "./name-status-parse.js";
 
 function parseRenames(stdout: string): Map<string, string> {
   const tokens = stdout.split("\0").filter((token) => token !== "");
@@ -23,47 +24,6 @@ function parseRenames(stdout: string): Map<string, string> {
 }
 
 const COMMIT = /^[0-9a-f]{7,64}$/;
-const STATUSES = new Set(["A", "M", "D", "T"]);
-
-function parseNameStatus(stdout: string): NameStatusEntry[] {
-  const fields = stdout.split("\0");
-  const entries: NameStatusEntry[] = [];
-  let index = 0;
-
-  while (index < fields.length) {
-    const status = fields[index] as string;
-
-    index += 1;
-
-    if (status.startsWith("R")) {
-      const from = fields[index];
-      const path = fields[index + 1];
-
-      index += 2;
-
-      if (from !== undefined && path !== undefined) {
-        entries.push({ status: "R", path, from });
-      }
-
-      continue;
-    }
-
-    const path = fields[index];
-
-    index += 1;
-
-    if (path === undefined) {
-      break;
-    }
-
-    if (STATUSES.has(status)) {
-      entries.push({ status: status as "A" | "M" | "D" | "T", path });
-    }
-  }
-
-  return entries;
-}
-
 const HISTORY_FORMAT = "--format=%x1e%H%x1f%h%x1f%P%x1f%an%x1f%ct%x1f%s%x1f%D";
 const BRANCH_FORMAT =
   "--format=%(refname:short)%1f%(objectname:short)%1f%(authorname)%1f%(committerdate:unix)";

@@ -1,4 +1,4 @@
-import { type FileChange, parseNameStatusLine } from "recognizer";
+import { type FileChange, parseNameStatus } from "recognizer";
 
 export type HistoryRow = {
   sha: string;
@@ -72,10 +72,16 @@ function changesOf(lines: string[]): FileChange[] {
       continue;
     }
 
-    const change = parseNameStatusLine(line.slice(0, tab), line.slice(tab + 1));
+    const fields = line.split("\t");
 
-    if (change !== null) {
-      changes.push(change);
+    if (fields.length < 2 || fields.some((field) => field === "")) {
+      continue;
+    }
+
+    const [entry] = parseNameStatus(`${fields.join("\0")}\0`);
+
+    if (entry !== undefined) {
+      changes.push(entry);
     }
   }
 

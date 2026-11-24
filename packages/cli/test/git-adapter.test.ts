@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { GitAdapter } from "../src/adapters/git/git-adapter.js";
+import { parseNameStatus } from "../src/adapters/git/name-status-parse.js";
 import { nodeIo } from "../src/cli.js";
 
 function git(root: string, ...args: string[]): string {
@@ -169,5 +170,31 @@ describe("git optional locks", () => {
     await reads;
 
     expect(git(root, "log", "--format=%s", "-1")).toBe("edit 14");
+  });
+});
+
+describe("parseNameStatus", () => {
+  it("parses the measured -z output", () => {
+    expect(parseNameStatus("D\0src/b.py\0A\0src/c.py\0")).toEqual([
+      { status: "D", path: "src/b.py" },
+      { status: "A", path: "src/c.py" },
+    ]);
+  });
+
+  it("reads a rename", () => {
+    expect(parseNameStatus("R100\0old\0new\0M\0a.py\0")).toEqual([
+      { status: "R", path: "new", from: "old" },
+      { status: "M", path: "a.py" },
+    ]);
+  });
+
+  it("drops an unknown status letter", () => {
+    expect(parseNameStatus("X\0x.py\0M\0y.py\0")).toEqual([
+      { status: "M", path: "y.py" },
+    ]);
+  });
+
+  it("reads an empty string as no changes", () => {
+    expect(parseNameStatus("")).toEqual([]);
   });
 });
