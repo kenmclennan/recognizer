@@ -2,7 +2,7 @@ import { validateRunRecord } from "recognizer";
 import { ANALYSIS_KEY } from "./freshness-model";
 import { DESCRIBE_KEY, type PlannedRun } from "./scan-freshness";
 import type { RunWork, ScanProgress, SuiteHistory } from "./scan-progress";
-import { median, SUITES_UNIT, suitePace } from "./suite-pace";
+import { median, suitePace } from "./suite-pace";
 
 export type SenseSample = {
   durationMs: number;
@@ -47,6 +47,8 @@ export type EstimatePart = {
 };
 
 export type ScanEstimate = { text: string; title: string };
+
+export const NO_FIGURE_TEXT = "No estimate yet";
 
 export const NO_ESTIMATE_TEXT =
   "No estimate until this repository has been scanned";
@@ -471,20 +473,12 @@ function paced(runWork: RunWork | null): ((now: number) => number) | null {
 
   const keys = Object.keys(runWork.steps);
 
-  if (
-    !runWork.queued &&
-    runWork.unit !== SUITES_UNIT &&
-    keys.some((key) => key !== "")
-  ) {
-    return null;
-  }
-
   const performed = keys.reduce(
     (sum, key) => sum + runWork.steps[key].latest - runWork.steps[key].first,
     0,
   );
 
-  if (performed < (runWork.unit === SUITES_UNIT ? 1 : LEFT_FLOOR)) {
+  if (performed < LEFT_FLOOR) {
     return null;
   }
 
@@ -496,7 +490,7 @@ function paced(runWork: RunWork | null): ((now: number) => number) | null {
 
 export function remaining(input: RemainingInput): Remaining | null {
   const { progress, now } = input;
-  const { frozen, phaseAt, sensorAt, describeFrom, rateFrom } = progress.timing;
+  const { frozen, phaseAt, sensorAt, describeFrom } = progress.timing;
 
   if (frozen === null || Object.keys(frozen).length === 0) {
     return null;
@@ -578,11 +572,10 @@ export function remaining(input: RemainingInput): Remaining | null {
     }
 
     const reported = progress.sensorProgress;
-
-    const counted = reported?.progress;
+    const wholeRun = progress.timing.runWork?.queued === true;
 
     const bySuite =
-      reported !== null && reported.name === key
+      wholeRun && reported !== null && reported.name === key
         ? suitePace(
             input.suites[key] ?? [],
             progress.timing.suiteHistory?.[key],
@@ -604,29 +597,12 @@ export function remaining(input: RemainingInput): Remaining | null {
     }
 
     const worked =
-      reported !== null && reported.name === key
+      wholeRun && reported !== null && reported.name === key
         ? paced(progress.timing.runWork)
         : null;
 
     if (worked !== null) {
       total += worked(now);
-
-      continue;
-    }
-
-    if (
-      (input.suites[key]?.length ?? 0) <= 1 &&
-      rateFrom !== null &&
-      reported !== null &&
-      reported.name === key &&
-      counted !== undefined &&
-      counted.unit === rateFrom.unit &&
-      counted.step === rateFrom.step &&
-      counted.done - rateFrom.done >= LEFT_FLOOR
-    ) {
-      const since = counted.done - rateFrom.done;
-
-      total += (counted.total - counted.done) * ((now - rateFrom.at) / since);
 
       continue;
     }
@@ -651,11 +627,13 @@ export function remaining(input: RemainingInput): Remaining | null {
 
   return {
     text:
-      names.length === 0
-        ? left
-        : total > 0
-          ? `${left}, plus ${names.join(", ")}`
-          : names.join(", "),
+      names.length === 0 && total === 0 && uncounted.length > 0
+        ? NO_FIGURE_TEXT
+        : names.length === 0
+          ? left
+          : total > 0
+            ? `${left}, plus ${names.join(", ")}`
+            : names.join(", "),
     title: lines.length === 0 ? null : lines.join("\n"),
   };
 }

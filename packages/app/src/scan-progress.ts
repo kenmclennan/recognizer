@@ -110,7 +110,6 @@ export type ScanTiming = {
   extractDoneAt: Record<string, number>;
   extractTotals: Record<string, number>;
   describeFrom: number | null;
-  rateFrom: { at: number; done: number; unit: string; step?: string } | null;
   runWork: RunWork | null;
   frozen: Record<string, number> | null;
   suiteHistory: SuiteHistory | null;
@@ -143,7 +142,6 @@ export const NO_PROGRESS: ScanProgress = {
     extractDoneAt: {},
     extractTotals: {},
     describeFrom: null,
-    rateFrom: null,
     runWork: null,
     frozen: null,
     suiteHistory: null,

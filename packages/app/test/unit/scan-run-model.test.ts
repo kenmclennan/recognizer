@@ -474,8 +474,15 @@ describe("the time slot while an app-driven scan runs", () => {
   const running = (
     over: Partial<ScanRunRecord>,
     progress: Partial<ScanProgress>,
+    awakeNow?: number,
   ) =>
-    model(view({ started_at: new Date(T0).toISOString(), ...over }, progress));
+    model(
+      view(
+        { started_at: new Date(T0).toISOString(), ...over },
+        progress,
+        awakeNow === undefined ? {} : { awakeNow },
+      ),
+    );
 
   it("reads about N min left from the frozen figures", () => {
     const card = running(
@@ -490,6 +497,72 @@ describe("the time slot while an app-driven scan runs", () => {
 
     expect(card?.when.text).toBe("about 9 min left");
     expect(card?.when.title).toBeUndefined();
+  });
+
+  it("reads about 1 h at the start of a sensor run with a one-hour estimate and counts down with one suite done", () => {
+    const events: [number, Parameters<typeof runModelModule.foldRunLine>[1]][] =
+      [
+        [T0, { event: "phase", phase: "sense", total: 1 }],
+        [T0, { event: "start", phase: "sense", name: "crap" }],
+        [
+          T0,
+          {
+            event: "plugin",
+            phase: "sense",
+            name: "crap",
+            data: { event: "start", total: 2, unit: "suites" },
+          },
+        ],
+        [
+          T0,
+          {
+            event: "plugin",
+            phase: "sense",
+            name: "crap",
+            data: {
+              event: "progress",
+              done: 0,
+              total: 2,
+              unit: "suites",
+              step: "engine",
+            },
+          },
+        ],
+        [
+          T0 + 300_000,
+          {
+            event: "plugin",
+            phase: "sense",
+            name: "crap",
+            data: {
+              event: "progress",
+              done: 1,
+              total: 2,
+              unit: "suites",
+              step: "engine",
+            },
+          },
+        ],
+      ];
+    const folded = (until: number) =>
+      events
+        .filter(([at]) => at <= until)
+        .reduce<ScanProgress>(
+          (state, [at, event]) => runModelModule.foldRunLine(state, event, at),
+          {
+            ...NO_PROGRESS,
+            timing: {
+              ...NO_PROGRESS.timing,
+              frozen: { structure: 0, crap: 3_600_000 },
+            },
+          },
+        );
+    const card = (at: number) =>
+      running({ sensors: ["crap"] }, { ...folded(at), sensing: "crap" }, at)
+        ?.card;
+
+    expect(card(T0)?.when.text).toBe("about 1 h left");
+    expect(card(T0 + 300_000)?.when.text).toBe("about 55 min left");
   });
 
   it("names an overrun in the card text and hover", () => {

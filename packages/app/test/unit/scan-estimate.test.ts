@@ -8,6 +8,7 @@ import {
   estimateParts,
   frozenFigures,
   NO_ESTIMATE_TEXT,
+  NO_FIGURE_TEXT,
   type PartSpec,
   remaining,
   roundedTime,
@@ -924,13 +925,13 @@ describe("remaining time while running", () => {
       now: T + 60_000,
     });
 
-  it("paces a plugin from the units done since its first progress event", () => {
-    expect(mutationLeft(mutating(17), ["unit"])?.text).toBe("about 7 min left");
+  it("counts a plugin with no start event down from its figure", () => {
+    expect(mutationLeft(mutating(17), ["unit"])?.text).toBe("about 9 min left");
   });
 
-  it("paces a plugin from progress since its first event, not from the functions done before the run", () => {
+  it("counts a plugin with no start event down from its figure whatever it had done before the run", () => {
     expect(mutationLeft(mutating(371, 368, 633), ["unit"])?.text).toBe(
-      "about 1 h 27 min left",
+      "about 9 min left",
     );
   });
 
@@ -1016,9 +1017,9 @@ describe("remaining time while running", () => {
       [T + 300_000, done, 2, undefined, "suites"],
     ]);
 
-  it("paces a two-suite crap run once one suite is done", () => {
+  it("counts a two-suite crap run down from its figure once one suite is done", () => {
     expect(sensorLeft("crap", crap(1), T + 300_000)?.text).toBe(
-      "about 5 min left",
+      "about 9 min left",
     );
   });
 
@@ -1028,9 +1029,9 @@ describe("remaining time while running", () => {
     );
   });
 
-  it("adds nothing for a two-suite crap run with every suite done", () => {
+  it("keeps a two-suite crap run on its figure with every suite done", () => {
     expect(sensorLeft("crap", crap(2), T + 300_000)?.text).toBe(
-      "under a minute left",
+      "about 9 min left",
     );
   });
 
@@ -1055,7 +1056,7 @@ describe("remaining time while running", () => {
       stream(
         "crap",
         840_000,
-        { total: 3, unit: "suites" },
+        { total: 3, unit: "suites", queued: 3 },
         events.map(([at, done, step]) => [at, done, 3, step, "suites"]),
       ),
       history,
@@ -1124,7 +1125,7 @@ describe("remaining time while running", () => {
     ).toBe("about 2 min left");
   });
 
-  it("keeps the suite-count pace for a sensor with no per-suite history", () => {
+  it("counts a suites-unit stream with no queued down from its figure", () => {
     expect(
       loomLeft(
         stream("crap", 840_000, { total: 3, unit: "suites" }, [
@@ -1133,11 +1134,11 @@ describe("remaining time while running", () => {
         ]),
         T + 60 * SECOND,
       )?.text,
-    ).toBe("about 2 min left");
+    ).toBe("about 13 min left");
   });
 
   const crapRun = (events: [number, Line[1]][]) =>
-    fold(frozen({ structure: 0, crap: 60_000 }), [
+    fold(frozen({ structure: 0, crap: 840_000 }), [
       [T, { event: "phase", phase: "sense", total: 1 }],
       [T, { event: "start", phase: "sense", name: "crap" }],
       [T, plugin("crap", { event: "start", total: 3, unit: "suites" })],
@@ -1178,23 +1179,23 @@ describe("remaining time while running", () => {
     return history === undefined ? progress : withHistory(progress, history);
   };
 
-  it("reads about 3 min after the first of three suites and about 1 min after the second, with no history", () => {
+  it("reads about 12 min after the first of three suites and about 11 min after the second, with no history", () => {
     expect(loomLeft(threeSuiteRun("engine"), T + 92 * SECOND)?.text).toBe(
-      "about 3 min left",
+      "about 12 min left",
     );
     expect(loomLeft(threeSuiteRun("tauri"), T + 155 * SECOND)?.text).toBe(
-      "about 1 min left",
+      "about 11 min left",
     );
   });
 
-  it("keeps those figures after the sensor starts its function run", () => {
+  it("keeps counting down from the figure after the sensor starts its function run", () => {
     const progress = crapRun([
       [T, suiteEvent(0, "engine")],
       [T + 92 * SECOND, suiteEvent(1, "engine")],
       [T + 92 * SECOND, suiteEvent(1, "app")],
     ]);
 
-    expect(loomLeft(progress, T + 92 * SECOND)?.text).toBe("about 3 min left");
+    expect(loomLeft(progress, T + 92 * SECOND)?.text).toBe("about 12 min left");
   });
 
   it("keeps a stepped stream with no queued on the frozen figure", () => {
@@ -1273,42 +1274,6 @@ describe("remaining time while running", () => {
     expect(result?.text).toBe("Descriptions: longer than estimated");
   });
 
-  it("restarts the pace at a step change", () => {
-    const at = (
-      time: number,
-      step: string,
-      done: number,
-    ): [number, Parameters<typeof foldRunLine>[1]] => [
-      time,
-      {
-        event: "plugin",
-        phase: "sense",
-        name: "mutation",
-        data: { event: "progress", done, total: 38, unit: "functions", step },
-      },
-    ];
-    const run = (...lines: [number, Parameters<typeof foldRunLine>[1]][]) =>
-      fold(frozen({ structure: 0, mutation: 600_000 }), [
-        [T, { event: "phase", phase: "sense", total: 1 }],
-        [T, { event: "start", phase: "sense", name: "mutation" }],
-        at(T, "a", 14),
-        ...lines,
-      ]);
-
-    expect(
-      overrunLeft(
-        run(at(T + 60_000, "b", 20), at(T + 120_000, "b", 22)),
-        T + 120_000,
-      )?.text,
-    ).toBe("about 8 min left");
-    expect(
-      overrunLeft(
-        run(at(T + 60_000, "b", 20), at(T + 120_000, "b", 23)),
-        T + 120_000,
-      )?.text,
-    ).toBe("about 5 min left");
-  });
-
   it("keeps a two-suite sensor with no progress on the frozen figure and names the overrun", () => {
     expect(
       overrunLeft(started({ structure: 0, mutation: 600_000 }), T + 700_000, [
@@ -1328,6 +1293,26 @@ describe("remaining time while running", () => {
     });
 
     expect(result?.title).toBe("not counting Mutation: no estimate yet");
+  });
+
+  it("reads No estimate yet for a sensor with no figure and nothing else counted", () => {
+    const result = overrunLeft(started({ structure: 0 }), T + 30_000);
+
+    expect(result?.title).toBe("not counting Mutation: no estimate yet");
+    expect(result?.text).toBe(NO_FIGURE_TEXT);
+  });
+
+  it("keeps counting down from the figure after a second start of the functions unit", () => {
+    const progress = crapRun([
+      [T, suiteEvent(0, "engine")],
+      [T + 92 * SECOND, suiteEvent(1, "engine")],
+      [
+        T + 92 * SECOND,
+        plugin("crap", { event: "start", total: 40, unit: "functions" }),
+      ],
+    ]);
+
+    expect(loomLeft(progress, T + 92 * SECOND)?.text).toBe("about 12 min left");
   });
 
   it("keeps the clock when no part has a figure", () => {

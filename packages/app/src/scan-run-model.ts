@@ -85,7 +85,6 @@ function timed(
         timing: {
           ...timing,
           sensorAt: { ...timing.sensorAt, [event.name]: at },
-          rateFrom: null,
           runWork: null,
         },
       };
@@ -150,7 +149,6 @@ function pluginTimed(
       ...next,
       timing: {
         ...timing,
-        rateFrom: null,
         runWork: {
           work: data.queued ?? data.total,
           queued: data.queued !== undefined,
@@ -167,24 +165,10 @@ function pluginTimed(
     return next;
   }
 
-  const from = timing.rateFrom;
-  const worked = workedOn(timing.runWork, data, at);
-
-  return from !== null && from.unit === data.unit && from.step === data.step
-    ? { ...next, timing: { ...timing, runWork: worked } }
-    : {
-        ...next,
-        timing: {
-          ...timing,
-          runWork: worked,
-          rateFrom: {
-            at,
-            done: data.done,
-            unit: data.unit,
-            ...(data.step === undefined ? {} : { step: data.step }),
-          },
-        },
-      };
+  return {
+    ...next,
+    timing: { ...timing, runWork: workedOn(timing.runWork, data, at) },
+  };
 }
 
 function workedOn(
