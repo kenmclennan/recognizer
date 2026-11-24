@@ -102,6 +102,25 @@ describe("senseRepository", () => {
     expect(run.documents).toEqual([]);
   });
 
+  it("keeps unknown files on the structure status", async () => {
+    const unknownFiles = { languages: ["swift"], files: ["a.swift"] };
+    const withUnknown = fakeSensors({
+      structure: documentText({
+        ...structureDocument("check", policy),
+        unknownFiles,
+      }),
+    });
+    const without = stored();
+    const input = { policy, config: null };
+
+    expect(
+      statusOf(await senseRepository(scans, input, withUnknown), "structure"),
+    ).toMatchObject({ unknownFiles });
+    expect(
+      statusOf(await senseRepository(scans, input, without), "structure"),
+    ).not.toHaveProperty("unknownFiles");
+  });
+
   it("reports an invalid file as failed, by name, and removes it", async () => {
     const port = fakeSensors({ lint: "{not json" });
     const run = await senseRepository(scans, { policy, config: null }, port);

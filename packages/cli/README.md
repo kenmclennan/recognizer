@@ -150,6 +150,8 @@ Metrics are computed per file from the scan alone, over distinct files after `ig
 - `instability`: `efferent / (afferent + efferent)` rounded to four decimals, `null` when both are 0.
 - `abstractness`: 1 when the file's `kind` is `interface`, otherwise 0.
 
+`unknown_files` (`{languages, files}`) is present only when a scanned file's language has no installed scanner publishing rules for it, and the summary on stderr then ends with an `unknown:` line; those files' test-file, supertype and private-import findings are unknown, not clean, and the exit code is unchanged.
+
 Folder metrics are written beside them as `folder_metrics`, one row per folder (a file id up to its last `/`, or `.`) that holds a kept file, sorted by `id`, always computed whatever the warning switches say; `check <module>` keeps only the folders of the named files. A subfolder's files are not part of its parent. The graph is the kept graph of every scan, with self-edges dropped; a foreign target counts for nothing, in either coupling.
 
 - `modules`: the kept files in the folder.

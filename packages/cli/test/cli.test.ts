@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import type { Violation } from "@recognizer/core";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { run } from "../src/cli.js";
 import {
@@ -18,6 +18,17 @@ import {
   validateScan,
 } from "../src/index.js";
 import { capture, checkArgs, copyFixture, FIXTURE, REPO } from "./helpers.js";
+import { useScannerShim } from "./scan-helpers.js";
+
+let restorePath: () => void;
+
+beforeAll(() => {
+  restorePath = useScannerShim("python");
+});
+
+afterAll(() => {
+  restorePath();
+});
 
 const expected = JSON.parse(
   readFileSync(join(FIXTURE, "expected.json"), "utf8"),

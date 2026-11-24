@@ -192,6 +192,13 @@ export function sensorFindingsOf(document: FindingsDocument): SensorFindings {
         files: document.unowned.modules,
       },
     ),
+    ...given(
+      "unknownFiles",
+      document.unknown_files && {
+        languages: document.unknown_files.languages,
+        files: document.unknown_files.files,
+      },
+    ),
     findings: document.findings.map(findingOf),
     ...given("inputs", document.inputs),
     ...given("tests", document.tests),
@@ -242,6 +249,13 @@ export function sensorFindingsDocument(
       findings.unowned && {
         functions: findings.unowned.functions,
         modules: [...findings.unowned.files],
+      },
+    ),
+    ...given(
+      "unknown_files",
+      findings.unknownFiles && {
+        languages: [...findings.unknownFiles.languages],
+        files: [...findings.unknownFiles.files],
       },
     ),
     findings: findings.findings.map(findingRecordOf),

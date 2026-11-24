@@ -63,11 +63,13 @@ export class LanguageBehaviour {
   private readonly testRules: readonly CompiledTestRule[];
   private readonly supertypes: ReadonlySet<string>;
   private readonly privates: ReadonlySet<string>;
+  private readonly published: ReadonlySet<string>;
 
   constructor(rules: readonly LanguageRule[]) {
     this.testRules = rules.flatMap((rule) =>
       (rule.test_files ?? []).map(compile),
     );
+    this.published = new Set(rules.map((rule) => rule.name));
     this.supertypes = new Set(
       rules.filter((rule) => rule.supertype_links === true).map((r) => r.name),
     );
@@ -82,6 +84,10 @@ export class LanguageBehaviour {
     const directories = segments.slice(0, -1);
 
     return this.testRules.some((rule) => matches(rule, directories, basename));
+  }
+
+  publishes(language: string): boolean {
+    return this.published.has(language);
   }
 
   linksSupertypes(language: string): boolean {

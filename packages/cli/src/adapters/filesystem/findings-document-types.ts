@@ -79,6 +79,7 @@ export interface FindingsDocument {
   counts?: { measured: number; total: number };
   excluded?: { functions: number; modules: string[] };
   unowned?: { functions: number; modules: string[] };
+  unknown_files?: { languages: string[]; files: string[] };
   findings: FindingRecord[];
   inputs?: Record<string, string>;
   tests?: string;

@@ -106,7 +106,7 @@ describe("readSensorFindings", () => {
   it("writes back what it read", () => {
     const names = readdirSync(join(EXAMPLES, "valid"));
 
-    expect(names).toHaveLength(22);
+    expect(names).toHaveLength(23);
 
     for (const name of names) {
       const document = example("valid", name);
@@ -208,5 +208,25 @@ describe("rule objects in a findings file", () => {
       { type: "uses", fromComponent: "a", toComponent: "b" },
       { type: "forbid", pattern: "x/**" },
     ]);
+  });
+});
+
+describe("unknown_files", () => {
+  it("reads and writes unknown_files", () => {
+    const found = valid("unknown-files");
+
+    expect(found.unknownFiles).toEqual({
+      languages: ["swift", "zig"],
+      files: ["a/x.swift", "b/y.zig"],
+    });
+    expect(sensorFindingsDocument(found)).toMatchObject({
+      unknown_files: {
+        languages: ["swift", "zig"],
+        files: ["a/x.swift", "b/y.zig"],
+      },
+    });
+    expect(sensorFindingsDocument(valid("inputs"))).not.toHaveProperty(
+      "unknown_files",
+    );
   });
 });

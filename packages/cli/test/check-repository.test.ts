@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { STRUCTURE_SENSOR_VERSION } from "@recognizer/core";
+import {
+  LanguageBehaviour,
+  checkScan as replayScan,
+  STRUCTURE_SENSOR_VERSION,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   parseBaseline,
@@ -9,6 +13,8 @@ import {
 import { run } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
 import { REPO } from "./helpers.js";
+import { FIXTURE_LANGUAGES } from "./language-behaviour-fixture.js";
+import { repositoryFrom } from "./repository-from.js";
 import {
   type FakeOptions,
   fakeIo,
@@ -300,6 +306,80 @@ describe("check with --scan", () => {
     const fake = fakeIo({ files: { "x.json": "{}" } });
 
     expect(run(["check", ...argv], fake.io)).toBe(2);
+  });
+});
+
+describe("check --scan with files no installed scanner publishes", () => {
+  const replay = (scanners?: FakeOptions["scanners"]) => {
+    const fake = fakeIo({
+      files: { "x.json": JSON.stringify(checkScan) },
+      ...(scanners === undefined ? {} : { scanners }),
+    });
+    const code = run(["check", "--scan", "x.json"], fake.io);
+
+    return { code, out: JSON.parse(fake.out()), err: fake.err() };
+  };
+
+  it("prints an unknown line and unknown_files for an unpublished language", () => {
+    const { out, err } = replay({ [TYPESCRIPT]: {} });
+    const pythonFiles = checkScan.modules.filter(
+      (one: { language: string }) => one.language === "python",
+    );
+
+    expect(pythonFiles.length).toBeGreaterThan(0);
+    expect(out.unknown_files.languages).toEqual(["python"]);
+    expect(out.unknown_files.files).toHaveLength(pythonFiles.length);
+    expect(err).toContain(`unknown: ${pythonFiles.length} files in python:`);
+    expect(err).toContain("unknown, not clean");
+  });
+
+  it("prints neither for published languages", () => {
+    const { out, err } = replay();
+
+    expect(out).not.toHaveProperty("unknown_files");
+    expect(err).not.toContain("unknown:");
+  });
+
+  it("exits the same whether or not the language is published", () => {
+    expect(replay({ [TYPESCRIPT]: {} }).code).toBe(replay().code);
+  });
+});
+
+describe("check --scan over committed content with the shipped manifests", () => {
+  const replayWith = (names: string[]) =>
+    replayScan(
+      {
+        analysis: fakeIo().io as never,
+        baselines: {} as never,
+        languages: {
+          rules: () =>
+            FIXTURE_LANGUAGES.filter((one) => names.includes(one.name)),
+        },
+      },
+      () => {},
+      {
+        repository: repositoryFrom(checkScan),
+        rules: null,
+        policyFile: null,
+        baselinePath: null,
+        flags: { baseline: undefined, update: false, init: false },
+      },
+    );
+  const all = FIXTURE_LANGUAGES.map((one) => one.name);
+
+  it("expects no unknown_files with every manifest published", () => {
+    expect(replayWith(all).unknownFiles).toBeNull();
+  });
+
+  it("names the python files when the python entry is removed", () => {
+    const python = checkScan.modules.filter(
+      (one: { language: string }) => one.language === "python",
+    );
+    const report = replayWith(all.filter((name) => name !== "python"));
+
+    expect(python.length).toBeGreaterThan(0);
+    expect(report.unknownFiles?.languages).toEqual(["python"]);
+    expect(report.unknownFiles?.files).toHaveLength(python.length);
   });
 });
 

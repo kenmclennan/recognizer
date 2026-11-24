@@ -3,12 +3,14 @@ import {
   DEFAULT_STRUCTURE_SETTINGS,
   Dependency,
   File,
+  LanguageBehaviour,
+  type LanguageRule,
   Member,
   Repository,
   senseStructure,
   Warning,
 } from "../../src/index.js";
-import { BEHAVIOUR } from "../fakes/fixture-languages.js";
+import { BEHAVIOUR, FIXTURE_LANGUAGES } from "../fakes/fixture-languages.js";
 import { repositoryOf } from "../fakes/repository-of.js";
 import { breaching, FORBID } from "./analysis-world.js";
 
@@ -171,5 +173,69 @@ describe("senseStructure", () => {
     const kept = document.findings.filter((one) => one.id === "cycle:a.py");
 
     expect(kept.map((one) => one.summary)).toEqual(["first"]);
+  });
+});
+
+describe("senseStructure unknown files", () => {
+  const settings = DEFAULT_STRUCTURE_SETTINGS;
+  const swiftScan = () =>
+    repositoryOf({ "a/x.swift": "h1", "b/y.swift": "h2" }, [], "swift");
+
+  it("records the files of an unpublished language", () => {
+    const { document } = senseStructure(
+      swiftScan(),
+      null,
+      settings,
+      CONTEXT,
+      BEHAVIOUR,
+    );
+
+    expect(document.unknownFiles).toEqual({
+      languages: ["swift"],
+      files: ["a/x.swift", "b/y.swift"],
+    });
+  });
+
+  it("records nothing when every language is published", () => {
+    const published = new LanguageBehaviour([
+      ...FIXTURE_LANGUAGES,
+      { ...(FIXTURE_LANGUAGES[0] as LanguageRule), name: "swift" },
+    ]);
+    const { document } = senseStructure(
+      swiftScan(),
+      null,
+      settings,
+      CONTEXT,
+      published,
+    );
+
+    expect(document).not.toHaveProperty("unknownFiles");
+  });
+
+  it("findings are equal with and without the unknown marker", () => {
+    const published = new LanguageBehaviour([
+      ...FIXTURE_LANGUAGES,
+      { ...(FIXTURE_LANGUAGES[0] as LanguageRule), name: "swift" },
+    ]);
+    const without = senseStructure(
+      swiftScan(),
+      null,
+      settings,
+      CONTEXT,
+      BEHAVIOUR,
+    ).document;
+    const withRule = senseStructure(
+      swiftScan(),
+      null,
+      settings,
+      CONTEXT,
+      published,
+    ).document;
+
+    expect(without.unknownFiles).toBeDefined();
+    expect(without.findings.map((one) => one.id)).toEqual(
+      withRule.findings.map((one) => one.id),
+    );
+    expect(without.inputs).toEqual(withRule.inputs);
   });
 });

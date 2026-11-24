@@ -1,4 +1,5 @@
 import type { LanguageBehaviour } from "../../domain/analysis/language-behaviour.js";
+import { unknownFilesOf } from "../../domain/analysis/unknown-files.js";
 import { Finding } from "../../domain/finding.js";
 import { violationText } from "../../domain/finding-text.js";
 import type { PolicyRule, ViolatedRule } from "../../domain/policy-rule.js";
@@ -159,6 +160,7 @@ export function senseStructure(
   }
 
   const folders = measureFolders(repository, policy);
+  const unknownFiles = unknownFilesOf(repository, behaviour);
 
   return {
     document: {
@@ -191,6 +193,7 @@ export function senseStructure(
         ...(measured.complexity ?? []).map((warning) => warning.toFinding()),
       ],
       inputs: measuredInputs(repository),
+      ...(unknownFiles === null ? {} : { unknownFiles }),
     },
     metrics,
     folder_metrics: folders.rows,

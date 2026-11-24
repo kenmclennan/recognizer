@@ -64,8 +64,9 @@ export type FindingsLine = {
 
 export type NoResult = {
   sensor: string;
-  reason: "excluded" | "unowned";
+  reason: "excluded" | "unowned" | "unknown";
   modules: string[];
+  languages?: string[];
 };
 
 export type FreshnessModel = {
@@ -522,8 +523,12 @@ function summarize(
   const failed = rows.filter(({ state }) => state.kind === "failed");
   const never = rows.filter(({ state }) => state.kind === "never-run");
   const noResultSentence = noResult
-    .map(({ sensor, reason, modules }) => {
+    .map(({ sensor, reason, modules, languages }) => {
       const single = modules.length === 1;
+
+      if (reason === "unknown") {
+        return ` ${sensor} has no result for ${changedList(modules)}: no installed scanner publishes rules for ${joinNames(languages ?? [])}, so ${single ? "its" : "their"} test-file, supertype and private-import findings are unknown, not clean.`;
+      }
 
       if (reason === "unowned") {
         return ` ${sensor} has no result for ${changedList(modules)}: no test suite in .recognizer/config.yaml covers ${single ? "it" : "them"}.`;
@@ -816,6 +821,41 @@ function noResultOf(
   const hashes = (input.scans ?? Repository.empty).scannedHashes();
   const inScope = new Set(modules);
   const found: NoResult[] = [];
+
+  const structureState = rows.find(({ key }) => key === ANALYSIS_KEY)?.state;
+  const unknown = input.sensors.find(
+    ({ name }) => name === ANALYSIS_KEY,
+  )?.unknownFiles;
+
+  if (
+    unknown !== undefined &&
+    (structureState?.kind === "current" ||
+      structureState?.kind === "out-of-date")
+  ) {
+    const gap = new Set(
+      structureState.kind === "out-of-date" ? structureState.modules : [],
+    );
+    const named = unknown.files.filter(
+      (id) => inScope.has(id) && hashes.has(id) && !gap.has(id),
+    );
+
+    if (named.length > 0) {
+      const namedLanguages = new Set(
+        (input.scans ?? Repository.empty).files
+          .filter((file) => named.includes(file.path))
+          .map((file) => file.language),
+      );
+
+      found.push({
+        sensor: "Structural analysis",
+        reason: "unknown",
+        modules: inScopeOrder(modules, new Set(named)),
+        languages: unknown.languages.filter((language) =>
+          namedLanguages.has(language),
+        ),
+      });
+    }
+  }
 
   for (const one of sensors) {
     const status = input.sensors.find((entry) => entry.name === one.name);

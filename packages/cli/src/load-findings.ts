@@ -9,6 +9,8 @@ import {
   type StructureSettings,
   scansCommit,
   senseStructure,
+  type UnknownFiles,
+  unknownFilesOf,
 } from "@recognizer/core";
 import { FindingsAdapter } from "./adapters/filesystem/findings-adapter.js";
 import { readSensorFindings } from "./adapters/filesystem/findings-translator.js";
@@ -85,6 +87,7 @@ function storedStructure(
   root: string,
   commit: string,
   settings: StructureSettings,
+  unknownFiles: UnknownFiles | null,
 ): SensorFindings | null {
   try {
     const document = readSensorFindings(
@@ -93,6 +96,8 @@ function storedStructure(
     );
 
     return !document.modified &&
+      JSON.stringify(document.unknownFiles ?? null) ===
+        JSON.stringify(unknownFiles) &&
       document.sensor.version === STRUCTURE_SENSOR_VERSION &&
       duplicationAgrees(document, settings) &&
       complexityAgrees(document, settings) &&
@@ -152,7 +157,13 @@ export function loadFindings(
     if (commit === null) {
       documents.push(compute());
     } else {
-      const stored = storedStructure(io, root, commit, settings);
+      const stored = storedStructure(
+        io,
+        root,
+        commit,
+        settings,
+        unknownFilesOf(repository, behaviour),
+      );
 
       if (stored !== null) {
         documents.push(stored);
