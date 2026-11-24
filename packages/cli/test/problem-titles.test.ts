@@ -27,6 +27,7 @@ const CODES = [
   "plugin-protocol",
   "plugin-scan-schema",
   "plugin-tests-report",
+  "plugin-grammar-vocabulary",
   "plugin-settings",
   "describer-gap",
   "unregistered-plugin",

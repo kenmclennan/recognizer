@@ -1,5 +1,9 @@
 import { chooseScanner, claimsLanguage } from "./choose-scanner.js";
 import {
+  grammarsWithoutVocabulary,
+  grammarVocabularyMessage,
+} from "./grammar-vocabulary.js";
+import {
   CASK_UPGRADE,
   type InstalledPlugin,
   scanSchemaMessage,
@@ -43,6 +47,7 @@ export type ProblemCode =
   | "plugin-protocol"
   | "plugin-scan-schema"
   | "plugin-tests-report"
+  | "plugin-grammar-vocabulary"
   | "plugin-settings"
   | "describer-gap"
   | "unregistered-plugin";
@@ -425,6 +430,21 @@ export function scannerProblems(
                 : (install[`recognizer-scan-${choice.scanner.name}`] ??
                     choice.scanner.manifest.install),
             ),
+          ),
+        );
+      }
+
+      const unvocabularied = grammarsWithoutVocabulary(choice.scanner.manifest);
+
+      if (unvocabularied.length > 0) {
+        const program = `recognizer-scan-${choice.scanner.name}`;
+
+        found.push(
+          problem(
+            "plugin-grammar-vocabulary",
+            language,
+            grammarVocabularyMessage(program, unvocabularied),
+            textFix(install[program] ?? choice.scanner.manifest.install),
           ),
         );
       }

@@ -108,7 +108,7 @@ describe("recognizer help plugin-guide", () => {
     const names = nonEmpty(report.results.map((entry) => entry.name));
     const guide = pluginGuide();
 
-    expect(names).toHaveLength(14);
+    expect(names).toHaveLength(15);
     expect(names).toContain("placeholders");
     expect(guide).toContain(
       "placeholders     each key placeholder is declared",

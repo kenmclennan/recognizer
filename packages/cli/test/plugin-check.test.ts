@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  checkGrammars,
   checkLimits,
   checkPlaceholders,
   pluginCheck as checkPlugin,
@@ -87,6 +88,7 @@ describe("recognizer plugin check", () => {
       "ok    sentences",
       "ok    placeholders",
       "ok    limits",
+      "ok    grammars",
       "ok    check-verb  declares no check",
       "ok    guide-verb",
       "ok    run-verb",
@@ -104,7 +106,7 @@ describe("recognizer plugin check", () => {
       join(FIXTURES, "conforming/recognizer-scan-conforming"),
     );
     expect(json.manifest.name).toBe("conforming");
-    expect(json.results).toHaveLength(14);
+    expect(json.results).toHaveLength(15);
   });
 
   it("fails starts for a command that exits 1", async () => {
@@ -406,6 +408,55 @@ const thresholds = () =>
       },
     ],
   }) as Manifest;
+
+describe("checkGrammars", () => {
+  const grammarsOf = (manifest: Manifest) =>
+    checkGrammars({
+      command: "x",
+      current: 1,
+      run: { started: true, status: 0, stdout: "", stderr: "" },
+      leftovers: [],
+      document: manifest,
+      parsed: true,
+      manifest,
+    } as never);
+  const scanner = () =>
+    JSON.parse(
+      readFileSync(
+        join(REPO, "schema/manifest-examples/valid/scanner.json"),
+        "utf8",
+      ),
+    ) as Manifest;
+  const withGrammar = (grammar: Record<string, unknown>) => {
+    const manifest = scanner();
+
+    manifest.languages = [{ name: "acme", grammars: [grammar] }];
+
+    return manifest;
+  };
+
+  it("fails a grammar with no vocabulary, naming the grammar", () => {
+    const outcome = grammarsOf(withGrammar({ name: "acme-grammar" }));
+
+    expect(outcome.status).toBe("fail");
+    expect(outcome.reason).toContain("acme-grammar");
+    expect(outcome.reason).toContain("no vocabulary");
+  });
+
+  it("passes a grammar that publishes a vocabulary", () => {
+    expect(
+      grammarsOf(withGrammar({ name: "acme-grammar", vocabulary: {} })),
+    ).toEqual({ name: "grammars", status: "ok" });
+  });
+
+  it("passes a manifest that publishes no grammars", () => {
+    const manifest = scanner();
+
+    manifest.languages = [{ name: "acme" }];
+
+    expect(grammarsOf(manifest)).toEqual({ name: "grammars", status: "ok" });
+  });
+});
 
 describe("checkLimits", () => {
   const limitsOf = (manifest: Manifest) =>
