@@ -35,7 +35,45 @@ GRAMMARS = [
         ],
         "boolean_operators": [],
         "bound_function_types": [],
+        "function_names": [],
+        "span": {
+            "scope_calls": [
+                "synchronized",
+                "use",
+                "withLock",
+                "runCatching",
+                "run",
+                "with",
+                "apply",
+                "also",
+                "let",
+            ],
+            "statements_type": "statements",
+            "call_type": "call_expression",
+            "callee_name_type": "simple_identifier",
+            "navigation_type": "navigation_expression",
+            "navigation_suffix_type": "navigation_suffix",
+            "call_suffix_type": "call_suffix",
+            "lambda_argument_type": "annotated_lambda",
+            "lambda_type": "lambda_literal",
+            "jump_type": "jump_expression",
+            "jump_returns": ["return", "return@"],
+            "label_type": "label",
+            "function_body_type": "function_body",
+            "object_literal_type": "object_literal",
+            "object_body_type": "class_body",
+        },
     }
+]
+
+TEST_FILES = [
+    {
+        "extensions": [],
+        "directory_names": ["test", "tests"],
+        "directory_suffixes": [],
+        "basename_patterns": [],
+        "stem_suffixes": ["Test", "Tests"],
+    },
 ]
 
 
@@ -60,6 +98,9 @@ def build() -> dict:
                 "grammars": GRAMMARS,
                 "extensions": list(SOURCE_EXTENSIONS),
                 "files": [],
+                "test_files": TEST_FILES,
+                "supertype_links": True,
+                "private_imports": False,
                 "skip": {
                     "directory_names": list(SKIPPED_DIRECTORY_NAMES),
                     "directory_prefixes": list(SKIPPED_DIRECTORY_PREFIXES),

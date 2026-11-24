@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { longFunctionWarnings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { REPO } from "./helpers.js";
+import { BEHAVIOUR } from "./language-behaviour-fixture.js";
 import { validatedRepository as validateScan } from "./repository-from.js";
 
 const scan = validateScan(
@@ -17,7 +18,7 @@ const PLACE =
 describe("long_function over a committed scan", () => {
   it("measures the body of a method whose braces sit on their own lines", () => {
     const at = (limit: number) =>
-      longFunctionWarnings(scan, null, limit).find(
+      longFunctionWarnings(scan, null, BEHAVIOUR, limit).find(
         (record) => record.id === PLACE,
       );
 

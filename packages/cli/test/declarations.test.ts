@@ -5,6 +5,7 @@ import {
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { structureSensor } from "../src/index.js";
+import { BEHAVIOUR } from "./language-behaviour-fixture.js";
 import { validatedRepository as validateScan } from "./repository-from.js";
 
 type Edge = [string, string, "depends" | "declares"];
@@ -60,10 +61,16 @@ const SETTINGS = {
 };
 
 function sensor(scan: ReturnType<typeof scanOf>) {
-  return structureSensor(scan, null, SETTINGS, {
-    commit: "c",
-    modified: false,
-  });
+  return structureSensor(
+    scan,
+    null,
+    SETTINGS,
+    {
+      commit: "c",
+      modified: false,
+    },
+    BEHAVIOUR,
+  );
 }
 
 describe("declares edges", () => {
@@ -91,16 +98,18 @@ describe("declares edges", () => {
     const scan = scanOf([["src/lib.rs", "src/child.rs", "declares"]]);
 
     expect(
-      orphanWarnings(scan, null, ["src/lib.rs"], []).map((found) => found.id),
+      orphanWarnings(scan, null, ["src/lib.rs"], [], BEHAVIOUR).map(
+        (found) => found.id,
+      ),
     ).toEqual([]);
   });
 
   it("leave a module with no edge at all an orphan", () => {
     const scan = scanOf([], ["src/stray.rs"]);
 
-    expect(orphanWarnings(scan, null, [], []).map((found) => found.id)).toEqual(
-      ["orphan:src/stray.rs"],
-    );
+    expect(
+      orphanWarnings(scan, null, [], [], BEHAVIOUR).map((found) => found.id),
+    ).toEqual(["orphan:src/stray.rs"]);
   });
 
   it("separate a declared module from an unreached one in the same scan", () => {
@@ -110,7 +119,9 @@ describe("declares edges", () => {
     );
 
     expect(
-      orphanWarnings(scan, null, ["src/lib.rs"], []).map((found) => found.id),
+      orphanWarnings(scan, null, ["src/lib.rs"], [], BEHAVIOUR).map(
+        (found) => found.id,
+      ),
     ).toEqual(["orphan:src/stray.rs"]);
   });
 
@@ -121,7 +132,9 @@ describe("declares edges", () => {
       ["src/child.rs"],
     );
 
-    expect(unusedExportsWarnings(scan, null, ["src/lib.rs"])).toEqual([]);
+    expect(
+      unusedExportsWarnings(scan, null, ["src/lib.rs"], BEHAVIOUR),
+    ).toEqual([]);
   });
 
   it("are removed as edges and nothing else is", () => {

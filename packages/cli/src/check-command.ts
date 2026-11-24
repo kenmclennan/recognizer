@@ -27,6 +27,7 @@ import type { Io } from "./cli.js";
 import { asInputError, InputError } from "./errors.js";
 import type { FolderMetrics } from "./folder-metrics.js";
 import { freshPorts } from "./fresh-ports.js";
+import { installedLanguages } from "./published-languages.js";
 import { requestFrom } from "./scan-main.js";
 
 type FindingEvidence = ReturnType<typeof findingRecordOf>["evidence"];
@@ -267,7 +268,11 @@ function executeScanReplay(
     stream === "stderr" ? io.stderr(text) : io.stdout(text);
   const report = asInputError(() =>
     checkScan(
-      { analysis: new SensorsAdapter(io), baselines: new BaselineAdapter(io) },
+      {
+        analysis: new SensorsAdapter(io),
+        baselines: new BaselineAdapter(io),
+        languages: installedLanguages(io),
+      },
       say,
       {
         repository: readScanFile(scan),

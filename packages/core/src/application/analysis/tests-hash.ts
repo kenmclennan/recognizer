@@ -1,7 +1,8 @@
-import { isTestFile } from "../../domain/analysis/entry-points.js";
+import { LanguageBehaviour } from "../../domain/analysis/language-behaviour.js";
 import { compareUtf8 } from "../../domain/analysis/tests-hash/bytes.js";
 import type { Repository } from "../../domain/repository.js";
 import type { Digest } from "./ports/digest.js";
+import type { PublishedLanguages } from "./ports/published-languages.js";
 import type { SourceFiles } from "./ports/source-files.js";
 import type { TestReports } from "./ports/test-reports.js";
 
@@ -9,6 +10,7 @@ export interface TestsHashPorts {
   source: SourceFiles;
   digest: Digest;
   testReports: TestReports;
+  languages: PublishedLanguages;
 }
 
 export function currentTestsHash(
@@ -32,8 +34,9 @@ export function testsHashOf(
 
   const listedPaths = [...new Set(listed.filter((path) => path !== ""))];
   const hashes = new Map<string, string>();
+  const behaviour = new LanguageBehaviour(ports.languages.rules());
 
-  for (const path of listedPaths.filter(isTestFile)) {
+  for (const path of listedPaths.filter((one) => behaviour.isTestFile(one))) {
     const knownHash = known.get(path);
     const hash =
       knownHash !== undefined && knownHash !== ""

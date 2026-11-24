@@ -81,6 +81,7 @@ describe("scan container", () => {
       "findings",
       "git",
       "grammarRules",
+      "languages",
       "lock",
       "parsing",
       "policy",

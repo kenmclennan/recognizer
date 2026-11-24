@@ -19,6 +19,7 @@ import { sensorFindingsDocument } from "../src/adapters/filesystem/findings-tran
 import { validateFindings } from "../src/findings-document.js";
 import { parsePolicy, principleOf, validateScan } from "../src/index.js";
 import { REPO } from "./helpers.js";
+import { BEHAVIOUR } from "./language-behaviour-fixture.js";
 import { repositoryFrom } from "./repository-from.js";
 
 const EXAMPLES = join(REPO, "schema/findings-examples");
@@ -58,6 +59,7 @@ function sense(name: string, cycle = true) {
       },
     },
     CONTEXT,
+    BEHAVIOUR,
   );
 }
 
@@ -117,7 +119,13 @@ describe("structureSensor ids", () => {
     const { scan, policy } = fixture("check-warnings");
     const other = Repository.of({ ...scan, files: [...scan.files].reverse() });
     const ids = (scans: typeof scan) =>
-      structureSensor(scans, policy, DEFAULT_STRUCTURE_SETTINGS, CONTEXT)
+      structureSensor(
+        scans,
+        policy,
+        DEFAULT_STRUCTURE_SETTINGS,
+        CONTEXT,
+        BEHAVIOUR,
+      )
         .document.findings.filter((f) => f.kind === "cycle")
         .map((f) => f.id);
 
@@ -139,8 +147,13 @@ describe("structureSensor ids", () => {
       testImports: [{ from: "tests/test_x.py", to }],
     });
     const run = (scans: typeof scan) =>
-      structureSensor(scans, policy, DEFAULT_STRUCTURE_SETTINGS, CONTEXT)
-        .document.findings;
+      structureSensor(
+        scans,
+        policy,
+        DEFAULT_STRUCTURE_SETTINGS,
+        CONTEXT,
+        BEHAVIOUR,
+      ).document.findings;
     const other = (findings: ReturnType<typeof run>) =>
       findings.filter((f) => f.kind !== "orphan");
 
@@ -249,6 +262,7 @@ describe("grouped violation records", () => {
       policy,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
+      BEHAVIOUR,
     ).document;
     const found = document.findings.filter((f) => f.kind === "rule-violation");
     const rule = { type: "forbid", pattern: "d/** -> x/**" };
@@ -379,6 +393,7 @@ describe("measuredModules", () => {
       policy,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
+      BEHAVIOUR,
     );
 
     expect([...measuredModules(scan, policy)].sort()).toEqual(

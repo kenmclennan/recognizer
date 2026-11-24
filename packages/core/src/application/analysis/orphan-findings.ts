@@ -1,4 +1,5 @@
 import { isEntryPoint } from "../../domain/analysis/entry-points.js";
+import type { LanguageBehaviour } from "../../domain/analysis/language-behaviour.js";
 import {
   libraryApiHint,
   testImportersOf,
@@ -69,18 +70,19 @@ export function orphanWarnings(
   policy: readonly PolicyRule[] | null,
   entryPoints: string[],
   entryAnnotations: string[],
+  behaviour: LanguageBehaviour,
 ): Warning[] {
   const { ids, edges, declarations } = repository.graphKeeping(policy);
-  const kotlin = new Set(
+  const linked = new Set(
     repository.files
-      .filter((file) => file.language === "kotlin")
+      .filter((file) => behaviour.linksSupertypes(file.language))
       .map((file) => file.path),
   );
   const real = edges.filter(
     (edge) => edge.from !== edge.to && !Library.owns(edge.to),
   );
   const supertypes = real
-    .filter((edge) => SUPERTYPE_KINDS.has(edge.kind) && kotlin.has(edge.from))
+    .filter((edge) => SUPERTYPE_KINDS.has(edge.kind) && linked.has(edge.from))
     .map((edge) => ({ from: edge.from, to: edge.to }));
   const supertypePairs = new Set(
     supertypes.map((edge) => `${edge.from}\0${edge.to}`),
@@ -107,7 +109,8 @@ export function orphanWarnings(
     repository,
     ids,
     imported,
-    (id) => isEntryPoint(id, policyEntry, entryPoints, scanned.has(id)),
+    (id) =>
+      isEntryPoint(id, policyEntry, entryPoints, scanned.has(id), behaviour),
     supertypes,
   );
 

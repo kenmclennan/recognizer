@@ -22,7 +22,13 @@ export const GRAMMAR_RULES: GrammarRule[] = (
   JSON.parse(
     readFileSync(join(REPO, "fixtures/plugins/languages.json"), "utf8"),
   ) as { grammars: GrammarRule[] }[]
-).flatMap((language) => language.grammars);
+).flatMap((language) =>
+  language.grammars.map((rule) => ({
+    ...rule,
+    function_names: rule.function_names ?? [],
+    span: rule.span ?? null,
+  })),
+);
 
 export function ruleNamed(name: string): GrammarRule {
   return GRAMMAR_RULES.find((rule) => rule.name === name) as GrammarRule;

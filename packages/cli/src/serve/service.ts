@@ -32,6 +32,7 @@ import { ScratchAdapter } from "../adapters/system/scratch-adapter.js";
 import { type Io, nodeIo } from "../cli.js";
 import { describingFor } from "../describing-container.js";
 import { errorText } from "../errors.js";
+import { installedLanguages } from "../published-languages.js";
 import { scanPorts } from "../scan-container.js";
 import {
   ANSWER_FILE,
@@ -349,6 +350,7 @@ export class Service {
         source: new SourceFilesAdapter(this.shared),
         digest: new DigestAdapter(),
         testReports: new TestReportsAdapter(this.shared),
+        languages: installedLanguages(this.shared),
       },
       repository,
       knownHashes(args, "known"),

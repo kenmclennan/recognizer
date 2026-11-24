@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { orphanWarnings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { REPO } from "./helpers.js";
+import { BEHAVIOUR } from "./language-behaviour-fixture.js";
 import { validatedRepository as validateScan } from "./repository-from.js";
 
 const ROOT = join(REPO, "fixtures/kotlin/entry-points");
@@ -17,7 +18,9 @@ describe("the Kotlin entry-points fixture", () => {
     ) as { orphans: string[] };
 
     expect(
-      orphanWarnings(scan, null, [], []).map((finding) => finding.id),
+      orphanWarnings(scan, null, [], [], BEHAVIOUR).map(
+        (finding) => finding.id,
+      ),
     ).toEqual(expected.orphans.map((id) => `orphan:${id}`));
   });
 });
@@ -33,7 +36,9 @@ describe("the Kotlin di-orphans fixture", () => {
     ) as { orphans: string[] };
 
     expect(
-      orphanWarnings(scan, null, [], []).map((finding) => finding.id),
+      orphanWarnings(scan, null, [], [], BEHAVIOUR).map(
+        (finding) => finding.id,
+      ),
     ).toEqual(expected.orphans.map((id) => `orphan:${id}`));
   });
 });

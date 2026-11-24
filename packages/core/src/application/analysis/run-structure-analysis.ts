@@ -1,6 +1,7 @@
 import { carryMeasured } from "../../domain/analysis/duplication/carry.js";
 import type { DuplicationSettings } from "../../domain/analysis/duplication/findings.js";
 import type { GrammarRule } from "../../domain/analysis/duplication/grammars.js";
+import { LanguageBehaviour } from "../../domain/analysis/language-behaviour.js";
 import { scansCommit } from "../../domain/analysis/scans-commit.js";
 import type { FindingsRepository } from "../../domain/findings-repository.js";
 import type { PolicyRule } from "../../domain/policy-rule.js";
@@ -16,6 +17,7 @@ import {
 } from "./measure-duplication.js";
 import type { Digest } from "./ports/digest.js";
 import type { Parsers } from "./ports/parsing.js";
+import type { PublishedLanguages } from "./ports/published-languages.js";
 import type { SourceFiles } from "./ports/source-files.js";
 import { type StructureResult, senseStructure } from "./sense-structure.js";
 
@@ -23,6 +25,7 @@ export interface StructureAnalysisPorts {
   findings: FindingsRepository;
   source: SourceFiles;
   digest: Digest;
+  languages: PublishedLanguages;
 }
 
 export interface StructureAnalysisInput {
@@ -47,6 +50,7 @@ export function runStructureAnalysis(
 ): StructureRun {
   const { say, root, repository, policy, settings, parsers, rules } = input;
   const measuring: MeasurePorts = ports;
+  const behaviour = new LanguageBehaviour(ports.languages.rules());
   const { commit, modified } = scansCommit(repository);
   const context = { commit: commit ?? "", modified };
   const errors: string[] = [];
@@ -102,6 +106,7 @@ export function runStructureAnalysis(
           settings,
           loaded,
           rules,
+          behaviour,
         );
 
         complexityValues = measured.values;
@@ -110,12 +115,18 @@ export function runStructureAnalysis(
       },
     );
 
-    sensed = senseStructure(repository, policy, settings, context, {
+    sensed = senseStructure(repository, policy, settings, context, behaviour, {
       duplication: duplicationWarnings,
       complexity,
     });
   } else {
-    const plain = senseStructure(repository, policy, settings, context);
+    const plain = senseStructure(
+      repository,
+      policy,
+      settings,
+      context,
+      behaviour,
+    );
 
     sensed = {
       ...plain,
@@ -142,7 +153,7 @@ export function runStructureAnalysis(
         modified,
         repository,
         complexity: complexityValues,
-        functionLength: functionLengths(repository, policy),
+        functionLength: functionLengths(repository, policy, behaviour),
         duplication:
           duplicationWarnings?.map((warning) => warning.toFinding()) ?? null,
       });

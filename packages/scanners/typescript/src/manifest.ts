@@ -32,6 +32,7 @@ const GRAMMARS = [
     ],
     boolean_operators: ["&&", "||", "??"],
     bound_function_types: ["arrow_function", "function_expression", "function"],
+    function_names: [],
   },
   {
     name: "tsx",
@@ -57,6 +58,19 @@ const GRAMMARS = [
     ],
     boolean_operators: ["&&", "||", "??"],
     bound_function_types: ["arrow_function", "function_expression", "function"],
+    function_names: [],
+  },
+];
+
+const TEST_FILES = [
+  {
+    extensions: [],
+    directory_names: ["__tests__", "test", "tests"],
+    directory_suffixes: [],
+    basename_patterns: [
+      "^.*\\.(?:test|spec)\\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs)$",
+    ],
+    stem_suffixes: [],
   },
 ];
 
@@ -83,6 +97,9 @@ export function manifest() {
         grammars: GRAMMARS,
         extensions: rules.extensions,
         files: ["tsconfig.json"],
+        test_files: TEST_FILES,
+        supertype_links: false,
+        private_imports: false,
         skip: {
           directory_names: rules.skip_directory_names,
           directory_prefixes: rules.skip_directory_prefixes,

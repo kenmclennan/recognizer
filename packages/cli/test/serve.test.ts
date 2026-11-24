@@ -1,5 +1,6 @@
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import {
+  chmodSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -28,6 +29,7 @@ import {
   watchTick,
 } from "../src/serve/watch.js";
 import { REPO } from "./helpers.js";
+import { scannerManifestText } from "./scan-helpers.js";
 import {
   alive,
   BIN,
@@ -1269,8 +1271,30 @@ describe("recognizer serve: tests hash", () => {
     return root;
   }
 
+  function withLanguages(directory: string): string {
+    for (const language of [
+      "python",
+      "typescript",
+      "kotlin",
+      "rust",
+      "csharp",
+    ]) {
+      const path = join(directory, `recognizer-scan-${language}`);
+
+      writeFileSync(
+        path,
+        `#!/bin/sh\nif [ "$1" = "manifest" ]; then\ncat <<'EOF'\n${scannerManifestText(language).trim()}\nEOF\nfi\n`,
+      );
+      chmodSync(path, 0o755);
+    }
+
+    return directory;
+  }
+
   function stubScanner(entries: unknown, status = 0): string {
-    const directory = makeTempDir("recognizer-serve-tests-hash-stub-");
+    const directory = withLanguages(
+      makeTempDir("recognizer-serve-tests-hash-stub-"),
+    );
 
     writeStubScanner(directory, join(directory, "runs.log"), {
       name: "stub",
@@ -1291,7 +1315,9 @@ describe("recognizer serve: tests hash", () => {
     "tests.hash replies with the digest of the repository's test files",
     async () => {
       const repository = gitRepository(WORKED_FILES);
-      const serve = new Serve(makeTempDir("recognizer-serve-empty-path-"));
+      const serve = new Serve(
+        withLanguages(makeTempDir("recognizer-serve-empty-path-")),
+      );
       const reply = await serve.call("tests.hash", { repository, known: {} });
 
       expect(reply.ok).toBe(WORKED);
@@ -1333,7 +1359,9 @@ describe("recognizer serve: tests hash", () => {
     async () => {
       const outside = makeTempDir("recognizer-serve-not-git-");
       const repository = gitRepository(WORKED_FILES);
-      const serve = new Serve(makeTempDir("recognizer-serve-empty-path-"));
+      const serve = new Serve(
+        withLanguages(makeTempDir("recognizer-serve-empty-path-")),
+      );
       const failing = new Serve(stubScanner({}, 1));
       const notGit = await serve.call("tests.hash", {
         repository: outside,
@@ -1359,7 +1387,9 @@ describe("recognizer serve: tests hash", () => {
     "tests.hash refuses a known that is not an object of strings",
     async () => {
       const repository = gitRepository(WORKED_FILES);
-      const serve = new Serve(makeTempDir("recognizer-serve-empty-path-"));
+      const serve = new Serve(
+        withLanguages(makeTempDir("recognizer-serve-empty-path-")),
+      );
       const asList = await serve.call("tests.hash", { repository, known: [] });
       const asNumber = await serve.call("tests.hash", {
         repository,

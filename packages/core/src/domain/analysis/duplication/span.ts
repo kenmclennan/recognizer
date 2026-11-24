@@ -1,19 +1,11 @@
-import type { GrammarRule } from "./grammars.js";
+import {
+  type GrammarRule,
+  type SpanVocabulary,
+  spanVocabularyOf,
+} from "./grammars.js";
 import { isComment } from "./normalise.js";
 import { bodyOf } from "./shapes.js";
 import { childrenOf, namedChildrenOf, type SyntaxNode } from "./syntax.js";
-
-export const KOTLIN_SCOPE_CALLS: ReadonlySet<string> = new Set([
-  "synchronized",
-  "use",
-  "withLock",
-  "runCatching",
-  "run",
-  "with",
-  "apply",
-  "also",
-  "let",
-]);
 
 export interface ComparedSpan {
   node: SyntaxNode;
@@ -24,30 +16,33 @@ function linesOf(node: SyntaxNode): number {
   return node.endPosition.row - node.startPosition.row + 1;
 }
 
-function statementsIn(container: SyntaxNode): SyntaxNode[] {
+function statementsIn(
+  container: SyntaxNode,
+  span: SpanVocabulary,
+): SyntaxNode[] {
   const named = namedChildrenOf(container);
-  const block = named.find((child) => child.type === "statements");
+  const block = named.find((child) => child.type === span.statements);
 
   return (block === undefined ? named : namedChildrenOf(block)).filter(
     (child) => !isComment(child.type),
   );
 }
 
-function calleeName(call: SyntaxNode): string | null {
+function calleeName(call: SyntaxNode, span: SpanVocabulary): string | null {
   const callee = call.firstChild;
 
   if (callee === null) {
     return null;
   }
 
-  if (callee.type === "simple_identifier") {
+  if (callee.type === span.calleeName) {
     return callee.text;
   }
 
-  if (callee.type === "navigation_expression") {
+  if (callee.type === span.navigation) {
     const suffix = namedChildrenOf(callee).at(-1);
 
-    return suffix?.type === "navigation_suffix"
+    return suffix?.type === span.navigationSuffix
       ? (namedChildrenOf(suffix).at(-1)?.text ?? null)
       : null;
   }
@@ -55,13 +50,18 @@ function calleeName(call: SyntaxNode): string | null {
   return null;
 }
 
-function lambdaStatements(call: SyntaxNode): SyntaxNode | null {
-  const suffix = childrenOf(call).find((child) => child.type === "call_suffix");
+function lambdaStatements(
+  call: SyntaxNode,
+  span: SpanVocabulary,
+): SyntaxNode | null {
+  const suffix = childrenOf(call).find(
+    (child) => child.type === span.callSuffix,
+  );
   const lambda = suffix
-    ? childrenOf(suffix).find((child) => child.type === "annotated_lambda")
+    ? childrenOf(suffix).find((child) => child.type === span.lambdaArgument)
     : undefined;
   const literal = lambda
-    ? childrenOf(lambda).find((child) => child.type === "lambda_literal")
+    ? childrenOf(lambda).find((child) => child.type === span.lambda)
     : undefined;
 
   if (literal === undefined) {
@@ -69,50 +69,55 @@ function lambdaStatements(call: SyntaxNode): SyntaxNode | null {
   }
 
   const block = childrenOf(literal).find(
-    (child) => child.type === "statements",
+    (child) => child.type === span.statements,
   );
 
-  return block !== undefined && statementsIn(literal).length > 0 ? block : null;
+  return block !== undefined && statementsIn(literal, span).length > 0
+    ? block
+    : null;
 }
 
-function soleCall(statements: SyntaxNode[]): SyntaxNode | null {
+function soleCall(
+  statements: SyntaxNode[],
+  span: SpanVocabulary,
+): SyntaxNode | null {
   const only = statements.length === 1 ? (statements[0] as SyntaxNode) : null;
 
   if (only === null) {
     return null;
   }
 
-  if (only.type === "call_expression") {
+  if (only.type === span.call) {
     return only;
   }
 
-  if (only.type !== "jump_expression") {
+  if (only.type !== span.jump) {
     return null;
   }
 
   const first = only.firstChild?.type ?? "";
 
-  if (first !== "return" && first !== "return@") {
+  if (!span.jumpReturns.includes(first)) {
     return null;
   }
 
   const operands = namedChildrenOf(only).filter(
-    (child) => child.type !== "label" && !isComment(child.type),
+    (child) => child.type !== span.label && !isComment(child.type),
   );
   const operand = operands.length === 1 ? (operands[0] as SyntaxNode) : null;
 
-  return operand?.type === "call_expression" ? operand : null;
+  return operand?.type === span.call ? operand : null;
 }
 
-function unwrap(container: SyntaxNode): SyntaxNode {
+function unwrap(container: SyntaxNode, span: SpanVocabulary): SyntaxNode {
   let current = container;
 
   for (;;) {
-    const call = soleCall(statementsIn(current));
-    const name = call === null ? null : calleeName(call);
+    const call = soleCall(statementsIn(current, span), span);
+    const name = call === null ? null : calleeName(call, span);
     const inner =
-      call !== null && name !== null && KOTLIN_SCOPE_CALLS.has(name)
-        ? lambdaStatements(call)
+      call !== null && name !== null && span.scopeCalls.has(name)
+        ? lambdaStatements(call, span)
         : null;
 
     if (inner === null) {
@@ -123,8 +128,11 @@ function unwrap(container: SyntaxNode): SyntaxNode {
   }
 }
 
-function expressionInterior(body: SyntaxNode): SyntaxNode | null {
-  if (body.type !== "function_body") {
+function expressionInterior(
+  body: SyntaxNode,
+  span: SpanVocabulary,
+): SyntaxNode | null {
+  if (body.type !== span.functionBody) {
     return null;
   }
 
@@ -132,16 +140,16 @@ function expressionInterior(body: SyntaxNode): SyntaxNode | null {
     .filter((child) => !isComment(child.type))
     .at(-1);
 
-  if (expression?.type === "object_literal") {
+  if (expression?.type === span.objectLiteral) {
     return (
-      childrenOf(expression).find((child) => child.type === "class_body") ??
+      childrenOf(expression).find((child) => child.type === span.objectBody) ??
       null
     );
   }
 
-  if (expression?.type === "lambda_literal") {
+  if (expression?.type === span.lambda) {
     return (
-      childrenOf(expression).find((child) => child.type === "statements") ??
+      childrenOf(expression).find((child) => child.type === span.statements) ??
       null
     );
   }
@@ -159,11 +167,12 @@ export function comparedSpan(
     return null;
   }
 
-  if (rule.name !== "kotlin") {
+  if (rule.span === null) {
     return { node: body, lines: linesOf(fn) };
   }
 
-  const node = unwrap(expressionInterior(body) ?? body);
+  const span = spanVocabularyOf(rule.span);
+  const node = unwrap(expressionInterior(body, span) ?? body, span);
 
   return { node, lines: linesOf(node) };
 }

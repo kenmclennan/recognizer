@@ -1,4 +1,5 @@
 import { isEntryPoint } from "../../domain/analysis/entry-points.js";
+import type { LanguageBehaviour } from "../../domain/analysis/language-behaviour.js";
 import {
   testImportersOf,
   unusedTestOnlyClause,
@@ -123,6 +124,7 @@ export function unusedExportsWarnings(
   repository: Repository,
   policy: readonly PolicyRule[] | null,
   entryPoints: string[],
+  behaviour: LanguageBehaviour,
 ): Warning[] {
   const { edges, declarations, ids } = repository.graphKeeping(policy);
   const { named, whole } = usedNames([...edges, ...declarations]);
@@ -135,7 +137,13 @@ export function unusedExportsWarnings(
     if (
       !ids.has(module.path) ||
       whole.has(module.path) ||
-      isEntryPoint(module.path, policyEntry, entryPoints, module.entryPoint)
+      isEntryPoint(
+        module.path,
+        policyEntry,
+        entryPoints,
+        module.entryPoint,
+        behaviour,
+      )
     ) {
       continue;
     }

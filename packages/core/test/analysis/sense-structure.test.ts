@@ -8,6 +8,7 @@ import {
   senseStructure,
   Warning,
 } from "../../src/index.js";
+import { BEHAVIOUR } from "../fakes/fixture-languages.js";
 import { repositoryOf } from "../fakes/repository-of.js";
 import { breaching, FORBID } from "./analysis-world.js";
 
@@ -37,7 +38,13 @@ describe("senseStructure", () => {
     const repository = breaching();
     const calls = spied(repository);
 
-    senseStructure(repository, [FORBID], DEFAULT_STRUCTURE_SETTINGS, CONTEXT);
+    senseStructure(
+      repository,
+      [FORBID],
+      DEFAULT_STRUCTURE_SETTINGS,
+      CONTEXT,
+      BEHAVIOUR,
+    );
 
     expect(calls).toEqual({ violations: 1, cycleWarnings: 1 });
   });
@@ -54,6 +61,7 @@ describe("senseStructure", () => {
         warnings: { ...DEFAULT_STRUCTURE_SETTINGS.warnings, cycle: false },
       },
       CONTEXT,
+      BEHAVIOUR,
     );
 
     expect(calls).toEqual({ violations: 1, cycleWarnings: 0 });
@@ -124,6 +132,7 @@ describe("senseStructure", () => {
         },
       },
       CONTEXT,
+      BEHAVIOUR,
     );
 
     expect(document.findings.map((one) => one.id)).toEqual([
@@ -157,6 +166,7 @@ describe("senseStructure", () => {
       null,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
+      BEHAVIOUR,
     );
     const kept = document.findings.filter((one) => one.id === "cycle:a.py");
 

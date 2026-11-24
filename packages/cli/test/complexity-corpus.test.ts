@@ -17,6 +17,7 @@ import {
   readJson,
 } from "./duplication-helpers.js";
 import { REPO } from "./helpers.js";
+import { BEHAVIOUR } from "./language-behaviour-fixture.js";
 
 interface CrapCase {
   finding_id: string;
@@ -112,6 +113,7 @@ describe("the findings against the thresholds corpus", () => {
       DEFAULT_STRUCTURE_SETTINGS,
       parsers,
       GRAMMAR_RULES,
+      BEHAVIOUR,
     );
     const bare = (id: string) => id.replace(/::(?:[^:]*\.)?/, "::");
     const expected = planted

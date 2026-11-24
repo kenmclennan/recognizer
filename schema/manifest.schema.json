@@ -718,6 +718,18 @@
               }
             }
           }
+        },
+        "test_files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/testFileRule"
+          }
+        },
+        "supertype_links": {
+          "type": "boolean"
+        },
+        "private_imports": {
+          "type": "boolean"
         }
       }
     },
@@ -760,6 +772,15 @@
         },
         "bound_function_types": {
           "$ref": "#/$defs/nodeList"
+        },
+        "function_names": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/functionNameRule"
+          }
+        },
+        "span": {
+          "$ref": "#/$defs/spanRule"
         }
       }
     },
@@ -800,6 +821,176 @@
           "minLength": 1
         },
         "example": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "testFileRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "extensions",
+        "directory_names",
+        "directory_suffixes",
+        "basename_patterns",
+        "stem_suffixes"
+      ],
+      "properties": {
+        "extensions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^\\.[^/]+$"
+          }
+        },
+        "directory_names": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "directory_suffixes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "basename_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "stem_suffixes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "functionNameRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requires_field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requires_field_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name_field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "literal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prefix": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "spanRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope_calls",
+        "jump_returns",
+        "statements_type",
+        "call_type",
+        "callee_name_type",
+        "navigation_type",
+        "navigation_suffix_type",
+        "call_suffix_type",
+        "lambda_argument_type",
+        "lambda_type",
+        "jump_type",
+        "label_type",
+        "function_body_type",
+        "object_literal_type",
+        "object_body_type"
+      ],
+      "properties": {
+        "scope_calls": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "jump_returns": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "statements_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "call_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "callee_name_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "navigation_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "navigation_suffix_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "call_suffix_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lambda_argument_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lambda_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "jump_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "function_body_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "object_literal_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "object_body_type": {
           "type": "string",
           "minLength": 1
         }

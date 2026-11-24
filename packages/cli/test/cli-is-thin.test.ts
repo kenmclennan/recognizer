@@ -21,6 +21,7 @@ const PLUMBING = [
   /^\.\/scan-main\.js$/,
   /^\.\/findings-files\.js$/,
   /^\.\/folder-metrics\.js$/,
+  /^\.\/published-languages\.js$/,
 ];
 
 describe("the CLI is a thin adapter over core's analysis", () => {
