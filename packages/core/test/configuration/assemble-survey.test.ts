@@ -377,7 +377,12 @@ describe("assembling the survey answers", () => {
   });
 
   describe("coverage format", () => {
-    const FORMATS = ["lcov", "jacoco"];
+    const FORMATS = [
+      {
+        key: "tests.<name>.coverage.format",
+        values: ["lcov", "jacoco"],
+      },
+    ];
 
     function withFormat(plugin: string, order: number, format: string) {
       return answered(plugin, order, {
@@ -427,7 +432,7 @@ describe("assembling the survey answers", () => {
         [withFormat("a", 1, "lcov"), withFormat("b", 2, "jacoco")],
         ROOT,
         new Set(),
-        ["lcov"],
+        [{ key: "tests.<name>.coverage.format", values: ["lcov"] }],
       );
 
       expect(assembled.runners.map((one) => one.name)).toEqual(["a"]);

@@ -151,6 +151,7 @@ function gather(
       policy,
       settings: resolved,
       parsers: null,
+      rules: [],
     });
     const { sensed } = run;
 

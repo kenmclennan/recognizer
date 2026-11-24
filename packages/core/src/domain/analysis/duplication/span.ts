@@ -1,4 +1,4 @@
-import type { Grammar } from "./grammars.js";
+import type { GrammarRule } from "./grammars.js";
 import { isComment } from "./normalise.js";
 import { bodyOf } from "./shapes.js";
 import { childrenOf, namedChildrenOf, type SyntaxNode } from "./syntax.js";
@@ -151,7 +151,7 @@ function expressionInterior(body: SyntaxNode): SyntaxNode | null {
 
 export function comparedSpan(
   fn: SyntaxNode,
-  grammar: Grammar,
+  rule: GrammarRule,
 ): ComparedSpan | null {
   const body = bodyOf(fn);
 
@@ -159,7 +159,7 @@ export function comparedSpan(
     return null;
   }
 
-  if (grammar !== "kotlin") {
+  if (rule.name !== "kotlin") {
     return { node: body, lines: linesOf(fn) };
   }
 

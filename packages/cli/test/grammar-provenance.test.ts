@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { GRAMMAR_NAMES } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { GRAMMAR_DIRECTORY } from "../src/adapters/filesystem/parsing-adapter.js";
+import { GRAMMAR_RULES } from "./duplication-helpers.js";
 
 interface Provenance {
   grammars: Record<
@@ -19,7 +19,7 @@ const provenance = JSON.parse(
 describe("the vendored grammar files", () => {
   it("record a source, a pinned revision and a checksum for every grammar", () => {
     expect(Object.keys(provenance.grammars).sort()).toEqual(
-      [...GRAMMAR_NAMES].sort(),
+      GRAMMAR_RULES.map((rule) => rule.name).sort(),
     );
 
     for (const entry of Object.values(provenance.grammars)) {

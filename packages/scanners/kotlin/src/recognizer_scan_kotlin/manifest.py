@@ -17,6 +17,27 @@ INSTALL = (
     "|| brew install kenmclennan/tap/recognizer-scan-kotlin"
 )
 
+GRAMMARS = [
+    {
+        "name": "kotlin",
+        "extensions": [".kt"],
+        "function_types": ["function_declaration"],
+        "scope_types": ["class_declaration", "object_declaration", "companion_object"],
+        "branch_types": [
+            "if_expression",
+            "for_statement",
+            "while_statement",
+            "do_while_statement",
+            "when_entry",
+            "catch_block",
+            "conjunction_expression",
+            "disjunction_expression",
+        ],
+        "boolean_operators": [],
+        "bound_function_types": [],
+    }
+]
+
 
 def build() -> dict:
     return {
@@ -35,6 +56,8 @@ def build() -> dict:
         "languages": [
             {
                 "name": "kotlin",
+                "display": "Kotlin",
+                "grammars": GRAMMARS,
                 "extensions": list(SOURCE_EXTENSIONS),
                 "files": [],
                 "skip": {

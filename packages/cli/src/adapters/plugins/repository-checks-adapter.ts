@@ -6,10 +6,12 @@ import {
   kindOfProgram,
   type PluginSpec,
   PolicyRule,
+  type PublishedValues,
   type RegisteredPlugins,
   type RepositoryChecks,
   type SetupProblem,
   shippedSensorOf,
+  unpublishedValues,
 } from "@recognizer/core";
 import { parse } from "yaml";
 import type { Io } from "../../cli.js";
@@ -34,6 +36,7 @@ import { type CachedScansState, cachedScansState } from "../../freshness.js";
 import { policyProblems } from "../../policy-problems.js";
 import { languageRulesOf } from "../../scanners.js";
 import { parsePolicy, RETIRED_KEYS } from "../filesystem/policy-translator.js";
+import { KeyOwnersAdapter } from "./key-owners-adapter.js";
 import { shippedPlugins } from "./shipped-plugins-adapter.js";
 
 export interface Context {
@@ -81,6 +84,12 @@ function schemaSubject(message: string): string {
   const path = /^config(\S*)/.exec(message)?.[1] ?? "";
 
   return path === "" ? "config" : path.slice(1).replaceAll("/", ".");
+}
+
+function hasSuites(document: unknown): boolean {
+  const tests = (document as { tests?: unknown } | null)?.tests;
+
+  return Array.isArray(tests) && tests.length > 0;
 }
 
 function stringMap(value: unknown): Record<string, string> {
@@ -160,6 +169,7 @@ function specsOf(
 export function readConfigArea(
   facts: Context,
   shipped: readonly string[],
+  keys: () => PublishedValues,
 ): ConfigReading {
   if (facts.configText === null) {
     return { problems: [], registered: NONE };
@@ -244,7 +254,13 @@ export function readConfigArea(
   }
 
   const cleaned = withoutEmptySections(withoutRetiredKeys(document));
-  const messages = schemaMessages(cleaned);
+  const schema = schemaMessages(cleaned);
+  const messages = [
+    ...schema,
+    ...(schema.length === 0 && hasSuites(cleaned)
+      ? unpublishedValues(cleaned, keys())
+      : []),
+  ];
 
   for (const message of messages) {
     problems.push({
@@ -449,6 +465,7 @@ export class RepositoryChecksAdapter implements RepositoryChecks {
         scans: () => cachedScansState(this.io, root, []),
       },
       shippedPlugins().sensors(),
+      () => new KeyOwnersAdapter(this.io).schemas().schema.keys,
     );
   }
 

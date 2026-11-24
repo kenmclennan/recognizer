@@ -24,6 +24,16 @@ pub fn build() -> Value {
         "scan_schema_version": SCAN_SCHEMA_VERSION,
         "languages": [{
             "name": "rust",
+            "display": "Rust",
+            "grammars": [{
+                "name": "rust",
+                "extensions": [".rs"],
+                "function_types": ["function_item"],
+                "scope_types": ["impl_item", "trait_item", "mod_item"],
+                "branch_types": ["if_expression", "for_expression", "while_expression", "match_arm"],
+                "boolean_operators": ["&&", "||"],
+                "bound_function_types": [],
+            }],
             "extensions": EXTENSIONS,
             "files": [],
             "skip": {

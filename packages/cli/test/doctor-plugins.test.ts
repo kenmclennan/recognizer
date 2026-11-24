@@ -16,10 +16,16 @@ import {
   writeShim,
 } from "./plugin-path.js";
 
+const DISPLAYS: Record<string, string> = {
+  python: "Python",
+  kotlin: "Kotlin",
+};
+
 const RULES = (name: string, extension: string) => ({
   languages: [
     {
       name,
+      display: DISPLAYS[name] ?? name,
       extensions: [extension],
       files: [],
       skip: {
@@ -971,13 +977,15 @@ describe("doctor: titles name their subject", () => {
 
     expect(await titleOf(named, "scanners")).toEqual([
       "No scanner is installed",
-      "No scanner for Kotlin",
+      "No scanner for kotlin",
     ]);
 
     const csharp = setup("scanners:\n  csharp: csharp-x\n");
     const zig = setup("scanners:\n  zig: zig-x\n");
 
-    expect(await titleOf(csharp, "scanners")).toContain("No scanner for C#");
+    expect(await titleOf(csharp, "scanners")).toContain(
+      "No scanner for csharp",
+    );
     expect(await titleOf(zig, "scanners")).toContain("No scanner for zig");
   });
 

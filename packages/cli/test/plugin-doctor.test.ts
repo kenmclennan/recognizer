@@ -29,7 +29,7 @@ type DoctorFacts = Context & {
 };
 
 function buildReport(given: DoctorFacts) {
-  const config = readConfigArea(given, shippedPlugins().sensors());
+  const config = readConfigArea(given, shippedPlugins().sensors(), () => []);
 
   return build({
     repository: given.repository,

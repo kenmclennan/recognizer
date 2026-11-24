@@ -1,59 +1,5 @@
-import type { Grammar } from "./grammars.js";
+import type { GrammarRule } from "./grammars.js";
 import { childrenOf, type SyntaxNode } from "./syntax.js";
-
-const FUNCTION_TYPES: Readonly<Record<Grammar, ReadonlySet<string>>> = {
-  python: new Set(["function_definition"]),
-  typescript: new Set(["function_declaration", "method_definition"]),
-  tsx: new Set(["function_declaration", "method_definition"]),
-  kotlin: new Set(["function_declaration"]),
-  rust: new Set(["function_item"]),
-  csharp: new Set([
-    "method_declaration",
-    "constructor_declaration",
-    "local_function_statement",
-    "accessor_declaration",
-    "destructor_declaration",
-    "operator_declaration",
-    "conversion_operator_declaration",
-    "property_declaration",
-    "indexer_declaration",
-  ]),
-};
-
-const BOUND_FUNCTION_TYPES = new Set([
-  "arrow_function",
-  "function_expression",
-  "function",
-]);
-
-const TYPESCRIPT_SCOPES = new Set([
-  "class_declaration",
-  "abstract_class_declaration",
-  "class",
-  "internal_module",
-  "module",
-]);
-
-const SCOPE_TYPES: Readonly<Record<Grammar, ReadonlySet<string>>> = {
-  python: new Set(["class_definition"]),
-  typescript: TYPESCRIPT_SCOPES,
-  tsx: TYPESCRIPT_SCOPES,
-  kotlin: new Set([
-    "class_declaration",
-    "object_declaration",
-    "companion_object",
-  ]),
-  rust: new Set(["impl_item", "trait_item", "mod_item"]),
-  csharp: new Set([
-    "class_declaration",
-    "struct_declaration",
-    "record_declaration",
-    "interface_declaration",
-    "property_declaration",
-    "indexer_declaration",
-    "event_declaration",
-  ]),
-};
 
 const CSHARP_PROPERTY_TYPES = new Set([
   "property_declaration",
@@ -164,19 +110,12 @@ function csharpName(node: SyntaxNode): string | null {
   return textOf(node.childForFieldName("name"));
 }
 
-function functionName(node: SyntaxNode, grammar: Grammar): string | null {
-  if (grammar === "csharp") {
-    return FUNCTION_TYPES[grammar].has(node.type) ? csharpName(node) : null;
+function functionName(node: SyntaxNode, rule: GrammarRule): string | null {
+  if (rule.function_types.includes(node.type)) {
+    return rule.name === "csharp" ? csharpName(node) : nodeName(node);
   }
 
-  if (FUNCTION_TYPES[grammar].has(node.type)) {
-    return nodeName(node);
-  }
-
-  if (
-    (grammar === "typescript" || grammar === "tsx") &&
-    BOUND_FUNCTION_TYPES.has(node.type)
-  ) {
+  if (rule.bound_function_types.includes(node.type)) {
     return boundName(node);
   }
 
@@ -185,16 +124,16 @@ function functionName(node: SyntaxNode, grammar: Grammar): string | null {
 
 export function findFunctions(
   root: SyntaxNode,
-  grammar: Grammar,
+  rule: GrammarRule,
 ): FoundFunction[] {
   const found: FoundFunction[] = [];
-  const scopeTypes = SCOPE_TYPES[grammar];
+  const scopeTypes = new Set(rule.scope_types);
   const stack: [SyntaxNode, readonly string[]][] = [[root, []]];
 
   for (let entry = stack.pop(); entry !== undefined; entry = stack.pop()) {
     const [node, scope] = entry;
     let inner = scope;
-    const name = functionName(node, grammar);
+    const name = functionName(node, rule);
 
     if (name !== null) {
       found.push({ node, qualified: [...scope, name].join(".") });

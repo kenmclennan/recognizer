@@ -1,7 +1,7 @@
 import { cyclomaticComplexity } from "../../domain/analysis/complexity/count.js";
 import { findFunctions } from "../../domain/analysis/duplication/functions.js";
 import {
-  type Grammar,
+  type GrammarRule,
   grammarFor,
 } from "../../domain/analysis/duplication/grammars.js";
 import { assignIdentities } from "../../domain/analysis/duplication/identity.js";
@@ -27,13 +27,13 @@ export interface MeasuredFunction {
 export function measureSource(
   module: string,
   source: string,
-  grammar: Grammar,
+  rule: GrammarRule,
   parsers: Parsers,
 ): MeasuredFunction[] {
-  const parser = parsers.get(grammar);
+  const parser = parsers.get(rule.name);
 
   if (parser === undefined) {
-    throw new Error(`no ${grammar} parser is loaded for ${module}`);
+    throw new Error(`no ${rule.name} parser is loaded for ${module}`);
   }
 
   const tree = parser.parse(source);
@@ -43,7 +43,7 @@ export function measureSource(
   }
 
   try {
-    const found = findFunctions(tree.rootNode, grammar).filter(
+    const found = findFunctions(tree.rootNode, rule).filter(
       (one) => !one.node.hasError,
     );
     const ids = new Set(found.map((one) => one.node.id));
@@ -64,7 +64,7 @@ export function measureSource(
         qualified: one.qualified,
         startLine: one.node.startPosition.row + 1,
         endLine: one.node.endPosition.row + 1,
-        complexity: cyclomaticComplexity(one.node, grammar, excluded),
+        complexity: cyclomaticComplexity(one.node, rule, excluded),
       };
     });
   } finally {
@@ -116,6 +116,7 @@ export function measureComplexityValues(
   policy: readonly PolicyRule[] | null,
   settings: StructureSettings,
   parsers: Parsers,
+  rules: readonly GrammarRule[],
 ): ComplexityMeasure {
   const limit = settings.complexity_limit;
   const warnings: Warning[] = [];
@@ -124,9 +125,9 @@ export function measureComplexityValues(
   const { ids } = repository.graphKeeping(policy);
 
   for (const module of repository.files) {
-    const grammar = grammarFor(module.path);
+    const rule = grammarFor(module.path, rules);
 
-    if (grammar === null || !ids.has(module.path) || isTestFile(module.path)) {
+    if (rule === null || !ids.has(module.path) || isTestFile(module.path)) {
       continue;
     }
 
@@ -144,7 +145,7 @@ export function measureComplexityValues(
       continue;
     }
 
-    for (const fn of measureSource(module.path, text, grammar, parsers)) {
+    for (const fn of measureSource(module.path, text, rule, parsers)) {
       const key = `${module.path}::${fn.qualified}`;
 
       values[key] = Math.max(values[key] ?? 0, fn.complexity);
@@ -173,6 +174,7 @@ export function measureComplexity(
   policy: readonly PolicyRule[] | null,
   settings: StructureSettings,
   parsers: Parsers,
+  rules: readonly GrammarRule[],
 ): Warning[] {
   return measureComplexityValues(
     source,
@@ -182,5 +184,6 @@ export function measureComplexity(
     policy,
     settings,
     parsers,
+    rules,
   ).warnings;
 }

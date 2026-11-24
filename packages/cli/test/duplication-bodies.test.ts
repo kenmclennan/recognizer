@@ -1,6 +1,6 @@
 import { bodyOf, findFunctions, type Grammar } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { allParsers } from "./duplication-helpers.js";
+import { allParsers, ruleNamed } from "./duplication-helpers.js";
 
 async function bodies(
   grammar: Grammar,
@@ -8,7 +8,7 @@ async function bodies(
 ): Promise<Record<string, boolean>> {
   const parsers = await allParsers();
   const tree = parsers.get(grammar)?.parse(source);
-  const found = findFunctions(tree?.rootNode as never, grammar);
+  const found = findFunctions(tree?.rootNode as never, ruleNamed(grammar));
 
   return Object.fromEntries(
     found.map((one) => [one.qualified, bodyOf(one.node) !== null]),

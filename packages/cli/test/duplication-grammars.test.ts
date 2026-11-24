@@ -45,10 +45,7 @@ describe("the vendored grammars", () => {
       const expected = readJson<Histogram>(
         `${EQUIVALENCE}/histogram.${grammar}.json`,
       );
-      const parsers = await loadParsers(
-        [LANGUAGE_OF[grammar]],
-        GRAMMAR_DIRECTORY,
-      );
+      const parsers = await loadParsers([grammar], GRAMMAR_DIRECTORY);
       const tree = parsers
         .get(grammar)
         ?.parse(readFileSync(join(REPO, expected.file), "utf8"));

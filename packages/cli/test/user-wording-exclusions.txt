@@ -39,6 +39,7 @@ docs/design.md|| `unused_exports` | Information hiding | David Parnas, "On the C
 docs/design.md|| `private_imports` | Information hiding, with PEP 8's definition of private (a leading underscore) | David Parnas, "On the Criteria To Be Used in Decomposing Systems into Modules", 1972 | the private names a Python file imports from other files | nothing ||quoted work title
 packages/describers/claude/src/describe.ts|request needs a string module and source and arrays members, uses and used_by|validation message naming the request key module, a contract key
 packages/describers/claude/src/describe.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
+packages/scanners/typescript/src/manifest.ts|module|node type name of the TypeScript grammar: a contract, not wording
 packages/scanners/typescript/src/scan.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/sensors/src/recognizer_sensors/cli.py|modules|key, count unit or socket target named by a contract, not wording
 packages/sensors/src/recognizer_sensors/crap/sensor.py|modules|key, count unit or socket target named by a contract, not wording
@@ -85,6 +86,5 @@ packages/core/src/application/visualisation/internal/historical-scan.ts|the scan
 packages/core/src/application/visualisation/check-views.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/core/src/domain/visualisation/view.ts|module|kind value or code-level key of a scan, selection or record: a contract, not wording
 packages/core/src/domain/analysis/duplication/findings.ts|duplication:modules:|finding id prefix the README documents: a contract, not wording
-packages/core/src/domain/analysis/duplication/functions.ts|module|node type name of the TypeScript grammar: a contract, not wording
 packages/core/src/domain/plugins/sensor-check.ts|modules|key, count unit or socket target named by a contract, not wording
 packages/core/src/domain/principles.ts|On the Criteria To Be Used in Decomposing Systems into Modules|quoted work title

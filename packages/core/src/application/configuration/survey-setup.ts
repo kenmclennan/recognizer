@@ -4,8 +4,8 @@ import {
 } from "../../domain/configuration/setup-survey.js";
 import {
   assembleRunners,
-  coverageFormatKey,
   type PluginAnswer,
+  type PublishedValues,
 } from "../../domain/configuration/survey-answer.js";
 import { InvalidRequest } from "../../domain/invalid-request.js";
 import { joinPath } from "../../domain/path.js";
@@ -39,10 +39,10 @@ function readPolicy(
   }
 }
 
-function publishedFormats(
+function publishedValues(
   ports: ConfigurationPorts,
   answers: PluginAnswer[],
-): string[] | null {
+): PublishedValues | null {
   const answered = answers.some(
     (one) => "answer" in one && one.answer.runners.length > 0,
   );
@@ -51,12 +51,7 @@ function publishedFormats(
     return null;
   }
 
-  const key = coverageFormatKey();
-  const entry = ports.keyOwners
-    .schemas()
-    .schema.keys.find((candidate) => candidate.key === key);
-
-  return entry?.values ?? null;
+  return ports.keyOwners.schemas().schema.keys;
 }
 
 export async function surveySetup(
@@ -83,7 +78,7 @@ export async function surveySetup(
     answers,
     root,
     new Set(suites.map((suite) => suite.name)),
-    publishedFormats(ports, answers),
+    publishedValues(ports, answers),
   );
   const checks = checksOf(document, configured, {
     sensors: ports.reads.sensors(),

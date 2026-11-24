@@ -603,6 +603,16 @@
           "pattern": "^[a-z0-9][a-z0-9_-]*$",
           "maxLength": 64
         },
+        "display": {
+          "type": "string",
+          "minLength": 1
+        },
+        "grammars": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/grammarRule"
+          }
+        },
         "extensions": {
           "type": "array",
           "items": {
@@ -665,6 +675,55 @@
             }
           }
         }
+      }
+    },
+    "grammarRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "extensions",
+        "function_types",
+        "scope_types",
+        "branch_types",
+        "boolean_operators",
+        "bound_function_types"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "maxLength": 64
+        },
+        "extensions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^\\.[^/]+$"
+          }
+        },
+        "function_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "scope_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "branch_types": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "boolean_operators": {
+          "$ref": "#/$defs/nodeList"
+        },
+        "bound_function_types": {
+          "$ref": "#/$defs/nodeList"
+        }
+      }
+    },
+    "nodeList": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
       }
     },
     "suiteSection": {

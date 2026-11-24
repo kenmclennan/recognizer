@@ -1,18 +1,13 @@
 import type { ProblemCode } from "./doctor-report.js";
 
-export const LANGUAGE_NAMES: Record<string, string> = {
-  typescript: "TypeScript",
-  rust: "Rust",
-  python: "Python",
-  kotlin: "Kotlin",
-  csharp: "C#",
-};
+export type DisplayName = (id: string) => string;
 
-function language(id: string): string {
-  return LANGUAGE_NAMES[id] ?? id;
-}
+const PLAIN: DisplayName = (id) => id;
 
-export const PROBLEM_TITLES: Record<ProblemCode, (name: string) => string> = {
+export const PROBLEM_TITLES: Record<
+  ProblemCode,
+  (name: string, display?: DisplayName) => string
+> = {
   "config-yaml": () => "Configuration file cannot be read",
   "config-retired": () => "Settings moved to new places",
   "config-empty": () => "Empty settings section",
@@ -24,22 +19,23 @@ export const PROBLEM_TITLES: Record<ProblemCode, (name: string) => string> = {
   "policy-entry": () => "Policy entry matches no file",
   "policy-forbid": () => "Policy rule matches no file",
   "policy-retired": () => "Policy format changed",
-  "scanner-missing": (name) =>
+  "scanner-missing": (name, display = PLAIN) =>
     name === "scanners"
       ? "No scanner is installed"
-      : `No scanner for ${language(name)}`,
-  "scanner-ambiguous": (name) => `Two scanners claim ${language(name)}`,
-  "scanner-choice": (name) =>
-    `The scanner chosen for ${language(name)} is not usable`,
+      : `No scanner for ${display(name)}`,
+  "scanner-ambiguous": (name, display = PLAIN) =>
+    `Two scanners claim ${display(name)}`,
+  "scanner-choice": (name, display = PLAIN) =>
+    `The scanner chosen for ${display(name)} is not usable`,
   "sensor-gap": (name) => `${name} cannot run as set up`,
   "plugin-missing": (name) => `The ${name} plugin is not installed`,
   "plugin-manifest": (name) => `The ${name} plugin cannot be read`,
   "plugin-protocol": (name) =>
     `The ${name} plugin speaks another protocol version`,
-  "plugin-scan-schema": (name) =>
-    `The ${language(name)} scanner's output is invalid`,
-  "plugin-tests-report": (name) =>
-    `The ${language(name)} scanner cannot report its tests`,
+  "plugin-scan-schema": (name, display = PLAIN) =>
+    `The ${display(name)} scanner's output is invalid`,
+  "plugin-tests-report": (name, display = PLAIN) =>
+    `The ${display(name)} scanner cannot report its tests`,
   "plugin-settings": (name) => `A ${name} setting is wrong`,
   "describer-gap": (name) => `The ${name} describer is not ready`,
   "unregistered-plugin": (name) => `The ${name} plugin is not registered`,

@@ -18,6 +18,28 @@ INSTALL = (
     "|| brew install kenmclennan/tap/recognizer-scan-python"
 )
 
+GRAMMARS = [
+    {
+        "name": "python",
+        "extensions": [".py"],
+        "function_types": ["function_definition"],
+        "scope_types": ["class_definition"],
+        "branch_types": [
+            "if_statement",
+            "elif_clause",
+            "for_statement",
+            "while_statement",
+            "except_clause",
+            "conditional_expression",
+            "for_in_clause",
+            "if_clause",
+            "case_clause",
+        ],
+        "boolean_operators": ["and", "or"],
+        "bound_function_types": [],
+    }
+]
+
 
 def build() -> dict:
     return {
@@ -36,6 +58,8 @@ def build() -> dict:
         "languages": [
             {
                 "name": "python",
+                "display": "Python",
+                "grammars": GRAMMARS,
                 "extensions": list(SOURCE_EXTENSIONS),
                 "files": [],
                 "skip": {

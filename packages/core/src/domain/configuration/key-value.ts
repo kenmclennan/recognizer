@@ -87,3 +87,91 @@ export function outOfBounds(
 
   return null;
 }
+
+export interface SuiteValues {
+  language?: unknown;
+  runner?: unknown;
+  format?: unknown;
+}
+
+export interface RefusedValue {
+  field: "language" | "runner" | "coverage format";
+  value: string;
+  allowed: string[];
+  reason: string;
+  path: string;
+}
+
+const SUITE_FIELDS = [
+  { field: "language", leaf: "language", path: "language" },
+  { field: "runner", leaf: "runner", path: "runner" },
+  {
+    field: "coverage format",
+    leaf: "coverage.format",
+    path: "coverage/format",
+  },
+] as const;
+
+export function refusedSuiteValues(
+  suite: SuiteValues,
+  keys: readonly { key: string; values?: string[] }[],
+): RefusedValue[] {
+  const given = {
+    language: suite.language,
+    runner: suite.runner,
+    "coverage format": suite.format,
+  };
+
+  return SUITE_FIELDS.flatMap(({ field, leaf, path }) => {
+    const value = given[field];
+    const published = keys.find(
+      (entry) => entry.key === `tests.<name>.${leaf}`,
+    )?.values;
+
+    if (typeof value !== "string" || published === undefined) {
+      return [];
+    }
+
+    const typed = typedValue(
+      { type: "enum", values: published } as KeyEntry,
+      value,
+    );
+
+    return "reason" in typed
+      ? [{ field, value, allowed: published, reason: typed.reason, path }]
+      : [];
+  });
+}
+
+export function unpublishedValues(
+  document: unknown,
+  keys: readonly { key: string; values?: string[] }[],
+): string[] {
+  const tests = (document as { tests?: unknown } | null)?.tests;
+
+  if (!Array.isArray(tests)) {
+    return [];
+  }
+
+  return tests.flatMap((suite, index) => {
+    if (typeof suite !== "object" || suite === null) {
+      return [];
+    }
+
+    const record = suite as Record<string, unknown>;
+    const coverage = record.coverage as { format?: unknown } | undefined;
+    const name = typeof record.name === "string" ? record.name : String(index);
+
+    return refusedSuiteValues(
+      {
+        language: record.language,
+        runner: record.runner,
+        format: coverage?.format,
+      },
+      keys,
+    ).map(
+      (refused) =>
+        `config/tests/${index}/${refused.path} ${refused.reason} (suite ${name})`,
+    );
+  });
+}

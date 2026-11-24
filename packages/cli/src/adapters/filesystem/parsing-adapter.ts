@@ -1,11 +1,7 @@
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  type Grammar,
-  LANGUAGE_GRAMMARS,
-  type Parsers,
-  type Parsing,
-} from "@recognizer/core";
+import type { Grammar, Parsers, Parsing } from "@recognizer/core";
 import type { Parser } from "web-tree-sitter";
 
 export const GRAMMAR_DIRECTORY = join(
@@ -17,18 +13,20 @@ export const GRAMMAR_DIRECTORY = join(
 );
 
 export async function loadParsers(
-  languages: readonly string[],
+  grammars: readonly string[],
   directory: string = GRAMMAR_DIRECTORY,
 ): Promise<Parsers> {
-  const wanted = [
-    ...new Set(
-      languages.flatMap((language) => LANGUAGE_GRAMMARS[language] ?? []),
-    ),
-  ];
+  const wanted = [...new Set(grammars)];
   const parsers = new Map<Grammar, Parser>();
 
   if (wanted.length === 0) {
     return parsers;
+  }
+
+  for (const grammar of wanted) {
+    if (!existsSync(join(directory, `${grammar}.wasm`))) {
+      throw new Error(`no grammar named ${grammar} is vendored`);
+    }
   }
 
   const { Language, Parser } = await import("web-tree-sitter");
@@ -46,7 +44,7 @@ export async function loadParsers(
 }
 
 export class ParsingAdapter implements Parsing {
-  loadParsers(languages: readonly string[]): Promise<Parsers> {
-    return loadParsers(languages);
+  loadParsers(grammars: readonly string[]): Promise<Parsers> {
+    return loadParsers(grammars);
   }
 }

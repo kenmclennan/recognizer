@@ -306,16 +306,49 @@ describe("the tests list", () => {
 
   it.each([
     "invalid/tests-empty.yaml",
-    "invalid/tests-unknown-language.yaml",
-    "invalid/tests-typescript-without-runner.yaml",
-    "invalid/tests-runner-on-python.yaml",
-    "invalid/tests-bad-coverage-format.yaml",
     "invalid/tests-missing-coverage.yaml",
     "invalid/tests-unknown-key.yaml",
     "invalid/tests-absolute-directory.yaml",
     "invalid/sensors-crap-test-command.yaml",
   ])("rejects %s", (path) => {
     expect(() => parseConfig(example(path))).toThrow(InputError);
+  });
+
+  it.each([
+    "unpublished/tests-unknown-language.yaml",
+    "unpublished/tests-bad-coverage-format.yaml",
+  ])(
+    "reads %s, leaving the published values to survey and the doctor",
+    (path) => {
+      expect(parseConfig(example(path)).tests?.length).toBeGreaterThan(0);
+    },
+  );
+
+  it("accepts any non-empty language, runner and coverage format", () => {
+    const text = `tests:\n  - name: odd\n    language: zig\n    directory: .\n    command: x\n    runner: mocha\n    coverage:\n      path: c\n      format: tap\n`;
+
+    expect(parseConfig(text).tests?.[0]).toMatchObject({
+      language: "zig",
+      runner: "mocha",
+      coverage: { format: "tap" },
+    });
+  });
+
+  it.each([
+    [
+      "language",
+      'tests:\n  - name: a\n    language: ""\n    directory: .\n    command: x\n    coverage:\n      path: c\n      format: lcov\n',
+    ],
+    [
+      "runner",
+      'tests:\n  - name: a\n    language: python\n    directory: .\n    command: x\n    runner: ""\n    coverage:\n      path: c\n      format: lcov\n',
+    ],
+    [
+      "coverage format",
+      'tests:\n  - name: a\n    language: python\n    directory: .\n    command: x\n    coverage:\n      path: c\n      format: ""\n',
+    ],
+  ])("refuses an empty %s", (_, text) => {
+    expect(() => parseConfig(text)).toThrow(InputError);
   });
 
   it("rejects a duplicate suite name, naming it", () => {

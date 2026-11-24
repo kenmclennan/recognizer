@@ -8,7 +8,7 @@ import {
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { DigestAdapter } from "../src/adapters/system/digest-adapter.js";
-import { allParsers } from "./duplication-helpers.js";
+import { allParsers, ruleNamed } from "./duplication-helpers.js";
 
 const SETTINGS = DEFAULT_DUPLICATION_SETTINGS;
 
@@ -20,7 +20,7 @@ async function unitsOf(source: string, settings = SETTINGS) {
       "m",
       "m.kt",
       source,
-      "kotlin",
+      ruleNamed("kotlin"),
       parsers,
       settings,
       new DigestAdapter().sha1Prefix,
@@ -38,7 +38,7 @@ async function functionCount(source: string) {
   const parsers = await allParsers();
   const tree = parsers.get("kotlin")?.parse(source);
 
-  return findFunctions(tree?.rootNode as never, "kotlin").length;
+  return findFunctions(tree?.rootNode as never, ruleNamed("kotlin")).length;
 }
 
 function endpoint(name: string, role: string, annotation: string) {
@@ -104,9 +104,9 @@ function wrap(statements: string) {
 async function spanOf(source: string) {
   const parsers = await allParsers();
   const tree = parsers.get("kotlin")?.parse(source);
-  const found = findFunctions(tree?.rootNode as never, "kotlin")[0];
+  const found = findFunctions(tree?.rootNode as never, ruleNamed("kotlin"))[0];
 
-  return comparedSpan(found?.node as never, "kotlin") as NonNullable<
+  return comparedSpan(found?.node as never, ruleNamed("kotlin")) as NonNullable<
     ReturnType<typeof comparedSpan>
   >;
 }

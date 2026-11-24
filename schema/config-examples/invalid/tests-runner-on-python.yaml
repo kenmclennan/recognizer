@@ -1,9 +1,0 @@
-tests:
-  - name: api
-    language: python
-    directory: .
-    command: pytest
-    runner: vitest
-    coverage:
-      path: coverage/lcov.info
-      format: lcov

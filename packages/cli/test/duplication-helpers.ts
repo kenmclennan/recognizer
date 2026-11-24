@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import type { Repository } from "@recognizer/core";
+import type { GrammarRule, Repository } from "@recognizer/core";
 import {
   GRAMMAR_DIRECTORY,
   loadParsers,
@@ -17,6 +17,16 @@ const LANGUAGE_BY_SUFFIX: Record<string, string> = {
   ".rs": "rust",
   ".cs": "csharp",
 };
+
+export const GRAMMAR_RULES: GrammarRule[] = (
+  JSON.parse(
+    readFileSync(join(REPO, "fixtures/plugins/languages.json"), "utf8"),
+  ) as { grammars: GrammarRule[] }[]
+).flatMap((language) => language.grammars);
+
+export function ruleNamed(name: string): GrammarRule {
+  return GRAMMAR_RULES.find((rule) => rule.name === name) as GrammarRule;
+}
 
 export const EQUIVALENCE = join(REPO, "fixtures/duplication/equivalence");
 
@@ -98,7 +108,7 @@ export function measuredSources(texts: Record<string, string>): Measured {
 
 export async function allParsers() {
   return loadParsers(
-    ["python", "typescript", "kotlin", "rust", "csharp"],
+    ["python", "typescript", "tsx", "kotlin", "rust", "csharp"],
     GRAMMAR_DIRECTORY,
   );
 }

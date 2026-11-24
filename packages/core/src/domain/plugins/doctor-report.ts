@@ -11,7 +11,7 @@ import {
   type ProtocolJudgement,
   supportedRange,
 } from "./manifest.js";
-import { PROBLEM_TITLES } from "./problem-titles.js";
+import { type DisplayName, PROBLEM_TITLES } from "./problem-titles.js";
 import { NO_RUN_LINE } from "./sensor-check.js";
 import { UNREGISTERED_FIX, unregisteredMessage } from "./unregistered.js";
 
@@ -594,26 +594,43 @@ function pluginArea(
   };
 }
 
-function withSeverity(problems: Found[]): SetupProblem[] {
-  return problems.map(({ display, ...one }) => ({
+function languageDisplay(scanners: readonly InstalledPlugin[]): DisplayName {
+  const names = new Map<string, string>();
+
+  for (const scanner of scanners) {
+    for (const language of scanner.manifest.languages ?? []) {
+      const { name, display } = language as { name: string; display?: string };
+
+      if (display !== undefined && !names.has(name)) {
+        names.set(name, display);
+      }
+    }
+  }
+
+  return (id) => names.get(id) ?? id;
+}
+
+function withSeverity(problems: Found[], display: DisplayName): SetupProblem[] {
+  return problems.map(({ display: shown, ...one }) => ({
     severity: "problem" as const,
     ...one,
-    title: PROBLEM_TITLES[one.code](display ?? one.subject),
+    title: PROBLEM_TITLES[one.code](shown ?? one.subject, display),
   }));
 }
 
 export function buildReport(facts: DoctorFacts): DoctorReport {
   const known = "skipped" in facts.registered ? NONE : facts.registered;
+  const display = languageDisplay(facts.scanners);
   const areas: Area[] = [
     {
       name: "config",
       skipped: null,
-      problems: withSeverity(facts.configProblems),
+      problems: withSeverity(facts.configProblems, display),
     },
     {
       name: "policy",
       skipped: null,
-      problems: withSeverity(facts.policyProblems),
+      problems: withSeverity(facts.policyProblems, display),
     },
     {
       name: "scanners",
@@ -626,6 +643,7 @@ export function buildReport(facts: DoctorFacts): DoctorReport {
           known.install,
           facts.protocol,
         ),
+        display,
       ),
     },
     ...(["sensor", "describer"] as const).map((kind): Area => {
@@ -634,7 +652,7 @@ export function buildReport(facts: DoctorFacts): DoctorReport {
       return {
         name: kind === "sensor" ? "sensors" : "describers",
         skipped: area.skipped,
-        problems: withSeverity(area.problems),
+        problems: withSeverity(area.problems, display),
       };
     }),
   ];

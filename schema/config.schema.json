@@ -359,13 +359,8 @@
             "minLength": 1
           },
           "language": {
-            "enum": [
-              "python",
-              "typescript",
-              "kotlin",
-              "rust",
-              "csharp"
-            ]
+            "type": "string",
+            "minLength": 1
           },
           "directory": {
             "type": "string",
@@ -421,46 +416,16 @@
                 }
               },
               "format": {
-                "enum": [
-                  "lcov",
-                  "jacoco"
-                ]
+                "type": "string",
+                "minLength": 1
               }
             }
           },
           "runner": {
-            "enum": [
-              "vitest",
-              "jest"
-            ]
+            "type": "string",
+            "minLength": 1
           }
-        },
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "language": {
-                  "const": "typescript"
-                }
-              },
-              "required": [
-                "language"
-              ]
-            },
-            "then": {
-              "required": [
-                "runner"
-              ]
-            },
-            "else": {
-              "not": {
-                "required": [
-                  "runner"
-                ]
-              }
-            }
-          }
-        ]
+        }
       }
     }
   }

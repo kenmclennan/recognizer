@@ -41,6 +41,26 @@ describe("the shipped manifests equal the sources they transcribe", () => {
     expect(manifest(command).languages).toEqual([rules]);
   });
 
+  it("publishes grammars whose names are the vendored grammars and whose function types are set", () => {
+    const grammars = (
+      json("fixtures/plugins/languages.json") as {
+        grammars: { name: string; function_types: string[] }[];
+      }[]
+    ).flatMap((language) => language.grammars);
+    const provenance = json("packages/cli/grammars/PROVENANCE.json") as {
+      grammars: Record<string, unknown>;
+    };
+
+    expect(grammars.map((grammar) => grammar.name).sort()).toEqual(
+      Object.keys(provenance.grammars).sort(),
+    );
+    expect(grammars).toHaveLength(6);
+
+    for (const grammar of grammars) {
+      expect(grammar.function_types.length).toBeGreaterThan(0);
+    }
+  });
+
   it.each([
     ["crap", true, false],
     ["mutation", true, true],

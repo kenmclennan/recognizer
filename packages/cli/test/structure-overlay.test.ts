@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
+  type GrammarRule,
   grammarFor,
   measureSource,
   type Parsers,
@@ -17,7 +18,12 @@ import {
   structureOverlayFile,
 } from "../src/structure-overlay.js";
 import { analysisPortsOf, sayOf } from "./analysis-ports.js";
-import { allParsers, measuredSources, ROOT } from "./duplication-helpers.js";
+import {
+  allParsers,
+  GRAMMAR_RULES,
+  measuredSources,
+  ROOT,
+} from "./duplication-helpers.js";
 import { REPO } from "./helpers.js";
 
 let parsers: Parsers;
@@ -60,6 +66,7 @@ function sense(
       ...overrides,
     },
     parsers: withParsers,
+    rules: GRAMMAR_RULES,
   });
   const text = fake.files.get(structureOverlayFile(ROOT));
   const overlay = text === undefined ? null : (JSON.parse(text) as Overlay);
@@ -169,8 +176,8 @@ describe("the structural analysis overlay", () => {
       "utf8",
     );
     const { overlay } = sense({ [path]: source });
-    const grammar = grammarFor(path);
-    const functions = measureSource(path, source, grammar as never, parsers);
+    const rule = grammarFor(path, GRAMMAR_RULES) as GrammarRule;
+    const functions = measureSource(path, source, rule, parsers);
 
     expect(functions.length).toBeGreaterThan(0);
     expect(Object.keys(overlay?.values.complexity ?? {})).toHaveLength(

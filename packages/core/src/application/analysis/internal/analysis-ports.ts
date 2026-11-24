@@ -4,6 +4,7 @@ import type { PolicyRepository } from "../../../domain/policy-repository.js";
 import type { Clock } from "../../shared/ports/clock.js";
 import type { Analysis } from "../ports/analysis.js";
 import type { Digest } from "../ports/digest.js";
+import type { GrammarRules } from "../ports/grammar-rules.js";
 import type { Parsing } from "../ports/parsing.js";
 import type { SourceFiles } from "../ports/source-files.js";
 
@@ -16,4 +17,5 @@ export interface AnalysisPorts {
   source: SourceFiles;
   digest: Digest;
   parsing: Parsing;
+  grammarRules: GrammarRules;
 }

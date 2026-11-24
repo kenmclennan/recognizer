@@ -4,6 +4,7 @@ import {
   assignIdentities,
   DEFAULT_DUPLICATION_SETTINGS,
   findFunctions,
+  type GrammarRule,
   grammarFor,
   isTrivialShape,
   measureDuplication,
@@ -19,9 +20,11 @@ import { DigestAdapter } from "../src/adapters/system/digest-adapter.js";
 import { analysisPortsOf, sayOf } from "./analysis-ports.js";
 import {
   allParsers,
+  GRAMMAR_RULES,
   measuredFixture,
   measuredSources,
   ROOT,
+  ruleNamed,
 } from "./duplication-helpers.js";
 import { REPO } from "./helpers.js";
 
@@ -45,7 +48,7 @@ const SHAPES: [string, "constructor" | "accessor" | null][] = [
 async function csharp(source: string) {
   const parsers = await loadParsers(["csharp"], GRAMMAR_DIRECTORY);
   const tree = parsers.get("csharp")?.parse(source);
-  const found = findFunctions(tree?.rootNode as never, "csharp");
+  const found = findFunctions(tree?.rootNode as never, ruleNamed("csharp"));
 
   return found;
 }
@@ -89,6 +92,7 @@ describe("the C# shapes and normalisation held over from the Python sensor", () 
         scans,
         DEFAULT_DUPLICATION_SETTINGS,
         await allParsers(),
+        GRAMMAR_RULES,
       ),
     ).toEqual([]);
   });
@@ -106,6 +110,7 @@ describe("the C# shapes and normalisation held over from the Python sensor", () 
         scans,
         DEFAULT_DUPLICATION_SETTINGS,
         await allParsers(),
+        GRAMMAR_RULES,
       ),
     ).toEqual([]);
     expect(fake.err()).toContain("duplication: skipped a.py: not valid UTF-8");
@@ -121,7 +126,7 @@ describe("the C# shapes and normalisation held over from the Python sensor", () 
       "packages/core/src/domain/analysis/duplication/shapes.ts",
       "packages/core/src/domain/analysis/duplication/shapes.ts",
       source,
-      grammarFor("shapes.ts") as "typescript",
+      grammarFor("shapes.ts", GRAMMAR_RULES) as GrammarRule,
       parsers,
       { ...DEFAULT_DUPLICATION_SETTINGS, min_lines: 1, min_nodes: 1 },
       new DigestAdapter().sha1Prefix,

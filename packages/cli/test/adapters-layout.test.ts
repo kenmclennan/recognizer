@@ -40,6 +40,7 @@ const expected: Record<string, string[]> = {
     "check-sandbox-adapter.ts",
     "describer-adapter.ts",
     "document-validators-adapter.ts",
+    "grammar-rules-adapter.ts",
     "key-owners-adapter.ts",
     "plugin-templates-adapter.ts",
     "process-adapter.ts",

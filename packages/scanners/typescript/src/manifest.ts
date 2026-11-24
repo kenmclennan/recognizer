@@ -7,6 +7,59 @@ export const PROTOCOL = 1;
 export const INSTALL =
   "brew upgrade kenmclennan/tap/recognizer-scan-typescript || brew install kenmclennan/tap/recognizer-scan-typescript";
 
+const GRAMMARS = [
+  {
+    name: "typescript",
+    extensions: [".ts", ".mts", ".cts"],
+    function_types: ["function_declaration", "method_definition"],
+    scope_types: [
+      "class_declaration",
+      "abstract_class_declaration",
+      "class",
+      "internal_module",
+      "module",
+    ],
+    branch_types: [
+      "if_statement",
+      "for_statement",
+      "for_in_statement",
+      "while_statement",
+      "do_statement",
+      "switch_case",
+      "catch_clause",
+      "ternary_expression",
+      "optional_chain",
+    ],
+    boolean_operators: ["&&", "||", "??"],
+    bound_function_types: ["arrow_function", "function_expression", "function"],
+  },
+  {
+    name: "tsx",
+    extensions: [".tsx", ".jsx", ".js", ".mjs", ".cjs"],
+    function_types: ["function_declaration", "method_definition"],
+    scope_types: [
+      "class_declaration",
+      "abstract_class_declaration",
+      "class",
+      "internal_module",
+      "module",
+    ],
+    branch_types: [
+      "if_statement",
+      "for_statement",
+      "for_in_statement",
+      "while_statement",
+      "do_statement",
+      "switch_case",
+      "catch_clause",
+      "ternary_expression",
+      "optional_chain",
+    ],
+    boolean_operators: ["&&", "||", "??"],
+    bound_function_types: ["arrow_function", "function_expression", "function"],
+  },
+];
+
 export function manifest() {
   const rules = selection();
 
@@ -26,6 +79,8 @@ export function manifest() {
     languages: [
       {
         name: "typescript",
+        display: "TypeScript",
+        grammars: GRAMMARS,
         extensions: rules.extensions,
         files: ["tsconfig.json"],
         skip: {

@@ -9,7 +9,12 @@ import {
 import { describe, expect, it } from "vitest";
 import { unitCachePath } from "../src/adapters/filesystem/findings-adapter.js";
 import { analysisPortsOf, sayOf } from "./analysis-ports.js";
-import { allParsers, measuredFixture, ROOT } from "./duplication-helpers.js";
+import {
+  allParsers,
+  GRAMMAR_RULES,
+  measuredFixture,
+  ROOT,
+} from "./duplication-helpers.js";
 
 function hashed(
   repository: Repository,
@@ -37,6 +42,7 @@ async function measure(
     hashed(setup.scans, setup.fake),
     settings,
     await allParsers(),
+    GRAMMAR_RULES,
     true,
   );
 }

@@ -1,12 +1,17 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { assignIdentities, findFunctions, grammarFor } from "@recognizer/core";
+import {
+  assignIdentities,
+  findFunctions,
+  type GrammarRule,
+  grammarFor,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   GRAMMAR_DIRECTORY,
   loadParsers,
 } from "../src/adapters/filesystem/parsing-adapter.js";
-import { EQUIVALENCE, readJson } from "./duplication-helpers.js";
+import { EQUIVALENCE, GRAMMAR_RULES, readJson } from "./duplication-helpers.js";
 import { REPO } from "./helpers.js";
 
 interface Row {
@@ -54,25 +59,29 @@ function sourceFiles(language: string): string[] {
   ).sort();
 }
 
+function grammarsOf(language: string): string[] {
+  return language === "typescript" ? ["typescript", "tsx"] : [language];
+}
+
 describe("function finding and identity against the Python goldens", () => {
   for (const language of Object.keys(EXTENSIONS)) {
     it(`finds the same ${language} functions with the same ids`, async () => {
       const golden = readJson<Row[]>(
         `${EQUIVALENCE}/functions.${language}.json`,
       );
-      const parsers = await loadParsers([language], GRAMMAR_DIRECTORY);
+      const parsers = await loadParsers(
+        grammarsOf(language),
+        GRAMMAR_DIRECTORY,
+      );
       const items: [string, string, number][] = [];
 
       for (const path of sourceFiles(language)) {
-        const grammar = grammarFor(path);
+        const rule = grammarFor(path, GRAMMAR_RULES) as GrammarRule;
         const tree = parsers
-          .get(grammar as never)
+          .get(rule.name)
           ?.parse(readFileSync(join(REPO, path), "utf8"));
 
-        for (const found of findFunctions(
-          tree?.rootNode as never,
-          grammar as never,
-        )) {
+        for (const found of findFunctions(tree?.rootNode as never, rule)) {
           items.push([path, found.qualified, found.node.startPosition.row + 1]);
         }
       }

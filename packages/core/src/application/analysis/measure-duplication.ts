@@ -7,7 +7,7 @@ import {
 import { fingerprints } from "../../domain/analysis/duplication/fingerprint.js";
 import { findFunctions } from "../../domain/analysis/duplication/functions.js";
 import {
-  type Grammar,
+  type GrammarRule,
   grammarFor,
 } from "../../domain/analysis/duplication/grammars.js";
 import { assignIdentities } from "../../domain/analysis/duplication/identity.js";
@@ -43,12 +43,12 @@ export function unitsInSource(
   module: string,
   path: string,
   source: string,
-  grammar: Grammar,
+  rule: GrammarRule,
   parsers: Parsers,
   settings: DuplicationSettings,
   digest: (text: string) => string,
 ): Unit[] {
-  const parser = parsers.get(grammar);
+  const parser = parsers.get(rule.name);
   const tree = parser?.parse(source) ?? null;
 
   if (tree === null) {
@@ -58,9 +58,9 @@ export function unitsInSource(
   try {
     const units: Unit[] = [];
 
-    for (const found of findFunctions(tree.rootNode, grammar)) {
+    for (const found of findFunctions(tree.rootNode, rule)) {
       const node = found.node;
-      const span = comparedSpan(node, grammar);
+      const span = comparedSpan(node, rule);
 
       if (span === null) {
         continue;
@@ -169,6 +169,7 @@ function collectUnits(
   hashes: ReadonlyMap<string, string>,
   settings: DuplicationSettings,
   parsers: Parsers,
+  rules: readonly GrammarRule[],
   cache: UnitCache | null,
   next: UnitCache,
   tally: Tally,
@@ -176,16 +177,16 @@ function collectUnits(
   const units: Unit[] = [];
 
   for (const module of files) {
-    const grammar = grammarFor(module.path);
+    const rule = grammarFor(module.path, rules);
 
-    if (!hashes.has(module.path) || grammar === null) {
+    if (!hashes.has(module.path) || rule === null) {
       continue;
     }
 
     const hash = hashes.get(module.path);
     const kept = cache?.[module.path];
 
-    if (cache !== null && reusable(kept, hash, grammar, settings)) {
+    if (cache !== null && reusable(kept, hash, rule.name, settings)) {
       next[module.path] = kept;
       tally.reused += 1;
       units.push(...kept.units.map((one) => unitOf(module.path, one)));
@@ -211,7 +212,7 @@ function collectUnits(
       module.path,
       module.path,
       source,
-      grammar,
+      rule,
       parsers,
       settings,
       ports.digest.sha1Prefix,
@@ -223,7 +224,7 @@ function collectUnits(
     if (cache !== null && hash !== undefined) {
       next[module.path] = {
         hash,
-        grammar,
+        grammar: rule.name,
         min_lines: settings.min_lines,
         min_nodes: settings.min_nodes,
         units: found.map(cachedOf),
@@ -241,6 +242,7 @@ export function measureDuplication(
   repository: Repository,
   settings: DuplicationSettings,
   parsers: Parsers,
+  rules: readonly GrammarRule[],
   reuse = false,
 ): Warning[] {
   let cache: UnitCache | null = null;
@@ -268,6 +270,7 @@ export function measureDuplication(
         hashes,
         settings,
         parsers,
+        rules,
         cache,
         next,
         tally,
