@@ -9,6 +9,8 @@ import {
   MANIFEST_TIMEOUT_MS,
   type Manifest,
   type ManifestRun,
+  type PlaceholderDeclaration,
+  placeholderPattern,
 } from "../../domain/plugins/manifest.js";
 import { sentenceProblems } from "../../domain/plugins/sentence.js";
 import type { PluginPorts } from "./internal/plugin-ports.js";
@@ -242,6 +244,110 @@ function limitProblems(manifest: Manifest): string[] {
 
     return found;
   });
+}
+
+const PLACEHOLDER_GLOBAL = /<([a-z][a-z0-9_]*)>/g;
+
+function placeholdersIn(key: string): string[] {
+  return [...key.matchAll(PLACEHOLDER_GLOBAL)].map((found) => found[1] ?? "");
+}
+
+function declaredPattern(declaration: PlaceholderDeclaration): RegExp | null {
+  try {
+    return new RegExp(placeholderPattern(declaration));
+  } catch {
+    return null;
+  }
+}
+
+function manifestKeys(manifest: Manifest): string[] {
+  const suite = manifest.suite_keys;
+
+  return [
+    ...(manifest.settings as { key: string }[]).map((entry) => entry.key),
+    ...(suite === undefined
+      ? []
+      : [
+          (suite.section as { key: string }).key,
+          ...(suite.keys as { key: string }[]).map((entry) => entry.key),
+        ]),
+  ];
+}
+
+function placeholderProblems(manifest: Manifest): string[] {
+  const declared = manifest.placeholders ?? {};
+  const problems: string[] = [];
+  const used = new Set<string>();
+
+  for (const [name, declaration] of Object.entries(declared)) {
+    if (
+      declaration.pattern !== undefined &&
+      declaredPattern(declaration) === null
+    ) {
+      problems.push(`${name}: pattern does not compile`);
+    }
+  }
+
+  for (const key of manifestKeys(manifest)) {
+    for (const name of placeholdersIn(key)) {
+      used.add(name);
+
+      if (declared[name] === undefined) {
+        problems.push(
+          `${key}: uses the placeholder <${name}> that the manifest does not declare`,
+        );
+      }
+    }
+  }
+
+  for (const name of Object.keys(declared)) {
+    if (!used.has(name)) {
+      problems.push(`${name}: declared but no key uses it`);
+    }
+  }
+
+  for (const setting of manifest.settings as Record<string, unknown>[]) {
+    const first = placeholdersIn(String(setting.key))[0];
+    const declaration = first === undefined ? undefined : declared[first];
+    const pattern =
+      declaration === undefined ? null : declaredPattern(declaration);
+
+    if (first === undefined || pattern === null) {
+      continue;
+    }
+
+    for (const field of ["labels", "units", "defaults"]) {
+      const entries = setting[field];
+
+      if (entries === undefined || entries === null) {
+        continue;
+      }
+
+      for (const value of Object.keys(entries as object)) {
+        if (!pattern.test(value)) {
+          problems.push(
+            `${String(setting.key)}: ${field} entry ${value} does not match <${first}>`,
+          );
+        }
+      }
+    }
+  }
+
+  return problems;
+}
+
+export function checkPlaceholders(context: Context): PluginCheckResult {
+  const { manifest } = context;
+
+  if (manifest === null) {
+    return needsManifest("placeholders");
+  }
+
+  const problems = placeholderProblems(manifest);
+
+  return problems.length === 0
+    ? ok("placeholders")
+    : fail("placeholders", problems.join("; "));
 }
 
 export function checkLimits(context: Context): PluginCheckResult {
@@ -861,6 +967,7 @@ export async function pluginCheck(
     checkProtocol(context),
     checkSideEffectFree(context),
     checkSentences(context),
+    checkPlaceholders(context),
     checkLimits(context),
   ];
 

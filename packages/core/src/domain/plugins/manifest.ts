@@ -1,5 +1,24 @@
 import type { FindingEntry } from "./sentence.js";
 
+export interface PlaceholderDeclaration {
+  pattern?: string;
+  values?: string[];
+  description: string;
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function placeholderPattern(
+  declaration: PlaceholderDeclaration,
+): string {
+  return (
+    declaration.pattern ??
+    `^(${(declaration.values ?? []).map(escapeRegExp).join("|")})$`
+  );
+}
+
 export type PluginKind = "scanner" | "sensor" | "describer";
 
 export const MANIFEST_TIMEOUT_MS = 10_000;
@@ -25,6 +44,7 @@ export interface Manifest {
   findings?: FindingEntry[];
   runs_tests?: boolean;
   suite_keys?: { section: unknown; keys: unknown[] };
+  placeholders?: Record<string, PlaceholderDeclaration>;
   reports_tests?: boolean;
   scoped?: boolean;
   planned_work?: { verb: string };

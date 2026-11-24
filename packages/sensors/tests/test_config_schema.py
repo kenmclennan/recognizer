@@ -6,6 +6,7 @@ import jsonschema
 import pytest
 from conftest import REPOSITORY
 
+from recognizer_sensors import config_schema
 from recognizer_sensors.config_schema import CRAP_KEYS, MUTATION_KEYS
 from recognizer_sensors.registry import SHIPPED
 from recognizer_sensors.testrun.suites import parse_suite
@@ -273,12 +274,10 @@ def test_every_shipped_short_form_property_has_a_published_key_and_back():
     assert len(seen) >= 3
 
 
-def test_the_metric_placeholder_refuses_command_as_the_config_schema_does():
-    pattern = re.compile(key_schema()["placeholders"]["metric"])
+def test_the_pinned_schema_holds_the_placeholders_the_manifests_declare():
+    declared = {name: entry["pattern"] for name, entry in config_schema.SUITE_PLACEHOLDERS.items()}
 
-    assert pattern.match("complexity")
-    assert not pattern.match("command")
-    assert pattern.match("commands")
+    assert key_schema()["placeholders"] == declared
 
 
 def test_the_schema_file_is_readable_from_a_path_outside_the_package():

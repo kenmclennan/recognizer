@@ -11,7 +11,7 @@ from recognizer_scan_python.discovery import (
 )
 from recognizer_scan_python.scan_schema import SCAN_SCHEMA_VERSION
 
-PROTOCOL = 1
+PROTOCOL = 2
 
 INSTALL = (
     "brew upgrade kenmclennan/tap/recognizer-scan-python "

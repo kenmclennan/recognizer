@@ -1,5 +1,9 @@
 import { InvalidRequest } from "../../domain/invalid-request.js";
-import type { Manifest, ManifestRead } from "../../domain/plugins/manifest.js";
+import type {
+  Manifest,
+  ManifestRead,
+  PlaceholderDeclaration,
+} from "../../domain/plugins/manifest.js";
 import type { FindingEntry } from "../../domain/plugins/sentence.js";
 import {
   unregisteredMessage,
@@ -31,6 +35,7 @@ export interface ShippedSensorEntry {
   settings_title?: string;
   runs_tests: boolean;
   suite_keys?: { section: unknown; keys: unknown[] };
+  placeholders: Record<string, PlaceholderDeclaration>;
   scoped: boolean;
   planned_work?: { verb: string };
   log_path?: string;
@@ -120,6 +125,7 @@ function entryOf(manifest: Manifest): ShippedSensorEntry {
     ...(manifest.suite_keys === undefined
       ? {}
       : { suite_keys: manifest.suite_keys }),
+    placeholders: manifest.placeholders ?? {},
     scoped: manifest.scoped === true,
     ...(manifest.planned_work === undefined
       ? {}

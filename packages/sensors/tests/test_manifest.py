@@ -281,3 +281,15 @@ def test_the_crap_metrics_are_titled_helped_and_ordered_as_the_agreed_mock():
         ),
         ("coverage", "Coverage", "Share of each function's lines the tests run."),
     ]
+
+
+def test_crap_and_mutation_manifests_declare_name_and_variable_placeholders_with_the_patterns_of_the_published_key_schema():
+    crap = build("crap")["placeholders"]
+    mutation = build("mutation")["placeholders"]
+
+    assert crap == mutation
+    assert {name: entry["pattern"] for name, entry in crap.items()} == {
+        "name": "^.+$",
+        "variable": "^[A-Za-z_][A-Za-z0-9_]*$",
+    }
+    assert all(entry["description"] for entry in crap.values())

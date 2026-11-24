@@ -14,7 +14,7 @@ function manifest(extra: Record<string, unknown> = {}) {
     name: "fake",
     display: "Fake",
     version: "1",
-    protocol: 1,
+    protocol: 2,
     install: "brew install --cask kenmclennan/tap/recognizer",
     check: false,
     long_running: true,

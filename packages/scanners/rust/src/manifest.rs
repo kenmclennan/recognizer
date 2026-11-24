@@ -3,7 +3,7 @@ use serde_json::{json, Value};
 use crate::discovery::{EXTENSIONS, SKIPPED_DIRECTORY_NAMES, SKIPPED_DIRECTORY_PREFIXES};
 use crate::scanner::SCAN_SCHEMA_VERSION;
 
-pub const PROTOCOL: u64 = 1;
+pub const PROTOCOL: u64 = 2;
 
 pub const INSTALL: &str = "brew upgrade kenmclennan/tap/recognizer-scan-rust || brew install kenmclennan/tap/recognizer-scan-rust";
 

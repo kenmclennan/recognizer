@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   checkLimits,
+  checkPlaceholders,
   pluginCheck as checkPlugin,
   type Manifest,
   type PluginCheckOptions,
@@ -84,6 +85,7 @@ describe("recognizer plugin check", () => {
       "ok    protocol",
       "ok    side-effect-free",
       "ok    sentences",
+      "ok    placeholders",
       "ok    limits",
       "ok    check-verb  declares no check",
       "ok    guide-verb",
@@ -102,7 +104,7 @@ describe("recognizer plugin check", () => {
       join(FIXTURES, "conforming/recognizer-scan-conforming"),
     );
     expect(json.manifest.name).toBe("conforming");
-    expect(json.results).toHaveLength(13);
+    expect(json.results).toHaveLength(14);
   });
 
   it("fails starts for a command that exits 1", async () => {
@@ -142,8 +144,8 @@ describe("recognizer plugin check", () => {
       "protocol",
     ]);
     expect(entry?.reason).toContain("conforming");
+    expect(entry?.reason).toContain("protocol 3");
     expect(entry?.reason).toContain("protocol 2");
-    expect(entry?.reason).toContain("protocol 1");
     expect(entry?.reason).toContain("brew install --cask");
   });
 
@@ -163,7 +165,7 @@ describe("recognizer plugin check", () => {
     const report = await pluginCheck(
       captured.io,
       join(FIXTURES, "conforming/recognizer-scan-conforming"),
-      2,
+      3,
     );
     const warning = report.results.find((one) => one.status === "warn");
 
@@ -328,73 +330,84 @@ describe("recognizer plugin check", () => {
   });
 });
 
-describe("checkLimits", () => {
-  const thresholds = () =>
-    ({
-      ...JSON.parse(
-        readFileSync(
-          join(REPO, "schema/manifest-examples/valid/sensor-crap.json"),
-          "utf8",
-        ),
+const thresholds = () =>
+  ({
+    ...JSON.parse(
+      readFileSync(
+        join(REPO, "schema/manifest-examples/valid/sensor-crap.json"),
+        "utf8",
       ),
-      name: "mine",
-      metrics: [],
-      settings: [
-        {
-          key: "<metric>",
-          type: "enum",
-          description: "turns the default threshold of a metric off",
-          example: "sensors.mine.coverage off",
-          values: ["off"],
+    ),
+    name: "mine",
+    metrics: [],
+    placeholders: {
+      name: { pattern: "^.+$", description: "the name of a test suite" },
+      variable: {
+        pattern: "^[A-Za-z_][A-Za-z0-9_]*$",
+        description: "the name of an environment variable",
+      },
+      metric: {
+        pattern: "^[a-z][a-z0-9_-]*$",
+        description: "a metric the sensor reports",
+      },
+    },
+    settings: [
+      {
+        key: "<metric>",
+        type: "enum",
+        description: "turns the default threshold of a metric off",
+        example: "sensors.mine.coverage off",
+        values: ["off"],
+      },
+      {
+        key: "<metric>.above",
+        type: "number",
+        description:
+          "a finding when the metric is above this value; a metric takes above or below, not both",
+        example: "sensors.mine.churn.above 20",
+        order: 1,
+        limit: {
+          metric: "<metric>",
+          direction: "above",
+          severity: "<metric>.severity",
         },
-        {
-          key: "<metric>.above",
-          type: "number",
-          description:
-            "a finding when the metric is above this value; a metric takes above or below, not both",
-          example: "sensors.mine.churn.above 20",
-          order: 1,
-          limit: {
-            metric: "<metric>",
-            direction: "above",
-            severity: "<metric>.severity",
-          },
+      },
+      {
+        key: "<metric>.below",
+        type: "number",
+        description:
+          "a finding when the metric is below this value; a metric takes above or below, not both",
+        example: "sensors.mine.coverage.below 0.7",
+        defaults: {
+          coverage: 0.6,
         },
-        {
-          key: "<metric>.below",
-          type: "number",
-          description:
-            "a finding when the metric is below this value; a metric takes above or below, not both",
-          example: "sensors.mine.coverage.below 0.7",
-          defaults: {
-            coverage: 0.6,
-          },
-          labels: {
-            coverage: "Coverage below",
-          },
-          units: {
-            coverage: "0 to 1",
-          },
-          order: 2,
-          limit: {
-            metric: "<metric>",
-            direction: "below",
-            severity: "<metric>.severity",
-          },
+        labels: {
+          coverage: "Coverage below",
         },
-        {
-          key: "<metric>.severity",
-          type: "enum",
-          description:
-            "how a finding of the metric is reported; default warning",
-          example: "sensors.mine.coverage.severity violation",
-          values: ["warning", "violation"],
-          defaults: {
-            coverage: "warning",
-          },
+        units: {
+          coverage: "0 to 1",
         },
-      ],
-    }) as Manifest;
+        order: 2,
+        limit: {
+          metric: "<metric>",
+          direction: "below",
+          severity: "<metric>.severity",
+        },
+      },
+      {
+        key: "<metric>.severity",
+        type: "enum",
+        description: "how a finding of the metric is reported; default warning",
+        example: "sensors.mine.coverage.severity violation",
+        values: ["warning", "violation"],
+        defaults: {
+          coverage: "warning",
+        },
+      },
+    ],
+  }) as Manifest;
+
+describe("checkLimits", () => {
   const limitsOf = (manifest: Manifest) =>
     checkLimits({
       command: "x",
@@ -482,6 +495,110 @@ describe("checkLimits", () => {
 
     expect(outcome.reason).toContain(
       "plain: labels needs a key with a placeholder",
+    );
+  });
+});
+
+describe("checkPlaceholders", () => {
+  const placeholdersOf = (manifest: Manifest) =>
+    checkPlaceholders({
+      command: "x",
+      current: 1,
+      run: { started: true, status: 0, stdout: "", stderr: "" },
+      leftovers: [],
+      document: manifest,
+      parsed: true,
+      manifest,
+    } as never);
+  const declared = (manifest: Manifest) =>
+    manifest.placeholders as Record<
+      string,
+      { pattern?: string; values?: string[]; description: string }
+    >;
+  const edited = (change: (manifest: Manifest) => void) => {
+    const manifest = thresholds();
+
+    change(manifest);
+
+    return placeholdersOf(manifest);
+  };
+
+  it("passes the thresholds manifest with every placeholder declared and used", () => {
+    expect(placeholdersOf(thresholds())).toEqual({
+      name: "placeholders",
+      status: "ok",
+    });
+  });
+
+  it("fails a pattern that does not compile", () => {
+    const outcome = edited((manifest) => {
+      declared(manifest).metric = { pattern: "(", description: "broken" };
+    });
+
+    expect(outcome.status).toBe("fail");
+    expect(outcome.reason).toContain("metric: pattern does not compile");
+  });
+
+  it("fails a placeholder a key uses that the manifest does not declare", () => {
+    const outcome = edited((manifest) => {
+      delete declared(manifest).metric;
+    });
+
+    expect(outcome.status).toBe("fail");
+    expect(outcome.reason).toContain(
+      "<metric>.above: uses the placeholder <metric> that the manifest does not declare",
+    );
+  });
+
+  it("fails a declaration no key uses", () => {
+    const outcome = edited((manifest) => {
+      declared(manifest).unused = {
+        values: ["a"],
+        description: "nothing uses this",
+      };
+
+      expect(Object.keys(declared(manifest))).toContain("unused");
+    });
+
+    expect(outcome.status).toBe("fail");
+    expect(outcome.reason).toContain("unused: declared but no key uses it");
+  });
+
+  it("fails a labels entry that does not match the declared pattern", () => {
+    const outcome = edited((manifest) => {
+      (manifest.settings[2] as { labels: Record<string, string> }).labels = {
+        "Not A Metric": "Coverage below",
+      };
+    });
+
+    expect(outcome.status).toBe("fail");
+    expect(outcome.reason).toContain(
+      "<metric>.below: labels entry Not A Metric does not match <metric>",
+    );
+  });
+
+  it("passes a labels entry that matches the declared pattern", () => {
+    const manifest = thresholds();
+
+    expect(
+      (manifest.settings[2] as { labels: Record<string, string> }).labels,
+    ).toEqual({ coverage: "Coverage below" });
+    expect(placeholdersOf(manifest)).toEqual({
+      name: "placeholders",
+      status: "ok",
+    });
+  });
+
+  it("matches an entry against a values declaration exactly", () => {
+    const outcome = edited((manifest) => {
+      declared(manifest).metric = {
+        values: ["churn"],
+        description: "a metric the sensor reports",
+      };
+    });
+
+    expect(outcome.reason).toContain(
+      "<metric>.below: labels entry coverage does not match <metric>",
     );
   });
 });

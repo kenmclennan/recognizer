@@ -5,7 +5,7 @@
   "description": "Runs the tests under coverage and flags functions that are complex and poorly covered, where a change is most likely to break something.",
   "expansion": "C.R.A.P.: Change Risk Anti-Patterns.",
   "version": "0.1.0",
-  "protocol": 1,
+  "protocol": 2,
   "install": "brew upgrade kenmclennan/tap/recognizer-sense-crap || brew install kenmclennan/tap/recognizer-sense-crap",
   "check": true,
   "long_running": true,
@@ -198,8 +198,6 @@
     }
   ],
   "runs_tests": true,
-  "scoped": false,
-  "log_path": ".recognizer/cache/coverage/last-run.log",
   "suite_keys": {
     "section": {
       "key": "tests.<name>",
@@ -273,5 +271,17 @@
         ]
       }
     ]
-  }
+  },
+  "placeholders": {
+    "name": {
+      "pattern": "^.+$",
+      "description": "the name of a test suite"
+    },
+    "variable": {
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "description": "the name of an environment variable a suite's command runs with"
+    }
+  },
+  "scoped": false,
+  "log_path": ".recognizer/cache/coverage/last-run.log"
 }

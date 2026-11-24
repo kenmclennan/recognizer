@@ -74,6 +74,38 @@ describe("the manifest schema", () => {
       readFileSync(join(REPO, "schema/protocol.json"), "utf8"),
     );
 
-    expect(protocol).toEqual({ protocol: 1 });
+    expect(protocol).toEqual({ protocol: 2 });
+  });
+
+  it("accepts a pattern declaration and a values declaration and refuses a declaration with both, with neither, or with an upper-case name", () => {
+    const base = JSON.parse(
+      readFileSync(
+        join(REPO, "schema/manifest-examples/valid/scanner.json"),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    const withPlaceholders = (placeholders: unknown) =>
+      validateManifest({ ...base, placeholders });
+
+    expect(validateManifest(base)).toBe(true);
+    expect(
+      withPlaceholders({
+        metric: { pattern: "^[a-z]+$", description: "a metric" },
+      }),
+    ).toBe(true);
+    expect(
+      withPlaceholders({
+        mode: { values: ["fast", "slow"], description: "m" },
+      }),
+    ).toBe(true);
+    expect(
+      withPlaceholders({
+        mode: { pattern: "^a$", values: ["a"], description: "m" },
+      }),
+    ).toBe(false);
+    expect(withPlaceholders({ mode: { description: "m" } })).toBe(false);
+    expect(
+      withPlaceholders({ Metric: { pattern: "^a$", description: "m" } }),
+    ).toBe(false);
   });
 });
