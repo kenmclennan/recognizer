@@ -14,6 +14,7 @@ import type {
   SurveySuite,
 } from "../../../domain/configuration/setup-survey.js";
 import { compileGlob } from "../../../domain/glob.js";
+import { SKIPPED_DIRECTORIES } from "../../../domain/language-rule.js";
 import { PolicyRule } from "../../../domain/policy-rule.js";
 import type { Repository } from "../../../domain/repository.js";
 import type { ConfigKeyEntry } from "../ports/config-keys.js";
@@ -70,10 +71,8 @@ export function filterListing(listing: string[]): string[] {
       (path) =>
         !path
           .split("/")
-          .some(
-            (part) =>
-              part === "node_modules" || part === "target" || part === ".git",
-          ),
+          .slice(0, -1)
+          .some((part) => SKIPPED_DIRECTORIES.has(part)),
     )
     .sort(compareText);
 }

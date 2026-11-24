@@ -7,6 +7,7 @@ export interface StubSurveyPlugin {
   order: number;
   language?: string;
   extensions?: string[];
+  skip?: Partial<typeof NO_SKIP>;
   stdout?: string;
   status?: number;
   holdSeconds?: number;
@@ -47,7 +48,7 @@ export function writeStubSurveyPlugin(
         name: language,
         extensions: stub.extensions ?? [],
         files: [],
-        skip: NO_SKIP,
+        skip: { ...NO_SKIP, ...stub.skip },
       },
     ],
   });

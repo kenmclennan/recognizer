@@ -75,7 +75,7 @@ export class SetupFilesAdapter implements SetupFiles {
       const path = join(directory, entry.name);
 
       if (entry.kind === "directory") {
-        if (!SKIPPED_DIRECTORIES.has(entry.name) && entry.name !== "target") {
+        if (!SKIPPED_DIRECTORIES.has(entry.name)) {
           this.walk(root, path, into);
         }
       } else if (entry.kind === "file") {

@@ -108,8 +108,6 @@ describe("detectLanguages", () => {
   it.each([
     ".git",
     "node_modules",
-    ".venv",
-    "venv",
     "dist",
     "build",
     ".worktrees",
@@ -148,6 +146,26 @@ describe("detectLanguages", () => {
     ["site-packages/a.py", []],
   ])("skips what the scanner skips: %s", (file, expected) => {
     expect(detect([file]).languages).toEqual(expected);
+  });
+
+  it("reads a venv folder without the marker and skips it with the marker", () => {
+    expect(detect(["venv/a.py"]).languages).toEqual(["python"]);
+    expect(detect(["venv/pyvenv.cfg", "venv/a.py"]).languages).toEqual([]);
+  });
+
+  it("skips .venv for every language through the hidden-folder prefix", () => {
+    expect(detect([".venv/a.py"]).languages).toEqual([]);
+    expect(detect([".venv/a.ts"]).languages).toEqual([]);
+
+    for (const rule of RULES) {
+      const files = [
+        ...rule.files.map((name) => `.venv/${name}`),
+        ...rule.extensions.map((extension) => `.venv/a${extension}`),
+      ];
+
+      expect(files.length).toBeGreaterThan(0);
+      expect(detect(files).languages).toEqual([]);
+    }
   });
 
   it("skips a virtual environment only for python", () => {

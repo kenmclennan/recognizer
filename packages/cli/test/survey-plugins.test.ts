@@ -97,6 +97,44 @@ describe("SurveyPluginsAdapter", () => {
     expect(world.requests()).toContain('"root":"/repository"');
   });
 
+  it("each plugin receives the file list without the directories its own language skips", async () => {
+    const directory = tempDirectory("recognizer-survey-plugins-skip-");
+    const rustLog = join(directory, "rust.log");
+    const pythonLog = join(directory, "python.log");
+
+    writeFileSync(rustLog, "");
+    writeFileSync(pythonLog, "");
+    writeStubSurveyPlugin(directory, {
+      name: "rust",
+      order: 1,
+      skip: { directory_names: ["target"] },
+      requestLog: rustLog,
+    });
+    writeStubSurveyPlugin(directory, {
+      name: "python",
+      order: 2,
+      requestLog: pythonLog,
+    });
+
+    const adapter = new SurveyPluginsAdapter(
+      ioWithPath([directory]),
+      scaledTimeout(60_000),
+    );
+
+    await adapter.answers({
+      root: "/repository",
+      files: ["Cargo.toml", "target/Cargo.toml"],
+      suites: [],
+    });
+
+    const filesOf = (log: string) =>
+      (JSON.parse(readFileSync(log, "utf8")) as { files: string[] }).files;
+
+    expect(filesOf(rustLog)).not.toEqual([]);
+    expect(filesOf(rustLog)).toEqual(["Cargo.toml"]);
+    expect(filesOf(pythonLog)).toEqual(["Cargo.toml", "target/Cargo.toml"]);
+  });
+
   it("turns an exit 1 into a failure for that scanner only", async () => {
     const world = setup([
       { name: "good", order: 1, stdout: answer("a") },
