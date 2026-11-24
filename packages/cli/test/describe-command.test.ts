@@ -20,6 +20,7 @@ import { type Io, run } from "../src/cli.js";
 import { COMMANDS } from "../src/commands.js";
 import { DESCRIBE_FLAGS } from "../src/describe-command.js";
 import { fullHelp } from "../src/help.js";
+import { validateRunRecord } from "../src/log-document.js";
 import { capture, REPO } from "./helpers.js";
 import { scannerManifestText } from "./scan-helpers.js";
 
@@ -1084,6 +1085,73 @@ describe("describe leaves a run record", () => {
       : [];
   }
 
+  it("closes the run log entry as failed when describe throws after an entry", async () => {
+    const root = ready();
+    const out = capture();
+    const made: string[] = [];
+    const io: Io = {
+      ...out.io,
+      makeTempDir: () => {
+        const directory = out.io.makeTempDir();
+
+        made.push(directory);
+
+        return directory;
+      },
+      stdout: (text) => {
+        if (text.startsWith("described ")) {
+          throw new Error("boom-in-describe");
+        }
+
+        out.io.stdout(text);
+      },
+    };
+    const code = await run(["describe", ORDER, "--repository", root], io);
+
+    for (const directory of made) {
+      rmSync(directory, { recursive: true, force: true });
+    }
+
+    const [saved] = recorded(root);
+
+    expect(code).toBe(2);
+    expect(out.err()).toContain("boom-in-describe");
+    expect(recorded(root)).toHaveLength(1);
+    expect(saved).toMatchObject({
+      kind: "describe",
+      outcome: "failed",
+      exit: 1,
+    });
+    expect(saved.finished).not.toBeNull();
+    expect(saved.entries).toHaveLength(1);
+    expect(() => validateRunRecord(saved)).not.toThrow();
+  });
+
+  it("closes the run log entry as failed when describe throws before any entry", async () => {
+    const root = ready();
+    const out = capture();
+    const io: Io = {
+      ...out.io,
+      makeTempDir: () => {
+        throw new Error("boom-temp");
+      },
+    };
+    const code = await run(["describe", "--repository", root], io);
+    const [saved] = recorded(root);
+
+    expect(code).toBe(2);
+    expect(out.err()).toContain("boom-temp");
+    expect(recorded(root)).toHaveLength(1);
+    expect(saved).toMatchObject({
+      kind: "describe",
+      outcome: "failed",
+      exit: 1,
+    });
+    expect(saved.finished).not.toBeNull();
+    expect(saved.entries).toHaveLength(0);
+    expect(() => validateRunRecord(saved)).not.toThrow();
+  });
+
   it("records a failing describer's stderr, command and who asked", async () => {
     const root = ready("v1", "--fail", ORDER);
     const result = await exec(
@@ -1149,17 +1217,18 @@ describe("describe leaves a run record", () => {
     expect(recorded(root)).toHaveLength(1);
     expect(saved).toMatchObject({
       kind: "describe",
-      outcome: "running",
-      finished: null,
+      outcome: "failed",
+      exit: 1,
     });
+    expect(saved.finished).not.toBeNull();
     expect(saved.entries).toHaveLength(1);
     expect(saved.entries[0]).toMatchObject({ name: ORDER, outcome: "ok" });
 
     const listed = await exec(root, "log");
     const printed = await exec(root, "log", "--last");
 
-    expect(listed.out).toContain("stopped");
-    expect(printed.out).toContain("stopped: no finish recorded");
+    expect(listed.out).not.toContain("stopped");
+    expect(printed.out).not.toContain("no finish recorded");
     expect(printed.out).toContain(ORDER);
   });
 

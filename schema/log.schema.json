@@ -302,10 +302,6 @@
         "properties": {
           "finished": {
             "type": "string"
-          },
-          "entries": {
-            "type": "array",
-            "minItems": 1
           }
         }
       }
@@ -324,6 +320,10 @@
       "then": {
         "properties": {
           "phases": {
+            "type": "array",
+            "minItems": 1
+          },
+          "entries": {
             "type": "array",
             "minItems": 1
           }

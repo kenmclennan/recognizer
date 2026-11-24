@@ -1,0 +1,14 @@
+{
+  "log_version": 1,
+  "kind": "describe",
+  "started": "2026-11-02T09:30:00.120Z",
+  "finished": "2026-11-02T09:30:07.480Z",
+  "by": "Claude",
+  "arguments": [
+    "--repository",
+    "/work/shop"
+  ],
+  "outcome": "failed",
+  "exit": 1,
+  "entries": []
+}
