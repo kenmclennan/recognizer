@@ -1,0 +1,118 @@
+{
+  "kind": "scanner",
+  "name": "python",
+  "display": "Python",
+  "version": "0.1.0",
+  "protocol": 1,
+  "install": "brew install --cask kenmclennan/tap/recognizer",
+  "check": false,
+  "long_running": true,
+  "units": [
+    "files"
+  ],
+  "settings": [],
+  "languages": [
+    {
+      "name": "python",
+      "display": "Python",
+      "extensions": [
+        ".py"
+      ],
+      "files": [],
+      "skip": {
+        "directory_names": [
+          "__pycache__",
+          "test",
+          "tests",
+          "dist",
+          "build",
+          "node_modules",
+          "site-packages"
+        ],
+        "directory_prefixes": [
+          "."
+        ],
+        "directory_suffixes": [
+          ".egg-info"
+        ],
+        "directory_markers": [
+          "pyvenv.cfg"
+        ],
+        "file_globs": [
+          "conftest.py"
+        ]
+      },
+      "test_files": [
+        {
+          "extensions": [],
+          "directory_names": [
+            "test",
+            "tests"
+          ],
+          "directory_suffixes": [],
+          "basename_patterns": [
+            "^test_.*\\.py$"
+          ],
+          "stem_suffixes": []
+        }
+      ],
+      "supertype_links": true,
+      "private_imports": true,
+      "grammars": [
+        {
+          "name": "python",
+          "extensions": [
+            ".py"
+          ],
+          "function_types": [
+            "function_definition"
+          ],
+          "scope_types": [
+            "class_definition"
+          ],
+          "branch_types": [
+            "if_statement"
+          ],
+          "boolean_operators": [
+            "and"
+          ],
+          "bound_function_types": [],
+          "function_names": [
+            {
+              "type": "function_definition",
+              "requires_field": "body",
+              "name_field": "name"
+            }
+          ],
+          "span": {
+            "scope_calls": [
+              "let"
+            ],
+            "statements_type": "statements",
+            "call_type": "call_expression",
+            "callee_name_type": "simple_identifier",
+            "navigation_type": "navigation_expression",
+            "navigation_suffix_type": "navigation_suffix",
+            "call_suffix_type": "call_suffix",
+            "lambda_argument_type": "annotated_lambda",
+            "lambda_type": "lambda_literal",
+            "jump_type": "jump_expression",
+            "jump_returns": [
+              "return"
+            ],
+            "label_type": "label",
+            "function_body_type": "function_body",
+            "object_literal_type": "object_literal",
+            "object_body_type": "class_body"
+          },
+          "vocabulary": {
+            "fields": {
+              "name": ""
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "scan_schema_version": 7
+}

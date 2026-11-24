@@ -8,7 +8,11 @@ import { REPO } from "./helpers.js";
 interface Grammar {
   name: string;
   [key: string]: unknown;
-  vocabulary?: { [role: string]: unknown };
+  vocabulary?: {
+    fields?: { [role: string]: string };
+    assignment_operators?: string[];
+    [role: string]: unknown;
+  };
 }
 
 const GRAMMARS: Grammar[] = (
@@ -18,6 +22,7 @@ const GRAMMARS: Grammar[] = (
 ).flatMap((language) => language.grammars ?? []);
 
 const NODE_TYPES = new Map<string, Set<string>>();
+const FIELD_NAMES = new Map<string, Set<string>>();
 
 function typesOf(language: Language): Set<string> {
   const names = new Set<string>();
@@ -59,10 +64,15 @@ describe("every grammar's published vocabulary", () => {
     await Parser.init();
 
     for (const grammar of GRAMMARS) {
-      NODE_TYPES.set(
+      const language = await Language.load(
+        join(GRAMMAR_DIRECTORY, `${grammar.name}.wasm`),
+      );
+
+      NODE_TYPES.set(grammar.name, typesOf(language));
+      FIELD_NAMES.set(
         grammar.name,
-        typesOf(
-          await Language.load(join(GRAMMAR_DIRECTORY, `${grammar.name}.wasm`)),
+        new Set(
+          language.fields.filter((name): name is string => name !== null),
         ),
       );
     }
@@ -97,6 +107,36 @@ describe("every grammar's published vocabulary", () => {
           `${grammar.name} ${suffix}`,
         ).toBe(true);
       }
+    }
+  });
+
+  it("every published field is a field of its grammar", () => {
+    let published = 0;
+
+    for (const grammar of GRAMMARS) {
+      const known = FIELD_NAMES.get(grammar.name) as Set<string>;
+      const fields = Object.values(grammar.vocabulary?.fields ?? {});
+
+      published += fields.length;
+      expect(
+        fields.filter((name) => !known.has(name)),
+        grammar.name,
+      ).toEqual([]);
+    }
+
+    expect(published).toBeGreaterThan(0);
+  });
+
+  it("every published assignment operator is a node type of its grammar", () => {
+    for (const grammar of GRAMMARS) {
+      const known = NODE_TYPES.get(grammar.name) as Set<string>;
+      const operators = grammar.vocabulary?.assignment_operators ?? [];
+
+      expect(operators.length, grammar.name).toBeGreaterThan(0);
+      expect(
+        operators.filter((operator) => !known.has(operator)),
+        grammar.name,
+      ).toEqual([]);
     }
   });
 });

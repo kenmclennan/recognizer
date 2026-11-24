@@ -138,6 +138,16 @@
                 "type": "indexer_declaration",
                 "literal": "this"
               }
+            ],
+            "fields": {
+              "name": "name",
+              "body": "body",
+              "callee": "function",
+              "operator": "operator",
+              "assigned_value": "right"
+            },
+            "assignment_operators": [
+              "="
             ]
           }
         }

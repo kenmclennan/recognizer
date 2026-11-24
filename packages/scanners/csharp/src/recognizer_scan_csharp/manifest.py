@@ -82,6 +82,18 @@ GRAMMARS = [
             "name_leaf_types": ["identifier"],
             "operator_node_types": ["binary_expression"],
             "node_names": [{"type": "indexer_declaration", "literal": "this"}],
+            "fields": {
+                "name": "name",
+                "body": "body",
+                "expression_body": "value",
+                "parameters": "parameters",
+                "parameter_pattern": "pattern",
+                "arguments": "arguments",
+                "callee": "function",
+                "operator": "operator",
+                "assigned_value": "right",
+            },
+            "assignment_operators": ["="],
         },
         "function_names": [
             {

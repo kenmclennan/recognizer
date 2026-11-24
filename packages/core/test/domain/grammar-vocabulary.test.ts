@@ -85,6 +85,21 @@ const TOY_VOCABULARY: VocabularyRule = {
   expression_bodied_types: ["prop_fn"],
   expression_body_types: ["arrow"],
   name_leaf_types: ["ident"],
+  fields: {
+    name: "name",
+    body: "body",
+    expression_body: "value",
+    parameters: "parameters",
+    parameter_pattern: "pattern",
+    arguments: "arguments",
+    callee: "function",
+    operator: "operator",
+    assigned_value: "right",
+    bound_value: "value",
+    initialiser_list: "body",
+    initialiser_value: "value",
+  },
+  assignment_operators: ["="],
   node_names: [
     { type: "impl", name_field: "target", strip_after: "<" },
     { type: "comp", default: "Companion" },
@@ -307,13 +322,13 @@ describe("naming reads the vocabulary", () => {
     );
   });
 
-  it("no vocabulary names by the name field only", () => {
+  it("no vocabulary names nothing", () => {
     expect(
       qualified(
         { type: "cls", children: [ident("Plain"), run] },
         { ...TOY, vocabulary: null },
       ),
-    ).toEqual(["run"]);
+    ).toEqual([]);
     expect(
       qualified(
         { type: "fn", children: [ident("leaf")] },

@@ -1,6 +1,17 @@
-import type { GrammarRule, NodeNameRule, VocabularyRule } from "./grammars.js";
+import type {
+  FieldRoles,
+  GrammarRule,
+  NodeNameRule,
+  VocabularyRule,
+} from "./grammars.js";
+
+export type FieldNames = {
+  readonly [R in keyof Required<FieldRoles>]: string | null;
+};
 
 export interface Vocabulary {
+  readonly fields: FieldNames;
+  readonly assignmentOperators: ReadonlySet<string>;
   readonly commentMarkers: readonly string[];
   readonly literalTypes: ReadonlySet<string>;
   readonly literalSuffixes: readonly string[];
@@ -49,12 +60,37 @@ function setOf(values: readonly string[] | undefined): ReadonlySet<string> {
   return new Set(values ?? []);
 }
 
+const NO_FIELDS: FieldNames = {
+  name: null,
+  body: null,
+  expression_body: null,
+  parameters: null,
+  parameter_pattern: null,
+  arguments: null,
+  callee: null,
+  operator: null,
+  assigned_value: null,
+  bound_value: null,
+  initialiser_list: null,
+  initialiser_value: null,
+};
+
+function fieldsOf(fields: FieldRoles | undefined): FieldNames {
+  const published = Object.entries(fields ?? {}).filter(
+    ([, value]) => value !== undefined,
+  );
+
+  return { ...NO_FIELDS, ...Object.fromEntries(published) };
+}
+
 function compile(rule: VocabularyRule): Vocabulary {
   const memberTypes = setOf(rule.member_types);
   const subscriptTypes = setOf(rule.subscript_types);
   const plainNameTypes = setOf(rule.plain_name_types);
 
   return {
+    fields: fieldsOf(rule.fields),
+    assignmentOperators: setOf(rule.assignment_operators),
     commentMarkers: listOf(rule.comment_markers),
     literalTypes: setOf(rule.literal_types),
     literalSuffixes: listOf(rule.literal_suffixes),

@@ -94,6 +94,8 @@ function leaf(text: string, type = "identifier"): SyntaxNode {
   };
 }
 
+const TOY_FIELDS = { name: "name", operator: "operator", body: "body" };
+
 const TOY: GrammarRule = {
   name: "toy",
   extensions: [".toy"],
@@ -104,7 +106,7 @@ const TOY: GrammarRule = {
   bound_function_types: [],
   function_names: [],
   span: null,
-  vocabulary: null,
+  vocabulary: { fields: TOY_FIELDS },
 };
 
 describe("function finding driven by a rule", () => {
@@ -158,7 +160,10 @@ describe("complexity driven by a rule", () => {
 
     const operators = {
       ...TOY,
-      vocabulary: { operator_node_types: ["binary_expression"] },
+      vocabulary: {
+        operator_node_types: ["binary_expression"],
+        fields: TOY_FIELDS,
+      },
     };
 
     expect(cyclomaticComplexity(body, operators, new Set())).toBe(4);
