@@ -1,3 +1,4 @@
+import { type ConfigurationPorts, surveySetup } from "@recognizer/core";
 import {
   type ApplyEvent,
   buildChanges,
@@ -765,5 +766,89 @@ describe("testRunnerNames", () => {
 
     expect(testRunnerNames(foo)).toBe("Foo");
     expect(testRunnerNames({ ...LOOM_SURVEY, checks: [] })).toBe("");
+  });
+});
+
+describe("a rerun of Setup on a configured repository", () => {
+  const unregistered: SetupProblem = {
+    code: "unregistered-plugin",
+    subject: "claude",
+    title: "The claude plugin is not registered",
+    line: "claude is installed but not registered",
+    fix: {
+      text: "Register the plugin",
+      command: "recognizer plugin add claude",
+    },
+    severity: "problem",
+  };
+  const doctor: DoctorReport = {
+    repository: "/repo",
+    ok: false,
+    problems: 1,
+    warnings: 0,
+    areas: [{ name: "describers", skipped: null, problems: [unregistered] }],
+  };
+  const ports = {
+    version: "0.0.0-test",
+    files: {
+      children: () => [],
+      list: () => [],
+      exists: () => false,
+    },
+    config: {
+      setupDocument: () => ({
+        present: true,
+        document: { sensors: { structure: {} } },
+      }),
+    },
+    plugins: {
+      answers: async () => [],
+    },
+    keys: { entries: () => [] },
+    policy: { rules: () => [] },
+    reads: {
+      cachedScans: () => null,
+      sensors: () => [],
+      describers: () => [
+        {
+          name: "claude",
+          display: "Claude",
+          description: "",
+          runs_tests: false,
+        },
+      ],
+      languageRules: () => [],
+      diagnose: () => doctor,
+    },
+  } as unknown as ConfigurationPorts;
+
+  it("turns no plugin on when every default is accepted for a check the survey offers unticked", async () => {
+    const survey = await surveySetup(ports, { root: "/repo" });
+    const offered = survey.checks.find((check) => check.id === "claude");
+
+    expect(offered?.mark).toBe("new");
+
+    const fake = fakeSetup({
+      surveyRead: {
+        status: "ok",
+        survey,
+        doctor: { status: "ok", report: doctor },
+      },
+    });
+    const { controller } = await opened(fake);
+
+    expect(wizard(controller).plugins.claude).toBe(false);
+
+    advanceTo(controller, "review");
+
+    const reviewed = wizard(controller);
+    const planned = buildChanges(reviewed.survey, choicesOf(reviewed)).changes;
+
+    expect(reviewed.survey.fixes).toEqual([]);
+    expect(choicesOf(reviewed).fixes).toEqual([]);
+    expect(choicesOf(reviewed).plugins).not.toContain("claude");
+    expect(planned.filter((change) => change.title.includes("claude"))).toEqual(
+      [],
+    );
   });
 });
