@@ -76,6 +76,7 @@
     "skip": {
       "directory_names": [
         "build",
+        "node_modules",
         "test",
         "androidTest",
         "integrationTest",
@@ -127,7 +128,8 @@
     "skip": {
       "directory_names": [
         "bin",
-        "obj"
+        "obj",
+        "node_modules"
       ],
       "directory_prefixes": [
         "."

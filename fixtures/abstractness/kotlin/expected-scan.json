@@ -22,6 +22,7 @@
     ],
     "skip_directory_names": [
       "build",
+      "node_modules",
       "test",
       "androidTest",
       "integrationTest",

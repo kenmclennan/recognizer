@@ -100,7 +100,6 @@ describe("readsDirectoriesOf", () => {
       ".worktrees",
       "build",
       "dist",
-      "node_modules",
     ]);
   });
 

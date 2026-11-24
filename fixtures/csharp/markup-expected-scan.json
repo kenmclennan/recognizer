@@ -73,7 +73,8 @@
     ],
     "skip_directory_names": [
       "bin",
-      "obj"
+      "obj",
+      "node_modules"
     ],
     "skip_directory_prefixes": [
       "."

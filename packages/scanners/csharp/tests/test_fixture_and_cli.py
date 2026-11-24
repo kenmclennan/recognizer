@@ -85,7 +85,7 @@ def test_the_fixture_global_usings_file_declares_no_type_and_has_no_edges():
 def test_the_selection_equals_the_binding_constants():
     assert selection() == {
         "extensions": [".cs", ".razor", ".cshtml", ".xaml"],
-        "skip_directory_names": ["bin", "obj"],
+        "skip_directory_names": ["bin", "obj", "node_modules"],
         "skip_directory_prefixes": ["."],
         "skip_directory_suffixes": [],
         "skip_directories_containing": [],

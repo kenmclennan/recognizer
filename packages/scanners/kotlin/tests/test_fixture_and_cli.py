@@ -199,6 +199,7 @@ def test_the_selection_equals_the_binding_constants():
         "extensions": [".kt"],
         "skip_directory_names": [
             "build",
+            "node_modules",
             "test",
             "androidTest",
             "integrationTest",
