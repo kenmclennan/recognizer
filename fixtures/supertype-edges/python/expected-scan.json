@@ -1,0 +1,292 @@
+{
+  "schema_version": 7,
+  "scanner": {
+    "name": "recognizer-scan-python",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "pkg/__init__.py",
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "pkg/base.py",
+      "hash": "0355d4004dbd3373a884896bf59c554a5e312baa3d5729fe5bad41e07eaf1f5c"
+    },
+    {
+      "path": "pkg/contracts.py",
+      "hash": "729c834aaf89ec4af6f2e62ffddb9aca0448f5d5ae1e908fa1b9bc79805b35c8"
+    },
+    {
+      "path": "pkg/default_dispatcher.py",
+      "hash": "b66d393a4ee5b2b6d01af06fd967dfb1785f0c49323b76c3d1737fc0aa04bd1e"
+    },
+    {
+      "path": "pkg/logging_dispatcher.py",
+      "hash": "2953c90ed2fff30964701bfe56843e955c5bb2c64669d3ccc9a33f32251b5fc0"
+    },
+    {
+      "path": "pkg/sub.py",
+      "hash": "99e9f96bd083e92c0ec54ffe0e9ac15e39429b60bea10517c9da728f3dac50f6"
+    }
+  ],
+  "selection": {
+    "extensions": [".py"],
+    "skip_directory_names": [
+      "__pycache__",
+      "test",
+      "tests",
+      "dist",
+      "build",
+      "node_modules",
+      "site-packages"
+    ],
+    "skip_directory_prefixes": ["."],
+    "skip_directory_suffixes": [".egg-info"],
+    "skip_directories_containing": ["pyvenv.cfg"],
+    "skip_file_globs": ["conftest.py"],
+    "input_file_globs": ["pyproject.toml"]
+  },
+  "modules": [
+    {
+      "id": "pkg/__init__.py",
+      "language": "python",
+      "kind": "package",
+      "members": []
+    },
+    {
+      "id": "pkg/base.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Handler",
+          "kind": "class",
+          "line": 1,
+          "exported": true,
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "handle",
+              "line": 2,
+              "end_line": 3,
+              "body_line": 3,
+              "params": [],
+              "private": false,
+              "returns": "None"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pkg/contracts.py",
+      "language": "python",
+      "kind": "interface",
+      "members": [
+        {
+          "name": "Dispatcher",
+          "kind": "interface",
+          "line": 4,
+          "exported": true,
+          "bases": ["Protocol"],
+          "fields": [],
+          "methods": [
+            {
+              "name": "dispatch",
+              "line": 5,
+              "end_line": 5,
+              "body_line": 5,
+              "params": [
+                {
+                  "name": "event",
+                  "type": "str"
+                }
+              ],
+              "private": false,
+              "returns": "None",
+              "tags": ["abstract"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pkg/default_dispatcher.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "DefaultDispatcher",
+          "kind": "class",
+          "line": 4,
+          "exported": true,
+          "bases": ["Dispatcher"],
+          "fields": [],
+          "methods": [
+            {
+              "name": "dispatch",
+              "line": 5,
+              "end_line": 6,
+              "body_line": 6,
+              "params": [
+                {
+                  "name": "event",
+                  "type": "str"
+                }
+              ],
+              "private": false,
+              "returns": "None"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pkg/logging_dispatcher.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "LoggingDispatcher",
+          "kind": "class",
+          "line": 4,
+          "exported": true,
+          "bases": ["Dispatcher"],
+          "fields": [
+            {
+              "name": "inner",
+              "line": 6,
+              "private": false
+            }
+          ],
+          "methods": [
+            {
+              "name": "__init__",
+              "line": 5,
+              "end_line": 6,
+              "body_line": 6,
+              "params": [
+                {
+                  "name": "inner",
+                  "type": "Dispatcher"
+                }
+              ],
+              "private": false,
+              "returns": "None"
+            },
+            {
+              "name": "dispatch",
+              "line": 8,
+              "end_line": 9,
+              "body_line": 9,
+              "params": [
+                {
+                  "name": "event",
+                  "type": "str"
+                }
+              ],
+              "private": false,
+              "returns": "None"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pkg/sub.py",
+      "language": "python",
+      "kind": "module",
+      "members": [
+        {
+          "name": "SpecialHandler",
+          "kind": "class",
+          "line": 4,
+          "exported": true,
+          "bases": ["Handler"],
+          "fields": [],
+          "methods": [
+            {
+              "name": "handle",
+              "line": 5,
+              "end_line": 6,
+              "body_line": 6,
+              "params": [],
+              "private": false,
+              "returns": "None"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "pkg/contracts.py",
+      "to": "foreign:typing",
+      "kind": "depends",
+      "line": 1
+    },
+    {
+      "from": "pkg/default_dispatcher.py",
+      "to": "pkg/contracts.py",
+      "kind": "implements",
+      "line": 4,
+      "member": "DefaultDispatcher",
+      "to_member": "Dispatcher"
+    },
+    {
+      "from": "pkg/logging_dispatcher.py",
+      "to": "pkg/contracts.py",
+      "kind": "depends",
+      "line": 1,
+      "names": ["Dispatcher"]
+    },
+    {
+      "from": "pkg/logging_dispatcher.py",
+      "to": "pkg/contracts.py",
+      "kind": "implements",
+      "line": 4,
+      "member": "LoggingDispatcher",
+      "to_member": "Dispatcher"
+    },
+    {
+      "from": "pkg/sub.py",
+      "to": "pkg/base.py",
+      "kind": "inherits",
+      "line": 4,
+      "member": "SpecialHandler",
+      "to_member": "Handler"
+    }
+  ],
+  "foreign": [
+    {
+      "id": "foreign:typing",
+      "name": "typing"
+    }
+  ],
+  "calls": [
+    {
+      "from": "pkg/contracts.py::Dispatcher.dispatch",
+      "to": "pkg/default_dispatcher.py::DefaultDispatcher.dispatch",
+      "line": 5,
+      "how": "dispatch"
+    },
+    {
+      "from": "pkg/contracts.py::Dispatcher.dispatch",
+      "to": "pkg/logging_dispatcher.py::LoggingDispatcher.dispatch",
+      "line": 5,
+      "how": "dispatch"
+    },
+    {
+      "from": "pkg/logging_dispatcher.py::LoggingDispatcher.dispatch",
+      "to": "pkg/contracts.py::Dispatcher.dispatch",
+      "line": 9,
+      "how": "call"
+    }
+  ],
+  "test_imports": []
+}

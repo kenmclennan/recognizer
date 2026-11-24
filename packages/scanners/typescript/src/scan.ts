@@ -20,6 +20,7 @@ import type { MemberOutline } from "./outline.js";
 import { Resolver } from "./resolve.js";
 import { namedEdges, Router } from "./routes.js";
 import { SCAN_SCHEMA_VERSION } from "./scan-schema.js";
+import { supertypeKey } from "./supertype-use.js";
 import { readTestImports } from "./test-imports.js";
 import { isUnder, TsconfigOptions } from "./tsconfig-options.js";
 import { scannerVersion } from "./version.js";
@@ -383,9 +384,28 @@ export function scan(
           push({ from, to: target.id, kind: "depends", line: reference.line });
         }
 
-        for (const named of names === null
+        const kept =
+          names === null
+            ? null
+            : names.filter(
+                (name) =>
+                  !(
+                    info.supertypeOnly.has(
+                      supertypeKey(reference.specifier, name),
+                    ) &&
+                    router
+                      .follow(target.id, name)
+                      .every((route) => route.module === target.id)
+                  ),
+              );
+
+        if (kept !== null && names !== null && kept.length < names.length) {
+          imported.add(target.id);
+        }
+
+        for (const named of kept === null || kept.length === 0
           ? []
-          : namedEdges(from, target.id, names, router)) {
+          : namedEdges(from, target.id, kept, router)) {
           imported.add(named.to);
           push({
             from,

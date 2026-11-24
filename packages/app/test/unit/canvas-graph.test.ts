@@ -284,7 +284,7 @@ describe("edge styles", () => {
 describe("the python fixture", () => {
   const scan = expectedScan("python");
 
-  it("draws 15 boxes, 5 frames and 15 lines in the expected styles", () => {
+  it("draws 15 boxes, 5 frames and 13 lines in the expected styles", () => {
     const graph = graphOf(scan);
     const styles = (style: string) =>
       graph.lines.filter((line) => line.style === style);
@@ -300,7 +300,7 @@ describe("the python fixture", () => {
     expect(graph.frames.every((frame) => !frame.label.includes("/"))).toBe(
       true,
     );
-    expect(graph.lines).toHaveLength(15);
+    expect(graph.lines).toHaveLength(13);
     expect(
       styles("private")
         .map((line) => `${line.from}>${line.to}`)
@@ -315,11 +315,11 @@ describe("the python fixture", () => {
     expect(styles("hollow")).toHaveLength(2);
   });
 
-  it("folds shop/domain into 11 lines, one of them counted twice", () => {
+  it("folds shop/domain into 9 lines, one of them counted twice", () => {
     const graph = graphOf(scan, { folded: new Set(["shop/domain"]) });
     const counted = graph.lines.filter((line) => line.count > 1);
 
-    expect(graph.lines).toHaveLength(11);
+    expect(graph.lines).toHaveLength(9);
     expect(counted).toHaveLength(1);
     expect(counted[0]).toMatchObject({
       from: "shop/application/report.py",
@@ -331,7 +331,7 @@ describe("the python fixture", () => {
 });
 
 describe("the typescript fixture", () => {
-  it("draws 15 boxes, 3 frames and 19 lines with no private import", () => {
+  it("draws 15 boxes, 3 frames and 18 lines with no private import", () => {
     const graph = graphOf(expectedScan("typescript"));
 
     expect(graph.boxes).toHaveLength(15);
@@ -340,7 +340,7 @@ describe("the typescript fixture", () => {
       "web/src",
       "api/src/models",
     ]);
-    expect(graph.lines).toHaveLength(19);
+    expect(graph.lines).toHaveLength(18);
     expect(graph.lines.some((line) => line.style === "private")).toBe(false);
   });
 });

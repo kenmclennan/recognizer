@@ -176,7 +176,8 @@ describe("heritage", () => {
         scanTree({
           "tsconfig.json": BUNDLER,
           "b.ts": base,
-          "a.ts": 'import { B } from "./b";\nclass C extends B {}\n',
+          "a.ts":
+            'import { B } from "./b";\nclass C extends B {\n  other?: B;\n}\n',
         }),
         "a.ts",
       ),

@@ -451,24 +451,10 @@
     {
       "from": "shop/adapters/memory_store.py",
       "to": "shop/ports/store.py",
-      "kind": "depends",
-      "line": 3,
-      "names": ["Store"]
-    },
-    {
-      "from": "shop/adapters/memory_store.py",
-      "to": "shop/ports/store.py",
       "kind": "implements",
       "line": 6,
       "member": "MemoryStore",
       "to_member": "Store"
-    },
-    {
-      "from": "shop/adapters/special_store.py",
-      "to": "shop/adapters/memory_store.py",
-      "kind": "depends",
-      "line": 1,
-      "names": ["MemoryStore"]
     },
     {
       "from": "shop/adapters/special_store.py",

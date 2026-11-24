@@ -14,6 +14,7 @@ class NamedImport:
     owner: str
     exact: bool
     names: list[str]
+    bound: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -144,6 +145,7 @@ def read_imports(module_id: str, tree: ast.Module, index: ModuleIndex) -> Import
                 add_edge(submodule, node.lineno)
             elif named:
                 named.names.append(alias.name)
+                named.bound[alias.name] = alias.asname or alias.name
 
                 if exact and id(node) in top_level:
                     imports.reexports[alias.asname or alias.name] = (owner.module_id, alias.name)

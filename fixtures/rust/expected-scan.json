@@ -325,13 +325,6 @@
     {
       "from": "shop/src/adapters/sql.rs",
       "to": "shop/src/ports/mod.rs",
-      "kind": "depends",
-      "line": 3,
-      "names": ["Store"]
-    },
-    {
-      "from": "shop/src/adapters/sql.rs",
-      "to": "shop/src/ports/mod.rs",
       "kind": "implements",
       "line": 9,
       "member": "SqlStore",
@@ -380,13 +373,6 @@
       "to": "shop/src/ports/mod.rs",
       "kind": "depends",
       "line": 4,
-      "names": ["Store"]
-    },
-    {
-      "from": "shop/src/ports/memory.rs",
-      "to": "shop/src/ports/mod.rs",
-      "kind": "depends",
-      "line": 1,
       "names": ["Store"]
     },
     {

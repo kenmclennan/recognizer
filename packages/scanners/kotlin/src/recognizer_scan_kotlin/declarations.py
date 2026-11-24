@@ -166,6 +166,8 @@ class SourceFile:
     uses: dict[str, int]
     chains: list[tuple[int, list[str]]]
     damaged: bool
+    body_uses: set[str] = field(default_factory=set)
+    super_chains: list[tuple[int, list[str]]] = field(default_factory=list)
 
 
 def read_import(node: Node) -> Import | None:
@@ -319,35 +321,67 @@ def member_of_navigation(node: Node) -> str | None:
     return text_of(found) if found else None
 
 
-def collect_uses(roots: list[Node]) -> tuple[dict[str, int], list[tuple[int, list[str]]]]:
+def supertype_holders(node: Node) -> list[Node]:
+    holders = []
+
+    for specifier in node.children:
+        if specifier.type != "delegation_specifier":
+            continue
+
+        for inner in specifier.children:
+            holder = inner if inner.type == "user_type" else child(inner, "user_type")
+
+            if holder:
+                holders.append(holder)
+
+    return holders
+
+
+def collect_uses(
+    roots: list[Node],
+) -> tuple[
+    dict[str, int],
+    list[tuple[int, list[str]]],
+    set[str],
+    list[tuple[int, list[str]]],
+]:
     uses: dict[str, int] = {}
     chains: list[tuple[int, list[str]]] = []
+    super_chains: list[tuple[int, list[str]]] = []
+    body_uses: set[str] = set()
+    supertype_ids = {
+        holder.id for root in roots for node in walk(root) for holder in supertype_holders(node)
+    }
 
-    def note(name: str, line: int) -> None:
+    def note(name: str, line: int, in_super: bool) -> None:
         if name not in uses or line < uses[name]:
             uses[name] = line
 
+        if not in_super:
+            body_uses.add(name)
+
     for root in roots:
-        pending = [(root, False)]
+        pending = [(root, False, False)]
 
         while pending:
-            node, skipped = pending.pop()
+            node, skipped, in_super = pending.pop()
+            in_super = in_super or node.id in supertype_ids
 
             if node.type in ("package_header", "import_list"):
                 continue
 
             if node.type in NAMES:
-                note(text_of(node), line_of(node))
+                note(text_of(node), line_of(node), in_super)
             elif node.type == "string_literal":
                 body = text_of(node)
 
                 for found in SHORT_TEMPLATE.finditer(body):
-                    note(found[1], line_of(node) + body[: found.start()].count("\n"))
+                    note(found[1], line_of(node) + body[: found.start()].count("\n"), in_super)
             elif node.type == "user_type":
                 segments = segments_of(node)
 
                 if len(segments) > 1:
-                    chains.append((line_of(node), segments))
+                    (super_chains if in_super else chains).append((line_of(node), segments))
             elif node.type == "navigation_expression" and not skipped:
                 segments = chain_of(node)
 
@@ -355,9 +389,9 @@ def collect_uses(roots: list[Node]) -> tuple[dict[str, int], list[tuple[int, lis
                     chains.append((line_of(node), segments))
 
             inner = node.type == "navigation_expression"
-            pending.extend((c, inner) for c in node.children)
+            pending.extend((c, inner, in_super) for c in node.children)
 
-    return uses, chains
+    return uses, chains, body_uses, super_chains
 
 
 def read_declarations(roots: list[Node]) -> list[Decl]:
@@ -525,9 +559,21 @@ def read_source(path: str, directory: str, parsed: Parsed, data: bytes) -> Sourc
 
     decls = read_declarations(parsed.roots)
 
-    uses, chains = collect_uses(parsed.roots)
+    uses, chains, body_uses, super_chains = collect_uses(parsed.roots)
 
     if parsed.damaged:
         recover_uses(data, uses)
+        body_uses.update(uses)
 
-    return SourceFile(path, directory, package, imports, decls, uses, chains, parsed.damaged)
+    return SourceFile(
+        path,
+        directory,
+        package,
+        imports,
+        decls,
+        uses,
+        chains,
+        parsed.damaged,
+        body_uses,
+        super_chains,
+    )

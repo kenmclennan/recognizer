@@ -224,14 +224,17 @@ class Resolver:
     def resolve_file(self, file: SourceFile, order: int, collected: Collected) -> None:
         statics = self.static_targets(file)
         unresolved_names = set()
+        self.supertype_edges(file, collected)
+        covered = {edge[1] for edge in collected.others if edge[0] == file.path}
 
-        for (segments, enclosing, namespace), line in sorted(
-            file.uses.items(), key=lambda item: (item[1], item[0])
-        ):
+        for key, line in sorted(file.uses.items(), key=lambda item: (item[1], item[0])):
+            segments, enclosing, namespace = key
             targets = self.chain(file, list(segments), enclosing, namespace)
 
+            supertype_only = key not in file.body_uses
+
             for target in targets:
-                if target.path != file.path:
+                if target.path != file.path and not (supertype_only and target.path in covered):
                     collected.depend(file.path, target.path, line, order, [target.name])
 
             if targets:
@@ -254,7 +257,6 @@ class Resolver:
             ):
                 unresolved_names.add(head)
 
-        self.supertype_edges(file, collected)
         self.using_edges(file, order, collected, bool(unresolved_names))
 
     def supertype_edges(self, file: SourceFile, collected: Collected) -> None:

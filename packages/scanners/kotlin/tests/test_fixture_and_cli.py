@@ -85,8 +85,8 @@ def test_the_fixture_edges_hold_the_listed_relationships():
     depends = edge_pairs(document)
     jdbc = f"{MAIN}/persistence/JdbcOrderStore.kt"
 
-    assert len(document["edges"]) == 20
-    assert len(depends) == 19
+    assert len(document["edges"]) == 19
+    assert len(depends) == 18
     assert (f"{MAIN}/web/OrderController.kt", f"{MAIN}/application/PlaceOrder.kt") in depends
     assert (f"{MAIN}/web/OrderController.kt", f"{MAIN}/config/Paths.kt") in depends
     assert (f"{MAIN}/application/PlaceOrder.kt", f"{MAIN}/ports/OrderStore.kt") in depends

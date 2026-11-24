@@ -388,6 +388,21 @@ pub fn scan_reporting(
         }
 
         let mut recorded: HashSet<(usize, Vec<usize>, String)> = HashSet::new();
+        let supertype_targets: HashSet<usize> = source
+            .impls
+            .iter()
+            .filter_map(|implementation| {
+                match resolver.resolve_trait(
+                    file,
+                    &implementation.scope,
+                    &implementation.trait_path,
+                    implementation.leading_colon,
+                ) {
+                    Final::Target { file: target, .. } if target != file => Some(target),
+                    _ => None,
+                }
+            })
+            .collect();
 
         for (scope, content) in &source.scopes {
             for leaf in &content.uses {
@@ -397,6 +412,14 @@ pub fn scan_reporting(
                         names,
                         via,
                     } if target != file => {
+                        if !leaf.glob
+                            && !names.is_empty()
+                            && source.supertype_only.contains(&leaf.binding)
+                            && supertype_targets.contains(&target)
+                        {
+                            continue;
+                        }
+
                         if !leaf.glob {
                             for name in &names {
                                 recorded.insert((target, via.clone(), name.clone()));

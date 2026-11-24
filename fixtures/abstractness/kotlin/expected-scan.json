@@ -230,15 +230,6 @@
     {
       "from": "src/main/kotlin/p/Shapes.kt",
       "to": "src/main/kotlin/p/Contracts.kt",
-      "kind": "depends",
-      "line": 11,
-      "names": [
-        "Store"
-      ]
-    },
-    {
-      "from": "src/main/kotlin/p/Shapes.kt",
-      "to": "src/main/kotlin/p/Contracts.kt",
       "kind": "implements",
       "line": 11,
       "member": "Impl",

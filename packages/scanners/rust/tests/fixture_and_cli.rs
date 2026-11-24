@@ -47,7 +47,7 @@ fn the_fixture_holds_every_relationship_the_design_lists() {
     assert_has(&document, &format!("{orders} -> foreign:serde"));
     assert_has(&document, &format!("{orders} -> {ports} [Store]"));
     assert_has(&document, &format!("{lib} -> {orders} [Order]"));
-    assert_has(
+    assert_lacks(
         &document,
         &format!("shop/src/ports/memory.rs -> {ports} [Store]"),
     );
@@ -55,7 +55,7 @@ fn the_fixture_holds_every_relationship_the_design_lists() {
         &document,
         &format!("shop/src/ports/memory.rs -> {orders} [Order] via {lib}"),
     );
-    assert_has(
+    assert_lacks(
         &document,
         &format!("shop/src/adapters/sql.rs -> {ports} [Store]"),
     );

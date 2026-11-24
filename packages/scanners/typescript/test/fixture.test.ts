@@ -61,7 +61,7 @@ describe("fixture", () => {
     const doc = scan(SAMPLE, null);
 
     expect(doc.modules).toHaveLength(15);
-    expect(doc.edges).toHaveLength(21);
+    expect(doc.edges).toHaveLength(20);
     expect(doc.calls.map((c) => `${c.from} -> ${c.to} ${c.how}`)).toEqual([
       "api/src/base-store.ts::BaseStore.count -> api/src/base-store.ts::BaseStore.grow call",
       "api/src/base-store.ts::makeBase -> api/src/base-store.ts::BaseStore construct",

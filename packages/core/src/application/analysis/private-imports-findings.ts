@@ -22,12 +22,19 @@ export function privateImportsWarnings(
   >();
 
   for (const edge of edges) {
+    const importedNames =
+      edge.kind === "depends"
+        ? edge.names
+        : (edge.kind === "inherits" || edge.kind === "implements") &&
+            edge.toMember !== undefined
+          ? [edge.toMember]
+          : undefined;
+
     if (
-      edge.kind !== "depends" ||
+      importedNames === undefined ||
       edge.from === edge.to ||
       Library.owns(edge.to) ||
-      isTestFile(edge.from) ||
-      edge.names === undefined
+      isTestFile(edge.from)
     ) {
       continue;
     }
@@ -45,7 +52,7 @@ export function privateImportsWarnings(
 
     const privateNames = new Map<string, Member>();
 
-    for (const name of edge.names) {
+    for (const name of importedNames) {
       const member = owner.members.find((candidate) => candidate.name === name);
 
       if (member !== undefined && member.exported === false) {
