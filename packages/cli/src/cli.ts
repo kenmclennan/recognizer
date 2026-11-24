@@ -163,6 +163,17 @@ export function stopEverything(
   ]).then(() => undefined);
 }
 
+function withoutOptionalGitLocks(
+  command: string,
+  options?: RunOptions,
+): RunOptions | undefined {
+  if (command !== "git") {
+    return options;
+  }
+
+  return { ...options, env: { GIT_OPTIONAL_LOCKS: "0", ...options?.env } };
+}
+
 function spawnAsync(
   scope: StopScope,
   command: string,
@@ -389,7 +400,8 @@ export function nodeIo(scope: StopScope = processScope): Io {
       scope.tempDirs.delete(path);
       rmSync(path, { recursive: true, force: true });
     },
-    run: (command, args, options) => {
+    run: (command, args, requested) => {
+      const options = withoutOptionalGitLocks(command, requested);
       const timeoutMs = options?.timeoutMs;
       const result =
         timeoutMs === undefined
@@ -433,7 +445,12 @@ export function nodeIo(scope: StopScope = processScope): Io {
       };
     },
     runAsync: (command, args, options) =>
-      spawnAsync(scope, command, args, options),
+      spawnAsync(
+        scope,
+        command,
+        args,
+        withoutOptionalGitLocks(command, options),
+      ),
     launch: (command, args) => {
       try {
         const child = spawn(command, args, { detached: true, stdio: "ignore" });
