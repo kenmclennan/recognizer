@@ -23,6 +23,7 @@ export interface InstalledCheck {
 }
 
 export interface LanguageClaim {
+  name: string;
   files: string[];
   extensions: string[];
 }

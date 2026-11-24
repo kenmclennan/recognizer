@@ -128,7 +128,6 @@ export {
   type SurveyRunner,
   type SurveySuite,
   type SurveyTool,
-  type SurveyUnread,
   senseStructure as structureSensor,
   sensorArmed,
   sensorFreshness,

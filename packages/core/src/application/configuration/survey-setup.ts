@@ -17,7 +17,6 @@ import {
   markLanguages,
   policyOf,
   suitesOf,
-  unreadOf,
 } from "./internal/survey-facts.js";
 
 export interface SurveyRequestInput {
@@ -79,12 +78,17 @@ export async function surveySetup(
       scans === null
         ? null
         : markLanguages(filesOf(scans), document, suites, configured),
-    unread: unreadOf(files, ports.reads.languageRules()),
     checks,
     runners: assembled.runners,
     notes: [
       ...assembled.notes,
-      ...gapNotes(files, assembled.runners, suites, assembled.notes),
+      ...gapNotes(
+        files,
+        ports.reads.languageRules(),
+        assembled.runners,
+        suites,
+        assembled.notes,
+      ),
     ],
     tools: assembled.tools,
     fixes: fixesOf(ports.reads.diagnose(root), checks),

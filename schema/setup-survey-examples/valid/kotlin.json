@@ -4,22 +4,6 @@
   "repository": "/Users/example/orders",
   "configured": false,
   "files": null,
-  "unread": [
-    {
-      "language": "kotlin",
-      "files": 2,
-      "folders": [
-        {
-          "path": ".",
-          "files": 1
-        },
-        {
-          "path": "svc-b",
-          "files": 1
-        }
-      ]
-    }
-  ],
   "checks": [
     {
       "id": "structure",

@@ -905,10 +905,7 @@ describe.skipIf(webkit === undefined)(
 
     it("shows files, checks and the tests step from the committed survey", () => {
       expect(f.openCalls).toEqual(["survey+extract"]);
-      expect(f.screens.files?.rows).toEqual([
-        "3 TypeScript files",
-        "1 files not read",
-      ]);
+      expect(f.screens.files?.rows).toEqual(["3 TypeScript files"]);
       expect(f.screens.files?.steps[0]).toBe("files:now");
       expect(f.screens.checks?.rows).toEqual([
         "Structure - always on",
@@ -976,7 +973,7 @@ describe.skipIf(webkit === undefined)(
     it("files note names what changed", () => {
       const files = f.screens["rerun-files"] as Screen;
 
-      expect(files.rows).toHaveLength(3);
+      expect(files.rows).toHaveLength(2);
       expect(files.marks).toEqual(["Set up", "Gone"]);
       expect(files.text).toContain("New test runners: engine (engine)");
       expect(files.text).toContain(

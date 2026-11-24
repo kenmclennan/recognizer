@@ -3,11 +3,13 @@ import type {
   SurveyRunner,
   SurveySuite,
 } from "../../domain/configuration/setup-survey.js";
-import { SOURCE_EXTENSIONS } from "./internal/survey-facts.js";
-import { compareText, extensionOf } from "./internal/text-paths.js";
+import type { LanguageClaim } from "./internal/configuration-ports.js";
+import { claimedBy } from "./internal/survey-facts.js";
+import { compareText } from "./internal/text-paths.js";
 
 export function gapNotes(
   files: string[],
+  rules: readonly LanguageClaim[],
   runners: SurveyRunner[],
   suites: SurveySuite[],
   notes: SurveyNote[],
@@ -15,9 +17,11 @@ export function gapNotes(
   const counts = new Map<string, number>();
 
   for (const file of files) {
-    const language = SOURCE_EXTENSIONS[extensionOf(file)];
+    const languages = new Set(
+      rules.filter((rule) => claimedBy(rule, file)).map((rule) => rule.name),
+    );
 
-    if (language !== undefined) {
+    for (const language of languages) {
       counts.set(language, (counts.get(language) ?? 0) + 1);
     }
   }

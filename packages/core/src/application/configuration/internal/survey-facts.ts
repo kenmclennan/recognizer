@@ -12,7 +12,6 @@ import type {
   SurveyLimit,
   SurveyPolicy,
   SurveySuite,
-  SurveyUnread,
 } from "../../../domain/configuration/setup-survey.js";
 import { compileGlob } from "../../../domain/glob.js";
 import { baseName } from "../../../domain/path.js";
@@ -24,39 +23,7 @@ import type {
   LanguageClaim,
   SetupDoctorReport,
 } from "./configuration-ports.js";
-import { compareText, extensionOf, normalizeDirectory } from "./text-paths.js";
-
-export const SOURCE_EXTENSIONS: Record<string, string> = {
-  ".py": "python",
-  ".ts": "typescript",
-  ".tsx": "typescript",
-  ".mts": "typescript",
-  ".cts": "typescript",
-  ".js": "typescript",
-  ".jsx": "typescript",
-  ".mjs": "typescript",
-  ".cjs": "typescript",
-  ".rs": "rust",
-  ".kt": "kotlin",
-  ".kts": "kotlin",
-  ".cs": "csharp",
-  ".java": "java",
-  ".go": "go",
-  ".rb": "ruby",
-  ".php": "php",
-  ".swift": "swift",
-  ".scala": "scala",
-  ".c": "c",
-  ".h": "c",
-  ".cpp": "cpp",
-  ".cc": "cpp",
-  ".hpp": "cpp",
-  ".ex": "elixir",
-  ".exs": "elixir",
-  ".dart": "dart",
-  ".lua": "lua",
-  ".zig": "zig",
-};
+import { compareText, normalizeDirectory } from "./text-paths.js";
 
 const LIMIT_KEYS = [
   {
@@ -130,33 +97,11 @@ export function filesOf(repository: Repository): SurveyLanguage[] {
     .sort((a, b) => compareText(a.language, b.language));
 }
 
-export function unreadOf(
-  files: string[],
-  rules: readonly LanguageClaim[],
-): SurveyUnread[] {
-  const claimed = (path: string) =>
-    rules.some(
-      (rule) =>
-        rule.files.includes(baseName(path)) ||
-        rule.extensions.some((extension) => path.endsWith(extension)),
-    );
-  const byLanguage = new Map<string, string[]>();
-
-  for (const path of files) {
-    const language = SOURCE_EXTENSIONS[extensionOf(path)];
-
-    if (language !== undefined && !claimed(path)) {
-      byLanguage.set(language, [...(byLanguage.get(language) ?? []), path]);
-    }
-  }
-
-  return [...byLanguage]
-    .map(([language, paths]) => ({
-      language,
-      files: paths.length,
-      folders: foldersOf(paths),
-    }))
-    .sort((a, b) => compareText(a.language, b.language));
+export function claimedBy(rule: LanguageClaim, path: string): boolean {
+  return (
+    rule.files.includes(baseName(path)) ||
+    rule.extensions.some((extension) => path.endsWith(extension))
+  );
 }
 
 function valueAt(document: unknown, path: string[]): unknown {
