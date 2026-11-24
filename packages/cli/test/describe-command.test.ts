@@ -23,6 +23,7 @@ import { DESCRIBE_FLAGS } from "../src/describe-command.js";
 import { fullHelp } from "../src/help.js";
 import { validateRunRecord } from "../src/log-document.js";
 import { capture, REPO } from "./helpers.js";
+import { isolatedPath } from "./isolated-path.js";
 import { scannerManifestText } from "./scan-helpers.js";
 
 const FAKE = join(REPO, "packages/cli/test/fixtures/fake-describer.mjs");
@@ -60,7 +61,7 @@ function repository(language = "python"): string {
 
   binDirs.push(shims);
   scannerShim(shims, language);
-  process.env.PATH = `${shims}:${process.env.PATH}`;
+  process.env.PATH = isolatedPath(shims, ...describerDirs);
 
   const scan = JSON.parse(
     readFileSync(join(REPO, `fixtures/${language}/expected-scan.json`), "utf8"),
@@ -725,6 +726,7 @@ describe("describe prune", () => {
 const INSTALLED_VERSION = "prompt-0123456789ab";
 const originalPath = process.env.PATH;
 const binDirs: string[] = [];
+const describerDirs: string[] = [];
 
 function withoutDescriberPlugin(): void {
   const dir = mkdtempSync(join(tmpdir(), "recognizer-bin-"));
@@ -769,11 +771,13 @@ function installDescriberPlugin(): void {
     ].join("\n"),
     { mode: 0o755 },
   );
-  process.env.PATH = `${dir}:${process.env.PATH}`;
+  describerDirs.push(dir);
+  process.env.PATH = isolatedPath(...describerDirs);
 }
 
 beforeEach(() => {
   process.env.PATH = originalPath;
+  describerDirs.length = 0;
 });
 
 afterEach(() => {

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
+import { isolatedPath } from "./isolated-path.js";
 import { launcher, Serve } from "./serve-harness.js";
 import { writeStubSurveyPlugin } from "./stub-survey-plugin.js";
 
@@ -44,7 +45,7 @@ function claudeDirectory(body: string): string {
 
 function pathWith(...directories: string[]): Record<string, string> {
   return {
-    PATH: [...directories, process.env.PATH ?? ""].join(":"),
+    PATH: isolatedPath(...directories),
   };
 }
 

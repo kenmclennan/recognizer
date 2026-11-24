@@ -15,6 +15,7 @@ import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { run } from "../src/cli.js";
 import { validateScan } from "../src/index.js";
 import { capture, REPO } from "./helpers.js";
+import { isolatedPath } from "./isolated-path.js";
 
 const VARIABLES = ["PATH"];
 
@@ -106,7 +107,7 @@ describe.skipIf(!HAS_UV)(
         "recognizer-scan-typescript",
         `exec node ${REPO}/packages/scanners/typescript/dist/bin.js "$@"`,
       );
-      process.env.PATH = `${launchers}:${saved.PATH}`;
+      process.env.PATH = isolatedPath(launchers);
     });
 
     afterEach(() => {

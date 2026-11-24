@@ -29,6 +29,7 @@ import {
   watchTick,
 } from "../src/serve/watch.js";
 import { REPO } from "./helpers.js";
+import { isolatedPath } from "./isolated-path.js";
 import { scannerManifestText } from "./scan-helpers.js";
 import {
   alive,
@@ -246,7 +247,7 @@ describe("recognizer serve: starting a scan", () => {
       delete environment.RECOGNIZER_STARTED_BY;
 
       const cli = spawnSync(process.execPath, [BIN, "scan", viaCli, "--json"], {
-        env: { ...environment, PATH: `${launchers}:${process.env.PATH}` },
+        env: { ...environment, PATH: isolatedPath(launchers) },
         encoding: "utf8",
       });
 

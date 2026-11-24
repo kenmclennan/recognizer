@@ -17,6 +17,7 @@ import { run } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
 import { entriesOf } from "../src/run-log.js";
 import { capture, REPO } from "./helpers.js";
+import { isolatedPath } from "./isolated-path.js";
 
 const VARIABLES = ["SHELL"];
 const HAS_UV = spawnSync("uv", ["--version"]).status === 0;
@@ -129,7 +130,7 @@ describe.skipIf(!HAS_UV)(
           'exec sh -c "$2"',
         ].join("\n"),
       );
-      process.env.PATH = `${launchers}:${savedPath}`;
+      process.env.PATH = isolatedPath(launchers);
     });
 
     afterEach(() => {
@@ -588,7 +589,7 @@ describe.skipIf(!HAS_UV)(
         "recognizer-sense-mutation",
         `exec uv run --quiet --project ${REPO}/packages/sensors recognizer-sense-mutation "$@"`,
       );
-      process.env.PATH = `${launchers}:${savedPath}`;
+      process.env.PATH = isolatedPath(launchers);
 
       const git = (...args: string[]) =>
         spawnSync("git", ["-C", repository, ...args], {
@@ -768,7 +769,7 @@ describe.skipIf(!HAS_UV)(
           'exec sh -c "$2"',
         ].join("\n"),
       );
-      process.env.PATH = `${launchers}:${savedPath}`;
+      process.env.PATH = isolatedPath(launchers);
     });
 
     afterEach(() => {

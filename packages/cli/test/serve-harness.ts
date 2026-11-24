@@ -11,6 +11,7 @@ import { createInterface } from "node:readline";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { REPO } from "./helpers.js";
+import { isolatedPath } from "./isolated-path.js";
 
 export const BIN = join(REPO, "packages/cli/dist/bin.js");
 
@@ -27,7 +28,7 @@ export class Serve {
     this.child = spawn(process.execPath, [BIN, "serve"], {
       env: {
         ...process.env,
-        PATH: `${path}:${process.env.PATH}`,
+        PATH: isolatedPath(path),
         ...extra,
       },
       stdio: ["pipe", "pipe", "pipe"],
