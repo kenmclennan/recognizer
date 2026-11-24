@@ -18,6 +18,8 @@ export function describingFor(io: Io): Describing {
 
   return {
     readDescriber: (root) => asInputError(() => core.readDescriber(root)),
+    readResponsibility: (request) =>
+      asInputError(() => core.readResponsibility(request)),
     checkDescriptions: (request) =>
       asInputError(() => core.checkDescriptions(request)),
     describeModules: async (request) => {

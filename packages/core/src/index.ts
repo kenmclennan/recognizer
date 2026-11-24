@@ -47,6 +47,7 @@ export * from "./application/describing/ports/confirm.js";
 export * from "./application/describing/ports/describer.js";
 export * from "./application/describing/ports/describer-ref.js";
 export * from "./application/describing/read-describer.js";
+export * from "./application/describing/read-responsibility.js";
 export * from "./application/history/rank-against-baseline.js";
 export * from "./application/history/settle-baseline.js";
 export * from "./application/plugins/check-plugin.js";

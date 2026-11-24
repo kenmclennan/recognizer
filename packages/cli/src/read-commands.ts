@@ -1,10 +1,9 @@
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
   type Dependency,
   type FindingNote,
   findingsByModuleFrom,
-  lineStatus,
   type Member,
   measureFolders,
   Neighbours,
@@ -13,6 +12,8 @@ import {
 import { documentKind } from "./adapters/filesystem/scan-translator.js";
 import type { Io } from "./cli.js";
 import { type ConfigRead, readConfig } from "./config.js";
+import { describerVersion } from "./describer-version.js";
+import { describingFor } from "./describing-container.js";
 import { InputError } from "./errors.js";
 import { metricsLine, metricsTable } from "./folder-metrics.js";
 import { freshScans } from "./freshness.js";
@@ -23,12 +24,6 @@ import {
   methodTokens,
   tokensText,
 } from "./member-tokens.js";
-import { moduleSource } from "./module-source.js";
-import {
-  type ResponsibilityEntry,
-  toResponsibility,
-  validateResponsibilities,
-} from "./responsibilities.js";
 
 const byId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -171,53 +166,6 @@ export function runFind(argv: string[], io: Io): number {
   return 0;
 }
 
-type Status = "current" | "out-of-date" | "missing" | "unchecked";
-
-function responsibilityOf(
-  io: Io,
-  root: string,
-  repository: Repository,
-  id: string,
-): { status: Status; line: string | null } {
-  const file = join(root, ".recognizer", "responsibilities.json");
-  let entries: Record<string, ResponsibilityEntry> = {};
-
-  if (io.exists(file)) {
-    try {
-      entries = validateResponsibilities(JSON.parse(io.readFile(file))).modules;
-    } catch {
-      return { status: "unchecked", line: null };
-    }
-  }
-
-  const entry = entries[id];
-
-  if (entry === undefined) {
-    return { status: "missing", line: null };
-  }
-
-  const describer = readConfig(io, root, ["describer"])?.describer;
-
-  if (describer === undefined) {
-    return { status: "unchecked", line: entry.line };
-  }
-
-  const found = moduleSource(io, root, repository, id);
-
-  if (found === null) {
-    return { status: "unchecked", line: entry.line };
-  }
-
-  const status = lineStatus(
-    toResponsibility(entry),
-    found.hash,
-    describer.command,
-    describer.version,
-  ).status;
-
-  return { status: status as Status, line: entry.line };
-}
-
 interface ShownMember {
   name: string;
   kind?: string;
@@ -350,12 +298,20 @@ export function runShow(argv: string[], io: Io): number {
       .filter((edge) => edge.from === id),
     loaded.values.private === true,
   );
-  const responsibility = responsibilityOf(
-    io,
-    loaded.root,
-    loaded.repository,
+  const configured = readConfig(io, loaded.root, ["describer"])?.describer;
+  const responsibility = describingFor(io).readResponsibility({
+    root: loaded.root,
+    repository: loaded.repository,
     id,
-  );
+    describer:
+      configured === undefined
+        ? null
+        : {
+            describerRef: true,
+            command: configured.command,
+            version: describerVersion(configured),
+          },
+  });
   const findings = findingsOf(loaded, io).get(id) ?? [];
   const kind = kindOf(loaded.repository, id);
   const document = {
