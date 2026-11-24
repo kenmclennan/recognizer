@@ -243,6 +243,26 @@ Ports, with the subdomain each belongs to:
 | Changes | visualisation | marks the files a change view's range touched, from git's name-status diff |
 | Windows | visualisation | reads a running app window's state over the app's socket |
 
+#### Run model
+
+A plugin owns its run; core owns the record. Each scanner, sensor and describer is self-contained: it knows its own stages, how far through them it is and how long it has left. Core knows none of that. It keeps one durable record per repository of what every plugin has reported, and the app shows that record and nothing else.
+
+- **The plugin contract is start, stop and report.** Core starts a plugin with its request (scope, suites, the commit) and stops it on request. While it runs, the plugin reports four things: its stages (`stage {name, index, of}`), its progress within the stage, its own estimate of the time left for the whole run (or none), and its results as it settles them, a file or function at a time. A plugin that reports no estimate is shown as having none; core and the app never derive one from its progress.
+- **Core aggregates results into the durable record.** Results reach disk only through core: the plugin reports them and core writes the findings and overlay files through their repositories. A result reported before a stop, failure or timeout is kept, as a checkpoint is today. A read that fails never deletes a record.
+- **One run model per repository, held by the service.**
+
+| Entity | Holds | Invariants |
+| --- | --- | --- |
+| SensorRegistry | every shipped and registered plugin with its manifest | a registered plugin is always listed; a catalog that cannot be read is a state of the registry, never an empty list |
+| Run | who started it, its scope and choices, and its plugin runs in order | at most one active run per repository, held by the scan lock; it only moves forward; an ended run never changes |
+| PluginRun | one plugin's state (queued, running, finished, stopped, failed), its reported stage, progress and estimate | running only after the one before it ended; its end is set once |
+| ResultSet | per plugin: findings, overlay, the inputs and tests digests, when reported | grows as results are reported; replaced whole only by a finished run |
+| Freshness | per plugin: current, stale with its out-of-date files, never run, or checking | worked out from the ResultSet and the current inputs, nowhere else |
+
+- **The app subscribes to one snapshot.** The service publishes `repository.state` (registry, the active run, results, freshness) with a revision number on every change. The app renders the latest revision: rows come from the registry and do not move during a run, overlays arrive through the service, and the app reads no cache file, holds no busy flag, folds no progress and works out no estimate. The Rust side supervises the service and the windows and keeps no run state.
+- **Each side is tested alone.** A plugin is tested against the protocol, core's run model against fake plugins that report stages, estimates and results, and the app against snapshots. A defect then sits on one side of one contract, and is reproduced and fixed there.
+- **Starting and stopping go through core alone,** whichever surface asks, so a run the CLI started and one the app started are the same run in the snapshot.
+
 #### Migration
 
 Use cases move into core one at a time, and both adapters keep working at every step.
@@ -256,8 +276,9 @@ Use cases move into core one at a time, and both adapters keep working at every 
    2. Findings: Finding, from the findings files, pointing at a file or a member.
    3. Policy: PolicyRule, Violation and Warning, with violations and warnings worked out in `analysis`.
 6. Repositories: the Store port gives way to repositories the domain owns. Core's `domain/` defines a repository interface per aggregate (structure, findings, policy, config, run log, baseline) and `application/shared/ports/` holds a scan lock port; the CLI's filesystem adapters implement them through the translators; the core fakes implement the same interfaces. The structure repository saves the extraction as an entity, the scan translator writing the document. On-disk formats do not change.
-7. The remaining use cases, one at a time: describe, check and report, setup, config and policy, changes and commits, views and graph queries.
-8. Formats from the model: each document's format moves to core's entities, one document at a time, with its schema generated from them; only the translators change.
+7. Run model: the run model above in core, held by the service and published as one snapshot; plugins report stages, estimates and results through the protocol and core writes the record; the app's and the Rust side's run state, estimates and cache reads go.
+8. The remaining use cases, one at a time: describe, check and report, setup, config and policy, changes and commits, views and graph queries.
+9. Formats from the model: each document's format moves to core's entities, one document at a time, with its schema generated from them; only the translators change.
 
 The migration is done when all of these hold on main:
 
@@ -268,6 +289,7 @@ The migration is done when all of these hold on main:
 - Scan, describe, check and report, setup, config and policy, changes and commits, and views and graph queries each run through core's ports, with acceptance scenarios driving them through fakes.
 - Every aggregate is stored through a repository interface the domain owns, and core names no filesystem adapter.
 - The app reaches core as a service and holds no planning, scan or git logic.
+- Run, sensor and result state is held once, in core's run model; the app and the Rust side render its snapshot and keep no copy, and every estimate the app shows is one a plugin reported.
 - `packages/core` names no scanner, sensor or describer.
 
 ### Repository layout
