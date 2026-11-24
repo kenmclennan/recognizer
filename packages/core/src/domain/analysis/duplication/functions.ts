@@ -1,5 +1,5 @@
 import type { FunctionNameRule, GrammarRule } from "./grammars.js";
-import { childrenOf, type SyntaxNode } from "./syntax.js";
+import { childrenOf, fieldChild, type SyntaxNode } from "./syntax.js";
 import { type Vocabulary, vocabularyOf } from "./vocabulary.js";
 
 export interface FoundFunction {
@@ -12,7 +12,7 @@ function textOf(node: SyntaxNode | null): string | null {
 }
 
 function nodeName(node: SyntaxNode, vocabulary: Vocabulary): string | null {
-  const named = node.childForFieldName("name");
+  const named = fieldChild(node, vocabulary.fields.name);
 
   if (named !== null) {
     return named.text;
@@ -54,8 +54,8 @@ function boundName(node: SyntaxNode, vocabulary: Vocabulary): string | null {
     return null;
   }
 
-  const value = parent.childForFieldName("value");
-  const name = parent.childForFieldName("name");
+  const value = fieldChild(parent, vocabulary.fields.bound_value);
+  const name = fieldChild(parent, vocabulary.fields.name);
 
   if (
     value === null ||

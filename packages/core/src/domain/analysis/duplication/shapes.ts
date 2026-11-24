@@ -1,5 +1,10 @@
 import { isComment, isLiteral } from "./normalise.js";
-import { childrenOf, namedChildrenOf, type SyntaxNode } from "./syntax.js";
+import {
+  childrenOf,
+  fieldChild,
+  namedChildrenOf,
+  type SyntaxNode,
+} from "./syntax.js";
 import type { Vocabulary } from "./vocabulary.js";
 
 function isDocstring(node: SyntaxNode, vocabulary: Vocabulary): boolean {
@@ -16,10 +21,10 @@ export function bodyOf(
   fn: SyntaxNode,
   vocabulary: Vocabulary,
 ): SyntaxNode | null {
-  let body = fn.childForFieldName("body");
+  let body = fieldChild(fn, vocabulary.fields.body);
 
   if (body === null && vocabulary.expressionBodiedTypes.has(fn.type)) {
-    const value = fn.childForFieldName("value");
+    const value = fieldChild(fn, vocabulary.fields.expression_body);
 
     body =
       value !== null && vocabulary.expressionBodyTypes.has(value.type)
@@ -59,7 +64,7 @@ function statementsOf(fn: SyntaxNode, vocabulary: Vocabulary): SyntaxNode[] {
 
 function parameterNames(fn: SyntaxNode, vocabulary: Vocabulary): Set<string> {
   const parameters =
-    fn.childForFieldName("parameters") ??
+    fieldChild(fn, vocabulary.fields.parameters) ??
     childrenOf(fn).find((c) => vocabulary.parameterListTypes.has(c.type)) ??
     null;
   const names = new Set<string>();
@@ -68,8 +73,8 @@ function parameterNames(fn: SyntaxNode, vocabulary: Vocabulary): Set<string> {
     ? []
     : namedChildrenOf(parameters)) {
     let name =
-      parameter.childForFieldName("pattern") ??
-      parameter.childForFieldName("name");
+      fieldChild(parameter, vocabulary.fields.parameter_pattern) ??
+      fieldChild(parameter, vocabulary.fields.name);
 
     if (name === null && vocabulary.plainNameTypes.has(parameter.type)) {
       name = parameter;
@@ -110,7 +115,7 @@ function unwrapArgument(node: SyntaxNode, vocabulary: Vocabulary): SyntaxNode {
 
 function callArguments(call: SyntaxNode, vocabulary: Vocabulary): SyntaxNode[] {
   const isList = (c: SyntaxNode) => vocabulary.argumentListTypes.has(c.type);
-  let args = call.childForFieldName("arguments");
+  let args = fieldChild(call, vocabulary.fields.arguments);
 
   args ??= namedChildrenOf(call).find(isList) ?? null;
 
@@ -189,7 +194,9 @@ function lookupChain(start: SyntaxNode, vocabulary: Vocabulary): boolean {
 
     if (vocabulary.callTypes.has(node.type)) {
       const callee =
-        node.childForFieldName("function") ?? namedChildrenOf(node)[0] ?? null;
+        fieldChild(node, vocabulary.fields.callee) ??
+        namedChildrenOf(node)[0] ??
+        null;
 
       if (
         callee === null ||
@@ -277,13 +284,13 @@ function storesAParameter(
     return false;
   }
 
-  const operator = node.childForFieldName("operator");
+  const operator = fieldChild(node, vocabulary.fields.operator);
 
-  if (operator !== null && operator.text !== "=") {
+  if (operator !== null && !vocabulary.assignmentOperators.has(operator.text)) {
     return false;
   }
 
-  let right = node.childForFieldName("right");
+  let right = fieldChild(node, vocabulary.fields.assigned_value);
 
   if (
     right === null &&
@@ -292,7 +299,7 @@ function storesAParameter(
   ) {
     const children = childrenOf(node);
 
-    if ((children[1] as SyntaxNode).text !== "=") {
+    if (!vocabulary.assignmentOperators.has((children[1] as SyntaxNode).text)) {
       return false;
     }
 
@@ -311,7 +318,7 @@ function buildsFromParameters(
     return false;
   }
 
-  const initialisers = node.childForFieldName("body");
+  const initialisers = fieldChild(node, vocabulary.fields.initialiser_list);
 
   if (initialisers === null) {
     return false;
@@ -337,7 +344,7 @@ function buildsFromParameters(
       return parameters.has(c.text);
     }
 
-    const value = c.childForFieldName("value");
+    const value = fieldChild(c, vocabulary.fields.initialiser_value);
 
     return (
       vocabulary.fieldInitialiserTypes.has(c.type) &&

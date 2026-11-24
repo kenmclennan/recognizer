@@ -64,6 +64,16 @@ GRAMMARS = [
             "docstring_string_types": ["string"],
             "name_leaf_types": ["identifier"],
             "operator_node_types": ["boolean_operator"],
+            "fields": {
+                "name": "name",
+                "body": "body",
+                "parameters": "parameters",
+                "arguments": "arguments",
+                "callee": "function",
+                "operator": "operator",
+                "assigned_value": "right",
+            },
+            "assignment_operators": ["="],
         },
         "function_names": [],
     }

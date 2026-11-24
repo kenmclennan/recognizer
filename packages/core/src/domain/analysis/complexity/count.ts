@@ -1,5 +1,9 @@
 import type { GrammarRule } from "../duplication/grammars.js";
-import { childrenOf, type SyntaxNode } from "../duplication/syntax.js";
+import {
+  childrenOf,
+  fieldChild,
+  type SyntaxNode,
+} from "../duplication/syntax.js";
 import { vocabularyOf } from "../duplication/vocabulary.js";
 
 function addsOne(node: SyntaxNode, rule: GrammarRule): boolean {
@@ -7,11 +11,13 @@ function addsOne(node: SyntaxNode, rule: GrammarRule): boolean {
     return true;
   }
 
-  if (!vocabularyOf(rule).operatorNodeTypes.has(node.type)) {
+  const vocabulary = vocabularyOf(rule);
+
+  if (!vocabulary.operatorNodeTypes.has(node.type)) {
     return false;
   }
 
-  const operator = node.childForFieldName("operator");
+  const operator = fieldChild(node, vocabulary.fields.operator);
 
   return operator !== null && rule.boolean_operators.includes(operator.type);
 }

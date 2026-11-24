@@ -94,6 +94,18 @@
           ],
           "operator_node_types": [
             "boolean_operator"
+          ],
+          "fields": {
+            "name": "name",
+            "body": "body",
+            "parameters": "parameters",
+            "arguments": "arguments",
+            "callee": "function",
+            "operator": "operator",
+            "assigned_value": "right"
+          },
+          "assignment_operators": [
+            "="
           ]
         }
       }
@@ -259,6 +271,20 @@
           ],
           "operator_node_types": [
             "binary_expression"
+          ],
+          "fields": {
+            "name": "name",
+            "body": "body",
+            "parameters": "parameters",
+            "parameter_pattern": "pattern",
+            "arguments": "arguments",
+            "callee": "function",
+            "operator": "operator",
+            "assigned_value": "right",
+            "bound_value": "value"
+          },
+          "assignment_operators": [
+            "="
           ]
         }
       },
@@ -375,6 +401,20 @@
           ],
           "operator_node_types": [
             "binary_expression"
+          ],
+          "fields": {
+            "name": "name",
+            "body": "body",
+            "parameters": "parameters",
+            "parameter_pattern": "pattern",
+            "arguments": "arguments",
+            "callee": "function",
+            "operator": "operator",
+            "assigned_value": "right",
+            "bound_value": "value"
+          },
+          "assignment_operators": [
+            "="
           ]
         }
       }
@@ -585,6 +625,9 @@
               "type": "companion_object",
               "default": "Companion"
             }
+          ],
+          "assignment_operators": [
+            "="
           ]
         }
       }
@@ -752,6 +795,21 @@
               "name_field": "type",
               "strip_after": "<"
             }
+          ],
+          "fields": {
+            "name": "name",
+            "body": "body",
+            "parameters": "parameters",
+            "parameter_pattern": "pattern",
+            "arguments": "arguments",
+            "callee": "function",
+            "operator": "operator",
+            "assigned_value": "right",
+            "initialiser_list": "body",
+            "initialiser_value": "value"
+          },
+          "assignment_operators": [
+            "="
           ]
         }
       }
@@ -970,6 +1028,20 @@
               "type": "indexer_declaration",
               "literal": "this"
             }
+          ],
+          "fields": {
+            "name": "name",
+            "body": "body",
+            "parameters": "parameters",
+            "arguments": "arguments",
+            "callee": "function",
+            "operator": "operator",
+            "assigned_value": "right",
+            "expression_body": "value",
+            "parameter_pattern": "pattern"
+          },
+          "assignment_operators": [
+            "="
           ]
         }
       }

@@ -42,6 +42,18 @@ const VOCABULARY = {
   binding_declarator_types: ["variable_declarator"],
   binding_name_types: ["identifier"],
   operator_node_types: ["binary_expression"],
+  fields: {
+    name: "name",
+    body: "body",
+    parameters: "parameters",
+    parameter_pattern: "pattern",
+    arguments: "arguments",
+    callee: "function",
+    operator: "operator",
+    assigned_value: "right",
+    bound_value: "value",
+  },
+  assignment_operators: ["="],
 };
 
 const GRAMMARS = [

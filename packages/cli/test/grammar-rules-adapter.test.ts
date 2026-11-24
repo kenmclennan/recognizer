@@ -39,6 +39,18 @@ describe("GrammarRulesAdapter vocabulary", () => {
     expect(rule?.vocabulary).toEqual(vocabulary);
   });
 
+  it("a vocabulary with fields yields it", () => {
+    const vocabulary = {
+      fields: { name: "name", body: "body" },
+      assignment_operators: ["="],
+    };
+    const rules = new GrammarRulesAdapter(() => [
+      scanner("a", [grammar("a", vocabulary), grammar("b")]),
+    ]).rules();
+
+    expect(rules.map((rule) => rule.vocabulary)).toEqual([vocabulary, null]);
+  });
+
   it("a grammar without one yields null", () => {
     const [rule] = new GrammarRulesAdapter(() => [
       scanner("a", [grammar("a")]),

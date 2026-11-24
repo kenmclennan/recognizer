@@ -62,6 +62,7 @@ GRAMMARS = [
             "function_body_types": ["function_body"],
             "name_leaf_types": ["identifier", "type_identifier", "simple_identifier"],
             "node_names": [{"type": "companion_object", "default": "Companion"}],
+            "assignment_operators": ["="],
         },
         "function_names": [],
         "span": {

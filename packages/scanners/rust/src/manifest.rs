@@ -98,7 +98,20 @@ fn vocabulary() -> Value {
                 "name_field": "type",
                 "strip_after": "<"
             }
-        ]
+        ],
+        "fields": {
+            "name": "name",
+            "body": "body",
+            "parameters": "parameters",
+            "parameter_pattern": "pattern",
+            "arguments": "arguments",
+            "callee": "function",
+            "operator": "operator",
+            "assigned_value": "right",
+            "initialiser_list": "body",
+            "initialiser_value": "value"
+        },
+        "assignment_operators": ["="]
     })
 }
 

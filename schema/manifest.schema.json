@@ -907,6 +907,51 @@
           "items": {
             "$ref": "#/$defs/nodeNameRule"
           }
+        },
+        "fields": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "body": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "expression_body": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "parameters": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "parameter_pattern": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "arguments": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "callee": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "operator": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "assigned_value": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "bound_value": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "initialiser_list": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "initialiser_value": {
+              "$ref": "#/$defs/fieldName"
+            }
+          }
+        },
+        "assignment_operators": {
+          "$ref": "#/$defs/nodeList"
         }
       }
     },
@@ -977,6 +1022,10 @@
           "name_field"
         ]
       }
+    },
+    "fieldName": {
+      "type": "string",
+      "minLength": 1
     },
     "nodeList": {
       "type": "array",

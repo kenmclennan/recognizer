@@ -40,6 +40,21 @@ export interface NodeNameRule {
   default?: string;
 }
 
+export interface FieldRoles {
+  name?: string;
+  body?: string;
+  expression_body?: string;
+  parameters?: string;
+  parameter_pattern?: string;
+  arguments?: string;
+  callee?: string;
+  operator?: string;
+  assigned_value?: string;
+  bound_value?: string;
+  initialiser_list?: string;
+  initialiser_value?: string;
+}
+
 export interface VocabularyRule {
   comment_markers?: readonly string[];
   literal_types?: readonly string[];
@@ -78,6 +93,8 @@ export interface VocabularyRule {
   binding_name_types?: readonly string[];
   operator_node_types?: readonly string[];
   node_names?: readonly NodeNameRule[];
+  fields?: FieldRoles;
+  assignment_operators?: readonly string[];
 }
 
 export interface SpanVocabulary {

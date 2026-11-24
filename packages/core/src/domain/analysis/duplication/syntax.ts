@@ -29,6 +29,13 @@ export interface SyntaxParser {
   parse(source: string): SyntaxTree | null;
 }
 
+export function fieldChild(
+  node: SyntaxNode,
+  field: string | null,
+): SyntaxNode | null {
+  return field === null ? null : node.childForFieldName(field);
+}
+
 export function childrenOf(node: SyntaxNode): SyntaxNode[] {
   return node.children.filter((child): child is SyntaxNode => child !== null);
 }

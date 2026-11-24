@@ -1,4 +1,9 @@
-import { childrenOf, namedChildrenOf, type SyntaxNode } from "./syntax.js";
+import {
+  childrenOf,
+  fieldChild,
+  namedChildrenOf,
+  type SyntaxNode,
+} from "./syntax.js";
 import type { Vocabulary } from "./vocabulary.js";
 
 const IDENTIFIER_TOKEN = "ID";
@@ -27,8 +32,8 @@ function isIdentifier(node: SyntaxNode, vocabulary: Vocabulary): boolean {
   );
 }
 
-function calleeOf(call: SyntaxNode): SyntaxNode | null {
-  const named = call.childForFieldName("function");
+function calleeOf(call: SyntaxNode, vocabulary: Vocabulary): SyntaxNode | null {
+  const named = fieldChild(call, vocabulary.fields.callee);
 
   if (named !== null) {
     return named;
@@ -85,7 +90,7 @@ function visit(
   }
 
   if (vocabulary.callTypes.has(nodeType)) {
-    const callee = calleeOf(node);
+    const callee = calleeOf(node, vocabulary);
     const leaf = callee === null ? null : finalName(callee, vocabulary);
 
     if (leaf !== null) {
