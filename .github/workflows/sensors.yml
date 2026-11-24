@@ -18,13 +18,13 @@ concurrency:
 
 permissions:
   contents: read
-  actions: write
 
 jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.13"]
     defaults:
@@ -46,6 +46,3 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: node "$GITHUB_WORKSPACE/tools/scripts/assert-clean-tmpdir.mjs" uv run pytest
-
-      - if: failure()
-        uses: ./.github/actions/cancel-on-failure

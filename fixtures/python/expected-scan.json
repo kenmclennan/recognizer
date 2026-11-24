@@ -69,7 +69,9 @@
     }
   ],
   "selection": {
-    "extensions": [".py"],
+    "extensions": [
+      ".py"
+    ],
     "skip_directory_names": [
       "__pycache__",
       "test",
@@ -79,11 +81,21 @@
       "node_modules",
       "site-packages"
     ],
-    "skip_directory_prefixes": ["."],
-    "skip_directory_suffixes": [".egg-info"],
-    "skip_directories_containing": ["pyvenv.cfg"],
-    "skip_file_globs": ["conftest.py"],
-    "input_file_globs": ["pyproject.toml"]
+    "skip_directory_prefixes": [
+      "."
+    ],
+    "skip_directory_suffixes": [
+      ".egg-info"
+    ],
+    "skip_directories_containing": [
+      "pyvenv.cfg"
+    ],
+    "skip_file_globs": [
+      "conftest.py"
+    ],
+    "input_file_globs": [
+      "pyproject.toml"
+    ]
   },
   "modules": [
     {
@@ -102,7 +114,9 @@
           "kind": "class",
           "line": 6,
           "exported": true,
-          "bases": ["Store"],
+          "bases": [
+            "Store"
+          ],
           "fields": [],
           "methods": [
             {
@@ -131,7 +145,9 @@
           "kind": "class",
           "line": 4,
           "exported": true,
-          "bases": ["MemoryStore"],
+          "bases": [
+            "MemoryStore"
+          ],
           "fields": [],
           "methods": []
         }
@@ -319,7 +335,9 @@
               "returns": "int"
             }
           ],
-          "tags": ["dataclass"]
+          "tags": [
+            "dataclass"
+          ]
         },
         {
           "name": "new_order",
@@ -378,7 +396,9 @@
           "kind": "interface",
           "line": 5,
           "exported": true,
-          "bases": ["Protocol"],
+          "bases": [
+            "Protocol"
+          ],
           "fields": [],
           "methods": [
             {
@@ -392,7 +412,9 @@
                 }
               ],
               "private": false,
-              "tags": ["abstract"]
+              "tags": [
+                "abstract"
+              ]
             }
           ]
         },
@@ -401,7 +423,9 @@
           "kind": "interface",
           "line": 9,
           "exported": true,
-          "bases": ["ABC"],
+          "bases": [
+            "ABC"
+          ],
           "fields": [],
           "methods": [
             {
@@ -440,7 +464,9 @@
       "to": "shop/domain/order.py",
       "kind": "depends",
       "line": 1,
-      "names": ["Order"]
+      "names": [
+        "Order"
+      ]
     },
     {
       "from": "shop/adapters/memory_store.py",
@@ -469,15 +495,23 @@
       "to": "shop/domain/customer.py",
       "kind": "depends",
       "line": 1,
-      "names": ["Customer"],
-      "via": ["shop/domain/aliases.py", "shop/domain/__init__.py"]
+      "names": [
+        "Customer"
+      ],
+      "via": [
+        "shop/domain/aliases.py",
+        "shop/domain/__init__.py"
+      ]
     },
     {
       "from": "shop/application/place.py",
       "to": "shop/domain/order.py",
       "kind": "depends",
       "line": 1,
-      "names": ["Order", "new_order"]
+      "names": [
+        "Order",
+        "new_order"
+      ]
     },
     {
       "from": "shop/application/place.py",
@@ -496,12 +530,18 @@
       "to": "shop/ports/store.py",
       "kind": "depends",
       "line": 1,
-      "names": ["save"],
+      "names": [
+        "save"
+      ],
       "inferred": {
         "parameter": "store",
-        "methods": ["save"],
+        "methods": [
+          "save"
+        ],
         "class": "Store",
-        "implementations": ["MemoryStore"]
+        "implementations": [
+          "MemoryStore"
+        ]
       }
     },
     {
@@ -509,38 +549,55 @@
       "to": "shop/domain/customer.py",
       "kind": "depends",
       "line": 1,
-      "names": ["Customer"],
-      "via": ["shop/domain/__init__.py"]
+      "names": [
+        "Customer"
+      ],
+      "via": [
+        "shop/domain/__init__.py"
+      ]
     },
     {
       "from": "shop/application/report.py",
       "to": "shop/domain/order.py",
       "kind": "depends",
       "line": 1,
-      "names": ["Order"],
-      "via": ["shop/domain/__init__.py"]
+      "names": [
+        "Order"
+      ],
+      "via": [
+        "shop/domain/__init__.py"
+      ]
     },
     {
       "from": "shop/domain/__init__.py",
       "to": "shop/domain/customer.py",
       "kind": "depends",
       "line": 1,
-      "names": ["Customer"]
+      "names": [
+        "Customer"
+      ]
     },
     {
       "from": "shop/domain/__init__.py",
       "to": "shop/domain/order.py",
       "kind": "depends",
       "line": 2,
-      "names": ["Order", "new_order"]
+      "names": [
+        "Order",
+        "new_order"
+      ]
     },
     {
       "from": "shop/domain/aliases.py",
       "to": "shop/domain/customer.py",
       "kind": "depends",
       "line": 1,
-      "names": ["Customer"],
-      "via": ["shop/domain/__init__.py"]
+      "names": [
+        "Customer"
+      ],
+      "via": [
+        "shop/domain/__init__.py"
+      ]
     },
     {
       "from": "shop/domain/order.py",

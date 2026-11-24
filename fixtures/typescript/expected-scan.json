@@ -89,7 +89,16 @@
     }
   ],
   "selection": {
-    "extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"],
+    "extensions": [
+      ".ts",
+      ".tsx",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".cjs",
+      ".mts",
+      ".cts"
+    ],
     "skip_directory_names": [
       "node_modules",
       "dist",
@@ -98,11 +107,23 @@
       "tests",
       "__tests__"
     ],
-    "skip_directory_prefixes": ["."],
+    "skip_directory_prefixes": [
+      "."
+    ],
     "skip_directory_suffixes": [],
     "skip_directories_containing": [],
-    "skip_file_globs": ["*.d.ts", "*.d.mts", "*.d.cts", "*.test.*", "*.spec.*"],
-    "input_file_globs": ["package.json", "tsconfig.json", "*.html"]
+    "skip_file_globs": [
+      "*.d.ts",
+      "*.d.mts",
+      "*.d.cts",
+      "*.test.*",
+      "*.spec.*"
+    ],
+    "input_file_globs": [
+      "package.json",
+      "tsconfig.json",
+      "*.html"
+    ]
   },
   "modules": [
     {
@@ -147,18 +168,18 @@
               "name": "grow",
               "line": 10,
               "end_line": 12,
-              "body_line": 11,
               "params": [],
               "private": true,
+              "body_line": 11,
               "returns": "number"
             },
             {
               "name": "count",
               "line": 14,
               "end_line": 16,
-              "body_line": 15,
               "params": [],
               "private": false,
+              "body_line": 15,
               "returns": "number"
             }
           ]
@@ -169,8 +190,8 @@
           "line": 19,
           "exported": true,
           "end_line": 21,
-          "body_line": 20,
           "params": [],
+          "body_line": 20,
           "returns": "BaseStore"
         }
       ]
@@ -186,12 +207,12 @@
           "line": 1,
           "exported": true,
           "end_line": 3,
-          "body_line": 2,
           "params": [
             {
               "name": "source"
             }
-          ]
+          ],
+          "body_line": 2
         }
       ]
     },
@@ -211,16 +232,19 @@
           "kind": "class",
           "line": 5,
           "exported": true,
-          "bases": ["BaseStore", "Store"],
+          "bases": [
+            "BaseStore",
+            "Store"
+          ],
           "fields": [],
           "methods": [
             {
               "name": "save",
               "line": 6,
               "end_line": 6,
-              "body_line": 6,
               "params": [],
               "private": false,
+              "body_line": 6,
               "returns": "void"
             }
           ]
@@ -231,13 +255,13 @@
           "line": 9,
           "exported": true,
           "end_line": 9,
-          "body_line": 9,
           "params": [
             {
               "name": "p",
               "type": "string"
             }
-          ]
+          ],
+          "body_line": 9
         },
         {
           "name": "fresh",
@@ -245,8 +269,8 @@
           "line": 11,
           "exported": true,
           "end_line": 11,
-          "body_line": 11,
           "params": [],
+          "body_line": 11,
           "returns": "BaseStore"
         },
         {
@@ -306,7 +330,6 @@
           "line": 1,
           "exported": true,
           "end_line": 3,
-          "body_line": 2,
           "params": [
             {
               "name": "store"
@@ -315,6 +338,7 @@
               "name": "id"
             }
           ],
+          "body_line": 2,
           "returns": "void"
         }
       ]
@@ -344,7 +368,9 @@
               ],
               "private": false,
               "returns": "void",
-              "tags": ["abstract"]
+              "tags": [
+                "abstract"
+              ]
             }
           ]
         },
@@ -367,8 +393,8 @@
           "line": 7,
           "exported": true,
           "end_line": 11,
-          "body_line": 8,
-          "params": []
+          "params": [],
+          "body_line": 8
         }
       ]
     },
@@ -383,8 +409,8 @@
           "line": 1,
           "exported": true,
           "end_line": 1,
-          "body_line": 1,
-          "params": []
+          "params": [],
+          "body_line": 1
         }
       ]
     },
@@ -413,8 +439,8 @@
           "line": 4,
           "exported": false,
           "end_line": 4,
-          "body_line": 4,
-          "params": []
+          "params": [],
+          "body_line": 4
         }
       ]
     },
@@ -437,7 +463,9 @@
       "to": "api/src/types.ts",
       "kind": "depends",
       "line": 1,
-      "names": ["Id"]
+      "names": [
+        "Id"
+      ]
     },
     {
       "from": "api/src/index.ts",
@@ -450,7 +478,9 @@
       "to": "api/src/base-store.ts",
       "kind": "depends",
       "line": 2,
-      "names": ["BaseStore"]
+      "names": [
+        "BaseStore"
+      ]
     },
     {
       "from": "api/src/index.ts",
@@ -469,7 +499,10 @@
       "to": "api/src/base-store.ts",
       "kind": "depends",
       "line": 2,
-      "names": ["BaseStore", "makeBase"]
+      "names": [
+        "BaseStore",
+        "makeBase"
+      ]
     },
     {
       "from": "api/src/memory-store.ts",
@@ -492,26 +525,36 @@
       "to": "api/src/models/customer.ts",
       "kind": "depends",
       "line": 1,
-      "names": ["Customer"]
+      "names": [
+        "Customer"
+      ]
     },
     {
       "from": "api/src/models/index.ts",
       "to": "api/src/models/order.ts",
       "kind": "depends",
       "line": 2,
-      "names": ["Order"]
+      "names": [
+        "Order"
+      ]
     },
     {
       "from": "api/src/place.ts",
       "to": "api/src/types.ts",
       "kind": "depends",
       "line": 1,
-      "names": ["save"],
+      "names": [
+        "save"
+      ],
       "inferred": {
         "parameter": "store",
-        "methods": ["save"],
+        "methods": [
+          "save"
+        ],
         "class": "Store",
-        "implementations": ["MemoryStore"]
+        "implementations": [
+          "MemoryStore"
+        ]
       }
     },
     {
@@ -525,14 +568,18 @@
       "to": "api/src/memory-store.ts",
       "kind": "depends",
       "line": 4,
-      "names": ["MemoryStore"]
+      "names": [
+        "MemoryStore"
+      ]
     },
     {
       "from": "web/src/App.tsx",
       "to": "api/src/types.ts",
       "kind": "depends",
       "line": 5,
-      "names": ["Store"]
+      "names": [
+        "Store"
+      ]
     },
     {
       "from": "web/src/legacy.js",
@@ -545,15 +592,21 @@
       "to": "api/src/base-store.ts",
       "kind": "depends",
       "line": 1,
-      "names": ["BaseStore"],
-      "via": ["api/src/index.ts"]
+      "names": [
+        "BaseStore"
+      ],
+      "via": [
+        "api/src/index.ts"
+      ]
     },
     {
       "from": "web/src/main.tsx",
       "to": "web/src/App.tsx",
       "kind": "depends",
       "line": 2,
-      "names": ["App"]
+      "names": [
+        "App"
+      ]
     },
     {
       "from": "web/src/main.tsx",
@@ -566,16 +619,26 @@
       "to": "api/src/models/customer.ts",
       "kind": "depends",
       "line": 1,
-      "names": ["Customer"],
-      "via": ["api/src/index.ts", "api/src/models/index.ts"]
+      "names": [
+        "Customer"
+      ],
+      "via": [
+        "api/src/index.ts",
+        "api/src/models/index.ts"
+      ]
     },
     {
       "from": "web/src/orders.ts",
       "to": "api/src/models/order.ts",
       "kind": "depends",
       "line": 1,
-      "names": ["Order"],
-      "via": ["api/src/index.ts", "api/src/models/index.ts"]
+      "names": [
+        "Order"
+      ],
+      "via": [
+        "api/src/index.ts",
+        "api/src/models/index.ts"
+      ]
     }
   ],
   "foreign": [
@@ -627,7 +690,19 @@
     }
   ],
   "test_imports": [
-    { "from": "api/src/memory-store.test.ts", "to": "api/src/memory-store.ts", "names": ["MemoryStore"] },
-    { "from": "web/src/__tests__/App.test.tsx", "to": "web/src/App.tsx", "names": ["App"] }
+    {
+      "from": "api/src/memory-store.test.ts",
+      "to": "api/src/memory-store.ts",
+      "names": [
+        "MemoryStore"
+      ]
+    },
+    {
+      "from": "web/src/__tests__/App.test.tsx",
+      "to": "web/src/App.tsx",
+      "names": [
+        "App"
+      ]
+    }
   ]
 }

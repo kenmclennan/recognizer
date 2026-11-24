@@ -20,7 +20,6 @@ concurrency:
 
 permissions:
   contents: read
-  actions: write
 
 jobs:
   test:
@@ -37,6 +36,3 @@ jobs:
       - run: npm run build -w recognizer
       - run: npm run build -w packages/describers/claude
       - run: node tools/scripts/assert-clean-tmpdir.mjs npm test -w packages/describers/claude
-
-      - if: failure()
-        uses: ./.github/actions/cancel-on-failure

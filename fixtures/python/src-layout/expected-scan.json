@@ -60,7 +60,9 @@
     "input_file_globs": [
       "pyproject.toml"
     ],
-    "input_absent_paths": ["setup.cfg"]
+    "input_absent_paths": [
+      "setup.cfg"
+    ]
   },
   "modules": [
     {

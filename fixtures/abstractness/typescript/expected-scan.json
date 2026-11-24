@@ -55,7 +55,11 @@
       "*.test.*",
       "*.spec.*"
     ],
-    "input_file_globs": ["package.json", "tsconfig.json", "*.html"]
+    "input_file_globs": [
+      "package.json",
+      "tsconfig.json",
+      "*.html"
+    ]
   },
   "modules": [
     {
@@ -187,8 +191,8 @@
           "line": 7,
           "exported": true,
           "end_line": 9,
-          "body_line": 8,
           "params": [],
+          "body_line": 8,
           "returns": "Impl"
         },
         {

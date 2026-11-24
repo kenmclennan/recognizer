@@ -17,7 +17,6 @@ concurrency:
 
 permissions:
   contents: read
-  actions: write
 
 jobs:
   lint:
@@ -32,6 +31,3 @@ jobs:
       - run: npm ci --prefer-offline --no-audit --no-fund
       - run: npx prettier --check --prose-wrap=never "**/*.md"
       - run: npm run lint:md
-
-      - if: failure()
-        uses: ./.github/actions/cancel-on-failure

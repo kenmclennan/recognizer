@@ -108,14 +108,14 @@
               "name": "execute",
               "line": 9,
               "end_line": 11,
-              "body_line": 10,
               "params": [
                 {
                   "name": "order",
                   "type": "Order"
                 }
               ],
-              "private": false
+              "private": false,
+              "body_line": 10
             }
           ]
         }
@@ -267,8 +267,8 @@
           "exported": true,
           "visibility": "public",
           "end_line": 5,
-          "body_line": 5,
           "params": [],
+          "body_line": 5,
           "returns": "Int"
         }
       ]
@@ -300,20 +300,19 @@
               "name": "save",
               "line": 9,
               "end_line": 11,
-              "body_line": 10,
               "params": [
                 {
                   "name": "order",
                   "type": "Order"
                 }
               ],
-              "private": false
+              "private": false,
+              "body_line": 10
             },
             {
               "name": "record",
               "line": 13,
               "end_line": 13,
-              "body_line": 13,
               "params": [
                 {
                   "name": "order",
@@ -321,6 +320,7 @@
                 }
               ],
               "private": true,
+              "body_line": 13,
               "returns": "OrderRecord"
             }
           ]
@@ -407,16 +407,15 @@
               "name": "list",
               "line": 13,
               "end_line": 13,
-              "body_line": 13,
               "params": [],
               "private": false,
+              "body_line": 13,
               "returns": "String"
             },
             {
               "name": "place",
               "line": 15,
               "end_line": 19,
-              "body_line": 16,
               "params": [
                 {
                   "name": "order",
@@ -424,6 +423,7 @@
                 }
               ],
               "private": false,
+              "body_line": 16,
               "returns": "Int"
             }
           ]

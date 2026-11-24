@@ -153,7 +153,12 @@
     }
   ],
   "selection": {
-    "extensions": [".cs", ".razor", ".cshtml", ".xaml"],
+    "extensions": [
+      ".cs",
+      ".razor",
+      ".cshtml",
+      ".xaml"
+    ],
     "skip_directory_names": [
       "bin",
       "obj",
@@ -177,7 +182,12 @@
       "tests/Shop.Checks.UnitTests",
       "tests/Shop.Checks.Xunit"
     ],
-    "input_file_globs": ["*.csproj", "Directory.Build.props", "*.sln", "*.slnx"]
+    "input_file_globs": [
+      "*.csproj",
+      "Directory.Build.props",
+      "*.sln",
+      "*.slnx"
+    ]
   },
   "modules": [
     {
@@ -208,7 +218,6 @@
               "name": "Run",
               "line": 9,
               "end_line": 14,
-              "body_line": 11,
               "params": [
                 {
                   "name": "async",
@@ -216,6 +225,7 @@
                 }
               ],
               "private": false,
+              "body_line": 11,
               "returns": "int"
             }
           ]
@@ -253,9 +263,9 @@
               "name": "Total",
               "line": 10,
               "end_line": 10,
-              "body_line": 10,
               "params": [],
               "private": false,
+              "body_line": 10,
               "returns": "int"
             }
           ]
@@ -287,7 +297,6 @@
               "name": "Place",
               "line": 5,
               "end_line": 10,
-              "body_line": 7,
               "params": [
                 {
                   "name": "order",
@@ -295,6 +304,7 @@
                 }
               ],
               "private": false,
+              "body_line": 7,
               "returns": "string"
             }
           ]
@@ -345,7 +355,6 @@
               "name": "Handle",
               "line": 5,
               "end_line": 7,
-              "body_line": 7,
               "params": [
                 {
                   "name": "message",
@@ -353,6 +362,7 @@
                 }
               ],
               "private": false,
+              "body_line": 7,
               "returns": "void"
             }
           ]
@@ -378,9 +388,9 @@
               "name": "ItemCount",
               "line": 7,
               "end_line": 7,
-              "body_line": 7,
               "params": [],
               "private": false,
+              "body_line": 7,
               "returns": "int"
             }
           ]
@@ -405,7 +415,6 @@
               "name": "Shout",
               "line": 5,
               "end_line": 5,
-              "body_line": 5,
               "params": [
                 {
                   "name": "text",
@@ -413,6 +422,7 @@
                 }
               ],
               "private": false,
+              "body_line": 5,
               "returns": "string",
               "tags": [
                 "static"
@@ -508,9 +518,9 @@
               "name": "Now",
               "line": 5,
               "end_line": 5,
-              "body_line": 5,
               "params": [],
               "private": false,
+              "body_line": 5,
               "returns": "int",
               "tags": [
                 "static"
@@ -623,7 +633,6 @@
               "name": "Round",
               "line": 7,
               "end_line": 7,
-              "body_line": 7,
               "params": [
                 {
                   "name": "amount",
@@ -631,6 +640,7 @@
                 }
               ],
               "private": false,
+              "body_line": 7,
               "returns": "int",
               "tags": [
                 "static"
@@ -704,7 +714,6 @@
               "name": "Save",
               "line": 7,
               "end_line": 10,
-              "body_line": 9,
               "params": [
                 {
                   "name": "order",
@@ -712,6 +721,7 @@
                 }
               ],
               "private": false,
+              "body_line": 9,
               "returns": "void"
             }
           ]
@@ -736,9 +746,9 @@
               "name": "Run",
               "line": 7,
               "end_line": 7,
-              "body_line": 7,
               "params": [],
               "private": false,
+              "body_line": 7,
               "returns": "string"
             }
           ]
@@ -763,7 +773,6 @@
               "name": "Compose",
               "line": 9,
               "end_line": 13,
-              "body_line": 11,
               "params": [
                 {
                   "name": "container",
@@ -775,6 +784,7 @@
                 }
               ],
               "private": false,
+              "body_line": 11,
               "returns": "void",
               "tags": [
                 "static"
@@ -802,7 +812,6 @@
               "name": "AddShop",
               "line": 5,
               "end_line": 5,
-              "body_line": 5,
               "params": [
                 {
                   "name": "services",
@@ -810,6 +819,7 @@
                 }
               ],
               "private": false,
+              "body_line": 5,
               "returns": "IServiceCollection",
               "tags": [
                 "static"
@@ -839,7 +849,6 @@
               "name": "ExecuteAsync",
               "line": 7,
               "end_line": 7,
-              "body_line": 7,
               "params": [
                 {
                   "name": "stoppingToken",
@@ -847,6 +856,7 @@
                 }
               ],
               "private": false,
+              "body_line": 7,
               "returns": "Task"
             }
           ]
@@ -881,7 +891,6 @@
               "name": "Show",
               "line": 10,
               "end_line": 15,
-              "body_line": 12,
               "params": [
                 {
                   "name": "order",
@@ -889,6 +898,7 @@
                 }
               ],
               "private": false,
+              "body_line": 12,
               "returns": "string"
             }
           ]

@@ -49,13 +49,23 @@
     }
   ],
   "selection": {
-    "extensions": [".rs"],
-    "skip_directory_names": ["target", "node_modules", "tests"],
-    "skip_directory_prefixes": ["."],
+    "extensions": [
+      ".rs"
+    ],
+    "skip_directory_names": [
+      "target",
+      "node_modules",
+      "tests"
+    ],
+    "skip_directory_prefixes": [
+      "."
+    ],
     "skip_directory_suffixes": [],
     "skip_directories_containing": [],
     "skip_file_globs": [],
-    "input_file_globs": ["Cargo.toml"]
+    "input_file_globs": [
+      "Cargo.toml"
+    ]
   },
   "modules": [
     {
@@ -219,7 +229,9 @@
               ],
               "private": false,
               "returns": "Order",
-              "tags": ["static"]
+              "tags": [
+                "static"
+              ]
             },
             {
               "name": "subtotal",
@@ -293,7 +305,9 @@
                 }
               ],
               "private": false,
-              "tags": ["abstract"]
+              "tags": [
+                "abstract"
+              ]
             },
             {
               "name": "name",
@@ -353,14 +367,18 @@
       "to": "shop/src/orders.rs",
       "kind": "depends",
       "line": 5,
-      "names": ["Order"]
+      "names": [
+        "Order"
+      ]
     },
     {
       "from": "shop/src/orders.rs",
       "to": "pricing/src/lib.rs",
       "kind": "depends",
       "line": 1,
-      "names": ["discount"]
+      "names": [
+        "discount"
+      ]
     },
     {
       "from": "shop/src/orders.rs",
@@ -373,15 +391,21 @@
       "to": "shop/src/ports/mod.rs",
       "kind": "depends",
       "line": 4,
-      "names": ["Store"]
+      "names": [
+        "Store"
+      ]
     },
     {
       "from": "shop/src/ports/memory.rs",
       "to": "shop/src/orders.rs",
       "kind": "depends",
       "line": 2,
-      "names": ["Order"],
-      "via": ["shop/src/lib.rs"]
+      "names": [
+        "Order"
+      ],
+      "via": [
+        "shop/src/lib.rs"
+      ]
     },
     {
       "from": "shop/src/ports/memory.rs",
