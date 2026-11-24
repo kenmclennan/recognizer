@@ -20,19 +20,6 @@ on:
       - .github/workflows/release.yml
   push:
     branches: [main]
-    paths:
-      - packages/app/**
-      - packages/core/**
-      - packages/cli/**
-      - schema/**
-      - tools/scripts/**
-      - tools/packaging/**
-      - THIRD-PARTY-NOTICES.md
-      - package.json
-      - package-lock.json
-      - biome.json
-      - .github/workflows/app.yml
-      - .github/workflows/release.yml
 
 concurrency:
   group: app-${{ github.ref }}

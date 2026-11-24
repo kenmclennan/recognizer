@@ -20,22 +20,10 @@ on:
       - .github/actions/install-uv/**
   push:
     branches: [main]
-    paths:
-      - packages/core/**
-      - packages/cli/**
-      - packages/scanners/**
-      - packages/sensors/**
-      - packages/describers/**
-      - tools/scripts/**
-      - tools/packaging/**
-      - docs/policies/**
-      - schema/**
-      - fixtures/**
-      - package.json
-      - package-lock.json
-      - biome.json
-      - .github/workflows/check.yml
-      - .github/actions/install-uv/**
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
 
 permissions:
   contents: read

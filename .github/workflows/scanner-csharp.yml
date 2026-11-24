@@ -11,13 +11,10 @@ on:
       - .github/actions/install-uv/**
   push:
     branches: [main]
-    paths:
-      - packages/scanners/csharp/**
-      - schema/**
-      - fixtures/**
-      - tools/scripts/assert-clean-tmpdir.mjs
-      - .github/workflows/scanner-csharp.yml
-      - .github/actions/install-uv/**
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
 
 env:
   RECOGNIZER_REQUIRE_REAL_CONTENT: "1"

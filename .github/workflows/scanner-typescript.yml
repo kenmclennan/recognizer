@@ -12,14 +12,10 @@ on:
       - .github/workflows/scanner-typescript.yml
   push:
     branches: [main]
-    paths:
-      - packages/scanners/typescript/**
-      - schema/**
-      - fixtures/**
-      - package.json
-      - package-lock.json
-      - biome.json
-      - .github/workflows/scanner-typescript.yml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
 
 permissions:
   contents: read
