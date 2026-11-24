@@ -9,6 +9,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { run } from "../src/cli.js";
 import { capture, REPO } from "./helpers.js";
@@ -128,7 +129,7 @@ function peak(root: string): number {
 }
 
 async function until(test: () => boolean): Promise<void> {
-  const deadline = Date.now() + 20_000;
+  const deadline = Date.now() + scaledTimeout(20_000);
 
   while (!test()) {
     if (Date.now() > deadline) {
