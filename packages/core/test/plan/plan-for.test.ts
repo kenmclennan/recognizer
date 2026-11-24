@@ -1,15 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { PlanWorld, scanOf, ticksOf } from "../fakes/plan-world.js";
+import { testsHashOf } from "../../src/index.js";
+import {
+  PLAN_REPOSITORY,
+  PlanWorld,
+  scanOf,
+  ticksOf,
+} from "../fakes/plan-world.js";
 
 const FILES = { "a.py": "ha", "b.py": "hb", "c.py": "hc" };
 const MODULES = ["a.py", "b.py", "c.py"];
-const CURRENT = { inputs: FILES, tests: "t1" };
+const TEST_FILE = "test/test_a.py";
+
+function seedTests(planned: PlanWorld, hash: string): string {
+  planned.fakes.source.listed = [...MODULES, TEST_FILE];
+  planned.fakes.source.hashes.set(`${PLAN_REPOSITORY}/${TEST_FILE}`, hash);
+
+  return testsHashOf(planned.fakes, PLAN_REPOSITORY, new Map()) as string;
+}
+
+const T1 = seedTests(new PlanWorld(), "v1");
+const CURRENT = { inputs: FILES, tests: T1 };
 
 function world(): PlanWorld {
   const planned = new PlanWorld();
 
   planned.seedScan(scanOf(FILES, MODULES));
-  planned.fakes.findings.tests = "t1";
+  seedTests(planned, "v1");
   planned.addSensor("crap", { display: "C.R.A.P." });
   planned.addSensor("mutation", {
     display: "Mutation",
@@ -33,7 +49,7 @@ describe("a plan", () => {
     gapped.measure("crap", CURRENT);
     gapped.measure("mutation", {
       inputs: { "a.py": "ha", "b.py": "x", "c.py": "x" },
-      tests: "t1",
+      tests: T1,
     });
     gapped.describeLines({
       "a.py": "out-of-date",
@@ -60,11 +76,11 @@ describe("a plan", () => {
     flagged.addSensor("other", { runsTests: true, scoped: true });
     flagged.measure("mutation", {
       inputs: { "a.py": "ha", "b.py": "x", "c.py": "x" },
-      tests: "t1",
+      tests: T1,
     });
     flagged.measure("other", {
       inputs: { "a.py": "ha", "b.py": "x", "c.py": "hc" },
-      tests: "t1",
+      tests: T1,
     });
 
     const byFlag = await flagged.plan({
@@ -79,7 +95,7 @@ describe("a plan", () => {
 
     unscoped.measure("crap", {
       inputs: { ...FILES, "b.py": "x" },
-      tests: "t1",
+      tests: T1,
     });
     unscoped.measure("mutation", CURRENT);
 
@@ -156,7 +172,7 @@ describe("a plan", () => {
     oneGap.measure("crap", CURRENT);
     oneGap.measure("mutation", {
       inputs: { ...FILES, "c.py": "x" },
-      tests: "t1",
+      tests: T1,
     });
 
     const gapped = await oneGap.plan({
@@ -207,7 +223,7 @@ describe("a plan", () => {
     mixed.measure("crap", CURRENT);
     mixed.measure("mutation", {
       inputs: { ...FILES, "b.py": "x" },
-      tests: "t1",
+      tests: T1,
     });
 
     const planned = await mixed.plan({
@@ -222,7 +238,7 @@ describe("a plan", () => {
   it("a_ticked_name_mixed_registered_and_not", async () => {
     const mixed = world();
 
-    mixed.measure("crap", { inputs: { ...FILES, "a.py": "x" }, tests: "t1" });
+    mixed.measure("crap", { inputs: { ...FILES, "a.py": "x" }, tests: T1 });
 
     const planned = await mixed.plan({
       ticks: ticksOf({ ticked: ["crap", "ghost", "phantom"], armed: [] }),
@@ -238,7 +254,7 @@ describe("a plan", () => {
     scoped.measure("crap", CURRENT);
     scoped.measure("mutation", {
       inputs: { "a.py": "x", "b.py": "x", "c.py": "x" },
-      tests: "t1",
+      tests: T1,
     });
 
     const own = ticksOf({ ticked: [], armed: ["mutation"] });
@@ -249,5 +265,68 @@ describe("a plan", () => {
     expect(one.work).toEqual({ mutation: 1 });
     expect(all.intent.modules).toEqual(MODULES);
     expect(all.work).toEqual({ mutation: 3 });
+  });
+
+  it("a_changed_test_file_makes_a_digest_carrying_result_out_of_date", async () => {
+    const edited = world();
+
+    edited.measure("crap", CURRENT);
+
+    const own = ticksOf({ ticked: ["crap"], armed: [] });
+    const before = await edited.plan({ ticks: own });
+
+    expect(before.gaps.crap).toEqual([]);
+
+    seedTests(edited, "v2");
+
+    const after = await edited.plan({ ticks: own });
+
+    expect(after.gaps.crap).toEqual(MODULES);
+    expect(after.idle).toBe(false);
+  });
+
+  it("a_result_without_a_digest_stays_current_after_a_test_edit", async () => {
+    const edited = world();
+
+    edited.addSensor("structure", { display: "Structure" });
+    edited.measure("structure", { inputs: FILES });
+    seedTests(edited, "v2");
+
+    const planned = await edited.plan({
+      ticks: ticksOf({ ticked: ["structure"], armed: [] }),
+    });
+
+    expect(planned.gaps.structure).toEqual([]);
+  });
+
+  it("an_unknown_digest_gaps_digest_carrying_results_and_no_others", async () => {
+    const unknown = world();
+
+    unknown.addSensor("structure", { display: "Structure" });
+    unknown.measure("crap", CURRENT);
+    unknown.measure("structure", { inputs: FILES });
+    unknown.fakes.source.listed = null;
+
+    const planned = await unknown.plan({
+      ticks: ticksOf({ ticked: ["crap", "structure"], armed: [] }),
+    });
+
+    expect(planned.gaps.crap).toEqual(MODULES);
+    expect(planned.gaps.structure).toEqual([]);
+    expect(planned.never).toEqual(["mutation"]);
+  });
+
+  it("the_first_result_in_order_no_longer_decides", async () => {
+    const mixed = world();
+
+    mixed.measure("crap", CURRENT);
+    mixed.measure("mutation", { inputs: FILES, tests: "old" });
+
+    const planned = await mixed.plan({
+      ticks: ticksOf({ ticked: ["crap"], armed: ["mutation"] }),
+    });
+
+    expect(planned.gaps.crap).toEqual([]);
+    expect(planned.gaps.mutation).toEqual(MODULES);
   });
 });

@@ -37,8 +37,24 @@ describe("loadedUnchanged", () => {
     ["sensors", { sensors: [{ name: "x" } as never] }],
     ["overlays", { overlays: [] }],
     ["overlaysUnreadable", { overlaysUnreadable: ["x"] }],
+    ["tests", { tests: "x" }],
   ])("is false when %s differs", (_name, change) => {
     expect(loadedUnchanged(BASE, { ...BASE, ...change })).toBe(false);
+  });
+});
+
+describe("loadedUnchanged tests digest", () => {
+  it("is false when only the tests digest differs", () => {
+    expect(
+      loadedUnchanged({ ...BASE, tests: "t1" }, { ...BASE, tests: "t2" }),
+    ).toBe(false);
+  });
+
+  it("is true when the digests are equal or both absent", () => {
+    expect(
+      loadedUnchanged({ ...BASE, tests: "t1" }, { ...BASE, tests: "t1" }),
+    ).toBe(true);
+    expect(loadedUnchanged({ ...BASE }, { ...BASE })).toBe(true);
   });
 });
 

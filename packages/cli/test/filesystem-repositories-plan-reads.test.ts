@@ -83,7 +83,6 @@ describe("the filesystem repositories plan reads", () => {
       tests: D,
     });
     expect(findings.measuredOf(ROOT, "mutation")).toBeNull();
-    expect(findings.testsDigest(ROOT)).toBe(D);
 
     const lines = new ResponsibilitiesAdapter(io).read(ROOT);
 

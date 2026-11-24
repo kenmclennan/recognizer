@@ -34,7 +34,6 @@ export interface ReportedFindings {
 
 export interface FindingsRepository {
   measuredOf(root: string, sensor: string): Measured | null;
-  testsDigest(root: string): string | null;
   discardAnalysis(root: string, off: boolean): void;
   readAll(root: string): StoredFindings[];
   readStructure(root: string): SensorFindings | null;

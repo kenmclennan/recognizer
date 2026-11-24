@@ -56,26 +56,6 @@ export class FindingsAdapter implements FindingsRepository {
     }
   }
 
-  testsDigest(root: string): string | null {
-    let names: string[] = [];
-
-    try {
-      names = this.io.readDir(findingsFolder(root)).map(({ name }) => name);
-    } catch {
-      return null;
-    }
-
-    for (const name of names.filter((one) => one.endsWith(".json")).sort()) {
-      const measured = this.measuredOf(root, name.replace(/\.json$/, ""));
-
-      if (measured?.tests !== undefined) {
-        return measured.tests;
-      }
-    }
-
-    return null;
-  }
-
   discardAnalysis(root: string, off: boolean): void {
     this.io.remove(findingsFile(root, "duplication"));
 
