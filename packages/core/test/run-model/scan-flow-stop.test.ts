@@ -103,6 +103,24 @@ describe("a stopped scan's run log", () => {
     ).toBe(true);
   });
 
+  it("a_describer_usage_limit_halt_stops_the_scan_run_log", async () => {
+    const fakes = world();
+
+    fakes.describer.registered = true;
+    fakes.describer.results.get = () => ({ status: 75, stdout: "" });
+
+    const outcome = await drain(
+      scanOver(fakes).start(request({ describe: "all" })),
+    );
+
+    expect(outcome).toEqual({ status: "failed", reason: "phases" });
+    expect(fakes.runLog.runLogs[0]).toMatchObject({
+      ended: "stop",
+      stops: 1,
+      finishes: 0,
+    });
+  });
+
   it("a_stop_during_a_crash_stops_its_run_log", async () => {
     const fakes = world();
     const scan = scanOver(fakes).start(

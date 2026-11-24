@@ -89,6 +89,28 @@ describe("describeRecorded", () => {
     expect(run.crashed).toBe(false);
   });
 
+  it("a_usage_limit_halt_stops_its_describe_record", async () => {
+    const world = new DescribingWorld();
+
+    world.describer.results.set("a", { status: 75, stdout: "" });
+    await recorded(world, "a", "b")();
+
+    const [run] = world.runLog.describeRuns;
+
+    expect(run.stopped).toBe(true);
+    expect(run.finished).toBe(true);
+    expect(run.crashed).toBe(false);
+  });
+
+  it("a_describe_without_a_halt_is_not_recorded_stopped", async () => {
+    const world = new DescribingWorld();
+
+    world.describer.results.set("a", { status: 1, stdout: "" });
+    await recorded(world, "a", "b")();
+
+    expect(world.runLog.describeRuns[0]?.stopped).toBe(false);
+  });
+
   it("closes the record as crashed with the entries so far and rethrows when a callback throws after an entry", async () => {
     const world = new DescribingWorld();
 

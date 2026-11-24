@@ -27,7 +27,7 @@ export interface DescribeFilesInput {
 
 export type DescribeOutcome =
   | { halted: true }
-  | { halted: false; failed: boolean };
+  | { halted: false; failed: boolean; limited: boolean };
 
 export async function describeFiles(
   ports: DescribingPorts,
@@ -111,5 +111,9 @@ export async function describeFiles(
 
   sink.emit({ type: "describing-finished", result });
 
-  return { halted: false, failed: stop !== null };
+  return {
+    halted: false,
+    failed: stop !== null,
+    limited: stop?.cause === "limit",
+  };
 }

@@ -268,6 +268,8 @@ export function* scanFlow(
     recorder.analysis(analysed.phase);
 
     const analysisMs = analysed.ms ?? undefined;
+    let limited = false;
+
     if (phases.isDescriberRegistered(located) && describeOn) {
       const described = (yield {
         kind: "describe",
@@ -294,6 +296,8 @@ export function* scanFlow(
       if (described.failed) {
         recorder.failed = true;
       }
+
+      limited = described.limited;
     }
 
     if (sense !== null) {
@@ -317,7 +321,11 @@ export function* scanFlow(
       }
     }
 
-    runLog?.finish(recorder.recorded(), false, analysisMs);
+    if (limited) {
+      runLog?.stop(recorder.recorded(), analysisMs);
+    } else {
+      runLog?.finish(recorder.recorded(), false, analysisMs);
+    }
 
     const exit = recorder.failed ? 1 : 0;
     const firstFailed = recorder.firstFailed();
