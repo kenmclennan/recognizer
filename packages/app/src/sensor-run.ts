@@ -58,6 +58,11 @@ export type OverlayFiles = {
   refused: string[];
 };
 
+export type StoredResults = {
+  findings: FindingsFiles;
+  overlays: OverlayFiles;
+};
+
 export type SensorInputs = {
   policy: string | null;
   config: string | null;
@@ -132,25 +137,24 @@ export type WorkRequest = {
 };
 
 export type SensorsPort = {
-  readFindings(): Promise<FindingsFiles>;
-  readOverlays(): Promise<OverlayFiles>;
+  readResults(): Promise<StoredResults>;
   readRunRecords(): Promise<RunRecordFiles>;
   readTestsHash(known: Record<string, string>): Promise<string | null>;
-  removeFindings(names: string[]): Promise<void>;
+  clearResults(name: string): Promise<void>;
   readInputs(): Promise<SensorInputs>;
-  onInputsChanged(run: () => void): () => void;
-  watchInputs(): Promise<void>;
-  installed(): Promise<InstalledSensors>;
+  sensorList(): Promise<InstalledSensors>;
   describer(): Promise<DescriberInEffect>;
   plannedWork(request: WorkRequest): Promise<PlannedWork | null>;
 };
 
 export const inertSensors: SensorsPort = {
-  readFindings: async () => ({ files: [], refused: [] }),
-  readOverlays: async () => ({ files: [], refused: [] }),
+  readResults: async () => ({
+    findings: { files: [], refused: [] },
+    overlays: { files: [], refused: [] },
+  }),
   readRunRecords: async () => ({ files: [], refused: [] }),
   readTestsHash: async () => null,
-  removeFindings: async () => {},
+  clearResults: async () => {},
   readInputs: async () => ({
     policy: null,
     config: null,
@@ -158,9 +162,7 @@ export const inertSensors: SensorsPort = {
     refused: [],
     analysis: true,
   }),
-  onInputsChanged: () => () => {},
-  watchInputs: async () => {},
-  installed: async () => ({
+  sensorList: async () => ({
     status: "unavailable",
     reason: "the installed sensors are not available",
   }),
@@ -229,14 +231,14 @@ function readPolicy(
 export async function senseRepository(
   _scans: LoadedScan[],
   inputs: Pick<SensorInputs, "policy" | "config"> & { analysis?: boolean },
-  port: SensorsPort,
+  port: Pick<SensorsPort, "readResults">,
 ): Promise<SensorRun> {
   const statuses: SensorStatus[] = [];
   const config = readConfig(inputs.config, statuses);
   readPolicy(inputs.policy, statuses);
   const settings = resolveStructureSettings(config);
   const documents: SensorFindings[] = [];
-  const read = await port.readFindings();
+  const read = (await port.readResults()).findings;
   let structure: SensorFindings | null = null;
   let structureRan = false;
 
@@ -280,11 +282,9 @@ export async function senseRepository(
     }
   }
 
-  const failed: string[] = [];
   const registered = registeredSensors(config).map(({ name }) => name);
 
   for (const name of read.refused) {
-    failed.push(name);
     statuses.push({ name, status: "failed", reason: "could not be read" });
   }
 
@@ -330,7 +330,6 @@ export async function senseRepository(
           : {}),
       });
     } catch (error) {
-      failed.push(file.name);
       statuses.push({
         name: file.name,
         status: "failed",
@@ -341,10 +340,6 @@ export async function senseRepository(
 
   if (structure !== null && structureRan) {
     documents.unshift(structure);
-  }
-
-  if (failed.length > 0) {
-    await port.removeFindings(failed);
   }
 
   for (const name of registered) {
@@ -376,8 +371,11 @@ export async function withSensors(
   port: SensorsPort,
 ): Promise<Loaded> {
   const inputs = await port.readInputs();
-  const run = await senseRepository(loaded.scans, inputs, port);
-  const overlays = await port.readOverlays();
+  const stored = await port.readResults();
+  const run = await senseRepository(loaded.scans, inputs, {
+    readResults: async () => stored,
+  });
+  const overlays = stored.overlays;
   const tests = await port.readTestsHash({}).catch(() => null);
   const records = await port
     .readRunRecords()

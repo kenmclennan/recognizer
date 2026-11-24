@@ -51,4 +51,39 @@ describe("result freshness", () => {
       outOfDate: [],
     });
   });
+
+  it("a_result_whose_tests_digest_equals_the_current_digest_exactly_is_current", () => {
+    const structure = structureOf({ "a.py": "h1" });
+    const entries = ResultSet.empty()
+      .reported(
+        "tally",
+        AT,
+        reportedResult({ inputs: { "a.py": "h1" }, testsDigest: "t1" }),
+      )
+      .of("tally");
+
+    expect(workOutFreshness(entries, structure, false, "t1").view()).toEqual({
+      state: "current",
+      outOfDate: [],
+    });
+  });
+
+  it("one_changed_test_file_makes_it_stale_naming_the_inputs_it_cannot_confirm", () => {
+    const structure = structureOf({ "a.py": "h1", "b.py": "h2" });
+    const entries = ResultSet.empty()
+      .reported(
+        "tally",
+        AT,
+        reportedResult({
+          inputs: { "a.py": "h1", "b.py": "h2" },
+          testsDigest: "t1",
+        }),
+      )
+      .of("tally");
+
+    expect(workOutFreshness(entries, structure, false, "t2").view()).toEqual({
+      state: "stale",
+      outOfDate: ["a.py", "b.py"],
+    });
+  });
 });

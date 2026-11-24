@@ -29,7 +29,7 @@ export type SettingsModalDeps = {
   port: SettingsModalPort;
   sensors: {
     readInputs(): Promise<SensorInputs>;
-    installed(): Promise<InstalledSensors>;
+    sensorList(): Promise<InstalledSensors>;
   };
   repository: boolean;
   onClose?: () => void;
@@ -820,7 +820,7 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
           deps.port.readConfigKeys(),
           deps.sensors.readInputs(),
           deps.sensors
-            .installed()
+            .sensorList()
             .catch(
               (): InstalledSensors => ({ status: "unavailable", reason: "" }),
             ),

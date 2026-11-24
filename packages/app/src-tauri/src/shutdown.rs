@@ -44,8 +44,8 @@ mod tests {
         let scans = ScanRuns::default();
         let setups = SetupLedger::default();
 
-        scans.begin("w-1").unwrap();
-        scans.begin("w-2").unwrap();
+        scans.begin("w-1");
+        scans.begin("w-2");
         setups.begin("w-1").unwrap();
 
         assert_eq!(scans.in_progress_labels().len(), 2);

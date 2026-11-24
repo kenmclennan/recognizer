@@ -4,9 +4,14 @@ import {
   RepositoryStateHolder,
 } from "@recognizer/core";
 import { ACTIVE_POLL_MS, IDLE_POLL_MS } from "./watch.js";
+import {
+  type WorkingTreePorts,
+  WorkingTreeWatch,
+} from "./working-tree-watch.js";
 
 interface Held {
   holder: RepositoryStateHolder;
+  tree: WorkingTreeWatch;
   watchers: number;
   timer: NodeJS.Timeout | undefined;
 }
@@ -19,14 +24,18 @@ export class RepositoryChannel {
     private readonly dependencies: () => RepositoryStateDependencies,
     private readonly write: (message: unknown) => void,
     private readonly makeId: () => string,
+    private readonly workingTree: WorkingTreePorts,
   ) {}
 
   private heldFor(repository: string): Held {
     let found = this.held.get(repository);
 
     if (found === undefined) {
+      const holder = new RepositoryStateHolder(repository, this.dependencies());
+
       found = {
-        holder: new RepositoryStateHolder(repository, this.dependencies()),
+        holder,
+        tree: new WorkingTreeWatch(this.workingTree, repository, holder),
         watchers: 0,
         timer: undefined,
       };
@@ -47,6 +56,7 @@ export class RepositoryChannel {
   private poll(held: Held): void {
     const tick = () => {
       held.holder.refresh();
+      void held.tree.tick().catch(() => undefined);
       held.timer = setTimeout(
         tick,
         held.holder.active() ? ACTIVE_POLL_MS : IDLE_POLL_MS,

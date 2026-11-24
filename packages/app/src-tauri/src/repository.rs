@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::core_client::CoreClient;
 use crate::fs_safe::checked_relative;
-use crate::tool_runner::{runner, Captured, ToolRunner};
+use crate::tool_runner::{Captured, ToolRunner};
 
 pub const OUTPUT_MARK: &str = "@@recognizer-output@@";
 const CACHE: &str = ".recognizer/cache";
@@ -41,81 +41,6 @@ pub enum ScanReport {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct InstalledSensor {
-    pub name: String,
-    #[serde(default)]
-    pub display: String,
-    #[serde(default)]
-    pub description: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub expansion: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub settings_title: Option<String>,
-    #[serde(default, rename = "runsTests", alias = "runs_tests")]
-    pub runs_tests: bool,
-    #[serde(default)]
-    pub scoped: bool,
-    #[serde(
-        default,
-        rename = "plannedWork",
-        alias = "planned_work",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub planned_work: Option<InstalledPlannedWork>,
-    #[serde(
-        default,
-        rename = "logPath",
-        alias = "log_path",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub log_path: Option<String>,
-    #[serde(default = "listed_by_default")]
-    pub listed: bool,
-    #[serde(default)]
-    pub metrics: Vec<InstalledMetric>,
-    #[serde(default)]
-    pub findings: Vec<serde_json::Value>,
-    #[serde(default)]
-    pub settings: Vec<serde_json::Value>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct InstalledMetric {
-    pub name: String,
-    #[serde(default)]
-    pub label: String,
-    #[serde(default)]
-    pub title: String,
-    #[serde(default)]
-    pub help: String,
-    #[serde(rename = "type")]
-    pub kind: String,
-    pub granularity: String,
-    pub bad: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cell: Option<i64>,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub unlisted: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub published: Option<InstalledPublished>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct InstalledPlannedWork {
-    pub verb: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct InstalledPublished {
-    pub value: f64,
-    pub source: String,
-}
-
-fn listed_by_default() -> bool {
-    true
-}
-
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(tag = "status", rename_all = "kebab-case")]
 pub enum DescriberInEffect {
@@ -134,13 +59,6 @@ struct DescriberJson {
     version: String,
 }
 
-#[derive(Debug, PartialEq, Serialize)]
-#[serde(tag = "status", rename_all = "kebab-case")]
-pub enum InstalledSensors {
-    Ok { sensors: Vec<InstalledSensor> },
-    Unavailable { reason: String },
-}
-
 #[derive(Debug, Default, PartialEq)]
 pub struct CacheRead {
     pub scans: Vec<ScanFile>,
@@ -151,10 +69,6 @@ pub struct CacheRead {
 
 pub fn plain_scan_args(folder: &Path) -> Vec<String> {
     vec!["scan".to_string(), folder.display().to_string()]
-}
-
-pub fn sensors_args() -> Vec<String> {
-    vec!["sensors".to_string(), "--json".to_string()]
 }
 
 pub fn describer_in_effect_from(reply: Result<serde_json::Value, String>) -> DescriberInEffect {
@@ -351,44 +265,6 @@ pub fn clean_output(stdout: &str) -> String {
     strip_escapes(body)
 }
 
-pub fn installed_sensors_for(exit: Option<i32>, stdout: &str, stderr: &str) -> InstalledSensors {
-    let unavailable = |reason: String| InstalledSensors::Unavailable { reason };
-    let stdout = clean_output(stdout);
-    let stdout = stdout.as_str();
-
-    match exit {
-        Some(127) => unavailable(missing_hint()),
-        Some(0) => match serde_json::from_str::<Vec<InstalledSensor>>(stdout) {
-            Ok(sensors) => InstalledSensors::Ok { sensors },
-            Err(_) => {
-                unavailable("recognizer sensors printed something that is not the list".to_string())
-            }
-        },
-        other => unavailable(format!(
-            "recognizer sensors exited {}: {}",
-            other.map_or("without a status".to_string(), |code| code.to_string()),
-            stderr.trim()
-        )),
-    }
-}
-
-pub fn installed_sensors() -> InstalledSensors {
-    installed_sensors_with(runner(), RECOGNIZER_COMMAND)
-}
-
-pub fn installed_sensors_with(runner: &ToolRunner, command: &str) -> InstalledSensors {
-    match runner.capture(command, &sensors_args(), true) {
-        Err(fault) => InstalledSensors::Unavailable {
-            reason: fault.message(),
-        },
-        Ok(Captured {
-            code,
-            stdout,
-            stderr,
-        }) => installed_sensors_for(code, &stdout, &stderr),
-    }
-}
-
 pub fn scan_with(runner: &ToolRunner, folder: &Path, command: &str) -> ScanReport {
     match runner.capture(command, &plain_scan_args(folder), false) {
         Err(fault) => ScanReport::CommandMissing {
@@ -427,11 +303,6 @@ mod tests {
             ScanReport::CommandMissing { .. } => {}
             other => panic!("{other:?}"),
         }
-    }
-
-    #[test]
-    fn the_sensors_argv_carries_only_its_flags() {
-        assert_eq!(sensors_args(), ["sensors", "--json"]);
     }
 
     #[test]
@@ -607,86 +478,6 @@ mod tests {
         );
     }
 
-    #[cfg(unix)]
-    fn fake_command(dir: &Path, body: &str) -> PathBuf {
-        use std::os::unix::fs::PermissionsExt;
-
-        let path = dir.join("fake-recognizer");
-
-        fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
-
-        path
-    }
-
-    #[test]
-    fn the_installed_list_is_read_from_the_command_and_failures_are_unavailable() {
-        let dir = TempDir::new().unwrap();
-        let good = fake_command(
-            dir.path(),
-            r#"echo '[{"name":"duplication","description":"d","metrics":[],"findings":[],"settings":[]}]'"#,
-        );
-        let other = TempDir::new().unwrap();
-        let bad = fake_command(other.path(), "echo nope");
-
-        let runner = working_runner(dir.path());
-
-        match installed_sensors_with(&runner, &good.display().to_string()) {
-            InstalledSensors::Ok { sensors } => {
-                assert_eq!(sensors.len(), 1);
-                assert_eq!(sensors[0].name, "duplication");
-            }
-            other => panic!("{other:?}"),
-        }
-
-        assert!(matches!(
-            installed_sensors_with(&runner, &bad.display().to_string()),
-            InstalledSensors::Unavailable { .. }
-        ));
-        assert!(matches!(
-            installed_sensors_with(&runner, "/nonexistent/recognizer"),
-            InstalledSensors::Unavailable { .. }
-        ));
-        assert!(matches!(
-            installed_sensors_for(Some(2), "", "bad"),
-            InstalledSensors::Unavailable { reason } if reason.contains("exited 2: bad")
-        ));
-    }
-
-    #[cfg(unix)]
-    fn fake_shell(dir: &Path) -> PathBuf {
-        use std::os::unix::fs::PermissionsExt;
-
-        let path = dir.join("fake-shell");
-
-        fs::write(
-            &path,
-            "#!/bin/sh\nprintf '\\033]1337;RemoteHost=ken@host\\007\\033]1337;CurrentDir=/tmp\\007\\033]1337;ShellIntegrationVersion=18;shell=zsh\\007'\nshift\nexec /bin/sh -c \"$@\"\n",
-        )
-        .unwrap();
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
-
-        path
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn a_profile_that_prints_escape_sequences_first_still_resolves_the_environment() {
-        let dir = TempDir::new().unwrap();
-        let shell = fake_shell(dir.path());
-        let runner = runner_with(&shell, Duration::from_secs(10), Duration::from_secs(30), 4);
-        let other = TempDir::new().unwrap();
-        let sensors = fake_command(
-            other.path(),
-            r#"echo '[{"name":"duplication","description":"d","metrics":[],"findings":[],"settings":[]}]'"#,
-        );
-
-        assert!(matches!(
-            installed_sensors_with(&runner, &sensors.display().to_string()),
-            InstalledSensors::Ok { sensors } if sensors.len() == 1
-        ));
-    }
-
     #[test]
     fn escape_sequences_and_controls_are_stripped_and_the_mark_drops_what_precedes_it() {
         assert_eq!(
@@ -700,134 +491,6 @@ mod tests {
             "0.1.77\n"
         );
         assert_eq!(clean_output("0.3.1\n"), "0.3.1\n");
-    }
-
-    #[test]
-    fn a_full_installed_entry_passes_findings_and_settings_through_unchanged() {
-        let findings = serde_json::json!([{"kind":"crap","group":{"name":"C.R.A.P.","means":"m","todo":"t"},"help":"h","sentence":{"requires":["a.b"],"parts":[[{"when":[{"has":"a.b"}],"text":"x {a.b|num}"}]]}}]);
-        let settings = serde_json::json!([{"key":"threshold","type":"number","default":30,"description":"d","example":"e"}]);
-        let list = serde_json::json!([{
-            "name": "crap",
-            "display": "C.R.A.P.",
-            "description": "d",
-            "expansion": "C.R.A.P.: Change Risk Anti-Patterns.",
-            "runs_tests": true,
-            "scoped": true,
-            "listed": true,
-            "metrics": [],
-            "findings": findings,
-            "settings": settings,
-        }])
-        .to_string();
-
-        match installed_sensors_for(Some(0), &list, "") {
-            InstalledSensors::Ok { sensors } => {
-                let out = serde_json::to_value(&sensors[0]).unwrap();
-
-                assert_eq!(out["findings"], findings);
-                assert_eq!(out["settings"], settings);
-                assert_eq!(out["description"], "d");
-                assert_eq!(out["expansion"], "C.R.A.P.: Change Risk Anti-Patterns.");
-                assert_eq!(out["scoped"], true);
-            }
-            other => panic!("{other:?}"),
-        }
-    }
-
-    #[test]
-    fn a_settings_title_and_a_cell_round_trip_and_labelled_settings_pass_through_unchanged() {
-        let settings = serde_json::json!([{"key":"<metric>.above","type":"number","description":"d","example":"e","defaults":{"complexity":10},"labels":{"complexity":"Complexity above"},"units":{"complexity":"x"},"order":1,"limit":{"metric":"<metric>","direction":"above","severity":"<metric>.severity"}}]);
-        let list = serde_json::json!([{
-            "name": "quiet",
-            "display": "Quiet",
-            "description": "d",
-            "settings_title": "Complexity and coverage",
-            "runs_tests": false,
-            "listed": true,
-            "metrics": [{"name":"k","label":"k","title":"K","help":"h","type":"count","granularity":"member","bad":"low","cell":2}],
-            "settings": settings,
-        }])
-        .to_string();
-
-        match installed_sensors_for(Some(0), &list, "") {
-            InstalledSensors::Ok { sensors } => {
-                let out = serde_json::to_value(&sensors[0]).unwrap();
-
-                assert_eq!(out["settings_title"], "Complexity and coverage");
-                assert_eq!(out["metrics"][0]["cell"], 2);
-                assert_eq!(out["settings"], settings);
-            }
-            other => panic!("{other:?}"),
-        }
-    }
-
-    #[test]
-    fn an_entry_without_expansion_or_published_parses_and_a_defaults_key_is_dropped() {
-        let list = r#"[{"name":"m","display":"M","description":"d","defaults":{"threshold":1},"runs_tests":false,"scoped":false,"listed":true,"metrics":[{"name":"k","label":"k","title":"K","help":"h","type":"count","granularity":"member","bad":"low"}],"findings":[],"settings":[]}]"#;
-
-        match installed_sensors_for(Some(0), list, "") {
-            InstalledSensors::Ok { sensors } => {
-                let out = serde_json::to_value(&sensors[0]).unwrap();
-
-                assert!(sensors[0].expansion.is_none());
-                assert!(sensors[0].metrics[0].published.is_none());
-                assert!(out.get("defaults").is_none());
-                assert!(out.get("expansion").is_none());
-                assert!(out["metrics"][0].get("published").is_none());
-            }
-            other => panic!("{other:?}"),
-        }
-    }
-
-    #[test]
-    fn the_installed_list_keeps_planned_work_log_path_and_unlisted() {
-        let declared = r#"[{"name":"m","display":"M","description":"d","runs_tests":true,"scoped":true,"planned_work":{"verb":"mutate"},"log_path":".recognizer/cache/coverage/last-run.log","listed":true,"metrics":[{"name":"k","label":"k","title":"K","help":"h","type":"count","granularity":"member","bad":"low","unlisted":true}],"findings":[],"settings":[]}]"#;
-        let bare = r#"[{"name":"m","display":"M","description":"d","runs_tests":true,"scoped":true,"listed":true,"metrics":[{"name":"k","label":"k","title":"K","help":"h","type":"count","granularity":"member","bad":"low"}],"findings":[],"settings":[]}]"#;
-
-        match installed_sensors_for(Some(0), declared, "") {
-            InstalledSensors::Ok { sensors } => {
-                let out = serde_json::to_value(&sensors[0]).unwrap();
-
-                assert_eq!(out["plannedWork"]["verb"], "mutate");
-                assert_eq!(out["logPath"], ".recognizer/cache/coverage/last-run.log");
-                assert_eq!(out["metrics"][0]["unlisted"], true);
-            }
-            other => panic!("{other:?}"),
-        }
-
-        match installed_sensors_for(Some(0), bare, "") {
-            InstalledSensors::Ok { sensors } => {
-                let out = serde_json::to_value(&sensors[0]).unwrap();
-
-                assert!(out.get("plannedWork").is_none());
-                assert!(out.get("logPath").is_none());
-                assert!(out["metrics"][0].get("unlisted").is_none());
-            }
-            other => panic!("{other:?}"),
-        }
-    }
-
-    #[test]
-    fn the_installed_list_keeps_display_runs_tests_and_listed() {
-        let list = r#"[{"name":"crap","display":"C.R.A.P.","description":"d","runs_tests":true,"listed":true,"metrics":[{"name":"crap","label":"CRAP","title":"C.R.A.P.","help":"h","type":"number","granularity":"member","bad":"high","published":{"value":30.0,"source":"s"}}]},{"name":"quiet","display":"Q","description":"d","runs_tests":false,"listed":false,"metrics":[]}]"#;
-
-        match installed_sensors_for(Some(0), list, "") {
-            InstalledSensors::Ok { sensors } => {
-                assert_eq!(sensors[0].display, "C.R.A.P.");
-                assert!(sensors[0].runs_tests);
-                assert!(sensors[0].listed);
-                assert!(!sensors[1].listed);
-                assert_eq!(
-                    serde_json::to_value(&sensors[0]).unwrap()["metrics"],
-                    serde_json::json!([{"name":"crap","label":"CRAP","title":"C.R.A.P.","help":"h","type":"number","granularity":"member","bad":"high","published":{"value":30.0,"source":"s"}}])
-                );
-                assert_eq!(
-                    serde_json::to_value(&sensors[0]).unwrap()["runsTests"],
-                    serde_json::json!(true)
-                );
-            }
-            other => panic!("{other:?}"),
-        }
     }
 
     #[test]
@@ -880,17 +543,6 @@ mod tests {
     }
 
     #[test]
-    fn the_installed_list_serialises_to_the_webview_contract() {
-        assert_eq!(
-            serde_json::to_value(InstalledSensors::Unavailable {
-                reason: "r".to_string()
-            })
-            .unwrap(),
-            serde_json::json!({ "status": "unavailable", "reason": "r" })
-        );
-    }
-
-    #[test]
     fn with_no_recognizer_on_the_resolved_path_every_verb_reports_it_missing() {
         let dir = TempDir::new().unwrap();
         let empty = TempDir::new().unwrap();
@@ -901,12 +553,6 @@ mod tests {
             scan_with(&runner, dir.path(), RECOGNIZER_COMMAND),
             ScanReport::CommandMissing { .. }
         ));
-        assert_eq!(
-            installed_sensors_with(&runner, RECOGNIZER_COMMAND),
-            InstalledSensors::Unavailable {
-                reason: missing_hint()
-            }
-        );
     }
 
     #[test]
@@ -920,12 +566,10 @@ mod tests {
             4,
         );
 
-        assert_eq!(
-            installed_sensors_with(&runner, RECOGNIZER_COMMAND),
-            InstalledSensors::Unavailable {
-                reason: missing_hint()
-            }
-        );
+        assert!(matches!(
+            scan_with(&runner, dir.path(), RECOGNIZER_COMMAND),
+            ScanReport::CommandMissing { hint } if hint == missing_hint()
+        ));
     }
 
     #[test]

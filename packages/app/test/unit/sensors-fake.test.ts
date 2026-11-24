@@ -41,7 +41,7 @@ describe("fakeSensors describer", () => {
 
     fake.modified.set("lint", 42);
 
-    expect((await fake.readFindings()).files[0]?.modifiedMs).toBe(42);
+    expect((await fake.readResults()).findings.files[0]?.modifiedMs).toBe(42);
   });
 });
 
@@ -68,7 +68,7 @@ describe("fakeSensors readRunRecords", () => {
 describe("the installed list a fake serves", () => {
   it("has entries that derive listed from their metrics and carry findings and settings arrays", async () => {
     const fake = fakeSensors({}, {}, {}, installedSensors());
-    const list = await fake.installed();
+    const list = await fake.sensorList();
 
     expect(list.status).toBe("ok");
 

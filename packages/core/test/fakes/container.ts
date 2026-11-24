@@ -2,6 +2,7 @@ import {
   type ConfigurationPorts,
   createScan,
   type PluginPorts,
+  type RepositoryStateDependencies,
   type Scan,
   type ScanPorts,
   setupReadsOver,
@@ -16,6 +17,7 @@ import { FakeClock } from "./fake-clock.js";
 import { FakeConfigKeys } from "./fake-config-keys.js";
 import { FakeConfigRepository } from "./fake-config-repository.js";
 import { FakeConfirm } from "./fake-confirm.js";
+import { FakeCurrentTests } from "./fake-current-tests.js";
 import { FakeDescriber } from "./fake-describer.js";
 import { FakeDigest } from "./fake-digest.js";
 import { FakeDocumentValidators } from "./fake-document-validators.js";
@@ -74,6 +76,7 @@ export interface Fakes {
   runLog: FakeRunLogRepository;
   lock: FakeScanLock;
   baseline: FakeBaselineRepository;
+  currentTests: FakeCurrentTests;
   confirm: FakeConfirm;
   clock: FakeClock;
   process: FakeProcess;
@@ -131,6 +134,7 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     runLog: new FakeRunLogRepository(),
     lock: new FakeScanLock(),
     baseline: new FakeBaselineRepository(),
+    currentTests: new FakeCurrentTests(),
     confirm: new FakeConfirm(true),
     clock: new FakeClock(),
     process,
@@ -190,6 +194,22 @@ export function portsOf(fakes: Fakes): ScanPorts {
 
 export function scanOver(fakes: Fakes): Scan {
   return createScan(portsOf(fakes));
+}
+
+export function repositoryStateDependenciesOf(
+  fakes: Fakes,
+): RepositoryStateDependencies {
+  return {
+    active: fakes.active,
+    runLog: fakes.runLog,
+    config: fakes.config,
+    catalog: fakes.catalog,
+    findings: fakes.findings,
+    structure: fakes.structure,
+    policy: fakes.policy,
+    baseline: fakes.baseline,
+    currentTests: fakes.currentTests,
+  };
 }
 
 export function pluginPortsOf(fakes: Fakes): PluginPorts {

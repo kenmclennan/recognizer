@@ -9,6 +9,7 @@ import {
   type ProgressUpdate,
   type RescanPorts,
 } from "../../src/rescanner";
+import { fakeRunSnapshot } from "../../src/run-snapshot-fake";
 import { fakeScan, NO_PLAN_DATA, planFromFacts } from "../../src/scan-fake";
 import { OPEN_RUN, type PlannedRun } from "../../src/scan-freshness";
 import type { Loaded } from "../../src/scan-loading";
@@ -89,8 +90,10 @@ function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
   const posted: MessageInput[] = [];
   const lifecycle: MessageInput[] = [];
   const attached: { id: number; extra: MessageAction }[] = [];
+  const snapshot = fakeRunSnapshot(scan.onRun);
   const ports: RescanPorts<string> = {
     port: scan,
+    snapshot,
     registered: async () =>
       registeredWith([
         { name: "alpha", display: "Alpha", runsTests: false },
@@ -168,6 +171,7 @@ function harness(scan = fakeScan(), over: Partial<RescanPorts<string>> = {}) {
     lifecycle,
     attached,
     scan,
+    snapshot,
     rescanner: createRescanner(ports),
   };
 }
@@ -329,7 +333,7 @@ describe("createRescanner", () => {
     expect(second.rescanner.runState().failures).toEqual({});
   });
 
-  it("clears a sensor's diagnosis when a later sense entry for it is ok", async () => {
+  it("clears a sensor's diagnosis when a later run finishes it ok", async () => {
     const refused = line({
       event: "entry",
       phase: "sense",
@@ -340,49 +344,34 @@ describe("createRescanner", () => {
     });
     const scan = fakeScan({
       defaults: { describe: false, sensors: true },
-      steps: [current, sensing(1), refused, entry("sense", "alpha"), summary],
-    });
-    const { rescanner } = harness(scan);
-    const seen: Record<string, unknown>[] = [];
-
-    scan.onStep = (index) => {
-      if (index === 2) {
-        seen.push({ ...rescanner.runState().diagnoses });
-      }
-    };
-
-    await rescanner.run();
-
-    expect(seen).toEqual([
-      { alpha: { code: "tool-missing", line: "cargo-llvm-cov is missing" } },
-    ]);
-    expect(rescanner.runState().diagnoses).toEqual({});
-    expect(rescanner.runState().failures).toEqual({});
-  });
-
-  it("shows the first unfinished planned sensor as running when the stream has no start events", async () => {
-    const scan = fakeScan({
-      defaults: { describe: false, sensors: true },
       steps: [
         current,
-        sensing(2),
-        entry("sense", "alpha"),
-        entry("sense", "beta"),
+        sensing(1),
+        line({ event: "start", phase: "sense", name: "alpha" }),
+        refused,
         summary,
       ],
     });
     const { rescanner } = harness(scan);
-    const seen: (string | null)[] = [];
-
-    scan.onStep = (index) => {
-      if (index === 1 || index === 2) {
-        seen.push(rescanner.runState().started);
-      }
-    };
 
     await rescanner.run();
 
-    expect(seen).toEqual(["alpha", "beta"]);
+    expect(rescanner.runState().diagnoses).toEqual({
+      alpha: { code: "tool-missing", line: "cargo-llvm-cov is missing" },
+    });
+
+    scan.steps = [
+      current,
+      sensing(1),
+      line({ event: "start", phase: "sense", name: "alpha" }),
+      entry("sense", "alpha"),
+      summary,
+    ];
+
+    await rescanner.run();
+
+    expect(rescanner.runState().diagnoses).toEqual({});
+    expect(rescanner.runState().failures).toEqual({});
   });
 
   it("posts exactly one tray message for a failed sensor entry, not one per refresh", async () => {
@@ -764,7 +753,7 @@ describe("createRescanner", () => {
     expect(log).toContain("replace:carried");
   });
 
-  it("does nothing while a scan is running", async () => {
+  it("joins the run this window has in flight instead of starting a second", async () => {
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => {
       release = resolve;
@@ -775,9 +764,11 @@ describe("createRescanner", () => {
     const first = rescanner.run();
 
     await new Promise((resolve) => setTimeout(resolve, 10));
-    await rescanner.run();
+
+    const second = rescanner.run();
+
     release();
-    await first;
+    await Promise.all([first, second]);
 
     expect(scan.ran).toHaveLength(1);
   });
@@ -948,12 +939,13 @@ describe("createRescanner", () => {
     expect(scan.ran).toHaveLength(0);
   });
 
-  it("reads again once when an input changes during a refresh, so a later edit is not dropped", async () => {
+  it("a_refresh_is_a_render_of_the_newest_revision", async () => {
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
     let reads = 0;
+    const rendered: (string | null)[] = [];
     const { rescanner } = harness(fakeScan(), {
       resense: async () => {
         reads += 1;
@@ -962,21 +954,25 @@ describe("createRescanner", () => {
           await gate;
         }
 
-        return OK;
+        return { ...OK, policy: `revision-${reads}` };
       },
+      replace: (loaded) => {
+        rendered.push(loaded.policy);
+      },
+      update: () => false,
     });
 
     const first = rescanner.refresh();
     const second = rescanner.refresh();
-    const third = rescanner.refresh();
 
     release();
-    await Promise.all([first, second, third]);
+    await Promise.all([first, second]);
 
     expect(reads).toBe(2);
+    expect(rendered.at(-1)).toBe("revision-2");
   });
 
-  it("does not refresh while a scan is running", async () => {
+  it("renders a refresh during a run from the newest revision, deferring nothing", async () => {
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => {
       release = resolve;
@@ -987,35 +983,11 @@ describe("createRescanner", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 10));
     await rescanner.refresh();
-    expect(log).not.toContain("resense");
-    release();
-    await first;
-  });
 
-  it("reads again once the scan ends when an input changed while it ran", async () => {
-    let release: () => void = () => {};
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const scan = fakeScan({ steps: [gate] });
-    const { log, rescanner } = harness(scan);
-
-    const first = rescanner.run();
-
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    await rescanner.refresh();
-
-    const during = log.filter((line) => line === "resense").length;
+    expect(log).toContain("resense");
 
     release();
     await first;
-    await vi.waitFor(() =>
-      expect(log.filter((line) => line === "resense").length).toBeGreaterThan(
-        during,
-      ),
-    );
-
-    expect(scan.ran).toHaveLength(1);
   });
 
   it("does not read again after a scan when no input changed while it ran", async () => {
@@ -1578,6 +1550,10 @@ describe("createRescanner", () => {
       made.scan.emitRun({ kind: "run", run: cli });
       made.scan.emitRun({ kind: "line", line: describing(2) });
       made.scan.emitRun({ kind: "line", line: sensing(2) });
+      made.scan.emitRun({
+        kind: "line",
+        line: line({ event: "start", phase: "sense", name: "alpha" }),
+      });
       await flush();
 
       return made;
@@ -1592,10 +1568,9 @@ describe("createRescanner", () => {
       expect(rescanner.runView().record).toEqual(cli);
     });
 
-    it("starts nothing and takes no side-effecting branch for its lines", async () => {
-      const { rescanner, scan, posted, log } = await observed();
+    it("takes no side-effecting branch for its lines", async () => {
+      const { scan, posted, log, rescanner } = await observed();
 
-      await rescanner.run();
       scan.emitRun({
         kind: "line",
         line: entry("sense", "alpha", "boom"),
@@ -1606,6 +1581,20 @@ describe("createRescanner", () => {
       expect(posted.map((one) => one.text)).toEqual(["alpha failed: boom"]);
       expect(log).not.toContain("described");
       expect(rescanner.runState().failures).toEqual({ alpha: "boom" });
+    });
+
+    it("starting_a_run_goes_through_core_and_trusts_the_lock_for_a_refusal", async () => {
+      const { rescanner, scan, lifecycle } = await observed();
+
+      scan.result = { status: "refused", reason: "a scan is already running" };
+
+      await rescanner.run();
+
+      expect(scan.ran).toHaveLength(1);
+      expect(lifecycle.map((one) => one.text)).toContain(
+        "Scan refused - a scan is already running",
+      );
+      expect(rescanner.external()).toBe(true);
     });
 
     it("leaves Running and reloads the results once when the marker goes", async () => {
@@ -2930,7 +2919,7 @@ describe("adopting once per scan", () => {
 
     scan.run = async (plan) => {
       scan.emitRun({ kind: "run", run: record({ run_id: "own-1" }) });
-      scan.emitRun({ kind: "line", line: sensing(1) });
+      scan.emitRun({ kind: "line", line: describing(0) });
       scan.emitRun({
         kind: "run",
         run: { ...finishedRecord, run_id: "own-1" },
@@ -3217,7 +3206,7 @@ describe("attaching to a scan still running from before", () => {
     return { ...made, scan, calls: () => calls };
   }
 
-  it("attaches to a live run on open and starts none of its own", async () => {
+  it("attaches to a live run on open and hands a later start to core, which attaches again", async () => {
     const made = attaching();
 
     await made.rescanner.run(null, OPEN_RUN);
@@ -3230,7 +3219,7 @@ describe("attaching to a scan still running from before", () => {
 
     await made.rescanner.run();
 
-    expect(made.calls()).toBe(1);
+    expect(made.calls()).toBe(2);
     expect(made.log.some((one) => one.startsWith("blocked:"))).toBe(false);
     expect(made.posted).toEqual([]);
     expect(made.lifecycle.map((one) => one.kind)).toEqual(["info"]);

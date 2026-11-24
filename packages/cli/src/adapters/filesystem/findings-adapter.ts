@@ -5,6 +5,7 @@ import {
   type ReportedFindings,
   type SensorFindings,
   type StoredFindings,
+  type StoredOverlay,
   type StructureOverlayInput,
   type UnitCache,
   type UnitCacheRead,
@@ -15,7 +16,9 @@ import { type Io, packageVersion } from "../../cli.js";
 import {
   findingsFile,
   findingsFolder,
+  overlayFile,
   readStoredFindings,
+  readStoredOverlays,
   writeFindings,
 } from "../../findings-files.js";
 import {
@@ -69,6 +72,10 @@ export class FindingsAdapter implements FindingsRepository {
     return readStoredFindings(this.io, root);
   }
 
+  readOverlays(root: string): StoredOverlay[] {
+    return readStoredOverlays(this.io, root);
+  }
+
   readStructure(root: string): SensorFindings | null {
     try {
       return readSensorFindings(
@@ -86,6 +93,7 @@ export class FindingsAdapter implements FindingsRepository {
 
   remove(root: string, sensor: string): void {
     this.io.remove(findingsFile(root, sensor));
+    this.io.remove(overlayFile(root, sensor));
   }
 
   readUnitCache(root: string): UnitCacheRead {

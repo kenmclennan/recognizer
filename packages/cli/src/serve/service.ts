@@ -2,6 +2,7 @@ import { availableParallelism } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import {
   createScan,
+  type FindingsRepository,
   type HistoricalPorts,
   Limiter,
   listRenamesSince,
@@ -19,6 +20,10 @@ import {
   type ViewFields,
 } from "@recognizer/core";
 import { ActiveRunAdapter } from "../adapters/filesystem/active-run-adapter.js";
+import {
+  BaselineTextAdapter,
+  CurrentTestsAdapter,
+} from "../adapters/filesystem/current-tests-adapter.js";
 import { ScanCacheAdapter } from "../adapters/filesystem/scan-cache-adapter.js";
 import { SourceFilesAdapter } from "../adapters/filesystem/source-files-adapter.js";
 import {
@@ -47,6 +52,7 @@ import { configKeys, configWrite } from "./config-run.js";
 import { HistoryChannel } from "./history-channel.js";
 import { quiet } from "./quiet.js";
 import { RepositoryChannel } from "./repository-channel.js";
+import { clearPlugin, readPluginTexts } from "./results-ops.js";
 import { type ScopeFiles, writeScopeFiles } from "./scan-files.js";
 import { sensorWork } from "./sensor-work.js";
 import {
@@ -108,6 +114,7 @@ export class Service {
   private readonly historyChannel = new HistoryChannel();
   private readonly backstops = new StopBackstops();
   private readonly repositories: RepositoryChannel;
+  private readonly findings: FindingsRepository;
   private counter = 0;
 
   constructor(private readonly options: ServiceOptions) {
@@ -117,6 +124,12 @@ export class Service {
     const ports = scanPorts(this.shared, "all");
 
     this.planner = createScan(ports);
+    this.findings = ports.findings;
+    const git = new GitAdapter(this.shared);
+    const limiter = new Limiter(
+      Math.max(1, Math.min(MAX_HISTORICAL_SCANS, availableParallelism())),
+    );
+
     this.repositories = new RepositoryChannel(
       () => ({
         active: new ActiveRunAdapter(this.shared),
@@ -125,18 +138,17 @@ export class Service {
         catalog: ports.catalog,
         findings: ports.findings,
         structure: ports.structure,
+        policy: ports.policy,
+        baseline: new BaselineTextAdapter(this.shared),
+        currentTests: new CurrentTestsAdapter(this.shared),
       }),
       (message) => this.write(message),
       () => this.nextId("r"),
+      { git, limiter },
     );
 
     const scratch = new ScratchAdapter();
     const clock = new ClockAdapter(this.shared);
-
-    const git = new GitAdapter(this.shared);
-    const limiter = new Limiter(
-      Math.max(1, Math.min(MAX_HISTORICAL_SCANS, availableParallelism())),
-    );
 
     this.historical = {
       git,
@@ -232,6 +244,24 @@ export class Service {
         return;
       case "repository.state":
         reply(this.repositories.state(resolve(text(args, "repository"))));
+
+        return;
+      case "results.read": {
+        const repository = resolve(text(args, "repository"));
+        const { revision } = this.repositories.state(repository);
+
+        reply({ revision, plugins: readPluginTexts(this.shared, repository) });
+
+        return;
+      }
+      case "results.clear":
+        clearPlugin(
+          this.findings,
+          resolve(text(args, "repository")),
+          text(args, "plugin"),
+        );
+        this.repositories.state(resolve(text(args, "repository")));
+        reply(null);
 
         return;
       case "scan.plan":

@@ -2,8 +2,10 @@ import type { ConfigRepository } from "../../domain/config-repository.js";
 import type {
   FindingsRepository,
   StoredFindings,
+  StoredOverlay,
 } from "../../domain/findings-repository.js";
 import { InvalidEntity } from "../../domain/invalid-entity.js";
+import type { PolicyRepository } from "../../domain/policy-repository.js";
 import type { Repository } from "../../domain/repository.js";
 import type {
   ActiveRunRead,
@@ -13,7 +15,11 @@ import type {
 } from "../../domain/run/active-run-repository.js";
 import type { RepositoryState } from "../../domain/run/repository-state.js";
 import { ResultFreshness } from "../../domain/run/result-freshness.js";
-import { type ResultEntry, ResultSet } from "../../domain/run/result-set.js";
+import {
+  type ResultAt,
+  type ResultEntry,
+  ResultSet,
+} from "../../domain/run/result-set.js";
 import { Run, type RunReport } from "../../domain/run/run.js";
 import {
   type InstalledFacts,
@@ -23,6 +29,7 @@ import {
 import type { RunLogRepository } from "../../domain/run-log-repository.js";
 import type { StructureRepository } from "../../domain/structure-repository.js";
 import type { InstalledRead } from "../plugins/installed-sensors.js";
+import type { BaselineText, CurrentTests } from "./ports/current-tests.js";
 import { workOutFreshness } from "./work-out-freshness.js";
 
 export interface HeldCatalog {
@@ -38,6 +45,9 @@ export interface RepositoryStateDependencies {
   catalog: HeldCatalog;
   findings: FindingsRepository;
   structure: StructureRepository;
+  policy: PolicyRepository;
+  baseline: BaselineText;
+  currentTests: CurrentTests;
 }
 
 export type StateListener = (state: RepositoryState) => void;
@@ -47,6 +57,8 @@ interface Settling {
   log: boolean;
   marker: boolean;
 }
+
+const UNKNOWN_DIGEST_READS = 5;
 
 function reasonOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -61,6 +73,22 @@ function factsOf(read: InstalledRead): InstalledFacts {
       runsTests: sensor.runs_tests,
       scoped: sensor.scoped,
       listed: sensor.listed,
+      ...(sensor.description === undefined
+        ? {}
+        : { description: sensor.description }),
+      ...(sensor.expansion === undefined
+        ? {}
+        : { expansion: sensor.expansion }),
+      ...(sensor.settings_title === undefined
+        ? {}
+        : { settingsTitle: sensor.settings_title }),
+      ...(sensor.planned_work === undefined
+        ? {}
+        : { plannedWork: sensor.planned_work }),
+      ...(sensor.log_path === undefined ? {} : { logPath: sensor.log_path }),
+      metrics: sensor.metrics,
+      findings: sensor.findings,
+      settings: sensor.settings,
     });
   }
 
@@ -86,6 +114,12 @@ export class RepositoryStateHolder {
   private readonly finishedSeen = new Set<string>();
   private freshness = new Map<string, ResultFreshness>();
   private freshnessKey: string | null = null;
+  private inputsDigest = "";
+  private testsDigest: string | null | undefined = undefined;
+  private lastGoodTestsDigest: string | null = null;
+  private unknownDigestReads = 0;
+  private readonly storedAt = new Map<string, ResultAt>();
+  private overlayNames = new Set<string>();
   private unreadableReports = 0;
   private settling: Settling | null = null;
   private readonly settled = new Set<string>();
@@ -121,6 +155,7 @@ export class RepositoryStateHolder {
     this.readRun();
     this.readRegistry();
     this.readResults();
+    this.readInputs();
     this.workOutFreshness();
     this.publish();
   }
@@ -304,24 +339,24 @@ export class RepositoryStateHolder {
 
     try {
       const folders = this.deps.catalog.unreadableFolders();
-
-      if (folders.length > 0) {
-        if (this.installed === null) {
-          throw new Error(
-            `the plugin folders ${folders.join(", ")} cannot be read`,
-          );
-        }
-
-        this.registry = SensorRegistry.read(this.registered, this.installed);
-
-        return;
-      }
-
       const names = this.deps.catalog.installedNames().join("\n");
 
       if (this.installed === null || names !== this.catalogNames) {
-        this.installed = factsOf(this.deps.catalog.readInstalled());
-        this.catalogNames = names;
+        const read = factsOf(this.deps.catalog.readInstalled());
+        const missing = this.registered.filter(
+          (name) => !read.readable.has(name) && !read.unreadable.has(name),
+        );
+
+        if (folders.length > 0 && missing.length > 0) {
+          if (this.installed === null) {
+            throw new Error(
+              `the plugin folders ${folders.join(", ")} cannot be read`,
+            );
+          }
+        } else {
+          this.installed = read;
+          this.catalogNames = names;
+        }
       }
     } catch (error) {
       this.catalogNames = null;
@@ -348,6 +383,7 @@ export class RepositoryStateHolder {
       return;
     }
 
+    const invalidOverlays = this.readOverlays();
     const wanted = new Set(this.registered);
     const fresh = new Map<string, ResultEntry>();
 
@@ -366,7 +402,7 @@ export class RepositoryStateHolder {
       const at = { commit: document.commit, modified: document.modified };
       const result = {
         findings: `findings:${one.name}`,
-        overlay: null,
+        overlay: this.overlayNames.has(one.name) ? `overlay:${one.name}` : null,
         inputsDigest:
           document.inputs === undefined
             ? null
@@ -376,14 +412,55 @@ export class RepositoryStateHolder {
         inputs: document.inputs ?? null,
       };
 
-      this.results = this.results.reported(one.name, at, result);
-      fresh.set(one.name, {
+      const entry: ResultEntry = {
         at,
         result: { ...result, unreadable: false },
-      });
+      };
+
+      const previous = this.storedAt.get(one.name);
+
+      if (previous !== undefined) {
+        this.results = this.results.without(one.name, previous);
+      }
+
+      this.storedAt.set(one.name, at);
+      this.results = this.results.reported(one.name, at, result);
+      fresh.set(one.name, entry);
     }
 
     this.replaceFinished(fresh);
+
+    for (const name of invalidOverlays) {
+      this.results = this.results.flaggedUnreadable(name);
+    }
+  }
+
+  private readOverlays(): string[] {
+    let stored: StoredOverlay[];
+
+    try {
+      stored = this.deps.findings.readOverlays(this.root);
+    } catch {
+      return [];
+    }
+
+    this.overlayNames = new Set(stored.map((one) => one.name));
+
+    return stored
+      .filter((one) => one.status === "invalid")
+      .map((one) => one.name);
+  }
+
+  private readInputs(): void {
+    try {
+      this.inputsDigest = [
+        this.deps.policy.text(this.root).hash,
+        this.deps.config.text(this.root).hash,
+        this.deps.baseline.hash(this.root),
+      ].join(":");
+    } catch {
+      return;
+    }
   }
 
   private replaceFinished(fresh: ReadonlyMap<string, ResultEntry>): void {
@@ -410,6 +487,31 @@ export class RepositoryStateHolder {
     }
   }
 
+  private currentTestsDigest(): string | null {
+    if (this.testsDigest !== undefined) {
+      return this.testsDigest;
+    }
+
+    let digest: string | null;
+
+    try {
+      digest = this.deps.currentTests.digest(this.root);
+    } catch {
+      return this.lastGoodTestsDigest;
+    }
+
+    if (digest === null && this.unknownDigestReads < UNKNOWN_DIGEST_READS) {
+      this.unknownDigestReads += 1;
+
+      return this.lastGoodTestsDigest;
+    }
+
+    this.testsDigest = digest;
+    this.lastGoodTestsDigest = digest;
+
+    return digest;
+  }
+
   private structureOf(): Repository | null {
     try {
       return this.deps.structure.exists(this.root)
@@ -420,8 +522,33 @@ export class RepositoryStateHolder {
     }
   }
 
+  workingTreeChanged(): void {
+    this.testsDigest = undefined;
+    this.unknownDigestReads = 0;
+    this.freshnessKey = null;
+    this.refresh();
+  }
+
+  private workingEntries(name: string): ResultEntry[] {
+    const entries = this.results.of(name);
+    const stored = this.storedAt.get(name);
+
+    if (stored === undefined) {
+      return entries;
+    }
+
+    const held = entries.filter(
+      ({ at }) =>
+        at.commit === stored.commit && at.modified === stored.modified,
+    );
+
+    return held.length === 0 ? entries : held;
+  }
+
   private workOutFreshness(): void {
+    const currentTests = this.currentTestsDigest();
     const key = JSON.stringify([
+      currentTests,
       this.registered,
       this.results.view(this.registered),
       this.run?.id ?? null,
@@ -442,7 +569,12 @@ export class RepositoryStateHolder {
 
       next.set(
         name,
-        workOutFreshness(this.results.of(name), structure, scoped),
+        workOutFreshness(
+          this.workingEntries(name),
+          structure,
+          scoped,
+          currentTests,
+        ),
       );
     }
 
@@ -464,6 +596,7 @@ export class RepositoryStateHolder {
         ]),
       ),
       unreadableReports: this.unreadableReports,
+      inputsDigest: this.inputsDigest,
     };
     const text = JSON.stringify(state);
 

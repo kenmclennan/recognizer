@@ -159,6 +159,67 @@ function runningScan(
   });
 }
 
+const TEST_FILE = "api/src/memory-store.test.ts";
+const SOURCE_FILE = "api/src/memory-store.ts";
+
+function fakeGauge(directory: string, gate: string): void {
+  const manifest = join(gate, "gauge.manifest.json");
+
+  writeFileSync(manifest, manifestOf("gauge"));
+  launcher(
+    directory,
+    "recognizer-sense-gauge",
+    [
+      `case "$1" in`,
+      `manifest) cat ${manifest};;`,
+      `check) echo '{"gaps":[]}';;`,
+      `run)`,
+      `  shift`,
+      `  commit=""; out=""; root=""`,
+      `  while [ $# -gt 0 ]; do`,
+      `    case "$1" in --commit) commit="$2";; --output) out="$2";; --repository) root="$2";; esac`,
+      `    shift`,
+      `  done`,
+      `  hash=$(shasum -a 256 "$root/${SOURCE_FILE}" | cut -d' ' -f1)`,
+      `  tests=$(cat ${gate}/tests-digest)`,
+      `  mkdir -p "$(dirname "$out")"`,
+      `  printf '{"findings_version":2,"sensor":{"name":"gauge","version":"1"},"commit":"%s","modified":false,"settings":{},"findings":[],"inputs":{"${SOURCE_FILE}":"%s"},"tests":"%s"}' "$commit" "$hash" "$tests" > "$out";;`,
+      `esac`,
+    ].join("\n"),
+  );
+}
+
+function gaugePlugins(gate: string): string {
+  const directory = plugins(gate, []);
+
+  fakeGauge(directory, gate);
+
+  return directory;
+}
+
+async function recordTestsDigest(
+  serve: Serve,
+  repository: string,
+  gate: string,
+): Promise<void> {
+  const digest = (await serve.call("tests.hash", { repository, known: {} }))
+    .ok as string;
+
+  writeFileSync(join(gate, "tests-digest"), digest);
+}
+
+function editTest(repository: string, marker: string): number {
+  const file = join(repository, TEST_FILE);
+
+  writeFileSync(file, `${readFileSync(file, "utf8")}\n// ${marker}\n`);
+
+  return Date.now();
+}
+
+function freshnessOf(state: Line["state"], name: string): string | undefined {
+  return state.freshness[name]?.state;
+}
+
 function holdFile(gate: string, name: string): string {
   return join(gate, `hold-${name}`);
 }
@@ -425,6 +486,305 @@ describe("serve repository state", () => {
 
         expect(Object.keys(after.results)).toEqual(["crap"]);
         expect(Object.keys(after.freshness)).toEqual(["crap"]);
+      } finally {
+        await serve.close();
+      }
+    },
+    TIMEOUT,
+  );
+  it(
+    "an_uncommitted_test_edit_turns_the_result_stale_within_10_s_first_edit_and_after_a_run",
+    async () => {
+      const gate = makeTempDir("serve-state-gate-");
+      const repository = repositoryWith(["gauge"]);
+      const serve = new Serve(gaugePlugins(gate));
+
+      try {
+        await recordTestsDigest(serve, repository, gate);
+
+        const first = await serve.call("scan.start", {
+          repository,
+          describe: false,
+          analysis: false,
+          sense: ["gauge"],
+        });
+
+        expect((await serve.outcome(first.ok)).status).toBe("finished");
+
+        const watch = (await serve.call("repository.watch", { repository })).ok;
+
+        await untilState(
+          serve,
+          watch,
+          (state) => freshnessOf(state, "gauge") === "current",
+        );
+
+        const firstEdit = editTest(repository, "first");
+
+        await serve.until(
+          () =>
+            states(serve, watch).find(
+              (state) => freshnessOf(state, "gauge") === "stale",
+            ),
+          10_000,
+        );
+        expect(Date.now() - firstEdit).toBeLessThan(scaledTimeout(10_000));
+
+        await recordTestsDigest(serve, repository, gate);
+
+        const second = await serve.call("scan.start", {
+          repository,
+          describe: false,
+          analysis: false,
+          sense: ["gauge"],
+        });
+
+        expect((await serve.outcome(second.ok)).status).toBe("finished");
+
+        const mark = states(serve, watch).length;
+
+        await serve.until(
+          () =>
+            states(serve, watch)
+              .slice(mark)
+              .find((state) => freshnessOf(state, "gauge") === "current"),
+          10_000,
+        );
+
+        const secondEdit = editTest(repository, "second");
+        const after = states(serve, watch).length;
+
+        await serve.until(
+          () =>
+            states(serve, watch)
+              .slice(after)
+              .find((state) => freshnessOf(state, "gauge") === "stale"),
+          10_000,
+        );
+        expect(Date.now() - secondEdit).toBeLessThan(scaledTimeout(10_000));
+      } finally {
+        await serve.close();
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "a_registration_change_reaches_the_snapshot_within_10_s",
+    async () => {
+      const gate = makeTempDir("serve-state-gate-");
+      const repository = repositoryWith(["crap", "mutation"]);
+      const serve = new Serve(plugins(gate, ["crap", "mutation"]));
+
+      try {
+        const watch = (await serve.call("repository.watch", { repository })).ok;
+        const first = await untilState(
+          serve,
+          watch,
+          (state) => state.revision === 1,
+        );
+
+        expect(
+          first.registry.entries.some(
+            (entry: Line) => entry.name === "mutation" && entry.registered,
+          ),
+        ).toBe(true);
+
+        const changed = spawnSync(
+          process.execPath,
+          [BIN, "config", "--remove-section", "sensors.mutation"],
+          { cwd: repository, encoding: "utf8" },
+        );
+        const wrote = Date.now();
+
+        expect(changed.status).toBe(0);
+
+        const mark = states(serve, watch).length;
+
+        await serve.until(
+          () =>
+            states(serve, watch)
+              .slice(mark)
+              .find(
+                (state) =>
+                  !state.registry.entries.some(
+                    (entry: Line) =>
+                      entry.name === "mutation" && entry.registered,
+                  ),
+              ),
+          10_000,
+        );
+        expect(Date.now() - wrote).toBeLessThan(scaledTimeout(10_000));
+
+        const before = states(serve, watch).at(-1) as Line["state"];
+
+        writeFileSync(
+          join(repository, ".recognizer", "policy.yaml"),
+          `${existsSync(join(repository, ".recognizer", "policy.yaml")) ? readFileSync(join(repository, ".recognizer", "policy.yaml"), "utf8") : ""}\n`,
+        );
+
+        const edited = Date.now();
+        const seen = states(serve, watch).length;
+
+        await serve.until(
+          () =>
+            states(serve, watch)
+              .slice(seen)
+              .find((state) => state.inputsDigest !== before.inputsDigest),
+          10_000,
+        );
+        expect(Date.now() - edited).toBeLessThan(scaledTimeout(10_000));
+      } finally {
+        await serve.close();
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "results_read_returns_findings_and_overlay_texts_and_the_revision",
+    async () => {
+      const gate = makeTempDir("serve-state-gate-");
+      const repository = repositoryWith(["crap"]);
+      const serve = new Serve(plugins(gate, ["crap"]));
+
+      try {
+        const started = await serve.call("scan.start", {
+          repository,
+          describe: false,
+          analysis: false,
+          sense: ["crap"],
+        });
+
+        expect((await serve.outcome(started.ok)).status).toBe("finished");
+
+        const overlays = join(repository, ".recognizer", "cache", "overlays");
+
+        mkdirSync(overlays, { recursive: true });
+        writeFileSync(join(overlays, "crap.json"), '{"overlay":1}');
+
+        const state = (await serve.call("repository.state", { repository })).ok;
+        const read = (await serve.call("results.read", { repository })).ok;
+
+        expect(read.revision).toBe(state.revision);
+        expect(JSON.parse(read.plugins.crap.findings).sensor.name).toBe("crap");
+        expect(read.plugins.crap.overlay).toBe('{"overlay":1}');
+        expect(read.plugins.crap.findingsProblem).toBeNull();
+        expect(read.plugins.crap.overlayProblem).toBeNull();
+      } finally {
+        await serve.close();
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "results_read_flags_an_unreadable_file_and_deletes_nothing",
+    async () => {
+      const gate = makeTempDir("serve-state-gate-");
+      const repository = repositoryWith(["crap"]);
+      const serve = new Serve(plugins(gate, ["crap"]));
+      const folder = join(repository, ".recognizer", "cache", "findings");
+
+      try {
+        mkdirSync(folder, { recursive: true });
+        writeFileSync(join(folder, "crap.json"), "not json");
+
+        const read = (await serve.call("results.read", { repository })).ok;
+
+        expect(read.plugins.crap.findings).toBeNull();
+        expect(read.plugins.crap.findingsProblem).not.toBeNull();
+        expect(readFileSync(join(folder, "crap.json"), "utf8")).toBe(
+          "not json",
+        );
+      } finally {
+        await serve.close();
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "results_clear_removes_one_plugins_files_only",
+    async () => {
+      const gate = makeTempDir("serve-state-gate-");
+      const repository = repositoryWith(["crap", "mutation"]);
+      const serve = new Serve(plugins(gate, ["crap", "mutation"]));
+
+      try {
+        const started = await serve.call("scan.start", {
+          repository,
+          describe: false,
+          analysis: false,
+          sense: ["crap", "mutation"],
+        });
+
+        expect((await serve.outcome(started.ok)).status).toBe("finished");
+
+        const cache = join(repository, ".recognizer", "cache");
+
+        mkdirSync(join(cache, "overlays"), { recursive: true });
+        writeFileSync(join(cache, "overlays", "crap.json"), "{}");
+        writeFileSync(join(cache, "overlays", "mutation.json"), "{}");
+
+        expect(
+          (await serve.call("results.clear", { repository, plugin: "crap" }))
+            .ok,
+        ).toBeNull();
+        expect(existsSync(join(cache, "findings", "crap.json"))).toBe(false);
+        expect(existsSync(join(cache, "overlays", "crap.json"))).toBe(false);
+        expect(existsSync(join(cache, "findings", "mutation.json"))).toBe(true);
+        expect(existsSync(join(cache, "overlays", "mutation.json"))).toBe(true);
+        expect(
+          (await serve.call("results.clear", { repository, plugin: "../x" }))
+            .error,
+        ).toBeDefined();
+      } finally {
+        await serve.close();
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "inputs_digest_over_this_repositorys_committed_policy_and_config",
+    async () => {
+      const gate = makeTempDir("serve-state-gate-");
+      const repository = repositoryWith(["crap"]);
+      const serve = new Serve(plugins(gate, ["crap"]));
+      const recognizer = join(repository, ".recognizer");
+      const policy = join(recognizer, "policy.yaml");
+
+      try {
+        const committedPolicy = readFileSync(
+          join(REPO, ".recognizer", "policy.yaml"),
+          "utf8",
+        );
+        const committedConfig = readFileSync(
+          join(REPO, ".recognizer", "config.yaml"),
+          "utf8",
+        );
+
+        expect(committedPolicy.length).toBeGreaterThan(0);
+        expect(committedConfig.length).toBeGreaterThan(0);
+
+        writeFileSync(policy, committedPolicy);
+        writeFileSync(join(recognizer, "config.yaml"), committedConfig);
+
+        const first = (await serve.call("repository.state", { repository })).ok;
+
+        writeFileSync(policy, `${committedPolicy}#`);
+
+        const changed = (await serve.call("repository.state", { repository }))
+          .ok;
+
+        writeFileSync(policy, committedPolicy);
+
+        const restored = (await serve.call("repository.state", { repository }))
+          .ok;
+
+        expect(changed.inputsDigest).not.toBe(first.inputsDigest);
+        expect(restored.inputsDigest).toBe(first.inputsDigest);
       } finally {
         await serve.close();
       }

@@ -16,7 +16,7 @@ import schema from ${JSON.stringify(here("../../../fixtures/sensors/config-keys.
 
 const CONFIG = "sensors:\\n  structure:\\n    warnings:\\n      long_function:\\n        limit: 30\\n    duplication:\\n      min_lines: 6\\n";
 const installed = ${JSON.stringify(installedSensors())};
-const sensors = (config) => ({ readInputs: async () => ({ policy: null, config, baseline: null, refused: [] }), installed: async () => ({ status: "ok", sensors: installed }) });
+const sensors = (config) => ({ readInputs: async () => ({ policy: null, config, baseline: null, refused: [] }), sensorList: async () => ({ status: "ok", sensors: installed }) });
 const box = (node) => { const r = node.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height }; };
 const text = (nodes) => [...nodes].map((n) => n.textContent);
 const change = (node, value) => { node.value = value; node.dispatchEvent(new Event("change", { bubbles: true })); };
@@ -134,7 +134,7 @@ window.addEventListener("error", (e) => { document.getElementById("out").textCon
 import { openSettingsModal } from ${JSON.stringify(here("settings-modal-view.ts"))};
 import { fakeSettingsModal } from ${JSON.stringify(here("settings-modal-fake.ts"))};
 
-const sensors = { readInputs: async () => ({ policy: null, config: null, baseline: null, refused: [] }), installed: async () => ({ status: "ok", sensors: [] }) };
+const sensors = { readInputs: async () => ({ policy: null, config: null, baseline: null, refused: [] }), sensorList: async () => ({ status: "ok", sensors: [] }) };
 const box = (node) => { const r = node.getBoundingClientRect(); return { name: node.tagName + "." + node.className, top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height }; };
 const text = (nodes) => [...nodes].map((n) => n.textContent);
 const typeInto = (node, value) => { node.value = value; node.dispatchEvent(new Event("input", { bubbles: true })); };

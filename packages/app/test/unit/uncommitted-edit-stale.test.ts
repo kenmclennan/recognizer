@@ -6,12 +6,10 @@ import {
   readFileSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { Repository, testsHashOf } from "@recognizer/core";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
-import { inputsRefresh } from "../../src/inputs-refresh";
 import type { PlanRequest } from "../../src/plan-reads";
 import { planFromFacts } from "../../src/scan-fake";
 import { withSensors } from "../../src/sensor-run";
@@ -156,95 +154,5 @@ describe("an uncommitted test edit reaches the sensor's out-of-date state", () =
     expect(
       (await gapAfter(after.tests ?? null, before.tests ?? null)).length,
     ).toBeGreaterThan(0);
-  });
-
-  it("carries a dirty working-tree edit through the inputs-changed event to the sensor's stale gap", async () => {
-    const folder = repositoryWithTest();
-    const port = fakeSensors();
-
-    port.readTestsHash = async () => hashFromDisk(folder);
-
-    const recorded = (await withSensors(empty, port)).tests ?? null;
-    let latest: string | null = recorded;
-    let refreshed = 0;
-
-    const onChanged = inputsRefresh({
-      refresh: async () => {
-        latest = (await withSensors(empty, port)).tests ?? null;
-        refreshed += 1;
-      },
-      doctor: async () => {},
-      flight: () => {},
-    });
-
-    port.onInputsChanged(() => void onChanged());
-
-    expect(await gapAfter(latest, recorded)).toEqual([]);
-
-    appendFileSync(join(folder, "test", "math.test.ts"), "// a comment\n");
-    port.editInputs({});
-
-    await vi.waitFor(() => expect(refreshed).toBe(1));
-
-    expect((await gapAfter(latest, recorded)).length).toBeGreaterThan(0);
-  });
-
-  it("notices a second uncommitted edit after a run recorded the first, as fast as the first", async () => {
-    const folder = repositoryWithTest();
-    const port = fakeSensors();
-
-    port.readTestsHash = async () => hashFromDisk(folder);
-
-    let recorded = (await withSensors(empty, port)).tests ?? null;
-    let latest: string | null = recorded;
-    let refreshed = 0;
-
-    const onChanged = inputsRefresh({
-      refresh: async () => {
-        latest = (await withSensors(empty, port)).tests ?? null;
-        refreshed += 1;
-      },
-      doctor: async () => {},
-      flight: () => {},
-    });
-
-    port.onInputsChanged(() => void onChanged());
-
-    appendFileSync(join(folder, "test", "math.test.ts"), "// first\n");
-    port.editInputs({});
-    await vi.waitFor(() => expect(refreshed).toBe(1));
-    expect((await gapAfter(latest, recorded)).length).toBeGreaterThan(0);
-
-    recorded = latest;
-    expect(await gapAfter(latest, recorded)).toEqual([]);
-
-    appendFileSync(join(folder, "test", "math.test.ts"), "// second edit\n");
-    port.editInputs({});
-    await vi.waitFor(() => expect(refreshed).toBe(2));
-
-    expect((await gapAfter(latest, recorded)).length).toBeGreaterThan(0);
-  });
-
-  it("starts watching the inputs from main.ts's start, after the repository is set", () => {
-    const main = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), "../../src/main.ts"),
-      "utf8",
-    );
-
-    const start = main.slice(main.indexOf("async function start()"));
-    const setRepo = start.indexOf("setScanRepository(folder);");
-    const watch = start.indexOf("sensorsSource.watchInputs()");
-
-    expect(setRepo).toBeGreaterThan(-1);
-    expect(watch).toBeGreaterThan(setRepo);
-    expect(start.slice(watch - 10, watch)).toContain("void ");
-  });
-
-  it("does not start watching on subscribing to the event", () => {
-    const port = fakeSensors();
-
-    port.onInputsChanged(() => {});
-
-    expect(port.watched).toBe(0);
   });
 });

@@ -18,7 +18,6 @@ pub const STOP_FALLBACK: Duration = Duration::from_secs(15);
 const STDERR_CHARS: usize = 8192;
 const STDERR_TAIL_BYTES: usize = 4 * STDERR_CHARS;
 const STARTED_BY: &str = "RECOGNIZER_STARTED_BY";
-const ALREADY_RUNNING: &str = "a scan is already running";
 const SETUP_ALREADY_RUNNING: &str = "a setup check or apply is already running";
 
 pub type Launcher = Box<dyn Fn() -> Result<Command, Value> + Send + Sync>;
@@ -206,6 +205,7 @@ impl GroupHandle {
 struct Run {
     scan: Option<String>,
     stopped: bool,
+    starts: usize,
 }
 
 #[derive(Default)]
@@ -218,16 +218,8 @@ impl ScanRuns {
         locked(&self.runs)
     }
 
-    pub fn begin(&self, label: &str) -> Result<(), String> {
-        let mut runs = self.lock();
-
-        if runs.contains_key(label) {
-            return Err(ALREADY_RUNNING.to_string());
-        }
-
-        runs.insert(label.to_string(), Run::default());
-
-        Ok(())
+    pub fn begin(&self, label: &str) {
+        self.lock().entry(label.to_string()).or_default().starts += 1;
     }
 
     fn attach(&self, label: &str, scan: &str) -> bool {
@@ -253,11 +245,18 @@ impl ScanRuns {
     }
 
     pub fn finish(&self, label: &str) -> bool {
-        self.lock().remove(label).is_some_and(|run| run.stopped)
-    }
+        let mut runs = self.lock();
+        let Some(run) = runs.get_mut(label) else {
+            return false;
+        };
 
-    pub fn running(&self, label: &str) -> bool {
-        self.lock().contains_key(label)
+        run.starts = run.starts.saturating_sub(1);
+
+        if run.starts > 0 {
+            return false;
+        }
+
+        runs.remove(label).is_some_and(|run| run.stopped)
     }
 
     pub fn in_progress(&self, label: &str) -> bool {
@@ -411,6 +410,7 @@ enum Owner {
 enum Track {
     Scan(String),
     Watch(Owner, String),
+    Repository(String, String),
     Setup(String, String, Callback),
 }
 
@@ -423,6 +423,7 @@ struct Pending {
 enum Kind {
     Scan,
     Watch,
+    Repository,
     Setup(String, String),
 }
 
@@ -446,6 +447,7 @@ struct State {
     pending: HashMap<i64, Pending>,
     streams: HashMap<String, Stream>,
     watches: HashMap<String, String>,
+    repository_watches: HashMap<String, String>,
 }
 
 struct Inner {
@@ -616,6 +618,16 @@ impl CoreClient {
             "scan.start" => self.start_scan(label, args),
             "scan.stop" => self.stop_one(label, args),
             "scan.watch" => self.watch_for(label, args),
+            "repository.watch" => self.repository_watch_for(label, args),
+            "repository.unwatch" => {
+                locked(&self.inner.state).repository_watches.remove(label);
+
+                if let Some(watch) = args.get("watch").and_then(Value::as_str) {
+                    locked(&self.inner.state).streams.remove(watch);
+                }
+
+                self.request(op, args, None)
+            }
             "scan.unwatch" => {
                 locked(&self.inner.state).watches.remove(label);
                 self.request(op, args, None)
@@ -625,9 +637,7 @@ impl CoreClient {
     }
 
     fn start_scan(&self, label: &str, args: Value) -> Value {
-        if let Err(error) = self.inner.runs.begin(label) {
-            return json!({ "error": error });
-        }
+        self.inner.runs.begin(label);
 
         if let Some(repository) = args.get("repository").and_then(Value::as_str) {
             self.request(
@@ -690,6 +700,20 @@ impl CoreClient {
         )
     }
 
+    fn repository_watch_for(&self, label: &str, args: Value) -> Value {
+        let repository = args
+            .get("repository")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+
+        self.request(
+            "repository.watch",
+            args,
+            Some(Track::Repository(label.to_string(), repository)),
+        )
+    }
+
     fn request(&self, op: &str, args: Value, track: Option<Track>) -> Value {
         let (sender, receiver) = mpsc::channel();
         let needs = args.clone();
@@ -743,9 +767,12 @@ impl CoreClient {
     pub fn unwatch(&self, watch: &str) {
         let mut state = locked(&self.inner.state);
 
-        state.streams.remove(watch);
+        let op = match state.streams.remove(watch).map(|stream| stream.kind) {
+            Some(Kind::Repository) => "repository.unwatch",
+            _ => "scan.unwatch",
+        };
 
-        let _ = self.send_line(&mut state, "scan.unwatch", json!({ "watch": watch }));
+        let _ = self.send_line(&mut state, op, json!({ "watch": watch }));
     }
 
     fn ensure(&self, state: &mut State) -> Result<(), Value> {
@@ -830,6 +857,23 @@ impl CoreClient {
                 json!({ "repository": repository }),
                 sender,
                 Some(Track::Watch(Owner::Window(label), repository)),
+            );
+        }
+
+        let repository_watches: Vec<(String, String)> = state
+            .repository_watches
+            .iter()
+            .map(|(label, repository)| (label.clone(), repository.clone()))
+            .collect();
+
+        for (label, repository) in repository_watches {
+            let (sender, _) = mpsc::channel();
+            let _ = self.write(
+                state,
+                "repository.watch",
+                json!({ "repository": repository }),
+                sender,
+                Some(Track::Repository(label, repository)),
             );
         }
 
@@ -950,12 +994,13 @@ impl CoreClient {
             let mut state = locked(&self.inner.state);
 
             state.watches.remove(label);
+            state.repository_watches.remove(label);
 
             state
                 .streams
                 .iter()
                 .filter(|(_, stream)| {
-                    matches!(stream.kind, Kind::Watch)
+                    matches!(stream.kind, Kind::Watch | Kind::Repository)
                         && matches!(&stream.owner, Owner::Window(owner) if owner == label)
                 })
                 .map(|(id, _)| id.clone())
@@ -1237,6 +1282,18 @@ fn handle_item(inner: &Arc<Inner>, item: Value) {
                             },
                         );
                     }
+                    Track::Repository(label, repository) => {
+                        state
+                            .repository_watches
+                            .insert(label.clone(), repository.clone());
+                        state.streams.insert(
+                            stream.to_string(),
+                            Stream {
+                                owner: Owner::Window(label.clone()),
+                                kind: Kind::Repository,
+                            },
+                        );
+                    }
                     Track::Watch(owner, repository) => {
                         if let Owner::Window(label) = owner {
                             state.watches.insert(label.clone(), repository.clone());
@@ -1311,6 +1368,7 @@ while read -r line; do
       echo "{\"stream\":\"s1\",\"outcome\":$OUTCOME}"
       ;;
     *'"op":"scan.watch"'*) echo "{\"id\":$id,\"ok\":\"w1\"}" ;;
+    *'"op":"repository.watch"'*) echo "{\"id\":$id,\"ok\":\"r1\"}" ;;
     *die*) exit 3 ;;
     *) echo "{\"id\":$id,\"ok\":\"pong\"}" ;;
   esac
@@ -1437,7 +1495,7 @@ done
         assert!(items.iter().all(|(label, _)| label == "w-1"));
         assert_eq!(items[0].1["event"]["kind"], "phase");
         assert_eq!(items[1].1["outcome"]["status"], "finished");
-        assert!(!client.runs().running("w-1"));
+        assert!(!client.runs().in_progress("w-1"));
     }
 
     #[test]
@@ -1497,7 +1555,7 @@ exit 9
 
         assert_eq!(items[0].1["outcome"]["status"], "failed");
         assert_eq!(items[0].1["outcome"]["reason"], "crashed");
-        assert!(!client.runs().running("w-1"));
+        assert!(!client.runs().in_progress("w-1"));
     }
 
     #[test]
@@ -1533,6 +1591,58 @@ exit 9
             .count();
 
         assert_eq!(watches, 2);
+    }
+
+    #[test]
+    fn a_restart_re_issues_each_windows_repository_watch() {
+        let dir = TempDir::new().unwrap();
+        let (client, _, log, _) = client(dir.path(), ECHO, "{}");
+
+        assert_eq!(
+            client
+                .call("w-1", Some(dir.path()), "repository.watch", json!({}))
+                .unwrap(),
+            json!({ "ok": "r1" })
+        );
+
+        let died = client
+            .call(
+                "w-1",
+                Some(dir.path()),
+                "scan.plan",
+                json!({ "word": "die" }),
+            )
+            .unwrap();
+
+        assert_eq!(died["unavailable"]["kind"], "exited");
+
+        client
+            .call("w-1", Some(dir.path()), "scan.plan", json!({}))
+            .unwrap();
+
+        let watches = lines_of(&log)
+            .into_iter()
+            .filter(|line| line["op"] == "repository.watch")
+            .count();
+
+        assert_eq!(watches, 2);
+    }
+
+    #[test]
+    fn closing_a_window_ends_its_repository_watch() {
+        let dir = TempDir::new().unwrap();
+        let (client, _, log, _) = client(dir.path(), ECHO, "{}");
+
+        client
+            .call("w-1", Some(dir.path()), "repository.watch", json!({}))
+            .unwrap();
+        client.window_closed("w-1");
+
+        wait_until("the repository unwatch", || {
+            lines_of(&log)
+                .iter()
+                .any(|line| line["op"] == "repository.unwatch" && line["args"]["watch"] == "r1")
+        });
     }
 
     #[test]
@@ -1608,7 +1718,7 @@ exit 9
     }
 
     #[test]
-    fn a_second_start_in_one_window_is_refused_and_stop_reaches_the_first() {
+    fn a_second_start_in_one_window_is_handed_to_core_and_stop_reaches_the_first() {
         let dir = TempDir::new().unwrap();
         let body = ECHO.replace(
             "echo \"{\\\"stream\\\":\\\"s1\\\",\\\"outcome\\\":$OUTCOME}\"",
@@ -1624,7 +1734,14 @@ exit 9
             .call("w-1", Some(dir.path()), "scan.start", json!({}))
             .unwrap();
 
-        assert_eq!(second, json!({ "error": "a scan is already running" }));
+        assert!(second.get("error").is_none());
+        assert_eq!(
+            lines_of(&log)
+                .iter()
+                .filter(|line| line["op"] == "scan.start")
+                .count(),
+            2
+        );
 
         client.stop_window("w-1");
 
@@ -1741,7 +1858,7 @@ exit 9
         assert_eq!(gaps[0]["needs"], json!(["scan"]));
         assert!(gaps[0]["line"].as_str().unwrap().contains("1.2.3"));
         assert!(gaps[0]["line"].as_str().unwrap().contains("0.1.108"));
-        assert!(!client.runs().running("w-1"));
+        assert!(!client.runs().in_progress("w-1"));
         assert_eq!(runs_of(dir.path(), "recognizer", "scan-runs"), 0);
     }
 
@@ -1751,22 +1868,21 @@ exit 9
 
         assert!(!runs.in_progress("w-1"));
 
-        runs.begin("w-1").unwrap();
+        runs.begin("w-1");
 
         assert!(runs.in_progress("w-1"));
 
         runs.stop("w-1");
 
         assert!(!runs.in_progress("w-1"));
-        assert!(runs.running("w-1"));
     }
 
     #[test]
     fn a_stopped_run_is_not_listed_as_in_progress() {
         let runs = ScanRuns::default();
 
-        runs.begin("w-1").unwrap();
-        runs.begin("w-2").unwrap();
+        runs.begin("w-1");
+        runs.begin("w-2");
         runs.stop("w-2");
 
         assert_eq!(runs.in_progress_labels(), vec!["w-1".to_string()]);
@@ -1776,8 +1892,8 @@ exit 9
     fn stop_all_stops_every_run() {
         let runs = ScanRuns::default();
 
-        runs.begin("w-1").unwrap();
-        runs.begin("w-2").unwrap();
+        runs.begin("w-1");
+        runs.begin("w-2");
         runs.stop("w-2");
         runs.stop_all();
 
@@ -1791,10 +1907,25 @@ exit 9
 
         runs.stop("w-1");
 
-        assert!(!runs.running("w-1"));
-        assert!(runs.begin("w-1").is_ok());
-        assert!(runs.begin("w-1").is_err());
+        assert!(!runs.in_progress("w-1"));
         assert!(!runs.finish("w-1"));
+    }
+
+    #[test]
+    fn a_second_begin_for_a_label_is_not_refused_by_the_ledger() {
+        let runs = ScanRuns::default();
+
+        runs.begin("w-1");
+        runs.begin("w-1");
+
+        assert!(runs.in_progress("w-1"));
+        assert!(!runs.finish("w-1"));
+        assert!(runs.in_progress("w-1"));
+
+        runs.stop("w-1");
+
+        assert!(runs.finish("w-1"));
+        assert!(!runs.in_progress("w-1"));
     }
 
     struct Reaper(Vec<std::process::Child>);

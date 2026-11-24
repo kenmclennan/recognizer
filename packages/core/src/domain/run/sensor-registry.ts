@@ -9,6 +9,14 @@ export interface ManifestFacts {
   runsTests: boolean;
   scoped: boolean;
   listed: boolean;
+  description?: string;
+  expansion?: string;
+  settingsTitle?: string;
+  plannedWork?: { verb: string };
+  logPath?: string;
+  metrics?: readonly unknown[];
+  findings?: readonly unknown[];
+  settings?: readonly unknown[];
 }
 
 export interface RegistryEntry {

@@ -10,7 +10,6 @@ pub mod editor;
 pub mod fs_safe;
 mod launch;
 pub mod link;
-pub mod overlays;
 pub mod recent;
 pub mod repository;
 pub mod responsibilities;
@@ -806,13 +805,6 @@ async fn choose_folder(app: AppHandle, window: WebviewWindow) -> Result<(), Stri
 }
 
 #[tauri::command]
-async fn installed_sensors() -> Result<repository::InstalledSensors, String> {
-    tauri::async_runtime::spawn_blocking(repository::installed_sensors)
-        .await
-        .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
 async fn read_config_keys(
     app: AppHandle,
     window: WebviewWindow,
@@ -1185,8 +1177,6 @@ fn window_folder_path(app: &AppHandle, window: &WebviewWindow) -> Result<PathBuf
 static WATCHING: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 static WATCHING_CHANGES: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 static WATCHING_RESPONSIBILITIES: Mutex<Option<HashSet<String>>> = Mutex::new(None);
-static WATCHING_SENSOR_INPUTS: Mutex<Option<HashMap<String, u64>>> = Mutex::new(None);
-static SENSOR_INPUTS_GENERATION: AtomicU64 = AtomicU64::new(0);
 static WATCHING_GIT: Mutex<Option<HashMap<String, u64>>> = Mutex::new(None);
 static GIT_GENERATION: AtomicU64 = AtomicU64::new(0);
 
@@ -1333,11 +1323,6 @@ fn watch_responsibilities(app: AppHandle, window: WebviewWindow) -> Result<(), S
 }
 
 #[tauri::command]
-fn read_findings(app: AppHandle, window: WebviewWindow) -> Result<sensors::FindingsRead, String> {
-    Ok(sensors::read_findings(&window_folder_path(&app, &window)?))
-}
-
-#[tauri::command]
 fn read_run_records(
     app: AppHandle,
     window: WebviewWindow,
@@ -1345,20 +1330,6 @@ fn read_run_records(
     Ok(sensors::read_run_records(&window_folder_path(
         &app, &window,
     )?))
-}
-
-#[tauri::command]
-fn read_overlays(app: AppHandle, window: WebviewWindow) -> Result<overlays::OverlaysRead, String> {
-    Ok(overlays::read_overlays(&window_folder_path(&app, &window)?))
-}
-
-#[tauri::command]
-fn remove_findings(
-    app: AppHandle,
-    window: WebviewWindow,
-    names: Vec<String>,
-) -> Result<(), String> {
-    sensors::remove_findings(&window_folder_path(&app, &window)?, &names)
 }
 
 #[tauri::command]
@@ -1372,76 +1343,6 @@ fn read_sensor_inputs(
     inputs.analysis = scan_ticks::read(&ticks_file(&app)?, &folder).analysis;
 
     Ok(inputs)
-}
-
-#[tauri::command]
-fn watch_sensor_inputs(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
-    let folder = window_folder_path(&app, &window)?;
-    let label = window_label(&window);
-
-    let held = SENSOR_INPUTS_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
-
-    WATCHING_SENSOR_INPUTS
-        .lock()
-        .map_err(|error| error.to_string())?
-        .get_or_insert_with(HashMap::new)
-        .insert(label.clone(), held);
-
-    std::thread::spawn(move || {
-        let core = app.state::<CoreClient>().inner().clone();
-        let mut dirty = sensors::DirtyEntries::new();
-        let read_dirty = |previous: &sensors::DirtyEntries| {
-            core.call(
-                &label,
-                Some(&folder),
-                "changes.worktree",
-                serde_json::json!({}),
-            )
-            .ok()
-            .and_then(|reply| core_ok(reply).ok())
-            .and_then(|ok| sensors::dirty_from_reply(&ok))
-            .unwrap_or_else(|| previous.clone())
-        };
-
-        dirty = read_dirty(&dirty);
-
-        let mut last = sensors::snapshot(&folder, &dirty);
-
-        loop {
-            std::thread::sleep(Duration::from_millis(500));
-
-            let stored = WATCHING_SENSOR_INPUTS
-                .lock()
-                .ok()
-                .and_then(|watching| watching.as_ref().and_then(|map| map.get(&label).copied()));
-
-            if !git_watch_continues(held, stored) || app.get_webview_window(&label).is_none() {
-                break;
-            }
-
-            dirty = read_dirty(&dirty);
-
-            let next = sensors::snapshot(&folder, &dirty);
-
-            if sensors::snapshot_changed(&last, &next) {
-                last = next;
-
-                if app.emit_to(&label, "sensor-inputs-changed", ()).is_err() {
-                    break;
-                }
-            }
-        }
-
-        if let Ok(mut watching) = WATCHING_SENSOR_INPUTS.lock() {
-            if let Some(map) = watching.as_mut() {
-                if map.get(&label) == Some(&held) {
-                    map.remove(&label);
-                }
-            }
-        }
-    });
-
-    Ok(())
 }
 
 #[tauri::command]
@@ -1643,17 +1544,13 @@ pub fn run() {
             open_folder_in_editor,
             open_in_editor,
             publish_window_state,
-            read_findings,
             read_run_records,
-            read_overlays,
             read_responsibilities,
             read_sensor_inputs,
             read_describing,
             read_config_keys,
             read_settings,
             record_recent_view,
-            remove_findings,
-            installed_sensors,
             describer_in_effect,
             remove_view,
             rename_view,
@@ -1671,7 +1568,6 @@ pub fn run() {
             watch_changes,
             watch_git,
             watch_responsibilities,
-            watch_sensor_inputs,
             watch_views,
             window_folder,
             write_repository_config,

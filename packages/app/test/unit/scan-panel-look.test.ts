@@ -13,6 +13,7 @@ import { fakeScan, planFromFacts } from ${JSON.stringify(here("scan-fake.ts"))};
 import REASONS from ${JSON.stringify(here("../../../fixtures/sensor-reasons/states.json"))};
 import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
 import { createRescanner } from ${JSON.stringify(here("rescanner.ts"))};
+import { fakeRunSnapshot } from ${JSON.stringify(here("run-snapshot-fake.ts"))};
 import { scansCommit } from ${JSON.stringify(here("scans-commit.ts"))};
 import { withSensors } from ${JSON.stringify(here("sensor-run.ts"))};
 import { NO_CHANGES } from ${JSON.stringify(here("footer-scan.ts"))};
@@ -94,7 +95,8 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   const setScan = (next) => { wired.scanState = next; };
   wired.rescanner = createRescanner({
     port: fake,
-    registered: async () => { const { config } = await sensors.readInputs(); return registeredOf(rowSensors(config, await sensors.installed()), describerRegistered(config)); },
+    snapshot: fakeRunSnapshot(fake.onRun),
+    registered: async () => { const { config } = await sensors.readInputs(); return registeredOf(rowSensors(config, await sensors.sensorList()), describerRegistered(config)); },
     load: () => base,
     sense: (loaded) => sensed(loaded),
     resense: async () => sensed(wired.current),
@@ -311,8 +313,8 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
 
   const pendingGate = gate();
   const slowSensors = fakeSensors({}, { config: CONFIG }, {}, INSTALLED);
-  const instantInstalled = slowSensors.installed.bind(slowSensors);
-  slowSensors.installed = async () => { await pendingGate.promise; return instantInstalled(); };
+  const instantInstalled = slowSensors.sensorList.bind(slowSensors);
+  slowSensors.sensorList = async () => { await pendingGate.promise; return instantInstalled(); };
   const slow = await mount(fakeScan(), slowSensors);
   click(slow.q(".rail-scan"));
   await tick();

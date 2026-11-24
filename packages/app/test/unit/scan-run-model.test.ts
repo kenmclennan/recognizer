@@ -588,9 +588,9 @@ describe("extract timing per language", () => {
       [1000, plugin("rust", { event: "start", total: 7, unit: "files" })],
     ].reduce<ScanProgress>(
       (state, [at, event]) =>
-        runModelModule.foldRunLine(
+        runModelModule.foldRunEvent(
           state,
-          event as Parameters<typeof runModelModule.foldRunLine>[1],
+          event as Parameters<typeof runModelModule.foldRunEvent>[1],
           at as number,
         ),
       NO_PROGRESS,
@@ -610,9 +610,9 @@ describe("the run's work across steps", () => {
   const fold = (lines: [number, object | null][]) =>
     lines.reduce<ScanProgress>(
       (state, [at, event]) =>
-        runModelModule.foldRunLine(
+        runModelModule.foldRunEvent(
           state,
-          event as Parameters<typeof runModelModule.foldRunLine>[1],
+          event as Parameters<typeof runModelModule.foldRunEvent>[1],
           at,
         ),
       NO_PROGRESS,
