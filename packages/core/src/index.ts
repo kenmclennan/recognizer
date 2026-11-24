@@ -49,6 +49,7 @@ export * from "./application/configuration/write-config-edits.js";
 export * from "./application/describing/check-descriptions.js";
 export * from "./application/describing/describe-gap.js";
 export * from "./application/describing/describe-modules.js";
+export * from "./application/describing/describe-recorded.js";
 export * from "./application/describing/find-describe-gap.js";
 export * from "./application/describing/internal/describing-ports.js";
 export * from "./application/describing/ports/confirm.js";

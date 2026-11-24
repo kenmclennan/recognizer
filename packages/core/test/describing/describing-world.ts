@@ -9,6 +9,7 @@ import { FakeClock } from "../fakes/fake-clock.js";
 import { FakeConfirm } from "../fakes/fake-confirm.js";
 import { FakeDescriber } from "../fakes/fake-describer.js";
 import { FakeResponsibilitiesRepository } from "../fakes/fake-responsibilities-repository.js";
+import { FakeRunLogRepository } from "../fakes/fake-run-log-repository.js";
 import { repositoryOf } from "../fakes/repository-of.js";
 
 export const ROOT = "/work/describing";
@@ -18,6 +19,7 @@ export class DescribingWorld {
   readonly responsibilities = new FakeResponsibilitiesRepository();
   readonly confirm = new FakeConfirm(true);
   readonly clock = new FakeClock();
+  readonly runLog = new FakeRunLogRepository();
   readonly said: string[] = [];
   readonly entries: RunEntry[] = [];
   readonly events: string[] = [];
@@ -32,6 +34,7 @@ export class DescribingWorld {
       confirm: this.confirm,
       clock: this.clock,
       responsibilities: this.responsibilities,
+      runLog: this.runLog,
     };
   }
 

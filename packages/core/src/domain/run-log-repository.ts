@@ -1,10 +1,15 @@
-import type { RunPhase, SkippedPhase } from "./run-record.js";
+import type { RunEntry, RunPhase, SkippedPhase } from "./run-record.js";
 
 export interface RunLog {
   skip(phase: SkippedPhase): void;
   update(phases: RunPhase[]): void;
   finish(phases: RunPhase[], failed: boolean, analysisMs?: number): void;
   id(): string;
+}
+
+export interface DescribeLog {
+  update(entries: RunEntry[]): void;
+  finish(entries: RunEntry[], crashed?: boolean): void;
 }
 
 export interface RunLogRepository {
@@ -14,4 +19,10 @@ export interface RunLogRepository {
     by: string | undefined,
     invocation: string[],
   ): RunLog;
+  openDescribe(
+    root: string,
+    startedAt: number,
+    by: string | undefined,
+    invocation: string[],
+  ): DescribeLog;
 }

@@ -1,4 +1,5 @@
 import type { ResponsibilitiesRepository } from "../../../domain/describing/responsibilities-repository.js";
+import type { RunLogRepository } from "../../../domain/run-log-repository.js";
 import type { Clock } from "../../shared/ports/clock.js";
 import type { Confirm } from "../ports/confirm.js";
 import type { Describer } from "../ports/describer.js";
@@ -8,4 +9,5 @@ export interface DescribingPorts {
   confirm: Confirm;
   clock: Clock;
   responsibilities: ResponsibilitiesRepository;
+  runLog: RunLogRepository;
 }
