@@ -83,6 +83,16 @@ const REMOVED_COMMANDS = new RegExp(
     "allow-watch-external-scan",
     "allow-write-structure",
     "allow-planned-work",
+    "change_range",
+    "renames_since",
+    "view_author",
+    "scans_at",
+    "range_members",
+    "allow-change-range",
+    "allow-renames-since",
+    "allow-view-author",
+    "allow-scans-at",
+    "allow-range-members",
   ].join("|")})\\b`,
 );
 
@@ -112,6 +122,20 @@ describe("the app holds no scan-run logic", () => {
     expect(files.length).toBeGreaterThan(0);
     expect(files.some((file) => file.endsWith("core_client.rs"))).toBe(true);
     expect(linesMatching(files, SCAN_RUN_PATTERN)).toEqual([]);
+  });
+
+  it("the_views_module_runs_no_git", () => {
+    const owners = ["changes.rs", "commits.rs"];
+    const files = rustFiles(rustSource);
+
+    expect(files.length).toBeGreaterThan(0);
+    expect(files.some((file) => file.endsWith("views.rs"))).toBe(true);
+    expect(
+      linesMatching(
+        files.filter((file) => !owners.some((owner) => file.endsWith(owner))),
+        /Command::new\("git"\)/,
+      ),
+    ).toEqual([]);
   });
 
   it("the_removed_commands_are_gone_everywhere", () => {

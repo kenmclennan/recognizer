@@ -13,6 +13,11 @@ export const OPERATIONS = [
   "tests.hash",
   "view.parse",
   "view.serialise",
+  "view.range",
+  "view.renames",
+  "view.author",
+  "view.scans",
+  "view.members",
 ] as const;
 
 export type Operation = (typeof OPERATIONS)[number];

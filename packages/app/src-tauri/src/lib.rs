@@ -1462,20 +1462,6 @@ fn recent_views_file(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-fn change_range(
-    app: AppHandle,
-    window: WebviewWindow,
-    base: String,
-    head: String,
-) -> Result<Option<views::ChangeRange>, String> {
-    Ok(views::change_range(
-        &window_folder_path(&app, &window)?,
-        &base,
-        &head,
-    ))
-}
-
-#[tauri::command]
 fn remove_view(app: AppHandle, window: WebviewWindow, name: String) -> Result<(), String> {
     views::remove_view(&window_folder_path(&app, &window)?, &name)
 }
@@ -1535,55 +1521,6 @@ fn view_link(app: AppHandle, window: WebviewWindow, name: String) -> Result<Stri
 fn take_pending_view(app: AppHandle, window: WebviewWindow) -> Option<String> {
     app.state::<WindowState>()
         .take_pending_view(&window_label(&window))
-}
-
-#[tauri::command]
-async fn view_author(app: AppHandle, window: WebviewWindow) -> Result<String, String> {
-    let folder = window_folder_path(&app, &window)?;
-
-    tauri::async_runtime::spawn_blocking(move || views::view_author(&folder))
-        .await
-        .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-async fn renames_since(
-    app: AppHandle,
-    window: WebviewWindow,
-    commit: String,
-) -> Result<Vec<views::Rename>, String> {
-    let folder = window_folder_path(&app, &window)?;
-
-    tauri::async_runtime::spawn_blocking(move || views::renames_since(&folder, &commit))
-        .await
-        .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-async fn scans_at(
-    app: AppHandle,
-    window: WebviewWindow,
-    commit: String,
-) -> Result<Result<Vec<repository::ScanFile>, String>, String> {
-    let folder = window_folder_path(&app, &window)?;
-
-    tauri::async_runtime::spawn_blocking(move || views::scans_at(&folder, &commit))
-        .await
-        .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-async fn range_members(
-    app: AppHandle,
-    window: WebviewWindow,
-    base: String,
-    head: String,
-) -> Result<Result<views::RangeMembers, String>, String> {
-    let folder = window_folder_path(&app, &window)?;
-
-    tauri::async_runtime::spawn_blocking(move || views::range_members(&folder, &base, &head))
-        .await
-        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -1721,7 +1658,6 @@ pub fn run() {
             settings::seed(&config_file(&handle)?)?;
             app.manage(WindowState::default());
             app.manage(ScanBaselines::default());
-            std::thread::spawn(views::sweep_stale_temp_dirs);
             app.manage(CoreClient::new(
                 core_client::runner_launcher(tool_runner::runner(), repository::RECOGNIZER_COMMAND),
                 Arc::new(WindowSink(handle.clone())),
@@ -1761,7 +1697,6 @@ pub fn run() {
             adopt_scan,
             core_call,
             answer_window_drive,
-            change_range,
             choose_folder,
             list_views,
             open_folder_in_editor,
@@ -1781,17 +1716,14 @@ pub fn run() {
             shipped_describer,
             remove_view,
             rename_view,
-            renames_since,
             read_recent_views,
             read_scan_cache,
             read_scan_ticks,
-            range_members,
             list_history,
             list_branches,
             ref_facts,
             change_detail,
             read_pull_requests,
-            scans_at,
             setup_survey,
             setup_recommend,
             setup_apply,
@@ -1799,7 +1731,6 @@ pub fn run() {
             stop_setup,
             take_pending_view,
             unwatch_git,
-            view_author,
             view_link,
             watch_changes,
             watch_git,
