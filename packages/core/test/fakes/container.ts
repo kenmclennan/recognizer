@@ -24,8 +24,10 @@ import { FakeProcess } from "./fake-process.js";
 import { FakePrograms } from "./fake-programs.js";
 import { FakeRepositoryChecks } from "./fake-repository-checks.js";
 import { FakeRunLogRepository } from "./fake-run-log-repository.js";
+import { FakeScanCache } from "./fake-scan-cache.js";
 import { FakeScanLock } from "./fake-scan-lock.js";
 import { FakeScanners } from "./fake-scanners.js";
+import { FakeScratch } from "./fake-scratch.js";
 import { FakeSelectionFiles } from "./fake-selection-files.js";
 import { FakeSensorCatalog } from "./fake-sensor-catalog.js";
 import { FakeSensors } from "./fake-sensors.js";
@@ -68,6 +70,8 @@ export interface Fakes {
   pluginTemplates: FakePluginTemplates;
   shippedPlugins: FakeShippedPlugins;
   repositoryChecks: FakeRepositoryChecks;
+  scratch: FakeScratch;
+  scanCache: FakeScanCache;
 }
 
 export function createFakes(commit: string | null = "c0ffee"): Fakes {
@@ -110,6 +114,8 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     pluginTemplates: new FakePluginTemplates(),
     shippedPlugins: new FakeShippedPlugins(),
     repositoryChecks: new FakeRepositoryChecks(),
+    scratch: new FakeScratch(),
+    scanCache: new FakeScanCache(),
   };
 }
 
@@ -125,6 +131,8 @@ export function portsOf(fakes: Fakes): ScanPorts {
     pluginTemplates,
     shippedPlugins,
     repositoryChecks,
+    scratch,
+    scanCache,
     ...scan
   } = fakes;
 

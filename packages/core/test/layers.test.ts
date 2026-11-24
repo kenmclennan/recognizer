@@ -65,7 +65,7 @@ const SUBDOMAINS = [
   "visualisation",
   "plugins",
 ];
-const SHARED_PORTS = ["clock", "git", "process", "scan-lock"];
+const SHARED_PORTS = ["clock", "git", "process", "scan-lock", "scratch"];
 const RUN_PORTS = SHARED_PORTS;
 
 function misplacedSharedPort(file: string): boolean {

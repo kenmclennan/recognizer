@@ -1,21 +1,34 @@
+import { availableParallelism } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import {
   createScan,
+  type HistoricalPorts,
+  Limiter,
+  listRenamesSince,
+  MemoisedComparisons,
   type PlanRequest,
   type RunningScan,
+  rangeMembers,
+  readChangeRange,
+  readViewAuthor,
   requestFaults,
   type Scan,
+  scansAtCommit,
   testsHashOf,
   View,
   type ViewFields,
 } from "@recognizer/core";
+import { ScanCacheAdapter } from "../adapters/filesystem/scan-cache-adapter.js";
 import { SourceFilesAdapter } from "../adapters/filesystem/source-files-adapter.js";
 import {
   parseViewFile,
   serialiseView,
 } from "../adapters/filesystem/view-translator.js";
+import { GitAdapter } from "../adapters/git/git-adapter.js";
 import { TestReportsAdapter } from "../adapters/plugins/test-reports-adapter.js";
+import { ClockAdapter } from "../adapters/system/clock-adapter.js";
 import { DigestAdapter } from "../adapters/system/digest-adapter.js";
+import { ScratchAdapter } from "../adapters/system/scratch-adapter.js";
 import { type Io, nodeIo } from "../cli.js";
 import { errorText } from "../errors.js";
 import { scanPorts } from "../scan-container.js";
@@ -48,6 +61,9 @@ import {
   wireOutcome,
 } from "./wire.js";
 
+const STALE_SCRATCH_MS = 60 * 60 * 1000;
+const MAX_HISTORICAL_SCANS = 4;
+
 export interface ServiceOptions {
   write(message: unknown): void;
   signals?: Signals;
@@ -76,6 +92,7 @@ export class Service {
   private readonly backstopMs: number;
   private readonly shared: Io;
   private readonly planner: Scan;
+  private readonly historical: HistoricalPorts;
   private counter = 0;
 
   constructor(private readonly options: ServiceOptions) {
@@ -83,6 +100,22 @@ export class Service {
     this.backstopMs = options.backstopMs ?? SIGNAL_BACKSTOP_MS;
     this.shared = quiet((options.base ?? (() => nodeIo(processScope)))());
     this.planner = createScan(scanPorts(this.shared, "all"));
+
+    const scratch = new ScratchAdapter();
+    const clock = new ClockAdapter(this.shared);
+
+    this.historical = {
+      git: new GitAdapter(this.shared),
+      scratch,
+      scan: this.planner,
+      cache: new ScanCacheAdapter(),
+      clock,
+      comparisons: new MemoisedComparisons(clock),
+      limiter: new Limiter(
+        Math.max(1, Math.min(MAX_HISTORICAL_SCANS, availableParallelism())),
+      ),
+    };
+    scratch.sweepStale(STALE_SCRATCH_MS);
   }
 
   private write(message: unknown): void {
@@ -160,6 +193,54 @@ export class Service {
 
         return;
       }
+      case "view.range":
+        reply(
+          readChangeRange(
+            this.historical,
+            resolve(text(args, "repository")),
+            text(args, "base"),
+            text(args, "head"),
+          ),
+        );
+
+        return;
+      case "view.renames":
+        reply(
+          listRenamesSince(
+            this.historical,
+            resolve(text(args, "repository")),
+            text(args, "commit"),
+          ),
+        );
+
+        return;
+      case "view.author":
+        reply(
+          readViewAuthor(this.historical, resolve(text(args, "repository"))),
+        );
+
+        return;
+      case "view.scans":
+        reply(
+          await scansAtCommit(
+            this.historical,
+            resolve(text(args, "repository")),
+            text(args, "commit"),
+          ),
+        );
+
+        return;
+      case "view.members":
+        reply(
+          await rangeMembers(
+            this.historical,
+            resolve(text(args, "repository")),
+            text(args, "base"),
+            text(args, "head"),
+          ),
+        );
+
+        return;
       case "view.serialise": {
         const fields = args.view;
 
