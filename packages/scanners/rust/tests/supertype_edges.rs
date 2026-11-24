@@ -102,3 +102,12 @@ fn the_set_of_file_pairs_is_unchanged_by_dropping_supertype_depends() {
 
     assert_eq!(present, expected);
 }
+
+#[test]
+fn a_supertrait_only_reference_makes_only_the_inherits_edge() {
+    let edges = edges_between(&sample_scan(), "src/sub.rs", CONTRACT);
+
+    assert_eq!(kinds(&edges), vec!["inherits"]);
+    assert_eq!(edges[0]["member"], "Sub");
+    assert_eq!(edges[0]["to_member"], "Dispatcher");
+}

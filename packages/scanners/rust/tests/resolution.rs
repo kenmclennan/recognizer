@@ -482,7 +482,7 @@ fn r7_a_foreign_trait_and_a_same_file_trait_make_no_edge() {
 }
 
 #[test]
-fn r7_supertraits_are_bases_and_not_edges() {
+fn r7_supertraits_are_bases_and_an_inherits_edge() {
     let document = krate(&[
         ("src/lib.rs", "mod base;\nmod derived;\n"),
         ("src/base.rs", "pub trait Base {}\n"),
@@ -495,7 +495,11 @@ fn r7_supertraits_are_bases_and_not_edges() {
 
     assert_eq!(derived["bases"], serde_json::json!(["Base", "Send"]));
     assert!(edges(&document).iter().all(|e| !e.contains("=>")));
-    assert!(edges(&document).iter().all(|e| !e.contains("inherits")));
+    assert_has(
+        &document,
+        "src/derived.rs inherits src/base.rs Derived.Base",
+    );
+    assert!(edges(&document).iter().all(|e| !e.contains("->")));
 }
 
 #[test]
