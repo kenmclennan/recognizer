@@ -6,6 +6,7 @@ import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { nodeIo } from "../src/cli.js";
 import { configurationFor } from "../src/configuration-composition.js";
 import { REPO } from "./helpers.js";
+import { isolatedPath } from "./isolated-path.js";
 import { typescriptLaunchers } from "./serve-harness.js";
 
 const TIMEOUT = scaledTimeout(120_000);
@@ -13,7 +14,7 @@ const TIMEOUT = scaledTimeout(120_000);
 function configurationOver() {
   return configurationFor(nodeIo(), {
     environment: {
-      PATH: `${typescriptLaunchers()}:${process.env.PATH ?? ""}`,
+      PATH: isolatedPath(typescriptLaunchers()),
     },
   });
 }
