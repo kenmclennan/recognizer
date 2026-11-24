@@ -19,6 +19,7 @@ from recognizer_sensors.mutation.commands import (
 )
 from recognizer_sensors.mutation.warmup import coverage_run, kotlin_class_map
 from recognizer_sensors.settings import Refusal
+from recognizer_sensors.testrun.failures import kotlin_names, kotlin_task
 from recognizer_sensors.testrun.suites import parse_suites
 
 KOTLIN_SUITE_RAW = {
@@ -204,6 +205,88 @@ def test_a_root_project_selection_runs_gradle_test_with_the_filter():
     ]
 
     KOTLIN_CLASSES.clear()
+
+
+JVM_SUITE = parse_suites(
+    [
+        {
+            **KOTLIN_SUITE_RAW,
+            "command": "./gradlew :lib:jvmTest",
+        }
+    ]
+)[0]
+
+
+def test_a_jvm_test_task_yields_a_narrowed_command_with_that_task():
+    KOTLIN_CLASSES.clear()
+    KOTLIN_CLASSES["t/XTest.kt"] = [(":lib", "p.XTest")]
+
+    assert selected_command(JVM_SUITE, {"t/XTest.kt"}) == [
+        "./gradlew",
+        ":lib:jvmTest",
+        "--tests",
+        "p.XTest",
+    ]
+    assert selected_command(JVM_SUITE, {"t/XTest.kt"}, stop=True) == [
+        "./gradlew",
+        ":lib:jvmTest",
+        "--fail-fast",
+        "--tests",
+        "p.XTest",
+    ]
+
+    KOTLIN_CLASSES.clear()
+
+
+def test_a_command_without_a_jvm_test_task_keeps_selection_with_the_test_task():
+    suite = parse_suites([{**KOTLIN_SUITE_RAW, "command": "./gradlew check"}])[0]
+    KOTLIN_CLASSES.clear()
+    KOTLIN_CLASSES["t/XTest.kt"] = [("", "p.XTest")]
+
+    assert selected_command(suite, {"t/XTest.kt"}) == [
+        "./gradlew",
+        "test",
+        "--tests",
+        "p.XTest",
+    ]
+
+    KOTLIN_CLASSES.clear()
+
+
+@pytest.mark.parametrize(
+    ("command", "task"),
+    [
+        ("./gradlew cleanTest test jacocoTestReport", "test"),
+        ("./gradlew :lib:cleanJvmTest :lib:jvmTest", "jvmTest"),
+        ("./gradlew desktopTest", "desktopTest"),
+        ("./gradlew check", None),
+    ],
+)
+def test_the_test_task_is_read_from_the_suite_command(command, task):
+    assert kotlin_task(command) == task
+
+
+def test_the_by_file_command_uses_the_suite_task():
+    assert kotlin_class_command(":lib", ["p.XTest"], "jvmTest")[:2] == ["./gradlew", ":lib:jvmTest"]
+
+
+def test_jvm_test_results_name_their_project_and_failures(tmp_path):
+    results = tmp_path / "lib/build/test-results/jvmTest"
+    results.mkdir(parents=True)
+    (results / "TEST-p.XTest.xml").write_text(
+        '<testsuite><testcase classname="p.XTest" name="bad"><failure message="x"/></testcase>'
+        "</testsuite>"
+    )
+    source = tmp_path / "lib/src/jvmTest/kotlin/p/XTest.kt"
+    source.parent.mkdir(parents=True)
+    source.write_text("package p\n\nclass XTest\n")
+    git_commit(tmp_path)
+
+    assert kotlin_class_map(tmp_path, tmp_path, "jvmTest") == {
+        "lib/src/jvmTest/kotlin/p/XTest.kt": [(":lib", "p.XTest")]
+    }
+    assert kotlin_names(tmp_path, task="jvmTest") == ["p.XTest.bad"]
+    assert kotlin_names(tmp_path) == []
 
 
 def test_kotlin_stop_adds_fail_fast_after_each_test_task():
