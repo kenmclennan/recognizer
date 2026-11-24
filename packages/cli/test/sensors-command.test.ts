@@ -1,15 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { type Io, type RunResult, run } from "../src/cli.js";
 import { capture } from "./helpers.js";
-import { exampleManifest } from "./shipped-read.js";
+import { exampleManifest } from "./installed-read.js";
+
+const BIN = "/stub-bin";
 
 function answering(
   failing: readonly string[] = [],
   garbage: readonly string[] = [],
+  installed: readonly string[] = ["crap", "mutation"],
+  manifestOf: (name: string) => unknown = exampleManifest,
 ) {
   const captured = capture();
   const io: Io = {
     ...captured.io,
+    env: (name) => (name === "PATH" ? BIN : captured.io.env(name)),
+    readDir: (path) =>
+      path === BIN
+        ? installed.map((name) => ({
+            name: `recognizer-sense-${name}`,
+            kind: "file" as const,
+          }))
+        : captured.io.readDir(path),
     run: (command): RunResult => {
       const name = command.replace("recognizer-sense-", "");
 
@@ -22,7 +34,7 @@ function answering(
         status: 0,
         stdout: garbage.includes(name)
           ? "not json"
-          : JSON.stringify(exampleManifest(name)),
+          : JSON.stringify(manifestOf(name)),
         stderr: "",
       };
     },
@@ -32,6 +44,26 @@ function answering(
 }
 
 describe("recognizer sensors", () => {
+  it("lists the installed sensors from PATH and no fixed pair", () => {
+    const own = (name: string) => ({ ...exampleManifest("crap"), name });
+    const { io, out, err } = answering([], [], ["tally", "margin"], own);
+
+    expect(run(["sensors", "--json"], io)).toBe(0);
+    expect(err()).toBe("");
+    expect(JSON.parse(out()).map((e: { name: string }) => e.name)).toEqual([
+      "margin",
+      "tally",
+    ]);
+  });
+
+  it("prints an empty array and exits 0 when no sensor is installed", () => {
+    const { io, out, err } = answering([], [], []);
+
+    expect(run(["sensors", "--json"], io)).toBe(0);
+    expect(err()).toBe("");
+    expect(JSON.parse(out())).toEqual([]);
+  });
+
   it("prints the entries of the manifests in the order of the names table and exits 0", () => {
     const { io, out, err } = answering();
 

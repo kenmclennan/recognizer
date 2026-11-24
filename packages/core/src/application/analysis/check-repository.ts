@@ -209,7 +209,6 @@ function gather(
     const allowed = [
       ...(resolved === "off" ? [] : ["structure"]),
       ...registered,
-      ...ports.analysis.shippedSensorNames(),
     ];
 
     for (const outcome of readFindingsFiles(
@@ -228,8 +227,7 @@ function gather(
       allowed,
     )) {
       if (outcome.status === "unregistered") {
-        ports.findings.remove(root, outcome.name);
-        say("stderr", `removed unregistered ${outcome.name}\n`);
+        say("stderr", `ignored unregistered ${outcome.name}\n`);
       } else if (outcome.status === "read") {
         const { document, hidden, valid } = outcome;
 

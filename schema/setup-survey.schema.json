@@ -48,6 +48,7 @@
           "always_on": { "type": "boolean" },
           "enabled": { "type": "boolean" },
           "runs_tests": { "type": "boolean" },
+          "kind": { "enum": ["sensor", "describer"] },
           "mark": { "$ref": "#/$defs/mark" },
           "limits": {
             "type": "array",

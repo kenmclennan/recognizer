@@ -30,7 +30,7 @@ const scan = {
   files: [{ path: "app/a.py", hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }, { path: "app/b.py", hash: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }],
 };
 const base = loadedOf({ modules: ids, scans: [{ file: "scan.python.json", scan }] });
-const SHIPPED = [
+const INSTALLED = [
   { name: "mutation", display: "Mutation", description: "Mutates and tests.", runsTests: true, scoped: true, plannedWork: { verb: "mutate" }, logPath: ".recognizer/cache/coverage/last-run.log", listed: true, metrics: [], findings: [], settings: [] },
   { name: "crap", display: "C.R.A.P.", description: "Runs the tests with coverage.", expansion: "C.R.A.P.: Change Risk Anti-Patterns.", runsTests: true, scoped: false, listed: true, metrics: [], findings: [], settings: [] },
 ];
@@ -52,7 +52,7 @@ const until = async (ready, what) => { for (let waited = 0; !ready(); waited += 
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
 async function mount(fake, given = undefined, scanned = true, viewFiles = {}, files = FILES, planGate = undefined) {
-  const sensors = given ?? fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
+  const sensors = given ?? fakeSensors({}, { config: CONFIG }, {}, INSTALLED);
   const sensed = (loaded) => { const text = scanned ? structureFor(loaded) : null; if (text !== null) sensors.files.set("structure", text); return withSensors(loaded, sensors); };
   for (const old of document.querySelectorAll(".mount-root")) old.remove();
   const root = document.createElement("div");
@@ -94,7 +94,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   const setScan = (next) => { wired.scanState = next; };
   wired.rescanner = createRescanner({
     port: fake,
-    registered: async () => { const { config } = await sensors.readInputs(); return registeredOf(rowSensors(config, await sensors.shipped()), describerRegistered(config)); },
+    registered: async () => { const { config } = await sensors.readInputs(); return registeredOf(rowSensors(config, await sensors.installed()), describerRegistered(config)); },
     load: () => base,
     sense: (loaded) => sensed(loaded),
     resense: async () => sensed(wired.current),
@@ -310,9 +310,9 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   facts.down = down.rows().map((r) => ({ name: r.name, disabled: r.disabled }));
 
   const pendingGate = gate();
-  const slowSensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
-  const instantShipped = slowSensors.shipped.bind(slowSensors);
-  slowSensors.shipped = async () => { await pendingGate.promise; return instantShipped(); };
+  const slowSensors = fakeSensors({}, { config: CONFIG }, {}, INSTALLED);
+  const instantInstalled = slowSensors.installed.bind(slowSensors);
+  slowSensors.installed = async () => { await pendingGate.promise; return instantInstalled(); };
   const slow = await mount(fakeScan(), slowSensors);
   click(slow.q(".rail-scan"));
   await tick();
@@ -322,7 +322,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   facts.loaded = { rows: slow.rows().map((r) => r.name), buttons: slow.all(".scan-buttons button").length };
 
   const REPORT = json({ findings_version: 1, sensor: { name: "review", version: "reported" }, commit: "feed123abc", modified: false, settings: {}, reported_at: new Date(Date.now() - 3 * 60000).toISOString(), findings: [] });
-  const reportSensors = fakeSensors({ review: REPORT }, { config: CONFIG }, {}, SHIPPED);
+  const reportSensors = fakeSensors({ review: REPORT }, { config: CONFIG }, {}, INSTALLED);
   const rp = await mount(fakeScan(), reportSensors);
   click(rp.q(".rail-scan"));
   await tick();
@@ -417,7 +417,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   facts.emptyCanvasRun = { modules: emptyFake.ran.map((plan) => plan.modules), onlyView: em.wired.rescanner.ticks().onlyView };
 
   const crapDoc = (hashes) => json({ findings_version: 1, sensor: { name: "crap", version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: hashes, findings: [] });
-  const fsensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
+  const fsensors = fakeSensors({}, { config: CONFIG }, {}, INSTALLED);
   fsensors.files.set("crap", crapDoc({ "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" }));
   for (const name of ["tally", "mutation", "alpha", "beta"]) fsensors.files.set(name, json({ findings_version: 1, sensor: { name, version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: { "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, findings: [] }));
   const HA = "a".repeat(64);
@@ -486,7 +486,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
     return m;
   };
   const completedScan = async (name, diagnosis) => {
-    const m = await mount(fakeScan(), fakeSensors({ [name]: ranDoc(name, diagnosis) }, { config: CONFIG }, {}, SHIPPED));
+    const m = await mount(fakeScan(), fakeSensors({ [name]: ranDoc(name, diagnosis) }, { config: CONFIG }, {}, INSTALLED));
     await openScan(m);
     return m;
   };
@@ -505,7 +505,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
 
   const recordOf = (name, outcome, at, diagnosis) => json({ log_version: 1, kind: "scan", started: at, finished: at, by: "ken", arguments: [], outcome, exit: outcome === "ok" ? 0 : 1, phases: [{ phase: "sense", entries: [{ name, command: ["x"], status: outcome === "ok" ? 0 : 1, outcome, duration_ms: 1, stderr: "", ...(outcome === "failed" ? { reason: "tests failed", ...(diagnosis ? { diagnosis } : {}) } : {}) }] }] });
   const restart = async (records, modifiedMs) => {
-    const f = fakeSensors({ crap: ranDoc("crap", undefined) }, { config: CONFIG }, {}, SHIPPED);
+    const f = fakeSensors({ crap: ranDoc("crap", undefined) }, { config: CONFIG }, {}, INSTALLED);
     if (modifiedMs !== undefined) f.modified.set("crap", modifiedMs);
     for (const [name, text] of Object.entries(records)) f.runRecords.set(name, text);
     const m = await mount(fakeScan(), f);
@@ -526,7 +526,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
 
   const SUITE_CONFIG = CONFIG + "tests:\\n  - name: unit\\n    language: python\\n    directory: tests/unit\\n    command: pytest\\n    coverage: { path: coverage.xml, format: lcov }\\n  - name: a-suite-with-a-very-long-name-indeed\\n    language: python\\n    directory: tests/long\\n    command: pytest\\n    coverage: { path: coverage.xml, format: lcov }\\n  - name: web\\n    language: typescript\\n    directory: web\\n    runner: vitest\\n    command: vitest\\n    coverage: { path: coverage/lcov.info, format: lcov }\\n";
   const suiteDoc = (name) => json({ findings_version: 2, sensor: { name, version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: {}, findings: [], suites: [{ name: "unit", status: "ok", ran_at: new Date(Date.now() - 3 * 3600000).toISOString() }, { name: "a-suite-with-a-very-long-name-indeed", status: "failed", ran_at: new Date(Date.now() - 2 * 86400000).toISOString(), reason: "coverage unavailable" }, { name: "web", status: "never", ran_at: null }] });
-  const suiteSensors = () => fakeSensors({ crap: suiteDoc("crap"), mutation: suiteDoc("mutation") }, { config: SUITE_CONFIG }, {}, SHIPPED);
+  const suiteSensors = () => fakeSensors({ crap: suiteDoc("crap"), mutation: suiteDoc("mutation") }, { config: SUITE_CONFIG }, {}, INSTALLED);
   const suiteFake = fakeScan();
   const sm = await mount(suiteFake, suiteSensors());
   click(sm.q(".rail-scan"));
@@ -595,7 +595,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   }
 
   const HISTORY = json({ log_version: 1, kind: "scan", started: "2026-11-03T09:00:00.000Z", finished: "2026-11-03T09:10:00.000Z", by: "ken", arguments: [], outcome: "ok", exit: 0, structure_ms: 6000, phases: [{ phase: "sense", entries: [{ name: "mutation", command: ["x"], status: 0, outcome: "ok", duration_ms: 160000, modules: 2, fixed_ms: 100000, work: { unit: "functions", performed: 2 }, stderr: "" }] }] });
-  const timedSensors = fakeSensors({}, { config: CONFIG }, {}, SHIPPED);
+  const timedSensors = fakeSensors({}, { config: CONFIG }, {}, INSTALLED);
   timedSensors.runRecords.set("20261103T090000000Z-scan.json", HISTORY);
   timedSensors.work.set("mutation", { unit: "functions", to_perform: 2 });
   const timed = await mount(fakeScan(), timedSensors);
@@ -612,14 +612,14 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   await timed.setTick("mutation", false);
   facts.estimateUnticked = estimateOf();
 
-  const unregMount = await mount(fakeScan(), fakeSensors({}, { config: "sensors:\\n  crap: {}\\n" }, {}, SHIPPED));
+  const unregMount = await mount(fakeScan(), fakeSensors({}, { config: "sensors:\\n  crap: {}\\n" }, {}, INSTALLED));
   click(unregMount.q(".rail-scan"));
   await tick();
   const bareKeys = () => unregMount.all(".scan-row").map((n) => n.dataset.sensor);
   facts.unregistered = { keys: bareKeys(), fixLines: unregMount.q(".scan-panel").textContent.split("recognizer plugin add").length - 1 };
   facts.unregisteredSummary = unregMount.q(".summary").textContent;
 
-  const bareMount = await mount(fakeScan({ steps: [current, summary] }), fakeSensors({}, { config: "sensors: {}\\n" }, {}, SHIPPED), false);
+  const bareMount = await mount(fakeScan({ steps: [current, summary] }), fakeSensors({}, { config: "sensors: {}\\n" }, {}, INSTALLED), false);
   click(bareMount.q(".rail-scan"));
   await tick();
   bareMount.markScanned();
@@ -681,8 +681,8 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.scopeUntitledOn.scope.on).toBe("true");
   });
 
-  it("lists only the registered sensors and renders no fix text", () => {
-    expect(f.unregistered.keys).toEqual(["structure", "crap"]);
+  it("lists an unregistered installed sensor as one untickable not-registered row and renders no fix text", () => {
+    expect(f.unregistered.keys).toEqual(["structure", "crap", "mutation"]);
     expect(f.unregistered.fixLines).toBe(0);
     expect(f.unregisteredSummary).not.toMatch(/Mutation/);
   });
@@ -1154,17 +1154,19 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.missing.describe).toBe(0);
   });
 
-  it("lists Descriptions and the third-party rows, none disabled, when the shipped list is unavailable", () => {
+  it("lists Descriptions and the third-party rows, none disabled, when the installed list is unavailable", () => {
     expect(f.down).toEqual([
       { name: "Structural analysis", disabled: false },
       { name: "Descriptions", disabled: false },
+      { name: "crap", disabled: false },
+      { name: "mutation", disabled: false },
       { name: "tally", disabled: false },
       { name: "alpha", disabled: false },
       { name: "beta", disabled: false },
     ]);
   });
 
-  it("renders only the header while the shipped list is being read, then every row at once", () => {
+  it("renders only the header while the installed list is being read, then every row at once", () => {
     expect(f.pending).toEqual({
       header: "Ran just now",
       rows: 0,

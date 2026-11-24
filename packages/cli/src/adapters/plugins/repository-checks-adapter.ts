@@ -10,7 +10,7 @@ import {
   type RegisteredPlugins,
   type RepositoryChecks,
   type SetupProblem,
-  shippedSensorOf,
+  sensorNameOf,
   unpublishedValues,
 } from "@recognizer/core";
 import { parse } from "yaml";
@@ -29,7 +29,6 @@ import {
   toleratedMigration,
   withoutRetiredKeys,
 } from "../../config-retired.js";
-import { findDescriber } from "../../describer-in-effect.js";
 import { detectLanguages } from "../../detect.js";
 import { InputError } from "../../errors.js";
 import { type CachedScansState, cachedScansState } from "../../freshness.js";
@@ -37,7 +36,6 @@ import { policyProblems } from "../../policy-problems.js";
 import { languageRulesOf } from "../../scanners.js";
 import { parsePolicy, RETIRED_KEYS } from "../filesystem/policy-translator.js";
 import { KeyOwnersAdapter } from "./key-owners-adapter.js";
-import { shippedPlugins } from "./shipped-plugins-adapter.js";
 
 export interface Context {
   repository: string;
@@ -102,14 +100,11 @@ function stringMap(value: unknown): Record<string, string> {
     : {};
 }
 
-function settingsOf(
-  command: string[],
-  shipped: readonly string[],
-): Record<string, unknown> | null {
+function settingsOf(command: string[]): Record<string, unknown> | null {
   const at = command.indexOf("--settings");
   const text = at === -1 ? undefined : command[at + 1];
 
-  if (text === undefined || shippedSensorOf(command, shipped) === undefined) {
+  if (text === undefined || sensorNameOf(command) === undefined) {
     return null;
   }
 
@@ -129,7 +124,6 @@ function settingsOf(
 function specsOf(
   config: ReturnType<typeof expandedConfig>,
   install: Record<string, string>,
-  shipped: readonly string[],
 ): PluginSpec[] {
   const specs: PluginSpec[] = [];
 
@@ -143,7 +137,7 @@ function specsOf(
         name: program.slice("recognizer-sense-".length),
         program,
         command: sensor.command,
-        settings: settingsOf(sensor.command, shipped),
+        settings: settingsOf(sensor.command),
         installLine: install[program] ?? null,
       });
     }
@@ -168,7 +162,6 @@ function specsOf(
 
 export function readConfigArea(
   facts: Context,
-  shipped: readonly string[],
   keys: () => PublishedValues,
 ): ConfigReading {
   if (facts.configText === null) {
@@ -281,7 +274,7 @@ export function readConfigArea(
   return {
     problems,
     registered: {
-      specs: specsOf(expandedConfig(cleaned), install, shipped),
+      specs: specsOf(expandedConfig(cleaned), install),
       named: stringMap(record.scanners),
       install,
       sensors: registeredSensors(expandedConfig(cleaned)).map(
@@ -464,7 +457,6 @@ export class RepositoryChecksAdapter implements RepositoryChecks {
         languages: [],
         scans: () => cachedScansState(this.io, root, []),
       },
-      shippedPlugins().sensors(),
       () => new KeyOwnersAdapter(this.io).schemas().schema.keys,
     );
   }
@@ -492,14 +484,6 @@ export class RepositoryChecksAdapter implements RepositoryChecks {
       return readConfig(this.io, root, ["tests"])?.tests;
     } catch {
       return undefined;
-    }
-  }
-
-  describerShipped(root: string): boolean {
-    try {
-      return findDescriber(this.io, root)?.source === "shipped";
-    } catch {
-      return false;
     }
   }
 }

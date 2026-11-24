@@ -218,9 +218,9 @@ import type {
 import type { RunInput } from "./scan-run-model";
 import type { BarModel } from "./selection-bar-view";
 import {
+  type InstalledSensors,
   inertSensors,
   type SensorsPort,
-  type ShippedSensors,
 } from "./sensor-run";
 import { loadShowPrivate, saveShowPrivate } from "./show-private";
 import { currentCommit, hasEntries, staleReport } from "./stale-report";
@@ -473,7 +473,7 @@ export function showExplorer(
   };
   let overlayModel = buildOverlayModel(loaded.overlays ?? [], {
     sensors: loaded.sensors,
-    shipped: null,
+    installed: null,
   });
   let metricTicks = pruneTicks(
     carried?.metricTicks ?? [],
@@ -496,7 +496,7 @@ export function showExplorer(
   const rangeScanCache = new Map<string, ReadOutcome<Repository> | null>();
   const deletionUndos = new Set<number>();
   let scanConfig: string | null = null;
-  let shippedSensors: ShippedSensors | null = null;
+  let installedSensors: InstalledSensors | null = null;
   let catalog: FindingCatalog = buildCatalog(null);
   let describedAt: number | null = null;
   let describerSeen: {
@@ -1063,7 +1063,7 @@ export function showExplorer(
       return;
     }
 
-    const rows = rowSensors(scanConfig, shippedSensors);
+    const rows = rowSensors(scanConfig, installedSensors);
     const plain = rows
       .filter(({ runsTests }) => !runsTests)
       .map(({ name }) => name);
@@ -1100,7 +1100,7 @@ export function showExplorer(
   }
 
   function applySuiteTick(sensor: string, suite: string, ticked: boolean) {
-    const row = rowSensors(scanConfig, shippedSensors).find(
+    const row = rowSensors(scanConfig, installedSensors).find(
       ({ name }) => name === sensor,
     );
     const all = (row?.suites ?? []).map(({ name }) => name);
@@ -1141,7 +1141,7 @@ export function showExplorer(
     copy: (text) =>
       void views.copy(text).catch((error: unknown) => fail(String(error))),
     openLog: () => {
-      const path = declaredLogPath(shippedSensors);
+      const path = declaredLogPath(installedSensors);
 
       if (path === null) {
         fail("No sensor has declared a log file");
@@ -2995,16 +2995,16 @@ export function showExplorer(
     }
 
     try {
-      shippedSensors = await scanHost.port.shipped();
+      installedSensors = await scanHost.port.installed();
     } catch (error) {
-      shippedSensors = { status: "unavailable", reason: String(error) };
+      installedSensors = { status: "unavailable", reason: String(error) };
     }
 
-    catalog = buildCatalog(shippedSensors);
+    catalog = buildCatalog(installedSensors);
 
     overlayModel = buildOverlayModel(loaded.overlays ?? [], {
       sensors: loaded.sensors,
-      shipped: shippedSensors,
+      installed: installedSensors,
     });
 
     overlaysCache = null;
@@ -3069,7 +3069,7 @@ export function showExplorer(
       describeSkipped: scanHost.describeSkipped(),
       runView: scanHost.runView?.() ?? null,
       now: Date.now(),
-      shipped: shippedSensors,
+      installed: installedSensors,
       freshness: freshnessOf(loaded),
       tests: loaded.tests ?? null,
       ...(loaded.history === undefined ? {} : { history: loaded.history }),
@@ -3094,7 +3094,7 @@ export function showExplorer(
       return first;
     }
 
-    const scopes = workScopes(plan, shippedSensors, workStampOf());
+    const scopes = workScopes(plan, installedSensors, workStampOf());
 
     if (scopes.length === 0) {
       return first;
@@ -4681,7 +4681,7 @@ export function showExplorer(
           group,
           rows.find((row) => row.key === group.name),
           now,
-          shippedSensors,
+          installedSensors,
         );
 
         return note === null
@@ -4993,7 +4993,7 @@ export function showExplorer(
         ),
         metrics: withoutDrawn(currentOverlays(), drawn).metrics,
         metricsOn: tickedMetrics().length > 0,
-        limits: limitsFromText(scanConfig, shippedSensors),
+        limits: limitsFromText(scanConfig, installedSensors),
         proposed: (id) => currentPlan()?.proposed.get(id) ?? null,
         members: currentMembers(),
       });
@@ -5364,7 +5364,7 @@ export function showExplorer(
       described = describeTree(root, health);
       overlayModel = buildOverlayModel(loaded.overlays ?? [], {
         sensors: loaded.sensors,
-        shipped: shippedSensors,
+        installed: installedSensors,
       });
       allFindings = findingRows(health.documents);
       hiddenRows = findingRows(health.hidden);

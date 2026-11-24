@@ -806,8 +806,8 @@ async fn choose_folder(app: AppHandle, window: WebviewWindow) -> Result<(), Stri
 }
 
 #[tauri::command]
-async fn shipped_sensors() -> Result<repository::ShippedSensors, String> {
-    tauri::async_runtime::spawn_blocking(repository::shipped_sensors)
+async fn installed_sensors() -> Result<repository::InstalledSensors, String> {
+    tauri::async_runtime::spawn_blocking(repository::installed_sensors)
         .await
         .map_err(|error| error.to_string())
 }
@@ -847,16 +847,16 @@ async fn write_repository_config(
 }
 
 #[tauri::command]
-async fn shipped_describer(
+async fn describer_in_effect(
     app: AppHandle,
     window: WebviewWindow,
-) -> Result<repository::ShippedDescriber, String> {
+) -> Result<repository::DescriberInEffect, String> {
     let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
     let core = app.state::<CoreClient>().inner().clone();
 
     tauri::async_runtime::spawn_blocking(move || {
-        repository::shipped_describer(&core, &label, &folder)
+        repository::describer_in_effect(&core, &label, &folder)
     })
     .await
     .map_err(|error| error.to_string())
@@ -1653,8 +1653,8 @@ pub fn run() {
             read_settings,
             record_recent_view,
             remove_findings,
-            shipped_sensors,
-            shipped_describer,
+            installed_sensors,
+            describer_in_effect,
             remove_view,
             rename_view,
             read_recent_views,

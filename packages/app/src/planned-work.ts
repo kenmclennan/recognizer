@@ -1,5 +1,5 @@
 import type { PlannedWork } from "./scan-estimate";
-import type { SensorsPort, ShippedSensors, WorkRequest } from "./sensor-run";
+import type { InstalledSensors, SensorsPort, WorkRequest } from "./sensor-run";
 
 export type WorkScope = WorkRequest & { stamp: string };
 
@@ -16,16 +16,16 @@ export function workScopes(
     modules: string[] | null;
     suites?: Record<string, string[]>;
   },
-  shipped: ShippedSensors | null,
+  installed: InstalledSensors | null,
   stamp: string,
 ): WorkScope[] {
-  if (shipped?.status !== "ok") {
+  if (installed?.status !== "ok") {
     return [];
   }
 
   return plan.sense
     .filter((name) =>
-      shipped.sensors.some(
+      installed.sensors.some(
         (one) => one.name === name && one.plannedWork !== undefined,
       ),
     )
@@ -37,13 +37,15 @@ export function workScopes(
     }));
 }
 
-export function declaredLogPath(shipped: ShippedSensors | null): string | null {
-  if (shipped?.status !== "ok") {
+export function declaredLogPath(
+  installed: InstalledSensors | null,
+): string | null {
+  if (installed?.status !== "ok") {
     return null;
   }
 
   return (
-    shipped.sensors.find((one) => one.runsTests && one.logPath !== undefined)
+    installed.sensors.find((one) => one.runsTests && one.logPath !== undefined)
       ?.logPath ?? null
   );
 }

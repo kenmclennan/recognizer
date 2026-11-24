@@ -5,14 +5,14 @@ import { describe, expect, it } from "vitest";
 import { buildCatalog } from "../../src/finding-catalog";
 import { sentenceOf } from "../../src/finding-sentence";
 import { findingRows } from "../../src/findings-order";
-import { shippedSensors } from "../../src/shipped-fake";
+import { installedSensors } from "../../src/installed-fake";
 import {
   type FindingLiteral,
   findingFrom,
   sensorFindingsFrom,
 } from "./sensor-findings-from";
 
-const CATALOG = buildCatalog({ status: "ok", sensors: shippedSensors() });
+const CATALOG = buildCatalog({ status: "ok", sensors: installedSensors() });
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 

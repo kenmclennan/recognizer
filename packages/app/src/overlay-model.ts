@@ -7,10 +7,10 @@ import {
   stateText,
 } from "./freshness-model";
 import type {
+  InstalledMetric,
+  InstalledSensor,
+  InstalledSensors,
   SensorStatus,
-  ShippedMetric,
-  ShippedSensor,
-  ShippedSensors,
 } from "./sensor-run";
 
 export type OverlayFileInput = {
@@ -21,7 +21,7 @@ export type OverlayFileInput = {
 
 export type OverlayContext = {
   sensors: readonly SensorStatus[];
-  shipped: ShippedSensors | null;
+  installed: InstalledSensors | null;
 };
 
 export type GroupNote = { text: string; tone: "warn" | "muted" };
@@ -64,7 +64,7 @@ export type ModuleValue = { value: MetricValue; member: string | null };
 
 const SHORT = 7;
 
-const ANALYSIS_SENSOR: ShippedSensor = {
+const ANALYSIS_SENSOR: InstalledSensor = {
   name: ANALYSIS_KEY,
   display: "Structural analysis",
   description: "",
@@ -105,11 +105,11 @@ const ANALYSIS_SENSOR: ShippedSensor = {
 };
 
 export function listedHere(
-  shipped: readonly ShippedSensor[],
+  installed: readonly InstalledSensor[],
   group: string,
   metric: string,
 ): boolean {
-  const declared = shipped
+  const declared = installed
     .find(({ name }) => name === group)
     ?.metrics.find(({ name }) => name === metric);
 
@@ -143,12 +143,12 @@ type MetricSpec = {
 };
 
 export function metricEntryOf(
-  shipped: readonly ShippedSensor[],
+  installed: readonly InstalledSensor[],
   group: string,
   name: string,
-): ShippedMetric | undefined {
-  const own = shipped.filter((sensor) => sensor.name === group);
-  const rest = shipped.filter((sensor) => sensor.name !== group);
+): InstalledMetric | undefined {
+  const own = installed.filter((sensor) => sensor.name === group);
+  const rest = installed.filter((sensor) => sensor.name !== group);
 
   for (const sensor of [...own, ...rest]) {
     const found = sensor.metrics.find((metric) => metric.name === name);
@@ -162,12 +162,12 @@ export function metricEntryOf(
 }
 
 function describe(
-  shipped: readonly ShippedSensor[],
+  installed: readonly InstalledSensor[],
   group: string,
   metric: MetricSpec,
   values: Record<string, MetricValue>,
 ): MetricDescriptor {
-  const entry = metricEntryOf(shipped, group, metric.name);
+  const entry = metricEntryOf(installed, group, metric.name);
 
   return {
     key: `${group}/${metric.name}`,
@@ -194,16 +194,16 @@ export function freshnessNote(
   group: OverlayGroup,
   row: ResultRow | undefined,
   now: number,
-  shipped: ShippedSensors | null,
+  installed: InstalledSensors | null,
 ): GroupNote | null {
   if (row === undefined) {
-    if (shipped === null) {
+    if (installed === null) {
       return null;
     }
 
     return {
       text:
-        shipped.status === "unavailable"
+        installed.status === "unavailable"
           ? "The sensor list could not be read, so its values are not shown."
           : "Not written by a sensor this repository runs, so its values are not shown.",
       tone: "muted",
@@ -235,18 +235,18 @@ export function groupHeader(group: OverlayGroup, now: number): string {
 
 export function buildOverlayModel(
   files: readonly OverlayFileInput[],
-  context: OverlayContext = { sensors: [], shipped: null },
+  context: OverlayContext = { sensors: [], installed: null },
 ): OverlayModel {
   const built = new Map<string, OverlayGroup>();
   const unreadable: string[] = [];
-  const shipped = [
+  const installed = [
     ANALYSIS_SENSOR,
-    ...(context.shipped?.status === "ok"
-      ? context.shipped.sensors.filter(({ name }) => name !== ANALYSIS_KEY)
+    ...(context.installed?.status === "ok"
+      ? context.installed.sensors.filter(({ name }) => name !== ANALYSIS_KEY)
       : []),
   ];
   const display = new Map(
-    shipped.map((sensor) => [sensor.name, sensor.display]),
+    installed.map((sensor) => [sensor.name, sensor.display]),
   );
   const sorted = [...files].sort((a, b) => compare(a.name, b.name));
 
@@ -298,9 +298,9 @@ export function buildOverlayModel(
       enabled: !nothing,
       tooltip: tooltipOf(overlay),
       metrics: overlay.metrics
-        .filter((metric) => listedHere(shipped, file.name, metric.name))
+        .filter((metric) => listedHere(installed, file.name, metric.name))
         .map((metric) =>
-          describe(shipped, file.name, metric, values(metric.name)),
+          describe(installed, file.name, metric, values(metric.name)),
         ),
     });
   }
@@ -308,7 +308,7 @@ export function buildOverlayModel(
   const groups: OverlayGroup[] = [];
   const present = new Set(files.map((file) => file.name));
 
-  for (const sensor of shipped) {
+  for (const sensor of installed) {
     if (sensor.metrics.length === 0) {
       continue;
     }
@@ -350,8 +350,8 @@ export function buildOverlayModel(
       enabled: false,
       tooltip: "",
       metrics: sensor.metrics
-        .filter((metric) => listedHere(shipped, sensor.name, metric.name))
-        .map((metric) => describe(shipped, sensor.name, metric, {})),
+        .filter((metric) => listedHere(installed, sensor.name, metric.name))
+        .map((metric) => describe(installed, sensor.name, metric, {})),
     });
   }
 

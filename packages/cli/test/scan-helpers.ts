@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import type { DirEntry, Io, RequestResult, RunResult } from "../src/cli.js";
 import { REPO } from "./helpers.js";
-import { exampleManifest } from "./shipped-read.js";
+import { exampleManifest } from "./installed-read.js";
 
 const LANGUAGE_RULES = JSON.parse(
   readFileSync(join(REPO, "fixtures/plugins/languages.json"), "utf8"),
@@ -100,6 +100,11 @@ export interface SensorsPreflight {
   version?: ProgramEffect | ((name: string) => ProgramEffect);
   run?: (args: string[]) => ProgramEffect;
 }
+
+export const OFFICIAL_ON_PATH = [
+  "recognizer-sense-crap",
+  "recognizer-sense-mutation",
+];
 
 export interface FakeOptions {
   sensorManifests?: boolean;
@@ -424,7 +429,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
       args[0] === "run" &&
       options.programs?.[command] === undefined;
     const program = sensing
-      ? options.programs?.["shipped-sensors"]
+      ? options.programs?.["installed-sensors"]
       : options.programs?.[command];
 
     if (program) {

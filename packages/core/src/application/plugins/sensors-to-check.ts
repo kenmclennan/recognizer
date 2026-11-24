@@ -1,40 +1,41 @@
 import type { CheckableSensor } from "../../domain/plugins/sensor-check.js";
+import {
+  installedSensorNames,
+  readInstalledSensors,
+  sensorNameOf,
+} from "./installed-sensors.js";
 import type { PluginPorts } from "./internal/plugin-ports.js";
 import { selectSensors } from "./select-sensors.js";
-import { readShippedSensors, shippedSensorOf } from "./shipped-plugins.js";
 
 export function sensorsToCheck(
-  ports: Pick<
-    PluginPorts,
-    "programs" | "validators" | "shipped" | "repository"
-  >,
+  ports: Pick<PluginPorts, "programs" | "validators" | "repository">,
   root: string,
   name: string | undefined,
   withSuites = true,
 ): CheckableSensor[] {
   const registered = ports.repository.registeredSensors(root);
-  const shipped = ports.shipped.sensors();
+  const installed = installedSensorNames(ports);
   const requested = name === undefined ? "all" : [name];
 
   if (!withSuites) {
-    return selectSensors(registered, requested, shipped);
+    return selectSensors(registered, requested, installed);
   }
 
   const wanted = new Set<string>(name === undefined ? [] : [name]);
 
   for (const one of registered) {
-    const shippedName = shippedSensorOf(one.command, shipped);
+    const sensorName = sensorNameOf(one.command);
 
-    if (shippedName !== undefined) {
-      wanted.add(shippedName);
+    if (sensorName !== undefined) {
+      wanted.add(sensorName);
     }
   }
 
   return selectSensors(
     registered,
     requested,
-    shipped,
+    installed,
     ports.repository.suites(root),
-    readShippedSensors(ports, undefined, [...wanted]),
+    readInstalledSensors(ports, undefined, [...wanted]),
   );
 }

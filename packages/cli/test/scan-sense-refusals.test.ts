@@ -3,6 +3,7 @@ import { run } from "../src/cli.js";
 import {
   type FakeOptions,
   fakeIo,
+  OFFICIAL_ON_PATH,
   PYTHON,
   ROOT,
   scanJson,
@@ -55,8 +56,9 @@ function setup(config: string[], extra: Record<string, string>): FakeOptions {
     },
     scanners: { [PYTHON]: { output: scanJson(1, 0) } },
     sensorManifests: true,
+    onPath: OFFICIAL_ON_PATH,
     programs: {
-      "shipped-sensors": (args, files) =>
+      "installed-sensors": (args, files) =>
         findingsFor(args[0] as string)(args, files),
     },
   };
@@ -74,13 +76,13 @@ async function scan(
 }
 
 describe("recognizer scan --sense refusals", () => {
-  it("refuses an unknown sensor, naming the registered and shipped ones", async () => {
+  it("refuses an unknown sensor, naming the registered and installed ones", async () => {
     const { code, err } = await scan(REGISTERED, {}, "--sense", "ghost");
 
     expect(code).toBe(2);
     expect(err).toContain("no such sensor: ghost\n");
     expect(err).toContain("registered sensors: crap, mutation\n");
-    expect(err).toMatch(/shipped sensors: .*crap.*\n/);
+    expect(err).toMatch(/installed sensors: .*crap.*\n/);
   });
 
   it("refuses duplication as part of structural analysis", async () => {
@@ -101,7 +103,7 @@ describe("recognizer scan --sense refusals", () => {
     );
   });
 
-  it("refuses a shipped sensor that is not registered", async () => {
+  it("refuses an installed sensor that is not registered", async () => {
     const { code, err } = await scan(SUITES, {}, "--sense", "crap");
 
     expect(code).toBe(2);

@@ -1,16 +1,16 @@
 import { InvalidRequest } from "../../domain/invalid-request.js";
 import {
-  type ShippedRead,
-  shippedCommand,
+  type InstalledRead,
+  sensorCommand,
   withSuiteSettings,
-} from "./shipped-plugins.js";
+} from "./installed-sensors.js";
 
 export function selectSensors(
   registered: { name: string; command: string[] }[],
   requested: "all" | string[],
-  shipped: readonly string[] = [],
+  installed: readonly string[] = [],
   suites?: readonly unknown[],
-  read: ShippedRead = { sensors: [], unreadable: [] },
+  read: InstalledRead = { sensors: [], unreadable: [] },
 ): { name: string; command: string[] }[] {
   const given = (one: { name: string; command: string[] }) => ({
     ...one,
@@ -35,14 +35,14 @@ export function selectSensors(
 
   const names = registered.map((one) => one.name);
   const unknown = requested.filter(
-    (name) => !names.includes(name) && !shipped.includes(name),
+    (name) => !names.includes(name) && !installed.includes(name),
   );
 
   if (unknown.length > 0) {
     throw new InvalidRequest([
       ...unknown.map((name) => `no such sensor: ${name}`),
       `registered sensors: ${names.join(", ")}`,
-      `shipped sensors: ${shipped.join(", ")}`,
+      `installed sensors: ${installed.join(", ")}`.trimEnd(),
     ]);
   }
 
@@ -53,7 +53,7 @@ export function selectSensors(
       .filter((name) => !names.includes(name))
       .map((name) => ({
         name,
-        command: withSuiteSettings(shippedCommand(name, {}), read, suites),
+        command: withSuiteSettings(sensorCommand(name, {}), read, suites),
       })),
   ];
 }

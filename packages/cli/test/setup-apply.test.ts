@@ -14,6 +14,7 @@ import {
   nodeIo,
   type Running,
   type RunResult,
+  run,
   stopEverything,
 } from "../src/cli.js";
 import { COMMANDS } from "../src/commands.js";
@@ -448,6 +449,36 @@ describe("setup apply", () => {
     expect(problems.map((problem) => problem.code)).not.toContain(
       "unregistered-plugin",
     );
+  });
+
+  it("declining every offered sensor leaves a clean doctor", async () => {
+    process.env.PATH = shimmedPath(shimDirectory(true, true));
+
+    const fresh = makeTempDir("recognizer-setup-decline-");
+    const survey = await configurationFor(nodeIo()).surveySetup({
+      root: fresh,
+    });
+    const offered = survey.checks.filter(
+      (check) => check.kind === "sensor" || check.kind === "describer",
+    );
+
+    expect(offered.length).toBeGreaterThan(0);
+
+    const changes = buildChanges(survey, {}).changes;
+
+    expect(changes.filter((change) => change.group === "checks")).toEqual([]);
+
+    const out = capture();
+
+    await run(["doctor", fresh, "--json"], out.io);
+
+    const report = JSON.parse(out.out());
+    const problems = report.areas.flatMap(
+      (area: { name: string; problems: { code: string }[] }) =>
+        ["sensors", "describers"].includes(area.name) ? area.problems : [],
+    );
+
+    expect(problems).toEqual([]);
   });
 
   it("a success writes a setup run log", async () => {

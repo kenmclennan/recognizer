@@ -1,14 +1,14 @@
 import {
+  type InstalledSensorEntry,
   type KeyEntry,
   type KeyOwners,
   notAnsweringLine,
   placeholderPattern,
-  readShippedSensors,
+  readInstalledSensors,
   type SectionEntry,
-  type ShippedSensorEntry,
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
-import { shippedPorts } from "../../manifest-ports.js";
+import { manifestPorts } from "../../manifest-ports.js";
 
 const SENSORS_OWNER = "sensors";
 
@@ -27,7 +27,7 @@ function placeholdersIn(key: string): string[] {
   return [...key.matchAll(PLACEHOLDER)].map((found) => found[1] ?? "");
 }
 
-function keysOf(sensor: ShippedSensorEntry): string[] {
+function keysOf(sensor: InstalledSensorEntry): string[] {
   const suite = sensor.suite_keys;
 
   return [
@@ -49,17 +49,17 @@ export class KeyOwnersAdapter implements KeyOwners {
   constructor(private readonly io: Io) {}
 
   schemas() {
-    const shipped = readShippedSensors(shippedPorts(this.io));
+    const installed = readInstalledSensors(manifestPorts(this.io));
     const suiteKeys = new Map<string, KeyEntry>();
     const sections = new Map<string, SectionEntry>();
     const placeholders: Record<string, string> = {};
     const refused = new Set<string>();
     const conflicts: string[] = [];
-    const answering = [...shipped.sensors].sort((a, b) =>
+    const answering = [...installed.sensors].sort((a, b) =>
       a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
     );
 
-    const refuse = (sensor: ShippedSensorEntry, reason: string) => {
+    const refuse = (sensor: InstalledSensorEntry, reason: string) => {
       refused.add(sensor.name);
       conflicts.push(
         notAnsweringLine(`recognizer-sense-${sensor.name}`, reason),
@@ -141,7 +141,7 @@ export class KeyOwnersAdapter implements KeyOwners {
 
     const keys: KeyEntry[] = [...suiteKeys.values()];
 
-    for (const sensor of shipped.sensors) {
+    for (const sensor of installed.sensors) {
       if (refused.has(sensor.name)) {
         continue;
       }
@@ -167,7 +167,7 @@ export class KeyOwnersAdapter implements KeyOwners {
         keys,
       },
       notAnswering: [
-        ...shipped.unreadable.map((one) =>
+        ...installed.unreadable.map((one) =>
           notAnsweringLine(`recognizer-sense-${one.name}`, one.reason),
         ),
         ...conflicts,

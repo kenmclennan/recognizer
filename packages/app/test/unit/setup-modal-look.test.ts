@@ -415,7 +415,7 @@ function snap(modal, name) {
   const handProblem = { code: "config-duplicate-suite", subject: "unit", title: "Two test suites share a name", line: "tests: unit appears twice", fix: { text: "Rename one of the suites", command: null }, severity: "problem" };
   const pluginProblem = { code: "unregistered-plugin", subject: "claude", title: "Claude is not registered", line: "claude is installed but not registered", fix: { text: "Register the plugin", command: "recognizer plugin add claude" }, severity: "problem" };
   const reportWith = (list) => ({ repository: "/repo", ok: list.length === 0, problems: list.length, warnings: 0, areas: list.length === 0 ? [] : [{ name: "config", skipped: null, problems: list }] });
-  const claudeCheck = { id: "claude", display: "Claude", description: "describes", always_on: false, enabled: false, runs_tests: false, limits: [], mark: null };
+  const claudeCheck = { id: "claude", display: "Claude", description: "describes", always_on: false, enabled: false, runs_tests: false, kind: "describer" as const, limits: [], mark: null };
   const doneSurvey = { ...base, fixes: [fixOf(1), fixOf(2)], checks: [...base.checks, claudeCheck] };
   const finishWith = async (applyDoctor, extra = {}) => {
     const port = fakeSetup({ surveyRead: { status: "ok", survey: doneSurvey, doctor: { status: "ok", report: reportOf(2) } }, applyDoctor, ...extra });

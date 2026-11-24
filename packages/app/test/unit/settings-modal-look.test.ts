@@ -1,12 +1,12 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
+import { installedSensors } from "../../src/installed-fake";
 import { collectFacts, here, webkit } from "../../src/look-page";
 import {
   CONFIRM_INFO,
   EDITOR_INFO,
   MODEL_INFO,
 } from "../../src/settings-modal-view";
-import { shippedSensors } from "../../src/shipped-fake";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
@@ -15,8 +15,8 @@ import { fakeSettingsModal } from ${JSON.stringify(here("settings-modal-fake.ts"
 import schema from ${JSON.stringify(here("../../../fixtures/sensors/config-keys.json"))};
 
 const CONFIG = "sensors:\\n  structure:\\n    warnings:\\n      long_function:\\n        limit: 30\\n    duplication:\\n      min_lines: 6\\n";
-const shipped = ${JSON.stringify(shippedSensors())};
-const sensors = (config) => ({ readInputs: async () => ({ policy: null, config, baseline: null, refused: [] }), shipped: async () => ({ status: "ok", sensors: shipped }) });
+const installed = ${JSON.stringify(installedSensors())};
+const sensors = (config) => ({ readInputs: async () => ({ policy: null, config, baseline: null, refused: [] }), installed: async () => ({ status: "ok", sensors: installed }) });
 const box = (node) => { const r = node.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height }; };
 const text = (nodes) => [...nodes].map((n) => n.textContent);
 const change = (node, value) => { node.value = value; node.dispatchEvent(new Event("change", { bubbles: true })); };
@@ -134,7 +134,7 @@ window.addEventListener("error", (e) => { document.getElementById("out").textCon
 import { openSettingsModal } from ${JSON.stringify(here("settings-modal-view.ts"))};
 import { fakeSettingsModal } from ${JSON.stringify(here("settings-modal-fake.ts"))};
 
-const sensors = { readInputs: async () => ({ policy: null, config: null, baseline: null, refused: [] }), shipped: async () => ({ status: "ok", sensors: [] }) };
+const sensors = { readInputs: async () => ({ policy: null, config: null, baseline: null, refused: [] }), installed: async () => ({ status: "ok", sensors: [] }) };
 const box = (node) => { const r = node.getBoundingClientRect(); return { name: node.tagName + "." + node.className, top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height }; };
 const text = (nodes) => [...nodes].map((n) => n.textContent);
 const typeInto = (node, value) => { node.value = value; node.dispatchEvent(new Event("input", { bubbles: true })); };
@@ -231,7 +231,7 @@ describe.skipIf(webkit === undefined)("the settings modal", () => {
     expect(f.describing.values).toEqual(["haiku", "4", "5.00"]);
   });
 
-  it("lists the repository sections that follow what is shipped", () => {
+  it("lists the repository sections that follow what is installed", () => {
     expect(f.entries).toEqual([
       "Editor",
       "Describing",

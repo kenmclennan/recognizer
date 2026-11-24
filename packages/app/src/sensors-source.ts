@@ -6,10 +6,10 @@ import { coreReply } from "./scan-source";
 import type {
   DescriberInEffect,
   FindingsFiles,
+  InstalledSensors,
   OverlayFiles,
   SensorInputs,
   SensorsPort,
-  ShippedSensors,
   WorkRequest,
 } from "./sensor-run";
 
@@ -26,8 +26,8 @@ export const sensorsSource: SensorsPort = {
     ),
   removeFindings: (names) => invoke<void>("remove_findings", { names }),
   readInputs: () => invoke<SensorInputs>("read_sensor_inputs"),
-  shipped: () => invoke<ShippedSensors>("shipped_sensors"),
-  describer: () => invoke<DescriberInEffect>("shipped_describer"),
+  installed: () => invoke<InstalledSensors>("installed_sensors"),
+  describer: () => invoke<DescriberInEffect>("describer_in_effect"),
   plannedWork: async ({ sensor, modules, suites }: WorkRequest) =>
     coreReply<PlannedWork | null>(
       await invoke<unknown>("core_call", {

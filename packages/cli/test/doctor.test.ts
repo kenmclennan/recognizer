@@ -9,8 +9,8 @@ import { cachedScansState } from "../src/freshness.js";
 import { setValue, unsetValue } from "../src/key-text.js";
 import { REPO } from "./helpers.js";
 import {
-  describerManifestText,
   fakeIo,
+  OFFICIAL_ON_PATH,
   PYTHON,
   ROOT,
   scanJson,
@@ -40,7 +40,6 @@ interface Setup {
   env?: Record<string, string>;
   files?: Record<string, string>;
   gap?: boolean;
-  shippedDescriber?: boolean;
 }
 
 function setup(options: Setup = {}) {
@@ -70,16 +69,6 @@ function setup(options: Setup = {}) {
         ? ["recognizer-sense-crap"]
         : []),
     sensorManifests: true,
-    ...(options.shippedDescriber
-      ? {
-          programs: {
-            "recognizer-describe-claude": (args: string[]) =>
-              args[0] === "manifest"
-                ? { stdout: describerManifestText("prompt-0123456789ab") }
-                : { stdout: "" },
-          },
-        }
-      : {}),
     sensorsPreflight: options.gap
       ? {
           run: () => ({
@@ -468,7 +457,10 @@ describe("doctor: config", () => {
   });
 
   it("applying the migration fix leaves no thresholds key", () => {
-    const published = loadKeys(fakeIo({ sensorManifests: true }).io, ROOT);
+    const published = loadKeys(
+      fakeIo({ sensorManifests: true, onPath: OFFICIAL_ON_PATH }).io,
+      ROOT,
+    );
     const start =
       "sensors:\n  thresholds:\n    coverage:\n      below: 0.7\n    complexity:\n      above: 15\n";
     let text = start;
@@ -968,7 +960,7 @@ describe("doctor starts nothing costly and writes nothing", () => {
     expect(fake.files).toEqual(before);
   });
 
-  it("never runs a registered non-shipped sensor", () => {
+  it("never runs a registered non-installed sensor", () => {
     const fake = setup({
       ...clean,
       config: "sensors:\n  other:\n    command: [other-tool, --run]\n",
@@ -1071,23 +1063,29 @@ describe("real content", () => {
   });
 });
 
-describe("doctor: unregistered shipped plugins", () => {
+describe("doctor: unregistered plugins", () => {
   const ALL = ["recognizer-sense-crap", "recognizer-sense-mutation"];
   const CRAP = "sensors:\n  crap: {}\n";
+  const TESTS =
+    "tests:\n  - name: api\n    language: python\n    directory: .\n    command: x\n    coverage:\n      path: c\n      format: lcov\n";
 
-  it("reports each installed shipped plugin that is not registered as a problem, with its fix", () => {
-    const result = json(
-      setup({
-        config: CRAP,
-        onPath: ALL,
-        shippedDescriber: true,
-      }),
-      ROOT,
-    );
-    const problems = result.report.areas.flatMap(
+  function problemsOf(result: ReturnType<typeof json>) {
+    return result.report.areas.flatMap(
       (area: { problems: { code: string; fix: unknown; line: string }[] }) =>
         area.problems,
     );
+  }
+
+  it("reports no problem for an installed sensor that is not registered", () => {
+    const result = json(setup({ config: CRAP, onPath: ALL }), ROOT);
+
+    expect(result.status).toBe(0);
+    expect(codes(result.report)).toEqual([]);
+  });
+
+  it("reports each installed tests-running sensor, with its fix, when tests are configured and none is registered", () => {
+    const result = json(setup({ config: TESTS, onPath: ALL }), ROOT);
+    const problems = problemsOf(result);
 
     expect(result.status).toBe(1);
     expect(result.report).toMatchObject({
@@ -1097,10 +1095,7 @@ describe("doctor: unregistered shipped plugins", () => {
     });
     expect(
       problems.map((one: { fix: { command: string } }) => one.fix.command),
-    ).toEqual([
-      "recognizer plugin add mutation",
-      "recognizer plugin add claude",
-    ]);
+    ).toEqual(["recognizer plugin add crap", "recognizer plugin add mutation"]);
     expect(
       problems.every(
         (one: { code: string }) => one.code === "unregistered-plugin",
@@ -1109,25 +1104,19 @@ describe("doctor: unregistered shipped plugins", () => {
   });
 
   it("title names the subject: unregistered-plugin", () => {
-    const result = json(
-      setup({ config: CRAP, onPath: ALL, shippedDescriber: true }),
-      ROOT,
-    );
+    const result = json(setup({ config: TESTS, onPath: ALL }), ROOT);
     const titles = result.report.areas
       .flatMap((area: { problems: { title: string }[] }) => area.problems)
       .map((one: { title: string }) => one.title);
 
     expect(titles).toEqual([
+      "The C.R.A.P. plugin is not registered",
       "The Mutation plugin is not registered",
-      "The Claude plugin is not registered",
     ]);
   });
 
   it("prints the problem lines and the problem count, and exits 1", () => {
-    const result = doctor(
-      setup({ config: CRAP, onPath: ALL, shippedDescriber: true }),
-      ROOT,
-    );
+    const result = doctor(setup({ config: TESTS, onPath: ALL }), ROOT);
     const lines = result.out.trimEnd().split("\n");
 
     expect(result.status).toBe(1);
@@ -1137,13 +1126,22 @@ describe("doctor: unregistered shipped plugins", () => {
     );
   });
 
+  it("clears every problem once one tests-running sensor is registered", () => {
+    const result = doctor(
+      setup({ config: `${TESTS}${CRAP}`, onPath: ALL }),
+      ROOT,
+    );
+
+    expect(result.out).not.toContain("unregistered");
+    expect(result.out).not.toContain("is not registered");
+  });
+
   it("reports nothing when every installed plugin is registered", () => {
     const result = doctor(
       setup({
         config:
           "sensors:\n  crap: {}\n  mutation: {}\ndescriber:\n  command: [describer]\n  version: v1\n",
         onPath: ALL,
-        shippedDescriber: true,
       }),
       ROOT,
     );
@@ -1158,7 +1156,6 @@ describe("doctor: unregistered shipped plugins", () => {
       setup({
         config: "sensors:\n  crap:\n    bogus: 1\n",
         onPath: ALL,
-        shippedDescriber: true,
       }),
       ROOT,
     );
@@ -1170,19 +1167,14 @@ describe("doctor: unregistered shipped plugins", () => {
     expect(area("describers").skipped).not.toBeNull();
   });
 
-  it("reports each installed plugin as a problem with no config file", () => {
-    const result = json(setup({ onPath: ALL, shippedDescriber: true }), ROOT);
+  it("reports nothing for an installed sensor with no config file", () => {
+    const result = json(setup({ onPath: ALL }), ROOT);
 
-    expect(codes(result.report)).toEqual([
-      "sensors:unregistered-plugin",
-      "sensors:unregistered-plugin",
-      "describers:unregistered-plugin",
-    ]);
-    expect(result.status).toBe(1);
+    expect(codes(result.report)).toEqual([]);
   });
 
   it("reports nothing when the plugins are not installed", () => {
-    const result = json(setup({ onPath: [] }), ROOT);
+    const result = json(setup({ config: TESTS, onPath: [] }), ROOT);
 
     expect(codes(result.report)).toEqual([]);
   });

@@ -56,7 +56,6 @@ const expected: Record<string, string[]> = {
     "selection-files-adapter.ts",
     "sensor-catalog-adapter.ts",
     "sensors-adapter.ts",
-    "shipped-plugins-adapter.ts",
     "sink-io.ts",
     "survey-plugins-adapter.ts",
     "test-reports-adapter.ts",

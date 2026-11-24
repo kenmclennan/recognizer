@@ -26,7 +26,6 @@ function problemsOf(
       languages: [],
       scans: () => ({ state: "missing" }),
     },
-    [],
     () => keys,
   ).problems;
 }

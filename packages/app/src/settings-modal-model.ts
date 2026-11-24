@@ -5,7 +5,7 @@ import {
   type PublishedKeys,
   typedValue,
 } from "recognizer";
-import type { ShippedSensor, ShippedSetting } from "./sensor-run";
+import type { InstalledSensor, InstalledSetting } from "./sensor-run";
 import type { RepositoryEdit } from "./settings-modal-port";
 
 export const MAX_BATCH_SIZE = 16;
@@ -196,7 +196,7 @@ function expanded(key: string, value: string): string {
   return key.replace(PLACEHOLDER, value);
 }
 
-function controlOf(setting: ShippedSetting): FieldControl {
+function controlOf(setting: InstalledSetting): FieldControl {
   switch (setting.type) {
     case "boolean":
       return "switch";
@@ -210,7 +210,7 @@ function controlOf(setting: ShippedSetting): FieldControl {
   }
 }
 
-function fieldsOf(sensor: string, setting: ShippedSetting): FieldSpec[] {
+function fieldsOf(sensor: string, setting: InstalledSetting): FieldSpec[] {
   const names: [string | null, string][] =
     setting.labels !== undefined
       ? Object.entries(setting.labels).map(([value, label]) => [value, label])
@@ -234,7 +234,7 @@ function fieldsOf(sensor: string, setting: ShippedSetting): FieldSpec[] {
   });
 }
 
-function sensorSection(sensor: ShippedSensor): SectionSpec | null {
+function sensorSection(sensor: InstalledSensor): SectionSpec | null {
   const ordered = sensor.settings
     .map((setting, at) => ({ setting, at }))
     .sort(
@@ -256,7 +256,7 @@ function sensorSection(sensor: ShippedSensor): SectionSpec | null {
 }
 
 export function sectionSpecs(
-  shipped: readonly ShippedSensor[],
+  installed: readonly InstalledSensor[],
   published: PublishedKeys,
 ): SectionSpec[] {
   const has = (key: string) =>
@@ -267,7 +267,7 @@ export function sectionSpecs(
     "found" in findKey(published, key.split("."));
   const covered = (spec: SectionSpec) =>
     spec.fields.every((field) => fieldKeys(field).every(known));
-  const sensors = shipped
+  const sensors = installed
     .map(sensorSection)
     .filter((spec): spec is SectionSpec => spec !== null)
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
@@ -276,15 +276,15 @@ export function sectionSpecs(
 }
 
 export function repositorySections(
-  shipped: readonly ShippedSensor[],
+  installed: readonly InstalledSensor[],
   published: PublishedKeys,
 ): RepositorySection[] {
-  const found: RepositorySection[] = sectionSpecs(shipped, published).map(
+  const found: RepositorySection[] = sectionSpecs(installed, published).map(
     (spec) => ({ id: spec.id, name: spec.name }),
   );
 
   if (
-    shipped.some((one) => one.runsTests) &&
+    installed.some((one) => one.runsTests) &&
     published.keys.some((entry) => entry.key === "tests.<name>.directory")
   ) {
     found.push({ id: "suites", name: "Test suites" });

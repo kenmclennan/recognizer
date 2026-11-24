@@ -2,15 +2,15 @@ import {
   type Config,
   LONG_FUNCTION,
   parseConfig,
+  registeredSensorSettings,
   resolveStructureSettings,
-  shippedSensorSettings,
 } from "recognizer";
 
 import type {
-  ShippedMetric,
-  ShippedSensor,
-  ShippedSensors,
-  ShippedSetting,
+  InstalledMetric,
+  InstalledSensor,
+  InstalledSensors,
+  InstalledSetting,
 } from "./sensor-run";
 
 export type CellLimit = {
@@ -55,11 +55,11 @@ function at(settings: Settings, path: string[]): unknown {
   return node;
 }
 
-function defaultOf(setting: ShippedSetting | undefined, metric: string) {
+function defaultOf(setting: InstalledSetting | undefined, metric: string) {
   return setting?.default ?? setting?.defaults?.[metric];
 }
 
-function limitsMetric(setting: ShippedSetting, metric: string): boolean {
+function limitsMetric(setting: InstalledSetting, metric: string): boolean {
   const limit = setting.limit;
 
   if (limit === undefined) {
@@ -72,7 +72,7 @@ function limitsMetric(setting: ShippedSetting, metric: string): boolean {
 }
 
 function isOff(
-  sensor: ShippedSensor,
+  sensor: InstalledSensor,
   settings: Settings,
   path: string[],
   metric: string,
@@ -95,12 +95,12 @@ function isOff(
 }
 
 function cellLimit(
-  { name: metric, label }: ShippedMetric,
+  { name: metric, label }: InstalledMetric,
   config: Config | null,
-  sensors: readonly ShippedSensor[],
+  sensors: readonly InstalledSensor[],
 ): CellLimit {
   for (const sensor of sensors) {
-    const settings = shippedSensorSettings(config, sensor.name);
+    const settings = registeredSensorSettings(config, sensor.name);
 
     for (const setting of sensor.settings) {
       if (setting.limit === undefined || !limitsMetric(setting, metric)) {
@@ -151,7 +151,7 @@ function cellLimit(
 const COMPLEXITY_METRIC = "complexity";
 
 function complexityCell(
-  { name: metric, label }: ShippedMetric,
+  { name: metric, label }: InstalledMetric,
   config: Config | null,
 ): CellLimit {
   const structure = resolveStructureSettings(config);
@@ -173,26 +173,26 @@ function complexityCell(
 
 function cellsOf(
   config: Config | null,
-  shipped: ShippedSensors | null,
+  installed: InstalledSensors | null,
 ): CellLimit[] {
-  if (shipped === null || shipped.status !== "ok") {
+  if (installed === null || installed.status !== "ok") {
     return [];
   }
 
-  return shipped.sensors
+  return installed.sensors
     .flatMap((sensor) => sensor.metrics)
     .filter((metric) => metric.cell !== undefined)
     .sort((a, b) => (a.cell as number) - (b.cell as number))
     .map((metric) =>
       metric.name === COMPLEXITY_METRIC
         ? complexityCell(metric, config)
-        : cellLimit(metric, config, shipped.sensors),
+        : cellLimit(metric, config, installed.sensors),
     );
 }
 
 export function functionLimits(
   config: Config | null,
-  shipped: ShippedSensors | null,
+  installed: InstalledSensors | null,
 ): FunctionLimits {
   const structure = resolveStructureSettings(config);
 
@@ -201,20 +201,20 @@ export function functionLimits(
       structure === "off" || !structure.warnings.long_function
         ? LONG_FUNCTION
         : structure.long_function_limit,
-    cells: cellsOf(config, shipped),
+    cells: cellsOf(config, installed),
   };
 }
 
 export function limitsFromText(
   text: string | null,
-  shipped: ShippedSensors | null,
+  installed: InstalledSensors | null,
 ): FunctionLimits {
   if (text === null) {
-    return functionLimits(null, shipped);
+    return functionLimits(null, installed);
   }
 
   try {
-    return functionLimits(parseConfig(text), shipped);
+    return functionLimits(parseConfig(text), installed);
   } catch {
     return DEFAULT_LIMITS;
   }

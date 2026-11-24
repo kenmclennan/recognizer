@@ -10,9 +10,9 @@ import {
   type SuiteRef,
   sensorArmed,
   sensorTickState,
-  shippedSensorNames,
   type TickState,
   tickedSuites,
+  unregisteredMessage,
   visibleSuiteTicks,
 } from "recognizer";
 import { scopeCaption } from "./findings-scope";
@@ -58,7 +58,7 @@ import {
 } from "./scan-progress";
 import { type RunInput, type RunModel, runModel } from "./scan-run-model";
 import { type ScanWhy, whyOf } from "./scan-why";
-import type { SensorStatus, ShippedSensors } from "./sensor-run";
+import type { InstalledSensors, SensorStatus } from "./sensor-run";
 import {
   foldSummary,
   type SuiteRowModel,
@@ -126,7 +126,7 @@ export type PanelInput = {
   extracting?: boolean;
   runModules?: number;
   now: number;
-  shipped: ShippedSensors | null;
+  installed: InstalledSensors | null;
   freshness?: Freshness;
   runView?: RunInput | null;
   history?: ScanHistory;
@@ -170,7 +170,7 @@ function effectiveInput(given: PanelInput, sensors: RowSensor[]): PanelInput {
 
 export function planRequestOf(
   given: PanelInput,
-  sensors: RowSensor[] = rowSensors(given.config, given.shipped),
+  sensors: RowSensor[] = rowSensors(given.config, given.installed),
 ): PlanRequest {
   const input = effectiveInput(given, sensors);
 
@@ -185,7 +185,7 @@ export function planRequestOf(
 
 export function planFactsOf(
   given: PanelInput,
-  sensors: RowSensor[] = rowSensors(given.config, given.shipped),
+  sensors: RowSensor[] = rowSensors(given.config, given.installed),
 ): LoadedPlanData {
   return {
     scans: given.scans ?? Repository.empty,
@@ -217,6 +217,7 @@ export type ScanRow = {
   tickable: boolean;
   ticked: boolean;
   disabled: boolean;
+  unregistered?: boolean;
   state: ResultState;
   text: StateText;
   note: string | null;
@@ -305,7 +306,7 @@ function suitesOf(config: string | null): SuiteRef[] {
 
 export function rowSensors(
   config: string | null,
-  shipped: ShippedSensors | null,
+  installed: InstalledSensors | null,
 ): RowSensor[] {
   const rows: RowSensor[] = [];
   const suites = suitesOf(config);
@@ -314,8 +315,8 @@ export function rowSensors(
     parsed === null ? [] : registeredSensors(parsed).map(({ name }) => name),
   );
 
-  if (shipped?.status === "ok") {
-    const listed = shipped.sensors
+  if (installed?.status === "ok") {
+    const listed = installed.sensors
       .filter(({ listed }) => listed)
       .sort((a, b) => a.display.localeCompare(b.display));
 
@@ -333,7 +334,9 @@ export function rowSensors(
     }
   }
 
-  const known = new Set(shippedSensorNames());
+  const known = new Set(
+    installed?.status === "ok" ? installed.sensors.map(({ name }) => name) : [],
+  );
 
   if (parsed !== null) {
     for (const { name } of registeredSensors(parsed)) {
@@ -529,7 +532,7 @@ const ANALYSIS_TITLE =
   "Finds import cycles, files nothing imports, unused exports, private imports, long or complex functions, duplication and policy violations. Runs with every scan and needs no tests.";
 
 export function scanPanel(given: PanelInput): ScanPanelModel {
-  const sensors = rowSensors(given.config, given.shipped);
+  const sensors = rowSensors(given.config, given.installed);
   const input: PanelInput = {
     ...given,
     ticks: effectiveTicks(
@@ -545,7 +548,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
   const judged: PanelInput = { ...input, sensors: statuses };
   const freshness = buildFreshnessModel(judged, sensors);
 
-  if (input.shipped === null) {
+  if (input.installed === null) {
     return {
       header: header(input, null),
       scope: null,
@@ -749,13 +752,33 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
       };
     });
 
+  const unregisteredRows: ScanRow[] = sensors
+    .filter(({ registered }) => !registered)
+    .map((one) => ({
+      key: one.name,
+      name: one.display,
+      tickable: false,
+      ticked: false,
+      disabled: true,
+      unregistered: true,
+      state: { kind: "never-run" },
+      text: { icon: "circle-dashed", text: "not registered" },
+      note: null,
+      why: null,
+      title: one.title,
+      stateTitle: unregisteredMessage(one.name),
+      tick: "off",
+      tone: null,
+      fold: null,
+    }));
+
   return {
     header: header(input, run),
     scope: scopeOf(input),
     freshness,
     summary: freshness.summary,
     run,
-    rows,
+    rows: [...rows, ...unregisteredRows],
     reports: reportRows(statuses, input.now),
     button: buttonOf(input, run, freshness.action.primary),
     mode: runningMode(input, freshness.action.mode),

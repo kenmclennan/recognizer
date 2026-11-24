@@ -11,10 +11,9 @@ import {
 } from "../../domain/plugins/unregistered.js";
 import type { DocumentValidators } from "./ports/document-validators.js";
 import type { Programs } from "./ports/programs.js";
-import type { ShippedPlugins } from "./ports/shipped-plugins.js";
 import { readManifestOf } from "./read-manifest.js";
 
-export interface ShippedMetric {
+export interface InstalledMetric {
   name: string;
   label: string;
   title?: string;
@@ -27,7 +26,7 @@ export interface ShippedMetric {
   published?: { value: number; source: string };
 }
 
-export interface ShippedSensorEntry {
+export interface InstalledSensorEntry {
   name: string;
   display: string;
   description?: string;
@@ -40,7 +39,7 @@ export interface ShippedSensorEntry {
   planned_work?: { verb: string };
   log_path?: string;
   listed: boolean;
-  metrics: ShippedMetric[];
+  metrics: InstalledMetric[];
   findings: FindingEntry[];
   settings: unknown[];
 }
@@ -50,8 +49,8 @@ export interface UnreadableSensor {
   reason: string;
 }
 
-export interface ShippedRead {
-  sensors: ShippedSensorEntry[];
+export interface InstalledRead {
+  sensors: InstalledSensorEntry[];
   unreadable: UnreadableSensor[];
 }
 
@@ -69,45 +68,38 @@ export function describerProgram(name: string): string {
   return `${DESCRIBE_PREFIX}${name}`;
 }
 
-export function shippedSensorOf(
-  command: readonly string[],
-  shipped: readonly string[],
-): string | undefined {
+export function sensorNameOf(command: readonly string[]): string | undefined {
   const program = command[0];
 
   if (program === undefined || !program.startsWith(SENSE_PREFIX)) {
     return undefined;
   }
 
-  const name = program.slice(SENSE_PREFIX.length);
-
-  return shipped.includes(name) ? name : undefined;
+  return program.slice(SENSE_PREFIX.length);
 }
 
-export function shippedDescriberCommand(name: string): string[] {
-  return [
-    `${DESCRIBE_PREFIX}${name}`,
-    "run",
-    "--model",
-    "{model}",
-    "{request}",
-  ];
+export function isReferenceDescriber(command: readonly string[]): boolean {
+  return (command[0] ?? "").startsWith(DESCRIBE_PREFIX);
+}
+
+export function noneRegistered(): string {
+  return `no describer is registered: install a describer plugin (a program named ${DESCRIBE_PREFIX}<name>) and register it with \`recognizer plugin add <name>\`, or set describer.command in .recognizer/config.yaml`;
 }
 
 export function refuseUnregistered(
   registered: readonly string[],
   requested: readonly string[],
-  shipped: readonly string[],
+  installed: readonly string[],
 ): void {
-  const names = unregisteredSensors(registered, requested, shipped);
+  const names = unregisteredSensors(registered, requested, installed);
 
   if (names.length > 0) {
     throw new InvalidRequest(names.map(unregisteredMessage));
   }
 }
 
-function entryOf(manifest: Manifest): ShippedSensorEntry {
-  const metrics = (manifest.metrics ?? []) as ShippedMetric[];
+function entryOf(manifest: Manifest): InstalledSensorEntry {
+  const metrics = (manifest.metrics ?? []) as InstalledMetric[];
 
   return {
     name: manifest.name,
@@ -138,20 +130,30 @@ function entryOf(manifest: Manifest): ShippedSensorEntry {
   };
 }
 
-export function readShippedSensors(
-  ports: {
-    programs: Programs;
-    validators: DocumentValidators;
-    shipped: ShippedPlugins;
-  },
-  read: ManifestReader = (prefix) => readManifestOf(ports, prefix),
-  names: readonly string[] = ports.shipped.sensors(),
-): ShippedRead {
-  const result: ShippedRead = { sensors: [], unreadable: [] };
+export function installedSensorNames(ports: { programs: Programs }): string[] {
+  const names = new Set<string>();
 
-  for (const name of ports.shipped
-    .sensors()
-    .filter((one) => names.includes(one))) {
+  for (const entry of ports.programs.listOnPath([SENSE_PREFIX])) {
+    if (
+      entry.name.startsWith(SENSE_PREFIX) &&
+      entry.name.length > SENSE_PREFIX.length
+    ) {
+      names.add(entry.name.slice(SENSE_PREFIX.length));
+    }
+  }
+
+  return [...names].sort();
+}
+
+export function readInstalledSensors(
+  ports: { programs: Programs; validators: DocumentValidators },
+  read: ManifestReader = (prefix) => readManifestOf(ports, prefix),
+  names: readonly string[] = installedSensorNames(ports),
+): InstalledRead {
+  const result: InstalledRead = { sensors: [], unreadable: [] };
+  const present = installedSensorNames(ports);
+
+  for (const name of present.filter((one) => names.includes(one))) {
     const manifest = read([`${SENSE_PREFIX}${name}`]);
 
     if (manifest.ok && manifest.manifest.kind === "sensor") {
@@ -171,8 +173,8 @@ export function readShippedSensors(
 
 function entryFor(
   command: readonly string[],
-  shipped: ShippedRead,
-): ShippedSensorEntry | undefined {
+  installed: InstalledRead,
+): InstalledSensorEntry | undefined {
   const program = command[0];
 
   if (program === undefined || !program.startsWith(SENSE_PREFIX)) {
@@ -181,40 +183,43 @@ function entryFor(
 
   const name = program.slice(SENSE_PREFIX.length);
 
-  return shipped.sensors.find((entry) => entry.name === name);
+  return installed.sensors.find((entry) => entry.name === name);
 }
 
 export function runsTests(
   command: readonly string[],
-  shipped: ShippedRead,
+  installed: InstalledRead,
 ): boolean {
-  return entryFor(command, shipped)?.runs_tests === true;
+  return entryFor(command, installed)?.runs_tests === true;
 }
 
 export function isScoped(
   command: readonly string[],
-  shipped: ShippedRead,
+  installed: InstalledRead,
 ): boolean {
-  return entryFor(command, shipped)?.scoped === true;
+  return entryFor(command, installed)?.scoped === true;
 }
 
-export function receivesSuites(name: string, shipped: ShippedRead): boolean {
-  return shipped.sensors.some(
+export function receivesSuites(
+  name: string,
+  installed: InstalledRead,
+): boolean {
+  return installed.sensors.some(
     (entry) => entry.runs_tests && entry.name === name,
   );
 }
 
 export function withSuiteSettings(
   command: string[],
-  shipped: ShippedRead,
+  installed: InstalledRead,
   suites: readonly unknown[] | undefined,
 ): string[] {
-  const name = entryFor(command, shipped)?.name;
+  const name = entryFor(command, installed)?.name;
 
   if (
     suites === undefined ||
     name === undefined ||
-    !receivesSuites(name, shipped)
+    !receivesSuites(name, installed)
   ) {
     return command;
   }
@@ -256,7 +261,7 @@ function isSettingsMapping(value: unknown): value is Record<string, unknown> {
   );
 }
 
-export function shippedCommand(
+export function sensorCommand(
   name: string,
   settings: Record<string, unknown>,
 ): string[] {
@@ -276,7 +281,6 @@ export function shippedCommand(
 
 export function expandShortForms(
   entries: Record<string, unknown> | undefined,
-  shipped: readonly string[],
 ): Record<string, unknown> | undefined {
   if (entries === undefined) {
     return entries;
@@ -284,8 +288,8 @@ export function expandShortForms(
 
   return Object.fromEntries(
     Object.entries(entries).map(([name, entry]) =>
-      shipped.includes(name) && isSettingsMapping(entry)
-        ? [name, { command: shippedCommand(name, entry) }]
+      name !== "structure" && isSettingsMapping(entry)
+        ? [name, { command: sensorCommand(name, entry) }]
         : [name, entry],
     ),
   );

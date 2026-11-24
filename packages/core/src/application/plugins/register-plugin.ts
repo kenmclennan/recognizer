@@ -22,10 +22,7 @@ export type RegisterResult =
   | { status: "failed"; message: string }
   | { status: "done"; warnings: string[]; line: string };
 
-type RegisterPorts = Pick<
-  PluginPorts,
-  "programs" | "validators" | "registry" | "shipped"
->;
+type RegisterPorts = Pick<PluginPorts, "programs" | "validators" | "registry">;
 
 function locate(
   ports: RegisterPorts,
@@ -119,7 +116,6 @@ export function registerPlugin(
     kind: target.kind,
     name,
     program: target.program,
-    shipped: kind === "sensor" && ports.shipped.sensors().includes(name),
     manifest: {
       install: manifest.install,
       ...(manifest.prompt_version === undefined

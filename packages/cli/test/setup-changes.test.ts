@@ -7,7 +7,7 @@ import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { COMMANDS } from "../src/commands.js";
 import { buildChanges } from "../src/index.js";
 import { capture, REPO } from "./helpers.js";
-import { exampleManifest } from "./shipped-read.js";
+import { exampleManifest } from "./installed-read.js";
 
 const survey = JSON.parse(
   readFileSync(
@@ -116,6 +116,7 @@ describe("the removal commands against a real config", () => {
             always_on: false,
             enabled: true,
             runs_tests: false,
+            kind: "describer" as const,
             limits: [],
             mark: "set-up",
           },
@@ -133,4 +134,49 @@ describe("the removal commands against a real config", () => {
     },
     scaledTimeout(30_000),
   );
+});
+
+describe("switching a plugin off", () => {
+  const check = (id: string, kind: "sensor" | "describer") => ({
+    id,
+    display: id,
+    description: "",
+    always_on: false,
+    enabled: true,
+    runs_tests: false,
+    kind,
+    limits: [],
+    mark: null,
+  });
+  const invented: Survey = {
+    ...survey,
+    checks: [
+      ...survey.checks.filter(({ id }) => id === "structure"),
+      check("quill", "describer"),
+      check("tally", "sensor"),
+    ],
+  };
+
+  it("switching a describer off unsets its keys by kind, not by name", () => {
+    const built = buildChanges(invented, { plugins_off: ["quill"] });
+    const steps = built.changes.flatMap((change) =>
+      change.steps.map((one) => one.argv.join(" ")),
+    );
+
+    expect(steps).toEqual([
+      expect.stringContaining("config --unset describer.command"),
+      expect.stringContaining("config --unset describer.version"),
+    ]);
+  });
+
+  it("switching a sensor off removes its section", () => {
+    const built = buildChanges(invented, { plugins_off: ["tally"] });
+    const steps = built.changes.flatMap((change) =>
+      change.steps.map((one) => one.argv.join(" ")),
+    );
+
+    expect(steps).toEqual([
+      expect.stringContaining("config --remove-section sensors.tally"),
+    ]);
+  });
 });

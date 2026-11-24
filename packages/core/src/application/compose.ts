@@ -59,12 +59,11 @@ import type { Confirm } from "./describing/ports/confirm.js";
 import type { Describer } from "./describing/ports/describer.js";
 import { readDescriber } from "./describing/read-describer.js";
 import { readResponsibility } from "./describing/read-responsibility.js";
-import { refuseShippedDescriber } from "./describing/refuse-shipped-describer.js";
 import type { BaselineRepository } from "./history/settle-baseline.js";
 import { diagnose } from "./plugins/diagnose.js";
 import { discoverPlugins } from "./plugins/discover-plugins.js";
+import { readInstalledSensors } from "./plugins/installed-sensors.js";
 import type { PluginPorts } from "./plugins/internal/plugin-ports.js";
-import { readShippedSensors } from "./plugins/shipped-plugins.js";
 import { type FreshSources, freshStructure } from "./run/fresh-structure.js";
 import { drive } from "./run/internal/async-driver.js";
 import { EventQueue } from "./run/internal/event-queue.js";
@@ -194,8 +193,6 @@ function bindDecisions(
       readRunConfig(sensing, root, skipRetired),
     locateDescriber: (root) => locateDescriber(describing, root),
     selectSensors: (input) => selectSensors(sensing, input),
-    refuseShippedDescriber: (located) =>
-      refuseShippedDescriber(describing, located),
     planSensors: (input) => planSensors(sensing, input),
     detectLanguages: (input) => detectLanguages(scanning, input),
     describingSettings: () => describingSettings(describing),
@@ -485,10 +482,7 @@ export function visualisationOver(ports: VisualisationPorts) {
 }
 
 export interface SetupReadsSources {
-  plugins: Pick<
-    PluginPorts,
-    "programs" | "validators" | "shipped" | "repository"
-  >;
+  plugins: Pick<PluginPorts, "programs" | "validators" | "repository">;
   scanners: ScannerQueries;
 }
 
@@ -513,7 +507,7 @@ export function setupReadsOver({
         : null;
     },
     sensors: () =>
-      readShippedSensors(plugins).sensors.map((sensor) => ({
+      readInstalledSensors(plugins).sensors.map((sensor) => ({
         name: sensor.name,
         display: sensor.display,
         ...(sensor.description === undefined
@@ -530,7 +524,6 @@ export function setupReadsOver({
           : { description: describer.manifest.description }),
         runs_tests: false,
       })),
-    describerName: () => plugins.shipped.describers()[0] ?? "",
     diagnose: (root) => diagnose(plugins, root, false),
   };
 }

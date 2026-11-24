@@ -3,10 +3,11 @@ import { findDescriberGaps } from "../src/application/describing/find-describer-
 import { findCommitGaps } from "../src/application/sensing/find-commit-gaps.js";
 import { findProgramGaps } from "../src/application/sensing/find-program-gaps.js";
 import { findReadinessGaps } from "../src/application/sensing/find-readiness-gaps.js";
-import type {
-  DescriberBuild,
-  PluginLimits,
-  SensorReport,
+import {
+  type DescriberBuild,
+  noneRegistered,
+  type PluginLimits,
+  type SensorReport,
 } from "../src/index.js";
 import { createFakes } from "./fakes/container.js";
 
@@ -75,7 +76,7 @@ describe("no-commit gap", () => {
 });
 
 describe("program gaps", () => {
-  it("reports a shipped sensor whose program is missing or exits non-zero", () => {
+  it("reports an installed sensor whose program is missing or exits non-zero", () => {
     const { fakes, ports } = sensing();
 
     install(fakes, "ruler");
@@ -248,14 +249,14 @@ describe("describer gaps", () => {
     expect(gapsOf(describing(null), false)).toEqual([]);
   });
 
-  it("reports a missing describer with the install fix of the shipped one", () => {
+  it("reports a missing describer with the registration instruction", () => {
     expect(gapsOf(describing(null))).toEqual([
       {
         id: "describe:missing",
-        line: `no describer is registered and ${DESCRIBE}claude is not installed`,
+        line: "no describer is registered",
         needs: ["describe"],
         fix: {
-          text: `install ${DESCRIBE}claude`,
+          text: noneRegistered(),
           command: null,
           cwd: "",
           env: {},
@@ -318,7 +319,7 @@ describe("describer gaps", () => {
     });
   });
 
-  it("holds a shipped-program describer to the arguments check without a build", () => {
+  it("holds a reference-prefixed describer to the arguments check without a build", () => {
     const world = describing([`${DESCRIBE}claude`]);
 
     const [gap] = gapsOf(world);

@@ -21,7 +21,7 @@ function repositoryWith(files: Record<string, string>): string {
 
 describe("recognizer serve: describer.read", () => {
   it(
-    "replies with the registered describer's command, version and source",
+    "replies with the registered describer's command and version",
     async () => {
       const repository = repositoryWith({
         "config.yaml":
@@ -33,7 +33,6 @@ describe("recognizer serve: describer.read", () => {
       expect(reply.ok).toEqual({
         command: ["describe", "{request}"],
         version: "v7",
-        source: "config",
       });
 
       await serve.close();

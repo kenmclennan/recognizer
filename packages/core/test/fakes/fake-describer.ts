@@ -12,7 +12,6 @@ import type {
 
 export class FakeDescriber implements Describer {
   registered = false;
-  shipped = false;
   described: string[] = [];
   command: readonly string[] = ["quill", "run", "{module}"];
   version = "v1";
@@ -39,24 +38,13 @@ export class FakeDescriber implements Describer {
             version: this.version,
           } satisfies DescriberRef)
         : null,
-      shipped: this.shipped,
     };
   }
-
-  refuseShipped(): void {}
 
   probe(program: string): { started: boolean; status: number | null } {
     return this.unavailable.has(program)
       ? { started: false, status: null }
       : { started: true, status: 0 };
-  }
-
-  shippedName(): string {
-    return "claude";
-  }
-
-  shippedProgram(): string {
-    return "quill-describe-claude";
   }
 
   settings(): { model: string; batchSize: number } {

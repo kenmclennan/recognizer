@@ -133,7 +133,7 @@ function plannedInput(
     run: NO_RUN,
     scanning: false,
     now: NOW,
-    shipped: null,
+    installed: null,
     scans: repositoryFrom([scan]),
     freshness: buildFreshness(repositoryFrom([scan]), "t"),
     ...over,

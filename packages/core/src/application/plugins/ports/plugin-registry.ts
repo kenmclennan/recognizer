@@ -2,7 +2,6 @@ export interface Registration {
   kind: "sensor" | "describer";
   name: string;
   program: string;
-  shipped: boolean;
   manifest: {
     install: string;
     prompt_version?: string;

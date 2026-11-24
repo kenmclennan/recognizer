@@ -4,7 +4,7 @@ import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
 
 const SCAN_COMMIT = "0123456789abcdef0123456789abcdef01234567";
-const shipped = JSON.parse(
+const installed = JSON.parse(
   readFileSync(
     here("../../../schema/overlay-examples/valid/crap.json"),
     "utf8",
@@ -17,7 +17,7 @@ const INPUTS = {
   "lib/none.py": HASH,
 };
 const overlay = JSON.stringify({
-  ...shipped,
+  ...installed,
   commit: SCAN_COMMIT,
   inputs: INPUTS,
 });

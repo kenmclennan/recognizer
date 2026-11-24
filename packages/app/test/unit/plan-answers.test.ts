@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { plainSensor } from "../../src/installed-fake";
 import { createPlanAnswers } from "../../src/plan-answers";
 import type { PlanRequest, ScanPlanView } from "../../src/plan-reads";
 import { NO_RUN, type PanelInput, scanPanel } from "../../src/scan-panel-model";
-import { plainSensor } from "../../src/shipped-fake";
 
 const request = (changed: string[] = []): PlanRequest => ({
   repository: ".",
@@ -58,7 +58,7 @@ function panelInput(plan: PanelInput["plan"]): PanelInput {
     run: NO_RUN,
     scanning: false,
     now: 0,
-    shipped: { status: "ok", sensors: [plainSensor("crap")] },
+    installed: { status: "ok", sensors: [plainSensor("crap")] },
     plan,
   };
 }

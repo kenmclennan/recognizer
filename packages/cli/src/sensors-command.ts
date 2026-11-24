@@ -2,12 +2,12 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
   checkSensors,
-  readShippedSensors,
+  readInstalledSensors,
   sensorsToCheck,
 } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import { asInputError, InputError } from "./errors.js";
-import { shippedPorts } from "./manifest-ports.js";
+import { manifestPorts } from "./manifest-ports.js";
 import { pluginPorts } from "./plugins-container.js";
 import { reportJson, reportText } from "./sensors-check.js";
 
@@ -100,7 +100,7 @@ export function runSensors(argv: string[], io: Io): number {
     return reports.every((report) => report.ready) ? 0 : 1;
   }
 
-  const { sensors, unreadable } = readShippedSensors(shippedPorts(io));
+  const { sensors, unreadable } = readInstalledSensors(manifestPorts(io));
 
   if (values.json === true) {
     io.stdout(`${JSON.stringify(sensors, null, 2)}\n`);

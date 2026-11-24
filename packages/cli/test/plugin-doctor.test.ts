@@ -13,23 +13,18 @@ import {
   readConfigArea,
   readPolicyArea,
 } from "../src/adapters/plugins/repository-checks-adapter.js";
-import {
-  shippedDescriberName,
-  shippedPlugins,
-} from "../src/adapters/plugins/shipped-plugins-adapter.js";
 import { reportJson, reportText } from "../src/doctor.js";
 import { documentValidators } from "../src/manifest-ports.js";
 import { manifestFor } from "./plugin-path.js";
 
 type DoctorFacts = Context & {
-  shipped: { sensors: string[]; describer: boolean };
+  testsUnrun: { name: string; display?: string }[];
   scanners: InstalledPlugin[];
   plugins(specs: PluginSpec[]): PluginFact[];
-  shippedDisplay?(kind: PluginSpec["kind"], name: string): string | undefined;
 };
 
 function buildReport(given: DoctorFacts) {
-  const config = readConfigArea(given, shippedPlugins().sensors(), () => []);
+  const config = readConfigArea(given, () => []);
 
   return build({
     repository: given.repository,
@@ -39,10 +34,7 @@ function buildReport(given: DoctorFacts) {
     languages: given.languages,
     scanners: given.scanners,
     plugins: given.plugins,
-    shipped: { ...given.shipped, describerName: shippedDescriberName() },
-    ...(given.shippedDisplay === undefined
-      ? {}
-      : { shippedDisplay: given.shippedDisplay }),
+    testsUnrun: given.testsUnrun,
     protocol: documentValidators.facts,
   });
 }
@@ -71,7 +63,7 @@ function facts(overrides: Partial<DoctorFacts> = {}): DoctorFacts {
     policyText: null,
     languages: [],
     scans: () => ({ state: "missing" }),
-    shipped: { sensors: [], describer: false },
+    testsUnrun: [],
     scanners: [
       {
         kind: "scanner",

@@ -4,7 +4,6 @@ import type { PluginRegistry } from "../ports/plugin-registry.js";
 import type { PluginTemplates } from "../ports/plugin-templates.js";
 import type { Programs } from "../ports/programs.js";
 import type { RepositoryChecks } from "../ports/repository-checks.js";
-import type { ShippedPlugins } from "../ports/shipped-plugins.js";
 
 export interface PluginPorts {
   programs: Programs;
@@ -12,6 +11,5 @@ export interface PluginPorts {
   sandbox: CheckSandbox;
   registry: PluginRegistry;
   templates: PluginTemplates;
-  shipped: ShippedPlugins;
   repository: RepositoryChecks;
 }

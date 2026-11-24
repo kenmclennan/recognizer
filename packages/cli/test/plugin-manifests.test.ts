@@ -16,7 +16,7 @@ function manifest(name: string) {
   return manifestOf(TOOLS.get(name) as RealTool);
 }
 
-describe("the shipped manifests equal the sources they transcribe", () => {
+describe("the installed manifests equal the sources they transcribe", () => {
   it("holds the language rules the scanner manifests declare", () => {
     const declared = [
       "recognizer-scan-python",

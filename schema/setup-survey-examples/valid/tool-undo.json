@@ -67,6 +67,7 @@
       "always_on": false,
       "enabled": false,
       "runs_tests": true,
+      "kind": "sensor",
       "limits": [],
       "mark": null
     },
@@ -77,6 +78,7 @@
       "always_on": false,
       "enabled": false,
       "runs_tests": true,
+      "kind": "sensor",
       "limits": [],
       "mark": null
     }

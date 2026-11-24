@@ -208,7 +208,7 @@ export function planSync(
 
 export function withPlan(
   input: PanelInput,
-  sensors: RowSensor[] = rowSensors(input.config, input.shipped),
+  sensors: RowSensor[] = rowSensors(input.config, input.installed),
 ): PanelInput {
   const tests =
     input.tests ??

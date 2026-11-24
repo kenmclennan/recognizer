@@ -7,7 +7,7 @@ import {
   type RepositoryText,
   type StructureSettings,
   type SuiteEntry,
-  shippedCommand,
+  sensorCommand,
 } from "../../src/index.js";
 import type { FakeSensors } from "./fake-sensors.js";
 
@@ -15,7 +15,7 @@ const DOCUMENT = {} as ConfigDocument;
 
 export class FakeConfigRepository implements ConfigRepository {
   present = true;
-  unshipped: string[] = [];
+  uninstalled: string[] = [];
   settings: StructureSettings | "off" = DEFAULT_STRUCTURE_SETTINGS;
   sensors: string[] = [];
 
@@ -51,9 +51,9 @@ export class FakeConfigRepository implements ConfigRepository {
             .filter((sensor) => sensor.registered ?? true)
             .map((sensor) => ({
               name: sensor.name,
-              command: shippedCommand(sensor.name, {}),
+              command: sensorCommand(sensor.name, {}),
             })),
-          ...this.unshipped.map((name) => ({ name, command: [name] })),
+          ...this.uninstalled.map((name) => ({ name, command: [name] })),
         ];
   }
 

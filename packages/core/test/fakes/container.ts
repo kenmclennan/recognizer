@@ -44,7 +44,6 @@ import { FakeSensorCatalog } from "./fake-sensor-catalog.js";
 import { FakeSensors } from "./fake-sensors.js";
 import { FakeSetupFiles } from "./fake-setup-files.js";
 import { FakeSetupScan } from "./fake-setup-scan.js";
-import { FakeShippedPlugins } from "./fake-shipped-plugins.js";
 import { FakeSourceFiles } from "./fake-source-files.js";
 import { FakeStructureRepository } from "./fake-structure-repository.js";
 import { FakeSurveyPlugins } from "./fake-survey-plugins.js";
@@ -90,7 +89,6 @@ export interface Fakes {
   checkSandbox: FakeCheckSandbox;
   pluginRegistry: FakePluginRegistry;
   pluginTemplates: FakePluginTemplates;
-  shippedPlugins: FakeShippedPlugins;
   repositoryChecks: FakeRepositoryChecks;
   scratch: FakeScratch;
   scanCache: FakeScanCache;
@@ -147,7 +145,6 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     checkSandbox: new FakeCheckSandbox(),
     pluginRegistry: new FakePluginRegistry(),
     pluginTemplates: new FakePluginTemplates(),
-    shippedPlugins: new FakeShippedPlugins(),
     repositoryChecks: new FakeRepositoryChecks(),
     scratch: new FakeScratch(),
     scanCache: new FakeScanCache(),
@@ -171,7 +168,6 @@ export function portsOf(fakes: Fakes): ScanPorts {
     checkSandbox,
     pluginRegistry,
     pluginTemplates,
-    shippedPlugins,
     repositoryChecks,
     scratch,
     scanCache,
@@ -199,7 +195,6 @@ export function pluginPortsOf(fakes: Fakes): PluginPorts {
     sandbox: fakes.checkSandbox,
     registry: fakes.pluginRegistry,
     templates: fakes.pluginTemplates,
-    shipped: fakes.shippedPlugins,
     repository: fakes.repositoryChecks,
   };
 }

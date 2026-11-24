@@ -1,5 +1,5 @@
 import { type Gap, installFix } from "../../domain/gap.js";
-import { sensorProgram, shippedSensorOf } from "../plugins/shipped-plugins.js";
+import { sensorNameOf, sensorProgram } from "../plugins/installed-sensors.js";
 import type { SensingPorts } from "./internal/sensing-ports.js";
 
 export interface ProgramGapsInput {
@@ -12,7 +12,7 @@ export function findProgramGaps(
   input: ProgramGapsInput,
 ): Gap[] {
   return input.sensors.flatMap((sensor) => {
-    const name = shippedSensorOf(sensor.command, ports.catalog.shippedNames());
+    const name = sensorNameOf(sensor.command);
 
     if (name === undefined) {
       return [];

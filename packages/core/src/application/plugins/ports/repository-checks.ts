@@ -16,5 +16,4 @@ export interface RepositoryChecks {
   policy(root: string, named: boolean, languages: string[]): Found[];
   registeredSensors(root: string): { name: string; command: string[] }[];
   suites(root: string): readonly unknown[] | undefined;
-  describerShipped(root: string): boolean;
 }

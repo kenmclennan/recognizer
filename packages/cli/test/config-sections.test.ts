@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
-import { fakeIo, PYTHON, ROOT, scanJson } from "./scan-helpers.js";
+import {
+  fakeIo,
+  OFFICIAL_ON_PATH,
+  PYTHON,
+  ROOT,
+  scanJson,
+} from "./scan-helpers.js";
 
 const COMMIT = "abc123";
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
@@ -10,6 +16,7 @@ const BAD_DESCRIBER = "describer:\n  command: []\n";
 function fresh(config: string) {
   return fakeIo({
     sensorManifests: true,
+    onPath: OFFICIAL_ON_PATH,
     commit: COMMIT,
     files: { [`${ROOT}/a.py`]: "", [CONFIG]: config },
     scanners: { [PYTHON]: { output: scanJson(2, 1, { commit: COMMIT }) } },

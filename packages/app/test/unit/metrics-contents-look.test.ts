@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
+import { installedSensor } from "../../src/installed-fake";
 import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
-import { shippedSensor } from "../../src/shipped-fake";
 
 const SCAN_COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const OTHER_COMMIT = "ffffffffffffffffffffffffffffffffffffffff";
@@ -55,7 +55,7 @@ const scan = {
   edges: [],
   foreign: [],
 };
-const SHIPPED = ${JSON.stringify([{ ...shippedSensor("crap"), display: "crap", description: "x", runsTests: false }])};
+const INSTALLED = ${JSON.stringify([{ ...installedSensor("crap"), display: "crap", description: "x", runsTests: false }])};
 const structureOf = (overlay) => {
   const crap = JSON.parse(overlay);
   return JSON.stringify({ ...crap, producer: { name: "recognizer", version: "0.1.0" }, metrics: crap.metrics.filter((metric) => metric.name === "complexity"), values: { complexity: crap.values.complexity ?? {} } });
@@ -70,7 +70,7 @@ const qa = (selector) => [...host.querySelectorAll(selector)];
 const footer = { text: null };
 const facts = {};
 
-const mount = (overlay, carried) => mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", post: () => null, carried, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, SHIPPED) }), showMetrics: (text) => { footer.text = text; } });
+const mount = (overlay, carried) => mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", post: () => null, carried, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, INSTALLED) }), showMetrics: (text) => { footer.text = text; } });
 const bars = () => qa('.box[data-id="app/risk.py"] .metric-bar').map((bar) => ({ metric: bar.dataset.metric, value: bar.querySelector(".metric-value").textContent }));
 const functionRows = () => qa(".inspector-panel .fn-metrics").map((row) => [...row.querySelectorAll(".fn-metric")].map((item) => item.firstChild.textContent + " " + item.querySelector("b").textContent));
 const tables = () => qa(".inspector-panel .card-metrics").map((table) => ({

@@ -52,10 +52,10 @@ function current(): string {
   });
 }
 
-const SHIPPED_REGISTERED = "sensors:\n  crap: {}\n  mutation: {}\n";
+const REGISTERED_BOTH = "sensors:\n  crap: {}\n  mutation: {}\n";
 
-function registeringShipped(config: string): string {
-  return config.includes("sensors:") ? config : config + SHIPPED_REGISTERED;
+function registeringBoth(config: string): string {
+  return config.includes("sensors:") ? config : config + REGISTERED_BOTH;
 }
 
 function setup(
@@ -70,11 +70,11 @@ function setup(
       [`${ROOT}/m0.py`]: "one",
       [`${ROOT}/m1.py`]: "two",
       [PY_CACHE]: current(),
-      [CONFIG]: registeringShipped(config),
+      [CONFIG]: registeringBoth(config),
     },
     scanners: { [PYTHON]: { output: current() } },
     programs: {
-      "shipped-sensors": (args, files) => {
+      "installed-sensors": (args, files) => {
         files.set(
           args[args.indexOf("--output") + 1] as string,
           JSON.stringify({
@@ -265,7 +265,7 @@ describe("scan preflight: the early stage", () => {
     );
   });
 
-  describe("gives one gap per ticked shipped sensor whose program does not start", () => {
+  describe("gives one gap per ticked installed sensor whose program does not start", () => {
     const failing = (names: string[]) => ({
       version: (name: string) =>
         names.includes(name) ? { started: false } : { stdout: "0.0.0\n" },
@@ -316,7 +316,7 @@ describe("scan preflight: the early stage", () => {
       }
     });
 
-    it("gives none when no shipped sensor is ticked", async () => {
+    it("gives none when no installed sensor is ticked", async () => {
       const { err } = await scan(setup("", failing(["crap"])));
 
       expect(err).not.toContain("is not installed");
@@ -411,7 +411,7 @@ describe("scan preflight: the project stage", () => {
 
           return { stdout: "a line\n" };
         },
-        "shipped-sensors": () => ({}),
+        "installed-sensors": () => ({}),
       },
     });
     const { code, out, fake } = await scan(

@@ -99,19 +99,6 @@ class Edits {
   }
 }
 
-function sensorWords(program: string): string[] {
-  return [
-    program,
-    "run",
-    "--repository",
-    "{repository}",
-    "--commit",
-    "{commit}",
-    "--output",
-    "{output}",
-  ];
-}
-
 function describerWords(program: string): string[] {
   return [program, "run", "--model", "{model}", "{request}"];
 }
@@ -131,12 +118,8 @@ function edited(
       : existing.describerProgram === program;
 
   if (!registered) {
-    if (kind === "sensor" && registration.shipped) {
+    if (kind === "sensor") {
       edits.apply("add-section", `sensors.${name}`);
-    } else if (kind === "sensor") {
-      for (const word of sensorWords(program)) {
-        edits.apply("add", `sensors.${name}.command`, word);
-      }
     } else {
       for (const word of describerWords(program)) {
         edits.apply("add", "describer.command", word);

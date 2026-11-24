@@ -1118,7 +1118,7 @@ describe("show and modules read the findings files", () => {
 });
 
 describe("a findings file for a sensor no longer registered", () => {
-  it("is removed by check with one stderr line and contributes nothing", async () => {
+  it("is ignored and kept by check with one stderr line and contributes nothing", async () => {
     const fake = setup(REGISTER, {
       programs: { "fake-sensor": sensor(fakeDocument()) },
     });
@@ -1134,8 +1134,8 @@ describe("a findings file for a sensor no longer registered", () => {
     const { err, out } = await check(fake, "--json");
     const report = JSON.parse(out.slice(out.indexOf("{")));
 
-    expect(err).toContain("removed unregistered fake-sensor\n");
-    expect(fake.files.has(FAKE)).toBe(false);
+    expect(err).toContain("ignored unregistered fake-sensor\n");
+    expect(fake.files.has(FAKE)).toBe(true);
     expect(
       report.new.map((v: { finding_id?: string }) => v.finding_id),
     ).not.toContain("fake-violation:shop/main.py");
@@ -1160,12 +1160,12 @@ describe("a findings file for a sensor no longer registered", () => {
   });
 });
 
-describe("a findings file for a shipped sensor with no config entry", () => {
+describe("a findings file for an installed sensor with no config entry", () => {
   const CRAP = `${ROOT}/.recognizer/cache/findings/crap.json`;
   const crapDocument = () =>
     fakeDocument({ sensor: { name: "crap", version: "1" } });
 
-  it("is kept by check and read by show", async () => {
+  it("is ignored and kept", async () => {
     const fake = setup(
       "sensors:\n  structure:\n    warnings:\n      cycle: true\n",
       {
@@ -1175,7 +1175,8 @@ describe("a findings file for a shipped sensor with no config entry", () => {
 
     const { err } = await check(fake, "--json");
 
-    expect(err).not.toContain("removed unregistered crap");
+    expect(err).toContain("ignored unregistered crap\n");
+    expect(err).not.toContain("removed unregistered");
     expect(fake.files.has(CRAP)).toBe(true);
 
     const code = await run(
@@ -1184,8 +1185,9 @@ describe("a findings file for a shipped sensor with no config entry", () => {
     );
 
     expect(code).toBe(0);
-    expect(fake.out()).toContain("the fake sensor objects");
-    expect(fake.err()).not.toContain("ignored unregistered crap");
+    expect(fake.out()).not.toContain("the fake sensor objects");
+    expect(fake.err()).toContain("ignored unregistered crap");
+    expect(fake.files.has(CRAP)).toBe(true);
   });
 
   it("is not reported missing when it never ran", async () => {
@@ -1200,7 +1202,7 @@ describe("a findings file for a shipped sensor with no config entry", () => {
     ]);
   });
 
-  it("still removes a third-party name that is neither registered nor shipped", async () => {
+  it("a findings file for a name neither registered nor installed is ignored and kept", async () => {
     const fake = setup(
       "sensors:\n  structure:\n    warnings:\n      cycle: true\n",
       {
@@ -1208,10 +1210,11 @@ describe("a findings file for a shipped sensor with no config entry", () => {
       },
     );
 
+    expect(fake.files.has(FAKE)).toBe(true);
     expect((await check(fake, "--json")).err).toContain(
-      "removed unregistered fake-sensor\n",
+      "ignored unregistered fake-sensor\n",
     );
-    expect(fake.files.has(FAKE)).toBe(false);
+    expect(fake.files.has(FAKE)).toBe(true);
   });
 });
 
@@ -1477,8 +1480,8 @@ describe("a report in the findings folder", () => {
     const fake = mixed();
     const { err } = await check(fake, "--json");
 
-    expect(err).toContain("removed unregistered stray\n");
-    expect(fake.files.has(STRAY)).toBe(false);
+    expect(err).toContain("ignored unregistered stray\n");
+    expect(fake.files.has(STRAY)).toBe(true);
     expect(fake.files.has(REVIEW)).toBe(true);
     expect(fake.files.has(OLD)).toBe(true);
   });

@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CORE_KEYS, parseKeySchema, publish } from "recognizer";
 import { describe, expect, it } from "vitest";
+import { installedSensors } from "../../src/installed-fake";
 import {
   checkDescribing,
   checkSetup,
@@ -10,7 +11,6 @@ import {
   repositorySections,
   sectionSpecs,
 } from "../../src/settings-modal-model";
-import { shippedSensors } from "../../src/shipped-fake";
 
 describe("checkDescribing", () => {
   it("accepts a model and a batch size and trims the model", () => {
@@ -79,15 +79,15 @@ describe("the pinned sensors key schema", () => {
   });
 });
 
-const shipped = (...names: string[]) =>
-  shippedSensors().filter((one) => names.includes(one.name));
+const installed = (...names: string[]) =>
+  installedSensors().filter((one) => names.includes(one.name));
 
 describe("repositorySections", () => {
-  const names = (list: ReturnType<typeof shipped>) =>
+  const names = (list: ReturnType<typeof installed>) =>
     repositorySections(list, PUBLISHED).map((section) => section.name);
 
   it("lists Structural analysis and the suites for a crap-only toolchain", () => {
-    expect(names(shipped("crap"))).toEqual([
+    expect(names(installed("crap"))).toEqual([
       "Structural analysis",
       "C.R.A.P.",
       "Test suites",
@@ -95,7 +95,7 @@ describe("repositorySections", () => {
   });
 
   it("lists the three real sensors' panes in the approved order", () => {
-    expect(names(shipped("crap", "mutation"))).toEqual([
+    expect(names(installed("crap", "mutation"))).toEqual([
       "Structural analysis",
       "C.R.A.P.",
       "Mutation",
@@ -104,7 +104,7 @@ describe("repositorySections", () => {
   });
 
   it("builds the mutation rows in order and the crap rows with their labels and keys", () => {
-    const specs = sectionSpecs(shipped("crap", "mutation"), PUBLISHED);
+    const specs = sectionSpecs(installed("crap", "mutation"), PUBLISHED);
     const fields = (id: string) =>
       specs.find((spec) => spec.id === id)?.fields ?? [];
 
@@ -122,23 +122,26 @@ describe("repositorySections", () => {
 
   it("shows no pane for a sensor that declares no labels while a labelled sibling has one", () => {
     const bare = {
-      ...shipped("mutation")[0],
+      ...installed("mutation")[0],
       name: "bare",
       display: "Bare",
-      settings: shipped("mutation")[0]?.settings.map(
+      settings: installed("mutation")[0]?.settings.map(
         ({ label: _label, ...rest }) => rest,
       ),
     };
 
-    const listed = names([...shipped("crap"), bare as never]);
+    const listed = names([...installed("crap"), bare as never]);
 
     expect(listed).toContain("C.R.A.P.");
     expect(listed).not.toContain("Bare");
   });
 
   it("titles a pane with settings_title and otherwise display", () => {
-    const crap = shipped("crap")[0];
-    const titled = { ...shipped("mutation")[0], settings_title: "Titled pane" };
+    const crap = installed("crap")[0];
+    const titled = {
+      ...installed("mutation")[0],
+      settings_title: "Titled pane",
+    };
 
     expect(crap?.settings_title).toBeUndefined();
     expect(sectionSpecs([crap as never], PUBLISHED).at(-1)?.name).toBe(
@@ -158,13 +161,13 @@ describe("repositorySections", () => {
     };
 
     expect(
-      repositorySections(shipped("crap", "mutation"), keys).map(
+      repositorySections(installed("crap", "mutation"), keys).map(
         (section) => section.name,
       ),
     ).toEqual(["Structural analysis", "C.R.A.P.", "Test suites"]);
   });
 
-  it("lists only Structural analysis when no sensor is shipped", () => {
+  it("lists only Structural analysis when no sensor is installed", () => {
     expect(names([])).toEqual(["Structural analysis"]);
   });
 
@@ -172,7 +175,7 @@ describe("repositorySections", () => {
     const core = publish([CORE_KEYS], "config");
 
     expect(
-      repositorySections(shipped("crap", "mutation"), core).map(
+      repositorySections(installed("crap", "mutation"), core).map(
         (section) => section.name,
       ),
     ).toEqual(["Structural analysis"]);
@@ -390,9 +393,10 @@ describe("checkSetup", () => {
 
 describe("the Structural analysis section's complexity field", () => {
   it("has the Complexity limit with its switch after Long function", () => {
-    const structure = sectionSpecs(shipped("crap", "mutation"), PUBLISHED).find(
-      (section) => section.id === "structure",
-    );
+    const structure = sectionSpecs(
+      installed("crap", "mutation"),
+      PUBLISHED,
+    ).find((section) => section.id === "structure");
     const labels = structure?.fields.map((field) => field.label);
 
     expect(labels?.slice(0, 2)).toEqual(["Long function", "Complexity"]);

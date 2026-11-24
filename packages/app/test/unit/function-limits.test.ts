@@ -8,17 +8,17 @@ import {
   functionLimits,
   limitsFromText,
 } from "../../src/function-limits";
-import type { ShippedSensors } from "../../src/sensor-run";
-import { shippedSensors } from "../../src/shipped-fake";
+import { installedSensors } from "../../src/installed-fake";
+import type { InstalledSensors } from "../../src/sensor-run";
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 
 const REPO = resolve(dirname(fileURLToPath(srcUrl)), "../../..");
 
-const REAL: ShippedSensors = { status: "ok", sensors: shippedSensors() };
+const REAL: InstalledSensors = { status: "ok", sensors: installedSensors() };
 
-const limitsOf = (yaml: string, shipped: ShippedSensors | null = REAL) =>
-  functionLimits(parseConfig(yaml), shipped);
+const limitsOf = (yaml: string, installed: InstalledSensors | null = REAL) =>
+  functionLimits(parseConfig(yaml), installed);
 
 describe("the long-function limit", () => {
   it("follows the structure sensor's limit and falls back to 20", () => {
@@ -60,12 +60,15 @@ const cell = (
   limit: { direction, value, tone },
 });
 
-const cellsOf = (yaml: string | null, shipped: ShippedSensors | null = REAL) =>
-  (yaml === null ? functionLimits(null, shipped) : limitsOf(yaml, shipped))
+const cellsOf = (
+  yaml: string | null,
+  installed: InstalledSensors | null = REAL,
+) =>
+  (yaml === null ? functionLimits(null, installed) : limitsOf(yaml, installed))
     .cells;
 
 describe("functionLimits", () => {
-  it("takes the defaults from the shipped manifests when nothing is registered", () => {
+  it("takes the defaults from the installed manifests when nothing is registered", () => {
     const defaults = {
       longAt: 20,
       cells: [
@@ -130,9 +133,9 @@ describe("functionLimits", () => {
   });
 
   it("gives a null crapAt when crap declares no threshold setting", () => {
-    const bare: ShippedSensors = {
+    const bare: InstalledSensors = {
       status: "ok",
-      sensors: shippedSensors().map((one) =>
+      sensors: installedSensors().map((one) =>
         one.name === "crap" ? { ...one, settings: [] } : one,
       ),
     };

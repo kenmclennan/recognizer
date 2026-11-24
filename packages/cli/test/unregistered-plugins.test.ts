@@ -5,19 +5,19 @@ import {
   unregisteredMessage,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { shippedPlugins } from "../src/adapters/plugins/shipped-plugins-adapter.js";
 import { asInputError, InputError } from "../src/errors.js";
+
+const INSTALLED = ["crap", "mutation"];
 
 const refuseUnregistered = (
   registered: readonly string[],
   requested: readonly string[],
-) =>
-  asInputError(() => refuse(registered, requested, shippedPlugins().sensors()));
+) => asInputError(() => refuse(registered, requested, INSTALLED));
 
 const unregisteredSensors = (
   registered: readonly string[],
   requested: readonly string[],
-) => unregistered(registered, requested, shippedPlugins().sensors());
+) => unregistered(registered, requested, INSTALLED);
 
 function refusal(registered: string[], requested: string[]): string[] | null {
   try {
@@ -30,7 +30,7 @@ function refusal(registered: string[], requested: string[]): string[] | null {
 }
 
 describe("refuseUnregistered", () => {
-  it("refuses only the unregistered shipped names, once each, in request order", () => {
+  it("refuses only the unregistered installed names, once each, in request order", () => {
     expect(refusal(["mutation"], ["crap", "mutation", "crap"])).toEqual([
       unregisteredMessage("crap"),
     ]);
@@ -40,14 +40,14 @@ describe("refuseUnregistered", () => {
     expect(refusal(["crap", "mutation"], ["crap", "mutation"])).toBeNull();
   });
 
-  it("gives one line per requested shipped name when none is registered", () => {
+  it("gives one line per requested installed name when none is registered", () => {
     expect(refusal([], ["mutation", "crap"])).toEqual([
       unregisteredMessage("mutation"),
       unregisteredMessage("crap"),
     ]);
   });
 
-  it("never names a requested sensor that is not shipped", () => {
+  it("never names a requested sensor that is not installed", () => {
     expect(refusal([], ["custom"])).toBeNull();
   });
 
@@ -69,7 +69,7 @@ describe("unregisteredMessage", () => {
 });
 
 describe("unregisteredSensors", () => {
-  it("returns the shipped names that are not registered, once each, in request order", () => {
+  it("returns the installed names that are not registered, once each, in request order", () => {
     expect(
       unregisteredSensors(["mutation"], ["crap", "mutation", "crap"]),
     ).toEqual(["crap"]);
@@ -81,14 +81,14 @@ describe("unregisteredSensors", () => {
     ).toEqual([]);
   });
 
-  it("returns every requested shipped name when none is registered", () => {
+  it("returns every requested installed name when none is registered", () => {
     expect(unregisteredSensors([], ["mutation", "crap"])).toEqual([
       "mutation",
       "crap",
     ]);
   });
 
-  it("never returns a name that is not shipped", () => {
+  it("never returns a name that is not installed", () => {
     expect(unregisteredSensors([], ["custom"])).toEqual([]);
   });
 

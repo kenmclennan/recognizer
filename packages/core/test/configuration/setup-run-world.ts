@@ -70,7 +70,7 @@ export function changesFor(
   selected: SetupChoices = choices,
   survey: Survey = surveyOf(),
 ): PlannedChange[] {
-  return buildChanges(survey, selected, "claude").changes;
+  return buildChanges(survey, selected).changes;
 }
 
 export class ManualStop implements SetupStop {

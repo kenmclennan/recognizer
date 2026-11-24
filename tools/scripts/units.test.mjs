@@ -105,7 +105,7 @@ describe("tools/packaging/units.json", () => {
     );
   });
 
-  it("equals the shipped sensors of the CLI", () => {
+  it("equals the sensors in the packaging units", () => {
     const names = JSON.parse(
       readFileSync(join(ROOT, "fixtures/sensors/shipped.json"), "utf8"),
     );

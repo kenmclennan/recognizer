@@ -77,7 +77,7 @@ Feature: Managing plugins
     Then the report of "alpha" is ready and checked
     And no check call was made
 
-  Scenario: A shipped sensor whose program does not start reports it missing
+  Scenario: A sensor whose program does not start reports it missing
     When the sensors "ghost" are checked
     Then the report of "ghost" has the gap "sensors-missing" reading "/bin/recognizer-sense-ghost is not installed"
 
@@ -156,17 +156,17 @@ Feature: Managing plugins
     When the sensors to check are chosen with name ""
     Then the sensors to check are "b,a"
 
-  Scenario: A named shipped sensor that is not registered runs its shipped command
+  Scenario: A named installed sensor that is not registered runs its own command
     Given the repository registers the checkable sensors "b" and "a"
-    When the sensors to check are chosen with name "crap"
-    Then the sensors to check are "crap"
-    And the shipped sensor "crap" is run with its shipped command
+    When the sensors to check are chosen with name "margin"
+    Then the sensors to check are "margin"
+    And the installed sensor "margin" is run with its own command
 
-  Scenario: An unknown sensor is refused with the registered and shipped names
+  Scenario: An unknown sensor is refused with the registered and installed names
     Given the repository registers the checkable sensors "b" and "a"
     When the sensors to check are chosen with name "nope"
     Then the request is refused with "no such sensor: nope"
-    And the refusal lists "no such sensor: nope" before "registered sensors: b, a" before "shipped sensors: crap"
+    And the refusal lists "no such sensor: nope" before "registered sensors: b, a" before "installed sensors: margin"
 
   Scenario: No registered sensors and no name is refused
     Given the repository registers no sensor

@@ -1,10 +1,13 @@
 import type { DescriberBuild } from "../../domain/config-repository.js";
-import { type Gap, installFix } from "../../domain/gap.js";
+import { type Gap, installFix, outside } from "../../domain/gap.js";
+import {
+  isReferenceDescriber,
+  noneRegistered,
+} from "../plugins/installed-sensors.js";
 import {
   NO_RUN_LINE,
   probeDescriberCheck,
 } from "../plugins/probe-describer-check.js";
-import { describerProgram } from "../plugins/shipped-plugins.js";
 import type { DescribingPorts } from "./internal/describing-ports.js";
 import type { LocatedDescriber } from "./ports/describer.js";
 import type { DescriberRef } from "./ports/describer-ref.js";
@@ -19,10 +22,9 @@ export interface FindDescriberGapsInput {
 
 function isReference(
   command: readonly string[],
-  program: string,
   build: DescriberBuild | null,
 ): boolean {
-  return command[0] === program || build !== null;
+  return isReferenceDescriber(command) || build !== null;
 }
 
 function argumentsGap(
@@ -78,20 +80,19 @@ export function findDescriberGaps(
   }
 
   const describer = input.located.describer;
-  const reference = describerProgram(ports.describer.shippedName());
 
   if (describer === null) {
     return [
       {
         id: "describe:missing",
-        line: `no describer is registered and ${reference} is not installed`,
+        line: "no describer is registered",
         needs: ["describe"],
-        fix: installFix(input.install, reference),
+        fix: outside(noneRegistered()),
       },
     ];
   }
 
-  if (isReference(describer.command, reference, input.build)) {
+  if (isReference(describer.command, input.build)) {
     const gap = argumentsGap(ports, input, describer);
 
     return gap === null ? [] : [gap];
