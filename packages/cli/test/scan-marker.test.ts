@@ -74,7 +74,8 @@ function options(extra: FakeOptions = {}): FakeOptions {
     ...extra,
     files: {
       [`${ROOT}/a.py`]: "",
-      [`${ROOT}/.recognizer/config.yaml`]: "sensors:\n  crap: {}\n",
+      [`${ROOT}/.recognizer/config.yaml`]:
+        "sensors:\n  crap: { manifest: [recognizer-sense-crap, manifest] }\n",
       ...extra.files,
     },
   };

@@ -53,7 +53,8 @@ const scannerProblems = (
     documentValidators.facts,
   );
 
-const CONFIG = "sensors:\n  mine:\n    command: [recognizer-sense-mine, run]\n";
+const CONFIG =
+  "sensors:\n  mine:\n    command: [recognizer-sense-mine, run]\n    manifest: [recognizer-sense-mine, manifest]\n";
 
 function facts(overrides: Partial<DoctorFacts> = {}): DoctorFacts {
   return {

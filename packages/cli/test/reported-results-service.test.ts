@@ -110,7 +110,7 @@ function repository(): string {
   mkdirSync(join(root, ".recognizer"), { recursive: true });
   writeFileSync(
     join(root, ".recognizer", "config.yaml"),
-    "sensors:\n  crap: {}\n",
+    "sensors:\n  crap:\n    command: [recognizer-sense-crap, run]\n    manifest: [recognizer-sense-crap, manifest]\n",
   );
   writeFileSync(
     join(root, ".gitignore"),

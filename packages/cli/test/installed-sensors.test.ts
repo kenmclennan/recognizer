@@ -6,6 +6,7 @@ import {
   receivesSuites,
   runsTests,
   selectSensors,
+  withSuiteSettings,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
@@ -16,7 +17,11 @@ import {
 import { InputError } from "../src/errors.js";
 import { SCAN_SCHEMA_VERSION } from "../src/scan.js";
 import { REPO } from "./helpers.js";
-import { readExamples } from "./installed-read.js";
+import {
+  readExamples,
+  readRegisteredExamples,
+  selectedWithExamples,
+} from "./installed-read.js";
 
 const INSTALLED: readonly string[] = ["crap", "mutation"];
 
@@ -101,6 +106,31 @@ describe("expandShortForms", () => {
   it("passes undefined through", () => {
     expect(expandShortForms(undefined)).toBeUndefined();
   });
+
+  it("emits a manifest key as the entry's manifest and keeps it out of the settings", () => {
+    const expanded = expandShortForms({
+      mine: {
+        manifest: ["recognizer-sense-mine", "manifest"],
+        max_minutes: 10,
+      },
+    }) as { mine: { command: string[]; manifest?: string[] } };
+
+    expect(expanded.mine.manifest).toEqual([
+      "recognizer-sense-mine",
+      "manifest",
+    ]);
+    expect(JSON.parse(expanded.mine.command.at(-1) ?? "")).toEqual({
+      max_minutes: 10,
+    });
+  });
+
+  it("expands a mapping with no manifest without one", () => {
+    const expanded = expandShortForms({ mine: { max_minutes: 10 } }) as {
+      mine: Record<string, unknown>;
+    };
+
+    expect(Object.keys(expanded.mine)).toEqual(["command"]);
+  });
 });
 
 describe("the thresholds config examples", () => {
@@ -122,7 +152,15 @@ describe("the thresholds config examples", () => {
 });
 
 describe("the registry", () => {
-  const installed = readExamples();
+  const withManifest = (name: string) => ({
+    name,
+    command: [`recognizer-sense-${name}`, "run"],
+    manifest: [`recognizer-sense-${name}`, "manifest"],
+  });
+  const installed = readRegisteredExamples([
+    withManifest("crap"),
+    withManifest("mutation"),
+  ]);
 
   it("lists crap and mutation and hides the configuration-only sensors", () => {
     expect(
@@ -163,8 +201,45 @@ describe("the registry", () => {
     expect(runsTests(["my-crap", "crap"], installed)).toBe(false);
   });
 
+  it("answers true for a custom command with a registered entry and false without one", () => {
+    const custom = ["python3", "sense.py", "run", "--settings", "{}"];
+    const registered = readRegisteredExamples([
+      {
+        name: "crap",
+        command: custom,
+        manifest: ["recognizer-sense-crap", "manifest"],
+      },
+    ]);
+
+    expect(runsTests(custom, registered)).toBe(true);
+    expect(runsTests(custom, readRegisteredExamples([]))).toBe(false);
+    expect(isScoped(custom, readRegisteredExamples([]))).toBe(false);
+  });
+
+  it("adds the suites to the settings of a custom command whose entry runs tests", () => {
+    const custom = ["python3", "sense.py", "run", "--settings", "{}"];
+    const registered = readRegisteredExamples([
+      {
+        name: "crap",
+        command: custom,
+        manifest: ["recognizer-sense-crap", "manifest"],
+      },
+    ]);
+    const suites = [{ name: "api" }];
+
+    expect(withSuiteSettings(custom, registered, suites).at(-1)).toBe(
+      JSON.stringify({ tests: suites }),
+    );
+    expect(withSuiteSettings(custom, readRegisteredExamples([]), suites)).toBe(
+      custom,
+    );
+  });
+
   it("answers false for every sensor when no manifest was read", () => {
-    const none = readExamples(["crap", "mutation"]);
+    const none = readRegisteredExamples(
+      [withManifest("crap"), withManifest("mutation")],
+      ["crap", "mutation"],
+    );
 
     expect(runsTests(["recognizer-sense-crap", "run"], none)).toBe(false);
     expect(receivesSuites("crap", none)).toBe(false);
@@ -201,6 +276,29 @@ describe("the sensor config examples", () => {
     expect(() => parseConfig(example(path))).toThrow(
       /config\/sensors\/mutation/,
     );
+  });
+
+  it("accepts a manifest beside a command and beside a short form", () => {
+    const command = parseConfig(example("valid/sensors-manifest-command.yaml"));
+    const short = parseConfig(example("valid/sensors-manifest-short.yaml"));
+
+    expect(registeredSensors(command)[0]?.manifest).toEqual([
+      "python3",
+      "tools/sense.py",
+      "manifest",
+    ]);
+    expect(
+      registeredSensors(short).map((one) => [one.name, one.manifest]),
+    ).toEqual([
+      ["crap", ["recognizer-sense-crap", "manifest"]],
+      ["mutation", ["recognizer-sense-mutation", "manifest"]],
+    ]);
+  });
+
+  it("rejects an empty manifest, naming it", () => {
+    expect(() =>
+      parseConfig(example("invalid/sensors-manifest-empty.yaml")),
+    ).toThrow(/manifest/);
   });
 
   it("accepts the new mutation and crap keys", () => {
@@ -250,7 +348,7 @@ describe("the sensor config examples", () => {
 describe("registeredSensorSettings", () => {
   it("returns the settings a short-form entry was expanded with", () => {
     const config = parseConfig(
-      "sensors:\n  crap:\n    threshold: 25\n  mutation:\n    max_workers: 2\n",
+      "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n    threshold: 25\n  mutation:\n    manifest: [recognizer-sense-mutation, manifest]\n    max_workers: 2\n",
     );
 
     expect(registeredSensorSettings(config, "crap")).toEqual({ threshold: 25 });
@@ -276,6 +374,20 @@ describe("registeredSensorSettings", () => {
 
     expect(registeredSensorSettings(custom, "crap")).toBeNull();
     expect(registeredSensorSettings(broken, "crap")).toBeNull();
+  });
+
+  it("returns the settings of a custom command that carries a manifest", () => {
+    const custom = parseConfig(
+      "sensors:\n  mine:\n    command: [python3, sense.py, run, --settings, '{\"limit\": 3}']\n    manifest: [python3, sense.py, manifest]\n",
+    );
+
+    expect(registeredSensorSettings(custom, "mine")).toEqual({ limit: 3 });
+  });
+
+  it("returns null for a recognizer-sense program that names no manifest", () => {
+    const bare = parseConfig("sensors:\n  crap:\n    threshold: 25\n");
+
+    expect(registeredSensorSettings(bare, "crap")).toBeNull();
   });
 
   it("reads scan schema version 7", () => {
@@ -358,14 +470,13 @@ describe("the tests list", () => {
 
   it("hands the list to the crap and mutation short forms and to no other sensor", () => {
     const config = parseConfig(
-      `${example("valid/tests-python-activate.yaml")}sensors:\n  crap: {}\n  mutation: {}\n  mine:\n    command: [mine, run]\n`,
+      `${example("valid/tests-python-activate.yaml")}sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n  mutation:\n    manifest: [recognizer-sense-mutation, manifest]\n  mine:\n    command: [mine, run]\n`,
     );
-    const selected = selectSensors(
+    const selected = selectedWithExamples(
       registeredSensors(config),
       "all",
       INSTALLED,
       config.tests,
-      readExamples(),
     );
 
     expect(settingsOf(selected[0]).tests).toEqual(config.tests);
@@ -377,13 +488,14 @@ describe("the tests list", () => {
   });
 
   it("hands no list to a mutation short form when the config has none", () => {
-    const config = parseConfig("sensors:\n  mutation: {}\n");
-    const selected = selectSensors(
+    const config = parseConfig(
+      "sensors:\n  mutation:\n    manifest: [recognizer-sense-mutation, manifest]\n",
+    );
+    const selected = selectedWithExamples(
       registeredSensors(config),
       "all",
       INSTALLED,
       config.tests,
-      readExamples(),
     );
 
     expect(settingsOf(selected[0])).toEqual({});
@@ -391,12 +503,11 @@ describe("the tests list", () => {
 
   it("hands the list to a requested crap and mutation that are not registered", () => {
     const suites = [{ name: "api" }];
-    const selected = selectSensors(
+    const selected = selectedWithExamples(
       [],
       ["crap", "mutation"],
       INSTALLED,
       suites,
-      readExamples(),
     );
 
     expect(settingsOf(selected[0])).toEqual({ tests: suites });

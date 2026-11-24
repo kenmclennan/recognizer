@@ -32,21 +32,18 @@ export interface CheckOptions {
 export interface CheckableSensor {
   name: string;
   command: string[];
+  manifest?: string[];
 }
 
 export const CHECK_TIMEOUT_MS = 600_000;
 
 const DROPPED_PAIRS = ["--commit", "--output", "--modules", "--suites"];
 
-function programName(path: string): string {
-  return path.slice(path.lastIndexOf("/") + 1);
-}
-
-export function checkable(command: readonly string[]): boolean {
-  return (
-    splitAtRun(command) !== null &&
-    /^recognizer-sense-./.test(programName(command[0] ?? ""))
-  );
+export function checkable(sensor: {
+  command: readonly string[];
+  manifest?: readonly string[];
+}): boolean {
+  return sensor.manifest !== undefined && splitAtRun(sensor.command) !== null;
 }
 
 export function notInstalled(command: readonly string[]): string {

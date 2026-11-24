@@ -60,7 +60,9 @@ describe("recognizer plugin add", () => {
       expect(code).toBe(0);
       expect(out).toContain(`registered as sensors.${name}`);
       expect(parse(configOf(repo))).toEqual({
-        sensors: { [name]: {} },
+        sensors: {
+          [name]: { manifest: [`recognizer-sense-${name}`, "manifest"] },
+        },
         install: { [`recognizer-sense-${name}`]: `get ${name}` },
       });
     }
@@ -73,14 +75,57 @@ describe("recognizer plugin add", () => {
     mkdirSync(join(repo, ".recognizer"));
     writeFileSync(
       join(repo, ".recognizer", "config.yaml"),
-      "sensors:\n  tally:\n    threshold: 3\n",
+      "sensors:\n  tally:\n    threshold: 3\n    manifest: [recognizer-sense-tally, manifest]\n",
     );
 
     const { code, out } = await add(bin, repo, ["tally"]);
 
     expect(code).toBe(0);
     expect(out).toContain("already registered");
-    expect(parse(configOf(repo)).sensors.tally).toEqual({ threshold: 3 });
+    expect(parse(configOf(repo)).sensors.tally).toEqual({
+      threshold: 3,
+      manifest: ["recognizer-sense-tally", "manifest"],
+    });
+  });
+
+  it("adds the manifest to a registered sensor that has none and reports it", async () => {
+    const { bin, repo } = fresh();
+
+    writeShim(bin, "recognizer-sense-tally", manifestFor("sensor", "tally"));
+    mkdirSync(join(repo, ".recognizer"));
+    writeFileSync(
+      join(repo, ".recognizer", "config.yaml"),
+      "sensors:\n  tally:\n    threshold: 3\n",
+    );
+
+    const { code, out } = await add(bin, repo, ["tally"]);
+
+    expect(code).toBe(0);
+    expect(out).toContain("registered as sensors.tally");
+    expect(out).not.toContain("already registered");
+    expect(parse(configOf(repo)).sensors.tally).toEqual({
+      threshold: 3,
+      manifest: ["recognizer-sense-tally", "manifest"],
+    });
+  });
+
+  it("leaves the config byte-identical for a registered sensor that has a manifest", async () => {
+    const { bin, repo } = fresh();
+    const text =
+      "sensors:\n  tally:\n    manifest: [recognizer-sense-tally, manifest]\n    threshold: 3\ninstall:\n  recognizer-sense-tally: get tally\n";
+
+    writeShim(
+      bin,
+      "recognizer-sense-tally",
+      manifestFor("sensor", "tally", { install: "get tally" }),
+    );
+    mkdirSync(join(repo, ".recognizer"));
+    writeFileSync(join(repo, ".recognizer", "config.yaml"), text);
+
+    const { code } = await add(bin, repo, ["tally"]);
+
+    expect(code).toBe(0);
+    expect(configOf(repo)).toBe(text);
   });
 
   it("registers a describer with its command, version and install line", async () => {
@@ -244,11 +289,14 @@ describe("recognizer plugin add", () => {
     mkdirSync(join(repo, ".recognizer"));
     writeFileSync(
       join(repo, ".recognizer", "config.yaml"),
-      "sensors:\n  crap:\n    threshold: 20\n",
+      "sensors:\n  crap:\n    threshold: 20\n    manifest: [recognizer-sense-crap, manifest]\n",
     );
 
     expect((await add(bin, repo, ["crap"])).code).toBe(0);
-    expect(parse(configOf(repo)).sensors.crap).toEqual({ threshold: 20 });
+    expect(parse(configOf(repo)).sensors.crap).toEqual({
+      threshold: 20,
+      manifest: ["recognizer-sense-crap", "manifest"],
+    });
   });
 
   it("exits 2 for a missing name and for an unknown kind", async () => {

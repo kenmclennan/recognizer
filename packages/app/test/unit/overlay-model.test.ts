@@ -940,6 +940,7 @@ describe("freshnessNote against the Scan panel model", () => {
         current: { kind: "current", at: null },
         "never-run": { kind: "never-run" },
         checking: { kind: "checking" },
+        "not-measured": { kind: "not-measured" },
         failed: { kind: "failed", at: null },
         running: { kind: "running", done: null, total: null },
         "out-of-date": { kind: "out-of-date", modules: ["a.py"] },

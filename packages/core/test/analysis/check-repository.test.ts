@@ -308,3 +308,106 @@ describe("checkRepository unknown files", () => {
     expect(unpublished.exit).toBe(published.exit);
   });
 });
+
+describe("checkRepository sensors with no manifest", () => {
+  const SENSE = ["recognizer", "sense", ""].join("-");
+
+  function withSensor(options: { manifest: boolean; suites: boolean }) {
+    const { fakes, say, said } = worldOf();
+    const document: SensorFindings = {
+      sensor: { name: "mine", version: "1" },
+      commit: "c0ffee",
+      modified: false,
+      settings: {},
+      findings: [],
+      inputs: measuredInputs(breaching("c0ffee")),
+    };
+
+    fakes.sensors.installed.set("mine", {
+      name: "mine",
+      runsTests: true,
+      held: false,
+      ...(options.manifest ? {} : { withoutManifest: true }),
+    });
+    fakes.config.sensors.push("mine");
+
+    if (options.suites) {
+      fakes.sensors.suites.push("unit");
+    }
+
+    fakes.findings.stored.set("mine", {
+      name: "mine",
+      status: "read",
+      document,
+    });
+
+    const report = checkRepository(
+      checkPortsOf(fakes),
+      say,
+      requestOf(),
+      breaching("c0ffee"),
+    );
+    const status = report.sensors.find((one) => one.name === "mine");
+
+    return { report, status, said };
+  }
+
+  it("marks a ran sensor with no manifest and configured suites as partial", () => {
+    const { report, status, said } = withSensor({
+      manifest: false,
+      suites: true,
+    });
+
+    expect(status).toMatchObject({
+      name: "mine",
+      status: "partial",
+      not_measured: ["suites"],
+      reason: "not measured mine: the configured suites were not handed to it",
+    });
+    expect(said.some((line) => line.startsWith("mine declares nothing"))).toBe(
+      true,
+    );
+    expect(report.exit).toBe(0);
+  });
+
+  it("says the notice but keeps the status when no suites are configured", () => {
+    const { status, said } = withSensor({ manifest: false, suites: false });
+
+    expect(status?.status).toBe("ran");
+    expect(said.some((line) => line.startsWith("mine declares nothing"))).toBe(
+      true,
+    );
+  });
+
+  it("stays ran and silent for a sensor with a manifest", () => {
+    const { status, said } = withSensor({ manifest: true, suites: true });
+
+    expect(status?.status).toBe("ran");
+    expect(said.some((line) => line.includes("declares nothing"))).toBe(false);
+    expect(SENSE.length).toBeGreaterThan(0);
+  });
+
+  it("leaves a missing sensor missing", () => {
+    const { fakes, say } = worldOf();
+
+    fakes.sensors.installed.set("mine", {
+      name: "mine",
+      runsTests: true,
+      held: false,
+      withoutManifest: true,
+    });
+    fakes.config.sensors.push("mine");
+    fakes.sensors.suites.push("unit");
+
+    const report = checkRepository(
+      checkPortsOf(fakes),
+      say,
+      requestOf(),
+      breaching("c0ffee"),
+    );
+
+    expect(report.sensors.find((one) => one.name === "mine")?.status).toBe(
+      "missing",
+    );
+  });
+});

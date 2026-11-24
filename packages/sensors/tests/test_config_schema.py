@@ -263,13 +263,19 @@ def test_every_shipped_short_form_property_has_a_published_key_and_back():
             if "command" not in branch.get("properties", {})
         )
 
-        for name, schema in short["properties"].items():
+        settings = {
+            name: schema for name, schema in short["properties"].items() if name != "manifest"
+        }
+
+        assert "manifest" in short["properties"]
+
+        for name, schema in settings.items():
             assert_key_matches(keys.get(f"sensors.{sensor}.{name}"), f"{sensor}.{name}", schema)
             seen.append(f"{sensor}.{name}")
 
         owned = {key for key in keys if key.startswith(f"sensors.{sensor}.")}
 
-        assert owned == {f"sensors.{sensor}.{name}" for name in short["properties"]}
+        assert owned == {f"sensors.{sensor}.{name}" for name in settings}
 
     assert len(seen) >= 3
 

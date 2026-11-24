@@ -4,13 +4,13 @@ import {
   type Found,
   type InstalledPlugin,
   kindOfProgram,
+  manifestFix,
   type PluginSpec,
   PolicyRule,
   type PublishedValues,
   type RegisteredPlugins,
   type RepositoryChecks,
   type SetupProblem,
-  sensorNameOf,
   unpublishedValues,
 } from "@recognizer/core";
 import { parse } from "yaml";
@@ -100,11 +100,14 @@ function stringMap(value: unknown): Record<string, string> {
     : {};
 }
 
-function settingsOf(command: string[]): Record<string, unknown> | null {
+function settingsOf(
+  command: string[],
+  manifest: string[],
+): Record<string, unknown> | null {
   const at = command.indexOf("--settings");
   const text = at === -1 ? undefined : command[at + 1];
 
-  if (text === undefined || sensorNameOf(command) === undefined) {
+  if (text === undefined || manifest.length === 0) {
     return null;
   }
 
@@ -128,16 +131,21 @@ function specsOf(
   const specs: PluginSpec[] = [];
 
   for (const sensor of registeredSensors(config)) {
-    const program = sensor.command[0] as string;
+    if (sensor.manifest !== undefined) {
+      const run = sensor.command[0] as string;
+      const program = sensor.manifest[0] as string;
 
-    if (kindOfProgram(program) === "sensor") {
       specs.push({
         kind: "sensor",
         subject: sensor.name,
-        name: program.slice("recognizer-sense-".length),
+        name:
+          kindOfProgram(run) === "sensor"
+            ? run.slice("recognizer-sense-".length)
+            : sensor.name,
         program,
         command: sensor.command,
-        settings: settingsOf(sensor.command),
+        manifest: sensor.manifest,
+        settings: settingsOf(sensor.command, sensor.manifest),
         installLine: install[program] ?? null,
       });
     }
@@ -270,6 +278,25 @@ export function readConfigArea(
 
   const record = (cleaned ?? {}) as Record<string, unknown>;
   const install = stringMap(record.install);
+
+  for (const sensor of registeredSensors(expandedConfig(cleaned))) {
+    if (
+      sensor.manifest === undefined &&
+      kindOfProgram(sensor.command[0] as string) === "sensor"
+    ) {
+      const fix = manifestFix(sensor.name, sensor.command)
+        .split(" && ")
+        .map((command) => withRepository(facts, command))
+        .join(" && ");
+
+      problems.push({
+        code: "sensor-manifest-missing",
+        subject: sensor.name,
+        line: `sensors.${sensor.name} names no manifest command, so it declares nothing (no suites, no scope, no check)`,
+        fix: commandFix(fix),
+      });
+    }
+  }
 
   return {
     problems,
@@ -457,7 +484,7 @@ export class RepositoryChecksAdapter implements RepositoryChecks {
         languages: [],
         scans: () => cachedScansState(this.io, root, []),
       },
-      () => new KeyOwnersAdapter(this.io).schemas().schema.keys,
+      () => new KeyOwnersAdapter(this.io).schemas(root).schema.keys,
     );
   }
 
@@ -475,7 +502,9 @@ export class RepositoryChecksAdapter implements RepositoryChecks {
     });
   }
 
-  registeredSensors(root: string): { name: string; command: string[] }[] {
+  registeredSensors(
+    root: string,
+  ): { name: string; command: string[]; manifest?: string[] }[] {
     return registeredSensors(readConfig(this.io, root, ["sensors"]));
   }
 

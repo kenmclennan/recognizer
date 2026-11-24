@@ -18,6 +18,9 @@ export interface InventedSensor {
   registered?: boolean;
   listed?: boolean;
   unreadable?: string;
+  manifestCommand?: string[];
+  runCommand?: string[];
+  withoutManifest?: boolean;
 }
 
 export interface ScriptedReport {

@@ -37,10 +37,14 @@ export class FakeRepositoryChecks implements RepositoryChecks {
     return this.policyProblems;
   }
 
-  registered: { name: string; command: string[] }[] = [];
+  registered: { name: string; command: string[]; manifest?: string[] }[] = [];
   suiteReads = 0;
 
-  registeredSensors(): { name: string; command: string[] }[] {
+  registeredSensors(): {
+    name: string;
+    command: string[];
+    manifest?: string[];
+  }[] {
     return this.registered.filter(
       (one) => one.name !== "structure" && one.command.length > 0,
     );

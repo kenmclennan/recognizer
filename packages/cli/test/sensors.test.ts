@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { undeclaredSensors } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { run, stopEverything } from "../src/cli.js";
@@ -31,6 +32,12 @@ const COMMIT = "abc123";
 const NOT_MEASURED =
   "duplication not measured since the last scan: run recognizer scan\n" +
   "complexity not measured since the last scan: run recognizer scan\n";
+const FAKE_NOTICE = `${
+  undeclaredSensors(
+    [{ name: "fake-sensor", command: ["fake-sensor"] }],
+    false,
+  )[0]?.line
+}\n`;
 const read = (path: string) => readFileSync(join(REPO, path), "utf8");
 const checkScan = JSON.parse(read("fixtures/check/scan.json"));
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
@@ -707,7 +714,7 @@ describe("check judging a registered sensor's findings per module", () => {
     });
     const { err, out } = await check(fake, "--json");
 
-    expect(err).toBe(NOT_MEASURED);
+    expect(err).toBe(NOT_MEASURED + FAKE_NOTICE);
     expect(JSON.parse(out).sensors).toContainEqual({
       name: "fake-sensor",
       status: "ran",
@@ -1380,8 +1387,12 @@ describe("scan --sense running a registered sensor as a real process", () => {
     const file = join(root, ".recognizer/cache/findings/fake-sensor.json");
     const document = JSON.parse(readFileSync(file, "utf8"));
 
-    expect(sensed.err()).toBe("duplication: 4 files parsed, 0 reused\n");
-    expect(out.err()).toBe("");
+    expect(sensed.err()).toBe(
+      `${undeclaredSensors([{ name: "fake-sensor", command: ["node"] }], false)[0]?.line}\nduplication: 4 files parsed, 0 reused\n`,
+    );
+    expect(out.err()).toBe(
+      `${undeclaredSensors([{ name: "fake-sensor", command: ["node"] }], false)[0]?.line}\n`,
+    );
     expect(document.commit).toBe(git("rev-parse", "HEAD").trim());
     expect(JSON.parse(out.out()).violations).toHaveLength(1);
     expect(code).toBe(1);
@@ -1509,5 +1520,52 @@ describe("a report in the findings folder", () => {
     expect(fake.err()).toContain("stale old-review (reported at def4567)");
     expect(fake.err()).toContain("ignored unregistered stray");
     expect(fake.files.has(STRAY)).toBe(true);
+  });
+});
+
+describe("check of a registered sensor with no manifest", () => {
+  const SUITES =
+    "tests:\n  - name: api\n    language: python\n    directory: .\n    command: pytest\n    coverage:\n      path: c.lcov\n      format: lcov\n";
+  const WITH_MANIFEST = `${REGISTER}    manifest: [fake-sensor, manifest]\n`;
+
+  it("reports it partial, says the notice and prints the text line, leaving the exit code alone", async () => {
+    const plain = setup(REGISTER, { files: { [FAKE]: fakeDocument() } });
+    const withSuites = setup(`${SUITES}${REGISTER}`, {
+      files: { [FAKE]: fakeDocument() },
+    });
+    const baseline = await check(plain);
+    const fake = await check(withSuites, "--json");
+    const text = await check(
+      setup(`${SUITES}${REGISTER}`, { files: { [FAKE]: fakeDocument() } }),
+    );
+    const report = JSON.parse(fake.out);
+    const status = report.sensors.find(
+      (one: { name: string }) => one.name === "fake-sensor",
+    );
+
+    expect(status).toMatchObject({
+      status: "partial",
+      not_measured: ["suites"],
+    });
+    expect(fake.err).toContain(
+      "fake-sensor declares nothing until its manifest",
+    );
+    expect(text.out).toContain(
+      "sensor fake-sensor: partial (not measured: suites)",
+    );
+    expect(fake.code).toBe(baseline.code);
+  });
+
+  it("keeps it ran and says nothing when it names a manifest", async () => {
+    const fake = await check(
+      setup(`${SUITES}${WITH_MANIFEST}`, { files: { [FAKE]: fakeDocument() } }),
+      "--json",
+    );
+    const status = JSON.parse(fake.out).sensors.find(
+      (one: { name: string }) => one.name === "fake-sensor",
+    );
+
+    expect(status.status).toBe("ran");
+    expect(fake.err).not.toContain("declares nothing");
   });
 });

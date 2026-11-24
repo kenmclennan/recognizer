@@ -12,7 +12,7 @@ import {
 } from "../../domain/plugins/unregistered.js";
 import type { DocumentValidators } from "./ports/document-validators.js";
 import type { Programs } from "./ports/programs.js";
-import { readManifestOf } from "./read-manifest.js";
+import { readManifestCommand, readManifestOf } from "./read-manifest.js";
 
 export interface InstalledMetric {
   name: string;
@@ -53,9 +53,28 @@ export interface UnreadableSensor {
 export interface InstalledRead {
   sensors: InstalledSensorEntry[];
   unreadable: UnreadableSensor[];
+  registered?: Record<string, InstalledSensorEntry>;
+  registeredUnreadable?: UnreadableSensor[];
 }
 
 export type ManifestReader = (prefix: string[]) => ManifestRead;
+
+export type ManifestCommandReader = (command: string[]) => ManifestRead;
+
+export interface RegisteredSensorInput {
+  name: string;
+  command: string[];
+  manifest?: string[];
+}
+
+export interface RegisteredRead {
+  entries: Record<string, InstalledSensorEntry>;
+  unreadable: UnreadableSensor[];
+}
+
+export function commandKey(command: readonly string[]): string {
+  return command.join("\0");
+}
 
 const SENSE_PREFIX = "recognizer-sense-";
 
@@ -174,19 +193,62 @@ export function readInstalledSensors(
   return result;
 }
 
+export function readRegisteredSensors(
+  registered: readonly RegisteredSensorInput[],
+  read: ManifestCommandReader,
+): RegisteredRead {
+  const result: RegisteredRead = { entries: {}, unreadable: [] };
+  const reads = new Map<string, ManifestRead>();
+
+  for (const sensor of registered) {
+    if (sensor.manifest === undefined) {
+      continue;
+    }
+
+    const key = commandKey(sensor.manifest);
+    const known = reads.get(key);
+    const manifest = known ?? read(sensor.manifest);
+
+    reads.set(key, manifest);
+
+    if (manifest.ok && manifest.manifest.kind === "sensor") {
+      const at = commandKey(sensor.command);
+
+      if (result.entries[at] === undefined) {
+        result.entries[at] = entryOf(manifest.manifest);
+      }
+    } else {
+      result.unreadable.push({
+        name: sensor.name,
+        reason: manifest.ok
+          ? `${sensor.manifest.join(" ")} manifest is not a sensor`
+          : manifest.reason,
+      });
+    }
+  }
+
+  return result;
+}
+
+export function withRegistered(
+  installed: InstalledRead,
+  read: RegisteredRead,
+): InstalledRead {
+  return {
+    ...installed,
+    registered: { ...installed.registered, ...read.entries },
+    registeredUnreadable: [
+      ...(installed.registeredUnreadable ?? []),
+      ...read.unreadable,
+    ],
+  };
+}
+
 function entryFor(
   command: readonly string[],
   installed: InstalledRead,
 ): InstalledSensorEntry | undefined {
-  const program = command[0];
-
-  if (program === undefined || !program.startsWith(SENSE_PREFIX)) {
-    return undefined;
-  }
-
-  const name = program.slice(SENSE_PREFIX.length);
-
-  return installed.sensors.find((entry) => entry.name === name);
+  return installed.registered?.[commandKey(command)];
 }
 
 export function runsTests(
@@ -203,6 +265,10 @@ export function isScoped(
   return entryFor(command, installed)?.scoped === true;
 }
 
+function receivesSuitesEntry(entry: InstalledSensorEntry): boolean {
+  return entry.runs_tests;
+}
+
 export function receivesSuites(
   name: string,
   installed: InstalledRead,
@@ -217,12 +283,12 @@ export function withSuiteSettings(
   installed: InstalledRead,
   suites: readonly unknown[] | undefined,
 ): string[] {
-  const name = entryFor(command, installed)?.name;
+  const entry = entryFor(command, installed);
 
   if (
     suites === undefined ||
-    name === undefined ||
-    !receivesSuites(name, installed)
+    entry === undefined ||
+    !receivesSuitesEntry(entry)
   ) {
     return command;
   }
@@ -282,6 +348,18 @@ export function sensorCommand(
   ];
 }
 
+function expandedEntry(
+  name: string,
+  entry: Record<string, unknown>,
+): Record<string, unknown> {
+  const { manifest, ...settings } = entry;
+
+  return {
+    command: sensorCommand(name, settings),
+    ...(manifest === undefined ? {} : { manifest }),
+  };
+}
+
 export function expandShortForms(
   entries: Record<string, unknown> | undefined,
 ): Record<string, unknown> | undefined {
@@ -292,7 +370,7 @@ export function expandShortForms(
   return Object.fromEntries(
     Object.entries(entries).map(([name, entry]) =>
       name !== "structure" && isSettingsMapping(entry)
-        ? [name, { command: sensorCommand(name, entry) }]
+        ? [name, expandedEntry(name, entry)]
         : [name, entry],
     ),
   );

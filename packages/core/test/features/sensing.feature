@@ -130,3 +130,19 @@ Feature: Sensor selection, planning and rows
     And the repository has no config
     When the sensor rows are read
     Then the rows are "margin:false, tally:false"
+
+  Scenario: A custom command with a manifest is asked for exactly that manifest and receives the suites
+    Given the suites "unit" and "slow" are configured
+    And a Mine sensor that runs tests under its own command and manifest is registered
+    When sensors are planned for "mine:unit"
+    Then the "mine" sensor was asked for its manifest as "python3 sense.py manifest"
+    And the "mine" sensor is planned as running tests
+    And the "mine" sensor command ends with the suites "unit"
+
+  Scenario: A custom command with no manifest declares nothing and receives no suites
+    Given the suites "unit" and "slow" are configured
+    And a Mine sensor that runs tests under its own command is registered without a manifest
+    When sensors are planned for "mine:unit"
+    Then no manifest was asked of any registered sensor
+    And the "mine" sensor is planned as not running tests
+    And the "mine" sensor command has no suites argument

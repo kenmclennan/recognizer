@@ -35,7 +35,7 @@ const INSTALLED = [
   { name: "crap", display: "C.R.A.P.", description: "Runs the tests with coverage.", expansion: "C.R.A.P.: Change Risk Anti-Patterns.", runsTests: true, scoped: false, listed: true, metrics: [], findings: [], settings: [] },
   { name: "mutation", display: "Mutation", description: "Mutates and tests.", runsTests: true, scoped: true, plannedWork: { verb: "mutate" }, logPath: ".recognizer/cache/coverage/last-run.log", listed: true, metrics: [], findings: [], settings: [] },
 ];
-const CONFIG = "describer:\\n  command: [describer, '{request}']\\n  version: v1\\nsensors:\\n  crap: {}\\n  mutation: {}\\n  tally:\\n    command: [node, '{repository}/t.mjs', '{commit}', '{output}']\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n  beta:\\n    command: [node, '{repository}/b.mjs', '{commit}', '{output}']\\n";
+const CONFIG = "describer:\\n  command: [describer, '{request}']\\n  version: v1\\nsensors:\\n  crap:\\n    manifest: [recognizer-sense-crap, manifest]\\n  mutation:\\n    manifest: [recognizer-sense-mutation, manifest]\\n  tally:\\n    command: [node, '{repository}/t.mjs', '{commit}', '{output}']\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n  beta:\\n    command: [node, '{repository}/b.mjs', '{commit}', '{output}']\\n";
 const FILES = { states: {}, describedAtMs: null };
 const ORIGIN = { branch: "main", commit: "cur1234" };
 const json = (value) => JSON.stringify(value);
@@ -420,7 +420,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   await tick(); await tick();
   facts.emptyCanvasRun = { modules: emptyFake.ran.map((plan) => plan.modules), onlyView: em.wired.rescanner.ticks().onlyView };
 
-  const BAD_CONFIG = CONFIG.replace("crap: {}", "crap: { timeout_factor: 2 }");
+  const BAD_CONFIG = CONFIG.replace("manifest: [recognizer-sense-crap, manifest]", "manifest: [recognizer-sense-crap, manifest]\\n    timeout_factor: 2");
   const broken = await mount(fakeScan(), fakeSensors({}, { config: BAD_CONFIG }, {}, INSTALLED));
   click(broken.q(".rail-scan"));
   await tick();

@@ -8,6 +8,7 @@ import {
   type StructureSettings,
   type SuiteEntry,
   sensorCommand,
+  sensorProgram,
 } from "../../src/index.js";
 import type { FakeSensors } from "./fake-sensors.js";
 
@@ -48,7 +49,7 @@ export class FakeConfigRepository implements ConfigRepository {
 
   registeredSensors(
     config: ConfigDocument | null,
-  ): { name: string; command: string[] }[] {
+  ): { name: string; command: string[]; manifest?: string[] }[] {
     return config === null
       ? []
       : [
@@ -56,7 +57,15 @@ export class FakeConfigRepository implements ConfigRepository {
             .filter((sensor) => sensor.registered ?? true)
             .map((sensor) => ({
               name: sensor.name,
-              command: sensorCommand(sensor.name, {}),
+              command: sensor.runCommand ?? sensorCommand(sensor.name, {}),
+              ...(sensor.withoutManifest === true
+                ? {}
+                : {
+                    manifest: sensor.manifestCommand ?? [
+                      sensorProgram(sensor.name),
+                      "manifest",
+                    ],
+                  }),
             })),
           ...this.uninstalled.map((name) => ({ name, command: [name] })),
         ];

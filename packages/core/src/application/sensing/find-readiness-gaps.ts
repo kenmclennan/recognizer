@@ -5,7 +5,7 @@ import type { SensingPorts } from "./internal/sensing-ports.js";
 export interface ReadinessInput {
   root: string;
   commit: string | null;
-  sensors: { name: string; command: string[] }[];
+  sensors: { name: string; command: string[]; manifest?: string[] }[];
   limits: PluginLimits;
 }
 

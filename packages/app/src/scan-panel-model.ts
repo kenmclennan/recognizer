@@ -677,7 +677,20 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
       const sensor = sensors.find((one) => one.name === row.key);
       const names = (sensor?.suites ?? []).map(({ name }) => name);
       const foldable = sensor?.runsTests === true && names.length > 0;
-      const full = stateText(row.state, input.now);
+      const status = statuses.find((one) => one.name === row.key);
+      const undeclared =
+        !structure &&
+        row.key !== DESCRIBE_KEY &&
+        status?.undeclared !== undefined &&
+        status.notMeasured?.includes("suites") === true
+          ? status.undeclared
+          : null;
+      const shown: ResultState =
+        undeclared !== null &&
+        (row.state.kind === "current" || row.state.kind === "out-of-date")
+          ? { kind: "not-measured" }
+          : row.state;
+      const full = stateText(shown, input.now);
       const note =
         row.key === DESCRIBE_KEY
           ? judged.describeStop != null
@@ -687,7 +700,10 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
               : null
           : structure
             ? analysisNote(judged)
-            : stoppedNote(row.key, judged);
+            : (stoppedNote(row.key, judged) ??
+              (status?.undeclared === undefined
+                ? null
+                : status.undeclared.line));
       const why =
         structure || row.key === DESCRIBE_KEY ? null : whyFor(row.key, judged);
       const titled = [
@@ -702,7 +718,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
         name: row.name,
         tickable: row.tickable,
         disabled: locked,
-        state: row.state,
+        state: shown,
         note,
         why,
         title: titles.get(row.key) ?? row.name,

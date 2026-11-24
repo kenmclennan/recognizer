@@ -188,15 +188,15 @@ Feature: Managing plugins
     Then the setup guide is empty
 
   Scenario: The setup guide of a program that does not start fails
-    When the setup guide of the command "/bin/recognizer-sense-ghost run" is read
+    When the setup guide of the command "/bin/recognizer-sense-ghost run" with the manifest "/bin/recognizer-sense-ghost manifest" is read
     Then the setup guide fails with "/bin/recognizer-sense-ghost is not installed"
 
   Scenario: The setup guide of a program that exits non-zero relays stderr
     Given the guide of "alpha" exits 2 with stderr "no guide here"
-    When the setup guide of the command "/bin/recognizer-sense-alpha run" is read
+    When the setup guide of the command "/bin/recognizer-sense-alpha run" with the manifest "/bin/recognizer-sense-alpha manifest" is read
     Then the setup guide fails with "no guide here"
 
   Scenario: The setup guide of a program that exits non-zero without stderr names the exit
     Given the guide of "alpha" exits 2 with stderr ""
-    When the setup guide of the command "/bin/recognizer-sense-alpha run" is read
+    When the setup guide of the command "/bin/recognizer-sense-alpha run" with the manifest "/bin/recognizer-sense-alpha manifest" is read
     Then the setup guide fails with "alpha exited 2"

@@ -9,6 +9,7 @@ export type ResultState =
   | { kind: "out-of-date"; modules: string[] }
   | { kind: "never-run" }
   | { kind: "checking" }
+  | { kind: "not-measured" }
   | { kind: "failed"; at: number | null }
   | { kind: "running"; done: number | null; total: number | null };
 

@@ -14,8 +14,10 @@ describer:
       - build
     directory: packages/describers/claude
 sensors:
-  crap: {}
-  mutation: {}
+  crap:
+    manifest: [recognizer-sense-crap, manifest]
+  mutation:
+    manifest: [recognizer-sense-mutation, manifest]
 install:
   recognizer-sense-crap: brew upgrade kenmclennan/tap/recognizer-sense-crap || brew install kenmclennan/tap/recognizer-sense-crap
   recognizer-sense-mutation: brew upgrade kenmclennan/tap/recognizer-sense-mutation || brew install kenmclennan/tap/recognizer-sense-mutation

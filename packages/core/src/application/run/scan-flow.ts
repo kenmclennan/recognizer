@@ -12,6 +12,7 @@ import type { AnalysisOutcome } from "../analysis/run-analysis.js";
 import type { DescribeOutcome } from "../describing/describe-files.js";
 import type { DescribingSettings } from "../describing/describing-settings.js";
 import type { LocatedDescriber } from "../describing/locate-describer.js";
+import { notMeasuredLine } from "../plugins/undeclared-sensors.js";
 import type { ExtractOutcome } from "../scanning/extract-scans.js";
 import type { PlannedSensor } from "../sensing/plan-sensors.js";
 import type { Clock } from "../shared/ports/clock.js";
@@ -96,6 +97,12 @@ export function* scanFlow(
 
     selected = plan.selected;
     chosen = plan.chosen;
+
+    for (const one of selected) {
+      if (one.undeclared !== undefined) {
+        ctx.say("stderr", `${one.undeclared.line}\n`);
+      }
+    }
   } catch (error) {
     if (ctx.takeLock && folderKnown) {
       try {
@@ -163,7 +170,11 @@ export function* scanFlow(
       return { status: "stopped" };
     };
 
-    const ticked = selected.map(({ name, command }) => ({ name, command }));
+    const ticked = selected.map(({ name, command, manifest }) => ({
+      name,
+      command,
+      ...(manifest === undefined ? {} : { manifest }),
+    }));
     const describing: DescribingSettings | null = describeOn
       ? phases.describingSettings()
       : null;
@@ -320,6 +331,12 @@ export function* scanFlow(
 
       if (ctx.stopped) {
         return stoppedOutcome(analysisMs);
+      }
+
+      for (const one of selected) {
+        if (one.undeclared?.suitesWithheld === true) {
+          ctx.say("stderr", `${notMeasuredLine(one.name)}\n`);
+        }
       }
     }
 

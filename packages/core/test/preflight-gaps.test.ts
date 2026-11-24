@@ -18,7 +18,11 @@ const FIRST_COMMIT =
   "make the first commit (git add the files, then git commit)";
 
 function sensor(name: string) {
-  return { name, command: [`${SENSE}${name}`, "run"] };
+  return {
+    name,
+    command: [`${SENSE}${name}`, "run"],
+    manifest: [`${SENSE}${name}`, "manifest"],
+  };
 }
 
 function sensing() {
@@ -107,6 +111,48 @@ describe("program gaps", () => {
         },
       },
     ]);
+  });
+
+  it("probes a custom program by its manifest and reports only a program that did not start", () => {
+    const { ports } = sensing();
+    const custom = {
+      name: "mine",
+      command: ["python3", "sense.py", "run"],
+      manifest: ["python3", "sense.py", "manifest"],
+    };
+
+    expect(findProgramGaps(ports, { sensors: [custom], install: {} })).toEqual(
+      [],
+    );
+
+    ports.sensors.probe = () => ({ started: true, status: 3 });
+
+    expect(findProgramGaps(ports, { sensors: [custom], install: {} })).toEqual(
+      [],
+    );
+
+    const other = sensing();
+
+    other.fakes.sensors.unavailable.add("python3");
+
+    expect(
+      findProgramGaps(other.ports, { sensors: [custom], install: {} }).map(
+        (one) => one.id,
+      ),
+    ).toEqual(["sensors:missing:python3"]);
+  });
+
+  it("does not probe a sensor with no manifest", () => {
+    const { fakes, ports } = sensing();
+
+    fakes.sensors.unavailable.add("ruler");
+
+    expect(
+      findProgramGaps(ports, {
+        sensors: [{ name: "ruler", command: [`${SENSE}ruler`, "run"] }],
+        install: {},
+      }),
+    ).toEqual([]);
   });
 
   it("counts a started program with a non-zero status as a gap", () => {

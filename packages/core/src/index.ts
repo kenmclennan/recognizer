@@ -233,6 +233,7 @@ export * from "./domain/plugins/plugin-environment.js";
 export * from "./domain/plugins/problem-titles.js";
 export * from "./domain/plugins/sensor-check.js";
 export * from "./domain/plugins/sentence.js";
+export * from "./domain/plugins/undeclared-sensors.js";
 export * from "./domain/plugins/unregistered.js";
 export * from "./domain/policy-repository.js";
 export * from "./domain/policy-rule.js";

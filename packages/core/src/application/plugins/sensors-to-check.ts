@@ -1,10 +1,11 @@
 import type { CheckableSensor } from "../../domain/plugins/sensor-check.js";
 import {
   installedSensorNames,
-  readInstalledSensors,
-  sensorNameOf,
+  readRegisteredSensors,
+  withRegistered,
 } from "./installed-sensors.js";
 import type { PluginPorts } from "./internal/plugin-ports.js";
+import { readManifestCommand } from "./read-manifest.js";
 import { selectSensors } from "./select-sensors.js";
 
 export function sensorsToCheck(
@@ -21,21 +22,17 @@ export function sensorsToCheck(
     return selectSensors(registered, requested, installed);
   }
 
-  const wanted = new Set<string>(name === undefined ? [] : [name]);
-
-  for (const one of registered) {
-    const sensorName = sensorNameOf(one.command);
-
-    if (sensorName !== undefined) {
-      wanted.add(sensorName);
-    }
-  }
+  const chosen = selectSensors(registered, requested, installed);
+  const read = withRegistered(
+    { sensors: [], unreadable: [] },
+    readRegisteredSensors(chosen, (words) => readManifestCommand(ports, words)),
+  );
 
   return selectSensors(
     registered,
     requested,
     installed,
     ports.repository.suites(root),
-    readInstalledSensors(ports, undefined, [...wanted]),
+    read,
   );
 }

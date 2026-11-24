@@ -15,6 +15,7 @@ import {
   type Overlay,
   registeredSensors,
   resolveStructureSettings,
+  undeclaredSensors,
 } from "recognizer";
 import type { PlannedWork } from "./estimate-text";
 import type { Loaded, LoadedScan } from "./scan-loading";
@@ -28,6 +29,7 @@ export type SensorStatus = {
   modifiedMs?: number | null;
   reported?: { at: string; commit: string };
   notMeasured?: string[];
+  undeclared?: { line: string; fix: string };
   commit?: string;
   modified?: boolean;
   stopped?: { measured: number; total: number };
@@ -322,6 +324,28 @@ export async function senseRepository(
   for (const name of registered) {
     if (!statuses.some((status) => status.name === name)) {
       statuses.push({ name, status: "not run" });
+    }
+  }
+
+  for (const notice of undeclaredSensors(
+    registeredSensors(config),
+    (config?.tests ?? []).length > 0,
+  )) {
+    const at = statuses.findIndex((status) => status.name === notice.name);
+    const status = statuses[at];
+
+    if (status !== undefined) {
+      statuses[at] = {
+        ...status,
+        ...(notice.suitesWithheld
+          ? {
+              notMeasured: [
+                ...new Set([...(status.notMeasured ?? []), "suites"]),
+              ],
+            }
+          : {}),
+        undeclared: { line: notice.line, fix: notice.fix },
+      };
     }
   }
 

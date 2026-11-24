@@ -70,7 +70,7 @@ export class ConfigAdapter implements ConfigRepository {
 
   registeredSensors(
     config: ConfigDocument | null,
-  ): { name: string; command: string[] }[] {
+  ): { name: string; command: string[]; manifest?: string[] }[] {
     return registeredSensors(config as unknown as Config | null);
   }
 

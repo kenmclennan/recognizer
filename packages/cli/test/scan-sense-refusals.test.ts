@@ -26,7 +26,13 @@ const SUITES = [
   "    command: pytest",
   "    coverage: { path: coverage/lcov.info, format: lcov }",
 ];
-const REGISTERED = [...SUITES, "sensors:", "  crap: {}", "  mutation: {}", ""];
+const REGISTERED = [
+  ...SUITES,
+  "sensors:",
+  "  crap: { manifest: [recognizer-sense-crap, manifest] }",
+  "  mutation: { manifest: [recognizer-sense-mutation, manifest] }",
+  "",
+];
 
 function findingsFor(name: string) {
   return (args: string[], files: Map<string, string>) => {

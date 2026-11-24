@@ -132,7 +132,13 @@ async function go(
     scope: { kind: "working-tree" },
     modified: false,
     limits: createPluginLimits(io, root, 200),
-    selected: [{ name: "quick", command: [process.execPath, file, "run"] }],
+    selected: [
+      {
+        name: "quick",
+        command: [process.execPath, file, "run"],
+        manifest: [process.execPath, file, "manifest"],
+      },
+    ],
     ...(onEvent === undefined ? {} : { onEvent }),
   });
 
@@ -465,6 +471,7 @@ fs.writeFileSync(output, JSON.stringify({
         {
           name: "quick",
           command: [process.execPath, file, "run", "{commit}", "{output}"],
+          manifest: [process.execPath, file, "manifest"],
         },
       ],
     });

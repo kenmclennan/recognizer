@@ -42,6 +42,7 @@ function readPolicy(
 function publishedValues(
   ports: ConfigurationPorts,
   answers: PluginAnswer[],
+  root: string,
 ): PublishedValues | null {
   const answered = answers.some(
     (one) => "answer" in one && one.answer.runners.length > 0,
@@ -51,7 +52,7 @@ function publishedValues(
     return null;
   }
 
-  return ports.keyOwners.schemas().schema.keys;
+  return ports.keyOwners.schemas(root).schema.keys;
 }
 
 export async function surveySetup(
@@ -78,7 +79,7 @@ export async function surveySetup(
     answers,
     root,
     new Set(suites.map((suite) => suite.name)),
-    publishedValues(ports, answers),
+    publishedValues(ports, answers, root),
   );
   const checks = checksOf(document, configured, {
     sensors: ports.reads.sensors(),

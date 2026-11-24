@@ -74,6 +74,10 @@ function pluginCommand(file: string): string[] {
   return [process.execPath, file, "run", "{commit}", "{output}"];
 }
 
+function manifestCommand(file: string): string[] {
+  return [process.execPath, file, "manifest"];
+}
+
 function setup() {
   const root = makeTempDir("run-sensors-");
   const messages: string[] = [];
@@ -116,7 +120,11 @@ describe("runSensors ceiling", () => {
         commit: COMMIT,
         repository: Repository.empty,
         selected: [
-          { name: "hung", command: pluginCommand(hung) },
+          {
+            name: "hung",
+            command: pluginCommand(hung),
+            manifest: manifestCommand(hung),
+          },
           {
             name: "quick",
             command: [
@@ -197,8 +205,16 @@ describe("runSensors ceiling", () => {
         commit: COMMIT,
         repository: Repository.empty,
         selected: [
-          { name: "quick", command: pluginCommand(limited) },
-          { name: "quick", command: pluginCommand(open) },
+          {
+            name: "quick",
+            command: pluginCommand(limited),
+            manifest: manifestCommand(limited),
+          },
+          {
+            name: "quick",
+            command: pluginCommand(open),
+            manifest: manifestCommand(open),
+          },
           { name: "quick", command: ["true"] },
         ],
       });
@@ -241,7 +257,12 @@ describe("runSensors ceiling", () => {
       commit: COMMIT,
       repository: Repository.empty,
       selected: [
-        { name: "quick", runsTests: true, command: pluginCommand(live) },
+        {
+          name: "quick",
+          runsTests: true,
+          command: pluginCommand(live),
+          manifest: manifestCommand(live),
+        },
       ],
       onEvent: (name, one) => {
         seen.push({ name, ...one });

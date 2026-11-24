@@ -1,14 +1,24 @@
 import {
+  commandKey,
   type InstalledSensorEntry,
   type KeyEntry,
   type KeyOwners,
   notAnsweringLine,
   placeholderPattern,
   readInstalledSensors,
+  readManifestCommand,
+  readRegisteredSensors,
   type SectionEntry,
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
+import { parseConfig, registeredSensors } from "../../config-parse.js";
 import { manifestPorts } from "../../manifest-ports.js";
+
+interface Published {
+  id: string;
+  label: string;
+  sensor: InstalledSensorEntry;
+}
 
 const SENSORS_OWNER = "sensors";
 
@@ -57,25 +67,96 @@ function sameEntry(a: unknown, b: unknown): boolean {
 export class KeyOwnersAdapter implements KeyOwners {
   constructor(private readonly io: Io) {}
 
-  schemas() {
-    const installed = readInstalledSensors(manifestPorts(this.io));
+  private registered(root: string) {
+    const file = `${root.replace(/\/+$/, "")}/.recognizer/config.yaml`;
+    const config = (() => {
+      try {
+        return this.io.exists(file)
+          ? parseConfig(this.io.readFile(file), ["sensors"])
+          : null;
+      } catch {
+        return null;
+      }
+    })();
+    const sensors = registeredSensors(config);
+    const read = readRegisteredSensors(sensors, (words) =>
+      readManifestCommand(
+        manifestPorts(this.io),
+        words.map((word) => word.split("{repository}").join(root)),
+      ),
+    );
+
+    return { sensors, read };
+  }
+
+  schemas(root?: string) {
+    const path = readInstalledSensors(manifestPorts(this.io));
+    const registered = root === undefined ? null : this.registered(root);
+    const registeredNames = new Set(
+      (registered?.sensors ?? [])
+        .filter((one) => one.manifest !== undefined)
+        .map((one) => one.name),
+    );
+    const published: Published[] = [
+      ...path.sensors
+        .filter((sensor) => !registeredNames.has(sensor.name))
+        .map((sensor) => ({
+          id: sensor.name,
+          label: `recognizer-sense-${sensor.name}`,
+          sensor,
+        })),
+      ...(registered?.sensors ?? []).flatMap((one) => {
+        const sensor = registered?.read.entries[commandKey(one.command)];
+
+        return sensor === undefined || one.manifest === undefined
+          ? []
+          : [{ id: one.name, label: `sensors.${one.name}`, sensor }];
+      }),
+    ];
+    const installed = {
+      sensors: published,
+      unreadable: [
+        ...path.unreadable
+          .filter((one) => !registeredNames.has(one.name))
+          .map((one) => ({
+            label: `recognizer-sense-${one.name}`,
+            reason: one.reason,
+          })),
+        ...(registered?.read.unreadable ?? []).map((one) => ({
+          label: `sensors.${one.name}`,
+          reason: one.reason,
+        })),
+      ],
+    };
     const suiteKeys = new Map<string, KeyEntry>();
     const sections = new Map<string, SectionEntry>();
     const placeholders: Record<string, string> = {};
     const refused = new Set<string>();
     const conflicts: string[] = [];
     const answering = [...installed.sensors].sort((a, b) =>
-      a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+      a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
     );
 
-    const refuse = (sensor: InstalledSensorEntry, reason: string) => {
-      refused.add(sensor.name);
-      conflicts.push(
-        notAnsweringLine(`recognizer-sense-${sensor.name}`, reason),
-      );
+    const refuse = (item: Published, reason: string) => {
+      refused.add(item.id);
+      conflicts.push(notAnsweringLine(item.label, reason));
     };
 
-    for (const sensor of answering) {
+    for (const item of answering) {
+      const { sensor } = item;
+      const reserved = (sensor.settings as KeyEntry[]).find(
+        (entry) => entry.key === "manifest",
+      );
+
+      if (reserved !== undefined) {
+        refuse(
+          item,
+          "its setting manifest is reserved for the manifest command",
+        );
+
+        continue;
+      }
+
       const undeclared = keysOf(sensor).find((key) =>
         placeholdersIn(key).some(
           (name) => sensor.placeholders[name] === undefined,
@@ -88,7 +169,7 @@ export class KeyOwnersAdapter implements KeyOwners {
         );
 
         refuse(
-          sensor,
+          item,
           `its key ${undeclared} uses the placeholder <${name}> that it does not declare`,
         );
 
@@ -106,7 +187,7 @@ export class KeyOwnersAdapter implements KeyOwners {
 
       if (differing !== undefined) {
         refuse(
-          sensor,
+          item,
           `its placeholder <${differing[0]}> is defined differently by another sensor`,
         );
 
@@ -129,7 +210,7 @@ export class KeyOwnersAdapter implements KeyOwners {
 
         if (clash !== undefined) {
           refuse(
-            sensor,
+            item,
             `its suite key ${clash} is defined differently by another sensor`,
           );
 
@@ -150,8 +231,8 @@ export class KeyOwnersAdapter implements KeyOwners {
 
     const keys: KeyEntry[] = [...suiteKeys.values()];
 
-    for (const sensor of installed.sensors) {
-      if (refused.has(sensor.name)) {
+    for (const { id, sensor } of installed.sensors) {
+      if (refused.has(id)) {
         continue;
       }
 
@@ -160,7 +241,7 @@ export class KeyOwnersAdapter implements KeyOwners {
 
         keys.push({
           ...published,
-          key: `sensors.${sensor.name}.${entry.key}`,
+          key: `sensors.${id}.${entry.key}`,
         });
       }
     }
@@ -175,7 +256,7 @@ export class KeyOwnersAdapter implements KeyOwners {
       },
       notAnswering: [
         ...installed.unreadable.map((one) =>
-          notAnsweringLine(`recognizer-sense-${one.name}`, one.reason),
+          notAnsweringLine(one.label, one.reason),
         ),
         ...conflicts,
       ],

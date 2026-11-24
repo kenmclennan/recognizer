@@ -69,7 +69,7 @@ export function writeConfigEdits(
   }
 
   try {
-    const published = publishedFor("config", ports.keyOwners);
+    const published = publishedFor("config", ports.keyOwners, root);
     let text = current.text;
 
     for (const edit of edits) {

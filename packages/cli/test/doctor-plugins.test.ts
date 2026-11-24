@@ -495,7 +495,7 @@ describe("doctor: a scanner that does not report tests", () => {
 
 describe("doctor: registered plugins", () => {
   const SENSOR =
-    "sensors:\n  mine:\n    command: [recognizer-sense-mine, run, --repository, '{repository}']\n";
+    "sensors:\n  mine:\n    command: [recognizer-sense-mine, run, --repository, '{repository}']\n    manifest: [recognizer-sense-mine, manifest]\n";
 
   it("reports plugin-missing with the recorded install line", async () => {
     const fixture = setup(
@@ -589,7 +589,7 @@ describe("doctor: registered plugins", () => {
         "    command: pytest",
         "    coverage: { path: coverage/lcov.info, format: lcov }",
         "sensors:",
-        "  crap: {}",
+        "  crap: { manifest: [recognizer-sense-crap, manifest] }",
         "",
       ].join("\n"),
     );
@@ -630,7 +630,7 @@ describe("doctor: registered plugins", () => {
         "    command: pytest",
         "    coverage: { path: coverage/lcov.info, format: lcov }",
         "sensors:",
-        "  crap: {}",
+        "  crap: { manifest: [recognizer-sense-crap, manifest] }",
         "",
       ].join("\n"),
     );
@@ -753,7 +753,9 @@ describe("doctor: registered plugins", () => {
   });
 
   it("reports plugin-settings for a key the manifest does not declare", async () => {
-    const fixture = setup("sensors:\n  crap:\n    threshold: 20\n");
+    const fixture = setup(
+      "sensors:\n  crap:\n    threshold: 20\n    manifest: [recognizer-sense-crap, manifest]\n",
+    );
 
     writeShim(
       fixture.bin,
@@ -768,7 +770,9 @@ describe("doctor: registered plugins", () => {
   });
 
   it("reports plugin-settings for a value that breaks its setting", async () => {
-    const fixture = setup("sensors:\n  crap:\n    threshold: 20\n");
+    const fixture = setup(
+      "sensors:\n  crap:\n    threshold: 20\n    manifest: [recognizer-sense-crap, manifest]\n",
+    );
 
     writeShim(
       fixture.bin,
@@ -795,7 +799,7 @@ describe("doctor: registered plugins", () => {
 
   it("accepts settings that match a manifest entry with a placeholder segment", async () => {
     const fixture = setup(
-      "sensors:\n  mine:\n    size:\n      above: 12\n    command: [mine]\n",
+      "sensors:\n  mine:\n    size:\n      above: 12\n    command: [mine]\n    manifest: [recognizer-sense-mine, manifest]\n",
     );
 
     writeShim(
@@ -912,7 +916,7 @@ describe("doctor: PATH isolation", () => {
 
 describe("doctor: titles name their subject", () => {
   const sensorLine = (name: string) =>
-    `sensors:\n  ${name}:\n    command: [recognizer-sense-${name}, run, --repository, '{repository}']\n`;
+    `sensors:\n  ${name}:\n    command: [recognizer-sense-${name}, run, --repository, '{repository}']\n    manifest: [recognizer-sense-${name}, manifest]\n`;
   const SENSOR = sensorLine("mine");
 
   const titleOf = async (fixture: Setup, area: string) =>
@@ -1009,7 +1013,9 @@ describe("doctor: titles name their subject", () => {
   });
 
   it("title names the subject: plugin-settings", async () => {
-    const fixture = setup("sensors:\n  crap:\n    threshold: 20\n");
+    const fixture = setup(
+      "sensors:\n  crap:\n    threshold: 20\n    manifest: [recognizer-sense-crap, manifest]\n",
+    );
 
     writeShim(
       fixture.bin,
@@ -1124,6 +1130,77 @@ describe("doctor: titles name their subject", () => {
 
     expect(await titleOf(fixture, "scanners")).toEqual([
       "The scanner chosen for Python is not usable",
+    ]);
+  });
+});
+
+describe("doctor: sensors under an explicit manifest command", () => {
+  const entry = (name: string, program: string, manifest: boolean) =>
+    `sensors:\n  ${name}:\n    command: [${program}, run, --repository, '{repository}']\n${
+      manifest ? `    manifest: [${program}, manifest]\n` : ""
+    }`;
+  const configOf = (fixture: Setup) =>
+    readFileSync(join(fixture.repo, ".recognizer", "config.yaml"), "utf8");
+  const configProblems = async (fixture: Setup) =>
+    problemsOf((await doctor(fixture)).report, "config");
+
+  it("names the missing manifest of a recognizer-sense short-form entry and rewrites nothing", async () => {
+    const text = "sensors:\n  mutation:\n    max_minutes: 10\n";
+    const fixture = setup(text);
+    const found = await configProblems(fixture);
+
+    expect(found.map((one) => one.code)).toEqual(["sensor-manifest-missing"]);
+    expect(found[0]?.subject).toBe("mutation");
+    expect(found[0]?.fix.text).toContain(
+      "recognizer config --add sensors.mutation.manifest recognizer-sense-mutation",
+    );
+    expect(found[0]?.fix.text).toContain("manifest");
+    expect(configOf(fixture)).toBe(text);
+  });
+
+  it("gives no manifest finding when the short-form entry carries a manifest", async () => {
+    const fixture = setup(
+      "sensors:\n  mutation:\n    manifest: [recognizer-sense-mutation, manifest]\n    max_minutes: 10\n",
+    );
+
+    expect(await configProblems(fixture)).toEqual([]);
+  });
+
+  it("gives no manifest finding for a custom command with no manifest", async () => {
+    const fixture = setup(entry("mine", "python3", false));
+
+    expect(await configProblems(fixture)).toEqual([]);
+    expect(problemsOf((await doctor(fixture)).report, "sensors")).toEqual([]);
+  });
+
+  it("reports a custom sensor whose manifest program cannot be started as missing", async () => {
+    const fixture = setup(entry("mine", "my-sensor", true));
+
+    expect(problemsOf((await doctor(fixture)).report, "sensors")).toEqual([
+      expect.objectContaining({ code: "plugin-missing", subject: "mine" }),
+    ]);
+  });
+
+  it("checks a custom sensor whose manifest declares a check", async () => {
+    const fixture = setup(entry("mine", "my-sensor", true));
+
+    writeShim(
+      fixture.bin,
+      "my-sensor",
+      manifestFor("sensor", "mine", { check: true }),
+      {
+        check: JSON.stringify({
+          gaps: [{ code: "x", suite: null, line: "custom gap" }],
+        }),
+      },
+    );
+
+    expect(problemsOf((await doctor(fixture)).report, "sensors")).toEqual([
+      expect.objectContaining({
+        code: "sensor-gap",
+        subject: "mine",
+        line: "custom gap",
+      }),
     ]);
   });
 });

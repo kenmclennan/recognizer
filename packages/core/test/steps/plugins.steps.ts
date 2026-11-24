@@ -184,6 +184,7 @@ Given(
       name,
       program: `recognizer-sense-${name}`,
       command: [`recognizer-sense-${name}`, "run"],
+      manifest: [`/first/recognizer-sense-${name}`, "manifest"],
       settings: null,
       installLine,
     });
@@ -411,6 +412,10 @@ function sensorCommand(name: string): string[] {
   ];
 }
 
+function manifestCommand(name: string): string[] {
+  return [`/bin/recognizer-sense-${name}`, "manifest"];
+}
+
 function installSensor(
   world: ScanWorld,
   name: string,
@@ -488,6 +493,7 @@ Given(
     this.fakes.repositoryChecks.registered = [first, second].map((name) => ({
       name,
       command: sensorCommand(name),
+      manifest: manifestCommand(name),
     }));
     installSensor(this, "margin", false);
   },
@@ -504,7 +510,11 @@ When(
     state(this).reports = checkSensors(
       ports(this),
       "/repo",
-      names.split(",").map((name) => ({ name, command: sensorCommand(name) })),
+      names.split(",").map((name) => ({
+        name,
+        command: sensorCommand(name),
+        manifest: manifestCommand(name),
+      })),
       {},
     );
   },
@@ -516,7 +526,11 @@ When(
     state(this).reports = checkSensors(
       ports(this),
       "/repo",
-      names.split(",").map((name) => ({ name, command: sensorCommand(name) })),
+      names.split(",").map((name) => ({
+        name,
+        command: sensorCommand(name),
+        manifest: manifestCommand(name),
+      })),
       { run: true },
     );
   },
@@ -568,6 +582,17 @@ When(
     state(this).guide = guideSensor(ports(this), "/repo", {
       name: "alpha",
       command: command.split(" "),
+    });
+  },
+);
+
+When(
+  "the setup guide of the command {string} with the manifest {string} is read",
+  function (this: ScanWorld, command: string, manifest: string) {
+    state(this).guide = guideSensor(ports(this), "/repo", {
+      name: "alpha",
+      command: command.split(" "),
+      manifest: manifest.split(" "),
     });
   },
 );

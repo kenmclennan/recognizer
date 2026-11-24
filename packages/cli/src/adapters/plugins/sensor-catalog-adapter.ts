@@ -2,7 +2,11 @@ import {
   type InstalledRead,
   installedSensorNames,
   type PluginLimits,
+  type RegisteredRead,
+  type RegisteredSensorInput,
   readInstalledSensors,
+  readManifestCommand,
+  readRegisteredSensors,
   type SensorCatalog,
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
@@ -30,6 +34,18 @@ export class SensorCatalogAdapter implements SensorCatalog {
       manifestPorts(this.io),
       limits === undefined ? undefined : (limits as unknown as Limits).readOf,
       names,
+    );
+  }
+
+  readRegistered(
+    sensors: readonly RegisteredSensorInput[],
+    limits?: PluginLimits,
+  ): RegisteredRead {
+    return readRegisteredSensors(
+      sensors,
+      limits === undefined
+        ? (words) => readManifestCommand(manifestPorts(this.io), words)
+        : (limits as unknown as Limits).readCommandOf,
     );
   }
 }

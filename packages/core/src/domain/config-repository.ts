@@ -26,7 +26,7 @@ export interface ConfigRepository {
   sensorNamesDespiteErrors(root: string): string[];
   registeredSensors(
     config: ConfigDocument | null,
-  ): { name: string; command: string[] }[];
+  ): { name: string; command: string[]; manifest?: string[] }[];
   tests(config: ConfigDocument | null): SuiteEntry[] | undefined;
   sensorConfig(root: string): ConfigDocument | null;
   text(root: string): RepositoryText;

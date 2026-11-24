@@ -38,6 +38,7 @@ function stateTone(state: ResultState): string {
     case "current":
       return "ok";
     case "out-of-date":
+    case "not-measured":
       return "warn";
     case "never-run":
     case "checking":

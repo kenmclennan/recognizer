@@ -1901,7 +1901,9 @@ describe("the metrics row on a function card", () => {
 
   it("colours a cell red when its severity setting is violation", () => {
     const limits = functionLimits(
-      parseConfig("sensors:\n  crap:\n    coverage_limit: 0.7\n"),
+      parseConfig(
+        "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n    coverage_limit: 0.7\n",
+      ),
       INSTALLED,
     );
 

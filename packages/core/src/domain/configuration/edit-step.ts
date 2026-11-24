@@ -1,5 +1,6 @@
 import {
   findSection,
+  MANIFEST_KEY,
   type PublishedKey,
   type PublishedKeys,
   REGISTRATION_KEY,
@@ -51,8 +52,12 @@ export function guardRegistration(
     return null;
   }
 
+  if (entry.key === MANIFEST_KEY) {
+    return null;
+  }
+
   if (entry.key === REGISTRATION_KEY) {
-    return names.some((name) => name !== "command")
+    return names.some((name) => name !== "command" && name !== "manifest")
       ? `${typed.slice(0, -1).join(".")} holds settings; a registration is either settings or a command`
       : null;
   }
