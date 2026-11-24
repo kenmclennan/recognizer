@@ -128,3 +128,46 @@ describe("GitAdapter", () => {
     ).toBe(false);
   });
 });
+
+describe("git optional locks", () => {
+  const dumpEnv = ["-c", "alias.dumpenv=!env", "dumpenv"];
+
+  it("run sets GIT_OPTIONAL_LOCKS=0 for git", () => {
+    const { root } = repository();
+    const result = nodeIo().run("git", ["-C", root, ...dumpEnv]);
+
+    expect(result.stdout).toContain("GIT_OPTIONAL_LOCKS=0");
+  });
+
+  it("runAsync sets GIT_OPTIONAL_LOCKS=0 for git", async () => {
+    const { root } = repository();
+    const result = await nodeIo().runAsync("git", ["-C", root, ...dumpEnv])
+      .result;
+
+    expect(result.stdout).toContain("GIT_OPTIONAL_LOCKS=0");
+  });
+
+  it("a commit succeeds while the adapter's status read runs in a loop", async () => {
+    const { root } = repository();
+    const adapter = new GitAdapter(nodeIo());
+    let reading = true;
+
+    const reads = (async () => {
+      while (reading) {
+        adapter.dirty(root);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    })();
+
+    for (let n = 0; n < 15; n++) {
+      writeFileSync(join(root, "src/b.txt"), `edit ${n}\n`);
+      git(root, "add", "src/b.txt");
+      git(root, "commit", "-q", "-m", `edit ${n}`);
+    }
+
+    reading = false;
+    await reads;
+
+    expect(git(root, "log", "--format=%s", "-1")).toBe("edit 14");
+  });
+});
