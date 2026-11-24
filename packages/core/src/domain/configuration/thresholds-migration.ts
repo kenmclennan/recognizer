@@ -160,7 +160,7 @@ export function thresholdsMigration(
   const tail = notes.length === 0 ? "" : `; ${notes.join("; ")}`;
 
   return {
-    line: `config/sensors/thresholds was retired: the thresholds sensor is gone, C.R.A.P. now reports low coverage and structural analysis reports complexity; the fix moves what has a replacement and removes the section${tail}`,
+    line: `config/sensors/thresholds was retired: the thresholds sensor is gone, a coverage sensor now reports low coverage and structural analysis reports complexity; the fix moves what has a replacement and removes the section${tail}`,
     command: steps.map(prefix).join(" && "),
   };
 }

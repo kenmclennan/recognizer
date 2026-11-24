@@ -54,7 +54,7 @@ function claiming(world: ConfigurationWorld, claims: LanguageRule[]): void {
 const NO_RUNNER_NOTE = (language: string, count: number) => ({
   language,
   directory: ".",
-  text: `${language} is the largest language here (${count} files) and no test runner was found for it, so C.R.A.P. and Mutation will cover only part of this repository`,
+  text: `${language} is the largest language here (${count} files) and no test runner was found for it, so a sensor that runs tests will cover only part of this repository`,
 });
 
 const CONFIG_PATH = `${ROOT}/.recognizer/config.yaml`;
