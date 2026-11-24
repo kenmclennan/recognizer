@@ -16,6 +16,7 @@ import {
   type RunState,
   rowSensors,
   type ScanTicks,
+  scanPanel as scanPanelAsked,
 } from "../../src/scan-panel-model";
 import { describeStopText, NO_PROGRESS } from "../../src/scan-progress";
 import { whyOf } from "../../src/scan-why";
@@ -1837,6 +1838,21 @@ describe("scanPanel estimate line", () => {
 
     expect(model.button.label).toBe("Nothing ticked to run");
     expect(model.estimate).toBeNull();
+  });
+
+  it("hides the estimate for Nothing to run and Checking", () => {
+    const base = input({
+      history,
+      config: "",
+      shipped: { status: "ok", sensors: [plainSensor("alpha")] },
+    });
+    const checking = scanPanelAsked({ ...base, plan: null });
+    const nothing = scanPanel(base);
+
+    expect(checking.button.label).toBe("Checking");
+    expect(checking.estimate).toBeNull();
+    expect(nothing.button.label).toBe("Nothing to run");
+    expect(nothing.estimate).toBeNull();
   });
 
   it("shows no line while scanning", () => {

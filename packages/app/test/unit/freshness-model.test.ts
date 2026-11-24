@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { buildFreshness } from "recognizer";
+import { buildFreshness, unregisteredMessage } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { FileChange, ScanState } from "../../src/footer-scan";
 import {
@@ -15,6 +15,7 @@ import {
   type RowSensor,
   type RunState,
 } from "../../src/scan-panel-model";
+import type { SensorStatus } from "../../src/sensor-run";
 import { withPlan } from "../fixtures";
 import { type DocScan, repositoryFrom } from "./repository-from";
 
@@ -99,6 +100,19 @@ function modelOf(
   over: Partial<PanelInput> = {},
   sensors: RowSensor[] = SENSORS,
 ): FreshnessModel {
+  const planned = plannedInput(ids, over, sensors);
+
+  return buildFreshnessModel(
+    "plan" in over ? { ...planned, plan: over.plan } : planned,
+    sensors,
+  );
+}
+
+function plannedInput(
+  ids: string[],
+  over: Partial<PanelInput>,
+  sensors: RowSensor[],
+): PanelInput {
   const scan = scanOf(ids);
   const input: PanelInput = {
     scan: scanState(),
@@ -126,13 +140,21 @@ function modelOf(
 
   input.sensors = withAnalysis(input.sensors);
 
-  return buildFreshnessModel(withPlan(input, sensors), sensors);
+  return withPlan(input, sensors);
 }
 
 const run = (over: Partial<RunState>): RunState => ({ ...NO_RUN, ...over });
 const kindOf = (model: FreshnessModel, key: string) =>
   model.rows.find((row) => row.key === key)?.state.kind;
 const IDS = ["a.py", "b.py", "c.py"];
+const UNREGISTERED: RowSensor = {
+  name: "alpha",
+  display: "Alpha",
+  title: "",
+  runsTests: false,
+  scoped: false,
+  registered: false,
+};
 
 describe("freshness model file scope", () => {
   const flagged: RowSensor[] = [
@@ -968,6 +990,7 @@ describe("freshness model counts every row, ticked or not", () => {
         run: NO_RUN,
       },
       { sensors: [ran("mutation", IDS)], run: NO_RUN },
+      { sensors: [], run: NO_RUN, listed: [UNREGISTERED] },
       {
         sensors: [ran("mutation", IDS)],
         run: run({ failures: { crap: "x" }, ranAt: { crap: NOW - MINUTE } }),
@@ -1003,14 +1026,105 @@ describe("freshness model counts every row, ticked or not", () => {
       },
     ];
 
-    for (const { sensors, run: runState } of options) {
+    for (const { sensors, run: runState, listed } of options) {
       for (const ticks of tickSets) {
-        const model = modelOf(IDS, { sensors, run: runState, ticks });
+        const model = modelOf(
+          IDS,
+          { sensors, run: runState, ticks },
+          listed ?? SENSORS,
+        );
         const upToDate = model.action.primary.label === "Up to date";
 
         expect(upToDate).toBe(model.summary.shape === "current");
       }
     }
+  });
+});
+
+describe("the button with unregistered sensors and no plan", () => {
+  const listed = (name: string, registered: boolean): RowSensor => ({
+    name,
+    display: name.toUpperCase(),
+    title: "",
+    runsTests: false,
+    scoped: false,
+    registered,
+  });
+  const quiet = { sensors: [] as SensorStatus[] };
+
+  it("shows a disabled Nothing to run, naming the register command, when the only sensors are unregistered", () => {
+    const model = modelOf(IDS, quiet, [listed("alpha", false)]);
+
+    expect(model.action.primary).toEqual({
+      label: "Nothing to run",
+      disabled: true,
+    });
+    expect(model.summary.shape).toBe("unregistered");
+    expect(model.summary.line).toBe(unregisteredMessage("alpha"));
+  });
+
+  it("names every unregistered sensor, one message each", () => {
+    const model = modelOf(IDS, quiet, [
+      listed("alpha", false),
+      listed("beta", false),
+    ]);
+
+    expect(model.summary.line).toBe(
+      `${unregisteredMessage("alpha")} ${unregisteredMessage("beta")}`,
+    );
+  });
+
+  it("keeps Up to date when a registered sensor is current beside an unregistered one", () => {
+    const model = modelOf(IDS, { sensors: [ran("beta", IDS)] }, [
+      listed("beta", true),
+      listed("alpha", false),
+    ]);
+
+    expect(model.action.primary.label).toBe("Up to date");
+    expect(model.summary.shape).toBe("current");
+  });
+
+  it("keeps Update and Run labels when unregistered sensors are present", () => {
+    const model = modelOf(
+      IDS,
+      {
+        sensors: [],
+        ticks: {
+          describe: false,
+          analysis: false,
+          ticked: ["beta"],
+          armed: [],
+          onlyView: false,
+          suites: {},
+          folds: [],
+        },
+      },
+      [listed("beta", true), listed("alpha", false)],
+    );
+
+    expect(model.action.primary.label).toBe("Run BETA");
+  });
+
+  it("reads Checking, disabled, while no plan answer has arrived", () => {
+    const model = modelOf(IDS, { plan: null });
+
+    expect(model.action.primary).toEqual({ label: "Checking", disabled: true });
+  });
+
+  it("reads the stale answer's label, not Checking, for an unsettled plan", () => {
+    const planned = plannedInput(IDS, {}, SENSORS);
+    const model = buildFreshnessModel(
+      {
+        ...planned,
+        plan: planned.plan ? { ...planned.plan, settled: false } : null,
+      },
+      SENSORS,
+    );
+
+    expect(model.action.primary).toEqual({
+      label: "Up to date",
+      disabled: true,
+    });
   });
 });
 

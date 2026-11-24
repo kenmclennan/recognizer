@@ -420,7 +420,8 @@ export function buildScanPanelView(actions: ScanPanelActions): ScanPanelView {
         ...(model.pending
           ? []
           : [
-              model.run == null
+              model.run == null ||
+              (model.summary.shape === "unregistered" && !model.run.active)
                 ? summaryNode(model.summary)
                 : cardNode(model.run.card, actions),
             ]),
