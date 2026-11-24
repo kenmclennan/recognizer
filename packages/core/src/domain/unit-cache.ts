@@ -1,6 +1,6 @@
 import type { DuplicationSettings } from "./duplication-settings.js";
 
-export const PORT_VERSION = "3";
+export const PORT_VERSION = "4";
 
 export interface CachedUnit {
   qualified: string;
@@ -15,6 +15,7 @@ export interface CachedUnit {
 export interface CacheEntry {
   hash: string;
   grammar: string;
+  rule_hash: string;
   min_lines: number;
   min_nodes: number;
   units: CachedUnit[];
@@ -51,6 +52,7 @@ function isEntry(value: unknown): value is CacheEntry {
     entry !== null &&
     typeof entry.hash === "string" &&
     typeof entry.grammar === "string" &&
+    typeof entry.rule_hash === "string" &&
     isNumber(entry.min_lines) &&
     isNumber(entry.min_nodes) &&
     Array.isArray(entry.units) &&
@@ -86,6 +88,7 @@ export function reusable(
   entry: CacheEntry | undefined,
   hash: string | undefined,
   grammar: string,
+  ruleHash: string,
   settings: DuplicationSettings,
 ): entry is CacheEntry {
   return (
@@ -93,6 +96,7 @@ export function reusable(
     hash !== undefined &&
     entry.hash === hash &&
     entry.grammar === grammar &&
+    entry.rule_hash === ruleHash &&
     entry.min_lines === settings.min_lines &&
     entry.min_nodes === settings.min_nodes
   );
