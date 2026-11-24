@@ -4,7 +4,6 @@ use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
 
-use crate::changes::dirty_entries;
 use crate::fs_safe::checked_relative;
 use crate::overlays::{overlay_names, OVERLAYS};
 
@@ -233,7 +232,23 @@ fn stamp(folder: &Path, relative: &str) -> Option<(String, u128, u64)> {
     Some((relative.to_string(), modified, metadata.len()))
 }
 
-pub fn snapshot(folder: &Path) -> Snapshot {
+pub type DirtyEntries = Vec<(String, String)>;
+
+pub fn dirty_from_reply(reply: &serde_json::Value) -> Option<DirtyEntries> {
+    reply
+        .get("entries")?
+        .as_array()?
+        .iter()
+        .map(|entry| {
+            Some((
+                entry.get("code")?.as_str()?.to_string(),
+                entry.get("path")?.as_str()?.to_string(),
+            ))
+        })
+        .collect()
+}
+
+pub fn snapshot(folder: &Path, dirty: &[(String, String)]) -> Snapshot {
     let overlays = overlay_names(folder)
         .into_iter()
         .map(|name| format!("{OVERLAYS}/{name}.json"));
@@ -257,18 +272,18 @@ pub fn snapshot(folder: &Path) -> Snapshot {
         .filter_map(|relative| stamp(folder, &relative))
         .collect();
 
-    stamps.extend(working_tree_stamps(folder));
+    stamps.extend(working_tree_stamps(folder, dirty));
 
     stamps
 }
 
-fn working_tree_stamps(folder: &Path) -> Snapshot {
-    dirty_entries(folder)
-        .into_iter()
+fn working_tree_stamps(folder: &Path, dirty: &[(String, String)]) -> Snapshot {
+    dirty
+        .iter()
         .map(|(code, path)| {
             let label = format!("worktree:{code}:{path}");
 
-            stamp(folder, &path).map_or((label.clone(), 0, 0), |(_, modified, length)| {
+            stamp(folder, path).map_or((label.clone(), 0, 0), |(_, modified, length)| {
                 (label, modified, length)
             })
         })
@@ -474,31 +489,31 @@ mod tests {
     #[test]
     fn the_snapshot_changes_with_either_input_and_not_with_others() {
         let dir = TempDir::new().unwrap();
-        let empty = snapshot(dir.path());
+        let empty = snapshot(dir.path(), &[]);
 
         fs::create_dir_all(dir.path().join(".recognizer")).unwrap();
         fs::write(dir.path().join(POLICY), "p").unwrap();
 
-        let one = snapshot(dir.path());
+        let one = snapshot(dir.path(), &[]);
 
         assert!(snapshot_changed(&empty, &one));
-        assert!(!snapshot_changed(&one, &snapshot(dir.path())));
+        assert!(!snapshot_changed(&one, &snapshot(dir.path(), &[])));
 
         fs::write(dir.path().join(CONFIG), "config").unwrap();
 
-        assert!(snapshot_changed(&one, &snapshot(dir.path())));
+        assert!(snapshot_changed(&one, &snapshot(dir.path(), &[])));
 
-        let two = snapshot(dir.path());
+        let two = snapshot(dir.path(), &[]);
 
         fs::write(dir.path().join("other.txt"), "x").unwrap();
 
-        assert!(!snapshot_changed(&two, &snapshot(dir.path())));
+        assert!(!snapshot_changed(&two, &snapshot(dir.path(), &[])));
     }
 
     #[test]
     fn the_snapshot_changes_when_an_overlay_is_added_rewritten_or_removed() {
         let dir = TempDir::new().unwrap();
-        let empty = snapshot(dir.path());
+        let empty = snapshot(dir.path(), &[]);
 
         fs::create_dir_all(dir.path().join(OVERLAYS)).unwrap();
 
@@ -506,26 +521,26 @@ mod tests {
 
         fs::write(&path, "one").unwrap();
 
-        let added = snapshot(dir.path());
+        let added = snapshot(dir.path(), &[]);
 
         assert!(snapshot_changed(&empty, &added));
 
         fs::write(&path, "longer text").unwrap();
 
-        let rewritten = snapshot(dir.path());
+        let rewritten = snapshot(dir.path(), &[]);
 
         assert!(snapshot_changed(&added, &rewritten));
 
         fs::remove_file(&path).unwrap();
 
-        assert!(snapshot_changed(&rewritten, &snapshot(dir.path())));
-        assert_eq!(snapshot(dir.path()), empty);
+        assert!(snapshot_changed(&rewritten, &snapshot(dir.path(), &[])));
+        assert_eq!(snapshot(dir.path(), &[]), empty);
     }
 
     #[test]
     fn the_snapshot_changes_when_a_findings_file_is_added_replaced_or_removed() {
         let dir = TempDir::new().unwrap();
-        let empty = snapshot(dir.path());
+        let empty = snapshot(dir.path(), &[]);
 
         fs::create_dir_all(dir.path().join(FINDINGS)).unwrap();
 
@@ -533,37 +548,21 @@ mod tests {
 
         fs::write(&path, "one").unwrap();
 
-        let added = snapshot(dir.path());
+        let added = snapshot(dir.path(), &[]);
 
         assert!(snapshot_changed(&empty, &added));
-        assert!(!snapshot_changed(&added, &snapshot(dir.path())));
+        assert!(!snapshot_changed(&added, &snapshot(dir.path(), &[])));
 
         fs::write(&path, "a longer report").unwrap();
 
-        let replaced = snapshot(dir.path());
+        let replaced = snapshot(dir.path(), &[]);
 
         assert!(snapshot_changed(&added, &replaced));
 
         fs::remove_file(&path).unwrap();
 
-        assert!(snapshot_changed(&replaced, &snapshot(dir.path())));
-        assert_eq!(snapshot(dir.path()), empty);
-    }
-
-    fn run_git(dir: &TempDir, args: &[&str]) {
-        crate::changes::tests::git(dir.path(), args);
-    }
-
-    fn repo_with_test_file() -> TempDir {
-        let dir = TempDir::new().unwrap();
-
-        run_git(&dir, &["init", "-q"]);
-        fs::create_dir_all(dir.path().join("test")).unwrap();
-        fs::write(dir.path().join("test/math.test.ts"), "a\n").unwrap();
-        run_git(&dir, &["add", "test/math.test.ts"]);
-        run_git(&dir, &["commit", "-q", "-m", "first"]);
-
-        dir
+        assert!(snapshot_changed(&replaced, &snapshot(dir.path(), &[])));
+        assert_eq!(snapshot(dir.path(), &[]), empty);
     }
 
     fn append(dir: &TempDir, relative: &str, text: &str) {
@@ -571,12 +570,22 @@ mod tests {
 
         std::thread::sleep(std::time::Duration::from_millis(30));
 
+        fs::create_dir_all(dir.path().join(relative).parent().unwrap()).unwrap();
+
         let mut file = fs::OpenOptions::new()
+            .create(true)
             .append(true)
             .open(dir.path().join(relative))
             .unwrap();
 
         file.write_all(text.as_bytes()).unwrap();
+    }
+
+    fn dirty(entries: &[(&str, &str)]) -> DirtyEntries {
+        entries
+            .iter()
+            .map(|(code, path)| (code.to_string(), path.to_string()))
+            .collect()
     }
 
     fn worktree_entries(snapshot: &Snapshot) -> Vec<&str> {
@@ -588,84 +597,81 @@ mod tests {
     }
 
     #[test]
-    fn the_snapshot_changes_when_a_committed_file_is_edited_without_committing() {
-        let dir = repo_with_test_file();
-        let clean = snapshot(dir.path());
+    fn the_snapshot_changes_when_a_file_joins_the_dirty_list() {
+        let dir = TempDir::new().unwrap();
+        let clean = snapshot(dir.path(), &[]);
 
         append(&dir, "test/math.test.ts", "// x\n");
 
-        let dirty = snapshot(dir.path());
+        let edited = snapshot(dir.path(), &dirty(&[(" M", "test/math.test.ts")]));
 
-        assert!(worktree_entries(&dirty)
+        assert!(worktree_entries(&edited)
             .iter()
             .any(|name| name.ends_with("test/math.test.ts")));
-        assert!(snapshot_changed(&clean, &dirty));
+        assert!(snapshot_changed(&clean, &edited));
     }
 
     #[test]
     fn the_snapshot_changes_when_an_already_dirty_file_is_edited_again() {
-        let dir = repo_with_test_file();
+        let dir = TempDir::new().unwrap();
+        let entries = dirty(&[(" M", "test/math.test.ts")]);
 
         append(&dir, "test/math.test.ts", "// x\n");
 
-        let first = snapshot(dir.path());
+        let first = snapshot(dir.path(), &entries);
 
         append(&dir, "test/math.test.ts", "// a longer second edit\n");
 
-        assert!(snapshot_changed(&first, &snapshot(dir.path())));
+        assert!(snapshot_changed(&first, &snapshot(dir.path(), &entries)));
     }
 
     #[test]
     fn the_snapshot_is_equal_across_two_reads_with_nothing_between() {
-        let dir = repo_with_test_file();
-
-        append(&dir, "test/math.test.ts", "// x\n");
-
-        assert_eq!(snapshot(dir.path()), snapshot(dir.path()));
-    }
-
-    #[test]
-    fn the_snapshot_ignores_the_recognizer_folder_and_is_clean_again_after_a_commit() {
-        let dir = repo_with_test_file();
-        let clean = snapshot(dir.path());
-
-        fs::create_dir_all(dir.path().join(".recognizer/cache")).unwrap();
-        fs::write(dir.path().join(".recognizer/cache/x.json"), "{}").unwrap();
-
-        assert!(worktree_entries(&snapshot(dir.path())).is_empty());
-
-        fs::remove_dir_all(dir.path().join(".recognizer")).unwrap();
-        append(&dir, "test/math.test.ts", "// x\n");
-
-        assert!(snapshot_changed(&clean, &snapshot(dir.path())));
-
-        run_git(&dir, &["commit", "-q", "-a", "-m", "second"]);
-
-        assert_eq!(snapshot(dir.path()), clean);
-    }
-
-    #[test]
-    fn the_snapshot_has_no_working_tree_entries_outside_git() {
         let dir = TempDir::new().unwrap();
-        let empty = snapshot(dir.path());
+        let entries = dirty(&[(" M", "test/math.test.ts")]);
 
-        fs::write(dir.path().join("a.test.ts"), "x").unwrap();
+        append(&dir, "test/math.test.ts", "// x\n");
 
-        assert_eq!(snapshot(dir.path()), empty);
+        assert_eq!(
+            snapshot(dir.path(), &entries),
+            snapshot(dir.path(), &entries)
+        );
     }
 
     #[test]
-    fn the_snapshot_stamps_every_dirty_file_and_only_those() {
-        let dir = repo_with_test_file();
-
-        fs::write(dir.path().join("kept.ts"), "k").unwrap();
-        run_git(&dir, &["add", "kept.ts"]);
-        run_git(&dir, &["commit", "-q", "-m", "kept"]);
+    fn the_snapshot_returns_to_clean_when_the_dirty_list_empties() {
+        let dir = TempDir::new().unwrap();
+        let clean = snapshot(dir.path(), &[]);
 
         append(&dir, "test/math.test.ts", "// x\n");
-        fs::write(dir.path().join("fresh.ts"), "n").unwrap();
 
-        let snap = snapshot(dir.path());
+        assert!(snapshot_changed(
+            &clean,
+            &snapshot(dir.path(), &dirty(&[(" M", "test/math.test.ts")]))
+        ));
+        assert_eq!(snapshot(dir.path(), &[]), clean);
+    }
+
+    #[test]
+    fn the_snapshot_stamps_a_deleted_dirty_file_as_zero() {
+        let dir = TempDir::new().unwrap();
+        let snap = snapshot(dir.path(), &dirty(&[(" D", "gone.ts")]));
+
+        assert!(snap.contains(&("worktree: D:gone.ts".to_string(), 0, 0)));
+    }
+
+    #[test]
+    fn the_snapshot_stamps_every_dirty_entry_and_only_those() {
+        let dir = TempDir::new().unwrap();
+
+        append(&dir, "test/math.test.ts", "// x\n");
+        append(&dir, "fresh.ts", "n");
+        append(&dir, "kept.ts", "k");
+
+        let snap = snapshot(
+            dir.path(),
+            &dirty(&[(" M", "test/math.test.ts"), ("??", "fresh.ts")]),
+        );
         let entries = worktree_entries(&snap);
 
         assert_eq!(entries.len(), 2);
@@ -674,5 +680,33 @@ mod tests {
             .any(|name| name.ends_with("test/math.test.ts")));
         assert!(entries.iter().any(|name| name.ends_with("fresh.ts")));
         assert!(!entries.iter().any(|name| name.ends_with("kept.ts")));
+    }
+
+    #[test]
+    fn the_dirty_list_is_read_from_the_service_reply() {
+        let reply = serde_json::json!({
+            "entries": [
+                { "code": " M", "path": "a.ts" },
+                { "code": "??", "path": "b.ts" }
+            ]
+        });
+
+        assert_eq!(
+            dirty_from_reply(&reply),
+            Some(dirty(&[(" M", "a.ts"), ("??", "b.ts")]))
+        );
+        assert_eq!(
+            dirty_from_reply(&serde_json::json!({ "entries": [] })),
+            Some(Vec::new())
+        );
+    }
+
+    #[test]
+    fn a_malformed_service_reply_reads_as_no_answer() {
+        assert_eq!(dirty_from_reply(&serde_json::json!({})), None);
+        assert_eq!(
+            dirty_from_reply(&serde_json::json!({ "entries": [{ "code": " M" }] })),
+            None
+        );
     }
 }

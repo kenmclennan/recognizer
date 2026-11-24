@@ -54,4 +54,106 @@ describe("the fake and the adapter agree", () => {
       expect(await git.archive(root, unknown, [], target)).toBe(false);
     }
   });
+
+  it("on the branch, work tree, file list and default ref", () => {
+    const { root, commit, real, fake } = both();
+    const outside = makeTempDir("recognizer-git-conformance-outside-");
+    const seeded = fake as FakeGit;
+
+    seeded.branchName = "main";
+    seeded.files = ["big.txt"];
+
+    expect(real.branch(root)).toBe("main");
+    expect(seeded.branch()).toBe("main");
+    expect(real.insideWorkTree(root)).toBe(true);
+    expect(seeded.insideWorkTree()).toBe(true);
+    expect(real.listFiles(root)).toEqual(seeded.listFiles());
+    expect(real.defaultRef(root)).toBeNull();
+    expect(seeded.defaultRef()).toBeNull();
+    expect(real.insideWorkTree(outside)).toBe(false);
+    expect(real.listFiles(outside)).toBeNull();
+
+    seeded.inside = false;
+
+    expect(seeded.insideWorkTree()).toBe(false);
+    expect(seeded.listFiles()).toBeNull();
+    expect(commit).not.toBe("");
+  });
+
+  it("on the merge base, ahead and behind and the ref diff", async () => {
+    const { root, real, fake } = both();
+
+    git(root, "checkout", "-q", "-b", "topic");
+    writeFileSync(join(root, "new.txt"), "n");
+    git(root, "add", ".");
+    git(root, "commit", "-q", "-m", "second");
+
+    const topic = git(root, "rev-parse", "topic");
+    const seeded = fake as FakeGit;
+
+    seeded.mergeBases.set("main...topic", git(root, "rev-parse", "main"));
+    seeded.aheadBehinds.set("main...topic", { behind: 0, ahead: 1 });
+    seeded.refDiffs.set("main...topic", [{ status: "A", path: "new.txt" }]);
+
+    for (const one of [real, fake]) {
+      expect(await one.mergeBase(root, "main", "topic")).toBe(
+        git(root, "rev-parse", "main"),
+      );
+      expect(await one.aheadBehind(root, "main", "topic")).toEqual({
+        behind: 0,
+        ahead: 1,
+      });
+      expect(await one.diffRefs(root, "main", "topic")).toEqual([
+        { status: "A", path: "new.txt" },
+      ]);
+      expect(await one.mergeBase(root, "main", "nope")).toBeNull();
+      expect(await one.aheadBehind(root, "main", "nope")).toBeNull();
+      expect(await one.diffRefs(root, "main", "nope")).toBeNull();
+      expect(await one.diffRefs(root, "--output=x", "topic")).toBeNull();
+    }
+
+    expect(topic).not.toBe("");
+  });
+
+  it("on the working tree inside and outside git", async () => {
+    const { root, real, fake } = both();
+    const outside = makeTempDir("recognizer-git-conformance-wt-outside-");
+    const seeded = fake as FakeGit;
+
+    expect(await real.workingTree(root)).toEqual([]);
+    expect(await seeded.workingTree()).toEqual([]);
+
+    writeFileSync(join(root, "fresh.txt"), "n");
+    seeded.workingTreeEntries = [{ code: "??", path: "fresh.txt" }];
+
+    expect(await real.workingTree(root)).toEqual(await seeded.workingTree());
+    expect(await real.workingTree(outside)).toBeNull();
+
+    seeded.inside = false;
+
+    expect(await seeded.workingTree()).toBeNull();
+  });
+
+  it("on the state snapshot inside and outside git", async () => {
+    const { root, real, fake } = both();
+    const outside = makeTempDir("recognizer-git-conformance-outside-");
+    const seeded = fake as FakeGit;
+    const first = await real.stateSnapshot(root);
+
+    expect(await real.stateSnapshot(root)).toBe(first);
+    expect(await seeded.stateSnapshot()).toBe(await seeded.stateSnapshot());
+
+    seeded.state = "state-1";
+    writeFileSync(join(root, "more.txt"), "m");
+    git(root, "add", ".");
+    git(root, "commit", "-q", "-m", "more");
+
+    expect(await real.stateSnapshot(root)).not.toBe(first);
+    expect(await seeded.stateSnapshot()).not.toBe("state-0");
+    expect(await real.stateSnapshot(outside)).toBeNull();
+
+    seeded.inside = false;
+
+    expect(await seeded.stateSnapshot()).toBeNull();
+  });
 });

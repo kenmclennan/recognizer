@@ -27,11 +27,6 @@ pub trait Sink: Send + Sync {
     fn emit(&self, label: &str, item: &Value);
 }
 
-pub trait Baselines: Send + Sync {
-    fn take(&self, label: &str, repository: &str);
-    fn clear(&self, label: &str);
-}
-
 pub trait ScanStatus {
     fn refusal(&self, repository: &Path) -> Option<String>;
 }
@@ -456,7 +451,6 @@ struct State {
 struct Inner {
     launcher: Launcher,
     sink: Arc<dyn Sink>,
-    baselines: Arc<dyn Baselines>,
     runs: ScanRuns,
     setups: SetupLedger,
     state: Mutex<State>,
@@ -476,14 +470,13 @@ enum Action {
 }
 
 impl CoreClient {
-    pub fn new(launcher: Launcher, sink: Arc<dyn Sink>, baselines: Arc<dyn Baselines>) -> Self {
-        Self::with_timing(launcher, sink, baselines, STOP_BACKSTOP, STOP_FALLBACK)
+    pub fn new(launcher: Launcher, sink: Arc<dyn Sink>) -> Self {
+        Self::with_timing(launcher, sink, STOP_BACKSTOP, STOP_FALLBACK)
     }
 
     pub fn with_timing(
         launcher: Launcher,
         sink: Arc<dyn Sink>,
-        baselines: Arc<dyn Baselines>,
         backstop: Duration,
         fallback: Duration,
     ) -> Self {
@@ -491,7 +484,6 @@ impl CoreClient {
             inner: Arc::new(Inner {
                 launcher,
                 sink,
-                baselines,
                 runs: ScanRuns::default(),
                 setups: SetupLedger::default(),
                 state: Mutex::default(),
@@ -618,6 +610,8 @@ impl CoreClient {
             }
         }
 
+        args["window"] = json!(label);
+
         Ok(match op {
             "scan.start" => self.start_scan(label, args),
             "scan.stop" => self.stop_one(label, args),
@@ -636,7 +630,11 @@ impl CoreClient {
         }
 
         if let Some(repository) = args.get("repository").and_then(Value::as_str) {
-            self.inner.baselines.take(label, repository);
+            self.request(
+                "changes.take",
+                json!({ "repository": repository, "window": label }),
+                None,
+            );
         }
 
         let reply = self.request("scan.start", args, Some(Track::Scan(label.to_string())));
@@ -650,11 +648,24 @@ impl CoreClient {
             }
             None => {
                 self.inner.runs.finish(label);
-                self.inner.baselines.clear(label);
+                self.send_clear(label);
             }
         }
 
         reply
+    }
+
+    fn send_clear(&self, label: &str) {
+        let (sender, _) = mpsc::channel();
+        let mut state = locked(&self.inner.state);
+
+        let _ = self.write(
+            &mut state,
+            "changes.clear",
+            json!({ "window": label }),
+            sender,
+            None,
+        );
     }
 
     fn stop_one(&self, label: &str, args: Value) -> Value {
@@ -1118,7 +1129,6 @@ fn read_replies(
                 label.clone(),
                 json!({ "stream": id, "outcome": crashed(&message) }),
             ));
-            actions.push(Action::ClearBaseline(label));
         }
 
         for (id, key, action, callback) in setups {
@@ -1137,12 +1147,15 @@ fn read_replies(
     run_actions(&inner, actions);
 }
 
-fn run_actions(inner: &Inner, actions: Vec<Action>) {
+fn run_actions(inner: &Arc<Inner>, actions: Vec<Action>) {
     for action in actions {
         match action {
             Action::Emit(label, item) => inner.sink.emit(&label, &item),
             Action::Call(callback, item) => callback(&item),
-            Action::ClearBaseline(label) => inner.baselines.clear(&label),
+            Action::ClearBaseline(label) => CoreClient {
+                inner: Arc::clone(inner),
+            }
+            .send_clear(&label),
         }
     }
 }
@@ -1255,7 +1268,6 @@ fn handle_item(inner: &Arc<Inner>, item: Value) {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
     use std::fs;
     use std::path::PathBuf;
     use std::process::Command;
@@ -1284,19 +1296,6 @@ mod tests {
     impl Sink for Collected {
         fn emit(&self, label: &str, item: &Value) {
             locked(&self.0).push((label.to_string(), item.clone()));
-        }
-    }
-
-    #[derive(Default)]
-    struct Held(Mutex<HashSet<String>>);
-
-    impl Baselines for Held {
-        fn take(&self, label: &str, _: &str) {
-            locked(&self.0).insert(label.to_string());
-        }
-
-        fn clear(&self, label: &str) {
-            locked(&self.0).remove(label);
         }
     }
 
@@ -1351,25 +1350,17 @@ done
         dir: &Path,
         body: &str,
         outcome: &str,
-    ) -> (
-        CoreClient,
-        Arc<Collected>,
-        Arc<Held>,
-        PathBuf,
-        Arc<Mutex<u32>>,
-    ) {
+    ) -> (CoreClient, Arc<Collected>, PathBuf, Arc<Mutex<u32>>) {
         let (launcher, log, spawns) = script_launcher(dir, body, outcome);
         let sink = Arc::new(Collected::default());
-        let baselines = Arc::new(Held::default());
         let client = CoreClient::with_timing(
             launcher,
             sink.clone(),
-            baselines.clone(),
             Duration::from_millis(300),
             Duration::from_millis(200),
         );
 
-        (client, sink, baselines, log, spawns)
+        (client, sink, log, spawns)
     }
 
     fn lines_of(log: &Path) -> Vec<Value> {
@@ -1392,7 +1383,7 @@ done
     #[test]
     fn a_call_is_written_as_one_line_and_its_reply_returned() {
         let dir = TempDir::new().unwrap();
-        let (client, _, _, log, _) = client(dir.path(), ECHO, "{}");
+        let (client, _, log, _) = client(dir.path(), ECHO, "{}");
         let reply = client
             .call(
                 "w-1",
@@ -1415,7 +1406,7 @@ done
     #[test]
     fn the_relay_overwrites_a_frontend_repository() {
         let dir = TempDir::new().unwrap();
-        let (client, _, _, log, _) = client(dir.path(), ECHO, "{}");
+        let (client, _, log, _) = client(dir.path(), ECHO, "{}");
 
         client
             .call(
@@ -1432,7 +1423,7 @@ done
     #[test]
     fn stream_items_reach_the_window_that_started_the_scan() {
         let dir = TempDir::new().unwrap();
-        let (client, sink, _, _, _) = client(dir.path(), ECHO, r#"{"status":"finished"}"#);
+        let (client, sink, _, _) = client(dir.path(), ECHO, r#"{"status":"finished"}"#);
         let reply = client
             .call("w-1", Some(dir.path()), "scan.start", json!({}))
             .unwrap();
@@ -1452,7 +1443,7 @@ done
     #[test]
     fn an_unexpected_exit_restarts_the_service_once_and_fails_the_calls_in_flight() {
         let dir = TempDir::new().unwrap();
-        let (client, _, _, _, spawns) = client(dir.path(), ECHO, "{}");
+        let (client, _, _, spawns) = client(dir.path(), ECHO, "{}");
         let ping = |client: &CoreClient, word: &str| {
             client
                 .call(
@@ -1487,10 +1478,14 @@ done
 read -r line
 id=${line#*\"id\":}
 id=${id%%,*}
+echo "{\"id\":$id,\"ok\":\"taken\"}"
+read -r line
+id=${line#*\"id\":}
+id=${id%%,*}
 echo "{\"id\":$id,\"ok\":\"s1\"}"
 exit 9
 "#;
-        let (client, sink, _, _, _) = client(dir.path(), body, "{}");
+        let (client, sink, _, _) = client(dir.path(), body, "{}");
 
         client
             .call("w-1", Some(dir.path()), "scan.start", json!({}))
@@ -1508,7 +1503,7 @@ exit 9
     #[test]
     fn a_restart_re_issues_each_windows_watch() {
         let dir = TempDir::new().unwrap();
-        let (client, _, _, log, _) = client(dir.path(), ECHO, "{}");
+        let (client, _, log, _) = client(dir.path(), ECHO, "{}");
 
         assert_eq!(
             client
@@ -1547,7 +1542,7 @@ exit 9
             "echo \"{\\\"stream\\\":\\\"s1\\\",\\\"outcome\\\":$OUTCOME}\"",
             "true",
         );
-        let (client, _, _, log, _) = client(dir.path(), &body, "{}");
+        let (client, _, log, _) = client(dir.path(), &body, "{}");
 
         client
             .call("w-1", Some(dir.path()), "scan.start", json!({}))
@@ -1573,7 +1568,7 @@ exit 9
     #[test]
     fn a_refused_lock_clears_the_pending_baseline() {
         let dir = TempDir::new().unwrap();
-        let (client, sink, baselines, _, _) =
+        let (client, sink, log, _) =
             client(dir.path(), ECHO, r#"{"status":"refused","reason":"lock"}"#);
 
         client
@@ -1582,12 +1577,21 @@ exit 9
 
         wait_until("the outcome", || locked(&sink.0).len() == 2);
         wait_until("the baseline to clear", || {
-            !locked(&baselines.0).contains("w-1")
+            lines_of(&log)
+                .iter()
+                .any(|line| line["op"] == "changes.clear" && line["args"]["window"] == "w-1")
         });
 
+        let lines = lines_of(&log);
+        let taken = lines
+            .iter()
+            .position(|line| line["op"] == "changes.take" && line["args"]["window"] == "w-1");
+        let started = lines.iter().position(|line| line["op"] == "scan.start");
+
+        assert!(taken.unwrap() < started.unwrap());
+
         let other = TempDir::new().unwrap();
-        let (client, sink, baselines, _, _) =
-            self::client(other.path(), ECHO, r#"{"status":"finished"}"#);
+        let (client, sink, log, _) = self::client(other.path(), ECHO, r#"{"status":"finished"}"#);
 
         client
             .call("w-2", Some(other.path()), "scan.start", json!({}))
@@ -1595,7 +1599,12 @@ exit 9
 
         wait_until("the outcome", || locked(&sink.0).len() == 2);
 
-        assert!(locked(&baselines.0).contains("w-2"));
+        let lines = lines_of(&log);
+
+        assert!(lines
+            .iter()
+            .any(|line| line["op"] == "changes.take" && line["args"]["window"] == "w-2"));
+        assert!(!lines.iter().any(|line| line["op"] == "changes.clear"));
     }
 
     #[test]
@@ -1605,7 +1614,7 @@ exit 9
             "echo \"{\\\"stream\\\":\\\"s1\\\",\\\"outcome\\\":$OUTCOME}\"",
             "true",
         );
-        let (client, _, _, log, _) = client(dir.path(), &body, "{}");
+        let (client, _, log, _) = client(dir.path(), &body, "{}");
 
         client
             .call("w-1", Some(dir.path()), "scan.start", json!({}))
@@ -1633,7 +1642,7 @@ exit 9
             "echo \"{\\\"stream\\\":\\\"s1\\\",\\\"outcome\\\":$OUTCOME}\"",
             "true",
         );
-        let (client, _, _, _, _) = client(dir.path(), &body, "{}");
+        let (client, _, _, _) = client(dir.path(), &body, "{}");
 
         client
             .call("w-1", Some(dir.path()), "scan.start", json!({}))
@@ -1663,11 +1672,7 @@ exit 9
 
             Ok(command)
         });
-        let client = CoreClient::new(
-            launcher,
-            Arc::new(Collected::default()),
-            Arc::new(Held::default()),
-        );
+        let client = CoreClient::new(launcher, Arc::new(Collected::default()));
 
         client
             .call("w-1", Some(dir.path()), "scan.plan", json!({}))
@@ -1705,7 +1710,6 @@ exit 9
         let client = CoreClient::new(
             runner_launcher(Arc::new(runner), &serve.display().to_string()),
             Arc::new(Collected::default()),
-            Arc::new(Held::default()),
         );
         let reply = client
             .call("w-1", Some(dir.path()), "scan.plan", json!({}))
@@ -1725,7 +1729,6 @@ exit 9
         let client = CoreClient::new(
             runner_launcher(runner, "recognizer"),
             Arc::new(Collected::default()),
-            Arc::new(Held::default()),
         );
         let reply = client
             .call("w-1", Some(dir.path()), "scan.start", json!({}))
@@ -1969,7 +1972,7 @@ done
     #[test]
     fn a_setup_event_line_is_forwarded_whole() {
         let dir = TempDir::new().unwrap();
-        let (client, _, _, log, _) = client(
+        let (client, _, log, _) = client(
             dir.path(),
             SETUP_SERVICE,
             r#"{"status":"finished","result":{}}"#,
@@ -1999,7 +2002,7 @@ done
     #[test]
     fn a_setup_outcome_is_the_run_end() {
         let dir = TempDir::new().unwrap();
-        let (client, _, _, _, _) = client(
+        let (client, _, _, _) = client(
             dir.path(),
             SETUP_SERVICE,
             r#"{"status":"finished","result":{"ok":true}}"#,
@@ -2021,7 +2024,7 @@ done
             "echo \"{\\\"stream\\\":\\\"u1\\\",\\\"outcome\\\":$OUTCOME}\"",
             "exit 3",
         );
-        let (client, _, _, _, _) = client(dir.path(), &body, "{}");
+        let (client, _, _, _) = client(dir.path(), &body, "{}");
         let outcome = client.run_setup("w-1", dir.path(), "apply", json!({}), |_| {});
 
         assert_eq!(outcome["status"], "failed");

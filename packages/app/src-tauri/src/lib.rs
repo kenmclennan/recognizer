@@ -4,8 +4,6 @@ use tauri::{
     WindowEvent,
 };
 
-pub mod changes;
-pub mod commits;
 pub mod config_write;
 pub mod core_client;
 pub mod editor;
@@ -32,8 +30,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use changes::{Baseline, Changes, Origin, ScanOrigin};
-use core_client::{Baselines, CoreClient, Sink};
+use core_client::{CoreClient, Sink};
 use launch::{launch_for, Launch};
 use recent::{open_target, OpenTarget};
 use repository::ScanReport;
@@ -49,28 +46,6 @@ use windows::{
 const APP_TITLE: &str = "Recognizer";
 const RECENT_PREFIX: &str = "recent:";
 const CHANGES_POLL: Duration = Duration::from_secs(2);
-
-#[derive(Default)]
-struct WindowBaseline {
-    pending: Option<Origin>,
-    current: Option<Baseline>,
-    last: Changes,
-}
-
-#[derive(Default)]
-struct ScanBaselines(Mutex<HashMap<String, WindowBaseline>>);
-
-impl ScanBaselines {
-    fn with<T>(
-        &self,
-        label: &str,
-        run: impl FnOnce(&mut WindowBaseline) -> T,
-    ) -> Result<T, String> {
-        let mut windows = self.0.lock().map_err(|error| error.to_string())?;
-
-        Ok(run(windows.entry(label.to_string()).or_default()))
-    }
-}
 
 fn open_window(app: &AppHandle, label: &str, title: &str) -> tauri::Result<WebviewWindow> {
     let anchor = cascade_anchor(app);
@@ -917,26 +892,6 @@ impl Sink for WindowSink {
     }
 }
 
-struct WindowBaselines(AppHandle);
-
-impl Baselines for WindowBaselines {
-    fn take(&self, label: &str, repository: &str) {
-        let origin = changes::take_origin(Path::new(repository));
-
-        let _ = self
-            .0
-            .state::<ScanBaselines>()
-            .with(label, |window| window.pending = Some(origin));
-    }
-
-    fn clear(&self, label: &str) {
-        let _ = self
-            .0
-            .state::<ScanBaselines>()
-            .with(label, |window| window.pending = None);
-    }
-}
-
 fn setup_environment() -> serde_json::Value {
     let pairs: serde_json::Map<String, serde_json::Value> = tool_runner::runner()
         .environment_pairs()
@@ -1132,24 +1087,34 @@ fn open_folder_in_editor(app: AppHandle, window: WebviewWindow) -> Result<(), St
     launch_in_editor(&app, &folder, None)
 }
 
+fn core_ok(reply: serde_json::Value) -> Result<serde_json::Value, String> {
+    if let Some(ok) = reply.get("ok") {
+        return Ok(ok.clone());
+    }
+
+    Err(reply
+        .get("error")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("the service did not answer")
+        .to_string())
+}
+
 #[tauri::command]
-fn adopt_scan(app: AppHandle, window: WebviewWindow) -> Result<ScanOrigin, String> {
+async fn adopt_scan(app: AppHandle, window: WebviewWindow) -> Result<serde_json::Value, String> {
     let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
+    let core = app.state::<CoreClient>().inner().clone();
 
-    app.state::<ScanBaselines>().with(&label, |state| {
-        let pending = state
-            .pending
-            .take()
-            .ok_or_else(|| "no scan is waiting to be adopted".to_string())?;
-        let adopted = changes::adopt(&pending, &folder);
-        let origin = changes::origin_of(&adopted);
-
-        state.current = Some(adopted);
-        state.last = Changes::default();
-
-        Ok(origin)
-    })?
+    tauri::async_runtime::spawn_blocking(move || {
+        core_ok(core.call(
+            &label,
+            Some(&folder),
+            "changes.adopt",
+            serde_json::json!({}),
+        )?)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
@@ -1168,6 +1133,8 @@ fn watch_changes(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
     }
 
     std::thread::spawn(move || {
+        let core = app.state::<CoreClient>().inner().clone();
+
         loop {
             std::thread::sleep(CHANGES_POLL);
 
@@ -1175,29 +1142,19 @@ fn watch_changes(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
                 break;
             }
 
-            let baseline = app
-                .state::<ScanBaselines>()
-                .with(&label, |state| state.current.clone())
+            let polled = core
+                .call(&label, Some(&folder), "changes.poll", serde_json::json!({}))
                 .ok()
-                .flatten();
-            let Some(baseline) = baseline else {
+                .and_then(|reply| core_ok(reply).ok());
+            let Some(polled) = polled else {
                 continue;
             };
-            let found = changes::compare(&folder, &baseline);
-            let publish = app
-                .state::<ScanBaselines>()
-                .with(&label, |state| {
-                    let unchanged = state.current.is_none() || state.last == found;
 
-                    if !unchanged {
-                        state.last = found.clone();
-                    }
-
-                    !unchanged
-                })
-                .unwrap_or(false);
-
-            if publish && app.emit_to(&label, "changes-changed", &found).is_err() {
+            if polled["changed"] == true
+                && app
+                    .emit_to(&label, "changes-changed", &polled["changes"])
+                    .is_err()
+            {
                 break;
             }
         }
@@ -1208,9 +1165,12 @@ fn watch_changes(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
             }
         }
 
-        if let Ok(mut windows) = app.state::<ScanBaselines>().0.lock() {
-            windows.remove(&label);
-        }
+        let _ = core.call(
+            &label,
+            Some(&folder),
+            "changes.clear",
+            serde_json::json!({ "closed": true }),
+        );
     });
 
     Ok(())
@@ -1247,7 +1207,14 @@ fn watch_git(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
         .insert(label.clone(), held);
 
     std::thread::spawn(move || {
-        let mut settle = commits::Settle::new(commits::git_state_snapshot(&folder));
+        let core = app.state::<CoreClient>().inner().clone();
+        let call = |op: &str| {
+            core.call(&label, Some(&folder), op, serde_json::json!({}))
+                .ok()
+                .and_then(|reply| core_ok(reply).ok())
+        };
+
+        call("git.begin");
 
         loop {
             std::thread::sleep(Duration::from_millis(500));
@@ -1261,19 +1228,26 @@ fn watch_git(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
                 break;
             }
 
-            if settle.poll(commits::git_state_snapshot(&folder))
-                && app.emit_to(&label, "git-changed", ()).is_err()
-            {
+            let changed = call("git.poll").is_some_and(|polled| polled["changed"] == true);
+
+            if changed && app.emit_to(&label, "git-changed", ()).is_err() {
                 break;
             }
         }
+
+        let mut owned = false;
 
         if let Ok(mut watching) = WATCHING_GIT.lock() {
             if let Some(map) = watching.as_mut() {
                 if map.get(&label) == Some(&held) {
                     map.remove(&label);
+                    owned = true;
                 }
             }
+        }
+
+        if owned {
+            call("git.end");
         }
     });
 
@@ -1281,16 +1255,25 @@ fn watch_git(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn unwatch_git(window: WebviewWindow) -> Result<(), String> {
+async fn unwatch_git(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    let label = window_label(&window);
+    let folder = window_folder_path(&app, &window)?;
+
     if let Some(map) = WATCHING_GIT
         .lock()
         .map_err(|error| error.to_string())?
         .as_mut()
     {
-        map.remove(&window_label(&window));
+        map.remove(&label);
     }
 
-    Ok(())
+    let core = app.state::<CoreClient>().inner().clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let _ = core.call(&label, Some(&folder), "git.end", serde_json::json!({}));
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -1405,7 +1388,24 @@ fn watch_sensor_inputs(app: AppHandle, window: WebviewWindow) -> Result<(), Stri
         .insert(label.clone(), held);
 
     std::thread::spawn(move || {
-        let mut last = sensors::snapshot(&folder);
+        let core = app.state::<CoreClient>().inner().clone();
+        let mut dirty = sensors::DirtyEntries::new();
+        let read_dirty = |previous: &sensors::DirtyEntries| {
+            core.call(
+                &label,
+                Some(&folder),
+                "changes.worktree",
+                serde_json::json!({}),
+            )
+            .ok()
+            .and_then(|reply| core_ok(reply).ok())
+            .and_then(|ok| sensors::dirty_from_reply(&ok))
+            .unwrap_or_else(|| previous.clone())
+        };
+
+        dirty = read_dirty(&dirty);
+
+        let mut last = sensors::snapshot(&folder, &dirty);
 
         loop {
             std::thread::sleep(Duration::from_millis(500));
@@ -1419,7 +1419,9 @@ fn watch_sensor_inputs(app: AppHandle, window: WebviewWindow) -> Result<(), Stri
                 break;
             }
 
-            let next = sensors::snapshot(&folder);
+            dirty = read_dirty(&dirty);
+
+            let next = sensors::snapshot(&folder, &dirty);
 
             if sensors::snapshot_changed(&last, &next) {
                 last = next;
@@ -1527,67 +1529,6 @@ fn take_pending_view(app: AppHandle, window: WebviewWindow) -> Option<String> {
 }
 
 #[tauri::command]
-async fn list_history(app: AppHandle, window: WebviewWindow) -> Result<commits::History, String> {
-    let folder = window_folder_path(&app, &window)?;
-
-    tauri::async_runtime::spawn_blocking(move || commits::list_history(&folder))
-        .await
-        .map_err(|error| error.to_string())?
-}
-
-#[tauri::command]
-async fn list_branches(app: AppHandle, window: WebviewWindow) -> Result<commits::Branches, String> {
-    let folder = window_folder_path(&app, &window)?;
-
-    tauri::async_runtime::spawn_blocking(move || commits::list_branches(&folder))
-        .await
-        .map_err(|error| error.to_string())?
-}
-
-#[tauri::command]
-async fn ref_facts(
-    app: AppHandle,
-    window: WebviewWindow,
-    refs: Vec<String>,
-) -> Result<Vec<commits::RefFacts>, String> {
-    let folder = window_folder_path(&app, &window)?;
-
-    tauri::async_runtime::spawn_blocking(move || commits::ref_facts(&folder, &refs))
-        .await
-        .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-async fn change_detail(
-    app: AppHandle,
-    window: WebviewWindow,
-    kind: String,
-    reference: String,
-) -> Result<commits::ChangeDetail, String> {
-    let folder = window_folder_path(&app, &window)?;
-
-    tauri::async_runtime::spawn_blocking(move || {
-        commits::change_detail(tool_runner::runner(), &folder, &kind, &reference)
-    })
-    .await
-    .map_err(|error| error.to_string())?
-}
-
-#[tauri::command]
-async fn read_pull_requests(
-    app: AppHandle,
-    window: WebviewWindow,
-) -> Result<commits::PullRequests, String> {
-    let folder = window_folder_path(&app, &window)?;
-
-    tauri::async_runtime::spawn_blocking(move || {
-        commits::read_pull_requests(tool_runner::runner(), &folder)
-    })
-    .await
-    .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
 fn watch_views(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
     let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
@@ -1660,11 +1601,9 @@ pub fn run() {
 
             settings::seed(&config_file(&handle)?)?;
             app.manage(WindowState::default());
-            app.manage(ScanBaselines::default());
             app.manage(CoreClient::new(
                 core_client::runner_launcher(tool_runner::runner(), repository::RECOGNIZER_COMMAND),
                 Arc::new(WindowSink(handle.clone())),
-                Arc::new(WindowBaselines(handle.clone())),
             ));
             app.manage(Snapshots::default());
             app.manage(Drives::default());
@@ -1721,11 +1660,6 @@ pub fn run() {
             read_recent_views,
             read_scan_cache,
             read_scan_ticks,
-            list_history,
-            list_branches,
-            ref_facts,
-            change_detail,
-            read_pull_requests,
             setup_survey,
             setup_recommend,
             setup_apply,

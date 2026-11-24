@@ -100,57 +100,6 @@ pub fn rename_view(folder: &Path, from: &str, to: &str) -> Result<(), String> {
     fs::rename(source, target).map_err(|error| error.to_string())
 }
 
-pub fn valid_ref(reference: &str) -> bool {
-    let mut characters = reference.chars();
-
-    !reference.contains("..")
-        && characters
-            .next()
-            .is_some_and(|first| first.is_ascii_alphanumeric() || first == '_')
-        && characters.all(|c| c.is_ascii_alphanumeric() || "_./@+-".contains(c))
-}
-
-#[derive(Debug, PartialEq, Serialize)]
-pub struct FileChange {
-    pub status: String,
-    pub path: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub from: Option<String>,
-}
-
-pub fn parse_name_status(output: &str) -> Vec<FileChange> {
-    let mut fields = output.split('\0');
-    let mut changes = Vec::new();
-
-    while let Some(status) = fields.next() {
-        if status.starts_with('R') {
-            if let (Some(from), Some(path)) = (fields.next(), fields.next()) {
-                changes.push(FileChange {
-                    status: "R".to_string(),
-                    path: path.to_string(),
-                    from: Some(from.to_string()),
-                });
-            }
-
-            continue;
-        }
-
-        let Some(path) = fields.next() else {
-            break;
-        };
-
-        if matches!(status, "A" | "M" | "D" | "T") {
-            changes.push(FileChange {
-                status: status.to_string(),
-                path: path.to_string(),
-                from: None,
-            });
-        }
-    }
-
-    changes
-}
-
 pub fn remove_view(folder: &Path, name: &str) -> Result<(), String> {
     if !valid_name(name) {
         return Err(format!("{name:?} is not a valid view name"));
@@ -378,63 +327,6 @@ mod tests {
         fs::remove_file(views.join("a.json")).unwrap();
 
         assert!(snapshot_changed(&longer, &snapshot(dir.path())));
-    }
-
-    #[test]
-    fn refs_agree_with_the_shared_fixture() {
-        let text = fs::read_to_string(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../fixtures/views/refs.json"
-        ))
-        .unwrap();
-        let fixture: serde_json::Value = serde_json::from_str(&text).unwrap();
-
-        for key in ["accept", "reject"] {
-            for entry in fixture[key].as_array().unwrap() {
-                let reference = entry.as_str().unwrap();
-
-                assert_eq!(valid_ref(reference), key == "accept", "{reference:?}");
-            }
-        }
-    }
-
-    #[test]
-    fn name_status_parses_known_letters_only() {
-        assert_eq!(
-            parse_name_status("D\0src/b.py\0A\0src/c.py\0U\0x\0"),
-            vec![
-                FileChange {
-                    status: "D".into(),
-                    path: "src/b.py".into(),
-                    from: None
-                },
-                FileChange {
-                    status: "A".into(),
-                    path: "src/c.py".into(),
-                    from: None
-                },
-            ]
-        );
-        assert!(parse_name_status("").is_empty());
-    }
-
-    #[test]
-    fn name_status_reads_a_rename_as_old_then_new_path() {
-        assert_eq!(
-            parse_name_status("R100\0old.py\0new.py\0M\0a.py\0"),
-            vec![
-                FileChange {
-                    status: "R".into(),
-                    path: "new.py".into(),
-                    from: Some("old.py".into())
-                },
-                FileChange {
-                    status: "M".into(),
-                    path: "a.py".into(),
-                    from: None
-                },
-            ]
-        );
     }
 
     #[test]

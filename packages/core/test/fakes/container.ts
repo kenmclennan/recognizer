@@ -19,6 +19,7 @@ import { FakeDescriber } from "./fake-describer.js";
 import { FakeDigest } from "./fake-digest.js";
 import { FakeDocumentValidators } from "./fake-document-validators.js";
 import { FakeFindingsRepository } from "./fake-findings-repository.js";
+import { FakeForge } from "./fake-forge.js";
 import { FakeGit } from "./fake-git.js";
 import { FakeKeyOwners } from "./fake-key-owners.js";
 import { FakeKeyedText } from "./fake-keyed-text.js";
@@ -28,6 +29,7 @@ import { FakePluginTemplates } from "./fake-plugin-templates.js";
 import { FakePolicyRepository } from "./fake-policy-repository.js";
 import { FakeProcess } from "./fake-process.js";
 import { FakePrograms } from "./fake-programs.js";
+import { FakeRecordedScans } from "./fake-recorded-scans.js";
 import { FakeRepositoryChecks } from "./fake-repository-checks.js";
 import { FakeResponsibilitiesRepository } from "./fake-responsibilities-repository.js";
 import { FakeRunLogRepository } from "./fake-run-log-repository.js";
@@ -47,6 +49,7 @@ import { FakeSurveyPlugins } from "./fake-survey-plugins.js";
 import { FakeTestReports } from "./fake-test-reports.js";
 import { FakeViewRepository } from "./fake-view-repository.js";
 import { FakeWindows } from "./fake-windows.js";
+import { FakeWorkTree } from "./fake-work-tree.js";
 
 export interface Fakes {
   scanners: FakeScanners;
@@ -57,6 +60,9 @@ export interface Fakes {
   describer: FakeDescriber;
   responsibilities: FakeResponsibilitiesRepository;
   git: FakeGit;
+  forge: FakeForge;
+  recordedScans: FakeRecordedScans;
+  workTree: FakeWorkTree;
   structure: FakeStructureRepository;
   findings: FakeFindingsRepository;
   policy: FakePolicyRepository;
@@ -109,6 +115,9 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     describer: new FakeDescriber(),
     responsibilities: new FakeResponsibilitiesRepository(),
     git: new FakeGit(commit),
+    forge: new FakeForge(),
+    recordedScans: new FakeRecordedScans(),
+    workTree: new FakeWorkTree(),
     structure,
     findings: new FakeFindingsRepository(),
     policy: new FakePolicyRepository(),

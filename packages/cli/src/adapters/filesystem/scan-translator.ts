@@ -252,7 +252,9 @@ function selectionDocument(
   };
 }
 
-function selectionOf(selection: DocumentSelection): Extraction["selection"] {
+export function selectionOf(
+  selection: DocumentSelection,
+): Extraction["selection"] {
   return {
     extensions: selection.extensions,
     skipDirectoryNames: selection.skip_directory_names,

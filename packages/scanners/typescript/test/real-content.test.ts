@@ -110,11 +110,13 @@ describe("scanning check/", () => {
       "node:child_process",
       "node:crypto",
       "node:fs",
+      "node:net",
       "node:os",
       "node:path",
       "node:readline",
       "node:url",
       "node:util",
+      "node:worker_threads",
       "web-tree-sitter",
       "yaml",
     ]);
