@@ -10,6 +10,7 @@ import {
   latestRun,
   listRuns,
   openPhasedRunLog,
+  openRunLog,
   type RunEntry,
   type RunKind,
   type RunRecord,
@@ -352,6 +353,24 @@ describe("a stopped scan record", () => {
   });
 });
 
+describe("a stopped describe record", () => {
+  it("stop_finishes_a_describe_log_as_stopped", () => {
+    const fake = fakeIo();
+    const open = openRunLog(fake.io, ROOT, "describe", Date.now(), "ken", [
+      "describe",
+    ]);
+
+    open.update([entry()]);
+    open.stop([entry()]);
+
+    const read = latestRun(fake.io, ROOT, "describe");
+
+    expect(names(fake)).toHaveLength(1);
+    expect(read).toMatchObject({ outcome: "stopped", exit: 1 });
+    expect(typeof read?.finished).toBe("string");
+  });
+});
+
 describe("log schema examples", () => {
   it("shares the diagnosis definition with the findings schema", () => {
     const findings = JSON.parse(
@@ -382,7 +401,7 @@ describe("log schema examples", () => {
   });
 
   it("holds the expected count of valid examples", () => {
-    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(20);
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(21);
   });
 
   it.each(readdirSync(join(EXAMPLES, "valid")))("accepts %s", (file) => {

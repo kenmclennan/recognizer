@@ -53,7 +53,11 @@ export async function describeRecorded(
     throw error;
   }
 
-  (log as DescribeLog | null)?.finish(recorded);
+  if (result.stopped?.cause === "limit") {
+    (log as DescribeLog | null)?.stop(recorded);
+  } else {
+    (log as DescribeLog | null)?.finish(recorded);
+  }
 
   return result;
 }

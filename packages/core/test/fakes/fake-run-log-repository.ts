@@ -26,6 +26,7 @@ export class FakeRunLogRepository implements RunLogRepository {
     entries: RunEntry[];
     finished: boolean;
     crashed: boolean;
+    stopped: boolean;
   }[] = [];
 
   failClose = false;
@@ -84,6 +85,7 @@ export class FakeRunLogRepository implements RunLogRepository {
       entries: [] as RunEntry[],
       finished: false,
       crashed: false,
+      stopped: false,
     };
 
     this.describeRuns.push(run);
@@ -101,6 +103,11 @@ export class FakeRunLogRepository implements RunLogRepository {
         run.entries = [...entries];
         run.finished = true;
         run.crashed = crashed;
+      },
+      stop: (entries) => {
+        run.entries = [...entries];
+        run.finished = true;
+        run.stopped = true;
       },
     };
   }

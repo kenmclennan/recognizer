@@ -57,6 +57,7 @@ export class RunLogAdapter implements RunLogRepository {
     return {
       update: (entries) => log.update(recorded(entries)),
       finish: (entries, crashed) => log.finish(recorded(entries), crashed),
+      stop: (entries) => log.stop(recorded(entries)),
     };
   }
 

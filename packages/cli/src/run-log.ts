@@ -193,6 +193,7 @@ export function buildRecord(
   argv: string[],
   entries: RunEntry[],
   crashed = false,
+  stopped = false,
 ): RunRecord {
   const failed = crashed || entries.some((entry) => entry.outcome === "failed");
 
@@ -203,8 +204,8 @@ export function buildRecord(
     finished: new Date(io.now()).toISOString(),
     by: asker(io, by),
     arguments: argv,
-    outcome: failed ? "failed" : "ok",
-    exit: failed ? 1 : 0,
+    outcome: stopped ? "stopped" : failed ? "failed" : "ok",
+    exit: stopped || failed ? 1 : 0,
     entries,
   };
 }
@@ -337,6 +338,7 @@ export function writeRunLog(
 export interface OpenRunLog {
   update(entries: RunEntry[]): void;
   finish(entries: RunEntry[], crashed?: boolean): void;
+  stop(entries: RunEntry[]): void;
 }
 
 export interface OpenPhasedRunLog {
@@ -462,6 +464,8 @@ export function openRunLog(
       write(buildRunningRecord(io, kind, startedAt, by, argv, [...entries])),
     finish: (entries, crashed = false) =>
       write(buildRecord(io, kind, startedAt, by, argv, entries, crashed)),
+    stop: (entries) =>
+      write(buildRecord(io, kind, startedAt, by, argv, entries, false, true)),
   };
 }
 

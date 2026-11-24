@@ -11,6 +11,7 @@ export interface RunLog {
 export interface DescribeLog {
   update(entries: RunEntry[]): void;
   finish(entries: RunEntry[], crashed?: boolean): void;
+  stop(entries: RunEntry[]): void;
 }
 
 export interface KilledRun {
