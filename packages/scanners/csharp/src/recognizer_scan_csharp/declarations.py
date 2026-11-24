@@ -115,6 +115,7 @@ class SourceFile:
     usings: list[Using] = field(default_factory=list)
     decls: list[Decl] = field(default_factory=list)
     uses: dict[tuple, int] = field(default_factory=dict)
+    body_uses: set[tuple] = field(default_factory=set)
     extension_calls: dict[str, int] = field(default_factory=dict)
     namespaces: set[str] = field(default_factory=set)
     declared_names: set[str] = field(default_factory=set)
@@ -142,6 +143,7 @@ class Collector:
     def __init__(self, path: str, directory: str, parsed: Parsed):
         self.parsed = parsed
         self.file = SourceFile(path, directory, parsed.damaged, parsed.text)
+        self.in_bases = False
 
     def collect(self) -> SourceFile:
         self.container(self.parsed.root.children, "")
@@ -237,6 +239,9 @@ class Collector:
         line = line_of(node)
         self.file.uses[key] = min(line, self.file.uses.get(key, line))
 
+        if not self.in_bases:
+            self.file.body_uses.add(key)
+
     def declare(self, node: Node, namespace: str, outer: tuple[str, ...]) -> None:
         name_node = name_node_of(node)
 
@@ -272,6 +277,10 @@ class Collector:
 
             if item.type in BODIES:
                 self.members(item, decl, namespace, enclosing)
+            elif item.type == "base_list":
+                self.in_bases = True
+                self.walk(item, namespace, enclosing)
+                self.in_bases = False
             else:
                 self.walk(item, namespace, enclosing)
 

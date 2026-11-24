@@ -1,5 +1,6 @@
 import ast
 import hashlib
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from importlib.metadata import version
@@ -120,14 +121,56 @@ def edge_order(edge: dict) -> tuple:
     )
 
 
-def import_edges(module_id: str, imports: Imports, router: Router) -> list[dict]:
+def name_uses(nodes: list[ast.AST]) -> Counter:
+    return Counter(
+        node.id for root in nodes for node in ast.walk(root) if isinstance(node, ast.Name)
+    )
+
+
+def supertype_only_names(tree: ast.Module, imports: Imports, supertypes: list[dict]) -> set:
+    covered = {(edge["to"], edge["to_member"]) for edge in supertypes}
+
+    if not covered:
+        return set()
+
+    total = name_uses([tree])
+    heads = name_uses([base for node in recorded_classes(tree) for base in node.bases])
+    only = set()
+
+    for statement in imports.named:
+        for name, local in statement.bound.items():
+            if total[local] > 0 and total[local] == heads[local]:
+                only.add((statement.owner, name))
+
+    return {(owner, name) for owner, name in only if any(m == name for _, m in covered)}
+
+
+def import_edges(
+    module_id: str,
+    imports: Imports,
+    router: Router,
+    tree: ast.Module | None = None,
+    supertypes: list[dict] | None = None,
+) -> list[dict]:
     edges = [
         {"from": module_id, "to": target, "kind": "depends", "line": line}
         for target, line in imports.whole
     ]
+    only = supertype_only_names(tree, imports, supertypes) if tree and supertypes else set()
+    covered = {(edge["to"], edge["to_member"]) for edge in supertypes or []}
 
     for statement in imports.named:
         for edge in named_edges(module_id, statement, router):
+            names = [
+                name
+                for name in edge["names"]
+                if (statement.owner, name) not in only or (edge["to"], name) not in covered
+            ]
+
+            if not names:
+                continue
+
+            edge = edge | {"names": names}
             edges.append(
                 {"from": module_id, "to": edge["to"], "kind": "depends", "line": edge["line"]}
                 | {key: edge[key] for key in ("names", "via") if key in edge}
@@ -246,8 +289,10 @@ def scan(
 
         modules.append(module)
 
-        own = import_edges(module_id, item.imports, router)
-        imported = {edge["to"] for edge in own}
+        supertypes = base_edges(item, index, parsed)
+        everything = import_edges(module_id, item.imports, router)
+        own = import_edges(module_id, item.imports, router, item.tree, supertypes)
+        imported = {edge["to"] for edge in everything}
         edges.extend(own)
         edges.extend(
             edge
@@ -261,7 +306,7 @@ def scan(
                 {"from": module_id, "to": f"foreign:{name}", "kind": "depends", "line": line}
             )
 
-        edges.extend(base_edges(item, index, parsed))
+        edges.extend(supertypes)
 
     calls = CallResolver(parsed, classes, outlines, index, router).scan_calls()
     test_imports = read_test_imports(root, index, router, set(module_ids), listing)

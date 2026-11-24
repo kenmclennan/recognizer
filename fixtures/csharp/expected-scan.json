@@ -999,15 +999,6 @@
     {
       "from": "src/Shop.Application/PlaceOrderHandler.cs",
       "to": "src/Shop.Domain/IHandler.cs",
-      "kind": "depends",
-      "line": 3,
-      "names": [
-        "IHandler"
-      ]
-    },
-    {
-      "from": "src/Shop.Application/PlaceOrderHandler.cs",
-      "to": "src/Shop.Domain/IHandler.cs",
       "kind": "implements",
       "line": 3,
       "member": "PlaceOrderHandler",
@@ -1081,15 +1072,6 @@
       "to": "foreign:Microsoft.EntityFrameworkCore.Migrations",
       "kind": "depends",
       "line": 1
-    },
-    {
-      "from": "src/Shop.Infrastructure/SqlOrderStore.cs",
-      "to": "src/Shop.Domain/IOrderStore.cs",
-      "kind": "depends",
-      "line": 5,
-      "names": [
-        "IOrderStore"
-      ]
     },
     {
       "from": "src/Shop.Infrastructure/SqlOrderStore.cs",

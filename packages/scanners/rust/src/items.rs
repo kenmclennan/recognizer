@@ -70,6 +70,7 @@ pub struct Parsed {
     pub inner_test: bool,
     pub impls: Vec<ImplRef>,
     pub expr_paths: Vec<ExprPath>,
+    pub supertype_only: BTreeSet<String>,
 }
 
 struct Text {
@@ -456,6 +457,7 @@ pub fn parse(source: &str) -> Result<Parsed, String> {
         inner_test: file.attrs.iter().any(is_test_attribute),
         impls: Vec::new(),
         expr_paths: Vec::new(),
+        supertype_only: BTreeSet::new(),
     };
     let mut methods: HashMap<String, Vec<Value>> = HashMap::new();
 
@@ -472,8 +474,61 @@ pub fn parse(source: &str) -> Result<Parsed, String> {
 
     parsed.scopes.entry(Vec::new()).or_default();
     collect(&file.items, &mut Vec::new(), &mut parsed, &text, &methods);
+    parsed.supertype_only = supertype_only_names(&file, &parsed.impls);
 
     Ok(parsed)
+}
+
+#[derive(Default)]
+struct IdentCounter {
+    counts: HashMap<String, usize>,
+}
+
+impl IdentCounter {
+    fn count_tokens(&mut self, tokens: proc_macro2::TokenStream) {
+        for tree in tokens {
+            match tree {
+                proc_macro2::TokenTree::Ident(ident) => {
+                    *self.counts.entry(name_of(&ident)).or_default() += 1;
+                }
+                proc_macro2::TokenTree::Group(group) => self.count_tokens(group.stream()),
+                _ => {}
+            }
+        }
+    }
+}
+
+impl<'ast> Visit<'ast> for IdentCounter {
+    fn visit_item_use(&mut self, _: &'ast syn::ItemUse) {}
+
+    fn visit_ident(&mut self, ident: &'ast proc_macro2::Ident) {
+        *self.counts.entry(name_of(ident)).or_default() += 1;
+    }
+
+    fn visit_macro(&mut self, found: &'ast syn::Macro) {
+        visit::visit_macro(self, found);
+        self.count_tokens(found.tokens.clone());
+    }
+}
+
+fn supertype_only_names(file: &syn::File, impls: &[ImplRef]) -> BTreeSet<String> {
+    let mut counter = IdentCounter::default();
+
+    counter.visit_file(file);
+
+    let mut in_impls: HashMap<&str, usize> = HashMap::new();
+
+    for implementation in impls {
+        for segment in &implementation.trait_path {
+            *in_impls.entry(segment.as_str()).or_default() += 1;
+        }
+    }
+
+    in_impls
+        .into_iter()
+        .filter(|(name, count)| counter.counts.get(*name) == Some(count))
+        .map(|(name, _)| name.to_string())
+        .collect()
 }
 
 fn is_test_item(item: &Item) -> bool {

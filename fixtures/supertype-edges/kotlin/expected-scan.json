@@ -1,0 +1,251 @@
+{
+  "schema_version": 7,
+  "scanner": {
+    "name": "recognizer-scan-kotlin",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "src/main/kotlin/p/Contracts.kt",
+      "hash": "7500537a3a14a46520380ec8dca39bca57b1e570f8d9a829b527ea1a9004e81f"
+    },
+    {
+      "path": "src/main/kotlin/p/DefaultDispatcher.kt",
+      "hash": "a72b98873d43c67bc7d838cae15cf1ed618d9f8eeb81ca3238c18ec02e5ec32c"
+    },
+    {
+      "path": "src/main/kotlin/p/Derived.kt",
+      "hash": "40d9540f33329ccdecf1d59cb0949a64ce085e1031fc15f0f5cede232ba09068"
+    },
+    {
+      "path": "src/main/kotlin/p/LoggingDispatcher.kt",
+      "hash": "f82aae1be351ef2d1372c622c99815d50f15755fbb4e1e11ff9f24e9ba34e550"
+    }
+  ],
+  "selection": {
+    "extensions": [
+      ".kt"
+    ],
+    "skip_directory_names": [
+      "build",
+      "node_modules",
+      "test",
+      "androidTest",
+      "integrationTest",
+      "testFixtures",
+      "test-fixtures"
+    ],
+    "skip_directory_prefixes": [
+      "."
+    ],
+    "skip_directory_suffixes": [
+      "Test"
+    ],
+    "skip_directories_containing": [],
+    "skip_file_globs": [
+      "*Test.kt",
+      "*Tests.kt"
+    ],
+    "input_file_globs": [
+      "build.gradle",
+      "build.gradle.kts",
+      "pom.xml"
+    ]
+  },
+  "modules": [
+    {
+      "id": "src/main/kotlin/p/Contracts.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Dispatcher",
+          "kind": "interface",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "dispatch",
+              "line": 4,
+              "end_line": 4,
+              "params": [
+                {
+                  "name": "event",
+                  "type": "String"
+                }
+              ],
+              "private": false,
+              "tags": [
+                "abstract"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Base",
+          "kind": "class",
+          "line": 7,
+          "exported": true,
+          "visibility": "public",
+          "bases": [],
+          "fields": [],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "src/main/kotlin/p/DefaultDispatcher.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
+        {
+          "name": "DefaultDispatcher",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [
+            "Dispatcher"
+          ],
+          "fields": [],
+          "methods": [
+            {
+              "name": "dispatch",
+              "line": 4,
+              "end_line": 4,
+              "params": [
+                {
+                  "name": "event",
+                  "type": "String"
+                }
+              ],
+              "private": false,
+              "body_line": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/main/kotlin/p/Derived.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Derived",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [
+            "Base"
+          ],
+          "fields": [],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "src/main/kotlin/p/LoggingDispatcher.kt",
+      "language": "kotlin",
+      "kind": "module",
+      "members": [
+        {
+          "name": "LoggingDispatcher",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "visibility": "public",
+          "bases": [
+            "Dispatcher"
+          ],
+          "fields": [
+            {
+              "name": "inner",
+              "line": 3,
+              "private": true,
+              "type": "Dispatcher"
+            }
+          ],
+          "methods": [
+            {
+              "name": "dispatch",
+              "line": 4,
+              "end_line": 4,
+              "params": [
+                {
+                  "name": "event",
+                  "type": "String"
+                }
+              ],
+              "private": false,
+              "body_line": 4
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "src/main/kotlin/p/DefaultDispatcher.kt",
+      "to": "src/main/kotlin/p/Contracts.kt",
+      "kind": "implements",
+      "line": 3,
+      "member": "DefaultDispatcher",
+      "to_member": "Dispatcher"
+    },
+    {
+      "from": "src/main/kotlin/p/Derived.kt",
+      "to": "src/main/kotlin/p/Contracts.kt",
+      "kind": "inherits",
+      "line": 3,
+      "member": "Derived",
+      "to_member": "Base"
+    },
+    {
+      "from": "src/main/kotlin/p/LoggingDispatcher.kt",
+      "to": "src/main/kotlin/p/Contracts.kt",
+      "kind": "depends",
+      "line": 3,
+      "names": [
+        "Dispatcher"
+      ]
+    },
+    {
+      "from": "src/main/kotlin/p/LoggingDispatcher.kt",
+      "to": "src/main/kotlin/p/Contracts.kt",
+      "kind": "implements",
+      "line": 3,
+      "member": "LoggingDispatcher",
+      "to_member": "Dispatcher"
+    }
+  ],
+  "foreign": [],
+  "calls": [
+    {
+      "from": "src/main/kotlin/p/Contracts.kt::Dispatcher.dispatch",
+      "to": "src/main/kotlin/p/DefaultDispatcher.kt::DefaultDispatcher.dispatch",
+      "line": 4,
+      "how": "dispatch"
+    },
+    {
+      "from": "src/main/kotlin/p/Contracts.kt::Dispatcher.dispatch",
+      "to": "src/main/kotlin/p/LoggingDispatcher.kt::LoggingDispatcher.dispatch",
+      "line": 4,
+      "how": "dispatch"
+    },
+    {
+      "from": "src/main/kotlin/p/LoggingDispatcher.kt::LoggingDispatcher.dispatch",
+      "to": "src/main/kotlin/p/Contracts.kt::Dispatcher.dispatch",
+      "line": 4,
+      "how": "call"
+    }
+  ],
+  "unresolved_imports": []
+}

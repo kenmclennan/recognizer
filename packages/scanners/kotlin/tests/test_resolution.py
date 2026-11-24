@@ -302,7 +302,7 @@ def test_r8_a_class_implementing_an_interface_makes_an_implements_edge(run):
         "Port",
         5,
     )
-    assert targets(document, "c/Impl.kt") == {"a/Port.kt": ["Port"]}
+    assert targets(document, "c/Impl.kt") == {}
 
 
 def test_r8_a_class_extending_a_class_makes_an_inherits_edge(run):

@@ -42,7 +42,7 @@ def test_fixture_counts_and_calls():
     actual = scan(FIXTURE_ROOT, ["."], None)
 
     assert len(actual["modules"]) == 15
-    assert len(actual["edges"]) == 19
+    assert len(actual["edges"]) == 17
     assert [(c["from"], c["to"], c["how"]) for c in actual["calls"]] == [
         ("shop/application/place.py::place", "shop/domain/order.py::new_order", "call"),
         ("shop/application/refund.py::refund", "shop/ports/store.py::Store.save", "inferred"),

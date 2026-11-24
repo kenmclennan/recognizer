@@ -507,15 +507,6 @@
     },
     {
       "from": "app/src/main/kotlin/shop/persistence/JdbcOrderStore.kt",
-      "to": "app/src/main/kotlin/shop/ports/OrderStore.kt",
-      "kind": "depends",
-      "line": 5,
-      "names": [
-        "OrderStore"
-      ]
-    },
-    {
-      "from": "app/src/main/kotlin/shop/persistence/JdbcOrderStore.kt",
       "to": "app/src/main/kotlin/shop/persistence/OrderRepository.kt",
       "kind": "depends",
       "line": 7,

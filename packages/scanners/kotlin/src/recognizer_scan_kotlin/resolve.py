@@ -37,6 +37,9 @@ class Collected:
         entry["names"].update(names)
         entry["at"] = min(entry["at"], (order, line))
 
+    def covers(self, source: str, target: str) -> bool:
+        return any(key[0] == source and key[1] == target for key in self.others)
+
     def edges(self) -> list[dict]:
         found = []
 
@@ -140,6 +143,13 @@ class Resolver:
         if self.index.under_prefix(package):
             collected.unresolved.append({"from": file.path, "import": imp.text, "line": imp.line})
 
+    def supertype_only(
+        self, file: SourceFile, name: str, target: str, collected: Collected
+    ) -> bool:
+        return (
+            name in file.uses and name not in file.body_uses and collected.covers(file.path, target)
+        )
+
     def explicit_imports(self, file: SourceFile, collected: Collected, order: int) -> set[str]:
         bindings = set()
 
@@ -155,7 +165,9 @@ class Resolver:
             if targets:
                 if used:
                     for target in targets:
-                        if target != file.path:
+                        if target != file.path and not self.supertype_only(
+                            file, imp.binding, target, collected
+                        ):
                             collected.depend(file.path, target, imp.line, order, [".".join(rest)])
 
                 continue
@@ -198,7 +210,8 @@ class Resolver:
                         continue
 
                     for target in self.index.prefer(names[name], build):
-                        collected.depend(file.path, target, imp.line, order, [name])
+                        if not self.supertype_only(file, name, target, collected):
+                            collected.depend(file.path, target, imp.line, order, [name])
 
                 continue
 
@@ -215,7 +228,11 @@ class Resolver:
                     continue
 
                 members = self.index.top[(target, rest[0])].members
-                used = [f"{rest[0]}.{u}" for u in sorted(file.uses) if u in members]
+                used = [
+                    f"{rest[0]}.{u}"
+                    for u in sorted(file.uses)
+                    if u in members and not self.supertype_only(file, u, target, collected)
+                ]
 
                 if used:
                     collected.depend(file.path, target, imp.line, order, used)
@@ -234,10 +251,14 @@ class Resolver:
                 continue
 
             for target in self.index.prefer(names[name], build):
-                collected.depend(file.path, target, line, order, [name])
+                if not self.supertype_only(file, name, target, collected):
+                    collected.depend(file.path, target, line, order, [name])
 
     def qualified_uses(self, file: SourceFile, collected: Collected, order: int) -> None:
-        for line, segments in file.chains:
+        chains = [(line, segments, False) for line, segments in file.chains]
+        chains += [(line, segments, True) for line, segments in file.super_chains]
+
+        for line, segments, in_super in chains:
             found = split_qualified(segments)
 
             if found is None:
@@ -250,6 +271,9 @@ class Resolver:
                 continue
 
             for target in self.index.prefer(paths, self.index.build_of[file.path]):
+                if in_super and collected.covers(file.path, target):
+                    continue
+
                 collected.depend(file.path, target, line, order, [top])
 
     def supertype_edges(self, file: SourceFile, collected: Collected) -> None:
@@ -284,8 +308,8 @@ class Resolver:
                     collected.others[(file.path, path, kind, decl.name, top)] = edge
 
     def resolve_file(self, file: SourceFile, order: int, collected: Collected) -> None:
+        self.supertype_edges(file, collected)
         bindings = self.explicit_imports(file, collected, order)
         self.wildcard_imports(file, bindings, collected, order)
         self.same_package(file, bindings, collected, order)
         self.qualified_uses(file, collected, order)
-        self.supertype_edges(file, collected)

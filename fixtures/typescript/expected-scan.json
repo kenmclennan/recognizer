@@ -473,13 +473,6 @@
     },
     {
       "from": "api/src/memory-store.ts",
-      "to": "api/src/types.ts",
-      "kind": "depends",
-      "line": 3,
-      "names": ["Store"]
-    },
-    {
-      "from": "api/src/memory-store.ts",
       "to": "api/src/base-store.ts",
       "kind": "inherits",
       "line": 5,

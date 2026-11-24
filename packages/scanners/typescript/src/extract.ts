@@ -6,6 +6,7 @@ import {
   shorten,
   typeOutline,
 } from "./outline.js";
+import { supertypeOnly } from "./supertype-use.js";
 import { extractTypes } from "./types-and-parameters.js";
 
 export type MemberKind =
@@ -78,6 +79,7 @@ export interface FileInfo {
   imports: ImportRef[];
   bindings: Map<string, Binding>;
   heritage: Heritage[];
+  supertypeOnly: Set<string>;
   defined: Set<string>;
   reexports: Map<string, Reexport>;
   stars: string[];
@@ -621,6 +623,7 @@ export function extract(sf: ts.SourceFile): FileInfo {
     imports: collectImports(sf),
     bindings,
     heritage,
+    supertypeOnly: supertypeOnly(sf, bindings, heritage),
     ...extractNames(sf, declared, bindings),
     ...extractTypes(sf),
   };

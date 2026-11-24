@@ -244,11 +244,11 @@ def test_every_use_position_makes_an_edge(run):
         "}\n"
     )
     document = run(app(types | {"App/Use.cs": use}))
+    assert targets(document, "App/Use.cs", "implements") == {"App/Iface.cs": []}
     got = {Path(t).stem for t in targets(document, "App/Use.cs") if not t.startswith("foreign:")}
 
     assert got == {
         "Attr",
-        "Iface",
         "Fld",
         "Prop",
         "Ctor",

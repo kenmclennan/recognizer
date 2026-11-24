@@ -1,0 +1,297 @@
+{
+  "schema_version": 7,
+  "scanner": {
+    "name": "recognizer-scan-typescript",
+    "version": "0.1.0"
+  },
+  "commit": null,
+  "modified": null,
+  "files": [
+    {
+      "path": "package.json",
+      "hash": "2580903fe34ea1b4fa5cce0333bec4f1d4b1d2540707e2ac42dfc6b9a6c7ae7e"
+    },
+    {
+      "path": "src/base.ts",
+      "hash": "5d044fa46c374548adeaa9a68787978af78f45ec516e01e6d7b5f32bdbb56acd"
+    },
+    {
+      "path": "src/default-dispatcher.ts",
+      "hash": "747eb2b124511552e427831387f59943cb00253c2540a73b9f300e68f642fda3"
+    },
+    {
+      "path": "src/dispatcher.ts",
+      "hash": "d6934b47b867a0c0497fd0105b6c36020c95e8902141f37e09795ec0053f2df1"
+    },
+    {
+      "path": "src/logging-dispatcher.ts",
+      "hash": "716b7f7446938cf0ffaa6fa16ef890a70785738cfa62e09d70aa6571b71c541b"
+    },
+    {
+      "path": "src/sub.ts",
+      "hash": "cf854c09e8aeef7b3c109e19cc2b0f70e040cf400a8ea298dcb5fd9e6a3eaf39"
+    },
+    {
+      "path": "src/unused.ts",
+      "hash": "712db65099cdc8ea8eec26abb0230a66a38ad6f645cafe02cc3dbd2bded79950"
+    }
+  ],
+  "selection": {
+    "extensions": [
+      ".ts",
+      ".tsx",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".cjs",
+      ".mts",
+      ".cts"
+    ],
+    "skip_directory_names": [
+      "node_modules",
+      "dist",
+      "build",
+      "test",
+      "tests",
+      "__tests__"
+    ],
+    "skip_directory_prefixes": ["."],
+    "skip_directory_suffixes": [],
+    "skip_directories_containing": [],
+    "skip_file_globs": ["*.d.ts", "*.d.mts", "*.d.cts", "*.test.*", "*.spec.*"],
+    "input_file_globs": ["package.json", "tsconfig.json", "*.html"]
+  },
+  "modules": [
+    {
+      "id": "src/base.ts",
+      "language": "typescript",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Base",
+          "kind": "class",
+          "line": 1,
+          "exported": true,
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "run",
+              "line": 2,
+              "end_line": 2,
+              "params": [],
+              "private": false,
+              "body_line": 2,
+              "returns": "void"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/default-dispatcher.ts",
+      "language": "typescript",
+      "kind": "module",
+      "members": [
+        {
+          "name": "DefaultDispatcher",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "bases": ["Dispatcher"],
+          "fields": [],
+          "methods": [
+            {
+              "name": "dispatch",
+              "line": 4,
+              "end_line": 6,
+              "params": [
+                {
+                  "name": "job",
+                  "type": "string"
+                }
+              ],
+              "private": false,
+              "body_line": 5,
+              "returns": "void"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/dispatcher.ts",
+      "language": "typescript",
+      "kind": "interface",
+      "members": [
+        {
+          "name": "Dispatcher",
+          "kind": "interface",
+          "line": 1,
+          "exported": true,
+          "bases": [],
+          "fields": [],
+          "methods": [
+            {
+              "name": "dispatch",
+              "line": 2,
+              "end_line": 2,
+              "params": [
+                {
+                  "name": "job",
+                  "type": "string"
+                }
+              ],
+              "private": false,
+              "returns": "void",
+              "tags": ["abstract"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/logging-dispatcher.ts",
+      "language": "typescript",
+      "kind": "module",
+      "members": [
+        {
+          "name": "LoggingDispatcher",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "bases": ["Dispatcher"],
+          "fields": [
+            {
+              "name": "inner",
+              "type": "Dispatcher",
+              "line": 4,
+              "private": true
+            }
+          ],
+          "methods": [
+            {
+              "name": "constructor",
+              "line": 4,
+              "end_line": 4,
+              "params": [
+                {
+                  "name": "inner",
+                  "type": "Dispatcher"
+                }
+              ],
+              "private": false,
+              "body_line": 4
+            },
+            {
+              "name": "dispatch",
+              "line": 6,
+              "end_line": 8,
+              "params": [
+                {
+                  "name": "job",
+                  "type": "string"
+                }
+              ],
+              "private": false,
+              "body_line": 7,
+              "returns": "void"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "src/sub.ts",
+      "language": "typescript",
+      "kind": "module",
+      "members": [
+        {
+          "name": "Sub",
+          "kind": "class",
+          "line": 3,
+          "exported": true,
+          "bases": ["Base"],
+          "fields": [],
+          "methods": []
+        }
+      ]
+    },
+    {
+      "id": "src/unused.ts",
+      "language": "typescript",
+      "kind": "module",
+      "members": [
+        {
+          "name": "LIMIT",
+          "kind": "constant",
+          "line": 3,
+          "exported": true,
+          "value": "3"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "src/default-dispatcher.ts",
+      "to": "src/dispatcher.ts",
+      "kind": "implements",
+      "line": 3,
+      "member": "DefaultDispatcher",
+      "to_member": "Dispatcher"
+    },
+    {
+      "from": "src/logging-dispatcher.ts",
+      "to": "src/dispatcher.ts",
+      "kind": "depends",
+      "line": 1,
+      "names": ["Dispatcher"]
+    },
+    {
+      "from": "src/logging-dispatcher.ts",
+      "to": "src/dispatcher.ts",
+      "kind": "implements",
+      "line": 3,
+      "member": "LoggingDispatcher",
+      "to_member": "Dispatcher"
+    },
+    {
+      "from": "src/sub.ts",
+      "to": "src/base.ts",
+      "kind": "inherits",
+      "line": 3,
+      "member": "Sub",
+      "to_member": "Base"
+    },
+    {
+      "from": "src/unused.ts",
+      "to": "src/dispatcher.ts",
+      "kind": "depends",
+      "line": 1,
+      "names": ["Dispatcher"]
+    }
+  ],
+  "foreign": [],
+  "calls": [
+    {
+      "from": "src/dispatcher.ts::Dispatcher.dispatch",
+      "to": "src/default-dispatcher.ts::DefaultDispatcher.dispatch",
+      "line": 2,
+      "how": "dispatch"
+    },
+    {
+      "from": "src/dispatcher.ts::Dispatcher.dispatch",
+      "to": "src/logging-dispatcher.ts::LoggingDispatcher.dispatch",
+      "line": 2,
+      "how": "dispatch"
+    },
+    {
+      "from": "src/logging-dispatcher.ts::LoggingDispatcher.dispatch",
+      "to": "src/dispatcher.ts::Dispatcher.dispatch",
+      "line": 7,
+      "how": "call"
+    }
+  ],
+  "test_imports": []
+}

@@ -190,15 +190,6 @@
     {
       "from": "app/GetUserUseCase.kt",
       "to": "app/GetUserPort.kt",
-      "kind": "depends",
-      "line": 3,
-      "names": [
-        "GetUserPort"
-      ]
-    },
-    {
-      "from": "app/GetUserUseCase.kt",
-      "to": "app/GetUserPort.kt",
       "kind": "implements",
       "line": 3,
       "member": "GetUserUseCase",
