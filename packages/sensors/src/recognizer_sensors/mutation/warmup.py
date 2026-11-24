@@ -32,6 +32,8 @@ from recognizer_sensors.testrun.contexts import PYTHON_DATA, ContextSelection, P
 from recognizer_sensors.testrun.failures import (
     carry_could_help,
     failing_names,
+    kotlin_results_glob,
+    kotlin_task,
     mutation_tests_failed,
     not_installed,
     suite_failed,
@@ -61,8 +63,6 @@ KOTLIN_REPORT_GLOB = "**/build/reports/jacoco/test/jacocoTestReport.xml"
 KOTLIN_TEST_MARKER = re.compile(
     r"@(?:Test|ParameterizedTest|RepeatedTest|TestFactory|TestTemplate)\b"
 )
-
-KOTLIN_RESULTS_GLOB = "**/build/test-results/test/TEST-*.xml"
 
 CSHARP_TRX_GLOB = "**/TestResults/results_*.trx"
 
@@ -149,10 +149,10 @@ def kotlin_project_of(result: Path, copy: Path) -> str:
     return "".join(f":{part}" for part in directory.parts)
 
 
-def kotlin_result_classes(copy: Path) -> dict[tuple[str, str], set[str]]:
+def kotlin_result_classes(copy: Path, task: str = "test") -> dict[tuple[str, str], set[str]]:
     found: dict[tuple[str, str], set[str]] = {}
 
-    for result in sorted(copy.glob(KOTLIN_RESULTS_GLOB)):
+    for result in sorted(copy.glob(kotlin_results_glob(task))):
         name = result.name[len("TEST-") : -len(".xml")].split("$")[0]
         project = kotlin_project_of(result, copy)
         found.setdefault((project, name), set()).add(name)
@@ -185,33 +185,36 @@ def kotlin_declarations(repository: Path) -> dict[str, list[str]]:
     return declared
 
 
-def kotlin_test_project(path: str) -> str | None:
+def kotlin_test_project(path: str, task: str = "test") -> str | None:
     parts = path.split("/")
+    source_set = "test" if task == "test" else task.removesuffix("Test") + "Test"
 
     for index in range(len(parts) - 1):
-        if parts[index] == "src" and parts[index + 1] == "test":
+        if parts[index] == "src" and parts[index + 1] in ("test", source_set):
             return "".join(f":{part}" for part in parts[:index])
 
     return None
 
 
-def kotlin_source_map(repository: Path) -> dict[str, list[tuple[str, str]]] | str:
+def kotlin_source_map(
+    repository: Path, task: str = "test"
+) -> dict[str, list[tuple[str, str]]] | str:
     marked: dict[str, bool] = {}
     mapped: dict[str, list[tuple[str, str]]] = {}
 
     for name, files in kotlin_declarations(repository).items():
-        kept = [path for path in files if kotlin_marked(repository, path, marked)]
+        kept = [path for path in files if kotlin_marked(repository, path, marked, task)]
 
         if len(kept) > 1:
             return name
 
         for path in kept:
-            mapped.setdefault(path, []).append((kotlin_test_project(path) or "", name))
+            mapped.setdefault(path, []).append((kotlin_test_project(path, task) or "", name))
 
     return mapped
 
 
-def kotlin_marked(repository: Path, path: str, cache: dict[str, bool]) -> bool:
+def kotlin_marked(repository: Path, path: str, cache: dict[str, bool], task: str = "test") -> bool:
     if path not in cache:
         try:
             text = (repository / path).read_text(encoding="utf-8", errors="replace")
@@ -219,19 +222,22 @@ def kotlin_marked(repository: Path, path: str, cache: dict[str, bool]) -> bool:
             text = ""
 
         cache[path] = (
-            kotlin_test_project(path) is not None and KOTLIN_TEST_MARKER.search(text) is not None
+            kotlin_test_project(path, task) is not None
+            and KOTLIN_TEST_MARKER.search(text) is not None
         )
 
     return cache[path]
 
 
-def kotlin_class_map(repository: Path, copy: Path) -> dict[str, list[tuple[str, str]]] | str:
+def kotlin_class_map(
+    repository: Path, copy: Path, task: str = "test"
+) -> dict[str, list[tuple[str, str]]] | str:
     declared = kotlin_declarations(repository)
     mapped: dict[str, list[tuple[str, str]]] = {}
-    results = kotlin_result_classes(copy)
+    results = kotlin_result_classes(copy, task)
 
     if not results:
-        return kotlin_source_map(repository)
+        return kotlin_source_map(repository, task)
 
     for project, name in sorted(results):
         files = declared.get(name, [])
@@ -260,7 +266,9 @@ def kotlin_selection(
     repository: Path, copy: Path, suite: Suite, scan: Scan, whole: Coverage
 ) -> Selection:
     commands.KOTLIN_CLASSES.clear()
-    mapped = kotlin_class_map(repository, copy)
+    task = kotlin_task(suite.command) or "test"
+
+    mapped = kotlin_class_map(repository, copy, task)
 
     if isinstance(mapped, str):
         print(
@@ -290,7 +298,7 @@ def kotlin_selection(
                 copy,
                 suite,
                 f"kotlin {file}",
-                kotlin_class_command(project, [n for _, n in pairs]),
+                kotlin_class_command(project, [n for _, n in pairs], task),
             )
         except MeasurementError as error:
             return kotlin_fallback(str(error))
@@ -745,7 +753,9 @@ def coverage_run(
             names = (
                 []
                 if suite.language == "csharp"
-                else failing_names(copy, suite.language, output, directory_of(suite))
+                else failing_names(
+                    copy, suite.language, output, directory_of(suite), command=suite.command
+                )
             )
 
             raise Refusal(mutation_tests_failed(suite.name, names, output))

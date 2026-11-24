@@ -1,6 +1,7 @@
 import os
 import re
 
+from recognizer_sensors.testrun.failures import kotlin_task
 from recognizer_sensors.testrun.suites import Suite, directory_of
 
 MAX_SELECTED_FILES = 50
@@ -32,7 +33,7 @@ def typescript_related(suite: Suite, file: str, stop: bool, workers: int) -> lis
     return ["npx", "--no", "--", "jest", "--findRelatedTests", file, *flags]
 
 
-def kotlin_fail_fast(command: list[str]) -> list[str]:
+def kotlin_fail_fast(command: list[str], task: str = "test") -> list[str]:
     stopped: list[str] = []
     skip = False
 
@@ -44,7 +45,7 @@ def kotlin_fail_fast(command: list[str]) -> list[str]:
 
         stopped.append(word)
 
-        if word == "test" or word.endswith(":test"):
+        if word == task or word.endswith(f":{task}"):
             if command[index + 1 : index + 2] == ["--no-daemon"]:
                 stopped.append("--no-daemon")
                 skip = True
@@ -54,15 +55,17 @@ def kotlin_fail_fast(command: list[str]) -> list[str]:
     return stopped
 
 
-KOTLIN_TEST_WORD = re.compile(r"(?<!\S)(?:\S*:)?test(?!\S)(?:\s+--no-daemon(?!\S))?")
-
-
-KOTLIN_NON_TEST_WORD = re.compile(r"\s+(?:\S*:)?(?:cleanTest|jacocoTestReport)(?!\S)")
+KOTLIN_NON_TEST_WORD = re.compile(r"\s+(?:\S*:)?(?:clean[A-Za-z0-9]*Test|jacocoTestReport)(?!\S)")
 
 
 def kotlin_fail_fast_text(command: str) -> str:
     command = KOTLIN_NON_TEST_WORD.sub("", command)
-    found = KOTLIN_TEST_WORD.search(command)
+    task = kotlin_task(command)
+
+    if task is None:
+        return command
+
+    found = re.search(rf"(?<!\S)(?:\S*:)?{re.escape(task)}(?!\S)(?:\s+--no-daemon(?!\S))?", command)
 
     if found is None:
         return command
@@ -88,10 +91,10 @@ def mutant_command(suite: Suite, stop: bool = False, workers: int = 1) -> str:
     return command
 
 
-def kotlin_class_command(project: str, classes: list[str]) -> list[str]:
+def kotlin_class_command(project: str, classes: list[str], task: str = "test") -> list[str]:
     return [
         "./gradlew",
-        f"{project}:test" if project else "test",
+        f"{project}:{task}" if project else task,
         "--no-daemon",
         "--rerun",
         *[arg for name in classes for arg in ("--tests", name)],
@@ -99,11 +102,11 @@ def kotlin_class_command(project: str, classes: list[str]) -> list[str]:
     ]
 
 
-def kotlin_selected_command(selected: list[tuple[str, str]]) -> list[str]:
+def kotlin_selected_command(selected: list[tuple[str, str]], task: str = "test") -> list[str]:
     command = ["./gradlew"]
 
     for project in sorted({project for project, _ in selected}):
-        command.append(f"{project}:test" if project else "test")
+        command.append(f"{project}:{task}" if project else task)
 
         for name in sorted(name for p, name in selected if p == project):
             command += ["--tests", name]
@@ -252,14 +255,16 @@ def selected_command(
         return ["pytest", "-rfE", *(["-x"] if stop else []), *ordered]
 
     if language == "kotlin":
+        task = kotlin_task(suite.command) or "test"
+
         if any(f not in KOTLIN_CLASSES for f in files):
             return mutant_command(suite, stop, workers)
 
         command = kotlin_selected_command(
-            [pair for f in sorted(files) for pair in KOTLIN_CLASSES[f]]
+            [pair for f in sorted(files) for pair in KOTLIN_CLASSES[f]], task
         )
 
-        return kotlin_fail_fast(command) if stop else command
+        return kotlin_fail_fast(command, task) if stop else command
 
     if language == "csharp":
         if any(f not in CSHARP_CLASSES for f in files):

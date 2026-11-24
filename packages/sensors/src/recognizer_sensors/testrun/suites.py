@@ -349,7 +349,9 @@ def collect_suites(
                 names_failing = (
                     []
                     if suite.language == "csharp"
-                    else failing_names(repository, suite.language, output, suite.directory)
+                    else failing_names(
+                        repository, suite.language, output, suite.directory, command=suite.command
+                    )
                 )
                 diagnosis = crap_tests_failed(names_failing, suite.name)
                 outcome.update(status="failed", reason=diagnosis["line"])

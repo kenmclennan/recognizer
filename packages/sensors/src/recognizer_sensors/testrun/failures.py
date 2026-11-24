@@ -5,7 +5,22 @@ from pathlib import Path
 from recognizer_sensors.settings import MAX_FAILING_NAMES, Refusal, diagnose
 from recognizer_sensors.testrun.reports import REASON_LIMIT, last_meaningful_line
 
-KOTLIN_RESULTS_GLOB = "**/build/test-results/test/TEST-*.xml"
+KOTLIN_TASK_WORD = re.compile(r"^(?:\S*:)?(test|(?!clean)[a-z][A-Za-z0-9]*Test)$")
+
+
+def kotlin_task(command: str) -> str | None:
+    for word in command.split():
+        found = KOTLIN_TASK_WORD.match(word)
+
+        if found is not None:
+            return found.group(1)
+
+    return None
+
+
+def kotlin_results_glob(task: str = "test") -> str:
+    return f"**/build/test-results/{task}/TEST-*.xml"
+
 
 COVERAGE_ROOT = ".recognizer/cache/coverage"
 
@@ -30,10 +45,10 @@ def log_names(language: str | None, output: str) -> list[str]:
     return names
 
 
-def kotlin_names(repository: Path, directory: str = "") -> list[str]:
+def kotlin_names(repository: Path, directory: str = "", task: str = "test") -> list[str]:
     names: list[str] = []
 
-    for result in sorted((repository / directory).glob(KOTLIN_RESULTS_GLOB)):
+    for result in sorted((repository / directory).glob(kotlin_results_glob(task))):
         try:
             root = ElementTree.parse(result).getroot()
         except (OSError, ElementTree.ParseError):
@@ -65,10 +80,15 @@ def csharp_names(directory: Path) -> list[str]:
 
 
 def failing_names(
-    repository: Path, language: str | None, output: str, directory: str = "", slug: str = ""
+    repository: Path,
+    language: str | None,
+    output: str,
+    directory: str = "",
+    slug: str = "",
+    command: str = "",
 ) -> list[str]:
     if language == "kotlin":
-        return kotlin_names(repository, directory)
+        return kotlin_names(repository, directory, kotlin_task(command) or "test")
 
     if language == "csharp":
         folder = (
