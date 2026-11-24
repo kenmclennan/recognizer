@@ -23,6 +23,19 @@ export const OPERATIONS = [
   "view.author",
   "view.scans",
   "view.members",
+  "history.list",
+  "history.branches",
+  "history.facts",
+  "history.detail",
+  "history.pulls",
+  "changes.take",
+  "changes.clear",
+  "changes.adopt",
+  "changes.poll",
+  "git.begin",
+  "git.poll",
+  "git.end",
+  "changes.worktree",
 ] as const;
 
 export type Operation = (typeof OPERATIONS)[number];

@@ -234,7 +234,7 @@ Ports, with the subdomain each belongs to:
 | Sensors | sensing | discovers sensors, reads their manifests and runs them |
 | Analysis | analysis | reads the structure settings and the shipped sensor names, reports policy problems; the SensorsAdapter implements it and Sensors |
 | Describer | describing | finds the describer in effect and describes files |
-| Git | shared | reads the commit, the dirty state and the branch, resolves a ref to a commit, tells whether one commit is an ancestor of another and lists the renames since a commit |
+| Git | shared | reads the commit, the dirty state and the branch, resolves a ref to a commit, tells whether one commit is an ancestor of another and lists the renames since a commit; also the branch, the default ref, history and branch listings, ref facts and the git-state snapshot |
 | Scan lock | shared | acquires the scan lock and reports whether a scan is running |
 | Confirm | describing | asks the person running the scan to accept a describing cost |
 | Clock | shared | supplies the time |
@@ -242,6 +242,9 @@ Ports, with the subdomain each belongs to:
 | ViewRepository | visualisation | reads, writes, lists and removes the saved view files; a file that is not a valid view comes back as its messages |
 | Changes | visualisation | marks the files a change view's range touched, from git's name-status diff |
 | Windows | visualisation | reads a running app window's state over the app's socket |
+| Forge | history | runs the repository host's command line (`gh`) and returns its exit status and output |
+| RecordedScans | history | reads the files and selection each recorded scan holds |
+| WorkTree | history | stats, hashes and walks the files of a working folder |
 
 #### Run model
 

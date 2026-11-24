@@ -1,9 +1,9 @@
+import type { Limiter } from "../../shared/limiter.js";
 import type { Clock } from "../../shared/ports/clock.js";
 import type { Git } from "../../shared/ports/git.js";
 import type { Scratch } from "../../shared/ports/scratch.js";
 import type { MemoisedComparisons } from "../memoised-comparisons.js";
 import type { ScanCache } from "../ports/scan-cache.js";
-import type { Limiter } from "./limiter.js";
 
 export interface HistoricalScanRequest {
   repository: string;

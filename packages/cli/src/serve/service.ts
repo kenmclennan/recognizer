@@ -39,10 +39,11 @@ import {
   markerPath,
   readRun,
   refusalText,
-  STARTED_BY_VARIABLE,
 } from "../scan-marker.js";
 import { liveScopes, processScope, StopScope } from "../stop-scope.js";
 import { configKeys, configWrite } from "./config-run.js";
+import { HistoryChannel } from "./history-channel.js";
+import { quiet } from "./quiet.js";
 import { type ScopeFiles, writeScopeFiles } from "./scan-files.js";
 import { sensorWork } from "./sensor-work.js";
 import {
@@ -85,14 +86,6 @@ interface Started {
   running: RunningScan;
 }
 
-function quiet(io: Io): Io {
-  return Object.assign(Object.create(io) as Io, {
-    env: (name: string) =>
-      name === STARTED_BY_VARIABLE ? "app" : process.env[name],
-    stdout: (chunk: string) => io.stderr(chunk),
-  });
-}
-
 export class Service {
   private readonly started = new Map<string, Started>();
   private readonly watches = new Map<string, () => void>();
@@ -102,6 +95,7 @@ export class Service {
   private readonly shared: Io;
   private readonly planner: Scan;
   private readonly historical: HistoricalPorts;
+  private readonly historyChannel = new HistoryChannel();
   private counter = 0;
 
   constructor(private readonly options: ServiceOptions) {
@@ -113,16 +107,19 @@ export class Service {
     const scratch = new ScratchAdapter();
     const clock = new ClockAdapter(this.shared);
 
+    const git = new GitAdapter(this.shared);
+    const limiter = new Limiter(
+      Math.max(1, Math.min(MAX_HISTORICAL_SCANS, availableParallelism())),
+    );
+
     this.historical = {
-      git: new GitAdapter(this.shared),
+      git,
       scratch,
       scan: this.planner,
       cache: new ScanCacheAdapter(),
       clock,
       comparisons: new MemoisedComparisons(clock),
-      limiter: new Limiter(
-        Math.max(1, Math.min(MAX_HISTORICAL_SCANS, availableParallelism())),
-      ),
+      limiter,
     };
     scratch.sweepStale(STALE_SCRATCH_MS);
   }
@@ -281,6 +278,22 @@ export class Service {
             text(args, "head"),
           ),
         );
+
+        return;
+      case "history.list":
+      case "history.branches":
+      case "history.facts":
+      case "history.detail":
+      case "history.pulls":
+      case "changes.take":
+      case "changes.clear":
+      case "changes.adopt":
+      case "changes.poll":
+      case "git.begin":
+      case "git.poll":
+      case "git.end":
+      case "changes.worktree":
+        reply(await this.historyChannel.call(request.op, args));
 
         return;
       case "view.serialise": {
@@ -545,6 +558,8 @@ export class Service {
   }
 
   stopAll(exit: number): Promise<void> {
+    void this.historyChannel.close();
+
     for (const end of this.watches.values()) {
       end();
     }

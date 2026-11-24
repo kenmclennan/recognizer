@@ -9,31 +9,52 @@ import type {
   PullRequestsReply,
   RefFacts,
 } from "./commits-port";
+import { coreReply } from "./scan-source";
 
-export const commitsSource: CommitsPort = {
-  listHistory: () => invoke<HistoryReply>("list_history"),
-  listBranches: () => invoke<BranchesReply>("list_branches"),
-  refFacts: (refs) => invoke<RefFacts[]>("ref_facts", { refs }),
-  listPullRequests: () => invoke<PullRequestsReply>("read_pull_requests"),
-  changeDetail: (kind, reference) =>
-    invoke<ChangeDetailReply>("change_detail", { kind, reference }),
-  watchGit(onChange) {
-    const pending = listen("git-changed", () => onChange());
+type Invoke = <T>(
+  command: string,
+  args?: Record<string, unknown>,
+) => Promise<T>;
 
-    void pending.then(() => invoke<void>("watch_git"));
+type Listen = (
+  event: string,
+  handler: () => void,
+) => Promise<() => void> | Promise<unknown>;
 
-    return () => {
-      void pending.then((stop) => stop());
-      void invoke<void>("unwatch_git");
-    };
-  },
-  onFocus(run) {
-    const pending = getCurrentWebviewWindow().onFocusChanged((event) => {
-      if (event.payload) {
-        run();
-      }
-    });
+export function createCommitsSource(
+  call: Invoke = invoke as Invoke,
+  on: Listen = listen as Listen,
+): CommitsPort {
+  const ask = async <T>(op: string, args: Record<string, unknown> = {}) =>
+    coreReply<T>(await call("core_call", { op, args }));
 
-    return () => void pending.then((stop) => stop());
-  },
-};
+  return {
+    listHistory: () => ask<HistoryReply>("history.list"),
+    listBranches: () => ask<BranchesReply>("history.branches"),
+    refFacts: (refs) => ask<RefFacts[]>("history.facts", { refs }),
+    listPullRequests: () => ask<PullRequestsReply>("history.pulls"),
+    changeDetail: (kind, reference) =>
+      ask<ChangeDetailReply>("history.detail", { kind, reference }),
+    watchGit(onChange) {
+      const pending = on("git-changed", () => onChange());
+
+      void pending.then(() => call<void>("watch_git"));
+
+      return () => {
+        void pending.then((stop) => (stop as () => void)());
+        void call<void>("unwatch_git");
+      };
+    },
+    onFocus(run) {
+      const pending = getCurrentWebviewWindow().onFocusChanged((event) => {
+        if (event.payload) {
+          run();
+        }
+      });
+
+      return () => void pending.then((stop) => stop());
+    },
+  };
+}
+
+export const commitsSource: CommitsPort = createCommitsSource();

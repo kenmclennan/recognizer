@@ -4,6 +4,13 @@ export interface NameStatusEntry {
   readonly from?: string;
 }
 
+export interface WorkingTreeEntry {
+  readonly code: string;
+  readonly path: string;
+}
+
+export type GitText = { ok: true; text: string } | { ok: false; error: string };
+
 export interface Git {
   commit(root: string): string | null;
   dirty(root: string): boolean;
@@ -28,4 +35,26 @@ export interface Git {
     paths: readonly string[],
     target: string,
   ): Promise<boolean>;
+  branch(root: string): string | null;
+  insideWorkTree(root: string): boolean;
+  listFiles(root: string): readonly string[] | null;
+  defaultRef(root: string): string | null;
+  history(root: string, limit: number): Promise<GitText>;
+  branches(root: string, limit: number): Promise<GitText>;
+  branchCount(root: string): Promise<number | null>;
+  mergeBase(root: string, a: string, b: string): Promise<string | null>;
+  aheadBehind(
+    root: string,
+    base: string,
+    head: string,
+  ): Promise<{ behind: number; ahead: number } | null>;
+  diffRefs(
+    root: string,
+    base: string,
+    head: string,
+  ): Promise<readonly NameStatusEntry[] | null>;
+  commitDetail(root: string, ref: string): Promise<string | null>;
+  tipSummary(root: string, ref: string): Promise<string | null>;
+  stateSnapshot(root: string): Promise<string | null>;
+  workingTree(root: string): Promise<readonly WorkingTreeEntry[] | null>;
 }

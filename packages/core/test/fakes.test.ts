@@ -44,6 +44,7 @@ describe("fakes", () => {
       "describer",
       "digest",
       "document-validators",
+      "forge",
       "git",
       "key-owners",
       "keyed-text",
@@ -52,6 +53,7 @@ describe("fakes", () => {
       "plugin-templates",
       "process",
       "programs",
+      "recorded-scans",
       "repository-checks",
       "scan-cache",
       "scan-lock",
@@ -68,6 +70,7 @@ describe("fakes", () => {
       "survey-plugins",
       "test-reports",
       "windows",
+      "work-tree",
     ]);
     expect(fakeKeys).toEqual(
       [
@@ -86,6 +89,7 @@ describe("fakes", () => {
         "documentValidators",
         "files",
         "findings",
+        "forge",
         "git",
         "keyOwners",
         "keyedText",
@@ -96,6 +100,7 @@ describe("fakes", () => {
         "policy",
         "process",
         "programs",
+        "recordedScans",
         "repositoryChecks",
         "responsibilities",
         "runLog",
@@ -112,6 +117,7 @@ describe("fakes", () => {
         "testReports",
         "views",
         "windows",
+        "workTree",
       ].sort(),
     );
     expect(

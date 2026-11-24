@@ -128,25 +128,25 @@ fn lib_declares_each_module_file_and_imports_the_changes_names() {
 
     expected.sort();
 
-    assert_eq!(mods.len(), 21);
+    assert_eq!(mods.len(), 19);
     assert_eq!(edge_targets, expected);
 
-    let changes = document["edges"]
+    let core_client = document["edges"]
         .as_array()
         .unwrap()
         .iter()
         .find(|e| {
             e["from"] == lib.as_str()
-                && e["to"] == format!("{TAURI}src/changes.rs").as_str()
+                && e["to"] == format!("{TAURI}src/core_client.rs").as_str()
                 && e.get("names").is_some()
         })
-        .expect("a depends edge naming changes members");
+        .expect("a depends edge naming core_client members");
 
-    assert!(changes["names"]
+    assert!(core_client["names"]
         .as_array()
         .unwrap()
         .iter()
-        .any(|n| n == "Baseline"));
+        .any(|n| n == "CoreClient"));
 
     let foreign: Vec<&str> = document["foreign"]
         .as_array()

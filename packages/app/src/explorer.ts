@@ -2750,7 +2750,7 @@ export function showExplorer(
       prs: {
         rows: shownPulls.rows,
         hidden: shownPulls.hidden,
-        loading: pullLoad.state === "loading",
+        loading: pullLoad.state !== "ready",
         notice:
           pullNotice ??
           (pullLoad.state === "ready" && pullRows.length === 0
