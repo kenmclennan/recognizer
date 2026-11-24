@@ -158,6 +158,7 @@ export * from "./domain/configuration/setup-event.js";
 export * from "./domain/configuration/setup-survey.js";
 export * from "./domain/configuration/suite-keys.js";
 export * from "./domain/configuration/survey-answer.js";
+export * from "./domain/configuration/thresholds-migration.js";
 export * from "./domain/dependency.js";
 export * from "./domain/describing/describe-projection.js";
 export * from "./domain/describing/describe-request.js";

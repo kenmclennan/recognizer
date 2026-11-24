@@ -1,4 +1,4 @@
-interface Migration {
+export interface ThresholdsMigration {
   line: string;
   command: string;
 }
@@ -129,7 +129,7 @@ function complexitySteps(entry: unknown, document: unknown): Plan {
 export function thresholdsMigration(
   document: unknown,
   prefix: (command: string) => string,
-): Migration | null {
+): ThresholdsMigration | null {
   const section = at(document, ["sensors", "thresholds"]);
 
   if (section === undefined) {
