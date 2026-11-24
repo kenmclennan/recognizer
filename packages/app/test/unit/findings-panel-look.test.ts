@@ -8,6 +8,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import groupFile from "../../src/finding-groups.json";
 import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
+import { BEHAVIOUR } from "../language-behaviour";
 
 const GROUPED_IDS = [
   "config/Application.kt",
@@ -62,6 +63,7 @@ const groupedDocument = structureSensor(
     complexity_limit: 10,
   },
   { commit: "cur1234", modified: false },
+  BEHAVIOUR,
 ).document;
 
 const HARNESS = `

@@ -33,6 +33,8 @@ const PYTHON_RULE: GrammarRule = {
   branch_types: ["if_statement"],
   boolean_operators: ["and", "or"],
   bound_function_types: [],
+  function_names: [],
+  span: null,
 };
 
 async function pythonParsers(): Promise<Parsers> {
@@ -81,6 +83,7 @@ describe("runStructureAnalysis", () => {
       findings: fakes.findings,
       source: fakes.source,
       digest: fakes.digest,
+      languages: fakes.languages,
     };
     const input = {
       say: () => {},

@@ -1,3 +1,4 @@
+import type { LanguageBehaviour } from "../../domain/analysis/language-behaviour.js";
 import { Finding } from "../../domain/finding.js";
 import { violationText } from "../../domain/finding-text.js";
 import type { PolicyRule, ViolatedRule } from "../../domain/policy-rule.js";
@@ -68,6 +69,7 @@ export function senseStructure(
   policy: readonly PolicyRule[] | null,
   settings: StructureSettings,
   context: StructureContext,
+  behaviour: LanguageBehaviour,
   measured: MeasuredWarnings = { duplication: null, complexity: null },
 ): StructureResult {
   const findings: Finding[] = [];
@@ -128,16 +130,27 @@ export function senseStructure(
           policy,
           settings.entry_points,
           settings.entry_annotations,
+          behaviour,
         )
       : []),
     ...(settings.warnings.unused_exports
-      ? unusedExportsWarnings(repository, policy, settings.entry_points)
+      ? unusedExportsWarnings(
+          repository,
+          policy,
+          settings.entry_points,
+          behaviour,
+        )
       : []),
     ...(settings.warnings.private_imports
-      ? privateImportsWarnings(repository, policy)
+      ? privateImportsWarnings(repository, policy, behaviour)
       : []),
     ...(settings.warnings.long_function
-      ? longFunctionWarnings(repository, policy, settings.long_function_limit)
+      ? longFunctionWarnings(
+          repository,
+          policy,
+          behaviour,
+          settings.long_function_limit,
+        )
       : []),
   ];
 

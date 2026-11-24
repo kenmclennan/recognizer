@@ -33,6 +33,7 @@ import type { FolderMetrics } from "./measure-folders.js";
 import type { ModuleMetrics } from "./measure-modules.js";
 import type { Analysis } from "./ports/analysis.js";
 import type { Digest } from "./ports/digest.js";
+import type { PublishedLanguages } from "./ports/published-languages.js";
 import type { SourceFiles } from "./ports/source-files.js";
 import type { TestReports } from "./ports/test-reports.js";
 import { freshnessFor, readFindingsFiles } from "./read-findings-files.js";
@@ -57,6 +58,7 @@ export interface CheckPorts {
   source: SourceFiles;
   digest: Digest;
   testReports: TestReports;
+  languages: PublishedLanguages;
 }
 
 export interface CheckRequest {
@@ -210,6 +212,7 @@ function gather(
           source: ports.source,
           digest: ports.digest,
           testReports: ports.testReports,
+          languages: ports.languages,
         },
         root,
         repository,

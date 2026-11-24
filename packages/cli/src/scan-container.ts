@@ -1,5 +1,6 @@
 import {
   createScan,
+  type InstalledPlugin,
   type Scan,
   type ScanPorts,
   type SyncPorts,
@@ -17,6 +18,7 @@ import { GitAdapter } from "./adapters/git/git-adapter.js";
 import { DescriberAdapter } from "./adapters/plugins/describer-adapter.js";
 import { GrammarRulesAdapter } from "./adapters/plugins/grammar-rules-adapter.js";
 import { ProcessAdapter } from "./adapters/plugins/process-adapter.js";
+import { PublishedLanguagesAdapter } from "./adapters/plugins/published-languages-adapter.js";
 import {
   ScannersAdapter,
   SyncScannersAdapter,
@@ -57,6 +59,7 @@ export function scanPorts(io: Io, read: ConfigRead): ScanPorts {
     digest: new DigestAdapter(),
     parsing: new ParsingAdapter(),
     grammarRules: new GrammarRulesAdapter(() => scanners.installedPlugins()),
+    languages: new PublishedLanguagesAdapter(() => discovered(scanners)),
     testReports: new TestReportsAdapter(io),
   };
 }
@@ -69,9 +72,20 @@ export function syncScanPorts(io: Io, read: ConfigRead): SyncPorts {
     scanners,
     process: new ProcessAdapter(io, () => scanners.installedPlugins()),
     grammarRules: new GrammarRulesAdapter(() => scanners.installedPlugins()),
+    languages: new PublishedLanguagesAdapter(() => discovered(scanners)),
   };
 }
 
 export function createScanContainer(io: Io, read: ConfigRead): Scan {
   return createScan(scanPorts(io, read));
+}
+
+function discovered(
+  scanners: ScannersAdapter | SyncScannersAdapter,
+): InstalledPlugin[] {
+  if (scanners.installedPlugins().length === 0) {
+    scanners.discover();
+  }
+
+  return scanners.installedPlugins();
 }

@@ -7,6 +7,7 @@ import {
   structureSensor,
 } from "../src/index.js";
 import { REPO } from "./helpers.js";
+import { BEHAVIOUR } from "./language-behaviour-fixture.js";
 import { repositoryFrom } from "./repository-from.js";
 
 const here = join(REPO, "fixtures/structure/corpus");
@@ -146,6 +147,7 @@ function runScan(name: string) {
     policy,
     settingsFrom(description),
     { commit: "c", modified: false },
+    BEHAVIOUR,
   );
 }
 

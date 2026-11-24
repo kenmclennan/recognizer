@@ -5,7 +5,7 @@ import {
   grammarFor,
 } from "../../domain/analysis/duplication/grammars.js";
 import { assignIdentities } from "../../domain/analysis/duplication/identity.js";
-import { isTestFile } from "../../domain/analysis/entry-points.js";
+import type { LanguageBehaviour } from "../../domain/analysis/language-behaviour.js";
 import { COMPLEXITY_LIMIT } from "../../domain/function-length.js";
 import type { PolicyRule } from "../../domain/policy-rule.js";
 import type { Repository } from "../../domain/repository.js";
@@ -117,6 +117,7 @@ export function measureComplexityValues(
   settings: StructureSettings,
   parsers: Parsers,
   rules: readonly GrammarRule[],
+  behaviour: LanguageBehaviour,
 ): ComplexityMeasure {
   const limit = settings.complexity_limit;
   const warnings: Warning[] = [];
@@ -127,7 +128,11 @@ export function measureComplexityValues(
   for (const module of repository.files) {
     const rule = grammarFor(module.path, rules);
 
-    if (rule === null || !ids.has(module.path) || isTestFile(module.path)) {
+    if (
+      rule === null ||
+      !ids.has(module.path) ||
+      behaviour.isTestFile(module.path)
+    ) {
       continue;
     }
 
@@ -175,6 +180,7 @@ export function measureComplexity(
   settings: StructureSettings,
   parsers: Parsers,
   rules: readonly GrammarRule[],
+  behaviour: LanguageBehaviour,
 ): Warning[] {
   return measureComplexityValues(
     source,
@@ -185,5 +191,6 @@ export function measureComplexity(
     settings,
     parsers,
     rules,
+    behaviour,
   ).warnings;
 }

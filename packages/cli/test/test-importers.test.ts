@@ -9,6 +9,7 @@ import {
   unusedTestOnlySentence,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
+import { BEHAVIOUR } from "./language-behaviour-fixture.js";
 import { validatedRepository as validateScan } from "./repository-from.js";
 
 type Records = { from: string; to: string; names?: string[] }[];
@@ -59,7 +60,7 @@ function files(count: number, to = "a/lonely.py"): Records {
 }
 
 const orphans = (scan: ReturnType<typeof scanOf>) =>
-  orphanWarnings(scan, null, [], []);
+  orphanWarnings(scan, null, [], [], BEHAVIOUR);
 
 const TODAY = {
   summary:

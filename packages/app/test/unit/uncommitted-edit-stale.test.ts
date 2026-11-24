@@ -16,6 +16,7 @@ import type { PlanRequest } from "../../src/plan-reads";
 import { planFromFacts } from "../../src/scan-fake";
 import { withSensors } from "../../src/sensor-run";
 import { fakeSensors } from "../../src/sensors-fake";
+import { FIXTURE_LANGUAGES } from "../language-behaviour";
 import { type DocScan, repositoryFrom } from "./repository-from";
 
 const SCAN = repositoryFrom([
@@ -73,6 +74,7 @@ function hashFromDisk(folder: string) {
       },
       digest: { sha1Prefix: (text) => sha(text).slice(0, 7), sha256: sha },
       testReports: { entries: () => new Map() },
+      languages: { rules: () => FIXTURE_LANGUAGES },
     },
     folder,
     new Map(),

@@ -1,6 +1,7 @@
 import {
   carryMeasured,
   freshnessFor,
+  LanguageBehaviour,
   type PolicyRule,
   type Repository,
   type SensorFindings,
@@ -25,6 +26,7 @@ import {
   readFindingsFiles,
   writeFindings,
 } from "./findings-files.js";
+import { installedLanguages } from "./published-languages.js";
 import { resolveStructureSettings } from "./structure-sensor.js";
 
 export function readPolicy(io: Io, root: string): PolicyRule[] | null {
@@ -129,14 +131,21 @@ export function loadFindings(
   const settings = resolveStructureSettings(config);
   const { commit, modified } = scansCommit(repository);
   const documents: SensorFindings[] = [];
+  const languages = installedLanguages(io);
+  const behaviour = new LanguageBehaviour(languages.rules());
 
   if (settings !== "off") {
     const context = { commit: commit ?? "", modified };
     const compute = () =>
       carryMeasured(
         new FindingsAdapter(io).readStructure(root),
-        senseStructure(repository, readPolicy(io, root), settings, context)
-          .document,
+        senseStructure(
+          repository,
+          readPolicy(io, root),
+          settings,
+          context,
+          behaviour,
+        ).document,
         settings,
       );
 
@@ -174,6 +183,7 @@ export function loadFindings(
         source: new SourceFilesAdapter(io),
         digest: new DigestAdapter(),
         testReports: new TestReportsAdapter(io),
+        languages,
       },
       root,
       repository,

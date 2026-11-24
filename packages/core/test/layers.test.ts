@@ -270,6 +270,7 @@ describe("core layers", () => {
       "shared/ports/process.ts",
       "shared/ports/scan-lock.ts",
       "analysis/ports/analysis.ts",
+      "analysis/ports/published-languages.ts",
       "sensing/ports/sensors.ts",
       "describing/ports/describer-ref.ts",
       "run/ports/scan.ts",

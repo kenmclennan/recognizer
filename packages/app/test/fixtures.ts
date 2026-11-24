@@ -35,6 +35,7 @@ import {
   type ScanTicks,
   scanPanel,
 } from "../src/scan-panel-model";
+import { BEHAVIOUR } from "./language-behaviour";
 import type { DocScan } from "./unit/repository-from";
 import { repositoryFrom } from "./unit/repository-from";
 
@@ -115,6 +116,7 @@ export function structureDocument(
       complexity_limit: 10,
     },
     { commit, modified: false },
+    BEHAVIOUR,
   );
 
   return commit === CURRENT ? document : outOfDate(document);

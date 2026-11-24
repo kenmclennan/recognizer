@@ -1,4 +1,4 @@
-import { isTestFile } from "../../domain/analysis/entry-points.js";
+import type { LanguageBehaviour } from "../../domain/analysis/language-behaviour.js";
 import { LONG_FUNCTION, measuredLength } from "../../domain/function-length.js";
 import type { Member } from "../../domain/member.js";
 import type { PolicyRule } from "../../domain/policy-rule.js";
@@ -47,12 +47,13 @@ function functionsOf(members: readonly Member[]): MeasuredFunction[] {
 export function functionLengths(
   repository: Repository,
   policy: readonly PolicyRule[] | null,
+  behaviour: LanguageBehaviour,
 ): Record<string, number> {
   const lengths: Record<string, number> = {};
   const { ids } = repository.graphKeeping(policy);
 
   for (const file of repository.files) {
-    if (!ids.has(file.path) || isTestFile(file.path)) {
+    if (!ids.has(file.path) || behaviour.isTestFile(file.path)) {
       continue;
     }
 
@@ -75,13 +76,14 @@ export function functionLengths(
 export function longFunctionWarnings(
   repository: Repository,
   policy: readonly PolicyRule[] | null,
+  behaviour: LanguageBehaviour,
   limit: number = LONG_FUNCTION,
 ): Warning[] {
   const { ids } = repository.graphKeeping(policy);
   const findings: Warning[] = [];
 
   for (const module of repository.files) {
-    if (!ids.has(module.path) || isTestFile(module.path)) {
+    if (!ids.has(module.path) || behaviour.isTestFile(module.path)) {
       continue;
     }
 

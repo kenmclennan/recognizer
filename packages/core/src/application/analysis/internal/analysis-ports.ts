@@ -6,6 +6,7 @@ import type { Analysis } from "../ports/analysis.js";
 import type { Digest } from "../ports/digest.js";
 import type { GrammarRules } from "../ports/grammar-rules.js";
 import type { Parsing } from "../ports/parsing.js";
+import type { PublishedLanguages } from "../ports/published-languages.js";
 import type { SourceFiles } from "../ports/source-files.js";
 
 export interface AnalysisPorts {
@@ -18,4 +19,5 @@ export interface AnalysisPorts {
   digest: Digest;
   parsing: Parsing;
   grammarRules: GrammarRules;
+  languages: PublishedLanguages;
 }

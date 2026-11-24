@@ -55,7 +55,76 @@ GRAMMARS = [
         ],
         "boolean_operators": ["&&", "||", "??"],
         "bound_function_types": [],
+        "function_names": [
+            {
+                "type": "method_declaration",
+                "requires_field": "body",
+                "name_field": "name",
+            },
+            {
+                "type": "constructor_declaration",
+                "requires_field": "body",
+                "name_field": "name",
+            },
+            {
+                "type": "local_function_statement",
+                "requires_field": "body",
+                "name_field": "name",
+            },
+            {
+                "type": "accessor_declaration",
+                "requires_field": "body",
+                "name_field": "name",
+            },
+            {
+                "type": "destructor_declaration",
+                "requires_field": "body",
+                "prefix": "~",
+                "name_field": "name",
+            },
+            {
+                "type": "operator_declaration",
+                "requires_field": "body",
+                "prefix": "operator ",
+                "name_field": "operator",
+            },
+            {
+                "type": "conversion_operator_declaration",
+                "requires_field": "body",
+                "prefix": "operator ",
+                "name_field": "type",
+            },
+            {
+                "type": "property_declaration",
+                "requires_field": "value",
+                "requires_field_type": "arrow_expression_clause",
+                "name_field": "name",
+            },
+            {
+                "type": "indexer_declaration",
+                "requires_field": "value",
+                "requires_field_type": "arrow_expression_clause",
+                "literal": "this",
+            },
+        ],
     }
+]
+
+TEST_FILES = [
+    {
+        "extensions": [],
+        "directory_names": ["test", "tests"],
+        "directory_suffixes": [],
+        "basename_patterns": [],
+        "stem_suffixes": ["Test", "Tests"],
+    },
+    {
+        "extensions": [".cs"],
+        "directory_names": [],
+        "directory_suffixes": ["Test", "Tests"],
+        "basename_patterns": [],
+        "stem_suffixes": [],
+    },
 ]
 
 
@@ -79,6 +148,9 @@ def build() -> dict:
                 "grammars": GRAMMARS,
                 "extensions": [*SOURCE_EXTENSIONS, *MARKUP_EXTENSIONS],
                 "files": [],
+                "test_files": TEST_FILES,
+                "supertype_links": False,
+                "private_imports": False,
                 "skip": {
                     "directory_names": list(SKIPPED_DIRECTORY_NAMES),
                     "directory_prefixes": list(SKIPPED_DIRECTORY_PREFIXES),

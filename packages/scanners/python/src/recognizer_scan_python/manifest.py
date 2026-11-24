@@ -37,7 +37,18 @@ GRAMMARS = [
         ],
         "boolean_operators": ["and", "or"],
         "bound_function_types": [],
+        "function_names": [],
     }
+]
+
+TEST_FILES = [
+    {
+        "extensions": [],
+        "directory_names": ["test", "tests"],
+        "directory_suffixes": [],
+        "basename_patterns": ["^test_.*\\.py$", "^.*_test\\.py$", "^conftest\\.py$"],
+        "stem_suffixes": [],
+    },
 ]
 
 
@@ -62,6 +73,9 @@ def build() -> dict:
                 "grammars": GRAMMARS,
                 "extensions": list(SOURCE_EXTENSIONS),
                 "files": [],
+                "test_files": TEST_FILES,
+                "supertype_links": False,
+                "private_imports": True,
                 "skip": {
                     "directory_names": list(SKIPPED_DIRECTORY_NAMES),
                     "directory_prefixes": list(SKIPPED_DIRECTORY_PREFIXES),

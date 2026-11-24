@@ -1,4 +1,4 @@
-import { isTestFile } from "../../domain/analysis/entry-points.js";
+import type { LanguageBehaviour } from "../../domain/analysis/language-behaviour.js";
 import { Library } from "../../domain/dependency.js";
 import type { FindingMember } from "../../domain/finding.js";
 import type { Member } from "../../domain/member.js";
@@ -13,6 +13,7 @@ function compare(a: string, b: string): number {
 export function privateImportsWarnings(
   repository: Repository,
   policy: readonly PolicyRule[] | null,
+  behaviour: LanguageBehaviour,
 ): Warning[] {
   const { edges } = repository.graphKeeping(policy);
   const modules = new Map(repository.files.map((file) => [file.path, file]));
@@ -34,7 +35,7 @@ export function privateImportsWarnings(
       importedNames === undefined ||
       edge.from === edge.to ||
       Library.owns(edge.to) ||
-      isTestFile(edge.from)
+      behaviour.isTestFile(edge.from)
     ) {
       continue;
     }
@@ -43,8 +44,10 @@ export function privateImportsWarnings(
     const owner = modules.get(edge.to);
 
     if (
-      importer?.language !== "python" ||
-      owner?.language !== "python" ||
+      importer === undefined ||
+      owner === undefined ||
+      !behaviour.checksPrivateImports(importer.language) ||
+      !behaviour.checksPrivateImports(owner.language) ||
       owner.members.length === 0
     ) {
       continue;

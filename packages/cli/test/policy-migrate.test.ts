@@ -13,6 +13,7 @@ import { YamlKeyedTextAdapter } from "../src/adapters/filesystem/yaml-keyed-text
 import { run } from "../src/cli.js";
 import { check, parsePolicy } from "../src/index.js";
 import { REPO } from "./helpers.js";
+import { BEHAVIOUR } from "./language-behaviour-fixture.js";
 import { repositoryFrom } from "./repository-from.js";
 import { fakeIo, ROOT } from "./scan-helpers.js";
 import { documentOf } from "./scan-of.js";
@@ -500,7 +501,7 @@ levels:
     );
     const scan = repositoryFrom(document);
     const orphans = (policyText: string) =>
-      orphanWarnings(scan, parsePolicy(policyText), [], []).map(
+      orphanWarnings(scan, parsePolicy(policyText), [], [], BEHAVIOUR).map(
         (finding) => finding.id,
       );
     const migratedCheck = migrated(OLD_CHECK);
@@ -528,6 +529,7 @@ levels:
         parsePolicy(policyText),
         [],
         [],
+        BEHAVIOUR,
       ).map((finding) => finding.id);
 
     const withTool = migrated(

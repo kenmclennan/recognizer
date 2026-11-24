@@ -21,7 +21,11 @@ export class GrammarRulesAdapter implements GrammarRules {
         for (const rule of grammars ?? []) {
           if (!seen.has(rule.name)) {
             seen.add(rule.name);
-            rules.push(rule);
+            rules.push({
+              ...rule,
+              function_names: rule.function_names ?? [],
+              span: rule.span ?? null,
+            });
           }
         }
       }

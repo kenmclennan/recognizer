@@ -6,6 +6,7 @@ import { TestReportsAdapter } from "../src/adapters/plugins/test-reports-adapter
 import { DigestAdapter } from "../src/adapters/system/digest-adapter.js";
 import type { Io } from "../src/cli.js";
 import { GRAMMAR_RULES } from "./duplication-helpers.js";
+import { FIXTURE_LANGUAGES } from "./language-behaviour-fixture.js";
 
 export function analysisPortsOf(io: Io) {
   return {
@@ -14,6 +15,7 @@ export function analysisPortsOf(io: Io) {
     findings: new FindingsAdapter(io),
     parsing: new ParsingAdapter(),
     grammarRules: { rules: () => GRAMMAR_RULES },
+    languages: { rules: () => FIXTURE_LANGUAGES },
   };
 }
 
@@ -22,6 +24,7 @@ export function testsHashPortsOf(io: Io) {
     source: new SourceFilesAdapter(io),
     digest: new DigestAdapter(),
     testReports: new TestReportsAdapter(io),
+    languages: { rules: () => FIXTURE_LANGUAGES },
   };
 }
 

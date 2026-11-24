@@ -10,6 +10,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { parsePolicy } from "../src/index.js";
 import { REPO } from "./helpers.js";
+import { BEHAVIOUR } from "./language-behaviour-fixture.js";
 import { validatedRepository as validateScan } from "./repository-from.js";
 
 function fixture(name: string) {
@@ -44,6 +45,7 @@ function findingsByModule(
       },
     },
     { commit: "abc", modified: false },
+    BEHAVIOUR,
   );
 
   return findingsByModuleFrom([document]);

@@ -21,6 +21,7 @@ import type { Analysis } from "./analysis/ports/analysis.js";
 import type { Digest } from "./analysis/ports/digest.js";
 import type { GrammarRules } from "./analysis/ports/grammar-rules.js";
 import type { Parsing } from "./analysis/ports/parsing.js";
+import type { PublishedLanguages } from "./analysis/ports/published-languages.js";
 import type { SourceFiles } from "./analysis/ports/source-files.js";
 import type { TestReports } from "./analysis/ports/test-reports.js";
 import {
@@ -144,6 +145,7 @@ interface CommonPorts {
   digest: Digest;
   parsing: Parsing;
   grammarRules: GrammarRules;
+  languages: PublishedLanguages;
   testReports: TestReports;
 }
 
@@ -276,6 +278,7 @@ function analysisOver(ports: CommonPorts): AnalysisPorts {
     digest: ports.digest,
     parsing: ports.parsing,
     grammarRules: ports.grammarRules,
+    languages: ports.languages,
   };
 }
 

@@ -1,3 +1,4 @@
+import { LanguageBehaviour } from "../../domain/analysis/language-behaviour.js";
 import {
   COMPLEXITY_LIMIT,
   LONG_FUNCTION,
@@ -18,11 +19,13 @@ import {
   refuseBadBaselineFlags,
 } from "./check-repository.js";
 import type { Analysis } from "./ports/analysis.js";
+import type { PublishedLanguages } from "./ports/published-languages.js";
 import { senseStructure } from "./sense-structure.js";
 
 export interface CheckScanPorts {
   analysis: Analysis;
   baselines: BaselineRepository;
+  languages: PublishedLanguages;
 }
 
 export interface CheckScanInput {
@@ -67,10 +70,13 @@ export function checkScan(
     ports.analysis.reportPolicyProblems("", repository, rules, say, policyFile);
   }
 
-  const sensed = senseStructure(repository, rules, REPLAY_SETTINGS, {
-    commit: "",
-    modified: false,
-  });
+  const sensed = senseStructure(
+    repository,
+    rules,
+    REPLAY_SETTINGS,
+    { commit: "", modified: false },
+    new LanguageBehaviour(ports.languages.rules()),
+  );
   const warnings = warningsOf([sensed.document]);
   const shared = {
     warnings,

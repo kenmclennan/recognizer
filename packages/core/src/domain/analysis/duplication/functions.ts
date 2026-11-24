@@ -1,10 +1,5 @@
-import type { GrammarRule } from "./grammars.js";
+import type { FunctionNameRule, GrammarRule } from "./grammars.js";
 import { childrenOf, type SyntaxNode } from "./syntax.js";
-
-const CSHARP_PROPERTY_TYPES = new Set([
-  "property_declaration",
-  "indexer_declaration",
-]);
 
 const NAME_LEAF_TYPES = new Set([
   "identifier",
@@ -72,47 +67,37 @@ function boundName(node: SyntaxNode): string | null {
   return name.text;
 }
 
-function csharpName(node: SyntaxNode): string | null {
-  const kind = node.type;
+function namedByRule(node: SyntaxNode, rule: FunctionNameRule): string | null {
+  if (rule.requires_field !== undefined) {
+    const required = node.childForFieldName(rule.requires_field);
 
-  if (CSHARP_PROPERTY_TYPES.has(kind)) {
-    const value = node.childForFieldName("value");
-
-    if (value === null || value.type !== "arrow_expression_clause") {
+    if (required === null) {
       return null;
     }
 
-    return kind === "indexer_declaration"
-      ? "this"
-      : textOf(node.childForFieldName("name"));
+    if (
+      rule.requires_field_type !== undefined &&
+      required.type !== rule.requires_field_type
+    ) {
+      return null;
+    }
   }
 
-  if (node.childForFieldName("body") === null) {
-    return null;
-  }
+  const base =
+    rule.literal !== undefined
+      ? rule.literal
+      : rule.name_field === undefined
+        ? null
+        : textOf(node.childForFieldName(rule.name_field));
 
-  if (kind === "accessor_declaration") {
-    return textOf(node.childForFieldName("name"));
-  }
-
-  if (kind === "destructor_declaration") {
-    return `~${textOf(node.childForFieldName("name")) ?? ""}`;
-  }
-
-  if (kind === "operator_declaration") {
-    return `operator ${textOf(node.childForFieldName("operator")) ?? ""}`;
-  }
-
-  if (kind === "conversion_operator_declaration") {
-    return `operator ${textOf(node.childForFieldName("type")) ?? ""}`;
-  }
-
-  return textOf(node.childForFieldName("name"));
+  return rule.prefix === undefined ? base : `${rule.prefix}${base ?? ""}`;
 }
 
 function functionName(node: SyntaxNode, rule: GrammarRule): string | null {
   if (rule.function_types.includes(node.type)) {
-    return rule.name === "csharp" ? csharpName(node) : nodeName(node);
+    const naming = rule.function_names.find((one) => one.type === node.type);
+
+    return naming === undefined ? nodeName(node) : namedByRule(node, naming);
   }
 
   if (rule.bound_function_types.includes(node.type)) {

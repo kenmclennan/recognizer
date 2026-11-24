@@ -29,7 +29,8 @@
           "and",
           "or"
         ],
-        "bound_function_types": []
+        "bound_function_types": [],
+        "function_names": []
       }
     ],
     "extensions": [
@@ -58,7 +59,25 @@
       "file_globs": [
         "conftest.py"
       ]
-    }
+    },
+    "test_files": [
+      {
+        "extensions": [],
+        "directory_names": [
+          "test",
+          "tests"
+        ],
+        "directory_suffixes": [],
+        "basename_patterns": [
+          "^test_.*\\.py$",
+          "^.*_test\\.py$",
+          "^conftest\\.py$"
+        ],
+        "stem_suffixes": []
+      }
+    ],
+    "supertype_links": false,
+    "private_imports": true
   },
   {
     "name": "typescript",
@@ -102,7 +121,8 @@
           "arrow_function",
           "function_expression",
           "function"
-        ]
+        ],
+        "function_names": []
       },
       {
         "name": "tsx",
@@ -144,7 +164,8 @@
           "arrow_function",
           "function_expression",
           "function"
-        ]
+        ],
+        "function_names": []
       }
     ],
     "extensions": [
@@ -181,7 +202,24 @@
         "*.test.*",
         "*.spec.*"
       ]
-    }
+    },
+    "test_files": [
+      {
+        "extensions": [],
+        "directory_names": [
+          "__tests__",
+          "test",
+          "tests"
+        ],
+        "directory_suffixes": [],
+        "basename_patterns": [
+          "^.*\\.(?:test|spec)\\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs)$"
+        ],
+        "stem_suffixes": []
+      }
+    ],
+    "supertype_links": false,
+    "private_imports": false
   },
   {
     "name": "kotlin",
@@ -211,7 +249,38 @@
           "disjunction_expression"
         ],
         "boolean_operators": [],
-        "bound_function_types": []
+        "bound_function_types": [],
+        "function_names": [],
+        "span": {
+          "scope_calls": [
+            "synchronized",
+            "use",
+            "withLock",
+            "runCatching",
+            "run",
+            "with",
+            "apply",
+            "also",
+            "let"
+          ],
+          "statements_type": "statements",
+          "call_type": "call_expression",
+          "callee_name_type": "simple_identifier",
+          "navigation_type": "navigation_expression",
+          "navigation_suffix_type": "navigation_suffix",
+          "call_suffix_type": "call_suffix",
+          "lambda_argument_type": "annotated_lambda",
+          "lambda_type": "lambda_literal",
+          "jump_type": "jump_expression",
+          "jump_returns": [
+            "return",
+            "return@"
+          ],
+          "label_type": "label",
+          "function_body_type": "function_body",
+          "object_literal_type": "object_literal",
+          "object_body_type": "class_body"
+        }
       }
     ],
     "extensions": [
@@ -239,7 +308,24 @@
         "*Test.kt",
         "*Tests.kt"
       ]
-    }
+    },
+    "test_files": [
+      {
+        "extensions": [],
+        "directory_names": [
+          "test",
+          "tests"
+        ],
+        "directory_suffixes": [],
+        "basename_patterns": [],
+        "stem_suffixes": [
+          "Test",
+          "Tests"
+        ]
+      }
+    ],
+    "supertype_links": true,
+    "private_imports": false
   },
   {
     "name": "rust",
@@ -268,7 +354,8 @@
           "&&",
           "||"
         ],
-        "bound_function_types": []
+        "bound_function_types": [],
+        "function_names": []
       }
     ],
     "extensions": [
@@ -287,7 +374,21 @@
       "directory_suffixes": [],
       "directory_markers": [],
       "file_globs": []
-    }
+    },
+    "test_files": [
+      {
+        "extensions": [],
+        "directory_names": [
+          "test",
+          "tests"
+        ],
+        "directory_suffixes": [],
+        "basename_patterns": [],
+        "stem_suffixes": []
+      }
+    ],
+    "supertype_links": false,
+    "private_imports": false
   },
   {
     "name": "csharp",
@@ -335,7 +436,59 @@
           "||",
           "??"
         ],
-        "bound_function_types": []
+        "bound_function_types": [],
+        "function_names": [
+          {
+            "type": "method_declaration",
+            "requires_field": "body",
+            "name_field": "name"
+          },
+          {
+            "type": "constructor_declaration",
+            "requires_field": "body",
+            "name_field": "name"
+          },
+          {
+            "type": "local_function_statement",
+            "requires_field": "body",
+            "name_field": "name"
+          },
+          {
+            "type": "accessor_declaration",
+            "requires_field": "body",
+            "name_field": "name"
+          },
+          {
+            "type": "destructor_declaration",
+            "requires_field": "body",
+            "prefix": "~",
+            "name_field": "name"
+          },
+          {
+            "type": "operator_declaration",
+            "requires_field": "body",
+            "prefix": "operator ",
+            "name_field": "operator"
+          },
+          {
+            "type": "conversion_operator_declaration",
+            "requires_field": "body",
+            "prefix": "operator ",
+            "name_field": "type"
+          },
+          {
+            "type": "property_declaration",
+            "requires_field": "value",
+            "requires_field_type": "arrow_expression_clause",
+            "name_field": "name"
+          },
+          {
+            "type": "indexer_declaration",
+            "requires_field": "value",
+            "requires_field_type": "arrow_expression_clause",
+            "literal": "this"
+          }
+        ]
       }
     ],
     "extensions": [
@@ -361,6 +514,35 @@
         "*.g.i.cs",
         "*.Designer.cs"
       ]
-    }
+    },
+    "test_files": [
+      {
+        "extensions": [],
+        "directory_names": [
+          "test",
+          "tests"
+        ],
+        "directory_suffixes": [],
+        "basename_patterns": [],
+        "stem_suffixes": [
+          "Test",
+          "Tests"
+        ]
+      },
+      {
+        "extensions": [
+          ".cs"
+        ],
+        "directory_names": [],
+        "directory_suffixes": [
+          "Test",
+          "Tests"
+        ],
+        "basename_patterns": [],
+        "stem_suffixes": []
+      }
+    ],
+    "supertype_links": false,
+    "private_imports": false
   }
 ]

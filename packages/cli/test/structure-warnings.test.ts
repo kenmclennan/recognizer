@@ -30,6 +30,7 @@ import {
   WORKED_EDGES,
 } from "./folder-fixtures.js";
 import { REPO } from "./helpers.js";
+import { BEHAVIOUR } from "./language-behaviour-fixture.js";
 import { repositoryFrom } from "./repository-from.js";
 import { documentOf, scanOf } from "./scan-of.js";
 
@@ -55,6 +56,7 @@ describe("orphan", () => {
         policy === null ? null : parsePolicy(policy),
         entryPoints,
         [],
+        BEHAVIOUR,
       ),
     );
 
@@ -68,8 +70,15 @@ describe("orphan", () => {
       null,
       [],
       [],
+      BEHAVIOUR,
     );
-    const unflagged = orphanWarnings(scanOf([], ["app/run.py"]), null, [], []);
+    const unflagged = orphanWarnings(
+      scanOf([], ["app/run.py"]),
+      null,
+      [],
+      [],
+      BEHAVIOUR,
+    );
 
     expect(ids(flagged)).toEqual(["orphan:app/plain.py"]);
     expect(ids(unflagged)).toEqual(["orphan:app/run.py"]);
@@ -91,6 +100,7 @@ describe("orphan", () => {
       null,
       [],
       [],
+      BEHAVIOUR,
     );
 
     expect(finding?.toFinding()).toMatchObject({
@@ -149,7 +159,8 @@ describe("orphan", () => {
       ["orphan:app/index.ts"],
     );
     expect(
-      orphanWarnings(scanOf([], ["app/index.ts"]), null, [], [])[0]?.summary,
+      orphanWarnings(scanOf([], ["app/index.ts"]), null, [], [], BEHAVIOUR)[0]
+        ?.summary,
     ).toMatch(/entry_points$/);
   });
 
@@ -203,6 +214,7 @@ describe("orphan actual_of", () => {
         policy === null ? null : parsePolicy(policy),
         [],
         [],
+        BEHAVIOUR,
       ),
     );
 
@@ -276,6 +288,7 @@ describe("orphan actual_of", () => {
       null,
       [],
       [],
+      BEHAVIOUR,
     );
     const hint =
       "; a library can list its public API in warnings.orphan.entry_points";
@@ -322,7 +335,7 @@ describe("orphan over Kotlin dependency injection", () => {
   const orphans = (
     scan: ReturnType<typeof injected>,
     annotations: string[] = [],
-  ) => ids(orphanWarnings(scan, null, [], annotations));
+  ) => ids(orphanWarnings(scan, null, [], annotations, BEHAVIOUR));
 
   const WIRED: Edge[] = [
     ["UserController.kt", "GetUserPort.kt", "depends"],
@@ -486,6 +499,7 @@ describe("structure settings", () => {
       null,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
+      BEHAVIOUR,
     );
 
     expect(JSON.stringify(document.settings)).toBe(
@@ -519,7 +533,10 @@ describe("structure settings", () => {
       );
       const policy = parsePolicy("forbid:\n  - a/** -> gone/**\n");
       const run = (settings: StructureSettings) =>
-        ids(structureSensor(scan, policy, settings, CONTEXT).document.findings);
+        ids(
+          structureSensor(scan, policy, settings, CONTEXT, BEHAVIOUR).document
+            .findings,
+        );
       const all = run(DEFAULT_STRUCTURE_SETTINGS);
       const off = run({
         ...DEFAULT_STRUCTURE_SETTINGS,
@@ -592,6 +609,7 @@ describe("the removed hub keys", () => {
       null,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
+      BEHAVIOUR,
     );
     const settings = document.settings as {
       warnings: Record<string, unknown>;
@@ -667,6 +685,7 @@ describe("the removed policy_drift warning", () => {
       policy,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
+      BEHAVIOUR,
     );
     const warnings = (document.settings as { warnings: object }).warnings;
 
@@ -719,6 +738,7 @@ describe("fixtures/check-warnings", () => {
       policy,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
+      BEHAVIOUR,
     );
     const found = ids(document.findings).filter((id) =>
       id.startsWith("orphan:"),
@@ -742,6 +762,7 @@ describe("retired stable_abstractions finding", () => {
       null,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
+      BEHAVIOUR,
     );
 
     expect(
@@ -790,6 +811,7 @@ describe("switches for the package metric warnings", () => {
         },
       },
       CONTEXT,
+      BEHAVIOUR,
     );
 
   it("keeps folder metrics whatever the switches say", () => {
@@ -852,6 +874,7 @@ describe("the removed stable dependencies keys", () => {
       null,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
+      BEHAVIOUR,
     );
     const settings = document.settings as Record<string, unknown>;
     const text = JSON.stringify([
@@ -881,6 +904,7 @@ describe("real committed content", () => {
       policy,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
+      BEHAVIOUR,
     );
 
     expect(
@@ -1049,6 +1073,7 @@ function unusedOf(
     unusedScan(modules, edges, calls),
     policyYaml === null ? null : parsePolicy(policyYaml),
     entryPoints,
+    BEHAVIOUR,
   );
 
   return Object.fromEntries(
@@ -1072,6 +1097,7 @@ function unusedWithTests(
     unusedScan([{ id, exports }], [], [], testImports, language),
     null,
     [],
+    BEHAVIOUR,
   );
 
   return found[0] as NonNullable<(typeof found)[number]>;
@@ -1138,6 +1164,7 @@ describe("unused_exports test-only names", () => {
       ),
       null,
       [],
+      BEHAVIOUR,
     );
 
     expect(
@@ -1187,7 +1214,7 @@ describe("unused_exports test-only names", () => {
         ),
       ),
     );
-    const found = unusedExportsWarnings(scan, null, []);
+    const found = unusedExportsWarnings(scan, null, [], BEHAVIOUR);
     const members = found.flatMap((finding) => finding.members ?? []);
     const used = (name: string, names: readonly string[]) =>
       names.includes(name) || names.includes(name.split(".", 1)[0] as string);
@@ -1221,8 +1248,18 @@ describe("unused_exports test-only names", () => {
       readFileSync(join(REPO, "fixtures/python/expected-scan.json"), "utf8"),
     );
     const { test_imports: _dropped, ...stripped } = raw;
-    const withTests = unusedExportsWarnings(validateScan(raw), null, []);
-    const without = unusedExportsWarnings(validateScan(stripped), null, []);
+    const withTests = unusedExportsWarnings(
+      validateScan(raw),
+      null,
+      [],
+      BEHAVIOUR,
+    );
+    const without = unusedExportsWarnings(
+      validateScan(stripped),
+      null,
+      [],
+      BEHAVIOUR,
+    );
 
     expect(withTests).toEqual(without);
   });
@@ -1448,6 +1485,7 @@ describe("unused_exports", () => {
       ),
       null,
       [],
+      BEHAVIOUR,
     );
 
     expect(ids(found)).toEqual([
@@ -1477,6 +1515,7 @@ describe("unused_exports", () => {
       unusedScan([{ id: "shop/a.py", exports: ["c", "a", "b"] }]),
       null,
       [],
+      BEHAVIOUR,
     );
 
     expect(finding?.summary).toBe(
@@ -1611,11 +1650,13 @@ describe("unused_exports", () => {
       unusedScan([{ id: "shop/a.py", exports: ["a"] }]),
       null,
       [],
+      BEHAVIOUR,
     );
     const [pkg] = unusedExportsWarnings(
       unusedScan([{ id: "app/domain", kind: "package", exports: ["Zed"] }]),
       null,
       [],
+      BEHAVIOUR,
     );
 
     expect(module?.toFinding()).toMatchObject({
@@ -1644,6 +1685,7 @@ describe("unused_exports", () => {
       ]),
       null,
       [],
+      BEHAVIOUR,
     );
 
     expect(ids(found)).toEqual([
@@ -1701,6 +1743,7 @@ describe("unused_exports", () => {
       null,
       DEFAULT_STRUCTURE_SETTINGS,
       CONTEXT,
+      BEHAVIOUR,
     );
     const on = structureSensor(
       scan,
@@ -1713,6 +1756,7 @@ describe("unused_exports", () => {
         },
       },
       CONTEXT,
+      BEHAVIOUR,
     );
 
     expect(ids(off.document.findings)).not.toContain(
@@ -1800,7 +1844,7 @@ describe("unused_exports", () => {
           ),
         ),
       );
-      const found = unusedExportsWarnings(scan, null, []);
+      const found = unusedExportsWarnings(scan, null, [], BEHAVIOUR);
 
       expect(
         Object.fromEntries(
@@ -1907,6 +1951,7 @@ describe("private_imports", () => {
     privateImportsWarnings(
       privateScan(modules, edges),
       policy === null ? null : parsePolicy(policy),
+      BEHAVIOUR,
     );
 
   const importer = (id = "app/store.py"): PrivateModule => ({
@@ -2109,7 +2154,13 @@ describe("private_imports", () => {
       [owner([{ name: "_a", exported: false }]), importer()],
       [{ from: "app/store.py", to: "lib/shared.py", names: ["_a"] }],
     );
-    const on = structureSensor(scan, null, DEFAULT_STRUCTURE_SETTINGS, CONTEXT);
+    const on = structureSensor(
+      scan,
+      null,
+      DEFAULT_STRUCTURE_SETTINGS,
+      CONTEXT,
+      BEHAVIOUR,
+    );
     const off = structureSensor(
       scan,
       null,
@@ -2122,6 +2173,7 @@ describe("private_imports", () => {
         },
       },
       CONTEXT,
+      BEHAVIOUR,
     );
 
     expect(ids(on.document.findings)).toContain("private_imports:app/store.py");
@@ -2185,6 +2237,7 @@ describe("private_imports", () => {
           JSON.parse(readFileSync(join(REPO, "fixtures", path), "utf8")),
         ),
         null,
+        BEHAVIOUR,
       );
     const python = run("python/expected-scan.json");
 
@@ -2280,10 +2333,11 @@ describe("long_function", () => {
     longFunctionWarnings(
       scanWith(modules),
       policy === null ? null : parsePolicy(policy),
+      BEHAVIOUR,
     );
 
   const foundAt = (modules: Mod[], limit: number) =>
-    longFunctionWarnings(scanWith(modules), null, limit);
+    longFunctionWarnings(scanWith(modules), null, BEHAVIOUR, limit);
 
   const span = (name: string, line: number, end_line: number): Fn => ({
     name,
@@ -2538,7 +2592,13 @@ describe("long_function", () => {
     const scan = scanWith([
       { id: "lib/store.py", functions: [span("a", 1, 40)] },
     ]);
-    const on = structureSensor(scan, null, DEFAULT_STRUCTURE_SETTINGS, CONTEXT);
+    const on = structureSensor(
+      scan,
+      null,
+      DEFAULT_STRUCTURE_SETTINGS,
+      CONTEXT,
+      BEHAVIOUR,
+    );
     const off = structureSensor(
       scan,
       null,
@@ -2550,6 +2610,7 @@ describe("long_function", () => {
         },
       },
       CONTEXT,
+      BEHAVIOUR,
     );
     const resolve = (yaml: string) =>
       (resolveStructureSettings(parseConfig(yaml)) as StructureSettings)
@@ -2632,7 +2693,7 @@ describe("long_function", () => {
 
       withFunctions += measured.length > 0 ? 1 : 0;
       expect(Math.max(0, ...measured), path).toBeLessThan(21);
-      expect(longFunctionWarnings(scan, null), path).toEqual([]);
+      expect(longFunctionWarnings(scan, null, BEHAVIOUR), path).toEqual([]);
     }
 
     expect(withFunctions).toBeGreaterThanOrEqual(paths.length - 1);

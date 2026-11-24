@@ -1,9 +1,20 @@
 import { baseName } from "./path.js";
 
+export interface TestFileRule {
+  extensions: string[];
+  directory_names: string[];
+  directory_suffixes: string[];
+  basename_patterns: string[];
+  stem_suffixes: string[];
+}
+
 export interface LanguageRule {
   name: string;
   extensions: string[];
   files: string[];
+  test_files?: TestFileRule[];
+  supertype_links?: boolean;
+  private_imports?: boolean;
   skip: {
     directory_names: string[];
     directory_prefixes: string[];

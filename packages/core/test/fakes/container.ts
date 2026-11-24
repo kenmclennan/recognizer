@@ -30,6 +30,7 @@ import { FakePluginTemplates } from "./fake-plugin-templates.js";
 import { FakePolicyRepository } from "./fake-policy-repository.js";
 import { FakeProcess } from "./fake-process.js";
 import { FakePrograms } from "./fake-programs.js";
+import { FakePublishedLanguages } from "./fake-published-languages.js";
 import { FakeRecordedScans } from "./fake-recorded-scans.js";
 import { FakeRepositoryChecks } from "./fake-repository-checks.js";
 import { FakeResponsibilitiesRepository } from "./fake-responsibilities-repository.js";
@@ -51,6 +52,7 @@ import { FakeTestReports } from "./fake-test-reports.js";
 import { FakeViewRepository } from "./fake-view-repository.js";
 import { FakeWindows } from "./fake-windows.js";
 import { FakeWorkTree } from "./fake-work-tree.js";
+import { FIXTURE_LANGUAGES } from "./fixture-languages.js";
 
 export interface Fakes {
   scanners: FakeScanners;
@@ -78,6 +80,7 @@ export interface Fakes {
   digest: FakeDigest;
   parsing: FakeParsing;
   grammarRules: FakeGrammarRules;
+  languages: FakePublishedLanguages;
   testReports: FakeTestReports;
   changes: FakeChanges;
   views: FakeViewRepository;
@@ -134,6 +137,7 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     digest: new FakeDigest(),
     parsing: new FakeParsing(),
     grammarRules: new FakeGrammarRules(),
+    languages: new FakePublishedLanguages(FIXTURE_LANGUAGES),
     testReports: new FakeTestReports(),
     changes: new FakeChanges(),
     views: new FakeViewRepository(),

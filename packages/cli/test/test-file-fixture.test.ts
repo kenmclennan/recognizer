@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { isTestFile, SCRIPT_EXTENSIONS } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
+import { BEHAVIOUR, FIXTURE_LANGUAGES } from "./language-behaviour-fixture.js";
 
 const FIXTURE = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -17,17 +17,18 @@ describe("isTestFile against the shared fixture", () => {
 
   it("reads all 46 rows", () => {
     expect(rows).toHaveLength(46);
+    expect(rows.filter((row) => row.test)).toHaveLength(36);
   });
 
   for (const row of rows) {
     it(`agrees on ${join(row.path)}`, () => {
-      expect(isTestFile(row.path)).toBe(row.test);
+      expect(BEHAVIOUR.isTestFile(row.path)).toBe(row.test);
     });
   }
 });
 
 describe("script extensions", () => {
-  it("equal the shared fixture list", () => {
+  it("the typescript manifest's test-file pattern names exactly the shared fixture's script extensions", () => {
     const list = JSON.parse(
       readFileSync(
         resolve(
@@ -37,13 +38,18 @@ describe("script extensions", () => {
         "utf8",
       ),
     ) as string[];
+    const typescript = FIXTURE_LANGUAGES.find(
+      (language) => language.name === "typescript",
+    );
+    const pattern = typescript?.test_files?.[0]?.basename_patterns[0] ?? "";
+    const named = /\(\?:test\|spec\)\\\.\(\?:([^)]*)\)\$$/.exec(pattern);
 
-    expect(SCRIPT_EXTENSIONS).toEqual(list);
+    expect(named?.[1]?.split("|")).toEqual(list);
   });
 
   it("recognise the repository's committed .test.mts file", () => {
-    expect(isTestFile("fixtures/typescript/module-extensions/h.test.mts")).toBe(
-      true,
-    );
+    expect(
+      BEHAVIOUR.isTestFile("fixtures/typescript/module-extensions/h.test.mts"),
+    ).toBe(true);
   });
 });

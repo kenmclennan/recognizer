@@ -35,7 +35,7 @@ function scannerShim(dir: string, language: string): void {
 
   writeFileSync(
     path,
-    `#!/bin/sh\nif [ "$1" = "manifest" ]; then\necho '${scannerManifestText(language).trim()}'\nfi\n`,
+    `#!/bin/sh\nif [ "$1" = "manifest" ]; then\ncat <<'EOF'\n${scannerManifestText(language).trim()}\nEOF\nfi\n`,
   );
   chmodSync(path, 0o755);
 }
