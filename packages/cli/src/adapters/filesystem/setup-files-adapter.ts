@@ -1,7 +1,10 @@
 import { join, relative } from "node:path";
-import type { SetupDirectoryEntry, SetupFiles } from "@recognizer/core";
+import {
+  type SetupDirectoryEntry,
+  type SetupFiles,
+  SKIPPED_DIRECTORIES,
+} from "@recognizer/core";
 import type { Io } from "../../cli.js";
-import { SKIPPED_DIRECTORIES } from "../../detect.js";
 
 function compareText(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;

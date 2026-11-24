@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { InvalidRequest, surveySetup } from "../../src/index.js";
+import {
+  InvalidRequest,
+  type LanguageRule,
+  surveySetup,
+} from "../../src/index.js";
 import {
   type ConfigurationWorld,
   ignoring,
@@ -12,17 +16,38 @@ import {
   worldOf,
 } from "./world.js";
 
-const PYTHON = { name: "python", extensions: [".py"], files: [] };
+const NO_SKIP = {
+  directory_names: [],
+  directory_prefixes: [],
+  directory_suffixes: [],
+  directory_markers: [],
+  file_globs: [],
+};
+const PYTHON = {
+  name: "python",
+  extensions: [".py"],
+  files: [],
+  skip: NO_SKIP,
+};
 const TYPESCRIPT = {
   name: "typescript",
   extensions: [".ts"],
   files: ["tsconfig.json"],
+  skip: NO_SKIP,
 };
 
-function claiming(
-  world: ConfigurationWorld,
-  claims: { name: string; extensions: string[]; files: string[] }[],
-): void {
+function committedRules(): LanguageRule[] {
+  const here = dirname(fileURLToPath(import.meta.url));
+
+  return JSON.parse(
+    readFileSync(
+      resolve(here, "../../../../fixtures/plugins/languages.json"),
+      "utf8",
+    ),
+  );
+}
+
+function claiming(world: ConfigurationWorld, claims: LanguageRule[]): void {
   world.ports.reads = { ...world.ports.reads, languageRules: () => claims };
 }
 
@@ -278,6 +303,42 @@ describe("setup survey gap notes", () => {
     expect(await surveySetup(world.ports, { root: ROOT })).not.toHaveProperty(
       "unread",
     );
+  });
+
+  it("skipped files do not count toward the largest language", async () => {
+    const world = worldOf();
+    const files = [
+      "src/a.py",
+      "src/b.py",
+      "src/c.py",
+      "tests/d.py",
+      "tests/e.py",
+      "a.ts",
+      "b.ts",
+      "c.ts",
+    ];
+
+    claiming(world, committedRules());
+    seedFiles(world, files);
+
+    expect((await surveySetup(world.ports, { root: ROOT })).notes).toEqual([
+      NO_RUNNER_NOTE("python", 3),
+    ]);
+
+    seedFiles(world, [...files, "d.ts"]);
+
+    expect((await surveySetup(world.ports, { root: ROOT })).notes).toEqual([
+      NO_RUNNER_NOTE("typescript", 4),
+    ]);
+  });
+
+  it("a language whose files are all skipped gets no note", async () => {
+    const world = worldOf();
+
+    claiming(world, committedRules());
+    seedFiles(world, ["tests/a.py"]);
+
+    expect((await surveySetup(world.ports, { root: ROOT })).notes).toEqual([]);
   });
 
   it("the committed language rules give the expected note data", async () => {

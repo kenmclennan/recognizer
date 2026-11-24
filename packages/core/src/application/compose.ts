@@ -1,5 +1,6 @@
 import type { ConfigRepository } from "../domain/config-repository.js";
 import type { FindingsRepository } from "../domain/findings-repository.js";
+import type { LanguageRule } from "../domain/language-rule.js";
 import type { PolicyRepository } from "../domain/policy-repository.js";
 import { Repository } from "../domain/repository.js";
 import type { ScanOutcome } from "../domain/run/scan-outcome.js";
@@ -33,7 +34,6 @@ import { buildSetupChanges } from "./configuration/build-setup-changes.js";
 import { editKey } from "./configuration/edit-key.js";
 import type {
   ConfigurationPorts,
-  LanguageClaim,
   SetupReads,
 } from "./configuration/internal/configuration-ports.js";
 import { addForbid, migratePolicy } from "./configuration/migrate-policy.js";
@@ -493,7 +493,7 @@ export function setupReadsOver({
   return {
     languageRules: () =>
       discoverPlugins(plugins, ["scanner"]).plugins.flatMap(
-        (scanner) => (scanner.manifest.languages ?? []) as LanguageClaim[],
+        (scanner) => (scanner.manifest.languages ?? []) as LanguageRule[],
       ),
     cachedScans: (root) => {
       scanners.discover();

@@ -1,63 +1,16 @@
 import { join, relative } from "node:path";
+import {
+  claimsFile,
+  type LanguageRule,
+  SKIPPED_DIRECTORIES,
+  skipsDirectoryName,
+  skipsFile,
+} from "@recognizer/core";
 import type { Io } from "./cli.js";
 
+export type { LanguageRule };
+
 export type Language = string;
-
-export interface LanguageRule {
-  name: string;
-  extensions: string[];
-  files: string[];
-  skip: {
-    directory_names: string[];
-    directory_prefixes: string[];
-    directory_suffixes: string[];
-    directory_markers: string[];
-    file_globs: string[];
-  };
-}
-
-export const SKIPPED_DIRECTORIES = new Set([
-  ".git",
-  "node_modules",
-  ".venv",
-  "venv",
-  "dist",
-  "build",
-  ".worktrees",
-  ".recognizer",
-]);
-
-function matchesGlob(name: string, glob: string): boolean {
-  const pattern = glob
-    .split("*")
-    .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
-    .join(".*");
-
-  return new RegExp(`^${pattern}$`).test(name);
-}
-
-function skipsDirectoryName(rule: LanguageRule, name: string): boolean {
-  return (
-    rule.skip.directory_names.includes(name) ||
-    rule.skip.directory_prefixes.some((prefix) => name.startsWith(prefix)) ||
-    rule.skip.directory_suffixes.some((suffix) => name.endsWith(suffix))
-  );
-}
-
-function claims(rule: LanguageRule, fileName: string): boolean {
-  return (
-    rule.files.includes(fileName) ||
-    rule.extensions.some((extension) => fileName.endsWith(extension))
-  );
-}
-
-function skipsFile(rule: LanguageRule, fileName: string): boolean {
-  if (rule.files.includes(fileName)) {
-    return false;
-  }
-
-  return rule.skip.file_globs.some((glob) => matchesGlob(fileName, glob));
-}
 
 function gitListing(io: Io, root: string): Set<string> | null {
   const result = io.run("git", [
@@ -140,7 +93,7 @@ export function detectLanguages(
         }
 
         for (const rule of here) {
-          if (claims(rule, entry.name) && !skipsFile(rule, entry.name)) {
+          if (claimsFile(rule, entry.name) && !skipsFile(rule, entry.name)) {
             found.add(rule.name);
           }
         }

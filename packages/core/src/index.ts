@@ -183,6 +183,7 @@ export * from "./domain/history/candidate.js";
 export * from "./domain/invalid-entity.js";
 export * from "./domain/invalid-request.js";
 export * from "./domain/language.js";
+export * from "./domain/language-rule.js";
 export * from "./domain/member.js";
 export * from "./domain/neighbours.js";
 export * from "./domain/path.js";
