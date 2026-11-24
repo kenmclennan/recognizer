@@ -1,13 +1,8 @@
-import { PolicyRule } from "@recognizer/core";
+import { PolicyRule, RETIRED_POLICY_KEYS } from "@recognizer/core";
 import { parse } from "yaml";
 import { InputError } from "../../errors.js";
 
-export const RETIRED_KEYS = [
-  "components",
-  "levels",
-  "uses",
-  "foreign",
-] as const;
+export const RETIRED_KEYS = RETIRED_POLICY_KEYS;
 
 const ALLOWED_KEYS = new Set(["forbid", "ignore", "entry"]);
 

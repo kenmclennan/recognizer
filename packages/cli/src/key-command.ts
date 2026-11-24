@@ -1,31 +1,19 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import type { Io } from "./cli.js";
-import {
-  addSection,
-  addValue,
-  type EditOutcome,
-  listKeys,
-  readKey,
-  removeSection,
-  setValue,
-  unsetValue,
-} from "./config-edit.js";
 import {
   describeConstraints,
+  type EditKeyOutcome,
+  type KeyVerb,
   type PublishedKeys,
-  type SensorSchemaRead,
-} from "./config-keys.js";
-import { InputError } from "./errors.js";
+} from "@recognizer/core";
+import type { Io } from "./cli.js";
+import { configurationFor } from "./configuration-composition.js";
+import { asInputError, InputError } from "./errors.js";
 
 export interface KeyedCommand {
   noun: "config" | "policy";
   usage: string[];
-  fileFor: (root: string) => string;
-  keysFor: (io: Io, root: string) => PublishedKeys;
-  validate: ((original: string, text: string) => string | null) | null;
-  missing: string | null;
-  schemaFor: ((io: Io) => SensorSchemaRead) | null;
+  schema: boolean;
 }
 
 export function usageFor(noun: string, schema = false): string[] {
@@ -42,63 +30,44 @@ export function usageFor(noun: string, schema = false): string[] {
   ];
 }
 
-function temporaryFor(file: string, io: Io): string {
-  return `${file}.${io.pid()}.tmp`;
-}
-
-function refusal(
+function printOutcome(
   command: KeyedCommand,
   io: Io,
-  published: PublishedKeys,
-  key: string,
-  reason: string,
+  verb: KeyVerb,
+  outcome: EditKeyOutcome,
 ): number {
-  const suffix =
-    published.notAnswering !== null &&
-    /^no such key|is not a valid/.test(reason)
-      ? `; ${published.notAnswering}`
-      : "";
+  if (outcome.status === "missing") {
+    io.stderr(`recognizer ${command.noun}: ${outcome.reason}\n`);
 
-  io.stderr(`recognizer ${command.noun}: ${key}: ${reason}${suffix}\n`);
+    return 1;
+  }
 
-  return 2;
-}
-
-export function save(io: Io, file: string, text: string): void {
-  const temporary = temporaryFor(file, io);
-
-  io.writeFile(temporary, text);
-  io.rename(temporary, file);
-}
-
-function finish(
-  command: KeyedCommand,
-  io: Io,
-  published: PublishedKeys,
-  file: string,
-  key: string,
-  original: string,
-  outcome: EditOutcome,
-  absent: number,
-): number {
   if (outcome.status === "refused") {
-    return refusal(command, io, published, key, outcome.reason);
+    io.stderr(
+      `recognizer ${command.noun}: ${outcome.key}: ${outcome.reason}${outcome.suffix}\n`,
+    );
+
+    return 2;
   }
 
   if (outcome.status === "absent") {
-    return absent;
+    return verb === "get" || verb === "unset" || verb === "remove-section"
+      ? 1
+      : 0;
   }
 
-  if (outcome.text !== original) {
-    const invalid = command.validate?.(original, outcome.text) ?? null;
+  if (verb === "get" || outcome.lines.length > 0) {
+    io.stdout(`${outcome.lines.join("\n")}\n`);
+  }
 
-    if (invalid !== null) {
-      return refusal(command, io, published, key, invalid);
+  if (outcome.status === "skipped") {
+    for (const path of outcome.paths) {
+      io.stderr(
+        `recognizer ${command.noun}: ${path}: cannot be addressed${outcome.why}\n`,
+      );
     }
-  }
 
-  if (outcome.text !== original || !io.exists(file)) {
-    save(io, file, outcome.text);
+    return 1;
   }
 
   return 0;
@@ -114,18 +83,14 @@ function printSchema(
     (name) => name !== "schema" && name !== "repository",
   );
 
-  if (
-    command.schemaFor === null ||
-    others.length > 0 ||
-    positionals.length > 0
-  ) {
+  if (!command.schema || others.length > 0 || positionals.length > 0) {
     throw new InputError(command.usage);
   }
 
-  const read = command.schemaFor(io);
+  const read = configurationFor(io).readKeySchema();
 
-  if (read.notAnswering.length > 0) {
-    for (const line of read.notAnswering) {
+  if (read.status === "not-answering") {
+    for (const line of read.lines) {
       io.stderr(`recognizer ${command.noun}: ${line}\n`);
     }
 
@@ -186,83 +151,17 @@ export function runKeyed(
     throw new InputError(command.usage);
   }
 
-  const root = resolve(values.repository ?? ".");
-  const file = command.fileFor(root);
-  const published = command.keysFor(io, root);
-  const present = io.exists(file);
-  const original = present ? io.readFile(file) : "";
-  const key = first as string;
-
-  if (!present && command.missing !== null && verb !== "set") {
-    const writes = verb === "add" || verb === "add-section";
-
-    if (!writes) {
-      io.stderr(`recognizer ${command.noun}: ${command.missing}\n`);
-
-      return 1;
-    }
-  }
-
-  if (verb === "list") {
-    const listing = listKeys(original, published);
-
-    if (listing.lines.length > 0) {
-      io.stdout(`${listing.lines.join("\n")}\n`);
-    }
-
-    if (listing.skipped.length === 0) {
-      return 0;
-    }
-
-    const why =
-      published.notAnswering === null ? "" : `: ${published.notAnswering}`;
-
-    for (const path of listing.skipped) {
-      io.stderr(
-        `recognizer ${command.noun}: ${path}: cannot be addressed${why}\n`,
-      );
-    }
-
-    return 1;
-  }
-
-  if (verb === "get") {
-    const outcome = readKey(original, published, key);
-
-    if (outcome.status === "refused") {
-      return refusal(command, io, published, key, outcome.reason);
-    }
-
-    if (outcome.status === "absent") {
-      return 1;
-    }
-
-    io.stdout(`${outcome.lines.join("\n")}\n`);
-
-    return 0;
-  }
-
-  const outcome =
-    verb === "set"
-      ? setValue(original, published, key, second as string)
-      : verb === "add"
-        ? addValue(original, published, key, second as string)
-        : verb === "unset"
-          ? unsetValue(original, published, key, second)
-          : verb === "remove-section"
-            ? removeSection(original, published, key)
-            : addSection(original, published, key);
-
-  return finish(
-    command,
-    io,
-    published,
-    file,
-    key,
-    original,
-    outcome,
-    verb === "unset" || verb === "remove-section" ? 1 : 0,
+  const outcome = asInputError(() =>
+    configurationFor(io).editKey({
+      subject: command.noun,
+      root: resolve(values.repository ?? "."),
+      verb,
+      key: first ?? "",
+      ...(second === undefined ? {} : { value: second }),
+    }),
   );
+
+  return printOutcome(command, io, verb, outcome);
 }
 
 export function keysHelp(

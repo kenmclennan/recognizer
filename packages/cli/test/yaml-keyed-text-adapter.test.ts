@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { CORE_KEYS, type KeySchema, publish } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import {
@@ -11,8 +12,7 @@ import {
   removeSection,
   setValue,
   unsetValue,
-} from "../src/config-edit.js";
-import { CORE_KEYS, type KeySchema, publish } from "../src/config-keys.js";
+} from "../src/key-text.js";
 import { REPO } from "./helpers.js";
 
 const key = (

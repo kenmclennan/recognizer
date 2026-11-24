@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto";
 import {
   InvalidRequest,
   type PolicyRepository,
   PolicyRule,
+  type RepositoryText,
 } from "../../src/index.js";
 
 export class FakePolicyRepository implements PolicyRepository {
@@ -18,6 +20,29 @@ export class FakePolicyRepository implements PolicyRepository {
 
   defaultFile(): string | null {
     return this.file;
+  }
+
+  heldText: string | null = null;
+  saves: string[] = [];
+  problemsByText = new Map<string, string[]>();
+
+  text(): RepositoryText {
+    const text = this.heldText ?? "";
+
+    return {
+      present: this.heldText !== null,
+      text,
+      hash: createHash("sha256").update(text, "utf8").digest("hex"),
+    };
+  }
+
+  saveText(_root: string, text: string): void {
+    this.heldText = text;
+    this.saves.push(text);
+  }
+
+  problems(text: string): string[] {
+    return this.problemsByText.get(text) ?? [];
   }
 
   raw: Record<string, unknown> = {};

@@ -42,6 +42,7 @@ import {
   STARTED_BY_VARIABLE,
 } from "../scan-marker.js";
 import { liveScopes, processScope, StopScope } from "../stop-scope.js";
+import { configKeys, configWrite } from "./config-run.js";
 import { type ScopeFiles, writeScopeFiles } from "./scan-files.js";
 import { sensorWork } from "./sensor-work.js";
 import {
@@ -168,6 +169,14 @@ export class Service {
 
         return;
       }
+      case "config.keys":
+        reply(configKeys(this.shared));
+
+        return;
+      case "config.write":
+        reply(configWrite(this.shared, args));
+
+        return;
       case "scan.stop":
         reply(this.stop(args));
 

@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto";
 import {
   type ConfigDocument,
   type ConfigRepository,
   DEFAULT_STRUCTURE_SETTINGS,
+  type RepositoryText,
   type StructureSettings,
   type SuiteEntry,
   shippedCommand,
@@ -57,6 +59,24 @@ export class FakeConfigRepository implements ConfigRepository {
     return config === null || this.invented.suites.length === 0
       ? undefined
       : this.invented.suites.map((name) => ({ name, language: "python" }));
+  }
+
+  held: string | null = null;
+  saves: string[] = [];
+
+  text(): RepositoryText {
+    const text = this.held ?? "";
+
+    return {
+      present: this.held !== null,
+      text,
+      hash: createHash("sha256").update(text, "utf8").digest("hex"),
+    };
+  }
+
+  saveText(_root: string, text: string): void {
+    this.held = text;
+    this.saves.push(text);
   }
 
   setup: Record<string, unknown> = {};

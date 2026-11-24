@@ -311,12 +311,16 @@ describe("recognizer config --schema", () => {
 describe("the core stays agnostic", () => {
   it("names no suite or coverage key in the three files this item added", () => {
     const words = /\b(tests|coverage|lcov|jacoco|activate|runner)\b/;
-    const files = ["config-keys.ts", "config-edit.ts", "config-command.ts"];
+    const files = [
+      "packages/cli/src/config-keys.ts",
+      "packages/core/src/application/configuration/key-edits.ts",
+      "packages/cli/src/config-command.ts",
+    ];
 
     expect(files.length).toBe(3);
 
     for (const file of files) {
-      const source = readFileSync(join(REPO, "packages/cli/src", file), "utf8");
+      const source = readFileSync(join(REPO, file), "utf8");
 
       expect(source.length, file).toBeGreaterThan(0);
 

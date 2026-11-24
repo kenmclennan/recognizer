@@ -20,6 +20,7 @@ export {
   type CheckResult,
   type Citation,
   COMPLEXITY_LIMIT,
+  CORE_KEYS,
   type Condition,
   carryMeasured,
   commandRefusal,
@@ -31,12 +32,14 @@ export {
   type DroppedRunner,
   describeGap,
   duplicationUnmeasured,
+  type EditOutcome,
   EMPTY_SUITE_TICKS,
   type EntryCard,
   type FindingEntry,
   type FindingNote,
   type ForbidCard,
   findingsByModuleFrom,
+  findKey,
   freshnessScope,
   functionLength,
   gapOf,
@@ -46,9 +49,12 @@ export {
   importText,
   interpretManifest,
   judgeProtocol,
+  type KeyEntry,
+  type KeySchema,
   LIBRARY_API_HINT,
   type LineKind,
   type LineStatus,
+  type Listing,
   LONG_FUNCTION,
   libraryApiHint,
   lineStatus,
@@ -82,6 +88,8 @@ export {
   PRINCIPLES,
   type Principle,
   type ProtocolJudgement,
+  type PublishedKey,
+  type PublishedKeys,
   parseCard,
   planFor,
   planScan,
@@ -89,6 +97,7 @@ export {
   priceFor,
   principleName,
   principleOf,
+  publish,
   quoteCommand,
   type Recommendation,
   type RunnerChoice,
@@ -135,6 +144,7 @@ export {
   type TryEvent,
   tickedPhases,
   tickedSuites,
+  typedValue,
   UNREGISTERED_FIX,
   unregisteredMessage,
   unregisteredSensors,
@@ -191,25 +201,7 @@ export {
   scannedBy,
   statusOf,
 } from "./change-marks.js";
-export {
-  addSection,
-  type EditOutcome,
-  type Listing,
-  listKeys,
-  setValue,
-  typedValue,
-  unsetValue,
-} from "./config-edit.js";
-export {
-  CORE_KEYS,
-  findKey,
-  type KeyEntry,
-  type KeySchema,
-  type PublishedKey,
-  type PublishedKeys,
-  parseKeySchema,
-  publish,
-} from "./config-keys.js";
+export { parseKeySchema } from "./config-keys.js";
 export {
   type Config,
   parseConfig,
@@ -226,6 +218,12 @@ export {
 } from "./folder-metrics.js";
 export type { Fix, Gap } from "./gap.js";
 export { gapText, isGap } from "./gap.js";
+export {
+  addSection,
+  listKeys,
+  setValue,
+  unsetValue,
+} from "./key-text.js";
 export { check } from "./library-check.js";
 export {
   checkLink,

@@ -1,5 +1,8 @@
-import type { ConfigKeyEntry, ConfigKeys } from "@recognizer/core";
-import { CORE_KEYS } from "../../config-keys.js";
+import {
+  CORE_KEYS,
+  type ConfigKeyEntry,
+  type ConfigKeys,
+} from "@recognizer/core";
 
 export class ConfigKeysAdapter implements ConfigKeys {
   entries(): ConfigKeyEntry[] {

@@ -9,6 +9,8 @@ import { ConfigKeysAdapter } from "./adapters/filesystem/config-keys-adapter.js"
 import { PolicyAdapter } from "./adapters/filesystem/policy-adapter.js";
 import { ScanLockAdapter } from "./adapters/filesystem/scan-lock-adapter.js";
 import { SetupFilesAdapter } from "./adapters/filesystem/setup-files-adapter.js";
+import { YamlKeyedTextAdapter } from "./adapters/filesystem/yaml-keyed-text-adapter.js";
+import { KeyOwnersAdapter } from "./adapters/plugins/key-owners-adapter.js";
 import { ProgramsAdapter } from "./adapters/plugins/programs-adapter.js";
 import { ScannersAdapter } from "./adapters/plugins/scanners-adapter.js";
 import { SurveyPluginsAdapter } from "./adapters/plugins/survey-plugins-adapter.js";
@@ -45,6 +47,8 @@ export function configurationPorts(
     assistant: new AssistantAdapter(own),
     scan: options.scan ?? NO_SETUP_SCAN,
     keys: new ConfigKeysAdapter(),
+    keyedText: new YamlKeyedTextAdapter(),
+    keyOwners: new KeyOwnersAdapter(own),
     config: new ConfigAdapter(own, "all"),
     policy: new PolicyAdapter(own),
     programs: new ProgramsAdapter(own),

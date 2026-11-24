@@ -1,6 +1,5 @@
+import { findKey, POLICY_KEYS, publish } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { findKey, publish } from "../src/config-keys.js";
-import { POLICY_KEYS } from "../src/policy-keys.js";
 
 describe("the policy keys", () => {
   it("publish without two keys colliding", () => {

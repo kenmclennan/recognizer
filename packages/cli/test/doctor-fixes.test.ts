@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { run } from "../src/cli.js";
-import { unsetValue } from "../src/config-edit.js";
 import { loadKeys } from "../src/config-keys.js";
 import { RETIRED_KEYS } from "../src/config-retired.js";
 import { cachedScansState } from "../src/freshness.js";
+import { unsetValue } from "../src/key-text.js";
 import { isDirty } from "../src/scan-command.js";
 import { fakeIo, ROOT, scanJson } from "./scan-helpers.js";
 

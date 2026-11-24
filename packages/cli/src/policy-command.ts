@@ -1,57 +1,22 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { parseDocument } from "yaml";
-import { parsePolicy } from "./adapters/filesystem/policy-translator.js";
+import { POLICY_KEYS, publish } from "@recognizer/core";
 import type { Io } from "./cli.js";
-import { policyFile } from "./config.js";
-import { emit } from "./config-edit.js";
-import { publish } from "./config-keys.js";
-import { InputError } from "./errors.js";
+import { configurationFor } from "./configuration-composition.js";
+import { asInputError, InputError } from "./errors.js";
 import {
   type KeyedCommand,
   keysHelp,
   runKeyed,
-  save,
   usageFor,
 } from "./key-command.js";
-import { POLICY_KEYS } from "./policy-keys.js";
-import { appendRules, migratePolicy } from "./policy-migrate.js";
 
 const PUBLISHED = publish([POLICY_KEYS], "policy");
-
-function errorsOf(text: string): string[] {
-  if (text.trim() === "") {
-    return [];
-  }
-
-  try {
-    parsePolicy(text);
-
-    return [];
-  } catch (error) {
-    if (error instanceof InputError) {
-      return error.messages;
-    }
-
-    throw error;
-  }
-}
-
-function introduced(original: string, text: string): string | null {
-  const before = new Set(errorsOf(original));
-  const added = errorsOf(text).filter((message) => !before.has(message));
-
-  return added.length === 0 ? null : added.join("; ");
-}
 
 const POLICY: KeyedCommand = {
   noun: "policy",
   usage: usageFor("policy"),
-  fileFor: policyFile,
-  keysFor: () => PUBLISHED,
-  validate: introduced,
-  missing: "there is no policy at .recognizer/policy.yaml",
-  schemaFor: null,
+  schema: false,
 };
 
 const FORBID_USAGE = [
@@ -59,20 +24,20 @@ const FORBID_USAGE = [
   "       recognizer policy --add-forbid --from <glob> [--from <glob>...] --to <glob> [--to <glob>...] [--repository <dir>]",
 ];
 
-function fileOf(repository: string | undefined): string {
-  return policyFile(resolve(repository ?? "."));
+function rootOf(repository: string | undefined): string {
+  return resolve(repository ?? ".");
 }
 
 function runMigrate(values: { repository?: string }, io: Io): number {
-  const file = fileOf(values.repository);
+  const outcome = configurationFor(io).migratePolicy({
+    root: rootOf(values.repository),
+  });
 
-  if (!io.exists(file)) {
-    io.stderr(`recognizer policy: ${POLICY.missing}\n`);
+  if (outcome.status === "missing") {
+    io.stderr(`recognizer policy: ${outcome.reason}\n`);
 
     return 1;
   }
-
-  const outcome = migratePolicy(io.readFile(file));
 
   if (outcome.status === "refused") {
     for (const message of outcome.messages) {
@@ -82,23 +47,11 @@ function runMigrate(values: { repository?: string }, io: Io): number {
     return 2;
   }
 
-  if (outcome.changes.length === 0) {
-    return 0;
+  if (outcome.status === "migrated") {
+    io.stdout(`${outcome.changes.join("\n")}\n`);
   }
 
-  save(io, file, outcome.text);
-  io.stdout(`${outcome.changes.join("\n")}\n`);
-
   return 0;
-}
-
-function sameGlobs(value: unknown, globs: string[]): boolean {
-  const items = Array.isArray(value) ? value : [value];
-
-  return (
-    items.length === globs.length &&
-    items.every((item, at) => item === globs[at])
-  );
 }
 
 function runAddForbid(
@@ -116,49 +69,27 @@ function runAddForbid(
     throw new InputError(FORBID_USAGE);
   }
 
-  const file = fileOf(values.repository);
-  const original = io.exists(file) ? io.readFile(file) : "";
-  const doc = parseDocument(original);
+  const outcome = asInputError(() =>
+    configurationFor(io).addForbid({
+      root: rootOf(values.repository),
+      from,
+      to,
+    }),
+  );
 
-  if (doc.errors.length > 0) {
+  if (outcome.status === "invalid-yaml") {
     io.stderr(
-      `recognizer policy: forbid: the policy is not valid YAML: ${doc.errors[0]?.message}\n`,
+      `recognizer policy: forbid: the policy is not valid YAML: ${outcome.message}\n`,
     );
 
     return 2;
   }
 
-  if (doc.contents === null) {
-    doc.contents = doc.createNode({}) as never;
-  }
-
-  const present = doc.toJS() as { forbid?: unknown } | null;
-  const duplicate =
-    Array.isArray(present?.forbid) &&
-    present.forbid.some(
-      (entry) =>
-        typeof entry === "object" &&
-        entry !== null &&
-        sameGlobs((entry as { from?: unknown }).from, from) &&
-        sameGlobs((entry as { to?: unknown }).to, to),
-    );
-
-  if (duplicate) {
-    return 0;
-  }
-
-  appendRules(doc, [{ from, to }]);
-
-  const text = emit(doc, original);
-  const invalid = introduced(original, text);
-
-  if (invalid !== null) {
-    io.stderr(`recognizer policy: forbid: ${invalid}\n`);
+  if (outcome.status === "refused") {
+    io.stderr(`recognizer policy: forbid: ${outcome.reason}\n`);
 
     return 2;
   }
-
-  save(io, file, text);
 
   return 0;
 }

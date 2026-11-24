@@ -1,4 +1,5 @@
 import type { ConfigDocument } from "./config-document.js";
+import type { RepositoryText } from "./repository-text.js";
 import type { StructureSettings } from "./structure-settings.js";
 
 export interface SuiteEntry {
@@ -21,6 +22,8 @@ export interface ConfigRepository {
   ): { name: string; command: string[] }[];
   tests(config: ConfigDocument | null): SuiteEntry[] | undefined;
   sensorConfig(root: string): ConfigDocument | null;
+  text(root: string): RepositoryText;
+  saveText(root: string, text: string): void;
   setupDocument(root: string): {
     present: boolean;
     document: Record<string, unknown>;
