@@ -176,7 +176,7 @@ describe("recognizer help config", () => {
 
     expect(run(["help", "config"], fake.io)).toBe(0);
     expect(fake.out()).toContain("sensors.<name>.command");
-    expect(fake.out()).toContain("tests.<name>.coverage.format");
+    expect(fake.out()).not.toContain("tests.<name>.coverage.format");
     expect(fake.out()).not.toContain("sensors.mutation.max_workers");
 
     for (const name of NAMES) {
@@ -227,7 +227,7 @@ describe("loadKeys over three sensor manifests", () => {
     );
     const keys = published.keys.map((key) => key.key);
 
-    expect(keys).toContain("tests.<name>.command");
+    expect(keys).not.toContain("tests.<name>.command");
     expect(keys).not.toContain("sensors.crap.threshold");
     expect(published.notAnswering?.split("; ")).toHaveLength(2);
   });
@@ -255,7 +255,6 @@ describe("a sensors program that does not answer", () => {
   it("lists what it can, reports the rest on stderr with the reason, and exits 1", () => {
     const fake = setup(
       {
-        crap: { status: 1 },
         mutation: { status: 1 },
       },
       {

@@ -49,6 +49,7 @@ export interface SurveyRunner {
   tool: string | null;
   env?: Record<string, string>;
   activate?: string;
+  settings?: Record<string, string>;
 }
 
 export interface SurveyNote {
@@ -59,7 +60,7 @@ export interface SurveyNote {
 
 export interface SurveyTool {
   name: string;
-  kind: "npm" | "cargo" | "pip";
+  kind: string;
   installed: boolean;
   why: string;
   needed_by: string[];

@@ -108,6 +108,11 @@
             "type": "object",
             "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
             "additionalProperties": { "type": "string" }
+          },
+          "settings": {
+            "type": "object",
+            "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+            "additionalProperties": { "type": "string", "minLength": 1 }
           }
         }
       }
@@ -142,7 +147,7 @@
         ],
         "properties": {
           "name": { "type": "string", "minLength": 1 },
-          "kind": { "enum": ["npm", "cargo", "pip"] },
+          "kind": { "type": "string", "minLength": 1 },
           "installed": { "type": "boolean" },
           "why": { "type": "string" },
           "needed_by": {

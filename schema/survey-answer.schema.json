@@ -84,6 +84,16 @@
             "additionalProperties": {
               "type": "string"
             }
+          },
+          "settings": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z][a-z0-9_]*$"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         }
       }
@@ -109,11 +119,8 @@
             "minLength": 1
           },
           "kind": {
-            "enum": [
-              "npm",
-              "cargo",
-              "pip"
-            ]
+            "type": "string",
+            "minLength": 1
           },
           "installed": {
             "type": "boolean"

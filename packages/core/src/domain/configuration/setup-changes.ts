@@ -158,9 +158,9 @@ function runnerSteps(
     ...(runner.activate === undefined
       ? []
       : [configStep(survey, key("activate"), runner.activate)]),
-    ...(runner.language === "typescript"
-      ? [configStep(survey, key("runner"), runner.runner)]
-      : []),
+    ...Object.entries(runner.settings ?? {})
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([name, value]) => configStep(survey, key(name), value)),
     ...env.map(([name, value]) =>
       configStep(survey, key(`env.${name}`), value),
     ),

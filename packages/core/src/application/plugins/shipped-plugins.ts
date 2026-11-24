@@ -30,6 +30,7 @@ export interface ShippedSensorEntry {
   expansion?: string;
   settings_title?: string;
   runs_tests: boolean;
+  suite_keys?: { section: unknown; keys: unknown[] };
   scoped: boolean;
   planned_work?: { verb: string };
   log_path?: string;
@@ -116,6 +117,9 @@ function entryOf(manifest: Manifest): ShippedSensorEntry {
       ? {}
       : { settings_title: manifest.settings_title }),
     runs_tests: manifest.runs_tests === true,
+    ...(manifest.suite_keys === undefined
+      ? {}
+      : { suite_keys: manifest.suite_keys }),
     scoped: manifest.scoped === true,
     ...(manifest.planned_work === undefined
       ? {}

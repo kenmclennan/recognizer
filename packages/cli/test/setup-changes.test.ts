@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Survey } from "@recognizer/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -7,6 +7,7 @@ import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { COMMANDS } from "../src/commands.js";
 import { buildChanges } from "../src/index.js";
 import { capture, REPO } from "./helpers.js";
+import { exampleManifest } from "./shipped-read.js";
 
 const survey = JSON.parse(
   readFileSync(
@@ -23,6 +24,17 @@ describe("the removal commands against a real config", () => {
     savedPath = process.env.PATH;
     directory = makeTempDir("recognizer-setup-remove-");
     mkdirSync(join(directory, ".recognizer"), { recursive: true });
+
+    const bin = join(directory, "bin");
+    const sensor = join(bin, "recognizer-sense-crap");
+
+    mkdirSync(bin);
+    writeFileSync(
+      sensor,
+      `#!/bin/sh\nif [ "$1" = "manifest" ]; then\ncat <<'EOF'\n${JSON.stringify(exampleManifest("crap"))}\nEOF\nfi\n`,
+    );
+    chmodSync(sensor, 0o755);
+    process.env.PATH = `${bin}:${savedPath ?? ""}`;
   });
 
   afterEach(() => {

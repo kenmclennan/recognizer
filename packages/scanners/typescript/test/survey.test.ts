@@ -296,6 +296,11 @@ describe("a vitest suite behind an npm run chain", () => {
     );
     expect(web?.directory).toBe("web");
     expect(web).not.toHaveProperty("env");
+
+    for (const runner of answer.runners) {
+      expect(runner.settings).toEqual({ runner: runner.runner });
+    }
+
     expect(
       answer.runners.some((runner) => runner.command.includes("integration")),
     ).toBe(false);

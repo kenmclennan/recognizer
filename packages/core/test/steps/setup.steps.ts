@@ -78,6 +78,7 @@ Given(
             {
               language: "typescript",
               runner: "vitest",
+              settings: { runner: "vitest" },
               directory,
               from: `${directory}/package.json`,
               command: "npx vitest run",
