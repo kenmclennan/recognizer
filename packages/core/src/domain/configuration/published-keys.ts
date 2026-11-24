@@ -92,7 +92,7 @@ export const CORE_KEYS: KeySchema = {
       shape: "map-entry",
       description:
         "a registered sensor; writing any key under it registers it too, and an empty one takes the sensor's defaults",
-      example: "--add-section sensors.crap",
+      example: "--add-section sensors.mine",
     },
   ],
   keys: [
@@ -116,7 +116,7 @@ export const CORE_KEYS: KeySchema = {
       multi: true,
       description:
         "the words of the command that describes a file; {repository}, {module}, {model} and {request} are filled in",
-      example: '--add describer.command "recognizer-describe-claude"',
+      example: '--add describer.command "recognizer-describe-mine"',
     },
     {
       key: "describer.version",

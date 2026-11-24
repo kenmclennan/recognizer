@@ -53,7 +53,7 @@ export const RETIRED_KEYS: RetiredKey[] = [
     path: ["sensors", "thresholds"],
     tolerated: true,
     message:
-      "config/sensors/thresholds was retired: the thresholds sensor is gone, C.R.A.P. reports low coverage and structural analysis reports complexity; recognizer doctor gives the commands that move it",
+      "config/sensors/thresholds was retired: the thresholds sensor is gone, a coverage sensor reports low coverage and structural analysis reports complexity; recognizer doctor gives the commands that move it",
   },
 ];
 

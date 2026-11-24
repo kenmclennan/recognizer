@@ -204,7 +204,7 @@ export const COMMANDS: Command[] = [
     ],
     output: {
       text: "a heading line per phase (extract, describe, sense) and one line per entry on stdout, `scans current at <commit>` when extraction was skipped; failures on stderr",
-      json: "one line per event on stdout as it happens: `phase` (extract: state run|current, commit, reason; describe and sense: total), `progress` (phase sense, name, step coverage|mutants, and done and total with mutants; only from a sensor that runs tests and reports it, such as mutation), `entry` (phase, name, outcome ok|failed, reason when failed, files and edges for a written language), `preflight` (state run|ok|gaps, and the gaps with each one's id, line, needs and fix when gaps), `structure` (state run|done|failed, and files, the count of files the analysis read, once it ran; none when the structure sensor is off) and a last `summary` (repository, commit, modified, exit, phases with their entries, removed, skipped)",
+      json: "one line per event on stdout as it happens: `phase` (extract: state run|current, commit, reason; describe and sense: total), `progress` (phase sense, name, step coverage|mutants, and done and total with mutants; only from a sensor that runs tests and reports it), `entry` (phase, name, outcome ok|failed, reason when failed, files and edges for a written language), `preflight` (state run|ok|gaps, and the gaps with each one's id, line, needs and fix when gaps), `structure` (state run|done|failed, and files, the count of files the analysis read, once it ran; none when the structure sensor is off) and a last `summary` (repository, commit, modified, exit, phases with their entries, removed, skipped)",
     },
     exitCodes: [
       {
@@ -833,11 +833,11 @@ export const COMMANDS: Command[] = [
         note: "the sensors installed on PATH, read from their manifests",
       },
       {
-        command: "recognizer sensors check crap --run",
-        note: "what is missing before C.R.A.P. can run, with each suite run once",
+        command: "recognizer sensors check mine --run",
+        note: "what is missing before the sensor can run, with each suite run once",
       },
       {
-        command: "recognizer help sensors crap",
+        command: "recognizer help sensors mine",
         note: "the setup guide the sensor supplies",
       },
     ],
@@ -937,11 +937,11 @@ export const COMMANDS: Command[] = [
     ],
     examples: [
       {
-        command: "recognizer config sensors.mutation.max_minutes 10",
+        command: "recognizer config sensors.mine.max_minutes 10",
         note: "set one value; the sensor is registered by it",
       },
       {
-        command: "recognizer config --add sensors.mutation.carry .venv",
+        command: "recognizer config --add sensors.mine.carry .venv",
         note: "append to a multi-valued key",
       },
       {
@@ -1210,7 +1210,7 @@ export const COMMANDS: Command[] = [
     ],
     examples: [
       {
-        command: "recognizer plugin check recognizer-scan-python",
+        command: "recognizer plugin check recognizer-scan-mylang",
         note: "run the conformance check against an installed plugin",
       },
       {
@@ -1227,8 +1227,8 @@ export const COMMANDS: Command[] = [
         note: "print the schema a plugin's manifest must satisfy",
       },
       {
-        command: "recognizer plugin add crap",
-        note: "register the installed crap sensor and record its install line",
+        command: "recognizer plugin add mine",
+        note: "register the installed mine sensor and record its install line",
       },
     ],
     run: runPlugin,
@@ -1386,7 +1386,7 @@ export const COMMANDS: Command[] = [
   {
     name: "describe",
     summary:
-      "write each file's one-line responsibility with the repository's registered describer (refused with `recognizer plugin add claude` when none is registered), running up to the batch size of describers at once",
+      "write each file's one-line responsibility with the repository's registered describer (refused with `recognizer plugin add <name>` when none is registered), running up to the batch size of describers at once",
     usage: [
       "recognizer describe [<module>... | --all] [--repository <dir>] [--json]",
       "recognizer describe --check [<module>...] [--repository <dir>] [--json]",
@@ -1450,7 +1450,7 @@ export const COMMANDS: Command[] = [
       {
         code: 2,
         meaning:
-          "bad input - no describer registered in .recognizer/config.yaml and recognizer-describe-claude not installed, an invalid config or responsibilities file, an unknown file, --all with a file or with --check, an unknown flag or a scan that could not be made",
+          "bad input - no describer registered in .recognizer/config.yaml and no describer installed, an invalid config or responsibilities file, an unknown file, --all with a file or with --check, an unknown flag or a scan that could not be made",
       },
     ],
     examples: [

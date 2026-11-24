@@ -48,7 +48,7 @@ export function gapNotes(
         {
           language,
           directory: ".",
-          text: `${language} is the largest language here (${count} files) and no test runner was found for it, so C.R.A.P. and Mutation will cover only part of this repository`,
+          text: `${language} is the largest language here (${count} files) and no test runner was found for it, so a sensor that runs tests will cover only part of this repository`,
         },
       ];
 }

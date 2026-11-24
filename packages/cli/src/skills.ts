@@ -25,7 +25,7 @@ export const SETUP_SKILL = [
   "",
   "- At each step show what you found, propose the exact commands, and run them only after the user says yes.",
   "- Write only through `recognizer config` and `recognizer policy`. Never edit a file under `.recognizer/` by hand.",
-  "- Never run anything costly unless the user asks for it by name: `recognizer describe`, a `--describe` scan or a Mutation run.",
+  "- Never run anything costly unless the user asks for it by name: `recognizer describe`, a `--describe` scan or any sensor run.",
   "- Nothing starts this skill but the user asking you: no hook, CI job or background check runs it. A repository may run `recognizer doctor` in its own CI.",
   "",
   "## Setup",
