@@ -122,6 +122,24 @@ describe("surveySetup", () => {
     ]);
   });
 
+  it("filterListing keeps a target folder and drops node_modules, dist and .git parts", async () => {
+    const world = worldOf();
+
+    seedFiles(world, [
+      "target/c.rs",
+      "dist/a.ts",
+      ".git/x",
+      "node_modules/y.ts",
+      "a.ts",
+    ]);
+    await surveySetup(world.ports, { root: ROOT });
+
+    expect(world.fakes.surveyPlugins.requests[0]?.files).toEqual([
+      "a.ts",
+      "target/c.rs",
+    ]);
+  });
+
   it("asks the plugins with the file list and the configured suites", async () => {
     const world = worldOf();
 
@@ -134,7 +152,7 @@ describe("surveySetup", () => {
     expect(world.fakes.surveyPlugins.requests).toEqual([
       {
         root: ROOT,
-        files: ["a.ts", "b.ts"],
+        files: ["a.ts", "b.ts", "target/c.rs"],
         suites: [{ language: "python", directory: "legacy" }],
       },
     ]);

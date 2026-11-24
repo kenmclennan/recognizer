@@ -1,7 +1,9 @@
 import {
   discoverPlugins,
   joinPath,
+  type LanguageRule,
   type PluginAnswer,
+  readsDirectoriesOf,
   type SurveyAnswer,
   type SurveyPlugins,
   type SurveyRequest,
@@ -16,6 +18,14 @@ function languageOf(manifest: { languages?: unknown[] }): string {
   const first = manifest.languages?.[0] as { name?: unknown } | undefined;
 
   return typeof first?.name === "string" ? first.name : "";
+}
+
+function languageRuleOf(manifest: {
+  languages?: unknown[];
+}): LanguageRule | null {
+  const first = manifest.languages?.[0];
+
+  return first === undefined ? null : (first as LanguageRule);
 }
 
 function parseAnswer(text: string): SurveyAnswer | string {
@@ -52,9 +62,7 @@ export class SurveyPluginsAdapter implements SurveyPlugins {
     const directory = this.io.makeTempDir();
 
     try {
-      const file = joinPath(directory, "survey-request.json");
-
-      this.io.writeFile(file, JSON.stringify(request));
+      const listed = new Set(request.files);
 
       return await Promise.all(
         asked.map(async (plugin): Promise<PluginAnswer> => {
@@ -63,6 +71,20 @@ export class SurveyPluginsAdapter implements SurveyPlugins {
             order: plugin.manifest.setup_survey?.order ?? 0,
             language: languageOf(plugin.manifest),
           };
+          const rule = languageRuleOf(plugin.manifest);
+          const file = joinPath(
+            directory,
+            `survey-request-${plugin.name}.json`,
+          );
+          const files =
+            rule === null
+              ? request.files
+              : request.files.filter((path) =>
+                  readsDirectoriesOf(rule, path, (one) => listed.has(one)),
+                );
+
+          this.io.writeFile(file, JSON.stringify({ ...request, files }));
+
           const run = await this.io.runAsync(plugin.command, ["survey", file], {
             timeoutMs: this.timeoutMs,
           }).result;

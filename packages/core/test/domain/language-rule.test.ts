@@ -2,7 +2,12 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { type LanguageRule, readsPath } from "../../src/index.js";
+import {
+  type LanguageRule,
+  readsDirectoriesOf,
+  readsPath,
+  SKIPPED_DIRECTORIES,
+} from "../../src/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -76,5 +81,81 @@ describe("readsPath", () => {
     expect(readsPath(python, "a.py", () => false)).toBe(true);
     expect(readsPath(python, ".hidden/a.py", () => false)).toBe(false);
     expect(readsPath(python, "tests/a.py", () => false)).toBe(false);
+  });
+});
+
+function keptBy(language: string, listing: string[]): string[] {
+  const listed = new Set(listing);
+
+  return listing.filter((path) =>
+    readsDirectoriesOf(ruleOf(language), path, (one) => listed.has(one)),
+  );
+}
+
+describe("readsDirectoriesOf", () => {
+  it("holds only folders no language owns", () => {
+    expect([...SKIPPED_DIRECTORIES].sort()).toEqual([
+      ".git",
+      ".recognizer",
+      ".worktrees",
+      "build",
+      "dist",
+      "node_modules",
+    ]);
+  });
+
+  it("drops a language's own build folder and keeps it for the others", () => {
+    const listing = [
+      "Cargo.toml",
+      "src/lib.rs",
+      "target/Cargo.toml",
+      "tests/Cargo.toml",
+      "bin/Cargo.toml",
+    ];
+
+    expect(keptBy("rust", listing)).toEqual([
+      "Cargo.toml",
+      "src/lib.rs",
+      "bin/Cargo.toml",
+    ]);
+    expect(keptBy("python", listing)).toEqual([
+      "Cargo.toml",
+      "src/lib.rs",
+      "target/Cargo.toml",
+      "bin/Cargo.toml",
+    ]);
+    expect(keptBy("csharp", listing)).toEqual([
+      "Cargo.toml",
+      "src/lib.rs",
+      "target/Cargo.toml",
+      "tests/Cargo.toml",
+    ]);
+  });
+
+  it("applies a marker only to the rule that declares it", () => {
+    const listing = [
+      "venv/lib.py",
+      "venv/pyvenv.cfg",
+      "venv/a.js",
+      "env/lib.py",
+      "env/pyvenv.cfg",
+    ];
+
+    expect(keptBy("python", listing)).toEqual([]);
+    expect(keptBy("typescript", listing)).toEqual(listing);
+  });
+
+  it("keeps a root file and a markerless venv folder", () => {
+    for (const language of [
+      "python",
+      "typescript",
+      "kotlin",
+      "rust",
+      "csharp",
+    ]) {
+      expect(keptBy(language, ["Cargo.toml"])).toEqual(["Cargo.toml"]);
+    }
+
+    expect(keptBy("python", ["venv/lib.py"])).toEqual(["venv/lib.py"]);
   });
 });

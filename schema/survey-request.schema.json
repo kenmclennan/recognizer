@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://recognizer.dev/schema/survey-request.schema.json",
   "title": "Recognizer setup survey request",
-  "description": "What core writes to the request file for `<command> survey REQUEST_FILE`: the repository root, its file list as core computed it, and the configured test suites.",
+  "description": "What core writes to the request file for `<command> survey REQUEST_FILE`: the repository root, its file list as core computed it, filtered by the receiving plugin's own skip rules, and the configured test suites.",
   "type": "object",
   "additionalProperties": false,
   "required": [

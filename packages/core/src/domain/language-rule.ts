@@ -16,8 +16,6 @@ export interface LanguageRule {
 export const SKIPPED_DIRECTORIES = new Set([
   ".git",
   "node_modules",
-  ".venv",
-  "venv",
   "dist",
   "build",
   ".worktrees",
@@ -56,17 +54,11 @@ export function skipsFile(rule: LanguageRule, fileName: string): boolean {
   return rule.skip.file_globs.some((glob) => matchesGlob(fileName, glob));
 }
 
-export function readsPath(
+export function readsDirectoriesOf(
   rule: LanguageRule,
   path: string,
   hasFile: (path: string) => boolean,
 ): boolean {
-  const name = baseName(path);
-
-  if (!claimsFile(rule, name) || skipsFile(rule, name)) {
-    return false;
-  }
-
   const parts = path.split("/").slice(0, -1);
 
   for (let depth = 0; depth < parts.length; depth++) {
@@ -85,4 +77,18 @@ export function readsPath(
   }
 
   return true;
+}
+
+export function readsPath(
+  rule: LanguageRule,
+  path: string,
+  hasFile: (path: string) => boolean,
+): boolean {
+  const name = baseName(path);
+
+  return (
+    claimsFile(rule, name) &&
+    !skipsFile(rule, name) &&
+    readsDirectoriesOf(rule, path, hasFile)
+  );
 }
