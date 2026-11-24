@@ -27,6 +27,59 @@ export interface SpanRule {
   object_body_type: string;
 }
 
+export interface MemberField {
+  type: string;
+  field?: string;
+}
+
+export interface NodeNameRule {
+  type: string;
+  name_field?: string;
+  strip_after?: string;
+  literal?: string;
+  default?: string;
+}
+
+export interface VocabularyRule {
+  comment_markers?: readonly string[];
+  literal_types?: readonly string[];
+  literal_suffixes?: readonly string[];
+  call_types?: readonly string[];
+  identifier_types?: readonly string[];
+  identifier_suffixes?: readonly string[];
+  member_fields?: readonly MemberField[];
+  block_types?: readonly string[];
+  return_types?: readonly string[];
+  jump_types?: readonly string[];
+  return_keywords?: readonly string[];
+  assignment_types?: readonly string[];
+  positional_assignment_types?: readonly string[];
+  member_types?: readonly string[];
+  subscript_types?: readonly string[];
+  identifier_leaf_types?: readonly string[];
+  self_types?: readonly string[];
+  self_texts?: readonly string[];
+  shorthand_initialiser_types?: readonly string[];
+  field_initialiser_types?: readonly string[];
+  struct_literal_types?: readonly string[];
+  plain_name_types?: readonly string[];
+  expression_statement_types?: readonly string[];
+  docstring_string_types?: readonly string[];
+  argument_wrapper_types?: readonly string[];
+  argument_list_types?: readonly string[];
+  call_suffix_types?: readonly string[];
+  subscript_argument_list_types?: readonly string[];
+  parameter_list_types?: readonly string[];
+  expression_bodied_types?: readonly string[];
+  expression_body_types?: readonly string[];
+  function_body_types?: readonly string[];
+  name_leaf_types?: readonly string[];
+  binding_declarator_types?: readonly string[];
+  binding_name_types?: readonly string[];
+  operator_node_types?: readonly string[];
+  node_names?: readonly NodeNameRule[];
+}
+
 export interface SpanVocabulary {
   scopeCalls: ReadonlySet<string>;
   statements: string;
@@ -75,6 +128,7 @@ export interface GrammarRule {
   bound_function_types: readonly string[];
   function_names: readonly FunctionNameRule[];
   span: SpanRule | null;
+  vocabulary: VocabularyRule | null;
 }
 
 export function grammarFor(

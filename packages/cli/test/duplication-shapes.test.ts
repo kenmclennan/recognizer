@@ -10,6 +10,7 @@ import {
   measureDuplication,
   normalise,
   unitsInSource,
+  vocabularyOf,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
@@ -53,15 +54,84 @@ async function csharp(source: string) {
   return found;
 }
 
+const LANGUAGE_SHAPES: [string, string, "constructor" | "accessor" | null][] = [
+  [
+    "python",
+    "class A:\n    def __init__(self, a, b):\n        self.a = a\n        self.b = 2\n",
+    "constructor",
+  ],
+  [
+    "python",
+    "class A:\n    def __init__(self, a):\n        self.a = a + 1\n",
+    null,
+  ],
+  [
+    "python",
+    "class A:\n    def f(self):\n        return self.s.get(1)\n",
+    "accessor",
+  ],
+  [
+    "python",
+    "class A:\n    def f(self, k):\n        return self.s.get(k)\n",
+    null,
+  ],
+  [
+    "typescript",
+    "class A { constructor(a, b) { this.a = a; this.b = 2; } }",
+    "constructor",
+  ],
+  ["typescript", "class A { constructor(a) { this.a = a + 1; } }", null],
+  ["typescript", "class A { f() { return this.s.get(1); } }", "accessor"],
+  ["typescript", "class A { f(k) { return this.s.get(k); } }", null],
+  [
+    "rust",
+    "impl A { fn new(a: i32, b: i32) -> A { A { a, b: 2 } } }",
+    "constructor",
+  ],
+  ["rust", "impl A { fn new(a: i32) -> A { A { a: a + 1 } } }", null],
+  ["rust", "impl A { fn f(&self) -> i32 { self.s.get(1) } }", "accessor"],
+  ["rust", "impl A { fn f(&self, k: i32) -> i32 { self.s.get(k) } }", null],
+  [
+    "kotlin",
+    "class A { fun init(a: Int, b: Int) { this.a = a; this.b = 2 } }",
+    "constructor",
+  ],
+  ["kotlin", "class A { fun init(a: Int) { this.a = a + 1 } }", null],
+  ["kotlin", "class A { fun f(): Int { return this.s.get(1) } }", "accessor"],
+  ["kotlin", "class A { fun f(k: Int): Int { return this.s.get(k) } }", null],
+];
+
+describe("the shapes of the Python, TypeScript, Rust and Kotlin grammars", () => {
+  for (const [language, source, shape] of LANGUAGE_SHAPES) {
+    it(`classifies ${language} ${JSON.stringify(source)} as ${shape ?? "neither shape"}`, async () => {
+      const parsers = await loadParsers([language], GRAMMAR_DIRECTORY);
+      const tree = parsers.get(language)?.parse(source);
+      const found = findFunctions(tree?.rootNode as never, ruleNamed(language));
+      const target = found.at(-1);
+
+      expect(target).toBeDefined();
+      expect(
+        isTrivialShape(
+          (target as { node: never }).node,
+          vocabularyOf(ruleNamed(language)),
+        ),
+      ).toBe(shape !== null);
+    });
+  }
+});
+
 describe("the C# shapes and normalisation held over from the Python sensor", () => {
   for (const [source, shape] of SHAPES) {
     it(`classifies ${source} as ${shape ?? "neither shape"}`, async () => {
       const [first] = await csharp(source);
 
       expect(first).toBeDefined();
-      expect(isTrivialShape((first as { node: never }).node)).toBe(
-        shape !== null,
-      );
+      expect(
+        isTrivialShape(
+          (first as { node: never }).node,
+          vocabularyOf(ruleNamed("csharp")),
+        ),
+      ).toBe(shape !== null);
     });
   }
 
@@ -70,7 +140,11 @@ describe("the C# shapes and normalisation held over from the Python sensor", () 
       const [first] = await csharp(source);
 
       return JSON.stringify(
-        normalise((first as { node: never }).node, new Set()),
+        normalise(
+          (first as { node: never }).node,
+          new Set(),
+          vocabularyOf(ruleNamed("csharp")),
+        ),
       );
     };
     const first = await of("class A { int F() { return one.Go(x); } }");

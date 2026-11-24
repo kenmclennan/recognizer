@@ -1,14 +1,13 @@
 import type { GrammarRule } from "../duplication/grammars.js";
 import { childrenOf, type SyntaxNode } from "../duplication/syntax.js";
-
-const OPERATOR_NODES = new Set(["binary_expression", "boolean_operator"]);
+import { vocabularyOf } from "../duplication/vocabulary.js";
 
 function addsOne(node: SyntaxNode, rule: GrammarRule): boolean {
   if (rule.branch_types.includes(node.type)) {
     return true;
   }
 
-  if (!OPERATOR_NODES.has(node.type)) {
+  if (!vocabularyOf(rule).operatorNodeTypes.has(node.type)) {
     return false;
   }
 

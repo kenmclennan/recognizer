@@ -7,6 +7,43 @@ export const PROTOCOL = 2;
 export const INSTALL =
   "brew upgrade kenmclennan/tap/recognizer-scan-typescript || brew install kenmclennan/tap/recognizer-scan-typescript";
 
+const VOCABULARY = {
+  comment_markers: ["comment"],
+  literal_types: [
+    "string",
+    "string_fragment",
+    "template_string",
+    "number",
+    "true",
+    "false",
+    "null",
+    "undefined",
+    "regex",
+  ],
+  call_types: ["call_expression"],
+  identifier_types: ["identifier"],
+  identifier_suffixes: ["_identifier"],
+  member_fields: [
+    {
+      type: "member_expression",
+      field: "property",
+    },
+  ],
+  return_types: ["return_statement"],
+  assignment_types: ["assignment_expression"],
+  member_types: ["member_expression"],
+  subscript_types: ["subscript_expression"],
+  identifier_leaf_types: ["identifier", "property_identifier"],
+  self_types: ["this"],
+  self_texts: ["self"],
+  plain_name_types: ["identifier"],
+  expression_statement_types: ["expression_statement"],
+  name_leaf_types: ["identifier", "type_identifier", "property_identifier"],
+  binding_declarator_types: ["variable_declarator"],
+  binding_name_types: ["identifier"],
+  operator_node_types: ["binary_expression"],
+};
+
 const GRAMMARS = [
   {
     name: "typescript",
@@ -33,6 +70,7 @@ const GRAMMARS = [
     boolean_operators: ["&&", "||", "??"],
     bound_function_types: ["arrow_function", "function_expression", "function"],
     function_names: [],
+    vocabulary: VOCABULARY,
   },
   {
     name: "tsx",
@@ -59,6 +97,7 @@ const GRAMMARS = [
     boolean_operators: ["&&", "||", "??"],
     bound_function_types: ["arrow_function", "function_expression", "function"],
     function_names: [],
+    vocabulary: VOCABULARY,
   },
 ];
 

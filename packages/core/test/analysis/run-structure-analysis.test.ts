@@ -14,6 +14,7 @@ import {
   STRUCTURE_SENSOR_VERSION,
 } from "../../src/index.js";
 import { createFakes } from "../fakes/container.js";
+import { FIXTURE_LANGUAGES } from "../fakes/fixture-languages.js";
 import { breaching, ROOT } from "./analysis-world.js";
 
 const GRAMMARS = join(
@@ -25,6 +26,14 @@ const GRAMMARS = join(
   "grammars",
 );
 
+const PYTHON_VOCABULARY = (
+  FIXTURE_LANGUAGES as unknown as { grammars: GrammarRule[] }[]
+)
+  .flatMap((language) => language.grammars)
+  .find((grammar) => grammar.name === "python")?.vocabulary as NonNullable<
+  GrammarRule["vocabulary"]
+>;
+
 const PYTHON_RULE: GrammarRule = {
   name: "python",
   extensions: [".py"],
@@ -35,6 +44,7 @@ const PYTHON_RULE: GrammarRule = {
   bound_function_types: [],
   function_names: [],
   span: null,
+  vocabulary: PYTHON_VOCABULARY,
 };
 
 async function pythonParsers(): Promise<Parsers> {

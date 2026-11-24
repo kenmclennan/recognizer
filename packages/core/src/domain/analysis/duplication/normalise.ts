@@ -1,57 +1,29 @@
 import { childrenOf, namedChildrenOf, type SyntaxNode } from "./syntax.js";
-
-const LITERAL_TYPES = new Set([
-  "string",
-  "string_fragment",
-  "string_content",
-  "template_string",
-  "number",
-  "integer",
-  "float",
-  "true",
-  "false",
-  "none",
-  "null",
-  "undefined",
-  "regex",
-]);
-
-const CALL_TYPES = new Set([
-  "call",
-  "call_expression",
-  "invocation_expression",
-]);
-
-const MEMBER_FIELDS: Readonly<Record<string, string | null>> = {
-  attribute: "attribute",
-  member_expression: "property",
-  member_access_expression: "name",
-  field_expression: "field",
-  scoped_identifier: "name",
-  scoped_expression: "name",
-  navigation_expression: null,
-  navigation_suffix: null,
-};
+import type { Vocabulary } from "./vocabulary.js";
 
 const IDENTIFIER_TOKEN = "ID";
 const LITERAL_TOKEN = "LIT";
 
 export type Normalised = readonly [string, readonly Normalised[]];
 
-export function isComment(nodeType: string): boolean {
-  return nodeType.includes("comment");
+export function isComment(nodeType: string, vocabulary: Vocabulary): boolean {
+  return vocabulary.commentMarkers.some((marker) => nodeType.includes(marker));
 }
 
-export function isLiteral(nodeType: string): boolean {
-  return nodeType.endsWith("_literal") || LITERAL_TYPES.has(nodeType);
+export function isLiteral(nodeType: string, vocabulary: Vocabulary): boolean {
+  return (
+    vocabulary.literalSuffixes.some((suffix) => nodeType.endsWith(suffix)) ||
+    vocabulary.literalTypes.has(nodeType)
+  );
 }
 
-function isIdentifier(node: SyntaxNode): boolean {
+function isIdentifier(node: SyntaxNode, vocabulary: Vocabulary): boolean {
   return (
     node.childCount === 0 &&
-    (node.type === "identifier" ||
-      node.type.endsWith("_identifier") ||
-      node.type === "self")
+    (vocabulary.identifierTypes.has(node.type) ||
+      vocabulary.identifierSuffixes.some((suffix) =>
+        node.type.endsWith(suffix),
+      ))
   );
 }
 
@@ -65,7 +37,10 @@ function calleeOf(call: SyntaxNode): SyntaxNode | null {
   return namedChildrenOf(call)[0] ?? null;
 }
 
-function finalName(start: SyntaxNode): SyntaxNode | null {
+function finalName(
+  start: SyntaxNode,
+  vocabulary: Vocabulary,
+): SyntaxNode | null {
   let node = start;
 
   for (;;) {
@@ -73,11 +48,11 @@ function finalName(start: SyntaxNode): SyntaxNode | null {
       return node;
     }
 
-    if (!Object.hasOwn(MEMBER_FIELDS, node.type)) {
+    if (!vocabulary.memberFields.has(node.type)) {
       return null;
     }
 
-    const field = MEMBER_FIELDS[node.type] as string | null;
+    const field = vocabulary.memberFields.get(node.type) as string | null;
     let target = field === null ? null : node.childForFieldName(field);
 
     if (target === null) {
@@ -97,27 +72,28 @@ const DESCEND = Symbol("descend");
 function visit(
   node: SyntaxNode,
   kept: Set<number>,
+  vocabulary: Vocabulary,
 ): Normalised | null | typeof DESCEND {
   const nodeType = node.type;
 
-  if (isComment(nodeType)) {
+  if (isComment(nodeType, vocabulary)) {
     return null;
   }
 
-  if (isLiteral(nodeType)) {
+  if (isLiteral(nodeType, vocabulary)) {
     return [LITERAL_TOKEN, []];
   }
 
-  if (CALL_TYPES.has(nodeType)) {
+  if (vocabulary.callTypes.has(nodeType)) {
     const callee = calleeOf(node);
-    const leaf = callee === null ? null : finalName(callee);
+    const leaf = callee === null ? null : finalName(callee, vocabulary);
 
     if (leaf !== null) {
       kept.add(leaf.id);
     }
   }
 
-  if (isIdentifier(node)) {
+  if (isIdentifier(node, vocabulary)) {
     return [kept.has(node.id) ? node.text : IDENTIFIER_TOKEN, []];
   }
 
@@ -138,8 +114,9 @@ interface Frame {
 export function normalise(
   root: SyntaxNode,
   kept: Set<number>,
+  vocabulary: Vocabulary,
 ): Normalised | null {
-  const first = visit(root, kept);
+  const first = visit(root, kept, vocabulary);
 
   if (first !== DESCEND) {
     return first;
@@ -157,7 +134,7 @@ export function normalise(
 
       frame.position += 1;
 
-      const result = visit(child, kept);
+      const result = visit(child, kept, vocabulary);
 
       if (result === DESCEND) {
         stack.push({

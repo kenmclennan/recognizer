@@ -17,6 +17,7 @@ import {
 } from "../../domain/analysis/duplication/normalise.js";
 import { isTrivialShape } from "../../domain/analysis/duplication/shapes.js";
 import { comparedSpan } from "../../domain/analysis/duplication/span.js";
+import { vocabularyOf } from "../../domain/analysis/duplication/vocabulary.js";
 import type { File } from "../../domain/file.js";
 import type { FindingsRepository } from "../../domain/findings-repository.js";
 import type { Repository } from "../../domain/repository.js";
@@ -48,6 +49,7 @@ export function unitsInSource(
   settings: DuplicationSettings,
   digest: (text: string) => string,
 ): Unit[] {
+  const vocabulary = vocabularyOf(rule);
   const parser = parsers.get(rule.name);
   const tree = parser?.parse(source) ?? null;
 
@@ -73,11 +75,14 @@ export function unitsInSource(
         continue;
       }
 
-      if (countNodes(body) < settings.min_nodes || isTrivialShape(node)) {
+      if (
+        countNodes(body) < settings.min_nodes ||
+        isTrivialShape(node, vocabulary)
+      ) {
         continue;
       }
 
-      const normalised = normalise(body, new Set());
+      const normalised = normalise(body, new Set(), vocabulary);
 
       if (normalised === null) {
         continue;

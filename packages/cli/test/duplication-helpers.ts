@@ -27,6 +27,7 @@ export const GRAMMAR_RULES: GrammarRule[] = (
     ...rule,
     function_names: rule.function_names ?? [],
     span: rule.span ?? null,
+    vocabulary: rule.vocabulary ?? null,
   })),
 );
 
