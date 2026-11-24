@@ -1,7 +1,7 @@
 import type { ConfigRepository } from "../domain/config-repository.js";
 import type { FindingsRepository } from "../domain/findings-repository.js";
 import type { PolicyRepository } from "../domain/policy-repository.js";
-import type { Repository } from "../domain/repository.js";
+import { Repository } from "../domain/repository.js";
 import type { ScanOutcome } from "../domain/run/scan-outcome.js";
 import type { PlanRequest, ScanPlanView } from "../domain/run/scan-plan.js";
 import type { ScanRequest } from "../domain/run/scan-request.js";
@@ -27,6 +27,17 @@ import {
 } from "./analysis/report-findings.js";
 import { runAnalysis } from "./analysis/run-analysis.js";
 import { runAnalysisSync } from "./analysis/run-analysis-sync.js";
+import { applySetup } from "./configuration/apply-setup.js";
+import { buildSetupChanges } from "./configuration/build-setup-changes.js";
+import type {
+  ConfigurationPorts,
+  LanguageClaim,
+  SetupReads,
+} from "./configuration/internal/configuration-ports.js";
+import { readSetup } from "./configuration/read-setup.js";
+import { recommendPolicy } from "./configuration/recommend-policy.js";
+import { surveySetup } from "./configuration/survey-setup.js";
+import { trySetup } from "./configuration/try-setup.js";
 import { describeFiles } from "./describing/describe-files.js";
 import { describingSettings } from "./describing/describing-settings.js";
 import { findDescribeGap } from "./describing/find-describe-gap.js";
@@ -38,6 +49,10 @@ import type { Confirm } from "./describing/ports/confirm.js";
 import type { Describer } from "./describing/ports/describer.js";
 import { refuseShippedDescriber } from "./describing/refuse-shipped-describer.js";
 import type { BaselineRepository } from "./history/settle-baseline.js";
+import { diagnose } from "./plugins/diagnose.js";
+import { discoverPlugins } from "./plugins/discover-plugins.js";
+import type { PluginPorts } from "./plugins/internal/plugin-ports.js";
+import { readShippedSensors } from "./plugins/shipped-plugins.js";
 import { type FreshSources, freshStructure } from "./run/fresh-structure.js";
 import { drive } from "./run/internal/async-driver.js";
 import { EventQueue } from "./run/internal/event-queue.js";
@@ -53,7 +68,11 @@ import { discoverScanners } from "./scanning/discover-scanners.js";
 import { extractScans } from "./scanning/extract-scans.js";
 import { extractScansSync } from "./scanning/extract-scans-sync.js";
 import type { ScanningQueries } from "./scanning/internal/scanning-ports.js";
-import type { Scanners, SyncScanners } from "./scanning/ports/scanners.js";
+import type {
+  ScannerQueries,
+  Scanners,
+  SyncScanners,
+} from "./scanning/ports/scanners.js";
 import { readScannerSetup } from "./scanning/read-scanner-setup.js";
 import { findCommitGaps } from "./sensing/find-commit-gaps.js";
 import { findProgramGaps } from "./sensing/find-program-gaps.js";
@@ -421,5 +440,73 @@ export function visualisationOver(ports: VisualisationPorts) {
       setView(ports, request),
     showView: (request: Parameters<typeof showView>[1]) =>
       showView(ports, request),
+  };
+}
+
+export interface SetupReadsSources {
+  plugins: Pick<
+    PluginPorts,
+    "programs" | "validators" | "shipped" | "repository"
+  >;
+  scanners: ScannerQueries;
+}
+
+export function setupReadsOver({
+  plugins,
+  scanners,
+}: SetupReadsSources): SetupReads {
+  return {
+    languageRules: () =>
+      discoverPlugins(plugins, ["scanner"]).plugins.flatMap(
+        (scanner) => (scanner.manifest.languages ?? []) as LanguageClaim[],
+      ),
+    cachedScans: (root) => {
+      scanners.discover();
+
+      const parts = scanners
+        .detect(root, {})
+        .map((language) => scanners.readCached(root, language));
+
+      return parts.length > 0 && parts.every((part) => part !== null)
+        ? Repository.join(parts as Repository[])
+        : null;
+    },
+    sensors: () =>
+      readShippedSensors(plugins).sensors.map((sensor) => ({
+        name: sensor.name,
+        display: sensor.display,
+        ...(sensor.description === undefined
+          ? {}
+          : { description: sensor.description }),
+        runs_tests: sensor.runs_tests,
+      })),
+    describers: () =>
+      discoverPlugins(plugins, ["describer"]).plugins.map((describer) => ({
+        name: describer.name,
+        display: describer.manifest.display,
+        ...(describer.manifest.description === undefined
+          ? {}
+          : { description: describer.manifest.description }),
+        runs_tests: false,
+      })),
+    describerName: () => plugins.shipped.describers()[0] ?? "",
+    diagnose: (root) => diagnose(plugins, root, false),
+  };
+}
+
+export function configurationOver(ports: ConfigurationPorts) {
+  return {
+    surveySetup: (request: Parameters<typeof surveySetup>[1]) =>
+      surveySetup(ports, request),
+    buildSetupChanges: (request: Parameters<typeof buildSetupChanges>[1]) =>
+      buildSetupChanges(ports, request),
+    recommendPolicy: (request: Parameters<typeof recommendPolicy>[1]) =>
+      recommendPolicy(ports, request),
+    applySetup: (request: Parameters<typeof applySetup>[1]) =>
+      applySetup(ports, request),
+    trySetup: (request: Parameters<typeof trySetup>[1]) =>
+      trySetup(ports, request),
+    readSetup: (request: Parameters<typeof readSetup>[1]) =>
+      readSetup(ports, request),
   };
 }

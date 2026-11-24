@@ -1,11 +1,10 @@
+import { baseName, joinPath } from "../../domain/path.js";
 import {
   EVENT_PREFIX,
   type PluginEvent,
   parseEventLine,
 } from "../../domain/plugin-event.js";
 import {
-  baseName,
-  joinPath,
   judgeProtocol,
   MANIFEST_TIMEOUT_MS,
   type Manifest,

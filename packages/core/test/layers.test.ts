@@ -61,6 +61,7 @@ const SUBDOMAINS = [
   "describing",
   "sensing",
   "analysis",
+  "configuration",
   "history",
   "visualisation",
   "plugins",
@@ -274,6 +275,11 @@ describe("core layers", () => {
       "run/ports/scan.ts",
       "visualisation/ports/changes.ts",
       "visualisation/ports/windows.ts",
+      "configuration/ports/setup-files.ts",
+      "configuration/ports/survey-plugins.ts",
+      "configuration/ports/assistant.ts",
+      "configuration/ports/setup-scan.ts",
+      "configuration/ports/config-keys.ts",
     ];
 
     for (const folder of [...SUBDOMAINS, "shared"]) {

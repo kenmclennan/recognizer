@@ -17,6 +17,7 @@ pub fn build() -> Value {
         "install": INSTALL,
         "check": false,
         "reports_tests": true,
+        "setup_survey": { "order": 2 },
         "long_running": true,
         "units": ["files"],
         "settings": [],

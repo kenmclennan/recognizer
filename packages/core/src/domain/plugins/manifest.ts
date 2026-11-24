@@ -27,6 +27,7 @@ export interface Manifest {
   reports_tests?: boolean;
   scoped?: boolean;
   planned_work?: { verb: string };
+  setup_survey?: { order: number };
   log_path?: string;
   prompt_version?: string;
 }
@@ -134,17 +135,4 @@ export function supportedRange(current: number): string {
   return current > 1
     ? `protocols ${current - 1} and ${current}`
     : `protocol ${current}`;
-}
-
-export function joinPath(...parts: string[]): string {
-  return parts
-    .filter((part) => part !== "")
-    .join("/")
-    .replace(/\/+/g, "/");
-}
-
-export function baseName(path: string): string {
-  const at = path.lastIndexOf("/");
-
-  return at === -1 ? path : path.slice(at + 1);
 }

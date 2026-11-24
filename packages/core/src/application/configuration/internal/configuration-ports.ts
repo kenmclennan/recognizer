@@ -1,0 +1,50 @@
+import type { ConfigRepository } from "../../../domain/config-repository.js";
+import type { PolicyRepository } from "../../../domain/policy-repository.js";
+import type { Repository } from "../../../domain/repository.js";
+import type { diagnose } from "../../plugins/diagnose.js";
+import type { Clock } from "../../shared/ports/clock.js";
+import type { ScanLock } from "../../shared/ports/scan-lock.js";
+import type { Assistant } from "../ports/assistant.js";
+import type { ConfigKeys } from "../ports/config-keys.js";
+import type { SetupFiles } from "../ports/setup-files.js";
+import type { SetupPrograms } from "../ports/setup-programs.js";
+import type { SetupScan } from "../ports/setup-scan.js";
+import type { SurveyPlugins } from "../ports/survey-plugins.js";
+
+export type SetupDoctorReport = ReturnType<typeof diagnose>;
+
+export interface InstalledCheck {
+  name: string;
+  display: string;
+  description?: string;
+  runs_tests: boolean;
+}
+
+export interface LanguageClaim {
+  files: string[];
+  extensions: string[];
+}
+
+export interface SetupReads {
+  languageRules(): LanguageClaim[];
+  cachedScans(root: string): Repository | null;
+  sensors(): InstalledCheck[];
+  describers(): InstalledCheck[];
+  describerName(): string;
+  diagnose(root: string): SetupDoctorReport;
+}
+
+export interface ConfigurationPorts {
+  files: SetupFiles;
+  plugins: SurveyPlugins;
+  assistant: Assistant;
+  scan: SetupScan;
+  keys: ConfigKeys;
+  config: ConfigRepository;
+  policy: PolicyRepository;
+  programs: SetupPrograms;
+  lock: ScanLock;
+  clock: Clock;
+  reads: SetupReads;
+  version: string;
+}

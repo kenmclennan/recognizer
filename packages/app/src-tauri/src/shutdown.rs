@@ -1,12 +1,11 @@
 use signal_hook::consts::{SIGINT, SIGTERM};
 use signal_hook::iterator::Signals;
 
-use crate::core_client::ScanRuns;
-use crate::setup_run::SetupRuns;
+use crate::core_client::{ScanRuns, SetupLedger};
 
 pub fn stop_for_signal(
     scans: &ScanRuns,
-    setups: &SetupRuns,
+    setups: &SetupLedger,
     stop_service: impl FnOnce(),
     confirm_quit: impl FnOnce(),
     exit: impl FnOnce(),
@@ -41,9 +40,9 @@ mod tests {
 
     use super::*;
 
-    fn two_scans_and_a_setup() -> (ScanRuns, SetupRuns) {
+    fn two_scans_and_a_setup() -> (ScanRuns, SetupLedger) {
         let scans = ScanRuns::default();
-        let setups = SetupRuns::default();
+        let setups = SetupLedger::default();
 
         scans.begin("w-1").unwrap();
         scans.begin("w-2").unwrap();
@@ -80,7 +79,7 @@ mod tests {
     #[test]
     fn a_confirmed_quit_with_one_setup_run_stops_it_before_exit() {
         let scans = ScanRuns::default();
-        let setups = SetupRuns::default();
+        let setups = SetupLedger::default();
         let stopped_at_exit = RefCell::new(None);
 
         setups.begin("w-1").unwrap();

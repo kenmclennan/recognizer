@@ -7,7 +7,10 @@ import type {
   RunningProgram,
 } from "../../src/index.js";
 
-export type Behaviour = (args: string[]) => Partial<ProgramRun>;
+export type Behaviour = (
+  args: string[],
+  options?: ProgramRunOptions,
+) => Partial<ProgramRun>;
 
 export interface RecordedRun {
   program: string;
@@ -90,18 +93,56 @@ export class FakePrograms implements Programs {
       status: 0,
       stdout: "",
       stderr: "",
-      ...behaviour(args),
+      ...behaviour(args, options),
     };
   }
+
+  readonly held = new Set<string>();
+  readonly started: { program: string; args: string[]; cwd?: string }[] = [];
+  readonly pending: ((run: ProgramRun) => void)[] = [];
+  killed = 0;
 
   start(
     program: string,
     args: string[],
-    _options?: ProgramStartOptions,
+    options?: ProgramStartOptions,
   ): RunningProgram {
+    const cwd = options?.cwd;
+
+    this.started.push({ program, args, ...(cwd === undefined ? {} : { cwd }) });
+
+    if (this.held.has(program)) {
+      this.runs.push({ program, args, options });
+
+      let release: (run: ProgramRun) => void = () => {};
+      const result = new Promise<ProgramRun>((resolve) => {
+        release = resolve;
+      });
+
+      this.pending.push(release);
+
+      return {
+        result,
+        kill: () => {
+          this.killed += 1;
+          release({
+            started: true,
+            status: null,
+            stdout: "",
+            stderr: "",
+            stopped: true,
+          });
+        },
+      };
+    }
+
     return {
-      result: Promise.resolve(this.run(program, args)),
-      kill: () => {},
+      result: Promise.resolve(
+        this.run(program, args, cwd === undefined ? undefined : { cwd }),
+      ),
+      kill: () => {
+        this.killed += 1;
+      },
     };
   }
 

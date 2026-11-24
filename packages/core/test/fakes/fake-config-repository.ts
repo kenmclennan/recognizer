@@ -59,6 +59,12 @@ export class FakeConfigRepository implements ConfigRepository {
       : this.invented.suites.map((name) => ({ name, language: "python" }));
   }
 
+  setup: Record<string, unknown> = {};
+
+  setupDocument(): { present: boolean; document: Record<string, unknown> } {
+    return { present: this.present, document: this.setup };
+  }
+
   private document(): ConfigDocument | null {
     return this.present ? DOCUMENT : null;
   }

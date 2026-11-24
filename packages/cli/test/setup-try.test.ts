@@ -7,6 +7,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { rehearsalChanges } from "@recognizer/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import {
@@ -17,15 +18,15 @@ import {
   stopEverything,
 } from "../src/cli.js";
 import { COMMANDS } from "../src/commands.js";
-import { buildChanges, type SetupChoices } from "../src/setup-changes.js";
-import type { Survey } from "../src/setup-survey.js";
 import {
-  rehearsalChanges,
+  buildChanges,
+  type SetupChoices,
+  type Survey,
   type TryEvent,
-  tryChanges,
-} from "../src/setup-try.js";
+} from "../src/index.js";
+import { runTry as tryChanges } from "../src/setup-command.js";
 import { capture, REPO } from "./helpers.js";
-import { shimDirectory, shimmedPath } from "./setup-helpers.js";
+import { shimDirectory, shimmedPath, withToolUndo } from "./setup-helpers.js";
 
 const example = JSON.parse(
   readFileSync(
@@ -189,7 +190,7 @@ let root: string;
 let savedPath: string | undefined;
 
 function survey(): Survey {
-  return { ...example, repository: root };
+  return withToolUndo({ ...example, repository: root });
 }
 
 function kept() {

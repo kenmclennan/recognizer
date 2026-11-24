@@ -17,16 +17,18 @@ import {
   stopEverything,
 } from "../src/cli.js";
 import { COMMANDS } from "../src/commands.js";
-import { validateRunRecord } from "../src/log-document.js";
-import { type ApplyEvent, applyChanges } from "../src/setup-apply.js";
+import { configurationFor } from "../src/configuration-composition.js";
 import {
+  type ApplyEvent,
   buildChanges,
   type PlannedChange,
   type SetupChoices,
-} from "../src/setup-changes.js";
-import { type Survey, surveyRepository } from "../src/setup-survey.js";
+  type Survey,
+} from "../src/index.js";
+import { validateRunRecord } from "../src/log-document.js";
+import { runApply as applyChanges } from "../src/setup-command.js";
 import { capture, REPO } from "./helpers.js";
-import { shimDirectory, shimmedPath } from "./setup-helpers.js";
+import { shimDirectory, shimmedPath, withToolUndo } from "./setup-helpers.js";
 
 const example = JSON.parse(
   readFileSync(
@@ -145,6 +147,10 @@ function fakeIo(
       }
 
       if (command === "cargo") {
+        if (args[0] === "uninstall") {
+          uninstalled.push(args[1] ?? "");
+        }
+
         return { started: true, status: 0, stdout: "installed\n", stderr: "" };
       }
 
@@ -171,10 +177,6 @@ function fakeIo(
     runAsync,
     run: (command, args, options) => {
       if (command === "cargo") {
-        if (args[0] === "uninstall") {
-          uninstalled.push(args[1] ?? "");
-        }
-
         return { started: true, status: 0, stdout: "", stderr: "" };
       }
 
@@ -190,7 +192,7 @@ let root: string;
 let savedPath: string | undefined;
 
 function surveyOf(): Survey {
-  return { ...example, repository: root };
+  return withToolUndo({ ...example, repository: root });
 }
 
 function build(selected: SetupChoices = choices): PlannedChange[] {
@@ -252,7 +254,10 @@ describe("setup apply", () => {
     const ok = await applyChanges(fake.io, root, changes, (event) =>
       events.push(event),
     );
-    const atFailure = fake.snapshots[fake.snapshots.length - 1] ?? "";
+    const atFailure =
+      fake.snapshots[
+        fake.calls.findIndex((argv) => argv.join(" ").startsWith(first ?? "?"))
+      ] ?? "";
 
     expect(ok).toBe(false);
     expect(fake.calls.length).toBeGreaterThanOrEqual(3);
@@ -416,7 +421,9 @@ describe("setup apply", () => {
     process.env.PATH = shimmedPath(shimDirectory(false, true));
 
     const fresh = makeTempDir("recognizer-setup-describer-");
-    const survey = surveyRepository(nodeIo(), fresh);
+    const survey = await configurationFor(nodeIo()).surveySetup({
+      root: fresh,
+    });
     const changes = buildChanges(survey, { plugins: ["claude"] }).changes;
 
     expect(changes.map((change) => change.title)).toEqual(["Turn on Claude"]);

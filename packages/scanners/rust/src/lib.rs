@@ -5,6 +5,7 @@ pub mod items;
 pub mod manifest;
 pub mod resolve;
 pub mod scanner;
+pub mod survey;
 pub mod test_report;
 pub mod tree;
 

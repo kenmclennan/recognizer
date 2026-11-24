@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://recognizer.dev/schema/survey-request.schema.json",
+  "title": "Recognizer setup survey request",
+  "description": "What core writes to the request file for `<command> survey REQUEST_FILE`: the repository root, its file list as core computed it, and the configured test suites.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "root",
+    "files",
+    "suites"
+  ],
+  "properties": {
+    "root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "suites": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "language",
+          "directory"
+        ],
+        "properties": {
+          "language": {
+            "type": "string",
+            "minLength": 1
+          },
+          "directory": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,6 +1,7 @@
 import { InvalidRequest } from "../../domain/invalid-request.js";
+import { joinPath } from "../../domain/path.js";
 import { KINDS, programName } from "../../domain/plugins/installed-plugin.js";
-import { joinPath, type PluginFacts } from "../../domain/plugins/manifest.js";
+import type { PluginFacts } from "../../domain/plugins/manifest.js";
 import type { PluginPorts } from "./internal/plugin-ports.js";
 
 export const LANGUAGES = ["python", "typescript", "rust"] as const;

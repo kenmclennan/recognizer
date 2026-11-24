@@ -18,6 +18,8 @@ for (const name of [
   "scan-marker",
   "scan-answer",
   "tests-answer",
+  "survey-request",
+  "survey-answer",
   "overlay",
   "config-keys",
   "manifest",

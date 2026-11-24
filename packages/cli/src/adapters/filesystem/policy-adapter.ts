@@ -3,8 +3,10 @@ import {
   type PolicyRepository,
   type PolicyRule,
 } from "@recognizer/core";
+import { parse, stringify } from "yaml";
 import type { Io } from "../../cli.js";
 import { policyFile } from "../../config.js";
+import { InputError } from "../../errors.js";
 import { readPolicy } from "../../load-findings.js";
 import { parsePolicy } from "./policy-translator.js";
 
@@ -31,5 +33,41 @@ export class PolicyAdapter implements PolicyRepository {
     const file = policyFile(root);
 
     return this.io.exists(file) ? file : null;
+  }
+
+  document(root: string): Record<string, unknown> {
+    const file = policyFile(root);
+
+    if (!this.io.exists(file)) {
+      return {};
+    }
+
+    try {
+      const text = this.io.readFile(file);
+
+      if (text.trim() === "") {
+        return {};
+      }
+
+      const value: unknown = parse(text);
+
+      return typeof value === "object" &&
+        value !== null &&
+        !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : {};
+    } catch {
+      return {};
+    }
+  }
+
+  parseDocument(document: Record<string, unknown>): readonly PolicyRule[] {
+    try {
+      return parsePolicy(stringify(document));
+    } catch (error) {
+      throw error instanceof InputError
+        ? new InvalidRequest(error.messages)
+        : error;
+    }
   }
 }

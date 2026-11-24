@@ -3,6 +3,7 @@ use std::io::{Read, Write};
 use std::ops::Deref;
 use std::path::Path;
 use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -18,6 +19,7 @@ const STDERR_CHARS: usize = 8192;
 const STDERR_TAIL_BYTES: usize = 4 * STDERR_CHARS;
 const STARTED_BY: &str = "RECOGNIZER_STARTED_BY";
 const ALREADY_RUNNING: &str = "a scan is already running";
+const SETUP_ALREADY_RUNNING: &str = "a setup check or apply is already running";
 
 pub type Launcher = Box<dyn Fn() -> Result<Command, Value> + Send + Sync>;
 
@@ -284,6 +286,126 @@ impl ScanRuns {
     }
 }
 
+#[derive(Default)]
+struct SetupEntry {
+    setup: Option<String>,
+    stopped: bool,
+}
+
+#[derive(Default)]
+pub struct SetupLedger {
+    entries: Mutex<HashMap<String, SetupEntry>>,
+    reads: Mutex<HashMap<String, SetupEntry>>,
+    next_read: AtomicUsize,
+}
+
+impl SetupLedger {
+    fn lock(&self) -> MutexGuard<'_, HashMap<String, SetupEntry>> {
+        locked(&self.entries)
+    }
+
+    fn lock_reads(&self) -> MutexGuard<'_, HashMap<String, SetupEntry>> {
+        locked(&self.reads)
+    }
+
+    pub fn begin(&self, label: &str) -> Result<(), String> {
+        let mut entries = self.lock();
+
+        if entries.contains_key(label) {
+            return Err(SETUP_ALREADY_RUNNING.to_string());
+        }
+
+        entries.insert(label.to_string(), SetupEntry::default());
+
+        Ok(())
+    }
+
+    pub fn begin_read(&self, label: &str) -> String {
+        let number = self.next_read.fetch_add(1, Ordering::Relaxed);
+        let key = format!("{label}#read-{number}");
+
+        self.lock_reads().insert(key.clone(), SetupEntry::default());
+
+        key
+    }
+
+    fn attach(&self, key: &str, setup: &str) -> bool {
+        let mut entries = self.lock();
+
+        if let Some(entry) = entries.get_mut(key) {
+            entry.setup = Some(setup.to_string());
+
+            return entry.stopped;
+        }
+
+        drop(entries);
+
+        match self.lock_reads().get_mut(key) {
+            Some(entry) => {
+                entry.setup = Some(setup.to_string());
+
+                entry.stopped
+            }
+            None => false,
+        }
+    }
+
+    pub fn stop(&self, label: &str) -> Vec<String> {
+        let prefix = format!("{label}#read-");
+        let mut setups = Vec::new();
+
+        if let Some(entry) = self.lock().get_mut(label) {
+            entry.stopped = true;
+            setups.extend(entry.setup.clone());
+        }
+
+        for (key, entry) in self.lock_reads().iter_mut() {
+            if key.starts_with(&prefix) {
+                entry.stopped = true;
+                setups.extend(entry.setup.clone());
+            }
+        }
+
+        setups
+    }
+
+    pub fn stop_all(&self) {
+        let mut labels: Vec<String> = self.lock().keys().cloned().collect();
+
+        labels.extend(self.lock_reads().keys().map(|key| {
+            key.split_once("#read-")
+                .map_or(key.as_str(), |(label, _)| label)
+                .to_string()
+        }));
+
+        for label in labels {
+            self.stop(&label);
+        }
+    }
+
+    pub fn stopped(&self, label: &str) -> bool {
+        self.lock().get(label).is_some_and(|entry| entry.stopped)
+    }
+
+    pub fn finish(&self, key: &str) -> bool {
+        if let Some(entry) = self.lock().remove(key) {
+            return entry.stopped;
+        }
+
+        self.lock_reads()
+            .remove(key)
+            .is_some_and(|entry| entry.stopped)
+    }
+
+    pub fn running(&self, label: &str) -> bool {
+        self.lock().contains_key(label)
+    }
+
+    pub fn running_count(&self) -> usize {
+        self.lock().len()
+    }
+}
+
 #[derive(Clone)]
 enum Owner {
     Window(String),
@@ -294,6 +416,7 @@ enum Owner {
 enum Track {
     Scan(String),
     Watch(Owner, String),
+    Setup(String, String, Callback),
 }
 
 struct Pending {
@@ -301,9 +424,11 @@ struct Pending {
     track: Option<Track>,
 }
 
+#[derive(Clone)]
 enum Kind {
     Scan,
     Watch,
+    Setup(String, String),
 }
 
 struct Stream {
@@ -333,6 +458,7 @@ struct Inner {
     sink: Arc<dyn Sink>,
     baselines: Arc<dyn Baselines>,
     runs: ScanRuns,
+    setups: SetupLedger,
     state: Mutex<State>,
     backstop: Duration,
     fallback: Duration,
@@ -367,6 +493,7 @@ impl CoreClient {
                 sink,
                 baselines,
                 runs: ScanRuns::default(),
+                setups: SetupLedger::default(),
                 state: Mutex::default(),
                 backstop,
                 fallback,
@@ -376,6 +503,97 @@ impl CoreClient {
 
     pub fn runs(&self) -> &ScanRuns {
         &self.inner.runs
+    }
+
+    pub fn setups(&self) -> &SetupLedger {
+        &self.inner.setups
+    }
+
+    pub fn setups_running(&self) -> usize {
+        self.inner.setups.running_count()
+    }
+
+    pub fn run_setup(
+        &self,
+        label: &str,
+        repository: &Path,
+        action: &str,
+        args: Value,
+        on_event: impl Fn(String),
+    ) -> Value {
+        let counted = action != "survey";
+        let key = if counted {
+            if let Err(reason) = self.inner.setups.begin(label) {
+                return json!({ "status": "refused", "reason": reason });
+            }
+
+            label.to_string()
+        } else {
+            self.inner.setups.begin_read(label)
+        };
+        let mut args = match args {
+            Value::Object(map) => Value::Object(map),
+            _ => json!({}),
+        };
+
+        args["repository"] = json!(repository.display().to_string());
+        args["action"] = json!(action);
+
+        let (sender, receiver) = mpsc::channel::<Value>();
+        let sender = Mutex::new(sender);
+        let callback: Callback = Arc::new(move |item| {
+            let _ = locked(&sender).send(item.clone());
+        });
+        let reply = self.request(
+            "setup.start",
+            args,
+            Some(Track::Setup(key.clone(), action.to_string(), callback)),
+        );
+        let Some(setup) = reply.get("ok").and_then(Value::as_str).map(str::to_string) else {
+            self.inner.setups.finish(&key);
+
+            return setup_failure(action, &setup_reason(&reply));
+        };
+
+        if self.inner.setups.attach(&key, &setup) {
+            self.send_stop_setup(&setup);
+        }
+
+        loop {
+            let Ok(item) = receiver.recv() else {
+                return setup_failure(action, "the service exited");
+            };
+
+            if let Some(outcome) = item.get("outcome") {
+                return outcome.clone();
+            }
+
+            match item.get("event") {
+                Some(Value::String(line)) => on_event(line.clone()),
+                Some(other) => on_event(other.to_string()),
+                None => {}
+            }
+        }
+    }
+
+    pub fn stop_setup(&self, label: &str) {
+        for setup in self.inner.setups.stop(label) {
+            self.arm_fallback(&setup);
+            self.send_stop_setup(&setup);
+        }
+    }
+
+    fn send_stop_setup(&self, setup: &str) {
+        let (sender, _) = mpsc::channel();
+        let mut state = locked(&self.inner.state);
+
+        let _ = self.write(
+            &mut state,
+            "setup.stop",
+            json!({ "setup": setup }),
+            sender,
+            None,
+        );
     }
 
     pub fn call(
@@ -706,6 +924,8 @@ impl CoreClient {
     }
 
     pub fn stop_window(&self, label: &str) {
+        self.stop_setup(label);
+
         if let Some(scan) = self.inner.runs.stop(label) {
             self.arm_fallback(&scan);
             self.send_stop_one(&scan);
@@ -794,6 +1014,28 @@ fn crashed(message: &str) -> Value {
     })
 }
 
+fn setup_failure(action: &str, reason: &str) -> Value {
+    match action {
+        "survey" => json!({ "status": "unavailable", "reason": reason }),
+        "recommend" => json!({
+            "status": "failed",
+            "reason": reason,
+            "subtype": null,
+            "costUsd": null,
+            "durationMs": null
+        }),
+        _ => json!({ "status": "failed", "reason": reason }),
+    }
+}
+
+fn setup_reason(reply: &Value) -> String {
+    ["/unavailable/hint", "/unavailable/reason", "/error"]
+        .iter()
+        .find_map(|pointer| reply.pointer(pointer).and_then(Value::as_str))
+        .unwrap_or("the service could not start the setup")
+        .to_string()
+}
+
 fn read_replies(
     inner: Arc<Inner>,
     generation: u64,
@@ -857,6 +1099,16 @@ fn read_replies(
                 _ => None,
             })
             .collect();
+        let setups: Vec<(String, String, String, Callback)> = state
+            .streams
+            .iter()
+            .filter_map(|(id, stream)| match (&stream.kind, &stream.owner) {
+                (Kind::Setup(key, action), Owner::Callback(callback)) => {
+                    Some((id.clone(), key.clone(), action.clone(), callback.clone()))
+                }
+                _ => None,
+            })
+            .collect();
 
         state.streams.clear();
 
@@ -867,6 +1119,14 @@ fn read_replies(
                 json!({ "stream": id, "outcome": crashed(&message) }),
             ));
             actions.push(Action::ClearBaseline(label));
+        }
+
+        for (id, key, action, callback) in setups {
+            inner.setups.finish(&key);
+            actions.push(Action::Call(
+                callback,
+                json!({ "stream": id, "outcome": setup_failure(&action, &message) }),
+            ));
         }
     }
 
@@ -899,6 +1159,7 @@ fn handle_item(inner: &Arc<Inner>, item: Value) {
                 return;
             };
             let owner = found.owner.clone();
+            let kind = found.kind.clone();
 
             if ended {
                 state.streams.remove(&stream);
@@ -919,7 +1180,13 @@ fn handle_item(inner: &Arc<Inner>, item: Value) {
 
                     actions.insert(0, Action::Emit(label, item));
                 }
-                Owner::Callback(callback) => actions.push(Action::Call(callback, item)),
+                Owner::Callback(callback) => {
+                    if let (true, Kind::Setup(key, _)) = (ended, &kind) {
+                        inner.setups.finish(key);
+                    }
+
+                    actions.push(Action::Call(callback, item));
+                }
             }
         }
 
@@ -945,6 +1212,15 @@ fn handle_item(inner: &Arc<Inner>, item: Value) {
                             Stream {
                                 owner: Owner::Window(label.clone()),
                                 kind: Kind::Scan,
+                            },
+                        );
+                    }
+                    Track::Setup(key, action, callback) => {
+                        state.streams.insert(
+                            stream.to_string(),
+                            Stream {
+                                owner: Owner::Callback(callback.clone()),
+                                kind: Kind::Setup(key.clone(), action.clone()),
                             },
                         );
                     }
@@ -1672,5 +1948,128 @@ exit 9
 
         assert_eq!(kept.chars().count(), STDERR_CHARS);
         assert!(kept.chars().all(|character| character == 'é'));
+    }
+
+    const SETUP_SERVICE: &str = r#"
+while read -r line; do
+  id=${line#*\"id\":}
+  id=${id%%,*}
+  echo "$line" >> "$LOG"
+  case "$line" in
+    *'"op":"setup.start"'*)
+      echo "{\"id\":$id,\"ok\":\"u1\"}"
+      echo '{"stream":"u1","event":"{\"event\":\"start\",\"total\":1}"}'
+      echo "{\"stream\":\"u1\",\"outcome\":$OUTCOME}"
+      ;;
+    *) echo "{\"id\":$id,\"ok\":\"pong\"}" ;;
+  esac
+done
+"#;
+
+    #[test]
+    fn a_setup_event_line_is_forwarded_whole() {
+        let dir = TempDir::new().unwrap();
+        let (client, _, _, log, _) = client(
+            dir.path(),
+            SETUP_SERVICE,
+            r#"{"status":"finished","result":{}}"#,
+        );
+        let seen = Mutex::new(Vec::new());
+
+        client.run_setup(
+            "w-1",
+            dir.path(),
+            "apply",
+            json!({ "choices": {} }),
+            |line| locked(&seen).push(line),
+        );
+
+        assert_eq!(*locked(&seen), vec![r#"{"event":"start","total":1}"#]);
+
+        let written = lines_of(&log);
+
+        assert_eq!(written[0]["op"], "setup.start");
+        assert_eq!(written[0]["args"]["action"], "apply");
+        assert_eq!(
+            written[0]["args"]["repository"],
+            dir.path().display().to_string()
+        );
+    }
+
+    #[test]
+    fn a_setup_outcome_is_the_run_end() {
+        let dir = TempDir::new().unwrap();
+        let (client, _, _, _, _) = client(
+            dir.path(),
+            SETUP_SERVICE,
+            r#"{"status":"finished","result":{"ok":true}}"#,
+        );
+        let outcome = client.run_setup("w-1", dir.path(), "try", json!({}), |_| {});
+
+        assert_eq!(
+            outcome,
+            json!({ "status": "finished", "result": { "ok": true } })
+        );
+        assert!(!client.setups().running("w-1"));
+        assert_eq!(client.setups_running(), 0);
+    }
+
+    #[test]
+    fn a_setup_in_flight_when_the_service_exits_ends_as_failed() {
+        let dir = TempDir::new().unwrap();
+        let body = SETUP_SERVICE.replace(
+            "echo \"{\\\"stream\\\":\\\"u1\\\",\\\"outcome\\\":$OUTCOME}\"",
+            "exit 3",
+        );
+        let (client, _, _, _, _) = client(dir.path(), &body, "{}");
+        let outcome = client.run_setup("w-1", dir.path(), "apply", json!({}), |_| {});
+
+        assert_eq!(outcome["status"], "failed");
+        assert!(!client.setups().running("w-1"));
+    }
+
+    #[test]
+    fn one_setup_per_window_and_stop_marks_it() {
+        let runs = SetupLedger::default();
+
+        assert!(runs.begin("w-1").is_ok());
+        assert!(runs.begin("w-1").is_err());
+        assert!(runs.begin("w-2").is_ok());
+        assert!(!runs.stopped("w-1"));
+
+        runs.stop("w-1");
+
+        assert!(runs.stopped("w-1"));
+        assert!(!runs.stopped("w-2"));
+        assert!(runs.finish("w-1"));
+        assert!(!runs.running("w-1"));
+    }
+
+    #[test]
+    fn a_survey_does_not_count_as_a_running_setup() {
+        let runs = SetupLedger::default();
+        let key = runs.begin_read("w-1");
+
+        assert_eq!(runs.running_count(), 0);
+        assert!(runs.begin("w-1").is_ok());
+
+        runs.finish("w-1");
+        runs.finish(&key);
+    }
+
+    #[test]
+    fn setups_running_counts_every_setup() {
+        let runs = SetupLedger::default();
+
+        assert_eq!(runs.running_count(), 0);
+
+        runs.begin("w-1").unwrap();
+        runs.begin("w-2").unwrap();
+
+        assert_eq!(runs.running_count(), 2);
+
+        runs.finish("w-1");
+
+        assert_eq!(runs.running_count(), 1);
     }
 }

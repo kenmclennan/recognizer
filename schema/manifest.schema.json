@@ -99,6 +99,19 @@
     "reports_tests": {
       "type": "boolean"
     },
+    "setup_survey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "order"
+      ],
+      "properties": {
+        "order": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
     "scoped": {
       "type": "boolean"
     },
@@ -702,7 +715,8 @@
           "languages": false,
           "prompt_version": false,
           "scan_schema_version": false,
-          "reports_tests": false
+          "reports_tests": false,
+          "setup_survey": false
         }
       }
     },
@@ -729,7 +743,8 @@
           "expansion": false,
           "settings_title": false,
           "scan_schema_version": false,
-          "reports_tests": false
+          "reports_tests": false,
+          "setup_survey": false
         }
       }
     }

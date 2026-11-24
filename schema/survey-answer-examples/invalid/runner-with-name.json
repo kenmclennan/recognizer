@@ -1,0 +1,19 @@
+{
+  "runners": [
+    {
+      "language": "typescript",
+      "runner": "vitest",
+      "directory": "engine",
+      "from": "engine/package.json",
+      "command": "npx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory={up}.recognizer/cache/coverage/{slug}",
+      "coverage": {
+        "path": "{up}.recognizer/cache/coverage/{slug}/lcov.info",
+        "format": "lcov"
+      },
+      "tool": "@vitest/coverage-v8",
+      "name": "engine"
+    }
+  ],
+  "tools": [],
+  "notes": []
+}

@@ -1,0 +1,28 @@
+{
+  "runners": [],
+  "tools": [
+    {
+      "name": "cargo-llvm-cov",
+      "kind": "cargo",
+      "installed": false,
+      "why": "coverage",
+      "needed_by": [
+        "Cargo.toml"
+      ],
+      "installs": "cargo install cargo-llvm-cov",
+      "command": [
+        "cargo",
+        "install",
+        "cargo-llvm-cov"
+      ],
+      "cwd": ".",
+      "undo": [
+        "cargo",
+        "uninstall",
+        "cargo-llvm-cov"
+      ],
+      "undo_note": "cargo-llvm-cov was uninstalled"
+    }
+  ],
+  "notes": []
+}

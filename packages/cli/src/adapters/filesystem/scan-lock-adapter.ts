@@ -10,6 +10,7 @@ import { errorText } from "../../errors.js";
 import { awaitDescribeAnswer } from "../../scan-answer.js";
 import {
   acquireMarker,
+  markerPath,
   readLiveMarker,
   refusalText,
 } from "../../scan-marker.js";
@@ -57,6 +58,7 @@ export class ScanLockAdapter implements ScanLock {
       ? { running: false }
       : {
           running: true,
+          refusal: refusalText(marker, markerPath(root)),
           phase: marker.phase,
           sensors: marker.sensors,
           describe: marker.describe,

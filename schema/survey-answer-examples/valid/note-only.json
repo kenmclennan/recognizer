@@ -1,0 +1,11 @@
+{
+  "runners": [],
+  "tools": [],
+  "notes": [
+    {
+      "language": "kotlin",
+      "directory": "app",
+      "text": "no JaCoCo: add the plugin"
+    }
+  ]
+}
