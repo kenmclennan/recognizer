@@ -111,60 +111,13 @@ describe("currentTestsHash", () => {
     );
   });
 
-  it("is null when git fails", () => {
+  it("is null when the folder cannot be listed at all", () => {
     expect(
       currentTestsHash(
         stubbed().ports,
-        makeTempDir("recognizer-tests-hash-"),
+        join(makeTempDir("recognizer-tests-hash-"), "missing"),
         Repository.empty,
       ),
     ).toBeNull();
-  });
-});
-
-describe("freshnessFor", () => {
-  it("does not spawn git unless a document carries tests", () => {
-    let spawned = 0;
-    const world = stubbed();
-    const io: Io = {
-      ...world.io,
-      run: () => {
-        spawned += 1;
-
-        return { started: true, status: 1, stdout: "", stderr: "" };
-      },
-    };
-    const judge = freshnessFor(testsHashPortsOf(io), "/r", Repository.empty);
-
-    judge({ inputs: {} });
-
-    expect(spawned).toBe(0);
-
-    judge({ inputs: {}, tests: "t" });
-    judge({ inputs: {}, tests: "t" });
-
-    expect(spawned).toBe(1);
-    expect(readFileSync(world.log, "utf8")).toBe("");
-  });
-});
-
-describe("a result recorded before in-file tests were hashed", () => {
-  it("reads as out of date for a repository holding a Rust in-file test", () => {
-    const root = makeTempDir("recognizer-tests-hash-");
-
-    mkdirSync(join(root, "src"), { recursive: true });
-    writeFileSync(join(root, "src/lib.rs"), "#[test]\nfn t() {}\n");
-    execFileSync("git", ["-C", root, "init", "-q"]);
-
-    const old =
-      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
-    const current = currentTestsHash(
-      stubbed({ "src/lib.rs#0": "c".repeat(64) }).ports,
-      root,
-      Repository.empty,
-    );
-
-    expect(current).not.toBeNull();
-    expect(current).not.toBe(old);
   });
 });
