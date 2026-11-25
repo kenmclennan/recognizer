@@ -36,16 +36,44 @@ export async function workingTreeFingerprint(
   }
 }
 
+const SETTLE_ATTEMPTS = 3;
+
 export class WorkingTreeWatch {
   private fingerprint = "";
   private wasActive = false;
   private reading = false;
+  private accounted = 0;
 
   constructor(
     private readonly ports: WorkingTreePorts,
     private readonly root: string,
     private readonly holder: RepositoryStateHolder,
   ) {}
+
+  private async settle(first: string): Promise<string> {
+    let before = first;
+    let settled = false;
+
+    try {
+      for (
+        let attempt = 0;
+        attempt < SETTLE_ATTEMPTS && !settled;
+        attempt += 1
+      ) {
+        this.holder.readTestsDigest();
+
+        const after = await workingTreeFingerprint(this.ports, this.root);
+
+        settled = after === before;
+        before = settled ? before : after;
+      }
+    } finally {
+      this.accounted = this.holder.testsDigestChanges();
+      this.holder.verifyTestsDigest();
+    }
+
+    return settled ? before : first;
+  }
 
   async tick(): Promise<void> {
     if (this.reading) {
@@ -61,9 +89,10 @@ export class WorkingTreeWatch {
 
       this.wasActive = active;
 
-      if (next !== this.fingerprint || ended) {
-        this.fingerprint = next;
-        this.holder.workingTreeChanged();
+      const unaccounted = this.holder.testsDigestChanges() !== this.accounted;
+
+      if (next !== this.fingerprint || ended || unaccounted) {
+        this.fingerprint = await this.settle(next);
       }
     } finally {
       this.reading = false;

@@ -528,6 +528,29 @@ describe("repository state holder", () => {
     expect(holder.current().freshness.tally?.state).toBe("current");
   });
 
+  it("a_digest_read_waits_for_its_verification_before_it_changes_what_is_published", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+
+    fakes.structure.save(ROOT, "python", structureOf({ "a.py": "h1" }));
+    fakes.findings.save(
+      ROOT,
+      findingsOf("tally", { "a.py": "h1" }, { tests: "t1" }),
+    );
+    fakes.currentTests.held = "t1";
+    holder.refresh();
+
+    fakes.currentTests.held = "t2";
+    holder.readTestsDigest();
+    holder.refresh();
+
+    expect(holder.current().freshness.tally?.state).toBe("current");
+
+    holder.verifyTestsDigest();
+
+    expect(holder.current().freshness.tally?.state).toBe("stale");
+  });
+
   it("a_failed_digest_read_keeps_the_last_good_digest_and_is_retried_on_the_next_refresh", () => {
     const fakes = fakesWith("tally");
     const holder = holderOver(fakes);
