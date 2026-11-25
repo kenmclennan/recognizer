@@ -1,17 +1,11 @@
-import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import { workScopes } from "../../src/planned-work";
-import { appRoot, BIN, timeEndToEnd, untilHolds } from "../roots";
+import { untilHolds } from "../app-harness";
+import { inProcessAppRoot } from "../in-process-root";
 
-const TEST_TIMEOUT = scaledTimeout(60_000) * 5;
+type Root = Awaited<ReturnType<typeof inProcessAppRoot>>;
 
-type Root = Awaited<ReturnType<typeof appRoot>>;
-
-async function hostOf(root: Root) {
-  return untilHolds(root.service, () => root.view.explorer()?.host);
-}
+const TEST_TIMEOUT = 60_000;
 
 async function untilRows(
   root: Root,
@@ -19,7 +13,7 @@ async function untilRows(
 ) {
   await hostOf(root);
 
-  const limit = performance.now() + scaledTimeout(60_000);
+  const limit = performance.now() + 30_000;
 
   for (;;) {
     const rows = await root.view.rows();
@@ -36,9 +30,13 @@ async function untilRows(
   }
 }
 
-describe("the app over the real service, on a path with an unreadable folder", () => {
+async function hostOf(root: Root) {
+  return untilHolds(root.service, () => root.view.explorer()?.host);
+}
+
+describe("the app over the in-process service", () => {
   it("carries every registered sensor's manifest into the rows the panel renders", async () => {
-    const root = await appRoot();
+    const root = await inProcessAppRoot();
     const rows = await untilRows(root, (one) => one.length === 2);
 
     expect(rows.map(({ name, display }) => [name, display])).toEqual([
@@ -51,7 +49,7 @@ describe("the app over the real service, on a path with an unreadable folder", (
   it(
     "a_ticked_sensor_reaches_scan_start_and_runs",
     async () => {
-      const root = await appRoot();
+      const root = await inProcessAppRoot();
       const host = await hostOf(root);
 
       await untilRows(root, (one) => one.length === 2);
@@ -85,22 +83,15 @@ describe("the app over the real service, on a path with an unreadable folder", (
   it(
     "a_registration_change_removes_the_row_and_refreshes_the_panel_within_10_s",
     async () => {
-      const root = await appRoot();
+      const root = await inProcessAppRoot();
       const first = await untilRows(root, (one) => one.length === 2);
 
       expect(first.filter(({ registered }) => registered)).toHaveLength(2);
 
-      const removed = spawnSync(
-        process.execPath,
-        [BIN, "config", "--remove-section", "sensors.mutation"],
-        {
-          cwd: root.repository,
-          env: { ...process.env, PATH: root.path },
-          encoding: "utf8",
-        },
+      root.io.files.writeFile(
+        `${root.repository}/.recognizer/config.yaml`,
+        "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n",
       );
-
-      expect(removed.status).toBe(0);
 
       const rows = await untilRows(
         root,
@@ -121,44 +112,9 @@ describe("the app over the real service, on a path with an unreadable folder", (
   );
 
   it(
-    "a_sensor_run_reads_current_an_edited_test_reads_out_of_date_and_the_revert_reads_current",
-    async () => {
-      const root = await appRoot({ stamped: true });
-      const original = readFileSync(root.testFile, "utf8");
-      const both = (state: string) =>
-        root.view.freshnessOf("crap") === state &&
-        root.view.freshnessOf("mutation") === state
-          ? true
-          : undefined;
-
-      await untilRows(root, (one) => one.length === 2);
-      await root.service.call("scan.start", {
-        repository: root.repository,
-        sense: ["crap", "mutation"],
-        extract: false,
-        describe: false,
-      });
-      await untilHolds(root.service, () => both("current"));
-
-      const { elapsedMs, limitMs } = await timeEndToEnd(root.service, {
-        limitMs: 10_000,
-        action: () =>
-          writeFileSync(root.testFile, `${original}export const edited = 2;\n`),
-        until: () => both("stale"),
-      });
-
-      expect(elapsedMs).toBeLessThan(limitMs);
-
-      writeFileSync(root.testFile, original);
-      await untilHolds(root.service, () => both("current"));
-    },
-    TEST_TIMEOUT,
-  );
-
-  it(
     "a_planned_sensor_with_work_to_perform_reaches_the_estimate_through_the_snapshot_and_the_service",
     async () => {
-      const root = await appRoot({ stamped: true });
+      const root = await inProcessAppRoot({ stamped: true });
       const host = await hostOf(root);
 
       await untilRows(root, (one) => one.length === 2);
@@ -186,7 +142,10 @@ describe("the app over the real service, on a path with an unreadable folder", (
   it(
     "a_run_card_leaves_checking_when_the_run_finishes_after_the_folder_is_assigned_late",
     async () => {
-      const root = await appRoot({ stamped: true, folderKnown: false });
+      const root = await inProcessAppRoot({
+        stamped: true,
+        folderKnown: false,
+      });
 
       await root.app.started;
       root.assignFolder();

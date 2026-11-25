@@ -1,23 +1,9 @@
-import { execFileSync, spawn, spawnSync } from "node:child_process";
-import {
-  chmodSync,
-  cpSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
-import { dirname, join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
-import {
-  parseViewFile,
-  serialiseView,
-} from "../src/adapters/filesystem/view-translator.js";
-import { nodeIo } from "../src/cli.js";
-import { progressPath } from "../src/scan-marker.js";
+import { serialiseView } from "../src/index.js";
 import { writeScopeFiles } from "../src/serve/scan-files.js";
 import { plannedWorkFrom, workArgs } from "../src/serve/sensor-work.js";
 import { parseStart } from "../src/serve/start-request.js";
@@ -28,292 +14,48 @@ import {
   pollInterval,
   watchTick,
 } from "../src/serve/watch.js";
+import { parseRequest } from "../src/serve/wire.js";
 import { REPO } from "./helpers.js";
-import { isolatedPath } from "./isolated-path.js";
-import { scannerManifestText } from "./scan-helpers.js";
 import {
-  alive,
-  BIN,
-  failingLaunchers,
-  type Line,
-  pidFile,
-  plantMarker,
-  Serve,
-  slowLaunchers,
-  typescriptLaunchers,
-  typescriptRepository,
-} from "./serve-harness.js";
-import { writeStubScanner } from "./stub-test-reporter.js";
-
-const TIMEOUT = scaledTimeout(60_000);
-
-function release(gate: string): void {
-  writeFileSync(join(gate, "release"), "");
-}
+  committedScan,
+  FakeIo,
+  holdingScanner,
+  languagePrograms,
+  plantMarkerIn,
+  REPOSITORY,
+  seedTypescriptRepository,
+  sensorProgram,
+  serveRoot,
+  shippedSensor,
+  typescriptScenario,
+} from "./support/index.js";
 
 function cacheOf(repository: string): string {
-  return join(repository, ".recognizer", "cache");
+  return `${repository}/.recognizer/cache`;
 }
 
-function normalisedMarker(path: string): Record<string, unknown> {
-  const marker = JSON.parse(readFileSync(path, "utf8")) as Record<
-    string,
-    unknown
-  >;
-
-  return {
-    ...marker,
-    run_id: null,
-    pid: null,
-    pgid: null,
-    started_at: null,
-    ended_at: null,
-    started_by: null,
-    repository: null,
-  };
-}
-
-function normalisedScan(path: string): Record<string, unknown> {
-  return {
-    ...(JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>),
-    scanner: null,
-    commit: null,
-  };
-}
-
-function logPhases(repository: string): string[] {
-  const directory = join(cacheOf(repository), "log");
-  const [file] = readdirSync(directory).sort();
-  const record = JSON.parse(
-    readFileSync(join(directory, file as string), "utf8"),
-  ) as { phases?: { name: string }[] };
-
-  return (record.phases ?? []).map(({ name }) => name);
-}
-
-describe("recognizer serve: the wire", () => {
-  it(
-    "a_malformed_line_gets_an_error_reply",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-
-      serve.raw("this is not json");
-      serve.raw(JSON.stringify({ id: 4, op: "scan.status", args: [] }));
-
-      const withId = await serve.until(() =>
-        serve.lines.find((line) => line.id === 4),
-      );
-
-      expect(typeof withId.error).toBe("string");
-
-      const lone = await serve.until(() =>
-        serve.lines.find((line) => line.id === undefined && "error" in line),
-      );
-
-      expect(typeof lone.error).toBe("string");
-      expect(
-        (
-          await serve.call("scan.status", {
-            repository: typescriptRepository(),
-          })
-        ).ok,
-      ).toEqual({ running: false });
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "an_unknown_op_gets_an_error_reply",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-      const reply = await serve.call("scan.nothing", {});
-
-      expect(reply.error).toContain("unknown op");
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "every_op_is_answered",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-      const repository = typescriptRepository();
-      const started = await serve.call("scan.start", {
-        repository,
-        describe: false,
-        analysis: true,
-        sense: [],
-      });
-
-      expect(typeof started.ok).toBe("string");
-      expect((await serve.outcome(started.ok)).status).toBe("finished");
-
-      const status = await serve.call("scan.status", { repository });
-
-      expect(status.ok).toEqual({ running: false });
-
-      const watch = await serve.call("scan.watch", { repository });
-
-      expect(typeof watch.ok).toBe("string");
-      expect((await serve.call("scan.unwatch", { watch: watch.ok })).ok).toBe(
-        null,
-      );
-
-      const plan = await serve.call("scan.plan", {
-        repository,
-        mode: "bring",
-        ticks: {
-          describe: false,
-          analysis: true,
-          ticked: [],
-          armed: [],
-          onlyView: false,
-          suites: {},
-          folds: [],
-        },
-        scope: null,
-        changed: [],
-      });
-
-      expect(plan.ok).toHaveProperty("intent");
-      expect((await serve.call("scan.stop", { repository })).ok).toBe(null);
-      expect(
-        (await serve.call("confirm.answer", { repository, describe: true }))
-          .error,
-      ).toBe("no scan is waiting for an answer");
-      expect(
-        (await serve.call("sensor.work", { repository, sensor: "crap" })).ok,
-      ).toBe(null);
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
+const startOf = (repository: string, extra: Record<string, unknown> = {}) => ({
+  repository,
+  describe: false,
+  analysis: true,
+  sense: [],
+  ...extra,
 });
 
-describe("recognizer serve: saved views", () => {
-  it(
-    "view_parse_and_serialise_reply_over_the_wire",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-      const text = readFileSync(
-        join(REPO, "schema/view-examples/valid/version-4-notes.json"),
-        "utf8",
-      );
-      const parsed = await serve.call("view.parse", { text });
-      const expected = parseViewFile(text);
-
-      expect(parsed.ok).toMatchObject({ ok: true });
-      expect(expected.ok).toBe(true);
-
-      const view = (parsed.ok as { view: Record<string, unknown> }).view;
-
-      expect(view).toEqual(JSON.parse(text));
-
-      const bad = await serve.call("view.parse", { text: "{ not json" });
-
-      expect(bad.ok).toMatchObject({ ok: false });
-      expect((bad.ok as { reason: string }).reason).toContain("not valid JSON");
-
-      const serialised = await serve.call("view.serialise", { view });
-
-      expect(serialised.ok).toEqual({
-        text: serialiseView(
-          parseViewFile(text).ok
-            ? (expected as { view: never }).view
-            : (view as never),
-        ),
-      });
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-});
+function ticks(over: Record<string, unknown> = {}) {
+  return {
+    describe: false,
+    analysis: true,
+    ticked: [],
+    armed: [],
+    onlyView: false,
+    suites: {},
+    folds: [],
+    ...over,
+  };
+}
 
 describe("recognizer serve: starting a scan", () => {
-  it(
-    "a_scan_through_the_service_equals_the_cli_scan",
-    async () => {
-      const launchers = typescriptLaunchers();
-      const viaService = typescriptRepository();
-      const viaCli = typescriptRepository();
-      const environment = { ...process.env };
-
-      delete environment.RECOGNIZER_STARTED_BY;
-
-      const cli = spawnSync(process.execPath, [BIN, "scan", viaCli, "--json"], {
-        env: { ...environment, PATH: isolatedPath(launchers) },
-        encoding: "utf8",
-      });
-
-      expect(cli.status).toBe(0);
-
-      const serve = new Serve(launchers);
-      const started = await serve.call("scan.start", {
-        repository: viaService,
-        describe: false,
-        analysis: true,
-        sense: [],
-      });
-
-      expect(await serve.outcome(started.ok)).toEqual({ status: "finished" });
-      await serve.close();
-
-      const marker = join(cacheOf(viaService), "scan-running.json");
-
-      expect(JSON.parse(readFileSync(marker, "utf8")).started_by).toBe("app");
-      expect(normalisedMarker(marker)).toEqual(
-        normalisedMarker(join(cacheOf(viaCli), "scan-running.json")),
-      );
-      expect(
-        normalisedScan(join(cacheOf(viaService), "scan.typescript.json")),
-      ).toEqual(normalisedScan(join(cacheOf(viaCli), "scan.typescript.json")));
-      expect(logPhases(viaService)).toEqual(logPhases(viaCli));
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "a_locked_repository_is_refused_through_the_service",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-      const repository = typescriptRepository();
-
-      plantMarker(repository, {
-        pid: process.pid,
-        pgid: process.pid,
-        started_by: "cli",
-        started_at: new Date().toISOString(),
-      });
-
-      const started = await serve.call("scan.start", {
-        repository,
-        describe: false,
-        analysis: true,
-        sense: [],
-      });
-
-      expect(await serve.outcome(started.ok)).toEqual({
-        status: "refused",
-        reason: "lock",
-      });
-
-      const status = (await serve.call("scan.status", { repository })).ok;
-
-      expect(status.running).toBe(true);
-      expect(status.startedBy).toBe("cli");
-      expect(typeof status.refusal).toBe("string");
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-
   it("a_start_request_builds_the_scan_request_the_flags_make", () => {
     const start = parseStart({
       repository: "/repo",
@@ -352,61 +94,20 @@ describe("recognizer serve: starting a scan", () => {
     expect(start.modules).toEqual(["a", "b"]);
   });
 
-  it(
-    "the_module_scope_file_is_written_for_the_run_and_removed_after_it",
-    async () => {
-      const gate = makeTempDir("serve-gate-");
-      const serve = new Serve(slowLaunchers(gate));
-      const repository = typescriptRepository();
-      const started = await serve.call("scan.start", {
-        repository,
-        describe: false,
-        analysis: false,
-        sense: [],
-        modules: ["sample"],
-      });
-
-      await pidFile(serve, gate, repository);
-
-      const during = readdirSync(cacheOf(repository)).filter((name) =>
-        name.startsWith("serve-scan-modules-"),
-      );
-
-      expect(during).toHaveLength(1);
-      expect(
-        JSON.parse(
-          readFileSync(join(cacheOf(repository), during[0] as string), "utf8"),
-        ),
-      ).toEqual(["sample"]);
-
-      release(gate);
-      await serve.outcome(started.ok);
-
-      expect(
-        readdirSync(cacheOf(repository)).filter((name) =>
-          name.startsWith("serve-scan-"),
-        ),
-      ).toEqual([]);
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-
   it("the_suites_scope_file_is_written_for_the_run_and_removed_after_it", () => {
-    const repository = typescriptRepository();
-    const files = writeScopeFiles(repository, "scan", undefined, {
+    const io = new FakeIo();
+    const files = writeScopeFiles(io, REPOSITORY, "scan", undefined, {
       crap: ["unit"],
     });
 
-    expect(existsSync(files.suites as string)).toBe(true);
-    expect(JSON.parse(readFileSync(files.suites as string, "utf8"))).toEqual({
+    expect(io.exists(files.suites as string)).toBe(true);
+    expect(JSON.parse(io.readFile(files.suites as string))).toEqual({
       crap: ["unit"],
     });
 
     files.remove();
 
-    expect(existsSync(files.suites as string)).toBe(false);
+    expect(io.exists(files.suites as string)).toBe(false);
   });
 
   it("an_empty_suites_map_writes_no_file", () => {
@@ -419,499 +120,52 @@ describe("recognizer serve: starting a scan", () => {
 
     expect(start.suites).toBeUndefined();
   });
-
-  it(
-    "a_failed_scoped_run_removes_the_module_file",
-    async () => {
-      const serve = new Serve(failingLaunchers());
-      const repository = typescriptRepository();
-      const started = await serve.call("scan.start", {
-        repository,
-        describe: false,
-        analysis: false,
-        sense: [],
-        modules: ["sample"],
-      });
-
-      expect((await serve.outcome(started.ok)).status).not.toBe("finished");
-      expect(
-        readdirSync(cacheOf(repository)).filter((name) =>
-          name.startsWith("serve-scan-"),
-        ),
-      ).toEqual([]);
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
 });
-
-describe("recognizer serve: sensor refusals", () => {
-  it(
-    "reports a refused sensor as an invalid request",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-      const started = await serve.call("scan.start", {
-        repository: typescriptRepository(),
-        describe: false,
-        analysis: false,
-        sense: ["ghost"],
-      });
-      const outcome = await serve.outcome(started.ok);
-
-      expect(outcome.status).toBe("failed");
-      expect(outcome.reason).toBe("invalid-request");
-      expect(outcome.messages.join("\n")).toContain("no such sensor: ghost");
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-});
-
-describe("recognizer serve: stopping", () => {
-  it(
-    "stop_ends_the_scan_and_its_plugins",
-    async () => {
-      const gate = makeTempDir("serve-gate-");
-      const serve = new Serve(slowLaunchers(gate));
-      const repository = typescriptRepository();
-      const started = await serve.call("scan.start", {
-        repository,
-        describe: false,
-        analysis: false,
-        sense: [],
-      });
-      const plugin = await pidFile(serve, gate, repository);
-
-      expect(alive(plugin)).toBe(true);
-      expect((await serve.call("scan.stop", { scan: started.ok })).ok).toBe(
-        null,
-      );
-      expect((await serve.outcome(started.ok)).status).toBe("stopped");
-      await serve.until(() => (alive(plugin) ? undefined : true));
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "stopping_one_scan_leaves_the_other_running",
-    async () => {
-      const gate = makeTempDir("serve-gate-");
-      const serve = new Serve(slowLaunchers(gate));
-      const first = typescriptRepository();
-      const second = typescriptRepository();
-      const one = await serve.call("scan.start", {
-        repository: first,
-        describe: false,
-        analysis: false,
-        sense: [],
-      });
-      const two = await serve.call("scan.start", {
-        repository: second,
-        describe: false,
-        analysis: false,
-        sense: [],
-      });
-      const firstPlugin = await pidFile(serve, gate, first);
-      const secondPlugin = await pidFile(serve, gate, second);
-
-      await serve.call("scan.stop", { scan: one.ok });
-
-      expect((await serve.outcome(one.ok)).status).toBe("stopped");
-      await serve.until(() => (alive(firstPlugin) ? undefined : true));
-
-      expect(alive(secondPlugin)).toBe(true);
-      expect(existsSync(join(cacheOf(second), "scan-running.json"))).toBe(true);
-      expect(
-        JSON.parse(
-          readFileSync(join(cacheOf(second), "scan-running.json"), "utf8"),
-        ).phase,
-      ).not.toBe("stopped");
-
-      release(gate);
-
-      expect((await serve.outcome(two.ok)).status).toBe("finished");
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "stopping_one_scan_keeps_the_other_scans_temp_directories",
-    async () => {
-      const gate = makeTempDir("serve-gate-");
-      const serve = new Serve(slowLaunchers(gate));
-      const first = typescriptRepository();
-      const second = typescriptRepository();
-      const one = await serve.call("scan.start", {
-        repository: first,
-        describe: false,
-        analysis: false,
-        sense: [],
-      });
-
-      await serve.call("scan.start", {
-        repository: second,
-        describe: false,
-        analysis: false,
-        sense: [],
-      });
-      await pidFile(serve, gate, first);
-      await pidFile(serve, gate, second);
-
-      const outputs = (repository: string) =>
-        dirname(
-          readFileSync(
-            join(gate, `${repository.split("/").pop()}.out`),
-            "utf8",
-          ).trim(),
-        );
-
-      expect(existsSync(outputs(first))).toBe(true);
-      expect(existsSync(outputs(second))).toBe(true);
-
-      await serve.call("scan.stop", { scan: one.ok });
-      await serve.outcome(one.ok);
-
-      expect(existsSync(outputs(first))).toBe(false);
-      expect(existsSync(outputs(second))).toBe(true);
-
-      await serve.child.kill("SIGTERM");
-      await serve.exited;
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "the_service_stops_every_scan_on_sigterm",
-    async () => {
-      const gate = makeTempDir("serve-gate-");
-      const serve = new Serve(slowLaunchers(gate));
-      const first = typescriptRepository();
-      const second = typescriptRepository();
-
-      for (const repository of [first, second]) {
-        await serve.call("scan.start", {
-          repository,
-          describe: false,
-          analysis: false,
-          sense: [],
-        });
-      }
-
-      const plugins = [
-        await pidFile(serve, gate, first),
-        await pidFile(serve, gate, second),
-      ];
-
-      serve.child.kill("SIGTERM");
-      await serve.exited;
-
-      for (const plugin of plugins) {
-        expect(alive(plugin)).toBe(false);
-      }
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "the_service_exits_and_stops_every_scan_when_its_stdin_closes",
-    async () => {
-      const gate = makeTempDir("serve-gate-");
-      const serve = new Serve(slowLaunchers(gate));
-      const first = typescriptRepository();
-      const second = typescriptRepository();
-
-      for (const repository of [first, second]) {
-        await serve.call("scan.start", {
-          repository,
-          describe: false,
-          analysis: false,
-          sense: [],
-        });
-      }
-
-      const plugins = [
-        await pidFile(serve, gate, first),
-        await pidFile(serve, gate, second),
-      ];
-
-      serve.child.stdin?.end();
-
-      expect(await serve.exited).toBe(0);
-
-      for (const plugin of plugins) {
-        expect(alive(plugin)).toBe(false);
-      }
-
-      for (const repository of [first, second]) {
-        const marker = join(cacheOf(repository), "scan-running.json");
-
-        if (existsSync(marker)) {
-          expect(JSON.parse(readFileSync(marker, "utf8")).phase).not.toBe(
-            "running",
-          );
-        }
-      }
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "stopping_while_waiting_for_an_answer_ends_the_scan",
-    async () => {
-      const gate = makeTempDir("serve-gate-");
-      const serve = new Serve(slowLaunchers(gate));
-      const repository = typescriptRepository();
-      const started = await serve.call("scan.start", {
-        repository,
-        describe: false,
-        analysis: false,
-        sense: [],
-      });
-
-      await pidFile(serve, gate, repository);
-      await serve.call("scan.stop", { scan: started.ok });
-
-      expect((await serve.outcome(started.ok)).status).toBe("stopped");
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-});
-
-function sleeper(script: string, detached: boolean) {
-  return spawn("/bin/sh", ["-c", script], {
-    detached,
-    stdio: "ignore",
-  });
-}
-
-describe("recognizer serve: stop by repository", () => {
-  it(
-    "stop_by_repository_stops_a_scan_the_service_holds",
-    async () => {
-      const gate = makeTempDir("serve-gate-");
-      const serve = new Serve(slowLaunchers(gate));
-      const repository = typescriptRepository();
-      const started = await serve.call("scan.start", {
-        repository,
-        describe: false,
-        analysis: false,
-        sense: [],
-      });
-
-      await pidFile(serve, gate, repository);
-      await serve.call("scan.stop", { repository, owner: "any" });
-
-      expect((await serve.outcome(started.ok)).status).toBe("stopped");
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "stop_by_repository_signals_the_group_of_an_app_marker_from_another_process",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-      const repository = typescriptRepository();
-      const child = sleeper("sleep 60 & wait", true);
-      const pid = child.pid as number;
-
-      plantMarker(repository, { pid, pgid: 999_999, started_by: "app" });
-      await serve.call("scan.stop", { repository, owner: "any" });
-      await serve.until(() => (alive(pid) ? undefined : true));
-      child.kill("SIGKILL");
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "stop_by_repository_signals_only_the_pid_of_a_cli_marker",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-      const repository = typescriptRepository();
-      const marker = makeTempDir("serve-grandchild-");
-      const grandchild = join(marker, "pid");
-      const child = sleeper(`sleep 60 & echo $! > ${grandchild}; wait`, false);
-      const pid = child.pid as number;
-
-      await serve.until(() =>
-        existsSync(grandchild) && readFileSync(grandchild, "utf8").trim() !== ""
-          ? true
-          : undefined,
-      );
-
-      const other = Number(readFileSync(grandchild, "utf8").trim());
-
-      plantMarker(repository, { pid, pgid: 999_999, started_by: "cli" });
-      await serve.call("scan.stop", { repository, owner: "any" });
-      await serve.until(() =>
-        alive(pid) && child.exitCode === null ? undefined : true,
-      );
-
-      expect(alive(other)).toBe(true);
-
-      process.kill(other, "SIGKILL");
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "stop_by_repository_never_signals_a_marker_naming_the_service",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-      const repository = typescriptRepository();
-
-      plantMarker(repository, {
-        pid: serve.child.pid,
-        pgid: serve.child.pid,
-        started_by: "app",
-      });
-
-      expect(
-        (await serve.call("scan.stop", { repository, owner: "any" })).ok,
-      ).toBe(null);
-      expect(alive(serve.child.pid as number)).toBe(true);
-      expect((await serve.call("scan.status", { repository })).ok.running).toBe(
-        true,
-      );
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "stop_by_repository_with_owner_app_skips_a_cli_marker",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-      const repository = typescriptRepository();
-      const child = sleeper("sleep 60", true);
-      const pid = child.pid as number;
-
-      plantMarker(repository, { pid, pgid: pid, started_by: "cli" });
-      await serve.call("scan.stop", { repository, owner: "app" });
-
-      expect(alive(pid)).toBe(true);
-
-      child.kill("SIGKILL");
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-});
-
-function writeProgress(repository: string, lines: string[]): void {
-  writeFileSync(
-    progressPath(repository),
-    lines.map((line) => `${line}\n`).join(""),
-  );
-}
 
 describe("recognizer serve: the watch", () => {
-  function runningRepository(
+  function running(
+    io: FakeIo,
     changes: Record<string, unknown> = {},
     lines: string[] = ['{"a":1}', '{"a":2}'],
   ): string {
-    const repository = typescriptRepository();
+    io.alive.add(io.pid());
+    plantMarkerIn(
+      io.files,
+      REPOSITORY,
+      {
+        pid: io.pid(),
+        pgid: io.pid(),
+        started_at: new Date().toISOString(),
+        ...changes,
+      },
+      lines,
+    );
 
-    plantMarker(repository, {
-      pid: process.pid,
-      pgid: process.pid,
-      started_at: new Date().toISOString(),
-      ...changes,
-    });
-    writeProgress(repository, lines);
-
-    return repository;
+    return REPOSITORY;
   }
 
-  it(
-    "a_watch_of_a_repository_with_no_marker_emits_a_null_run",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-      const repository = typescriptRepository();
-      const watch = await serve.call("scan.watch", { repository });
-      const item = await serve.until(() =>
-        serve.lines.find((line) => line.stream === watch.ok && "run" in line),
-      );
-
-      expect(item.run).toBeNull();
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "a_watch_of_a_live_run_from_another_process_is_read_with_its_progress_replayed",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-      const repository = runningRepository();
-      const watch = await serve.call("scan.watch", { repository });
-
-      await serve.until(() =>
-        serve.lines.filter((line) => line.stream === watch.ok && "line" in line)
-          .length === 2
-          ? true
-          : undefined,
-      );
-
-      const items = serve.lines.filter((line) => line.stream === watch.ok);
-
-      expect(items[0]?.run.phase).toBe("running");
-      expect(items.slice(1).map((item) => item.line)).toEqual([
-        '{"a":1}',
-        '{"a":2}',
-      ]);
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "a_watch_ends_after_scan_unwatch_and_no_further_item_arrives",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-      const repository = typescriptRepository();
-      const watch = await serve.call("scan.watch", { repository });
-
-      await serve.until(() =>
-        serve.lines.find((line) => line.stream === watch.ok && "run" in line),
-      );
-      await serve.call("scan.unwatch", { watch: watch.ok });
-
-      const before = serve.lines.length;
-
-      plantMarker(repository, { pid: process.pid });
-      await new Promise((resolve) => setTimeout(resolve, IDLE_POLL_MS * 2));
-
-      expect(serve.lines.length).toBe(before);
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
+  function replant(
+    io: FakeIo,
+    changes: Record<string, unknown>,
+    lines: string[],
+  ): void {
+    plantMarkerIn(
+      io.files,
+      REPOSITORY,
+      { pid: io.pid(), started_at: new Date().toISOString(), ...changes },
+      lines,
+    );
+  }
 
   it("a_watch_poll_runs_every_quarter_second_while_a_scan_is_active_and_every_second_otherwise", () => {
     const state = newWatchState();
 
     expect(pollInterval(state)).toBe(IDLE_POLL_MS);
 
-    const repository = runningRepository();
+    const io = new FakeIo();
+    const repository = running(io);
 
-    watchTick(nodeIo(), repository, state);
+    watchTick(io, repository, state);
 
     expect(pollInterval(state)).toBe(ACTIVE_POLL_MS);
     expect(ACTIVE_POLL_MS).toBe(250);
@@ -919,21 +173,16 @@ describe("recognizer serve: the watch", () => {
   });
 
   it("a_watch_replays_a_new_run_id_from_the_start", () => {
-    const repository = runningRepository({ run_id: "run-1" }, ["x", "y"]);
+    const io = new FakeIo();
+    const repository = running(io, { run_id: "run-1" }, ["x", "y"]);
     const state = newWatchState();
-    const io = nodeIo();
 
     expect(
       watchTick(io, repository, state).filter((item) => "line" in item),
     ).toHaveLength(2);
     expect(watchTick(io, repository, state)).toEqual([]);
 
-    plantMarker(repository, {
-      pid: process.pid,
-      started_at: new Date().toISOString(),
-      run_id: "run-2",
-    });
-    writeProgress(repository, ["z"]);
+    replant(io, { run_id: "run-2" }, ["z"]);
 
     expect(
       watchTick(io, repository, state)
@@ -943,21 +192,22 @@ describe("recognizer serve: the watch", () => {
   });
 
   it("a_watch_emits_a_terminal_record_after_the_lines_that_ended_the_run", () => {
-    const repository = runningRepository({}, ["x"]);
+    const io = new FakeIo();
+    const repository = running(io, {}, ["x"]);
     const state = newWatchState();
-    const io = nodeIo();
 
     watchTick(io, repository, state);
-    plantMarker(repository, {
-      pid: process.pid,
-      started_at: new Date().toISOString(),
-      phase: "finished",
-      ended_at: new Date().toISOString(),
-      exit: 0,
-      commit: "abc1234",
-      ran: ["extract"],
-    });
-    writeProgress(repository, ["x", "y"]);
+    replant(
+      io,
+      {
+        phase: "finished",
+        ended_at: new Date().toISOString(),
+        exit: 0,
+        commit: "abc1234",
+        ran: ["extract"],
+      },
+      ["x", "y"],
+    );
 
     const items = watchTick(io, repository, state);
 
@@ -968,8 +218,9 @@ describe("recognizer serve: the watch", () => {
   });
 
   it("a_watch_emits_an_active_record_before_its_lines", () => {
-    const repository = runningRepository();
-    const items = watchTick(nodeIo(), repository, newWatchState());
+    const io = new FakeIo();
+    const repository = running(io);
+    const items = watchTick(io, repository, newWatchState());
 
     expect(items.map((item) => ("line" in item ? "line" : "run"))).toEqual([
       "run",
@@ -979,28 +230,32 @@ describe("recognizer serve: the watch", () => {
   });
 
   it("a_watch_post_exit_tick_emits_the_terminal_record_and_trailing_lines_once", () => {
-    const repository = runningRepository({}, ["x"]);
+    const io = new FakeIo();
+    const repository = running(io, {}, ["x"]);
     const state = newWatchState();
-    const io = nodeIo();
 
     watchTick(io, repository, state);
-    plantMarker(repository, {
-      pid: process.pid,
-      started_at: new Date().toISOString(),
-      phase: "finished",
-      ended_at: new Date().toISOString(),
-      exit: 0,
-      commit: "abc1234",
-      ran: ["extract"],
-    });
-    writeProgress(repository, ["x", "tail"]);
+    replant(
+      io,
+      {
+        phase: "finished",
+        ended_at: new Date().toISOString(),
+        exit: 0,
+        commit: "abc1234",
+        ran: ["extract"],
+      },
+      ["x", "tail"],
+    );
 
     expect(watchTick(io, repository, state)).toHaveLength(2);
     expect(watchTick(io, repository, state)).toEqual([]);
   });
 
   it("a_watch_of_a_finished_run_seen_first_emits_its_record_but_not_its_lines", () => {
-    const repository = runningRepository(
+    const io = new FakeIo();
+    const repository = running(
+      io,
+
       {
         phase: "finished",
         ended_at: new Date().toISOString(),
@@ -1010,96 +265,11 @@ describe("recognizer serve: the watch", () => {
       },
       ["x", "y"],
     );
-    const items = watchTick(nodeIo(), repository, newWatchState());
+    const items = watchTick(io, repository, newWatchState());
 
     expect(items).toHaveLength(1);
     expect("run" in (items[0] as object)).toBe(true);
   });
-});
-
-describe("recognizer serve: confirm answers", () => {
-  function answerPathOf(repository: string): string {
-    return join(cacheOf(repository), "scan-running.answer.json");
-  }
-
-  function waitingRepository(runId: string): string {
-    const repository = typescriptRepository();
-
-    plantMarker(repository, {
-      pid: process.pid,
-      pgid: process.pid,
-      run_id: runId,
-      started_at: new Date().toISOString(),
-    });
-
-    return repository;
-  }
-
-  it(
-    "confirm_answer_writes_one_answer_for_the_live_run",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-      const repository = waitingRepository("run-1");
-
-      expect(
-        (await serve.call("confirm.answer", { repository, describe: true })).ok,
-      ).toBe(null);
-      expect(
-        JSON.parse(readFileSync(answerPathOf(repository), "utf8")),
-      ).toEqual({
-        version: 1,
-        run_id: "run-1",
-        describe: true,
-      });
-      expect(
-        (await serve.call("confirm.answer", { repository, describe: false }))
-          .error,
-      ).toBe("this scan was already answered");
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "confirm_answer_writes_the_answer_for_a_new_run_over_a_stale_one",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-      const repository = waitingRepository("run-2");
-
-      writeFileSync(
-        answerPathOf(repository),
-        JSON.stringify({ version: 1, run_id: "run-1", describe: false }),
-      );
-
-      expect(
-        (await serve.call("confirm.answer", { repository, describe: true })).ok,
-      ).toBe(null);
-      expect(
-        JSON.parse(readFileSync(answerPathOf(repository), "utf8")).run_id,
-      ).toBe("run-2");
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "confirm_answer_refuses_without_a_live_running_record",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-      const repository = typescriptRepository();
-
-      expect(
-        (await serve.call("confirm.answer", { repository, describe: true }))
-          .error,
-      ).toBe("no scan is waiting for an answer");
-      expect(existsSync(answerPathOf(repository))).toBe(false);
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
 });
 
 describe("recognizer serve: sensor work", () => {
@@ -1152,473 +322,703 @@ describe("recognizer serve: sensor work", () => {
   });
 });
 
-describe("recognizer serve: plans", () => {
-  const SENSOR_CONFIG = (names: string[]) =>
-    `sensors:\n${names.map((name) => `  ${name}: {}\n`).join("")}`;
-
-  function ticks(over: Record<string, unknown> = {}) {
-    return {
-      describe: false,
-      analysis: true,
-      ticked: [],
-      armed: [],
-      onlyView: false,
-      suites: {},
-      folds: [],
-      ...over,
-    };
-  }
-
-  function configure(repository: string, names: string[]): void {
-    mkdirSync(join(repository, ".recognizer"), { recursive: true });
-    writeFileSync(
-      join(repository, ".recognizer", "config.yaml"),
-      SENSOR_CONFIG(names),
+describe("recognizer serve: the wire", () => {
+  it("a_malformed_line_gets_an_error_reply", async () => {
+    const malformed = parseRequest("this is not json");
+    const withId = parseRequest(
+      JSON.stringify({ id: 4, op: "scan.status", args: [] }),
     );
+
+    expect(malformed).toMatchObject({ ok: false, id: null });
+    expect(withId).toMatchObject({ ok: false, id: 4 });
+    expect(typeof (withId as { error: string }).error).toBe("string");
+
+    const { root } = typescriptScenario();
+
+    expect(
+      (await root.call("scan.status", { repository: REPOSITORY })).ok,
+    ).toEqual({
+      running: false,
+    });
+
+    await root.close();
+  });
+
+  it("an_unknown_op_gets_an_error_reply", async () => {
+    const parsed = parseRequest(
+      JSON.stringify({ id: 1, op: "scan.nothing", args: {} }),
+    );
+
+    expect(parsed).toMatchObject({ ok: false, id: 1 });
+    expect((parsed as { error: string }).error).toContain("unknown op");
+  });
+
+  it("every_op_is_answered", async () => {
+    const { root, repository } = typescriptScenario();
+    const started = await root.call("scan.start", startOf(repository));
+
+    expect(typeof started.ok).toBe("string");
+    expect((await root.outcome(started.ok)).status).toBe("finished");
+
+    const status = await root.call("scan.status", { repository });
+
+    expect(status.ok).toEqual({ running: false });
+
+    const watch = await root.call("scan.watch", { repository });
+
+    expect(typeof watch.ok).toBe("string");
+    expect((await root.call("scan.unwatch", { watch: watch.ok })).ok).toBe(
+      null,
+    );
+
+    const plan = await root.call("scan.plan", {
+      repository,
+      mode: "bring",
+      ticks: ticks(),
+      scope: null,
+      changed: [],
+    });
+
+    expect(plan.ok).toHaveProperty("intent");
+    expect((await root.call("scan.stop", { repository })).ok).toBe(null);
+    expect(
+      (await root.call("confirm.answer", { repository, describe: true })).error,
+    ).toBe("no scan is waiting for an answer");
+    expect(
+      (await root.call("sensor.work", { repository, sensor: "crap" })).ok,
+    ).toBe(null);
+
+    await root.close();
+  });
+});
+
+describe("recognizer serve: saved views", () => {
+  it("view_parse_and_serialise_reply_over_the_wire", async () => {
+    const { root } = typescriptScenario();
+    const text = readFileSync(
+      join(REPO, "schema/view-examples/valid/version-4-notes.json"),
+      "utf8",
+    );
+    const parsed = await root.call("view.parse", { text });
+
+    expect(parsed.ok).toMatchObject({ ok: true });
+
+    const view = (parsed.ok as { view: Record<string, unknown> }).view;
+
+    expect(view).toEqual(JSON.parse(text));
+
+    const bad = await root.call("view.parse", { text: "{ not json" });
+
+    expect(bad.ok).toMatchObject({ ok: false });
+    expect((bad.ok as { reason: string }).reason).toContain("not valid JSON");
+
+    const serialised = await root.call("view.serialise", { view });
+
+    expect(serialised.ok).toEqual({ text: serialiseView(view as never) });
+
+    await root.close();
+  });
+});
+
+describe("recognizer serve: starting a scan, in process", () => {
+  it("a_locked_repository_is_refused_through_the_service", async () => {
+    const { root, repository } = typescriptScenario();
+
+    root.io.alive.add(root.io.pid());
+    plantMarkerIn(root.io.files, repository, {
+      pid: root.io.pid(),
+      pgid: root.io.pid(),
+      started_by: "cli",
+      started_at: new Date().toISOString(),
+    });
+
+    const started = await root.call("scan.start", startOf(repository));
+
+    expect(await root.outcome(started.ok)).toEqual({
+      status: "refused",
+      reason: "lock",
+    });
+
+    const status = (await root.call("scan.status", { repository })).ok;
+
+    expect(status.running).toBe(true);
+    expect(status.startedBy).toBe("cli");
+    expect(typeof status.refusal).toBe("string");
+
+    await root.close();
+  });
+
+  it("the_module_scope_file_is_written_for_the_run_and_removed_after_it", async () => {
+    const held = holdingScanner();
+    const { root, repository } = typescriptScenario({
+      programs: { "recognizer-scan-typescript": held.program },
+    });
+    const started = await root.call(
+      "scan.start",
+      startOf(repository, { analysis: false, modules: ["sample"] }),
+    );
+
+    await root.until(() => held.runs.get(repository));
+
+    const named = () =>
+      root.io.files
+        .readDir(cacheOf(repository))
+        .map((entry) => entry.name)
+        .filter((name) => name.startsWith("serve-scan-modules-"));
+
+    expect(named()).toHaveLength(1);
+    expect(
+      JSON.parse(
+        root.io.files.readFile(`${cacheOf(repository)}/${named()[0]}`),
+      ),
+    ).toEqual(["sample"]);
+
+    held.release();
+    await root.outcome(started.ok);
+
+    expect(
+      root.io.files
+        .readDir(cacheOf(repository))
+        .filter((entry) => entry.name.startsWith("serve-scan-")),
+    ).toEqual([]);
+
+    await root.close();
+  });
+
+  it("a_failed_scoped_run_removes_the_module_file", async () => {
+    const failing = holdingScanner({ fails: true, held: false });
+    const { root, repository } = typescriptScenario({
+      programs: { "recognizer-scan-typescript": failing.program },
+    });
+    const started = await root.call(
+      "scan.start",
+      startOf(repository, { analysis: false, modules: ["sample"] }),
+    );
+
+    expect((await root.outcome(started.ok)).status).not.toBe("finished");
+    expect(
+      root.io.files
+        .readDir(cacheOf(repository))
+        .filter((entry) => entry.name.startsWith("serve-scan-")),
+    ).toEqual([]);
+
+    await root.close();
+  });
+});
+
+describe("recognizer serve: sensor refusals", () => {
+  it("reports a refused sensor as an invalid request", async () => {
+    const { root, repository } = typescriptScenario();
+    const started = await root.call(
+      "scan.start",
+      startOf(repository, { analysis: false, sense: ["ghost"] }),
+    );
+    const outcome = await root.outcome(started.ok);
+
+    expect(outcome.status).toBe("failed");
+    expect(outcome.reason).toBe("invalid-request");
+    expect(outcome.messages.join("\n")).toContain("no such sensor: ghost");
+
+    await root.close();
+  });
+});
+
+describe("recognizer serve: stopping", () => {
+  function twoRepositories() {
+    const held = holdingScanner();
+    const { root, repository } = typescriptScenario({
+      programs: { "recognizer-scan-typescript": held.program },
+    });
+    const second = "/second";
+
+    seedTypescriptRepository(root.io.files, second);
+    root.repositories.commitAll(second);
+
+    return { held, root, first: repository, second };
   }
 
-  it(
-    "a_plan_through_the_service_drops_unregistered_ticked_names",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-      const repository = makeTempDir("serve-plan-repo-");
+  it("stop_ends_the_scan_and_its_plugins", async () => {
+    const held = holdingScanner();
+    const { root, repository } = typescriptScenario({
+      programs: { "recognizer-scan-typescript": held.program },
+    });
+    const started = await root.call(
+      "scan.start",
+      startOf(repository, { analysis: false }),
+    );
+    const plugin = await root.until(() => held.runs.get(repository));
 
-      mkdirSync(cacheOf(repository), { recursive: true });
-      cpSync(
-        join(REPO, "fixtures/typescript/expected-scan.json"),
-        join(cacheOf(repository), "scan.typescript.json"),
-      );
-      configure(repository, ["crap"]);
+    expect(plugin.killed).toBe(false);
+    expect((await root.call("scan.stop", { scan: started.ok })).ok).toBe(null);
+    expect((await root.outcome(started.ok)).status).toBe("stopped");
+    await root.until(() => (plugin.killed ? true : undefined));
 
-      const plan = (
-        await serve.call("scan.plan", {
-          repository,
-          mode: "bring",
-          ticks: ticks({ ticked: ["crap", "nonesuch"], armed: ["crap"] }),
-          scope: null,
-          changed: [],
-        })
-      ).ok;
+    await root.close();
+  });
 
-      expect(plan.intent.sense).toEqual(["crap"]);
-      expect(plan.dropped).toEqual(["nonesuch"]);
+  it("stopping_one_scan_leaves_the_other_running", async () => {
+    const { held, root, first, second } = twoRepositories();
+    const one = await root.call(
+      "scan.start",
+      startOf(first, { analysis: false }),
+    );
+    const two = await root.call(
+      "scan.start",
+      startOf(second, { analysis: false }),
+    );
+    const firstPlugin = await root.until(() => held.runs.get(first));
+    const secondPlugin = await root.until(() => held.runs.get(second));
 
-      await serve.close();
-    },
-    TIMEOUT,
-  );
+    await root.call("scan.stop", { scan: one.ok });
 
-  it(
-    "a_plan_over_the_committed_typescript_scan",
-    async () => {
-      const serve = new Serve(typescriptLaunchers());
-      const repository = makeTempDir("serve-plan-repo-");
-      const expected = JSON.parse(
-        readFileSync(
-          join(REPO, "fixtures/typescript/expected-scan.json"),
-          "utf8",
-        ),
-      ) as { modules: unknown[] };
-      const shipped = JSON.parse(
-        readFileSync(join(REPO, "fixtures/sensors/shipped.json"), "utf8"),
-      ) as string[];
+    expect((await root.outcome(one.ok)).status).toBe("stopped");
+    await root.until(() => (firstPlugin.killed ? true : undefined));
 
-      mkdirSync(cacheOf(repository), { recursive: true });
-      cpSync(
-        join(REPO, "fixtures/typescript/expected-scan.json"),
-        join(cacheOf(repository), "scan.typescript.json"),
-      );
-      configure(repository, shipped);
+    expect(secondPlugin.killed).toBe(false);
+    expect(root.io.files.exists(`${cacheOf(second)}/scan-running.json`)).toBe(
+      true,
+    );
+    expect(
+      JSON.parse(root.io.files.readFile(`${cacheOf(second)}/scan-running.json`))
+        .phase,
+    ).not.toBe("stopped");
 
-      expect(expected.modules.length).toBeGreaterThan(0);
+    held.release();
 
-      const plan = (
-        await serve.call("scan.plan", {
-          repository,
-          mode: "bring",
-          ticks: ticks({ armed: shipped }),
-          scope: null,
-          changed: [],
-        })
-      ).ok;
+    expect((await root.outcome(two.ok)).status).toBe("finished");
 
-      expect(plan.never).toEqual(shipped);
+    await root.close();
+  });
 
-      for (const name of shipped) {
-        expect(plan.work[name]).toBe(expected.modules.length);
-      }
+  it("stopping_one_scan_keeps_the_other_scans_temp_directories", async () => {
+    const { held, root, first, second } = twoRepositories();
+    const one = await root.call(
+      "scan.start",
+      startOf(first, { analysis: false }),
+    );
 
-      await serve.close();
-    },
-    TIMEOUT,
-  );
+    await root.call("scan.start", startOf(second, { analysis: false }));
+
+    const firstPlugin = await root.until(() => held.runs.get(first));
+    const secondPlugin = await root.until(() => held.runs.get(second));
+    const directoryOf = (output: string) => output.replace(/\/[^/]*$/, "");
+
+    expect(root.io.files.exists(directoryOf(firstPlugin.output))).toBe(true);
+    expect(root.io.files.exists(directoryOf(secondPlugin.output))).toBe(true);
+
+    await root.call("scan.stop", { scan: one.ok });
+    await root.outcome(one.ok);
+
+    expect(root.io.files.exists(directoryOf(firstPlugin.output))).toBe(false);
+    expect(root.io.files.exists(directoryOf(secondPlugin.output))).toBe(true);
+
+    await root.close();
+  });
+
+  it("stopping_while_waiting_for_an_answer_ends_the_scan", async () => {
+    const held = holdingScanner();
+    const { root, repository } = typescriptScenario({
+      programs: { "recognizer-scan-typescript": held.program },
+    });
+    const started = await root.call(
+      "scan.start",
+      startOf(repository, { analysis: false }),
+    );
+
+    await root.until(() => held.runs.get(repository));
+    await root.call("scan.stop", { scan: started.ok });
+
+    expect((await root.outcome(started.ok)).status).toBe("stopped");
+
+    await root.close();
+  });
+});
+
+describe("recognizer serve: the watch, in process", () => {
+  it("a_watch_of_a_repository_with_no_marker_emits_a_null_run", async () => {
+    const { root, repository } = typescriptScenario();
+    const watch = await root.call("scan.watch", { repository });
+    const item = await root.until(() =>
+      root.lines.find((line) => line.stream === watch.ok && "run" in line),
+    );
+
+    expect(item.run).toBeNull();
+
+    await root.close();
+  });
+
+  it("a_watch_of_a_live_run_from_another_process_is_read_with_its_progress_replayed", async () => {
+    const { root, repository } = typescriptScenario();
+
+    root.io.alive.add(root.io.pid());
+    plantMarkerIn(
+      root.io.files,
+      repository,
+      {
+        pid: root.io.pid(),
+        pgid: root.io.pid(),
+        started_at: new Date().toISOString(),
+      },
+      ['{"a":1}', '{"a":2}'],
+    );
+
+    const watch = await root.call("scan.watch", { repository });
+
+    await root.until(() =>
+      root.lines.filter((line) => line.stream === watch.ok && "line" in line)
+        .length === 2
+        ? true
+        : undefined,
+    );
+
+    const items = root.lines.filter((line) => line.stream === watch.ok);
+
+    expect(items[0]?.run.phase).toBe("running");
+    expect(items.slice(1).map((item) => item.line)).toEqual([
+      '{"a":1}',
+      '{"a":2}',
+    ]);
+
+    await root.close();
+  });
+
+  it("a_watch_ends_after_scan_unwatch_and_no_further_item_arrives", async () => {
+    const { root, repository } = typescriptScenario();
+    const watch = await root.call("scan.watch", { repository });
+
+    await root.until(() =>
+      root.lines.find((line) => line.stream === watch.ok && "run" in line),
+    );
+    await root.call("scan.unwatch", { watch: watch.ok });
+
+    const before = root.lines.length;
+
+    plantMarkerIn(root.io.files, repository, { pid: root.io.pid() });
+    await root.advance(IDLE_POLL_MS * 2);
+
+    expect(root.lines.length).toBe(before);
+
+    await root.close();
+  });
+});
+
+describe("recognizer serve: confirm answers", () => {
+  const answerPathOf = (repository: string) =>
+    `${cacheOf(repository)}/scan-running.answer.json`;
+
+  function waiting(runId: string) {
+    const scenario = typescriptScenario();
+
+    scenario.root.io.alive.add(scenario.root.io.pid());
+    plantMarkerIn(scenario.root.io.files, scenario.repository, {
+      pid: scenario.root.io.pid(),
+      pgid: scenario.root.io.pid(),
+      run_id: runId,
+      started_at: new Date().toISOString(),
+    });
+
+    return scenario;
+  }
+
+  it("confirm_answer_writes_one_answer_for_the_live_run", async () => {
+    const { root, repository } = waiting("run-1");
+
+    expect(
+      (await root.call("confirm.answer", { repository, describe: true })).ok,
+    ).toBe(null);
+    expect(
+      JSON.parse(root.io.files.readFile(answerPathOf(repository))),
+    ).toEqual({ version: 1, run_id: "run-1", describe: true });
+    expect(
+      (await root.call("confirm.answer", { repository, describe: false }))
+        .error,
+    ).toBe("this scan was already answered");
+
+    await root.close();
+  });
+
+  it("confirm_answer_writes_the_answer_for_a_new_run_over_a_stale_one", async () => {
+    const { root, repository } = waiting("run-2");
+
+    root.io.files.writeFile(
+      answerPathOf(repository),
+      JSON.stringify({ version: 1, run_id: "run-1", describe: false }),
+    );
+
+    expect(
+      (await root.call("confirm.answer", { repository, describe: true })).ok,
+    ).toBe(null);
+    expect(
+      JSON.parse(root.io.files.readFile(answerPathOf(repository))).run_id,
+    ).toBe("run-2");
+
+    await root.close();
+  });
+
+  it("confirm_answer_refuses_without_a_live_running_record", async () => {
+    const { root, repository } = typescriptScenario();
+
+    expect(
+      (await root.call("confirm.answer", { repository, describe: true })).error,
+    ).toBe("no scan is waiting for an answer");
+    expect(root.io.files.exists(answerPathOf(repository))).toBe(false);
+
+    await root.close();
+  });
+});
+
+describe("recognizer serve: plans", () => {
+  function plannable(registered: string[]) {
+    const scenario = typescriptScenario({
+      registered,
+      programs: Object.fromEntries(
+        registered.map((name) => [
+          `recognizer-sense-${name}`,
+          shippedSensor(name),
+        ]),
+      ),
+    });
+
+    scenario.root.io.files.writeFile(
+      `${cacheOf(scenario.repository)}/scan.typescript.json`,
+      JSON.stringify(committedScan()),
+    );
+
+    return scenario;
+  }
+
+  it("a_plan_through_the_service_drops_unregistered_ticked_names", async () => {
+    const { root, repository } = plannable(["crap"]);
+    const plan = (
+      await root.call("scan.plan", {
+        repository,
+        mode: "bring",
+        ticks: ticks({ ticked: ["crap", "nonesuch"], armed: ["crap"] }),
+        scope: null,
+        changed: [],
+      })
+    ).ok;
+
+    expect(plan.intent.sense).toEqual(["crap"]);
+    expect(plan.dropped).toEqual(["nonesuch"]);
+
+    await root.close();
+  });
+
+  it("a_plan_over_the_committed_typescript_scan", async () => {
+    const shipped = JSON.parse(
+      readFileSync(join(REPO, "fixtures/sensors/shipped.json"), "utf8"),
+    ) as string[];
+    const expected = committedScan() as { modules: unknown[] };
+    const { root, repository } = plannable(shipped);
+
+    expect(expected.modules.length).toBeGreaterThan(0);
+
+    const plan = (
+      await root.call("scan.plan", {
+        repository,
+        mode: "bring",
+        ticks: ticks({ armed: shipped }),
+        scope: null,
+        changed: [],
+      })
+    ).ok;
+
+    expect(plan.never).toEqual(shipped);
+
+    for (const name of shipped) {
+      expect(plan.work[name]).toBe(expected.modules.length);
+    }
+
+    await root.close();
+  });
 });
 
 describe("recognizer serve: tests hash", () => {
   const WORKED =
     "9a49fc96a1cf8fd7663d83897d346b14a4f4de85c8114981854191414ab6df5a";
-  const FIXTURE_DIRECTORY = join(REPO, "fixtures/sensors/tests-digest");
-
-  function gitRepository(files: Record<string, string>): string {
-    const root = makeTempDir("recognizer-serve-tests-hash-");
-
-    for (const [path, text] of Object.entries(files)) {
-      mkdirSync(dirname(join(root, path)), { recursive: true });
-      writeFileSync(join(root, path), text);
-    }
-
-    execFileSync("git", ["-C", root, "init", "-q"]);
-
-    return root;
-  }
-
-  function withLanguages(directory: string): string {
-    for (const language of [
-      "python",
-      "typescript",
-      "kotlin",
-      "rust",
-      "csharp",
-    ]) {
-      const path = join(directory, `recognizer-scan-${language}`);
-
-      writeFileSync(
-        path,
-        `#!/bin/sh\nif [ "$1" = "manifest" ]; then\ncat <<'EOF'\n${scannerManifestText(language).trim()}\nEOF\nfi\n`,
-      );
-      chmodSync(path, 0o755);
-    }
-
-    return directory;
-  }
-
-  function stubScanner(entries: unknown, status = 0): string {
-    const directory = withLanguages(
-      makeTempDir("recognizer-serve-tests-hash-stub-"),
-    );
-
-    writeStubScanner(directory, join(directory, "runs.log"), {
-      name: "stub",
-      stdout: JSON.stringify({ entries }),
-      status,
-    });
-
-    return directory;
-  }
-
   const WORKED_FILES = {
     "tests/a.py": "a",
     "tests/b.py": "b",
     "src/app.py": "x",
   };
+  const FIXTURE_DIRECTORY = join(REPO, "fixtures/sensors/tests-digest");
 
-  it(
-    "tests.hash replies with the digest of the repository's test files",
-    async () => {
-      const repository = gitRepository(WORKED_FILES);
-      const serve = new Serve(
-        withLanguages(makeTempDir("recognizer-serve-empty-path-")),
-      );
-      const reply = await serve.call("tests.hash", { repository, known: {} });
+  function hashing(programs: ReturnType<typeof languagePrograms>) {
+    return serveRoot({ programs });
+  }
 
-      expect(reply.ok).toBe(WORKED);
+  function gitRepository(root: ReturnType<typeof serveRoot>, path: string) {
+    for (const [name, text] of Object.entries(WORKED_FILES)) {
+      root.io.files.writeFile(`${path}/${name}`, text);
+    }
 
-      await serve.close();
-    },
-    TIMEOUT,
-  );
+    root.repositories.commitAll(path);
+  }
 
-  it(
-    "tests.hash combines a scanner's tests report with the files' hashes",
-    async () => {
-      const expected = JSON.parse(
-        readFileSync(join(FIXTURE_DIRECTORY, "expected.json"), "utf8"),
-      ) as { digest: string; entries: Record<string, string> };
-      const own = Object.fromEntries(
-        Object.entries(expected.entries).filter(([key]) => key.includes("#")),
-      );
-      const repository = makeTempDir("recognizer-serve-tests-hash-");
+  it("tests.hash replies with the digest of the repository's test files", async () => {
+    const root = hashing(languagePrograms());
 
-      cpSync(join(FIXTURE_DIRECTORY, "rust-in-file"), repository, {
-        recursive: true,
-      });
-      execFileSync("git", ["-C", repository, "init", "-q"]);
+    gitRepository(root, "/work");
 
-      const serve = new Serve(stubScanner(own));
-      const reply = await serve.call("tests.hash", { repository, known: {} });
+    const reply = await root.call("tests.hash", {
+      repository: "/work",
+      known: {},
+    });
 
-      expect(own).not.toEqual({});
-      expect(reply.ok).toBe(expected.digest);
+    expect(reply.ok).toBe(WORKED);
 
-      await serve.close();
-    },
-    TIMEOUT,
-  );
+    await root.close();
+  });
 
-  it(
-    "tests.hash gives a non-git folder a digest from the filesystem listing and is null when a scanner's answer fails",
-    async () => {
-      const outside = makeTempDir("recognizer-serve-not-git-");
-      const repository = gitRepository(WORKED_FILES);
-      const serve = new Serve(
-        withLanguages(makeTempDir("recognizer-serve-empty-path-")),
-      );
-      const failing = new Serve(stubScanner({}, 1));
-      const notGit = await serve.call("tests.hash", {
-        repository: outside,
-        known: {},
-      });
-      const failed = await failing.call("tests.hash", {
-        repository,
-        known: {},
-      });
+  it("tests.hash combines a scanner's tests report with the files' hashes", async () => {
+    const expected = JSON.parse(
+      readFileSync(join(FIXTURE_DIRECTORY, "expected.json"), "utf8"),
+    ) as { digest: string; entries: Record<string, string> };
+    const own = Object.fromEntries(
+      Object.entries(expected.entries).filter(([key]) => key.includes("#")),
+    );
+    const root = hashing(languagePrograms({ entries: own }));
 
-      expect(typeof notGit.ok).toBe("string");
-      expect(failed.ok).toBeNull();
-      expect("ok" in failed).toBe(true);
+    root.io.files.seedFrom(join(FIXTURE_DIRECTORY, "rust-in-file"), "/rust");
+    root.repositories.commitAll("/rust");
 
-      await serve.close();
-      await failing.close();
-    },
-    TIMEOUT,
-  );
+    const reply = await root.call("tests.hash", {
+      repository: "/rust",
+      known: {},
+    });
 
-  it(
-    "tests.hash refuses a known that is not an object of strings",
-    async () => {
-      const repository = gitRepository(WORKED_FILES);
-      const serve = new Serve(
-        withLanguages(makeTempDir("recognizer-serve-empty-path-")),
-      );
-      const asList = await serve.call("tests.hash", { repository, known: [] });
-      const asNumber = await serve.call("tests.hash", {
-        repository,
-        known: { a: 1 },
-      });
+    expect(own).not.toEqual({});
+    expect(reply.ok).toBe(expected.digest);
 
-      expect(typeof asList.error).toBe("string");
-      expect(asList).not.toHaveProperty("ok");
-      expect(typeof asNumber.error).toBe("string");
-      expect(asNumber).not.toHaveProperty("ok");
+    await root.close();
+  });
 
-      await serve.close();
-    },
-    TIMEOUT,
-  );
+  it("tests.hash gives a non-git folder a digest from the filesystem listing and is null when a scanner's answer fails", async () => {
+    const plain = hashing(languagePrograms());
+    const failing = hashing(languagePrograms({ entries: {}, status: 1 }));
+
+    plain.io.files.writeFile("/outside/tests/a.py", "a");
+    gitRepository(failing, "/work");
+
+    const notGit = await plain.call("tests.hash", {
+      repository: "/outside",
+      known: {},
+    });
+    const failed = await failing.call("tests.hash", {
+      repository: "/work",
+      known: {},
+    });
+
+    expect(typeof notGit.ok).toBe("string");
+    expect(failed.ok).toBeNull();
+    expect("ok" in failed).toBe(true);
+
+    await plain.close();
+    await failing.close();
+  });
+
+  it("tests.hash refuses a known that is not an object of strings", async () => {
+    const root = hashing(languagePrograms());
+
+    gitRepository(root, "/work");
+
+    const asList = await root.call("tests.hash", {
+      repository: "/work",
+      known: [],
+    });
+    const asNumber = await root.call("tests.hash", {
+      repository: "/work",
+      known: { a: 1 },
+    });
+
+    expect(typeof asList.error).toBe("string");
+    expect(asList).not.toHaveProperty("ok");
+    expect(typeof asNumber.error).toBe("string");
+    expect(asNumber).not.toHaveProperty("ok");
+
+    await root.close();
+  });
 });
 
-function gitIn(root: string, ...args: string[]): string {
-  return execFileSync("git", ["-C", root, ...args], {
-    encoding: "utf8",
-  }).trim();
-}
+describe("the service built in process", () => {
+  it("a_service_built_in_process_touches_nothing_under_the_real_tmpdir", async () => {
+    const realTmpdir = process.env.TMPDIR;
+    const watched = makeTempDir("serve-tmpdir-guard-");
 
-function historyRepository(): {
-  root: string;
-  first: string;
-  second: string;
-} {
-  const root = typescriptRepository();
+    process.env.TMPDIR = watched;
 
-  gitIn(root, "init", "-q", "-b", "main");
-  gitIn(root, "config", "user.email", "t@example.com");
-  gitIn(root, "config", "user.name", "t");
-  gitIn(root, "config", "commit.gpgsign", "false");
-  gitIn(root, "add", ".");
-  gitIn(root, "commit", "-q", "-m", "first");
-
-  const first = gitIn(root, "rev-parse", "HEAD");
-
-  writeFileSync(
-    join(root, "web/src/extra-module.ts"),
-    "export const extra = 1;\n",
-  );
-  writeFileSync(
-    join(root, "web/src/orders.ts"),
-    'import { Customer, Order } from "@sample/api";\n\nconsole.log(Customer, Order, "edited");\n',
-  );
-  gitIn(root, "add", ".");
-  gitIn(root, "commit", "-q", "-m", "second");
-
-  return { root, first, second: gitIn(root, "rev-parse", "HEAD") };
-}
-
-function scanText(reply: Line): string {
-  return JSON.stringify(
-    (reply.ok as { scans: { document: unknown }[] }).scans.map(
-      (scan) => scan.document,
-    ),
-  );
-}
-
-describe("recognizer serve: history operations", () => {
-  it(
-    "view.scans reads the modules of each commit",
-    async () => {
-      const { root, first, second } = historyRepository();
-      const serve = new Serve(typescriptLaunchers());
-      const before = await serve.call("view.scans", {
-        repository: root,
-        commit: first,
+    try {
+      const root = serveRoot({
+        programs: { "recognizer-sense-crap": sensorProgram("crap") },
       });
-      const after = await serve.call("view.scans", {
-        repository: root,
-        commit: second,
-      });
+      const repository = "/repo";
 
-      expect(before.ok).toMatchObject({ ok: true });
-      expect(after.ok).toMatchObject({ ok: true });
-      expect(scanText(before)).not.toContain("extra-module");
-      expect(scanText(after)).toContain("extra-module");
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "view.members scans only the modified files and returns both texts",
-    async () => {
-      const { root, first, second } = historyRepository();
-      const serve = new Serve(typescriptLaunchers());
-      const reply = await serve.call("view.members", {
-        repository: root,
-        base: first,
-        head: second,
-      });
-      const found = reply.ok as {
-        ok: boolean;
-        baseScans: { text: string }[];
-        headScans: { text: string }[];
-        files: { path: string; baseText: string; headText: string }[];
-      };
-
-      expect(found.ok).toBe(true);
-      expect(found.files).toHaveLength(1);
-      expect(found.files[0]?.path).toBe("web/src/orders.ts");
-      expect(found.files[0]?.baseText).not.toContain("edited");
-      expect(found.files[0]?.headText).toContain("edited");
-      expect(JSON.stringify(found.headScans)).not.toContain("memory-store");
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "view.members reads a renamed and edited file",
-    async () => {
-      const { root } = historyRepository();
-      const lines = Array.from(
-        { length: 20 },
-        (_, index) => `console.log("line ${index} edited");\n`,
+      root.io.files.writeFile(`${repository}/a.ts`, "one");
+      root.io.files.writeFile(
+        `${repository}/.gitignore`,
+        ".recognizer/cache/\n",
       );
-
-      writeFileSync(
-        join(root, "web/src/orders.ts"),
-        `import { Customer, Order } from "@sample/api";\n${lines.join("")}console.log(Customer, Order);\n`,
+      root.io.files.writeFile(
+        `${repository}/.recognizer/config.yaml`,
+        "sensors:\n  crap: {}\n",
       );
-      gitIn(root, "add", ".");
-      gitIn(root, "commit", "-q", "-m", "padded");
+      root.repositories.commitAll(repository);
 
-      const padded = gitIn(root, "rev-parse", "HEAD");
-
-      gitIn(root, "mv", "web/src/orders.ts", "web/src/purchases.ts");
-      writeFileSync(
-        join(root, "web/src/purchases.ts"),
-        `import { Customer, Order } from "@sample/api";\n${lines.join("")}console.log(Customer, Order, "renamed");\n`,
-      );
-      gitIn(root, "add", ".");
-      gitIn(root, "commit", "-q", "-m", "third");
-
-      const third = gitIn(root, "rev-parse", "HEAD");
-      const serve = new Serve(typescriptLaunchers());
-      const reply = await serve.call("view.members", {
-        repository: root,
-        base: padded,
-        head: third,
+      const started = await root.call("scan.start", {
+        repository,
+        describe: false,
+        analysis: false,
+        sense: ["crap"],
       });
-      const found = reply.ok as {
-        ok: boolean;
-        files: {
-          path: string;
-          basePath: string;
-          baseText: string | null;
-          headText: string | null;
-        }[];
-      };
+      const outcome = await root.outcome(started.ok);
 
-      expect(found.ok).toBe(true);
-      expect(found.files).toEqual([
-        {
-          path: "web/src/purchases.ts",
-          basePath: "web/src/orders.ts",
-          baseText: expect.stringContaining("edited"),
-          headText: expect.stringContaining("renamed"),
-        },
-      ]);
+      expect(outcome.status).toBe("finished");
+      expect(tmpdir()).toBe(watched);
+      expect(readdirSync(watched)).toEqual([]);
 
-      await serve.close();
-    },
-    TIMEOUT,
-  );
+      await root.close();
+    } finally {
+      process.env.TMPDIR = realTmpdir;
+    }
+  });
 
-  it(
-    "view.members scans the modified files at the head commit with another branch checked out",
-    async () => {
-      const { root, first, second } = historyRepository();
+  it("a_scan_naming_two_sensors_with_one_program_missing_is_refused_naming_the_missing_one", async () => {
+    const root = serveRoot({
+      programs: { "recognizer-sense-crap": sensorProgram("crap") },
+    });
+    const repository = "/repo";
 
-      gitIn(root, "checkout", "-q", "-b", "other", first);
+    root.io.files.writeFile(`${repository}/a.ts`, "one");
+    root.io.files.writeFile(`${repository}/.gitignore`, ".recognizer/cache/\n");
+    root.io.files.writeFile(
+      `${repository}/.recognizer/config.yaml`,
+      "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n  mine:\n    command: [recognizer-sense-mine, run]\n    manifest: [recognizer-sense-mine, manifest]\n",
+    );
+    root.repositories.commitAll(repository);
 
-      const serve = new Serve(typescriptLaunchers());
-      const reply = await serve.call("view.members", {
-        repository: root,
-        base: first,
-        head: second,
-      });
-      const found = reply.ok as {
-        ok: boolean;
-        files: { headText: string }[];
-      };
+    const started = await root.call("scan.start", {
+      repository,
+      describe: false,
+      analysis: false,
+      sense: ["crap", "mine"],
+    });
+    const outcome = await root.outcome(started.ok);
+    const ran = root.io.processes.calls
+      .filter((call) => call.command !== "git")
+      .map((call) => `${call.command} ${call.args[0]}`);
 
-      expect(found.ok).toBe(true);
-      expect(found.files[0]?.headText).toContain("edited");
+    expect(outcome.status).toBe("refused");
+    expect(outcome.gaps).toEqual([
+      {
+        id: "sensors:missing:mine",
+        line: "recognizer-sense-mine is not installed",
+        needs: ["mine"],
+      },
+    ]);
+    expect(ran).toContain("recognizer-sense-crap manifest");
+    expect(ran.filter((call) => call.endsWith(" run"))).toEqual([]);
 
-      await serve.close();
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "view.range, view.renames and view.author answer over the wire",
-    async () => {
-      const { root, first, second } = historyRepository();
-      const serve = new Serve(typescriptLaunchers());
-      const range = await serve.call("view.range", {
-        repository: root,
-        base: first,
-        head: second,
-      });
-
-      expect(range.ok).toEqual({
-        baseCommit: first,
-        headCommit: second,
-        merged: false,
-        changes: [
-          { status: "A", path: "web/src/extra-module.ts" },
-          { status: "M", path: "web/src/orders.ts" },
-        ],
-      });
-      expect((await serve.call("view.author", { repository: root })).ok).toBe(
-        "t",
-      );
-      expect(
-        (await serve.call("view.renames", { repository: root, commit: first }))
-          .ok,
-      ).toEqual([]);
-
-      await serve.close();
-    },
-    TIMEOUT,
-  );
+    await root.close();
+  });
 });

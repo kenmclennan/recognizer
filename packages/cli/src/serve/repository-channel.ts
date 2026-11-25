@@ -3,7 +3,8 @@ import {
   type RepositoryStateDependencies,
   RepositoryStateHolder,
 } from "@recognizer/core";
-import { ACTIVE_POLL_MS, IDLE_POLL_MS } from "./watch.js";
+import type { Io } from "../cli.js";
+import type { Polls } from "./watch.js";
 import {
   type WorkingTreePorts,
   WorkingTreeWatch,
@@ -13,7 +14,7 @@ interface Held {
   holder: RepositoryStateHolder;
   tree: WorkingTreeWatch;
   watchers: number;
-  timer: NodeJS.Timeout | undefined;
+  timer: (() => void) | undefined;
 }
 
 export class RepositoryChannel {
@@ -25,6 +26,8 @@ export class RepositoryChannel {
     private readonly write: (message: unknown) => void,
     private readonly makeId: () => string,
     private readonly workingTree: WorkingTreePorts,
+    private readonly io: Io,
+    private readonly polls: Polls,
   ) {}
 
   private heldFor(repository: string): Held {
@@ -53,20 +56,18 @@ export class RepositoryChannel {
     return holder.current();
   }
 
+  private interval(held: Held): number {
+    return held.holder.active() ? this.polls.activeMs : this.polls.idleMs;
+  }
+
   private poll(held: Held): void {
     const tick = () => {
       held.holder.refresh();
       void held.tree.tick().catch(() => undefined);
-      held.timer = setTimeout(
-        tick,
-        held.holder.active() ? ACTIVE_POLL_MS : IDLE_POLL_MS,
-      );
+      held.timer = this.io.after(this.interval(held), tick);
     };
 
-    held.timer = setTimeout(
-      tick,
-      held.holder.active() ? ACTIVE_POLL_MS : IDLE_POLL_MS,
-    );
+    held.timer = this.io.after(this.interval(held), tick);
   }
 
   watch(repository: string): string {
@@ -85,13 +86,13 @@ export class RepositoryChannel {
       held.watchers -= 1;
 
       if (held.watchers === 0 && held.timer !== undefined) {
-        clearTimeout(held.timer);
+        held.timer();
         held.timer = undefined;
       }
     });
     held.watchers += 1;
 
-    setImmediate(() => {
+    this.io.after(0, () => {
       if (ended) {
         return;
       }

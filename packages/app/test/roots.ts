@@ -10,53 +10,11 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
-import { afterEach, vi } from "vitest";
-import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
+import { vi } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
-import type { AppView, ExplorerRequest } from "../src/app-root";
-import type { Explorer, ScanHost } from "../src/explorer";
-import type { FooterView } from "../src/footer-view";
-import { isStale } from "../src/freshness-facts";
-import type { HoldingView } from "../src/holding-view";
-import type { Loaded } from "../src/scan-loading";
-import type { OpenActions, OpenView } from "../src/scan-open-view";
-import { rowSensors } from "../src/scan-panel-model";
+import { bridge, cleanups, type Line, recordingView } from "./app-harness";
 
-type Listener = (event: { payload: unknown }) => void;
-
-const bridge = vi.hoisted(() => ({
-  invoke: async (_command: string, _args?: Record<string, unknown>) =>
-    undefined as unknown,
-  listeners: new Map<string, Set<(event: { payload: unknown }) => void>>(),
-}));
-
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: (command: string, args?: Record<string, unknown>) =>
-    bridge.invoke(command, args),
-}));
-vi.mock("@tauri-apps/api/webviewWindow", () => ({
-  getCurrentWebviewWindow: () => ({
-    label: "w-1",
-    listen: async (event: string, handler: Listener) => {
-      const set = bridge.listeners.get(event) ?? new Set();
-
-      set.add(handler);
-      bridge.listeners.set(event, set);
-
-      return () => set.delete(handler);
-    },
-  }),
-}));
-vi.mock("@tauri-apps/api/event", () => ({
-  listen: async (event: string, handler: Listener) => {
-    const set = bridge.listeners.get(event) ?? new Set();
-
-    set.add(handler);
-    bridge.listeners.set(event, set);
-
-    return () => set.delete(handler);
-  },
-}));
+export * from "./app-harness";
 
 export const REPO = join(__dirname, "../../..");
 export const BIN = join(REPO, "packages/cli/dist/bin.js");
@@ -67,8 +25,6 @@ const MANIFEST_EXAMPLE = join(
 );
 const SYSTEM_DIRECTORIES = ["/usr/bin", "/bin"];
 const TOOLS = ["uv", "git", "cargo", "rustc"];
-
-export type Line = Record<string, unknown>;
 
 let toolDirectory: string | undefined;
 
@@ -112,9 +68,11 @@ export class Serve {
   private readonly pending = new Map<number, (line: Line) => void>();
   private readonly waiters: (() => void)[] = [];
 
+  private readonly scratch = makeTempDir("recognizer-serve-tmp-");
+
   constructor(path: string) {
     this.child = spawn(process.execPath, [BIN, "serve"], {
-      env: { ...process.env, PATH: isolatedPath(path) },
+      env: { ...process.env, PATH: isolatedPath(path), TMPDIR: this.scratch },
       stdio: ["pipe", "pipe", "pipe"],
     });
     this.child.stderr?.resume();
@@ -164,6 +122,15 @@ export class Serve {
   stop(): void {
     this.child.stdin?.end();
     this.child.kill();
+
+    const remove = () =>
+      rmSync(this.scratch, { recursive: true, force: true, maxRetries: 5 });
+
+    if (this.child.exitCode === null && this.child.signalCode === null) {
+      this.child.once("exit", remove);
+    } else {
+      remove();
+    }
   }
 }
 
@@ -283,140 +250,6 @@ export type AppRootOptions = {
   launchers?: Record<string, string>;
   folderKnown?: boolean;
 };
-
-export type RecordedExplorer = Explorer & {
-  loads: Loaded[];
-  reloads: number;
-  host: ScanHost;
-};
-
-export type RecordingView = AppView & {
-  readonly explorers: RecordedExplorer[];
-  readonly counts: string[];
-  readonly scanLines: (string | null)[];
-  readonly messages: { text: string; isError: boolean }[];
-  readonly shown: string[];
-  explorer(): RecordedExplorer | null;
-  loaded(): Loaded | null;
-  freshnessOf(name: string): string | undefined;
-  rows(): Promise<ReturnType<typeof rowSensors>>;
-};
-
-export function recordingView(): RecordingView {
-  const counts: string[] = [];
-  const scanLines: (string | null)[] = [];
-  const messages: { text: string; isError: boolean }[] = [];
-  const shown: string[] = [];
-  const explorers: RecordedExplorer[] = [];
-
-  const footer: FooterView = {
-    post: () => null,
-    attach: () => {},
-    withdraw: () => {},
-    relabel: () => {},
-    reconcile: () => {},
-    setCount: (text) => counts.push(text),
-    setScan: (text) => scanLines.push(text),
-  };
-
-  const explorer = () => explorers[explorers.length - 1] ?? null;
-  const loaded = () => {
-    const last = explorer();
-
-    return last === null ? null : (last.loads[last.loads.length - 1] ?? null);
-  };
-
-  return {
-    footer,
-    explorers,
-    counts,
-    scanLines,
-    messages,
-    shown,
-    explorer,
-    loaded,
-    freshnessOf: (name) => {
-      const facts = loaded()?.freshness?.[name];
-
-      if (facts === undefined) {
-        return undefined;
-      }
-
-      return isStale(facts) ? "stale" : "current";
-    },
-    rows: async () => {
-      const host = explorer()?.host;
-
-      if (host === undefined) {
-        throw new Error("the panel was never handed a model");
-      }
-
-      return rowSensors(
-        (await host.port.inputs()).config,
-        await host.port.sensorList(),
-      );
-    },
-    clear: () => {
-      shown.push("clear");
-    },
-    showEmpty: () => {
-      shown.push("empty");
-    },
-    showMessage: (text, isError = false) => {
-      messages.push({ text, isError });
-    },
-    showHolding: (): HoldingView => {
-      shown.push("holding");
-
-      return { update: () => {}, remove: () => {} };
-    },
-    showOpen: (_actions: OpenActions): OpenView => {
-      shown.push("open");
-
-      return { render: () => {}, remove: () => {} };
-    },
-    showExplorer: (request: ExplorerRequest) => {
-      const recorded: RecordedExplorer = {
-        loads: [request.loaded],
-        reloads: 0,
-        host: request.scanHost,
-        toggleTree: () => {},
-        carry: () => null as never,
-        update: (next) => {
-          recorded.loads.push(next);
-        },
-        reloadSensors: async () => {
-          recorded.reloads += 1;
-        },
-        openSelectedInEditor: () => {},
-        openLinkedView: () => {},
-        refreshResponsibilities: () => {},
-        refreshPanel: () => {},
-        setSetupProblems: () => {},
-        show: () => {},
-        dispose: () => {},
-      };
-
-      explorers.push(recorded);
-      shown.push("explorer");
-      request.onKeys([]);
-
-      return recorded;
-    },
-    openSettings: () => ({ close: () => {} }) as never,
-    openSetup: () => ({ close: () => {} }) as never,
-  };
-}
-
-const cleanups: (() => void)[] = [];
-
-afterEach(() => {
-  for (const cleanup of cleanups.splice(0)) {
-    cleanup();
-  }
-
-  bridge.listeners.clear();
-});
 
 export async function appRoot(options: AppRootOptions = {}) {
   const plugins = makeTempDir("app-root-plugins-");
@@ -542,52 +375,4 @@ export async function appRoot(options: AppRootOptions = {}) {
     plugins,
     testFile: join(repository, "api", "tests", "a.test.ts"),
   };
-}
-
-export type TimedResult<T> = { value: T; elapsedMs: number; limitMs: number };
-
-export async function timeEndToEnd<T>(
-  serve: Serve,
-  options: {
-    limitMs: number;
-    action: () => void | Promise<void>;
-    until: () => T | undefined;
-  },
-): Promise<TimedResult<T>> {
-  const limitMs = scaledTimeout(options.limitMs);
-  const start = performance.now();
-
-  await options.action();
-
-  for (;;) {
-    const value = options.until();
-    const elapsedMs = performance.now() - start;
-
-    if (value !== undefined) {
-      if (elapsedMs > limitMs) {
-        throw new Error(
-          `held after ${Math.round(elapsedMs)} ms, over the ${limitMs} ms limit`,
-        );
-      }
-
-      return { value, elapsedMs, limitMs };
-    }
-
-    if (elapsedMs > limitMs) {
-      throw new Error(
-        `did not hold within ${limitMs} ms (elapsed ${Math.round(elapsedMs)} ms)`,
-      );
-    }
-
-    await serve.signal(50);
-  }
-}
-
-export async function untilHolds<T>(
-  serve: Serve,
-  until: () => T | undefined,
-  limitMs = 60_000,
-): Promise<T> {
-  return (await timeEndToEnd(serve, { limitMs, action: () => {}, until }))
-    .value;
 }

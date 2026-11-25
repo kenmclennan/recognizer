@@ -33,7 +33,6 @@ packages/cli/test/reported-results.test.ts
 packages/cli/test/run-sensors.test.ts
 packages/cli/test/scan-baseline-real.test.ts
 packages/cli/test/scan-container.test.ts
-packages/cli/test/serve.test.ts
 packages/cli/test/structure-overlay.test.ts
 packages/cli/test/structure-sensor.test.ts
 packages/cli/test/survey-plugins.test.ts

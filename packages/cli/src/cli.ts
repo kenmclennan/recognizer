@@ -104,6 +104,8 @@ export interface Io {
   readStdin(): string;
   readLine(signal?: AbortSignal): Promise<string | null>;
   wait(ms: number): Promise<void>;
+  after(ms: number, action: () => void): () => void;
+  stamp(path: string): string;
   readBytes(path: string): Buffer;
   hashFile(path: string): string | null;
   writeFile(path: string, content: string, mode?: number): void;
@@ -357,6 +359,16 @@ export function nodeIo(scope: StopScope = processScope): Io {
     readStdin: () => readFileSync(0, "utf8"),
     readLine: readStdinLine,
     wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    after: (ms, action) => {
+      const timer = setTimeout(action, ms);
+
+      return () => clearTimeout(timer);
+    },
+    stamp: (path) => {
+      const stat = statSync(path, { bigint: true, throwIfNoEntry: false });
+
+      return stat === undefined ? "0:0" : `${stat.mtimeNs}:${stat.size}`;
+    },
     readBytes: (path) => readFileSync(path),
     hashFile: (path) => {
       try {

@@ -47,6 +47,7 @@ function ports() {
   return {
     git: new GitAdapter(nodeIo(processScope)),
     limiter: new Limiter(2),
+    stamp: nodeIo(processScope).stamp,
   };
 }
 
