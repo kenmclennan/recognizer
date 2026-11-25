@@ -1,17 +1,15 @@
 import {
+  type ChangeClassification,
+  changeMarks,
+  classifyOpened,
+  type FileChange,
   type HistoricalPorts,
+  type MarkedFile,
   type Repository,
   rangeMembers,
   readChangeRange,
   scansAtCommit,
 } from "@recognizer/core";
-import {
-  type ChangeClassification,
-  changeMarks,
-  classifyOpened,
-  type FileChange,
-  type MarkedFile,
-} from "../change-marks.js";
 import { type MemberMarkKind, memberMarks } from "../member-marks.js";
 import { repositoryOfScans } from "../structure-read.js";
 import { ArgsError } from "./wire.js";

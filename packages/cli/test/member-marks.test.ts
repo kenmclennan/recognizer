@@ -1,7 +1,6 @@
-import type { Repository } from "@recognizer/core";
+import type { MarkedFile, Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import type { DocumentMember } from "../src/adapters/filesystem/scan-document-types.js";
-import type { MarkedFile } from "../src/change-marks.js";
 import {
   MEMBER_TEXT_LIMIT,
   type MemberFile,

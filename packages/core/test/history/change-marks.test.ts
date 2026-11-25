@@ -1,44 +1,50 @@
 import { readFileSync } from "node:fs";
-import { Repository, ScanSelection } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { parseNameStatus } from "../src/adapters/git/name-status-parse.js";
 import {
   changeMarks,
   classifyChanges,
   classifyOpened,
+  File,
   type FileChange,
-} from "../src/change-marks.js";
-import { repositoryFrom } from "./repository-from.js";
-
-function selectionOf(extensions: string[]) {
-  return {
-    extensions,
-    skipDirectoryNames: ["test", "tests"],
-    skipDirectoryPrefixes: [],
-    skipDirectorySuffixes: [],
-    skipDirectoriesContaining: [],
-    skipFileGlobs: [],
-  };
-}
-
-function documentSelection(extensions: string[]) {
-  return {
-    extensions,
-    skip_directory_names: ["test", "tests"],
-    skip_directory_prefixes: [],
-    skip_directory_suffixes: [],
-    skip_directories_containing: [],
-    skip_file_globs: [],
-  };
-}
+  parseNameStatus,
+  Repository,
+} from "../../src/index.js";
 
 function scan(
   modules: [string, "module" | "package"][],
   extensions = [".py", ".kt"],
 ): Repository {
-  return repositoryFrom({
-    modules: modules.map(([id, kind]) => ({ id, kind })),
-    selection: documentSelection(extensions),
+  return Repository.of({
+    files: modules.map(
+      ([path]) =>
+        new File({
+          path,
+          language: path.endsWith(".kt") ? "kotlin" : "python",
+          kind: "source",
+          hash: null,
+          members: [],
+          entryPoint: false,
+          annotations: [],
+          actualOf: [],
+        }),
+    ),
+    extractions: [
+      {
+        language: "python",
+        scanner: { name: "t", version: "0" },
+        commit: null,
+        modified: null,
+        selection: {
+          extensions,
+          skipDirectoryNames: ["test", "tests"],
+          skipDirectoryPrefixes: [],
+          skipDirectorySuffixes: [],
+          skipDirectoriesContaining: [],
+          skipFileGlobs: [],
+        },
+        files: [],
+      },
+    ],
   });
 }
 
@@ -201,7 +207,7 @@ describe("classifyChanges", () => {
 describe("changeMarks over a recorded name-status list", () => {
   const recorded = JSON.parse(
     readFileSync(
-      new URL("../../../fixtures/views/name-status-m.json", import.meta.url),
+      new URL("../../../../fixtures/views/name-status-m.json", import.meta.url),
       "utf8",
     ),
   ) as { stdout: string };
@@ -264,57 +270,9 @@ describe("changeMarks over a recorded name-status list", () => {
   });
 });
 
-describe("ScanSelection.accepts", () => {
-  const parity = JSON.parse(
-    readFileSync(
-      new URL("../../../fixtures/selection-parity.json", import.meta.url),
-      "utf8",
-    ),
-  ) as Record<string, { tree: string[]; accepted: string[] }>;
-
-  for (const language of Object.keys(parity)) {
-    it(`accepts exactly the ${language} files the scanner reads`, () => {
-      const expected = JSON.parse(
-        readFileSync(
-          new URL(
-            `../../../fixtures/${language}/expected-scan.json`,
-            import.meta.url,
-          ),
-          "utf8",
-        ),
-      ) as { selection: Record<string, unknown> };
-      const tree = new Set(parity[language]?.tree);
-      const accepted = [...tree]
-        .filter((path) =>
-          new ScanSelection(
-            repositoryFrom({ modules: [], selection: expected.selection })
-              .extractions[0]?.selection as never,
-          ).accepts(path, tree),
-        )
-        .sort();
-
-      expect(accepted).toEqual(parity[language]?.accepted);
-    });
-  }
-
-  it("rejects a path under skip_paths", () => {
-    const selection = { ...selectionOf([".py"]), skipPaths: ["vendor"] };
-
-    expect(new ScanSelection(selection).accepts("vendor/a.py")).toBe(false);
-    expect(new ScanSelection(selection).accepts("vendor2/a.py")).toBe(true);
-  });
-});
-
 describe("classifyOpened", () => {
   it("classifyOpened counts only files with a node", () => {
-    const csharp = {
-      ...documentSelection([".cs", ".py"]),
-      skip_directory_names: [],
-    };
-    const head = repositoryFrom({
-      modules: [{ id: "src/a.py", kind: "module" }],
-      selection: csharp,
-    });
+    const head = scan([["src/a.py", "module"]], [".cs", ".py"]);
     const changes: FileChange[] = [
       { status: "A", path: "src/a.py" },
       { status: "M", path: "Tests/T.cs" },
