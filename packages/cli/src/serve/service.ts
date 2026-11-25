@@ -650,7 +650,9 @@ export class Service {
       return;
     }
 
-    const scope = new StopScope();
+    const scope = new StopScope(false, (ms, action) =>
+      this.shared.after(ms, action),
+    );
     let files: ScopeFiles | undefined;
     let running: RunningScan;
 
@@ -705,7 +707,9 @@ export class Service {
   private setupStart(id: number, args: Record<string, unknown>): void {
     const request = parseSetup(args);
     const setupId = this.nextId("u");
-    const scope = new StopScope();
+    const scope = new StopScope(false, (ms, action) =>
+      this.shared.after(ms, action),
+    );
     const control = stopControl();
 
     liveScopes.add(scope);

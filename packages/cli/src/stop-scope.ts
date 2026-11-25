@@ -15,6 +15,16 @@ export function awakeClock(): AwakeClock {
 
 const DESCENDANT_POLL_MS = 50;
 
+export type After = (ms: number, action: () => void) => () => void;
+
+const realAfter: After = (ms, action) => {
+  const timer = setTimeout(action, ms);
+
+  timer.unref();
+
+  return () => clearTimeout(timer);
+};
+
 export function descendantsOf(roots: number[]): number[] {
   const listing = spawnSync("ps", ["-A", "-o", "pid=,ppid="], {
     encoding: "utf8",
@@ -68,7 +78,11 @@ function signalPid(pid: number, name: "SIGTERM" | "SIGKILL"): void {
   } catch {}
 }
 
-function gone(pids: number[], cancelled: () => boolean): Promise<void> {
+function gone(
+  pids: number[],
+  cancelled: () => boolean,
+  after: After,
+): Promise<void> {
   return new Promise((resolve) => {
     const check = () => {
       if (cancelled() || !pids.some(alive)) {
@@ -77,7 +91,7 @@ function gone(pids: number[], cancelled: () => boolean): Promise<void> {
         return;
       }
 
-      setTimeout(check, DESCENDANT_POLL_MS).unref();
+      after(DESCENDANT_POLL_MS, check);
     };
 
     check();
@@ -108,7 +122,10 @@ export class StopScope {
   readonly hooks = new Set<() => Promise<void>>();
   readonly markers = new Map<{ release(): void }, (exit: number) => void>();
 
-  constructor(private readonly processWide: boolean = false) {}
+  constructor(
+    private readonly processWide: boolean = false,
+    private readonly after: After = realAfter,
+  ) {}
 
   onStop(hook: () => Promise<void>): () => void {
     this.hooks.add(hook);
@@ -177,7 +194,7 @@ export class StopScope {
 
     return Promise.race([
       Promise.all(stopping.map(exited)).then(() =>
-        gone(descendants, () => timedOut),
+        gone(descendants, () => timedOut, this.after),
       ),
       new Promise<void>((resolve) => {
         cancel = awakeClock().after(graceMs, resolve);
