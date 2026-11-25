@@ -1,0 +1,15 @@
+{
+  "keys_version": 1,
+  "owner": "recognizer-sensors",
+  "placeholders": {},
+  "sections": [],
+  "keys": [
+    {
+      "key": "sensors.mine.overlay",
+      "type": "path",
+      "retired": "the sensor reports its results to Recognizer, which writes the record itself, so this setting has no effect",
+      "description": "where the sensor writes its overlay, relative to the repository",
+      "example": "sensors.mine.overlay .recognizer/cache/overlays/mine.json"
+    }
+  ]
+}

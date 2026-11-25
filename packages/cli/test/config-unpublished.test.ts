@@ -68,3 +68,52 @@ describe("the doctor's config check against published values", () => {
     );
   });
 });
+
+describe("a set key its published schema marks retired", () => {
+  const keys = [
+    { key: "sensors.<name>.overlay", retired: "it has no effect now" },
+    { key: "sensors.<name>.threshold" },
+  ];
+
+  it("is reported with its key, the reason and the command that removes it", () => {
+    const problems = readConfigArea(
+      {
+        repository: "/repo",
+        named: false,
+        configText: "sensors:\n  crap:\n    overlay: x.json\n",
+        policyText: null,
+        languages: [],
+        scans: () => ({ state: "missing" }),
+      },
+      () => keys,
+    ).problems.filter((problem) => problem.code === "config-retired");
+
+    expect(problems).toEqual([
+      {
+        code: "config-retired",
+        subject: "sensors.crap.overlay",
+        line: "config/sensors/crap/overlay is retired: it has no effect now",
+        fix: {
+          text: "recognizer config --unset sensors.crap.overlay",
+          command: "recognizer config --unset sensors.crap.overlay",
+        },
+      },
+    ]);
+  });
+
+  it("reports nothing when the key is not set", () => {
+    const problems = readConfigArea(
+      {
+        repository: "/repo",
+        named: false,
+        configText: "sensors:\n  crap:\n    threshold: 3\n",
+        policyText: null,
+        languages: [],
+        scans: () => ({ state: "missing" }),
+      },
+      () => keys,
+    ).problems.filter((problem) => problem.code === "config-retired");
+
+    expect(problems).toEqual([]);
+  });
+});

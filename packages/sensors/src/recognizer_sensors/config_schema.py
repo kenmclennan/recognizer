@@ -2,6 +2,11 @@ def key(name, kind, description, example, **extra):
     return {"key": name, "type": kind, "description": description, "example": example, **extra}
 
 
+RETIRED_OVERLAY = (
+    "the sensor reports its results to Recognizer, which writes the record itself, "
+    "so this setting has no effect"
+)
+
 CRAP_KEYS = (
     key(
         "sensors.crap.threshold",
@@ -32,6 +37,7 @@ CRAP_KEYS = (
             ".recognizer/cache/overlays/crap.json"
         ),
         "sensors.crap.overlay .recognizer/cache/overlays/crap.json",
+        retired=RETIRED_OVERLAY,
     ),
 )
 
@@ -111,6 +117,7 @@ MUTATION_KEYS = (
             ".recognizer/cache/overlays/mutation.json"
         ),
         "sensors.mutation.overlay .recognizer/cache/overlays/mutation.json",
+        retired=RETIRED_OVERLAY,
     ),
 )
 

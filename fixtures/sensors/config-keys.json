@@ -99,6 +99,7 @@
     {
       "key": "sensors.crap.overlay",
       "type": "path",
+      "retired": "the sensor reports its results to Recognizer, which writes the record itself, so this setting has no effect",
       "description": "where the sensor writes its overlay, relative to the repository; default .recognizer/cache/overlays/crap.json",
       "example": "sensors.crap.overlay .recognizer/cache/overlays/crap.json"
     },
@@ -155,6 +156,7 @@
     {
       "key": "sensors.mutation.overlay",
       "type": "path",
+      "retired": "the sensor reports its results to Recognizer, which writes the record itself, so this setting has no effect",
       "description": "where the sensor writes its overlay, relative to the repository; default .recognizer/cache/overlays/mutation.json",
       "example": "sensors.mutation.overlay .recognizer/cache/overlays/mutation.json"
     }

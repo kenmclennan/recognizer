@@ -139,7 +139,11 @@ const RESERVED_SETTINGS = [
   "coverage",
 ];
 
-export type PublishedValues = readonly { key: string; values?: string[] }[];
+export type PublishedValues = readonly {
+  key: string;
+  values?: string[];
+  retired?: string;
+}[];
 
 function refusalOf(
   answer: SurveyAnswer,

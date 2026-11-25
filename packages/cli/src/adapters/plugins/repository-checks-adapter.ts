@@ -10,6 +10,7 @@ import {
   type PublishedValues,
   type RegisteredPlugins,
   type RepositoryChecks,
+  retiredSettings,
   type SetupProblem,
   unpublishedValues,
 } from "@recognizer/core";
@@ -250,6 +251,17 @@ export function readConfigArea(
       line: duplicate.message,
       fix: textFix(
         `rename or remove one of the test suites named ${duplicate.name} in ${CONFIG_FILE}`,
+      ),
+    });
+  }
+
+  for (const setting of retiredSettings(document, keys())) {
+    problems.push({
+      code: "config-retired",
+      subject: setting.key,
+      line: `config/${setting.key.replaceAll(".", "/")} is retired: ${setting.reason}`,
+      fix: commandFix(
+        withRepository(facts, `recognizer config --unset ${setting.key}`),
       ),
     });
   }
