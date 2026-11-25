@@ -256,6 +256,7 @@ import {
   type OrderState,
 } from "./view-history";
 import { resolveLinkedView } from "./view-link";
+import { pruneMemory, type ViewMemory } from "./view-memory";
 import { viewModified } from "./view-modified";
 import {
   noteAt,
@@ -304,6 +305,7 @@ export type Carried = {
   leftPanel: LeftPanel;
   metricTicks?: string[];
   camera?: Viewport | null;
+  view?: ViewMemory;
 };
 
 export type ScanHost = {
@@ -443,6 +445,7 @@ export function showExplorer(
   visualisation: VisualisationPort = createVisualisationFake(),
 ): Explorer {
   let loaded = initial;
+  const remembered = carried?.view;
   let health = computeHealth(loaded);
   const knownModules = new Set(loaded.modules);
   const compaction = compactFolders(loaded.repository.folders);
@@ -463,11 +466,11 @@ export function showExplorer(
     (request) => scanHost.plan(request, planFacts),
     () => renderProgress(),
   );
-  const expanded = new Set<string>();
+  const expanded = new Set<string>(remembered?.expanded ?? []);
   const filter: FilterState = {
-    text: "",
-    onCanvas: false,
-    needsAttention: false,
+    text: remembered?.filter.text ?? "",
+    onCanvas: remembered?.filter.onCanvas ?? false,
+    needsAttention: remembered?.filter.needsAttention ?? false,
   };
   let overlayModel = buildOverlayModel(loaded.overlays ?? [], {
     sensors: loaded.sensors,
@@ -504,18 +507,18 @@ export function showExplorer(
   let graph: CanvasGraph = emptyGraph();
   let scene: Scene | null = null;
   let titles = new Map<string, string>();
-  let inspectorOpen = false;
-  let inspectorTab: InspectorTab = "contents";
+  let inspectorOpen = remembered?.inspector.open ?? false;
+  let inspectorTab: InspectorTab = remembered?.inspector.tab ?? "contents";
   let hovered: { module: string; name: string } | null = null;
-  let trail = startTrail(null, "contents");
+  let trail = remembered?.inspector.trail ?? startTrail(null, "contents");
   let lastContents: InspectorContent[] = [];
-  const folds = new Set<string>();
+  const folds = new Set<string>(remembered?.inspector.folds ?? []);
   let showPrivate = loadShowPrivate(storage);
   let layoutNotice: string | null = null;
   let layoutBusy = false;
-  let pickerFilter = "";
+  let pickerFilter = remembered?.inspector.pickerFilter ?? "";
   let openView: string | null = null;
-  let resultsMode: ResultsMode = "bring";
+  let resultsMode: ResultsMode = remembered?.resultsMode ?? "bring";
   let runPlanned: PlannedRun | null = null;
   let lastKeys: ProgressKeys | null = null;
   let freshnessCache: FreshnessModel | null = null;
@@ -528,7 +531,7 @@ export function showExplorer(
   let listProblem: string | null = null;
   let openToken = 0;
   const commitsSelection = createSelection();
-  let commitsTab: CommitsTab = "history";
+  let commitsTab: CommitsTab = remembered?.commits.tab ?? "history";
   let commitsToken = 0;
   let commitsBranch: string | null = null;
   let historySeq = 0;
@@ -562,6 +565,9 @@ export function showExplorer(
     defaultRef: string | null;
   } | null = null;
   const hideFilter = createHideFilter();
+
+  hideFilter.set(remembered?.commits.hide ?? true);
+
   let commitsOpening: {
     what: string;
     kind: PickRow["kind"];
@@ -617,13 +623,15 @@ export function showExplorer(
   const authorName = views.author().catch(() => "Me");
   let author = "Me";
   let noteFocus: NoteFocus | null = null;
+  let noteSeed: { path: string; text: string } | null = null;
+  let notePending: { focus: NoteFocus; draft: string } | null = null;
   let canvasNotes: CanvasNotes | undefined;
   let canvasNotesKey = "";
   let allFindings = findingRows(health.documents);
   let hiddenRows = findingRows(health.hidden);
-  let orientedFinding: string | null = null;
-  const openGroups = new Set<string>();
-  let findingsOnlyView = false;
+  let orientedFinding: string | null = remembered?.findings.oriented ?? null;
+  const openGroups = new Set<string>(remembered?.findings.openGroups ?? []);
+  let findingsOnlyView = remembered?.findings.onlyThisView ?? false;
   let canvasOrientation: CanvasOrientation | null = null;
   let canvasOrientationKey = "";
 
@@ -3443,6 +3451,42 @@ export function showExplorer(
     };
   }
 
+  function memory(): ViewMemory {
+    const live = noteFocus ?? notePending?.focus ?? null;
+    const focus = live === null ? null : { ...live };
+    const typed =
+      noteFocus === null || !noteFocus.editing
+        ? null
+        : canvas.noteDraft(noteFocus.path);
+    const pendingDraft = noteFocus === null ? (notePending?.draft ?? "") : "";
+
+    return {
+      expanded: [...expanded],
+      filter: { ...filter },
+      inspector: {
+        open: inspectorOpen,
+        tab: inspectorTab,
+        trail,
+        folds: [...folds],
+        pickerFilter,
+      },
+      note: {
+        focus,
+        draft:
+          focus === null
+            ? ""
+            : (typed ?? noteSeed?.text ?? (pendingDraft || "")),
+      },
+      findings: {
+        openGroups: [...openGroups],
+        onlyThisView: findingsOnlyView,
+        oriented: orientedFinding,
+      },
+      resultsMode,
+      commits: { tab: commitsTab, hide: hideFilter.on() },
+    };
+  }
+
   function snapshot(): Snapshot {
     const selection = state.selection();
 
@@ -3762,6 +3806,11 @@ export function showExplorer(
       listKnown = true;
       listProblem = null;
       setViewList(listing.views);
+
+      if (notePending !== null) {
+        render();
+      }
+
       void loadRecent();
 
       if (leftPanel === "views") {
@@ -4646,6 +4695,21 @@ export function showExplorer(
     }
     const positions = notePositions();
 
+    if (notePending !== null) {
+      const pending = notePending;
+
+      if (!keepsNoteFocus(state.selection(), pending.focus)) {
+        notePending = null;
+      } else if (view !== null && positions.has(pending.focus.path)) {
+        notePending = null;
+        noteFocus = pending.focus;
+        noteSeed =
+          pending.draft === ""
+            ? null
+            : { path: pending.focus.path, text: pending.draft };
+      }
+    }
+
     if (noteFocus !== null) {
       const held = view === null ? null : noteAt(view, noteFocus.path);
 
@@ -4659,7 +4723,14 @@ export function showExplorer(
     const focus = noteFocus;
     const held =
       view === null || focus === null ? null : noteAt(view, focus.path);
-    const bubbles = bubbleSet(view, positions, focus);
+    if (
+      noteSeed !== null &&
+      (focus === null || !focus.editing || focus.path !== noteSeed.path)
+    ) {
+      noteSeed = null;
+    }
+
+    const bubbles = bubbleSet(view, positions, focus, noteSeed?.text ?? "");
     const marks = view === null ? new Set<string>() : notedPaths(view);
     const keys = {
       notesOpen: leftPanel === "notes",
@@ -5251,6 +5322,54 @@ export function showExplorer(
     lastKeys = keys;
   }
 
+  function applyMemory() {
+    if (remembered === undefined) {
+      return;
+    }
+
+    const selection = state.selection();
+    const counts =
+      selection === null || selection.kind === "edge"
+        ? null
+        : graph.counts(selection);
+    const pruned = pruneMemory(remembered, {
+      modules: loaded.modules,
+      selection,
+      dependenciesShown: counts !== null && counts.uses + counts.usedBy > 0,
+      findingIds: new Set(allFindings.map((row) => row.id)),
+      findingKept: (id) => {
+        const row = allFindings.find((one) => one.id === id);
+
+        return (
+          row !== undefined &&
+          (selection === null || keepsFocus(selection, row.record, boxFor))
+        );
+      },
+      noteKept: (focus) => keepsNoteFocus(selection, focus),
+      groupKeys: new Set(groupsOf(allFindings, catalog).map((g) => g.key)),
+      capacity: trailCapacity(),
+    });
+
+    expanded.clear();
+
+    for (const path of pruned.expanded) {
+      expanded.add(path);
+    }
+
+    trail = pruned.inspector.trail;
+    inspectorTab = pruned.inspector.tab;
+    notePending =
+      pruned.note.focus === null
+        ? null
+        : { focus: pruned.note.focus, draft: pruned.note.draft };
+    orientedFinding = pruned.findings.oriented;
+    openGroups.clear();
+
+    for (const key of pruned.findings.openGroups) {
+      openGroups.add(key);
+    }
+  }
+
   function resume(snap: Snapshot) {
     const known = new Set(loaded.modules);
     const isFolder = (id: string) =>
@@ -5283,6 +5402,7 @@ export function showExplorer(
     }
 
     state.reconcile(presenceOf(graph));
+    applyMemory();
     reveal(state.selection());
     render();
     record();
@@ -5376,6 +5496,7 @@ export function showExplorer(
       leftPanel,
       metricTicks,
       camera: canvas.camera(),
+      view: memory(),
     }),
     update(next) {
       loaded = next;
