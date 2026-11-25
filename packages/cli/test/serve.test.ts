@@ -355,7 +355,10 @@ describe("recognizer serve: the wire", () => {
 
   it("every_op_is_answered", async () => {
     const { root, repository } = typescriptScenario();
-    const started = await root.call("scan.start", startOf(repository));
+    const started = await root.call(
+      "scan.start",
+      startOf(repository, { analysis: false }),
+    );
 
     expect(typeof started.ok).toBe("string");
     expect((await root.outcome(started.ok)).status).toBe("finished");
