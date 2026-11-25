@@ -1,6 +1,9 @@
 import { Repository } from "@recognizer/core";
 import type { MarkedFile, MemberMarkKind } from "recognizer";
 import { moduleOf } from "recognizer";
+
+export type { MarkedFile, MemberMarkKind };
+
 import type { MetricDescriptor, OverlayModel } from "./overlay-model";
 import { largest } from "./overlay-model";
 import type { ResponsibilityRow } from "./responsibility-model";

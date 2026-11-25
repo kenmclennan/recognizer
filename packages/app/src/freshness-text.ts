@@ -1,8 +1,21 @@
-import { File, Repository } from "@recognizer/core";
-import { type Freshness, sensorArmed, unregisteredMessage } from "recognizer";
+import {
+  ANALYSIS_KEY,
+  analysisState,
+  DESCRIBE_KEY,
+  describeState,
+  File,
+  Repository,
+  type ResultState,
+  SCAN_KEY,
+  scanState,
+  sensorState,
+  structureChanged,
+} from "@recognizer/core";
+import { sensorArmed, unregisteredMessage } from "recognizer";
 import { ageText } from "./footer-scan";
+import { modulesNotCurrent } from "./freshness-facts";
 import type { IconName } from "./icons";
-import { DESCRIBE_KEY, type ResultsMode } from "./scan-freshness";
+import type { ResultsMode } from "./scan-freshness";
 import {
   describerRegistered,
   type PanelInput,
@@ -10,21 +23,14 @@ import {
 } from "./scan-panel-model";
 import { isActive } from "./scan-run-model";
 import { scansCommit } from "./scans-commit";
-import type { SensorStatus } from "./sensor-run";
 
-export { DESCRIBE_KEY };
-
-export const SCAN_KEY = "scan";
-
-export const ANALYSIS_KEY = "structure";
-
-export type ResultState =
-  | { kind: "current"; at: number | null }
-  | { kind: "out-of-date"; modules: string[] }
-  | { kind: "never-run" }
-  | { kind: "checking" }
-  | { kind: "failed"; at: number | null }
-  | { kind: "running"; done: number | null; total: number | null };
+export {
+  ANALYSIS_KEY,
+  DESCRIBE_KEY,
+  type ResultState,
+  SCAN_KEY,
+  structureChanged,
+};
 
 export type ResultRow = {
   key: string;
@@ -175,277 +181,8 @@ export function scopeModules(input: PanelInput): string[] {
     : input.lines.modules;
 }
 
-function failureAt(
-  key: string,
-  input: PanelInput,
-): { at: number | null } | null {
-  const status = input.sensors.find((one) => one.name === key);
-
-  if (input.run.failures[key] !== undefined) {
-    return { at: input.run.ranAt[key] ?? null };
-  }
-
-  if (status?.refusal !== undefined) {
-    return { at: status.modifiedMs ?? status.refusal.at ?? null };
-  }
-
-  if (status?.status === "failed") {
-    return { at: status.modifiedMs ?? null };
-  }
-
-  return null;
-}
-
-function runningState(
-  key: string,
-  input: PanelInput,
-): Extract<ResultState, { kind: "running" }> | null {
-  if (!input.scanning) {
-    return null;
-  }
-
-  if (key === SCAN_KEY) {
-    return input.extracting === true
-      ? { kind: "running", done: null, total: null }
-      : null;
-  }
-
-  if (!input.run.running.includes(key)) {
-    return null;
-  }
-
-  if (key === DESCRIBE_KEY && input.describeProgress != null) {
-    return {
-      kind: "running",
-      done: input.describeProgress.entries,
-      total: input.describeProgress.total,
-    };
-  }
-
-  const reported = input.sensorProgress;
-
-  if (
-    reported != null &&
-    reported.name === key &&
-    reported.progress !== undefined
-  ) {
-    return {
-      kind: "running",
-      done: reported.progress.done,
-      total: reported.progress.total,
-    };
-  }
-
-  return { kind: "running", done: null, total: null };
-}
-
-export function structureChanged(
-  input: PanelInput,
-  modules: string[],
-): string[] {
-  if (input.scan === null) {
-    return [];
-  }
-
-  const { files, moved } = input.scan.changes;
-
-  if (moved !== null) {
-    return [...modules];
-  }
-
-  const paths = new Set(files.map(({ path }) => path));
-
-  return modules.filter((id) => paths.has(id));
-}
-
 function inScopeOrder(modules: string[], ids: Set<string>): string[] {
   return modules.filter((id) => ids.has(id));
-}
-
-function currentAt(key: string, input: PanelInput): number | null {
-  const status = input.sensors.find((one) => one.name === key);
-
-  return input.run.ranAt[key] ?? status?.modifiedMs ?? null;
-}
-
-function ranInThisRun(key: string, input: PanelInput): boolean {
-  const snapshot = input.runView?.run ?? null;
-
-  if (snapshot === null || !isActive(snapshot)) {
-    return false;
-  }
-
-  return snapshot.plugins.some(
-    (plugin) => plugin.name === key && plugin.state === "finished",
-  );
-}
-
-function sensorState(
-  one: RowSensor,
-  input: PanelInput,
-  modules: string[],
-  gaps: Map<string, string[]>,
-): ResultState {
-  const running = runningState(one.name, input);
-
-  if (running !== null) {
-    return running;
-  }
-
-  const failed = failureAt(one.name, input);
-
-  if (failed !== null) {
-    return { kind: "failed", at: failed.at };
-  }
-
-  if (ranInThisRun(one.name, input)) {
-    return { kind: "current", at: currentAt(one.name, input) };
-  }
-
-  const status = input.sensors.find((entry) => entry.name === one.name);
-  const measured =
-    status === undefined || status.status === "not run"
-      ? null
-      : (status.measured ?? {});
-
-  if (input.freshness === undefined) {
-    return measured === null
-      ? { kind: "never-run" }
-      : { kind: "current", at: currentAt(one.name, input) };
-  }
-
-  const answer = input.plan?.view;
-
-  if (answer === undefined) {
-    return { kind: "checking" };
-  }
-
-  if (answer.never.includes(one.name) === true) {
-    gaps.set(one.name, [...modules]);
-
-    return { kind: "never-run" };
-  }
-
-  const gap = answer.gaps[one.name] ?? [];
-
-  gaps.set(one.name, gap);
-
-  return gap.length > 0
-    ? { kind: "out-of-date", modules: gap }
-    : { kind: "current", at: currentAt(one.name, input) };
-}
-
-function describeState(
-  input: PanelInput,
-  modules: string[],
-  gaps: Map<string, string[]>,
-): ResultState {
-  const running = runningState(DESCRIBE_KEY, input);
-
-  if (running !== null) {
-    return running;
-  }
-
-  const stale = input.plan?.view.gaps[DESCRIBE_KEY] ?? [];
-  const planned = input.plan !== null && input.plan !== undefined;
-  const described = modules.filter((id) => {
-    const kind = input.lines.of(id).kind;
-
-    return kind === "current" || kind === "out-of-date";
-  }).length;
-
-  gaps.set(DESCRIBE_KEY, stale);
-
-  if (input.run.failures[DESCRIBE_KEY] !== undefined) {
-    return { kind: "failed", at: input.run.ranAt[DESCRIBE_KEY] ?? null };
-  }
-
-  if (described === 0) {
-    return { kind: "never-run" };
-  }
-
-  if (!planned) {
-    return { kind: "checking" };
-  }
-
-  if (stale.length > 0) {
-    return { kind: "out-of-date", modules: stale };
-  }
-
-  return {
-    kind: "current",
-    at: input.run.ranAt[DESCRIBE_KEY] ?? input.describedAt,
-  };
-}
-
-function scanState(input: PanelInput, modules: string[]): ResultState {
-  const running = runningState(SCAN_KEY, input);
-
-  if (running !== null) {
-    return running;
-  }
-
-  if (input.scan === null) {
-    return { kind: "never-run" };
-  }
-
-  const changed = structureChanged(input, modules);
-
-  return changed.length > 0
-    ? { kind: "out-of-date", modules: changed }
-    : { kind: "current", at: input.scan.scannedAt };
-}
-
-function analysisState(input: PanelInput, modules: string[]): ResultState {
-  const running = runningState(ANALYSIS_KEY, input);
-
-  if (running !== null) {
-    return running;
-  }
-
-  const failed = failureAt(ANALYSIS_KEY, input);
-
-  if (failed !== null) {
-    return { kind: "failed", at: failed.at };
-  }
-
-  const status = input.sensors.find(({ name }) => name === ANALYSIS_KEY);
-
-  if (
-    status === undefined ||
-    status.status === "off" ||
-    status.status === "not run" ||
-    (input.scan === null && status.commit === undefined)
-  ) {
-    return { kind: "never-run" };
-  }
-
-  const at =
-    input.run.ranAt[ANALYSIS_KEY] ??
-    status.modifiedMs ??
-    input.scan?.scannedAt ??
-    null;
-
-  if (input.plan === null || input.plan === undefined) {
-    return { kind: "checking" };
-  }
-
-  if (status.commit === undefined || input.scans === undefined) {
-    return { kind: "current", at };
-  }
-
-  const { commit, modified } = scansCommit(input.scans);
-
-  if (status.commit === commit && status.modified === modified) {
-    return { kind: "current", at };
-  }
-
-  const changed = structureChanged(input, modules);
-
-  return {
-    kind: "out-of-date",
-    modules: changed.length > 0 ? changed : [...modules],
-  };
 }
 
 function shortModule(id: string): string {
@@ -791,18 +528,6 @@ function findingsLine(
   };
 }
 
-function staleOf(
-  modules: readonly string[],
-  measured: NonNullable<SensorStatus["measured"]>,
-  freshness: Freshness,
-): Set<string> {
-  if (!freshness.valid(measured)) {
-    return new Set(modules);
-  }
-
-  return new Set(modules.filter((id) => !freshness.current(measured, id)));
-}
-
 function staleBySensor(
   input: PanelInput,
   sensors: RowSensor[],
@@ -817,12 +542,10 @@ function staleBySensor(
     const measured = input.sensors.find(
       (entry) => entry.name === one.name,
     )?.measured;
+    const facts = input.freshness[one.name];
 
-    if (measured !== undefined) {
-      stale.set(
-        one.name,
-        staleOf(input.lines.modules, measured, input.freshness),
-      );
+    if (measured !== undefined && facts !== undefined) {
+      stale.set(one.name, modulesNotCurrent(input.lines.modules, facts));
     }
   }
 
@@ -908,24 +631,42 @@ function noResultOf(
   return found;
 }
 
-export function buildFreshnessModel(
+function finishedInThisRun(input: PanelInput): string[] {
+  const snapshot = input.runView?.run ?? null;
+
+  if (snapshot === null || !isActive(snapshot)) {
+    return [];
+  }
+
+  return snapshot.plugins
+    .filter((plugin) => plugin.state === "finished")
+    .map((plugin) => plugin.name);
+}
+
+export function wordFreshness(
   input: PanelInput,
   sensors: RowSensor[],
 ): FreshnessModel {
   const modules = scopeModules(input);
+  const facts = {
+    ...input,
+    scansCommit:
+      input.scans === undefined ? undefined : scansCommit(input.scans),
+    finishedInRun: finishedInThisRun(input),
+  };
   const gaps = new Map<string, string[]>();
   const rows: ResultRow[] = [
     {
       key: SCAN_KEY,
       name: "Structure",
-      state: scanState(input, modules),
+      state: scanState(facts, modules),
       tickable: false,
       scoped: false,
     },
     {
       key: ANALYSIS_KEY,
       name: "Structural analysis",
-      state: analysisState(input, modules),
+      state: analysisState(facts, modules),
       tickable: true,
       scoped: false,
     },
@@ -934,7 +675,7 @@ export function buildFreshnessModel(
           {
             key: DESCRIBE_KEY,
             name: "Descriptions",
-            state: describeState(input, modules, gaps),
+            state: describeState(facts, modules, gaps),
             tickable: true,
             scoped: false,
           },
@@ -945,7 +686,7 @@ export function buildFreshnessModel(
       .map((one) => ({
         key: one.name,
         name: one.display,
-        state: sensorState(one, input, modules, gaps),
+        state: sensorState(one.name, facts, modules, gaps),
         tickable: true,
         scoped: one.scoped,
       })),

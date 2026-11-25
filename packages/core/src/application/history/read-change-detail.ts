@@ -1,14 +1,41 @@
 import type { HistoryPorts } from "./history-ports.js";
-import { type PullRequestsReply, runGh } from "./list-pull-requests.js";
+import {
+  type BranchTip,
+  type CommitDetail,
+  type PullDetail,
+  parseBranchTip,
+  parseCommitDetail,
+  parsePullDetail,
+} from "./history-rows.js";
+import { type GhStatus, runGh } from "./list-pull-requests.js";
 
 const CHANGE_PULL_FIELDS =
   "number,title,body,state,isDraft,author,statusCheckRollup";
 const BRANCH_PULL_FIELDS = "number,title,isDraft,author,statusCheckRollup";
 
+export interface PullDetailReply {
+  readonly status: GhStatus;
+  readonly detail: string;
+  readonly pull: PullDetail | null;
+}
+
 export interface ChangeDetailReply {
-  readonly git: string | null;
-  readonly pull: PullRequestsReply | null;
+  readonly commit: CommitDetail | null;
+  readonly tip: BranchTip | null;
+  readonly pull: PullDetailReply | null;
   readonly defaultRef: string | null;
+}
+
+function pullDetailOf(reply: {
+  status: GhStatus;
+  detail: string;
+  text: string;
+}): PullDetailReply {
+  return {
+    status: reply.status,
+    detail: reply.detail,
+    pull: parsePullDetail(reply),
+  };
 }
 
 export async function readChangeDetail(
@@ -30,7 +57,10 @@ export async function readChangeDetail(
 
     if (kind === "commit") {
       return {
-        git: await limiter.run(() => git.commitDetail(root, reference)),
+        commit: parseCommitDetail(
+          await limiter.run(() => git.commitDetail(root, reference)),
+        ),
+        tip: null,
         pull: null,
         defaultRef: null,
       };
@@ -55,7 +85,12 @@ export async function readChangeDetail(
       "gh pr list failed",
     );
 
-    return { git: tip, pull, defaultRef: git.defaultRef(root) };
+    return {
+      commit: null,
+      tip: parseBranchTip(tip),
+      pull: pullDetailOf(pull),
+      defaultRef: git.defaultRef(root),
+    };
   }
 
   if (kind === "pr") {
@@ -74,7 +109,12 @@ export async function readChangeDetail(
       "gh pr view failed",
     );
 
-    return { git: null, pull, defaultRef: git.defaultRef(root) };
+    return {
+      commit: null,
+      tip: null,
+      pull: pullDetailOf(pull),
+      defaultRef: git.defaultRef(root),
+    };
   }
 
   throw new Error(`unknown change kind: ${kind}`);

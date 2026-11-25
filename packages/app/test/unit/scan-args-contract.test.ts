@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseScanArgs, suitesForSense } from "recognizer";
 import { describe, expect, it } from "vitest";
-import type { FreshnessModel } from "../../src/freshness-model";
+import type { FreshnessModel } from "../../src/freshness-text";
 import { OPEN_RUN } from "../../src/scan-freshness";
 import type { ScanPlan, ScanTicks } from "../../src/scan-panel-model";
 import { plannedRun } from "../fixtures";

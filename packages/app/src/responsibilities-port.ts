@@ -1,11 +1,11 @@
-import { NO_FILES, type ResponsibilityFiles } from "./responsibility-model";
+import { NO_STATES, type ResponsibilityRead } from "./responsibility-model";
 
 export type ResponsibilitiesPort = {
-  read(): Promise<ResponsibilityFiles>;
+  read(modules: string[]): Promise<ResponsibilityRead>;
   onChanged(run: () => void): () => void;
 };
 
 export const inertResponsibilities: ResponsibilitiesPort = {
-  read: async () => NO_FILES,
+  read: async () => NO_STATES,
   onChanged: () => () => {},
 };

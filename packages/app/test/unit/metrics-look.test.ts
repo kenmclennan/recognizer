@@ -55,7 +55,7 @@ const structureOf = (overlay) => {
 const loadedFor = (overlay) => loadedOf({
   modules: ids,
   scans: [{ file: "scan.json", scan: scanOf() }],
-  overlays: overlay === null ? [] : [{ name: "crap", text: overlay }, { name: "structure", text: structureOf(overlay) }],
+  overlays: overlay === null ? [] : [{ name: "crap", overlay: JSON.parse(overlay) }, { name: "structure", overlay: JSON.parse(structureOf(overlay)) }],
   sensors: overlay === null ? [] : [{ name: "crap", status: "ran", measured: { inputs: JSON.parse(overlay).inputs } }, { name: "structure", status: "ran", commit: JSON.parse(overlay).commit, modified: false }],
 });
 
@@ -213,12 +213,12 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
       clickAdded: qa(".metric-bar").length - before,
     };
   };
-  facts.currentState = await stateOf([{ name: "crap", text: crapOverlay(${JSON.stringify(SCAN_COMMIT)}), modifiedMs: Date.now() - 2 * DAY }], [status("crap")]);
-  facts.outOfDateState = await stateOf([{ name: "crap", text: crapOverlay("ffffffffffffffffffffffffffffffffffffffff", ${JSON.stringify(inputsAt(EDITED))}), modifiedMs: Date.now() - 2 * DAY }], [status("crap", { commit: "ffffffffffffffffffffffffffffffffffffffff", measured: { inputs: ${JSON.stringify(inputsAt(EDITED))} } })]);
-  facts.partialState = await stateOf([{ name: "mutation", text: mutationOverlay(), modifiedMs: Date.now() - 5 * 60000 }], [status("mutation", { stopped: { measured: 245, total: 1545 }, partial: { measured: 245, total: 1545 } })]);
-  facts.stoppedNothingState = await stateOf([{ name: "mutation", text: mutationOverlay(), modifiedMs: Date.now() - 5 * 60000 }], [status("mutation", { stopped: { measured: 0, total: 1545 }, partial: { measured: 0, total: 1545 } })]);
+  facts.currentState = await stateOf([{ name: "crap", overlay: JSON.parse(crapOverlay(${JSON.stringify(SCAN_COMMIT)})), modifiedMs: Date.now() - 2 * DAY }], [status("crap")]);
+  facts.outOfDateState = await stateOf([{ name: "crap", overlay: JSON.parse(crapOverlay("ffffffffffffffffffffffffffffffffffffffff", ${JSON.stringify(inputsAt(EDITED))})), modifiedMs: Date.now() - 2 * DAY }], [status("crap", { commit: "ffffffffffffffffffffffffffffffffffffffff", measured: { inputs: ${JSON.stringify(inputsAt(EDITED))} } })]);
+  facts.partialState = await stateOf([{ name: "mutation", overlay: JSON.parse(mutationOverlay()), modifiedMs: Date.now() - 5 * 60000 }], [status("mutation", { stopped: { measured: 245, total: 1545 }, partial: { measured: 245, total: 1545 } })]);
+  facts.stoppedNothingState = await stateOf([{ name: "mutation", overlay: JSON.parse(mutationOverlay()), modifiedMs: Date.now() - 5 * 60000 }], [status("mutation", { stopped: { measured: 0, total: 1545 }, partial: { measured: 0, total: 1545 } })]);
   facts.neverRunState = await stateOf([], []);
-  facts.runningState = await stateOf([{ name: "crap", text: crapOverlay(${JSON.stringify(SCAN_COMMIT)}), modifiedMs: Date.now() - 2 * DAY }], [status("crap")], INSTALLED, { running: () => true, runState: () => ({ running: ["crap"], started: Date.now(), failures: {}, diagnoses: {}, ranAt: {} }) });
+  facts.runningState = await stateOf([{ name: "crap", overlay: JSON.parse(crapOverlay(${JSON.stringify(SCAN_COMMIT)})), modifiedMs: Date.now() - 2 * DAY }], [status("crap")], INSTALLED, { running: () => true, runState: () => ({ running: ["crap"], started: Date.now(), failures: {}, diagnoses: {}, ranAt: {} }) });
 
   explorer.dispose();
   host.replaceChildren();
@@ -239,7 +239,7 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
     metrics: [{ name: "a-very-long-metric", type: "count", granularity: "member", bad: "high" }],
     values: { "a-very-long-metric": { "app/risk.py::classify": 3 } },
   });
-  explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays: [{ name: "crap", text: longOverlay }], sensors: [status("crap")] }), title: "demo", views: port, post: () => null, carried: null, scanHost: crapHost() });
+  explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays: [{ name: "crap", overlay: JSON.parse(longOverlay) }], sensors: [status("crap")] }), title: "demo", views: port, post: () => null, carried: null, scanHost: crapHost() });
   await tick();
   for (const folder of ["app", "src", "lib"]) {
     click(q('.tree .row[data-path="' + folder + '"] .reye'));

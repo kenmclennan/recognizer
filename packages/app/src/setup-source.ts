@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { ApplyEvent, SetupChoices, TryEvent } from "recognizer";
+import { coreReply } from "./scan-source";
 import type {
   ApplyResultEvent,
   RecommendRead,
@@ -14,58 +15,71 @@ type SetupRun =
   | { status: "failed"; reason: string }
   | { status: "refused"; reason: string };
 
-async function stream<E extends { event: string }, R extends E>(
-  command: string,
-  choices: SetupChoices,
-  onEvent: (event: E) => void,
-): Promise<R> {
-  const unlisten = await listen<string>("setup-run-event", (message) => {
-    try {
-      onEvent(JSON.parse(message.payload) as E);
-    } catch {
-      return;
+type SetupItem = {
+  setup?: string;
+  line?: string;
+  event?: unknown;
+};
+
+async function start<T>(
+  action: string,
+  args: Record<string, unknown>,
+  onItem: (item: SetupItem) => void,
+): Promise<T> {
+  const unlisten = await listen<SetupItem>("core-event", (message) => {
+    if (message.payload.setup === action) {
+      onItem(message.payload);
     }
   });
 
   try {
-    const run = await invoke<SetupRun>(command, { choices });
-
-    if (run.status === "finished") {
-      return run.result as R;
-    }
-
-    throw new Error(run.reason);
+    return coreReply<T>(
+      await invoke("core_call", {
+        op: "setup.start",
+        args: { action, ...args },
+      }),
+    );
   } finally {
     unlisten();
   }
 }
 
+async function stream<E extends { event: string }, R extends E>(
+  action: "apply" | "try",
+  choices: SetupChoices,
+  onEvent: (event: E) => void,
+): Promise<R> {
+  const run = await start<SetupRun>(action, { choices }, (item) => {
+    if (item.event !== undefined) {
+      onEvent(item.event as E);
+    }
+  });
+
+  if (run.status === "finished") {
+    return run.result as R;
+  }
+
+  throw new Error(run.reason);
+}
+
+function lines(onLine: (line: string) => void) {
+  return (item: SetupItem) => {
+    if (item.line !== undefined) {
+      onLine(item.line);
+    }
+  };
+}
+
 export const setupSource: SetupPort = {
-  async survey(extract, onLine) {
-    const unlisten = await listen<string>("setup-survey-event", (message) =>
-      onLine(message.payload),
-    );
-
-    try {
-      return await invoke<SetupSurveyRead>("setup_survey", { extract });
-    } finally {
-      unlisten();
-    }
-  },
-  async recommend(prompt, schema, onLine) {
-    const unlisten = await listen<string>("setup-run-line", (message) =>
-      onLine(message.payload),
-    );
-
-    try {
-      return await invoke<RecommendRead>("setup_recommend", { prompt, schema });
-    } finally {
-      unlisten();
-    }
-  },
+  survey: (extract, onLine) =>
+    start<SetupSurveyRead>("survey", { extract }, lines(onLine)),
+  recommend: (prompt, schema, onLine) =>
+    start<RecommendRead>("recommend", { prompt, schema }, lines(onLine)),
   apply: (choices, onEvent) =>
-    stream<ApplyEvent, ApplyResultEvent>("setup_apply", choices, onEvent),
+    stream<ApplyEvent, ApplyResultEvent>("apply", choices, onEvent),
   tryRunners: (choices, onEvent) =>
-    stream<TryEvent, TryResultEvent>("setup_try", choices, onEvent),
-  stop: () => invoke<void>("stop_setup"),
+    stream<TryEvent, TryResultEvent>("try", choices, onEvent),
+  async stop() {
+    await invoke("core_call", { op: "setup.stop", args: {} });
+  },
 };

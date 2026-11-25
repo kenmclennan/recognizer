@@ -3,7 +3,7 @@ import {
   parseBranchTip,
   parseCommitDetail,
   parsePullDetail,
-} from "../../src/change-detail-parse";
+} from "../../src/index.js";
 
 const US = "\u001f";
 const reply = (value: unknown, status = "ok") => ({

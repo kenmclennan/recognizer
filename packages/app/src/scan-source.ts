@@ -1,6 +1,8 @@
+import type { ScanTicks } from "@recognizer/core";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { PlanRequest, ScanPlanView, ScanRunRecord } from "recognizer";
+import type { EstimateAnswer, EstimateRequest } from "./estimate-text";
 import type {
   DescribingSettings,
   ScanPort,
@@ -242,7 +244,7 @@ export function createScanSource(deps: ScanSourceDeps): ScanPort {
     answerDescribe: async (describe) => {
       await call("confirm.answer", { describe });
     },
-    readCache: () => deps.invoke<ScanReport>("read_scan_cache"),
+    readCache: () => call<ScanReport>("structure.read"),
     readTicks: () => deps.invoke<StoredTicks>("read_scan_ticks"),
     writeTicks: (ticks) =>
       deps.invoke<void>("write_scan_ticks", {
@@ -260,6 +262,10 @@ export function createScanSource(deps: ScanSourceDeps): ScanPort {
     },
     plan: (request: PlanRequest) =>
       call<ScanPlanView>("scan.plan", { ...request }),
+    estimate: (request: EstimateRequest) =>
+      call<EstimateAnswer>("scan.estimate", { ...request }),
+    changeTicks: (ticks, changes) =>
+      call<ScanTicks>("scan.ticks", { ticks, changes }),
     onRun(handler) {
       const forward = (item: CoreStreamItem) => {
         if (item.run !== undefined) {

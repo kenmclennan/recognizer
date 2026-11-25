@@ -1,10 +1,9 @@
 import { join } from "node:path";
+import { describingProblem } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import { InputError } from "./errors.js";
 
 const CONFIG_DIR_ENV = "RECOGNIZER_APP_CONFIG_DIR";
-const MAX_BATCH_SIZE = 16;
-const MAX_CONFIRM_ABOVE_USD = 10000;
 
 export interface Describing {
   model: string;
@@ -52,8 +51,10 @@ function parseObject(text: string, file: string): Record<string, unknown> {
 }
 
 export function validateDescribing(value: unknown): Describing {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new InputError(["describing in config.json must be an object"]);
+  const problem = describingProblem(value);
+
+  if (problem !== null) {
+    throw new InputError([problem.replace(/^(\S+)/, "$1 in config.json")]);
   }
 
   const {
@@ -62,40 +63,11 @@ export function validateDescribing(value: unknown): Describing {
     confirm_above_usd: confirmAbove = DESCRIBING_DEFAULTS.confirm_above_usd,
   } = value as Record<string, unknown>;
 
-  if (
-    typeof model !== "string" ||
-    model === "" ||
-    model.startsWith("-") ||
-    /\s/.test(model)
-  ) {
-    throw new InputError([
-      "describing.model in config.json must be a non-empty name with no whitespace and no leading -",
-    ]);
-  }
-
-  if (
-    typeof batchSize !== "number" ||
-    !Number.isInteger(batchSize) ||
-    batchSize < 1 ||
-    batchSize > MAX_BATCH_SIZE
-  ) {
-    throw new InputError([
-      `describing.batch_size in config.json must be a whole number from 1 to ${MAX_BATCH_SIZE}`,
-    ]);
-  }
-
-  if (
-    typeof confirmAbove !== "number" ||
-    !Number.isFinite(confirmAbove) ||
-    confirmAbove < 0 ||
-    confirmAbove > MAX_CONFIRM_ABOVE_USD
-  ) {
-    throw new InputError([
-      `describing.confirm_above_usd in config.json must be a number from 0 to ${MAX_CONFIRM_ABOVE_USD}`,
-    ]);
-  }
-
-  return { model, batch_size: batchSize, confirm_above_usd: confirmAbove };
+  return {
+    model: model as string,
+    batch_size: batchSize as number,
+    confirm_above_usd: confirmAbove as number,
+  };
 }
 
 export function readDescribing(io: Io): Describing {

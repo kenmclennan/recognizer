@@ -1,11 +1,7 @@
 import { type Diagnosis, Repository } from "@recognizer/core";
-import type { Freshness, PlanRequest, ScanPlanView } from "recognizer";
+import type { PlanRequest, ScanPlanView } from "recognizer";
 import {
-  afterSuiteTick,
   type Config,
-  InputError,
-  parseConfig,
-  registeredSensorNamesIn,
   registeredSensors,
   type ScanIntent,
   type ScanTicks,
@@ -17,11 +13,18 @@ import {
   unregisteredMessage,
   visibleSuiteTicks,
 } from "recognizer";
+import {
+  type EstimateAnswer,
+  type EstimateRequest,
+  estimateLine,
+  type PlannedWork,
+  type ScanEstimate,
+} from "./estimate-text";
 import { scopeCaption } from "./findings-scope";
 import { ageText, type ScanState } from "./footer-scan";
+import { type FreshnessFacts, isStale } from "./freshness-facts";
 import {
   ANALYSIS_KEY,
-  buildFreshnessModel,
   type FreshnessModel,
   type ResultState,
   SCAN_KEY,
@@ -29,21 +32,12 @@ import {
   scopeModules,
   stateText,
   structureChanged,
-} from "./freshness-model";
+  wordFreshness,
+} from "./freshness-text";
 import type { LoadedPlanData } from "./plan-reads";
 import type { ResponsibilityState } from "./responsibility-model";
 import {
-  describeRateMs,
-  estimateLine,
-  estimateParts,
-  NO_HISTORY,
-  type PlannedWork,
-  type ScanEstimate,
-  type ScanHistory,
-} from "./scan-estimate";
-import {
   DESCRIBE_KEY,
-  markStale,
   type PlannedRun,
   plannedRun,
   type ResultsMode,
@@ -86,7 +80,7 @@ export const NO_RUN: RunState = {
 };
 
 export type { ScanTicks, SuiteRef };
-export { afterSuiteTick, DESCRIBE_KEY, sensorTickState, visibleSuiteTicks };
+export { DESCRIBE_KEY, sensorTickState, visibleSuiteTicks };
 
 export type ScanPlan = ScanIntent;
 
@@ -105,7 +99,8 @@ export type RowSensor = {
 
 export type PanelInput = {
   scan: ScanState | null;
-  config: string | null;
+  config: Config | null;
+  configProblem?: string | null;
   sensors: SensorStatus[];
   lines: { modules: string[]; of: (id: string) => ResponsibilityState };
   describedAt: number | null;
@@ -127,9 +122,9 @@ export type PanelInput = {
   runModules?: number;
   now: number;
   installed: InstalledSensors | null;
-  freshness?: Freshness;
+  freshness?: FreshnessFacts;
   runView?: RunInput | null;
-  history?: ScanHistory;
+  estimate?: EstimateAnswer | null;
   work?: Record<string, PlannedWork>;
   plan?: PlanAnswer | null;
   tests?: string | null;
@@ -266,6 +261,7 @@ export type ScanPanelModel = {
   mark: boolean;
   confirm: DescribeAskText | null;
   estimate: ScanEstimate | null;
+  estimateRequest: EstimateRequest | null;
 };
 
 const NOTHING_TICKED = "Nothing ticked to run";
@@ -275,45 +271,10 @@ const INERT_LABELS = [NOTHING_TICKED, "Nothing to run", "Checking"];
 const DESCRIBE_TITLE =
   "Writes one line per file saying what it is responsible for.";
 
-function readConfig(config: string | null): Config | null {
-  if (config === null) {
-    return null;
-  }
-
-  try {
-    return parseConfig(config);
-  } catch {
-    return null;
-  }
-}
-
-function settingsError(config: string | null): string | null {
-  if (config === null) {
-    return null;
-  }
-
-  try {
-    parseConfig(config);
-
-    return null;
-  } catch (error) {
-    return error instanceof InputError
-      ? error.messages.join("; ")
-      : (error as Error).message;
-  }
-}
-
-function registeredDespiteError(config: string | null): Config | null {
-  if (config === null) {
-    return null;
-  }
-
+export function registeredDespiteError(names: readonly string[]): Config {
   return {
     sensors: Object.fromEntries(
-      registeredSensorNamesIn(config).map((name) => [
-        name,
-        { command: [name] },
-      ]),
+      names.map((name) => [name, { command: [name] }]),
     ),
   };
 }
@@ -328,20 +289,19 @@ function titleFor(one: {
   return one.expansion === undefined ? text : `${one.expansion} ${text}`;
 }
 
-function suitesOf(config: string | null): SuiteRef[] {
-  return (readConfig(config)?.tests ?? []).map(({ name, language }) => ({
+function suitesOf(config: Config | null): SuiteRef[] {
+  return (config?.tests ?? []).map(({ name, language }) => ({
     name,
     language,
   }));
 }
 
 export function rowSensors(
-  config: string | null,
+  parsed: Config | null,
   installed: InstalledSensors | null,
 ): RowSensor[] {
   const rows: RowSensor[] = [];
-  const suites = suitesOf(config);
-  const parsed = readConfig(config) ?? registeredDespiteError(config);
+  const suites = suitesOf(parsed);
   const registeredNames = new Set(
     parsed === null ? [] : registeredSensors(parsed).map(({ name }) => name),
   );
@@ -388,8 +348,8 @@ export function rowSensors(
   return rows;
 }
 
-export function describerRegistered(config: string | null): boolean {
-  return readConfig(config)?.describer !== undefined;
+export function describerRegistered(config: Config | null): boolean {
+  return config?.describer !== undefined;
 }
 
 export function effectiveTicks(
@@ -575,9 +535,18 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
   const statuses =
     input.freshness === undefined
       ? input.sensors
-      : markStale(input.sensors, input.freshness);
+      : input.sensors.map((one) => {
+          const facts = input.freshness?.[one.name];
+
+          return one.status === "ran" &&
+            one.measured !== undefined &&
+            facts !== undefined &&
+            isStale(facts)
+            ? { ...one, status: "stale" as const }
+            : one;
+        });
   const judged: PanelInput = { ...input, sensors: statuses };
-  const freshness = buildFreshnessModel(judged, sensors);
+  const freshness = wordFreshness(judged, sensors);
 
   if (input.installed === null) {
     return {
@@ -599,6 +568,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
       mark: panelMark(input),
       confirm: null,
       estimate: null,
+      estimateRequest: null,
     };
   }
 
@@ -608,11 +578,14 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
     input.plan?.view ?? { ...NO_PLAN, intent: pendingIntent(input) },
     sensors,
   );
-  const history = input.history ?? NO_HISTORY;
-  const parts = estimateParts(
-    history,
-    unplanned,
-    freshness.rows.map((row) => ({
+  const estimateRequest: EstimateRequest = {
+    intent: {
+      describe: unplanned.plan.describe,
+      analysis: unplanned.plan.analysis,
+      sense: unplanned.plan.sense,
+    },
+    planWork: unplanned.work,
+    parts: freshness.rows.map((row) => ({
       key: row.key,
       name: row.name,
       runsTests:
@@ -620,8 +593,9 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
       scoped: sensors.find((one) => one.name === row.key)?.scoped === true,
       workVerb: sensors.find((one) => one.name === row.key)?.workVerb ?? null,
     })),
-    input.work ?? {},
-  );
+    work: input.work ?? {},
+  };
+  const answered = input.estimate ?? null;
   const planned: PlannedRun = unplanned;
   const plain = sensors
     .filter(({ runsTests }) => !runsTests)
@@ -664,7 +638,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
     input.now,
   );
   const locked = input.scanning || run?.active === true;
-  const sensorSettingsError = settingsError(input.config);
+  const sensorSettingsError = input.configProblem ?? null;
 
   const progress =
     input.runView?.progress.sensorProgress ?? input.sensorProgress;
@@ -829,13 +803,14 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
     confirm:
       input.describeAsk == null
         ? null
-        : describeAskText(input.describeAsk, describeRateMs(history)),
+        : describeAskText(input.describeAsk, answered?.describeRateMs ?? null),
     estimate:
       locked ||
       planned.idle ||
       INERT_LABELS.includes(freshness.action.primary.label)
         ? null
-        : estimateLine(parts),
+        : estimateLine(answered?.parts ?? []),
+    estimateRequest,
   };
 }
 

@@ -64,10 +64,10 @@ const state = {
 };
 
 const fakeState = fakeRepositoryState(state);
-fakeState.setTexts("crap", { overlay: ${JSON.stringify(overlay)} });
+fakeState.setResults("crap", { overlay: JSON.parse(${JSON.stringify(overlay)}) });
 const holder = createRepositoryStateHolder(fakeState);
 const base = fakeSensors({}, { config: CONFIG }, {}, []);
-const sensors = { ...base, sensorList: async () => installedSensorsOf(await holder.latest()), readResults: async () => storedResultsOf(await holder.latest(), await fakeState.readResults()) };
+const sensors = { ...base, sensorList: async () => installedSensorsOf(await holder.latest()), readResults: async () => storedResultsOf(await fakeState.readResults()) };
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 const host = document.getElementById("content");

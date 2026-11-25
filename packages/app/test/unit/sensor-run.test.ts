@@ -6,7 +6,7 @@ import { violationId } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { loadScans } from "../../src/scan-loading";
 import { senseRepository, withSensors } from "../../src/sensor-run";
-import { fakeSensors } from "../../src/sensors-fake";
+import { fakeSensors, typedInputs } from "../../src/sensors-fake";
 import {
   CURRENT,
   fixturePolicy,
@@ -44,12 +44,22 @@ function statusOf(run: { statuses: { name: string }[] }, name: string) {
   return run.statuses.find((status) => status.name === name);
 }
 
+const EMPTY_OVERLAY = JSON.stringify({
+  overlay_version: 1,
+  inputs: {},
+  commit: "0123456789abcdef0123456789abcdef01234567",
+  modified: false,
+  producer: { name: "crap", version: "0.1.0" },
+  metrics: [],
+  values: {},
+});
+
 describe("senseRepository", () => {
   it("reports not run when it is unticked and there is no stored file", async () => {
     const port = fakeSensors();
     const run = await senseRepository(
       scans,
-      { policy, config: null, analysis: false },
+      typedInputs({ policy, config: null }),
       port,
     );
 
@@ -69,7 +79,7 @@ describe("senseRepository", () => {
     };
     const run = await senseRepository(
       scans,
-      { policy, config: null },
+      typedInputs({ policy, config: null }),
       stored(),
     );
     const findings = run.documents[0]?.findings ?? [];
@@ -91,7 +101,7 @@ describe("senseRepository", () => {
     const port = fakeSensors({ structure: "{}" });
     const run = await senseRepository(
       scans,
-      { policy, config: "sensors:\n  structure: off\n" },
+      typedInputs({ policy, config: "sensors:\n  structure: off\n" }),
       port,
     );
 
@@ -111,7 +121,7 @@ describe("senseRepository", () => {
       }),
     });
     const without = stored();
-    const input = { policy, config: null };
+    const input = typedInputs({ policy, config: null });
 
     expect(
       statusOf(await senseRepository(scans, input, withUnknown), "structure"),
@@ -126,7 +136,11 @@ describe("senseRepository", () => {
 
     port.refused = ["evil"];
 
-    const run = await senseRepository(scans, { policy, config: null }, port);
+    const run = await senseRepository(
+      scans,
+      typedInputs({ policy, config: null }),
+      port,
+    );
 
     expect(statusOf(run, "lint")).toMatchObject({ status: "failed" });
     expect(statusOf(run, "evil")).toMatchObject({ status: "failed" });
@@ -137,7 +151,11 @@ describe("senseRepository", () => {
   it("keeps a file from another commit and reports it ran, leaving staleness to the freshness answer", async () => {
     const stale = secondSensorDocument("shop/main.py", "x", "y", "old");
     const port = fakeSensors({ lint: documentText(stale) });
-    const run = await senseRepository(scans, { policy, config: null }, port);
+    const run = await senseRepository(
+      scans,
+      typedInputs({ policy, config: null }),
+      port,
+    );
 
     expect(statusOf(run, "lint")).toMatchObject({
       name: "lint",
@@ -155,11 +173,11 @@ describe("senseRepository", () => {
   it("lists a registered sensor with no file as not run, never failed", async () => {
     const run = await senseRepository(
       scans,
-      {
+      typedInputs({
         policy,
         config:
           "sensors:\n  coverage:\n    command: [coverage-sensor, '{repository}']\n",
-      },
+      }),
       stored(),
     );
 
@@ -177,18 +195,18 @@ describe("senseRepository", () => {
     });
     const run = await senseRepository(
       scans,
-      {
+      typedInputs({
         policy,
         config:
           "sensors:\n  coverage:\n    command: [coverage-sensor, '{repository}']\n",
-      },
+      }),
       port,
     );
 
     expect(run.statuses.map((status) => [status.name, status.status])).toEqual([
       ["structure", "ran"],
-      ["lint", "ran"],
       ["broken", "failed"],
+      ["lint", "ran"],
       ["coverage", "not run"],
     ]);
   });
@@ -200,7 +218,11 @@ describe("senseRepository", () => {
       partial: { measured: 1, total: 3 },
     };
     const port = fakeSensors({ lint: documentText(document) });
-    const run = await senseRepository(scans, { policy, config: null }, port);
+    const run = await senseRepository(
+      scans,
+      typedInputs({ policy, config: null }),
+      port,
+    );
 
     expect(statusOf(run, "lint")).toMatchObject({
       stopped: { measured: 1, total: 3 },
@@ -214,7 +236,11 @@ describe("senseRepository", () => {
       excluded: { functions: 2, files: ["shop/main.py"] },
     };
     const port = fakeSensors({ lint: documentText(document) });
-    const run = await senseRepository(scans, { policy, config: null }, port);
+    const run = await senseRepository(
+      scans,
+      typedInputs({ policy, config: null }),
+      port,
+    );
 
     expect(statusOf(run, "lint")).toMatchObject({
       excluded: { functions: 2, files: ["shop/main.py"] },
@@ -227,7 +253,11 @@ describe("senseRepository", () => {
       unowned: { functions: 2, files: ["shop/main.py"] },
     };
     const port = fakeSensors({ lint: documentText(document) });
-    const run = await senseRepository(scans, { policy, config: null }, port);
+    const run = await senseRepository(
+      scans,
+      typedInputs({ policy, config: null }),
+      port,
+    );
 
     expect(statusOf(run, "lint")).toMatchObject({
       unowned: { functions: 2, files: ["shop/main.py"] },
@@ -237,7 +267,11 @@ describe("senseRepository", () => {
   it("reads a current file from a second sensor", async () => {
     const document = secondSensorDocument("shop/main.py");
     const port = stored({ lint: documentText(document) });
-    const run = await senseRepository(scans, { policy, config: null }, port);
+    const run = await senseRepository(
+      scans,
+      typedInputs({ policy, config: null }),
+      port,
+    );
 
     expect(statusOf(run, "lint")).toMatchObject({
       name: "lint",
@@ -256,7 +290,7 @@ describe("senseRepository", () => {
   it("names an invalid config and runs the structure sensor on defaults", async () => {
     const run = await senseRepository(
       scans,
-      { policy, config: "sensors: [" },
+      typedInputs({ policy, config: "sensors: [" }),
       stored(),
     );
 
@@ -267,10 +301,10 @@ describe("senseRepository", () => {
   it("falls back without a policy when the policy uses a retired key", async () => {
     const run = await senseRepository(
       scans,
-      {
+      typedInputs({
         policy: "components:\n  one: shop/**\n",
         config: null,
-      },
+      }),
       stored(),
     );
 
@@ -292,7 +326,11 @@ describe("senseRepository and reports", () => {
       review: reported("review", CURRENT),
       older: reported("older", "old1234567"),
     });
-    const run = await senseRepository(scans, { policy, config: null }, port);
+    const run = await senseRepository(
+      scans,
+      typedInputs({ policy, config: null }),
+      port,
+    );
 
     expect(statusOf(run, "review")).toMatchObject({
       name: "review",
@@ -319,7 +357,10 @@ describe("senseRepository and reports", () => {
     });
     const run = await senseRepository(
       scans,
-      { policy, config: "sensors:\n  lint:\n    command: [lint]\n" },
+      typedInputs({
+        policy,
+        config: "sensors:\n  lint:\n    command: [lint]\n",
+      }),
       port,
     );
 
@@ -390,19 +431,22 @@ describe("withSensors tests hash", () => {
 
 describe("withSensors", () => {
   it("carries the documents, statuses, policy and baseline on Loaded", async () => {
-    const port = stored({}, { policy, baseline: "{}" });
+    const port = stored(
+      {},
+      {
+        policy,
+        baseline: JSON.stringify({ schema_version: 1, violations: [] }),
+      },
+    );
     const loaded = {
       ...loadScans({
-        status: "scanned",
-        exitCode: 0,
-        stderr: "",
         scans: [
           {
             file: "scan.python.json",
-            text: JSON.stringify({ ...scans[0]?.document, commit: CURRENT }),
+            document: { ...scans[0]?.document, commit: CURRENT },
           },
         ],
-        policy: null,
+        notices: [],
       }),
     };
     const next = await withSensors(loaded, port);
@@ -421,13 +465,17 @@ describe("withSensors", () => {
         notMeasured: ["duplication", "complexity"],
       },
     ]);
-    expect(next.policy).toBe(policy);
-    expect(next.baseline).toBe("{}");
+    expect(next.policy).toEqual(typedInputs({ policy }).policy);
+    expect(next.baseline).toEqual([]);
     expect(next.modules).toEqual(loaded.modules);
   });
 
   it("carries the overlay files and the names the read refused", async () => {
-    const port = fakeSensors({}, {}, { crap: "{}", other: "{}" });
+    const port = fakeSensors(
+      {},
+      {},
+      { crap: EMPTY_OVERLAY, other: EMPTY_OVERLAY },
+    );
 
     port.overlaysRefused.push("evil");
     port.modifiedOverlays.set("crap", 1234);
@@ -448,8 +496,8 @@ describe("withSensors", () => {
     );
 
     expect(next.overlays).toEqual([
-      { name: "crap", text: "{}", modifiedMs: 1234 },
-      { name: "other", text: "{}", modifiedMs: null },
+      { name: "crap", overlay: JSON.parse(EMPTY_OVERLAY), modifiedMs: 1234 },
+      { name: "other", overlay: JSON.parse(EMPTY_OVERLAY), modifiedMs: null },
     ]);
     expect(next.overlaysUnreadable).toEqual(["evil"]);
   });

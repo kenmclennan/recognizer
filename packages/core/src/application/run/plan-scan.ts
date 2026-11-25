@@ -1,3 +1,4 @@
+import { DESCRIBE_KEY } from "../../domain/run/result-state.js";
 import type { PlanRequest, ScanPlanView } from "../../domain/run/scan-plan.js";
 import type {
   ScanIntent,
@@ -5,8 +6,6 @@ import type {
   SensorRow,
 } from "../../domain/scan-plan.js";
 import { suitePlan } from "../sensing/suite-ticks.js";
-
-export const DESCRIBE_KEY = "describe";
 
 export type PlanRow = Pick<SensorRow, "name" | "runsTests" | "suites"> & {
   display?: string;

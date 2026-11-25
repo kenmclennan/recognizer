@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import type { Classification } from "./commits-panel-model";
+import type { MarkedFile, MemberMarkKind } from "./head-drawn";
 import { readRepositoryFiles } from "./scan-loading";
 import { coreReply } from "./scan-source";
 import type { ChangeRange, ViewListing, ViewsPort } from "./views-port";
@@ -9,7 +11,7 @@ type Invoke = <T>(
   args?: Record<string, unknown>,
 ) => Promise<T>;
 
-type ScanTexts = { file: string; text: string }[];
+type ScanTexts = { file: string; document: unknown }[];
 
 type Failed = { ok: false; reason: string };
 
@@ -26,13 +28,14 @@ type MembersReply =
         baseText: string | null;
         headText: string | null;
       }[];
+      marks: [string, [string, MemberMarkKind][] | null][];
     }
   | Failed;
 
+type MarksReply = { ok: true; files: MarkedFile[]; unmatched: number } | Failed;
+
 function repositoryOf(scans: ScanTexts) {
-  return readRepositoryFiles(
-    scans.map(({ file, text }) => ({ file, document: JSON.parse(text) })),
-  );
+  return readRepositoryFiles(scans);
 }
 
 export function createViewsSource(call: Invoke = invoke as Invoke): ViewsPort {
@@ -68,6 +71,12 @@ export function createViewsSource(call: Invoke = invoke as Invoke): ViewsPort {
             value: {
               baseScans: repositoryOf(reply.baseScans),
               headScans: repositoryOf(reply.headScans),
+              marks: new Map(
+                reply.marks.map(([id, byName]) => [
+                  id,
+                  byName === null ? null : new Map(byName),
+                ]),
+              ),
               files: reply.files.map((file) => ({
                 path: file.path,
                 base_path: file.basePath,
@@ -78,6 +87,18 @@ export function createViewsSource(call: Invoke = invoke as Invoke): ViewsPort {
           }
         : { ok: false, reason: reply.reason };
     },
+    async marksOf(base, head) {
+      const reply = await ask<MarksReply>("view.marks", { base, head });
+
+      return reply.ok
+        ? {
+            ok: true,
+            value: { files: reply.files, unmatched: reply.unmatched },
+          }
+        : { ok: false, reason: reply.reason };
+    },
+    classificationOf: (marked, changes) =>
+      ask<Classification>("view.classify", { marked, changes }),
     copy: (text) => navigator.clipboard.writeText(text),
     author: () => ask<string>("view.author"),
     onChanged(run) {

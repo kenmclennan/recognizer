@@ -60,7 +60,7 @@ const structureOf = (overlay) => {
   const crap = JSON.parse(overlay);
   return JSON.stringify({ ...crap, producer: { name: "recognizer", version: "0.1.0" }, metrics: crap.metrics.filter((metric) => metric.name === "complexity"), values: { complexity: crap.values.complexity ?? {} } });
 };
-const loadedFor = (overlay) => loadedOf({ modules: ["app/risk.py"], scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", text: overlay }, { name: "structure", text: structureOf(overlay) }], sensors: [{ name: "crap", status: "ran", measured: { inputs: JSON.parse(overlay).inputs } }, { name: "structure", status: "ran", commit: JSON.parse(overlay).commit, modified: false }] });
+const loadedFor = (overlay) => loadedOf({ modules: ["app/risk.py"], scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", overlay: JSON.parse(overlay) }, { name: "structure", overlay: JSON.parse(structureOf(overlay)) }], sensors: [{ name: "crap", status: "ran", measured: { inputs: JSON.parse(overlay).inputs } }, { name: "structure", status: "ran", commit: JSON.parse(overlay).commit, modified: false }] });
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));

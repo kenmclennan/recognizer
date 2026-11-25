@@ -101,7 +101,7 @@ describe("serve history", () => {
         const listed = await serve.call("history.list", { repository: root });
 
         expect(listed.ok.branch).toBe("main");
-        expect(listed.ok.text).toContain("first");
+        expect(listed.ok.rows[0].subject).toBe("first");
 
         const branches = await serve.call("history.branches", {
           repository: root,
@@ -122,7 +122,7 @@ describe("serve history", () => {
           reference: "HEAD",
         });
 
-        expect(detail.ok.git).toContain("first");
+        expect(detail.ok.commit.subject).toBe("first");
 
         const refused = await serve.call("history.detail", {
           repository: root,
@@ -254,7 +254,12 @@ describe("serve history", () => {
         const pulls = await serve.call("history.pulls", { repository: root });
         const listed = await serve.call("history.list", { repository: root });
 
-        expect(pulls.ok).toEqual({ status: "ok", detail: "", text: "[]\n" });
+        expect(pulls.ok).toEqual({
+          status: "ok",
+          detail: "",
+          rows: [],
+          skipped: 0,
+        });
         expect(listed.ok.branch).toBe("main");
         expect(
           serve.lines.filter((line) => slow.includes(line.id as number)),
@@ -300,7 +305,12 @@ describe("serve history", () => {
         const pulls = await serve.call("history.pulls", { repository: root });
         const listed = await serve.call("history.list", { repository: root });
 
-        expect(pulls.ok).toEqual({ status: "ok", detail: "", text: "[]\n" });
+        expect(pulls.ok).toEqual({
+          status: "ok",
+          detail: "",
+          rows: [],
+          skipped: 0,
+        });
         expect(listed.ok.branch).toBe("main");
         expect(serve.lines.filter((line) => "outcome" in line)).toEqual([]);
       } finally {
@@ -355,7 +365,12 @@ describe("serve history", () => {
         const pulls = await serve.call("history.pulls", { repository: root });
         const listed = await serve.call("history.list", { repository: root });
 
-        expect(pulls.ok).toEqual({ status: "ok", detail: "", text: "[]\n" });
+        expect(pulls.ok).toEqual({
+          status: "ok",
+          detail: "",
+          rows: [],
+          skipped: 0,
+        });
         expect(listed.ok.branch).toBe("main");
         expect(serve.lines.filter((line) => "outcome" in line)).toEqual([]);
       } finally {

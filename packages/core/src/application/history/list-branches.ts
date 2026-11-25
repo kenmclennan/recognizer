@@ -1,11 +1,13 @@
 import type { HistoryPorts } from "./history-ports.js";
+import { type BranchRow, parseBranches } from "./history-rows.js";
 
 export const BRANCH_LIMIT = 100;
 
 export interface BranchesReply {
   readonly defaultRef: string | null;
   readonly total: number;
-  readonly text: string;
+  readonly rows: BranchRow[];
+  readonly skipped: number;
 }
 
 function lines(text: string): number {
@@ -29,6 +31,6 @@ export async function listBranches(
   return {
     defaultRef: ports.git.defaultRef(root),
     total: Math.max(counted ?? 0, lines(result.text)),
-    text: result.text,
+    ...parseBranches(result.text),
   };
 }

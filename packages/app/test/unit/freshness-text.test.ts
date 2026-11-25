@@ -4,16 +4,16 @@ import type {
   PluginRunState,
   RunView,
 } from "@recognizer/core";
-import { buildFreshness, unregisteredMessage } from "recognizer";
+import { unregisteredMessage } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { FileChange, ScanState } from "../../src/footer-scan";
 import {
-  buildFreshnessModel,
   type FreshnessModel,
   findingsActionOf,
   type ResultState,
   stateText,
-} from "../../src/freshness-model";
+  wordFreshness,
+} from "../../src/freshness-text";
 import { DESCRIBE_KEY } from "../../src/scan-freshness";
 import {
   NO_RUN,
@@ -22,7 +22,8 @@ import {
   type RunState,
 } from "../../src/scan-panel-model";
 import type { SensorStatus } from "../../src/sensor-run";
-import { withPlan } from "../fixtures";
+import { configOf, withPlan } from "../fixtures";
+import { factsFor } from "../freshness-support";
 import { type DocScan, repositoryFrom } from "./repository-from";
 
 const MINUTE = 60000;
@@ -108,7 +109,7 @@ function modelOf(
 ): FreshnessModel {
   const planned = plannedInput(ids, over, sensors);
 
-  return buildFreshnessModel(
+  return wordFreshness(
     "plan" in over ? { ...planned, plan: over.plan } : planned,
     sensors,
   );
@@ -122,7 +123,7 @@ function plannedInput(
   const scan = scanOf(ids);
   const input: PanelInput = {
     scan: scanState(),
-    config: "describer:\n  command: [describer]\n  version: v1\n",
+    config: configOf("describer:\n  command: [describer]\n  version: v1\n"),
     sensors: [ran("crap", ids), ran("mutation", ids)],
     lines: { modules: ids, of: () => ({ kind: "current", line: "x" }) },
     describedAt: NOW - 16 * MINUTE,
@@ -140,11 +141,13 @@ function plannedInput(
     now: NOW,
     installed: null,
     scans: repositoryFrom([scan]),
-    freshness: buildFreshness(repositoryFrom([scan]), "t"),
     ...over,
   };
 
   input.sensors = withAnalysis(input.sensors);
+  if (!("freshness" in over)) {
+    input.freshness = factsFor(repositoryFrom([scan]), input.sensors, "t");
+  }
 
   return withPlan(input, sensors);
 }
@@ -860,10 +863,7 @@ const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 
 describe("the model's imports", () => {
   it("takes no port, source or rescanner", () => {
-    const source = readFileSync(
-      new URL("./freshness-model.ts", srcUrl),
-      "utf8",
-    );
+    const source = readFileSync(new URL("./freshness-text.ts", srcUrl), "utf8");
 
     expect(source).not.toMatch(
       /from "\.\/(rescanner|[a-z-]+-source|[a-z-]+-port)"/,
@@ -882,7 +882,7 @@ describe("the model over committed content", () => {
     const ids = scan.modules.map(({ id }) => id);
     const model = modelOf(ids, {
       scans: repositoryFrom([scan]),
-      freshness: buildFreshness(repositoryFrom([scan]), "t"),
+      freshness: {},
       sensors: [],
       lines: { modules: ids, of: () => ({ kind: "current", line: "x" }) },
       scan: scanState([
@@ -1200,7 +1200,7 @@ describe("the button with unregistered sensors and no plan", () => {
 
   it("reads the stale answer's label, not Checking, for an unsettled plan", () => {
     const planned = plannedInput(IDS, {}, SENSORS);
-    const model = buildFreshnessModel(
+    const model = wordFreshness(
       {
         ...planned,
         plan: planned.plan ? { ...planned.plan, settled: false } : null,

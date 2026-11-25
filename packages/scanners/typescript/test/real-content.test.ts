@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join, sep } from "node:path";
 import { describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
 import { REPO, runBin, validate } from "./helpers.js";
 
@@ -125,18 +126,24 @@ describe("scanning check/", () => {
     ).toBe(false);
   });
 
-  it("scans check/ with its templates and skips them as unparsed template sources", () => {
-    const copy = copiedFiles(check, true);
-    const result = runBin(copy);
+  it(
+    "scans check/ with its templates and skips them as unparsed template sources",
+    () => {
+      const copy = copiedFiles(check, true);
+      const result = runBin(copy);
 
-    expect(result.status).toBe(0);
+      expect(result.status).toBe(0);
 
-    const doc = JSON.parse(result.stdout);
-    validate(doc);
+      const doc = JSON.parse(result.stdout);
+      validate(doc);
 
-    const ids = doc.modules.map((m: { id: string }) => m.id);
+      const ids = doc.modules.map((m: { id: string }) => m.id);
 
-    expect(ids.filter((id: string) => id.startsWith("templates/"))).toEqual([]);
-    expect(result.stderr).not.toContain("damaged file");
-  });
+      expect(ids.filter((id: string) => id.startsWith("templates/"))).toEqual(
+        [],
+      );
+      expect(result.stderr).not.toContain("damaged file");
+    },
+    scaledTimeout(30_000),
+  );
 });

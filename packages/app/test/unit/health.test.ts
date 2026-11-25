@@ -6,6 +6,7 @@ import {
   type Health,
   violationLine,
 } from "../../src/health";
+import { typedInputs } from "../../src/sensors-fake";
 import { buildTree } from "../../src/tree-model";
 import {
   CURRENT,
@@ -15,6 +16,7 @@ import {
   secondSensorDocument,
   structureDocument,
 } from "../fixtures";
+import { factsFor, measuredOfDocument } from "../freshness-support";
 import { type DocScan, repositoryFrom } from "./repository-from";
 
 function healthFor(
@@ -26,14 +28,21 @@ function healthFor(
 ) {
   const loaded = fixtureScan(name, "scan.json", CURRENT);
   const ids = modules ?? loaded.repository.files.map((file) => file.path);
+  const inputs = typedInputs({ policy, baseline });
 
   return {
     health: computeHealth({
       repository: loaded.repository,
-      policy,
+      policy: inputs.policy,
       modules: ids,
-      baseline,
+      baseline: inputs.baseline,
+      baselineProblem: inputs.baselineProblem,
       findings,
+      freshness: factsFor(
+        loaded.repository,
+        findings.map(measuredOfDocument),
+        null,
+      ),
     }),
     ids,
   };
@@ -530,7 +539,11 @@ describe("computeHealth judged per file", () => {
       modules: ["a.py", "b.py"],
       baseline: null,
       findings: [document],
-      tests,
+      freshness: factsFor(
+        repositoryFrom([scan]),
+        [measuredOfDocument(document)],
+        tests,
+      ),
     });
 
   it("keeps the findings of current files and hides the rest", () => {

@@ -1,24 +1,47 @@
-import { describerVersion, parseConfig } from "recognizer";
-import type { RunRecordFiles } from "./refusal-record";
-import type { PlannedWork } from "./scan-estimate";
-import type {
-  InstalledSensor,
-  InstalledSensors,
-  SensorInputs,
-  SensorsPort,
-  StoredResults,
-  WorkRequest,
+import {
+  documentFreshness,
+  identityKey,
+  type Repository,
+} from "@recognizer/core";
+import {
+  describerOfConfigText,
+  InputError,
+  parseBaseline,
+  parseConfig,
+  parsePolicy,
+  readFindingsText,
+  readOverlayText,
+  registeredSensorNamesIn,
+} from "recognizer";
+import type { PlannedWork } from "./estimate-text";
+import {
+  type InstalledSensor,
+  type InstalledSensors,
+  NO_INPUTS,
+  type Refusal,
+  type SensorInputs,
+  type SensorsPort,
+  type StoredResults,
+  type WorkRequest,
 } from "./sensor-run";
+
+export type FakeInputs = {
+  policy: string | null;
+  config: string | null;
+  baseline: string | null;
+  refused: string[];
+};
 
 export type FakeSensors = SensorsPort & {
   files: Map<string, string>;
-  inputs: SensorInputs;
+  texts: FakeInputs;
+  structure: Repository | null;
+  lastRun: string | null;
   refused: string[];
   overlays: Map<string, string>;
   modifiedOverlays: Map<string, number>;
   overlaysRefused: string[];
-  runRecords: Map<string, string>;
-  runRecordsRefused: string[];
+  refusals: Record<string, Refusal>;
   testsHash: string | null;
   removed: string[];
   list: InstalledSensors;
@@ -27,12 +50,59 @@ export type FakeSensors = SensorsPort & {
   workRequests: WorkRequest[];
   holdWork: boolean;
   releaseWork(): void;
-  editInputs(inputs: Partial<SensorInputs>): void;
+  editInputs(inputs: Partial<FakeInputs>): void;
 };
+
+function problemOf(error: unknown): string {
+  return error instanceof InputError
+    ? error.messages.join("; ")
+    : (error as Error).message;
+}
+
+export function typedInputs(given: Partial<FakeInputs>): SensorInputs {
+  const texts: FakeInputs = {
+    policy: null,
+    config: null,
+    baseline: null,
+    refused: [],
+    ...given,
+  };
+
+  const attempt = <T>(text: string | null, parse: (text: string) => T) => {
+    if (text === null) {
+      return { value: null, problem: null };
+    }
+
+    try {
+      return { value: parse(text), problem: null };
+    } catch (error) {
+      return { value: null, problem: problemOf(error) };
+    }
+  };
+  const config = attempt(texts.config, (text) => parseConfig(text));
+  const policy = attempt(texts.policy, parsePolicy);
+  const baseline = attempt(texts.baseline, (text) =>
+    parseBaseline(text).map(identityKey),
+  );
+
+  return {
+    ...NO_INPUTS,
+    configText: texts.config,
+    config: config.value,
+    configProblem: config.problem,
+    registeredSensors:
+      texts.config === null ? [] : registeredSensorNamesIn(texts.config),
+    policy: policy.value,
+    policyProblem: policy.problem,
+    baseline: baseline.value,
+    baselineProblem: baseline.problem,
+    refused: texts.refused,
+  };
+}
 
 export function fakeSensors(
   files: Record<string, string> = {},
-  inputs: Partial<SensorInputs> = {},
+  inputs: Partial<FakeInputs> = {},
   overlays: Record<string, string> = {},
   installed: InstalledSensors | InstalledSensor[] = [],
 ): FakeSensors {
@@ -49,20 +119,20 @@ export function fakeSensors(
   const held: (() => void)[] = [];
   const fake: FakeSensors = {
     files: new Map(Object.entries(files)),
-    inputs: {
+    texts: {
       policy: null,
       config: listed.length === 0 ? null : `${registersEverything}\n`,
       baseline: null,
       refused: [],
-      analysis: true,
       ...inputs,
     },
+    structure: null,
+    lastRun: null,
     refused: [],
     overlays: new Map(Object.entries(overlays)),
     modifiedOverlays: new Map(),
     overlaysRefused: [],
-    runRecords: new Map(),
-    runRecordsRefused: [],
+    refusals: {},
     testsHash: null,
     removed: [],
     list: Array.isArray(installed)
@@ -89,56 +159,73 @@ export function fakeSensors(
       return fake.work.get(request.sensor) ?? null;
     },
     async describer() {
-      let configured: { command: string[]; version: string } | undefined;
+      const configured = describerOfConfigText(fake.texts.config);
 
-      try {
-        configured =
-          fake.inputs.config === null
-            ? undefined
-            : parseConfig(fake.inputs.config).describer;
-      } catch {
-        configured = undefined;
-      }
-
-      if (configured === undefined) {
-        return { status: "unavailable", reason: "no describer is registered" };
-      }
-
-      return {
-        status: "ok",
-        ...configured,
-        version: describerVersion(configured),
-      };
+      return configured === undefined
+        ? { status: "unavailable", reason: "no describer is registered" }
+        : { status: "ok", ...configured };
     },
     async sensorList() {
       return fake.list;
     },
-    async readResults(): Promise<StoredResults> {
-      return {
-        findings: {
-          files: [...fake.files].map(([name, text]) => ({
-            name,
-            text,
-            modifiedMs: fake.modified.get(name) ?? null,
-          })),
-          refused: fake.refused,
-        },
-        overlays: {
-          files: [...fake.overlays].map(([name, text]) => ({
-            name,
-            text,
-            modifiedMs: fake.modifiedOverlays.get(name) ?? null,
-          })),
-          refused: fake.overlaysRefused,
-        },
+    async readResults(tests = null): Promise<StoredResults> {
+      const findings: StoredResults["findings"] = {
+        files: [],
+        refused: [...fake.refused],
       };
-    },
-    async readRunRecords(): Promise<RunRecordFiles> {
+      const overlays: StoredResults["overlays"] = {
+        files: [],
+        refused: [...fake.overlaysRefused],
+      };
+      const freshness: StoredResults["freshness"] = {};
+
+      for (const [name, text] of fake.files) {
+        try {
+          const document = readFindingsText(text, name);
+
+          findings.files.push({
+            name,
+            document,
+            modifiedMs: fake.modified.get(name) ?? null,
+          });
+
+          if (fake.structure !== null) {
+            freshness[name] = documentFreshness(
+              fake.structure,
+              {
+                ...(document.inputs === undefined
+                  ? {}
+                  : { inputs: document.inputs }),
+                ...(document.tests === undefined
+                  ? {}
+                  : { tests: document.tests }),
+              },
+              tests,
+            );
+          }
+        } catch {
+          findings.refused.push(name);
+        }
+      }
+
+      for (const [name, text] of fake.overlays) {
+        try {
+          overlays.files.push({
+            name,
+            overlay: readOverlayText(text),
+            modifiedMs: fake.modifiedOverlays.get(name) ?? null,
+          });
+        } catch {
+          overlays.refused.push(name);
+        }
+      }
+
       return {
-        files: [...fake.runRecords]
-          .map(([name, text]) => ({ name, text }))
-          .sort((a, b) => (a.name < b.name ? 1 : a.name > b.name ? -1 : 0)),
-        refused: fake.runRecordsRefused,
+        findings,
+        overlays,
+        refusals: fake.refusals,
+        freshness,
+        lastRun: fake.lastRun,
       };
     },
     async readTestsHash() {
@@ -149,11 +236,11 @@ export function fakeSensors(
       fake.files.delete(name);
       fake.overlays.delete(name);
     },
-    async readInputs() {
-      return fake.inputs;
+    async inputs() {
+      return typedInputs(fake.texts);
     },
     editInputs(next) {
-      fake.inputs = { ...fake.inputs, ...next };
+      fake.texts = { ...fake.texts, ...next };
     },
   };
 

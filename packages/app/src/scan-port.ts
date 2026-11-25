@@ -1,4 +1,6 @@
+import { afterTickChanges, type TickChange } from "@recognizer/core";
 import type { PlanRequest, ScanPlanView, ScanRunRecord } from "recognizer";
+import type { EstimateAnswer, EstimateRequest } from "./estimate-text";
 import type { ScanPlan, ScanTicks } from "./scan-panel-model";
 import type { ScanReport } from "./scan-report";
 
@@ -46,6 +48,8 @@ export type ScanPort = {
   readDescribing(): Promise<DescribingSettings>;
   watchExternal(): Promise<void>;
   plan(request: PlanRequest): Promise<ScanPlanView>;
+  estimate(request: EstimateRequest): Promise<EstimateAnswer>;
+  changeTicks(ticks: ScanTicks, changes: TickChange[]): Promise<ScanTicks>;
   onRun(handler: (event: RunEvent) => void): () => void;
 };
 
@@ -53,13 +57,7 @@ export const inertScan: ScanPort = {
   run: async () => ({ status: "finished", exitCode: 0 }),
   stop: async () => {},
   answerDescribe: async () => {},
-  readCache: async () => ({
-    status: "scanned",
-    exitCode: 0,
-    stderr: "",
-    scans: [],
-    policy: null,
-  }),
+  readCache: async () => ({ scans: [], notices: [] }),
   readTicks: async () => ({
     describe: false,
     analysis: true,
@@ -91,5 +89,11 @@ export const inertScan: ScanPort = {
     gaps: {},
     never: [],
   }),
+  estimate: async () => ({
+    lastRun: null,
+    describeRateMs: null,
+    parts: [],
+  }),
+  changeTicks: async (ticks, changes) => afterTickChanges(ticks, changes),
   onRun: () => () => {},
 };

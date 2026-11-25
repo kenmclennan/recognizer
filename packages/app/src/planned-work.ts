@@ -1,4 +1,4 @@
-import type { PlannedWork } from "./scan-estimate";
+import type { PlannedWork } from "./estimate-text";
 import type { InstalledSensors, SensorsPort, WorkRequest } from "./sensor-run";
 
 export type WorkScope = WorkRequest & { stamp: string };

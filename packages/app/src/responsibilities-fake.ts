@@ -1,31 +1,57 @@
 import type { ResponsibilitiesPort } from "./responsibilities-port";
-import { NO_FILES, type ResponsibilityFiles } from "./responsibility-model";
+import {
+  NO_STATES,
+  type ResponsibilityRead,
+  type ResponsibilityState,
+} from "./responsibility-model";
 
 export type FakeResponsibilities = ResponsibilitiesPort & {
-  files: ResponsibilityFiles;
+  held: ResponsibilityRead;
   reads: number;
-  edit(files: ResponsibilityFiles): void;
+  asked: string[][];
+  edit(read: ResponsibilityRead): void;
 };
 
+export function unknownFor(
+  modules: string[],
+  reason: string,
+): ResponsibilityRead {
+  const states: Record<string, ResponsibilityState> = {};
+
+  for (const id of modules) {
+    states[id] = { kind: "unknown", reason };
+  }
+
+  return { states, describedAtMs: null };
+}
+
 export function fakeResponsibilities(
-  initial: ResponsibilityFiles = NO_FILES,
+  initial: ResponsibilityRead = NO_STATES,
 ): FakeResponsibilities {
   const listeners = new Set<() => void>();
   const fake: FakeResponsibilities = {
-    files: initial,
+    held: initial,
     reads: 0,
-    async read() {
+    asked: [],
+    async read(modules) {
       fake.reads += 1;
+      fake.asked.push(modules);
 
-      return fake.files;
+      const states: Record<string, ResponsibilityState> = {};
+
+      for (const id of modules) {
+        states[id] = fake.held.states[id] ?? { kind: "missing" };
+      }
+
+      return { states, describedAtMs: fake.held.describedAtMs };
     },
     onChanged(run) {
       listeners.add(run);
 
       return () => listeners.delete(run);
     },
-    edit(files) {
-      fake.files = files;
+    edit(read) {
+      fake.held = read;
 
       for (const run of listeners) {
         run();

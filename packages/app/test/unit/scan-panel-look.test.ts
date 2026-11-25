@@ -36,7 +36,7 @@ const INSTALLED = [
   { name: "crap", display: "C.R.A.P.", description: "Runs the tests with coverage.", expansion: "C.R.A.P.: Change Risk Anti-Patterns.", runsTests: true, scoped: false, listed: true, metrics: [], findings: [], settings: [] },
 ];
 const CONFIG = "describer:\\n  command: [describer, '{request}']\\n  version: v1\\nsensors:\\n  crap: {}\\n  mutation: {}\\n  tally:\\n    command: [node, '{repository}/t.mjs', '{commit}', '{output}']\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n  beta:\\n    command: [node, '{repository}/b.mjs', '{commit}', '{output}']\\n";
-const FILES = { responsibilities: null, config: CONFIG, refused: [], hashes: {} };
+const FILES = { states: {}, describedAtMs: null };
 const ORIGIN = { branch: "main", commit: "cur1234" };
 const json = (value) => JSON.stringify(value);
 const current = json({ event: "phase", phase: "extract", state: "current", commit: "cur1234" });
@@ -71,10 +71,12 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   const footer = buildFooter(footerEl);
   const scanHost = scanHostOf({
     port: sensors,
+    estimate: (request) => fake.estimate(request),
     plan: (request, facts) => (planGate === undefined ? planFromFacts(request, facts) : planGate.promise.then(() => planFromFacts(request, facts))),
     scan: () => wired.scanState,
     ticks: () => wired.rescanner.ticks(),
     setTicks: (next) => wired.rescanner.setTicks(next),
+    changeTicks: (ticks, changes) => fake.changeTicks(ticks, changes),
     runState: () => wired.rescanner.runState(),
     running: () => wired.rescanner.running(),
     run: (modules, planned) => void wired.rescanner.run(modules, planned),
@@ -96,7 +98,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   wired.rescanner = createRescanner({
     port: fake,
     snapshot: fakeRunSnapshot(fake.onRun),
-    registered: async () => { const { config } = await sensors.readInputs(); return registeredOf(rowSensors(config, await sensors.sensorList()), describerRegistered(config)); },
+    registered: async () => { const { config } = await sensors.inputs(); return registeredOf(rowSensors(config, await sensors.sensorList()), describerRegistered(config)); },
     load: () => base,
     sense: (loaded) => sensed(loaded),
     resense: async () => sensed(wired.current),
@@ -422,10 +424,8 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   const fsensors = fakeSensors({}, { config: CONFIG }, {}, INSTALLED);
   fsensors.files.set("crap", crapDoc({ "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" }));
   for (const name of ["tally", "mutation", "alpha", "beta"]) fsensors.files.set(name, json({ findings_version: 1, sensor: { name, version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: { "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }, findings: [] }));
-  const HA = "a".repeat(64);
-  const HB = "b".repeat(64);
-  const line = (hash) => ({ line: "Does a thing.", source_hash: hash, describer: ["node", "d.js"], version: "v1" });
-  const described = { responsibilities: json({ schema_version: 1, modules: { "app/a.py": line(HA), "app/b.py": line(HB) } }), config: CONFIG.replace("[describer, '{request}']", "[node, d.js]"), refused: [], hashes: { "app/a.py": HA, "app/b.py": HB } };
+  const lineOf = { kind: "current", line: "Does a thing." };
+  const described = { states: { "app/a.py": lineOf, "app/b.py": lineOf }, describedAtMs: null };
   const fr = await mount(fakeScan(), fsensors, true, {}, described);
   click(fr.q(".rail-scan"));
   await tick();
@@ -505,24 +505,24 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   facts.reasons.mutationNoCov = whyFacts(await reasonScan("mutation", REASONS["mutation-no-coverage"]), "mutation");
   facts.reasons.plain = (await (async () => { const m = await mount(fakeScan({ steps: [current, sensing(1), json({ event: "entry", phase: "sense", name: "crap", outcome: "failed", reason: "boom" }), summary] })); await openScan(m); await m.setTick("crap", true); click(m.q(".scan-run")); await tick(); await tick(); await tick(); return whyFacts(m, "crap"); })());
 
-  const recordOf = (name, outcome, at, diagnosis) => json({ log_version: 1, kind: "scan", started: at, finished: at, by: "ken", arguments: [], outcome, exit: outcome === "ok" ? 0 : 1, phases: [{ phase: "sense", entries: [{ name, command: ["x"], status: outcome === "ok" ? 0 : 1, outcome, duration_ms: 1, stderr: "", ...(outcome === "failed" ? { reason: "tests failed", ...(diagnosis ? { diagnosis } : {}) } : {}) }] }] });
-  const restart = async (records, modifiedMs) => {
+  const restart = async (refusals, modifiedMs) => {
     const f = fakeSensors({ crap: ranDoc("crap", undefined) }, { config: CONFIG }, {}, INSTALLED);
     if (modifiedMs !== undefined) f.modified.set("crap", modifiedMs);
-    for (const [name, text] of Object.entries(records)) f.runRecords.set(name, text);
+    f.refusals = refusals;
     const m = await mount(fakeScan(), f);
     await openScan(m);
     return whyFacts(m, "crap");
   };
   const FAILED_AT = "2026-11-02T09:00:00.000Z";
-  const FAILED = recordOf("crap", "failed", FAILED_AT, REASONS["mutation-tests-failing"]);
+  const refusalAt = (diagnosis) => ({ crap: { reason: "tests failed", diagnosis, at: Date.parse(FAILED_AT) } });
+  const FAILED = refusalAt(REASONS["mutation-tests-failing"]);
   facts.restart = {
-    refused: await restart({ "20261102T090000000Z-scan.json": FAILED }, Date.parse(FAILED_AT) - 1000),
-    okNewer: await restart({ "20261102T090000000Z-scan.json": FAILED, "20261102T100000000Z-scan.json": recordOf("crap", "ok", "2026-11-02T10:00:00.000Z") }, Date.parse(FAILED_AT) - 1000),
-    copy: await restart({ "20261102T090000000Z-scan.json": recordOf("crap", "failed", FAILED_AT, REASONS["crap-no-coverage"]) }, Date.parse(FAILED_AT) - 1000),
+    refused: await restart(FAILED, Date.parse(FAILED_AT) - 1000),
+    okNewer: await restart({}, Date.parse(FAILED_AT) - 1000),
+    copy: await restart(refusalAt(REASONS["crap-no-coverage"]), Date.parse(FAILED_AT) - 1000),
     none: await restart({}, Date.parse(FAILED_AT) - 1000),
-    older: await restart({ "20261102T090000000Z-scan.json": FAILED }, Date.parse(FAILED_AT) + 1000),
-    tie: await restart({ "20261102T090000000Z-scan.json": FAILED }, Date.parse(FAILED_AT)),
+    older: await restart({}, Date.parse(FAILED_AT) + 1000),
+    tie: await restart({}, Date.parse(FAILED_AT)),
   };
 
 
@@ -543,6 +543,24 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   facts.suiteFoldWritten = suiteFake.written.at(-1).folds;
   await suiteTick(sm, "crap", "unit");
   facts.suiteAfterTick = { sensor: sensorRow(sm, "crap"), written: suiteFake.written.at(-1) };
+  const rapidFake = fakeScan();
+  const rapid = await mount(rapidFake, suiteSensors());
+  click(rapid.q(".rail-scan"));
+  await tick();
+  click(rapid.q('.scan-row[data-sensor="crap"] .scan-fold'));
+  await tick();
+  const rapidBox = (suite) => rapid.q('.scan-suite[data-sensor="crap"][data-suite="' + suite + '"] .scan-tick');
+  const rapidBefore = { unit: rapidBox("unit").checked, web: rapidBox("web").checked };
+  let releaseFirst = () => {};
+  const firstReply = new Promise((resolve) => { releaseFirst = resolve; });
+  const requestsBefore = rapidFake.tickRequests.length;
+  rapidFake.holdTickReply = (n) => (n === requestsBefore + 1 ? firstReply : null);
+  for (const suite of ["unit", "web"]) { const box = rapidBox(suite); box.checked = !box.checked; box.dispatchEvent(new Event("change", { bubbles: true })); }
+  await tick();
+  const requested = rapidFake.tickRequests.slice(requestsBefore);
+  releaseFirst();
+  await tick();
+  facts.rapidTicks = { before: rapidBefore, requests: requested.map((r) => r.changes.map((c) => c.kind + ":" + c.suite)), after: { unit: rapidBox("unit").checked, web: rapidBox("web").checked } };
   const reopened = await mount(suiteFake, suiteSensors());
   click(reopened.q(".rail-scan"));
   await tick();
@@ -596,11 +614,12 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
     };
   }
 
-  const HISTORY = json({ log_version: 1, kind: "scan", started: "2026-11-03T09:00:00.000Z", finished: "2026-11-03T09:10:00.000Z", by: "ken", arguments: [], outcome: "ok", exit: 0, structure_ms: 6000, phases: [{ phase: "sense", entries: [{ name: "mutation", command: ["x"], status: 0, outcome: "ok", duration_ms: 160000, modules: 2, fixed_ms: 100000, work: { unit: "functions", performed: 2 }, stderr: "" }] }] });
+  const HISTORY = { structureMs: 6000, extractMs: null, describe: [], sense: { mutation: [{ durationMs: 160000, modules: 2, fixedMs: 100000, work: { unit: "functions", performed: 2 } }] }, lastRun: "20261103T090000000Z-scan.json" };
   const timedSensors = fakeSensors({}, { config: CONFIG }, {}, INSTALLED);
-  timedSensors.runRecords.set("20261103T090000000Z-scan.json", HISTORY);
+  const timedScan = fakeScan();
+  timedScan.history = HISTORY;
   timedSensors.work.set("mutation", { unit: "functions", to_perform: 2 });
-  const timed = await mount(fakeScan(), timedSensors);
+  const timed = await mount(timedScan, timedSensors);
   click(timed.q(".rail-scan"));
   await tick();
   const estimateOf = () => { const n = timed.q(".scan-estimate"); return n === null ? null : { exists: true, hidden: n.hidden, text: n.textContent, title: n.title, afterButtons: timed.q(".scan-buttons").compareDocumentPosition(n) === Node.DOCUMENT_POSITION_FOLLOWING }; };
@@ -917,6 +936,12 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       ticked: false,
       indeterminate: true,
     });
+  });
+
+  it("two_quick_tick_clicks_apply_in_order", () => {
+    const r = f.rapidTicks;
+    expect(r.requests).toEqual([["suite:unit"], ["suite:unit", "suite:web"]]);
+    expect(r.after).toEqual({ unit: !r.before.unit, web: !r.before.web });
   });
 
   it("ticks every suite with the sensor and shows the sensor and its suites still ticked after a scan", () => {

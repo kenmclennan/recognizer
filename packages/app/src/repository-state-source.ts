@@ -3,7 +3,7 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type {
   RepositoryStateItem,
   RepositoryStatePort,
-  ResultTexts,
+  ResultDocuments,
 } from "./repository-state-port";
 import { coreReply } from "./scan-source";
 
@@ -65,7 +65,8 @@ export function createRepositoryStateSource(
         }
       };
     },
-    readResults: () => call<ResultTexts>("results.read"),
+    readResults: (tests = null) =>
+      call<ResultDocuments>("results.read", tests === null ? {} : { tests }),
     clearResults: async (plugin) => {
       await call("results.clear", { plugin });
     },

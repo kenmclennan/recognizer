@@ -6,6 +6,7 @@ window.addEventListener("error", (e) => { document.getElementById("out").textCon
 import { loadedOf, mountExplorer } from ${JSON.stringify(here("../test/unit/look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("../test/unit/views-fake.ts"))};
 import { fakeCommits } from ${JSON.stringify(here("commits-fake.ts"))};
+import { parseBranchTip, parseBranches, parseCommitDetail, parseHistory, parsePullDetail, parsePullRequests } from "@recognizer/core";
 ${FAKE_WORKER}
 Element.prototype.setPointerCapture = () => {};
 Element.prototype.releasePointerCapture = () => {};
@@ -29,9 +30,9 @@ const facts = (ref, mergeBase, changes) => ({ ref, mergeBase, behind: 1, ahead: 
 const EPOCH = 1794933540;
 const detail = (message) => "Ken" + US + EPOCH + US + message;
 const DETAILS = {
-  ["commit:" + sha("b")]: { git: detail("Add the middle thing\\n\\nFirst paragraph\\nwraps here.\\n\\nSecond."), pull: null, defaultRef: null },
-  ["branch:feature/x"]: { git: detail("tip subject\\n"), pull: { status: "ok", detail: "", text: JSON.stringify([{ number: 1026, title: "feat(app): show length", isDraft: false, author: { login: "ken" }, statusCheckRollup: [] }]) }, defaultRef: "origin/main" },
-  ["pr:9"]: { git: null, pull: { status: "ok", detail: "", text: JSON.stringify({ number: 9, title: "Gift cards", body: "<!-- lc:item=REC-9 -->\\n<!-- lc:body -->\\n\\nGift cards\\n\\nPara one\\nwraps.\\n\\nMore.", state: "OPEN", isDraft: false, author: { login: "lc" }, statusCheckRollup: [{ status: "IN_PROGRESS" }] }) }, defaultRef: "origin/main" },
+  ["commit:" + sha("b")]: { commit: parseCommitDetail(detail("Add the middle thing\\n\\nFirst paragraph\\nwraps here.\\n\\nSecond.")), tip: null, pull: null, defaultRef: null },
+  ["branch:feature/x"]: { commit: null, tip: parseBranchTip(detail("tip subject\\n")), pull: { status: "ok", detail: "", pull: parsePullDetail({ status: "ok", text: JSON.stringify([{ number: 1026, title: "feat(app): show length", isDraft: false, author: { login: "ken" }, statusCheckRollup: [] }]) }) }, defaultRef: "origin/main" },
+  ["pr:9"]: { commit: null, tip: null, pull: { status: "ok", detail: "", pull: parsePullDetail({ status: "ok", text: JSON.stringify({ number: 9, title: "Gift cards", body: "<!-- lc:item=REC-9 -->\\n<!-- lc:body -->\\n\\nGift cards\\n\\nPara one\\nwraps.\\n\\nMore.", state: "OPEN", isDraft: false, author: { login: "lc" }, statusCheckRollup: [{ status: "IN_PROGRESS" }] }) }) }, defaultRef: "origin/main" },
 };
 const tick = (ms = 40) => new Promise((resolve) => setTimeout(resolve, ms));
 let step = "";
@@ -45,14 +46,15 @@ function mount(options = {}) {
   host.style.cssText = "width:1400px;height:800px;display:flex;flex-direction:column";
   document.body.append(host);
   const views = fakeViews(options.files || {});
+  views.present = loaded.repository;
   for (const key of ["c..b", "d..a", "d..a", "c..feature/x", "b..f"]) {
     const [base, head] = key.split("..");
     views.ranges.set((base.length === 1 ? sha(base) : base) + ".." + (head.length === 1 ? sha(head) : head), rangeFor());
   }
   const commits = fakeCommits({
-    history: { branch: "main", text: options.history || HISTORY },
-    branches: { defaultRef: "origin/main", total: 2, text: BRANCHES },
-    pullRequests: { status: "ok", detail: "", text: PRS },
+    history: { branch: "main", ...parseHistory(options.history || HISTORY) },
+    branches: { defaultRef: "origin/main", total: 2, ...parseBranches(BRANCHES) },
+    pullRequests: { status: "ok", detail: "", ...parsePullRequests(PRS) },
     facts: [facts("main", sha("a"), []), facts("feature/x", sha("c"), [ch("M", "p/a.py"), ch("A", "p/b.py")]), facts(sha("f"), sha("b"), [ch("M", "p/a.py"), ch("A", "p/b.py")])],
     details: options.details === undefined ? DETAILS : options.details,
   });
@@ -91,7 +93,7 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   await pickRow(b, "Middle");
   out.nothing = { bar: bar(b), heading: heading(b), calls: b.commits.calls.details };
 
-  const n = mount({ details: { ["commit:" + sha("b")]: { git: detail("Bare subject\\n"), pull: null, defaultRef: null } } });
+  const n = mount({ details: { ["commit:" + sha("b")]: { commit: parseCommitDetail(detail("Bare subject\\n")), tip: null, pull: null, defaultRef: null } } });
   await openPanel(n);
   await pickRow(n, "Middle");
   click(n.q(".view-save"));

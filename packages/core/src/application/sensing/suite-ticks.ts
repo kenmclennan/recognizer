@@ -189,3 +189,74 @@ export function onlyArmed(
         }),
   };
 }
+
+export type TickChange =
+  | { kind: "describe"; ticked: boolean }
+  | { kind: "analysis"; ticked: boolean }
+  | { kind: "onlyView"; on: boolean }
+  | { kind: "fold"; sensor: string }
+  | { kind: "open" }
+  | { kind: "sensor"; sensor: string; ticked: boolean; suites: string[] }
+  | {
+      kind: "suite";
+      sensor: string;
+      suite: string;
+      ticked: boolean;
+      suites: string[];
+    }
+  | { kind: "plain"; sensor: string; ticked: boolean; plain: string[] };
+
+export function afterTickChange(
+  ticks: ScanTicks,
+  change: TickChange,
+): ScanTicks {
+  switch (change.kind) {
+    case "describe":
+      return { ...ticks, describe: change.ticked };
+    case "analysis":
+      return { ...ticks, analysis: change.ticked };
+    case "onlyView":
+      return { ...ticks, onlyView: change.on };
+    case "fold":
+      return afterFoldToggle(ticks, change.sensor);
+    case "open":
+      return afterPanelOpen(ticks);
+    case "suite":
+      return afterSuiteTick(
+        ticks,
+        change.sensor,
+        change.suite,
+        change.ticked,
+        change.suites,
+      );
+    case "sensor": {
+      if (change.suites.length > 0) {
+        return afterSensorTick(ticks, change.sensor, change.suites);
+      }
+
+      const armed = ticks.armed.filter((one) => one !== change.sensor);
+
+      return {
+        ...ticks,
+        armed: change.ticked ? [...armed, change.sensor] : armed,
+      };
+    }
+    case "plain": {
+      const rest = (ticks.ticked ?? change.plain).filter(
+        (one) => one !== change.sensor,
+      );
+
+      return {
+        ...ticks,
+        ticked: change.ticked ? [...rest, change.sensor] : rest,
+      };
+    }
+  }
+}
+
+export function afterTickChanges(
+  ticks: ScanTicks,
+  changes: TickChange[],
+): ScanTicks {
+  return changes.reduce(afterTickChange, ticks);
+}

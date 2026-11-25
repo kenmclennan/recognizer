@@ -1,6 +1,6 @@
 import type { Diagnosis } from "@recognizer/core";
 import { type Gap, isGap, type PluginEvent, readDiagnosis } from "recognizer";
-import { roundedTime } from "./scan-estimate";
+import { roundedTime } from "./estimate-text";
 
 export type ScanEvent =
   | {

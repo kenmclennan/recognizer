@@ -1,11 +1,11 @@
-import { buildFreshness } from "recognizer";
+import { buildFreshness, type Overlay, validateOverlay } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { NO_CHANGES } from "../../src/footer-scan";
 import {
   type ResultRow,
   type ResultState,
   stateText,
-} from "../../src/freshness-model";
+} from "../../src/freshness-text";
 import { installedSensors, plainSensor } from "../../src/installed-fake";
 import {
   applyFreshness,
@@ -22,7 +22,8 @@ import {
 } from "../../src/overlay-model";
 import { NO_RUN, type PanelInput } from "../../src/scan-panel-model";
 import type { InstalledSensors, SensorStatus } from "../../src/sensor-run";
-import { scanPanelSync as scanPanel } from "../fixtures";
+import { configOf, scanPanelSync as scanPanel } from "../fixtures";
+import { factsFor } from "../freshness-support";
 import { type DocScan, repositoryFrom } from "./repository-from";
 
 function buildOverlayModel(
@@ -96,7 +97,7 @@ const panel = (sensors: PanelInput["sensors"]) =>
       changes: NO_CHANGES,
       scanning: null,
     },
-    config: REGISTERED,
+    config: configOf(REGISTERED),
     sensors,
     lines: {
       modules: ["a.py", "b.py"],
@@ -117,7 +118,7 @@ const panel = (sensors: PanelInput["sensors"]) =>
     now: NOW,
     installed: installedList,
     scans: repositoryFrom([fileScan]),
-    freshness: buildFreshness(repositoryFrom([fileScan]), TESTS),
+    freshness: factsFor(repositoryFrom([fileScan]), sensors, TESTS),
     tests: TESTS,
   });
 
@@ -129,6 +130,20 @@ type Declared = {
 };
 
 function overlay(
+  metrics: Declared[],
+  values: Record<string, Record<string, number | boolean>>,
+  extra: Record<string, unknown> = {},
+): Overlay {
+  const parsed = JSON.parse(overlayText(metrics, values, extra)) as Overlay;
+
+  return validateOverlay(parsed, {
+    commit: parsed.commit,
+    modified: parsed.modified,
+    metrics: parsed.metrics,
+  });
+}
+
+function overlayText(
   metrics: Declared[],
   values: Record<string, Record<string, number | boolean>>,
   extra: Record<string, unknown> = {},
@@ -161,11 +176,14 @@ function overlay(
 }
 
 function only(
-  text: string,
+  overlay: Overlay,
   name = "crap",
   installed: InstalledSensors | null = null,
 ): MetricDescriptor {
-  const model = buildOverlayModel([{ name, text }], { sensors: [], installed });
+  const model = buildOverlayModel([{ name, overlay }], {
+    sensors: [],
+    installed,
+  });
 
   return (model.metrics.find((metric) => metric.overlay === name) ??
     model.metrics[0]) as MetricDescriptor;
@@ -175,14 +193,14 @@ describe("tooltips and per-module freshness", () => {
   const text = overlay([{ name: "coverage" }], {});
 
   it("gives the commit as provenance in the tooltip", () => {
-    const model = buildOverlayModel([{ name: "crap", text }]);
+    const model = buildOverlayModel([{ name: "crap", overlay: text }]);
 
     expect(model.groups[0]?.tooltip).toBe("crap 0.1.0 - at 0123456");
   });
 
   it("appends the modified tree", () => {
     const modified = overlay([{ name: "coverage" }], {}, { modified: true });
-    const model = buildOverlayModel([{ name: "crap", text: modified }]);
+    const model = buildOverlayModel([{ name: "crap", overlay: modified }]);
 
     expect(model.groups[0]?.tooltip).toBe(
       "crap 0.1.0 - at 0123456, modified tree",
@@ -191,7 +209,7 @@ describe("tooltips and per-module freshness", () => {
 
   it("keeps the tooltip the same whatever the scan's commit", () => {
     const stale = overlay([{ name: "coverage" }], {}, { inputs: EDITED });
-    const model = buildOverlayModel([{ name: "crap", text: stale }]);
+    const model = buildOverlayModel([{ name: "crap", overlay: stale }]);
 
     expect(model.groups[0]?.tooltip).toBe("crap 0.1.0 - at 0123456");
   });
@@ -211,7 +229,7 @@ describe("a member-granularity overlay judged per file", () => {
     extra = {},
   ) =>
     applyFreshness(
-      buildOverlayModel([{ name: "crap", text: mixed(inputs, extra) }], {
+      buildOverlayModel([{ name: "crap", overlay: mixed(inputs, extra) }], {
         sensors: [],
         installed: installedList,
       }),
@@ -285,7 +303,7 @@ function groupOf(
     [
       {
         name,
-        text: overlay([{ name: "survived" }], {}, { inputs }),
+        overlay: overlay([{ name: "survived" }], {}, { inputs }),
         modifiedMs,
       },
     ],
@@ -426,7 +444,7 @@ describe("the group header model", () => {
       [
         {
           name: "crap",
-          text: overlay([{ name: "crap" }], {}),
+          overlay: overlay([{ name: "crap" }], {}),
           modifiedMs: 1000,
         },
       ],
@@ -555,22 +573,14 @@ describe("descriptors", () => {
   });
 
   it("lists a file that fails validation as unreadable and keeps the others", () => {
-    const model = buildOverlayModel([
+    const model = buildOverlayModel(
+      [{ name: "good", overlay: overlay([{ name: "coverage" }], {}) }],
       {
-        name: "bad",
-        text: overlay([{ name: "coverage", type: "ratio" }], {
-          coverage: { "a.py::f": 1.5 },
-        }),
+        sensors: [],
+        installed: null,
+        unreadable: ["negative", "bad", "garbage"],
       },
-      {
-        name: "negative",
-        text: overlay([{ name: "coverage" }], {
-          coverage: { "a.py::f": -1 },
-        }),
-      },
-      { name: "garbage", text: "not json" },
-      { name: "good", text: overlay([{ name: "coverage" }], {}) },
-    ]);
+    );
 
     expect(model.unreadable).toEqual(["bad", "garbage", "negative"]);
     expect(model.groups.map((group) => group.name)).toEqual(["good"]);
@@ -670,13 +680,17 @@ describe("pruneTicks", () => {
     const fresh = buildOverlayModel([
       {
         name: "a",
-        text: overlay([{ name: "m1" }, { name: "m2" }], {}),
+        overlay: overlay([{ name: "m1" }, { name: "m2" }], {}),
       },
     ]);
     const stale = buildOverlayModel([
       {
         name: "a",
-        text: overlay([{ name: "m1" }, { name: "m2" }], {}, { inputs: EDITED }),
+        overlay: overlay(
+          [{ name: "m1" }, { name: "m2" }],
+          {},
+          { inputs: EDITED },
+        ),
       },
     ]);
 
@@ -702,7 +716,7 @@ describe("pruneTicks", () => {
 
 describe("currentMetricNamed", () => {
   const text = overlay([{ name: "m1" }], {});
-  const fresh = buildOverlayModel([{ name: "a", text }]);
+  const fresh = buildOverlayModel([{ name: "a", overlay: text }]);
 
   it("finds a current metric by its name", () => {
     expect(currentMetricNamed("m1", fresh.metrics)?.key).toBe("a/m1");
@@ -858,7 +872,10 @@ describe("freshnessNote against the Scan panel model", () => {
     const values = { coverage: { "a.py::f": 1, "b.py::f": 2 } };
     const file = (name: string, inputs: Record<string, string>) => ({
       name,
-      text: overlay([{ name: "coverage" }], values, { inputs, tests: TESTS }),
+      overlay: overlay([{ name: "coverage" }], values, {
+        inputs,
+        tests: TESTS,
+      }),
     });
     const build = (
       files: ReturnType<typeof file>[],
@@ -1023,7 +1040,7 @@ describe("freshnessNote against the Scan panel model", () => {
         [
           {
             name: "crap",
-            text: overlay(
+            overlay: overlay(
               [{ name: "coverage" }],
               { coverage: { "a.py::f": 1, "gone.py::f": 5 } },
               { inputs: whole, tests: TESTS },
@@ -1069,7 +1086,7 @@ describe("freshnessNote against the Scan panel model", () => {
           changes: NO_CHANGES,
           scanning: null,
         },
-        config: REGISTERED,
+        config: configOf(REGISTERED),
         sensors: [ranWith("crap", partly)],
         lines: {
           modules: ["a.py"],
@@ -1091,7 +1108,11 @@ describe("freshnessNote against the Scan panel model", () => {
         now: NOW,
         installed: installedList,
         scans: repositoryFrom([fileScan]),
-        freshness: buildFreshness(repositoryFrom([fileScan]), TESTS),
+        freshness: factsFor(
+          repositoryFrom([fileScan]),
+          [ranWith("crap", partly)],
+          TESTS,
+        ),
       }).freshness;
       const row = scoped.rows.find((one) => one.key === "crap");
       const applied = applyFreshness(model, scoped);
@@ -1139,8 +1160,8 @@ describe("the Structural analysis group", () => {
   it("groups Complexity, Function length and Duplication under Structural analysis, first", () => {
     const model = buildWithAnalysis(
       [
-        { name: "crap", text: crapOverlay },
-        { name: "structure", text: structureOverlay },
+        { name: "crap", overlay: crapOverlay },
+        { name: "structure", overlay: structureOverlay },
       ],
       { sensors: [], installed: INSTALLED },
     );
@@ -1162,11 +1183,11 @@ describe("the Structural analysis group", () => {
   });
 
   it("groups C.R.A.P. score and Coverage under C.R.A.P. and lists no complexity there", () => {
-    const file = JSON.parse(crapOverlay) as { values: Record<string, unknown> };
+    const file = crapOverlay as unknown as { values: Record<string, unknown> };
 
     expect(file.values).toHaveProperty("complexity");
 
-    const model = buildWithAnalysis([{ name: "crap", text: crapOverlay }], {
+    const model = buildWithAnalysis([{ name: "crap", overlay: crapOverlay }], {
       sensors: [],
       installed: INSTALLED,
     });

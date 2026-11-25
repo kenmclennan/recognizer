@@ -1,6 +1,7 @@
 import { availableParallelism } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import {
+  appSettingsProblem,
   createScan,
   type FindingsRepository,
   type HistoricalPorts,
@@ -8,12 +9,14 @@ import {
   listRenamesSince,
   MemoisedComparisons,
   type PlanRequest,
+  Repository,
   type RunningScan,
   rangeMembers,
   readChangeRange,
   readViewAuthor,
   requestFaults,
   type Scan,
+  type StructureRepository,
   scansAtCommit,
   testsHashOf,
   View,
@@ -48,11 +51,16 @@ import {
   refusalText,
 } from "../scan-marker.js";
 import { liveScopes, processScope, StopScope } from "../stop-scope.js";
+import { readStructure, typedHistorical } from "../structure-read.js";
 import { configKeys, configWrite } from "./config-run.js";
+import { estimateRequestOf, readEstimate } from "./estimate-ops.js";
 import { HistoryChannel } from "./history-channel.js";
+import { readInputs } from "./inputs-ops.js";
+import { classifyOpenedOp, viewMarks, viewMembers } from "./marks-ops.js";
 import { quiet } from "./quiet.js";
 import { RepositoryChannel } from "./repository-channel.js";
-import { clearPlugin, readPluginTexts } from "./results-ops.js";
+import { readResponsibilitiesOp } from "./responsibilities-ops.js";
+import { clearPlugin, readPluginResults } from "./results-ops.js";
 import { type ScopeFiles, writeScopeFiles } from "./scan-files.js";
 import { sensorWork } from "./sensor-work.js";
 import {
@@ -70,6 +78,7 @@ import {
   stopMarkerProcess,
   systemSignals,
 } from "./stop-by-repository.js";
+import { changeTicks } from "./ticks-ops.js";
 import {
   ACTIVE_POLL_MS,
   isActive,
@@ -80,6 +89,7 @@ import {
 import {
   ArgsError,
   knownHashes,
+  optionalText,
   type Request,
   text,
   textList,
@@ -115,6 +125,7 @@ export class Service {
   private readonly backstops = new StopBackstops();
   private readonly repositories: RepositoryChannel;
   private readonly findings: FindingsRepository;
+  private readonly structure: StructureRepository;
   private counter = 0;
 
   constructor(private readonly options: ServiceOptions) {
@@ -125,6 +136,7 @@ export class Service {
 
     this.planner = createScan(ports);
     this.findings = ports.findings;
+    this.structure = ports.structure;
     const git = new GitAdapter(this.shared);
     const limiter = new Limiter(
       Math.max(1, Math.min(MAX_HISTORICAL_SCANS, availableParallelism())),
@@ -204,6 +216,15 @@ export class Service {
 
         return;
       }
+      case "settings.validate":
+        reply({
+          problem: appSettingsProblem({
+            describing: args.describing,
+            setup: args.setup,
+          }),
+        });
+
+        return;
       case "config.keys":
         reply(configKeys(this.shared));
 
@@ -246,14 +267,42 @@ export class Service {
         reply(this.repositories.state(resolve(text(args, "repository"))));
 
         return;
-      case "results.read": {
+      case "structure.read": {
         const repository = resolve(text(args, "repository"));
-        const { revision } = this.repositories.state(repository);
 
-        reply({ revision, plugins: readPluginTexts(this.shared, repository) });
+        reply(readStructure(new ScanCacheAdapter().read(repository)));
 
         return;
       }
+      case "results.read": {
+        const repository = resolve(text(args, "repository"));
+
+        reply(
+          readPluginResults(
+            this.shared,
+            repository,
+            this.repositories.state(repository),
+            this.structureOf(repository),
+            optionalText(args, "tests"),
+          ),
+        );
+
+        return;
+      }
+      case "responsibilities.read":
+        reply(
+          readResponsibilitiesOp(
+            this.shared,
+            resolve(text(args, "repository")),
+            textList(args, "modules") ?? [],
+          ),
+        );
+
+        return;
+      case "inputs.read":
+        reply(readInputs(this.shared, resolve(text(args, "repository"))));
+
+        return;
       case "results.clear":
         clearPlugin(
           this.findings,
@@ -267,6 +316,20 @@ export class Service {
       case "scan.plan":
         text(args, "repository");
         reply(await this.planner.plan(args as unknown as PlanRequest));
+
+        return;
+      case "scan.estimate":
+        reply(
+          readEstimate(
+            this.shared,
+            resolve(text(args, "repository")),
+            estimateRequestOf(args),
+          ),
+        );
+
+        return;
+      case "scan.ticks":
+        reply(changeTicks(args));
 
         return;
       case "confirm.answer":
@@ -330,23 +393,61 @@ export class Service {
         return;
       case "view.scans":
         reply(
-          await scansAtCommit(
-            this.historical,
-            resolve(text(args, "repository")),
-            text(args, "commit"),
+          typedHistorical(
+            await scansAtCommit(
+              this.historical,
+              resolve(text(args, "repository")),
+              text(args, "commit"),
+            ),
           ),
         );
 
         return;
-      case "view.members":
-        reply(
+      case "view.members": {
+        const repository = resolve(text(args, "repository"));
+        const members = typedHistorical(
           await rangeMembers(
             this.historical,
-            resolve(text(args, "repository")),
+            repository,
             text(args, "base"),
             text(args, "head"),
           ),
         );
+
+        reply(
+          members.ok
+            ? {
+                ...members,
+                ...(await viewMembers(
+                  this.historical,
+                  repository,
+                  text(args, "base"),
+                  text(args, "head"),
+                  this.structureOf(repository),
+                )),
+              }
+            : members,
+        );
+
+        return;
+      }
+      case "view.marks": {
+        const repository = resolve(text(args, "repository"));
+
+        reply(
+          await viewMarks(
+            this.historical,
+            repository,
+            text(args, "base"),
+            text(args, "head"),
+            this.structureOf(repository),
+          ),
+        );
+
+        return;
+      }
+      case "view.classify":
+        reply(classifyOpenedOp(args));
 
         return;
       case "history.list":
@@ -395,6 +496,14 @@ export class Service {
       startedBy: run.started_by,
       refusal: refusalText(run, markerPath(repository)),
     };
+  }
+
+  private structureOf(repository: string): Repository {
+    try {
+      return this.structure.read(repository);
+    } catch {
+      return Repository.empty;
+    }
   }
 
   private work(args: Record<string, unknown>): unknown {

@@ -1,10 +1,18 @@
-import { Repository } from "@recognizer/core";
+import {
+  afterTickChanges,
+  Repository,
+  type ScanTicks,
+  type TickChange,
+} from "@recognizer/core";
 import {
   createPlanner,
+  estimateFrom,
   type PlanRequest,
+  type ScanHistory,
   type ScanPlanView,
   type ScanRunRecord,
 } from "recognizer";
+import type { EstimateRequest } from "./estimate-text";
 import { type LoadedPlanData, planReads } from "./plan-reads";
 import type { ScanPlan } from "./scan-panel-model";
 import type {
@@ -17,6 +25,14 @@ import type {
 } from "./scan-port";
 import { parseScanLine, type ScanEvent } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
+
+export const NO_HISTORY: ScanHistory = {
+  structureMs: null,
+  extractMs: null,
+  describe: [],
+  sense: {},
+  lastRun: null,
+};
 
 export const NO_PLAN_DATA: LoadedPlanData = {
   scans: Repository.empty,
@@ -58,6 +74,10 @@ export type FakeScan = ScanPort & {
   now: () => number;
   planData: LoadedPlanData;
   planned: PlanRequest[];
+  history: ScanHistory;
+  estimated: EstimateRequest[];
+  tickRequests: { ticks: ScanTicks; changes: TickChange[] }[];
+  holdTickReply: (request: number) => Promise<void> | null;
 };
 
 const SPAWNS_NO_RECORD = new Set<ScanRunResult["status"]>([
@@ -100,13 +120,7 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
   const fake: FakeScan = {
     steps: [],
     result: { status: "finished", exitCode: 0 },
-    cache: {
-      status: "scanned",
-      exitCode: 0,
-      stderr: "",
-      scans: [],
-      policy: null,
-    },
+    cache: { scans: [], notices: [] },
     defaults: { describe: false, sensors: false },
     describing: { model: "haiku", batchSize: 4, confirmAboveUsd: 5 },
     ran: [],
@@ -120,6 +134,26 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
     now: Date.now,
     planData: NO_PLAN_DATA,
     planned: [],
+    history: NO_HISTORY,
+    estimated: [],
+    tickRequests: [],
+    holdTickReply: () => null,
+    async changeTicks(ticks, changes) {
+      fake.tickRequests.push({ ticks, changes });
+
+      const held = fake.holdTickReply(fake.tickRequests.length);
+
+      if (held !== null) {
+        await held;
+      }
+
+      return afterTickChanges(ticks, changes);
+    },
+    async estimate(request) {
+      fake.estimated.push(request);
+
+      return estimateFrom(fake.history, request);
+    },
     async plan(request) {
       fake.planned.push(request);
 

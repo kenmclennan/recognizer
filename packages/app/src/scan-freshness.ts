@@ -1,5 +1,5 @@
+import { DESCRIBE_KEY } from "@recognizer/core";
 import type {
-  Freshness,
   LineKind,
   Measured,
   PlanMode,
@@ -12,29 +12,11 @@ import type {
 
 export type { LineKind, Measured, PlanRequest, ScanPlanView, SensorRow };
 
-import type { FreshnessModel } from "./freshness-model";
-import type { SensorStatus } from "./sensor-run";
+import type { FreshnessModel } from "./freshness-text";
 
 export type ResultsMode = PlanMode;
 
-export const DESCRIBE_KEY = "describe";
-
-export function markStale(
-  statuses: SensorStatus[],
-  freshness: Freshness,
-): SensorStatus[] {
-  return statuses.map((one) => {
-    if (one.status !== "ran" || one.measured === undefined) {
-      return one;
-    }
-
-    const stale =
-      !freshness.valid(one.measured) ||
-      freshness.counts(one.measured, []).outOfDate > 0;
-
-    return stale ? { ...one, status: "stale" } : one;
-  });
-}
+export { DESCRIBE_KEY };
 
 export type FreshnessMessage = {
   key: string;

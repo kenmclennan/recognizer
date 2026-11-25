@@ -1,7 +1,32 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { refusalsOf } from "../../src/refusal-record";
+import { validateRunRecord } from "../src/log-document.js";
+import { refusalsOf as refusalsOfRecords } from "../src/serve/refusals.js";
+
+type Registered = { name: string; modifiedMs?: number | null };
+
+function refusalsOf(
+  files: { name: string; text: string }[],
+  registered: string[],
+  statuses: Registered[],
+) {
+  const records = [...files]
+    .sort((a, b) => (a.name < b.name ? 1 : a.name > b.name ? -1 : 0))
+    .flatMap((one) => {
+      try {
+        return [validateRunRecord(JSON.parse(one.text))];
+      } catch {
+        return [];
+      }
+    });
+
+  return refusalsOfRecords(
+    records,
+    registered,
+    (name) => statuses.find((one) => one.name === name)?.modifiedMs ?? null,
+  );
+}
 
 const T0 = Date.parse("2026-11-02T09:00:00.000Z");
 const DIAGNOSIS = {
@@ -234,7 +259,7 @@ describe("refusalsOf", () => {
       Object.keys(refusalsOf(files, ["crap", "duplication", "mutation"], [])),
     ).toEqual(["crap"]);
   });
-  const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
+  const srcUrl = new URL("../src/index.ts", import.meta.url).href;
   const srcDir = new URL(".", srcUrl).pathname.slice(0, -1);
 
   it("reads the committed run record examples with a failed sense entry", () => {

@@ -1,7 +1,25 @@
-import { validateRunRecord } from "recognizer";
-import { ANALYSIS_KEY } from "./freshness-model";
-import { DESCRIBE_KEY, type PlannedRun } from "./scan-freshness";
-import { median } from "./suite-pace";
+type EstimateEntry = {
+  name: string;
+  outcome: string;
+  duration_ms: number;
+  incomplete?: true;
+  modules?: number;
+  fixed_ms?: number;
+  work?: { unit: string; performed: number };
+  suites?: { name: string; duration_ms: number }[];
+};
+
+type EstimateRecord = {
+  kind: string;
+  outcome: string;
+  structure_ms?: number;
+  phases?: { phase: string; entries: EstimateEntry[]; duration_ms?: number }[];
+};
+
+export type NamedRunRecord = { name: string; record: EstimateRecord };
+
+const ANALYSIS_KEY = "structure";
+const DESCRIBE_KEY = "describe";
 
 export type SenseSample = {
   durationMs: number;
@@ -20,14 +38,7 @@ export type ScanHistory = {
   extractMs: number | null;
   describe: DescribeSample[];
   sense: Record<string, SenseSample[]>;
-  lastRun?: string | null;
-};
-
-export const NO_HISTORY: ScanHistory = {
-  structureMs: null,
-  extractMs: null,
-  describe: [],
-  sense: {},
+  lastRun: string | null;
 };
 
 export type PartSpec = {
@@ -45,65 +56,41 @@ export type EstimatePart = {
   basis: string | null;
 };
 
-export type ScanEstimate = { text: string; title: string };
+export type PlannedIntent = {
+  describe: boolean;
+  analysis: boolean;
+  sense: string[];
+};
 
-export const NO_ESTIMATE_TEXT =
-  "No estimate until this repository has been scanned";
+export type EstimateRequest = {
+  intent: PlannedIntent;
+  planWork: Record<string, number>;
+  parts: PartSpec[];
+  work: Record<string, PlannedWork>;
+};
+
+export type EstimateAnswer = {
+  lastRun: string | null;
+  describeRateMs: number | null;
+  parts: EstimatePart[];
+};
 
 const RECENT = 5;
 
-export function roundedTime(ms: number): string {
-  const seconds = ms / 1000;
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
 
-  if (seconds < 60) {
-    return "under a minute";
-  }
-
-  const minutes = Math.round(seconds / 60);
-
-  if (minutes < 60) {
-    return `about ${minutes} min`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-
-  return rest === 0 ? `about ${hours} h` : `about ${hours} h ${rest} min`;
-}
-
-function capitalised(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-function shortTime(ms: number): string {
-  const seconds = ms / 1000;
-
-  if (seconds < 60) {
-    return "<1 min";
-  }
-
-  const minutes = Math.round(seconds / 60);
-
-  if (minutes < 60) {
-    return `${minutes} min`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-
-  return rest === 0 ? `${hours} h` : `${hours} h ${rest} m`;
+  return sorted.length % 2 === 1
+    ? (sorted[middle] as number)
+    : ((sorted[middle - 1] as number) + (sorted[middle] as number)) / 2;
 }
 
 function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
-export function scanHistory(
-  files: readonly { name: string; text: string }[],
-): ScanHistory {
-  const ordered = [...files].sort((a, b) =>
-    a.name < b.name ? 1 : a.name > b.name ? -1 : 0,
-  );
+export function scanHistory(files: readonly NamedRunRecord[]): ScanHistory {
   const history: ScanHistory = {
     structureMs: null,
     extractMs: null,
@@ -112,15 +99,7 @@ export function scanHistory(
     lastRun: null,
   };
 
-  for (const file of ordered) {
-    let record: ReturnType<typeof validateRunRecord>;
-
-    try {
-      record = validateRunRecord(JSON.parse(file.text));
-    } catch {
-      continue;
-    }
-
+  for (const { name, record } of files) {
     if (
       record.kind !== "scan" ||
       record.outcome === "running" ||
@@ -129,7 +108,7 @@ export function scanHistory(
       continue;
     }
 
-    history.lastRun ??= file.name;
+    history.lastRun ??= name;
 
     if (history.structureMs === null && record.structure_ms !== undefined) {
       history.structureMs = record.structure_ms;
@@ -301,7 +280,7 @@ function senseFigure(
 
 export function estimateParts(
   history: ScanHistory,
-  planned: PlannedRun,
+  planned: { intent: PlannedIntent; work: Record<string, number> },
   rows: readonly PartSpec[],
   work: Readonly<Record<string, PlannedWork>> = {},
 ): EstimatePart[] {
@@ -311,7 +290,7 @@ export function estimateParts(
     const { key, name } = spec;
 
     if (key === ANALYSIS_KEY) {
-      if (!planned.plan.analysis) {
+      if (!planned.intent.analysis) {
         continue;
       }
 
@@ -332,8 +311,8 @@ export function estimateParts(
     const n = planned.work[key] ?? 0;
     const ticked =
       key === DESCRIBE_KEY
-        ? planned.plan.describe
-        : planned.plan.sense.includes(key);
+        ? planned.intent.describe
+        : planned.intent.sense.includes(key);
 
     if (!ticked || n === 0) {
       continue;
@@ -386,30 +365,20 @@ export function estimateParts(
   return parts;
 }
 
-function missingText(part: EstimatePart): string {
-  return `${part.name}: ${part.basis ?? "no estimate yet"}`;
-}
+export function estimateFrom(
+  history: ScanHistory,
+  request: EstimateRequest,
+): EstimateAnswer {
+  const parts = estimateParts(
+    history,
+    { intent: request.intent, work: request.planWork },
+    request.parts,
+    request.work,
+  );
 
-export function estimateLine(parts: readonly EstimatePart[]): ScanEstimate {
-  const known = parts.filter((one) => one.ms !== null);
-  const missing = parts.filter((one) => one.ms === null);
-
-  if (known.length === 0) {
-    return { text: NO_ESTIMATE_TEXT, title: "" };
-  }
-
-  const total = known.reduce((sum, one) => sum + (one.ms as number), 0);
-  const text =
-    capitalised(roundedTime(total)) +
-    (missing.length === 0
-      ? ""
-      : `, plus ${missing.map(missingText).join(", ")}`);
-  const title = [
-    ...known.map(
-      (one) => `${one.name}: ${shortTime(one.ms as number)} (${one.basis})`,
-    ),
-    ...missing.map(missingText),
-  ].join("\n");
-
-  return { text, title };
+  return {
+    lastRun: history.lastRun,
+    describeRateMs: describeRateMs(history),
+    parts,
+  };
 }

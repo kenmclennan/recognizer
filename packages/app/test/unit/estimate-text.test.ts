@@ -1,16 +1,19 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  estimateParts,
+  type NamedRunRecord,
+  type PartSpec,
+  scanHistory,
+  validateRunRecord,
+} from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
-  describeRateMs,
   estimateLine,
-  estimateParts,
   NO_ESTIMATE_TEXT,
-  type PartSpec,
   roundedTime,
-  scanHistory,
-} from "../../src/scan-estimate";
+} from "../../src/estimate-text";
 import { OPEN_RUN, type PlannedRun } from "../../src/scan-freshness";
 
 type SenseEntry = {
@@ -23,6 +26,27 @@ type SenseEntry = {
   work?: { unit: string; performed: number };
   suites?: { name: string; duration_ms: number }[];
 };
+
+function named(files: { name: string; text: string }[]): NamedRunRecord[] {
+  return [...files]
+    .sort((a, b) => (a.name < b.name ? 1 : a.name > b.name ? -1 : 0))
+    .flatMap(({ name, text }) => {
+      try {
+        return [{ name, record: validateRunRecord(JSON.parse(text)) }];
+      } catch {
+        return [];
+      }
+    });
+}
+
+const historyOf = (files: { name: string; text: string }[]) =>
+  scanHistory(named(files));
+const partsOf = (
+  history: ReturnType<typeof scanHistory>,
+  run: PlannedRun,
+  rows: PartSpec[],
+  work?: Parameters<typeof estimateParts>[3],
+) => estimateParts(history, { intent: run.plan, work: run.work }, rows, work);
 
 function entry(one: {
   name: string;
@@ -213,8 +237,8 @@ function mutationLine(
   toPerform = 40,
   modules = 40,
 ) {
-  const parts = estimateParts(
-    scanHistory(files),
+  const parts = partsOf(
+    historyOf(files),
     planned({ mutation: modules }, ["mutation"]),
     [MUTATION],
     { mutation: { unit: "functions", to_perform: toPerform } },
@@ -247,21 +271,21 @@ describe("scanHistory with a part that runs tests", () => {
   });
 
   it("skips a cut-short run that would change the figure", () => {
-    const history = scanHistory([...MUTATION_RUNS, CUT_SHORT]);
+    const history = historyOf([...MUTATION_RUNS, CUT_SHORT]);
 
     expect(history.sense.mutation).toHaveLength(3);
     expect(JSON.parse(CUT_SHORT.text).phases[0].entries[0].incomplete).toBe(
       true,
     );
 
-    const kept = scanHistory([
+    const kept = historyOf([
       ...MUTATION_RUNS,
       {
         name: CUT_SHORT.name,
         text: CUT_SHORT.text.replace(',"incomplete":true', ""),
       },
     ]);
-    const keptParts = estimateParts(
+    const keptParts = partsOf(
       kept,
       planned({ mutation: 40 }, ["mutation"]),
       [MUTATION],
@@ -309,9 +333,7 @@ describe("scanHistory with a part that runs tests", () => {
       }),
     ];
     const at = (n: number) =>
-      estimateParts(scanHistory(files), planned({ crap: n }, ["crap"]), [
-        CRAP,
-      ])[0];
+      partsOf(historyOf(files), planned({ crap: n }, ["crap"]), [CRAP])[0];
 
     expect(at(5)?.ms).toBe(120000);
     expect(at(500)?.ms).toBe(120000);
@@ -330,7 +352,7 @@ describe("scanHistory with a part that runs tests", () => {
       }),
     ];
     const part = (key: string, runsTests: boolean, scoped: boolean) =>
-      estimateParts(scanHistory(files), planned({ [key]: 5 }, [key]), [
+      partsOf(historyOf(files), planned({ [key]: 5 }, [key]), [
         { key, name: key, runsTests, scoped, workVerb: null },
       ])[0]?.basis;
 
@@ -433,8 +455,8 @@ describe("the Mutation estimate counts the functions it will measure", () => {
       ],
     });
     const basis = (workVerb: string) =>
-      estimateParts(
-        scanHistory([old]),
+      partsOf(
+        historyOf([old]),
         planned({ mutation: 40 }, ["mutation"]),
         [{ ...MUTATION, workVerb }],
         { mutation: { unit: "functions", to_perform: 3 } },
@@ -445,8 +467,8 @@ describe("the Mutation estimate counts the functions it will measure", () => {
   });
 
   it("a sensor key never decides the work path", () => {
-    const parts = estimateParts(
-      scanHistory(MUTATION_RUNS),
+    const parts = partsOf(
+      historyOf(MUTATION_RUNS),
       planned({ mutation: 40 }, ["mutation"]),
       [{ ...MUTATION, workVerb: null }],
     );
@@ -469,8 +491,8 @@ describe("the Mutation estimate counts the functions it will measure", () => {
   });
 
   it("gives no estimate for Mutation before the sensor has answered, never a file figure", () => {
-    const parts = estimateParts(
-      scanHistory(MUTATION_RUNS),
+    const parts = partsOf(
+      historyOf(MUTATION_RUNS),
       planned({ mutation: 40 }, ["mutation"]),
       [MUTATION],
     );
@@ -487,8 +509,8 @@ describe("the Mutation estimate counts the functions it will measure", () => {
         ],
       }),
     ];
-    const parts = estimateParts(
-      scanHistory(files),
+    const parts = partsOf(
+      historyOf(files),
       planned({ crap: 5 }, ["crap"]),
       [CRAP],
       { mutation: { unit: "functions", to_perform: 9 } },
@@ -499,8 +521,8 @@ describe("the Mutation estimate counts the functions it will measure", () => {
   });
 
   it("records the newest scan record name as the last run", () => {
-    expect(scanHistory([FULL, REUSED(2)]).lastRun).toBe(REUSED(2).name);
-    expect(scanHistory([]).lastRun).toBeNull();
+    expect(historyOf([FULL, REUSED(2)]).lastRun).toBe(REUSED(2).name);
+    expect(historyOf([]).lastRun).toBeNull();
   });
 });
 
@@ -537,21 +559,21 @@ describe("scanHistory exclusions", () => {
   }
 
   it("keeps the good record and gives the figure computed from it", () => {
-    expect(scanHistory([good]).sense.mutation).toHaveLength(1);
+    expect(historyOf([good]).sense.mutation).toHaveLength(1);
     expect(figure([good])).toBe(130000 + 40 * 19250);
   });
 
   it("ignores a running record", () => {
     const running = wrong({ outcome: "running" });
 
-    expect(scanHistory([good, running]).sense.mutation).toHaveLength(1);
+    expect(historyOf([good, running]).sense.mutation).toHaveLength(1);
     expect(figure([good, running])).toBe(figure([good]));
   });
 
   it("ignores a stopped record", () => {
     const stopped = wrong({ outcome: "stopped" });
 
-    expect(scanHistory([good, stopped]).sense.mutation).toHaveLength(1);
+    expect(historyOf([good, stopped]).sense.mutation).toHaveLength(1);
     expect(figure([good, stopped])).toBe(figure([good]));
   });
 
@@ -570,7 +592,7 @@ describe("scanHistory exclusions", () => {
       ],
     });
 
-    expect(scanHistory([good, killed]).sense.mutation).toHaveLength(2);
+    expect(historyOf([good, killed]).sense.mutation).toHaveLength(2);
   });
 
   it("ignores a failed entry", () => {
@@ -649,8 +671,8 @@ describe("the estimate line", () => {
   ];
   const rows = [STRUCTURE, DESCRIBE, CRAP, MUTATION];
   const lineFor = (sense: string[], describe: boolean, history = files) => {
-    const parts = estimateParts(
-      scanHistory(history),
+    const parts = partsOf(
+      historyOf(history),
       planned({ describe: 12, crap: 40, mutation: 40 }, sense, describe),
       rows,
     );
@@ -673,8 +695,8 @@ describe("the estimate line", () => {
   it("names the function count when Mutation has work and no pace", () => {
     const lineWith = (toPerform: number | null) =>
       estimateLine(
-        estimateParts(
-          scanHistory(files),
+        partsOf(
+          historyOf(files),
           planned(
             { describe: 12, crap: 40, mutation: 40 },
             ["crap", "mutation"],
@@ -715,25 +737,18 @@ describe("the estimate line", () => {
   });
 
   it("adds the extract time to the structure figure", () => {
-    const parts = estimateParts(scanHistory(files), planned({}, []), [
-      STRUCTURE,
-    ]);
+    const parts = partsOf(historyOf(files), planned({}, []), [STRUCTURE]);
 
     expect(parts[0]?.ms).toBe(10000);
   });
 
   it("does not name a ticked part with nothing to do", () => {
-    const parts = estimateParts(
-      scanHistory([]),
-      planned({ crap: 0 }, ["crap"]),
-      [STRUCTURE, CRAP],
-    );
+    const parts = partsOf(historyOf([]), planned({ crap: 0 }, ["crap"]), [
+      STRUCTURE,
+      CRAP,
+    ]);
 
     expect(parts.map((one) => one.key)).toEqual(["structure"]);
-  });
-
-  it("derives the describe rate from wall time over ok entries", () => {
-    expect(describeRateMs(scanHistory(files))).toBe(4000);
   });
 });
 
@@ -746,10 +761,10 @@ describe("old records", () => {
       join(here, "../../../schema/log-examples/valid/scan-phases-ok.json"),
       "utf8",
     );
-    const history = scanHistory([
+    const history = historyOf([
       { name: "20261101T090000000Z-scan.json", text },
     ]);
-    const parts = estimateParts(
+    const parts = partsOf(
       history,
       planned({ describe: 4, "coverage-gaps": 4 }, ["coverage-gaps"], true),
       [
@@ -786,8 +801,8 @@ describe("paces from recorded durations", () => {
   ];
 
   it("a pace ignores an injected sleep gap", () => {
-    const awake = scanHistory(sensed(600_000)).sense.mutation?.[0];
-    const legacy = scanHistory(sensed(600_000 * 100)).sense.mutation?.[0];
+    const awake = historyOf(sensed(600_000)).sense.mutation?.[0];
+    const legacy = historyOf(sensed(600_000 * 100)).sense.mutation?.[0];
 
     expect(awake).toBeDefined();
     expect(awake?.durationMs).toBe(600_000);

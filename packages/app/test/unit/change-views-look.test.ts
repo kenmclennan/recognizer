@@ -26,6 +26,7 @@ function mount(files, options) {
   host.style.cssText = "width:1400px;height:800px;display:flex;flex-direction:column";
   document.body.append(host);
   const port = fakeViews(files, options);
+  port.present = loaded.repository;
   const state = { count: "" };
   const lines = [];
   const post = (input) => { if (input.action && input.action.label === "Undo") lines.push({ text: input.text, onUndo: input.action.run }); return lines.length; };

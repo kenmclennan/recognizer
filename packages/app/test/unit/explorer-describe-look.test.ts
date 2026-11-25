@@ -17,22 +17,16 @@ const scan = {
 };
 const loaded = loadedOf({ modules: ids, scans: [{ file: "scan.json", scan }] });
 
-const COMMAND = ["node", "d.js"];
-const HASH = "a".repeat(64);
-const entry = (line, hash = HASH) => ({ line, source_hash: hash, describer: COMMAND, version: "v1" });
-const filesOf = (modules) => ({
-  responsibilities: JSON.stringify({ schema_version: 1, modules }),
-  config: "describer:\\n  command: [node, d.js]\\n  version: v1\\n",
-  refused: [],
-  hashes: { "p/a.py": HASH, "p/b.py": HASH, "p/c.py": HASH },
-});
-const initial = () => filesOf({ "p/a.py": entry("A line.") });
+const current = (line) => ({ kind: "current", line });
+const stale = (line, reasons) => ({ kind: "out-of-date", line, reasons });
+const readOf = (states) => ({ states, describedAtMs: null });
+const initial = () => readOf({ "p/a.py": current("A line.") });
 
 const steps = [
-  ["b described", () => filesOf({ "p/a.py": entry("A line."), "p/b.py": entry("B line.") })],
-  ["c described", () => filesOf({ "p/a.py": entry("A line."), "p/b.py": entry("B line."), "p/c.py": entry("C line.") })],
-  ["a out of date", () => filesOf({ "p/a.py": entry("A line.", "c".repeat(64)), "p/b.py": entry("B line."), "p/c.py": entry("C line.") })],
-  ["unknown", () => ({ responsibilities: "not json", config: null, refused: [], hashes: {} })],
+  ["b described", () => readOf({ "p/a.py": current("A line."), "p/b.py": current("B line.") })],
+  ["c described", () => readOf({ "p/a.py": current("A line."), "p/b.py": current("B line."), "p/c.py": current("C line.") })],
+  ["a out of date", () => readOf({ "p/a.py": stale("A line.", ["source"]), "p/b.py": current("B line."), "p/c.py": current("C line.") })],
+  ["unknown", () => readOf(Object.fromEntries(["p/a.py", "p/b.py", "p/c.py"].map((id) => [id, { kind: "unknown", reason: "responsibilities.json: not json" }])))],
 ];
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));

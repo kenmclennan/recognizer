@@ -1,3 +1,4 @@
+import type { Checks } from "@recognizer/core";
 import type {
   Classification,
   End,
@@ -7,7 +8,6 @@ import type {
   TipLine,
 } from "./commits-panel-model";
 import { filterLabel } from "./commits-panel-model";
-import type { Checks } from "./commits-parse";
 import { button, el } from "./dom";
 import { type IconName, icon } from "./icons";
 import { spinner } from "./spinner-view";

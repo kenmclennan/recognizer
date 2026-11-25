@@ -3,16 +3,16 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   checksOf,
-  ghNotice,
   parseBranches,
   parseHistory,
   parsePullRequests,
-} from "../../src/commits-parse";
-
-const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
+} from "../../src/index.js";
 
 const fixture = (name: string) =>
-  readFileSync(new URL(`../../../fixtures/commits/${name}`, srcUrl), "utf8");
+  readFileSync(
+    new URL(`../../../../fixtures/commits/${name}`, import.meta.url),
+    "utf8",
+  );
 
 describe("parseHistory", () => {
   const { rows, skipped } = parseHistory(fixture("history.txt"));
@@ -152,22 +152,9 @@ describe("checksOf", () => {
   });
 });
 
-describe("ghNotice", () => {
-  it("returns the text for missing, signed-out and failed and nothing for ok", () => {
-    expect(ghNotice("missing", "")).toBe(
-      "Pull requests need the GitHub CLI (gh). Install it from cli.github.com, then reopen this tab.",
-    );
-    expect(ghNotice("signed-out", "")).toBe(
-      "Sign in to the GitHub CLI with gh auth login, then reopen this tab.",
-    );
-    expect(ghNotice("failed", "rate limited")).toBe("rate limited");
-    expect(ghNotice("ok", "")).toBeNull();
-  });
-});
-
 describe("parseHistory over this repository's real committed history (non-gating)", () => {
   it("reads the checkout's first commit as HEAD and skips no record", () => {
-    const root = new URL("../../..", srcUrl).pathname;
+    const root = new URL("../../../..", import.meta.url).pathname;
     const git = (...args: string[]) =>
       execFileSync("git", ["-C", root, ...args], { encoding: "utf8" });
 

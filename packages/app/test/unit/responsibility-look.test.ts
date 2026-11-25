@@ -17,19 +17,14 @@ const scan = {
 };
 const loaded = loadedOf({ modules: scan.modules.map((m) => m.id), scans: [{ file: "scan.json", scan }] });
 
-const COMMAND = ["node", "d.js"];
-const HASH = "a".repeat(64);
-const entry = (line, hash = HASH, version = "v1") => ({ line, source_hash: hash, describer: COMMAND, version });
-const filesOf = (modules, hashes) => ({
-  responsibilities: JSON.stringify({ schema_version: 1, modules }),
-  config: "describer:\\n  command: [node, d.js]\\n  version: v1\\n",
-  refused: [],
-  hashes,
+const current = (line) => ({ kind: "current", line });
+const stale = (line, reasons) => ({ kind: "out-of-date", line, reasons });
+const readOf = (states) => ({ states, describedAtMs: null });
+const initial = () => readOf({
+  "p/m.py": current("Current line."),
+  "p/o.py": stale("Stale line.", ["version"]),
+  "p/n.py": stale("Other stale.", ["source"]),
 });
-const initial = () => filesOf(
-  { "p/m.py": entry("Current line."), "p/o.py": entry("Stale line.", HASH, "v0"), "p/n.py": entry("Other stale.", "c".repeat(64)) },
-  { "p/m.py": HASH, "p/o.py": HASH, "p/n.py": HASH, "p/q.py": HASH },
-);
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 40));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
@@ -105,10 +100,10 @@ function snap(scope) {
   explorer = await open(watched);
   await select("p/q.py");
   facts.beforeEdit = snap().present;
-  watched.edit(filesOf({ "p/q.py": entry("Written elsewhere.") }, { "p/q.py": HASH }));
+  watched.edit(readOf({ "p/q.py": current("Written elsewhere.") }));
   await tick();
   facts.afterEdit = snap();
-  watched.edit({ responsibilities: "not json", config: null, refused: [], hashes: {} });
+  watched.edit(readOf(Object.fromEntries(["p/m.py", "p/o.py", "p/n.py", "p/q.py"].map((id) => [id, { kind: "unknown", reason: "responsibilities.json: not json" }]))));
   await tick();
   facts.invalid = snap();
   explorer.dispose();

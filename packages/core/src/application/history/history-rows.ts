@@ -1,40 +1,83 @@
-import { type FileChange, parseNameStatus } from "recognizer";
+import type { NameStatusEntry } from "../shared/ports/git.js";
 
-export type HistoryRow = {
-  sha: string;
-  short: string;
-  parents: string[];
-  author: string;
-  time: number;
-  subject: string;
-  chips: string[];
-  changes: FileChange[];
-};
+export interface HistoryRow {
+  readonly sha: string;
+  readonly short: string;
+  readonly parents: string[];
+  readonly author: string;
+  readonly time: number;
+  readonly subject: string;
+  readonly chips: string[];
+  readonly changes: NameStatusEntry[];
+}
 
-export type BranchRow = {
-  name: string;
-  short: string;
-  author: string;
-  time: number;
-};
+export interface BranchRow {
+  readonly name: string;
+  readonly short: string;
+  readonly author: string;
+  readonly time: number;
+}
 
 export type Checks = "passing" | "failing" | "pending" | "none";
 
-export type PullRequestRow = {
-  number: number;
-  title: string;
-  branch: string;
-  sha: string;
-  author: string;
-  time: number;
-  draft: boolean;
-  checks: Checks;
-};
+export interface PullRequestRow {
+  readonly number: number;
+  readonly title: string;
+  readonly branch: string;
+  readonly sha: string;
+  readonly author: string;
+  readonly time: number;
+  readonly draft: boolean;
+  readonly checks: Checks;
+}
 
-export type Parsed<Row> = { rows: Row[]; skipped: number };
+export interface Parsed<Row> {
+  readonly rows: Row[];
+  readonly skipped: number;
+}
 
 const SHA = /^[0-9a-f]{40,64}$/;
 const REMOTES = new Set(["origin", "upstream"]);
+const STATUSES = new Set(["A", "M", "D", "T"]);
+
+export function parseNameStatus(stdout: string): NameStatusEntry[] {
+  const fields = stdout.split("\0");
+  const entries: NameStatusEntry[] = [];
+  let index = 0;
+
+  while (index < fields.length) {
+    const status = fields[index] as string;
+
+    index += 1;
+
+    if (status.startsWith("R")) {
+      const from = fields[index];
+      const path = fields[index + 1];
+
+      index += 2;
+
+      if (from !== undefined && path !== undefined) {
+        entries.push({ status: "R", path, from });
+      }
+
+      continue;
+    }
+
+    const path = fields[index];
+
+    index += 1;
+
+    if (path === undefined) {
+      break;
+    }
+
+    if (STATUSES.has(status)) {
+      entries.push({ status: status as "A" | "M" | "D" | "T", path });
+    }
+  }
+
+  return entries;
+}
 
 function chipsOf(decorations: string): string[] {
   const chips: string[] = [];
@@ -62,8 +105,8 @@ function chipsOf(decorations: string): string[] {
   return chips;
 }
 
-function changesOf(lines: string[]): FileChange[] {
-  const changes: FileChange[] = [];
+function changesOf(lines: string[]): NameStatusEntry[] {
+  const changes: NameStatusEntry[] = [];
 
   for (const line of lines) {
     const tab = line.indexOf("\t");
@@ -148,11 +191,11 @@ export function parseBranches(text: string): Parsed<BranchRow> {
   return { rows, skipped };
 }
 
-type Check = {
+interface Check {
   status?: unknown;
   conclusion?: unknown;
   state?: unknown;
-};
+}
 
 const FAILING = new Set([
   "FAILURE",
@@ -259,15 +302,121 @@ export function parsePullRequests(text: string): Parsed<PullRequestRow> {
   return { rows, skipped };
 }
 
-export function ghNotice(status: string, detail: string): string | null {
-  switch (status) {
-    case "missing":
-      return "Pull requests need the GitHub CLI (gh). Install it from cli.github.com, then reopen this tab.";
-    case "signed-out":
-      return "Sign in to the GitHub CLI with gh auth login, then reopen this tab.";
-    case "failed":
-      return detail;
+export interface CommitDetail {
+  readonly author: string;
+  readonly time: number;
+  readonly subject: string;
+  readonly body: string;
+}
+
+export interface BranchTip {
+  readonly author: string;
+  readonly time: number;
+  readonly subject: string;
+}
+
+export type PullState = "open" | "draft" | "merged" | "closed";
+
+export interface PullDetail {
+  readonly number: number;
+  readonly title: string;
+  readonly body: string;
+  readonly state: PullState;
+  readonly author: string;
+  readonly checks: Checks;
+}
+
+export function parseCommitDetail(text: string | null): CommitDetail | null {
+  if (text === null) {
+    return null;
+  }
+
+  const fields = text.split("\u001f");
+
+  if (fields.length < 3) {
+    return null;
+  }
+
+  const [author = "", time = ""] = fields;
+  const seconds = Number(time.trim());
+
+  if (time.trim() === "" || !Number.isFinite(seconds)) {
+    return null;
+  }
+
+  const message = fields.slice(2).join("\u001f").replace(/\r\n/g, "\n");
+  const newline = message.indexOf("\n");
+  const subject = (newline < 0 ? message : message.slice(0, newline)).trim();
+  const body = newline < 0 ? "" : message.slice(newline + 1).trim();
+
+  return { author: author.trim(), time: seconds, subject, body };
+}
+
+export function parseBranchTip(text: string | null): BranchTip | null {
+  const detail = parseCommitDetail(text);
+
+  return detail === null
+    ? null
+    : { author: detail.author, time: detail.time, subject: detail.subject };
+}
+
+function stateOf(state: unknown, draft: boolean): PullState | null {
+  if (state === undefined) {
+    return draft ? "draft" : "open";
+  }
+
+  switch (state) {
+    case "OPEN":
+      return draft ? "draft" : "open";
+    case "MERGED":
+      return "merged";
+    case "CLOSED":
+      return "closed";
     default:
       return null;
   }
+}
+
+export function parsePullDetail(
+  reply: { status: string; text: string } | null,
+): PullDetail | null {
+  if (reply === null || reply.status !== "ok") {
+    return null;
+  }
+
+  let found: unknown;
+
+  try {
+    found = JSON.parse(reply.text);
+  } catch {
+    return null;
+  }
+
+  const entry = Array.isArray(found) ? found[0] : found;
+
+  if (typeof entry !== "object" || entry === null) {
+    return null;
+  }
+
+  const one = entry as Record<string, unknown>;
+  const state = stateOf(one.state, one.isDraft === true);
+
+  if (
+    typeof one.number !== "number" ||
+    typeof one.title !== "string" ||
+    state === null
+  ) {
+    return null;
+  }
+
+  const author = one.author as { login?: unknown; name?: unknown } | null;
+
+  return {
+    number: one.number,
+    title: one.title,
+    body: typeof one.body === "string" ? one.body : "",
+    state,
+    author: String(author?.login ?? author?.name ?? ""),
+    checks: checksOf(one.statusCheckRollup),
+  };
 }

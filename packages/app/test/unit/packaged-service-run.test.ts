@@ -285,25 +285,6 @@ function wire(repository: string, service: Service) {
           ...(args.args as Record<string, unknown>),
           repository,
         });
-      case "read_sensor_inputs": {
-        const read = (file: string) => {
-          try {
-            return readFileSync(join(repository, ".recognizer", file), "utf8");
-          } catch {
-            return null;
-          }
-        };
-
-        return {
-          policy: read("policy.yaml"),
-          config: read("config.yaml"),
-          baseline: read("baseline.json"),
-          refused: [],
-          analysis: false,
-        };
-      }
-      case "read_run_records":
-        return { files: [], refused: [] };
       case "read_scan_ticks":
         return {
           describe: false,
@@ -395,7 +376,7 @@ describe("the app over the real service, on a path with an unreadable folder", (
       (one) => one.registry.entries.length === 2,
     );
     const rows = rowSensors(
-      (await sensors.readInputs()).config,
+      (await sensors.inputs()).config,
       installedSensorsOf(state),
     );
 
@@ -443,7 +424,7 @@ describe("the app over the real service, on a path with an unreadable folder", (
           onRun: (handler) => holder.onRevision((state) => handler(state.run)),
         },
         registered: async () => {
-          const { config } = await sensors.readInputs();
+          const { config } = await sensors.inputs();
 
           return {
             sensors: rowSensors(config, await sensors.sensorList()),
@@ -544,7 +525,7 @@ describe("the app over the real service, on a path with an unreadable folder", (
             ?.registered !== true,
       );
       const rows = rowSensors(
-        (await sensors.readInputs()).config,
+        (await sensors.inputs()).config,
         installedSensorsOf(after),
       );
 

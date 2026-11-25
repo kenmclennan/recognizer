@@ -31,6 +31,18 @@ const PLANNING = [
   "workOf",
   "describeGap",
   "phasesFor",
+  "buildFreshness",
+  "markStale",
+  "scanHistory",
+  "estimateParts",
+  "suiteHistoryOf",
+  "describeRateMs",
+  "frozenFigures",
+  "buildFreshnessModel",
+  "changeMarks",
+  "memberMarks",
+  "classifyOpened",
+  "responsibilityStates",
 ];
 
 const DEFINITION = new RegExp(
@@ -72,6 +84,6 @@ describe("the app holds no planning logic", () => {
       .filter((line) => line !== "");
 
     expect(listed.length).toBeGreaterThan(0);
-    expect(listed.length).toBeLessThanOrEqual(57);
+    expect(listed.length).toBeLessThanOrEqual(56);
   });
 });

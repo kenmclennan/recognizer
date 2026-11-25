@@ -48,7 +48,7 @@ function runView(over) {
 }
 function render(over, scanning = false) {
   const model = scanPanel({
-    scan: null, config: "sensors:\\n  crap: {}\\n  mutation: {}\\n", sensors: [], lines: { modules: [], of: () => ({ kind: "missing" }) },
+    scan: null, config: { sensors: { crap: { command: ["c"] }, mutation: { command: ["m"] } } }, sensors: [], lines: { modules: [], of: () => ({ kind: "missing" }) },
     describedAt: null, ticks: { describe: false, ticked: [], armed: ["crap", "mutation"], onlyView: false, suites: {}, folds: [] },
     run: NO_RUN, scanning, now: 0, installed: INSTALLED, runView: runView(over),
   });

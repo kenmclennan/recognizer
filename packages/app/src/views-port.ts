@@ -1,4 +1,6 @@
 import type { Repository } from "@recognizer/core";
+import type { Classification } from "./commits-panel-model";
+import type { MarkedFile, MemberMarkKind } from "./head-drawn";
 
 export type ViewListing = {
   views: { name: string; text: string }[];
@@ -14,9 +16,15 @@ export type ChangeRange = {
   changes: RangeChange[];
 };
 
+export type RangeChangeMarks = {
+  files: MarkedFile[];
+  unmatched: number;
+};
+
 export type RangeMembers = {
   baseScans: Repository;
   headScans: Repository;
+  marks: Map<string, Map<string, MemberMarkKind> | null>;
   files: {
     path: string;
     base_path?: string;
@@ -41,6 +49,11 @@ export type ViewsPort = {
   renamesSince(commit: string): Promise<{ from: string; to: string }[]>;
   scansAt(commit: string): Promise<ReadOutcome<Repository>>;
   rangeMembers(base: string, head: string): Promise<ReadOutcome<RangeMembers>>;
+  marksOf(base: string, head: string): Promise<ReadOutcome<RangeChangeMarks>>;
+  classificationOf(
+    marked: MarkedFile[],
+    changes: RangeChange[],
+  ): Promise<Classification>;
   takePendingView(): Promise<string | null>;
   copy(text: string): Promise<void>;
   onChanged(run: () => void): () => void;
@@ -59,6 +72,14 @@ export const inertViews: ViewsPort = {
   renamesSince: async () => [],
   scansAt: async () => ({ ok: false, reason: "no repository is open" }),
   rangeMembers: async () => ({ ok: false, reason: "no repository is open" }),
+  marksOf: async () => ({ ok: false, reason: "no repository is open" }),
+  classificationOf: async (_, changes) => ({
+    added: [],
+    modified: [],
+    renamed: [],
+    removed: [],
+    elsewhere: changes.map(({ path }) => path),
+  }),
   takePendingView: async () => null,
   copy: async () => {},
   onChanged: () => () => {},

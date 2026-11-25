@@ -1,11 +1,11 @@
-import { moduleOf, type Overlay, validateOverlay } from "recognizer";
+import { moduleOf, type Overlay } from "recognizer";
 import { ageText } from "./footer-scan";
 import {
   ANALYSIS_KEY,
   type FreshnessModel,
   type ResultRow,
   stateText,
-} from "./freshness-model";
+} from "./freshness-text";
 import type {
   InstalledMetric,
   InstalledSensor,
@@ -15,13 +15,14 @@ import type {
 
 export type OverlayFileInput = {
   name: string;
-  text: string;
+  overlay: Overlay;
   modifiedMs?: number | null;
 };
 
 export type OverlayContext = {
   sensors: readonly SensorStatus[];
   installed: InstalledSensors | null;
+  unreadable?: readonly string[];
 };
 
 export type GroupNote = { text: string; tone: "warn" | "muted" };
@@ -238,7 +239,7 @@ export function buildOverlayModel(
   context: OverlayContext = { sensors: [], installed: null },
 ): OverlayModel {
   const built = new Map<string, OverlayGroup>();
-  const unreadable: string[] = [];
+  const unreadable = [...(context.unreadable ?? [])].sort(compare);
   const installed = [
     ANALYSIS_SENSOR,
     ...(context.installed?.status === "ok"
@@ -251,21 +252,7 @@ export function buildOverlayModel(
   const sorted = [...files].sort((a, b) => compare(a.name, b.name));
 
   for (const file of sorted) {
-    let overlay: Overlay;
-
-    try {
-      const parsed = JSON.parse(file.text) as Overlay;
-
-      overlay = validateOverlay(parsed, {
-        commit: parsed.commit,
-        modified: parsed.modified,
-        metrics: parsed.metrics,
-      });
-    } catch {
-      unreadable.push(file.name);
-
-      continue;
-    }
+    const overlay = file.overlay;
 
     const title = display.get(file.name) || file.name;
     const values = (name: string) => overlay.values[name] ?? {};
@@ -306,7 +293,7 @@ export function buildOverlayModel(
   }
 
   const groups: OverlayGroup[] = [];
-  const present = new Set(files.map((file) => file.name));
+  const present = new Set([...files.map((file) => file.name), ...unreadable]);
 
   for (const sensor of installed) {
     if (sensor.metrics.length === 0) {

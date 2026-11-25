@@ -1,6 +1,11 @@
-import type { Repository } from "@recognizer/core";
+import {
+  Repository as EmptyRepository,
+  type Repository,
+} from "@recognizer/core";
+import { changeMarks, classifyOpened, memberMarks } from "recognizer";
 import {
   type ChangeRange,
+  type RangeChange,
   type RangeMembers,
   VIEW_NAME,
   type ViewsPort,
@@ -19,7 +24,8 @@ export type FakeViews = ViewsPort & {
   renamed: { from: string; to: string }[];
   scansByCommit: Map<string, Repository | DocScan[] | null>;
   ranges: Map<string, ChangeRange | null>;
-  members: Map<string, RangeMembers | null>;
+  members: Map<string, Omit<RangeMembers, "marks"> | null>;
+  present: Repository;
   memberCalls: string[];
   reasons: Map<string, string>;
   opened: string[];
@@ -46,7 +52,7 @@ export function fakeViews(
   const pending: string[] = [];
   const scansByCommit = new Map<string, Repository | DocScan[] | null>();
   const ranges = new Map<string, ChangeRange | null>();
-  const members = new Map<string, RangeMembers | null>();
+  const members = new Map<string, Omit<RangeMembers, "marks"> | null>();
   const reasons = new Map<string, string>();
   const opened: string[] = [];
   const waiting: (() => void)[] = [];
@@ -59,6 +65,7 @@ export function fakeViews(
     scansByCommit,
     ranges,
     members,
+    present: EmptyRepository.empty,
     memberCalls: [],
     reasons,
     opened,
@@ -174,16 +181,66 @@ export function fakeViews(
       const range = `${base}..${head}`;
       const found = members.get(range);
 
-      return found === undefined || found === null
-        ? { ok: false, reason: reasons.get(range) ?? "no members seeded" }
-        : {
-            ok: true,
-            value: {
-              ...found,
-              baseScans: asRepository(found.baseScans),
-              headScans: asRepository(found.headScans),
-            },
-          };
+      if (found === undefined || found === null) {
+        return { ok: false, reason: reasons.get(range) ?? "no members seeded" };
+      }
+
+      const baseScans = asRepository(found.baseScans);
+      const headScans = asRepository(found.headScans);
+      const marked = await fake.marksOf(base, head);
+
+      return {
+        ok: true,
+        value: {
+          ...found,
+          baseScans,
+          headScans,
+          marks: memberMarks({
+            marked: marked.ok ? marked.value.files : [],
+            base: baseScans,
+            head: headScans,
+            files: found.files,
+          }),
+        },
+      };
+    },
+    async marksOf(base, head) {
+      const found = ranges.get(`${base}..${head}`);
+
+      if (found === undefined || found === null) {
+        return { ok: false, reason: "the change could not be read" };
+      }
+
+      const at = async (commit: string | null) => {
+        const seeded = commit === null ? null : scansByCommit.get(commit);
+
+        return seeded === undefined || seeded === null
+          ? null
+          : asRepository(seeded);
+      };
+      const headScans = (await at(found.headCommit)) ?? fake.present;
+      const baseScans = await at(found.baseCommit);
+      const files = found.changes.filter((change) =>
+        ["A", "M", "D", "T", "R"].includes(change.status),
+      ) as {
+        status: "A" | "M" | "D" | "T" | "R";
+        path: string;
+        from?: string;
+      }[];
+
+      return { ok: true, value: changeMarks(files, headScans, baseScans) };
+    },
+    async classificationOf(marked, changes: RangeChange[]) {
+      return classifyOpened(
+        changes.filter((change) =>
+          ["A", "M", "D", "T", "R"].includes(change.status),
+        ) as {
+          status: "A" | "M" | "D" | "T" | "R";
+          path: string;
+          from?: string;
+        }[],
+        marked,
+      );
     },
     async copy(text) {
       copied.push(text);

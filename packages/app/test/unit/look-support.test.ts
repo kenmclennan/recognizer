@@ -22,6 +22,7 @@ describe("look-support", () => {
         "baseline",
         "blocking",
         "findings",
+        "freshness",
         "modules",
         "notices",
         "policy",

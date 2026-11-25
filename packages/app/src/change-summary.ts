@@ -1,11 +1,11 @@
-import { type ViewChange, ViewRange } from "@recognizer/core";
 import type {
   BranchTip,
   CommitDetail,
+  HistoryRow,
   PullDetail,
-} from "./change-detail-parse";
+} from "@recognizer/core";
+import { type ViewChange, ViewRange } from "@recognizer/core";
 import { filesText } from "./commits-panel-model";
-import type { HistoryRow } from "./commits-parse";
 
 export type ChangeKind =
   | { kind: "commit"; sha: string }

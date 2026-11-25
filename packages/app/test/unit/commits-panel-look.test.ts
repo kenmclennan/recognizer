@@ -6,6 +6,7 @@ window.addEventListener("error", (e) => { document.getElementById("out").textCon
 import { loadedOf, mountExplorer } from ${JSON.stringify(here("../test/unit/look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("../test/unit/views-fake.ts"))};
 import { fakeCommits } from ${JSON.stringify(here("commits-fake.ts"))};
+import { parseBranches, parseHistory, parsePullRequests } from "@recognizer/core";
 ${FAKE_WORKER}
 Element.prototype.setPointerCapture = () => {};
 Element.prototype.releasePointerCapture = () => {};
@@ -37,10 +38,11 @@ function mount(options = {}, files = {}) {
   host.style.cssText = "width:1400px;height:800px;display:flex;flex-direction:column";
   document.body.append(host);
   const views = fakeViews(files);
+  views.present = loaded.repository;
   const commits = fakeCommits({
-    history: { branch: "main", text: options.history || HISTORY },
-    branches: { defaultRef: "origin/main", total: 3, text: BRANCHES },
-    pullRequests: options.pullRequests || { status: "ok", detail: "", text: PRS },
+    history: { branch: "main", ...parseHistory(options.history || HISTORY) },
+    branches: { defaultRef: "origin/main", total: 3, ...parseBranches(BRANCHES) },
+    pullRequests: options.pullRequests || { status: "ok", detail: "", ...parsePullRequests(PRS) },
     facts: [facts("main", sha("a"), []), facts("feature/x", sha("c"), FX), facts("spike", sha("c"), []), facts(sha("f"), sha("b"), [ch("M", "p/a.py")]), facts(sha("9"), sha("b"), [ch("A", "docs/y.md")])],
   });
   const lines = [];
@@ -316,7 +318,7 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   click(tabNamed(flt, "Branches"));
   await tick();
   out.filterBranchesOff = filterFacts(flt);
-  const only = mount({ pullRequests: { status: "ok", detail: "", text: PRS_DOCS } });
+  const only = mount({ pullRequests: { status: "ok", detail: "", ...parsePullRequests(PRS_DOCS) } });
   click(only.q(".rail-commits"));
   await tick(100);
   click(tabNamed(only, "Pull requests"));
@@ -324,7 +326,7 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   out.filterEmpty = { notice: only.q(".commits-notice") && only.q(".commits-notice").textContent, rows: only.all(".commits-row").length, count: only.q(".commits-hidden").textContent };
 
   for (const status of ["missing", "signed-out", "failed"]) {
-    const gh = mount({ pullRequests: { status, detail: "rate limited", text: "" } });
+    const gh = mount({ pullRequests: { status, detail: "rate limited", rows: [], skipped: 0 } });
     click(gh.q(".rail-commits"));
     await tick(100);
     click(tabNamed(gh, "Pull requests"));
@@ -389,9 +391,9 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   const slow = mount();
   const held = [];
   const slowly = (name, reply) => { slow.commits[name] = () => new Promise((resolve) => held.push(() => resolve(reply))); };
-  slowly("listHistory", { branch: "main", text: HISTORY });
-  slowly("listBranches", { defaultRef: "origin/main", total: 3, text: BRANCHES });
-  slowly("listPullRequests", { status: "ok", detail: "", text: PRS });
+  slowly("listHistory", { branch: "main", ...parseHistory(HISTORY) });
+  slowly("listBranches", { defaultRef: "origin/main", total: 3, ...parseBranches(BRANCHES) });
+  slowly("listPullRequests", { status: "ok", detail: "", ...parsePullRequests(PRS) });
   click(slow.q(".rail-commits"));
   await tick();
   const listLoading = () => ({ text: slow.q(".commits-loading") === null ? null : slow.q(".commits-loading").textContent, spinner: slow.q(".commits-list .spinner") !== null, rows: slow.all(".commits-row").length });
@@ -428,7 +430,7 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   const watcher = new MutationObserver(() => { if (live.q(".commits-loading") !== null) sawLoading.push(true); });
   watcher.observe(live.host, { childList: true, subtree: true });
   const withNew = record("f", "a", "Brand new", "", ["M\\tp/a.py"]) + HISTORY;
-  live.commits.history = { branch: "main", text: withNew };
+  live.commits.history = { branch: "main", ...parseHistory(withNew) };
   const historyBefore = live.commits.calls.history;
   live.commits.emitGitChanged();
   await tick(100);
@@ -444,11 +446,11 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   live.commits.emitGitChanged();
   await tick(100);
   out.rangeKept = { before: rangeHeld, after: rangeShade() };
-  live.commits.history = { branch: "main", text: HISTORY };
+  live.commits.history = { branch: "main", ...parseHistory(HISTORY) };
   live.commits.emitGitChanged();
   await tick(100);
   out.rangeLastGone = { first: slotText(live, "first"), last: slotText(live, "last") };
-  live.commits.history = { branch: "main", text: withNew };
+  live.commits.history = { branch: "main", ...parseHistory(withNew) };
   live.commits.emitGitChanged();
   await tick(100);
 
@@ -507,7 +509,7 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   await hvRefresh();
   out.popoverUpdated = { hidden: hvCard().hidden, sameCard: hv.q(".commits-card") === cardBefore, sameCount: hvCount() === countBefore, lines: hvText(), style: hvCard().style.left + "|" + hvCard().style.top === styleBefore, redraws: replaceSpy.calls - spyChanged };
 
-  hv.commits.branches = { defaultRef: "origin/main", total: 2, text: ["main", "feature/x"].map((name, i) => [name, String(i).repeat(7), "Ken", "1699000000"].join(US) + "\\n").join("") };
+  hv.commits.branches = { defaultRef: "origin/main", total: 2, ...parseBranches(["main", "feature/x"].map((name, i) => [name, String(i).repeat(7), "Ken", "1699000000"].join(US) + "\\n").join("")) };
   await hvRefresh();
   out.popoverMixed = { hidden: hvCard().hidden, sameCount: hvCount() === countBefore, rows: titlesOf(hv, ".commits-row") };
 
@@ -531,11 +533,11 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   out.pointerdown = { insideKept, outsideHidden: hvCard().hidden };
 
   hvPoint(hvCount(), "pointerenter");
-  hv.commits.branches = { defaultRef: "origin/main", total: 1, text: ["main"].map((name, i) => [name, String(i).repeat(7), "Ken", "1699000000"].join(US) + "\\n").join("") };
+  hv.commits.branches = { defaultRef: "origin/main", total: 1, ...parseBranches(["main"].map((name, i) => [name, String(i).repeat(7), "Ken", "1699000000"].join(US) + "\\n").join("")) };
   await hvRefresh();
   out.rowGone = hvCard().hidden;
 
-  hv.commits.branches = { defaultRef: "origin/main", total: 3, text: BRANCHES };
+  hv.commits.branches = { defaultRef: "origin/main", total: 3, ...parseBranches(BRANCHES) };
   await hvRefresh();
   const clickRow = rowFor(hv, "feature/x");
   const clickRowFeature = () => rowFor(hv, "feature/x");
@@ -600,7 +602,7 @@ window.addEventListener("unhandledrejection", (e) => out.errors.push(String(e.re
   raced.commits.holds.history.push(new Promise((resolve) => { releaseFirst = resolve; }), new Promise((resolve) => { releaseSecond = resolve; }));
   click(raced.q(".rail-commits"));
   await tick(30);
-  raced.commits.history = { branch: "main", text: record("f", "a", "Raced new", "", ["M\\tp/a.py"]) };
+  raced.commits.history = { branch: "main", ...parseHistory(record("f", "a", "Raced new", "", ["M\\tp/a.py"])) };
   raced.commits.emitGitChanged();
   await tick(30);
   releaseSecond();

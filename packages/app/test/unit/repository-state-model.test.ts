@@ -325,23 +325,26 @@ describe("the installed sensors and stored results the app reads from a snapshot
   });
 
   it("splits texts into findings and overlay files, flags a problem as refused and stamps the reported time", () => {
-    const state = snapshot(2, ["crap", "mutation"], {
-      results: resultFor("crap"),
-    });
-    const stored = storedResultsOf(state, {
+    const stored = storedResultsOf({
       revision: 2,
+      refusals: {},
+      lastRun: null,
       plugins: {
         crap: {
-          findings: "{f}",
-          overlay: "{o}",
+          findings: { commit: "f" } as never,
+          overlay: { commit: "o" } as never,
           findingsProblem: null,
           overlayProblem: null,
+          modifiedMs: Date.parse("2026-11-24T10:00:00Z"),
+          freshness: null,
         },
         mutation: {
           findings: null,
           overlay: null,
           findingsProblem: "bad",
           overlayProblem: "worse",
+          modifiedMs: null,
+          freshness: null,
         },
       },
     });
@@ -349,7 +352,7 @@ describe("the installed sensors and stored results the app reads from a snapshot
     expect(stored.findings.files).toEqual([
       {
         name: "crap",
-        text: "{f}",
+        document: { commit: "f" },
         modifiedMs: Date.parse("2026-11-24T10:00:00Z"),
       },
     ]);

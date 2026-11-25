@@ -17,6 +17,7 @@ import type { RowSensor } from "../../src/scan-panel-model";
 import type { ViewComparisons } from "../../src/view-comparisons";
 import type { ViewsPort } from "../../src/views-port";
 import type { WindowPort } from "../../src/window-port";
+import { factsFor, measuredOfDocument } from "../freshness-support";
 import { type DocScan, repositoryFrom } from "./repository-from";
 import {
   type FindingsLiteral,
@@ -63,15 +64,25 @@ export function loadedOf(
       ),
   }));
 
+  const repository =
+    given === undefined
+      ? BASE.repository
+      : Repository.join(scans.map((one) => one.repository));
+
   return {
     ...BASE,
     ...rest,
     findings,
     scans,
-    repository:
-      given === undefined
-        ? BASE.repository
-        : Repository.join(scans.map((one) => one.repository)),
+    repository,
+    freshness:
+      rest.freshness !== undefined && Object.keys(rest.freshness).length > 0
+        ? rest.freshness
+        : factsFor(
+            repository,
+            [...findings.map(measuredOfDocument), ...(rest.sensors ?? [])],
+            rest.tests ?? null,
+          ),
   };
 }
 

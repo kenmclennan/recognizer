@@ -18,10 +18,10 @@ describe("repository state fake", () => {
     };
 
     fake.publish(state);
-    fake.setTexts("crap", { overlay: "{}" });
+    fake.setResults("crap", { overlay: {} as never });
 
     expect(seen).toEqual([2]);
-    expect((await fake.readResults()).plugins.crap?.overlay).toBe("{}");
+    expect((await fake.readResults()).plugins.crap?.overlay).toEqual({});
 
     await fake.clearResults("crap");
     stop();

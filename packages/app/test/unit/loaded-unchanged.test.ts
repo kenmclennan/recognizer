@@ -8,13 +8,13 @@ const BASE: Loaded = {
   modules: [],
   scans: [],
   repository: Repository.empty,
-  policy: "p",
-  baseline: "b",
+  policy: [],
+  baseline: ["b"],
   notices: [],
   blocking: null,
   findings: [],
   sensors: [],
-  overlays: [{ name: "coverage", text: "{}" }],
+  overlays: [{ name: "coverage", overlay: {} as never }],
   overlaysUnreadable: [],
 };
 
@@ -31,7 +31,7 @@ describe("loadedUnchanged", () => {
   });
 
   it.each([
-    ["policy", { policy: "q" }],
+    ["policy", { policy: null }],
     ["baseline", { baseline: null }],
     ["findings", { findings: [{ sensor: "x" } as never] }],
     ["sensors", { sensors: [{ name: "x" } as never] }],
@@ -73,7 +73,7 @@ describe("sameStructure", () => {
     expect(
       sameStructure(WITH_SCAN, {
         ...WITH_SCAN,
-        policy: "q",
+        policy: null,
         baseline: null,
         findings: [{ sensor: "x" } as never],
         sensors: [{ name: "x" } as never],

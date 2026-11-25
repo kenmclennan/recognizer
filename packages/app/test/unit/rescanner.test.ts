@@ -795,7 +795,7 @@ describe("createRescanner", () => {
   it("replaces again when a refresh senses changed data", async () => {
     let turn = 0;
     const { log, rescanner } = harness(fakeScan(), {
-      resense: async () => ({ ...OK, policy: `p${turn++}` }),
+      resense: async () => ({ ...OK, baseline: [`p${turn++}`] }),
     });
 
     await rescanner.refresh();
@@ -826,7 +826,7 @@ describe("createRescanner", () => {
     let turn = 0;
     const updated: Loaded[] = [];
     const { log, rescanner } = harness(fakeScan(), {
-      resense: async () => ({ ...OK, policy: `p${turn++}` }),
+      resense: async () => ({ ...OK, baseline: [`p${turn++}`] }),
       update: (loaded) => {
         updated.push(loaded);
 
@@ -840,7 +840,7 @@ describe("createRescanner", () => {
 
     expect(log.filter((entry) => entry.startsWith("replace"))).toHaveLength(1);
     expect(log.filter((entry) => entry === "carry")).toHaveLength(1);
-    expect(updated.map((loaded) => loaded.policy)).toEqual(["p1", "p2"]);
+    expect(updated.map((loaded) => loaded.baseline)).toEqual([["p1"], ["p2"]]);
   });
 
   it("updates in place from a sensor-only scan run after the first scan", async () => {
@@ -871,7 +871,7 @@ describe("createRescanner", () => {
       resense: async () => {
         const next = turn++;
 
-        return { ...OK, policy: `p${next}`, modules: [`m${next}.py`] };
+        return { ...OK, baseline: [`p${next}`], modules: [`m${next}.py`] };
       },
       update: () => true,
     });
@@ -885,7 +885,7 @@ describe("createRescanner", () => {
   it("falls back to replace when update returns false", async () => {
     let turn = 0;
     const { log, rescanner } = harness(fakeScan(), {
-      resense: async () => ({ ...OK, policy: `p${turn++}` }),
+      resense: async () => ({ ...OK, baseline: [`p${turn++}`] }),
       update: () => false,
     });
 
@@ -945,7 +945,7 @@ describe("createRescanner", () => {
       release = resolve;
     });
     let reads = 0;
-    const rendered: (string | null)[] = [];
+    const rendered: (string[] | null)[] = [];
     const { rescanner } = harness(fakeScan(), {
       resense: async () => {
         reads += 1;
@@ -954,10 +954,10 @@ describe("createRescanner", () => {
           await gate;
         }
 
-        return { ...OK, policy: `revision-${reads}` };
+        return { ...OK, baseline: [`revision-${reads}`] };
       },
       replace: (loaded) => {
-        rendered.push(loaded.policy);
+        rendered.push(loaded.baseline);
       },
       update: () => false,
     });
@@ -969,7 +969,7 @@ describe("createRescanner", () => {
     await Promise.all([first, second]);
 
     expect(reads).toBe(2);
-    expect(rendered.at(-1)).toBe("revision-2");
+    expect(rendered.at(-1)).toEqual(["revision-2"]);
   });
 
   it("renders a refresh during a run from the newest revision, deferring nothing", async () => {
