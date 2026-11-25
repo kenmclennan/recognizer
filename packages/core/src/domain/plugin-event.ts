@@ -78,7 +78,7 @@ export function parseEventLine(
 }
 
 export interface EventReader {
-  line(line: string): void;
+  line(line: string): boolean;
   keep(stderr: string): string;
   diagnosis(): Diagnosis | null;
   firstWorked(): number | null;
@@ -107,11 +107,11 @@ export function createEventReader(
       if (parsed.kind === "invalid") {
         invalid += 1;
 
-        return;
+        return true;
       }
 
       if (parsed.kind === "text") {
-        return;
+        return false;
       }
 
       const { event } = parsed;
@@ -133,6 +133,8 @@ export function createEventReader(
       }
 
       onEvent?.(event);
+
+      return true;
     },
     keep: (stderr) => {
       const kept = stderr
