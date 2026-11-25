@@ -1,10 +1,12 @@
 import type { HistoryPorts } from "./history-ports.js";
+import { type HistoryRow, parseHistory } from "./history-rows.js";
 
 export const HISTORY_LIMIT = 200;
 
 export interface HistoryReply {
   readonly branch: string | null;
-  readonly text: string;
+  readonly rows: HistoryRow[];
+  readonly skipped: number;
 }
 
 export async function listHistory(
@@ -19,5 +21,5 @@ export async function listHistory(
     throw new Error(result.error);
   }
 
-  return { branch: ports.git.branch(root), text: result.text };
+  return { branch: ports.git.branch(root), ...parseHistory(result.text) };
 }

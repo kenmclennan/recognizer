@@ -3,6 +3,7 @@ import { plainSensor } from "../../src/installed-fake";
 import { createPlanAnswers } from "../../src/plan-answers";
 import type { PlanRequest, ScanPlanView } from "../../src/plan-reads";
 import { NO_RUN, type PanelInput, scanPanel } from "../../src/scan-panel-model";
+import { configOf } from "../fixtures";
 
 const request = (changed: string[] = []): PlanRequest => ({
   repository: ".",
@@ -50,7 +51,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 function panelInput(plan: PanelInput["plan"]): PanelInput {
   return {
     scan: null,
-    config: "sensors:\n  crap: {}\n",
+    config: configOf("sensors:\n  crap: {}\n"),
     sensors: [],
     lines: { modules: ["a.py"], of: () => ({ kind: "current", line: "x" }) },
     describedAt: null,

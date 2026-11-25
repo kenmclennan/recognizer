@@ -39,12 +39,18 @@ export function fakeCommits(
   const watchers = new Set<() => void>();
   const focusers = new Set<() => void>();
   const fake: FakeCommits = {
-    history: initial.history ?? { branch: null, text: "" },
-    branches: initial.branches ?? { defaultRef: null, total: 0, text: "" },
+    history: initial.history ?? { branch: null, rows: [], skipped: 0 },
+    branches: initial.branches ?? {
+      defaultRef: null,
+      total: 0,
+      rows: [],
+      skipped: 0,
+    },
     pullRequests: initial.pullRequests ?? {
       status: "ok",
       detail: "",
-      text: "[]",
+      rows: [],
+      skipped: 0,
     },
     facts: new Map((initial.facts ?? []).map((one) => [one.ref, one])),
     details: new Map(Object.entries(initial.details ?? {})),

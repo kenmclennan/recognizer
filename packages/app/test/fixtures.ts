@@ -4,12 +4,14 @@ import { fileURLToPath } from "node:url";
 import { Finding, Repository, type SensorFindings } from "@recognizer/core";
 import {
   buildFreshness,
+  type Config,
   describeGap,
   freshnessScope,
   gapOf,
   measuredInputs,
   type PlanRequest,
   type PlanRow,
+  parseConfig,
   parsePolicy,
   planFor,
   planScan,
@@ -17,7 +19,7 @@ import {
   sensorFreshness,
   structureSensor,
 } from "recognizer";
-import type { FreshnessModel } from "../src/freshness-model";
+import type { FreshnessModel } from "../src/freshness-text";
 import type { LoadedPlanData } from "../src/plan-reads";
 import {
   type PlannedRun,
@@ -275,4 +277,16 @@ export function plannedRun(
   );
 
   return plannedFromView(model, mode, view, rows);
+}
+
+export function configOf(text: string | null): Config | null {
+  if (text === null) {
+    return null;
+  }
+
+  try {
+    return parseConfig(text);
+  } catch {
+    return null;
+  }
 }

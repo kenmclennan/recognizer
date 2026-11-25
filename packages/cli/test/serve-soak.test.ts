@@ -58,7 +58,7 @@ function fakeSensor(directory: string, gate: string, name: string): void {
       `  echo 'recognizer-event {"event":"start","total":2,"unit":"functions"}' >&2`,
       `  while [ -e ${gate}/hold-${name} ]; do sleep 0.1; done`,
       `  mkdir -p "$root/.recognizer/cache/overlays"`,
-      `  echo '{"overlay":"${name}"}' > "$root/.recognizer/cache/overlays/${name}.json"`,
+      `  printf '{"overlay_version":1,"inputs":{},"commit":"%s","modified":false,"producer":{"name":"${name}","version":"1"},"metrics":[],"values":{}}' "$commit" > "$root/.recognizer/cache/overlays/${name}.json"`,
       `  mkdir -p "$(dirname "$out")"`,
       `  printf '{"findings_version":1,"sensor":{"name":"${name}","version":"1"},"commit":"%s","modified":false,"settings":{},"findings":[]}' "$commit" > "$out";;`,
       `esac`,
@@ -170,7 +170,9 @@ describe("serve soak", () => {
         const midRead = (await serve.call("results.read", { repository })).ok;
 
         expect(midRead.plugins[finishedName].findings).not.toBeNull();
-        expect(midRead.plugins[finishedName].overlay).toContain(finishedName);
+        expect(midRead.plugins[finishedName].overlay.producer.name).toBe(
+          finishedName,
+        );
 
         await serve.call("repository.unwatch", { watch });
 
@@ -212,7 +214,7 @@ describe("serve soak", () => {
 
         for (const name of SENSORS) {
           expect(last.plugins[name].findings).not.toBeNull();
-          expect(last.plugins[name].overlay).toContain(name);
+          expect(last.plugins[name].overlay.producer.name).toBe(name);
         }
 
         expect(

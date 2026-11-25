@@ -55,12 +55,55 @@ describe("the views source", () => {
         files: [
           { path: "a.ts", basePath: "b.ts", baseText: "old", headText: null },
         ],
+        marks: [["a.ts", [["f", "modified"]]]],
       },
     })) as never);
     const found = await source.rangeMembers("main", "topic");
 
     expect(found.ok && found.value.files).toEqual([
       { path: "a.ts", base_path: "b.ts", base_text: "old", head_text: null },
+    ]);
+    expect(found.ok && found.value.marks).toEqual(
+      new Map([["a.ts", new Map([["f", "modified"]])]]),
+    );
+  });
+
+  it("asks core for the marks of a range and the classification of an opened change", async () => {
+    const calls: Record<string, unknown>[] = [];
+    const source = createViewsSource((async (
+      _command: string,
+      args: Record<string, unknown> = {},
+    ) => {
+      calls.push(args);
+
+      return {
+        ok:
+          args.op === "view.marks"
+            ? { ok: true, files: [], unmatched: 2 }
+            : {
+                added: ["a.ts"],
+                modified: [],
+                renamed: [],
+                removed: [],
+                elsewhere: [],
+              },
+      };
+    }) as never);
+
+    expect(await source.marksOf("main", "topic")).toEqual({
+      ok: true,
+      value: { files: [], unmatched: 2 },
+    });
+    expect(
+      (await source.classificationOf([], [{ status: "A", path: "a.ts" }]))
+        .added,
+    ).toEqual(["a.ts"]);
+    expect(calls).toEqual([
+      { op: "view.marks", args: { base: "main", head: "topic" } },
+      {
+        op: "view.classify",
+        args: { marked: [], changes: [{ status: "A", path: "a.ts" }] },
+      },
     ]);
   });
 });

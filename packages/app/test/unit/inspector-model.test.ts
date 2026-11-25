@@ -35,6 +35,7 @@ import {
   fixtureScan,
   secondSensorDocument,
 } from "../fixtures";
+import { factsFor, measuredOfDocument } from "../freshness-support";
 import {
   type DocEdge,
   type DocMember,
@@ -912,6 +913,11 @@ describe("findings", () => {
       modules,
       baseline: null,
       findings: [secondSensorDocument("shop/main.py")],
+      freshness: factsFor(
+        loaded.repository,
+        [measuredOfDocument(secondSensorDocument("shop/main.py"))],
+        null,
+      ),
     });
     const rows = inspectorContent(
       module("shop/main.py"),

@@ -1,4 +1,4 @@
-import { roundedTime } from "./scan-estimate";
+import { roundedTime } from "./estimate-text";
 import type { ScanProgress } from "./scan-progress";
 
 export const FINDING_STAGE = "Finding the languages in this repository";

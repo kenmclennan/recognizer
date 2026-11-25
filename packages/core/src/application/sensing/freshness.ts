@@ -57,3 +57,25 @@ export function buildFreshness(
     },
   };
 }
+
+export type DocumentFreshness = {
+  valid: boolean;
+  current: string[];
+  outOfDate: number;
+};
+
+export function documentFreshness(
+  repository: Repository,
+  measured: Measured,
+  tests: string | null,
+): DocumentFreshness {
+  const freshness = buildFreshness(repository, tests);
+
+  return {
+    valid: freshness.valid(measured),
+    current: [...repository.scannedHashes().keys()].filter((module) =>
+      freshness.current(measured, module),
+    ),
+    outOfDate: freshness.counts(measured, []).outOfDate,
+  };
+}

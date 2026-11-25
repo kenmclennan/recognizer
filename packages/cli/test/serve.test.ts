@@ -1445,7 +1445,9 @@ function historyRepository(): {
 
 function scanText(reply: Line): string {
   return JSON.stringify(
-    (reply.ok as { scans: { text: string }[] }).scans.map((scan) => scan.text),
+    (reply.ok as { scans: { document: unknown }[] }).scans.map(
+      (scan) => scan.document,
+    ),
   );
 }
 

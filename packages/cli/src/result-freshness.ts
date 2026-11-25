@@ -16,7 +16,7 @@ export function namedModules(record: Finding): string[] {
 
 export function splitFindings(
   document: SensorFindings,
-  freshness: Freshness,
+  freshness: Pick<Freshness, "valid" | "current">,
 ): { current: Finding[]; hidden: Finding[] } {
   const current: Finding[] = [];
   const hidden: Finding[] = [];

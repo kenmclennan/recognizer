@@ -1,3 +1,11 @@
+import type {
+  BranchRow,
+  BranchTip,
+  CommitDetail,
+  HistoryRow,
+  PullDetail,
+  PullRequestRow,
+} from "@recognizer/core";
 import type { FileChange } from "recognizer";
 
 export type { FileChange };
@@ -10,12 +18,17 @@ export type RefFacts = {
   changes: FileChange[] | null;
 };
 
-export type HistoryReply = { branch: string | null; text: string };
+export type HistoryReply = {
+  branch: string | null;
+  rows: HistoryRow[];
+  skipped: number;
+};
 
 export type BranchesReply = {
   defaultRef: string | null;
   total: number;
-  text: string;
+  rows: BranchRow[];
+  skipped: number;
 };
 
 export type GhStatus = "ok" | "missing" | "signed-out" | "failed";
@@ -23,19 +36,28 @@ export type GhStatus = "ok" | "missing" | "signed-out" | "failed";
 export type PullRequestsReply = {
   status: GhStatus;
   detail: string;
-  text: string;
+  rows: PullRequestRow[];
+  skipped: number;
 };
 
 export type ChangeDetailKind = "commit" | "branch" | "pr";
 
+export type PullDetailReply = {
+  status: GhStatus;
+  detail: string;
+  pull: PullDetail | null;
+};
+
 export type ChangeDetailReply = {
-  git: string | null;
-  pull: PullRequestsReply | null;
+  commit: CommitDetail | null;
+  tip: BranchTip | null;
+  pull: PullDetailReply | null;
   defaultRef: string | null;
 };
 
 export const NO_CHANGE_DETAIL: ChangeDetailReply = {
-  git: null,
+  commit: null,
+  tip: null,
   pull: null,
   defaultRef: null,
 };
@@ -54,10 +76,20 @@ export type CommitsPort = {
 };
 
 export const inertCommits: CommitsPort = {
-  listHistory: async () => ({ branch: null, text: "" }),
-  listBranches: async () => ({ defaultRef: null, total: 0, text: "" }),
+  listHistory: async () => ({ branch: null, rows: [], skipped: 0 }),
+  listBranches: async () => ({
+    defaultRef: null,
+    total: 0,
+    rows: [],
+    skipped: 0,
+  }),
   refFacts: async (refs) => refs.map(nullFacts),
-  listPullRequests: async () => ({ status: "ok", detail: "", text: "[]" }),
+  listPullRequests: async () => ({
+    status: "ok",
+    detail: "",
+    rows: [],
+    skipped: 0,
+  }),
   changeDetail: async () => NO_CHANGE_DETAIL,
   watchGit: () => () => {},
   onFocus: () => () => {},

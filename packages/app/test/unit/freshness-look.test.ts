@@ -30,7 +30,7 @@ const inputs = { "app/a.py": ${JSON.stringify(H1)}, "app/b.py": ${JSON.stringify
 const overlay = JSON.stringify({ overlay_version: 2, commit: ${JSON.stringify(COMMIT)}, modified: false, inputs, tests: ${JSON.stringify(TESTS)}, producer: { name: "crap", version: "0.1.0" }, metrics: [{ name: "coverage", type: "count", granularity: "member", bad: "high" }], values: { coverage: { "app/a.py::f": 8, "app/b.py::f": 5 } } });
 const finding = (id, module) => ({ id, kind: "style", severity: "warning", principle: "name-your-constants", summary: "magic numbers " + id, evidence: { modules: [module] } });
 const document_ = { findings_version: 2, sensor: { name: "crap", version: "0.1.0" }, commit: ${JSON.stringify(COMMIT)}, modified: false, settings: {}, inputs, tests: ${JSON.stringify(TESTS)}, findings: [finding("on-a", "app/a.py"), finding("on-b", "app/b.py")] };
-const loadedFor = (tests) => loadedOf({ modules: ids, scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", text: overlay }], findings: [document_], sensors: [{ name: "crap", status: "ran", measured: { inputs, tests: ${JSON.stringify(TESTS)} } }], tests });
+const loadedFor = (tests) => loadedOf({ modules: ids, scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", overlay: JSON.parse(overlay) }], findings: [document_], sensors: [{ name: "crap", status: "ran", measured: { inputs, tests: ${JSON.stringify(TESTS)} } }], tests });
 
 const INSTALLED = ${JSON.stringify([{ ...installedSensor("crap"), display: "crap", description: "x", runsTests: true, metrics: installedSensor("crap").metrics.slice(0, 1) }])};
 const port = () => fakeSensors({}, {}, {}, INSTALLED);

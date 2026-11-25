@@ -36,22 +36,6 @@ fn setup_json(setup: &Setup) -> Value {
     serde_json::json!({ "model": setup.model })
 }
 
-fn model_ok(model: &str) -> bool {
-    !(model.is_empty() || model.starts_with('-') || model.chars().any(char::is_whitespace))
-}
-
-fn model_error(key: &str) -> String {
-    format!("{key}.model must be a non-empty name with no whitespace and no leading -")
-}
-
-pub fn validate_setup(setup: &Setup) -> Result<(), String> {
-    if model_ok(&setup.model) {
-        Ok(())
-    } else {
-        Err(model_error("setup"))
-    }
-}
-
 fn parse_setup(value: &Value) -> Result<Setup, String> {
     let Value::Object(object) = value else {
         return Err("setup in config.json must be an object".to_string());
@@ -62,18 +46,12 @@ fn parse_setup(value: &Value) -> Result<Setup, String> {
         _ => return Err("setup.model in config.json must be a string".to_string()),
     };
 
-    let setup = Setup { model };
-
-    validate_setup(&setup)?;
-
-    Ok(setup)
+    Ok(Setup { model })
 }
 
 pub const DEFAULT_MODEL: &str = "haiku";
 pub const DEFAULT_BATCH_SIZE: u32 = 4;
 pub const DEFAULT_CONFIRM_ABOVE_USD: f64 = 5.0;
-const MAX_BATCH_SIZE: u32 = 16;
-const MAX_CONFIRM_ABOVE_USD: f64 = 10000.0;
 
 #[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -101,30 +79,6 @@ fn describing_json(describing: &Describing) -> Value {
     })
 }
 
-pub fn validate_describing(describing: &Describing) -> Result<(), String> {
-    let model = &describing.model;
-
-    if !model_ok(model) {
-        return Err(model_error("describing"));
-    }
-
-    if describing.batch_size < 1 || describing.batch_size > MAX_BATCH_SIZE {
-        return Err(format!(
-            "describing.batch_size must be a whole number from 1 to {MAX_BATCH_SIZE}"
-        ));
-    }
-
-    let confirm = describing.confirm_above_usd;
-
-    if !confirm.is_finite() || !(0.0..=MAX_CONFIRM_ABOVE_USD).contains(&confirm) {
-        return Err(format!(
-            "describing.confirm_above_usd must be a number from 0 to {MAX_CONFIRM_ABOVE_USD}"
-        ));
-    }
-
-    Ok(())
-}
-
 fn parse_describing(value: &Value) -> Result<Describing, String> {
     let Value::Object(object) = value else {
         return Err("describing in config.json must be an object".to_string());
@@ -137,11 +91,7 @@ fn parse_describing(value: &Value) -> Result<Describing, String> {
 
     let batch_size = match object.get("batch_size").and_then(Value::as_u64) {
         Some(size) if size <= u64::from(u32::MAX) => size as u32,
-        _ => {
-            return Err(format!(
-                "describing.batch_size must be a whole number from 1 to {MAX_BATCH_SIZE}"
-            ))
-        }
+        _ => return Err("describing.batch_size in config.json must be a whole number".to_string()),
     };
 
     let confirm_above_usd = match object.get("confirm_above_usd") {
@@ -149,22 +99,18 @@ fn parse_describing(value: &Value) -> Result<Describing, String> {
         Some(value) => match value.as_f64() {
             Some(amount) => amount,
             None => {
-                return Err(format!(
-                "describing.confirm_above_usd must be a number from 0 to {MAX_CONFIRM_ABOVE_USD}"
-            ))
+                return Err(
+                    "describing.confirm_above_usd in config.json must be a number".to_string(),
+                )
             }
         },
     };
 
-    let describing = Describing {
+    Ok(Describing {
         model,
         batch_size,
         confirm_above_usd,
-    };
-
-    validate_describing(&describing)?;
-
-    Ok(describing)
+    })
 }
 
 fn parse_object(text: &str) -> Result<Map<String, Value>, String> {
@@ -212,10 +158,10 @@ pub fn validate(settings: &Settings) -> Result<(), String> {
         return Err("the editor must be a single line".to_string());
     }
 
-    validate_describing(&settings.describing)?;
-
-    validate_setup(&settings.setup)
+    Ok(())
 }
+
+pub type Check<'a> = &'a dyn Fn(&Settings) -> Result<(), String>;
 
 pub fn seed(path: &Path) -> Result<(), String> {
     let mut object = match fs::read_to_string(path) {
@@ -254,8 +200,12 @@ fn write_object(path: &Path, object: Map<String, Value>) -> Result<(), String> {
     write_atomic(path, &text).map_err(|error| format!("{}: {error}", path.display()))
 }
 
-pub fn read(path: &Path) -> Result<Settings, String> {
-    parse(fs::read_to_string(path).ok().as_deref())
+pub fn read(path: &Path, check: Check) -> Result<Settings, String> {
+    let settings = parse(fs::read_to_string(path).ok().as_deref())?;
+
+    check(&settings)?;
+
+    Ok(settings)
 }
 
 fn set_or_remove(object: &mut Map<String, Value>, key: &str, value: &str) {
@@ -268,8 +218,9 @@ fn set_or_remove(object: &mut Map<String, Value>, key: &str, value: &str) {
     }
 }
 
-pub fn save(path: &Path, settings: &Settings) -> Result<(), String> {
+pub fn save(path: &Path, settings: &Settings, check: Check) -> Result<(), String> {
     validate(settings)?;
+    check(settings)?;
 
     let mut object = match fs::read_to_string(path) {
         Ok(text) => parse_object(&text)?,
@@ -293,6 +244,22 @@ pub fn save(path: &Path, settings: &Settings) -> Result<(), String> {
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    fn accept(_: &Settings) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn read(path: &Path) -> Result<Settings, String> {
+        super::read(path, &accept)
+    }
+
+    fn save(path: &Path, settings: &Settings) -> Result<(), String> {
+        super::save(path, settings, &accept)
+    }
+
+    fn refuse(_: &Settings) -> Result<(), String> {
+        Err("describing.model must be a non-empty name".to_string())
+    }
 
     fn file() -> (TempDir, std::path::PathBuf) {
         let dir = TempDir::new().unwrap();
@@ -489,28 +456,6 @@ mod tests {
     }
 
     #[test]
-    fn describing_rejects_bad_values_naming_the_key() {
-        for bad in [
-            r#"{"describing": 3}"#,
-            r#"{"describing": {"model": "-x", "batch_size": 4}}"#,
-            r#"{"describing": {"model": "a b", "batch_size": 4}}"#,
-            r#"{"describing": {"model": "", "batch_size": 4}}"#,
-            r#"{"describing": {"model": "sonnet", "batch_size": 0}}"#,
-            r#"{"describing": {"model": "sonnet", "batch_size": 17}}"#,
-            r#"{"describing": {"model": "sonnet", "batch_size": 2.5}}"#,
-            r#"{"describing": {"model": "sonnet", "batch_size": "4"}}"#,
-            r#"{"describing": {"model": "sonnet", "batch_size": 4, "confirm_above_usd": -1}}"#,
-            r#"{"describing": {"model": "sonnet", "batch_size": 4, "confirm_above_usd": "5"}}"#,
-            r#"{"describing": {"model": "sonnet", "batch_size": 4, "confirm_above_usd": 10001}}"#,
-            r#"{"describing": {"model": "sonnet", "batch_size": 4, "confirm_above_usd": null}}"#,
-        ] {
-            let error = parse(Some(bad)).unwrap_err();
-
-            assert!(error.contains("describing"), "{bad}: {error}");
-        }
-    }
-
-    #[test]
     fn describing_without_a_threshold_reads_five_and_keeps_its_model() {
         let settings = parse(Some(
             r#"{"describing": {"model": "sonnet", "batch_size": 2}}"#,
@@ -519,43 +464,6 @@ mod tests {
 
         assert_eq!(settings.describing.model, "sonnet");
         assert_eq!(settings.describing.confirm_above_usd, 5.0);
-    }
-
-    #[test]
-    fn describing_threshold_accepts_zero_and_the_maximum() {
-        for amount in ["0", "10000", "0.5"] {
-            let text = format!(
-                r#"{{"describing": {{"model": "haiku", "batch_size": 4, "confirm_above_usd": {amount}}}}}"#
-            );
-
-            assert!(parse(Some(&text)).is_ok(), "{amount}");
-        }
-
-        let nan = Settings {
-            describing: Describing {
-                confirm_above_usd: f64::NAN,
-                ..Describing::default()
-            },
-            ..Settings::default()
-        };
-
-        assert!(validate(&nan).is_err());
-    }
-
-    #[test]
-    fn saving_rejects_a_bad_describing_and_writes_nothing() {
-        let (_dir, path) = file();
-        let bad = Settings {
-            describing: Describing {
-                model: "-x".to_string(),
-                batch_size: 4,
-                confirm_above_usd: 5.0,
-            },
-            ..Settings::default()
-        };
-
-        assert!(save(&path, &bad).is_err());
-        assert!(!path.exists());
     }
 
     #[test]
@@ -663,28 +571,6 @@ mod tests {
     }
 
     #[test]
-    fn a_blank_or_dashed_setup_model_is_refused_and_writes_nothing() {
-        let (_dir, path) = file();
-
-        for model in ["", "-x", "a b"] {
-            let bad = Settings {
-                setup: Setup {
-                    model: model.to_string(),
-                },
-                ..Settings::default()
-            };
-
-            assert!(save(&path, &bad).is_err(), "{model:?}");
-            assert!(!path.exists());
-        }
-
-        let error = parse(Some(r#"{"setup": {"model": "-x"}}"#)).unwrap_err();
-
-        assert!(error.contains("setup.model"), "{error}");
-        assert!(parse(Some(r#"{"setup": 3}"#)).is_err());
-    }
-
-    #[test]
     fn an_unknown_key_survives_a_save_that_changes_setup() {
         let (_dir, path) = file();
 
@@ -707,5 +593,38 @@ mod tests {
         assert_eq!(written["other"], serde_json::json!([1]));
         assert_eq!(written["setup"], serde_json::json!({"model": "opus"}));
         assert_eq!(read(&path), Ok(settings));
+    }
+
+    #[test]
+    fn a_refusal_from_the_service_is_returned_by_read_and_by_save_and_save_writes_nothing() {
+        let (_dir, path) = file();
+
+        let error = super::save(&path, &Settings::default(), &refuse).unwrap_err();
+
+        assert_eq!(error, "describing.model must be a non-empty name");
+        assert!(!path.exists());
+
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "{}").unwrap();
+
+        assert_eq!(
+            super::read(&path, &refuse),
+            Err("describing.model must be a non-empty name".to_string())
+        );
+        assert_eq!(fs::read_to_string(&path).unwrap(), "{}");
+    }
+
+    #[test]
+    fn parse_checks_shape_only() {
+        assert!(parse(Some(r#"{"describing": 3}"#)).is_err());
+        assert!(parse(Some(r#"{"describing": {"model": 1, "batch_size": 4}}"#)).is_err());
+        assert!(parse(Some(r#"{"describing": {"model": "a", "batch_size": 2.5}}"#)).is_err());
+        assert!(parse(Some(
+            r#"{"describing": {"model": "a", "batch_size": 4, "confirm_above_usd": "5"}}"#
+        ))
+        .is_err());
+        assert!(parse(Some(r#"{"setup": 3}"#)).is_err());
+        assert!(parse(Some(r#"{"setup": {"model": 1}}"#)).is_err());
+        assert!(parse(Some(r#"{"describing": {"model": "-x", "batch_size": 99}}"#)).is_ok());
     }
 }

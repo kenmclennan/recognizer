@@ -1,7 +1,6 @@
 import {
   type Config,
   LONG_FUNCTION,
-  parseConfig,
   registeredSensorSettings,
   resolveStructureSettings,
 } from "recognizer";
@@ -203,19 +202,4 @@ export function functionLimits(
         : structure.long_function_limit,
     cells: cellsOf(config, installed),
   };
-}
-
-export function limitsFromText(
-  text: string | null,
-  installed: InstalledSensors | null,
-): FunctionLimits {
-  if (text === null) {
-    return functionLimits(null, installed);
-  }
-
-  try {
-    return functionLimits(parseConfig(text), installed);
-  } catch {
-    return DEFAULT_LIMITS;
-  }
 }

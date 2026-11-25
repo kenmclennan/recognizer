@@ -32,7 +32,6 @@ use std::time::Duration;
 use core_client::{CoreClient, Sink};
 use launch::{launch_for, Launch};
 use recent::{open_target, OpenTarget};
-use repository::ScanReport;
 use socket::{Drives, Entry, Snapshots};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
@@ -437,8 +436,42 @@ fn config_file(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|error| error.to_string())
 }
 
+fn settings_check(core: CoreClient) -> impl Fn(&settings::Settings) -> Result<(), String> {
+    move |settings| {
+        let reply = core.call(
+            "settings",
+            None,
+            "settings.validate",
+            serde_json::json!({
+                "describing": {
+                    "model": settings.describing.model,
+                    "batch_size": settings.describing.batch_size,
+                    "confirm_above_usd": settings.describing.confirm_above_usd,
+                },
+                "setup": { "model": settings.setup.model },
+            }),
+        )?;
+
+        match reply.pointer("/ok/problem") {
+            Some(serde_json::Value::Null) => Ok(()),
+            Some(serde_json::Value::String(problem)) => Err(problem.clone()),
+            _ => Err(["/unavailable/hint", "/unavailable/reason", "/error"]
+                .iter()
+                .find_map(|pointer| reply.pointer(pointer).and_then(serde_json::Value::as_str))
+                .unwrap_or("the service could not check the settings")
+                .to_string()),
+        }
+    }
+}
+
+fn read_checked(app: &AppHandle) -> Result<settings::Settings, String> {
+    let core = app.state::<CoreClient>().inner().clone();
+
+    settings::read(&config_file(app)?, &settings_check(core))
+}
+
 fn launch_in_editor(app: &AppHandle, target: &Path, line: Option<u32>) -> Result<(), String> {
-    let editor = settings::read(&config_file(app)?)?.editor;
+    let editor = read_checked(app)?.editor;
 
     editor::launch(&editor, target, line)
 }
@@ -864,10 +897,21 @@ async fn core_call(
     let folder = app.state::<WindowState>().folder_of(&window_label(&window));
     let label = window_label(&window);
     let core = app.state::<CoreClient>().inner().clone();
+    let config = config_file(&app)?;
 
-    tauri::async_runtime::spawn_blocking(move || core.call(&label, folder.as_deref(), &op, args))
-        .await
-        .map_err(|error| error.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        if op == "setup.start" {
+            let model = settings::read(&config, &settings_check(core.clone()))?
+                .setup
+                .model;
+
+            core.call_setup(&label, folder.as_deref(), args, setup_environment(), &model)
+        } else {
+            core.call(&label, folder.as_deref(), &op, args)
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 struct WindowSink(AppHandle);
@@ -892,114 +936,6 @@ fn setup_environment() -> serde_json::Value {
         .collect();
 
     serde_json::Value::Object(pairs)
-}
-
-fn run_setup_action(
-    app: AppHandle,
-    window: &WebviewWindow,
-    action: &'static str,
-    event: &'static str,
-    mut args: serde_json::Value,
-) -> impl std::future::Future<Output = Result<serde_json::Value, String>> {
-    let folder = window_folder_path(&app, window);
-    let label = window_label(window);
-
-    async move {
-        let folder = folder?;
-
-        args["environment"] = setup_environment();
-
-        tauri::async_runtime::spawn_blocking(move || {
-            let core = app.state::<CoreClient>();
-
-            core.run_setup(&label, &folder, action, args, |line| {
-                let _ = app.emit_to(label.as_str(), event, line);
-            })
-        })
-        .await
-        .map_err(|error| error.to_string())
-    }
-}
-
-#[tauri::command]
-async fn setup_survey(
-    app: AppHandle,
-    window: WebviewWindow,
-    extract: bool,
-) -> Result<serde_json::Value, String> {
-    run_setup_action(
-        app,
-        &window,
-        "survey",
-        "setup-survey-event",
-        serde_json::json!({ "extract": extract }),
-    )
-    .await
-}
-
-#[tauri::command]
-async fn setup_recommend(
-    app: AppHandle,
-    window: WebviewWindow,
-    prompt: String,
-    schema: serde_json::Value,
-) -> Result<serde_json::Value, String> {
-    let model = settings::read(&config_file(&app)?)?.setup.model;
-
-    run_setup_action(
-        app,
-        &window,
-        "recommend",
-        "setup-run-line",
-        serde_json::json!({ "model": model, "prompt": prompt, "schema": schema }),
-    )
-    .await
-}
-
-#[tauri::command]
-async fn setup_apply(
-    app: AppHandle,
-    window: WebviewWindow,
-    choices: serde_json::Value,
-) -> Result<serde_json::Value, String> {
-    run_setup_action(
-        app,
-        &window,
-        "apply",
-        "setup-run-event",
-        serde_json::json!({ "choices": choices }),
-    )
-    .await
-}
-
-#[tauri::command]
-async fn setup_try(
-    app: AppHandle,
-    window: WebviewWindow,
-    choices: serde_json::Value,
-) -> Result<serde_json::Value, String> {
-    run_setup_action(
-        app,
-        &window,
-        "try",
-        "setup-run-event",
-        serde_json::json!({ "choices": choices }),
-    )
-    .await
-}
-
-#[tauri::command]
-fn stop_setup(app: AppHandle, window: WebviewWindow) {
-    app.state::<CoreClient>().stop_setup(&window_label(&window));
-}
-
-#[tauri::command]
-fn read_scan_cache(app: AppHandle, window: WebviewWindow) -> Result<ScanReport, String> {
-    let folder = window_folder_path(&app, &window)?;
-
-    Ok(repository::report_for(Some(0), String::new(), || {
-        repository::read_cache(&folder)
-    }))
 }
 
 #[tauri::command]
@@ -1042,12 +978,16 @@ fn write_scan_ticks(
 
 #[tauri::command]
 fn read_settings(app: AppHandle) -> Result<settings::Settings, String> {
-    settings::read(&config_file(&app)?)
+    read_checked(&app)
 }
 
 #[tauri::command]
 fn write_settings(app: AppHandle, settings: settings::Settings) -> Result<(), String> {
-    settings::save(&config_file(&app)?, &settings)?;
+    settings::save(
+        &config_file(&app)?,
+        &settings,
+        &settings_check(app.state::<CoreClient>().inner().clone()),
+    )?;
 
     let _ = app.emit("settings-changed", ());
 
@@ -1056,7 +996,7 @@ fn write_settings(app: AppHandle, settings: settings::Settings) -> Result<(), St
 
 #[tauri::command]
 fn read_describing(app: AppHandle) -> Result<settings::Describing, String> {
-    Ok(settings::read(&config_file(&app)?)?.describing)
+    Ok(read_checked(&app)?.describing)
 }
 
 #[tauri::command]
@@ -1267,16 +1207,6 @@ async fn unwatch_git(app: AppHandle, window: WebviewWindow) -> Result<(), String
 }
 
 #[tauri::command]
-fn read_responsibilities(
-    app: AppHandle,
-    window: WebviewWindow,
-) -> Result<responsibilities::ResponsibilityFiles, String> {
-    Ok(responsibilities::read_responsibilities(
-        &window_folder_path(&app, &window)?,
-    ))
-}
-
-#[tauri::command]
 fn watch_responsibilities(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
     let folder = window_folder_path(&app, &window)?;
     let label = window_label(&window);
@@ -1320,29 +1250,6 @@ fn watch_responsibilities(app: AppHandle, window: WebviewWindow) -> Result<(), S
     });
 
     Ok(())
-}
-
-#[tauri::command]
-fn read_run_records(
-    app: AppHandle,
-    window: WebviewWindow,
-) -> Result<sensors::RunRecordsRead, String> {
-    Ok(sensors::read_run_records(&window_folder_path(
-        &app, &window,
-    )?))
-}
-
-#[tauri::command]
-fn read_sensor_inputs(
-    app: AppHandle,
-    window: WebviewWindow,
-) -> Result<sensors::SensorInputs, String> {
-    let folder = window_folder_path(&app, &window)?;
-    let mut inputs = sensors::read_inputs(&folder);
-
-    inputs.analysis = scan_ticks::read(&ticks_file(&app)?, &folder).analysis;
-
-    Ok(inputs)
 }
 
 #[tauri::command]
@@ -1544,9 +1451,6 @@ pub fn run() {
             open_folder_in_editor,
             open_in_editor,
             publish_window_state,
-            read_run_records,
-            read_responsibilities,
-            read_sensor_inputs,
             read_describing,
             read_config_keys,
             read_settings,
@@ -1555,13 +1459,7 @@ pub fn run() {
             remove_view,
             rename_view,
             read_recent_views,
-            read_scan_cache,
             read_scan_ticks,
-            setup_survey,
-            setup_recommend,
-            setup_apply,
-            setup_try,
-            stop_setup,
             take_pending_view,
             unwatch_git,
             view_link,
@@ -1633,10 +1531,18 @@ mod tests {
     }
 
     #[test]
-    fn every_setup_command_is_registered_permitted_and_listed() {
+    fn the_webview_command_list_holds_core_call_and_none_of_the_removed_commands() {
         let build = read("build.rs");
         let app = read("permissions/app.toml");
         let lib = read("src/lib.rs");
+        let handlers = lib
+            .split("generate_handler![")
+            .nth(1)
+            .and_then(|rest| rest.split("])").next())
+            .unwrap_or("")
+            .to_string();
+
+        assert!(handlers.contains("core_call,"), "lib.rs core_call");
 
         for name in [
             "setup_survey",
@@ -1644,32 +1550,38 @@ mod tests {
             "setup_apply",
             "setup_try",
             "stop_setup",
+            "read_responsibilities",
+            "read_run_records",
+            "read_sensor_inputs",
+            "read_scan_cache",
+            "read_doctor",
+            "run_setup_check",
+            "apply_setup",
         ] {
-            let allow = format!("allow-{}", name.replace('_', "-"));
+            let hyphenated = name.replace('_', "-");
 
-            assert!(build.contains(&format!("\"{name}\"")), "build.rs {name}");
-            assert!(app.contains(&format!("\"{allow}\"")), "app.toml {allow}");
-            assert!(lib.contains(&format!("{name},")), "lib.rs {name}");
+            assert!(!build.contains(name), "build.rs {name}");
+            assert!(!app.contains(&hyphenated), "app.toml {name}");
+            assert!(!handlers.contains(&format!("{name},")), "lib.rs {name}");
             assert!(
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                !std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
                     .join(format!("permissions/autogenerated/{name}.toml"))
                     .exists(),
                 "permission file {name}"
             );
         }
 
-        for gone in ["read_doctor", "run_setup_check", "apply_setup"] {
-            let hyphenated = gone.replace('_', "-");
-
-            assert!(!build.contains(gone), "build.rs {gone}");
-            assert!(!app.contains(&hyphenated), "app.toml {gone}");
-            assert!(!lib.contains(&format!("{gone},")), "lib.rs {gone}");
-            assert!(
-                !std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join(format!("permissions/autogenerated/{gone}.toml"))
-                    .exists(),
-                "permission file {gone}"
-            );
+        for kept in [
+            "read_scan_ticks",
+            "write_scan_ticks",
+            "read_settings",
+            "write_settings",
+            "read_describing",
+            "read_config_keys",
+            "read_recent_views",
+        ] {
+            assert!(build.contains(&format!("\"{kept}\"")), "build.rs {kept}");
+            assert!(handlers.contains(&format!("{kept},")), "lib.rs {kept}");
         }
     }
 

@@ -6,7 +6,7 @@ import {
   type ScanRunRecord,
 } from "recognizer";
 import type { ScanOrigin } from "./footer-scan";
-import { ANALYSIS_KEY } from "./freshness-model";
+import { ANALYSIS_KEY } from "./freshness-text";
 import { loadedUnchanged, sameStructure } from "./loaded-unchanged";
 import type { MessageAction, MessageInput } from "./message-tray";
 import { activityOf } from "./repository-state-model";

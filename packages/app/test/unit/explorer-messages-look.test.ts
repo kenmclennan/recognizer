@@ -8,7 +8,7 @@ window.__TAURI_INTERNALS__ = { invoke: async () => "0.0.0" };
 import { loadedOf, mountExplorer, scanHostOf } from ${JSON.stringify(here("../test/unit/look-support.ts"))};
 import { buildFooter } from ${JSON.stringify(here("footer-view.ts"))};
 import { fakeViews } from ${JSON.stringify(here("../test/unit/views-fake.ts"))};
-import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
+import { fakeSensors, typedInputs } from ${JSON.stringify(here("sensors-fake.ts"))};
 import { fakeWindow } from ${JSON.stringify(here("window-fake.ts"))};
 ${FAKE_WORKER}
 
@@ -50,21 +50,21 @@ const facts = {};
 
 (async () => {
   const cond = session();
-  cond.build({ ...base, baseline: "{nope" });
+  cond.build({ ...base, baseline: null, baselineProblem: "Unexpected token" });
   await tick();
   facts.baselineOnce = { rows: cond.rows(), toast: !cond.q(".message-toast").hidden, quiet: cond.q(".bell-badge").classList.contains("quiet") };
-  cond.build({ ...base, baseline: "{nope" });
+  cond.build({ ...base, baseline: null, baselineProblem: "Unexpected token" });
   await tick();
   facts.baselineTwice = cond.rows();
   click(cond.q(".bell"));
   click(cond.q(".message-clear"));
   document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-  cond.build({ ...base, baseline: "{nope" });
+  cond.build({ ...base, baseline: null, baselineProblem: "Unexpected token" });
   await tick();
   facts.baselineAfterClear = cond.rows();
 
   const fixed = session();
-  fixed.build({ ...base, baseline: "{nope", notices: ["scan.go.json is not valid JSON: x"], overlaysUnreadable: ["cov"] });
+  fixed.build({ ...base, baseline: null, baselineProblem: "Unexpected token", notices: ["scan.go.json is not valid JSON: x"], overlaysUnreadable: ["cov"] });
   await tick();
   facts.three = fixed.rows();
   click(fixed.q(".bell"));
@@ -77,7 +77,7 @@ const facts = {};
   facts.afterAllFixed = { rows: fixed.rows(), badgeHidden: fixed.q(".bell-badge").hidden, toastHidden: fixed.q(".message-toast").hidden };
 
   const drift = session();
-  drift.build({ ...base, policy: "entry:\\n  - app/**\\n  - gone/**\\n" });
+  drift.build({ ...base, policy: typedInputs({ policy: "entry:\\n  - app/**\\n  - gone/**\\n" }).policy });
   await tick();
   facts.policyProblem = drift.all(".message-list .msg.warning").map((row) => row.querySelector(".msg-text").textContent);
 
@@ -99,7 +99,7 @@ const facts = {};
   keep.build({ ...base });
   await tick();
   keep.footer.post({ kind: "done", text: "Saved a" });
-  keep.build({ ...base, baseline: "{nope" });
+  keep.build({ ...base, baseline: null, baselineProblem: "Unexpected token" });
   keep.build({ ...base });
   await tick();
   facts.eventSurvivesRescan = keep.rows();

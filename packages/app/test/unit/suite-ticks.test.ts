@@ -1,9 +1,8 @@
-import type { SuiteResult } from "@recognizer/core";
+import { afterSuiteTick, type SuiteResult } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { plainSensor } from "../../src/installed-fake";
 import type { ResponsibilityState } from "../../src/responsibility-model";
 import {
-  afterSuiteTick,
   NO_RUN,
   type PanelInput,
   type ScanTicks,
@@ -17,7 +16,7 @@ import {
   shortAge,
   suiteState,
 } from "../../src/suite-results";
-import { scanPanelSync as scanPanel } from "../fixtures";
+import { configOf, scanPanelSync as scanPanel } from "../fixtures";
 
 const MINUTE = 60000;
 const HOUR = 60 * MINUTE;
@@ -81,7 +80,7 @@ const entry = (ticked: string[], known: string[] = ALL) => ({ ticked, known });
 function panel(over: Partial<PanelInput> = {}) {
   return scanPanel({
     scan: null,
-    config: CONFIG,
+    config: configOf(CONFIG),
     sensors: [],
     lines: {
       modules: ["a.py"],

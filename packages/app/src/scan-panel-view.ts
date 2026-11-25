@@ -1,5 +1,5 @@
 import { button, el } from "./dom";
-import type { ResultState, Summary } from "./freshness-model";
+import type { ResultState, Summary } from "./freshness-text";
 import { attachHoverTip } from "./hover-tip";
 import { icon } from "./icons";
 import type { ResultsMode } from "./scan-freshness";

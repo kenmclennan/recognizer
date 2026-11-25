@@ -223,7 +223,7 @@ export function fakeSetup(options: Partial<FakeSetup> = {}): FakeSetup {
       };
     },
     async stop() {
-      fake.calls.push("stop_setup");
+      fake.calls.push("setup.stop");
       fake.stopped += 1;
       release?.();
     },

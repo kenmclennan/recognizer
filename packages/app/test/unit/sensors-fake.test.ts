@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { installedSensors } from "../../src/installed-fake";
 import { fakeSensors } from "../../src/sensors-fake";
+import { secondSensorDocument } from "../fixtures";
+import { documentText } from "./sensor-findings-from";
 
 describe("fakeSensors describer", () => {
   it("returns the config's describer when it has one", async () => {
@@ -37,31 +39,13 @@ describe("fakeSensors describer", () => {
   });
 
   it("carries a findings file's modification time", async () => {
-    const fake = fakeSensors({ lint: "{}" });
+    const fake = fakeSensors({
+      lint: documentText(secondSensorDocument("shop/main.py")),
+    });
 
     fake.modified.set("lint", 42);
 
     expect((await fake.readResults()).findings.files[0]?.modifiedMs).toBe(42);
-  });
-});
-
-describe("fakeSensors readRunRecords", () => {
-  it("returns names descending and surfaces the refused list, as the real command does", async () => {
-    const fake = fakeSensors();
-
-    fake.runRecords.set("20260101T000000001Z-scan.json", "a");
-    fake.runRecords.set("20260101T000000003Z-sense.json", "c");
-    fake.runRecords.set("20260101T000000002Z-scan.json", "b");
-    fake.runRecordsRefused.push("20260101T000000009Z-scan.json");
-
-    expect(await fake.readRunRecords()).toEqual({
-      files: [
-        { name: "20260101T000000003Z-sense.json", text: "c" },
-        { name: "20260101T000000002Z-scan.json", text: "b" },
-        { name: "20260101T000000001Z-scan.json", text: "a" },
-      ],
-      refused: ["20260101T000000009Z-scan.json"],
-    });
   });
 });
 

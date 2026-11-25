@@ -822,14 +822,20 @@ describe("serve repository state", () => {
         const overlays = join(repository, ".recognizer", "cache", "overlays");
 
         mkdirSync(overlays, { recursive: true });
-        writeFileSync(join(overlays, "crap.json"), '{"overlay":1}');
+        writeFileSync(
+          join(overlays, "crap.json"),
+          readFileSync(
+            join(REPO, "schema", "overlay-examples", "valid", "crap.json"),
+            "utf8",
+          ),
+        );
 
         const state = (await serve.call("repository.state", { repository })).ok;
         const read = (await serve.call("results.read", { repository })).ok;
 
         expect(read.revision).toBe(state.revision);
-        expect(JSON.parse(read.plugins.crap.findings).sensor.name).toBe("crap");
-        expect(read.plugins.crap.overlay).toBe('{"overlay":1}');
+        expect(read.plugins.crap.findings.sensor.name).toBe("crap");
+        expect(read.plugins.crap.overlay.producer.name).toBe("crap");
         expect(read.plugins.crap.findingsProblem).toBeNull();
         expect(read.plugins.crap.overlayProblem).toBeNull();
       } finally {
@@ -858,6 +864,202 @@ describe("serve repository state", () => {
         expect(readFileSync(join(folder, "crap.json"), "utf8")).toBe(
           "not json",
         );
+      } finally {
+        await serve.close();
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "results_read_names_the_invalid_file_and_returns_the_valid_one_unchanged",
+    async () => {
+      const gate = makeTempDir("serve-state-gate-");
+      const repository = repositoryWith(["crap", "mutation"]);
+      const serve = new Serve(plugins(gate, ["crap", "mutation"]));
+      const findings = join(repository, ".recognizer", "cache", "findings");
+      const overlays = join(repository, ".recognizer", "cache", "overlays");
+
+      try {
+        const started = await serve.call("scan.start", {
+          repository,
+          describe: false,
+          analysis: false,
+          sense: ["crap", "mutation"],
+        });
+
+        expect((await serve.outcome(started.ok)).status).toBe("finished");
+
+        const valid = JSON.parse(
+          readFileSync(join(findings, "crap.json"), "utf8"),
+        );
+
+        writeFileSync(join(findings, "mutation.json"), "not json");
+        mkdirSync(overlays, { recursive: true });
+        writeFileSync(join(overlays, "mutation.json"), '{"overlay":1}');
+
+        const read = (await serve.call("results.read", { repository })).ok;
+
+        expect(read.plugins.crap.findingsProblem).toBeNull();
+        expect(read.plugins.crap.findings.commit).toBe(valid.commit);
+        expect(read.plugins.mutation.findings).toBeNull();
+        expect(read.plugins.mutation.findingsProblem).not.toBeNull();
+        expect(read.plugins.mutation.overlay).toBeNull();
+        expect(read.plugins.mutation.overlayProblem).not.toBeNull();
+        expect(read.refusals).toEqual({});
+      } finally {
+        await serve.close();
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "results_read_carries_each_documents_freshness_and_the_last_run",
+    async () => {
+      const gate = makeTempDir("serve-state-gate-");
+      const repository = repositoryWith(["crap"]);
+      const serve = new Serve(plugins(gate, ["crap"]));
+
+      try {
+        const started = await serve.call("scan.start", {
+          repository,
+          describe: false,
+          analysis: false,
+          sense: ["crap"],
+        });
+
+        expect((await serve.outcome(started.ok)).status).toBe("finished");
+
+        const read = (
+          await serve.call("results.read", { repository, tests: "digest" })
+        ).ok;
+        const { freshness } = read.plugins.crap;
+
+        expect(typeof freshness.valid).toBe("boolean");
+        expect(Array.isArray(freshness.current)).toBe(true);
+        expect(typeof freshness.outOfDate).toBe("number");
+        expect(read.lastRun).toMatch(/^\d{8}T\d{9}Z-scan\.json$/);
+      } finally {
+        await serve.close();
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "inputs_read_returns_the_config_policy_and_baseline_parsed_with_their_problems",
+    async () => {
+      const gate = makeTempDir("serve-state-gate-");
+      const repository = repositoryWith(["crap"]);
+      const serve = new Serve(plugins(gate, ["crap"]));
+      const folder = join(repository, ".recognizer");
+
+      try {
+        mkdirSync(join(folder, "baselines"), { recursive: true });
+        writeFileSync(join(folder, "policy.yaml"), "components: nonsense: [");
+        writeFileSync(join(folder, "baselines", "violations.json"), "not json");
+
+        const bad = (await serve.call("inputs.read", { repository })).ok;
+
+        expect(bad.config).toEqual(expect.anything());
+        expect(bad.configText).toEqual(expect.any(String));
+        expect(bad.policy).toBeNull();
+        expect(bad.policyProblem).toEqual(expect.any(String));
+        expect(bad.baseline).toBeNull();
+        expect(bad.baselineProblem).toEqual(expect.any(String));
+        expect(bad.refused).toEqual([]);
+
+        writeFileSync(
+          join(folder, "baselines", "violations.json"),
+          JSON.stringify({ schema_version: 1, violations: [] }),
+        );
+
+        const good = (await serve.call("inputs.read", { repository })).ok;
+
+        expect(good.baseline).toEqual([]);
+        expect(good.baselineProblem).toBeNull();
+      } finally {
+        await serve.close();
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "scan_estimate_names_every_part_with_no_figure_when_the_run_log_is_empty",
+    async () => {
+      const gate = makeTempDir("serve-state-gate-");
+      const repository = repositoryWith(["crap"]);
+      const serve = new Serve(plugins(gate, ["crap"]));
+
+      try {
+        const answer = (
+          await serve.call("scan.estimate", {
+            repository,
+            intent: { describe: false, analysis: true, sense: [] },
+            planWork: {},
+            parts: [
+              {
+                key: "structure",
+                name: "Structure",
+                runsTests: false,
+                scoped: false,
+                workVerb: null,
+              },
+            ],
+            work: {},
+          })
+        ).ok;
+
+        expect(answer.parts).toEqual([
+          { key: "structure", name: "Structure", ms: null, basis: null },
+        ]);
+        expect(answer.lastRun).toBeNull();
+      } finally {
+        await serve.close();
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "scan_ticks_applies_the_changes_in_order_and_refuses_a_malformed_request",
+    async () => {
+      const gate = makeTempDir("serve-state-gate-");
+      const serve = new Serve(plugins(gate, ["crap"]));
+      const ticks = {
+        describe: false,
+        analysis: true,
+        ticked: null,
+        armed: [],
+        onlyView: false,
+        suites: {},
+        folds: [],
+      };
+
+      try {
+        const answer = (
+          await serve.call("scan.ticks", {
+            ticks,
+            changes: [
+              { kind: "describe", ticked: true },
+              { kind: "fold", sensor: "crap" },
+              { kind: "fold", sensor: "mutation" },
+              { kind: "fold", sensor: "crap" },
+            ],
+          })
+        ).ok;
+
+        expect(answer).toEqual({
+          ...ticks,
+          describe: true,
+          folds: ["mutation"],
+        });
+        expect(
+          (await serve.call("scan.ticks", { ticks, changes: [{ kind: "x" }] }))
+            .ok,
+        ).toBeUndefined();
       } finally {
         await serve.close();
       }

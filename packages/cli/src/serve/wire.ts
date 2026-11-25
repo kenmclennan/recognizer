@@ -10,9 +10,17 @@ export const OPERATIONS = [
   "repository.watch",
   "repository.unwatch",
   "repository.state",
+  "structure.read",
   "results.read",
   "results.clear",
+  "inputs.read",
+  "view.marks",
+  "view.classify",
+  "settings.validate",
+  "responsibilities.read",
   "scan.plan",
+  "scan.estimate",
+  "scan.ticks",
   "confirm.answer",
   "sensor.work",
   "tests.hash",
@@ -166,6 +174,23 @@ export function text(args: Record<string, unknown>, name: string): string {
 
   if (typeof value !== "string" || value === "") {
     throw new ArgsError([`${name} must be a non-empty string`]);
+  }
+
+  return value;
+}
+
+export function optionalText(
+  args: Record<string, unknown>,
+  name: string,
+): string | null {
+  const value = args[name];
+
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    throw new ArgsError([`${name} must be a string`]);
   }
 
   return value;

@@ -1,13 +1,3 @@
-import {
-  type Config,
-  describerVersion,
-  lineStatus,
-  parseConfig,
-  type Responsibilities,
-  toResponsibility,
-  validateResponsibilities,
-} from "recognizer";
-
 export type ResponsibilityState =
   | { kind: "current"; line: string }
   | {
@@ -18,12 +8,9 @@ export type ResponsibilityState =
   | { kind: "missing" }
   | { kind: "unknown"; reason: string };
 
-export type ResponsibilityFiles = {
-  responsibilities: string | null;
-  config: string | null;
-  refused: string[];
-  hashes: Record<string, string>;
-  responsibilitiesModifiedMs?: number | null;
+export type ResponsibilityRead = {
+  states: Record<string, ResponsibilityState>;
+  describedAtMs: number | null;
 };
 
 export type DescribeResult = {
@@ -36,93 +23,15 @@ export type ResponsibilityRow = {
   failure: string | null;
 };
 
-export const NO_FILES: ResponsibilityFiles = {
-  responsibilities: null,
-  config: null,
-  refused: [],
-  hashes: {},
+export const NO_STATES: ResponsibilityRead = {
+  states: {},
+  describedAtMs: null,
 };
 
-function messageOf(error: unknown): string {
-  const details = (error as { messages?: string[] }).messages;
-
-  return details !== undefined && details.length > 0
-    ? details.join("; ")
-    : (error as Error).message;
-}
-
-export type EffectiveDescriber = { command: string[]; version: string };
-
-export function responsibilityStates(
-  files: ResponsibilityFiles,
-  fallback: EffectiveDescriber | null,
+export function stateOf(
+  read: ResponsibilityRead,
 ): (id: string) => ResponsibilityState {
-  let responsibilities: Responsibilities | null = null;
-  let config: Config | null = null;
-  let invalid: string | null = null;
-
-  try {
-    if (files.responsibilities !== null) {
-      responsibilities = validateResponsibilities(
-        JSON.parse(files.responsibilities),
-      );
-    }
-  } catch (error) {
-    invalid = `responsibilities.json: ${messageOf(error)}`;
-  }
-
-  try {
-    if (files.config !== null) {
-      config = parseConfig(files.config);
-    }
-  } catch (error) {
-    invalid ??= `config.yaml: ${messageOf(error)}`;
-  }
-
-  return (id) => {
-    if (invalid !== null) {
-      return { kind: "unknown", reason: invalid };
-    }
-
-    const entry = responsibilities?.modules[id];
-
-    if (entry === undefined) {
-      return { kind: "missing" };
-    }
-
-    const describer =
-      config?.describer === undefined
-        ? (fallback ?? undefined)
-        : {
-            ...config.describer,
-            version: describerVersion(config.describer),
-          };
-
-    if (describer === undefined) {
-      return {
-        kind: "out-of-date",
-        line: entry.line,
-        reasons: ["describer", "version"],
-      };
-    }
-
-    const hash = files.hashes[id];
-
-    if (hash === undefined) {
-      return { kind: "out-of-date", line: entry.line, reasons: ["source"] };
-    }
-
-    const status = lineStatus(
-      toResponsibility(entry),
-      hash,
-      describer.command,
-      describer.version,
-    );
-
-    return status.status === "out-of-date"
-      ? { kind: "out-of-date", line: entry.line, reasons: status.reasons }
-      : { kind: "current", line: entry.line };
-  };
+  return (id) => read.states[id] ?? { kind: "missing" };
 }
 
 export type Describing = {

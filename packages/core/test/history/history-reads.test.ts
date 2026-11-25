@@ -45,7 +45,8 @@ describe("history reads", () => {
 
     expect(await listHistory(ports, ROOT)).toEqual({
       branch: null,
-      text: "\u001erecord",
+      rows: [],
+      skipped: 1,
     });
     expect(git.calls).toContain("history 200");
   });
@@ -84,7 +85,11 @@ describe("history reads", () => {
     expect(await listBranches(ports, ROOT)).toEqual({
       defaultRef: "origin/main",
       total: 2,
-      text: git.branchesText.ok ? git.branchesText.text : "",
+      rows: [
+        { name: "a", short: "1", author: "x", time: 1 },
+        { name: "b", short: "2", author: "x", time: 2 },
+      ],
+      skipped: 0,
     });
     expect(git.calls).toContain("branches 100");
   });
@@ -232,9 +237,10 @@ describe("history reads", () => {
     const detail = await readChangeDetail(ports, ROOT, "pr", "7");
 
     expect(detail.pull?.status).toBe("ok");
-    expect(detail.pull?.text).toContain('"number":7');
+    expect(detail.pull?.pull).toBeNull();
     expect(detail.defaultRef).toBe("origin/main");
-    expect(detail.git).toBeNull();
+    expect(detail.commit).toBeNull();
+    expect(detail.tip).toBeNull();
     expect(forge.calls[0]?.args.slice(0, 3)).toEqual(["pr", "view", "7"]);
     expect(git.calls.some((call) => call.startsWith("history"))).toBe(false);
   });
@@ -248,7 +254,7 @@ describe("history reads", () => {
     const detail = await readChangeDetail(ports, ROOT, "branch", "feature");
 
     expect(detail.pull?.status).toBe("missing");
-    expect(detail.git).toBe("A\u001f1\u001fedit a\n");
+    expect(detail.tip).toEqual({ author: "A", time: 1, subject: "edit a" });
     expect(detail.defaultRef).toBe("origin/main");
   });
 
@@ -265,7 +271,8 @@ describe("history reads", () => {
     const result = await listPullRequests(ports, ROOT);
 
     expect(result.status).toBe("ok");
-    expect(result.text).toContain('"number":1');
+    expect(result.rows).toEqual([]);
+    expect(result.skipped).toBe(1);
     expect(forge.calls[0]?.timeoutMs).toBe(20_000);
   });
 
@@ -290,7 +297,8 @@ describe("history reads", () => {
     expect(await listPullRequests(ports, ROOT)).toEqual({
       status: "signed-out",
       detail: "To get started, please run:  gh auth login",
-      text: "",
+      rows: [],
+      skipped: 0,
     });
   });
 
@@ -342,7 +350,8 @@ describe("history reads", () => {
     expect(await listPullRequests(ports, ROOT)).toEqual({
       status: "failed",
       detail: "gh did not answer within 20 seconds",
-      text: "",
+      rows: [],
+      skipped: 0,
     });
   });
 

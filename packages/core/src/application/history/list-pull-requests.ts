@@ -1,4 +1,5 @@
 import type { HistoryPorts } from "./history-ports.js";
+import { type PullRequestRow, parsePullRequests } from "./history-rows.js";
 import type { ForgeResult } from "./ports/forge.js";
 
 export const PULL_REQUEST_LIMIT = "50";
@@ -9,20 +10,24 @@ const PULL_REQUEST_FIELDS =
 
 export type GhStatus = "ok" | "missing" | "signed-out" | "failed";
 
-export interface PullRequestsReply {
+export interface ForgeText {
   readonly status: GhStatus;
   readonly detail: string;
   readonly text: string;
+}
+
+export interface PullRequestsReply {
+  readonly status: GhStatus;
+  readonly detail: string;
+  readonly rows: PullRequestRow[];
+  readonly skipped: number;
 }
 
 function firstLine(text: string): string {
   return (text.split("\n")[0] ?? "").trim();
 }
 
-export function classifyForge(
-  result: ForgeResult,
-  failure: string,
-): PullRequestsReply {
+export function classifyForge(result: ForgeResult, failure: string): ForgeText {
   if (!result.started) {
     return { status: "missing", detail: "", text: "" };
   }
@@ -59,7 +64,7 @@ export async function runGh(
   root: string,
   args: readonly string[],
   failure: string,
-): Promise<PullRequestsReply> {
+): Promise<ForgeText> {
   const result = await ports.limiter.run(() =>
     ports.forge.run(root, args, GH_TIMEOUT_MS),
   );
@@ -67,11 +72,11 @@ export async function runGh(
   return classifyForge(result, failure);
 }
 
-export function listPullRequests(
+export async function listPullRequests(
   ports: HistoryPorts,
   root: string,
 ): Promise<PullRequestsReply> {
-  return runGh(
+  const reply = await runGh(
     ports,
     root,
     [
@@ -86,4 +91,11 @@ export function listPullRequests(
     ],
     "gh pr list failed",
   );
+
+  const parsed =
+    reply.status === "ok"
+      ? parsePullRequests(reply.text)
+      : { rows: [], skipped: 0 };
+
+  return { status: reply.status, detail: reply.detail, ...parsed };
 }

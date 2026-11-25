@@ -34,7 +34,7 @@ const scan = {
 };
 const inputs = { "app/a.py": ${JSON.stringify(H1)}, "app/b.py": ${JSON.stringify(H2)} };
 const overlay = JSON.stringify({ overlay_version: 2, commit: ${JSON.stringify(COMMIT)}, modified: false, inputs, tests: ${JSON.stringify(TESTS)}, producer: { name: "crap", version: "0.1.0" }, metrics: [{ name: "crap", type: "count", granularity: "member", bad: "high" }], values: { crap: { "app/a.py::f": 8, "app/b.py::f": 5 } } });
-const loaded = loadedOf({ modules: ids, scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", text: overlay, modifiedMs: Date.now() }], sensors: [{ name: "crap", status: "ran", measured: { inputs, tests: ${JSON.stringify(TESTS)} } }], tests: ${JSON.stringify(TESTS)} });
+const loaded = loadedOf({ modules: ids, scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", overlay: JSON.parse(overlay), modifiedMs: Date.now() }], sensors: [{ name: "crap", status: "ran", measured: { inputs, tests: ${JSON.stringify(TESTS)} } }], tests: ${JSON.stringify(TESTS)} });
 const INSTALLED = ${JSON.stringify([{ ...installedSensor("crap"), display: "crap", description: "x", runsTests: true, metrics: installedSensor("crap").metrics.slice(0, 1) }])};
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));

@@ -28,7 +28,7 @@ import type { Settings, SettingsModalPort } from "./settings-modal-port";
 export type SettingsModalDeps = {
   port: SettingsModalPort;
   sensors: {
-    readInputs(): Promise<SensorInputs>;
+    inputs(): Promise<SensorInputs>;
     sensorList(): Promise<InstalledSensors>;
   };
   repository: boolean;
@@ -818,7 +818,7 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
       if (deps.repository) {
         const [keys, inputs, installed] = await Promise.all([
           deps.port.readConfigKeys(),
-          deps.sensors.readInputs(),
+          deps.sensors.inputs(),
           deps.sensors
             .sensorList()
             .catch(
@@ -836,7 +836,7 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
         }
 
         published = publish(schemas, "config");
-        configText = inputs.config;
+        configText = inputs.configText;
         const sensors = installed.status === "ok" ? installed.sensors : [];
 
         specs = sectionSpecs(sensors, published);

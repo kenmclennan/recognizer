@@ -186,7 +186,7 @@ function snap(modal, name) {
   await settle();
   document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
   await settle();
-  facts.lifecycle.stopCalls = live.calls.filter((c) => c === "stop_setup").length;
+  facts.lifecycle.stopCalls = live.calls.filter((c) => c === "setup.stop").length;
   facts.lifecycle.closedDuringApply = document.querySelector(".setup-modal") === null;
 
   facts.cancel = {};

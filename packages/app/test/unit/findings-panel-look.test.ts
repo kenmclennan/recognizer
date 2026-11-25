@@ -74,7 +74,7 @@ window.addEventListener("error", (e) => { document.getElementById("out").textCon
 import { loadedOf, scanHostOf, mountExplorer } from ${JSON.stringify(here("../test/unit/look-support.ts"))};
 import { fakeViews } from ${JSON.stringify(here("../test/unit/views-fake.ts"))};
 import { fakeEditor } from ${JSON.stringify(here("editor-fake.ts"))};
-import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
+import { fakeSensors, typedInputs } from ${JSON.stringify(here("sensors-fake.ts"))};
 ${FAKE_WORKER}
 const plainWorker = window.__fakeWorker;
 window.__fakeWorker = () => {
@@ -440,7 +440,7 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   await tick();
   facts.fresh = { shown: fresh.shown(".findings-fresh") };
 
-  const withPolicy = await mount({ findings: [doc("structure", [violation])], policy: "layers: []\\n" }, null, [{ name: "alpha", status: "ran" }]);
+  const withPolicy = await mount({ findings: [doc("structure", [violation])], policy: [] }, null, [{ name: "alpha", status: "ran" }]);
   click(withPolicy.q(".rail-findings"));
   await tick();
   const noPolicyNode = m.q(".findings-policy");
@@ -452,7 +452,7 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   };
 
   {
-    const g = await mount({ modules: groupedIds, scans: [{ file: "scan.kotlin.json", scan: groupedScan }], policy: ${JSON.stringify(GROUPED_POLICY)}, findings: [groupedDocument] }, null);
+    const g = await mount({ modules: groupedIds, scans: [{ file: "scan.kotlin.json", scan: groupedScan }], policy: typedInputs({ policy: ${JSON.stringify(GROUPED_POLICY)} }).policy, findings: [groupedDocument] }, null);
     const badge = g.q(".rail-findings .rail-count").textContent;
     click(g.q(".rail-findings"));
     await tick();

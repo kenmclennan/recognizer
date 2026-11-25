@@ -1,6 +1,10 @@
-import type { ViewChange } from "@recognizer/core";
+import type {
+  CommitDetail,
+  HistoryRow,
+  PullDetail,
+  ViewChange,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import type { CommitDetail, PullDetail } from "../../src/change-detail-parse";
 import {
   type ChangeSummaryFacts,
   firstParagraph,
@@ -10,7 +14,6 @@ import {
   summariseChange,
   viewNameFrom,
 } from "../../src/change-summary";
-import type { HistoryRow } from "../../src/commits-parse";
 import { VIEW_NAME } from "../../src/views-port";
 
 const sha = (letter: string) => letter.repeat(40);

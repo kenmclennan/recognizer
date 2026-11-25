@@ -1,8 +1,8 @@
 import type { PluginRunView, RunView as Run, RunState } from "@recognizer/core";
+import { roundedTime } from "./estimate-text";
 import { ageText } from "./footer-scan";
 import type { IconName } from "./icons";
 import { runLogPath } from "./run-log-path";
-import { roundedTime } from "./scan-estimate";
 import {
   foldProgress,
   type ScanEvent,

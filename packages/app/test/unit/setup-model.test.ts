@@ -485,7 +485,7 @@ describe("the setup wizard model", () => {
     await running;
     open();
 
-    expect(fake.calls.filter((call) => call === "stop_setup")).toHaveLength(1);
+    expect(fake.calls.filter((call) => call === "setup.stop")).toHaveLength(1);
     expect(wizard(controller).apply?.state).toBe("stopped");
   });
 
@@ -503,7 +503,7 @@ describe("the setup wizard model", () => {
     await controller.stop();
     await running;
 
-    expect(fake.calls.filter((call) => call === "stop_setup")).toHaveLength(1);
+    expect(fake.calls.filter((call) => call === "setup.stop")).toHaveLength(1);
     expect(wizard(controller).tried.kind).toBe("done");
   });
 

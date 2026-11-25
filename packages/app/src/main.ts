@@ -154,6 +154,7 @@ function adoptedOrigin(origin: ScanOrigin) {
 const scanHost: ScanHost = {
   port: sensorsSource,
   plan: (request) => scanSource.plan(request),
+  estimate: (request) => scanSource.estimate(request),
   scan: () =>
     scanState === null
       ? null
@@ -163,6 +164,7 @@ const scanHost: ScanHost = {
         },
   ticks: () => rescanner.ticks(),
   setTicks: (next) => rescanner.setTicks(next),
+  changeTicks: (ticks, changes) => scanSource.changeTicks(ticks, changes),
   runState: () => rescanner.runState(),
   running: () => rescanner.running(),
   external: () => rescanner.external(),
@@ -249,7 +251,7 @@ const rescanner = createRescanner<Carried>({
       repositoryState.onRevision((state) => handler(state.run)),
   },
   registered: async () => {
-    const { config } = await sensorsSource.readInputs();
+    const { config } = await sensorsSource.inputs();
     const installed = await sensorsSource
       .sensorList()
       .catch(() => ({ status: "unavailable" as const, reason: "" }));

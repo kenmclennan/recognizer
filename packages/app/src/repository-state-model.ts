@@ -2,10 +2,10 @@ import type {
   FreshnessView,
   PluginRunView,
   RepositoryState,
-  ResultEntryView,
   RunView,
 } from "@recognizer/core";
-import type { ResultTexts } from "./repository-state-port";
+import { workingResult } from "@recognizer/core";
+import type { ResultDocuments } from "./repository-state-port";
 import type {
   FindingsFiles,
   InstalledMetric,
@@ -80,15 +80,6 @@ export function runActivity(
   return activityOf(state.run, ownRun);
 }
 
-function workingEntry(
-  state: RepositoryState,
-  name: string,
-): ResultEntryView | null {
-  const entries = state.results[name]?.results ?? [];
-
-  return entries.find((entry) => entry.modified) ?? entries[0] ?? null;
-}
-
 function statusOf(
   state: RepositoryState,
   name: string,
@@ -103,7 +94,7 @@ function statusOf(
     return "failed";
   }
 
-  const entry = workingEntry(state, name);
+  const entry = workingResult(state, name);
 
   if (entry === null) {
     return "not run";
@@ -247,40 +238,36 @@ export function installedSensorsOf(state: RepositoryState): InstalledSensors {
   return { status: "ok", sensors };
 }
 
-function reportedMs(state: RepositoryState, name: string): number | null {
-  const at = workingEntry(state, name)?.reportedAt ?? null;
-
-  if (at === null) {
-    return null;
-  }
-
-  const ms = Date.parse(at);
-
-  return Number.isNaN(ms) ? null : ms;
-}
-
-export function storedResultsOf(
-  state: RepositoryState,
-  texts: ResultTexts,
-): StoredResults {
+export function storedResultsOf(documents: ResultDocuments): StoredResults {
   const findings: FindingsFiles = { files: [], refused: [] };
   const overlays: OverlayFiles = { files: [], refused: [] };
+  const freshness: StoredResults["freshness"] = {};
 
-  for (const [name, one] of Object.entries(texts.plugins)) {
-    const modifiedMs = reportedMs(state, name);
+  for (const [name, one] of Object.entries(documents.plugins)) {
+    const { modifiedMs } = one;
 
     if (one.findingsProblem !== null) {
       findings.refused.push(name);
     } else if (one.findings !== null) {
-      findings.files.push({ name, text: one.findings, modifiedMs });
+      findings.files.push({ name, document: one.findings, modifiedMs });
+
+      if (one.freshness !== null) {
+        freshness[name] = one.freshness;
+      }
     }
 
     if (one.overlayProblem !== null) {
       overlays.refused.push(name);
     } else if (one.overlay !== null) {
-      overlays.files.push({ name, text: one.overlay, modifiedMs });
+      overlays.files.push({ name, overlay: one.overlay, modifiedMs });
     }
   }
 
-  return { findings, overlays };
+  return {
+    findings,
+    overlays,
+    refusals: documents.refusals,
+    freshness,
+    lastRun: documents.lastRun,
+  };
 }

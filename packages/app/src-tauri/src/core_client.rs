@@ -570,6 +570,54 @@ impl CoreClient {
         }
     }
 
+    pub fn call_setup(
+        &self,
+        label: &str,
+        repository: Option<&Path>,
+        args: Value,
+        environment: Value,
+        model: &str,
+    ) -> Result<Value, String> {
+        let repository = repository.ok_or_else(|| "the window has no folder".to_string())?;
+        let action = args
+            .get("action")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "the setup action is missing".to_string())?
+            .to_string();
+        let field = |name: &str| args.get(name).cloned().unwrap_or(Value::Null);
+        let mut own = match action.as_str() {
+            "survey" => json!({ "extract": field("extract") }),
+            "recommend" => json!({
+                "model": model,
+                "prompt": field("prompt"),
+                "schema": field("schema"),
+            }),
+            "apply" | "try" => json!({ "choices": field("choices") }),
+            other => return Err(format!("unknown setup action {other}")),
+        };
+
+        own["environment"] = environment;
+
+        let streamed = matches!(action.as_str(), "apply" | "try");
+        let kind = action.clone();
+        let sink = self.inner.sink.clone();
+        let window = label.to_string();
+
+        Ok(
+            self.run_setup(label, repository, &action, own, move |line| {
+                let item = if streamed {
+                    let event = serde_json::from_str::<Value>(&line).unwrap_or(Value::String(line));
+
+                    json!({ "setup": kind, "event": event })
+                } else {
+                    json!({ "setup": kind, "line": line })
+                };
+
+                sink.emit(&window, &item);
+            }),
+        )
+    }
+
     pub fn stop_setup(&self, label: &str) {
         for setup in self.inner.setups.stop(label) {
             self.arm_fallback(&setup);
@@ -615,6 +663,11 @@ impl CoreClient {
         args["window"] = json!(label);
 
         Ok(match op {
+            "setup.stop" => {
+                self.stop_setup(label);
+
+                json!({ "ok": null })
+            }
             "scan.start" => self.start_scan(label, args),
             "scan.stop" => self.stop_one(label, args),
             "scan.watch" => self.watch_for(label, args),
@@ -2127,6 +2180,62 @@ done
         assert_eq!(
             written[0]["args"]["repository"],
             dir.path().display().to_string()
+        );
+    }
+
+    #[test]
+    fn a_recommend_through_the_relay_takes_its_model_from_the_caller_and_adds_the_environment() {
+        let dir = TempDir::new().unwrap();
+        let (client, _, log, _) = client(
+            dir.path(),
+            SETUP_SERVICE,
+            r#"{"status":"finished","result":{}}"#,
+        );
+
+        client
+            .call_setup(
+                "w-1",
+                Some(dir.path()),
+                json!({ "action": "recommend", "prompt": "p", "schema": {}, "model": "evil" }),
+                json!({ "PATH": "/bin" }),
+                "sonnet",
+            )
+            .unwrap();
+
+        let args = &lines_of(&log)[0]["args"];
+
+        assert_eq!(args["action"], "recommend");
+        assert_eq!(args["model"], "sonnet");
+        assert_eq!(args["prompt"], "p");
+        assert_eq!(args["environment"]["PATH"], "/bin");
+    }
+
+    #[test]
+    fn a_setup_through_the_relay_replaces_a_frontend_repository() {
+        let dir = TempDir::new().unwrap();
+        let (client, sink, log, _) = client(
+            dir.path(),
+            SETUP_SERVICE,
+            r#"{"status":"finished","result":{}}"#,
+        );
+
+        client
+            .call_setup(
+                "w-1",
+                Some(dir.path()),
+                json!({ "action": "apply", "choices": {}, "repository": "/evil" }),
+                json!({}),
+                "sonnet",
+            )
+            .unwrap();
+
+        assert_eq!(
+            lines_of(&log)[0]["args"]["repository"],
+            dir.path().display().to_string()
+        );
+        assert_eq!(
+            locked(&sink.0)[0].1,
+            json!({ "setup": "apply", "event": { "event": "start", "total": 1 } })
         );
     }
 

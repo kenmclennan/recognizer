@@ -83,7 +83,7 @@ const shown = () => ({
   const beforeCarry = explorer.carry();
   const beforeSelection = JSON.stringify(beforeCarry.snapshot.selection);
 
-  explorer.update(loadedFor(ids, [{ name: "crap", text: ${JSON.stringify(overlay)} }], [doc([style])]));
+  explorer.update(loadedFor(ids, [{ name: "crap", overlay: ${overlay} }], [doc([style])]));
   await tick();
 
   const after = shown();
@@ -100,7 +100,7 @@ const shown = () => ({
   };
 
   const partialSensors = [{ name: "crap", status: "ran", commit: ${JSON.stringify(SCAN_COMMIT)}, findings: 0, partial: { measured: 2, total: 5 } }];
-  const landed = loadedFor(ids, [{ name: "crap", text: ${JSON.stringify(overlay)} }], [doc([style])], partialSensors);
+  const landed = loadedFor(ids, [{ name: "crap", overlay: ${overlay} }], [doc([style])], partialSensors);
   const notesOf = () => qa(".metric-note").map((n) => n.textContent);
   explorer.update(landed);
   await tick();

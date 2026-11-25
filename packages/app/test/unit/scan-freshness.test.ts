@@ -1,10 +1,11 @@
-import { buildFreshness } from "recognizer";
 import { describe, expect, it } from "vitest";
-import type { FreshnessModel, ResultState } from "../../src/freshness-model";
-import { freshnessMessage, markStale } from "../../src/scan-freshness";
+import { isStale } from "../../src/freshness-facts";
+import type { FreshnessModel, ResultState } from "../../src/freshness-text";
+import { freshnessMessage } from "../../src/scan-freshness";
 import type { ScanTicks } from "../../src/scan-panel-model";
 import type { SensorStatus } from "../../src/sensor-run";
 import { plannedRun } from "../fixtures";
+import { factsFor } from "../freshness-support";
 import { type DocScan, repositoryFrom } from "./repository-from";
 
 function scanOf(files: Record<string, string>, withFunction: string[]) {
@@ -28,26 +29,37 @@ const SCAN = scanOf({ "a.py": "ha", "b.py": "hb", "c.py": "hc" }, [
   "c.py",
 ]);
 const MODULES = ["a.py", "b.py", "c.py"];
-const FRESH = buildFreshness(repositoryFrom([SCAN]), "t1");
+const factsOf = (statuses: SensorStatus[]) =>
+  factsFor(repositoryFrom([SCAN]), statuses, "t1");
+const markStale = (statuses: SensorStatus[]) => {
+  const facts = factsOf(statuses);
+
+  return statuses.map((one) => {
+    const entry = facts[one.name];
+
+    return entry !== undefined && isStale(entry)
+      ? { ...one, status: "stale" as const }
+      : one;
+  });
+};
 
 describe("markStale", () => {
   const ran = (name: string, measured: SensorStatus["measured"]) =>
     ({ name, status: "ran", measured }) as SensorStatus;
 
   it("never marks a sensor stale whose every file is current", () => {
-    const out = markStale(
-      [ran("crap", { inputs: { "a.py": "ha" }, tests: "t1" })],
-      FRESH,
-    );
+    const out = markStale([
+      ran("crap", { inputs: { "a.py": "ha" }, tests: "t1" }),
+    ]);
 
     expect(out[0]?.status).toBe("ran");
   });
 
   it("marks a sensor stale when a file changed or the file has no inputs", () => {
-    const out = markStale(
-      [ran("crap", { inputs: { "a.py": "x" }, tests: "t1" }), ran("lint", {})],
-      FRESH,
-    );
+    const out = markStale([
+      ran("crap", { inputs: { "a.py": "x" }, tests: "t1" }),
+      ran("lint", {}),
+    ]);
 
     expect(out.map(({ status }) => status)).toEqual(["stale", "stale"]);
   });

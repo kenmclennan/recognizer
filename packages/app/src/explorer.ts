@@ -1,3 +1,9 @@
+import type {
+  BranchTip,
+  CommitDetail,
+  PullDetail,
+  TickChange,
+} from "@recognizer/core";
 import {
   type ChangeFacts,
   Neighbours,
@@ -7,18 +13,11 @@ import {
   type ViewFields,
   ViewRange,
 } from "@recognizer/core";
-import {
-  afterFoldToggle,
-  afterPanelOpen,
-  afterSensorTick,
-  afterSuiteTick,
-  buildFreshness,
-  changeMarks,
-  classifyOpened,
-  type FileChange,
-  type MarkedFile,
-  type MemberMarkKind,
-  memberMarks,
+import type {
+  Config,
+  FileChange,
+  MarkedFile,
+  MemberMarkKind,
 } from "recognizer";
 import { agentLineOf, backLabel, forwardLabel } from "./agent-line";
 import { type Scheduler, timerScheduler } from "./bar-hover";
@@ -42,14 +41,6 @@ import {
   createMeasure,
 } from "./canvas-view";
 import {
-  type BranchTip,
-  type CommitDetail,
-  type PullDetail,
-  parseBranchTip,
-  parseCommitDetail,
-  parsePullDetail,
-} from "./change-detail-parse";
-import {
   type ChangeCounts,
   type ChangeSummary,
   kindOfChange,
@@ -62,13 +53,13 @@ import {
   type BranchEntry,
   type BranchRow,
   branchRow,
+  type Classification,
   classify,
   commitRow,
   createHideFilter,
   createSelection,
   defaultBranchName,
   FILTER_EMPTY,
-  ghNotice,
   type HistoryRow,
   impactText,
   impactTip,
@@ -76,9 +67,6 @@ import {
   orderBranches,
   type PickRow,
   type PullRequestRow,
-  parseBranches,
-  parseHistory,
-  parsePullRequests,
   pullRequestRow,
   titleTip,
   visibleRows,
@@ -94,6 +82,8 @@ import { el } from "./dom";
 import { describeLine } from "./edge-evidence";
 import { openFolderInEditor, openInEditor } from "./editor-open";
 import { type EditorPort, inertEditor } from "./editor-port";
+import { createEstimateAnswers } from "./estimate-answers";
+import type { EstimateAnswer, EstimateRequest } from "./estimate-text";
 import { cardOf } from "./finding-card";
 import { buildCatalog, type FindingCatalog } from "./finding-catalog";
 import { keepsFocus } from "./finding-focus";
@@ -114,8 +104,9 @@ import {
   type FreshnessModel,
   findingsActionOf,
   hiddenText,
-} from "./freshness-model";
-import { limitsFromText } from "./function-limits";
+} from "./freshness-text";
+import { DEFAULT_LIMITS, functionLimits } from "./function-limits";
+import { ghNotice } from "./gh-notice";
 import {
   addedFromHead,
   drawnScans,
@@ -183,10 +174,9 @@ import {
 } from "./responsibilities-port";
 import {
   createDescribing,
-  type EffectiveDescriber,
-  NO_FILES,
+  NO_STATES,
   type ResponsibilityState,
-  responsibilityStates,
+  stateOf,
 } from "./responsibility-model";
 import { nextCheck } from "./row-model";
 import { NO_PLAN_DATA, planFromFacts } from "./scan-fake";
@@ -204,11 +194,13 @@ import {
   planFactsOf,
   planRequestOf,
   type RunState,
+  registeredDespiteError,
   rowSensors,
   type ScanTicks,
   scanPanel,
 } from "./scan-panel-model";
 import { buildScanPanelView } from "./scan-panel-view";
+import { inertScan } from "./scan-port";
 import type {
   DescribeAsk,
   DescribeStop,
@@ -224,6 +216,7 @@ import {
 } from "./sensor-run";
 import { loadShowPrivate, saveShowPrivate } from "./show-private";
 import { currentCommit, hasEntries, staleReport } from "./stale-report";
+import { createTickChanges } from "./tick-changes";
 import {
   bringBack,
   CANVAS_FLOOR,
@@ -316,9 +309,11 @@ export type Carried = {
 export type ScanHost = {
   port: SensorsPort;
   plan: (request: PlanRequest, facts: LoadedPlanData) => Promise<ScanPlanView>;
+  estimate: (request: EstimateRequest) => Promise<EstimateAnswer>;
   scan: () => ScanState | null;
   ticks: () => ScanTicks;
   setTicks: (next: ScanTicks) => void;
+  changeTicks: (ticks: ScanTicks, changes: TickChange[]) => Promise<ScanTicks>;
   runState: () => RunState;
   running: () => boolean;
   external?: () => boolean;
@@ -340,6 +335,7 @@ export type ScanHost = {
 export const inertScanHost: ScanHost = {
   port: inertSensors,
   plan: planFromFacts,
+  estimate: inertScan.estimate,
   scan: () => null,
   ticks: () => ({
     describe: false,
@@ -351,6 +347,7 @@ export const inertScanHost: ScanHost = {
     folds: [],
   }),
   setTicks: () => {},
+  changeTicks: inertScan.changeTicks,
   runState: () => NO_RUN,
   running: () => false,
   progressText: () => null,
@@ -414,10 +411,6 @@ function loadedMembers(members: ChangeMembers): LoadedMembers | null {
     : members;
 }
 
-function freshnessOf(loaded: Loaded) {
-  return buildFreshness(loaded.repository, loaded.tests ?? null);
-}
-
 const LOSS_WARNING =
   "Your changes since it was saved will be lost unless you save them.";
 const CLEAR_BODY = `Clearing closes the view. ${LOSS_WARNING}`;
@@ -461,6 +454,10 @@ export function showExplorer(
   const measure = createMeasure();
   const scans = loaded.repository;
   const plannedWork = createPlannedWork(scanHost.port, () => render());
+  const estimates = createEstimateAnswers(
+    (request) => scanHost.estimate(request),
+    () => renderProgress(),
+  );
   let planFacts: LoadedPlanData = NO_PLAN_DATA;
   const planAnswers = createPlanAnswers(
     (request) => scanHost.plan(request, planFacts),
@@ -475,6 +472,7 @@ export function showExplorer(
   let overlayModel = buildOverlayModel(loaded.overlays ?? [], {
     sensors: loaded.sensors,
     installed: null,
+    unreadable: loaded.overlaysUnreadable ?? [],
   });
   let metricTicks = pruneTicks(
     carried?.metricTicks ?? [],
@@ -496,14 +494,12 @@ export function showExplorer(
   } | null = null;
   const rangeScanCache = new Map<string, ReadOutcome<Repository> | null>();
   const deletionUndos = new Set<number>();
-  let scanConfig: string | null = null;
+  let scanConfig: Config | null = null;
+  let scanConfigBroken = false;
+  let scanConfigProblem: string | null = null;
   let installedSensors: InstalledSensors | null = null;
   let catalog: FindingCatalog = buildCatalog(null);
   let describedAt: number | null = null;
-  let describerSeen: {
-    config: string | null;
-    found: EffectiveDescriber | null;
-  } | null = null;
   let scrollTarget: string | null = null;
   let graph: CanvasGraph = emptyGraph();
   let scene: Scene | null = null;
@@ -811,18 +807,18 @@ export function showExplorer(
   );
 
   const describing = createDescribing();
+  let askedModules: string | null = null;
   let responsibilityOf: (id: string) => ResponsibilityState =
-    responsibilityStates(NO_FILES, null);
+    stateOf(NO_STATES);
 
   async function readResponsibilities() {
     try {
-      const files = await responsibilities.read();
+      askedModules = loaded.modules.join("\n");
 
-      describedAt = files.responsibilitiesModifiedMs ?? null;
-      responsibilityOf = responsibilityStates(
-        files,
-        await describerFallback(files.config),
-      );
+      const read = await responsibilities.read(loaded.modules);
+
+      describedAt = read.describedAtMs;
+      responsibilityOf = stateOf(read);
     } catch (error) {
       const reason = String(error);
 
@@ -831,29 +827,6 @@ export function showExplorer(
 
     describing.read(responsibilityOf);
     renderDescribed();
-  }
-
-  async function describerFallback(
-    config: string | null,
-  ): Promise<EffectiveDescriber | null> {
-    if (describerSeen === null || describerSeen.config !== config) {
-      let found: EffectiveDescriber | null = null;
-
-      try {
-        const answer = await scanHost.port.describer();
-
-        found =
-          answer.status === "ok"
-            ? { command: answer.command, version: answer.version }
-            : null;
-      } catch {
-        found = null;
-      }
-
-      describerSeen = { config, found };
-    }
-
-    return describerSeen.found;
   }
 
   const rootActions: InspectorActions = {
@@ -1047,81 +1020,76 @@ export function showExplorer(
         withNoteMoved(view, path, toIndex),
       ),
   });
-  function applyTick(key: string, ticked: boolean) {
-    const ticks = scanHost.ticks();
-
-    if (key === DESCRIBE_KEY) {
-      scanHost.setTicks({ ...ticks, describe: ticked });
+  const tickChanges = createTickChanges({
+    ticks: () => scanHost.ticks(),
+    send: (ticks, changes) => scanHost.changeTicks(ticks, changes),
+    apply(next) {
+      scanHost.setTicks(next);
       render();
+    },
+    failed: (error) =>
+      post({ kind: "error", text: `Ticks failed: ${String(error)}` }),
+  });
+
+  function applyTick(key: string, ticked: boolean) {
+    if (key === DESCRIBE_KEY) {
+      tickChanges.change({ kind: "describe", ticked });
 
       return;
     }
 
     if (key === ANALYSIS_KEY) {
-      scanHost.setTicks({ ...ticks, analysis: ticked });
-      render();
+      tickChanges.change({ kind: "analysis", ticked });
 
       return;
     }
 
     const rows = rowSensors(scanConfig, installedSensors);
-    const plain = rows
-      .filter(({ runsTests }) => !runsTests)
-      .map(({ name }) => name);
-
     const testing = rows.find(
       ({ name, runsTests }) => name === key && runsTests,
     );
 
     if (testing !== undefined) {
-      const all = (testing.suites ?? []).map(({ name }) => name);
-
-      if (all.length > 0) {
-        scanHost.setTicks(afterSensorTick(ticks, key, all));
-        render();
-
-        return;
-      }
-
-      const armed = ticks.armed.filter((one) => one !== key);
-
-      scanHost.setTicks({ ...ticks, armed: ticked ? [...armed, key] : armed });
-      render();
+      tickChanges.change({
+        kind: "sensor",
+        sensor: key,
+        ticked,
+        suites: (testing.suites ?? []).map(({ name }) => name),
+      });
 
       return;
     }
 
-    const rest = (ticks.ticked ?? plain).filter((one) => one !== key);
-
-    scanHost.setTicks({
-      ...ticks,
-      ticked: ticked ? [...rest, key] : rest,
+    tickChanges.change({
+      kind: "plain",
+      sensor: key,
+      ticked,
+      plain: rows.filter(({ runsTests }) => !runsTests).map(({ name }) => name),
     });
-    render();
   }
 
   function applySuiteTick(sensor: string, suite: string, ticked: boolean) {
     const row = rowSensors(scanConfig, installedSensors).find(
       ({ name }) => name === sensor,
     );
-    const all = (row?.suites ?? []).map(({ name }) => name);
 
-    scanHost.setTicks(
-      afterSuiteTick(scanHost.ticks(), sensor, suite, ticked, all),
-    );
-    render();
+    tickChanges.change({
+      kind: "suite",
+      sensor,
+      suite,
+      ticked,
+      suites: (row?.suites ?? []).map(({ name }) => name),
+    });
   }
 
   const scanView = buildScanPanelView({
     tick: applyTick,
     tickSuite: applySuiteTick,
     toggleFold(sensor) {
-      scanHost.setTicks(afterFoldToggle(scanHost.ticks(), sensor));
-      render();
+      tickChanges.change({ kind: "fold", sensor });
     },
     setOnlyView(on) {
-      scanHost.setTicks({ ...scanHost.ticks(), onlyView: on });
-      render();
+      tickChanges.change({ kind: "onlyView", on });
     },
     setMode(next) {
       resultsMode = next;
@@ -2054,12 +2022,20 @@ export function showExplorer(
     }
 
     const present = scans;
-    const [headOutcome, baseOutcome] = await Promise.all([
+    const [headOutcome, baseOutcome, marked] = await Promise.all([
       rangeScansAt(answer.headCommit),
       rangeScansAt(answer.baseCommit),
+      views.marksOf(view.change.base, view.change.head).catch(() => null),
     ]);
 
     if (token !== openToken) {
+      return;
+    }
+
+    if (marked === null || !marked.ok) {
+      changeInfo = { name, range, state: "unavailable" };
+      render();
+
       return;
     }
 
@@ -2077,7 +2053,7 @@ export function showExplorer(
         : baseOutcome === null
           ? "the scan could not be read"
           : undefined;
-    const found = changeMarks(files, headScans, baseScans);
+    const found = marked.value;
     const drawn = unionScans(
       headScans,
       baseScans,
@@ -2140,12 +2116,7 @@ export function showExplorer(
           ? null
           : fetched.ok
             ? {
-                marks: memberMarks({
-                  marked: found.files,
-                  base: fetched.value.baseScans,
-                  head: fetched.value.headScans,
-                  files: fetched.value.files,
-                }),
+                marks: fetched.value.marks,
                 start: fetched.value.baseScans,
                 head: fetched.value.headScans,
               }
@@ -2187,11 +2158,9 @@ export function showExplorer(
 
     heldDetail = {
       key: range,
-      commit:
-        kind.kind === "commit" ? parseCommitDetail(reply?.git ?? null) : null,
-      tip: kind.kind === "branch" ? parseBranchTip(reply?.git ?? null) : null,
-      pull:
-        kind.kind === "commit" ? null : parsePullDetail(reply?.pull ?? null),
+      commit: kind.kind === "commit" ? (reply?.commit ?? null) : null,
+      tip: kind.kind === "branch" ? (reply?.tip ?? null) : null,
+      pull: kind.kind === "commit" ? null : (reply?.pull?.pull ?? null),
       defaultRef: reply?.defaultRef ?? null,
     };
     render();
@@ -2425,7 +2394,7 @@ export function showExplorer(
 
         return {
           state: "ready" as const,
-          rows: parseHistory(reply.text).rows,
+          rows: reply.rows,
           problem: "",
         };
       },
@@ -2463,7 +2432,7 @@ export function showExplorer(
     const next = await commits.listBranches().then(
       (reply) => ({
         state: "ready" as const,
-        rows: parseBranches(reply.text).rows,
+        rows: reply.rows,
         defaultRef: reply.defaultRef,
         total: reply.total,
         problem: "",
@@ -2519,7 +2488,7 @@ export function showExplorer(
         state: "ready" as const,
         status: reply.status,
         detail: reply.detail,
-        rows: reply.status === "ok" ? parsePullRequests(reply.text).rows : [],
+        rows: reply.status === "ok" ? reply.rows : [],
       }),
       (error) => ({
         state: "ready" as const,
@@ -2586,6 +2555,32 @@ export function showExplorer(
       : null;
   }
 
+  const openedClasses = new Map<string, Classification | "pending">();
+
+  function openedClassification(
+    changes: FileChange[],
+    marked: MarkedFile[],
+  ): Classification | null {
+    const key = `${changes.map((one) => `${one.status}${one.path}`).join("\n")}\0${marked
+      .map((one) => `${one.id}${one.mark}${one.box}`)
+      .join("\n")}`;
+    const held = openedClasses.get(key);
+
+    if (held === undefined) {
+      openedClasses.set(key, "pending");
+
+      void views
+        .classificationOf(marked, changes)
+        .then((classification) => {
+          openedClasses.set(key, classification);
+          render();
+        })
+        .catch(() => openedClasses.delete(key));
+    }
+
+    return held === undefined || held === "pending" ? null : held;
+  }
+
   function commitsPanelModel() {
     const now = Date.now();
     const present = scans.extractions.map((extraction) => extraction.selection);
@@ -2630,7 +2625,8 @@ export function showExplorer(
         openedPick.kind === pick.kind &&
         openedPick.ref === pick.ref &&
         changes !== null
-          ? classifyOpened(changes, openedMarked)
+          ? (openedClassification(changes, openedMarked) ??
+            classify(changes, present))
           : classify(changes, present);
       const end = endOf(pick);
       const heldPick =
@@ -2990,9 +2986,19 @@ export function showExplorer(
 
   async function loadScanConfig() {
     try {
-      scanConfig = (await scanHost.port.readInputs()).config;
+      const read = await scanHost.port.inputs();
+
+      scanConfig =
+        read.config ??
+        (read.configProblem === null
+          ? null
+          : registeredDespiteError(read.registeredSensors));
+      scanConfigBroken = read.configProblem !== null;
+      scanConfigProblem = read.configProblem;
     } catch {
       scanConfig = null;
+      scanConfigBroken = false;
+      scanConfigProblem = null;
     }
 
     try {
@@ -3006,6 +3012,7 @@ export function showExplorer(
     overlayModel = buildOverlayModel(loaded.overlays ?? [], {
       sensors: loaded.sensors,
       installed: installedSensors,
+      unreadable: loaded.overlaysUnreadable ?? [],
     });
 
     overlaysCache = null;
@@ -3035,7 +3042,7 @@ export function showExplorer(
       };
     }
 
-    return `${workStamp.text}:${loaded.history?.lastRun ?? ""}`;
+    return `${workStamp.text}:${loaded.lastRun ?? ""}`;
   }
 
   function scanModel(onlyView?: boolean) {
@@ -3043,6 +3050,7 @@ export function showExplorer(
     const input = {
       scan: scanHost.scan(),
       config: scanConfig,
+      configProblem: scanConfigProblem,
       sensors: loaded.sensors,
       lines: { modules: loaded.modules, of: responsibilityOf },
       describedAt,
@@ -3071,9 +3079,10 @@ export function showExplorer(
       runView: scanHost.runView?.() ?? null,
       now: Date.now(),
       installed: installedSensors,
-      freshness: freshnessOf(loaded),
+      ...(loaded.freshness === undefined
+        ? {}
+        : { freshness: loaded.freshness }),
       tests: loaded.tests ?? null,
-      ...(loaded.history === undefined ? {} : { history: loaded.history }),
     };
     const request = planRequestOf(input);
 
@@ -3097,19 +3106,27 @@ export function showExplorer(
 
     const scopes = workScopes(plan, installedSensors, workStampOf());
 
-    if (scopes.length === 0) {
-      return first;
-    }
-
     for (const scope of scopes) {
       plannedWork.ensure(scope);
     }
 
     const work = plannedWork.answers(scopes);
+    const worked =
+      Object.keys(work).length === 0 ? answered : { ...answered, work };
+    const second = Object.keys(work).length === 0 ? first : scanPanel(worked);
 
-    return Object.keys(work).length === 0
-      ? first
-      : scanPanel({ ...answered, work });
+    if (second.estimateRequest === null) {
+      return second;
+    }
+
+    const estimateStamp = workStampOf();
+
+    estimates.ask(second.estimateRequest, estimateStamp);
+
+    return scanPanel({
+      ...worked,
+      estimate: estimates.answerFor(second.estimateRequest, estimateStamp),
+    });
   }
 
   function showTarget(target: ShowTarget) {
@@ -4994,7 +5011,9 @@ export function showExplorer(
         ),
         metrics: withoutDrawn(currentOverlays(), drawn).metrics,
         metricsOn: tickedMetrics().length > 0,
-        limits: limitsFromText(scanConfig, installedSensors),
+        limits: scanConfigBroken
+          ? DEFAULT_LIMITS
+          : functionLimits(scanConfig, installedSensors),
         proposed: (id) => currentPlan()?.proposed.get(id) ?? null,
         members: currentMembers(),
       });
@@ -5039,7 +5058,7 @@ export function showExplorer(
 
   function render() {
     if (opensScanPanel(previousPanel, leftPanel)) {
-      scanHost.setTicks(afterPanelOpen(scanHost.ticks()));
+      tickChanges.change({ kind: "open" });
     }
 
     previousPanel = leftPanel;
@@ -5367,12 +5386,17 @@ export function showExplorer(
       overlayModel = buildOverlayModel(loaded.overlays ?? [], {
         sensors: loaded.sensors,
         installed: installedSensors,
+        unreadable: loaded.overlaysUnreadable ?? [],
       });
       allFindings = findingRows(health.documents);
       hiddenRows = findingRows(health.hidden);
       metricTicks = pruneTicks(metricTicks, overlayModel.metrics);
       postConditions();
       render();
+
+      if (askedModules !== null && askedModules !== loaded.modules.join("\n")) {
+        void readResponsibilities();
+      }
     },
     dispose() {
       document.removeEventListener("keydown", onUndoKey);

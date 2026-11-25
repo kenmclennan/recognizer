@@ -62,8 +62,11 @@ describe("sensorsSource", () => {
   it("reads findings and overlay texts through the service and keeps an unreadable file", async () => {
     const { source, results } = sourceOver();
 
-    results.setTexts("crap", { findings: "{}", overlay: "{}" });
-    results.setTexts("mutation", { findingsProblem: "bad json" });
+    results.setResults("crap", {
+      findings: {} as never,
+      overlay: {} as never,
+    });
+    results.setResults("mutation", { findingsProblem: "bad json" });
 
     const stored = await source.readResults();
 

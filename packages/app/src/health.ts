@@ -1,20 +1,16 @@
-import type { PolicyRule, SensorFindings, Violation } from "@recognizer/core";
+import type { SensorFindings, Violation } from "@recognizer/core";
 import {
-  buildFreshness,
   type FindingNote,
   findingsByModuleFrom,
-  InputError,
-  identityKey,
   measuredModules,
   narrowViolationRecord,
   type PolicyProblem,
-  parseBaseline,
-  parsePolicy,
   policyProblems,
   ruleText,
   splitFindings,
   violationText,
 } from "recognizer";
+import { judgedBy, UNKNOWN_FRESHNESS } from "./freshness-facts";
 import type { Loaded } from "./scan-loading";
 import type { FolderNode, TreeNode } from "./tree-model";
 
@@ -41,56 +37,31 @@ export function violationLine(violation: Violation): string {
   return `violation: ${violationText(violation)} (${ruleText(violation.rule)})`;
 }
 
-function messagesOf(error: unknown): string {
-  return error instanceof InputError
-    ? error.messages.join("; ")
-    : (error as Error).message;
-}
-
-function readBaseline(text: string | null, notices: string[]): Set<string> {
-  if (text === null) {
-    return new Set();
-  }
-
-  try {
-    return new Set(parseBaseline(text).map(identityKey));
-  } catch (error) {
-    notices.push(`baseline: ${messagesOf(error)}`);
-
-    return new Set();
-  }
-}
-
-function readPolicy(text: string | null): PolicyRule[] | null {
-  if (text === null) {
-    return null;
-  }
-
-  try {
-    return parsePolicy(text);
-  } catch {
-    return null;
-  }
-}
-
 export function computeHealth(
   loaded: Pick<
     Loaded,
     "repository" | "policy" | "modules" | "baseline" | "findings"
   > &
-    Partial<Pick<Loaded, "tests">>,
+    Partial<Pick<Loaded, "baselineProblem" | "freshness">>,
 ): Health {
   const notices: string[] = [];
   const known = new Set(loaded.modules);
-  const policy = readPolicy(loaded.policy);
-  const accepted = readBaseline(loaded.baseline ?? null, notices);
+  const policy = loaded.policy;
+  const accepted = new Set(loaded.baseline ?? []);
+
+  if (loaded.baselineProblem != null) {
+    notices.push(`baseline: ${loaded.baselineProblem}`);
+  }
+
   const scans = loaded.repository;
-  const freshness = buildFreshness(scans, loaded.tests ?? null);
+  const freshnessOf = (document: SensorFindings) =>
+    judgedBy(loaded.freshness?.[document.sensor.name] ?? UNKNOWN_FRESHNESS);
   const measured = new Set<string>();
   const shown: SensorFindings[] = [];
   const hidden: SensorFindings[] = [];
 
   for (const document of loaded.findings) {
+    const freshness = freshnessOf(document);
     const { current: keep, hidden: drop } = splitFindings(document, freshness);
 
     shown.push({ ...document, findings: keep });

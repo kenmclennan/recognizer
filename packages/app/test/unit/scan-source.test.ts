@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FreshnessModel } from "../../src/freshness-model";
+import type { FreshnessModel } from "../../src/freshness-text";
 import type { ScanTicks } from "../../src/scan-panel-model";
 import {
   type CoreOutcome,

@@ -1,5 +1,6 @@
 import type {
   Diagnosis,
+  DocumentFreshness,
   PolicyRule,
   SensorExclusion,
   SensorFindings,
@@ -11,19 +12,11 @@ import {
   complexityUnmeasured,
   duplicationUnmeasured,
   type FindingEntry,
-  InputError,
-  parseConfig,
-  parsePolicy,
-  readSensorFindings,
+  type Overlay,
   registeredSensors,
   resolveStructureSettings,
 } from "recognizer";
-import {
-  type Refusal,
-  type RunRecordFiles,
-  refusalsOf,
-} from "./refusal-record";
-import { type PlannedWork, scanHistory } from "./scan-estimate";
+import type { PlannedWork } from "./estimate-text";
 import type { Loaded, LoadedScan } from "./scan-loading";
 import { scansCommit } from "./scans-commit";
 
@@ -48,27 +41,40 @@ export type SensorStatus = {
   suites?: readonly SuiteResult[];
 };
 
+export type Refusal = { reason: string; diagnosis?: Diagnosis; at: number };
+
 export type FindingsFiles = {
-  files: { name: string; text: string; modifiedMs: number | null }[];
+  files: {
+    name: string;
+    document: SensorFindings;
+    modifiedMs: number | null;
+  }[];
   refused: string[];
 };
 
 export type OverlayFiles = {
-  files: { name: string; text: string; modifiedMs: number | null }[];
+  files: { name: string; overlay: Overlay; modifiedMs: number | null }[];
   refused: string[];
 };
 
 export type StoredResults = {
   findings: FindingsFiles;
   overlays: OverlayFiles;
+  refusals: Record<string, Refusal>;
+  freshness: Record<string, DocumentFreshness>;
+  lastRun: string | null;
 };
 
 export type SensorInputs = {
-  policy: string | null;
-  config: string | null;
-  baseline: string | null;
+  configText: string | null;
+  config: Config | null;
+  configProblem: string | null;
+  registeredSensors: string[];
+  policy: PolicyRule[] | null;
+  policyProblem: string | null;
+  baseline: string[] | null;
+  baselineProblem: string | null;
   refused: string[];
-  analysis: boolean;
 };
 
 export type InstalledSensor = {
@@ -137,31 +143,38 @@ export type WorkRequest = {
 };
 
 export type SensorsPort = {
-  readResults(): Promise<StoredResults>;
-  readRunRecords(): Promise<RunRecordFiles>;
+  readResults(tests?: string | null): Promise<StoredResults>;
   readTestsHash(known: Record<string, string>): Promise<string | null>;
   clearResults(name: string): Promise<void>;
-  readInputs(): Promise<SensorInputs>;
+  inputs(): Promise<SensorInputs>;
   sensorList(): Promise<InstalledSensors>;
   describer(): Promise<DescriberInEffect>;
   plannedWork(request: WorkRequest): Promise<PlannedWork | null>;
+};
+
+export const NO_INPUTS: SensorInputs = {
+  configText: null,
+  config: null,
+  configProblem: null,
+  registeredSensors: [],
+  policy: null,
+  policyProblem: null,
+  baseline: null,
+  baselineProblem: null,
+  refused: [],
 };
 
 export const inertSensors: SensorsPort = {
   readResults: async () => ({
     findings: { files: [], refused: [] },
     overlays: { files: [], refused: [] },
+    refusals: {},
+    freshness: {},
+    lastRun: null,
   }),
-  readRunRecords: async () => ({ files: [], refused: [] }),
   readTestsHash: async () => null,
   clearResults: async () => {},
-  readInputs: async () => ({
-    policy: null,
-    config: null,
-    baseline: null,
-    refused: [],
-    analysis: true,
-  }),
+  inputs: async () => NO_INPUTS,
   sensorList: async () => ({
     status: "unavailable",
     reason: "the installed sensors are not available",
@@ -180,62 +193,30 @@ export type SensorRun = {
 
 export { scansCommit };
 
-function messagesOf(error: unknown): string {
-  return error instanceof InputError
-    ? error.messages.join("; ")
-    : (error as Error).message;
-}
-
-function readConfig(
-  text: string | null,
-  statuses: SensorStatus[],
-): Config | null {
-  if (text === null) {
-    return null;
-  }
-
-  try {
-    return parseConfig(text);
-  } catch (error) {
-    statuses.push({
-      name: "config.yaml",
-      status: "failed",
-      reason: messagesOf(error),
-    });
-
-    return null;
-  }
-}
-
-function readPolicy(
-  text: string | null,
-  statuses: SensorStatus[],
-): PolicyRule[] | null {
-  if (text === null) {
-    return null;
-  }
-
-  try {
-    return parsePolicy(text);
-  } catch (error) {
-    statuses.push({
-      name: "policy.yaml",
-      status: "failed",
-      reason: messagesOf(error),
-    });
-
-    return null;
-  }
-}
-
 export async function senseRepository(
   _scans: LoadedScan[],
-  inputs: Pick<SensorInputs, "policy" | "config"> & { analysis?: boolean },
+  inputs: Pick<SensorInputs, "config" | "configProblem" | "policyProblem">,
   port: Pick<SensorsPort, "readResults">,
 ): Promise<SensorRun> {
   const statuses: SensorStatus[] = [];
-  const config = readConfig(inputs.config, statuses);
-  readPolicy(inputs.policy, statuses);
+  const { config } = inputs;
+
+  if (inputs.configProblem !== null) {
+    statuses.push({
+      name: "config.yaml",
+      status: "failed",
+      reason: inputs.configProblem,
+    });
+  }
+
+  if (inputs.policyProblem !== null) {
+    statuses.push({
+      name: "policy.yaml",
+      status: "failed",
+      reason: inputs.policyProblem,
+    });
+  }
+
   const settings = resolveStructureSettings(config);
   const documents: SensorFindings[] = [];
   const read = (await port.readResults()).findings;
@@ -251,9 +232,7 @@ export async function senseRepository(
       statuses.push({ name: "structure", status: "not run" });
     } else {
       try {
-        const stored = readSensorFindings(JSON.parse(file.text), {
-          name: "structure",
-        });
+        const stored = file.document;
         const notMeasured = [
           ...(duplicationUnmeasured(stored, settings) ? ["duplication"] : []),
           ...(complexityUnmeasured(stored, settings) ? ["complexity"] : []),
@@ -294,9 +273,7 @@ export async function senseRepository(
     }
 
     try {
-      const document = readSensorFindings(JSON.parse(file.text), {
-        name: file.name,
-      });
+      const document = file.document;
 
       documents.push(document);
       statuses.push({
@@ -354,42 +331,24 @@ export async function senseRepository(
   };
 }
 
-function registeredNames(config: string | null): string[] {
-  if (config === null) {
-    return [];
-  }
-
-  try {
-    return registeredSensors(parseConfig(config)).map(({ name }) => name);
-  } catch {
-    return [];
-  }
-}
-
 export async function withSensors(
   loaded: Loaded,
   port: SensorsPort,
 ): Promise<Loaded> {
-  const inputs = await port.readInputs();
-  const stored = await port.readResults();
+  const inputs = await port.inputs();
+  const tests = await port.readTestsHash({}).catch(() => null);
+  const stored = await port.readResults(tests);
   const run = await senseRepository(loaded.scans, inputs, {
     readResults: async () => stored,
   });
   const overlays = stored.overlays;
-  const tests = await port.readTestsHash({}).catch(() => null);
-  const records = await port
-    .readRunRecords()
-    .catch((): RunRecordFiles => ({ files: [], refused: [] }));
-  const refusals = refusalsOf(
-    records.files,
-    registeredNames(inputs.config),
-    run.statuses,
-  );
+  const refusals = stored.refusals;
 
   return {
     ...loaded,
     policy: inputs.policy,
     baseline: inputs.baseline,
+    baselineProblem: inputs.baselineProblem,
     findings: run.documents,
     sensors: run.statuses.map((status) =>
       status.status !== "failed" && refusals[status.name] !== undefined
@@ -399,6 +358,7 @@ export async function withSensors(
     overlays: overlays.files,
     overlaysUnreadable: overlays.refused,
     tests,
-    history: scanHistory(records.files),
+    freshness: stored.freshness,
+    lastRun: stored.lastRun,
   };
 }

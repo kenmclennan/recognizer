@@ -1,12 +1,17 @@
 import type { Diagnosis, RunView } from "@recognizer/core";
 import type { ScanRunRecord } from "recognizer";
-import { buildFreshness, tickedPhases } from "recognizer";
+import {
+  estimateFrom,
+  type ScanHistory,
+  scanHistory,
+  tickedPhases,
+  validateRunRecord,
+} from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { ScanState } from "../../src/footer-scan";
 import { NO_CHANGES } from "../../src/footer-scan";
 import { installedSensors, plainSensor } from "../../src/installed-fake";
 import type { ResponsibilityState } from "../../src/responsibility-model";
-import { scanHistory } from "../../src/scan-estimate";
 import {
   describerRegistered,
   effectiveTicks,
@@ -15,6 +20,7 @@ import {
   opensScanPanel,
   type PanelInput,
   type RunState,
+  registeredDespiteError,
   rowSensors,
   type ScanTicks,
   scanPanel as scanPanelAsked,
@@ -22,7 +28,8 @@ import {
 import { describeStopText, NO_PROGRESS } from "../../src/scan-progress";
 import { whyOf } from "../../src/scan-why";
 import type { InstalledSensor, InstalledSensors } from "../../src/sensor-run";
-import { scanPanelSync as scanPanel } from "../fixtures";
+import { configOf, scanPanelSync as scanPanel } from "../fixtures";
+import { factsFor } from "../freshness-support";
 import { type DocScan, repositoryFrom } from "./repository-from";
 
 const CONFIG = `describer:
@@ -84,7 +91,7 @@ function allCurrent(modules: string[]): PanelInput["lines"] {
 function input(over: Partial<PanelInput> = {}): PanelInput {
   return withAnalysis({
     scan: SCAN,
-    config: CONFIG,
+    config: configOf(CONFIG),
     sensors: [],
     lines: {
       modules: Object.keys(CURRENT),
@@ -214,7 +221,10 @@ describe("scanPanel rows", () => {
   });
 
   it("carries scoped from the entry and gives a third-party row scoped false", () => {
-    const rows = rowSensors("sensors:\n  alpha:\n    command: [a]\n", LIST);
+    const rows = rowSensors(
+      configOf("sensors:\n  alpha:\n    command: [a]\n"),
+      LIST,
+    );
 
     expect(rows.find((row) => row.name === "mutation")?.scoped).toBe(true);
     expect(rows.find((row) => row.name === "crap")?.scoped).toBe(false);
@@ -246,15 +256,12 @@ describe("scanPanel rows", () => {
   });
 
   it("keeps the C.R.A.P. and Mutation rows with the settings error as their reason when a test suite has no language", () => {
-    const config = `sensors:
-  crap: {}
-  mutation: {}
-tests:
-  - name: unit
-`;
-    const rows = scanPanel(input({ config })).rows.filter(
-      (row) => row.key === "crap" || row.key === "mutation",
-    );
+    const rows = scanPanel(
+      input({
+        config: registeredDespiteError(["crap", "mutation"]),
+        configProblem: "tests: unit needs a language",
+      }),
+    ).rows.filter((row) => row.key === "crap" || row.key === "mutation");
 
     expect(rows.map((row) => row.key)).toEqual(["crap", "mutation"]);
 
@@ -276,20 +283,25 @@ tests:
     ]);
 
     const registered = rowSensors(
-      "sensors:\n  coverage:\n    command: [recognizer-sense-coverage]\n",
+      configOf(
+        "sensors:\n  coverage:\n    command: [recognizer-sense-coverage]\n",
+      ),
       list,
     );
 
     expect(registered).toHaveLength(1);
     expect(registered[0]?.registered).toBe(true);
     expect(
-      rowSensors("sensors:\n  bespoke:\n    command: [b]\n", list).map(
-        (row) => `${row.name}:${row.display}`,
-      ),
+      rowSensors(
+        configOf("sensors:\n  bespoke:\n    command: [b]\n"),
+        list,
+      ).map((row) => `${row.name}:${row.display}`),
     ).toEqual(["coverage:Coverage", "bespoke:bespoke"]);
     expect(
       rowSensors(
-        "sensors:\n  coverage:\n    command: [c]\n  bespoke:\n    command: [b]\n",
+        configOf(
+          "sensors:\n  coverage:\n    command: [c]\n  bespoke:\n    command: [b]\n",
+        ),
         {
           status: "unavailable",
           reason: "x",
@@ -302,7 +314,7 @@ tests:
     const coverage = plainSensor("coverage", { display: "Coverage" });
     const model = scanPanel(
       input({
-        config: "sensors:\n  alpha:\n    command: [a]\n",
+        config: configOf("sensors:\n  alpha:\n    command: [a]\n"),
         installed: { status: "ok", sensors: [coverage] },
       }),
     );
@@ -324,7 +336,7 @@ tests:
 
   it("does not list an installed sensor a repository also registers as third-party", () => {
     expect(
-      rowSensors("sensors:\n  mutation: {}\n", LIST).filter(
+      rowSensors(configOf("sensors:\n  mutation: {}\n"), LIST).filter(
         (one) => one.name === "mutation",
       ),
     ).toHaveLength(1);
@@ -621,7 +633,7 @@ describe("scanPanel row states", () => {
     const running = (sensorProgress: PanelInput["sensorProgress"]) =>
       scanPanel(
         input({
-          config: suited,
+          config: configOf(suited),
           ticks: {
             describe: false,
             analysis: true,
@@ -1233,7 +1245,11 @@ describe("scanPanel freshness", () => {
         suites: {},
         folds: [],
       },
-      freshness: buildFreshness(repositoryFrom([freshScan]), "t"),
+      freshness: factsFor(
+        repositoryFrom([freshScan]),
+        [crap(inputs), ...others],
+        "t",
+      ),
     });
 
   it("keeps the second line of a ran, partly row when a file gap replaces the state", () => {
@@ -1265,7 +1281,7 @@ describe("scanPanel freshness", () => {
     const given = base({ "a.py": "ha", "b.py": "old" });
     const model = scanPanel({
       ...given,
-      config: suited,
+      config: configOf(suited),
       sensors: [
         {
           ...crap({ "a.py": "ha", "b.py": "old" }),
@@ -1299,7 +1315,7 @@ describe("scanPanel freshness", () => {
     const given = base({ "a.py": "ha", "b.py": "hb" });
     const model = scanPanel({
       ...given,
-      config: suited,
+      config: configOf(suited),
       sensors: [
         {
           ...crap({ "a.py": "ha", "b.py": "hb" }),
@@ -2010,12 +2026,39 @@ describe("scanPanel estimate line", () => {
       }),
     },
   ];
-  const history = scanHistory(files);
+  const history = scanHistory(
+    files.map(({ name, text }) => ({
+      name,
+      record: validateRunRecord(JSON.parse(text)),
+    })),
+  );
+  type Given = Partial<PanelInput> & { history?: ScanHistory | undefined };
+  const inputOf = (
+    over: Given = {},
+  ): PanelInput & { history?: ScanHistory } => {
+    const { history: given, ...rest } = over;
+
+    return {
+      ...input(rest),
+      ...(given === undefined ? {} : { history: given }),
+    };
+  };
+  const panel = (given: PanelInput & { history?: ScanHistory }) => {
+    const { history: known, ...rest } = given;
+    const asked = scanPanel(rest).estimateRequest;
+
+    return scanPanel({
+      ...rest,
+      ...(known === undefined || asked === null
+        ? {}
+        : { estimate: estimateFrom(known, asked) }),
+    });
+  };
   const toPerform = (count: number) => ({
     mutation: { unit: "functions", to_perform: count },
   });
-  const mutating = (over: Partial<PanelInput> = {}) =>
-    input({
+  const mutating = (over: Given = {}) =>
+    inputOf({
       history,
       work: toPerform(3),
       ticks: {
@@ -2031,20 +2074,20 @@ describe("scanPanel estimate line", () => {
     });
 
   it("shows no line when nothing is ticked to run", () => {
-    const model = scanPanel(input({ history }));
+    const model = panel(inputOf({ history }));
 
     expect(model.button.label).toBe("Nothing ticked to run");
     expect(model.estimate).toBeNull();
   });
 
   it("hides the estimate for Nothing to run and Checking", () => {
-    const base = input({
+    const base = inputOf({
       history,
-      config: "",
+      config: configOf(""),
       installed: { status: "ok", sensors: [plainSensor("alpha")] },
     });
     const checking = scanPanelAsked({ ...base, plan: null });
-    const nothing = scanPanel(base);
+    const nothing = panel(base);
 
     expect(checking.button.label).toBe("Checking");
     expect(checking.estimate).toBeNull();
@@ -2053,11 +2096,11 @@ describe("scanPanel estimate line", () => {
   });
 
   it("shows no line while scanning", () => {
-    expect(scanPanel(mutating({ scanning: true })).estimate).toBeNull();
+    expect(panel(mutating({ scanning: true })).estimate).toBeNull();
   });
 
   it("reads the figure and a hover for exactly what the button runs", () => {
-    const model = scanPanel(mutating());
+    const model = panel(mutating());
 
     expect(model.estimate?.text).toBe("About 3 min");
     expect(model.estimate?.title).toBe(
@@ -2066,13 +2109,13 @@ describe("scanPanel estimate line", () => {
   });
 
   it("reads No estimate until this repository has been scanned with no history", () => {
-    expect(scanPanel(mutating({ history: undefined })).estimate?.text).toBe(
+    expect(panel(mutating({ history: undefined })).estimate?.text).toBe(
       "No estimate until this repository has been scanned",
     );
   });
 
   it("names a ticked sensor with no history", () => {
-    const model = scanPanel(
+    const model = panel(
       mutating({
         ticks: {
           describe: false,
@@ -2094,8 +2137,8 @@ describe("scanPanel estimate line", () => {
 
   it("changes with the scope, through the files the plan gives Mutation", () => {
     const view = { name: null, modules: ["a.py"] };
-    const whole = scanPanel(mutating({ mode: "rescan", view }));
-    const scoped = scanPanel(
+    const whole = panel(mutating({ mode: "rescan", view }));
+    const scoped = panel(
       mutating({
         mode: "rescan",
         view,
@@ -2118,8 +2161,8 @@ describe("scanPanel estimate line", () => {
         of: (id) => CURRENT[id] as ResponsibilityState,
       },
     });
-    const bring = scanPanel(base);
-    const full = scanPanel({ ...base, mode: "rescan" });
+    const bring = panel(base);
+    const full = panel({ ...base, mode: "rescan" });
 
     expect(bring.planned?.work.describe).toBe(1);
     expect(full.planned?.work.describe).toBe(3);
@@ -2143,7 +2186,9 @@ describe("unregistered plugins", () => {
 
     expect(stored.armed).toContain("mutation");
 
-    const model = scanPanel(input({ config: ONLY_CRAP, ticks: stored }));
+    const model = scanPanel(
+      input({ config: configOf(ONLY_CRAP), ticks: stored }),
+    );
     const crap = model.rows.find((row) => row.key === "crap");
     const mutation = model.rows.find((row) => row.key === "mutation");
 
@@ -2159,7 +2204,7 @@ describe("unregistered plugins", () => {
   });
 
   it("shows an unregistered installed sensor as a not-registered row but leaves it out of the summary", () => {
-    const model = scanPanel(input({ config: ONLY_CRAP }));
+    const model = scanPanel(input({ config: configOf(ONLY_CRAP) }));
     const text = `${model.summary.head} ${model.summary.line}`;
 
     expect(text).not.toMatch(/Mutation/);
@@ -2204,10 +2249,10 @@ describe("unregistered plugins", () => {
   });
 
   it("reads describerRegistered from the parsed config", () => {
-    expect(describerRegistered(CONFIG)).toBe(true);
-    expect(describerRegistered(ONLY_CRAP)).toBe(false);
+    expect(describerRegistered(configOf(CONFIG))).toBe(true);
+    expect(describerRegistered(configOf(ONLY_CRAP))).toBe(false);
     expect(describerRegistered(null)).toBe(false);
-    expect(describerRegistered("sensors: [unclosed")).toBe(false);
+    expect(describerRegistered(configOf("sensors: [unclosed"))).toBe(false);
   });
 
   it("drops only the unregistered names from ticked, armed and suites and leaves the rest", () => {
