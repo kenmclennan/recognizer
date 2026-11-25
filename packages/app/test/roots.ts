@@ -65,6 +65,7 @@ export class Serve {
   readonly started: Line[] = [];
   readonly child: ChildProcess;
   private nextId = 1;
+  private stopped = false;
   private readonly pending = new Map<number, (line: Line) => void>();
   private readonly waiters: (() => void)[] = [];
 
@@ -76,6 +77,7 @@ export class Serve {
       stdio: ["pipe", "pipe", "pipe"],
     });
     this.child.stderr?.resume();
+    this.child.stdin?.on("error", () => {});
     createInterface({ input: this.child.stdout as NodeJS.ReadableStream }).on(
       "line",
       (text) => {
@@ -100,6 +102,10 @@ export class Serve {
   }
 
   call(op: string, args: Record<string, unknown>): Promise<Line> {
+    if (this.stopped) {
+      return Promise.reject(new Error(`service stopped: ${op} refused`));
+    }
+
     const id = this.nextId++;
 
     if (op === "scan.start") {
@@ -120,6 +126,7 @@ export class Serve {
   }
 
   stop(): void {
+    this.stopped = true;
     this.child.stdin?.end();
     this.child.kill();
 
