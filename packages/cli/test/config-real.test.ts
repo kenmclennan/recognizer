@@ -7,7 +7,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { parseKeySchema } from "../src/config-keys.js";
@@ -114,6 +114,27 @@ describe.skipIf(!HAS_UV)(
   () => {
     let savedPath: string | undefined;
     let launchers: string;
+    let sensorsBin: string;
+
+    beforeAll(() => {
+      const resolved = spawnSync(
+        "uv",
+        [
+          "run",
+          "--quiet",
+          "--project",
+          join(REPO, "packages/sensors"),
+          "python",
+          "-c",
+          "import sys; print(sys.prefix)",
+        ],
+        { encoding: "utf8" },
+      );
+
+      expect(resolved.status, resolved.stderr).toBe(0);
+
+      sensorsBin = join(resolved.stdout.trim(), "bin");
+    }, scaledTimeout(240_000));
 
     beforeEach(() => {
       savedPath = process.env.PATH;
@@ -121,12 +142,12 @@ describe.skipIf(!HAS_UV)(
       launcher(
         launchers,
         "recognizer-sense-crap",
-        `exec uv run --quiet --project ${REPO}/packages/sensors recognizer-sense-crap "$@"`,
+        `exec ${sensorsBin}/recognizer-sense-crap "$@"`,
       );
       launcher(
         launchers,
         "recognizer-sense-mutation",
-        `exec uv run --quiet --project ${REPO}/packages/sensors recognizer-sense-mutation "$@"`,
+        `exec ${sensorsBin}/recognizer-sense-mutation "$@"`,
       );
       launcher(launchers, "recognizer", `exec node ${BIN} "$@"`);
       process.env.PATH = toolPath(launchers);
