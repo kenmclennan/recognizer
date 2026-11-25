@@ -1,49 +1,11 @@
-import type { Diagnosis } from "@recognizer/core";
-import { type Gap, isGap, type PluginEvent, readDiagnosis } from "recognizer";
+import type {
+  DescribeAsk,
+  DescribeHalt,
+  Diagnosis,
+  PluginRunView,
+  RunView,
+} from "@recognizer/core";
 import { roundedTime } from "./estimate-text";
-
-export type ScanEvent =
-  | {
-      event: "phase";
-      phase: "extract";
-      state: "run" | "current";
-      commit: string | null;
-      languages?: string[];
-    }
-  | { event: "phase"; phase: "describe" | "sense"; total: number }
-  | {
-      event: "entry";
-      phase: "extract" | "describe" | "sense";
-      name: string;
-      outcome: "ok" | "failed" | "stopped";
-      reason?: string;
-      diagnosis?: Diagnosis;
-    }
-  | { event: "start"; phase: "sense"; name: string }
-  | { event: "plugin"; phase: PhaseName; name: string; data: PluginEvent }
-  | ({ event: "stopped"; phase: "describe" } & DescribeStop)
-  | ({ event: "confirm"; phase: "describe" } & DescribeAsk)
-  | { event: "answered"; phase: "describe"; describe: boolean }
-  | { event: "preflight"; state: "run" | "ok" }
-  | { event: "preflight"; state: "gaps"; gaps: Gap[] }
-  | { event: "structure"; state: "run" }
-  | { event: "structure"; state: "done" | "failed"; files: number }
-  | { event: "summary"; exit?: number; log?: string | null };
-
-export type DescribeAsk = {
-  modules: number;
-  model: string;
-  inputTokens: number;
-  costUsd: number | null;
-};
-
-export type DescribeStop = {
-  cause: "limit" | "failures";
-  reason: string;
-  described: number;
-  notDescribed: number;
-  threshold: number;
-};
 
 export type PluginCount = {
   done: number;
@@ -54,12 +16,10 @@ export type PluginCount = {
 
 export type PluginProgress = {
   name: string;
-  phase: PhaseName;
+  phase: "extract" | "describe" | "sense";
   progress?: PluginCount;
   note?: string;
 };
-
-export type PhaseName = "extract" | "describe" | "sense";
 
 export type EntryResult = {
   name: string;
@@ -70,23 +30,11 @@ export type EntryResult = {
 
 export type PhaseProgress = { total: number; entries: EntryResult[] };
 
-export type ScanProgress = {
-  extract: "pending" | "run" | "current";
-  languages: string[] | null;
-  extractEntries: EntryResult[];
-  describe: PhaseProgress | null;
-  describeStop: DescribeStop | null;
-  describeAsk: DescribeAsk | null;
-  describeSkipped: boolean;
-  sense: PhaseProgress | null;
-  sensorProgress: PluginProgress | null;
-  startedSuites: Record<string, string[]>;
-  extractSettled: boolean;
-  done: boolean;
-  stopped: boolean;
-  sensing: string | null;
-  log: string | null;
-  timing: ScanTiming;
+export type DescribeCount = {
+  total: number;
+  done: number;
+  failed: number;
+  firstFailure: { item: string; reason: string } | null;
 };
 
 export type ScanTiming = {
@@ -95,11 +43,47 @@ export type ScanTiming = {
   extractTotals: Record<string, number>;
 };
 
+export type RunProgress = {
+  extract: "pending" | "run" | "current";
+  languages: string[] | null;
+  extractEntries: EntryResult[];
+  describe: DescribeCount | null;
+  describeStop: DescribeHalt | null;
+  describeAsk: DescribeAsk | null;
+  describeSkipped: boolean;
+  sense: PhaseProgress | null;
+  sensorProgress: PluginProgress | null;
+  extractSettled: boolean;
+  done: boolean;
+  stopped: boolean;
+  sensing: string | null;
+  log: string | null;
+  timing: ScanTiming;
+};
+
+export type ProgressOverlay = {
+  extractSettled: boolean;
+  done: boolean;
+  stopped: boolean;
+};
+
 export type ShowTarget =
   | { kind: "sensor"; name: string; reason: string }
   | { kind: "module"; id: string; reason: string };
 
-export const NO_PROGRESS: ScanProgress = {
+export const NO_TIMING: ScanTiming = {
+  extractAt: {},
+  extractDoneAt: {},
+  extractTotals: {},
+};
+
+export const NO_OVERLAY: ProgressOverlay = {
+  extractSettled: false,
+  done: false,
+  stopped: false,
+};
+
+export const NO_PROGRESS: RunProgress = {
   extract: "pending",
   languages: null,
   extractEntries: [],
@@ -109,401 +93,173 @@ export const NO_PROGRESS: ScanProgress = {
   describeSkipped: false,
   sense: null,
   sensorProgress: null,
-  startedSuites: {},
   extractSettled: false,
   done: false,
   stopped: false,
   sensing: null,
   log: null,
-  timing: {
-    extractAt: {},
-    extractDoneAt: {},
-    extractTotals: {},
-  },
+  timing: NO_TIMING,
 };
 
-const PHASES: readonly string[] = ["extract", "describe", "sense"];
-
-export function parseScanLine(text: string): ScanEvent | null {
-  let parsed: unknown;
-
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return null;
-  }
-
-  if (typeof parsed !== "object" || parsed === null) {
-    return null;
-  }
-
-  const line = parsed as Record<string, unknown>;
-
-  switch (line.event) {
-    case "summary":
-      return {
-        event: "summary",
-        ...(typeof line.exit === "number" ? { exit: line.exit } : {}),
-        ...(typeof line.log === "string" || line.log === null
-          ? { log: line.log }
-          : {}),
-      };
-    case "preflight":
-      return preflightEvent(line);
-    case "phase":
-      return phaseEvent(line);
-    case "stopped":
-      return stoppedEvent(line);
-    case "confirm":
-      return confirmEvent(line);
-    case "answered":
-      return line.phase === "describe" && typeof line.describe === "boolean"
-        ? { event: "answered", phase: "describe", describe: line.describe }
-        : null;
-    case "entry":
-      return entryEvent(line);
-    case "start":
-      return line.phase === "sense" && typeof line.name === "string"
-        ? { event: "start", phase: "sense", name: line.name }
-        : null;
-    case "plugin":
-      return pluginEvent(line);
-    case "structure":
-      return structureEvent(line);
-    default:
-      return null;
-  }
+export function began(plugin: PluginRunView): boolean {
+  return (
+    plugin.state === "running" ||
+    plugin.state === "finished" ||
+    plugin.state === "failed" ||
+    (plugin.state === "stopped" &&
+      (plugin.progress !== null || plugin.stage !== null))
+  );
 }
 
-function structureEvent(line: Record<string, unknown>): ScanEvent | null {
-  if (line.state === "run") {
-    return { event: "structure", state: "run" };
-  }
-
-  if (
-    (line.state === "done" || line.state === "failed") &&
-    isCount(line.files)
-  ) {
-    return { event: "structure", state: line.state, files: line.files };
-  }
-
-  return null;
+function entryOf(plugin: PluginRunView): EntryResult {
+  return {
+    name: plugin.name,
+    outcome:
+      plugin.state === "finished"
+        ? "ok"
+        : plugin.state === "stopped"
+          ? "stopped"
+          : "failed",
+    reason: plugin.failure?.reason ?? null,
+    diagnosis: plugin.failure?.diagnosis ?? null,
+  };
 }
 
-function preflightEvent(line: Record<string, unknown>): ScanEvent | null {
-  if (line.state === "run") {
-    return { event: "preflight", state: "run" };
-  }
-
-  if (line.state === "ok") {
-    return { event: "preflight", state: "ok" };
-  }
-
-  if (line.state === "gaps" && Array.isArray(line.gaps)) {
-    return {
-      event: "preflight",
-      state: "gaps",
-      gaps: line.gaps.filter(isGap),
-    };
-  }
-
-  return null;
+function ended(plugin: PluginRunView): boolean {
+  return (
+    plugin.state === "finished" ||
+    plugin.state === "failed" ||
+    plugin.state === "stopped"
+  );
 }
 
-function isCount(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0;
-}
-
-function stoppedEvent(line: Record<string, unknown>): ScanEvent | null {
-  if (
-    line.phase !== "describe" ||
-    (line.cause !== "limit" && line.cause !== "failures") ||
-    !isCount(line.described) ||
-    !isCount(line.not_described)
-  ) {
+function describeOf(plugin: PluginRunView | undefined): DescribeCount | null {
+  if (plugin === undefined || !began(plugin)) {
     return null;
   }
 
   return {
-    event: "stopped",
-    phase: "describe",
-    cause: line.cause,
-    reason: typeof line.reason === "string" ? line.reason : "",
-    described: line.described,
-    notDescribed: line.not_described,
-    threshold: isCount(line.threshold) ? line.threshold : 0,
+    total: plugin.progress?.total ?? 0,
+    done: plugin.progress?.done ?? 0,
+    failed: plugin.tally?.failed ?? 0,
+    firstFailure: plugin.tally?.firstFailure ?? null,
   };
 }
 
-function confirmEvent(line: Record<string, unknown>): ScanEvent | null {
-  if (
-    line.phase !== "describe" ||
-    !isCount(line.modules) ||
-    typeof line.model !== "string" ||
-    !isCount(line.input_tokens) ||
-    (line.cost_usd !== null &&
-      (typeof line.cost_usd !== "number" || !Number.isFinite(line.cost_usd)))
-  ) {
+function sensorProgressOf(
+  plugins: readonly PluginRunView[],
+): PluginProgress | null {
+  const running = plugins.find(
+    (one) => one.state === "running" && one.phase !== "describe",
+  );
+
+  if (running === undefined) {
     return null;
   }
 
   return {
-    event: "confirm",
-    phase: "describe",
-    modules: line.modules,
-    model: line.model,
-    inputTokens: line.input_tokens,
-    costUsd: line.cost_usd,
+    name: running.name,
+    phase: running.phase,
+    ...(running.progress === null
+      ? {}
+      : {
+          progress: {
+            done: running.progress.done,
+            total: running.progress.total,
+            unit: running.progress.unit,
+          },
+        }),
   };
 }
 
-function pluginEvent(line: Record<string, unknown>): ScanEvent | null {
-  if (
-    typeof line.phase !== "string" ||
-    !PHASES.includes(line.phase) ||
-    !nonEmpty(line.name) ||
-    typeof line.data !== "object" ||
-    line.data === null
-  ) {
-    return null;
+export function progressOfRun(
+  run: RunView | null,
+  timing: ScanTiming = NO_TIMING,
+  overlay: ProgressOverlay = NO_OVERLAY,
+): RunProgress {
+  if (run === null) {
+    return { ...NO_PROGRESS, ...overlay, timing };
   }
 
-  const data = pluginData(line.data as Record<string, unknown>);
-
-  return data === null
-    ? null
-    : {
-        event: "plugin",
-        phase: line.phase as PhaseName,
-        name: line.name,
-        data,
-      };
-}
-
-function pluginData(data: Record<string, unknown>): PluginEvent | null {
-  switch (data.event) {
-    case "start":
-      return isCount(data.total) && nonEmpty(data.unit)
-        ? {
-            event: "start",
-            total: data.total,
-            unit: data.unit,
-            ...(isCount(data.queued) ? { queued: data.queued } : {}),
-          }
-        : null;
-    case "progress":
-      return isCount(data.done) &&
-        isCount(data.total) &&
-        data.done <= data.total &&
-        nonEmpty(data.unit) &&
-        (data.step === undefined || nonEmpty(data.step))
-        ? {
-            event: "progress",
-            done: data.done,
-            total: data.total,
-            unit: data.unit,
-            ...(data.step === undefined ? {} : { step: data.step }),
-          }
-        : null;
-    case "note":
-      return nonEmpty(data.text) ? { event: "note", text: data.text } : null;
-    case "diagnosis":
-      return nonEmpty(data.code) &&
-        nonEmpty(data.text) &&
-        (data.fix === undefined || nonEmpty(data.fix))
-        ? {
-            event: "diagnosis",
-            code: data.code,
-            text: data.text,
-            ...(data.fix === undefined ? {} : { fix: data.fix }),
-          }
-        : null;
-    default:
-      return null;
-  }
-}
-
-function phaseEvent(line: Record<string, unknown>): ScanEvent | null {
-  if (line.phase === "extract") {
-    return line.state === "run" || line.state === "current"
-      ? {
-          event: "phase",
-          phase: "extract",
-          state: line.state,
-          commit: typeof line.commit === "string" ? line.commit : null,
-          ...(Array.isArray(line.languages) && line.languages.every(nonEmpty)
-            ? { languages: line.languages }
-            : {}),
-        }
-      : null;
-  }
-
-  if (
-    (line.phase === "describe" || line.phase === "sense") &&
-    typeof line.total === "number"
-  ) {
-    return { event: "phase", phase: line.phase, total: line.total };
-  }
-
-  return null;
-}
-
-function entryEvent(line: Record<string, unknown>): ScanEvent | null {
-  if (
-    typeof line.phase !== "string" ||
-    !PHASES.includes(line.phase) ||
-    typeof line.name !== "string" ||
-    (line.outcome !== "ok" &&
-      line.outcome !== "failed" &&
-      line.outcome !== "stopped")
-  ) {
-    return null;
-  }
-
-  const diagnosis = readDiagnosis(line.diagnosis);
+  const extracts = run.plugins.filter((one) => one.phase === "extract");
+  const senses = run.plugins.filter((one) => one.phase === "sense");
+  const describing = run.plugins.find((one) => one.phase === "describe");
+  const active = run.state === "checking" || run.state === "running";
+  const finished = run.state === "finished" || run.state === "failed";
+  const settled =
+    overlay.extractSettled ||
+    finished ||
+    run.log !== null ||
+    (describing !== undefined && began(describing)) ||
+    senses.some(began);
+  const begun =
+    run.plugins.some(began) || run.structure !== null || run.log !== null;
+  const confirmation = run.confirmation;
 
   return {
-    event: "entry",
-    phase: line.phase as PhaseName,
-    name: line.name,
-    outcome: line.outcome,
-    ...(typeof line.reason === "string" ? { reason: line.reason } : {}),
-    ...(diagnosis === null ? {} : { diagnosis }),
+    extract:
+      extracts.length > 0
+        ? settled
+          ? "current"
+          : "run"
+        : settled
+          ? "current"
+          : begun
+            ? "current"
+            : "pending",
+    languages: extracts.length > 0 ? extracts.map((one) => one.name) : null,
+    extractEntries: extracts.filter(ended).map(entryOf),
+    describe: describeOf(describing),
+    describeStop: run.describeHalt,
+    describeAsk:
+      !overlay.stopped && confirmation !== null && confirmation.answer === null
+        ? confirmation.ask
+        : null,
+    describeSkipped: confirmation?.answer === "skip",
+    sense: senses.some(began)
+      ? { total: senses.length, entries: senses.filter(ended).map(entryOf) }
+      : null,
+    sensorProgress: sensorProgressOf(run.plugins),
+    extractSettled: settled,
+    done: overlay.done || (!active && run.state !== "stopped"),
+    stopped: overlay.stopped || run.state === "stopped",
+    sensing: senses.find((one) => one.state === "running")?.name ?? null,
+    log: run.log,
+    timing,
   };
 }
 
-function nonEmpty(value: unknown): value is string {
-  return typeof value === "string" && value !== "";
-}
+export function stampTiming(
+  timing: ScanTiming,
+  after: RunView,
+  at: number,
+): ScanTiming {
+  let next = timing;
 
-function foldPlugin(
-  state: ScanProgress,
-  event: Extract<ScanEvent, { event: "plugin" }>,
-): ScanProgress {
-  const { name, phase, data } = event;
-  const stored = state.sensorProgress;
-
-  if (data.event === "start") {
-    return { ...state, sensorProgress: { name, phase } };
-  }
-
-  if (stored !== null && stored.name !== name) {
-    return state;
-  }
-
-  if (data.event === "progress") {
-    const { event: _event, ...progress } = data;
-    const step = progress.step;
-    const seen = state.startedSuites[name] ?? [];
-
-    return {
-      ...state,
-      sensorProgress: { name, phase, progress },
-      startedSuites:
-        step === undefined || seen.includes(step)
-          ? state.startedSuites
-          : { ...state.startedSuites, [name]: [...seen, step] },
-    };
-  }
-
-  if (data.event === "note") {
-    return {
-      ...state,
-      sensorProgress: {
-        name,
-        phase,
-        ...(stored?.progress === undefined
-          ? {}
-          : { progress: stored.progress }),
-        note: data.text,
-      },
-    };
-  }
-
-  return state;
-}
-
-function settledExtract(extract: ScanProgress["extract"]) {
-  return extract === "run" ? "current" : extract;
-}
-
-export function foldProgress(
-  state: ScanProgress,
-  event: ScanEvent,
-): ScanProgress {
-  switch (event.event) {
-    case "start":
-      return state.sensorProgress === null
-        ? state
-        : { ...state, sensorProgress: null };
-    case "plugin":
-      return foldPlugin(state, event);
-    case "preflight":
-    case "structure":
-      return state;
-    case "summary":
-      return {
-        ...state,
-        extract: settledExtract(state.extract),
-        extractSettled: true,
-        done: true,
-        log: event.log ?? state.log,
-      };
-    case "stopped": {
-      const { event: _event, phase: _phase, ...describeStop } = event;
-
-      return { ...state, describeStop };
+  for (const plugin of after.plugins) {
+    if (plugin.phase !== "extract" || !began(plugin)) {
+      continue;
     }
-    case "confirm": {
-      const { event: _event, phase: _phase, ...describeAsk } = event;
 
-      return { ...state, describeAsk };
+    const { name } = plugin;
+
+    if (!(name in next.extractAt)) {
+      next = { ...next, extractAt: { ...next.extractAt, [name]: at } };
     }
-    case "answered":
-      return { ...state, describeAsk: null, describeSkipped: !event.describe };
-    case "phase":
-      if (event.phase === "extract") {
-        return {
-          ...state,
-          extract: event.state,
-          languages: event.languages ?? state.languages,
-        };
-      }
 
-      return {
-        ...state,
-        extract: settledExtract(state.extract),
-        extractSettled: true,
-        [event.phase]: { total: event.total, entries: [] },
-      };
-    case "entry": {
-      const result: EntryResult = {
-        name: event.name,
-        outcome: event.outcome,
-        reason: event.reason ?? null,
-        diagnosis: event.diagnosis ?? null,
-      };
-
-      if (event.phase === "extract") {
-        return {
-          ...state,
-          extractEntries: [...state.extractEntries, result],
-        };
-      }
-
-      const phase = state[event.phase] ?? { total: 0, entries: [] };
-
-      return {
-        ...state,
-        sensorProgress: null,
-        [event.phase]: { ...phase, entries: [...phase.entries, result] },
+    if (plugin.progress !== null && !(name in next.extractTotals)) {
+      next = {
+        ...next,
+        extractTotals: { ...next.extractTotals, [name]: plugin.progress.total },
       };
     }
-  }
-}
 
-export function stoppedProgress(state: ScanProgress): ScanProgress {
-  return { ...state, stopped: true, describeAsk: null };
+    if (ended(plugin) && !(name in next.extractDoneAt)) {
+      next = { ...next, extractDoneAt: { ...next.extractDoneAt, [name]: at } };
+    }
+  }
+
+  return next;
 }
 
 export function tokensText(tokens: number): string {
@@ -551,7 +307,7 @@ function count(value: number): string {
   return value.toLocaleString("en-US");
 }
 
-export function describeStopText(stop: DescribeStop): string {
+export function describeStopText(stop: DescribeHalt): string {
   const counts = `${count(stop.described)} described, ${count(stop.notDescribed)} not described. The next scan describes the rest.`;
 
   if (stop.cause === "failures") {
@@ -570,7 +326,7 @@ export type RunRow = { key: string; display: string };
 export function scanningText(
   rows: readonly RunRow[],
   started: string | null,
-  progress: ScanProgress,
+  progress: RunProgress,
 ): string | null {
   if (progress.done || progress.stopped) {
     return null;
@@ -585,7 +341,7 @@ export function scanningText(
 
     return describe === null
       ? "Scanning\u2026"
-      : `Describing\u2026 ${describe.entries.length} of ${describe.total} files`;
+      : `Describing\u2026 ${describe.done} of ${describe.total} files`;
   }
 
   const sensors = rows.filter((row) => row.key !== DESCRIBE_PHASE_KEY);
@@ -616,27 +372,23 @@ export function scanningText(
 function pluginText(display: string, reported: PluginProgress): string | null {
   const counted = reported.progress;
 
-  if (counted !== undefined) {
-    const step = counted.step === undefined ? "" : `${counted.step} \u00b7 `;
-
-    return `${display}: ${step}${counted.done} of ${counted.total} ${counted.unit}`;
-  }
-
-  return reported.note === undefined ? null : `${display}: ${reported.note}`;
+  return counted === undefined
+    ? null
+    : `${display}: ${counted.done} of ${counted.total} ${counted.unit}`;
 }
 
 function capitalised(name: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
-export function showTarget(progress: ScanProgress): ShowTarget | null {
-  const module = failures(progress.describe?.entries ?? [])[0];
+export function showTarget(progress: RunProgress): ShowTarget | null {
+  const module = progress.describe?.firstFailure ?? null;
 
-  if (module !== undefined) {
+  if (module !== null) {
     return {
       kind: "module",
-      id: module.name,
-      reason: module.reason ?? "describe failed",
+      id: module.item,
+      reason: module.reason,
     };
   }
 

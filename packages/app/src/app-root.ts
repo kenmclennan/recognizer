@@ -195,7 +195,7 @@ export function composeApp(view: AppView): App {
 
       return describe === null
         ? null
-        : { entries: describe.entries.length, total: describe.total };
+        : { entries: describe.done, total: describe.total };
     },
     describeStop: () => rescanner.progress().describeStop,
     describeAsk: () => rescanner.progress().describeAsk,

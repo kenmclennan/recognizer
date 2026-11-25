@@ -342,7 +342,7 @@ function snap(modal, name) {
       runningLines: qa(".sw-row.state-running .sw-why").map((n) => n.textContent),
     };
   };
-  const feed = (o) => JSON.stringify(o);
+  const feed = (o) => o;
   let freeMid = () => {};
   let freeEnd = () => {};
   const holdMid = new Promise((resolve) => { freeMid = resolve; });
@@ -351,13 +351,13 @@ function snap(modal, name) {
     feed({ event: "step", step: "survey", state: "run" }),
     feed({ event: "step", step: "survey", state: "done" }),
     feed({ event: "step", step: "scan", state: "run" }),
-    feed({ event: "phase", phase: "extract", state: "run", commit: null, languages: ["typescript"] }),
-    feed({ event: "plugin", phase: "extract", name: "typescript", data: { event: "start", total: 125, unit: "files" } }),
+    feed({ event: "languages", names: ["typescript"] }),
+    feed({ event: "language", name: "typescript", state: "reading", files: 125 }),
     holdMid,
-    feed({ event: "plugin", phase: "extract", name: "typescript", data: { event: "progress", done: 125, total: 125, unit: "files" } }),
-    feed({ event: "entry", phase: "extract", name: "typescript", outcome: "ok", modules: 3, edges: 2 }),
-    feed({ event: "structure", state: "run" }),
-    feed({ event: "structure", state: "done", files: 125 }),
+    feed({ event: "language", name: "typescript", state: "reading", files: 125 }),
+    feed({ event: "language", name: "typescript", state: "done", files: null }),
+    feed({ event: "duplication", state: "comparing", files: null }),
+    feed({ event: "duplication", state: "done", files: 125 }),
     feed({ event: "step", step: "scan", state: "done" }),
     feed({ event: "step", step: "reading", state: "run" }),
     holdEnd,

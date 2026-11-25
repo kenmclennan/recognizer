@@ -154,10 +154,11 @@ describe("serve soak", () => {
           states(serve, watch).find(
             (state) =>
               (state.run?.plugins ?? []).some(
-                (one: Line) => one.state === "finished",
+                (one: Line) =>
+                  one.phase === "sense" && one.state === "finished",
               ) &&
               (state.run?.plugins ?? []).some(
-                (one: Line) => one.state === "running",
+                (one: Line) => one.phase === "sense" && one.state === "running",
               ),
           ),
         );
@@ -165,7 +166,7 @@ describe("serve soak", () => {
         expect(mixed).toBeDefined();
 
         const finishedName = mixed.run.plugins.find(
-          (one: Line) => one.state === "finished",
+          (one: Line) => one.phase === "sense" && one.state === "finished",
         ).name as string;
         const midRead = (await serve.call("results.read", { repository })).ok;
 

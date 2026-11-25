@@ -1,20 +1,27 @@
+import { Run, type RunReport } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   type OpenProgress,
   openProgressModel,
 } from "../../src/scan-open-model";
-import { NO_PROGRESS, type ScanProgress } from "../../src/scan-progress";
+import {
+  NO_OVERLAY,
+  NO_PROGRESS,
+  NO_TIMING,
+  progressOfRun,
+  type RunProgress,
+} from "../../src/scan-progress";
 
-function progress(over: Partial<ScanProgress> = {}): ScanProgress {
+function progress(over: Partial<RunProgress> = {}): RunProgress {
   return { ...NO_PROGRESS, ...over };
 }
 
-function timing(over: Partial<ScanProgress["timing"]>): ScanProgress["timing"] {
+function timing(over: Partial<RunProgress["timing"]>): RunProgress["timing"] {
   return { ...NO_PROGRESS.timing, ...over };
 }
 
 function shown(
-  scan: ScanProgress,
+  scan: RunProgress,
   now: number,
   startedAt = 0,
   stopped = false,
@@ -34,7 +41,7 @@ function shown(
   return model;
 }
 
-function running(done: number, total: number, began = 0): ScanProgress {
+function running(done: number, total: number, began = 0): RunProgress {
   return progress({
     extract: "run",
     languages: ["python", "rust"],
@@ -62,6 +69,38 @@ describe("the open progress model", () => {
     expect(model.bar).toEqual({ kind: "indeterminate" });
     expect(model.counts).toBe("");
     expect(model.timeLeft).toBeNull();
+  });
+
+  it("moves past finding the languages once the extract plugin run has ended", () => {
+    const reports: RunReport[] = [
+      { kind: "extract-planned", languages: ["python"] },
+      {
+        kind: "plugin-started",
+        name: "python",
+        phase: "extract",
+        progress: { done: 0, total: 2, unit: "files" },
+      },
+      {
+        kind: "plugin-ended",
+        name: "python",
+        phase: "extract",
+        state: "finished",
+      },
+    ];
+    const run = reports.reduce(
+      (held, report) => held.apply(report),
+      Run.begin({
+        id: "run-1",
+        startedBy: "app",
+        startedAt: "2026-11-24T00:00:00.000Z",
+        scope: { kind: "working-tree" },
+        choices: { sensors: ["crap"], describe: false, suites: {} },
+      }),
+    );
+    const model = shown(progressOfRun(run.view(), NO_TIMING, NO_OVERLAY), 0);
+
+    expect(model.stage).toBe("Finishing the scan");
+    expect(model.bar).toEqual({ kind: "determinate", fraction: 1 });
   });
 
   it("reads the running scanner's language once it reports", () => {

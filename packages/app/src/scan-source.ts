@@ -278,8 +278,6 @@ export function createScanSource(deps: ScanSourceDeps): ScanPort {
       const forward = (item: CoreStreamItem) => {
         if (item.run !== undefined) {
           handler({ kind: "run", run: item.run });
-        } else if (item.line !== undefined) {
-          handler({ kind: "line", line: item.line });
         }
       };
 

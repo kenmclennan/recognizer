@@ -1,6 +1,7 @@
 import {
   afterTickChanges,
   Repository,
+  type RunReport,
   type ScanTicks,
   type TickChange,
 } from "@recognizer/core";
@@ -23,7 +24,6 @@ import type {
   StoredTicks,
   WrittenTicks,
 } from "./scan-port";
-import { parseScanLine, type ScanEvent } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
 
 export const NO_HISTORY: ScanHistory = {
@@ -54,7 +54,9 @@ export function planThrough(data: LoadedPlanData) {
   return createPlanner(planReads(data));
 }
 
-export type ScanStep = string | Promise<void>;
+export type FakeSummary = { kind: "summary"; exit: number; log: string | null };
+
+export type ScanStep = RunReport | FakeSummary | Promise<void>;
 
 export type FakeScan = ScanPort & {
   steps: ScanStep[];
@@ -68,6 +70,8 @@ export type FakeScan = ScanPort & {
   written: WrittenTicks[];
   onStep: (index: number) => void;
   emitRun: (event: RunEvent) => void;
+  emitReport: (report: RunReport | FakeSummary) => void;
+  onReport: (handler: (report: RunReport) => void) => () => void;
   watching: number;
   records: boolean;
   record: Partial<ScanRunRecord>;
@@ -85,23 +89,20 @@ const SPAWNS_NO_RECORD = new Set<ScanRunResult["status"]>([
   "refused",
 ]);
 
-function passedPreflight(event: ScanEvent): boolean {
-  switch (event.event) {
-    case "preflight":
-      return event.state === "ok";
-    case "phase":
-      return event.phase !== "extract";
-    case "entry":
-      return event.phase !== "extract";
-    case "start":
-    case "plugin":
-    case "structure":
-    case "confirm":
-    case "answered":
-    case "stopped":
-      return true;
+function passedPreflight(step: RunReport | FakeSummary): boolean {
+  switch (step.kind) {
+    case "extract-planned":
+    case "extract-current":
     case "summary":
       return false;
+    case "plugin-started":
+    case "plugin-progress":
+    case "plugin-stage":
+    case "plugin-estimate":
+    case "plugin-ended":
+      return step.phase !== "extract";
+    default:
+      return true;
   }
 }
 
@@ -109,6 +110,7 @@ const ENDED = "2026-11-10T09:00:05.000Z";
 
 export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
   const runs = new Set<(event: RunEvent) => void>();
+  const reports = new Set<(report: RunReport) => void>();
   let remembered: StoredTicks | null = null;
   let runCount = 0;
   const nextRun = () => {
@@ -163,6 +165,21 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
       for (const handler of runs) {
         handler(event);
       }
+    },
+    emitReport(report) {
+      const sent: RunReport =
+        report.kind === "summary"
+          ? { kind: "logged", log: report.log }
+          : report;
+
+      for (const handler of reports) {
+        handler(sent);
+      }
+    },
+    onReport(handler) {
+      reports.add(handler);
+
+      return () => reports.delete(handler);
     },
     async watchExternal() {
       fake.watching += 1;
@@ -269,23 +286,16 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
             break;
           }
 
-          if (typeof step === "string") {
-            fake.emitRun({ kind: "line", line: step });
+          if (!(step instanceof Promise)) {
+            fake.emitReport(step);
 
-            const event = parseScanLine(step);
-
-            if (
-              writes &&
-              live.phase === "checking" &&
-              event !== null &&
-              passedPreflight(event)
-            ) {
+            if (writes && live.phase === "checking" && passedPreflight(step)) {
               move({ phase: "running" });
             }
 
-            if (writes && event?.event === "summary") {
+            if (writes && step.kind === "summary") {
               ended = true;
-              ends(event.exit ?? 0);
+              ends(step.exit);
             }
 
             await new Promise((resolve) => setTimeout(resolve, 0));

@@ -1,7 +1,9 @@
 import { roundedTime } from "./estimate-text";
-import type { ScanProgress } from "./scan-progress";
+import type { RunProgress } from "./scan-progress";
 
 export const FINDING_STAGE = "Finding the languages in this repository";
+
+export const READ_STAGE = "Finishing the scan";
 
 export const MIN_RATE_SECONDS = 5;
 
@@ -41,7 +43,7 @@ export type OpenModel = OpenProgress | OpenStopped;
 
 export type OpenInput = {
   folder: string;
-  progress: ScanProgress;
+  progress: RunProgress;
   startedAt: number;
   now: number;
   stopped: boolean;
@@ -70,7 +72,7 @@ export function elapsedText(ms: number): string {
 
 type Counted = { done: number; total: number };
 
-function countedOf(progress: ScanProgress, language: string): Counted | null {
+function countedOf(progress: RunProgress, language: string): Counted | null {
   const reported = progress.sensorProgress;
 
   if (
@@ -91,7 +93,7 @@ function countedOf(progress: ScanProgress, language: string): Counted | null {
 }
 
 function rowOf(
-  progress: ScanProgress,
+  progress: RunProgress,
   language: string,
   running: string | null,
 ): OpenRow {
@@ -142,7 +144,7 @@ function rowOf(
   return { ...base, state: "waiting", text: "waiting" };
 }
 
-function runningOf(progress: ScanProgress, languages: string[]): string | null {
+function runningOf(progress: RunProgress, languages: string[]): string | null {
   return (
     languages.find(
       (language) =>
@@ -196,15 +198,22 @@ export function openProgressModel(input: OpenInput): OpenModel {
   const counted = running === null ? null : countedOf(progress, running);
   const began =
     running === null ? undefined : progress.timing.extractAt[running];
+  const read =
+    languages.length > 0 &&
+    languages.every((language) =>
+      progress.extractEntries.some((entry) => entry.name === language),
+    );
 
   return {
     kind: "progress",
     title: `Scanning ${input.folder}`,
     stage:
-      running === null
-        ? FINDING_STAGE
-        : `Reading ${capitalised(running)} files`,
-    bar: barOf(counted),
+      running !== null
+        ? `Reading ${capitalised(running)} files`
+        : read
+          ? READ_STAGE
+          : FINDING_STAGE,
+    bar: read ? { kind: "determinate", fraction: 1 } : barOf(counted),
     counts:
       counted === null
         ? ""

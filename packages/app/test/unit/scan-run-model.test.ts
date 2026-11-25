@@ -3,8 +3,9 @@ import type { ScanRunRecord } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
   NO_PROGRESS,
-  parseScanLine,
-  type ScanProgress,
+  NO_TIMING,
+  type RunProgress,
+  stampTiming,
 } from "../../src/scan-progress";
 import * as runModelModule from "../../src/scan-run-model";
 import { type RunView, runModel } from "../../src/scan-run-model";
@@ -43,11 +44,13 @@ type PluginOver = Partial<PluginRunView> & { name: string };
 
 function pluginRun(over: PluginOver): PluginRunView {
   return {
+    phase: "sense",
     state: "queued",
     progress: null,
     stage: null,
     estimateMs: null,
     failure: null,
+    tally: null,
     ...over,
   };
 }
@@ -84,12 +87,16 @@ function runOf(over: RunOver, plugins?: PluginOver[]): Run {
         state: ENDED_PLUGIN[phase] ?? "queued",
       }))
     ).map(pluginRun),
+    confirmation: null,
+    describeHalt: null,
+    structure: null,
+    log: null,
   };
 }
 
 function view(
   over: RunOver | null,
-  progress: Partial<ScanProgress> = {},
+  progress: Partial<RunProgress> = {},
   extra: Partial<RunView> = {},
   plugins?: PluginOver[],
 ): RunView {
@@ -709,52 +716,145 @@ it("the_card_reads_gaps_failure_and_ran_from_the_run", () => {
 });
 
 describe("extract timing per language", () => {
-  const line = (event: object) => {
-    const parsed = parseScanLine(JSON.stringify(event));
-
-    if (parsed === null) {
-      throw new Error("unparsed line");
-    }
-
-    return parsed;
-  };
-  const plugin = (name: string, data: object) =>
-    line({ event: "plugin", phase: "extract", name, data });
+  const snapshot = (plugins: PluginOver[]) => runOf({ sensors: [] }, plugins);
 
   it("stamps the first event, the total and the entry of each language", () => {
-    const folded = [
-      [100, plugin("python", { event: "start", total: 40, unit: "files" })],
-      [
-        150,
-        plugin("python", {
-          event: "progress",
-          done: 10,
-          total: 40,
-          unit: "files",
-        }),
-      ],
-      [
-        900,
-        line({
-          event: "entry",
+    const python = (state: PluginRunView["state"], done: number) => ({
+      name: "python",
+      phase: "extract" as const,
+      state,
+      progress: { done, total: 40, unit: "files" },
+    });
+    const first = stampTiming(
+      NO_TIMING,
+      snapshot([python("running", 0), { name: "rust", phase: "extract" }]),
+      100,
+    );
+    const moved = stampTiming(first, snapshot([python("running", 10)]), 150);
+    const ended = stampTiming(
+      moved,
+      snapshot([
+        python("finished", 40),
+        {
+          name: "rust",
           phase: "extract",
-          name: "python",
-          outcome: "ok",
-        }),
-      ],
-      [1000, plugin("rust", { event: "start", total: 7, unit: "files" })],
-    ].reduce<ScanProgress>(
-      (state, [at, event]) =>
-        runModelModule.foldRunEvent(
-          state,
-          event as Parameters<typeof runModelModule.foldRunEvent>[1],
-          at as number,
-        ),
-      NO_PROGRESS,
+          state: "running",
+          progress: { done: 0, total: 7, unit: "files" },
+        },
+      ]),
+      900,
     );
 
-    expect(folded.timing.extractAt).toEqual({ python: 100, rust: 1000 });
-    expect(folded.timing.extractDoneAt).toEqual({ python: 900 });
-    expect(folded.timing.extractTotals).toEqual({ python: 40, rust: 7 });
+    expect(first.extractAt).toEqual({ python: 100 });
+    expect(moved.extractAt).toEqual({ python: 100 });
+    expect(ended.extractAt).toEqual({ python: 100, rust: 900 });
+    expect(ended.extractDoneAt).toEqual({ python: 900 });
+    expect(ended.extractTotals).toEqual({ python: 40, rust: 7 });
+  });
+});
+
+describe("the card with extract and describe plugin runs", () => {
+  const running = (plugins: PluginOver[], over: RunOver = {}) =>
+    model(
+      view({ phase: "running", sensors: ["crap"], ...over }, {}, {}, plugins),
+    );
+
+  it("reads a running extract run as the language, its stage and its count", () => {
+    expect(
+      running([
+        {
+          name: "python",
+          phase: "extract",
+          state: "running",
+          progress: { done: 12, total: 40, unit: "files" },
+        },
+        { name: "crap" },
+      ])?.card.line,
+    ).toBe("Python \u00b7 12/40");
+    expect(
+      running([
+        {
+          name: "python",
+          phase: "extract",
+          state: "running",
+          stage: { name: "parse", index: 1, of: 2 },
+          progress: { done: 1, total: 4, unit: "files" },
+        },
+        { name: "crap" },
+      ])?.card.line,
+    ).toBe("Python \u00b7 parse \u00b7 1/4");
+  });
+
+  it("reads a running describe run as the descriptions count", () => {
+    expect(
+      running(
+        [
+          {
+            name: "describe",
+            phase: "describe",
+            state: "running",
+            progress: { done: 3, total: 10, unit: "files" },
+          },
+          { name: "crap" },
+        ],
+        { describe: true },
+      )?.card.line,
+    ).toBe("Descriptions: 3 of 10 files");
+  });
+
+  it("counts the describe run once in the measured line", () => {
+    const finished = model(
+      view(
+        {
+          phase: "finished",
+          ended_at: ENDED,
+          exit: 0,
+          describe: true,
+          sensors: ["crap", "mutation"],
+        },
+        {},
+        {},
+        [
+          { name: "describe", phase: "describe", state: "finished" },
+          { name: "crap", state: "finished" },
+          { name: "mutation", state: "finished" },
+        ],
+      ),
+    );
+
+    expect(finished?.card.line).toBe("3 sensors measured");
+  });
+
+  it("reads the sensor's figure when extract and describe runs are still queued", () => {
+    const card = running(
+      [
+        { name: "python", phase: "extract" },
+        { name: "describe", phase: "describe" },
+        { name: "crap", state: "running", estimateMs: 600_000 },
+      ],
+      { started_by: "app", describe: true },
+    )?.card;
+
+    expect(card?.when.text).toBe("about 10 min left");
+  });
+
+  it("reads the kept counts from the sensor run, not an extract run", () => {
+    const stopped = model(
+      view({ phase: "stopped", ended_at: ENDED, exit: 143 }, {}, {}, [
+        {
+          name: "crap",
+          state: "stopped",
+          progress: { done: 1, total: 4, unit: "files" },
+        },
+        {
+          name: "python",
+          phase: "extract",
+          state: "stopped",
+          progress: { done: 9, total: 9, unit: "files" },
+        },
+      ]),
+    );
+
+    expect(stopped?.card.line).toBe("Kept C.R.A.P. 1/4");
   });
 });

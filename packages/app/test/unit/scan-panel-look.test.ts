@@ -39,11 +39,11 @@ const CONFIG = "describer:\\n  command: [describer, '{request}']\\n  version: v1
 const FILES = { states: {}, describedAtMs: null };
 const ORIGIN = { branch: "main", commit: "cur1234" };
 const json = (value) => JSON.stringify(value);
-const current = json({ event: "phase", phase: "extract", state: "current", commit: "cur1234" });
-const describing = (total) => json({ event: "phase", phase: "describe", total });
-const sensing = (total) => json({ event: "phase", phase: "sense", total });
-const entry = (phase, name, reason) => json({ event: "entry", phase, name, outcome: reason === undefined ? "ok" : "failed", ...(reason === undefined ? {} : { reason }) });
-const summary = json({ event: "summary" });
+const current = { kind: "extract-current" };
+const describing = (total) => ({ kind: "plugin-started", name: "describe", progress: { done: 0, total, unit: "files" }, phase: "describe" });
+const sensing = (total) => ({ kind: "structure", state: "done", files: 0 });
+const entry = (phase, name, reason) => phase === "describe" ? { kind: "plugin-item", name: "describe", item: name, ok: reason === undefined, reason: reason ?? "", phase: "describe" } : reason === undefined ? { kind: "plugin-ended", name, state: "finished" } : { kind: "plugin-ended", name, state: "failed", failure: { reason, diagnosis: null } };
+const summary = { kind: "summary", exit: 0, log: null };
 const gate = () => { let release = () => {}; const promise = new Promise((resolve) => { release = resolve; }); return { promise, release }; };
 
 const structureFor = (loaded) => { const { commit, modified } = scansCommit(loaded.repository); return commit === null ? null : JSON.stringify({ findings_version: 1, sensor: { name: "structure", version: "1" }, commit, modified, settings: { duplication: { threshold: 0.8, min_lines: 4, pair_min_lines: 6, min_nodes: 20 }, complexity_limit: 10 }, findings: [] }); };
@@ -85,7 +85,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
     refresh: () => void wired.rescanner.refresh(),
     footer: (text) => footer.setScan(text),
     progressText: () => wired.scanning,
-    describeProgress: () => { const d = wired.rescanner.progress().describe; return d === null ? null : { entries: d.entries.length, total: d.total }; },
+    describeProgress: () => { const d = wired.rescanner.progress().describe; return d === null ? null : { entries: d.done, total: d.total }; },
     sensorProgress: () => wired.rescanner.progress().sensorProgress,
     extracting: () => wired.rescanner.progress().extract === "run",
   });
@@ -97,7 +97,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   const setScan = (next) => { wired.scanState = next; };
   wired.rescanner = createRescanner({
     port: fake,
-    snapshot: fakeRunSnapshot(fake.onRun),
+    snapshot: fakeRunSnapshot(fake),
     registered: async () => { const { config } = await sensors.inputs(); return registeredOf(rowSensors(config, await sensors.sensorList()), describerRegistered(config)); },
     load: () => base,
     sense: (loaded) => sensed(loaded),
@@ -180,7 +180,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   facts.reopened = c.rows().filter((r) => r.ticked).map((r) => r.key);
 
   const g1 = gate(); const g2 = gate(); const g3 = gate();
-  const startLine = (name) => json({ event: "start", phase: "sense", name });
+  const startLine = (name) => ({ kind: "plugin-started", name, progress: null });
   fake.steps = [current, describing(1), entry("describe", "app/a.py"), g1.promise, sensing(2), startLine("tally"), g2.promise, entry("sense", "tally"), startLine("crap"), g3.promise, entry("sense", "crap"), summary];
   const during = [];
   const duringFooter = [];
@@ -242,7 +242,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
 
   const failFake = fakeScan({
     defaults: { describe: false, sensors: true },
-    steps: [current, sensing(1), entry("sense", "tally", "broke"), json({ event: "summary", exit: 1, log: "x-scan" })],
+    steps: [current, sensing(1), entry("sense", "tally", "broke"), { kind: "summary", exit: 1, log: "x-scan" }],
     result: { status: "finished", exitCode: 1 },
   });
   const t = await mount(failFake);
@@ -285,7 +285,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
 
   const moduleFake = fakeScan({
     defaults: { describe: true, sensors: false },
-    steps: [current, describing(2), entry("describe", "app/a.py", "no describer"), entry("describe", "app/b.py", "no describer"), json({ event: "summary", exit: 1, log: "y-scan" })],
+    steps: [current, describing(2), entry("describe", "app/a.py", "no describer"), entry("describe", "app/b.py", "no describer"), { kind: "summary", exit: 1, log: "y-scan" }],
     result: { status: "finished", exitCode: 1 },
   });
   const m = await mount(moduleFake);
@@ -498,7 +498,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   };
   const openScan = async (m) => { click(m.q(".rail-scan")); await tick(); };
   const reasonScan = async (name, diagnosis) => {
-    const lines = [current, sensing(1), json({ event: "start", phase: "sense", name }), json({ event: "entry", phase: "sense", name, outcome: "failed", reason: diagnosis.line, diagnosis }), summary];
+    const lines = [current, sensing(1), { kind: "plugin-started", name, progress: null }, { kind: "plugin-ended", name, state: "failed", failure: { reason: diagnosis.line, diagnosis } }, summary];
     const m = await mount(fakeScan({ steps: lines }));
     await openScan(m);
     await m.setTick(name, true);
@@ -522,7 +522,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   facts.reasons.crapNoRun = whyFacts(await reasonScan("crap", REASONS["crap-no-runner"]), "crap");
   facts.reasons.mutationRed = whyFacts(await reasonScan("mutation", REASONS["mutation-tests-failing"]), "mutation");
   facts.reasons.mutationNoCov = whyFacts(await reasonScan("mutation", REASONS["mutation-no-coverage"]), "mutation");
-  facts.reasons.plain = (await (async () => { const m = await mount(fakeScan({ steps: [current, sensing(1), json({ event: "entry", phase: "sense", name: "crap", outcome: "failed", reason: "boom" }), summary] })); await openScan(m); await m.setTick("crap", true); click(m.q(".scan-run")); await tick(); await tick(); await tick(); return whyFacts(m, "crap"); })());
+  facts.reasons.plain = (await (async () => { const m = await mount(fakeScan({ steps: [current, sensing(1), { kind: "plugin-ended", name: "crap", state: "failed", failure: { reason: "boom", diagnosis: null } }, summary] })); await openScan(m); await m.setTick("crap", true); click(m.q(".scan-run")); await tick(); await tick(); await tick(); return whyFacts(m, "crap"); })());
 
   const restart = async (refusals, modifiedMs) => {
     const f = fakeSensors({ crap: ranDoc("crap", undefined) }, { config: CONFIG }, {}, INSTALLED);

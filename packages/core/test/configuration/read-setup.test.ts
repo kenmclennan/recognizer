@@ -10,7 +10,9 @@ describe("readSetup", () => {
     const world = worldOf();
     const lines: string[] = [];
 
-    world.fakes.setupScan.lines = ["feed line"];
+    world.fakes.setupScan.lines = [
+      JSON.stringify({ event: "entry", phase: "extract", name: "python" }),
+    ];
 
     const read = await readSetup(world.ports, {
       root: ROOT,
@@ -23,7 +25,12 @@ describe("readSetup", () => {
       step("survey", "run"),
       step("survey", "done"),
       step("scan", "run"),
-      "feed line",
+      JSON.stringify({
+        event: "language",
+        name: "python",
+        state: "done",
+        files: null,
+      }),
       step("scan", "done"),
       step("reading", "run"),
       step("reading", "done"),

@@ -1,4 +1,9 @@
-import { type Diagnosis, Repository } from "@recognizer/core";
+import {
+  type DescribeAsk,
+  type DescribeHalt,
+  type Diagnosis,
+  Repository,
+} from "@recognizer/core";
 import type { PlanRequest, ScanPlanView } from "recognizer";
 import {
   type Config,
@@ -43,9 +48,7 @@ import {
   type ResultsMode,
 } from "./scan-freshness";
 import {
-  type DescribeAsk,
   type DescribeAskText,
-  type DescribeStop,
   describeAskText,
   describeStopText,
   type PluginProgress,
@@ -114,7 +117,7 @@ export type PanelInput = {
   external?: boolean;
   progressText?: string | null;
   describeProgress?: { entries: number; total: number } | null;
-  describeStop?: DescribeStop | null;
+  describeStop?: DescribeHalt | null;
   describeAsk?: DescribeAsk | null;
   describeSkipped?: boolean;
   sensorProgress?: PluginProgress | null;

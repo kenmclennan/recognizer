@@ -1405,13 +1405,19 @@ describe("freshness around a run in the snapshot", () => {
     plugins: [
       {
         name: "crap",
+        phase: "sense",
         state: crap,
         progress: null,
         stage: null,
         estimateMs: null,
         failure: null,
+        tally: null,
       },
     ],
+    confirmation: null,
+    describeHalt: null,
+    structure: null,
+    log: null,
   });
   const view = (state: CoreRunState, crap: PluginRunState) => ({
     run: snapshotRun(state, crap),

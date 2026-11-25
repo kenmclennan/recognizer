@@ -9,6 +9,7 @@ packages/app/test/unit/explorer-drive-look.test.ts
 packages/app/test/unit/explorer-messages-look.test.ts
 packages/app/test/unit/explorer-picker.test.ts
 packages/app/test/unit/explorer-progress-look.test.ts
+packages/app/test/unit/explorer-rebuild-look.test.ts
 packages/app/test/unit/explorer-update-look.test.ts
 packages/app/test/unit/explorer-views-look.test.ts
 packages/app/test/unit/explorer-window-look.test.ts

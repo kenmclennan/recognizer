@@ -3,15 +3,11 @@ import { roundedTime } from "./estimate-text";
 import { ageText } from "./footer-scan";
 import type { IconName } from "./icons";
 import { runLogPath } from "./run-log-path";
-import {
-  foldProgress,
-  type ScanEvent,
-  type ScanProgress,
-} from "./scan-progress";
+import type { RunProgress } from "./scan-progress";
 
 export type RunInput = {
   run: Run | null;
-  progress: ScanProgress;
+  progress: RunProgress;
   starting: { at: number } | null;
   adoptedAtOpen: string | null;
 };
@@ -57,82 +53,6 @@ export type RunModel = {
   button: { label: string; stop: boolean };
   partial: { sensor: string; text: string } | null;
 };
-
-function timed(
-  state: ScanProgress,
-  next: ScanProgress,
-  event: ScanEvent,
-  at: number,
-): ScanProgress {
-  switch (event.event) {
-    case "plugin":
-      return extractStamped(next, event, at);
-    case "entry":
-      return event.phase === "extract"
-        ? {
-            ...next,
-            timing: {
-              ...next.timing,
-              extractDoneAt: {
-                ...state.timing.extractDoneAt,
-                [event.name]: at,
-              },
-            },
-          }
-        : next;
-    default:
-      return next;
-  }
-}
-
-function extractStamped(
-  next: ScanProgress,
-  event: Extract<ScanEvent, { event: "plugin" }>,
-  at: number,
-): ScanProgress {
-  if (event.phase !== "extract") {
-    return next;
-  }
-
-  const { timing } = next;
-  const { name, data } = event;
-
-  return {
-    ...next,
-    timing: {
-      ...timing,
-      extractAt:
-        name in timing.extractAt
-          ? timing.extractAt
-          : { ...timing.extractAt, [name]: at },
-      extractTotals:
-        data.event === "start"
-          ? { ...timing.extractTotals, [name]: data.total }
-          : timing.extractTotals,
-    },
-  };
-}
-
-export function foldRunEvent(
-  state: ScanProgress,
-  event: ScanEvent,
-  at: number,
-): ScanProgress {
-  const next = timed(state, foldProgress(state, event), event, at);
-
-  if (event.event === "start") {
-    return { ...next, sensing: event.name };
-  }
-
-  if (
-    (event.event === "entry" && event.phase === "sense") ||
-    event.event === "summary"
-  ) {
-    return { ...next, sensing: null };
-  }
-
-  return next;
-}
 
 export const CHECKING_HEAD = "Checking tools";
 
@@ -210,12 +130,27 @@ function listNames(names: string[]): string {
   return names.join(", ");
 }
 
+function capitalised(name: string): string {
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
 function currentLine(run: Run, view: RunView): string {
-  const { progress, display } = view;
+  const { display } = view;
   const current = run.plugins.find(({ state }) => state === "running");
 
-  if (current !== undefined) {
-    const name = display(current.name);
+  if (current !== undefined && current.phase === "describe") {
+    const counted = current.progress;
+
+    if (counted !== null) {
+      return `${DESCRIPTIONS_NAME}: ${counted.done} of ${counted.total} files`;
+    }
+  }
+
+  if (current !== undefined && current.phase !== "describe") {
+    const name =
+      current.phase === "extract"
+        ? capitalised(current.name)
+        : display(current.name);
     const parts = [
       name,
       ...(current.stage === null ? [] : [current.stage.name]),
@@ -227,23 +162,14 @@ function currentLine(run: Run, view: RunView): string {
     return parts.join(" \u00b7 ");
   }
 
-  const describing = progress.describe;
-
-  if (
-    run.describe &&
-    describing !== null &&
-    describing.entries.length < describing.total
-  ) {
-    return `${DESCRIPTIONS_NAME}: ${describing.entries.length} of ${describing.total} files`;
-  }
-
   return FINISHING_TEXT;
 }
 
 function measuredLine(run: Run): string {
   const count =
-    run.plugins.filter(({ state }) => state !== "failed").length +
-    (run.describe ? 1 : 0);
+    run.plugins.filter(
+      ({ state, phase }) => phase === "sense" && state !== "failed",
+    ).length + (run.describe ? 1 : 0);
 
   return `${count} ${count === 1 ? "sensor" : "sensors"} measured`;
 }
@@ -258,7 +184,10 @@ type Kept = {
 function keptCounts(run: Run): Kept | null {
   const kept = [...run.plugins]
     .reverse()
-    .find(({ state, progress }) => state === "stopped" && progress !== null);
+    .find(
+      ({ state, progress, phase }) =>
+        phase === "sense" && state === "stopped" && progress !== null,
+    );
 
   if (kept === undefined || kept.progress === null) {
     return null;
@@ -294,7 +223,8 @@ function timeLeft(
   }
 
   const live: PluginRunView[] = run.plugins.filter(
-    ({ state }) => state === "queued" || state === "running",
+    ({ state, phase }) =>
+      phase === "sense" && (state === "queued" || state === "running"),
   );
 
   if (live.length === 0) {

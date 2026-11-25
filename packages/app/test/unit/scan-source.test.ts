@@ -343,9 +343,6 @@ describe("scan source", () => {
     deliver({ stream: "w1", window: "w-2", line: "Coverage run: unit" });
 
     expect(seenByOne).toEqual([]);
-    expect(seenByTwo).toEqual([
-      { kind: "run", run },
-      { kind: "line", line: "Coverage run: unit" },
-    ]);
+    expect(seenByTwo).toEqual([{ kind: "run", run }]);
   });
 });
