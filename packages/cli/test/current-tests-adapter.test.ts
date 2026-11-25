@@ -1,6 +1,11 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { LanguageRule } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
+import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { currentTestsDigest } from "../src/adapters/filesystem/current-tests-adapter.js";
+import { SourceFilesAdapter } from "../src/adapters/filesystem/source-files-adapter.js";
+import { nodeIo } from "../src/cli.js";
 
 function rule(published: boolean): LanguageRule {
   return {
@@ -55,5 +60,49 @@ describe("the current tests digest the service compares results against", () => 
   it("no_scanner_publishing_test_rules_leaves_the_digest_unknown_so_a_result_is_not_called_out_of_date", () => {
     expect(currentTestsDigest(portsOver([rule(false)], "h1"), "/r")).toBeNull();
     expect(currentTestsDigest(portsOver([], "h1"), "/r")).toBeNull();
+  });
+});
+
+describe("the tests digest in a folder that is not a git repository", () => {
+  function plainFolder(): string {
+    const root = makeTempDir("recognizer-plain-tests-");
+
+    mkdirSync(join(root, "tests"));
+    mkdirSync(join(root, "dist", "tests"), { recursive: true });
+    writeFileSync(join(root, "tests", "a.py"), "one");
+    writeFileSync(join(root, "dist", "tests", "b.py"), "one");
+
+    return root;
+  }
+
+  function digestOf(root: string): string | null {
+    return currentTestsDigest(
+      {
+        source: new SourceFilesAdapter(nodeIo()),
+        digest: { sha256: (text: string) => `sha:${text}` },
+        testReports: { entries: () => new Map<string, string>() },
+        languages: { rules: () => [rule(true)] },
+      },
+      root,
+    );
+  }
+
+  it("a_test_edit_changes_the_digest_without_git", () => {
+    const root = plainFolder();
+    const before = digestOf(root);
+
+    writeFileSync(join(root, "tests", "a.py"), "two");
+
+    expect(before).not.toBeNull();
+    expect(digestOf(root)).not.toBe(before);
+  });
+
+  it("an_edit_under_a_skipped_directory_leaves_the_digest_alone_without_git", () => {
+    const root = plainFolder();
+    const before = digestOf(root);
+
+    writeFileSync(join(root, "dist", "tests", "b.py"), "two");
+
+    expect(digestOf(root)).toBe(before);
   });
 });

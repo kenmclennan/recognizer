@@ -1356,7 +1356,7 @@ describe("recognizer serve: tests hash", () => {
   );
 
   it(
-    "tests.hash is null when git cannot list the files or a scanner's answer fails",
+    "tests.hash gives a non-git folder a digest from the filesystem listing and is null when a scanner's answer fails",
     async () => {
       const outside = makeTempDir("recognizer-serve-not-git-");
       const repository = gitRepository(WORKED_FILES);
@@ -1373,8 +1373,7 @@ describe("recognizer serve: tests hash", () => {
         known: {},
       });
 
-      expect(notGit.ok).toBeNull();
-      expect("ok" in notGit).toBe(true);
+      expect(typeof notGit.ok).toBe("string");
       expect(failed.ok).toBeNull();
       expect("ok" in failed).toBe(true);
 
