@@ -3,6 +3,7 @@ import type { CommitsTab } from "./commits-panel-view";
 import type { InspectorTab } from "./inspector-model";
 import type { NoteFocus } from "./note-focus";
 import type { ResultsMode } from "./scan-freshness";
+import type { ScrollMemory } from "./scroll-memory";
 import { reconcile, type Trail, withCapacity } from "./trail-model";
 
 export type ViewMemory = {
@@ -23,6 +24,7 @@ export type ViewMemory = {
   };
   resultsMode: ResultsMode;
   commits: { tab: CommitsTab; hide: boolean };
+  scroll: ScrollMemory;
 };
 
 export type MemoryFacts = {
