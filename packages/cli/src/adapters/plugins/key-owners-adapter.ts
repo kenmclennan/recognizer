@@ -19,6 +19,9 @@ const DISPLAY_FIELDS = new Set([
   "units",
   "order",
   "limit",
+  "section",
+  "scope",
+  "switch",
 ]);
 
 const PLACEHOLDER = /<([a-z][a-z0-9_]*)>/g;
@@ -39,6 +42,12 @@ function keysOf(sensor: InstalledSensorEntry): string[] {
           ...(suite.keys as KeyEntry[]).map((entry) => entry.key),
         ]),
   ];
+}
+
+function undisplayed(entry: KeyEntry): KeyEntry {
+  return Object.fromEntries(
+    Object.entries(entry).filter(([name]) => !DISPLAY_FIELDS.has(name)),
+  ) as unknown as KeyEntry;
 }
 
 function sameEntry(a: unknown, b: unknown): boolean {
@@ -106,7 +115,7 @@ export class KeyOwnersAdapter implements KeyOwners {
 
       if (sensor.suite_keys !== undefined) {
         const section = sensor.suite_keys.section as SectionEntry;
-        const entries = sensor.suite_keys.keys as KeyEntry[];
+        const entries = (sensor.suite_keys.keys as KeyEntry[]).map(undisplayed);
         const clash =
           (sections.has(section.key) &&
           !sameEntry(sections.get(section.key), section)
@@ -147,9 +156,7 @@ export class KeyOwnersAdapter implements KeyOwners {
       }
 
       for (const entry of sensor.settings as KeyEntry[]) {
-        const published = Object.fromEntries(
-          Object.entries(entry).filter(([name]) => !DISPLAY_FIELDS.has(name)),
-        ) as unknown as KeyEntry;
+        const published = undisplayed(entry);
 
         keys.push({
           ...published,

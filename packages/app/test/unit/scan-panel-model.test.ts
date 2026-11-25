@@ -69,11 +69,11 @@ function installed(
 const LIST: InstalledSensors = {
   status: "ok",
   sensors: [
-    installed("mutation", "Mutation", { runsTests: true, scoped: true }),
     installed("crap", "C.R.A.P.", {
       runsTests: true,
       expansion: "C.R.A.P.: Change Risk Anti-Patterns.",
     }),
+    installed("mutation", "Mutation", { runsTests: true, scoped: true }),
     installed("quiet", "Quiet", { listed: false }),
   ],
 };
@@ -215,8 +215,25 @@ describe("scanPanel rows", () => {
 
     expect(rows.map((row) => row.title)).toEqual([
       "One: Over Nothing Ever. Does one.",
-      "Three",
       "Does two.",
+      "Three",
+    ]);
+  });
+
+  it("keeps the installed order of the shared Zeta, alpha, Mid list and sorts nothing itself", () => {
+    const list: InstalledSensors = {
+      status: "ok",
+      sensors: [
+        plainSensor("z1", { display: "alpha" }),
+        plainSensor("m1", { display: "Mid" }),
+        plainSensor("a1", { display: "Zeta" }),
+      ],
+    };
+
+    expect(rowSensors(null, list).map((row) => row.display)).toEqual([
+      "alpha",
+      "Mid",
+      "Zeta",
     ]);
   });
 

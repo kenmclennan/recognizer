@@ -4353,12 +4353,6 @@ svg.i.chevron {
   text-transform: uppercase;
 }
 
-.settings-modal .sm-group span {
-  color: var(--muted);
-  letter-spacing: 0;
-  text-transform: none;
-}
-
 .settings-modal .sm-entry {
   display: flex;
   align-items: center;
@@ -4401,35 +4395,22 @@ svg.i.chevron {
   overflow-y: auto;
 }
 
-.settings-modal .sm-title {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin-bottom: 4px;
-}
-
-.settings-modal .sm-title h2 {
-  margin: 0;
+.settings-modal .sm-pane h2 {
+  margin: 0 0 2px;
   font-size: 17px;
 }
 
-.settings-modal .sm-link {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--sel);
-  font: inherit;
+.settings-modal .sm-section {
+  margin: 22px 0 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
   font-size: 12px;
-  cursor: pointer;
+  font-weight: 600;
 }
 
-.settings-modal .sm-link:disabled {
-  color: var(--faint);
-  cursor: default;
-}
-
-.settings-modal .sm-title .sm-link {
-  margin-left: auto;
+.settings-modal .sm-section:first-of-type {
+  margin-top: 4px;
 }
 
 .settings-modal .sm-where {
@@ -4438,42 +4419,102 @@ svg.i.chevron {
   font-size: 12px;
 }
 
+.settings-modal .sm-loading {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .settings-modal .sm-note {
   margin: 0 0 12px;
   color: var(--warn);
   font-size: 12px;
 }
 
-.settings-modal .sm-card {
-  margin-bottom: 16px;
+.settings-modal .sm-suite {
+  margin: 10px 0;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 8px;
 }
 
 .settings-modal .sm-card-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--line);
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings-modal .sm-card-head::-webkit-details-marker {
+  display: none;
+}
+
+.settings-modal .sm-suite-name {
   font-weight: 600;
+}
+
+.settings-modal .sm-meta {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.settings-modal .sm-chev {
+  display: flex;
+  color: var(--muted);
+  transition: transform 0.12s;
+}
+
+.settings-modal .sm-suite[open] .sm-chev {
+  transform: rotate(90deg);
+}
+
+.settings-modal .sm-inner {
+  padding: 0 14px 8px;
+}
+
+.settings-modal .sm-adder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .settings-modal .sm-field {
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: 200px 1fr 28px;
   align-items: center;
-  gap: 4px 14px;
-  padding: 12px 16px;
+  gap: 12px;
+  min-height: 40px;
+  padding: 7px 0;
 }
 
-.settings-modal .sm-field + .sm-field {
-  border-top: 1px solid var(--line);
+.settings-modal .sm-reset {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--faint);
+  cursor: pointer;
+  visibility: hidden;
+}
+
+.settings-modal .sm-reset:hover {
+  background: var(--box);
+  color: var(--fg);
+}
+
+.settings-modal .sm-field.changed .sm-reset {
+  visibility: visible;
 }
 
 .settings-modal .sm-name {
-  font-weight: 600;
-  text-align: right;
+  color: var(--fg);
 }
 
 .settings-modal .sm-control {
@@ -4485,25 +4526,6 @@ svg.i.chevron {
 
 .settings-modal .sm-unit {
   color: var(--muted);
-  font-size: 12px;
-}
-
-.settings-modal .sm-default {
-  color: var(--warn);
-  font-size: 12px;
-  grid-column: 2;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.settings-modal .sm-default .sm-link {
-  margin-left: 8px;
-}
-
-.settings-modal .sm-error {
-  grid-column: 2;
-  margin: 0;
-  color: var(--bad);
   font-size: 12px;
 }
 
@@ -4601,6 +4623,11 @@ svg.i.chevron {
   flex: 1;
   color: var(--muted);
   font-size: 12px;
+}
+
+.settings-modal .sm-message b {
+  color: var(--warn);
+  font-weight: 500;
 }
 
 .settings-modal .sm-message.bad {

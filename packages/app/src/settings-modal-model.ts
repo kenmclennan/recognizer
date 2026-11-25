@@ -3,319 +3,75 @@ import {
   listKeys,
   type PublishedKey,
   type PublishedKeys,
+  type Setting,
+  type SettingsPane,
   typedValue,
 } from "recognizer";
-import type { InstalledSensor, InstalledSetting } from "./sensor-run";
-import type { RepositoryEdit } from "./settings-modal-port";
+import type { RepositoryEdit, SettingEdit } from "./settings-modal-port";
 
-export const MAX_BATCH_SIZE = 16;
-export const MAX_CONFIRM_ABOVE_USD = 10000;
+export type { SettingsPane };
 
-export type DescribingValues = {
-  model: string;
-  batchSize: number;
-  confirmAboveUsd: number;
-};
-
-export type DescribingCheck =
-  | { ok: true; value: DescribingValues }
-  | { ok: false; error: string };
-
-export const MODEL_ERROR =
-  "Model must be a name with no spaces and no leading - (for example haiku)";
-
-export type SetupCheck =
-  | { ok: true; value: { model: string } }
-  | { ok: false; error: string };
-
-export function checkModel(model: string): string | null {
-  const name = model.trim();
-
-  return name === "" || name.startsWith("-") || /\s/.test(name)
-    ? MODEL_ERROR
-    : null;
-}
-
-export function checkSetup(model: string): SetupCheck {
-  const error = checkModel(model);
-
-  return error === null
-    ? { ok: true, value: { model: model.trim() } }
-    : { ok: false, error };
-}
-
-export function checkDescribing(
-  model: string,
-  batchSize: string,
-  confirmAbove: string,
-): DescribingCheck {
-  const name = model.trim();
-  const modelError = checkModel(model);
-
-  if (modelError !== null) {
-    return { ok: false, error: modelError };
-  }
-
-  const size = Number(batchSize);
-
-  if (
-    batchSize.trim() === "" ||
-    !Number.isInteger(size) ||
-    size < 1 ||
-    size > MAX_BATCH_SIZE
-  ) {
-    return {
-      ok: false,
-      error: `Batch size must be a whole number from 1 to ${MAX_BATCH_SIZE}`,
-    };
-  }
-
-  const amount = Number(confirmAbove);
-
-  if (
-    confirmAbove.trim() === "" ||
-    !Number.isFinite(amount) ||
-    amount < 0 ||
-    amount > MAX_CONFIRM_ABOVE_USD
-  ) {
-    return {
-      ok: false,
-      error: `Ask above must be a number of dollars from 0 to ${MAX_CONFIRM_ABOVE_USD}`,
-    };
-  }
-
-  return {
-    ok: true,
-    value: { model: name, batchSize: size, confirmAboveUsd: amount },
-  };
-}
-
-export type FieldControl = "text" | "number" | "switch" | "limit" | "select";
-
-export type FieldSpec = {
-  label: string;
-  key: string;
-  control: FieldControl;
-  unit?: string;
-  switchKey?: string;
-  severityKey?: string;
-};
-
-export type SectionId = string;
-
-export type SectionSpec = {
-  id: SectionId;
-  name: string;
-  fields: FieldSpec[];
-};
-
-const WARNINGS = "sensors.structure.warnings";
-const DUPLICATION = "sensors.structure.duplication";
-
-export const LONG_FUNCTION_KEY = `${WARNINGS}.long_function`;
-const COMPLEXITY_KEY = `${WARNINGS}.complexity`;
-
-const APP_SECTION_SPECS: SectionSpec[] = [
-  {
-    id: "structure",
-    name: "Structural analysis",
-    fields: [
-      {
-        label: "Long function",
-        key: `${LONG_FUNCTION_KEY}.limit`,
-        control: "limit",
-        unit: "lines",
-        switchKey: LONG_FUNCTION_KEY,
-      },
-      {
-        label: "Complexity",
-        key: `${COMPLEXITY_KEY}.limit`,
-        control: "limit",
-        unit: "paths",
-        switchKey: COMPLEXITY_KEY,
-      },
-      { label: "Import cycles", key: `${WARNINGS}.cycle`, control: "switch" },
-      {
-        label: "Orphan files",
-        key: `${WARNINGS}.orphan`,
-        control: "switch",
-      },
-      {
-        label: "Private imports",
-        key: `${WARNINGS}.private_imports`,
-        control: "switch",
-      },
-      {
-        label: "Unused exports",
-        key: `${WARNINGS}.unused_exports`,
-        control: "switch",
-      },
-      {
-        label: "Duplication similarity",
-        key: `${DUPLICATION}.threshold`,
-        control: "number",
-        unit: "above 0, at most 1",
-      },
-      {
-        label: "Duplication - fewest lines compared",
-        key: `${DUPLICATION}.min_lines`,
-        control: "number",
-        unit: "lines",
-      },
-      {
-        label: "Duplication - shorter of a pair",
-        key: `${DUPLICATION}.pair_min_lines`,
-        control: "number",
-        unit: "lines",
-      },
-      {
-        label: "Duplication - fewest syntax nodes",
-        key: `${DUPLICATION}.min_nodes`,
-        control: "number",
-        unit: "nodes",
-      },
-    ],
-  },
-];
-
-export const SUITE_FIELDS = [
-  "language",
-  "directory",
-  "command",
-  "activate",
-  "runner",
-  "coverage.path",
-  "coverage.format",
-] as const;
-
-export type RepositorySection = { id: SectionId; name: string };
-
-const PLACEHOLDER = /<[a-z][a-z0-9_]*>/;
-
-function expanded(key: string, value: string): string {
-  return key.replace(PLACEHOLDER, value);
-}
-
-function controlOf(setting: InstalledSetting): FieldControl {
-  switch (setting.type) {
-    case "boolean":
-      return "switch";
-    case "number":
-    case "integer":
-      return "number";
-    case "enum":
-      return "select";
-    default:
-      return "text";
-  }
-}
-
-function fieldsOf(sensor: string, setting: InstalledSetting): FieldSpec[] {
-  const names: [string | null, string][] =
-    setting.labels !== undefined
-      ? Object.entries(setting.labels).map(([value, label]) => [value, label])
-      : setting.label !== undefined
-        ? [[null, setting.label]]
-        : [];
-
-  return names.map(([value, label]) => {
-    const full = (key: string) =>
-      `sensors.${sensor}.${value === null ? key : expanded(key, value)}`;
-    const unit = value === null ? setting.unit : setting.units?.[value];
-    const severity = setting.limit?.severity;
-
-    return {
-      label,
-      key: full(setting.key),
-      control: controlOf(setting),
-      ...(unit === undefined ? {} : { unit }),
-      ...(severity === undefined ? {} : { severityKey: full(severity) }),
-    };
-  });
-}
-
-function sensorSection(sensor: InstalledSensor): SectionSpec | null {
-  const ordered = sensor.settings
-    .map((setting, at) => ({ setting, at }))
-    .sort(
-      (a, b) =>
-        (a.setting.order ?? Number.POSITIVE_INFINITY) -
-          (b.setting.order ?? Number.POSITIVE_INFINITY) || a.at - b.at,
-    );
-  const fields = ordered.flatMap(({ setting }) =>
-    fieldsOf(sensor.name, setting),
-  );
-
-  return fields.length === 0
-    ? null
-    : {
-        id: sensor.name,
-        name: sensor.settings_title ?? sensor.display,
-        fields,
-      };
-}
-
-export function sectionSpecs(
-  installed: readonly InstalledSensor[],
-  published: PublishedKeys,
-): SectionSpec[] {
-  const has = (key: string) =>
-    published.keys.some((entry) => entry.key === key);
-  const known = (key: string) =>
-    has(key) ||
-    has(placeholderKey(key)) ||
-    "found" in findKey(published, key.split("."));
-  const covered = (spec: SectionSpec) =>
-    spec.fields.every((field) => fieldKeys(field).every(known));
-  const sensors = installed
-    .map(sensorSection)
-    .filter((spec): spec is SectionSpec => spec !== null)
-    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-
-  return [...APP_SECTION_SPECS, ...sensors].filter(covered);
-}
-
-export function repositorySections(
-  installed: readonly InstalledSensor[],
-  published: PublishedKeys,
-): RepositorySection[] {
-  const found: RepositorySection[] = sectionSpecs(installed, published).map(
-    (spec) => ({ id: spec.id, name: spec.name }),
-  );
-
-  if (
-    installed.some((one) => one.runsTests) &&
-    published.keys.some((entry) => entry.key === "tests.<name>.directory")
-  ) {
-    found.push({ id: "suites", name: "Test suites" });
-  }
-
-  return found;
-}
-
-function placeholderKey(key: string): string {
-  return key.replace(
-    /^(sensors\.structure\.warnings)\.[a-z_]+$/,
-    "$1.<warning>",
-  );
-}
+type Scalar = string | number | boolean;
 
 export type DefaultShown =
   | { kind: "figure"; text: string }
   | { kind: "text"; text: string }
   | { kind: "none" };
 
-type Scalar = string | number | boolean;
+type Default = { figure: Scalar } | { text: string } | null;
 
-function defaultOf(
-  entry: PublishedKey,
-  typed: string[],
-): { figure: Scalar } | { text: string } | null {
+export type SuiteRow = { key: string; label: string; setting: Setting };
+
+export type SettingsModelInput = {
+  panes: readonly SettingsPane[];
+  published: PublishedKeys;
+  configText: string | null;
+  machine: Record<string, string>;
+  repository: boolean;
+};
+
+export type SettingsModel = {
+  panes(): SettingsPane[];
+  paneName(id: string): string;
+  paneOfKey(key: string): string | null;
+  value(key: string): string | null;
+  shown(field: Setting): string;
+  entryOf(key: string): Setting | PublishedKey | null;
+  defaultShown(key: string): DefaultShown;
+  resetTitle(field: Setting): string;
+  isMachine(key: string): boolean;
+  isOn(field: Setting): boolean;
+  hasSwitch(field: Setting): boolean;
+  toggle(field: Setting): void;
+  changed(field: Setting): boolean;
+  dirtyField(field: Setting): boolean;
+  paneChanged(id: string): boolean;
+  stage(key: string, raw: string): void;
+  resetField(field: Setting): void;
+  addSuite(name: string): string | null;
+  suites(): string[];
+  suiteRows(name: string): SuiteRow[];
+  suiteValue(name: string, suffix: string): string;
+  error(key: string): string | null;
+  firstError(): { key: string; reason: string } | null;
+  refuse(key: string, reason: string): void;
+  hasErrors(): boolean;
+  edits(): RepositoryEdit[];
+  machineEdits(): SettingEdit[];
+  count(): number;
+  dirty(): boolean;
+  repositoryDirty(): boolean;
+  machineDirty(): boolean;
+};
+
+const PLACEHOLDER = /<([a-z][a-z0-9_]*)>/g;
+
+function defaultOf(entry: Setting | PublishedKey, typed: string[]): Default {
   if (entry.default !== undefined) {
     return { figure: entry.default };
   }
 
-  if (entry.defaults !== undefined) {
+  if (entry.defaults !== undefined && "segments" in entry) {
     const at = entry.segments.findIndex((segment) => "placeholder" in segment);
     const given = entry.defaults[typed[at] as string];
 
@@ -345,29 +101,6 @@ function figureText(figure: Scalar): string {
   return String(figure);
 }
 
-export type RepositoryModel = {
-  value(key: string): string | null;
-  present(key: string): boolean;
-  entryOf(key: string): PublishedKey | null;
-  defaultShown(key: string): DefaultShown;
-  changed(key: string): boolean;
-  fieldChanged(field: FieldSpec): boolean;
-  sectionChanged(id: SectionId): boolean;
-  stage(key: string, raw: string): void;
-  stageSuiteField(key: string, raw: string): void;
-  reset(keys: readonly string[]): void;
-  resetSection(id: SectionId): void;
-  addSuite(name: string): string | null;
-  suites(): string[];
-  suiteKeys(name: string): string[];
-  error(key: string): string | null;
-  refuse(key: string, reason: string): void;
-  hasErrors(): boolean;
-  edits(): RepositoryEdit[];
-  dirty(): boolean;
-  structureOff(): boolean;
-};
-
 function suiteNames(keys: Iterable<string>): string[] {
   const names = new Set<string>();
 
@@ -382,14 +115,49 @@ function suiteNames(keys: Iterable<string>): string[] {
   return [...names];
 }
 
-export function createRepositoryModel(
-  published: PublishedKeys,
-  configText: string | null,
-  specs: readonly SectionSpec[] = APP_SECTION_SPECS,
-): RepositoryModel {
+function templateMatch(
+  template: string,
+  key: string,
+): Record<string, string> | null {
+  const names: string[] = [];
+  const pattern = template
+    .split(".")
+    .map((part) => {
+      const found = /^<([a-z][a-z0-9_]*)>$/.exec(part);
+
+      if (found === null) {
+        return part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      }
+
+      names.push(found[1] as string);
+
+      return "([^.]+)";
+    })
+    .join("\\.");
+  const matched = new RegExp(`^${pattern}$`).exec(key);
+
+  if (matched === null) {
+    return null;
+  }
+
+  return Object.fromEntries(names.map((name, at) => [name, matched[at + 1]]));
+}
+
+export function createSettingsModel(input: SettingsModelInput): SettingsModel {
+  const { published } = input;
+  const all = input.panes.filter(
+    (pane) => input.repository || pane.group === "machine",
+  );
+  const fields = all.flatMap((pane) =>
+    pane.sections.flatMap((section) => section.settings),
+  );
+  const suiteTemplates = all.flatMap((pane) => pane.suites?.keys ?? []);
+  const machineKeys = new Set(
+    fields.filter((one) => one.scope === "machine").map((one) => one.key),
+  );
   const current = new Map<string, string>();
 
-  for (const line of listKeys(configText ?? "", published).lines) {
+  for (const line of listKeys(input.configText ?? "", published).lines) {
     const at = line.indexOf("=");
 
     if (at > 0) {
@@ -397,55 +165,122 @@ export function createRepositoryModel(
     }
   }
 
+  const loadedMachine = new Map(Object.entries(input.machine));
   const staged = new Map<string, string | null>();
+  const machineStaged = new Map<string, string>();
   const errors = new Map<string, string>();
   const added: string[] = [];
   const knownSuites = suiteNames(current.keys());
+  const remembered = new Map<string, string>();
+  const pendingOn = new Set<string>();
 
-  const entryOf = (key: string): PublishedKey | null => {
+  const isMachine = (key: string): boolean => machineKeys.has(key);
+
+  const entryOf = (key: string): Setting | PublishedKey | null => {
+    const field = fields.find((one) => one.key === key);
+
+    if (field !== undefined && isMachine(key)) {
+      return field;
+    }
+
     const found = findKey(published, key.split("."));
 
-    return "found" in found ? found.found : null;
+    if ("found" in found) {
+      return found.found;
+    }
+
+    return field ?? null;
   };
 
-  const present = (key: string): boolean =>
-    staged.has(key) ? staged.get(key) !== null : current.has(key);
-
-  const value = (key: string): string | null =>
-    staged.has(key)
-      ? (staged.get(key) as string | null)
-      : (current.get(key) ?? null);
-
-  const defaultFor = (key: string) => {
+  const defaultFor = (key: string): Default => {
     const entry = entryOf(key);
 
     return entry === null ? null : defaultOf(entry, key.split("."));
   };
 
-  const changed = (key: string): boolean => {
-    const given = value(key);
-
-    if (given === null) {
-      return false;
-    }
-
+  const machineDefault = (key: string): string => {
     const base = defaultFor(key);
 
-    return base === null || "text" in base || !sameFigure(given, base.figure);
+    return base !== null && "figure" in base ? String(base.figure) : "";
   };
 
-  const sectionKeys = (id: SectionId): string[] =>
-    specs
-      .filter((spec) => spec.id === id)
-      .flatMap((spec) => spec.fields.flatMap((field) => fieldKeys(field)));
+  const machineValue = (key: string): string =>
+    machineStaged.get(key) ?? loadedMachine.get(key) ?? machineDefault(key);
 
-  const stage = (key: string, raw: string): void => {
+  const present = (key: string): boolean =>
+    staged.has(key) ? staged.get(key) !== null : current.has(key);
+
+  const repositoryValue = (key: string): string | null =>
+    staged.has(key)
+      ? (staged.get(key) as string | null)
+      : (current.get(key) ?? null);
+
+  const value = (key: string): string | null =>
+    isMachine(key) ? machineValue(key) : repositoryValue(key);
+
+  const stageValue = (key: string, raw: string | null): void => {
+    if (raw === null && !current.has(key)) {
+      staged.delete(key);
+
+      return;
+    }
+
+    if (raw !== null && current.get(key) === raw) {
+      staged.delete(key);
+
+      return;
+    }
+
+    staged.set(key, raw);
+  };
+
+  const sameMachine = (key: string, raw: string): boolean => {
+    const base = loadedMachine.get(key) ?? machineDefault(key);
+    const entry = entryOf(key);
+
+    if (entry?.type === "integer" || entry?.type === "number") {
+      return raw.trim() !== "" && Number(raw) === Number(base);
+    }
+
+    return raw === base;
+  };
+
+  const stageMachine = (key: string, raw: string): void => {
+    errors.delete(key);
+
+    const entry = entryOf(key);
+    const blankOk =
+      entry !== null &&
+      entry.type === "string" &&
+      entry.default === undefined &&
+      entry.default_text !== undefined;
+    const text = blankOk ? raw.trim() : raw;
+
+    if (entry !== null && !(blankOk && text === "")) {
+      const typed = typedValue(entry, raw);
+
+      if ("reason" in typed) {
+        errors.set(key, typed.reason);
+        machineStaged.set(key, raw);
+
+        return;
+      }
+    }
+
+    if (sameMachine(key, text)) {
+      machineStaged.delete(key);
+    } else {
+      machineStaged.set(key, text);
+    }
+  };
+
+  const stageRepository = (key: string, raw: string): void => {
     errors.delete(key);
 
     const entry = entryOf(key);
     const blank = raw.trim() === "";
 
-    if (entry !== null && entry.type !== "string" && blank) {
+    if (entry !== null && blank) {
       stageValue(key, null);
 
       return;
@@ -472,36 +307,278 @@ export function createRepositoryModel(
     );
   };
 
-  const stageValue = (key: string, raw: string | null): void => {
-    if (raw === null && !current.has(key)) {
-      staged.delete(key);
+  const stage = (key: string, raw: string): void =>
+    isMachine(key) ? stageMachine(key, raw) : stageRepository(key, raw);
 
-      return;
+  const switchKind = (field: Setting): "key" | "value" | "unset" | null => {
+    const gate = field.switch;
+
+    if (gate === undefined) {
+      return null;
     }
 
-    if (raw !== null && current.get(key) === raw) {
-      staged.delete(key);
-
-      return;
-    }
-
-    staged.set(key, raw);
+    return "key" in gate ? "key" : "value" in gate ? "value" : "unset";
   };
 
-  const keysOf = (name: string): string[] => {
-    const prefix = `tests.${name}.`;
-    const live = [...new Set([...current.keys(), ...staged.keys()])].filter(
-      (key) => key.startsWith(prefix),
-    );
+  const switchKey = (field: Setting): string | null =>
+    field.switch !== undefined && "key" in field.switch
+      ? field.switch.key
+      : null;
 
-    return [...live].sort();
+  const keysOf = (field: Setting): string[] =>
+    [field.key, switchKey(field)].filter((one): one is string => one !== null);
+
+  const booleanOn = (key: string): boolean => {
+    const raw = repositoryValue(key);
+
+    if (raw !== null) {
+      return raw === "true";
+    }
+
+    const base = defaultFor(key);
+
+    return base === null || !("figure" in base) || base.figure === true;
+  };
+
+  const isOn = (field: Setting): boolean => {
+    const kind = switchKind(field);
+
+    if (kind === "key") {
+      return booleanOn(switchKey(field) as string);
+    }
+
+    if (kind === "value") {
+      return repositoryValue(field.key) !== "false";
+    }
+
+    if (kind === "unset") {
+      return present(field.key) || pendingOn.has(field.key);
+    }
+
+    return true;
+  };
+
+  const numberOf = (field: Setting): string => {
+    const raw = repositoryValue(field.key);
+
+    if (raw !== null && raw !== "false") {
+      return raw;
+    }
+
+    const kept = remembered.get(field.key);
+
+    if (kept !== undefined) {
+      return kept;
+    }
+
+    const base = defaultFor(field.key);
+
+    return base !== null && "figure" in base ? String(base.figure) : "";
+  };
+
+  const shown = (field: Setting): string => {
+    if (isMachine(field.key)) {
+      return machineValue(field.key);
+    }
+
+    if (switchKind(field) !== null) {
+      return numberOf(field);
+    }
+
+    const raw = repositoryValue(field.key);
+
+    if (raw !== null) {
+      return raw;
+    }
+
+    const base = defaultFor(field.key);
+
+    return base !== null && "figure" in base ? String(base.figure) : "";
+  };
+
+  const toggle = (field: Setting): void => {
+    const kind = switchKind(field);
+    const on = isOn(field);
+
+    if (kind === "key") {
+      stageRepository(switchKey(field) as string, on ? "false" : "true");
+
+      return;
+    }
+
+    const raw = repositoryValue(field.key);
+
+    if (on && raw !== null && raw !== "false") {
+      remembered.set(field.key, raw);
+    }
+
+    if (kind === "value") {
+      if (on) {
+        stageRepository(field.key, "false");
+      } else {
+        stageRepository(field.key, numberOf(field));
+      }
+
+      return;
+    }
+
+    if (kind === "unset") {
+      if (on) {
+        pendingOn.delete(field.key);
+        stageValue(field.key, null);
+      } else {
+        const back = numberOf(field);
+
+        pendingOn.add(field.key);
+
+        if (back !== "") {
+          stageRepository(field.key, back);
+        }
+      }
+    }
+  };
+
+  const figureChanged = (key: string): boolean => {
+    if (isMachine(key)) {
+      const base = machineDefault(key);
+      const entry = entryOf(key);
+      const now = machineValue(key);
+
+      if (entry?.type === "integer" || entry?.type === "number") {
+        return Number(now) !== Number(base);
+      }
+
+      return now !== base;
+    }
+
+    const given = repositoryValue(key);
+
+    if (given === null) {
+      return false;
+    }
+
+    const base = defaultFor(key);
+
+    return base === null || "text" in base || !sameFigure(given, base.figure);
+  };
+
+  const changed = (field: Setting): boolean => {
+    if (field.type === "boolean" && switchKind(field) === null) {
+      return false;
+    }
+
+    return keysOf(field).some((key) => figureChanged(key));
+  };
+
+  const dirtyKey = (key: string): boolean =>
+    isMachine(key) ? machineStaged.has(key) : staged.has(key);
+
+  const paneFields = (id: string): Setting[] =>
+    all
+      .filter((pane) => pane.id === id)
+      .flatMap((pane) => pane.sections.flatMap((one) => one.settings));
+
+  const suitePrefixKeys = (name: string): string[] => {
+    const prefix = `tests.${name}.`;
+
+    return [...new Set([...current.keys(), ...staged.keys()])]
+      .filter((key) => key.startsWith(prefix))
+      .sort();
+  };
+
+  const suiteRows = (name: string): SuiteRow[] =>
+    suiteTemplates.flatMap((setting): SuiteRow[] => {
+      const names = [...setting.key.matchAll(PLACEHOLDER)].map(
+        (found) => found[1] as string,
+      );
+
+      if (names.length === 1) {
+        return [
+          {
+            key: setting.key.replace(PLACEHOLDER, name),
+            label: setting.label ?? setting.key,
+            setting,
+          },
+        ];
+      }
+
+      return suitePrefixKeys(name).flatMap((key) => {
+        const matched = templateMatch(setting.key, key);
+
+        return matched === null || matched.name !== name
+          ? []
+          : [
+              {
+                key,
+                label: Object.entries(matched)
+                  .filter(([one]) => one !== "name")
+                  .map(([, text]) => text)
+                  .join(" "),
+                setting,
+              },
+            ];
+      });
+    });
+
+  const unitsChanged = (): number => {
+    const seen = new Set<string>();
+
+    for (const field of fields) {
+      if (keysOf(field).some(dirtyKey)) {
+        seen.add(field.key);
+      }
+    }
+
+    let total = seen.size;
+
+    for (const key of staged.keys()) {
+      if (key.startsWith("tests.")) {
+        total += 1;
+      }
+    }
+
+    return total + added.length;
   };
 
   return {
+    panes: () => [...all],
+    paneName: (id) => all.find((pane) => pane.id === id)?.name ?? id,
+    paneOfKey(key) {
+      if (key.startsWith("tests.")) {
+        return all.find((pane) => pane.suites !== undefined)?.id ?? null;
+      }
+
+      return (
+        all.find((pane) =>
+          pane.sections.some((section) =>
+            section.settings.some((one) => keysOf(one).includes(key)),
+          ),
+        )?.id ?? null
+      );
+    },
     value,
-    present,
+    shown,
     entryOf,
-    changed,
+    resetTitle(field) {
+      const kind = switchKind(field);
+      const base = defaultFor(field.key);
+
+      if (base === null) {
+        return kind === "unset" ? "Reset to off" : "Reset";
+      }
+
+      if ("text" in base) {
+        return `Reset to ${base.text}`;
+      }
+
+      if (kind === "value" && base.figure === false) {
+        return "Reset to off";
+      }
+
+      const unit = field.unit === undefined ? "" : ` ${field.unit}`;
+
+      return `Reset to ${figureText(base.figure)}${typeof base.figure === "boolean" ? "" : unit}`;
+    },
     defaultShown(key) {
       const base = defaultFor(key);
 
@@ -513,44 +590,35 @@ export function createRepositoryModel(
         ? { kind: "text", text: base.text }
         : { kind: "figure", text: figureText(base.figure) };
     },
-    fieldChanged: (field) => fieldKeys(field).some((key) => changed(key)),
-    sectionChanged: (id) =>
-      id !== "suites" && sectionKeys(id).some((key) => changed(key)),
+    isMachine,
+    isOn,
+    hasSwitch: (field) => switchKind(field) !== null,
+    toggle,
+    changed,
+    dirtyField: (field) => keysOf(field).some(dirtyKey),
+    paneChanged(id) {
+      if (all.some((pane) => pane.id === id && pane.suites !== undefined)) {
+        return (
+          added.length > 0 ||
+          [...staged.keys()].some((key) => key.startsWith("tests."))
+        );
+      }
+
+      return paneFields(id).some((field) => keysOf(field).some(dirtyKey));
+    },
     stage,
-    stageSuiteField(key, raw) {
-      errors.delete(key);
-
-      if (raw === "") {
-        stageValue(key, null);
-
-        return;
-      }
-
-      const entry = entryOf(key);
-      const typed = entry === null ? { value: raw } : typedValue(entry, raw);
-
-      if ("reason" in typed) {
-        errors.set(key, typed.reason);
-        staged.set(key, raw);
-
-        return;
-      }
-
-      stageValue(key, raw);
-    },
-    reset(keys) {
-      for (const key of keys) {
+    resetField(field) {
+      for (const key of keysOf(field)) {
         errors.delete(key);
-        stageValue(key, null);
-      }
-    },
-    resetSection(id) {
-      for (const key of sectionKeys(id)) {
-        if (current.has(key) || staged.has(key)) {
-          errors.delete(key);
+
+        if (isMachine(key)) {
+          stageMachine(key, machineDefault(key));
+        } else {
           stageValue(key, null);
         }
       }
+
+      pendingOn.delete(field.key);
     },
     addSuite(name) {
       if (!/^[A-Za-z0-9_-]+$/.test(name)) {
@@ -566,18 +634,38 @@ export function createRepositoryModel(
       return null;
     },
     suites: () => [...knownSuites, ...added],
-    suiteKeys: keysOf,
+    suiteRows,
+    suiteValue(name, suffix) {
+      return repositoryValue(`tests.${name}.${suffix}`) ?? "";
+    },
     error: (key) => errors.get(key) ?? null,
+    firstError() {
+      const first = errors.entries().next();
+
+      return first.done === true
+        ? null
+        : { key: first.value[0], reason: first.value[1] };
+    },
     refuse(key, reason) {
       errors.set(key, reason);
     },
     hasErrors: () => errors.size > 0,
     edits() {
       const out: RepositoryEdit[] = [];
-      const off = staged.get(LONG_FUNCTION_KEY) === "false";
+      const offKeys = new Set(
+        fields
+          .filter(
+            (field) =>
+              switchKey(field) !== null &&
+              staged.get(switchKey(field) as string) === "false",
+          )
+          .map((field) => field.key),
+      );
 
       for (const name of added) {
-        const live = keysOf(name).filter((key) => staged.get(key) !== null);
+        const live = suitePrefixKeys(name).filter(
+          (key) => staged.get(key) !== null,
+        );
 
         out.push({ op: "add-section", key: `tests.${name}` });
 
@@ -594,7 +682,7 @@ export function createRepositoryModel(
           continue;
         }
 
-        if (off && key === `${LONG_FUNCTION_KEY}.limit`) {
+        if (offKeys.has(key)) {
           continue;
         }
 
@@ -607,13 +695,17 @@ export function createRepositoryModel(
 
       return out;
     },
-    dirty: () => staged.size > 0 || added.length > 0,
-    structureOff: () => current.get("sensors.structure") === "off",
-  };
-}
+    machineEdits() {
+      return [...machineStaged].map(([key, raw]): SettingEdit => {
+        const entry = entryOf(key);
+        const typed = entry === null ? { value: raw } : typedValue(entry, raw);
 
-export function fieldKeys(field: FieldSpec): string[] {
-  return [field.key, field.switchKey, field.severityKey].filter(
-    (key): key is string => key !== undefined,
-  );
+        return { key, value: "value" in typed ? typed.value : raw };
+      });
+    },
+    count: unitsChanged,
+    dirty: () => staged.size > 0 || added.length > 0 || machineStaged.size > 0,
+    repositoryDirty: () => staged.size > 0 || added.length > 0,
+    machineDirty: () => machineStaged.size > 0,
+  };
 }

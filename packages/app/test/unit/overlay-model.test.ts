@@ -587,6 +587,51 @@ describe("descriptors", () => {
   });
 });
 
+describe("the group order", () => {
+  const withMetric = (name: string, display: string) =>
+    plainSensor(name, {
+      display,
+      metrics: [
+        {
+          name: `${name}_m`,
+          label: name,
+          title: name,
+          help: "x",
+          type: "count",
+          granularity: "member",
+          bad: "high",
+        },
+      ],
+    });
+
+  it("follows the installed order of the shared Zeta, alpha, Mid list, then stray files by name", () => {
+    const installed: InstalledSensors = {
+      status: "ok",
+      sensors: [
+        withMetric("z1", "alpha"),
+        withMetric("m1", "Mid"),
+        withMetric("a1", "Zeta"),
+      ],
+    };
+    const file = (name: string) => ({
+      name,
+      overlay: overlay([{ name: `${name}_m` }], {}),
+    });
+    const model = buildOverlayModel(
+      [file("stray_b"), file("a1"), file("stray_a"), file("m1"), file("z1")],
+      { sensors: [], installed },
+    );
+
+    expect(model.groups.map((group) => group.name)).toEqual([
+      "z1",
+      "m1",
+      "a1",
+      "stray_a",
+      "stray_b",
+    ]);
+  });
+});
+
 describe("per-module values", () => {
   it("takes the max for bad high and the min for bad low, ties to the lowest id", () => {
     const high = only(

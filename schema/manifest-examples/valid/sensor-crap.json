@@ -41,6 +41,9 @@
       "limit": {
         "metric": "coverage",
         "direction": "below"
+      },
+      "switch": {
+        "value": true
       }
     },
     {
@@ -218,25 +221,29 @@
           "kotlin",
           "rust",
           "csharp"
-        ]
+        ],
+        "label": "Language"
       },
       {
         "key": "tests.<name>.directory",
         "type": "path",
         "description": "the folder the suite runs from, relative to the repository",
-        "example": "tests.unit.directory ."
+        "example": "tests.unit.directory .",
+        "label": "Directory"
       },
       {
         "key": "tests.<name>.command",
         "type": "string",
         "description": "the command that runs the suite and writes its coverage report, run in the user's login shell",
-        "example": "tests.unit.command \"pytest --cov=src --cov-report=lcov:.recognizer/cache/coverage/unit/lcov.info\""
+        "example": "tests.unit.command \"pytest --cov=src --cov-report=lcov:.recognizer/cache/coverage/unit/lcov.info\"",
+        "label": "Command"
       },
       {
         "key": "tests.<name>.activate",
         "type": "string",
         "description": "a line that makes the suite's tools available in a fresh login shell, such as a virtual environment or a Node version manager",
-        "example": "tests.unit.activate \"source .venv/bin/activate\""
+        "example": "tests.unit.activate \"source .venv/bin/activate\"",
+        "label": "Activate"
       },
       {
         "key": "tests.<name>.runner",
@@ -246,19 +253,22 @@
         "values": [
           "vitest",
           "jest"
-        ]
+        ],
+        "label": "Runner"
       },
       {
         "key": "tests.<name>.env.<variable>",
         "type": "string",
         "description": "one environment variable the suite runs with",
-        "example": "tests.unit.env.PYTHONPATH src"
+        "example": "tests.unit.env.PYTHONPATH src",
+        "label": "Environment variable"
       },
       {
         "key": "tests.<name>.coverage.path",
         "type": "path",
         "description": "the coverage report the suite writes, relative to the suite's directory, except a path starting .recognizer/cache/coverage/, which is relative to the repository root; * matches a folder or file name",
-        "example": "tests.unit.coverage.path .recognizer/cache/coverage/unit/lcov.info"
+        "example": "tests.unit.coverage.path .recognizer/cache/coverage/unit/lcov.info",
+        "label": "Coverage report"
       },
       {
         "key": "tests.<name>.coverage.format",
@@ -268,7 +278,8 @@
         "values": [
           "lcov",
           "jacoco"
-        ]
+        ],
+        "label": "Coverage format"
       }
     ]
   },

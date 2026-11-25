@@ -60,21 +60,35 @@ describe("the settings modal port fake", () => {
     expect(fake.config).toBe(BASE);
   });
 
-  it("round-trips the setup model with the other settings", async () => {
+  it("round-trips machine values keyed by absolute key and keeps the others", async () => {
     const fake = fakeSettingsModal();
 
-    expect((await fake.readSettings()).setup).toEqual({ model: "sonnet" });
+    expect((await fake.readSettings()).values["setup.model"]).toBe("sonnet");
 
-    await fake.writeSettings({
-      editor: "code",
-      describing: { model: "haiku", batchSize: 4, confirmAboveUsd: 5 },
-      setup: { model: "opus" },
-    });
+    await fake.writeSettings([
+      { key: "editor", value: "code" },
+      { key: "setup.model", value: "opus" },
+      { key: "describing.batch_size", value: 8 },
+    ]);
 
     expect(await fake.readSettings()).toEqual({
-      editor: "code",
-      describing: { model: "haiku", batchSize: 4, confirmAboveUsd: 5 },
-      setup: { model: "opus" },
+      values: {
+        editor: "code",
+        "describing.model": "haiku",
+        "describing.batch_size": "8",
+        "describing.confirm_above_usd": "5",
+        "setup.model": "opus",
+      },
     });
+  });
+
+  it("writes a machine default back as a value, never a removal", async () => {
+    const fake = fakeSettingsModal();
+
+    await fake.writeSettings([{ key: "describing.batch_size", value: 4 }]);
+
+    expect((await fake.readSettings()).values["describing.batch_size"]).toBe(
+      "4",
+    );
   });
 });

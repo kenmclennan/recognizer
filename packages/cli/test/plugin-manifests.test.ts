@@ -1,5 +1,16 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  CORE_KEYS,
+  type KeyEntry,
+  type KeySchema,
+  type Manifest,
+  type PaneSensor,
+  placeholderPattern,
+  publish,
+  type SettingsPane,
+  settingsPanes,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { REPO } from "./helpers.js";
 import { manifestOf, type RealTool, realTools } from "./plugin-tools.js";
@@ -86,5 +97,139 @@ describe("the installed manifests equal the sources they transcribe", () => {
       units: ["functions"],
       check: true,
     });
+  });
+});
+
+const DISPLAY = [
+  "label",
+  "labels",
+  "unit",
+  "units",
+  "order",
+  "limit",
+  "section",
+  "scope",
+  "switch",
+];
+
+function undisplayed(entry: unknown): KeyEntry {
+  return Object.fromEntries(
+    Object.entries(entry as Record<string, unknown>).filter(
+      ([name]) => !DISPLAY.includes(name),
+    ),
+  ) as unknown as KeyEntry;
+}
+
+function realPanes(): SettingsPane[] {
+  const sensors = ["crap", "mutation"].map((name) =>
+    manifest(`recognizer-sense-${name}`),
+  );
+  const placeholders: Record<string, string> = {};
+  const keys: KeyEntry[] = [];
+
+  for (const one of sensors) {
+    for (const [name, declaration] of Object.entries(one.placeholders ?? {})) {
+      placeholders[name] = placeholderPattern(declaration);
+    }
+
+    for (const entry of one.settings) {
+      keys.push({
+        ...undisplayed(entry),
+        key: `sensors.${one.name}.${(entry as KeyEntry).key}`,
+      });
+    }
+  }
+
+  const suite = sensors[0]?.suite_keys;
+  const schema: KeySchema = {
+    keys_version: 1,
+    owner: "sensors",
+    placeholders,
+    sections: [],
+    keys: [...keys, ...((suite?.keys ?? []) as unknown[]).map(undisplayed)],
+  };
+
+  return settingsPanes({
+    sensors: sensors.map(
+      (one: Manifest): PaneSensor => ({
+        name: one.name,
+        display: one.display,
+        runs_tests: one.runs_tests === true,
+        ...(one.suite_keys === undefined ? {} : { suite_keys: one.suite_keys }),
+        settings: one.settings,
+      }),
+    ),
+    describers: [
+      (({ name, display, settings }: Manifest) => ({
+        name,
+        display,
+        settings,
+      }))(manifest("recognizer-describe-claude")),
+    ],
+    published: publish([CORE_KEYS, schema], "config"),
+  });
+}
+
+describe("the settings panes of the real manifests", () => {
+  it("lists the panes in the approved order with the real sensors and describer", () => {
+    const panes = realPanes();
+    const names = (group: string) =>
+      panes.filter((pane) => pane.group === group).map((pane) => pane.name);
+
+    expect(names("machine")).toEqual(["Editor", "Describing", "Setup"]);
+    expect(names("repository")).toEqual([
+      "Structural analysis",
+      "C.R.A.P.",
+      "Mutation",
+      "Test suites",
+    ]);
+  });
+
+  it("gives Structural analysis the sections Warnings, Limits and Duplication with 4, 2 and 4 fields", () => {
+    const structure = realPanes().find((pane) => pane.id === "structure");
+
+    expect(
+      structure?.sections.map((section) => [
+        section.title,
+        section.settings.length,
+      ]),
+    ).toEqual([
+      ["Warnings", 4],
+      ["Limits", 2],
+      ["Duplication", 4],
+    ]);
+  });
+
+  it("puts the describer's model first in Describing as a machine field", () => {
+    const describing = realPanes().find((pane) => pane.id === "describing");
+    const fields = (describing?.sections ?? []).flatMap(
+      (section) => section.settings,
+    );
+
+    expect(fields.map((field) => field.key)).toEqual([
+      "describing.model",
+      "describing.batch_size",
+      "describing.confirm_above_usd",
+    ]);
+    expect(fields[0]).toMatchObject({
+      default: "haiku",
+      scope: "machine",
+      label: "Model",
+    });
+  });
+
+  it("labels the suite keys of the sensors that run tests", () => {
+    const suites = realPanes().find((pane) => pane.id === "suites");
+
+    expect(suites?.suites?.keys.map((entry) => entry.label)).toEqual([
+      "Language",
+      "Directory",
+      "Command",
+      "Activate",
+      "Runner",
+      "Environment variable",
+      "Coverage report",
+      "Coverage format",
+    ]);
   });
 });

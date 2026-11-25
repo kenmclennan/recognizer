@@ -2,6 +2,11 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { InstalledSensor } from "./sensor-run";
+import {
+  comparePlugins,
+  type PaneDescriber,
+  type PaneSensor,
+} from "./settings-modal-fake";
 
 const EXAMPLES = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -53,7 +58,23 @@ export function installedSensor(name: string): InstalledSensor {
 }
 
 export function installedSensors(): InstalledSensor[] {
-  return installedNames().map(installedSensor);
+  return installedNames().map(installedSensor).sort(comparePlugins);
+}
+
+export function paneSources(): {
+  sensors: PaneSensor[];
+  describers: PaneDescriber[];
+} {
+  const read = (file: string) =>
+    JSON.parse(readFileSync(join(EXAMPLES, file), "utf8")) as PaneSensor &
+      PaneDescriber;
+
+  return {
+    sensors: installedNames()
+      .map((name) => read(`sensor-${name}.json`))
+      .sort(comparePlugins),
+    describers: [read("describer.json")],
+  };
 }
 
 export function plainSensor(

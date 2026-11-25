@@ -15,6 +15,7 @@ import type {
 } from "../../../domain/configuration/setup-survey.js";
 import { compileGlob } from "../../../domain/glob.js";
 import { SKIPPED_DIRECTORIES } from "../../../domain/language-rule.js";
+import { comparePlugins } from "../../../domain/plugin-order.js";
 import { PolicyRule } from "../../../domain/policy-rule.js";
 import type { Repository } from "../../../domain/repository.js";
 import type { ConfigKeyEntry } from "../ports/config-keys.js";
@@ -168,39 +169,54 @@ export function checksOf(
       limits: limitsOf(document, installed.keys),
       mark: checkMark(configured, structure !== "off"),
     },
-    ...installed.sensors.map((sensor) => {
-      const enabled =
-        typeof registered === "object" &&
-        registered !== null &&
-        sensor.name in registered;
+    ...[
+      ...installed.sensors.map((sensor) => {
+        const enabled =
+          typeof registered === "object" &&
+          registered !== null &&
+          sensor.name in registered;
 
-      return {
-        id: sensor.name,
-        display: sensor.display,
-        description: sensor.description ?? "",
-        always_on: false,
-        enabled,
-        runs_tests: sensor.runs_tests,
-        kind: "sensor" as const,
-        limits: [],
-        mark: checkMark(configured, enabled),
-      };
-    }),
-    ...installed.describers.map((describer) => {
-      const enabled = "describer" in document;
+        return {
+          name: sensor.name,
+          check: {
+            id: sensor.name,
+            display: sensor.display,
+            description: sensor.description ?? "",
+            always_on: false,
+            enabled,
+            runs_tests: sensor.runs_tests,
+            kind: "sensor" as const,
+            limits: [],
+            mark: checkMark(configured, enabled),
+          },
+        };
+      }),
+      ...installed.describers.map((describer) => {
+        const enabled = "describer" in document;
 
-      return {
-        id: describer.name,
-        display: describer.display,
-        description: describer.description ?? "",
-        always_on: false,
-        enabled,
-        runs_tests: false,
-        kind: "describer" as const,
-        limits: [],
-        mark: checkMark(configured, enabled),
-      };
-    }),
+        return {
+          name: describer.name,
+          check: {
+            id: describer.name,
+            display: describer.display,
+            description: describer.description ?? "",
+            always_on: false,
+            enabled,
+            runs_tests: false,
+            kind: "describer" as const,
+            limits: [],
+            mark: checkMark(configured, enabled),
+          },
+        };
+      }),
+    ]
+      .sort((a, b) =>
+        comparePlugins(
+          { name: a.name, display: a.check.display },
+          { name: b.name, display: b.check.display },
+        ),
+      )
+      .map((one) => one.check),
   ];
 }
 
