@@ -1,4 +1,9 @@
 import { readFileSync } from "node:fs";
+import type {
+  RunState as CoreRunState,
+  PluginRunState,
+  RunView,
+} from "@recognizer/core";
 import { buildFreshness, unregisteredMessage } from "recognizer";
 import { describe, expect, it } from "vitest";
 import type { FileChange, ScanState } from "../../src/footer-scan";
@@ -1327,5 +1332,71 @@ describe("the Nothing ticked to run state", () => {
     expect(modelOf(IDS, { sensors, scanning: true }).action.mode.disabled).toBe(
       true,
     );
+  });
+});
+
+describe("freshness around a run in the snapshot", () => {
+  const snapshotRun = (state: CoreRunState, crap: PluginRunState): RunView => ({
+    id: "r1",
+    startedBy: "app",
+    startedAt: "2026-11-24T00:00:00.000Z",
+    scope: { kind: "working-tree" },
+    sensors: ["crap"],
+    describe: false,
+    suites: {},
+    state,
+    endedAt: null,
+    exit: null,
+    gaps: [],
+    failure: null,
+    ran: null,
+    plugins: [
+      {
+        name: "crap",
+        state: crap,
+        progress: null,
+        stage: null,
+        estimateMs: null,
+        failure: null,
+      },
+    ],
+  });
+  const view = (state: CoreRunState, crap: PluginRunState) => ({
+    run: snapshotRun(state, crap),
+    progress: {} as never,
+    starting: null,
+    adoptedAtOpen: null,
+  });
+  const behind = { crap: ran("crap", IDS, { "a.py": "old", "b.py": "old" }) };
+
+  it("never reads out of date for a sensor running in this run", () => {
+    const model = modelOf(IDS, {
+      sensors: [behind.crap, ran("mutation", IDS)],
+      scanning: true,
+      run: run({ running: ["crap"], started: "crap" }),
+      runView: view("running", "running"),
+    });
+
+    expect(kindOf(model, "crap")).toBe("running");
+  });
+
+  it("never reads out of date for a sensor that finished in this run before its result lands", () => {
+    const model = modelOf(IDS, {
+      sensors: [behind.crap, ran("mutation", IDS)],
+      scanning: true,
+      run: run({ running: [], started: null }),
+      runView: view("running", "finished"),
+    });
+
+    expect(kindOf(model, "crap")).toBe("current");
+  });
+
+  it("reads out of date again once the run has ended and the result is still behind", () => {
+    const model = modelOf(IDS, {
+      sensors: [behind.crap, ran("mutation", IDS)],
+      runView: view("finished", "finished"),
+    });
+
+    expect(kindOf(model, "crap")).toBe("out-of-date");
   });
 });
