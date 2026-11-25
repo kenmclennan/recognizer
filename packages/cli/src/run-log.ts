@@ -652,6 +652,41 @@ function openScanRecord(
   return null;
 }
 
+function settledBefore(
+  io: Io,
+  root: string,
+  killed: KilledRunDetails,
+): boolean {
+  const directory = logDirectory(root);
+  const started = Date.parse(killed.startedAt);
+
+  try {
+    return io
+      .readDir(directory)
+      .map((entry) => entry.name)
+      .filter((name) => NAME.test(name) && name.endsWith("-scan.json"))
+      .some((name) => {
+        try {
+          const record = validateRunRecord(
+            JSON.parse(io.readFile(join(directory, name))),
+          );
+
+          return (
+            record.kind === "scan" &&
+            record.outcome === "stopped" &&
+            record.exit === 1 &&
+            record.finished !== null &&
+            Math.abs(Date.parse(record.started) - started) <= RECYCLE_SLACK_MS
+          );
+        } catch {
+          return false;
+        }
+      });
+  } catch {
+    return false;
+  }
+}
+
 export function settleKilledRun(
   io: Io,
   root: string,
@@ -663,6 +698,10 @@ export function settleKilledRun(
     open = openScanRecord(io, root, killed.startedAt);
   } catch {
     open = null;
+  }
+
+  if (open === null && settledBefore(io, root, killed)) {
+    return;
   }
 
   const finished = new Date(io.now()).toISOString();

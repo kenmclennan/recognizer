@@ -254,6 +254,23 @@ describe("active run adapter", () => {
     ).toMatchObject({ name: "tally", outcome: "stopped" });
   });
 
+  it("settling_the_same_killed_run_twice_writes_one_record", () => {
+    const root = makeTempDir("active-run-log-twice-");
+    const killed = {
+      runId: RUN_ID,
+      startedAt: new Date().toISOString(),
+      startedBy: "app",
+      running: ["tally"],
+    };
+    const adapter = new RunLogAdapter(nodeIo());
+
+    adapter.settleKilled(root, killed);
+    adapter.settleKilled(root, killed);
+    new RunLogAdapter(nodeIo()).settleKilled(root, killed);
+
+    expect(logRecords(root)).toHaveLength(1);
+  });
+
   it("settle_killed_leaves_an_old_failed_record_alone", () => {
     const root = makeTempDir("active-run-log-old-failed-");
     const directory = logDirectory(root);
