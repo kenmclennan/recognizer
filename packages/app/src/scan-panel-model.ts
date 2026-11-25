@@ -520,6 +520,20 @@ function analysisNote(input: PanelInput): string | null {
 const ANALYSIS_TITLE =
   "Finds import cycles, files nothing imports, unused exports, private imports, long or complex functions, duplication and policy violations. Runs with every scan and needs no tests.";
 
+function plannedMsOf(
+  parts: readonly { key: string; ms: number | null }[],
+): Record<string, number> {
+  const planned: Record<string, number> = {};
+
+  for (const { key, ms } of parts) {
+    if (ms !== null) {
+      planned[key] = ms;
+    }
+  }
+
+  return planned;
+}
+
 export function scanPanel(given: PanelInput): ScanPanelModel {
   const sensors = rowSensors(given.config, given.installed);
   const input: PanelInput = {
@@ -630,7 +644,13 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
   const displayOf = (name: string): string =>
     freshness.rows.find((row) => row.key === name)?.name ?? name;
   const run = runModel(
-    input.runView == null ? null : { ...input.runView, display: displayOf },
+    input.runView == null
+      ? null
+      : {
+          ...input.runView,
+          display: displayOf,
+          plannedMs: plannedMsOf(answered?.parts ?? []),
+        },
     tickedKeys,
     new Set([...tickedKeys].filter((key) => key !== DESCRIBE_KEY)),
     input.now,

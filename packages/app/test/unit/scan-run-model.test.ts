@@ -549,6 +549,52 @@ describe("the time slot while an app-driven scan runs", () => {
     expect(card?.when.title).toContain("Mutation");
   });
 
+  it("a_queued_plugin_with_history_contributes_its_planned_estimate_before_its_first_stage", () => {
+    const card = running(
+      {},
+      [live("crap", 40_000), { name: "mutation", state: "queued" }],
+      { plannedMs: { mutation: 5 * 60_000 } },
+    )?.card;
+
+    expect(card?.when.text).toBe("about 6 min left");
+    expect(card?.when.title).toBeUndefined();
+  });
+
+  it("a_started_plugin_that_has_not_reported_keeps_its_history_estimate", () => {
+    const card = running({}, [live("crap", null)], {
+      plannedMs: { crap: 40_000 },
+    })?.card;
+
+    expect(card?.when.text).toBe("under a minute left");
+    expect(card?.when.title).toBeUndefined();
+  });
+
+  it("a_started_plugin_own_estimate_replaces_its_history_estimate", () => {
+    const card = running({}, [live("crap", 600_000)], {
+      plannedMs: { crap: 40_000 },
+    })?.card;
+
+    expect(card?.when.text).toBe("about 10 min left");
+  });
+
+  it("a_started_plugin_without_history_that_has_not_reported_reads_no_estimate_yet", () => {
+    const card = running({}, [live("crap", null)])?.card;
+
+    expect(card?.when.text).toBe("No estimate yet");
+    expect(card?.when.title).toContain("C.R.A.P.");
+  });
+
+  it("a_queued_plugin_without_history_still_reads_no_estimate_yet", () => {
+    const card = running(
+      {},
+      [live("crap", 40_000), { name: "mutation", state: "queued" }],
+      { plannedMs: { crap: 40_000 } },
+    )?.card;
+
+    expect(card?.when.text).toBe("No estimate yet");
+    expect(card?.when.title).toContain("Mutation");
+  });
+
   it("a_plugin_that_reports_none_reads_no_estimate_yet", () => {
     const card = running({ sensors: ["crap"] }, [live("crap", null)])?.card;
 
