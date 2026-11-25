@@ -692,7 +692,7 @@ export class Service {
   ): Promise<void> {
     try {
       for await (const event of running.events) {
-        this.write({ stream: scanId, event });
+        void event;
       }
     } catch {}
 
