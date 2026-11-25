@@ -8,6 +8,7 @@ import {
   type PanelInput,
   type RowSensor,
 } from "./scan-panel-model";
+import { isActive } from "./scan-run-model";
 import { scansCommit } from "./scans-commit";
 import type { SensorStatus } from "./sensor-run";
 
@@ -267,6 +268,18 @@ function currentAt(key: string, input: PanelInput): number | null {
   return input.run.ranAt[key] ?? status?.modifiedMs ?? null;
 }
 
+function ranInThisRun(key: string, input: PanelInput): boolean {
+  const snapshot = input.runView?.run ?? null;
+
+  if (snapshot === null || !isActive(snapshot)) {
+    return false;
+  }
+
+  return snapshot.plugins.some(
+    (plugin) => plugin.name === key && plugin.state === "finished",
+  );
+}
+
 function sensorState(
   one: RowSensor,
   input: PanelInput,
@@ -283,6 +296,10 @@ function sensorState(
 
   if (failed !== null) {
     return { kind: "failed", at: failed.at };
+  }
+
+  if (ranInThisRun(one.name, input)) {
+    return { kind: "current", at: currentAt(one.name, input) };
   }
 
   const status = input.sensors.find((entry) => entry.name === one.name);

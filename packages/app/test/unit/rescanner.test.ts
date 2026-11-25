@@ -1564,6 +1564,27 @@ describe("createRescanner", () => {
       expect(rescanner.runView().run?.id).toBe(cli.run_id);
     });
 
+    it("clears the running line and the running state when the snapshot reports the run stopped", async () => {
+      const { rescanner, snapshot, updates } = await observed();
+      const held = snapshot.latest();
+
+      if (held === null) {
+        throw new Error("the snapshot holds no run");
+      }
+
+      snapshot.publish({ ...held, state: "running" });
+      await flush();
+
+      expect(rescanner.running()).toBe(true);
+      expect(updates.at(-1)?.scanning).not.toBeNull();
+
+      snapshot.publish({ ...held, state: "stopped" });
+      await flush();
+
+      expect(updates.at(-1)?.scanning).toBeNull();
+      expect(rescanner.running()).toBe(false);
+    });
+
     it("takes no side-effecting branch for its lines", async () => {
       const { scan, posted, log, rescanner } = await observed();
 

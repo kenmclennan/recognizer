@@ -154,6 +154,7 @@ export function createRescanner<Carried>(
   ports: RescanPorts<Carried>,
 ): Rescanner {
   let own: Promise<void> | null = null;
+  let activeSeen: string | null = null;
   let attachedToOther = false;
   let seenRun: RunView | null = null;
   let applied: Loaded | null = null;
@@ -796,6 +797,21 @@ export function createRescanner<Carried>(
 
     seenRun = next;
 
+    if (
+      next !== null &&
+      (next.state === "checking" || next.state === "running")
+    ) {
+      activeSeen = next.id;
+    }
+
+    const stopped =
+      next !== null && next.state === "stopped" && next.id === activeSeen;
+
+    if (stopped && !progress.stopped) {
+      progress = stoppedProgress(progress);
+      publish();
+    }
+
     externalQueue = externalQueue
       .then(async () => {
         for (const event of sensorEventsBetween(before, next)) {
@@ -1062,6 +1078,8 @@ export function createRescanner<Carried>(
         return own;
       }
 
+      activeSeen = null;
+
       const started = execute(modules, planned)
         .catch((error: unknown) => {
           ports.blocked(String(error));
@@ -1116,7 +1134,15 @@ export function createRescanner<Carried>(
       void ports.registered().then((registered) => writeTicks(registered));
     },
     runState: () => run,
-    running: () => own !== null || activityOf(ports.snapshot.run(), false).busy,
+    running: () => {
+      const held = ports.snapshot.run();
+
+      if (held !== null && held.id === activeSeen && held.state === "stopped") {
+        return false;
+      }
+
+      return own !== null || activityOf(held, false).busy;
+    },
     external: () =>
       activityOf(ports.snapshot.run(), own !== null && !attachedToOther)
         .external,
