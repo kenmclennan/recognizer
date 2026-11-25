@@ -16,6 +16,8 @@ const BUNDLE_FIX: &str = "brew reinstall --cask kenmclennan/tap/recognizer";
 
 pub const COMMANDS: [&str; 1] = ["recognizer"];
 
+pub const TOOLCHAIN_COMMANDS_VARIABLE: &str = "RECOGNIZER_TOOLCHAIN_COMMANDS";
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Toolchain {
     Bundled { folder: PathBuf },
@@ -705,31 +707,9 @@ impl ToolRunner {
         Some(Arc::new(Environment { pairs, path }))
     }
 
-    fn pairs_for(&self, environment: &Environment) -> Vec<(String, String)> {
-        let Some(folder) = self.toolchain.folder() else {
-            return environment.pairs.clone();
-        };
-        let front = folder.display().to_string();
-        let mut pairs: Vec<(String, String)> = environment
-            .pairs
-            .iter()
-            .filter(|(name, _)| name != "PATH")
-            .cloned()
-            .collect();
-        let path = if environment.path.is_empty() {
-            front
-        } else {
-            format!("{front}:{}", environment.path)
-        };
-
-        pairs.push(("PATH".to_string(), path));
-
-        pairs
-    }
-
     pub fn environment_pairs(&self) -> Vec<(String, String)> {
         self.environment_for()
-            .map(|environment| self.pairs_for(&environment))
+            .map(|environment| environment.pairs.clone())
             .unwrap_or_default()
     }
 
@@ -827,13 +807,18 @@ impl ToolRunner {
                 self.forget_stale_environment();
             }
         })?;
-        let pairs = self.pairs_for(&environment);
+        let pairs = environment.pairs.clone();
 
         self.verify(command, &program, &pairs)?;
 
         let mut process = Command::new(program);
 
         process.env_clear().envs(pairs);
+
+        match self.toolchain.folder() {
+            Some(folder) => process.env(TOOLCHAIN_COMMANDS_VARIABLE, folder),
+            None => process.env_remove(TOOLCHAIN_COMMANDS_VARIABLE),
+        };
 
         Ok(process)
     }
@@ -1264,20 +1249,55 @@ pub mod tests {
     }
 
     #[test]
-    fn a_packaged_run_hands_the_tool_a_path_that_starts_with_the_bundle_folder() {
+    fn a_packaged_run_hands_the_service_the_login_path_unchanged_and_the_folder_as_its_own_variable(
+    ) {
         let dir = TempDir::new().unwrap();
         let folder = fake_commands(dir.path(), "1.2.3");
         let runner = bundled_runner(dir.path(), &folder, "/usr/bin:/bin");
         let process = runner.command("recognizer").unwrap();
-        let path = process
-            .get_envs()
-            .find(|(name, _)| *name == "PATH")
-            .and_then(|(_, value)| value)
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let value = |name: &str| {
+            process
+                .get_envs()
+                .find(|(key, _)| *key == name)
+                .and_then(|(_, value)| value)
+                .map(|value| value.to_string_lossy().into_owned())
+        };
 
-        assert_eq!(path, format!("{}:/usr/bin:/bin", folder.display()));
+        assert_eq!(value("PATH").as_deref(), Some("/usr/bin:/bin"));
+        assert_eq!(
+            value(TOOLCHAIN_COMMANDS_VARIABLE),
+            Some(folder.display().to_string())
+        );
+    }
+
+    #[test]
+    fn a_run_without_a_toolchain_folder_removes_the_handoff_variable() {
+        let dir = TempDir::new().unwrap();
+        script(dir.path(), "recognizer", "echo 1.2.3");
+
+        let shell = shell_with_path(dir.path(), &dir.path().display().to_string());
+        let runner = runner_with(&shell, Duration::from_secs(10), Duration::from_secs(30), 4);
+        let process = runner.command("recognizer").unwrap();
+        let handoff = process
+            .get_envs()
+            .find(|(name, _)| *name == TOOLCHAIN_COMMANDS_VARIABLE)
+            .and_then(|(_, value)| value);
+
+        assert_eq!(handoff, None);
+    }
+
+    #[test]
+    fn the_setup_environment_is_the_login_pairs_without_the_folder() {
+        let dir = TempDir::new().unwrap();
+        let folder = fake_commands(dir.path(), "1.2.3");
+        let runner = bundled_runner(dir.path(), &folder, "/usr/bin:/bin");
+        let path = runner
+            .environment_pairs()
+            .into_iter()
+            .find(|(name, _)| name == "PATH")
+            .map(|(_, value)| value);
+
+        assert_eq!(path.as_deref(), Some("/usr/bin:/bin"));
     }
 
     #[test]

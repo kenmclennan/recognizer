@@ -3,6 +3,7 @@ import {
   createScan,
   type PlannedChange,
   rehearsalChanges,
+  resolvePluginEnvironment,
   type SetupChoices,
   type SetupEntry,
   type SetupScan,
@@ -10,6 +11,7 @@ import {
 } from "@recognizer/core";
 import type { Io } from "../cli.js";
 import { configurationFor } from "../configuration-composition.js";
+import { toolchainFolderFrom } from "../plugin-bootstrap.js";
 import { buildRecord, entryFrom, recordRun } from "../run-log.js";
 import { scanPorts } from "../scan-container.js";
 import { requestFrom } from "../scan-main.js";
@@ -165,8 +167,12 @@ export async function runSetupAction(
   emit: (line: string) => void,
 ): Promise<unknown> {
   const { repository: root, action, args } = request;
+  const environment = resolvePluginEnvironment({
+    pairs: request.environment,
+    toolchainFolder: toolchainFolderFrom(process.env),
+  });
   const configuration = configurationFor(io, {
-    environment: request.environment,
+    environment,
     scan: scanOver(io),
   });
 
@@ -193,7 +199,7 @@ export async function runSetupAction(
         prompt: text(args, "prompt"),
         schema,
         onLine: emit,
-        environment: request.environment,
+        environment,
         stop: control.stop,
       });
     }
