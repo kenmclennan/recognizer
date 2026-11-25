@@ -54,20 +54,33 @@ function holderStub(): {
   holder: RepositoryStateHolder;
   fired: () => number;
   setActive: (value: boolean) => void;
+  digestCached: () => void;
+  onChange: (handler: () => void) => void;
 } {
   let active = false;
   let count = 0;
+  let changes = 0;
+  let onChange = () => {};
 
   return {
     holder: {
       active: () => active,
-      workingTreeChanged: () => {
+      testsDigestChanges: () => changes,
+      readTestsDigest: () => {
         count += 1;
+        onChange();
       },
+      verifyTestsDigest: () => {},
     } as unknown as RepositoryStateHolder,
     fired: () => count,
     setActive: (value) => {
       active = value;
+    },
+    onChange: (handler) => {
+      onChange = handler;
+    },
+    digestCached: () => {
+      changes += 1;
     },
   };
 }
@@ -156,6 +169,54 @@ describe("working tree watch", () => {
     await watch.tick();
 
     expect(fired()).toBe(1);
+  });
+
+  it("a_tests_digest_cached_from_an_edit_the_fingerprint_never_saw_fires_the_holder_once", async () => {
+    const root = committed();
+    const { holder, fired, digestCached } = holderStub();
+    const watch = new WorkingTreeWatch(ports(), root, holder);
+
+    await watch.tick();
+    expect(fired()).toBe(0);
+
+    writeFileSync(join(root, "tracked.txt"), "two");
+    digestCached();
+    writeFileSync(join(root, "tracked.txt"), "one");
+
+    await watch.tick();
+    expect(fired()).toBe(1);
+
+    await watch.tick();
+    expect(fired()).toBe(1);
+  });
+
+  it("an_edit_landing_while_the_digest_is_computed_is_recomputed_and_its_revert_is_seen", async () => {
+    const root = committed();
+    const { holder, fired, setActive, onChange } = holderStub();
+    const watch = new WorkingTreeWatch(ports(), root, holder);
+
+    await watch.tick();
+    setActive(true);
+    await watch.tick();
+
+    let edits = 0;
+
+    onChange(() => {
+      edits += 1;
+
+      if (edits === 1) {
+        writeFileSync(join(root, "tracked.txt"), "two");
+      }
+    });
+    setActive(false);
+    await watch.tick();
+
+    expect(fired()).toBe(2);
+
+    writeFileSync(join(root, "tracked.txt"), "one");
+    await watch.tick();
+
+    expect(fired()).toBe(3);
   });
 
   it("a_non_git_folder_never_fires", async () => {

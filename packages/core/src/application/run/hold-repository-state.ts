@@ -119,6 +119,8 @@ export class RepositoryStateHolder {
   private testsDigest: string | null | undefined = undefined;
   private lastGoodTestsDigest: string | null = null;
   private unknownDigestReads = 0;
+  private digestChanges = 0;
+  private digestVerified = true;
   private readonly storedAt = new Map<string, ResultAt>();
   private overlayNames = new Set<string>();
   private readonly commitEntries = new Map<
@@ -595,6 +597,10 @@ export class RepositoryStateHolder {
       return this.lastGoodTestsDigest;
     }
 
+    if (digest !== this.lastGoodTestsDigest) {
+      this.digestChanges += 1;
+    }
+
     this.testsDigest = digest;
     this.lastGoodTestsDigest = digest;
 
@@ -609,6 +615,23 @@ export class RepositoryStateHolder {
     } catch {
       return null;
     }
+  }
+
+  testsDigestChanges(): number {
+    return this.digestChanges;
+  }
+
+  readTestsDigest(): void {
+    this.digestVerified = false;
+    this.testsDigest = undefined;
+    this.unknownDigestReads = 0;
+    this.freshnessKey = null;
+    this.currentTestsDigest();
+  }
+
+  verifyTestsDigest(): void {
+    this.digestVerified = true;
+    this.refresh();
   }
 
   workingTreeChanged(): void {
@@ -635,6 +658,10 @@ export class RepositoryStateHolder {
   }
 
   private workOutFreshness(): void {
+    if (!this.digestVerified) {
+      return;
+    }
+
     const currentTests = this.currentTestsDigest();
     const key = JSON.stringify([
       currentTests,
