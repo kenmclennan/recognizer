@@ -61,6 +61,8 @@ export interface DirEntry {
   kind: "file" | "directory" | "other";
 }
 
+export const STDERR_TAIL_LIMIT = 262_144;
+
 export interface RunResult {
   started: boolean;
   status: number | null;
@@ -77,7 +79,7 @@ export interface RunOptions {
   env?: Record<string, string>;
   input?: string;
   onStdoutLine?: (line: string) => void;
-  onStderrLine?: (line: string) => void;
+  onStderrLine?: (line: string) => boolean | void;
 }
 
 export interface Running {
@@ -207,8 +209,18 @@ function spawnAsync(
     let settled = false;
     let grace: (() => void) | undefined;
 
+    const keepStderr = (text: string) => {
+      stderr += text;
+
+      if (stderr.length > STDERR_TAIL_LIMIT) {
+        stderr = stderr.slice(-STDERR_TAIL_LIMIT);
+      }
+    };
+
     const deliver = (chunk: string) => {
       if (options?.onStderrLine === undefined) {
+        keepStderr(chunk);
+
         return;
       }
 
@@ -219,7 +231,9 @@ function spawnAsync(
       pending = lines.pop() ?? "";
 
       for (const line of lines) {
-        options.onStderrLine(line);
+        if (options.onStderrLine(line) !== true) {
+          keepStderr(`${line}\n`);
+        }
       }
     };
 
@@ -254,10 +268,7 @@ function spawnAsync(
         options.onStdoutLine(line);
       }
     });
-    child.stderr?.on("data", (chunk: string) => {
-      stderr += chunk;
-      deliver(chunk);
-    });
+    child.stderr?.on("data", deliver);
     child.on("error", (error: NodeJS.ErrnoException) => {
       settle({
         started: error.code !== "ENOENT",
@@ -273,7 +284,10 @@ function spawnAsync(
       }
 
       if (pending !== "") {
-        options?.onStderrLine?.(pending);
+        if (options?.onStderrLine?.(pending) !== true) {
+          keepStderr(pending);
+        }
+
         pending = "";
       }
 
