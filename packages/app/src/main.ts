@@ -326,10 +326,6 @@ const rescanner = createRescanner<Carried>({
   openLog: openLogFile,
 });
 
-void scanSource.watchExternal().catch((error: unknown) => {
-  footerView.post({ kind: "error", text: String(error) });
-});
-
 const openActions = {
   stop: () => void rescanner.stop(),
   again: () => void start(),
@@ -405,6 +401,9 @@ async function start(): Promise<void> {
   }
 
   setScanRepository(folder);
+  void scanSource.watchExternal().catch((error: unknown) => {
+    footerView.post({ kind: "error", text: String(error) });
+  });
   void repositoryState.start().catch(() => {});
   folderName = folder.split(/[\\/]/).filter(Boolean).pop() ?? folder;
   content.replaceChildren();
