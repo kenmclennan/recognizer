@@ -272,6 +272,10 @@ MUTATION_LINES = (
     "What a blank Mutation setting means:",
     "  max_minutes  no time budget: the run continues until it finishes",
     "  max_workers  half the machine's cores, fewer if free memory is short",
+    "               On a Kotlin suite each worker also caps its own Gradle build at",
+    "               max(1, floor(cores / max_workers)) with -Dorg.gradle.workers.max, so the",
+    "               workers together stay within the machine. A -Dorg.gradle.workers.max in the",
+    "               suite env GRADLE_OPTS replaces that cap.",
 )
 
 
