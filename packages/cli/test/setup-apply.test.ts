@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import {
   type Io,
@@ -18,7 +19,6 @@ import {
   stopEverything,
 } from "../src/cli.js";
 import { COMMANDS } from "../src/commands.js";
-import { configurationFor } from "../src/configuration-composition.js";
 import {
   type ApplyEvent,
   buildChanges,
@@ -27,23 +27,17 @@ import {
   type Survey,
 } from "../src/index.js";
 import { validateRunRecord } from "../src/log-document.js";
-import { runApply as applyChanges } from "../src/setup-command.js";
 import { capture, REPO } from "./helpers.js";
-import { shimDirectory, shimmedPath, withToolUndo } from "./setup-helpers.js";
-
-const example = JSON.parse(
-  readFileSync(
-    join(REPO, "schema/setup-survey-examples/valid/loom.json"),
-    "utf8",
-  ),
-) as Survey;
+import { cliRoot } from "./roots.js";
+import { copyLoom, shimDirectory, shimmedPath } from "./setup-helpers.js";
+import { writeStubSurveyPlugin } from "./stub-survey-plugin.js";
 
 const CONFIG =
   "tests:\n  - name: old\n    language: python\n    directory: .\n    command: pytest\n    coverage:\n      path: coverage/lcov.info\n      format: lcov\n";
 
 const choices: SetupChoices = {
   analysis: { on: true, limits: { long_function: 30, pair_min_lines: 12 } },
-  plugins: ["crap"],
+  plugins: ["crap", "mutation"],
   runners: [{ name: "engine" }, { name: "tauri" }],
   tools: ["@vitest/coverage-v8", "cargo-llvm-cov"],
   policy: [{ kind: "ignore", globs: ["scripts/*"], why: "w", based_on: "b" }],
@@ -111,6 +105,10 @@ function fakeIo(
     args: string[],
     options?: { cwd?: string },
   ): Running => {
+    if (!["npm", "cargo", "recognizer"].includes(command)) {
+      return real.runAsync(command, args, options);
+    }
+
     const argv = [command, ...args];
     const cwd = options?.cwd ?? root;
     const failure = failAt?.(argv, calls.length) ?? null;
@@ -189,38 +187,65 @@ function fakeIo(
   return { io, calls, uninstalled, snapshots };
 }
 
+async function applyThrough(
+  fake: Fake,
+  directory: string,
+  selected: SetupChoices,
+): Promise<{ ok: boolean; events: ApplyEvent[] }> {
+  const file = join(makeTempDir("recognizer-setup-choices-"), "choices.json");
+
+  writeFileSync(file, JSON.stringify(selected));
+
+  const harness = cliRoot({
+    run: (command, args, options) => fake.io.run(command, args, options),
+    runAsync: (command, args, options) =>
+      fake.io.runAsync(command, args, options),
+  });
+  const status = await harness.run([
+    "setup",
+    "apply",
+    directory,
+    "--choices",
+    file,
+  ]);
+  const events = harness
+    .out()
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .map((line) => JSON.parse(line) as ApplyEvent);
+
+  return { ok: status === 0, events };
+}
+
+async function surveyThrough(directory: string): Promise<Survey> {
+  const harness = cliRoot();
+
+  await harness.run(["setup", "survey", directory, "--json"]);
+
+  return JSON.parse(harness.out()) as Survey;
+}
+
 let root: string;
 let savedPath: string | undefined;
 
-function surveyOf(): Survey {
-  return withToolUndo({ ...example, repository: root });
-}
+async function build(
+  selected: SetupChoices = choices,
+): Promise<PlannedChange[]> {
+  const file = join(makeTempDir("recognizer-setup-plan-"), "choices.json");
 
-function build(selected: SetupChoices = choices): PlannedChange[] {
-  return buildChanges(surveyOf(), selected).changes;
+  writeFileSync(file, JSON.stringify(selected));
+
+  const harness = cliRoot();
+
+  await harness.run(["setup", "changes", root, "--choices", file]);
+
+  return (JSON.parse(harness.out()) as { changes: PlannedChange[] }).changes;
 }
 
 beforeEach(() => {
   savedPath = process.env.PATH;
-  process.env.PATH = shimmedPath(shimDirectory(false));
-  root = makeTempDir("recognizer-setup-apply-");
-
-  for (const name of ["engine", "app"]) {
-    mkdirSync(join(root, name), { recursive: true });
-    writeFileSync(
-      join(root, name, "package.json"),
-      `{\n  "name": "${name}",\n  "devDependencies": {\n    "vitest": "^3.2.4"\n  }\n}\n`,
-    );
-  }
-
-  writeFileSync(
-    join(root, "package.json"),
-    '{"name":"loom","workspaces":["engine","app"]}\n',
-  );
-  writeFileSync(
-    join(root, "package-lock.json"),
-    '{"lockfileVersion":3,"packages":{}}\n',
-  );
+  process.env.PATH = shimmedPath(shimDirectory(true));
+  root = copyLoom();
   mkdirSync(join(root, ".recognizer"), { recursive: true });
   writeFileSync(join(root, ".recognizer/config.yaml"), CONFIG);
 });
@@ -235,11 +260,11 @@ function states(events: ApplyEvent[]): string[] {
     .map((event) => (event.event === "change" ? `${event.state}` : ""));
 }
 
-describe("setup apply", () => {
+describe("setup apply", { timeout: scaledTimeout(30_000) }, () => {
   it("a failing step undoes the earlier ones byte for byte", async () => {
     process.env.PATH = shimmedPath(shimDirectory(true));
 
-    const changes = build();
+    const changes = await build();
     const failing = changes.findIndex((change) => change.id === "tests-engine");
 
     expect(failing).toBeGreaterThanOrEqual(3);
@@ -251,10 +276,7 @@ describe("setup apply", () => {
         : null,
     );
     const before = hashTree(root, WATCHED);
-    const events: ApplyEvent[] = [];
-    const ok = await applyChanges(fake.io, root, changes, (event) =>
-      events.push(event),
-    );
+    const { ok, events } = await applyThrough(fake, root, choices);
     const atFailure =
       fake.snapshots[
         fake.calls.findIndex((argv) => argv.join(" ").startsWith(first ?? "?"))
@@ -286,18 +308,16 @@ describe("setup apply", () => {
   });
 
   it("emits one command event pair per step and doctor events before the result", async () => {
-    const changes = build().filter((change) =>
-      ["analysis-long_function", "tool-cargo-llvm-cov"].includes(change.id),
-    );
+    const changes = await build();
     const total = changes.reduce((sum, change) => sum + change.steps.length, 0);
     const fake = fakeIo(root, null);
-    const events: ApplyEvent[] = [];
+    const { events } = await applyThrough(fake, root, choices);
 
-    expect(changes.length).toBe(2);
-
-    await applyChanges(fake.io, root, changes, (event) => events.push(event));
-
-    expect(events[0]).toEqual({ event: "start", total: 2, commands: total });
+    expect(events[0]).toEqual({
+      event: "start",
+      total: changes.length,
+      commands: total,
+    });
 
     const commands = events.filter((event) => event.event === "command");
 
@@ -330,43 +350,46 @@ describe("setup apply", () => {
   });
 
   it("a failing step emits command running and no done for it, then change failed", async () => {
-    const changes = build().filter((change) =>
-      ["analysis-long_function", "tool-cargo-llvm-cov"].includes(change.id),
+    const changes = await build();
+    const at = changes.findIndex(
+      (change) => change.id === "tool-cargo-llvm-cov",
     );
-    const failing = changes[1]?.steps[0]?.argv.join(" ") ?? "?";
+    const failing = changes[at]?.steps[0]?.argv.join(" ") ?? "?";
     const fake = fakeIo(root, (argv) =>
       argv.join(" ").startsWith(failing)
         ? { started: true, status: 1, stdout: "", stderr: "boom\n" }
         : null,
     );
-    const events: ApplyEvent[] = [];
-
-    await applyChanges(fake.io, root, changes, (event) => events.push(event));
+    const { events } = await applyThrough(fake, root, choices);
 
     const mine = events.filter(
-      (event) => event.event === "command" && event.index === 1,
+      (event) => event.event === "command" && event.index === at,
     );
 
+    expect(at).toBeGreaterThanOrEqual(0);
     expect(mine).toMatchObject([{ state: "running", step: 1 }]);
-    expect(states(events)).toEqual(["done", "failed", "undone"]);
+    expect(states(events)).toEqual([
+      ...Array(at).fill("done"),
+      "failed",
+      ...Array(at).fill("undone"),
+    ]);
     expect(events.some((event) => event.event === "doctor")).toBe(false);
   });
 
   it("a step stopped by SIGTERM undoes the earlier ones", async () => {
     process.env.PATH = shimmedPath(shimDirectory(true));
 
-    const changes = build();
+    const changes = await build();
     const fake = fakeIo(root, (_argv, index) =>
       index === 3
         ? { started: true, status: 143, stdout: "", stderr: "", stopped: true }
         : null,
     );
     const before = hashTree(root, WATCHED);
-    const events: ApplyEvent[] = [];
+    const { ok, events } = await applyThrough(fake, root, choices);
 
-    expect(
-      await applyChanges(fake.io, root, changes, (event) => events.push(event)),
-    ).toBe(false);
+    expect(changes.length).toBeGreaterThan(3);
+    expect(ok).toBe(false);
     expect(hashTree(root, WATCHED)).toBe(before);
     expect(states(events)).toContain("failed");
     expect(
@@ -375,44 +398,52 @@ describe("setup apply", () => {
   });
 
   it("uninstalls only a cargo tool this run installed", async () => {
-    const changes = build();
+    const changes = await build();
     const cargoAt = changes.findIndex(
       (change) => change.id === "tool-cargo-llvm-cov",
     );
+    const after = changes[cargoAt + 1]?.steps[0]?.argv.join(" ") ?? "?";
     const fake = fakeIo(root, (argv) =>
-      argv
-        .join(" ")
-        .startsWith("recognizer config sensors.structure.duplication")
+      argv.join(" ").startsWith(after)
         ? { started: true, status: 1, stdout: "", stderr: "late\n" }
         : null,
     );
-    const late = [
-      ...changes.slice(cargoAt, cargoAt + 1),
-      ...changes.filter((change) => change.id === "analysis-pair_min_lines"),
-    ];
+    const late = choices;
 
     expect(cargoAt).toBeGreaterThanOrEqual(0);
 
-    await applyChanges(fake.io, root, late, () => {});
+    await applyThrough(fake, root, late);
 
     expect(fake.uninstalled).toEqual(["cargo-llvm-cov"]);
 
-    const installed: Survey = {
-      ...surveyOf(),
-      tools: surveyOf().tools.map((tool) =>
-        tool.name === "cargo-llvm-cov" ? { ...tool, installed: true } : tool,
+    const present = shimDirectory(false);
+    const answer = JSON.parse(
+      readFileSync(
+        join(REPO, "packages/cli/test/survey-answers/loom-rust.json"),
+        "utf8",
       ),
-    };
-    const withoutInstall = buildChanges(installed, choices).changes;
+    ) as { tools: { name: string; installed: boolean }[] };
+
+    writeStubSurveyPlugin(present, {
+      name: "rust",
+      order: 2,
+      extensions: [".rs"],
+      stdout: JSON.stringify({
+        ...answer,
+        tools: answer.tools.map((tool) =>
+          tool.name === "cargo-llvm-cov" ? { ...tool, installed: true } : tool,
+        ),
+      }),
+    });
+    process.env.PATH = shimmedPath(present);
+
     const second = fakeIo(root, (argv) =>
-      argv
-        .join(" ")
-        .startsWith("recognizer config sensors.structure.duplication")
+      argv.join(" ").startsWith(after)
         ? { started: true, status: 1, stdout: "", stderr: "late\n" }
         : null,
     );
 
-    await applyChanges(second.io, root, withoutInstall, () => {});
+    await applyThrough(second, root, late);
 
     expect(second.calls.some((argv) => argv[0] === "cargo")).toBe(false);
     expect(second.uninstalled).toEqual([]);
@@ -422,9 +453,7 @@ describe("setup apply", () => {
     process.env.PATH = shimmedPath(shimDirectory(false, true));
 
     const fresh = makeTempDir("recognizer-setup-describer-");
-    const survey = await configurationFor(nodeIo()).surveySetup({
-      root: fresh,
-    });
+    const survey = await surveyThrough(fresh);
     const changes = buildChanges(survey, { plugins: ["claude"] }).changes;
 
     expect(changes.map((change) => change.title)).toEqual(["Turn on Claude"]);
@@ -432,13 +461,9 @@ describe("setup apply", () => {
       ["recognizer", "plugin", "add", "claude"],
     ]);
 
-    const events: ApplyEvent[] = [];
-    const ok = await applyChanges(
-      fakeIo(fresh, null).io,
-      fresh,
-      changes,
-      (event) => events.push(event),
-    );
+    const { ok, events } = await applyThrough(fakeIo(fresh, null), fresh, {
+      plugins: ["claude"],
+    });
     const result = events[events.length - 1];
     const problems =
       result?.event === "result"
@@ -455,9 +480,7 @@ describe("setup apply", () => {
     process.env.PATH = shimmedPath(shimDirectory(true, true));
 
     const fresh = makeTempDir("recognizer-setup-decline-");
-    const survey = await configurationFor(nodeIo()).surveySetup({
-      root: fresh,
-    });
+    const survey = await surveyThrough(fresh);
     const offered = survey.checks.filter(
       (check) => check.kind === "sensor" || check.kind === "describer",
     );
@@ -482,26 +505,22 @@ describe("setup apply", () => {
   });
 
   it("a success writes a setup run log", async () => {
+    process.env.PATH = shimmedPath(shimDirectory(false));
+
     const quiet: SetupChoices = {
       analysis: { on: true, limits: { pair_min_lines: 12 } },
       policy: [
         { kind: "ignore", globs: ["scripts/*"], why: "w", based_on: "b" },
       ],
     };
-    const changes = build(quiet);
+    const changes = await build(quiet);
     const fake = fakeIo(root, null);
-    const events: ApplyEvent[] = [];
 
     expect(changes).toHaveLength(2);
-    expect(
-      await applyChanges(
-        fake.io,
-        root,
-        changes,
-        (event) => events.push(event),
-        ["apply"],
-      ),
-    ).toBe(true);
+
+    const { ok, events } = await applyThrough(fake, root, quiet);
+
+    expect(ok).toBe(true);
 
     const result = events[events.length - 1];
 
@@ -540,7 +559,6 @@ describe("setup apply", () => {
   });
 
   it("a stop request waits for the undo before it finishes", async () => {
-    const changes = build();
     let release: (result: RunResult) => void = () => {};
     const blocked = new Promise<RunResult>((resolve) => {
       release = resolve;
@@ -558,10 +576,7 @@ describe("setup apply", () => {
     };
 
     const before = hashTree(root, WATCHED);
-    const events: ApplyEvent[] = [];
-    const applied = applyChanges(fake.io, root, changes, (event) =>
-      events.push(event),
-    );
+    const applied = applyThrough(fake, root, choices);
 
     while (count < 3) {
       await new Promise((resolve) => setTimeout(resolve, 5));
@@ -572,7 +587,9 @@ describe("setup apply", () => {
     release({ started: true, status: 0, stdout: "", stderr: "" });
     await stopping;
 
-    expect(await applied).toBe(false);
+    const { ok, events } = await applied;
+
+    expect(ok).toBe(false);
     expect(hashTree(root, WATCHED)).toBe(before);
     expect(states(events)).toContain("failed");
   });

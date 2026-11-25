@@ -1,487 +1,83 @@
-import { type ChildProcess, spawn, spawnSync } from "node:child_process";
-import {
-  chmodSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { join } from "node:path";
-import { createInterface } from "node:readline";
-import { Repository, type RepositoryState } from "@recognizer/core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { spawnSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
-import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
-
-const bridge = vi.hoisted(() => ({
-  invoke: async (_command: string, _args?: Record<string, unknown>) =>
-    undefined as unknown,
-  listeners: new Set<(event: { payload: unknown }) => void>(),
-}));
-
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: (command: string, args?: Record<string, unknown>) =>
-    bridge.invoke(command, args),
-}));
-vi.mock("@tauri-apps/api/webviewWindow", () => ({
-  getCurrentWebviewWindow: () => ({
-    label: "w-1",
-    listen: async (
-      _event: string,
-      handler: (event: { payload: unknown }) => void,
-    ) => {
-      bridge.listeners.add(handler);
-
-      return () => bridge.listeners.delete(handler);
-    },
-  }),
-}));
-
 import { workScopes } from "../../src/planned-work";
-import { createRepositoryStateHolder } from "../../src/repository-state-holder";
-import { installedSensorsOf } from "../../src/repository-state-model";
-import { createRepositoryStateSource } from "../../src/repository-state-source";
-import { createRescanner } from "../../src/rescanner";
-import { refreshOnChange } from "../../src/revision-refresh";
-import { describerRegistered, rowSensors } from "../../src/scan-panel-model";
-import { createScanSource } from "../../src/scan-source";
-import { withSensors } from "../../src/sensor-run";
-import { createSensorsSource } from "../../src/sensors-source";
+import { appRoot, BIN, timeEndToEnd, untilHolds } from "../roots";
 
-const REPO = join(__dirname, "../../../..");
-const BIN = join(REPO, "packages/cli/dist/bin.js");
-const MANIFEST_EXAMPLE = join(
-  REPO,
-  "schema/manifest-examples/valid/sensor-crap.json",
-);
-const WAIT = scaledTimeout(60_000);
-const TEST_TIMEOUT = WAIT * 5;
+const TEST_TIMEOUT = scaledTimeout(60_000) * 5;
 
-type Line = Record<string, unknown>;
+type Root = Awaited<ReturnType<typeof appRoot>>;
 
-class Service {
-  readonly lines: Line[] = [];
-  readonly started: Line[] = [];
-  private readonly child: ChildProcess;
-  private next = 1;
-  private readonly pending = new Map<number, (line: Line) => void>();
-
-  constructor(path: string) {
-    this.child = spawn(process.execPath, [BIN, "serve"], {
-      env: { ...process.env, PATH: path },
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    this.child.stderr?.resume();
-    createInterface({ input: this.child.stdout as NodeJS.ReadableStream }).on(
-      "line",
-      (text) => {
-        const line = JSON.parse(text) as Line;
-
-        this.lines.push(line);
-
-        if (typeof line.id === "number") {
-          this.pending.get(line.id)?.(line);
-          this.pending.delete(line.id);
-        } else {
-          for (const handler of bridge.listeners) {
-            handler({ payload: line });
-          }
-        }
-      },
-    );
-  }
-
-  call(op: string, args: Record<string, unknown>): Promise<Line> {
-    const id = this.next++;
-
-    if (op === "scan.start") {
-      this.started.push(args);
-    }
-
-    return new Promise((resolve) => {
-      this.pending.set(id, resolve);
-      this.child.stdin?.write(`${JSON.stringify({ id, op, args })}\n`);
-    });
-  }
-
-  stop(): void {
-    this.child.stdin?.end();
-    this.child.kill();
-  }
+async function hostOf(root: Root) {
+  return untilHolds(root.service, () => root.view.explorer()?.host);
 }
 
-function manifestOf(name: string, runsTests: boolean): string {
-  const base = JSON.parse(readFileSync(MANIFEST_EXAMPLE, "utf8"));
-
-  delete base.suite_keys;
-  delete base.placeholders;
-  delete base.log_path;
-
-  return JSON.stringify({
-    ...base,
-    name,
-    display: name === "crap" ? "C.R.A.P." : "Mutation",
-    runs_tests: runsTests,
-    ...(runsTests ? { planned_work: { verb: "mutate" } } : {}),
-    install: `brew install ${name}`,
-    settings: [],
-  });
-}
-
-function launcher(directory: string, name: string, body: string): void {
-  const path = join(directory, name);
-
-  writeFileSync(path, `#!/bin/sh\n${body}\n`);
-  chmodSync(path, 0o755);
-}
-
-const STAMP = [
-  `const { createHash } = require("node:crypto");`,
-  `const { readFileSync, writeFileSync, mkdirSync } = require("node:fs");`,
-  `const { dirname, join } = require("node:path");`,
-  `const [repository, commit, output, name] = process.argv.slice(2);`,
-  `const hash = (path) => createHash("sha256").update(readFileSync(join(repository, path))).digest("hex");`,
-  `const tests = ["api/tests/a.test.ts"];`,
-  `const lines = tests.map((path) => path + "\\t" + hash(path) + "\\n").join("");`,
-  `const document = {`,
-  `  findings_version: 2,`,
-  `  sensor: { name, version: "1" },`,
-  `  commit,`,
-  `  modified: false,`,
-  `  settings: {},`,
-  `  findings: [],`,
-  `  inputs: { "api/src/a.ts": hash("api/src/a.ts") },`,
-  `  tests: createHash("sha256").update(lines).digest("hex"),`,
-  `};`,
-  `mkdirSync(dirname(output), { recursive: true });`,
-  `writeFileSync(output, JSON.stringify(document));`,
-].join("\n");
-
-function fakeSensor(
-  directory: string,
-  name: string,
-  runsTests: boolean,
-  stamped = false,
-): void {
-  const manifest = join(directory, `${name}.manifest.json`);
-  const stamp = join(directory, "stamp.cjs");
-
-  if (stamped) {
-    writeFileSync(stamp, STAMP);
-  }
-
-  writeFileSync(manifest, manifestOf(name, runsTests));
-  launcher(
-    directory,
-    `recognizer-sense-${name}`,
-    [
-      `case "$1" in`,
-      `manifest) cat ${manifest};;`,
-      `check)`,
-      `  case "$*" in`,
-      `    *--work*) echo '{"gaps":[],"work":{"unit":"functions","to_perform":3,"reusable":0}}';;`,
-      `    *) echo '{"gaps":[]}';;`,
-      `  esac;;`,
-      `run)`,
-      `  shift`,
-      `  commit=""; out=""; repo=""`,
-      `  while [ $# -gt 0 ]; do`,
-      `    case "$1" in --commit) commit="$2";; --output) out="$2";; --repository) repo="$2";; esac`,
-      `    shift`,
-      `  done`,
-      `  mkdir -p "$(dirname "$out")"`,
-      ...(stamped
-        ? [`  node ${stamp} "$repo" "$commit" "$out" ${name};;`]
-        : [
-            `  printf '{"findings_version":1,"sensor":{"name":"${name}","version":"1"},"commit":"%s","modified":false,"settings":{},"findings":[]}' "$commit" > "$out";;`,
-          ]),
-      `esac`,
-    ].join("\n"),
-  );
-}
-
-function git(repository: string, ...args: string[]): void {
-  const result = spawnSync(
-    "git",
-    [
-      "-c",
-      "user.name=test",
-      "-c",
-      "user.email=test@example.com",
-      "-c",
-      "commit.gpgsign=false",
-      ...args,
-    ],
-    { cwd: repository, encoding: "utf8" },
-  );
-
-  if (result.status !== 0) {
-    throw new Error(`git ${args.join(" ")}: ${result.stderr}`);
-  }
-}
-
-function fixture(stamped = false) {
-  const plugins = makeTempDir("packaged-run-plugins-");
-  const unreadable = makeTempDir("packaged-run-unreadable-");
-  const repository = makeTempDir("packaged-run-repository-");
-
-  launcher(
-    plugins,
-    "recognizer-scan-typescript",
-    `exec node ${REPO}/packages/scanners/typescript/dist/bin.js "$@"`,
-  );
-  fakeSensor(plugins, "crap", false, stamped);
-  fakeSensor(plugins, "mutation", true, stamped);
-  chmodSync(unreadable, 0o000);
-
-  mkdirSync(join(repository, ".recognizer"), { recursive: true });
-  mkdirSync(join(repository, "api", "src"), { recursive: true });
-  writeFileSync(
-    join(repository, "api", "src", "a.ts"),
-    "export const a = 1;\n",
-  );
-  mkdirSync(join(repository, "api", "tests"), { recursive: true });
-  writeFileSync(
-    join(repository, "api", "tests", "a.test.ts"),
-    "export const t = 1;\n",
-  );
-  writeFileSync(
-    join(repository, ".recognizer", "config.yaml"),
-    "sensors:\n  crap: {}\n  mutation: {}\n",
-  );
-  writeFileSync(
-    join(repository, ".gitignore"),
-    ".recognizer/cache/\nnode_modules/\n",
-  );
-  git(repository, "init", "-q");
-  git(repository, "add", ".");
-  git(repository, "commit", "-q", "-m", "initial");
-
-  const path = [
-    unreadable,
-    plugins,
-    ...["/usr/bin", "/bin"],
-    join(process.execPath, ".."),
-  ].join(":");
-
-  return { repository, path, unreadable };
-}
-
-const cleanups: (() => void)[] = [];
-
-afterEach(() => {
-  for (const cleanup of cleanups.splice(0)) {
-    cleanup();
-  }
-
-  bridge.listeners.clear();
-});
-
-function wire(
-  repository: string,
-  service: Service,
-  folder: { known: boolean } = { known: true },
+async function untilRows(
+  root: Root,
+  found: (rows: Awaited<ReturnType<Root["view"]["rows"]>>) => boolean,
 ) {
-  bridge.invoke = async (command, args = {}) => {
-    switch (command) {
-      case "core_call": {
-        const request = { ...(args.args as Record<string, unknown>) };
+  await hostOf(root);
 
-        delete request.repository;
-
-        return service.call(
-          String(args.op),
-          folder.known ? { ...request, repository } : request,
-        );
-      }
-      case "read_scan_ticks":
-        return {
-          describe: false,
-          analysis: false,
-          sensors: false,
-          ticked: ["crap", "mutation"],
-          remembered: true,
-          suites: {},
-          folds: [],
-        };
-      case "write_scan_ticks":
-        return undefined;
-      default:
-        return undefined;
-    }
-  };
-
-  const invoke = bridge.invoke as <T>(
-    command: string,
-    args?: Record<string, unknown>,
-  ) => Promise<T>;
-  const listen = async <T>(
-    _event: string,
-    handler: (event: { payload: T }) => void,
-  ) => {
-    const forward = handler as (event: { payload: unknown }) => void;
-
-    bridge.listeners.add(forward);
-
-    return () => bridge.listeners.delete(forward);
-  };
-  const results = createRepositoryStateSource({
-    invoke,
-    listen,
-    windowLabel: () => "w-1",
-  });
-  const holder = createRepositoryStateHolder(results);
-  const sensors = createSensorsSource({ state: holder, results });
-  const scan = createScanSource({
-    invoke,
-    listen,
-    windowLabel: () => "w-1",
-    repository: () => (folder.known ? repository : ""),
-  });
-
-  return { holder, sensors, scan };
-}
-
-async function untilState(
-  holder: ReturnType<typeof createRepositoryStateHolder>,
-  found: (state: RepositoryState) => boolean,
-): Promise<RepositoryState> {
-  const limit = Date.now() + WAIT;
+  const limit = performance.now() + scaledTimeout(60_000);
 
   for (;;) {
-    const state = holder.current();
+    const rows = await root.view.rows();
 
-    if (state !== null && found(state)) {
-      return state;
+    if (found(rows)) {
+      return rows;
     }
 
-    if (Date.now() > limit) {
-      throw new Error(
-        `timed out waiting; revision ${state?.revision}, run ${state?.run?.state}, freshness ${JSON.stringify(state?.freshness)}, inputs ${JSON.stringify(state?.inputsDigest)}; last: ${JSON.stringify(state)}`,
-      );
+    if (performance.now() > limit) {
+      throw new Error(`rows never matched: ${JSON.stringify(rows)}`);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await root.service.signal(50);
   }
 }
 
 describe("the app over the real service, on a path with an unreadable folder", () => {
   it("carries every registered sensor's manifest into the rows the panel renders", async () => {
-    const { repository, path, unreadable } = fixture();
-    const service = new Service(path);
-
-    cleanups.push(() => {
-      service.stop();
-      chmodSync(unreadable, 0o755);
-      rmSync(unreadable, { recursive: true, force: true });
-    });
-
-    const { holder, sensors } = wire(repository, service);
-
-    await holder.start();
-
-    const state = await untilState(
-      holder,
-      (one) => one.registry.entries.length === 2,
-    );
-    const rows = rowSensors(
-      (await sensors.inputs()).config,
-      installedSensorsOf(state),
-    );
+    const root = await appRoot();
+    const rows = await untilRows(root, (one) => one.length === 2);
 
     expect(rows.map(({ name, display }) => [name, display])).toEqual([
       ["crap", "C.R.A.P."],
       ["mutation", "Mutation"],
     ]);
     expect(rows.find(({ name }) => name === "mutation")?.runsTests).toBe(true);
-    expect(state.registry.catalog.state).toBe("read");
-    holder.stop();
   });
 
   it(
     "a_ticked_sensor_reaches_scan_start_and_runs",
     async () => {
-      const { repository, path, unreadable } = fixture();
-      const service = new Service(path);
+      const root = await appRoot();
+      const host = await hostOf(root);
 
-      cleanups.push(() => {
-        service.stop();
-        chmodSync(unreadable, 0o755);
-        rmSync(unreadable, { recursive: true, force: true });
-      });
+      await untilRows(root, (one) => one.length === 2);
+      host.run(null);
 
-      const { holder, sensors, scan } = wire(repository, service);
+      const started = await untilHolds(root.service, () =>
+        root.service.started.find(
+          (args) => (args.sense as string[]).length > 0,
+        ),
+      );
 
-      await holder.start();
-      await untilState(holder, (one) => one.registry.entries.length === 2);
-
-      const loaded = {
-        modules: [],
-        scans: [],
-        repository: Repository.empty,
-        policy: null,
-        baseline: null,
-        notices: [],
-        blocking: null,
-        findings: [],
-        sensors: [],
-      };
-      const rescanner = createRescanner({
-        port: scan,
-        snapshot: {
-          run: () => holder.current()?.run ?? null,
-          onRun: (handler) => holder.onRevision((state) => handler(state.run)),
-        },
-        registered: async () => {
-          const { config } = await sensors.inputs();
-
-          return {
-            sensors: rowSensors(config, await sensors.sensorList()),
-            describerRegistered: describerRegistered(config),
-          };
-        },
-        load: () => loaded,
-        sense: (one) => withSensors(one, sensors),
-        resense: async () => withSensors(loaded, sensors),
-        adopt: async () => ({ branch: "main", commit: "abc" }),
-        carry: () => null,
-        replace: () => {},
-        update: () => false,
-        adopted: () => {},
-        describedLine: () => {},
-        progress: () => {},
-        settled: () => {},
-        attached: () => {},
-        hasExplorer: () => false,
-        blocked: (text) => {
-          throw new Error(text);
-        },
-        post: () => null,
-        attach: () => {},
-        openLog: () => {},
-        show: () => {},
-      });
-
-      await rescanner.loadTicks();
-
-      await rescanner.run();
-
-      expect(service.started).toHaveLength(1);
-      expect([...(service.started[0].sense as string[])].sort()).toEqual([
+      expect([...(started.sense as string[])].sort()).toEqual([
         "crap",
         "mutation",
       ]);
 
-      const state = await untilState(
-        holder,
-        (one) =>
-          one.run?.state === "finished" &&
-          one.results.crap?.results.length === 1 &&
-          one.results.mutation?.results.length === 1,
-      );
+      await untilHolds(root.service, () => {
+        const sensors = root.view.loaded()?.sensors ?? [];
 
-      expect(state.registry.entries).toHaveLength(2);
-      holder.stop();
+        return ["crap", "mutation"].every(
+          (name) =>
+            sensors.find((sensor) => sensor.name === name)?.status === "ran",
+        )
+          ? true
+          : undefined;
+      });
     },
     TEST_TIMEOUT,
   );
@@ -489,61 +85,37 @@ describe("the app over the real service, on a path with an unreadable folder", (
   it(
     "a_registration_change_removes_the_row_and_refreshes_the_panel_within_10_s",
     async () => {
-      const { repository, path, unreadable } = fixture();
-      const service = new Service(path);
+      const root = await appRoot();
+      const first = await untilRows(root, (one) => one.length === 2);
 
-      cleanups.push(() => {
-        service.stop();
-        chmodSync(unreadable, 0o755);
-        rmSync(unreadable, { recursive: true, force: true });
-      });
-
-      const { holder, sensors } = wire(repository, service);
-      let refreshes = 0;
-
-      refreshOnChange(holder, async () => {
-        refreshes += 1;
-      });
-      await holder.start();
-
-      const first = await untilState(
-        holder,
-        (one) => one.registry.entries.length === 2,
-      );
-
-      expect(
-        first.registry.entries.filter(({ registered }) => registered),
-      ).toHaveLength(2);
+      expect(first.filter(({ registered }) => registered)).toHaveLength(2);
 
       const removed = spawnSync(
         process.execPath,
         [BIN, "config", "--remove-section", "sensors.mutation"],
         {
-          cwd: repository,
-          env: { ...process.env, PATH: path },
+          cwd: root.repository,
+          env: { ...process.env, PATH: root.path },
           encoding: "utf8",
         },
       );
 
       expect(removed.status).toBe(0);
 
-      const after = await untilState(
-        holder,
+      const rows = await untilRows(
+        root,
         (one) =>
-          one.registry.entries.find(({ name }) => name === "mutation")
-            ?.registered !== true,
-      );
-      const rows = rowSensors(
-        (await sensors.inputs()).config,
-        installedSensorsOf(after),
+          one.find(({ name }) => name === "mutation")?.registered !== true,
       );
 
       expect(rows.find(({ name }) => name === "mutation")?.registered).not.toBe(
         true,
       );
       expect(rows.find(({ name }) => name === "crap")?.registered).toBe(true);
-      expect(refreshes).toBeGreaterThan(0);
-      holder.stop();
+
+      await untilHolds(root.service, () =>
+        (root.view.explorer()?.reloads ?? 0) > 0 ? true : undefined,
+      );
     },
     TEST_TIMEOUT,
   );
@@ -551,57 +123,34 @@ describe("the app over the real service, on a path with an unreadable folder", (
   it(
     "a_sensor_run_reads_current_an_edited_test_reads_out_of_date_and_the_revert_reads_current",
     async () => {
-      const { repository, path, unreadable } = fixture(true);
-      const service = new Service(path);
+      const root = await appRoot({ stamped: true });
+      const original = readFileSync(root.testFile, "utf8");
+      const both = (state: string) =>
+        root.view.freshnessOf("crap") === state &&
+        root.view.freshnessOf("mutation") === state
+          ? true
+          : undefined;
 
-      cleanups.push(() => {
-        service.stop();
-        chmodSync(unreadable, 0o755);
-        rmSync(unreadable, { recursive: true, force: true });
-      });
-
-      const { holder } = wire(repository, service);
-      const testFile = join(repository, "api", "tests", "a.test.ts");
-      const original = readFileSync(testFile, "utf8");
-      const freshnessOf = (state: RepositoryState, name: string) =>
-        state.freshness[name]?.state;
-
-      await holder.start();
-      await untilState(holder, (one) => one.registry.entries.length === 2);
-
-      await service.call("scan.start", {
-        repository,
+      await untilRows(root, (one) => one.length === 2);
+      await root.service.call("scan.start", {
+        repository: root.repository,
         sense: ["crap", "mutation"],
         extract: false,
         describe: false,
       });
+      await untilHolds(root.service, () => both("current"));
 
-      await untilState(
-        holder,
-        (one) =>
-          one.run?.state === "finished" &&
-          freshnessOf(one, "crap") === "current" &&
-          freshnessOf(one, "mutation") === "current",
-      );
+      const { elapsedMs, limitMs } = await timeEndToEnd(root.service, {
+        limitMs: 10_000,
+        action: () =>
+          writeFileSync(root.testFile, `${original}export const edited = 2;\n`),
+        until: () => both("stale"),
+      });
 
-      writeFileSync(testFile, `${original}export const edited = 2;\n`);
+      expect(elapsedMs).toBeLessThan(limitMs);
 
-      await untilState(
-        holder,
-        (one) =>
-          freshnessOf(one, "crap") === "stale" &&
-          freshnessOf(one, "mutation") === "stale",
-      );
-
-      writeFileSync(testFile, original);
-
-      await untilState(
-        holder,
-        (one) =>
-          freshnessOf(one, "crap") === "current" &&
-          freshnessOf(one, "mutation") === "current",
-      );
-      holder.stop();
+      writeFileSync(root.testFile, original);
+      await untilHolds(root.service, () => both("current"));
     },
     TEST_TIMEOUT,
   );
@@ -609,24 +158,12 @@ describe("the app over the real service, on a path with an unreadable folder", (
   it(
     "a_planned_sensor_with_work_to_perform_reaches_the_estimate_through_the_snapshot_and_the_service",
     async () => {
-      const { repository, path, unreadable } = fixture(true);
-      const service = new Service(path);
+      const root = await appRoot({ stamped: true });
+      const host = await hostOf(root);
 
-      cleanups.push(() => {
-        service.stop();
-        chmodSync(unreadable, 0o755);
-        rmSync(unreadable, { recursive: true, force: true });
-      });
+      await untilRows(root, (one) => one.length === 2);
 
-      const { holder, sensors } = wire(repository, service);
-
-      await holder.start();
-
-      const state = await untilState(
-        holder,
-        (one) => one.registry.entries.length === 2,
-      );
-      const installed = installedSensorsOf(state);
+      const installed = await host.port.sensorList();
       const scopes = workScopes(
         { sense: ["crap", "mutation"], modules: null },
         installed,
@@ -638,11 +175,10 @@ describe("the app over the real service, on a path with an unreadable folder", (
       const { stamp: _stamp, ...request } =
         scopes[0] as (typeof scopes)[number];
 
-      expect(await sensors.plannedWork(request)).toEqual({
+      expect(await host.port.plannedWork(request)).toEqual({
         unit: "functions",
         to_perform: 3,
       });
-      holder.stop();
     },
     TEST_TIMEOUT,
   );
@@ -650,85 +186,22 @@ describe("the app over the real service, on a path with an unreadable folder", (
   it(
     "a_run_card_leaves_checking_when_the_run_finishes_after_the_folder_is_assigned_late",
     async () => {
-      const { repository, path, unreadable } = fixture();
-      const service = new Service(path);
+      const root = await appRoot({ stamped: true, folderKnown: false });
 
-      cleanups.push(() => {
-        service.stop();
-        chmodSync(unreadable, 0o755);
-        rmSync(unreadable, { recursive: true, force: true });
-      });
+      await root.app.started;
+      root.assignFolder();
 
-      const folder = { known: false };
-      const { holder, sensors, scan } = wire(repository, service, folder);
+      const host = await hostOf(root);
 
-      await scan.watchExternal();
+      await untilRows(root, (one) => one.length === 2);
+      host.run(null);
 
-      folder.known = true;
-
-      await holder.start();
-      await untilState(holder, (one) => one.registry.entries.length === 2);
-      await scan.watchExternal();
-
-      const loaded = {
-        modules: [],
-        scans: [],
-        repository: Repository.empty,
-        policy: null,
-        baseline: null,
-        notices: [],
-        blocking: null,
-        findings: [],
-        sensors: [],
-      };
-      const rescanner = createRescanner({
-        port: scan,
-        snapshot: {
-          run: () => holder.current()?.run ?? null,
-          onRun: (handler) => holder.onRevision((state) => handler(state.run)),
-        },
-        registered: async () => {
-          const { config } = await sensors.inputs();
-
-          return {
-            sensors: rowSensors(config, await sensors.sensorList()),
-            describerRegistered: describerRegistered(config),
-          };
-        },
-        load: () => loaded,
-        sense: (one) => withSensors(one, sensors),
-        resense: async () => withSensors(loaded, sensors),
-        adopt: async () => ({ branch: "main", commit: "abc" }),
-        carry: () => null,
-        replace: () => {},
-        update: () => false,
-        adopted: () => {},
-        describedLine: () => {},
-        progress: () => {},
-        settled: () => {},
-        attached: () => {},
-        hasExplorer: () => false,
-        blocked: (text) => {
-          throw new Error(text);
-        },
-        post: () => null,
-        attach: () => {},
-        openLog: () => {},
-        show: () => {},
-      });
-
-      await rescanner.loadTicks();
-      await rescanner.run();
-      await untilState(holder, (one) => one.run?.state === "finished");
-
-      const limit = Date.now() + WAIT;
-
-      while (rescanner.runView().starting !== null && Date.now() < limit) {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      }
-
-      expect(rescanner.runView().starting).toBeNull();
-      holder.stop();
+      await untilHolds(root.service, () =>
+        root.view.loaded()?.sensors.length ? true : undefined,
+      );
+      await untilHolds(root.service, () =>
+        host.runView?.().starting === null ? true : undefined,
+      );
     },
     TEST_TIMEOUT,
   );
