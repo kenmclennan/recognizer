@@ -146,8 +146,8 @@ describe("recognizer plugin check", () => {
       "protocol",
     ]);
     expect(entry?.reason).toContain("conforming");
+    expect(entry?.reason).toContain("protocol 4");
     expect(entry?.reason).toContain("protocol 3");
-    expect(entry?.reason).toContain("protocol 2");
     expect(entry?.reason).toContain("brew install --cask");
   });
 
@@ -167,7 +167,7 @@ describe("recognizer plugin check", () => {
     const report = await pluginCheck(
       captured.io,
       join(FIXTURES, "conforming/recognizer-scan-conforming"),
-      3,
+      4,
     );
     const warning = report.results.find((one) => one.status === "warn");
 
@@ -226,6 +226,31 @@ describe("recognizer plugin check", () => {
     for (const other of NEW_RESULTS.filter((one) => one !== name)) {
       expect(entries.find((entry) => entry.name === other)?.status).toBe("ok");
     }
+  });
+
+  it.each([
+    ["events_fails_a_stage_past_its_total", "stage-over", /index 4 of 3/],
+    [
+      "events_fails_a_stage_before_any_start",
+      "stage-first",
+      /stage event came before any start/,
+    ],
+    [
+      "events_fails_an_invalid_estimate",
+      "estimate-invalid",
+      /not a valid event/,
+    ],
+  ])("%s", async (_title, fixture, reason) => {
+    const events = await statusOf(fixture, "events");
+
+    expect(events?.status).toBe("fail");
+    expect(events?.reason).toMatch(reason);
+  });
+
+  it("events_passes_a_run_that_reports_stages_and_estimates", async () => {
+    const events = await statusOf("stages-and-estimates", "events");
+
+    expect(events?.status).toBe("ok");
   });
 
   it("fails stop for a plugin that ignores SIGTERM and kills it", async () => {

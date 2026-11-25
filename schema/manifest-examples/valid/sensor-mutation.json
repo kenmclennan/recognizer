@@ -4,7 +4,7 @@
   "display": "Mutation",
   "description": "Mutates covered functions, reruns the tests, and warns where a mutated copy still passes, naming each surviving mutation.",
   "version": "0.1.0",
-  "protocol": 2,
+  "protocol": 3,
   "install": "brew upgrade kenmclennan/tap/recognizer-sense-mutation || brew install kenmclennan/tap/recognizer-sense-mutation",
   "check": true,
   "long_running": true,

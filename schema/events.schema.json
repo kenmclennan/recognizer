@@ -113,6 +113,26 @@
           "minLength": 1
         }
       }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "name", "index", "of"],
+      "properties": {
+        "event": { "const": "stage" },
+        "name": { "type": "string", "minLength": 1 },
+        "index": { "type": "integer", "minimum": 1 },
+        "of": { "type": "integer", "minimum": 1 }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "remaining_ms"],
+      "properties": {
+        "event": { "const": "estimate" },
+        "remaining_ms": { "type": ["integer", "null"], "minimum": 0 }
+      }
     }
   ]
 }

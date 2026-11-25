@@ -441,6 +441,22 @@ export function expandedConfig(document: unknown): Config {
   return expandConfig(document) as Config;
 }
 
+export function registeredSensorNamesIn(text: string): string[] {
+  try {
+    const document = parse(text);
+
+    if (!isPlainObject(document) || !isPlainObject(document.sensors)) {
+      return [];
+    }
+
+    return registeredSensors(expandedConfig({ sensors: document.sensors })).map(
+      ({ name }) => name,
+    );
+  } catch {
+    return [];
+  }
+}
+
 export type ConfigSection =
   | "describer"
   | "install"

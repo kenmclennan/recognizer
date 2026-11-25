@@ -43,7 +43,21 @@ function manifestOf(name: string): string {
   });
 }
 
-function fakeSensor(directory: string, gate: string, name: string): void {
+interface Script {
+  before: string[];
+  after: string[];
+  fails?: boolean;
+}
+
+const emit = (event: object) =>
+  `  echo 'recognizer-event ${JSON.stringify(event)}' >&2`;
+
+function fakeSensor(
+  directory: string,
+  gate: string,
+  name: string,
+  script?: Script,
+): void {
   const manifest = join(gate, `${name}.manifest.json`);
 
   writeFileSync(manifest, manifestOf(name));
@@ -62,10 +76,15 @@ function fakeSensor(directory: string, gate: string, name: string): void {
       `    shift`,
       `  done`,
       `  echo $$ > ${gate}/${name}.pid`,
-      `  echo 'recognizer-event {"event":"start","total":2,"unit":"functions"}' >&2`,
-      `  echo 'recognizer-event {"event":"progress","done":1,"total":2,"unit":"functions"}' >&2`,
+      ...(script?.before ?? [
+        emit({ event: "start", total: 2, unit: "functions" }),
+        emit({ event: "progress", done: 1, total: 2, unit: "functions" }),
+      ]),
       `  while [ -e ${gate}/hold-${name} ]; do sleep 0.1; done`,
-      `  echo 'recognizer-event {"event":"progress","done":2,"total":2,"unit":"functions"}' >&2`,
+      ...(script?.after ?? [
+        emit({ event: "progress", done: 2, total: 2, unit: "functions" }),
+      ]),
+      ...(script?.fails ? [`  exit 1`] : []),
       `  mkdir -p "$(dirname "$out")"`,
       `  printf '{"findings_version":1,"sensor":{"name":"${name}","version":"1"},"commit":"%s","modified":false,"settings":{},"findings":[]}' "$commit" > "$out";;`,
       `esac`,
@@ -73,7 +92,11 @@ function fakeSensor(directory: string, gate: string, name: string): void {
   );
 }
 
-function plugins(gate: string, names: string[]): string {
+function plugins(
+  gate: string,
+  names: string[],
+  scripts: Record<string, Script> = {},
+): string {
   const directory = makeTempDir("serve-state-plugins-");
 
   launcher(
@@ -83,7 +106,7 @@ function plugins(gate: string, names: string[]): string {
   );
 
   for (const name of names) {
-    fakeSensor(directory, gate, name);
+    fakeSensor(directory, gate, name, scripts[name]);
   }
 
   return directory;
@@ -225,6 +248,144 @@ function holdFile(gate: string, name: string): string {
 }
 
 describe("serve repository state", () => {
+  it(
+    "repository_watch_streams_a_plugins_stage_and_estimate",
+    async () => {
+      const gate = makeTempDir("serve-state-gate-");
+      const repository = repositoryWith(["crap"]);
+      const serve = new Serve(
+        plugins(gate, ["crap"], {
+          crap: {
+            before: [
+              emit({ event: "start", total: 2, unit: "functions" }),
+              emit({ event: "stage", name: "one", index: 1, of: 2 }),
+              emit({ event: "estimate", remaining_ms: 7_200_000 }),
+            ],
+            after: [
+              emit({ event: "stage", name: "two", index: 2, of: 2 }),
+              emit({
+                event: "progress",
+                done: 1,
+                total: 2,
+                unit: "functions",
+              }),
+            ],
+          },
+        }),
+      );
+
+      writeFileSync(holdFile(gate, "crap"), "");
+
+      try {
+        const watch = (await serve.call("repository.watch", { repository })).ok;
+
+        await untilState(serve, watch, (state) => state.revision === 1);
+
+        const started = await serve.call("scan.start", {
+          repository,
+          describe: false,
+          analysis: false,
+          sense: ["crap"],
+        });
+        const plugin = (state: Line["state"]) =>
+          state.run?.plugins.find((one: Line) => one.name === "crap");
+
+        await untilState(
+          serve,
+          watch,
+          (state) => plugin(state)?.stage?.index === 1,
+        );
+        rmHold(holdFile(gate, "crap"));
+        await untilState(
+          serve,
+          watch,
+          (state) => plugin(state)?.stage?.index === 2,
+        );
+
+        for (const state of states(serve, watch)) {
+          const seen = plugin(state);
+
+          if (seen?.state === "running" && seen.stage !== null) {
+            expect(seen.estimateMs).toBe(7_200_000);
+          }
+        }
+
+        await serve.outcome(started.ok);
+        await serve.call("repository.unwatch", { watch });
+      } finally {
+        rmHold(holdFile(gate, "crap"));
+        await serve.close();
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "a_failed_sensor_snapshot_carries_its_reason_and_diagnosis",
+    async () => {
+      const gate = makeTempDir("serve-state-gate-");
+      const repository = repositoryWith(["crap"]);
+      const serve = new Serve(
+        plugins(gate, ["crap"], {
+          crap: {
+            before: [
+              emit({ event: "start", total: 2, unit: "functions" }),
+              emit({
+                event: "diagnosis",
+                code: "no-coverage",
+                text: "no coverage report",
+              }),
+            ],
+            after: [],
+            fails: true,
+          },
+        }),
+      );
+
+      try {
+        const watch = (await serve.call("repository.watch", { repository })).ok;
+
+        await untilState(serve, watch, (state) => state.revision === 1);
+
+        const started = await serve.call("scan.start", {
+          repository,
+          describe: false,
+          analysis: false,
+          sense: ["crap"],
+        });
+
+        await serve.outcome(started.ok);
+
+        const failed = await untilState(
+          serve,
+          watch,
+          (state) => pluginStates(state, "crap") === "failed",
+        );
+        const plugin = failed.run.plugins.find(
+          (one: Line) => one.name === "crap",
+        );
+
+        expect(plugin.failure.reason).not.toBe("");
+        expect(plugin.failure.diagnosis.code).toBe("no-coverage");
+
+        for (const state of states(serve, watch)) {
+          const seen = state.run?.plugins.find(
+            (one: Line) => one.name === "crap",
+          );
+
+          if (seen?.state === "failed") {
+            expect(seen.failure).not.toBeNull();
+          }
+        }
+
+        await serve.call("repository.unwatch", { watch });
+      } finally {
+        await serve.close();
+      }
+    },
+    TIMEOUT,
+  );
+
   it(
     "repository_watch_streams_revisions_through_a_long_run",
     async () => {

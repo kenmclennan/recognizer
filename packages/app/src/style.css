@@ -2317,6 +2317,13 @@ svg.i.chevron {
   white-space: nowrap;
 }
 
+.scan-state.bad {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
 .summary {
   display: flex;
   gap: 8px;

@@ -1,4 +1,4 @@
-import type { Diagnosis } from "@recognizer/core";
+import type { Diagnosis, RunView } from "@recognizer/core";
 import type { ScanRunRecord } from "recognizer";
 import { buildFreshness, tickedPhases } from "recognizer";
 import { describe, expect, it } from "vitest";
@@ -243,6 +243,28 @@ describe("scanPanel rows", () => {
     expect(model.rows).toEqual([]);
     expect(model.reports).toEqual([]);
     expect(scanPanel(input()).pending).toBe(false);
+  });
+
+  it("keeps the C.R.A.P. and Mutation rows with the settings error as their reason when a test suite has no language", () => {
+    const config = `sensors:
+  crap: {}
+  mutation: {}
+tests:
+  - name: unit
+`;
+    const rows = scanPanel(input({ config })).rows.filter(
+      (row) => row.key === "crap" || row.key === "mutation",
+    );
+
+    expect(rows.map((row) => row.key)).toEqual(["crap", "mutation"]);
+
+    for (const row of rows) {
+      expect(row.unregistered).toBeUndefined();
+      expect(row.tone).toBe("bad");
+      expect(row.text.text).not.toBe("not registered");
+      expect(row.text.text.length).toBeGreaterThan(0);
+      expect(row.stateTitle).toBe(row.text.text);
+    }
   });
 
   it("lists an installed sensor once", () => {
@@ -1325,6 +1347,31 @@ describe("scanPanel freshness", () => {
     });
   });
 
+  it("a_run_ending_with_no_edits_never_shows_an_update_offer", () => {
+    const given = base({ "a.py": "ha", "b.py": "hb" });
+    const ended = {
+      phase: "finished" as const,
+      ended_at: "2026-11-12T09:00:05.000Z",
+      exit: 0,
+    };
+    const sequence = [
+      { ...given, ...runOf({ phase: "running" }), scanning: true },
+      { ...given, ...runOf(ended), scanning: false },
+      { ...given, ...runOf(ended), scanning: false },
+    ];
+    const models = sequence.map((one) => scanPanel(one));
+    const first = sequence.findIndex(
+      (one) => one.runView?.run?.state === "finished",
+    );
+
+    expect(first).toBeGreaterThan(0);
+
+    for (const model of models.slice(first)) {
+      expect(model.button.label).not.toMatch(/^Update/);
+      expect(model.freshness.update).toEqual([]);
+    }
+  });
+
   it("reads a sensor with no findings document as never run and offers to run it", () => {
     const model = scanPanel({
       ...base({}),
@@ -1666,10 +1713,38 @@ function record(over: Partial<ScanRunRecord> = {}): ScanRunRecord {
   };
 }
 
+function runFrom(one: ScanRunRecord): RunView {
+  const active = one.phase === "checking" || one.phase === "running";
+
+  return {
+    id: one.run_id,
+    startedBy: one.started_by,
+    startedAt: one.started_at,
+    scope: { kind: "working-tree" },
+    sensors: one.sensors,
+    describe: one.describe,
+    suites: one.suites,
+    state: one.phase,
+    endedAt: one.ended_at,
+    exit: one.exit,
+    gaps: one.gaps,
+    failure: one.failure,
+    ran: one.ran,
+    plugins: one.sensors.map((name) => ({
+      name,
+      state: active ? "queued" : "finished",
+      progress: null,
+      stage: null,
+      estimateMs: null,
+      failure: null,
+    })),
+  };
+}
+
 function runOf(over: Partial<ScanRunRecord> = {}): Partial<PanelInput> {
   return {
     runView: {
-      record: record(over),
+      run: runFrom(record(over)),
       progress: NO_PROGRESS,
       starting: null,
       adoptedAtOpen: null,
@@ -2048,35 +2123,6 @@ describe("scanPanel estimate line", () => {
 
     expect(bring.planned?.work.describe).toBe(1);
     expect(full.planned?.work.describe).toBe(3);
-  });
-
-  it("freezes each suite's past durations beside the figures", () => {
-    const suites = [
-      { name: "a", durationMs: 40000 },
-      { name: "b", durationMs: 60000 },
-    ];
-    const sample = history.sense.mutation?.[0];
-
-    if (sample === undefined) {
-      throw new Error("the fixture history has no mutation sample");
-    }
-
-    const withSuites = {
-      ...history,
-      sense: { mutation: [{ ...sample, suites }] },
-    };
-
-    expect(
-      scanPanel(mutating({ history: withSuites })).planned?.suiteHistory,
-    ).toEqual({ mutation: { a: [40000], b: [60000] } });
-    expect(scanPanel(mutating()).planned?.suiteHistory).toBeUndefined();
-  });
-
-  it("freezes the figures the run will count", () => {
-    expect(scanPanel(mutating()).planned?.frozen).toEqual({
-      structure: 6000,
-      mutation: 160000,
-    });
   });
 });
 

@@ -89,31 +89,10 @@ export type ScanProgress = {
   timing: ScanTiming;
 };
 
-export type RunWork = {
-  work: number;
-  queued: boolean;
-  unit: string;
-  at: number | null;
-  current: string | null;
-  steps: Record<
-    string,
-    { first: number; latest: number; firstAt: number; lastAt: number }
-  >;
-};
-
-export type SuiteHistory = Record<string, Record<string, number[]>>;
-
 export type ScanTiming = {
-  phaseAt: Record<string, number>;
-  sensorAt: Record<string, number>;
   extractAt: Record<string, number>;
   extractDoneAt: Record<string, number>;
   extractTotals: Record<string, number>;
-  describeFrom: number | null;
-  rateFrom: { at: number; done: number; unit: string; step?: string } | null;
-  runWork: RunWork | null;
-  frozen: Record<string, number> | null;
-  suiteHistory: SuiteHistory | null;
 };
 
 export type ShowTarget =
@@ -137,16 +116,9 @@ export const NO_PROGRESS: ScanProgress = {
   sensing: null,
   log: null,
   timing: {
-    phaseAt: {},
-    sensorAt: {},
     extractAt: {},
     extractDoneAt: {},
     extractTotals: {},
-    describeFrom: null,
-    rateFrom: null,
-    runWork: null,
-    frozen: null,
-    suiteHistory: null,
   },
 };
 

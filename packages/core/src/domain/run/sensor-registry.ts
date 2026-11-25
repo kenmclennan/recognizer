@@ -122,6 +122,7 @@ export class SensorRegistry {
   unreadable(
     reason: string,
     names: readonly string[] = this.registered,
+    cause = "the plugin catalog cannot be read",
   ): SensorRegistry {
     const kept = new Map(this.entries.map((entry) => [entry.name, entry]));
     const entries: RegistryEntry[] = names.map((name) => {
@@ -133,7 +134,7 @@ export class SensorRegistry {
             name,
             registered: true,
             manifest: null,
-            reason: `the plugin catalog cannot be read: ${reason}`,
+            reason: `${cause}: ${reason}`,
           };
     });
     const others = this.entries.filter(

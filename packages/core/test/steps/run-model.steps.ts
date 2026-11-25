@@ -89,6 +89,29 @@ When(
   },
 );
 
+When(
+  "the first plugin reports three stages and one estimate of 3 hours",
+  function (this: ScanWorld) {
+    const { active } = this.fakes;
+    const { holder } = trial(this);
+
+    active.report(
+      { kind: "plugin-started", name: "first", progress: null },
+      { kind: "plugin-estimate", name: "first", estimateMs: 10_800_000 },
+    );
+    holder.refresh();
+
+    for (const index of [1, 2, 3]) {
+      active.report({
+        kind: "plugin-stage",
+        name: "first",
+        stage: { name: `stage ${index}`, index, of: 3 },
+      });
+      holder.refresh();
+    }
+  },
+);
+
 When("the plugin catalog cannot be read", function (this: ScanWorld) {
   this.fakes.catalog.failReads = true;
   trial(this).holder.refresh();
@@ -179,6 +202,33 @@ Then(
         .run?.plugins.map(({ state }) => state),
       ["finished", "running", "queued"],
     );
+  },
+);
+
+Then(
+  "every revision carries the estimate of 10800000 and a stage index that never falls",
+  function (this: ScanWorld) {
+    let index = 0;
+    let seenStage = false;
+
+    for (const state of trial(this).seen) {
+      const plugin = state.run?.plugins.find(({ name }) => name === "first");
+
+      if (plugin === undefined || plugin.state !== "running") {
+        continue;
+      }
+
+      assert.equal(plugin.estimateMs, 10_800_000);
+
+      const now = plugin.stage?.index ?? 0;
+
+      assert.ok(now >= index);
+      index = now;
+      seenStage ||= now > 0;
+    }
+
+    assert.equal(index, 3);
+    assert.ok(seenStage);
   },
 );
 

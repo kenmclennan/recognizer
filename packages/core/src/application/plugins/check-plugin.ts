@@ -741,6 +741,25 @@ export function runVerb(
   };
 }
 
+function stageTotalProblem(line: string): string | null {
+  try {
+    const value = JSON.parse(line.slice(EVENT_PREFIX.length)) as {
+      event?: unknown;
+      index?: unknown;
+      of?: unknown;
+    };
+
+    return value.event === "stage" &&
+      typeof value.index === "number" &&
+      typeof value.of === "number" &&
+      value.index > value.of
+      ? `a stage reports index ${value.index} of ${value.of}`
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function eventsResult(
   facts: RunFacts,
   valid: (value: unknown) => boolean,
@@ -762,10 +781,22 @@ export function eventsResult(
     const parsed = parseEventLine(line, valid);
 
     if (parsed.kind !== "event") {
-      return fail("events", `an event line is not a valid event: ${line}`);
+      const past = stageTotalProblem(line);
+
+      return fail(
+        "events",
+        past ?? `an event line is not a valid event: ${line}`,
+      );
     }
 
     const event: PluginEvent = parsed.event;
+
+    if ((event.event === "stage" || event.event === "estimate") && !started) {
+      return fail(
+        "events",
+        `a ${event.event} event came before any start event`,
+      );
+    }
 
     if (event.event === "start") {
       started = true;

@@ -30,7 +30,14 @@ function entry(name: string, registered = true, manifest = true) {
 }
 
 function plugin(name: string, state: PluginRunView["state"]): PluginRunView {
-  return { name, state, progress: null, stage: null, estimateMs: null };
+  return {
+    name,
+    state,
+    progress: null,
+    stage: null,
+    estimateMs: null,
+    failure: null,
+  };
 }
 
 function run(
@@ -49,6 +56,9 @@ function run(
     state,
     endedAt: null,
     exit: null,
+    gaps: [],
+    failure: null,
+    ran: null,
     plugins,
   };
 }
@@ -232,6 +242,21 @@ describe("repository state model", () => {
     expect(rows[0]?.status).toBe("stale");
     expect(rows[1]?.status).toBe("not run");
   });
+
+  it("a_finished_run_with_current_freshness_reads_ran_not_stale", () => {
+    const finished = {
+      ...run("finished", [plugin("crap", "finished")]),
+      endedAt: "2026-11-24T10:05:00Z",
+      exit: 0,
+    };
+    const state = snapshot(4, ["crap"], {
+      run: finished,
+      results: resultFor("crap"),
+      freshness: { crap: { state: "current", outOfDate: [] } },
+    });
+
+    expect(sensorRows(state)[0]?.status).toBe("ran");
+  });
 });
 
 describe("the installed sensors and stored results the app reads from a snapshot", () => {
@@ -348,6 +373,9 @@ describe("the run card reads the snapshot's last finished run", () => {
         state,
         endedAt,
         exit: 0,
+        gaps: [],
+        failure: null,
+        ran: null,
         plugins: [],
       },
     });

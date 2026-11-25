@@ -12,6 +12,7 @@ from recognizer_sensors import events
 from recognizer_sensors.crap.jacoco import merge_coverage, parse_jacoco
 from recognizer_sensors.crap.lcov import Coverage, parse_lcov
 from recognizer_sensors.hashes import listed_files
+from recognizer_sensors.history import Tracker
 from recognizer_sensors.mutation import commands
 from recognizer_sensors.mutation.commands import (
     csharp_class_command,
@@ -690,6 +691,7 @@ def coverage_run(
     carry: tuple[str, ...] = (),
     seconds: dict[str, float] | None = None,
     names: list[str] | None = None,
+    tracker: Tracker | None = None,
 ) -> tuple[Coverage, Selection | ContextSelection]:
     scanned = [scan.language for scan in scans]
     runnable = [suite for suite in selected(suites, names) if suite.language in scanned]
@@ -715,12 +717,15 @@ def coverage_run(
 
     counted = len(runnable) > 1
 
-    if counted:
+    if counted or tracker is not None:
         events.start(len(runnable), "suites")
 
     for position, suite in enumerate(runnable):
         if counted:
             events.progress(position, len(runnable), "suites", suite.name)
+
+        if tracker is not None:
+            tracker.stage(f"Coverage run: {suite.name}")
 
         command = suite.command
         extra: dict[str, str] = {}

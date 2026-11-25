@@ -253,8 +253,25 @@ describe("usage errors", () => {
     const result = run(box, [...MODEL, writeRequest(box, REQUEST)]);
 
     expect(result.status).toBe(0);
+    expect(
+      eventsOf(result.stderr).filter((event) =>
+        ["start", "progress"].includes(event.event as string),
+      ),
+    ).toEqual([
+      { event: "start", total: 1, unit: "files" },
+      { event: "progress", done: 1, total: 1, unit: "files" },
+    ]);
+  });
+
+  it("emits a stage then a null estimate after the start", () => {
+    const box = sandbox();
+    const result = run(box, [...MODEL, writeRequest(box, REQUEST)]);
+
+    expect(result.status).toBe(0);
     expect(eventsOf(result.stderr)).toEqual([
       { event: "start", total: 1, unit: "files" },
+      { event: "stage", name: "describe", index: 1, of: 1 },
+      { event: "estimate", remaining_ms: null },
       { event: "progress", done: 1, total: 1, unit: "files" },
     ]);
   });

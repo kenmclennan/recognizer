@@ -1,4 +1,4 @@
-import type { PluginRunState, RunView } from "@recognizer/core";
+import type { PluginFailure, PluginRunState, RunView } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { sensorEventsBetween } from "../../src/run-snapshot-events";
 
@@ -6,6 +6,7 @@ function run(
   id: string,
   plugins: [string, PluginRunState][],
   progress: Record<string, { done: number; total: number; unit: string }> = {},
+  failures: Record<string, PluginFailure> = {},
 ): RunView {
   return {
     id,
@@ -18,12 +19,16 @@ function run(
     state: "running",
     endedAt: null,
     exit: null,
+    gaps: [],
+    failure: null,
+    ran: null,
     plugins: plugins.map(([name, state]) => ({
       name,
       state,
       progress: progress[name] ?? null,
       stage: null,
       estimateMs: null,
+      failure: failures[name] ?? null,
     })),
   };
 }
@@ -56,14 +61,13 @@ describe("sensorEventsBetween", () => {
     expect(sensorEventsBetween(after, after)).toEqual([]);
   });
 
-  it("carries the failure detail it is handed and reports progress changes", () => {
+  it("reports progress changes", () => {
     const before = run("r1", [["a", "running"]], {
       a: { done: 1, total: 4, unit: "files" },
     });
     const moved = run("r1", [["a", "running"]], {
       a: { done: 2, total: 4, unit: "files" },
     });
-    const failed = run("r1", [["a", "failed"]]);
 
     expect(sensorEventsBetween(before, moved)).toEqual([
       {
@@ -73,17 +77,48 @@ describe("sensorEventsBetween", () => {
         data: { event: "progress", done: 2, total: 4, unit: "files" },
       },
     ]);
-    expect(
-      sensorEventsBetween(moved, failed, () => ({ reason: "boom" })),
-    ).toEqual([
+  });
+
+  it("a_failed_plugin_event_carries_the_runs_reason_and_diagnosis", () => {
+    const diagnosis = { code: "no-coverage", line: "no report" };
+    const before = run("r1", [["a", "running"]]);
+    const failed = run(
+      "r1",
+      [["a", "failed"]],
+      {},
+      {
+        a: { reason: "boom", diagnosis },
+      },
+    );
+
+    expect(sensorEventsBetween(before, failed)).toEqual([
       {
         event: "entry",
         phase: "sense",
         name: "a",
         outcome: "failed",
         reason: "boom",
+        diagnosis,
       },
     ]);
+  });
+
+  it("a_failed_plugin_never_reads_the_reason_failed_when_the_run_has_one", () => {
+    const before = run("r1", [["a", "running"]]);
+    const failed = run(
+      "r1",
+      [["a", "failed"]],
+      {},
+      {
+        a: { reason: "the suite web left no coverage", diagnosis: null },
+      },
+    );
+    const [entry] = sensorEventsBetween(before, failed);
+
+    expect(entry).toMatchObject({
+      reason: "the suite web left no coverage",
+    });
+    expect(entry).not.toHaveProperty("diagnosis");
   });
 
   it("starts afresh for a different run", () => {

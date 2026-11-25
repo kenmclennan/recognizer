@@ -18,6 +18,7 @@ export class FakeConfigRepository implements ConfigRepository {
   uninstalled: string[] = [];
   settings: StructureSettings | "off" = DEFAULT_STRUCTURE_SETTINGS;
   sensors: string[] = [];
+  failSensorConfig: string | null = null;
 
   constructor(private readonly invented: FakeSensors) {}
 
@@ -38,6 +39,10 @@ export class FakeConfigRepository implements ConfigRepository {
   }
 
   sensorConfig(): ConfigDocument | null {
+    if (this.failSensorConfig !== null) {
+      throw new Error(this.failSensorConfig);
+    }
+
     return this.document();
   }
 
@@ -105,6 +110,10 @@ export class FakeConfigRepository implements ConfigRepository {
   }
 
   sensorNames(): string[] {
+    return [...this.sensors];
+  }
+
+  sensorNamesDespiteErrors(): string[] {
     return [...this.sensors];
   }
 }

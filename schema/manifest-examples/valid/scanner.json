@@ -3,7 +3,7 @@
   "name": "python",
   "display": "Python",
   "version": "0.1.0",
-  "protocol": 2,
+  "protocol": 3,
   "install": "brew install --cask kenmclennan/tap/recognizer",
   "check": false,
   "long_running": true,

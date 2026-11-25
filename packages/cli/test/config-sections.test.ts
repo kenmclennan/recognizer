@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
+import { registeredSensorNamesIn } from "../src/config-parse.js";
 import {
   fakeIo,
   OFFICIAL_ON_PATH,
@@ -209,5 +210,18 @@ describe("each command refuses only the sections it reads", () => {
     expect(
       [...fake.files.keys()].filter((file) => file.endsWith("structure.json")),
     ).toEqual([]);
+  });
+});
+
+describe("registeredSensorNamesIn", () => {
+  it("names the registered sensors of a config whose test suite has no language", () => {
+    const text =
+      "sensors:\n  crap: {}\n  mutation: {}\ntests:\n  - name: unit\n";
+
+    expect(registeredSensorNamesIn(text)).toEqual(["crap", "mutation"]);
+  });
+
+  it("names nothing for text that is not YAML", () => {
+    expect(registeredSensorNamesIn("sensors: [unclosed")).toEqual([]);
   });
 });

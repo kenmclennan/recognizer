@@ -27,6 +27,9 @@ export class FakeActiveRunRepository implements ActiveRunRepository {
       phase: "checking",
       endedAt: null,
       exit: null,
+      gaps: [],
+      failure: null,
+      ran: null,
       ...changes,
     };
     this.kind = "live";
@@ -50,12 +53,14 @@ export class FakeActiveRunRepository implements ActiveRunRepository {
   end(
     phase: "finished" | "failed" | "stopped" | "refused",
     endedAt: string | null = "2026-11-24T10:05:00.000Z",
+    facts: Partial<Pick<MarkerFacts, "gaps" | "failure" | "ran">> = {},
   ): void {
     this.phase(phase);
     this.record = {
       ...(this.record as MarkerFacts),
       endedAt,
       exit: phase === "finished" ? 0 : 1,
+      ...facts,
     };
     this.kind = "ended";
   }

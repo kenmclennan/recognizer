@@ -35,6 +35,7 @@ export function fakeRunSnapshot(
     progress: null,
     stage: null,
     estimateMs: null,
+    failure: null,
   });
 
   const withPlugin = (
@@ -84,6 +85,9 @@ export function fakeRunSnapshot(
           : (ENDED_STATE[record.phase] ?? "stopped"),
         endedAt: record.ended_at,
         exit: record.exit,
+        gaps: record.gaps,
+        failure: record.failure,
+        ran: record.ran,
         plugins: same
           ? (held?.plugins ?? [])
           : record.sensors.map(queuedPlugin),
@@ -109,6 +113,14 @@ export function fakeRunSnapshot(
             : parsed.outcome === "stopped"
               ? "stopped"
               : "failed",
+        ...(parsed.outcome === "failed"
+          ? {
+              failure: {
+                reason: parsed.reason ?? "failed",
+                diagnosis: parsed.diagnosis ?? null,
+              },
+            }
+          : {}),
       }));
     } else if (
       parsed.event === "plugin" &&

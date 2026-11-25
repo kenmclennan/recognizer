@@ -72,9 +72,11 @@ function versions(): string[] {
 function events(): string[] {
   return lines(
     "5. Events",
-    "A plugin reports while it runs by writing JSON lines on stderr, each prefixed `recognizer-event `. Every kind uses the same four events:",
+    "A plugin reports while it runs by writing JSON lines on stderr, each prefixed `recognizer-event `. Every kind uses the same six events:",
     "  - start {total, unit, queued?, not_measured?}: how much work there is, in the unit the manifest names. queued is how many of the units this run will do across every step, and not_measured {reused, no_covered_site, out_of_scope} counts the rest by reason. A plugin may omit queued and not_measured, and a reader must not require them.",
-    '  - progress {done, total, unit, step?}: step is an optional label for the stage, such as "Coverage run"; a plugin running several stages reports each as a step, with queued on its start, so the time left can be paced on the whole run. done never passes total and unit is the one the last start counted.',
+    "  - progress {done, total, unit, step?}: how far along the plugin is. done never passes total and unit is the one the last start counted. step is superseded by stage: it is still valid, but nothing reads it.",
+    '  - stage {name, index, of}: the stage the plugin is in, such as "Coverage run". index counts from 1 and never passes of. A plugin that runs several stages reports each as it starts.',
+    "  - estimate {remaining_ms}: the plugin's own estimate of the awake time left for its whole run, never for one stage, or null when it cannot say. A later estimate replaces the earlier one. A plugin that reports none is shown as having none.",
     "  - note {text}: a line for the user.",
     "  - diagnosis {code, text, fix?}: why something could not be measured, in the plugin's own words, with the fix where there is one. Codes belong to the plugin; Recognizer keeps no list of them.",
     "The CLI tags each event with the plugin's name and forwards it unchanged. The events schema is `recognizer plugin schema events`.",

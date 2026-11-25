@@ -46,6 +46,7 @@ def test_protocol_equals_the_shared_protocol_file():
     shared = json.loads((REPOSITORY / "schema" / "protocol.json").read_text())
 
     assert shared == {"protocol": PROTOCOL}
+    assert PROTOCOL == 3
 
 
 @pytest.mark.parametrize("name", NAMES)
@@ -293,3 +294,7 @@ def test_crap_and_mutation_manifests_declare_name_and_variable_placeholders_with
         "variable": "^[A-Za-z_][A-Za-z0-9_]*$",
     }
     assert all(entry["description"] for entry in crap.values())
+
+
+def test_both_sensors_declare_protocol_3():
+    assert [build(name)["protocol"] for name in NAMES] == [3, 3]

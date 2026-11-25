@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from conftest import REPOSITORY, git_commit, make_repository, plain_lines, write_scans
+from conftest import REPOSITORY, event_lines, git_commit, make_repository, plain_lines, write_scans
 from jsonschema import Draft202012Validator
 
 from recognizer_sensors import hashes
@@ -848,6 +848,7 @@ def test_only_the_findings_and_the_overlay_are_written(sample, tmp_path):
         ".recognizer/cache/.gitignore",
         ".recognizer/cache/overlays/crap.json",
         ".recognizer/cache/coverage/last-run.log",
+        ".recognizer/cache/crap/history.json",
         ".recognizer/cache/suites/crap.json",
     }
     assert (tmp_path / "out.json").exists()
@@ -1109,3 +1110,17 @@ def test_a_source_change_under_an_unselected_suite_marks_its_module_out_of_date(
     _, third, _ = crap_suites(root, tmp_path, two_suite_settings())
 
     assert third["inputs"]["web/b.py"] == hashes.file_sha256(root / "web/b.py")
+
+
+def test_crap_reports_its_stages_in_order(sample, tmp_path, capsys):
+    git_commit(sample)
+    status, _, _ = produced(sample, tmp_path)
+
+    assert status == 0
+
+    stages = [line for line in event_lines(capsys.readouterr().err) if line["event"] == "stage"]
+
+    assert [stage["index"] for stage in stages] == [1, 2, 3]
+    assert {stage["of"] for stage in stages} == {3}
+    assert [stage["name"] for stage in stages][-1] == "Measure functions"
+    assert all(stage["name"].startswith("Coverage run: ") for stage in stages[:-1])

@@ -46,3 +46,11 @@ def diagnosis(value: dict) -> None:
         event["fix"] = value["fix"]
 
     emit(event)
+
+
+def stage(name: str, index: int, of: int) -> None:
+    emit({"event": "stage", "name": name, "index": index, "of": of})
+
+
+def estimate(remaining_ms: int | None) -> None:
+    emit({"event": "estimate", "remaining_ms": remaining_ms})

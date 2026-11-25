@@ -635,7 +635,10 @@ describe.skipIf(!HAS_UV)(
         );
         const data = plugin.map((event) => event.data);
         const progress = data.filter((event) => event.event === "progress");
-        const start = data.find((event) => event.event === "start");
+        const start = data.find(
+          (event) => event.event === "start" && event.unit === "functions",
+        );
+        const stages = data.filter((event) => event.event === "stage");
 
         expect(plugin.every((event) => event.name === "mutation")).toBe(true);
         expect(plugin.every((event) => event.phase === "sense")).toBe(true);
@@ -643,10 +646,14 @@ describe.skipIf(!HAS_UV)(
         expect(events.lastIndexOf(plugin.at(-1))).toBeLessThan(
           names.indexOf("entry", names.indexOf("start")),
         );
-        expect(data[0]).toEqual({
+        expect(data[0]).toMatchObject({ event: "start" });
+        expect(data).toContainEqual({
           event: "note",
           text: "Coverage run: sample",
         });
+        expect(stages.length).toBe(2);
+        expect(stages.map((event) => event.index)).toEqual([1, 2]);
+        expect(stages.every((event) => event.of === 2)).toBe(true);
         expect(start).toMatchObject({ event: "start", unit: "functions" });
 
         const overlay = JSON.parse(

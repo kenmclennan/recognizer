@@ -24,12 +24,25 @@ export type PluginEvent =
       step?: string;
     }
   | { event: "note"; text: string }
-  | { event: "diagnosis"; code: string; text: string; fix?: string };
+  | { event: "diagnosis"; code: string; text: string; fix?: string }
+  | { event: "stage"; name: string; index: number; of: number }
+  | { event: "estimate"; remaining_ms: number | null };
 
 export type ParsedLine =
   | { kind: "event"; event: PluginEvent }
   | { kind: "invalid" }
   | { kind: "text" };
+
+function stagePastItsTotal(value: unknown): boolean {
+  const event = value as { event?: unknown; index?: unknown; of?: unknown };
+
+  return (
+    event.event === "stage" &&
+    typeof event.index === "number" &&
+    typeof event.of === "number" &&
+    event.index > event.of
+  );
+}
 
 export function parseEventLine(
   line: string,
@@ -47,9 +60,11 @@ export function parseEventLine(
     return { kind: "invalid" };
   }
 
-  return validate(value)
-    ? { kind: "event", event: value as PluginEvent }
-    : { kind: "invalid" };
+  if (!validate(value) || stagePastItsTotal(value)) {
+    return { kind: "invalid" };
+  }
+
+  return { kind: "event", event: value as PluginEvent };
 }
 
 export interface EventReader {
@@ -73,8 +88,7 @@ export function createEventReader(
   let invalid = 0;
   let diagnosis: Diagnosis | null = null;
   let firstWorked: number | null = null;
-  let stepUnit: string | null = null;
-  const stepped = new Map<string, { first: number; last: number }>();
+  const staged: { name: string; at: number }[] = [];
 
   return {
     line: (line) => {
@@ -100,24 +114,12 @@ export function createEventReader(
         };
       }
 
-      const at =
-        event.event === "progress" &&
-        (event.done > 0 || event.step !== undefined)
-          ? now()
-          : 0;
-
       if (event.event === "progress" && event.done > 0) {
-        firstWorked ??= at;
+        firstWorked ??= now();
       }
 
-      if (event.event === "progress" && event.step !== undefined) {
-        stepUnit ??= event.unit;
-
-        if (event.unit === stepUnit) {
-          const seen = stepped.get(event.step);
-
-          stepped.set(event.step, { first: seen?.first ?? at, last: at });
-        }
+      if (event.event === "stage") {
+        staged.push({ name: event.name, at: now() });
       }
 
       onEvent?.(event);
@@ -138,10 +140,16 @@ export function createEventReader(
     },
     diagnosis: () => diagnosis,
     firstWorked: () => firstWorked,
-    suites: () =>
-      [...stepped].map(([name, { first, last }]) => ({
+    suites: () => {
+      const end = now();
+
+      return staged.map(({ name, at }, index) => ({
         name,
-        duration_ms: Math.max(0, Math.round(last - first)),
-      })),
+        duration_ms: Math.max(
+          0,
+          Math.round((staged[index + 1]?.at ?? end) - at),
+        ),
+      }));
+    },
   };
 }

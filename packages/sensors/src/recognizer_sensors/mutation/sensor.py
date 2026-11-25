@@ -20,6 +20,7 @@ from recognizer_sensors.hashes import (
     support_hash,
     test_hashes,
 )
+from recognizer_sensors.history import Tracker, key_of, rate_estimate
 from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.mutation.commands import RUST_UNITS, mutant_command, selected_command
 from recognizer_sensors.mutation.inline_tests import unit_test_hashes
@@ -1095,6 +1096,29 @@ def measure(
     ticked = {suite.name for suite in selected(suites, names)}
     stored_entries = read_entries(repository, "mutation")
     warmup_seconds: dict[str, float] = {}
+    staged_suites = [
+        suite.name
+        for suite in suites
+        if suite.name in ticked and any(scan.language == suite.language for scan in scans)
+    ]
+    units_left: dict[str, int | None] = {"count": None}
+    tracker = Tracker(
+        repository,
+        "mutation",
+        key_of(ticked),
+        2 * len(staged_suites),
+        lambda runs, elapsed: rate_estimate(runs, units_left["count"]),
+    )
+    reached: set[str] = set()
+
+    def reach(name: str) -> None:
+        for candidate in staged_suites:
+            if candidate not in reached:
+                reached.add(candidate)
+                tracker.stage(f"Mutation run: {candidate}")
+
+            if candidate == name:
+                break
 
     try:
         with PeakSampler() as sampler:
@@ -1105,6 +1129,7 @@ def measure(
                 work,
                 seconds=warmup_seconds,
                 names=names,
+                tracker=tracker,
                 **({"carry": settings["carry"]} if "carry" in settings else {}),
             )
     except (StoppedBeforeMutation, MeasurementError):
@@ -1281,6 +1306,7 @@ def measure(
     settled = [
         t for t in targets if t.suite in ran_names and in_scope(t) and t.identity not in queued
     ]
+    units_left["count"] = len(queue)
     events.start(
         sum(suite_total.values()),
         "functions",
@@ -1293,8 +1319,12 @@ def measure(
     )
 
     if queue:
+        reach(queue[0].suite)
         announce(queue[0].suite)
     else:
+        if staged_suites:
+            reach(staged_suites[-1])
+
         for name in suite_total:
             announce(name)
 
@@ -1531,13 +1561,17 @@ def measure(
                 done.add(target.identity)
                 suite_done[target.suite] += 1
                 waiting[target.suite] -= 1
+                units_left["count"] = len(queue) - len(done)
                 announce(target.suite)
 
                 if waiting[target.suite] == 0:
                     upcoming = [name for name in waiting if waiting[name] > 0]
 
                     if upcoming:
+                        reach(upcoming[0])
                         announce(upcoming[0])
+
+                tracker.estimate()
                 now = CLOCK()
 
                 if now - last["at"] >= CHECKPOINT_SECONDS:
@@ -1593,6 +1627,12 @@ def measure(
 
             homes_stack.close()
             restore_handler()
+
+    if staged_suites:
+        reach(staged_suites[-1])
+
+    if queue and not stopped and refused is None and len(done) == len(queue):
+        tracker.finish(len(queue))
 
     outcome, measured, skipped_ids, reused = assemble(done, stopped)
 

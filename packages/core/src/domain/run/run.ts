@@ -1,8 +1,11 @@
 import { InvalidEntity } from "../invalid-entity.js";
+import type { RunFailure } from "../run-record.js";
 import {
+  type PluginFailure,
   PluginRun,
   type PluginRunEnd,
   type PluginRunView,
+  type PluginStage,
   type Progress,
 } from "./plugin-run.js";
 import type { ReportedResult, ResultAt } from "./result-set.js";
@@ -23,17 +26,33 @@ export type RunState =
 
 export type RunEndState = "finished" | "failed" | "stopped" | "refused";
 
+export interface RunGap {
+  id: string;
+  line: string;
+  needs: string[];
+}
+
 export interface RunEnd {
   state: RunEndState;
   endedAt: string | null;
   exit: number | null;
+  gaps?: readonly RunGap[];
+  failure?: RunFailure | null;
+  ran?: readonly string[] | null;
 }
 
 export type RunReport =
   | { kind: "running" }
   | { kind: "plugin-started"; name: string; progress: Progress | null }
   | { kind: "plugin-progress"; name: string; progress: Progress }
-  | { kind: "plugin-ended"; name: string; state: PluginRunEnd }
+  | { kind: "plugin-stage"; name: string; stage: PluginStage }
+  | { kind: "plugin-estimate"; name: string; estimateMs: number | null }
+  | {
+      kind: "plugin-ended";
+      name: string;
+      state: PluginRunEnd;
+      failure?: PluginFailure;
+    }
   | {
       kind: "plugin-result";
       name: string;
@@ -60,6 +79,9 @@ export interface RunView {
   state: RunState;
   endedAt: string | null;
   exit: number | null;
+  gaps: RunGap[];
+  failure: RunFailure | null;
+  ran: string[] | null;
   plugins: PluginRunView[];
 }
 
@@ -72,6 +94,9 @@ export interface RunFields {
   state: RunState;
   endedAt: string | null;
   exit: number | null;
+  gaps?: readonly RunGap[];
+  failure?: RunFailure | null;
+  ran?: readonly string[] | null;
   plugins: readonly PluginRun[];
 }
 
@@ -86,6 +111,9 @@ export class Run {
   readonly state: RunState;
   readonly endedAt: string | null;
   readonly exit: number | null;
+  readonly gaps: readonly RunGap[];
+  readonly failure: RunFailure | null;
+  readonly ran: readonly string[] | null;
   readonly plugins: readonly PluginRun[];
 
   constructor(fields: RunFields) {
@@ -99,6 +127,9 @@ export class Run {
     this.state = fields.state;
     this.endedAt = fields.endedAt;
     this.exit = fields.exit;
+    this.gaps = fields.gaps ?? [];
+    this.failure = fields.failure ?? null;
+    this.ran = fields.ran ?? null;
     this.plugins = [...fields.plugins];
   }
 
@@ -182,6 +213,9 @@ export class Run {
       state: this.state,
       endedAt: this.endedAt,
       exit: this.exit,
+      gaps: this.gaps,
+      failure: this.failure,
+      ran: this.ran,
       plugins: this.plugins,
       ...changes,
     });
@@ -239,9 +273,23 @@ export class Run {
             this.plugin(report.name).progressed(report.progress),
           ),
         });
+      case "plugin-stage":
+        return this.with({
+          plugins: this.replacing(
+            this.plugin(report.name).staged(report.stage),
+          ),
+        });
+      case "plugin-estimate":
+        return this.with({
+          plugins: this.replacing(
+            this.plugin(report.name).estimated(report.estimateMs),
+          ),
+        });
       case "plugin-ended":
         return this.with({
-          plugins: this.replacing(this.plugin(report.name).end(report.state)),
+          plugins: this.replacing(
+            this.plugin(report.name).end(report.state, report.failure),
+          ),
         });
       case "plugin-result":
         this.plugin(report.name);
@@ -257,6 +305,9 @@ export class Run {
       state: end.state,
       endedAt: end.endedAt,
       exit: end.exit,
+      gaps: end.gaps ?? [],
+      failure: end.failure ?? null,
+      ran: end.ran ?? null,
       plugins: this.plugins.map((one) =>
         one.ended ? one : one.end("stopped"),
       ),
@@ -293,6 +344,9 @@ export class Run {
       state: this.state,
       endedAt: this.endedAt,
       exit: this.exit,
+      gaps: this.gaps.map((gap) => ({ ...gap, needs: [...gap.needs] })),
+      failure: this.failure === null ? null : { ...this.failure },
+      ran: this.ran === null ? null : [...this.ran],
       plugins: this.plugins.map((one) => one.view()),
     };
   }

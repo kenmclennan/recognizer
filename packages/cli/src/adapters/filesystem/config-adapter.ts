@@ -14,6 +14,7 @@ import {
   type ConfigRead,
   readsAnyConfig,
   readsSensors,
+  registeredSensorNamesIn,
   registeredSensors,
 } from "../../config-parse.js";
 import { resolveStructureSettings } from "../../structure-sensor.js";
@@ -88,6 +89,14 @@ export class ConfigAdapter implements ConfigRepository {
     return registeredSensors(readConfig(this.io, root, ["sensors"])).map(
       ({ name }) => name,
     );
+  }
+
+  sensorNamesDespiteErrors(root: string): string[] {
+    const file = configFile(root);
+
+    return this.io.exists(file)
+      ? registeredSensorNamesIn(this.io.readFile(file))
+      : [];
   }
 
   text(root: string): RepositoryText {

@@ -259,6 +259,9 @@ export class RepositoryStateHolder {
           state: record.phase as "finished" | "failed" | "stopped" | "refused",
           endedAt: record.endedAt,
           exit: record.exit,
+          gaps: record.gaps,
+          failure: record.failure,
+          ran: record.ran,
         },
       });
 
@@ -304,6 +307,16 @@ export class RepositoryStateHolder {
     }
   }
 
+  private registeredDespite(): string[] {
+    try {
+      const names = this.deps.config.sensorNamesDespiteErrors(this.root);
+
+      return names.length === 0 ? this.registered : [...new Set(names)];
+    } catch {
+      return this.registered;
+    }
+  }
+
   private readRegistry(): void {
     let hash: string;
 
@@ -330,7 +343,8 @@ export class RepositoryStateHolder {
       } catch (error) {
         this.registry = this.registry.unreadable(
           reasonOf(error),
-          this.registered,
+          this.registeredDespite(),
+          "the settings cannot be read",
         );
 
         return;

@@ -1662,7 +1662,12 @@ def test_a_long_run_checkpoints_its_record_only_once_the_interval_has_passed(tmp
 
 
 def event_log(capsys):
-    return event_lines(capsys.readouterr().err)
+    return [
+        line
+        for line in event_lines(capsys.readouterr().err)
+        if line["event"] not in {"stage", "estimate"}
+        and not (line["event"] == "start" and line["unit"] == "suites")
+    ]
 
 
 def test_events_are_written_whatever_the_old_progress_switch_says(
@@ -2510,3 +2515,20 @@ def test_the_carry_hint_follows_the_error(tmp_path, capsys, printed, hinted):
     assert run_mutate(root, tmp_path / "overlay.json", settings) == 2
 
     assert (CARRY_HINT in capsys.readouterr().err.splitlines()) is hinted
+
+
+def test_mutation_reports_its_stages_in_order(tmp_path, counting, capsys):
+    settings, _ = counting
+    root, _ = mutate_repository(tmp_path)
+
+    assert run_mutate(root, tmp_path / "overlay.json", settings(max_workers=1)) == 0
+
+    lines = event_lines(capsys.readouterr().err)
+    stages = [line for line in lines if line["event"] == "stage"]
+    first = next(i for i, line in enumerate(lines) if line["event"] == "stage")
+
+    assert lines[0]["event"] == "start"
+    assert first > 0
+    assert [stage["index"] for stage in stages] == [1, 2]
+    assert {stage["of"] for stage in stages} == {2}
+    assert [stage["name"] for stage in stages] == ["Coverage run: sample", "Mutation run: sample"]

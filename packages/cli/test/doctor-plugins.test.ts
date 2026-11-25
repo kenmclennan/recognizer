@@ -551,7 +551,7 @@ describe("doctor: registered plugins", () => {
       severity: "problem",
     });
     expect(problem?.line).toContain("protocol 5");
-    expect(problem?.line).toContain("protocols 1 and 2");
+    expect(problem?.line).toContain("protocols 2 and 3");
     expect(problem?.fix.text).toBe("get mine");
   });
 

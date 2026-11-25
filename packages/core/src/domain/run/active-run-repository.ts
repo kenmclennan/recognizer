@@ -1,4 +1,5 @@
-import type { RunReport, RunScope, RunStarter } from "./run.js";
+import type { RunFailure } from "../run-record.js";
+import type { RunGap, RunReport, RunScope, RunStarter } from "./run.js";
 
 export type MarkerPhase =
   | "checking"
@@ -19,6 +20,9 @@ export interface MarkerFacts {
   phase: MarkerPhase;
   endedAt: string | null;
   exit: number | null;
+  gaps: RunGap[];
+  failure: RunFailure | null;
+  ran: string[] | null;
 }
 
 export type ActiveRunRead =

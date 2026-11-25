@@ -33,7 +33,7 @@ function manifestOf(extra: Record<string, unknown> = {}) {
     name: "quick",
     display: "Quick",
     version: "1",
-    protocol: 2,
+    protocol: 3,
     install: "brew install --cask kenmclennan/tap/recognizer",
     check: false,
     long_running: true,
@@ -679,16 +679,14 @@ ${finishing("")}`,
   });
 
   it("records each suite's own duration from the suite progress events", async () => {
-    const step = (done: number, name: string) =>
-      event({ event: "progress", done, total: 2, unit: "suites", step: name });
+    const stage = (index: number, name: string) =>
+      event({ event: "stage", name, index, of: 2 });
     const entry = await sensed(
       `${event({ event: "start", total: 2, unit: "suites" })}
-${step(0, "engine")}
-${step(1, "engine")}
-${step(1, "app")}
-${step(2, "app")}
+${stage(1, "engine")}
+${stage(2, "app")}
 ${finishing("")}`,
-      { clock: [0, 0, 3000, 3000, 9000, 12000] },
+      { clock: [0, 0, 3000, 9000] },
     );
 
     expect(entry?.suites).toEqual([
@@ -697,7 +695,7 @@ ${finishing("")}`,
     ]);
   });
 
-  it("records no suites for a run with no stepped progress", async () => {
+  it("records no suites for a run with no stage events", async () => {
     const entry = await sensed(finishing(""));
 
     expect(entry).not.toHaveProperty("suites");

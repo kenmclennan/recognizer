@@ -1,11 +1,6 @@
 import type { PluginRunView, RunView } from "@recognizer/core";
 import type { ScanEvent } from "./scan-progress";
 
-export type FailureDetail = Pick<
-  Extract<ScanEvent, { event: "entry" }>,
-  "reason" | "diagnosis"
->;
-
 function ended(plugin: PluginRunView): boolean {
   return (
     plugin.state === "finished" ||
@@ -34,7 +29,6 @@ function sameProgress(
 export function sensorEventsBetween(
   before: RunView | null,
   after: RunView | null,
-  detail: (name: string) => FailureDetail | undefined = () => undefined,
 ): ScanEvent[] {
   if (after === null) {
     return [];
@@ -99,7 +93,12 @@ export function sensorEventsBetween(
               ? "stopped"
               : "failed",
         ...(plugin.state === "failed"
-          ? { reason: "failed", ...detail(plugin.name) }
+          ? {
+              reason: plugin.failure?.reason ?? "failed",
+              ...(plugin.failure?.diagnosis == null
+                ? {}
+                : { diagnosis: plugin.failure.diagnosis }),
+            }
           : {}),
       });
     }
