@@ -97,6 +97,7 @@ export * from "./application/plugins/sensors-to-check.js";
 export * from "./application/run/fresh-structure.js";
 export * from "./application/run/hold-repository-state.js";
 export * from "./application/run/plan-scan.js";
+export * from "./application/run/ports/current-tests.js";
 export * from "./application/run/ports/scan.js";
 export * from "./application/run/work-out-freshness.js";
 export * from "./application/scanning/ports/scanners.js";

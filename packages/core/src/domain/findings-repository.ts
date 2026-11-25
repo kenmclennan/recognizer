@@ -8,6 +8,10 @@ export type StoredFindings =
   | { name: string; status: "read"; document: SensorFindings }
   | { name: string; status: "invalid"; reason: string };
 
+export type StoredOverlay =
+  | { name: string; status: "read"; text: string }
+  | { name: string; status: "invalid"; reason: string };
+
 export interface StructureOverlayInput {
   commit: string;
   modified: boolean;
@@ -36,6 +40,7 @@ export interface FindingsRepository {
   measuredOf(root: string, sensor: string): Measured | null;
   discardAnalysis(root: string, off: boolean): void;
   readAll(root: string): StoredFindings[];
+  readOverlays(root: string): StoredOverlay[];
   readStructure(root: string): SensorFindings | null;
   save(root: string, document: SensorFindings): void;
   remove(root: string, sensor: string): void;

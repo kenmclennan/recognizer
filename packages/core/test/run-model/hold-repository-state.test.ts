@@ -6,6 +6,7 @@ import {
   holderOver,
   ROOT,
   reportedResult,
+  structureOf,
 } from "./support.js";
 
 const SENSORS = ["tally", "margin", "ledger"];
@@ -132,17 +133,37 @@ describe("repository state holder", () => {
     ).toBe(true);
   });
 
+  it("an unreadable PATH folder on the first read leaves the catalog read when every registered plugin is found", () => {
+    const fakes = fakesWith(...SENSORS);
+    const holder = holderOver(fakes);
+
+    fakes.catalog.unreadable.push("/var/run/system/bin");
+    holder.refresh();
+
+    const state = holder.current();
+
+    expect(state.registry.catalog.state).toBe("read");
+    expect(state.registry.entries.map(({ name }) => name)).toEqual(SENSORS);
+    expect(
+      state.registry.entries.every(({ manifest }) => manifest !== null),
+    ).toBe(true);
+  });
+
   it("an unreadable PATH folder on the first read marks the catalog unreadable and keeps every registered plugin", () => {
     const fakes = fakesWith(...SENSORS);
     const holder = holderOver(fakes);
 
+    fakes.config.uninstalled.push("absent");
     fakes.catalog.unreadable.push("/opt/plugins");
     holder.refresh();
 
     const state = holder.current();
 
     expect(state.registry.catalog.state).toBe("unreadable");
-    expect(state.registry.entries.map(({ name }) => name)).toEqual(SENSORS);
+    expect(state.registry.entries.map(({ name }) => name)).toEqual([
+      ...SENSORS,
+      "absent",
+    ]);
   });
 
   it("a service restart rebuilds the same state", () => {
@@ -403,5 +424,241 @@ describe("repository state holder", () => {
     holder.refresh();
 
     expect(holder.current().run).toBeNull();
+  });
+
+  it("an_uncommitted_test_edit_makes_a_result_stale", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+
+    fakes.structure.save(ROOT, "python", structureOf({ "a.py": "h1" }));
+    fakes.findings.save(
+      ROOT,
+      findingsOf("tally", { "a.py": "h1" }, { tests: "t1" }),
+    );
+    fakes.currentTests.held = "t1";
+    holder.refresh();
+
+    expect(holder.current().freshness.tally?.state).toBe("current");
+
+    fakes.currentTests.held = "t2";
+    holder.workingTreeChanged();
+
+    expect(holder.current().freshness.tally?.state).toBe("stale");
+  });
+
+  it("a_rerun_result_replaces_the_working_trees_earlier_result_and_reads_current", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+
+    fakes.structure.save(ROOT, "python", structureOf({ "a.py": "h2" }));
+    fakes.findings.save(
+      ROOT,
+      findingsOf(
+        "tally",
+        { "a.py": "h1" },
+        { tests: "t1", modified: true, reportedAt: undefined },
+      ),
+    );
+    fakes.currentTests.held = "t2";
+    holder.refresh();
+
+    expect(holder.current().freshness.tally?.state).toBe("stale");
+
+    fakes.findings.save(
+      ROOT,
+      findingsOf(
+        "tally",
+        { "a.py": "h2" },
+        { tests: "t2", modified: false, reportedAt: undefined },
+      ),
+    );
+    holder.refresh();
+
+    expect(holder.current().results.tally?.results).toHaveLength(1);
+    expect(holder.current().freshness.tally?.state).toBe("current");
+  });
+
+  it("a_commit_scoped_result_never_stands_in_for_the_working_trees_freshness", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+
+    fakes.structure.save(ROOT, "python", structureOf({ "a.py": "h1" }));
+    fakes.findings.save(
+      ROOT,
+      findingsOf(
+        "tally",
+        { "a.py": "h1" },
+        { tests: "t1", reportedAt: undefined },
+      ),
+    );
+    fakes.currentTests.held = "t1";
+    fakes.active.start({
+      sensors: ["tally"],
+      phase: "running",
+      scope: { kind: "commit", commit: "ffffff" },
+    });
+    holder.refresh();
+    fakes.active.report(started("tally"), {
+      kind: "plugin-result",
+      name: "tally",
+      at: { commit: "ffffff", modified: false },
+      result: reportedResult({ reportedAt: null }),
+    });
+    holder.refresh();
+
+    expect(holder.current().results.tally?.results).toHaveLength(2);
+    expect(holder.current().freshness.tally?.state).toBe("current");
+  });
+
+  it("a_failed_digest_read_keeps_the_last_good_digest_and_is_retried_on_the_next_refresh", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+
+    fakes.structure.save(ROOT, "python", structureOf({ "a.py": "h1" }));
+    fakes.findings.save(
+      ROOT,
+      findingsOf("tally", { "a.py": "h1" }, { tests: "t1" }),
+    );
+    fakes.currentTests.held = "t1";
+    holder.refresh();
+
+    expect(holder.current().freshness.tally?.state).toBe("current");
+
+    fakes.currentTests.held = "t2";
+    fakes.currentTests.failures = 1;
+    holder.workingTreeChanged();
+
+    expect(holder.current().freshness.tally?.state).toBe("current");
+
+    holder.refresh();
+
+    expect(holder.current().freshness.tally?.state).toBe("stale");
+  });
+
+  it("a_null_current_digest_keeps_the_held_digest", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+
+    fakes.structure.save(ROOT, "python", structureOf({ "a.py": "h1" }));
+    fakes.findings.save(
+      ROOT,
+      findingsOf("tally", { "a.py": "h1" }, { tests: "t1" }),
+    );
+    fakes.currentTests.held = null;
+    holder.refresh();
+
+    expect(holder.current().freshness.tally?.state).toBe("current");
+  });
+
+  it("a_null_digest_after_an_edit_is_read_again_so_the_edit_still_reads_stale", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+
+    fakes.structure.save(ROOT, "python", structureOf({ "a.py": "h1" }));
+    fakes.findings.save(
+      ROOT,
+      findingsOf("tally", { "a.py": "h1" }, { tests: "t1" }),
+    );
+    fakes.currentTests.held = "t1";
+    holder.refresh();
+
+    fakes.currentTests.held = null;
+    holder.workingTreeChanged();
+
+    expect(holder.current().freshness.tally?.state).toBe("current");
+
+    fakes.currentTests.held = "t2";
+    holder.refresh();
+
+    expect(holder.current().freshness.tally?.state).toBe("stale");
+  });
+
+  it("an_overlay_reference_is_published_and_an_unreadable_overlay_is_kept", () => {
+    const fakes = fakesWith("tally", "margin");
+    const holder = holderOver(fakes);
+
+    fakes.findings.save(ROOT, findingsOf("tally", { "a.py": "h1" }));
+    fakes.findings.save(ROOT, findingsOf("margin", { "a.py": "h1" }));
+    fakes.findings.storedOverlays.set("tally", {
+      name: "tally",
+      status: "read",
+      text: "{}",
+    });
+    fakes.findings.storedOverlays.set("margin", {
+      name: "margin",
+      status: "read",
+      text: "{}",
+    });
+    holder.refresh();
+
+    expect(holder.current().results.tally?.results[0]?.overlay).toBe(
+      "overlay:tally",
+    );
+
+    fakes.findings.storedOverlays.set("margin", {
+      name: "margin",
+      status: "invalid",
+      reason: "bad",
+    });
+    holder.refresh();
+
+    const state = holder.current();
+
+    expect(state.results.margin?.results[0]?.unreadable).toBe(true);
+    expect(state.results.margin?.results[0]?.overlay).toBe("overlay:margin");
+    expect(state.results.margin?.unreadable).toBe(1);
+    expect(state.results.tally?.unreadable).toBe(0);
+  });
+
+  it("a_manifest_carries_every_field_the_app_renders", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+    const sensor = fakes.sensors.installed.get("tally");
+
+    expect(sensor).toBeDefined();
+
+    holder.refresh();
+
+    const manifest = holder.current().registry.entries[0]?.manifest;
+
+    expect(manifest).toMatchObject({
+      display: "TALLY",
+      runsTests: false,
+      scoped: false,
+      listed: true,
+      metrics: [],
+      findings: [],
+      settings: [],
+    });
+  });
+
+  it("a_policy_config_or_baseline_change_publishes_a_revision", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+
+    holder.refresh();
+    holder.refresh();
+
+    const first = holder.current();
+    const digests = new Set([first.inputsDigest]);
+
+    fakes.policy.heldText = "rules: []";
+    holder.refresh();
+    expect(holder.current().revision).toBe(first.revision + 1);
+    digests.add(holder.current().inputsDigest);
+
+    fakes.config.held = "sensors: {tally: {}}";
+    holder.refresh();
+    expect(holder.current().revision).toBe(first.revision + 2);
+    digests.add(holder.current().inputsDigest);
+
+    fakes.baseline.textHash = "changed";
+    holder.refresh();
+    expect(holder.current().revision).toBe(first.revision + 3);
+    digests.add(holder.current().inputsDigest);
+
+    holder.refresh();
+    expect(holder.current().revision).toBe(first.revision + 3);
+    expect(digests.size).toBe(4);
   });
 });

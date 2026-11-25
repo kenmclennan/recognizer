@@ -98,6 +98,15 @@ export class ResultSet {
     ]);
   }
 
+  without(plugin: string, at: ResultAt): ResultSet {
+    const key = keyOf(at);
+
+    return this.with(
+      plugin,
+      this.of(plugin).filter((entry) => keyOf(entry.at) !== key),
+    );
+  }
+
   flaggedUnreadable(plugin: string): ResultSet {
     const held = this.of(plugin);
 

@@ -368,6 +368,7 @@ export type Explorer = {
   toggleTree: () => void;
   carry: () => Carried;
   update: (loaded: Loaded) => void;
+  reloadSensors: () => Promise<void>;
   openSelectedInEditor: () => void;
   openLinkedView: () => void;
   refreshResponsibilities: () => void;
@@ -2995,7 +2996,7 @@ export function showExplorer(
     }
 
     try {
-      installedSensors = await scanHost.port.installed();
+      installedSensors = await scanHost.port.sensorList();
     } catch (error) {
       installedSensors = { status: "unavailable", reason: String(error) };
     }
@@ -3015,7 +3016,7 @@ export function showExplorer(
 
   async function clearReport(name: string) {
     try {
-      await scanHost.port.removeFindings([name]);
+      await scanHost.port.clearResults(name);
     } catch (error) {
       fail(error instanceof Error ? error.message : String(error));
     }
@@ -5344,6 +5345,7 @@ export function showExplorer(
     openLinkedView: () => void openLinkedView(),
     refreshResponsibilities: () => void readResponsibilities(),
     refreshPanel: () => renderProgress(),
+    reloadSensors: () => loadScanConfig(),
     setSetupProblems(problems) {
       setupProblems = problems;
       renderProgress();

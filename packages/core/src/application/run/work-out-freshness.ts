@@ -26,6 +26,7 @@ export function workOutFreshness(
   entries: readonly ResultEntry[],
   structure: Repository | null,
   scoped: boolean,
+  currentTests: string | null = null,
 ): ResultFreshness {
   const held = latest(entries);
 
@@ -51,7 +52,10 @@ export function workOutFreshness(
     freshnessScope(
       [...hashes.keys()],
       structure,
-      buildFreshness(structure, held?.result.testsDigest ?? null),
+      buildFreshness(
+        structure,
+        currentTests ?? held?.result.testsDigest ?? null,
+      ),
     ),
     measured,
     scoped,

@@ -15,11 +15,14 @@ import { NO_CHANGES, type ScanOrigin, type ScanState } from "./footer-scan";
 import { buildFooter } from "./footer-view";
 import { settledMessage } from "./holding-settled";
 import { type HoldingView, showHolding } from "./holding-view";
-import { inputsRefresh, singleFlight } from "./inputs-refresh";
 import { showMessage } from "./message-view";
 import { repositorySource } from "./repository-source";
+import { createRepositoryStateHolder } from "./repository-state-holder";
+import { ranAtOf } from "./repository-state-model";
+import { repositoryStateSource } from "./repository-state-source";
 import { createRescanner } from "./rescanner";
 import { responsibilitiesSource } from "./responsibilities-source";
+import { refreshOnChange } from "./revision-refresh";
 import { runLogPath } from "./run-log-path";
 import { createChangesHandler } from "./scan-changes";
 import { OPEN_RUN } from "./scan-freshness";
@@ -29,13 +32,14 @@ import { type OpenView, showOpen } from "./scan-open-view";
 import { describerRegistered, rowSensors } from "./scan-panel-model";
 import { scanSource, setScanRepository } from "./scan-source";
 import { withSensors } from "./sensor-run";
-import { sensorsSource } from "./sensors-source";
+import { createSensorsSource } from "./sensors-source";
 import { settingsModalSource } from "./settings-modal-source";
 import { openSettingsModal, type SettingsModal } from "./settings-modal-view";
 import { openSetupModal, type SetupModal } from "./setup-modal-view";
 import { doctorProblems } from "./setup-model";
 import type { DoctorRead } from "./setup-port";
 import { setupSource } from "./setup-source";
+import { singleFlight } from "./single-flight";
 import { createViewComparisons } from "./view-comparisons";
 import { viewsSource } from "./views-source";
 import { createVisualisationSource } from "./visualisation-source";
@@ -122,6 +126,12 @@ function openSetup(): void {
   });
 }
 
+const repositoryState = createRepositoryStateHolder(repositoryStateSource);
+const sensorsSource = createSensorsSource({
+  state: repositoryState,
+  results: repositoryStateSource,
+});
+
 const sensed = (loaded: Loaded) => withSensors(loaded, sensorsSource);
 
 function setScanState(next: ScanState | null) {
@@ -144,7 +154,13 @@ function adoptedOrigin(origin: ScanOrigin) {
 const scanHost: ScanHost = {
   port: sensorsSource,
   plan: (request) => scanSource.plan(request),
-  scan: () => scanState,
+  scan: () =>
+    scanState === null
+      ? null
+      : {
+          ...scanState,
+          scannedAt: ranAtOf(scanState.scannedAt, repositoryState.current()),
+        },
   ticks: () => rescanner.ticks(),
   setTicks: (next) => rescanner.setTicks(next),
   runState: () => rescanner.runState(),
@@ -227,10 +243,15 @@ awakeClock.start();
 const rescanner = createRescanner<Carried>({
   awake: () => awakeClock.now(),
   port: scanSource,
+  snapshot: {
+    run: () => repositoryState.current()?.run ?? null,
+    onRun: (handler) =>
+      repositoryState.onRevision((state) => handler(state.run)),
+  },
   registered: async () => {
     const { config } = await sensorsSource.readInputs();
     const installed = await sensorsSource
-      .installed()
+      .sensorList()
       .catch(() => ({ status: "unavailable" as const, reason: "" }));
 
     return {
@@ -382,7 +403,7 @@ async function start(): Promise<void> {
   }
 
   setScanRepository(folder);
-  void sensorsSource.watchInputs().catch(() => {});
+  void repositoryState.start().catch(() => {});
   folderName = folder.split(/[\\/]/).filter(Boolean).pop() ?? folder;
   content.replaceChildren();
 
@@ -425,13 +446,17 @@ void getCurrentWebviewWindow().listen("view-link", () =>
   explorer?.openLinkedView(),
 );
 
-const onInputsChanged = inputsRefresh({
-  refresh: () => rescanner.refresh(),
-  doctor: runDoctor,
-  flight: refreshDoctor,
+refreshOnChange(repositoryState, async () => {
+  await rescanner.refresh();
+  await explorer?.reloadSensors();
 });
 
-sensorsSource.onInputsChanged(() => void onInputsChanged());
+repositoryState.onInputsChange(() => {
+  void rescanner
+    .refresh()
+    .catch(() => {})
+    .then(refreshDoctor);
+});
 
 void repositorySource.onRescan(() => void rescanner.run());
 

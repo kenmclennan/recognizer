@@ -2,12 +2,11 @@ import { describerVersion, parseConfig } from "recognizer";
 import type { RunRecordFiles } from "./refusal-record";
 import type { PlannedWork } from "./scan-estimate";
 import type {
-  FindingsFiles,
   InstalledSensor,
   InstalledSensors,
-  OverlayFiles,
   SensorInputs,
   SensorsPort,
+  StoredResults,
   WorkRequest,
 } from "./sensor-run";
 
@@ -21,7 +20,6 @@ export type FakeSensors = SensorsPort & {
   runRecords: Map<string, string>;
   runRecordsRefused: string[];
   testsHash: string | null;
-  watched: number;
   removed: string[];
   list: InstalledSensors;
   modified: Map<string, number>;
@@ -48,7 +46,6 @@ export function fakeSensors(
     "sensors:",
     ...listed.map(({ name }) => `  ${name}: {}`),
   ].join("\n");
-  const listeners = new Set<() => void>();
   const held: (() => void)[] = [];
   const fake: FakeSensors = {
     files: new Map(Object.entries(files)),
@@ -67,7 +64,6 @@ export function fakeSensors(
     runRecords: new Map(),
     runRecordsRefused: [],
     testsHash: null,
-    watched: 0,
     removed: [],
     list: Array.isArray(installed)
       ? { status: "ok", sensors: installed }
@@ -114,27 +110,27 @@ export function fakeSensors(
         version: describerVersion(configured),
       };
     },
-    async installed() {
+    async sensorList() {
       return fake.list;
     },
-    async readFindings(): Promise<FindingsFiles> {
+    async readResults(): Promise<StoredResults> {
       return {
-        files: [...fake.files].map(([name, text]) => ({
-          name,
-          text,
-          modifiedMs: fake.modified.get(name) ?? null,
-        })),
-        refused: fake.refused,
-      };
-    },
-    async readOverlays(): Promise<OverlayFiles> {
-      return {
-        files: [...fake.overlays].map(([name, text]) => ({
-          name,
-          text,
-          modifiedMs: fake.modifiedOverlays.get(name) ?? null,
-        })),
-        refused: fake.overlaysRefused,
+        findings: {
+          files: [...fake.files].map(([name, text]) => ({
+            name,
+            text,
+            modifiedMs: fake.modified.get(name) ?? null,
+          })),
+          refused: fake.refused,
+        },
+        overlays: {
+          files: [...fake.overlays].map(([name, text]) => ({
+            name,
+            text,
+            modifiedMs: fake.modifiedOverlays.get(name) ?? null,
+          })),
+          refused: fake.overlaysRefused,
+        },
       };
     },
     async readRunRecords(): Promise<RunRecordFiles> {
@@ -148,30 +144,16 @@ export function fakeSensors(
     async readTestsHash() {
       return fake.testsHash;
     },
-    async removeFindings(names) {
-      fake.removed.push(...names);
-
-      for (const name of names) {
-        fake.files.delete(name);
-      }
+    async clearResults(name) {
+      fake.removed.push(name);
+      fake.files.delete(name);
+      fake.overlays.delete(name);
     },
     async readInputs() {
       return fake.inputs;
     },
-    async watchInputs() {
-      fake.watched += 1;
-    },
-    onInputsChanged(run) {
-      listeners.add(run);
-
-      return () => listeners.delete(run);
-    },
     editInputs(next) {
       fake.inputs = { ...fake.inputs, ...next };
-
-      for (const run of listeners) {
-        run();
-      }
     },
   };
 

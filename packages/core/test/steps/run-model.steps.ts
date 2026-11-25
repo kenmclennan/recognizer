@@ -4,6 +4,7 @@ import {
   type RepositoryState,
   RepositoryStateHolder,
 } from "../../src/index.js";
+import { repositoryStateDependenciesOf } from "../fakes/container.js";
 import type { ScanWorld } from "../fakes/world.js";
 import { REPOSITORY } from "../fakes/world.js";
 import { findingsOf } from "../run-model/support.js";
@@ -22,14 +23,10 @@ const trials = new WeakMap<object, Trial>();
 function holderOf(world: ScanWorld): RepositoryStateHolder {
   const { fakes } = world;
 
-  return new RepositoryStateHolder(REPOSITORY, {
-    active: fakes.active,
-    runLog: fakes.runLog,
-    config: fakes.config,
-    catalog: fakes.catalog,
-    findings: fakes.findings,
-    structure: fakes.structure,
-  });
+  return new RepositoryStateHolder(
+    REPOSITORY,
+    repositoryStateDependenciesOf(fakes),
+  );
 }
 
 function trial(world: ScanWorld): Trial {

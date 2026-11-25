@@ -2,6 +2,11 @@ import type { BaselineEntry, BaselineRepository } from "../../src/index.js";
 
 export class FakeBaselineRepository implements BaselineRepository {
   readonly baselines = new Map<string, BaselineEntry[]>();
+  textHash = "";
+
+  hash(): string {
+    return this.textHash;
+  }
 
   exists(path: string): boolean {
     return this.baselines.has(path);

@@ -121,23 +121,17 @@ describe("senseRepository", () => {
     ).not.toHaveProperty("unknownFiles");
   });
 
-  it("reports an invalid file as failed, by name, and removes it", async () => {
+  it("an_unreadable_findings_file_is_shown_unreadable_and_kept", async () => {
     const port = fakeSensors({ lint: "{not json" });
-    const run = await senseRepository(scans, { policy, config: null }, port);
-
-    expect(statusOf(run, "lint")).toMatchObject({ status: "failed" });
-    expect(port.removed).toEqual(["lint"]);
-  });
-
-  it("reports a file the port refused as failed and removes it", async () => {
-    const port = stored();
 
     port.refused = ["evil"];
 
     const run = await senseRepository(scans, { policy, config: null }, port);
 
+    expect(statusOf(run, "lint")).toMatchObject({ status: "failed" });
     expect(statusOf(run, "evil")).toMatchObject({ status: "failed" });
-    expect(port.removed).toEqual(["evil"]);
+    expect(port.removed).toEqual([]);
+    expect(port.files.has("lint")).toBe(true);
   });
 
   it("keeps a file from another commit and reports it ran, leaving staleness to the freshness answer", async () => {

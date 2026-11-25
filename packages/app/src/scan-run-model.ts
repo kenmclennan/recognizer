@@ -215,7 +215,7 @@ function workedOn(
   };
 }
 
-export function foldRunLine(
+export function foldRunEvent(
   state: ScanProgress,
   event: ScanEvent,
   at: number,

@@ -4,6 +4,7 @@ import type {
   ReportedFindings,
   SensorFindings,
   StoredFindings,
+  StoredOverlay,
   StructureOverlayInput,
   UnitCache,
   UnitCacheRead,
@@ -12,6 +13,7 @@ import type {
 export class FakeFindingsRepository implements FindingsRepository {
   readonly measured = new Map<string, Measured>();
   readonly stored = new Map<string, StoredFindings>();
+  readonly storedOverlays = new Map<string, StoredOverlay>();
   readonly overlays: StructureOverlayInput[] = [];
   readonly saved: SensorFindings[] = [];
   readonly removed: string[] = [];
@@ -29,6 +31,12 @@ export class FakeFindingsRepository implements FindingsRepository {
 
   readAll(): StoredFindings[] {
     return [...this.stored.values()].sort((a, b) =>
+      a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+    );
+  }
+
+  readOverlays(): StoredOverlay[] {
+    return [...this.storedOverlays.values()].sort((a, b) =>
       a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
     );
   }
@@ -51,6 +59,7 @@ export class FakeFindingsRepository implements FindingsRepository {
   remove(_root: string, sensor: string): void {
     this.removed.push(sensor);
     this.stored.delete(sensor);
+    this.storedOverlays.delete(sensor);
   }
 
   readUnitCache(): UnitCacheRead {

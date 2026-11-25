@@ -12,6 +12,7 @@ const expected: Record<string, string[]> = {
     "baseline-adapter.ts",
     "config-adapter.ts",
     "config-keys-adapter.ts",
+    "current-tests-adapter.ts",
     "diagnosis-translator.ts",
     "findings-adapter.ts",
     "findings-document-types.ts",

@@ -5,7 +5,11 @@ import {
   RepositoryStateHolder,
   type SensorFindings,
 } from "../../src/index.js";
-import { createFakes, type Fakes } from "../fakes/container.js";
+import {
+  createFakes,
+  type Fakes,
+  repositoryStateDependenciesOf,
+} from "../fakes/container.js";
 import { repositoryOf } from "../fakes/repository-of.js";
 
 export const ROOT = "/work/repository";
@@ -14,14 +18,7 @@ export function holderOver(
   fakes: Fakes,
   root: string = ROOT,
 ): RepositoryStateHolder {
-  return new RepositoryStateHolder(root, {
-    active: fakes.active,
-    runLog: fakes.runLog,
-    config: fakes.config,
-    catalog: fakes.catalog,
-    findings: fakes.findings,
-    structure: fakes.structure,
-  });
+  return new RepositoryStateHolder(root, repositoryStateDependenciesOf(fakes));
 }
 
 export function fakesWith(...names: string[]): Fakes {

@@ -10,7 +10,7 @@
     "build": "vite build",
     "pretypecheck": "npm run build -w recognizer",
     "typecheck": "tsc --noEmit",
-    "pretest": "npm run build -w recognizer",
+    "pretest": "npm run build -w recognizer && npm run build -w recognizer-scan-typescript",
     "test": "vitest run",
     "pretest:layout": "npm run build -w recognizer",
     "test:layout": "vitest run --config vitest.layout.config.ts",

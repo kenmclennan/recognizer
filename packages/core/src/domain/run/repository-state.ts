@@ -13,4 +13,5 @@ export interface RepositoryState {
   results: Record<string, ResultsView>;
   freshness: Record<string, FreshnessView>;
   unreadableReports: number;
+  inputsDigest: string;
 }

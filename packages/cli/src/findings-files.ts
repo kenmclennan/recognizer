@@ -6,6 +6,7 @@ import {
   type ReadOutcome,
   type SensorFindings,
   type StoredFindings,
+  type StoredOverlay,
 } from "@recognizer/core";
 import {
   readSensorFindings,
@@ -21,6 +22,40 @@ export function findingsFolder(root: string): string {
 
 export function findingsFile(root: string, name: string): string {
   return join(findingsFolder(root), `${name}.json`);
+}
+
+export function overlayFolder(root: string): string {
+  return join(root, ".recognizer", "cache", "overlays");
+}
+
+export function overlayFile(root: string, name: string): string {
+  return join(overlayFolder(root), `${name}.json`);
+}
+
+export function readStoredOverlays(io: Io, root: string): StoredOverlay[] {
+  let names: string[];
+
+  try {
+    names = io
+      .readDir(overlayFolder(root))
+      .filter((entry) => entry.kind === "file" && entry.name.endsWith(".json"))
+      .map((entry) => entry.name.slice(0, -".json".length))
+      .sort();
+  } catch {
+    return [];
+  }
+
+  return names.map((name): StoredOverlay => {
+    try {
+      return {
+        name,
+        status: "read",
+        text: io.readFile(overlayFile(root, name)),
+      };
+    } catch (error) {
+      return { name, status: "invalid", reason: (error as Error).message };
+    }
+  });
 }
 
 export function writeFindings(

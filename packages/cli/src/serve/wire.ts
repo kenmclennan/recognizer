@@ -10,6 +10,8 @@ export const OPERATIONS = [
   "repository.watch",
   "repository.unwatch",
   "repository.state",
+  "results.read",
+  "results.clear",
   "scan.plan",
   "confirm.answer",
   "sensor.work",

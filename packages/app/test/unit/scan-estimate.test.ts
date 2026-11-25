@@ -16,7 +16,7 @@ import {
 } from "../../src/scan-estimate";
 import { OPEN_RUN, type PlannedRun } from "../../src/scan-freshness";
 import { NO_PROGRESS, type ScanProgress } from "../../src/scan-progress";
-import { foldRunLine } from "../../src/scan-run-model";
+import { foldRunEvent } from "../../src/scan-run-model";
 
 type SenseEntry = {
   name: string;
@@ -830,10 +830,10 @@ const T = 1_000_000;
 
 function fold(
   state: ScanProgress,
-  events: [number, Parameters<typeof foldRunLine>[1]][],
+  events: [number, Parameters<typeof foldRunEvent>[1]][],
 ) {
   return events.reduce(
-    (next, [at, event]) => foldRunLine(next, event, at),
+    (next, [at, event]) => foldRunEvent(next, event, at),
     state,
   );
 }
@@ -854,7 +854,7 @@ describe("remaining time while running", () => {
       [T, { event: "phase", phase: "describe", total: 12 }],
       ...Array.from(
         { length: done },
-        (_, at): [number, Parameters<typeof foldRunLine>[1]] => [
+        (_, at): [number, Parameters<typeof foldRunEvent>[1]] => [
           T + (at + 1) * 10_000,
           {
             event: "entry",
@@ -889,7 +889,7 @@ describe("remaining time while running", () => {
   });
 
   it("keeps the whole figure while waiting for the describe answer", () => {
-    const asked = foldRunLine(
+    const asked = foldRunEvent(
       describing(0),
       {
         event: "confirm",
@@ -959,7 +959,7 @@ describe("remaining time while running", () => {
     );
   });
 
-  type Line = [number, Parameters<typeof foldRunLine>[1]];
+  type Line = [number, Parameters<typeof foldRunEvent>[1]];
   const plugin = (
     name: string,
     data: Extract<Line[1], { event: "plugin" }>["data"],
@@ -1303,7 +1303,7 @@ describe("remaining time while running", () => {
       time: number,
       step: string,
       done: number,
-    ): [number, Parameters<typeof foldRunLine>[1]] => [
+    ): [number, Parameters<typeof foldRunEvent>[1]] => [
       time,
       {
         event: "plugin",
@@ -1312,7 +1312,7 @@ describe("remaining time while running", () => {
         data: { event: "progress", done, total: 38, unit: "functions", step },
       },
     ];
-    const run = (...lines: [number, Parameters<typeof foldRunLine>[1]][]) =>
+    const run = (...lines: [number, Parameters<typeof foldRunEvent>[1]][]) =>
       fold(frozen({ structure: 0, mutation: 600_000 }), [
         [T, { event: "phase", phase: "sense", total: 1 }],
         [T, { event: "start", phase: "sense", name: "mutation" }],
