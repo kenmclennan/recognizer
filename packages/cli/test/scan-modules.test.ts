@@ -14,7 +14,7 @@ const PY_CACHE = `${ROOT}/.recognizer/cache/scan.python.json`;
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
 const FILE = "/scope/files.json";
 const DESCRIBER =
-  'describer:\n  command: [describer, "{module}"]\n  version: "v1"\nsensors:\n  crap: {}\n  mutation: {}\n';
+  'describer:\n  command: [describer, "{module}"]\n  version: "v1"\nsensors:\n  crap: { manifest: [recognizer-sense-crap, manifest] }\n  mutation: { manifest: [recognizer-sense-mutation, manifest] }\n';
 
 function current(): string {
   return scanJson(3, 1, {

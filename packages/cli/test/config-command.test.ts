@@ -313,6 +313,53 @@ describe("recognizer config --schema", () => {
   });
 });
 
+describe("recognizer config sensors.<name>.manifest", () => {
+  it("is accepted beside a command", () => {
+    const fake = setup(
+      {},
+      {
+        [CONFIG]: "sensors:\n  mine:\n    command: [python3, sense.py, run]\n",
+      },
+    );
+
+    expect(config(fake, "--add", "sensors.mine.manifest", "python3")).toBe(0);
+    expect(config(fake, "--add", "sensors.mine.manifest", "manifest")).toBe(0);
+    expect(fake.files.get(CONFIG)).toContain("manifest:");
+    expect(fake.files.get(CONFIG)).toContain("command:");
+  });
+
+  it("is accepted beside settings", () => {
+    const fake = setup(
+      {},
+      { [CONFIG]: "sensors:\n  mutation:\n    max_minutes: 5\n" },
+    );
+
+    expect(
+      config(
+        fake,
+        "--add",
+        "sensors.mutation.manifest",
+        "recognizer-sense-mutation",
+      ),
+    ).toBe(0);
+    expect(fake.files.get(CONFIG)).toContain("max_minutes: 5");
+    expect(fake.files.get(CONFIG)).toContain("manifest:");
+  });
+
+  it("does not lift the refusal between a command and settings", () => {
+    const fake = setup(
+      {},
+      {
+        [CONFIG]:
+          "sensors:\n  crap:\n    command: [recognizer-sense-crap, run]\n    manifest: [recognizer-sense-crap, manifest]\n",
+      },
+    );
+
+    expect(config(fake, "sensors.crap.threshold", "1")).toBe(2);
+    expect(fake.err()).toContain("registered with a command");
+  });
+});
+
 describe("the core stays agnostic", () => {
   it("names no suite or coverage key in the three files this item added", () => {
     const words = /\b(tests|coverage|lcov|jacoco|activate|runner)\b/;

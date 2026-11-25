@@ -53,7 +53,8 @@ export type ProblemCode =
   | "plugin-grammar-fields"
   | "plugin-settings"
   | "describer-gap"
-  | "unregistered-plugin";
+  | "unregistered-plugin"
+  | "sensor-manifest-missing";
 
 export interface SetupProblem {
   code: ProblemCode;
@@ -90,6 +91,7 @@ export interface PluginSpec {
   command: string[];
   settings: Record<string, unknown> | null;
   installLine: string | null;
+  manifest?: string[];
 }
 
 export type PluginState =

@@ -50,6 +50,6 @@ export function parseKeySchema(
   return { schema };
 }
 
-export function loadKeys(io: Io, _root: string): PublishedKeys {
-  return publishedFor("config", new KeyOwnersAdapter(io));
+export function loadKeys(io: Io, root: string): PublishedKeys {
+  return publishedFor("config", new KeyOwnersAdapter(io), root);
 }

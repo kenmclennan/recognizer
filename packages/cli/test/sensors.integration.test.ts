@@ -335,7 +335,7 @@ describe.skipIf(!HAS_UV)(
       mkdirSync(join(repository, ".recognizer"), { recursive: true });
       writeFileSync(
         join(repository, ".recognizer/config.yaml"),
-        `${suites}sensors:\n  crap: ${sensors}\n`,
+        `${suites}sensors:\n  crap: ${sensors.replace(/^\{\s*/, "{ manifest: [recognizer-sense-crap, manifest], ").replace(/,\s*\}$/, " }")}\n`,
       );
       commit();
     }
@@ -679,7 +679,7 @@ describe.skipIf(!HAS_UV)(
           "    command: 'touch coverage/lcov.info #'",
           "    coverage: {path: coverage/lcov.info, format: lcov}",
           "sensors:",
-          "  mutation: {max_workers: 1}",
+          "  mutation: {manifest: [recognizer-sense-mutation, manifest], max_workers: 1}",
           "",
         ].join("\n"),
       );
@@ -843,7 +843,7 @@ describe.skipIf(!HAS_UV)(
         join(repository, ".recognizer/config.yaml"),
         [
           "sensors:",
-          "  crap: {}",
+          "  crap: { manifest: [recognizer-sense-crap, manifest] }",
           "tests:",
           "  - name: api",
           "    language: python",

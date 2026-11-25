@@ -14,6 +14,8 @@ export interface RepositoryChecks {
   languages(root: string, scanners: readonly InstalledPlugin[]): string[];
   config(root: string, named: boolean): ConfigReading;
   policy(root: string, named: boolean, languages: string[]): Found[];
-  registeredSensors(root: string): { name: string; command: string[] }[];
+  registeredSensors(
+    root: string,
+  ): { name: string; command: string[]; manifest?: string[] }[];
   suites(root: string): readonly unknown[] | undefined;
 }

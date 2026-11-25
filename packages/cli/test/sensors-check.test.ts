@@ -3,8 +3,9 @@ import {
   checkArguments,
   strippedArguments,
 } from "@recognizer/core";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { run } from "../src/cli.js";
+import { exampleManifest } from "./installed-read.js";
 import { fakeIo, OFFICIAL_ON_PATH, ROOT } from "./scan-helpers.js";
 
 const CONFIG = `${ROOT}/.recognizer/config.yaml`;
@@ -35,8 +36,8 @@ const REGISTERED = [
   "    command: pytest",
   "    coverage: { path: coverage/lcov.info, format: lcov }",
   "sensors:",
-  "  crap: {}",
-  "  mutation: {}",
+  "  crap: { manifest: [recognizer-sense-crap, manifest] }",
+  "  mutation: { manifest: [recognizer-sense-mutation, manifest] }",
   "",
 ].join("\n");
 
@@ -277,7 +278,13 @@ describe("recognizer sensors check", () => {
   });
 
   it("hands an installed sensor that is not registered the tests list the scan would pass", () => {
-    const fake = setup(REGISTERED.replace("  mutation: {}\n", ""), gapsBy({}));
+    const fake = setup(
+      REGISTERED.replace(
+        "  mutation: { manifest: [recognizer-sense-mutation, manifest] }\n",
+        "",
+      ),
+      gapsBy({}),
+    );
 
     check(fake, "mutation");
 
@@ -496,5 +503,88 @@ describe("suites pair", () => {
       "--repository",
       "/r",
     ]);
+  });
+});
+
+describe("a custom-command sensor", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const RUN =
+    "[python3, tools/sense.py, run, --repository, '{repository}', --commit, '{commit}', --output, '{output}']";
+
+  const configOf = (manifest: boolean) =>
+    [
+      "sensors:",
+      "  mine:",
+      `    command: ${RUN}`,
+      ...(manifest
+        ? ["    manifest: [python3, tools/sense.py, manifest]"]
+        : []),
+      "",
+    ].join("\n");
+
+  const customIo = (manifest: boolean) =>
+    fakeIo({
+      files: { [CONFIG]: configOf(manifest) },
+      onPath: OFFICIAL_ON_PATH,
+      programs: {
+        python3: (args) => {
+          if (args.at(-1) === "manifest") {
+            return {
+              stdout: JSON.stringify({
+                ...exampleManifest("crap"),
+                name: "mine",
+                check: true,
+              }),
+            };
+          }
+
+          return args.includes("guide")
+            ? { stdout: "custom guide\n" }
+            : {
+                stdout: `${JSON.stringify({ gaps: [API_GAP] })}\n`,
+              };
+        },
+      },
+    });
+
+  it("is checked through its manifest and its words before run", () => {
+    const fake = customIo(true);
+
+    expect(check(fake)).toBe(1);
+    expect(fake.out()).toContain("mine: 1 gap");
+
+    const call = fake.calls.find((one) => one.args.includes("check"));
+
+    expect(call?.command).toBe("python3");
+    expect(call?.args.slice(0, 2)).toEqual(["tools/sense.py", "check"]);
+  });
+
+  it("with no manifest is counted ready and never run", () => {
+    const fake = customIo(false);
+
+    expect(check(fake)).toBe(0);
+    expect(fake.out()).toBe("mine: no readiness check\n");
+    expect(fake.calls).toEqual([]);
+  });
+
+  it("with a manifest prints the guide from its words before run", () => {
+    const fake = customIo(true);
+    vi.spyOn(process, "cwd").mockReturnValue(ROOT);
+
+    expect(run(["help", "sensors", "mine"], fake.io)).toBe(0);
+    expect(fake.out()).toBe("custom guide\n");
+    expect(fake.calls.at(-1)?.args).toEqual(["tools/sense.py", "guide"]);
+  });
+
+  it("with no manifest supplies no setup guide", () => {
+    const fake = customIo(false);
+    vi.spyOn(process, "cwd").mockReturnValue(ROOT);
+
+    expect(run(["help", "sensors", "mine"], fake.io)).toBe(0);
+    expect(fake.out()).toBe("mine supplies no setup guide\n");
+    expect(fake.calls).toEqual([]);
   });
 });

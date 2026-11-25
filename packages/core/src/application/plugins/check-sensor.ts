@@ -11,9 +11,9 @@ import {
   splitAtRun,
   unanswered,
 } from "../../domain/plugins/sensor-check.js";
-import type { ManifestReader } from "./installed-sensors.js";
+import type { ManifestCommandReader } from "./installed-sensors.js";
 import type { PluginPorts } from "./internal/plugin-ports.js";
-import { readManifestOf } from "./read-manifest.js";
+import { readManifestCommand } from "./read-manifest.js";
 
 export type { SensorReport };
 
@@ -24,11 +24,11 @@ export function checkSensor(
   root: string,
   sensor: CheckableSensor,
   options: CheckOptions,
-  read: ManifestReader = (prefix) => readManifestOf(ports, prefix),
+  read: ManifestCommandReader = (words) => readManifestCommand(ports, words),
 ): SensorReport {
   const run = options.run === true;
 
-  if (!checkable(sensor.command)) {
+  if (!checkable(sensor)) {
     return {
       name: sensor.name,
       ready: true,
@@ -39,7 +39,7 @@ export function checkSensor(
   }
 
   const declared = read(
-    (splitAtRun(sensor.command)?.prefix ?? []).map((item) =>
+    (sensor.manifest ?? []).map((item) =>
       item.split("{repository}").join(root),
     ),
   );
@@ -116,7 +116,7 @@ export function checkSensors(
   root: string,
   sensors: CheckableSensor[],
   options: CheckOptions,
-  read?: ManifestReader,
+  read?: ManifestCommandReader,
 ): SensorReport[] {
   return sensors.map((sensor) =>
     checkSensor(ports, root, sensor, options, read),
@@ -128,7 +128,7 @@ export function guideSensor(
   root: string,
   sensor: CheckableSensor,
 ): { text: string } | { failure: string } {
-  if (!checkable(sensor.command)) {
+  if (!checkable(sensor)) {
     return { text: "" };
   }
 

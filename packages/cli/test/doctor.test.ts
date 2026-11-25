@@ -27,7 +27,7 @@ afterEach(() => {
 const COMMIT = "abc123";
 const CACHE = `${ROOT}/.recognizer/cache/scan.python.json`;
 const READY_SENSOR =
-  "sensors:\n  crap:\n    command: [recognizer-sense-crap, run]\n";
+  "sensors:\n  crap:\n    command: [recognizer-sense-crap, run]\n    manifest: [recognizer-sense-crap, manifest]\n";
 const POLICY = 'entry:\n  - "m*.py"\n';
 
 interface Setup {
@@ -40,6 +40,7 @@ interface Setup {
   env?: Record<string, string>;
   files?: Record<string, string>;
   gap?: boolean;
+  manifestsAnswer?: boolean;
 }
 
 function setup(options: Setup = {}) {
@@ -68,7 +69,7 @@ function setup(options: Setup = {}) {
       (options.config?.includes("recognizer-sense-crap")
         ? ["recognizer-sense-crap"]
         : []),
-    sensorManifests: true,
+    sensorManifests: options.manifestsAnswer !== false,
     sensorsPreflight: options.gap
       ? {
           run: () => ({
@@ -445,7 +446,7 @@ describe("doctor: config", () => {
 
   it("leaves a value already set at the new key alone", () => {
     const problem = migrationOf(
-      "sensors:\n  crap:\n    coverage_limit: 0.8\n  thresholds:\n    coverage:\n      below: 0.7\n",
+      "sensors:\n  crap:\n    coverage_limit: 0.8\n    manifest: [recognizer-sense-crap, manifest]\n  thresholds:\n    coverage:\n      below: 0.7\n",
     );
 
     expect(problem.fix.command).toBe(
@@ -462,7 +463,7 @@ describe("doctor: config", () => {
       ROOT,
     );
     const start =
-      "sensors:\n  thresholds:\n    coverage:\n      below: 0.7\n    complexity:\n      above: 15\n";
+      "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n  thresholds:\n    coverage:\n      below: 0.7\n    complexity:\n      above: 15\n";
     let text = start;
 
     for (const step of migrationOf(start).fix.command.split(" && ")) {
@@ -827,6 +828,7 @@ describe("doctor: sensors", () => {
     const fake = setup({
       ...clean,
       onPath: [],
+      manifestsAnswer: false,
       config: `${READY_SENSOR}install:\n  recognizer-sense-crap: get crap\n`,
     });
     const result = json(fake);
@@ -841,7 +843,9 @@ describe("doctor: sensors", () => {
   });
 
   it("gives the instruction when no install line is recorded", () => {
-    const result = json(setup({ ...clean, onPath: [] }));
+    const result = json(
+      setup({ ...clean, onPath: [], manifestsAnswer: false }),
+    );
 
     expect(result.report.areas[3].problems[0].fix.text).toBe(
       "install recognizer-sense-crap: no install line is recorded for it, run recognizer plugin add crap on a machine that has it",
@@ -1065,7 +1069,8 @@ describe("real content", () => {
 
 describe("doctor: unregistered plugins", () => {
   const ALL = ["recognizer-sense-crap", "recognizer-sense-mutation"];
-  const CRAP = "sensors:\n  crap: {}\n";
+  const CRAP =
+    "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n";
   const TESTS =
     "tests:\n  - name: api\n    language: python\n    directory: .\n    command: x\n    coverage:\n      path: c\n      format: lcov\n";
 
@@ -1140,7 +1145,7 @@ describe("doctor: unregistered plugins", () => {
     const result = doctor(
       setup({
         config:
-          "sensors:\n  crap: {}\n  mutation: {}\ndescriber:\n  command: [describer]\n  version: v1\n",
+          "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n  mutation:\n    manifest: [recognizer-sense-mutation, manifest]\ndescriber:\n  command: [describer]\n  version: v1\n",
         onPath: ALL,
       }),
       ROOT,

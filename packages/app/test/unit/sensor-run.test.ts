@@ -4,8 +4,19 @@ import { fileURLToPath } from "node:url";
 import { Repository, type ViolatedRule } from "@recognizer/core";
 import { violationId } from "recognizer";
 import { describe, expect, it } from "vitest";
+import { NO_CHANGES } from "../../src/footer-scan";
+import type { ResponsibilityState } from "../../src/responsibility-model";
 import { loadScans } from "../../src/scan-loading";
-import { senseRepository, withSensors } from "../../src/sensor-run";
+import {
+  NO_RUN,
+  type PanelInput,
+  scanPanel as scanPanelAsked,
+} from "../../src/scan-panel-model";
+import {
+  type SensorStatus,
+  senseRepository,
+  withSensors,
+} from "../../src/sensor-run";
 import { fakeSensors, typedInputs } from "../../src/sensors-fake";
 import {
   CURRENT,
@@ -176,7 +187,7 @@ describe("senseRepository", () => {
       typedInputs({
         policy,
         config:
-          "sensors:\n  coverage:\n    command: [coverage-sensor, '{repository}']\n",
+          "sensors:\n  coverage:\n    command: [coverage-sensor, '{repository}']\n    manifest: [coverage-sensor, manifest]\n",
       }),
       stored(),
     );
@@ -198,7 +209,7 @@ describe("senseRepository", () => {
       typedInputs({
         policy,
         config:
-          "sensors:\n  coverage:\n    command: [coverage-sensor, '{repository}']\n",
+          "sensors:\n  coverage:\n    command: [coverage-sensor, '{repository}']\n    manifest: [coverage-sensor, manifest]\n",
       }),
       port,
     );
@@ -500,5 +511,132 @@ describe("withSensors", () => {
       { name: "other", overlay: JSON.parse(EMPTY_OVERLAY), modifiedMs: null },
     ]);
     expect(next.overlaysUnreadable).toEqual(["evil"]);
+  });
+});
+
+const SUITES = readFileSync(
+  join(REPO, "schema/config-examples/valid/tests-python-activate.yaml"),
+  "utf8",
+);
+const MINUTE = 60000;
+const NOW = 100 * MINUTE;
+
+function configWith(sensors: string, suites = true): string {
+  return `${suites ? SUITES : ""}sensors:\n${sensors}`;
+}
+
+const UNDECLARED = "  lint:\n    command: [node, lint.mjs, run]\n";
+const DECLARED =
+  "  lint:\n    command: [node, lint.mjs, run]\n    manifest: [node, lint.mjs, manifest]\n";
+
+async function statuses(config: string): Promise<SensorStatus[]> {
+  const port = fakeSensors({
+    structure: documentText(structureDocument("check", policy)),
+    lint: documentText(secondSensorDocument("shop/main.py")),
+  });
+  const run = await senseRepository(
+    scans,
+    typedInputs({ policy, config }),
+    port,
+  );
+
+  return run.statuses;
+}
+
+function panelOf(config: string, sensors: SensorStatus[]) {
+  const modules = ["a.py"];
+  const input: PanelInput = {
+    scan: {
+      origin: { branch: "main", commit: "abc1234" },
+      scannedAt: NOW - MINUTE,
+      changes: NO_CHANGES,
+      scanning: null,
+    },
+    config: typedInputs({ config }).config,
+    sensors,
+    lines: {
+      modules,
+      of: () => ({ kind: "current", line: "x" }) as ResponsibilityState,
+    },
+    describedAt: null,
+    ticks: {
+      describe: false,
+      analysis: true,
+      ticked: [],
+      armed: [],
+      onlyView: false,
+      suites: {},
+      folds: [],
+    },
+    run: NO_RUN,
+    scanning: false,
+    now: NOW,
+    installed: { status: "ok", sensors: [] },
+  };
+
+  return scanPanelAsked(input);
+}
+
+describe("a registered sensor with no manifest in the Scan panel", () => {
+  it("marks the status not measured and carries the notice and the fix", async () => {
+    const found = await statuses(configWith(UNDECLARED));
+    const lint = found.find((one) => one.name === "lint");
+
+    expect(lint?.status).toBe("ran");
+    expect(lint?.notMeasured).toEqual(["suites"]);
+    expect(lint?.undeclared?.line).toContain(
+      "lint declares nothing until its manifest is added",
+    );
+    expect(lint?.undeclared?.fix).toContain(
+      "recognizer config --add sensors.lint.manifest <first word>",
+    );
+  });
+
+  it("gives the row a note with the fix and a state other than the clean one", async () => {
+    const config = configWith(UNDECLARED);
+    const model = panelOf(config, await statuses(config));
+    const row = model.rows.find((one) => one.key === "lint");
+
+    expect(row?.note).toContain(
+      "recognizer config --add sensors.lint.manifest",
+    );
+    expect(row?.state.kind).toBe("not-measured");
+    expect(row?.text.text).toBe("not measured");
+  });
+
+  it("carries the notice but no not-measured mark when no suites are configured", async () => {
+    const found = await statuses(configWith(UNDECLARED, false));
+    const lint = found.find((one) => one.name === "lint");
+
+    expect(lint?.notMeasured).toBeUndefined();
+    expect(lint?.undeclared).toBeDefined();
+  });
+
+  it("shows nothing of it for a sensor with a manifest", async () => {
+    const config = configWith(DECLARED);
+    const found = await statuses(config);
+    const lint = found.find((one) => one.name === "lint");
+    const model = panelOf(config, found);
+    const row = model.rows.find((one) => one.key === "lint");
+
+    expect(lint?.notMeasured).toBeUndefined();
+    expect(lint?.undeclared).toBeUndefined();
+    expect(row?.state.kind).not.toBe("not-measured");
+    expect(row?.note ?? "").not.toContain("declares nothing");
+  });
+
+  it("marks only the sensor with no manifest among two registered ones", async () => {
+    const config = configWith(
+      `${UNDECLARED}  other:\n    command: [node, other.mjs, run]\n    manifest: [node, other.mjs, manifest]\n`,
+    );
+    const found = await statuses(config);
+
+    expect(found.find((one) => one.name === "lint")?.undeclared).toBeDefined();
+    expect(
+      found.find((one) => one.name === "other")?.undeclared,
+    ).toBeUndefined();
+    expect(
+      found.find((one) => one.name === "other")?.notMeasured,
+    ).toBeUndefined();
   });
 });

@@ -132,6 +132,8 @@ export function stateText(state: ResultState, now: number): StateText {
       return { icon: "circle-dashed", text: "never run" };
     case "checking":
       return { icon: "circle-dashed", text: "checking" };
+    case "not-measured":
+      return { icon: "circle-alert", text: "not measured" };
     case "failed":
       return {
         icon: "circle-x",

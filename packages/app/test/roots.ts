@@ -465,7 +465,8 @@ export async function appRoot(options: AppRootOptions = {}) {
   );
   writeFileSync(
     join(repository, ".recognizer", "config.yaml"),
-    options.config ?? "sensors:\n  crap: {}\n  mutation: {}\n",
+    options.config ??
+      "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n  mutation:\n    manifest: [recognizer-sense-mutation, manifest]\n",
   );
   writeFileSync(
     join(repository, ".gitignore"),

@@ -11,7 +11,6 @@ import {
   type SensorFindings,
   type SensorWork,
   type SettleEnding,
-  splitAtRun,
 } from "@recognizer/core";
 import { readSensorFindings } from "./adapters/filesystem/findings-translator.js";
 import type { Io } from "./cli.js";
@@ -26,6 +25,7 @@ export interface RunSensorsInput {
     name: string;
     command: string[];
     runsTests?: boolean;
+    manifest?: string[];
     modules?: number;
   }[];
   commit: string;
@@ -95,7 +95,13 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
   const entries: RunEntry[] = [];
   const limits = input.limits ?? createPluginLimits(io, root);
 
-  for (const { name, command, runsTests, modules } of input.selected) {
+  for (const {
+    name,
+    command,
+    runsTests,
+    modules,
+    manifest: manifestCommand,
+  } of input.selected) {
     input.onStart?.(name);
 
     const scope: RunScope = input.scope ?? { kind: "working-tree" };
@@ -104,8 +110,11 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
     const validate = (document: unknown, anyCommit?: boolean) => {
       readSensorFindings(document, anyCommit ? { name } : { name, commit });
     };
-    const prefix = splitAtRun(command)?.prefix ?? null;
-    const manifest = prefix === null ? null : limits.manifestOf(prefix);
+    const read =
+      manifestCommand === undefined
+        ? null
+        : limits.readCommandOf(manifestCommand);
+    const manifest = read?.ok === true ? read.manifest : null;
     const accumulator = new ResultAccumulator({
       name,
       version: manifest?.version ?? "0",
@@ -166,6 +175,7 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
       take,
       REPORTING_ENV,
       reporting,
+      manifestCommand ?? null,
     );
     let { reason } = run;
     let diagnosis: Diagnosis | undefined = run.diagnosis ?? undefined;

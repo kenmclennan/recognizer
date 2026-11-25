@@ -280,6 +280,8 @@ describe("this repository's own registration", () => {
     const config = readFileSync(join(REPO, ".recognizer/config.yaml"), "utf8");
 
     expect(config).toMatch(/^describer:/m);
-    expect(config).toMatch(/^sensors:\n {2}crap: \{\}\n {2}mutation: \{\}$/m);
+    expect(config).toMatch(
+      /^sensors:\n {2}crap:\n {4}manifest: \[recognizer-sense-crap, manifest\]\n {2}mutation:\n {4}manifest: \[recognizer-sense-mutation, manifest\]$/m,
+    );
   });
 });

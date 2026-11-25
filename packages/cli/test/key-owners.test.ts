@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { KeyOwnersAdapter } from "../src/adapters/plugins/key-owners-adapter.js";
 import { REPO } from "./helpers.js";
 import { exampleManifest } from "./installed-read.js";
-import { fakeIo, OFFICIAL_ON_PATH } from "./scan-helpers.js";
+import { fakeIo, OFFICIAL_ON_PATH, ROOT } from "./scan-helpers.js";
 
 const PINNED = JSON.parse(
   readFileSync(join(REPO, "fixtures/sensors/config-keys.json"), "utf8"),
@@ -197,5 +197,112 @@ describe("KeyOwnersAdapter", () => {
     expect(schema.keys.map((entry) => entry.key)).toContain(
       "sensors.mutation.<metric>.above",
     );
+  });
+
+  describe("with a repository root", () => {
+    const CONFIG = `${ROOT}/.recognizer/config.yaml`;
+    const mine = { ...exampleManifest("crap"), name: "mine" };
+    const keysOf = (schema: { keys: { key: string }[] }, prefix: string) =>
+      schema.keys
+        .map((entry) => entry.key)
+        .filter((key) => key.startsWith(prefix));
+
+    it("publishes the settings of a registered custom sensor under its registered name", () => {
+      const { schema, notAnswering } = adapterFor({
+        files: {
+          [CONFIG]:
+            "sensors:\n  mine:\n    command: [mine-sense, run]\n    manifest: [mine-sense, manifest]\n",
+        },
+        programs: { "mine-sense": manifestProgram(mine) },
+      }).schemas(ROOT);
+
+      expect(notAnswering).toEqual([]);
+      expect(keysOf(schema, "sensors.mine.")).toEqual([
+        "sensors.mine.threshold",
+        "sensors.mine.coverage_limit",
+        "sensors.mine.overlay",
+      ]);
+    });
+
+    it("lists a registered sensor whose manifest cannot be read as not answering", () => {
+      const { schema, notAnswering } = adapterFor({
+        files: {
+          [CONFIG]:
+            "sensors:\n  mine:\n    command: [mine-sense, run]\n    manifest: [mine-sense, manifest]\n",
+        },
+      }).schemas(ROOT);
+
+      expect(notAnswering).toHaveLength(1);
+      expect(notAnswering[0]).toContain("sensors.mine");
+      expect(keysOf(schema, "sensors.mine.")).toEqual([]);
+    });
+
+    it("publishes a sensor that is registered and on PATH once, from the registered read", () => {
+      const { schema } = adapterFor({
+        sensorManifests: true,
+        onPath: OFFICIAL_ON_PATH,
+        files: {
+          [CONFIG]:
+            "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n    threshold: 3\n",
+        },
+      }).schemas(ROOT);
+
+      expect(
+        keysOf(schema, "sensors.crap.").filter(
+          (key) => key === "sensors.crap.threshold",
+        ),
+      ).toEqual(["sensors.crap.threshold"]);
+    });
+
+    it("keeps publishing a PATH sensor whose registration names no manifest", () => {
+      const { schema } = adapterFor({
+        sensorManifests: true,
+        onPath: OFFICIAL_ON_PATH,
+        files: { [CONFIG]: "sensors:\n  crap:\n    threshold: 3\n" },
+      }).schemas(ROOT);
+
+      expect(keysOf(schema, "sensors.crap.")).toContain(
+        "sensors.crap.threshold",
+      );
+    });
+
+    it("answers one readable, one unreadable and one with no manifest each their own way", () => {
+      const { schema, notAnswering } = adapterFor({
+        files: {
+          [CONFIG]:
+            "sensors:\n  good:\n    command: [good-sense, run]\n    manifest: [good-sense, manifest]\n  bad:\n    command: [bad-sense, run]\n    manifest: [bad-sense, manifest]\n  bare:\n    command: [bare-sense, run]\n",
+        },
+        programs: {
+          "good-sense": manifestProgram({ ...mine, name: "good" }),
+        },
+      }).schemas(ROOT);
+
+      expect(keysOf(schema, "sensors.good.")).toContain(
+        "sensors.good.threshold",
+      );
+      expect(notAnswering).toHaveLength(1);
+      expect(notAnswering[0]).toContain("sensors.bad");
+      expect(keysOf(schema, "sensors.bare.")).toEqual([]);
+      expect(keysOf(schema, "sensors.bad.")).toEqual([]);
+    });
+
+    it("refuses a sensor that publishes a setting named manifest", () => {
+      const reserved = {
+        ...mine,
+        settings: [
+          { key: "manifest", type: "string", description: "x", example: "x" },
+        ],
+      };
+      const { notAnswering } = adapterFor({
+        files: {
+          [CONFIG]:
+            "sensors:\n  mine:\n    command: [mine-sense, run]\n    manifest: [mine-sense, manifest]\n",
+        },
+        programs: { "mine-sense": manifestProgram(reserved) },
+      }).schemas(ROOT);
+
+      expect(notAnswering).toHaveLength(1);
+      expect(notAnswering[0]).toContain("sensors.mine");
+    });
   });
 });

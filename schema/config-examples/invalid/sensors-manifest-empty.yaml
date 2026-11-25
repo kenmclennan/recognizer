@@ -1,0 +1,4 @@
+sensors:
+  mine:
+    command: [python3, tools/sense.py, run]
+    manifest: []

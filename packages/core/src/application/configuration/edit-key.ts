@@ -98,7 +98,7 @@ export function editKey(
   { subject, root, verb, key, value }: EditKeyRequest,
 ): EditKeyOutcome {
   const repository = subject === "config" ? ports.config : ports.policy;
-  const published = publishedFor(subject, ports.keyOwners);
+  const published = publishedFor(subject, ports.keyOwners, root);
   const current = repository.text(root);
   const refused = (reason: string): EditKeyOutcome => ({
     status: "refused",

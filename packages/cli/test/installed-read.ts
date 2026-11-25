@@ -4,7 +4,11 @@ import {
   type InstalledRead,
   type Manifest,
   type ManifestRead,
+  type RegisteredSensorInput,
   readInstalledSensors,
+  readRegisteredSensors,
+  selectSensors,
+  withRegistered,
 } from "@recognizer/core";
 import { ProgramsAdapter } from "../src/adapters/plugins/programs-adapter.js";
 import { nodeIo } from "../src/cli.js";
@@ -49,4 +53,36 @@ export function readExamples(
   };
 
   return readInstalledSensors(examplePorts(), read, names);
+}
+
+function readCommandOf(failing: readonly string[]) {
+  return (words: string[]): ManifestRead => {
+    const name = (words[0] as string).replace("recognizer-sense-", "");
+
+    return failing.includes(name)
+      ? { ok: false, reason: `${words[0]} manifest exited 1` }
+      : { ok: true, manifest: exampleManifest(name) };
+  };
+}
+
+export function readRegisteredExamples(
+  registered: readonly RegisteredSensorInput[],
+  failing: readonly string[] = [],
+): InstalledRead {
+  return withRegistered(
+    readExamples(failing),
+    readRegisteredSensors(registered, readCommandOf(failing)),
+  );
+}
+
+export function selectedWithExamples(
+  registered: RegisteredSensorInput[],
+  requested: "all" | string[],
+  installed: readonly string[],
+  suites?: readonly unknown[],
+) {
+  const first = selectSensors(registered, requested, installed);
+  const read = readRegisteredExamples(first);
+
+  return selectSensors(registered, requested, installed, suites, read);
 }

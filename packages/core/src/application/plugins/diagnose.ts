@@ -6,18 +6,24 @@ import {
   type PluginFact,
   type PluginSpec,
 } from "../../domain/plugins/doctor-report.js";
-import { judgeProtocol } from "../../domain/plugins/manifest.js";
+import {
+  interpretManifest,
+  judgeProtocol,
+  MANIFEST_TIMEOUT_MS,
+  type ManifestRead,
+} from "../../domain/plugins/manifest.js";
 import { checkSensor } from "./check-sensor.js";
 import { discoverPlugins } from "./discover-plugins.js";
 import {
   readInstalledSensors,
+  readRegisteredSensors,
   runsTests,
-  sensorNameOf,
+  withRegistered,
   withSuiteSettings,
 } from "./installed-sensors.js";
 import type { PluginPorts } from "./internal/plugin-ports.js";
 import { NO_RUN_LINE, probeDescriberCheck } from "./probe-describer-check.js";
-import { readManifest } from "./read-manifest.js";
+import { readManifest, readManifestCommand } from "./read-manifest.js";
 
 type DiagnosePorts = Pick<
   PluginPorts,
@@ -50,12 +56,92 @@ function describerCheckLines(
   ];
 }
 
+function filled(words: readonly string[], root: string): string[] {
+  return words.map((word) => word.split("{repository}").join(root));
+}
+
+function sensorFact(
+  ports: DiagnosePorts,
+  root: string,
+  spec: PluginSpec,
+  suites: readonly unknown[] | undefined,
+): PluginFact {
+  const words = filled(spec.manifest ?? [], root);
+  const [program, ...rest] = words as [string, ...string[]];
+  const run = ports.programs.run(program, rest, {
+    timeoutMs: MANIFEST_TIMEOUT_MS,
+  });
+
+  if (!run.started) {
+    return { ...spec, state: { status: "missing" } };
+  }
+
+  const read: ManifestRead = interpretManifest(words.join(" "), run, (value) =>
+    ports.validators.manifest(value),
+  );
+
+  if (!read.ok) {
+    return { ...spec, state: { status: "unreadable", reason: read.reason } };
+  }
+
+  const { manifest } = read;
+  const judgement = judgeProtocol(manifest, ports.validators.facts.protocol);
+  const wantsCheck = manifest.check && judgement !== "unsupported";
+  const report = wantsCheck
+    ? checkSensor(
+        ports,
+        root,
+        {
+          name: spec.subject,
+          command: withSuiteSettings(
+            spec.command,
+            withRegistered(
+              { sensors: [], unreadable: [] },
+              readRegisteredSensors(
+                [
+                  {
+                    name: spec.subject,
+                    command: spec.command,
+                    manifest: spec.manifest,
+                  },
+                ],
+                () => read,
+              ),
+            ),
+            suites,
+          ),
+          manifest: spec.manifest,
+        },
+        {},
+        () => read,
+      )
+    : null;
+
+  return {
+    ...spec,
+    state: {
+      status: "read",
+      manifest,
+      judgement,
+      gaps: !wantsCheck
+        ? null
+        : report !== null
+          ? report.gaps.map((gap) => gap.line)
+          : [],
+    },
+  };
+}
+
 function pluginFact(
   ports: DiagnosePorts,
   root: string,
   spec: PluginSpec,
   suites: readonly unknown[] | undefined,
 ): PluginFact {
+  if (spec.kind === "sensor") {
+    return sensorFact(ports, root, spec, suites);
+  }
+
   const found = ports.programs.find(spec.program);
 
   if (found === null) {
@@ -71,32 +157,6 @@ function pluginFact(
   const { manifest } = read;
   const judgement = judgeProtocol(manifest, ports.validators.facts.protocol);
   const wantsCheck = manifest.check && judgement !== "unsupported";
-  const report =
-    wantsCheck && spec.kind === "sensor"
-      ? checkSensor(
-          ports,
-          root,
-          {
-            name: spec.subject,
-            command: [
-              found,
-              ...withSuiteSettings(
-                spec.command,
-                readInstalledSensors(
-                  ports,
-                  () => read,
-                  [sensorNameOf(spec.command)].filter(
-                    (name): name is string => name !== undefined,
-                  ),
-                ),
-                suites,
-              ).slice(1),
-            ],
-          },
-          {},
-          () => read,
-        )
-      : null;
 
   return {
     ...spec,
@@ -106,9 +166,7 @@ function pluginFact(
       judgement,
       gaps: !wantsCheck
         ? null
-        : report !== null
-          ? report.gaps.map((gap) => gap.line)
-          : describerCheckLines(ports, root, [found, ...spec.command.slice(1)]),
+        : describerCheckLines(ports, root, [found, ...spec.command.slice(1)]),
     },
   };
 }
@@ -122,7 +180,19 @@ function testsUnrun(
     return [];
   }
 
-  const installed = readInstalledSensors(ports);
+  const installed = withRegistered(
+    readInstalledSensors(ports),
+    readRegisteredSensors(
+      registered.specs
+        .filter((spec) => spec.kind === "sensor")
+        .map((spec) => ({
+          name: spec.subject,
+          command: spec.command,
+          manifest: spec.manifest,
+        })),
+      (words) => readManifestCommand(ports, words),
+    ),
+  );
 
   const running = registered.specs.some(
     (spec) => spec.kind === "sensor" && runsTests(spec.command, installed),

@@ -45,7 +45,7 @@ export class SensorsAdapter implements Sensors, Analysis {
 
   readinessReports(
     root: string,
-    sensors: { name: string; command: string[] }[],
+    sensors: { name: string; command: string[]; manifest?: string[] }[],
     limits: PluginLimits,
   ): SensorReport[] {
     return checkSensors(
@@ -53,7 +53,7 @@ export class SensorsAdapter implements Sensors, Analysis {
       root,
       sensors,
       {},
-      (limits as unknown as Limits).readOf,
+      (limits as unknown as Limits).readCommandOf,
     );
   }
 
@@ -84,6 +84,7 @@ export class SensorsAdapter implements Sensors, Analysis {
         name: one.name,
         command: one.command,
         runsTests: one.runsTests,
+        ...(one.manifest === undefined ? {} : { manifest: one.manifest }),
         ...(one.modules === undefined ? {} : { modules: one.modules }),
       })),
       commit: call.commit,

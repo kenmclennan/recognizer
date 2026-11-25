@@ -81,16 +81,18 @@ describe("functionLimits", () => {
   it("reads the coverage limit", () => {
     expect(
       cellsOf(
-        "sensors:\n  structure:\n    warnings:\n      complexity:\n        limit: 15\n  crap:\n    threshold: 20\n    coverage_limit: false\n",
+        "sensors:\n  structure:\n    warnings:\n      complexity:\n        limit: 15\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n    threshold: 20\n    coverage_limit: false\n",
       ),
     ).toEqual([
       cell("complexity", "above", 15),
       cell("crap", "above", 20),
       { metric: "coverage", label: "cov", limit: null },
     ]);
-    expect(cellsOf("sensors:\n  crap:\n    coverage_limit: 0.7\n")[2]).toEqual(
-      cell("coverage", "below", 0.7),
-    );
+    expect(
+      cellsOf(
+        "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n    coverage_limit: 0.7\n",
+      )[2],
+    ).toEqual(cell("coverage", "below", 0.7));
   });
 
   it("reads a configured complexity limit over the published figure", () => {
@@ -102,9 +104,11 @@ describe("functionLimits", () => {
   });
 
   it("reads the crap threshold", () => {
-    expect(cellsOf("sensors:\n  crap:\n    threshold: 25\n")[1]).toEqual(
-      cell("crap", "above", 25),
-    );
+    expect(
+      cellsOf(
+        "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n    threshold: 25\n",
+      )[1],
+    ).toEqual(cell("crap", "above", 25));
   });
 
   it("gives a metric without a cell no entry and a configured metric with no default none", () => {
@@ -164,11 +168,11 @@ describe("functionLimits", () => {
     const tones = (yaml: string) => cellsOf(yaml).map((one) => one.limit?.tone);
 
     expect(tones("sensors: {}\n")).toEqual(["amber", "amber", "amber"]);
-    expect(tones("sensors:\n  crap:\n    coverage_limit: 0.7\n")).toEqual([
-      "amber",
-      "amber",
-      "amber",
-    ]);
+    expect(
+      tones(
+        "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n    coverage_limit: 0.7\n",
+      ),
+    ).toEqual(["amber", "amber", "amber"]);
   });
 
   it("has the coverage figure the crap sensor itself holds", () => {
@@ -206,7 +210,7 @@ describe("the complexity cell's limit", () => {
 
   it("reads the coverage cell from the crap sensor", () => {
     const coverage = cellsOf(
-      "sensors:\n  crap:\n    coverage_limit: 0.7\n",
+      "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n    coverage_limit: 0.7\n",
     ).find((one) => one.metric === "coverage");
 
     expect(coverage?.limit?.value).toBe(0.7);

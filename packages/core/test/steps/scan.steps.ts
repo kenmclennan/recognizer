@@ -454,3 +454,89 @@ Then(
     });
   },
 );
+
+Given(
+  "a Mine sensor that runs tests is registered without a manifest",
+  function (this: ScanWorld) {
+    this.fakes.sensors.installed.set("mine", {
+      name: "mine",
+      runsTests: true,
+      held: false,
+      withoutManifest: true,
+    });
+  },
+);
+
+Given(
+  "a Mine sensor that runs tests is registered with a manifest",
+  function (this: ScanWorld) {
+    this.addSensor("mine", true);
+  },
+);
+
+When(
+  "a full scan runs ticking the Mine sensor",
+  async function (this: ScanWorld) {
+    await this.run({ mode: "full", sensors: [{ name: "mine" }] });
+  },
+);
+
+function noticeAt(world: ScanWorld, includes: string): number {
+  return world.events.findIndex(
+    (event) => event.type === "notice" && event.text.includes(includes),
+  );
+}
+
+function startAt(world: ScanWorld, name: string): number {
+  return world.events.findIndex(
+    (event) => event.type === "start" && event.name === name,
+  );
+}
+
+Then(
+  "the scan said the notice for {string} before the sensor ran",
+  function (this: ScanWorld, name: string) {
+    const said = noticeAt(
+      this,
+      `${name} declares nothing until its manifest is added`,
+    );
+    const started = startAt(this, name);
+
+    assert.ok(said >= 0, "the notice was said");
+    assert.ok(started >= 0, "the sensor started");
+    assert.ok(said < started, "the notice came first");
+  },
+);
+
+Then(
+  "the scan said it did not measure {string} after the sensor ran",
+  function (this: ScanWorld, name: string) {
+    const said = noticeAt(
+      this,
+      `not measured ${name}: the configured suites were not handed to it`,
+    );
+
+    assert.ok(said > startAt(this, name), "the line came after the start");
+  },
+);
+
+Then(
+  "the scan did not say it did not measure {string}",
+  function (this: ScanWorld, name: string) {
+    assert.equal(noticeAt(this, `not measured ${name}:`), -1);
+  },
+);
+
+Then(
+  "the scan said no notice for {string}",
+  function (this: ScanWorld, name: string) {
+    assert.equal(noticeAt(this, `${name} declares nothing`), -1);
+  },
+);
+
+Then("the Mine sensor receives no suites", function (this: ScanWorld) {
+  const ran = this.fakes.sensors.ran.find((one) => one.name === "mine");
+
+  assert.ok(ran !== undefined, "the Mine sensor ran");
+  assert.ok(!ran.command.includes("--suites"));
+});

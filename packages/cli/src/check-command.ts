@@ -334,11 +334,23 @@ function sensorLineOf(sensors: SensorStatus[]): string {
       ? ` (not measured: ${settings.not_measured.join(", ")})`
       : "";
 
+  const partial = sensors
+    .filter(
+      (one) =>
+        one.name !== "structure" &&
+        one.status === "partial" &&
+        (one.not_measured ?? []).length > 0,
+    )
+    .map(
+      (one) =>
+        `sensor ${one.name}: partial (not measured: ${(one.not_measured ?? []).join(", ")})\n`,
+    );
+
   return `sensor structure: ${
     settings?.settings
       ? describeSettings(settings.settings)
       : (settings?.status ?? "off")
-  }${unmeasuredNote}\n`;
+  }${unmeasuredNote}\n${partial.join("")}`;
 }
 
 function executeRepository(

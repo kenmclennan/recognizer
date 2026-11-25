@@ -2,17 +2,24 @@ import { InvalidRequest } from "../../domain/invalid-request.js";
 import {
   type InstalledRead,
   sensorCommand,
+  sensorProgram,
   withSuiteSettings,
 } from "./installed-sensors.js";
 
+interface Sensor {
+  name: string;
+  command: string[];
+  manifest?: string[];
+}
+
 export function selectSensors(
-  registered: { name: string; command: string[] }[],
+  registered: Sensor[],
   requested: "all" | string[],
   installed: readonly string[] = [],
   suites?: readonly unknown[],
   read: InstalledRead = { sensors: [], unreadable: [] },
-): { name: string; command: string[] }[] {
-  const given = (one: { name: string; command: string[] }) => ({
+): Sensor[] {
+  const given = (one: Sensor) => ({
     ...one,
     command: withSuiteSettings(one.command, read, suites),
   });
@@ -54,6 +61,7 @@ export function selectSensors(
       .map((name) => ({
         name,
         command: withSuiteSettings(sensorCommand(name, {}), read, suites),
+        manifest: [sensorProgram(name), "manifest"],
       })),
   ];
 }

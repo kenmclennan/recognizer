@@ -1,0 +1,7 @@
+sensors:
+  crap:
+    manifest: [recognizer-sense-crap, manifest]
+    threshold: 25
+  mutation:
+    manifest: [recognizer-sense-mutation, manifest]
+    max_minutes: 5

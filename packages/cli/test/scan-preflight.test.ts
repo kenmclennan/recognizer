@@ -52,7 +52,8 @@ function current(): string {
   });
 }
 
-const REGISTERED_BOTH = "sensors:\n  crap: {}\n  mutation: {}\n";
+const REGISTERED_BOTH =
+  "sensors:\n  crap: { manifest: [recognizer-sense-crap, manifest] }\n  mutation: { manifest: [recognizer-sense-mutation, manifest] }\n";
 
 function registeringBoth(config: string): string {
   return config.includes("sensors:") ? config : config + REGISTERED_BOTH;
@@ -73,6 +74,7 @@ function setup(
       [CONFIG]: registeringBoth(config),
     },
     scanners: { [PYTHON]: { output: current() } },
+    sensorManifests: true,
     programs: {
       "installed-sensors": (args, files) => {
         files.set(
@@ -335,7 +337,7 @@ describe("scan preflight: the early stage", () => {
 describe("scan preflight: the project stage", () => {
   it("scans a repository whose config still has sensors.thresholds", async () => {
     const config =
-      "sensors:\n  crap: {}\n  mutation: {}\n  thresholds:\n    coverage:\n      min: 0.5\n";
+      "sensors:\n  crap: { manifest: [recognizer-sense-crap, manifest] }\n  mutation: { manifest: [recognizer-sense-mutation, manifest] }\n  thresholds:\n    coverage:\n      min: 0.5\n";
     const { code, fake } = await scan(setup(config), "--sense", "crap");
 
     expect(code).toBe(0);

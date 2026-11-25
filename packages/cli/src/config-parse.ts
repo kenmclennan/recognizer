@@ -1,4 +1,4 @@
-import { expandShortForms, sensorNameOf } from "@recognizer/core";
+import { expandShortForms } from "@recognizer/core";
 import { parse } from "yaml";
 import {
   retiredKeysIn,
@@ -11,6 +11,7 @@ import validate from "./generated/config-validator.js";
 
 export interface SensorRegistration {
   command: string[];
+  manifest?: string[];
 }
 
 export interface DuplicationInput {
@@ -61,10 +62,18 @@ export interface Config {
 
 export function registeredSensors(
   config: Config | null,
-): { name: string; command: string[] }[] {
+): { name: string; command: string[]; manifest?: string[] }[] {
   return Object.entries(config?.sensors ?? {}).flatMap(([name, entry]) =>
     name !== "structure" && typeof entry === "object" && "command" in entry
-      ? [{ name, command: entry.command }]
+      ? [
+          {
+            name,
+            command: entry.command,
+            ...(entry.manifest === undefined
+              ? {}
+              : { manifest: entry.manifest }),
+          },
+        ]
       : [],
   );
 }
@@ -78,7 +87,7 @@ export function registeredSensorSettings(
   );
   const command = registered?.command;
 
-  if (command === undefined || sensorNameOf(command) === undefined) {
+  if (command === undefined || registered?.manifest === undefined) {
     return null;
   }
 

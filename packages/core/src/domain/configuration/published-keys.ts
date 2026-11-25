@@ -2,6 +2,8 @@ import { InvalidRequest } from "../invalid-request.js";
 
 export const REGISTRATION_KEY = "sensors.<name>.command";
 
+export const MANIFEST_KEY = "sensors.<name>.manifest";
+
 export type KeyType =
   | "string"
   | "integer"
@@ -147,6 +149,14 @@ export const CORE_KEYS: KeySchema = {
       description:
         "the words of the command a registered sensor runs; {repository}, {commit} and {output} are filled in",
       example: "--add sensors.mine.command mine",
+    },
+    {
+      key: MANIFEST_KEY,
+      type: "string",
+      multi: true,
+      description:
+        "the words of the command that prints a registered sensor's manifest; {repository} is filled in",
+      example: "--add sensors.mine.manifest mine",
     },
     {
       key: "sensors.structure",

@@ -71,6 +71,9 @@ function install(
     registered?: boolean;
     display?: string;
     listed?: boolean;
+    runCommand?: string[];
+    manifestCommand?: string[];
+    withoutManifest?: boolean;
   } = {},
 ): void {
   world.fakes.sensors.installed.set(name, {
@@ -81,6 +84,13 @@ function install(
     ...(more.registered === undefined ? {} : { registered: more.registered }),
     ...(more.display === undefined ? {} : { display: more.display }),
     ...(more.listed === undefined ? {} : { listed: more.listed }),
+    ...(more.runCommand === undefined ? {} : { runCommand: more.runCommand }),
+    ...(more.manifestCommand === undefined
+      ? {}
+      : { manifestCommand: more.manifestCommand }),
+    ...(more.withoutManifest === undefined
+      ? {}
+      : { withoutManifest: more.withoutManifest }),
   });
 }
 
@@ -126,6 +136,30 @@ Given(
   function (this: ScanWorld) {
     install(this, "tally");
     install(this, "margin", { registered: false });
+  },
+);
+
+const MINE_RUN = ["python3", "sense.py", "run", "--settings", "{}"];
+
+Given(
+  "a Mine sensor that runs tests under its own command and manifest is registered",
+  function (this: ScanWorld) {
+    install(this, "mine", {
+      runsTests: true,
+      runCommand: MINE_RUN,
+      manifestCommand: ["python3", "sense.py", "manifest"],
+    });
+  },
+);
+
+Given(
+  "a Mine sensor that runs tests under its own command is registered without a manifest",
+  function (this: ScanWorld) {
+    install(this, "mine", {
+      runsTests: true,
+      runCommand: MINE_RUN,
+      withoutManifest: true,
+    });
   },
 );
 
@@ -279,7 +313,12 @@ Then(
 Then(
   "the manifests read were {string}",
   function (this: ScanWorld, list: string) {
-    assert.deepEqual(this.fakes.catalog.reads, [names(list)]);
+    assert.deepEqual(
+      this.fakes.catalog.registeredReads.map((words) =>
+        (words[0] ?? "").slice((words[0] ?? "").lastIndexOf("-") + 1),
+      ),
+      names(list),
+    );
   },
 );
 
@@ -295,6 +334,34 @@ Then(
   "the {string} sensor chooses {string}",
   function (this: ScanWorld, name: string, list: string) {
     assert.deepEqual(this.trial.plan?.chosen[name], names(list));
+  },
+);
+
+Then(
+  "the {string} sensor is planned as running tests",
+  function (this: ScanWorld, name: string) {
+    assert.equal(planned(this, name).runsTests, true);
+  },
+);
+
+Then(
+  "the {string} sensor is planned as not running tests",
+  function (this: ScanWorld, name: string) {
+    assert.equal(planned(this, name).runsTests, false);
+  },
+);
+
+Then(
+  "no manifest was asked of any registered sensor",
+  function (this: ScanWorld) {
+    assert.deepEqual(this.fakes.catalog.registeredReads, []);
+  },
+);
+
+Then(
+  "the {string} sensor was asked for its manifest as {string}",
+  function (this: ScanWorld, _name: string, words: string) {
+    assert.deepEqual(this.fakes.catalog.registeredReads, [words.split(" ")]);
   },
 );
 

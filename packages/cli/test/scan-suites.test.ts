@@ -25,8 +25,8 @@ const CONFIG_TEXT = [
   "    command: pytest",
   "    coverage: { path: coverage/lcov.info, format: lcov }",
   "sensors:",
-  "  crap: {}",
-  "  mutation: {}",
+  "  crap: { manifest: [recognizer-sense-crap, manifest] }",
+  "  mutation: { manifest: [recognizer-sense-mutation, manifest] }",
   "",
 ].join("\n");
 

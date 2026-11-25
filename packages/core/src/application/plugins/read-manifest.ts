@@ -33,6 +33,19 @@ export function readManifest(
   );
 }
 
+export function readManifestCommand(
+  ports: ManifestPorts,
+  words: readonly string[],
+): ManifestRead {
+  const [program, ...rest] = words as [string, ...string[]];
+
+  return interpretManifest(
+    words.join(" "),
+    ports.programs.run(program, rest, { timeoutMs: MANIFEST_TIMEOUT_MS }),
+    (value) => ports.validators.manifest(value),
+  );
+}
+
 export function readManifestOf(
   ports: ManifestPorts,
   prefix: string[],

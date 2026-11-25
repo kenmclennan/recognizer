@@ -9,12 +9,13 @@ import type { KeyOwners } from "../ports/key-owners.js";
 export function publishedFor(
   subject: "config" | "policy",
   owners: KeyOwners,
+  root?: string,
 ): PublishedKeys {
   if (subject === "policy") {
     return publish([POLICY_KEYS], "policy");
   }
 
-  const read = owners.schemas();
+  const read = owners.schemas(root);
   const published = publish([CORE_KEYS, read.schema], "config");
 
   return read.notAnswering.length === 0

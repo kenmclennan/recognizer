@@ -5,6 +5,7 @@ import {
   type Manifest,
   type ManifestRead,
   type PluginEvent,
+  readManifestCommand,
   readManifestOf,
   type SuiteDuration,
   splitAtRun,
@@ -21,9 +22,17 @@ export const PLUGIN_GRACE_MS = 10_000;
 
 export interface PluginLimits {
   readOf(prefix: string[]): ManifestRead;
+  readCommandOf(command: string[]): ManifestRead;
   manifestOf(prefix: string[]): Manifest | null;
-  limitMs(prefix: string[] | null): number | undefined;
-  nameOf(prefix: string[] | null, fallback: string): string;
+  limitMs(
+    prefix: string[] | null,
+    manifest?: string[] | null,
+  ): number | undefined;
+  nameOf(
+    prefix: string[] | null,
+    fallback: string,
+    manifest?: string[] | null,
+  ): string;
 }
 
 export function createPluginLimits(
@@ -55,6 +64,30 @@ export function createPluginLimits(
     return read;
   };
 
+  const commandReads = new Map<string, ManifestRead>();
+
+  const readCommandOf = (command: string[]): ManifestRead => {
+    const filled = command.map((item) => fill(item, root, "", ""));
+    const key = filled.join("\0");
+    const known = commandReads.get(key);
+
+    if (known !== undefined) {
+      return known;
+    }
+
+    const read = readManifestCommand(manifestPorts(io), filled);
+
+    commandReads.set(key, read);
+
+    return read;
+  };
+
+  const manifestOfCommand = (command: string[]): Manifest | null => {
+    const read = readCommandOf(command);
+
+    return read.ok ? read.manifest : null;
+  };
+
   const manifestOf = (prefix: string[]): Manifest | null => {
     const read = readOf(prefix);
 
@@ -64,9 +97,17 @@ export function createPluginLimits(
   return {
     graceMs,
     readOf,
+    readCommandOf,
     manifestOf,
-    limitMs: (prefix) => {
-      const manifest = prefix === null ? null : manifestOf(prefix);
+    limitMs: (prefix, explicit) => {
+      const manifest =
+        explicit !== undefined
+          ? explicit === null
+            ? null
+            : manifestOfCommand(explicit)
+          : prefix === null
+            ? null
+            : manifestOf(prefix);
 
       if (manifest === null || manifest.long_running) {
         return undefined;
@@ -76,8 +117,15 @@ export function createPluginLimits(
         ? undefined
         : manifest.time_limit_seconds * 1000;
     },
-    nameOf: (prefix, fallback) =>
-      (prefix === null ? null : manifestOf(prefix))?.name ?? fallback,
+    nameOf: (prefix, fallback, explicit) =>
+      (explicit !== undefined
+        ? explicit === null
+          ? null
+          : manifestOfCommand(explicit)
+        : prefix === null
+          ? null
+          : manifestOf(prefix)
+      )?.name ?? fallback,
   };
 }
 
@@ -94,10 +142,12 @@ export function prepareCall(
   fallbackName: string,
   onEvent?: (name: string, event: PluginEvent) => void,
   env?: Record<string, string>,
+  manifest?: string[] | null,
 ): PluginCall {
-  const prefix = splitAtRun(command)?.prefix ?? null;
-  const name = limits.nameOf(prefix, fallbackName);
-  const limit = limits.limitMs(prefix);
+  const prefix =
+    manifest === undefined ? (splitAtRun(command)?.prefix ?? null) : null;
+  const name = limits.nameOf(prefix, fallbackName, manifest);
+  const limit = limits.limitMs(prefix, manifest);
   const reader = createEventReader(
     (value) => documentValidators.event(value),
     onEvent === undefined ? undefined : (event) => onEvent(name, event),
@@ -135,8 +185,17 @@ export async function runPlugin(
   onEvent?: (name: string, event: PluginEvent) => void,
   env?: Record<string, string>,
   reports?: () => boolean,
+  manifest?: string[] | null,
 ): Promise<PluginRun> {
-  const call = prepareCall(io, limits, command, fallbackName, onEvent, env);
+  const call = prepareCall(
+    io,
+    limits,
+    command,
+    fallbackName,
+    onEvent,
+    env,
+    manifest,
+  );
   const run = await runRegisteredAsync(
     io,
     root,

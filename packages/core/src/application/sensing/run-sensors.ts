@@ -47,9 +47,27 @@ export async function runSensors(
 
   const senseFrom = clock.awake();
 
+  const runnable = selected.filter((one) => one.broken === undefined);
+
+  for (const one of selected) {
+    if (one.broken !== undefined) {
+      sink.say("stderr", `${one.name}: ${one.broken.reason}\n`);
+
+      recorder.entry(phase, {
+        name: one.name,
+        command: one.manifest ?? one.command,
+        status: null,
+        outcome: "failed",
+        duration_ms: 0,
+        reason: one.broken.reason,
+        stderr: "",
+      });
+    }
+  }
+
   await sensors.run({
     root,
-    selected: selected.map((one) => ({
+    selected: runnable.map((one) => ({
       ...one,
       ...(scope !== undefined && one.scoped
         ? { modules: scope.names.length }

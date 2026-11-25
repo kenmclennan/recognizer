@@ -24,6 +24,10 @@ import {
   type ReportedViolation,
   settleBaseline,
 } from "../history/settle-baseline.js";
+import {
+  notMeasuredLine,
+  undeclaredSensors,
+} from "../plugins/undeclared-sensors.js";
 import type { Say } from "../shared/ports/process.js";
 import {
   candidatesOf,
@@ -279,6 +283,32 @@ function gather(
   for (const name of registered) {
     if (!sensors.some((one) => one.name === name)) {
       sensors.push({ name, status: "missing" });
+    }
+  }
+
+  const sensorConfig = ports.config.sensorConfig(root);
+  const suitesConfigured = (ports.config.tests(sensorConfig) ?? []).length > 0;
+
+  for (const notice of undeclaredSensors(
+    ports.config.registeredSensors(sensorConfig),
+    suitesConfigured,
+  )) {
+    say("stderr", `${notice.line}\n`);
+
+    const at = sensors.findIndex((one) => one.name === notice.name);
+    const status = sensors[at];
+
+    if (
+      notice.suitesWithheld &&
+      status !== undefined &&
+      status.status === "ran"
+    ) {
+      sensors[at] = {
+        ...status,
+        status: "partial",
+        reason: notMeasuredLine(notice.name),
+        not_measured: ["suites"],
+      };
     }
   }
 

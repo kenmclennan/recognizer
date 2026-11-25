@@ -1,6 +1,7 @@
 import { InvalidRequest } from "../../domain/invalid-request.js";
 import { parseSuiteSelection } from "../../domain/sensing/suite-selection.js";
 import { isScoped, runsTests } from "../plugins/installed-sensors.js";
+import { undeclaredSensors } from "../plugins/undeclared-sensors.js";
 import type { SensingPorts } from "./internal/sensing-ports.js";
 import type {
   PlannedSensor,
@@ -27,6 +28,9 @@ export function planSensors(
   input: SensorPlanInput,
 ): SensorPlan {
   const { selected, installed } = input.selection;
+  const broken = new Map(
+    (installed.registeredUnreadable ?? []).map((one) => [one.name, one.reason]),
+  );
   const configured = (ports.config.tests(input.config) ?? []).map(
     (suite) => suite.name,
   );
@@ -38,7 +42,8 @@ export function planSensors(
           configured,
           selected.map((one) => ({
             name: one.name,
-            runsTests: runsTests(one.command, installed),
+            runsTests:
+              broken.has(one.name) || runsTests(one.command, installed),
           })),
         );
   const explicit: Record<string, string[]> = { ...parsed };
@@ -74,12 +79,36 @@ export function planSensors(
       : command;
   };
 
-  const planned: PlannedSensor[] = selected.map(({ name, command }) => ({
-    name,
-    command: withSuites(name, scoped(command)),
-    runsTests: runsTests(command, installed),
-    scoped: isScoped(command, installed),
-  }));
+  const undeclared = new Map(
+    undeclaredSensors(selected, configured.length > 0).map((one) => [
+      one.name,
+      one,
+    ]),
+  );
+  const planned: PlannedSensor[] = selected.map(
+    ({ name, command, manifest }) => {
+      const notice = undeclared.get(name);
+      const reason = manifest === undefined ? undefined : broken.get(name);
+
+      return {
+        name,
+        command: withSuites(name, scoped(command)),
+        runsTests: runsTests(command, installed),
+        scoped: isScoped(command, installed),
+        ...(manifest === undefined ? {} : { manifest }),
+        ...(reason === undefined ? {} : { broken: { reason } }),
+        ...(notice === undefined
+          ? {}
+          : {
+              undeclared: {
+                line: notice.line,
+                fix: notice.fix,
+                suitesWithheld: notice.suitesWithheld,
+              },
+            }),
+      };
+    },
+  );
 
   return { selected: planned, chosen };
 }

@@ -112,14 +112,23 @@ function edited(
   const { kind, name, program, manifest } = registration;
   const edits = new Edits(original, io);
 
+  const entry = existing.sensors[name];
+  const present = entry !== undefined && entry !== null;
+  const hasManifest = isRecord(entry) && entry.manifest !== undefined;
   const registered =
     kind === "sensor"
-      ? existing.sensors[name] !== undefined && existing.sensors[name] !== null
+      ? present && hasManifest
       : existing.describerProgram === program;
 
   if (!registered) {
     if (kind === "sensor") {
-      edits.apply("add-section", `sensors.${name}`);
+      if (!present) {
+        edits.apply("add-section", `sensors.${name}`);
+      }
+
+      for (const word of [program, "manifest"]) {
+        edits.apply("add", `sensors.${name}.manifest`, word);
+      }
     } else {
       for (const word of describerWords(program)) {
         edits.apply("add", "describer.command", word);

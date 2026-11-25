@@ -16,7 +16,7 @@ export interface SensorSelectionInput {
 }
 
 export interface SensorSelection {
-  selected: { name: string; command: string[] }[];
+  selected: { name: string; command: string[]; manifest?: string[] }[];
   installed: InstalledRead;
 }
 
@@ -33,6 +33,9 @@ export interface PlannedSensor {
   command: string[];
   runsTests: boolean;
   scoped: boolean;
+  manifest?: string[];
+  undeclared?: { line: string; fix: string; suitesWithheld: boolean };
+  broken?: { reason: string };
 }
 
 export interface SensorPlan {
@@ -61,7 +64,7 @@ export interface Sensors {
   ): { started: boolean; status: number | null };
   readinessReports(
     root: string,
-    sensors: { name: string; command: string[] }[],
+    sensors: { name: string; command: string[]; manifest?: string[] }[],
     limits: PluginLimits,
   ): SensorReport[];
   run(call: SenseCall): Promise<void>;
