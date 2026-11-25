@@ -16,6 +16,7 @@ import {
   describerRegistered,
   effectiveTicks,
   functionCount,
+  keepLastGoodSensors,
   NO_RUN,
   opensScanPanel,
   type PanelInput,
@@ -286,9 +287,21 @@ describe("scanPanel rows", () => {
       expect(row.unregistered).toBeUndefined();
       expect(row.tone).toBe("bad");
       expect(row.text.text).not.toBe("not registered");
-      expect(row.text.text.length).toBeGreaterThan(0);
-      expect(row.stateTitle).toBe(row.text.text);
+      expect(row.reason).toBe("tests: unit needs a language");
+      expect(row.stateTitle).toBe(row.reason);
     }
+  });
+
+  it("keeps the last good installed list when a later read is unavailable", () => {
+    const good: InstalledSensors = {
+      status: "ok",
+      sensors: [plainSensor("crap", { display: "C.R.A.P." })],
+    };
+    const bad: InstalledSensors = { status: "unavailable", reason: "settings" };
+
+    expect(keepLastGoodSensors(good, bad)).toBe(good);
+    expect(keepLastGoodSensors(null, bad)).toBe(bad);
+    expect(keepLastGoodSensors(bad, good)).toBe(good);
   });
 
   it("lists an installed sensor once", () => {

@@ -222,6 +222,7 @@ export type ScanRow = {
   tick: TickState;
   tone: SuiteTone | null;
   fold: FoldModel | null;
+  reason?: string;
 };
 
 export type FoldModel = {
@@ -294,6 +295,13 @@ function suitesOf(config: Config | null): SuiteRef[] {
     name,
     language,
   }));
+}
+
+export function keepLastGoodSensors(
+  previous: InstalledSensors | null,
+  next: InstalledSensors,
+): InstalledSensors {
+  return next.status !== "ok" && previous?.status === "ok" ? previous : next;
 }
 
 export function rowSensors(
@@ -765,8 +773,9 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
           ticked: isTicked,
           tick: isTicked ? "on" : "off",
           tone: "bad",
-          text: { icon: "circle-x", text: sensorSettingsError },
+          text: { icon: "circle-x", text: "settings error" },
           stateTitle: sensorSettingsError,
+          reason: sensorSettingsError,
           fold: null,
         };
       }

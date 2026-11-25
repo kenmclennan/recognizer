@@ -14,7 +14,7 @@ import {
   stateText,
   wordFreshness,
 } from "../../src/freshness-text";
-import { DESCRIBE_KEY } from "../../src/scan-freshness";
+import { DESCRIBE_KEY, freshnessMessage } from "../../src/scan-freshness";
 import {
   NO_RUN,
   type PanelInput,
@@ -1212,6 +1212,58 @@ describe("the button with unregistered sensors and no plan", () => {
       label: "Up to date",
       disabled: true,
     });
+  });
+});
+
+describe("the never-run notice through core's sensor state", () => {
+  const neverRan = (settled: boolean) => {
+    const planned = plannedInput(
+      IDS,
+      {
+        sensors: [ran("crap", IDS)],
+        ticks: {
+          describe: true,
+          analysis: true,
+          ticked: ["mutation"],
+          armed: ["crap", "mutation"],
+          onlyView: false,
+          suites: {},
+          folds: [],
+        },
+      },
+      SENSORS,
+    );
+
+    return wordFreshness(
+      {
+        ...planned,
+        plan: planned.plan ? { ...planned.plan, settled } : null,
+      },
+      SENSORS,
+    );
+  };
+
+  it("a settled plan saying a ticked scoped plugin has no run raises the notice", () => {
+    const model = neverRan(true);
+
+    expect(kindOf(model, "mutation")).toBe("never-run");
+    expect(freshnessMessage(model)).toMatchObject({
+      text: "Mutation has not run here yet. Its results are missing from this picture.",
+      label: "Run Mutation",
+    });
+  });
+
+  it("a plan that has not settled raises nothing, and an unscoped plugin never raises it", () => {
+    expect(kindOf(neverRan(false), "mutation")).toBe("checking");
+    expect(freshnessMessage(neverRan(false))).toBeNull();
+    expect(
+      freshnessMessage(
+        wordFreshness(
+          plannedInput(IDS, { sensors: [ran("mutation", IDS)] }, SENSORS),
+          SENSORS,
+        ),
+      ),
+    ).toBeNull();
   });
 });
 

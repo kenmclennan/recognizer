@@ -2420,7 +2420,23 @@ svg.i.chevron {
   color: var(--muted);
 }
 
+.scan-row.has-reason {
+  flex-wrap: wrap;
+}
+
+.scan-row-reason {
+  flex: 1 0 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  padding-left: 26px;
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
 .scan-log-link {
+  flex: none;
+  white-space: nowrap;
   padding: 0;
   border: 0;
   background: none;

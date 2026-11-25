@@ -47,6 +47,7 @@ export type ResultInput = {
   freshness?: unknown;
   plan?: {
     view: { gaps: Readonly<Record<string, string[]>>; never: string[] };
+    settled?: boolean;
   } | null;
   scansCommit?: { commit: string | null; modified: boolean };
   finishedInRun?: readonly string[];
@@ -182,6 +183,10 @@ export function sensorState(
   }
 
   if (answer.never.includes(name) === true) {
+    if (input.plan?.settled === false) {
+      return { kind: "checking" };
+    }
+
     gaps.set(name, [...modules]);
 
     return { kind: "never-run" };
