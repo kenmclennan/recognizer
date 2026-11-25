@@ -175,6 +175,7 @@ export function createScanSource(deps: ScanSourceDeps): ScanPort {
   };
 
   let current: string | null = null;
+  let watched: string | null = null;
 
   async function run(
     plan: Parameters<ScanPort["run"]>[0],
@@ -257,8 +258,15 @@ export function createScanSource(deps: ScanSourceDeps): ScanPort {
       }),
     readDescribing: () => deps.invoke<DescribingSettings>("read_describing"),
     watchExternal: async () => {
+      const repository = deps.repository();
+
+      if (repository === "" || repository === watched) {
+        return;
+      }
+
       await attach();
       await call("scan.watch");
+      watched = repository;
     },
     plan: (request: PlanRequest) =>
       call<ScanPlanView>("scan.plan", { ...request }),

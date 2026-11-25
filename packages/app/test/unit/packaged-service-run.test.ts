@@ -277,14 +277,23 @@ afterEach(() => {
   bridge.listeners.clear();
 });
 
-function wire(repository: string, service: Service) {
+function wire(
+  repository: string,
+  service: Service,
+  folder: { known: boolean } = { known: true },
+) {
   bridge.invoke = async (command, args = {}) => {
     switch (command) {
-      case "core_call":
-        return service.call(String(args.op), {
-          ...(args.args as Record<string, unknown>),
-          repository,
-        });
+      case "core_call": {
+        const request = { ...(args.args as Record<string, unknown>) };
+
+        delete request.repository;
+
+        return service.call(
+          String(args.op),
+          folder.known ? { ...request, repository } : request,
+        );
+      }
       case "read_scan_ticks":
         return {
           describe: false,
@@ -327,7 +336,7 @@ function wire(repository: string, service: Service) {
     invoke,
     listen,
     windowLabel: () => "w-1",
-    repository: () => repository,
+    repository: () => (folder.known ? repository : ""),
   });
 
   return { holder, sensors, scan };
@@ -637,6 +646,92 @@ describe("the app over the real service, on a path with an unreadable folder", (
         unit: "functions",
         to_perform: 3,
       });
+      holder.stop();
+    },
+    TEST_TIMEOUT,
+  );
+
+  it(
+    "a_run_card_leaves_checking_when_the_run_finishes_after_the_folder_is_assigned_late",
+    async () => {
+      const { repository, path, unreadable } = fixture();
+      const service = new Service(path);
+
+      cleanups.push(() => {
+        service.stop();
+        chmodSync(unreadable, 0o755);
+        rmSync(unreadable, { recursive: true, force: true });
+      });
+
+      const folder = { known: false };
+      const { holder, sensors, scan } = wire(repository, service, folder);
+
+      await scan.watchExternal();
+
+      folder.known = true;
+
+      await holder.start();
+      await untilState(holder, (one) => one.registry.entries.length === 2);
+      await scan.watchExternal();
+
+      const loaded = {
+        modules: [],
+        scans: [],
+        repository: Repository.empty,
+        policy: null,
+        baseline: null,
+        notices: [],
+        blocking: null,
+        findings: [],
+        sensors: [],
+      };
+      const rescanner = createRescanner({
+        port: scan,
+        snapshot: {
+          run: () => holder.current()?.run ?? null,
+          onRun: (handler) => holder.onRevision((state) => handler(state.run)),
+        },
+        registered: async () => {
+          const { config } = await sensors.inputs();
+
+          return {
+            sensors: rowSensors(config, await sensors.sensorList()),
+            describerRegistered: describerRegistered(config),
+          };
+        },
+        load: () => loaded,
+        sense: (one) => withSensors(one, sensors),
+        resense: async () => withSensors(loaded, sensors),
+        adopt: async () => ({ branch: "main", commit: "abc" }),
+        carry: () => null,
+        replace: () => {},
+        update: () => false,
+        adopted: () => {},
+        describedLine: () => {},
+        progress: () => {},
+        settled: () => {},
+        attached: () => {},
+        hasExplorer: () => false,
+        blocked: (text) => {
+          throw new Error(text);
+        },
+        post: () => null,
+        attach: () => {},
+        openLog: () => {},
+        show: () => {},
+      });
+
+      await rescanner.loadTicks();
+      await rescanner.run();
+      await untilState(holder, (one) => one.run?.state === "finished");
+
+      const limit = Date.now() + WAIT;
+
+      while (rescanner.runView().starting !== null && Date.now() < limit) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+
+      expect(rescanner.runView().starting).toBeNull();
       holder.stop();
     },
     TEST_TIMEOUT,
