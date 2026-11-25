@@ -27,6 +27,8 @@ const VALID: PluginEvent[] = [
     fix: "add one",
   },
   { event: "diagnosis", code: "tests-failed", text: "3 tests failed" },
+  { event: "stage", name: "Coverage run", index: 1, of: 2 },
+  { event: "estimate", remaining_ms: 1000 },
 ];
 
 describe("the plugin event reader", () => {
@@ -114,17 +116,15 @@ describe("the plugin event reader", () => {
     });
   });
 
-  it("reports each step's own duration from its first to its last progress event", () => {
+  it("reports each stage's own duration from its stage event to the next, the last lasting until suites() is read", () => {
     let clock = 0;
-    const times = [100, 400, 400, 1000];
+    const times = [100, 400, 1000];
     const reader = createEventReader(undefined, () => times[clock++] as number);
-    const step = (done: number, name: string) =>
-      line({ event: "progress", done, total: 2, unit: "suites", step: name });
+    const stage = (index: number, name: string) =>
+      line({ event: "stage", name, index, of: 2 });
 
-    reader.line(step(0, "engine"));
-    reader.line(step(1, "engine"));
-    reader.line(step(1, "app"));
-    reader.line(step(2, "app"));
+    reader.line(stage(1, "engine"));
+    reader.line(stage(2, "app"));
 
     expect(reader.suites()).toEqual([
       { name: "engine", duration_ms: 300 },
@@ -132,11 +132,39 @@ describe("the plugin event reader", () => {
     ]);
   });
 
-  it("reports no suites for progress without a step", () => {
+  it("reports no suites for a run with no stage event", () => {
     const reader = createEventReader();
 
-    reader.line(line({ event: "progress", done: 1, total: 2, unit: "f" }));
+    reader.line(
+      line({ event: "progress", done: 1, total: 2, unit: "f", step: "x" }),
+    );
 
     expect(reader.suites()).toEqual([]);
+  });
+
+  it("reads_a_stage_and_an_estimate_event", () => {
+    const seen: PluginEvent[] = [];
+    const reader = createEventReader((one) => seen.push(one));
+
+    reader.line(line({ event: "stage", name: "one", index: 1, of: 3 }));
+    reader.line(line({ event: "estimate", remaining_ms: 5000 }));
+    reader.line(line({ event: "estimate", remaining_ms: null }));
+
+    expect(seen).toEqual([
+      { event: "stage", name: "one", index: 1, of: 3 },
+      { event: "estimate", remaining_ms: 5000 },
+      { event: "estimate", remaining_ms: null },
+    ]);
+  });
+
+  it("drops_a_stage_whose_index_passes_its_total", () => {
+    const seen: PluginEvent[] = [];
+    const reader = createEventReader((one) => seen.push(one));
+    const bad = line({ event: "stage", name: "one", index: 4, of: 3 });
+
+    reader.line(bad);
+
+    expect(seen).toEqual([]);
+    expect(reader.keep(`${bad}\n`)).toBe("ignored 1 invalid event line\n");
   });
 });

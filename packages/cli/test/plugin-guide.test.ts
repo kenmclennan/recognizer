@@ -48,6 +48,21 @@ describe("recognizer help plugin-guide", () => {
     expect(pluginGuide()).toContain("not_measured");
   });
 
+  it("the_guide_lists_every_event_kind", () => {
+    const guide = pluginGuide();
+
+    for (const text of [
+      "start {total, unit",
+      "progress {done, total, unit",
+      "note {text}",
+      "diagnosis {code, text",
+      "stage {name, index, of}",
+      "estimate {remaining_ms}",
+    ]) {
+      expect(guide).toContain(text);
+    }
+  });
+
   it("is a usage error with an argument", () => {
     const captured = capture();
 

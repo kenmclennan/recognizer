@@ -6,6 +6,7 @@ from recognizer_sensors.crap.complexity import cyclomatic_complexity
 from recognizer_sensors.crap.lcov import Coverage, function_coverage
 from recognizer_sensors.functions import find_functions
 from recognizer_sensors.hashes import scan_hashes, test_map
+from recognizer_sensors.history import Tracker, elapsed_estimate, key_of
 from recognizer_sensors.identity import assign_identities
 from recognizer_sensors.outcome import Outcome, Overlay
 from recognizer_sensors.parsing import grammar_for, parse
@@ -302,7 +303,10 @@ def run(
     stored = read_entries(repository, "crap")
     parts = {name: stored_coverage(entry) for name, entry in stored.items()}
     results: dict[str, dict] = {}
-    coverage, diagnosis = collect_suites(repository, scans, suites, names, parts, results)
+    scanned = {scan.language for scan in scans}
+    coverage_runs = sum(1 for suite in selected(suites, names) if suite.language in scanned)
+    tracker = Tracker(repository, "crap", key_of(chosen), coverage_runs + 1, elapsed_estimate)
+    coverage, diagnosis = collect_suites(repository, scans, suites, names, parts, results, tracker)
     tests = test_map(repository, scans)
     entries = merged_entries(
         stored, fresh_entries(repository, scans, suites, results, tests), [s.name for s in suites]
@@ -314,7 +318,9 @@ def run(
 
     measured_scans = [measure_scan(repository, scan, coverage) for scan in scans]
 
-    events.start(sum(len(measured) for measured in measured_scans), "functions")
+    function_count = sum(len(measured) for measured in measured_scans)
+    events.start(function_count, "functions")
+    tracker.finish_stages("Measure functions")
 
     for measured in measured_scans:
         for identity, m in measured:
@@ -336,6 +342,9 @@ def run(
                 findings.append(coverage_finding)
 
     overlay = Overlay(METRICS, values, repository / settings["overlay"])
+
+    if diagnosis is None:
+        tracker.finish(function_count)
 
     return Outcome(
         findings,

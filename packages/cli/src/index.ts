@@ -195,6 +195,7 @@ export { parseKeySchema } from "./config-keys.js";
 export {
   type Config,
   parseConfig,
+  registeredSensorNamesIn,
   registeredSensorSettings,
   registeredSensors,
   type TestSuite,

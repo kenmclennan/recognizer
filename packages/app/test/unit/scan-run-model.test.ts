@@ -1,3 +1,4 @@
+import type { PluginRunView, RunView as Run, RunState } from "@recognizer/core";
 import type { ScanRunRecord } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
@@ -23,36 +24,77 @@ function clock(iso: string): string {
   return `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
 }
 
-function record(over: Partial<ScanRunRecord> = {}): ScanRunRecord {
+type RunOver = {
+  run_id?: string;
+  started_at?: string;
+  started_by?: "cli" | "app";
+  sensors?: string[];
+  describe?: boolean;
+  suites?: Record<string, string[]>;
+  phase?: ScanRunRecord["phase"];
+  ended_at?: string | null;
+  exit?: number | null;
+  gaps?: ScanRunRecord["gaps"];
+  failure?: ScanRunRecord["failure"];
+  ran?: ScanRunRecord["ran"];
+};
+
+type PluginOver = Partial<PluginRunView> & { name: string };
+
+function pluginRun(over: PluginOver): PluginRunView {
   return {
-    version: 5,
-    suites: {},
-    run_id: "run-1",
-    pid: 4242,
-    pgid: 4242,
-    started_at: "2026-11-12T09:00:00.000Z",
-    started_by: "app",
-    repository: "/work/repo",
-    sensors: ["crap", "mutation"],
-    describe: false,
-    phase: "running",
-    ended_at: null,
-    exit: null,
-    gaps: [],
+    state: "queued",
+    progress: null,
+    stage: null,
+    estimateMs: null,
     failure: null,
-    commit: null,
-    ran: null,
     ...over,
   };
 }
 
+const ENDED_PLUGIN: Record<string, PluginRunView["state"]> = {
+  finished: "finished",
+  failed: "finished",
+  stopped: "stopped",
+  refused: "stopped",
+};
+
+function runOf(over: RunOver, plugins?: PluginOver[]): Run {
+  const sensors = over.sensors ?? ["crap", "mutation"];
+  const phase = over.phase ?? "running";
+
+  return {
+    id: over.run_id ?? "run-1",
+    startedBy: over.started_by ?? "app",
+    startedAt: over.started_at ?? "2026-11-12T09:00:00.000Z",
+    scope: { kind: "working-tree" },
+    sensors,
+    describe: over.describe ?? false,
+    suites: over.suites ?? {},
+    state: phase as RunState,
+    endedAt: over.ended_at ?? null,
+    exit: over.exit ?? null,
+    gaps: over.gaps ?? [],
+    failure: over.failure ?? null,
+    ran: over.ran ?? null,
+    plugins: (
+      plugins ??
+      sensors.map((name) => ({
+        name,
+        state: ENDED_PLUGIN[phase] ?? "queued",
+      }))
+    ).map(pluginRun),
+  };
+}
+
 function view(
-  over: Partial<ScanRunRecord> | null,
+  over: RunOver | null,
   progress: Partial<ScanProgress> = {},
   extra: Partial<RunView> = {},
+  plugins?: PluginOver[],
 ): RunView {
   return {
-    record: over === null ? null : record(over),
+    run: over === null ? null : runOf(over, plugins),
     progress: { ...NO_PROGRESS, ...progress },
     display,
     starting: null,
@@ -139,35 +181,19 @@ describe("the run model", () => {
 
   it("reads the running card naming the sensor, the suite and the count", () => {
     const run = model(
-      view(
-        { phase: "running" },
+      view({ phase: "running", sensors: ["mutation"] }, {}, {}, [
         {
-          sensing: "mutation",
-          sensorProgress: {
-            name: "mutation",
-            phase: "sense",
-            progress: {
-              done: 11,
-              total: 29,
-              unit: "functions",
-              step: "unit",
-            },
-          },
+          name: "mutation",
+          state: "running",
+          stage: { name: "unit", index: 1, of: 2 },
+          progress: { done: 11, total: 29, unit: "functions" },
         },
-      ),
+      ]),
     );
     const coverage = model(
-      view(
-        { phase: "running" },
-        {
-          sensing: "crap",
-          sensorProgress: {
-            name: "crap",
-            phase: "sense",
-            note: "Coverage run for unit",
-          },
-        },
-      ),
+      view({ phase: "running", sensors: ["crap"] }, {}, {}, [
+        { name: "crap", state: "running" },
+      ]),
     );
 
     expect(run?.card).toMatchObject({
@@ -177,28 +203,53 @@ describe("the run model", () => {
     expect(coverage?.card.line).toBe("C.R.A.P.");
   });
 
-  it("reads Mutation 29/29 on a running record and a stopped one", () => {
-    const progress = {
-      sensing: "mutation",
-      sensorProgress: {
+  it("the_card_names_the_stage_of_the_running_plugin", () => {
+    const run = model(
+      view({ phase: "running", sensors: ["crap"] }, {}, {}, [
+        {
+          name: "crap",
+          state: "running",
+          stage: { name: "Coverage run: unit", index: 1, of: 3 },
+        },
+      ]),
+    );
+
+    expect(run?.card.line).toBe("C.R.A.P. \u00b7 Coverage run: unit");
+  });
+
+  it("reads Mutation 29/29 on a running run and a stopped one", () => {
+    const plugins = (state: "running" | "stopped") => [
+      {
         name: "mutation",
-        phase: "sense" as const,
+        state,
         progress: { done: 29, total: 29, unit: "functions" },
       },
-    };
+    ];
+    const only = { sensors: ["mutation"] };
 
-    expect(model(view({ phase: "running" }, progress))?.card.line).toBe(
-      "Mutation \u00b7 29/29",
-    );
     expect(
-      model(view({ phase: "stopped", ended_at: ENDED, exit: 143 }, progress))
+      model(view({ phase: "running", ...only }, {}, {}, plugins("running")))
         ?.card.line,
+    ).toBe("Mutation \u00b7 29/29");
+    expect(
+      model(
+        view(
+          { phase: "stopped", ended_at: ENDED, exit: 143, ...only },
+          {},
+          {},
+          plugins("stopped"),
+        ),
+      )?.card.line,
     ).toBe("Kept Mutation 29/29");
   });
 
-  it("reads the sensor and suite alone when it reports no count, and Finishing when none is current", () => {
+  it("reads the sensor alone when it reports no count, and Finishing when none is current", () => {
     expect(
-      model(view({ phase: "running" }, { sensing: "crap" }))?.card.line,
+      model(
+        view({ phase: "running", sensors: ["crap"] }, {}, {}, [
+          { name: "crap", state: "running" },
+        ]),
+      )?.card.line,
     ).toBe("C.R.A.P.");
     expect(model(view({ phase: "running" }))?.card.line).toBe("Finishing");
   });
@@ -229,7 +280,7 @@ describe("the run model", () => {
     expect(run?.button).toEqual({ label: "Scan", stop: false });
   });
 
-  it("reads the failed card with the short reason and a log link", () => {
+  it("reads the failed card with the whole reason and a log link", () => {
     const run = model(
       view(
         {
@@ -268,13 +319,13 @@ describe("the run model", () => {
       tone: "bad",
     });
     expect(bare?.card.head).toBe("C.R.A.P. failed");
-    expect(bare?.card.line).toBe("x".repeat(60));
+    expect(bare?.card.line).toBe("x".repeat(80));
   });
 
   describe("a failure of the whole scan", () => {
     const REASON =
       "claude is not registered in .recognizer/config.yaml; register it with 'recognizer plugin add claude'.";
-    const whole = (over: Partial<ScanRunRecord> = {}) => ({
+    const whole = (over: RunOver = {}) => ({
       phase: "failed" as const,
       ended_at: ENDED,
       exit: 1,
@@ -290,7 +341,7 @@ describe("the run model", () => {
       const run = model(view(whole(), {}, named));
 
       expect(run?.card.head).toBe("Scan did not start");
-      expect(run?.card.line).toBe(REASON.slice(0, 60));
+      expect(run?.card.line).toBe(REASON);
       expect(run?.card.lineTitle).toBe(REASON);
       expect(run?.card.tone).toBe("bad");
     });
@@ -309,7 +360,7 @@ describe("the run model", () => {
   });
 
   it.each(["tests-failed", "custom-code"])(
-    "reads the reason of a %s failure cut to the limit",
+    "reads the whole reason of a %s failure",
     (code) => {
       const run = model(
         view({
@@ -325,32 +376,21 @@ describe("the run model", () => {
         }),
       );
 
-      expect(run?.card.line).toBe("r".repeat(60));
+      expect(run?.card.line).toBe("r".repeat(90));
     },
   );
 
-  it("reads the stopped card with the kept count, the skipped suites, and without counts", () => {
-    const progress = {
-      sensing: "mutation",
-      sensorProgress: {
-        name: "mutation",
-        phase: "sense" as const,
-        progress: { done: 11, total: 29, unit: "functions", step: "unit" },
-      },
-      startedSuites: { mutation: ["unit"] },
-    };
+  it("reads the stopped card with the kept count and without counts", () => {
     const stopped = { phase: "stopped", ended_at: ENDED, exit: 143 } as const;
     const counted = model(
-      view({ ...stopped, suites: { mutation: ["unit"] } }, progress),
-    );
-    const one = model(
-      view({ ...stopped, suites: { mutation: ["unit", "web"] } }, progress),
-    );
-    const two = model(
-      view(
-        { ...stopped, suites: { mutation: ["unit", "web", "e2e"] } },
-        progress,
-      ),
+      view({ ...stopped, sensors: ["mutation"] }, {}, {}, [
+        {
+          name: "mutation",
+          state: "stopped",
+          stage: { name: "unit", index: 1, of: 2 },
+          progress: { done: 11, total: 29, unit: "functions" },
+        },
+      ]),
     );
     const plain = model(view({ phase: "stopped", ended_at: ENDED, exit: 143 }));
 
@@ -358,12 +398,6 @@ describe("the run model", () => {
       head: "Scan stopped",
       line: "Kept Mutation 11/29 on unit",
     });
-    expect(one?.card.line).toBe(
-      "Kept Mutation 11/29 on unit \u00b7 skipped Mutation on web",
-    );
-    expect(two?.card.line).toBe(
-      "Kept Mutation 11/29 on unit \u00b7 skipped Mutation on web \u00b7 skipped Mutation on e2e",
-    );
     expect(counted?.partial).toEqual({
       sensor: "mutation",
       text: "11 of 29, 25 minutes ago",
@@ -375,15 +409,16 @@ describe("the run model", () => {
   it("shows the partial row as just now for a run that ended this minute", () => {
     const run = runModel(
       view(
-        { phase: "stopped", ended_at: ENDED, exit: 143 },
-        {
-          sensing: "mutation",
-          sensorProgress: {
+        { phase: "stopped", ended_at: ENDED, exit: 143, sensors: ["mutation"] },
+        {},
+        {},
+        [
+          {
             name: "mutation",
-            phase: "sense",
+            state: "stopped",
             progress: { done: 11, total: 29, unit: "functions" },
           },
-        },
+        ],
       ),
       ALL,
       ALL,
@@ -467,78 +502,109 @@ describe("the run model", () => {
 
 describe("the time slot while an app-driven scan runs", () => {
   const T0 = NOW - 60_000;
-  const timing = (over: Partial<ScanProgress["timing"]>) => ({
-    ...NO_PROGRESS.timing,
-    ...over,
-  });
   const running = (
-    over: Partial<ScanRunRecord>,
-    progress: Partial<ScanProgress>,
+    over: RunOver,
+    plugins: PluginOver[],
+    extra: Partial<RunView> = {},
   ) =>
-    model(view({ started_at: new Date(T0).toISOString(), ...over }, progress));
+    model(
+      view(
+        { started_at: new Date(T0).toISOString(), ...over },
+        {},
+        extra,
+        plugins,
+      ),
+    );
+  const live = (name: string, estimateMs: number | null): PluginOver => ({
+    name,
+    state: "running",
+    estimateMs,
+  });
 
-  it("reads about N min left from the frozen figures", () => {
-    const card = running(
-      { sensors: ["crap"] },
-      {
-        timing: timing({
-          frozen: { structure: 0, crap: 600_000 },
-          sensorAt: { crap: T0 },
-        }),
-      },
-    )?.card;
+  it("reads about N min left from the reported estimates", () => {
+    const card = running({ sensors: ["crap"] }, [live("crap", 600_000)])?.card;
 
-    expect(card?.when.text).toBe("about 9 min left");
+    expect(card?.when.text).toBe("about 10 min left");
     expect(card?.when.title).toBeUndefined();
   });
 
-  it("names an overrun in the card text and hover", () => {
-    const card = running(
-      { sensors: ["crap"] },
-      {
-        timing: timing({
-          frozen: { structure: 0, crap: 30_000 },
-          sensorAt: { crap: T0 },
-        }),
-      },
-    )?.card;
+  it("names the plugins that have not reported in the hover", () => {
+    const card = running({}, [
+      live("crap", 600_000),
+      { name: "mutation", state: "queued" },
+    ])?.card;
 
-    expect(card?.when.text).toBe("C.R.A.P.: longer than estimated");
-    expect(card?.when.title).toBe(
-      "C.R.A.P.: past its estimate of under a minute",
-    );
+    expect(card?.when.text).toBe("No estimate yet");
+    expect(card?.when.title).toContain("Mutation");
+    expect(card?.when.title).not.toContain("C.R.A.P.");
   });
 
-  it("names the parts it is not counting in the hover", () => {
-    const card = running(
-      {},
-      { timing: timing({ frozen: { structure: 0, crap: 600_000 } }) },
-    )?.card;
+  it("a_run_reads_no_estimate_yet_while_a_queued_plugin_has_not_reported", () => {
+    const card = running({}, [
+      live("crap", 40_000),
+      { name: "mutation", state: "queued" },
+    ])?.card;
 
-    expect(card?.when.title).toBe("not counting Mutation: no estimate yet");
+    expect(card?.when.text).toBe("No estimate yet");
+    expect(card?.when.title).toContain("Mutation");
+  });
+
+  it("a_plugin_that_reports_none_reads_no_estimate_yet", () => {
+    const card = running({ sensors: ["crap"] }, [live("crap", null)])?.card;
+
+    expect(card?.when.text).toBe("No estimate yet");
+  });
+
+  it("a_run_reads_the_sum_of_every_live_plugins_estimate", () => {
+    const sum = (a: number, b: number) =>
+      running({}, [live("crap", a), live("mutation", b)])?.card.when.text;
+
+    expect(sum(5 * 60_000, 4 * 60_000)).toBe("about 9 min left");
+    expect(sum(30_000, 30_000)).toBe("about 1 min left");
+    expect(sum(30_000, 29_999)).toBe("under a minute left");
+  });
+
+  it("a_mutation_run_of_hours_never_reads_under_a_minute_at_a_stage_boundary", () => {
+    const hour = 3_600_000;
+    const at = (index: number, estimateMs: number) =>
+      running({ sensors: ["mutation"] }, [
+        {
+          name: "mutation",
+          state: "running",
+          stage: { name: `suite ${index}`, index, of: 2 },
+          estimateMs,
+        },
+      ])?.card;
+    const cards = [at(1, 3 * hour), at(2, 3 * hour), at(2, 3 * hour - 60_000)];
+    const texts = cards.map((card) => card?.when.text);
+
+    expect(texts).toEqual([
+      "about 3 h left",
+      "about 3 h left",
+      "about 2 h 59 min left",
+    ]);
+
+    for (const text of texts) {
+      expect(text).not.toContain("under a minute");
+      expect(text).not.toBe("No estimate yet");
+    }
   });
 
   it("keeps the clock for a command-line run", () => {
-    const card = running(
-      { started_by: "cli" },
-      { timing: timing({ frozen: { structure: 0, crap: 600_000 } }) },
-    )?.card;
+    const card = running({ started_by: "cli" }, [live("crap", 600_000)])?.card;
 
     expect(card?.when.text).toMatch(/^\d\d:\d\d$/);
   });
 
-  it("keeps the clock when nothing was frozen", () => {
-    expect(running({}, {})?.card.when.text).toMatch(/^\d\d:\d\d$/);
+  it("keeps the clock when the run has no sensor plugin runs", () => {
+    expect(running({ sensors: [] }, [])?.card.when.text).toMatch(/^\d\d:\d\d$/);
   });
 
   it("keeps the clock on a finished card and in every other phase", () => {
-    const frozen = timing({ frozen: { structure: 0, crap: 600_000 } });
-
     for (const phase of ["finished", "stopped", "checking"] as const) {
-      const card = running(
-        { phase, ended_at: ENDED },
-        { timing: frozen },
-      )?.card;
+      const card = running({ phase, ended_at: ENDED }, [
+        live("crap", 600_000),
+      ])?.card;
 
       expect(card?.when.text).toMatch(/^\d\d:\d\d$/);
     }
@@ -549,6 +615,51 @@ describe("the time slot while an app-driven scan runs", () => {
 
     expect(card?.when.text).toMatch(/^\d\d:\d\d$/);
   });
+});
+
+it("the_card_reads_gaps_failure_and_ran_from_the_run", () => {
+  const gap = { id: "crap:a", line: "no tool", needs: ["crap"] };
+  const refused = model(
+    view({ phase: "refused", ended_at: ENDED, exit: 4, gaps: [gap] }),
+  );
+  const sensorFailure = model(
+    view({
+      phase: "failed",
+      ended_at: ENDED,
+      exit: 1,
+      failure: { sensor: "crap", suite: "web", code: null, reason: "broke" },
+    }),
+  );
+  const wholeFailure = model(
+    view({
+      phase: "failed",
+      ended_at: ENDED,
+      exit: 1,
+      ran: null,
+      failure: { sensor: "scan", suite: null, code: null, reason: "no claude" },
+    }),
+  );
+  const stopped = model(
+    view(
+      { phase: "stopped", ended_at: ENDED, exit: 143, sensors: ["crap"] },
+      {},
+      {},
+      [
+        {
+          name: "crap",
+          state: "stopped",
+          progress: { done: 1, total: 4, unit: "functions" },
+        },
+      ],
+    ),
+  );
+
+  expect(refused?.card.gaps).toEqual([
+    { id: "crap:a", line: "no tool", where: "C.R.A.P." },
+  ]);
+  expect(sensorFailure?.card.head).toBe("C.R.A.P. failed on web");
+  expect(wholeFailure?.card.head).toBe("Scan did not start");
+  expect(stopped?.card.line).toBe("Kept C.R.A.P. 1/4");
 });
 
 describe("extract timing per language", () => {
@@ -599,89 +710,5 @@ describe("extract timing per language", () => {
     expect(folded.timing.extractAt).toEqual({ python: 100, rust: 1000 });
     expect(folded.timing.extractDoneAt).toEqual({ python: 900 });
     expect(folded.timing.extractTotals).toEqual({ python: 40, rust: 7 });
-  });
-});
-
-describe("the run's work across steps", () => {
-  const sense = (name: string, data: object) =>
-    parseScanLine(
-      JSON.stringify({ event: "plugin", phase: "sense", name, data }),
-    );
-  const fold = (lines: [number, object | null][]) =>
-    lines.reduce<ScanProgress>(
-      (state, [at, event]) =>
-        runModelModule.foldRunEvent(
-          state,
-          event as Parameters<typeof runModelModule.foldRunEvent>[1],
-          at,
-        ),
-      NO_PROGRESS,
-    );
-  const progress = (done: number, unit: string, step?: string) =>
-    sense("mutation", {
-      event: "progress",
-      done,
-      total: 100,
-      unit,
-      ...(step === undefined ? {} : { step }),
-    });
-  const start = sense("mutation", {
-    event: "start",
-    total: 150,
-    unit: "functions",
-    queued: 30,
-  });
-
-  it("starts from queued, or from total without it", () => {
-    expect(fold([[1, start]]).timing.runWork).toEqual({
-      work: 30,
-      queued: true,
-      unit: "functions",
-      at: null,
-      current: null,
-      steps: {},
-    });
-    expect(
-      fold([[1, sense("crap", { event: "start", total: 2, unit: "suites" })]])
-        .timing.runWork,
-    ).toMatchObject({ work: 2, queued: false });
-  });
-
-  it("sums the progress since each step's first event", () => {
-    const folded = fold([
-      [1, start],
-      [10, progress(80, "functions", "a")],
-      [20, progress(100, "functions", "a")],
-      [20, progress(50, "functions", "b")],
-      [30, progress(53, "functions", "b")],
-    ]);
-
-    expect(folded.timing.runWork?.at).toBe(10);
-    expect(folded.timing.runWork?.steps).toEqual({
-      a: { first: 80, latest: 100, firstAt: 10, lastAt: 20 },
-      b: { first: 50, latest: 53, firstAt: 20, lastAt: 30 },
-    });
-    expect(folded.timing.runWork?.current).toBe("b");
-  });
-
-  it("ignores a progress of another unit", () => {
-    const folded = fold([
-      [1, start],
-      [10, progress(5, "suites")],
-    ]);
-
-    expect(folded.timing.runWork?.steps).toEqual({});
-    expect(folded.timing.runWork?.at).toBeNull();
-  });
-
-  it("resets on the next plugin start", () => {
-    const folded = fold([
-      [1, start],
-      [10, progress(80, "functions", "a")],
-      [20, start],
-    ]);
-
-    expect(folded.timing.runWork?.steps).toEqual({});
-    expect(folded.timing.runWork?.at).toBeNull();
   });
 });

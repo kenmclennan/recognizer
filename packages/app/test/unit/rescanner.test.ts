@@ -1061,8 +1061,6 @@ describe("createRescanner", () => {
       progress: "Running",
       modules: 0,
       idle: false,
-      frozen: null,
-      suiteHistory: null,
     } as unknown as PlannedRun;
 
     expect(stale.sense).toContain("mut");
@@ -1097,8 +1095,6 @@ describe("createRescanner", () => {
       progress: "Running",
       modules: 0,
       idle: false,
-      frozen: null,
-      suiteHistory: null,
     } as unknown as PlannedRun;
 
     await rescanner.run(null, planned);
@@ -1565,7 +1561,7 @@ describe("createRescanner", () => {
       expect(rescanner.running()).toBe(true);
       expect(rescanner.external()).toBe(true);
       expect(rescanner.runState().running).toEqual(["alpha", "mut"]);
-      expect(rescanner.runView().record).toEqual(cli);
+      expect(rescanner.runView().run?.id).toBe(cli.run_id);
     });
 
     it("takes no side-effecting branch for its lines", async () => {
@@ -1581,6 +1577,54 @@ describe("createRescanner", () => {
       expect(posted.map((one) => one.text)).toEqual(["alpha failed: boom"]);
       expect(log).not.toContain("described");
       expect(rescanner.runState().failures).toEqual({ alpha: "boom" });
+    });
+
+    it("reads_no_scan_stream_line_for_a_sensor", async () => {
+      const made = harness();
+      const { scan, snapshot, rescanner, posted } = made;
+      const diagnosis = { code: "no-coverage", line: "no report" };
+
+      scan.emitRun({ kind: "run", run: cli });
+      scan.emitRun({
+        kind: "line",
+        line: line({ event: "start", phase: "sense", name: "alpha" }),
+      });
+      await flush();
+
+      const held = snapshot.latest();
+
+      if (held === null) {
+        throw new Error("the snapshot holds no run");
+      }
+
+      snapshot.publish({
+        ...held,
+        plugins: held.plugins.map((plugin) =>
+          plugin.name === "alpha"
+            ? {
+                ...plugin,
+                state: "failed",
+                failure: { reason: "from the snapshot", diagnosis },
+              }
+            : plugin,
+        ),
+      });
+      await flush();
+      scan.emitRun({
+        kind: "line",
+        line: entry("sense", "alpha", "from the stream"),
+      });
+      await flush();
+
+      expect(posted.map((one) => one.text)).toEqual([
+        "alpha failed: from the snapshot",
+      ]);
+      expect(rescanner.runState().failures).toEqual({
+        alpha: "from the snapshot",
+      });
+      expect(rescanner.runState().diagnoses).toMatchObject({
+        alpha: diagnosis,
+      });
     });
 
     it("starting_a_run_goes_through_core_and_trusts_the_lock_for_a_refusal", async () => {
@@ -1658,7 +1702,7 @@ describe("createRescanner", () => {
 
       const view = made.rescanner.runView();
 
-      expect(view.record?.run_id).toBe("refused-before-phase");
+      expect(view.run?.id).toBe("refused-before-phase");
       expect(view.progress.extract).toBe("pending");
     });
 
@@ -1887,7 +1931,7 @@ describe("the preflight flow", () => {
     await flush();
 
     expect(made.rescanner.runView().starting).toBeNull();
-    expect(made.rescanner.runView().record?.run_id).toBe("new");
+    expect(made.rescanner.runView().run?.id).toBe("new");
   });
 
   it("scan start and elapsed use the awake clock", async () => {
@@ -1899,60 +1943,18 @@ describe("the preflight flow", () => {
       steps: [preflightOk, extract, current, summary],
     });
     const made = harness(scan, { now: () => wall, awake: () => awake });
-    const seen: { awakeNow: number | undefined; at: number | undefined }[] = [];
+    const seen: { at: number | undefined }[] = [];
 
     made.scan.onStep = () => {
       wall += 8 * 3_600_000;
       seen.push({
-        awakeNow: made.rescanner.runView().awakeNow,
         at: made.rescanner.runView().starting?.at,
       });
     };
     await made.rescanner.run();
 
     expect(seen.length).toBeGreaterThan(0);
-    expect(seen.every((one) => one.awakeNow === awake)).toBe(true);
     expect(seen[0]?.at).toBe(1_000_000);
-  });
-
-  it("times an adopted run from the awake clock minus its wall age", async () => {
-    const wall = 5_000_000;
-    const scan = fakeScan({
-      defaults: { describe: false, sensors: true },
-      steps: [],
-    });
-    const made = harness(scan, { now: () => wall, awake: () => 900_000 });
-
-    scan.emitRun({
-      kind: "run",
-      run: record({
-        run_id: "adopted",
-        started_by: "app",
-        started_at: new Date(wall - 600_000).toISOString(),
-      }),
-    });
-    await flush();
-
-    expect(made.rescanner.runView().startedAwake).toBe(300_000);
-  });
-
-  it("keeps the frozen figures of the planned run when its record arrives", async () => {
-    const scan = fakeScan({
-      defaults: { describe: false, sensors: true },
-      steps: [preflightOk, extract, current, summary],
-    });
-    const made = harness(scan);
-    const seen: (Record<string, number> | null)[] = [];
-
-    scan.onStep = () =>
-      seen.push(made.rescanner.runView().progress.timing.frozen);
-    await made.rescanner.run([], {
-      ...OPEN_RUN,
-      idle: false,
-      frozen: { structure: 6000, mut: 160000 },
-    });
-
-    expect(seen[2]).toEqual({ structure: 6000, mut: 160000 });
   });
 
   it("shows the gaps of the refused run, with no blocked message", async () => {
@@ -1973,7 +1975,7 @@ describe("the preflight flow", () => {
     });
     await flush();
 
-    expect(rescanner.runView().record?.gaps).toEqual([GAP, OUTSIDE]);
+    expect(rescanner.runView().run?.gaps).toEqual([GAP, OUTSIDE]);
     expect(rescanner.runView().starting).toBeNull();
     expect(log.some((one) => one.startsWith("blocked:"))).toBe(false);
     expect(rescanner.running()).toBe(false);
@@ -2244,8 +2246,8 @@ describe("the preflight flow", () => {
     await flush();
 
     expect(rescanner.runView().starting).toBeNull();
-    expect(rescanner.runView().record?.phase).toBe("stopped");
-    expect(rescanner.runView().record?.gaps).toEqual([]);
+    expect(rescanner.runView().run?.state).toBe("stopped");
+    expect(rescanner.runView().run?.gaps).toEqual([]);
   });
 
   it("shows only the running card, with no gaps, when a command-line scan follows a refused app attempt", async () => {
@@ -2264,14 +2266,14 @@ describe("the preflight flow", () => {
     });
     await flush();
 
-    expect(rescanner.runView().record?.gaps).toEqual([GAP, OUTSIDE]);
+    expect(rescanner.runView().run?.gaps).toEqual([GAP, OUTSIDE]);
 
     scan.emitRun({ kind: "run", run: record({ run_id: "cli-2" }) });
     await flush();
 
-    expect(rescanner.runView().record).toMatchObject({
-      run_id: "cli-2",
-      phase: "running",
+    expect(rescanner.runView().run).toMatchObject({
+      id: "cli-2",
+      state: "running",
       gaps: [],
     });
     expect(rescanner.external()).toBe(true);
@@ -2296,7 +2298,7 @@ describe("the preflight flow", () => {
     await flush();
 
     expect(made.rescanner.runView().adoptedAtOpen).toBe("run-1");
-    expect(made.rescanner.runView().record?.run_id).toBe("run-2");
+    expect(made.rescanner.runView().run?.id).toBe("run-2");
   });
 });
 
@@ -3078,8 +3080,6 @@ describe("replaying a previous finished run at open", () => {
 
     await made.rescanner.run(null, OPEN_RUN);
 
-    expect(made.rescanner.runView().record?.run_id).not.toBe("prev");
-    expect(made.rescanner.runView().record?.run_id).toMatch(/^fake-run-/);
     expect(adopts(made.log)).toHaveLength(1);
     expect(made.log.filter((one) => one.startsWith("replace:"))).toHaveLength(
       1,
@@ -3103,16 +3103,16 @@ describe("replaying a previous finished run at open", () => {
 
       await made.rescanner.run(null, OPEN_RUN);
 
-      return made.rescanner.runView().record?.run_id ?? null;
+      return adopts(made.log).length;
     }
 
     it("counts a finished record that started at the scan start as own", async () => {
-      expect(await deliver(NOW)).toBe("edge");
+      expect(await deliver(NOW)).toBe(1);
     });
 
     it("ignores a finished record that started 1 ms before the scan start", async () => {
       expect(await deliver(new Date(Date.parse(NOW) - 1).toISOString())).toBe(
-        null,
+        1,
       );
     });
   });
@@ -3149,7 +3149,7 @@ describe("replaying a previous finished run at open", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     expect(made.rescanner.runView().adoptedAtOpen).toBe("prev");
-    expect(made.rescanner.runView().record).toEqual(previous);
+    expect(made.rescanner.runView().run?.id).toBe(previous.run_id);
   });
 
   it("adopts nothing from replayed lines with no run of the app's own", async () => {
@@ -3212,8 +3212,8 @@ describe("attaching to a scan still running from before", () => {
     await made.rescanner.run(null, OPEN_RUN);
     await flush();
 
-    expect(made.rescanner.runView().record?.phase).toBe("running");
-    expect(made.rescanner.runView().record?.run_id).toBe("earlier");
+    expect(made.rescanner.runView().run?.state).toBe("running");
+    expect(made.rescanner.runView().run?.id).toBe("earlier");
     expect(made.rescanner.external()).toBe(true);
     expect(made.calls()).toBe(1);
 

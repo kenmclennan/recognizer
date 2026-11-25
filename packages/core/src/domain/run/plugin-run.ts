@@ -1,3 +1,4 @@
+import type { Diagnosis } from "../diagnosis.js";
 import { InvalidEntity } from "../invalid-entity.js";
 
 export type PluginRunState =
@@ -21,12 +22,18 @@ export interface PluginStage {
   readonly of: number;
 }
 
+export interface PluginFailure {
+  readonly reason: string;
+  readonly diagnosis: Diagnosis | null;
+}
+
 export interface PluginRunView {
   name: string;
   state: PluginRunState;
   progress: Progress | null;
   stage: PluginStage | null;
   estimateMs: number | null;
+  failure: PluginFailure | null;
 }
 
 export class PluginRun {
@@ -36,6 +43,7 @@ export class PluginRun {
     readonly progress: Progress | null,
     readonly stage: PluginStage | null,
     readonly estimateMs: number | null,
+    readonly failure: PluginFailure | null = null,
   ) {}
 
   static queued(name: string): PluginRun {
@@ -82,6 +90,64 @@ export class PluginRun {
     return new PluginRun(this.name, "running", progress, null, null);
   }
 
+  private running(what: string): void {
+    if (this.state !== "running") {
+      throw new InvalidEntity(
+        "PluginRun",
+        `only a running plugin run reports ${what}`,
+        `${this.name} is ${this.state}`,
+      );
+    }
+  }
+
+  staged(stage: PluginStage): PluginRun {
+    this.running("a stage");
+
+    if (
+      !Number.isInteger(stage.index) ||
+      !Number.isInteger(stage.of) ||
+      stage.index < 1 ||
+      stage.index > stage.of
+    ) {
+      throw new InvalidEntity(
+        "PluginRun",
+        "a stage index runs from 1 up to its total",
+        `${stage.index} of ${stage.of}`,
+      );
+    }
+
+    return new PluginRun(
+      this.name,
+      "running",
+      this.progress,
+      stage,
+      this.estimateMs,
+    );
+  }
+
+  estimated(estimateMs: number | null): PluginRun {
+    this.running("an estimate");
+
+    if (
+      estimateMs !== null &&
+      (!Number.isInteger(estimateMs) || estimateMs < 0)
+    ) {
+      throw new InvalidEntity(
+        "PluginRun",
+        "an estimate is a non-negative integer or none",
+        estimateMs,
+      );
+    }
+
+    return new PluginRun(
+      this.name,
+      "running",
+      this.progress,
+      this.stage,
+      estimateMs,
+    );
+  }
+
   progressed(progress: Progress): PluginRun {
     if (this.state !== "running") {
       throw new InvalidEntity(
@@ -91,10 +157,16 @@ export class PluginRun {
       );
     }
 
-    return new PluginRun(this.name, "running", progress, null, null);
+    return new PluginRun(
+      this.name,
+      "running",
+      progress,
+      this.stage,
+      this.estimateMs,
+    );
   }
 
-  end(state: PluginRunEnd): PluginRun {
+  end(state: PluginRunEnd, failure?: PluginFailure): PluginRun {
     if (this.ended) {
       throw new InvalidEntity(
         "PluginRun",
@@ -103,7 +175,30 @@ export class PluginRun {
       );
     }
 
-    return new PluginRun(this.name, state, this.progress, null, null);
+    if (failure !== undefined && state !== "failed") {
+      throw new InvalidEntity(
+        "PluginRun",
+        "only a failed plugin run carries a failure",
+        `${this.name} ended ${state}`,
+      );
+    }
+
+    if (state === "failed" && failure === undefined) {
+      throw new InvalidEntity(
+        "PluginRun",
+        "a failed plugin run carries its failure",
+        this.name,
+      );
+    }
+
+    return new PluginRun(
+      this.name,
+      state,
+      this.progress,
+      this.stage,
+      null,
+      failure ?? null,
+    );
   }
 
   view(): PluginRunView {
@@ -113,6 +208,7 @@ export class PluginRun {
       progress: this.progress,
       stage: this.stage,
       estimateMs: this.estimateMs,
+      failure: this.failure,
     };
   }
 }

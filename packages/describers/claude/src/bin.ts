@@ -88,6 +88,8 @@ async function main(args: string[]): Promise<number> {
     const request = parseRequest(text);
 
     emit({ event: "start", total: 1, unit: UNIT });
+    emit({ event: "stage", name: "describe", index: 1, of: 1 });
+    emit({ event: "estimate", remaining_ms: null });
 
     const line = await describeModule(request, readPrompt(), (input) =>
       runClaude(model, input, clock),

@@ -29,9 +29,22 @@ host.style.cssText = "width:360px;display:flex;flex-direction:column";
 host.append(view.element);
 document.body.append(host);
 
-const base = { version: 4, run_id: "r1", pid: 1, pgid: 1, started_at: "2026-11-12T09:00:00.000Z", started_by: "app", repository: "/r", sensors: ["crap", "mutation"], describe: false, ended_at: null, exit: null, gaps: [], failure: null, commit: null, ran: null };
 function runView(over) {
-  return over === null ? null : { record: { ...base, ...over }, progress: NO_PROGRESS, starting: null, adoptedAtOpen: null };
+  if (over === null) {
+    return null;
+  }
+
+  const run = {
+    id: "r1", startedBy: over.started_by ?? "app", startedAt: "2026-11-12T09:00:00.000Z", scope: { kind: "working-tree" },
+    sensors: ["crap", "mutation"], describe: false, suites: {}, state: over.phase, endedAt: over.ended_at ?? null,
+    exit: over.exit ?? null, gaps: over.gaps ?? [], failure: over.failure ?? null, ran: over.ran ?? null,
+    plugins: [
+      { name: "crap", state: "queued", progress: null, stage: null, estimateMs: null, failure: null },
+      { name: "mutation", state: "queued", progress: null, stage: null, estimateMs: null, failure: null },
+    ],
+  };
+
+  return { run, progress: NO_PROGRESS, starting: null, adoptedAtOpen: null };
 }
 function render(over, scanning = false) {
   const model = scanPanel({

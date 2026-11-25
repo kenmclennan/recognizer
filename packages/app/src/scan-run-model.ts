@@ -1,23 +1,19 @@
-import type { PluginEvent, ScanRunRecord } from "recognizer";
+import type { PluginRunView, RunView as Run, RunState } from "@recognizer/core";
 import { ageText } from "./footer-scan";
 import type { IconName } from "./icons";
 import { runLogPath } from "./run-log-path";
-import { remaining } from "./scan-estimate";
+import { roundedTime } from "./scan-estimate";
 import {
   foldProgress,
-  type RunWork,
   type ScanEvent,
   type ScanProgress,
 } from "./scan-progress";
 
 export type RunInput = {
-  record: ScanRunRecord | null;
+  run: Run | null;
   progress: ScanProgress;
   starting: { at: number } | null;
   adoptedAtOpen: string | null;
-  awakeNow?: number;
-  startedAwake?: number | null;
-  analysis?: boolean;
 };
 
 export type RunView = RunInput & { display: (name: string) => string };
@@ -37,7 +33,7 @@ export type HelpLine = {
 export type RunCardTone = "run" | "ok" | "bad" | "warn" | "muted";
 
 export type RunCard = {
-  phase: ScanRunRecord["phase"];
+  phase: RunState;
   icon: IconName;
   tone: RunCardTone;
   head: string;
@@ -65,42 +61,19 @@ function timed(
   event: ScanEvent,
   at: number,
 ): ScanProgress {
-  const { timing } = state;
-
   switch (event.event) {
-    case "phase":
-      return {
-        ...next,
-        timing: {
-          ...timing,
-          phaseAt: { ...timing.phaseAt, [event.phase]: at },
-          describeFrom: event.phase === "describe" ? at : timing.describeFrom,
-        },
-      };
-    case "answered":
-      return { ...next, timing: { ...timing, describeFrom: at } };
-    case "start":
-      return {
-        ...next,
-        timing: {
-          ...timing,
-          sensorAt: { ...timing.sensorAt, [event.name]: at },
-          rateFrom: null,
-          runWork: null,
-        },
-      };
-    case "plugin": {
-      const stamped = extractStamped(next, event, at);
-
-      return pluginTimed(stamped, stamped.timing, event, at);
-    }
+    case "plugin":
+      return extractStamped(next, event, at);
     case "entry":
       return event.phase === "extract"
         ? {
             ...next,
             timing: {
               ...next.timing,
-              extractDoneAt: { ...timing.extractDoneAt, [event.name]: at },
+              extractDoneAt: {
+                ...state.timing.extractDoneAt,
+                [event.name]: at,
+              },
             },
           }
         : next;
@@ -133,84 +106,6 @@ function extractStamped(
         data.event === "start"
           ? { ...timing.extractTotals, [name]: data.total }
           : timing.extractTotals,
-    },
-  };
-}
-
-function pluginTimed(
-  next: ScanProgress,
-  timing: ScanProgress["timing"],
-  event: Extract<ScanEvent, { event: "plugin" }>,
-  at: number,
-): ScanProgress {
-  const { data } = event;
-
-  if (data.event === "start") {
-    return {
-      ...next,
-      timing: {
-        ...timing,
-        rateFrom: null,
-        runWork: {
-          work: data.queued ?? data.total,
-          queued: data.queued !== undefined,
-          unit: data.unit,
-          at: null,
-          current: null,
-          steps: {},
-        },
-      },
-    };
-  }
-
-  if (data.event !== "progress") {
-    return next;
-  }
-
-  const from = timing.rateFrom;
-  const worked = workedOn(timing.runWork, data, at);
-
-  return from !== null && from.unit === data.unit && from.step === data.step
-    ? { ...next, timing: { ...timing, runWork: worked } }
-    : {
-        ...next,
-        timing: {
-          ...timing,
-          runWork: worked,
-          rateFrom: {
-            at,
-            done: data.done,
-            unit: data.unit,
-            ...(data.step === undefined ? {} : { step: data.step }),
-          },
-        },
-      };
-}
-
-function workedOn(
-  runWork: RunWork | null,
-  data: Extract<PluginEvent, { event: "progress" }>,
-  at: number,
-): RunWork | null {
-  if (runWork === null || runWork.unit !== data.unit) {
-    return runWork;
-  }
-
-  const key = data.step ?? "";
-  const seen = runWork.steps[key];
-
-  return {
-    ...runWork,
-    at: runWork.at ?? at,
-    current: key,
-    steps: {
-      ...runWork.steps,
-      [key]: {
-        first: seen?.first ?? data.done,
-        latest: data.done,
-        firstAt: seen?.firstAt ?? at,
-        lastAt: at,
-      },
     },
   };
 }
@@ -248,8 +143,6 @@ export const STOPPED_HEAD = "Scan stopped";
 
 export const FINISHED_KEPT_TEXT = "Finished results kept";
 
-const REASON_LIMIT = 60;
-
 export const HELP_TEXT = "To set this up with an agent:";
 
 export const AGAIN_TEXT = "Check again and scan";
@@ -284,15 +177,12 @@ function clockOfMs(ms: number): string {
   return `${two(date.getHours())}:${two(date.getMinutes())}`;
 }
 
-export function isActive(record: ScanRunRecord | null): boolean {
-  return (
-    record !== null &&
-    (record.phase === "checking" || record.phase === "running")
-  );
+export function isActive(run: { state: RunState } | null): boolean {
+  return run !== null && (run.state === "checking" || run.state === "running");
 }
 
 function sensorOf(
-  gap: ScanRunRecord["gaps"][number],
+  gap: Run["gaps"][number],
   sensors: ReadonlySet<string>,
 ): string | null {
   const [only] = gap.needs;
@@ -317,32 +207,27 @@ function listNames(names: string[]): string {
   return names.join(", ");
 }
 
-function currentLine(record: ScanRunRecord, view: RunView): string {
+function currentLine(run: Run, view: RunView): string {
   const { progress, display } = view;
-  const current = progress.sensing;
+  const current = run.plugins.find(({ state }) => state === "running");
 
-  if (current !== null) {
-    const reported = progress.sensorProgress;
-    const name = display(current);
+  if (current !== undefined) {
+    const name = display(current.name);
+    const parts = [
+      name,
+      ...(current.stage === null ? [] : [current.stage.name]),
+      ...(current.progress === null
+        ? []
+        : [`${current.progress.done}/${current.progress.total}`]),
+    ];
 
-    const counted =
-      reported !== null && reported.name === current
-        ? reported.progress
-        : undefined;
-
-    if (counted !== undefined) {
-      return counted.step === undefined
-        ? `${name} \u00b7 ${counted.done}/${counted.total}`
-        : `${name} \u00b7 ${counted.step} \u00b7 ${counted.done}/${counted.total}`;
-    }
-
-    return name;
+    return parts.join(" \u00b7 ");
   }
 
   const describing = progress.describe;
 
   if (
-    record.describe &&
+    run.describe &&
     describing !== null &&
     describing.entries.length < describing.total
   ) {
@@ -352,141 +237,100 @@ function currentLine(record: ScanRunRecord, view: RunView): string {
   return FINISHING_TEXT;
 }
 
-function failedSensors(progress: ScanProgress): Set<string> {
-  return new Set(
-    (progress.sense?.entries ?? [])
-      .filter((entry) => entry.outcome === "failed")
-      .map((entry) => entry.name),
-  );
-}
-
-function measuredLine(record: ScanRunRecord, view: RunView): string {
-  const failed = failedSensors(view.progress);
+function measuredLine(run: Run): string {
   const count =
-    record.sensors.filter((name) => !failed.has(name)).length +
-    (record.describe ? 1 : 0);
+    run.plugins.filter(({ state }) => state !== "failed").length +
+    (run.describe ? 1 : 0);
 
   return `${count} ${count === 1 ? "sensor" : "sensors"} measured`;
 }
 
 type Kept = {
   sensor: string;
-  suite: string | null;
+  stage: string | null;
   done: number;
   total: number;
 };
 
-function keptCounts(view: RunView): Kept | null {
-  const { sensing, sensorProgress } = view.progress;
+function keptCounts(run: Run): Kept | null {
+  const kept = [...run.plugins]
+    .reverse()
+    .find(({ state, progress }) => state === "stopped" && progress !== null);
 
-  if (
-    sensing === null ||
-    sensorProgress === null ||
-    sensorProgress.name !== sensing ||
-    sensorProgress.progress === undefined
-  ) {
+  if (kept === undefined || kept.progress === null) {
     return null;
   }
 
   return {
-    sensor: sensing,
-    suite: sensorProgress.progress.step ?? null,
-    done: sensorProgress.progress.done,
-    total: sensorProgress.progress.total,
+    sensor: kept.name,
+    stage: kept.stage?.name ?? null,
+    done: kept.progress.done,
+    total: kept.progress.total,
   };
 }
 
-function stoppedLine(
-  record: ScanRunRecord,
-  view: RunView,
-  kept: Kept | null,
-): string {
+function stoppedLine(view: RunView, kept: Kept | null): string {
   if (kept === null) {
     return FINISHED_KEPT_TEXT;
   }
 
   const name = view.display(kept.sensor);
-  const started = view.progress.startedSuites[kept.sensor] ?? [];
-  const skipped = (record.suites[kept.sensor] ?? []).filter(
-    (suite) => !started.includes(suite),
-  );
-  const head =
-    kept.suite === null
-      ? `Kept ${name} ${kept.done}/${kept.total}`
-      : `Kept ${name} ${kept.done}/${kept.total} on ${kept.suite}`;
+  const head = `Kept ${name} ${kept.done}/${kept.total}`;
 
-  return [head, ...skipped.map((suite) => `skipped ${name} on ${suite}`)].join(
-    " \u00b7 ",
-  );
+  return kept.stage === null ? head : `${head} on ${kept.stage}`;
 }
 
-function shortReason(failure: NonNullable<ScanRunRecord["failure"]>): string {
-  return failure.reason.slice(0, REASON_LIMIT);
-}
+export const NO_ESTIMATE_YET = "No estimate yet";
 
 function timeLeft(
-  record: ScanRunRecord,
+  run: Run,
   view: RunView,
-  now: number,
 ): { text: string; title?: string } | null {
-  if (record.started_by !== "app") {
+  if (run.startedBy !== "app") {
     return null;
   }
 
-  const startedWall = Date.parse(record.started_at);
-  const startedAt =
-    view.startedAwake !== undefined
-      ? view.startedAwake
-      : Number.isNaN(startedWall)
-        ? null
-        : startedWall;
-  const left = remaining({
-    parts: [
-      ...(view.analysis === false
-        ? []
-        : [{ key: "structure", name: "Structural analysis" }]),
-      ...(record.describe
-        ? [{ key: "describe", name: DESCRIPTIONS_NAME }]
-        : []),
-      ...record.sensors.map((name) => ({
-        key: name,
-        name: view.display(name),
-      })),
-    ],
-    suites: record.suites,
-    progress: view.progress,
-    startedAt,
-    now: view.awakeNow ?? now,
-  });
+  const live: PluginRunView[] = run.plugins.filter(
+    ({ state }) => state === "queued" || state === "running",
+  );
 
-  return left === null
-    ? null
-    : {
-        text: left.text,
-        ...(left.title === null ? {} : { title: left.title }),
-      };
+  if (live.length === 0) {
+    return null;
+  }
+
+  const silent = live.filter(({ estimateMs }) => estimateMs === null);
+
+  if (silent.length > 0) {
+    return {
+      text: NO_ESTIMATE_YET,
+      title: `No estimate from ${silent.map(({ name }) => view.display(name)).join(", ")}`,
+    };
+  }
+
+  const total = live.reduce((sum, one) => sum + (one.estimateMs ?? 0), 0);
+
+  return { text: `${roundedTime(total)} left` };
 }
 
 function cardOf(
-  record: ScanRunRecord,
+  run: Run,
   view: RunView,
   ticked: ReadonlySet<string>,
   sensors: ReadonlySet<string>,
-  now: number,
 ): RunCard | null {
-  const time = clockText(record.ended_at ?? record.started_at);
+  const time = clockText(run.endedAt ?? run.startedAt);
   const base = {
-    phase: record.phase,
+    phase: run.state,
     line: null,
     lineTitle: null,
     showLog: null,
     gaps: [],
     help: [],
     when: { text: time },
-    origin: origin(record.started_by, clockText(record.started_at)),
+    origin: origin(run.startedBy, clockText(run.startedAt)),
   };
 
-  switch (record.phase) {
+  switch (run.state) {
     case "checking":
       return {
         ...base,
@@ -495,7 +339,7 @@ function cardOf(
         head: CHECKING_HEAD,
       };
     case "refused": {
-      const kept = record.gaps
+      const kept = run.gaps
         .map((gap) => ({
           gap,
           needs: gap.needs.filter((name) => ticked.has(name)),
@@ -529,14 +373,14 @@ function cardOf(
       };
     }
     case "running": {
-      const left = timeLeft(record, view, now);
+      const left = timeLeft(run, view);
 
       return {
         ...base,
         icon: "loader",
         tone: "run",
         head: SCANNING_HEAD,
-        line: currentLine(record, view),
+        line: currentLine(run, view),
         ...(left === null
           ? {}
           : {
@@ -553,10 +397,10 @@ function cardOf(
         icon: "circle-check",
         tone: "ok",
         head: FINISHED_HEAD,
-        line: measuredLine(record, view),
+        line: measuredLine(run),
       };
     case "failed": {
-      const failure = record.failure;
+      const { failure } = run;
       const showLog =
         view.progress.log === null ? null : runLogPath(view.progress.log);
 
@@ -566,21 +410,21 @@ function cardOf(
           icon: "circle-x",
           tone: "bad",
           head: "Scan failed",
-          line: `recognizer scan exited ${record.exit ?? 1}`,
+          line: `recognizer scan exited ${run.exit ?? 1}`,
           showLog,
         };
       }
 
       if (failure.sensor === WHOLE_SCAN_FAILURE) {
         const nothingBegan =
-          record.ran === null && view.progress.extract === "pending";
+          run.ran === null && view.progress.extract === "pending";
 
         return {
           ...base,
           icon: "circle-x",
           tone: "bad",
           head: nothingBegan ? "Scan did not start" : "Scan failed",
-          line: shortReason(failure),
+          line: failure.reason,
           lineTitle: failure.reason,
           showLog,
         };
@@ -596,7 +440,7 @@ function cardOf(
           failure.suite === null
             ? `${sensor} failed`
             : `${sensor} failed on ${failure.suite}`,
-        line: shortReason(failure),
+        line: failure.reason,
         lineTitle: failure.reason,
         showLog,
       };
@@ -607,7 +451,7 @@ function cardOf(
         icon: "circle-dashed",
         tone: "muted",
         head: STOPPED_HEAD,
-        line: stoppedLine(record, view, keptCounts(view)),
+        line: stoppedLine(view, keptCounts(run)),
       };
   }
 }
@@ -630,16 +474,14 @@ function startingCard(at: number): RunCard {
   };
 }
 
-export function shownRecord(view: RunView): ScanRunRecord | null {
-  const record = view.record;
+export function shownRun(view: RunView): Run | null {
+  const { run } = view;
 
-  if (record === null) {
+  if (run === null) {
     return null;
   }
 
-  return !isActive(record) && record.run_id === view.adoptedAtOpen
-    ? null
-    : record;
+  return !isActive(run) && run.id === view.adoptedAtOpen ? null : run;
 }
 
 export function runModel(
@@ -663,22 +505,22 @@ export function runModel(
     };
   }
 
-  const record = shownRecord(view);
+  const run = shownRun(view);
 
-  if (record === null) {
+  if (run === null) {
     return null;
   }
 
-  const card = cardOf(record, view, ticked, sensors, now);
+  const card = cardOf(run, view, ticked, sensors);
 
   if (card === null) {
     return null;
   }
 
-  const active = isActive(record);
-  const cli = record.started_by === "cli";
-  const kept = record.phase === "stopped" ? keptCounts(view) : null;
-  const endedAt = Date.parse(record.ended_at ?? record.started_at);
+  const active = isActive(run);
+  const cli = run.startedBy === "cli";
+  const kept = run.state === "stopped" ? keptCounts(run) : null;
+  const endedAt = Date.parse(run.endedAt ?? run.startedAt);
 
   return {
     card,
@@ -688,11 +530,11 @@ export function runModel(
         : "A scan is running."
       : IDLE_SUBTITLE,
     active,
-    refused: record.phase === "refused",
+    refused: run.state === "refused",
     button: active
       ? { label: cli ? "Stop this scan" : "Stop", stop: true }
       : {
-          label: record.phase === "refused" ? AGAIN_TEXT : "Scan",
+          label: run.state === "refused" ? AGAIN_TEXT : "Scan",
           stop: false,
         },
     partial:

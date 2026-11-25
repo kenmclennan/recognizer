@@ -3,7 +3,9 @@ import type { Freshness, PlanRequest, ScanPlanView } from "recognizer";
 import {
   afterSuiteTick,
   type Config,
+  InputError,
   parseConfig,
+  registeredSensorNamesIn,
   registeredSensors,
   type ScanIntent,
   type ScanTicks,
@@ -34,12 +36,10 @@ import {
   describeRateMs,
   estimateLine,
   estimateParts,
-  frozenFigures,
   NO_HISTORY,
   type PlannedWork,
   type ScanEstimate,
   type ScanHistory,
-  suiteHistoryOf,
 } from "./scan-estimate";
 import {
   DESCRIBE_KEY,
@@ -287,6 +287,37 @@ function readConfig(config: string | null): Config | null {
   }
 }
 
+function settingsError(config: string | null): string | null {
+  if (config === null) {
+    return null;
+  }
+
+  try {
+    parseConfig(config);
+
+    return null;
+  } catch (error) {
+    return error instanceof InputError
+      ? error.messages.join("; ")
+      : (error as Error).message;
+  }
+}
+
+function registeredDespiteError(config: string | null): Config | null {
+  if (config === null) {
+    return null;
+  }
+
+  return {
+    sensors: Object.fromEntries(
+      registeredSensorNamesIn(config).map((name) => [
+        name,
+        { command: [name] },
+      ]),
+    ),
+  };
+}
+
 function titleFor(one: {
   display: string;
   description: string;
@@ -310,7 +341,7 @@ export function rowSensors(
 ): RowSensor[] {
   const rows: RowSensor[] = [];
   const suites = suitesOf(config);
-  const parsed = readConfig(config);
+  const parsed = readConfig(config) ?? registeredDespiteError(config);
   const registeredNames = new Set(
     parsed === null ? [] : registeredSensors(parsed).map(({ name }) => name),
   );
@@ -591,15 +622,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
     })),
     input.work ?? {},
   );
-  const suiteHistory = suiteHistoryOf(
-    history,
-    parts.map((one) => one.key),
-  );
-  const planned: PlannedRun = {
-    ...unplanned,
-    frozen: frozenFigures(parts),
-    ...(Object.keys(suiteHistory).length === 0 ? {} : { suiteHistory }),
-  };
+  const planned: PlannedRun = unplanned;
   const plain = sensors
     .filter(({ runsTests }) => !runsTests)
     .map(({ name }) => name);
@@ -641,6 +664,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
     input.now,
   );
   const locked = input.scanning || run?.active === true;
+  const sensorSettingsError = settingsError(input.config);
 
   const progress =
     input.runView?.progress.sensorProgress ?? input.sensorProgress;
@@ -684,7 +708,12 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
         title: titles.get(row.key) ?? row.name,
       };
 
-      if (foldable && sensor !== undefined && row.state.kind !== "checking") {
+      if (
+        foldable &&
+        sensor !== undefined &&
+        row.state.kind !== "checking" &&
+        sensorSettingsError === null
+      ) {
         const ticked = tickedSuites(input.ticks.suites, row.key, names);
         const results = statuses.find((one) => one.name === row.key)?.suites;
         const live =
@@ -737,6 +766,18 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
           : sensor?.runsTests === true
             ? input.ticks.armed.includes(row.key)
             : (input.ticks.ticked ?? plain).includes(row.key);
+
+      if (sensorSettingsError !== null && sensor !== undefined) {
+        return {
+          ...base,
+          ticked: isTicked,
+          tick: isTicked ? "on" : "off",
+          tone: "bad",
+          text: { icon: "circle-x", text: sensorSettingsError },
+          stateTitle: sensorSettingsError,
+          fold: null,
+        };
+      }
 
       return {
         ...base,

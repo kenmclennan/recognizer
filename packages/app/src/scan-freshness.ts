@@ -50,8 +50,6 @@ export type PlannedRun = {
   label: string;
   progress: string;
   work: Record<string, number>;
-  frozen?: Record<string, number>;
-  suiteHistory?: Record<string, Record<string, number[]>>;
 };
 
 export const OPEN_RUN: PlannedRun = {

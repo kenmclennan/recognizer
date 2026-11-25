@@ -1,4 +1,9 @@
-import type { MarkerFacts, RunReport } from "@recognizer/core";
+import type {
+  Diagnosis,
+  MarkerFacts,
+  PluginFailure,
+  RunReport,
+} from "@recognizer/core";
 import type { ScanRunRecord } from "../../scan-marker.js";
 
 const PLUGIN_PHASES = ["sense", "measure"];
@@ -42,7 +47,37 @@ function pluginReport(
       : UNREADABLE;
   }
 
+  if (data.event === "stage") {
+    const { name: stageName, index, of } = data;
+
+    return typeof stageName === "string" &&
+      stageName !== "" &&
+      typeof index === "number" &&
+      typeof of === "number"
+      ? { kind: "plugin-stage", name, stage: { name: stageName, index, of } }
+      : UNREADABLE;
+  }
+
+  if (data.event === "estimate") {
+    const remaining = data.remaining_ms;
+
+    return remaining === null || typeof remaining === "number"
+      ? { kind: "plugin-estimate", name, estimateMs: remaining }
+      : UNREADABLE;
+  }
+
   return undefined;
+}
+
+const NO_REASON = "no reason was recorded";
+
+function failureOf(value: Record<string, unknown>): PluginFailure {
+  const { reason, diagnosis } = value;
+
+  return {
+    reason: typeof reason === "string" && reason !== "" ? reason : NO_REASON,
+    diagnosis: isRecord(diagnosis) ? (diagnosis as unknown as Diagnosis) : null,
+  };
 }
 
 export function reportOfLine(
@@ -91,7 +126,13 @@ export function reportOfLine(
             ? "stopped"
             : null;
 
-    return state === null ? UNREADABLE : { kind: "plugin-ended", name, state };
+    if (state === null) {
+      return UNREADABLE;
+    }
+
+    return state === "failed"
+      ? { kind: "plugin-ended", name, state, failure: failureOf(value) }
+      : { kind: "plugin-ended", name, state };
   }
 
   return null;
@@ -114,5 +155,8 @@ export function markerFactsOf(
     phase: record.phase,
     endedAt,
     exit: record.exit,
+    gaps: record.gaps.map((gap) => ({ ...gap, needs: [...gap.needs] })),
+    failure: record.failure === null ? null : { ...record.failure },
+    ran: record.ran === null ? null : [...record.ran],
   };
 }

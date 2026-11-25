@@ -37,3 +37,9 @@ Feature: Run model published as repository state
     When the first plugin reports a result for the commit
     Then the working-tree result is unchanged
     And no findings document was saved for the commit
+
+  Scenario: a long run keeps the plugin's reported estimate across its stages
+    Given three registered plugins in a run
+    When the first plugin reports three stages and one estimate of 3 hours
+    Then every revision carries the estimate of 10800000 and a stage index that never falls
+

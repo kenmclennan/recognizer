@@ -23,6 +23,7 @@ export interface ConfigRepository {
   readsSensorConfig(): boolean;
   structureSettings(root: string): StructureSettings | "off";
   sensorNames(root: string): string[];
+  sensorNamesDespiteErrors(root: string): string[];
   registeredSensors(
     config: ConfigDocument | null,
   ): { name: string; command: string[] }[];

@@ -342,6 +342,130 @@ describe("active run adapter", () => {
     ]);
   });
 
+  function liveReports(progress: string[]) {
+    const root = makeTempDir("active-run-reports-");
+
+    marker(root, {}, progress.join(""));
+
+    const read = new ActiveRunAdapter(nodeIo()).read(root, null);
+
+    if (read.kind !== "live") {
+      throw new Error(`expected live, read ${read.kind}`);
+    }
+
+    return read.reports;
+  }
+
+  const sense = (name: string, data: unknown) =>
+    line({ event: "plugin", phase: "sense", name, data });
+  const entry = (outcome: string, extra: Record<string, unknown> = {}) =>
+    line({
+      event: "entry",
+      phase: "sense",
+      name: "tally",
+      outcome,
+      ...extra,
+    });
+
+  it("maps_stage_and_estimate_lines_to_reports", () => {
+    expect(
+      liveReports([
+        sense("tally", { event: "stage", name: "Coverage", index: 1, of: 2 }),
+        sense("tally", { event: "estimate", remaining_ms: 5000 }),
+        sense("tally", { event: "estimate", remaining_ms: null }),
+      ]),
+    ).toEqual([
+      {
+        kind: "plugin-stage",
+        name: "tally",
+        stage: { name: "Coverage", index: 1, of: 2 },
+      },
+      { kind: "plugin-estimate", name: "tally", estimateMs: 5000 },
+      { kind: "plugin-estimate", name: "tally", estimateMs: null },
+    ]);
+  });
+
+  it("a_malformed_stage_line_is_counted_and_skipped", () => {
+    expect(
+      liveReports([
+        sense("tally", { event: "stage", name: "", index: 1, of: 2 }),
+        sense("tally", { event: "stage", index: 1 }),
+        sense("tally", { event: "estimate", remaining_ms: "soon" }),
+        sense("tally", { event: "estimate", remaining_ms: 10 }),
+      ]),
+    ).toEqual([
+      { kind: "unreadable" },
+      { kind: "unreadable" },
+      { kind: "unreadable" },
+      { kind: "plugin-estimate", name: "tally", estimateMs: 10 },
+    ]);
+  });
+
+  it("a_failed_entry_carries_its_reason_and_diagnosis", () => {
+    const diagnosis = { code: "no-tests", line: "none ran" };
+
+    expect(
+      liveReports([entry("failed", { reason: "no tests ran", diagnosis })]),
+    ).toEqual([
+      {
+        kind: "plugin-ended",
+        name: "tally",
+        state: "failed",
+        failure: { reason: "no tests ran", diagnosis },
+      },
+    ]);
+  });
+
+  it("a_failed_entry_without_a_reason_reads_no_reason_was_recorded", () => {
+    expect(
+      liveReports([entry("failed"), entry("failed", { reason: "" })]),
+    ).toEqual([
+      {
+        kind: "plugin-ended",
+        name: "tally",
+        state: "failed",
+        failure: { reason: "no reason was recorded", diagnosis: null },
+      },
+      {
+        kind: "plugin-ended",
+        name: "tally",
+        state: "failed",
+        failure: { reason: "no reason was recorded", diagnosis: null },
+      },
+    ]);
+  });
+
+  it("an_ended_marker_carries_gaps_failure_and_ran", () => {
+    const root = makeTempDir("active-run-ended-");
+    const gaps = [{ id: "g", line: "a gap", needs: ["a thing"] }];
+    const failure = {
+      sensor: "tally",
+      suite: null,
+      code: null,
+      reason: "it broke",
+    };
+
+    marker(root, {
+      phase: "failed",
+      ended_at: new Date().toISOString(),
+      exit: 1,
+      pid: deadPid(),
+      gaps,
+      failure,
+      ran: ["sense"],
+    });
+
+    const read = new ActiveRunAdapter(nodeIo()).read(root, null);
+
+    if (read.kind !== "ended") {
+      throw new Error(`expected ended, read ${read.kind}`);
+    }
+
+    expect(read.record.gaps).toEqual(gaps);
+    expect(read.record.failure).toEqual(failure);
+    expect(read.record.ran).toEqual(["sense"]);
+  });
+
   it("registry_over_this_repositorys_committed_config_lists_its_registered_sensors", () => {
     const root = makeTempDir("active-run-config-");
     const source = join(REPO, ".recognizer", "config.yaml");

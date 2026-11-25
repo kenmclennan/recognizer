@@ -313,6 +313,24 @@ describe("repository state holder", () => {
     expect(holder.current().results.margin?.results).toHaveLength(1);
   });
 
+  it("a settings error on the first read still lists every registered plugin with the error as its reason", () => {
+    const fakes = fakesWith(...SENSORS);
+
+    fakes.config.sensors = [...SENSORS];
+    fakes.config.failSensorConfig = "tests: suite unit needs a language";
+
+    const state = holderOver(fakes).current();
+    const rows = state.registry.entries.filter(({ registered }) => registered);
+
+    expect(rows.map(({ name }) => name)).toEqual(SENSORS);
+
+    for (const row of rows) {
+      expect(row.reason).toBe(
+        "the settings cannot be read: tests: suite unit needs a language",
+      );
+    }
+  });
+
   it("a config that cannot be read keeps the registry", () => {
     const fakes = fakesWith(...SENSORS);
     const holder = holderOver(fakes);
@@ -660,5 +678,147 @@ describe("repository state holder", () => {
     holder.refresh();
     expect(holder.current().revision).toBe(first.revision + 3);
     expect(digests.size).toBe(4);
+  });
+
+  it("a_stage_and_estimate_reach_the_snapshot", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+
+    fakes.active.start({ sensors: ["tally"], phase: "running" });
+    fakes.active.report(
+      started("tally"),
+      {
+        kind: "plugin-stage",
+        name: "tally",
+        stage: { name: "Coverage run", index: 1, of: 2 },
+      },
+      { kind: "plugin-estimate", name: "tally", estimateMs: 7_200_000 },
+    );
+    holder.refresh();
+
+    const plugin = holder.current().run?.plugins[0];
+
+    expect(plugin?.stage).toEqual({ name: "Coverage run", index: 1, of: 2 });
+    expect(plugin?.estimateMs).toBe(7_200_000);
+  });
+
+  it("an_estimate_survives_a_stage_change", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+
+    fakes.active.start({ sensors: ["tally"], phase: "running" });
+    fakes.active.report(
+      started("tally"),
+      {
+        kind: "plugin-stage",
+        name: "tally",
+        stage: { name: "one", index: 1, of: 2 },
+      },
+      { kind: "plugin-estimate", name: "tally", estimateMs: 10_800_000 },
+    );
+    holder.refresh();
+    fakes.active.report({
+      kind: "plugin-stage",
+      name: "tally",
+      stage: { name: "two", index: 2, of: 2 },
+    });
+    holder.refresh();
+
+    const plugin = holder.current().run?.plugins[0];
+
+    expect(plugin?.stage?.index).toBe(2);
+    expect(plugin?.estimateMs).toBe(10_800_000);
+  });
+
+  it("a_failed_plugin_publishes_its_failure_in_the_revision_that_ends_it", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+    const seen: RepositoryState[] = [];
+
+    holder.subscribe((state) => seen.push(state));
+    fakes.active.start({ sensors: ["tally"], phase: "running" });
+    fakes.active.report(started("tally"), {
+      kind: "plugin-ended",
+      name: "tally",
+      state: "failed",
+      failure: {
+        reason: "no tests",
+        diagnosis: { code: "no-tests", line: "none ran" },
+      },
+    });
+    holder.refresh();
+
+    const states = seen.flatMap(
+      (state) => state.run?.plugins.map((one) => one) ?? [],
+    );
+
+    expect(states.some(({ state }) => state === "failed")).toBe(true);
+
+    for (const plugin of states) {
+      if (plugin.state === "failed") {
+        expect(plugin.failure?.reason).toBe("no tests");
+        expect(plugin.failure?.diagnosis?.code).toBe("no-tests");
+      }
+    }
+  });
+
+  it("a_stage_past_its_total_is_dropped_and_counted", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+
+    fakes.active.start({ sensors: ["tally"], phase: "running" });
+    fakes.active.report(started("tally"), {
+      kind: "plugin-stage",
+      name: "tally",
+      stage: { name: "one", index: 1, of: 2 },
+    });
+    holder.refresh();
+
+    const before = holder.current().unreadableReports;
+
+    fakes.active.report({
+      kind: "plugin-stage",
+      name: "tally",
+      stage: { name: "bad", index: 3, of: 2 },
+    });
+    holder.refresh();
+
+    const plugin = holder.current().run?.plugins[0];
+
+    expect(plugin?.stage?.name).toBe("one");
+    expect(holder.current().unreadableReports).toBe(before + 1);
+  });
+
+  it("a_finished_run_never_publishes_stale_freshness_for_what_it_just_measured", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+    const seen: RepositoryState[] = [];
+
+    holder.subscribe((state) => seen.push(state));
+    fakes.structure.save(ROOT, "python", structureOf({ "a.py": "h1" }));
+    fakes.active.start({ sensors: ["tally"], phase: "running" });
+    holder.refresh();
+    fakes.active.report(started("tally"));
+    holder.refresh();
+    fakes.findings.save(
+      ROOT,
+      findingsOf("tally", { "a.py": "h1" }, { reportedAt: undefined }),
+    );
+    fakes.active.report(ended("tally"));
+    holder.refresh();
+    fakes.active.end("finished");
+    holder.refresh();
+
+    const from = seen.findIndex((state) => state.run?.state === "finished");
+
+    expect(from).toBeGreaterThan(-1);
+
+    for (const state of seen.slice(from)) {
+      expect(state.freshness.tally?.state).toBe("current");
+    }
+
+    const revisions = seen.map(({ revision }) => revision);
+
+    expect(new Set(revisions).size).toBe(revisions.length);
   });
 });

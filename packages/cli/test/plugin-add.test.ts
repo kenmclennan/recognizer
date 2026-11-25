@@ -191,7 +191,7 @@ describe("recognizer plugin add", () => {
     expect(code).toBe(1);
     expect(err).toContain("recognizer-sense-old");
     expect(err).toContain("protocol 9");
-    expect(err).toContain("protocols 1 and 2");
+    expect(err).toContain("protocols 2 and 3");
     expect(err).toContain("get old");
     expect(existsSync(join(repo, ".recognizer", "config.yaml"))).toBe(false);
   });

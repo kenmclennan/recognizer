@@ -11,7 +11,7 @@ import { loadedUnchanged, sameStructure } from "./loaded-unchanged";
 import type { MessageAction, MessageInput } from "./message-tray";
 import { activityOf } from "./repository-state-model";
 import { runLogPath } from "./run-log-path";
-import { type FailureDetail, sensorEventsBetween } from "./run-snapshot-events";
+import { sensorEventsBetween } from "./run-snapshot-events";
 import type { PlannedRun } from "./scan-freshness";
 import type { Loaded } from "./scan-loading";
 import {
@@ -34,7 +34,7 @@ import {
   stoppedProgress,
 } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
-import { foldRunEvent, isActive, type RunInput } from "./scan-run-model";
+import { foldRunEvent, type RunInput } from "./scan-run-model";
 
 export type Registered = {
   sensors: Pick<
@@ -143,18 +143,23 @@ function startedText(names: string): string {
   return names === "" ? "Scan started" : `Scan started - ${names}`;
 }
 
+function isActive(record: ScanRunRecord | null): boolean {
+  return (
+    record !== null &&
+    (record.phase === "checking" || record.phase === "running")
+  );
+}
+
 export function createRescanner<Carried>(
   ports: RescanPorts<Carried>,
 ): Rescanner {
   let own: Promise<void> | null = null;
   let attachedToOther = false;
   let seenRun: RunView | null = null;
-  const failureDetail = new Map<string, FailureDetail>();
   let applied: Loaded | null = null;
   let ticks: ScanTicks = DEFAULT_TICKS;
   let remembered = false;
   let ticksLoaded = false;
-  let analysisPlanned = true;
   let run: RunState = NO_RUN;
   let progress: ScanProgress = NO_PROGRESS;
 
@@ -169,9 +174,7 @@ export function createRescanner<Carried>(
   let endedRunId: string | null = null;
   let ownEnd: ScanRunRecord | null = null;
   let starting: { at: number } | null = null;
-  let scanStartedAt: number | null = null;
   let scanStartedWall: number | null = null;
-  let adoptedStart: { runId: string; at: number } | null = null;
   let startedFrom: string | null = null;
   let ownRunId: string | null = null;
   let adoptedAtOpen: string | null = null;
@@ -180,33 +183,6 @@ export function createRescanner<Carried>(
   const wallNow = ports.now ?? Date.now;
   const now = ports.awake ?? wallNow;
   let externalQueue: Promise<void> = Promise.resolve();
-
-  function startedAwake(): number | null {
-    if (record === null) {
-      return null;
-    }
-
-    const startedWall = Date.parse(record.started_at);
-
-    if (scanStartedAt !== null && scanStartedWall !== null) {
-      if (Number.isNaN(startedWall) || startedWall >= scanStartedWall) {
-        return scanStartedAt;
-      }
-    }
-
-    if (Number.isNaN(startedWall)) {
-      return null;
-    }
-
-    if (adoptedStart === null || adoptedStart.runId !== record.run_id) {
-      adoptedStart = {
-        runId: record.run_id,
-        at: now() - Math.max(0, wallNow() - startedWall),
-      };
-    }
-
-    return adoptedStart.at;
-  }
 
   function emit(update: { scanning: string | null }) {
     lastUpdate = { ...update };
@@ -459,21 +435,6 @@ export function createRescanner<Carried>(
     );
   }
 
-  function noteFailure(event: ScanEvent) {
-    if (
-      event.event === "entry" &&
-      event.phase === "sense" &&
-      event.outcome === "failed"
-    ) {
-      failureDetail.set(event.name, {
-        ...(event.reason === undefined ? {} : { reason: event.reason }),
-        ...(event.diagnosis === undefined
-          ? {}
-          : { diagnosis: event.diagnosis }),
-      });
-    }
-  }
-
   async function applyLine(line: string) {
     const event = parseScanLine(line);
 
@@ -578,7 +539,6 @@ export function createRescanner<Carried>(
 
     begunRunId = scan.run_id;
     liveRunId = scan.run_id;
-    failureDetail.clear();
     adoptedThisScan = own !== null ? adoptedThisScan : false;
     failureIds = [];
     rows = [
@@ -587,14 +547,7 @@ export function createRescanner<Carried>(
         : []),
       ...scan.sensors.map((name) => ({ key: name, display: display(name) })),
     ];
-    progress = {
-      ...NO_PROGRESS,
-      timing: {
-        ...NO_PROGRESS.timing,
-        frozen: own !== null ? progress.timing.frozen : null,
-        suiteHistory: own !== null ? progress.timing.suiteHistory : null,
-      },
-    };
+    progress = NO_PROGRESS;
     run = {
       running: [...(scan.describe ? [DESCRIBE_KEY] : []), ...scan.sensors],
       started: null,
@@ -821,14 +774,6 @@ export function createRescanner<Carried>(
   }
 
   function onRun(event: RunEvent) {
-    if (event.kind === "line") {
-      const parsed = parseScanLine(event.line);
-
-      if (parsed !== null) {
-        noteFailure(parsed);
-      }
-    }
-
     externalQueue = externalQueue
       .then(async () => {
         if (event.kind === "line") {
@@ -853,9 +798,7 @@ export function createRescanner<Carried>(
 
     externalQueue = externalQueue
       .then(async () => {
-        for (const event of sensorEventsBetween(before, next, (name) =>
-          failureDetail.get(name),
-        )) {
+        for (const event of sensorEventsBetween(before, next)) {
           await applyEvent(event);
         }
 
@@ -869,7 +812,6 @@ export function createRescanner<Carried>(
       await splitting;
       await executeScan(modules, planned);
     } finally {
-      scanStartedAt = null;
       scanStartedWall = null;
       heading = null;
     }
@@ -909,7 +851,6 @@ export function createRescanner<Carried>(
     );
 
     heading = planned?.progress ?? null;
-    analysisPlanned = plan.analysis;
 
     if (!remembered) {
       await writeTicks(registered);
@@ -943,18 +884,10 @@ export function createRescanner<Carried>(
       ranAt: run.ranAt,
     };
 
-    progress = {
-      ...NO_PROGRESS,
-      timing: {
-        ...NO_PROGRESS.timing,
-        frozen: planned?.frozen ?? null,
-        suiteHistory: planned?.suiteHistory ?? null,
-      },
-    };
+    progress = NO_PROGRESS;
     startedFrom = record?.run_id ?? null;
     ownRunId = null;
     ownEnd = null;
-    scanStartedAt = now();
     scanStartedWall = wallNow();
     starting = { at: scanStartedWall };
     publish();
@@ -1189,13 +1122,10 @@ export function createRescanner<Carried>(
         .external,
     progress: () => progress,
     runView: () => ({
-      record,
+      run: ports.snapshot.run(),
       progress: progressOfRecord(),
       starting,
       adoptedAtOpen,
-      awakeNow: now(),
-      startedAwake: startedAwake(),
-      analysis: analysisPlanned,
     }),
   };
 

@@ -31,7 +31,7 @@ export function useScannerShim(language: string): () => void {
 export function scannerManifestText(
   name: string,
   languages: string[] = [name],
-  protocol = 2,
+  protocol = 3,
 ): string {
   const manifest = JSON.parse(
     readFileSync(
@@ -333,7 +333,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
           scannerManifestText(
             command.slice("recognizer-scan-".length),
             behaviour.languages ?? [command.slice("recognizer-scan-".length)],
-            behaviour.protocol ?? 2,
+            behaviour.protocol ?? 3,
           ),
         stderr: "",
       };

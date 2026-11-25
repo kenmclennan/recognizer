@@ -11,6 +11,7 @@ from pathlib import Path
 from recognizer_sensors import events
 from recognizer_sensors.crap.jacoco import merge_coverage
 from recognizer_sensors.crap.lcov import Coverage
+from recognizer_sensors.history import Tracker
 from recognizer_sensors.scans import Scan
 from recognizer_sensors.settings import Refusal, SettingsError, diagnose, relative_path
 from recognizer_sensors.testrun.failures import crap_tests_failed, failing_names, suite_failed
@@ -275,6 +276,7 @@ def collect_suites(
     names: Iterable[str] | None = None,
     stored: Mapping[str, Coverage] | None = None,
     results: dict[str, dict] | None = None,
+    tracker: Tracker | None = None,
 ) -> tuple[Coverage, dict | None]:
     if not scans:
         return {}, None
@@ -298,12 +300,15 @@ def collect_suites(
     with log.open("w", encoding="utf-8") as stream:
         counted = len(runnable) > 1
 
-        if counted:
+        if counted or tracker is not None:
             events.start(len(runnable), "suites")
 
         for position, suite in enumerate(runnable):
             if counted:
                 events.progress(position, len(runnable), "suites", suite.name)
+
+            if tracker is not None:
+                tracker.stage(f"Coverage run: {suite.name}")
 
             events.note(f"Coverage run: {suite.name}")
             started = time.time()
@@ -311,6 +316,9 @@ def collect_suites(
 
             if counted:
                 events.progress(position + 1, len(runnable), "suites", suite.name)
+
+            if tracker is not None:
+                tracker.estimate()
 
             source = source_of(suite)
             part = read_source(repository, source, files, started)
