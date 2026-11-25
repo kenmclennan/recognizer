@@ -16,7 +16,10 @@ export type RunInput = {
   adoptedAtOpen: string | null;
 };
 
-export type RunView = RunInput & { display: (name: string) => string };
+export type RunView = RunInput & {
+  display: (name: string) => string;
+  plannedMs?: Readonly<Record<string, number>>;
+};
 
 export type GapItem = {
   id: string;
@@ -298,7 +301,9 @@ function timeLeft(
     return null;
   }
 
-  const silent = live.filter(({ estimateMs }) => estimateMs === null);
+  const estimateOf = (one: PluginRunView): number | null =>
+    one.estimateMs ?? view.plannedMs?.[one.name] ?? null;
+  const silent = live.filter((one) => estimateOf(one) === null);
 
   if (silent.length > 0) {
     return {
@@ -307,7 +312,7 @@ function timeLeft(
     };
   }
 
-  const total = live.reduce((sum, one) => sum + (one.estimateMs ?? 0), 0);
+  const total = live.reduce((sum, one) => sum + (estimateOf(one) ?? 0), 0);
 
   return { text: `${roundedTime(total)} left` };
 }
