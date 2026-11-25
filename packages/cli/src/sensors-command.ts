@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
   checkSensors,
+  type InstalledSensorEntry,
   readInstalledSensors,
   sensorsToCheck,
 } from "@recognizer/core";
@@ -9,10 +10,11 @@ import type { Io } from "./cli.js";
 import { asInputError, InputError } from "./errors.js";
 import { manifestPorts } from "./manifest-ports.js";
 import { pluginPorts } from "./plugins-container.js";
+import { registeredSensorEntries } from "./registered-listing.js";
 import { reportJson, reportText } from "./sensors-check.js";
 
 const USAGE = [
-  "usage: recognizer sensors [--json]",
+  "usage: recognizer sensors [--json] [--repository <dir>]",
   "       recognizer sensors check [name] [--run] [--work] [--modules <file>] [--suites <file>] [--json] [--repository <dir>]",
 ];
 
@@ -70,8 +72,7 @@ export function runSensors(argv: string[], io: Io): number {
     (values.run === true ||
       values.work === true ||
       values.modules !== undefined ||
-      values.suites !== undefined ||
-      values.repository)
+      values.suites !== undefined)
   ) {
     throw new InputError(USAGE);
   }
@@ -100,14 +101,27 @@ export function runSensors(argv: string[], io: Io): number {
     return reports.every((report) => report.ready) ? 0 : 1;
   }
 
-  const { sensors, unreadable } = readInstalledSensors(manifestPorts(io));
+  const installed = readInstalledSensors(manifestPorts(io));
+  const registered = registeredSensorEntries(
+    io,
+    resolve(values.repository ?? "."),
+    new Set(installed.sensors.map(({ name }) => name)),
+  );
+  const unreadable = [...installed.unreadable, ...registered.unreadable];
+  const sensors: (InstalledSensorEntry & { registered?: boolean })[] = [
+    ...installed.sensors,
+    ...registered.entries.map((entry) => ({ ...entry, registered: true })),
+  ];
 
   if (values.json === true) {
     io.stdout(`${JSON.stringify(sensors, null, 2)}\n`);
   } else if (sensors.length > 0) {
     io.stdout(
       `${sensors
-        .map(({ name, description }) => `${name}  ${description ?? ""}`)
+        .map(
+          ({ name, description, registered: custom }) =>
+            `${name}  ${description ?? ""}${custom === true ? "  registered" : ""}`,
+        )
         .join("\n")}\n`,
     );
   }

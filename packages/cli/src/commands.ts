@@ -775,7 +775,7 @@ export const COMMANDS: Command[] = [
     summary:
       "list the installed sensors, with what each judges, and check their readiness",
     usage:
-      "recognizer sensors [--json]\nrecognizer sensors check [name] [--run] [--work] [--modules <file>] [--suites <file>] [--json] [--repository <dir>]",
+      "recognizer sensors [--json] [--repository <dir>]\nrecognizer sensors check [name] [--run] [--work] [--modules <file>] [--suites <file>] [--json] [--repository <dir>]",
     arguments: [
       {
         name: "check [name]",
