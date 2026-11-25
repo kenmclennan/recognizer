@@ -1,4 +1,3 @@
-import { statSync } from "node:fs";
 import { join } from "node:path";
 import {
   type Git,
@@ -10,15 +9,7 @@ import {
 export interface WorkingTreePorts {
   git: Git;
   limiter: Limiter;
-}
-
-function stampOf(root: string, path: string): string {
-  const stat = statSync(join(root, path), {
-    bigint: true,
-    throwIfNoEntry: false,
-  });
-
-  return stat === undefined ? "0:0" : `${stat.mtimeNs}:${stat.size}`;
+  stamp(path: string): string;
 }
 
 export async function workingTreeFingerprint(
@@ -29,7 +20,9 @@ export async function workingTreeFingerprint(
     const { entries } = await readWorkingTree(ports, root);
 
     return entries
-      .map(({ code, path }) => `${code}:${path}:${stampOf(root, path)}`)
+      .map(
+        ({ code, path }) => `${code}:${path}:${ports.stamp(join(root, path))}`,
+      )
       .join("\n");
   } catch {
     return "";

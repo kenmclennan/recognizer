@@ -20,8 +20,21 @@ export function isActive(run: ScanRunRecord | null): boolean {
   return run !== null && (run.phase === "checking" || run.phase === "running");
 }
 
-export function pollInterval(state: WatchState): number {
-  return isActive(state.run) ? ACTIVE_POLL_MS : IDLE_POLL_MS;
+export interface Polls {
+  activeMs: number;
+  idleMs: number;
+}
+
+export const DEFAULT_POLLS: Polls = {
+  activeMs: ACTIVE_POLL_MS,
+  idleMs: IDLE_POLL_MS,
+};
+
+export function pollInterval(
+  state: WatchState,
+  polls: Polls = DEFAULT_POLLS,
+): number {
+  return isActive(state.run) ? polls.activeMs : polls.idleMs;
 }
 
 export function appendedLines(

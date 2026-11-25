@@ -4,6 +4,7 @@ import {
   appSettingsProblem,
   createScan,
   type FindingsRepository,
+  type Git,
   type HistoricalPorts,
   Limiter,
   listRenamesSince,
@@ -16,6 +17,8 @@ import {
   readViewAuthor,
   requestFaults,
   type Scan,
+  type ScanCache,
+  type Scratch,
   type StructureRepository,
   scansAtCommit,
   testsHashOf,
@@ -82,8 +85,10 @@ import {
 import { changeTicks } from "./ticks-ops.js";
 import {
   ACTIVE_POLL_MS,
+  DEFAULT_POLLS,
   isActive,
   newWatchState,
+  type Polls,
   pollInterval,
   watchTick,
 } from "./watch.js";
@@ -105,6 +110,9 @@ export interface ServiceOptions {
   signals?: Signals;
   backstopMs?: number;
   base?: () => Io;
+  scoped?: (scope: StopScope) => Io;
+  polls?: Polls;
+  adapters?: { git?: Git; scratch?: Scratch; cache?: ScanCache };
 }
 
 interface Started {
@@ -120,6 +128,8 @@ export class Service {
   private readonly signals: Signals;
   private readonly backstopMs: number;
   private readonly shared: Io;
+  private readonly polls: Polls;
+  private readonly cache: ScanCache;
   private readonly planner: Scan;
   private readonly historical: HistoricalPorts;
   private readonly historyChannel = new HistoryChannel();
@@ -133,12 +143,14 @@ export class Service {
     this.signals = options.signals ?? systemSignals();
     this.backstopMs = options.backstopMs ?? SIGNAL_BACKSTOP_MS;
     this.shared = quiet((options.base ?? (() => nodeIo(processScope)))());
+    this.polls = options.polls ?? DEFAULT_POLLS;
     const ports = scanPorts(this.shared, "all");
 
     this.planner = createScan(ports);
     this.findings = ports.findings;
     this.structure = ports.structure;
-    const git = new GitAdapter(this.shared);
+    const git = options.adapters?.git ?? new GitAdapter(this.shared);
+    this.cache = options.adapters?.cache ?? new ScanCacheAdapter();
     const limiter = new Limiter(
       Math.max(1, Math.min(MAX_HISTORICAL_SCANS, availableParallelism())),
     );
@@ -157,22 +169,32 @@ export class Service {
       }),
       (message) => this.write(message),
       () => this.nextId("r"),
-      { git, limiter },
+      { git, limiter, stamp: (path) => this.shared.stamp(path) },
+      this.shared,
+      this.polls,
     );
 
-    const scratch = new ScratchAdapter();
+    const scratch = options.adapters?.scratch ?? new ScratchAdapter();
     const clock = new ClockAdapter(this.shared);
 
     this.historical = {
       git,
       scratch,
       scan: this.planner,
-      cache: new ScanCacheAdapter(),
+      cache: this.cache,
       clock,
       comparisons: new MemoisedComparisons(clock),
       limiter,
     };
-    scratch.sweepStale(STALE_SCRATCH_MS);
+    if (options.adapters?.scratch === undefined) {
+      new ScratchAdapter().sweepStale(STALE_SCRATCH_MS);
+    }
+  }
+
+  private scopedIo(scope: StopScope): Io {
+    return this.options.scoped === undefined
+      ? nodeIo(scope)
+      : this.options.scoped(scope);
   }
 
   private write(message: unknown): void {
@@ -275,7 +297,7 @@ export class Service {
       case "structure.read": {
         const repository = resolve(text(args, "repository"));
 
-        reply(readStructure(new ScanCacheAdapter().read(repository)));
+        reply(readStructure(this.cache.read(repository)));
 
         return;
       }
@@ -583,7 +605,7 @@ export class Service {
     const repository = resolve(text(args, "repository"));
     const id = this.nextId("w");
     const state = newWatchState();
-    let timer: NodeJS.Timeout | undefined;
+    let cancel: (() => void) | undefined;
     let ended = false;
 
     const tick = () => {
@@ -595,17 +617,15 @@ export class Service {
         this.write({ stream: id, ...item });
       }
 
-      timer = setTimeout(tick, pollInterval(state));
+      cancel = this.shared.after(pollInterval(state, this.polls), tick);
     };
 
     this.watches.set(id, () => {
       ended = true;
 
-      if (timer !== undefined) {
-        clearTimeout(timer);
-      }
+      cancel?.();
     });
-    setImmediate(tick);
+    this.shared.after(0, tick);
 
     return id;
   }
@@ -637,15 +657,16 @@ export class Service {
     liveScopes.add(scope);
 
     try {
+      const io = quiet(this.scopedIo(scope));
+
       files = writeScopeFiles(
+        io,
         start.repository,
         "scan",
         start.modules,
         start.suites,
       );
-      running = createScan(scanPorts(quiet(nodeIo(scope)), "all")).start(
-        withFiles(start, files),
-      );
+      running = createScan(scanPorts(io, "all")).start(withFiles(start, files));
     } catch (error) {
       files?.remove();
       liveScopes.delete(scope);
@@ -693,7 +714,7 @@ export class Service {
 
     void (async () => {
       const outcome = await runSetupAction(
-        quiet(nodeIo(scope)),
+        quiet(this.scopedIo(scope)),
         request,
         control,
         (line) => this.write({ stream: setupId, event: line }),
@@ -743,13 +764,13 @@ export class Service {
   }
 
   backstopsSettled(): Promise<void> {
-    let timer: NodeJS.Timeout | undefined;
+    let cancel: (() => void) | undefined;
     const bound = new Promise<void>((resolve) => {
-      timer = setTimeout(resolve, this.backstopMs + ACTIVE_POLL_MS);
+      cancel = this.shared.after(this.backstopMs + ACTIVE_POLL_MS, resolve);
     });
 
     return Promise.race([this.backstops.settled(), bound]).finally(() => {
-      clearTimeout(timer);
+      cancel?.();
     });
   }
 

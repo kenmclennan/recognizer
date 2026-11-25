@@ -1,6 +1,5 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ensureCacheIgnore } from "../cache-ignore.js";
+import type { Io } from "../cli.js";
 
 let counter = 0;
 
@@ -11,6 +10,7 @@ export interface ScopeFiles {
 }
 
 export function writeScopeFiles(
+  io: Io,
   repository: string,
   kind: string,
   modules: string[] | undefined,
@@ -26,16 +26,14 @@ export function writeScopeFiles(
       `serve-${kind}-${name}-${process.pid}-${counter}.json`,
     );
 
-    mkdirSync(directory, { recursive: true });
-    ensureCacheIgnore(path);
-    writeFileSync(path, JSON.stringify(content));
+    io.writeFile(path, JSON.stringify(content));
     files.push(path);
 
     return path;
   };
   const remove = () => {
     for (const path of files) {
-      rmSync(path, { force: true });
+      io.remove(path);
     }
   };
 

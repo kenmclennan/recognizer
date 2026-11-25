@@ -78,7 +78,7 @@ export function sensorWork(
     throw new InputError(faults);
   }
 
-  const files = writeScopeFiles(repository, "work", modules, suites);
+  const files = writeScopeFiles(io, repository, "work", modules, suites);
   let out = "";
 
   try {

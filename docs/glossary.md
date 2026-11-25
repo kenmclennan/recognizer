@@ -337,3 +337,5 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Awake time | Time the machine spends running, with the time it sleeps left out. Every scan duration, pace, timeout and estimate counts awake time; a timestamp a person reads, such as when a scan started, is wall-clock time. |
 | Release train | One run of `release.yml` that publishes the app and every plugin unit changed since its last release, all built from one commit and written to the Homebrew tap in one commit. Nothing else writes to the tap. |
 | Scan schema version | The `schema_version` of the scan document. A scanner declares the one it writes as `scan_schema_version` in its manifest; the app reads its own and any older one unless `schema/scan-breaking-versions.json` lists a break between them. |
+| Fake adapter | A test stand-in for a port or for `Io` that is proved against the real adapter by one shared contract. |
+| End-to-end test | A test that starts the real service or a real plugin process, kept to a named set in `end-to-end/`. |

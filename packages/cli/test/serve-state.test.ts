@@ -1,1161 +1,775 @@
-import { type ChildProcess, spawn, spawnSync } from "node:child_process";
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
-import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
-import { REPO } from "./helpers.js";
 import {
-  BIN,
+  event,
+  FakeFiles,
+  FakeRepositories,
+  Gate,
   type Line,
-  launcher,
-  Serve,
-  typescriptRepository,
-} from "./serve-harness.js";
+  REPOSITORY,
+  type ServeRoot,
+  sensorProgram,
+  serveRoot,
+  typescriptScanner,
+  typescriptScenario,
+} from "./support/index.js";
+import {
+  Digest,
+  gaugeProgram,
+  realText,
+  TEST_FILE,
+} from "./support/serve-state-programs.js";
 
-const TIMEOUT = scaledTimeout(180_000);
-const MANIFEST_EXAMPLE = join(
-  REPO,
-  "schema/manifest-examples/valid/sensor-crap.json",
-);
+const REPO = join(__dirname, "../../..");
 
-function manifestOf(name: string): string {
-  const base = JSON.parse(readFileSync(MANIFEST_EXAMPLE, "utf8"));
+const IDLE_MS = 1000;
 
-  delete base.suite_keys;
-  delete base.placeholders;
-  delete base.log_path;
+type State = Line["state"];
 
-  return JSON.stringify({
-    ...base,
-    name,
-    display: name.toUpperCase(),
-    runs_tests: false,
-    install: `brew install ${name}`,
-    settings: [],
-  });
-}
-
-interface Script {
-  before: string[];
-  after: string[];
-  fails?: boolean;
-}
-
-const emit = (event: object) =>
-  `  echo 'recognizer-event ${JSON.stringify(event)}' >&2`;
-
-function fakeSensor(
-  directory: string,
-  gate: string,
-  name: string,
-  script?: Script,
-): void {
-  const manifest = join(gate, `${name}.manifest.json`);
-
-  writeFileSync(manifest, manifestOf(name));
-  launcher(
-    directory,
-    `recognizer-sense-${name}`,
-    [
-      `case "$1" in`,
-      `manifest) cat ${manifest};;`,
-      `check) echo '{"gaps":[]}';;`,
-      `run)`,
-      `  shift`,
-      `  commit=""; out=""`,
-      `  while [ $# -gt 0 ]; do`,
-      `    case "$1" in --commit) commit="$2";; --output) out="$2";; esac`,
-      `    shift`,
-      `  done`,
-      `  echo $$ > ${gate}/${name}.pid`,
-      ...(script?.before ?? [
-        emit({ event: "start", total: 2, unit: "functions" }),
-        emit({ event: "progress", done: 1, total: 2, unit: "functions" }),
-      ]),
-      `  while [ -e ${gate}/hold-${name} ]; do sleep 0.1; done`,
-      ...(script?.after ?? [
-        emit({ event: "progress", done: 2, total: 2, unit: "functions" }),
-      ]),
-      ...(script?.fails ? [`  exit 1`] : []),
-      `  mkdir -p "$(dirname "$out")"`,
-      `  printf '{"findings_version":1,"sensor":{"name":"${name}","version":"1"},"commit":"%s","modified":false,"settings":{},"findings":[]}' "$commit" > "$out";;`,
-      `esac`,
-    ].join("\n"),
-  );
-}
-
-function plugins(
-  gate: string,
-  names: string[],
-  scripts: Record<string, Script> = {},
-): string {
-  const directory = makeTempDir("serve-state-plugins-");
-
-  launcher(
-    directory,
-    "recognizer-scan-typescript",
-    `exec node ${REPO}/packages/scanners/typescript/dist/bin.js "$@"`,
-  );
-
-  for (const name of names) {
-    fakeSensor(directory, gate, name, scripts[name]);
-  }
-
-  return directory;
-}
-
-function git(repository: string, ...args: string[]): void {
-  const result = spawnSync(
-    "git",
-    [
-      "-c",
-      "user.name=test",
-      "-c",
-      "user.email=test@example.com",
-      "-c",
-      "commit.gpgsign=false",
-      ...args,
-    ],
-    { cwd: repository, encoding: "utf8" },
-  );
-
-  if (result.status !== 0) {
-    throw new Error(`git ${args.join(" ")}: ${result.stderr}`);
-  }
-}
-
-function repositoryWith(sensors: string[]): string {
-  const repository = typescriptRepository();
-  const config = join(repository, ".recognizer", "config.yaml");
-
-  mkdirSync(join(repository, ".recognizer"), { recursive: true });
-  writeFileSync(
-    config,
-    `sensors:\n${sensors.map((name) => `  ${name}: {}`).join("\n")}\n`,
-  );
-  writeFileSync(
-    join(repository, ".gitignore"),
-    ".recognizer/cache/\nnode_modules/\n",
-  );
-  git(repository, "init", "-q");
-  git(repository, "add", ".");
-  git(repository, "commit", "-q", "-m", "initial");
-
-  return repository;
-}
-
-function states(serve: Serve, stream: string): Line["state"][] {
-  return serve.lines
+function states(root: ServeRoot, stream: string): State[] {
+  return root.lines
     .filter((line) => line.stream === stream && "state" in line)
     .map((line) => line.state);
 }
 
-async function untilState(
-  serve: Serve,
+function untilState(
+  root: ServeRoot,
   stream: string,
-  found: (state: Line["state"]) => boolean,
-): Promise<Line["state"]> {
-  return serve.until(() => states(serve, stream).find(found));
+  found: (state: State) => boolean,
+  ms?: number,
+): Promise<State> {
+  return root.until(() => states(root, stream).find(found), ms);
 }
 
-function pluginStates(state: Line["state"], name: string): string | undefined {
+function pluginStates(state: State, name: string): string | undefined {
   return state.run?.plugins.find((one: Line) => one.name === name)?.state;
 }
 
-function runningScan(
-  repository: string,
-  path: string,
-  sense: string,
-): ChildProcess {
-  return spawn(process.execPath, [BIN, "scan", repository, "--sense", sense], {
-    env: { ...process.env, PATH: `${path}:${process.env.PATH}` },
-    stdio: "ignore",
-    detached: true,
-  });
-}
-
-const TEST_FILE = "api/src/memory-store.test.ts";
-const SOURCE_FILE = "api/src/memory-store.ts";
-
-function fakeGauge(directory: string, gate: string): void {
-  const manifest = join(gate, "gauge.manifest.json");
-
-  writeFileSync(manifest, manifestOf("gauge"));
-  launcher(
-    directory,
-    "recognizer-sense-gauge",
-    [
-      `case "$1" in`,
-      `manifest) cat ${manifest};;`,
-      `check) echo '{"gaps":[]}';;`,
-      `run)`,
-      `  shift`,
-      `  commit=""; out=""; root=""`,
-      `  while [ $# -gt 0 ]; do`,
-      `    case "$1" in --commit) commit="$2";; --output) out="$2";; --repository) root="$2";; esac`,
-      `    shift`,
-      `  done`,
-      `  hash=$(shasum -a 256 "$root/${SOURCE_FILE}" | cut -d' ' -f1)`,
-      `  tests=$(cat ${gate}/tests-digest)`,
-      `  mkdir -p "$(dirname "$out")"`,
-      `  printf '{"findings_version":2,"sensor":{"name":"gauge","version":"1"},"commit":"%s","modified":false,"settings":{},"findings":[],"inputs":{"${SOURCE_FILE}":"%s"},"tests":"%s"}' "$commit" "$hash" "$tests" > "$out";;`,
-      `esac`,
-    ].join("\n"),
-  );
-}
-
-function gaugePlugins(gate: string): string {
-  const directory = plugins(gate, []);
-
-  fakeGauge(directory, gate);
-
-  return directory;
-}
-
-async function recordTestsDigest(
-  serve: Serve,
-  repository: string,
-  gate: string,
-): Promise<void> {
-  const digest = (await serve.call("tests.hash", { repository, known: {} }))
-    .ok as string;
-
-  writeFileSync(join(gate, "tests-digest"), digest);
-}
-
-function editTest(repository: string, marker: string): number {
-  const file = join(repository, TEST_FILE);
-
-  writeFileSync(file, `${readFileSync(file, "utf8")}\n// ${marker}\n`);
-
-  return Date.now();
-}
-
-function freshnessOf(state: Line["state"], name: string): string | undefined {
+function freshnessOf(state: State, name: string): string | undefined {
   return state.freshness[name]?.state;
 }
 
-function holdFile(gate: string, name: string): string {
-  return join(gate, `hold-${name}`);
+async function reportedWithin(
+  root: ServeRoot,
+  stream: string,
+  mark: number,
+  found: (state: State) => boolean,
+  limit: number,
+): Promise<number> {
+  await root.advance(0);
+  expect(states(root, stream).slice(mark).find(found)).toBeUndefined();
+
+  for (let elapsed = 1; elapsed <= limit; elapsed += 1) {
+    await root.advance(1);
+
+    if (states(root, stream).slice(mark).find(found) !== undefined) {
+      return elapsed;
+    }
+  }
+
+  throw new Error(`no report within ${limit} ms`);
 }
+
+function start(root: ServeRoot, repository: string, sense: string[]) {
+  return root.call("scan.start", {
+    repository,
+    describe: false,
+    analysis: false,
+    sense,
+  });
+}
+
+function configure(root: ServeRoot, repository: string, sensors: string[]) {
+  root.io.files.writeFile(
+    `${repository}/.recognizer/config.yaml`,
+    `sensors:\n${sensors.map((name) => `  ${name}: {}`).join("\n")}\n`,
+  );
+}
+
+const hasMutation = (state: State) =>
+  state.registry.entries.some(
+    (entry: Line) => entry.name === "mutation" && entry.registered,
+  );
 
 describe("serve repository state", () => {
-  it(
-    "repository_watch_streams_a_plugins_stage_and_estimate",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const repository = repositoryWith(["crap"]);
-      const serve = new Serve(
-        plugins(gate, ["crap"], {
-          crap: {
-            before: [
-              emit({ event: "start", total: 2, unit: "functions" }),
-              emit({ event: "stage", name: "one", index: 1, of: 2 }),
-              emit({ event: "estimate", remaining_ms: 7_200_000 }),
-            ],
-            after: [
-              emit({ event: "stage", name: "two", index: 2, of: 2 }),
-              emit({
-                event: "progress",
-                done: 1,
-                total: 2,
-                unit: "functions",
-              }),
-            ],
-          },
-        }),
+  it("repository_watch_streams_a_plugins_stage_and_estimate", async () => {
+    const gate = new Gate();
+    const { root, repository } = typescriptScenario({
+      sensors: ["crap"],
+      scripts: {
+        crap: {
+          gate,
+          before: [
+            event({ event: "start", total: 2, unit: "functions" }),
+            event({ event: "stage", name: "one", index: 1, of: 2 }),
+            event({ event: "estimate", remaining_ms: 7_200_000 }),
+          ],
+          after: [
+            event({ event: "stage", name: "two", index: 2, of: 2 }),
+            event({
+              event: "progress",
+              done: 1,
+              total: 2,
+              unit: "functions",
+            }),
+          ],
+        },
+      },
+    });
+
+    gate.hold();
+
+    const watch = (await root.call("repository.watch", { repository })).ok;
+
+    await untilState(root, watch, (state) => state.revision === 1);
+
+    const started = await start(root, repository, ["crap"]);
+    const plugin = (state: State) =>
+      state.run?.plugins.find((one: Line) => one.name === "crap");
+
+    await untilState(root, watch, (state) => plugin(state)?.stage?.index === 1);
+    gate.open();
+    await untilState(root, watch, (state) => plugin(state)?.stage?.index === 2);
+
+    for (const state of states(root, watch)) {
+      const seen = plugin(state);
+
+      if (seen?.state === "running" && seen.stage !== null) {
+        expect(seen.estimateMs).toBe(7_200_000);
+      }
+    }
+
+    await root.outcome(started.ok);
+    await root.call("repository.unwatch", { watch });
+    await root.close();
+  });
+
+  it("a_failed_sensor_snapshot_carries_its_reason_and_diagnosis", async () => {
+    const { root, repository } = typescriptScenario({
+      sensors: ["crap"],
+      scripts: {
+        crap: {
+          before: [
+            event({ event: "start", total: 2, unit: "functions" }),
+            event({
+              event: "diagnosis",
+              code: "no-coverage",
+              text: "no coverage report",
+            }),
+          ],
+          after: [],
+          fails: true,
+        },
+      },
+    });
+    const watch = (await root.call("repository.watch", { repository })).ok;
+
+    await untilState(root, watch, (state) => state.revision === 1);
+
+    const started = await start(root, repository, ["crap"]);
+
+    await root.outcome(started.ok);
+
+    const failed = await untilState(
+      root,
+      watch,
+      (state) => pluginStates(state, "crap") === "failed",
+    );
+    const plugin = failed.run.plugins.find((one: Line) => one.name === "crap");
+
+    expect(plugin.failure.reason).not.toBe("");
+    expect(plugin.failure.diagnosis.code).toBe("no-coverage");
+
+    for (const state of states(root, watch)) {
+      const seen = state.run?.plugins.find((one: Line) => one.name === "crap");
+
+      if (seen?.state === "failed") {
+        expect(seen.failure).not.toBeNull();
+      }
+    }
+
+    await root.call("repository.unwatch", { watch });
+    await root.close();
+  });
+
+  it("repository_watch_streams_revisions_through_a_long_run", async () => {
+    const gate = new Gate();
+    const { root, repository } = typescriptScenario({
+      sensors: ["crap", "mutation"],
+      scripts: { crap: { gate } },
+    });
+
+    gate.hold();
+
+    const watch = (await root.call("repository.watch", { repository })).ok;
+
+    await untilState(root, watch, (state) => state.revision === 1);
+    expect(states(root, watch)[0].registry.entries).toHaveLength(2);
+
+    const started = await start(root, repository, ["crap", "mutation"]);
+
+    await untilState(
+      root,
+      watch,
+      (state) => pluginStates(state, "crap") === "running",
+    );
+    gate.open();
+
+    expect((await root.outcome(started.ok)).status).toBe("finished");
+
+    const last = await untilState(
+      root,
+      watch,
+      (state) =>
+        state.run?.state === "finished" &&
+        state.results.mutation.results.length === 1,
+    );
+
+    expect(last.results.crap.results).toHaveLength(1);
+
+    const seen = states(root, watch);
+
+    seen.forEach((state, index) => {
+      expect(state.revision).toBe(index + 1);
+      expect(
+        state.registry.entries.filter((entry: Line) => entry.registered),
+      ).toHaveLength(2);
+    });
+
+    const order = ["queued", "running", "finished"];
+
+    for (const name of ["crap", "mutation"]) {
+      let rank = 0;
+
+      for (const state of seen) {
+        const now = pluginStates(state, name) ?? "queued";
+
+        expect(order.indexOf(now)).toBeGreaterThanOrEqual(rank);
+        rank = order.indexOf(now);
+      }
+    }
+
+    expect(
+      seen.some(
+        (state) =>
+          pluginStates(state, "crap") === "running" &&
+          pluginStates(state, "mutation") === "queued",
+      ),
+    ).toBe(true);
+
+    await root.call("repository.unwatch", { watch });
+    await root.close();
+  });
+
+  it("a_catalog_that_cannot_be_read_keeps_the_registered_plugins", async () => {
+    const { root, repository } = typescriptScenario({
+      sensors: ["crap", "mutation"],
+    });
+    const before = (await root.call("repository.state", { repository })).ok;
+
+    expect(before.registry.entries.map((entry: Line) => entry.name)).toEqual([
+      "crap",
+      "mutation",
+    ]);
+
+    const readDir = root.io.readDir;
+
+    root.io.readDir = (path) => {
+      if (path === "/fake-bin") {
+        throw Object.assign(new Error("EACCES"), { code: "EACCES" });
+      }
+
+      return readDir(path);
+    };
+
+    const after = (await root.call("repository.state", { repository })).ok;
+
+    expect(after.registry.entries.map((entry: Line) => entry.name)).toEqual([
+      "crap",
+      "mutation",
+    ]);
+    expect(Object.keys(after.results)).toEqual(["crap", "mutation"]);
+    expect(Object.keys(after.freshness)).toEqual(["crap", "mutation"]);
+    await root.close();
+  });
+
+  it("a_service_restart_keeps_every_registered_plugin_and_finished_result", async () => {
+    const programs = {
+      "recognizer-sense-crap": sensorProgram("crap"),
+      "recognizer-sense-mutation": sensorProgram("mutation"),
+    };
+    const files = new FakeFiles();
+    const repositories = new FakeRepositories(files);
+    const first = typescriptScenario({
+      sensors: ["crap", "mutation"],
+      files,
+      repositories,
+    });
+
+    const started = await start(first.root, first.repository, [
+      "crap",
+      "mutation",
+    ]);
+
+    expect((await first.root.outcome(started.ok)).status).toBe("finished");
+    const before = (
+      await first.root.call("repository.state", { repository: REPOSITORY })
+    ).ok;
+    await first.root.close();
+
+    const second = serveRoot({
+      files,
+      repositories,
+      programs: {
+        ...programs,
+        "recognizer-scan-typescript": typescriptScanner(),
+      },
+    });
+    const after = (
+      await second.call("repository.state", { repository: REPOSITORY })
+    ).ok;
+    const { revision: _a, ...fresh } = after;
+    const { revision: _b, ...old } = before;
+
+    expect(after.revision).toBe(1);
+    expect(fresh).toEqual(old);
+    expect(after.results.crap.results).toHaveLength(1);
+    expect(after.results.mutation.results).toHaveLength(1);
+    expect(after.registry.entries.map((entry: Line) => entry.name)).toEqual([
+      "crap",
+      "mutation",
+    ]);
+    await second.close();
+  });
+
+  it("a_config_change_republishes_the_registry", async () => {
+    const { root, repository } = typescriptScenario({
+      sensors: ["crap", "mutation"],
+    });
+    const watch = (await root.call("repository.watch", { repository })).ok;
+
+    await untilState(root, watch, (state) => state.revision === 1);
+    configure(root, repository, ["crap"]);
+
+    const after = await untilState(root, watch, (state) => !hasMutation(state));
+
+    expect(Object.keys(after.results)).toEqual(["crap"]);
+    expect(Object.keys(after.freshness)).toEqual(["crap"]);
+    await root.close();
+  });
+
+  it("an_uncommitted_test_edit_turns_the_result_stale_within_10_s_first_edit_and_after_a_run", async () => {
+    const digest = new Digest();
+    const { root, repository } = typescriptScenario({
+      registered: ["gauge"],
+      programs: { "recognizer-sense-gauge": gaugeProgram(digest) },
+    });
+    const recordDigest = async () => {
+      digest.value = (await root.call("tests.hash", { repository, known: {} }))
+        .ok as string;
+    };
+    const editTest = (marker: string) => {
+      const file = `${repository}/${TEST_FILE}`;
+
+      root.io.files.writeFile(
+        file,
+        `${root.io.files.readFile(file)}\n// ${marker}\n`,
       );
+    };
 
-      writeFileSync(holdFile(gate, "crap"), "");
+    await recordDigest();
 
-      try {
-        const watch = (await serve.call("repository.watch", { repository })).ok;
+    const first = await start(root, repository, ["gauge"]);
 
-        await untilState(serve, watch, (state) => state.revision === 1);
+    expect((await root.outcome(first.ok)).status).toBe("finished");
 
-        const started = await serve.call("scan.start", {
-          repository,
-          describe: false,
-          analysis: false,
-          sense: ["crap"],
-        });
-        const plugin = (state: Line["state"]) =>
-          state.run?.plugins.find((one: Line) => one.name === "crap");
+    const watch = (await root.call("repository.watch", { repository })).ok;
 
-        await untilState(
-          serve,
-          watch,
-          (state) => plugin(state)?.stage?.index === 1,
-        );
-        rmHold(holdFile(gate, "crap"));
-        await untilState(
-          serve,
-          watch,
-          (state) => plugin(state)?.stage?.index === 2,
-        );
+    await untilState(
+      root,
+      watch,
+      (state) => freshnessOf(state, "gauge") === "current",
+    );
 
-        for (const state of states(serve, watch)) {
-          const seen = plugin(state);
+    editTest("first");
+    expect(
+      await reportedWithin(
+        root,
+        watch,
+        states(root, watch).length,
+        (state) => freshnessOf(state, "gauge") === "stale",
+        IDLE_MS,
+      ),
+    ).toBeLessThanOrEqual(IDLE_MS);
 
-          if (seen?.state === "running" && seen.stage !== null) {
-            expect(seen.estimateMs).toBe(7_200_000);
-          }
-        }
+    await recordDigest();
 
-        await serve.outcome(started.ok);
-        await serve.call("repository.unwatch", { watch });
-      } finally {
-        rmHold(holdFile(gate, "crap"));
-        await serve.close();
-      }
-    },
-    TIMEOUT,
-  );
+    const second = await start(root, repository, ["gauge"]);
 
-  it(
-    "a_failed_sensor_snapshot_carries_its_reason_and_diagnosis",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const repository = repositoryWith(["crap"]);
-      const serve = new Serve(
-        plugins(gate, ["crap"], {
-          crap: {
-            before: [
-              emit({ event: "start", total: 2, unit: "functions" }),
-              emit({
-                event: "diagnosis",
-                code: "no-coverage",
-                text: "no coverage report",
-              }),
-            ],
-            after: [],
-            fails: true,
-          },
-        }),
-      );
+    expect((await root.outcome(second.ok)).status).toBe("finished");
 
-      try {
-        const watch = (await serve.call("repository.watch", { repository })).ok;
+    const mark = states(root, watch).length;
 
-        await untilState(serve, watch, (state) => state.revision === 1);
+    await root.until(
+      () =>
+        states(root, watch)
+          .slice(mark)
+          .find((state) => freshnessOf(state, "gauge") === "current"),
+      10_000,
+    );
 
-        const started = await serve.call("scan.start", {
-          repository,
-          describe: false,
-          analysis: false,
-          sense: ["crap"],
-        });
+    editTest("second");
+    expect(
+      await reportedWithin(
+        root,
+        watch,
+        states(root, watch).length,
+        (state) => freshnessOf(state, "gauge") === "stale",
+        IDLE_MS,
+      ),
+    ).toBeLessThanOrEqual(IDLE_MS);
+    await root.close();
+  });
 
-        await serve.outcome(started.ok);
+  it("a_registration_change_reaches_the_snapshot_within_10_s", async () => {
+    const { root, repository } = typescriptScenario({
+      sensors: ["crap", "mutation"],
+    });
+    const watch = (await root.call("repository.watch", { repository })).ok;
+    const first = await untilState(
+      root,
+      watch,
+      (state) => state.revision === 1,
+    );
 
-        const failed = await untilState(
-          serve,
-          watch,
-          (state) => pluginStates(state, "crap") === "failed",
-        );
-        const plugin = failed.run.plugins.find(
-          (one: Line) => one.name === "crap",
-        );
+    expect(hasMutation(first)).toBe(true);
+    configure(root, repository, ["crap"]);
 
-        expect(plugin.failure.reason).not.toBe("");
-        expect(plugin.failure.diagnosis.code).toBe("no-coverage");
+    expect(
+      await reportedWithin(
+        root,
+        watch,
+        states(root, watch).length,
+        (state) => !hasMutation(state),
+        IDLE_MS,
+      ),
+    ).toBeLessThanOrEqual(IDLE_MS);
 
-        for (const state of states(serve, watch)) {
-          const seen = state.run?.plugins.find(
-            (one: Line) => one.name === "crap",
-          );
+    const before = states(root, watch).at(-1) as State;
+    const policy = `${repository}/.recognizer/policy.yaml`;
 
-          if (seen?.state === "failed") {
-            expect(seen.failure).not.toBeNull();
-          }
-        }
+    root.io.files.writeFile(
+      policy,
+      `${root.io.files.exists(policy) ? root.io.files.readFile(policy) : ""}\n`,
+    );
+    expect(
+      await reportedWithin(
+        root,
+        watch,
+        states(root, watch).length,
+        (state) => state.inputsDigest !== before.inputsDigest,
+        IDLE_MS,
+      ),
+    ).toBeLessThanOrEqual(IDLE_MS);
+    await root.close();
+  });
 
-        await serve.call("repository.unwatch", { watch });
-      } finally {
-        await serve.close();
-      }
-    },
-    TIMEOUT,
-  );
+  it("results_read_returns_findings_and_overlay_texts_and_the_revision", async () => {
+    const { root, repository } = typescriptScenario({ sensors: ["crap"] });
+    const started = await start(root, repository, ["crap"]);
 
-  it(
-    "repository_watch_streams_revisions_through_a_long_run",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const repository = repositoryWith(["crap", "mutation"]);
-      const serve = new Serve(plugins(gate, ["crap", "mutation"]));
+    expect((await root.outcome(started.ok)).status).toBe("finished");
+    root.io.files.writeFile(
+      `${repository}/.recognizer/cache/overlays/crap.json`,
+      realText(join(REPO, "schema", "overlay-examples", "valid", "crap.json")),
+    );
 
-      writeFileSync(holdFile(gate, "crap"), "");
+    const state = (await root.call("repository.state", { repository })).ok;
+    const read = (await root.call("results.read", { repository })).ok;
 
-      try {
-        const watch = (await serve.call("repository.watch", { repository })).ok;
+    expect(read.revision).toBe(state.revision);
+    expect(read.plugins.crap.findings.sensor.name).toBe("crap");
+    expect(read.plugins.crap.overlay.producer.name).toBe("crap");
+    expect(read.plugins.crap.findingsProblem).toBeNull();
+    expect(read.plugins.crap.overlayProblem).toBeNull();
+    await root.close();
+  });
 
-        await untilState(serve, watch, (state) => state.revision === 1);
-        expect(states(serve, watch)[0].registry.entries).toHaveLength(2);
+  it("results_read_flags_an_unreadable_file_and_deletes_nothing", async () => {
+    const { root, repository } = typescriptScenario({ sensors: ["crap"] });
+    const file = `${repository}/.recognizer/cache/findings/crap.json`;
 
-        const started = await serve.call("scan.start", {
-          repository,
-          describe: false,
-          analysis: false,
-          sense: ["crap", "mutation"],
-        });
+    root.io.files.writeFile(file, "not json");
 
-        await untilState(
-          serve,
-          watch,
-          (state) => pluginStates(state, "crap") === "running",
-        );
+    const read = (await root.call("results.read", { repository })).ok;
 
-        rmHold(holdFile(gate, "crap"));
+    expect(read.plugins.crap.findings).toBeNull();
+    expect(read.plugins.crap.findingsProblem).not.toBeNull();
+    expect(root.io.files.readFile(file)).toBe("not json");
+    await root.close();
+  });
 
-        expect((await serve.outcome(started.ok)).status).toBe("finished");
+  it("results_read_names_the_invalid_file_and_returns_the_valid_one_unchanged", async () => {
+    const { root, repository } = typescriptScenario({
+      sensors: ["crap", "mutation"],
+    });
+    const cache = `${repository}/.recognizer/cache`;
+    const started = await start(root, repository, ["crap", "mutation"]);
 
-        const last = await untilState(
-          serve,
-          watch,
-          (state) =>
-            state.run?.state === "finished" &&
-            state.results.mutation.results.length === 1,
-        );
+    expect((await root.outcome(started.ok)).status).toBe("finished");
 
-        expect(last.results.crap.results).toHaveLength(1);
+    const valid = JSON.parse(
+      root.io.files.readFile(`${cache}/findings/crap.json`),
+    );
 
-        const seen = states(serve, watch);
+    root.io.files.writeFile(`${cache}/findings/mutation.json`, "not json");
+    root.io.files.writeFile(`${cache}/overlays/mutation.json`, '{"overlay":1}');
 
-        seen.forEach((state, index) => {
-          expect(state.revision).toBe(index + 1);
-          expect(
-            state.registry.entries.filter((entry: Line) => entry.registered),
-          ).toHaveLength(2);
-        });
+    const read = (await root.call("results.read", { repository })).ok;
 
-        const order = ["queued", "running", "finished"];
+    expect(read.plugins.crap.findingsProblem).toBeNull();
+    expect(read.plugins.crap.findings.commit).toBe(valid.commit);
+    expect(read.plugins.mutation.findings).toBeNull();
+    expect(read.plugins.mutation.findingsProblem).not.toBeNull();
+    expect(read.plugins.mutation.overlay).toBeNull();
+    expect(read.plugins.mutation.overlayProblem).not.toBeNull();
+    expect(read.refusals).toEqual({});
+    await root.close();
+  });
 
-        for (const name of ["crap", "mutation"]) {
-          let rank = 0;
+  it("results_read_carries_each_documents_freshness_and_the_last_run", async () => {
+    const { root, repository } = typescriptScenario({ sensors: ["crap"] });
+    const started = await start(root, repository, ["crap"]);
 
-          for (const state of seen) {
-            const now = pluginStates(state, name) ?? "queued";
+    expect((await root.outcome(started.ok)).status).toBe("finished");
 
-            expect(order.indexOf(now)).toBeGreaterThanOrEqual(rank);
-            rank = order.indexOf(now);
-          }
-        }
+    const read = (
+      await root.call("results.read", { repository, tests: "digest" })
+    ).ok;
+    const { freshness } = read.plugins.crap;
 
-        expect(
-          seen.some(
-            (state) =>
-              pluginStates(state, "crap") === "running" &&
-              pluginStates(state, "mutation") === "queued",
-          ),
-        ).toBe(true);
+    expect(typeof freshness.valid).toBe("boolean");
+    expect(Array.isArray(freshness.current)).toBe(true);
+    expect(typeof freshness.outOfDate).toBe("number");
+    expect(read.lastRun).toMatch(/^\d{8}T\d{9}Z-scan\.json$/);
+    await root.close();
+  });
 
-        await serve.call("repository.unwatch", { watch });
-      } finally {
-        rmHold(holdFile(gate, "crap"));
-        await serve.close();
-      }
-    },
-    TIMEOUT,
-  );
+  it("inputs_read_returns_the_config_policy_and_baseline_parsed_with_their_problems", async () => {
+    const { root, repository } = typescriptScenario({ sensors: ["crap"] });
+    const folder = `${repository}/.recognizer`;
 
-  it(
-    "a_catalog_that_cannot_be_read_keeps_the_registered_plugins",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const repository = repositoryWith(["crap", "mutation"]);
-      const directory = plugins(gate, ["crap", "mutation"]);
-      const serve = new Serve(directory);
+    root.io.files.writeFile(`${folder}/policy.yaml`, "components: nonsense: [");
+    root.io.files.writeFile(`${folder}/baselines/violations.json`, "not json");
 
-      try {
-        const before = (await serve.call("repository.state", { repository }))
-          .ok;
+    const bad = (await root.call("inputs.read", { repository })).ok;
 
-        expect(
-          before.registry.entries.map((entry: Line) => entry.name),
-        ).toEqual(["crap", "mutation"]);
+    expect(bad.config).toEqual(expect.anything());
+    expect(bad.configText).toEqual(expect.any(String));
+    expect(bad.policy).toBeNull();
+    expect(bad.policyProblem).toEqual(expect.any(String));
+    expect(bad.baseline).toBeNull();
+    expect(bad.baselineProblem).toEqual(expect.any(String));
+    expect(bad.refused).toEqual([]);
 
-        chmodSync(directory, 0o000);
+    root.io.files.writeFile(
+      `${folder}/baselines/violations.json`,
+      JSON.stringify({ schema_version: 1, violations: [] }),
+    );
 
-        const after = (await serve.call("repository.state", { repository })).ok;
+    const good = (await root.call("inputs.read", { repository })).ok;
 
-        expect(after.registry.entries.map((entry: Line) => entry.name)).toEqual(
-          ["crap", "mutation"],
-        );
-        expect(Object.keys(after.results)).toEqual(["crap", "mutation"]);
-        expect(Object.keys(after.freshness)).toEqual(["crap", "mutation"]);
-      } finally {
-        chmodSync(directory, 0o755);
-        await serve.close();
-      }
-    },
-    TIMEOUT,
-  );
+    expect(good.baseline).toEqual([]);
+    expect(good.baselineProblem).toBeNull();
+    await root.close();
+  });
 
-  it(
-    "a_service_restart_keeps_every_registered_plugin_and_finished_result",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const repository = repositoryWith(["crap", "mutation"]);
-      const directory = plugins(gate, ["crap", "mutation"]);
-      const first = new Serve(directory);
-      let before: Line;
-
-      try {
-        const started = await first.call("scan.start", {
-          repository,
-          describe: false,
-          analysis: false,
-          sense: ["crap", "mutation"],
-        });
-
-        expect((await first.outcome(started.ok)).status).toBe("finished");
-        before = (await first.call("repository.state", { repository })).ok;
-      } finally {
-        await first.close();
-      }
-
-      const second = new Serve(directory);
-
-      try {
-        const after = (await second.call("repository.state", { repository }))
-          .ok;
-        const { revision: _a, ...fresh } = after;
-        const { revision: _b, ...old } = before;
-
-        expect(after.revision).toBe(1);
-        expect(fresh).toEqual(old);
-        expect(after.results.crap.results).toHaveLength(1);
-        expect(after.results.mutation.results).toHaveLength(1);
-        expect(after.registry.entries.map((entry: Line) => entry.name)).toEqual(
-          ["crap", "mutation"],
-        );
-      } finally {
-        await second.close();
-      }
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "a_killed_scan_ends_stopped_with_a_log_entry_and_a_settled_marker",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const repository = repositoryWith(["crap"]);
-      const directory = plugins(gate, ["crap"]);
-      const serve = new Serve(directory);
-      const marker = join(
+  it("scan_estimate_names_every_part_with_no_figure_when_the_run_log_is_empty", async () => {
+    const { root, repository } = typescriptScenario({ sensors: ["crap"] });
+    const answer = (
+      await root.call("scan.estimate", {
         repository,
-        ".recognizer",
-        "cache",
-        "scan-running.json",
-      );
-
-      writeFileSync(holdFile(gate, "crap"), "");
-
-      const child = runningScan(repository, directory, "crap");
-
-      try {
-        await serve.until(() => {
-          try {
-            return JSON.parse(readFileSync(marker, "utf8")).phase ===
-              "running" && existsSync(join(gate, "crap.pid"))
-              ? true
-              : undefined;
-          } catch {
-            return undefined;
-          }
-        });
-
-        process.kill(-(child.pid as number), "SIGKILL");
-
-        const watch = (await serve.call("repository.watch", { repository })).ok;
-        const stopped = await untilState(
-          serve,
-          watch,
-          (state) => state.run?.state === "stopped",
-        );
-
-        expect(pluginStates(stopped, "crap")).toBe("stopped");
-
-        await serve.until(() => {
-          const phase = JSON.parse(readFileSync(marker, "utf8")).phase;
-
-          return phase === "stopped" ? true : undefined;
-        });
-
-        const logs = join(repository, ".recognizer", "cache", "log");
-        const records = readdirSync(logs)
-          .filter((name) => name.endsWith("-scan.json"))
-          .map((name) => JSON.parse(readFileSync(join(logs, name), "utf8")));
-
-        expect(records).toHaveLength(1);
-        expect(records[0]).toMatchObject({ outcome: "stopped", exit: 1 });
-        expect(records[0].finished).not.toBeNull();
-        expect(
-          records[0].phases
-            .flatMap((phase: Line) => phase.entries)
-            .find((entry: Line) => entry.name === "crap"),
-        ).toMatchObject({
-          outcome: "stopped",
-          reason: "the run was killed outright",
-        });
-      } finally {
-        rmHold(holdFile(gate, "crap"));
-        await serve.close();
-      }
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "a_config_change_republishes_the_registry",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const repository = repositoryWith(["crap", "mutation"]);
-      const serve = new Serve(plugins(gate, ["crap", "mutation"]));
-
-      try {
-        const watch = (await serve.call("repository.watch", { repository })).ok;
-
-        await untilState(serve, watch, (state) => state.revision === 1);
-
-        const changed = spawnSync(
-          process.execPath,
-          [BIN, "config", "--remove-section", "sensors.mutation"],
-          { cwd: repository, encoding: "utf8" },
-        );
-
-        expect(changed.status).toBe(0);
-
-        const after = await untilState(
-          serve,
-          watch,
-          (state) =>
-            !state.registry.entries.some(
-              (entry: Line) => entry.name === "mutation" && entry.registered,
-            ),
-        );
-
-        expect(Object.keys(after.results)).toEqual(["crap"]);
-        expect(Object.keys(after.freshness)).toEqual(["crap"]);
-      } finally {
-        await serve.close();
-      }
-    },
-    TIMEOUT,
-  );
-  it(
-    "an_uncommitted_test_edit_turns_the_result_stale_within_10_s_first_edit_and_after_a_run",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const repository = repositoryWith(["gauge"]);
-      const serve = new Serve(gaugePlugins(gate));
-
-      try {
-        await recordTestsDigest(serve, repository, gate);
-
-        const first = await serve.call("scan.start", {
-          repository,
-          describe: false,
-          analysis: false,
-          sense: ["gauge"],
-        });
-
-        expect((await serve.outcome(first.ok)).status).toBe("finished");
-
-        const watch = (await serve.call("repository.watch", { repository })).ok;
-
-        await untilState(
-          serve,
-          watch,
-          (state) => freshnessOf(state, "gauge") === "current",
-        );
-
-        const firstEdit = editTest(repository, "first");
-
-        await serve.until(
-          () =>
-            states(serve, watch).find(
-              (state) => freshnessOf(state, "gauge") === "stale",
-            ),
-          10_000,
-        );
-        expect(Date.now() - firstEdit).toBeLessThan(scaledTimeout(10_000));
-
-        await recordTestsDigest(serve, repository, gate);
-
-        const second = await serve.call("scan.start", {
-          repository,
-          describe: false,
-          analysis: false,
-          sense: ["gauge"],
-        });
-
-        expect((await serve.outcome(second.ok)).status).toBe("finished");
-
-        const mark = states(serve, watch).length;
-
-        await serve.until(
-          () =>
-            states(serve, watch)
-              .slice(mark)
-              .find((state) => freshnessOf(state, "gauge") === "current"),
-          10_000,
-        );
-
-        const secondEdit = editTest(repository, "second");
-        const after = states(serve, watch).length;
-
-        await serve.until(
-          () =>
-            states(serve, watch)
-              .slice(after)
-              .find((state) => freshnessOf(state, "gauge") === "stale"),
-          10_000,
-        );
-        expect(Date.now() - secondEdit).toBeLessThan(scaledTimeout(10_000));
-      } finally {
-        await serve.close();
-      }
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "a_registration_change_reaches_the_snapshot_within_10_s",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const repository = repositoryWith(["crap", "mutation"]);
-      const serve = new Serve(plugins(gate, ["crap", "mutation"]));
-
-      try {
-        const watch = (await serve.call("repository.watch", { repository })).ok;
-        const first = await untilState(
-          serve,
-          watch,
-          (state) => state.revision === 1,
-        );
-
-        expect(
-          first.registry.entries.some(
-            (entry: Line) => entry.name === "mutation" && entry.registered,
-          ),
-        ).toBe(true);
-
-        const changed = spawnSync(
-          process.execPath,
-          [BIN, "config", "--remove-section", "sensors.mutation"],
-          { cwd: repository, encoding: "utf8" },
-        );
-        const wrote = Date.now();
-
-        expect(changed.status).toBe(0);
-
-        const mark = states(serve, watch).length;
-
-        await serve.until(
-          () =>
-            states(serve, watch)
-              .slice(mark)
-              .find(
-                (state) =>
-                  !state.registry.entries.some(
-                    (entry: Line) =>
-                      entry.name === "mutation" && entry.registered,
-                  ),
-              ),
-          10_000,
-        );
-        expect(Date.now() - wrote).toBeLessThan(scaledTimeout(10_000));
-
-        const before = states(serve, watch).at(-1) as Line["state"];
-
-        writeFileSync(
-          join(repository, ".recognizer", "policy.yaml"),
-          `${existsSync(join(repository, ".recognizer", "policy.yaml")) ? readFileSync(join(repository, ".recognizer", "policy.yaml"), "utf8") : ""}\n`,
-        );
-
-        const edited = Date.now();
-        const seen = states(serve, watch).length;
-
-        await serve.until(
-          () =>
-            states(serve, watch)
-              .slice(seen)
-              .find((state) => state.inputsDigest !== before.inputsDigest),
-          10_000,
-        );
-        expect(Date.now() - edited).toBeLessThan(scaledTimeout(10_000));
-      } finally {
-        await serve.close();
-      }
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "results_read_returns_findings_and_overlay_texts_and_the_revision",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const repository = repositoryWith(["crap"]);
-      const serve = new Serve(plugins(gate, ["crap"]));
-
-      try {
-        const started = await serve.call("scan.start", {
-          repository,
-          describe: false,
-          analysis: false,
-          sense: ["crap"],
-        });
-
-        expect((await serve.outcome(started.ok)).status).toBe("finished");
-
-        const overlays = join(repository, ".recognizer", "cache", "overlays");
-
-        mkdirSync(overlays, { recursive: true });
-        writeFileSync(
-          join(overlays, "crap.json"),
-          readFileSync(
-            join(REPO, "schema", "overlay-examples", "valid", "crap.json"),
-            "utf8",
-          ),
-        );
-
-        const state = (await serve.call("repository.state", { repository })).ok;
-        const read = (await serve.call("results.read", { repository })).ok;
-
-        expect(read.revision).toBe(state.revision);
-        expect(read.plugins.crap.findings.sensor.name).toBe("crap");
-        expect(read.plugins.crap.overlay.producer.name).toBe("crap");
-        expect(read.plugins.crap.findingsProblem).toBeNull();
-        expect(read.plugins.crap.overlayProblem).toBeNull();
-      } finally {
-        await serve.close();
-      }
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "results_read_flags_an_unreadable_file_and_deletes_nothing",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const repository = repositoryWith(["crap"]);
-      const serve = new Serve(plugins(gate, ["crap"]));
-      const folder = join(repository, ".recognizer", "cache", "findings");
-
-      try {
-        mkdirSync(folder, { recursive: true });
-        writeFileSync(join(folder, "crap.json"), "not json");
-
-        const read = (await serve.call("results.read", { repository })).ok;
-
-        expect(read.plugins.crap.findings).toBeNull();
-        expect(read.plugins.crap.findingsProblem).not.toBeNull();
-        expect(readFileSync(join(folder, "crap.json"), "utf8")).toBe(
-          "not json",
-        );
-      } finally {
-        await serve.close();
-      }
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "results_read_names_the_invalid_file_and_returns_the_valid_one_unchanged",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const repository = repositoryWith(["crap", "mutation"]);
-      const serve = new Serve(plugins(gate, ["crap", "mutation"]));
-      const findings = join(repository, ".recognizer", "cache", "findings");
-      const overlays = join(repository, ".recognizer", "cache", "overlays");
-
-      try {
-        const started = await serve.call("scan.start", {
-          repository,
-          describe: false,
-          analysis: false,
-          sense: ["crap", "mutation"],
-        });
-
-        expect((await serve.outcome(started.ok)).status).toBe("finished");
-
-        const valid = JSON.parse(
-          readFileSync(join(findings, "crap.json"), "utf8"),
-        );
-
-        writeFileSync(join(findings, "mutation.json"), "not json");
-        mkdirSync(overlays, { recursive: true });
-        writeFileSync(join(overlays, "mutation.json"), '{"overlay":1}');
-
-        const read = (await serve.call("results.read", { repository })).ok;
-
-        expect(read.plugins.crap.findingsProblem).toBeNull();
-        expect(read.plugins.crap.findings.commit).toBe(valid.commit);
-        expect(read.plugins.mutation.findings).toBeNull();
-        expect(read.plugins.mutation.findingsProblem).not.toBeNull();
-        expect(read.plugins.mutation.overlay).toBeNull();
-        expect(read.plugins.mutation.overlayProblem).not.toBeNull();
-        expect(read.refusals).toEqual({});
-      } finally {
-        await serve.close();
-      }
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "results_read_carries_each_documents_freshness_and_the_last_run",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const repository = repositoryWith(["crap"]);
-      const serve = new Serve(plugins(gate, ["crap"]));
-
-      try {
-        const started = await serve.call("scan.start", {
-          repository,
-          describe: false,
-          analysis: false,
-          sense: ["crap"],
-        });
-
-        expect((await serve.outcome(started.ok)).status).toBe("finished");
-
-        const read = (
-          await serve.call("results.read", { repository, tests: "digest" })
-        ).ok;
-        const { freshness } = read.plugins.crap;
-
-        expect(typeof freshness.valid).toBe("boolean");
-        expect(Array.isArray(freshness.current)).toBe(true);
-        expect(typeof freshness.outOfDate).toBe("number");
-        expect(read.lastRun).toMatch(/^\d{8}T\d{9}Z-scan\.json$/);
-      } finally {
-        await serve.close();
-      }
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "inputs_read_returns_the_config_policy_and_baseline_parsed_with_their_problems",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const repository = repositoryWith(["crap"]);
-      const serve = new Serve(plugins(gate, ["crap"]));
-      const folder = join(repository, ".recognizer");
-
-      try {
-        mkdirSync(join(folder, "baselines"), { recursive: true });
-        writeFileSync(join(folder, "policy.yaml"), "components: nonsense: [");
-        writeFileSync(join(folder, "baselines", "violations.json"), "not json");
-
-        const bad = (await serve.call("inputs.read", { repository })).ok;
-
-        expect(bad.config).toEqual(expect.anything());
-        expect(bad.configText).toEqual(expect.any(String));
-        expect(bad.policy).toBeNull();
-        expect(bad.policyProblem).toEqual(expect.any(String));
-        expect(bad.baseline).toBeNull();
-        expect(bad.baselineProblem).toEqual(expect.any(String));
-        expect(bad.refused).toEqual([]);
-
-        writeFileSync(
-          join(folder, "baselines", "violations.json"),
-          JSON.stringify({ schema_version: 1, violations: [] }),
-        );
-
-        const good = (await serve.call("inputs.read", { repository })).ok;
-
-        expect(good.baseline).toEqual([]);
-        expect(good.baselineProblem).toBeNull();
-      } finally {
-        await serve.close();
-      }
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "scan_estimate_names_every_part_with_no_figure_when_the_run_log_is_empty",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const repository = repositoryWith(["crap"]);
-      const serve = new Serve(plugins(gate, ["crap"]));
-
-      try {
-        const answer = (
-          await serve.call("scan.estimate", {
-            repository,
-            intent: { describe: false, analysis: true, sense: [] },
-            planWork: {},
-            parts: [
-              {
-                key: "structure",
-                name: "Structure",
-                runsTests: false,
-                scoped: false,
-                workVerb: null,
-              },
-            ],
-            work: {},
-          })
-        ).ok;
-
-        expect(answer.parts).toEqual([
-          { key: "structure", name: "Structure", ms: null, basis: null },
-        ]);
-        expect(answer.lastRun).toBeNull();
-      } finally {
-        await serve.close();
-      }
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "scan_ticks_applies_the_changes_in_order_and_refuses_a_malformed_request",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const serve = new Serve(plugins(gate, ["crap"]));
-      const ticks = {
-        describe: false,
-        analysis: true,
-        ticked: null,
-        armed: [],
-        onlyView: false,
-        suites: {},
-        folds: [],
-      };
-
-      try {
-        const answer = (
-          await serve.call("scan.ticks", {
-            ticks,
-            changes: [
-              { kind: "describe", ticked: true },
-              { kind: "fold", sensor: "crap" },
-              { kind: "fold", sensor: "mutation" },
-              { kind: "fold", sensor: "crap" },
-            ],
-          })
-        ).ok;
-
-        expect(answer).toEqual({
-          ...ticks,
-          describe: true,
-          folds: ["mutation"],
-        });
-        expect(
-          (await serve.call("scan.ticks", { ticks, changes: [{ kind: "x" }] }))
-            .ok,
-        ).toBeUndefined();
-      } finally {
-        await serve.close();
-      }
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "results_clear_removes_one_plugins_files_only",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const repository = repositoryWith(["crap", "mutation"]);
-      const serve = new Serve(plugins(gate, ["crap", "mutation"]));
-
-      try {
-        const started = await serve.call("scan.start", {
-          repository,
-          describe: false,
-          analysis: false,
-          sense: ["crap", "mutation"],
-        });
-
-        expect((await serve.outcome(started.ok)).status).toBe("finished");
-
-        const cache = join(repository, ".recognizer", "cache");
-
-        mkdirSync(join(cache, "overlays"), { recursive: true });
-        writeFileSync(join(cache, "overlays", "crap.json"), "{}");
-        writeFileSync(join(cache, "overlays", "mutation.json"), "{}");
-
-        expect(
-          (await serve.call("results.clear", { repository, plugin: "crap" }))
-            .ok,
-        ).toBeNull();
-        expect(existsSync(join(cache, "findings", "crap.json"))).toBe(false);
-        expect(existsSync(join(cache, "overlays", "crap.json"))).toBe(false);
-        expect(existsSync(join(cache, "findings", "mutation.json"))).toBe(true);
-        expect(existsSync(join(cache, "overlays", "mutation.json"))).toBe(true);
-        expect(
-          (await serve.call("results.clear", { repository, plugin: "../x" }))
-            .error,
-        ).toBeDefined();
-      } finally {
-        await serve.close();
-      }
-    },
-    TIMEOUT,
-  );
-
-  it(
-    "inputs_digest_over_this_repositorys_committed_policy_and_config",
-    async () => {
-      const gate = makeTempDir("serve-state-gate-");
-      const repository = repositoryWith(["crap"]);
-      const serve = new Serve(plugins(gate, ["crap"]));
-      const recognizer = join(repository, ".recognizer");
-      const policy = join(recognizer, "policy.yaml");
-
-      try {
-        const committedPolicy = readFileSync(
-          join(REPO, ".recognizer", "policy.yaml"),
-          "utf8",
-        );
-        const committedConfig = readFileSync(
-          join(REPO, ".recognizer", "config.yaml"),
-          "utf8",
-        );
-
-        expect(committedPolicy.length).toBeGreaterThan(0);
-        expect(committedConfig.length).toBeGreaterThan(0);
-
-        writeFileSync(policy, committedPolicy);
-        writeFileSync(join(recognizer, "config.yaml"), committedConfig);
-
-        const first = (await serve.call("repository.state", { repository })).ok;
-
-        writeFileSync(policy, `${committedPolicy}#`);
-
-        const changed = (await serve.call("repository.state", { repository }))
-          .ok;
-
-        writeFileSync(policy, committedPolicy);
-
-        const restored = (await serve.call("repository.state", { repository }))
-          .ok;
-
-        expect(changed.inputsDigest).not.toBe(first.inputsDigest);
-        expect(restored.inputsDigest).toBe(first.inputsDigest);
-      } finally {
-        await serve.close();
-      }
-    },
-    TIMEOUT,
-  );
+        intent: { describe: false, analysis: true, sense: [] },
+        planWork: {},
+        parts: [
+          {
+            key: "structure",
+            name: "Structure",
+            runsTests: false,
+            scoped: false,
+            workVerb: null,
+          },
+        ],
+        work: {},
+      })
+    ).ok;
+
+    expect(answer.parts).toEqual([
+      { key: "structure", name: "Structure", ms: null, basis: null },
+    ]);
+    expect(answer.lastRun).toBeNull();
+    await root.close();
+  });
+
+  it("scan_ticks_applies_the_changes_in_order_and_refuses_a_malformed_request", async () => {
+    const { root } = typescriptScenario({ sensors: ["crap"] });
+    const ticks = {
+      describe: false,
+      analysis: true,
+      ticked: null,
+      armed: [],
+      onlyView: false,
+      suites: {},
+      folds: [],
+    };
+    const answer = (
+      await root.call("scan.ticks", {
+        ticks,
+        changes: [
+          { kind: "describe", ticked: true },
+          { kind: "fold", sensor: "crap" },
+          { kind: "fold", sensor: "mutation" },
+          { kind: "fold", sensor: "crap" },
+        ],
+      })
+    ).ok;
+
+    expect(answer).toEqual({ ...ticks, describe: true, folds: ["mutation"] });
+    expect(
+      (await root.call("scan.ticks", { ticks, changes: [{ kind: "x" }] })).ok,
+    ).toBeUndefined();
+    await root.close();
+  });
+
+  it("results_clear_removes_one_plugins_files_only", async () => {
+    const { root, repository } = typescriptScenario({
+      sensors: ["crap", "mutation"],
+    });
+    const started = await start(root, repository, ["crap", "mutation"]);
+
+    expect((await root.outcome(started.ok)).status).toBe("finished");
+
+    const cache = `${repository}/.recognizer/cache`;
+    const files = root.io.files;
+
+    files.writeFile(`${cache}/overlays/crap.json`, "{}");
+    files.writeFile(`${cache}/overlays/mutation.json`, "{}");
+
+    expect(
+      (await root.call("results.clear", { repository, plugin: "crap" })).ok,
+    ).toBeNull();
+    expect(files.exists(`${cache}/findings/crap.json`)).toBe(false);
+    expect(files.exists(`${cache}/overlays/crap.json`)).toBe(false);
+    expect(files.exists(`${cache}/findings/mutation.json`)).toBe(true);
+    expect(files.exists(`${cache}/overlays/mutation.json`)).toBe(true);
+    expect(
+      (await root.call("results.clear", { repository, plugin: "../x" })).error,
+    ).toBeDefined();
+    await root.close();
+  });
+
+  it("inputs_digest_over_this_repositorys_committed_policy_and_config", async () => {
+    const { root, repository } = typescriptScenario({ sensors: ["crap"] });
+    const recognizer = `${repository}/.recognizer`;
+    const policy = `${recognizer}/policy.yaml`;
+    const committedPolicy = realText(join(REPO, ".recognizer", "policy.yaml"));
+    const committedConfig = realText(join(REPO, ".recognizer", "config.yaml"));
+
+    expect(committedPolicy.length).toBeGreaterThan(0);
+    expect(committedConfig.length).toBeGreaterThan(0);
+
+    root.io.files.writeFile(policy, committedPolicy);
+    root.io.files.writeFile(`${recognizer}/config.yaml`, committedConfig);
+
+    const first = (await root.call("repository.state", { repository })).ok;
+
+    root.io.files.writeFile(policy, `${committedPolicy}#`);
+
+    const changed = (await root.call("repository.state", { repository })).ok;
+
+    root.io.files.writeFile(policy, committedPolicy);
+
+    const restored = (await root.call("repository.state", { repository })).ok;
+
+    expect(changed.inputsDigest).not.toBe(first.inputsDigest);
+    expect(restored.inputsDigest).toBe(first.inputsDigest);
+    await root.close();
+  });
 });
 
-function rmHold(path: string): void {
-  spawnSync("rm", ["-f", path]);
-}
+describe("serve repository watch poll", () => {
+  it("the_repository_watch_polls_every_second_when_idle_and_every_quarter_second_during_a_scan", async () => {
+    const gate = new Gate();
+    const root = serveRoot({
+      programs: { "recognizer-sense-crap": sensorProgram("crap", { gate }) },
+    });
+    const repository = "/repo";
+    const config = `${repository}/.recognizer/config.yaml`;
+
+    root.io.files.writeFile(`${repository}/a.ts`, "one");
+    root.io.files.writeFile(`${repository}/.gitignore`, ".recognizer/cache/\n");
+    root.io.files.writeFile(config, "sensors:\n  crap: {}\n");
+    root.repositories.commitAll(repository);
+    gate.hold();
+
+    const watch = (await root.call("repository.watch", { repository })).ok;
+    const reports = () =>
+      root.lines.filter((line) => line.stream === watch && "state" in line)
+        .length;
+
+    await root.advance(0);
+
+    const first = reports();
+
+    expect(first).toBe(1);
+
+    root.io.files.writeFile(config, "sensors:\n  crap: {}\n  gauge: {}\n");
+    await root.advance(999);
+
+    expect(reports()).toBe(first);
+
+    await root.advance(1);
+
+    expect(reports()).toBe(first + 1);
+
+    const started = await root.call("scan.start", {
+      repository,
+      describe: false,
+      analysis: false,
+      sense: ["crap"],
+    });
+
+    await root.until(() =>
+      root.lines.find(
+        (line) => line.stream === watch && line.state?.run?.state === "running",
+      ),
+    );
+
+    const settled = async (count: number) => {
+      for (let step = 0; step < 300 && reports() === count; step += 1) {
+        await root.advance(1);
+      }
+    };
+    const beforeEdit = reports();
+
+    root.io.files.writeFile(config, "sensors:\n  crap: {}\n");
+    await settled(beforeEdit);
+
+    const aligned = reports();
+
+    expect(aligned).toBe(beforeEdit + 1);
+
+    root.io.files.writeFile(config, "sensors:\n  crap: {}\n  other: {}\n");
+    await root.advance(249);
+
+    expect(reports()).toBe(aligned);
+
+    await root.advance(1);
+
+    expect(reports()).toBe(aligned + 1);
+
+    gate.open();
+    await root.outcome(started.ok);
+    await root.close();
+  });
+});

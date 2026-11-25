@@ -135,7 +135,7 @@ export function runKeyed(
     throw new InputError(command.usage);
   }
 
-  const verb = verbs[0] ?? "set";
+  const verb = (verbs[0] ?? "set") as (typeof verbs)[number] | "set";
   const [first, second, ...extra] = positionals;
   const count = positionals.length;
   const fits =
