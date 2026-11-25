@@ -1,6 +1,7 @@
 import type { ConfigDocument } from "../../../domain/config-document.js";
 import type { Repository } from "../../../domain/repository.js";
 import type { RunEntry } from "../../../domain/run-record.js";
+import type { RunScope } from "../../../domain/run-scope.js";
 import type { PluginProgress } from "../../../domain/scan-event.js";
 import type { SensorRequest } from "../../../domain/sensor-request.js";
 import type { SensorReport } from "../../plugins/check-sensor.js";
@@ -43,6 +44,8 @@ export interface SenseCall {
   root: string;
   selected: (PlannedSensor & { modules?: number })[];
   commit: string;
+  scope: RunScope;
+  modified: boolean | null;
   repository: Repository;
   limits: PluginLimits;
   onStart: (name: string) => void;

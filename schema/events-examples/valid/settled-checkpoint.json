@@ -1,0 +1,9 @@
+{
+  "event": "settled",
+  "modified": true,
+  "settings": {},
+  "partial": {
+    "measured": 1,
+    "total": 3
+  }
+}

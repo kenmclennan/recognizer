@@ -1,7 +1,17 @@
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
 import type { SensorFindings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
+import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
+import { FindingsAdapter } from "../src/adapters/filesystem/findings-adapter.js";
 import type { FindingsDocument } from "../src/adapters/filesystem/findings-document-types.js";
-import type { Io } from "../src/cli.js";
+import { type Io, nodeIo } from "../src/cli.js";
 import { findingsFile, readFindingsFiles } from "../src/findings-files.js";
 import { buildFreshness } from "../src/result-freshness.js";
 import { repositoryFrom } from "./repository-from.js";
@@ -242,5 +252,148 @@ describe("readFindingsFiles tolerates a stored thresholds.complexity record", ()
     expect(
       (outcome as { document: SensorFindings }).document.findings,
     ).toHaveLength(1);
+  });
+});
+
+describe("a commit's results on disk", () => {
+  const sha = (digit: string) => digit.repeat(40);
+
+  function stored(commit: string, modified = false): SensorFindings {
+    return {
+      sensor: { name: "tally", version: "1" },
+      commit,
+      modified,
+      settings: {},
+      findings: [],
+      inputs: {},
+    };
+  }
+
+  function setup() {
+    const root = makeTempDir("findings-files-");
+    const repository = new FindingsAdapter(nodeIo());
+
+    return { root, repository };
+  }
+
+  function commitFolders(root: string): string[] {
+    const folder = join(root, ".recognizer", "cache", "commits");
+
+    return existsSync(folder) ? readdirSync(folder).sort() : [];
+  }
+
+  function save(
+    repository: FindingsAdapter,
+    root: string,
+    commit: string,
+  ): void {
+    const scope = { kind: "commit", commit } as const;
+
+    repository.stage(root, scope, stored(commit), null);
+    repository.settle(root, scope, "tally", "complete");
+  }
+
+  it("a_commit_save_writes_beside_not_over_the_working_trees", () => {
+    const { root, repository } = setup();
+    const commit = sha("a");
+
+    repository.save(root, stored("w".repeat(7)));
+    save(repository, root, commit);
+
+    const working = repository.readAll(root);
+    const commits = repository.readCommits(root);
+
+    expect(working).toHaveLength(1);
+    expect(working[0]).toMatchObject({
+      status: "read",
+      document: { commit: "w".repeat(7) },
+    });
+    expect(commits).toHaveLength(1);
+    expect(commits[0]?.commit).toBe(commit);
+    expect(commits[0]?.stored[0]).toMatchObject({
+      status: "read",
+      document: { commit, modified: false },
+    });
+  });
+
+  it("a_commit_must_be_a_full_lowercase_sha", () => {
+    const { root, repository } = setup();
+
+    for (const commit of ["abc1234", "A".repeat(40), "../x"]) {
+      expect(() => save(repository, root, commit)).toThrow(
+        /InvalidEntity|40-character/,
+      );
+    }
+
+    expect(existsSync(join(root, ".recognizer"))).toBe(false);
+  });
+
+  it("retention_keeps_the_newest_twenty_commits", () => {
+    const { root, repository } = setup();
+    const digits = "0123456789abcdef";
+    const commits = Array.from({ length: 21 }, (_, index) =>
+      `${digits[index % 16]}${digits[Math.floor(index / 16)]}`.repeat(20),
+    );
+
+    commits.slice(0, 20).forEach((commit, index) => {
+      save(repository, root, commit);
+      const at = new Date(2026, 0, 1, 0, 0, index);
+
+      utimesSync(join(root, ".recognizer", "cache", "commits", commit), at, at);
+    });
+
+    expect(commitFolders(root)).toHaveLength(20);
+
+    save(repository, root, commits[20] as string);
+
+    const kept = commitFolders(root);
+
+    expect(kept).toHaveLength(20);
+    expect(kept).not.toContain(commits[0]);
+    expect(kept).toContain(commits[20]);
+    expect(kept).toContain(commits[1]);
+  });
+
+  it("retention_never_touches_the_working_tree_files_or_a_folder_that_is_not_a_sha", () => {
+    const { root, repository } = setup();
+    const commits = join(root, ".recognizer", "cache", "commits");
+
+    repository.save(root, stored("w".repeat(7)));
+    mkdirSync(join(commits, "keep-me"), { recursive: true });
+    writeFileSync(join(commits, "keep-me", "note.txt"), "x");
+
+    for (let index = 0; index < 22; index += 1) {
+      save(repository, root, index.toString(16).padStart(2, "0").repeat(20));
+    }
+
+    expect(existsSync(join(commits, "keep-me", "note.txt"))).toBe(true);
+    expect(repository.readAll(root)).toHaveLength(1);
+    expect(
+      commitFolders(root).filter((name) => /^[0-9a-f]{40}$/.test(name)),
+    ).toHaveLength(20);
+  });
+
+  it("an_unreadable_commit_document_is_reported_and_kept", () => {
+    const { root, repository } = setup();
+    const commit = sha("c");
+
+    save(repository, root, commit);
+
+    const file = join(
+      root,
+      ".recognizer",
+      "cache",
+      "commits",
+      commit,
+      "findings",
+      "tally.json",
+    );
+
+    writeFileSync(file, "{not json");
+
+    const [held] = repository.readCommits(root);
+
+    expect(held?.stored[0]).toMatchObject({ name: "tally", status: "invalid" });
+    expect(existsSync(file)).toBe(true);
   });
 });

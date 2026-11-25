@@ -1,4 +1,5 @@
 import {
+  type AccumulatedOverlay,
   Finding,
   type FindingDependency,
   type FindingMember,
@@ -9,6 +10,7 @@ import {
   type ExpectedSensor,
   validateFindings,
 } from "../../findings-document.js";
+import { type MetricDeclaration, validateOverlay } from "../../overlays.js";
 import { diagnosisDocumentOf, diagnosisOf } from "./diagnosis-translator.js";
 import type {
   DocumentEdge,
@@ -302,4 +304,36 @@ export function sensorFindingsOfReport(
     },
     { name: report.name },
   );
+}
+
+export function overlayDocumentOf(
+  findings: SensorFindings,
+  overlay: AccumulatedOverlay,
+): Record<string, unknown> {
+  const values = Object.fromEntries(
+    Object.entries(overlay.values).map(([metric, byId]) => [
+      metric,
+      Object.fromEntries(
+        Object.entries(byId).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+      ),
+    ]),
+  );
+  const document = {
+    overlay_version: 2,
+    commit: findings.commit,
+    modified: findings.modified,
+    producer: { name: findings.sensor.name, version: findings.sensor.version },
+    metrics: overlay.metrics,
+    values,
+    inputs: findings.inputs ?? {},
+    ...given("tests", findings.tests),
+  };
+
+  validateOverlay(document, {
+    commit: findings.commit,
+    modified: findings.modified,
+    metrics: overlay.metrics as MetricDeclaration[],
+  });
+
+  return document;
 }

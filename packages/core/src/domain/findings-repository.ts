@@ -1,5 +1,7 @@
 import type { Finding } from "./finding.js";
+import type { AccumulatedOverlay } from "./reported-overlay.js";
 import type { Repository } from "./repository.js";
+import type { RunScope } from "./run-scope.js";
 import type { Measured } from "./scan-plan.js";
 import type { SensorFindings } from "./sensor-findings.js";
 import type { UnitCache } from "./unit-cache.js";
@@ -36,6 +38,14 @@ export interface ReportedFindings {
   inputs: Record<string, string>;
 }
 
+export type SettleEnding = "complete" | "checkpoint";
+
+export interface CommitResults {
+  commit: string;
+  stored: StoredFindings[];
+  overlays: StoredOverlay[];
+}
+
 export interface FindingsRepository {
   measuredOf(root: string, sensor: string): Measured | null;
   discardAnalysis(root: string, off: boolean): void;
@@ -48,4 +58,18 @@ export interface FindingsRepository {
   writeUnitCache(root: string, cache: UnitCache): string | null;
   saveStructureOverlay(root: string, input: StructureOverlayInput): void;
   documentOfReport(report: ReportedFindings): SensorFindings;
+  stage(
+    root: string,
+    scope: RunScope,
+    document: SensorFindings,
+    overlay: AccumulatedOverlay | null,
+  ): void;
+  settle(
+    root: string,
+    scope: RunScope,
+    name: string,
+    ending: SettleEnding,
+  ): "replaced" | "kept";
+  readCommits(root: string): CommitResults[];
+  removeCommit(root: string, commit: string): void;
 }

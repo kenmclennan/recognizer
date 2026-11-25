@@ -1,0 +1,8 @@
+{
+  "event": "result",
+  "overlay": {
+    "crap": {
+      "app/risk.py::classify": "high"
+    }
+  }
+}

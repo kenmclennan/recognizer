@@ -10,7 +10,7 @@ from recognizer_scan_kotlin.discovery import (
 )
 from recognizer_scan_kotlin.scan_schema import SCAN_SCHEMA_VERSION
 
-PROTOCOL = 3
+PROTOCOL = 4
 
 INSTALL = (
     "brew upgrade kenmclennan/tap/recognizer-scan-kotlin "

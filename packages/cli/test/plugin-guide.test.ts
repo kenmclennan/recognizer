@@ -58,6 +58,8 @@ describe("recognizer help plugin-guide", () => {
       "diagnosis {code, text",
       "stage {name, index, of}",
       "estimate {remaining_ms}",
+      "result {findings?, overlay?}",
+      "settled {modified, settings",
     ]) {
       expect(guide).toContain(text);
     }

@@ -791,7 +791,13 @@ export function eventsResult(
 
     const event: PluginEvent = parsed.event;
 
-    if ((event.event === "stage" || event.event === "estimate") && !started) {
+    if (
+      (event.event === "stage" ||
+        event.event === "estimate" ||
+        event.event === "result" ||
+        event.event === "settled") &&
+      !started
+    ) {
       return fail(
         "events",
         `a ${event.event} event came before any start event`,

@@ -1,8 +1,12 @@
-import type {
-  RunEntry,
-  SenseCall,
-  SensorReport,
-  Sensors,
+import {
+  type DeclaredMetric,
+  type FindingsRepository,
+  type PluginEvent,
+  ResultAccumulator,
+  type RunEntry,
+  type SenseCall,
+  type SensorReport,
+  type Sensors,
 } from "../../src/index.js";
 
 export interface InventedSensor {
@@ -16,12 +20,21 @@ export interface InventedSensor {
   unreadable?: string;
 }
 
+export interface ScriptedReport {
+  events: PluginEvent[];
+  metrics?: DeclaredMetric[];
+}
+
 export class FakeSensors implements Sensors {
+  readonly scripted = new Map<string, ScriptedReport>();
+  findings: FindingsRepository | null = null;
   readonly installed = new Map<string, InventedSensor>();
   readonly suites: string[] = [];
   readonly unavailable = new Set<string>();
   readonly reports: SensorReport[] = [];
   readonly ran: { name: string; command: string[] }[] = [];
+  readonly calls: { scope: SenseCall["scope"]; modified: boolean | null }[] =
+    [];
   started: Promise<void>;
   private signalStarted: () => void = () => {};
   private release: () => void = () => {};
@@ -51,6 +64,8 @@ export class FakeSensors implements Sensors {
   }
 
   async run(call: SenseCall): Promise<void> {
+    this.calls.push({ scope: call.scope, modified: call.modified });
+
     for (const sensor of call.selected) {
       call.onStart(sensor.name);
       this.log.push(`sense:${sensor.name}`);
@@ -60,6 +75,8 @@ export class FakeSensors implements Sensors {
         this.signalStarted();
         await this.releasing;
       }
+
+      this.report(call, sensor.name);
 
       const entry: RunEntry = {
         name: sensor.name,
@@ -72,5 +89,46 @@ export class FakeSensors implements Sensors {
 
       call.onEntry(entry);
     }
+  }
+
+  private report(call: SenseCall, name: string): void {
+    const script = this.scripted.get(name);
+
+    if (script === undefined || this.findings === null) {
+      return;
+    }
+
+    const accumulator = new ResultAccumulator({
+      name,
+      version: "1",
+      metrics: script.metrics ?? [],
+      commit: call.commit,
+      scope: call.scope,
+    });
+
+    for (const event of script.events) {
+      try {
+        accumulator.take(event);
+      } catch {}
+    }
+
+    const { document, overlay } = accumulator.complete({
+      modified: call.modified ?? true,
+    });
+
+    this.findings.stage(
+      call.root,
+      call.scope,
+      {
+        sensor: document.sensor,
+        commit: document.commit,
+        modified: document.modified,
+        settings: document.settings,
+        findings: [],
+        inputs: (document.inputs as Record<string, string> | undefined) ?? {},
+      },
+      overlay,
+    );
+    this.findings.settle(call.root, call.scope, name, "complete");
   }
 }

@@ -16,7 +16,7 @@ function scanner(name: string, languages: string[]): InstalledPlugin {
       name,
       display: name,
       version: "1",
-      protocol: 3,
+      protocol: 4,
       install: `install ${name}`,
       check: false,
       long_running: false,

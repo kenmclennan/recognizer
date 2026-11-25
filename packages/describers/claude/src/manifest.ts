@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { promptVersion } from "./prompt.js";
 
-export const PROTOCOL = 3;
+export const PROTOCOL = 4;
 
 export const INSTALL =
   "brew upgrade kenmclennan/tap/recognizer-describe-claude || brew install kenmclennan/tap/recognizer-describe-claude";

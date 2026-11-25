@@ -198,6 +198,11 @@ def plain_shell(monkeypatch):
     monkeypatch.setenv("SHELL", "/bin/sh")
 
 
+@pytest.fixture(autouse=True)
+def standalone_protocol(monkeypatch):
+    monkeypatch.delenv("RECOGNIZER_PROTOCOL", raising=False)
+
+
 @pytest.fixture
 def unprimed(monkeypatch):
     from recognizer_sensors.mutation import sensor

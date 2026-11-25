@@ -16,6 +16,7 @@ import {
   type Violation,
 } from "@recognizer/core";
 import { BaselineAdapter } from "./adapters/filesystem/baseline-adapter.js";
+import { FindingsAdapter } from "./adapters/filesystem/findings-adapter.js";
 import {
   documentRuleOf,
   findingRecordOf,
@@ -288,7 +289,7 @@ function executeScanReplay(
   const report = asInputError(() =>
     checkScan(
       {
-        analysis: new SensorsAdapter(io),
+        analysis: new SensorsAdapter(io, new FindingsAdapter(io)),
         baselines: new BaselineAdapter(io),
         languages: installedLanguages(io),
       },

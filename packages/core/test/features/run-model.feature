@@ -38,6 +38,11 @@ Feature: Run model published as repository state
     Then the working-tree result is unchanged
     And no findings document was saved for the commit
 
+  Scenario: a commit's results persist beside the working tree's
+    Given a commit's results were saved and the working tree's too
+    When the state is held again from scratch
+    Then the result set holds both and the working tree's is unchanged
+
   Scenario: a long run keeps the plugin's reported estimate across its stages
     Given three registered plugins in a run
     When the first plugin reports three stages and one estimate of 3 hours

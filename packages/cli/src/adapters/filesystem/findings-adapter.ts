@@ -1,9 +1,13 @@
 import { join } from "node:path";
 import {
+  type AccumulatedOverlay,
+  type CommitResults,
   type FindingsRepository,
   type Measured,
   type ReportedFindings,
+  type RunScope,
   type SensorFindings,
+  type SettleEnding,
   type StoredFindings,
   type StoredOverlay,
   type StructureOverlayInput,
@@ -17,8 +21,12 @@ import {
   findingsFile,
   findingsFolder,
   overlayFile,
+  readCommits,
   readStoredFindings,
   readStoredOverlays,
+  removeCommit,
+  settlePair,
+  stagePair,
   writeFindings,
 } from "../../findings-files.js";
 import {
@@ -142,5 +150,31 @@ export class FindingsAdapter implements FindingsRepository {
 
   documentOfReport(report: ReportedFindings): SensorFindings {
     return sensorFindingsOfReport(report);
+  }
+
+  stage(
+    root: string,
+    scope: RunScope,
+    document: SensorFindings,
+    overlay: AccumulatedOverlay | null,
+  ): void {
+    stagePair(this.io, root, scope, document, overlay);
+  }
+
+  settle(
+    root: string,
+    scope: RunScope,
+    name: string,
+    ending: SettleEnding,
+  ): "replaced" | "kept" {
+    return settlePair(this.io, root, scope, name, ending);
+  }
+
+  readCommits(root: string): CommitResults[] {
+    return readCommits(this.io, root);
+  }
+
+  removeCommit(root: string, commit: string): void {
+    removeCommit(this.io, root, commit);
   }
 }

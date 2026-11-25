@@ -123,6 +123,32 @@ export class ResultSet {
     );
   }
 
+  flaggedUnreadableAt(plugin: string, at: ResultAt): ResultSet {
+    const key = keyOf(at);
+    const held = this.of(plugin);
+    const existing = held.find((entry) => keyOf(entry.at) === key);
+    const entry: ResultEntry =
+      existing === undefined
+        ? {
+            at,
+            result: {
+              findings: null,
+              overlay: null,
+              inputsDigest: null,
+              testsDigest: null,
+              reportedAt: null,
+              inputs: null,
+              unreadable: true,
+            },
+          }
+        : { at, result: { ...existing.result, unreadable: true } };
+
+    return this.with(plugin, [
+      ...held.filter((one) => keyOf(one.at) !== key),
+      entry,
+    ]);
+  }
+
   replaced(
     plugin: string,
     run: Run,
