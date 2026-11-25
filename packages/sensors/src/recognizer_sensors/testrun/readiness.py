@@ -12,16 +12,25 @@ from pathlib import Path
 from recognizer_sensors.mutation.runner import copy_repository
 from recognizer_sensors.scans import Scan, read_scans
 from recognizer_sensors.settings import Refusal
+from recognizer_sensors.testrun.failures import (
+    editable_refusal,
+    failing_names,
+    mutation_tests_failed,
+    outside_the_copy,
+    suite_failed,
+)
 from recognizer_sensors.testrun.reports import (
     LOG,
     Source,
     coverage_counts,
+    fresh_reports,
     has_well_formed_report,
     last_meaningful_line,
     read_source,
 )
 from recognizer_sensors.testrun.suites import (
     Suite,
+    directory_of,
     login_shell,
     report_pattern,
     run_suite,
@@ -586,6 +595,37 @@ def partial_note(suite: Suite, covered: int, expected: int) -> dict:
     )
 
 
+def scan_refusal(
+    repository: Path,
+    copy: Path,
+    suite: Suite,
+    returncode: int,
+    output: str,
+    started_at: float,
+    where: str,
+) -> dict | None:
+    if suite_failed(suite.language, returncode, output):
+        names = (
+            []
+            if suite.language == "csharp"
+            else failing_names(
+                copy, suite.language, output, directory_of(suite), command=suite.command
+            )
+        )
+
+        return mutation_tests_failed(suite.name, names, output)
+
+    if suite.language == "python":
+        found = outside_the_copy(
+            copy, repository, fresh_reports(copy, where, started_at, suite.name)
+        )
+
+        if found is not None:
+            return editable_refusal(suite.name, found).diagnosis
+
+    return None
+
+
 def run_gap(
     repository: Path,
     suite: Suite,
@@ -595,6 +635,7 @@ def run_gap(
     root: Path | None = None,
 ) -> tuple[dict | None, dict | None]:
     started_at = time.time()
+    in_copy = root is not None
     root = repository if root is None else root
 
     try:
@@ -614,6 +655,12 @@ def run_gap(
             suite_gap("coverage-missing", suite, f"{cause} no coverage report at {where}", shown),
             None,
         )
+
+    if in_copy and coverage:
+        refusal = scan_refusal(repository, root, suite, returncode, output, started_at, where)
+
+        if refusal is not None:
+            return suite_gap(refusal["code"], suite, refusal["line"], shown), None
 
     if not coverage and has_well_formed_jacoco(root, source, files, started_at):
         return unmatched_gap(suite, where, bool(files), shown), None

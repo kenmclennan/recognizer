@@ -170,3 +170,45 @@ def mutation_tests_failed(suite: str, names: list[str], output: str = "") -> dic
 
 def not_installed(program: str) -> Refusal:
     return Refusal(diagnose("tool-missing", f"{program} is not installed"))
+
+
+def outside_the_copy(copy: Path, repository: Path, reports: list[Path]) -> str | None:
+    original = repository.resolve()
+    inside = copy.resolve()
+
+    for report in reports:
+        try:
+            text = report.read_text(encoding="utf-8")
+        except (OSError, ValueError):
+            continue
+
+        for line in text.splitlines():
+            if not line.startswith("SF:"):
+                continue
+
+            raw = line[3:].strip()
+
+            if not raw.startswith("/"):
+                continue
+
+            path = Path(raw).resolve()
+
+            if "site-packages" in path.parts:
+                continue
+
+            if path.is_relative_to(original) and not path.is_relative_to(inside):
+                return str(path)
+
+    return None
+
+
+def editable_refusal(suite_name: str, path: str) -> Refusal:
+    return Refusal(
+        diagnose(
+            "coverage-unavailable",
+            f"coverage unavailable: the {suite_name} suite imported {path} from outside its "
+            "repository copy, so mutants would not be seen; set PYTHONPATH in the suite's env "
+            "to a path inside the repository (resolved inside the copy)",
+            suite=suite_name,
+        )
+    )
