@@ -16,7 +16,9 @@ export class FakeIo implements Io {
   readonly files: FakeFiles;
   readonly timers: FakeTimers;
   readonly processes: FakeProcesses;
-  readonly scope: StopScope = new StopScope();
+  readonly scope: StopScope = new StopScope(false, (ms, action) =>
+    this.timers.after(ms, action),
+  );
   readonly out: string[] = [];
   readonly err: string[] = [];
   readonly environment: Record<string, string>;
