@@ -18,6 +18,7 @@ import { ensureCacheIgnore } from "./cache-ignore.js";
 import { COMMANDS } from "./commands.js";
 import { errorText, InputError } from "./errors.js";
 import { commandHelp, shortHelp } from "./help.js";
+import { pluginEnvironmentFrom } from "./plugin-bootstrap.js";
 import {
   awakeClock,
   liveScopes,
@@ -187,9 +188,7 @@ function spawnAsync(
     child = spawn(command, args, {
       cwd: options?.cwd,
       stdio: [options?.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
-      ...(options?.env === undefined
-        ? {}
-        : { env: { ...process.env, ...options.env } }),
+      env: { ...pluginEnvironmentFrom(process.env), ...options?.env },
     });
     scope.children.add(child);
 
@@ -409,9 +408,7 @@ export function nodeIo(scope: StopScope = processScope): Io {
               cwd: options?.cwd,
               encoding: "utf8",
               maxBuffer: 256 * 1024 * 1024,
-              ...(options?.env === undefined
-                ? {}
-                : { env: { ...process.env, ...options.env } }),
+              env: { ...pluginEnvironmentFrom(process.env), ...options?.env },
             })
           : spawnSync(
               "sh",
@@ -427,9 +424,7 @@ export function nodeIo(scope: StopScope = processScope): Io {
                 cwd: options?.cwd,
                 encoding: "utf8",
                 maxBuffer: 256 * 1024 * 1024,
-                ...(options?.env === undefined
-                  ? {}
-                  : { env: { ...process.env, ...options.env } }),
+                env: { ...pluginEnvironmentFrom(process.env), ...options?.env },
               },
             );
       const code = (result.error as NodeJS.ErrnoException | undefined)?.code;
@@ -483,7 +478,7 @@ export function nodeIo(scope: StopScope = processScope): Io {
           (result.stderr !== "" ? result.stderr : "no reply"),
       };
     },
-    env: (name) => process.env[name],
+    env: (name) => pluginEnvironmentFrom(process.env)[name],
     now: () => Date.now(),
     awake: () => awakeClock().now(),
     pid: () => process.pid,

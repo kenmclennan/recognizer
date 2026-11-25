@@ -210,6 +210,36 @@ describe("serve setup", () => {
   );
 
   it(
+    "a setup request's pairs get the folder",
+    async () => {
+      const claude = claudeDirectory(`cat > /dev/null\necho '${RESULT}'`);
+      const serve = new Serve(pluginDirectory(), {
+        RECOGNIZER_TOOLCHAIN_COMMANDS: claude,
+      });
+
+      try {
+        const reply = await serve.call("setup.start", {
+          repository: repository(),
+          action: "recommend",
+          model: "sonnet",
+          prompt: "p",
+          schema: { type: "object" },
+          environment: pathWith(),
+        });
+        const id = reply.ok as string;
+        const outcome = await serve.until(() =>
+          serve.lines.find((line) => line.stream === id && line.outcome),
+        );
+
+        expect(outcome.outcome).toMatchObject({ status: "proposal" });
+      } finally {
+        await serve.close();
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
     "a stop request cancels a running recommend",
     async () => {
       const scratch = makeTempDir("serve-setup-stop-");
