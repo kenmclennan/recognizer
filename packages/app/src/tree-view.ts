@@ -165,6 +165,10 @@ export function buildTreeView(actions: TreeActions): TreeView {
       onCanvas.classList.toggle("on", props.filter.onCanvas);
       attention.classList.toggle("on", props.filter.needsAttention);
 
+      if (find.value !== props.filter.text) {
+        find.value = props.filter.text;
+      }
+
       const rows = props.filtered.root.children.flatMap((child) =>
         row(child, 0, props),
       );

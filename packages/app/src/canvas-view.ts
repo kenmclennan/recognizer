@@ -158,6 +158,7 @@ export type CanvasView = {
   walkTo: (path: string, options: { animate: boolean }) => void;
   fitted: () => boolean;
   camera: () => Viewport;
+  noteDraft: (path: string) => string | null;
   setCamera: (target: Viewport | "fit", afterNextScene?: boolean) => void;
   resetCamera: () => void;
 };
@@ -1713,6 +1714,7 @@ export function buildCanvasView(
     },
     fitted: fittedNow,
     camera: () => viewport,
+    noteDraft: (path) => bubbleViews.get(path)?.draft() ?? null,
     setCamera(target, afterNextScene = false) {
       if (afterNextScene) {
         pendingCamera = target;

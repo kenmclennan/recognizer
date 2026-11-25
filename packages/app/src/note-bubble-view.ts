@@ -8,6 +8,7 @@ export type NoteBubble = {
   editing: boolean;
   focused: boolean;
   step?: StepModel | null;
+  draft?: string;
 };
 
 export type NoteBubbleActions = {
@@ -24,6 +25,7 @@ export type NoteBubbleView = {
   element: HTMLElement;
   render: (bubble: NoteBubble, place: BubblePlace) => void;
   height: () => number;
+  draft: () => string | null;
   close: () => void;
 };
 
@@ -144,6 +146,11 @@ export function buildNoteBubbleView(
     height() {
       return element.offsetHeight;
     },
+    draft() {
+      const field = element.querySelector("textarea");
+
+      return editingNow && field !== null ? field.value : null;
+    },
     close() {
       shown = null;
       draft = "";
@@ -154,7 +161,7 @@ export function buildNoteBubbleView(
       const keepField = editingNow && shown === bubble.path && bubble.editing;
 
       if (shown !== bubble.path) {
-        draft = "";
+        draft = bubble.editing ? (bubble.draft ?? "") : "";
       }
 
       shown = bubble.path;

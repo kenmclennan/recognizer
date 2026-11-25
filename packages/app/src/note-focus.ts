@@ -100,12 +100,14 @@ export type BubbleModel = {
   editing: boolean;
   focused: boolean;
   step: StepModel | null;
+  draft?: string;
 };
 
 export function bubbleSet(
   view: View | null,
   positions: ReadonlyMap<string, Rect>,
   focus: NoteFocus | null,
+  draft = "",
 ): BubbleModel[] {
   const held = (path: string) =>
     view === null
@@ -127,6 +129,7 @@ export function bubbleSet(
       editing: focus.editing,
       focused: true,
       step,
+      ...(focus.editing && draft !== "" ? { draft } : {}),
     });
   }
 
