@@ -189,6 +189,7 @@ import {
 import type { Loaded } from "./scan-loading";
 import {
   DESCRIBE_KEY,
+  keepLastGoodSensors,
   NO_RUN,
   opensScanPanel,
   planFactsOf,
@@ -3010,9 +3011,15 @@ export function showExplorer(
     }
 
     try {
-      installedSensors = await scanHost.port.sensorList();
+      installedSensors = keepLastGoodSensors(
+        installedSensors,
+        await scanHost.port.sensorList(),
+      );
     } catch (error) {
-      installedSensors = { status: "unavailable", reason: String(error) };
+      installedSensors = keepLastGoodSensors(installedSensors, {
+        status: "unavailable",
+        reason: String(error),
+      });
     }
 
     catalog = buildCatalog(installedSensors);

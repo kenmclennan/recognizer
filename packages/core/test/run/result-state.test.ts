@@ -58,6 +58,51 @@ describe("result state", () => {
     ).toEqual({ kind: "current", at: 7 });
   });
 
+  it("a never-run answer from a plan that predates a finished run reads checking, then current once the plan settles", () => {
+    const gaps = new Map<string, string[]>();
+    const sensors = [
+      { name: "mutation", status: "ran" as const, modifiedMs: 7 },
+    ];
+    const run = { running: [], failures: {}, ranAt: { mutation: 9 } };
+    const before = { gaps: {}, never: ["mutation"] };
+    const after = { gaps: {}, never: [] };
+
+    expect(
+      sensorState(
+        "mutation",
+        input({
+          freshness: {},
+          sensors,
+          run,
+          plan: { view: before, settled: false },
+        }),
+        ["a"],
+        gaps,
+      ),
+    ).toEqual({ kind: "checking" });
+    expect(
+      sensorState(
+        "mutation",
+        input({
+          freshness: {},
+          sensors,
+          run,
+          plan: { view: after, settled: true },
+        }),
+        ["a"],
+        gaps,
+      ),
+    ).toEqual({ kind: "current", at: 9 });
+    expect(
+      sensorState(
+        "mutation",
+        input({ freshness: {}, plan: { view: before, settled: true } }),
+        ["a"],
+        gaps,
+      ),
+    ).toEqual({ kind: "never-run" });
+  });
+
   it("a sensor with a planned gap is out of date for the gap", () => {
     const gaps = new Map<string, string[]>();
     const given = input({

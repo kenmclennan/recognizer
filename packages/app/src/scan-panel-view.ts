@@ -134,6 +134,11 @@ function rowNode(row: ScanRow, actions: ScanPanelActions): HTMLElement {
 
   node.append(foldButton(row, actions), label, state);
 
+  if (row.reason !== undefined) {
+    node.classList.add("has-reason");
+    node.append(el("div", "scan-row-reason", row.reason));
+  }
+
   return node;
 }
 

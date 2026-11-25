@@ -21,7 +21,7 @@ export interface InputsAnswer {
 
 function problemOf(error: unknown): string {
   return error instanceof InputError
-    ? error.messages.join("; ")
+    ? [...new Set(error.messages)].join("; ")
     : (error as Error).message;
 }
 

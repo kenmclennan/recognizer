@@ -420,6 +420,25 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   await tick(); await tick();
   facts.emptyCanvasRun = { modules: emptyFake.ran.map((plan) => plan.modules), onlyView: em.wired.rescanner.ticks().onlyView };
 
+  const BAD_CONFIG = CONFIG.replace("crap: {}", "crap: { timeout_factor: 2 }");
+  const broken = await mount(fakeScan(), fakeSensors({}, { config: BAD_CONFIG }, {}, INSTALLED));
+  click(broken.q(".rail-scan"));
+  await tick();
+  const brokenRow = broken.q('.scan-row[data-sensor="crap"]');
+  const reasonEl = brokenRow.querySelector(".scan-row-reason");
+  const reasonBox = reasonEl.getBoundingClientRect();
+  const brokenPane = broken.q(".scan-panel");
+  const brokenPaneStyle = getComputedStyle(brokenPane);
+  const brokenText = reasonEl.textContent;
+  facts.settingsError = {
+    label: brokenRow.querySelector(".scan-state-text").textContent,
+    reason: brokenText,
+    occurrences: brokenText.split("timeout_factor").length - 1,
+    fitsRight: reasonBox.right <= brokenPane.getBoundingClientRect().right - parseFloat(brokenPaneStyle.paddingRight) + 0.5,
+    unclipped: reasonEl.scrollWidth <= reasonEl.clientWidth,
+    belowLabel: reasonBox.top >= brokenRow.querySelector(".scan-row-label").getBoundingClientRect().bottom - 0.5,
+  };
+
   const crapDoc = (hashes) => json({ findings_version: 1, sensor: { name: "crap", version: "1" }, commit: "cur1234", modified: false, settings: {}, inputs: hashes, findings: [] });
   const fsensors = fakeSensors({}, { config: CONFIG }, {}, INSTALLED);
   fsensors.files.set("crap", crapDoc({ "app/a.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "app/b.py": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" }));
@@ -1313,6 +1332,14 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     );
     expect(f.estimatePending.title).toContain("Mutation: no estimate yet");
     expect(f.estimateTicked.text).toBe("About 3 min");
+  });
+
+  it("shows each distinct settings-error reason once, wrapped inside the panel", () => {
+    expect(f.settingsError.label).toBe("settings error");
+    expect(f.settingsError.occurrences).toBe(1);
+    expect(f.settingsError.fitsRight).toBe(true);
+    expect(f.settingsError.unclipped).toBe(true);
+    expect(f.settingsError.belowLabel).toBe(true);
   });
 
   it("shows failed and no second line for a failure with no diagnosis", () => {
