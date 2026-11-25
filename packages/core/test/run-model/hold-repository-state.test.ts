@@ -936,4 +936,71 @@ describe("repository state holder", () => {
     expect(state.results.tally?.unreadable).toBe(1);
     expect(fakes.findings.readCommits()[0]?.stored).toHaveLength(2);
   });
+
+  it("a read with the summary and the end together sets the log and finishes", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+
+    fakes.active.start({ sensors: ["tally"], phase: "running" });
+    fakes.active.report(started("tally"), ended("tally"), {
+      kind: "logged",
+      log: "run-1",
+    });
+    fakes.active.end("finished");
+    holder.refresh();
+
+    const run = holder.current().run;
+
+    expect(run?.state).toBe("finished");
+    expect(run?.log).toBe("run-1");
+  });
+
+  it("a summary in a later read than the end leaves the log null", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+
+    fakes.active.start({ sensors: ["tally"], phase: "running" });
+    fakes.active.report(started("tally"), ended("tally"));
+    fakes.active.end("finished");
+    holder.refresh();
+    fakes.active.report({ kind: "logged", log: "run-1" });
+    holder.refresh();
+
+    const run = holder.current().run;
+
+    expect(run?.state).toBe("finished");
+    expect(run?.log).toBeNull();
+  });
+
+  it("a killed run ends every plugin run stopped and names only the sensors that ran", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+
+    fakes.runLog.openRecord("run-1");
+    fakes.active.start({
+      sensors: ["tally"],
+      describe: true,
+      phase: "running",
+    });
+    fakes.active.report(
+      { kind: "extract-planned", languages: ["python"] },
+      {
+        kind: "plugin-started",
+        name: "python",
+        progress: null,
+        phase: "extract",
+      },
+    );
+    fakes.active.kill();
+    holder.refresh();
+
+    const plugins = holder.current().run?.plugins ?? [];
+
+    expect(plugins.map(({ phase, state }) => `${phase}:${state}`)).toEqual([
+      "extract:stopped",
+      "describe:stopped",
+      "sense:stopped",
+    ]);
+    expect(fakes.runLog.settledKills[0]?.running).toEqual([]);
+  });
 });

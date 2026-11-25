@@ -9,6 +9,7 @@ import type {
   SetupSurveyRead,
   TryResultEvent,
 } from "./setup-port";
+import type { SetupLine } from "./setup-progress";
 
 type SetupRun =
   | { status: "finished"; result: unknown }
@@ -70,9 +71,19 @@ function lines(onLine: (line: string) => void) {
   };
 }
 
+function setupLines(onLine: (line: SetupLine) => void) {
+  return lines((text) => {
+    try {
+      onLine(JSON.parse(text) as SetupLine);
+    } catch {
+      return;
+    }
+  });
+}
+
 export const setupSource: SetupPort = {
   survey: (extract, onLine) =>
-    start<SetupSurveyRead>("survey", { extract }, lines(onLine)),
+    start<SetupSurveyRead>("survey", { extract }, setupLines(onLine)),
   recommend: (prompt, schema, onLine) =>
     start<RecommendRead>("recommend", { prompt, schema }, lines(onLine)),
   apply: (choices, onEvent) =>

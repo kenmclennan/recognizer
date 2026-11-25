@@ -1,16 +1,13 @@
+import type { RunReport } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { type FakeScan, fakeScan } from "../../src/scan-fake";
 
-function linesOf(fake: FakeScan): string[] {
-  const lines: string[] = [];
+function reportsOf(fake: FakeScan): RunReport[] {
+  const reports: RunReport[] = [];
 
-  fake.onRun((event) => {
-    if (event.kind === "line") {
-      lines.push(event.line);
-    }
-  });
+  fake.onReport((report) => reports.push(report));
 
-  return lines;
+  return reports;
 }
 
 function phasesOf(fake: FakeScan): string[] {
@@ -25,6 +22,9 @@ function phasesOf(fake: FakeScan): string[] {
   return phases;
 }
 
+const ONE: RunReport = { kind: "extract-current" };
+const TWO: RunReport = { kind: "structure", state: "running", files: null };
+
 const PLAN = {
   describe: true,
   analysis: true,
@@ -36,12 +36,12 @@ const PLAN = {
 
 describe("fakeScan", () => {
   it("delivers the scripted lines as run events in order before the run resolves", async () => {
-    const fake = fakeScan({ steps: ["one", "two"] });
-    const lines = linesOf(fake);
+    const fake = fakeScan({ steps: [ONE, TWO] });
+    const reports = reportsOf(fake);
 
     const result = await fake.run(PLAN);
 
-    expect(lines).toEqual(["one", "two"]);
+    expect(reports).toEqual([ONE, TWO]);
     expect(result).toEqual({
       status: "finished",
       exitCode: 0,
@@ -69,8 +69,8 @@ describe("fakeScan", () => {
 
   it("stops the pending run, delivers the stopped record and no further lines", async () => {
     const gate = new Promise<void>(() => {});
-    const fake = fakeScan({ steps: ["one", gate, "two"] });
-    const lines = linesOf(fake);
+    const fake = fakeScan({ steps: [ONE, gate, TWO] });
+    const reports = reportsOf(fake);
     const phases = phasesOf(fake);
 
     const pending = fake.run(PLAN);
@@ -78,7 +78,7 @@ describe("fakeScan", () => {
     await fake.stop();
 
     expect(await pending).toEqual({ status: "stopped" });
-    expect(lines).toEqual(["one"]);
+    expect(reports).toEqual([ONE]);
     expect(phases).toEqual(["checking", "stopped"]);
     expect(fake.stopped).toBe(1);
   });

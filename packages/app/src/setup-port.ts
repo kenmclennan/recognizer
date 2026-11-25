@@ -6,6 +6,7 @@ import type {
   Survey,
   TryEvent,
 } from "recognizer";
+import type { SetupLine } from "./setup-progress";
 
 export type DoctorRead =
   | { status: "ok"; report: DoctorReport }
@@ -41,7 +42,7 @@ export type TryResultEvent = Extract<TryEvent, { event: "result" }>;
 export type SetupPort = {
   survey(
     extract: boolean,
-    onLine: (line: string) => void,
+    onLine: (line: SetupLine) => void,
   ): Promise<SetupSurveyRead>;
   recommend(
     prompt: string,

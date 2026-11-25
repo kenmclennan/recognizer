@@ -27,13 +27,23 @@ export interface PluginFailure {
   readonly diagnosis: Diagnosis | null;
 }
 
+export type PluginPhase = "extract" | "describe" | "sense";
+
+export interface PluginTally {
+  readonly ok: number;
+  readonly failed: number;
+  readonly firstFailure: { item: string; reason: string } | null;
+}
+
 export interface PluginRunView {
   name: string;
+  phase: PluginPhase;
   state: PluginRunState;
   progress: Progress | null;
   stage: PluginStage | null;
   estimateMs: number | null;
   failure: PluginFailure | null;
+  tally: PluginTally | null;
 }
 
 export class PluginRun {
@@ -44,20 +54,43 @@ export class PluginRun {
     readonly stage: PluginStage | null,
     readonly estimateMs: number | null,
     readonly failure: PluginFailure | null = null,
+    readonly phase: PluginPhase = "sense",
+    readonly tally: PluginTally | null = null,
   ) {}
 
-  static queued(name: string): PluginRun {
+  private next(changes: {
+    state?: PluginRunState;
+    progress?: Progress | null;
+    stage?: PluginStage | null;
+    estimateMs?: number | null;
+    failure?: PluginFailure | null;
+    tally?: PluginTally | null;
+  }): PluginRun {
+    return new PluginRun(
+      this.name,
+      changes.state ?? this.state,
+      changes.progress === undefined ? this.progress : changes.progress,
+      changes.stage === undefined ? this.stage : changes.stage,
+      changes.estimateMs === undefined ? this.estimateMs : changes.estimateMs,
+      changes.failure === undefined ? this.failure : changes.failure,
+      this.phase,
+      changes.tally === undefined ? this.tally : changes.tally,
+    );
+  }
+
+  static queued(name: string, phase: PluginPhase = "sense"): PluginRun {
     if (name === "") {
       throw new InvalidEntity("PluginRun", "a plugin run has a name", name);
     }
 
-    return new PluginRun(name, "queued", null, null, null);
+    return new PluginRun(name, "queued", null, null, null, null, phase);
   }
 
   static of(
     name: string,
     state: PluginRunState,
     progress: Progress | null,
+    phase: PluginPhase = "sense",
   ): PluginRun {
     if (state === "queued" && progress !== null) {
       throw new InvalidEntity(
@@ -67,7 +100,7 @@ export class PluginRun {
       );
     }
 
-    return new PluginRun(name, state, progress, null, null);
+    return new PluginRun(name, state, progress, null, null, null, phase);
   }
 
   get ended(): boolean {
@@ -87,7 +120,12 @@ export class PluginRun {
       );
     }
 
-    return new PluginRun(this.name, "running", progress, null, null);
+    return this.next({
+      state: "running",
+      progress,
+      stage: null,
+      estimateMs: null,
+    });
   }
 
   private running(what: string): void {
@@ -116,13 +154,7 @@ export class PluginRun {
       );
     }
 
-    return new PluginRun(
-      this.name,
-      "running",
-      this.progress,
-      stage,
-      this.estimateMs,
-    );
+    return this.next({ stage });
   }
 
   estimated(estimateMs: number | null): PluginRun {
@@ -139,13 +171,7 @@ export class PluginRun {
       );
     }
 
-    return new PluginRun(
-      this.name,
-      "running",
-      this.progress,
-      this.stage,
-      estimateMs,
-    );
+    return this.next({ estimateMs });
   }
 
   progressed(progress: Progress): PluginRun {
@@ -157,13 +183,29 @@ export class PluginRun {
       );
     }
 
-    return new PluginRun(
-      this.name,
-      "running",
-      progress,
-      this.stage,
-      this.estimateMs,
-    );
+    return this.next({ progress });
+  }
+
+  itemised(item: { item: string; ok: boolean; reason: string }): PluginRun {
+    this.running("an item");
+
+    const before = this.tally;
+    const done = (this.progress?.done ?? 0) + 1;
+
+    return this.next({
+      progress: {
+        done,
+        total: this.progress?.total ?? done,
+        unit: this.progress?.unit ?? "files",
+      },
+      tally: {
+        ok: (before?.ok ?? 0) + (item.ok ? 1 : 0),
+        failed: (before?.failed ?? 0) + (item.ok ? 0 : 1),
+        firstFailure:
+          before?.firstFailure ??
+          (item.ok ? null : { item: item.item, reason: item.reason }),
+      },
+    });
   }
 
   end(state: PluginRunEnd, failure?: PluginFailure): PluginRun {
@@ -191,24 +233,19 @@ export class PluginRun {
       );
     }
 
-    return new PluginRun(
-      this.name,
-      state,
-      this.progress,
-      this.stage,
-      null,
-      failure ?? null,
-    );
+    return this.next({ state, estimateMs: null, failure: failure ?? null });
   }
 
   view(): PluginRunView {
     return {
       name: this.name,
+      phase: this.phase,
       state: this.state,
       progress: this.progress,
       stage: this.stage,
       estimateMs: this.estimateMs,
       failure: this.failure,
+      tally: this.tally,
     };
   }
 }

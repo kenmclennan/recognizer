@@ -6,6 +6,8 @@ import type {
 } from "@recognizer/core";
 import {
   type ChangeFacts,
+  type DescribeAsk,
+  type DescribeHalt,
   Neighbours,
   Repository,
   View,
@@ -202,12 +204,7 @@ import {
 } from "./scan-panel-model";
 import { buildScanPanelView } from "./scan-panel-view";
 import { inertScan } from "./scan-port";
-import type {
-  DescribeAsk,
-  DescribeStop,
-  PluginProgress,
-  ShowTarget,
-} from "./scan-progress";
+import type { PluginProgress, ShowTarget } from "./scan-progress";
 import type { RunInput } from "./scan-run-model";
 import type { BarModel } from "./selection-bar-view";
 import {
@@ -325,7 +322,7 @@ export type ScanHost = {
   sensorProgress?: () => PluginProgress | null;
   extracting?: () => boolean;
   describeProgress: () => { entries: number; total: number } | null;
-  describeStop: () => DescribeStop | null;
+  describeStop: () => DescribeHalt | null;
   describeAsk: () => DescribeAsk | null;
   describeSkipped: () => boolean;
   runView?: () => RunInput;

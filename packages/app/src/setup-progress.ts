@@ -1,5 +1,3 @@
-import { parseScanLine } from "./scan-progress";
-
 export type Progress = "waiting" | "running" | "done";
 
 export type Timed = {
@@ -138,72 +136,63 @@ function withLanguage(
   );
 }
 
-function feedOf(state: LoadingState, text: string, now: number) {
-  const event = parseScanLine(text);
+export type SetupEvent =
+  | { event: "languages"; names: string[] | null }
+  | { event: "extract-current" }
+  | {
+      event: "language";
+      name: string;
+      state: "reading" | "done";
+      files: number | null;
+    }
+  | {
+      event: "duplication";
+      state: "comparing" | "done" | "failed";
+      files: number | null;
+    };
 
-  if (event === null) {
-    return state;
-  }
+export type SetupLine =
+  | { event: "step"; step: string; state: string }
+  | SetupEvent;
 
-  if (event.event === "phase" && event.phase === "extract") {
-    if (event.state === "current") {
+function feedOf(
+  state: LoadingState,
+  event: SetupEvent,
+  now: number,
+): LoadingState {
+  switch (event.event) {
+    case "extract-current":
       return scanEnded(state, now);
-    }
+    case "languages":
+      return {
+        ...state,
+        languagesKnown: event.names !== null,
+        languages: (event.names ?? []).reduce(
+          (list, name) => withLanguage(list, name, {}),
+          state.languages,
+        ),
+      };
+    case "language": {
+      const known = state.languages.find((one) => one.name === event.name);
 
-    return {
-      ...state,
-      languagesKnown: event.languages !== undefined,
-      languages: (event.languages ?? []).reduce(
-        (list, name) => withLanguage(list, name, {}),
-        state.languages,
-      ),
-    };
-  }
-
-  if (event.event === "plugin" && event.phase === "extract") {
-    const known = state.languages.find((one) => one.name === event.name);
-    const data = event.data;
-
-    if (data.event === "start") {
       return {
         ...state,
         languages: withLanguage(state.languages, event.name, {
-          state: "reading",
-          files: data.unit === "files" ? data.total : (known?.files ?? null),
+          state: event.state,
+          ...(event.state === "reading"
+            ? { files: event.files ?? known?.files ?? null }
+            : {}),
         }),
       };
     }
-
-    if (data.event === "progress" && data.unit === "files") {
+    case "duplication":
       return {
         ...state,
-        languages: withLanguage(state.languages, event.name, {
-          state: "reading",
-          files: data.total,
-        }),
+        duplication: { state: event.state, files: event.files },
       };
-    }
-
-    return state;
+    default:
+      return state;
   }
-
-  if (event.event === "entry" && event.phase === "extract") {
-    return {
-      ...state,
-      languages: withLanguage(state.languages, event.name, { state: "done" }),
-    };
-  }
-
-  if (event.event === "structure") {
-    const duplication: DuplicationProgress =
-      event.state === "run"
-        ? { state: "comparing", files: null }
-        : { state: event.state, files: event.files };
-
-    return { ...state, duplication };
-  }
-
-  return state;
 }
 
 export function loadingFill(state: LoadingState): number {
@@ -230,26 +219,13 @@ export function loadingFill(state: LoadingState): number {
 
 export function reduceLoading(
   state: LoadingState,
-  text: string,
+  line: SetupLine,
   now: number,
 ): LoadingState {
-  let parsed: unknown;
-
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return state;
-  }
-
-  const line = parsed as { event?: unknown; step?: unknown; state?: unknown };
   const next =
-    typeof parsed === "object" &&
-    parsed !== null &&
-    line.event === "step" &&
-    typeof line.step === "string" &&
-    typeof line.state === "string"
+    line.event === "step"
       ? stepOf(state, line.step, line.state, now)
-      : feedOf(state, text, now);
+      : feedOf(state, line, now);
 
   return { ...next, fill: Math.max(state.fill, loadingFill(next)) };
 }

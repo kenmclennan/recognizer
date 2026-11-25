@@ -5,65 +5,43 @@ import {
   type LoadingState,
   loadingFill,
   reduceLoading,
+  type SetupLine,
   startLoading,
 } from "../../src/setup-progress";
 
-const line = (value: unknown) => JSON.stringify(value);
-
-function run(lines: string[], at = 0): LoadingState {
+function run(lines: SetupLine[], at = 0): LoadingState {
   let clock = at;
 
-  return lines.reduce((state, text) => {
+  return lines.reduce((state, next) => {
     clock += 100;
 
-    return reduceLoading(state, text, clock);
+    return reduceLoading(state, next, clock);
   }, startLoading(at));
 }
 
-const step = (name: string, state: "run" | "done") =>
-  line({ event: "step", step: name, state });
+const step = (name: string, state: "run" | "done"): SetupLine => ({
+  event: "step",
+  step: name,
+  state,
+});
 
-const UNSCANNED = [
+const language = (
+  name: string,
+  state: "reading" | "done",
+  files: number | null,
+): SetupLine => ({ event: "language", name, state, files });
+
+const UNSCANNED: SetupLine[] = [
   step("survey", "run"),
   step("survey", "done"),
   step("scan", "run"),
-  line({
-    event: "phase",
-    phase: "extract",
-    state: "run",
-    commit: null,
-    languages: ["typescript", "python"],
-  }),
-  line({
-    event: "plugin",
-    phase: "extract",
-    name: "typescript",
-    data: { event: "start", total: 125, unit: "files" },
-  }),
-  line({
-    event: "entry",
-    phase: "extract",
-    name: "typescript",
-    outcome: "ok",
-    modules: 3,
-    edges: 2,
-  }),
-  line({
-    event: "plugin",
-    phase: "extract",
-    name: "python",
-    data: { event: "start", total: 9, unit: "files" },
-  }),
-  line({
-    event: "entry",
-    phase: "extract",
-    name: "python",
-    outcome: "ok",
-    modules: 1,
-    edges: 0,
-  }),
-  line({ event: "structure", state: "run" }),
-  line({ event: "structure", state: "done", files: 134 }),
+  { event: "languages", names: ["typescript", "python"] },
+  language("typescript", "reading", 125),
+  language("typescript", "done", null),
+  language("python", "reading", 9),
+  language("python", "done", null),
+  { event: "duplication", state: "comparing", files: null },
+  { event: "duplication", state: "done", files: 134 },
   step("scan", "done"),
   step("reading", "run"),
   step("reading", "done"),
@@ -126,18 +104,15 @@ describe("the loading reducer", () => {
 
   it("records a failed duplication run", () => {
     const state = run([
-      line({ event: "structure", state: "run" }),
-      line({ event: "structure", state: "failed", files: 4 }),
+      { event: "duplication", state: "comparing", files: null },
+      { event: "duplication", state: "failed", files: 4 },
     ]);
 
     expect(state.duplication).toEqual({ state: "failed", files: 4 });
   });
 
   it("finishes the scan row on phase extract current with no language lines", () => {
-    const state = run([
-      step("scan", "run"),
-      line({ event: "phase", phase: "extract", state: "current", commit: "a" }),
-    ]);
+    const state = run([step("scan", "run"), { event: "extract-current" }]);
 
     expect(state.scan?.state).toBe("done");
     expect(state.languages).toEqual([]);
@@ -147,19 +122,23 @@ describe("the loading reducer", () => {
     const before = run(UNSCANNED.slice(0, 3));
     const after = run([
       ...UNSCANNED.slice(0, 3),
-      "not json",
-      "",
-      "[1]",
-      line({ event: "preflight", state: "ok" }),
-      line({
-        event: "plugin",
-        phase: "sense",
-        name: "crap",
-        data: { event: "note", text: "x" },
-      }),
+      { event: "preflight", state: "ok" } as unknown as SetupLine,
+      { event: "other" } as unknown as SetupLine,
     ]);
 
     expect({ ...after, fill: 0 }).toEqual({ ...before, fill: 0 });
+  });
+
+  it("keeps the file count a language already had when a later line carries none", () => {
+    const state = run([
+      step("scan", "run"),
+      language("python", "reading", 9),
+      language("python", "reading", null),
+    ]);
+
+    expect(state.languages).toEqual([
+      { name: "python", state: "reading", files: 9 },
+    ]);
   });
 
   it("records row times from the clock handed in", () => {
@@ -178,8 +157,8 @@ describe("the loading bar", () => {
     let state = startLoading(0);
     let last = 0;
 
-    for (const text of UNSCANNED) {
-      state = reduceLoading(state, text, 1);
+    for (const next of UNSCANNED) {
+      state = reduceLoading(state, next, 1);
 
       expect(state.fill).toBeGreaterThanOrEqual(last);
 
@@ -189,7 +168,7 @@ describe("the loading bar", () => {
 
   it("does not move back when the language list raises the total", () => {
     const before = run(UNSCANNED.slice(0, 3));
-    const after = reduceLoading(before, UNSCANNED[3] as string, 1);
+    const after = reduceLoading(before, UNSCANNED[3] as SetupLine, 1);
 
     expect(after.fill).toBeGreaterThanOrEqual(before.fill);
   });

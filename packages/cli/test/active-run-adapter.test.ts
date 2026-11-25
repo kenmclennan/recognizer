@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { SensorRegistry } from "@recognizer/core";
+import { Run, SensorRegistry } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
@@ -84,6 +84,127 @@ function logRecords(root: string) {
 }
 
 describe("active run adapter", () => {
+  it("a_full_scan_progress_log_yields_the_run_model", () => {
+    const root = makeTempDir("active-run-full-scan-");
+    const ask = {
+      event: "confirm",
+      phase: "describe",
+      modules: 3,
+      model: "haiku",
+      input_tokens: 1200,
+      cost_usd: 0.4,
+    };
+
+    marker(
+      root,
+      { describe: true, sensors: ["tally"] },
+      [
+        line({ event: "preflight", state: "ok" }),
+        line({
+          event: "phase",
+          phase: "extract",
+          state: "run",
+          commit: null,
+          reason: "forced",
+          languages: ["python", "rust"],
+        }),
+        line({
+          event: "plugin",
+          phase: "extract",
+          name: "python",
+          data: { event: "start", total: 10, unit: "files" },
+        }),
+        line({
+          event: "entry",
+          phase: "extract",
+          name: "python",
+          outcome: "ok",
+          modules: 3,
+          edges: 1,
+        }),
+        line({
+          event: "entry",
+          phase: "extract",
+          name: "rust",
+          outcome: "failed",
+          reason: "no cargo",
+        }),
+        line({ event: "structure", state: "run" }),
+        line({ event: "structure", state: "done", files: 3 }),
+        line(ask),
+        line({ event: "answered", phase: "describe", describe: true }),
+        line({ event: "phase", phase: "describe", total: 3 }),
+        line({
+          event: "entry",
+          phase: "describe",
+          name: "a.py",
+          outcome: "ok",
+        }),
+        line({
+          event: "entry",
+          phase: "describe",
+          name: "b.py",
+          outcome: "failed",
+          reason: "timed out",
+        }),
+        line({
+          event: "entry",
+          phase: "describe",
+          name: "c.py",
+          outcome: "ok",
+        }),
+        line({ event: "phase", phase: "sense", total: 1 }),
+        line({ event: "start", phase: "sense", name: "tally" }),
+        line({
+          event: "entry",
+          phase: "sense",
+          name: "tally",
+          outcome: "ok",
+        }),
+        line({ event: "summary", exit: 1, log: "run-1" }),
+      ].join(""),
+    );
+
+    const read = new ActiveRunAdapter(nodeIo()).read(root, null);
+
+    if (read.kind !== "live") {
+      throw new Error(`expected a live read, got ${read.kind}`);
+    }
+
+    const run = read.reports.reduce(
+      (held, report) => held.apply(report),
+      Run.begin({
+        id: read.record.runId,
+        startedBy: read.record.startedBy,
+        startedAt: read.record.startedAt,
+        scope: read.record.scope,
+        choices: { sensors: ["tally"], describe: true, suites: {} },
+      }),
+    );
+    const view = run.view();
+
+    expect(
+      view.plugins.map(({ phase, name, state }) => `${phase}:${name}:${state}`),
+    ).toEqual([
+      "extract:python:finished",
+      "extract:rust:failed",
+      "describe:describe:finished",
+      "sense:tally:finished",
+    ]);
+    expect(view.plugins[1]?.failure?.reason).toBe("no cargo");
+    expect(view.plugins[2]?.tally).toEqual({
+      ok: 2,
+      failed: 1,
+      firstFailure: { item: "b.py", reason: "timed out" },
+    });
+    expect(view.structure).toEqual({ state: "done", files: 3 });
+    expect(view.log).toBe("run-1");
+    expect(view.confirmation).toEqual({
+      ask: { modules: 3, model: "haiku", inputTokens: 1200, costUsd: 0.4 },
+      answer: "describe",
+    });
+  });
+
   it("reads_a_live_marker_and_its_progress_lines", () => {
     const root = makeTempDir("active-run-live-");
 

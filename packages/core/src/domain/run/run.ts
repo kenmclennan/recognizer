@@ -3,6 +3,7 @@ import type { RunFailure } from "../run-record.js";
 import type { RunScope } from "../run-scope.js";
 import {
   type PluginFailure,
+  type PluginPhase,
   PluginRun,
   type PluginRunEnd,
   type PluginRunView,
@@ -38,17 +39,71 @@ export interface RunEnd {
   ran?: readonly string[] | null;
 }
 
+export interface DescribeAsk {
+  modules: number;
+  model: string;
+  inputTokens: number;
+  costUsd: number | null;
+}
+
+export interface DescribeHalt {
+  cause: "limit" | "failures";
+  reason: string;
+  described: number;
+  notDescribed: number;
+  threshold: number;
+}
+
+export interface RunConfirmation {
+  ask: DescribeAsk;
+  answer: "describe" | "skip" | null;
+}
+
+export interface RunStructure {
+  state: "running" | "done" | "failed";
+  files: number | null;
+}
+
 export type RunReport =
   | { kind: "running" }
-  | { kind: "plugin-started"; name: string; progress: Progress | null }
-  | { kind: "plugin-progress"; name: string; progress: Progress }
-  | { kind: "plugin-stage"; name: string; stage: PluginStage }
-  | { kind: "plugin-estimate"; name: string; estimateMs: number | null }
+  | {
+      kind: "plugin-started";
+      name: string;
+      progress: Progress | null;
+      phase?: PluginPhase;
+    }
+  | {
+      kind: "plugin-progress";
+      name: string;
+      progress: Progress;
+      phase?: PluginPhase;
+    }
+  | {
+      kind: "plugin-stage";
+      name: string;
+      stage: PluginStage;
+      phase?: PluginPhase;
+    }
+  | {
+      kind: "plugin-estimate";
+      name: string;
+      estimateMs: number | null;
+      phase?: PluginPhase;
+    }
+  | {
+      kind: "plugin-item";
+      name: string;
+      item: string;
+      ok: boolean;
+      reason: string;
+      phase?: PluginPhase;
+    }
   | {
       kind: "plugin-ended";
       name: string;
       state: PluginRunEnd;
       failure?: PluginFailure;
+      phase?: PluginPhase;
     }
   | {
       kind: "plugin-result";
@@ -56,6 +111,13 @@ export type RunReport =
       at: ResultAt;
       result: ReportedResult;
     }
+  | { kind: "extract-planned"; languages: readonly string[] }
+  | { kind: "extract-current" }
+  | { kind: "confirmation-asked"; ask: DescribeAsk }
+  | { kind: "confirmation-answered"; describe: boolean }
+  | { kind: "describe-halted"; halt: DescribeHalt }
+  | { kind: "structure"; state: RunStructure["state"]; files: number | null }
+  | { kind: "logged"; log: string | null }
   | { kind: "ended"; end: RunEnd }
   | { kind: "unreadable" };
 
@@ -80,6 +142,10 @@ export interface RunView {
   failure: RunFailure | null;
   ran: string[] | null;
   plugins: PluginRunView[];
+  confirmation: RunConfirmation | null;
+  describeHalt: DescribeHalt | null;
+  structure: RunStructure | null;
+  log: string | null;
 }
 
 export interface RunFields {
@@ -95,7 +161,26 @@ export interface RunFields {
   failure?: RunFailure | null;
   ran?: readonly string[] | null;
   plugins: readonly PluginRun[];
+  extract?: "planned" | "current" | null;
+  confirmation?: RunConfirmation | null;
+  describeHalt?: DescribeHalt | null;
+  structure?: RunStructure | null;
+  log?: string | null;
 }
+
+const DESCRIBE_NAME = "describe";
+
+const NO_REASON = "no reason was recorded";
+
+const STARTS_RUNNING: ReadonlySet<RunReport["kind"]> = new Set([
+  "plugin-started",
+  "plugin-progress",
+  "plugin-stage",
+  "plugin-estimate",
+  "plugin-item",
+  "plugin-ended",
+  "structure",
+]);
 
 const ENDED: readonly RunState[] = ["finished", "failed", "stopped", "refused"];
 
@@ -112,6 +197,11 @@ export class Run {
   readonly failure: RunFailure | null;
   readonly ran: readonly string[] | null;
   readonly plugins: readonly PluginRun[];
+  readonly extract: "planned" | "current" | null;
+  readonly confirmation: RunConfirmation | null;
+  readonly describeHalt: DescribeHalt | null;
+  readonly structure: RunStructure | null;
+  readonly log: string | null;
 
   constructor(fields: RunFields) {
     Run.check(fields);
@@ -128,6 +218,11 @@ export class Run {
     this.failure = fields.failure ?? null;
     this.ran = fields.ran ?? null;
     this.plugins = [...fields.plugins];
+    this.extract = fields.extract ?? null;
+    this.confirmation = fields.confirmation ?? null;
+    this.describeHalt = fields.describeHalt ?? null;
+    this.structure = fields.structure ?? null;
+    this.log = fields.log ?? null;
   }
 
   static begin(input: {
@@ -142,7 +237,12 @@ export class Run {
       state: "checking",
       endedAt: null,
       exit: null,
-      plugins: input.choices.sensors.map((name) => PluginRun.queued(name)),
+      plugins: [
+        ...(input.choices.describe
+          ? [PluginRun.queued(DESCRIBE_NAME, "describe")]
+          : []),
+        ...input.choices.sensors.map((name) => PluginRun.queued(name)),
+      ],
     });
   }
 
@@ -162,7 +262,7 @@ export class Run {
       );
     }
 
-    const names = fields.plugins.map(({ name }) => name);
+    const names = fields.plugins.map(({ phase, name }) => `${phase}:${name}`);
 
     if (new Set(names).size !== names.length) {
       throw new InvalidEntity(
@@ -214,12 +314,19 @@ export class Run {
       failure: this.failure,
       ran: this.ran,
       plugins: this.plugins,
+      extract: this.extract,
+      confirmation: this.confirmation,
+      describeHalt: this.describeHalt,
+      structure: this.structure,
+      log: this.log,
       ...changes,
     });
   }
 
-  plugin(name: string): PluginRun {
-    const found = this.plugins.find((one) => one.name === name);
+  plugin(name: string, phase: PluginPhase = "sense"): PluginRun {
+    const found = this.plugins.find(
+      (one) => one.name === name && one.phase === phase,
+    );
 
     if (found === undefined) {
       throw new InvalidEntity(
@@ -233,10 +340,78 @@ export class Run {
   }
 
   private replacing(plugin: PluginRun): PluginRun[] {
-    return this.plugins.map((one) => (one.name === plugin.name ? plugin : one));
+    return this.plugins.map((one) =>
+      one.name === plugin.name && one.phase === plugin.phase ? plugin : one,
+    );
+  }
+
+  private settleDescribe(
+    plugins: readonly PluginRun[],
+    atSummary: boolean,
+  ): PluginRun[] {
+    return plugins.map((one) => {
+      if (one.phase !== "describe" || one.state !== "running") {
+        return one;
+      }
+
+      const { progress, tally } = one;
+
+      if (!atSummary && (progress === null || progress.done < progress.total)) {
+        return one;
+      }
+
+      return tally !== null &&
+        progress !== null &&
+        tally.failed === progress.done &&
+        progress.done > 0
+        ? one.end("failed", {
+            reason: tally.firstFailure?.reason ?? NO_REASON,
+            diagnosis: null,
+          })
+        : one.end("finished");
+    });
+  }
+
+  private skipping(name: string, phase: PluginPhase): Run {
+    const at = this.plugins.findIndex(
+      (one) => one.name === name && one.phase === phase,
+    );
+
+    if (at <= 0) {
+      return this;
+    }
+
+    const plugins = this.plugins.map((one, index) =>
+      index < at && one.state === "queued" && one.phase !== "sense"
+        ? one.end("stopped")
+        : one,
+    );
+
+    return plugins.some((one, index) => one !== this.plugins[index])
+      ? this.with({ plugins })
+      : this;
+  }
+
+  private counted(plugin: PluginRun): PluginRun[] {
+    return this.settleDescribe(this.replacing(plugin), false);
+  }
+
+  private endedPlugin(report: Extract<RunReport, { kind: "plugin-ended" }>) {
+    const phase = report.phase ?? "sense";
+    const found = this.plugin(report.name, phase);
+    const base =
+      phase === "extract" && found.state === "queued"
+        ? found.started(null)
+        : found;
+
+    return this.replacing(base.end(report.state, report.failure));
   }
 
   apply(report: RunReport): Run {
+    if (this.state === "checking" && STARTS_RUNNING.has(report.kind)) {
+      return this.with({ state: "running" }).apply(report);
+    }
+
     if (!this.active) {
       throw new InvalidEntity(
         "Run",
@@ -249,56 +424,168 @@ export class Run {
       case "unreadable":
         return this;
       case "running":
-        if (this.state !== "checking") {
-          throw new InvalidEntity(
-            "Run",
-            "a run only moves forward",
-            `${this.id} is already ${this.state}`,
-          );
-        }
+        return this.state === "running"
+          ? this
+          : this.with({ state: "running" });
+      case "plugin-started": {
+        const base = this.skipping(report.name, report.phase ?? "sense");
 
-        return this.with({ state: "running" });
-      case "plugin-started":
-        return this.with({
-          plugins: this.replacing(
-            this.plugin(report.name).started(report.progress),
+        return base.with({
+          plugins: base.counted(
+            base.plugin(report.name, report.phase).started(report.progress),
           ),
         });
+      }
       case "plugin-progress":
         return this.with({
-          plugins: this.replacing(
-            this.plugin(report.name).progressed(report.progress),
+          plugins: this.counted(
+            this.plugin(report.name, report.phase).progressed(report.progress),
           ),
         });
       case "plugin-stage":
         return this.with({
           plugins: this.replacing(
-            this.plugin(report.name).staged(report.stage),
+            this.plugin(report.name, report.phase).staged(report.stage),
           ),
         });
       case "plugin-estimate":
         return this.with({
           plugins: this.replacing(
-            this.plugin(report.name).estimated(report.estimateMs),
+            this.plugin(report.name, report.phase).estimated(report.estimateMs),
           ),
         });
-      case "plugin-ended":
+      case "plugin-item":
         return this.with({
-          plugins: this.replacing(
-            this.plugin(report.name).end(report.state, report.failure),
+          plugins: this.counted(
+            this.plugin(report.name, report.phase).itemised(report),
           ),
         });
+      case "plugin-ended": {
+        const base = this.skipping(report.name, report.phase ?? "sense");
+
+        return base.with({ plugins: base.endedPlugin(report) });
+      }
       case "plugin-result":
         this.plugin(report.name);
 
         return this;
+      case "extract-planned":
+        return this.planned(report.languages);
+      case "extract-current":
+        return this.planned(null);
+      case "confirmation-asked":
+        return this.asked(report.ask);
+      case "confirmation-answered":
+        return this.answered(report.describe);
+      case "describe-halted":
+        return this.halted(report.halt);
+      case "structure":
+        return this.with({
+          structure: { state: report.state, files: report.files },
+        });
+      case "logged":
+        return this.logged(report.log);
       case "ended":
         return this.ending(report.end);
     }
   }
 
+  private planned(languages: readonly string[] | null): Run {
+    if (
+      this.extract !== null ||
+      this.plugins.some(({ state }) => state !== "queued")
+    ) {
+      throw new InvalidEntity(
+        "Run",
+        "the extract plan is reported once, before any plugin starts",
+        this.extract ?? "a plugin has started",
+      );
+    }
+
+    return this.with({
+      extract: languages === null ? "current" : "planned",
+      plugins: [
+        ...[...new Set(languages ?? [])].map((name) =>
+          PluginRun.queued(name, "extract"),
+        ),
+        ...this.plugins,
+      ],
+    });
+  }
+
+  private asked(ask: DescribeAsk): Run {
+    if (this.confirmation !== null && this.confirmation.answer === null) {
+      throw new InvalidEntity(
+        "Run",
+        "a confirmation is asked once until it is answered",
+        this.id,
+      );
+    }
+
+    return this.with({ confirmation: { ask: { ...ask }, answer: null } });
+  }
+
+  private answered(describe: boolean): Run {
+    if (this.confirmation === null || this.confirmation.answer !== null) {
+      throw new InvalidEntity(
+        "Run",
+        "an answer needs an unanswered confirmation",
+        this.id,
+      );
+    }
+
+    return this.with({
+      confirmation: {
+        ask: this.confirmation.ask,
+        answer: describe ? "describe" : "skip",
+      },
+      plugins: describe
+        ? this.plugins
+        : this.plugins.map((one) =>
+            one.phase === "describe" && one.state === "queued"
+              ? one.end("stopped")
+              : one,
+          ),
+    });
+  }
+
+  private halted(halt: DescribeHalt): Run {
+    if (this.describeHalt !== null) {
+      throw new InvalidEntity(
+        "Run",
+        "the describe halt is reported once",
+        this.id,
+      );
+    }
+
+    return this.with({
+      describeHalt: { ...halt },
+      plugins: this.plugins.map((one) =>
+        one.phase === "describe" && one.state === "running"
+          ? one.end("stopped")
+          : one,
+      ),
+    });
+  }
+
+  private logged(log: string | null): Run {
+    const settled = this.settleDescribe(this.plugins, true);
+
+    if (log === null || log === "" || this.log !== null) {
+      return settled.some((one, at) => one !== this.plugins[at])
+        ? this.with({ plugins: settled })
+        : this;
+    }
+
+    return this.with({ log, plugins: settled });
+  }
+
   private ending(end: RunEnd): Run {
     return this.with({
+      confirmation:
+        this.confirmation !== null && this.confirmation.answer === null
+          ? null
+          : this.confirmation,
       state: end.state,
       endedAt: end.endedAt,
       exit: end.exit,
@@ -320,7 +607,7 @@ export class Run {
 
   running(): string[] {
     return this.plugins
-      .filter(({ state }) => state === "running")
+      .filter(({ state, phase }) => state === "running" && phase === "sense")
       .map(({ name }) => name);
   }
 
@@ -345,6 +632,17 @@ export class Run {
       failure: this.failure === null ? null : { ...this.failure },
       ran: this.ran === null ? null : [...this.ran],
       plugins: this.plugins.map((one) => one.view()),
+      confirmation:
+        this.confirmation === null
+          ? null
+          : {
+              ask: { ...this.confirmation.ask },
+              answer: this.confirmation.answer,
+            },
+      describeHalt:
+        this.describeHalt === null ? null : { ...this.describeHalt },
+      structure: this.structure === null ? null : { ...this.structure },
+      log: this.log,
     };
   }
 }

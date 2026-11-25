@@ -34,9 +34,7 @@ export type DescribingSettings = {
   confirmAboveUsd: number;
 };
 
-export type RunEvent =
-  | { kind: "run"; run: ScanRunRecord | null }
-  | { kind: "line"; line: string };
+export type RunEvent = { kind: "run"; run: ScanRunRecord | null };
 
 export type ScanPort = {
   run(plan: ScanPlan): Promise<ScanRunResult>;

@@ -32,11 +32,13 @@ function entry(name: string, registered = true, manifest = true) {
 function plugin(name: string, state: PluginRunView["state"]): PluginRunView {
   return {
     name,
+    phase: "sense",
     state,
     progress: null,
     stage: null,
     estimateMs: null,
     failure: null,
+    tally: null,
   };
 }
 
@@ -60,6 +62,10 @@ function run(
     failure: null,
     ran: null,
     plugins,
+    confirmation: null,
+    describeHalt: null,
+    structure: null,
+    log: null,
   };
 }
 
@@ -380,6 +386,10 @@ describe("the run card reads the snapshot's last finished run", () => {
         failure: null,
         ran: null,
         plugins: [],
+        confirmation: null,
+        describeHalt: null,
+        structure: null,
+        log: null,
       },
     });
 

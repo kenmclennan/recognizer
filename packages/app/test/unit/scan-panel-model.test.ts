@@ -1778,12 +1778,18 @@ function runFrom(one: ScanRunRecord): RunView {
     ran: one.ran,
     plugins: one.sensors.map((name) => ({
       name,
-      state: active ? "queued" : "finished",
+      phase: "sense" as const,
+      state: active ? ("queued" as const) : ("finished" as const),
       progress: null,
       stage: null,
       estimateMs: null,
       failure: null,
+      tally: null,
     })),
+    confirmation: null,
+    describeHalt: null,
+    structure: null,
+    log: null,
   };
 }
 

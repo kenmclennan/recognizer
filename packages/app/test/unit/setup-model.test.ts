@@ -34,6 +34,7 @@ import {
   testsWanted,
   type WizardState,
 } from "../../src/setup-model";
+import type { SetupLine } from "../../src/setup-progress";
 
 function counting(fake: FakeSetup) {
   const seen = { sensors: 0, doctors: 0, scans: 0 };
@@ -930,7 +931,7 @@ describe("Setup's opening screen on the survey events the service emits", () => 
         const read = await readSetup(ports, {
           root: "/repo",
           extract,
-          onLine,
+          onLine: (text) => onLine(JSON.parse(text) as SetupLine),
         });
 
         return read as typeof fake.surveyRead;

@@ -17,6 +17,7 @@ import type {
   SetupSurveyRead,
   TryResultEvent,
 } from "./setup-port";
+import type { SetupLine } from "./setup-progress";
 
 export type FakeSetup = SetupPort & {
   surveyRead: SetupSurveyRead;
@@ -29,7 +30,7 @@ export type FakeSetup = SetupPort & {
   applied: SetupChoices[];
   tried: SetupChoices[];
   gate: Promise<void> | null;
-  surveyLines: (string | Promise<void>)[];
+  surveyLines: (SetupLine | Promise<void>)[];
   holdAfterCommand: Promise<void> | null;
   holdDoctor: Promise<void> | null;
   stopped: number;
@@ -125,10 +126,10 @@ export function fakeSetup(options: Partial<FakeSetup> = {}): FakeSetup {
       fake.calls.push(extract ? "survey+extract" : "survey");
 
       for (const line of fake.surveyLines) {
-        if (typeof line === "string") {
-          onLine(line);
-        } else {
+        if (line instanceof Promise) {
           await line;
+        } else {
+          onLine(line);
         }
       }
 

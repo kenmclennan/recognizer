@@ -11,7 +11,7 @@ import { loadedUnchanged, sameStructure } from "./loaded-unchanged";
 import type { MessageAction, MessageInput } from "./message-tray";
 import { activityOf } from "./repository-state-model";
 import { runLogPath } from "./run-log-path";
-import { sensorEventsBetween } from "./run-snapshot-events";
+import { type RunChange, runChangesBetween } from "./run-snapshot-events";
 import type { PlannedRun } from "./scan-freshness";
 import type { Loaded } from "./scan-loading";
 import {
@@ -24,17 +24,19 @@ import {
 } from "./scan-panel-model";
 import type { RunEvent, ScanPort, ScanRunResult } from "./scan-port";
 import {
-  NO_PROGRESS,
-  parseScanLine,
+  NO_OVERLAY,
+  NO_TIMING,
+  type ProgressOverlay,
+  progressOfRun,
+  type RunProgress,
   type RunRow,
-  type ScanEvent,
-  type ScanProgress,
+  type ScanTiming,
   type ShowTarget,
   scanningText,
-  stoppedProgress,
+  stampTiming,
 } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
-import { foldRunEvent, type RunInput } from "./scan-run-model";
+import type { RunInput } from "./scan-run-model";
 
 export type Registered = {
   sensors: Pick<
@@ -90,7 +92,7 @@ export type Rescanner = {
   runState: () => RunState;
   running: () => boolean;
   external: () => boolean;
-  progress: () => ScanProgress;
+  progress: () => RunProgress;
   runView: () => RunInput;
 };
 
@@ -162,7 +164,12 @@ export function createRescanner<Carried>(
   let remembered = false;
   let ticksLoaded = false;
   let run: RunState = NO_RUN;
-  let progress: ScanProgress = NO_PROGRESS;
+  let progressRunId: string | null = null;
+  let overlay: ProgressOverlay = NO_OVERLAY;
+  let timing: ScanTiming = NO_TIMING;
+  let processed: RunView | null = null;
+  let queueSeen: RunView | null = null;
+  let linkedFailures = new Set<number>();
 
   let rows: RunRow[] = [];
   let heading: string | null = null;
@@ -185,13 +192,28 @@ export function createRescanner<Carried>(
   const now = ports.awake ?? wallNow;
   let externalQueue: Promise<void> = Promise.resolve();
 
+  function progressNow(): RunProgress {
+    const shown =
+      progressRunId !== null && seenRun !== null && seenRun.id === progressRunId
+        ? seenRun
+        : null;
+
+    return progressOfRun(shown, timing, overlay);
+  }
+
+  function resetProgress() {
+    progressRunId = null;
+    overlay = NO_OVERLAY;
+    timing = NO_TIMING;
+  }
+
   function emit(update: { scanning: string | null }) {
     lastUpdate = { ...update };
     ports.progress(lastUpdate);
   }
 
   function publish() {
-    const text = scanningText(rows, run.started, progress);
+    const text = scanningText(rows, run.started, progressNow());
 
     emit({
       scanning: text === null || heading === null ? text : `${heading} ${text}`,
@@ -334,19 +356,18 @@ export function createRescanner<Carried>(
   }
 
   function postDescribed() {
-    const entries = progress.describe?.entries ?? [];
+    const described = progressNow().describe;
 
-    if (progress.describe === null) {
+    if (described === null) {
       return;
     }
 
-    const failed = entries.filter((entry) => entry.outcome === "failed");
-    const first = failed[0];
+    const first = described.firstFailure;
 
     const id = ports.post({
       kind: "info",
-      text: `Describe wrote ${entries.length - failed.length} lines, ${failed.length} files failed.`,
-      ...(first === undefined
+      text: `Describe wrote ${described.done - described.failed} lines, ${described.failed} files failed.`,
+      ...(first === null
         ? {}
         : {
             action: {
@@ -354,14 +375,14 @@ export function createRescanner<Carried>(
               run: () =>
                 ports.show({
                   kind: "module",
-                  id: first.name,
-                  reason: first.reason ?? "failed",
+                  id: first.item,
+                  reason: first.reason,
                 }),
             },
           }),
     });
 
-    if (first !== undefined) {
+    if (first !== null) {
       remember(id);
     }
   }
@@ -410,126 +431,115 @@ export function createRescanner<Carried>(
     };
   }
 
-  function settleDescribe() {
-    if (!run.running.includes(DESCRIBE_KEY)) {
-      return;
-    }
+  type Effect = () => Promise<void> | void;
 
-    const entries = progress.describe?.entries ?? [];
+  function applyChange(change: RunChange): Effect | null {
+    switch (change.kind) {
+      case "describe-started":
+        run = { ...run, started: DESCRIBE_KEY };
 
-    if (
-      entries.length > 0 &&
-      entries.every((one) => one.outcome === "failed")
-    ) {
-      finished(DESCRIBE_KEY, false, entries[0]?.reason ?? "failed");
-    } else {
-      finished(DESCRIBE_KEY, true, "");
+        return null;
+      case "described":
+        return () => ports.describedLine();
+      case "describe-ended":
+        if (change.outcome === "stopped") {
+          settleStopped(DESCRIBE_KEY);
+        } else {
+          finished(DESCRIBE_KEY, change.outcome === "ok", change.reason);
+        }
+
+        return null;
+      case "sense-started":
+        run = { ...run, started: change.name };
+
+        return null;
+      case "sense-ended":
+        if (change.outcome === "stopped") {
+          settleStopped(change.name);
+        } else {
+          finished(
+            change.name,
+            change.outcome === "ok",
+            change.reason,
+            change.diagnosis,
+          );
+        }
+
+        if (change.outcome === "failed") {
+          postFailure(change.name, change.reason);
+        }
+
+        return () => reload();
+      case "extract-ended":
+        if (change.outcome === "failed") {
+          remember(
+            ports.post({
+              kind: "error",
+              text: `${change.name} failed: ${change.reason}`,
+            }),
+          );
+        }
+
+        return null;
     }
   }
 
-  function isSensorLine(event: ScanEvent): boolean {
-    return (
-      event.event === "start" ||
-      (event.event === "phase" && event.phase === "sense") ||
-      (event.event === "entry" && event.phase === "sense") ||
-      (event.event === "plugin" && event.phase === "sense")
-    );
-  }
+  async function drain() {
+    const after = queueSeen;
 
-  async function applyLine(line: string) {
-    const event = parseScanLine(line);
-
-    if (event === null || isSensorLine(event)) {
+    if (liveRunId === null || after === null || after.id !== liveRunId) {
       return;
     }
 
-    await applyEvent(event);
-  }
+    const base =
+      processed !== null && processed.id === after.id ? processed : null;
+    const wasSettled =
+      overlay.extractSettled ||
+      (base !== null && progressOfRun(base).extractSettled);
 
-  async function applyEvent(event: ScanEvent) {
-    if (liveRunId === null) {
-      return;
-    }
+    processed = after;
+    timing = stampTiming(timing, after, now());
 
-    const before = progress;
+    const effects: Effect[] = [];
 
-    progress = foldRunEvent(progress, event, now());
+    for (const change of runChangesBetween(base, after)) {
+      const effect = applyChange(change);
 
-    if (event.event === "phase" && event.phase === "describe") {
-      run = { ...run, started: DESCRIBE_KEY };
-
-      if (event.total === 0) {
-        settleDescribe();
+      if (effect !== null) {
+        effects.push(effect);
       }
-    }
-
-    if (event.event === "phase" && event.phase === "sense") {
-      settleDescribe();
-      run = {
-        ...run,
-        started: run.running.find((one) => one !== DESCRIBE_KEY) ?? null,
-      };
-    }
-
-    if (event.event === "start") {
-      run = { ...run, started: event.name };
-    }
-
-    if (event.event === "entry" && event.phase === "describe") {
-      const phase = progress.describe;
-
-      if (phase !== null && phase.entries.length >= phase.total) {
-        settleDescribe();
-      }
-    }
-
-    if (event.event === "entry" && event.phase === "sense") {
-      if (event.outcome === "stopped") {
-        settleStopped(event.name);
-      } else {
-        finished(
-          event.name,
-          event.outcome === "ok",
-          event.reason ?? "failed",
-          event.diagnosis ?? null,
-        );
-      }
-
-      if (event.outcome === "failed") {
-        postFailure(event.name, event.reason ?? "failed");
-      }
-    }
-
-    if (
-      event.event === "entry" &&
-      event.phase === "extract" &&
-      event.outcome === "failed"
-    ) {
-      remember(
-        ports.post({
-          kind: "error",
-          text: `${event.name} failed: ${event.reason ?? "failed"}`,
-        }),
-      );
-    }
-
-    if (event.event === "summary") {
-      settleDescribe();
     }
 
     publish();
 
-    if (!before.extractSettled && progress.extractSettled) {
+    if (!wasSettled && progressOfRun(after, timing, overlay).extractSettled) {
       await settle();
       publish();
     }
 
-    if (event.event === "entry" && event.phase === "describe") {
-      ports.describedLine();
+    for (const effect of effects) {
+      await effect();
+    }
+  }
+
+  function linkLog() {
+    const log = progressNow().log;
+
+    if (log === null) {
+      return;
     }
 
-    if (event.event === "entry" && event.phase === "sense") {
-      await reload();
+    const path = runLogPath(log);
+    const open: MessageAction = {
+      label: "Open log",
+      run: () => ports.openLog(path),
+    };
+
+    for (const id of failureIds) {
+      if (!linkedFailures.has(id)) {
+        linkedFailures.add(id);
+        ports.attach(id, open);
+      }
     }
   }
 
@@ -542,13 +552,15 @@ export function createRescanner<Carried>(
     liveRunId = scan.run_id;
     adoptedThisScan = own !== null ? adoptedThisScan : false;
     failureIds = [];
+    linkedFailures = new Set();
     rows = [
       ...(scan.describe
         ? [{ key: DESCRIBE_KEY, display: "Descriptions" }]
         : []),
       ...scan.sensors.map((name) => ({ key: name, display: display(name) })),
     ];
-    progress = NO_PROGRESS;
+    resetProgress();
+    progressRunId = scan.run_id;
     run = {
       running: [...(scan.describe ? [DESCRIBE_KEY] : []), ...scan.sensors],
       started: null,
@@ -561,6 +573,7 @@ export function createRescanner<Carried>(
       text: startedText(names(scan.sensors.map(display), scan.describe)),
     });
     publish();
+    await drain();
   }
 
   function endText(scan: ScanRunRecord): MessageInput | null {
@@ -598,14 +611,13 @@ export function createRescanner<Carried>(
     endedRunId = scan.run_id;
     liveRunId = null;
     run = { ...run, running: [], started: null };
-    progress = { ...progress, describeAsk: null };
     starting = null;
 
     if (scan.phase === "refused") {
       const text = refusedText(scan.gaps);
 
       ports.post({ kind: "warning", text: `Scan refused - ${text}` });
-      progress = { ...progress, done: true };
+      overlay = { ...overlay, done: true };
       publish();
       await openRefused(text);
       ports.settled();
@@ -614,7 +626,7 @@ export function createRescanner<Carried>(
     }
 
     if (scan.phase !== "finished" && scan.phase !== "failed") {
-      progress = stoppedProgress(progress);
+      overlay = { ...overlay, stopped: true };
       publish();
 
       try {
@@ -633,7 +645,7 @@ export function createRescanner<Carried>(
     if (idle.length > 0) {
       const text = nothingRanText(idle);
 
-      progress = NO_PROGRESS;
+      resetProgress();
       emit({ scanning: null });
       ports.post({ kind: "error", text: `Scan failed - ${text}` });
       await openFromCache();
@@ -649,8 +661,8 @@ export function createRescanner<Carried>(
       ports.post(message);
     }
 
-    if (!progress.extractSettled) {
-      progress = { ...progress, extractSettled: true };
+    if (!progressNow().extractSettled) {
+      overlay = { ...overlay, extractSettled: true };
       await settle();
     }
 
@@ -665,21 +677,10 @@ export function createRescanner<Carried>(
       }
     }
 
-    progress = { ...progress, done: true };
+    overlay = { ...overlay, done: true };
     postDescribed();
     publish();
-
-    if (progress.log !== null) {
-      const path = runLogPath(progress.log);
-      const open: MessageAction = {
-        label: "Open log",
-        run: () => ports.openLog(path),
-      };
-
-      for (const id of failureIds) {
-        ports.attach(id, open);
-      }
-    }
+    linkLog();
 
     ports.settled();
   }
@@ -696,7 +697,7 @@ export function createRescanner<Carried>(
     liveRunId = null;
     begunRunId = null;
     run = { ...run, running: [], started: null };
-    progress = NO_PROGRESS;
+    resetProgress();
     emit({ scanning: null });
 
     try {
@@ -706,7 +707,7 @@ export function createRescanner<Carried>(
     }
   }
 
-  function progressOfRecord(): ScanProgress {
+  function progressOfRecord(): RunProgress {
     const owned =
       record === null ||
       isActive(record) ||
@@ -714,7 +715,7 @@ export function createRescanner<Carried>(
       record.run_id === begunRunId ||
       record.run_id === ownRunId;
 
-    return owned ? progress : NO_PROGRESS;
+    return owned ? progressNow() : progressOfRun(null);
   }
 
   async function takeRecord(next: ScanRunRecord | null) {
@@ -777,11 +778,7 @@ export function createRescanner<Carried>(
   function onRun(event: RunEvent) {
     externalQueue = externalQueue
       .then(async () => {
-        if (event.kind === "line") {
-          await applyLine(event.line);
-        } else {
-          await takeRecord(event.run);
-        }
+        await takeRecord(event.run);
 
         ports.progress(lastUpdate);
       })
@@ -791,10 +788,10 @@ export function createRescanner<Carried>(
   ports.port.onRun(onRun);
 
   seenRun = ports.snapshot.run();
+  queueSeen = seenRun;
+  processed = seenRun;
 
   ports.snapshot.onRun((next) => {
-    const before = seenRun;
-
     seenRun = next;
 
     if (
@@ -807,17 +804,16 @@ export function createRescanner<Carried>(
     const stopped =
       next !== null && next.state === "stopped" && next.id === activeSeen;
 
-    if (stopped && !progress.stopped) {
-      progress = stoppedProgress(progress);
+    if (stopped && !progressNow().stopped) {
+      overlay = { ...overlay, stopped: true };
       publish();
     }
 
     externalQueue = externalQueue
       .then(async () => {
-        for (const event of sensorEventsBetween(before, next)) {
-          await applyEvent(event);
-        }
-
+        queueSeen = next;
+        await drain();
+        linkLog();
         ports.progress(lastUpdate);
       })
       .catch(() => {});
@@ -900,7 +896,7 @@ export function createRescanner<Carried>(
       ranAt: run.ranAt,
     };
 
-    progress = NO_PROGRESS;
+    resetProgress();
     startedFrom = record?.run_id ?? null;
     ownRunId = null;
     ownEnd = null;
@@ -965,7 +961,7 @@ export function createRescanner<Carried>(
     }
 
     if (result.status === "gaps") {
-      progress = NO_PROGRESS;
+      resetProgress();
       emit({ scanning: null });
       const refusal = refusedText(result.gaps);
 
@@ -979,7 +975,7 @@ export function createRescanner<Carried>(
     const text = failureText(result);
 
     if (text !== null) {
-      progress = NO_PROGRESS;
+      resetProgress();
       emit({ scanning: null });
       ports.post({
         kind: result.status === "refused" ? "warning" : "error",
@@ -993,7 +989,7 @@ export function createRescanner<Carried>(
     }
 
     if (result.status === "stopped") {
-      progress = stoppedProgress(progress);
+      overlay = { ...overlay, stopped: true };
       publish();
 
       try {
@@ -1018,7 +1014,7 @@ export function createRescanner<Carried>(
       }
     }
 
-    progress = { ...progress, done: true };
+    overlay = { ...overlay, done: true };
     publish();
 
     if (!ports.hasExplorer()) {
@@ -1106,7 +1102,7 @@ export function createRescanner<Carried>(
       }
     },
     async answerDescribe(describe) {
-      if (progress.describeAsk === null) {
+      if (progressNow().describeAsk === null) {
         return;
       }
 
@@ -1146,7 +1142,7 @@ export function createRescanner<Carried>(
     external: () =>
       activityOf(ports.snapshot.run(), own !== null && !attachedToOther)
         .external,
-    progress: () => progress,
+    progress: progressNow,
     runView: () => ({
       run: ports.snapshot.run(),
       progress: progressOfRecord(),

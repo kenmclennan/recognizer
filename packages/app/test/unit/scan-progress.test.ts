@@ -1,159 +1,243 @@
+import { Run, type RunReport } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   describeAskText,
-  foldProgress,
+  NO_OVERLAY,
   NO_PROGRESS,
-  parseScanLine,
-  type ScanProgress,
+  NO_TIMING,
+  progressOfRun,
+  type RunProgress,
   scanningText,
   showTarget,
-  stoppedProgress,
+  stampTiming,
   tokensText,
 } from "../../src/scan-progress";
 
-function fold(lines: object[], from: ScanProgress = NO_PROGRESS): ScanProgress {
-  return lines.reduce<ScanProgress>((state, line) => {
-    const event = parseScanLine(JSON.stringify(line));
+function of(
+  reports: RunReport[],
+  more: {
+    sensors?: string[];
+    describe?: boolean;
+    overlay?: Partial<typeof NO_OVERLAY>;
+  } = {},
+): RunProgress {
+  const run = reports.reduce(
+    (held, report) => held.apply(report),
+    Run.begin({
+      id: "run-1",
+      startedBy: "cli",
+      startedAt: "2026-11-24T00:00:00.000Z",
+      scope: { kind: "working-tree" },
+      choices: {
+        sensors: more.sensors ?? ["crap", "duplication"],
+        describe: more.describe ?? true,
+        suites: {},
+      },
+    }).apply({ kind: "running" }),
+  );
 
-    return event === null ? state : foldProgress(state, event);
-  }, from);
+  return progressOfRun(run.view(), NO_TIMING, {
+    ...NO_OVERLAY,
+    ...more.overlay,
+  });
 }
 
-const phase = (name: string, total: number) => ({
-  event: "phase",
-  phase: name,
-  total,
+const extractCurrent: RunReport = { kind: "extract-current" };
+const planned = (...languages: string[]): RunReport => ({
+  kind: "extract-planned",
+  languages,
 });
-const entry = (name: string, phaseName: string, reason?: string) => ({
-  event: "entry",
-  phase: phaseName,
+const describing = (total: number): RunReport => ({
+  kind: "plugin-started",
+  name: "describe",
+  progress: { done: 0, total, unit: "files" },
+  phase: "describe",
+});
+const item = (name: string, reason?: string): RunReport => ({
+  kind: "plugin-item",
+  name: "describe",
+  item: name,
+  ok: reason === undefined,
+  reason: reason ?? "",
+  phase: "describe",
+});
+const sensed = (name: string): RunReport => ({
+  kind: "plugin-started",
   name,
-  outcome: reason === undefined ? "ok" : "failed",
-  ...(reason === undefined ? {} : { reason }),
+  progress: null,
 });
-const extractRun = {
-  event: "phase",
-  phase: "extract",
-  state: "run",
-  commit: "abc",
-  reason: "dirty",
-};
-const extractCurrent = {
-  event: "phase",
-  phase: "extract",
-  state: "current",
-  commit: "abc",
-};
-const summary = { event: "summary" };
+const sensorEnded = (name: string, reason?: string): RunReport =>
+  reason === undefined
+    ? { kind: "plugin-ended", name, state: "finished" }
+    : {
+        kind: "plugin-ended",
+        name,
+        state: "failed",
+        failure: { reason, diagnosis: null },
+      };
+const extractEnded = (name: string, reason?: string): RunReport =>
+  reason === undefined
+    ? { kind: "plugin-ended", name, state: "finished", phase: "extract" }
+    : {
+        kind: "plugin-ended",
+        name,
+        state: "failed",
+        failure: { reason, diagnosis: null },
+        phase: "extract",
+      };
+const logged: RunReport = { kind: "logged", log: "run-1" };
 
-describe("parseScanLine", () => {
-  it("ignores invalid JSON, unknown events and unknown phases", () => {
-    expect(parseScanLine("not json")).toBeNull();
-    expect(parseScanLine("[1]")).toBeNull();
-    expect(parseScanLine('{"event":"other"}')).toBeNull();
-    expect(
-      parseScanLine('{"event":"phase","phase":"other","total":1}'),
-    ).toBeNull();
-    expect(
-      parseScanLine(
-        '{"event":"entry","phase":"other","name":"a","outcome":"ok"}',
-      ),
-    ).toBeNull();
-    expect(
-      parseScanLine(
-        '{"event":"entry","phase":"sense","name":"a","outcome":"maybe"}',
-      ),
-    ).toBeNull();
+describe("progressOfRun", () => {
+  it("reads nothing from no run", () => {
+    expect(progressOfRun(null)).toEqual(NO_PROGRESS);
   });
 
-  it("reads the phase, entry and summary lines", () => {
-    expect(parseScanLine(JSON.stringify(extractRun))).toEqual({
-      event: "phase",
+  it("reads the languages, the extract entries and the describe counts from the plugin runs", () => {
+    const state = of([
+      planned("python", "rust"),
+      {
+        kind: "plugin-started",
+        name: "python",
+        progress: null,
+        phase: "extract",
+      },
+      extractEnded("python"),
+      extractEnded("rust", "no cargo"),
+      describing(3),
+      item("a.py"),
+      item("b.py", "timed out"),
+    ]);
+
+    expect(state.languages).toEqual(["python", "rust"]);
+    expect(state.extractEntries).toEqual([
+      { name: "python", outcome: "ok", reason: null, diagnosis: null },
+      { name: "rust", outcome: "failed", reason: "no cargo", diagnosis: null },
+    ]);
+    expect(state.describe).toEqual({
+      total: 3,
+      done: 2,
+      failed: 1,
+      firstFailure: { item: "b.py", reason: "timed out" },
+    });
+  });
+
+  it("reads the running extract language as the plugin progress", () => {
+    const state = of([
+      planned("python"),
+      {
+        kind: "plugin-started",
+        name: "python",
+        progress: { done: 5, total: 40, unit: "files" },
+        phase: "extract",
+      },
+    ]);
+
+    expect(state.sensorProgress).toEqual({
+      name: "python",
       phase: "extract",
-      state: "run",
-      commit: "abc",
+      progress: { done: 5, total: 40, unit: "files" },
     });
-    expect(parseScanLine(JSON.stringify(entry("a", "sense", "bad")))).toEqual({
-      event: "entry",
-      phase: "sense",
-      name: "a",
-      outcome: "failed",
-      reason: "bad",
-    });
-    expect(parseScanLine(JSON.stringify(summary))).toEqual({
-      event: "summary",
-    });
+    expect(state.extract).toBe("run");
+  });
+
+  it("reads the ask, the answer and the skipped state from the confirmation", () => {
+    const ask = { modules: 4, model: "m", inputTokens: 10, costUsd: null };
+    const asked = of([{ kind: "confirmation-asked", ask }]);
+
+    expect(asked.describeAsk).toEqual(ask);
+    expect(asked.describeSkipped).toBe(false);
+
+    const skipped = of([
+      { kind: "confirmation-asked", ask },
+      { kind: "confirmation-answered", describe: false },
+    ]);
+
+    expect(skipped.describeAsk).toBeNull();
+    expect(skipped.describeSkipped).toBe(true);
+    expect(
+      of([
+        { kind: "confirmation-asked", ask },
+        { kind: "confirmation-answered", describe: true },
+      ]).describeSkipped,
+    ).toBe(false);
+    expect(
+      of([{ kind: "confirmation-asked", ask }], {
+        overlay: { stopped: true },
+      }).describeAsk,
+    ).toBeNull();
+  });
+
+  it("reads the stop and the log from the run", () => {
+    const halt = {
+      cause: "limit" as const,
+      reason: "out of quota",
+      described: 412,
+      notDescribed: 1628,
+      threshold: 4,
+    };
+    const state = of([
+      describing(2040),
+      item("a.py"),
+      { kind: "describe-halted", halt },
+      logged,
+    ]);
+
+    expect(state.describeStop).toEqual(halt);
+    expect(state.describe?.done).toBe(1);
+    expect(state.log).toBe("run-1");
+  });
+
+  it("is not extract pending once anything began", () => {
+    expect(of([]).extract).toBe("pending");
+    expect(
+      of([{ kind: "structure", state: "running", files: null }]).extract,
+    ).toBe("current");
   });
 });
 
-describe("parseScanLine diagnosis", () => {
-  const diagnosis = {
-    code: "tests-failed",
-    line: "3 tests failed",
-    fix: "run them",
-    failing: { count: 3, names: ["t::a"] },
-  };
-  const sensed = (extra: object) => ({
-    ...entry("crap", "sense", "refused"),
-    ...extra,
-  });
-
-  it("keeps a well-formed diagnosis on an entry", () => {
-    expect(parseScanLine(JSON.stringify(sensed({ diagnosis })))).toEqual({
-      event: "entry",
-      phase: "sense",
-      name: "crap",
-      outcome: "failed",
-      reason: "refused",
-      diagnosis,
-    });
-  });
-
-  it("accepts any non-empty code and reads unmeasured", () => {
-    const custom = { code: "custom-code", line: "why", unmeasured: true };
-
-    expect(
-      parseScanLine(JSON.stringify(sensed({ diagnosis: custom }))),
-    ).toEqual({
-      event: "entry",
-      phase: "sense",
-      name: "crap",
-      outcome: "failed",
-      reason: "refused",
-      diagnosis: custom,
-    });
-  });
-
-  it.each([
-    ["an empty code", { ...diagnosis, code: "" }],
-    ["a missing line", { code: "tests-failed" }],
-    ["a fix that is not a string", { ...diagnosis, fix: 4 }],
-    [
-      "failing names that are not strings",
-      { ...diagnosis, failing: { names: [1] } },
-    ],
-    ["failing names that are not an array", { ...diagnosis, failing: {} }],
-  ])("drops %s and leaves the entry otherwise unchanged", (_label, bad) => {
-    expect(parseScanLine(JSON.stringify(sensed({ diagnosis: bad })))).toEqual({
-      event: "entry",
-      phase: "sense",
-      name: "crap",
-      outcome: "failed",
-      reason: "refused",
-    });
-  });
-
-  it("folds only the valid diagnosis of two entries", () => {
-    const state = fold([
-      phase("sense", 2),
-      sensed({ diagnosis }),
-      { ...entry("mutation", "sense", "refused"), diagnosis: { code: "x" } },
+describe("stampTiming", () => {
+  it("stamps an extract run's start once, its total and its end", () => {
+    const run = (reports: RunReport[]) =>
+      reports
+        .reduce(
+          (held, report) => held.apply(report),
+          Run.begin({
+            id: "run-1",
+            startedBy: "cli",
+            startedAt: "2026-11-24T00:00:00.000Z",
+            scope: { kind: "working-tree" },
+            choices: { sensors: [], describe: false, suites: {} },
+          }).apply(planned("python")),
+        )
+        .view();
+    const started = run([
+      {
+        kind: "plugin-started",
+        name: "python",
+        progress: { done: 0, total: 40, unit: "files" },
+        phase: "extract",
+      },
     ]);
+    const first = stampTiming(NO_TIMING, started, 1000);
+    const later = stampTiming(first, started, 5000);
+    const ended = stampTiming(
+      later,
+      run([
+        {
+          kind: "plugin-started",
+          name: "python",
+          progress: { done: 0, total: 40, unit: "files" },
+          phase: "extract",
+        },
+        extractEnded("python"),
+      ]),
+      9000,
+    );
 
-    expect(state.sense?.entries.map((one) => one.diagnosis)).toEqual([
-      diagnosis,
-      null,
-    ]);
+    expect(first.extractAt).toEqual({ python: 1000 });
+    expect(first.extractTotals).toEqual({ python: 40 });
+    expect(later.extractAt).toEqual({ python: 1000 });
+    expect(ended.extractDoneAt).toEqual({ python: 9000 });
   });
 });
 
@@ -163,94 +247,168 @@ describe("scanningText", () => {
     { key: "duplication", display: "Duplication" },
   ];
   const led = [{ key: "describe", display: "Descriptions" }, ...rows];
-  const midRun = fold([extractCurrent, phase("sense", 2)]);
+  const midRun = of([extractCurrent, describing(0), sensed("crap")]);
 
   it("names the running sensor and its place among the sensors", () => {
-    expect(scanningText(rows, "crap", midRun)).toBe(
-      "Running C.R.A.P.\u2026 1 of 2",
-    );
+    expect(scanningText(rows, "crap", midRun)).toBe("Running C.R.A.P.… 1 of 2");
   });
 
   it("reaches the last sensor", () => {
     expect(scanningText(rows, "duplication", midRun)).toBe(
-      "Running Duplication\u2026 2 of 2",
+      "Running Duplication… 2 of 2",
     );
   });
 
   it("leaves the describe row out of the sensor count", () => {
     expect(scanningText(led, "duplication", midRun)).toBe(
-      "Running Duplication\u2026 2 of 2",
+      "Running Duplication… 2 of 2",
     );
   });
 
   it("says Scanning alone before any row has started", () => {
-    expect(scanningText(rows, null, NO_PROGRESS)).toBe("Scanning\u2026");
+    expect(scanningText(rows, null, NO_PROGRESS)).toBe("Scanning…");
   });
 
   it("counts files at zero right after the describe phase line", () => {
     expect(
-      scanningText(
-        led,
-        "describe",
-        fold([extractCurrent, phase("describe", 40)]),
-      ),
-    ).toBe("Describing\u2026 0 of 40 files");
+      scanningText(led, "describe", of([extractCurrent, describing(40)])),
+    ).toBe("Describing… 0 of 40 files");
   });
 
   it("counts finished files as entries arrive", () => {
-    const entries = Array.from({ length: 12 }, (_, at) =>
-      entry(`m${at}`, "describe"),
-    );
+    const entries = Array.from({ length: 12 }, (_, at) => item(`m${at}`));
 
     expect(
       scanningText(
         led,
         "describe",
-        fold([extractCurrent, phase("describe", 40), ...entries]),
+        of([extractCurrent, describing(40), ...entries]),
       ),
-    ).toBe("Describing\u2026 12 of 40 files");
+    ).toBe("Describing… 12 of 40 files");
   });
 
   it("is null once the scan is done or stopped", () => {
-    expect(scanningText(rows, "crap", fold([extractCurrent, summary]))).toBe(
-      null,
+    expect(
+      scanningText(
+        rows,
+        "crap",
+        of([extractCurrent, logged], { overlay: { done: true } }),
+      ),
+    ).toBe(null);
+    expect(
+      scanningText(rows, "crap", of([], { overlay: { stopped: true } })),
+    ).toBe(null);
+    expect(
+      scanningText(
+        rows,
+        "crap",
+        progressOfRun({
+          ...Run.begin({
+            id: "run-1",
+            startedBy: "cli",
+            startedAt: "2026-11-24T00:00:00.000Z",
+            scope: { kind: "working-tree" },
+            choices: { sensors: ["crap"], describe: false, suites: {} },
+          })
+            .apply({ kind: "running" })
+            .stopped(null)
+            .view(),
+        }),
+      ),
+    ).toBe(null);
+  });
+});
+
+describe("plugin progress", () => {
+  const rows = [
+    { key: "crap", display: "Crap" },
+    { key: "mutation", display: "Mutation" },
+  ];
+
+  it("reads the extract phase with the plugin's name", () => {
+    const extracting = of([
+      planned("python"),
+      {
+        kind: "plugin-started",
+        name: "python",
+        progress: { done: 5, total: 40, unit: "files" },
+        phase: "extract",
+      },
+    ]);
+
+    expect(scanningText(rows, null, extracting)).toBe("Python: 5 of 40 files");
+  });
+
+  it("ignores another plugin's stored progress", () => {
+    const mutation = rows;
+    const running = of(
+      [
+        extractCurrent,
+        describing(0),
+        sensed("crap"),
+        sensorEnded("crap"),
+        sensed("mutation"),
+        {
+          kind: "plugin-progress",
+          name: "mutation",
+          progress: { done: 153, total: 229, unit: "functions" },
+        },
+      ],
+      { sensors: ["crap", "mutation"] },
     );
-    expect(scanningText(rows, "crap", stoppedProgress(midRun))).toBe(null);
+
+    expect(scanningText(mutation, "mutation", running)).toBe(
+      "Mutation: 153 of 229 functions",
+    );
+    expect(scanningText(mutation, "crap", running)).toBe(
+      "Running Crap… 1 of 2",
+    );
   });
 });
 
 describe("the extraction settle point", () => {
   it("is the first describe or sense phase line", () => {
-    expect(fold([extractRun]).extractSettled).toBe(false);
-    expect(fold([extractRun, entry("python", "extract")]).extractSettled).toBe(
+    expect(of([planned("python")]).extractSettled).toBe(false);
+    expect(of([planned("python"), extractEnded("python")]).extractSettled).toBe(
       false,
     );
-    expect(fold([extractRun, phase("describe", 1)]).extractSettled).toBe(true);
-    expect(fold([extractRun, phase("sense", 1)]).extractSettled).toBe(true);
+    expect(
+      of([planned("python"), extractEnded("python"), describing(1)])
+        .extractSettled,
+    ).toBe(true);
+    expect(
+      of([
+        planned("python"),
+        extractEnded("python"),
+        describing(0),
+        sensed("crap"),
+      ]).extractSettled,
+    ).toBe(true);
   });
 
   it("moves extract to current when a later phase or the summary arrives", () => {
-    expect(fold([extractRun]).extract).toBe("run");
-    expect(fold([extractRun, phase("describe", 1)]).extract).toBe("current");
-    expect(fold([extractRun, phase("sense", 1)]).extract).toBe("current");
-    expect(fold([extractRun, summary]).extract).toBe("current");
+    expect(of([planned("python")]).extract).toBe("run");
+    expect(
+      of([planned("python"), extractEnded("python"), describing(1)]).extract,
+    ).toBe("current");
+    expect(of([planned("python"), logged]).extract).toBe("current");
   });
 
   it("is the summary when no later phase ran", () => {
-    expect(fold([extractCurrent, summary]).extractSettled).toBe(true);
+    expect(of([extractCurrent, logged]).extractSettled).toBe(true);
   });
 });
 
 describe("showTarget", () => {
   it("targets the first failed file, which wins over a failed sensor", () => {
-    const state = fold([
+    const state = of([
       extractCurrent,
-      phase("describe", 2),
-      entry("a.py", "describe", "x"),
-      entry("b.py", "describe", "y"),
-      phase("sense", 1),
-      entry("alpha", "sense", "z"),
-      summary,
+      describing(2),
+      item("a.py", "x"),
+      item("b.py", "y"),
+      sensed("crap"),
+      sensorEnded("crap", "z"),
+      logged,
     ]);
 
     expect(showTarget(state)).toEqual({
@@ -261,17 +419,19 @@ describe("showTarget", () => {
   });
 
   it("targets the failed sensor row when no file failed", () => {
-    const state = fold([
+    const state = of([
       extractCurrent,
-      phase("sense", 2),
-      entry("alpha", "sense"),
-      entry("beta", "sense", "z"),
-      summary,
+      describing(0),
+      sensed("crap"),
+      sensorEnded("crap"),
+      sensed("duplication"),
+      sensorEnded("duplication", "z"),
+      logged,
     ]);
 
     expect(showTarget(state)).toEqual({
       kind: "sensor",
-      name: "beta",
+      name: "duplication",
       reason: "z",
     });
   });
@@ -279,282 +439,36 @@ describe("showTarget", () => {
   it("has no target for an extract-only failure or no failure", () => {
     expect(
       showTarget(
-        fold([extractRun, entry("python", "extract", "boom"), summary]),
+        of([planned("python"), extractEnded("python", "boom"), logged]),
       ),
     ).toBeNull();
-    expect(showTarget(fold([extractCurrent, summary]))).toBeNull();
-  });
-});
-
-describe("the start event", () => {
-  it("parses a sense start line and ignores any other phase's", () => {
-    expect(
-      parseScanLine('{"event":"start","phase":"sense","name":"crap"}'),
-    ).toEqual({ event: "start", phase: "sense", name: "crap" });
-    expect(
-      parseScanLine('{"event":"start","phase":"describe","name":"x"}'),
-    ).toBeNull();
-  });
-
-  it("leaves the folded progress unchanged", () => {
-    expect(
-      foldProgress(NO_PROGRESS, {
-        event: "start",
-        phase: "sense",
-        name: "crap",
-      }),
-    ).toBe(NO_PROGRESS);
-  });
-});
-
-describe("plugin progress", () => {
-  const rows = [
-    { key: "crap", display: "Crap" },
-    { key: "mutation", display: "Mutation" },
-  ];
-  const plugin = (name: string, data: object, phaseName = "sense") => ({
-    event: "plugin",
-    phase: phaseName,
-    name,
-    data,
-  });
-  const coverage = plugin("mutation", {
-    event: "note",
-    text: "Coverage run for unit",
-  });
-  const mutants = (done: number, total: number, step?: string) =>
-    plugin("mutation", {
-      event: "progress",
-      done,
-      total,
-      unit: "functions",
-      ...(step === undefined ? {} : { step }),
-    });
-  const started = plugin("mutation", {
-    event: "start",
-    total: 229,
-    unit: "functions",
-  });
-  const start = (name: string) => ({ event: "start", phase: "sense", name });
-  const running = fold([
-    extractCurrent,
-    phase("sense", 2),
-    entry("crap", "sense"),
-    start("mutation"),
-  ]);
-
-  it("parses both shapes", () => {
-    expect(parseScanLine(JSON.stringify(coverage))).toEqual(coverage);
-    expect(parseScanLine(JSON.stringify(mutants(153, 229)))).toEqual(
-      mutants(153, 229),
-    );
-    expect(parseScanLine(JSON.stringify(mutants(0, 0)))).toEqual(mutants(0, 0));
-    expect(parseScanLine(JSON.stringify(started))).toEqual(started);
-  });
-
-  it("keeps a valid queued on a start and drops an invalid one", () => {
-    const withQueued = plugin("mutation", {
-      event: "start",
-      total: 229,
-      unit: "functions",
-      queued: 30,
-    });
-
-    expect(parseScanLine(JSON.stringify(withQueued))).toEqual(withQueued);
-    expect(
-      parseScanLine(
-        JSON.stringify({
-          ...withQueued,
-          data: { ...withQueued.data, queued: -1 },
-        }),
-      ),
-    ).toEqual(started);
-  });
-
-  it("rejects done above total, a negative or fractional count and a missing done", () => {
-    expect(parseScanLine(JSON.stringify(mutants(3, 2)))).toBeNull();
-    expect(parseScanLine(JSON.stringify(mutants(-1, 2)))).toBeNull();
-    expect(parseScanLine(JSON.stringify(mutants(1.5, 2)))).toBeNull();
-    expect(
-      parseScanLine(
-        JSON.stringify(plugin("mutation", { event: "progress", total: 2 })),
-      ),
-    ).toBeNull();
-    expect(
-      parseScanLine(JSON.stringify(plugin("mutation", { event: "later" }))),
-    ).toBeNull();
-    expect(
-      parseScanLine(JSON.stringify({ ...coverage, phase: "other" })),
-    ).toBeNull();
-  });
-
-  it("is stored on a plugin progress event and cleared on the plugin's next start and on a sense entry", () => {
-    const stored = fold([mutants(1, 2)], running);
-
-    expect(stored.sensorProgress).toEqual({
-      name: "mutation",
-      phase: "sense",
-      progress: { done: 1, total: 2, unit: "functions" },
-    });
-    expect(fold([start("other")], stored).sensorProgress).toBeNull();
-    expect(fold([started], stored).sensorProgress).toEqual({
-      name: "mutation",
-      phase: "sense",
-    });
-    expect(
-      fold([entry("mutation", "sense")], stored).sensorProgress,
-    ).toBeNull();
-  });
-
-  it("folds a start, a progress, a note and a progress in turn", () => {
-    const counted = {
-      done: 3,
-      total: 9,
-      unit: "functions",
-      step: "unit",
-    };
-    const afterStart = fold([started], running);
-    const afterProgress = fold([mutants(3, 9, "unit")], afterStart);
-    const afterNote = fold([coverage], afterProgress);
-    const afterNext = fold([mutants(4, 9, "unit")], afterNote);
-
-    expect(afterStart.sensorProgress).toEqual({
-      name: "mutation",
-      phase: "sense",
-    });
-    expect(afterProgress.sensorProgress).toEqual({
-      name: "mutation",
-      phase: "sense",
-      progress: counted,
-    });
-    expect(afterNote.sensorProgress).toEqual({
-      name: "mutation",
-      phase: "sense",
-      progress: counted,
-      note: "Coverage run for unit",
-    });
-    expect(afterNext.sensorProgress).toEqual({
-      name: "mutation",
-      phase: "sense",
-      progress: { ...counted, done: 4 },
-    });
-    expect(afterNext.startedSuites).toEqual({ mutation: ["unit"] });
-  });
-
-  it("does not let another plugin's lines replace the running one's", () => {
-    const stored = fold([mutants(3, 9)], running);
-    const other = fold(
-      [plugin("crap", { event: "progress", done: 1, total: 2, unit: "x" })],
-      stored,
-    );
-
-    expect(other.sensorProgress?.name).toBe("mutation");
-  });
-
-  it("shows the suite on coverage, then the suite and count, with no estimate", () => {
-    expect(scanningText(rows, "mutation", running)).toBe(
-      "Running Mutation\u2026 2 of 2",
-    );
-    expect(scanningText(rows, "mutation", fold([coverage], running))).toBe(
-      "Mutation: Coverage run for unit",
-    );
-    expect(
-      scanningText(rows, "mutation", fold([mutants(153, 229)], running)),
-    ).toBe("Mutation: 153 of 229 functions");
-    expect(
-      scanningText(rows, "mutation", fold([mutants(229, 229)], running)),
-    ).toBe("Mutation: 229 of 229 functions");
-    expect(
-      scanningText(rows, "mutation", fold([mutants(11, 29, "unit")], running)),
-    ).toBe("Mutation: unit \u00b7 11 of 29 functions");
-  });
-
-  it("reads the extract phase with the plugin's name", () => {
-    const extracting = fold([
-      plugin(
-        "python",
-        { event: "progress", done: 5, total: 40, unit: "files" },
-        "extract",
-      ),
-    ]);
-
-    expect(scanningText(rows, null, extracting)).toBe("Python: 5 of 40 files");
-  });
-
-  it("ignores another plugin's stored progress", () => {
-    expect(scanningText(rows, "crap", fold([coverage], running))).toBe(
-      "Running Crap\u2026 1 of 2",
-    );
-  });
-});
-
-describe("the describe stop event", () => {
-  const stopped = {
-    event: "stopped",
-    phase: "describe",
-    cause: "limit",
-    reason: "out of quota",
-    described: 412,
-    not_described: 1628,
-    threshold: 4,
-  };
-
-  it("folds into the progress and leaves the entries alone", () => {
-    const state = fold([
-      phase("describe", 2040),
-      entry("a.py", "describe"),
-      stopped,
-    ]);
-
-    expect(state.describeStop).toEqual({
-      cause: "limit",
-      reason: "out of quota",
-      described: 412,
-      notDescribed: 1628,
-      threshold: 4,
-    });
-    expect(state.describe?.entries).toHaveLength(1);
-  });
-
-  it("is ignored with an unknown cause or a missing count", () => {
-    expect(
-      parseScanLine(JSON.stringify({ ...stopped, cause: "other" })),
-    ).toBeNull();
-    expect(
-      parseScanLine(JSON.stringify({ ...stopped, not_described: "many" })),
-    ).toBeNull();
+    expect(showTarget(of([extractCurrent, logged]))).toBeNull();
   });
 });
 
 describe("the describe confirmation", () => {
-  const confirm = {
-    event: "confirm",
-    phase: "describe",
-    modules: 2040,
-    model: "sonnet",
-    input_tokens: 8_000_000,
-    cost_usd: 17.54,
-  };
-
   it("holds the ask until it is answered and shows a waiting line", () => {
-    const state = fold([confirm]);
-
-    expect(state.describeAsk).toEqual({
+    const ask = {
       modules: 2040,
       model: "sonnet",
       inputTokens: 8_000_000,
       costUsd: 17.54,
-    });
+    };
+    const state = of([{ kind: "confirmation-asked", ask }]);
+
+    expect(state.describeAsk).toEqual(ask);
     expect(scanningText([], "describe", state)).toBe("Waiting for your answer");
 
     const answered = (describe: boolean) =>
-      fold([{ event: "answered", phase: "describe", describe }], state);
+      of([
+        { kind: "confirmation-asked", ask },
+        { kind: "confirmation-answered", describe },
+      ]);
 
     expect(answered(true).describeAsk).toBeNull();
     expect(answered(true).describeSkipped).toBe(false);
     expect(answered(false).describeAsk).toBeNull();
     expect(answered(false).describeSkipped).toBe(true);
-    expect(stoppedProgress(state).describeAsk).toBeNull();
   });
 
   it("words the card with the known and the unknown price", () => {
@@ -588,50 +502,6 @@ describe("the describe confirmation", () => {
   ])("writes %i tokens as %s", (tokens, text) => {
     expect(tokensText(tokens)).toBe(text);
   });
-
-  it("is ignored with a missing count", () => {
-    expect(
-      parseScanLine(JSON.stringify({ ...confirm, modules: "many" })),
-    ).toBeNull();
-  });
-});
-
-describe("parseScanLine preflight and summary exit", () => {
-  const gap = {
-    id: "g",
-    line: "x is missing",
-    needs: ["crap"],
-    project: null,
-    fix: { text: "fix it", command: null, cwd: "", env: {}, kind: "outside" },
-  };
-
-  it("reads the run, ok and gaps states and drops a malformed gap", () => {
-    expect(parseScanLine('{"event":"preflight","state":"run"}')).toEqual({
-      event: "preflight",
-      state: "run",
-    });
-    expect(parseScanLine('{"event":"preflight","state":"ok"}')).toEqual({
-      event: "preflight",
-      state: "ok",
-    });
-    expect(
-      parseScanLine(
-        JSON.stringify({
-          event: "preflight",
-          state: "gaps",
-          gaps: [gap, { id: 1 }],
-        }),
-      ),
-    ).toEqual({ event: "preflight", state: "gaps", gaps: [gap] });
-    expect(parseScanLine('{"event":"preflight","state":"x"}')).toBeNull();
-  });
-
-  it("carries the summary exit when there is one", () => {
-    expect(parseScanLine('{"event":"summary","exit":4}')).toEqual({
-      event: "summary",
-      exit: 4,
-    });
-  });
 });
 
 describe("describeAskText with a describe rate", () => {
@@ -660,56 +530,49 @@ describe("describeAskText with a describe rate", () => {
 });
 
 describe("the extract run line's languages", () => {
-  const run = (languages: unknown) =>
-    parseScanLine(
-      JSON.stringify({
-        event: "phase",
-        phase: "extract",
-        state: "run",
-        commit: "abc",
-        languages,
-      }),
-    );
-
-  it("reads languages when they are an array of strings", () => {
-    expect(run(["python", "rust"])).toEqual({
-      event: "phase",
-      phase: "extract",
-      state: "run",
-      commit: "abc",
-      languages: ["python", "rust"],
-    });
-  });
-
-  it("treats a non-array or non-string entries as absent", () => {
-    expect(run("python")).not.toHaveProperty("languages");
-    expect(run(["python", 3])).not.toHaveProperty("languages");
-    expect(run(["python", ""])).not.toHaveProperty("languages");
-  });
-
   it("folds the list into the progress", () => {
-    const event = run(["python"]);
-
-    expect(event).not.toBeNull();
-    expect(
-      foldProgress(NO_PROGRESS, event as NonNullable<typeof event>).languages,
-    ).toEqual(["python"]);
+    expect(of([planned("python", "rust")]).languages).toEqual([
+      "python",
+      "rust",
+    ]);
   });
 });
 
-describe("parseScanLine structure", () => {
-  it("reads the run, done and failed states and drops a count it cannot read", () => {
-    expect(parseScanLine('{"event":"structure","state":"run"}')).toEqual({
-      event: "structure",
-      state: "run",
+describe("the describe stop event", () => {
+  it("folds into the progress and leaves the entries alone", () => {
+    const state = of([
+      describing(2040),
+      item("a.py"),
+      {
+        kind: "describe-halted",
+        halt: {
+          cause: "limit",
+          reason: "out of quota",
+          described: 412,
+          notDescribed: 1628,
+          threshold: 4,
+        },
+      },
+    ]);
+
+    expect(state.describeStop).toMatchObject({
+      cause: "limit",
+      described: 412,
+      notDescribed: 1628,
     });
-    expect(
-      parseScanLine('{"event":"structure","state":"done","files":125}'),
-    ).toEqual({ event: "structure", state: "done", files: 125 });
-    expect(
-      parseScanLine('{"event":"structure","state":"failed","files":3}'),
-    ).toEqual({ event: "structure", state: "failed", files: 3 });
-    expect(parseScanLine('{"event":"structure","state":"done"}')).toBeNull();
-    expect(parseScanLine('{"event":"structure","state":"x"}')).toBeNull();
+    expect(state.describe?.done).toBe(1);
+  });
+});
+
+describe("a describe run that ended", () => {
+  it("keeps its counts for the finished message", () => {
+    const state = of([describing(1), item("a.py")]);
+
+    expect(state.describe).toEqual({
+      total: 1,
+      done: 1,
+      failed: 0,
+      firstFailure: null,
+    });
   });
 });
