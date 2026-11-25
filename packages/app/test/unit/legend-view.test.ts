@@ -1,11 +1,10 @@
-import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
 import { describe, expect, it } from "vitest";
-import { lookBrowserArgs, webkit } from "../../src/look-page";
+import { lookRun, webkit } from "../../src/look-page";
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 
@@ -76,7 +75,7 @@ type Facts = {
   calls: boolean[];
 };
 
-function collect(): Facts {
+async function collect(): Promise<Facts> {
   const dir = mkdtempSync(join(tmpdir(), "legend-view-"));
 
   try {
@@ -95,11 +94,7 @@ function collect(): Facts {
       `<!doctype html><html><head><style>${css}</style></head><body><div id="out"></div><script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
     );
 
-    const run = spawnSync(
-      process.execPath,
-      lookBrowserArgs(page, { size: "800x600" }),
-      { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
-    );
+    const run = await lookRun(page, { size: "800x600" });
     const match = /<div id="out">([^<]*)<\/div>/.exec(run.stdout);
 
     if (match === null || !/^[A-Za-z0-9+/=]+$/.test(match[1])) {
@@ -120,21 +115,24 @@ function collect(): Facts {
   }
 }
 
-describe.skipIf(webkit === undefined)("legend switch in a real browser", () => {
-  const f = (webkit === undefined ? null : collect()) as Facts;
+describe.skipIf(webkit === undefined)(
+  "legend switch in a real browser",
+  async () => {
+    const f = (webkit === undefined ? null : await collect()) as Facts;
 
-  it("draws the switch as the rows' app checkbox, with no platform input", () => {
-    expect(f.inputs).toBe(0);
-    expect(f.role).toBe("checkbox");
-    expect(f.tabIndex).toBe(0);
-    expect(f.unchecked.look).toBe(f.rowUnchecked);
-    expect(f.checked.look).toBe(f.rowChecked);
-    expect(f.checked.look).not.toBe(f.unchecked.look);
-    expect(f.unchecked.aria).toBe("false");
-    expect(f.checked.aria).toBe("true");
-  });
+    it("draws the switch as the rows' app checkbox, with no platform input", () => {
+      expect(f.inputs).toBe(0);
+      expect(f.role).toBe("checkbox");
+      expect(f.tabIndex).toBe(0);
+      expect(f.unchecked.look).toBe(f.rowUnchecked);
+      expect(f.checked.look).toBe(f.rowChecked);
+      expect(f.checked.look).not.toBe(f.unchecked.look);
+      expect(f.unchecked.aria).toBe("false");
+      expect(f.checked.aria).toBe("true");
+    });
 
-  it("still toggles inferred lines from the box, the label and the keyboard", () => {
-    expect(f.calls).toEqual([true, false, false]);
-  });
-});
+    it("still toggles inferred lines from the box, the label and the keyboard", () => {
+      expect(f.calls).toEqual([true, false, false]);
+    });
+  },
+);
