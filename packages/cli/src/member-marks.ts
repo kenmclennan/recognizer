@@ -1,5 +1,4 @@
-import type { Member, Repository } from "@recognizer/core";
-import type { MarkedFile } from "./change-marks.js";
+import type { MarkedFile, Member, Repository } from "@recognizer/core";
 
 export type MemberMarkKind = "added" | "modified" | "removed";
 

@@ -206,6 +206,7 @@ export * from "./domain/glob.js";
 export * from "./domain/history/baseline.js";
 export * from "./domain/history/baseline-repository.js";
 export * from "./domain/history/candidate.js";
+export * from "./domain/history/change-marks.js";
 export * from "./domain/history/git-settle.js";
 export * from "./domain/history/scan-baseline.js";
 export * from "./domain/history/scan-selection.js";

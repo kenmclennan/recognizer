@@ -1,10 +1,10 @@
-import type {
-  ChangeMarks,
-  Changes,
-  Repository,
-  ViewChange,
+import {
+  type ChangeMarks,
+  type Changes,
+  changeMarks,
+  type Repository,
+  type ViewChange,
 } from "@recognizer/core";
-import { changeMarks } from "../../change-marks.js";
 import type { Io } from "../../cli.js";
 import { parseNameStatus } from "./name-status-parse.js";
 

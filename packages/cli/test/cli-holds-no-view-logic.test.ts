@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { REPO } from "./helpers.js";
@@ -12,6 +12,13 @@ const REMOVED = [
   "paths.ts",
   "notes-order.ts",
   "git-range.ts",
+  "change-marks.ts",
+];
+const MOVED_RULES = [
+  "statusOf",
+  "changeMarks",
+  "classifyChanges",
+  "classifyOpened",
 ];
 const MOVED_NAMES = [
   "usesOf",
@@ -45,6 +52,30 @@ describe("the CLI holds no view logic", () => {
     expect(
       MOVED_NAMES.filter((name) => new RegExp(`\\b${name}\\b`).test(index)),
     ).toEqual([]);
+  });
+
+  it("defines none of the change-mark rules", () => {
+    const defined = (directory: string): string[] =>
+      readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+        const path = join(directory, entry.name);
+
+        if (entry.isDirectory()) {
+          return defined(path);
+        }
+
+        if (!entry.name.endsWith(".ts")) {
+          return [];
+        }
+
+        const text = readFileSync(path, "utf8");
+
+        return MOVED_RULES.filter((name) =>
+          new RegExp(`function ${name}\\b`).test(text),
+        ).map((name) => `${path}: ${name}`);
+      });
+
+    expect(MOVED_RULES.length).toBeGreaterThan(0);
+    expect(defined(SRC)).toEqual([]);
   });
 
   it("keeps the command files free of the removed modules and set-building logic", () => {

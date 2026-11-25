@@ -1,8 +1,6 @@
-import {
-  type ExtractionSelection,
-  type Repository,
-  ScanSelection,
-} from "@recognizer/core";
+import type { ExtractionSelection } from "../extraction.js";
+import type { Repository } from "../repository.js";
+import { ScanSelection } from "./scan-selection.js";
 
 export type Mark = "added" | "modified" | "removed" | "renamed";
 
