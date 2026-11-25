@@ -694,6 +694,38 @@ describe("checkPlaceholders", () => {
     });
   });
 
+  it("fails a sensor that publishes settings and labels none of them", () => {
+    const outcome = edited((manifest) => {
+      for (const setting of manifest.settings as {
+        label?: string;
+        labels?: unknown;
+      }[]) {
+        delete setting.label;
+        delete setting.labels;
+      }
+    });
+
+    expect(outcome.status).toBe("fail");
+    expect(outcome.reason).toContain(
+      "mine: publishes settings but none has a label or labels, so it gets no Settings pane",
+    );
+  });
+
+  it("passes a sensor that labels one setting and leaves another unlabelled", () => {
+    const manifest = thresholds();
+
+    expect(
+      (manifest.settings as { label?: string; labels?: unknown }[]).some(
+        (setting) =>
+          setting.label === undefined && setting.labels === undefined,
+      ),
+    ).toBe(true);
+    expect(placeholdersOf(manifest)).toEqual({
+      name: "placeholders",
+      status: "ok",
+    });
+  });
+
   it("matches an entry against a values declaration exactly", () => {
     const outcome = edited((manifest) => {
       declared(manifest).metric = {

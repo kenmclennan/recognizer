@@ -310,6 +310,20 @@ function placeholderProblems(manifest: Manifest): string[] {
     }
   }
 
+  const published = manifest.settings as Record<string, unknown>[];
+
+  if (
+    manifest.kind === "sensor" &&
+    published.length > 0 &&
+    published.every(
+      (setting) => setting.label === undefined && setting.labels === undefined,
+    )
+  ) {
+    problems.push(
+      `${manifest.name}: publishes settings but none has a label or labels, so it gets no Settings pane`,
+    );
+  }
+
   for (const setting of manifest.settings as Record<string, unknown>[]) {
     const first = placeholdersIn(String(setting.key))[0];
     const declaration = first === undefined ? undefined : declared[first];
