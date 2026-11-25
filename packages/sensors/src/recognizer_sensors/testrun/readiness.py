@@ -3,10 +3,13 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
+from recognizer_sensors.mutation.runner import copy_repository
 from recognizer_sensors.scans import Scan, read_scans
 from recognizer_sensors.settings import Refusal
 from recognizer_sensors.testrun.reports import (
@@ -165,7 +168,8 @@ def lacks_contexts(suite: Suite, directory: Path) -> bool:
 def mutation_check(
     repository: Path, settings: dict, run: bool, names: list[str] | None = None
 ) -> tuple[list[dict], list[dict]]:
-    gaps, notes = check_with_notes(repository, settings, run, names)
+    carry = tuple(settings.get("carry", ()))
+    gaps, notes = check_with_notes(repository, settings, run, names, carry)
     raw = settings.get("suites")
 
     if raw is None:
@@ -583,19 +587,25 @@ def partial_note(suite: Suite, covered: int, expected: int) -> dict:
 
 
 def run_gap(
-    repository: Path, suite: Suite, files: list[str], stream, scans: list[Scan]
+    repository: Path,
+    suite: Suite,
+    files: list[str],
+    stream,
+    scans: list[Scan],
+    root: Path | None = None,
 ) -> tuple[dict | None, dict | None]:
     started_at = time.time()
+    root = repository if root is None else root
 
     try:
-        returncode, output = run_suite(repository, suite, stream)
+        returncode, output = run_suite(repository, suite, stream, root)
     except Refusal:
         return suite_gap("activate-failed", suite, "the login shell could not be started"), None
 
     where = report_pattern(suite)
     source = source_of(suite)
     shown = output_tail(output)
-    coverage = read_source(repository, source, files, started_at)
+    coverage = read_source(root, source, files, started_at)
 
     if coverage is None:
         cause = f"the suite exited {returncode} and left" if returncode else "the suite left"
@@ -605,7 +615,7 @@ def run_gap(
             None,
         )
 
-    if not coverage and has_well_formed_jacoco(repository, source, files, started_at):
+    if not coverage and has_well_formed_jacoco(root, source, files, started_at):
         return unmatched_gap(suite, where, bool(files), shown), None
 
     if not coverage:
@@ -627,7 +637,9 @@ def run_gap(
     return None, None
 
 
-def run_gaps(repository: Path, suites: list[Suite]) -> tuple[list[dict], list[dict]]:
+def run_gaps(
+    repository: Path, suites: list[Suite], root: Path | None = None
+) -> tuple[list[dict], list[dict]]:
     scans = read_scans(repository)
     files = [path for scan in scans for module in scan.modules for path in module.files]
     log = repository / LOG
@@ -637,7 +649,7 @@ def run_gaps(repository: Path, suites: list[Suite]) -> tuple[list[dict], list[di
 
     with log.open("w", encoding="utf-8") as stream:
         for suite in suites:
-            result, note = run_gap(repository, suite, files, stream, scans)
+            result, note = run_gap(repository, suite, files, stream, scans, root)
 
             if result is not None:
                 found.append(result)
@@ -646,6 +658,20 @@ def run_gaps(repository: Path, suites: list[Suite]) -> tuple[list[dict], list[di
                 notes.append(note)
 
     return found, notes
+
+
+def run_gaps_in_copy(
+    repository: Path, suites: list[Suite], carry: tuple[str, ...]
+) -> tuple[list[dict], list[dict]]:
+    work = Path(tempfile.mkdtemp(prefix="recognizer-check-"))
+
+    try:
+        copy = work / "check"
+        copy_repository(repository, copy, carry)
+
+        return run_gaps(repository, suites, copy)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
 
 
 def check(
@@ -673,7 +699,11 @@ def locked(repository: Path) -> int | None:
 
 
 def check_with_notes(
-    repository: Path, settings: dict, run: bool, names: list[str] | None = None
+    repository: Path,
+    settings: dict,
+    run: bool,
+    names: list[str] | None = None,
+    carry: tuple[str, ...] | None = None,
 ) -> tuple[list[dict], list[dict]]:
     descriptor = locked(repository)
 
@@ -691,13 +721,17 @@ def check_with_notes(
         )
 
     try:
-        return checked(repository, settings, run, names)
+        return checked(repository, settings, run, names, carry)
     finally:
         os.close(descriptor)
 
 
 def checked(
-    repository: Path, settings: dict, run: bool, names: list[str] | None
+    repository: Path,
+    settings: dict,
+    run: bool,
+    names: list[str] | None,
+    carry: tuple[str, ...] | None = None,
 ) -> tuple[list[dict], list[dict]]:
     raw = settings.get("suites")
 
@@ -726,8 +760,12 @@ def checked(
         if not found:
             clean.append(suite)
 
-    if run:
+    if run and carry is None:
         found, run_notes = run_gaps(repository, clean)
+        gaps.extend(found)
+        notes.extend(run_notes)
+    elif run and clean:
+        found, run_notes = run_gaps_in_copy(repository, clean, carry)
         gaps.extend(found)
         notes.extend(run_notes)
 

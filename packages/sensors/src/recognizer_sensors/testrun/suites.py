@@ -231,8 +231,9 @@ def prepare_suite_folder(root: Path, suite: Suite) -> None:
     folder.mkdir(parents=True)
 
 
-def run_suite(repository: Path, suite: Suite, stream) -> tuple[int, str]:
-    prepare_suite_folder(repository, suite)
+def run_suite(repository: Path, suite: Suite, stream, root: Path | None = None) -> tuple[int, str]:
+    root = repository if root is None else root
+    prepare_suite_folder(root, suite)
     stream.write(f"== {suite.name}: {suite.command}\n")
     stream.flush()
     offset = stream.tell()
@@ -241,8 +242,8 @@ def run_suite(repository: Path, suite: Suite, stream) -> tuple[int, str]:
     try:
         result = subprocess.run(
             [shell, "-ilc", shell_script(suite)],
-            cwd=repository,
-            env={**os.environ, **suite_environment(repository, suite), **suite.env},
+            cwd=root,
+            env={**os.environ, **suite_environment(root, suite), **suite.env},
             stdin=subprocess.DEVNULL,
             stdout=stream,
             stderr=subprocess.STDOUT,

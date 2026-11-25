@@ -5,6 +5,7 @@ import re
 import shlex
 import shutil
 import stat
+import subprocess
 from dataclasses import asdict
 from pathlib import Path
 from unittest import mock
@@ -13,6 +14,7 @@ import pytest
 from conftest import REPOSITORY, SHIPPED
 
 from recognizer_sensors.cli import main
+from recognizer_sensors.mutation.runner import plan_listing
 from recognizer_sensors.registry import SHIPPED as REGISTRY
 from recognizer_sensors.scans import Scan, ScanModule
 from recognizer_sensors.testrun import readiness
@@ -1467,3 +1469,121 @@ def test_the_check_line_carries_a_partial_note_under_notes_and_exits_zero(harnes
 
     assert status == 0
     assert json.loads(out) == {"gaps": [], "notes": [partial("api", 1, 2)]}
+
+
+def git_repository(harness):
+    root = harness.root
+    (root / "a.py").write_text("x = 1\n")
+    (root / ".gitignore").write_text("tools/\n")
+    (root / "tools").mkdir()
+    (root / "tools" / "marker").write_text("here\n")
+
+    for arguments in (
+        ["init", "-q"],
+        ["add", "a.py", ".gitignore"],
+        ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init"],
+    ):
+        subprocess.run(["git", *arguments], cwd=root, check=True)
+
+    return root
+
+
+NEEDS_MARKER = f"test -f tools/marker && {WRITES_LCOV}"
+
+
+def test_the_mutation_check_runs_a_suite_in_a_copy_without_an_uncarried_folder(harness):
+    root = git_repository(harness)
+    settings = run_settings(NEEDS_MARKER)
+
+    assert check(root, settings, True) == []
+
+    gaps, _ = readiness.mutation_check(root, settings, True)
+
+    assert codes(gaps) == ["coverage-missing"]
+    assert gaps[0]["suite"] == "api"
+    assert (root / "tools" / "marker").exists()
+
+
+def test_the_mutation_check_with_the_folder_carried_is_ready(harness):
+    root = git_repository(harness)
+    settings = {**run_settings(NEEDS_MARKER), "carry": ["tools"]}
+
+    assert readiness.mutation_check(root, settings, True)[0] == []
+
+
+def test_a_suite_that_cannot_run_in_the_copy_names_the_suite_and_its_output(harness):
+    root = git_repository(harness)
+    settings = run_settings("echo bad interpreter; exit 126")
+
+    gaps, _ = readiness.mutation_check(root, settings, True)
+
+    assert codes(gaps) == ["coverage-missing"]
+    assert gaps[0]["suite"] == "api"
+    assert gaps[0]["line"].startswith("suite api:")
+    assert "bad interpreter" in gaps[0]["output"]
+
+
+@pytest.mark.parametrize("passing", [True, False])
+def test_the_mutation_check_removes_its_copy(harness, tmp_path, passing):
+    root = git_repository(harness)
+    seen = tmp_path / "ran-in"
+    command = f"pwd -P > {shlex.quote(str(seen))}; " + (WRITES_LCOV if passing else "exit 1")
+    destinations = []
+    real = readiness.copy_repository
+
+    def recording(repository, destination, carry=(), plan=None):
+        destinations.append(destination)
+
+        return real(repository, destination, carry, plan)
+
+    with mock.patch.object(readiness, "copy_repository", recording):
+        gaps, _ = readiness.mutation_check(root, run_settings(command), True)
+
+    assert len(destinations) == 1
+    assert Path(seen.read_text().strip()) == destinations[0].resolve()
+    assert (gaps == []) is passing
+    assert not destinations[0].exists()
+
+
+def test_the_mutation_check_without_run_makes_no_copy(harness, tmp_path):
+    root = git_repository(harness)
+    marker = tmp_path / "ran"
+
+    with mock.patch.object(readiness, "copy_repository") as copied:
+        readiness.mutation_check(root, run_settings(f"touch {shlex.quote(str(marker))}"), False)
+
+    copied.assert_not_called()
+    assert not marker.exists()
+
+
+def test_a_suite_with_an_earlier_gap_is_not_copied_or_run_by_the_mutation_check(harness, tmp_path):
+    root = git_repository(harness)
+    marker = tmp_path / "ran"
+    settings = run_settings(f"touch {shlex.quote(str(marker))}", directory="missing")
+
+    with mock.patch.object(readiness, "copy_repository") as copied:
+        gaps, _ = readiness.mutation_check(root, settings, True)
+
+    assert codes(gaps) == ["directory-missing"]
+    assert not marker.exists()
+    copied.assert_not_called()
+
+
+def test_the_mutation_check_reports_one_gap_for_each_of_two_suites_when_one_fails(harness):
+    root = git_repository(harness)
+    settings = settings_of(
+        raw(name="good", command=WRITES_LCOV),
+        raw(name="bad", command="echo broken; exit 1"),
+    )
+
+    gaps, _ = readiness.mutation_check(root, settings, True)
+
+    assert [item["suite"] for item in gaps] == ["bad"]
+    assert "good" not in gaps[0]["line"]
+
+
+def test_the_mutation_check_copy_listing_of_this_repository():
+    listing = plan_listing(REPOSITORY, ())[0]
+
+    assert "packages/sensors/pyproject.toml" in listing
+    assert not [path for path in listing if path.startswith((".recognizer/cache", ".git/"))]
