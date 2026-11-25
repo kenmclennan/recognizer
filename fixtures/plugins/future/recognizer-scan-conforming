@@ -7,7 +7,7 @@ cat <<'MANIFEST'
   "name": "conforming",
   "display": "Python",
   "version": "0.1.0",
-  "protocol": 4,
+  "protocol": 5,
   "install": "brew install --cask kenmclennan/tap/recognizer",
   "check": false,
   "long_running": true,

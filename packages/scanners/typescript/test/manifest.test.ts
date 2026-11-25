@@ -22,7 +22,7 @@ describe("the manifest verb", () => {
     );
 
     expect(shared).toEqual({ protocol: PROTOCOL });
-    expect(PROTOCOL).toBe(3);
+    expect(PROTOCOL).toBe(4);
   });
 
   it("prints a valid manifest and a newline, exits 0 and writes nothing to stderr", () => {

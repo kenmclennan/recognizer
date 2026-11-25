@@ -33,7 +33,7 @@ def test_protocol_equals_the_shared_protocol_file():
     shared = json.loads((REPOSITORY / "schema" / "protocol.json").read_text())
 
     assert shared == {"protocol": PROTOCOL}
-    assert PROTOCOL == 3
+    assert PROTOCOL == 4
 
 
 def test_manifest_verb_prints_a_valid_manifest_and_nothing_else(tmp_path):

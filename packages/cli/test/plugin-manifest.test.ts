@@ -171,8 +171,8 @@ describe("the description, expansion and title keys", () => {
     expect(validateManifest({ ...sensor, metrics })).not.toBeNull();
   });
 
-  it("keeps the protocol at 3", () => {
-    expect(example("sensor-mutation").protocol).toBe(3);
+  it("keeps the protocol at 4", () => {
+    expect(example("sensor-mutation").protocol).toBe(4);
   });
 });
 
@@ -186,12 +186,13 @@ describe("judgeProtocol", () => {
     expect(judgeProtocol({ protocol }, 2)).toBe(judged);
   });
 
-  it("supports the real current protocol 3 and the previous protocol 2 only", () => {
-    expect(CURRENT_PROTOCOL).toBe(3);
-    expect(judgeProtocol({ protocol: 3 })).toBe("current");
-    expect(judgeProtocol({ protocol: 2 })).toBe("previous");
+  it("supports the real current protocol 4 and the previous protocol 3 only", () => {
+    expect(CURRENT_PROTOCOL).toBe(4);
+    expect(judgeProtocol({ protocol: 4 })).toBe("current");
+    expect(judgeProtocol({ protocol: 3 })).toBe("previous");
+    expect(judgeProtocol({ protocol: 2 })).toBe("unsupported");
     expect(judgeProtocol({ protocol: 1 })).toBe("unsupported");
     expect(judgeProtocol({ protocol: 0 })).toBe("unsupported");
-    expect(judgeProtocol({ protocol: 4 })).toBe("unsupported");
+    expect(judgeProtocol({ protocol: 5 })).toBe("unsupported");
   });
 });

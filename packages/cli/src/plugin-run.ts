@@ -93,6 +93,7 @@ export function prepareCall(
   command: readonly string[],
   fallbackName: string,
   onEvent?: (name: string, event: PluginEvent) => void,
+  env?: Record<string, string>,
 ): PluginCall {
   const prefix = splitAtRun(command)?.prefix ?? null;
   const name = limits.nameOf(prefix, fallbackName);
@@ -108,6 +109,7 @@ export function prepareCall(
     reader,
     options: {
       onStderrLine: reader.line,
+      ...(env === undefined ? {} : { env }),
       ...(limit === undefined ? {} : { timeoutMs: limit }),
       graceMs: limits.graceMs,
     },
@@ -131,8 +133,10 @@ export async function runPlugin(
   validate: (document: unknown, anyCommit?: boolean) => void,
   fallbackName: string,
   onEvent?: (name: string, event: PluginEvent) => void,
+  env?: Record<string, string>,
+  reports?: () => boolean,
 ): Promise<PluginRun> {
-  const call = prepareCall(io, limits, command, fallbackName, onEvent);
+  const call = prepareCall(io, limits, command, fallbackName, onEvent, env);
   const run = await runRegisteredAsync(
     io,
     root,
@@ -143,6 +147,7 @@ export async function runPlugin(
     validate,
     call.options,
     call.reader.keep,
+    reports,
   );
 
   return {

@@ -1,0 +1,18 @@
+{
+  "event": "result",
+  "findings": [
+    {
+      "id": "crap:app/risk.py::classify",
+      "kind": "crap",
+      "severity": "warning",
+      "principle": "change-risk-anti-patterns",
+      "summary": "classify is risky",
+      "evidence": {
+        "modules": [
+          "app/risk.py"
+        ]
+      }
+    }
+  ],
+  "extra": 1
+}

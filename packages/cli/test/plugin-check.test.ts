@@ -146,8 +146,8 @@ describe("recognizer plugin check", () => {
       "protocol",
     ]);
     expect(entry?.reason).toContain("conforming");
+    expect(entry?.reason).toContain("protocol 5");
     expect(entry?.reason).toContain("protocol 4");
-    expect(entry?.reason).toContain("protocol 3");
     expect(entry?.reason).toContain("brew install --cask");
   });
 
@@ -167,7 +167,7 @@ describe("recognizer plugin check", () => {
     const report = await pluginCheck(
       captured.io,
       join(FIXTURES, "conforming/recognizer-scan-conforming"),
-      4,
+      5,
     );
     const warning = report.results.find((one) => one.status === "warn");
 

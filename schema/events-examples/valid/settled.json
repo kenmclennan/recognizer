@@ -1,0 +1,14 @@
+{
+  "event": "settled",
+  "modified": false,
+  "settings": {
+    "threshold": 30
+  },
+  "inputs": {
+    "app/risk.py": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "counts": {
+    "measured": 1,
+    "total": 1
+  }
+}

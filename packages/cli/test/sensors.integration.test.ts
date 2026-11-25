@@ -9,7 +9,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
@@ -447,6 +447,115 @@ describe.skipIf(!HAS_UV)(
         expect(overlay.tests).toMatch(/^[0-9a-f]{64}$/);
       },
       scaledTimeout(180_000),
+    );
+
+    it(
+      "reported_findings_equal_the_standalone_document",
+      async () => {
+        useCrapFixture("{coverage_limit: 0.6}");
+
+        const cache = join(repository, ".recognizer/cache");
+        const parsed = (path: string) =>
+          JSON.parse(readFileSync(join(cache, path), "utf8"));
+        const withoutTime = ({
+          reported_at: _at,
+          suites,
+          ...rest
+        }: Record<string, unknown>) => ({
+          ...rest,
+          suites: (suites as { ran_at: string }[]).map(
+            ({ ran_at: _ran, ...suite }) => suite,
+          ),
+        });
+
+        expect(
+          await run(["scan", repository, "--sense", "crap"], capture().io),
+        ).toBe(0);
+
+        const reported = withoutTime(parsed("findings/crap.json"));
+        const reportedOverlay = parsed("overlays/crap.json");
+
+        rmSync(join(cache, "findings"), { recursive: true, force: true });
+        rmSync(join(cache, "overlays"), { recursive: true, force: true });
+
+        launcher(
+          dirname(process.env.SHELL as string),
+          "recognizer-sense-crap",
+          `exec env -u RECOGNIZER_PROTOCOL uv run --quiet --project ${REPO}/packages/sensors recognizer-sense-crap "$@"`,
+        );
+
+        expect(
+          await run(["scan", repository, "--sense", "crap"], capture().io),
+        ).toBe(0);
+
+        const standalone = withoutTime(parsed("findings/crap.json"));
+
+        expect((standalone.findings as unknown[]).length).toBeGreaterThan(0);
+        expect(reported).toEqual(standalone);
+        expect(reportedOverlay).toEqual(parsed("overlays/crap.json"));
+      },
+      scaledTimeout(360_000),
+    );
+
+    it(
+      "a_reporting_sensor_writes_no_findings_or_overlay_file",
+      async () => {
+        useCrapFixture("{coverage_limit: 0.6}");
+
+        expect(
+          await run(["scan", repository, "--sense", "crap"], capture().io),
+        ).toBe(0);
+
+        const cache = join(repository, ".recognizer/cache");
+
+        rmSync(join(cache, "findings"), { recursive: true, force: true });
+        rmSync(join(cache, "overlays"), { recursive: true, force: true });
+
+        const direct = spawnSync(
+          "uv",
+          [
+            "run",
+            "--quiet",
+            "--project",
+            join(REPO, "packages/sensors"),
+            "recognizer-sense-crap",
+            "run",
+            "--repository",
+            repository,
+            "--settings",
+            JSON.stringify({
+              tests: [
+                {
+                  name: "sample",
+                  language: "python",
+                  directory: ".",
+                  command: "touch coverage/lcov.info",
+                  coverage: { path: "coverage/lcov.info", format: "lcov" },
+                },
+                {
+                  name: "sample-web",
+                  language: "typescript",
+                  directory: ".",
+                  command: "touch coverage/lcov.info",
+                  runner: "vitest",
+                  coverage: { path: "coverage/lcov.info", format: "lcov" },
+                },
+              ],
+            }),
+          ],
+          {
+            cwd: repository,
+            encoding: "utf8",
+            env: { ...process.env, RECOGNIZER_PROTOCOL: "4" },
+          },
+        );
+
+        expect(direct.status).toBe(0);
+        expect(direct.stderr).toContain('recognizer-event {"event":"settled"');
+        expect(existsSync(join(cache, "findings"))).toBe(false);
+        expect(existsSync(join(cache, "overlays"))).toBe(false);
+      },
+      scaledTimeout(360_000),
     );
 
     it(

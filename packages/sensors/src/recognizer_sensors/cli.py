@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import subprocess
 import sys
 from importlib.metadata import version
@@ -26,6 +27,16 @@ RECURSION_LIMIT = 20000
 VERBS = ("run", "check", "guide")
 
 VERB_HINT = "the verbs are run, check and guide"
+
+
+REPORTING_PROTOCOL = 4
+
+
+def reporting_mode() -> bool:
+    try:
+        return int(os.environ.get("RECOGNIZER_PROTOCOL", "")) >= REPORTING_PROTOCOL
+    except ValueError:
+        return False
 
 
 def resolve_commit(root: Path) -> str | None:
@@ -249,8 +260,37 @@ def main(argv: list[str] | None = None) -> int:
         is_dirty(args.repository) if sensor.runs_tests else any(scan.modified for scan in scans)
     )
 
+    reporting = reporting_mode()
+    sent_findings: dict[str, dict] = {}
+    sent_values: dict[str, dict] = {}
+
+    def report(document: dict, outcome: Outcome) -> None:
+        changed = [
+            finding
+            for finding in document["findings"]
+            if sent_findings.get(finding["id"]) != finding
+        ]
+        overlay: dict[str, dict] = {}
+
+        if outcome.overlay is not None:
+            for metric, entries in outcome.overlay.values.items():
+                held = sent_values.setdefault(metric, {})
+                fresh = {id_: value for id_, value in entries.items() if held.get(id_) != value}
+
+                if fresh:
+                    overlay[metric] = dict(sorted(fresh.items()))
+                    held.update(fresh)
+
+        for finding in changed:
+            sent_findings[finding["id"]] = finding
+
+        if changed or overlay:
+            events.result(changed, overlay)
+
+        events.settled(document)
+
     def emit(outcome: Outcome, final: bool) -> None:
-        if outcome.documents or outcome.overlay is not None:
+        if outcome.documents:
             ensure_cache_ignore(args.repository)
 
         for path, document in outcome.documents:
@@ -279,7 +319,13 @@ def main(argv: list[str] | None = None) -> int:
             outcome.work,
         )
 
+        if reporting:
+            report(document, outcome)
+
+            return
+
         if outcome.overlay is not None:
+            ensure_cache_ignore(args.repository)
             overlay = build_overlay(
                 args.name, package_version, commit, modified, outcome.overlay, inputs, outcome.tests
             )

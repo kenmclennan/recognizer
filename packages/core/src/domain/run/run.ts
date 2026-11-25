@@ -1,5 +1,6 @@
 import { InvalidEntity } from "../invalid-entity.js";
 import type { RunFailure } from "../run-record.js";
+import type { RunScope } from "../run-scope.js";
 import {
   type PluginFailure,
   PluginRun,
@@ -9,10 +10,6 @@ import {
   type Progress,
 } from "./plugin-run.js";
 import type { ReportedResult, ResultAt } from "./result-set.js";
-
-export type RunScope =
-  | { kind: "working-tree" }
-  | { kind: "commit"; commit: string };
 
 export type RunStarter = "cli" | "app";
 

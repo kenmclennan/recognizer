@@ -1,4 +1,5 @@
 import type { Io, RunOptions, RunResult } from "./cli.js";
+import { overlayOfFindings } from "./findings-files.js";
 import { registerPending } from "./pending-checkpoints.js";
 
 export interface RegisteredRun {
@@ -77,8 +78,15 @@ function promoteCheckpoint(
   written: string,
   output: string,
   validate: (document: unknown, anyCommit?: boolean) => void,
+  companion?: string,
 ): void {
+  const staged = companion === undefined ? null : `${companion}.tmp`;
+
   if (!io.exists(written)) {
+    if (staged !== null) {
+      io.remove(staged);
+    }
+
     return;
   }
 
@@ -103,8 +111,16 @@ function promoteCheckpoint(
     }
 
     io.rename(written, output);
+
+    if (staged !== null && companion !== undefined && io.exists(staged)) {
+      io.rename(staged, companion);
+    }
   } catch {
     io.remove(written);
+
+    if (staged !== null) {
+      io.remove(staged);
+    }
   }
 }
 
@@ -122,10 +138,11 @@ function prepare(
   commit: string,
   output: string,
   validate: (document: unknown, anyCommit?: boolean) => void,
+  companion?: string,
 ): Prepared {
   const written = `${output}.tmp`;
 
-  promoteCheckpoint(io, written, output, validate);
+  promoteCheckpoint(io, written, output, validate, companion);
 
   const filled = command.map((item) => fill(item, root, commit, written));
   const [program, ...rest] = filled as [string, ...string[]];
@@ -143,10 +160,20 @@ export async function runRegisteredAsync(
   validate: (document: unknown, anyCommit?: boolean) => void,
   options: Omit<RunOptions, "cwd">,
   keepStderr: (stderr: string) => string,
+  reports: () => boolean = () => false,
 ): Promise<RegisteredRun> {
-  const prepared = prepare(io, root, command, commit, output, validate);
+  const companion = what === "findings" ? overlayOfFindings(output) : undefined;
+  const prepared = prepare(
+    io,
+    root,
+    command,
+    commit,
+    output,
+    validate,
+    companion,
+  );
   const unregister = registerPending(() => {
-    promoteCheckpoint(io, prepared.written, output, validate);
+    promoteCheckpoint(io, prepared.written, output, validate, companion);
   });
   let result: RunResult;
 
@@ -166,6 +193,8 @@ export async function runRegisteredAsync(
     output,
     what,
     validate,
+    reports(),
+    companion,
   );
 }
 
@@ -176,6 +205,8 @@ function conclude(
   output: string,
   what: string,
   validate: (document: unknown, anyCommit?: boolean) => void,
+  reported: boolean,
+  companion?: string,
 ): RegisteredRun {
   const stderr = result.stderr.trim();
   const ran = (reason: string | null): RegisteredRun => ({
@@ -185,8 +216,11 @@ function conclude(
     stderr: result.stderr,
   });
 
-  if (result.timedOut || !result.started || result.status !== 0) {
-    promoteCheckpoint(io, written, output, validate);
+  if (
+    !reported &&
+    (result.timedOut || !result.started || result.status !== 0)
+  ) {
+    promoteCheckpoint(io, written, output, validate, companion);
   }
 
   if (result.timedOut) {
@@ -205,6 +239,10 @@ function conclude(
     return ran(
       stderr !== "" ? stderr : `command exited with status ${result.status}`,
     );
+  }
+
+  if (reported) {
+    return ran(null);
   }
 
   if (!io.exists(written)) {

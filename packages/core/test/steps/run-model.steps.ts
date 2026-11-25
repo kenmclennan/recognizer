@@ -300,3 +300,50 @@ Then(
     assert.equal(this.fakes.findings.saved.length, trial(this).saved);
   },
 );
+
+Given(
+  "a commit's results were saved and the working tree's too",
+  function (this: ScanWorld) {
+    this.addSensor("first", false);
+    this.fakes.active.start({ sensors: ["first"], phase: "finished" });
+    this.fakes.findings.save(REPOSITORY, findingsOf("first", { "a.py": "h1" }));
+    this.fakes.findings.holdCommit("d".repeat(40), {
+      name: "first",
+      status: "read",
+      document: findingsOf(
+        "first",
+        { "a.py": "h2" },
+        { commit: "d".repeat(40) },
+      ),
+    });
+  },
+);
+
+When("the state is held again from scratch", function (this: ScanWorld) {
+  const holder = holderOf(this);
+
+  trials.set(this, {
+    holder,
+    seen: [],
+    before: null,
+    saved: this.fakes.findings.saved.length,
+  });
+  holder.refresh();
+});
+
+Then(
+  "the result set holds both and the working tree's is unchanged",
+  function (this: ScanWorld) {
+    const results = trial(this).holder.current().results.first?.results ?? [];
+
+    assert.equal(results.length, 2);
+
+    const working = results.filter(({ commit }) => commit === "c0ffee");
+    const kept = results.filter(({ commit }) => commit === "d".repeat(40));
+
+    assert.equal(working.length, 1);
+    assert.equal(kept.length, 1);
+    assert.equal(working[0]?.modified, false);
+    assert.equal(kept[0]?.modified, false);
+  },
+);

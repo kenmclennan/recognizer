@@ -6,6 +6,7 @@ import { Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
+import { FindingsAdapter } from "../src/adapters/filesystem/findings-adapter.js";
 import { nodeIo, stopEverything } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
 import { runSensors } from "../src/run-sensors.js";
@@ -33,7 +34,7 @@ function manifestOf(extra: Record<string, unknown> = {}) {
     name: "quick",
     display: "Quick",
     version: "1",
-    protocol: 3,
+    protocol: 4,
     install: "brew install --cask kenmclennan/tap/recognizer",
     check: false,
     long_running: true,
@@ -110,6 +111,7 @@ describe("runSensors ceiling", () => {
       );
       const results = await runSensors({
         io,
+        findings: new FindingsAdapter(io),
         root,
         commit: COMMIT,
         repository: Repository.empty,
@@ -190,6 +192,7 @@ describe("runSensors ceiling", () => {
 
       await runSensors({
         io,
+        findings: new FindingsAdapter(io),
         root,
         commit: COMMIT,
         repository: Repository.empty,
@@ -233,6 +236,7 @@ describe("runSensors ceiling", () => {
     );
     const running = runSensors({
       io,
+      findings: new FindingsAdapter(io),
       root,
       commit: COMMIT,
       repository: Repository.empty,
@@ -274,6 +278,7 @@ describe("runSensors ceiling", () => {
     );
     const entries = await runSensors({
       io,
+      findings: new FindingsAdapter(io),
       root,
       commit: COMMIT,
       repository: Repository.empty,
@@ -352,6 +357,7 @@ describe("runSensors ceiling", () => {
       const { root, io } = setup();
       const [entry] = await runSensors({
         io,
+        findings: new FindingsAdapter(io),
         root,
         commit: COMMIT,
         repository: scans,
@@ -433,6 +439,7 @@ process.exit(2);`,
       );
       const [entry] = await runSensors({
         io,
+        findings: new FindingsAdapter(io),
         root,
         commit: COMMIT,
         repository: Repository.empty,
@@ -459,6 +466,7 @@ process.exit(2);`,
     );
     const [entry] = await runSensors({
       io,
+      findings: new FindingsAdapter(io),
       root,
       commit: COMMIT,
       repository: Repository.empty,
@@ -479,6 +487,7 @@ process.exit(2);`,
     );
     const [entry] = await runSensors({
       io,
+      findings: new FindingsAdapter(io),
       root,
       commit: COMMIT,
       repository: Repository.empty,
@@ -504,6 +513,7 @@ process.exit(2);`,
     );
     const running = runSensors({
       io,
+      findings: new FindingsAdapter(io),
       root,
       commit: COMMIT,
       repository: Repository.empty,
@@ -528,6 +538,7 @@ process.exit(2);`,
       const writing = pluginFile(root, WRITES_DIAGNOSIS(diagnosis));
       const [entry] = await runSensors({
         io,
+        findings: new FindingsAdapter(io),
         root,
         commit: COMMIT,
         repository: Repository.empty,
@@ -554,6 +565,7 @@ process.exit(2);`,
       const writing = pluginFile(root, WRITES_DIAGNOSIS(diagnosis));
       const [entry] = await runSensors({
         io,
+        findings: new FindingsAdapter(io),
         root,
         commit: COMMIT,
         repository: Repository.empty,
@@ -587,6 +599,7 @@ process.exit(2);`,
       );
       const [entry] = await runSensors({
         io,
+        findings: new FindingsAdapter(io),
         root,
         commit: COMMIT,
         repository: Repository.empty,

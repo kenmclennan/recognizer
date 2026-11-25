@@ -26,7 +26,17 @@ export type PluginEvent =
   | { event: "note"; text: string }
   | { event: "diagnosis"; code: string; text: string; fix?: string }
   | { event: "stage"; name: string; index: number; of: number }
-  | { event: "estimate"; remaining_ms: number | null };
+  | { event: "estimate"; remaining_ms: number | null }
+  | {
+      event: "result";
+      findings?: Record<string, unknown>[];
+      overlay?: Record<string, Record<string, number | boolean>>;
+    }
+  | ({
+      event: "settled";
+      modified: boolean;
+      settings: Record<string, unknown>;
+    } & Record<string, unknown>);
 
 export type ParsedLine =
   | { kind: "event"; event: PluginEvent }

@@ -1,9 +1,17 @@
-import type { PluginEvent } from "@recognizer/core";
 import {
+  type Accumulated,
+  type DeclaredMetric,
   type Diagnosis,
+  type FindingsRepository,
   measuredInputs,
+  type PluginEvent,
   type Repository,
+  ResultAccumulator,
+  type RunScope,
+  type SensorFindings,
   type SensorWork,
+  type SettleEnding,
+  splitAtRun,
 } from "@recognizer/core";
 import { readSensorFindings } from "./adapters/filesystem/findings-translator.js";
 import type { Io } from "./cli.js";
@@ -22,10 +30,41 @@ export interface RunSensorsInput {
   }[];
   commit: string;
   repository: Repository;
+  findings: FindingsRepository;
+  scope?: RunScope;
+  modified?: boolean | null;
   limits?: ReturnType<typeof createPluginLimits>;
   onStart?: (name: string) => void;
   onEntry?: (entry: RunEntry) => void;
   onEvent?: (name: string, event: PluginEvent) => void;
+}
+
+function declaredMetrics(metrics: unknown[] | undefined): DeclaredMetric[] {
+  return (metrics ?? []).map((one) => {
+    const { name, type, granularity, bad } = one as DeclaredMetric;
+
+    return { name, type, granularity, bad };
+  });
+}
+
+const REPORTING_ENV = { RECOGNIZER_PROTOCOL: "4" };
+
+interface Recorded {
+  diagnosis: Diagnosis | undefined;
+  incomplete: boolean;
+  work: SensorWork | undefined;
+}
+
+function recordedOf(document: SensorFindings): Recorded {
+  return {
+    diagnosis: document.diagnosis,
+    incomplete:
+      document.stopped !== undefined ||
+      (document.suites ?? []).some(
+        (suite) => suite.status === "partial" && suite.ran !== false,
+      ),
+    work: document.work,
+  };
 }
 
 function recordInputs(
@@ -33,11 +72,7 @@ function recordInputs(
   root: string,
   name: string,
   repository: Repository,
-): {
-  diagnosis: Diagnosis | undefined;
-  incomplete: boolean;
-  work: SensorWork | undefined;
-} {
+): Recorded {
   const output = findingsFile(root, name);
   const document = readSensorFindings(JSON.parse(io.readFile(output)), {
     name,
@@ -48,15 +83,7 @@ function recordInputs(
     inputs: document.inputs ?? measuredInputs(repository),
   });
 
-  return {
-    diagnosis: document.diagnosis,
-    incomplete:
-      document.stopped !== undefined ||
-      (document.suites ?? []).some(
-        (suite) => suite.status === "partial" && suite.ran !== false,
-      ),
-    work: document.work,
-  };
+  return recordedOf(document);
 }
 
 function moduleCount(repository: Repository): number {
@@ -71,11 +98,61 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
   for (const { name, command, runsTests, modules } of input.selected) {
     input.onStart?.(name);
 
-    const output = findingsFile(root, name);
+    const scope: RunScope = input.scope ?? { kind: "working-tree" };
+    const output = findingsFile(root, name, scope);
     const began = io.awake();
     const validate = (document: unknown, anyCommit?: boolean) => {
       readSensorFindings(document, anyCommit ? { name } : { name, commit });
     };
+    const prefix = splitAtRun(command)?.prefix ?? null;
+    const manifest = prefix === null ? null : limits.manifestOf(prefix);
+    const accumulator = new ResultAccumulator({
+      name,
+      version: manifest?.version ?? "0",
+      metrics: declaredMetrics(manifest?.metrics),
+      commit,
+      scope,
+    });
+    const fallback = { modified: input.modified ?? true };
+    const documentOf = (accumulated: Accumulated): SensorFindings =>
+      readSensorFindings(
+        {
+          ...accumulated.document,
+          inputs:
+            accumulated.document.inputs ?? measuredInputs(input.repository),
+        },
+        { name, commit },
+      );
+    const stage = (accumulated: Accumulated): SensorFindings => {
+      const document = documentOf(accumulated);
+
+      input.findings.stage(root, scope, document, accumulated.overlay);
+
+      return document;
+    };
+    let staging: string | null = null;
+    const take = (given: string, event: PluginEvent): void => {
+      if (event.event !== "result" && event.event !== "settled") {
+        accumulator.take(event);
+        input.onEvent?.(given, event);
+
+        return;
+      }
+
+      try {
+        accumulator.take(event);
+
+        if (event.event === "settled") {
+          stage(accumulator.render(fallback));
+        }
+      } catch (error) {
+        staging ??= (error as Error).message;
+      }
+    };
+    const reporting = (): boolean =>
+      accumulator.hasSettled() ||
+      accumulator.hasResults() ||
+      accumulator.refused() > 0;
     const run = await runPlugin(
       io,
       limits,
@@ -86,7 +163,9 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
       "findings",
       validate,
       name,
-      input.onEvent,
+      take,
+      REPORTING_ENV,
+      reporting,
     );
     let { reason } = run;
     let diagnosis: Diagnosis | undefined = run.diagnosis ?? undefined;
@@ -103,16 +182,46 @@ export async function runSensors(input: RunSensorsInput): Promise<RunEntry[]> {
       reason = run.diagnosis.line;
     }
 
-    if (reason === null) {
-      try {
-        const recorded = recordInputs(io, root, name, input.repository);
+    const noted = (recorded: Recorded, reported: boolean): void => {
+      diagnosis = reported ? (run.diagnosis ?? undefined) : recorded.diagnosis;
+      incomplete = recorded.incomplete;
+      work =
+        recorded.work === undefined
+          ? undefined
+          : { unit: recorded.work.unit, performed: recorded.work.performed };
+    };
 
-        diagnosis = recorded.diagnosis;
-        incomplete = recorded.incomplete;
-        work =
-          recorded.work === undefined
-            ? undefined
-            : { unit: recorded.work.unit, performed: recorded.work.performed };
+    if (reporting()) {
+      const sound = reason === null;
+      const refused = accumulator.refused() > 0 || staging !== null;
+      const complete =
+        sound &&
+        !refused &&
+        accumulator.hasSettled() &&
+        !accumulator.hasUnsettledTail();
+      const ending: SettleEnding = complete ? "complete" : "checkpoint";
+
+      if (sound && !complete) {
+        reason = refused
+          ? `a result was refused: ${accumulator.firstReason() ?? staging}`
+          : "the plugin ended without settling its results";
+      }
+
+      try {
+        const document = stage(
+          complete
+            ? accumulator.complete(fallback)
+            : accumulator.demoted(fallback),
+        );
+
+        input.findings.settle(root, scope, name, ending);
+        noted(recordedOf(document), true);
+      } catch (error) {
+        reason ??= `could not record inputs: ${(error as Error).message}`;
+      }
+    } else if (reason === null) {
+      try {
+        noted(recordInputs(io, root, name, input.repository), false);
       } catch (error) {
         reason = `could not record inputs: ${(error as Error).message}`;
       }

@@ -35,7 +35,8 @@ import type { ConfigRead } from "./config-parse.js";
 
 export function scanPorts(io: Io, read: ConfigRead): ScanPorts {
   const scanners = new ScannersAdapter(io);
-  const sensors = new SensorsAdapter(io);
+  const findings = new FindingsAdapter(io);
+  const sensors = new SensorsAdapter(io, findings);
 
   return {
     scanners,
@@ -47,7 +48,7 @@ export function scanPorts(io: Io, read: ConfigRead): ScanPorts {
     responsibilities: new ResponsibilitiesAdapter(io),
     git: new GitAdapter(io),
     structure: new StructureAdapter(io),
-    findings: new FindingsAdapter(io),
+    findings,
     policy: new PolicyAdapter(io),
     config: new ConfigAdapter(io, read),
     runLog: new RunLogAdapter(io),

@@ -22,7 +22,7 @@ fn read(path: &str) -> Value {
 #[test]
 fn the_protocol_is_the_shared_protocol_file() {
     assert_eq!(read("schema/protocol.json")["protocol"], PROTOCOL);
-    assert_eq!(PROTOCOL, 3);
+    assert_eq!(PROTOCOL, 4);
 }
 
 #[test]

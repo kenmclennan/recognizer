@@ -1,8 +1,12 @@
 import type {
+  AccumulatedOverlay,
+  CommitResults,
   FindingsRepository,
   Measured,
   ReportedFindings,
+  RunScope,
   SensorFindings,
+  SettleEnding,
   StoredFindings,
   StoredOverlay,
   StructureOverlayInput,
@@ -17,7 +21,37 @@ export class FakeFindingsRepository implements FindingsRepository {
   readonly overlays: StructureOverlayInput[] = [];
   readonly saved: SensorFindings[] = [];
   readonly removed: string[] = [];
+  readonly commits = new Map<
+    string,
+    {
+      stored: Map<string, StoredFindings>;
+      overlays: Map<string, StoredOverlay>;
+    }
+  >();
+  readonly staged = new Map<
+    string,
+    { document: SensorFindings; overlay: AccumulatedOverlay | null }
+  >();
   unitCache: UnitCache = {};
+
+  holdCommit(
+    commit: string,
+    stored: StoredFindings,
+    overlay?: StoredOverlay,
+  ): void {
+    const held = this.commits.get(commit) ?? {
+      stored: new Map(),
+      overlays: new Map(),
+    };
+
+    held.stored.set(stored.name, stored);
+
+    if (overlay !== undefined) {
+      held.overlays.set(overlay.name, overlay);
+    }
+
+    this.commits.set(commit, held);
+  }
 
   invalidate(name: string, reason = "the document is not valid"): void {
     this.stored.set(name, { name, status: "invalid", reason });
@@ -87,4 +121,73 @@ export class FakeFindingsRepository implements FindingsRepository {
       inputs: report.inputs,
     };
   }
+
+  stage(
+    _root: string,
+    scope: RunScope,
+    document: SensorFindings,
+    overlay: AccumulatedOverlay | null,
+  ): void {
+    this.staged.set(`${scopeKey(scope)}::${document.sensor.name}`, {
+      document,
+      overlay,
+    });
+  }
+
+  settle(
+    _root: string,
+    scope: RunScope,
+    name: string,
+    _ending: SettleEnding,
+  ): "replaced" | "kept" {
+    const key = `${scopeKey(scope)}::${name}`;
+    const staged = this.staged.get(key);
+
+    if (staged === undefined) {
+      return "kept";
+    }
+
+    this.staged.delete(key);
+
+    const text = `overlay of ${name}`;
+    const stored: StoredFindings = {
+      name,
+      status: "read",
+      document: staged.document,
+    };
+    const overlay: StoredOverlay | undefined =
+      staged.overlay === null ? undefined : { name, status: "read", text };
+
+    if (scope.kind === "commit") {
+      this.holdCommit(scope.commit, stored, overlay);
+
+      return "replaced";
+    }
+
+    this.stored.set(name, stored);
+
+    if (overlay !== undefined) {
+      this.storedOverlays.set(name, overlay);
+    }
+
+    return "replaced";
+  }
+
+  readCommits(): CommitResults[] {
+    return [...this.commits.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([commit, held]) => ({
+        commit,
+        stored: [...held.stored.values()],
+        overlays: [...held.overlays.values()],
+      }));
+  }
+
+  removeCommit(_root: string, commit: string): void {
+    this.commits.delete(commit);
+  }
+}
+
+function scopeKey(scope: RunScope): string {
+  return scope.kind === "working-tree" ? "working-tree" : scope.commit;
 }

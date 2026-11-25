@@ -309,6 +309,8 @@ export function* scanFlow(
             selected,
             scope: request.modules,
             commit,
+            runScope: { kind: "working-tree" },
+            modified,
             repository,
             limits,
             sink: ctx,

@@ -74,7 +74,7 @@ describe("the manifest schema", () => {
       readFileSync(join(REPO, "schema/protocol.json"), "utf8"),
     );
 
-    expect(protocol).toEqual({ protocol: 3 });
+    expect(protocol).toEqual({ protocol: 4 });
   });
 
   it("accepts a pattern declaration and a values declaration and refuses a declaration with both, with neither, or with an upper-case name", () => {

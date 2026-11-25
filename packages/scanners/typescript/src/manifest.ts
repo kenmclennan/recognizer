@@ -2,7 +2,7 @@ import { selection } from "./files.js";
 import { SCAN_SCHEMA_VERSION } from "./scan-schema.js";
 import { scannerVersion } from "./version.js";
 
-export const PROTOCOL = 3;
+export const PROTOCOL = 4;
 
 export const INSTALL =
   "brew upgrade kenmclennan/tap/recognizer-scan-typescript || brew install kenmclennan/tap/recognizer-scan-typescript";

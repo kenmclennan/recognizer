@@ -821,4 +821,96 @@ describe("repository state holder", () => {
 
     expect(new Set(revisions).size).toBe(revisions.length);
   });
+
+  it("a_commit_result_on_disk_is_read_into_the_result_set", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+    const commit = "b".repeat(40);
+
+    fakes.findings.save(ROOT, findingsOf("tally", { "a.py": "h1" }));
+    fakes.findings.holdCommit(commit, {
+      name: "tally",
+      status: "read",
+      document: findingsOf("tally", { "a.py": "h2" }, { commit }),
+    });
+    holder.refresh();
+
+    const results = holder.current().results.tally?.results ?? [];
+
+    expect(results).toHaveLength(2);
+    expect(
+      results.map(({ commit: held, modified }) => ({ commit: held, modified })),
+    ).toContainEqual({ commit, modified: false });
+    expect(results.map(({ commit: held }) => held)).toContain("c0ffee");
+  });
+
+  it("a_pruned_commit_result_leaves_the_result_set", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+    const commit = "b".repeat(40);
+
+    fakes.findings.save(ROOT, findingsOf("tally", { "a.py": "h1" }));
+    fakes.findings.holdCommit(commit, {
+      name: "tally",
+      status: "read",
+      document: findingsOf("tally", { "a.py": "h2" }, { commit }),
+    });
+    holder.refresh();
+
+    expect(holder.current().results.tally?.results).toHaveLength(2);
+
+    fakes.findings.removeCommit(ROOT, commit);
+    holder.refresh();
+
+    expect(holder.current().results.tally?.results).toHaveLength(1);
+  });
+
+  it("a_commit_document_never_changes_the_working_trees_entry", () => {
+    const fakes = fakesWith("tally");
+    const holder = holderOver(fakes);
+    const commit = "b".repeat(40);
+
+    fakes.findings.save(ROOT, findingsOf("tally", { "a.py": "h1" }));
+    holder.refresh();
+
+    const before = holder.current().results.tally?.results ?? [];
+
+    fakes.findings.holdCommit(commit, {
+      name: "tally",
+      status: "read",
+      document: findingsOf("tally", { "a.py": "h9" }, { commit }),
+    });
+    holder.refresh();
+
+    const working = (holder.current().results.tally?.results ?? []).filter(
+      ({ commit: held }) => held === "c0ffee",
+    );
+
+    expect(working).toEqual(before);
+  });
+
+  it("an_unreadable_commit_document_is_flagged_and_kept", () => {
+    const fakes = fakesWith("tally", "margin");
+    const holder = holderOver(fakes);
+    const commit = "b".repeat(40);
+
+    fakes.findings.holdCommit(commit, {
+      name: "tally",
+      status: "invalid",
+      reason: "the document is not valid",
+    });
+    fakes.findings.holdCommit(commit, {
+      name: "margin",
+      status: "read",
+      document: findingsOf("margin", { "a.py": "h2" }, { commit }),
+    });
+    holder.refresh();
+
+    const state = holder.current();
+
+    expect(state.results.margin?.results).toHaveLength(1);
+    expect(state.results.margin?.unreadable).toBe(0);
+    expect(state.results.tally?.unreadable).toBe(1);
+    expect(fakes.findings.readCommits()[0]?.stored).toHaveLength(2);
+  });
 });

@@ -3,6 +3,7 @@ import {
   type Analysis,
   type ConfigDocument,
   checkSensors,
+  type FindingsRepository,
   type PluginLimits,
   type PolicyRule,
   type Repository,
@@ -28,7 +29,10 @@ type Limits = ReturnType<typeof createPluginLimits>;
 export class SensorsAdapter implements Sensors, Analysis {
   readonly name = "structure";
 
-  constructor(private readonly io: Io) {}
+  constructor(
+    private readonly io: Io,
+    private readonly findings: FindingsRepository,
+  ) {}
 
   probe(
     program: string,
@@ -83,6 +87,9 @@ export class SensorsAdapter implements Sensors, Analysis {
         ...(one.modules === undefined ? {} : { modules: one.modules }),
       })),
       commit: call.commit,
+      scope: call.scope,
+      modified: call.modified,
+      findings: this.findings,
       repository: call.repository,
       limits: call.limits as unknown as Limits,
       onStart: call.onStart,

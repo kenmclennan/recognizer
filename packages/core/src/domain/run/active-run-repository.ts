@@ -1,5 +1,6 @@
 import type { RunFailure } from "../run-record.js";
-import type { RunGap, RunReport, RunScope, RunStarter } from "./run.js";
+import type { RunScope } from "../run-scope.js";
+import type { RunGap, RunReport, RunStarter } from "./run.js";
 
 export type MarkerPhase =
   | "checking"

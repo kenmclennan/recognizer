@@ -10,7 +10,7 @@ from recognizer_sensors.config_schema import (
 )
 from recognizer_sensors.testrun.reports import LOG
 
-PROTOCOL = 3
+PROTOCOL = 4
 
 UNLISTED = {("crap", "complexity")}
 

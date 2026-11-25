@@ -110,7 +110,10 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
   const log: string[] = [];
   const structure = new FakeStructureRepository();
   const sensors = new FakeSensors(log);
+  const findings = new FakeFindingsRepository();
   const process = new FakeProcess();
+
+  sensors.findings = findings;
 
   process.onStop(() => sensors.releaseHeld());
 
@@ -128,7 +131,7 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     recordedScans: new FakeRecordedScans(),
     workTree: new FakeWorkTree(),
     structure,
-    findings: new FakeFindingsRepository(),
+    findings,
     policy: new FakePolicyRepository(),
     config: new FakeConfigRepository(sensors),
     runLog: new FakeRunLogRepository(),

@@ -26,3 +26,33 @@ def test_stage_and_estimate_lines_validate_against_the_schema(validator, capsys)
 
     for line in lines:
         validator.validate(line)
+
+
+def test_result_and_settled_lines_validate_against_the_schema(validator, capsys):
+    finding = {
+        "id": "crap:a.py::f",
+        "kind": "crap",
+        "severity": "warning",
+        "principle": "change-risk-anti-patterns",
+        "summary": "f is risky",
+        "evidence": {"modules": ["a.py"]},
+    }
+
+    events.result([finding], {"crap": {"a.py::f": 43.0}})
+    events.result([], {"crap": {"a.py::g": 1.0}})
+    events.settled(
+        {
+            "modified": False,
+            "settings": {"threshold": 30},
+            "inputs": {"a.py": "a" * 64},
+            "counts": {"measured": 1, "total": 1},
+        }
+    )
+
+    lines = event_lines(capsys.readouterr().err)
+
+    assert [line["event"] for line in lines] == ["result", "result", "settled"]
+    assert "findings" not in lines[1]
+
+    for line in lines:
+        validator.validate(line)

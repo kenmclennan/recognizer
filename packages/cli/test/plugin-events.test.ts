@@ -29,6 +29,21 @@ const VALID: PluginEvent[] = [
   { event: "diagnosis", code: "tests-failed", text: "3 tests failed" },
   { event: "stage", name: "Coverage run", index: 1, of: 2 },
   { event: "estimate", remaining_ms: 1000 },
+  {
+    event: "result",
+    findings: [
+      {
+        id: "crap:a",
+        kind: "crap",
+        severity: "warning",
+        principle: "change-risk-anti-patterns",
+        summary: "risky",
+        evidence: { modules: ["a.py"] },
+      },
+    ],
+    overlay: { crap: { "a::f": 12 } },
+  },
+  { event: "settled", modified: false, settings: {} },
 ];
 
 describe("the plugin event reader", () => {
@@ -166,5 +181,46 @@ describe("the plugin event reader", () => {
 
     expect(seen).toEqual([]);
     expect(reader.keep(`${bad}\n`)).toBe("ignored 1 invalid event line\n");
+  });
+});
+
+describe("the result and settled events", () => {
+  it("reads_a_result_and_a_settled_event", () => {
+    const seen: PluginEvent[] = [];
+    const reader = createEventReader((one) => seen.push(one));
+    const result = { event: "result", overlay: { crap: { "a::f": 1 } } };
+    const settled = {
+      event: "settled",
+      modified: true,
+      settings: { threshold: 30 },
+      partial: { measured: 1, total: 2 },
+    };
+
+    reader.line(line(result));
+    reader.line(line(settled));
+
+    expect(seen).toEqual([result, settled]);
+  });
+
+  it("drops_a_result_with_neither_findings_nor_overlay", () => {
+    const seen: PluginEvent[] = [];
+    const reader = createEventReader((one) => seen.push(one));
+
+    reader.line(line({ event: "result" }));
+    reader.line(line({ event: "result", findings: [], overlay: {} }));
+
+    expect(seen).toEqual([]);
+    expect(reader.keep("")).toContain("ignored 2 invalid event lines");
+  });
+
+  it("drops_a_settled_without_modified_or_settings", () => {
+    const seen: PluginEvent[] = [];
+    const reader = createEventReader((one) => seen.push(one));
+
+    reader.line(line({ event: "settled", settings: {} }));
+    reader.line(line({ event: "settled", modified: false }));
+
+    expect(seen).toEqual([]);
+    expect(reader.keep("")).toContain("ignored 2 invalid event lines");
   });
 });

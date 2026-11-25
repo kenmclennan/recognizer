@@ -54,3 +54,42 @@ def stage(name: str, index: int, of: int) -> None:
 
 def estimate(remaining_ms: int | None) -> None:
     emit({"event": "estimate", "remaining_ms": remaining_ms})
+
+
+SETTLED_FACTS = (
+    "inputs",
+    "tests",
+    "counts",
+    "stopped",
+    "partial",
+    "excluded",
+    "unowned",
+    "suites",
+    "work",
+)
+
+
+def result(findings: list[dict], overlay: dict[str, dict]) -> None:
+    event: dict = {"event": "result"}
+
+    if findings:
+        event["findings"] = findings
+
+    if overlay:
+        event["overlay"] = overlay
+
+    emit(event)
+
+
+def settled(document: dict) -> None:
+    event: dict = {
+        "event": "settled",
+        "modified": document["modified"],
+        "settings": document["settings"],
+    }
+
+    for key in SETTLED_FACTS:
+        if key in document:
+            event[key] = document[key]
+
+    emit(event)

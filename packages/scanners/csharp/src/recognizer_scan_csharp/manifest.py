@@ -10,7 +10,7 @@ from recognizer_scan_csharp.discovery import (
 )
 from recognizer_scan_csharp.scan_schema import SCAN_SCHEMA_VERSION
 
-PROTOCOL = 3
+PROTOCOL = 4
 
 INSTALL = (
     "brew upgrade kenmclennan/tap/recognizer-scan-csharp "

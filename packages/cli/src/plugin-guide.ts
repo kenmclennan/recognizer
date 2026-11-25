@@ -72,13 +72,16 @@ function versions(): string[] {
 function events(): string[] {
   return lines(
     "5. Events",
-    "A plugin reports while it runs by writing JSON lines on stderr, each prefixed `recognizer-event `. Every kind uses the same six events:",
+    "A plugin reports while it runs by writing JSON lines on stderr, each prefixed `recognizer-event `. Every kind uses the same eight events:",
     "  - start {total, unit, queued?, not_measured?}: how much work there is, in the unit the manifest names. queued is how many of the units this run will do across every step, and not_measured {reused, no_covered_site, out_of_scope} counts the rest by reason. A plugin may omit queued and not_measured, and a reader must not require them.",
     "  - progress {done, total, unit, step?}: how far along the plugin is. done never passes total and unit is the one the last start counted. step is superseded by stage: it is still valid, but nothing reads it.",
     '  - stage {name, index, of}: the stage the plugin is in, such as "Coverage run". index counts from 1 and never passes of. A plugin that runs several stages reports each as it starts.',
     "  - estimate {remaining_ms}: the plugin's own estimate of the awake time left for its whole run, never for one stage, or null when it cannot say. A later estimate replaces the earlier one. A plugin that reports none is shown as having none.",
     "  - note {text}: a line for the user.",
     "  - diagnosis {code, text, fix?}: why something could not be measured, in the plugin's own words, with the fix where there is one. Codes belong to the plugin; Recognizer keeps no list of them.",
+    "  - result {findings?, overlay?}: findings and overlay values the plugin has settled so far, a function or a file at a time, never the whole run again. A later result replaces an earlier finding with the same id and an earlier overlay value with the same metric and id. Overlay metrics are the ones the manifest declares.",
+    "  - settled {modified, settings, inputs?, tests?, counts?, stopped?, partial?, excluded?, unowned?, suites?, work?}: the facts of the measurement at a point the plugin can stand behind, and its checkpoint. A document with partial or stopped is a checkpoint.",
+    "A reporting plugin sends result and settled after its start and writes no findings or overlay file: when the environment holds RECOGNIZER_PROTOCOL of 4 or more, Recognizer collects the reports and writes the files itself. A plugin that sends neither still writes the file at {output}, which keeps working until the next protocol version.",
     "The CLI tags each event with the plugin's name and forwards it unchanged. The events schema is `recognizer plugin schema events`.",
   );
 }

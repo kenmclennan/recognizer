@@ -1,5 +1,6 @@
 import type { ConfigRepository } from "../../domain/config-repository.js";
 import type {
+  CommitResults,
   FindingsRepository,
   StoredFindings,
   StoredOverlay,
@@ -120,6 +121,10 @@ export class RepositoryStateHolder {
   private unknownDigestReads = 0;
   private readonly storedAt = new Map<string, ResultAt>();
   private overlayNames = new Set<string>();
+  private readonly commitEntries = new Map<
+    string,
+    { name: string; at: ResultAt }
+  >();
   private unreadableReports = 0;
   private settling: Settling | null = null;
   private readonly settled = new Set<string>();
@@ -446,6 +451,76 @@ export class RepositoryStateHolder {
 
     for (const name of invalidOverlays) {
       this.results = this.results.flaggedUnreadable(name);
+    }
+
+    this.readCommitResults(wanted);
+  }
+
+  private readCommitResults(wanted: ReadonlySet<string>): void {
+    let commits: CommitResults[];
+
+    try {
+      commits = this.deps.findings.readCommits(this.root);
+    } catch {
+      return;
+    }
+
+    const seen = new Set<string>();
+
+    for (const { commit, stored, overlays } of commits) {
+      const overlayNames = new Set(
+        overlays.filter((one) => one.status === "read").map((one) => one.name),
+      );
+
+      for (const one of stored) {
+        if (!wanted.has(one.name)) {
+          continue;
+        }
+
+        const at: ResultAt = { commit, modified: false };
+        const key = `${one.name}\u0000${commit}`;
+        const working = this.storedAt.get(one.name);
+
+        if (
+          working !== undefined &&
+          working.commit === commit &&
+          !working.modified
+        ) {
+          continue;
+        }
+
+        seen.add(key);
+        this.commitEntries.set(key, { name: one.name, at });
+
+        if (one.status === "invalid") {
+          this.results = this.results.flaggedUnreadableAt(one.name, at);
+
+          continue;
+        }
+
+        const { document } = one;
+
+        this.results = this.results.reported(one.name, at, {
+          findings: `findings:${one.name}@${commit}`,
+          overlay: overlayNames.has(one.name)
+            ? `overlay:${one.name}@${commit}`
+            : null,
+          inputsDigest:
+            document.inputs === undefined
+              ? null
+              : ResultSet.inputsDigestOf(document.inputs),
+          testsDigest: document.tests ?? null,
+          reportedAt: document.reportedAt ?? null,
+          inputs: document.inputs ?? null,
+        });
+      }
+    }
+
+    for (const [key, { name, at }] of [...this.commitEntries]) {
+      if (!seen.has(key)) {
+        this.results = this.results.without(name, at);
+        this.commitEntries.delete(key);
+      }
     }
   }
 
