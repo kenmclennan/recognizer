@@ -191,7 +191,8 @@ describe("verbs and events", () => {
             string,
             unknown
           >,
-      );
+      )
+      .filter((event) => event.event === "start" || event.event === "progress");
     const [first, ...rest] = events;
 
     expect(result.status).toBe(0);

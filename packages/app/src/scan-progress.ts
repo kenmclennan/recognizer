@@ -47,6 +47,7 @@ export type RunProgress = {
   extract: "pending" | "run" | "current";
   languages: string[] | null;
   extractEntries: EntryResult[];
+  extractEstimateMs: number | null;
   describe: DescribeCount | null;
   describeStop: DescribeHalt | null;
   describeAsk: DescribeAsk | null;
@@ -87,6 +88,7 @@ export const NO_PROGRESS: RunProgress = {
   extract: "pending",
   languages: null,
   extractEntries: [],
+  extractEstimateMs: null,
   describe: null,
   describeStop: null,
   describeAsk: null,
@@ -209,6 +211,8 @@ export function progressOfRun(
             : "pending",
     languages: extracts.length > 0 ? extracts.map((one) => one.name) : null,
     extractEntries: extracts.filter(ended).map(entryOf),
+    extractEstimateMs:
+      extracts.find((one) => one.state === "running")?.estimateMs ?? null,
     describe: describeOf(describing),
     describeStop: run.describeHalt,
     describeAsk:

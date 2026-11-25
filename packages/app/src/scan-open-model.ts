@@ -5,8 +5,6 @@ export const FINDING_STAGE = "Finding the languages in this repository";
 
 export const READ_STAGE = "Finishing the scan";
 
-export const MIN_RATE_SECONDS = 5;
-
 export type OpenBar =
   | { kind: "indeterminate" }
   | { kind: "determinate"; fraction: number };
@@ -169,24 +167,6 @@ export function barOf(counted: Counted | null): OpenBar {
   };
 }
 
-export function timeLeftOf(
-  counted: Counted | null,
-  ranMs: number,
-): string | null {
-  if (
-    counted === null ||
-    counted.done <= 0 ||
-    ranMs < MIN_RATE_SECONDS * 1000
-  ) {
-    return null;
-  }
-
-  const perMs = counted.done / ranMs;
-  const leftMs = Math.max(0, counted.total - counted.done) / perMs;
-
-  return `${roundedTime(leftMs)} left`;
-}
-
 export function openProgressModel(input: OpenInput): OpenModel {
   if (input.stopped) {
     return STOPPED_MODEL;
@@ -196,8 +176,6 @@ export function openProgressModel(input: OpenInput): OpenModel {
   const languages = progress.languages ?? [];
   const running = runningOf(progress, languages);
   const counted = running === null ? null : countedOf(progress, running);
-  const began =
-    running === null ? undefined : progress.timing.extractAt[running];
   const read =
     languages.length > 0 &&
     languages.every((language) =>
@@ -219,9 +197,9 @@ export function openProgressModel(input: OpenInput): OpenModel {
         ? ""
         : `${grouped(counted.done)} of ${grouped(counted.total)} files`,
     timeLeft:
-      began === undefined
+      running === null || progress.extractEstimateMs === null
         ? null
-        : timeLeftOf(counted, Math.max(0, now - began)),
+        : `${roundedTime(progress.extractEstimateMs)} left`,
     rows: languages.map((language) => rowOf(progress, language, running)),
     elapsed: elapsedText(now - input.startedAt),
   };

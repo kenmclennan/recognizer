@@ -205,12 +205,13 @@ export function run(argv: string[], io: Io = nodeIo()): number {
   }
 
   try {
+    const progress = progressTo(io.stderr, args.root);
     const document = scan(
       args.root,
       args.commit ? args.commit : resolveCommit(args.root),
       args.modified ?? resolveModified(args.root),
       io.stderr,
-      progressTo(io.stderr),
+      progress,
     );
     const text = render(document);
 
@@ -219,6 +220,8 @@ export function run(argv: string[], io: Io = nodeIo()): number {
     } else {
       io.stdout(text);
     }
+
+    progress.complete();
 
     return 0;
   } catch (error) {
