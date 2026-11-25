@@ -1448,7 +1448,7 @@ def measure(
         )
         restore_handler = install_stop_handler(work)
         homes_stack = ExitStack()
-        homes = homes_stack.enter_context(gradle_homes(work))
+        homes = homes_stack.enter_context(gradle_homes(work, settings["max_workers"]))
         end_watch = None
         BUDGET_SPENT.clear()
 

@@ -44,6 +44,7 @@ KOTLIN_DAEMON_JVM_OPTIONS = (
     "-Dorg.gradle.daemon.idletimeout=300000",
 )
 GRADLE_STOP_SECONDS = 10.0
+GRADLE_WORKERS_PROPERTY = "org.gradle.workers.max"
 GRADLE_HOME_PREFIX = "gradle-home-"
 GRADLE_DAEMON_WORD = "GradleDaemon"
 LIVE_LOCK = threading.Lock()
@@ -379,8 +380,9 @@ def source_gradle_home(suite: Suite | None) -> Path:
 
 
 class GradleHomes:
-    def __init__(self, work: Path) -> None:
+    def __init__(self, work: Path, workers: int | None = None) -> None:
         self.work = work
+        self.workers = workers
         self.homes: dict[int | str, Path] = {}
         self.suites: dict[int | str, tuple[Suite, Path]] = {}
         self.lock = threading.Lock()
@@ -485,8 +487,8 @@ def stop_active_homes() -> None:
 
 
 @contextmanager
-def gradle_homes(work: Path) -> Iterator[GradleHomes]:
-    homes = GradleHomes(work)
+def gradle_homes(work: Path, workers: int | None = None) -> Iterator[GradleHomes]:
+    homes = GradleHomes(work, workers)
     ACTIVE_HOMES.append(homes)
 
     try:
@@ -574,6 +576,10 @@ def kill_group(process: subprocess.Popen) -> None:
             continue
 
 
+def gradle_worker_cap(workers: int, cores: int | None = None) -> int:
+    return max(1, (cores or os.cpu_count() or 1) // max(1, workers))
+
+
 def run_test_command(
     command: list[str] | str,
     cwd: Path,
@@ -581,6 +587,7 @@ def run_test_command(
     suite: Suite | None = None,
     extra: dict[str, str] | None = None,
     gradle_home: Path | None = None,
+    gradle_workers: int | None = None,
 ) -> TestRun:
     started = time.monotonic()
     words = command if isinstance(command, str) else shlex.join(command)
@@ -593,6 +600,12 @@ def run_test_command(
             options = KOTLIN_DAEMON_JVM_OPTIONS
             cache = source_gradle_home(suite) / "caches"
             env["GRADLE_USER_HOME"] = str(gradle_home)
+
+            kept = GRADLE_WORKERS_PROPERTY in env.get("GRADLE_OPTS", "")
+
+            if gradle_workers is not None and not kept:
+                cap = gradle_worker_cap(gradle_workers)
+                options = (*options, f"-D{GRADLE_WORKERS_PROPERTY}={cap}")
 
             if (cache / "modules-2").is_dir() and not env.get("GRADLE_RO_DEP_CACHE"):
                 env["GRADLE_RO_DEP_CACHE"] = str(cache)
@@ -921,7 +934,10 @@ def run_pooled(
                 timeout,
                 suite=suite,
                 **(
-                    {"gradle_home": homes.home_for(slot.number, suite, copies.repository)}
+                    {
+                        "gradle_home": homes.home_for(slot.number, suite, copies.repository),
+                        "gradle_workers": homes.workers,
+                    }
                     if daemon and homes is not None
                     else {}
                 ),

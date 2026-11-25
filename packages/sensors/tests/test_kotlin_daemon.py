@@ -431,7 +431,7 @@ def test_a_timed_out_mutant_stops_only_its_workers_daemon(tmp_path, monkeypatch)
     root, work, copies = make_copies(tmp_path, 2)
     calls = []
 
-    def run(command, cwd, timeout, suite=None, extra=None, gradle_home=None):
+    def run(command, cwd, timeout, suite=None, extra=None, gradle_home=None, gradle_workers=None):
         fake.start(gradle_home, root)
         calls.append(gradle_home)
 
@@ -482,7 +482,7 @@ def test_measure_enters_gradle_homes_once_and_leaves_it(tmp_path, monkeypatch, c
     real = sensor.gradle_homes
 
     @contextmanager
-    def recording(work):
+    def recording(work, workers=None):
         events.append("enter")
 
         with real(work) as homes:
@@ -601,3 +601,38 @@ def test_the_selected_command_over_the_committed_kotlin_sample_has_no_no_daemon(
     assert command == ["./gradlew", "test", "--tests", "shop.web.OrderControllerTest"]
     assert KOTLIN_SUITE_RAW["language"] == "kotlin"
     assert KSUITE.language == "kotlin"
+
+
+def worker_options(tmp_path, workers, suite=None):
+    home = tmp_path / "home"
+    home.mkdir(exist_ok=True)
+
+    return run_test_command(
+        'echo "OPTS=$GRADLE_OPTS"',
+        tmp_path,
+        30,
+        suite or kotlin_suite(),
+        gradle_home=home,
+        gradle_workers=workers,
+    ).output
+
+
+def test_twelve_cores_and_four_workers_give_each_gradle_build_three(tmp_path, monkeypatch):
+    monkeypatch.setattr(os, "cpu_count", lambda: 12)
+
+    assert "-Dorg.gradle.workers.max=3" in worker_options(tmp_path, 4)
+
+
+def test_a_gradle_build_gets_at_least_one_worker(tmp_path, monkeypatch):
+    monkeypatch.setattr(os, "cpu_count", lambda: 2)
+
+    assert "-Dorg.gradle.workers.max=1" in worker_options(tmp_path, 8)
+
+
+def test_the_suites_own_gradle_workers_value_is_kept(tmp_path, monkeypatch):
+    monkeypatch.setattr(os, "cpu_count", lambda: 12)
+    suite = kotlin_suite({"GRADLE_OPTS": "-Dorg.gradle.workers.max=2"})
+    output = worker_options(tmp_path, 4, suite)
+
+    assert "-Dorg.gradle.workers.max=2" in output
+    assert "-Dorg.gradle.workers.max=3" not in output
