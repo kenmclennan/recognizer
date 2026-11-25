@@ -77,6 +77,10 @@ export class FakeFiles {
       : createHash("sha256").update(found.bytes).digest("hex");
   };
 
+  writeBytes = (path: string, bytes: Buffer, mode?: number): void => {
+    this.put(path, Buffer.from(bytes), mode);
+  };
+
   writeFile = (path: string, content: string, mode?: number): void => {
     this.put(path, Buffer.from(content, "utf8"), mode);
   };
