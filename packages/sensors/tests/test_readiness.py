@@ -1587,3 +1587,33 @@ def test_the_mutation_check_copy_listing_of_this_repository():
 
     assert "packages/sensors/pyproject.toml" in listing
     assert not [path for path in listing if path.startswith((".recognizer/cache", ".git/"))]
+
+
+def test_the_mutation_check_refuses_a_suite_that_exits_non_zero_with_a_parseable_report(harness):
+    root = git_repository(harness)
+    settings = run_settings(f"{WRITES_LCOV}; echo boom; exit 1")
+
+    gaps, _ = readiness.mutation_check(root, settings, True)
+
+    assert codes(gaps) == ["tests-failed"]
+    assert gaps[0]["suite"] == "api"
+    assert "fails before any mutation" in gaps[0]["line"]
+    assert "boom" in gaps[0]["output"]
+
+
+def test_the_mutation_check_refuses_a_python_suite_imported_from_outside_the_copy(harness):
+    root = git_repository(harness)
+    outside = f"SF:a.py\\nDA:1,1\\nend_of_record\\nSF:{root.resolve()}/other.py\\nDA:1,1\\nend_of_record\\n"
+    command = f"mkdir -p coverage && printf '{outside}' > coverage/lcov.info"
+
+    gaps, _ = readiness.mutation_check(root, run_settings(command), True)
+
+    assert codes(gaps) == ["coverage-unavailable"]
+    assert gaps[0]["suite"] == "api"
+    assert "outside its repository copy" in gaps[0]["line"]
+
+
+def test_the_check_without_a_copy_keeps_a_failing_suite_with_a_report_ready(harness):
+    prepared(harness)
+
+    assert check(harness.root, run_settings(f"{WRITES_LCOV}; exit 1"), True) == []

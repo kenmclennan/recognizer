@@ -32,11 +32,13 @@ from recognizer_sensors.settings import MeasurementError, Refusal, diagnose
 from recognizer_sensors.testrun.contexts import PYTHON_DATA, ContextSelection, PythonContexts
 from recognizer_sensors.testrun.failures import (
     carry_could_help,
+    editable_refusal,
     failing_names,
     kotlin_results_glob,
     kotlin_task,
     mutation_tests_failed,
     not_installed,
+    outside_the_copy,
     suite_failed,
 )
 from recognizer_sensors.testrun.readiness import no_contexts_line, unmatched_contexts_line
@@ -624,48 +626,6 @@ def python_data_path(index: int) -> str:
     return PYTHON_DATA if index == 0 else PYTHON_DATA.replace(".data", f"-{index}.data")
 
 
-def outside_the_copy(copy: Path, repository: Path, reports: list[Path]) -> str | None:
-    original = repository.resolve()
-    inside = copy.resolve()
-
-    for report in reports:
-        try:
-            text = report.read_text(encoding="utf-8")
-        except (OSError, ValueError):
-            continue
-
-        for line in text.splitlines():
-            if not line.startswith("SF:"):
-                continue
-
-            raw = line[3:].strip()
-
-            if not raw.startswith("/"):
-                continue
-
-            path = Path(raw).resolve()
-
-            if "site-packages" in path.parts:
-                continue
-
-            if path.is_relative_to(original) and not path.is_relative_to(inside):
-                return str(path)
-
-    return None
-
-
-def editable_refusal(suite: Suite, path: str) -> Refusal:
-    return Refusal(
-        diagnose(
-            "coverage-unavailable",
-            f"coverage unavailable: the {suite.name} suite imported {path} from outside its "
-            "repository copy, so mutants would not be seen; set PYTHONPATH in the suite's env "
-            "to a path inside the repository (resolved inside the copy)",
-            suite=suite.name,
-        )
-    )
-
-
 def run_suite_in(
     repository: Path, copy: Path, suite: Suite, command: str, extra: dict[str, str]
 ) -> tuple[int, str]:
@@ -775,7 +735,7 @@ def coverage_run(
             )
 
             if found is not None:
-                raise editable_refusal(suite, found)
+                raise editable_refusal(suite.name, found)
 
         part = read_source(copy, source, files, started)
 
