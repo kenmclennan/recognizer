@@ -88,7 +88,7 @@ def test_the_manifest_names_the_sensor_and_the_shared_facts(name):
     assert manifest["version"] == version("recognizer-sensors")
 
 
-DISPLAY_KEYS = {"label", "labels", "unit", "units", "order", "limit"}
+DISPLAY_KEYS = {"label", "labels", "unit", "units", "order", "limit", "section", "scope", "switch"}
 
 
 @pytest.mark.parametrize("name", NAMES)

@@ -28,6 +28,7 @@ export const OPERATIONS = [
   "setup.stop",
   "describer.read",
   "config.keys",
+  "settings.panes",
   "config.write",
   "view.parse",
   "view.serialise",

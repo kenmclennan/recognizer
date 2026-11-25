@@ -1,63 +1,19 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CORE_KEYS, parseKeySchema, publish } from "recognizer";
-import { describe, expect, it } from "vitest";
-import { installedSensors } from "../../src/installed-fake";
 import {
-  checkDescribing,
-  checkSetup,
-  createRepositoryModel,
-  repositorySections,
-  sectionSpecs,
-} from "../../src/settings-modal-model";
-
-describe("checkDescribing", () => {
-  it("accepts a model and a batch size and trims the model", () => {
-    expect(checkDescribing("  opus ", "8", "2.50")).toEqual({
-      ok: true,
-      value: { model: "opus", batchSize: 8, confirmAboveUsd: 2.5 },
-    });
-  });
-
-  it.each([
-    ["", "4"],
-    ["-x", "4"],
-    ["a b", "4"],
-  ])("rejects the model %j naming Model", (model, size) => {
-    const checked = checkDescribing(model, size, "5");
-
-    expect(checked.ok).toBe(false);
-    expect(checked.ok ? "" : checked.error).toContain("Model");
-  });
-
-  it.each(["", "0", "17", "2.5", "abc"])(
-    "rejects the batch size %j naming Batch size",
-    (size) => {
-      const checked = checkDescribing("sonnet", size, "5");
-
-      expect(checked.ok).toBe(false);
-      expect(checked.ok ? "" : checked.error).toContain("Batch size");
-    },
-  );
-
-  it.each(["0", "10000", "0.5"])("accepts the threshold %j", (amount) => {
-    expect(checkDescribing("haiku", "4", amount).ok).toBe(true);
-  });
-
-  it.each(["", "-1", "10001", "abc", "NaN"])(
-    "rejects the threshold %j naming Ask above",
-    (amount) => {
-      const checked = checkDescribing("haiku", "4", amount);
-
-      expect(checked.ok).toBe(false);
-      expect(checked.ok ? "" : checked.error).toContain("Ask above");
-    },
-  );
-});
+  CORE_KEYS,
+  parseKeySchema,
+  publish,
+  type Setting,
+  type SettingsPane,
+  settingsPanes,
+} from "recognizer";
+import { describe, expect, it } from "vitest";
+import { paneSources } from "../../src/installed-fake";
+import { createSettingsModel } from "../../src/settings-modal-model";
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
-
 const REPO = resolve(dirname(fileURLToPath(srcUrl)), "../../..");
 
 const SENSOR_KEYS = parseKeySchema(
@@ -70,6 +26,13 @@ if (!("schema" in SENSOR_KEYS)) {
 
 const PUBLISHED = publish([CORE_KEYS, SENSOR_KEYS.schema], "config");
 
+const MACHINE = {
+  "describing.model": "haiku",
+  "describing.batch_size": "4",
+  "describing.confirm_above_usd": "5",
+  "setup.model": "sonnet",
+};
+
 describe("the pinned sensors key schema", () => {
   it("publishes beside the recognizer keys without a collision", () => {
     expect(() =>
@@ -79,15 +42,59 @@ describe("the pinned sensors key schema", () => {
   });
 });
 
-const installed = (...names: string[]) =>
-  installedSensors().filter((one) => names.includes(one.name));
+const panesFor = (
+  names: string[],
+  published = PUBLISHED,
+  mutate: (
+    sensor: ReturnType<typeof paneSources>["sensors"],
+  ) => void = () => {},
+): SettingsPane[] => {
+  const sources = paneSources();
+  const sensors = sources.sensors.filter((one) => names.includes(one.name));
 
-describe("repositorySections", () => {
-  const names = (list: ReturnType<typeof installed>) =>
-    repositorySections(list, PUBLISHED).map((section) => section.name);
+  mutate(sensors);
 
+  return settingsPanes({
+    sensors,
+    describers: sources.describers,
+    published,
+  });
+};
+
+const names = (list: SettingsPane[], group = "repository") =>
+  list.filter((pane) => pane.group === group).map((pane) => pane.name);
+
+const fieldsOf = (pane: SettingsPane | undefined): Setting[] =>
+  (pane?.sections ?? []).flatMap((section) => section.settings);
+
+const model = (
+  config: string | null = null,
+  options: { machine?: Record<string, string>; sensors?: string[] } = {},
+) =>
+  createSettingsModel({
+    panes: panesFor(options.sensors ?? ["crap", "mutation"]),
+    published: PUBLISHED,
+    configText: config,
+    machine: options.machine ?? MACHINE,
+    repository: true,
+  });
+
+const fieldOf = (one: ReturnType<typeof model>, key: string): Setting => {
+  const found = one
+    .panes()
+    .flatMap((pane) => fieldsOf(pane))
+    .find((field) => field.key === key);
+
+  if (found === undefined) {
+    throw new Error(`no field ${key}`);
+  }
+
+  return found;
+};
+
+describe("the panes the model lists", () => {
   it("lists Structural analysis and the suites for a crap-only toolchain", () => {
-    expect(names(installed("crap"))).toEqual([
+    expect(names(panesFor(["crap"]))).toEqual([
       "Structural analysis",
       "C.R.A.P.",
       "Test suites",
@@ -95,7 +102,7 @@ describe("repositorySections", () => {
   });
 
   it("lists the three real sensors' panes in the approved order", () => {
-    expect(names(installed("crap", "mutation"))).toEqual([
+    expect(names(panesFor(["crap", "mutation"]))).toEqual([
       "Structural analysis",
       "C.R.A.P.",
       "Mutation",
@@ -104,9 +111,9 @@ describe("repositorySections", () => {
   });
 
   it("builds the mutation rows in order and the crap rows with their labels and keys", () => {
-    const specs = sectionSpecs(installed("crap", "mutation"), PUBLISHED);
+    const list = panesFor(["crap", "mutation"]);
     const fields = (id: string) =>
-      specs.find((spec) => spec.id === id)?.fields ?? [];
+      fieldsOf(list.find((pane) => pane.id === id));
 
     expect(fields("mutation").map((field) => field.label)).toEqual([
       "Only what changed",
@@ -121,35 +128,36 @@ describe("repositorySections", () => {
   });
 
   it("shows no pane for a sensor that declares no labels while a labelled sibling has one", () => {
-    const bare = {
-      ...installed("mutation")[0],
-      name: "bare",
-      display: "Bare",
-      settings: installed("mutation")[0]?.settings.map(
-        ({ label: _label, ...rest }) => rest,
-      ),
-    };
+    const listed = names(
+      panesFor(["crap", "mutation"], PUBLISHED, (sensors) => {
+        const mutation = sensors.find((one) => one.name === "mutation");
 
-    const listed = names([...installed("crap"), bare as never]);
+        if (mutation !== undefined) {
+          mutation.settings = (mutation.settings as Setting[]).map(
+            ({ label: _label, ...rest }) => rest,
+          );
+        }
+      }),
+    );
 
     expect(listed).toContain("C.R.A.P.");
-    expect(listed).not.toContain("Bare");
+    expect(listed).not.toContain("Mutation");
   });
 
   it("titles a pane with settings_title and otherwise display", () => {
-    const crap = installed("crap")[0];
-    const titled = {
-      ...installed("mutation")[0],
-      settings_title: "Titled pane",
-    };
+    const titled = names(
+      panesFor(["crap", "mutation"], PUBLISHED, (sensors) => {
+        const mutation = sensors.find((one) => one.name === "mutation");
 
-    expect(crap?.settings_title).toBeUndefined();
-    expect(sectionSpecs([crap as never], PUBLISHED).at(-1)?.name).toBe(
-      crap?.display,
+        if (mutation !== undefined) {
+          mutation.settings_title = "Titled pane";
+        }
+      }),
     );
-    expect(sectionSpecs([titled as never], PUBLISHED).at(-1)?.name).toBe(
-      "Titled pane",
-    );
+
+    expect(titled).toContain("C.R.A.P.");
+    expect(titled).toContain("Titled pane");
+    expect(titled).not.toContain("Mutation");
   });
 
   it("lists no mutation pane when the key schema publishes crap and mutation sensors but no mutation keys", () => {
@@ -160,55 +168,67 @@ describe("repositorySections", () => {
       ),
     };
 
-    expect(
-      repositorySections(installed("crap", "mutation"), keys).map(
-        (section) => section.name,
-      ),
-    ).toEqual(["Structural analysis", "C.R.A.P.", "Test suites"]);
+    expect(names(panesFor(["crap", "mutation"], keys))).toEqual([
+      "Structural analysis",
+      "C.R.A.P.",
+      "Test suites",
+    ]);
   });
 
   it("lists only Structural analysis when no sensor is installed", () => {
-    expect(names([])).toEqual(["Structural analysis"]);
+    expect(names(panesFor([]))).toEqual(["Structural analysis"]);
   });
 
-  it("drops the section of a sensor the key schema stops publishing", () => {
+  it("drops the pane of a sensor the key schema stops publishing", () => {
     const core = publish([CORE_KEYS], "config");
 
-    expect(
-      repositorySections(installed("crap", "mutation"), core).map(
-        (section) => section.name,
-      ),
-    ).toEqual(["Structural analysis"]);
+    expect(names(panesFor(["crap", "mutation"], core))).toEqual([
+      "Structural analysis",
+    ]);
+  });
+
+  it("shows only the This Mac panes when no repository is open", () => {
+    const one = createSettingsModel({
+      panes: panesFor(["crap"]),
+      published: PUBLISHED,
+      configText: null,
+      machine: MACHINE,
+      repository: false,
+    });
+
+    expect(names(one.panes(), "repository")).toEqual([]);
+    expect(names(one.panes(), "machine")).toEqual([
+      "Editor",
+      "Describing",
+      "Setup",
+    ]);
   });
 });
 
 describe("the repository model", () => {
   it("groups the duplication and complexity limits under Structural analysis", () => {
-    const sections = repositorySections([], PUBLISHED);
-    const analysis = sections.filter(
-      (section) => section.name === "Structural analysis",
-    );
+    const list = panesFor([]);
+    const analysis = list.filter((pane) => pane.name === "Structural analysis");
 
     expect(analysis).toHaveLength(1);
-    expect(sections.map((section) => section.id)).not.toContain("duplication");
+    expect(list.map((pane) => pane.id)).not.toContain("duplication");
 
-    const labels = sectionSpecs([], PUBLISHED)
-      .find((spec) => spec.id === "structure")
-      ?.fields.map((field) => field.label);
+    const labels = fieldsOf(analysis[0]).map((field) => field.label);
 
     expect(labels).toContain("Complexity");
     expect(labels).toEqual(
       expect.arrayContaining([
-        "Duplication similarity",
-        "Duplication - fewest lines compared",
-        "Duplication - shorter of a pair",
-        "Duplication - fewest syntax nodes",
+        "Similarity",
+        "Fewest lines compared",
+        "Shorter of a pair",
+        "Fewest syntax nodes",
       ]),
+    );
+    expect(labels.some((label) => label?.startsWith("Duplication -"))).toBe(
+      false,
     );
   });
 
-  const model = (config: string | null = null) =>
-    createRepositoryModel(PUBLISHED, config);
   const LIMIT = "sensors.structure.warnings.long_function.limit";
 
   it("does not dot a value equal to its default and dots one that differs", () => {
@@ -218,25 +238,29 @@ describe("the repository model", () => {
     const differs = model(
       "sensors:\n  structure:\n    duplication:\n      min_lines: 6\n",
     );
+    const lines = "sensors.structure.duplication.min_lines";
 
-    expect(equal.sectionChanged("structure")).toBe(false);
-    expect(differs.sectionChanged("structure")).toBe(true);
-    expect(
-      differs.defaultShown("sensors.structure.duplication.min_lines"),
-    ).toEqual({ kind: "figure", text: "4" });
+    expect(equal.changed(fieldOf(equal, lines))).toBe(false);
+    expect(differs.changed(fieldOf(differs, lines))).toBe(true);
+    expect(differs.defaultShown(lines)).toEqual({
+      kind: "figure",
+      text: "4",
+    });
   });
 
-  it("stages a reset as an unset and a section reset as one unset per present key, never a set", () => {
+  it("stages a field reset as an unset of a present key, never a set, and has no section reset", () => {
     const changed = model(
       "sensors:\n  structure:\n    duplication:\n      min_lines: 6\n      min_nodes: 30\n",
     );
 
-    changed.resetSection("structure");
+    changed.resetField(
+      fieldOf(changed, "sensors.structure.duplication.min_lines"),
+    );
 
     expect(changed.edits()).toEqual([
       { op: "unset", key: "sensors.structure.duplication.min_lines" },
-      { op: "unset", key: "sensors.structure.duplication.min_nodes" },
     ]);
+    expect("resetSection" in changed).toBe(false);
   });
 
   it("stages a value that equals its default as an unset of a present key and nothing for an absent one", () => {
@@ -260,11 +284,15 @@ describe("the repository model", () => {
 
   it("shows no default for a key without one and still resets it", () => {
     const suite = model("tests:\n  - name: unit\n    command: pytest\n");
+    const row = suite
+      .suiteRows("unit")
+      .find((one) => one.key === "tests.unit.command");
+    const field = { ...(row?.setting as Setting), key: "tests.unit.command" };
 
     expect(suite.defaultShown("tests.unit.command")).toEqual({ kind: "none" });
-    expect(suite.changed("tests.unit.command")).toBe(true);
+    expect(suite.changed(field)).toBe(true);
 
-    suite.reset(["tests.unit.command"]);
+    suite.resetField(field);
 
     expect(suite.edits()).toEqual([{ op: "unset", key: "tests.unit.command" }]);
   });
@@ -277,13 +305,13 @@ describe("the repository model", () => {
       kind: "text",
       text: "no time budget: the run continues until it finishes",
     });
-    expect(blank.changed(key)).toBe(false);
+    expect(blank.changed(fieldOf(blank, key))).toBe(false);
 
     const set = model("sensors:\n  mutation:\n    max_minutes: 10\n");
 
-    expect(set.changed(key)).toBe(true);
+    expect(set.changed(fieldOf(set, key))).toBe(true);
 
-    set.reset([key]);
+    set.resetField(fieldOf(set, key));
 
     expect(set.edits()).toEqual([{ op: "unset", key }]);
   });
@@ -296,14 +324,14 @@ describe("the repository model", () => {
       kind: "text",
       text: "half the machine's cores, fewer if free memory is short",
     });
-    expect(blank.changed(key)).toBe(false);
+    expect(blank.changed(fieldOf(blank, key))).toBe(false);
 
     const set = model("sensors:\n  mutation:\n    max_workers: 2\n");
 
-    expect(set.changed(key)).toBe(true);
+    expect(set.changed(fieldOf(set, key))).toBe(true);
     expect(set.value(key)).toBe("2");
 
-    set.reset([key]);
+    set.resetField(fieldOf(set, key));
 
     expect(set.edits()).toEqual([{ op: "unset", key }]);
   });
@@ -360,7 +388,7 @@ describe("the repository model", () => {
     const one = model();
 
     expect(one.addSuite("unit")).toBeNull();
-    one.stageSuiteField("tests.unit.language", "python");
+    one.stage("tests.unit.language", "python");
 
     expect(one.edits()).toEqual([
       { op: "add-section", key: "tests.unit" },
@@ -369,42 +397,220 @@ describe("the repository model", () => {
     expect(one.addSuite("unit")).toContain("exists");
     expect(one.addSuite("a b")).toContain("letters");
   });
-});
 
-describe("checkSetup", () => {
-  it("trims a model and refuses the same names Describing's model refuses", () => {
-    expect(checkSetup(" sonnet ")).toEqual({
-      ok: true,
-      value: { model: "sonnet" },
-    });
+  it("labels each suite row by the published label in the order the sensor publishes", () => {
+    const one = model("tests:\n  - name: unit\n    language: python\n");
 
-    for (const bad of ["", "-x", "a b"]) {
-      const setup = checkSetup(bad);
-      const describing = checkDescribing(bad, "4", "5");
-
-      expect(setup.ok).toBe(false);
-      expect(describing.ok).toBe(false);
-      expect(
-        !setup.ok && !describing.ok && setup.error === describing.error,
-      ).toBe(true);
-    }
+    expect(one.suiteRows("unit").map((row) => row.label)).toEqual([
+      "Language",
+      "Directory",
+      "Command",
+      "Activate",
+      "Runner",
+      "Coverage report",
+      "Coverage format",
+    ]);
   });
 });
 
-describe("the Structural analysis section's complexity field", () => {
+describe("the Structural analysis pane's complexity limit toggles through its switch key", () => {
   it("has the Complexity limit with its switch after Long function", () => {
-    const structure = sectionSpecs(
-      installed("crap", "mutation"),
-      PUBLISHED,
-    ).find((section) => section.id === "structure");
-    const labels = structure?.fields.map((field) => field.label);
+    const structure = panesFor(["crap", "mutation"]).find(
+      (pane) => pane.id === "structure",
+    );
+    const fields = fieldsOf(structure);
+    const limits = fields.filter((field) => field.section === "Limits");
 
-    expect(labels?.slice(0, 2)).toEqual(["Long function", "Complexity"]);
-    expect(structure?.fields[1]).toMatchObject({
+    expect(limits.map((field) => field.label)).toEqual([
+      "Long function",
+      "Complexity",
+    ]);
+    expect(limits[1]).toMatchObject({
       key: "sensors.structure.warnings.complexity.limit",
-      control: "limit",
       unit: "paths",
-      switchKey: "sensors.structure.warnings.complexity",
+      switch: { key: "sensors.structure.warnings.complexity" },
     });
+  });
+
+  it("stages the switch key and the number, and a toggle never reports changed", () => {
+    const one = model();
+    const complexity = fieldOf(
+      one,
+      "sensors.structure.warnings.complexity.limit",
+    );
+
+    expect(one.isOn(complexity)).toBe(true);
+
+    one.toggle(complexity);
+
+    expect(one.isOn(complexity)).toBe(false);
+    expect(one.edits()).toEqual([
+      {
+        op: "set",
+        key: "sensors.structure.warnings.complexity",
+        value: "false",
+      },
+    ]);
+    expect(one.changed(complexity)).toBe(true);
+    expect(one.changed(fieldOf(one, "sensors.structure.warnings.cycle"))).toBe(
+      false,
+    );
+
+    one.stage("sensors.structure.warnings.cycle", "false");
+
+    expect(one.changed(fieldOf(one, "sensors.structure.warnings.cycle"))).toBe(
+      false,
+    );
+  });
+});
+
+describe("a limit with an off state", () => {
+  it("writes false for off with switch.value and restores the number on", () => {
+    const key = "sensors.crap.coverage_limit";
+    const one = model("sensors:\n  crap:\n    coverage_limit: 0.7\n");
+    const field = fieldOf(one, key);
+
+    expect(field.switch).toEqual({ value: true });
+    expect(one.isOn(field)).toBe(true);
+
+    one.toggle(field);
+
+    expect(one.isOn(field)).toBe(false);
+    expect(one.edits()).toEqual([{ op: "set", key, value: "false" }]);
+
+    one.toggle(field);
+
+    expect(one.isOn(field)).toBe(true);
+    expect(one.edits()).toEqual([]);
+    expect(one.shown(field)).toBe("0.7");
+  });
+
+  it("removes the key for off with switch.unset and restores the number on", () => {
+    const key = "sensors.mutation.max_minutes";
+    const one = model("sensors:\n  mutation:\n    max_minutes: 90\n");
+    const field = fieldOf(one, key);
+
+    expect(field.switch).toEqual({ unset: true });
+    expect(one.isOn(field)).toBe(true);
+
+    one.toggle(field);
+
+    expect(one.isOn(field)).toBe(false);
+    expect(one.edits()).toEqual([{ op: "unset", key }]);
+
+    one.toggle(field);
+
+    expect(one.isOn(field)).toBe(true);
+    expect(one.shown(field)).toBe("90");
+    expect(one.edits()).toEqual([]);
+  });
+
+  it("is off with switch.unset when the key is absent", () => {
+    const one = model();
+
+    expect(one.isOn(fieldOf(one, "sensors.mutation.max_minutes"))).toBe(false);
+  });
+});
+
+describe("a changed field", () => {
+  it("reports changed for a text, number or select field and counts one per field", () => {
+    const one = model("tests:\n  - name: unit\n    language: python\n");
+    const lines = fieldOf(one, "sensors.structure.duplication.min_lines");
+    const workers = fieldOf(one, "sensors.mutation.max_workers");
+
+    expect(one.changed(lines)).toBe(false);
+    expect(one.count()).toBe(0);
+
+    one.stage(lines.key, "9");
+    one.stage(workers.key, "3");
+
+    expect(one.changed(lines)).toBe(true);
+    expect(one.changed(workers)).toBe(true);
+    expect(one.count()).toBe(2);
+  });
+
+  it("counts a limit's switch and number together as one", () => {
+    const one = model();
+    const limit = fieldOf(
+      one,
+      "sensors.structure.warnings.long_function.limit",
+    );
+
+    one.stage(limit.key, "50");
+    one.stage("sensors.structure.warnings.long_function", "false");
+
+    expect(one.count()).toBe(1);
+  });
+
+  it("blocks Save on a refused value and reports it, the refused key being present first", () => {
+    const one = model();
+    const key = "sensors.structure.duplication.min_lines";
+
+    one.stage(key, "0");
+
+    expect(one.error(key)).not.toBeNull();
+    expect(one.hasErrors()).toBe(true);
+    expect(one.firstError()).toEqual({
+      key,
+      reason: one.error(key),
+    });
+  });
+});
+
+describe("the machine values", () => {
+  it("stages a machine reset as the default set, never a removal", () => {
+    const one = model(null, {
+      machine: { ...MACHINE, "describing.batch_size": "8" },
+    });
+    const batch = fieldOf(one, "describing.batch_size");
+
+    expect(one.changed(batch)).toBe(true);
+    expect(one.resetTitle(batch)).toBe("Reset to 4 files at a time");
+
+    one.resetField(batch);
+
+    expect(one.machineEdits()).toEqual([
+      { key: "describing.batch_size", value: 4 },
+    ]);
+    expect(one.changed(batch)).toBe(false);
+  });
+
+  it("types a machine edit and checks it against the published bounds", () => {
+    const one = model();
+
+    one.stage("describing.batch_size", "99");
+
+    expect(one.error("describing.batch_size")).toContain("above the maximum");
+    expect(one.machineDirty()).toBe(true);
+
+    one.stage("describing.batch_size", "12");
+
+    expect(one.hasErrors()).toBe(false);
+    expect(one.machineEdits()).toEqual([
+      { key: "describing.batch_size", value: 12 },
+    ]);
+  });
+
+  it("puts the describer's model first in Describing and a blank editor equals its default", () => {
+    const describing = panesFor([]).find((pane) => pane.id === "describing");
+
+    expect(fieldsOf(describing).map((field) => field.label)).toEqual([
+      "Model",
+      "Batch size",
+      "Ask before spending over",
+    ]);
+
+    const one = model();
+    const editor = fieldOf(one, "editor");
+
+    expect(one.changed(editor)).toBe(false);
+    expect(one.resetTitle(editor)).toBe("Reset to System default");
+
+    one.stage("editor", "code -g {file}:{line}");
+
+    expect(one.changed(editor)).toBe(true);
+    expect(one.machineEdits()).toEqual([
+      { key: "editor", value: "code -g {file}:{line}" },
+    ]);
   });
 });

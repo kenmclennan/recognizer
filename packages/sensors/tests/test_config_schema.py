@@ -357,5 +357,9 @@ def test_the_suite_keys_of_the_test_running_manifests_equal_the_pinned_tests_ent
     for name in ("crap", "mutation"):
         suite_keys = build(name)["suite_keys"]
 
-        assert suite_keys["keys"] == expected_keys
+        assert [
+            {key: value for key, value in entry.items() if key != "label"}
+            for entry in suite_keys["keys"]
+        ] == expected_keys
+        assert all(entry["label"] for entry in suite_keys["keys"])
         assert suite_keys["section"] == expected_section[0]

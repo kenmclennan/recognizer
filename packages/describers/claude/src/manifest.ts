@@ -26,7 +26,19 @@ export function manifest() {
     long_running: false,
     time_limit_seconds: 120,
     units: ["files"],
-    settings: [],
+    settings: [
+      {
+        key: "model",
+        type: "string",
+        scope: "machine",
+        label: "Model",
+        default: "haiku",
+        description:
+          "the model every description uses, for scans started from the app and from a terminal",
+        example: "describing.model haiku",
+        order: 1,
+      },
+    ],
     prompt_version: promptVersion(),
   };
 }

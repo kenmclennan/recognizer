@@ -307,9 +307,7 @@ export function rowSensors(
   );
 
   if (installed?.status === "ok") {
-    const listed = installed.sensors
-      .filter(({ listed }) => listed)
-      .sort((a, b) => a.display.localeCompare(b.display));
+    const listed = installed.sensors.filter(({ listed }) => listed);
 
     for (const one of listed) {
       rows.push({

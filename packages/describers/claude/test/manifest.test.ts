@@ -67,4 +67,19 @@ describe("the manifest verb", () => {
       },
     );
   });
+
+  it("publishes the model as a machine setting with the default haiku", () => {
+    const printed = JSON.parse(manifest(makeTempDir("manifest-")).stdout);
+
+    expect(printed.settings).toEqual([
+      expect.objectContaining({
+        key: "model",
+        type: "string",
+        scope: "machine",
+        label: "Model",
+        default: "haiku",
+        order: 1,
+      }),
+    ]);
+  });
 });

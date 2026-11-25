@@ -196,3 +196,57 @@ describe("judgeProtocol", () => {
     expect(judgeProtocol({ protocol: 5 })).toBe("unsupported");
   });
 });
+
+describe("the section, scope and switch keys of a setting", () => {
+  const withSetting = (extra: Record<string, unknown>) => {
+    const sensor = example("sensor-crap");
+    const settings = sensor.settings as Record<string, unknown>[];
+
+    return {
+      ...sensor,
+      settings: [{ ...settings[0], ...extra }, ...settings.slice(1)],
+    };
+  };
+
+  it("accepts a section and a machine or repository scope", () => {
+    expect(
+      validateManifest(withSetting({ section: "Limits", scope: "machine" })),
+    ).toBeNull();
+    expect(validateManifest(withSetting({ scope: "repository" }))).toBeNull();
+  });
+
+  it("refuses an empty section and an unknown scope", () => {
+    expect(validateManifest(withSetting({ section: "" }))).not.toBeNull();
+    expect(validateManifest(withSetting({ scope: "global" }))).not.toBeNull();
+  });
+
+  it("accepts each of the three switch forms", () => {
+    expect(
+      validateManifest(withSetting({ switch: { key: "warnings.cycle" } })),
+    ).toBeNull();
+    expect(
+      validateManifest(withSetting({ off: true, switch: { value: true } })),
+    ).toBeNull();
+    expect(
+      validateManifest(withSetting({ switch: { unset: true } })),
+    ).toBeNull();
+  });
+
+  it("refuses a switch with two forms or none", () => {
+    expect(
+      validateManifest(
+        withSetting({ switch: { key: "warnings.cycle", unset: true } }),
+      ),
+    ).not.toBeNull();
+    expect(validateManifest(withSetting({ switch: {} }))).not.toBeNull();
+  });
+
+  it("refuses switch value true without off", () => {
+    expect(
+      validateManifest(withSetting({ switch: { value: true } })),
+    ).not.toBeNull();
+    expect(
+      validateManifest(withSetting({ off: false, switch: { value: true } })),
+    ).not.toBeNull();
+  });
+});

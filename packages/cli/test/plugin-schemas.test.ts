@@ -50,7 +50,17 @@ describe("the manifest schema", () => {
       readFileSync(join(REPO, "schema/config-keys.schema.json"), "utf8"),
     );
 
-    const display = ["label", "labels", "unit", "units", "order", "limit"];
+    const display = [
+      "label",
+      "labels",
+      "unit",
+      "units",
+      "order",
+      "limit",
+      "section",
+      "scope",
+      "switch",
+    ];
     const {
       properties: { ...shown },
       not: { anyOf: exclusives },
@@ -66,7 +76,7 @@ describe("the manifest schema", () => {
       properties: shown,
       not: { anyOf: exclusives.slice(0, 3) },
     }).toEqual(keys.properties.keys.items);
-    expect(exclusives).toHaveLength(5);
+    expect(exclusives).toHaveLength(6);
   });
 
   it("holds the protocol the CLI judges against", () => {

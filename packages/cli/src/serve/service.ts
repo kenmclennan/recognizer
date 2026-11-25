@@ -63,6 +63,7 @@ import { readResponsibilitiesOp } from "./responsibilities-ops.js";
 import { clearPlugin, readPluginResults } from "./results-ops.js";
 import { type ScopeFiles, writeScopeFiles } from "./scan-files.js";
 import { sensorWork } from "./sensor-work.js";
+import { settingsPanesReply } from "./settings-panes.js";
 import {
   parseSetup,
   runSetupAction,
@@ -227,6 +228,10 @@ export class Service {
         return;
       case "config.keys":
         reply(configKeys(this.shared));
+
+        return;
+      case "settings.panes":
+        reply(settingsPanesReply(this.shared));
 
         return;
       case "config.write":

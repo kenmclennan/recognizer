@@ -1,7 +1,12 @@
+import type { SettingsPane } from "./settings-modal-model";
+
 export type Settings = {
-  editor: string;
-  describing: { model: string; batchSize: number; confirmAboveUsd: number };
-  setup: { model: string };
+  values: Record<string, string>;
+};
+
+export type SettingEdit = {
+  key: string;
+  value: string | number | boolean;
 };
 
 export type RepositoryEdit = {
@@ -14,6 +19,10 @@ export type ConfigKeysResult =
   | { status: "ok"; schema: unknown }
   | { status: "unavailable"; reason: string };
 
+export type PanesResult =
+  | { status: "ok"; panes: SettingsPane[] }
+  | { status: "unavailable"; reason: string };
+
 export type WriteResult =
   | { status: "written"; text: string }
   | { status: "refused"; key: string | null; reason: string }
@@ -22,7 +31,8 @@ export type WriteResult =
 
 export type SettingsModalPort = {
   readSettings(): Promise<Settings>;
-  writeSettings(settings: Settings): Promise<void>;
+  writeSettings(edits: SettingEdit[]): Promise<void>;
+  readPanes(): Promise<PanesResult>;
   readConfigKeys(): Promise<ConfigKeysResult>;
   writeRepositoryConfig(
     edits: RepositoryEdit[],

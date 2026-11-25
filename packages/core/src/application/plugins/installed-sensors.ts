@@ -1,4 +1,5 @@
 import { InvalidRequest } from "../../domain/invalid-request.js";
+import { comparePlugins } from "../../domain/plugin-order.js";
 import type {
   Manifest,
   ManifestRead,
@@ -167,6 +168,8 @@ export function readInstalledSensors(
       });
     }
   }
+
+  result.sensors.sort(comparePlugins);
 
   return result;
 }

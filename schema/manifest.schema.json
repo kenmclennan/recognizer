@@ -322,6 +322,34 @@
           "type": "integer",
           "minimum": 1
         },
+        "section": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "enum": [
+            "repository",
+            "machine"
+          ]
+        },
+        "switch": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "maxProperties": 1,
+          "properties": {
+            "key": {
+              "type": "string",
+              "minLength": 1
+            },
+            "value": {
+              "const": true
+            },
+            "unset": {
+              "const": true
+            }
+          }
+        },
         "limit": {
           "type": "object",
           "additionalProperties": false,
@@ -397,6 +425,24 @@
               "unit",
               "units"
             ]
+          },
+          {
+            "required": [
+              "switch"
+            ],
+            "properties": {
+              "switch": {
+                "type": "object",
+                "required": [
+                  "value"
+                ]
+              },
+              "off": {
+                "not": {
+                  "const": true
+                }
+              }
+            }
           }
         ]
       }

@@ -119,6 +119,7 @@ SETTING_DISPLAY = {
             "label": "Report coverage below",
             "unit": "0 to 1",
             "limit": {"metric": "coverage", "direction": "below"},
+            "switch": {"value": True},
         },
     },
     "mutation": {
@@ -128,7 +129,12 @@ SETTING_DISPLAY = {
             "unit": "x the unmutated suite",
             "order": 2,
         },
-        "max_minutes": {"label": "Stop a run after", "unit": "minutes", "order": 3},
+        "max_minutes": {
+            "label": "Stop a run after",
+            "unit": "minutes",
+            "order": 3,
+            "switch": {"unset": True},
+        },
         "max_workers": {"label": "Workers", "order": 4},
     },
 }
@@ -341,8 +347,23 @@ def build(name: str) -> dict:
     }
 
 
+SUITE_LABELS = {
+    "tests.<name>.language": "Language",
+    "tests.<name>.directory": "Directory",
+    "tests.<name>.command": "Command",
+    "tests.<name>.activate": "Activate",
+    "tests.<name>.runner": "Runner",
+    "tests.<name>.env.<variable>": "Environment variable",
+    "tests.<name>.coverage.path": "Coverage report",
+    "tests.<name>.coverage.format": "Coverage format",
+}
+
+
 def suite_keys() -> dict:
-    return {"section": SUITE_SECTION, "keys": list(SUITE_KEYS)}
+    return {
+        "section": SUITE_SECTION,
+        "keys": [{**entry, "label": SUITE_LABELS[entry["key"]]} for entry in SUITE_KEYS],
+    }
 
 
 def manifest_text(name: str) -> str:
