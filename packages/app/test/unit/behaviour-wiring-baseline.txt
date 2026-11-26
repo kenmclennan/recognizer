@@ -16,7 +16,6 @@ packages/app/test/unit/findings-panel-look.test.ts
 packages/app/test/unit/folded-folder-selection.test.ts
 packages/app/test/unit/folder-compaction-look.test.ts
 packages/app/test/unit/freshness-look.test.ts
-packages/app/test/unit/health.test.ts
 packages/app/test/unit/inspector-cards-look.test.ts
 packages/app/test/unit/look-support.test.ts
 packages/app/test/unit/member-marks-look.test.ts
@@ -26,7 +25,6 @@ packages/app/test/unit/notes-look.test.ts
 packages/app/test/unit/notes-order-look.test.ts
 packages/app/test/unit/plan-reads.test.ts
 packages/app/test/unit/plan-views-look.test.ts
-packages/app/test/unit/planned-work.test.ts
 packages/app/test/unit/repository-state-fake.test.ts
 packages/app/test/unit/repository-state-holder.test.ts
 packages/app/test/unit/rescanner.test.ts
@@ -38,9 +36,6 @@ packages/app/test/unit/scan-panel-state-look.test.ts
 packages/app/test/unit/sensor-run.test.ts
 packages/app/test/unit/sensors-fake.test.ts
 packages/app/test/unit/settings-modal-port-fake.test.ts
-packages/app/test/unit/setup-model.test.ts
 packages/app/test/unit/trail-look.test.ts
-packages/app/test/unit/view-file.test.ts
 packages/app/test/unit/view-heading-look.test.ts
-packages/app/test/unit/views-panel-model.test.ts
 packages/app/test/unit/visualisation-fake.test.ts

@@ -13,13 +13,6 @@ import {
 } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
-  CLEAN_DOCTOR,
-  type FakeSetup,
-  fakeSetup,
-  LOOM_SURVEY,
-  RECOMMENDATION,
-} from "../../src/setup-fake";
-import {
   choicesOf,
   createSetupController,
   currentKey,
@@ -35,6 +28,13 @@ import {
   type WizardState,
 } from "../../src/setup-model";
 import type { SetupLine } from "../../src/setup-progress";
+import {
+  CLEAN_DOCTOR,
+  type FakeSetup,
+  fakeSetup,
+  LOOM_SURVEY,
+  RECOMMENDATION,
+} from "../setup-fake";
 
 function counting(fake: FakeSetup) {
   const seen = { sensors: 0, doctors: 0, scans: 0 };

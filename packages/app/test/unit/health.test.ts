@@ -1,4 +1,10 @@
-import { Finding, type SensorFindings, Violation } from "@recognizer/core";
+import {
+  Finding,
+  identityKey,
+  type SensorFindings,
+  Violation,
+} from "@recognizer/core";
+import { InputError, parseBaseline, parsePolicy } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
   computeHealth,
@@ -6,7 +12,6 @@ import {
   type Health,
   violationLine,
 } from "../../src/health";
-import { typedInputs } from "../../src/sensors-fake";
 import { buildTree } from "../../src/tree-model";
 import {
   CURRENT,
@@ -19,6 +24,27 @@ import {
 import { factsFor, measuredOfDocument } from "../freshness-support";
 import { type DocScan, repositoryFrom } from "./repository-from";
 
+function parsedOrNull<T>(
+  text: string | null,
+  parse: (text: string) => T,
+): { value: T | null; problem: string | null } {
+  if (text === null) {
+    return { value: null, problem: null };
+  }
+
+  try {
+    return { value: parse(text), problem: null };
+  } catch (error) {
+    return {
+      value: null,
+      problem:
+        error instanceof InputError
+          ? [...new Set(error.messages)].join("; ")
+          : (error as Error).message,
+    };
+  }
+}
+
 function healthFor(
   name: string,
   policy: string | null,
@@ -28,15 +54,18 @@ function healthFor(
 ) {
   const loaded = fixtureScan(name, "scan.json", CURRENT);
   const ids = modules ?? loaded.repository.files.map((file) => file.path);
-  const inputs = typedInputs({ policy, baseline });
+  const parsedPolicy = parsedOrNull(policy, parsePolicy);
+  const parsedBaseline = parsedOrNull(baseline, (text) =>
+    parseBaseline(text).map(identityKey),
+  );
 
   return {
     health: computeHealth({
       repository: loaded.repository,
-      policy: inputs.policy,
+      policy: parsedPolicy.value,
       modules: ids,
-      baseline: inputs.baseline,
-      baselineProblem: inputs.baselineProblem,
+      baseline: parsedBaseline.value,
+      baselineProblem: parsedBaseline.problem,
       findings,
       freshness: factsFor(
         loaded.repository,

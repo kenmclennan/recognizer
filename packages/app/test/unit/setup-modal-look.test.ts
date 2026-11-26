@@ -12,7 +12,7 @@ const here = (name: string) => fileURLToPath(new URL(name, srcUrl));
 
 const HARNESS = `
 import { openSetupModal } from ${JSON.stringify(here("setup-modal-view.ts"))};
-import { CLEAN_DOCTOR, fakeSetup } from ${JSON.stringify(here("setup-fake.ts"))};
+import { CLEAN_DOCTOR, fakeSetup } from ${JSON.stringify(here("../test/setup-fake.ts"))};
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
 const LOG_SENTENCE = "A log of this run";
