@@ -6,6 +6,7 @@ export type RecordedCommand = {
   command: string;
   args: Record<string, unknown>;
   reply: unknown;
+  at?: number;
 };
 
 export type SerialisedLoaded = Omit<Loaded, "scans" | "repository"> & {
@@ -17,6 +18,8 @@ export type Recording = {
   commands: RecordedCommand[];
   events: unknown[];
   answers: Record<string, unknown>;
+  marks?: Record<string, number>;
+  hostEvents?: { event: string; payload: unknown }[];
 };
 
 export function commandKey(
@@ -60,14 +63,30 @@ export function answerFor(
   recording: Recording,
   command: string,
   args: Record<string, unknown> | undefined,
+  upTo?: number,
 ): unknown {
   const key = commandKey(command, args);
   const matches = recording.commands.filter(
-    (one) => commandKey(one.command, one.args) === key,
+    (one) =>
+      commandKey(one.command, one.args) === key &&
+      (upTo === undefined || (one.at ?? 0) <= upTo),
   );
 
   if (matches.length > 0) {
     return (matches[matches.length - 1] as RecordedCommand).reply;
+  }
+
+  if (command === "core_call" && args?.op === "scan.plan") {
+    const planned = recording.commands.filter(
+      (one) =>
+        one.command === "core_call" &&
+        one.args.op === "scan.plan" &&
+        (upTo === undefined || (one.at ?? 0) <= upTo),
+    );
+
+    if (planned.length > 0) {
+      return (planned[planned.length - 1] as RecordedCommand).reply;
+    }
   }
 
   if (command.startsWith("plugin:")) {

@@ -22,6 +22,9 @@ export type InProcessRootOptions = {
   stamped?: boolean;
   config?: string;
   folderKnown?: boolean;
+  files?: Record<string, string | ((commit: string) => string)>;
+  programs?: Record<string, Program>;
+  origin?: { branch: string; commit: string };
   record?: (
     command: string,
     args: Record<string, unknown>,
@@ -37,7 +40,7 @@ function sha256(text: string | Buffer): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
-function appSensor(
+export function appSensor(
   name: string,
   runsTests: boolean,
   stamped: boolean,
@@ -105,6 +108,7 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
       "recognizer-scan-typescript": typescriptScanner(),
       "recognizer-sense-crap": appSensor("crap", false, stamped, hashOf),
       "recognizer-sense-mutation": appSensor("mutation", true, stamped, hashOf),
+      ...options.programs,
     },
   });
   const files = root.io.files;
@@ -127,7 +131,24 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
     `${REPOSITORY}/.gitignore`,
     ".recognizer/cache/\nnode_modules/\n",
   );
-  root.repositories.commitAll(REPOSITORY, "initial");
+
+  const written = (path: string) =>
+    path.startsWith("/") ? path : `${REPOSITORY}/${path}`;
+  const given = Object.entries(options.files ?? {});
+
+  for (const [path, text] of given) {
+    if (typeof text === "string") {
+      files.writeFile(written(path), text);
+    }
+  }
+
+  const head = root.repositories.commitAll(REPOSITORY, "initial");
+
+  for (const [path, text] of given) {
+    if (typeof text !== "string") {
+      files.writeFile(written(path), text(head));
+    }
+  }
 
   const started: Line[] = [];
   let forwarded = 0;
@@ -185,7 +206,7 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
       case "window_folder":
         return folder.known ? REPOSITORY : null;
       case "adopt_scan":
-        return { branch: "main", commit: "abc" };
+        return options.origin ?? { branch: "main", commit: "abc" };
       case "read_scan_ticks":
         return {
           describe: false,
