@@ -76,6 +76,7 @@ export class Serve {
     this.child = spawn(process.execPath, [BIN, "serve"], {
       env: { ...process.env, PATH: isolatedPath(path), TMPDIR: this.scratch },
       stdio: ["pipe", "pipe", "pipe"],
+      detached: true,
     });
     this.child.stderr?.resume();
     this.child.stdin?.on("error", () => {});
@@ -129,10 +130,12 @@ export class Serve {
   stop(): void {
     this.stopped = true;
     this.child.stdin?.end();
-    this.child.kill();
+    this.killGroup("SIGTERM");
 
-    const remove = () =>
+    const remove = () => {
+      this.killGroup("SIGKILL");
       rmSync(this.scratch, { recursive: true, force: true, maxRetries: 5 });
+    };
 
     if (this.child.exitCode === null && this.child.signalCode === null) {
       this.child.once("exit", remove);
@@ -140,12 +143,22 @@ export class Serve {
       remove();
     }
   }
+
+  private killGroup(signal: "SIGTERM" | "SIGKILL"): void {
+    try {
+      process.kill(-(this.child.pid as number), signal);
+    } catch {
+      this.child.kill(signal);
+    }
+  }
 }
 
 export function launcher(directory: string, name: string, body: string): void {
   const path = join(directory, name);
 
-  writeFileSync(path, `#!/bin/sh\n${body}\n`);
+  const bound = `[ -n "$RECOGNIZER_SHIM_BOUNDED" ] || RECOGNIZER_SHIM_BOUNDED=1 exec perl -e 'alarm shift; exec @ARGV' "\${RECOGNIZER_SHIM_LIFETIME:-1800}" /bin/sh "$0" "$@"`;
+
+  writeFileSync(path, `#!/bin/sh\n${bound}\n${body}\n`);
   chmodSync(path, 0o755);
   registerShim(path);
 }
