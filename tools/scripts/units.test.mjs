@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { decide } from "./ci-changes.mjs";
 import { allFormulae, loadUnits, parseUnits } from "./units.mjs";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
@@ -98,9 +99,13 @@ describe("tools/packaging/units.json", () => {
 
   it("matches the plugins matrix of check.yml", () => {
     const check = workflows().find(({ name }) => name === "check.yml").text;
-    const matrix = /^ {2}plugins:[\s\S]*?unit:\s*\[([^\]]*)\]/m.exec(check)[1];
+    const matrix =
+      /^ {2}plugins:[\s\S]*?unit:\s*\$\{\{\s*fromJSON\(needs\.changes\.outputs\.units\)\s*\}\}/m.exec(
+        check,
+      );
 
-    expect(matrix.split(",").map((name) => name.trim())).toEqual(
+    expect(matrix).not.toBeNull();
+    expect(decide("push", [], UNITS).units).toEqual(
       UNITS.map(({ unit }) => unit),
     );
   });
