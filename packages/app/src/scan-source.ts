@@ -35,7 +35,6 @@ export type Unavailable =
 export type CoreStreamItem = {
   stream: string;
   window?: string;
-  event?: unknown;
   outcome?: CoreOutcome;
   run?: ScanRunRecord | null;
   line?: string;

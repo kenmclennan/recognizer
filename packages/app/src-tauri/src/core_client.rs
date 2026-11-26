@@ -1417,7 +1417,6 @@ while read -r line; do
   case "$line" in
     *'"op":"scan.start"'*)
       echo "{\"id\":$id,\"ok\":\"s1\"}"
-      echo '{"stream":"s1","event":{"kind":"phase"}}'
       echo "{\"stream\":\"s1\",\"outcome\":$OUTCOME}"
       ;;
     *'"op":"scan.watch"'*) echo "{\"id\":$id,\"ok\":\"w1\"}" ;;
@@ -1541,13 +1540,12 @@ done
 
         assert_eq!(reply, json!({ "ok": "s1" }));
 
-        wait_until("the outcome", || locked(&sink.0).len() == 2);
+        wait_until("the outcome", || locked(&sink.0).len() == 1);
 
         let items = locked(&sink.0).clone();
 
         assert!(items.iter().all(|(label, _)| label == "w-1"));
-        assert_eq!(items[0].1["event"]["kind"], "phase");
-        assert_eq!(items[1].1["outcome"]["status"], "finished");
+        assert_eq!(items[0].1["outcome"]["status"], "finished");
         assert!(!client.runs().in_progress("w-1"));
     }
 
@@ -1738,7 +1736,7 @@ exit 9
             .call("w-1", Some(dir.path()), "scan.start", json!({}))
             .unwrap();
 
-        wait_until("the outcome", || locked(&sink.0).len() == 2);
+        wait_until("the outcome", || locked(&sink.0).len() == 1);
         wait_until("the baseline to clear", || {
             lines_of(&log)
                 .iter()
@@ -1760,7 +1758,7 @@ exit 9
             .call("w-2", Some(other.path()), "scan.start", json!({}))
             .unwrap();
 
-        wait_until("the outcome", || locked(&sink.0).len() == 2);
+        wait_until("the outcome", || locked(&sink.0).len() == 1);
 
         let lines = lines_of(&log);
 

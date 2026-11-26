@@ -344,6 +344,21 @@ describe("recognizer serve: the wire", () => {
     await root.close();
   });
 
+  it("a_scan_stream_carries_only_its_outcome", async () => {
+    const { root, repository } = typescriptScenario();
+    const started = await root.call("scan.start", startOf(repository));
+
+    await root.outcome(started.ok);
+
+    const stream = root.lines.filter((line) => line.stream === started.ok);
+
+    expect(stream.map((line) => Object.keys(line).sort())).toEqual([
+      ["outcome", "stream"],
+    ]);
+
+    await root.close();
+  });
+
   it("an_unknown_op_gets_an_error_reply", async () => {
     const parsed = parseRequest(
       JSON.stringify({ id: 1, op: "scan.nothing", args: {} }),
