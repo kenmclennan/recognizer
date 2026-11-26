@@ -35,6 +35,13 @@ export interface PluginTally {
   readonly firstFailure: { item: string; reason: string } | null;
 }
 
+export type EstimateSource = "reported" | "history";
+
+export interface EffectiveEstimate {
+  ms: number;
+  source: EstimateSource;
+}
+
 export interface PluginRunView {
   name: string;
   phase: PluginPhase;
@@ -42,6 +49,7 @@ export interface PluginRunView {
   progress: Progress | null;
   stage: PluginStage | null;
   estimateMs: number | null;
+  effectiveEstimate: EffectiveEstimate | null;
   failure: PluginFailure | null;
   tally: PluginTally | null;
 }
@@ -236,7 +244,26 @@ export class PluginRun {
     return this.next({ state, estimateMs: null, failure: failure ?? null });
   }
 
-  view(): PluginRunView {
+  get live(): boolean {
+    return (
+      this.phase === "sense" &&
+      (this.state === "queued" || this.state === "running")
+    );
+  }
+
+  effective(planned: number | undefined): EffectiveEstimate | null {
+    if (!this.live) {
+      return null;
+    }
+
+    if (this.estimateMs !== null) {
+      return { ms: this.estimateMs, source: "reported" };
+    }
+
+    return planned === undefined ? null : { ms: planned, source: "history" };
+  }
+
+  view(planned?: number): PluginRunView {
     return {
       name: this.name,
       phase: this.phase,
@@ -244,6 +271,7 @@ export class PluginRun {
       progress: this.progress,
       stage: this.stage,
       estimateMs: this.estimateMs,
+      effectiveEstimate: this.effective(planned),
       failure: this.failure,
       tally: this.tally,
     };

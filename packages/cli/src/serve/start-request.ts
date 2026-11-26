@@ -9,6 +9,39 @@ export interface StartArguments {
   modules: string[] | undefined;
   suites: Record<string, string[]> | undefined;
   flags: string[];
+  planned: Record<string, number> | null;
+  plannedFault: string | null;
+}
+
+const PLANNED_FAULT =
+  "plannedMs must be an object mapping a plugin name to milliseconds, each a finite number of 0 or more";
+
+function plannedOf(value: unknown): {
+  planned: Record<string, number> | null;
+  fault: string | null;
+} {
+  if (value === undefined || value === null) {
+    return { planned: null, fault: null };
+  }
+
+  if (typeof value !== "object" || Array.isArray(value)) {
+    return { planned: null, fault: PLANNED_FAULT };
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>);
+
+  if (
+    entries.some(
+      ([, ms]) => typeof ms !== "number" || !Number.isFinite(ms) || ms < 0,
+    )
+  ) {
+    return { planned: null, fault: PLANNED_FAULT };
+  }
+
+  return {
+    planned: Object.fromEntries(entries as [string, number][]),
+    fault: null,
+  };
 }
 
 function describeIntent(value: unknown): DescribeIntent {
@@ -39,10 +72,14 @@ export function parseStart(args: Record<string, unknown>): StartArguments {
       ? args.confirmAbove
       : undefined;
 
+  const { planned, fault } = plannedOf(args.plannedMs);
+
   return {
     repository,
     modules,
     suites,
+    planned,
+    plannedFault: fault,
     flags: [
       "--json",
       ...(describe === false

@@ -39,9 +39,10 @@ function runView(over) {
     sensors: ["crap", "mutation"], describe: false, suites: {}, state: over.phase, endedAt: over.ended_at ?? null,
     exit: over.exit ?? null, gaps: over.gaps ?? [], failure: over.failure ?? null, ran: over.ran ?? null,
     plugins: [
-      { name: "crap", state: "queued", progress: null, stage: null, estimateMs: null, failure: null },
-      { name: "mutation", state: "queued", progress: null, stage: null, estimateMs: null, failure: null },
+      { name: "crap", state: "queued", progress: null, stage: null, estimateMs: null, effectiveEstimate: null, failure: null },
+      { name: "mutation", state: "queued", progress: null, stage: null, estimateMs: null, effectiveEstimate: null, failure: null },
     ],
+    remaining: null,
   };
 
   return { run, progress: NO_PROGRESS, starting: null, adoptedAtOpen: null };

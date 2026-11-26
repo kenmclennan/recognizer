@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { PluginRunView, RunView as Run, RunState } from "@recognizer/core";
 import type { ScanRunRecord } from "recognizer";
 import { describe, expect, it } from "vitest";
@@ -38,6 +39,7 @@ type RunOver = {
   gaps?: ScanRunRecord["gaps"];
   failure?: ScanRunRecord["failure"];
   ran?: ScanRunRecord["ran"];
+  remaining?: Run["remaining"];
 };
 
 type PluginOver = Partial<PluginRunView> & { name: string };
@@ -49,6 +51,7 @@ function pluginRun(over: PluginOver): PluginRunView {
     progress: null,
     stage: null,
     estimateMs: null,
+    effectiveEstimate: null,
     failure: null,
     tally: null,
     ...over,
@@ -87,6 +90,7 @@ function runOf(over: RunOver, plugins?: PluginOver[]): Run {
         state: ENDED_PLUGIN[phase] ?? "queued",
       }))
     ).map(pluginRun),
+    remaining: over.remaining ?? null,
     confirmation: null,
     describeHalt: null,
     structure: null,
@@ -529,14 +533,17 @@ describe("the time slot while an app-driven scan runs", () => {
   });
 
   it("reads about N min left from the reported estimates", () => {
-    const card = running({ sensors: ["crap"] }, [live("crap", 600_000)])?.card;
+    const card = running(
+      { sensors: ["crap"], remaining: { ms: 600_000, silent: [] } },
+      [live("crap", 600_000)],
+    )?.card;
 
     expect(card?.when.text).toBe("about 10 min left");
     expect(card?.when.title).toBeUndefined();
   });
 
-  it("names the plugins that have not reported in the hover", () => {
-    const card = running({}, [
+  it("renders_no_estimate_yet_naming_the_silent_plugins", () => {
+    const card = running({ remaining: { ms: null, silent: ["mutation"] } }, [
       live("crap", 600_000),
       { name: "mutation", state: "queued" },
     ])?.card;
@@ -546,88 +553,45 @@ describe("the time slot while an app-driven scan runs", () => {
     expect(card?.when.title).not.toContain("C.R.A.P.");
   });
 
-  it("a_run_reads_no_estimate_yet_while_a_queued_plugin_has_not_reported", () => {
-    const card = running({}, [
-      live("crap", 40_000),
-      { name: "mutation", state: "queued" },
+  it("renders_a_remaining_of_zero_as_under_a_minute_left", () => {
+    const card = running({ remaining: { ms: 0, silent: [] } }, [
+      live("crap", 0),
     ])?.card;
-
-    expect(card?.when.text).toBe("No estimate yet");
-    expect(card?.when.title).toContain("Mutation");
-  });
-
-  it("a_queued_plugin_with_history_contributes_its_planned_estimate_before_its_first_stage", () => {
-    const card = running(
-      {},
-      [live("crap", 40_000), { name: "mutation", state: "queued" }],
-      { plannedMs: { mutation: 5 * 60_000 } },
-    )?.card;
-
-    expect(card?.when.text).toBe("about 6 min left");
-    expect(card?.when.title).toBeUndefined();
-  });
-
-  it("a_started_plugin_that_has_not_reported_keeps_its_history_estimate", () => {
-    const card = running({}, [live("crap", null)], {
-      plannedMs: { crap: 40_000 },
-    })?.card;
 
     expect(card?.when.text).toBe("under a minute left");
     expect(card?.when.title).toBeUndefined();
   });
 
-  it("a_started_plugin_own_estimate_replaces_its_history_estimate", () => {
-    const card = running({}, [live("crap", 600_000)], {
-      plannedMs: { crap: 40_000 },
-    })?.card;
+  it("renders_the_clock_when_remaining_is_null", () => {
+    const card = running({ remaining: null }, [live("crap", 600_000)])?.card;
 
-    expect(card?.when.text).toBe("about 10 min left");
+    expect(card?.when.text).toMatch(/^\d\d:\d\d$/);
   });
 
-  it("a_started_plugin_without_history_that_has_not_reported_reads_no_estimate_yet", () => {
-    const card = running({}, [live("crap", null)])?.card;
+  it("renders_the_rounded_remaining_the_core_computed", () => {
+    const sum = (ms: number) =>
+      running({ remaining: { ms, silent: [] } }, [live("crap", 1)])?.card.when
+        .text;
 
-    expect(card?.when.text).toBe("No estimate yet");
-    expect(card?.when.title).toContain("C.R.A.P.");
-  });
-
-  it("a_queued_plugin_without_history_still_reads_no_estimate_yet", () => {
-    const card = running(
-      {},
-      [live("crap", 40_000), { name: "mutation", state: "queued" }],
-      { plannedMs: { crap: 40_000 } },
-    )?.card;
-
-    expect(card?.when.text).toBe("No estimate yet");
-    expect(card?.when.title).toContain("Mutation");
-  });
-
-  it("a_plugin_that_reports_none_reads_no_estimate_yet", () => {
-    const card = running({ sensors: ["crap"] }, [live("crap", null)])?.card;
-
-    expect(card?.when.text).toBe("No estimate yet");
-  });
-
-  it("a_run_reads_the_sum_of_every_live_plugins_estimate", () => {
-    const sum = (a: number, b: number) =>
-      running({}, [live("crap", a), live("mutation", b)])?.card.when.text;
-
-    expect(sum(5 * 60_000, 4 * 60_000)).toBe("about 9 min left");
-    expect(sum(30_000, 30_000)).toBe("about 1 min left");
-    expect(sum(30_000, 29_999)).toBe("under a minute left");
+    expect(sum(540_000)).toBe("about 9 min left");
+    expect(sum(60_000)).toBe("about 1 min left");
+    expect(sum(59_999)).toBe("under a minute left");
   });
 
   it("a_mutation_run_of_hours_never_reads_under_a_minute_at_a_stage_boundary", () => {
     const hour = 3_600_000;
     const at = (index: number, estimateMs: number) =>
-      running({ sensors: ["mutation"] }, [
-        {
-          name: "mutation",
-          state: "running",
-          stage: { name: `suite ${index}`, index, of: 2 },
-          estimateMs,
-        },
-      ])?.card;
+      running(
+        { sensors: ["mutation"], remaining: { ms: estimateMs, silent: [] } },
+        [
+          {
+            name: "mutation",
+            state: "running",
+            stage: { name: `suite ${index}`, index, of: 2 },
+            estimateMs,
+          },
+        ],
+      )?.card;
     const cards = [at(1, 3 * hour), at(2, 3 * hour), at(2, 3 * hour - 60_000)];
     const texts = cards.map((card) => card?.when.text);
 
@@ -832,7 +796,11 @@ describe("the card with extract and describe plugin runs", () => {
         { name: "describe", phase: "describe" },
         { name: "crap", state: "running", estimateMs: 600_000 },
       ],
-      { started_by: "app", describe: true },
+      {
+        started_by: "app",
+        describe: true,
+        remaining: { ms: 600_000, silent: [] },
+      },
     )?.card;
 
     expect(card?.when.text).toBe("about 10 min left");
@@ -857,4 +825,15 @@ describe("the card with extract and describe plugin runs", () => {
 
     expect(stopped?.card.line).toBe("Kept C.R.A.P. 1/4");
   });
+});
+
+it("the_run_model_does_not_choose_or_sum_estimates", () => {
+  const source = readFileSync(
+    new URL("../../src/scan-run-model.ts", import.meta.url),
+    "utf8",
+  );
+
+  expect(source).toContain("remaining");
+  expect(source).not.toContain("estimateMs");
+  expect(source).not.toContain("plannedMs");
 });

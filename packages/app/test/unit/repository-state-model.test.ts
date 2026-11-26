@@ -37,6 +37,7 @@ function plugin(name: string, state: PluginRunView["state"]): PluginRunView {
     progress: null,
     stage: null,
     estimateMs: null,
+    effectiveEstimate: null,
     failure: null,
     tally: null,
   };
@@ -62,6 +63,7 @@ function run(
     failure: null,
     ran: null,
     plugins,
+    remaining: null,
     confirmation: null,
     describeHalt: null,
     structure: null,
@@ -386,6 +388,7 @@ describe("the run card reads the snapshot's last finished run", () => {
         failure: null,
         ran: null,
         plugins: [],
+        remaining: null,
         confirmation: null,
         describeHalt: null,
         structure: null,

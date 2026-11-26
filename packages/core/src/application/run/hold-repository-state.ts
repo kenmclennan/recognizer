@@ -21,7 +21,11 @@ import {
   type ResultEntry,
   ResultSet,
 } from "../../domain/run/result-set.js";
-import { Run, type RunReport } from "../../domain/run/run.js";
+import {
+  type PlannedEstimates,
+  Run,
+  type RunReport,
+} from "../../domain/run/run.js";
 import {
   type InstalledFacts,
   type ManifestFacts,
@@ -131,6 +135,7 @@ export class RepositoryStateHolder {
   private settling: Settling | null = null;
   private readonly settled = new Set<string>();
   private killedRunning: string[] = [];
+  private pendingPlan: PlannedEstimates | null = null;
 
   constructor(
     readonly root: string,
@@ -143,6 +148,10 @@ export class RepositoryStateHolder {
     }
 
     return this.published as RepositoryState;
+  }
+
+  expectPlan(planned: PlannedEstimates | null): void {
+    this.pendingPlan = planned;
   }
 
   active(): boolean {
@@ -190,7 +199,14 @@ export class RepositoryStateHolder {
     const { record } = read;
 
     if (this.run === null || this.run.id !== record.runId) {
+      const planned = record.startedBy === "app" ? this.pendingPlan : null;
+
+      if (record.startedBy === "app") {
+        this.pendingPlan = null;
+      }
+
       this.run = Run.begin({
+        ...(planned === null ? {} : { planned }),
         id: record.runId,
         startedBy: record.startedBy,
         startedAt: record.startedAt,

@@ -36,8 +36,12 @@ export type DescribingSettings = {
 
 export type RunEvent = { kind: "run"; run: ScanRunRecord | null };
 
+export type ScanRunPlan = ScanPlan & {
+  plannedMs?: Readonly<Record<string, number>>;
+};
+
 export type ScanPort = {
-  run(plan: ScanPlan): Promise<ScanRunResult>;
+  run(plan: ScanRunPlan): Promise<ScanRunResult>;
   stop(): Promise<void>;
   answerDescribe(describe: boolean): Promise<void>;
   readCache(): Promise<ScanReport>;

@@ -33,6 +33,7 @@ export type PlannedRun = {
   progress: string;
   names?: boolean;
   work: Record<string, number>;
+  plannedMs?: Readonly<Record<string, number>>;
 };
 
 export const OPEN_RUN: PlannedRun = {

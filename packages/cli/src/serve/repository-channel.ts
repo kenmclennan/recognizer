@@ -48,6 +48,13 @@ export class RepositoryChannel {
     return found;
   }
 
+  planned(
+    repository: string,
+    plannedMs: Readonly<Record<string, number>> | null,
+  ): void {
+    this.heldFor(repository).holder.expectPlan(plannedMs);
+  }
+
   state(repository: string): RepositoryState {
     const { holder } = this.heldFor(repository);
 

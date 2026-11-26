@@ -1,4 +1,4 @@
-import type { PluginRunView, RunView as Run, RunState } from "@recognizer/core";
+import type { RunView as Run, RunState } from "@recognizer/core";
 import { roundedTime } from "./estimate-text";
 import { ageText } from "./footer-scan";
 import type { IconName } from "./icons";
@@ -14,7 +14,6 @@ export type RunInput = {
 
 export type RunView = RunInput & {
   display: (name: string) => string;
-  plannedMs?: Readonly<Record<string, number>>;
 };
 
 export type GapItem = {
@@ -218,33 +217,20 @@ function timeLeft(
   run: Run,
   view: RunView,
 ): { text: string; title?: string } | null {
-  if (run.startedBy !== "app") {
+  const { remaining } = run;
+
+  if (remaining === null) {
     return null;
   }
 
-  const live: PluginRunView[] = run.plugins.filter(
-    ({ state, phase }) =>
-      phase === "sense" && (state === "queued" || state === "running"),
-  );
-
-  if (live.length === 0) {
-    return null;
-  }
-
-  const estimateOf = (one: PluginRunView): number | null =>
-    one.estimateMs ?? view.plannedMs?.[one.name] ?? null;
-  const silent = live.filter((one) => estimateOf(one) === null);
-
-  if (silent.length > 0) {
+  if (remaining.ms === null) {
     return {
       text: NO_ESTIMATE_YET,
-      title: `No estimate from ${silent.map(({ name }) => view.display(name)).join(", ")}`,
+      title: `No estimate from ${remaining.silent.map((name) => view.display(name)).join(", ")}`,
     };
   }
 
-  const total = live.reduce((sum, one) => sum + (estimateOf(one) ?? 0), 0);
-
-  return { text: `${roundedTime(total)} left` };
+  return { text: `${roundedTime(remaining.ms)} left` };
 }
 
 function cardOf(
