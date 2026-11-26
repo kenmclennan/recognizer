@@ -14,6 +14,7 @@ import { registeredSensors } from "./config-parse.js";
 import { detectLanguages } from "./detect.js";
 import { InputError } from "./errors.js";
 import { documentValidators, manifestPorts } from "./manifest-ports.js";
+import { registeredSensorPlugins } from "./registered-listing.js";
 import { languageRulesOf } from "./scanners.js";
 
 const USAGE = ["usage: recognizer plugins [REPOSITORY] [--json]"];
@@ -96,7 +97,19 @@ export function runPlugins(argv: string[], io: Io): number {
     throw new InputError([`repository is not a directory: ${root}`]);
   }
 
-  const { plugins, unreadable } = discoverPlugins(manifestPorts(io));
+  const found = discoverPlugins(manifestPorts(io));
+  const custom = registeredSensorPlugins(
+    io,
+    root,
+    new Set(
+      found.plugins
+        .filter((one) => one.kind === "sensor")
+        .map((one) => one.name),
+    ),
+  );
+  const plugins = [...found.plugins, ...custom.plugins];
+  const unreadable = [...found.unreadable, ...custom.unreadable];
+  const customCommands = new Set(custom.plugins.map((one) => one.command));
   const config = readRegistration(io, root);
   const scanners = plugins.filter((one) => one.kind === "scanner");
   const chosen =
@@ -121,7 +134,9 @@ export function runPlugins(argv: string[], io: Io): number {
         : `scanner for ${languages.join(", ")}`;
     }
 
-    return isRegistered(plugin, config) ? "registered" : UNUSED;
+    return customCommands.has(plugin.command) || isRegistered(plugin, config)
+      ? "registered"
+      : UNUSED;
   };
 
   if (values.json === true) {

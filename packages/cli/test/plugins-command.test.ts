@@ -126,6 +126,30 @@ describe("recognizer plugins", () => {
     expect(rows[3]).toMatch(/current {2}registered$/);
   });
 
+  it("lists a sensor registered under a custom command with a manifest, once, marked registered", async () => {
+    const { bin, repo } = installed();
+    const elsewhere = tempDirectory("recognizer-plugins-custom-");
+    const shim = writeShim(
+      elsewhere,
+      "tally-tool",
+      manifestFor("sensor", "tally"),
+    );
+
+    mkdirSync(join(repo, ".recognizer"));
+    writeFileSync(
+      join(repo, ".recognizer", "config.yaml"),
+      `sensors:\n  tally:\n    command: [${shim}, run]\n    manifest: [${shim}, manifest]\n  tally-again:\n    command: [${shim}, run, again]\n    manifest: [${shim}, manifest]\n`,
+    );
+
+    const { code, out } = await plugins([bin], [repo]);
+    const rows = out.trimEnd().split("\n");
+    const tally = rows.filter((row) => row.startsWith("sensor  tally  "));
+
+    expect(code).toBe(0);
+    expect(tally).toHaveLength(1);
+    expect(tally[0]).toMatch(/current {2}registered$/);
+  });
+
   it("prints - for sensors and describers when the repository has no config", async () => {
     const { bin, repo } = installed();
     const { out } = await plugins([bin], [repo]);
