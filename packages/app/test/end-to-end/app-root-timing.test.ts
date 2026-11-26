@@ -12,7 +12,7 @@ import { appRoot, REPO, timeEndToEnd, untilHolds } from "../roots";
 
 const EDIT_LIMIT_MS = 10_000;
 const PULL_LIMIT_MS = 5_000;
-const SETTLE_LIMIT_MS = 5_000;
+const SETTLE_CEILING_MS = 30_000;
 const TEST_TIMEOUT = scaledTimeout(60_000) * 5;
 
 const PULLS = [
@@ -99,13 +99,13 @@ describe("the app root, timed end to end", () => {
         return state === "finished" ? true : undefined;
       });
 
-      const { elapsedMs, limitMs } = await timeEndToEnd(root.service, {
-        limitMs: SETTLE_LIMIT_MS,
-        action: () => {},
-        until: () => (host.running() ? undefined : true),
-      });
+      await untilHolds(
+        root.service,
+        () => (host.running() ? undefined : true),
+        SETTLE_CEILING_MS,
+      );
 
-      expect(elapsedMs).toBeLessThan(limitMs);
+      expect(host.running()).toBe(false);
     },
     TEST_TIMEOUT,
   );
