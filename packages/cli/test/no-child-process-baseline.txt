@@ -67,7 +67,6 @@ packages/cli/test/read-commands.test.ts
 packages/cli/test/report-command.test.ts
 packages/cli/test/reported-results-service.test.ts
 packages/cli/test/run-log.test.ts
-packages/cli/test/run-sensors.test.ts
 packages/cli/test/recorded-scans-adapter-scan-baseline-real.test.ts
 packages/cli/test/scan-command.test.ts
 packages/cli/test/scan-container.test.ts
@@ -81,6 +80,7 @@ packages/cli/test/scan-translator.test.ts
 packages/cli/test/scan-version.test.ts
 packages/cli/test/scan.integration.test.ts
 packages/cli/test/scanners.test.ts
+packages/cli/test/sensors-adapter-run-sensors.test.ts
 packages/cli/test/sensors-check.test.ts
 packages/cli/test/sensors.integration.test.ts
 packages/cli/test/sensors.test.ts
