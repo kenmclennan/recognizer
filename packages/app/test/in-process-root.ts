@@ -22,6 +22,12 @@ export type InProcessRootOptions = {
   stamped?: boolean;
   config?: string;
   folderKnown?: boolean;
+  record?: (
+    command: string,
+    args: Record<string, unknown>,
+    reply: unknown,
+    lines: readonly Line[],
+  ) => void;
 };
 
 const DEFAULT_CONFIG =
@@ -164,7 +170,7 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
 
   const folder = { known: options.folderKnown ?? true };
 
-  bridge.invoke = async (command, args = {}) => {
+  const answer = async (command: string, args: Record<string, unknown>) => {
     switch (command) {
       case "core_call": {
         const request = { ...(args.args as Record<string, unknown>) };
@@ -195,6 +201,14 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
     }
   };
 
+  bridge.invoke = async (command, args = {}) => {
+    const reply = await answer(command, args);
+
+    options.record?.(command, args, reply, root.lines);
+
+    return reply;
+  };
+
   vi.resetModules();
 
   const { composeApp } = await import("../src/app-root");
@@ -216,6 +230,7 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
     service,
     repository: REPOSITORY,
     io: root.io,
+    lines: root.lines,
     testFile: `${REPOSITORY}/api/tests/a.test.ts`,
   };
 }

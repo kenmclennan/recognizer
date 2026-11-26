@@ -1,2 +1,1 @@
 packages/app/test/roots.ts
-packages/app/test/unit/panel-from-root-look.test.ts

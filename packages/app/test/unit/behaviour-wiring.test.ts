@@ -6,6 +6,7 @@ import {
   checkWiring,
   type Exception,
   readBaseline,
+  sourceStems,
 } from "./behaviour-wiring-check";
 
 const REPO = join(__dirname, "../../../..");
@@ -120,6 +121,28 @@ describe("behaviour tests go through the app's root", () => {
     expect(report.excepted).toEqual(["test/pure.test.ts"]);
   });
 
+  it("a bridge source's own test passes by its stem", () => {
+    const root = tree({
+      "src/scan-source.ts": "export const scanSource = {};\n",
+      "test/scan-source.test.ts": WIRED,
+      "test/scan-source-refresh.test.ts": WIRED,
+      "test/other.test.ts": WIRED,
+    });
+    const report = checkWiring({
+      repositoryRoot: root,
+      testDirectory: "test",
+      baseline: [],
+      exceptions: [],
+      stems: sourceStems(join(root, "src")),
+    });
+
+    expect(report.excepted).toEqual([
+      "test/scan-source-refresh.test.ts",
+      "test/scan-source.test.ts",
+    ]);
+    expect(report.unlisted).toEqual(["test/other.test.ts"]);
+  });
+
   it("the real tree matches its baseline", () => {
     const baseline = readBaseline(BASELINE);
     const real = checkWiring({
@@ -127,7 +150,7 @@ describe("behaviour tests go through the app's root", () => {
       testDirectory: TEST_DIRECTORY,
       baseline,
       exceptions: EXCEPTIONS,
-      stems: new Set<string>(),
+      stems: sourceStems(join(REPO, "packages/app/src")),
     });
 
     expect(real.unlisted).toEqual([]);

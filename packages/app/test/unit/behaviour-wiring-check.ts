@@ -137,6 +137,18 @@ export function adapterStems(adaptersDirectory: string): Set<string> {
   );
 }
 
+export function sourceStems(sourceDirectory: string): Set<string> {
+  if (!existsSync(sourceDirectory)) {
+    return new Set();
+  }
+
+  return new Set(
+    readdirSync(sourceDirectory)
+      .filter((name) => name.endsWith("-source.ts"))
+      .map((name) => name.replace(/\.ts$/, "")),
+  );
+}
+
 export function adapterContractReason(
   file: string,
   stems: Set<string>,
