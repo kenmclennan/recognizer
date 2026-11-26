@@ -300,7 +300,11 @@ export function openSettingsModal(deps: SettingsModalDeps): SettingsModal {
     const placeholder = model.defaultShown(key);
 
     if (placeholder.kind === "text") {
-      text.placeholder = placeholder.text;
+      const split = placeholder.text.indexOf(": ");
+
+      text.placeholder =
+        split < 0 ? placeholder.text : placeholder.text.slice(0, split);
+      text.classList.add("hinted");
     }
 
     text.dataset.key = key;
