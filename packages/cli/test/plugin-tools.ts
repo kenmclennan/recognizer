@@ -5,6 +5,7 @@ import type { Manifest } from "@recognizer/core";
 import { beforeAll } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { REPO } from "./helpers.js";
+import { registerShim } from "./plugin-registry-shim.js";
 import {
   requirePythonScannerVenv,
   requireSensorsVenv,
@@ -26,6 +27,7 @@ function shim(directory: string, name: string, script: string): RealTool {
 
   writeFileSync(path, `#!/bin/sh\nexec node "${join(REPO, script)}" "$@"\n`);
   chmodSync(path, 0o755);
+  registerShim(path);
 
   return { name, path };
 }

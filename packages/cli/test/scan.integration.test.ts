@@ -16,6 +16,7 @@ import { run } from "../src/cli.js";
 import { validateScan } from "../src/index.js";
 import { capture, REPO } from "./helpers.js";
 import { isolatedPath } from "./isolated-path.js";
+import { registerShim } from "./plugin-registry-shim.js";
 
 const VARIABLES = ["PATH"];
 
@@ -24,6 +25,7 @@ function launcher(directory: string, name: string, body: string): string {
 
   writeFileSync(path, `#!/bin/sh\n${body}\n`);
   chmodSync(path, 0o755);
+  registerShim(path);
 
   return path;
 }

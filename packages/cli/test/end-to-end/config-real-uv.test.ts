@@ -12,6 +12,7 @@ import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
 import { parseConfig } from "../../src/config-parse.js";
 import { REPO } from "../helpers.js";
+import { registerShim } from "../plugin-registry-shim.js";
 
 const HAS_UV = spawnSync("uv", ["--version"]).status === 0;
 const BIN = join(REPO, "packages/cli/dist/bin.js");
@@ -50,6 +51,7 @@ function launcher(directory: string, name: string, body: string): void {
 
   writeFileSync(path, `#!/bin/sh\n${body}\n`);
   chmodSync(path, 0o755);
+  registerShim(path);
 }
 
 if (!HAS_UV) {

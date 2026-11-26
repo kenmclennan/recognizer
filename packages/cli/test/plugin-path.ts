@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { type Io, nodeIo } from "../src/cli.js";
 import { REPO } from "./helpers.js";
+import { registerShim } from "./plugin-registry-shim.js";
 
 export type ManifestOverrides = Record<string, unknown>;
 
@@ -85,6 +86,7 @@ export function writeShim(
     ),
   );
   chmodSync(path, 0o755);
+  registerShim(path);
 
   return path;
 }

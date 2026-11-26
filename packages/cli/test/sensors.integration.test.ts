@@ -18,6 +18,7 @@ import { validateFindings } from "../src/findings-document.js";
 import { entriesOf } from "../src/run-log.js";
 import { capture, REPO } from "./helpers.js";
 import { isolatedPath } from "./isolated-path.js";
+import { registerShim } from "./plugin-registry-shim.js";
 
 const VARIABLES = ["SHELL"];
 const HAS_UV = spawnSync("uv", ["--version"]).status === 0;
@@ -28,6 +29,7 @@ function launcher(directory: string, name: string, body: string): string {
 
   writeFileSync(path, `#!/bin/sh\n${body}\n`);
   chmodSync(path, 0o755);
+  registerShim(path);
 
   return path;
 }

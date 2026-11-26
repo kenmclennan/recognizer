@@ -1,6 +1,7 @@
 import { appendFileSync, chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { manifestFor } from "./plugin-path.js";
+import { registerShim } from "./plugin-registry-shim.js";
 
 export interface StubScanner {
   name: string;
@@ -47,5 +48,6 @@ export function writeStubScanner(
     ].join("\n"),
   );
   chmodSync(path, 0o755);
+  registerShim(path);
   appendFileSync(log, "");
 }
