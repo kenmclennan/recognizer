@@ -175,3 +175,46 @@ export function unpublishedValues(
     );
   });
 }
+
+export interface RetiredSetting {
+  key: string;
+  reason: string;
+}
+
+function leafKeys(value: unknown, trail: string[]): string[] {
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    return Object.entries(value).flatMap(([name, inner]) =>
+      leafKeys(inner, [...trail, name]),
+    );
+  }
+
+  return trail.length === 0 ? [] : [trail.join(".")];
+}
+
+function covers(published: string, set: string): boolean {
+  const wanted = published.split(".");
+  const given = set.split(".");
+
+  return (
+    wanted.length === given.length &&
+    wanted.every(
+      (part, at) => /^<[a-z][a-z0-9_]*>$/.test(part) || part === given[at],
+    )
+  );
+}
+
+export function retiredSettings(
+  document: unknown,
+  keys: readonly { key: string; retired?: string }[],
+): RetiredSetting[] {
+  const retired = keys.filter(
+    (entry): entry is { key: string; retired: string } =>
+      entry.retired !== undefined,
+  );
+
+  return leafKeys(document, []).flatMap((set) => {
+    const hit = retired.find((entry) => covers(entry.key, set));
+
+    return hit === undefined ? [] : [{ key: set, reason: hit.retired }];
+  });
+}

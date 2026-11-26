@@ -25,6 +25,7 @@ export interface KeyEntry {
   maximum?: number;
   exclusiveMaximum?: number;
   off?: boolean;
+  retired?: string;
   description: string;
   example: string;
 }
