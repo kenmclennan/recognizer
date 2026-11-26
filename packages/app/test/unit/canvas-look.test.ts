@@ -240,6 +240,8 @@ result.hint = {
 canvas.render(props({ open: 0, scene: null }));
 result.hint.shownWhenEmpty = getComputedStyle(hint).display !== "none";
 result.hint.fittedWhenEmpty = canvas.fitted();
+canvas.render(props({ open: 0 }));
+result.hint.shownWithPlannedBoxesOnly = getComputedStyle(hint).display !== "none";
 
 canvas.render(props());
 const controls = q(".controls");
@@ -477,6 +479,7 @@ type Report = {
     textContent: string;
     shown: boolean;
     shownWhenEmpty: boolean;
+    shownWithPlannedBoxesOnly: boolean;
     fittedWhenEmpty: boolean;
     style: Props;
   };
@@ -839,6 +842,7 @@ describe("the canvas, in a real browser", () => {
       );
       expect(hint.shown).toBe(false);
       expect(hint.shownWhenEmpty).toBe(true);
+      expect(hint.shownWithPlannedBoxesOnly).toBe(false);
       expect(hint.fittedWhenEmpty).toBe(true);
       expect(hint.style["text-align"]).toBe("center");
       expect(hint.style.color).toBe(r().tokens.muted);
