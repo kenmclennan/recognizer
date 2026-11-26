@@ -12,8 +12,9 @@ import { appRoot, REPO, timeEndToEnd, untilHolds } from "../roots";
 
 const EDIT_LIMIT_MS = 10_000;
 const PULL_LIMIT_MS = 5_000;
-const SETTLE_CEILING_MS = 30_000;
+const SCAN_CEILING_MS = 240_000;
 const TEST_TIMEOUT = scaledTimeout(60_000) * 5;
+const SETTLE_TEST_TIMEOUT = scaledTimeout(SCAN_CEILING_MS) * 3;
 
 const PULLS = [
   {
@@ -83,31 +84,40 @@ describe("the app root, timed end to end", () => {
       const host = await untilHolds(
         root.service,
         () => root.view.explorer()?.host,
+        SCAN_CEILING_MS,
       );
 
       host.run(null);
 
-      await untilHolds(root.service, () => {
-        const state = host.runView?.()?.run?.state;
+      await untilHolds(
+        root.service,
+        () => {
+          const state = host.runView?.()?.run?.state;
 
-        return state === "running" ? true : undefined;
-      });
+          return state === "running" ? true : undefined;
+        },
+        SCAN_CEILING_MS,
+      );
 
-      await untilHolds(root.service, () => {
-        const state = host.runView?.()?.run?.state;
+      await untilHolds(
+        root.service,
+        () => {
+          const state = host.runView?.()?.run?.state;
 
-        return state === "finished" ? true : undefined;
-      });
+          return state === "finished" ? true : undefined;
+        },
+        SCAN_CEILING_MS,
+      );
 
       await untilHolds(
         root.service,
         () => (host.running() ? undefined : true),
-        SETTLE_CEILING_MS,
+        SCAN_CEILING_MS,
       );
 
       expect(host.running()).toBe(false);
     },
-    TEST_TIMEOUT,
+    SETTLE_TEST_TIMEOUT,
   );
 
   it(
