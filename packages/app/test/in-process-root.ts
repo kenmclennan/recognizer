@@ -25,6 +25,8 @@ export type InProcessRootOptions = {
   files?: Record<string, string | ((commit: string) => string)>;
   programs?: Record<string, Program>;
   origin?: { branch: string; commit: string };
+  failing?: string[];
+  uncommitted?: boolean;
   record?: (
     command: string,
     args: Record<string, unknown>,
@@ -142,7 +144,9 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
     }
   }
 
-  const head = root.repositories.commitAll(REPOSITORY, "initial");
+  const head = options.uncommitted
+    ? ""
+    : root.repositories.commitAll(REPOSITORY, "initial");
 
   for (const [path, text] of given) {
     if (typeof text !== "string") {
@@ -194,6 +198,10 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
   const answer = async (command: string, args: Record<string, unknown>) => {
     switch (command) {
       case "core_call": {
+        if (options.failing?.includes(String(args.op))) {
+          throw new Error(`${String(args.op)} failed`);
+        }
+
         const request = { ...(args.args as Record<string, unknown>) };
 
         delete request.repository;
@@ -251,6 +259,7 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
     service,
     repository: REPOSITORY,
     io: root.io,
+    repositories: root.repositories,
     lines: root.lines,
     testFile: `${REPOSITORY}/api/tests/a.test.ts`,
   };
