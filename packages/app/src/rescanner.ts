@@ -25,15 +25,12 @@ import {
 import type { RunEvent, ScanPort, ScanRunResult } from "./scan-port";
 import {
   NO_OVERLAY,
-  NO_TIMING,
   type ProgressOverlay,
   progressOfRun,
   type RunProgress,
   type RunRow,
-  type ScanTiming,
   type ShowTarget,
   scanningLine,
-  stampTiming,
 } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
 import { isActive as isRunActive, type RunInput } from "./scan-run-model";
@@ -78,7 +75,6 @@ export type RescanPorts<Carried> = {
   openLog: (log: string) => void;
   show: (target: ShowTarget) => void;
   now?: () => number;
-  awake?: () => number;
 };
 
 export type Rescanner = {
@@ -166,7 +162,6 @@ export function createRescanner<Carried>(
   let run: RunState = NO_RUN;
   let progressRunId: string | null = null;
   let overlay: ProgressOverlay = NO_OVERLAY;
-  let timing: ScanTiming = NO_TIMING;
   let processed: RunView | null = null;
   let queueSeen: RunView | null = null;
   let linkedFailures = new Set<number>();
@@ -190,7 +185,6 @@ export function createRescanner<Carried>(
   let seenFirst = false;
   let adoptedThisScan = false;
   const wallNow = ports.now ?? Date.now;
-  const now = ports.awake ?? wallNow;
   let externalQueue: Promise<void> = Promise.resolve();
 
   function progressNow(): RunProgress {
@@ -199,13 +193,12 @@ export function createRescanner<Carried>(
         ? seenRun
         : null;
 
-    return progressOfRun(shown, timing, overlay);
+    return progressOfRun(shown, overlay);
   }
 
   function resetProgress() {
     progressRunId = null;
     overlay = NO_OVERLAY;
-    timing = NO_TIMING;
   }
 
   function emit(update: { scanning: string | null }) {
@@ -502,7 +495,6 @@ export function createRescanner<Carried>(
       (base !== null && progressOfRun(base).extractSettled);
 
     processed = after;
-    timing = stampTiming(timing, after, now());
 
     const effects: Effect[] = [];
 
@@ -516,7 +508,7 @@ export function createRescanner<Carried>(
 
     publish();
 
-    if (!wasSettled && progressOfRun(after, timing, overlay).extractSettled) {
+    if (!wasSettled && progressOfRun(after, overlay).extractSettled) {
       await settle();
       publish();
     }

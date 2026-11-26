@@ -3,9 +3,8 @@ import type { ScanRunRecord } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
   NO_PROGRESS,
-  NO_TIMING,
+  progressOfRun,
   type RunProgress,
-  stampTiming,
 } from "../../src/scan-progress";
 import * as runModelModule from "../../src/scan-run-model";
 import { type RunView, runModel } from "../../src/scan-run-model";
@@ -51,6 +50,7 @@ function pluginRun(over: PluginOver): PluginRunView {
     estimateMs: null,
     failure: null,
     tally: null,
+    durationMs: null,
     ...over,
   };
 }
@@ -718,38 +718,28 @@ it("the_card_reads_gaps_failure_and_ran_from_the_run", () => {
 describe("extract timing per language", () => {
   const snapshot = (plugins: PluginOver[]) => runOf({ sensors: [] }, plugins);
 
-  it("stamps the first event, the total and the entry of each language", () => {
-    const python = (state: PluginRunView["state"], done: number) => ({
-      name: "python",
-      phase: "extract" as const,
-      state,
-      progress: { done, total: 40, unit: "files" },
-    });
-    const first = stampTiming(
-      NO_TIMING,
-      snapshot([python("running", 0), { name: "rust", phase: "extract" }]),
-      100,
-    );
-    const moved = stampTiming(first, snapshot([python("running", 10)]), 150);
-    const ended = stampTiming(
-      moved,
-      snapshot([
-        python("finished", 40),
-        {
-          name: "rust",
-          phase: "extract",
-          state: "running",
-          progress: { done: 0, total: 7, unit: "files" },
-        },
-      ]),
-      900,
-    );
+  it("carries the total and the core duration of each language that began", () => {
+    const run = snapshot([
+      {
+        name: "python",
+        phase: "extract",
+        state: "finished",
+        progress: { done: 40, total: 40, unit: "files" },
+        durationMs: 800,
+      },
+      {
+        name: "rust",
+        phase: "extract",
+        state: "running",
+        progress: { done: 0, total: 7, unit: "files" },
+      },
+      { name: "go", phase: "extract" },
+    ]);
 
-    expect(first.extractAt).toEqual({ python: 100 });
-    expect(moved.extractAt).toEqual({ python: 100 });
-    expect(ended.extractAt).toEqual({ python: 100, rust: 900 });
-    expect(ended.extractDoneAt).toEqual({ python: 900 });
-    expect(ended.extractTotals).toEqual({ python: 40, rust: 7 });
+    expect(progressOfRun(run).extractRuns).toEqual({
+      python: { total: 40, durationMs: 800 },
+      rust: { total: 7, durationMs: null },
+    });
   });
 });
 

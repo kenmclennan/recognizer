@@ -43,6 +43,7 @@ function run(
       estimateMs: null,
       failure: more.failures?.[name] ?? null,
       tally: more.tally?.[name] ?? null,
+      durationMs: null,
     })),
     confirmation: null,
     describeHalt: more.halted

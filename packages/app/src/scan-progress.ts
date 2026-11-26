@@ -37,11 +37,7 @@ export type DescribeCount = {
   firstFailure: { item: string; reason: string } | null;
 };
 
-export type ScanTiming = {
-  extractAt: Record<string, number>;
-  extractDoneAt: Record<string, number>;
-  extractTotals: Record<string, number>;
-};
+export type ExtractRun = { total: number | null; durationMs: number | null };
 
 export type RunProgress = {
   extract: "pending" | "run" | "current";
@@ -59,7 +55,7 @@ export type RunProgress = {
   stopped: boolean;
   sensing: string | null;
   log: string | null;
-  timing: ScanTiming;
+  extractRuns: Record<string, ExtractRun>;
 };
 
 export type ProgressOverlay = {
@@ -71,12 +67,6 @@ export type ProgressOverlay = {
 export type ShowTarget =
   | { kind: "sensor"; name: string; reason: string }
   | { kind: "module"; id: string; reason: string };
-
-export const NO_TIMING: ScanTiming = {
-  extractAt: {},
-  extractDoneAt: {},
-  extractTotals: {},
-};
 
 export const NO_OVERLAY: ProgressOverlay = {
   extractSettled: false,
@@ -100,7 +90,7 @@ export const NO_PROGRESS: RunProgress = {
   stopped: false,
   sensing: null,
   log: null,
-  timing: NO_TIMING,
+  extractRuns: {},
 };
 
 export function began(plugin: PluginRunView): boolean {
@@ -176,11 +166,10 @@ function sensorProgressOf(
 
 export function progressOfRun(
   run: RunView | null,
-  timing: ScanTiming = NO_TIMING,
   overlay: ProgressOverlay = NO_OVERLAY,
 ): RunProgress {
   if (run === null) {
-    return { ...NO_PROGRESS, ...overlay, timing };
+    return { ...NO_PROGRESS, ...overlay };
   }
 
   const extracts = run.plugins.filter((one) => one.phase === "extract");
@@ -229,41 +218,16 @@ export function progressOfRun(
     stopped: overlay.stopped || run.state === "stopped",
     sensing: senses.find((one) => one.state === "running")?.name ?? null,
     log: run.log,
-    timing,
+    extractRuns: Object.fromEntries(
+      extracts.filter(began).map((one) => [
+        one.name,
+        {
+          total: one.progress?.total ?? null,
+          durationMs: one.durationMs,
+        },
+      ]),
+    ),
   };
-}
-
-export function stampTiming(
-  timing: ScanTiming,
-  after: RunView,
-  at: number,
-): ScanTiming {
-  let next = timing;
-
-  for (const plugin of after.plugins) {
-    if (plugin.phase !== "extract" || !began(plugin)) {
-      continue;
-    }
-
-    const { name } = plugin;
-
-    if (!(name in next.extractAt)) {
-      next = { ...next, extractAt: { ...next.extractAt, [name]: at } };
-    }
-
-    if (plugin.progress !== null && !(name in next.extractTotals)) {
-      next = {
-        ...next,
-        extractTotals: { ...next.extractTotals, [name]: plugin.progress.total },
-      };
-    }
-
-    if (ended(plugin) && !(name in next.extractDoneAt)) {
-      next = { ...next, extractDoneAt: { ...next.extractDoneAt, [name]: at } };
-    }
-  }
-
-  return next;
 }
 
 export function tokensText(tokens: number): string {

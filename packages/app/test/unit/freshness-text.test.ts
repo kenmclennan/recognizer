@@ -1412,6 +1412,7 @@ describe("freshness around a run in the snapshot", () => {
         estimateMs: null,
         failure: null,
         tally: null,
+        durationMs: null,
       },
     ],
     confirmation: null,

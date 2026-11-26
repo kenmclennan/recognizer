@@ -348,6 +348,7 @@ export class Run {
   private settleDescribe(
     plugins: readonly PluginRun[],
     atSummary: boolean,
+    at: number | null,
   ): PluginRun[] {
     return plugins.map((one) => {
       if (one.phase !== "describe" || one.state !== "running") {
@@ -364,11 +365,15 @@ export class Run {
         progress !== null &&
         tally.failed === progress.done &&
         progress.done > 0
-        ? one.end("failed", {
-            reason: tally.firstFailure?.reason ?? NO_REASON,
-            diagnosis: null,
-          })
-        : one.end("finished");
+        ? one.end(
+            "failed",
+            {
+              reason: tally.firstFailure?.reason ?? NO_REASON,
+              diagnosis: null,
+            },
+            at,
+          )
+        : one.end("finished", undefined, at);
     });
   }
 
@@ -392,24 +397,27 @@ export class Run {
       : this;
   }
 
-  private counted(plugin: PluginRun): PluginRun[] {
-    return this.settleDescribe(this.replacing(plugin), false);
+  private counted(plugin: PluginRun, at: number | null): PluginRun[] {
+    return this.settleDescribe(this.replacing(plugin), false, at);
   }
 
-  private endedPlugin(report: Extract<RunReport, { kind: "plugin-ended" }>) {
+  private endedPlugin(
+    report: Extract<RunReport, { kind: "plugin-ended" }>,
+    at: number | null,
+  ) {
     const phase = report.phase ?? "sense";
     const found = this.plugin(report.name, phase);
     const base =
       phase === "extract" && found.state === "queued"
-        ? found.started(null)
+        ? found.started(null, at)
         : found;
 
-    return this.replacing(base.end(report.state, report.failure));
+    return this.replacing(base.end(report.state, report.failure, at));
   }
 
-  apply(report: RunReport): Run {
+  apply(report: RunReport, at: number | null = null): Run {
     if (this.state === "checking" && STARTS_RUNNING.has(report.kind)) {
-      return this.with({ state: "running" }).apply(report);
+      return this.with({ state: "running" }).apply(report, at);
     }
 
     if (!this.active) {
@@ -432,7 +440,8 @@ export class Run {
 
         return base.with({
           plugins: base.counted(
-            base.plugin(report.name, report.phase).started(report.progress),
+            base.plugin(report.name, report.phase).started(report.progress, at),
+            at,
           ),
         });
       }
@@ -440,6 +449,7 @@ export class Run {
         return this.with({
           plugins: this.counted(
             this.plugin(report.name, report.phase).progressed(report.progress),
+            at,
           ),
         });
       case "plugin-stage":
@@ -458,12 +468,13 @@ export class Run {
         return this.with({
           plugins: this.counted(
             this.plugin(report.name, report.phase).itemised(report),
+            at,
           ),
         });
       case "plugin-ended": {
         const base = this.skipping(report.name, report.phase ?? "sense");
 
-        return base.with({ plugins: base.endedPlugin(report) });
+        return base.with({ plugins: base.endedPlugin(report, at) });
       }
       case "plugin-result":
         this.plugin(report.name);
@@ -478,15 +489,15 @@ export class Run {
       case "confirmation-answered":
         return this.answered(report.describe);
       case "describe-halted":
-        return this.halted(report.halt);
+        return this.halted(report.halt, at);
       case "structure":
         return this.with({
           structure: { state: report.state, files: report.files },
         });
       case "logged":
-        return this.logged(report.log);
+        return this.logged(report.log, at);
       case "ended":
-        return this.ending(report.end);
+        return this.ending(report.end, at);
     }
   }
 
@@ -549,7 +560,7 @@ export class Run {
     });
   }
 
-  private halted(halt: DescribeHalt): Run {
+  private halted(halt: DescribeHalt, at: number | null): Run {
     if (this.describeHalt !== null) {
       throw new InvalidEntity(
         "Run",
@@ -562,14 +573,14 @@ export class Run {
       describeHalt: { ...halt },
       plugins: this.plugins.map((one) =>
         one.phase === "describe" && one.state === "running"
-          ? one.end("stopped")
+          ? one.end("stopped", undefined, at)
           : one,
       ),
     });
   }
 
-  private logged(log: string | null): Run {
-    const settled = this.settleDescribe(this.plugins, true);
+  private logged(log: string | null, at: number | null): Run {
+    const settled = this.settleDescribe(this.plugins, true, at);
 
     if (log === null || log === "" || this.log !== null) {
       return settled.some((one, at) => one !== this.plugins[at])
@@ -580,7 +591,7 @@ export class Run {
     return this.with({ log, plugins: settled });
   }
 
-  private ending(end: RunEnd): Run {
+  private ending(end: RunEnd, at: number | null): Run {
     return this.with({
       confirmation:
         this.confirmation !== null && this.confirmation.answer === null
@@ -593,16 +604,19 @@ export class Run {
       failure: end.failure ?? null,
       ran: end.ran ?? null,
       plugins: this.plugins.map((one) =>
-        one.ended ? one : one.end("stopped"),
+        one.ended ? one : one.end("stopped", undefined, at),
       ),
     });
   }
 
-  stopped(endedAt: string | null): Run {
-    return this.apply({
-      kind: "ended",
-      end: { state: "stopped", endedAt, exit: null },
-    });
+  stopped(endedAt: string | null, at: number | null = null): Run {
+    return this.apply(
+      {
+        kind: "ended",
+        end: { state: "stopped", endedAt, exit: null },
+      },
+      at,
+    );
   }
 
   running(): string[] {

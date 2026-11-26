@@ -4,12 +4,10 @@ import {
   describeAskText,
   NO_OVERLAY,
   NO_PROGRESS,
-  NO_TIMING,
   progressOfRun,
   type RunProgress,
   scanningText,
   showTarget,
-  stampTiming,
   tokensText,
 } from "../../src/scan-progress";
 
@@ -36,7 +34,7 @@ function of(
     }).apply({ kind: "running" }),
   );
 
-  return progressOfRun(run.view(), NO_TIMING, {
+  return progressOfRun(run.view(), {
     ...NO_OVERLAY,
     ...more.overlay,
   });
@@ -236,12 +234,12 @@ describe("progressOfRun", () => {
   });
 });
 
-describe("stampTiming", () => {
-  it("stamps an extract run's start once, its total and its end", () => {
-    const run = (reports: RunReport[]) =>
+describe("extractRuns", () => {
+  it("carries an extract run's total and the duration core recorded for it", () => {
+    const run = (reports: [RunReport, number][]) =>
       reports
         .reduce(
-          (held, report) => held.apply(report),
+          (held, [report, at]) => held.apply(report, at),
           Run.begin({
             id: "run-1",
             startedBy: "cli",
@@ -251,34 +249,22 @@ describe("stampTiming", () => {
           }).apply(planned("python")),
         )
         .view();
-    const started = run([
+    const started: [RunReport, number] = [
       {
         kind: "plugin-started",
         name: "python",
         progress: { done: 0, total: 40, unit: "files" },
         phase: "extract",
       },
-    ]);
-    const first = stampTiming(NO_TIMING, started, 1000);
-    const later = stampTiming(first, started, 5000);
-    const ended = stampTiming(
-      later,
-      run([
-        {
-          kind: "plugin-started",
-          name: "python",
-          progress: { done: 0, total: 40, unit: "files" },
-          phase: "extract",
-        },
-        extractEnded("python"),
-      ]),
-      9000,
-    );
+      1000,
+    ];
 
-    expect(first.extractAt).toEqual({ python: 1000 });
-    expect(first.extractTotals).toEqual({ python: 40 });
-    expect(later.extractAt).toEqual({ python: 1000 });
-    expect(ended.extractDoneAt).toEqual({ python: 9000 });
+    expect(progressOfRun(run([started])).extractRuns).toEqual({
+      python: { total: 40, durationMs: null },
+    });
+    expect(
+      progressOfRun(run([started, [extractEnded("python"), 9000]])).extractRuns,
+    ).toEqual({ python: { total: 40, durationMs: 8000 } });
   });
 });
 

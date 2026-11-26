@@ -39,6 +39,7 @@ function plugin(name: string, state: PluginRunView["state"]): PluginRunView {
     estimateMs: null,
     failure: null,
     tally: null,
+    durationMs: null,
   };
 }
 
