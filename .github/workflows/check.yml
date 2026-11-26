@@ -52,8 +52,26 @@ jobs:
         env:
           RECOGNIZER_REQUIRE_TEMPLATE_TOOLCHAINS: "1"
 
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      units: ${{ steps.decide.outputs.units }}
+      toolchain: ${{ steps.decide.outputs.toolchain }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node tools/scripts/ci-changes.mjs "$EVENT" "$BASE" "$HEAD" >> "$GITHUB_OUTPUT"
+
   toolchain:
-    needs: test
+    needs: [test, changes]
+    if: needs.changes.outputs.toolchain == 'true'
     runs-on: [self-hosted, macOS, ARM64]
     timeout-minutes: 15
     env:
@@ -72,13 +90,14 @@ jobs:
           node tools/scripts/verify-toolchain.mjs "$extracted"
 
   plugins:
-    needs: test
+    needs: [test, changes]
+    if: needs.changes.outputs.units != '[]'
     runs-on: [self-hosted, macOS, ARM64]
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        unit: [scan-python, scan-typescript, scan-kotlin, scan-csharp, scan-rust, sensors, describe-claude]
+        unit: ${{ fromJSON(needs.changes.outputs.units) }}
     env:
       CARGO_BUILD_JOBS: "3"
     steps:
