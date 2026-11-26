@@ -1447,6 +1447,89 @@ describe("createRescanner", () => {
     ).toBe(true);
   });
 
+  it("names a running plugin once when the planned heading also reads Running", async () => {
+    const start = started;
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [
+        current,
+        sensing(1),
+        start("alpha"),
+        entry("sense", "alpha"),
+        summary,
+      ],
+    });
+    const { rescanner, updates } = harness(scan);
+    const plan = {
+      describe: false,
+      analysis: false,
+      describeAll: true,
+      sense: ["alpha"],
+      modules: [],
+      suites: {},
+    };
+
+    await rescanner.run([], {
+      plan,
+      dropped: [],
+      modules: 0,
+      idle: false,
+      label: "Run alpha",
+      progress: "Running Alpha\u2026",
+      work: {},
+    });
+
+    const running = texts(updates).filter((text) => text?.includes("Alpha"));
+
+    expect(running.length).toBeGreaterThan(0);
+    expect(running).toContain("Running Alpha\u2026 1 of 1");
+    expect(
+      running.some((text) => text?.split("Running Alpha").length !== 2),
+    ).toBe(false);
+  });
+
+  it("names a running plugin once when its live line reads the plugin name then a count", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [
+        current,
+        sensing(1),
+        {
+          kind: "plugin-started",
+          name: "alpha",
+          progress: { done: 0, total: 1, unit: "suites" },
+        },
+        entry("sense", "alpha"),
+        summary,
+      ],
+    });
+    const { rescanner, updates } = harness(scan);
+
+    await rescanner.run([], {
+      plan: {
+        describe: false,
+        analysis: false,
+        describeAll: true,
+        sense: ["alpha"],
+        modules: [],
+        suites: {},
+      },
+      dropped: [],
+      modules: 0,
+      idle: false,
+      label: "Run alpha",
+      progress: "Running Alpha\u2026",
+      work: {},
+    });
+
+    const running = texts(updates).filter((text) => text?.includes("Alpha"));
+
+    expect(running).toContain("Alpha: 0 of 1 suites");
+    expect(running.some((text) => text?.split("Alpha").length !== 2)).toBe(
+      false,
+    );
+  });
+
   describe("the describe confirmation", () => {
     const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 

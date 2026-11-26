@@ -152,6 +152,18 @@ function isActive(record: ScanRunRecord | null): boolean {
   );
 }
 
+function namesHeading(text: string, heading: string): boolean {
+  if (text.startsWith(heading)) {
+    return true;
+  }
+
+  const name = heading.replace(/^Running /, "").replace(/\u2026$/, "");
+
+  return (
+    heading.startsWith("Running ") && name !== "" && text.startsWith(`${name}:`)
+  );
+}
+
 export function createRescanner<Carried>(
   ports: RescanPorts<Carried>,
 ): Rescanner {
@@ -216,7 +228,10 @@ export function createRescanner<Carried>(
     const text = scanningText(rows, run.started, progressNow());
 
     emit({
-      scanning: text === null || heading === null ? text : `${heading} ${text}`,
+      scanning:
+        text === null || heading === null || namesHeading(text, heading)
+          ? text
+          : `${heading} ${text}`,
     });
   }
 
