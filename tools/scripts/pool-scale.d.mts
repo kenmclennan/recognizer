@@ -4,6 +4,8 @@ export function poolScale(
   cores?: number,
 ): {
   maxWorkers: number | undefined;
+  allWorkers: number | undefined;
+  halfWorkers: number | undefined;
   testTimeout: number | undefined;
   hookTimeout: number | undefined;
   multiplier: number;
@@ -15,4 +17,5 @@ export function scaledTimeout(
 export function poolTestOptions<T extends Record<string, unknown>>(
   base?: T,
   environment?: Record<string, string | undefined>,
+  workers?: "shared" | "all" | "half",
 ): T & { maxWorkers?: number; testTimeout?: number; hookTimeout?: number };

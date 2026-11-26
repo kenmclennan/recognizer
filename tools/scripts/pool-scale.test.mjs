@@ -1,3 +1,4 @@
+import { availableParallelism } from "node:os";
 import { describe, expect, it } from "vitest";
 import { poolScale, poolTestOptions, scaledTimeout } from "./pool-scale.mjs";
 
@@ -5,6 +6,8 @@ describe("poolScale", () => {
   it("leaves workers and timeouts undefined when LC_MAX_AGENTS is unset", () => {
     expect(poolScale({}, 8)).toEqual({
       maxWorkers: undefined,
+      allWorkers: undefined,
+      halfWorkers: undefined,
       testTimeout: undefined,
       hookTimeout: undefined,
       multiplier: 1,
@@ -19,6 +22,8 @@ describe("poolScale", () => {
   it("gives 2 workers and 3x timeouts for 4 agents on 8 cores", () => {
     expect(poolScale({ LC_MAX_AGENTS: "4" }, 8)).toEqual({
       maxWorkers: 2,
+      allWorkers: 8,
+      halfWorkers: 4,
       testTimeout: 15000,
       hookTimeout: 30000,
       multiplier: 3,
@@ -55,5 +60,35 @@ describe("poolTestOptions", () => {
 
     expect(options.testTimeout).toBe(90000);
     expect(options.hookTimeout).toBe(30000);
+  });
+});
+
+describe("poolTestOptions worker share", () => {
+  it("gives every core to a project that asks for all workers", () => {
+    const options = poolTestOptions({}, { LC_MAX_AGENTS: "4" }, "all");
+
+    expect(options.maxWorkers).toBe(availableParallelism());
+  });
+
+  it("gives a shared project its slice of the cores", () => {
+    const options = poolTestOptions({}, { LC_MAX_AGENTS: "4" });
+
+    expect(options.maxWorkers).toBe(
+      Math.max(1, Math.floor(availableParallelism() / 4)),
+    );
+  });
+
+  it("sets no worker count for all workers without LC_MAX_AGENTS", () => {
+    expect(poolTestOptions({}, {}, "all").maxWorkers).toBeUndefined();
+  });
+});
+
+describe("poolTestOptions half share", () => {
+  it("gives half the cores to a project that asks for half", () => {
+    const options = poolTestOptions({}, { LC_MAX_AGENTS: "4" }, "half");
+
+    expect(options.maxWorkers).toBe(
+      Math.max(1, Math.floor(availableParallelism() / 2)),
+    );
   });
 });

@@ -11,6 +11,8 @@ export function poolScale(
   if (!Number.isFinite(agents) || agents <= 0) {
     return {
       maxWorkers: undefined,
+      allWorkers: undefined,
+      halfWorkers: undefined,
       testTimeout: undefined,
       hookTimeout: undefined,
       multiplier: 1,
@@ -19,6 +21,8 @@ export function poolScale(
 
   return {
     maxWorkers: Math.max(1, Math.floor(cores / agents)),
+    allWorkers: cores,
+    halfWorkers: Math.max(1, Math.floor(cores / 2)),
     testTimeout: 5000 * POOL_TIMEOUT_MULTIPLIER,
     hookTimeout: 10000 * POOL_TIMEOUT_MULTIPLIER,
     multiplier: POOL_TIMEOUT_MULTIPLIER,
@@ -29,12 +33,21 @@ export function scaledTimeout(milliseconds, environment = process.env) {
   return milliseconds * poolScale(environment).multiplier;
 }
 
-export function poolTestOptions(base = {}, environment = process.env) {
+export function poolTestOptions(
+  base = {},
+  environment = process.env,
+  workers = "shared",
+) {
   const scale = poolScale(environment);
   const testTimeout =
     scale.multiplier === 1
       ? base.testTimeout
       : (base.testTimeout ?? 5000) * scale.multiplier;
+  const maxWorkers = {
+    all: scale.allWorkers,
+    half: scale.halfWorkers,
+    shared: scale.maxWorkers,
+  }[workers];
   const hookTimeout =
     scale.multiplier === 1
       ? base.hookTimeout
@@ -42,7 +55,7 @@ export function poolTestOptions(base = {}, environment = process.env) {
 
   return {
     ...base,
-    ...(scale.maxWorkers ? { maxWorkers: scale.maxWorkers } : {}),
+    ...(maxWorkers ? { maxWorkers } : {}),
     ...(testTimeout === undefined ? {} : { testTimeout }),
     ...(hookTimeout === undefined ? {} : { hookTimeout }),
   };

@@ -36,6 +36,8 @@ export default defineConfig({
         extends: true,
         test: {
           name: "unit",
+          sequence: { groupOrder: 1 },
+          ...poolTestOptions({}, process.env, "all"),
           include: unitInclude,
           exclude: [...configDefaults.exclude, ...layout, ...endToEnd],
         },
@@ -44,6 +46,8 @@ export default defineConfig({
         extends: true,
         test: {
           name: "e2e",
+          sequence: { groupOrder: 2 },
+          ...poolTestOptions({}, process.env, "half"),
           include: endToEnd,
           exclude: [...configDefaults.exclude, ...layout],
         },
