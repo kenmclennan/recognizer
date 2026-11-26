@@ -53,7 +53,11 @@ export function cliRoot(options: CliRootOptions = {}): CliRoot {
   };
 
   const io: Io = isOver(options)
-    ? (Object.assign(Object.create(options.over), capture) as Io)
+    ? (Object.assign(
+        Object.create(options.over),
+        { ...options.over, runAsync: options.over.runAsync.bind(options.over) },
+        capture,
+      ) as Io)
     : { ...nodeIo(), ...options, ...capture };
 
   return {

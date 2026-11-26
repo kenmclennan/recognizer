@@ -10,13 +10,12 @@ packages/cli/test/app-reads-no-findings-file.test.ts
 packages/cli/test/baseline-adapter.test.ts
 packages/cli/test/cache-ignore.test.ts
 packages/cli/test/ceiling-run.test.ts
-packages/cli/test/check-repository.test.ts
 packages/cli/test/check-unmeasured.test.ts
 packages/cli/test/cli.test.ts
 packages/cli/test/commands.test.ts
-packages/cli/test/committed-scans.test.ts
+packages/cli/test/scan-translator-committed-scans.test.ts
 packages/cli/test/complexity-corpus.test.ts
-packages/cli/test/complexity.test.ts
+packages/cli/test/parsing-adapter-complexity.test.ts
 packages/cli/test/config-command.test.ts
 packages/cli/test/config-scanners.test.ts
 packages/cli/test/config-sections.test.ts
@@ -29,7 +28,7 @@ packages/cli/test/duplication-bodies.test.ts
 packages/cli/test/duplication-csharp.test.ts
 packages/cli/test/digest-adapter-duplication-direct.test.ts
 packages/cli/test/duplication-extractable.test.ts
-packages/cli/test/duplication-findings.test.ts
+packages/cli/test/findings-translator-duplication-findings.test.ts
 packages/cli/test/parsing-adapter-duplication-functions.test.ts
 packages/cli/test/parsing-adapter-duplication-grammars.test.ts
 packages/cli/test/duplication-helpers.ts
@@ -64,7 +63,6 @@ packages/cli/test/plugin-real.test.ts
 packages/cli/test/plugin-templates-adapter-plugin-templates.test.ts
 packages/cli/test/plugin-tools.test.ts
 packages/cli/test/plugin-tools.ts
-packages/cli/test/policy-command.test.ts
 packages/cli/test/policy-adapter-policy-migrate.test.ts
 packages/cli/test/policy-problems-cli.test.ts
 packages/cli/test/questions.test.ts
@@ -98,7 +96,7 @@ packages/cli/test/serve-soak.test.ts
 packages/cli/test/setup-files-adapter.test.ts
 packages/cli/test/setup-survey.test.ts
 packages/cli/test/signatures-shared.test.ts
-packages/cli/test/structure-overlay.test.ts
+packages/cli/test/parsing-adapter-structure-overlay.test.ts
 packages/cli/test/structure-warnings.test.ts
 packages/cli/test/tests-hash.test.ts
 packages/cli/test/user-wording.test.ts
