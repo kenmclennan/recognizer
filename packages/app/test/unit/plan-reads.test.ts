@@ -1,11 +1,12 @@
+import { createPlanner } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import {
   type LoadedPlanData,
   latestPlanOnly,
   type PlanRequest,
+  planReads,
   type ScanPlanView,
 } from "../../src/plan-reads";
-import { planThrough } from "../../src/scan-fake";
 import { type DocScan, repositoryFrom } from "./repository-from";
 
 const FILES = { "a.py": "ha", "b.py": "hb", "c.py": "hc" };
@@ -66,7 +67,7 @@ const REQUEST: PlanRequest = {
 
 describe("plan reads", () => {
   it("the_reads_hold_what_the_window_loaded", async () => {
-    const view = await planThrough(DATA)(REQUEST);
+    const view = await createPlanner(planReads(DATA))(REQUEST);
 
     expect(view.intent).toEqual({
       describe: true,
@@ -93,7 +94,7 @@ describe("plan reads", () => {
           answers.push(resolve);
         }),
     );
-    const view = await planThrough(DATA)(REQUEST);
+    const view = await createPlanner(planReads(DATA))(REQUEST);
     const older = ask(REQUEST);
     const newer = ask(REQUEST);
 

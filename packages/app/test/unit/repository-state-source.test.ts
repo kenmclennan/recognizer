@@ -1,35 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createRepositoryStateSource } from "../../src/repository-state-source";
-
-type Handler = (event: { payload: unknown }) => void;
-
-function harness() {
-  const calls: { op: string; args: Record<string, unknown> }[] = [];
-  let handler: Handler = () => {};
-  const source = createRepositoryStateSource({
-    invoke: (async (_command: string, args?: Record<string, unknown>) => {
-      const call = args as { op: string; args: Record<string, unknown> };
-
-      calls.push(call);
-
-      return { ok: call.op === "repository.watch" ? "r1" : null };
-    }) as never,
-    listen: (async (_event: string, next: Handler) => {
-      handler = next;
-
-      return () => {
-        handler = () => {};
-      };
-    }) as never,
-    windowLabel: () => "w-1",
-  });
-
-  return { calls, source, emit: (payload: unknown) => handler({ payload }) };
-}
+import { scriptedBridge } from "./repository-state-bridge";
 
 describe("repository state source", () => {
   it("delivers each state revision for this window and ignores other items", async () => {
-    const { source, emit } = harness();
+    const { source, emit } = scriptedBridge();
     const seen: number[] = [];
 
     await source.watch((item) => seen.push(item.state.revision));
@@ -43,7 +17,7 @@ describe("repository state source", () => {
   });
 
   it("stopping the watch ends the stream through core", async () => {
-    const { source, calls } = harness();
+    const { source, calls } = scriptedBridge();
     const stop = await source.watch(() => {});
 
     stop();
@@ -58,7 +32,7 @@ describe("repository state source", () => {
   });
 
   it("reads results and clears one plugin through core", async () => {
-    const { source, calls } = harness();
+    const { source, calls } = scriptedBridge();
 
     await source.readResults();
     await source.clearResults("crap");

@@ -1,24 +1,18 @@
 import type { RepositoryState } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
+import { createRepositoryStateHolder } from "../../src/repository-state-holder";
 import { refreshOnChange } from "../../src/revision-refresh";
+import { scriptedBridge } from "./repository-state-bridge";
 import { snapshotOf } from "./repository-state-snapshot";
 
 function feed() {
-  const handlers = new Set<(state: RepositoryState) => void>();
+  const { source, emit } = scriptedBridge();
+  const holder = createRepositoryStateHolder(source);
 
   return {
-    holder: {
-      onRevision(handler: (state: RepositoryState) => void) {
-        handlers.add(handler);
-
-        return () => handlers.delete(handler);
-      },
-    },
-    publish(state: RepositoryState) {
-      for (const handler of handlers) {
-        handler(state);
-      }
-    },
+    holder,
+    publish: (state: RepositoryState) =>
+      emit({ stream: "r1", window: "w-1", state }),
   };
 }
 
@@ -32,6 +26,7 @@ describe("refreshOnChange", () => {
     refreshOnChange(holder, async () => {
       refreshed += 1;
     });
+    await holder.start();
     publish(snapshotOf(1, ["crap"]));
     await tick();
 
@@ -45,6 +40,7 @@ describe("refreshOnChange", () => {
     refreshOnChange(holder, async () => {
       refreshed += 1;
     });
+    await holder.start();
     publish(
       snapshotOf(1, ["crap"], {
         freshness: { crap: { state: "current", outOfDate: [] } },
@@ -76,6 +72,7 @@ describe("refreshOnChange", () => {
     refreshOnChange(holder, async () => {
       refreshed += 1;
     });
+    await holder.start();
     publish(snapshotOf(1, ["crap", "mutation"]));
     publish(snapshotOf(2, ["crap"]));
     await tick();
@@ -94,6 +91,7 @@ describe("refreshOnChange", () => {
     refreshOnChange(holder, async () => {
       refreshed += 1;
     });
+    await holder.start();
     publish(snapshotOf(1, ["crap"]));
     publish(
       snapshotOf(2, ["crap"], {
