@@ -1,10 +1,2 @@
 packages/app/test/roots.ts
-packages/app/test/unit/canvas-look.test.ts
-packages/app/test/unit/hidden-elements.test.ts
-packages/app/test/unit/inspector-height-look.test.ts
-packages/app/test/unit/inspector-layout.test.ts
-packages/app/test/unit/legend-view.test.ts
 packages/app/test/unit/panel-from-root-look.test.ts
-packages/app/test/unit/rail-look.test.ts
-packages/app/test/unit/setup-modal-look.test.ts
-packages/app/test/unit/tree-view.test.ts

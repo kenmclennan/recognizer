@@ -1,11 +1,10 @@
-import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
-import { lookBrowserArgs, webkit } from "../../src/look-page";
+import { lookRun, webkit } from "../../src/look-page";
 
 const HIDEABLE = [
   "empty-canvas",
@@ -42,7 +41,7 @@ const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 describe("hidden elements in a real browser", () => {
   it.skipIf(webkit === undefined)(
     "computes display none for every class the app hides with the hidden attribute",
-    () => {
+    async () => {
       const css = readFileSync(
         fileURLToPath(new URL("style.css", srcUrl)),
         "utf8",
@@ -54,11 +53,7 @@ describe("hidden elements in a real browser", () => {
 
         writeFileSync(page, computedDisplays(css));
 
-        const run = spawnSync(
-          process.execPath,
-          lookBrowserArgs(page, { size: "800x600" }),
-          { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
-        );
+        const run = await lookRun(page, { size: "800x600" });
         const match = /<div id="out">([^<]*)<\/div>/.exec(run.stdout);
 
         expect(match).not.toBeNull();

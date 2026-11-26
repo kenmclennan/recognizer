@@ -1,11 +1,10 @@
-import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
-import { lookBrowserArgs, webkit } from "../../src/look-page";
+import { lookRun, webkit } from "../../src/look-page";
 
 const PAGE = (css: string) => `<!doctype html>
 <html><head><style>${css}</style></head><body>
@@ -50,7 +49,7 @@ const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 describe("the inspector's layout in a real browser", () => {
   it.skipIf(webkit === undefined)(
     "narrows the canvas by 296px from the right without moving its edge",
-    () => {
+    async () => {
       const css = readFileSync(
         fileURLToPath(new URL("style.css", srcUrl)),
         "utf8",
@@ -62,11 +61,7 @@ describe("the inspector's layout in a real browser", () => {
 
         writeFileSync(page, PAGE(css));
 
-        const run = spawnSync(
-          process.execPath,
-          lookBrowserArgs(page, { size: "800x600" }),
-          { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
-        );
+        const run = await lookRun(page, { size: "800x600" });
         const match = /<pre id="out">([\s\S]*?)<\/pre>/.exec(run.stdout);
 
         expect(match).not.toBeNull();

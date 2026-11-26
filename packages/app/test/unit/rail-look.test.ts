@@ -1,11 +1,10 @@
-import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
 import { describe, expect, it } from "vitest";
-import { HIDE_SCROLLBARS, lookBrowserArgs, webkit } from "../../src/look-page";
+import { HIDE_SCROLLBARS, lookRun, webkit } from "../../src/look-page";
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 
@@ -192,7 +191,7 @@ type Facts = {
   afterShow: State;
 };
 
-function collect(): Facts {
+async function collect(): Promise<Facts> {
   const dir = mkdtempSync(join(tmpdir(), "rail-look-"));
 
   try {
@@ -211,11 +210,7 @@ function collect(): Facts {
       `<!doctype html><html><head><style>${css}${HIDE_SCROLLBARS}</style></head><body><div id="out"></div><script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
     );
 
-    const run = spawnSync(
-      process.execPath,
-      lookBrowserArgs(page, { size: "800x600" }),
-      { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
-    );
+    const run = await lookRun(page, { size: "800x600" });
     const match = /<div id="out">([^<]*)<\/div>/.exec(run.stdout);
 
     if (match === null || !/^[A-Za-z0-9+/=]+$/.test(match[1])) {
@@ -230,99 +225,105 @@ function collect(): Facts {
   }
 }
 
-describe.skipIf(webkit === undefined)("the rail in a real browser", () => {
-  const f = (webkit === undefined ? null : collect()) as Facts;
+describe.skipIf(webkit === undefined)(
+  "the rail in a real browser",
+  async () => {
+    const f = (webkit === undefined ? null : await collect()) as Facts;
 
-  it("sits full height at the window's left holding a 16px stroke-2 Files button then Commits, Views, Notes, Scan and Findings buttons, with Setup and Settings at the bottom", () => {
-    expect(f.tag).toBe("NAV");
-    expect(f.children).toBe(9);
-    expect(f.buttons).toBe(8);
-    expect(f.gear).toEqual({
-      belowFindings: true,
-      nearBottom: true,
-      label: "Settings",
+    it("sits full height at the window's left holding a 16px stroke-2 Files button then Commits, Views, Notes, Scan and Findings buttons, with Setup and Settings at the bottom", () => {
+      expect(f.tag).toBe("NAV");
+      expect(f.children).toBe(9);
+      expect(f.buttons).toBe(8);
+      expect(f.gear).toEqual({
+        belowFindings: true,
+        nearBottom: true,
+        label: "Settings",
+      });
+      expect(f.notesFacts.order).toEqual([
+        "rail-files",
+        "rail-commits",
+        "rail-views",
+        "rail-notes",
+        "rail-scan",
+        "rail-findings",
+        "rail-setup",
+        "rail-settings",
+      ]);
+      expect(f.aria).toBe("Files");
+      expect(f.label).toBe("Files");
+      expect(f.titles).toEqual(["", "", "", "", "", "", "", ""]);
+      expect(f.iconSize).toBe("16px");
+      expect(f.strokeWidth).toBe("2px");
+      expect(f.rail.left).toBe(0);
+      expect(f.rail.top).toBe(0);
+      expect(f.rail.height).toBe(f.gridHeight);
+      expect(f.treeLeft).toBe(f.rail.width);
     });
-    expect(f.notesFacts.order).toEqual([
-      "rail-files",
-      "rail-commits",
-      "rail-views",
-      "rail-notes",
-      "rail-scan",
-      "rail-findings",
-      "rail-setup",
-      "rail-settings",
-    ]);
-    expect(f.aria).toBe("Files");
-    expect(f.label).toBe("Files");
-    expect(f.titles).toEqual(["", "", "", "", "", "", "", ""]);
-    expect(f.iconSize).toBe("16px");
-    expect(f.strokeWidth).toBe("2px");
-    expect(f.rail.left).toBe(0);
-    expect(f.rail.top).toBe(0);
-    expect(f.rail.height).toBe(f.gridHeight);
-    expect(f.treeLeft).toBe(f.rail.width);
-  });
 
-  it("puts the Setup button between Findings and Settings with an amber count badge", () => {
-    expect(f.setupAboveSettings).toEqual({
-      aboveSettings: true,
-      belowFindings: true,
+    it("puts the Setup button between Findings and Settings with an amber count badge", () => {
+      expect(f.setupAboveSettings).toEqual({
+        aboveSettings: true,
+        belowFindings: true,
+      });
+      expect(f.setupBadges.two).toMatchObject({
+        label: "Setup: 2 problems",
+        text: "2",
+        hidden: false,
+        amber: true,
+      });
+      expect(f.setupBadges.two.background).toBe(f.amberReference);
+      expect(f.setupBadges.one).toMatchObject({
+        label: "Setup: 1 problem",
+        text: "1",
+        hidden: false,
+      });
+      expect(f.setupBadges.zero).toMatchObject({
+        label: "Setup",
+        hidden: true,
+      });
+      expect(f.setupBadges.unknown).toMatchObject({
+        label: "Setup",
+        hidden: true,
+      });
     });
-    expect(f.setupBadges.two).toMatchObject({
-      label: "Setup: 2 problems",
-      text: "2",
-      hidden: false,
-      amber: true,
+
+    it("marks the Files button with a selection-colour bar and full-strength icon while the tree shows", () => {
+      expect(f.shown.open).toBe(true);
+      expect(f.shown.pressed).toBe("true");
+      expect(f.shown.treeDisplay).not.toBe("none");
+      expect(f.shown.barWidth).toBe("2px");
+      expect(f.shown.barBackground).toBe(f.colours.sel);
+      expect(f.shown.color).not.toBe(f.afterHide.color);
     });
-    expect(f.setupBadges.two.background).toBe(f.amberReference);
-    expect(f.setupBadges.one).toMatchObject({
-      label: "Setup: 1 problem",
-      text: "1",
-      hidden: false,
+
+    it("hides the tree and widens the canvas on a click and restores both on the next", () => {
+      expect(f.afterHide.open).toBe(false);
+      expect(f.afterHide.pressed).toBe("false");
+      expect(f.afterHide.treeDisplay).toBe("none");
+      expect(f.afterHide.barBackground).not.toBe(f.colours.sel);
+      expect(f.afterHide.canvasWidth - f.shown.canvasWidth).toBe(280);
+      expect(f.afterShow).toEqual(f.shown);
     });
-    expect(f.setupBadges.zero).toMatchObject({ label: "Setup", hidden: true });
-    expect(f.setupBadges.unknown).toMatchObject({
-      label: "Setup",
-      hidden: true,
+
+    it("shows the note count on the Notes icon and nothing at zero", () => {
+      expect(f.notesFacts.aria).toBe("Notes");
+      expect(f.notesFacts.count).toBe("3");
+      expect(f.notesFacts.countHidden).toBe(false);
+      expect(f.notesFacts.zeroHidden).toBe(true);
+      expect(f.notesFacts.zeroText).toBe("");
     });
-  });
 
-  it("marks the Files button with a selection-colour bar and full-strength icon while the tree shows", () => {
-    expect(f.shown.open).toBe(true);
-    expect(f.shown.pressed).toBe("true");
-    expect(f.shown.treeDisplay).not.toBe("none");
-    expect(f.shown.barWidth).toBe("2px");
-    expect(f.shown.barBackground).toBe(f.colours.sel);
-    expect(f.shown.color).not.toBe(f.afterHide.color);
-  });
-
-  it("hides the tree and widens the canvas on a click and restores both on the next", () => {
-    expect(f.afterHide.open).toBe(false);
-    expect(f.afterHide.pressed).toBe("false");
-    expect(f.afterHide.treeDisplay).toBe("none");
-    expect(f.afterHide.barBackground).not.toBe(f.colours.sel);
-    expect(f.afterHide.canvasWidth - f.shown.canvasWidth).toBe(280);
-    expect(f.afterShow).toEqual(f.shown);
-  });
-
-  it("shows the note count on the Notes icon and nothing at zero", () => {
-    expect(f.notesFacts.aria).toBe("Notes");
-    expect(f.notesFacts.count).toBe("3");
-    expect(f.notesFacts.countHidden).toBe(false);
-    expect(f.notesFacts.zeroHidden).toBe(true);
-    expect(f.notesFacts.zeroText).toBe("");
-  });
-
-  it("shows the violation count in red, a bare amber dot for warnings only and nothing otherwise", () => {
-    expect(f.findingsFacts.red.text).toBe("4");
-    expect(f.findingsFacts.red.hidden).toBe(false);
-    expect(f.findingsFacts.red.background).toBe("rgb(192, 57, 43)");
-    expect(f.findingsFacts.amber.text).toBe("");
-    expect(f.findingsFacts.amber.hidden).toBe(false);
-    expect(f.findingsFacts.amber.background).toBe("rgb(185, 119, 14)");
-    expect(f.findingsFacts.amber.width).toBe(8);
-    expect(f.findingsFacts.amber.height).toBe(8);
-    expect(f.findingsFacts.amber.radius).toBe("50%");
-    expect(f.findingsFacts.none.hidden).toBe(true);
-  });
-});
+    it("shows the violation count in red, a bare amber dot for warnings only and nothing otherwise", () => {
+      expect(f.findingsFacts.red.text).toBe("4");
+      expect(f.findingsFacts.red.hidden).toBe(false);
+      expect(f.findingsFacts.red.background).toBe("rgb(192, 57, 43)");
+      expect(f.findingsFacts.amber.text).toBe("");
+      expect(f.findingsFacts.amber.hidden).toBe(false);
+      expect(f.findingsFacts.amber.background).toBe("rgb(185, 119, 14)");
+      expect(f.findingsFacts.amber.width).toBe(8);
+      expect(f.findingsFacts.amber.height).toBe(8);
+      expect(f.findingsFacts.amber.radius).toBe("50%");
+      expect(f.findingsFacts.none.hidden).toBe(true);
+    });
+  },
+);

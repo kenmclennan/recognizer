@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdtempSync,
@@ -8,27 +7,66 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { build, type Plugin } from "esbuild";
-import { webkit as playwright } from "playwright";
-
-const LOOK_BROWSER = fileURLToPath(
-  new URL("../scripts/look-browser.mjs", import.meta.url),
-);
+import { type Browser, webkit as playwright } from "playwright";
 
 export const webkit = existsSync(playwright.executablePath())
-  ? LOOK_BROWSER
+  ? "webkit"
   : undefined;
 
-export function lookBrowserArgs(
+export const LOOK_BROWSER_ENDPOINT = "RECOGNIZER_LOOK_BROWSER_ENDPOINT";
+
+export type LookRun = { stdout: string; stderr: string; error?: string };
+
+async function openBrowser(): Promise<{ browser: Browser; shared: boolean }> {
+  const endpoint = process.env[LOOK_BROWSER_ENDPOINT];
+
+  if (endpoint !== undefined && endpoint !== "") {
+    return { browser: await playwright.connect(endpoint), shared: true };
+  }
+
+  return { browser: await playwright.launch(), shared: false };
+}
+
+export async function lookRun(
   target: string,
   options: { size?: string } = {},
-): string[] {
-  return [
-    LOOK_BROWSER,
-    target,
-    ...(options.size === undefined ? [] : ["--size", options.size]),
-  ];
+): Promise<LookRun> {
+  const [width, height] = (options.size ?? "1500x900").split("x").map(Number);
+  let browser: Browser | undefined;
+
+  try {
+    const opened = await openBrowser();
+
+    browser = opened.browser;
+
+    const context = await browser.newContext({ viewport: { width, height } });
+
+    try {
+      const page = await context.newPage();
+
+      await page.goto(pathToFileURL(target).href);
+      await page.waitForFunction(
+        () => (document.getElementById("out")?.textContent ?? "") !== "",
+        null,
+        { timeout: 55000 },
+      );
+
+      return {
+        stdout: await page.evaluate(
+          () => document.getElementById("out")?.outerHTML ?? "",
+        ),
+        stderr: "",
+      };
+    } finally {
+      await context.close();
+    }
+  } catch (error) {
+    return { stdout: "", stderr: "", error: String(error) };
+  } finally {
+    await browser?.close();
+  }
 }
 
 export const HIDE_SCROLLBARS =
@@ -108,11 +146,7 @@ export async function collectFacts<T>(
       `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${css}${HIDE_SCROLLBARS}</style></head><body><div id="out"></div>${SHELLS[shell]}<script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
     );
 
-    const run = spawnSync(
-      process.execPath,
-      lookBrowserArgs(page, { size: "1500x900" }),
-      { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
-    );
+    const run = await lookRun(page, { size: "1500x900" });
     const match = /<div id="out">([^<]*)<\/div>/.exec(run.stdout);
 
     if (match === null || !/^[A-Za-z0-9+/=]+$/.test(match[1])) {

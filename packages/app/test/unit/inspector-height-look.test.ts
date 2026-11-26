@@ -1,11 +1,10 @@
-import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
 import { describe, expect, it } from "vitest";
-import { HIDE_SCROLLBARS, lookBrowserArgs, webkit } from "../../src/look-page";
+import { HIDE_SCROLLBARS, lookRun, webkit } from "../../src/look-page";
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 
@@ -85,7 +84,7 @@ type Measure = {
   footerTop: number;
 };
 
-function collect(): { closed: Measure; open: Measure } {
+async function collect(): Promise<{ closed: Measure; open: Measure }> {
   const dir = mkdtempSync(join(tmpdir(), "inspector-height-look-"));
 
   try {
@@ -104,11 +103,7 @@ function collect(): { closed: Measure; open: Measure } {
       `<!doctype html><html><head><style>${css}${HIDE_SCROLLBARS}</style></head><body><div id="out"></div><script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
     );
 
-    const run = spawnSync(
-      process.execPath,
-      lookBrowserArgs(page, { size: "800x600" }),
-      { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
-    );
+    const run = await lookRun(page, { size: "800x600" });
     const match = /<div id="out">([^<]*)<\/div>/.exec(run.stdout);
 
     if (match === null || !/^[A-Za-z0-9+/=]+$/.test(match[1])) {
@@ -123,20 +118,23 @@ function collect(): { closed: Measure; open: Measure } {
   }
 }
 
-describe.skipIf(webkit === undefined)("the inspector column height", () => {
-  const f = (webkit === undefined ? null : collect()) as {
-    closed: Measure;
-    open: Measure;
-  };
+describe.skipIf(webkit === undefined)(
+  "the inspector column height",
+  async () => {
+    const f = (webkit === undefined ? null : await collect()) as {
+      closed: Measure;
+      open: Measure;
+    };
 
-  it("reaches the explorer's bottom with the inspector closed", () => {
-    expect(f.closed.inspectorBottom).toBe(f.closed.explorerBottom);
-    expect(f.closed.innerBottom).toBe(f.closed.explorerBottom);
-    expect(f.closed.explorerBottom).toBe(f.closed.footerTop);
-  });
+    it("reaches the explorer's bottom with the inspector closed", () => {
+      expect(f.closed.inspectorBottom).toBe(f.closed.explorerBottom);
+      expect(f.closed.innerBottom).toBe(f.closed.explorerBottom);
+      expect(f.closed.explorerBottom).toBe(f.closed.footerTop);
+    });
 
-  it("reaches the explorer's bottom with the inspector open", () => {
-    expect(f.open.inspectorBottom).toBe(f.open.explorerBottom);
-    expect(f.open.innerBottom).toBe(f.open.explorerBottom);
-  });
-});
+    it("reaches the explorer's bottom with the inspector open", () => {
+      expect(f.open.inspectorBottom).toBe(f.open.explorerBottom);
+      expect(f.open.innerBottom).toBe(f.open.explorerBottom);
+    });
+  },
+);

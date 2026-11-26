@@ -29,6 +29,7 @@ export default defineConfig({
   test: {
     ...poolTestOptions({}),
     environment: "node",
+    globalSetup: ["test/look-browser-setup.mjs"],
     setupFiles: ["../../tools/scripts/vitest-remove-temp-dirs.mjs"],
     projects: [
       {

@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,7 +10,7 @@ import {
   FOLDER_BOX_HEIGHT,
   FRAME_TOP,
 } from "../../src/canvas-layout";
-import { HIDE_SCROLLBARS, lookBrowserArgs, webkit } from "../../src/look-page";
+import { HIDE_SCROLLBARS, lookRun, webkit } from "../../src/look-page";
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 
@@ -495,7 +494,7 @@ type Report = {
   };
 };
 
-function collect(): Report {
+async function collect(): Promise<Report> {
   const dir = mkdtempSync(join(tmpdir(), "canvas-look-"));
 
   try {
@@ -514,11 +513,7 @@ function collect(): Report {
       `<!doctype html><html><head><style>${css}${HIDE_SCROLLBARS}</style></head><body><div id="out"></div><script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
     );
 
-    const run = spawnSync(
-      process.execPath,
-      lookBrowserArgs(page, { size: "800x600" }),
-      { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
-    );
+    const run = await lookRun(page, { size: "800x600" });
     const match = /<div id="out">([^<]*)<\/div>/.exec(run.stdout);
 
     if (match?.[1]?.startsWith("ERR ")) {
@@ -539,12 +534,11 @@ function collect(): Report {
   }
 }
 
-let known: Report | undefined;
+const known: Report | undefined =
+  webkit === undefined ? undefined : await collect();
 
 function report(): Report {
-  known ??= collect();
-
-  return known;
+  return known as Report;
 }
 
 const labelsOf = (kids: Kid[]) =>

@@ -1,11 +1,10 @@
-import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
 import { describe, expect, it } from "vitest";
-import { lookBrowserArgs, webkit } from "../../src/look-page";
+import { lookRun, webkit } from "../../src/look-page";
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 
@@ -253,7 +252,7 @@ type Facts = {
   };
 };
 
-function collect(): Facts {
+async function collect(): Promise<Facts> {
   const dir = mkdtempSync(join(tmpdir(), "tree-view-"));
 
   try {
@@ -272,11 +271,7 @@ function collect(): Facts {
       `<!doctype html><html><head><style>${css}</style></head><body><div id="out"></div><script>${bundle.replaceAll("</script", "<\\/script")}</script></body></html>`,
     );
 
-    const run = spawnSync(
-      process.execPath,
-      lookBrowserArgs(page, { size: "800x600" }),
-      { encoding: "utf8", timeout: 60000, maxBuffer: 16 * 1024 * 1024 },
-    );
+    const run = await lookRun(page, { size: "800x600" });
     const match = /<div id="out">([^<]*)<\/div>/.exec(run.stdout);
 
     if (match === null || !/^[A-Za-z0-9+/=]+$/.test(match[1])) {
@@ -297,168 +292,171 @@ function collect(): Facts {
   }
 }
 
-describe.skipIf(webkit === undefined)("tree view in a real browser", () => {
-  const facts = webkit === undefined ? null : collect();
-  const f = facts as Facts;
+describe.skipIf(webkit === undefined)(
+  "tree view in a real browser",
+  async () => {
+    const facts = webkit === undefined ? null : await collect();
+    const f = facts as Facts;
 
-  it("starts with the repository name and its module count and no hide button", () => {
-    expect(f.hdr.title).toBe("shop");
-    expect(Number(f.hdr.titleWeight)).toBeGreaterThanOrEqual(600);
-    expect(f.hdr.count).toBe("4");
-    expect(f.hdr.countColor).not.toBe(f.probes.sel.color);
-    expect(f.hdr.buttons).toBe(1);
-    expect(f.hdr.children).toEqual([
-      "tree-title",
-      "tree-count",
-      "ib tree-open-editor",
-    ]);
-  });
-
-  it("leaves the canvas without a tree toggle, so the rail's Files icon alone reopens a hidden tree", () => {
-    expect(f.shown.topStrip).toBe(true);
-    expect(f.shown.treeToggle).toBe(false);
-    expect(f.shown.buttonsOutsideControls).toBe(0);
-  });
-
-  it("has a plain text find field reading Find a file", () => {
-    expect(f.hdr.findPlaceholder).toBe("Find a file");
-    expect(f.hdr.findType).toBe("text");
-  });
-
-  it("draws folder chevrons as 12px inline svg, right when closed and down when open", () => {
-    expect(f.rows.src.chevron).toEqual({
-      width: "12px",
-      path: "M6 9l6 6 6-6",
-      inline: "svg",
+    it("starts with the repository name and its module count and no hide button", () => {
+      expect(f.hdr.title).toBe("shop");
+      expect(Number(f.hdr.titleWeight)).toBeGreaterThanOrEqual(600);
+      expect(f.hdr.count).toBe("4");
+      expect(f.hdr.countColor).not.toBe(f.probes.sel.color);
+      expect(f.hdr.buttons).toBe(1);
+      expect(f.hdr.children).toEqual([
+        "tree-title",
+        "tree-count",
+        "ib tree-open-editor",
+      ]);
     });
-    expect(f.rows.plain.lib.chevron?.path).toBe("M6 9l6 6 6-6");
-    expect(f.rows.unselected.chevron).toBeNull();
-    expect(f.treeText).not.toMatch(/[\u25b8\u25be]/);
-  });
 
-  it("ends folder names with a slash and leaves file names bare", () => {
-    expect(f.rows.src.text).toBe("src/");
-    expect(f.rows.lib.text).toBe("lib/");
-    expect(f.rows["src/a.ts"].text).toBe("a.ts");
-  });
+    it("leaves the canvas without a tree toggle, so the rail's Files icon alone reopens a hidden tree", () => {
+      expect(f.shown.topStrip).toBe(true);
+      expect(f.shown.treeToggle).toBe(false);
+      expect(f.shown.buttonsOutsideControls).toBe(0);
+    });
 
-  it("builds every row as chevron, name, disc, eye with the chevron on folders only", () => {
-    expect(f.rows.src.order).toEqual(["chevron", "name", "disc", "eye"]);
-    expect(f.rows["src/deep"].order).toEqual([
-      "chevron",
-      "name",
-      "disc",
-      "eye",
-    ]);
-    expect(f.rows["src/a.ts"].order).toEqual(["name", "disc", "eye"]);
-    expect(f.rows["src/b.ts"].order).toEqual(["name", "disc", "eye"]);
-  });
+    it("has a plain text find field reading Find a file", () => {
+      expect(f.hdr.findPlaceholder).toBe("Find a file");
+      expect(f.hdr.findType).toBe("text");
+    });
 
-  it("ends every row with a native eye button, no checkbox and no input", () => {
-    for (const row of [f.rows.src, f.rows["src/a.ts"], f.rows["src/b.ts"]]) {
-      expect(row.buttons).toBe(1);
-      expect(row.inputs).toBe(0);
-      expect(row.check.tag).toBe("BUTTON");
-      expect(row.check.type).toBe("button");
-      expect(row.check.label).toMatch(/ (on|from) the canvas$/);
-    }
-  });
+    it("draws folder chevrons as 12px inline svg, right when closed and down when open", () => {
+      expect(f.rows.src.chevron).toEqual({
+        width: "12px",
+        path: "M6 9l6 6 6-6",
+        inline: "svg",
+      });
+      expect(f.rows.plain.lib.chevron?.path).toBe("M6 9l6 6 6-6");
+      expect(f.rows.unselected.chevron).toBeNull();
+      expect(f.treeText).not.toMatch(/[\u25b8\u25be]/);
+    });
 
-  it("draws a 16px eye, on, off and half, in the selection colour only when on", () => {
-    expect(f.rows["src/a.ts"].check.aria).toBe("true");
-    expect(f.rows["src/b.ts"].check.aria).toBe("false");
-    expect(f.rows.src.check.aria).toBe("mixed");
-    expect(f.checkedFolder.check.aria).toBe("true");
-    expect(f.rows["src/a.ts"].check.shapes).toBe("path,circle");
-    expect(f.rows["src/b.ts"].check.shapes).toBe("path,path,path");
-    expect(f.rows.src.check.shapes).toBe("path,path");
+    it("ends folder names with a slash and leaves file names bare", () => {
+      expect(f.rows.src.text).toBe("src/");
+      expect(f.rows.lib.text).toBe("lib/");
+      expect(f.rows["src/a.ts"].text).toBe("a.ts");
+    });
 
-    for (const row of [f.rows["src/a.ts"], f.rows["src/b.ts"], f.rows.src]) {
-      expect(row.check.size).toBe("16px 16px");
-    }
+    it("builds every row as chevron, name, disc, eye with the chevron on folders only", () => {
+      expect(f.rows.src.order).toEqual(["chevron", "name", "disc", "eye"]);
+      expect(f.rows["src/deep"].order).toEqual([
+        "chevron",
+        "name",
+        "disc",
+        "eye",
+      ]);
+      expect(f.rows["src/a.ts"].order).toEqual(["name", "disc", "eye"]);
+      expect(f.rows["src/b.ts"].order).toEqual(["name", "disc", "eye"]);
+    });
 
-    expect(f.rows["src/a.ts"].check.color).toBe(f.probes.sel.color);
-    expect(f.rows.src.check.color).toBe(f.probes.sel.color);
-    expect(f.rows["src/b.ts"].check.color).not.toBe(f.probes.sel.color);
-  });
+    it("ends every row with a native eye button, no checkbox and no input", () => {
+      for (const row of [f.rows.src, f.rows["src/a.ts"], f.rows["src/b.ts"]]) {
+        expect(row.buttons).toBe(1);
+        expect(row.inputs).toBe(0);
+        expect(row.check.tag).toBe("BUTTON");
+        expect(row.check.type).toBe("button");
+        expect(row.check.label).toMatch(/ (on|from) the canvas$/);
+      }
+    });
 
-  it("has no legend line under the rows", () => {
-    expect(f.treeLegends).toBe(0);
-  });
+    it("draws a 16px eye, on, off and half, in the selection colour only when on", () => {
+      expect(f.rows["src/a.ts"].check.aria).toBe("true");
+      expect(f.rows["src/b.ts"].check.aria).toBe("false");
+      expect(f.rows.src.check.aria).toBe("mixed");
+      expect(f.checkedFolder.check.aria).toBe("true");
+      expect(f.rows["src/a.ts"].check.shapes).toBe("path,circle");
+      expect(f.rows["src/b.ts"].check.shapes).toBe("path,path,path");
+      expect(f.rows.src.check.shapes).toBe("path,path");
 
-  it("bolds the name of a row on the canvas and of a folder holding one", () => {
-    expect(Number(f.rows["src/a.ts"].nameWeight)).toBeGreaterThanOrEqual(600);
-    expect(Number(f.rows.src.nameWeight)).toBeGreaterThanOrEqual(600);
-    expect(Number(f.rows["src/b.ts"].nameWeight)).toBeLessThan(600);
-    expect(Number(f.rows.plain.lib.nameWeight)).toBeLessThan(600);
-  });
+      for (const row of [f.rows["src/a.ts"], f.rows["src/b.ts"], f.rows.src]) {
+        expect(row.check.size).toBe("16px 16px");
+      }
 
-  it("gives the selected row the selection background and a 2px bar on its left edge", () => {
-    const row = f.rows["src/deep/d.ts"];
+      expect(f.rows["src/a.ts"].check.color).toBe(f.probes.sel.color);
+      expect(f.rows.src.check.color).toBe(f.probes.sel.color);
+      expect(f.rows["src/b.ts"].check.color).not.toBe(f.probes.sel.color);
+    });
 
-    expect(row.classes).toContain("selected");
-    expect(row.background).toBe(f.probes.sel.background);
-    expect(row.shadow).toContain("2px 0px 0px 0px inset");
-    expect(row.shadow).toContain(f.probes.sel.color);
-    expect(f.rows.unselected.background).not.toBe(f.probes.sel.background);
-    expect(f.rows.unselected.shadow).toBe("none");
-  });
+    it("has no legend line under the rows", () => {
+      expect(f.treeLegends).toBe(0);
+    });
 
-  it("shows folders above the selection with their name in the selection colour", () => {
-    expect(f.rows.src.nameColor).toBe(f.probes.sel.color);
-    expect(f.rows["src/deep"].nameColor).toBe(f.probes.sel.color);
-    expect(f.rows.lib.nameColor).not.toBe(f.probes.sel.color);
-    expect(f.rows["src/deep/d.ts"].nameColor).not.toBe(f.probes.sel.color);
-  });
+    it("bolds the name of a row on the canvas and of a folder holding one", () => {
+      expect(Number(f.rows["src/a.ts"].nameWeight)).toBeGreaterThanOrEqual(600);
+      expect(Number(f.rows.src.nameWeight)).toBeGreaterThanOrEqual(600);
+      expect(Number(f.rows["src/b.ts"].nameWeight)).toBeLessThan(600);
+      expect(Number(f.rows.plain.lib.nameWeight)).toBeLessThan(600);
+    });
 
-  it("wires a name click as find, an eye click as put on or take off, and a folder name as open and close", () => {
-    expect(f.clicks).toEqual([
-      "find:src/a.ts",
-      "find:src/b.ts",
-      "takeOff:src/a.ts",
-      "putOnCanvas:src/b.ts",
-      "putFolderOnCanvas:src/deep/d.ts,src/a.ts,src/b.ts",
-      "putFolderOnCanvas:lib/c.ts",
-      "toggleFolder:src",
-      "toggleFolder:src",
-      "takeFolderOff:src/deep/d.ts,src/a.ts,src/b.ts",
-    ]);
-  });
+    it("gives the selected row the selection background and a 2px bar on its left edge", () => {
+      const row = f.rows["src/deep/d.ts"];
 
-  it("sizes rows 26px, indents 14px a level with files 18px further and discs 9px", () => {
-    expect(f.rows.src.height).toBe("26px");
-    expect(f.rows["src/a.ts"].height).toBe("26px");
-    expect(f.rows.src.paddingLeft).toBe("4px");
-    expect(f.rows["src/deep"].paddingLeft).toBe("18px");
-    expect(f.rows["src/a.ts"].paddingLeft).toBe("36px");
-    expect(f.rows["src/deep/d.ts"].paddingLeft).toBe("50px");
-    expect(f.rows.src.discWidth).toBe("9px");
-    expect(f.rows["src/a.ts"].discHeight).toBe("9px");
-  });
+      expect(row.classes).toContain("selected");
+      expect(row.background).toBe(f.probes.sel.background);
+      expect(row.shadow).toContain("2px 0px 0px 0px inset");
+      expect(row.shadow).toContain(f.probes.sel.color);
+      expect(f.rows.unselected.background).not.toBe(f.probes.sel.background);
+      expect(f.rows.unselected.shadow).toBe("none");
+    });
 
-  it("keeps each eye inside its row, at the right end, whatever the depth", () => {
-    for (const row of [
-      f.rows.src,
-      f.rows["src/a.ts"],
-      f.rows["src/deep/d.ts"],
-    ]) {
-      expect(row.eyeInRow).toBe(true);
-    }
+    it("shows folders above the selection with their name in the selection colour", () => {
+      expect(f.rows.src.nameColor).toBe(f.probes.sel.color);
+      expect(f.rows["src/deep"].nameColor).toBe(f.probes.sel.color);
+      expect(f.rows.lib.nameColor).not.toBe(f.probes.sel.color);
+      expect(f.rows["src/deep/d.ts"].nameColor).not.toBe(f.probes.sel.color);
+    });
 
-    expect(f.rows["src/a.ts"].eyeRight).toBe(f.rows["src/deep"].eyeRight);
-    expect(f.rows["src/deep/d.ts"].eyeRight).toBe(f.rows.src.eyeRight);
-    expect(f.rows.src.rowRight - f.rows.src.eyeRight).toBeLessThan(10);
-  });
+    it("wires a name click as find, an eye click as put on or take off, and a folder name as open and close", () => {
+      expect(f.clicks).toEqual([
+        "find:src/a.ts",
+        "find:src/b.ts",
+        "takeOff:src/a.ts",
+        "putOnCanvas:src/b.ts",
+        "putFolderOnCanvas:src/deep/d.ts,src/a.ts,src/b.ts",
+        "putFolderOnCanvas:lib/c.ts",
+        "toggleFolder:src",
+        "toggleFolder:src",
+        "takeFolderOff:src/deep/d.ts,src/a.ts,src/b.ts",
+      ]);
+    });
 
-  it("draws filter chips 24px high, fully rounded, in the selection colours when on", () => {
-    expect(f.hdr.chip.height).toBe("24px");
-    expect(f.hdr.chipOffHeight).toBe("24px");
-    expect(f.hdr.chip.radius).toBe("12px");
-    expect(f.hdr.chip.background).toBe(f.probes.sel.background);
-    expect(f.hdr.chip.color).toBe(f.probes.sel.color);
-  });
+    it("sizes rows 26px, indents 14px a level with files 18px further and discs 9px", () => {
+      expect(f.rows.src.height).toBe("26px");
+      expect(f.rows["src/a.ts"].height).toBe("26px");
+      expect(f.rows.src.paddingLeft).toBe("4px");
+      expect(f.rows["src/deep"].paddingLeft).toBe("18px");
+      expect(f.rows["src/a.ts"].paddingLeft).toBe("36px");
+      expect(f.rows["src/deep/d.ts"].paddingLeft).toBe("50px");
+      expect(f.rows.src.discWidth).toBe("9px");
+      expect(f.rows["src/a.ts"].discHeight).toBe("9px");
+    });
 
-  it("reads Nothing matches. when the filter leaves no files", () => {
-    expect(f.empty).toBe("Nothing matches.");
-  });
-});
+    it("keeps each eye inside its row, at the right end, whatever the depth", () => {
+      for (const row of [
+        f.rows.src,
+        f.rows["src/a.ts"],
+        f.rows["src/deep/d.ts"],
+      ]) {
+        expect(row.eyeInRow).toBe(true);
+      }
+
+      expect(f.rows["src/a.ts"].eyeRight).toBe(f.rows["src/deep"].eyeRight);
+      expect(f.rows["src/deep/d.ts"].eyeRight).toBe(f.rows.src.eyeRight);
+      expect(f.rows.src.rowRight - f.rows.src.eyeRight).toBeLessThan(10);
+    });
+
+    it("draws filter chips 24px high, fully rounded, in the selection colours when on", () => {
+      expect(f.hdr.chip.height).toBe("24px");
+      expect(f.hdr.chipOffHeight).toBe("24px");
+      expect(f.hdr.chip.radius).toBe("12px");
+      expect(f.hdr.chip.background).toBe(f.probes.sel.background);
+      expect(f.hdr.chip.color).toBe(f.probes.sel.color);
+    });
+
+    it("reads Nothing matches. when the filter leaves no files", () => {
+      expect(f.empty).toBe("Nothing matches.");
+    });
+  },
+);
