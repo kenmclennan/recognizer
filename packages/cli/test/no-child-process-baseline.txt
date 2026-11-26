@@ -49,14 +49,13 @@ packages/cli/test/installed-sensors-read.test.ts
 packages/cli/test/sensor-catalog-adapter-installed-sensors-real.test.ts
 packages/cli/test/isolated-path.test.ts
 packages/cli/test/isolated-path.ts
-packages/cli/test/key-edit-real.test.ts
+packages/cli/test/key-owners-adapter-key-edit-real.test.ts
 packages/cli/test/key-owners-adapter-key-owners.test.ts
 packages/cli/test/library-load.test.ts
 packages/cli/test/link.test.ts
 packages/cli/test/log-command.test.ts
 packages/cli/test/module-source.test.ts
 packages/cli/test/open-command.test.ts
-packages/cli/test/plugin-init.test.ts
 packages/cli/test/plugin-manifest.test.ts
 packages/cli/test/plugin-manifests.test.ts
 packages/cli/test/plugin-real.test.ts

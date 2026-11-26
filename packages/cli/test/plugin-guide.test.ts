@@ -1,26 +1,15 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-  pluginCheck as checkPlugin,
-  type PluginCheckOptions,
-} from "@recognizer/core";
+import type { PluginCheckResult } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { type Io, run } from "../src/cli.js";
+import { run } from "../src/cli.js";
 import { COMMANDS } from "../src/commands.js";
 import { shortHelp } from "../src/help.js";
 import { documentValidators } from "../src/manifest-ports.js";
 import { pluginGuide } from "../src/plugin-guide.js";
-import { pluginPorts } from "../src/plugins-container.js";
 import { capture, REPO } from "./helpers.js";
 
 const CURRENT_PROTOCOL = documentValidators.facts.protocol;
-
-const pluginCheck = (
-  io: Io,
-  command: string,
-  current?: number,
-  options?: PluginCheckOptions,
-) => checkPlugin(pluginPorts(io), command, current, options);
 
 const MANIFEST = JSON.parse(
   readFileSync(join(REPO, "schema/manifest.schema.json"), "utf8"),
@@ -118,10 +107,21 @@ describe("recognizer help plugin-guide", () => {
   });
 
   it("names every result a real plugin check returns", async () => {
-    const report = await pluginCheck(
-      capture().io,
-      join(REPO, "fixtures/plugins/conforming/recognizer-scan-conforming"),
+    const captured = capture();
+
+    await run(
+      [
+        "plugin",
+        "check",
+        join(REPO, "fixtures/plugins/conforming/recognizer-scan-conforming"),
+        "--json",
+      ],
+      captured.io,
     );
+
+    const report = JSON.parse(captured.out()) as {
+      results: PluginCheckResult[];
+    };
     const names = nonEmpty(report.results.map((entry) => entry.name));
     const guide = pluginGuide();
 

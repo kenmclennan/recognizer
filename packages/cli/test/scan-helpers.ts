@@ -1,16 +1,17 @@
 import { createHash } from "node:crypto";
-import { chmodSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import type { DirEntry, Io, RequestResult, RunResult } from "../src/cli.js";
-import { REPO } from "./helpers.js";
 import { exampleManifest } from "./installed-read.js";
 import { isolatedPath } from "./isolated-path.js";
 import { registerShim } from "./plugin-registry-shim.js";
+import {
+  describerManifestText,
+  scannerManifestText,
+} from "./support/manifest-text.js";
 
-const LANGUAGE_RULES = JSON.parse(
-  readFileSync(join(REPO, "fixtures/plugins/languages.json"), "utf8"),
-) as { name: string }[];
+export { describerManifestText, scannerManifestText };
 
 export function useScannerShim(language: string): () => void {
   const directory = makeTempDir("recognizer-scanner-shim-");
@@ -28,51 +29,6 @@ export function useScannerShim(language: string): () => void {
   return () => {
     process.env.PATH = saved;
   };
-}
-
-export function scannerManifestText(
-  name: string,
-  languages: string[] = [name],
-  protocol = 4,
-): string {
-  const manifest = JSON.parse(
-    readFileSync(
-      join(REPO, "schema/manifest-examples/valid/scanner.json"),
-      "utf8",
-    ),
-  );
-
-  return `${JSON.stringify({
-    ...manifest,
-    name,
-    protocol,
-    languages: languages.map(
-      (language) =>
-        LANGUAGE_RULES.find((rule) => rule.name === language) ?? {
-          name: language,
-          extensions: [`.${language}`],
-          files: [],
-          skip: {
-            directory_names: [],
-            directory_prefixes: [],
-            directory_suffixes: [],
-            directory_markers: [],
-            file_globs: [],
-          },
-        },
-    ),
-  })}\n`;
-}
-
-export function describerManifestText(promptVersion: string): string {
-  const manifest = JSON.parse(
-    readFileSync(
-      join(REPO, "schema/manifest-examples/valid/describer.json"),
-      "utf8",
-    ),
-  );
-
-  return `${JSON.stringify({ ...manifest, prompt_version: promptVersion })}\n`;
 }
 
 export interface ScannerBehaviour {

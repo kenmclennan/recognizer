@@ -1,10 +1,5 @@
-packages/cli/test/describe-stop.test.ts
 packages/cli/test/duplication-shapes.test.ts
 packages/cli/test/filesystem-repositories-plan-reads.test.ts
-packages/cli/test/key-edit-real.test.ts
-packages/cli/test/plugin-check.test.ts
-packages/cli/test/plugin-guide.test.ts
-packages/cli/test/plugin-init.test.ts
 packages/cli/test/reported-results.test.ts
 packages/cli/test/run-sensors.test.ts
 packages/cli/test/scan-container.test.ts

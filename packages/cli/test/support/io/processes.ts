@@ -18,6 +18,7 @@ export interface ProgramCall {
   options: RunOptions | undefined;
   files: FakeFiles;
   readonly killed: boolean;
+  survivesKill: boolean;
   stdout(text: string): void;
   stderr(text: string): void;
   whenKilled(): Promise<void>;
@@ -81,6 +82,7 @@ export class FakeProcesses {
       options,
       files: this.files,
       killed: false,
+      survivesKill: false,
       stdout: (text) => out.push(text),
       stderr: (text) => err.push(text),
       whenKilled: () => new Promise(() => {}),
@@ -180,6 +182,11 @@ export class FakeProcesses {
     const kill = (_signal: string) => {
       killed = true;
       release();
+
+      if (call.survivesKill) {
+        return;
+      }
+
       queueMicrotask(() =>
         settle({ started: true, status: 128, stdout: "", stderr: "" }),
       );
@@ -203,20 +210,21 @@ export class FakeProcesses {
       lines(text, deliver);
     };
 
-    void Promise.resolve(
-      program({
-        command,
-        args,
-        options,
-        files: this.files,
-        get killed() {
-          return killed;
-        },
-        stdout: (text) => emit(text, out, options?.onStdoutLine),
-        stderr: (text) => emit(text, err, options?.onStderrLine),
-        whenKilled: () => killedSignal,
-      }),
-    ).then(settle, (error: Error) =>
+    const call: ProgramCall = {
+      command,
+      args,
+      options,
+      files: this.files,
+      get killed() {
+        return killed;
+      },
+      survivesKill: false,
+      stdout: (text) => emit(text, out, options?.onStdoutLine),
+      stderr: (text) => emit(text, err, options?.onStderrLine),
+      whenKilled: () => killedSignal,
+    };
+
+    void Promise.resolve(program(call)).then(settle, (error: Error) =>
       settle({ started: true, status: 1, stdout: "", stderr: error.message }),
     );
 
