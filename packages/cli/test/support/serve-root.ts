@@ -1,4 +1,5 @@
 import type { Git, ScanCache, Scratch } from "@recognizer/core";
+import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import { FakeScratch } from "../../../core/test/fakes/fake-scratch.js";
 import { Service, type ServiceOptions } from "../../src/serve/service.js";
 import type { Polls } from "../../src/serve/watch.js";
@@ -30,6 +31,8 @@ export interface ServeRoot {
 }
 
 const STEP_MS = 50;
+const REAL_YIELD_MS = 5;
+const REAL_CEILING_MS = 30_000;
 
 export async function settle(): Promise<void> {
   for (let turn = 0; turn < 8; turn += 1) {
@@ -94,19 +97,42 @@ export function serveRoot(options: ServeRootOptions = {}): ServeRoot {
     },
     settle,
     until: async (find, ms = 30_000) => {
-      for (let waited = 0; waited <= ms; waited += STEP_MS) {
+      const deadline = Date.now() + scaledTimeout(REAL_CEILING_MS);
+      let waited = 0;
+
+      for (;;) {
         const found = find();
 
         if (found !== undefined) {
           return found;
         }
 
+        const next = io.timers.next();
+        const timerDue =
+          next !== undefined && next <= io.timers.awake() + STEP_MS;
+
+        if (!timerDue) {
+          await new Promise<void>((resolve) =>
+            setTimeout(resolve, REAL_YIELD_MS),
+          );
+        } else {
+          waited += STEP_MS;
+        }
+
+        if (waited > ms) {
+          throw new Error(
+            `not reached within ${ms} ms on the fake clock; lines so far: ${JSON.stringify(lines).slice(0, 2000)}`,
+          );
+        }
+
+        if (Date.now() > deadline) {
+          throw new Error(
+            `not reached within ${scaledTimeout(REAL_CEILING_MS)} ms on the real clock; lines so far: ${JSON.stringify(lines).slice(0, 2000)}`,
+          );
+        }
+
         await root.advance(STEP_MS);
       }
-
-      throw new Error(
-        `not reached within ${ms} ms on the fake clock; lines so far: ${JSON.stringify(lines).slice(0, 2000)}`,
-      );
     },
     call: async (op, args) => {
       const id = root.send(op, args);
