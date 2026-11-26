@@ -12,6 +12,7 @@ import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { REPO } from "./helpers.js";
 import { isolatedPath } from "./isolated-path.js";
+import { registerShim } from "./plugin-registry-shim.js";
 
 export const BIN = join(REPO, "packages/cli/dist/bin.js");
 
@@ -109,6 +110,7 @@ export function launcher(directory: string, name: string, body: string): void {
 
   writeFileSync(path, `#!/bin/sh\n${body}\n`);
   chmodSync(path, 0o755);
+  registerShim(path);
 }
 
 export function typescriptLaunchers(): string {

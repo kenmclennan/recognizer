@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { vi } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
+import { registerShim } from "../../cli/test/plugin-registry-shim";
 import { bridge, cleanups, type Line, recordingView } from "./app-harness";
 
 export * from "./app-harness";
@@ -146,6 +147,7 @@ export function launcher(directory: string, name: string, body: string): void {
 
   writeFileSync(path, `#!/bin/sh\n${body}\n`);
   chmodSync(path, 0o755);
+  registerShim(path);
 }
 
 function manifestOf(name: string, runsTests: boolean): string {

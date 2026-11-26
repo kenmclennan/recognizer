@@ -2,6 +2,7 @@ import { chmodSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
+import { registerShim } from "./plugin-registry-shim.js";
 import { manifestOf, type RealTool } from "./plugin-tools.js";
 
 function script(name: string, body: string): RealTool {
@@ -9,6 +10,7 @@ function script(name: string, body: string): RealTool {
 
   writeFileSync(path, `#!/bin/sh\n${body}\n`);
   chmodSync(path, 0o755);
+  registerShim(path);
 
   return { name, path };
 }

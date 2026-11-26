@@ -6,6 +6,7 @@ import type { DirEntry, Io, RequestResult, RunResult } from "../src/cli.js";
 import { REPO } from "./helpers.js";
 import { exampleManifest } from "./installed-read.js";
 import { isolatedPath } from "./isolated-path.js";
+import { registerShim } from "./plugin-registry-shim.js";
 
 const LANGUAGE_RULES = JSON.parse(
   readFileSync(join(REPO, "fixtures/plugins/languages.json"), "utf8"),
@@ -21,6 +22,7 @@ export function useScannerShim(language: string): () => void {
     `#!/bin/sh\nif [ "$1" = "manifest" ]; then\ncat <<'EOF'\n${scannerManifestText(language).trim()}\nEOF\nfi\n`,
   );
   chmodSync(path, 0o755);
+  registerShim(path);
   process.env.PATH = isolatedPath(directory);
 
   return () => {

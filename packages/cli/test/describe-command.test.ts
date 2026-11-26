@@ -24,6 +24,7 @@ import { fullHelp } from "../src/help.js";
 import { validateRunRecord } from "../src/log-document.js";
 import { capture, REPO } from "./helpers.js";
 import { isolatedPath } from "./isolated-path.js";
+import { registerShim } from "./plugin-registry-shim.js";
 import { scannerManifestText } from "./scan-helpers.js";
 
 const FAKE = join(REPO, "packages/cli/test/fixtures/fake-describer.mjs");
@@ -40,6 +41,7 @@ function scannerShim(dir: string, language: string): void {
     `#!/bin/sh\nif [ "$1" = "manifest" ]; then\ncat <<'EOF'\n${scannerManifestText(language).trim()}\nEOF\nfi\n`,
   );
   chmodSync(path, 0o755);
+  registerShim(path);
 }
 
 function git(root: string, ...args: string[]): string {

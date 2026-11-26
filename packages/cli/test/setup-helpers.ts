@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Survey } from "@recognizer/core";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { REPO } from "./helpers.js";
+import { registerShim } from "./plugin-registry-shim.js";
 import { writeStubSurveyPlugin } from "./stub-survey-plugin.js";
 
 const ANSWERS = join(REPO, "packages/cli/test/survey-answers");
@@ -33,6 +34,7 @@ function shim(directory: string, program: string, manifest: unknown): void {
     `#!/bin/sh\nif [ "$1" = "manifest" ]; then\ncat <<'EOF'\n${JSON.stringify(manifest)}\nEOF\nfi\nexit 0\n`,
   );
   chmodSync(path, 0o755);
+  registerShim(path);
 }
 
 export function shimDirectory(
