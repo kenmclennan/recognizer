@@ -10,6 +10,7 @@ import { FakeConfirm } from "../fakes/fake-confirm.js";
 import { FakeDescriber } from "../fakes/fake-describer.js";
 import { FakeResponsibilitiesRepository } from "../fakes/fake-responsibilities-repository.js";
 import { FakeRunLogRepository } from "../fakes/fake-run-log-repository.js";
+import { PRICES } from "../fakes/prices.js";
 import { repositoryOf } from "../fakes/repository-of.js";
 
 export const ROOT = "/work/describing";
@@ -76,6 +77,7 @@ export class DescribingWorld {
       selection: { kind: "stale" },
       model: "opus",
       batchSize: 1,
+      prices: PRICES,
       onEntry: (entry) => this.entries.push(entry),
       say: (_stream, text) => this.said.push(text),
       ...over,

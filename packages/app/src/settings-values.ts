@@ -2,7 +2,11 @@ import type { SettingEdit, Settings } from "./settings-modal-port";
 
 export type StoredSettings = {
   editor: string;
-  describing: { model: string; batchSize: number; confirmAboveUsd: number };
+  describing: {
+    model: string | null;
+    batchSize: number;
+    confirmAboveUsd: number;
+  };
   setup: { model: string };
 };
 
@@ -10,7 +14,9 @@ export function toValues(stored: StoredSettings): Settings {
   return {
     values: {
       editor: stored.editor,
-      "describing.model": stored.describing.model,
+      ...(stored.describing.model === null
+        ? {}
+        : { "describing.model": stored.describing.model }),
       "describing.batch_size": String(stored.describing.batchSize),
       "describing.confirm_above_usd": String(stored.describing.confirmAboveUsd),
       "setup.model": stored.setup.model,

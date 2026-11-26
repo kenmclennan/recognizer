@@ -6,17 +6,13 @@ use serde_json::{Map, Value};
 
 use crate::fs_safe::write_atomic;
 
-#[derive(Debug, Default, Clone, PartialEq, Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub editor: String,
-    #[serde(default)]
     pub describing: Describing,
-    #[serde(default)]
     pub setup: Setup,
 }
-
-pub const DEFAULT_SETUP_MODEL: &str = "sonnet";
 
 #[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,93 +20,52 @@ pub struct Setup {
     pub model: String,
 }
 
-impl Default for Setup {
-    fn default() -> Self {
-        Setup {
-            model: DEFAULT_SETUP_MODEL.to_string(),
-        }
-    }
-}
-
-fn setup_json(setup: &Setup) -> Value {
-    serde_json::json!({ "model": setup.model })
-}
-
-fn parse_setup(value: &Value) -> Result<Setup, String> {
-    let Value::Object(object) = value else {
-        return Err("setup in config.json must be an object".to_string());
-    };
-
-    let model = match object.get("model") {
-        Some(Value::String(model)) => model.clone(),
-        _ => return Err("setup.model in config.json must be a string".to_string()),
-    };
-
-    Ok(Setup { model })
-}
-
-pub const DEFAULT_MODEL: &str = "haiku";
-pub const DEFAULT_BATCH_SIZE: u32 = 4;
-pub const DEFAULT_CONFIRM_ABOVE_USD: f64 = 5.0;
-
 #[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Describing {
-    pub model: String,
+    pub model: Option<String>,
+    #[serde(alias = "batch_size")]
     pub batch_size: u32,
+    #[serde(alias = "confirm_above_usd")]
     pub confirm_above_usd: f64,
 }
 
-impl Default for Describing {
-    fn default() -> Self {
-        Describing {
-            model: DEFAULT_MODEL.to_string(),
-            batch_size: DEFAULT_BATCH_SIZE,
-            confirm_above_usd: DEFAULT_CONFIRM_ABOVE_USD,
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct Stored {
+    pub editor: String,
+    pub describing: Map<String, Value>,
+    pub setup: Map<String, Value>,
+}
+
+fn stored_object(
+    object: &Map<String, Value>,
+    key: &str,
+    string_keys: &[&str],
+    number_keys: &[&str],
+) -> Result<Map<String, Value>, String> {
+    let inner = match object.get(key) {
+        None | Some(Value::Null) => return Ok(Map::new()),
+        Some(Value::Object(inner)) => inner,
+        Some(_) => return Err(format!("{key} in config.json must be an object")),
+    };
+
+    for name in string_keys {
+        if let Some(value) = inner.get(*name) {
+            if !value.is_string() {
+                return Err(format!("{key}.{name} in config.json must be a string"));
+            }
         }
     }
-}
 
-fn describing_json(describing: &Describing) -> Value {
-    serde_json::json!({
-        "model": describing.model,
-        "batch_size": describing.batch_size,
-        "confirm_above_usd": describing.confirm_above_usd,
-    })
-}
-
-fn parse_describing(value: &Value) -> Result<Describing, String> {
-    let Value::Object(object) = value else {
-        return Err("describing in config.json must be an object".to_string());
-    };
-
-    let model = match object.get("model") {
-        Some(Value::String(model)) => model.clone(),
-        _ => return Err("describing.model in config.json must be a string".to_string()),
-    };
-
-    let batch_size = match object.get("batch_size").and_then(Value::as_u64) {
-        Some(size) if size <= u64::from(u32::MAX) => size as u32,
-        _ => return Err("describing.batch_size in config.json must be a whole number".to_string()),
-    };
-
-    let confirm_above_usd = match object.get("confirm_above_usd") {
-        None => DEFAULT_CONFIRM_ABOVE_USD,
-        Some(value) => match value.as_f64() {
-            Some(amount) => amount,
-            None => {
-                return Err(
-                    "describing.confirm_above_usd in config.json must be a number".to_string(),
-                )
+    for name in number_keys {
+        if let Some(value) = inner.get(*name) {
+            if !value.is_number() {
+                return Err(format!("{key}.{name} in config.json must be a number"));
             }
-        },
-    };
+        }
+    }
 
-    Ok(Describing {
-        model,
-        batch_size,
-        confirm_above_usd,
-    })
+    Ok(inner.clone())
 }
 
 fn parse_object(text: &str) -> Result<Map<String, Value>, String> {
@@ -123,9 +78,9 @@ fn parse_object(text: &str) -> Result<Map<String, Value>, String> {
     }
 }
 
-pub fn parse(text: Option<&str>) -> Result<Settings, String> {
+pub fn parse(text: Option<&str>) -> Result<Stored, String> {
     let Some(text) = text else {
-        return Ok(Settings::default());
+        return Ok(Stored::default());
     };
 
     let object = parse_object(text)?;
@@ -136,20 +91,32 @@ pub fn parse(text: Option<&str>) -> Result<Settings, String> {
         Some(_) => return Err("editor in config.json must be a string".to_string()),
     };
 
-    let describing = match object.get("describing") {
-        None | Some(Value::Null) => Describing::default(),
-        Some(value) => parse_describing(value)?,
-    };
+    Ok(Stored {
+        editor,
+        describing: stored_object(
+            &object,
+            "describing",
+            &["model"],
+            &["batch_size", "confirm_above_usd"],
+        )?,
+        setup: stored_object(&object, "setup", &["model"], &[])?,
+    })
+}
 
-    let setup = match object.get("setup") {
-        None | Some(Value::Null) => Setup::default(),
-        Some(value) => parse_setup(value)?,
-    };
+pub fn from_values(editor: String, values: &Value) -> Result<Settings, String> {
+    let describing = values
+        .get("describing")
+        .ok_or("the service answered without describing values")?;
+    let setup = values
+        .get("setup")
+        .ok_or("the service answered without setup values")?;
 
     Ok(Settings {
         editor,
-        describing,
-        setup,
+        describing: serde_json::from_value(describing.clone())
+            .map_err(|error| format!("describing values: {error}"))?,
+        setup: serde_json::from_value(setup.clone())
+            .map_err(|error| format!("setup values: {error}"))?,
     })
 }
 
@@ -163,32 +130,43 @@ pub fn validate(settings: &Settings) -> Result<(), String> {
 
 pub type Check<'a> = &'a dyn Fn(&Settings) -> Result<(), String>;
 
-pub fn seed(path: &Path) -> Result<(), String> {
-    let mut object = match fs::read_to_string(path) {
-        Ok(text) => parse_object(&text)?,
-        Err(_) => Map::new(),
-    };
+pub fn describing_json(describing: &Describing) -> Value {
+    let mut object = Map::new();
 
-    let mut changed = false;
-
-    if !object.contains_key("describing") {
-        object.insert(
-            "describing".to_string(),
-            describing_json(&Describing::default()),
-        );
-        changed = true;
+    if let Some(model) = &describing.model {
+        object.insert("model".to_string(), Value::String(model.clone()));
     }
 
-    if !object.contains_key("setup") {
-        object.insert("setup".to_string(), setup_json(&Setup::default()));
-        changed = true;
+    object.insert("batch_size".to_string(), describing.batch_size.into());
+    object.insert(
+        "confirm_above_usd".to_string(),
+        serde_json::json!(describing.confirm_above_usd),
+    );
+
+    Value::Object(object)
+}
+
+fn changed_keys(existing: Option<&Value>, given: &Value, baseline: &Value) -> Map<String, Value> {
+    let stored = existing.and_then(Value::as_object);
+    let mut kept = Map::new();
+
+    for (key, value) in given.as_object().into_iter().flatten() {
+        let is_stored = stored.is_some_and(|object| object.contains_key(key));
+
+        if is_stored || baseline.get(key) != Some(value) {
+            kept.insert(key.clone(), value.clone());
+        }
     }
 
-    if !changed {
-        return Ok(());
-    }
+    kept
+}
 
-    write_object(path, object)
+fn put_object(object: &mut Map<String, Value>, key: &str, value: Map<String, Value>) {
+    if value.is_empty() {
+        object.remove(key);
+    } else {
+        object.insert(key.to_string(), Value::Object(value));
+    }
 }
 
 fn write_object(path: &Path, object: Map<String, Value>) -> Result<(), String> {
@@ -200,12 +178,8 @@ fn write_object(path: &Path, object: Map<String, Value>) -> Result<(), String> {
     write_atomic(path, &text).map_err(|error| format!("{}: {error}", path.display()))
 }
 
-pub fn read(path: &Path, check: Check) -> Result<Settings, String> {
-    let settings = parse(fs::read_to_string(path).ok().as_deref())?;
-
-    check(&settings)?;
-
-    Ok(settings)
+pub fn read(path: &Path) -> Result<Stored, String> {
+    parse(fs::read_to_string(path).ok().as_deref())
 }
 
 fn set_or_remove(object: &mut Map<String, Value>, key: &str, value: &str) {
@@ -218,7 +192,12 @@ fn set_or_remove(object: &mut Map<String, Value>, key: &str, value: &str) {
     }
 }
 
-pub fn save(path: &Path, settings: &Settings, check: Check) -> Result<(), String> {
+pub fn save(
+    path: &Path,
+    settings: &Settings,
+    baseline: &Settings,
+    check: Check,
+) -> Result<(), String> {
     validate(settings)?;
     check(settings)?;
 
@@ -231,11 +210,19 @@ pub fn save(path: &Path, settings: &Settings, check: Check) -> Result<(), String
 
     object.remove("scanning");
 
-    object.insert(
-        "describing".to_string(),
-        describing_json(&settings.describing),
+    let describing = changed_keys(
+        object.get("describing"),
+        &describing_json(&settings.describing),
+        &describing_json(&baseline.describing),
     );
-    object.insert("setup".to_string(), setup_json(&settings.setup));
+    let setup = changed_keys(
+        object.get("setup"),
+        &serde_json::json!({ "model": settings.setup.model }),
+        &serde_json::json!({ "model": baseline.setup.model }),
+    );
+
+    put_object(&mut object, "describing", describing);
+    put_object(&mut object, "setup", setup);
 
     write_object(path, object)
 }
@@ -249,16 +236,44 @@ mod tests {
         Ok(())
     }
 
-    fn read(path: &Path) -> Result<Settings, String> {
-        super::read(path, &accept)
+    fn read(path: &Path) -> Result<Stored, String> {
+        super::read(path)
     }
 
     fn save(path: &Path, settings: &Settings) -> Result<(), String> {
-        super::save(path, settings, &accept)
+        super::save(path, settings, &baseline(), &accept)
+    }
+
+    fn baseline() -> Settings {
+        Settings {
+            editor: String::new(),
+            describing: Describing {
+                model: Some("alpha-model".to_string()),
+                batch_size: 7,
+                confirm_above_usd: 5.0,
+            },
+            setup: Setup {
+                model: "beta-model".to_string(),
+            },
+        }
     }
 
     fn refuse(_: &Settings) -> Result<(), String> {
         Err("describing.model must be a non-empty name".to_string())
+    }
+
+    fn settings(editor: &str) -> Settings {
+        Settings {
+            editor: editor.to_string(),
+            describing: Describing {
+                model: Some("opus".to_string()),
+                batch_size: 8,
+                confirm_above_usd: 2.5,
+            },
+            setup: Setup {
+                model: "opus".to_string(),
+            },
+        }
     }
 
     fn file() -> (TempDir, std::path::PathBuf) {
@@ -268,21 +283,38 @@ mod tests {
         (dir, path)
     }
 
+    fn written(path: &Path) -> Value {
+        serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap()
+    }
+
     #[test]
-    fn an_absent_config_means_the_defaults() {
-        assert_eq!(parse(None), Ok(Settings::default()));
-        assert_eq!(parse(Some("{}")), Ok(Settings::default()));
+    fn an_absent_config_stores_nothing() {
+        assert_eq!(parse(None), Ok(Stored::default()));
+        assert_eq!(parse(Some("{}")), Ok(Stored::default()));
+    }
+
+    #[test]
+    fn a_config_stores_only_what_it_holds() {
+        let stored = parse(Some(r#"{"describing": {"batch_size": 8}}"#)).unwrap();
+
+        assert_eq!(stored.describing.len(), 1);
+        assert_eq!(stored.describing["batch_size"], 8);
+        assert!(stored.setup.is_empty());
+
+        let nulls = parse(Some(r#"{"describing": null, "setup": null}"#)).unwrap();
+
+        assert_eq!(nulls, Stored::default());
     }
 
     #[test]
     fn a_recognizer_path_in_the_config_is_ignored() {
         assert_eq!(
             parse(Some(r#"{"recognizer_path": "bin/recognizer"}"#)),
-            Ok(Settings::default())
+            Ok(Stored::default())
         );
         assert_eq!(
             parse(Some(r#"{"recognizer_path": 4}"#)),
-            Ok(Settings::default())
+            Ok(Stored::default())
         );
     }
 
@@ -305,13 +337,8 @@ mod tests {
 
     #[test]
     fn a_multi_line_editor_fails_validation() {
-        let multi = Settings {
-            editor: "code\nrm x".to_string(),
-            ..Settings::default()
-        };
-
-        assert!(validate(&multi).is_err());
-        assert!(validate(&Settings::default()).is_ok());
+        assert!(validate(&settings("code\nrm x")).is_err());
+        assert!(validate(&settings("")).is_ok());
     }
 
     #[test]
@@ -325,16 +352,13 @@ mod tests {
         )
         .unwrap();
 
-        let mut settings = read(&path).unwrap();
+        save(&path, &settings("Sublime Text")).unwrap();
 
-        settings.editor = "Sublime Text".to_string();
-        save(&path, &settings).unwrap();
+        let value = written(&path);
 
-        let written: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-
-        assert_eq!(written["recognizer_path"], "/opt/bin/recognizer");
-        assert_eq!(written["editor"], "Sublime Text");
-        assert_eq!(written["other"], serde_json::json!([1, 2]));
+        assert_eq!(value["recognizer_path"], "/opt/bin/recognizer");
+        assert_eq!(value["editor"], "Sublime Text");
+        assert_eq!(value["other"], serde_json::json!([1, 2]));
         assert!(fs::read_to_string(&path).unwrap().ends_with("}\n"));
     }
 
@@ -342,26 +366,10 @@ mod tests {
     fn saving_a_blank_editor_removes_its_key() {
         let (_dir, path) = file();
 
-        save(
-            &path,
-            &Settings {
-                editor: "code".to_string(),
-                ..Settings::default()
-            },
-        )
-        .unwrap();
-        save(
-            &path,
-            &Settings {
-                editor: String::new(),
-                ..Settings::default()
-            },
-        )
-        .unwrap();
+        save(&path, &settings("code")).unwrap();
+        save(&path, &settings("")).unwrap();
 
-        let written: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-
-        assert!(written.get("editor").is_none());
+        assert!(written(&path).get("editor").is_none());
     }
 
     #[test]
@@ -371,12 +379,12 @@ mod tests {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, "[1]").unwrap();
 
-        assert!(save(&path, &Settings::default()).is_err());
+        assert!(save(&path, &settings("")).is_err());
         assert_eq!(fs::read_to_string(&path).unwrap(), "[1]");
 
         fs::write(&path, "not json").unwrap();
 
-        assert!(save(&path, &Settings::default()).is_err());
+        assert!(save(&path, &settings("")).is_err());
         assert_eq!(fs::read_to_string(&path).unwrap(), "not json");
     }
 
@@ -384,33 +392,29 @@ mod tests {
     fn saving_writes_nothing_when_validation_fails() {
         let (_dir, path) = file();
 
-        let bad = Settings {
-            editor: "code\nrm x".to_string(),
-            ..Settings::default()
-        };
-
-        assert!(save(&path, &bad).is_err());
+        assert!(save(&path, &settings("code\nrm x")).is_err());
         assert!(!path.exists());
     }
 
     #[test]
     fn save_then_read_round_trips_the_editor() {
         let (_dir, path) = file();
-        let settings = Settings {
-            editor: "code --goto".to_string(),
-            ..Settings::default()
-        };
 
-        save(&path, &settings).unwrap();
+        save(&path, &settings("code --goto")).unwrap();
 
-        assert_eq!(read(&path), Ok(settings));
+        let stored = read(&path).unwrap();
+
+        assert_eq!(stored.editor, "code --goto");
+        assert_eq!(stored.describing["model"], "opus");
+        assert_eq!(stored.describing["batch_size"], 8);
+        assert_eq!(stored.setup["model"], "opus");
     }
 
     #[test]
-    fn reading_an_absent_file_gives_the_defaults() {
+    fn reading_an_absent_file_stores_nothing() {
         let (_dir, path) = file();
 
-        assert_eq!(read(&path), Ok(Settings::default()));
+        assert_eq!(read(&path), Ok(Stored::default()));
     }
 
     #[test]
@@ -424,150 +428,40 @@ mod tests {
         )
         .unwrap();
 
-        let settings = read(&path).unwrap();
+        let stored = read(&path).unwrap();
 
-        assert_eq!(settings.editor, "code");
-        assert_eq!(parse(Some(r#"{"scanning": 3}"#)), Ok(Settings::default()));
+        assert_eq!(stored.editor, "code");
+        assert_eq!(parse(Some(r#"{"scanning": 3}"#)), Ok(Stored::default()));
 
-        save(&path, &settings).unwrap();
+        save(&path, &settings(&stored.editor)).unwrap();
 
-        let written: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        let value = written(&path);
 
-        assert!(written.get("scanning").is_none());
-        assert_eq!(written["editor"], "code");
-        assert_eq!(written["recognizer_path"], "/x");
+        assert!(value.get("scanning").is_none());
+        assert_eq!(value["editor"], "code");
+        assert_eq!(value["recognizer_path"], "/x");
     }
 
     #[test]
-    fn describing_defaults_to_the_seed_and_equals_the_shared_fixture() {
-        let text = fs::read_to_string(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../fixtures/settings/describing-defaults.json"
-        ))
-        .unwrap();
-        let fixture: Value = serde_json::from_str(&text).unwrap();
-        let seed = Describing::default();
-
-        assert_eq!(fixture["model"], seed.model);
-        assert_eq!(fixture["batch_size"], seed.batch_size);
-        assert_eq!(fixture["confirm_above_usd"], seed.confirm_above_usd);
-        assert_eq!(parse(None).unwrap().describing, seed);
-        assert_eq!(parse(Some("{}")).unwrap().describing, seed);
-    }
-
-    #[test]
-    fn describing_without_a_threshold_reads_five_and_keeps_its_model() {
-        let settings = parse(Some(
-            r#"{"describing": {"model": "sonnet", "batch_size": 2}}"#,
-        ))
-        .unwrap();
-
-        assert_eq!(settings.describing.model, "sonnet");
-        assert_eq!(settings.describing.confirm_above_usd, 5.0);
-    }
-
-    #[test]
-    fn save_always_writes_describing_and_round_trips_it() {
+    fn save_writes_describing_as_given_and_omits_an_unknown_model() {
         let (_dir, path) = file();
-        let settings = Settings {
-            describing: Describing {
-                model: "opus".to_string(),
-                batch_size: 8,
-                confirm_above_usd: 2.5,
-            },
-            ..Settings::default()
-        };
 
-        save(&path, &settings).unwrap();
-
-        let written: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        save(&path, &settings("")).unwrap();
 
         assert_eq!(
-            written["describing"],
+            written(&path)["describing"],
             serde_json::json!({"model": "opus", "batch_size": 8, "confirm_above_usd": 2.5})
         );
-        assert_eq!(read(&path), Ok(settings));
 
-        save(&path, &Settings::default()).unwrap();
+        let mut unknown = settings("");
 
-        let defaults: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-
-        assert_eq!(
-            defaults["describing"],
-            serde_json::json!({"model": "haiku", "batch_size": 4, "confirm_above_usd": 5.0})
-        );
-    }
-
-    #[test]
-    fn seed_writes_only_when_absent_and_keeps_other_keys() {
-        let (_dir, path) = file();
-
-        seed(&path).unwrap();
-
-        let fresh: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        unknown.describing.model = None;
+        save(&path, &unknown).unwrap();
 
         assert_eq!(
-            fresh["describing"],
-            serde_json::json!({"model": "haiku", "batch_size": 4, "confirm_above_usd": 5.0})
+            written(&path)["describing"],
+            serde_json::json!({"batch_size": 8, "confirm_above_usd": 2.5})
         );
-
-        fs::write(
-            &path,
-            r#"{"editor": "code", "recognizer_path": "/x", "other": 1}"#,
-        )
-        .unwrap();
-        seed(&path).unwrap();
-
-        let kept: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-
-        assert_eq!(kept["editor"], "code");
-        assert_eq!(kept["recognizer_path"], "/x");
-        assert_eq!(kept["other"], 1);
-        assert_eq!(kept["describing"]["model"], "haiku");
-
-        fs::write(
-            &path,
-            r#"{"describing": {"model": "opus", "batch_size": 2}}"#,
-        )
-        .unwrap();
-        seed(&path).unwrap();
-
-        assert_eq!(read(&path).unwrap().describing.model, "opus");
-    }
-
-    #[test]
-    fn an_absent_config_seeds_setup_sonnet_and_keeps_describing() {
-        let (_dir, path) = file();
-
-        seed(&path).unwrap();
-
-        let fresh: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-
-        assert_eq!(fresh["setup"], serde_json::json!({"model": "sonnet"}));
-        assert_eq!(fresh["describing"]["model"], "haiku");
-        assert_eq!(read(&path).unwrap().setup.model, "sonnet");
-    }
-
-    #[test]
-    fn a_file_with_describing_but_no_setup_gains_only_setup() {
-        let (_dir, path) = file();
-
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(
-            &path,
-            r#"{"describing": {"model": "opus", "batch_size": 2}, "editor": "code"}"#,
-        )
-        .unwrap();
-        seed(&path).unwrap();
-
-        let written: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-
-        assert_eq!(written["setup"], serde_json::json!({"model": "sonnet"}));
-        assert_eq!(
-            written["describing"],
-            serde_json::json!({"model": "opus", "batch_size": 2})
-        );
-        assert_eq!(written["editor"], "code");
     }
 
     #[test]
@@ -577,50 +471,94 @@ mod tests {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(
             &path,
-            r#"{"other": [1], "setup": {"model": "haiku", "x": 1}}"#,
+            r#"{"other": [1], "setup": {"model": "alpha", "x": 1}}"#,
         )
         .unwrap();
 
-        let mut settings = read(&path).unwrap();
+        assert_eq!(read(&path).unwrap().setup["model"], "alpha");
 
-        assert_eq!(settings.setup.model, "haiku");
+        save(&path, &settings("")).unwrap();
 
-        settings.setup.model = "opus".to_string();
-        save(&path, &settings).unwrap();
+        let value = written(&path);
 
-        let written: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-
-        assert_eq!(written["other"], serde_json::json!([1]));
-        assert_eq!(written["setup"], serde_json::json!({"model": "opus"}));
-        assert_eq!(read(&path), Ok(settings));
+        assert_eq!(value["other"], serde_json::json!([1]));
+        assert_eq!(value["setup"], serde_json::json!({"model": "opus"}));
     }
 
     #[test]
-    fn a_refusal_from_the_service_is_returned_by_read_and_by_save_and_save_writes_nothing() {
+    fn a_refusal_from_the_service_is_returned_by_save_and_save_writes_nothing() {
         let (_dir, path) = file();
 
-        let error = super::save(&path, &Settings::default(), &refuse).unwrap_err();
+        let error = super::save(&path, &settings(""), &baseline(), &refuse).unwrap_err();
 
         assert_eq!(error, "describing.model must be a non-empty name");
         assert!(!path.exists());
+    }
 
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(&path, "{}").unwrap();
+    #[test]
+    fn values_from_the_service_fill_every_field_and_an_unknown_model_is_null() {
+        let values = serde_json::json!({
+            "describing": {"model": null, "batch_size": 8, "confirm_above_usd": 2.5},
+            "setup": {"model": "opus"},
+        });
+        let read = from_values("code".to_string(), &values).unwrap();
+
+        assert_eq!(read.editor, "code");
+        assert_eq!(read.describing.model, None);
+        assert_eq!(read.describing.batch_size, 8);
+        assert_eq!(read.setup.model, "opus");
+        assert_eq!(
+            serde_json::to_value(&read).unwrap()["describing"]["model"],
+            Value::Null
+        );
+        assert!(from_values(String::new(), &serde_json::json!({})).is_err());
+    }
+
+    #[test]
+    fn saving_one_changed_key_into_an_empty_config_writes_only_that_key() {
+        let (_dir, path) = file();
+        let mut changed = baseline();
+
+        changed.describing.batch_size = 6;
+
+        super::save(&path, &changed, &baseline(), &accept).unwrap();
 
         assert_eq!(
-            super::read(&path, &refuse),
-            Err("describing.model must be a non-empty name".to_string())
+            written(&path),
+            serde_json::json!({"describing": {"batch_size": 6}})
         );
-        assert_eq!(fs::read_to_string(&path).unwrap(), "{}");
+    }
+
+    #[test]
+    fn saving_unchanged_values_into_an_empty_config_writes_no_keys() {
+        let (_dir, path) = file();
+
+        super::save(&path, &baseline(), &baseline(), &accept).unwrap();
+
+        assert_eq!(written(&path), serde_json::json!({}));
+    }
+
+    #[test]
+    fn a_stored_key_stays_when_it_equals_the_published_value() {
+        let (_dir, path) = file();
+
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, r#"{"describing": {"batch_size": 7}}"#).unwrap();
+
+        super::save(&path, &baseline(), &baseline(), &accept).unwrap();
+
+        assert_eq!(
+            written(&path),
+            serde_json::json!({"describing": {"batch_size": 7}})
+        );
     }
 
     #[test]
     fn parse_checks_shape_only() {
         assert!(parse(Some(r#"{"describing": 3}"#)).is_err());
-        assert!(parse(Some(r#"{"describing": {"model": 1, "batch_size": 4}}"#)).is_err());
-        assert!(parse(Some(r#"{"describing": {"model": "a", "batch_size": 2.5}}"#)).is_err());
+        assert!(parse(Some(r#"{"describing": {"model": 1}}"#)).is_err());
         assert!(parse(Some(
-            r#"{"describing": {"model": "a", "batch_size": 4, "confirm_above_usd": "5"}}"#
+            r#"{"describing": {"model": "a", "confirm_above_usd": "9"}}"#
         ))
         .is_err());
         assert!(parse(Some(r#"{"setup": 3}"#)).is_err());

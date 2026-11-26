@@ -36,7 +36,10 @@ export interface RunPhases {
   selectSensors(input: SensorSelectionInput): SensorSelection;
   planSensors(input: SensorPlanInput): SensorPlan;
   detectLanguages(input: DetectLanguagesInput): string[];
-  describingSettings(): DescribingSettings;
+  describingSettings(
+    describer: NonNullable<LocatedDescriber["describer"]>,
+    root: string,
+  ): DescribingSettings;
   findCommitGaps(input: CommitGapsInput): Gap[];
   findDescriberGaps(input: FindDescriberGapsInput): Gap[];
   findProgramGaps(input: ProgramGapsInput): Gap[];

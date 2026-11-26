@@ -3,6 +3,7 @@ import { run } from "../src/cli.js";
 import { validateRunRecord } from "../src/log-document.js";
 import {
   APP_CONFIG,
+  describerManifestText,
   type FakeOptions,
   fakeIo,
   PYTHON,
@@ -21,6 +22,20 @@ const IN_TREE =
   'describer:\n  command: [node, "{repository}/packages/describers/claude/dist/bin.js", run, --model, "{model}", "{request}"]\n  version: "v1"\n  build:\n    command: [npm, run, build]\n    directory: packages/describers/claude\n';
 const CUSTOM =
   'describer:\n  command: [custom-describer, "{module}"]\n  version: "v1"\n';
+
+function manifestOr(
+  fallback: (args: string[]) => {
+    status?: number;
+    stderr?: string;
+    stdout?: string;
+    started?: boolean;
+  },
+) {
+  return (args: string[]) =>
+    args.at(-1) === "manifest"
+      ? { stdout: describerManifestText("v1") }
+      : fallback(args);
+}
 
 const SENSOR_GAP = {
   code: "pytest-cov-missing",
@@ -166,7 +181,9 @@ describe("scan preflight: the early stage", () => {
       ...setup(REFERENCE),
       commit: undefined,
       programs: {
-        "recognizer-describe-claude": () => ({ stdout: "a line\n" }),
+        "recognizer-describe-claude": manifestOr(() => ({
+          stdout: "a line\n",
+        })),
       },
     };
     const { code } = await scan(options, "--describe");
@@ -178,13 +195,13 @@ describe("scan preflight: the early stage", () => {
     const calls: string[][] = [];
     const options = setup(REFERENCE, undefined, {
       programs: {
-        "recognizer-describe-claude": (args) => {
+        "recognizer-describe-claude": manifestOr((args) => {
           calls.push(args);
 
           return args[0] === "check"
             ? { status: 2, stderr: "usage" }
             : { stdout: "a line\n" };
-        },
+        }),
       },
     });
     const { code, err } = await scan(options, "--describe");
@@ -210,7 +227,7 @@ describe("scan preflight: the early stage", () => {
 
   it("gives the declared build fix for a describer the repository builds", async () => {
     const options = setup(IN_TREE, undefined, {
-      programs: { node: () => ({ status: 2 }) },
+      programs: { node: manifestOr(() => ({ status: 2 })) },
     });
     const { out } = await scan(options, "--describe", "--json");
     const gap = events(out).find(
@@ -235,7 +252,9 @@ describe("scan preflight: the early stage", () => {
 
   it("gives no gap for a reference describer whose --check passes", async () => {
     const options = setup(REFERENCE, undefined, {
-      programs: { "recognizer-describe-claude": () => ({ stdout: "ok\n" }) },
+      programs: {
+        "recognizer-describe-claude": manifestOr(() => ({ stdout: "ok\n" })),
+      },
     });
 
     expect((await scan(options, "--describe")).code).toBe(0);

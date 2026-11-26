@@ -51,6 +51,7 @@ export interface Manifest {
   setup_survey?: { order: number };
   log_path?: string;
   prompt_version?: string;
+  prices?: Record<string, { input: number; output: number }>;
 }
 
 export type ManifestRead =
@@ -156,4 +157,16 @@ export function supportedRange(current: number): string {
   return current > 1
     ? `protocols ${current - 1} and ${current}`
     : `protocol ${current}`;
+}
+
+export function publishedModel(settings: readonly unknown[]): string | null {
+  const entry = settings.find(
+    (one) =>
+      typeof one === "object" &&
+      one !== null &&
+      (one as Record<string, unknown>).key === "model" &&
+      (one as Record<string, unknown>).scope === "machine",
+  ) as Record<string, unknown> | undefined;
+
+  return typeof entry?.default === "string" ? entry.default : null;
 }

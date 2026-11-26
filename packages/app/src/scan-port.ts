@@ -29,7 +29,7 @@ export type WrittenTicks = Omit<ScanTicks, "ticked" | "armed"> & {
 };
 
 export type DescribingSettings = {
-  model: string;
+  model: string | null;
   batchSize: number;
   confirmAboveUsd: number;
 };
@@ -67,9 +67,9 @@ export const inertScan: ScanPort = {
   }),
   writeTicks: async () => {},
   readDescribing: async () => ({
-    model: "haiku",
-    batchSize: 4,
-    confirmAboveUsd: 5,
+    model: null,
+    batchSize: 1,
+    confirmAboveUsd: 0,
   }),
   watchExternal: async () => {},
   plan: async () => ({

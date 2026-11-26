@@ -18,7 +18,18 @@ const MANIFEST = {
   long_running: false,
   time_limit_seconds: 120,
   units: ["modules"],
-  settings: [],
+  settings: [
+    {
+      key: "model",
+      type: "string",
+      scope: "machine",
+      label: "Model",
+      default: "default-model",
+      description: "the model the describer is asked to use",
+      example: "describing.model default-model",
+      order: 1,
+    },
+  ],
   prompt_version: "1",
 };
 

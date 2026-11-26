@@ -68,6 +68,17 @@ describe("the manifest verb", () => {
     );
   });
 
+  it("prices haiku, sonnet and opus and validates against the schema", () => {
+    const printed = JSON.parse(manifest(makeTempDir("manifest-")).stdout);
+
+    expect(printed.prices).toEqual({
+      haiku: { input: 0.1, output: 0.5 },
+      sonnet: { input: 2, output: 10 },
+      opus: { input: 4, output: 20 },
+    });
+    expect(validate(printed)).toBe(true);
+  });
+
   it("publishes the model as a machine setting with the default haiku", () => {
     const printed = JSON.parse(manifest(makeTempDir("manifest-")).stdout);
 

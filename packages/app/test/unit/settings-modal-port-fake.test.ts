@@ -63,7 +63,9 @@ describe("the settings modal port fake", () => {
   it("round-trips machine values keyed by absolute key and keeps the others", async () => {
     const fake = fakeSettingsModal();
 
-    expect((await fake.readSettings()).values["setup.model"]).toBe("sonnet");
+    expect((await fake.readSettings()).values["setup.model"]).toBe(
+      "fake-setup-model",
+    );
 
     await fake.writeSettings([
       { key: "editor", value: "code" },
@@ -74,9 +76,9 @@ describe("the settings modal port fake", () => {
     expect(await fake.readSettings()).toEqual({
       values: {
         editor: "code",
-        "describing.model": "haiku",
+        "describing.model": "fake-model",
         "describing.batch_size": "8",
-        "describing.confirm_above_usd": "5",
+        "describing.confirm_above_usd": "7",
         "setup.model": "opus",
       },
     });

@@ -1,21 +1,24 @@
 import { join } from "node:path";
-import { describingProblem } from "@recognizer/core";
+import {
+  describingProblem,
+  describingValues,
+  type Prices,
+  publishedModel,
+  readManifestOf,
+  splitAtRun,
+} from "@recognizer/core";
 import type { Io } from "./cli.js";
 import { InputError } from "./errors.js";
+import { manifestPorts } from "./manifest-ports.js";
 
 const CONFIG_DIR_ENV = "RECOGNIZER_APP_CONFIG_DIR";
 
-export interface Describing {
+export interface DescribingRead {
   model: string;
   batch_size: number;
   confirm_above_usd: number;
+  prices: Prices | undefined;
 }
-
-export const DESCRIBING_DEFAULTS: Describing = {
-  model: "haiku",
-  batch_size: 4,
-  confirm_above_usd: 5,
-};
 
 export function appConfigDir(io: Io): string {
   const override = io.env(CONFIG_DIR_ENV);
@@ -50,45 +53,53 @@ function parseObject(text: string, file: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-export function validateDescribing(value: unknown): Describing {
-  const problem = describingProblem(value);
+function readStored(io: Io): Record<string, unknown> {
+  const file = join(appConfigDir(io), "config.json");
+  const object = io.exists(file) ? parseObject(io.readFile(file), file) : {};
+  const stored = object.describing;
+
+  if (stored === undefined || stored === null) {
+    return {};
+  }
+
+  const problem = describingProblem(stored);
 
   if (problem !== null) {
     throw new InputError([problem.replace(/^(\S+)/, "$1 in config.json")]);
   }
 
-  const {
-    model,
-    batch_size: batchSize,
-    confirm_above_usd: confirmAbove = DESCRIBING_DEFAULTS.confirm_above_usd,
-  } = value as Record<string, unknown>;
-
-  return {
-    model: model as string,
-    batch_size: batchSize as number,
-    confirm_above_usd: confirmAbove as number,
-  };
+  return stored as Record<string, unknown>;
 }
 
-export function readDescribing(io: Io): Describing {
-  const file = join(appConfigDir(io), "config.json");
-  const object = io.exists(file) ? parseObject(io.readFile(file), file) : {};
+export function readDescribing(
+  io: Io,
+  describer: { command: readonly string[] },
+  root: string,
+): DescribingRead {
+  const stored = readStored(io);
+  const split = splitAtRun(describer.command);
+  const manifest =
+    split === null || split.prefix.length === 0
+      ? null
+      : readManifestOf(
+          manifestPorts(io),
+          split.prefix.map((item) => item.split("{repository}").join(root)),
+        );
 
-  if (object.describing !== undefined && object.describing !== null) {
-    return validateDescribing(object.describing);
+  if (manifest !== null && !manifest.ok) {
+    throw new InputError([manifest.reason]);
   }
 
-  const seeded = { ...object, describing: { ...DESCRIBING_DEFAULTS } };
-  const temp = `${file}.tmp`;
+  const settings = manifest === null ? [] : manifest.manifest.settings;
+  const values = describingValues(stored, {
+    model: publishedModel(settings),
+  });
 
-  try {
-    io.writeFile(temp, `${JSON.stringify(seeded, null, 2)}\n`);
-    io.rename(temp, file);
-  } catch (error) {
+  if (values.model === null) {
     throw new InputError([
-      `could not write the describing settings to ${file}: ${(error as Error).message}`,
+      "describing.model is not set in config.json and the describer publishes no default",
     ]);
   }
 
-  return { ...DESCRIBING_DEFAULTS };
+  return { ...values, model: values.model, prices: manifest?.manifest.prices };
 }

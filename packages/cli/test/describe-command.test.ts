@@ -90,7 +90,7 @@ beforeEach(() => {
 });
 
 function configure(root: string, version = "v1", ...flags: string[]): void {
-  const command = ["node", FAKE, "{repository}", ...flags, "{request}"];
+  const command = ["node", FAKE, "run", "{repository}", ...flags, "{request}"];
 
   writeFileSync(
     join(root, ".recognizer/config.yaml"),
@@ -625,6 +625,7 @@ describe("describe write path", () => {
     expect(file.modules[ORDER].describer).toEqual([
       "node",
       FAKE,
+      "run",
       "{repository}",
       "{request}",
     ]);
@@ -795,7 +796,7 @@ describe("describer in effect", () => {
 
     expect(result.code).toBe(0);
     expect(JSON.parse(result.out)).toEqual({
-      command: ["node", FAKE, "{repository}", "{request}"],
+      command: ["node", FAKE, "run", "{repository}", "{request}"],
       version: "v7",
     });
   });
@@ -818,7 +819,7 @@ describe("describer in effect", () => {
   it("prints one plain line without --json", async () => {
     const result = await exec(ready("v7"), "describe", "--describer");
 
-    expect(result.out).toBe(`node ${FAKE} {repository} {request}  v7\n`);
+    expect(result.out).toBe(`node ${FAKE} run {repository} {request}  v7\n`);
   });
 
   it("exits 2 naming the missing describer when neither exists", async () => {

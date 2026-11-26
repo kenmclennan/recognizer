@@ -8,9 +8,11 @@ import {
   type PaneSensor,
   placeholderPattern,
   publish,
+  publishedModel,
   type SettingsPane,
   settingsPanes,
 } from "@recognizer/core";
+import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import { REPO } from "./helpers.js";
 import { manifestOf, type RealTool, realTools } from "./plugin-tools.js";
@@ -216,6 +218,28 @@ describe("the settings panes of the real manifests", () => {
       scope: "machine",
       label: "Model",
     });
+  });
+
+  it("publishes the claude describer's model default, held only in the describer", () => {
+    expect(
+      publishedModel(manifest("recognizer-describe-claude").settings),
+    ).toBe("haiku");
+  });
+
+  it("validates prices for a describer and refuses them on a sensor", () => {
+    const validate = new Ajv2020({ allErrors: true }).compile(
+      json("schema/manifest.schema.json") as object,
+    );
+    const describer = json(
+      "schema/manifest-examples/valid/describer.json",
+    ) as object;
+    const sensor = json(
+      "schema/manifest-examples/valid/sensor-crap.json",
+    ) as object;
+    const prices = { haiku: { input: 0.1, output: 0.5 } };
+
+    expect(validate({ ...describer, prices })).toBe(true);
+    expect(validate({ ...sensor, prices })).toBe(false);
   });
 
   it("labels the suite keys of the sensors that run tests", () => {

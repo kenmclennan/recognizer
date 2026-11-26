@@ -52,6 +52,7 @@ export async function describeFiles(
     >,
     model: settings.model,
     batchSize: settings.batchSize,
+    ...(settings.prices === undefined ? {} : { prices: settings.prices }),
     selection: {
       kind: input.selection,
       ...(input.within === undefined ? {} : { within: input.within }),

@@ -8,7 +8,44 @@ import {
 import { join } from "node:path";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 
-const args = process.argv.slice(2);
+const MANIFEST = {
+  kind: "describer",
+  name: "fake",
+  display: "Fake",
+  description: "A describer that answers from a script.",
+  version: "1.0.0",
+  protocol: 4,
+  install: "none",
+  check: true,
+  long_running: false,
+  time_limit_seconds: 120,
+  units: ["files"],
+  settings: [
+    {
+      key: "model",
+      type: "string",
+      scope: "machine",
+      label: "Model",
+      default: "fake-default",
+      description: "the model every description uses",
+      example: "describing.model fake-default",
+      order: 1,
+    },
+  ],
+  prices: {
+    haiku: { input: 0.1, output: 0.5 },
+    opus: { input: 4, output: 20 },
+    sonnet: { input: 2, output: 10 },
+  },
+  prompt_version: "1",
+};
+
+if (process.argv[2] === "manifest") {
+  process.stdout.write(`${JSON.stringify(MANIFEST)}\n`);
+  process.exit(0);
+}
+
+const args = process.argv.slice(process.argv[2] === "run" ? 3 : 2);
 const repository = args[0];
 const request = args[args.length - 1];
 const flags = args.slice(1, -1);

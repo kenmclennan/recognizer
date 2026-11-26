@@ -7,6 +7,7 @@ import type {
   DescribeSession,
   EntryTiming,
   LocatedDescriber,
+  Prices,
   RunEntry,
   RunningCall,
   Say,
@@ -51,10 +52,17 @@ export class DescriberAdapter implements Describer {
     return { started, status };
   }
 
-  settings(): { model: string; batchSize: number } {
-    const { model, batch_size: batchSize } = readDescribing(this.io);
+  settings(
+    describer: DescriberRef,
+    root: string,
+  ): { model: string; batchSize: number; prices: Prices | undefined } {
+    const {
+      model,
+      batch_size: batchSize,
+      prices,
+    } = readDescribing(this.io, describer, root);
 
-    return { model, batchSize };
+    return { model, batchSize, prices };
   }
 
   readSource(
