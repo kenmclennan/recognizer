@@ -1,6 +1,7 @@
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { type Io, nodeIo, run } from "../src/cli.js";
 import type { Captured } from "./helpers.js";
+import type { FakeIo } from "./support/fake-io.js";
 
 export type OutermostPorts = Pick<
   Io,
@@ -26,24 +27,34 @@ export type OutermostPorts = Pick<
 
 export type CliRootFakes = Partial<OutermostPorts>;
 
+export type CliRootOptions =
+  | CliRootFakes
+  | ({ over: FakeIo } & { [K in keyof OutermostPorts]?: never });
+
 export interface CliRoot extends Captured {
   run(argv: string[]): Promise<number>;
 }
 
-export function cliRoot(fakes: CliRootFakes = {}): CliRoot {
+function isOver(options: CliRootOptions): options is { over: FakeIo } {
+  return "over" in options;
+}
+
+export function cliRoot(options: CliRootOptions = {}): CliRoot {
   let out = "";
   let err = "";
 
-  const io: Io = {
-    ...nodeIo(),
-    ...fakes,
-    stdout: (text) => {
+  const capture = {
+    stdout: (text: string) => {
       out += text;
     },
-    stderr: (text) => {
+    stderr: (text: string) => {
       err += text;
     },
   };
+
+  const io: Io = isOver(options)
+    ? (Object.assign(Object.create(options.over), capture) as Io)
+    : { ...nodeIo(), ...options, ...capture };
 
   return {
     io,

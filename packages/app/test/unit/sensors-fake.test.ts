@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { installedSensors } from "../../src/installed-fake";
 import { fakeSensors } from "../../src/sensors-fake";
-import { secondSensorDocument } from "../fixtures";
+import { installedSensors, secondSensorDocument } from "../fixtures";
 import { documentText } from "./sensor-findings-from";
 
 describe("fakeSensors describer", () => {

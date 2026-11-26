@@ -5,7 +5,7 @@ import type { Finding } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { buildCatalog } from "../../src/finding-catalog";
 import { sentenceOf } from "../../src/finding-sentence";
-import { installedSensors } from "../../src/installed-fake";
+import { installedSensors } from "../fixtures";
 import { findingFrom, sensorFindingsFrom } from "./sensor-findings-from";
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;

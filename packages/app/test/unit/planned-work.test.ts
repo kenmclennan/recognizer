@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { plainSensor } from "../../src/installed-fake";
 import {
   createPlannedWork,
   declaredLogPath,
@@ -8,6 +7,7 @@ import {
   workScopes,
 } from "../../src/planned-work";
 import { fakeSensors } from "../../src/sensors-fake";
+import { plainSensor } from "../fixtures";
 
 const SCOPE = {
   sensor: "mutation",

@@ -4,7 +4,7 @@ import {
   EMPTY_CATALOG,
   groupKeyOf,
 } from "../../src/finding-catalog";
-import { installedSensors, plainSensor } from "../../src/installed-fake";
+import { installedSensors, plainSensor } from "../fixtures";
 
 const REAL = buildCatalog({ status: "ok", sensors: installedSensors() });
 

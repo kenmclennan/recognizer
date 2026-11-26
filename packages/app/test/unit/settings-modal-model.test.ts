@@ -10,8 +10,8 @@ import {
   settingsPanes,
 } from "recognizer";
 import { describe, expect, it } from "vitest";
-import { paneSources } from "../../src/installed-fake";
 import { createSettingsModel } from "../../src/settings-modal-model";
+import { paneSources } from "../fixtures";
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 const REPO = resolve(dirname(fileURLToPath(srcUrl)), "../../..");

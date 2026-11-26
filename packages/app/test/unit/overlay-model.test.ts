@@ -6,7 +6,6 @@ import {
   type ResultState,
   stateText,
 } from "../../src/freshness-text";
-import { installedSensors, plainSensor } from "../../src/installed-fake";
 import {
   applyFreshness,
   buildOverlayModel as buildWithAnalysis,
@@ -22,7 +21,12 @@ import {
 } from "../../src/overlay-model";
 import { NO_RUN, type PanelInput } from "../../src/scan-panel-model";
 import type { InstalledSensors, SensorStatus } from "../../src/sensor-run";
-import { configOf, scanPanelSync as scanPanel } from "../fixtures";
+import {
+  configOf,
+  installedSensors,
+  plainSensor,
+  scanPanelSync as scanPanel,
+} from "../fixtures";
 import { factsFor } from "../freshness-support";
 import { type DocScan, repositoryFrom } from "./repository-from";
 

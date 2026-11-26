@@ -12,7 +12,7 @@ export const FAKE_CONTRACTS: FakeContract[] = [
     fakeName: "FakeGit",
     adapter: "packages/cli/src/adapters/git/git-adapter.ts",
     adapterName: "GitAdapter",
-    proofs: ["packages/cli/test/git-fake-conformance.test.ts"],
+    proofs: ["packages/cli/test/git-adapter-git-fake-conformance.test.ts"],
   },
   {
     fake: "packages/core/test/fakes/fake-clock.ts",

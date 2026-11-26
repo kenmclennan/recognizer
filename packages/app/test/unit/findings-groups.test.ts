@@ -11,7 +11,7 @@ import {
   withEmptyGroups,
 } from "../../src/findings-groups";
 import { findingRows } from "../../src/findings-order";
-import { installedSensors } from "../../src/installed-fake";
+import { installedSensors } from "../fixtures";
 
 const CATALOG = buildCatalog({ status: "ok", sensors: installedSensors() });
 

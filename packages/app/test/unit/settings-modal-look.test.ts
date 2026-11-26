@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
-import { paneSources } from "../../src/installed-fake";
 import { collectFacts, here, webkit } from "../../src/look-page";
+import { paneSources } from "../fixtures";
 
 const HARNESS = `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
