@@ -7,7 +7,11 @@ const layout = [
   "test/unit/lightcycle-shaped-graph.test.ts",
 ];
 
-const endToEnd = ["test/end-to-end/**/*.test.ts", "test/unit/*-look.test.ts"];
+const endToEnd = [
+  "test/end-to-end/**/*.test.ts",
+  "test/unit/*-look.test.ts",
+  "test/look-root.test.ts",
+];
 
 const unitInclude = [
   "test/**/*.test.ts",
