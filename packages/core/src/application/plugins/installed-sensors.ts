@@ -5,12 +5,14 @@ import type {
   ManifestRead,
   PlaceholderDeclaration,
 } from "../../domain/plugins/manifest.js";
+import type { RegisteredPlugin } from "../../domain/plugins/registration.js";
 import type { FindingEntry } from "../../domain/plugins/sentence.js";
 import {
   unregisteredMessage,
   unregisteredSensors,
 } from "../../domain/plugins/unregistered.js";
 import type { DocumentValidators } from "./ports/document-validators.js";
+import type { PluginRegistrations } from "./ports/plugin-registrations.js";
 import type { Programs } from "./ports/programs.js";
 import { readManifestCommand, readManifestOf } from "./read-manifest.js";
 
@@ -150,7 +152,24 @@ function entryOf(manifest: Manifest): InstalledSensorEntry {
   };
 }
 
-export function installedSensorNames(ports: { programs: Programs }): string[] {
+function registeredSensors(ports: {
+  registrations?: PluginRegistrations;
+}): RegisteredPlugin[] {
+  return (ports.registrations?.entries().plugins ?? []).filter(
+    (entry) => entry.kind === "sensor",
+  );
+}
+
+export function installedSensorNames(ports: {
+  programs: Programs;
+  registrations?: PluginRegistrations;
+}): string[] {
+  const registered = registeredSensors(ports);
+
+  if (registered.length > 0) {
+    return registered.map((entry) => entry.name).sort();
+  }
+
   const names = new Set<string>();
 
   for (const entry of ports.programs.listOnPath([SENSE_PREFIX])) {
@@ -166,15 +185,23 @@ export function installedSensorNames(ports: { programs: Programs }): string[] {
 }
 
 export function readInstalledSensors(
-  ports: { programs: Programs; validators: DocumentValidators },
+  ports: {
+    programs: Programs;
+    validators: DocumentValidators;
+    registrations?: PluginRegistrations;
+  },
   read: ManifestReader = (prefix) => readManifestOf(ports, prefix),
   names: readonly string[] = installedSensorNames(ports),
 ): InstalledRead {
   const result: InstalledRead = { sensors: [], unreadable: [] };
   const present = installedSensorNames(ports);
+  const registered = registeredSensors(ports);
 
   for (const name of present.filter((one) => names.includes(one))) {
-    const manifest = read([`${SENSE_PREFIX}${name}`]);
+    const own = registered.find((entry) => entry.name === name);
+    const manifest = read(
+      own === undefined ? [`${SENSE_PREFIX}${name}`] : own.manifest,
+    );
 
     if (manifest.ok && manifest.manifest.kind === "sensor") {
       result.sensors.push(entryOf(manifest.manifest));

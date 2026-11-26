@@ -483,7 +483,10 @@ export function visualisationOver(ports: VisualisationPorts) {
 }
 
 export interface SetupReadsSources {
-  plugins: Pick<PluginPorts, "programs" | "validators" | "repository">;
+  plugins: Pick<
+    PluginPorts,
+    "programs" | "validators" | "repository" | "registrations"
+  >;
   scanners: ScannerQueries;
 }
 
