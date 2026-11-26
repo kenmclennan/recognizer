@@ -1,14 +1,8 @@
-import {
-  appendFileSync,
-  existsSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
-import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
-import { appRoot, REPO, timeEndToEnd, untilHolds } from "../roots";
+import { appRoot, timeEndToEnd, untilHolds } from "../roots";
 
 const EDIT_LIMIT_MS = 10_000;
 const PULL_LIMIT_MS = 5_000;
@@ -27,20 +21,6 @@ const PULLS = [
     statusCheckRollup: [],
   },
 ];
-
-function heldScanner(gate: string): string {
-  return [
-    `case "$1" in`,
-    `run)`,
-    `  name=$(basename "$2")`,
-    `  echo $$ > ${gate}/$name.pid`,
-    `  trap 'exit 143' TERM`,
-    `  while [ ! -e ${gate}/release ]; do sleep 0.1; done`,
-    `  exec node ${REPO}/packages/scanners/typescript/dist/bin.js "$@";;`,
-    `*) exec node ${REPO}/packages/scanners/typescript/dist/bin.js "$@";;`,
-    `esac`,
-  ].join("\n");
-}
 
 describe("the app root, timed end to end", () => {
   it(
@@ -125,20 +105,10 @@ describe("the app root, timed end to end", () => {
   it(
     "a pull-request read is answered while a scan runs",
     async () => {
-      const gate = makeTempDir("app-root-gate-");
-      const list = join(gate, "pulls.json");
-
-      writeFileSync(list, JSON.stringify(PULLS));
-
-      const root = await appRoot({
-        launchers: {
-          "recognizer-scan-typescript": heldScanner(gate),
-          gh: `cat ${list}`,
-        },
-      });
+      const root = await appRoot({ hold: true, pulls: PULLS });
       const { commitsSource } = await import("../../src/commits-source");
 
-      const pid = join(gate, `${basename(root.repository)}.pid`);
+      const pid = join(root.gates, `${basename(root.repository)}.pid`);
 
       await untilHolds(
         root.service,
@@ -162,7 +132,6 @@ describe("the app root, timed end to end", () => {
 
       expect(elapsedMs).toBeLessThan(limitMs);
       expect(existsSync(pid)).toBe(true);
-      expect(existsSync(join(gate, "release"))).toBe(false);
       expect(
         (
           reply as unknown as { rows: { number: number; title: string }[] }

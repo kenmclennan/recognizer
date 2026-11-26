@@ -20,6 +20,7 @@ describe("the app root's scanner when the service dies without cleaning up", () 
       process.env.RECOGNIZER_SHIM_LIFETIME = "2";
 
       const root = await appRoot({
+        own: true,
         stamped: true,
         launchers: {
           "recognizer-scan-typescript": [

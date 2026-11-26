@@ -3,11 +3,14 @@ import {
   chmodSync,
   cpSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { basename, join } from "node:path";
 import { createInterface } from "node:readline";
+import { onTestFinished } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { REPO } from "./helpers.js";
@@ -21,6 +24,7 @@ export type Line = Record<string, any>;
 export class Serve {
   readonly lines: Line[] = [];
   readonly child: ChildProcess;
+  readonly started: Record<string, unknown>[] = [];
   private nextId = 1;
   private readonly waiters: (() => void)[] = [];
   exited: Promise<number | null>;
@@ -52,6 +56,10 @@ export class Serve {
 
   send(op: string, args: Record<string, unknown>): number {
     const id = this.nextId++;
+
+    if (op === "scan.start") {
+      this.started.push(args);
+    }
 
     this.child.stdin?.write(`${JSON.stringify({ id, op, args })}\n`);
 
@@ -99,6 +107,10 @@ export class Serve {
     return item.outcome;
   }
 
+  running(): boolean {
+    return this.child.exitCode === null && this.child.signalCode === null;
+  }
+
   async close(): Promise<void> {
     this.child.stdin?.end();
     await this.exited;
@@ -131,6 +143,112 @@ export function typescriptLaunchers(): string {
   }
 
   return directory;
+}
+
+const SCANNER = `${REPO}/packages/scanners/typescript/dist/bin.js`;
+
+let sharedDirectories: { launchers: string; gates: string } | undefined;
+let sharedService: Serve | undefined;
+
+function sharedSetup(): { launchers: string; gates: string } {
+  if (sharedDirectories !== undefined) {
+    return sharedDirectories;
+  }
+
+  const launchers = makeTempDir("serve-shared-launchers-");
+  const gates = makeTempDir("serve-shared-gates-");
+
+  launcher(
+    launchers,
+    "recognizer-scan-typescript",
+    [
+      `case "$1" in`,
+      `run)`,
+      `  name=$(basename "$2")`,
+      `  if [ -e ${gates}/$name.hold ]; then`,
+      `    echo $$ > ${gates}/$name.pid`,
+      `    trap 'exit 143' TERM`,
+      `    while [ -e ${gates}/$name.hold ]; do sleep 0.1; done`,
+      `  fi`,
+      `  exec node ${SCANNER} "$@";;`,
+      `*) exec node ${SCANNER} "$@";;`,
+      `esac`,
+    ].join("\n"),
+  );
+
+  for (const sensor of ["crap", "mutation"]) {
+    launcher(
+      launchers,
+      `recognizer-sense-${sensor}`,
+      `exec uv run --quiet --project ${REPO}/packages/sensors recognizer-sense-${sensor} "$@"`,
+    );
+  }
+
+  sharedDirectories = { launchers, gates };
+
+  return sharedDirectories;
+}
+
+export function sharedGates(): string {
+  return sharedSetup().gates;
+}
+
+export function sharedLaunchers(): string {
+  return sharedSetup().launchers;
+}
+
+export function hold(repository: string): void {
+  writeFileSync(join(sharedGates(), `${basename(repository)}.hold`), "");
+}
+
+export function release(repository: string): void {
+  rmSync(join(sharedGates(), `${basename(repository)}.hold`), { force: true });
+}
+
+async function settle(serve: Serve): Promise<void> {
+  const gates = sharedGates();
+
+  const repositories = new Set(
+    serve.started.splice(0).map((args) => args.repository as string),
+  );
+
+  for (const repository of repositories) {
+    const name = basename(repository);
+
+    release(repository);
+
+    if (serve.running()) {
+      await serve.call("scan.stop", { repository, owner: "any" });
+
+      const limit = Date.now() + scaledTimeout(30_000);
+
+      while ((await serve.call("scan.status", { repository })).ok?.running) {
+        if (Date.now() > limit) {
+          throw new Error(`a scan of ${name} would not stop`);
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+
+    for (const entry of readdirSync(gates)) {
+      if (entry.startsWith(`${name}.`)) {
+        rmSync(join(gates, entry), { force: true });
+      }
+    }
+  }
+}
+
+export async function sharedServe(): Promise<Serve> {
+  if (sharedService === undefined || !sharedService.running()) {
+    sharedService = new Serve(sharedLaunchers());
+  }
+
+  const serve = sharedService;
+
+  onTestFinished(() => settle(serve), scaledTimeout(120_000));
+
+  return serve;
 }
 
 export function typescriptRepository(): string {

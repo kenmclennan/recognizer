@@ -8,9 +8,10 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { createInterface } from "node:readline";
-import { vi } from "vitest";
+import { onTestFinished, vi } from "vitest";
+import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { registerShim } from "../../cli/test/plugin-registry-shim";
 import { bridge, cleanups, type Line, recordingView } from "./app-harness";
@@ -71,6 +72,10 @@ export class Serve {
   private readonly waiters: (() => void)[] = [];
 
   private readonly scratch = makeTempDir("recognizer-serve-tmp-");
+
+  running(): boolean {
+    return this.child.exitCode === null && this.child.signalCode === null;
+  }
 
   constructor(path: string) {
     this.child = spawn(process.execPath, [BIN, "serve"], {
@@ -203,47 +208,135 @@ const STAMP = [
   `writeFileSync(output, JSON.stringify(document));`,
 ].join("\n");
 
-function fakeSensor(
-  directory: string,
-  name: string,
-  runsTests: boolean,
-  stamped: boolean,
-): void {
-  const manifest = join(directory, `${name}.manifest.json`);
+function writeLaunchers(directory: string, gates: string): void {
   const stamp = join(directory, "stamp.cjs");
 
-  if (stamped) {
-    writeFileSync(stamp, STAMP);
-  }
-
-  writeFileSync(manifest, manifestOf(name, runsTests));
+  writeFileSync(stamp, STAMP);
   launcher(
     directory,
-    `recognizer-sense-${name}`,
+    "recognizer-scan-typescript",
     [
       `case "$1" in`,
-      `manifest) cat ${manifest};;`,
-      `check)`,
-      `  case "$*" in`,
-      `    *--work*) echo '{"gaps":[],"work":{"unit":"functions","to_perform":3,"reusable":0}}';;`,
-      `    *) echo '{"gaps":[]}';;`,
-      `  esac;;`,
       `run)`,
-      `  shift`,
-      `  commit=""; out=""; repo=""`,
-      `  while [ $# -gt 0 ]; do`,
-      `    case "$1" in --commit) commit="$2";; --output) out="$2";; --repository) repo="$2";; esac`,
-      `    shift`,
-      `  done`,
-      `  mkdir -p "$(dirname "$out")"`,
-      ...(stamped
-        ? [`  node ${stamp} "$repo" "$commit" "$out" ${name};;`]
-        : [
-            `  printf '{"findings_version":1,"sensor":{"name":"${name}","version":"1"},"commit":"%s","modified":false,"settings":{},"findings":[]}' "$commit" > "$out";;`,
-          ]),
+      `  name=$(basename "$2")`,
+      `  if [ -e ${gates}/$name.hold ]; then`,
+      `    echo $$ > ${gates}/$name.pid`,
+      `    trap 'exit 143' TERM`,
+      `    while [ -e ${gates}/$name.hold ]; do sleep 0.1; done`,
+      `  fi`,
+      `  exec node ${REPO}/packages/scanners/typescript/dist/bin.js "$@";;`,
+      `*) exec node ${REPO}/packages/scanners/typescript/dist/bin.js "$@";;`,
       `esac`,
     ].join("\n"),
   );
+  launcher(
+    directory,
+    "gh",
+    `[ -e ${gates}/gh.json ] || exit 127\ncat ${gates}/gh.json`,
+  );
+
+  for (const [name, runsTests] of [
+    ["crap", false],
+    ["mutation", true],
+  ] as const) {
+    const manifest = join(directory, `${name}.manifest.json`);
+
+    writeFileSync(manifest, manifestOf(name, runsTests));
+    launcher(
+      directory,
+      `recognizer-sense-${name}`,
+      [
+        `case "$1" in`,
+        `manifest) cat ${manifest};;`,
+        `check)`,
+        `  case "$*" in`,
+        `    *--work*) echo '{"gaps":[],"work":{"unit":"functions","to_perform":3,"reusable":0}}';;`,
+        `    *) echo '{"gaps":[]}';;`,
+        `  esac;;`,
+        `run)`,
+        `  shift`,
+        `  commit=""; out=""; repo=""`,
+        `  while [ $# -gt 0 ]; do`,
+        `    case "$1" in --commit) commit="$2";; --output) out="$2";; --repository) repo="$2";; esac`,
+        `    shift`,
+        `  done`,
+        `  mkdir -p "$(dirname "$out")"`,
+        `  if [ -e ${gates}/$(basename "$repo").stamped ]; then`,
+        `    node ${stamp} "$repo" "$commit" "$out" ${name}`,
+        `  else`,
+        `    printf '{"findings_version":1,"sensor":{"name":"${name}","version":"1"},"commit":"%s","modified":false,"settings":{},"findings":[]}' "$commit" > "$out"`,
+        `  fi;;`,
+        `esac`,
+      ].join("\n"),
+    );
+  }
+}
+
+let sharedDirectories: { launchers: string; gates: string } | undefined;
+let sharedService: Serve | undefined;
+
+function sharedSetup(): { launchers: string; gates: string } {
+  if (sharedDirectories === undefined) {
+    const launchers = makeTempDir("app-shared-launchers-");
+    const gates = makeTempDir("app-shared-gates-");
+
+    writeLaunchers(launchers, gates);
+    sharedDirectories = { launchers, gates };
+  }
+
+  return sharedDirectories;
+}
+
+export function sharedGates(): string {
+  return sharedSetup().gates;
+}
+
+async function running(serve: Serve, repository: string): Promise<boolean> {
+  const answer = await serve.call("scan.status", { repository });
+
+  return (answer.ok as { running?: boolean } | null)?.running === true;
+}
+
+async function settle(serve: Serve): Promise<void> {
+  const gates = sharedGates();
+
+  rmSync(join(gates, "gh.json"), { force: true });
+
+  const repositories = new Set(
+    serve.started.splice(0).map((args) => String(args.repository)),
+  );
+
+  for (const repository of repositories) {
+    const name = basename(repository);
+
+    rmSync(join(gates, `${name}.hold`), { force: true });
+
+    if (serve.running()) {
+      await serve.call("scan.stop", { repository, owner: "any" });
+
+      const limit = performance.now() + scaledTimeout(30_000);
+
+      while (await running(serve, repository)) {
+        if (performance.now() > limit) {
+          throw new Error(`a scan of ${name} would not stop`);
+        }
+
+        await serve.signal(50);
+      }
+    }
+  }
+}
+
+export async function sharedServe(): Promise<Serve> {
+  if (sharedService === undefined || !sharedService.running()) {
+    sharedService = new Serve(sharedSetup().launchers);
+  }
+
+  const serve = sharedService;
+
+  onTestFinished(() => settle(serve), scaledTimeout(120_000));
+
+  return serve;
 }
 
 export function git(repository: string, ...args: string[]): void {
@@ -269,27 +362,17 @@ export function git(repository: string, ...args: string[]): void {
 export type AppRootOptions = {
   stamped?: boolean;
   config?: string;
+  hold?: boolean;
+  pulls?: unknown[];
+  own?: boolean;
   launchers?: Record<string, string>;
   folderKnown?: boolean;
 };
 
 export async function appRoot(options: AppRootOptions = {}) {
-  const plugins = makeTempDir("app-root-plugins-");
   const unreadable = makeTempDir("app-root-unreadable-");
   const repository = makeTempDir("app-root-repository-");
   const stamped = options.stamped ?? false;
-
-  launcher(
-    plugins,
-    "recognizer-scan-typescript",
-    `exec node ${REPO}/packages/scanners/typescript/dist/bin.js "$@"`,
-  );
-  fakeSensor(plugins, "crap", false, stamped);
-  fakeSensor(plugins, "mutation", true, stamped);
-
-  for (const [name, body] of Object.entries(options.launchers ?? {})) {
-    launcher(plugins, name, body);
-  }
 
   chmodSync(unreadable, 0o000);
   mkdirSync(join(repository, ".recognizer"), { recursive: true });
@@ -331,14 +414,57 @@ export async function appRoot(options: AppRootOptions = {}) {
   git(repository, "add", ".");
   git(repository, "commit", "-q", "-m", "initial");
 
-  const path = isolatedPath(unreadable, plugins);
-  const service = new Serve(plugins);
+  const name = basename(repository);
+  const own = options.own ?? false;
+  const plugins = own
+    ? makeTempDir("app-root-plugins-")
+    : join(sharedSetup().launchers);
+  const gates = own ? makeTempDir("app-root-gates-") : sharedGates();
 
-  cleanups.push(() => {
-    service.stop();
+  if (own) {
+    writeLaunchers(plugins, gates);
+
+    for (const [launcherName, body] of Object.entries(
+      options.launchers ?? {},
+    )) {
+      launcher(plugins, launcherName, body);
+    }
+  }
+
+  if (stamped) {
+    writeFileSync(join(gates, `${name}.stamped`), "");
+  }
+
+  if (options.hold) {
+    writeFileSync(join(gates, `${name}.hold`), "");
+  }
+
+  if (options.pulls) {
+    writeFileSync(join(gates, "gh.json"), JSON.stringify(options.pulls));
+  }
+
+  const path = isolatedPath(unreadable, plugins);
+  const service = own ? new Serve(plugins) : await sharedServe();
+  const finish = () => {
     chmodSync(unreadable, 0o755);
     rmSync(unreadable, { recursive: true, force: true });
-  });
+
+    for (const suffix of ["stamped", "hold", "pid"]) {
+      rmSync(join(gates, `${name}.${suffix}`), { force: true });
+    }
+  };
+
+  if (own) {
+    cleanups.push(() => {
+      service.stop();
+      finish();
+    });
+  } else {
+    onTestFinished(() => {
+      finish();
+      bridge.listeners.clear();
+    });
+  }
 
   const folder = { known: options.folderKnown ?? true };
 
@@ -395,6 +521,7 @@ export async function appRoot(options: AppRootOptions = {}) {
     repository,
     path,
     plugins,
+    gates,
     testFile: join(repository, "api", "tests", "a.test.ts"),
   };
 }
