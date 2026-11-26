@@ -1,5 +1,6 @@
 import { View } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
+import { parseViewFile } from "../../src/view-file";
 import {
   dropdownNames,
   metaOf,
@@ -7,7 +8,6 @@ import {
   showsAllLink,
   viewsPanelModel,
 } from "../../src/views-panel-model";
-import { parseViewFile } from "../../src/visualisation-fake";
 import { type DocScan, repositoryFrom } from "./repository-from";
 
 const scan = {

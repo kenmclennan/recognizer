@@ -16,8 +16,8 @@ import type {
   SetupPort,
   SetupSurveyRead,
   TryResultEvent,
-} from "./setup-port";
-import type { SetupLine } from "./setup-progress";
+} from "../src/setup-port";
+import type { SetupLine } from "../src/setup-progress";
 
 export type FakeSetup = SetupPort & {
   surveyRead: SetupSurveyRead;

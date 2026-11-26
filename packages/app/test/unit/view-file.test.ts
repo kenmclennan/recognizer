@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { serialiseView as cliSerialise } from "recognizer";
 import { describe, expect, it } from "vitest";
-import { parseViewFile, serialiseView } from "../../src/visualisation-fake";
+import { parseViewFile, serialiseView } from "../../src/view-file";
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 const srcDir = new URL(".", srcUrl).pathname.slice(0, -1);

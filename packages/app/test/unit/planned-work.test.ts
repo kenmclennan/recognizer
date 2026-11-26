@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { PlannedWork } from "../../src/estimate-text";
 import {
   createPlannedWork,
   declaredLogPath,
@@ -6,7 +7,7 @@ import {
   workKey,
   workScopes,
 } from "../../src/planned-work";
-import { fakeSensors } from "../../src/sensors-fake";
+import type { WorkRequest } from "../../src/sensor-run";
 import { plainSensor } from "../fixtures";
 
 const SCOPE = {
@@ -18,9 +19,34 @@ const SCOPE = {
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
+function recordingPort() {
+  const port = {
+    work: new Map<string, PlannedWork | null>(),
+    workRequests: [] as WorkRequest[],
+    hold: null as Promise<void> | null,
+    release: () => {},
+    holdWork() {
+      port.hold = new Promise<void>((resolve) => {
+        port.release = resolve;
+      });
+    },
+    async plannedWork(request: WorkRequest) {
+      port.workRequests.push(request);
+
+      if (port.hold !== null) {
+        await port.hold;
+      }
+
+      return port.work.get(request.sensor) ?? null;
+    },
+  };
+
+  return port;
+}
+
 describe("the planned work cache", () => {
   it("asks the port once for a scope however often it is ensured", async () => {
-    const fake = fakeSensors();
+    const fake = recordingPort();
 
     fake.work.set("mutation", { unit: "functions", to_perform: 4 });
 
@@ -36,11 +62,11 @@ describe("the planned work cache", () => {
   });
 
   it("holds no answer while the port is pending, then the answer and a change call", async () => {
-    const fake = fakeSensors();
+    const fake = recordingPort();
     let changed = 0;
 
     fake.work.set("mutation", { unit: "functions", to_perform: 4 });
-    fake.holdWork = true;
+    fake.holdWork();
 
     const cache = createPlannedWork(fake, () => {
       changed += 1;
@@ -52,7 +78,7 @@ describe("the planned work cache", () => {
     expect(cache.answers([SCOPE])).toEqual({});
     expect(changed).toBe(0);
 
-    fake.releaseWork();
+    fake.release();
     await tick();
 
     expect(cache.answers([SCOPE])).toEqual({
@@ -62,7 +88,7 @@ describe("the planned work cache", () => {
   });
 
   it("asks again when the stamp changes and gives no answer for a sensor that has none", async () => {
-    const fake = fakeSensors();
+    const fake = recordingPort();
     const cache = createPlannedWork(fake, () => {});
 
     cache.ensure(SCOPE);
@@ -74,7 +100,7 @@ describe("the planned work cache", () => {
   });
 
   it("treats a port failure as no answer", async () => {
-    const fake = fakeSensors();
+    const fake = recordingPort();
     const cache = createPlannedWork(
       {
         plannedWork: async () => {

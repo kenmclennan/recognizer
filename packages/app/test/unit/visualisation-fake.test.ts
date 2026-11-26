@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  createVisualisationFake,
-  parseViewFile,
-  serialiseView,
-} from "../../src/visualisation-fake";
+import { parseViewFile, serialiseView } from "../../src/view-file";
+import { createVisualisationFake } from "../../src/visualisation-fake";
 
 const TEXT = JSON.stringify({
   schema_version: 1,
