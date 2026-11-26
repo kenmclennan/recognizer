@@ -1,13 +1,23 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type {
-  DocumentMember,
-  ScanDoc,
-} from "../src/adapters/filesystem/scan-document-types.js";
 import { memberMarks } from "../src/member-marks.js";
 import { REPO } from "./helpers.js";
 import { repositoryFrom } from "./repository-from.js";
+
+interface DocumentMember {
+  name: string;
+  exported: boolean;
+  kind?: string;
+  line?: number;
+  end_line?: number;
+  [key: string]: unknown;
+}
+
+interface ScanDoc {
+  modules: { id: string; members?: DocumentMember[]; [key: string]: unknown }[];
+  [key: string]: unknown;
+}
 
 const MODULE = "shop/domain/order.py";
 const HEAD = "headcommit";

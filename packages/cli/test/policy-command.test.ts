@@ -1,14 +1,11 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PolicyRule } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
-import { parsePolicy } from "../src/adapters/filesystem/policy-translator.js";
-import { nodeIo, run } from "../src/cli.js";
 import { REPO } from "./helpers.js";
-import { fakeIo, ROOT } from "./scan-helpers.js";
+import { checkScenario } from "./support/check-scenario.js";
+import { type CliScenario, cliScenario } from "./support/cli-scenario.js";
 
-const POLICY = `${ROOT}/.recognizer/policy.yaml`;
+const POLICY = ".recognizer/policy.yaml";
 
 const BASE = [
   "entry:",
@@ -24,11 +21,14 @@ const BASE = [
 ].join("\n");
 
 function setup(text: string | null = BASE) {
-  return fakeIo({ files: text === null ? {} : { [POLICY]: text } });
+  return cliScenario({
+    sample: false,
+    files: text === null ? {} : { [POLICY]: text },
+  });
 }
 
-function policy(fake: ReturnType<typeof fakeIo>, ...argv: string[]) {
-  return run(["policy", "--repository", ROOT, ...argv], fake.io);
+function policy(scenario: CliScenario, ...argv: string[]) {
+  return scenario.run(["policy", "--repository", scenario.repository, ...argv]);
 }
 
 const fixture = (name: string) =>
@@ -43,94 +43,101 @@ describe("recognizer policy, per key", () => {
 
   for (const { key, item, first } of keys) {
     describe(key, () => {
-      it("set is refused as a list and leaves the file byte-identical", () => {
-        const fake = setup();
+      it("set is refused as a list and leaves the file byte-identical", async () => {
+        const scenario = setup();
+        const result = await policy(scenario, key, item);
 
-        expect(policy(fake, key, item)).toBe(2);
-        expect(fake.err()).toMatch(
+        expect(result.exit).toBe(2);
+        expect(result.err).toMatch(
           new RegExp(`^recognizer policy: ${key.replace(".", "\\.")}: .*list`),
         );
-        expect(fake.files.get(POLICY)).toBe(BASE);
+        expect(scenario.read(POLICY)).toBe(BASE);
       });
 
-      it("--add appends the item and a repeat leaves the file byte-identical", () => {
-        const fake = setup();
+      it("--add appends the item and a repeat leaves the file byte-identical", async () => {
+        const scenario = setup();
 
-        expect(policy(fake, "--add", key, item)).toBe(0);
+        expect((await policy(scenario, "--add", key, item)).exit).toBe(0);
 
-        const after = fake.files.get(POLICY) as string;
+        const after = scenario.read(POLICY);
 
         expect(after).not.toBe(BASE);
         expect(after).toContain(item);
-        expect(policy(fake, "--add", key, item)).toBe(0);
-        expect(fake.files.get(POLICY)).toBe(after);
+        expect((await policy(scenario, "--add", key, item)).exit).toBe(0);
+        expect(scenario.read(POLICY)).toBe(after);
       });
 
-      it("--get prints the items one per line", () => {
-        const fake = setup();
+      it("--get prints the items one per line", async () => {
+        const result = await policy(setup(), "--get", key);
 
-        expect(policy(fake, "--get", key)).toBe(0);
-        expect(fake.out()).toBe(`${first}\n`);
+        expect(result.exit).toBe(0);
+        expect(result.out).toBe(`${first}\n`);
       });
 
-      it("--list includes the key's items", () => {
-        const fake = setup();
+      it("--list includes the key's items", async () => {
+        const result = await policy(setup(), "--list");
 
-        expect(policy(fake, "--list")).toBe(0);
-        expect(fake.out()).toContain(`${key}=${first}`);
+        expect(result.exit).toBe(0);
+        expect(result.out).toContain(`${key}=${first}`);
       });
 
-      it("--unset <key> <value> deletes that item", () => {
-        const fake = setup();
+      it("--unset <key> <value> deletes that item", async () => {
+        const scenario = setup();
 
-        expect(policy(fake, "--add", key, item)).toBe(0);
-        expect(policy(fake, "--unset", key, item)).toBe(0);
-        expect(fake.files.get(POLICY)).toBe(BASE);
+        expect((await policy(scenario, "--add", key, item)).exit).toBe(0);
+        expect((await policy(scenario, "--unset", key, item)).exit).toBe(0);
+        expect(scenario.read(POLICY)).toBe(BASE);
       });
 
-      it("--unset <key> deletes the key", () => {
-        const fake = setup();
+      it("--unset <key> deletes the key", async () => {
+        const scenario = setup();
 
-        expect(policy(fake, "--unset", key)).toBe(0);
-        expect(fake.files.get(POLICY)).not.toBe(BASE);
-        expect(policy(fake, "--get", key)).toBe(1);
+        expect((await policy(scenario, "--unset", key)).exit).toBe(0);
+        expect(scenario.read(POLICY)).not.toBe(BASE);
+        expect((await policy(scenario, "--get", key)).exit).toBe(1);
       });
     });
   }
 });
 
 describe("recognizer policy sections", () => {
-  it("--add-section foreign is refused as retired and writes nothing", () => {
-    const fake = setup(null);
+  it("--add-section foreign is refused as retired and writes nothing", async () => {
+    const scenario = setup(null);
+    const result = await policy(scenario, "--add-section", "foreign");
 
-    expect(policy(fake, "--add-section", "foreign")).toBe(2);
-    expect(fake.err()).toMatch(/^recognizer policy: foreign: /);
-    expect(fake.files.has(POLICY)).toBe(false);
+    expect(result.exit).toBe(2);
+    expect(result.err).toMatch(/^recognizer policy: foreign: /);
+    expect(scenario.exists(POLICY)).toBe(false);
   });
 
-  it("--add-section of a retired section is refused and writes nothing", () => {
-    const fake = setup("ignore:\n  - tests/**\n");
+  it("--add-section of a retired section is refused and writes nothing", async () => {
+    const scenario = setup("ignore:\n  - tests/**\n");
+    const result = await policy(scenario, "--add-section", "uses");
 
-    expect(policy(fake, "--add-section", "uses")).toBe(2);
-    expect(fake.err()).toMatch(/^recognizer policy: uses: /);
-    expect(fake.files.get(POLICY)).toBe("ignore:\n  - tests/**\n");
+    expect(result.exit).toBe(2);
+    expect(result.err).toMatch(/^recognizer policy: uses: /);
+    expect(scenario.read(POLICY)).toBe("ignore:\n  - tests/**\n");
   });
 
-  it("--remove-section of the retired foreign section is refused and writes nothing", () => {
-    const fake = setup();
+  it("--remove-section of the retired foreign section is refused and writes nothing", async () => {
+    const scenario = setup();
+    const result = await policy(scenario, "--remove-section", "foreign");
 
-    expect(policy(fake, "--remove-section", "foreign")).toBe(2);
-    expect(fake.err()).toMatch(/^recognizer policy: foreign: /);
-    expect(fake.files.get(POLICY)).toBe(BASE);
+    expect(result.exit).toBe(2);
+    expect(result.err).toMatch(/^recognizer policy: foreign: /);
+    expect(scenario.read(POLICY)).toBe(BASE);
   });
 
-  it("refuses a key typed as a section and a section typed as a key", () => {
-    const fake = setup();
+  it("refuses a key typed as a section and a section typed as a key", async () => {
+    const scenario = setup();
+    const typedKey = await policy(scenario, "--add", "foreign", "x");
 
-    expect(policy(fake, "--add", "foreign", "x")).toBe(2);
-    expect(fake.err()).toMatch(/^recognizer policy: foreign: /);
-    expect(policy(fake, "--add-section", "foreign.http")).toBe(2);
-    expect(fake.files.get(POLICY)).toBe(BASE);
+    expect(typedKey.exit).toBe(2);
+    expect(typedKey.err).toMatch(/^recognizer policy: foreign: /);
+    expect((await policy(scenario, "--add-section", "foreign.http")).exit).toBe(
+      2,
+    );
+    expect(scenario.read(POLICY)).toBe(BASE);
   });
 });
 
@@ -140,121 +147,121 @@ describe("recognizer policy refuses a write that introduces an error", () => {
     ["entry", ["--add", "entry", ""]],
   ];
 
-  it.each(refused)("%s: %j leaves the file byte-identical", (key, argv) => {
-    const fake = setup();
+  it.each(refused)(
+    "%s: %j leaves the file byte-identical",
+    async (key, argv) => {
+      const scenario = setup();
+      const result = await policy(scenario, ...argv);
 
-    expect(policy(fake, ...argv)).toBe(2);
-    expect(fake.err().startsWith(`recognizer policy: ${argv[1]}:`)).toBe(true);
-    expect(fake.files.get(POLICY)).toBe(BASE);
-    expect(key).toBe(argv[1]);
-  });
+      expect(result.exit).toBe(2);
+      expect(result.err.startsWith(`recognizer policy: ${argv[1]}:`)).toBe(
+        true,
+      );
+      expect(scenario.read(POLICY)).toBe(BASE);
+      expect(key).toBe(argv[1]);
+    },
+  );
 
-  it("saves a valid edit elsewhere in a file that already has an error", () => {
+  it("saves a valid edit elsewhere in a file that already has an error", async () => {
     const broken = `${BASE}`.replace(
       "  - a/** -> b/**\n",
       "  - a/** -> b/**\n  - nope\n",
     );
-    const fake = setup(broken);
+    const scenario = setup(broken);
 
-    expect(policy(fake, "--add", "ignore", "docs/**")).toBe(0);
-    expect(fake.files.get(POLICY)).toBe(`${broken}  - docs/**\n`);
+    expect((await policy(scenario, "--add", "ignore", "docs/**")).exit).toBe(0);
+    expect(scenario.read(POLICY)).toBe(`${broken}  - docs/**\n`);
   });
 
-  it("refuses an edit that adds a second error, naming only the new one", () => {
+  it("refuses an edit that adds a second error, naming only the new one", async () => {
     const broken = `${BASE}`.replace(
       "  - a/** -> b/**\n",
       "  - a/** -> b/**\n  - nope\n",
     );
-    const fake = setup(broken);
+    const scenario = setup(broken);
+    const result = await policy(scenario, "--add", "forbid", "also bad");
 
-    expect(policy(fake, "--add", "forbid", "also bad")).toBe(2);
-    expect(fake.err()).toContain("also bad");
-    expect(fake.err()).not.toContain("nope");
-    expect(fake.files.get(POLICY)).toBe(broken);
+    expect(result.exit).toBe(2);
+    expect(result.err).toContain("also bad");
+    expect(result.err).not.toContain("nope");
+    expect(scenario.read(POLICY)).toBe(broken);
   });
 
-  it("lets the one bad entry be unset while other errors remain", () => {
+  it("lets the one bad entry be unset while other errors remain", async () => {
     const broken = `${BASE}`.replace(
       "  - a/** -> b/**\n",
       "  - a/** -> b/**\n  - nope\n",
     );
-    const fake = setup(broken);
+    const scenario = setup(broken);
 
-    expect(policy(fake, "--unset", "forbid", "nope")).toBe(0);
-    expect(fake.files.get(POLICY)).not.toContain("nope");
+    expect((await policy(scenario, "--unset", "forbid", "nope")).exit).toBe(0);
+    expect(scenario.read(POLICY)).not.toContain("nope");
   });
 });
 
 describe("recognizer policy --add-forbid", () => {
-  it("appends a mapping rule and a repeat changes nothing", () => {
-    const fake = setup(BASE.replace("foreign:\n  http:\n    - requests\n", ""));
+  const SRC_RULE = [
+    "--add-forbid",
+    "--from",
+    "src/domain/**",
+    "--from",
+    "src/ports/**",
+    "--to",
+    "src/outer/**",
+  ];
 
-    expect(
-      policy(
-        fake,
-        "--add-forbid",
-        "--from",
-        "src/domain/**",
-        "--from",
-        "src/ports/**",
-        "--to",
-        "src/adapters/**",
-      ),
-    ).toBe(0);
+  it("appends a mapping rule and a repeat changes nothing", async () => {
+    const scenario = setup(
+      BASE.replace("foreign:\n  http:\n    - requests\n", ""),
+    );
 
-    const after = fake.files.get(POLICY) as string;
+    expect((await policy(scenario, ...SRC_RULE)).exit).toBe(0);
+
+    const after = scenario.read(POLICY);
+    const listed = await policy(scenario, "--list");
 
     expect(after).toContain(
-      "  - from: [src/domain/**, src/ports/**]\n    to: [src/adapters/**]\n",
+      "  - from: [src/domain/**, src/ports/**]\n    to: [src/outer/**]\n",
     );
     expect(
-      parsePolicy(after).filter((rule) => rule.type === "forbid"),
+      listed.out.split("\n").filter((line) => line.startsWith("forbid=")),
     ).toHaveLength(2);
-    expect(
-      policy(
-        fake,
-        "--add-forbid",
-        "--from",
-        "src/domain/**",
-        "--from",
-        "src/ports/**",
-        "--to",
-        "src/adapters/**",
-      ),
-    ).toBe(0);
-    expect(fake.files.get(POLICY)).toBe(after);
+    expect((await policy(scenario, ...SRC_RULE)).exit).toBe(0);
+    expect(scenario.read(POLICY)).toBe(after);
   });
 
-  it("creates the policy on the first write", () => {
-    const fake = setup(null);
-
-    expect(policy(fake, "--add-forbid", "--from", "a/**", "--to", "b/**")).toBe(
-      0,
+  it("creates the policy on the first write", async () => {
+    const scenario = setup(null);
+    const result = await policy(
+      scenario,
+      "--add-forbid",
+      "--from",
+      "a/**",
+      "--to",
+      "b/**",
     );
-    expect(fake.files.get(POLICY)).toBe(
+
+    expect(result.exit).toBe(0);
+    expect(scenario.read(POLICY)).toBe(
       "forbid:\n  - from: [a/**]\n    to: [b/**]\n",
     );
   });
 
-  it("keeps the comments and layout of commented.yaml", () => {
-    const fake = setup(fixture("commented.yaml"));
+  it("keeps the comments and layout of commented.yaml", async () => {
+    const scenario = setup(fixture("commented.yaml"));
+    const result = await policy(
+      scenario,
+      "--add-forbid",
+      "--from",
+      "shop/ui/**",
+      "--to",
+      "shop/db/**",
+      "--to",
+      "shop/cache/**",
+    );
 
-    expect(
-      policy(
-        fake,
-        "--add-forbid",
-        "--from",
-        "shop/ui/**",
-        "--to",
-        "shop/db/**",
-        "--to",
-        "shop/cache/**",
-      ),
-    ).toBe(0);
-
-    const after = fake.files.get(POLICY) as string;
-
-    expect(after).toBe(
+    expect(result.exit).toBe(0);
+    expect(scenario.read(POLICY)).toBe(
       fixture("commented.yaml").replace(
         "\nignore:",
         "  - from: [shop/ui/**]\n    to: [shop/db/**, shop/cache/**]\n\nignore:",
@@ -267,19 +274,28 @@ describe("recognizer policy --add-forbid", () => {
     [["--add-forbid", "--from", "a/**"]],
     [["--add-forbid"]],
     [["--add-forbid", "--migrate"]],
-  ])("%j is a usage error and writes nothing", (argv) => {
-    const fake = setup();
+  ])("%j is a usage error and writes nothing", async (argv) => {
+    const scenario = setup();
+    const result = await policy(scenario, ...argv);
 
-    expect(policy(fake, ...argv)).toBe(2);
-    expect(fake.err()).toContain("usage: recognizer policy");
-    expect(fake.files.get(POLICY)).toBe(BASE);
+    expect(result.exit).toBe(2);
+    expect(result.err).toContain("usage: recognizer policy");
+    expect(scenario.read(POLICY)).toBe(BASE);
   });
 
-  it("refuses a write that would introduce an error", () => {
-    const fake = setup();
+  it("refuses a write that would introduce an error", async () => {
+    const scenario = setup();
+    const result = await policy(
+      scenario,
+      "--add-forbid",
+      "--from",
+      " ",
+      "--to",
+      "b/**",
+    );
 
-    expect(policy(fake, "--add-forbid", "--from", " ", "--to", "b/**")).toBe(2);
-    expect(fake.files.get(POLICY)).toBe(BASE);
+    expect(result.exit).toBe(2);
+    expect(scenario.read(POLICY)).toBe(BASE);
   });
 });
 
@@ -287,20 +303,22 @@ describe("recognizer policy lists a list rule", () => {
   const WITH_RULE =
     "forbid:\n  - from: [a/**]\n    to: [b/**, c/**]\n  - x/** -> y/**\n";
 
-  it("--list prints a mapping entry as forbid= followed by its JSON", () => {
-    const fake = setup(WITH_RULE);
+  it("--list prints a mapping entry as forbid= followed by its JSON", async () => {
+    const result = await policy(setup(WITH_RULE), "--list");
 
-    expect(policy(fake, "--list")).toBe(0);
-    expect(fake.out()).toBe(
+    expect(result.exit).toBe(0);
+    expect(result.out).toBe(
       'forbid={"from":["a/**"],"to":["b/**","c/**"]}\nforbid=x/** -> y/**\n',
     );
   });
 
-  it("--unset forbid <string rule> leaves a mapping entry in place", () => {
-    const fake = setup(WITH_RULE);
+  it("--unset forbid <string rule> leaves a mapping entry in place", async () => {
+    const scenario = setup(WITH_RULE);
 
-    expect(policy(fake, "--unset", "forbid", "x/** -> y/**")).toBe(0);
-    expect(fake.files.get(POLICY)).toBe(
+    expect(
+      (await policy(scenario, "--unset", "forbid", "x/** -> y/**")).exit,
+    ).toBe(0);
+    expect(scenario.read(POLICY)).toBe(
       "forbid:\n  - from: [a/**]\n    to: [b/**, c/**]\n",
     );
   });
@@ -310,32 +328,30 @@ describe("recognizer policy --unset forbid with a mapping rule", () => {
   const WITH_RULE =
     "forbid:\n  - from: [a/**]\n    to: [b/**, c/**]\n  - x/** -> y/**\n";
 
-  it("removes the rule named as --list prints it", () => {
-    const fake = setup(WITH_RULE);
+  it("removes the rule named as --list prints it", async () => {
+    const scenario = setup(WITH_RULE);
+    const result = await policy(
+      scenario,
+      "--unset",
+      "forbid",
+      'forbid={"from":["a/**"],"to":["b/**","c/**"]}',
+    );
 
-    expect(
-      policy(
-        fake,
-        "--unset",
-        "forbid",
-        'forbid={"from":["a/**"],"to":["b/**","c/**"]}',
-      ),
-    ).toBe(0);
-    expect(fake.files.get(POLICY)).toBe("forbid:\n  - x/** -> y/**\n");
+    expect(result.exit).toBe(0);
+    expect(scenario.read(POLICY)).toBe("forbid:\n  - x/** -> y/**\n");
   });
 
-  it("exits 1 and changes nothing when no rule matches", () => {
-    const fake = setup(WITH_RULE);
+  it("exits 1 and changes nothing when no rule matches", async () => {
+    const scenario = setup(WITH_RULE);
+    const result = await policy(
+      scenario,
+      "--unset",
+      "forbid",
+      'forbid={"from":["z/**"],"to":["b/**"]}',
+    );
 
-    expect(
-      policy(
-        fake,
-        "--unset",
-        "forbid",
-        'forbid={"from":["z/**"],"to":["b/**"]}',
-      ),
-    ).toBe(1);
-    expect(fake.files.get(POLICY)).toBe(WITH_RULE);
+    expect(result.exit).toBe(1);
+    expect(scenario.read(POLICY)).toBe(WITH_RULE);
   });
 });
 
@@ -344,19 +360,24 @@ describe("recognizer policy keeps the file's text", () => {
     return text.split("\n");
   }
 
-  it("keeps comments, blank lines, order, a scalar and a flow list through an add and an unset", () => {
+  it("keeps comments, blank lines, order, a scalar and a flow list through an add and an unset", async () => {
     const input = fixture("commented.yaml");
-    const fake = setup(input);
+    const scenario = setup(input);
 
     expect(lines(input).filter((line) => line.includes("#")).length).toBe(3);
-    expect(policy(fake, "--add", "forbid", "shop/ui/** -> shop/db/**")).toBe(0);
+    expect(
+      (await policy(scenario, "--add", "forbid", "shop/ui/** -> shop/db/**"))
+        .exit,
+    ).toBe(0);
 
-    const added = fake.files.get(POLICY) as string;
+    const added = scenario.read(POLICY);
 
     expect(added).toBe(fixture("commented.added.yaml"));
-    expect(policy(fake, "--unset", "ignore", "tests/**")).toBe(0);
+    expect((await policy(scenario, "--unset", "ignore", "tests/**")).exit).toBe(
+      0,
+    );
 
-    const unset = fake.files.get(POLICY) as string;
+    const unset = scenario.read(POLICY);
 
     expect(unset).toBe(fixture("commented.unset.yaml"));
 
@@ -367,35 +388,44 @@ describe("recognizer policy keeps the file's text", () => {
     }
   });
 
-  it("keeps a four-space indent", () => {
-    const fake = setup(fixture("four-space.yaml"));
+  it("keeps a four-space indent", async () => {
+    const scenario = setup(fixture("four-space.yaml"));
 
-    expect(policy(fake, "--add", "entry", "shop/x.py")).toBe(0);
-    expect(fake.files.get(POLICY)).toBe(fixture("four-space.added.yaml"));
+    expect((await policy(scenario, "--add", "entry", "shop/x.py")).exit).toBe(
+      0,
+    );
+    expect(scenario.read(POLICY)).toBe(fixture("four-space.added.yaml"));
   });
 
-  it("refuses --add onto a scalar and converts it by unset then add", () => {
-    const fake = setup("entry: shop/main.py\n");
+  it("refuses --add onto a scalar and converts it by unset then add", async () => {
+    const scenario = setup("entry: shop/main.py\n");
+    const refused = await policy(scenario, "--add", "entry", "x");
+    const got = await policy(scenario, "--get", "entry");
 
-    expect(policy(fake, "--add", "entry", "x")).toBe(2);
-    expect(fake.err()).toContain("entry is a scalar, not a list");
-    expect(policy(fake, "--get", "entry")).toBe(0);
-    expect(fake.out()).toBe("shop/main.py\n");
+    expect(refused.exit).toBe(2);
+    expect(refused.err).toContain("entry is a scalar, not a list");
+    expect(got.exit).toBe(0);
+    expect(got.out).toBe("shop/main.py\n");
   });
 
-  it("reports a path --list cannot address and exits 1", () => {
-    const fake = setup("foreign:\n  a.b: [x]\n  c: [y]\n");
+  it("reports a path --list cannot address and exits 1", async () => {
+    const result = await policy(
+      setup("foreign:\n  a.b: [x]\n  c: [y]\n"),
+      "--list",
+    );
 
-    expect(policy(fake, "--list")).toBe(1);
-    expect(fake.out()).toBe("foreign.c=y\n");
-    expect(fake.err()).toContain("cannot be addressed");
+    expect(result.exit).toBe(1);
+    expect(result.out).toBe("foreign.c=y\n");
+    expect(result.err).toContain("cannot be addressed");
   });
 
-  it("--add entry works on a policy with no entry", () => {
-    const fake = setup("ignore:\n  - tests/**\n");
+  it("--add entry works on a policy with no entry", async () => {
+    const scenario = setup("ignore:\n  - tests/**\n");
 
-    expect(policy(fake, "--add", "entry", "src/main.ts")).toBe(0);
-    expect(fake.files.get(POLICY)).toBe(
+    expect((await policy(scenario, "--add", "entry", "src/main.ts")).exit).toBe(
+      0,
+    );
+    expect(scenario.read(POLICY)).toBe(
       "ignore:\n  - tests/**\nentry:\n  - src/main.ts\n",
     );
   });
@@ -408,34 +438,32 @@ describe("recognizer policy with no policy file", () => {
     ["--unset", "entry"],
     ["--remove-section", "foreign"],
     ["--migrate"],
-  ])("%s exits 1 saying there is no policy and creates nothing", (...argv) => {
-    const fake = setup(null);
+  ])(
+    "%s exits 1 saying there is no policy and creates nothing",
+    async (...argv) => {
+      const scenario = setup(null);
+      const result = await policy(scenario, ...argv);
 
-    expect(policy(fake, ...argv)).toBe(1);
-    expect(fake.err()).toBe(
-      "recognizer policy: there is no policy at .recognizer/policy.yaml\n",
-    );
-    expect(
-      [...fake.files.keys()].some((key) => key.includes(".recognizer")),
-    ).toBe(false);
-  });
+      expect(result.exit).toBe(1);
+      expect(result.err).toBe(
+        "recognizer policy: there is no policy at .recognizer/policy.yaml\n",
+      );
+      expect(scenario.exists(".recognizer")).toBe(false);
+    },
+  );
 
-  it("the first write creates the folder and a file that parses", () => {
-    const root = makeTempDir("policy-first-");
-    const io = nodeIo();
-    const code = run(
-      ["policy", "--repository", root, "--add", "entry", "src/main.ts"],
-      io,
-    );
-    const file = join(root, ".recognizer", "policy.yaml");
+  it("the first write creates the folder and a file that parses", async () => {
+    const scenario = setup(null);
 
-    expect(code).toBe(0);
-    expect(existsSync(file)).toBe(true);
-    expect(
-      PolicyRule.entries(parsePolicy(readFileSync(file, "utf8"))).map(
-        (rule) => rule.glob,
-      ),
-    ).toEqual(["src/main.ts"]);
+    expect(scenario.exists(".recognizer")).toBe(false);
+
+    const written = await policy(scenario, "--add", "entry", "src/main.ts");
+    const entries = await policy(scenario, "--get", "entry");
+
+    expect(written.exit).toBe(0);
+    expect(scenario.exists(POLICY)).toBe(true);
+    expect(entries.exit).toBe(0);
+    expect(entries.out).toBe("src/main.ts\n");
   });
 });
 
@@ -447,16 +475,16 @@ describe("recognizer policy argument shapes", () => {
     [["--add", "--get", "entry"]],
     [["--add-section"]],
     [["entry", "a", "b"]],
-  ])("%j is a usage error", (argv) => {
-    const fake = setup();
+  ])("%j is a usage error", async (argv) => {
+    const result = await policy(setup(), ...argv);
 
-    expect(policy(fake, ...argv)).toBe(2);
-    expect(fake.err()).toContain("usage: recognizer policy");
+    expect(result.exit).toBe(2);
+    expect(result.err).toContain("usage: recognizer policy");
   });
 });
 
 describe("recognizer check over a policy built only through recognizer policy", () => {
-  it("gives the same report as the committed fixture policy", () => {
+  it("gives the same report as the committed fixture policy", async () => {
     const handWritten = readFileSync(
       join(REPO, "fixtures/check/.recognizer/policy.yaml"),
       "utf8",
@@ -465,7 +493,7 @@ describe("recognizer check over a policy built only through recognizer policy", 
     const expected = JSON.parse(
       readFileSync(join(REPO, "fixtures/check/expected.json"), "utf8"),
     );
-    const fake = setup(null);
+    const scenario = setup(null);
     const rules: [string[], string[]][] = [
       [
         ["shop/domain/**"],
@@ -496,25 +524,31 @@ describe("recognizer check over a policy built only through recognizer policy", 
     ];
 
     for (const step of steps) {
-      expect(policy(fake, ...step)).toBe(0);
+      expect((await policy(scenario, ...step)).exit).toBe(0);
     }
 
-    const written = fake.files.get(POLICY) as string;
+    const written = scenario.read(POLICY);
 
-    const report = (policyText: string) => {
-      const checker = fakeIo({
-        files: { "/scan.json": scan, "/policy.yaml": policyText },
+    const report = async (policyText: string) => {
+      const checker = checkScenario({
+        policy: false,
+        baseline: false,
+        cache: false,
+        files: { "scan.json": scan, "other-policy.yaml": policyText },
       });
-      const code = run(
-        ["check", "--scan", "/scan.json", "--policy", "/policy.yaml"],
-        checker.io,
-      );
+      const result = await checker.run([
+        "check",
+        "--scan",
+        `${checker.repository}/scan.json`,
+        "--policy",
+        `${checker.repository}/other-policy.yaml`,
+      ]);
 
-      return { code, report: JSON.parse(checker.out()) };
+      return { code: result.exit, report: JSON.parse(result.out) };
     };
 
-    const fromCommand = report(written);
-    const fromHand = report(handWritten);
+    const fromCommand = await report(written);
+    const fromHand = await report(handWritten);
 
     expect(fromCommand).toEqual(fromHand);
     expect(fromCommand.report.violations).toHaveLength(
@@ -529,12 +563,12 @@ describe("recognizer policy help", () => {
     ["help", "policy"],
     ["policy", "--help"],
     ["policy", "-h"],
-  ])("%j lists every key with its type and example", (...argv) => {
-    const fake = setup();
+  ])("%j lists every key with its type and example", async (...argv) => {
+    const result = await setup().run(argv);
 
-    expect(run(argv, fake.io)).toBe(0);
+    expect(result.exit).toBe(0);
 
-    const out = fake.out();
+    const out = result.out;
 
     expect(out).toContain("Keys:");
 

@@ -1,12 +1,21 @@
 import type { MarkedFile, Repository } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import type { DocumentMember } from "../src/adapters/filesystem/scan-document-types.js";
 import {
   MEMBER_TEXT_LIMIT,
   type MemberFile,
   memberMarks,
 } from "../src/member-marks.js";
 import { repositoryFrom } from "./repository-from.js";
+
+interface DocumentMember {
+  name: string;
+  exported: boolean;
+  kind?: string;
+  line?: number;
+  end_line?: number;
+  methods?: { name: string; line: number; end_line: number }[];
+  [key: string]: unknown;
+}
 
 const HEAD = "head1";
 const MOD = "m/a.py";

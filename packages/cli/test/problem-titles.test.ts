@@ -1,8 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PROBLEM_TITLES } from "@recognizer/core";
+import { PROBLEM_TITLES, RETIRED_POLICY_KEYS } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { RETIRED_KEYS as RETIRED_POLICY } from "../src/adapters/filesystem/policy-translator.js";
 import { RETIRED_KEYS as RETIRED_CONFIG } from "../src/config-retired.js";
 import { REPO } from "./helpers.js";
 
@@ -37,7 +36,7 @@ const CODES = [
 
 const RETIRED_NAMES = [
   ...RETIRED_CONFIG.flatMap((key) => key.path),
-  ...RETIRED_POLICY,
+  ...RETIRED_POLICY_KEYS,
 ].filter((name) => name !== "sensors");
 
 describe("problem titles", () => {

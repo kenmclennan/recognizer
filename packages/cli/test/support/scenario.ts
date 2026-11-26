@@ -14,6 +14,7 @@ import {
 export const REPOSITORY = "/repo";
 
 export interface ScenarioOptions extends Omit<ServeRootOptions, "programs"> {
+  sample?: boolean;
   sensors?: string[];
   scripts?: Record<string, SensorScript>;
   scanner?: ScannerScript;
@@ -45,7 +46,14 @@ export function typescriptScenario(options: ScenarioOptions = {}): Scenario {
   const root = serveRoot({ ...options, programs });
   const registered = options.registered ?? sensors;
 
-  seedTypescriptRepository(root.io.files, repository);
+  if (options.sample === false) {
+    root.io.files.writeFile(
+      `${repository}/.gitignore`,
+      ".recognizer/cache/\nnode_modules/\n",
+    );
+  } else {
+    seedTypescriptRepository(root.io.files, repository);
+  }
 
   if (registered.length > 0) {
     root.io.files.writeFile(

@@ -1,79 +1,46 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import {
-  LanguageBehaviour,
-  checkScan as replayScan,
-  STRUCTURE_SENSOR_VERSION,
-} from "@recognizer/core";
+import { STRUCTURE_SENSOR_VERSION } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import {
-  parseBaseline,
-  serialiseBaseline,
-} from "../src/adapters/filesystem/baseline-adapter.js";
-import { run } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
-import { REPO } from "./helpers.js";
 import { FIXTURE_LANGUAGES } from "./language-behaviour-fixture.js";
-import { repositoryFrom } from "./repository-from.js";
 import {
-  type FakeOptions,
-  fakeIo,
-  hashedScan,
+  CHECK_BASELINE,
+  checkBaselineText,
+  checkPolicyText,
+  checkScan,
+  checkScenario,
+  checkExpected as expected,
   inputsOf,
-  mountedModules,
-  PYTHON,
-  ROOT,
-  TYPESCRIPT,
-} from "./scan-helpers.js";
+} from "./support/check-scenario.js";
+import { type CliScenario, cliScenario } from "./support/cli-scenario.js";
 
-const COMMIT = "abc123";
 const NOT_MEASURED =
   "duplication not measured since the last scan: run recognizer scan\n" +
   "complexity not measured since the last scan: run recognizer scan\n";
-const read = (path: string) => readFileSync(join(REPO, path), "utf8");
-const checkScan = JSON.parse(read("fixtures/check/scan.json"));
-const expected = JSON.parse(read("fixtures/check/expected.json"));
-const policyFiles = {
-  [`${ROOT}/.recognizer/policy.yaml`]: read(
-    "fixtures/check/.recognizer/policy.yaml",
-  ),
-  [`${ROOT}/.recognizer/baselines/violations.json`]: read(
-    "fixtures/check/.recognizer/baselines/violations.json",
-  ),
-};
-
-function cached(scan: Record<string, unknown>, commit = COMMIT) {
-  return JSON.stringify(hashedScan(scan, commit));
+const ALL = FIXTURE_LANGUAGES.map((one) => one.name);
+interface Rewritten {
+  settings: Record<string, unknown> & { warnings: Record<string, unknown> };
+  findings: { kind: string }[];
 }
 
-function setup(files: Record<string, string> = {}, options: FakeOptions = {}) {
-  return fakeIo({
-    commit: COMMIT,
-    files: {
-      [`${ROOT}/shop/a.py`]: "",
-      ...mountedModules(checkScan),
-      [`${ROOT}/.recognizer/cache/scan.python.json`]: cached(checkScan),
-      ...policyFiles,
-      ...files,
-    },
-    ...options,
-  });
-}
+const STRUCTURE_FINDINGS = ".recognizer/cache/findings/structure.json";
 
-function check(argv: string[], fake = setup()) {
-  const code = run(["check", ...argv, "--repository", ROOT], fake.io);
-
-  return { code, out: fake.out(), err: fake.err(), fake };
+function untouched(scenario: Pick<CliScenario, "root" | "repository">) {
+  return scenario.root.io.run("git", [
+    "-C",
+    scenario.repository,
+    "status",
+    "--porcelain",
+  ]).stdout;
 }
 
 describe("check in repository mode", () => {
-  it("equals expected.json for the same scan", () => {
-    const { code, out, err } = check(["--json"]);
+  it("equals expected.json for the same scan", async () => {
+    const { exit, out, err } = await checkScenario().check(["--json"]);
     const report = JSON.parse(out);
 
     delete report.baseline.path;
 
-    expect(code).toBe(1);
+    expect(exit).toBe(1);
     expect(report.sensors).toEqual([
       {
         name: "structure",
@@ -108,27 +75,20 @@ describe("check in repository mode", () => {
     expect(err).toBe(NOT_MEASURED);
   });
 
-  it("prints the summary and the warnings as text on stdout only", () => {
-    const { code, out, err } = check([]);
+  it("prints the summary and the warnings as text on stdout only", async () => {
+    const { exit, out, err } = await checkScenario().check([]);
 
-    expect(code).toBe(1);
+    expect(exit).toBe(1);
     expect(out).toContain("violations: 4, new: 4, fixed: 1");
     expect(out).toContain("warnings: ");
     expect(err).toBe(NOT_MEASURED);
   });
 
-  it("reports metrics and warnings only when there is no policy", () => {
-    const fake = fakeIo({
-      commit: COMMIT,
-      files: {
-        [`${ROOT}/shop/a.py`]: "",
-        ...mountedModules(checkScan),
-        [`${ROOT}/.recognizer/cache/scan.python.json`]: cached(checkScan),
-      },
-    });
-    const { code, out } = check(["--json"], fake);
+  it("reports metrics and warnings only when there is no policy", async () => {
+    const scenario = checkScenario({ policy: false, baseline: false });
+    const { exit, out } = await scenario.check(["--json"]);
 
-    expect(code).toBe(0);
+    expect(exit).toBe(0);
     expect(Object.keys(JSON.parse(out)).sort()).toEqual([
       "folder_metrics",
       "metrics",
@@ -137,34 +97,18 @@ describe("check in repository mode", () => {
     ]);
   });
 
-  it("refreshes a stale cache first and writes only cache files", () => {
-    const stale = setup(
-      {
-        [`${ROOT}/.recognizer/cache/scan.python.json`]: cached(
-          checkScan,
-          "old",
-        ),
-      },
-      {
-        scanners: {
-          [PYTHON]: {
-            output: JSON.stringify(hashedScan(checkScan, COMMIT)),
-          },
-        },
-      },
-    );
-    const { code, out, err } = check(["--json"], stale);
+  it("refreshes a stale cache first and writes only cache files", async () => {
+    const stale = checkScenario({ cache: { commit: "old" } });
+    const { exit, out, err } = await stale.check(["--json"]);
 
-    expect(code).toBe(1);
+    expect(exit).toBe(1);
     expect(JSON.parse(out).new).toHaveLength(4);
     expect(err).toContain("python:");
-    expect(stale.calls.some((call) => call.command === PYTHON)).toBe(true);
-    expect(
-      stale.writes.every((path) => path.includes("/.recognizer/cache/")),
-    ).toBe(true);
+    expect(stale.scanCalls("python")).toBeGreaterThan(0);
+    expect(untouched(stale)).toBe("");
   });
 
-  it("does not report a baseline entry as fixed because another scan lacks it", () => {
+  it("does not report a baseline entry as fixed because another scan lacks it", async () => {
     const other = {
       ...checkScan,
       modules: [
@@ -178,19 +122,18 @@ describe("check in repository mode", () => {
       edges: [],
       foreign: [],
     };
-    const fake = setup({
-      [`${ROOT}/web/index.ts`]: "",
-      [`${ROOT}/.recognizer/cache/scan.typescript.json`]: cached(other),
+    const scenario = checkScenario({
+      files: { "web/index.ts": "" },
+      caches: { typescript: other },
     });
-    const { out } = check(["--json"], fake);
+    const { out } = await scenario.check(["--json"]);
 
     expect(JSON.parse(out).fixed).toEqual(expected.fixed);
-    expect(TYPESCRIPT).toBeDefined();
   });
 
-  it("narrows violations, warnings and metrics to the named files", () => {
+  it("narrows violations, warnings and metrics to the named files", async () => {
     const named = "shop/adapters/sql_store.py";
-    const { out } = check([named, "--json"]);
+    const { out } = await checkScenario().check([named, "--json"]);
     const report = JSON.parse(out);
 
     expect(report.violations.length).toBeGreaterThan(0);
@@ -205,38 +148,34 @@ describe("check in repository mode", () => {
     ]);
   });
 
-  it("follows the narrowed set for the exit code", () => {
-    const clean = check(["shop/main.py"]);
+  it("follows the narrowed set for the exit code", async () => {
+    const scenario = checkScenario();
+    const clean = await scenario.check(["shop/main.py"]);
 
-    expect(clean.code).toBe(0);
-    expect(check(["shop/adapters/sql_store.py"]).code).toBe(1);
+    expect(clean.exit).toBe(0);
+    expect((await scenario.check(["shop/adapters/sql_store.py"])).exit).toBe(1);
   });
 
-  it("exits 2 for an unknown file", () => {
-    expect(check(["no/such.py"]).code).toBe(2);
+  it("exits 2 for an unknown file", async () => {
+    expect((await checkScenario().check(["no/such.py"])).exit).toBe(2);
   });
 
-  it("exits 2 for a baseline flag with a file", () => {
-    const result = check(["shop/main.py", "--update-baseline"]);
+  it("exits 2 for a baseline flag with a file", async () => {
+    const scenario = checkScenario();
+    const result = await scenario.check(["shop/main.py", "--update-baseline"]);
 
-    expect(result.code).toBe(2);
-    expect(result.fake.writes).toEqual([]);
+    expect(result.exit).toBe(2);
+    expect(scenario.read(CHECK_BASELINE)).toBe(checkBaselineText);
+    expect(untouched(scenario)).toBe("");
   });
 
-  it("exits 2 for a baseline flag without a policy", () => {
-    const fake = fakeIo({
-      commit: COMMIT,
-      files: {
-        [`${ROOT}/shop/a.py`]: "",
-        [`${ROOT}/.recognizer/cache/scan.python.json`]: cached(checkScan),
-      },
-    });
+  it("exits 2 for a baseline flag without a policy", async () => {
+    const scenario = checkScenario({ policy: false, baseline: false });
 
-    expect(check(["--init-baseline"], fake).code).toBe(2);
+    expect((await scenario.check(["--init-baseline"])).exit).toBe(2);
   });
 });
 
-const BASELINE_PATH = `${ROOT}/.recognizer/baselines/violations.json`;
 const CURRENT_IMPORTS = [
   { from: "shop/adapters/sql_store.py", to: "foreign:requests" },
   { from: "shop/adapters/sql_store.py", to: "shop/adapters/memory_store.py" },
@@ -246,52 +185,51 @@ const CURRENT_IMPORTS = [
 ];
 
 describe("check writes the baseline per import", () => {
-  it("init-baseline writes one entry per import and one for an edge under two rules", () => {
-    const policy = policyFiles[`${ROOT}/.recognizer/policy.yaml`].replace(
+  it("init-baseline writes one entry per import and one for an edge under two rules", async () => {
+    const policy = checkPolicyText.replace(
       "ignore:",
       "  - shop/domain/* -> shop/adapters/*\nignore:",
     );
-    const fake = fakeIo({
-      commit: COMMIT,
-      files: {
-        [`${ROOT}/shop/a.py`]: "",
-        ...mountedModules(checkScan),
-        [`${ROOT}/.recognizer/cache/scan.python.json`]: cached(checkScan),
-        [`${ROOT}/.recognizer/policy.yaml`]: policy,
-      },
-    });
-    const result = check(["--init-baseline", "--json"], fake);
-    const written = parseBaseline(fake.files.get(BASELINE_PATH) as string);
+    const scenario = checkScenario({ policy, baseline: false });
+    const result = await scenario.check(["--init-baseline", "--json"]);
+    const written = scenario.readJson<{ violations: { to?: string }[] }>(
+      CHECK_BASELINE,
+    ).violations;
 
-    expect(result.code).toBe(0);
+    expect(result.exit).toBe(0);
     expect(written).toHaveLength(5);
-    expect(
-      written.map((entry) => ("to" in entry ? entry.to : "")).sort(),
-    ).toEqual(CURRENT_IMPORTS.map((one) => one.to).sort());
+    expect(written.map((entry) => entry.to ?? "").sort()).toEqual(
+      CURRENT_IMPORTS.map((one) => one.to).sort(),
+    );
     expect(JSON.parse(result.out).violations).toHaveLength(5);
   });
 
-  it("update-baseline shrinks by an import of a surviving finding", () => {
+  it("update-baseline shrinks by an import of a surviving finding", async () => {
     const kept = CURRENT_IMPORTS.map((one) => ({ ...one, kind: "depends" }));
     const stale = {
       from: "shop/domain/order.py",
       to: "shop/application/gone.py",
       kind: "depends",
     };
-    const fake = setup({
-      [BASELINE_PATH]: serialiseBaseline([
-        ...kept.map((one) =>
-          one.to === "shop/ports/store.py"
-            ? { ...one, kind: "implements" }
-            : one,
-        ),
-        stale,
-      ]),
+    const entries = kept.map((one) =>
+      one.to === "shop/ports/store.py" ? { ...one, kind: "implements" } : one,
+    );
+    const scenario = checkScenario({
+      baseline: `${JSON.stringify(
+        {
+          schema_version: 1,
+          violations: [...entries.slice(0, 4), stale, entries[4]],
+        },
+        null,
+        2,
+      )}\n`,
     });
-    const result = check(["--update-baseline"], fake);
-    const written = parseBaseline(fake.files.get(BASELINE_PATH) as string);
+    const result = await scenario.check(["--update-baseline"]);
+    const written = scenario.readJson<{ violations: unknown[] }>(
+      CHECK_BASELINE,
+    ).violations;
 
-    expect(result.code).toBe(0);
+    expect(result.exit).toBe(0);
     expect(written).toHaveLength(5);
     expect(written).not.toContainEqual(stale);
   });
@@ -301,27 +239,36 @@ describe("check with --scan", () => {
   it.each([
     [["--scan", "x.json", "--json"]],
     [["--scan", "x.json", "shop/main.py"]],
-    [["--scan", "x.json", "--repository", ROOT]],
-  ])("exits 2 for %j", (argv) => {
-    const fake = fakeIo({ files: { "x.json": "{}" } });
+    [["--scan", "x.json", "--repository", "/repo"]],
+  ])("exits 2 for %j", async (argv) => {
+    const scenario = cliScenario({ files: { "x.json": "{}" } });
 
-    expect(run(["check", ...argv], fake.io)).toBe(2);
+    expect((await scenario.run(["check", ...argv])).exit).toBe(2);
   });
 });
 
 describe("check --scan with files no installed scanner publishes", () => {
-  const replay = (scanners?: FakeOptions["scanners"]) => {
-    const fake = fakeIo({
-      files: { "x.json": JSON.stringify(checkScan) },
-      ...(scanners === undefined ? {} : { scanners }),
+  const replay = async (languages?: string[]) => {
+    const scenario = checkScenario({
+      files: { "x.json": checkScan },
+      cache: false,
+      ...(languages === undefined ? { languages: ALL } : { languages }),
     });
-    const code = run(["check", "--scan", "x.json"], fake.io);
+    const result = await scenario.run([
+      "check",
+      "--scan",
+      `${scenario.repository}/x.json`,
+    ]);
 
-    return { code, out: JSON.parse(fake.out()), err: fake.err() };
+    return {
+      code: result.exit,
+      out: JSON.parse(result.out),
+      err: result.err,
+    };
   };
 
-  it("prints an unknown line and unknown_files for an unpublished language", () => {
-    const { out, err } = replay({ [TYPESCRIPT]: {} });
+  it("prints an unknown line and unknown_files for an unpublished language", async () => {
+    const { out, err } = await replay(["typescript"]);
     const pythonFiles = checkScan.modules.filter(
       (one: { language: string }) => one.language === "python",
     );
@@ -333,53 +280,47 @@ describe("check --scan with files no installed scanner publishes", () => {
     expect(err).toContain("unknown, not clean");
   });
 
-  it("prints neither for published languages", () => {
-    const { out, err } = replay();
+  it("prints neither for published languages", async () => {
+    const { out, err } = await replay();
 
     expect(out).not.toHaveProperty("unknown_files");
     expect(err).not.toContain("unknown:");
   });
 
-  it("exits the same whether or not the language is published", () => {
-    expect(replay({ [TYPESCRIPT]: {} }).code).toBe(replay().code);
+  it("exits the same whether or not the language is published", async () => {
+    expect((await replay(["typescript"])).code).toBe((await replay()).code);
   });
 });
 
 describe("check --scan over committed content with the shipped manifests", () => {
-  const replayWith = (names: string[]) =>
-    replayScan(
-      {
-        analysis: fakeIo().io as never,
-        baselines: {} as never,
-        languages: {
-          rules: () =>
-            FIXTURE_LANGUAGES.filter((one) => names.includes(one.name)),
-        },
-      },
-      () => {},
-      {
-        repository: repositoryFrom(checkScan),
-        rules: null,
-        policyFile: null,
-        baselinePath: null,
-        flags: { baseline: undefined, update: false, init: false },
-      },
-    );
-  const all = FIXTURE_LANGUAGES.map((one) => one.name);
+  const replayWith = async (names: string[]) => {
+    const scenario = checkScenario({
+      files: { "x.json": checkScan },
+      cache: false,
+      languages: names,
+    });
+    const result = await scenario.run([
+      "check",
+      "--scan",
+      `${scenario.repository}/x.json`,
+    ]);
 
-  it("expects no unknown_files with every manifest published", () => {
-    expect(replayWith(all).unknownFiles).toBeNull();
+    return JSON.parse(result.out);
+  };
+
+  it("expects no unknown_files with every manifest published", async () => {
+    expect(await replayWith(ALL)).not.toHaveProperty("unknown_files");
   });
 
-  it("names the python files when the python entry is removed", () => {
+  it("names the python files when the python entry is removed", async () => {
     const python = checkScan.modules.filter(
       (one: { language: string }) => one.language === "python",
     );
-    const report = replayWith(all.filter((name) => name !== "python"));
+    const report = await replayWith(ALL.filter((name) => name !== "python"));
 
     expect(python.length).toBeGreaterThan(0);
-    expect(report.unknownFiles?.languages).toEqual(["python"]);
-    expect(report.unknownFiles?.files).toHaveLength(python.length);
+    expect(report.unknown_files?.languages).toEqual(["python"]);
+    expect(report.unknown_files?.files).toHaveLength(python.length);
   });
 });
 
@@ -402,27 +343,28 @@ describe("check ranks duplication warnings by lines duplicated", () => {
       members: sizes.map((size, index) => member(`m${index}`, size)),
     },
   });
-  const duplication = JSON.stringify({
-    findings_version: 2,
-    sensor: { name: "structure", version: STRUCTURE_SENSOR_VERSION },
-    commit: COMMIT,
-    modified: false,
-    settings: {
-      duplication: {
-        threshold: 0.82,
-        min_lines: 4,
-        pair_min_lines: 6,
-        min_nodes: 20,
+  const duplication = (commit: string) =>
+    JSON.stringify({
+      findings_version: 2,
+      sensor: { name: "structure", version: STRUCTURE_SENSOR_VERSION },
+      commit,
+      modified: false,
+      settings: {
+        duplication: {
+          threshold: 0.82,
+          min_lines: 4,
+          pair_min_lines: 6,
+          min_nodes: 20,
+        },
       },
-    },
-    inputs: inputsOf(checkScan),
-    findings: [
-      finding("duplication:a", [6, 6]),
-      finding("duplication:b", [5, 5, 5, 5]),
-      finding("duplication:c", [7, 7]),
-      finding("duplication:d", [10, 10]),
-    ],
-  });
+      inputs: inputsOf(checkScan),
+      findings: [
+        finding("duplication:a", [6, 6]),
+        finding("duplication:b", [5, 5, 5, 5]),
+        finding("duplication:c", [7, 7]),
+        finding("duplication:d", [10, 10]),
+      ],
+    });
 
   const order = [
     "summary duplication:b",
@@ -431,11 +373,12 @@ describe("check ranks duplication warnings by lines duplicated", () => {
     "summary duplication:a",
   ];
 
-  it("lists the warning lines largest first, ties by id, in text and in json", () => {
-    const fake = setup({
-      [`${ROOT}/.recognizer/cache/findings/structure.json`]: duplication,
-    });
-    const text = check([], fake).out.split("\n");
+  it("lists the warning lines largest first, ties by id, in text and in json", async () => {
+    const scenario = checkScenario();
+
+    scenario.cache(STRUCTURE_FINDINGS, duplication(scenario.commit));
+
+    const text = (await scenario.check([])).out.split("\n");
     const at = order.map((summary) =>
       text.findIndex((line) => line.includes(summary)),
     );
@@ -443,14 +386,7 @@ describe("check ranks duplication warnings by lines duplicated", () => {
     expect(at.every((index) => index >= 0)).toBe(true);
     expect(at).toEqual([...at].sort((a, b) => a - b));
 
-    const json = JSON.parse(
-      check(
-        ["--json"],
-        setup({
-          [`${ROOT}/.recognizer/cache/findings/structure.json`]: duplication,
-        }),
-      ).out,
-    );
+    const json = JSON.parse((await scenario.check(["--json"])).out);
     const ids = json.warnings
       .filter((warning: { summary: string }) =>
         warning.summary.startsWith("summary duplication:"),
@@ -462,13 +398,11 @@ describe("check ranks duplication warnings by lines duplicated", () => {
 });
 
 describe("a structure file from before the folder cycle was removed", () => {
-  const STORED = `${ROOT}/.recognizer/cache/findings/structure.json`;
-
-  function oldFile() {
+  function oldFile(commit: string) {
     return JSON.stringify({
       findings_version: 2,
       sensor: { name: "structure", version: "16" },
-      commit: COMMIT,
+      commit,
       modified: false,
       settings: {
         entry_points: [],
@@ -499,14 +433,16 @@ describe("a structure file from before the folder cycle was removed", () => {
     });
   }
 
-  it("is recomputed, so no folder cycle is reported and the file is rewritten", () => {
-    const fake = setup({ [STORED]: oldFile() });
+  it("is recomputed, so no folder cycle is reported and the file is rewritten", async () => {
+    const scenario = checkScenario();
 
-    expect(fake.files.get(STORED)).toContain("folder_cycle");
+    scenario.cache(STRUCTURE_FINDINGS, oldFile(scenario.commit));
 
-    const { out } = check(["--json"], fake);
+    expect(scenario.read(STRUCTURE_FINDINGS)).toContain("folder_cycle");
+
+    const { out } = await scenario.check(["--json"]);
     const ids = JSON.parse(out).warnings.map((one: { id: string }) => one.id);
-    const rewritten = JSON.parse(fake.files.get(STORED) as string);
+    const rewritten = scenario.readJson<Rewritten>(STRUCTURE_FINDINGS);
 
     expect(ids).not.toContain("folder_cycle");
     expect(rewritten.settings.warnings).not.toHaveProperty("folder_cycle");
@@ -517,13 +453,11 @@ describe("a structure file from before the folder cycle was removed", () => {
 });
 
 describe("a structure file from before policy drift became a policy problem", () => {
-  const STORED = `${ROOT}/.recognizer/cache/findings/structure.json`;
-
-  function oldFile() {
+  function oldFile(commit: string) {
     return JSON.stringify({
       findings_version: 2,
       sensor: { name: "structure", version: "16" },
-      commit: COMMIT,
+      commit,
       modified: false,
       settings: {
         entry_points: [],
@@ -551,14 +485,16 @@ describe("a structure file from before policy drift became a policy problem", ()
     });
   }
 
-  it("is recomputed, so no policy drift is reported and the file is rewritten", () => {
-    const fake = setup({ [STORED]: oldFile() });
+  it("is recomputed, so no policy drift is reported and the file is rewritten", async () => {
+    const scenario = checkScenario();
 
-    expect(fake.files.get(STORED)).toContain("policy_drift");
+    scenario.cache(STRUCTURE_FINDINGS, oldFile(scenario.commit));
 
-    const { out } = check(["--json"], fake);
+    expect(scenario.read(STRUCTURE_FINDINGS)).toContain("policy_drift");
+
+    const { out } = await scenario.check(["--json"]);
     const ids = JSON.parse(out).warnings.map((one: { id: string }) => one.id);
-    const rewritten = JSON.parse(fake.files.get(STORED) as string);
+    const rewritten = scenario.readJson<Rewritten>(STRUCTURE_FINDINGS);
 
     expect(ids.filter((id: string) => id.startsWith("policy_drift"))).toEqual(
       [],
@@ -571,13 +507,11 @@ describe("a structure file from before policy drift became a policy problem", ()
 });
 
 describe("a structure file from before the stable dependencies warning was removed", () => {
-  const STORED = `${ROOT}/.recognizer/cache/findings/structure.json`;
-
-  function oldFile() {
+  function oldFile(commit: string) {
     return JSON.stringify({
       findings_version: 2,
       sensor: { name: "structure", version: "16" },
-      commit: COMMIT,
+      commit,
       modified: false,
       settings: {
         instability_gap: 0.2,
@@ -608,20 +542,22 @@ describe("a structure file from before the stable dependencies warning was remov
     });
   }
 
-  it("is recomputed, so no stable dependencies finding is reported and the file is rewritten", () => {
-    const fake = setup({ [STORED]: oldFile() });
+  it("is recomputed, so no stable dependencies finding is reported and the file is rewritten", async () => {
+    const scenario = checkScenario();
 
-    expect(fake.files.get(STORED)).toContain("stable_dependencies");
+    scenario.cache(STRUCTURE_FINDINGS, oldFile(scenario.commit));
+
+    expect(scenario.read(STRUCTURE_FINDINGS)).toContain("stable_dependencies");
     expect(() =>
-      validateFindings(JSON.parse(oldFile()), {
+      validateFindings(JSON.parse(oldFile(scenario.commit)), {
         name: "structure",
-        commit: COMMIT,
+        commit: scenario.commit,
       }),
     ).not.toThrow();
 
-    const { out } = check(["--json"], fake);
+    const { out } = await scenario.check(["--json"]);
     const ids = JSON.parse(out).warnings.map((one: { id: string }) => one.id);
-    const rewritten = JSON.parse(fake.files.get(STORED) as string);
+    const rewritten = scenario.readJson<Rewritten>(STRUCTURE_FINDINGS);
 
     expect(ids.some((id: string) => id.startsWith("stable_dependencies"))).toBe(
       false,
@@ -664,18 +600,15 @@ describe("orphan test importers in the report", () => {
     };
   }
 
-  function runOn(scan: Record<string, unknown>, ...flags: string[]) {
-    const fake = fakeIo({
-      commit: COMMIT,
-      files: {
-        ...mountedModules(scan),
-        [`${ROOT}/.recognizer/cache/scan.python.json`]: cached(scan),
-      },
+  async function runOn(scan: Record<string, unknown>, ...flags: string[]) {
+    const scenario = checkScenario({
+      scan,
+      policy: false,
+      baseline: false,
+      stub: false,
     });
 
-    run(["check", ...flags, "--repository", ROOT], fake.io);
-
-    return fake.out();
+    return (await scenario.check(flags)).out;
   }
 
   function lonely(out: string) {
@@ -685,8 +618,8 @@ describe("orphan test importers in the report", () => {
     );
   }
 
-  it("prints at most 10 test files with their names and counts the rest", () => {
-    const lines = runOn(orphanScan(12)).split("\n");
+  it("prints at most 10 test files with their names and counts the rest", async () => {
+    const lines = (await runOn(orphanScan(12))).split("\n");
     const at = lines.findIndex((line) =>
       line.startsWith("warning: a/lonely.py"),
     );
@@ -702,17 +635,17 @@ describe("orphan test importers in the report", () => {
     expect(lines[at + 11]).toBe("  and 2 more test files");
   });
 
-  it("prints several names and names unknown", () => {
-    const out = runOn(orphanScan(2, 2));
+  it("prints several names and names unknown", async () => {
+    const out = await runOn(orphanScan(2, 2));
 
     expect(out).toContain("\n  tests/t01.py: Small\n");
     expect(out).toContain("\n  tests/t02.py: (names unknown)\n");
     expect(out).not.toContain("more test files");
-    expect(runOn(orphanScan(10))).toContain("  tests/t10.py: Big, Small");
+    expect(await runOn(orphanScan(10))).toContain("  tests/t10.py: Big, Small");
   });
 
-  it("carries every test importer in --json", () => {
-    const warning = lonely(runOn(orphanScan(12), "--json"));
+  it("carries every test importer in --json", async () => {
+    const warning = lonely(await runOn(orphanScan(12), "--json"));
 
     expect(warning.fix_pattern).toBe("move-orphan-to-tests");
     expect(warning.evidence.test_importers).toHaveLength(12);
@@ -726,8 +659,8 @@ describe("orphan test importers in the report", () => {
     });
   });
 
-  it("prints no test file lines for an orphan nothing imports", () => {
-    const out = runOn({ ...orphanScan(0), test_imports: [] });
+  it("prints no test file lines for an orphan nothing imports", async () => {
+    const out = await runOn({ ...orphanScan(0), test_imports: [] });
 
     expect(out).toContain("a/lonely.py is imported by no file");
     expect(out).not.toContain("test file");
