@@ -1,19 +1,43 @@
+import { describe, expect, it } from "vitest";
 import {
   DEFAULT_DUPLICATION_SETTINGS,
+  type Finding,
   measureDuplication,
-} from "@recognizer/core";
-import { describe, expect, it } from "vitest";
-import { findingRecordOf } from "../src/adapters/filesystem/findings-translator.js";
-import { analysisPortsOf, sayOf } from "./analysis-ports.js";
+} from "../../src/index.js";
 import {
   allParsers,
   EQUIVALENCE,
+  FIXTURES,
   GRAMMAR_RULES,
   measuredFixture,
   ROOT,
   readJson,
-} from "./duplication-helpers.js";
-import { REPO } from "./helpers.js";
+} from "./measured-sources.js";
+
+function recordOf(finding: Finding) {
+  return {
+    id: finding.id,
+    kind: finding.kind,
+    severity: finding.severity,
+    principle: finding.principle,
+    citation: finding.citation && { ...finding.citation },
+    summary: finding.summary,
+    fix_pattern: finding.fixPattern,
+    metric: finding.metric,
+    evidence: {
+      modules: [...finding.files],
+      members: finding.members?.map((member) => ({
+        module: member.file,
+        name: member.name,
+        file: member.sourceFile,
+        lines: member.lines && [...member.lines],
+        test_files: member.testFiles && [...member.testFiles],
+      })),
+      measures: finding.measures && { ...finding.measures },
+      producer: finding.producer,
+    },
+  };
+}
 
 const CASES: [string, string][] = [
   ["python", "fixtures/duplication/corpus/python"],
@@ -39,15 +63,15 @@ describe("duplication findings against the Python sensor's goldens", () => {
       const golden = readJson<unknown[]>(
         `${EQUIVALENCE}/findings.${name}.json`,
       );
-      const { fake, scans } = measuredFixture(directory);
+      const { fakes, scans, say, err } = measuredFixture(directory);
 
       if (!["sample", "crap-corpus"].includes(name)) {
         expect(golden.length).toBeGreaterThan(0);
       }
 
       const findings = measureDuplication(
-        analysisPortsOf(fake.io),
-        sayOf(fake.io),
+        fakes,
+        say,
         ROOT,
         scans,
         DEFAULT_DUPLICATION_SETTINGS,
@@ -55,15 +79,15 @@ describe("duplication findings against the Python sensor's goldens", () => {
         GRAMMAR_RULES,
       );
 
-      expect(
-        findings.map((warning) => findingRecordOf(warning.toFinding())),
-      ).toEqual(golden);
+      expect(findings.map((warning) => recordOf(warning.toFinding()))).toEqual(
+        golden,
+      );
 
       if (name in COUNTS) {
         expect(findings).toHaveLength(COUNTS[name] as number);
       }
 
-      expect(fake.err()).toBe("");
+      expect(err).toEqual([]);
     });
   }
 });
@@ -79,14 +103,14 @@ describe("the corpus manifest", () => {
   for (const language of Object.keys(COUNTS)) {
     it(`reports every reported ${language} entry and no not-reported one`, async () => {
       const manifest = readJson<Entry[]>(
-        `${REPO}/fixtures/duplication/corpus/manifest.json`,
+        `${FIXTURES}/duplication/corpus/manifest.json`,
       ).filter((entry) => entry.language === language);
-      const { fake, scans } = measuredFixture(
+      const { fakes, scans, say } = measuredFixture(
         `fixtures/duplication/corpus/${language}`,
       );
       const findings = measureDuplication(
-        analysisPortsOf(fake.io),
-        sayOf(fake.io),
+        fakes,
+        say,
         ROOT,
         scans,
         DEFAULT_DUPLICATION_SETTINGS,
