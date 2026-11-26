@@ -542,6 +542,26 @@ describe("createRescanner", () => {
     expect(log.indexOf("settled")).toBeGreaterThan(opened);
   });
 
+  it("adopts the finished scan into an open explorer when the service's outcome arrives before any run record", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [],
+      records: false,
+      result: { status: "finished", exitCode: 0 },
+    });
+    const fresh: Loaded = { ...OK, modules: ["a.py", "b.py"] };
+    const { log, rescanner } = harness(scan, {
+      hasExplorer: () => true,
+      load: () => fresh,
+    });
+
+    await rescanner.run();
+
+    expect(log).toContain("adopt");
+    expect(log).toContain("replace:carried");
+    expect(log.indexOf("settled")).toBeGreaterThan(log.indexOf("adopt"));
+  });
+
   it("attaches nothing when the run has no log or was stopped", async () => {
     const noLog = harness(
       fakeScan({

@@ -1003,6 +1003,12 @@ export function createRescanner<Carried>(
       return;
     }
 
+    const adoptNow = ports.hasExplorer() && !adoptedThisScan;
+
+    if (adoptNow) {
+      await settle();
+    }
+
     if (adoptedThisScan || ports.hasExplorer()) {
       try {
         await reload();
@@ -1024,7 +1030,9 @@ export function createRescanner<Carried>(
       return;
     }
 
-    ports.settled();
+    if (!adoptNow) {
+      ports.settled();
+    }
   }
 
   async function loadTicks() {
