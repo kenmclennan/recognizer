@@ -3,6 +3,7 @@ export * from "../../../core/test/fakes/fake-git.js";
 export * from "../../../core/test/fakes/fake-process.js";
 export * from "../../../core/test/fakes/fake-scan-cache.js";
 export * from "../../../core/test/fakes/fake-scratch.js";
+export * from "./cli-scenario.js";
 export * from "./fake-io.js";
 export * from "./files-scan-cache.js";
 export * from "./git-program.js";
