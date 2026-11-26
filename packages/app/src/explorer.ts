@@ -206,6 +206,7 @@ import { buildScanPanelView } from "./scan-panel-view";
 import { inertScan } from "./scan-port";
 import type { PluginProgress, ShowTarget } from "./scan-progress";
 import type { RunInput } from "./scan-run-model";
+import { readScroll, restoreScroll } from "./scroll-memory";
 import type { BarModel } from "./selection-bar-view";
 import {
   type InstalledSensors,
@@ -3488,6 +3489,7 @@ export function showExplorer(
       },
       resultsMode,
       commits: { tab: commitsTab, hide: hideFilter.on() },
+      scroll: readScroll(body),
     };
   }
 
@@ -5409,6 +5411,7 @@ export function showExplorer(
     applyMemory();
     reveal(state.selection());
     render();
+    restoreScroll(body, remembered?.scroll ?? {});
     record();
 
     if (seeded !== null) {

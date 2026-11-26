@@ -193,6 +193,26 @@ async function select(id) {
     facts.commitsAfter = snap();
   }
 
+  {
+    const many = ["app/hub.py", ...Array.from({ length: 90 }, (_, i) => "big/f" + String(i).padStart(2, "0") + ".py")];
+    const fewer = many.slice(0, 40);
+    const run = async (afterIds) => {
+      const first = start(many, []);
+      await tick();
+      clickSel('.tree .row[data-path="big"] .name');
+      await tick();
+      const rows = q(".tree .rows");
+      rows.scrollTop = 300;
+      await tick();
+      const beforeTop = rows.scrollTop;
+      await rebuild(first, afterIds, []);
+      const next = q(".tree .rows");
+      return { before: beforeTop, after: next.scrollTop, max: next.scrollHeight - next.clientHeight };
+    };
+    facts.scrollKept = await run(many);
+    facts.scrollClamped = await run(fewer);
+  }
+
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
@@ -248,6 +268,13 @@ describe.skipIf(webkit === undefined)(
       expect(f.scanMode.after).toBe("true");
       expect(f.commitsBefore.hide).toBe("false");
       expect(f.commitsAfter).toEqual(f.commitsBefore);
+    });
+
+    it("restores a scrolled panel's offset after a rebuild, clamped to the new content", () => {
+      expect(f.scrollKept.before).toBeGreaterThan(0);
+      expect(f.scrollKept.after).toBe(f.scrollKept.before);
+      expect(f.scrollClamped.after).toBeGreaterThan(0);
+      expect(f.scrollClamped.after).toBeLessThanOrEqual(f.scrollClamped.max);
     });
   },
 );

@@ -23,6 +23,7 @@ function memoryOf(over: Partial<ViewMemory> = {}): ViewMemory {
     findings: { openGroups: [], onlyThisView: false, oriented: null },
     resultsMode: "bring",
     commits: { tab: "history", hide: true },
+    scroll: {},
     ...over,
   };
 }
@@ -171,6 +172,7 @@ describe("pruneMemory", () => {
         filter: { text: "hub", onCanvas: true, needsAttention: false },
         resultsMode: "rescan",
         commits: { tab: "prs", hide: false },
+        scroll: { files: [120] },
       }),
       factsOf(),
     );
@@ -185,5 +187,6 @@ describe("pruneMemory", () => {
     });
     expect(pruned.resultsMode).toBe("rescan");
     expect(pruned.commits).toEqual({ tab: "prs", hide: false });
+    expect(pruned.scroll).toEqual({ files: [120] });
   });
 });
