@@ -1,4 +1,3 @@
 packages/cli/test/duplication-shapes.test.ts
 packages/cli/test/filesystem-repositories-plan-reads.test.ts
-packages/cli/test/scan-container.test.ts
 packages/cli/test/working-tree-watch.test.ts

@@ -13,7 +13,14 @@ import { REPO } from "./helpers.js";
 const TEST_DIRECTORY = "packages/cli/test";
 const BASELINE = join(REPO, TEST_DIRECTORY, "behaviour-wiring-baseline.txt");
 
-const EXCEPTIONS: Exception[] = [];
+const EXCEPTIONS: Exception[] = [
+  {
+    path: "packages/cli/test/scan-container-wiring.test.ts",
+    category: "adapter-contract",
+    reason:
+      "its subject is the scan container, the composition root that wires one adapter per port, so it constructs them by design",
+  },
+];
 
 const ADAPTERS = ["../src/adapt", "ers/git/git-adapter.js"].join("");
 const KIND = "Git";
