@@ -23,6 +23,7 @@ export interface ScannerScript {
   before?: (call: ProgramCall) => void;
   gate?: { wait(): Promise<void> };
   fails?: boolean;
+  fromTree?: boolean;
 }
 
 export function typescriptScanner(script: ScannerScript = {}): Program {
@@ -70,6 +71,10 @@ async function running(
 
     const scan = committedScan();
 
+    if (script.fromTree) {
+      reflectTree(scan, call.files, call.args[1] ?? "");
+    }
+
     scan.commit = commit ?? null;
     scan.modified = modified === undefined ? null : modified === "true";
 
@@ -89,5 +94,75 @@ export function seedTypescriptRepository(
   files.writeFile(
     `${repository}/.gitignore`,
     ".recognizer/cache/\nnode_modules/\n",
+  );
+}
+
+const SKIPPED = [".recognizer", "node_modules"];
+
+function treePaths(files: FakeFiles, root: string): Set<string> {
+  const found = new Set<string>();
+  const walk = (directory: string, prefix: string) => {
+    for (const entry of files.readDir(directory)) {
+      if (entry.kind === "directory") {
+        if (!SKIPPED.includes(entry.name)) {
+          walk(`${directory}/${entry.name}`, `${prefix}${entry.name}/`);
+        }
+      } else {
+        found.add(`${prefix}${entry.name}`);
+      }
+    }
+  };
+
+  walk(root, "");
+
+  return found;
+}
+
+function reflectTree(
+  scan: Record<string, any>,
+  files: FakeFiles,
+  root: string,
+): void {
+  const present = treePaths(files, root);
+  const known = new Set<string>(
+    (scan.modules as { id: string }[]).map((module) => module.id),
+  );
+  const modules = (scan.modules as { id: string }[]).filter((module) =>
+    present.has(module.id),
+  );
+
+  for (const path of [...present].sort()) {
+    if (
+      !known.has(path) &&
+      /\.tsx?$/.test(path) &&
+      !path.includes("__tests__")
+    ) {
+      modules.push({
+        id: path,
+        language: "typescript",
+        kind: "module",
+        members: [],
+      } as never);
+    }
+  }
+
+  const ids = new Set(modules.map((module) => module.id));
+  const kept = (id: string) => !known.has(id) || ids.has(id);
+
+  scan.modules = modules.sort((a, b) => (a.id < b.id ? -1 : 1));
+  scan.edges = scan.edges.filter(
+    (edge: { from: string; to: string }) => kept(edge.from) && kept(edge.to),
+  );
+  scan.files = scan.files.filter((file: { path: string }) =>
+    present.has(file.path),
+  );
+  scan.calls = scan.calls.filter(
+    (call: { from: string; to: string }) =>
+      kept(call.from.split("::")[0] as string) &&
+      kept(call.to.split("::")[0] as string),
+  );
+  scan.test_imports = scan.test_imports.filter(
+    (entry: { from: string; to: string }) =>
+      present.has(entry.from) && ids.has(entry.to),
   );
 }

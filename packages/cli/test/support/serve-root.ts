@@ -4,7 +4,7 @@ import { Service, type ServiceOptions } from "../../src/serve/service.js";
 import type { Polls } from "../../src/serve/watch.js";
 import { FakeIo, type FakeIoOptions } from "./fake-io.js";
 import { FilesScanCache } from "./files-scan-cache.js";
-import { FakeRepositories } from "./git-program.js";
+import { archiveTarProgram, FakeRepositories } from "./git-program.js";
 
 export type Line = Record<string, any>;
 
@@ -44,6 +44,7 @@ export function serveRoot(options: ServeRootOptions = {}): ServeRoot {
 
   io.alive.add(io.pid());
   io.install("git", repositories.program());
+  io.install("tar", archiveTarProgram);
 
   const service = new Service({
     write: (message) => {
