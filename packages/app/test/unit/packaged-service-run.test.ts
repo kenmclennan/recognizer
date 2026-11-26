@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { workScopes } from "../../src/planned-work";
-import { untilHolds } from "../app-harness";
+import { timeEndToEnd, untilHolds } from "../app-harness";
 import { inProcessAppRoot } from "../in-process-root";
 
 type Root = Awaited<ReturnType<typeof inProcessAppRoot>>;
@@ -161,6 +161,46 @@ describe("the app over the in-process service", () => {
       await untilHolds(root.service, () =>
         host.runView?.().starting === null ? true : undefined,
       );
+    },
+    TEST_TIMEOUT,
+  );
+
+  it(
+    "a_sensor_run_reads_current_an_edited_test_reads_out_of_date_and_the_revert_reads_current",
+    async () => {
+      const root = await inProcessAppRoot({ stamped: true });
+      const original = Buffer.from(
+        root.io.files.readBytes(root.testFile),
+      ).toString("utf8");
+      const both = (state: string) =>
+        root.view.freshnessOf("crap") === state &&
+        root.view.freshnessOf("mutation") === state
+          ? true
+          : undefined;
+
+      await untilRows(root, (one) => one.length === 2);
+      await root.service.call("scan.start", {
+        repository: root.repository,
+        sense: ["crap", "mutation"],
+        extract: false,
+        describe: false,
+      });
+      await untilHolds(root.service, () => both("current"));
+
+      const { elapsedMs, limitMs } = await timeEndToEnd(root.service, {
+        limitMs: 10_000,
+        action: () =>
+          root.io.files.writeFile(
+            root.testFile,
+            `${original}export const edited = 2;\n`,
+          ),
+        until: () => both("stale"),
+      });
+
+      expect(elapsedMs).toBeLessThan(limitMs);
+
+      root.io.files.writeFile(root.testFile, original);
+      await untilHolds(root.service, () => both("current"));
     },
     TEST_TIMEOUT,
   );
