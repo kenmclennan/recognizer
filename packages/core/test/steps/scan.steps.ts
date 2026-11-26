@@ -6,6 +6,7 @@ import {
   type SensorRequest,
 } from "../../src/index.js";
 import { cachePath } from "../fakes/fake-structure-repository.js";
+import { PRICES } from "../fakes/prices.js";
 import { REPOSITORY, type ScanWorld } from "../fakes/world.js";
 
 const language = (word: string): string => word.toLowerCase();
@@ -95,10 +96,12 @@ Given(
     const sample = projectDescribe(
       [new DescribeRequest("f0", "source", ["f0"], "source of f0", [], [], [])],
       "opus",
+      PRICES,
     );
     const files = Math.round(cost / (sample.cost_usd ?? 1));
 
-    this.fakes.describer.model = "opus";
+    this.fakes.describer.published = "opus";
+    this.fakes.describer.prices = PRICES;
     this.fakes.scanners.languages.set("alpha", {
       modules: files,
       edges: 0,

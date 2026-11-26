@@ -124,7 +124,7 @@ export function fakeScan(overrides: Partial<FakeScan> = {}): FakeScan {
     result: { status: "finished", exitCode: 0 },
     cache: { scans: [], notices: [] },
     defaults: { describe: false, sensors: false },
-    describing: { model: "haiku", batchSize: 4, confirmAboveUsd: 5 },
+    describing: { model: "fake-model", batchSize: 3, confirmAboveUsd: 7 },
     ran: [],
     stopped: 0,
     answers: [],

@@ -195,7 +195,8 @@ function bindDecisions(
     selectSensors: (input) => selectSensors(sensing, input),
     planSensors: (input) => planSensors(sensing, input),
     detectLanguages: (input) => detectLanguages(scanning, input),
-    describingSettings: () => describingSettings(describing),
+    describingSettings: (describer, root) =>
+      describingSettings(describing, describer, root),
     findCommitGaps: (input) => findCommitGaps(input),
     findDescriberGaps: (input) => findDescriberGaps(describing, input),
     findProgramGaps: (input) => findProgramGaps(sensing, input),

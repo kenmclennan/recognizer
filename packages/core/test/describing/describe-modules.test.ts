@@ -6,6 +6,7 @@ import {
   InvalidRequest,
   projectDescribe,
 } from "../../src/index.js";
+import { PRICES } from "../fakes/prices.js";
 import { DescribingWorld } from "./describing-world.js";
 
 const IDS = ["a.py", "b.py", "c.py", "d.py"];
@@ -111,7 +112,7 @@ describe("describeModules projection and confirmation", () => {
       world.request(repository, { onProjection: (one) => seen.push(one) }),
     );
 
-    expect(seen).toEqual([projectDescribe(documents, "opus")]);
+    expect(seen).toEqual([projectDescribe(documents, "opus", PRICES)]);
   });
 
   it("a refusal selects nothing and reports a start of 0", async () => {

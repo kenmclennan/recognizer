@@ -9,14 +9,16 @@ import type {
   RunEntry,
   RunningCall,
 } from "../../src/index.js";
+import { describingValues, type Prices } from "../../src/index.js";
 
 export class FakeDescriber implements Describer {
   registered = false;
   described: string[] = [];
   command: readonly string[] = ["quill", "run", "{module}"];
   version = "v1";
-  model = "quill";
-  batchSize = 2;
+  published: string | null = "quill";
+  stored: Record<string, unknown> = { batch_size: 2 };
+  prices: Prices | undefined = undefined;
   unavailable = new Set<string>();
   results = new Map<
     string,
@@ -47,8 +49,14 @@ export class FakeDescriber implements Describer {
       : { started: true, status: 0 };
   }
 
-  settings(): { model: string; batchSize: number } {
-    return { model: this.model, batchSize: this.batchSize };
+  settings(): { model: string; batchSize: number; prices: Prices | undefined } {
+    const values = describingValues(this.stored, { model: this.published });
+
+    return {
+      model: values.model as string,
+      batchSize: values.batch_size,
+      prices: this.prices,
+    };
   }
 
   readSource(

@@ -65,7 +65,7 @@ fn manifest() -> String {
     out.push_str("  \"long_running\": false,\n");
     out.push_str("  \"time_limit_seconds\": 120,\n");
     out.push_str("  \"units\": [\"modules\"],\n");
-    out.push_str("  \"settings\": [],\n");
+    out.push_str("  \"settings\": [{\"key\": \"model\", \"type\": \"string\", \"scope\": \"machine\", \"label\": \"Model\", \"default\": \"default-model\", \"description\": \"the model the describer is asked to use\", \"example\": \"describing.model default-model\", \"order\": 1}],\n");
     out.push_str("  \"prompt_version\": \"1\"\n");
     out.push_str("}\n");
 

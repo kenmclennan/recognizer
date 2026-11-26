@@ -136,6 +136,27 @@
       "type": "string",
       "minLength": 1
     },
+    "prices": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "input",
+          "output"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "input": {
+            "type": "number",
+            "minimum": 0
+          },
+          "output": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
     "description": {
       "type": "string",
       "minLength": 1
@@ -1332,6 +1353,7 @@
           "planned_work": false,
           "log_path": false,
           "prompt_version": false,
+          "prices": false,
           "description": false,
           "expansion": false,
           "settings_title": false
@@ -1356,6 +1378,7 @@
         "properties": {
           "languages": false,
           "prompt_version": false,
+          "prices": false,
           "scan_schema_version": false,
           "reports_tests": false,
           "setup_survey": false

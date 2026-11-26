@@ -17,6 +17,7 @@ export const OPERATIONS = [
   "view.marks",
   "view.classify",
   "settings.validate",
+  "settings.values",
   "responsibilities.read",
   "scan.plan",
   "scan.estimate",

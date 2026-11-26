@@ -1,12 +1,9 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { machineSetting } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
-import {
-  appConfigDir,
-  DESCRIBING_DEFAULTS,
-  readDescribing,
-} from "../src/app-settings.js";
+import { appConfigDir, readDescribing } from "../src/app-settings.js";
 import { type Io, nodeIo } from "../src/cli.js";
 import { REPO } from "./helpers.js";
 
@@ -38,35 +35,42 @@ describe("appConfigDir", () => {
   });
 });
 
+const DESCRIBER = {
+  command: [
+    "node",
+    join(REPO, "packages/cli/test/fixtures/fake-describer.mjs"),
+    "run",
+    "{request}",
+  ],
+};
+
+const BARE = {
+  command: [
+    "node",
+    join(REPO, "packages/cli/test/fixtures/fake-describer-no-model.mjs"),
+    "run",
+    "{request}",
+  ],
+};
+
+const batch = machineSetting("describing.batch_size");
+const spend = machineSetting("describing.confirm_above_usd");
+
+function read(directory: string, describer = DESCRIBER) {
+  return readDescribing(ioFor(directory), describer, directory);
+}
+
 describe("readDescribing", () => {
-  it("writes the seed into an empty folder and returns it", () => {
+  it("reads the describer's published model and core's defaults from an empty folder and writes nothing", () => {
     const directory = makeTempDir("recognizer-settings-");
+    const result = read(directory);
 
-    expect(readDescribing(ioFor(directory))).toEqual({
-      model: "haiku",
-      batch_size: 4,
-      confirm_above_usd: 5,
-    });
-    expect(JSON.parse(readFileSync(configIn(directory), "utf8"))).toEqual({
-      describing: { model: "haiku", batch_size: 4, confirm_above_usd: 5 },
-    });
+    expect(result.model).toBe("fake-default");
+    expect(result.batch_size).toBe(batch.default);
+    expect(result.confirm_above_usd).toBe(spend.default);
+    expect(result.prices?.opus).toEqual({ input: 4, output: 20 });
+    expect(existsSync(configIn(directory))).toBe(false);
     expect(existsSync(`${configIn(directory)}.tmp`)).toBe(false);
-  });
-
-  it("adds the seed to a file holding other keys and keeps them", () => {
-    const directory = makeTempDir("recognizer-settings-");
-
-    writeFileSync(
-      configIn(directory),
-      JSON.stringify({ editor: "code", unknown: [1, 2] }),
-    );
-    readDescribing(ioFor(directory));
-
-    expect(JSON.parse(readFileSync(configIn(directory), "utf8"))).toEqual({
-      editor: "code",
-      unknown: [1, 2],
-      describing: { model: "haiku", batch_size: 4, confirm_above_usd: 5 },
-    });
   });
 
   it("returns what the file holds without rewriting it", () => {
@@ -77,15 +81,15 @@ describe("readDescribing", () => {
 
     writeFileSync(configIn(directory), text);
 
-    expect(readDescribing(ioFor(directory))).toEqual({
+    expect(read(directory)).toMatchObject({
       model: "opus",
       batch_size: 8,
-      confirm_above_usd: 5,
+      confirm_above_usd: spend.default,
     });
     expect(readFileSync(configIn(directory), "utf8")).toBe(text);
   });
 
-  it("keeps an existing sonnet model and reads a missing threshold as 5", () => {
+  it("keeps a stored model and reads a missing threshold as core's default", () => {
     const directory = makeTempDir("recognizer-settings-");
 
     writeFileSync(
@@ -93,11 +97,24 @@ describe("readDescribing", () => {
       JSON.stringify({ describing: { model: "sonnet", batch_size: 2 } }),
     );
 
-    expect(readDescribing(ioFor(directory))).toEqual({
+    expect(read(directory)).toMatchObject({
       model: "sonnet",
       batch_size: 2,
-      confirm_above_usd: 5,
+      confirm_above_usd: spend.default,
     });
+  });
+
+  it("fails naming describing.model when nothing stores a model and the describer publishes none", () => {
+    const directory = makeTempDir("recognizer-settings-");
+
+    expect(() => read(directory, BARE)).toThrow(/describing\.model/);
+
+    writeFileSync(
+      configIn(directory),
+      JSON.stringify({ describing: { model: "opus" } }),
+    );
+
+    expect(read(directory, BARE).model).toBe("opus");
   });
 
   it.each([0, 10000, 0.5])("accepts a threshold of %s", (amount) => {
@@ -114,7 +131,7 @@ describe("readDescribing", () => {
       }),
     );
 
-    expect(readDescribing(ioFor(directory)).confirm_above_usd).toBe(amount);
+    expect(read(directory).confirm_above_usd).toBe(amount);
   });
 
   it.each([
@@ -144,9 +161,7 @@ describe("readDescribing", () => {
 
     writeFileSync(configIn(directory), JSON.stringify({ describing }));
 
-    expect(() => readDescribing(ioFor(directory))).toThrow(
-      new RegExp(`describing\\.${key}`),
-    );
+    expect(() => read(directory)).toThrow(new RegExp(`describing\\.${key}`));
   });
 
   it("rejects a describing that is not an object and a file that is not JSON", () => {
@@ -154,21 +169,10 @@ describe("readDescribing", () => {
 
     writeFileSync(configIn(directory), JSON.stringify({ describing: 3 }));
 
-    expect(() => readDescribing(ioFor(directory))).toThrow(/describing/);
+    expect(() => read(directory)).toThrow(/describing/);
 
     writeFileSync(configIn(directory), "not json");
 
-    expect(() => readDescribing(ioFor(directory))).toThrow(/not valid JSON/);
-  });
-
-  it("equals the shared seed fixture", () => {
-    expect(
-      JSON.parse(
-        readFileSync(
-          join(REPO, "fixtures/settings/describing-defaults.json"),
-          "utf8",
-        ),
-      ),
-    ).toEqual(DESCRIBING_DEFAULTS);
+    expect(() => read(directory)).toThrow(/not valid JSON/);
   });
 });

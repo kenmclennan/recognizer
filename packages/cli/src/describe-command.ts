@@ -126,12 +126,17 @@ function runCheck(loaded: Loaded, io: Io): number {
 async function runDescribe(loaded: Loaded, io: Io): Promise<number> {
   let projection: DescribeProjection | null = null;
 
-  const { model, batch_size: batchSize } = readDescribing(io);
+  const {
+    model,
+    batch_size: batchSize,
+    prices,
+  } = readDescribing(io, loaded.describer, loaded.root);
 
   const result = await describingFor(io).describeRecorded({
     root: loaded.root,
     model,
     batchSize,
+    ...(prices === undefined ? {} : { prices }),
     repository: loaded.repository,
     describer: loaded.describer,
     selection: loaded.all

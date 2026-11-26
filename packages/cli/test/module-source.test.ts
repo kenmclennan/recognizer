@@ -46,6 +46,7 @@ function repository(): string {
   const command = [
     "node",
     FAKE,
+    "run",
     "{repository}",
     "--copy",
     `${root}/.recognizer/request.json`,

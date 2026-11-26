@@ -1,4 +1,7 @@
-import { projectDescribe } from "../../domain/describing/describe-projection.js";
+import {
+  type Prices,
+  projectDescribe,
+} from "../../domain/describing/describe-projection.js";
 import { DescribeRequest } from "../../domain/describing/describe-request.js";
 import {
   DescribeRun,
@@ -31,6 +34,7 @@ export interface DescribeModulesRequest {
   selection: DescribeSelection;
   model: string;
   batchSize: number;
+  prices?: Prices;
   confirm?: (projection: DescribeProjection) => Promise<boolean>;
   onProjection?: (projection: DescribeProjection) => void;
   onStart?: (total: number) => void;
@@ -161,6 +165,7 @@ export async function describeModules(
         .filter((subject) => subject.hash !== null)
         .map((subject) => describer.requestDocument(requestOf(subject))),
       request.model,
+      request.prices,
     );
 
     request.onProjection?.(projection);

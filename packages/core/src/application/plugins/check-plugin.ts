@@ -15,6 +15,7 @@ import {
   type ManifestRun,
   type PlaceholderDeclaration,
   placeholderPattern,
+  publishedModel,
 } from "../../domain/plugins/manifest.js";
 import { sentenceProblems } from "../../domain/plugins/sentence.js";
 import type { PluginPorts } from "./internal/plugin-ports.js";
@@ -555,6 +556,16 @@ function makeWorkspace(
   return { repository, commit: head.stdout.trim(), output, cleanup };
 }
 
+const NO_MODEL_REASON = "the manifest publishes no model default to check with";
+
+function lacksModel(manifest: Manifest, request: string | undefined): boolean {
+  return (
+    manifest.kind === "describer" &&
+    request !== undefined &&
+    publishedModel(manifest.settings) === null
+  );
+}
+
 function runArguments(
   manifest: Manifest,
   workspace: Workspace,
@@ -584,7 +595,11 @@ function runArguments(
     ];
   }
 
-  return request === undefined ? null : ["run", "--model", "haiku", request];
+  const model = publishedModel(manifest.settings);
+
+  return request === undefined || model === null
+    ? null
+    : ["run", "--model", model, request];
 }
 
 function validateDocument(
@@ -693,6 +708,13 @@ export function runVerb(
 ): { facts: RunFacts; checked: PluginCheckResult } {
   const outputFile = joinPath(workspace.output, "document.json");
   const args = runArguments(manifest, workspace, outputFile, options.request);
+
+  if (lacksModel(manifest, options.request)) {
+    return {
+      facts: { ran: false, result: null, output: outputFile },
+      checked: fail("run-verb", NO_MODEL_REASON),
+    };
+  }
 
   if (args === null) {
     return {
@@ -856,6 +878,10 @@ export async function stopResult(
 ): Promise<PluginCheckResult> {
   const outputFile = joinPath(workspace.output, "stop.json");
   const args = runArguments(manifest, workspace, outputFile, options.request);
+
+  if (lacksModel(manifest, options.request)) {
+    return fail("stop", NO_MODEL_REASON);
+  }
 
   if (args === null) {
     return result("stop", "warn", "not run: pass --request");

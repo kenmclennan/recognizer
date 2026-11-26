@@ -302,7 +302,7 @@ describe.skipIf(webkit === undefined)("the settings modal", () => {
       "Batch size",
       "Ask before spending over",
     ]);
-    expect(f.describing.values).toEqual(["haiku", "4", "5"]);
+    expect(f.describing.values).toEqual(["fake-model", "3", "7"]);
     expect(f.describing.units).toEqual(["files at a time", "USD"]);
   });
 

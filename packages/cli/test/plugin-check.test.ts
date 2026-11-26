@@ -335,6 +335,31 @@ describe("recognizer plugin check", () => {
     ).toMatchObject({ name: "stop", status: "fail" });
   });
 
+  it("fails the stop check of a describer whose manifest publishes no model", async () => {
+    const io = { exists: () => false } as unknown as Io;
+    const manifest = {
+      kind: "describer",
+      name: "d",
+      settings: [],
+    } as unknown as Manifest;
+    const workspace = {
+      repository: "r",
+      commit: "abc",
+      output: "o",
+      cleanup: () => {},
+    };
+
+    expect(
+      await stopResult(io, "d", manifest, workspace, {
+        request: "request.json",
+      }),
+    ).toEqual({
+      name: "stop",
+      status: "fail",
+      reason: "the manifest publishes no model default to check with",
+    });
+  });
+
   it("warns on run-verb and stop for a describer run without --request", async () => {
     const report = await pluginCheck(
       capture().io,

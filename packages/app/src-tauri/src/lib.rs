@@ -443,31 +443,57 @@ fn settings_check(core: CoreClient) -> impl Fn(&settings::Settings) -> Result<()
             None,
             "settings.validate",
             serde_json::json!({
-                "describing": {
-                    "model": settings.describing.model,
-                    "batch_size": settings.describing.batch_size,
-                    "confirm_above_usd": settings.describing.confirm_above_usd,
-                },
+                "describing": settings::describing_json(&settings.describing),
                 "setup": { "model": settings.setup.model },
             }),
         )?;
 
-        match reply.pointer("/ok/problem") {
-            Some(serde_json::Value::Null) => Ok(()),
-            Some(serde_json::Value::String(problem)) => Err(problem.clone()),
-            _ => Err(["/unavailable/hint", "/unavailable/reason", "/error"]
-                .iter()
-                .find_map(|pointer| reply.pointer(pointer).and_then(serde_json::Value::as_str))
-                .unwrap_or("the service could not check the settings")
-                .to_string()),
-        }
+        service_problem(&reply).map(|_| ())
     }
+}
+
+fn service_problem(reply: &serde_json::Value) -> Result<&serde_json::Value, String> {
+    match reply.pointer("/ok/problem") {
+        Some(serde_json::Value::Null) => Ok(reply),
+        Some(serde_json::Value::String(problem)) => Err(problem.clone()),
+        _ => Err(["/unavailable/hint", "/unavailable/reason", "/error"]
+            .iter()
+            .find_map(|pointer| reply.pointer(pointer).and_then(serde_json::Value::as_str))
+            .unwrap_or("the service could not check the settings")
+            .to_string()),
+    }
+}
+
+fn read_with(
+    core: &CoreClient,
+    config: &Path,
+    with_model_default: bool,
+) -> Result<settings::Settings, String> {
+    let stored = settings::read(config)?;
+    let reply = core.call(
+        "settings",
+        None,
+        "settings.values",
+        serde_json::json!({
+            "describing": stored.describing,
+            "setup": stored.setup,
+            "with_model_default": with_model_default,
+        }),
+    )?;
+    let reply = service_problem(&reply)?;
+
+    settings::from_values(
+        stored.editor,
+        reply
+            .pointer("/ok/values")
+            .unwrap_or(&serde_json::Value::Null),
+    )
 }
 
 fn read_checked(app: &AppHandle) -> Result<settings::Settings, String> {
     let core = app.state::<CoreClient>().inner().clone();
 
-    settings::read(&config_file(app)?, &settings_check(core))
+    read_with(&core, &config_file(app)?, false)
 }
 
 fn launch_in_editor(app: &AppHandle, target: &Path, line: Option<u32>) -> Result<(), String> {
@@ -901,9 +927,7 @@ async fn core_call(
 
     tauri::async_runtime::spawn_blocking(move || {
         if op == "setup.start" {
-            let model = settings::read(&config, &settings_check(core.clone()))?
-                .setup
-                .model;
+            let model = read_with(&core, &config, false)?.setup.model;
 
             core.call_setup(&label, folder.as_deref(), args, setup_environment(), &model)
         } else {
@@ -978,14 +1002,21 @@ fn write_scan_ticks(
 
 #[tauri::command]
 fn read_settings(app: AppHandle) -> Result<settings::Settings, String> {
-    read_checked(&app)
+    let core = app.state::<CoreClient>().inner().clone();
+
+    read_with(&core, &config_file(&app)?, true)
 }
 
 #[tauri::command]
 fn write_settings(app: AppHandle, settings: settings::Settings) -> Result<(), String> {
+    let core = app.state::<CoreClient>().inner().clone();
+    let config = config_file(&app)?;
+    let baseline = read_with(&core, &config, true)?;
+
     settings::save(
-        &config_file(&app)?,
+        &config,
         &settings,
+        &baseline,
         &settings_check(app.state::<CoreClient>().inner().clone()),
     )?;
 
@@ -996,7 +1027,7 @@ fn write_settings(app: AppHandle, settings: settings::Settings) -> Result<(), St
 
 #[tauri::command]
 fn read_describing(app: AppHandle) -> Result<settings::Describing, String> {
-    Ok(read_checked(&app)?.describing)
+    Ok(read_settings(app)?.describing)
 }
 
 #[tauri::command]
@@ -1407,7 +1438,6 @@ pub fn run() {
         .setup(move |app| {
             let handle = app.handle().clone();
 
-            settings::seed(&config_file(&handle)?)?;
             app.manage(WindowState::default());
             app.manage(CoreClient::new(
                 core_client::runner_launcher(tool_runner::runner(), repository::RECOGNIZER_COMMAND),

@@ -67,6 +67,7 @@ function configure(root: string, ...flags: string[]): void {
   const command = [
     "node",
     FAKE,
+    "run",
     "{repository}",
     ...flags,
     "--model",
@@ -433,7 +434,7 @@ describe("the model marks lines out of date", () => {
 
     writeFileSync(
       join(root, ".recognizer/config.yaml"),
-      `describer:\n  command: ["node", ${JSON.stringify(FAKE)}, "{repository}", "{request}"]\n  version: "v1"\n`,
+      `describer:\n  command: ["node", ${JSON.stringify(FAKE)}, "run", "{repository}", "{request}"]\n  version: "v1"\n`,
     );
     await run(["describe", "--all", "--repository", root], capture().io);
     useDescribing("opus", 4);

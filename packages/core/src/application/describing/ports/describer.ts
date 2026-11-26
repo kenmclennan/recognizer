@@ -1,3 +1,4 @@
+import type { Prices } from "../../../domain/describing/describe-projection.js";
 import type { DescribeRequest } from "../../../domain/describing/describe-request.js";
 import type { RunEntry } from "../../../domain/run-record.js";
 import type { PluginProgress } from "../../../domain/scan-event.js";
@@ -46,7 +47,14 @@ export interface Describer {
     args: string[],
     cwd: string,
   ): { started: boolean; status: number | null };
-  settings(): { model: string; batchSize: number };
+  settings(
+    describer: DescriberRef,
+    root: string,
+  ): {
+    model: string;
+    batchSize: number;
+    prices: Prices | undefined;
+  };
   readSource(root: string, path: string): { text: string; hash: string } | null;
   requestDocument(request: DescribeRequest): unknown;
   open(root: string, say: Say): DescribeSession;

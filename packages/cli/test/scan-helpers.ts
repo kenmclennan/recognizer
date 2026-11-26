@@ -339,6 +339,15 @@ export function fakeIo(options: FakeOptions = {}): Fake {
       };
     }
 
+    if (command === "describer" && args.at(-1) === "manifest") {
+      return {
+        started: true,
+        status: 0,
+        stdout: describerManifestText("v1"),
+        stderr: "",
+      };
+    }
+
     if (command === "git" && args.includes("ls-files")) {
       if (options.listing) {
         return {

@@ -175,9 +175,10 @@ export function* scanFlow(
       command,
       ...(manifest === undefined ? {} : { manifest }),
     }));
-    const describing: DescribingSettings | null = describeOn
-      ? phases.describingSettings()
-      : null;
+    const describing: DescribingSettings | null =
+      describeOn && located.describer !== null
+        ? phases.describingSettings(located.describer, root)
+        : null;
 
     const refuse = (gaps: Gap[]): ScanOutcome => {
       const reason = `preflight found ${gaps.length} ${gaps.length === 1 ? "gap" : "gaps"}`;

@@ -67,6 +67,7 @@ import { clearPlugin, readPluginResults } from "./results-ops.js";
 import { type ScopeFiles, writeScopeFiles } from "./scan-files.js";
 import { sensorWork } from "./sensor-work.js";
 import { settingsPanesReply } from "./settings-panes.js";
+import { settingsValuesReply } from "./settings-values.js";
 import {
   parseSetup,
   runSetupAction,
@@ -246,6 +247,10 @@ export class Service {
             setup: args.setup,
           }),
         });
+
+        return;
+      case "settings.values":
+        reply(settingsValuesReply(this.shared, args));
 
         return;
       case "config.keys":

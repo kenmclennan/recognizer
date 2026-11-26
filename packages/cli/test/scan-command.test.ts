@@ -688,6 +688,8 @@ describe("recognizer scan: phases", () => {
     'sensors:\n  first:\n    command: [first-sensor, "{commit}", "{output}"]\n  second:\n    command: [second-sensor, "{commit}", "{output}"]\n';
   const DESCRIBER =
     'describer:\n  command: [describer, "{module}"]\n  version: "v1"\n';
+  const DESCRIBER_PRICED =
+    'describer:\n  command: [describer, run, "{module}"]\n  version: "v1"\n';
 
   function current(changes: Record<string, unknown> = {}): string {
     return scanJson(2, 1, {
@@ -921,7 +923,7 @@ describe("recognizer scan: phases", () => {
 
   it("runs extract, describe and sense in that order and records them", async () => {
     const { out, fake, code } = await scan(
-      setup({}, { [CONFIG]: `${DESCRIBER}${SENSORS}` }),
+      setup({}, { [CONFIG]: `${DESCRIBER_PRICED}${SENSORS}` }),
       "--describe",
       "--sense",
       "all",
@@ -1060,7 +1062,7 @@ describe("recognizer scan: phases", () => {
 
   it("prints the projection as the first line after the describe heading", async () => {
     const { out } = await scan(
-      setup({}, { [CONFIG]: DESCRIBER }),
+      setup({}, { [CONFIG]: DESCRIBER_PRICED }),
       "--describe",
     );
     const rows = out.split("\n");
@@ -1082,7 +1084,7 @@ describe("recognizer scan: phases", () => {
       described: number;
     }> => {
       const reads = { count: 0 };
-      const options = setup({}, { [CONFIG]: DESCRIBER });
+      const options = setup({}, { [CONFIG]: DESCRIBER_PRICED });
       const { out } = await scan(
         { ...options, lines: [...answers], linesRead: reads },
         "--describe",

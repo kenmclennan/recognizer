@@ -195,6 +195,16 @@ const MACHINE: Setting[] = [
   },
 ];
 
+export function machineSetting(key: string): Setting {
+  const found = MACHINE.find((one) => one.key === key);
+
+  if (found === undefined) {
+    throw new Error(`no machine setting ${key}`);
+  }
+
+  return found;
+}
+
 export const CORE_PANES: CorePane[] = [
   {
     id: "editor",

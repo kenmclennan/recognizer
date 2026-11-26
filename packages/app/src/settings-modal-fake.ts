@@ -42,10 +42,10 @@ export type FakeSettingsModal = SettingsModalPort & {
 
 export const DEFAULT_SETTINGS: Settings = {
   values: {
-    "describing.model": "haiku",
-    "describing.batch_size": "4",
-    "describing.confirm_above_usd": "5",
-    "setup.model": "sonnet",
+    "describing.model": "fake-model",
+    "describing.batch_size": "3",
+    "describing.confirm_above_usd": "7",
+    "setup.model": "fake-setup-model",
   },
 };
 
