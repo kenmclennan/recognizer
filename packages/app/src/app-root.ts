@@ -248,7 +248,6 @@ export function composeApp(view: AppView): App {
   awakeClock.start();
 
   const rescanner = createRescanner<Carried>({
-    awake: () => awakeClock.now(),
     port: scanSource,
     snapshot: {
       run: () => repositoryState.current()?.run ?? null,

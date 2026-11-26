@@ -167,6 +167,7 @@ export class Service {
         policy: ports.policy,
         baseline: new BaselineTextAdapter(this.shared),
         currentTests: new CurrentTestsAdapter(this.shared),
+        clock: new ClockAdapter(this.shared),
       }),
       (message) => this.write(message),
       () => this.nextId("r"),

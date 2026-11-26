@@ -85,9 +85,9 @@ function countedOf(progress: RunProgress, language: string): Counted | null {
     };
   }
 
-  const total = progress.timing.extractTotals[language];
+  const total = progress.extractRuns[language]?.total ?? null;
 
-  return total === undefined ? null : { done: 0, total };
+  return total === null ? null : { done: 0, total };
 }
 
 function rowOf(
@@ -95,7 +95,6 @@ function rowOf(
   language: string,
   running: string | null,
 ): OpenRow {
-  const { timing } = progress;
   const entry = progress.extractEntries.find((one) => one.name === language);
   const name = capitalised(language);
   const base = { key: language, name, logLink: false };
@@ -110,14 +109,11 @@ function rowOf(
   }
 
   if (entry?.outcome === "ok") {
-    const total = timing.extractTotals[language];
-    const began = timing.extractAt[language];
-    const ended = timing.extractDoneAt[language];
-    const files = total === undefined ? null : `${grouped(total)} files`;
+    const { total = null, durationMs = null } =
+      progress.extractRuns[language] ?? {};
+    const files = total === null ? null : `${grouped(total)} files`;
     const seconds =
-      began === undefined || ended === undefined
-        ? null
-        : `${Math.max(0, Math.round((ended - began) / 1000))}s`;
+      durationMs === null ? null : `${Math.round(durationMs / 1000)}s`;
 
     return {
       ...base,
@@ -146,7 +142,7 @@ function runningOf(progress: RunProgress, languages: string[]): string | null {
   return (
     languages.find(
       (language) =>
-        language in progress.timing.extractAt &&
+        language in progress.extractRuns &&
         !progress.extractEntries.some((entry) => entry.name === language),
     ) ?? null
   );

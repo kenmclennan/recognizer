@@ -34,7 +34,10 @@ function begun(record: RunRecord): Run {
   });
 }
 
-export function fakeRunSnapshot(feed?: RunFeed): FakeRunSnapshot {
+export function fakeRunSnapshot(
+  feed?: RunFeed,
+  awake: () => number | null = () => null,
+): FakeRunSnapshot {
   let held: RunView | null = null;
   let run: Run | null = null;
   const handlers = new Set<(run: RunView | null) => void>();
@@ -58,14 +61,17 @@ export function fakeRunSnapshot(feed?: RunFeed): FakeRunSnapshot {
         (report.phase ?? "sense") === "sense" &&
         run.plugin(report.name).state === "queued"
       ) {
-        run = run.apply({
-          kind: "plugin-started",
-          name: report.name,
-          progress: null,
-        });
+        run = run.apply(
+          {
+            kind: "plugin-started",
+            name: report.name,
+            progress: null,
+          },
+          awake(),
+        );
       }
 
-      run = run.apply(report);
+      run = run.apply(report, awake());
     } catch (error) {
       if (!(error instanceof InvalidEntity)) {
         throw error;

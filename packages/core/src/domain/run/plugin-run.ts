@@ -44,6 +44,7 @@ export interface PluginRunView {
   estimateMs: number | null;
   failure: PluginFailure | null;
   tally: PluginTally | null;
+  durationMs: number | null;
 }
 
 export class PluginRun {
@@ -56,6 +57,8 @@ export class PluginRun {
     readonly failure: PluginFailure | null = null,
     readonly phase: PluginPhase = "sense",
     readonly tally: PluginTally | null = null,
+    readonly startedAt: number | null = null,
+    readonly endedAt: number | null = null,
   ) {}
 
   private next(changes: {
@@ -65,6 +68,8 @@ export class PluginRun {
     estimateMs?: number | null;
     failure?: PluginFailure | null;
     tally?: PluginTally | null;
+    startedAt?: number | null;
+    endedAt?: number | null;
   }): PluginRun {
     return new PluginRun(
       this.name,
@@ -75,6 +80,8 @@ export class PluginRun {
       changes.failure === undefined ? this.failure : changes.failure,
       this.phase,
       changes.tally === undefined ? this.tally : changes.tally,
+      changes.startedAt === undefined ? this.startedAt : changes.startedAt,
+      changes.endedAt === undefined ? this.endedAt : changes.endedAt,
     );
   }
 
@@ -111,7 +118,7 @@ export class PluginRun {
     );
   }
 
-  started(progress: Progress | null): PluginRun {
+  started(progress: Progress | null, at: number | null = null): PluginRun {
     if (this.state !== "queued") {
       throw new InvalidEntity(
         "PluginRun",
@@ -125,6 +132,7 @@ export class PluginRun {
       progress,
       stage: null,
       estimateMs: null,
+      startedAt: at,
     });
   }
 
@@ -208,7 +216,17 @@ export class PluginRun {
     });
   }
 
-  end(state: PluginRunEnd, failure?: PluginFailure): PluginRun {
+  get durationMs(): number | null {
+    return this.startedAt === null || this.endedAt === null
+      ? null
+      : Math.max(0, this.endedAt - this.startedAt);
+  }
+
+  end(
+    state: PluginRunEnd,
+    failure?: PluginFailure,
+    at: number | null = null,
+  ): PluginRun {
     if (this.ended) {
       throw new InvalidEntity(
         "PluginRun",
@@ -233,7 +251,12 @@ export class PluginRun {
       );
     }
 
-    return this.next({ state, estimateMs: null, failure: failure ?? null });
+    return this.next({
+      state,
+      estimateMs: null,
+      failure: failure ?? null,
+      endedAt: at,
+    });
   }
 
   view(): PluginRunView {
@@ -246,6 +269,7 @@ export class PluginRun {
       estimateMs: this.estimateMs,
       failure: this.failure,
       tally: this.tally,
+      durationMs: this.durationMs,
     };
   }
 }

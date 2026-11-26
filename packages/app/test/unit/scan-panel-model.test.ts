@@ -1789,6 +1789,7 @@ function runFrom(one: ScanRunRecord): RunView {
       estimateMs: null,
       failure: null,
       tally: null,
+      durationMs: null,
     })),
     confirmation: null,
     describeHalt: null,

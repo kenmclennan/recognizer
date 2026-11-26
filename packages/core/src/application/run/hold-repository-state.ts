@@ -30,6 +30,7 @@ import {
 import type { RunLogRepository } from "../../domain/run-log-repository.js";
 import type { StructureRepository } from "../../domain/structure-repository.js";
 import type { InstalledRead } from "../plugins/installed-sensors.js";
+import type { Clock } from "../shared/ports/clock.js";
 import type { BaselineText, CurrentTests } from "./ports/current-tests.js";
 import { workOutFreshness } from "./work-out-freshness.js";
 
@@ -49,6 +50,7 @@ export interface RepositoryStateDependencies {
   policy: PolicyRepository;
   baseline: BaselineText;
   currentTests: CurrentTests;
+  clock: Clock;
 }
 
 export type StateListener = (state: RepositoryState) => void;
@@ -227,7 +229,7 @@ export class RepositoryStateHolder {
     }
 
     try {
-      this.run = this.run.apply(report);
+      this.run = this.run.apply(report, this.deps.clock.awake());
 
       if (report.kind === "plugin-result") {
         this.results = this.results.reported(
@@ -254,7 +256,7 @@ export class RepositoryStateHolder {
 
     if (read.kind === "killed") {
       this.killedRunning = this.run.running();
-      this.run = this.run.stopped(record.endedAt);
+      this.run = this.run.stopped(record.endedAt, this.deps.clock.awake());
 
       return;
     }

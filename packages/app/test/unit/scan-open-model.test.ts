@@ -7,17 +7,12 @@ import {
 import {
   NO_OVERLAY,
   NO_PROGRESS,
-  NO_TIMING,
   progressOfRun,
   type RunProgress,
 } from "../../src/scan-progress";
 
 function progress(over: Partial<RunProgress> = {}): RunProgress {
   return { ...NO_PROGRESS, ...over };
-}
-
-function timing(over: Partial<RunProgress["timing"]>): RunProgress["timing"] {
-  return { ...NO_PROGRESS.timing, ...over };
 }
 
 function shown(
@@ -41,7 +36,7 @@ function shown(
   return model;
 }
 
-function running(done: number, total: number, began = 0): RunProgress {
+function running(done: number, total: number): RunProgress {
   return progress({
     extract: "run",
     languages: ["python", "rust"],
@@ -50,10 +45,7 @@ function running(done: number, total: number, began = 0): RunProgress {
       phase: "extract",
       progress: { done, total, unit: "files" },
     },
-    timing: timing({
-      extractAt: { python: began },
-      extractTotals: { python: total },
-    }),
+    extractRuns: { python: { total, durationMs: null } },
   });
 }
 
@@ -97,7 +89,7 @@ describe("the open progress model", () => {
         choices: { sensors: ["crap"], describe: false, suites: {} },
       }),
     );
-    const model = shown(progressOfRun(run.view(), NO_TIMING, NO_OVERLAY), 0);
+    const model = shown(progressOfRun(run.view(), NO_OVERLAY), 0);
 
     expect(model.stage).toBe("Finishing the scan");
     expect(model.bar).toEqual({ kind: "determinate", fraction: 1 });
@@ -111,7 +103,7 @@ describe("the open progress model", () => {
     const scan = progress({
       languages: ["python"],
       sensorProgress: { name: "python", phase: "extract" },
-      timing: timing({ extractAt: { python: 0 } }),
+      extractRuns: { python: { total: null, durationMs: null } },
     });
 
     expect(shown(scan, 1000).bar).toEqual({ kind: "indeterminate" });
@@ -181,7 +173,7 @@ describe("the open progress model", () => {
   });
 
   it("counts only the awake time handed in, across a large gap", () => {
-    const scan = running(100, 1000, 1000);
+    const scan = running(100, 1000);
 
     expect(shown(scan, 6000, 1000).elapsed).toBe("0:05");
     expect(shown(scan, 4_000_000, 1000).elapsed).toBe("66:39");
@@ -212,11 +204,11 @@ describe("the open progress model", () => {
         phase: "extract",
         progress: { done: 90, total: 214, unit: "files" },
       },
-      timing: timing({
-        extractAt: { typescript: 1000, python: 7000, rust: 8000 },
-        extractDoneAt: { typescript: 7000, python: 8000 },
-        extractTotals: { typescript: 812, python: 3812, rust: 214 },
-      }),
+      extractRuns: {
+        typescript: { total: 812, durationMs: 6000 },
+        python: { total: 3812, durationMs: 1000 },
+        rust: { total: 214, durationMs: null },
+      },
     });
     const rows = shown(scan, 9000).rows;
 
@@ -244,10 +236,7 @@ describe("the open progress model", () => {
     const scan = progress({
       languages: ["python", "rust"],
       sensorProgress: { name: "python", phase: "extract" },
-      timing: timing({
-        extractAt: { python: 0 },
-        extractTotals: { python: 5 },
-      }),
+      extractRuns: { python: { total: 5, durationMs: null } },
     });
     const rows = shown(scan, 1000).rows;
 
@@ -261,10 +250,7 @@ describe("the open progress model", () => {
       extractEntries: [
         { name: "python", outcome: "ok", reason: null, diagnosis: null },
       ],
-      timing: timing({
-        extractAt: { python: 0 },
-        extractDoneAt: { python: 4000 },
-      }),
+      extractRuns: { python: { total: null, durationMs: 4000 } },
     });
 
     expect(shown(scan, 5000).rows[0]?.text).toBe("4s");

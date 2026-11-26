@@ -216,6 +216,7 @@ export function repositoryStateDependenciesOf(
     policy: fakes.policy,
     baseline: fakes.baseline,
     currentTests: fakes.currentTests,
+    clock: fakes.clock,
   };
 }
 

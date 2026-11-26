@@ -391,6 +391,36 @@ function item(name: string, ok: boolean): RunReport {
   };
 }
 
+describe("a plugin run's duration", () => {
+  it("is_the_awake_time_between_its_start_and_its_end", () => {
+    const run = begun()
+      .apply({ kind: "plugin-started", name: "tally", progress: null }, 100)
+      .apply(
+        { kind: "plugin-progress", name: "tally", progress: PROGRESS },
+        400,
+      )
+      .apply({ kind: "plugin-ended", name: "tally", state: "finished" }, 900);
+
+    expect(run.view().plugins[0]?.durationMs).toBe(800);
+    expect(run.view().plugins[1]?.durationMs).toBeNull();
+  });
+
+  it("is_none_while_running_and_for_a_plugin_that_never_started", () => {
+    const started = begun().apply(
+      { kind: "plugin-started", name: "tally", progress: null },
+      100,
+    );
+
+    expect(started.view().plugins[0]?.durationMs).toBeNull();
+    expect(
+      started
+        .stopped(null, 500)
+        .view()
+        .plugins.map((one) => one.durationMs),
+    ).toEqual([400, null]);
+  });
+});
+
 describe("run extract and describe", () => {
   it("extract_planned_inserts_the_languages_at_the_head_in_order", () => {
     expect(

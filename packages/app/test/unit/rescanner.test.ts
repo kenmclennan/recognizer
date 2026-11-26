@@ -2122,15 +2122,14 @@ describe("the preflight flow", () => {
     expect(made.rescanner.runView().run?.id).toBe("new");
   });
 
-  it("scan start and elapsed use the awake clock", async () => {
+  it("scan start holds the wall time the scan began at while the clock moves on", async () => {
     let wall = 1_000_000;
-    const awake = 500;
     const scan = fakeScan({
       records: false,
       defaults: { describe: false, sensors: true },
       steps: [preflightOk, extract, current, summary],
     });
-    const made = harness(scan, { now: () => wall, awake: () => awake });
+    const made = harness(scan, { now: () => wall });
     const seen: { at: number | undefined }[] = [];
 
     made.scan.onStep = () => {
@@ -2641,11 +2640,7 @@ describe("one fold of the run record", () => {
       const own = await viaWindow(name);
       const other = await viaCommandLine(name);
       const progressOf = (made: typeof own) => {
-        const {
-          sensing: _sensing,
-          timing: _timing,
-          ...rest
-        } = made.rescanner.progress();
+        const { sensing: _sensing, ...rest } = made.rescanner.progress();
 
         return rest;
       };
@@ -3485,9 +3480,12 @@ describe("attaching to a scan still running from before", () => {
 describe("the opening scan's timing from the snapshot", () => {
   const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-  it("stamps a language's start, total and end on the awake clock when the snapshot first shows them", async () => {
+  it("shows a language's total and the awake duration core recorded for its run", async () => {
     let clock = 1000;
-    const made = harness(fakeScan(), { awake: () => clock });
+    const scan = fakeScan();
+    const made = harness(scan, {
+      snapshot: fakeRunSnapshot(scan, () => clock),
+    });
     const cli = record({ run_id: "timed", describe: false, sensors: [] });
 
     made.scan.emitRun({ kind: "run", run: cli });
@@ -3495,7 +3493,7 @@ describe("the opening scan's timing from the snapshot", () => {
     made.scan.emitReport({ kind: "extract-planned", languages: ["python"] });
     await flush();
 
-    expect(made.rescanner.progress().timing.extractAt).toEqual({});
+    expect(made.rescanner.progress().extractRuns).toEqual({});
 
     clock = 2000;
     made.scan.emitReport({
@@ -3515,10 +3513,8 @@ describe("the opening scan's timing from the snapshot", () => {
     });
     await flush();
 
-    expect(made.rescanner.progress().timing).toEqual({
-      extractAt: { python: 2000 },
-      extractDoneAt: {},
-      extractTotals: { python: 40 },
+    expect(made.rescanner.progress().extractRuns).toEqual({
+      python: { total: 40, durationMs: null },
     });
 
     clock = 9000;
@@ -3530,8 +3526,8 @@ describe("the opening scan's timing from the snapshot", () => {
     });
     await flush();
 
-    expect(made.rescanner.progress().timing.extractDoneAt).toEqual({
-      python: 9000,
+    expect(made.rescanner.progress().extractRuns).toEqual({
+      python: { total: 40, durationMs: 7000 },
     });
   });
 

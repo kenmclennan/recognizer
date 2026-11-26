@@ -12,7 +12,6 @@ const facts = {};
 const content = document.getElementById("content");
 const calls = { stop: 0, again: 0, log: 0 };
 const view = showOpen(content, { stop: () => { calls.stop += 1; }, again: () => { calls.again += 1; }, openLog: () => { calls.log += 1; } });
-const timing = (over) => ({ ...NO_PROGRESS.timing, ...over });
 const ok = (name) => ({ name, outcome: "ok", reason: null, diagnosis: null });
 const failed = (name) => ({ name, outcome: "failed", reason: "x", diagnosis: null });
 const model = (progress, now) => openProgressModel({ folder: "recognizer", progress: { ...NO_PROGRESS, ...progress }, startedAt: 0, now, stopped: false });
@@ -43,10 +42,10 @@ const read = () => {
 const show = (progress, now) => { view.render(model(progress, now)); return read(); };
 
 facts.starting = show({ extract: "run", languages: ["typescript", "python", "rust"] }, 1000);
-const early = { extract: "run", extractEstimateMs: 420000, languages: ["typescript", "python", "rust"], sensorProgress: { name: "typescript", phase: "extract", progress: { done: 280, total: 812, unit: "files" } }, timing: timing({ extractAt: { typescript: 0 }, extractTotals: { typescript: 812 } }) };
+const early = { extract: "run", extractEstimateMs: 420000, languages: ["typescript", "python", "rust"], sensorProgress: { name: "typescript", phase: "extract", progress: { done: 280, total: 812, unit: "files" } }, extractRuns: { typescript: { total: 812, durationMs: null } } };
 facts.early = show(early, 2000);
-facts.mid = show({ extract: "run", extractEstimateMs: 90000, languages: ["typescript", "python", "rust"], extractEntries: [ok("typescript")], sensorProgress: { name: "python", phase: "extract", progress: { done: 1240, total: 3812, unit: "files" } }, timing: timing({ extractAt: { typescript: 0, python: 6000 }, extractDoneAt: { typescript: 6000 }, extractTotals: { typescript: 812, python: 3812 } }) }, 19000);
-facts.failed = show({ extract: "run", languages: ["typescript", "python", "rust"], log: "abc", extractEntries: [ok("typescript"), failed("python")], sensorProgress: { name: "rust", phase: "extract", progress: { done: 90, total: 214, unit: "files" } }, timing: timing({ extractAt: { typescript: 0, python: 6000, rust: 8000 }, extractDoneAt: { typescript: 6000, python: 8000 }, extractTotals: { typescript: 812, python: 3812, rust: 214 } }) }, 10000);
+facts.mid = show({ extract: "run", extractEstimateMs: 90000, languages: ["typescript", "python", "rust"], extractEntries: [ok("typescript")], sensorProgress: { name: "python", phase: "extract", progress: { done: 1240, total: 3812, unit: "files" } }, extractRuns: { typescript: { total: 812, durationMs: 6000 }, python: { total: 3812, durationMs: null } } }, 19000);
+facts.failed = show({ extract: "run", languages: ["typescript", "python", "rust"], log: "abc", extractEntries: [ok("typescript"), failed("python")], sensorProgress: { name: "rust", phase: "extract", progress: { done: 90, total: 214, unit: "files" } }, extractRuns: { typescript: { total: 812, durationMs: 6000 }, python: { total: 3812, durationMs: 2000 }, rust: { total: 214, durationMs: null } } }, 10000);
 content.querySelector(".scan-log-link").click();
 content.querySelector(".fo-stop").click();
 facts.callsAfterRunning = { ...calls };
