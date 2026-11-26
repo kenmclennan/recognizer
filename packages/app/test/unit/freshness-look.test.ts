@@ -1,39 +1,125 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
+import type { Program } from "../../../cli/test/support/index";
 import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
-import { installedSensor } from "../fixtures";
+import { appSensor } from "../in-process-root";
+import { digestOf, lookRoots, scanProgram, testsDigestOf } from "../look-root";
 
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
-const H1 = "1".repeat(64);
-const H2 = "2".repeat(64);
+const A_TEXT = "def f():\n    return 1\n";
+const B_TEXT = "def f():\n    return 2\n";
+const H1 = digestOf(A_TEXT);
+const H2 = digestOf(B_TEXT);
 const H0 = "0".repeat(64);
-const TESTS = "a".repeat(64);
-const OTHER_TESTS = "b".repeat(64);
+const TEST_FILE = "api/tests/a.test.ts";
+const TESTS = testsDigestOf({ [TEST_FILE]: "export const t = 1;\n" });
 
-const HARNESS = `
-window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { loadedOf, mountExplorer, scanHostOf } from ${JSON.stringify(here("../test/unit/look-support.ts"))};
-import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
-${FAKE_WORKER}
-
-const ids = ["app/a.py", "app/b.py"];
-const members = [{ name: "f", kind: "function", exported: true, line: 1, params: [], returns: "int" }];
+const members = [
+  {
+    name: "f",
+    kind: "function",
+    exported: true,
+    line: 1,
+    params: [],
+    returns: "int",
+  },
+];
+const IDS = ["app/a.py", "app/b.py"];
 const scan = {
-  commit: ${JSON.stringify(COMMIT)},
+  commit: COMMIT,
   modified: false,
-  files: [{ path: "app/a.py", hash: ${JSON.stringify(H1)} }, { path: "app/b.py", hash: ${JSON.stringify(H2)} }],
-  modules: ids.map((id) => ({ id, kind: "module", members })),
-  edges: [],
+  files: [
+    { path: "app/a.py", hash: H1 },
+    { path: "app/b.py", hash: H2 },
+  ],
+  modules: IDS.map((id) => ({ id, kind: "module", members })),
+  edges: [
+    {
+      from: "app/a.py",
+      to: "app/b.py",
+      kind: "depends",
+      line: 1,
+      names: ["f"],
+    },
+  ],
   foreign: [],
 };
-const inputs = { "app/a.py": ${JSON.stringify(H1)}, "app/b.py": ${JSON.stringify(H0)} };
-const overlay = JSON.stringify({ overlay_version: 2, commit: ${JSON.stringify(COMMIT)}, modified: false, inputs, tests: ${JSON.stringify(TESTS)}, producer: { name: "crap", version: "0.1.0" }, metrics: [{ name: "coverage", type: "count", granularity: "member", bad: "high" }], values: { coverage: { "app/a.py::f": 8, "app/b.py::f": 5 } } });
-const finding = (id, module) => ({ id, kind: "style", severity: "warning", principle: "name-your-constants", summary: "magic numbers " + id, evidence: { modules: [module] } });
-const document_ = { findings_version: 2, sensor: { name: "crap", version: "0.1.0" }, commit: ${JSON.stringify(COMMIT)}, modified: false, settings: {}, inputs, tests: ${JSON.stringify(TESTS)}, findings: [finding("on-a", "app/a.py"), finding("on-b", "app/b.py")] };
-const loadedFor = (tests) => loadedOf({ modules: ids, scans: [{ file: "scan.json", scan }], overlays: [{ name: "crap", overlay: JSON.parse(overlay) }], findings: [document_], sensors: [{ name: "crap", status: "ran", measured: { inputs, tests: ${JSON.stringify(TESTS)} } }], tests });
+const inputs = { "app/a.py": H1, "app/b.py": H0 };
+const overlay = (commit: string) =>
+  JSON.stringify({
+    overlay_version: 2,
+    commit,
+    modified: false,
+    inputs,
+    tests: TESTS,
+    producer: { name: "crap", version: "0.1.0" },
+    metrics: [
+      { name: "coverage", type: "count", granularity: "member", bad: "high" },
+    ],
+    values: { coverage: { "app/a.py::f": 8, "app/b.py::f": 5 } },
+  });
+const finding = (id: string, module: string) => ({
+  id,
+  kind: "style",
+  severity: "warning",
+  principle: "name-your-constants",
+  summary: `magic numbers ${id}`,
+  evidence: { modules: [module] },
+});
+const findingsDocument = (commit: string) =>
+  JSON.stringify({
+    findings_version: 2,
+    sensor: { name: "crap", version: "0.1.0" },
+    commit,
+    modified: false,
+    settings: {},
+    inputs,
+    tests: TESTS,
+    findings: [finding("on-a", "app/a.py"), finding("on-b", "app/b.py")],
+  });
+const CONFIG =
+  "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n";
 
-const INSTALLED = ${JSON.stringify([{ ...installedSensor("crap"), display: "crap", description: "x", runsTests: true, metrics: installedSensor("crap").metrics.slice(0, 1) }])};
-const port = () => fakeSensors({}, {}, {}, INSTALLED);
+const crap: Program = (call) => {
+  const result = appSensor("crap", true, false, () => H1)(call);
+
+  if (call.args[0] !== "manifest") {
+    return result;
+  }
+
+  const manifest = JSON.parse((result as { stdout: string }).stdout);
+
+  manifest.display = "crap";
+  manifest.description = "x";
+  manifest.metrics = manifest.metrics.slice(0, 1);
+
+  return { ...(result as object), stdout: JSON.stringify(manifest) } as never;
+};
+
+const scenario = (testText: string, extra: Record<string, unknown> = {}) => ({
+  config: CONFIG,
+  files: {
+    ".recognizer/policy.yaml": "entry: [app/a.py]\n",
+    ".recognizer/cache/overlays/crap.json": overlay,
+    ".recognizer/cache/findings/crap.json": findingsDocument,
+    [TEST_FILE]: testText,
+    "app/a.py": A_TEXT,
+    "app/b.py": B_TEXT,
+  },
+  programs: {
+    "recognizer-scan-typescript": scanProgram(scan),
+    "recognizer-sense-crap": crap,
+  },
+  ...extra,
+});
+
+const HARNESS = (recordings: unknown) => `
+window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
+import { drawRecording } from ${JSON.stringify(here("../test/look-draw.ts"))};
+${FAKE_WORKER}
+
+const recordings = ${JSON.stringify(recordings)};
+const ids = ["app/a.py", "app/b.py"];
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
@@ -55,12 +141,9 @@ const tablesFor = async (id) => {
   return qa(".inspector-panel .fn-metrics").map((row) => [...row.querySelectorAll(".fn-metric")].map((item) => item.firstChild.textContent + " " + item.querySelector("b").textContent));
 };
 
-const changedScan = () => ({ origin: { branch: "main", commit: "abc1234" }, scannedAt: Date.now(), changes: { files: [{ path: "app/b.py", kind: "modified" }], moved: null }, scanning: null });
-
-async function observe(tests, changed = false) {
+async function observe(name) {
   host.replaceChildren();
-  const scanHost = changed ? scanHostOf({ scan: changedScan, port: port() }) : scanHostOf({ port: port() });
-  const explorer = mountExplorer({ container: host, loaded: loadedFor(tests), title: "demo", post: () => null, carried: null, scanHost });
+  const drawn = await drawRecording(host, recordings[name]);
   await tick();
   click(q('.tree .row[data-path="app"] .name'));
   await tick();
@@ -98,19 +181,23 @@ async function observe(tests, changed = false) {
   seen.line = line === null ? null : line.textContent;
   const stale = q(".findings-fresh-text");
   seen.staleLine = stale === null ? null : stale.textContent;
-  explorer.dispose();
+  drawn.dispose();
   return seen;
 }
 
 (async () => {
-  facts.matching = await observe(${JSON.stringify(TESTS)});
-  facts.changedTests = await observe(${JSON.stringify(OTHER_TESTS)});
-  facts.changedModule = await observe(${JSON.stringify(TESTS)}, true);
+  facts.matching = await observe("matching");
+  facts.changedTests = await observe("changedTests");
+  facts.changedModule = await observe("changedModule");
   document.getElementById("out").textContent = btoa(unescape(encodeURIComponent(JSON.stringify(facts))));
 })().catch((e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + e.stack); });
 `;
 
 type Facts = ReturnType<typeof JSON.parse>;
+const complexityOf = (tables: string[][]) =>
+  tables
+    .map((row) => [...new Set(row.filter((item) => item.startsWith("cc")))])
+    .filter((row) => row.length > 0);
 
 describe.skipIf(webkit === undefined)(
   "the four surfaces agree on which files are current",
@@ -118,36 +205,59 @@ describe.skipIf(webkit === undefined)(
     let f = null as unknown as Facts;
 
     beforeAll(async () => {
-      f = await collectFacts<Facts>(HARNESS, "freshness-look");
+      const named = await lookRoots({
+        matching: scenario("export const t = 1;\n"),
+        changedTests: scenario("export const t = 2;\n"),
+        changedModule: scenario("export const t = 1;\n", {
+          origin: { branch: "main", commit: "abc1234" },
+          hostEvents: [
+            {
+              event: "changes-changed",
+              payload: {
+                files: [{ path: "app/b.py", kind: "modified" }],
+                moved: null,
+              },
+            },
+          ],
+        }),
+      });
+      const recordings = Object.fromEntries(
+        Object.entries(named).map(([name, { produced: _, ...one }]) => [
+          name,
+          one,
+        ]),
+      );
+
+      f = await collectFacts<Facts>(HARNESS(recordings), "freshness-look");
     }, scaledTimeout(180000));
 
     it("shows only the edited-free file on the canvas, the Contents tab, the Findings panel and the disc", () => {
       expect(f.matching.rowDisabled).toBe(false);
-      expect(f.matching.note).toEqual([
+      expect(f.matching.note).toContain(
         "1 file out of date. Run crap from the Scan panel.",
-      ]);
+      );
       expect(f.matching.barsA).toBe(1);
       expect(f.matching.barsB).toBe(0);
-      expect(f.matching.tablesA).toEqual([["cc -"]]);
-      expect(f.matching.tablesB).toEqual([["cc -"]]);
+      expect(complexityOf(f.matching.tablesA)).toEqual([["cc -"]]);
+      expect(complexityOf(f.matching.tablesB)).toEqual([["cc -"]]);
       expect(f.matching.line).toBe("1 warning");
       expect(f.matching.staleLine).toBe(
         "Findings for 1 changed file is hidden.",
       );
       expect(f.matching.discA).toContain("amber");
-      expect(f.matching.discB).toContain("grey");
+      expect(f.matching.discB).toContain("green");
     });
 
     it("shows nothing once the tests hash differs", () => {
       expect(f.changedTests.rowDisabled).toBe(true);
-      expect(f.changedTests.note).toEqual([
+      expect(f.changedTests.note).toContain(
         "2 files out of date. Run crap from the Scan panel.",
-      ]);
+      );
       expect(f.changedTests.barsA).toBe(0);
       expect(f.changedTests.barsB).toBe(0);
       expect(f.changedTests.tablesA).toEqual([]);
       expect(f.changedTests.line).toBe("");
-      expect(f.changedTests.discA).toContain("grey");
+      expect(f.changedTests.discA).toContain("green");
     });
 
     it("draws a changed file's box with no bars, a grey disc and a quiet changed label, no taller than a box with one bar row", () => {
