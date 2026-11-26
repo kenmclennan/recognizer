@@ -31,6 +31,7 @@ export type PlannedRun = {
   idle: boolean;
   label: string;
   progress: string;
+  names?: boolean;
   work: Record<string, number>;
 };
 
@@ -133,5 +134,6 @@ export function plannedRun(
       base.modules > 0
         ? `Updating ${plural(base.modules, "file")}\u2026`
         : `Running ${joinNames(names)}\u2026`,
+    ...(base.modules > 0 ? {} : { names: true }),
   };
 }

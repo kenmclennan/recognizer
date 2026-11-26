@@ -327,25 +327,39 @@ export function describeStopText(stop: DescribeHalt): string {
 
 export type RunRow = { key: string; display: string };
 
+export type ScanningLine = { text: string; plugin: boolean };
+
 export function scanningText(
   rows: readonly RunRow[],
   started: string | null,
   progress: RunProgress,
 ): string | null {
+  return scanningLine(rows, started, progress)?.text ?? null;
+}
+
+export function scanningLine(
+  rows: readonly RunRow[],
+  started: string | null,
+  progress: RunProgress,
+): ScanningLine | null {
   if (progress.done || progress.stopped) {
     return null;
   }
 
   if (progress.describeAsk !== null) {
-    return "Waiting for your answer";
+    return { text: "Waiting for your answer", plugin: false };
   }
 
   if (started === DESCRIBE_PHASE_KEY) {
     const describe = progress.describe;
 
-    return describe === null
-      ? "Scanning\u2026"
-      : `Describing\u2026 ${describe.done} of ${describe.total} files`;
+    return {
+      text:
+        describe === null
+          ? "Scanning\u2026"
+          : `Describing\u2026 ${describe.done} of ${describe.total} files`,
+      plugin: false,
+    };
   }
 
   const sensors = rows.filter((row) => row.key !== DESCRIBE_PHASE_KEY);
@@ -359,18 +373,23 @@ export function scanningText(
         ? pluginText(capitalised(reported.name), reported)
         : null;
 
-    return extracting ?? "Scanning\u2026";
+    return extracting === null
+      ? { text: "Scanning\u2026", plugin: false }
+      : { text: extracting, plugin: true };
   }
 
   if (reported !== null && reported.name === started) {
     const text = pluginText(row.display, reported);
 
     if (text !== null) {
-      return text;
+      return { text, plugin: true };
     }
   }
 
-  return `Running ${row.display}\u2026 ${at + 1} of ${sensors.length}`;
+  return {
+    text: `Running ${row.display}\u2026 ${at + 1} of ${sensors.length}`,
+    plugin: true,
+  };
 }
 
 function pluginText(display: string, reported: PluginProgress): string | null {

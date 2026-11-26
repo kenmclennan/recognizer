@@ -1496,6 +1496,7 @@ describe("createRescanner", () => {
       idle: false,
       label: "Run alpha",
       progress: "Running Alpha\u2026",
+      names: true,
       work: {},
     });
 
@@ -1539,12 +1540,56 @@ describe("createRescanner", () => {
       idle: false,
       label: "Run alpha",
       progress: "Running Alpha\u2026",
+      names: true,
       work: {},
     });
 
     const running = texts(updates).filter((text) => text?.includes("Alpha"));
 
     expect(running).toContain("Alpha: 0 of 1 suites");
+    expect(running.some((text) => text?.split("Alpha").length !== 2)).toBe(
+      false,
+    );
+  });
+
+  it("names a running plugin once when the live line's wording changes", async () => {
+    const scan = fakeScan({
+      defaults: { describe: false, sensors: true },
+      steps: [
+        current,
+        sensing(1),
+        {
+          kind: "plugin-started",
+          name: "alpha",
+          progress: { done: 2, total: 9, unit: "widgets" },
+        },
+        entry("sense", "alpha"),
+        summary,
+      ],
+    });
+    const { rescanner, updates } = harness(scan);
+
+    await rescanner.run([], {
+      plan: {
+        describe: false,
+        analysis: false,
+        describeAll: true,
+        sense: ["alpha"],
+        modules: [],
+        suites: {},
+      },
+      dropped: [],
+      modules: 0,
+      idle: false,
+      label: "Run alpha",
+      progress: "Running Alpha\u2026",
+      names: true,
+      work: {},
+    });
+
+    const running = texts(updates).filter((text) => text?.includes("Alpha"));
+
+    expect(running).toContain("Alpha: 2 of 9 widgets");
     expect(running.some((text) => text?.split("Alpha").length !== 2)).toBe(
       false,
     );

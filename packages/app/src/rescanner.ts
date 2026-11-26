@@ -32,7 +32,7 @@ import {
   type RunRow,
   type ScanTiming,
   type ShowTarget,
-  scanningText,
+  scanningLine,
   stampTiming,
 } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
@@ -152,18 +152,6 @@ function isActive(record: ScanRunRecord | null): boolean {
   );
 }
 
-function namesHeading(text: string, heading: string): boolean {
-  if (text.startsWith(heading)) {
-    return true;
-  }
-
-  const name = heading.replace(/^Running /, "").replace(/\u2026$/, "");
-
-  return (
-    heading.startsWith("Running ") && name !== "" && text.startsWith(`${name}:`)
-  );
-}
-
 export function createRescanner<Carried>(
   ports: RescanPorts<Carried>,
 ): Rescanner {
@@ -185,6 +173,7 @@ export function createRescanner<Carried>(
 
   let rows: RunRow[] = [];
   let heading: string | null = null;
+  let headingNames = false;
   let failureIds: number[] = [];
   let splitting: Promise<void> = Promise.resolve();
   let lastUpdate: ProgressUpdate = { scanning: null };
@@ -225,13 +214,13 @@ export function createRescanner<Carried>(
   }
 
   function publish() {
-    const text = scanningText(rows, run.started, progressNow());
+    const line = scanningLine(rows, run.started, progressNow());
 
     emit({
       scanning:
-        text === null || heading === null || namesHeading(text, heading)
-          ? text
-          : `${heading} ${text}`,
+        line === null || heading === null || (headingNames && line.plugin)
+          ? (line?.text ?? null)
+          : `${heading} ${line.text}`,
     });
   }
 
@@ -841,6 +830,7 @@ export function createRescanner<Carried>(
     } finally {
       scanStartedWall = null;
       heading = null;
+      headingNames = false;
     }
   }
 
@@ -878,6 +868,7 @@ export function createRescanner<Carried>(
     );
 
     heading = planned?.progress ?? null;
+    headingNames = planned?.names === true;
 
     if (!remembered) {
       await writeTicks(registered);
