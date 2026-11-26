@@ -10,7 +10,7 @@ const PARSES_JSON = [
   "packages/app/src/look-page.ts",
   "packages/app/src/panel-widths.ts",
   "packages/app/src/setup-source.ts",
-  "packages/app/src/visualisation-fake.ts",
+  "packages/app/src/view-file.ts",
   "packages/app/src/window-fake.ts",
   "packages/app/src/window-source.ts",
 ];
