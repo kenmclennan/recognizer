@@ -51,6 +51,16 @@ export const FAKE_CONTRACTS: FakeContract[] = [
     ],
   },
   {
+    fake: "packages/core/test/fakes/fake-plugin-registrations.ts",
+    fakeName: "FakePluginRegistrations",
+    adapter:
+      "packages/cli/src/adapters/filesystem/plugin-registrations-adapter.ts",
+    adapterName: "PluginRegistrationsAdapter",
+    proofs: [
+      "packages/cli/test/adapter-contract/plugin-registrations-adapter-contract.test.ts",
+    ],
+  },
+  {
     fake: "packages/cli/test/support/fake-io.ts",
     fakeName: "FakeIo",
     adapter: "packages/cli/src/cli.ts",

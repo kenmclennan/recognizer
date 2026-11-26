@@ -1,5 +1,6 @@
 import type { CheckSandbox } from "../ports/check-sandbox.js";
 import type { DocumentValidators } from "../ports/document-validators.js";
+import type { PluginRegistrations } from "../ports/plugin-registrations.js";
 import type { PluginRegistry } from "../ports/plugin-registry.js";
 import type { PluginTemplates } from "../ports/plugin-templates.js";
 import type { Programs } from "../ports/programs.js";
@@ -10,6 +11,7 @@ export interface PluginPorts {
   validators: DocumentValidators;
   sandbox: CheckSandbox;
   registry: PluginRegistry;
+  registrations: PluginRegistrations;
   templates: PluginTemplates;
   repository: RepositoryChecks;
 }

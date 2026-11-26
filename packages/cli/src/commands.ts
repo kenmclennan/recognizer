@@ -1125,10 +1125,12 @@ export const COMMANDS: Command[] = [
   {
     name: "plugin",
     summary:
-      "check that a command is a conforming Recognizer plugin, register an installed sensor or describer in a repository's config, write a new plugin from a template, or print a plugin contract schema",
+      "check that a command is a conforming Recognizer plugin, register an installed sensor or describer in a repository's config, write a registration file for a plugin into the user plugin folder or remove one, write a new plugin from a template, or print a plugin contract schema",
     usage: [
       "recognizer plugin check <command> [--repository <dir>] [--request <file>] [--json]",
       "recognizer plugin add <name> [--kind sensor|describer] [--repository <dir>]",
+      "recognizer plugin register <program|path>",
+      "recognizer plugin unregister <name> [--kind scanner|sensor|describer]",
       "recognizer plugin init --kind <scanner|sensor|describer> --language <python|typescript|rust> --name <name> [folder]",
       "recognizer plugin schema <manifest|events|scan|findings|overlay|check>",
     ].join("\n"),
@@ -1142,6 +1144,16 @@ export const COMMANDS: Command[] = [
         name: "add <name>",
         description:
           "the manifest name of an installed sensor or describer; it is registered in the repository's committed config and its install line is copied into the install section; a scanner is never registered, it is chosen with recognizer config scanners.<language> <name>",
+      },
+      {
+        name: "register <program|path>",
+        description:
+          "a plugin's program name, looked up on PATH, or a path; its manifest is read and checked, and a registration file is written into the user plugin folder, replacing any earlier one; registering a describer makes it the newest, and the newest describer is the one in effect",
+      },
+      {
+        name: "unregister <name>",
+        description:
+          "the manifest name of a plugin registered with register; its user registration file is removed, and a registration that only a Homebrew formula provides is left for brew uninstall to remove",
       },
       {
         name: "init [folder]",
@@ -1164,6 +1176,11 @@ export const COMMANDS: Command[] = [
         flag: "--request <file>",
         description:
           "with check: a describe request file; a describer's run spends a model call, so it is not run without one",
+      },
+      {
+        flag: "--kind <scanner|sensor|describer>",
+        description:
+          "with unregister: which registration to remove when the name is registered as more than one kind",
       },
       {
         flag: "--kind <sensor|describer>",
@@ -1229,6 +1246,10 @@ export const COMMANDS: Command[] = [
       {
         command: "recognizer plugin add mine",
         note: "register the installed mine sensor and record its install line",
+      },
+      {
+        command: "recognizer plugin register ./build/mine-plugin",
+        note: "write a registration file for the plugin at that path into the user plugin folder",
       },
     ],
     run: runPlugin,

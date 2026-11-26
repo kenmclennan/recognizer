@@ -28,6 +28,7 @@ import { FakeGrammarRules } from "./fake-grammar-rules.js";
 import { FakeKeyOwners } from "./fake-key-owners.js";
 import { FakeKeyedText } from "./fake-keyed-text.js";
 import { FakeParsing } from "./fake-parsing.js";
+import { FakePluginRegistrations } from "./fake-plugin-registrations.js";
 import { FakePluginRegistry } from "./fake-plugin-registry.js";
 import { FakePluginTemplates } from "./fake-plugin-templates.js";
 import { FakePolicyRepository } from "./fake-policy-repository.js";
@@ -93,6 +94,7 @@ export interface Fakes {
   documentValidators: FakeDocumentValidators;
   checkSandbox: FakeCheckSandbox;
   pluginRegistry: FakePluginRegistry;
+  pluginRegistrations: FakePluginRegistrations;
   pluginTemplates: FakePluginTemplates;
   repositoryChecks: FakeRepositoryChecks;
   scratch: FakeScratch;
@@ -154,6 +156,7 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     documentValidators: new FakeDocumentValidators(),
     checkSandbox: new FakeCheckSandbox(),
     pluginRegistry: new FakePluginRegistry(),
+    pluginRegistrations: new FakePluginRegistrations(),
     pluginTemplates: new FakePluginTemplates(),
     repositoryChecks: new FakeRepositoryChecks(),
     scratch: new FakeScratch(),
@@ -178,6 +181,7 @@ export function portsOf(fakes: Fakes): ScanPorts {
     documentValidators,
     checkSandbox,
     pluginRegistry,
+    pluginRegistrations,
     pluginTemplates,
     repositoryChecks,
     scratch,
@@ -221,6 +225,7 @@ export function pluginPortsOf(fakes: Fakes): PluginPorts {
     validators: fakes.documentValidators,
     sandbox: fakes.checkSandbox,
     registry: fakes.pluginRegistry,
+    registrations: fakes.pluginRegistrations,
     templates: fakes.pluginTemplates,
     repository: fakes.repositoryChecks,
   };
