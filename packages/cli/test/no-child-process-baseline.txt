@@ -69,7 +69,6 @@ packages/cli/test/reported-results-service.test.ts
 packages/cli/test/run-log.test.ts
 packages/cli/test/recorded-scans-adapter-scan-baseline-real.test.ts
 packages/cli/test/scan-command.test.ts
-packages/cli/test/scan-container.test.ts
 packages/cli/test/scan-helpers.ts
 packages/cli/test/scan-marker.test.ts
 packages/cli/test/scan-modules.test.ts
