@@ -1,5 +1,4 @@
-import { join, resolve } from "node:path";
-import { parseArgs } from "node:util";
+import { join } from "node:path";
 import {
   KINDS,
   programName,
@@ -7,49 +6,20 @@ import {
   scaffoldPlugin,
   type TemplateKind,
   type TemplateLanguage,
-  type TemplateSet,
   templateLanguages,
   templateValues as valuesOf,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { PluginTemplatesAdapter } from "../src/adapters/plugins/plugin-templates-adapter.js";
-import { type Io, run } from "../src/cli.js";
+import templates from "../src/generated/templates.json" with { type: "json" };
 import { documentValidators } from "../src/manifest-ports.js";
-import { pluginPorts } from "../src/plugins-container.js";
-import { fakeIo } from "./scan-helpers.js";
-
-const bundledTemplates = () => new PluginTemplatesAdapter().bundled();
+import { cliScenario } from "./support/index.js";
 
 const templateValues = (kind: TemplateKind, name: string) =>
   valuesOf(kind, name, documentValidators.facts);
 
-function runInit(argv: string[], io: Io, templates: TemplateSet): number {
-  const { values, positionals } = parseArgs({
-    args: argv,
-    allowPositionals: true,
-    options: {
-      kind: { type: "string" },
-      language: { type: "string" },
-      name: { type: "string" },
-    },
-  });
-
-  scaffoldPlugin(
-    { ...pluginPorts(io), templates: { bundled: () => templates } },
-    {
-      kind: values.kind,
-      language: values.language,
-      name: values.name,
-      folder: resolve(positionals[0] ?? "."),
-    },
-  );
-
-  return 0;
-}
-
 const FOLDER = "/work/out";
 
-const LANGUAGES = templateLanguages(new PluginTemplatesAdapter().bundled());
+const LANGUAGES = templateLanguages(templates);
 
 const VERB = { scanner: "scan", sensor: "sense", describer: "describe" };
 
@@ -80,11 +50,16 @@ const PAIRS = LANGUAGES.flatMap((language) =>
   KINDS.map((kind) => [language, kind] as const),
 );
 
-function init(args: string[], files: Record<string, string> = {}) {
-  const fake = fakeIo({ files });
-  const status = run(["plugin", "init", ...args], fake.io);
+async function init(args: string[], files: Record<string, string> = {}) {
+  const scenario = cliScenario();
 
-  return { fake, status: status as number };
+  for (const [path, content] of Object.entries(files)) {
+    scenario.root.io.files.writeFile(path, content);
+  }
+
+  const result = await scenario.run(["plugin", "init", ...args]);
+
+  return { scenario, result };
 }
 
 function full(kind: string, language: string, name = "demo", folder = FOLDER) {
@@ -92,47 +67,54 @@ function full(kind: string, language: string, name = "demo", folder = FOLDER) {
 }
 
 describe("recognizer plugin init", () => {
-  it.each(PAIRS)("writes the %s %s tree", (language, kind) => {
-    const { fake, status } = init(full(kind, language));
-    const written = fake.writes.map((path) => path.slice(FOLDER.length + 1));
+  it.each(PAIRS)("writes the %s %s tree", async (language, kind) => {
+    const { scenario, result } = await init(full(kind, language));
+    const paths = scenario.root.io.files.list(FOLDER);
+    const written = paths.map((path) => path.slice(FOLDER.length + 1));
     const expected = expectedFiles(language, kind);
 
     expect(expected.length).toBeGreaterThan(0);
-    expect(status).toBe(0);
+    expect(result.exit).toBe(0);
     expect([...written].sort()).toEqual([...expected].sort());
 
-    for (const path of fake.writes) {
-      expect(fake.files.get(path)).not.toContain("{{");
+    for (const path of paths) {
+      expect(scenario.read(path)).not.toContain("{{");
       expect(path).not.toContain("{{");
     }
 
-    expect(fake.out()).toContain("recognizer plugin check");
+    expect(result.out).toContain("recognizer plugin check");
   });
 
   it.each(PAIRS)(
     "gives only the program of %s %s the mode 0o755",
-    (language, kind) => {
-      const { fake } = init(full(kind, language));
+    async (language, kind) => {
+      const { scenario } = await init(full(kind, language));
       const program = `recognizer-${VERB[kind]}-demo`;
-      const modes = [...fake.modes.entries()];
+      const files = scenario.root.io.files;
+      const paths = files.list(FOLDER);
+      const moded = paths.filter((path) => files.modeOf(path) !== undefined);
+
+      expect(paths.length).toBeGreaterThan(0);
 
       if (language === "rust") {
-        expect(modes).toEqual([]);
+        expect(moded).toEqual([]);
 
         return;
       }
 
-      expect(modes).toEqual([[join(FOLDER, program), 0o755]]);
+      expect(moded).toEqual([join(FOLDER, program)]);
+      expect(files.modeOf(join(FOLDER, program))).toBe(0o755);
     },
   );
 
   it.each(LANGUAGES)(
     "writes the scan schema version into the %s scanner's manifest",
-    (language) => {
-      const { fake } = init(full("scanner", language));
-      const source = [...fake.writes]
+    async (language) => {
+      const { scenario } = await init(full("scanner", language));
+      const source = scenario.root.io.files
+        .list(FOLDER)
         .filter((path) => !path.endsWith("README.md"))
-        .map((path) => fake.files.get(path) ?? "")
+        .map((path) => scenario.read(path))
         .join("\n");
 
       const version = templateValues("scanner", "demo").scan_schema_version;
@@ -143,43 +125,52 @@ describe("recognizer plugin init", () => {
     },
   );
 
-  it("offers the bundle's languages in order with the usage text unchanged", () => {
+  it("offers the bundle's languages in order with the usage text unchanged", async () => {
     expect(LANGUAGES).toEqual(["python", "typescript", "rust"]);
 
-    const { fake } = init(["--kind", "scanner", "--name", "demo"]);
+    const { result } = await init(["--kind", "scanner", "--name", "demo"]);
 
-    expect(fake.err()).toContain(
+    expect(result.err).toContain(
       "usage: recognizer plugin init --kind <scanner|sensor|describer> --language <python|typescript|rust> --name <name> [folder]",
     );
-    expect(fake.err()).toContain(
+    expect(result.err).toContain(
       "example: recognizer plugin init --kind scanner --language python --name mylang ./recognizer-scan-mylang",
     );
   });
 
-  it("starts no process and registers nothing", () => {
-    const { fake } = init(full("scanner", "python"));
+  it("starts no process and registers nothing", async () => {
+    const scenario = cliScenario();
+    const config = ".recognizer/config.yaml";
+    const before = scenario.exists(config) ? scenario.read(config) : null;
+    const calls = scenario.root.io.processes.calls.length;
+    const result = await scenario.run([
+      "plugin",
+      "init",
+      ...full("scanner", "python"),
+    ]);
 
-    expect(fake.calls).toEqual([]);
-    expect(fake.launches).toEqual([]);
+    expect(result.exit).toBe(0);
+    expect(result.out).toContain("wrote");
+    expect(scenario.root.io.processes.calls.length).toBe(calls);
+    expect(scenario.exists(config) ? scenario.read(config) : null).toBe(before);
   });
 
-  it("names the build step for Rust only", () => {
-    expect(init(full("scanner", "rust")).fake.out()).toContain("cargo build");
-    expect(init(full("scanner", "python")).fake.out()).not.toContain(
+  it("names the build step for Rust only", async () => {
+    expect((await init(full("scanner", "rust"))).result.out).toContain(
+      "cargo build",
+    );
+    expect((await init(full("scanner", "python"))).result.out).not.toContain(
       "cargo build",
     );
   });
 
-  it("names plugin add for a sensor and the config key only for a scanner", () => {
-    expect(init(full("sensor", "python")).fake.out()).toContain(
-      "recognizer plugin add demo",
-    );
-    expect(init(full("scanner", "python")).fake.out()).toContain(
-      "recognizer config scanners.demo demo",
-    );
-    expect(init(full("scanner", "python")).fake.out()).not.toContain(
-      "plugin add",
-    );
+  it("names plugin add for a sensor and the config key only for a scanner", async () => {
+    const sensor = (await init(full("sensor", "python"))).result.out;
+    const scanner = (await init(full("scanner", "python"))).result.out;
+
+    expect(sensor).toContain("recognizer plugin add demo");
+    expect(scanner).toContain("recognizer config scanners.demo demo");
+    expect(scanner).not.toContain("plugin add");
   });
 
   it.each([
@@ -214,47 +205,60 @@ describe("recognizer plugin init", () => {
       ["--kind", "scanner", "--language", "python"],
       "--name",
     ],
-  ])("exits 2 with the choices and an example on %s", (_title, args, text) => {
-    const { fake, status } = init(args);
+  ])(
+    "exits 2 with the choices and an example on %s",
+    async (_title, args, text) => {
+      const { scenario, result } = await init(args);
 
-    expect(status).toBe(2);
-    expect(fake.err()).toContain(text);
-    expect(fake.err()).toContain("example: recognizer plugin init --kind");
-    expect(fake.writes).toEqual([]);
-  });
+      expect(result.exit).toBe(2);
+      expect(result.err).toContain(text);
+      expect(result.err).toContain("example: recognizer plugin init --kind");
+      expect(scenario.root.io.files.list("/")).not.toContain(
+        join(process.cwd(), "recognizer-scan-demo"),
+      );
+      expect(scenario.root.io.files.list(FOLDER)).toEqual([]);
+    },
+  );
 
-  it("refuses a folder holding a hidden file, names it and writes nothing", () => {
-    const { fake, status } = init(full("scanner", "python"), {
+  it("refuses a folder holding a hidden file, names it and writes nothing", async () => {
+    const { scenario, result } = await init(full("scanner", "python"), {
       [`${FOLDER}/.hidden`]: "",
     });
 
-    expect(status).toBe(1);
-    expect(fake.err()).toContain(FOLDER);
-    expect(fake.err()).toContain(".hidden");
-    expect(fake.writes).toEqual([]);
+    expect(result.exit).toBe(1);
+    expect(result.err).toContain(FOLDER);
+    expect(result.err).toContain(".hidden");
+    expect(scenario.root.io.files.list(FOLDER)).toEqual([`${FOLDER}/.hidden`]);
   });
 
-  it("refuses a folder path that is a file", () => {
-    const { fake, status } = init(full("scanner", "python"), {
+  it("refuses a folder path that is a file", async () => {
+    const { scenario, result } = await init(full("scanner", "python"), {
       [FOLDER]: "text",
     });
 
-    expect(status).toBe(1);
-    expect(fake.err()).toContain("is a file");
-    expect(fake.writes).toEqual([]);
+    expect(result.exit).toBe(1);
+    expect(result.err).toContain("is a file");
+    expect(scenario.read(FOLDER)).toBe("text");
   });
 
-  it("creates an absent folder", () => {
-    const { fake, status } = init(
+  it("creates an absent folder", async () => {
+    const { scenario, result } = await init(
       full("scanner", "python", "demo", "/work/new/deep"),
     );
 
-    expect(status).toBe(0);
-    expect(fake.writes[0]?.startsWith("/work/new/deep/")).toBe(true);
+    expect(result.exit).toBe(0);
+    expect(
+      scenario.root.io.files
+        .list("/work/new/deep")
+        .every((path) => path.startsWith("/work/new/deep/")),
+    ).toBe(true);
+    expect(
+      scenario.root.io.files.list("/work/new/deep").length,
+    ).toBeGreaterThan(0);
   });
 
-  it("writes into the current folder by default", () => {
-    const { fake, status } = init([
+  it("writes into the current folder by default", async () => {
+    const { scenario, result } = await init([
       "--kind",
       "scanner",
       "--language",
@@ -263,21 +267,36 @@ describe("recognizer plugin init", () => {
       "demo",
     ]);
 
-    expect(status).toBe(0);
-    expect(fake.writes).toContain(join(process.cwd(), "recognizer-scan-demo"));
+    expect(result.exit).toBe(0);
+    expect(scenario.exists(join(process.cwd(), "recognizer-scan-demo"))).toBe(
+      true,
+    );
   });
 
   it("throws before any write when a template names an unknown placeholder", () => {
-    const fake = fakeIo();
-    const templates = {
-      ...bundledTemplates(),
+    const scenario = cliScenario();
+    const files = scenario.root.io.files;
+    const substituted = {
+      ...templates,
       "python/scanner/README.md": "hello {{nonsense}}",
     };
 
     expect(() =>
-      runInit(full("scanner", "python"), fake.io, templates),
+      scaffoldPlugin(
+        {
+          sandbox: files,
+          templates: { bundled: () => substituted },
+          validators: documentValidators,
+        },
+        {
+          kind: "scanner",
+          language: "python",
+          name: "demo",
+          folder: FOLDER,
+        },
+      ),
     ).toThrow(/unknown placeholder \{\{nonsense\}\}/);
-    expect(fake.writes).toEqual([]);
+    expect(files.list(FOLDER)).toEqual([]);
   });
 
   it("throws when braces remain after rendering", () => {

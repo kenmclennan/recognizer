@@ -54,6 +54,16 @@ export class FakeFiles {
     }
   }
 
+  list = (prefix: string): string[] => {
+    const folder = prefix.endsWith("/") ? prefix : `${prefix}/`;
+
+    return [...this.files.keys()]
+      .filter((path) => path.startsWith(folder))
+      .sort();
+  };
+
+  modeOf = (path: string): number | undefined => this.files.get(path)?.mode;
+
   exists = (path: string): boolean =>
     this.files.has(path) || this.directories.has(path);
 
