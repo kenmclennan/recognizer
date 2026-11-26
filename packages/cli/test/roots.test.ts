@@ -1,6 +1,12 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import type { Io } from "../src/cli.js";
-import { answeringOnlyGit, type CliRootFakes, cliRoot } from "./roots.js";
+import {
+  answeringOnlyGit,
+  type CliRootFakes,
+  type CliRootOptions,
+  cliRoot,
+} from "./roots.js";
+import { FakeIo } from "./support/fake-io.js";
 
 describe("the CLI root", () => {
   it("cliRoot only takes the outermost-port members", () => {
@@ -8,9 +14,9 @@ describe("the CLI root", () => {
     expectTypeOf<CliRootFakes>().toHaveProperty("now");
     expectTypeOf<CliRootFakes>().toHaveProperty("readFile");
 
-    // @ts-expect-error env is not an outermost port
+    // @ts-expect-error
     const refused: CliRootFakes = { env: () => undefined };
-    // @ts-expect-error stdout is owned by the root
+    // @ts-expect-error
     const owned: CliRootFakes = { stdout: () => {} };
 
     expectTypeOf<CliRootFakes>().not.toHaveProperty("env");
@@ -49,5 +55,33 @@ describe("the CLI root", () => {
     const other = run(process.execPath, ["-e", "process.stdout.write('real')"]);
 
     expect(other.stdout).toBe("real");
+  });
+
+  it("cliRoot over a FakeIo reads and writes the fake's files and captures its own output", async () => {
+    const over = new FakeIo();
+
+    over.writeFile("/repo/note.txt", "kept");
+
+    const root = cliRoot({ over });
+    const exit = await root.run(["help"]);
+
+    expect(exit).toBe(0);
+    expect(root.out()).toContain("recognizer");
+    expect(over.out).toEqual([]);
+
+    root.io.writeFile("/repo/written.txt", "from the root");
+
+    expect(over.readFile("/repo/written.txt")).toBe("from the root");
+    expect(root.io.readFile("/repo/note.txt")).toBe("kept");
+  });
+
+  it("cliRoot over and per-member fakes are exclusive", () => {
+    expectTypeOf<{ over: FakeIo }>().toExtend<CliRootOptions>();
+    expectTypeOf<{ now: () => number }>().toExtend<CliRootOptions>();
+
+    // @ts-expect-error
+    const both: CliRootOptions = { over: new FakeIo(), now: () => 1 };
+
+    expect(both).toBeDefined();
   });
 });

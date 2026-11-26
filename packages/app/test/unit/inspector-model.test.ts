@@ -26,13 +26,13 @@ import {
   inspectorContent,
   type Row,
 } from "../../src/inspector-model";
-import { installedSensors } from "../../src/installed-fake";
 import type { MetricDescriptor } from "../../src/overlay-model";
 import { metricEntryOf } from "../../src/overlay-model";
 import {
   CURRENT,
   expectedScan,
   fixtureScan,
+  installedSensors,
   secondSensorDocument,
 } from "../fixtures";
 import { factsFor, measuredOfDocument } from "../freshness-support";

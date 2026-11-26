@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 import { COMPLEXITY_LIMIT, parseConfig } from "recognizer";
 import { describe, expect, it } from "vitest";
 import { functionLimits } from "../../src/function-limits";
-import { installedSensors } from "../../src/installed-fake";
 import type { InstalledSensors } from "../../src/sensor-run";
+import { installedSensors } from "../fixtures";
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 

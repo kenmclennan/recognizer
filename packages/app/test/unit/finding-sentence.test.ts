@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { buildCatalog } from "../../src/finding-catalog";
 import { sentenceOf } from "../../src/finding-sentence";
 import { findingRows } from "../../src/findings-order";
-import { installedSensors } from "../../src/installed-fake";
+import { installedSensors } from "../fixtures";
 import {
   type FindingLiteral,
   findingFrom,

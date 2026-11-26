@@ -7,7 +7,6 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../../..");
 
 const PARSES_JSON = [
-  "packages/app/src/installed-fake.ts",
   "packages/app/src/look-page.ts",
   "packages/app/src/panel-widths.ts",
   "packages/app/src/setup-source.ts",
@@ -16,10 +15,7 @@ const PARSES_JSON = [
   "packages/app/src/window-source.ts",
 ];
 
-const READS_FILES = [
-  "packages/app/src/installed-fake.ts",
-  "packages/app/src/look-page.ts",
-];
+const READS_FILES = ["packages/app/src/look-page.ts"];
 
 const REMOVED_COMMANDS = [
   "read_scan_cache",

@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { plainSensor } from "../../src/installed-fake";
 import { createPlanAnswers } from "../../src/plan-answers";
 import type { PlanRequest, ScanPlanView } from "../../src/plan-reads";
 import { NO_RUN, type PanelInput, scanPanel } from "../../src/scan-panel-model";
-import { configOf } from "../fixtures";
+import { configOf, plainSensor } from "../fixtures";
 
 const request = (changed: string[] = []): PlanRequest => ({
   repository: ".",

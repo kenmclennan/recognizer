@@ -1,6 +1,5 @@
 import { afterSuiteTick, type SuiteResult } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { plainSensor } from "../../src/installed-fake";
 import type { ResponsibilityState } from "../../src/responsibility-model";
 import {
   NO_RUN,
@@ -16,7 +15,7 @@ import {
   shortAge,
   suiteState,
 } from "../../src/suite-results";
-import { configOf, scanPanelSync as scanPanel } from "../fixtures";
+import { configOf, plainSensor, scanPanelSync as scanPanel } from "../fixtures";
 
 const MINUTE = 60000;
 const HOUR = 60 * MINUTE;

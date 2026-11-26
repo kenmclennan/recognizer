@@ -10,7 +10,6 @@ import {
 import { describe, expect, it } from "vitest";
 import type { ScanState } from "../../src/footer-scan";
 import { NO_CHANGES } from "../../src/footer-scan";
-import { installedSensors, plainSensor } from "../../src/installed-fake";
 import type { ResponsibilityState } from "../../src/responsibility-model";
 import {
   describerRegistered,
@@ -29,7 +28,12 @@ import {
 import { describeStopText, NO_PROGRESS } from "../../src/scan-progress";
 import { whyOf } from "../../src/scan-why";
 import type { InstalledSensor, InstalledSensors } from "../../src/sensor-run";
-import { configOf, scanPanelSync as scanPanel } from "../fixtures";
+import {
+  configOf,
+  installedSensors,
+  plainSensor,
+  scanPanelSync as scanPanel,
+} from "../fixtures";
 import { factsFor } from "../freshness-support";
 import { type DocScan, repositoryFrom } from "./repository-from";
 
