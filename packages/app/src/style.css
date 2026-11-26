@@ -4567,6 +4567,12 @@ svg.i.chevron {
   text-align: right;
 }
 
+.settings-modal input.num.hinted {
+  flex: 1 1 auto;
+  width: auto;
+  text-align: left;
+}
+
 .settings-modal input:focus,
 .settings-modal select:focus {
   border-color: var(--sel);

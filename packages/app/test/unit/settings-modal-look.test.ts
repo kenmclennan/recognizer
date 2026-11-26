@@ -89,6 +89,15 @@ const facts = {};
     resets: [...qa(".sm-field")].map((r) => resetOf(r).visibility),
     maxMinutes: { disabled: rowOf("sensors.mutation.max_minutes").querySelector("input").disabled, placeholder: rowOf("sensors.mutation.max_minutes").querySelector("input").placeholder },
     workers: { placeholder: rowOf("sensors.mutation.max_workers").querySelector("input").placeholder },
+    placeholdersFit: ["sensors.mutation.max_minutes", "sensors.mutation.max_workers"].map((key) => {
+      const field = rowOf(key).querySelector("input");
+      const style = getComputedStyle(field);
+      const probe = document.createElement("canvas").getContext("2d");
+      probe.font = style.font;
+      const inner = field.getBoundingClientRect().width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - parseFloat(style.borderLeftWidth) - parseFloat(style.borderRightWidth);
+      return probe.measureText(field.placeholder).width <= inner;
+    }),
+    rowHeights: ["sensors.mutation.max_minutes", "sensors.mutation.max_workers"].map((key) => rowOf(key).getBoundingClientRect().height),
   };
 
   facts.noResetSection = [];
@@ -438,6 +447,8 @@ describe.skipIf(webkit === undefined)("the settings modal", () => {
     expect(f.mutation.workers.placeholder).toContain(
       "half the machine's cores",
     );
+    expect(f.mutation.placeholdersFit).toEqual([true, true]);
+    expect(f.mutation.rowHeights[0]).toBe(f.mutation.rowHeights[1]);
     expect(f.crap.rows).toEqual(["Report above", "Report coverage below"]);
     expect(f.crap.units).toEqual(["score", "0 to 1"]);
   });
