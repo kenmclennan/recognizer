@@ -201,9 +201,55 @@ describe("scan source", () => {
           sense: ["crap"],
           modules: null,
           suites: undefined,
+          plannedMs: {},
         },
       },
     });
+  });
+
+  it("a_run_with_no_planned_figures_sends_an_empty_object", async () => {
+    const { source, calls } = stubbed({ "scan.start": "s1" }, (op) =>
+      op === "scan.start"
+        ? [{ stream: "s1", outcome: { status: "finished" } }]
+        : [],
+    );
+
+    await source.run({
+      describe: false,
+      describeAll: false,
+      analysis: true,
+      sense: [],
+      modules: null,
+    });
+
+    const start = calls.find(({ args }) => args.op === "scan.start");
+
+    expect(
+      (start?.args.args as { plannedMs: unknown } | undefined)?.plannedMs,
+    ).toEqual({});
+  });
+
+  it("a_run_sends_the_planned_figures_it_was_given", async () => {
+    const { source, calls } = stubbed({ "scan.start": "s1" }, (op) =>
+      op === "scan.start"
+        ? [{ stream: "s1", outcome: { status: "finished" } }]
+        : [],
+    );
+
+    await source.run({
+      describe: false,
+      describeAll: false,
+      analysis: true,
+      sense: ["crap"],
+      modules: null,
+      plannedMs: { crap: 40_000, mutation: 0 },
+    });
+
+    const start = calls.find(({ args }) => args.op === "scan.start");
+
+    expect(
+      (start?.args.args as { plannedMs: unknown } | undefined)?.plannedMs,
+    ).toEqual({ crap: 40_000, mutation: 0 });
   });
 
   it("a rescan with Descriptions unticked starts the scan with describe false", async () => {

@@ -910,7 +910,11 @@ export function createRescanner<Carried>(
     let result: ScanRunResult;
 
     try {
-      result = await ports.port.run(plan);
+      result = await ports.port.run(
+        planned?.plannedMs === undefined
+          ? plan
+          : { ...plan, plannedMs: planned.plannedMs },
+      );
     } catch (error) {
       result = { status: "failed", exitCode: -1, stderr: String(error) };
     }

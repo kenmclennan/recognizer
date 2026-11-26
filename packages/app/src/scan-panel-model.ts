@@ -531,7 +531,7 @@ function analysisNote(input: PanelInput): string | null {
 const ANALYSIS_TITLE =
   "Finds import cycles, files nothing imports, unused exports, private imports, long or complex functions, duplication and policy violations. Runs with every scan and needs no tests.";
 
-function plannedMsOf(
+export function plannedMsOf(
   parts: readonly { key: string; ms: number | null }[],
 ): Record<string, number> {
   const planned: Record<string, number> = {};
@@ -619,7 +619,10 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
     work: input.work ?? {},
   };
   const answered = input.estimate ?? null;
-  const planned: PlannedRun = unplanned;
+  const planned: PlannedRun = {
+    ...unplanned,
+    plannedMs: plannedMsOf(answered?.parts ?? []),
+  };
   const plain = sensors
     .filter(({ runsTests }) => !runsTests)
     .map(({ name }) => name);
@@ -660,7 +663,6 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
       : {
           ...input.runView,
           display: displayOf,
-          plannedMs: plannedMsOf(answered?.parts ?? []),
         },
     tickedKeys,
     new Set([...tickedKeys].filter((key) => key !== DESCRIBE_KEY)),

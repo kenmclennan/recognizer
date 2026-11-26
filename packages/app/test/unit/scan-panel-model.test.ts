@@ -19,6 +19,7 @@ import {
   NO_RUN,
   opensScanPanel,
   type PanelInput,
+  plannedMsOf,
   type RunState,
   registeredDespiteError,
   rowSensors,
@@ -1787,10 +1788,12 @@ function runFrom(one: ScanRunRecord): RunView {
       progress: null,
       stage: null,
       estimateMs: null,
+      effectiveEstimate: null,
       failure: null,
       tally: null,
       durationMs: null,
     })),
+    remaining: null,
     confirmation: null,
     describeHalt: null,
     structure: null,
@@ -2359,5 +2362,17 @@ describe("opensScanPanel", () => {
     [null, null, false],
   ] as const)("reads %s to %s as opens: %s", (previous, current, expected) => {
     expect(opensScanPanel(previous, current)).toBe(expected);
+  });
+});
+
+describe("plannedMsOf", () => {
+  it("keeps_the_parts_with_a_figure_including_zero_and_drops_those_with_none", () => {
+    expect(
+      plannedMsOf([
+        { key: "crap", ms: 40_000 },
+        { key: "mutation", ms: null },
+        { key: "duplication", ms: 0 },
+      ]),
+    ).toEqual({ crap: 40_000, duplication: 0 });
   });
 });

@@ -6,6 +6,7 @@ import type { EstimateAnswer, EstimateRequest } from "./estimate-text";
 import type {
   DescribingSettings,
   ScanPort,
+  ScanRunPlan,
   ScanRunResult,
   StoredTicks,
 } from "./scan-port";
@@ -176,9 +177,7 @@ export function createScanSource(deps: ScanSourceDeps): ScanPort {
   let current: string | null = null;
   let watched: string | null = null;
 
-  async function run(
-    plan: Parameters<ScanPort["run"]>[0],
-  ): Promise<ScanRunResult> {
+  async function run(plan: ScanRunPlan): Promise<ScanRunResult> {
     await attach();
 
     const buffered: CoreStreamItem[] = [];
@@ -204,6 +203,7 @@ export function createScanSource(deps: ScanSourceDeps): ScanPort {
         sense: plan.sense,
         modules: plan.modules,
         suites: plan.suites,
+        plannedMs: plan.plannedMs ?? {},
       });
       current = scan;
 

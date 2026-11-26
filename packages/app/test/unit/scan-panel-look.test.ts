@@ -1045,6 +1045,7 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
         analysis: true,
         sense: ["tally", "crap"],
         modules: ["app/a.py", "app/b.py"],
+        plannedMs: {},
       },
     ]);
     expect(f.run.first.header).toBe(

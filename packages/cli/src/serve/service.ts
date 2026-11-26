@@ -639,7 +639,10 @@ export class Service {
   private start(id: number, args: Record<string, unknown>): void {
     const start = parseStart(args);
     const scanId = this.nextId("s");
-    const faults = requestFaults(start.request);
+    const faults = [
+      ...requestFaults(start.request),
+      ...(start.plannedFault === null ? [] : [start.plannedFault]),
+    ];
 
     this.write({ id, ok: scanId });
 
@@ -663,6 +666,7 @@ export class Service {
     let running: RunningScan;
 
     liveScopes.add(scope);
+    this.repositories.planned(start.repository, start.planned);
 
     try {
       const io = quiet(this.scopedIo(scope));
@@ -678,6 +682,7 @@ export class Service {
     } catch (error) {
       files?.remove();
       liveScopes.delete(scope);
+      this.repositories.planned(start.repository, null);
       this.write({
         stream: scanId,
         outcome: wireOutcome({ status: "failed", reason: "crashed", error }),
@@ -687,11 +692,12 @@ export class Service {
     }
 
     this.started.set(scanId, { repository: start.repository, scope, running });
-    void this.pump(scanId, scope, running, files);
+    void this.pump(scanId, start.repository, scope, running, files);
   }
 
   private async pump(
     scanId: string,
+    repository: string,
     scope: StopScope,
     running: RunningScan,
     files: ScopeFiles,
@@ -705,6 +711,7 @@ export class Service {
     const outcome = await running.outcome;
 
     files.remove();
+    this.repositories.planned(repository, null);
     this.started.delete(scanId);
     liveScopes.delete(scope);
     this.write({ stream: scanId, outcome: wireOutcome(outcome) });

@@ -127,6 +127,13 @@ export interface RunChoices {
   suites: Readonly<Record<string, readonly string[]>>;
 }
 
+export interface RunRemaining {
+  ms: number | null;
+  silent: string[];
+}
+
+export type PlannedEstimates = Readonly<Record<string, number>>;
+
 export interface RunView {
   id: string;
   startedBy: RunStarter;
@@ -142,6 +149,7 @@ export interface RunView {
   failure: RunFailure | null;
   ran: string[] | null;
   plugins: PluginRunView[];
+  remaining: RunRemaining | null;
   confirmation: RunConfirmation | null;
   describeHalt: DescribeHalt | null;
   structure: RunStructure | null;
@@ -166,6 +174,7 @@ export interface RunFields {
   describeHalt?: DescribeHalt | null;
   structure?: RunStructure | null;
   log?: string | null;
+  plannedMs?: PlannedEstimates;
 }
 
 const DESCRIBE_NAME = "describe";
@@ -202,6 +211,7 @@ export class Run {
   readonly describeHalt: DescribeHalt | null;
   readonly structure: RunStructure | null;
   readonly log: string | null;
+  readonly plannedMs: PlannedEstimates;
 
   constructor(fields: RunFields) {
     Run.check(fields);
@@ -223,6 +233,7 @@ export class Run {
     this.describeHalt = fields.describeHalt ?? null;
     this.structure = fields.structure ?? null;
     this.log = fields.log ?? null;
+    this.plannedMs = fields.plannedMs ?? {};
   }
 
   static begin(input: {
@@ -231,9 +242,13 @@ export class Run {
     startedAt: string;
     scope: RunScope;
     choices: RunChoices;
+    planned?: PlannedEstimates;
   }): Run {
+    const { planned, ...rest } = input;
+
     return new Run({
-      ...input,
+      ...rest,
+      ...(planned === undefined ? {} : { plannedMs: planned }),
       state: "checking",
       endedAt: null,
       exit: null,
@@ -319,6 +334,7 @@ export class Run {
       describeHalt: this.describeHalt,
       structure: this.structure,
       log: this.log,
+      plannedMs: this.plannedMs,
       ...changes,
     });
   }
@@ -625,6 +641,35 @@ export class Run {
       .map(({ name }) => name);
   }
 
+  private remaining(): RunRemaining | null {
+    if (this.startedBy !== "app" || this.state !== "running") {
+      return null;
+    }
+
+    const live = this.plugins.filter(({ live }) => live);
+
+    if (live.length === 0) {
+      return null;
+    }
+
+    const effective = live.map((one) => ({
+      name: one.name,
+      estimate: one.effective(this.plannedMs[one.name]),
+    }));
+    const silent = effective
+      .filter(({ estimate }) => estimate === null)
+      .map(({ name }) => name);
+
+    if (silent.length > 0) {
+      return { ms: null, silent };
+    }
+
+    return {
+      ms: effective.reduce((sum, { estimate }) => sum + (estimate?.ms ?? 0), 0),
+      silent: [],
+    };
+  }
+
   view(): RunView {
     return {
       id: this.id,
@@ -645,7 +690,8 @@ export class Run {
       gaps: this.gaps.map((gap) => ({ ...gap, needs: [...gap.needs] })),
       failure: this.failure === null ? null : { ...this.failure },
       ran: this.ran === null ? null : [...this.ran],
-      plugins: this.plugins.map((one) => one.view()),
+      plugins: this.plugins.map((one) => one.view(this.plannedMs[one.name])),
+      remaining: this.remaining(),
       confirmation:
         this.confirmation === null
           ? null

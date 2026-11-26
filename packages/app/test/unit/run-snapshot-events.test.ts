@@ -41,10 +41,12 @@ function run(
       progress: more.progress?.[name] ?? null,
       stage: null,
       estimateMs: null,
+      effectiveEstimate: null,
       failure: more.failures?.[name] ?? null,
       tally: more.tally?.[name] ?? null,
       durationMs: null,
     })),
+    remaining: null,
     confirmation: null,
     describeHalt: more.halted
       ? {

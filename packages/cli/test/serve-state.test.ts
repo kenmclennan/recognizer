@@ -79,6 +79,21 @@ function start(root: ServeRoot, repository: string, sense: string[]) {
   });
 }
 
+function startPlanned(
+  root: ServeRoot,
+  repository: string,
+  sense: string[],
+  plannedMs?: unknown,
+) {
+  return root.call("scan.start", {
+    repository,
+    describe: false,
+    analysis: false,
+    sense,
+    ...(plannedMs === undefined ? {} : { plannedMs }),
+  });
+}
+
 function configure(root: ServeRoot, repository: string, sensors: string[]) {
   root.io.files.writeFile(
     `${repository}/.recognizer/config.yaml`,
@@ -139,6 +154,102 @@ describe("serve repository state", () => {
       }
     }
 
+    await root.outcome(started.ok);
+    await root.call("repository.unwatch", { watch });
+    await root.close();
+  });
+
+  it("a_scan_start_carries_its_planned_figures_into_the_snapshot", async () => {
+    const gate = new Gate();
+    const { root, repository } = typescriptScenario({
+      sensors: ["crap"],
+      scripts: {
+        crap: {
+          gate,
+          before: [event({ event: "start", total: 2, unit: "functions" })],
+          after: [],
+        },
+      },
+    });
+
+    gate.hold();
+
+    const watch = (await root.call("repository.watch", { repository })).ok;
+
+    await untilState(root, watch, (state) => state.revision === 1);
+
+    const started = await startPlanned(root, repository, ["crap"], {
+      crap: 5000,
+    });
+    const silent = await untilState(
+      root,
+      watch,
+      (state) => pluginStates(state, "crap") === "running",
+    );
+    const crap = (state: State) =>
+      state.run?.plugins.find((one: Line) => one.name === "crap");
+
+    expect(crap(silent).estimateMs).toBeNull();
+    expect(crap(silent).effectiveEstimate).toEqual({
+      ms: 5000,
+      source: "history",
+    });
+    expect(silent.run.remaining).toEqual({ ms: 5000, silent: [] });
+
+    gate.open();
+    await root.outcome(started.ok);
+    await root.call("repository.unwatch", { watch });
+    await root.close();
+  });
+
+  it("a_scan_start_with_a_malformed_planned_figure_is_refused", async () => {
+    const { root, repository } = typescriptScenario({ sensors: ["crap"] });
+
+    for (const bad of [{ crap: "5" }, { crap: -1 }, [5000], "5"]) {
+      const started = await startPlanned(root, repository, ["crap"], bad);
+      const outcome = await root.outcome(started.ok);
+
+      expect(outcome.status).toBe("failed");
+      expect(outcome.reason).toBe("invalid-request");
+      expect(outcome.messages.join("\n")).toContain("plannedMs");
+    }
+
+    expect(root.lines.some((line) => line.run?.id !== undefined)).toBe(false);
+
+    await root.close();
+  });
+
+  it("a_scan_start_without_planned_figures_is_unchanged", async () => {
+    const gate = new Gate();
+    const { root, repository } = typescriptScenario({
+      sensors: ["crap"],
+      scripts: {
+        crap: {
+          gate,
+          before: [event({ event: "start", total: 2, unit: "functions" })],
+          after: [],
+        },
+      },
+    });
+
+    gate.hold();
+
+    const watch = (await root.call("repository.watch", { repository })).ok;
+
+    await untilState(root, watch, (state) => state.revision === 1);
+
+    const started = await startPlanned(root, repository, ["crap"]);
+    const running = await untilState(
+      root,
+      watch,
+      (state) => pluginStates(state, "crap") === "running",
+    );
+    const crap = running.run.plugins.find((one: Line) => one.name === "crap");
+
+    expect(crap.effectiveEstimate).toBeNull();
+    expect(running.run.remaining).toEqual({ ms: null, silent: ["crap"] });
+
+    gate.open();
     await root.outcome(started.ok);
     await root.call("repository.unwatch", { watch });
     await root.close();

@@ -1003,4 +1003,77 @@ describe("repository state holder", () => {
     ]);
     expect(fakes.runLog.settledKills[0]?.running).toEqual([]);
   });
+
+  describe("expected planned figures", () => {
+    function crapRun(startedBy: "app" | "cli", runId: string) {
+      return {
+        runId,
+        startedBy,
+        sensors: ["crap"],
+        phase: "running" as const,
+      };
+    }
+
+    function remainingOf(
+      holder: ReturnType<typeof holderOver>,
+    ): RepositoryState["run"] extends infer R
+      ? R extends { remaining: infer M }
+        ? M
+        : never
+      : never {
+      return (holder.current().run as NonNullable<RepositoryState["run"]>)
+        .remaining;
+    }
+
+    it("expected_figures_go_to_the_next_app_run_and_are_cleared", () => {
+      const fakes = fakesWith("crap");
+      const holder = holderOver(fakes);
+
+      holder.expectPlan({ crap: 40_000 });
+      fakes.active.start(crapRun("app", "run-1"));
+      fakes.active.report(started("crap"));
+      holder.refresh();
+
+      expect(remainingOf(holder)).toEqual({ ms: 40_000, silent: [] });
+
+      fakes.active.start(crapRun("app", "run-2"));
+      fakes.active.report(started("crap"));
+      holder.refresh();
+
+      expect(holder.current().run?.id).toBe("run-2");
+      expect(remainingOf(holder)).toEqual({ ms: null, silent: ["crap"] });
+    });
+
+    it("expected_figures_are_left_for_an_app_run_when_a_command_line_run_begins_first", () => {
+      const fakes = fakesWith("crap");
+      const holder = holderOver(fakes);
+
+      holder.expectPlan({ crap: 40_000 });
+      fakes.active.start(crapRun("cli", "run-1"));
+      fakes.active.report(started("crap"));
+      holder.refresh();
+
+      expect(holder.current().run?.remaining).toBeNull();
+
+      fakes.active.start(crapRun("app", "run-2"));
+      fakes.active.report(started("crap"));
+      holder.refresh();
+
+      expect(holder.current().run?.id).toBe("run-2");
+      expect(remainingOf(holder)).toEqual({ ms: 40_000, silent: [] });
+    });
+
+    it("clearing_the_expected_figures_gives_the_next_app_run_none", () => {
+      const fakes = fakesWith("crap");
+      const holder = holderOver(fakes);
+
+      holder.expectPlan({ crap: 40_000 });
+      holder.expectPlan(null);
+      fakes.active.start(crapRun("app", "run-1"));
+      fakes.active.report(started("crap"));
+      holder.refresh();
+
+      expect(remainingOf(holder)).toEqual({ ms: null, silent: ["crap"] });
+    });
+  });
 });
