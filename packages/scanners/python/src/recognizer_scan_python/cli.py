@@ -149,12 +149,14 @@ def main(argv: list[str] | None = None) -> int:
 
     modified = args.modified if args.modified is not None else resolve_modified(root)
 
+    progress = Progress(root)
+
     document = scan(
         root,
         None if source_roots is None else [Path(s).as_posix() for s in source_roots],
         commit,
         modified,
-        Progress(),
+        progress,
         lambda line: print(line, file=sys.stderr),
     )
 
@@ -164,5 +166,7 @@ def main(argv: list[str] | None = None) -> int:
         write_atomically(text, args.output)
     else:
         sys.stdout.write(text)
+
+    progress.complete()
 
     return 0

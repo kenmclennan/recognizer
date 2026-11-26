@@ -119,7 +119,9 @@ def main(argv: list[str] | None = None) -> int:
 
     modified = args.modified if args.modified is not None else resolve_modified(root)
 
-    result = scan_with_stats(root, commit, modified, Progress())
+    progress = Progress(root)
+
+    result = scan_with_stats(root, commit, modified, progress)
     text = render(result.document)
 
     if result.damaged:
@@ -138,5 +140,7 @@ def main(argv: list[str] | None = None) -> int:
         write_atomically(text, args.output)
     else:
         sys.stdout.write(text)
+
+    progress.complete()
 
     return 0

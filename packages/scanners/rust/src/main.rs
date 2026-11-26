@@ -222,12 +222,9 @@ fn main() -> ExitCode {
         .modified
         .or_else(|| resolve_modified(&arguments.root));
 
-    let result = match scan_reporting(
-        &arguments.root,
-        commit,
-        modified,
-        Some(&mut Progress::new()),
-    ) {
+    let mut progress = Progress::for_root(arguments.root.clone());
+
+    let result = match scan_reporting(&arguments.root, commit, modified, Some(&mut progress)) {
         Ok(result) => result,
         Err(error) => {
             eprintln!("could not read:");
@@ -266,6 +263,8 @@ fn main() -> ExitCode {
         }
         None => print!("{text}"),
     }
+
+    progress.complete();
 
     ExitCode::SUCCESS
 }

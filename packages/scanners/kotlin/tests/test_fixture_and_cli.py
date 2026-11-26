@@ -296,6 +296,7 @@ def test_run_reports_start_and_progress_events_ending_at_the_total():
         for line in result.stderr.splitlines()
         if line.startswith("recognizer-event ")
     ]
+    events = [event for event in events if event["event"] in ("start", "progress")]
 
     assert result.returncode == 0
     assert events[0]["event"] == "start"

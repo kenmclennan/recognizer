@@ -145,39 +145,45 @@ describe("the open progress model", () => {
     );
   });
 
-  it("shows no time left at 4.9 seconds, with nothing done, then does at exactly 5", () => {
-    expect(shown(running(100, 1000), 4900).timeLeft).toBeNull();
-    expect(shown(running(0, 1000), 6000).timeLeft).toBeNull();
-    expect(shown(running(100, 1000), 5000).timeLeft).toBe(
-      "under a minute left",
-    );
-  });
-
-  it("words time left from the running scanner's own rate", () => {
-    const model = shown(running(100, 4000), 10_000);
+  it("shows_the_running_scanners_reported_estimate", () => {
+    const scan = { ...running(100, 4000), extractEstimateMs: 420_000 };
+    const model = shown(scan, 10_000);
 
     expect(model.counts).not.toBe("");
     expect(model.timeLeft).toBe("about 7 min left");
   });
 
+  it("shows_no_time_left_without_a_reported_estimate", () => {
+    const scan = { ...running(100, 1000), extractEstimateMs: null };
+
+    expect(shown(scan, 60_000).timeLeft).toBeNull();
+  });
+
+  it("shows_under_a_minute_left_for_an_estimate_of_zero", () => {
+    const scan = { ...running(100, 1000), extractEstimateMs: 0 };
+
+    expect(shown(scan, 10_000).timeLeft).toBe("under a minute left");
+  });
+
+  it("a_reported_estimate_ignores_the_time_handed_in", () => {
+    const scan = { ...running(100, 1000), extractEstimateMs: 420_000 };
+
+    expect(shown(scan, 6000).timeLeft).toBe(shown(scan, 4_000_000).timeLeft);
+    expect(shown(scan, 6000).elapsed).not.toBe(shown(scan, 4_000_000).elapsed);
+  });
+
   it("carries only the running scanner's time, never a whole-scan figure", () => {
-    const model = shown(running(1000, 1100), 10_000);
+    const scan = { ...running(1000, 1100), extractEstimateMs: 30_000 };
+    const model = shown(scan, 10_000);
 
     expect(model.counts).toBe("1,000 of 1,100 files");
     expect(model.timeLeft).toBe("under a minute left");
-  });
-
-  it("measures the running scanner from its own first event", () => {
-    const model = shown(running(100, 1000, 8000), 12_000, 0);
-
-    expect(model.timeLeft).toBeNull();
   });
 
   it("counts only the awake time handed in, across a large gap", () => {
     const scan = running(100, 1000, 1000);
 
     expect(shown(scan, 6000, 1000).elapsed).toBe("0:05");
-    expect(shown(scan, 6000, 1000).timeLeft).toBe("under a minute left");
     expect(shown(scan, 4_000_000, 1000).elapsed).toBe("66:39");
   });
 

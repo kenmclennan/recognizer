@@ -297,7 +297,10 @@ fn run_reports_start_and_progress_events_ending_at_the_total() {
     );
 
     let output = binary().arg(directory.path()).output().unwrap();
-    let reported = events(&output.stderr);
+    let reported: Vec<_> = events(&output.stderr)
+        .into_iter()
+        .filter(|event| event["event"] == "start" || event["event"] == "progress")
+        .collect();
 
     assert!(output.status.success());
     assert_eq!(

@@ -43,9 +43,9 @@ const read = () => {
 const show = (progress, now) => { view.render(model(progress, now)); return read(); };
 
 facts.starting = show({ extract: "run", languages: ["typescript", "python", "rust"] }, 1000);
-const early = { extract: "run", languages: ["typescript", "python", "rust"], sensorProgress: { name: "typescript", phase: "extract", progress: { done: 280, total: 812, unit: "files" } }, timing: timing({ extractAt: { typescript: 0 }, extractTotals: { typescript: 812 } }) };
+const early = { extract: "run", extractEstimateMs: 420000, languages: ["typescript", "python", "rust"], sensorProgress: { name: "typescript", phase: "extract", progress: { done: 280, total: 812, unit: "files" } }, timing: timing({ extractAt: { typescript: 0 }, extractTotals: { typescript: 812 } }) };
 facts.early = show(early, 2000);
-facts.mid = show({ extract: "run", languages: ["typescript", "python", "rust"], extractEntries: [ok("typescript")], sensorProgress: { name: "python", phase: "extract", progress: { done: 1240, total: 3812, unit: "files" } }, timing: timing({ extractAt: { typescript: 0, python: 6000 }, extractDoneAt: { typescript: 6000 }, extractTotals: { typescript: 812, python: 3812 } }) }, 19000);
+facts.mid = show({ extract: "run", extractEstimateMs: 90000, languages: ["typescript", "python", "rust"], extractEntries: [ok("typescript")], sensorProgress: { name: "python", phase: "extract", progress: { done: 1240, total: 3812, unit: "files" } }, timing: timing({ extractAt: { typescript: 0, python: 6000 }, extractDoneAt: { typescript: 6000 }, extractTotals: { typescript: 812, python: 3812 } }) }, 19000);
 facts.failed = show({ extract: "run", languages: ["typescript", "python", "rust"], log: "abc", extractEntries: [ok("typescript"), failed("python")], sensorProgress: { name: "rust", phase: "extract", progress: { done: 90, total: 214, unit: "files" } }, timing: timing({ extractAt: { typescript: 0, python: 6000, rust: 8000 }, extractDoneAt: { typescript: 6000, python: 8000 }, extractTotals: { typescript: 812, python: 3812, rust: 214 } }) }, 10000);
 content.querySelector(".scan-log-link").click();
 content.querySelector(".fo-stop").click();
@@ -90,8 +90,8 @@ describe.skipIf(webkit === undefined)(
       expect(f.early.rows[0].spinning).toBe(true);
     });
 
-    it("shows done rows with a tick and time left only after 5 seconds", () => {
-      expect(f.early.left).toBe("");
+    it("shows done rows with a tick and the reported time left", () => {
+      expect(f.early.left).toBe("about 7 min left");
       expect(f.mid.rows[0].classes).toContain("ok");
       expect(f.mid.rows[0].icon).toBe(true);
       expect(f.mid.rows[0].text).toBe("812 files · 6s");

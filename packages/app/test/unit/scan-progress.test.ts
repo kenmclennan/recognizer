@@ -140,6 +140,47 @@ describe("progressOfRun", () => {
     expect(state.extract).toBe("run");
   });
 
+  it("a_running_extract_runs_estimate_reaches_run_progress", () => {
+    const state = of([
+      planned("python"),
+      {
+        kind: "plugin-started",
+        name: "python",
+        progress: { done: 5, total: 40, unit: "files" },
+        phase: "extract",
+      },
+      {
+        kind: "plugin-estimate",
+        name: "python",
+        phase: "extract",
+        estimateMs: 5000,
+      },
+    ]);
+
+    expect(state.extractEstimateMs).toBe(5000);
+  });
+
+  it("an_ended_extract_run_has_no_extract_estimate", () => {
+    const state = of([
+      planned("python"),
+      {
+        kind: "plugin-started",
+        name: "python",
+        progress: { done: 5, total: 40, unit: "files" },
+        phase: "extract",
+      },
+      {
+        kind: "plugin-estimate",
+        name: "python",
+        phase: "extract",
+        estimateMs: 5000,
+      },
+      extractEnded("python"),
+    ]);
+
+    expect(state.extractEstimateMs).toBeNull();
+  });
+
   it("reads the ask, the answer and the skipped state from the confirmation", () => {
     const ask = { modules: 4, model: "m", inputTokens: 10, costUsd: null };
     const asked = of([{ kind: "confirmation-asked", ask }]);
