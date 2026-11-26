@@ -18,6 +18,7 @@ const expected: Record<string, string[]> = {
     "findings-document-types.ts",
     "findings-translator.ts",
     "parsing-adapter.ts",
+    "plugin-registrations-adapter.ts",
     "plugin-registry-adapter.ts",
     "policy-adapter.ts",
     "policy-translator.ts",

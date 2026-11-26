@@ -1,10 +1,13 @@
 import { isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
+  type PluginKind,
   pluginCheck,
   type Registrable,
   registerPlugin,
+  registerWithRegistry,
   scaffoldPlugin,
+  unregisterFromRegistry,
 } from "@recognizer/core";
 import type { Io } from "./cli.js";
 import { asInputError, InputError } from "./errors.js";
@@ -15,6 +18,8 @@ import { pluginPorts } from "./plugins-container.js";
 const USAGE = [
   "usage: recognizer plugin check <command> [--repository <dir>] [--request <file>] [--json]",
   "       recognizer plugin add <name> [--kind sensor|describer] [--repository <dir>]",
+  "       recognizer plugin register <program|path>",
+  "       recognizer plugin unregister <name> [--kind scanner|sensor|describer]",
   "       recognizer plugin init --kind <scanner|sensor|describer> --language <python|typescript|rust> --name <name> [folder]",
   "       recognizer plugin schema <manifest|events|scan|findings|overlay|check>",
 ];
@@ -124,6 +129,84 @@ function runAdd(argv: string[], io: Io): number {
   return 0;
 }
 
+function runRegister(argv: string[], io: Io): number {
+  const { positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    strict: true,
+    options: {},
+  });
+  const [program] = positionals;
+
+  if (program === undefined || positionals.length > 1) {
+    throw new InputError(["usage: recognizer plugin register <program|path>"]);
+  }
+
+  const located = program.includes("/") ? locate(io, program) : program;
+
+  if (located === null) {
+    throw new InputError([`${program} was not found`]);
+  }
+
+  const result = asInputError(() =>
+    registerWithRegistry(pluginPorts(io), { program: located }),
+  );
+
+  if (result.status === "failed") {
+    io.stderr(`recognizer plugin register: ${result.message}\n`);
+
+    return 1;
+  }
+
+  for (const warning of result.warnings) {
+    io.stderr(`recognizer plugin register: ${warning}\n`);
+  }
+
+  io.stdout(`${result.line}\n`);
+
+  return 0;
+}
+
+const UNREGISTER_USAGE = [
+  "usage: recognizer plugin unregister <name> [--kind scanner|sensor|describer]",
+];
+
+function runUnregister(argv: string[], io: Io): number {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    strict: true,
+    options: { kind: { type: "string" } },
+  });
+  const [name] = positionals;
+
+  if (
+    name === undefined ||
+    positionals.length > 1 ||
+    (values.kind !== undefined &&
+      values.kind !== "scanner" &&
+      values.kind !== "sensor" &&
+      values.kind !== "describer")
+  ) {
+    throw new InputError(UNREGISTER_USAGE);
+  }
+
+  const result = unregisterFromRegistry(pluginPorts(io), {
+    name,
+    kind: values.kind as PluginKind | undefined,
+  });
+
+  if (result.status === "failed") {
+    io.stderr(`recognizer plugin unregister: ${result.message}\n`);
+
+    return 1;
+  }
+
+  io.stdout(`${result.message}\n`);
+
+  return 0;
+}
+
 function runInit(argv: string[], io: Io): number {
   const { values, positionals } = parseArgs({
     args: argv,
@@ -173,6 +256,14 @@ export function runPlugin(argv: string[], io: Io): number | Promise<number> {
 
   if (subcommand === "add") {
     return runAdd(rest, io);
+  }
+
+  if (subcommand === "register") {
+    return runRegister(rest, io);
+  }
+
+  if (subcommand === "unregister") {
+    return runUnregister(rest, io);
   }
 
   if (subcommand === "init") {
