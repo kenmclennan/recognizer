@@ -1,36 +1,52 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { beforeAll, describe, expect, it } from "vitest";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
+  type Finding,
   type GrammarRule,
   grammarFor,
+  Member,
   measureSource,
   type Parsers,
   runStructureAnalysis,
   type StructureSettings,
-} from "@recognizer/core";
-import { beforeAll, describe, expect, it } from "vitest";
-import type { DocumentMember } from "../src/adapters/filesystem/scan-document-types.js";
-import { memberOf } from "../src/adapters/filesystem/scan-translator.js";
-import { type Overlay, validateOverlay } from "../src/overlays.js";
-import {
-  STRUCTURE_OVERLAY_METRICS,
-  structureOverlayFile,
-} from "../src/structure-overlay.js";
-import { analysisPortsOf, sayOf } from "./analysis-ports.js";
+} from "../../src/index.js";
 import {
   allParsers,
   GRAMMAR_RULES,
   measuredSources,
   ROOT,
-} from "./duplication-helpers.js";
-import { REPO } from "./helpers.js";
+  readFixture,
+} from "./measured-sources.js";
 
 let parsers: Parsers;
 
 beforeAll(async () => {
   parsers = await allParsers();
 });
+
+function duplicatedLines(findings: readonly Finding[]): Record<string, number> {
+  const lines = new Map<string, Set<number>>();
+
+  for (const finding of findings) {
+    for (const member of finding.members ?? []) {
+      if (member.lines === undefined) {
+        continue;
+      }
+
+      const held = lines.get(member.file) ?? new Set<number>();
+
+      for (let line = member.lines[0]; line <= member.lines[1]; line += 1) {
+        held.add(line);
+      }
+
+      lines.set(member.file, held);
+    }
+  }
+
+  return Object.fromEntries(
+    [...lines].map(([module, held]) => [module, held.size]),
+  );
+}
 
 function branches(name: string, count: number): string {
   const body = Array.from(
@@ -45,18 +61,11 @@ function sense(
   files: Record<string, string>,
   overrides: Partial<StructureSettings> = {},
   withParsers: Parsers | null = parsers,
-  members: Record<string, unknown[]> = {},
+  members: Record<string, Member[]> = {},
 ) {
-  const { fake, scans } = measuredSources(files);
-
-  for (const file of scans.files) {
-    (file as { members: unknown }).members = (
-      (members[file.path] ?? []) as DocumentMember[]
-    ).map(memberOf);
-  }
-
-  const run = runStructureAnalysis(analysisPortsOf(fake.io), {
-    say: sayOf(fake.io),
+  const { fakes, scans, say } = measuredSources(files, members);
+  const run = runStructureAnalysis(fakes, {
+    say,
     root: ROOT,
     repository: scans,
     policy: null,
@@ -68,10 +77,24 @@ function sense(
     parsers: withParsers,
     rules: GRAMMAR_RULES,
   });
-  const text = fake.files.get(structureOverlayFile(ROOT));
-  const overlay = text === undefined ? null : (JSON.parse(text) as Overlay);
+  const [written] = fakes.findings.overlays;
+  const overlay =
+    written === undefined
+      ? null
+      : {
+          values: {
+            ...(written.complexity === null
+              ? {}
+              : { complexity: written.complexity }),
+            function_length: written.functionLength,
+            ...(written.duplication === null
+              ? {}
+              : { duplication: duplicatedLines(written.duplication) }),
+          } as Record<string, Record<string, number>>,
+          written,
+        };
 
-  return { fake, run, overlay };
+  return { fakes, run, overlay };
 }
 
 describe("the structural analysis overlay", () => {
@@ -89,27 +112,26 @@ describe("the structural analysis overlay", () => {
         .filter((finding) => finding.kind === "complexity")
         .map((finding) => finding.id),
     ).toEqual(["complexity:a.py::above"]);
-    expect(overlay?.metrics).toEqual(STRUCTURE_OVERLAY_METRICS);
-    expect(overlay?.producer.name).toBe("recognizer");
+    expect(overlay?.written.commit).toBe("c1");
   });
 
   it("writes function_length by the long_function rule", () => {
     const { overlay } = sense({ "a.py": branches("f", 2) }, {}, parsers, {
       "a.py": [
-        {
+        new Member({
           kind: "function",
           name: "f",
           exported: true,
           line: 1,
-          body_line: 2,
-          end_line: 31,
-        },
-        {
+          bodyLine: 2,
+          endLine: 31,
+        }),
+        new Member({
           kind: "class",
           name: "K",
           exported: true,
-          methods: [{ name: "m", line: 40, body_line: 41, end_line: 44 }],
-        },
+          methods: [{ name: "m", line: 40, bodyLine: 41, endLine: 44 }],
+        }),
       ],
     });
 
@@ -138,10 +160,6 @@ describe("the structural analysis overlay", () => {
     );
 
     expect(overlay?.values.duplication).toEqual({ "a.py": 8, "b.py": 8 });
-    expect(
-      overlay?.metrics.find((metric) => metric.name === "duplication")
-        ?.granularity,
-    ).toBe("module");
   });
 
   it("leaves the metric out of values when its setting is off", () => {
@@ -152,11 +170,7 @@ describe("the structural analysis overlay", () => {
       },
     );
 
-    expect(overlay?.metrics.map((metric) => metric.name)).toEqual([
-      "complexity",
-      "function_length",
-      "duplication",
-    ]);
+    expect(overlay?.written.complexity).toBeNull();
     expect(overlay?.values).not.toHaveProperty("complexity");
     expect(overlay?.values).not.toHaveProperty("duplication");
     expect(overlay?.values).toHaveProperty("function_length");
@@ -171,10 +185,7 @@ describe("the structural analysis overlay", () => {
 
   it("measures real committed content and validates", () => {
     const path = "app/pricing.py";
-    const source = readFileSync(
-      join(REPO, "fixtures/duplication/sample", path),
-      "utf8",
-    );
+    const source = readFixture(`fixtures/duplication/sample/${path}`);
     const { overlay } = sense({ [path]: source });
     const rule = grammarFor(path, GRAMMAR_RULES) as GrammarRule;
     const functions = measureSource(path, source, rule, parsers);
@@ -183,12 +194,6 @@ describe("the structural analysis overlay", () => {
     expect(Object.keys(overlay?.values.complexity ?? {})).toHaveLength(
       new Set(functions.map((one) => one.qualified)).size,
     );
-    expect(() =>
-      validateOverlay(overlay, {
-        commit: "c1",
-        modified: false,
-        metrics: STRUCTURE_OVERLAY_METRICS,
-      }),
-    ).not.toThrow();
+    expect(overlay?.written).toMatchObject({ commit: "c1", modified: false });
   });
 });

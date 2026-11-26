@@ -1,19 +1,17 @@
+import { beforeAll, describe, expect, it } from "vitest";
 import {
   DEFAULT_STRUCTURE_SETTINGS,
+  IgnoreRule,
   type Parsers,
   runStructureAnalysis,
   type StructureSettings,
-} from "@recognizer/core";
-import { beforeAll, describe, expect, it } from "vitest";
-import { parsePolicy } from "../src/adapters/filesystem/policy-translator.js";
-import { resolveStructureSettings } from "../src/structure-sensor.js";
-import { analysisPortsOf, sayOf } from "./analysis-ports.js";
+} from "../../src/index.js";
 import {
   allParsers,
   GRAMMAR_RULES,
   measuredSources,
   ROOT,
-} from "./duplication-helpers.js";
+} from "./measured-sources.js";
 
 let parsers: Parsers;
 
@@ -33,19 +31,19 @@ function branches(name: string, count: number, extra = ""): string {
 function sense(
   files: Record<string, string>,
   overrides: Partial<StructureSettings> = {},
-  policyText: string | null = null,
+  ignore: string | null = null,
 ) {
-  const { fake, scans } = measuredSources(files);
+  const { fakes, scans, say } = measuredSources(files);
   const settings: StructureSettings = {
     ...DEFAULT_STRUCTURE_SETTINGS,
     duplication: false,
     ...overrides,
   };
-  const run = runStructureAnalysis(analysisPortsOf(fake.io), {
-    say: sayOf(fake.io),
+  const run = runStructureAnalysis(fakes, {
+    say,
     root: ROOT,
     repository: scans,
-    policy: policyText === null ? null : parsePolicy(policyText),
+    policy: ignore === null ? null : [new IgnoreRule({ glob: ignore })],
     settings: settings,
     parsers: parsers,
     rules: GRAMMAR_RULES,
@@ -132,7 +130,7 @@ describe("the complexity warning", () => {
         "kept.py": branches("h", 12),
       },
       {},
-      "ignore: ['ignored/**']\n",
+      "ignored/**",
     );
 
     expect(findings.map((finding) => finding.id)).toEqual([
@@ -206,12 +204,14 @@ describe("the complexity warning", () => {
 
 describe("a failure in one measure", () => {
   it("leaves duplication's findings and names complexity in the error", () => {
-    const { fake, scans } = measuredSources({ "a.py": branches("f", 10) });
+    const { fakes, scans, say } = measuredSources({
+      "a.py": branches("f", 10),
+    });
     const partial = new Map(
       [...parsers].filter(([grammar]) => grammar !== "python"),
     );
-    const run = runStructureAnalysis(analysisPortsOf(fake.io), {
-      say: sayOf(fake.io),
+    const run = runStructureAnalysis(fakes, {
+      say,
       root: ROOT,
       repository: scans,
       policy: null,
@@ -230,19 +230,24 @@ describe("a failure in one measure", () => {
   });
 
   it("leaves complexity's findings when duplication fails", () => {
-    const { fake, scans } = measuredSources({ "a.py": branches("f", 10) });
-    const failing = {
-      ...fake.io,
-      readBytes: (path: string) => {
-        if (new Error().stack?.includes("collectUnits")) {
-          throw new Error("boom");
-        }
+    const { fakes, scans, say } = measuredSources({
+      "a.py": branches("f", 10),
+    });
+    const readBytes = fakes.source.readBytes.bind(fakes.source);
+    let reads = 0;
 
-        return fake.io.readBytes(path);
-      },
+    fakes.source.readBytes = (root, path) => {
+      reads += 1;
+
+      if (reads === 1) {
+        throw new Error("boom");
+      }
+
+      return readBytes(root, path);
     };
-    const run = runStructureAnalysis(analysisPortsOf(failing), {
-      say: sayOf(failing),
+
+    const run = runStructureAnalysis(fakes, {
+      say,
       root: ROOT,
       repository: scans,
       policy: null,
@@ -256,26 +261,5 @@ describe("a failure in one measure", () => {
         (finding) => finding.kind === "complexity",
       ),
     ).toBe(true);
-  });
-});
-
-describe("the structure settings", () => {
-  it("resolve the complexity switch and limit like long_function", () => {
-    const resolve = (text: string) => {
-      const config = {
-        sensors: { structure: JSON.parse(text) },
-      } as Parameters<typeof resolveStructureSettings>[0];
-
-      return resolveStructureSettings(config) as StructureSettings;
-    };
-
-    expect(resolve("{}").complexity_limit).toBe(10);
-    expect(resolve("{}").warnings.complexity).toBe(true);
-    expect(
-      resolve('{"warnings":{"complexity":{"limit":15}}}').complexity_limit,
-    ).toBe(15);
-    expect(
-      resolve('{"warnings":{"complexity":false}}').warnings.complexity,
-    ).toBe(false);
   });
 });
