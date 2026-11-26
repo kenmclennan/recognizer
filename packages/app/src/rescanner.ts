@@ -36,7 +36,7 @@ import {
   stampTiming,
 } from "./scan-progress";
 import type { ScanReport } from "./scan-report";
-import type { RunInput } from "./scan-run-model";
+import { isActive as isRunActive, type RunInput } from "./scan-run-model";
 
 export type Registered = {
   sensors: Pick<
@@ -813,6 +813,11 @@ export function createRescanner<Carried>(
       publish();
     }
 
+    if (next !== null && next.id === activeSeen && !isRunActive(next)) {
+      publish();
+      ports.progress(lastUpdate);
+    }
+
     externalQueue = externalQueue
       .then(async () => {
         queueSeen = next;
@@ -1147,7 +1152,7 @@ export function createRescanner<Carried>(
     running: () => {
       const held = ports.snapshot.run();
 
-      if (held !== null && held.id === activeSeen && held.state === "stopped") {
+      if (held !== null && held.id === activeSeen && !isRunActive(held)) {
         return false;
       }
 

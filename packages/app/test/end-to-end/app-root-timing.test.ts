@@ -12,6 +12,7 @@ import { appRoot, REPO, timeEndToEnd, untilHolds } from "../roots";
 
 const EDIT_LIMIT_MS = 10_000;
 const PULL_LIMIT_MS = 5_000;
+const SETTLE_LIMIT_MS = 5_000;
 const TEST_TIMEOUT = scaledTimeout(60_000) * 5;
 
 const PULLS = [
@@ -70,6 +71,41 @@ describe("the app root, timed end to end", () => {
 
       expect(elapsedMs).toBeLessThan(limitMs);
       expect(readFileSync(root.testFile, "utf8")).toContain("edited");
+    },
+    TEST_TIMEOUT,
+  );
+
+  it(
+    "the scan panel stops reading running once the run has ended",
+    async () => {
+      const root = await appRoot({ stamped: true });
+
+      const host = await untilHolds(
+        root.service,
+        () => root.view.explorer()?.host,
+      );
+
+      host.run(null);
+
+      await untilHolds(root.service, () => {
+        const state = host.runView?.()?.run?.state;
+
+        return state === "running" ? true : undefined;
+      });
+
+      await untilHolds(root.service, () => {
+        const state = host.runView?.()?.run?.state;
+
+        return state === "finished" ? true : undefined;
+      });
+
+      const { elapsedMs, limitMs } = await timeEndToEnd(root.service, {
+        limitMs: SETTLE_LIMIT_MS,
+        action: () => {},
+        until: () => (host.running() ? undefined : true),
+      });
+
+      expect(elapsedMs).toBeLessThan(limitMs);
     },
     TEST_TIMEOUT,
   );
