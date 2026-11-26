@@ -1757,7 +1757,7 @@ export function buildCanvasView(
       }
 
       props = next;
-      empty.hidden = next.open > 0;
+      empty.hidden = next.open > 0 || (next.scene?.boxes.length ?? 0) > 0;
       notice.textContent = next.notice ?? "";
       notice.hidden = next.notice === null;
       busy.hidden = next.busy !== true;
