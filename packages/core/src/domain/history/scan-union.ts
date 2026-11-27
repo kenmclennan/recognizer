@@ -1,4 +1,5 @@
-import { type File, Repository } from "@recognizer/core";
+import type { File } from "../file.js";
+import { Repository } from "../repository.js";
 
 export function unionScans(
   head: Repository,

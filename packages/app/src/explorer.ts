@@ -11,6 +11,7 @@ import {
   type DescribeHalt,
   Neighbours,
   Repository,
+  unionScans,
   View,
   type ViewChange,
   type ViewFields,
@@ -50,7 +51,6 @@ import {
   summariseChange,
   viewNameFrom,
 } from "./change-summary";
-import { unionScans } from "./change-union";
 import {
   ageOf,
   type BranchEntry,
