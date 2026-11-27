@@ -1,5 +1,10 @@
-import type { Finding, SensorFindings } from "@recognizer/core";
-import { linesDuplicated } from "recognizer";
+import {
+  compareFindings,
+  type Finding,
+  type FindingsLevel,
+  findingsStanding,
+  type SensorFindings,
+} from "@recognizer/core";
 
 export type FindingRow = {
   id: string;
@@ -14,12 +19,6 @@ export type FindingRow = {
 };
 
 export type BadgeTone = "none" | "amber" | "red";
-
-const SEVERITIES: ("violation" | "warning")[] = ["violation", "warning"];
-
-function compare(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 export function findingRows(documents: SensorFindings[]): FindingRow[] {
   return documents.flatMap((document) =>
@@ -37,24 +36,8 @@ export function findingRows(documents: SensorFindings[]): FindingRow[] {
   );
 }
 
-function withinKind(a: FindingRow, b: FindingRow): number {
-  if (a.kind === "duplication") {
-    return (
-      linesDuplicated(b.record) - linesDuplicated(a.record) ||
-      compare(a.id, b.id)
-    );
-  }
-
-  return compare(a.module, b.module) || compare(a.id, b.id);
-}
-
 export function orderFindings(rows: FindingRow[]): FindingRow[] {
-  return [...rows].sort(
-    (a, b) =>
-      SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity) ||
-      compare(a.kind, b.kind) ||
-      withinKind(a, b),
-  );
+  return [...rows].sort((a, b) => compareFindings(a.record, b.record));
 }
 
 export function walkFindings(
@@ -79,12 +62,14 @@ export function walkFindings(
   ] as string;
 }
 
+const TONES: Record<FindingsLevel, BadgeTone> = {
+  none: "none",
+  warning: "amber",
+  violation: "red",
+};
+
 export function badge(rows: FindingRow[]): { count: number; tone: BadgeTone } {
-  const violations = rows.filter((row) => row.severity === "violation").length;
+  const standing = findingsStanding(rows);
 
-  if (violations > 0) {
-    return { count: violations, tone: "red" };
-  }
-
-  return { count: 0, tone: rows.length === 0 ? "none" : "amber" };
+  return { count: standing.violations, tone: TONES[standing.level] };
 }
