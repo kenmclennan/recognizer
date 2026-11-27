@@ -1,4 +1,4 @@
-import { Repository, splitDocument } from "@recognizer/core";
+import { Repository, splitDocument, suiteStandings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { fakeSensors } from "../../src/sensors-fake";
 import {
@@ -104,5 +104,44 @@ describe("the installed list a fake serves", () => {
       expect(Array.isArray(entry.settings)).toBe(true);
       expect(Object.keys(entry)).not.toContain("defaults");
     }
+  });
+});
+
+describe("fakeSensors suite standings", () => {
+  const withSuites = {
+    ...secondSensorDocument("shop/main.py"),
+    suites: [
+      {
+        name: "unit",
+        status: "failed" as const,
+        ranAt: "2026-11-12T10:00:00.000Z",
+        reason: "boom",
+      },
+    ],
+  };
+
+  it("answers suites agreeing with suiteStandings, with or without a structure", async () => {
+    const fake = fakeSensors({ lint: documentText(withSuites) });
+
+    const bare = (await fake.readResults()).findings.files[0];
+
+    expect(bare?.suites).toEqual(suiteStandings(bare?.document.suites));
+    expect(bare?.suites?.length).toBe(1);
+
+    fake.structure = fixtureScan("check", "scan.json", CURRENT).repository;
+
+    const held = (await fake.readResults("t")).findings.files[0];
+
+    expect(held?.suites).toEqual(bare?.suites);
+  });
+
+  it("answers null for a document without suites", async () => {
+    const file = (
+      await fakeSensors({
+        lint: documentText(secondSensorDocument("shop/main.py")),
+      }).readResults()
+    ).findings.files[0];
+
+    expect(file?.suites).toBeNull();
   });
 });

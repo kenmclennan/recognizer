@@ -3,6 +3,7 @@ import type {
   Finding,
   RepositoryState,
   SensorFindingsHeader,
+  SuiteStanding,
 } from "@recognizer/core";
 import type { Overlay } from "recognizer";
 import type { Refusal } from "./sensor-run";
@@ -21,6 +22,7 @@ export type PluginResults = {
   freshness: DocumentFreshness | null;
   shown: Finding[] | null;
   hidden: Finding[] | null;
+  suites: SuiteStanding[] | null;
 };
 
 export type ResultDocuments = {

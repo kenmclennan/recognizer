@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageText } from "../../src/footer-scan";
+import { ageText } from "../../src/index.js";
 
 describe("ageText", () => {
   it("steps through minutes, hours and days", () => {

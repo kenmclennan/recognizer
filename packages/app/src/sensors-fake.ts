@@ -3,6 +3,7 @@ import {
   identityKey,
   Repository,
   splitDocument,
+  suiteStandings,
 } from "@recognizer/core";
 import {
   describerOfConfigText,
@@ -197,6 +198,7 @@ export function fakeSensors(
             modifiedMs: fake.modified.get(name) ?? null,
             shown: split.shown,
             hidden: split.hidden,
+            suites: suiteStandings(document.suites),
           });
 
           if (fake.structure !== null) {

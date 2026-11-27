@@ -1,5 +1,5 @@
+import { ageText } from "@recognizer/core";
 import { moduleOf, type Overlay } from "recognizer";
-import { ageText } from "./footer-scan";
 import {
   ANALYSIS_KEY,
   type FreshnessModel,

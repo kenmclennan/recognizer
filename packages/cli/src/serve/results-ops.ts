@@ -7,8 +7,10 @@ import {
   type RepositoryState,
   reportedMs,
   type SensorFindingsHeader,
+  type SuiteStanding,
   scanHistory,
   splitDocument,
+  suiteStandings,
 } from "@recognizer/core";
 import type { Io } from "../cli.js";
 import { readOverlayText } from "../document-text.js";
@@ -30,6 +32,7 @@ export interface PluginResults {
   freshness: DocumentFreshness | null;
   shown: Finding[] | null;
   hidden: Finding[] | null;
+  suites: SuiteStanding[] | null;
 }
 
 export interface ResultsAnswer {
@@ -57,6 +60,7 @@ export function readPluginResults(
       freshness: null,
       shown: null,
       hidden: null,
+      suites: null,
     };
 
     return plugins[name] as PluginResults;
@@ -89,6 +93,7 @@ export function readPluginResults(
 
       held.shown = split.shown;
       held.hidden = split.hidden;
+      held.suites = suiteStandings(one.document.suites);
     }
   }
 

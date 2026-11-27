@@ -5,6 +5,7 @@ import type {
   TickChange,
 } from "@recognizer/core";
 import {
+  ageText,
   type ChangeFacts,
   type DescribeAsk,
   type DescribeHalt,
@@ -100,7 +101,7 @@ import { badge, findingRows, walkFindings } from "./findings-order";
 import { buildFindingsPanelView } from "./findings-panel-view";
 import { scopeCaption, scopedRows, scopeOf } from "./findings-scope";
 import { compactFolders } from "./folder-compaction";
-import { ageText, type ScanState } from "./footer-scan";
+import type { ScanState } from "./footer-scan";
 import {
   ANALYSIS_KEY,
   type FreshnessModel,

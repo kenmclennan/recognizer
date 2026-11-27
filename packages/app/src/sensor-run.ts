@@ -5,7 +5,7 @@ import type {
   PolicyRule,
   SensorExclusion,
   SensorFindingsHeader,
-  SuiteResult,
+  SuiteStanding,
   UnknownFiles,
 } from "@recognizer/core";
 import {
@@ -41,7 +41,7 @@ export type SensorStatus = {
   diagnosis?: Diagnosis;
   refusal?: Refusal;
   measured?: { inputs?: Record<string, string>; tests?: string };
-  suites?: readonly SuiteResult[];
+  suites?: readonly SuiteStanding[];
 };
 
 export type Refusal = { reason: string; diagnosis?: Diagnosis; at: number };
@@ -53,6 +53,7 @@ export type FindingsFiles = {
     modifiedMs: number | null;
     shown: Finding[];
     hidden: Finding[];
+    suites?: SuiteStanding[] | null;
   }[];
   refused: string[];
 };
@@ -306,7 +307,7 @@ export async function senseRepository(
         ...(document.diagnosis !== undefined
           ? { diagnosis: document.diagnosis }
           : {}),
-        ...(document.suites !== undefined ? { suites: document.suites } : {}),
+        ...(file.suites != null ? { suites: file.suites } : {}),
         ...(document.reportedAt !== undefined && !registered.includes(file.name)
           ? { reported: { at: document.reportedAt, commit: document.commit } }
           : {}),

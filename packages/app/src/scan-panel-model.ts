@@ -1,9 +1,12 @@
 import {
+  ageText,
   type DescribeAsk,
   type DescribeHalt,
   type Diagnosis,
   type DocumentFreshness,
   Repository,
+  type SuiteRunning,
+  shortAge,
 } from "@recognizer/core";
 import type { PlanRequest, ScanPlanView } from "recognizer";
 import {
@@ -27,7 +30,7 @@ import {
   type ScanEstimate,
 } from "./estimate-text";
 import { scopeCaption } from "./findings-scope";
-import { ageText, type ScanState } from "./footer-scan";
+import type { ScanState } from "./footer-scan";
 import {
   ANALYSIS_KEY,
   type FreshnessModel,
@@ -59,9 +62,7 @@ import type { InstalledSensors, SensorStatus } from "./sensor-run";
 import {
   foldSummary,
   type SuiteRowModel,
-  type SuiteRunning,
   type SuiteTone,
-  shortAge,
   suiteRows,
   tickedResults,
 } from "./suite-results";

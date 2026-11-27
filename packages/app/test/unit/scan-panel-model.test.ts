@@ -1,4 +1,4 @@
-import type { Diagnosis, RunView } from "@recognizer/core";
+import { type Diagnosis, type RunView, suiteStandings } from "@recognizer/core";
 import type { ScanRunRecord } from "recognizer";
 import {
   estimateFrom,
@@ -1324,7 +1324,7 @@ describe("scanPanel freshness", () => {
       sensors: [
         {
           ...crap({ "a.py": "ha", "b.py": "old" }),
-          suites: [{ name: "unit", status: "ok", ranAt }],
+          suites: suiteStandings([{ name: "unit", status: "ok", ranAt }]) ?? [],
         },
         ...others,
       ],
@@ -1358,7 +1358,7 @@ describe("scanPanel freshness", () => {
       sensors: [
         {
           ...crap({ "a.py": "ha", "b.py": "hb" }),
-          suites: [{ name: "unit", status: "ok", ranAt }],
+          suites: suiteStandings([{ name: "unit", status: "ok", ranAt }]) ?? [],
         },
         ...others,
       ],
