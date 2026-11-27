@@ -153,7 +153,12 @@ export function* scanFlow(
     });
     const runLog =
       detected.length > 0 || wantsConfig
-        ? runLogs.open(root, startedAt, request.by, request.invocation)
+        ? runLogs.open(
+            root,
+            taken === null ? startedAt : taken.startedAt,
+            request.by,
+            request.invocation,
+          )
         : null;
     const recorder = new RunRecorder(ctx, runLog);
 

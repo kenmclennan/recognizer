@@ -352,6 +352,32 @@ describe("active run adapter", () => {
     });
   });
 
+  it("a_killed_scan_record_at_the_marker_start_is_settled_in_place", () => {
+    const root = makeTempDir("active-run-log-equal-");
+    const io = nodeIo();
+    const startedAt = "2026-11-27T02:38:51.494Z";
+
+    marker(root, { pid: deadPid(), started_at: startedAt });
+    openPhasedRunLog(io, root, Date.parse(startedAt), "tester", ["scan"]);
+
+    const read = new ActiveRunAdapter(io).read(root, null);
+
+    expect(read.kind).toBe("killed");
+
+    new RunLogAdapter(io).settleKilled(root, {
+      runId: RUN_ID,
+      startedAt,
+      startedBy: "cli",
+      running: ["tally"],
+    });
+
+    const records = logRecords(root);
+
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ outcome: "stopped" });
+    expect(records[0]?.finished).not.toBeNull();
+  });
+
   it("settle_killed_writes_a_record_when_none_is_open", () => {
     const root = makeTempDir("active-run-log-none-");
 

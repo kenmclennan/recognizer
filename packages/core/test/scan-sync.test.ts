@@ -115,3 +115,26 @@ describe("scanSync", () => {
     ).toBe("a synchronous scan cannot describe or sense");
   });
 });
+
+describe("scanSync run log start", () => {
+  it("with_no_lock_held_the_run_log_keeps_the_flow_start", () => {
+    const fakes = createFakes();
+
+    fakes.scanners.languages.set("python", {
+      modules: 3,
+      edges: 2,
+      fails: false,
+    });
+    fakes.config.readsSensorConfig = () => true;
+    fakes.analysis.analysis = { enabled: true };
+    fakes.lock.startedAt = 9_999;
+
+    const { ports } = syncOver(fakes);
+    const before = fakes.clock.now();
+
+    scanSync(request(), ports, () => {});
+
+    expect(fakes.runLog.runLogs).toHaveLength(1);
+    expect(fakes.runLog.runLogs[0]?.startedAt).toBe(before);
+  });
+});
