@@ -218,6 +218,26 @@ export async function lookRoot(
   await root.service.signal(50);
   await settled(root);
 
+  const recordResponsibilities = async () => {
+    const modules = (root.view.loaded() as Loaded).modules;
+
+    commands.push({
+      command: "core_call",
+      args: { op: "responsibilities.read", args: { modules } },
+      reply: JSON.parse(
+        JSON.stringify(
+          await root.service.call("responsibilities.read", {
+            repository: root.repository,
+            modules,
+          }),
+        ),
+      ),
+      at: root.lines.filter(isEvent).length,
+    });
+  };
+
+  await recordResponsibilities();
+
   const planArgs = {
     repository: root.repository,
     mode: "bring",
@@ -272,6 +292,7 @@ export async function lookRoot(
   for (const stage of scenario.stages ?? []) {
     await stage.run(root);
     await root.service.signal(50);
+    await recordResponsibilities();
     marks[stage.name] = root.lines.filter(isEvent).length;
   }
 

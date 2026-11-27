@@ -710,33 +710,6 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     f = await collectFacts<Facts>(HARNESS, "scan-panel");
   }, scaledTimeout(180000));
 
-  it("summarises one sensor-out-of-date file with no bar and Update 1 file, then everything current with a disabled Up to date once the hashes match", () => {
-    expect(f.freshPartial.summary).toMatchObject({
-      shape: "behind",
-      tone: "warn",
-      head: "C.R.A.P. is out of date on 1 file",
-      bar: 0,
-    });
-    expect(f.freshPartial.rowBars).toBe(0);
-    expect(f.freshPartial.rows).toEqual([
-      { state: "1 file out of date", note: null },
-    ]);
-    expect(f.freshPartial.button).toBe("Update 1 file");
-    expect(f.freshPartial.disabled).toBe(false);
-    expect(f.freshPartial.secondary).toBe(0);
-    expect(f.freshPartial.mode).toBe("Incremental");
-    expect(f.freshPartial.oldSwitch).toBe(0);
-    expect(f.freshComplete.summary).toMatchObject({
-      shape: "current",
-      tone: "ok",
-      head: "Everything on the repository is current",
-      bar: 0,
-    });
-    expect(f.freshComplete.rowBars).toBe(0);
-    expect(f.freshComplete.button).toBe("Up to date");
-    expect(f.freshComplete.disabled).toBe(true);
-  });
-
   it("makes Full the mode toggle: it only relabels the primary, never runs, and swaps back", () => {
     expect(f.freshRescan.button).toBe("Rescan 2 files");
     expect(f.freshRescan.disabled).toBe(false);

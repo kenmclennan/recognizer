@@ -1893,4 +1893,31 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.estimatePending.title).toContain("Mutation: no estimate yet");
     expect(f.estimateTicked.text).toBe("About 3 min");
   });
+
+  it("summarises one sensor-out-of-date file with no bar and Update 1 file, then everything current with a disabled Up to date once the hashes match", () => {
+    expect(f.freshPartial.summary).toMatchObject({
+      shape: "behind",
+      tone: "warn",
+      head: "C.R.A.P. is out of date on 1 file",
+      bar: 0,
+    });
+    expect(f.freshPartial.rowBars).toBe(0);
+    expect(f.freshPartial.rows).toEqual([
+      { state: "1 file out of date", note: null },
+    ]);
+    expect(f.freshPartial.button).toBe("Update 1 file");
+    expect(f.freshPartial.disabled).toBe(false);
+    expect(f.freshPartial.secondary).toBe(0);
+    expect(f.freshPartial.mode).toBe("Incremental");
+    expect(f.freshPartial.oldSwitch).toBe(0);
+    expect(f.freshComplete.summary).toMatchObject({
+      shape: "current",
+      tone: "ok",
+      head: "Everything on the repository is current",
+      bar: 0,
+    });
+    expect(f.freshComplete.rowBars).toBe(0);
+    expect(f.freshComplete.button).toBe("Up to date");
+    expect(f.freshComplete.disabled).toBe(true);
+  });
 });
