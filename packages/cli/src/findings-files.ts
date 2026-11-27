@@ -2,11 +2,7 @@ import { basename, dirname, join } from "node:path";
 import {
   type AccumulatedOverlay,
   type CommitResults,
-  readFindingsFiles as classifyFindings,
-  type Freshness,
   InvalidEntity,
-  type Measured,
-  type ReadOutcome,
   type RunScope,
   type SensorFindings,
   type SettleEnding,
@@ -19,8 +15,6 @@ import {
   sensorFindingsDocument,
 } from "./adapters/filesystem/findings-translator.js";
 import type { Io } from "./cli.js";
-
-export type { ReadOutcome };
 
 export const COMMIT_RETENTION = 20;
 
@@ -162,21 +156,6 @@ export function readStoredFindings(
       return { name, status: "invalid", reason: (error as Error).message };
     }
   });
-}
-
-export function readFindingsFiles(
-  io: Io,
-  root: string,
-  freshnessOf: (measured: Measured) => Freshness,
-  skip: string[] = [],
-  allowed: string[] | null = null,
-): ReadOutcome[] {
-  return classifyFindings(
-    readStoredFindings(io, root),
-    freshnessOf,
-    skip,
-    allowed,
-  );
 }
 
 export function stagePair(
