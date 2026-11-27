@@ -52,7 +52,12 @@ const stalePlan = async (
   const view = await root.service.call("scan.plan", {
     repository: root.repository,
     mode: "rescan",
-    ticks: { ...host.ticks(), ticked: sense, armed: ["mut"] },
+    ticks: {
+      ...host.ticks(),
+      ticked: sense,
+      armed: ["mut"],
+      suites: SUITE_TICKS,
+    },
     scope: null,
     changed: [],
   });
@@ -797,6 +802,57 @@ describe("createRescanner", () => {
     await settledRun(root, opened);
 
     expect(root.service.started[opened]?.sense).toEqual(["mut"]);
+  });
+
+  it("does not hand the port a stale plan's test-running sensor that is not armed", async () => {
+    const { root, opened, host } = await begin(TESTING_SENSORS);
+    const stale = await stalePlan(root, host, ["mut", "alpha"]);
+
+    host.setTicks({ ...host.ticks(), armed: [], suites: SUITE_TICKS });
+    await root.service.signal(10);
+
+    expect(stale.plan.sense).toContain("mut");
+
+    host.run(null, stale);
+    await settledRun(root, opened);
+
+    expect(root.service.started[opened]?.sense).toEqual(["alpha"]);
+    expect(root.service.started[opened]?.suites).toEqual({});
+  });
+
+  it("keeps both sensors' armed entries and suite ticks after a Scan", async () => {
+    const { root, opened, host } = await begin({
+      crap: { runsTests: true, suites: BOTH_SUITES },
+      mut: {
+        runsTests: true,
+        suites: [{ name: "unit", language: "python" }],
+      },
+    });
+    const suites = {
+      crap: { ticked: ["unit", "web"], known: ["unit", "web"] },
+      mut: { ticked: ["unit"], known: ["unit"] },
+    };
+
+    host.setTicks({
+      ...host.ticks(),
+      armed: ["crap"],
+      suites,
+      folds: ["crap", "mut"],
+    });
+    await root.service.signal(10);
+
+    expect(Object.keys(host.ticks().suites)).toEqual(["crap", "mut"]);
+
+    host.run(null);
+    await settledRun(root, opened);
+
+    expect(root.service.started[opened]?.sense).toEqual(["crap"]);
+    expect(root.service.started[opened]?.suites).toEqual({
+      crap: ["unit", "web"],
+    });
+    expect(host.ticks().armed).toEqual(["crap"]);
+    expect(host.ticks().suites).toEqual(suites);
+    expect(host.ticks().folds).toEqual(["crap", "mut"]);
   });
 
   it("re-reads the sensor findings after a stopped Scan", async () => {

@@ -17,7 +17,7 @@ import {
   planFromFacts,
   type ScanStep,
 } from "../../src/scan-fake";
-import { OPEN_RUN, type PlannedRun } from "../../src/scan-freshness";
+import { OPEN_RUN } from "../../src/scan-freshness";
 import type { Loaded } from "../../src/scan-loading";
 import { registeredWith } from "./look-support";
 
@@ -33,10 +33,6 @@ const OK: Loaded = {
   findings: [],
   split: {},
   sensors: [],
-};
-
-const SUITE_TICKS = {
-  mut: { ticked: ["unit", "web"], known: ["unit", "web"] },
 };
 
 const record = (over: Partial<ScanRunRecord> = {}): ScanRunRecord => ({
@@ -511,88 +507,6 @@ describe("createRescanner", () => {
     await Promise.all([first, second]);
 
     expect(scan.ran).toHaveLength(1);
-  });
-
-  it("does not hand the port a stale plan's test-running sensor that is not armed", async () => {
-    const scan = fakeScan();
-    const { rescanner } = harness(scan);
-
-    await rescanner.loadTicks();
-    rescanner.setTicks({
-      ...rescanner.ticks(),
-      armed: [],
-      suites: SUITE_TICKS,
-    });
-
-    const stale = {
-      describe: false,
-      describeAll: false,
-      analysis: true,
-      sense: ["mut", "alpha"],
-      modules: null,
-      suites: { mut: ["unit", "web"] },
-    };
-    const planned = {
-      plan: stale,
-      label: "Run",
-      progress: "Running",
-      modules: 0,
-      idle: false,
-    } as unknown as PlannedRun;
-
-    expect(stale.sense).toContain("mut");
-
-    await rescanner.run(null, planned);
-
-    expect(scan.ran[0].sense).toEqual(["alpha"]);
-    expect(scan.ran[0].suites).toEqual({});
-  });
-
-  it("keeps both sensors' armed entries and suite ticks after a Scan", async () => {
-    const scan = fakeScan({ steps: [current, summary] });
-    const { rescanner } = harness(scan, {
-      registered: async () =>
-        registeredWith([
-          {
-            name: "crap",
-            display: "C.R.A.P.",
-            runsTests: true,
-            suites: [
-              { name: "unit", language: "python" },
-              { name: "web", language: "typescript" },
-            ],
-          },
-          {
-            name: "mut",
-            display: "Mutation",
-            runsTests: true,
-            suites: [{ name: "unit", language: "python" }],
-          },
-        ]),
-    });
-    const suites = {
-      crap: { ticked: ["unit", "web"], known: ["unit", "web"] },
-      mut: { ticked: ["unit"], known: ["unit"] },
-    };
-
-    await rescanner.loadTicks();
-    rescanner.setTicks({
-      ...rescanner.ticks(),
-      armed: ["crap"],
-      suites,
-      folds: ["crap", "mut"],
-    });
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    expect(Object.keys(rescanner.ticks().suites)).toEqual(["crap", "mut"]);
-
-    await rescanner.run();
-
-    expect(scan.ran[0]?.sense).toEqual(["crap"]);
-    expect(scan.ran[0]?.suites).toEqual({ crap: ["unit", "web"] });
-    expect(rescanner.ticks().armed).toEqual(["crap"]);
-    expect(rescanner.ticks().suites).toEqual(suites);
-    expect(rescanner.ticks().folds).toEqual(["crap", "mut"]);
   });
 
   it("posts a failed sensor as an error whose Show reaches the sensor row", async () => {

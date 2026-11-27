@@ -60,6 +60,7 @@ export function sensorsOf(scripts: SensorsScript): {
 } {
   const programs: Record<string, Program> = {};
   const lines = ["sensors:"];
+  const declared = new Map<string, string>();
 
   for (const [name, script] of Object.entries(scripts)) {
     const { runsTests = false, suites = [], ...rest } = script;
@@ -71,7 +72,9 @@ export function sensorsOf(scripts: SensorsScript): {
     );
 
     for (const suite of suites) {
-      lines.push(`    tests.${suite.name}.language: ${suite.language}`);
+      if (!declared.has(suite.name)) {
+        declared.set(suite.name, suite.language);
+      }
     }
 
     programs[`recognizer-sense-${name}`] = (call) => {
@@ -88,7 +91,21 @@ export function sensorsOf(scripts: SensorsScript): {
     };
   }
 
-  return { config: `${lines.join("\n")}\n`, programs };
+  const tests =
+    declared.size === 0
+      ? []
+      : [
+          "tests:",
+          ...[...declared].flatMap(([name, language]) => [
+            `  - name: ${name}`,
+            `    language: ${language}`,
+            "    directory: .",
+            "    command: pytest",
+            "    coverage: { path: coverage/lcov.info, format: lcov }",
+          ]),
+        ];
+
+  return { config: `${[...tests, ...lines].join("\n")}\n`, programs };
 }
 
 export async function afterOpen(root: Root): Promise<number> {
