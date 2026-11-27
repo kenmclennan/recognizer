@@ -192,6 +192,7 @@ export * from "./domain/configuration/policy-recommendation-prompt.js";
 export * from "./domain/configuration/published-keys.js";
 export * from "./domain/configuration/rehearsal.js";
 export * from "./domain/configuration/retired-keys.js";
+export * from "./domain/configuration/sensor-setting-rules.js";
 export * from "./domain/configuration/setup-changes.js";
 export * from "./domain/configuration/setup-command-grammar.js";
 export * from "./domain/configuration/setup-event.js";
