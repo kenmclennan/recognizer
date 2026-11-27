@@ -1,5 +1,4 @@
 import { Repository } from "@recognizer/core";
-import { readFindingsText } from "recognizer";
 import { describe, expect, it } from "vitest";
 import {
   inertSensors,
@@ -13,7 +12,7 @@ import {
   fixtureScan,
   structureDocument,
 } from "../fixtures";
-import { documentText } from "./sensor-findings-from";
+import { documentText, readFindingsText } from "./sensor-findings-from";
 
 const scans = [fixtureScan("check", "scan.json", CURRENT)];
 const policy = fixturePolicy("check");

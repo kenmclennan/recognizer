@@ -1,5 +1,9 @@
 import type { Finding, SensorFindings } from "@recognizer/core";
-import { readSensorFindings, sensorFindingsDocument } from "recognizer";
+import {
+  readFindingsText,
+  readSensorFindings,
+  sensorFindingsDocument,
+} from "recognizer";
 
 export type FindingsLiteral = {
   [key: string]: unknown;
@@ -24,6 +28,8 @@ export function findingFrom(record: FindingLiteral): Finding {
 
   return finding as Finding;
 }
+
+export { readFindingsText };
 
 export function documentText(findings: SensorFindings): string {
   return JSON.stringify(sensorFindingsDocument(findings));
