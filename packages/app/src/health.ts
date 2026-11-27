@@ -1,5 +1,6 @@
 import {
   findingsStanding,
+  type Principle,
   type SensorFindings,
   type Violation,
 } from "@recognizer/core";
@@ -50,6 +51,7 @@ export function computeHealth(
     | "measured"
   > &
     Partial<Pick<Loaded, "baselineProblem">>,
+  published: readonly Principle[],
 ): Health {
   const notices: string[] = [];
   const known = new Set(loaded.modules);
@@ -88,7 +90,7 @@ export function computeHealth(
       return narrowed === null ? [] : [narrowed];
     }),
   }));
-  const byModule = findingsByModuleFrom(visible, []);
+  const byModule = findingsByModuleFrom(visible, published);
 
   const findingsOf = (id: string) =>
     known.has(id) ? (byModule.get(id) ?? []) : [];

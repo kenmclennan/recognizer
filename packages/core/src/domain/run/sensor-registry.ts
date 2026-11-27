@@ -1,4 +1,5 @@
 import { InvalidEntity } from "../invalid-entity.js";
+import type { Principle } from "../principles.js";
 
 export type CatalogState =
   | { state: "read" }
@@ -17,6 +18,7 @@ export interface ManifestFacts {
   metrics?: readonly unknown[];
   findings?: readonly unknown[];
   settings?: readonly unknown[];
+  principles?: readonly Principle[];
 }
 
 export interface RegistryEntry {

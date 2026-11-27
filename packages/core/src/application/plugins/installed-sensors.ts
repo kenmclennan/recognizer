@@ -11,6 +11,7 @@ import {
   unregisteredMessage,
   unregisteredSensors,
 } from "../../domain/plugins/unregistered.js";
+import type { Principle } from "../../domain/principles.js";
 import type { DocumentValidators } from "./ports/document-validators.js";
 import type { PluginRegistrations } from "./ports/plugin-registrations.js";
 import type { Programs } from "./ports/programs.js";
@@ -45,6 +46,7 @@ export interface InstalledSensorEntry {
   metrics: InstalledMetric[];
   findings: FindingEntry[];
   settings: unknown[];
+  principles?: Principle[];
 }
 
 export interface UnreadableSensor {
@@ -147,6 +149,9 @@ function entryOf(manifest: Manifest): InstalledSensorEntry {
     metrics,
     findings: manifest.findings ?? [],
     settings: manifest.settings,
+    ...(manifest.principles === undefined
+      ? {}
+      : { principles: manifest.principles }),
   };
 }
 

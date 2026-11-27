@@ -1,6 +1,7 @@
 import {
   Finding,
   identityKey,
+  type Principle,
   type SensorFindings,
   Violation,
 } from "@recognizer/core";
@@ -51,6 +52,7 @@ function healthFor(
   findings: SensorFindings[],
   baseline: string | null = null,
   modules?: string[],
+  published: Principle[] = [],
 ) {
   const loaded = fixtureScan(name, "scan.json", CURRENT);
   const ids = modules ?? loaded.repository.files.map((file) => file.path);
@@ -60,21 +62,24 @@ function healthFor(
   );
 
   return {
-    health: computeHealth({
-      repository: loaded.repository,
-      policy: parsedPolicy.value,
-      modules: ids,
-      baseline: parsedBaseline.value,
-      baselineProblem: parsedBaseline.problem,
-      findings,
-      split: splitFor(loaded.repository, findings, null),
-      measured: measuredFor(
-        loaded.repository,
+    health: computeHealth(
+      {
+        repository: loaded.repository,
+        policy: parsedPolicy.value,
+        modules: ids,
+        baseline: parsedBaseline.value,
+        baselineProblem: parsedBaseline.problem,
         findings,
-        null,
-        parsedPolicy.value,
-      ),
-    }),
+        split: splitFor(loaded.repository, findings, null),
+        measured: measuredFor(
+          loaded.repository,
+          findings,
+          null,
+          parsedPolicy.value,
+        ),
+      },
+      published,
+    ),
     ids,
   };
 }
@@ -425,6 +430,59 @@ describe("computeHealth from findings files", () => {
     ]);
   });
 
+  it("shows a published principle name for a finding without a rule", () => {
+    const published = [
+      { id: "change-risk-anti-patterns", name: "Change Risk Anti-Patterns" },
+    ];
+    const base = secondSensorDocument(
+      "shop/main.py",
+      "too risky",
+      "change-risk-anti-patterns",
+    );
+    const document: SensorFindings = {
+      ...base,
+      findings: [
+        ...base.findings,
+        Finding.stored({
+          id: "violation:shop/main.py",
+          kind: "crap",
+          severity: "violation",
+          principle: "change-risk-anti-patterns",
+          summary: "too risky to change",
+          files: ["shop/main.py"],
+        }),
+      ],
+    };
+    const { health } = healthFor(
+      "check",
+      fixturePolicy("check"),
+      [document],
+      null,
+      undefined,
+      published,
+    );
+    const rows = health.findings("shop/main.py");
+
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.why)).toEqual([
+      "Change Risk Anti-Patterns",
+      "Change Risk Anti-Patterns",
+    ]);
+  });
+
+  it("falls back to the id for an unpublished principle", () => {
+    const { health } = healthFor(
+      "check",
+      fixturePolicy("check"),
+      [secondSensorDocument("shop/main.py")],
+      null,
+      undefined,
+      [{ id: "change-risk-anti-patterns", name: "Change Risk Anti-Patterns" }],
+    );
+
+    expect(health.findings("shop/main.py")[0]?.why).toBe("name-your-constants");
+  });
+
   it("marks a clean file green when a second sensor's current file covers it, without a structure file", () => {
     const { health } = healthFor("check", fixturePolicy("check"), [
       secondSensorDocument("shop/main.py"),
@@ -564,15 +622,18 @@ describe("computeHealth judged per file", () => {
   }
 
   const healthOfDocument = (document: SensorFindings, tests = T) =>
-    computeHealth({
-      repository: repositoryFrom([scan]),
-      policy: null,
-      modules: ["a.py", "b.py"],
-      baseline: null,
-      findings: [document],
-      split: splitFor(repositoryFrom([scan]), [document], tests),
-      measured: measuredFor(repositoryFrom([scan]), [document], tests),
-    });
+    computeHealth(
+      {
+        repository: repositoryFrom([scan]),
+        policy: null,
+        modules: ["a.py", "b.py"],
+        baseline: null,
+        findings: [document],
+        split: splitFor(repositoryFrom([scan]), [document], tests),
+        measured: measuredFor(repositoryFrom([scan]), [document], tests),
+      },
+      [],
+    );
 
   it("shows exactly the answered shown list and hides the answered hidden list", () => {
     const document = crap({ "a.py": H1, "b.py": H0 });
@@ -580,20 +641,23 @@ describe("computeHealth judged per file", () => {
 
     expect(document.findings.length).toBeGreaterThan(2);
 
-    const health = computeHealth({
-      repository: repositoryFrom([scan]),
-      policy: null,
-      modules: ["a.py", "b.py"],
-      baseline: null,
-      findings: [document],
-      split: {
-        crap: {
-          shown: [third as Finding],
-          hidden: [first as Finding, second as Finding],
+    const health = computeHealth(
+      {
+        repository: repositoryFrom([scan]),
+        policy: null,
+        modules: ["a.py", "b.py"],
+        baseline: null,
+        findings: [document],
+        split: {
+          crap: {
+            shown: [third as Finding],
+            hidden: [first as Finding, second as Finding],
+          },
         },
+        measured: {},
       },
-      measured: {},
-    });
+      [],
+    );
 
     expect(health.documents[0]?.findings.map((f) => f.id)).toEqual([third?.id]);
     expect(health.hidden[0]?.findings.map((f) => f.id)).toEqual([
@@ -631,15 +695,18 @@ describe("computeHealth judged per file", () => {
 
     expect(Object.values(measured).flat().length).toBeGreaterThan(0);
 
-    const health = computeHealth({
-      repository: repositoryFrom([scan]),
-      policy: null,
-      modules: ["a.py", "b.py"],
-      baseline: null,
-      findings: [],
-      split: {},
-      measured,
-    });
+    const health = computeHealth(
+      {
+        repository: repositoryFrom([scan]),
+        policy: null,
+        modules: ["a.py", "b.py"],
+        baseline: null,
+        findings: [],
+        split: {},
+        measured,
+      },
+      [],
+    );
 
     expect(health.disc("a.py")).toBe("green");
     expect(health.disc("b.py")).toBe("grey");
@@ -647,15 +714,18 @@ describe("computeHealth judged per file", () => {
 
   it("leaves every file grey when nothing is listed measured though the inputs match", () => {
     const document = { ...crap({ "a.py": H1, "b.py": H2 }), findings: [] };
-    const health = computeHealth({
-      repository: repositoryFrom([scan]),
-      policy: null,
-      modules: ["a.py", "b.py"],
-      baseline: null,
-      findings: [document],
-      split: splitFor(repositoryFrom([scan]), [document], T),
-      measured: {},
-    });
+    const health = computeHealth(
+      {
+        repository: repositoryFrom([scan]),
+        policy: null,
+        modules: ["a.py", "b.py"],
+        baseline: null,
+        findings: [document],
+        split: splitFor(repositoryFrom([scan]), [document], T),
+        measured: {},
+      },
+      [],
+    );
 
     expect(health.disc("a.py")).toBe("grey");
     expect(health.disc("b.py")).toBe("grey");

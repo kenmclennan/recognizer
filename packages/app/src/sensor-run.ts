@@ -3,6 +3,7 @@ import type {
   DocumentFreshness,
   Finding,
   PolicyRule,
+  Principle,
   SensorExclusion,
   SensorFindingsHeader,
   SuiteStanding,
@@ -98,6 +99,7 @@ export type InstalledSensor = {
   metrics: InstalledMetric[];
   findings: FindingEntry[];
   settings: InstalledSetting[];
+  principles?: Principle[];
 };
 
 export type InstalledMetric = {

@@ -333,6 +333,38 @@ describe("the installed sensors and stored results the app reads from a snapshot
     });
   });
 
+  it("carries_a_manifests_principles_to_the_installed_sensor", () => {
+    const principles = [{ id: "crap", name: "Change Risk Anti-Patterns" }];
+    const state = snapshot(1, ["crap", "mutation"], {
+      registry: {
+        catalog: { state: "read" },
+        entries: [
+          {
+            ...entry("crap"),
+            manifest: {
+              display: "CRAP",
+              runsTests: false,
+              scoped: false,
+              listed: true,
+              principles,
+            },
+          },
+          entry("mutation"),
+        ],
+      },
+    });
+    const list = installedSensorsOf(state);
+
+    expect(list.status).toBe("ok");
+
+    if (list.status !== "ok") {
+      return;
+    }
+
+    expect(list.sensors[0]?.principles).toEqual(principles);
+    expect(Object.keys(list.sensors[1] ?? {})).not.toContain("principles");
+  });
+
   it("splits texts into findings and overlay files, flags a problem as refused and stamps the reported time", () => {
     const stored = storedResultsOf({
       revision: 2,

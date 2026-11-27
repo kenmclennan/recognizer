@@ -907,19 +907,22 @@ describe("findings", () => {
   it("shows a finding a second sensor wrote, with its summary and principle", () => {
     const loaded = fixtureScan("check", "scan.json", CURRENT);
     const modules = loaded.repository.files.map((one) => one.path);
-    const health = computeHealth({
-      repository: loaded.repository,
-      policy: null,
-      modules,
-      baseline: null,
-      findings: [secondSensorDocument("shop/main.py")],
-      split: splitFor(
-        loaded.repository,
-        [secondSensorDocument("shop/main.py")],
-        null,
-      ),
-      measured: {},
-    });
+    const health = computeHealth(
+      {
+        repository: loaded.repository,
+        policy: null,
+        modules,
+        baseline: null,
+        findings: [secondSensorDocument("shop/main.py")],
+        split: splitFor(
+          loaded.repository,
+          [secondSensorDocument("shop/main.py")],
+          null,
+        ),
+        measured: {},
+      },
+      [],
+    );
     const rows = inspectorContent(
       module("shop/main.py"),
       inputsFor(loaded.repository, {
