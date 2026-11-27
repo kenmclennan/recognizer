@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { removeScratch } from "./service-scratch-teardown.mjs";
+import { removeScratch, writersIn } from "./service-scratch-teardown.mjs";
 
 const WRITER = `
 const fs = require("node:fs");
@@ -172,5 +172,22 @@ setInterval(() => {}, 1000);`,
 
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("writersIn", () => {
+  const listing = [
+    "101 /usr/bin/node A=1 TMPDIR=/s/a B=2",
+    "102 /usr/bin/node TMPDIR=/s/ab B=2",
+    "103 /usr/bin/node A=1 B=2",
+    "104 /usr/bin/node A=1 TMPDIR=/s/a",
+  ].join("\n");
+
+  it("returns only pids whose environment carries the exact marker", () => {
+    expect(writersIn("/s/a", listing)).toEqual([101, 104]);
+  });
+
+  it("returns nothing for an empty listing", () => {
+    expect(writersIn("/s/a", "")).toEqual([]);
   });
 });

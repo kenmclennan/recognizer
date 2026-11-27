@@ -12,6 +12,7 @@ import { basename, join } from "node:path";
 import { createInterface } from "node:readline";
 import { onTestFinished, vi } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
+import { writersIn } from "../../../tools/scripts/service-scratch-teardown.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import {
   registerShim,
@@ -158,9 +159,13 @@ export class Serve {
   }
 
   private killGroup(signal: "SIGTERM" | "SIGKILL"): void {
-    try {
-      process.kill(-(this.child.pid as number), signal);
-    } catch {
+    for (const pid of writersIn(this.scratch)) {
+      try {
+        process.kill(pid, signal);
+      } catch {}
+    }
+
+    if (this.child.exitCode === null && this.child.signalCode === null) {
       this.child.kill(signal);
     }
   }
