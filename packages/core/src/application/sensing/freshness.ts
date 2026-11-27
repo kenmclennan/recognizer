@@ -64,6 +64,7 @@ export function buildFreshness(
 export type DocumentFreshness = {
   valid: boolean;
   current: string[];
+  recorded: string[];
   outOfDate: number;
   stale: boolean;
 };
@@ -74,13 +75,17 @@ export function documentFreshness(
   tests: string | null,
 ): DocumentFreshness {
   const freshness = buildFreshness(repository, tests);
+  const hashes = repository.scannedHashes();
   const valid = freshness.valid(measured);
   const outOfDate = freshness.counts(measured, []).outOfDate;
 
   return {
     valid,
-    current: [...repository.scannedHashes().keys()].filter((module) =>
+    current: [...hashes.keys()].filter((module) =>
       freshness.current(measured, module),
+    ),
+    recorded: Object.keys(measured.inputs ?? {}).filter((module) =>
+      hashes.has(module),
     ),
     outOfDate,
     stale: !valid || outOfDate > 0,

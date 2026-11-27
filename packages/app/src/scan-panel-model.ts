@@ -759,6 +759,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
             : suitesBehind({
                 suites: input.config?.tests ?? [],
                 files: input.lines.modules,
+                recorded: facts.recorded,
                 current: facts.current,
               });
         const behind =
