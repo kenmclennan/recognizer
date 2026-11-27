@@ -1,9 +1,13 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   type Program,
   type SensorScript,
   sensorManifest,
   sensorProgram,
+  TYPESCRIPT_SAMPLE,
 } from "../../cli/test/support/index";
+import { describerManifestText } from "../../cli/test/support/manifest-text";
 import { untilHolds } from "./app-harness";
 import type { inProcessAppRoot } from "./in-process-root";
 
@@ -103,4 +107,53 @@ export async function settledRun(root: Root, since: number): Promise<void> {
   await untilHolds(root.service, () =>
     root.view.explorer()?.host.running() === false ? true : undefined,
   );
+}
+
+export const DESCRIBER_CONFIG =
+  "describer:\n  command: [describer, run, '--model', '{model}', '{request}']\n  version: v1\n";
+
+export function describerProgram(
+  hold: { wait(): Promise<void> } | null = null,
+): Program {
+  const done = { started: true, status: 0, stderr: "" };
+
+  return (call) => {
+    if (call.args.at(-1) === "manifest") {
+      return { ...done, stdout: describerManifestText("v1") };
+    }
+
+    if (call.args[0] === "run") {
+      return (async () => {
+        await Promise.race([hold?.wait(), call.whenKilled()]);
+
+        return { ...done, stdout: "Does a thing.\n" };
+      })();
+    }
+
+    return { ...done, stdout: "1\n" };
+  };
+}
+
+export function sampleFiles(): Record<string, string> {
+  const found: Record<string, string> = {};
+  const walk = (directory: string, prefix: string) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (entry.name === "node_modules") {
+        continue;
+      }
+
+      if (entry.isDirectory()) {
+        walk(join(directory, entry.name), `${prefix}${entry.name}/`);
+      } else {
+        found[`${prefix}${entry.name}`] = readFileSync(
+          join(directory, entry.name),
+          "utf8",
+        );
+      }
+    }
+  };
+
+  walk(TYPESCRIPT_SAMPLE, "");
+
+  return found;
 }

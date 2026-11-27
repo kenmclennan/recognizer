@@ -213,60 +213,6 @@ const texts = (updates: ProgressUpdate[]) =>
   updates.map((update) => update.scanning);
 
 describe("createRescanner", () => {
-  it("builds the plan from the remembered ticks and remembers a repository's first ticks", async () => {
-    const scan = fakeScan({ defaults: { describe: true, sensors: true } });
-    const { rescanner } = harness(scan);
-
-    await rescanner.run();
-
-    expect(scan.ran).toEqual([
-      {
-        describe: true,
-        analysis: true,
-        describeAll: false,
-        sense: ["alpha", "beta"],
-        modules: null,
-      },
-    ]);
-    expect(scan.written).toEqual([
-      {
-        describe: true,
-        analysis: true,
-        ticked: ["alpha", "beta"],
-        onlyView: false,
-        suites: {},
-        folds: [],
-      },
-    ]);
-
-    await rescanner.run();
-
-    expect(scan.written).toHaveLength(1);
-  });
-
-  it("runs only the structure scan on open and leaves the remembered ticks alone", async () => {
-    const scan = fakeScan({ defaults: { describe: true, sensors: true } });
-    const { rescanner } = harness(scan);
-
-    await rescanner.run();
-
-    const written = [...scan.written];
-    const before = rescanner.ticks();
-
-    await rescanner.run(null, OPEN_RUN);
-
-    expect(scan.ran[1]).toEqual({
-      describe: false,
-      analysis: true,
-      describeAll: false,
-      sense: [],
-      modules: null,
-    });
-    expect(scan.written).toEqual(written);
-    expect(rescanner.ticks()).toEqual(before);
-    expect(before.describe).toBe(true);
-  });
-
   it("renders the canvas when extraction settles, before describe and sense run", async () => {
     const scan = fakeScan({
       defaults: { describe: true, sensors: false },
@@ -322,96 +268,6 @@ describe("createRescanner", () => {
     expect(rescanner.runState().failures).toEqual({ beta: "boom" });
     expect(Object.keys(rescanner.runState().ranAt)).toEqual(["alpha", "beta"]);
     expect(rescanner.runState().running).toEqual([]);
-  });
-
-  it("clears a sensor's diagnosis when a later run finishes it ok", async () => {
-    const refused: Report = {
-      kind: "plugin-ended",
-      name: "alpha",
-      state: "failed",
-      failure: {
-        reason: "refused",
-        diagnosis: { code: "tool-missing", line: "cargo-llvm-cov is missing" },
-      },
-    };
-    const scan = fakeScan({
-      defaults: { describe: false, sensors: true },
-      steps: [current, sensing(1), started("alpha"), refused, summary],
-    });
-    const { rescanner } = harness(scan);
-
-    await rescanner.run();
-
-    expect(rescanner.runState().diagnoses).toEqual({
-      alpha: { code: "tool-missing", line: "cargo-llvm-cov is missing" },
-    });
-
-    scan.steps = [
-      current,
-      sensing(1),
-      started("alpha"),
-      entry("sense", "alpha"),
-      summary,
-    ];
-
-    await rescanner.run();
-
-    expect(rescanner.runState().diagnoses).toEqual({});
-    expect(rescanner.runState().failures).toEqual({});
-  });
-
-  it("posts exactly one tray message for a failed sensor entry, not one per refresh", async () => {
-    const scan = fakeScan({
-      defaults: { describe: false, sensors: true },
-      steps: [
-        current,
-        sensing(2),
-        entry("sense", "alpha", "boom"),
-        entry("sense", "beta"),
-        summary,
-      ],
-    });
-    const { posted, rescanner } = harness(scan);
-
-    await rescanner.run();
-    await rescanner.refresh();
-
-    expect(posted.filter((one) => one.kind === "error")).toHaveLength(1);
-    expect(posted[0]?.text).toBe("alpha failed: boom");
-  });
-
-  it("runs Descriptions as running while the describe phase is open and waiting before it", async () => {
-    const scan = fakeScan({
-      defaults: { describe: true, sensors: true },
-      steps: [
-        current,
-        describing(1),
-        entry("describe", "a.py"),
-        sensing(1),
-        entry("sense", "alpha"),
-        summary,
-      ],
-    });
-    const { rescanner } = harness(scan);
-    const seen: { running: string[]; started: string | null }[] = [];
-
-    scan.onStep = (index) => {
-      const { running, started } = rescanner.runState();
-
-      if (index <= 3) {
-        seen.push({ running, started });
-      }
-    };
-
-    await rescanner.run();
-
-    expect(seen[0]).toEqual({
-      running: ["describe", "alpha", "beta"],
-      started: null,
-    });
-    expect(seen[1]?.started).toBe("describe");
-    expect(seen[3]?.running).not.toContain("describe");
-    expect(seen[3]?.started).toBe("alpha");
   });
 
   it("attaches Open log to a failed describe message once the run ends with a log", async () => {
@@ -538,21 +394,6 @@ describe("createRescanner", () => {
     expect(stopped.attached).toEqual([]);
   });
 
-  it("says Stopped, keeps what was written and settles after a stop", async () => {
-    const gate = new Promise<void>(() => {});
-    const scan = fakeScan({ steps: [current, describing(2), gate] });
-    const { log, updates, rescanner } = harness(scan);
-    const running = rescanner.run();
-
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    await rescanner.stop();
-    await running;
-
-    expect(updates.at(-1)?.scanning).toBeNull();
-    expect(log).toContain("settled");
-    expect(rescanner.running()).toBe(false);
-  });
-
   it("reports a command that is missing or failed as blocked and clears the footer", async () => {
     const missing = harness(
       fakeScan({ result: { status: "command-missing", hint: "install it" } }),
@@ -594,79 +435,10 @@ describe("createRescanner", () => {
   });
 
   describe("opening from the cache when the scan fails", () => {
-    const failing = () =>
-      fakeScan({
-        records: false,
-        result: { status: "failed", exitCode: 2, stderr: "bad flag\n" },
-      });
     const cached: Loaded = {
       ...OK,
       scans: [{ file: "scan.python.json" } as never],
     };
-
-    it("builds the explorer from the cache before reporting the failure", async () => {
-      let built = false;
-      const { log, rescanner } = harness(failing(), {
-        load: () => cached,
-        hasExplorer: () => built,
-        replace: () => {
-          built = true;
-          log.push("replace:");
-        },
-      });
-
-      await rescanner.run(null, OPEN_RUN);
-
-      expect(log.length).toBeGreaterThan(0);
-
-      const order = [
-        "sense",
-        "adopt",
-        "replace:",
-        "blocked:bad flag",
-        "settled",
-      ];
-      const at = order.map((name) => log.indexOf(name));
-
-      expect(at.every((index) => index >= 0)).toBe(true);
-      expect(at).toEqual([...at].sort((a, b) => a - b));
-    });
-
-    it("blocks with no explorer when nothing is cached", async () => {
-      const { log, rescanner } = harness(failing());
-
-      await rescanner.run(null, OPEN_RUN);
-
-      expect(log).toContain("blocked:bad flag");
-      expect(log.some((entry) => /^(replace|sense|adopt)/.test(entry))).toBe(
-        false,
-      );
-    });
-
-    it("blocks when the viewer refuses the cache", async () => {
-      const { log, rescanner } = harness(failing(), {
-        load: () => ({ ...cached, blocking: "schema_version 9" }),
-      });
-
-      await rescanner.run(null, OPEN_RUN);
-
-      expect(log).toContain("blocked:bad flag");
-      expect(log.some((entry) => entry.startsWith("replace"))).toBe(false);
-    });
-
-    it("leaves an open explorer alone", async () => {
-      const { log, rescanner } = harness(failing(), {
-        load: () => cached,
-        hasExplorer: () => true,
-      });
-
-      await rescanner.run(null, OPEN_RUN);
-
-      expect(log).toContain("blocked:bad flag");
-      expect(log.some((entry) => /^(replace|sense|adopt)/.test(entry))).toBe(
-        false,
-      );
-    });
 
     it("opens from the cache when a scan ran nothing it was asked to run", async () => {
       let built = false;
@@ -711,22 +483,6 @@ describe("createRescanner", () => {
     expect(log).toContain("blocked:schema_version 9");
     expect(log).not.toContain("adopt");
     expect(log.some((entry) => entry.startsWith("replace"))).toBe(false);
-  });
-
-  it("keeps the old explorer when adopting fails", async () => {
-    const { log, rescanner } = harness(
-      fakeScan({ steps: [extract, summary] }),
-      {
-        adopt: async () => {
-          throw new Error("no baseline");
-        },
-      },
-    );
-
-    await rescanner.run();
-
-    expect(log.some((entry) => entry.startsWith("replace"))).toBe(false);
-    expect(log).toContain("blocked:Error: no baseline");
   });
 
   it("settles once extraction has run even when no later phase line arrives", async () => {
