@@ -26,7 +26,28 @@ export function commandKey(
   command: string,
   args: Record<string, unknown> | undefined,
 ): string {
-  return `${command} ${JSON.stringify(args ?? {})}`;
+  return `${command} ${JSON.stringify(withLookRepository(args ?? {}))}`;
+}
+
+const LOOK_REPOSITORY = "<look repository>";
+
+function withLookRepository(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(withLookRepository);
+  }
+
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, one]) => [
+      key,
+      key === "repository" && typeof one === "string"
+        ? LOOK_REPOSITORY
+        : withLookRepository(one),
+    ]),
+  );
 }
 
 export function serialiseLoaded(
