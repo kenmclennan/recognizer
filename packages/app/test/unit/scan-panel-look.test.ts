@@ -120,7 +120,7 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
   wired.changesChanged = createChangesHandler({ state: () => wired.scanState, setState: setScan, refreshPanel: () => wired.explorer?.refreshPanel() });
   await wired.rescanner.loadTicks();
   wired.current = base;
-  if (scanned) setScan(withProgress({ origin: ORIGIN, scannedAt: Date.now(), changes: NO_CHANGES }));
+  setScan(withProgress({ origin: ORIGIN, scannedAt: Date.now(), changes: NO_CHANGES }));
   wired.explorer = build(await sensed(base), null);
   await tick();
 
@@ -711,7 +711,6 @@ const SHORT_AGE = /^(current|now|\d+[mhd])$/;
 const GREEN = "rgb(63, 185, 80)";
 const RED = "rgb(248, 81, 73)";
 const ACCENT = "rgb(68, 147, 248)";
-const MUTED = "rgb(145, 152, 161)";
 const NAMES = [
   "Structural analysis",
   "Descriptions",
@@ -722,7 +721,6 @@ const NAMES = [
   "beta",
 ];
 
-const names = (panel: Facts) => panel.rows.map((r: Facts) => r.name);
 const states = (panel: Facts) => panel.rows.map((r: Facts) => r.state);
 
 describe.skipIf(webkit === undefined)("the Scan panel", () => {
@@ -851,23 +849,6 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.fresh.railLabel).toContain("Scan");
   });
 
-  it("matches the mock's fresh repository: Not scanned yet, one list, only Structural analysis ticked, every row never run", () => {
-    expect(f.fresh.header).toBe("Not scanned yet");
-    expect(names(f.fresh)).toEqual(NAMES);
-    expect(states(f.fresh)).toEqual(Array(7).fill("never run"));
-    expect(
-      f.fresh.rows.filter((r: Facts) => r.ticked).map((r: Facts) => r.key),
-    ).toEqual(["structure"]);
-    expect(f.fresh.rows.every((r: Facts) => r.color === MUTED)).toBe(true);
-    expect(f.fresh.summary).toMatchObject({
-      shape: "attention",
-      tone: "warn",
-      head: "Structure, Structural analysis, Descriptions, C.R.A.P., Mutation, tally, alpha and beta have never run",
-      bar: 0,
-    });
-    expect(f.fresh.rowBars).toBe(0);
-  });
-
   it("has no heading, sub-line, Remove button, Add block, summary or disabled checkbox, and an accent-coloured checkbox", () => {
     expect(f.fresh.strays).toBe(0);
     expect(f.fresh.subLines).toBe(0);
@@ -903,15 +884,11 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.long.tip.bottom).toBeLessThanOrEqual(f.long.viewport.h);
   });
 
-  it("has the primary button naming its work below the scope and mode toggles", () => {
-    expect(f.fresh.buttons).toEqual([
-      { text: "Run", disabled: false, spinner: 0 },
-    ]);
+  it("has the mode toggles below the scope", () => {
     expect(f.freshPartial.modeToggles).toEqual([
       { text: "Incremental", pressed: "true", disabled: false },
       { text: "Full", pressed: "false", disabled: false },
     ]);
-    expect(f.fresh.buttonTitle).toBe("");
   });
 
   it("matches the mock after a scan: Scanned with an age and no sha or counts", () => {

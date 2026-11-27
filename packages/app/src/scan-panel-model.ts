@@ -101,7 +101,7 @@ export type RowSensor = {
 };
 
 export type PanelInput = {
-  scan: ScanState | null;
+  scan: ScanState;
   config: Config | null;
   configProblem?: string | null;
   sensors: SensorStatus[];
@@ -481,7 +481,7 @@ function reportRows(sensors: SensorStatus[], now: number): ReportRow[] {
 }
 
 function movedText(input: PanelInput): string | null {
-  const moved = input.scan?.changes.moved ?? null;
+  const moved = input.scan.changes.moved;
 
   if (moved === null) {
     return null;
@@ -502,10 +502,6 @@ function header(
 
   if (input.scanning) {
     return { text: input.progressText ?? "Scanning\u2026", moved: null };
-  }
-
-  if (input.scan === null) {
-    return { text: "Not scanned yet", moved: null };
   }
 
   return {

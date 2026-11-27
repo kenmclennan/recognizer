@@ -294,10 +294,6 @@ describe("freshness model states", () => {
 
     expect(model.changed).toEqual(IDS);
   });
-
-  it("reads Structure never run without a scan", () => {
-    expect(kindOf(modelOf(IDS, { scan: null }), "structure")).toBe("never-run");
-  });
 });
 
 describe("freshness model wording", () => {

@@ -138,7 +138,6 @@ const states = (model: ReturnType<typeof scanPanel>) =>
   model.rows.map((row) => `${row.name}: ${row.text.text}`);
 
 const fresh = input({
-  scan: null,
   lines: { modules: ["a.py"], of: () => ({ kind: "missing" }) },
 });
 
@@ -503,13 +502,6 @@ describe("scanPanel while another process scans", () => {
 });
 
 describe("scanPanel header", () => {
-  it("reads Not scanned yet without a scan", () => {
-    expect(scanPanel(fresh).header).toEqual({
-      text: "Not scanned yet",
-      moved: null,
-    });
-  });
-
   it("reads Ran with an age and no sha", () => {
     expect(scanPanel(input()).header).toEqual({
       text: "Ran 27 minutes ago",
@@ -568,9 +560,9 @@ describe("scanPanel row states", () => {
   const rowOf = (model: ReturnType<typeof scanPanel>, key: string) =>
     model.rows.find((row) => row.key === key);
 
-  it("reads never run on a repository nothing has run on, and Structure as never run without a scan", () => {
+  it("reads never run for every sensor that has not run on a scanned repository", () => {
     expect(states(scanPanel(fresh))).toEqual([
-      "Structural analysis: never run",
+      "Structural analysis: 27m",
       "Descriptions: never run",
       "C.R.A.P.: never run",
       "Mutation: never run",
@@ -912,12 +904,7 @@ describe("scanPanel row states", () => {
     expect(rowOf(model, "crap")?.text.text).toBe("now");
   });
 
-  it("offers Run Structure on a repository never scanned, and a disabled Running button during a scan", () => {
-    expect(scanPanel(fresh).button).toEqual({
-      scanning: false,
-      label: "Run",
-      disabled: false,
-    });
+  it("offers a disabled Running button during a scan", () => {
     expect(scanPanel(input({ scanning: true })).button).toEqual({
       scanning: true,
       label: "Running",
