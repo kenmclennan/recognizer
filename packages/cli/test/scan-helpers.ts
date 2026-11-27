@@ -78,6 +78,7 @@ export interface FakeOptions {
   tracked?: string[];
   listing?: { started?: boolean; status?: number; stderr?: string };
   status?: string;
+  statusFails?: boolean;
   diff?: string;
   launchFails?: string;
   request?: (socket: string, text: string) => string | null;
@@ -422,7 +423,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
       if (options.commit && args.includes("status")) {
         return {
           started: true,
-          status: 0,
+          status: options.statusFails ? 128 : 0,
           stdout: options.status ?? "",
           stderr: "",
         };

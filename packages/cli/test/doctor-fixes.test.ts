@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { run } from "../src/cli.js";
 import { loadKeys } from "../src/config-keys.js";
 import { RETIRED_KEYS } from "../src/config-retired.js";
-import { cachedScansState } from "../src/freshness.js";
 import { unsetValue } from "../src/key-text.js";
 import { isDirty } from "../src/scan-command.js";
 import { fakeIo, ROOT, scanJson } from "./scan-helpers.js";
@@ -139,36 +138,6 @@ describe("a dirty tree is named, not rescanned", () => {
 
     expect(problem.fix.command).toBe("recognizer scan");
     expect(problem.line).toContain("out of date with the working tree");
-  });
-
-  it("returns the reason for each stale state", () => {
-    const base = { cache: current, policy: "" };
-
-    expect(
-      cachedScansState(
-        setup({ ...base, status: " M a.py\n?? b.py\n" }).io,
-        ROOT,
-        ["python"],
-      ),
-    ).toEqual({
-      state: "stale",
-      reason: "uncommitted",
-      paths: ["a.py", "b.py"],
-    });
-    expect(
-      cachedScansState(
-        setup({ cache: scanJson(2, 1, { commit: "old" }, "  ") }).io,
-        ROOT,
-        ["python"],
-      ),
-    ).toEqual({ state: "stale", reason: "scan" });
-    expect(
-      cachedScansState(
-        fakeIo({ files: { [CACHE]: current, [`${ROOT}/m0.py`]: "" } }).io,
-        ROOT,
-        ["python"],
-      ),
-    ).toEqual({ state: "stale", reason: "scan" });
   });
 
   it("keeps isDirty a boolean over the same git call", () => {

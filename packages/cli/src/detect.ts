@@ -1,11 +1,5 @@
-import { join, relative } from "node:path";
-import {
-  claimsFile,
-  type LanguageRule,
-  SKIPPED_DIRECTORIES,
-  skipsDirectoryName,
-  skipsFile,
-} from "@recognizer/core";
+import { join } from "node:path";
+import { detectLanguageNames, type LanguageRule } from "@recognizer/core";
 import type { Io } from "./cli.js";
 
 export type { LanguageRule };
@@ -49,59 +43,10 @@ export function detectLanguages(
   root: string,
   rules: readonly LanguageRule[],
 ): Language[] {
-  const found = new Set<Language>();
-  const names = new Set(rules.map((rule) => rule.name));
   const listing = gitListing(io, root);
 
-  function walk(directory: string, active: readonly LanguageRule[]): void {
-    const entries = io.readDir(directory);
-
-    const here = active.filter(
-      (rule) =>
-        directory === root ||
-        !rule.skip.directory_markers.some((marker) =>
-          entries.some(
-            (entry) => entry.kind === "file" && entry.name === marker,
-          ),
-        ),
-    );
-
-    for (const entry of entries) {
-      if (found.size === names.size) {
-        return;
-      }
-
-      if (entry.kind === "directory") {
-        if (SKIPPED_DIRECTORIES.has(entry.name)) {
-          continue;
-        }
-
-        const inside = here.filter(
-          (rule) => !skipsDirectoryName(rule, entry.name),
-        );
-
-        if (inside.length > 0) {
-          walk(join(directory, entry.name), inside);
-        }
-      } else if (entry.kind === "file") {
-        const listed =
-          listing === null ||
-          listing.has(relative(root, join(directory, entry.name)));
-
-        if (!listed) {
-          continue;
-        }
-
-        for (const rule of here) {
-          if (claimsFile(rule, entry.name) && !skipsFile(rule, entry.name)) {
-            found.add(rule.name);
-          }
-        }
-      }
-    }
-  }
-
-  walk(root, rules);
-
-  return [...found].sort();
+  return detectLanguageNames(rules, {
+    listing,
+    entries: (directory) => io.readDir(join(root, directory)),
+  });
 }
