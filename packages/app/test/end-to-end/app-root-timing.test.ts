@@ -13,8 +13,7 @@ import { appRoot, REPO, timeEndToEnd, untilHolds } from "../roots";
 const EDIT_LIMIT_MS = 10_000;
 const PULL_LIMIT_MS = 5_000;
 const SCAN_CEILING_MS = 240_000;
-const TEST_TIMEOUT = scaledTimeout(60_000) * 5;
-const SETTLE_TEST_TIMEOUT = scaledTimeout(SCAN_CEILING_MS) * 3;
+const LOADED_TEST_TIMEOUT = scaledTimeout(SCAN_CEILING_MS) * 3;
 
 const PULLS = [
   {
@@ -52,12 +51,15 @@ describe("the app root, timed end to end", () => {
       const host = await untilHolds(
         root.service,
         () => root.view.explorer()?.host,
+        SCAN_CEILING_MS,
       );
 
       host.run(null);
 
-      await untilHolds(root.service, () =>
-        root.view.freshnessOf("crap") === "current" ? true : undefined,
+      await untilHolds(
+        root.service,
+        () => (root.view.freshnessOf("crap") === "current" ? true : undefined),
+        SCAN_CEILING_MS,
       );
 
       expect(root.view.freshnessOf("crap")).toBe("current");
@@ -73,7 +75,7 @@ describe("the app root, timed end to end", () => {
       expect(elapsedMs).toBeLessThan(limitMs);
       expect(readFileSync(root.testFile, "utf8")).toContain("edited");
     },
-    TEST_TIMEOUT,
+    LOADED_TEST_TIMEOUT,
   );
 
   it(
@@ -117,7 +119,7 @@ describe("the app root, timed end to end", () => {
 
       expect(host.running()).toBe(false);
     },
-    SETTLE_TEST_TIMEOUT,
+    LOADED_TEST_TIMEOUT,
   );
 
   it(
@@ -138,8 +140,10 @@ describe("the app root, timed end to end", () => {
 
       const pid = join(gate, `${basename(root.repository)}.pid`);
 
-      await untilHolds(root.service, () =>
-        existsSync(pid) ? true : undefined,
+      await untilHolds(
+        root.service,
+        () => (existsSync(pid) ? true : undefined),
+        SCAN_CEILING_MS,
       );
 
       let reply: Awaited<
@@ -165,6 +169,6 @@ describe("the app root, timed end to end", () => {
         ).rows.map(({ number, title }) => [number, title]),
       ).toEqual([[7, "Add the thing"]]);
     },
-    TEST_TIMEOUT,
+    LOADED_TEST_TIMEOUT,
   );
 });
