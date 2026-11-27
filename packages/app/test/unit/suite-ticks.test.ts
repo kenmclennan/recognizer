@@ -1,7 +1,6 @@
 import {
   afterSuiteTick,
   type SuiteResult,
-  suiteStanding,
   suiteStandings,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
@@ -15,7 +14,7 @@ import {
   visibleSuiteTicks,
 } from "../../src/scan-panel-model";
 import type { InstalledSensors, SensorStatus } from "../../src/sensor-run";
-import { foldSummary, LOOK } from "../../src/suite-results";
+import { LOOK, lookedFold, lookedState } from "../../src/suite-look";
 import { configOf, plainSensor, scanPanelSync as scanPanel } from "../fixtures";
 
 const MINUTE = 60000;
@@ -155,75 +154,61 @@ describe("suite look", () => {
   ] as const)("gives %s the %s icon and %s tone", (kind, icon, tone) => {
     expect(LOOK[kind]).toEqual({ icon, tone });
   });
+
+  it.each(["ok", "failed", "partial", "never", "running"] as const)(
+    "maps %s through lookedState and lookedFold to its look",
+    (kind) => {
+      expect(lookedState({ kind, text: "t", title: "u" })).toEqual({
+        kind,
+        text: "t",
+        title: "u",
+        ...LOOK[kind],
+      });
+      expect(lookedFold({ kind, text: "t" })).toEqual({
+        text: "t",
+        ...LOOK[kind],
+      });
+    },
+  );
 });
 
-describe("closed fold summary", () => {
-  const summarize = (
-    results: (SuiteResult | undefined)[],
-    all = results.length,
-    running = null as {
-      suite: string;
-      done: number | null;
-      total: number | null;
-    } | null,
-  ) =>
-    foldSummary({
-      all,
-      results: results.map((one) =>
-        one === undefined ? undefined : suiteStanding(one),
-      ),
-      running,
-      now: NOW,
+describe("closed fold look in the panel", () => {
+  const closed = (suites: SuiteResult[]) => {
+    const model = panel({
+      ticks: ticks({
+        armed: ["crap"],
+        suites: { crap: entry(ALL) },
+      }),
+      sensors: [
+        {
+          name: "crap",
+          status: "ran",
+          findings: 0,
+          modifiedMs: NOW,
+          suites: suiteStandings(suites) ?? [],
+        },
+      ],
     });
 
-  it("reads none when no suite is ticked", () => {
-    expect(summarize([], 3).text).toBe("none");
-  });
+    return row(model, "crap");
+  };
 
-  it("reads the worst state: failed, then never, then partial, then the oldest age", () => {
-    const failed: SuiteResult = {
-      name: "web",
-      status: "failed",
-      ranAt: ago(MINUTE),
-    };
-    const partial: SuiteResult = {
-      name: "integration",
-      status: "partial",
-      ranAt: ago(MINUTE),
+  it.each([
+    ["failed", "circle-x", "bad"],
+    ["partial", "circle-pause", "muted"],
+    ["ok", "circle-check", "ok"],
+  ] as const)("draws a %s sensor with %s and %s", (kind, icon, tone) => {
+    const suites: SuiteResult[] = ALL.map((name) => ({
+      name,
+      status: kind,
+      ranAt: ago(HOUR),
       measured: 1,
       total: 2,
-    };
+    }));
+    const crap = closed(suites);
 
-    expect(summarize([ok("unit", HOUR), failed, undefined, partial]).text).toBe(
-      "1 failed",
-    );
-    expect(summarize([ok("unit", HOUR), undefined, partial]).text).toBe(
-      "never",
-    );
-    expect(summarize([ok("unit", HOUR), partial]).text).toBe("partial");
-    expect(
-      summarize([ok("unit", 3 * HOUR), ok("integration", 2 * DAY)]).text,
-    ).toBe("2d");
-  });
-
-  it("prefixes ticked over all when only some suites are ticked", () => {
-    expect(
-      summarize([ok("unit", HOUR), ok("integration", 2 * HOUR)], 3).text,
-    ).toBe("2/3 · 2h");
-  });
-
-  it("reads the running suite, with the count for Mutation, while scanning", () => {
-    expect(
-      summarize([ok("unit", HOUR)], 3, {
-        suite: "unit",
-        done: null,
-        total: null,
-      }).text,
-    ).toBe("unit");
-    expect(
-      summarize([ok("unit", HOUR)], 3, { suite: "unit", done: 11, total: 29 })
-        .text,
-    ).toBe("unit 11/29");
+    expect(crap?.text.icon).toBe(icon);
+    expect(crap?.tone).toBe(tone);
   });
 });
 
