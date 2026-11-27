@@ -4,7 +4,6 @@ import {
 } from "../../domain/configuration/key-value.js";
 import {
   RETIRED_KEYS,
-  RETIRED_POLICY_KEYS,
   type RetiredKey,
 } from "../../domain/configuration/retired-keys.js";
 import type { PublishedValues } from "../../domain/configuration/survey-answer.js";
@@ -190,10 +189,4 @@ export function toleratedMigration(
   prefix: (command: string) => string,
 ): ThresholdsMigration | null {
   return thresholdsMigration(document, prefix);
-}
-
-export function retiredPolicyKeysIn(keys: readonly string[]): string[] {
-  return keys.filter((key) =>
-    (RETIRED_POLICY_KEYS as readonly string[]).includes(key),
-  );
 }

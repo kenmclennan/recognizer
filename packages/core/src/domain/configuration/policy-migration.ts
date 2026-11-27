@@ -18,7 +18,11 @@ function isLiteralPath(glob: string): boolean {
   return !glob.includes("*") && !glob.includes("?");
 }
 
-function readGlobs(value: unknown, where: string, errors: string[]): string[] {
+export function readGlobs(
+  value: unknown,
+  where: string,
+  errors: string[],
+): string[] {
   const items = Array.isArray(value) ? value : [value];
   const globs: string[] = [];
 

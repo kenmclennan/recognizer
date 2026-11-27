@@ -10,7 +10,10 @@ import type {
 } from "../../domain/plugins/doctor-report.js";
 import { policyProblems } from "../../domain/plugins/policy-problems.js";
 import { PolicyRule } from "../../domain/policy-rule.js";
-import { retiredPolicyKeysIn } from "../configuration/inspect-config-document.js";
+import {
+  isRetiredPolicyKeyMessage,
+  retiredPolicyKeysIn,
+} from "../configuration/policy-reading.js";
 import type { RepositoryChecks } from "./ports/repository-checks.js";
 
 const POLICY_FILE = ".recognizer/policy.yaml";
@@ -63,7 +66,7 @@ export function readPolicyArea(
     return [
       ...found,
       ...facts.parsed.messages
-        .filter((line) => !/^policy: "[^"]+" is retired;/.test(line))
+        .filter((line) => !isRetiredPolicyKeyMessage(line))
         .map((line) => ({
           code: "policy-invalid" as const,
           subject: POLICY_FILE,
