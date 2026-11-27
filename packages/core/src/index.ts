@@ -2,6 +2,7 @@ export * from "./application/analysis/check-findings.js";
 export * from "./application/analysis/check-repository.js";
 export * from "./application/analysis/check-scan.js";
 export * from "./application/analysis/check-violations.js";
+export * from "./application/analysis/gather-findings-files.js";
 export * from "./application/analysis/load-findings.js";
 export * from "./application/analysis/long-function-findings.js";
 export * from "./application/analysis/measure-complexity.js";

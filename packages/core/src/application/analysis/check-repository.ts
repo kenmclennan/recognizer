@@ -35,6 +35,7 @@ import {
   violationOf,
   warningsOf,
 } from "./check-findings.js";
+import { gatherFindingsFiles } from "./gather-findings-files.js";
 import type { FolderMetrics } from "./measure-folders.js";
 import type { ModuleMetrics } from "./measure-modules.js";
 import type { Analysis } from "./ports/analysis.js";
@@ -42,7 +43,6 @@ import type { Digest } from "./ports/digest.js";
 import type { PublishedLanguages } from "./ports/published-languages.js";
 import type { SourceFiles } from "./ports/source-files.js";
 import type { TestReports } from "./ports/test-reports.js";
-import { freshnessFor, readFindingsFiles } from "./read-findings-files.js";
 import { runStructureAnalysis } from "./run-structure-analysis.js";
 
 export interface SensorStatus {
@@ -215,24 +215,11 @@ function gather(
       ...registered,
     ];
 
-    for (const outcome of readFindingsFiles(
-      ports.findings.readAll(root),
-      freshnessFor(
-        {
-          source: ports.source,
-          digest: ports.digest,
-          testReports: ports.testReports,
-          languages: ports.languages,
-        },
-        root,
-        repository,
-      ),
-      [],
+    for (const outcome of gatherFindingsFiles(ports, say, root, repository, {
+      skip: [],
       allowed,
-    )) {
-      if (outcome.status === "unregistered") {
-        say("stderr", `ignored unregistered ${outcome.name}\n`);
-      } else if (outcome.status === "read") {
+    })) {
+      if (outcome.status === "read") {
         const { document, hidden, valid } = outcome;
 
         for (const record of hidden) {
@@ -245,20 +232,6 @@ function gather(
 
         documents.push(document);
 
-        if (!valid) {
-          say(
-            "stderr",
-            outcome.reported
-              ? `stale ${outcome.name} (reported at ${document.commit.slice(0, 7)})\n`
-              : `stale ${outcome.name}\n`,
-          );
-        } else if (hidden.length > 0) {
-          say(
-            "stderr",
-            `out of date ${outcome.name}: ${hidden.length} findings\n`,
-          );
-        }
-
         if (!sensors.some((one) => one.name === outcome.name)) {
           sensors.push({
             name: outcome.name,
@@ -269,8 +242,7 @@ function gather(
             ...(outcome.reported ? { reported: true } : {}),
           });
         }
-      } else {
-        say("stderr", `invalid ${outcome.name}: ${outcome.reason}\n`);
+      } else if (outcome.status === "invalid") {
         sensors.push({
           name: outcome.name,
           status: "failed",

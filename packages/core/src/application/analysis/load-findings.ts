@@ -9,15 +9,11 @@ import type { PolicyRepository } from "../../domain/policy-repository.js";
 import type { Repository } from "../../domain/repository.js";
 import type { SensorFindings } from "../../domain/sensor-findings.js";
 import type { Say } from "../shared/ports/process.js";
+import { gatherFindingsFiles } from "./gather-findings-files.js";
 import type { Digest } from "./ports/digest.js";
 import type { PublishedLanguages } from "./ports/published-languages.js";
 import type { SourceFiles } from "./ports/source-files.js";
 import type { TestReports } from "./ports/test-reports.js";
-import {
-  freshnessFor,
-  type ReadOutcome,
-  readFindingsFiles,
-} from "./read-findings-files.js";
 import { senseStructure } from "./sense-structure.js";
 
 export interface LoadFindingsPorts {
@@ -28,25 +24,6 @@ export interface LoadFindingsPorts {
   digest: Digest;
   testReports: TestReports;
   languages: PublishedLanguages;
-}
-
-function noteOutOfDate(
-  say: Say,
-  outcome: Extract<ReadOutcome, { status: "read" }>,
-): void {
-  if (!outcome.valid) {
-    say(
-      "stderr",
-      outcome.reported
-        ? `stale ${outcome.name} (reported at ${outcome.document.commit.slice(0, 7)})\n`
-        : `stale ${outcome.name}\n`,
-    );
-  } else if (outcome.hidden.length > 0) {
-    say(
-      "stderr",
-      `out of date ${outcome.name}: ${outcome.hidden.length} findings\n`,
-    );
-  }
 }
 
 export function loadFindings(
@@ -105,19 +82,12 @@ export function loadFindings(
     }
   }
 
-  for (const outcome of readFindingsFiles(
-    ports.findings.readAll(root),
-    freshnessFor(ports, root, repository),
-    ["structure"],
-    ports.config.sensorNames(root),
-  )) {
-    if (outcome.status === "unregistered") {
-      say("stderr", `ignored unregistered ${outcome.name}\n`);
-    } else if (outcome.status === "read") {
+  for (const outcome of gatherFindingsFiles(ports, say, root, repository, {
+    skip: ["structure"],
+    allowed: ports.config.sensorNames(root),
+  })) {
+    if (outcome.status === "read") {
       documents.push(outcome.document);
-      noteOutOfDate(say, outcome);
-    } else {
-      say("stderr", `invalid ${outcome.name}: ${outcome.reason}\n`);
     }
   }
 
