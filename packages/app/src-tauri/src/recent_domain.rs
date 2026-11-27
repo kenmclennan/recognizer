@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use crate::views::valid_name;
 
@@ -86,6 +87,8 @@ pub fn read_recent_views(repository: &dyn RecentViewsRepository, folder: &Path) 
         .unwrap_or_default()
 }
 
+static RECENT_VIEWS_LOCK: Mutex<()> = Mutex::new(());
+
 pub fn record_recent_view(
     repository: &dyn RecentViewsRepository,
     folder: &Path,
@@ -95,6 +98,9 @@ pub fn record_recent_view(
         return Err(format!("{name:?} is not a valid view name"));
     }
 
+    let _guard = RECENT_VIEWS_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
     let mut all = repository.load();
     let list = all.entry(folder.display().to_string()).or_default();
 
