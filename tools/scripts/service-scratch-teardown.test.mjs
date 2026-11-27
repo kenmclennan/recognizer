@@ -22,6 +22,12 @@ setInterval(() => {
 
 const WRITER_LIFETIME_MS = 5_000;
 const LONG_LIFETIME_MS = 60_000;
+const REMOVE = {
+  recursive: true,
+  force: true,
+  maxRetries: 20,
+  retryDelay: 25,
+};
 
 function alive(pid) {
   try {
@@ -110,7 +116,7 @@ describe("removeScratch", () => {
     const { child, exited } = await startWriter(dir, LONG_LIFETIME_MS);
 
     try {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, REMOVE);
 
       expect(await waitUntil(() => !alive(child.pid), 3_000)).toBe(true);
     } finally {
@@ -128,7 +134,7 @@ describe("removeScratch", () => {
     } finally {
       child.kill("SIGKILL");
       await exited;
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, REMOVE);
     }
   });
 
@@ -170,7 +176,7 @@ setInterval(() => {}, 1000);`,
 
       if (writerPid && alive(writerPid)) process.kill(writerPid, "SIGKILL");
 
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, REMOVE);
     }
   });
 });

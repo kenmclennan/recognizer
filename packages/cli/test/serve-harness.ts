@@ -12,6 +12,7 @@ import { basename, join } from "node:path";
 import { createInterface } from "node:readline";
 import { onTestFinished } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
+import { stopProcessesSync } from "../../../tools/scripts/stop-processes-sync.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { REPO } from "./helpers.js";
 import { isolatedPath } from "./isolated-path.js";
@@ -250,6 +251,28 @@ export async function sharedServe(): Promise<Serve> {
   onTestFinished(() => settle(serve), scaledTimeout(120_000));
 
   return serve;
+}
+
+let exitHookRegistered = false;
+
+export function closeSharedServiceAtWorkerExit(): void {
+  if (exitHookRegistered) {
+    return;
+  }
+
+  exitHookRegistered = true;
+
+  process.once("exit", () => {
+    const service = sharedService;
+
+    sharedService = undefined;
+
+    if (service?.child.pid === undefined || !service.running()) {
+      return;
+    }
+
+    stopProcessesSync([service.child.pid], { graceMs: scaledTimeout(15_000) });
+  });
 }
 
 export function typescriptRepository(): string {

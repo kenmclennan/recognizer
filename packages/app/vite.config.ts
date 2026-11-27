@@ -67,7 +67,10 @@ export default defineConfig({
           isolate: false,
           maxWorkers: 1,
           globalSetup: ["../../tools/scripts/service-scratch-setup.mjs"],
-          setupFiles: ["../../tools/scripts/service-scratch-worker.mjs"],
+          setupFiles: [
+            "../../tools/scripts/service-scratch-worker.mjs",
+            "./test/end-to-end/shared-service-close.setup.ts",
+          ],
           include: endToEndService,
         },
       },
