@@ -28,6 +28,7 @@ export class FakeGit implements Git {
   readonly commitDetails = new Map<string, string>();
   readonly tipSummaries = new Map<string, string>();
   state: string | null = "state-0";
+  dirtyList: readonly string[] | null | undefined = undefined;
 
   constructor(
     private readonly head: string | null,
@@ -40,6 +41,14 @@ export class FakeGit implements Git {
 
   dirty(): boolean {
     return this.modified;
+  }
+
+  dirtyPaths(): readonly string[] | null {
+    if (this.dirtyList !== undefined) {
+      return this.dirtyList;
+    }
+
+    return this.modified ? null : [];
   }
 
   resolveRef(_root: string, ref: string): string | null {

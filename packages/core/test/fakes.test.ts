@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { Repository } from "../src/index.js";
 import { createFakes } from "./fakes/container.js";
+import { FakeGit } from "./fakes/fake-git.js";
 import { cachePath } from "./fakes/fake-structure-repository.js";
 import { repositoryOf } from "./fakes/repository-of.js";
 
@@ -262,5 +263,17 @@ describe("the fake repositories read", () => {
     expect(structure.discard("/repo", "python")).toBe(true);
     expect(structure.scans.has(cachePath("/repo", "kotlin"))).toBe(true);
     expect(structure.discard("/repo", "python")).toBe(false);
+  });
+
+  it("FakeGit reports the configured dirty paths and null for a modified tree with none set", () => {
+    const clean = new FakeGit("c1");
+    const modified = new FakeGit("c1", true);
+    const listed = new FakeGit("c1", true);
+
+    listed.dirtyList = ["a.py"];
+
+    expect(clean.dirtyPaths()).toEqual([]);
+    expect(modified.dirtyPaths()).toBeNull();
+    expect(listed.dirtyPaths()).toEqual(["a.py"]);
   });
 });

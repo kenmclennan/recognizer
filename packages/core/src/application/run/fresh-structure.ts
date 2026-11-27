@@ -1,6 +1,7 @@
 import { Repository } from "../../domain/repository.js";
 import type { ScanOutcome } from "../../domain/run/scan-outcome.js";
 import { InvalidRequest } from "../../domain/run/scan-request.js";
+import { extractionsReusable } from "../../domain/scan-reuse.js";
 
 export interface FreshSources {
   isDirectory(root: string): boolean;
@@ -47,13 +48,8 @@ function isCurrent(
     return null;
   }
 
-  return cached.extractions.every(
-    (extraction) =>
-      extraction.commit === commit &&
-      extraction.modified === false &&
-      extraction.files.every(
-        (file) => sources.hashOf(root, file.path) === file.hash,
-      ),
+  return extractionsReusable(cached.extractions, commit, (path) =>
+    sources.hashOf(root, path),
   )
     ? cached
     : null;

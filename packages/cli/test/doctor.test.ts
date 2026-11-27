@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { run } from "../src/cli.js";
 import { loadKeys } from "../src/config-keys.js";
 import { RETIRED_KEYS } from "../src/config-retired.js";
-import { cachedScansState } from "../src/freshness.js";
 import { setValue, unsetValue } from "../src/key-text.js";
 import { REPO } from "./helpers.js";
 import {
@@ -977,33 +976,29 @@ describe("doctor starts nothing costly and writes nothing", () => {
   });
 });
 
-describe("cachedScansState", () => {
-  it("is current for a cache at the current commit with a clean tree", () => {
-    const fake = setup({ ...clean });
-
-    expect(cachedScansState(fake.io, ROOT, ["python"])).toMatchObject({
-      state: "current",
-    });
-  });
-
-  it("is missing when a language has no cache", () => {
-    const fake = setup({ ...clean, cache: null });
-
-    expect(cachedScansState(fake.io, ROOT, ["python"])).toEqual({
-      state: "missing",
-    });
-  });
-
-  it("is stale when the commit differs", () => {
-    const fake = setup({
-      ...clean,
-      cache: scanJson(2, 1, { commit: "old" }, "  "),
+describe("an unreadable git status", () => {
+  it("treats an unreadable git status as a stale scan", () => {
+    const fake = fakeIo({
+      commit: COMMIT,
+      statusFails: true,
+      files: {
+        [`${ROOT}/m0.py`]: "",
+        [`${ROOT}/.recognizer/policy.yaml`]: "entry:\n  - m*.py\n",
+        [CACHE]: current,
+      },
+      scanners: { [PYTHON]: {} },
     });
 
-    expect(cachedScansState(fake.io, ROOT, ["python"])).toEqual({
-      state: "stale",
-      reason: "scan",
-    });
+    const { report } = json(fake, ROOT);
+    const policy = report.areas.find(
+      (area: { name: string }) => area.name === "policy",
+    );
+
+    expect(
+      policy.problems.map((problem: { line: string }) => problem.line),
+    ).toContainEqual(
+      expect.stringContaining("out of date with the working tree"),
+    );
   });
 });
 

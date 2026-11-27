@@ -7,7 +7,7 @@ import {
   type WorkingTreeEntry,
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
-import { isDirty, resolveCommit } from "../../scan-facts.js";
+import { dirtyPaths, isDirty, resolveCommit } from "../../scan-facts.js";
 import { parseNameStatus } from "./name-status-parse.js";
 
 function parseRenames(stdout: string): Map<string, string> {
@@ -359,6 +359,10 @@ export class GitAdapter implements Git {
 
   dirty(root: string): boolean {
     return isDirty(this.io, root);
+  }
+
+  dirtyPaths(root: string): readonly string[] | null {
+    return dirtyPaths(this.io, root);
   }
 
   resolveRef(root: string, ref: string): string | null {

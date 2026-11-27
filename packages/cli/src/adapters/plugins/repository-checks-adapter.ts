@@ -1,6 +1,8 @@
 import { join } from "node:path";
 import {
+  type CachedScansState,
   type ConfigReading,
+  cachedScansState,
   type Found,
   type InstalledPlugin,
   kindOfProgram,
@@ -32,10 +34,12 @@ import {
 } from "../../config-retired.js";
 import { detectLanguages } from "../../detect.js";
 import { InputError } from "../../errors.js";
-import { type CachedScansState, cachedScansState } from "../../freshness.js";
 import { policyProblems } from "../../policy-problems.js";
+import { readCachedRepository } from "../../scan-facts.js";
 import { languageRulesOf } from "../../scanners.js";
 import { parsePolicy, RETIRED_KEYS } from "../filesystem/policy-translator.js";
+import { SourceFilesAdapter } from "../filesystem/source-files-adapter.js";
+import { GitAdapter } from "../git/git-adapter.js";
 import { KeyOwnersAdapter } from "./key-owners-adapter.js";
 
 export interface Context {
@@ -472,6 +476,24 @@ function readIfPresent(io: Io, file: string): string | null {
 export class RepositoryChecksAdapter implements RepositoryChecks {
   constructor(private readonly io: Io) {}
 
+  private scansState(
+    root: string,
+    languages: readonly string[],
+  ): CachedScansState {
+    const git = new GitAdapter(this.io);
+    const files = new SourceFilesAdapter(this.io);
+
+    return cachedScansState(
+      {
+        readCached: (language) => readCachedRepository(this.io, root, language),
+        commit: () => git.commit(root),
+        dirtyPaths: () => git.dirtyPaths(root),
+        hashOf: (path) => files.hashOf(root, path),
+      },
+      languages,
+    );
+  }
+
   isDirectory(root: string): boolean {
     try {
       this.io.readDir(root);
@@ -494,7 +516,7 @@ export class RepositoryChecksAdapter implements RepositoryChecks {
         configText: readIfPresent(this.io, configFile(root)),
         policyText: null,
         languages: [],
-        scans: () => cachedScansState(this.io, root, []),
+        scans: () => this.scansState(root, []),
       },
       () => new KeyOwnersAdapter(this.io).schemas(root).schema.keys,
     );
@@ -510,7 +532,7 @@ export class RepositoryChecksAdapter implements RepositoryChecks {
         join(root, ".recognizer", "policy.yaml"),
       ),
       languages,
-      scans: () => cachedScansState(this.io, root, languages),
+      scans: () => this.scansState(root, languages),
     });
   }
 

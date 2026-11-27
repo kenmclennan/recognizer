@@ -14,6 +14,7 @@ export type GitText = { ok: true; text: string } | { ok: false; error: string };
 export interface Git {
   commit(root: string): string | null;
   dirty(root: string): boolean;
+  dirtyPaths(root: string): readonly string[] | null;
   resolveRef(root: string, ref: string): string | null;
   isAncestor(root: string, ancestor: string, descendant: string): boolean;
   renamesSince(root: string, commit: string): ReadonlyMap<string, string>;
