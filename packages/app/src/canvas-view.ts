@@ -90,6 +90,7 @@ export type CanvasProps = {
   titles: Map<string, string>;
   open: number;
   total: number;
+  viewOpen?: boolean;
   showInferred: boolean;
   notice: string | null;
   busy?: boolean;
@@ -1757,7 +1758,10 @@ export function buildCanvasView(
       }
 
       props = next;
-      empty.hidden = next.open > 0 || (next.scene?.boxes.length ?? 0) > 0;
+      empty.hidden =
+        next.viewOpen === true ||
+        next.open > 0 ||
+        (next.scene?.boxes.length ?? 0) > 0;
       notice.textContent = next.notice ?? "";
       notice.hidden = next.notice === null;
       busy.hidden = next.busy !== true;

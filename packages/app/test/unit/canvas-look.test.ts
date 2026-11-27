@@ -242,6 +242,8 @@ result.hint.shownWhenEmpty = getComputedStyle(hint).display !== "none";
 result.hint.fittedWhenEmpty = canvas.fitted();
 canvas.render(props({ open: 0 }));
 result.hint.shownWithPlannedBoxesOnly = getComputedStyle(hint).display !== "none";
+canvas.render(props({ open: 0, scene: null, viewOpen: true }));
+result.hint.shownInOpenView = getComputedStyle(hint).display !== "none";
 
 canvas.render(props());
 const controls = q(".controls");
@@ -480,6 +482,7 @@ type Report = {
     shown: boolean;
     shownWhenEmpty: boolean;
     shownWithPlannedBoxesOnly: boolean;
+    shownInOpenView: boolean;
     fittedWhenEmpty: boolean;
     style: Props;
   };
@@ -833,7 +836,7 @@ describe("the canvas, in a real browser", () => {
   );
 
   it.skipIf(webkit === undefined)(
-    "words the empty hint and shows it only on an empty canvas",
+    "words the empty hint and shows it only on an empty canvas with no view open",
     () => {
       const { hint } = r();
 
@@ -843,6 +846,7 @@ describe("the canvas, in a real browser", () => {
       expect(hint.shown).toBe(false);
       expect(hint.shownWhenEmpty).toBe(true);
       expect(hint.shownWithPlannedBoxesOnly).toBe(false);
+      expect(hint.shownInOpenView).toBe(false);
       expect(hint.fittedWhenEmpty).toBe(true);
       expect(hint.style["text-align"]).toBe("center");
       expect(hint.style.color).toBe(r().tokens.muted);

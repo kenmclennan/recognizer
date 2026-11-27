@@ -4888,6 +4888,7 @@ export function showExplorer(
       titles,
       describe: (id) => descriptionOf(responsibilityOf(id)),
       open: onCanvasCount().open,
+      viewOpen: savedView() !== null,
       total: onCanvasCount().total,
       showInferred: state.showInferred(),
       notice: layoutNotice,
