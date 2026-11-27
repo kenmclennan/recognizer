@@ -1,24 +1,22 @@
 import type {
-  ConfigReading,
-  Found,
+  CachedScansState,
+  ConfigDocumentRead,
   InstalledPlugin,
+  PolicyFacts,
+  PublishedValues,
   RepositoryChecks,
 } from "../../src/index.js";
 
 export class FakeRepositoryChecks implements RepositoryChecks {
   readonly directories = new Set<string>();
   languageNames: string[] = [];
-  configReading: ConfigReading = {
-    problems: [],
-    registered: {
-      specs: [],
-      named: {},
-      install: {},
-      sensors: [],
-      describer: false,
-    },
-  };
-  policyProblems: Found[] = [];
+  configDocumentValue: ConfigDocumentRead = { kind: "absent" };
+  schemaMessageList: string[] = [];
+  keyList: PublishedValues = [];
+  policyFactsValue: PolicyFacts = { kind: "absent" };
+  scansStateValue: CachedScansState = { state: "missing" };
+  scansReads = 0;
+  keyReads = 0;
   suiteList: readonly unknown[] | undefined;
 
   isDirectory(root: string): boolean {
@@ -29,12 +27,28 @@ export class FakeRepositoryChecks implements RepositoryChecks {
     return this.languageNames;
   }
 
-  config(): ConfigReading {
-    return this.configReading;
+  configDocument(): ConfigDocumentRead {
+    return this.configDocumentValue;
   }
 
-  policy(): Found[] {
-    return this.policyProblems;
+  configSchemaMessages(): string[] {
+    return this.schemaMessageList;
+  }
+
+  publishedKeys(): PublishedValues {
+    this.keyReads += 1;
+
+    return this.keyList;
+  }
+
+  policyFacts(): PolicyFacts {
+    return this.policyFactsValue;
+  }
+
+  scansState(): CachedScansState {
+    this.scansReads += 1;
+
+    return this.scansStateValue;
   }
 
   registered: { name: string; command: string[]; manifest?: string[] }[] = [];

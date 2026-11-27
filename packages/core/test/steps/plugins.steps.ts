@@ -178,26 +178,21 @@ Given(
 Given(
   "the repository registers the sensors {string} and {string} with install line {string}",
   function (this: ScanWorld, present: string, absent: string, line: string) {
-    const spec = (name: string, installLine: string | null) => ({
-      kind: "sensor" as const,
-      subject: name,
-      name,
-      program: `recognizer-sense-${name}`,
-      command: [`recognizer-sense-${name}`, "run"],
-      manifest: [`/first/recognizer-sense-${name}`, "manifest"],
-      settings: null,
-      installLine,
-    });
-
     this.fakes.repositoryChecks.directories.add("/repo");
-    this.fakes.repositoryChecks.configReading = {
-      problems: [],
-      registered: {
-        specs: [spec(present, null), spec(absent, line)],
-        named: {},
-        install: {},
-        sensors: [present, absent],
-        describer: false,
+    this.fakes.repositoryChecks.configDocumentValue = {
+      kind: "parsed",
+      document: {
+        install: { [`/first/recognizer-sense-${absent}`]: line },
+        sensors: {
+          [present]: {
+            command: [`recognizer-sense-${present}`, "run"],
+            manifest: [`/first/recognizer-sense-${present}`, "manifest"],
+          },
+          [absent]: {
+            command: [`recognizer-sense-${absent}`, "run"],
+            manifest: [`/first/recognizer-sense-${absent}`, "manifest"],
+          },
+        },
       },
     };
   },

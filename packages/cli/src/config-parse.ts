@@ -1,4 +1,13 @@
-import { expandShortForms } from "@recognizer/core";
+import {
+  type DuplicateSuite,
+  duplicateSuites,
+  type EmptySection,
+  emptySections,
+  expandedConfigOf,
+  expandShortForms,
+  registeredSensors,
+  withoutEmptySections,
+} from "@recognizer/core";
 import { parse } from "yaml";
 import {
   retiredKeysIn,
@@ -8,6 +17,15 @@ import {
 import { InputError } from "./errors.js";
 import configSchema from "./generated/config.schema.json" with { type: "json" };
 import validate from "./generated/config-validator.js";
+
+export {
+  type DuplicateSuite,
+  duplicateSuites,
+  type EmptySection,
+  emptySections,
+  registeredSensors,
+  withoutEmptySections,
+};
 
 export interface SensorRegistration {
   command: string[];
@@ -60,24 +78,6 @@ export interface Config {
   tests?: TestSuite[];
 }
 
-export function registeredSensors(
-  config: Config | null,
-): { name: string; command: string[]; manifest?: string[] }[] {
-  return Object.entries(config?.sensors ?? {}).flatMap(([name, entry]) =>
-    name !== "structure" && typeof entry === "object" && "command" in entry
-      ? [
-          {
-            name,
-            command: entry.command,
-            ...(entry.manifest === undefined
-              ? {}
-              : { manifest: entry.manifest }),
-          },
-        ]
-      : [],
-  );
-}
-
 export function registeredSensorSettings(
   config: Config | null,
   name: string,
@@ -111,26 +111,6 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function expandConfig(document: unknown): unknown {
-  if (
-    typeof document !== "object" ||
-    document === null ||
-    Array.isArray(document)
-  ) {
-    return document;
-  }
-
-  const record = document as Record<string, unknown>;
-  const sensors = expandShortForms(
-    record.sensors as Record<string, unknown> | undefined,
-  );
-
-  return {
-    ...record,
-    ...(sensors === undefined ? {} : { sensors }),
-  };
-}
-
 const SCHEMA_SENSORS: readonly string[] = Object.keys(
   configSchema.properties.sensors.properties,
 );
@@ -160,53 +140,6 @@ function rejectRetiredOverlays(document: unknown): void {
   if (retired !== undefined) {
     throw new InputError([retired.message]);
   }
-}
-
-export interface EmptySection {
-  path: string[];
-  message: string;
-}
-
-export function emptySections(document: unknown): EmptySection[] {
-  if (!isPlainObject(document)) {
-    return [];
-  }
-
-  const found: EmptySection[] = [];
-
-  for (const [name, value] of Object.entries(document)) {
-    if (value === null) {
-      found.push({
-        path: [name],
-        message: `config ${name} is empty: delete the section or give it settings`,
-      });
-    }
-  }
-
-  if (!isPlainObject(document.sensors)) {
-    return found;
-  }
-
-  for (const [name, value] of Object.entries(document.sensors)) {
-    if (value === null) {
-      found.push({
-        path: ["sensors", name],
-        message: `config sensors.${name} is empty: delete the section or give it settings`,
-      });
-    }
-  }
-
-  const structure = document.sensors.structure;
-
-  if (isPlainObject(structure) && structure.warnings === null) {
-    found.push({
-      path: ["sensors", "structure", "warnings"],
-      message:
-        "config sensors.structure.warnings is empty: delete the section or give it settings",
-    });
-  }
-
-  return found;
 }
 
 function rejectEmptySections(document: unknown): void {
@@ -374,35 +307,6 @@ function rejectRetiredWarnings(document: unknown): void {
   }
 }
 
-export interface DuplicateSuite {
-  name: string;
-  message: string;
-}
-
-export function duplicateSuites(document: unknown): DuplicateSuite[] {
-  if (!isPlainObject(document) || !Array.isArray(document.tests)) {
-    return [];
-  }
-
-  const seen = new Set<string>();
-  const found: DuplicateSuite[] = [];
-
-  for (const suite of document.tests as { name?: unknown }[]) {
-    const name = typeof suite?.name === "string" ? suite.name : "";
-
-    if (name !== "" && seen.has(name)) {
-      found.push({
-        name,
-        message: `config/tests the test suite name ${name} is used twice`,
-      });
-    }
-
-    seen.add(name);
-  }
-
-  return found;
-}
-
 function rejectDuplicateSuites(document: unknown): void {
   const [first] = duplicateSuites(document);
 
@@ -426,28 +330,8 @@ export function schemaMessages(document: unknown): string[] {
   });
 }
 
-export function withoutEmptySections(document: unknown): unknown {
-  if (!isPlainObject(document)) {
-    return document;
-  }
-
-  const copy = structuredClone(document) as Record<string, unknown>;
-
-  for (const { path } of emptySections(copy)) {
-    let at: unknown = copy;
-
-    for (const step of path.slice(0, -1)) {
-      at = (at as Record<string, unknown>)[step];
-    }
-
-    delete (at as Record<string, unknown>)[path[path.length - 1] as string];
-  }
-
-  return copy;
-}
-
 export function expandedConfig(document: unknown): Config {
-  return expandConfig(document) as Config;
+  return expandedConfigOf(document) as Config;
 }
 
 export function registeredSensorNamesIn(text: string): string[] {
@@ -543,7 +427,7 @@ export function parseConfig(
   if (validate(document)) {
     rejectDuplicateSuites(document);
 
-    return expandConfig(document) as Config;
+    return expandedConfig(document);
   }
 
   const messages = schemaMessages(document);

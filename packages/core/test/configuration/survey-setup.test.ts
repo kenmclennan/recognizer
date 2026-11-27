@@ -228,32 +228,46 @@ describe("surveySetup", () => {
   it("offers a runnable fix and keeps the command of none the grammar refuses", async () => {
     const world = worldOf();
 
-    world.fakes.repositoryChecks.configReading.problems = [
-      {
-        code: "config-retired",
-        subject: "sensors.x",
-        line: "retired",
-        fix: {
-          text: "unset it",
-          command: "recognizer config --unset sensors.x",
+    world.fakes.repositoryChecks.configDocumentValue = {
+      kind: "parsed",
+      document: { overlays: {} },
+    };
+
+    const refused = {
+      code: "config-empty" as const,
+      subject: "sensors.y",
+      title: "Empty section",
+      line: "empty",
+      fix: { text: "remove it", command: "rm -rf /" },
+      severity: "problem" as const,
+    };
+    const ports = {
+      ...world.ports,
+      reads: {
+        ...world.ports.reads,
+        diagnose: (root: string) => {
+          const report = world.ports.reads.diagnose(root);
+
+          return {
+            ...report,
+            areas: report.areas.map((area) =>
+              area.name === "config"
+                ? { ...area, problems: [...area.problems, refused] }
+                : area,
+            ),
+          };
         },
       },
-      {
-        code: "config-empty",
-        subject: "sensors.y",
-        line: "empty",
-        fix: { text: "remove it", command: "rm -rf /" },
-      },
-    ];
+    };
 
-    const survey = await surveySetup(world.ports, { root: ROOT });
+    const survey = await surveySetup(ports, { root: ROOT });
 
     expect(
       survey.fixes
         .filter((fix) => fix.code.startsWith("config-"))
         .map((fix) => [fix.code, fix.command]),
     ).toEqual([
-      ["config-retired", "recognizer config --unset sensors.x"],
+      ["config-retired", "recognizer config --unset overlays"],
       ["config-empty", null],
     ]);
   });
