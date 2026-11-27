@@ -227,4 +227,18 @@ describe("the CLI holds no plugin logic", () => {
       false,
     );
   });
+
+  it("keeps config-parse.ts free of retired-sensor rules", () => {
+    const rules =
+      /was removed|unknown setting|must be above 0|must be an integer of at least 1|DUPLICATION_KEYS/;
+    const text = readFileSync(join(SRC, "config-parse.ts"), "utf8");
+
+    expect(rules.test(text)).toBe(false);
+    expect(
+      rules.test(
+        'throw new InputError(["config/sensors/duplication was removed"]);',
+      ),
+    ).toBe(true);
+    expect(rules.test("const [first] = emptySections(document);")).toBe(false);
+  });
 });

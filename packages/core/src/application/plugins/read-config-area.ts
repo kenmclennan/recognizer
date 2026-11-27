@@ -14,12 +14,15 @@ import { PREFIXES } from "../../domain/plugins/installed-plugin.js";
 import { manifestFix } from "../../domain/plugins/undeclared-sensors.js";
 import {
   duplicateSuites,
+  duplicationFaultsIn,
   emptySections,
   retiredKeysIn,
+  retiredSensorsIn,
   retiredSettingsIn,
   toleratedMigration,
   unpublishedValuesIn,
   withoutEmptySections,
+  withoutFaultySensorSettings,
   withoutRetiredKeys,
 } from "../configuration/inspect-config-document.js";
 import type { RepositoryChecks } from "./ports/repository-checks.js";
@@ -195,6 +198,17 @@ export function readConfigArea(
     });
   }
 
+  for (const retired of retiredSensorsIn(document)) {
+    const key = retired.path.join(".");
+
+    problems.push({
+      code: "config-retired",
+      subject: key,
+      line: retired.message,
+      fix: textFix(`delete ${key} in ${CONFIG_FILE} after moving its settings`),
+    });
+  }
+
   for (const empty of emptySections(document)) {
     const key = empty.path.join(".");
     const removable = empty.path.length === 2 && empty.path[0] === "sensors";
@@ -236,9 +250,12 @@ export function readConfigArea(
     });
   }
 
-  const cleaned = withoutEmptySections(withoutRetiredKeys(document));
+  const cleaned = withoutEmptySections(
+    withoutRetiredKeys(withoutFaultySensorSettings(document)),
+  );
   const schema = repository.configSchemaMessages(cleaned);
   const messages = [
+    ...duplicationFaultsIn(document).map((fault) => fault.message),
     ...schema,
     ...(schema.length === 0 && hasSuites(cleaned)
       ? unpublishedValuesIn(cleaned, repository.publishedKeys(root))

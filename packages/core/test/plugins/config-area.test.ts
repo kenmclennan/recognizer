@@ -327,4 +327,105 @@ describe("readConfigArea", () => {
       expect(repository.keyReads).toBe(1);
     });
   });
+
+  describe("sensor setting faults", () => {
+    const DUPLICATION_LINE =
+      "config/sensors/duplication was removed: duplication is now part of structural analysis and runs with every scan; move its settings to sensors.structure.duplication (threshold, min_lines, pair_min_lines, min_nodes), or set sensors.structure.duplication to false to switch it off, and delete the sensors.duplication key";
+    const PREFIX = "config/sensors/structure/duplication";
+    const lines = (document: unknown) =>
+      area(document)
+        .read()
+        .problems.map((one) => [one.code, one.line]);
+
+    it("reports a retired sensors.duplication as one config-retired problem", () => {
+      const { problems } = area({
+        sensors: { duplication: { min_lines: 5 } },
+      }).read();
+
+      expect(problems).toEqual([
+        {
+          code: "config-retired",
+          subject: "sensors.duplication",
+          line: DUPLICATION_LINE,
+          fix: {
+            text: `delete sensors.duplication in ${CONFIG_FILE} after moving its settings`,
+            command: null,
+          },
+        },
+      ]);
+    });
+
+    it("reports a command-less unused-exports and accepts one with a command", () => {
+      const bare = area({ sensors: { "unused-exports": {} } }).read();
+
+      expect(bare.problems.map((one) => [one.code, one.subject])).toEqual([
+        ["config-retired", "sensors.unused-exports"],
+      ]);
+      expect(bare.problems[0]?.fix.text).toBe(
+        `delete sensors.unused-exports in ${CONFIG_FILE} after moving its settings`,
+      );
+      expect(
+        area({ sensors: { "unused-exports": { command: ["x"] } } }).read()
+          .problems,
+      ).toEqual([]);
+    });
+
+    it("reports a bad threshold once as config-invalid with the parseConfig wording", () => {
+      const { problems } = area({
+        sensors: { structure: { duplication: { threshold: 1.5 } } },
+      }).read();
+
+      expect(problems).toEqual([
+        {
+          code: "config-invalid",
+          subject: "sensors.structure.duplication.threshold",
+          line: `${PREFIX}/threshold must be above 0 and at most 1`,
+          fix: {
+            text: `correct sensors.structure.duplication.threshold in ${CONFIG_FILE}`,
+            command: null,
+          },
+        },
+      ]);
+    });
+
+    it("lists an unknown setting before a bad threshold", () => {
+      expect(
+        lines({
+          sensors: {
+            structure: { duplication: { extra: 1, threshold: 1.5 } },
+          },
+        }),
+      ).toEqual([
+        ["config-invalid", `${PREFIX} unknown setting: extra`],
+        ["config-invalid", `${PREFIX}/threshold must be above 0 and at most 1`],
+      ]);
+    });
+
+    it("lists the retired sensor before a bad duplication", () => {
+      expect(
+        lines({
+          sensors: {
+            "unused-exports": {},
+            structure: { duplication: { min_nodes: 0 } },
+          },
+        }).map(([code]) => code),
+      ).toEqual(["config-retired", "config-invalid"]);
+    });
+
+    it("reports a valid structure.duplication as no problem", () => {
+      expect(
+        area({
+          sensors: { structure: { duplication: { threshold: 0.5 } } },
+        }).read().problems,
+      ).toEqual([]);
+    });
+
+    it("reports a null sensors.duplication as config-retired then config-empty", () => {
+      expect(
+        area({ sensors: { duplication: null } })
+          .read()
+          .problems.map((one) => one.code),
+      ).toEqual(["config-retired", "config-empty"]);
+    });
+  });
 });

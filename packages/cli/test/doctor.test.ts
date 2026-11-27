@@ -1033,6 +1033,18 @@ describe("real content", () => {
     expect(first.code).toBe("config-retired");
   });
 
+  it.each([
+    ["sensors-duplication-short.yaml", ["config-retired"]],
+    ["sensors-duplication-bad-threshold.yaml", ["config-retired"]],
+    ["sensors-structure-duplication-bad-threshold.yaml", ["config-invalid"]],
+  ])("gives %s the problem codes %j", (name, codes) => {
+    expect(
+      empty(join(invalid, name)).areas[0].problems.map(
+        (problem: { code: string }) => problem.code,
+      ),
+    ).toEqual(codes);
+  });
+
   it("gives bad-yaml.yaml one config-yaml problem", () => {
     expect(
       empty(join(invalid, "bad-yaml.yaml")).areas[0].problems.map(

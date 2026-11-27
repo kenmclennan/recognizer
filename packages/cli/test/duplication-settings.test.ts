@@ -1,5 +1,5 @@
 import { CORE_KEYS, DEFAULT_STRUCTURE_SETTINGS } from "@recognizer/core";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { run } from "../src/cli.js";
 import { parseConfig } from "../src/config-parse.js";
 import { resolveStructureSettings } from "../src/structure-sensor.js";
@@ -22,6 +22,10 @@ function refusal(text: string): string {
 
   return "";
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("the structure duplication settings", () => {
   it("default to the sensor's own defaults", () => {
@@ -137,5 +141,27 @@ describe("the structure duplication settings", () => {
         "sensors.structure.duplication.min_nodes",
       ]),
     );
+  });
+
+  it("the doctor reports the same sentence parseConfig refuses with", () => {
+    const texts = [
+      "sensors:\n  duplication:\n    threshold: 0.9\n",
+      "sensors:\n  unused-exports: {}\n",
+      "sensors:\n  structure:\n    duplication:\n      threshold: 1.5\n",
+    ];
+
+    vi.spyOn(process, "cwd").mockReturnValue(ROOT);
+
+    for (const text of texts) {
+      const fake = fakeIo({ commit: "abc123", files: { [CONFIG]: text } });
+
+      run(["doctor", "--json"], fake.io);
+
+      const problems = JSON.parse(fake.out()).areas[0].problems;
+
+      expect(problems.map((one: { line: string }) => one.line)).toEqual([
+        refusal(text),
+      ]);
+    }
   });
 });

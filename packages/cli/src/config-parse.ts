@@ -1,11 +1,14 @@
 import {
   type DuplicateSuite,
   duplicateSuites,
+  duplicationFaultsIn,
   type EmptySection,
   emptySections,
   expandedConfigOf,
   expandShortForms,
   registeredSensors,
+  retiredSensorsIn,
+  withMovedDuplicationSensor,
   withoutEmptySections,
 } from "@recognizer/core";
 import { parse } from "yaml";
@@ -150,150 +153,19 @@ function rejectEmptySections(document: unknown): void {
   }
 }
 
-function rejectRetiredDuplicationSensor(document: unknown): void {
-  if (
-    isPlainObject(document) &&
-    isPlainObject(document.sensors) &&
-    "duplication" in document.sensors
-  ) {
-    throw new InputError([
-      "config/sensors/duplication was removed: duplication is now part of structural analysis and runs with every scan; move its settings to sensors.structure.duplication (threshold, min_lines, pair_min_lines, min_nodes), or set sensors.structure.duplication to false to switch it off, and delete the sensors.duplication key",
-    ]);
+function rejectRetiredSensors(document: unknown): void {
+  const [first] = retiredSensorsIn(document);
+
+  if (first !== undefined) {
+    throw new InputError([first.message]);
   }
 }
 
-function rejectRetiredUnusedExportsSensor(document: unknown): void {
-  if (!isPlainObject(document) || !isPlainObject(document.sensors)) {
-    return;
-  }
+function rejectDuplicationFaults(document: unknown): void {
+  const [first] = duplicationFaultsIn(document);
 
-  const entry = document.sensors["unused-exports"];
-
-  if (isPlainObject(entry) && !("command" in entry)) {
-    throw new InputError([
-      "config/sensors/unused-exports was removed: it is now the structure warning unused_exports; add unused_exports: true under sensors.structure.warnings, move any entry_points it listed under warnings.orphan.entry_points, and delete the sensors.unused-exports key",
-    ]);
-  }
-}
-
-const DUPLICATION_KEYS = [
-  "threshold",
-  "min_lines",
-  "pair_min_lines",
-  "min_nodes",
-];
-
-function withMovedDuplicationSensor(document: unknown): unknown {
-  if (
-    !isPlainObject(document) ||
-    !isPlainObject(document.sensors) ||
-    !("duplication" in document.sensors)
-  ) {
-    return document;
-  }
-
-  const copy = structuredClone(document) as Record<string, unknown>;
-  const sensors = copy.sensors as Record<string, unknown>;
-  const moved = sensors.duplication;
-
-  delete sensors.duplication;
-
-  if (moved === false) {
-    sensors.structure = isPlainObject(sensors.structure)
-      ? { duplication: false, ...sensors.structure }
-      : sensors.structure === undefined
-        ? { duplication: false }
-        : sensors.structure;
-  } else if (isPlainObject(moved)) {
-    const unknown = Object.keys(moved)
-      .filter((key) => !DUPLICATION_KEYS.includes(key))
-      .sort();
-
-    if (unknown.length > 0) {
-      throw new InputError([
-        `config/sensors/duplication unknown setting: ${unknown.join(", ")}`,
-      ]);
-    }
-
-    const present = DUPLICATION_KEYS.filter((key) => key in moved);
-    const structure = sensors.structure;
-
-    if (present.length > 0 && structure === undefined) {
-      sensors.structure = {
-        duplication: Object.fromEntries(
-          present.map((key) => [key, moved[key]]),
-        ),
-      };
-    } else if (
-      present.length > 0 &&
-      isPlainObject(structure) &&
-      !("duplication" in structure)
-    ) {
-      structure.duplication = Object.fromEntries(
-        present.map((key) => [key, moved[key]]),
-      );
-    }
-  } else if (moved !== null) {
-    throw new InputError([
-      "config/sensors/duplication must be a section or false",
-    ]);
-  }
-
-  if (Object.keys(sensors).length === 0) {
-    delete copy.sensors;
-  }
-
-  return copy;
-}
-
-function rejectBadDuplication(document: unknown): void {
-  if (!isPlainObject(document) || !isPlainObject(document.sensors)) {
-    return;
-  }
-
-  const structure = document.sensors.structure;
-  const duplication = isPlainObject(structure)
-    ? structure.duplication
-    : undefined;
-
-  if (!isPlainObject(duplication)) {
-    return;
-  }
-
-  const prefix = "config/sensors/structure/duplication";
-  const unknown = Object.keys(duplication)
-    .filter((key) => !DUPLICATION_KEYS.includes(key))
-    .sort();
-
-  if (unknown.length > 0) {
-    throw new InputError([`${prefix} unknown setting: ${unknown.join(", ")}`]);
-  }
-
-  const threshold = duplication.threshold;
-
-  if (threshold !== undefined) {
-    if (typeof threshold !== "number") {
-      throw new InputError([`${prefix}/threshold must be a number`]);
-    }
-
-    if (!(threshold > 0 && threshold <= 1)) {
-      throw new InputError([
-        `${prefix}/threshold must be above 0 and at most 1`,
-      ]);
-    }
-  }
-
-  for (const key of DUPLICATION_KEYS.slice(1)) {
-    const value = duplication[key];
-
-    if (
-      value !== undefined &&
-      !(typeof value === "number" && Number.isInteger(value) && value >= 1)
-    ) {
-      throw new InputError([
-        `${prefix}/${key} must be an integer of at least 1`,
-      ]);
-    }
+  if (first !== undefined) {
+    throw new InputError([first.message]);
   }
 }
 
@@ -408,17 +280,22 @@ export function parseConfig(
   document = project(document, read);
 
   if (options.skipRetired === true) {
-    document = withMovedDuplicationSensor(
+    const moved = withMovedDuplicationSensor(
       withoutRetiredKeysAndEmptiedSections(document),
     );
+
+    if (moved.messages.length > 0) {
+      throw new InputError(moved.messages);
+    }
+
+    document = moved.document;
   }
 
   document = withoutToleratedKeys(document);
 
   rejectRetiredOverlays(document);
-  rejectRetiredDuplicationSensor(document);
-  rejectRetiredUnusedExportsSensor(document);
-  rejectBadDuplication(document);
+  rejectRetiredSensors(document);
+  rejectDuplicationFaults(document);
   rejectEmptySections(document);
   rejectRetiredWarnings(document);
 

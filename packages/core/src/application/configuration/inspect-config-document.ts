@@ -13,6 +13,13 @@ import {
   thresholdsMigration,
 } from "../../domain/configuration/thresholds-migration.js";
 
+export {
+  duplicationFaultsIn,
+  retiredSensorsIn,
+  type SettingFault,
+  withMovedDuplicationSensor,
+  withoutFaultySensorSettings,
+} from "../../domain/configuration/sensor-setting-rules.js";
 export type { PublishedValues, ThresholdsMigration };
 
 export interface EmptySection {
