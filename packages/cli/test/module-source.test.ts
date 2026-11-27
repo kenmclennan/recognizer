@@ -4,14 +4,13 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { type Io, run } from "../src/cli.js";
 import { readSource } from "../src/module-source.js";
 import { capture, REPO } from "./helpers.js";
@@ -32,7 +31,7 @@ function sha(text: string): string {
 }
 
 function repository(): string {
-  const root = mkdtempSync(join(tmpdir(), "recognizer-module-source-"));
+  const root = makeTempDir("recognizer-module-source-");
 
   roots.push(root);
   cpSync(join(REPO, "fixtures/kotlin/sample"), root, { recursive: true });

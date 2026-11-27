@@ -3,15 +3,14 @@ import {
   chmodSync,
   cpSync,
   existsSync,
-  mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
+import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { run } from "../src/cli.js";
 import { validateScan } from "../src/index.js";
 import { capture, REPO } from "./helpers.js";
@@ -91,8 +90,8 @@ describe.skipIf(!HAS_UV)(
         saved[name] = process.env[name];
       }
 
-      launchers = mkdtempSync(join(tmpdir(), "recognizer-launchers-"));
-      repository = mkdtempSync(join(tmpdir(), "recognizer-scan-repo-"));
+      launchers = makeTempDir("recognizer-launchers-");
+      repository = makeTempDir("recognizer-scan-repo-");
       cpSync(join(REPO, "fixtures/python/sample"), repository, {
         recursive: true,
       });
@@ -182,7 +181,7 @@ describe.skipIf(!HAS_UV)(
     it(
       "resolves a src-layout package's own imports and matches its expected scan",
       async () => {
-        const srcLayout = mkdtempSync(join(tmpdir(), "recognizer-src-layout-"));
+        const srcLayout = makeTempDir("recognizer-src-layout-");
 
         try {
           cpSync(join(REPO, "fixtures/python/src-layout/sample"), srcLayout, {

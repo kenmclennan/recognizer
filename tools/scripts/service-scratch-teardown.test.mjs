@@ -1,9 +1,9 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { removeScratch, writersIn } from "./service-scratch-teardown.mjs";
+import { makeTempDir } from "./temp-dirs.mjs";
 
 const WRITER = `
 const fs = require("node:fs");
@@ -52,7 +52,7 @@ async function waitUntil(condition, timeoutMs) {
 }
 
 function scratch() {
-  const dir = mkdtempSync(join(tmpdir(), "teardown-scratch-"));
+  const dir = makeTempDir("teardown-scratch-");
 
   writeFileSync(join(dir, "seed"), "");
 

@@ -1,15 +1,9 @@
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build, type Plugin } from "esbuild";
 import { type Browser, webkit as playwright } from "playwright";
+import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 
 export const webkit = existsSync(playwright.executablePath())
   ? "webkit"
@@ -124,7 +118,7 @@ export async function collectFacts<T>(
   prefix: string,
   shell: "window" | "app" | "bare" = "window",
 ): Promise<T> {
-  const dir = mkdtempSync(join(tmpdir(), `${prefix}-`));
+  const dir = makeTempDir(`${prefix}-`);
 
   try {
     const bundle = (

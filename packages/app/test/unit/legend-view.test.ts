@@ -1,9 +1,9 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
 import { describe, expect, it } from "vitest";
+import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
 import { lookRun, webkit } from "../../src/look-page";
 
 const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
@@ -76,7 +76,7 @@ type Facts = {
 };
 
 async function collect(): Promise<Facts> {
-  const dir = mkdtempSync(join(tmpdir(), "legend-view-"));
+  const dir = makeTempDir("legend-view-");
 
   try {
     const bundle = buildSync({

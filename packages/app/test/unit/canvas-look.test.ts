@@ -1,10 +1,10 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
+import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
 import {
   BOX_HEIGHT,
   FOLDER_BOX_HEIGHT,
@@ -501,7 +501,7 @@ type Report = {
 };
 
 async function collect(): Promise<Report> {
-  const dir = mkdtempSync(join(tmpdir(), "canvas-look-"));
+  const dir = makeTempDir("canvas-look-");
 
   try {
     const bundle = buildSync({

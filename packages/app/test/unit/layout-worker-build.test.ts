@@ -1,7 +1,6 @@
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { readdirSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ElkNode } from "elkjs/lib/elk-api";
@@ -9,6 +8,7 @@ import { webkit as playwright } from "playwright";
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
+import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
 import { lightcycleShapedGraph } from "../../src/lightcycle-shaped-graph";
 import { webkit } from "../../src/look-page";
 
@@ -65,7 +65,7 @@ async function buildApp(outDir: string): Promise<string> {
 }
 
 async function answerInBrowser(graph: ElkNode): Promise<string> {
-  const outDir = mkdtempSync(join(tmpdir(), "layout-worker-"));
+  const outDir = makeTempDir("layout-worker-");
 
   try {
     const workerPath = await buildApp(outDir);
