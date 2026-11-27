@@ -1076,4 +1076,26 @@ describe("repository state holder", () => {
       expect(remainingOf(holder)).toEqual({ ms: null, silent: ["crap"] });
     });
   });
+
+  it("a sensor registered by absolute path takes runsTests from its own manifest, not from a same-named program on PATH", () => {
+    const fakes = fakesWith("crap");
+
+    fakes.sensors.installed.set("crap", {
+      name: "crap",
+      runsTests: false,
+      held: false,
+      display: "C.R.A.P.",
+      manifestCommand: ["/opt/bin/crap", "manifest"],
+    });
+    fakes.catalog.pathRunsTests.set("crap", true);
+
+    const holder = holderOver(fakes);
+
+    holder.refresh();
+
+    const state = holder.current();
+    const entry = state.registry.entries.find(({ name }) => name === "crap");
+
+    expect(entry?.manifest?.runsTests).toBe(false);
+  });
 });

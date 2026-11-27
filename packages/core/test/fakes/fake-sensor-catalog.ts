@@ -14,6 +14,7 @@ export class FakeSensorCatalog implements SensorCatalog {
   failReads = false;
   readonly unreadable: string[] = [];
   readonly registeredReads: string[][] = [];
+  readonly pathRunsTests = new Map<string, boolean>();
 
   constructor(private readonly sensors: FakeSensors) {}
 
@@ -44,7 +45,7 @@ export class FakeSensorCatalog implements SensorCatalog {
       .map((sensor) => ({
         name: sensor.name,
         display: sensor.display ?? sensor.name,
-        runs_tests: sensor.runsTests,
+        runs_tests: this.pathRunsTests.get(sensor.name) ?? sensor.runsTests,
         scoped: sensor.scoped ?? false,
         listed: sensor.listed ?? true,
         placeholders: {},
