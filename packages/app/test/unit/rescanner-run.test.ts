@@ -7,7 +7,8 @@ import {
   sensorProgram,
   typescriptScanner,
 } from "../../../cli/test/support/index";
-import { OPEN_RUN } from "../../src/scan-freshness";
+import { OPEN_RUN, type PlannedRun } from "../../src/scan-freshness";
+import type { ScanTicks } from "../../src/scan-panel-model";
 import { untilHolds } from "../app-harness";
 import { inProcessAppRoot } from "../in-process-root";
 import {
@@ -15,6 +16,7 @@ import {
   DESCRIBER_CONFIG,
   describerProgram,
   type SensorsScript,
+  type SuiteScript,
   sampleFiles,
   sensorsOf,
   settledRun,
@@ -26,6 +28,44 @@ const FRESH = {
   sensors: true,
   ticked: null,
   remembered: false,
+};
+
+const SUITE_TICKS = {
+  mut: { ticked: ["unit", "web"], known: ["unit", "web"] },
+};
+
+const BOTH_SUITES: SuiteScript = [
+  { name: "unit", language: "python" },
+  { name: "web", language: "typescript" },
+];
+
+const TESTING_SENSORS: SensorsScript = {
+  mut: { runsTests: true, suites: BOTH_SUITES },
+  alpha: {},
+};
+
+const stalePlan = async (
+  root: Root,
+  host: { ticks(): ScanTicks },
+  sense: string[],
+): Promise<PlannedRun> => {
+  const view = await root.service.call("scan.plan", {
+    repository: root.repository,
+    mode: "rescan",
+    ticks: { ...host.ticks(), ticked: sense, armed: ["mut"] },
+    scope: null,
+    changed: [],
+  });
+
+  return {
+    plan: (view as unknown as { ok: { intent: PlannedRun["plan"] } }).ok.intent,
+    dropped: [],
+    modules: 0,
+    idle: false,
+    label: "Run",
+    progress: "Running",
+    work: {},
+  };
 };
 
 const lifecycle = /^Scan (started|complete|failed|refused)/;
@@ -701,5 +741,216 @@ describe("createRescanner", () => {
     expect(baselines(root).some((one) => one?.[0] === entry("during"))).toBe(
       true,
     );
+  });
+
+  it("does not read again after a scan when no input changed while it ran", async () => {
+    const { root, opened, host } = await begin({ alpha: {}, beta: {} });
+
+    host.run(null);
+    await settledRun(root, opened);
+
+    const after = root.view.explorer()?.loads.length ?? 0;
+
+    await root.service.signal(50);
+
+    expect(root.view.explorer()?.loads.length ?? 0).toBe(after);
+  });
+
+  it("writes a test-running sensor's tick with the others and keeps it after every Scan however it ends", async () => {
+    for (const ending of ["ok", "bad-flag"] as const) {
+      const mode: Mode = { scanner: "ok" };
+      const { root, opened, host } = await begin(TESTING_SENSORS, { mode });
+
+      host.setTicks({
+        ...host.ticks(),
+        armed: ["mut"],
+        onlyView: false,
+        suites: SUITE_TICKS,
+        folds: ["mut"],
+      });
+      await root.service.signal(10);
+
+      expect(Object.keys(host.ticks().suites)).not.toEqual([]);
+      expect(host.ticks().folds).not.toEqual([]);
+
+      mode.scanner = ending;
+      host.run(null);
+      await settledRun(root, opened);
+
+      expect(root.service.started[opened]?.sense).toContain("mut");
+      expect(root.ticksWritten.at(-1)?.ticked).toContain("mut");
+      expect(host.ticks().armed).toEqual(["mut"]);
+      expect(host.ticks().suites).toEqual(SUITE_TICKS);
+      expect(host.ticks().folds).toEqual(["mut"]);
+      expect(root.ticksWritten.at(-1)?.suites).toEqual(SUITE_TICKS);
+      expect(root.ticksWritten.at(-1)?.folds).toEqual(["mut"]);
+    }
+  });
+
+  it("hands the port a stale plan's test-running sensor that is armed", async () => {
+    const { root, opened, host } = await begin(TESTING_SENSORS);
+    const stale = await stalePlan(root, host, ["mut"]);
+
+    host.setTicks({ ...host.ticks(), armed: ["mut"], suites: SUITE_TICKS });
+    await root.service.signal(10);
+    host.run(null, stale);
+    await settledRun(root, opened);
+
+    expect(root.service.started[opened]?.sense).toEqual(["mut"]);
+  });
+
+  it("re-reads the sensor findings after a stopped Scan", async () => {
+    const gate = gated();
+    const { root, opened, host } = await begin({ alpha: { gate } });
+    const loads = root.view.explorer()?.loads.length ?? 0;
+
+    host.run(null);
+    await reaches(root, () =>
+      host.runState().started === "alpha" ? true : undefined,
+    );
+    host.stop();
+    await settledRun(root, opened);
+
+    expect(root.view.explorer()?.loads.length ?? 0).toBeGreaterThan(loads);
+  });
+
+  it("keeps the ticks as set when the Scan fails or is stopped", async () => {
+    for (const ending of ["bad-flag", "stopped"] as const) {
+      const mode: Mode = { scanner: "ok" };
+      const gate = gated();
+      const { root, opened, host } = await begin(
+        { ...TESTING_SENSORS, alpha: { gate } },
+        { mode },
+      );
+
+      host.setTicks({
+        ...host.ticks(),
+        armed: ["mut"],
+        onlyView: false,
+        suites: SUITE_TICKS,
+        folds: ["mut"],
+      });
+      await root.service.signal(10);
+
+      expect(Object.keys(host.ticks().suites)).not.toEqual([]);
+
+      if (ending === "bad-flag") {
+        mode.scanner = ending;
+        gate.open();
+        host.run(null);
+      } else {
+        host.run(null);
+        await reaches(root, () =>
+          host.runState().started === "alpha" ? true : undefined,
+        );
+        host.stop();
+      }
+
+      await settledRun(root, opened);
+
+      expect(host.ticks().armed).toEqual(["mut"]);
+      expect(host.ticks().suites).toEqual(SUITE_TICKS);
+      expect(host.ticks().folds).toEqual(["mut"]);
+    }
+  });
+
+  describe("unregistered plugins", () => {
+    it("keeps a remembered tick for an unregistered sensor and describe out of the plan", async () => {
+      const { root, opened, host } = await begin(
+        { alpha: {} },
+        { ticks: { ...FRESH, describe: true } },
+      );
+
+      expect(host.ticks().describe).toBe(true);
+      expect(host.ticks().ticked).toBeNull();
+
+      host.setTicks({ ...host.ticks(), ticked: ["alpha", "beta"] });
+      await root.service.signal(10);
+      host.run(null);
+      await settledRun(root, opened);
+
+      expect(host.ticks().ticked).toEqual(["alpha", "beta"]);
+      expect(root.service.started[opened]?.sense).toEqual(["alpha"]);
+      expect(root.service.started[opened]?.describe).toBe(false);
+    });
+  });
+
+  it("sends the file scope in the plan and remembers the switch", async () => {
+    const scope = Object.keys(sampleFiles())
+      .filter((path) => path.endsWith(".ts"))
+      .slice(0, 2);
+    const { root, opened, host } = await begin(
+      { alpha: {}, beta: {} },
+      { describer: describerProgram(), ticks: { ...FRESH, describe: true } },
+    );
+
+    host.setTicks({ ...host.ticks(), onlyView: true });
+    await root.service.signal(10);
+    host.run(scope);
+    await settledRun(root, opened);
+
+    expect(root.ticksWritten.at(-1)?.onlyView).toBe(true);
+    expect(root.service.started[opened]?.modules).toEqual(scope);
+  });
+
+  it("sends no scope when none is given or nothing but extraction would run", async () => {
+    const { root, opened, host } = await begin(
+      { alpha: {} },
+      { ticks: { ...FRESH, sensors: false, ticked: [] } },
+    );
+
+    host.run(null);
+    await settledRun(root, opened);
+    host.run(["a.ts"]);
+    await settledRun(root, opened + 1);
+
+    expect(
+      root.service.started.slice(opened).map((plan) => plan.modules ?? null),
+    ).toEqual([null, null]);
+  });
+
+  it("reads the remembered switch back from the port", async () => {
+    const first = await begin({ alpha: {} });
+
+    first.host.setTicks({ ...first.host.ticks(), onlyView: true });
+    await first.root.service.signal(10);
+
+    const written = first.root.ticksWritten.at(-1);
+    const again = await begin(
+      { alpha: {} },
+      { ticks: { ...FRESH, ...written } },
+    );
+
+    expect(written?.onlyView).toBe(true);
+    expect(again.host.ticks().onlyView).toBe(true);
+  });
+
+  it("writes the ticks through the port when they change", async () => {
+    const { root, host } = await begin({ alpha: {}, beta: {} });
+    const before = root.ticksWritten.length;
+    const next = {
+      describe: true,
+      analysis: true,
+      ticked: null,
+      armed: [],
+      onlyView: false,
+      suites: {},
+      folds: [],
+    };
+
+    host.setTicks(next);
+    await root.service.signal(10);
+
+    expect(root.ticksWritten.slice(before)).toEqual([
+      {
+        describe: true,
+        analysis: true,
+        ticked: ["alpha", "beta", "crap"],
+        onlyView: false,
+        suites: {},
+        folds: [],
+      },
+    ]);
+    expect(host.ticks()).toEqual(next);
   });
 });
