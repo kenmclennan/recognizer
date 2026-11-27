@@ -7,13 +7,8 @@ import { loadKeys } from "../src/config-keys.js";
 import { RETIRED_KEYS } from "../src/config-retired.js";
 import { setValue, unsetValue } from "../src/key-text.js";
 import { REPO } from "./helpers.js";
-import {
-  fakeIo,
-  OFFICIAL_ON_PATH,
-  PYTHON,
-  ROOT,
-  scanJson,
-} from "./scan-helpers.js";
+import { registeredPlugins } from "./registered-plugins.js";
+import { fakeIo, PYTHON, ROOT, scanJson } from "./scan-helpers.js";
 
 beforeEach(() => {
   vi.spyOn(process, "cwd").mockReturnValue(ROOT);
@@ -56,18 +51,29 @@ function setup(options: Setup = {}) {
       : { [CACHE]: options.cache }),
     ...options.files,
   };
+  const installed =
+    options.onPath ??
+    (options.config?.includes("recognizer-sense-crap")
+      ? ["recognizer-sense-crap"]
+      : []);
+  const pathSubject = options.env?.PATH !== undefined;
+  const registered =
+    installed.length === 0 || pathSubject
+      ? undefined
+      : registeredPlugins(
+          installed.map((program) => ({
+            kind: "sensor" as const,
+            name: program.replace("recognizer-sense-", ""),
+          })),
+        );
 
   return fakeIo({
     commit: COMMIT,
     status: options.status,
-    files,
-    env: options.env ?? {},
+    files: { ...registered?.files, ...files },
+    env: { ...registered?.env, ...options.env },
     scanners: options.scanner === false ? {} : { [PYTHON]: {} },
-    onPath:
-      options.onPath ??
-      (options.config?.includes("recognizer-sense-crap")
-        ? ["recognizer-sense-crap"]
-        : []),
+    onPath: registered === undefined ? installed : [],
     sensorManifests: options.manifestsAnswer !== false,
     sensorsPreflight: options.gap
       ? {
@@ -458,7 +464,13 @@ describe("doctor: config", () => {
 
   it("applying the migration fix leaves no thresholds key", () => {
     const published = loadKeys(
-      fakeIo({ sensorManifests: true, onPath: OFFICIAL_ON_PATH }).io,
+      fakeIo({
+        sensorManifests: true,
+        ...registeredPlugins([
+          { kind: "sensor", name: "crap" },
+          { kind: "sensor", name: "mutation" },
+        ]),
+      }).io,
       ROOT,
     );
     const start =

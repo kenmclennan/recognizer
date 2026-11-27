@@ -11,6 +11,7 @@ import { manifestPorts } from "../src/manifest-ports.js";
 import { SCAN_BREAKING_VERSIONS, SCAN_SCHEMA_VERSION } from "../src/scan.js";
 import {
   ioWithPath,
+  ioWithRegistry,
   manifestFor,
   tempDirectory,
   writeShim,
@@ -29,12 +30,17 @@ function setup() {
   const first = tempDirectory("recognizer-discovery-");
   const second = tempDirectory("recognizer-discovery-");
 
-  return { first, second, io: ioWithPath([first, second]) };
+  return {
+    first,
+    second,
+    io: ioWithRegistry([first, second]),
+    pathIo: ioWithPath([first, second]),
+  };
 }
 
 describe("discoverPlugins", () => {
   it("lists a readable plugin, names an unreadable one and ignores a repeat of a name later on PATH", () => {
-    const { first, second, io } = setup();
+    const { first, second, pathIo: io } = setup();
 
     writeShim(
       first,
@@ -106,7 +112,7 @@ describe("discoverPlugins", () => {
   });
 
   it("finds nothing on a PATH with no plugin", () => {
-    const { io } = setup();
+    const { pathIo: io } = setup();
 
     expect(discoverPlugins(io)).toEqual({ plugins: [], unreadable: [] });
   });

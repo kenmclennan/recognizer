@@ -9,21 +9,22 @@ import type { Io, RunResult } from "../src/cli.js";
 import { nodeIo } from "../src/cli.js";
 import { manifestPorts } from "../src/manifest-ports.js";
 import { REPO } from "./helpers.js";
+import { registerShim, registryFolderFor } from "./plugin-registry-shim.js";
 import { requireSensorsVenv } from "./sensors-venv.js";
+
+const VENV_BIN = join(REPO, "packages/sensors/.venv/bin");
 
 const io: Io = {
   ...nodeIo(),
   env: (name) =>
-    name === "PATH"
-      ? join(REPO, "packages/sensors/.venv/bin")
+    name === "RECOGNIZER_PLUGIN_DIRS"
+      ? `:${registryFolderFor(VENV_BIN)}`
       : nodeIo().env(name),
   run: (command, args): RunResult => {
     const result = spawnSync(
-      join(REPO, `packages/sensors/.venv/bin/${command}`),
+      command.includes("/") ? command : join(VENV_BIN, command),
       args,
-      {
-        encoding: "utf8",
-      },
+      { encoding: "utf8" },
     );
 
     return {
@@ -37,6 +38,10 @@ const io: Io = {
 
 describe("the committed sensor manifests", () => {
   requireSensorsVenv(REPO);
+
+  for (const sensor of ["crap", "mutation"]) {
+    registerShim(join(VENV_BIN, `recognizer-sense-${sensor}`));
+  }
 
   const read = readInstalledSensors(manifestPorts(io));
   const by = (name: string) => read.sensors.find((one) => one.name === name);

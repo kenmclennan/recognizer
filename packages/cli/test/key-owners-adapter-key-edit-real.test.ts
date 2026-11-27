@@ -7,14 +7,18 @@ import { nodeIo } from "../src/cli.js";
 import { configurationFor } from "../src/configuration-composition.js";
 import { REPO } from "./helpers.js";
 import { isolatedPath } from "./isolated-path.js";
+import { registryFolderFor } from "./plugin-registry-shim.js";
 import { typescriptLaunchers } from "./serve-harness.js";
 
 const TIMEOUT = scaledTimeout(120_000);
 
 function configurationOver() {
+  const launchers = typescriptLaunchers();
+
   return configurationFor(nodeIo(), {
     environment: {
-      PATH: isolatedPath(typescriptLaunchers()),
+      PATH: isolatedPath(launchers),
+      RECOGNIZER_PLUGIN_DIRS: `:${registryFolderFor(launchers)}`,
     },
   });
 }

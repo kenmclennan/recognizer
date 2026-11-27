@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
 import { schemaMismatchLines } from "../src/plugins-command.js";
 import {
-  ioWithPath,
+  ioWithRegistry,
   manifestFor,
   tempDirectory,
   writeShim,
@@ -20,7 +20,7 @@ interface Out {
 async function plugins(directories: string[], args: string[]): Promise<Out> {
   let out = "";
   let err = "";
-  const base = ioWithPath(directories);
+  const base = ioWithRegistry(directories);
   const io = {
     ...base,
     stdout: (text: string) => {

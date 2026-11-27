@@ -1,3 +1,4 @@
+import { copyFileSync, existsSync, readdirSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { PluginKind } from "@recognizer/core";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
@@ -11,6 +12,25 @@ const KINDS: Record<string, PluginKind> = {
   describe: "describer",
 };
 const folders = new Map<string, string>();
+const linked = new Map<string, Set<string>>();
+
+export function linkRegistryFolder(
+  shimDirectory: string,
+  registry: string,
+): void {
+  const own = registryFolderFor(shimDirectory);
+
+  if (existsSync(own)) {
+    for (const name of readdirSync(own)) {
+      copyFileSync(join(own, name), join(registry, name));
+    }
+  }
+
+  const known = linked.get(shimDirectory) ?? new Set<string>();
+
+  known.add(registry);
+  linked.set(shimDirectory, known);
+}
 
 export function registryFolderFor(shimDirectory: string): string {
   const known = folders.get(shimDirectory);
@@ -44,13 +64,17 @@ export function registerShim(path: string): string | undefined {
   const [, verb = "", name = ""] = match;
   const registry = registryFolderFor(dirname(path));
 
-  new PluginRegistrationsAdapter(registryIo(registry)).register({
+  const entry = {
     kind: KINDS[verb] as PluginKind,
     name,
     command: [path],
     manifest: [path, "manifest"],
-    source: "user",
-  });
+    source: "user" as const,
+  };
+
+  for (const folder of [registry, ...(linked.get(dirname(path)) ?? [])]) {
+    new PluginRegistrationsAdapter(registryIo(folder)).register(entry);
+  }
 
   return join(registry);
 }

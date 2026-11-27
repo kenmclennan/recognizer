@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { TestReportsAdapter } from "../src/adapters/plugins/test-reports-adapter.js";
-import { ioWithPath, tempDirectory } from "./plugin-path.js";
+import { ioWithRegistry, tempDirectory } from "./plugin-path.js";
 import { type StubScanner, writeStubScanner } from "./stub-test-reporter.js";
 
 const HASH_A = "a".repeat(64);
@@ -23,7 +23,10 @@ function setup(stubs: StubScanner[], timeoutMs = scaledTimeout(60_000)) {
     writeStubScanner(directory, log, stub);
   }
 
-  const adapter = new TestReportsAdapter(ioWithPath([directory]), timeoutMs);
+  const adapter = new TestReportsAdapter(
+    ioWithRegistry([directory]),
+    timeoutMs,
+  );
 
   return {
     entries: () => adapter.entries("/repository"),

@@ -4,7 +4,7 @@ import type { PluginAnswer } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { SurveyPluginsAdapter } from "../src/adapters/plugins/survey-plugins-adapter.js";
-import { ioWithPath, tempDirectory } from "./plugin-path.js";
+import { ioWithRegistry, tempDirectory } from "./plugin-path.js";
 import {
   type StubSurveyPlugin,
   writeStubSurveyPlugin,
@@ -46,7 +46,10 @@ function setup(stubs: StubSurveyPlugin[], timeoutMs = scaledTimeout(60_000)) {
     writeStubSurveyPlugin(directory, { ...stub, requestLog: log });
   }
 
-  const adapter = new SurveyPluginsAdapter(ioWithPath([directory]), timeoutMs);
+  const adapter = new SurveyPluginsAdapter(
+    ioWithRegistry([directory]),
+    timeoutMs,
+  );
 
   return {
     answers: () => adapter.answers(REQUEST),
@@ -67,7 +70,7 @@ describe("SurveyPluginsAdapter", () => {
       "#!/bin/sh\nexit 0\n",
     );
 
-    const adapter = new SurveyPluginsAdapter(ioWithPath([directory]));
+    const adapter = new SurveyPluginsAdapter(ioWithRegistry([directory]));
 
     await expect(adapter.answers(REQUEST)).resolves.toEqual([]);
   });
@@ -117,7 +120,7 @@ describe("SurveyPluginsAdapter", () => {
     });
 
     const adapter = new SurveyPluginsAdapter(
-      ioWithPath([directory]),
+      ioWithRegistry([directory]),
       scaledTimeout(60_000),
     );
 

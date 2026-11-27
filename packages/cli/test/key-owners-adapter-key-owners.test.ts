@@ -4,7 +4,13 @@ import { describe, expect, it } from "vitest";
 import { KeyOwnersAdapter } from "../src/adapters/plugins/key-owners-adapter.js";
 import { REPO } from "./helpers.js";
 import { exampleManifest } from "./installed-read.js";
+import { registeredPlugins } from "./registered-plugins.js";
 import { fakeIo, OFFICIAL_ON_PATH, ROOT } from "./scan-helpers.js";
+
+const OFFICIAL_REGISTERED = registeredPlugins([
+  { kind: "sensor", name: "crap" },
+  { kind: "sensor", name: "mutation" },
+]);
 
 const PINNED = JSON.parse(
   readFileSync(join(REPO, "fixtures/sensors/config-keys.json"), "utf8"),
@@ -22,7 +28,7 @@ describe("KeyOwnersAdapter", () => {
   it("builds the tests keys from the installed sensors' manifests, as the pinned schema holds them", () => {
     const { schema, notAnswering } = adapterFor({
       sensorManifests: true,
-      onPath: OFFICIAL_ON_PATH,
+      ...OFFICIAL_REGISTERED,
     }).schemas();
 
     expect(notAnswering).toEqual([]);
@@ -35,7 +41,7 @@ describe("KeyOwnersAdapter", () => {
   it("builds placeholders from the real crap and mutation manifests alone", () => {
     const { schema, notAnswering } = adapterFor({
       sensorManifests: true,
-      onPath: OFFICIAL_ON_PATH,
+      ...OFFICIAL_REGISTERED,
     }).schemas();
 
     expect(notAnswering).toEqual([]);
@@ -73,7 +79,7 @@ describe("KeyOwnersAdapter", () => {
     };
     const { schema, notAnswering } = adapterFor({
       sensorManifests: true,
-      onPath: OFFICIAL_ON_PATH,
+      ...OFFICIAL_REGISTERED,
       programs: { "recognizer-sense-mutation": manifestProgram(conflicting) },
     }).schemas();
 
@@ -97,7 +103,7 @@ describe("KeyOwnersAdapter", () => {
     };
     const { schema, notAnswering } = adapterFor({
       sensorManifests: true,
-      onPath: OFFICIAL_ON_PATH,
+      ...OFFICIAL_REGISTERED,
       programs: { "recognizer-sense-mutation": manifestProgram(differing) },
     }).schemas();
 
@@ -129,7 +135,7 @@ describe("KeyOwnersAdapter", () => {
     };
     const { schema, notAnswering } = adapterFor({
       sensorManifests: true,
-      onPath: OFFICIAL_ON_PATH,
+      ...OFFICIAL_REGISTERED,
       programs: { "recognizer-sense-mutation": manifestProgram(undeclaring) },
     }).schemas();
 
@@ -155,7 +161,7 @@ describe("KeyOwnersAdapter", () => {
     const previous = { ...rest, protocol: 1, runs_tests: false };
     const { schema, notAnswering } = adapterFor({
       sensorManifests: true,
-      onPath: OFFICIAL_ON_PATH,
+      ...OFFICIAL_REGISTERED,
       programs: { "recognizer-sense-mutation": manifestProgram(previous) },
     }).schemas();
 
@@ -188,7 +194,7 @@ describe("KeyOwnersAdapter", () => {
     };
     const { schema, notAnswering } = adapterFor({
       sensorManifests: true,
-      onPath: OFFICIAL_ON_PATH,
+      ...OFFICIAL_REGISTERED,
       programs: { "recognizer-sense-mutation": manifestProgram(declaring) },
     }).schemas();
 
@@ -240,8 +246,9 @@ describe("KeyOwnersAdapter", () => {
     it("publishes a sensor that is registered and on PATH once, from the registered read", () => {
       const { schema } = adapterFor({
         sensorManifests: true,
-        onPath: OFFICIAL_ON_PATH,
+        env: OFFICIAL_REGISTERED.env,
         files: {
+          ...OFFICIAL_REGISTERED.files,
           [CONFIG]:
             "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n    threshold: 3\n",
         },

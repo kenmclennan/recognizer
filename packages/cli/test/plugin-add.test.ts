@@ -5,6 +5,7 @@ import { parse } from "yaml";
 import { run } from "../src/cli.js";
 import {
   ioWithPath,
+  ioWithRegistry,
   manifestFor,
   tempDirectory,
   writeShim,
@@ -16,11 +17,16 @@ interface Out {
   err: string;
 }
 
-async function add(bin: string, repo: string, args: string[]): Promise<Out> {
+async function add(
+  bin: string,
+  repo: string,
+  args: string[],
+  via: typeof ioWithRegistry = ioWithRegistry,
+): Promise<Out> {
   let out = "";
   let err = "";
   const io = {
-    ...ioWithPath([bin]),
+    ...via([bin]),
     stdout: (text: string) => {
       out += text;
     },
@@ -215,7 +221,7 @@ describe("recognizer plugin add", () => {
 
   it("exits 2 naming the programs it looked for when the plugin is not installed", async () => {
     const { bin, repo } = fresh();
-    const { code, err } = await add(bin, repo, ["ghost"]);
+    const { code, err } = await add(bin, repo, ["ghost"], ioWithPath);
 
     expect(code).toBe(2);
     expect(err).toContain("recognizer-sense-ghost");
