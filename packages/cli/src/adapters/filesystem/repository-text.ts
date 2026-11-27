@@ -13,9 +13,4 @@ export function readRepositoryText(io: Io, file: string): RepositoryText {
   };
 }
 
-export function saveRepositoryText(io: Io, file: string, text: string): void {
-  const temporary = `${file}.${io.pid()}.tmp`;
-
-  io.writeFile(temporary, text);
-  io.rename(temporary, file);
-}
+export { saveRepositoryText } from "./save-repository-text.js";

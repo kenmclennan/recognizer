@@ -34,6 +34,9 @@ export class SensorCatalogAdapter implements SensorCatalog {
       manifestPorts(this.io),
       limits === undefined ? undefined : (limits as unknown as Limits).readOf,
       names,
+      limits === undefined
+        ? undefined
+        : (limits as unknown as Limits).readCommandOf,
     );
   }
 

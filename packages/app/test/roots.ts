@@ -13,7 +13,10 @@ import { createInterface } from "node:readline";
 import { onTestFinished, vi } from "vitest";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
-import { registerShim } from "../../cli/test/plugin-registry-shim";
+import {
+  registerShim,
+  registryFolderFor,
+} from "../../cli/test/plugin-registry-shim";
 import { bridge, cleanups, type Line, recordingView } from "./app-harness";
 
 export * from "./app-harness";
@@ -79,7 +82,12 @@ export class Serve {
 
   constructor(path: string) {
     this.child = spawn(process.execPath, [BIN, "serve"], {
-      env: { ...process.env, PATH: isolatedPath(path), TMPDIR: this.scratch },
+      env: {
+        ...process.env,
+        PATH: isolatedPath(path),
+        RECOGNIZER_PLUGIN_DIRS: `:${registryFolderFor(path)}`,
+        TMPDIR: this.scratch,
+      },
       stdio: ["pipe", "pipe", "pipe"],
       detached: true,
     });

@@ -192,6 +192,8 @@ export function readInstalledSensors(
   },
   read: ManifestReader = (prefix) => readManifestOf(ports, prefix),
   names: readonly string[] = installedSensorNames(ports),
+  readCommand: ManifestCommandReader = (words) =>
+    readManifestCommand(ports, words),
 ): InstalledRead {
   const result: InstalledRead = { sensors: [], unreadable: [] };
   const present = installedSensorNames(ports);
@@ -199,9 +201,10 @@ export function readInstalledSensors(
 
   for (const name of present.filter((one) => names.includes(one))) {
     const own = registered.find((entry) => entry.name === name);
-    const manifest = read(
-      own === undefined ? [`${SENSE_PREFIX}${name}`] : own.manifest,
-    );
+    const manifest =
+      own === undefined
+        ? read([`${SENSE_PREFIX}${name}`])
+        : readCommand(own.manifest);
 
     if (manifest.ok && manifest.manifest.kind === "sensor") {
       result.sensors.push(entryOf(manifest.manifest));
