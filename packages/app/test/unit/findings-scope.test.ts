@@ -1,6 +1,6 @@
-import { Finding, type SensorFindings } from "@recognizer/core";
+import { Finding, findingsHeader, type SensorFindings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { groupsOf, headerLine } from "../../src/findings-groups";
+import { groupsOf } from "../../src/findings-groups";
 import { findingRows } from "../../src/findings-order";
 import { scopeCaption, scopedRows, scopeOf } from "../../src/findings-scope";
 
@@ -74,8 +74,8 @@ describe("counts over the shown findings only", () => {
   const shown = scopedRows(rows, view);
 
   it("counts the header over the shown findings", () => {
-    expect(headerLine(rows)).toBe("1 violation, 3 warnings");
-    expect(headerLine(shown)).toBe("1 violation, 1 warning");
+    expect(findingsHeader(rows)).toBe("1 violation, 3 warnings");
+    expect(findingsHeader(shown)).toBe("1 violation, 1 warning");
   });
 
   it("counts each group over the shown findings and hides an emptied group", () => {

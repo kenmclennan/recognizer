@@ -9,6 +9,7 @@ import {
   type ChangeFacts,
   type DescribeAsk,
   type DescribeHalt,
+  findingsHeader,
   Neighbours,
   Repository,
   unionScans,
@@ -91,12 +92,7 @@ import { cardOf } from "./finding-card";
 import { buildCatalog, type FindingCatalog } from "./finding-catalog";
 import { keepsFocus } from "./finding-focus";
 import { litSet } from "./findings-card";
-import {
-  groupsOf,
-  headerLine,
-  ownerOf,
-  withEmptyGroups,
-} from "./findings-groups";
+import { groupsOf, ownerOf, withEmptyGroups } from "./findings-groups";
 import { badge, findingRows, walkFindings } from "./findings-order";
 import { buildFindingsPanelView } from "./findings-panel-view";
 import { scopeCaption, scopedRows, scopeOf } from "./findings-scope";
@@ -4972,7 +4968,7 @@ export function showExplorer(
         caption: scopeCaption(savedView(), modules.count()),
         on: findingsOnlyView,
       },
-      header: headerLine(shownFindings),
+      header: findingsHeader(shownFindings),
       freshness:
         findingsLine === null
           ? null

@@ -1,3 +1,4 @@
+import { findingsSeverity } from "@recognizer/core";
 import { EMPTY_CATALOG, type FindingCatalog } from "./finding-catalog";
 import groupFile from "./finding-groups.json";
 import { type FindingRow, orderFindings } from "./findings-order";
@@ -84,15 +85,12 @@ export function groupsOf(
       key,
       name,
       help,
-      severity: "warning" as const,
+      severity: findingsSeverity([]),
       rows: [],
     };
 
     group.rows.push(row);
-
-    if (row.severity === "violation") {
-      group.severity = "violation";
-    }
+    group.severity = findingsSeverity(group.rows);
 
     byKey.set(key, group);
   }
@@ -113,28 +111,6 @@ export function groupsOf(
   return [...fixed, ...reports, ...others];
 }
 
-export function headerLine(rows: FindingRow[]): string | null {
-  if (rows.length === 0) {
-    return null;
-  }
-
-  const violations = rows.filter((row) => row.severity === "violation").length;
-  const warnings = rows.length - violations;
-  const parts: string[] = [];
-
-  if (violations > 0) {
-    parts.push(
-      `${violations} ${violations === 1 ? "violation" : "violations"}`,
-    );
-  }
-
-  if (warnings > 0) {
-    parts.push(`${warnings} ${warnings === 1 ? "warning" : "warnings"}`);
-  }
-
-  return parts.join(", ");
-}
-
 export function withEmptyGroups(
   groups: FindingGroupModel[],
   noneYet: (sensor: string) => boolean,
@@ -149,7 +125,7 @@ export function withEmptyGroups(
     key,
     name,
     help,
-    severity: "warning",
+    severity: findingsSeverity([]),
     rows: [],
   });
   const structure = FIXED.filter((one) => {

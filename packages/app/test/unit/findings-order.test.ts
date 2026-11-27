@@ -99,7 +99,7 @@ describe("findingRows", () => {
   });
   const srcUrl = new URL("../../src/index.ts", import.meta.url).href;
 
-  it("reads the committed structure example as eight rows, rule violation first", () => {
+  it("reads the committed structure example as four rows, rule violation first", () => {
     const text = readFileSync(
       fileURLToPath(
         new URL(

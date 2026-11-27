@@ -42,3 +42,35 @@ export function findingsStanding(
 
   return { violations: 0, level: findings.length === 0 ? "none" : "warning" };
 }
+
+export function findingsSeverity(
+  findings: readonly Pick<Finding, "severity">[],
+): Finding["severity"] {
+  return findingsStanding(findings).level === "violation"
+    ? "violation"
+    : "warning";
+}
+
+export function findingsHeader(
+  findings: readonly Pick<Finding, "severity">[],
+): string | null {
+  if (findings.length === 0) {
+    return null;
+  }
+
+  const { violations } = findingsStanding(findings);
+  const warnings = findings.length - violations;
+  const parts: string[] = [];
+
+  if (violations > 0) {
+    parts.push(
+      `${violations} ${violations === 1 ? "violation" : "violations"}`,
+    );
+  }
+
+  if (warnings > 0) {
+    parts.push(`${warnings} ${warnings === 1 ? "warning" : "warnings"}`);
+  }
+
+  return parts.join(", ");
+}
