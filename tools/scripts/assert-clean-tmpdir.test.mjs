@@ -32,4 +32,12 @@ describe("runWithCleanTmpdir", () => {
 
     expect(status).toBe(3);
   });
+
+  it("exits 128 plus the signal number when the command is killed by a signal", () => {
+    const { status } = runWithCleanTmpdir(
+      ...node("process.kill(process.pid, 'SIGTERM')"),
+    );
+
+    expect(status).toBe(143);
+  });
 });
