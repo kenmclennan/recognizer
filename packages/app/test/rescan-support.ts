@@ -151,6 +151,49 @@ export function describerProgram(
   };
 }
 
+export function describerFailing(reasons: Record<string, string>): Program {
+  const base = describerProgram();
+
+  return (call) => {
+    if (call.args[0] !== "run") {
+      return base(call);
+    }
+
+    const request = call.files.readFile(call.args.at(-1) as string);
+    const module = Object.keys(reasons).find((name) => request.includes(name));
+
+    if (module === undefined) {
+      return base(call);
+    }
+
+    return {
+      started: true,
+      status: 1,
+      stdout: "",
+      stderr: reasons[module] as string,
+    };
+  };
+}
+
+export async function untilTogether<T>(
+  root: Root,
+  other: { advance(ms: number): Promise<void> },
+  find: () => T | undefined,
+): Promise<T> {
+  for (let turn = 0; turn < 400; turn += 1) {
+    const found = find();
+
+    if (found !== undefined) {
+      return found;
+    }
+
+    await other.advance(300);
+    await root.service.signal(300);
+  }
+
+  throw new Error("not reached across both services");
+}
+
 export function sampleFiles(): Record<string, string> {
   const found: Record<string, string> = {};
   const walk = (directory: string, prefix: string) => {
