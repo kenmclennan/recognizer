@@ -4,6 +4,7 @@ import {
   copyFileSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -34,31 +35,35 @@ function checkout(source, revision) {
   return checkouts.get(key);
 }
 
-for (const [name, entry] of Object.entries(provenance.grammars)) {
-  const root = checkout(entry.source, entry.revision);
-  const directory =
-    entry.directory === undefined ? root : join(root, entry.directory);
-  const output = join(work, entry.file);
+try {
+  for (const [name, entry] of Object.entries(provenance.grammars)) {
+    const root = checkout(entry.source, entry.revision);
+    const directory =
+      entry.directory === undefined ? root : join(root, entry.directory);
+    const output = join(work, entry.file);
 
-  execFileSync(
-    "npx",
-    [
-      "--yes",
-      `tree-sitter-cli@${provenance.tree_sitter_cli}`,
-      "build",
-      "--wasm",
-      "-o",
-      output,
-      directory,
-    ],
-    { stdio: "inherit", cwd: directory },
-  );
+    execFileSync(
+      "npx",
+      [
+        "--yes",
+        `tree-sitter-cli@${provenance.tree_sitter_cli}`,
+        "build",
+        "--wasm",
+        "-o",
+        output,
+        directory,
+      ],
+      { stdio: "inherit", cwd: directory },
+    );
 
-  copyFileSync(output, join(here, entry.file));
-  entry.sha256 = createHash("sha256")
-    .update(readFileSync(join(here, entry.file)))
-    .digest("hex");
-  process.stdout.write(`${name} ${entry.sha256}\n`);
+    copyFileSync(output, join(here, entry.file));
+    entry.sha256 = createHash("sha256")
+      .update(readFileSync(join(here, entry.file)))
+      .digest("hex");
+    process.stdout.write(`${name} ${entry.sha256}\n`);
+  }
+
+  writeFileSync(provenancePath, `${JSON.stringify(provenance, null, 2)}\n`);
+} finally {
+  rmSync(work, { recursive: true, force: true });
 }
-
-writeFileSync(provenancePath, `${JSON.stringify(provenance, null, 2)}\n`);

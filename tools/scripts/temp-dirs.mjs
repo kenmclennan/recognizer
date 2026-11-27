@@ -4,7 +4,14 @@ import { join } from "node:path";
 
 const created = [];
 
+let exitHandlerRegistered = false;
+
 export function makeTempDir(prefix) {
+  if (!exitHandlerRegistered) {
+    exitHandlerRegistered = true;
+    process.once("exit", removeTempDirs);
+  }
+
   const directory = mkdtempSync(join(tmpdir(), prefix));
 
   created.push(directory);
