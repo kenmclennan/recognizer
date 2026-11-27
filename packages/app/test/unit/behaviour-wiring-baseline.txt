@@ -30,7 +30,6 @@ packages/app/test/unit/responsibility-look.test.ts
 packages/app/test/unit/revision-refresh.test.ts
 packages/app/test/unit/scan-fake.test.ts
 packages/app/test/unit/scan-panel-look.test.ts
-packages/app/test/unit/sensor-run.test.ts
 packages/app/test/unit/sensors-fake.test.ts
 packages/app/test/unit/settings-modal-port-fake.test.ts
 packages/app/test/unit/trail-look.test.ts
