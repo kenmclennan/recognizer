@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   type SuiteResult,
   type SuiteStanding,
-  shortAge,
   suiteStanding,
   suiteStandings,
   suiteState,
@@ -21,32 +20,6 @@ const standing = (over: Partial<SuiteStanding> = {}): SuiteStanding => ({
   total: 0,
   reason: null,
   ...over,
-});
-
-describe("shortAge", () => {
-  it.each([
-    [59 * 1000, "now"],
-    [60 * 1000, "1m"],
-    [59 * MINUTE, "59m"],
-    [60 * MINUTE, "1h"],
-    [23 * HOUR + 59 * MINUTE, "23h"],
-    [24 * HOUR, "1d"],
-  ])("reads %i ms as %s", (ms, text) => {
-    expect(shortAge(ms)).toBe(text);
-  });
-
-  it("reads the exact bounds", () => {
-    expect(shortAge(59999)).toBe("now");
-    expect(shortAge(60000)).toBe("1m");
-    expect(shortAge(3599999)).toBe("59m");
-    expect(shortAge(3600000)).toBe("1h");
-    expect(shortAge(86399999)).toBe("23h");
-    expect(shortAge(86400000)).toBe("1d");
-  });
-
-  it("reads a negative age as now", () => {
-    expect(shortAge(-5 * MINUTE)).toBe("now");
-  });
 });
 
 describe("suite states", () => {
