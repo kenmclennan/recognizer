@@ -99,7 +99,10 @@ describe("senseRepository", () => {
       const document = loaded.findings.find(
         (one) => one.sensor.name === "structure",
       );
-      const findings = document?.findings ?? [];
+      const findings = [
+        ...(loaded.split.structure?.shown ?? []),
+        ...(loaded.split.structure?.hidden ?? []),
+      ];
       const violations = findings
         .filter((record) => record.severity === "violation")
         .map((record) => record.id)

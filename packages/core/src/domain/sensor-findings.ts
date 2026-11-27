@@ -49,3 +49,5 @@ export interface SensorFindings {
   readonly work?: SensorWork;
   readonly diagnosis?: Diagnosis;
 }
+
+export type SensorFindingsHeader = Omit<SensorFindings, "findings">;

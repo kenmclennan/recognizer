@@ -38,9 +38,9 @@ export function violationLine(violation: Violation): string {
 export function computeHealth(
   loaded: Pick<
     Loaded,
-    "repository" | "policy" | "modules" | "baseline" | "findings"
+    "repository" | "policy" | "modules" | "baseline" | "findings" | "split"
   > &
-    Partial<Pick<Loaded, "baselineProblem" | "freshness" | "split">>,
+    Partial<Pick<Loaded, "baselineProblem" | "freshness">>,
 ): Health {
   const notices: string[] = [];
   const known = new Set(loaded.modules);
@@ -59,10 +59,7 @@ export function computeHealth(
   for (const document of loaded.findings) {
     const name = document.sensor.name;
     const current = new Set(loaded.freshness?.[name]?.current ?? []);
-    const { shown: keep, hidden: drop } = loaded.split?.[name] ?? {
-      shown: [],
-      hidden: document.findings,
-    };
+    const { shown: keep, hidden: drop } = loaded.split[name];
 
     shown.push({ ...document, findings: keep });
 

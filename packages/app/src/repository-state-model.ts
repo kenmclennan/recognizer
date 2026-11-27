@@ -248,7 +248,11 @@ export function storedResultsOf(documents: ResultDocuments): StoredResults {
 
     if (one.findingsProblem !== null) {
       findings.refused.push(name);
-    } else if (one.findings !== null) {
+    } else if (
+      one.findings !== null &&
+      one.shown !== null &&
+      one.hidden !== null
+    ) {
       findings.files.push({
         name,
         document: one.findings,
