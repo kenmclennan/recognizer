@@ -8,7 +8,6 @@ import { parse, stringify } from "yaml";
 import type { Io } from "../../cli.js";
 import { policyFile } from "../../config.js";
 import { InputError } from "../../errors.js";
-import { readPolicy } from "../../load-findings.js";
 import { parsePolicy } from "./policy-translator.js";
 import { readRepositoryText, saveRepositoryText } from "./repository-text.js";
 
@@ -16,7 +15,13 @@ export class PolicyAdapter implements PolicyRepository {
   constructor(private readonly io: Io) {}
 
   rules(root: string): readonly PolicyRule[] | null {
-    return readPolicy(this.io, root);
+    const file = policyFile(root);
+
+    if (!this.io.exists(file)) {
+      return null;
+    }
+
+    return parsePolicy(this.io.readFile(file));
   }
 
   rulesAt(path: string): readonly PolicyRule[] {
