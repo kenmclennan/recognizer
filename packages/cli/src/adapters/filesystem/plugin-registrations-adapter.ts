@@ -1,5 +1,5 @@
-import { join } from "node:path";
 import {
+  joinPath as join,
   type PluginKind,
   type PluginRegistrations,
   type RegisteredPlugin,
@@ -13,7 +13,7 @@ import {
   type UnregisterOutcome,
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
-import { saveRepositoryText } from "./repository-text.js";
+import { saveRepositoryText } from "./save-repository-text.js";
 
 const HOMEBREW_FOLDER = "/opt/homebrew/share/recognizer/plugins";
 

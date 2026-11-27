@@ -15,7 +15,7 @@ import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { REPO } from "./helpers.js";
 import { isolatedPath } from "./isolated-path.js";
-import { registerShim } from "./plugin-registry-shim.js";
+import { registerShim, registryFolderFor } from "./plugin-registry-shim.js";
 
 export const BIN = join(REPO, "packages/cli/dist/bin.js");
 
@@ -34,6 +34,7 @@ export class Serve {
       env: {
         ...process.env,
         PATH: isolatedPath(path),
+        RECOGNIZER_PLUGIN_DIRS: `:${registryFolderFor(path)}`,
         ...extra,
       },
       stdio: ["pipe", "pipe", "pipe"],
