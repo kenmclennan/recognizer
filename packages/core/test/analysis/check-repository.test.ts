@@ -121,6 +121,67 @@ describe("checkRepository", () => {
     expect(fakes.baseline.baselines.size).toBe(0);
   });
 
+  it("keeps hidden violation keys and sensor statuses from gathered files", () => {
+    const { fakes, say, said } = worldOf();
+    const hidden = Finding.stored({
+      id: "crap-violation:a/x.py",
+      kind: "crap",
+      severity: "violation",
+      principle: "p",
+      summary: "s",
+      files: ["a/x.py"],
+    });
+    const base = {
+      commit: "c0ffee",
+      modified: false,
+      settings: {},
+    };
+
+    fakes.config.sensors.push("crap", "mutation");
+    fakes.baseline.baselines.set(BASELINE, [{ id: "crap-violation:a/x.py" }]);
+    fakes.findings.stored.set("crap", {
+      name: "crap",
+      status: "read",
+      document: {
+        ...base,
+        sensor: { name: "crap", version: "1" },
+        findings: [hidden],
+        inputs: { "a/x.py": "other" },
+      },
+    });
+    fakes.findings.stored.set("mutation", {
+      name: "mutation",
+      status: "read",
+      document: {
+        ...base,
+        sensor: { name: "mutation", version: "1" },
+        findings: [],
+      },
+    });
+
+    const report = checkRepository(
+      checkPortsOf(fakes),
+      say,
+      requestOf(),
+      breaching("c0ffee"),
+    );
+
+    expect(hidden.id).toBe("crap-violation:a/x.py");
+    expect(report.ranked).not.toBeNull();
+    expect(report.ranked?.fixed).toEqual([]);
+    expect(report.sensors).toContainEqual({
+      name: "crap",
+      status: "ran",
+      out_of_date: 1,
+    });
+    expect(report.sensors).toContainEqual({
+      name: "mutation",
+      status: "stale",
+    });
+    expect(said).toContain("out of date crap: 1 findings\n");
+    expect(said).toContain("stale mutation\n");
+  });
+
   it("notices go to say in order", () => {
     const { fakes, say, said } = worldOf();
 
