@@ -5,7 +5,6 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
@@ -13,10 +12,10 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { noneRegistered } from "@recognizer/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { type Io, run } from "../src/cli.js";
 import { COMMANDS } from "../src/commands.js";
 import { DESCRIBE_FLAGS } from "../src/describe-command.js";
@@ -57,7 +56,7 @@ function git(root: string, ...args: string[]): string {
 }
 
 function repository(language = "python"): string {
-  const root = mkdtempSync(join(tmpdir(), "recognizer-describe-"));
+  const root = makeTempDir("recognizer-describe-");
 
   roots.push(root);
   cpSync(join(REPO, `fixtures/${language}/sample`), root, { recursive: true });
@@ -67,7 +66,7 @@ function repository(language = "python"): string {
   git(root, "add", ".");
   git(root, "commit", "-q", "-m", "sample");
 
-  const shims = mkdtempSync(join(tmpdir(), "recognizer-scanner-shim-"));
+  const shims = makeTempDir("recognizer-scanner-shim-");
 
   binDirs.push(shims);
   scannerShim(shims, language);
@@ -740,7 +739,7 @@ const binDirs: string[] = [];
 const describerDirs: string[] = [];
 
 function withoutDescriberPlugin(): void {
-  const dir = mkdtempSync(join(tmpdir(), "recognizer-bin-"));
+  const dir = makeTempDir("recognizer-bin-");
 
   binDirs.push(dir);
   symlinkSync(
@@ -764,7 +763,7 @@ function installedManifest() {
 }
 
 function installDescriberPlugin(): void {
-  const dir = mkdtempSync(join(tmpdir(), "recognizer-bin-"));
+  const dir = makeTempDir("recognizer-bin-");
 
   binDirs.push(dir);
 

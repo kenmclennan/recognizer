@@ -1,9 +1,9 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
+import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
 import { lookRun, webkit } from "../../src/look-page";
 
 const HIDEABLE = [
@@ -46,7 +46,7 @@ describe("hidden elements in a real browser", () => {
         fileURLToPath(new URL("style.css", srcUrl)),
         "utf8",
       );
-      const dir = mkdtempSync(join(tmpdir(), "hidden-elements-"));
+      const dir = makeTempDir("hidden-elements-");
 
       try {
         const page = join(dir, "page.html");

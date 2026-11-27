@@ -3,7 +3,6 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -317,7 +316,7 @@ describe("verifyArchive", () => {
 
 describe("buildPlugin on the describer", () => {
   it("writes an archive that lists its one command", () => {
-    const out = mkdtempSync(join(tmpdir(), "build-plugin-"));
+    const out = makeTempDir("build-plugin-");
 
     try {
       const archive = buildPlugin(ROOT, "describe-claude", "0.1.0", out);
