@@ -11,7 +11,8 @@ import {
   examplePorts,
   readExamples,
 } from "./installed-read.js";
-import { fakeIo, OFFICIAL_ON_PATH, ROOT } from "./scan-helpers.js";
+import { registeredPlugins } from "./registered-plugins.js";
+import { fakeIo, ROOT } from "./scan-helpers.js";
 
 describe("readInstalledSensors", () => {
   it("returns three entries in names order, listed for those with a metric", () => {
@@ -100,11 +101,16 @@ describe("readInstalledSensors", () => {
 
 describe("one manifest read per plugin in a scan", () => {
   it("runs no more manifests than the sensors a scan selects", async () => {
+    const registered = registeredPlugins([
+      { kind: "sensor", name: "crap" },
+      { kind: "sensor", name: "mutation" },
+    ]);
     const fake = fakeIo({
       sensorManifests: true,
-      onPath: OFFICIAL_ON_PATH,
+      env: registered.env,
       commit: "abc",
       files: {
+        ...registered.files,
         [`${ROOT}/.recognizer/config.yaml`]:
           "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n  mutation:\n    manifest: [recognizer-sense-mutation, manifest]\n",
       },

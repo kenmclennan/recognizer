@@ -14,8 +14,10 @@ import {
   pluginCheck,
   type RegisterResult,
   registerPlugin,
+  registrationFileName,
   type SensorReport,
   sensorsToCheck,
+  serializeRegistration,
 } from "../../src/index.js";
 import { pluginPortsOf } from "../fakes/container.js";
 import type { ScanWorld } from "../fakes/world.js";
@@ -106,6 +108,23 @@ Given(
 Given("the PATH holds {word}", function (this: ScanWorld, first: string) {
   this.fakes.programs.path.push(first);
 });
+
+Given(
+  "the {word} {string} at {string} is registered",
+  function (this: ScanWorld, kind: string, name: string, command: string) {
+    this.fakes.pluginRegistrations.place(
+      "user",
+      registrationFileName(kind as PluginKind, name),
+      serializeRegistration({
+        kind: kind as PluginKind,
+        name,
+        command: [command],
+        manifest: [command, "manifest"],
+      }),
+      1,
+    );
+  },
+);
 
 Given(
   "{word} holds the {word} {string} with a valid manifest",

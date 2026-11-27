@@ -32,6 +32,12 @@ function shim(directory: string, name: string, script: string): RealTool {
   return { name, path };
 }
 
+function installed(path: string, name: string): RealTool {
+  registerShim(path);
+
+  return { name, path };
+}
+
 export function realTools(): RealTool[] {
   requirePythonScannerVenv(REPO);
   requireSensorsVenv(REPO);
@@ -39,22 +45,21 @@ export function realTools(): RealTool[] {
   const directory = makeTempDir("recognizer-plugin-tools-");
 
   return [
-    {
-      name: "recognizer-scan-python",
-      path: join(
-        REPO,
-        "packages/scanners/python/.venv/bin/recognizer-scan-python",
-      ),
-    },
+    installed(
+      join(REPO, "packages/scanners/python/.venv/bin/recognizer-scan-python"),
+      "recognizer-scan-python",
+    ),
     shim(
       directory,
       "recognizer-scan-typescript",
       "packages/scanners/typescript/dist/bin.js",
     ),
-    ...["crap", "mutation"].map((name) => ({
-      name: `recognizer-sense-${name}`,
-      path: join(REPO, `packages/sensors/.venv/bin/recognizer-sense-${name}`),
-    })),
+    ...["crap", "mutation"].map((name) =>
+      installed(
+        join(REPO, `packages/sensors/.venv/bin/recognizer-sense-${name}`),
+        `recognizer-sense-${name}`,
+      ),
+    ),
     shim(
       directory,
       "recognizer-describe-claude",

@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
 import {
   ioWithPath,
+  ioWithRegistry,
   manifestFor,
   tempDirectory,
   writeShim,
@@ -65,7 +66,7 @@ async function doctor(
   record?: { commands: string[] },
 ): Promise<{ report: DoctorReport; code: number; text: string }> {
   let out = "";
-  const base = ioWithPath([bin]);
+  const base = ioWithRegistry([bin]);
   const io = {
     ...base,
     run: (

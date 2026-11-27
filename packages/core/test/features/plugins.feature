@@ -11,21 +11,21 @@ Feature: Managing plugins
     And nothing is unreadable
 
   Scenario: A manifest of the wrong kind is unreadable with today's text
-    Given the PATH holds /first
-    And /first holds a program "recognizer-sense-alpha" whose manifest says it is a describer called "alpha"
+    Given /first holds a program "recognizer-sense-alpha" whose manifest says it is a describer called "alpha"
+    And the sensor "alpha" at "/first/recognizer-sense-alpha" is registered
     When plugins are discovered
     Then the discovery lists no plugin
     And the unreadable entry for "/first/recognizer-sense-alpha" says "manifest kind is describer, not sensor"
 
   Scenario: A manifest of the wrong name is unreadable with today's text
-    Given the PATH holds /first
-    And /first holds a program "recognizer-sense-alpha" whose manifest says it is a sensor called "gamma"
+    Given /first holds a program "recognizer-sense-alpha" whose manifest says it is a sensor called "gamma"
+    And the sensor "alpha" at "/first/recognizer-sense-alpha" is registered
     When plugins are discovered
     Then the unreadable entry for "/first/recognizer-sense-alpha" says "manifest name is gamma, not alpha"
 
   Scenario: A plugin on the previous protocol is judged previous
-    Given the PATH holds /first
-    And /first holds the sensor "alpha" on protocol 1
+    Given /first holds the sensor "alpha" on protocol 1
+    And the sensor "alpha" at "/first/recognizer-sense-alpha" is registered
     When plugins are discovered
     Then the plugin "alpha" is judged "previous"
 
@@ -54,8 +54,8 @@ Feature: Managing plugins
     Then the registration is refused naming "other"
 
   Scenario: The doctor reports an uninstalled sensor's install line
-    Given the PATH holds /first
-    And /first holds the sensor "alpha" with a valid manifest
+    Given /first holds the sensor "alpha" with a valid manifest
+    And the sensor "alpha" at "/first/recognizer-sense-alpha" is registered
     And the repository registers the sensors "alpha" and "missing" with install line "brew install missing"
     When the doctor runs
     Then the sensors area has a plugin-missing problem for "missing" fixed by "brew install missing"
