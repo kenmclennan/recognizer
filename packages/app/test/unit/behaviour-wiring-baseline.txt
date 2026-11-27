@@ -11,13 +11,11 @@ packages/app/test/unit/explorer-rebuild-look.test.ts
 packages/app/test/unit/explorer-update-look.test.ts
 packages/app/test/unit/explorer-views-look.test.ts
 packages/app/test/unit/explorer-window-look.test.ts
-packages/app/test/unit/findings-panel-look.test.ts
 packages/app/test/unit/folded-folder-selection.test.ts
 packages/app/test/unit/folder-compaction-look.test.ts
 packages/app/test/unit/inspector-cards-look.test.ts
 packages/app/test/unit/look-support.test.ts
 packages/app/test/unit/member-marks-look.test.ts
-packages/app/test/unit/metrics-look.test.ts
 packages/app/test/unit/notes-look.test.ts
 packages/app/test/unit/notes-order-look.test.ts
 packages/app/test/unit/plan-views-look.test.ts
