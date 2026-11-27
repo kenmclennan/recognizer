@@ -131,16 +131,13 @@ describe("installed scanners cache", () => {
   });
 
   it("with_no_scanner_registered_nothing_is_held", () => {
-    const { io } = world();
-    const listed = () => io.processes.calls.length;
+    const { io, register } = world();
 
-    installedScanners(io);
+    expect(installedScanners(io).plugins).toEqual([]);
 
-    const first = listed();
+    register("alpha");
 
-    installedScanners(io);
-
-    expect(listed()).toBeGreaterThan(first);
+    expect(installedScanners(io).plugins.map((p) => p.name)).toEqual(["alpha"]);
   });
 
   it("a_registry_with_one_good_and_one_unreadable_scanner_returns_the_good_one_and_reports_the_other", () => {

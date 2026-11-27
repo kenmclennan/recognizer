@@ -63,13 +63,13 @@ const names = (found: { plugins: { name: string }[] }) =>
   found.plugins.map((plugin) => plugin.name).sort();
 
 describe("discoverPlugins with registrations", () => {
-  it("falls back to PATH discovery when nothing is registered", () => {
+  it("finds nothing on PATH when nothing is registered", () => {
     const { onPath, ports } = setup();
 
     onPath("scanner", "alpha");
     onPath("sensor", "beta");
 
-    expect(names(discoverPlugins(ports()))).toEqual(["alpha", "beta"]);
+    expect(names(discoverPlugins(ports()))).toEqual([]);
   });
 
   it("uses only registered scanners when any is registered", () => {
@@ -96,13 +96,13 @@ describe("discoverPlugins with registrations", () => {
     ]);
   });
 
-  it("falls back to PATH for a kind with no registration while another kind is registered", () => {
+  it("finds no PATH plugin of a kind with no registration while another kind is registered", () => {
     const { onPath, register, ports } = setup();
 
     register("scanner", "alpha");
     onPath("describer", "on-path");
 
-    expect(names(discoverPlugins(ports()))).toEqual(["alpha", "on-path"]);
+    expect(names(discoverPlugins(ports()))).toEqual(["alpha"]);
   });
 
   it("puts the newest registered describer in effect", () => {
@@ -141,12 +141,12 @@ describe("discoverPlugins with registrations", () => {
 });
 
 describe("installed sensors with registrations", () => {
-  it("lists PATH sensors when none is registered", () => {
+  it("lists no PATH sensor when none is registered", () => {
     const { onPath, ports } = setup();
 
     onPath("sensor", "alpha");
 
-    expect(installedSensorNames(ports())).toEqual(["alpha"]);
+    expect(installedSensorNames(ports())).toEqual([]);
   });
 
   it("lists every registered sensor and no PATH sensor once one is registered", () => {

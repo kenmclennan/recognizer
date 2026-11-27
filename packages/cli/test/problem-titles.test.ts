@@ -31,6 +31,7 @@ const CODES = [
   "plugin-settings",
   "describer-gap",
   "unregistered-plugin",
+  "unregistered-program",
   "sensor-manifest-missing",
 ];
 

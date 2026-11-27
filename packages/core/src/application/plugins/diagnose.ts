@@ -1,4 +1,5 @@
 import { InvalidRequest } from "../../domain/invalid-request.js";
+import { joinPath } from "../../domain/path.js";
 import {
   buildReport,
   type DoctorFacts,
@@ -6,6 +7,7 @@ import {
   type PluginFact,
   type PluginSpec,
 } from "../../domain/plugins/doctor-report.js";
+import { KINDS, PREFIXES } from "../../domain/plugins/installed-plugin.js";
 import {
   interpretManifest,
   judgeProtocol,
@@ -29,7 +31,7 @@ import { readPolicyArea } from "./read-policy-area.js";
 
 type DiagnosePorts = Pick<
   PluginPorts,
-  "programs" | "validators" | "repository"
+  "programs" | "validators" | "repository" | "registrations"
 >;
 
 function describerCheckLines(
@@ -211,6 +213,43 @@ function testsUnrun(
     .map((entry) => ({ name: entry.name, display: entry.display }));
 }
 
+function unregisteredPrograms(
+  ports: DiagnosePorts,
+): DoctorFacts["unregisteredPrograms"] {
+  const registered = new Set(
+    ports.registrations
+      .entries()
+      .plugins.map((entry) => `${PREFIXES[entry.kind]}${entry.name}`),
+  );
+  const found: DoctorFacts["unregisteredPrograms"] = [];
+
+  for (const entry of ports.programs.listOnPath(
+    KINDS.map((kind) => PREFIXES[kind]),
+  )) {
+    const kind = KINDS.find(
+      (one) =>
+        entry.name.startsWith(PREFIXES[one]) &&
+        entry.name.length > PREFIXES[one].length,
+    );
+
+    if (kind === undefined || registered.has(entry.name)) {
+      continue;
+    }
+
+    const path = joinPath(entry.directory, entry.name);
+    const read = readManifest(ports, path);
+
+    found.push({
+      kind,
+      program: entry.name,
+      path,
+      installLine: read.ok ? read.manifest.install : null,
+    });
+  }
+
+  return found;
+}
+
 export function diagnose(
   ports: DiagnosePorts,
   root: string,
@@ -240,6 +279,7 @@ export function diagnose(
       config.registered,
       ports.repository.suites(root),
     ),
+    unregisteredPrograms: unregisteredPrograms(ports),
     protocol: ports.validators.facts,
   };
 

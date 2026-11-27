@@ -1,11 +1,12 @@
 Feature: Managing plugins
 
-  Plugins are found on the PATH, judged by their manifest, registered in a repository and diagnosed by the doctor.
+  Plugins are found by their registrations, judged by their manifest, registered in a repository and diagnosed by the doctor.
 
-  Scenario: Discovery finds a sensor and a describer in directory order
-    Given the PATH holds /first and /second
-    And /first holds the sensor "alpha" with a valid manifest
+  Scenario: Discovery finds a registered sensor and a registered describer
+    Given /first holds the sensor "alpha" with a valid manifest
     And /second holds the describer "beta" with a valid manifest
+    And the sensor "alpha" at "/first/recognizer-sense-alpha" is registered
+    And the describer "beta" at "/second/recognizer-describe-beta" is registered
     When plugins are discovered
     Then the discovery lists the sensor "alpha" then the describer "beta"
     And nothing is unreadable
@@ -29,11 +30,13 @@ Feature: Managing plugins
     When plugins are discovered
     Then the plugin "alpha" is judged "previous"
 
-  Scenario: A mixed PATH reports one plugin and two unreadable entries
-    Given the PATH holds /first
-    And /first holds the sensor "alpha" with a valid manifest
+  Scenario: A mixed registry reports one plugin and two unreadable entries
+    Given /first holds the sensor "alpha" with a valid manifest
     And /first holds a program "recognizer-sense-broken" that prints no manifest
     And /first holds a program "recognizer-sense-mismatch" whose manifest says it is a sensor called "other"
+    And the sensor "alpha" at "/first/recognizer-sense-alpha" is registered
+    And the sensor "broken" at "/first/recognizer-sense-broken" is registered
+    And the sensor "mismatch" at "/first/recognizer-sense-mismatch" is registered
     When plugins are discovered
     Then the discovery lists exactly 1 plugin
     And the discovery has 2 unreadable entries

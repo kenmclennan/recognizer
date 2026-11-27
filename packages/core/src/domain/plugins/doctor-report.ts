@@ -54,6 +54,7 @@ export type ProblemCode =
   | "plugin-settings"
   | "describer-gap"
   | "unregistered-plugin"
+  | "unregistered-program"
   | "sensor-manifest-missing";
 
 export interface SetupProblem {
@@ -564,6 +565,13 @@ export interface RegisteredPlugins {
 
 export type ConfigRegistration = RegisteredPlugins | { skipped: string };
 
+export interface UnregisteredProgram {
+  kind: PluginKind;
+  program: string;
+  path: string;
+  installLine: string | null;
+}
+
 export interface DoctorFacts {
   repository: string;
   configProblems: Found[];
@@ -573,6 +581,7 @@ export interface DoctorFacts {
   scanners: InstalledPlugin[];
   plugins(specs: PluginSpec[]): PluginFact[];
   testsUnrun: { name: string; display?: string }[];
+  unregisteredPrograms: UnregisteredProgram[];
   protocol: PluginFacts;
 }
 
@@ -651,6 +660,31 @@ function withSeverity(problems: Found[], display: DisplayName): SetupProblem[] {
   }));
 }
 
+function unregisteredProgramProblems(
+  facts: DoctorFacts,
+  area: AreaName,
+): SetupProblem[] {
+  const kind = {
+    scanners: "scanner",
+    sensors: "sensor",
+    describers: "describer",
+  }[area as "scanners" | "sensors" | "describers"];
+
+  return facts.unregisteredPrograms
+    .filter((one) => one.kind === kind)
+    .map((one) => ({
+      code: "unregistered-program" as const,
+      subject: one.program,
+      title: PROBLEM_TITLES["unregistered-program"](one.program),
+      line: `${one.path} is installed on PATH but is not registered, so recognizer does not use it`,
+      fix: textFix(
+        one.installLine ??
+          `run recognizer plugin register ${one.path}, or reinstall it so its formula registers it`,
+      ),
+      severity: "warning" as const,
+    }));
+}
+
 export function buildReport(facts: DoctorFacts): DoctorReport {
   const known = "skipped" in facts.registered ? NONE : facts.registered;
   const display = languageDisplay(facts.scanners);
@@ -668,16 +702,19 @@ export function buildReport(facts: DoctorFacts): DoctorReport {
     {
       name: "scanners",
       skipped: null,
-      problems: withSeverity(
-        scannerProblems(
-          facts.languages,
-          facts.scanners,
-          known.named,
-          known.install,
-          facts.protocol,
+      problems: [
+        ...withSeverity(
+          scannerProblems(
+            facts.languages,
+            facts.scanners,
+            known.named,
+            known.install,
+            facts.protocol,
+          ),
+          display,
         ),
-        display,
-      ),
+        ...unregisteredProgramProblems(facts, "scanners"),
+      ],
     },
     ...(["sensor", "describer"] as const).map((kind): Area => {
       const area = pluginArea(facts, facts.registered, kind);
@@ -685,7 +722,13 @@ export function buildReport(facts: DoctorFacts): DoctorReport {
       return {
         name: kind === "sensor" ? "sensors" : "describers",
         skipped: area.skipped,
-        problems: withSeverity(area.problems, display),
+        problems: [
+          ...withSeverity(area.problems, display),
+          ...unregisteredProgramProblems(
+            facts,
+            kind === "sensor" ? "sensors" : "describers",
+          ),
+        ],
       };
     }),
   ];
