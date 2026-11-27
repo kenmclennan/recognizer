@@ -15,6 +15,8 @@ import {
 } from "../../src/index.js";
 import { FakeGit } from "../fakes/fake-git.js";
 import { FakeRecordedScans } from "../fakes/fake-recorded-scans.js";
+import { FakeRepositoryFiles } from "../fakes/fake-repository-files.js";
+import { FakeSetupFiles } from "../fakes/fake-setup-files.js";
 import { FakeWorkTree, sha256 } from "../fakes/fake-work-tree.js";
 
 export const ROOT = "/work/repository";
@@ -69,10 +71,12 @@ function filesUnder(directory: string, prefix = ""): string[] {
 export class ScanWorld {
   readonly git = new FakeGit("abcdef0123456789abcdef0123456789abcdef01");
   readonly tree = new FakeWorkTree();
+  readonly repositoryFiles = new FakeRepositoryFiles(new FakeSetupFiles());
   readonly scans = new FakeRecordedScans();
   readonly windows = new WindowBaselines();
   readonly ports = {
     git: this.git,
+    files: this.repositoryFiles,
     recordedScans: this.scans,
     workTree: this.tree,
     limiter: new Limiter(4),
@@ -143,7 +147,7 @@ export class ScanWorld {
   }
 
   refresh(): void {
-    this.git.files = [...this.tree.files.keys()].sort();
+    this.repositoryFiles.listed = [...this.tree.files.keys()].sort();
   }
 
   async compare(baseline = this.baseline()): Promise<ScanChanges> {

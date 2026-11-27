@@ -22,6 +22,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { RecordedScansAdapter } from "../src/adapters/filesystem/recorded-scans-adapter.js";
+import { RepositoryFilesAdapter } from "../src/adapters/filesystem/repository-files-adapter.js";
 import type { DocumentSelection } from "../src/adapters/filesystem/scan-document-types.js";
 import { selectionOf } from "../src/adapters/filesystem/scan-translator.js";
 import { WorkTreeAdapter } from "../src/adapters/filesystem/work-tree-adapter.js";
@@ -46,6 +47,7 @@ interface Parity {
 
 const ports = {
   git: new GitAdapter(nodeIo()),
+  files: new RepositoryFilesAdapter(nodeIo()),
   recordedScans: new RecordedScansAdapter(),
   workTree: new WorkTreeAdapter(),
   limiter: new Limiter(4),
@@ -179,6 +181,21 @@ function filesBelow(directory: string, prefix = ""): string[] {
 }
 
 describe("ScanBaseline over a real git repository", () => {
+  it("outside git the poll walks and lists an added file", async () => {
+    const committed = repo();
+    const baseline = await baselineOf(committed, ["python"]);
+    const outside = makeTempDir("recognizer-baseline-outside-");
+
+    write(outside, "app/a.py", "a = 1\n");
+    write(outside, "app/b.py", "b = 1\n");
+    write(outside, "app/c.py", "c = 1\n");
+
+    expect(listed(await compare(outside, baseline))).toContainEqual([
+      "app/c.py",
+      "added",
+    ]);
+  });
+
   it("the committed typescript scan lists the manifests it read", async () => {
     const dir = makeTempDir("recognizer-baseline-");
 

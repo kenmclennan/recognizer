@@ -90,26 +90,6 @@ export class GitAdapter implements Git {
     return this.text(root, ["rev-parse", "--is-inside-work-tree"]) === "true";
   }
 
-  listFiles(root: string): readonly string[] | null {
-    if (!this.insideWorkTree(root)) {
-      return null;
-    }
-
-    const result = this.io.run("git", [
-      "-C",
-      root,
-      "ls-files",
-      "-z",
-      "--cached",
-      "--others",
-      "--exclude-standard",
-    ]);
-
-    return result.started && result.status === 0
-      ? result.stdout.split("\0").filter((path) => path !== "")
-      : [];
-  }
-
   defaultRef(root: string): string | null {
     const name = this.text(root, [
       "symbolic-ref",

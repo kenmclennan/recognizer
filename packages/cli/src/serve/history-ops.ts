@@ -19,6 +19,7 @@ import {
   WindowBaselines,
 } from "@recognizer/core";
 import { RecordedScansAdapter } from "../adapters/filesystem/recorded-scans-adapter.js";
+import { RepositoryFilesAdapter } from "../adapters/filesystem/repository-files-adapter.js";
 import { WorkTreeAdapter } from "../adapters/filesystem/work-tree-adapter.js";
 import { ForgeAdapter } from "../adapters/git/forge-adapter.js";
 import { GitAdapter } from "../adapters/git/git-adapter.js";
@@ -50,6 +51,7 @@ export class HistoryOps {
   constructor(io: Io) {
     this.ports = {
       git: new GitAdapter(io),
+      files: new RepositoryFilesAdapter(io),
       forge: new ForgeAdapter(io),
       recordedScans: new RecordedScansAdapter(),
       workTree: new WorkTreeAdapter(),
