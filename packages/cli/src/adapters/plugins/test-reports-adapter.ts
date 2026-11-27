@@ -1,7 +1,8 @@
-import { discoverPlugins, type TestReports } from "@recognizer/core";
+import type { TestReports } from "@recognizer/core";
 import type { Io } from "../../cli.js";
 import validate from "../../generated/tests-answer-validator.js";
 import { manifestPorts } from "../../manifest-ports.js";
+import { installedScanners } from "./installed-scanners.js";
 
 export const TESTS_REPORT_TIMEOUT_MS = 120_000;
 
@@ -31,7 +32,7 @@ export class TestReportsAdapter implements TestReports {
 
   entries(root: string): Map<string, string> | null {
     const ports = manifestPorts(this.io);
-    const asked = discoverPlugins(ports, ["scanner"]).plugins.filter(
+    const asked = installedScanners(this.io).plugins.filter(
       (plugin) => plugin.manifest.reports_tests === true,
     );
     const merged = new Map<string, string>();

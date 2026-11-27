@@ -1535,6 +1535,8 @@ pub fn run() {
                 }
             }
             RunEvent::Exit => {
+                app.state::<CoreClient>().stop_service_and_hand_off();
+
                 if let Some(server) = app
                     .state::<Mutex<Option<socket::Server>>>()
                     .lock()
