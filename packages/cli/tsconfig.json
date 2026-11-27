@@ -9,6 +9,8 @@
     "resolveJsonModule": true,
     "declaration": true,
     "outDir": "dist",
+    "incremental": true,
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
     "rootDir": "src",
     "skipLibCheck": true,
     "types": ["node"]
