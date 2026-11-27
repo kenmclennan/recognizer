@@ -54,7 +54,7 @@ function findingsByModule(
     BEHAVIOUR,
   );
 
-  return findingsByModuleFrom([document]);
+  return findingsByModuleFrom([document], []);
 }
 
 describe("findingsByModuleFrom principle text", () => {
@@ -68,19 +68,27 @@ describe("findingsByModuleFrom principle text", () => {
   });
 
   it("names a registered principle and keeps an unregistered one as written", () => {
-    const found = findingsByModuleFrom([
-      {
-        sensor: { name: "structure", version: "18" },
-        commit: "c",
-        modified: false,
-        settings: {},
-        findings: [record("one", "dead-code"), record("two", "old-principle")],
-      },
-    ]);
+    const found = findingsByModuleFrom(
+      [
+        {
+          sensor: { name: "structure", version: "18" },
+          commit: "c",
+          modified: false,
+          settings: {},
+          findings: [
+            record("one", "dead-code"),
+            record("two", "old-principle"),
+            record("three", "published-principle"),
+          ],
+        },
+      ],
+      [{ id: "published-principle", name: "A published principle" }],
+    );
 
     expect(found.get("a.py")?.map((finding) => finding.why)).toEqual([
       "Dead code",
       "old-principle",
+      "A published principle",
     ]);
   });
 });

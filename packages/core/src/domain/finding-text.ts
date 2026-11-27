@@ -1,6 +1,6 @@
 import type { Finding } from "./finding.js";
 import type { ViolatedRule } from "./policy-rule.js";
-import { principleName } from "./principles.js";
+import { type Principle, principleName } from "./principles.js";
 import type { SensorFindings } from "./sensor-findings.js";
 import type { Violation, ViolationDependency } from "./violation.js";
 
@@ -34,6 +34,7 @@ export function violationText(violation: Violation): string {
 
 export function findingsByModuleFrom(
   documents: SensorFindings[],
+  published: readonly Principle[],
 ): Map<string, FindingNote[]> {
   const violations = new Map<string, FindingNote[]>();
   const warnings = new Map<string, FindingNote[]>();
@@ -53,7 +54,7 @@ export function findingsByModuleFrom(
       const why =
         isViolation && rule !== undefined
           ? ruleText(rule)
-          : principleName(record.principle);
+          : principleName(record.principle, published);
 
       for (const id of record.files) {
         add(isViolation ? violations : warnings, id, {

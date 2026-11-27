@@ -91,7 +91,7 @@ export function computeHealth(
       return narrowed === null ? [] : [narrowed];
     }),
   }));
-  const byModule = findingsByModuleFrom(visible);
+  const byModule = findingsByModuleFrom(visible, []);
 
   const findingsOf = (id: string) =>
     known.has(id) ? (byModule.get(id) ?? []) : [];

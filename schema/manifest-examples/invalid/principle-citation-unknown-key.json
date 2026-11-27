@@ -1,0 +1,264 @@
+{
+  "kind": "sensor",
+  "name": "mutation",
+  "display": "Mutation",
+  "description": "Mutates covered functions, reruns the tests, and warns where a mutated copy still passes, naming each surviving mutation.",
+  "version": "0.1.0",
+  "protocol": 4,
+  "install": "brew upgrade kenmclennan/tap/recognizer-sense-mutation || brew install kenmclennan/tap/recognizer-sense-mutation",
+  "check": true,
+  "long_running": true,
+  "units": [
+    "functions"
+  ],
+  "settings": [
+    {
+      "key": "carry",
+      "type": "string",
+      "description": "untracked repository paths Mutation copies into its working copy, such as a virtual environment or node_modules",
+      "example": "--add sensors.mutation.carry .venv",
+      "multi": true
+    },
+    {
+      "key": "max_minutes",
+      "type": "number",
+      "description": "the time budget of a Mutation run in minutes, above 0; a run that reaches it stops and keeps what it measured",
+      "example": "sensors.mutation.max_minutes 10",
+      "exclusiveMinimum": 0,
+      "default_text": "no time budget: the run continues until it finishes",
+      "label": "Stop a run after",
+      "unit": "minutes",
+      "order": 3,
+      "switch": {
+        "unset": true
+      }
+    },
+    {
+      "key": "max_workers",
+      "type": "integer",
+      "description": "the most mutants tested at once, at least 1",
+      "example": "sensors.mutation.max_workers 4",
+      "minimum": 1,
+      "default_text": "half the machine's cores, fewer if free memory is short",
+      "label": "Workers",
+      "order": 4
+    },
+    {
+      "key": "timeout_factor",
+      "type": "number",
+      "description": "how many times a mutant may run longer than the unmutated suite before it counts as timed out, above 0; default 10",
+      "example": "sensors.mutation.timeout_factor 5",
+      "exclusiveMinimum": 0,
+      "default": 10,
+      "label": "Timeout",
+      "unit": "x the unmutated suite",
+      "order": 2
+    },
+    {
+      "key": "incremental",
+      "type": "boolean",
+      "description": "whether a run measures only what changed since the last record; default true",
+      "example": "sensors.mutation.incremental false",
+      "default": true,
+      "label": "Only what changed",
+      "order": 1
+    },
+    {
+      "key": "record",
+      "type": "path",
+      "description": "where the sensor keeps what it has measured, relative to the repository; default .recognizer/cache/mutation/record.json",
+      "example": "sensors.mutation.record .recognizer/cache/mutation/record.json"
+    },
+    {
+      "key": "survivors",
+      "type": "path",
+      "description": "where the sensor writes the mutants that survived, relative to the repository; default .recognizer/cache/mutation/survivors.json",
+      "example": "sensors.mutation.survivors .recognizer/cache/mutation/survivors.json"
+    },
+    {
+      "key": "overlay",
+      "type": "path",
+      "retired": "the sensor reports its results to Recognizer, which writes the record itself, so this setting has no effect",
+      "description": "where the sensor writes its overlay, relative to the repository; default .recognizer/cache/overlays/mutation.json",
+      "example": "sensors.mutation.overlay .recognizer/cache/overlays/mutation.json"
+    }
+  ],
+  "metrics": [
+    {
+      "name": "killed",
+      "label": "kill",
+      "title": "Killed mutants",
+      "help": "How many mutated copies of the function the tests caught.",
+      "type": "count",
+      "granularity": "member",
+      "bad": "low"
+    },
+    {
+      "name": "survived",
+      "label": "surv",
+      "title": "Survived mutants",
+      "help": "How many mutated copies of the function the tests let through.",
+      "type": "count",
+      "granularity": "member",
+      "bad": "high"
+    },
+    {
+      "name": "uncovered",
+      "label": "unc",
+      "title": "Uncovered mutants",
+      "help": "How many possible mutations fall on lines no test runs.",
+      "type": "count",
+      "granularity": "member",
+      "bad": "high"
+    },
+    {
+      "name": "score",
+      "label": "mut",
+      "title": "Mutation score",
+      "help": "The share of mutated copies of the function the tests caught.",
+      "type": "ratio",
+      "granularity": "member",
+      "bad": "low"
+    }
+  ],
+  "findings": [
+    {
+      "kind": "mutation",
+      "group": {
+        "name": "Mutations",
+        "means": "Recognizer changed this function's code and no test failed, so the tests do not pin its behaviour.",
+        "todo": "Add a test that fails when this function's behaviour changes."
+      },
+      "help": "One finding per function with at least one surviving mutation.",
+      "sentence": {
+        "requires": [
+          "evidence.members.0.name",
+          "evidence.members.0.module",
+          "evidence.measures.survived"
+        ],
+        "parts": [
+          [
+            {
+              "text": "{evidence.members.0.name} in {evidence.members.0.module|short} has {evidence.measures.survived|num} surviving {evidence.measures.survived|plural:mutation:mutations}"
+            }
+          ],
+          [
+            {
+              "text": "."
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "principles": [
+    {
+      "id": "mutation-testing",
+      "name": "Mutation testing",
+      "citation": {
+        "author": "Richard A. DeMillo, Richard J. Lipton and Frederick G. Sayward",
+        "work": "Hints on Test Data Selection: Help for the Practicing Programmer, Computer",
+        "year": 1978,
+        "edition": "second"
+      }
+    }
+  ],
+  "runs_tests": true,
+  "suite_keys": {
+    "section": {
+      "key": "tests.<name>",
+      "shape": "list-entry",
+      "identity": "name",
+      "description": "one test suite the coverage and mutation sensors run, found by its name; its first key creates it",
+      "example": "tests.unit.command \"pytest\""
+    },
+    "keys": [
+      {
+        "key": "tests.<name>.language",
+        "type": "enum",
+        "description": "the language of the suite, which decides how its coverage report is read",
+        "example": "tests.unit.language python",
+        "values": [
+          "python",
+          "typescript",
+          "kotlin",
+          "rust",
+          "csharp"
+        ],
+        "label": "Language"
+      },
+      {
+        "key": "tests.<name>.directory",
+        "type": "path",
+        "description": "the folder the suite runs from, relative to the repository",
+        "example": "tests.unit.directory .",
+        "label": "Directory"
+      },
+      {
+        "key": "tests.<name>.command",
+        "type": "string",
+        "description": "the command that runs the suite and writes its coverage report, run in the user's login shell",
+        "example": "tests.unit.command \"pytest --cov=src --cov-report=lcov:.recognizer/cache/coverage/unit/lcov.info\"",
+        "label": "Command"
+      },
+      {
+        "key": "tests.<name>.activate",
+        "type": "string",
+        "description": "a line that makes the suite's tools available in a fresh login shell, such as a virtual environment or a Node version manager",
+        "example": "tests.unit.activate \"source .venv/bin/activate\"",
+        "label": "Activate"
+      },
+      {
+        "key": "tests.<name>.runner",
+        "type": "enum",
+        "description": "the test runner of a typescript suite; no other language takes one",
+        "example": "tests.web.runner vitest",
+        "values": [
+          "vitest",
+          "jest"
+        ],
+        "label": "Runner"
+      },
+      {
+        "key": "tests.<name>.env.<variable>",
+        "type": "string",
+        "description": "one environment variable the suite runs with",
+        "example": "tests.unit.env.PYTHONPATH src",
+        "label": "Environment variable"
+      },
+      {
+        "key": "tests.<name>.coverage.path",
+        "type": "path",
+        "description": "the coverage report the suite writes, relative to the suite's directory, except a path starting .recognizer/cache/coverage/, which is relative to the repository root; * matches a folder or file name",
+        "example": "tests.unit.coverage.path .recognizer/cache/coverage/unit/lcov.info",
+        "label": "Coverage report"
+      },
+      {
+        "key": "tests.<name>.coverage.format",
+        "type": "enum",
+        "description": "the format of the coverage report the suite writes",
+        "example": "tests.unit.coverage.format lcov",
+        "values": [
+          "lcov",
+          "jacoco"
+        ],
+        "label": "Coverage format"
+      }
+    ]
+  },
+  "placeholders": {
+    "name": {
+      "pattern": "^.+$",
+      "description": "the name of a test suite"
+    },
+    "variable": {
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "description": "the name of an environment variable a suite's command runs with"
+    }
+  },
+  "scoped": true,
+  "planned_work": {
+    "verb": "mutate"
+  },
+  "log_path": ".recognizer/cache/coverage/last-run.log"
+}

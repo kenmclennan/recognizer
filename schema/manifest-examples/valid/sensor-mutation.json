@@ -151,6 +151,17 @@
       }
     }
   ],
+  "principles": [
+    {
+      "id": "mutation-testing",
+      "name": "Mutation testing",
+      "citation": {
+        "author": "Richard A. DeMillo, Richard J. Lipton and Frederick G. Sayward",
+        "work": "Hints on Test Data Selection: Help for the Practicing Programmer, Computer",
+        "year": 1978
+      }
+    }
+  ],
   "runs_tests": true,
   "suite_keys": {
     "section": {
