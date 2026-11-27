@@ -50,4 +50,4 @@ export interface SensorFindings {
   readonly diagnosis?: Diagnosis;
 }
 
-export type SensorFindingsHeader = Omit<SensorFindings, "findings">;
+export type SensorFindingsHeader = Omit<SensorFindings, "findings" | "suites">;

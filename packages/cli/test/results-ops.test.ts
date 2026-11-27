@@ -115,14 +115,11 @@ describe("results.read answers each plugin's suite standings", () => {
       sensors: ["crap", "mutation"],
     });
 
-    write(
-      root,
-      repository,
-      "crap",
-      realText(
-        join(REPO, "schema", "findings-examples", "valid", "suites.json"),
-      ),
+    const crapText = realText(
+      join(REPO, "schema", "findings-examples", "valid", "suites.json"),
     );
+
+    write(root, repository, "crap", crapText);
     write(
       root,
       repository,
@@ -134,10 +131,14 @@ describe("results.read answers each plugin's suite standings", () => {
 
     const plugins = (await root.call("results.read", { repository })).ok
       .plugins;
-    const document = plugins.crap.findings as SensorFindingsHeader;
+    const header = plugins.crap.findings as SensorFindingsHeader;
+    const stored = readFindingsText(crapText, "crap");
 
-    expect(document.suites?.length).toBeGreaterThan(0);
-    expect(plugins.crap.suites).toEqual(suiteStandings(document.suites));
+    expect(stored.suites?.length).toBeGreaterThan(0);
+    expect(plugins.crap.suites).toEqual(suiteStandings(stored.suites));
+    expect(Object.hasOwn(header, "suites")).toBe(false);
+    expect(header.sensor).toEqual(stored.sensor);
+    expect(header.commit).toBe(stored.commit);
     expect(plugins.mutation.findings).not.toBeNull();
     expect(plugins.mutation.suites).toBeNull();
     await root.close();

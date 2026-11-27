@@ -185,7 +185,7 @@ export function fakeSensors(
         try {
           const document = readFindingsText(text, name);
 
-          const { findings: _records, ...header } = document;
+          const { findings: _records, suites: _suites, ...header } = document;
           const split = splitDocument(
             fake.structure ?? Repository.empty,
             document,
