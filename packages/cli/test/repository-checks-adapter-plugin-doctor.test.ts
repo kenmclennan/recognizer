@@ -1,19 +1,24 @@
 import {
   buildReport as build,
+  type CachedScansState,
   type InstalledPlugin,
   type Manifest,
   type PluginFact,
   type PluginSpec,
+  type PolicyParse,
+  type PublishedValues,
+  type RepositoryChecks,
+  readConfigArea,
+  readPolicyArea,
   scannerProblems as scannerProblemsOf,
   settingProblems,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import {
-  type Context,
-  readConfigArea,
-  readPolicyArea,
-} from "../src/adapters/plugins/repository-checks-adapter.js";
+import { parse } from "yaml";
+import { parsePolicy } from "../src/adapters/filesystem/policy-translator.js";
+import { schemaMessages } from "../src/config-parse.js";
 import { reportJson, reportText } from "../src/doctor.js";
+import { InputError } from "../src/errors.js";
 import { documentValidators } from "../src/manifest-ports.js";
 import { manifestFor } from "./plugin-path.js";
 
@@ -23,14 +28,79 @@ type DoctorFacts = Context & {
   plugins(specs: PluginSpec[]): PluginFact[];
 };
 
+interface Context {
+  repository: string;
+  named: boolean;
+  configText: string | null;
+  policyText: string | null;
+  languages: string[];
+  scans(): CachedScansState;
+}
+
+function repositoryChecksOf(
+  given: Context,
+  keys: PublishedValues,
+): RepositoryChecks {
+  return {
+    isDirectory: () => true,
+    languages: () => given.languages,
+    configDocument: () =>
+      given.configText === null
+        ? { kind: "absent" }
+        : { kind: "parsed", document: parse(given.configText) ?? {} },
+    configSchemaMessages: (document) => schemaMessages(document),
+    publishedKeys: () => keys,
+    policyFacts: () => {
+      if (given.policyText === null) {
+        return { kind: "absent" };
+      }
+
+      const text = given.policyText;
+      const document: unknown = parse(text);
+
+      return {
+        kind: "read",
+        keys:
+          typeof document === "object" && document !== null
+            ? Object.keys(document)
+            : [],
+        parsed: parsedPolicy(text),
+      };
+    },
+    scansState: () => given.scans(),
+    registeredSensors: () => [],
+    suites: () => undefined,
+  };
+}
+
+function parsedPolicy(text: string): PolicyParse {
+  try {
+    return { ok: true, rules: parsePolicy(text) };
+  } catch (error) {
+    return {
+      ok: false,
+      messages:
+        error instanceof InputError
+          ? error.messages
+          : [(error as Error).message],
+    };
+  }
+}
+
 function buildReport(given: DoctorFacts) {
-  const config = readConfigArea(given, () => []);
+  const repository = repositoryChecksOf(given, []);
+  const config = readConfigArea(repository, given.repository, given.named);
 
   return build({
     repository: given.repository,
     configProblems: config.problems,
     registered: config.registered,
-    policyProblems: readPolicyArea(given),
+    policyProblems: readPolicyArea(
+      repository,
+      given.repository,
+      given.named,
+      given.languages,
+    ),
     languages: given.languages,
     scanners: given.scanners,
     plugins: given.plugins,

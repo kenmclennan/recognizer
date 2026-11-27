@@ -23,7 +23,9 @@ import {
 } from "./installed-sensors.js";
 import type { PluginPorts } from "./internal/plugin-ports.js";
 import { NO_RUN_LINE, probeDescriberCheck } from "./probe-describer-check.js";
+import { readConfigArea } from "./read-config-area.js";
 import { readManifest, readManifestCommand } from "./read-manifest.js";
+import { readPolicyArea } from "./read-policy-area.js";
 
 type DiagnosePorts = Pick<
   PluginPorts,
@@ -220,12 +222,12 @@ export function diagnose(
 
   const scanners = discoverPlugins(ports, ["scanner"]).plugins;
   const languages = ports.repository.languages(root, scanners);
-  const config = ports.repository.config(root, named);
+  const config = readConfigArea(ports.repository, root, named);
   const facts: DoctorFacts = {
     repository: root,
     configProblems: config.problems,
     registered: config.registered,
-    policyProblems: ports.repository.policy(root, named, languages),
+    policyProblems: readPolicyArea(ports.repository, root, named, languages),
     languages,
     scanners,
     plugins: (specs) => {

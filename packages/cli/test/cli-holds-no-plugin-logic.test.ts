@@ -183,6 +183,20 @@ describe("the CLI holds no plugin logic", () => {
     expect(forbidden.test("  commitGaps(input: X): Gap[] {")).toBe(true);
   });
 
+  it("keeps the repository checks adapter to fact gathering", () => {
+    const forbidden =
+      /\b(retiredKeysIn|withoutRetiredKeys|emptySections|withoutEmptySections|duplicateSuites|retiredSettings|unpublishedValues|manifestFix|kindOfProgram|policyProblems|SetupProblem)\b|code: "/;
+    const text = readFileSync(
+      join(SRC, "adapters/plugins/repository-checks-adapter.ts"),
+      "utf8",
+    );
+
+    expect(forbidden.test(text)).toBe(false);
+    expect(forbidden.test("const found = emptySections(document);")).toBe(true);
+    expect(forbidden.test('  code: "config-yaml",')).toBe(true);
+    expect(forbidden.test("return this.io.exists(file);")).toBe(false);
+  });
+
   it("keeps the describer adapter and the preflight module free of gap decisions", () => {
     const forbidden =
       /\b(commitGaps|programGaps|readinessGaps|describerGaps|installFix|sensorProgramGaps)\b/;

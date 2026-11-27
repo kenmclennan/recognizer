@@ -1,7 +1,17 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  type CachedScansState,
+  type PolicyParse,
+  type PublishedValues,
+  type RepositoryChecks,
+  readConfigArea,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
-import { readConfigArea } from "../src/adapters/plugins/repository-checks-adapter.js";
+import { parse } from "yaml";
+import { parsePolicy } from "../src/adapters/filesystem/policy-translator.js";
+import { schemaMessages } from "../src/config-parse.js";
+import { InputError } from "../src/errors.js";
 import { REPO } from "./helpers.js";
 
 const KEYS = [
@@ -13,20 +23,80 @@ const KEYS = [
 const example = (name: string) =>
   readFileSync(join(REPO, "schema/config-examples/unpublished", name), "utf8");
 
-function problemsOf(
-  configText: string,
-  keys: { key: string; values: string[] }[],
-) {
-  return readConfigArea(
-    {
-      repository: "/repo",
-      named: false,
-      configText,
-      policyText: null,
-      languages: [],
-      scans: () => ({ state: "missing" }),
+interface Context {
+  repository: string;
+  named: boolean;
+  configText: string | null;
+  policyText: string | null;
+  languages: string[];
+  scans(): CachedScansState;
+}
+
+function repositoryChecksOf(
+  given: Context,
+  keys: PublishedValues,
+): RepositoryChecks {
+  return {
+    isDirectory: () => true,
+    languages: () => given.languages,
+    configDocument: () =>
+      given.configText === null
+        ? { kind: "absent" }
+        : { kind: "parsed", document: parse(given.configText) ?? {} },
+    configSchemaMessages: (document) => schemaMessages(document),
+    publishedKeys: () => keys,
+    policyFacts: () => {
+      if (given.policyText === null) {
+        return { kind: "absent" };
+      }
+
+      const text = given.policyText;
+      const document: unknown = parse(text);
+
+      return {
+        kind: "read",
+        keys:
+          typeof document === "object" && document !== null
+            ? Object.keys(document)
+            : [],
+        parsed: parsedPolicy(text),
+      };
     },
-    () => keys,
+    scansState: () => given.scans(),
+    registeredSensors: () => [],
+    suites: () => undefined,
+  };
+}
+
+function parsedPolicy(text: string): PolicyParse {
+  try {
+    return { ok: true, rules: parsePolicy(text) };
+  } catch (error) {
+    return {
+      ok: false,
+      messages:
+        error instanceof InputError
+          ? error.messages
+          : [(error as Error).message],
+    };
+  }
+}
+
+function problemsOf(configText: string, keys: PublishedValues) {
+  return readConfigArea(
+    repositoryChecksOf(
+      {
+        repository: "/repo",
+        named: false,
+        configText,
+        policyText: null,
+        languages: [],
+        scans: () => ({ state: "missing" }),
+      },
+      keys,
+    ),
+    "/repo",
+    false,
   ).problems;
 }
 
@@ -76,17 +146,10 @@ describe("a set key its published schema marks retired", () => {
   ];
 
   it("is reported with its key, the reason and the command that removes it", () => {
-    const problems = readConfigArea(
-      {
-        repository: "/repo",
-        named: false,
-        configText: "sensors:\n  crap:\n    overlay: x.json\n",
-        policyText: null,
-        languages: [],
-        scans: () => ({ state: "missing" }),
-      },
-      () => keys,
-    ).problems.filter((problem) => problem.code === "config-retired");
+    const problems = problemsOf(
+      "sensors:\n  crap:\n    overlay: x.json\n",
+      keys,
+    ).filter((problem) => problem.code === "config-retired");
 
     expect(problems).toEqual([
       {
@@ -102,17 +165,10 @@ describe("a set key its published schema marks retired", () => {
   });
 
   it("reports nothing when the key is not set", () => {
-    const problems = readConfigArea(
-      {
-        repository: "/repo",
-        named: false,
-        configText: "sensors:\n  crap:\n    threshold: 3\n",
-        policyText: null,
-        languages: [],
-        scans: () => ({ state: "missing" }),
-      },
-      () => keys,
-    ).problems.filter((problem) => problem.code === "config-retired");
+    const problems = problemsOf(
+      "sensors:\n  crap:\n    threshold: 3\n",
+      keys,
+    ).filter((problem) => problem.code === "config-retired");
 
     expect(problems).toEqual([]);
   });
