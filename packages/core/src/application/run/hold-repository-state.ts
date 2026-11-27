@@ -33,7 +33,13 @@ import {
 } from "../../domain/run/sensor-registry.js";
 import type { RunLogRepository } from "../../domain/run-log-repository.js";
 import type { StructureRepository } from "../../domain/structure-repository.js";
-import type { InstalledRead } from "../plugins/installed-sensors.js";
+import {
+  commandKey,
+  type InstalledRead,
+  type InstalledSensorEntry,
+  type RegisteredRead,
+  type RegisteredSensorInput,
+} from "../plugins/installed-sensors.js";
 import type { Clock } from "../shared/ports/clock.js";
 import type { BaselineText, CurrentTests } from "./ports/current-tests.js";
 import { workOutFreshness } from "./work-out-freshness.js";
@@ -42,6 +48,7 @@ export interface HeldCatalog {
   installedNames(): string[];
   unreadableFolders(): string[];
   readInstalled(): InstalledRead;
+  readRegistered(sensors: readonly RegisteredSensorInput[]): RegisteredRead;
 }
 
 export interface RepositoryStateDependencies {
@@ -69,6 +76,28 @@ const UNKNOWN_DIGEST_READS = 5;
 
 function reasonOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function registeredFacts(
+  read: InstalledRead,
+  sensors: readonly RegisteredSensorInput[],
+  registered: RegisteredRead,
+): InstalledRead {
+  const byName = new Map<string, InstalledSensorEntry>();
+
+  for (const one of read.sensors) {
+    byName.set(one.name, one);
+  }
+
+  for (const one of sensors) {
+    const entry = registered.entries[commandKey(one.command)];
+
+    if (entry !== undefined) {
+      byName.set(one.name, { ...entry, name: one.name });
+    }
+  }
+
+  return { ...read, sensors: [...byName.values()] };
 }
 
 function factsOf(read: InstalledRead): InstalledFacts {
@@ -114,6 +143,7 @@ export class RepositoryStateHolder {
   private cursor: ReadCursor | null = null;
   private registry = SensorRegistry.unknown();
   private registered: string[] = [];
+  private registeredInputs: RegisteredSensorInput[] = [];
   private configHash: string | null = null;
   private installed: InstalledFacts | null = null;
   private catalogNames: string | null = null;
@@ -364,6 +394,8 @@ export class RepositoryStateHolder {
           .map(({ name }) => name);
 
         this.registered = [...new Set(names)];
+        this.registeredInputs = this.deps.config.registeredSensors(document);
+        this.catalogNames = null;
         this.configHash = hash;
       } catch (error) {
         this.registry = this.registry.unreadable(
@@ -381,7 +413,14 @@ export class RepositoryStateHolder {
       const names = this.deps.catalog.installedNames().join("\n");
 
       if (this.installed === null || names !== this.catalogNames) {
-        const read = factsOf(this.deps.catalog.readInstalled());
+        const installed = this.deps.catalog.readInstalled();
+        const read = factsOf(
+          registeredFacts(
+            installed,
+            this.registeredInputs,
+            this.deps.catalog.readRegistered(this.registeredInputs),
+          ),
+        );
         const missing = this.registered.filter(
           (name) => !read.readable.has(name) && !read.unreadable.has(name),
         );
