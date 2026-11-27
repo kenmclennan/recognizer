@@ -1,10 +1,21 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
+import type { Program } from "../../../cli/test/support/index";
 import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
-import { installedSensors } from "../fixtures";
+import { untilHolds } from "../app-harness";
+import { appSensor } from "../in-process-root";
+import {
+  digestOf,
+  Gate,
+  heldProgram,
+  type LookScenario,
+  type LookStage,
+  lookRoots,
+  scanProgram,
+} from "../look-root";
 
-const SCAN_COMMIT = "0123456789abcdef0123456789abcdef01234567";
+type Root = Parameters<LookStage["run"]>[0];
 
 const installed = JSON.parse(
   readFileSync(
@@ -12,70 +23,323 @@ const installed = JSON.parse(
     "utf8",
   ),
 );
-const HASH = "1".repeat(64);
-const EDITED = "0".repeat(64);
-const inputsAt = (hash: string) => ({
-  "app/risk.py": hash,
-  "src/other.ts": hash,
-  "lib/none.py": hash,
-});
-const fresh = JSON.stringify({
-  ...installed,
-  commit: SCAN_COMMIT,
-  inputs: inputsAt(HASH),
-});
-const stale = JSON.stringify({
-  ...installed,
-  commit: "ffffffffffffffffffffffffffffffffffffffff",
-  inputs: inputsAt(EDITED),
-});
+const DAY = 86400000;
+const REPORTED = "2026-03-01T12:00:00.000Z";
+const STALE_COMMIT = "f".repeat(40);
 
-const HARNESS = `
-window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { loadedOf, mountExplorer, scanHostOf } from ${JSON.stringify(here("../test/unit/look-support.ts"))};
-import { fakeSensors } from ${JSON.stringify(here("sensors-fake.ts"))};
-import { fakeViews } from ${JSON.stringify(here("../test/unit/views-fake.ts"))};
-${FAKE_WORKER}
+const branches = (from: number, count: number) =>
+  Array.from(
+    { length: count },
+    (_, index) =>
+      `    elif x == ${from + index}:\n        return ${from + index}\n`,
+  ).join("");
+const RISK_TEXT = `def classify(x):\n    if x == 0:\n        return 0\n${branches(1, 6)}    return -1\n`;
+const HEAVY_LINE = RISK_TEXT.split("\n").length + 2;
+const MIXED_TEXT = `${RISK_TEXT}\n\ndef heavy(x):\n    if x == 0:\n        return 0\n${branches(1, 11)}    return -1\n`;
+const OTHER_TEXT = "def pick():\n    return 1\n";
+const NONE_TEXT = "NAME = 1\n";
 
-const ids = ["app/risk.py", "src/other.ts", "lib/none.py"];
-const HASH = ${JSON.stringify(HASH)};
-const INPUTS = ${JSON.stringify(inputsAt(HASH))};
-const scanOf = () => ({
-  commit: ${JSON.stringify(SCAN_COMMIT)},
-  modified: false,
-  files: ids.map((id) => ({ path: id, hash: HASH })),
-  modules: ids.map((id) => ({ id, kind: "module" })),
-  edges: [{ from: ids[0], to: ids[1], kind: "depends", line: 1, names: ["X"] }],
+const IDS = ["app/risk.py", "src/other.py", "lib/none.py"];
+const hashes = (risk: string) => ({
+  [IDS[0] as string]: digestOf(risk),
+  [IDS[1] as string]: digestOf(OTHER_TEXT),
+  [IDS[2] as string]: digestOf(NONE_TEXT),
+});
+const EDITED = Object.fromEntries(IDS.map((id) => [id, "0".repeat(64)]));
+
+const member = (name: string, line: number) => ({
+  name,
+  kind: "function",
+  exported: true,
+  line,
+  params: [],
+  returns: "int",
+});
+const scanOf = (risk: string, riskMembers: ReturnType<typeof member>[]) => ({
+  files: IDS.map((path) => ({ path, hash: hashes(risk)[path] })),
+  modules: [
+    { id: IDS[0], kind: "module", members: riskMembers },
+    { id: IDS[1], kind: "module", members: [member("pick", 1)] },
+    { id: IDS[2], kind: "module", members: [] },
+  ],
+  edges: [{ from: IDS[0], to: IDS[1], kind: "depends", line: 1, names: ["X"] }],
   foreign: [],
 });
-const structureOf = (overlay) => {
-  const crap = JSON.parse(overlay);
-  return JSON.stringify({ ...crap, producer: { name: "recognizer", version: "0.1.0" }, metrics: crap.metrics.filter((metric) => metric.name === "complexity"), values: { complexity: crap.values.complexity ?? {} } });
+const SCAN = scanOf(RISK_TEXT, [member("classify", 1)]);
+const MIXED_SCAN = scanOf(MIXED_TEXT, [
+  member("classify", 1),
+  member("heavy", HEAVY_LINE),
+]);
+
+const crapOverlay =
+  (
+    values: Record<string, Record<string, number>>,
+    inputs: Record<string, string>,
+    stale = false,
+    extra: Record<string, unknown>[] = [],
+  ) =>
+  (commit: string) =>
+    JSON.stringify({
+      ...installed,
+      commit: stale ? STALE_COMMIT : commit,
+      inputs,
+      producer: { name: "crap", version: "0.1.72" },
+      metrics: [...installed.metrics, ...extra],
+      values,
+    });
+const RISK_VALUES = {
+  complexity: { "app/risk.py::classify": 8 },
+  coverage: { "app/risk.py::classify": 0.1818 },
+  crap: { "app/risk.py::classify": 40 },
 };
-const loadedFor = (overlay) => loadedOf({
-  modules: ids,
-  scans: [{ file: "scan.json", scan: scanOf() }],
-  overlays: overlay === null ? [] : [{ name: "crap", overlay: JSON.parse(overlay) }, { name: "structure", overlay: JSON.parse(structureOf(overlay)) }],
-  sensors: overlay === null ? [] : [{ name: "crap", status: "ran", measured: { inputs: JSON.parse(overlay).inputs } }, { name: "structure", status: "ran", commit: JSON.parse(overlay).commit, modified: false }],
+const MIXED_VALUES = {
+  complexity: { "app/risk.py::classify": 8, "app/risk.py::heavy": 12 },
+  coverage: { "app/risk.py::classify": 0.1, "app/risk.py::heavy": 0.5 },
+  crap: { "app/risk.py::classify": 40, "app/risk.py::heavy": 30 },
+};
+const LONG_VALUES = {
+  ...RISK_VALUES,
+  "a-very-long-metric": { "app/risk.py::classify": 3 },
+};
+const mutationOverlay = (inputs: Record<string, string>) => (commit: string) =>
+  JSON.stringify({
+    overlay_version: 1,
+    inputs,
+    commit,
+    modified: false,
+    producer: { name: "mutation", version: "0.1.0" },
+    metrics: ["killed", "survived", "uncovered", "score"].map((name) => ({
+      name,
+      type: "count",
+      granularity: "member",
+      bad: name === "killed" || name === "score" ? "low" : "high",
+    })),
+    values: {
+      killed: { "app/risk.py::classify": 2 },
+      survived: { "app/risk.py::classify": 3 },
+      uncovered: {},
+      score: {},
+    },
+  });
+const findingsOf =
+  (
+    name: string,
+    inputs: Record<string, string>,
+    stale = false,
+    extra: Record<string, unknown> = {},
+  ) =>
+  (commit: string) =>
+    JSON.stringify({
+      findings_version: 2,
+      sensor: { name, version: "0.1.72" },
+      commit: stale ? STALE_COMMIT : commit,
+      modified: false,
+      settings: {},
+      inputs,
+      findings: [],
+      reported_at: REPORTED,
+      ...extra,
+    });
+
+const overlayFile = (name: string) => `.recognizer/cache/overlays/${name}.json`;
+const findingsFile = (name: string) =>
+  `.recognizer/cache/findings/${name}.json`;
+const CURRENT = hashes(RISK_TEXT);
+const MIXED = hashes(MIXED_TEXT);
+
+const crapFiles = (
+  values: Record<string, Record<string, number>>,
+  inputs: Record<string, string>,
+  stale = false,
+  extra: Record<string, unknown>[] = [],
+) => ({
+  [overlayFile("crap")]: crapOverlay(values, inputs, stale, extra),
+  [findingsFile("crap")]: findingsOf("crap", inputs, stale),
+});
+const mutationFiles = (measured: number) => ({
+  [overlayFile("mutation")]: mutationOverlay(CURRENT),
+  [findingsFile("mutation")]: findingsOf("mutation", CURRENT, false, {
+    stopped: { measured, total: 1545 },
+    partial: { measured, total: 1545 },
+  }),
 });
 
-const INSTALLED = ${JSON.stringify(
-  installedSensors()
-    .filter((sensor) => sensor.metrics.length > 0)
-    .map((sensor) => ({ ...sensor, findings: [] })),
-)};
-const DAY = 86400000;
-const crapOverlay = (commit, inputs = INPUTS) => JSON.stringify({ overlay_version: 1, commit, inputs, modified: false, producer: { name: "crap", version: "0.1.72" }, metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }, { name: "coverage", type: "ratio", granularity: "member", bad: "low" }, { name: "crap", type: "number", granularity: "member", bad: "high" }], values: { complexity: { "app/risk.py::classify": 8 }, coverage: { "app/risk.py::classify": 0.18 }, crap: { "app/risk.py::classify": 40 } } });
-const mutationOverlay = () => JSON.stringify({ overlay_version: 1, inputs: INPUTS, commit: ${JSON.stringify(SCAN_COMMIT)}, modified: false, producer: { name: "mutation", version: "0.1.0" }, metrics: ["killed", "survived", "uncovered", "score"].map((name) => ({ name, type: "count", granularity: "member", bad: name === "killed" || name === "score" ? "low" : "high" })), values: { killed: { "app/risk.py::classify": 2 }, survived: { "app/risk.py::classify": 3 }, uncovered: {}, score: {} } });
-const status = (name, over) => ({ name, status: "ran", commit: ${JSON.stringify(SCAN_COMMIT)}, findings: 0, measured: { inputs: INPUTS }, ...over });
+const withCrapMetric =
+  (program: Program): Program =>
+  (call) => {
+    const result = program(call);
+
+    if (call.args[0] !== "manifest") {
+      return result;
+    }
+
+    const manifest = JSON.parse((result as { stdout: string }).stdout);
+
+    manifest.metrics.push({
+      name: "a-very-long-metric",
+      type: "count",
+      granularity: "member",
+      bad: "high",
+    });
+
+    return { ...(result as object), stdout: JSON.stringify(manifest) } as never;
+  };
+
+const SENSORS =
+  "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n  mutation:\n    manifest: [recognizer-sense-mutation, manifest]\n";
+
+const made = (
+  files: LookScenario["files"] = {},
+  rest: Partial<LookScenario> = {},
+  risk = RISK_TEXT,
+  scan: Record<string, unknown> = SCAN,
+): LookScenario => ({
+  files: {
+    "app/risk.py": risk,
+    "src/other.py": OTHER_TEXT,
+    "lib/none.py": NONE_TEXT,
+    ...files,
+  },
+  programs: {
+    "recognizer-scan-typescript": scanProgram(scan, ["python"]),
+    ...rest.programs,
+  },
+  ...Object.fromEntries(
+    Object.entries(rest).filter(([key]) => key !== "programs"),
+  ),
+});
+
+const pluginsOf = (root: Root): { name: string; state: string }[] => {
+  const states = (root.lines as Record<string, unknown>[]).filter(
+    (line) => typeof line.state === "object" && line.state !== null,
+  );
+  const run = (
+    states[states.length - 1]?.state as
+      | { run?: { plugins?: { name: string; state: string }[] } | null }
+      | undefined
+  )?.run;
+
+  return run?.plugins ?? [];
+};
+
+const untilCrapRunning = async (root: Root) => {
+  const host = await untilHolds(root.service, () => root.view.explorer()?.host);
+
+  host.run(null);
+
+  for (let round = 0; round < 600; round += 1) {
+    if (
+      pluginsOf(root).some(
+        (one) => one.name === "crap" && one.state === "running",
+      )
+    ) {
+      return;
+    }
+
+    await root.service.signal(1000);
+  }
+
+  throw new Error("crap never reached running");
+};
+
+const crapGate = new Gate();
+
+const SCENARIOS = (): Record<string, LookScenario> => {
+  crapGate.hold();
+
+  return {
+    current: made(crapFiles(RISK_VALUES, CURRENT)),
+    stale: made(crapFiles(RISK_VALUES, EDITED, true)),
+    partial: made(mutationFiles(245)),
+    stoppedNothing: made(mutationFiles(0)),
+    neverRun: made(
+      {},
+      {
+        config: `sensors:\n  structure: off\n${SENSORS.replace("sensors:\n", "")}`,
+      },
+    ),
+    running: made(crapFiles(RISK_VALUES, CURRENT), {
+      ticks: { describe: false, analysis: false, ticked: ["crap"] },
+      programs: {
+        "recognizer-sense-crap": heldProgram(
+          appSensor("crap", false, false, () => ""),
+          crapGate,
+        ),
+      },
+      stages: [
+        { name: "idle", run: async () => {} },
+        { name: "running", run: untilCrapRunning },
+      ],
+    }),
+    long: made(
+      crapFiles(LONG_VALUES, CURRENT, false, [
+        {
+          name: "a-very-long-metric",
+          type: "count",
+          granularity: "member",
+          bad: "high",
+        },
+      ]),
+      {
+        programs: {
+          "recognizer-sense-crap": withCrapMetric(
+            appSensor("crap", false, false, () => ""),
+          ),
+        },
+      },
+    ),
+    mixed: made(crapFiles(MIXED_VALUES, MIXED), {}, MIXED_TEXT, MIXED_SCAN),
+  };
+};
+
+const AGES = {
+  partial: 5 * 60000,
+  stoppedNothing: 5 * 60000,
+};
+
+const HARNESS = (recordings: unknown) => `
+window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
+import { drawRecording } from ${JSON.stringify(here("../test/look-draw.ts"))};
+import { pageAnswers } from ${JSON.stringify(here("../test/look-answers.ts"))};
+${FAKE_WORKER}
+
+const recordings = ${JSON.stringify(recordings)};
+const AGES = ${JSON.stringify(AGES)};
+const REPORTED = ${JSON.stringify(REPORTED)};
+const DAY = ${DAY};
+const clock = { offset: 0 };
+const realNow = Date.now.bind(Date);
+Date.now = () => realNow() + clock.offset;
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
-const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+const click = (node) => { if (!node) throw new Error("click on nothing"); return node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })); };
 const host = document.getElementById("content");
+const footerElement = document.getElementById("footer");
 const q = (selector) => host.querySelector(selector);
 const qa = (selector) => [...host.querySelectorAll(selector)];
-const port = fakeViews({});
 const facts = {};
+const commitOf = (name) => recordings[name].loaded.scans[0].document.commit;
+
+async function draw(name, options = {}) {
+  host.replaceChildren();
+  footerElement.replaceChildren();
+  clock.offset = Date.parse(REPORTED) + (AGES[name] ?? 2 * DAY) - realNow();
+  const recording = recordings[name];
+  const drawn = await drawRecording(host, recording, {
+    answer: pageAnswers(recording, options.page ?? {}),
+    ...(options.until === undefined ? {} : { until: options.until }),
+    ...(options.carried === undefined ? {} : { carried: options.carried }),
+  });
+  await tick();
+  return drawn;
+}
+
+async function expandAll() {
+  for (const folder of ["app", "src", "lib"]) {
+    click(q('.tree .row[data-path="' + folder + '"] .reye'));
+    await tick();
+  }
+}
 
 const boxOf = (id) => q('.box[data-id="' + id + '"]');
 const discs = () => qa(".box .disc-fill").map((d) => d.getAttribute("class"));
@@ -113,24 +377,63 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   anchor: bar.querySelector(".metric-value").getAttribute("text-anchor"),
 }));
 
-(async () => {
-  const crapHost = () => scanHostOf({ port: fakeSensors({}, {}, {}, INSTALLED.filter((one) => one.name === "crap").map((one) => ({ ...one, display: "crap" }))) });
-  const mount = (overlay, carried) => mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", views: port, post: () => null, carried, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, overlay === null ? [] : INSTALLED.filter((one) => one.name === "crap").map((one) => ({ ...one, display: "crap" }))) }) });
-  let explorer = mount(${JSON.stringify(fresh)}, null);
+const stateOf = async (name, until) => {
+  await draw(name, until === undefined ? {} : { until });
+  await expandAll();
+  click(q(".metrics-toggle"));
   await tick();
-  for (const folder of ["app", "src", "lib"]) {
-    click(q('.tree .row[data-path="' + folder + '"] .reye'));
+  const groups = qa(".canvas-metrics h4");
+  const before = qa(".metric-bar").length;
+  click(q('.metric-row[data-metric="mutation/survived"]') ?? q(".metric-row"));
+  await tick();
+  return {
+    headers: groups.map((g) => ({ title: g.querySelector(".metric-group-title").textContent, age: g.querySelector(".metric-group-age").textContent, tooltip: g.title })),
+    notes: qa(".metric-note").map((n) => ({ text: n.textContent, cls: n.className })),
+    rows: qa(".metric-row").map((r) => ({ key: r.dataset.metric, text: r.textContent, disabled: r.classList.contains("disabled"), aria: r.querySelector("[aria-disabled]") !== null })),
+    chips: qa(".metric-chip").length,
+    perMember: q(".canvas-metrics").textContent.includes("per member"),
+    clickAdded: qa(".metric-bar").length - before,
+  };
+};
+
+const sourcesOf = async (name, keys) => {
+  await draw(name);
+  await expandAll();
+  click(q(".metrics-toggle"));
+  await tick();
+  for (const key of keys) {
+    click(q('.metric-row[data-metric="' + key + '"]'));
     await tick();
   }
+  const line = boxOf("app/risk.py").querySelector(".metric-sources");
+  const body = boxOf("app/risk.py").querySelector(".box-body");
+  const bars = [...boxOf("app/risk.py").querySelectorAll(".metric-track")].map((t) => Number(t.getAttribute("y")) + Number(t.getAttribute("height")));
+  const icon = line ? line.querySelector("svg") : null;
+  const text = line ? line.querySelector(".metric-sources-text") : null;
+  return {
+    present: line !== null,
+    text: text ? text.textContent : null,
+    title: line ? line.querySelector("title").textContent : null,
+    iconSize: icon ? [Number(icon.getAttribute("width")), Number(icon.getAttribute("height"))] : null,
+    textY: text ? Number(text.getAttribute("y")) : null,
+    lastBarBottom: Math.max(...bars),
+    boxBottom: Number(body.getAttribute("y")) + Number(body.getAttribute("height")),
+  };
+};
+
+(async () => {
+  let drawn = await draw("current");
+  await expandAll();
 
   facts.controls = qa(".controls .control").map((b) => b.textContent);
   facts.discsBefore = discs();
+  if (facts.discsBefore.length === 0) throw new Error("no discs drawn at the first read");
   facts.heightBefore = heightOf("app/risk.py");
 
   click(q(".metrics-toggle"));
   await tick();
   facts.heading = q(".canvas-metrics h4 .metric-group-title").textContent;
-  facts.rows = qa(".metric-row").map((r) => ({ key: r.dataset.metric, text: r.textContent }));
+  facts.rows = qa(".metric-row").map((r) => ({ key: r.dataset.metric, text: r.textContent })).filter((r) => ["structure/complexity", "crap/coverage", "crap/crap"].includes(r.key));
 
   click(q('.metric-row[data-metric="structure/complexity"]'));
   await tick();
@@ -140,9 +443,9 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   facts.rowCount = qa(".metric-row").length;
   facts.heightTwo = heightOf("app/risk.py");
   facts.risk = barsOf("app/risk.py");
-  facts.other = barsOf("src/other.ts");
+  facts.other = barsOf("src/other.py");
   facts.none = barsOf("lib/none.py");
-  facts.oneShape = shapeOf("src/other.ts");
+  facts.oneShape = shapeOf("src/other.py");
   facts.twoShape = shapeOf("app/risk.py");
   facts.noneShape = shapeOf("lib/none.py");
   facts.plainName = facts.noneShape.nameY;
@@ -156,12 +459,9 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   facts.notePosition = Number(boxOf("app/risk.py").querySelector(".metric-bar rect").getAttribute("y"));
   facts.boxY = Number(boxOf("app/risk.py").querySelector(".box-body").getAttribute("y"));
 
-  const carried = explorer.carry();
+  const carried = drawn.explorer().carry();
   facts.carriedTicks = carried;
-  explorer.dispose();
-  host.replaceChildren();
-  explorer = mount(${JSON.stringify(fresh)}, carried);
-  await tick();
+  drawn = await draw("current", { carried });
   facts.afterRebuild = { bars: barsOf("app/risk.py").length };
 
   click(q(".metrics-toggle"));
@@ -170,148 +470,61 @@ const barsOf = (id) => [...boxOf(id).querySelectorAll(".metric-bar")].map((bar) 
   await tick();
   facts.afterUntick = { bars: barsOf("app/risk.py").length, height: heightOf("app/risk.py") };
 
-  const staleCarried = explorer.carry();
-  explorer.dispose();
-  host.replaceChildren();
-  explorer = mount(${JSON.stringify(stale)}, staleCarried);
+  click(q('.metric-row[data-metric="crap/coverage"]'));
   await tick();
+  click(q('.metric-row[data-metric="structure/complexity"]'));
+  await tick();
+  const staleCarried = drawn.explorer().carry();
+  drawn = await draw("stale", { carried: staleCarried });
   facts.afterStale = { bars: barsOf("app/risk.py").length };
   click(q(".metrics-toggle"));
   await tick();
   facts.afterStaleGroup = {
     header: q(".canvas-metrics h4").textContent,
     notes: qa(".metric-note").map((n) => ({ text: n.textContent, cls: n.className })),
-    disabled: qa(".metric-row.disabled").length,
+    disabled: qa('.metric-row.disabled[data-metric^="crap/"]').length,
     chips: qa(".metric-chip").length,
     perMember: q(".canvas-metrics").textContent.includes("per member"),
   };
-  click(q('.metric-row[data-metric="structure/complexity"]'));
+  click(q('.metric-row[data-metric="crap/coverage"]'));
   await tick();
   facts.staleClick = barsOf("app/risk.py").length;
 
-  const stateOf = async (overlays, sensors, installedList = INSTALLED, hostOver = {}) => {
-    explorer.dispose();
-    host.replaceChildren();
-    explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays, sensors }), title: "demo", views: port, post: () => null, carried: null, scanHost: scanHostOf({ port: fakeSensors({}, {}, {}, installedList), ...hostOver }) });
-    await tick();
-    for (const folder of ["app", "src", "lib"]) {
-      click(q('.tree .row[data-path="' + folder + '"] .reye'));
-      await tick();
-    }
-    click(q(".metrics-toggle"));
-    await tick();
-    const groups = qa(".canvas-metrics h4");
-    const before = qa(".metric-bar").length;
-    click(q('.metric-row[data-metric="mutation/survived"]') ?? q(".metric-row"));
-    await tick();
-    return {
-      headers: groups.map((g) => ({ title: g.querySelector(".metric-group-title").textContent, age: g.querySelector(".metric-group-age").textContent, tooltip: g.title })),
-      notes: qa(".metric-note").map((n) => ({ text: n.textContent, cls: n.className })),
-      rows: qa(".metric-row").map((r) => ({ key: r.dataset.metric, text: r.textContent, disabled: r.classList.contains("disabled"), aria: r.querySelector("[aria-disabled]") !== null })),
-      chips: qa(".metric-chip").length,
-      perMember: q(".canvas-metrics").textContent.includes("per member"),
-      clickAdded: qa(".metric-bar").length - before,
-    };
-  };
-  facts.currentState = await stateOf([{ name: "crap", overlay: JSON.parse(crapOverlay(${JSON.stringify(SCAN_COMMIT)})), modifiedMs: Date.now() - 2 * DAY }], [status("crap")]);
-  facts.outOfDateState = await stateOf([{ name: "crap", overlay: JSON.parse(crapOverlay("ffffffffffffffffffffffffffffffffffffffff", ${JSON.stringify(inputsAt(EDITED))})), modifiedMs: Date.now() - 2 * DAY }], [status("crap", { commit: "ffffffffffffffffffffffffffffffffffffffff", measured: { inputs: ${JSON.stringify(inputsAt(EDITED))} } })]);
-  facts.partialState = await stateOf([{ name: "mutation", overlay: JSON.parse(mutationOverlay()), modifiedMs: Date.now() - 5 * 60000 }], [status("mutation", { stopped: { measured: 245, total: 1545 }, partial: { measured: 245, total: 1545 } })]);
-  facts.stoppedNothingState = await stateOf([{ name: "mutation", overlay: JSON.parse(mutationOverlay()), modifiedMs: Date.now() - 5 * 60000 }], [status("mutation", { stopped: { measured: 0, total: 1545 }, partial: { measured: 0, total: 1545 } })]);
-  facts.neverRunState = await stateOf([], []);
-  facts.runningState = await stateOf([{ name: "crap", overlay: JSON.parse(crapOverlay(${JSON.stringify(SCAN_COMMIT)})), modifiedMs: Date.now() - 2 * DAY }], [status("crap")], INSTALLED, { running: () => true, runState: () => ({ running: ["crap"], started: Date.now(), failures: {}, diagnoses: {}, ranAt: {} }) });
+  facts.scanCommit = commitOf("current").slice(0, 7);
+  facts.currentState = await stateOf("current");
+  facts.outOfDateState = await stateOf("stale");
+  facts.partialState = await stateOf("partial");
+  facts.stoppedNothingState = await stateOf("stoppedNothing");
+  facts.neverRunState = await stateOf("neverRun");
+  facts.runningState = await stateOf("running", "running");
 
-  explorer.dispose();
-  host.replaceChildren();
-  explorer = mount(null, null);
-  await tick();
+  await draw("neverRun");
   click(q(".metrics-toggle"));
   await tick();
   facts.empty = q(".canvas-metrics").textContent;
 
-  explorer.dispose();
-  host.replaceChildren();
-  const longOverlay = JSON.stringify({
-    overlay_version: 1,
-    inputs: INPUTS,
-    commit: ${JSON.stringify(SCAN_COMMIT)},
-    modified: false,
-    producer: { name: "long", version: "0.1.0" },
-    metrics: [{ name: "a-very-long-metric", type: "count", granularity: "member", bad: "high" }],
-    values: { "a-very-long-metric": { "app/risk.py::classify": 3 } },
-  });
-  explorer = mountExplorer({ container: host, loaded: loadedOf({ modules: ids, scans: [{ file: "scan.json", scan: scanOf() }], overlays: [{ name: "crap", overlay: JSON.parse(longOverlay) }], sensors: [status("crap")] }), title: "demo", views: port, post: () => null, carried: null, scanHost: crapHost() });
-  await tick();
-  for (const folder of ["app", "src", "lib"]) {
-    click(q('.tree .row[data-path="' + folder + '"] .reye'));
-    await tick();
-  }
+  await draw("long");
+  await expandAll();
   click(q(".metrics-toggle"));
   await tick();
   click(q('.metric-row[data-metric="crap/a-very-long-metric"]'));
   await tick();
   facts.long = barsOf("app/risk.py");
 
-  const mixedOverlay = JSON.stringify({
-    overlay_version: 1,
-    inputs: INPUTS,
-    commit: ${JSON.stringify(SCAN_COMMIT)},
-    modified: false,
-    producer: { name: "crap", version: "0.1.72" },
-    metrics: [{ name: "complexity", type: "count", granularity: "member", bad: "high" }, { name: "coverage", type: "ratio", granularity: "member", bad: "low" }, { name: "crap", type: "number", granularity: "member", bad: "high" }],
-    values: {
-      complexity: { "app/risk.py::classify": 8, "app/risk.py::heavy": 12 },
-      coverage: { "app/risk.py::classify": 0.1, "app/risk.py::heavy": 0.5 },
-      crap: { "app/risk.py::classify": 40, "app/risk.py::heavy": 30 },
-    },
-  });
-  const sourcesOf = async (overlay, keys) => {
-    explorer.dispose();
-    host.replaceChildren();
-    explorer = mountExplorer({ container: host, loaded: loadedFor(overlay), title: "demo", views: port, post: () => null, carried: null, scanHost: crapHost() });
-    await tick();
-    for (const folder of ["app", "src", "lib"]) {
-      click(q('.tree .row[data-path="' + folder + '"] .reye'));
-      await tick();
-    }
-    click(q(".metrics-toggle"));
-    await tick();
-    for (const key of keys) {
-      click(q('.metric-row[data-metric="' + key + '"]'));
-      await tick();
-    }
-    const line = boxOf("app/risk.py").querySelector(".metric-sources");
-    const body = boxOf("app/risk.py").querySelector(".box-body");
-    const bars = [...boxOf("app/risk.py").querySelectorAll(".metric-track")].map((t) => Number(t.getAttribute("y")) + Number(t.getAttribute("height")));
-    const icon = line ? line.querySelector("svg") : null;
-    const text = line ? line.querySelector(".metric-sources-text") : null;
-    return {
-      present: line !== null,
-      text: text ? text.textContent : null,
-      title: line ? line.querySelector("title").textContent : null,
-      iconSize: icon ? [Number(icon.getAttribute("width")), Number(icon.getAttribute("height"))] : null,
-      textY: text ? Number(text.getAttribute("y")) : null,
-      lastBarBottom: Math.max(...bars),
-      boxBottom: Number(body.getAttribute("y")) + Number(body.getAttribute("height")),
-    };
-  };
-  facts.mixed = await sourcesOf(mixedOverlay, ["structure/complexity", "crap/coverage"]);
-  facts.single = await sourcesOf(${JSON.stringify(fresh)}, ["structure/complexity", "crap/coverage"]);
+  facts.mixed = await sourcesOf("mixed", ["structure/complexity", "crap/coverage"]);
+  facts.single = await sourcesOf("current", ["structure/complexity", "crap/coverage"]);
 
   const viewFile = JSON.stringify({
     schema_version: 4,
     description: "d",
-    commit: ${JSON.stringify(SCAN_COMMIT)},
+    commit: commitOf("current"),
     notes: [
       { module: "app/risk.py", text: "Risk note", by: "Ken" },
       { module: "lib/none.py", text: "None note", by: "Ken" },
     ],
     steps: [{ kind: "pick", module: "app/risk.py" }, { kind: "pick", module: "lib/none.py" }],
   }) + "\\n";
-  explorer.dispose();
-  host.replaceChildren();
-  const notedPort = fakeViews({ order: viewFile });
-  explorer = mountExplorer({ container: host, loaded: loadedFor(${JSON.stringify(fresh)}), title: "demo", views: notedPort, post: () => null, carried: facts.carriedTicks, scanHost: crapHost() });
-  await tick();
+  await draw("current", { page: { views: [{ name: "order", text: viewFile }] }, carried: facts.carriedTicks });
   click(q(".view-list"));
   click(qa(".view-item")[0]);
   await tick();
@@ -329,8 +542,20 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
   let f = null as unknown as Facts;
 
   beforeAll(async () => {
-    f = await collectFacts<Facts>(HARNESS, "metrics-look");
-  }, scaledTimeout(180000));
+    try {
+      const named = await lookRoots(SCENARIOS());
+      const recordings = Object.fromEntries(
+        Object.entries(named).map(([name, { produced: _, ...one }]) => [
+          name,
+          one,
+        ]),
+      );
+
+      f = await collectFacts<Facts>(HARNESS(recordings), "metrics-look");
+    } finally {
+      crapGate.open();
+    }
+  }, scaledTimeout(300000));
 
   it("puts Metrics before Legend and lists the metrics under the overlay's heading", () => {
     expect(f.controls.slice(-2)).toEqual(["Metrics", "Legend"]);
@@ -435,7 +660,7 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
   it("clips a label with no short name so it ends before the track", () => {
     const [bar] = f.long;
 
-    expect(bar.label).toBe("a-v\u2026");
+    expect(bar.label).toBe("a-v…");
     expect(bar.title).toBe("a-very-long-metric 3, worst: classify");
     expect(bar.labelRight).toBeLessThanOrEqual(bar.trackX);
   });
@@ -486,7 +711,7 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
     );
 
     expect(crap.age).toBe("measured 2 days ago");
-    expect(crap.tooltip).toContain("crap 0.1.72 - at 0123456");
+    expect(crap.tooltip).toContain(`crap 0.1.72 - at ${f.scanCommit}`);
     expect(
       state.notes.filter((n: { text: string }) =>
         n.text.startsWith("Out of date"),
@@ -535,7 +760,7 @@ describe.skipIf(webkit === undefined)("metric bars on the canvas", () => {
     expect(f.afterStaleGroup.notes[0].cls).toBe("metric-note warn");
     expect(f.afterStale).toEqual({ bars: 0 });
     expect(f.staleClick).toBe(0);
-    expect(f.afterStaleGroup.disabled).toBe(3);
+    expect(f.afterStaleGroup.disabled).toBe(2);
     expect(f.afterStaleGroup.chips).toBe(0);
   });
 

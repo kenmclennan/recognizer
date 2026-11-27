@@ -5083,7 +5083,7 @@ export function showExplorer(
         findingRows: (id) =>
           drawn.has(id)
             ? []
-            : allFindings.filter((one) => one.record.touches(id)),
+            : allFindings.filter((one) => one.record.files.includes(id)),
         onCanvas: modules.isOpen,
         expanded: root ? folds : panel.folds,
         showPrivate,

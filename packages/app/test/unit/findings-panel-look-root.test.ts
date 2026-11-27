@@ -1,80 +1,220 @@
-import {
-  parsePolicy,
-  readRepository,
-  structureSensor,
-  validateScan,
-} from "recognizer";
 import { beforeAll, describe, expect, it } from "vitest";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import groupFile from "../../src/finding-groups.json";
 import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
-import { BEHAVIOUR } from "../language-behaviour";
+import {
+  digestOf,
+  type LookScenario,
+  lookRoots,
+  scanProgram,
+} from "../look-root";
+
+const IDS = ["app/a.py", "app/b.py", "lib/c.py"];
+const LONG_NAME = `${"a-very-long-module-name-".repeat(5)}x.py`;
+const LONG_ID = `app/${LONG_NAME}`;
+const TEXTS: Record<string, string> = {
+  "app/a.py": "import app.b\n\n\ndef f():\n    return 1\n",
+  "app/b.py": "def g():\n    return 2\n",
+  "lib/c.py": "LIMIT = 42\n",
+  [LONG_ID]: "Z = 1\n",
+};
+const hashesOf = (ids: string[]) =>
+  Object.fromEntries(ids.map((id) => [id, digestOf(TEXTS[id] as string)]));
+const EDITED = (ids: string[]) =>
+  Object.fromEntries(ids.map((id) => [id, "0".repeat(64)]));
+
+const scanOf = (ids: string[]) => ({
+  files: ids.map((path) => ({ path, hash: digestOf(TEXTS[path] as string) })),
+  modules: ids.map((id) => ({ id, kind: "module" })),
+  edges: [{ from: IDS[0], to: IDS[1], kind: "depends", line: 4, names: ["X"] }],
+  foreign: [],
+});
+
+const violation = {
+  id: "rule-violation:a",
+  kind: "rule-violation",
+  severity: "violation",
+  principle: "dependency-inversion-principle",
+  summary: "depends on app/b.py at line 4",
+  evidence: {
+    modules: [IDS[0]],
+    edges: [
+      {
+        from: IDS[0],
+        to: IDS[1],
+        kind: "depends",
+        lines: [4],
+        rules: [{ type: "level", from_level: "domain", to_level: "adapters" }],
+      },
+    ],
+  },
+};
+const cycle = {
+  id: "cycle:a,b",
+  kind: "cycle",
+  severity: "warning",
+  principle: "levelization",
+  summary: "cycle of 2 modules",
+  fix_pattern: "break-cycle",
+  evidence: {
+    modules: [IDS[0], IDS[1]],
+    edges: [
+      { from: IDS[0], to: IDS[1] },
+      { from: IDS[1], to: IDS[0] },
+    ],
+  },
+};
+const style = {
+  id: "style:c",
+  kind: "style",
+  severity: "warning",
+  principle: "name-your-constants",
+  summary: "magic numbers",
+  evidence: { modules: [IDS[2]] },
+};
+const longOne = {
+  id: "orphan:long",
+  kind: "orphan",
+  severity: "warning",
+  principle: "p",
+  summary: "s",
+  evidence: { modules: [LONG_ID] },
+};
+const longReport = {
+  id: "note:long",
+  kind: "note",
+  severity: "warning",
+  principle: "p",
+  summary:
+    "This is a long agent sentence that has to wrap at word boundaries inside a narrow panel and never be cut at the edge of it. ".repeat(
+      3,
+    ),
+  evidence: { modules: [IDS[2]] },
+};
+
+const findingsDoc =
+  (name: string, findings: unknown[], ids: string[] = IDS, stale = false) =>
+  (commit: string) =>
+    JSON.stringify({
+      findings_version: 1,
+      sensor: { name, version: "1" },
+      commit: stale ? "other" : commit,
+      modified: false,
+      settings: {},
+      inputs: stale ? EDITED(ids) : hashesOf(ids),
+      findings,
+    });
+const findingsFile = (name: string) =>
+  `.recognizer/cache/findings/${name}.json`;
+
+const STRUCTURE =
+  "sensors:\n  structure:\n    duplication: false\n    warnings:\n      orphan: false\n      unused_exports: false\n      private_imports: false\n      long_function: false\n      complexity: false\n";
+const CONFIG = `${STRUCTURE}  alpha:\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\n`;
+
+const sources = (ids: string[]) =>
+  Object.fromEntries(ids.map((id) => [id, TEXTS[id] as string]));
+
+const ANSWERS = {
+  watch_responsibilities: null,
+  watch_views: null,
+  "responsibilities.read": { ok: { states: {}, describedAtMs: null } },
+};
+
+const made = (
+  files: LookScenario["files"] = {},
+  ids: string[] = IDS,
+  scan: Record<string, unknown> = scanOf(ids),
+  languages: string[] = ["python"],
+): LookScenario => ({
+  config: CONFIG,
+  answers: ANSWERS,
+  files: { ...sources(ids), ...files },
+  programs: {
+    "recognizer-scan-typescript": scanProgram(scan, languages),
+    node: () => ({ started: true, status: 0, stdout: "", stderr: "" }),
+  },
+});
 
 const GROUPED_IDS = [
   "config/Application.kt",
   "adapter/PortA.kt",
   "adapter/PortB.kt",
 ];
-const GROUPED_HASH = "1".repeat(64);
-const groupedScan = validateScan({
-  schema_version: 7,
-  scanner: { name: "t", version: "0" },
-  commit: "cur1234",
-  modified: false,
-  files: GROUPED_IDS.map((path) => ({ path, hash: GROUPED_HASH })),
-  selection: {
-    extensions: [],
-    skip_directory_names: [],
-    skip_directory_prefixes: [],
-    skip_directory_suffixes: [],
-    skip_directories_containing: [],
-    skip_file_globs: [],
-  },
+const GROUPED_TEXT = "package app\n";
+const GROUPED_POLICY =
+  "forbid:\n  - config/** -> adapter/**\n  - adapter/** -> config/**\n";
+const groupedScan = {
+  files: GROUPED_IDS.map((path) => ({ path, hash: digestOf(GROUPED_TEXT) })),
   modules: GROUPED_IDS.map((id) => ({
     id,
     language: "kotlin",
     kind: "module",
-    members: [],
   })),
   edges: [
     { from: GROUPED_IDS[0], to: GROUPED_IDS[1], kind: "depends", line: 3 },
     { from: GROUPED_IDS[0], to: GROUPED_IDS[2], kind: "depends", line: 7 },
   ],
   foreign: [],
-});
-const GROUPED_POLICY =
-  "forbid:\n  - config/** -> adapter/**\n  - adapter/** -> config/**\n";
-const groupedDocument = structureSensor(
-  readRepository([{ language: "kotlin", document: groupedScan }]),
-  parsePolicy(GROUPED_POLICY),
-  {
-    duplication: false,
-    entry_points: [],
-    entry_annotations: [],
-    warnings: {
-      cycle: true,
-      orphan: false,
-      unused_exports: false,
-      private_imports: false,
-      long_function: false,
-      complexity: false,
-    },
-    long_function_limit: 20,
-    complexity_limit: 10,
-  },
-  { commit: "cur1234", modified: false },
-  BEHAVIOUR,
-).document;
+};
 
-const HARNESS = `
-const groupedScan = ${JSON.stringify(groupedScan)};
-const groupedDocument = ${JSON.stringify(groupedDocument)};
-const groupedIds = ${JSON.stringify(GROUPED_IDS)};
+const SCENARIOS = (): Record<string, LookScenario> => ({
+  main: made({
+    [findingsFile("alpha")]: findingsDoc("alpha", [cycle, violation]),
+    [findingsFile("lint")]: findingsDoc("lint", [style]),
+  }),
+  quiet: made({ [findingsFile("lint")]: findingsDoc("lint", [style]) }),
+  cycleOnly: made({ [findingsFile("alpha")]: findingsDoc("alpha", [cycle]) }),
+  none: made(),
+  otherCommit: made({
+    [findingsFile("alpha")]: findingsDoc("alpha", [violation], IDS, true),
+  }),
+  stale: {
+    ...made({
+      [findingsFile("lint")]: findingsDoc("lint", [violation]),
+      [findingsFile("alpha")]: findingsDoc("alpha", [style], IDS, true),
+    }),
+    ticks: { describe: false, analysis: false, ticked: ["alpha"] },
+  },
+  fresh: made({
+    [findingsFile("lint")]: findingsDoc("lint", [violation]),
+    [findingsFile("alpha")]: findingsDoc("alpha", []),
+  }),
+  withPolicy: made({
+    [findingsFile("lint")]: findingsDoc("lint", [violation]),
+    ".recognizer/policy.yaml": "forbid:\n  - lib/** -> app/**\n",
+  }),
+  grouped: {
+    config: CONFIG,
+    answers: ANSWERS,
+    files: {
+      ...Object.fromEntries(GROUPED_IDS.map((id) => [id, GROUPED_TEXT])),
+      ".recognizer/policy.yaml": GROUPED_POLICY,
+    },
+    programs: {
+      "recognizer-scan-typescript": scanProgram(groupedScan, ["kotlin"]),
+    },
+  },
+  wide: made(
+    {
+      [findingsFile("alpha")]: findingsDoc(
+        "alpha",
+        [longOne],
+        [...IDS, LONG_ID],
+      ),
+      [findingsFile("review")]: findingsDoc(
+        "review",
+        [longReport],
+        [...IDS, LONG_ID],
+      ),
+    },
+    [...IDS, LONG_ID],
+  ),
+});
+
+const HARNESS = (recordings: unknown) => `
 window.addEventListener("error", (e) => { document.getElementById("out").textContent = btoa("ERR " + e.message + " " + (e.error && e.error.stack)); });
-import { loadedOf, scanHostOf, mountExplorer } from ${JSON.stringify(here("../test/unit/look-support.ts"))};
-import { fakeViews } from ${JSON.stringify(here("../test/unit/views-fake.ts"))};
-import { fakeEditor } from ${JSON.stringify(here("editor-fake.ts"))};
-import { fakeSensors, typedInputs } from ${JSON.stringify(here("sensors-fake.ts"))};
+import { drawRecording } from ${JSON.stringify(here("../test/look-draw.ts"))};
+import { pageAnswers } from ${JSON.stringify(here("../test/look-answers.ts"))};
 ${FAKE_WORKER}
 const plainWorker = window.__fakeWorker;
 window.__fakeWorker = () => {
@@ -92,61 +232,47 @@ window.__fakeWorker = () => {
   };
 };
 
-const ids = ["app/a.py", "app/b.py", "lib/c.py"];
-const longName = "a-very-long-module-name-".repeat(5) + "x.py";
-const everyModule = [...ids, "app/" + longName];
-const HASH = "1".repeat(64);
-const scan = {
-  commit: "cur1234",
-  files: everyModule.map((id) => ({ path: id, hash: HASH })),
-  modules: ids.map((id) => ({ id, kind: "module" })),
-  edges: [{ from: ids[0], to: ids[1], kind: "depends", line: 4, names: ["X"] }],
-  foreign: [],
-};
-const violation = { id: "rule-violation:a", kind: "rule-violation", severity: "violation", principle: "dependency-inversion-principle", summary: "depends on app/b.py at line 4", evidence: { modules: [ids[0]], edges: [{ from: ids[0], to: ids[1], kind: "depends", lines: [4], rules: [{ type: "level", from_level: "domain", to_level: "adapters" }] }] } };
-const cycle = { id: "cycle:a,b", kind: "cycle", severity: "warning", principle: "levelization", summary: "cycle of 2 modules", fix_pattern: "break-cycle", evidence: { modules: [ids[0], ids[1]], edges: [{ from: ids[0], to: ids[1] }, { from: ids[1], to: ids[0] }] } };
-const style = { id: "style:c", kind: "style", severity: "warning", principle: "name-your-constants", summary: "magic numbers", evidence: { modules: [ids[2]] } };
-const longOne = { id: "orphan:long", kind: "orphan", severity: "warning", principle: "p", summary: "s", evidence: { modules: ["app/" + longName] } };
-const longReport = { id: "note:long", kind: "note", severity: "warning", principle: "p", summary: "This is a long agent sentence that has to wrap at word boundaries inside a narrow panel and never be cut at the edge of it. ".repeat(3), evidence: { modules: [ids[2]] } };
-const doc = (name, findings, commit = "cur1234") => ({ findings_version: 1, sensor: { name, version: "1" }, commit, modified: false, settings: {}, inputs: Object.fromEntries(everyModule.map((id) => [id, commit === "cur1234" ? HASH : "0".repeat(64)])), findings });
-const base = loadedOf({ modules: ids, scans: [{ file: "scan.python.json", scan }] });
-const CONFIG = "sensors:\\n  alpha:\\n    command: [node, '{repository}/a.mjs', '{commit}', '{output}']\\n";
-const make = (picks) => JSON.stringify({ schema_version: 1, description: "d", commit: "cur1234", steps: picks.map((module) => ({ kind: "pick", module })) }, null, 2) + "\\n";
+const recordings = ${JSON.stringify(recordings)};
+const ids = ${JSON.stringify(IDS)};
+const groupedIds = ${JSON.stringify(GROUPED_IDS)};
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
-const click = (node) => node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+let lastQ = "";
+const click = (node) => { if (!node) throw new Error("click on nothing after " + lastQ + " :: " + (document.querySelector(".findings-panel")?.textContent || "").slice(0, 200)); return node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })); };
 const press = (key) => document.body.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+const host = document.getElementById("content");
+const footerElement = document.getElementById("footer");
+const commitOf = (name) => recordings[name].loaded.scans[0].document.commit;
+const make = (commit, picks) => JSON.stringify({ schema_version: 4, description: "d", commit, steps: picks.map((module) => ({ kind: "pick", module })) }, null, 2) + "\\n";
 
-async function mount(loaded, picks, status) {
-  const host = document.createElement("div");
-  host.style.cssText = "width:1400px;height:800px;display:flex;flex-direction:column";
-  document.body.append(host);
-  const port = fakeViews(picks === null ? {} : { order: make(picks) });
-  const fake = fakeSensors({}, { config: CONFIG });
-  const editor = fakeEditor();
-  const counts = [];
-  const runs = [];
-  const scanHost = scanHostOf({ scan: () => ({ origin: { branch: "main", commit: "abc1234" }, scannedAt: Date.now(), changes: { files: [], moved: null }, scanning: null }), port: fake, run: (modules, planned) => runs.push({ modules, planned }) });
-  mountExplorer({ container: host, loaded: loadedOf({ ...base, ...loaded, sensors: [{ name: "structure", status: "ran" }, ...(status ?? [{ name: "alpha", status: "ran" }])] }), title: "demo", onCount: (text) => counts.push(text), views: port, post: () => null, storage: { getItem: () => null, setItem: () => {} }, editor, scanHost });
+async function mount(name, picks) {
+  host.replaceChildren();
+  footerElement.replaceChildren();
+  const recording = recordings[name];
+  const views = picks === null ? [] : [{ name: "order", text: make(commitOf(name), picks) }];
+  const drawn = await drawRecording(host, recording, { answer: pageAnswers(recording, { views }) });
   await tick();
-  const q = (selector) => host.querySelector(selector);
-  const all = (selector) => [...host.querySelectorAll(selector)];
+  const q = (selector) => { lastQ = selector; return host.querySelector(selector); };
+  const all = (selector) => { lastQ = selector; return [...host.querySelectorAll(selector)]; };
   const shown = (selector) => { const n = q(selector); return n !== null && getComputedStyle(n).display !== "none"; };
+  const starts = () => drawn.sent().filter((one) => one.command === "core_call" && one.args.op === "scan.start");
+  const boot = starts().length;
   if (picks !== null) {
     click(q(".view-list"));
     click(all(".view-item")[0]);
     await tick();
   }
-  return { host, port, q, all, shown, editor, counts, runs };
+  return { host, drawn, q, all, shown, ran: () => starts().length - boot };
 }
 
 const texts = (m, selector) => m.all(selector).map((n) => n.textContent);
 const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
+const everyPick = ["app/a.py", "app/b.py", "lib/c.py"];
 
 (async () => {
   const facts = {};
 
-  const m = await mount({ findings: [doc("structure", [cycle, violation]), doc("lint", [style])] }, ["app/a.py", "app/b.py", "lib/c.py"]);
+  const m = await mount("main", everyPick);
   click(m.q(".rail-findings"));
   await tick();
   facts.panel = {
@@ -168,13 +294,19 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
     ghosts: m.all(".ghost, .ghost-add").length,
   };
 
+  const noPolicyNode = m.q(".findings-policy");
+  const noPolicyInfo = noPolicyNode.querySelector(".finding-info");
+  const noPolicyTip = document.getElementById(noPolicyInfo.getAttribute("aria-describedby"));
+  facts.policy = {
+    without: { shown: m.shown(".findings-policy"), text: noPolicyNode.querySelector(".findings-policy-text").textContent, icon: noPolicyInfo.querySelectorAll("svg").length, tip: noPolicyTip.textContent, banners: m.all(".findings-fresh").length },
+  };
+
   {
     const lines = m.all(".finding-group-line");
     const withIcon = lines[0];
     const withoutIcon = lines[2];
     const info = withIcon.querySelector(".finding-info");
     const tip = document.getElementById(info.getAttribute("aria-describedby"));
-    const css = getComputedStyle(document.documentElement);
     const tipStyle = () => getComputedStyle(tip);
     const rect = info.querySelector("svg").getBoundingClientRect();
     const probe = (name) => { const n = document.createElement("span"); n.style.color = "var(" + name + ")"; document.body.append(n); const c = getComputedStyle(n).color; n.remove(); return c; };
@@ -297,7 +429,7 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   await tick();
   facts.closedAgain = { open: m.all(".finding-card.open").length, lit: m.all(".lit-violation, .lit-warning").length };
 
-  const bar = await mount({ findings: [doc("structure", [cycle, violation]), doc("lint", [style])] }, ["app/a.py", "app/b.py", "lib/c.py"]);
+  const bar = await mount("main", everyPick);
   click(bar.q('.box[data-id="app/a.py"] .box-body'));
   await tick();
   const findingsButton = () => bar.q('.selection-bar .bar-button[title="Findings (W)"]');
@@ -316,7 +448,8 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   click(bar.q('.box[data-id="lib/c.py"] .box-body'));
   await tick();
   facts.barWarn = findingsButton().className;
-  const tree = await mount({ findings: [doc("structure", [cycle, violation]), doc("lint", [style])] }, ["app/a.py", "app/b.py", "lib/c.py"]);
+
+  const tree = await mount("main", everyPick);
   const folderBox = tree.q('.frame-label[data-kind="folder"][data-id="app"]');
   facts.folderBoxFound = folderBox !== null;
   if (folderBox) {
@@ -329,7 +462,8 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
     await tick();
     facts.folderCards = { names: texts(tree, ".inspector-panel .finding-card .finding-name"), groupsOpen: tree.all(".inspector-panel .finding-group.open").length };
   }
-  const quiet = await mount({ findings: [doc("lint", [style])] }, ["app/a.py", "app/b.py", "lib/c.py"]);
+
+  const quiet = await mount("quiet", everyPick);
   click(quiet.q('.box[data-id="app/a.py"] .box-body'));
   await tick();
   facts.barQuiet = { present: quiet.q('.selection-bar .bar-button[title="Findings (W)"]') !== null };
@@ -339,8 +473,7 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   await tick();
   facts.keyW = texts(quiet, ".itabs button.on");
 
-  const adder = await mount({ findings: [doc("structure", [cycle])] }, ["app/a.py"]);
-  const savedBefore = adder.port.files.size;
+  const adder = await mount("cycleOnly", ["app/a.py"]);
   click(adder.q(".rail-findings"));
   await tick();
   click(adder.q(".finding-group-head"));
@@ -354,12 +487,15 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
     ghosts: adder.all(".ghost, .ghost-add").length,
     lit: adder.all(".box.lit-warning").map((n) => n.dataset.id),
   };
+  const sentBefore = adder.drawn.sent().length;
   click(adder.q(".finding-add"));
   await tick();
   await tick();
-  facts.added = { boxes: adder.all(".box").map((n) => n.dataset.id).sort(), adds: adder.all(".finding-card.open .finding-add").length, open: adder.all(".finding-card.open").length, selected: adder.all(".box.selected").length, saved: adder.port.files.size - savedBefore };
+  const sentAfter = adder.drawn.sent();
+  if (sentAfter.length <= sentBefore) throw new Error("the click sent nothing, so a count of view writes proves nothing");
+  facts.added = { boxes: adder.all(".box").map((n) => n.dataset.id).sort(), adds: adder.all(".finding-card.open .finding-add").length, open: adder.all(".finding-card.open").length, selected: adder.all(".box.selected").length, saved: sentAfter.slice(sentBefore).filter((one) => one.command === "write_view").length };
 
-  const wide = await mount({ findings: [doc("structure", [longOne]), doc("review", [longReport])] }, null);
+  const wide = await mount("wide", null);
   wide.host.querySelector(".tree").style.cssText += ";width:340px;flex:none";
   click(wide.q(".rail-findings"));
   await tick();
@@ -374,7 +510,7 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
     lineHeight: parseFloat(getComputedStyle(wide.q(".finding-sentence")).lineHeight),
   };
 
-  const mixed = await mount({ findings: [doc("structure", [cycle])] }, ["app/a.py"]);
+  const mixed = await mount("cycleOnly", ["app/a.py"]);
   click(mixed.q(".rail-findings"));
   await tick();
   click(mixed.q(".finding-group-head"));
@@ -383,7 +519,7 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   await tick();
   facts.mixed = mixed.all(".finding-card.open .finding-item").map((row) => ({ text: row.textContent, add: row.querySelector(".finding-add") !== null }));
 
-  const only = await mount({ findings: [doc("structure", [cycle, violation]), doc("lint", [style])] }, ["app/a.py"]);
+  const only = await mount("main", ["app/a.py"]);
   click(only.q(".rail-findings"));
   await tick();
   const snap = () => ({ line: only.q(".findings-line").textContent, groups: texts(only, ".finding-group-name"), counts: texts(only, ".finding-group-count"), checked: only.q(".findings-scope-canvas").getAttribute("aria-pressed"), all: only.q(".findings-scope-all").getAttribute("aria-pressed") });
@@ -395,7 +531,8 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   click(only.q(".findings-scope-all"));
   await tick();
   facts.only.off = snap();
-  const noView = await mount({ findings: [doc("structure", [cycle, violation]), doc("lint", [style])] }, null);
+
+  const noView = await mount("main", null);
   click(noView.q(".rail-findings"));
   await tick();
   const untitled = () => ({ line: noView.q(".findings-line").textContent, canvas: noView.q(".findings-scope-canvas").getAttribute("aria-pressed") });
@@ -415,44 +552,43 @@ const dimBoxes = (m) => m.all(".box.dim").map((n) => n.dataset.id).sort();
   await tick();
   facts.noView.off = untitled();
 
-  const warn = await mount({ findings: [doc("lint", [style])] }, null);
+  const warn = await mount("quiet", null);
   facts.warnings = { class: warn.q(".rail-findings .rail-count").className, hidden: warn.q(".rail-findings .rail-count").hidden };
-  const none = await mount({ findings: [] }, null);
+  const none = await mount("none", null);
   click(none.q(".rail-findings"));
   await tick();
   facts.none = { hidden: none.q(".rail-findings .rail-count").hidden, empty: none.q(".findings-empty").textContent, rows: none.all(".finding-card").length };
 
-  const other = await mount({ findings: [doc("structure", [violation], "other")] }, null);
+  const other = await mount("otherCommit", null);
   click(other.q(".rail-findings"));
   await tick();
   facts.otherCommit = { rows: other.all(".finding-card").length, hidden: other.q(".rail-findings .rail-count").hidden };
 
-  const stale = await mount({ findings: [doc("structure", [violation]), doc("alpha", [style], "other")] }, null, [{ name: "alpha", status: "ran" }]);
+  const stale = await mount("stale", null);
   click(stale.q(".rail-findings"));
   await tick();
   facts.stale = { text: stale.q(".findings-fresh-text").textContent, link: stale.q(".findings-fresh-link").textContent, shown: stale.shown(".findings-fresh") };
+  click(stale.q(".rail-scan"));
+  await tick();
+  const label = stale.q(".scan-run").textContent;
+  click(stale.q(".rail-findings"));
+  await tick();
   click(stale.q(".findings-fresh-link"));
   await tick();
-  facts.staleClick = { ran: stale.runs.length, label: stale.runs[0] ? stale.runs[0].planned.label : null, findings: stale.shown(".findings-panel") };
+  facts.staleClick = { ran: stale.ran(), label, findings: stale.shown(".findings-panel") };
 
-  const fresh = await mount({ findings: [doc("structure", [violation])] }, null, [{ name: "alpha", status: "ran" }]);
+  const fresh = await mount("fresh", null);
   click(fresh.q(".rail-findings"));
   await tick();
   facts.fresh = { shown: fresh.shown(".findings-fresh") };
 
-  const withPolicy = await mount({ findings: [doc("structure", [violation])], policy: [] }, null, [{ name: "alpha", status: "ran" }]);
+  const withPolicy = await mount("withPolicy", null);
   click(withPolicy.q(".rail-findings"));
   await tick();
-  const noPolicyNode = m.q(".findings-policy");
-  const noPolicyInfo = noPolicyNode.querySelector(".finding-info");
-  const noPolicyTip = document.getElementById(noPolicyInfo.getAttribute("aria-describedby"));
-  facts.policy = {
-    without: { shown: m.shown(".findings-policy"), text: noPolicyNode.querySelector(".findings-policy-text").textContent, icon: noPolicyInfo.querySelectorAll("svg").length, tip: noPolicyTip.textContent, banners: m.all(".findings-fresh").length },
-    with: { shown: withPolicy.shown(".findings-policy"), nodes: withPolicy.all(".findings-policy .finding-info").length },
-  };
+  facts.policy.with = { shown: withPolicy.shown(".findings-policy"), nodes: withPolicy.all(".findings-policy .finding-info").length };
 
   {
-    const g = await mount({ modules: groupedIds, scans: [{ file: "scan.kotlin.json", scan: groupedScan }], policy: typedInputs({ policy: ${JSON.stringify(GROUPED_POLICY)} }).policy, findings: [groupedDocument] }, null);
+    const g = await mount("grouped", null);
     const badge = g.q(".rail-findings .rail-count").textContent;
     click(g.q(".rail-findings"));
     await tick();
@@ -482,8 +618,16 @@ describe.skipIf(webkit === undefined)("the Findings panel", () => {
   let f = null as unknown as Facts;
 
   beforeAll(async () => {
-    f = await collectFacts<Facts>(HARNESS, "findings-panel");
-  }, scaledTimeout(180000));
+    const named = await lookRoots(SCENARIOS());
+    const recordings = Object.fromEntries(
+      Object.entries(named).map(([name, { produced: _, ...one }]) => [
+        name,
+        one,
+      ]),
+    );
+
+    f = await collectFacts<Facts>(HARNESS(recordings), "findings-panel");
+  }, scaledTimeout(300000));
 
   it("shows the header line and collapsed groups in the fixed order with counts and dots", () => {
     expect(f.panel.order).toEqual([
