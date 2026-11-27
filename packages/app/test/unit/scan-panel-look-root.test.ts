@@ -1354,10 +1354,6 @@ await group(["rapidTicks"], async () => {
 });
 `;
 const GROUPS4 = `
-await group(["pending","loaded"], async () => {
-  throw new Error("unbuildable from the look root: the explorer draws only after the first state event, and the installed list is read from that same event, so no draw shows the list pending");
-});
-
 await group(["estimatePending","estimateTicked","estimateUnticked"], async () => {
   const work = gated("sensor.work");
   const timed = await draw("timed", { until: "idle", hold: work.hold });
@@ -1782,5 +1778,11 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
   it("shows failed and no second line for a failure with no diagnosis", () => {
     expect(f.reasons.plain.state).toMatch(/^failed/);
     expect(f.reasons.plain.why).toBeNull();
+  });
+
+  it("remembers the switch through the port and sends the view's file ids when it is on, and a click on Run with the scope off runs the still-ticked sensor on the whole repository", () => {
+    expect(f.scopeOn.written.onlyView).toBe(true);
+    expect(f.scopeRan.modules).toEqual([["app/a.py"]]);
+    expect(f.scopeOffRan).toEqual([["app/a.py"], ["app/a.py", "app/b.py"]]);
   });
 });

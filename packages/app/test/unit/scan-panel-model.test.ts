@@ -277,6 +277,37 @@ describe("scanPanel rows", () => {
     expect(scanPanel(input()).pending).toBe(false);
   });
 
+  it("renders only the header while the installed list is being read, then every row at once", () => {
+    const withTally = configOf(
+      CONFIG.replace(
+        "  alpha:",
+        '  tally:\n    command: [node, "{repository}/t.mjs", "{commit}", "{output}"]\n  alpha:',
+      ),
+    );
+    const scan = { ...SCAN, scannedAt: NOW };
+
+    const pending = scanPanel(
+      input({ config: withTally, installed: null, scan }),
+    );
+
+    expect(pending.header.text).toBe("Ran just now");
+    expect(pending.pending).toBe(true);
+    expect(pending.rows).toEqual([]);
+
+    const loaded = scanPanel(input({ config: withTally, scan }));
+
+    expect(loaded.pending).toBe(false);
+    expect(loaded.rows.map((r) => r.name)).toEqual([
+      "Structural analysis",
+      "Descriptions",
+      "C.R.A.P.",
+      "Mutation",
+      "tally",
+      "alpha",
+      "beta",
+    ]);
+  });
+
   it("keeps the C.R.A.P. and Mutation rows with the settings error as their reason when a test suite has no language", () => {
     const rows = scanPanel(
       input({
