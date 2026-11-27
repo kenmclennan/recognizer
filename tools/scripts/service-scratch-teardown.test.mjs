@@ -181,10 +181,11 @@ describe("writersIn", () => {
     "102 /usr/bin/node TMPDIR=/s/ab B=2",
     "103 /usr/bin/node A=1 B=2",
     "104 /usr/bin/node A=1 TMPDIR=/s/a",
+    "105 /usr/bin/node A=1 TMPDIR=/s/a/serve-tmp-x B=2",
   ].join("\n");
 
-  it("returns only pids whose environment carries the exact marker", () => {
-    expect(writersIn("/s/a", listing)).toEqual([101, 104]);
+  it("returns pids whose TMPDIR is the folder or a folder inside it, never a sibling sharing its prefix", () => {
+    expect(writersIn("/s/a", listing)).toEqual([101, 104, 105]);
   });
 
   it("returns nothing for an empty listing", () => {
