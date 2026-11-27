@@ -8,6 +8,8 @@ import { COMMANDS } from "../src/commands.js";
 import { buildChanges } from "../src/index.js";
 import { capture, REPO } from "./helpers.js";
 import { exampleManifest } from "./installed-read.js";
+import { registerShim, useRegisteredShims } from "./plugin-registry-shim.js";
+import { saveEnvironment } from "./setup-helpers.js";
 
 const survey = JSON.parse(
   readFileSync(
@@ -18,10 +20,10 @@ const survey = JSON.parse(
 
 describe("the removal commands against a real config", () => {
   let directory: string;
-  let savedPath: string | undefined;
+  let restoreEnvironment: () => void;
 
   beforeEach(() => {
-    savedPath = process.env.PATH;
+    restoreEnvironment = saveEnvironment();
     directory = makeTempDir("recognizer-setup-remove-");
     mkdirSync(join(directory, ".recognizer"), { recursive: true });
 
@@ -34,11 +36,12 @@ describe("the removal commands against a real config", () => {
       `#!/bin/sh\nif [ "$1" = "manifest" ]; then\ncat <<'EOF'\n${JSON.stringify(exampleManifest("crap"))}\nEOF\nfi\n`,
     );
     chmodSync(sensor, 0o755);
-    process.env.PATH = `${bin}:${savedPath ?? ""}`;
+    registerShim(sensor);
+    useRegisteredShims(bin);
   });
 
   afterEach(() => {
-    process.env.PATH = savedPath;
+    restoreEnvironment();
   });
 
   async function run(argv: string[]): Promise<void> {

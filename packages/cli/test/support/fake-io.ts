@@ -1,3 +1,4 @@
+import { registrationFileName, serializeRegistration } from "@recognizer/core";
 import type { Io, Running, RunOptions } from "../../src/cli.js";
 import { StopScope } from "../../src/stop-scope.js";
 import { FakeFiles } from "./io/files.js";
@@ -5,6 +6,15 @@ import { FakeProcesses, type Program } from "./io/processes.js";
 import { FakeTimers } from "./io/timers.js";
 
 export const FAKE_BIN = "/fake-bin";
+export const FAKE_REGISTRY = "/fake-registry";
+
+const PLUGIN_PROGRAM =
+  /^recognizer-(scan|sense|describe)-([a-z0-9][a-z0-9_-]*)$/;
+const PLUGIN_KINDS = {
+  scan: "scanner",
+  sense: "sensor",
+  describe: "describer",
+} as const;
 
 export interface FakeIoOptions {
   files?: FakeFiles;
@@ -30,7 +40,11 @@ export class FakeIo implements Io {
     this.files = options.files ?? new FakeFiles();
     this.timers = new FakeTimers();
     this.processes = new FakeProcesses(this.files, this.timers);
-    this.environment = { PATH: FAKE_BIN, ...options.env };
+    this.environment = {
+      PATH: FAKE_BIN,
+      RECOGNIZER_PLUGIN_DIRS: `:${FAKE_REGISTRY}`,
+      ...options.env,
+    };
 
     for (const [name, program] of Object.entries(options.programs ?? {})) {
       this.install(name, program);
@@ -40,6 +54,23 @@ export class FakeIo implements Io {
   install(name: string, program: Program): void {
     this.processes.register(name, program);
     this.files.writeFile(`${FAKE_BIN}/${name}`, "", 0o755);
+
+    const match = PLUGIN_PROGRAM.exec(name);
+
+    if (match !== null) {
+      const kind = PLUGIN_KINDS[match[1] as keyof typeof PLUGIN_KINDS];
+      const command = [`${FAKE_BIN}/${name}`];
+
+      this.files.writeFile(
+        `${FAKE_REGISTRY}/${registrationFileName(kind, match[2] ?? "")}`,
+        serializeRegistration({
+          kind,
+          name: match[2] ?? "",
+          command,
+          manifest: [...command, "manifest"],
+        }),
+      );
+    }
   }
 
   exists = (path: string) => this.files.exists(path);

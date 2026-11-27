@@ -26,7 +26,12 @@ import {
 } from "../src/index.js";
 import { runTry as tryChanges } from "../src/setup-command.js";
 import { capture, REPO } from "./helpers.js";
-import { shimDirectory, shimmedPath, withToolUndo } from "./setup-helpers.js";
+import {
+  saveEnvironment,
+  shimDirectory,
+  useShims,
+  withToolUndo,
+} from "./setup-helpers.js";
 
 const example = JSON.parse(
   readFileSync(
@@ -187,7 +192,7 @@ function fakeIo(
 }
 
 let root: string;
-let savedPath: string | undefined;
+let restoreEnvironment: () => void;
 
 function survey(): Survey {
   return withToolUndo({ ...example, repository: root });
@@ -203,8 +208,8 @@ const READY = {
 };
 
 beforeEach(() => {
-  savedPath = process.env.PATH;
-  process.env.PATH = shimmedPath(shimDirectory(true));
+  restoreEnvironment = saveEnvironment();
+  useShims(shimDirectory(true), true);
   root = makeTempDir("recognizer-setup-try-");
 
   for (const name of ["engine", "app"]) {
@@ -228,7 +233,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  process.env.PATH = savedPath;
+  restoreEnvironment();
 });
 
 function runners(events: TryEvent[]) {

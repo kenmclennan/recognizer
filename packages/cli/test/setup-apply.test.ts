@@ -29,7 +29,12 @@ import {
 import { validateRunRecord } from "../src/log-document.js";
 import { capture, REPO } from "./helpers.js";
 import { cliRoot } from "./roots.js";
-import { copyLoom, shimDirectory, shimmedPath } from "./setup-helpers.js";
+import {
+  copyLoom,
+  saveEnvironment,
+  shimDirectory,
+  useShims,
+} from "./setup-helpers.js";
 import { writeStubSurveyPlugin } from "./stub-survey-plugin.js";
 
 const CONFIG =
@@ -226,7 +231,7 @@ async function surveyThrough(directory: string): Promise<Survey> {
 }
 
 let root: string;
-let savedPath: string | undefined;
+let restoreEnvironment: () => void;
 
 async function build(
   selected: SetupChoices = choices,
@@ -243,15 +248,15 @@ async function build(
 }
 
 beforeEach(() => {
-  savedPath = process.env.PATH;
-  process.env.PATH = shimmedPath(shimDirectory(true));
+  restoreEnvironment = saveEnvironment();
+  useShims(shimDirectory(true), true);
   root = copyLoom();
   mkdirSync(join(root, ".recognizer"), { recursive: true });
   writeFileSync(join(root, ".recognizer/config.yaml"), CONFIG);
 });
 
 afterEach(() => {
-  process.env.PATH = savedPath;
+  restoreEnvironment();
 });
 
 function states(events: ApplyEvent[]): string[] {
@@ -262,7 +267,7 @@ function states(events: ApplyEvent[]): string[] {
 
 describe("setup apply", { timeout: scaledTimeout(30_000) }, () => {
   it("a failing step undoes the earlier ones byte for byte", async () => {
-    process.env.PATH = shimmedPath(shimDirectory(true));
+    useShims(shimDirectory(true), true);
 
     const changes = await build();
     const failing = changes.findIndex((change) => change.id === "tests-engine");
@@ -377,7 +382,7 @@ describe("setup apply", { timeout: scaledTimeout(30_000) }, () => {
   });
 
   it("a step stopped by SIGTERM undoes the earlier ones", async () => {
-    process.env.PATH = shimmedPath(shimDirectory(true));
+    useShims(shimDirectory(true), true);
 
     const changes = await build();
     const fake = fakeIo(root, (_argv, index) =>
@@ -435,7 +440,7 @@ describe("setup apply", { timeout: scaledTimeout(30_000) }, () => {
         ),
       }),
     });
-    process.env.PATH = shimmedPath(present);
+    useShims(present, true);
 
     const second = fakeIo(root, (argv) =>
       argv.join(" ").startsWith(after)
@@ -450,7 +455,7 @@ describe("setup apply", { timeout: scaledTimeout(30_000) }, () => {
   });
 
   it("choosing the installed describer registers it and doctor reports no unregistered plugin", async () => {
-    process.env.PATH = shimmedPath(shimDirectory(false, true));
+    useShims(shimDirectory(false, true), true);
 
     const fresh = makeTempDir("recognizer-setup-describer-");
     const survey = await surveyThrough(fresh);
@@ -477,7 +482,7 @@ describe("setup apply", { timeout: scaledTimeout(30_000) }, () => {
   });
 
   it("declining every offered sensor leaves a clean doctor", async () => {
-    process.env.PATH = shimmedPath(shimDirectory(true, true));
+    useShims(shimDirectory(true, true), true);
 
     const fresh = makeTempDir("recognizer-setup-decline-");
     const survey = await surveyThrough(fresh);
@@ -505,7 +510,7 @@ describe("setup apply", { timeout: scaledTimeout(30_000) }, () => {
   });
 
   it("a success writes a setup run log", async () => {
-    process.env.PATH = shimmedPath(shimDirectory(false));
+    useShims(shimDirectory(false), true);
 
     const quiet: SetupChoices = {
       analysis: { on: true, limits: { pair_min_lines: 12 } },
