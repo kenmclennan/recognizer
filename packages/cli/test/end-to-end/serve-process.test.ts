@@ -27,6 +27,7 @@ import {
   slowLaunchers,
   typescriptRepository,
 } from "../serve-harness.js";
+import { signalGroup } from "../signal-group.js";
 
 const TIMEOUT = scaledTimeout(60_000);
 
@@ -273,7 +274,7 @@ describe("serve repository state", () => {
           }
         });
 
-        process.kill(-(child.pid as number), "SIGKILL");
+        signalGroup(child, "SIGKILL");
 
         const watch = (await serve.call("repository.watch", { repository })).ok;
         const stopped = await untilState(

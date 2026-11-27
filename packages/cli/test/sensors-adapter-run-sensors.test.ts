@@ -20,6 +20,7 @@ import {
   pluginFile,
   setup,
 } from "./run-sensors-plugin.js";
+import { signalGroup } from "./signal-group.js";
 
 const WRITES_FINDINGS = `
 const fs = require("fs");
@@ -291,7 +292,7 @@ describe("runSensors ceiling", () => {
 
     expect(running()).toBe(true);
 
-    process.kill(-(scan.pid as number), "SIGTERM");
+    signalGroup(scan, "SIGTERM");
 
     for (let waited = 0; running() && waited < 30; waited += 1) {
       await new Promise((done) => setTimeout(done, 100));

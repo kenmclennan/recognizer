@@ -14,6 +14,7 @@ import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { run } from "../src/cli.js";
 import { capture, REPO } from "./helpers.js";
 import { useScannerShim } from "./scan-helpers.js";
+import { signalGroup } from "./signal-group.js";
 
 const FAKE = join(REPO, "packages/cli/test/fixtures/fake-describer.mjs");
 const BIN = join(REPO, "packages/cli/dist/bin.js");
@@ -352,7 +353,7 @@ describe("concurrent describe", () => {
     const pids = trace(root).map((one) => one.pid);
 
     if (group) {
-      process.kill(-(child.pid as number), "SIGTERM");
+      signalGroup(child, "SIGTERM");
     } else {
       child.kill("SIGTERM");
     }
