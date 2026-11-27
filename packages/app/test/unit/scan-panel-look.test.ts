@@ -652,25 +652,6 @@ async function mount(fake, given = undefined, scanned = true, viewFiles = {}, fi
     };
   }
 
-  const HISTORY = { structureMs: 6000, extractMs: null, describe: [], sense: { mutation: [{ durationMs: 160000, modules: 2, fixedMs: 100000, work: { unit: "functions", performed: 2 } }] }, lastRun: "20261103T090000000Z-scan.json" };
-  const timedSensors = fakeSensors({}, { config: CONFIG }, {}, INSTALLED);
-  const timedScan = fakeScan();
-  timedScan.history = HISTORY;
-  timedSensors.work.set("mutation", { unit: "functions", to_perform: 2 });
-  const timed = await mount(timedScan, timedSensors);
-  click(timed.q(".rail-scan"));
-  await tick();
-  const estimateOf = () => { const n = timed.q(".scan-estimate"); return n === null ? null : { exists: true, hidden: n.hidden, text: n.textContent, title: n.title, afterButtons: timed.q(".scan-buttons").compareDocumentPosition(n) === Node.DOCUMENT_POSITION_FOLLOWING }; };
-  facts.estimateBefore = estimateOf();
-  timedSensors.holdWork = true;
-  await timed.setTick("mutation", true);
-  facts.estimatePending = estimateOf();
-  timedSensors.releaseWork();
-  await tick(); await tick(); await tick();
-  facts.estimateTicked = estimateOf();
-  await timed.setTick("mutation", false);
-  facts.estimateUnticked = estimateOf();
-
   const unregMount = await mount(fakeScan(), fakeSensors({}, { config: "sensors:\\n  crap: {}\\n" }, {}, INSTALLED));
   click(unregMount.q(".rail-scan"));
   await tick();
@@ -766,54 +747,6 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.freshBack.button).toBe("Up to date");
     expect(f.freshBack.secondary).toBe(0);
     expect(f.freshBack.mode).toBe("Incremental");
-  });
-
-  it("remembers a tick, a tests-running sensor's tick and a suite tick through the port, and a reopened window reads them back", () => {
-    expect(f.ticked.rows).toEqual(["structure", "describe", "crap", "tally"]);
-    expect(f.ticked.written).toEqual({
-      describe: true,
-      analysis: true,
-      ticked: ["tally", "crap"],
-      onlyView: false,
-      suites: {},
-      folds: [],
-    });
-    expect(f.reopened).toEqual(["structure", "describe", "crap", "tally"]);
-    expect(f.suiteStart.crap).toEqual({
-      ticked: false,
-      indeterminate: false,
-      state: "none",
-    });
-    expect(f.suiteStart.fold.open).toBe(false);
-    expect(f.suiteOpened.suites.map((s: Facts) => s.name)).toEqual([
-      "unit",
-      "a-suite-with-a-very-long-name-indeed",
-      "web",
-    ]);
-    expect(f.suiteFoldWritten).toEqual(["crap"]);
-    expect(f.suiteAfterTick.written.suites.crap).toEqual({
-      ticked: ["unit"],
-      known: ["unit", "a-suite-with-a-very-long-name-indeed", "web"],
-    });
-    expect(f.suiteAfterTick.sensor).toMatchObject({
-      ticked: false,
-      indeterminate: true,
-    });
-    expect(f.suiteReopened.fold.open).toBe(false);
-    expect(f.suiteReopened.sensor).toMatchObject({
-      ticked: false,
-      indeterminate: true,
-    });
-  });
-
-  it("ticks every suite with the sensor and shows the sensor and its suites still ticked after a scan", () => {
-    expect(f.suiteArmed).toMatchObject({ ticked: true, indeterminate: false });
-    expect(f.suiteAfterScan.plan.suites).toEqual({
-      crap: ["unit", "a-suite-with-a-very-long-name-indeed", "web"],
-    });
-    expect(f.suiteAfterScan.sensor.ticked).toBe(true);
-    expect(f.suiteAfterScan.sensor.indeterminate).toBe(false);
-    expect(f.suiteAfterScan.fold.open).toBe(false);
   });
 
   it("keeps an open suites fold open when a Scan rebuilds the explorer", () => {
@@ -959,27 +892,6 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
   it("shows no text and no Describe button when a file has no line", () => {
     expect(f.missing.text).toBe("");
     expect(f.missing.describe).toBe(0);
-  });
-
-  it("shows the estimate line under the primary button with its breakdown on hover, and hides it when nothing is ticked", () => {
-    expect(f.estimateTicked).not.toBeNull();
-    expect(f.estimateTicked.exists).toBe(true);
-    expect(f.estimateTicked.hidden).toBe(false);
-    expect(f.estimateTicked.afterButtons).toBe(true);
-    expect(f.estimateTicked.text).toBe("About 3 min");
-    expect(f.estimateTicked.title).toBe(
-      "Structural analysis: <1 min (last run)\nMutation: 3 min (2 functions at recent pace)",
-    );
-    expect(f.estimateUnticked.hidden).toBe(true);
-  });
-
-  it("reads Mutation as no estimate yet while the sensor's work answer is pending, and a figure after", () => {
-    expect(f.estimatePending.hidden).toBe(false);
-    expect(f.estimatePending.text).toBe(
-      "Under a minute, plus Mutation: no estimate yet",
-    );
-    expect(f.estimatePending.title).toContain("Mutation: no estimate yet");
-    expect(f.estimateTicked.text).toBe("About 3 min");
   });
 
   it("lists a report after the list with no checkbox, its age and short commit, and a Clear button that deletes it", () => {

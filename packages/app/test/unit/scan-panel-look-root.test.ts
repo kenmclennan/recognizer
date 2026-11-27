@@ -1,7 +1,9 @@
 import { basename } from "node:path";
+import { scanHistory } from "@recognizer/core";
 import { beforeAll, describe, expect, it } from "vitest";
 import REASONS from "../../../../fixtures/sensor-reasons/states.json";
 import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
+import { readRunRecordFiles } from "../../../cli/src/serve/refusals";
 import { type Program, sensorProgram } from "../../../cli/test/support/index";
 import { describerManifestText } from "../../../cli/test/support/manifest-text";
 import { collectFacts, FAKE_WORKER, here, webkit } from "../../src/look-page";
@@ -571,6 +573,11 @@ const SUITE_FILES = {
   [resultFile("crap")]: suiteDoc("crap"),
   [resultFile("mutation")]: suiteDoc("mutation"),
 };
+const ALL_SUITES = {
+  analysis: true,
+  armed: ["crap"],
+  suites: { crap: { ticked: SUITE_NAMES, known: SUITE_NAMES } },
+};
 const suites = (ticks: Record<string, unknown> = {}, ran = false): Made => ({
   config: SUITE_CONFIG,
   files: SUITE_FILES,
@@ -642,16 +649,31 @@ const SCENARIOS3 = (): Record<string, LookScenario> => ({
   running: heldRun(),
   stopping: stopping(),
   suites: made(suites()),
-  suitesTicked: made(
-    suites(
+  suitesTicked: made({
+    ...suites(
       {
+        ticked: ["crap"],
         suites: {
           crap: { ticked: ["unit"], known: SUITE_NAMES },
         },
       },
       true,
     ),
-  ),
+    rest: {
+      stages: RAN,
+      plans: [
+        { mode: "bring", ticks: ALL_SUITES },
+        { mode: "rescan", ticks: ALL_SUITES },
+        {
+          ticks: {
+            analysis: true,
+            armed: ["crap"],
+            suites: { crap: { ticked: ["unit"], known: SUITE_NAMES } },
+          },
+        },
+      ],
+    },
+  }),
   suitesRan: made(suites({}, true)),
   refused: made(restart(REASONS["mutation-tests-failing"], msAfter(-1000))),
   okNewer: made(restart(null, msAfter(-1000))),
@@ -699,7 +721,8 @@ const withWork =
           started: true,
           status: 0,
           stdout: JSON.stringify({
-            sensors: [{ work: { unit: "functions", to_perform: performed } }],
+            gaps: [],
+            work: { unit: "functions", to_perform: performed, reusable: 0 },
           }),
           stderr: "",
         }
@@ -719,6 +742,10 @@ const estimateScenario = (): LookScenario => {
   return {
     ...base,
     answers,
+    plans: [
+      { ticks: { analysis: true, armed: ["mutation"] } },
+      { ticks: { analysis: true, armed: [] } },
+    ],
     stages: [
       { name: "idle", run: async () => {} },
       {
@@ -728,28 +755,9 @@ const estimateScenario = (): LookScenario => {
             repository: root.repository,
             sensor: "mutation",
           });
-          answers["scan.estimate"] = await root.service.call("scan.estimate", {
-            repository: root.repository,
-            intent: { describe: false, analysis: false, sense: ["mutation"] },
-            planWork: {},
-            parts: [
-              {
-                key: "structure",
-                name: "Structural analysis",
-                runsTests: false,
-                scoped: false,
-                workVerb: null,
-              },
-              {
-                key: "mutation",
-                name: "Mutation",
-                runsTests: true,
-                scoped: true,
-                workVerb: "mutate",
-              },
-            ],
-            work: { mutation: { unit: "functions", to_perform: 2 } },
-          });
+          answers["scan.history"] = scanHistory(
+            readRunRecordFiles(root.io, root.repository),
+          );
         },
       },
     ],
@@ -1795,5 +1803,74 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.scopeOn.written.onlyView).toBe(true);
     expect(f.scopeRan.modules).toEqual([["app/a.py"]]);
     expect(f.scopeOffRan).toEqual([["app/a.py"], ["app/a.py", "app/b.py"]]);
+  });
+
+  it("remembers a tick, a tests-running sensor's tick and a suite tick through the port, and a reopened window reads them back", () => {
+    expect(f.ticked.rows).toEqual(["structure", "describe", "crap", "tally"]);
+    expect(f.ticked.written).toEqual({
+      describe: true,
+      analysis: true,
+      ticked: ["tally", "crap"],
+      onlyView: false,
+      suites: {},
+      folds: [],
+    });
+    expect(f.reopened).toEqual(["structure", "describe", "crap", "tally"]);
+    expect(f.suiteStart.crap).toEqual({
+      ticked: false,
+      indeterminate: false,
+      state: "none",
+    });
+    expect(f.suiteStart.fold.open).toBe(false);
+    expect(f.suiteOpened.suites.map((s: Facts) => s.name)).toEqual([
+      "unit",
+      "a-suite-with-a-very-long-name-indeed",
+      "web",
+    ]);
+    expect(f.suiteFoldWritten).toEqual(["crap"]);
+    expect(f.suiteAfterTick.written.suites.crap).toEqual({
+      ticked: ["unit"],
+      known: ["unit", "a-suite-with-a-very-long-name-indeed", "web"],
+    });
+    expect(f.suiteAfterTick.sensor).toMatchObject({
+      ticked: false,
+      indeterminate: true,
+    });
+    expect(f.suiteReopened.fold.open).toBe(false);
+    expect(f.suiteReopened.sensor).toMatchObject({
+      ticked: false,
+      indeterminate: true,
+    });
+  });
+
+  it("ticks every suite with the sensor and shows the sensor and its suites still ticked after a scan", () => {
+    expect(f.suiteArmed).toMatchObject({ ticked: true, indeterminate: false });
+    expect(f.suiteAfterScan.plan.suites).toEqual({
+      crap: ["unit", "a-suite-with-a-very-long-name-indeed", "web"],
+    });
+    expect(f.suiteAfterScan.sensor.ticked).toBe(true);
+    expect(f.suiteAfterScan.sensor.indeterminate).toBe(false);
+    expect(f.suiteAfterScan.fold.open).toBe(false);
+  });
+
+  it("shows the estimate line under the primary button with its breakdown on hover, and hides it when nothing is ticked", () => {
+    expect(f.estimateTicked).not.toBeNull();
+    expect(f.estimateTicked.exists).toBe(true);
+    expect(f.estimateTicked.hidden).toBe(false);
+    expect(f.estimateTicked.afterButtons).toBe(true);
+    expect(f.estimateTicked.text).toBe("About 3 min");
+    expect(f.estimateTicked.title).toBe(
+      "Structural analysis: <1 min (last run)\nMutation: 3 min (2 functions at recent pace)",
+    );
+    expect(f.estimateUnticked.hidden).toBe(true);
+  });
+
+  it("reads Mutation as no estimate yet while the sensor's work answer is pending, and a figure after", () => {
+    expect(f.estimatePending.hidden).toBe(false);
+    expect(f.estimatePending.text).toBe(
+      "Under a minute, plus Mutation: no estimate yet",
+    );
+    expect(f.estimatePending.title).toContain("Mutation: no estimate yet");
+    expect(f.estimateTicked.text).toBe("About 3 min");
   });
 });
