@@ -14,12 +14,14 @@ import { inProcessAppRoot } from "../in-process-root";
 import {
   afterOpen,
   DESCRIBER_CONFIG,
+  describerFailing,
   describerProgram,
   type SensorsScript,
   type SuiteScript,
   sampleFiles,
   sensorsOf,
   settledRun,
+  untilTogether,
 } from "../rescan-support";
 
 const FRESH = {
@@ -75,6 +77,18 @@ const stalePlan = async (
 
 const lifecycle = /^Scan (started|complete|failed|refused)/;
 
+const failingWith =
+  (program: Program, stderr: string): Program =>
+  (call) =>
+    call.args[0] === "run"
+      ? Promise.resolve(program(call)).then((result) => ({
+          ...result,
+          status: 1,
+          stdout: "",
+          stderr,
+        }))
+      : program(call);
+
 type Root = Awaited<ReturnType<typeof inProcessAppRoot>>;
 
 type Mode = { scanner: "ok" | "bad-flag" | "missing" };
@@ -98,17 +112,24 @@ const scannerIn = (mode: Mode): Program => {
 type Begin = Parameters<typeof inProcessAppRoot>[0] & {
   describer?: Program;
   mode?: Mode;
+  override?: Record<string, Program>;
 };
 
 async function begin(scripts: SensorsScript, options: Begin = {}) {
   const { config, programs } = sensorsOf(scripts);
-  const { describer, mode = { scanner: "ok" }, ...rest } = options;
+  const {
+    describer,
+    mode = { scanner: "ok" },
+    override = {},
+    ...rest
+  } = options;
   const root = await inProcessAppRoot({
     config: (describer === undefined ? "" : DESCRIBER_CONFIG) + config,
     programs: {
       ...programs,
       "recognizer-scan-typescript": scannerIn(mode),
       ...(describer === undefined ? {} : { describer }),
+      ...override,
     },
     describing: { model: "m", batchSize: 3, confirmAboveUsd: 0 },
     files: sampleFiles(),
@@ -127,6 +148,17 @@ async function begin(scripts: SensorsScript, options: Begin = {}) {
 
 const posts = (root: Root) =>
   root.view.tray.posted.filter((one) => !lifecycle.test(one.input.text));
+
+const startExternal = (root: Root, args: Record<string, unknown> = {}) => {
+  const other = root.second();
+
+  other.send("scan.start", { repository: root.repository, ...args });
+
+  return other;
+};
+
+const postedText = (root: Root, pattern: RegExp) => () =>
+  root.view.tray.posted.find((one) => pattern.test(one.input.text))?.input;
 
 const gated = () => {
   const gate = new Gate();
@@ -1008,5 +1040,432 @@ describe("createRescanner", () => {
       },
     ]);
     expect(host.ticks()).toEqual(next);
+  });
+
+  it("posts a failed sensor as an error whose Show reaches the sensor row", async () => {
+    const alpha = gated();
+    const beta = gated();
+    const { programs } = sensorsOf({ alpha: { gate: alpha } });
+    const { root, opened, host } = await begin(
+      { alpha: { gate: alpha }, beta: { gate: beta } },
+      {
+        override: {
+          "recognizer-sense-alpha": failingWith(
+            programs["recognizer-sense-alpha"] as Program,
+            "boom",
+          ),
+        },
+      },
+    );
+
+    host.run(null);
+    await walk(root, host, [
+      ["alpha", alpha],
+      ["beta", beta],
+    ]);
+    await settledRun(root, opened);
+    await root.service.signal(500);
+
+    const failure = posts(root).find((one) =>
+      one.input.text.startsWith("alpha"),
+    )?.input;
+
+    expect(failure).toMatchObject({
+      kind: "error",
+      text: "alpha failed: boom",
+    });
+    expect(failure?.key).toBeUndefined();
+    expect(failure?.action?.label).toBe("Show");
+
+    failure?.action?.run();
+
+    expect(root.view.explorer()?.shown.map((one) => one.kind)).toContain(
+      "sensor",
+    );
+  });
+
+  describe("the describe result of a scan the command line started", () => {
+    const outcomeOf = async (
+      reasons: Record<string, string> | null,
+      modules: string[],
+      describe: boolean,
+    ) => {
+      const gate = gated();
+      const { root } = await begin(
+        { alpha: { gate } },
+        {
+          describer:
+            reasons === null ? describerProgram() : describerFailing(reasons),
+          ticks: { ...FRESH, describe },
+        },
+      );
+      const other = startExternal(root, {
+        describe: describe ? "stale" : false,
+        sense: ["alpha"],
+        ...(modules.length === 0 ? {} : { modules }),
+      });
+
+      await untilTogether(root, other, postedText(root, /^Scan started/));
+      gate.open();
+      await untilTogether(
+        root,
+        other,
+        postedText(root, /^Scan (complete|failed)/),
+      );
+      await root.service.signal(500);
+
+      return root;
+    };
+
+    it("posts the describe result as info with no action when nothing failed", async () => {
+      const root = await outcomeOf(
+        null,
+        ["api/src/place.ts", "api/src/types.ts"],
+        true,
+      );
+
+      expect(posts(root).at(-1)?.input).toEqual({
+        kind: "info",
+        text: "Describe wrote 2 lines, 0 files failed.",
+      });
+    });
+
+    it("posts the describe result with Show on the first failed file", async () => {
+      const root = await outcomeOf(
+        {
+          "api/src/place.ts": "x",
+          "api/src/types.ts": "y",
+          "web/src/main.tsx": "z",
+        },
+        [
+          "api/src/index.ts",
+          "api/src/place.ts",
+          "api/src/types.ts",
+          "web/src/main.tsx",
+        ],
+        true,
+      );
+      const result = posts(root).find((one) =>
+        one.input.text.startsWith("Describe"),
+      )?.input;
+
+      expect(result?.text).toBe("Describe wrote 1 lines, 3 files failed.");
+      expect(result?.action?.label).toBe("Show");
+
+      result?.action?.run();
+
+      expect(root.view.explorer()?.shown.map((one) => one.kind)).toContain(
+        "module",
+      );
+    });
+
+    it("posts nothing about describe when no describe phase ran", async () => {
+      const root = await outcomeOf(null, [], false);
+
+      expect(
+        posts(root).some((one) => one.input.text.startsWith("Describe")),
+      ).toBe(false);
+    });
+  });
+
+  describe("the describe confirmation", () => {
+    const asking = async () => {
+      const answers: unknown[] = [];
+      const gate = gated();
+      const { root, host } = await begin(
+        { alpha: { gate } },
+        {
+          describer: describerProgram(),
+          ticks: { ...FRESH, describe: true },
+          record: (command, args) => {
+            if (command === "core_call" && args.op === "confirm.answer") {
+              answers.push((args.args as { describe: unknown }).describe);
+            }
+          },
+        },
+      );
+      const other = startExternal(root, {
+        describe: "stale",
+        sense: ["alpha"],
+        confirmAbove: 0,
+      });
+
+      await untilTogether(root, other, () =>
+        host.describeAsk() === null ? undefined : true,
+      );
+
+      return { root, host, other, answers, gate };
+    };
+
+    const cleared = (host: { describeAsk(): unknown }) => () =>
+      host.describeAsk() === null ? true : undefined;
+
+    const finished = (
+      root: Root,
+      other: { advance(ms: number): Promise<void> },
+      gate: Gate,
+    ) => {
+      gate.open();
+
+      return untilTogether(
+        root,
+        other,
+        postedText(root, /^Scan (complete|failed)/),
+      );
+    };
+
+    it("opens the ask from the record's confirm line and answers describe through the port once", async () => {
+      const { root, host, other, answers, gate } = await asking();
+
+      expect(root.view.progress.at(-1)).toContain("Waiting for your answer");
+
+      host.answerDescribe(true);
+      await root.service.signal(50);
+
+      expect(answers).toEqual([true]);
+      expect(host.describeAsk()).not.toBeNull();
+
+      await untilTogether(root, other, cleared(host));
+      host.answerDescribe(true);
+      await root.service.signal(50);
+
+      expect(answers).toEqual([true]);
+      expect(host.describeAsk()).toBeNull();
+      expect(host.describeSkipped()).toBe(false);
+
+      await finished(root, other, gate);
+    });
+
+    it("marks the describe phase skipped when the answered line says skip", async () => {
+      const { root, host, other, answers, gate } = await asking();
+
+      host.answerDescribe(false);
+      await untilTogether(root, other, cleared(host));
+
+      expect(answers).toEqual([false]);
+      expect(host.describeAsk()).toBeNull();
+      expect(host.describeSkipped()).toBe(true);
+
+      await finished(root, other, gate);
+    });
+
+    it("answers a scan the command line started through the same port call", async () => {
+      const { root, host, other, answers, gate } = await asking();
+
+      expect(host.describeAsk()).not.toBeNull();
+
+      host.answerDescribe(true);
+      await untilTogether(root, other, cleared(host));
+
+      expect(answers).toEqual([true]);
+      expect(host.describeAsk()).toBeNull();
+
+      await finished(root, other, gate);
+    });
+
+    it("posts an error when the port refuses the answer", async () => {
+      const { root, host, other } = await asking();
+
+      other.send("scan.stop", { repository: root.repository });
+      await other.advance(1000);
+      host.answerDescribe(true);
+      await reaches(root, postedText(root, /^Error/));
+
+      expect(posts(root).at(-1)?.input).toMatchObject({
+        kind: "error",
+        text: "Error: no scan is waiting for an answer",
+      });
+    });
+
+    it("clears the ask when the scan is stopped while it is open", async () => {
+      const { root, host, other } = await asking();
+
+      other.send("scan.stop", { repository: root.repository });
+      await untilTogether(root, other, cleared(host));
+
+      expect(host.describeAsk()).toBeNull();
+    });
+  });
+
+  describe("scan notifications", () => {
+    const lifecycleOf = (root: Root) =>
+      root.view.tray.posted
+        .map((one) => one.input)
+        .filter((input) => lifecycle.test(input.text));
+
+    const gapped =
+      (program: Program, line: string): Program =>
+      (call) =>
+        call.args[0] === "check"
+          ? {
+              started: true,
+              status: 0,
+              stdout: JSON.stringify({
+                gaps: [{ code: "environment", suite: null, line }],
+              }),
+              stderr: "",
+            }
+          : program(call);
+
+    const timed = async (seconds: number, describe: boolean) => {
+      const gate = gated();
+      const { root } = await begin(
+        { alpha: { gate }, beta: {} },
+        {
+          describer: describerProgram(),
+          ticks: { ...FRESH, describe },
+        },
+      );
+      const other = startExternal(root, {
+        describe: describe ? "stale" : false,
+        sense: ["alpha", "beta"],
+      });
+
+      await untilTogether(root, other, postedText(root, /^Scan started/));
+      await other.advance(seconds * 1000 - 500);
+      gate.open();
+      await untilTogether(root, other, postedText(root, /^Scan complete/));
+
+      return root;
+    };
+
+    it("posts Scan started naming the sensors, and Scan complete with its duration from the record", async () => {
+      const root = await timed(192, true);
+
+      expect(lifecycleOf(root)).toEqual([
+        { kind: "info", text: "Scan started - Alpha, Beta, describe" },
+        { kind: "done", text: "Scan complete - 3m 12s" },
+      ]);
+    });
+
+    it("reads seconds alone under a minute", async () => {
+      const root = await timed(45, false);
+
+      expect(lifecycleOf(root).at(-1)).toEqual({
+        kind: "done",
+        text: "Scan complete - 45s",
+      });
+    });
+
+    it("posts the failure with its reason and no Scan complete", async () => {
+      const rejects: Record<string, string> = {};
+      const { root, host } = await begin({ alpha: {} }, { rejects });
+
+      rejects["scan.start"] = "boom";
+      host.run(null);
+      await reaches(root, postedText(root, /^Scan failed/));
+
+      expect(lifecycleOf(root).map((one) => one.text)).toEqual([
+        "Scan failed - boom",
+      ]);
+    });
+
+    it("posts a failed run that finished with exit 1 as Scan failed with the first failed entry", async () => {
+      const gate = gated();
+      const { programs } = sensorsOf({ alpha: { gate } });
+      const { root } = await begin(
+        { alpha: { gate } },
+        {
+          override: {
+            "recognizer-sense-alpha": failingWith(
+              programs["recognizer-sense-alpha"] as Program,
+              "no coverage",
+            ),
+          },
+        },
+      );
+      const other = startExternal(root, { sense: ["alpha"] });
+
+      await untilTogether(root, other, postedText(root, /^Scan started/));
+      gate.open();
+      await untilTogether(root, other, postedText(root, /^Scan failed/));
+
+      expect(lifecycleOf(root).at(-1)).toEqual({
+        kind: "error",
+        text: "Scan failed - alpha: no coverage",
+      });
+    });
+
+    it("posts a warning for a gaps result and never Scan complete", async () => {
+      const { programs } = sensorsOf({ alpha: {}, beta: {} });
+      const { root, host } = await begin(
+        { alpha: {}, beta: {} },
+        {
+          override: {
+            "recognizer-sense-alpha": gapped(
+              programs["recognizer-sense-alpha"] as Program,
+              "coverage and pytest are not installed",
+            ),
+            "recognizer-sense-beta": gapped(
+              programs["recognizer-sense-beta"] as Program,
+              "cargo-llvm-cov is not installed",
+            ),
+          },
+        },
+      );
+
+      host.run(null);
+      await reaches(root, postedText(root, /^Scan refused/));
+
+      expect(lifecycleOf(root).at(-1)).toEqual({
+        kind: "warning",
+        text: "Scan refused - 2 problems: coverage and pytest are not installed",
+      });
+      expect(
+        lifecycleOf(root).some((one) => one.text.startsWith("Scan complete")),
+      ).toBe(false);
+    });
+
+    it("posts a config gap as a problem, not a missing tool", async () => {
+      const { programs } = sensorsOf({ alpha: {} });
+      const { root, host } = await begin(
+        { alpha: {} },
+        {
+          override: {
+            "recognizer-sense-alpha": gapped(
+              programs["recognizer-sense-alpha"] as Program,
+              "no test suites are configured in .recognizer/config.yaml",
+            ),
+          },
+        },
+      );
+
+      host.run(null);
+      await reaches(root, postedText(root, /^Scan refused/));
+
+      expect(lifecycleOf(root).at(-1)).toEqual({
+        kind: "warning",
+        text: "Scan refused - 1 problem: no test suites are configured in .recognizer/config.yaml",
+      });
+    });
+
+    it("posts a refusal for the live marker as a warning", async () => {
+      const gate = gated();
+      const { root, host } = await begin(
+        { alpha: { gate }, beta: {} },
+        {
+          override: {
+            env: () => ({
+              started: true,
+              status: 0,
+              stdout: "Mon Jan  1 00:00:00 2099\n",
+              stderr: "",
+            }),
+          },
+        },
+      );
+      const other = startExternal(root, { describe: false, sense: ["alpha"] });
+
+      await other.advance(300);
+      host.run(null);
+      await untilTogether(root, other, postedText(root, /^Scan refused/));
+
+      expect(lifecycleOf(root).at(-1)).toEqual({
+        kind: "warning",
+        text: `Scan refused - a scan is already running on ${root.repository}`,
+      });
+
+      gate.open();
+    });
   });
 });
