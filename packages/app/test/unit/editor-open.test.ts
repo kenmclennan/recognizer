@@ -1,10 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { fakeEditor } from "../../src/editor-fake";
 import {
   editorRelative,
   openFolderInEditor,
   openInEditor,
 } from "../../src/editor-open";
+import type { EditorPort } from "../../src/editor-port";
+
+function fakeEditor(failWith: string | null = null) {
+  const recorded: EditorPort & {
+    files: string[];
+    opened: { file: string; line: number | undefined }[];
+    folders: number;
+  } = {
+    files: [],
+    opened: [],
+    folders: 0,
+    async openFile(relative, line) {
+      if (failWith !== null) {
+        throw new Error(failWith);
+      }
+
+      recorded.files.push(relative);
+      recorded.opened.push({ file: relative, line });
+    },
+    async openFolder() {
+      if (failWith !== null) {
+        throw new Error(failWith);
+      }
+
+      recorded.folders += 1;
+    },
+  };
+
+  return recorded;
+}
 
 describe("opening the selection in the editor", () => {
   it("opens a module's id as a file", async () => {
