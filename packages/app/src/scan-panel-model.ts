@@ -272,7 +272,12 @@ export type ScanPanelModel = {
 
 const NOTHING_TICKED = "Nothing ticked to run";
 
-const INERT_LABELS = [NOTHING_TICKED, "Nothing to run", "Checking"];
+const INERT_LABELS = [
+  NOTHING_TICKED,
+  "Ticked checks are up to date",
+  "Nothing to run",
+  "Checking",
+];
 
 const DESCRIBE_TITLE =
   "Writes one line per file saying what it is responsible for.";

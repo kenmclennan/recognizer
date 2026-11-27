@@ -461,8 +461,15 @@ function actionOf(
   );
 
   if (untickedStale.length > 0) {
+    const anyTicked = rows.some(({ key }) => key !== SCAN_KEY && ticked(key));
+
     return {
-      primary: { label: "Nothing ticked to run", disabled: true },
+      primary: {
+        label: anyTicked
+          ? "Ticked checks are up to date"
+          : "Nothing ticked to run",
+        disabled: true,
+      },
       mode,
     };
   }

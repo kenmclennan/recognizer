@@ -2152,10 +2152,10 @@ describe("scanPanel estimate line", () => {
       ...over,
     });
 
-  it("shows no line when nothing is ticked to run", () => {
+  it("shows no line when the ticked checks are up to date", () => {
     const model = panel(inputOf({ history }));
 
-    expect(model.button.label).toBe("Nothing ticked to run");
+    expect(model.button.label).toBe("Ticked checks are up to date");
     expect(model.estimate).toBeNull();
   });
 
