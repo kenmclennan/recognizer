@@ -4,7 +4,7 @@ import type {
 } from "@recognizer/core";
 import type { IconName } from "./icons";
 
-export type SuiteTone = "ok" | "bad" | "muted" | "run";
+export type SuiteTone = "ok" | "bad" | "muted" | "run" | "warn";
 
 export type SuiteLook = { icon: IconName; tone: SuiteTone };
 
@@ -27,6 +27,7 @@ export const LOOK: Record<CoreSuiteState["kind"], SuiteLook> = {
   partial: { icon: "circle-pause", tone: "muted" },
   never: { icon: "circle-dashed", tone: "muted" },
   running: { icon: "loader", tone: "run" },
+  stale: { icon: "circle-alert", tone: "warn" },
 };
 
 export function lookedState(state: CoreSuiteState): SuiteState {

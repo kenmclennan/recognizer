@@ -151,11 +151,12 @@ describe("suite look", () => {
     ["partial", "circle-pause", "muted"],
     ["never", "circle-dashed", "muted"],
     ["running", "loader", "run"],
+    ["stale", "circle-alert", "warn"],
   ] as const)("gives %s the %s icon and %s tone", (kind, icon, tone) => {
     expect(LOOK[kind]).toEqual({ icon, tone });
   });
 
-  it.each(["ok", "failed", "partial", "never", "running"] as const)(
+  it.each(["ok", "failed", "partial", "never", "running", "stale"] as const)(
     "maps %s through lookedState and lookedFold to its look",
     (kind) => {
       expect(lookedState({ kind, text: "t", title: "u" })).toEqual({
