@@ -298,3 +298,18 @@ def test_crap_and_mutation_manifests_declare_name_and_variable_placeholders_with
 
 def test_both_sensors_declare_protocol_4():
     assert [build(name)["protocol"] for name in NAMES] == [4, 4]
+
+
+def test_crap_and_mutation_publish_the_principles_their_findings_cite():
+    shared = {
+        entry["id"]: entry
+        for entry in json.loads(
+            (REPOSITORY / "fixtures" / "sensors" / "principles.json").read_text()
+        )
+    }
+
+    assert build("crap")["principles"] == [
+        shared["change-risk-anti-patterns"],
+        shared["code-coverage-guidelines"],
+    ]
+    assert build("mutation")["principles"] == [shared["mutation-testing"]]

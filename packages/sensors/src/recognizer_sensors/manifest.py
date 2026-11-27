@@ -8,6 +8,7 @@ from recognizer_sensors.config_schema import (
     SUITE_PLACEHOLDERS,
     SUITE_SECTION,
 )
+from recognizer_sensors.principles import PRINCIPLES
 from recognizer_sensors.testrun.reports import LOG
 
 PROTOCOL = 4
@@ -314,6 +315,11 @@ def build(name: str) -> dict:
                     coverage_sentence(),
                 ),
             ],
+            "principles": [
+                dict(entry)
+                for entry in PRINCIPLES
+                if entry["id"] in ("change-risk-anti-patterns", "code-coverage-guidelines")
+            ],
             "runs_tests": True,
             "suite_keys": suite_keys(),
             "placeholders": SUITE_PLACEHOLDERS,
@@ -338,6 +344,7 @@ def build(name: str) -> dict:
                 mutation_sentence(),
             )
         ],
+        "principles": [dict(entry) for entry in PRINCIPLES if entry["id"] == "mutation-testing"],
         "runs_tests": True,
         "suite_keys": suite_keys(),
         "placeholders": SUITE_PLACEHOLDERS,

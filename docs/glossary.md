@@ -266,7 +266,8 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Body length | The lines from a function or method's `body_line` to its last, so a signature is not counted; the measure the `long_function` finding uses when the scan carries `body_line`, the first line of the body. |
 | Show private | The remembered switch that adds non-exported members and private fields and methods to Contents. |
 | Health disc | A dot on each file, folder and box: green fine, amber a warning, red a violation, a grey ring not measured. A folder shows the worst inside it. |
-| Principle | The published principle a finding rests on, named by a stable id from the registry in `packages/cli/src/principles.ts` and shown by its name. |
+| Principle | The published principle a finding rests on, named by a stable id and shown by its name. The id is defined in core's registry (`packages/core/src/domain/principles.ts`) for the checks core runs, or in the `principles` a sensor's manifest publishes. |
+| Published principle | A principle a sensor's manifest publishes, shown by name wherever core shows a finding that cites its id. |
 | Citation | The author, work, year and optional locator a finding carries for its principle, taken from the registry; absent for the repository's own policy rule. |
 | Finding | A violation or warning a sensor wrote for the current scan: a stable id, a kind, a principle, a citation where the principle is published, a one-line summary, its evidence by scan id and, where one is named, a fix pattern. Attached to the files in its evidence; a health disc shows the summary. |
 | SensorFindings | One sensor's stored findings with the freshness they were measured under: the sensor, the commit, whether the working tree was dirty, its settings, the hashes of the inputs and tests it ran over, and its Findings. One per sensor, kept in `.recognizer/cache/findings/<sensor>.json`. |

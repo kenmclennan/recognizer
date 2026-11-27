@@ -10,16 +10,6 @@ PRINCIPLES = [
         },
     },
     {
-        "id": "cyclomatic-complexity-limit",
-        "name": "Cyclomatic complexity limit",
-        "citation": {
-            "author": "Thomas J. McCabe",
-            "work": "A Complexity Measure, IEEE Transactions on Software Engineering",
-            "year": 1976,
-            "locator": "page 314, upper bound of 10",
-        },
-    },
-    {
         "id": "code-coverage-guidelines",
         "name": "Code coverage guidelines",
         "citation": {

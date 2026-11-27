@@ -2,11 +2,13 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
   type Dependency,
+  discoverPlugins,
   type FindingNote,
   findingsByModuleFrom,
   type Member,
   measureFolders,
   Neighbours,
+  publishedPrinciplesOf,
   type Repository,
 } from "@recognizer/core";
 import { PolicyAdapter } from "./adapters/filesystem/policy-adapter.js";
@@ -19,6 +21,7 @@ import { InputError } from "./errors.js";
 import { metricsLine, metricsTable } from "./folder-metrics.js";
 import { freshScans } from "./freshness.js";
 import { loadFindings } from "./load-findings.js";
+import { manifestPorts } from "./manifest-ports.js";
 import {
   fieldTokens,
   memberHeadTokens,
@@ -74,7 +77,12 @@ function load(
 }
 
 function findingsOf(loaded: Loaded, io: Io): Map<string, FindingNote[]> {
-  return findingsByModuleFrom(loadFindings(io, loaded.root, loaded.repository));
+  return findingsByModuleFrom(
+    loadFindings(io, loaded.root, loaded.repository),
+    publishedPrinciplesOf(
+      discoverPlugins(manifestPorts(io), ["sensor"]).plugins,
+    ),
+  );
 }
 
 function row(parts: (string | number | undefined)[]): string {

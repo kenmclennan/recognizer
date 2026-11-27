@@ -93,6 +93,30 @@
         "$ref": "#/$defs/finding"
       }
     },
+    "principles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "citation": {
+            "$ref": "#/$defs/citation"
+          }
+        }
+      }
+    },
     "runs_tests": {
       "type": "boolean"
     },
@@ -235,6 +259,32 @@
     }
   },
   "$defs": {
+    "citation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "author",
+        "work",
+        "year"
+      ],
+      "properties": {
+        "author": {
+          "type": "string",
+          "minLength": 1
+        },
+        "work": {
+          "type": "string",
+          "minLength": 1
+        },
+        "year": {
+          "type": "integer"
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
     "setting": {
       "type": "object",
       "additionalProperties": false,
@@ -1348,6 +1398,7 @@
         "properties": {
           "metrics": false,
           "findings": false,
+          "principles": false,
           "runs_tests": false,
           "scoped": false,
           "planned_work": false,
@@ -1401,6 +1452,7 @@
           "languages": false,
           "metrics": false,
           "findings": false,
+          "principles": false,
           "runs_tests": false,
           "scoped": false,
           "planned_work": false,

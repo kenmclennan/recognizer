@@ -249,6 +249,7 @@ export * from "./domain/plugins/manifest.js";
 export * from "./domain/plugins/plugin-environment.js";
 export * from "./domain/plugins/policy-problems.js";
 export * from "./domain/plugins/problem-titles.js";
+export * from "./domain/plugins/published-principles.js";
 export * from "./domain/plugins/registration.js";
 export * from "./domain/plugins/sensor-check.js";
 export * from "./domain/plugins/sentence.js";

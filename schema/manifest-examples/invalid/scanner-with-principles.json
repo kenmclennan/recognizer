@@ -1,0 +1,59 @@
+{
+  "kind": "scanner",
+  "name": "python",
+  "display": "Python",
+  "version": "0.1.0",
+  "protocol": 4,
+  "install": "brew install --cask kenmclennan/tap/recognizer",
+  "check": false,
+  "long_running": true,
+  "units": [
+    "files"
+  ],
+  "settings": [],
+  "languages": [
+    {
+      "name": "python",
+      "display": "Python",
+      "extensions": [
+        ".py"
+      ],
+      "files": [],
+      "skip": {
+        "directory_names": [
+          "__pycache__",
+          "test",
+          "tests",
+          "dist",
+          "build",
+          "node_modules",
+          "site-packages"
+        ],
+        "directory_prefixes": [
+          "."
+        ],
+        "directory_suffixes": [
+          ".egg-info"
+        ],
+        "directory_markers": [
+          "pyvenv.cfg"
+        ],
+        "file_globs": [
+          "conftest.py"
+        ]
+      }
+    }
+  ],
+  "scan_schema_version": 7,
+  "principles": [
+    {
+      "id": "mutation-testing",
+      "name": "Mutation testing",
+      "citation": {
+        "author": "Richard A. DeMillo, Richard J. Lipton and Frederick G. Sayward",
+        "work": "Hints on Test Data Selection: Help for the Practicing Programmer, Computer",
+        "year": 1978
+      }
+    }
+  ]
+}

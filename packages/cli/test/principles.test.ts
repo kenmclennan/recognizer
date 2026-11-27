@@ -73,17 +73,29 @@ describe("the principle registry", () => {
           year: 1999,
         },
       },
-      ...shared,
+      {
+        id: "cyclomatic-complexity-limit",
+        name: "Cyclomatic complexity limit",
+        citation: {
+          author: "Thomas J. McCabe",
+          work: "A Complexity Measure, IEEE Transactions on Software Engineering",
+          year: 1976,
+          locator: "page 314, upper bound of 10",
+        },
+      },
     ]);
   });
 
-  it("has exactly eleven entries", () => {
-    expect(PRINCIPLES).toHaveLength(11);
+  it("has exactly eight entries", () => {
+    expect(PRINCIPLES).toHaveLength(8);
   });
 
-  it("ends with the four entries fixtures/sensors/principles.json holds", () => {
-    expect(PRINCIPLES.slice(7)).toEqual(shared);
-    expect(shared).toHaveLength(4);
+  it("holds none of the entries fixtures/sensors/principles.json holds", () => {
+    expect(shared).toHaveLength(3);
+
+    for (const entry of shared) {
+      expect(PRINCIPLES.map((one) => one.id)).not.toContain(entry.id);
+    }
   });
 
   it("names a registered id and returns any other string unchanged", () => {

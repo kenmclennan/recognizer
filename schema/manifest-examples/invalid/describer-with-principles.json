@@ -1,0 +1,52 @@
+{
+  "kind": "describer",
+  "name": "claude",
+  "display": "Claude",
+  "version": "0.1.0",
+  "protocol": 4,
+  "install": "brew install --cask kenmclennan/tap/recognizer",
+  "check": true,
+  "long_running": false,
+  "time_limit_seconds": 120,
+  "units": [
+    "modules"
+  ],
+  "settings": [
+    {
+      "key": "model",
+      "type": "string",
+      "scope": "machine",
+      "label": "Model",
+      "default": "haiku",
+      "description": "the model every description uses, for scans started from the app and from a terminal",
+      "example": "describing.model haiku",
+      "order": 1
+    }
+  ],
+  "prices": {
+    "haiku": {
+      "input": 0.1,
+      "output": 0.5
+    },
+    "sonnet": {
+      "input": 2,
+      "output": 10
+    },
+    "opus": {
+      "input": 4,
+      "output": 20
+    }
+  },
+  "prompt_version": "prompt-b450a986f729",
+  "principles": [
+    {
+      "id": "mutation-testing",
+      "name": "Mutation testing",
+      "citation": {
+        "author": "Richard A. DeMillo, Richard J. Lipton and Frederick G. Sayward",
+        "work": "Hints on Test Data Selection: Help for the Practicing Programmer, Computer",
+        "year": 1978
+      }
+    }
+  ]
+}

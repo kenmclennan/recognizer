@@ -1,3 +1,4 @@
+import type { Principle } from "../principles.js";
 import type { FindingEntry } from "./sentence.js";
 
 export interface PlaceholderDeclaration {
@@ -42,6 +43,7 @@ export interface Manifest {
   scan_schema_version?: number;
   metrics?: unknown[];
   findings?: FindingEntry[];
+  principles?: Principle[];
   runs_tests?: boolean;
   suite_keys?: { section: unknown; keys: unknown[] };
   placeholders?: Record<string, PlaceholderDeclaration>;

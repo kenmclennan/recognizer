@@ -8,8 +8,10 @@ import { COMMANDS } from "../src/commands.js";
 import { REPO } from "./helpers.js";
 import { validatedRepository as validateScan } from "./repository-from.js";
 import { type FakeOptions, fakeIo, ROOT } from "./scan-helpers.js";
+import { sensorManifest } from "./support/sensor-program.js";
 
 const COMMIT = "abc123";
+const EMPTY_HASH = createHash("sha256").update("").digest("hex");
 const CACHE = `${ROOT}/.recognizer/cache/scan.python.json`;
 
 function read(path: string) {
@@ -266,6 +268,60 @@ describe("show", () => {
     expect(cycle.findings[0]).toEqual(
       expect.objectContaining({ severity: expect.any(String) }),
     );
+  });
+
+  it("names a principle the installed sensor publishes", () => {
+    const manifest = JSON.parse(sensorManifest("crap"));
+
+    manifest.principles = [
+      { id: "published-id", name: "A principle the sensor publishes" },
+    ];
+
+    const findings = JSON.parse(
+      read("schema/findings-examples/valid/crap.json"),
+    );
+
+    findings.commit = COMMIT;
+    findings.inputs = { [order]: EMPTY_HASH };
+    findings.findings = [findings.findings[0]];
+    findings.findings[0].principle = "published-id";
+    findings.findings[0].evidence.modules = [order];
+    findings.findings[0].evidence.members[0].module = order;
+    findings.findings[0].evidence.members[0].file = order;
+
+    const fake = repository(
+      python,
+      {
+        [CACHE]: JSON.stringify({
+          ...python,
+          commit: COMMIT,
+          modified: false,
+          files: [{ path: order, hash: EMPTY_HASH }],
+        }),
+        [`${ROOT}/${order}`]: "",
+        [`${ROOT}/.recognizer/cache/findings/crap.json`]:
+          JSON.stringify(findings),
+        [`${ROOT}/.recognizer/config.yaml`]:
+          "sensors:\n  crap:\n    manifest: [recognizer-sense-crap, manifest]\n",
+      },
+      {
+        onPath: ["recognizer-sense-crap"],
+        programs: {
+          "recognizer-sense-crap": () => ({
+            started: true,
+            status: 0,
+            stdout: JSON.stringify(manifest),
+            stderr: "",
+          }),
+        },
+      },
+    );
+
+    const code = run(["show", order, "--repository", ROOT], fake.io);
+
+    expect(fake.err()).toBe("");
+    expect(code).toBe(0);
+    expect(fake.out()).toContain("(A principle the sensor publishes)");
   });
 
   it("refuses the removed --hub-threshold flag on show and files", () => {

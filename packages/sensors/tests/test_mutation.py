@@ -990,7 +990,7 @@ def test_the_weak_run_yields_one_warning_per_function_with_a_survivor(tmp_path):
     assert finding["principle"] == "mutation-testing"
     assert (
         finding["citation"]
-        == json.loads((REPOSITORY / "fixtures" / "sensors" / "principles.json").read_text())[3][
+        == json.loads((REPOSITORY / "fixtures" / "sensors" / "principles.json").read_text())[2][
             "citation"
         ]
     )
