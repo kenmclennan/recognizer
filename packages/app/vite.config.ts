@@ -7,6 +7,12 @@ const layout = [
   "test/unit/lightcycle-shaped-graph.test.ts",
 ];
 
+const endToEndService = [
+  "test/end-to-end/app-root-timing.test.ts",
+  "test/end-to-end/packaged-service-run.test.ts",
+  "test/end-to-end/serve-after-stop.test.ts",
+];
+
 const endToEnd = [
   "test/end-to-end/**/*.test.ts",
   "test/unit/*-look.test.ts",
@@ -34,12 +40,12 @@ export default defineConfig({
     ...poolTestOptions({}),
     environment: "node",
     globalSetup: ["test/look-browser-setup.mjs"],
-    setupFiles: ["../../tools/scripts/vitest-remove-temp-dirs.mjs"],
     projects: [
       {
         extends: true,
         test: {
           name: "unit",
+          setupFiles: ["../../tools/scripts/vitest-remove-temp-dirs.mjs"],
           include: unitInclude,
           exclude: [...configDefaults.exclude, ...layout, ...endToEnd],
         },
@@ -48,8 +54,21 @@ export default defineConfig({
         extends: true,
         test: {
           name: "e2e",
+          setupFiles: ["../../tools/scripts/vitest-remove-temp-dirs.mjs"],
           include: endToEnd,
-          exclude: [...configDefaults.exclude, ...layout],
+          exclude: [...configDefaults.exclude, ...layout, ...endToEndService],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "e2e-service",
+          sequence: { groupOrder: 2 },
+          isolate: false,
+          maxWorkers: 1,
+          globalSetup: ["../../tools/scripts/service-scratch-setup.mjs"],
+          setupFiles: ["../../tools/scripts/service-scratch-worker.mjs"],
+          include: endToEndService,
         },
       },
     ],

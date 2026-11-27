@@ -346,3 +346,4 @@ The words recognizer's code, docs and interface use. A term is added here before
 | Scan schema version | The `schema_version` of the scan document. A scanner declares the one it writes as `scan_schema_version` in its manifest; the app reads its own and any older one unless `schema/scan-breaking-versions.json` lists a break between them. |
 | Fake adapter | A test stand-in for a port or for `Io` that is proved against the real adapter by one shared contract. |
 | End-to-end test | A test that starts the real service or a real plugin process, kept to a named set in `end-to-end/`. |
+| Shared service | One `recognizer serve` per vitest worker, kept between test files by the `e2e-service` project, with each test's own repository as its isolation. |

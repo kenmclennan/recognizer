@@ -15,7 +15,7 @@
     "pretest:unit": "npm run build -w recognizer && npm run build -w recognizer-scan-typescript",
     "test:unit": "vitest run --project unit",
     "pretest:e2e": "npm run build -w recognizer && npm run build -w recognizer-scan-typescript",
-    "test:e2e": "vitest run --project e2e",
+    "test:e2e": "vitest run --project e2e --project e2e-service",
     "pretest:layout": "npm run build -w recognizer",
     "test:layout": "vitest run --config vitest.layout.config.ts",
     "lint": "biome check --error-on-warnings src/ test/ scripts/ ../../tools/scripts/ ../../tools/validation/corpus/ vite.config.ts vitest.layout.config.ts",

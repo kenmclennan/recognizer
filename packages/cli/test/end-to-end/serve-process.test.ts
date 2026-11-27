@@ -15,13 +15,16 @@ import { isolatedPath } from "../isolated-path.js";
 import {
   alive,
   BIN,
+  hold,
   type Line,
   launcher,
   pidFile,
   plantMarker,
   Serve,
+  sharedGates,
+  sharedLaunchers,
+  sharedServe,
   slowLaunchers,
-  typescriptLaunchers,
   typescriptRepository,
 } from "../serve-harness.js";
 
@@ -316,7 +319,7 @@ describe("recognizer serve: starting a scan", () => {
   it(
     "a_scan_through_the_service_equals_the_cli_scan",
     async () => {
-      const launchers = typescriptLaunchers();
+      const launchers = sharedLaunchers();
       const viaService = typescriptRepository();
       const viaCli = typescriptRepository();
       const environment = { ...process.env };
@@ -330,7 +333,7 @@ describe("recognizer serve: starting a scan", () => {
 
       expect(cli.status).toBe(0);
 
-      const serve = new Serve(launchers);
+      const serve = await sharedServe();
       const started = await serve.call("scan.start", {
         repository: viaService,
         describe: false,
@@ -339,9 +342,18 @@ describe("recognizer serve: starting a scan", () => {
       });
 
       expect(await serve.outcome(started.ok)).toEqual({ status: "finished" });
-      await serve.close();
 
       const marker = join(cacheOf(viaService), "scan-running.json");
+
+      await serve.until(() => {
+        try {
+          return JSON.parse(readFileSync(marker, "utf8")).phase === "finished"
+            ? true
+            : undefined;
+        } catch {
+          return undefined;
+        }
+      });
 
       expect(JSON.parse(readFileSync(marker, "utf8")).started_by).toBe("app");
       expect(normalisedMarker(marker)).toEqual(
@@ -437,9 +449,11 @@ describe("recognizer serve: stop by repository", () => {
   it(
     "stop_by_repository_stops_a_scan_the_service_holds",
     async () => {
-      const gate = makeTempDir("serve-gate-");
-      const serve = new Serve(slowLaunchers(gate));
+      const serve = await sharedServe();
       const repository = typescriptRepository();
+
+      hold(repository);
+
       const started = await serve.call("scan.start", {
         repository,
         describe: false,
@@ -447,12 +461,10 @@ describe("recognizer serve: stop by repository", () => {
         sense: [],
       });
 
-      await pidFile(serve, gate, repository);
+      await pidFile(serve, sharedGates(), repository);
       await serve.call("scan.stop", { repository, owner: "any" });
 
       expect((await serve.outcome(started.ok)).status).toBe("stopped");
-
-      await serve.close();
     },
     TIMEOUT,
   );
@@ -460,7 +472,7 @@ describe("recognizer serve: stop by repository", () => {
   it(
     "stop_by_repository_signals_the_group_of_an_app_marker_from_another_process",
     async () => {
-      const serve = new Serve(typescriptLaunchers());
+      const serve = await sharedServe();
       const repository = typescriptRepository();
       const child = sleeper("sleep 60 & wait", true);
       const pid = child.pid as number;
@@ -469,8 +481,6 @@ describe("recognizer serve: stop by repository", () => {
       await serve.call("scan.stop", { repository, owner: "any" });
       await serve.until(() => (alive(pid) ? undefined : true));
       child.kill("SIGKILL");
-
-      await serve.close();
     },
     TIMEOUT,
   );
@@ -478,7 +488,7 @@ describe("recognizer serve: stop by repository", () => {
   it(
     "stop_by_repository_signals_only_the_pid_of_a_cli_marker",
     async () => {
-      const serve = new Serve(typescriptLaunchers());
+      const serve = await sharedServe();
       const repository = typescriptRepository();
       const marker = makeTempDir("serve-grandchild-");
       const grandchild = join(marker, "pid");
@@ -502,7 +512,6 @@ describe("recognizer serve: stop by repository", () => {
       expect(alive(other)).toBe(true);
 
       process.kill(other, "SIGKILL");
-      await serve.close();
     },
     TIMEOUT,
   );
@@ -510,7 +519,7 @@ describe("recognizer serve: stop by repository", () => {
   it(
     "stop_by_repository_never_signals_a_marker_naming_the_service",
     async () => {
-      const serve = new Serve(typescriptLaunchers());
+      const serve = await sharedServe();
       const repository = typescriptRepository();
 
       plantMarker(repository, {
@@ -526,8 +535,6 @@ describe("recognizer serve: stop by repository", () => {
       expect((await serve.call("scan.status", { repository })).ok.running).toBe(
         true,
       );
-
-      await serve.close();
     },
     TIMEOUT,
   );
@@ -535,7 +542,7 @@ describe("recognizer serve: stop by repository", () => {
   it(
     "stop_by_repository_with_owner_app_skips_a_cli_marker",
     async () => {
-      const serve = new Serve(typescriptLaunchers());
+      const serve = await sharedServe();
       const repository = typescriptRepository();
       const child = sleeper("sleep 60", true);
       const pid = child.pid as number;
@@ -546,7 +553,6 @@ describe("recognizer serve: stop by repository", () => {
       expect(alive(pid)).toBe(true);
 
       child.kill("SIGKILL");
-      await serve.close();
     },
     TIMEOUT,
   );
