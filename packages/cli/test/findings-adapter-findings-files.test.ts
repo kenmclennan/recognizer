@@ -6,13 +6,13 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import type { SensorFindings } from "@recognizer/core";
+import { readFindingsFiles, type SensorFindings } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { FindingsAdapter } from "../src/adapters/filesystem/findings-adapter.js";
 import type { FindingsDocument } from "../src/adapters/filesystem/findings-document-types.js";
 import { type Io, nodeIo } from "../src/cli.js";
-import { findingsFile, readFindingsFiles } from "../src/findings-files.js";
+import { findingsFile, readStoredFindings } from "../src/findings-files.js";
 import { buildFreshness } from "../src/result-freshness.js";
 import { repositoryFrom } from "./repository-from.js";
 
@@ -79,8 +79,7 @@ function read(
   tests: string | null = null,
 ) {
   return readFindingsFiles(
-    ioHolding(value),
-    ROOT,
+    readStoredFindings(ioHolding(value), ROOT),
     () => buildFreshness(SCAN, tests),
     [],
     allowed,
@@ -197,17 +196,19 @@ describe("readFindingsFiles tolerates a stored thresholds.complexity record", ()
     const file = findingsFile(ROOT, name);
 
     return readFindingsFiles(
-      {
-        readDir: () => [{ name: `${name}.json`, kind: "file" }],
-        readFile: (path: string) => {
-          if (path !== file) {
-            throw new Error("missing");
-          }
+      readStoredFindings(
+        {
+          readDir: () => [{ name: `${name}.json`, kind: "file" }],
+          readFile: (path: string) => {
+            if (path !== file) {
+              throw new Error("missing");
+            }
 
-          return JSON.stringify(value);
-        },
-      } as unknown as Io,
-      ROOT,
+            return JSON.stringify(value);
+          },
+        } as unknown as Io,
+        ROOT,
+      ),
       () => buildFreshness(SCAN, null),
       [],
       allowed,
