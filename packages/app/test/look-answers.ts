@@ -1,4 +1,9 @@
-import { afterTickChanges } from "@recognizer/core";
+import {
+  afterTickChanges,
+  type EstimateRequest,
+  estimateFrom,
+  type ScanHistory,
+} from "@recognizer/core";
 import {
   parseViewFile,
   serialiseView,
@@ -52,6 +57,17 @@ export function pageAnswers(
             request.changes as never,
           ),
         };
+      case "scan.estimate": {
+        const history = recording.answers["scan.history"] as
+          | ScanHistory
+          | undefined;
+
+        return history === undefined
+          ? undefined
+          : {
+              ok: estimateFrom(history, request as unknown as EstimateRequest),
+            };
+      }
       case "scan.start":
         return recorded.has(commandKey(command, args))
           ? undefined
