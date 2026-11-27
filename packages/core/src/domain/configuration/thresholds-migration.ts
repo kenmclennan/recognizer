@@ -1,12 +1,13 @@
+import { typedValue } from "./key-value.js";
+import type { KeyEntry, PublishedKeyValues } from "./published-keys.js";
+
 export interface ThresholdsMigration {
   line: string;
   command: string;
 }
 
-const COVERAGE_KEY = "sensors.crap.coverage_limit";
 const COMPLEXITY_SWITCH = "sensors.structure.warnings.complexity";
 const COMPLEXITY_KEY = `${COMPLEXITY_SWITCH}.limit`;
-const DEFAULT_COVERAGE = 0.6;
 const DEFAULT_COMPLEXITY = 10;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -36,47 +37,98 @@ interface Plan {
   notes: string[];
 }
 
-function coverageSteps(entry: unknown, document: unknown): Plan {
-  const plan: Plan = { steps: [], notes: [] };
+function publishedFor(
+  name: string,
+  keys: PublishedKeyValues,
+): { entry: KeyEntry; field: string } | null {
+  const prefix = `sensors.thresholds.${name}.`;
 
-  if (at(document, COVERAGE_KEY.split(".")) !== undefined) {
-    plan.notes.push(`${COVERAGE_KEY} is already set and is left alone`);
+  for (const published of keys) {
+    if (
+      published.replaces?.startsWith(prefix) === true &&
+      published.type !== undefined
+    ) {
+      return {
+        entry: published as KeyEntry,
+        field: published.replaces.slice(prefix.length),
+      };
+    }
+  }
+
+  return null;
+}
+
+function isSingleValue(value: unknown): value is string | number | boolean {
+  return (
+    typeof value === "string" || typeof value === "boolean" || isNumber(value)
+  );
+}
+
+function publishedSteps(
+  name: string,
+  entry: unknown,
+  document: unknown,
+  keys: PublishedKeyValues,
+): Plan {
+  const plan: Plan = { steps: [], notes: [] };
+  const found = publishedFor(name, keys);
+
+  if (found === null) {
+    plan.notes.push(`${name} has no replacement and is dropped`);
+
+    return plan;
+  }
+
+  const published = found.entry;
+
+  if (at(document, published.key.split(".")) !== undefined) {
+    plan.notes.push(`${published.key} is already set and is left alone`);
 
     return plan;
   }
 
   if (entry === "off") {
-    plan.steps.push(`recognizer config ${COVERAGE_KEY} false`);
+    if (published.off === true) {
+      plan.steps.push(`recognizer config ${published.key} false`);
+    } else {
+      plan.notes.push(
+        `${name}: off has no equivalent for ${published.key} and is dropped`,
+      );
+    }
 
     return plan;
   }
 
   if (!isPlainObject(entry)) {
-    plan.notes.push("coverage had no usable form and is dropped");
+    plan.notes.push(`${name} had no usable form and is dropped`);
 
     return plan;
   }
 
-  const below = entry.below;
+  const value = entry[found.field];
 
-  if (isNumber(below) && below > 0 && below <= 1) {
-    if (below !== DEFAULT_COVERAGE) {
-      plan.steps.push(`recognizer config ${COVERAGE_KEY} ${below}`);
+  if (isSingleValue(value)) {
+    const typed = typedValue(published, String(value));
+
+    if ("reason" in typed) {
+      plan.notes.push(
+        `${name}.${found.field} ${String(value)} is dropped: ${typed.reason}`,
+      );
+    } else if (typed.value !== published.default) {
+      plan.steps.push(`recognizer config ${published.key} ${typed.value}`);
     }
-  } else if (below !== undefined) {
+  } else if (value !== undefined) {
     plan.notes.push(
-      `coverage.below ${JSON.stringify(below)} is dropped: the limit is a number above 0 and at most 1`,
+      `${name}.${found.field} ${JSON.stringify(value)} is dropped: it is not a single value`,
     );
   }
 
-  if ("above" in entry) {
-    plan.notes.push(
-      `coverage.above ${JSON.stringify(entry.above)} is dropped: only low coverage is reported`,
-    );
-  }
-
-  if ("severity" in entry) {
-    plan.notes.push("a coverage finding is always a warning now");
+  for (const [field, other] of Object.entries(entry)) {
+    if (field !== found.field) {
+      plan.notes.push(
+        `${name}.${field} ${JSON.stringify(other)} is dropped: no setting replaces it`,
+      );
+    }
   }
 
   return plan;
@@ -129,6 +181,7 @@ function complexitySteps(entry: unknown, document: unknown): Plan {
 export function thresholdsMigration(
   document: unknown,
   prefix: (command: string) => string,
+  keys: PublishedKeyValues,
 ): ThresholdsMigration | null {
   const section = at(document, ["sensors", "thresholds"]);
 
@@ -140,16 +193,11 @@ export function thresholdsMigration(
   const plans: Plan[] = [];
 
   for (const [name, entry] of Object.entries(entries)) {
-    if (name === "coverage") {
-      plans.push(coverageSteps(entry, document));
-    } else if (name === "complexity") {
-      plans.push(complexitySteps(entry, document));
-    } else {
-      plans.push({
-        steps: [],
-        notes: [`${name} has no replacement and is dropped`],
-      });
-    }
+    plans.push(
+      name === "complexity"
+        ? complexitySteps(entry, document)
+        : publishedSteps(name, entry, document, keys),
+    );
   }
 
   const steps = [

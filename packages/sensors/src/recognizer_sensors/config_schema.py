@@ -28,6 +28,7 @@ CRAP_KEYS = (
         maximum=1,
         off=True,
         default=0.6,
+        replaces="sensors.thresholds.coverage.below",
     ),
     key(
         "sensors.crap.overlay",

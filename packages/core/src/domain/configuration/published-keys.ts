@@ -1,4 +1,5 @@
 import { InvalidRequest } from "../invalid-request.js";
+import type { PublishedValues } from "./survey-answer.js";
 
 export const REGISTRATION_KEY = "sensors.<name>.command";
 
@@ -26,9 +27,15 @@ export interface KeyEntry {
   exclusiveMaximum?: number;
   off?: boolean;
   retired?: string;
+  replaces?: string;
   description: string;
   example: string;
 }
+
+export type PublishedKeyValues = readonly (PublishedValues[number] &
+  Partial<
+    Omit<KeyEntry, "key" | "values" | "retired" | "description" | "example">
+  >)[];
 
 export interface SectionEntry {
   key: string;

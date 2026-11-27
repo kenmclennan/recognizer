@@ -1,0 +1,15 @@
+{
+  "keys_version": 1,
+  "owner": "recognizer-sensors",
+  "placeholders": {},
+  "sections": [],
+  "keys": [
+    {
+      "key": "sensors.mine.limit",
+      "type": "number",
+      "replaces": "",
+      "description": "the line coverage below which a function is reported",
+      "example": "sensors.mine.limit 0.7"
+    }
+  ]
+}

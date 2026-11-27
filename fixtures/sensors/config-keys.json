@@ -94,7 +94,8 @@
       "exclusiveMinimum": 0,
       "maximum": 1,
       "off": true,
-      "default": 0.6
+      "default": 0.6,
+      "replaces": "sensors.thresholds.coverage.below"
     },
     {
       "key": "sensors.crap.overlay",
