@@ -1,5 +1,6 @@
 import {
   type DocumentFreshness,
+  type Finding,
   type PolicyRule,
   Repository,
   type SensorFindings,
@@ -26,6 +27,7 @@ export type Loaded = {
   overlaysUnreadable?: string[];
   tests?: string | null;
   freshness?: Record<string, DocumentFreshness>;
+  split?: Record<string, { shown: Finding[]; hidden: Finding[] }>;
   lastRun?: string | null;
 };
 

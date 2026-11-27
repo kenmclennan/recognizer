@@ -1287,6 +1287,23 @@ describe("scanPanel freshness", () => {
       ),
     });
 
+  it("reads a sensor whose answered freshness is stale as stale and one that is not as ran", () => {
+    const given = base({ "a.py": "ha", "b.py": "hb" });
+    const reported = { at: new Date(NOW).toISOString(), commit: "abcdef0123" };
+    const answer = (stale: boolean) => ({
+      crap: { valid: true, current: ["a.py", "b.py"], outOfDate: 0, stale },
+    });
+    const staleOf = (stale: boolean) =>
+      scanPanel({
+        ...given,
+        sensors: [{ ...crap({ "a.py": "ha", "b.py": "hb" }), reported }],
+        freshness: answer(stale),
+      }).reports.find(({ name }) => name === "crap")?.stale;
+
+    expect(staleOf(false)).toBe(false);
+    expect(staleOf(true)).toBe(true);
+  });
+
   it("keeps the second line of a ran, partly row when a file gap replaces the state", () => {
     const withWhy = base({ "a.py": "ha", "b.py": "old" });
     const model = scanPanel({

@@ -1,7 +1,10 @@
 import {
   type DocumentFreshness,
   documentFreshness,
+  type Finding,
   type Repository,
+  type SensorFindings,
+  splitDocument,
 } from "@recognizer/core";
 
 type Measuring = {
@@ -23,6 +26,20 @@ export function factsFor(
   }
 
   return facts;
+}
+
+export function splitFor(
+  repository: Repository,
+  documents: readonly SensorFindings[],
+  tests: string | null,
+): Record<string, { shown: Finding[]; hidden: Finding[] }> {
+  const split: Record<string, { shown: Finding[]; hidden: Finding[] }> = {};
+
+  for (const document of documents) {
+    split[document.sensor.name] = splitDocument(repository, document, tests);
+  }
+
+  return split;
 }
 
 export function measuredOfDocument(document: {

@@ -1,6 +1,7 @@
 import type {
   Diagnosis,
   DocumentFreshness,
+  Finding,
   PolicyRule,
   SensorExclusion,
   SensorFindings,
@@ -50,6 +51,8 @@ export type FindingsFiles = {
     name: string;
     document: SensorFindings;
     modifiedMs: number | null;
+    shown?: Finding[] | null;
+    hidden?: Finding[] | null;
   }[];
   refused: string[];
 };
@@ -355,6 +358,18 @@ export async function senseRepository(
   };
 }
 
+function splitOf(files: FindingsFiles["files"]): NonNullable<Loaded["split"]> {
+  const split: NonNullable<Loaded["split"]> = {};
+
+  for (const { name, shown, hidden } of files) {
+    if (shown != null && hidden != null) {
+      split[name] = { shown, hidden };
+    }
+  }
+
+  return split;
+}
+
 export async function withSensors(
   loaded: Loaded,
   port: SensorsPort,
@@ -383,6 +398,7 @@ export async function withSensors(
     overlaysUnreadable: overlays.refused,
     tests,
     freshness: stored.freshness,
+    split: splitOf(stored.findings.files),
     lastRun: stored.lastRun,
   };
 }

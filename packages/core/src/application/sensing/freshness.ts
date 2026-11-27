@@ -1,5 +1,8 @@
+import type { Finding } from "../../domain/finding.js";
 import type { Repository } from "../../domain/repository.js";
 import type { Measured } from "../../domain/scan-plan.js";
+import type { SensorFindings } from "../../domain/sensor-findings.js";
+import { splitFindings } from "../analysis/split-findings.js";
 
 export type { Measured };
 
@@ -62,6 +65,7 @@ export type DocumentFreshness = {
   valid: boolean;
   current: string[];
   outOfDate: number;
+  stale: boolean;
 };
 
 export function documentFreshness(
@@ -70,12 +74,28 @@ export function documentFreshness(
   tests: string | null,
 ): DocumentFreshness {
   const freshness = buildFreshness(repository, tests);
+  const valid = freshness.valid(measured);
+  const outOfDate = freshness.counts(measured, []).outOfDate;
 
   return {
-    valid: freshness.valid(measured),
+    valid,
     current: [...repository.scannedHashes().keys()].filter((module) =>
       freshness.current(measured, module),
     ),
-    outOfDate: freshness.counts(measured, []).outOfDate,
+    outOfDate,
+    stale: !valid || outOfDate > 0,
   };
+}
+
+export function splitDocument(
+  repository: Repository,
+  document: SensorFindings,
+  tests: string | null,
+): { shown: Finding[]; hidden: Finding[] } {
+  const { current, hidden } = splitFindings(
+    document,
+    buildFreshness(repository, tests),
+  );
+
+  return { shown: current, hidden };
 }

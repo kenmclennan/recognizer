@@ -35,7 +35,7 @@ import {
   installedSensors,
   secondSensorDocument,
 } from "../fixtures";
-import { factsFor, measuredOfDocument } from "../freshness-support";
+import { factsFor, measuredOfDocument, splitFor } from "../freshness-support";
 import {
   type DocEdge,
   type DocMember,
@@ -916,6 +916,11 @@ describe("findings", () => {
       freshness: factsFor(
         loaded.repository,
         [measuredOfDocument(secondSensorDocument("shop/main.py"))],
+        null,
+      ),
+      split: splitFor(
+        loaded.repository,
+        [secondSensorDocument("shop/main.py")],
         null,
       ),
     });

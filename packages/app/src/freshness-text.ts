@@ -13,7 +13,6 @@ import {
 } from "@recognizer/core";
 import { sensorArmed, unregisteredMessage } from "recognizer";
 import { ageText } from "./footer-scan";
-import { modulesNotCurrent } from "./freshness-facts";
 import type { IconName } from "./icons";
 import type { ResultsMode } from "./scan-freshness";
 import {
@@ -547,7 +546,12 @@ function staleBySensor(
     const facts = input.freshness[one.name];
 
     if (measured !== undefined && facts !== undefined) {
-      stale.set(one.name, modulesNotCurrent(input.lines.modules, facts));
+      stale.set(
+        one.name,
+        new Set(
+          input.lines.modules.filter((id) => !facts.current.includes(id)),
+        ),
+      );
     }
   }
 

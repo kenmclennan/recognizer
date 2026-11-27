@@ -21,7 +21,7 @@ import {
   secondSensorDocument,
   structureDocument,
 } from "../fixtures";
-import { factsFor, measuredOfDocument } from "../freshness-support";
+import { factsFor, measuredOfDocument, splitFor } from "../freshness-support";
 import { type DocScan, repositoryFrom } from "./repository-from";
 
 function parsedOrNull<T>(
@@ -72,6 +72,7 @@ function healthFor(
         findings.map(measuredOfDocument),
         null,
       ),
+      split: splitFor(loaded.repository, findings, null),
     }),
     ids,
   };
@@ -573,7 +574,54 @@ describe("computeHealth judged per file", () => {
         [measuredOfDocument(document)],
         tests,
       ),
+      split: splitFor(repositoryFrom([scan]), [document], tests),
     });
+
+  it("shows exactly the answered shown list and hides the answered hidden list", () => {
+    const document = crap({ "a.py": H1, "b.py": H0 });
+    const [first, second, third] = document.findings;
+
+    expect(document.findings.length).toBeGreaterThan(2);
+
+    const health = computeHealth({
+      repository: repositoryFrom([scan]),
+      policy: null,
+      modules: ["a.py", "b.py"],
+      baseline: null,
+      findings: [document],
+      split: {
+        crap: {
+          shown: [third as Finding],
+          hidden: [first as Finding, second as Finding],
+        },
+      },
+    });
+
+    expect(health.documents[0]?.findings.map((f) => f.id)).toEqual([third?.id]);
+    expect(health.hidden[0]?.findings.map((f) => f.id)).toEqual([
+      first?.id,
+      second?.id,
+    ]);
+  });
+
+  it("hides every finding of a document with no answered split", () => {
+    const document = crap({ "a.py": H1, "b.py": H1 });
+
+    expect(document.findings.length).toBeGreaterThan(0);
+
+    const health = computeHealth({
+      repository: repositoryFrom([scan]),
+      policy: null,
+      modules: ["a.py", "b.py"],
+      baseline: null,
+      findings: [document],
+    });
+
+    expect(health.documents[0]?.findings).toEqual([]);
+    expect(health.hidden[0]?.findings.map((f) => f.id)).toEqual(
+      document.findings.map((f) => f.id),
+    );
+  });
 
   it("keeps the findings of current files and hides the rest", () => {
     const health = healthOfDocument(crap({ "a.py": H1, "b.py": H0 }));

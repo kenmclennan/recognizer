@@ -6,7 +6,6 @@ import { openInEditor } from "../src/editor-open";
 import { editorSource } from "../src/editor-source";
 import type { Explorer, ScanHost } from "../src/explorer";
 import type { FooterView } from "../src/footer-view";
-import { isStale } from "../src/freshness-facts";
 import type { HoldingView } from "../src/holding-view";
 import type { MessageInput } from "../src/message-tray";
 import type { Loaded } from "../src/scan-loading";
@@ -119,7 +118,7 @@ export function recordingView(): RecordingView {
         return undefined;
       }
 
-      return isStale(facts) ? "stale" : "current";
+      return facts.stale ? "stale" : "current";
     },
     rows: async () => {
       const host = explorer()?.host;
