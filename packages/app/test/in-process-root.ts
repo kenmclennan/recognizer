@@ -27,6 +27,7 @@ export type InProcessRootOptions = {
   origin?: { branch: string; commit: string };
   failing?: string[];
   uncommitted?: boolean;
+  ticks?: Record<string, unknown>;
   record?: (
     command: string,
     args: Record<string, unknown>,
@@ -224,6 +225,7 @@ export async function inProcessAppRoot(options: InProcessRootOptions = {}) {
           remembered: true,
           suites: {},
           folds: [],
+          ...options.ticks,
         };
       default:
         return undefined;

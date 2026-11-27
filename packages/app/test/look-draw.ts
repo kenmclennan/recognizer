@@ -17,24 +17,47 @@ type Bridge = {
   next: number;
 };
 
+export type Sent = { command: string; args: Record<string, unknown> };
+
+export type Hold = (
+  command: string,
+  args: Record<string, unknown>,
+  call: number,
+) => Promise<unknown> | undefined;
+
+export type Answer = (
+  command: string,
+  args: Record<string, unknown>,
+) => unknown;
+
 export type Served = {
   drained: () => Promise<void>;
   release: (mark: string) => void;
   deliverHostEvents: () => void;
   stop: () => void;
+  sent: () => Sent[];
 };
 
 export type Drawn = {
   explorer: () => Explorer | null;
   release: (mark: string) => void;
   dispose: () => void;
+  deliverHostEvents: () => void;
+  sent: () => Sent[];
+  drained: () => Promise<void>;
 };
 
-export type DrawOptions = { until?: string; carried?: Carried | null };
+export type DrawOptions = {
+  until?: string;
+  carried?: Carried | null;
+  hostEvents?: "later";
+  hold?: Hold;
+  answer?: Answer;
+};
 
 export function installRecording(
   given: Recording,
-  options: { until?: string } = {},
+  options: { until?: string; hold?: Hold; answer?: Answer } = {},
 ): Served {
   const recording = { ...given, events: [...given.events] };
   const marks = given.marks ?? {};
@@ -51,10 +74,13 @@ export function installRecording(
   const shared = host.__lookBridge;
   const { callbacks, listening } = shared;
   const claimed = new Set<string>();
+  const abandoned = new Set<string>();
   let stopped = false;
   let dripping = false;
   let started = false;
   let waits = 0;
+  const sent: Sent[] = [];
+  const calls = new Map<string, number>();
 
   const drip = () => {
     dripping = false;
@@ -75,8 +101,18 @@ export function installRecording(
     const payload = recording.events[served];
     const stream = (payload as { stream?: string }).stream;
 
-    if (stream !== undefined && !claimed.has(stream) && waits < 20) {
+    if (
+      stream !== undefined &&
+      !abandoned.has(stream) &&
+      !claimed.has(stream)
+    ) {
       waits += 1;
+
+      if (waits >= 8) {
+        abandoned.add(stream);
+        waits = 0;
+      }
+
       dripping = true;
       setTimeout(drip, 25);
 
@@ -91,6 +127,13 @@ export function installRecording(
     }
 
     dripping = true;
+
+    if (stream !== undefined && abandoned.has(stream)) {
+      drip();
+
+      return;
+    }
+
     setTimeout(drip, 25);
   };
 
@@ -115,12 +158,27 @@ export function installRecording(
         return 0;
       }
 
-      const reply = answerFor(
-        recording,
-        command,
-        args,
-        options.until === undefined ? undefined : limit,
-      );
+      if (!command.startsWith("plugin:")) {
+        sent.push({ command, args: args ?? {} });
+      }
+
+      const key = `${command} ${JSON.stringify(args ?? {})}`;
+      const call = (calls.get(key) ?? 0) + 1;
+
+      calls.set(key, call);
+
+      const held = options.hold?.(command, args ?? {}, call);
+      const declared = options.answer?.(command, args ?? {});
+      const reply =
+        declared !== undefined
+          ? declared
+          : answerFor(
+              recording,
+              command,
+              args,
+              options.until === undefined ? undefined : limit,
+              call,
+            );
 
       const claim = (reply as { ok?: unknown } | null)?.ok;
 
@@ -132,6 +190,10 @@ export function installRecording(
         started = true;
         dripping = true;
         setTimeout(drip, 50);
+      }
+
+      if (held !== undefined) {
+        await held;
       }
 
       return reply;
@@ -179,6 +241,7 @@ export function installRecording(
     stop: () => {
       stopped = true;
     },
+    sent: () => [...sent],
   };
 }
 
@@ -194,6 +257,8 @@ export async function drawRecording(
 
   const served = installRecording(recording, {
     ...(options.until === undefined ? {} : { until: options.until }),
+    ...(options.hold === undefined ? {} : { hold: options.hold }),
+    ...(options.answer === undefined ? {} : { answer: options.answer }),
   });
 
   const footerElement =
@@ -219,7 +284,10 @@ export async function drawRecording(
 
   for (let waited = 0; waited < 20000; waited += 50) {
     if (container.querySelector(".rail-scan") !== null) {
-      served.deliverHostEvents();
+      if (options.hostEvents !== "later") {
+        served.deliverHostEvents();
+      }
+
       await served.drained();
 
       const drawn: Drawn = {
@@ -232,6 +300,9 @@ export async function drawRecording(
             explorer.dispose();
           }
         },
+        deliverHostEvents: () => served.deliverHostEvents(),
+        sent: () => served.sent(),
+        drained: () => served.drained(),
       };
 
       live = drawn;

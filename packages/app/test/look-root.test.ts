@@ -1,8 +1,14 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import REASONS from "../../../fixtures/sensor-reasons/states.json";
 import { scaledTimeout } from "../../../tools/scripts/pool-scale.mjs";
+import { sensorProgram } from "../../cli/test/support/index";
 import { collectFacts, FAKE_WORKER, here, webkit } from "../src/look-page";
+import { untilHolds } from "./app-harness";
 import { answerFor, reviveLoaded } from "./look-recording";
 import {
+  failingProgram,
+  Gate,
+  heldProgram,
   type LookScenario,
   lookRoot,
   lookRoots,
@@ -221,11 +227,175 @@ describe("the look root", () => {
     scaledTimeout(180000),
   );
 
+  const TALLY_ONLY =
+    "sensors:\n  tally:\n    manifest: [recognizer-sense-tally, manifest]\n";
+
+  const runTally = (program: ReturnType<typeof sensorProgram>) =>
+    lookRoot({
+      config: TALLY_ONLY,
+      ticks: { ticked: ["tally"] },
+      armed: ["tally"],
+      programs: { "recognizer-sense-tally": program },
+      stages: [
+        {
+          name: "ran",
+          run: async (root) => {
+            const host = await untilHolds(
+              root.service,
+              () => root.view.explorer()?.host,
+            );
+
+            host.run(null);
+
+            await untilHolds(root.service, () =>
+              host.running() ? true : undefined,
+            );
+
+            while (host.running()) {
+              await root.service.signal(50);
+            }
+          },
+        },
+      ],
+    });
+
+  type Ended = { state: string; failure: { reason: string } | null };
+
+  const endedTally = (events: unknown[]): Ended[] =>
+    events.flatMap((one) => {
+      const plugins =
+        (
+          one as {
+            state?: { run?: { plugins?: (Ended & { name: string })[] } | null };
+          }
+        ).state?.run?.plugins ?? [];
+
+      return plugins.filter(({ name }) => name === "tally");
+    });
+
+  it(
+    "a failing program ends the run failed with the diagnosis as its reason",
+    async () => {
+      const diagnosis = REASONS["crap-no-coverage"];
+      const recording = await runTally(
+        failingProgram(sensorProgram("tally"), diagnosis),
+      );
+      const ended = endedTally(recording.events);
+
+      expect(ended.length).toBeGreaterThan(0);
+      expect(ended[ended.length - 1]?.state).toBe("failed");
+      expect(ended[ended.length - 1]?.failure?.reason).toBe(diagnosis.line);
+    },
+    scaledTimeout(180000),
+  );
+
+  it(
+    "a failing program with no diagnosis still ends failed",
+    async () => {
+      const recording = await runTally(failingProgram(sensorProgram("tally")));
+      const ended = endedTally(recording.events);
+
+      expect(ended.length).toBeGreaterThan(0);
+      expect(ended[ended.length - 1]?.state).toBe("failed");
+      expect(ended[ended.length - 1]?.failure?.reason).not.toBe("");
+    },
+    scaledTimeout(180000),
+  );
+
+  it(
+    "ticks and armed reach the root",
+    async () => {
+      const set = await lookRoot({ ticks: { ticked: [] }, armed: ["tally"] });
+      const unset = await lookRoot();
+      const reply = (recording: typeof set) =>
+        recording.commands.find(({ command }) => command === "read_scan_ticks")
+          ?.reply as { ticked: string[] };
+      const plan = (recording: typeof set) =>
+        recording.commands.find(
+          ({ command, args }) =>
+            command === "core_call" && args.op === "scan.plan",
+        )?.args as { args: { ticks: { armed: string[] } } };
+
+      expect(reply(set).ticked).toEqual([]);
+      expect(plan(set).args.ticks.armed).toEqual(["tally"]);
+      expect(reply(unset).ticked).toEqual(["crap", "mutation"]);
+      expect(plan(unset).args.ticks.armed).toEqual(["crap"]);
+    },
+    scaledTimeout(180000),
+  );
+
+  it(
+    "a stopped run is recorded as stopped",
+    async () => {
+      const gate = new Gate();
+      let killed = false;
+      let began = false;
+
+      gate.hold();
+
+      const held = heldProgram(sensorProgram("tally"), gate);
+      const recording = await lookRoot({
+        config: TALLY_ONLY,
+        ticks: { ticked: ["tally"] },
+        armed: ["tally"],
+        programs: {
+          "recognizer-sense-tally": (call) => {
+            if (call.args[0] !== "run") {
+              return held(call);
+            }
+
+            began = true;
+
+            return (async () => {
+              const result = await held(call);
+
+              killed = call.killed;
+
+              return result;
+            })();
+          },
+        },
+        stages: [
+          {
+            name: "stopped",
+            run: async (root) => {
+              const host = await untilHolds(
+                root.service,
+                () => root.view.explorer()?.host,
+              );
+
+              host.run(null);
+
+              await untilHolds(root.service, () => (began ? true : undefined));
+
+              host.stop();
+
+              while (host.running()) {
+                await root.service.signal(50);
+              }
+            },
+          },
+        ],
+      });
+      const ended = endedTally(recording.events);
+
+      gate.open();
+
+      expect(ended.length).toBeGreaterThan(0);
+      expect(ended[ended.length - 1]?.state).toBe("stopped");
+      expect(killed).toBe(true);
+    },
+    scaledTimeout(180000),
+  );
+
   describe.skipIf(webkit === undefined)("in the page", () => {
     let held = null as unknown as { before: number; after: number };
     let disposed = null as unknown as { requests: number; rows: number };
     let carried = null as unknown as { before: number; after: number };
     let facts = null as unknown as { refused: string; served: unknown };
+    let gated = null as unknown as { before: number; after: number };
+    let readBack = null as unknown as { commands: string[] };
+    let delivered = null as unknown as { before: number; after: number };
 
     beforeAll(async () => {
       const { produced: _held, ...marked } = await lookRoot(unregisteredAfter);
@@ -281,6 +451,69 @@ describe("the look root", () => {
         ),
         "look-root-carry",
       );
+      const { produced: _gated, ...gatedRecording } = await lookRoot();
+
+      gated = await collectFacts(
+        pageHarness(
+          gatedRecording,
+          `let release = () => {};
+  const gate = new Promise((resolve) => { release = resolve; });
+  const pending = drawRecording(host, recording, {
+    hold: (command, args) => (command === "core_call" && args.op === "scan.start" ? gate : undefined),
+  });
+  try {
+    await tick();
+    await tick();
+    facts.before = host.querySelectorAll(".rail-scan").length;
+  } finally {
+    release();
+  }
+  const drawn = await pending;
+  facts.after = host.querySelectorAll(".rail-scan").length;
+  drawn.dispose();`,
+        ),
+        "look-root-held",
+      );
+      const { produced: _read, ...readRecording } = await lookRoot();
+
+      readBack = await collectFacts(
+        pageHarness(
+          readRecording,
+          `const drawn = await drawRecording(host, recording);
+  click(host.querySelector(".rail-scan"));
+  await tick();
+  facts.commands = drawn.sent().map((one) => one.command === "core_call" ? "core_call:" + one.args.op : one.command);
+  drawn.dispose();`,
+        ),
+        "look-root-sent",
+      );
+      const { produced: _later, ...laterRecording } = await lookRoot({
+        hostEvents: [
+          {
+            event: "changes-changed",
+            payload: {
+              files: [{ path: "app/a.py", kind: "modified" }],
+              moved: null,
+            },
+          },
+        ],
+      });
+
+      delivered = await collectFacts(
+        pageHarness(
+          laterRecording,
+          `const drawn = await drawRecording(host, recording, { hostEvents: "later" });
+  click(host.querySelector(".rail-scan"));
+  await tick();
+  facts.before = drawn.sent().length;
+  drawn.deliverHostEvents();
+  await tick();
+  await tick();
+  facts.after = drawn.sent().length;
+  drawn.dispose();`,
+        ),
+        "look-root-later",
+      );
       const { produced: _produced, ...recording } = await lookRoot({
         answers: { "nonesuch.op": { ok: 7 } },
       });
@@ -301,6 +534,20 @@ describe("the look root", () => {
     it("a drawn explorer's carry is handed to the next draw", () => {
       expect(carried.before).toBeGreaterThan(0);
       expect(carried.after).toBeGreaterThan(0);
+    });
+
+    it("a held reply is served only when released", () => {
+      expect(gated.before).toBe(0);
+      expect(gated.after).toBeGreaterThan(0);
+    });
+
+    it("the page's own commands are read back", () => {
+      expect(readBack.commands.length).toBeGreaterThan(0);
+      expect(readBack.commands).toContain("core_call:scan.plan");
+    });
+
+    it("host events delivered on demand reach the page after the first read", () => {
+      expect(delivered.after).toBeGreaterThan(delivered.before);
     });
 
     it("a command with no recorded answer fails naming the command", () => {
