@@ -125,7 +125,8 @@ describe("fakeSensors suite standings", () => {
 
     const bare = (await fake.readResults()).findings.files[0];
 
-    expect(bare?.suites).toEqual(suiteStandings(bare?.document.suites));
+    expect(bare?.suites).toEqual(suiteStandings(withSuites.suites));
+    expect(Object.hasOwn(bare?.document ?? {}, "suites")).toBe(false);
     expect(bare?.suites?.length).toBe(1);
 
     fake.structure = fixtureScan("check", "scan.json", CURRENT).repository;

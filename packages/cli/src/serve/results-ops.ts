@@ -72,7 +72,7 @@ export function readPluginResults(
     if (one.status === "invalid") {
       held.findingsProblem = one.reason;
     } else {
-      const { findings: _records, ...header } = one.document;
+      const { findings: _records, suites: _suites, ...header } = one.document;
 
       held.findings = header;
 
