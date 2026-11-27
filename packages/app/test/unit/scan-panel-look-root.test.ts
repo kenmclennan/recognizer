@@ -1112,15 +1112,23 @@ await group(["restart"], async () => {
   }
 });
 
-await group(["failed","sensorFail","noLog"], async () => {
+await group(["failed"], async () => {
   const t = await draw("failed", { until: "idle", fake: true });
   await t.openScan();
   click(t.q(".scan-run"));
   await tick();
   await t.go("ran");
   await tick(); await tick();
-  facts.failed = { ...t.panel(), posted: t.messages().map((m) => m.text).filter((text) => text.includes("failed")) };
-  facts.dbgFailed = { body: document.body.innerText.slice(0, 600), msgs: t.messages(), html: (document.querySelector(".footer")?.outerHTML || "").slice(0, 600), ev: JSON.stringify(recordings.failed.events.map((e) => Object.keys(e).join("+")).slice(-12)), end: JSON.stringify(recordings.failed.events.filter((e) => e["plugin-ended"] || e.event).slice(0,3)).slice(0, 800), marks: recordings.failed.marks, cmds: recordings.failed.commands.map((c) => c.command + ":" + (c.args.op || "") + (c.args.op === "scan.start" ? JSON.stringify(c.reply).slice(0, 200) : "")), starts: JSON.stringify(t.starts()).slice(0, 400), sent: t.drawn.sent().map((s) => s.command + ":" + (s.args.op || "")), evs: recordings.failed.events.map((e, i) => i + " " + e.stream + " " + Object.keys(e).filter((k) => k !== "stream").join("+") + " " + (e.run ? JSON.stringify({ full: JSON.stringify(e.run).slice(0, 700) }) : "") + (e.state && e.state.run ? " staterun " + JSON.stringify((e.state.run.plugins || []).map((p) => p.name + "=" + p.state)) : "") + (e.outcome ? JSON.stringify(e.outcome).slice(0, 80) : "")) };
+  facts.failed = t.panel();
+});
+
+await group(["sensorFail","noLog"], async () => {
+  const t = await draw("failed", { until: "idle", fake: true });
+  await t.openScan();
+  click(t.q(".scan-run"));
+  await tick();
+  await t.go("ran");
+  await tick(); await tick();
   click(t.q(".rail-files"));
   await tick();
   const failedFooter = { text: t.scanLineText(), buttons: t.footerButtons() };
@@ -1419,7 +1427,7 @@ type Facts = ReturnType<typeof JSON.parse>;
 type Collected = { facts: Facts; errors: Record<string, string> };
 const SHORT_AGE = /^(current|now|\d+[mhd])$/;
 const _GREEN = "rgb(63, 185, 80)";
-const _RED = "rgb(248, 81, 73)";
+const RED = "rgb(248, 81, 73)";
 const ACCENT = "rgb(68, 147, 248)";
 const _MUTED = "rgb(145, 152, 161)";
 const _NAMES = [
@@ -1603,6 +1611,18 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
       disabled: false,
       spinner: 0,
     });
+  });
+
+  it("leaves a failed sensor at failed with its age and a log link in red under a run card in the bad tone", () => {
+    const row = f.failed.rows.find((r: Facts) => r.key === "tally");
+
+    expect(row.state).toBe("failed, just now");
+    expect(row.color).toBe(RED);
+    expect(row.logLink).toBe("log");
+    expect(f.failed.summary.shape).toBe("run-card");
+    expect(f.failed.summary.tone).toBe("bad");
+    expect(f.failed.summary.bar).toBe(0);
+    expect(f.failed.amber).toBeNull();
   });
 
   it("two_quick_tick_clicks_apply_in_order", () => {
