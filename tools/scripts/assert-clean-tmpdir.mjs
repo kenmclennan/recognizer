@@ -1,7 +1,8 @@
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { mkdtempSync, readdirSync, statSync } from "node:fs";
 import { constants, tmpdir } from "node:os";
 import { join } from "node:path";
+import { removeScratch } from "./service-scratch-teardown.mjs";
 
 const TOOL_OWNED = [/^node-compile-cache$/, /^uv-[0-9a-f]+\.lock$/];
 
@@ -22,30 +23,115 @@ export function leftovers(directory) {
   );
 }
 
-export function runWithCleanTmpdir(command, args) {
-  const scratch = mkdtempSync(join(tmpdir(), "ac-"));
-  const result = spawnSync(command, args, {
-    stdio: "inherit",
-    env: { ...process.env, TMPDIR: scratch },
+const FORWARDED = ["SIGINT", "SIGTERM", "SIGHUP"];
+
+const STALE_SCRATCH = /^ac-(\d+)-/;
+
+const SERVICE_SCRATCH = /^service-scratch-/;
+
+async function removeServiceScratch(scratch, options) {
+  for (const entry of readdirSync(scratch)) {
+    if (SERVICE_SCRATCH.test(entry)) {
+      await removeScratch(join(scratch, entry), options);
+    }
+  }
+}
+
+function isAlive(pid) {
+  try {
+    process.kill(pid, 0);
+
+    return true;
+  } catch (error) {
+    return error.code !== "ESRCH";
+  }
+}
+
+async function sweepStale(options) {
+  for (const entry of readdirSync(tmpdir())) {
+    const match = STALE_SCRATCH.exec(entry);
+
+    if (match !== null && !isAlive(Number(match[1]))) {
+      await removeScratch(join(tmpdir(), entry), options);
+    }
+  }
+}
+
+function runChild(command, args, scratch) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      stdio: "inherit",
+      detached: true,
+      env: { ...process.env, TMPDIR: scratch },
+    });
+    let received;
+    let killTimer;
+    const handlers = FORWARDED.map((name) => {
+      const handler = () => {
+        received ??= name;
+        signalGroup(child.pid, name);
+        killTimer ??= setTimeout(
+          () => signalGroup(child.pid, "SIGKILL"),
+          5_000,
+        );
+      };
+
+      process.on(name, handler);
+
+      return [name, handler];
+    });
+    const finish = (status) => {
+      clearTimeout(killTimer);
+
+      for (const [name, handler] of handlers) {
+        process.off(name, handler);
+      }
+
+      resolve(status);
+    };
+
+    child.on("error", (error) => {
+      console.error(`${command}: ${error.message}`);
+      finish(1);
+    });
+    child.on("close", (code, signalName) => {
+      const name = received ?? signalName;
+
+      if (name !== null && name !== undefined) {
+        finish(128 + constants.signals[name]);
+      } else {
+        finish(code ?? 1);
+      }
+    });
   });
+}
+
+function signalGroup(pid, name) {
+  try {
+    process.kill(-pid, name);
+  } catch {}
+}
+
+export async function runWithCleanTmpdir(command, args, options = {}) {
+  await sweepStale(options);
+
+  const scratch = mkdtempSync(join(tmpdir(), `ac-${process.pid}-`));
+  const childStatus = await runChild(command, args, scratch);
+  await removeServiceScratch(scratch, options);
+
   const left = leftovers(scratch);
+  const removed = await removeScratch(scratch, options);
 
-  rmSync(scratch, { recursive: true, force: true, maxRetries: 10 });
-
-  if (result.signal) {
-    return { status: 128 + (constants.signals[result.signal] ?? 0), left };
+  if (childStatus !== 0) {
+    return { status: childStatus, left };
   }
 
-  if (result.status !== 0) {
-    return { status: result.status ?? 1, left };
-  }
-
-  return { status: left.length > 0 ? 1 : 0, left };
+  return { status: left.length > 0 || !removed ? 1 : 0, left };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [command, ...args] = process.argv.slice(2);
-  const { status, left } = runWithCleanTmpdir(command, args);
+  const { status, left } = await runWithCleanTmpdir(command, args);
 
   if (left.length > 0) {
     console.error(

@@ -35,4 +35,4 @@ jobs:
       - run: npm run lint -w packages/describers/claude
       - run: npm run build -w recognizer
       - run: npm run build -w packages/describers/claude
-      - run: node tools/scripts/assert-clean-tmpdir.mjs npm test -w packages/describers/claude
+      - run: npm test -w packages/describers/claude

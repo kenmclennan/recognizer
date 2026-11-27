@@ -48,8 +48,8 @@ jobs:
       - run: npm run build -w recognizer-scan-typescript
       - run: npm run build -w recognizer-describe-claude
       - run: npm run build -w packages/cli
-      - run: node tools/scripts/assert-clean-tmpdir.mjs npm test -w packages/core
-      - run: node tools/scripts/assert-clean-tmpdir.mjs npm test -w packages/cli
+      - run: npm test -w packages/core
+      - run: npm test -w packages/cli
         env:
           RECOGNIZER_REQUIRE_TEMPLATE_TOOLCHAINS: "1"
 

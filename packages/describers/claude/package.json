@@ -16,7 +16,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "pretest": "npm run build -w recognizer && npm run build",
-    "test": "vitest run --config test/vitest.config.ts",
+    "test": "node ../../../tools/scripts/assert-clean-tmpdir.mjs vitest run --config test/vitest.config.ts",
     "lint": "biome check ."
   },
   "devDependencies": {
