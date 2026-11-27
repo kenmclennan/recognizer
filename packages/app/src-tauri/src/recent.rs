@@ -40,15 +40,11 @@ impl RecentFoldersRepository for JsonRecentFolders {
             .iter()
             .map(|entry| entry.to_string_lossy().into_owned())
             .collect();
-        let text = serde_json::to_string_pretty(&entries).map_err(|error| error.to_string())?;
-        let temp = self.path.with_extension("json.tmp");
+        let mut text = serde_json::to_string_pretty(&entries).map_err(|error| error.to_string())?;
 
-        if let Some(parent) = self.path.parent() {
-            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-        }
+        text.push('\n');
 
-        fs::write(&temp, text).map_err(|error| error.to_string())?;
-        fs::rename(&temp, &self.path).map_err(|error| error.to_string())
+        write_atomic(&self.path, &text).map_err(|error| format!("{}: {error}", self.path.display()))
     }
 }
 
