@@ -89,7 +89,6 @@ packages/cli/test/serve-harness.ts
 packages/cli/test/serve-history.test.ts
 packages/cli/test/serve-setup.test.ts
 packages/cli/test/serve-soak.test.ts
-packages/cli/test/setup-files-adapter.test.ts
 packages/cli/test/setup-survey.test.ts
 packages/cli/test/signatures-shared.test.ts
 packages/cli/test/structure-warnings.test.ts

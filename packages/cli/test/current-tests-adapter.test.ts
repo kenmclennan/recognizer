@@ -4,6 +4,7 @@ import type { LanguageRule } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { currentTestsDigest } from "../src/adapters/filesystem/current-tests-adapter.js";
+import { RepositoryFilesAdapter } from "../src/adapters/filesystem/repository-files-adapter.js";
 import { SourceFilesAdapter } from "../src/adapters/filesystem/source-files-adapter.js";
 import { nodeIo } from "../src/cli.js";
 
@@ -37,8 +38,10 @@ function rule(published: boolean): LanguageRule {
 
 function portsOver(rules: LanguageRule[], content: string) {
   return {
+    repositoryFiles: {
+      list: () => ({ from: "git" as const, paths: ["tests/a.py"] }),
+    },
     source: {
-      listFiles: () => ["tests/a.py"],
       hashOf: () => content,
       readText: () => null,
     },
@@ -79,6 +82,7 @@ describe("the tests digest in a folder that is not a git repository", () => {
     return currentTestsDigest(
       {
         source: new SourceFilesAdapter(nodeIo()),
+        repositoryFiles: new RepositoryFilesAdapter(nodeIo()),
         digest: { sha256: (text: string) => `sha:${text}` },
         testReports: { entries: () => new Map<string, string>() },
         languages: { rules: () => [rule(true)] },

@@ -1,6 +1,7 @@
 import type { Say } from "@recognizer/core";
 import { FindingsAdapter } from "../src/adapters/filesystem/findings-adapter.js";
 import { ParsingAdapter } from "../src/adapters/filesystem/parsing-adapter.js";
+import { RepositoryFilesAdapter } from "../src/adapters/filesystem/repository-files-adapter.js";
 import { SourceFilesAdapter } from "../src/adapters/filesystem/source-files-adapter.js";
 import { TestReportsAdapter } from "../src/adapters/plugins/test-reports-adapter.js";
 import { DigestAdapter } from "../src/adapters/system/digest-adapter.js";
@@ -11,6 +12,7 @@ import { FIXTURE_LANGUAGES } from "./language-behaviour-fixture.js";
 export function analysisPortsOf(io: Io) {
   return {
     source: new SourceFilesAdapter(io),
+    repositoryFiles: new RepositoryFilesAdapter(io),
     digest: new DigestAdapter(),
     findings: new FindingsAdapter(io),
     parsing: new ParsingAdapter(),
@@ -22,6 +24,7 @@ export function analysisPortsOf(io: Io) {
 export function testsHashPortsOf(io: Io) {
   return {
     source: new SourceFilesAdapter(io),
+    repositoryFiles: new RepositoryFilesAdapter(io),
     digest: new DigestAdapter(),
     testReports: new TestReportsAdapter(io),
     languages: { rules: () => FIXTURE_LANGUAGES },

@@ -4,7 +4,6 @@ export interface SetupDirectoryEntry {
 }
 
 export interface SetupFiles {
-  list(root: string): string[];
   text(path: string): string | null;
   exists(path: string): boolean;
   children(directory: string): SetupDirectoryEntry[] | null;

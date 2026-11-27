@@ -60,9 +60,10 @@ describe("a plan over committed content", () => {
 
     planned.seedScan(scan, "typescript");
     planned.addSensor("crap", { runsTests: true });
-    planned.fakes.source.listed = tests.length > 0 ? tests : ["test/a.test.ts"];
+    planned.fakes.repositoryFiles.listed =
+      tests.length > 0 ? tests : ["test/a.test.ts"];
 
-    for (const path of planned.fakes.source.listed) {
+    for (const path of planned.fakes.repositoryFiles.listed) {
       planned.fakes.source.hashes.set(`${PLAN_REPOSITORY}/${path}`, "h");
     }
 

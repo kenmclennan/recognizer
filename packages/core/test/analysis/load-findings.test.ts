@@ -21,6 +21,7 @@ function world() {
     findings: fakes.findings,
     policy: fakes.policy,
     source: fakes.source,
+    repositoryFiles: fakes.repositoryFiles,
     digest: fakes.digest,
     testReports: fakes.testReports,
     languages: fakes.languages,

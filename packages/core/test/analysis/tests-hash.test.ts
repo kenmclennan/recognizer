@@ -16,6 +16,7 @@ function world() {
   const fakes = createFakes();
   const ports: TestsHashPorts = {
     source: fakes.source,
+    repositoryFiles: fakes.repositoryFiles,
     digest: fakes.digest,
     testReports: fakes.testReports,
     languages: fakes.languages,
@@ -34,16 +35,16 @@ describe("currentTestsHash", () => {
   it("returns null when the listing fails", () => {
     const { fakes, ports } = world();
 
-    fakes.source.listed = null;
+    fakes.repositoryFiles.listed = null;
 
     expect(currentTestsHash(ports, ROOT, Repository.empty)).toBeNull();
-    expect(fakes.source.calls).toEqual(["listFiles"]);
+    expect(fakes.repositoryFiles.calls).toEqual(["list"]);
   });
 
   it("prefers the scan's own hash over re-hashing a file", () => {
     const { fakes, ports } = world();
 
-    fakes.source.listed = ["tests/a.py", "tests/b.py"];
+    fakes.repositoryFiles.listed = ["tests/a.py", "tests/b.py"];
     fakes.source.hashes.set(`${ROOT}/tests/a.py`, "disk-a");
     fakes.source.hashes.set(`${ROOT}/tests/b.py`, "disk-b");
 
@@ -65,7 +66,7 @@ describe("currentTestsHash", () => {
     const bmp = "tests/\u{ffff}.py";
     const astral = "tests/\u{10000}.py";
 
-    fakes.source.listed = [astral, bmp];
+    fakes.repositoryFiles.listed = [astral, bmp];
     fakes.source.hashes.set(`${ROOT}/${bmp}`, "h1");
     fakes.source.hashes.set(`${ROOT}/${astral}`, "h2");
 
@@ -77,7 +78,7 @@ describe("currentTestsHash", () => {
   it("returns null when a scanner's answer fails", () => {
     const { fakes, ports } = world();
 
-    fakes.source.listed = ["tests/a.py"];
+    fakes.repositoryFiles.listed = ["tests/a.py"];
     fakes.source.hashes.set(`${ROOT}/tests/a.py`, "h");
 
     expect(currentTestsHash(ports, ROOT, Repository.empty)).not.toBeNull();
@@ -106,7 +107,7 @@ describe("currentTestsHash", () => {
     );
 
     fakes.testReports.reported = new Map(own);
-    fakes.source.listed = [
+    fakes.repositoryFiles.listed = [
       ...generic.map(([path]) => path),
       "src/lib.rs",
       "src/more.rs",
@@ -126,7 +127,7 @@ describe("testsHashOf", () => {
   it("takes a known hash over the disk and reads the disk otherwise", () => {
     const { fakes, ports } = world();
 
-    fakes.source.listed = ["tests/a.py", "tests/b.py", "tests/c.py"];
+    fakes.repositoryFiles.listed = ["tests/a.py", "tests/b.py", "tests/c.py"];
     fakes.source.hashes.set(`${ROOT}/tests/a.py`, "disk-a");
     fakes.source.hashes.set(`${ROOT}/tests/b.py`, "disk-b");
     fakes.source.hashes.set(`${ROOT}/tests/c.py`, "disk-c");
@@ -153,7 +154,7 @@ describe("testsHashOf", () => {
   it("skips a file it cannot read", () => {
     const { fakes, ports } = world();
 
-    fakes.source.listed = ["tests/a.py", "tests/b.py"];
+    fakes.repositoryFiles.listed = ["tests/a.py", "tests/b.py"];
     fakes.source.hashes.set(`${ROOT}/tests/b.py`, "disk-b");
 
     expect(testsHashOf(ports, ROOT, new Map())).toBe(
@@ -166,7 +167,7 @@ describe("testsHashOf", () => {
     const { fakes, ports } = world();
     const hashes = { "tests/a.py": "scanned-a" };
 
-    fakes.source.listed = ["tests/a.py", "tests/b.py"];
+    fakes.repositoryFiles.listed = ["tests/a.py", "tests/b.py"];
     fakes.source.hashes.set(`${ROOT}/tests/b.py`, "disk-b");
 
     expect(currentTestsHash(ports, ROOT, scannedAs(hashes))).toBe(
@@ -199,7 +200,7 @@ describe("freshnessFor", () => {
     judge({ inputs: {}, tests: "t" });
 
     expect(
-      fakes.source.calls.filter((call) => call === "listFiles"),
+      fakes.repositoryFiles.calls.filter((call) => call === "list"),
     ).toHaveLength(1);
   });
 });

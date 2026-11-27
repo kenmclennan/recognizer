@@ -125,6 +125,7 @@ export * from "./application/shared/limiter.js";
 export * from "./application/shared/ports/clock.js";
 export * from "./application/shared/ports/git.js";
 export * from "./application/shared/ports/process.js";
+export * from "./application/shared/ports/repository-files.js";
 export * from "./application/shared/ports/scan-lock.js";
 export * from "./application/shared/ports/scratch.js";
 export * from "./application/visualisation/add-to-view.js";

@@ -18,15 +18,6 @@ export class FakeSetupFiles implements SetupFiles {
     this.directories.add(path);
   }
 
-  list(root: string): string[] {
-    const prefix = root.endsWith("/") ? root : `${root}/`;
-
-    return [...this.files.keys()]
-      .filter((path) => path.startsWith(prefix))
-      .map((path) => path.slice(prefix.length))
-      .sort();
-  }
-
   text(path: string): string | null {
     return this.files.get(path) ?? null;
   }

@@ -9,6 +9,7 @@ import { ConfigAdapter } from "./adapters/filesystem/config-adapter.js";
 import { FindingsAdapter } from "./adapters/filesystem/findings-adapter.js";
 import { ParsingAdapter } from "./adapters/filesystem/parsing-adapter.js";
 import { PolicyAdapter } from "./adapters/filesystem/policy-adapter.js";
+import { RepositoryFilesAdapter } from "./adapters/filesystem/repository-files-adapter.js";
 import { ResponsibilitiesAdapter } from "./adapters/filesystem/responsibilities-adapter.js";
 import { RunLogAdapter } from "./adapters/filesystem/run-log-adapter.js";
 import { ScanLockAdapter } from "./adapters/filesystem/scan-lock-adapter.js";
@@ -57,6 +58,7 @@ export function scanPorts(io: Io, read: ConfigRead): ScanPorts {
     clock: new ClockAdapter(io),
     process: new ProcessAdapter(io, () => scanners.installedPlugins()),
     source: new SourceFilesAdapter(io),
+    repositoryFiles: new RepositoryFilesAdapter(io),
     digest: new DigestAdapter(),
     parsing: new ParsingAdapter(),
     grammarRules: new GrammarRulesAdapter(() => scanners.installedPlugins()),

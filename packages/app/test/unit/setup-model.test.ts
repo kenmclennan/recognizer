@@ -798,9 +798,9 @@ describe("a rerun of Setup on a configured repository", () => {
     version: "0.0.0-test",
     files: {
       children: () => [],
-      list: () => [],
       exists: () => false,
     },
+    listing: { list: () => ({ from: "none", warning: null }) },
     config: {
       setupDocument: () => ({
         present: true,
@@ -896,7 +896,8 @@ describe("Setup's opening screen on the survey events the service emits", () => 
   const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
   const ports = {
     version: "0.0.0-test",
-    files: { children: () => [], list: () => [], exists: () => false },
+    files: { children: () => [], exists: () => false },
+    listing: { list: () => ({ from: "none", warning: null }) },
     config: {
       setupDocument: () => ({ present: true, document: { sensors: {} } }),
     },

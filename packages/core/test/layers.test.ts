@@ -66,8 +66,8 @@ const SUBDOMAINS = [
   "visualisation",
   "plugins",
 ];
-const SHARED_PORTS = ["clock", "git", "process", "scan-lock", "scratch"];
-const RUN_PORTS = SHARED_PORTS;
+const RUN_PORTS = ["clock", "git", "process", "scan-lock", "scratch"];
+const SHARED_PORTS = [...RUN_PORTS, "repository-files"];
 
 function misplacedSharedPort(file: string): boolean {
   const match = /^shared\/ports\/([^/]+)\.ts$/.exec(file);
@@ -268,6 +268,7 @@ describe("core layers", () => {
       "shared/ports/clock.ts",
       "shared/ports/git.ts",
       "shared/ports/process.ts",
+      "shared/ports/repository-files.ts",
       "shared/ports/scan-lock.ts",
       "analysis/ports/analysis.ts",
       "analysis/ports/published-languages.ts",

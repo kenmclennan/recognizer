@@ -12,7 +12,7 @@ const MODULES = ["a.py", "b.py", "c.py"];
 const TEST_FILE = "test/test_a.py";
 
 function seedTests(planned: PlanWorld, hash: string): string {
-  planned.fakes.source.listed = [...MODULES, TEST_FILE];
+  planned.fakes.repositoryFiles.listed = [...MODULES, TEST_FILE];
   planned.fakes.source.hashes.set(`${PLAN_REPOSITORY}/${TEST_FILE}`, hash);
 
   return testsHashOf(planned.fakes, PLAN_REPOSITORY, new Map()) as string;
@@ -305,7 +305,7 @@ describe("a plan", () => {
     unknown.addSensor("structure", { display: "Structure" });
     unknown.measure("crap", CURRENT);
     unknown.measure("structure", { inputs: FILES });
-    unknown.fakes.source.listed = null;
+    unknown.fakes.repositoryFiles.listed = null;
 
     const planned = await unknown.plan({
       ticks: ticksOf({ ticked: ["crap", "structure"], armed: [] }),
