@@ -27,8 +27,14 @@ export type ExtractResult =
     }
   | { ok: false; entry: RunEntry; reason: string; message: string };
 
+export interface InstalledScanner {
+  name: string;
+  manifest: { languages?: unknown[] };
+}
+
 export interface ScannerQueries {
   discover(): { installed: number };
+  installedPlugins(): InstalledScanner[];
   detect(root: string, named: Record<string, string>): string[];
   decide(
     root: string,

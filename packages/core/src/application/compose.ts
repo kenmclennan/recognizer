@@ -497,10 +497,15 @@ export function setupReadsOver({
   scanners,
 }: SetupReadsSources): SetupReads {
   return {
-    languageRules: () =>
-      discoverPlugins(plugins, ["scanner"]).plugins.flatMap(
-        (scanner) => (scanner.manifest.languages ?? []) as LanguageRule[],
-      ),
+    languageRules: () => {
+      scanners.discover();
+
+      return scanners
+        .installedPlugins()
+        .flatMap(
+          (scanner) => (scanner.manifest.languages ?? []) as LanguageRule[],
+        );
+    },
     cachedScans: (root) => {
       scanners.discover();
 

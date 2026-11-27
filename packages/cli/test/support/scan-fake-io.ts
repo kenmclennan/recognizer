@@ -498,6 +498,13 @@ export function fakeIo(options: FakeOptions = {}): Fake {
   let waited = 0;
 
   const io: Io = {
+    stamp: (path) => {
+      const content = files.get(path);
+
+      return content === undefined
+        ? "0:0"
+        : `${content.length}:${content.length}`;
+    },
     exists: (path) =>
       files.has(path) ||
       isDirectory(path) ||

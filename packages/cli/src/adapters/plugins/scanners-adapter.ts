@@ -1,6 +1,5 @@
 import { join } from "node:path";
 import {
-  discoverPlugins,
   type ExtractCall,
   type ExtractionDecision,
   type ExtractResult,
@@ -17,7 +16,7 @@ import {
 import type { Io, RunResult } from "../../cli.js";
 import { detectLanguages, type Language } from "../../detect.js";
 import { InputError } from "../../errors.js";
-import { documentValidators, manifestPorts } from "../../manifest-ports.js";
+import { documentValidators } from "../../manifest-ports.js";
 import { type createPluginLimits, prepareCall } from "../../plugin-run.js";
 import { entryFrom } from "../../run-log.js";
 import { judgeScanVersion, SCAN_SCHEMA_VERSION } from "../../scan.js";
@@ -30,6 +29,7 @@ import {
   type ScannerChoice,
 } from "../../scanners.js";
 import { readRepository } from "../filesystem/scan-translator.js";
+import { installedScanners } from "./installed-scanners.js";
 import { sinkIo } from "./sink-io.js";
 
 type FailureReason =
@@ -367,7 +367,7 @@ class ScannerQueriesAdapter implements ScannerQueries {
   }
 
   discover(): { installed: number } {
-    this.plugins = discoverPlugins(manifestPorts(this.io), ["scanner"]).plugins;
+    this.plugins = installedScanners(this.io).plugins;
 
     return { installed: this.plugins.length };
   }

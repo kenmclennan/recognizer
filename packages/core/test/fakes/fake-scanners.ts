@@ -2,6 +2,7 @@ import type {
   ExtractCall,
   ExtractionDecision,
   ExtractResult,
+  InstalledScanner,
   Repository,
   RunEntry,
   Scanners,
@@ -45,6 +46,13 @@ export class FakeScanners implements Scanners {
 
   discover(): { installed: number } {
     return { installed: this.languages.size };
+  }
+
+  installedPlugins(): InstalledScanner[] {
+    return [...this.languages.keys()].map((language) => ({
+      name: language,
+      manifest: { languages: [{ name: language }] },
+    }));
   }
 
   detect(): string[] {

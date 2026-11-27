@@ -3,7 +3,6 @@ import { parseArgs } from "node:util";
 import {
   type ApplyEvent,
   type DoctorReport,
-  discoverPlugins,
   type PlannedChange,
   Repository,
   recommendCards,
@@ -15,11 +14,11 @@ import {
 } from "@recognizer/core";
 import { PolicyAdapter } from "./adapters/filesystem/policy-adapter.js";
 import { readUncheckedScanFile } from "./adapters/filesystem/scan-translator.js";
+import { installedScanners } from "./adapters/plugins/installed-scanners.js";
 import { type Io, onStop } from "./cli.js";
 import { configurationFor } from "./configuration-composition.js";
 import { detectLanguages } from "./detect.js";
 import { InputError } from "./errors.js";
-import { manifestPorts } from "./manifest-ports.js";
 import { buildRecord, entryFrom, type RunEntry, recordRun } from "./run-log.js";
 import { readCachedRepository } from "./scan-command.js";
 import { languageRulesOf } from "./scanners.js";
@@ -71,9 +70,7 @@ function scansFor(io: Io, root: string, file: string | undefined): Repository {
     return readUncheckedScanFile(readJsonFile(io, file, "--scan"));
   }
 
-  const rules = languageRulesOf(
-    discoverPlugins(manifestPorts(io), ["scanner"]).plugins,
-  );
+  const rules = languageRulesOf(installedScanners(io).plugins);
 
   return Repository.join(
     detectLanguages(io, root, rules)
