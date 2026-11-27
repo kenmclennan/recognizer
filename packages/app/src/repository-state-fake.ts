@@ -22,6 +22,7 @@ const NO_RESULTS: PluginResults = {
   freshness: null,
   shown: null,
   hidden: null,
+  suites: null,
 };
 
 export function fakeRepositoryState(

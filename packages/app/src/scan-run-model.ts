@@ -1,6 +1,5 @@
-import type { RunView as Run, RunState } from "@recognizer/core";
+import { ageText, type RunView as Run, type RunState } from "@recognizer/core";
 import { roundedTime } from "./estimate-text";
-import { ageText } from "./footer-scan";
 import type { IconName } from "./icons";
 import { runLogPath } from "./run-log-path";
 import type { RunProgress } from "./scan-progress";

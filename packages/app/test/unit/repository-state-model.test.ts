@@ -348,6 +348,16 @@ describe("the installed sensors and stored results the app reads from a snapshot
           freshness: null,
           shown: [],
           hidden: [],
+          suites: [
+            {
+              name: "unit",
+              kind: "ok",
+              at: 1,
+              measured: 0,
+              total: 0,
+              reason: null,
+            },
+          ],
         },
         mutation: {
           findings: null,
@@ -358,6 +368,7 @@ describe("the installed sensors and stored results the app reads from a snapshot
           freshness: null,
           shown: null,
           hidden: null,
+          suites: null,
         },
       },
     });
@@ -369,6 +380,16 @@ describe("the installed sensors and stored results the app reads from a snapshot
         modifiedMs: Date.parse("2026-11-24T10:00:00Z"),
         shown: [],
         hidden: [],
+        suites: [
+          {
+            name: "unit",
+            kind: "ok",
+            at: 1,
+            measured: 0,
+            total: 0,
+            reason: null,
+          },
+        ],
       },
     ]);
     expect(stored.findings.refused).toEqual(["mutation"]);

@@ -1,5 +1,11 @@
 import { join } from "node:path";
-import { documentFreshness, Repository, splitDocument } from "@recognizer/core";
+import {
+  documentFreshness,
+  Repository,
+  type SensorFindingsHeader,
+  splitDocument,
+  suiteStandings,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { readFindingsText } from "../src/document-text.js";
 import { typescriptScenario } from "./support/index.js";
@@ -87,6 +93,66 @@ describe("results.read answers each document's freshness and split", () => {
     expect(held.findings).toBeNull();
     expect(held.shown).toBeNull();
     expect(held.hidden).toBeNull();
+    await root.close();
+  });
+});
+
+describe("results.read answers each plugin's suite standings", () => {
+  const write = (
+    root: ReturnType<typeof typescriptScenario>["root"],
+    repository: string,
+    name: string,
+    text: string,
+  ) => {
+    root.io.files.writeFile(
+      `${repository}/.recognizer/cache/findings/${name}.json`,
+      text,
+    );
+  };
+
+  it("gives suites equal to suiteStandings over the stored document, and null for a document without suites", async () => {
+    const { root, repository } = typescriptScenario({
+      sensors: ["crap", "mutation"],
+    });
+
+    write(
+      root,
+      repository,
+      "crap",
+      realText(
+        join(REPO, "schema", "findings-examples", "valid", "suites.json"),
+      ),
+    );
+    write(
+      root,
+      repository,
+      "mutation",
+      realText(
+        join(REPO, "schema", "findings-examples", "valid", "mutation.json"),
+      ),
+    );
+
+    const plugins = (await root.call("results.read", { repository })).ok
+      .plugins;
+    const document = plugins.crap.findings as SensorFindingsHeader;
+
+    expect(document.suites?.length).toBeGreaterThan(0);
+    expect(plugins.crap.suites).toEqual(suiteStandings(document.suites));
+    expect(plugins.mutation.findings).not.toBeNull();
+    expect(plugins.mutation.suites).toBeNull();
+    await root.close();
+  });
+
+  it("gives suites as null for a plugin with an unreadable findings file", async () => {
+    const { root, repository } = typescriptScenario({ sensors: ["crap"] });
+
+    write(root, repository, "crap", "not json");
+
+    const held = (await root.call("results.read", { repository })).ok.plugins
+      .crap;
+
+    expect(held.findings).toBeNull();
+    expect(held.suites).toBeNull();
     await root.close();
   });
 });

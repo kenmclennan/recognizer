@@ -1,4 +1,9 @@
-import { afterSuiteTick, type SuiteResult } from "@recognizer/core";
+import {
+  afterSuiteTick,
+  type SuiteResult,
+  suiteStanding,
+  suiteStandings,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { NO_CHANGES } from "../../src/footer-scan";
 import type { ResponsibilityState } from "../../src/responsibility-model";
@@ -10,12 +15,7 @@ import {
   visibleSuiteTicks,
 } from "../../src/scan-panel-model";
 import type { InstalledSensors, SensorStatus } from "../../src/sensor-run";
-import {
-  foldSummary,
-  languageTag,
-  shortAge,
-  suiteState,
-} from "../../src/suite-results";
+import { foldSummary, LOOK } from "../../src/suite-results";
 import { configOf, plainSensor, scanPanelSync as scanPanel } from "../fixtures";
 
 const MINUTE = 60000;
@@ -145,66 +145,15 @@ describe("suite ticks", () => {
   });
 });
 
-describe("shortAge", () => {
+describe("suite look", () => {
   it.each([
-    [59 * 1000, "now"],
-    [60 * 1000, "1m"],
-    [59 * MINUTE, "59m"],
-    [60 * MINUTE, "1h"],
-    [23 * HOUR + 59 * MINUTE, "23h"],
-    [24 * HOUR, "1d"],
-  ])("reads %i ms as %s", (ms, text) => {
-    expect(shortAge(ms)).toBe(text);
-  });
-});
-
-describe("suite states", () => {
-  it("reads each status as its icon, short text and full hover text", () => {
-    expect(suiteState(ok("unit", 3 * HOUR), NOW)).toMatchObject({
-      kind: "ok",
-      icon: "circle-check",
-      text: "3h",
-      title: "current, 3 hours ago",
-    });
-    expect(
-      suiteState(
-        {
-          name: "web",
-          status: "failed",
-          ranAt: ago(5 * MINUTE),
-          reason: "no coverage report",
-        },
-        NOW,
-      ),
-    ).toMatchObject({
-      kind: "failed",
-      icon: "circle-x",
-      text: "5m",
-      title: "failed 5 minutes ago: no coverage report",
-    });
-    expect(
-      suiteState(
-        {
-          name: "unit",
-          status: "partial",
-          ranAt: ago(2 * DAY),
-          measured: 11,
-          total: 29,
-        },
-        NOW,
-      ),
-    ).toMatchObject({
-      kind: "partial",
-      icon: "circle-pause",
-      text: "11/29",
-      title: "11 of 29 functions, 2 days ago",
-    });
-    expect(suiteState(undefined, NOW)).toMatchObject({
-      kind: "never",
-      icon: "circle-dashed",
-      text: "never",
-      title: "never run",
-    });
+    ["ok", "circle-check", "ok"],
+    ["failed", "circle-x", "bad"],
+    ["partial", "circle-pause", "muted"],
+    ["never", "circle-dashed", "muted"],
+    ["running", "loader", "run"],
+  ] as const)("gives %s the %s icon and %s tone", (kind, icon, tone) => {
+    expect(LOOK[kind]).toEqual({ icon, tone });
   });
 });
 
@@ -217,7 +166,15 @@ describe("closed fold summary", () => {
       done: number | null;
       total: number | null;
     } | null,
-  ) => foldSummary({ all, results, running, now: NOW });
+  ) =>
+    foldSummary({
+      all,
+      results: results.map((one) =>
+        one === undefined ? undefined : suiteStanding(one),
+      ),
+      running,
+      now: NOW,
+    });
 
   it("reads none when no suite is ticked", () => {
     expect(summarize([], 3).text).toBe("none");
@@ -268,12 +225,6 @@ describe("closed fold summary", () => {
         .text,
     ).toBe("unit 11/29");
   });
-
-  it("tags a language by its short name", () => {
-    expect(
-      ["python", "typescript", "kotlin", "rust", "csharp"].map(languageTag),
-    ).toEqual(["py", "ts", "kt", "rs", "cs"]);
-  });
 });
 
 describe("result rows from the findings suites array", () => {
@@ -282,7 +233,7 @@ describe("result rows from the findings suites array", () => {
     status: "ran",
     findings: 0,
     modifiedMs: NOW,
-    ...(suites === undefined ? {} : { suites }),
+    ...(suites === undefined ? {} : { suites: suiteStandings(suites) ?? [] }),
   });
   const armed = ticks({
     armed: ["crap"],
@@ -308,6 +259,7 @@ describe("result rows from the findings suites array", () => {
     });
     const crap = row(model, "crap");
 
+    expect(crap?.fold?.suites.length).toBeGreaterThan(0);
     expect(crap?.tick).toBe("some");
     expect(crap?.ticked).toBe(false);
     expect(crap?.fold?.open).toBe(true);
@@ -319,9 +271,9 @@ describe("result rows from the findings suites array", () => {
         one.state.text,
       ]),
     ).toEqual([
-      ["unit", "py", true, "3h"],
-      ["integration", "py", false, "never"],
-      ["web", "ts", true, "2d"],
+      ["unit", "python", true, "3h"],
+      ["integration", "python", false, "never"],
+      ["web", "typescript", true, "2d"],
     ]);
     expect(crap?.text.text).toBe("2/3 \u00b7 1 failed");
   });

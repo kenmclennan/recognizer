@@ -1,5 +1,6 @@
 import {
   ANALYSIS_KEY,
+  ageText,
   analysisState,
   DESCRIBE_KEY,
   describeState,
@@ -12,7 +13,6 @@ import {
   structureChanged,
 } from "@recognizer/core";
 import { sensorArmed, unregisteredMessage } from "recognizer";
-import { ageText } from "./footer-scan";
 import type { IconName } from "./icons";
 import type { ResultsMode } from "./scan-freshness";
 import {

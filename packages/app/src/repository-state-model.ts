@@ -259,6 +259,7 @@ export function storedResultsOf(documents: ResultDocuments): StoredResults {
         modifiedMs,
         shown: one.shown,
         hidden: one.hidden,
+        suites: one.suites,
       });
 
       if (one.freshness !== null) {

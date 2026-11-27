@@ -1,141 +1,39 @@
-import type { SuiteResult } from "@recognizer/core";
-import { ageText } from "./footer-scan";
+import {
+  type SuiteState as CoreSuiteState,
+  suiteState as coreSuiteState,
+  type SuiteRunning,
+  type SuiteStanding,
+  shortAge,
+} from "@recognizer/core";
 import type { IconName } from "./icons";
 import type { SuiteRef } from "./scan-panel-model";
 
 export type SuiteTone = "ok" | "bad" | "muted" | "run";
 
-export type SuiteState = {
-  kind: "ok" | "failed" | "partial" | "never" | "running";
-  icon: IconName;
-  tone: SuiteTone;
-  text: string;
-  title: string;
+export type SuiteState = CoreSuiteState & { icon: IconName; tone: SuiteTone };
+
+export const LOOK: Record<
+  CoreSuiteState["kind"],
+  { icon: IconName; tone: SuiteTone }
+> = {
+  ok: { icon: "circle-check", tone: "ok" },
+  failed: { icon: "circle-x", tone: "bad" },
+  partial: { icon: "circle-pause", tone: "muted" },
+  never: { icon: "circle-dashed", tone: "muted" },
+  running: { icon: "loader", tone: "run" },
 };
 
-export type SuiteRunning = {
-  suite: string;
-  done: number | null;
-  total: number | null;
-  stage?: string;
-};
-
-export type FoldSummary = { icon: IconName; tone: SuiteTone; text: string };
-
-const SECOND = 1000;
-const MINUTE = 60 * SECOND;
-const HOUR = 60 * MINUTE;
-const DAY = 24 * HOUR;
-
-const TAGS: Record<string, string> = {
-  python: "py",
-  typescript: "ts",
-  kotlin: "kt",
-  rust: "rs",
-  csharp: "cs",
-};
-
-export function languageTag(language: string): string {
-  return TAGS[language] ?? language;
-}
-
-export function shortAge(ms: number): string {
-  const elapsed = Math.max(0, ms);
-
-  if (elapsed < MINUTE) {
-    return "now";
-  }
-
-  if (elapsed < HOUR) {
-    return `${Math.floor(elapsed / MINUTE)}m`;
-  }
-
-  if (elapsed < DAY) {
-    return `${Math.floor(elapsed / HOUR)}h`;
-  }
-
-  return `${Math.floor(elapsed / DAY)}d`;
-}
-
-function ranAt(result: SuiteResult): number | null {
-  const at = result.ranAt === null ? Number.NaN : Date.parse(result.ranAt);
-
-  return Number.isNaN(at) ? null : at;
-}
-
-function shortOf(result: SuiteResult, now: number): string {
-  const at = ranAt(result);
-
-  return at === null ? "" : shortAge(now - at);
-}
-
-function fullOf(result: SuiteResult, now: number): string {
-  const at = ranAt(result);
-
-  return at === null ? "" : ageText(at, now);
-}
-
-export function suiteState(
-  result: SuiteResult | undefined,
+function viewState(
+  standing: SuiteStanding | undefined,
   now: number,
   running: SuiteRunning | null = null,
 ): SuiteState {
-  if (running !== null) {
-    const counted = running.done !== null && running.total !== null;
+  const state = coreSuiteState(standing, now, running);
 
-    return {
-      kind: "running",
-      icon: "loader",
-      tone: "run",
-      text: counted ? `${running.done}/${running.total}` : "running",
-      title: counted
-        ? `${running.done} of ${running.total} functions`
-        : "running",
-    };
-  }
-
-  if (result === undefined || result.status === "never") {
-    return {
-      kind: "never",
-      icon: "circle-dashed",
-      tone: "muted",
-      text: "never",
-      title: "never run",
-    };
-  }
-
-  const age = fullOf(result, now);
-
-  switch (result.status) {
-    case "ok":
-      return {
-        kind: "ok",
-        icon: "circle-check",
-        tone: "ok",
-        text: shortOf(result, now),
-        title: `current, ${age}`,
-      };
-    case "failed":
-      return {
-        kind: "failed",
-        icon: "circle-x",
-        tone: "bad",
-        text: shortOf(result, now),
-        title:
-          result.reason === undefined
-            ? `failed ${age}`
-            : `failed ${age}: ${result.reason}`,
-      };
-    case "partial":
-      return {
-        kind: "partial",
-        icon: "circle-pause",
-        tone: "muted",
-        text: `${result.measured ?? 0}/${result.total ?? 0}`,
-        title: `${result.measured ?? 0} of ${result.total ?? 0} functions, ${age}`,
-      };
-  }
+  return { ...state, ...LOOK[state.kind] };
 }
+
+export type FoldSummary = { icon: IconName; tone: SuiteTone; text: string };
 
 function prefixed(text: string, ticked: number, all: number): string {
   return ticked < all ? `${ticked}/${all} · ${text}` : text;
@@ -143,7 +41,7 @@ function prefixed(text: string, ticked: number, all: number): string {
 
 export function foldSummary(input: {
   all: number;
-  results: (SuiteResult | undefined)[];
+  results: (SuiteStanding | undefined)[];
   running: SuiteRunning | null;
   now: number;
 }): FoldSummary {
@@ -166,7 +64,7 @@ export function foldSummary(input: {
     };
   }
 
-  const states = results.map((result) => suiteState(result, now));
+  const states = results.map((result) => coreSuiteState(result, now));
   const failed = states.filter(({ kind }) => kind === "failed").length;
 
   if (failed > 0) {
@@ -195,7 +93,7 @@ export function foldSummary(input: {
 
   const oldest = Math.min(
     ...results.map((result) =>
-      result === undefined ? now : (ranAt(result) ?? now),
+      result === undefined ? now : (result.at ?? now),
     ),
   );
 
@@ -219,7 +117,7 @@ export function suiteRows(input: {
   sensor: string;
   suites: SuiteRef[];
   ticked: string[];
-  results: readonly SuiteResult[] | undefined;
+  results: readonly SuiteStanding[] | undefined;
   running: SuiteRunning | null;
   locked: boolean;
   now: number;
@@ -227,10 +125,10 @@ export function suiteRows(input: {
   return input.suites.map(({ name, language }) => ({
     sensor: input.sensor,
     name,
-    tag: languageTag(language),
+    tag: language,
     ticked: input.ticked.includes(name),
     disabled: input.locked,
-    state: suiteState(
+    state: viewState(
       input.results?.find((result) => result.name === name),
       input.now,
       input.running?.suite === name ? input.running : null,
@@ -241,8 +139,8 @@ export function suiteRows(input: {
 export function tickedResults(
   suites: SuiteRef[],
   ticked: string[],
-  results: readonly SuiteResult[] | undefined,
-): (SuiteResult | undefined)[] {
+  results: readonly SuiteStanding[] | undefined,
+): (SuiteStanding | undefined)[] {
   return suites
     .filter(({ name }) => ticked.includes(name))
     .map(({ name }) => results?.find((result) => result.name === name));
