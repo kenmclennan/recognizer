@@ -17,7 +17,6 @@ export class FakeGit implements Git {
   user: string | null = null;
   inside = true;
   branchName: string | null = null;
-  files: readonly string[] = [];
   defaultRefName: string | null = null;
   historyText: GitText = { ok: true, text: "" };
   branchesText: GitText = { ok: true, text: "" };
@@ -125,10 +124,6 @@ export class FakeGit implements Git {
 
   insideWorkTree(): boolean {
     return this.inside;
-  }
-
-  listFiles(): readonly string[] | null {
-    return this.inside ? this.files : null;
   }
 
   defaultRef(): string | null {

@@ -24,6 +24,12 @@ export const SETUP_LISTING: RepositoryListingRequest = {
   fallback: "walk",
 };
 
+export const BASELINE_LISTING: RepositoryListingRequest = {
+  excludeOwnState: false,
+  onlyPresent: false,
+  fallback: "none",
+};
+
 export const DETECTION_LISTING: RepositoryListingRequest = {
   excludeOwnState: false,
   onlyPresent: false,

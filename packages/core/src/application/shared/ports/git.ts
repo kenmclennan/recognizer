@@ -38,7 +38,6 @@ export interface Git {
   ): Promise<boolean>;
   branch(root: string): string | null;
   insideWorkTree(root: string): boolean;
-  listFiles(root: string): readonly string[] | null;
   defaultRef(root: string): string | null;
   history(root: string, limit: number): Promise<GitText>;
   branches(root: string, limit: number): Promise<GitText>;

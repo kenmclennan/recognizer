@@ -6,6 +6,7 @@ import {
   sameChanges,
 } from "../../domain/history/scan-baseline.js";
 import type { WindowBaselines } from "../../domain/history/window-baselines.js";
+import { BASELINE_LISTING } from "../shared/ports/repository-files.js";
 import type { ScanBaselinePorts } from "./scan-baseline-ports.js";
 
 export type ScanChangesPoll =
@@ -37,20 +38,21 @@ async function listing(
   baseline: ScanBaseline,
   root: string,
 ): Promise<string[]> {
-  const listed = ports.git.listFiles(root);
+  const listed = ports.files.list(root, BASELINE_LISTING);
   const found =
-    listed ??
-    (await ports.limiter.run(() =>
-      ports.workTree.walk(root, "", async (directory) => {
-        const present = await presentAmong(
-          ports,
-          root,
-          baseline.markersAlong([`${directory}/x`]),
-        );
+    listed.from === "git"
+      ? listed.paths
+      : await ports.limiter.run(() =>
+          ports.workTree.walk(root, "", async (directory) => {
+            const present = await presentAmong(
+              ports,
+              root,
+              baseline.markersAlong([`${directory}/x`]),
+            );
 
-        return baseline.descends(directory, present);
-      }),
-    ));
+            return baseline.descends(directory, present);
+          }),
+        );
 
   return [...new Set(found)].sort();
 }

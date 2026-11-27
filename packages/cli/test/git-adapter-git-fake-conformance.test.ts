@@ -64,28 +64,24 @@ describe("the fake and the adapter agree", () => {
     }
   });
 
-  it("on the branch, work tree, file list and default ref", () => {
+  it("on the branch, work tree and default ref", () => {
     const { root, commit, real, fake } = both();
     const outside = makeTempDir("recognizer-git-conformance-outside-");
     const seeded = fake as FakeGit;
 
     seeded.branchName = "main";
-    seeded.files = ["big.txt"];
 
     expect(real.branch(root)).toBe("main");
     expect(seeded.branch()).toBe("main");
     expect(real.insideWorkTree(root)).toBe(true);
     expect(seeded.insideWorkTree()).toBe(true);
-    expect(real.listFiles(root)).toEqual(seeded.listFiles());
     expect(real.defaultRef(root)).toBeNull();
     expect(seeded.defaultRef()).toBeNull();
     expect(real.insideWorkTree(outside)).toBe(false);
-    expect(real.listFiles(outside)).toBeNull();
 
     seeded.inside = false;
 
     expect(seeded.insideWorkTree()).toBe(false);
-    expect(seeded.listFiles()).toBeNull();
     expect(commit).not.toBe("");
   });
 

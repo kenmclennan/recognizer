@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   adoptScanBaseline,
   clearScanOrigin,
+  compareScanBaseline,
   pollScanChanges,
   takeScanOrigin,
 } from "../../src/index.js";
@@ -57,6 +58,46 @@ describe("ScanBaseline", () => {
     world.remove("web/tsconfig.json");
 
     expect(await world.listed()).toEqual([["web/tsconfig.json", "deleted"]]);
+  });
+
+  it("a failed git listing reads as none, so the poll walks and finds an added file", async () => {
+    const world = pythonRepository();
+    const baseline = baselineOf(world, ["python"]);
+
+    world.write("app/c.py", "c = 1\n");
+    world.repositoryFiles.gitless = true;
+
+    expect(await world.listed(baseline)).toContainEqual(["app/c.py", "added"]);
+    expect(world.repositoryFiles.calls[0]).toBe("list");
+  });
+
+  it("a successful git listing is used as is", async () => {
+    const world = pythonRepository();
+    const baseline = baselineOf(world, ["python"]);
+
+    world.write("app/c.py", "c = 1\n");
+    world.write("app/d.py", "d = 1\n");
+    world.repositoryFiles.listed = ["app/a.py", "app/b.py", "app/c.py"];
+
+    const changes = await compareScanBaseline(world.ports, baseline, ROOT);
+    const kinds = changes.files.map((change) => [change.path, change.kind]);
+
+    expect(kinds).toContainEqual(["app/c.py", "added"]);
+    expect(kinds).not.toContainEqual(["app/d.py", "added"]);
+  });
+
+  it("an empty git listing is a listing, not a failure", async () => {
+    const world = pythonRepository();
+    const baseline = baselineOf(world, ["python"]);
+
+    world.write("app/c.py", "c = 1\n");
+    world.repositoryFiles.listed = [];
+
+    const changes = await compareScanBaseline(world.ports, baseline, ROOT);
+
+    expect(changes.files.filter((change) => change.kind === "added")).toEqual(
+      [],
+    );
   });
 
   it("a manifest added after the scan is reported added", async () => {
