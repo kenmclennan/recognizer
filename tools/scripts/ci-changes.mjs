@@ -27,6 +27,15 @@ export const TOOLCHAIN_INPUTS = [
   ".github/workflows/check.yml",
 ];
 
+export const RUST_INPUTS = [
+  "packages/app/src-tauri/",
+  "packages/scanners/rust/",
+  "fixtures/rust/",
+  "packages/app/scripts/check-rust.mjs",
+  "tools/scripts/assert-clean-tmpdir.mjs",
+  ".github/workflows/app.yml",
+];
+
 function touches(files, prefixes) {
   return files.some((file) =>
     prefixes.some((prefix) =>
@@ -37,7 +46,11 @@ function touches(files, prefixes) {
 
 export function decide(event, files, units) {
   if (event !== "pull_request") {
-    return { units: units.map((entry) => entry.unit), toolchain: true };
+    return {
+      units: units.map((entry) => entry.unit),
+      toolchain: true,
+      rust: true,
+    };
   }
 
   const everything = touches(files, PLUGIN_SHARED);
@@ -47,11 +60,12 @@ export function decide(event, files, units) {
       .filter((entry) => everything || touches(files, [`${entry.folder}/`]))
       .map((entry) => entry.unit),
     toolchain: touches(files, TOOLCHAIN_INPUTS),
+    rust: touches(files, RUST_INPUTS),
   };
 }
 
-export function render({ units, toolchain }) {
-  return `units=${JSON.stringify(units)}\ntoolchain=${toolchain}\n`;
+export function render({ units, toolchain, rust }) {
+  return `units=${JSON.stringify(units)}\ntoolchain=${toolchain}\nrust=${rust}\n`;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
