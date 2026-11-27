@@ -909,16 +909,6 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.run.plans).toHaveLength(1);
   });
 
-  it("stops a running scan from the Scan panel and leaves the footer empty", () => {
-    expect(f.stopWhileRunning.order).toEqual(["scan-run", "scan-stop"]);
-    expect(f.stopWhileRunning.count).toBe(1);
-    expect(f.stop.footer).toBe("");
-    expect(f.stop.footerButtons).toEqual(["bell"]);
-    expect(f.stop.stopAfter).toBe(0);
-    expect(f.stop.button).toBe("Run Descriptions");
-    expect(f.stop.disabled).toBe(false);
-  });
-
   it("leaves a failed sensor at failed with its age and a log link in red and posts exactly one tray message", () => {
     const row = f.failed.rows.find((r: Facts) => r.key === "tally");
 

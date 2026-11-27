@@ -1679,6 +1679,17 @@ describe.skipIf(webkit === undefined)("the Scan panel", () => {
     expect(f.idleClick).toEqual({ ran: 0, written: 0 });
   });
 
+  it("stops a running scan from the Scan panel with a single Stop button, sends scan.stop once and leaves the footer empty", () => {
+    expect(f.stopWhileRunning.order).toEqual(["scan-stop"]);
+    expect(f.stopWhileRunning.count).toBe(1);
+    expect(f.stop.stops).toBe(1);
+    expect(f.stop.footer).toBe("");
+    expect(f.stop.footerButtons).toEqual(["bell"]);
+    expect(f.stop.stopAfter).toBe(0);
+    expect(f.stop.button).toBe("Run Descriptions");
+    expect(f.stop.disabled).toBe(false);
+  });
+
   it("(non-gating) disables the mode toggle while a scan runs and keeps Stop enabled", () => {
     expect(f.modeWhileRunning.disabled).toEqual([true, true]);
     expect(f.modeWhileRunning.stopEnabled).toBe(true);
