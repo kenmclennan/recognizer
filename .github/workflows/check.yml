@@ -7,6 +7,7 @@ on:
       - packages/cli/**
       - packages/scanners/**
       - packages/sensors/**
+      - packages/app/src/**
       - packages/describers/**
       - tools/scripts/**
       - tools/packaging/**
