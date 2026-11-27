@@ -48,3 +48,36 @@ export function restoreScroll(root: ParentNode, memory: ScrollMemory) {
     });
   }
 }
+
+export function readPanelScroll(
+  root: ParentNode,
+  panel: string,
+): number | null {
+  const selector = SCROLLERS[panel];
+  const element =
+    selector === undefined ? null : root.querySelector<HTMLElement>(selector);
+
+  return element === null ? null : element.scrollTop;
+}
+
+export function restorePanelScroll(
+  root: ParentNode,
+  panel: string,
+  offset: number,
+): boolean {
+  const selector = SCROLLERS[panel];
+  const element =
+    selector === undefined ? null : root.querySelector<HTMLElement>(selector);
+
+  if (element === null || element.scrollHeight <= element.clientHeight) {
+    return false;
+  }
+
+  element.scrollTop = clampOffset(
+    offset,
+    element.scrollHeight,
+    element.clientHeight,
+  );
+
+  return true;
+}

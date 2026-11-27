@@ -206,7 +206,12 @@ import { buildScanPanelView } from "./scan-panel-view";
 import { inertScan } from "./scan-port";
 import type { PluginProgress, ShowTarget } from "./scan-progress";
 import type { RunInput } from "./scan-run-model";
-import { readScroll, restoreScroll } from "./scroll-memory";
+import {
+  readPanelScroll,
+  readScroll,
+  restorePanelScroll,
+  restoreScroll,
+} from "./scroll-memory";
 import type { BarModel } from "./selection-bar-view";
 import {
   type InstalledSensors,
@@ -5132,8 +5137,40 @@ export function showExplorer(
   }
 
   let previousPanel: LeftPanel | null = carried?.leftPanel ?? null;
+  const panelScroll = new Map<string, number>();
+  let pendingPanelScroll: LeftPanel | null = null;
+
+  function rememberPanelScroll() {
+    if (previousPanel === null || previousPanel === leftPanel) {
+      return;
+    }
+
+    const offset = readPanelScroll(body, previousPanel);
+
+    if (offset !== null) {
+      panelScroll.set(previousPanel, offset);
+    }
+
+    pendingPanelScroll = leftPanel;
+  }
+
+  function restorePanelScrollOnShow() {
+    if (pendingPanelScroll === null || pendingPanelScroll !== leftPanel) {
+      pendingPanelScroll = null;
+
+      return;
+    }
+
+    const offset = panelScroll.get(pendingPanelScroll) ?? 0;
+
+    if (offset === 0 || restorePanelScroll(body, pendingPanelScroll, offset)) {
+      pendingPanelScroll = null;
+    }
+  }
 
   function render() {
+    rememberPanelScroll();
+
     if (opensScanPanel(previousPanel, leftPanel)) {
       tickChanges.change({ kind: "open" });
     }
@@ -5192,6 +5229,7 @@ export function showExplorer(
       scrollTarget = null;
     }
 
+    restorePanelScrollOnShow();
     lastKeys = progressKeys(progressInput(findingsInputs()));
     publish();
   }
