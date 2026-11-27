@@ -1,5 +1,6 @@
 import { afterSuiteTick, type SuiteResult } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
+import { NO_CHANGES } from "../../src/footer-scan";
 import type { ResponsibilityState } from "../../src/responsibility-model";
 import {
   NO_RUN,
@@ -78,7 +79,12 @@ const entry = (ticked: string[], known: string[] = ALL) => ({ ticked, known });
 
 function panel(over: Partial<PanelInput> = {}) {
   return scanPanel({
-    scan: null,
+    scan: {
+      origin: { branch: "main", commit: "abc1234" },
+      scannedAt: 0,
+      changes: NO_CHANGES,
+      scanning: null,
+    },
     config: configOf(CONFIG),
     sensors: [],
     lines: {

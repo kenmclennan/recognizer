@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { NO_CHANGES } from "../../src/footer-scan";
 import { createPlanAnswers } from "../../src/plan-answers";
 import type { PlanRequest, ScanPlanView } from "../../src/plan-reads";
 import { NO_RUN, type PanelInput, scanPanel } from "../../src/scan-panel-model";
@@ -49,7 +50,12 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 function panelInput(plan: PanelInput["plan"]): PanelInput {
   return {
-    scan: null,
+    scan: {
+      origin: { branch: "main", commit: "abc1234" },
+      scannedAt: 0,
+      changes: NO_CHANGES,
+      scanning: null,
+    },
     config: configOf("sensors:\n  crap: {}\n"),
     sensors: [],
     lines: { modules: ["a.py"], of: () => ({ kind: "current", line: "x" }) },

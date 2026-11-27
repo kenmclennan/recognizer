@@ -49,7 +49,7 @@ function runView(over) {
 }
 function render(over, scanning = false) {
   const model = scanPanel({
-    scan: null, config: { sensors: { crap: { command: ["c"] }, mutation: { command: ["m"] } } }, sensors: [], lines: { modules: [], of: () => ({ kind: "missing" }) },
+    scan: { origin: { branch: "main", commit: "cur1234" }, scannedAt: 0, changes: { files: [], moved: null } }, config: { sensors: { crap: { command: ["c"] }, mutation: { command: ["m"] } } }, sensors: [], lines: { modules: [], of: () => ({ kind: "missing" }) },
     describedAt: null, ticks: { describe: false, ticked: [], armed: ["crap", "mutation"], onlyView: false, suites: {}, folds: [] },
     run: NO_RUN, scanning, now: 0, installed: INSTALLED, runView: runView(over),
   });

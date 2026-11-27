@@ -173,13 +173,18 @@ export function composeApp(view: AppView): App {
     port: sensorsSource,
     plan: (request) => scanSource.plan(request),
     estimate: (request) => scanSource.estimate(request),
-    scan: () =>
-      scanState === null
-        ? null
-        : {
-            ...scanState,
-            scannedAt: ranAtOf(scanState.scannedAt, repositoryState.current()),
-          },
+    scan: () => {
+      if (scanState === null) {
+        throw new Error(
+          "the explorer read the scan before the repository was scanned",
+        );
+      }
+
+      return {
+        ...scanState,
+        scannedAt: ranAtOf(scanState.scannedAt, repositoryState.current()),
+      };
+    },
     ticks: () => rescanner.ticks(),
     setTicks: (next) => rescanner.setTicks(next),
     changeTicks: (ticks, changes) => scanSource.changeTicks(ticks, changes),

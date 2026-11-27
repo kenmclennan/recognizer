@@ -316,7 +316,7 @@ export type ScanHost = {
   port: SensorsPort;
   plan: (request: PlanRequest, facts: LoadedPlanData) => Promise<ScanPlanView>;
   estimate: (request: EstimateRequest) => Promise<EstimateAnswer>;
-  scan: () => ScanState | null;
+  scan: () => ScanState;
   ticks: () => ScanTicks;
   setTicks: (next: ScanTicks) => void;
   changeTicks: (ticks: ScanTicks, changes: TickChange[]) => Promise<ScanTicks>;
@@ -342,7 +342,12 @@ export const inertScanHost: ScanHost = {
   port: inertSensors,
   plan: planFromFacts,
   estimate: inertScan.estimate,
-  scan: () => null,
+  scan: () => ({
+    origin: { branch: "", commit: "" },
+    scannedAt: 0,
+    changes: { files: [], moved: null },
+    scanning: null,
+  }),
   ticks: () => ({
     describe: false,
     analysis: true,
