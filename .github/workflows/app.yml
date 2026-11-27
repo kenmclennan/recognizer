@@ -47,13 +47,13 @@ jobs:
           node-version: "22"
 
       - name: Install dependencies
-        run: npm ci --prefer-offline --no-audit --no-fund
+        run: node tools/scripts/signal-witness.mjs npm ci --prefer-offline --no-audit --no-fund
 
       - name: Install the look-test browser
-        run: npx -w @recognizer/app playwright install webkit
+        run: node tools/scripts/signal-witness.mjs npx -w @recognizer/app playwright install webkit
 
       - name: Run quality gate
-        run: npm run check:app
+        run: node tools/scripts/signal-witness.mjs npm run check:app
 
   layout:
     name: layout (graph-layout tests)
@@ -71,10 +71,10 @@ jobs:
           node-version: "22"
 
       - name: Install dependencies
-        run: npm ci --prefer-offline --no-audit --no-fund
+        run: node tools/scripts/signal-witness.mjs npm ci --prefer-offline --no-audit --no-fund
 
       - name: Install the look-test browser
-        run: npx -w @recognizer/app playwright install webkit
+        run: node tools/scripts/signal-witness.mjs npx -w @recognizer/app playwright install webkit
 
       - name: Run graph-layout tests
-        run: npm run test:layout -w @recognizer/app
+        run: node tools/scripts/signal-witness.mjs npm run test:layout -w @recognizer/app

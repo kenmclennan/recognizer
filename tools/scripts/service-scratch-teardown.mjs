@@ -17,19 +17,23 @@ function tryRemove(scratch) {
   }
 }
 
-export function writersIn(scratch) {
+function psListing() {
   const result = spawnSync("ps", ["eww", "-A", "-o", "pid=,command="], {
     encoding: "utf8",
     maxBuffer: 256 * 1024 * 1024,
   });
 
   if (result.error !== undefined || typeof result.stdout !== "string") {
-    return [];
+    return "";
   }
 
+  return result.stdout;
+}
+
+export function writersIn(scratch, listing = psListing()) {
   const marker = `TMPDIR=${scratch}`;
 
-  return result.stdout
+  return listing
     .split("\n")
     .filter((line) => {
       const at = line.indexOf(marker);
