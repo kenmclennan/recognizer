@@ -34,6 +34,12 @@ describe("the app root, timed end to end", () => {
         SCAN_CEILING_MS,
       );
 
+      await untilHolds(
+        root.service,
+        () => (host.running() ? undefined : true),
+        SCAN_CEILING_MS,
+      );
+
       host.run(null);
 
       await untilHolds(
