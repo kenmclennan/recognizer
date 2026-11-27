@@ -73,4 +73,55 @@ describe("registeredPlugins", () => {
       "recognizer-scan-ghost",
     ]);
   });
+
+  it("serves the default scanners through the registry and never lists PATH", () => {
+    const { io, readDirCalls } = fakeIo();
+
+    const found = discoverPlugins(manifestPorts(io), ["scanner"]);
+
+    expect(found.plugins.length).toBeGreaterThan(0);
+    expect(found.plugins.map((plugin) => plugin.name)).toEqual([
+      "csharp",
+      "kotlin",
+      "python",
+      "rust",
+      "typescript",
+    ]);
+    expect(found.unreadable).toEqual([]);
+    expect(readDirCalls()).toBe(0);
+  });
+
+  it("lists an unreadable scanner and no other when scanners are named", () => {
+    const { io } = fakeIo({
+      scanners: { "recognizer-scan-python": { manifest: "not json" } },
+    });
+
+    const found = discoverPlugins(manifestPorts(io), ["scanner"]);
+
+    expect(found.plugins).toEqual([]);
+    expect(found.unreadable.map((entry) => entry.command)).toEqual([
+      "/fakebin/recognizer-scan-python",
+    ]);
+  });
+
+  it("lists a mixed registry of readable, unreadable and sensor plugins", () => {
+    const { io } = fakeIo({
+      sensorManifests: true,
+      onPath: ["recognizer-sense-crap"],
+      scanners: {
+        "recognizer-scan-python": {},
+        "recognizer-scan-typescript": { manifest: "not json" },
+      },
+    });
+
+    const scanners = discoverPlugins(manifestPorts(io), ["scanner"]);
+    const sensors = discoverPlugins(manifestPorts(io), ["sensor"]);
+
+    expect(scanners.plugins.length).toBeGreaterThan(0);
+    expect(scanners.plugins.map((plugin) => plugin.name)).toEqual(["python"]);
+    expect(scanners.unreadable.map((entry) => entry.command)).toEqual([
+      "/fakebin/recognizer-scan-typescript",
+    ]);
+    expect(sensors.plugins.map((plugin) => plugin.name)).toEqual(["crap"]);
+  });
 });

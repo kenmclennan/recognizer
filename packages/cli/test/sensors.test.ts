@@ -15,6 +15,7 @@ import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { run, stopEverything } from "../src/cli.js";
 import { validateFindings } from "../src/findings-document.js";
 import { capture, REPO } from "./helpers.js";
+import { registerShim, useRegisteredShims } from "./plugin-registry-shim.js";
 import {
   type Fake,
   type FakeOptions,
@@ -1365,15 +1366,14 @@ describe("scan --sense running a registered sensor as a real process", () => {
 
     const sensed = capture();
     const probes = makeTempDir("recognizer-scanner-");
-    const savedPath = process.env.PATH;
-
     writeFileSync(
       join(probes, "recognizer-scan-python"),
       `#!/bin/sh\nif [ "$1" = "manifest" ]; then\ncat <<'EOF'\n${scannerManifestText("python").trim()}\nEOF\nelse\necho 0.0.0\nfi\n`,
     );
     chmodSync(join(probes, "recognizer-scan-python"), 0o755);
-    process.env.PATH = `${probes}:${savedPath}`;
+    registerShim(join(probes, "recognizer-scan-python"));
 
+    const release = useRegisteredShims(probes);
     const out = capture();
     let code: number;
 
@@ -1381,7 +1381,7 @@ describe("scan --sense running a registered sensor as a real process", () => {
       expect(await run(["scan", root, "--sense", "all"], sensed.io)).toBe(0);
       code = await run(["check", "--repository", root, "--json"], out.io);
     } finally {
-      process.env.PATH = savedPath;
+      release();
     }
 
     const file = join(root, ".recognizer/cache/findings/fake-sensor.json");
