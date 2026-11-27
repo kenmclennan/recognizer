@@ -29,6 +29,7 @@ function syncOver(fakes: ReturnType<typeof createFakes>) {
   const extracted: ExtractCall[] = [];
   const scanners: SyncScanners = {
     discover: () => fakes.scanners.discover(),
+    installedPlugins: () => fakes.scanners.installedPlugins(),
     detect: (root, named) => fakes.scanners.detect(root, named),
     decide: (root, force, commit, dirty) =>
       fakes.scanners.decide(root, force, commit, dirty),

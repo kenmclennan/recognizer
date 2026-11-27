@@ -1,5 +1,4 @@
 import {
-  discoverPlugins,
   joinPath,
   type LanguageRule,
   type PluginAnswer,
@@ -10,7 +9,7 @@ import {
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
 import validate from "../../generated/survey-answer-validator.js";
-import { manifestPorts } from "../../manifest-ports.js";
+import { installedScanners } from "./installed-scanners.js";
 
 export const SURVEY_ANSWER_TIMEOUT_MS = 60_000;
 
@@ -51,9 +50,9 @@ export class SurveyPluginsAdapter implements SurveyPlugins {
   ) {}
 
   async answers(request: SurveyRequest): Promise<PluginAnswer[]> {
-    const asked = discoverPlugins(manifestPorts(this.io), [
-      "scanner",
-    ]).plugins.filter((plugin) => plugin.manifest.setup_survey !== undefined);
+    const asked = installedScanners(this.io).plugins.filter(
+      (plugin) => plugin.manifest.setup_survey !== undefined,
+    );
 
     if (asked.length === 0) {
       return [];
