@@ -4,8 +4,11 @@ import {
   type DescribeHalt,
   type Diagnosis,
   type DocumentFreshness,
+  foldSummary,
   Repository,
   type SuiteRunning,
+  suiteRows,
+  tickedResults,
 } from "@recognizer/core";
 import type { PlanRequest, ScanPlanView } from "recognizer";
 import {
@@ -59,12 +62,11 @@ import { type RunInput, type RunModel, runModel } from "./scan-run-model";
 import { type ScanWhy, whyOf } from "./scan-why";
 import type { InstalledSensors, SensorStatus } from "./sensor-run";
 import {
-  foldSummary,
+  lookedFold,
+  lookedState,
   type SuiteRowModel,
   type SuiteTone,
-  suiteRows,
-  tickedResults,
-} from "./suite-results";
+} from "./suite-look";
 
 export type RunState = {
   running: string[];
@@ -739,12 +741,14 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
           (sensing === null || sensing === row.key)
             ? runningOf(progress, names)
             : null;
-        const summary = foldSummary({
-          all: names.length,
-          results: tickedResults(sensor.suites ?? [], ticked, results),
-          running: live,
-          now: input.now,
-        });
+        const summary = lookedFold(
+          foldSummary({
+            all: names.length,
+            results: tickedResults(sensor.suites ?? [], ticked, results),
+            running: live,
+            now: input.now,
+          }),
+        );
         const tick = sensorTickState(input.ticks, row.key, names);
         const behind =
           row.state.kind === "out-of-date" && summary.tone === "ok";
@@ -766,7 +770,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
               running: live,
               locked,
               now: input.now,
-            }),
+            }).map((one) => ({ ...one, state: lookedState(one.state) })),
           },
         };
       }

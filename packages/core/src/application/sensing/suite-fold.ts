@@ -1,39 +1,22 @@
+import type { SuiteRef } from "../../domain/scan-plan.js";
 import {
   ageText,
-  type SuiteState as CoreSuiteState,
-  suiteState as coreSuiteState,
   type SuiteRunning,
   type SuiteStanding,
-} from "@recognizer/core";
-import type { IconName } from "./icons";
-import type { SuiteRef } from "./scan-panel-model";
+  type SuiteState,
+  suiteState,
+} from "./suite-state.js";
 
-export type SuiteTone = "ok" | "bad" | "muted" | "run";
+export type FoldSummary = { kind: SuiteState["kind"]; text: string };
 
-export type SuiteState = CoreSuiteState & { icon: IconName; tone: SuiteTone };
-
-export const LOOK: Record<
-  CoreSuiteState["kind"],
-  { icon: IconName; tone: SuiteTone }
-> = {
-  ok: { icon: "circle-check", tone: "ok" },
-  failed: { icon: "circle-x", tone: "bad" },
-  partial: { icon: "circle-pause", tone: "muted" },
-  never: { icon: "circle-dashed", tone: "muted" },
-  running: { icon: "loader", tone: "run" },
+export type SuiteRowFacts = {
+  sensor: string;
+  name: string;
+  tag: string;
+  ticked: boolean;
+  disabled: boolean;
+  state: SuiteState;
 };
-
-function viewState(
-  standing: SuiteStanding | undefined,
-  now: number,
-  running: SuiteRunning | null = null,
-): SuiteState {
-  const state = coreSuiteState(standing, now, running);
-
-  return { ...state, ...LOOK[state.kind] };
-}
-
-export type FoldSummary = { icon: IconName; tone: SuiteTone; text: string };
 
 function prefixed(text: string, ticked: number, all: number): string {
   return ticked < all ? `${ticked}/${all} · ${text}` : text;
@@ -48,15 +31,14 @@ export function foldSummary(input: {
   const { results, all, now } = input;
 
   if (results.length === 0) {
-    return { icon: "circle-dashed", tone: "muted", text: "none" };
+    return { kind: "never", text: "none" };
   }
 
   if (input.running !== null) {
     const { suite, done, total, stage } = input.running;
 
     return {
-      icon: "loader",
-      tone: "run",
+      kind: "running",
       text:
         done !== null && total !== null
           ? `${suite} ${done}/${total}`
@@ -64,31 +46,22 @@ export function foldSummary(input: {
     };
   }
 
-  const states = results.map((result) => coreSuiteState(result, now));
+  const states = results.map((result) => suiteState(result, now));
   const failed = states.filter(({ kind }) => kind === "failed").length;
 
   if (failed > 0) {
     return {
-      icon: "circle-x",
-      tone: "bad",
+      kind: "failed",
       text: prefixed(`${failed} failed`, results.length, all),
     };
   }
 
   if (states.some(({ kind }) => kind === "never")) {
-    return {
-      icon: "circle-dashed",
-      tone: "muted",
-      text: prefixed("never", results.length, all),
-    };
+    return { kind: "never", text: prefixed("never", results.length, all) };
   }
 
   if (states.some(({ kind }) => kind === "partial")) {
-    return {
-      icon: "circle-pause",
-      tone: "muted",
-      text: prefixed("partial", results.length, all),
-    };
+    return { kind: "partial", text: prefixed("partial", results.length, all) };
   }
 
   const oldest = Math.min(
@@ -98,20 +71,10 @@ export function foldSummary(input: {
   );
 
   return {
-    icon: "circle-check",
-    tone: "ok",
+    kind: "ok",
     text: prefixed(ageText(oldest, now, "short"), results.length, all),
   };
 }
-
-export type SuiteRowModel = {
-  sensor: string;
-  name: string;
-  tag: string;
-  ticked: boolean;
-  disabled: boolean;
-  state: SuiteState;
-};
 
 export function suiteRows(input: {
   sensor: string;
@@ -121,14 +84,14 @@ export function suiteRows(input: {
   running: SuiteRunning | null;
   locked: boolean;
   now: number;
-}): SuiteRowModel[] {
+}): SuiteRowFacts[] {
   return input.suites.map(({ name, language }) => ({
     sensor: input.sensor,
     name,
     tag: language,
     ticked: input.ticked.includes(name),
     disabled: input.locked,
-    state: viewState(
+    state: suiteState(
       input.results?.find((result) => result.name === name),
       input.now,
       input.running?.suite === name ? input.running : null,

@@ -119,6 +119,7 @@ export * from "./application/sensing/ports/sensor-catalog.js";
 export * from "./application/sensing/ports/sensors.js";
 export * from "./application/sensing/read-sensor-rows.js";
 export * from "./application/sensing/sensor-freshness.js";
+export * from "./application/sensing/suite-fold.js";
 export * from "./application/sensing/suite-state.js";
 export * from "./application/sensing/suite-ticks.js";
 export * from "./application/shared/cached-scans-state.js";

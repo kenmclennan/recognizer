@@ -10,7 +10,7 @@ import {
   type ScanRow,
 } from "./scan-panel-model";
 import type { GapItem, HelpLine, RunCard } from "./scan-run-model";
-import type { SuiteRowModel, SuiteTone } from "./suite-results";
+import type { SuiteRowModel, SuiteTone } from "./suite-look";
 
 export type ScanPanelActions = {
   tick: (key: string, ticked: boolean) => void;
