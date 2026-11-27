@@ -29,6 +29,7 @@ import {
   undeclaredSensors,
 } from "../plugins/undeclared-sensors.js";
 import type { Say } from "../shared/ports/process.js";
+import type { RepositoryFiles } from "../shared/ports/repository-files.js";
 import {
   candidatesOf,
   type ReportedWarning,
@@ -62,6 +63,7 @@ export interface CheckPorts {
   policy: PolicyRepository;
   baselines: BaselineRepository;
   source: SourceFiles;
+  repositoryFiles: RepositoryFiles;
   digest: Digest;
   testReports: TestReports;
   languages: PublishedLanguages;

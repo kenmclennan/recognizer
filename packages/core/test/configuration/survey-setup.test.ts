@@ -141,6 +141,21 @@ describe("surveySetup", () => {
     ]);
   });
 
+  it("omits paths under skipped directories and listed paths that are deleted", async () => {
+    const world = worldOf();
+
+    seedFiles(world, ["a.ts", "dist/b.ts", ".worktrees/w/c.ts"]);
+    world.fakes.repositoryFiles.listed = [
+      "a.ts",
+      "dist/b.ts",
+      ".worktrees/w/c.ts",
+      "gone.ts",
+    ];
+    await surveySetup(world.ports, { root: ROOT });
+
+    expect(world.fakes.surveyPlugins.requests[0]?.files).toEqual(["a.ts"]);
+  });
+
   it("asks the plugins with the file list and the configured suites", async () => {
     const world = worldOf();
 

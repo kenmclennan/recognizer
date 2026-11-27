@@ -44,6 +44,7 @@ export function checkPortsOf(fakes: Fakes): CheckPorts {
     policy: fakes.policy,
     baselines: fakes.baseline,
     source: fakes.source,
+    repositoryFiles: fakes.repositoryFiles,
     digest: fakes.digest,
     testReports: fakes.testReports,
     languages: fakes.languages,

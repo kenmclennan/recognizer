@@ -11,6 +11,7 @@ import { InvalidRequest } from "../../domain/invalid-request.js";
 import { joinPath } from "../../domain/path.js";
 import type { PolicyRule } from "../../domain/policy-rule.js";
 import type { Repository } from "../../domain/repository.js";
+import { SETUP_LISTING } from "../shared/ports/repository-files.js";
 import { gapNotes } from "./gap-notes.js";
 import type { ConfigurationPorts } from "./internal/configuration-ports.js";
 import {
@@ -63,7 +64,8 @@ export async function surveySetup(
     throw new InvalidRequest([`repository is not a directory: ${root}`]);
   }
 
-  const files = filterListing(ports.files.list(root));
+  const listing = ports.listing.list(root, SETUP_LISTING);
+  const files = filterListing(listing.from === "none" ? [] : listing.paths);
   const { present: configured, document } = ports.config.setupDocument(root);
   const scans = scan ?? ports.reads.cachedScans(root);
   const suites = suitesOf(document, files, configured);

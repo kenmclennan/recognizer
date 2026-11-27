@@ -33,6 +33,15 @@ export const FAKE_CONTRACTS: FakeContract[] = [
     ],
   },
   {
+    fake: "packages/core/test/fakes/fake-repository-files.ts",
+    fakeName: "FakeRepositoryFiles",
+    adapter: "packages/cli/src/adapters/filesystem/repository-files-adapter.ts",
+    adapterName: "RepositoryFilesAdapter",
+    proofs: [
+      "packages/cli/test/adapter-contract/repository-files-adapter-contract.test.ts",
+    ],
+  },
+  {
     fake: "packages/core/test/fakes/fake-scratch.ts",
     fakeName: "FakeScratch",
     adapter: "packages/cli/src/adapters/system/scratch-adapter.ts",

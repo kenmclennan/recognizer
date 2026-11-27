@@ -4,6 +4,7 @@ import type { PolicyRepository } from "../../../domain/policy-repository.js";
 import type { Repository } from "../../../domain/repository.js";
 import type { diagnose } from "../../plugins/diagnose.js";
 import type { Clock } from "../../shared/ports/clock.js";
+import type { RepositoryFiles } from "../../shared/ports/repository-files.js";
 import type { ScanLock } from "../../shared/ports/scan-lock.js";
 import type { Assistant } from "../ports/assistant.js";
 import type { ConfigKeys } from "../ports/config-keys.js";
@@ -33,6 +34,7 @@ export interface SetupReads {
 
 export interface ConfigurationPorts {
   files: SetupFiles;
+  listing: RepositoryFiles;
   plugins: SurveyPlugins;
   assistant: Assistant;
   scan: SetupScan;

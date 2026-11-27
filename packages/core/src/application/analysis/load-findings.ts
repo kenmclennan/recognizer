@@ -9,6 +9,7 @@ import type { PolicyRepository } from "../../domain/policy-repository.js";
 import type { Repository } from "../../domain/repository.js";
 import type { SensorFindings } from "../../domain/sensor-findings.js";
 import type { Say } from "../shared/ports/process.js";
+import type { RepositoryFiles } from "../shared/ports/repository-files.js";
 import { gatherFindingsFiles } from "./gather-findings-files.js";
 import type { Digest } from "./ports/digest.js";
 import type { PublishedLanguages } from "./ports/published-languages.js";
@@ -21,6 +22,7 @@ export interface LoadFindingsPorts {
   findings: Pick<FindingsRepository, "readStructure" | "save" | "readAll">;
   policy: Pick<PolicyRepository, "rules">;
   source: SourceFiles;
+  repositoryFiles: RepositoryFiles;
   digest: Digest;
   testReports: TestReports;
   languages: PublishedLanguages;

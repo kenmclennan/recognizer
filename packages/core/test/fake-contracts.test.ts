@@ -143,6 +143,7 @@ describe("fake contracts", () => {
       "fake-git.ts",
       "fake-clock.ts",
       "fake-process.ts",
+      "fake-repository-files.ts",
       "fake-scratch.ts",
       "fake-scan-cache.ts",
       "fake-plugin-registrations.ts",
@@ -152,6 +153,6 @@ describe("fake contracts", () => {
     expect(report.baselined.length + report.registered.length).toBe(
       report.found.length,
     );
-    expect(report.found.length).toBe(49);
+    expect(report.found.length).toBe(50);
   });
 });

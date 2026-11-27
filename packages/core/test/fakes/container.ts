@@ -37,6 +37,7 @@ import { FakePrograms } from "./fake-programs.js";
 import { FakePublishedLanguages } from "./fake-published-languages.js";
 import { FakeRecordedScans } from "./fake-recorded-scans.js";
 import { FakeRepositoryChecks } from "./fake-repository-checks.js";
+import { FakeRepositoryFiles } from "./fake-repository-files.js";
 import { FakeResponsibilitiesRepository } from "./fake-responsibilities-repository.js";
 import { FakeRunLogRepository } from "./fake-run-log-repository.js";
 import { FakeScanCache } from "./fake-scan-cache.js";
@@ -100,6 +101,7 @@ export interface Fakes {
   scratch: FakeScratch;
   scanCache: FakeScanCache;
   setupFiles: FakeSetupFiles;
+  repositoryFiles: FakeRepositoryFiles;
   surveyPlugins: FakeSurveyPlugins;
   assistant: FakeAssistant;
   setupScan: FakeSetupScan;
@@ -114,6 +116,7 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
   const sensors = new FakeSensors(log);
   const findings = new FakeFindingsRepository();
   const process = new FakeProcess();
+  const setupFiles = new FakeSetupFiles();
 
   sensors.findings = findings;
 
@@ -161,7 +164,8 @@ export function createFakes(commit: string | null = "c0ffee"): Fakes {
     repositoryChecks: new FakeRepositoryChecks(),
     scratch: new FakeScratch(),
     scanCache: new FakeScanCache(),
-    setupFiles: new FakeSetupFiles(),
+    setupFiles,
+    repositoryFiles: new FakeRepositoryFiles(setupFiles),
     surveyPlugins: new FakeSurveyPlugins(),
     assistant: new FakeAssistant(),
     setupScan: new FakeSetupScan(),
@@ -235,6 +239,7 @@ export function pluginPortsOf(fakes: Fakes): PluginPorts {
 export function configurationPortsOf(fakes: Fakes): ConfigurationPorts {
   return {
     files: fakes.setupFiles,
+    listing: fakes.repositoryFiles,
     plugins: fakes.surveyPlugins,
     assistant: fakes.assistant,
     scan: fakes.setupScan,

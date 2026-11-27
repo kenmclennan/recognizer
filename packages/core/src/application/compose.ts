@@ -101,6 +101,7 @@ import { selectSensors } from "./sensing/select-sensors.js";
 import type { Clock } from "./shared/ports/clock.js";
 import type { Git } from "./shared/ports/git.js";
 import type { ProcessControl, Say } from "./shared/ports/process.js";
+import type { RepositoryFiles } from "./shared/ports/repository-files.js";
 import type { ScanLock } from "./shared/ports/scan-lock.js";
 import { addToView } from "./visualisation/add-to-view.js";
 import { askCallers } from "./visualisation/ask-callers.js";
@@ -141,6 +142,7 @@ interface CommonPorts {
   clock: Clock;
   process: ProcessControl;
   source: SourceFiles;
+  repositoryFiles: RepositoryFiles;
   digest: Digest;
   parsing: Parsing;
   grammarRules: GrammarRules;

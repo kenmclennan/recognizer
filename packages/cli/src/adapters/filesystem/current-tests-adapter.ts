@@ -10,6 +10,7 @@ import { manifestPorts } from "../../manifest-ports.js";
 import { PublishedLanguagesAdapter } from "../plugins/published-languages-adapter.js";
 import { TestReportsAdapter } from "../plugins/test-reports-adapter.js";
 import { DigestAdapter } from "../system/digest-adapter.js";
+import { RepositoryFilesAdapter } from "./repository-files-adapter.js";
 import { readRepositoryText } from "./repository-text.js";
 import { SourceFilesAdapter } from "./source-files-adapter.js";
 
@@ -31,6 +32,7 @@ export class CurrentTestsAdapter implements CurrentTests {
     return currentTestsDigest(
       {
         source: new SourceFilesAdapter(this.io),
+        repositoryFiles: new RepositoryFilesAdapter(this.io),
         digest: new DigestAdapter(),
         testReports: new TestReportsAdapter(this.io),
         languages: new PublishedLanguagesAdapter(() => {

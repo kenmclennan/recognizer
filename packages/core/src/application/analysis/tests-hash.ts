@@ -1,6 +1,10 @@
 import { LanguageBehaviour } from "../../domain/analysis/language-behaviour.js";
 import { compareUtf8 } from "../../domain/analysis/tests-hash/bytes.js";
 import type { Repository } from "../../domain/repository.js";
+import {
+  type RepositoryFiles,
+  SOURCE_LISTING,
+} from "../shared/ports/repository-files.js";
 import type { Digest } from "./ports/digest.js";
 import type { PublishedLanguages } from "./ports/published-languages.js";
 import type { SourceFiles } from "./ports/source-files.js";
@@ -8,6 +12,7 @@ import type { TestReports } from "./ports/test-reports.js";
 
 export interface TestsHashPorts {
   source: SourceFiles;
+  repositoryFiles: RepositoryFiles;
   digest: Digest;
   testReports: TestReports;
   languages: PublishedLanguages;
@@ -26,13 +31,13 @@ export function testsHashOf(
   root: string,
   known: ReadonlyMap<string, string>,
 ): string | null {
-  const listed = ports.source.listFiles(root);
+  const listing = ports.repositoryFiles.list(root, SOURCE_LISTING);
 
-  if (listed === null) {
+  if (listing.from === "none") {
     return null;
   }
 
-  const listedPaths = [...new Set(listed.filter((path) => path !== ""))];
+  const listedPaths = [...new Set(listing.paths.filter((path) => path !== ""))];
   const hashes = new Map<string, string>();
   const behaviour = new LanguageBehaviour(ports.languages.rules());
 

@@ -24,6 +24,7 @@ const expected: Record<string, string[]> = {
     "policy-translator.ts",
     "progress-translator.ts",
     "recorded-scans-adapter.ts",
+    "repository-files-adapter.ts",
     "repository-text.ts",
     "responsibilities-adapter.ts",
     "run-log-adapter.ts",

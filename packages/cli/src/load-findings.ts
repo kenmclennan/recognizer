@@ -6,6 +6,7 @@ import {
 import { ConfigAdapter } from "./adapters/filesystem/config-adapter.js";
 import { FindingsAdapter } from "./adapters/filesystem/findings-adapter.js";
 import { PolicyAdapter } from "./adapters/filesystem/policy-adapter.js";
+import { RepositoryFilesAdapter } from "./adapters/filesystem/repository-files-adapter.js";
 import { SourceFilesAdapter } from "./adapters/filesystem/source-files-adapter.js";
 import { TestReportsAdapter } from "./adapters/plugins/test-reports-adapter.js";
 import { DigestAdapter } from "./adapters/system/digest-adapter.js";
@@ -23,6 +24,7 @@ export function loadFindings(
       findings: new FindingsAdapter(io),
       policy: new PolicyAdapter(io),
       source: new SourceFilesAdapter(io),
+      repositoryFiles: new RepositoryFilesAdapter(io),
       digest: new DigestAdapter(),
       testReports: new TestReportsAdapter(io),
       languages: installedLanguages(io),

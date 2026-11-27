@@ -30,6 +30,7 @@ import {
   BaselineTextAdapter,
   CurrentTestsAdapter,
 } from "../adapters/filesystem/current-tests-adapter.js";
+import { RepositoryFilesAdapter } from "../adapters/filesystem/repository-files-adapter.js";
 import { ScanCacheAdapter } from "../adapters/filesystem/scan-cache-adapter.js";
 import { SourceFilesAdapter } from "../adapters/filesystem/source-files-adapter.js";
 import {
@@ -558,6 +559,7 @@ export class Service {
     return testsHashOf(
       {
         source: new SourceFilesAdapter(this.shared),
+        repositoryFiles: new RepositoryFilesAdapter(this.shared),
         digest: new DigestAdapter(),
         testReports: new TestReportsAdapter(this.shared),
         languages: installedLanguages(this.shared),
