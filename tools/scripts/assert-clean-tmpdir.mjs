@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { constants, tmpdir } from "node:os";
 import { join } from "node:path";
 
 const TOOL_OWNED = [/^node-compile-cache$/, /^uv-[0-9a-f]+\.lock$/];
@@ -31,6 +31,10 @@ export function runWithCleanTmpdir(command, args) {
   const left = leftovers(scratch);
 
   rmSync(scratch, { recursive: true, force: true, maxRetries: 10 });
+
+  if (result.signal) {
+    return { status: 128 + (constants.signals[result.signal] ?? 0), left };
+  }
 
   if (result.status !== 0) {
     return { status: result.status ?? 1, left };
