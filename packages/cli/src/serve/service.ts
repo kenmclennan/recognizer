@@ -59,7 +59,7 @@ import { readStructure, typedHistorical } from "../structure-read.js";
 import { configKeys, configWrite } from "./config-run.js";
 import { estimateRequestOf, readEstimate } from "./estimate-ops.js";
 import { HistoryChannel } from "./history-channel.js";
-import { readInputs } from "./inputs-ops.js";
+import { readInputs, readPolicy } from "./inputs-ops.js";
 import { classifyOpenedOp, viewMarks, viewMembers } from "./marks-ops.js";
 import { quiet } from "./quiet.js";
 import { RepositoryChannel } from "./repository-channel.js";
@@ -318,6 +318,7 @@ export class Service {
             this.repositories.state(repository),
             this.structureOf(repository),
             optionalText(args, "tests"),
+            readPolicy(this.shared, repository),
           ),
         );
 

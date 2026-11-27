@@ -3,6 +3,8 @@ import {
   documentFreshness,
   type Finding,
   type FindingsRepository,
+  measuredFiles,
+  type PolicyRule,
   Repository,
   type RepositoryState,
   reportedMs,
@@ -30,6 +32,7 @@ export interface PluginResults {
   overlayProblem: string | null;
   modifiedMs: number | null;
   freshness: DocumentFreshness | null;
+  measured: string[] | null;
   shown: Finding[] | null;
   hidden: Finding[] | null;
   suites: SuiteStanding[] | null;
@@ -48,6 +51,7 @@ export function readPluginResults(
   state: RepositoryState,
   structure: Repository = Repository.empty,
   tests: string | null = null,
+  policy: readonly PolicyRule[] | null = null,
 ): ResultsAnswer {
   const plugins: Record<string, PluginResults> = {};
   const entry = (name: string): PluginResults => {
@@ -58,6 +62,7 @@ export function readPluginResults(
       overlayProblem: null,
       modifiedMs: reportedMs(state, name),
       freshness: null,
+      measured: null,
       shown: null,
       hidden: null,
       suites: null,
@@ -87,6 +92,13 @@ export function readPluginResults(
             : { tests: one.document.tests }),
         },
         tests,
+      );
+
+      held.measured = measuredFiles(
+        structure,
+        policy,
+        one.name,
+        held.freshness,
       );
 
       const split = splitDocument(structure, one.document, tests);

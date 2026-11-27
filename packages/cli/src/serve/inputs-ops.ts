@@ -59,6 +59,12 @@ function parsed<T>(
   }
 }
 
+export function readPolicy(io: Io, root: string): PolicyRule[] | null {
+  const text = readInput(io, policyFile(root), ".recognizer/policy.yaml", []);
+
+  return parsed(text, parsePolicy).value;
+}
+
 export function readInputs(io: Io, root: string): InputsAnswer {
   const refused: string[] = [];
   const configText = readInput(

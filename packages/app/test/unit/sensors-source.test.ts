@@ -66,6 +66,7 @@ describe("sensorsSource", () => {
       findings: {} as never,
       shown: [],
       hidden: [],
+      measured: [],
       overlay: {} as never,
     });
     results.setResults("mutation", { findingsProblem: "bad json" });

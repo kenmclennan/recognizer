@@ -35,7 +35,7 @@ import {
   installedSensors,
   secondSensorDocument,
 } from "../fixtures";
-import { factsFor, measuredOfDocument, splitFor } from "../freshness-support";
+import { splitFor } from "../freshness-support";
 import {
   type DocEdge,
   type DocMember,
@@ -913,16 +913,12 @@ describe("findings", () => {
       modules,
       baseline: null,
       findings: [secondSensorDocument("shop/main.py")],
-      freshness: factsFor(
-        loaded.repository,
-        [measuredOfDocument(secondSensorDocument("shop/main.py"))],
-        null,
-      ),
       split: splitFor(
         loaded.repository,
         [secondSensorDocument("shop/main.py")],
         null,
       ),
+      measured: {},
     });
     const rows = inspectorContent(
       module("shop/main.py"),

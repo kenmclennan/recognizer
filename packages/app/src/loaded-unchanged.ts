@@ -6,6 +6,7 @@ function sensed(loaded: Loaded): string {
     loaded.baseline,
     loaded.findings,
     loaded.split,
+    loaded.measured,
     loaded.sensors,
     loaded.overlays ?? null,
     loaded.overlaysUnreadable ?? null,

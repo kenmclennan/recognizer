@@ -2,7 +2,6 @@ import type { SensorFindings, Violation } from "@recognizer/core";
 import {
   type FindingNote,
   findingsByModuleFrom,
-  measuredModules,
   narrowViolationRecord,
   type PolicyProblem,
   policyProblems,
@@ -38,9 +37,15 @@ export function violationLine(violation: Violation): string {
 export function computeHealth(
   loaded: Pick<
     Loaded,
-    "repository" | "policy" | "modules" | "baseline" | "findings" | "split"
+    | "repository"
+    | "policy"
+    | "modules"
+    | "baseline"
+    | "findings"
+    | "split"
+    | "measured"
   > &
-    Partial<Pick<Loaded, "baselineProblem" | "freshness">>,
+    Partial<Pick<Loaded, "baselineProblem">>,
 ): Health {
   const notices: string[] = [];
   const known = new Set(loaded.modules);
@@ -52,30 +57,18 @@ export function computeHealth(
   }
 
   const scans = loaded.repository;
-  const measured = new Set<string>();
+  const measured = new Set(Object.values(loaded.measured).flat());
   const shown: SensorFindings[] = [];
   const hidden: SensorFindings[] = [];
 
   for (const document of loaded.findings) {
     const name = document.sensor.name;
-    const current = new Set(loaded.freshness?.[name]?.current ?? []);
     const { shown: keep, hidden: drop } = loaded.split[name];
 
     shown.push({ ...document, findings: keep });
 
     if (drop.length > 0) {
       hidden.push({ ...document, findings: drop });
-    }
-
-    const covered =
-      document.sensor.name === "structure"
-        ? measuredModules(scans, policy)
-        : known;
-
-    for (const id of covered) {
-      if (document.inputs?.[id] !== undefined && current.has(id)) {
-        measured.add(id);
-      }
     }
   }
 

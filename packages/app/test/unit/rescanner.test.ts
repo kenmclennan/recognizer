@@ -32,6 +32,7 @@ const OK: Loaded = {
   blocking: null,
   findings: [],
   split: {},
+  measured: {},
   sensors: [],
 };
 

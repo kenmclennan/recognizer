@@ -1,4 +1,10 @@
-import { Repository, splitDocument, suiteStandings } from "@recognizer/core";
+import {
+  documentFreshness,
+  measuredFiles,
+  Repository,
+  splitDocument,
+  suiteStandings,
+} from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { fakeSensors } from "../../src/sensors-fake";
 import {
@@ -72,6 +78,30 @@ describe("fakeSensors results split", () => {
     expect((file?.shown?.length ?? 0) + (file?.hidden?.length ?? 0)).toBe(
       document.findings.length,
     );
+  });
+
+  it("answers measured agreeing with measuredFiles", async () => {
+    const fake = sensors();
+    const { repository } = fixtureScan("check", "scan.json", CURRENT);
+
+    fake.structure = repository;
+
+    const file = (await fake.readResults("t")).findings.files[0];
+    const expected = measuredFiles(
+      repository,
+      null,
+      "lint",
+      documentFreshness(
+        repository,
+        {
+          ...(document.inputs === undefined ? {} : { inputs: document.inputs }),
+          ...(document.tests === undefined ? {} : { tests: document.tests }),
+        },
+        "t",
+      ),
+    );
+
+    expect(file?.measured).toEqual(expected);
   });
 
   it("splits over the empty repository when the fake has no structure", async () => {

@@ -21,7 +21,7 @@ const policy = fixturePolicy("check");
 function headerAndSplit(document: SensorFindings) {
   const { findings, ...header } = document;
 
-  return { document: header, shown: [...findings], hidden: [] };
+  return { document: header, shown: [...findings], hidden: [], measured: [] };
 }
 
 function readerOf(files: Record<string, string>) {
@@ -71,6 +71,7 @@ describe("withSensors tests hash without a listing", () => {
     blocking: null,
     findings: [],
     split: {},
+    measured: {},
     sensors: [],
   };
 
@@ -108,6 +109,7 @@ describe("withSensors over answered lists", () => {
               modifiedMs: null,
               shown: shown.map(record),
               hidden: hidden.map(record),
+              measured: [],
             },
           ],
           refused: [],
@@ -132,6 +134,7 @@ describe("withSensors over answered lists", () => {
         blocking: null,
         findings: [],
         split: {},
+        measured: {},
         sensors: [],
       },
       { ...inertSensors, ...listed(["a"], ["b"]) },

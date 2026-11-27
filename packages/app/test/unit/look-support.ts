@@ -17,7 +17,12 @@ import type { RowSensor } from "../../src/scan-panel-model";
 import type { ViewComparisons } from "../../src/view-comparisons";
 import type { ViewsPort } from "../../src/views-port";
 import type { WindowPort } from "../../src/window-port";
-import { factsFor, measuredOfDocument, splitFor } from "../freshness-support";
+import {
+  factsFor,
+  measuredFor,
+  measuredOfDocument,
+  splitFor,
+} from "../freshness-support";
 import { type DocScan, repositoryFrom } from "./repository-from";
 import {
   type FindingsLiteral,
@@ -34,6 +39,7 @@ const BASE: Loaded = {
   blocking: null,
   findings: [],
   split: {},
+  measured: {},
   sensors: [],
 };
 
@@ -88,6 +94,10 @@ export function loadedOf(
       rest.split !== undefined && Object.keys(rest.split).length > 0
         ? rest.split
         : splitFor(repository, findings, rest.tests ?? null),
+    measured:
+      rest.measured !== undefined && Object.keys(rest.measured).length > 0
+        ? rest.measured
+        : measuredFor(repository, findings, rest.tests ?? null),
   };
 }
 

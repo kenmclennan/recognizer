@@ -1,13 +1,17 @@
 import { join } from "node:path";
 import {
   documentFreshness,
+  measuredFiles,
   Repository,
   type SensorFindingsHeader,
   splitDocument,
   suiteStandings,
 } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
+import { policyFile } from "../src/config.js";
 import { readFindingsText } from "../src/document-text.js";
+import { readCachedRepository } from "../src/scan-facts.js";
+import { readPolicy } from "../src/serve/inputs-ops.js";
 import { typescriptScenario } from "./support/index.js";
 import { realText } from "./support/serve-state-programs.js";
 
@@ -93,6 +97,61 @@ describe("results.read answers each document's freshness and split", () => {
     expect(held.findings).toBeNull();
     expect(held.shown).toBeNull();
     expect(held.hidden).toBeNull();
+    expect(held.measured).toBeNull();
+    await root.close();
+  });
+});
+
+describe("results.read answers the files each document measured", () => {
+  it("narrows the structure sensor by the repository policy and carries the core answer", async () => {
+    const { root, repository } = typescriptScenario({ sensors: ["crap"] });
+    const started = await root.call("scan.start", {
+      repository,
+      describe: false,
+      analysis: false,
+      sense: [],
+    });
+
+    await root.outcome(started.ok);
+
+    const structure = readCachedRepository(
+      root.io,
+      repository,
+      "typescript",
+    ) as Repository;
+    const paths = structure.files.map((file) => file.path);
+    const ignored = paths[0] as string;
+
+    expect(paths.length).toBeGreaterThan(1);
+
+    const text = JSON.stringify({
+      ...JSON.parse(
+        realText(
+          join(REPO, "schema", "findings-examples", "valid", "crap.json"),
+        ),
+      ),
+      sensor: { name: "structure", version: "1" },
+      inputs: Object.fromEntries(structure.scannedHashes()),
+    });
+    const policyText = `ignore: ["${ignored}"]\n`;
+    root.io.files.writeFile(
+      `${repository}/.recognizer/cache/findings/structure.json`,
+      text,
+    );
+    root.io.files.writeFile(policyFile(repository), policyText);
+
+    const held = (await root.call("results.read", { repository })).ok.plugins
+      .structure;
+    const expected = measuredFiles(
+      structure,
+      readPolicy(root.io, repository),
+      "structure",
+      held.freshness,
+    );
+
+    expect(held.measured).toEqual(expected);
+    expect(held.measured).not.toContain(ignored);
+    expect(held.measured.length).toBeGreaterThan(0);
     await root.close();
   });
 });

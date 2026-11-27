@@ -348,6 +348,7 @@ describe("the installed sensors and stored results the app reads from a snapshot
           freshness: null,
           shown: [],
           hidden: [],
+          measured: ["a.py"],
           suites: [
             {
               name: "unit",
@@ -368,6 +369,7 @@ describe("the installed sensors and stored results the app reads from a snapshot
           freshness: null,
           shown: null,
           hidden: null,
+          measured: null,
           suites: null,
         },
       },
@@ -380,6 +382,7 @@ describe("the installed sensors and stored results the app reads from a snapshot
         modifiedMs: Date.parse("2026-11-24T10:00:00Z"),
         shown: [],
         hidden: [],
+        measured: ["a.py"],
         suites: [
           {
             name: "unit",
