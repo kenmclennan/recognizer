@@ -18,9 +18,10 @@ import { validateFindings } from "../src/findings-document.js";
 import { entriesOf } from "../src/run-log.js";
 import { capture, REPO } from "./helpers.js";
 import { isolatedPath } from "./isolated-path.js";
-import { registerShim } from "./plugin-registry-shim.js";
+import { registerShim, useRegisteredShims } from "./plugin-registry-shim.js";
 
 const VARIABLES = ["SHELL"];
+let releaseShims: (() => void) | undefined;
 const HAS_UV = spawnSync("uv", ["--version"]).status === 0;
 const TYPESCRIPT_BIN = join(REPO, "packages/scanners/typescript/dist/bin.js");
 
@@ -133,6 +134,7 @@ describe.skipIf(!HAS_UV)(
         ].join("\n"),
       );
       process.env.PATH = isolatedPath(launchers);
+      releaseShims = useRegisteredShims(launchers);
     });
 
     afterEach(() => {
@@ -144,6 +146,8 @@ describe.skipIf(!HAS_UV)(
         }
       }
 
+      releaseShims?.();
+      releaseShims = undefined;
       process.env.PATH = savedPath;
     });
 
@@ -701,6 +705,7 @@ describe.skipIf(!HAS_UV)(
         `exec uv run --quiet --project ${REPO}/packages/sensors recognizer-sense-mutation "$@"`,
       );
       process.env.PATH = isolatedPath(launchers);
+      releaseShims = useRegisteredShims(launchers);
 
       const git = (...args: string[]) =>
         spawnSync("git", ["-C", repository, ...args], {
@@ -720,6 +725,8 @@ describe.skipIf(!HAS_UV)(
     });
 
     afterEach(() => {
+      releaseShims?.();
+      releaseShims = undefined;
       process.env.PATH = savedPath;
     });
 
@@ -888,6 +895,7 @@ describe.skipIf(!HAS_UV)(
         ].join("\n"),
       );
       process.env.PATH = isolatedPath(launchers);
+      releaseShims = useRegisteredShims(launchers);
     });
 
     afterEach(() => {
@@ -899,6 +907,8 @@ describe.skipIf(!HAS_UV)(
         }
       }
 
+      releaseShims?.();
+      releaseShims = undefined;
       process.env.PATH = savedPath;
     });
 

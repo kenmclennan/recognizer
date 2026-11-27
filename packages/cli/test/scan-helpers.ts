@@ -2,7 +2,7 @@ import { chmodSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { isolatedPath } from "./isolated-path.js";
-import { registerShim } from "./plugin-registry-shim.js";
+import { registerShim, useRegisteredShims } from "./plugin-registry-shim.js";
 import { scannerManifestText } from "./support/manifest-text.js";
 
 export {
@@ -21,9 +21,12 @@ export function useScannerShim(language: string): () => void {
   );
   chmodSync(path, 0o755);
   registerShim(path);
-  process.env.PATH = isolatedPath(directory);
+  process.env.PATH = isolatedPath();
+
+  const release = useRegisteredShims(directory);
 
   return () => {
+    release();
     process.env.PATH = saved;
   };
 }

@@ -24,7 +24,7 @@ import { fullHelp } from "../src/help.js";
 import { validateRunRecord } from "../src/log-document.js";
 import { capture, REPO } from "./helpers.js";
 import { isolatedPath } from "./isolated-path.js";
-import { registerShim } from "./plugin-registry-shim.js";
+import { registerShim, useRegisteredShims } from "./plugin-registry-shim.js";
 import { scannerManifestText } from "./scan-helpers.js";
 
 const FAKE = join(REPO, "packages/cli/test/fixtures/fake-describer.mjs");
@@ -32,6 +32,14 @@ const ORDER = "shop/domain/order.py";
 const STORE = "shop/ports/store.py";
 const PLACE = "shop/application/place.py";
 const roots: string[] = [];
+
+let releaseRegistry: (() => void) | undefined;
+
+function pointAtShims(path: string, ...directories: string[]): void {
+  releaseRegistry?.();
+  process.env.PATH = path;
+  releaseRegistry = useRegisteredShims(...directories);
+}
 
 function scannerShim(dir: string, language: string): void {
   const path = join(dir, `recognizer-scan-${language}`);
@@ -63,7 +71,7 @@ function repository(language = "python"): string {
 
   binDirs.push(shims);
   scannerShim(shims, language);
-  process.env.PATH = isolatedPath(shims, ...describerDirs);
+  pointAtShims(isolatedPath(...describerDirs), shims, ...describerDirs);
 
   const scan = JSON.parse(
     readFileSync(join(REPO, `fixtures/${language}/expected-scan.json`), "utf8"),
@@ -740,7 +748,7 @@ function withoutDescriberPlugin(): void {
     join(dir, "git"),
   );
   scannerShim(dir, "python");
-  process.env.PATH = `${dir}:/usr/bin:/bin`;
+  pointAtShims(`${dir}:/usr/bin:/bin`, dir);
 }
 
 function installedManifest() {
@@ -774,16 +782,21 @@ function installDescriberPlugin(): void {
     ].join("\n"),
     { mode: 0o755 },
   );
+  registerShim(script);
   describerDirs.push(dir);
-  process.env.PATH = isolatedPath(...describerDirs);
+  pointAtShims(isolatedPath(...describerDirs), ...describerDirs);
 }
 
 beforeEach(() => {
+  releaseRegistry?.();
+  releaseRegistry = undefined;
   process.env.PATH = originalPath;
   describerDirs.length = 0;
 });
 
 afterEach(() => {
+  releaseRegistry?.();
+  releaseRegistry = undefined;
   process.env.PATH = originalPath;
 
   for (const dir of binDirs.splice(0)) {

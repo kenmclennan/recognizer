@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
+import {
+  type PluginKind,
+  registrationFileName,
+  serializeRegistration,
+} from "@recognizer/core";
 import type { DirEntry, Io, RequestResult, RunResult } from "../../src/cli.js";
 import { exampleManifest } from "../installed-read.js";
+import { REGISTRY_FOLDER } from "../registered-plugins.js";
 import { describerManifestText, scannerManifestText } from "./manifest-text.js";
 
 export interface ScannerBehaviour {
@@ -171,6 +177,33 @@ export function typescriptScanJson(
   );
 }
 
+const REGISTERED_KINDS: [string, PluginKind][] = [
+  ["recognizer-scan-", "scanner"],
+  ["recognizer-sense-", "sensor"],
+  ["recognizer-describe-", "describer"],
+];
+
+function registrationFor(program: string): [string, string] | undefined {
+  for (const [prefix, kind] of REGISTERED_KINDS) {
+    if (program.startsWith(prefix)) {
+      const name = program.slice(prefix.length);
+      const command = [`${BIN}/${program}`];
+
+      return [
+        `${REGISTRY_FOLDER}/${registrationFileName(kind, name)}`,
+        serializeRegistration({
+          kind,
+          name,
+          command,
+          manifest: [...command, "manifest"],
+        }),
+      ];
+    }
+  }
+
+  return undefined;
+}
+
 function isMarkerFile(path: string): boolean {
   return /\/scan-running[^/]*$/.test(path);
 }
@@ -201,6 +234,15 @@ export function fakeIo(options: FakeOptions = {}): Fake {
     ...(options.onPath ?? []),
   ];
   let readDirs = 0;
+
+  for (const program of installed) {
+    const registration = registrationFor(program);
+
+    if (registration !== undefined && !files.has(registration[0])) {
+      files.set(registration[0], registration[1]);
+    }
+  }
+
   let clock = Date.UTC(2026, 10, 2);
   let out = "";
   let err = "";
@@ -209,7 +251,7 @@ export function fakeIo(options: FakeOptions = {}): Fake {
 
   function children(path: string): DirEntry[] {
     if (path === BIN) {
-      return installed.map((name) => ({ name, kind: "file" as const }));
+      return [];
     }
 
     const prefix = `${path}/`;
@@ -565,7 +607,9 @@ export function fakeIo(options: FakeOptions = {}): Fake {
       err += text;
     },
     readDir: (path) => {
-      readDirs += 1;
+      if (path !== REGISTRY_FOLDER) {
+        readDirs += 1;
+      }
 
       if (!isDirectory(path)) {
         throw new Error(`ENOTDIR: ${path}`);
@@ -631,7 +675,9 @@ export function fakeIo(options: FakeOptions = {}): Fake {
         ? (options.env?.[name] ?? APP_CONFIG)
         : name === "PATH"
           ? (options.env?.[name] ?? BIN)
-          : options.env?.[name],
+          : name === "RECOGNIZER_PLUGIN_DIRS"
+            ? (options.env?.[name] ?? `:${REGISTRY_FOLDER}`)
+            : options.env?.[name],
     now: () => {
       if (options.now) {
         return options.now();

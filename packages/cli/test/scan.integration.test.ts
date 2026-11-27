@@ -16,9 +16,9 @@ import { run } from "../src/cli.js";
 import { validateScan } from "../src/index.js";
 import { capture, REPO } from "./helpers.js";
 import { isolatedPath } from "./isolated-path.js";
-import { registerShim } from "./plugin-registry-shim.js";
+import { registerShim, useRegisteredShims } from "./plugin-registry-shim.js";
 
-const VARIABLES = ["PATH"];
+const VARIABLES = ["PATH", "RECOGNIZER_PLUGIN_DIRS"];
 
 function launcher(directory: string, name: string, body: string): string {
   const path = join(directory, name);
@@ -109,7 +109,8 @@ describe.skipIf(!HAS_UV)(
         "recognizer-scan-typescript",
         `exec node ${REPO}/packages/scanners/typescript/dist/bin.js "$@"`,
       );
-      process.env.PATH = isolatedPath(launchers);
+      process.env.PATH = isolatedPath();
+      useRegisteredShims(launchers);
     });
 
     afterEach(() => {

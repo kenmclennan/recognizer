@@ -78,3 +78,22 @@ export function registerShim(path: string): string | undefined {
 
   return join(registry);
 }
+
+export function useRegisteredShims(...shimDirectories: string[]): () => void {
+  const registry = makeTempDir("recognizer-registered-shims-");
+  const saved = process.env.RECOGNIZER_PLUGIN_DIRS;
+
+  for (const directory of shimDirectories) {
+    linkRegistryFolder(directory, registry);
+  }
+
+  process.env.RECOGNIZER_PLUGIN_DIRS = `:${registry}`;
+
+  return () => {
+    if (saved === undefined) {
+      delete process.env.RECOGNIZER_PLUGIN_DIRS;
+    } else {
+      process.env.RECOGNIZER_PLUGIN_DIRS = saved;
+    }
+  };
+}
