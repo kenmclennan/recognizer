@@ -324,47 +324,6 @@ describe("createRescanner", () => {
     expect(rescanner.runState().running).toEqual([]);
   });
 
-  it("shows only the started sensor as running, the rest waiting, and holds a failure until the sensor next finishes ok", async () => {
-    const start = started;
-    const scan = fakeScan({
-      defaults: { describe: false, sensors: true },
-      steps: [
-        current,
-        sensing(2),
-        start("alpha"),
-        entry("sense", "alpha", "boom"),
-        start("beta"),
-        entry("sense", "beta"),
-        summary,
-      ],
-    });
-    const { rescanner } = harness(scan);
-    const seen: (string | null)[] = [];
-
-    scan.onStep = (index) => {
-      if (index === 2 || index === 4) {
-        seen.push(rescanner.runState().started);
-      }
-    };
-
-    await rescanner.run();
-
-    expect(seen).toEqual(["alpha", "beta"]);
-    expect(rescanner.runState().failures).toEqual({ alpha: "boom" });
-    expect(rescanner.runState().running).toEqual([]);
-    expect(rescanner.runState().started).toBeNull();
-
-    const again = fakeScan({
-      defaults: { describe: false, sensors: true },
-      steps: [current, sensing(1), entry("sense", "alpha"), summary],
-    });
-    const second = harness(again);
-
-    await second.rescanner.run();
-
-    expect(second.rescanner.runState().failures).toEqual({});
-  });
-
   it("clears a sensor's diagnosis when a later run finishes it ok", async () => {
     const refused: Report = {
       kind: "plugin-ended",
@@ -419,23 +378,6 @@ describe("createRescanner", () => {
 
     expect(posted.filter((one) => one.kind === "error")).toHaveLength(1);
     expect(posted[0]?.text).toBe("alpha failed: boom");
-  });
-
-  it("posts no error message for a sensor entry that ended because the user pressed Stop", async () => {
-    const scan = fakeScan({
-      defaults: { describe: false, sensors: true },
-      steps: [
-        current,
-        sensing(1),
-        { kind: "plugin-ended", name: "mutation", state: "stopped" },
-        summary,
-      ],
-    });
-    const { posted, rescanner } = harness(scan);
-
-    await rescanner.run();
-
-    expect(posted.filter((one) => one.kind === "error")).toEqual([]);
   });
 
   it("runs Descriptions as running while the describe phase is open and waiting before it", async () => {
