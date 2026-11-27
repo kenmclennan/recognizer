@@ -1,4 +1,4 @@
-import { splitDocument } from "@recognizer/core";
+import { Repository, splitDocument } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { fakeSensors } from "../../src/sensors-fake";
 import {
@@ -65,7 +65,7 @@ describe("fakeSensors results split", () => {
     fake.structure = repository;
 
     const file = (await fake.readResults("t")).findings.files[0];
-    const expected = splitDocument(repository, file?.document ?? document, "t");
+    const expected = splitDocument(repository, document, "t");
 
     expect(file?.shown).toEqual(expected.shown);
     expect(file?.hidden).toEqual(expected.hidden);
@@ -74,12 +74,14 @@ describe("fakeSensors results split", () => {
     );
   });
 
-  it("omits them when the fake has no structure", async () => {
+  it("splits over the empty repository when the fake has no structure", async () => {
     const file = (await sensors().readResults()).findings.files[0];
 
-    expect(file?.document.findings.length).toBeGreaterThan(0);
-    expect(file?.shown).toBeUndefined();
-    expect(file?.hidden).toBeUndefined();
+    const expected = splitDocument(Repository.empty, document, null);
+
+    expect(Object.hasOwn(file?.document ?? {}, "findings")).toBe(false);
+    expect(file?.shown).toEqual(expected.shown);
+    expect(file?.hidden).toEqual(expected.hidden);
   });
 });
 

@@ -13,6 +13,7 @@ const BASE: Loaded = {
   notices: [],
   blocking: null,
   findings: [],
+  split: {},
   sensors: [],
   overlays: [{ name: "coverage", overlay: {} as never }],
   overlaysUnreadable: [],
@@ -33,6 +34,7 @@ describe("loadedUnchanged", () => {
   it.each([
     ["policy", { policy: null }],
     ["baseline", { baseline: null }],
+    ["split", { split: { x: { shown: [{ id: "a" } as never], hidden: [] } } }],
     ["findings", { findings: [{ sensor: "x" } as never] }],
     ["sensors", { sensors: [{ name: "x" } as never] }],
     ["overlays", { overlays: [] }],

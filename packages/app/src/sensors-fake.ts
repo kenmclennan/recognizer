@@ -1,7 +1,7 @@
 import {
   documentFreshness,
   identityKey,
-  type Repository,
+  Repository,
   splitDocument,
 } from "@recognizer/core";
 import {
@@ -184,20 +184,22 @@ export function fakeSensors(
         try {
           const document = readFindingsText(text, name);
 
-          const file: StoredResults["findings"]["files"][number] = {
-            name,
+          const { findings: _records, ...header } = document;
+          const split = splitDocument(
+            fake.structure ?? Repository.empty,
             document,
-            modifiedMs: fake.modified.get(name) ?? null,
-          };
+            tests,
+          );
 
-          findings.files.push(file);
+          findings.files.push({
+            name,
+            document: header,
+            modifiedMs: fake.modified.get(name) ?? null,
+            shown: split.shown,
+            hidden: split.hidden,
+          });
 
           if (fake.structure !== null) {
-            const split = splitDocument(fake.structure, document, tests);
-
-            file.shown = split.shown;
-            file.hidden = split.hidden;
-
             freshness[name] = documentFreshness(
               fake.structure,
               {

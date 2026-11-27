@@ -4,7 +4,7 @@ import type {
   Finding,
   PolicyRule,
   SensorExclusion,
-  SensorFindings,
+  SensorFindingsHeader,
   SuiteResult,
   UnknownFiles,
 } from "@recognizer/core";
@@ -49,10 +49,10 @@ export type Refusal = { reason: string; diagnosis?: Diagnosis; at: number };
 export type FindingsFiles = {
   files: {
     name: string;
-    document: SensorFindings;
+    document: SensorFindingsHeader;
     modifiedMs: number | null;
-    shown?: Finding[] | null;
-    hidden?: Finding[] | null;
+    shown: Finding[];
+    hidden: Finding[];
   }[];
   refused: string[];
 };
@@ -192,7 +192,7 @@ export const inertSensors: SensorsPort = {
 };
 
 export type SensorRun = {
-  documents: SensorFindings[];
+  documents: SensorFindingsHeader[];
   statuses: SensorStatus[];
 };
 
@@ -223,9 +223,9 @@ export async function senseRepository(
   }
 
   const settings = resolveStructureSettings(config);
-  const documents: SensorFindings[] = [];
+  const documents: SensorFindingsHeader[] = [];
   const read = (await port.readResults()).findings;
-  let structure: SensorFindings | null = null;
+  let structure: SensorFindingsHeader | null = null;
   let structureRan = false;
 
   if (settings === "off") {
@@ -288,7 +288,7 @@ export async function senseRepository(
           ...(document.inputs !== undefined ? { inputs: document.inputs } : {}),
           ...(document.tests !== undefined ? { tests: document.tests } : {}),
         },
-        findings: document.findings.length,
+        findings: file.shown.length + file.hidden.length,
         modifiedMs: file.modifiedMs ?? null,
         commit: document.commit,
         ...(document.stopped !== undefined
@@ -358,13 +358,11 @@ export async function senseRepository(
   };
 }
 
-function splitOf(files: FindingsFiles["files"]): NonNullable<Loaded["split"]> {
-  const split: NonNullable<Loaded["split"]> = {};
+function splitOf(files: FindingsFiles["files"]): Loaded["split"] {
+  const split: Loaded["split"] = {};
 
   for (const { name, shown, hidden } of files) {
-    if (shown != null && hidden != null) {
-      split[name] = { shown, hidden };
-    }
+    split[name] = { shown, hidden };
   }
 
   return split;

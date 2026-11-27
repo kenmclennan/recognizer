@@ -3,7 +3,7 @@ import {
   type Finding,
   type PolicyRule,
   Repository,
-  type SensorFindings,
+  type SensorFindingsHeader,
 } from "@recognizer/core";
 import { readRepository } from "recognizer";
 import type { OverlayFileInput } from "./overlay-model";
@@ -21,13 +21,13 @@ export type Loaded = {
   baselineProblem?: string | null;
   notices: string[];
   blocking: string | null;
-  findings: SensorFindings[];
+  findings: SensorFindingsHeader[];
   sensors: SensorStatus[];
   overlays?: OverlayFileInput[];
   overlaysUnreadable?: string[];
   tests?: string | null;
   freshness?: Record<string, DocumentFreshness>;
-  split?: Record<string, { shown: Finding[]; hidden: Finding[] }>;
+  split: Record<string, { shown: Finding[]; hidden: Finding[] }>;
   lastRun?: string | null;
 };
 
@@ -79,6 +79,7 @@ export function loadScans(report: ScanReport): Loaded {
     notices,
     blocking: null,
     findings: [],
+    split: {},
     sensors: [],
   };
 }

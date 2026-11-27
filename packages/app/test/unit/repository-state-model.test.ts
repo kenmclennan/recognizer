@@ -346,8 +346,8 @@ describe("the installed sensors and stored results the app reads from a snapshot
           overlayProblem: null,
           modifiedMs: Date.parse("2026-11-24T10:00:00Z"),
           freshness: null,
-          shown: null,
-          hidden: null,
+          shown: [],
+          hidden: [],
         },
         mutation: {
           findings: null,
@@ -367,8 +367,8 @@ describe("the installed sensors and stored results the app reads from a snapshot
         name: "crap",
         document: { commit: "f" },
         modifiedMs: Date.parse("2026-11-24T10:00:00Z"),
-        shown: null,
-        hidden: null,
+        shown: [],
+        hidden: [],
       },
     ]);
     expect(stored.findings.refused).toEqual(["mutation"]);

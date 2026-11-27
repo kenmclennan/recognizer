@@ -6,7 +6,7 @@ import {
   Repository,
   type RepositoryState,
   reportedMs,
-  type SensorFindings,
+  type SensorFindingsHeader,
   scanHistory,
   splitDocument,
 } from "@recognizer/core";
@@ -22,7 +22,7 @@ import {
 } from "./refusals.js";
 
 export interface PluginResults {
-  findings: SensorFindings | null;
+  findings: SensorFindingsHeader | null;
   overlay: Overlay | null;
   findingsProblem: string | null;
   overlayProblem: string | null;
@@ -68,7 +68,9 @@ export function readPluginResults(
     if (one.status === "invalid") {
       held.findingsProblem = one.reason;
     } else {
-      held.findings = one.document;
+      const { findings: _records, ...header } = one.document;
+
+      held.findings = header;
 
       held.freshness = documentFreshness(
         structure,

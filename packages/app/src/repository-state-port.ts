@@ -2,7 +2,7 @@ import type {
   DocumentFreshness,
   Finding,
   RepositoryState,
-  SensorFindings,
+  SensorFindingsHeader,
 } from "@recognizer/core";
 import type { Overlay } from "recognizer";
 import type { Refusal } from "./sensor-run";
@@ -13,7 +13,7 @@ export type RepositoryStateItem = {
 };
 
 export type PluginResults = {
-  findings: SensorFindings | null;
+  findings: SensorFindingsHeader | null;
   overlay: Overlay | null;
   findingsProblem: string | null;
   overlayProblem: string | null;

@@ -1,4 +1,7 @@
-import type { SensorFindings } from "../../sensor-findings.js";
+import type {
+  SensorFindings,
+  SensorFindingsHeader,
+} from "../../sensor-findings.js";
 import type { StructureSettings } from "../../structure-settings.js";
 import type { DuplicationSettings } from "./findings.js";
 
@@ -86,19 +89,19 @@ export function carryMeasured(
   };
 }
 
-export function isDuplicationMeasured(document: SensorFindings): boolean {
+export function isDuplicationMeasured(document: SensorFindingsHeader): boolean {
   return document.settings.duplication !== undefined;
 }
 
 export function duplicationUnmeasured(
-  document: SensorFindings,
+  document: SensorFindingsHeader,
   settings: StructureSettings,
 ): boolean {
   return settings.duplication !== false && !isDuplicationMeasured(document);
 }
 
 export function complexityUnmeasured(
-  document: SensorFindings,
+  document: SensorFindingsHeader,
   settings: StructureSettings,
 ): boolean {
   return (

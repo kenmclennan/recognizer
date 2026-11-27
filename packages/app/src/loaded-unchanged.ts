@@ -5,6 +5,7 @@ function sensed(loaded: Loaded): string {
     loaded.policy,
     loaded.baseline,
     loaded.findings,
+    loaded.split,
     loaded.sensors,
     loaded.overlays ?? null,
     loaded.overlaysUnreadable ?? null,

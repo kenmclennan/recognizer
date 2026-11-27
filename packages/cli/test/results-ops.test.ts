@@ -1,11 +1,7 @@
 import { join } from "node:path";
-import {
-  documentFreshness,
-  Repository,
-  type SensorFindings,
-  splitDocument,
-} from "@recognizer/core";
+import { documentFreshness, Repository, splitDocument } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
+import { readFindingsText } from "../src/document-text.js";
 import { typescriptScenario } from "./support/index.js";
 import { realText } from "./support/serve-state-programs.js";
 
@@ -20,15 +16,19 @@ describe("results.read answers each document's freshness and split", () => {
   it("gives stale, shown and hidden that equal the core answers over the same inputs", async () => {
     const { root, repository } = typescriptScenario({ sensors: ["crap"] });
 
+    const text = realText(
+      join(REPO, "schema", "findings-examples", "valid", "crap.json"),
+    );
+
     root.io.files.writeFile(
       `${repository}/.recognizer/cache/findings/crap.json`,
-      realText(join(REPO, "schema", "findings-examples", "valid", "crap.json")),
+      text,
     );
 
     const read = (await root.call("results.read", { repository, tests: TESTS }))
       .ok;
     const held = read.plugins.crap;
-    const document = held.findings as SensorFindings;
+    const document = readFindingsText(text, "crap");
     const measured = {
       ...(document.inputs === undefined ? {} : { inputs: document.inputs }),
       ...(document.tests === undefined ? {} : { tests: document.tests }),
@@ -46,6 +46,30 @@ describe("results.read answers each document's freshness and split", () => {
     expect(held.shown.length + held.hidden.length).toBe(
       document.findings.length,
     );
+    await root.close();
+  });
+
+  it("answers the findings header without its records, each record once", async () => {
+    const { root, repository } = typescriptScenario({ sensors: ["crap"] });
+    const text = realText(
+      join(REPO, "schema", "findings-examples", "valid", "crap.json"),
+    );
+    const stored = readFindingsText(text, "crap");
+
+    root.io.files.writeFile(
+      `${repository}/.recognizer/cache/findings/crap.json`,
+      text,
+    );
+
+    const held = (await root.call("results.read", { repository })).ok.plugins
+      .crap;
+
+    expect(stored.findings.length).toBeGreaterThan(0);
+    expect(Object.hasOwn(held.findings, "findings")).toBe(false);
+    expect(held.findings.sensor).toEqual(stored.sensor);
+    expect(held.findings.inputs).toEqual(stored.inputs);
+    expect(held.findings.commit).toEqual(stored.commit);
+    expect(held.shown.length + held.hidden.length).toBe(stored.findings.length);
     await root.close();
   });
 

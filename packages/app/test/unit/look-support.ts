@@ -33,6 +33,7 @@ const BASE: Loaded = {
   notices: [],
   blocking: null,
   findings: [],
+  split: {},
   sensors: [],
 };
 

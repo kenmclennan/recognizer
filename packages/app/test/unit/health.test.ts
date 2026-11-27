@@ -604,25 +604,6 @@ describe("computeHealth judged per file", () => {
     ]);
   });
 
-  it("hides every finding of a document with no answered split", () => {
-    const document = crap({ "a.py": H1, "b.py": H1 });
-
-    expect(document.findings.length).toBeGreaterThan(0);
-
-    const health = computeHealth({
-      repository: repositoryFrom([scan]),
-      policy: null,
-      modules: ["a.py", "b.py"],
-      baseline: null,
-      findings: [document],
-    });
-
-    expect(health.documents[0]?.findings).toEqual([]);
-    expect(health.hidden[0]?.findings.map((f) => f.id)).toEqual(
-      document.findings.map((f) => f.id),
-    );
-  });
-
   it("keeps the findings of current files and hides the rest", () => {
     const health = healthOfDocument(crap({ "a.py": H1, "b.py": H0 }));
 
