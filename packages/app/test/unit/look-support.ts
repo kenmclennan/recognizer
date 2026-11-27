@@ -17,7 +17,7 @@ import type { RowSensor } from "../../src/scan-panel-model";
 import type { ViewComparisons } from "../../src/view-comparisons";
 import type { ViewsPort } from "../../src/views-port";
 import type { WindowPort } from "../../src/window-port";
-import { factsFor, measuredOfDocument } from "../freshness-support";
+import { factsFor, measuredOfDocument, splitFor } from "../freshness-support";
 import { type DocScan, repositoryFrom } from "./repository-from";
 import {
   type FindingsLiteral,
@@ -83,6 +83,10 @@ export function loadedOf(
             [...findings.map(measuredOfDocument), ...(rest.sensors ?? [])],
             rest.tests ?? null,
           ),
+    split:
+      rest.split !== undefined && Object.keys(rest.split).length > 0
+        ? rest.split
+        : splitFor(repository, findings, rest.tests ?? null),
   };
 }
 

@@ -7,10 +7,8 @@ import {
   type PolicyProblem,
   policyProblems,
   ruleText,
-  splitFindings,
   violationText,
 } from "recognizer";
-import { judgedBy, UNKNOWN_FRESHNESS } from "./freshness-facts";
 import type { Loaded } from "./scan-loading";
 import type { FolderNode, TreeNode } from "./tree-model";
 
@@ -42,7 +40,7 @@ export function computeHealth(
     Loaded,
     "repository" | "policy" | "modules" | "baseline" | "findings"
   > &
-    Partial<Pick<Loaded, "baselineProblem" | "freshness">>,
+    Partial<Pick<Loaded, "baselineProblem" | "freshness" | "split">>,
 ): Health {
   const notices: string[] = [];
   const known = new Set(loaded.modules);
@@ -54,15 +52,17 @@ export function computeHealth(
   }
 
   const scans = loaded.repository;
-  const freshnessOf = (document: SensorFindings) =>
-    judgedBy(loaded.freshness?.[document.sensor.name] ?? UNKNOWN_FRESHNESS);
   const measured = new Set<string>();
   const shown: SensorFindings[] = [];
   const hidden: SensorFindings[] = [];
 
   for (const document of loaded.findings) {
-    const freshness = freshnessOf(document);
-    const { current: keep, hidden: drop } = splitFindings(document, freshness);
+    const name = document.sensor.name;
+    const current = new Set(loaded.freshness?.[name]?.current ?? []);
+    const { shown: keep, hidden: drop } = loaded.split?.[name] ?? {
+      shown: [],
+      hidden: document.findings,
+    };
 
     shown.push({ ...document, findings: keep });
 
@@ -76,10 +76,7 @@ export function computeHealth(
         : known;
 
     for (const id of covered) {
-      if (
-        document.inputs?.[id] !== undefined &&
-        freshness.current(document, id)
-      ) {
+      if (document.inputs?.[id] !== undefined && current.has(id)) {
         measured.add(id);
       }
     }

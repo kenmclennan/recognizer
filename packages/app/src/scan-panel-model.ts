@@ -2,6 +2,7 @@ import {
   type DescribeAsk,
   type DescribeHalt,
   type Diagnosis,
+  type DocumentFreshness,
   Repository,
 } from "@recognizer/core";
 import type { PlanRequest, ScanPlanView } from "recognizer";
@@ -27,7 +28,6 @@ import {
 } from "./estimate-text";
 import { scopeCaption } from "./findings-scope";
 import { ageText, type ScanState } from "./footer-scan";
-import { type FreshnessFacts, isStale } from "./freshness-facts";
 import {
   ANALYSIS_KEY,
   type FreshnessModel,
@@ -125,7 +125,7 @@ export type PanelInput = {
   runModules?: number;
   now: number;
   installed: InstalledSensors | null;
-  freshness?: FreshnessFacts;
+  freshness?: Record<string, DocumentFreshness>;
   runView?: RunInput | null;
   estimate?: EstimateAnswer | null;
   work?: Record<string, PlannedWork>;
@@ -563,8 +563,7 @@ export function scanPanel(given: PanelInput): ScanPanelModel {
 
           return one.status === "ran" &&
             one.measured !== undefined &&
-            facts !== undefined &&
-            isStale(facts)
+            facts?.stale
             ? { ...one, status: "stale" as const }
             : one;
         });

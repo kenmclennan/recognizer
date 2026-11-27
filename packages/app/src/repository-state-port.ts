@@ -1,5 +1,6 @@
 import type {
   DocumentFreshness,
+  Finding,
   RepositoryState,
   SensorFindings,
 } from "@recognizer/core";
@@ -18,6 +19,8 @@ export type PluginResults = {
   overlayProblem: string | null;
   modifiedMs: number | null;
   freshness: DocumentFreshness | null;
+  shown: Finding[] | null;
+  hidden: Finding[] | null;
 };
 
 export type ResultDocuments = {

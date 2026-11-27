@@ -1,12 +1,14 @@
 import {
   type DocumentFreshness,
   documentFreshness,
+  type Finding,
   type FindingsRepository,
   Repository,
   type RepositoryState,
   reportedMs,
   type SensorFindings,
   scanHistory,
+  splitDocument,
 } from "@recognizer/core";
 import type { Io } from "../cli.js";
 import { readOverlayText } from "../document-text.js";
@@ -26,6 +28,8 @@ export interface PluginResults {
   overlayProblem: string | null;
   modifiedMs: number | null;
   freshness: DocumentFreshness | null;
+  shown: Finding[] | null;
+  hidden: Finding[] | null;
 }
 
 export interface ResultsAnswer {
@@ -51,6 +55,8 @@ export function readPluginResults(
       overlayProblem: null,
       modifiedMs: reportedMs(state, name),
       freshness: null,
+      shown: null,
+      hidden: null,
     };
 
     return plugins[name] as PluginResults;
@@ -76,6 +82,11 @@ export function readPluginResults(
         },
         tests,
       );
+
+      const split = splitDocument(structure, one.document, tests);
+
+      held.shown = split.shown;
+      held.hidden = split.hidden;
     }
   }
 

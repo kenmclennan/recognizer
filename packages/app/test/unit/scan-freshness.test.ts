@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { isStale } from "../../src/freshness-facts";
 import type { FreshnessModel, ResultState } from "../../src/freshness-text";
 import { freshnessMessage } from "../../src/scan-freshness";
 import type { ScanTicks } from "../../src/scan-panel-model";
@@ -37,9 +36,7 @@ const markStale = (statuses: SensorStatus[]) => {
   return statuses.map((one) => {
     const entry = facts[one.name];
 
-    return entry !== undefined && isStale(entry)
-      ? { ...one, status: "stale" as const }
-      : one;
+    return entry?.stale ? { ...one, status: "stale" as const } : one;
   });
 };
 

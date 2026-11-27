@@ -249,7 +249,13 @@ export function storedResultsOf(documents: ResultDocuments): StoredResults {
     if (one.findingsProblem !== null) {
       findings.refused.push(name);
     } else if (one.findings !== null) {
-      findings.files.push({ name, document: one.findings, modifiedMs });
+      findings.files.push({
+        name,
+        document: one.findings,
+        modifiedMs,
+        shown: one.shown,
+        hidden: one.hidden,
+      });
 
       if (one.freshness !== null) {
         freshness[name] = one.freshness;

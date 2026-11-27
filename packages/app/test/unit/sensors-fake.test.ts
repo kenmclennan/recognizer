@@ -1,6 +1,12 @@
+import { splitDocument } from "@recognizer/core";
 import { describe, expect, it } from "vitest";
 import { fakeSensors } from "../../src/sensors-fake";
-import { installedSensors, secondSensorDocument } from "../fixtures";
+import {
+  CURRENT,
+  fixtureScan,
+  installedSensors,
+  secondSensorDocument,
+} from "../fixtures";
 import { documentText } from "./sensor-findings-from";
 
 describe("fakeSensors describer", () => {
@@ -45,6 +51,35 @@ describe("fakeSensors describer", () => {
     fake.modified.set("lint", 42);
 
     expect((await fake.readResults()).findings.files[0]?.modifiedMs).toBe(42);
+  });
+});
+
+describe("fakeSensors results split", () => {
+  const document = secondSensorDocument("shop/main.py");
+  const sensors = () => fakeSensors({ lint: documentText(document) });
+
+  it("answers shown and hidden agreeing with splitDocument", async () => {
+    const fake = sensors();
+    const { repository } = fixtureScan("check", "scan.json", CURRENT);
+
+    fake.structure = repository;
+
+    const file = (await fake.readResults("t")).findings.files[0];
+    const expected = splitDocument(repository, file?.document ?? document, "t");
+
+    expect(file?.shown).toEqual(expected.shown);
+    expect(file?.hidden).toEqual(expected.hidden);
+    expect((file?.shown?.length ?? 0) + (file?.hidden?.length ?? 0)).toBe(
+      document.findings.length,
+    );
+  });
+
+  it("omits them when the fake has no structure", async () => {
+    const file = (await sensors().readResults()).findings.files[0];
+
+    expect(file?.document.findings.length).toBeGreaterThan(0);
+    expect(file?.shown).toBeUndefined();
+    expect(file?.hidden).toBeUndefined();
   });
 });
 

@@ -20,6 +20,8 @@ const NO_RESULTS: PluginResults = {
   overlayProblem: null,
   modifiedMs: null,
   freshness: null,
+  shown: null,
+  hidden: null,
 };
 
 export function fakeRepositoryState(

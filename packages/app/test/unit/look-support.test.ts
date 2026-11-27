@@ -29,6 +29,7 @@ describe("look-support", () => {
         "repository",
         "scans",
         "sensors",
+        "split",
       ].sort(),
     );
   });
