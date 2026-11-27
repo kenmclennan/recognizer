@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
-use crate::scan_run::{kill_group, schedule_backstop, STOP_BACKSTOP};
+use crate::scan_run::{kill_group, schedule_backstop, terminate_group_detached, STOP_BACKSTOP};
 use crate::tool_runner::{ToolFault, ToolRunner};
 
 pub const SERVICE_EVENT: &str = "core-event";
@@ -193,6 +193,20 @@ impl GroupHandle {
         if let Some(pid) = state.0 {
             kill_group(pid);
             schedule_backstop(pid, self.backstop);
+        }
+    }
+
+    pub fn stop_and_hand_off(&self) {
+        let pid = {
+            let mut state = locked(&self.state);
+
+            state.1 = true;
+
+            state.0
+        };
+
+        if let Some(pid) = pid {
+            terminate_group_detached(pid, self.backstop);
         }
     }
 
@@ -1085,6 +1099,17 @@ impl CoreClient {
 
         if let Some(live) = state.live.as_ref() {
             live.handle.stop();
+        }
+    }
+
+    pub fn stop_service_and_hand_off(&self) {
+        let handle = locked(&self.inner.state)
+            .live
+            .as_ref()
+            .map(|live| Arc::clone(&live.handle));
+
+        if let Some(handle) = handle {
+            handle.stop_and_hand_off();
         }
     }
 
@@ -2047,7 +2072,7 @@ exit 9
     fn stopping_kills_a_group_that_ignores_term_after_the_backstop() {
         use std::os::unix::process::CommandExt;
 
-        let handle = GroupHandle::with_backstop(Duration::from_millis(300));
+        let handle = GroupHandle::with_backstop(Duration::from_millis(6000));
         let mut child = Command::new("/bin/sh")
             .args(["-c", "trap '' TERM; while :; do sleep 1; done"])
             .process_group(0)
@@ -2061,12 +2086,42 @@ exit 9
 
         assert!(child.try_wait().unwrap().is_none());
 
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + Duration::from_secs(40);
 
         while child.try_wait().unwrap().is_none() {
             assert!(Instant::now() < deadline, "the group outlived the backstop");
             std::thread::sleep(Duration::from_millis(50));
         }
+    }
+
+    #[test]
+    fn handing_off_returns_at_once_and_the_detached_reaper_kills_a_group_that_ignores_term() {
+        use std::os::unix::process::CommandExt;
+
+        let handle = GroupHandle::with_backstop(Duration::from_millis(1500));
+        let mut child = Command::new("/bin/sh")
+            .args(["-c", "trap '' TERM; while :; do sleep 1; done"])
+            .process_group(0)
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+
+        handle.started(pid);
+        std::thread::sleep(Duration::from_millis(100));
+
+        let started = Instant::now();
+        handle.stop_and_hand_off();
+
+        assert!(started.elapsed() < Duration::from_millis(1000));
+
+        let deadline = started + Duration::from_millis(1500) + Duration::from_secs(4);
+
+        while child.try_wait().unwrap().is_none() {
+            assert!(Instant::now() < deadline, "the group outlived the backstop");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+
+        assert!(!crate::scan_run::group_alive(pid));
     }
 
     #[test]

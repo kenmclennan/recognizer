@@ -446,6 +446,63 @@ describe("recognizer serve: stopping", () => {
   );
 });
 
+describe("recognizer serve: an idle service", () => {
+  it(
+    "an_idle_service_reads_scanner_manifests_once_and_exits_promptly_on_sigterm",
+    async () => {
+      const gate = makeTempDir("serve-idle-gate-");
+      const calls = join(gate, "manifest-calls");
+      const directory = makeTempDir("serve-idle-launchers-");
+      const repository = typescriptRepository();
+
+      launcher(
+        directory,
+        "recognizer-scan-typescript",
+        [
+          `if [ "$1" = manifest ]; then echo x >> ${calls}; sleep 0.5; fi`,
+          `exec node ${REPO}/packages/scanners/typescript/dist/bin.js "$@"`,
+        ].join("\n"),
+      );
+      writeFileSync(join(repository, ".gitignore"), ".recognizer/cache/\n");
+      git(repository, "init", "-q");
+      git(repository, "add", ".");
+      git(repository, "commit", "-q", "-m", "initial");
+
+      const serve = new Serve(directory);
+      const watch = (await serve.call("repository.watch", { repository })).ok;
+      const manifestCalls = () =>
+        existsSync(calls)
+          ? readFileSync(calls, "utf8").split("\n").filter(Boolean).length
+          : 0;
+
+      await untilState(serve, watch, () => true);
+
+      const afterFirstRead = manifestCalls();
+
+      expect(afterFirstRead).toBeGreaterThan(0);
+
+      for (const edit of ["one", "two"]) {
+        writeFileSync(
+          join(repository, "edited.ts"),
+          `export const x = "${edit}";\n`,
+        );
+
+        await new Promise((resolve) => setTimeout(resolve, 3_500));
+      }
+
+      expect(manifestCalls()).toBe(afterFirstRead);
+
+      const sent = Date.now();
+
+      serve.child.kill("SIGTERM");
+      await serve.exited;
+
+      expect(Date.now() - sent).toBeLessThan(scaledTimeout(2_000));
+    },
+    TIMEOUT,
+  );
+});
+
 describe("recognizer serve: stop by repository", () => {
   it(
     "stop_by_repository_stops_a_scan_the_service_holds",

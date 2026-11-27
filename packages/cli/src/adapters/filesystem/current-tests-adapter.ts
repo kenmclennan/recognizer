@@ -2,11 +2,10 @@ import { join } from "node:path";
 import {
   type BaselineText,
   type CurrentTests,
-  discoverPlugins,
   testsHashOf,
 } from "@recognizer/core";
 import type { Io } from "../../cli.js";
-import { manifestPorts } from "../../manifest-ports.js";
+import { installedScanners } from "../plugins/installed-scanners.js";
 import { PublishedLanguagesAdapter } from "../plugins/published-languages-adapter.js";
 import { TestReportsAdapter } from "../plugins/test-reports-adapter.js";
 import { DigestAdapter } from "../system/digest-adapter.js";
@@ -36,7 +35,7 @@ export class CurrentTestsAdapter implements CurrentTests {
         digest: new DigestAdapter(),
         testReports: new TestReportsAdapter(this.io),
         languages: new PublishedLanguagesAdapter(() => {
-          const found = discoverPlugins(manifestPorts(this.io), ["scanner"]);
+          const found = installedScanners(this.io);
 
           if (found.unreadable.length > 0) {
             throw new Error(
