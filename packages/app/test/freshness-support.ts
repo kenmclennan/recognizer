@@ -2,6 +2,8 @@ import {
   type DocumentFreshness,
   documentFreshness,
   type Finding,
+  measuredFiles,
+  type PolicyRule,
   type Repository,
   type SensorFindings,
   splitDocument,
@@ -40,6 +42,32 @@ export function splitFor(
   }
 
   return split;
+}
+
+export function measuredFor(
+  repository: Repository,
+  documents: readonly SensorFindings[],
+  tests: string | null,
+  policy: readonly PolicyRule[] | null = null,
+): Record<string, string[]> {
+  const measured: Record<string, string[]> = {};
+
+  for (const document of documents) {
+    const name = document.sensor.name;
+
+    measured[name] = measuredFiles(
+      repository,
+      policy,
+      name,
+      documentFreshness(
+        repository,
+        measuredOfDocument(document).measured ?? {},
+        tests,
+      ),
+    );
+  }
+
+  return measured;
 }
 
 export function measuredOfDocument(document: {

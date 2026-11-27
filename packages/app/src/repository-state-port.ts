@@ -20,6 +20,7 @@ export type PluginResults = {
   overlayProblem: string | null;
   modifiedMs: number | null;
   freshness: DocumentFreshness | null;
+  measured: string[] | null;
   shown: Finding[] | null;
   hidden: Finding[] | null;
   suites: SuiteStanding[] | null;

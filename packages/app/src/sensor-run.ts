@@ -53,6 +53,7 @@ export type FindingsFiles = {
     modifiedMs: number | null;
     shown: Finding[];
     hidden: Finding[];
+    measured: string[];
     suites?: SuiteStanding[] | null;
   }[];
   refused: string[];
@@ -369,6 +370,16 @@ function splitOf(files: FindingsFiles["files"]): Loaded["split"] {
   return split;
 }
 
+function measuredOf(files: FindingsFiles["files"]): Loaded["measured"] {
+  const measured: Loaded["measured"] = {};
+
+  for (const { name, measured: ids } of files) {
+    measured[name] = ids;
+  }
+
+  return measured;
+}
+
 export async function withSensors(
   loaded: Loaded,
   port: SensorsPort,
@@ -398,6 +409,7 @@ export async function withSensors(
     tests,
     freshness: stored.freshness,
     split: splitOf(stored.findings.files),
+    measured: measuredOf(stored.findings.files),
     lastRun: stored.lastRun,
   };
 }

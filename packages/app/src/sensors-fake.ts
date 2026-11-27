@@ -1,6 +1,7 @@
 import {
   documentFreshness,
   identityKey,
+  measuredFiles,
   Repository,
   splitDocument,
   suiteStandings,
@@ -198,6 +199,23 @@ export function fakeSensors(
             modifiedMs: fake.modified.get(name) ?? null,
             shown: split.shown,
             hidden: split.hidden,
+            measured: measuredFiles(
+              fake.structure ?? Repository.empty,
+              null,
+              name,
+              documentFreshness(
+                fake.structure ?? Repository.empty,
+                {
+                  ...(document.inputs === undefined
+                    ? {}
+                    : { inputs: document.inputs }),
+                  ...(document.tests === undefined
+                    ? {}
+                    : { tests: document.tests }),
+                },
+                tests,
+              ),
+            ),
             suites: suiteStandings(document.suites),
           });
 

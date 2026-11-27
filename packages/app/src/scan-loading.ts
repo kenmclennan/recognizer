@@ -28,6 +28,7 @@ export type Loaded = {
   tests?: string | null;
   freshness?: Record<string, DocumentFreshness>;
   split: Record<string, { shown: Finding[]; hidden: Finding[] }>;
+  measured: Record<string, string[]>;
   lastRun?: string | null;
 };
 
@@ -80,6 +81,7 @@ export function loadScans(report: ScanReport): Loaded {
     blocking: null,
     findings: [],
     split: {},
+    measured: {},
     sensors: [],
   };
 }

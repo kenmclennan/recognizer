@@ -23,6 +23,7 @@ describe("look-support", () => {
         "blocking",
         "findings",
         "freshness",
+        "measured",
         "modules",
         "notices",
         "policy",

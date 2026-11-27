@@ -21,7 +21,7 @@ import {
   secondSensorDocument,
   structureDocument,
 } from "../fixtures";
-import { factsFor, measuredOfDocument, splitFor } from "../freshness-support";
+import { measuredFor, splitFor } from "../freshness-support";
 import { type DocScan, repositoryFrom } from "./repository-from";
 
 function parsedOrNull<T>(
@@ -67,12 +67,13 @@ function healthFor(
       baseline: parsedBaseline.value,
       baselineProblem: parsedBaseline.problem,
       findings,
-      freshness: factsFor(
-        loaded.repository,
-        findings.map(measuredOfDocument),
-        null,
-      ),
       split: splitFor(loaded.repository, findings, null),
+      measured: measuredFor(
+        loaded.repository,
+        findings,
+        null,
+        parsedPolicy.value,
+      ),
     }),
     ids,
   };
@@ -569,12 +570,8 @@ describe("computeHealth judged per file", () => {
       modules: ["a.py", "b.py"],
       baseline: null,
       findings: [document],
-      freshness: factsFor(
-        repositoryFrom([scan]),
-        [measuredOfDocument(document)],
-        tests,
-      ),
       split: splitFor(repositoryFrom([scan]), [document], tests),
+      measured: measuredFor(repositoryFrom([scan]), [document], tests),
     });
 
   it("shows exactly the answered shown list and hides the answered hidden list", () => {
@@ -595,6 +592,7 @@ describe("computeHealth judged per file", () => {
           hidden: [first as Finding, second as Finding],
         },
       },
+      measured: {},
     });
 
     expect(health.documents[0]?.findings.map((f) => f.id)).toEqual([third?.id]);
@@ -626,6 +624,41 @@ describe("computeHealth judged per file", () => {
     expect(health.disc("a.py")).toBe("green");
     expect(health.disc("b.py")).toBe("green");
     expect(health.hidden).toEqual([]);
+  });
+
+  it("colours green exactly the ids the loaded measured list names", () => {
+    const measured = { crap: ["a.py"] };
+
+    expect(Object.values(measured).flat().length).toBeGreaterThan(0);
+
+    const health = computeHealth({
+      repository: repositoryFrom([scan]),
+      policy: null,
+      modules: ["a.py", "b.py"],
+      baseline: null,
+      findings: [],
+      split: {},
+      measured,
+    });
+
+    expect(health.disc("a.py")).toBe("green");
+    expect(health.disc("b.py")).toBe("grey");
+  });
+
+  it("leaves every file grey when nothing is listed measured though the inputs match", () => {
+    const document = { ...crap({ "a.py": H1, "b.py": H2 }), findings: [] };
+    const health = computeHealth({
+      repository: repositoryFrom([scan]),
+      policy: null,
+      modules: ["a.py", "b.py"],
+      baseline: null,
+      findings: [document],
+      split: splitFor(repositoryFrom([scan]), [document], T),
+      measured: {},
+    });
+
+    expect(health.disc("a.py")).toBe("grey");
+    expect(health.disc("b.py")).toBe("grey");
   });
 
   it("hides everything and leaves its files grey without inputs", () => {

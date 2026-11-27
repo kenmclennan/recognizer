@@ -251,7 +251,8 @@ export function storedResultsOf(documents: ResultDocuments): StoredResults {
     } else if (
       one.findings !== null &&
       one.shown !== null &&
-      one.hidden !== null
+      one.hidden !== null &&
+      one.measured !== null
     ) {
       findings.files.push({
         name,
@@ -259,6 +260,7 @@ export function storedResultsOf(documents: ResultDocuments): StoredResults {
         modifiedMs,
         shown: one.shown,
         hidden: one.hidden,
+        measured: one.measured,
         suites: one.suites,
       });
 

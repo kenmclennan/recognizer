@@ -114,6 +114,7 @@ export * from "./application/run/ports/scan.js";
 export * from "./application/run/work-out-freshness.js";
 export * from "./application/scanning/ports/scanners.js";
 export * from "./application/sensing/freshness.js";
+export * from "./application/sensing/measured-files.js";
 export * from "./application/sensing/ports/selection-files.js";
 export * from "./application/sensing/ports/sensor-catalog.js";
 export * from "./application/sensing/ports/sensors.js";
