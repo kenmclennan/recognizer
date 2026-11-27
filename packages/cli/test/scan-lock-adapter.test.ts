@@ -29,4 +29,25 @@ describe("scan lock adapter", () => {
 
     acquired.lock.release();
   });
+
+  it("the_held_lock_reports_the_run_the_marker_records", () => {
+    const root = makeTempDir("scan-lock-run-");
+    const acquired = new ScanLockAdapter(nodeIo()).acquire(root, {
+      sensors: [],
+      describe: false,
+    });
+
+    expect(acquired.ok).toBe(true);
+
+    if (!acquired.ok) {
+      return;
+    }
+
+    const marker = parseMarker(readFileSync(markerPath(root), "utf8"));
+
+    expect(marker?.run_id).toBeTruthy();
+    expect(acquired.lock.runId).toBe(marker?.run_id);
+
+    acquired.lock.release();
+  });
 });

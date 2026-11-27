@@ -249,6 +249,56 @@ describe("a phased scan record", () => {
     };
   }
 
+  it("a_phased_log_opened_with_a_run_id_keeps_it_through_every_rewrite", () => {
+    const fake = fakeIo();
+    const log = openPhasedRunLog(
+      fake.io,
+      ROOT,
+      Date.parse("2026-11-02T09:30:00.120Z"),
+      "tester",
+      ["scan"],
+      "run-7",
+    );
+    const read = () =>
+      validateRunRecord(
+        JSON.parse(
+          fake.io.readFile(
+            `${DIRECTORY}/${names(fake).find((name) => name.endsWith("-scan.json"))}`,
+          ),
+        ),
+      );
+
+    expect(read().run_id).toBe("run-7");
+
+    log.update([]);
+
+    expect(read().run_id).toBe("run-7");
+
+    log.finish([{ phase: "extract", entries: [entry()] }]);
+
+    expect(read().run_id).toBe("run-7");
+    expect(read().outcome).toBe("ok");
+  });
+
+  it("a_phased_log_opened_without_a_run_id_writes_none", () => {
+    const fake = fakeIo();
+
+    openPhasedRunLog(
+      fake.io,
+      ROOT,
+      Date.parse("2026-11-02T09:30:00.120Z"),
+      "tester",
+      ["scan"],
+    );
+
+    const file = names(fake).find((name) => name.endsWith("-scan.json"));
+
+    expect(file).toBeDefined();
+    expect(
+      JSON.parse(fake.io.readFile(`${DIRECTORY}/${file}`)),
+    ).not.toHaveProperty("run_id");
+  });
+
   it("sums entries and failures across phases in the summary", () => {
     const fake = fakeIo();
     const written = JSON.parse(JSON.stringify(phased()));
@@ -401,7 +451,7 @@ describe("log schema examples", () => {
   });
 
   it("holds the expected count of valid examples", () => {
-    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(21);
+    expect(readdirSync(join(EXAMPLES, "valid"))).toHaveLength(22);
   });
 
   it.each(readdirSync(join(EXAMPLES, "valid")))("accepts %s", (file) => {

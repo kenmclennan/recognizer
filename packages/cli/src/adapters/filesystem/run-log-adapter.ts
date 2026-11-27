@@ -20,8 +20,16 @@ export class RunLogAdapter implements RunLogRepository {
     startedAt: number,
     by: string | undefined,
     invocation: string[],
+    runId: string | undefined,
   ): RunLog {
-    const log = openPhasedRunLog(this.io, root, startedAt, by, invocation);
+    const log = openPhasedRunLog(
+      this.io,
+      root,
+      startedAt,
+      by,
+      invocation,
+      runId,
+    );
     const recorded = (phases: CoreRunPhase[]) =>
       phases.map((phase) =>
         phase.phase === "analysis" ? { ...phase, phase: "structure" } : phase,

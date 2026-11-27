@@ -122,6 +122,10 @@
         }
       }
     },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
     "structure_ms": {
       "type": "integer",
       "minimum": 0

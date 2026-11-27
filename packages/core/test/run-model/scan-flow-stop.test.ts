@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { RunningScan, ScanRequest } from "../../src/index.js";
+import {
+  type ExtractResult,
+  type RunningScan,
+  type ScanRequest,
+  scanSync,
+} from "../../src/index.js";
 import { createFakes, scanOver } from "../fakes/container.js";
 
 const REPOSITORY = "/work/repository";
@@ -48,6 +53,51 @@ describe("a stopped scan's run log", () => {
 
     expect(fakes.runLog.runLogs).toHaveLength(1);
     expect(fakes.runLog.runLogs[0]?.startedAt).toBe(1_000);
+  });
+
+  it("the_run_log_opens_with_the_lock_s_run_id", async () => {
+    const fakes = world();
+
+    fakes.lock.runId = "run-9";
+
+    await drain(scanOver(fakes).start(request()));
+
+    expect(fakes.runLog.runLogs).toHaveLength(1);
+    expect(fakes.runLog.runLogs[0]?.runId).toBe("run-9");
+  });
+
+  it("with_no_lock_held_the_run_log_has_no_run_id", () => {
+    const fakes = world();
+    const scanners = {
+      discover: () => fakes.scanners.discover(),
+      detect: (root: string, named: string[]) =>
+        fakes.scanners.detect(root, named),
+      decide: (root: string, force: boolean, commit: string, dirty: boolean) =>
+        fakes.scanners.decide(root, force, commit, dirty),
+      cachedLanguages: (root: string) => fakes.scanners.cachedLanguages(root),
+      readCached: (root: string, language: string) =>
+        fakes.scanners.readCached(root, language),
+      scanFile: (root: string, language: string) =>
+        fakes.scanners.scanFile(root, language),
+      previousProtocolNote: (language: string) =>
+        fakes.scanners.previousProtocolNote(language),
+      extract: (call: { language: string }): ExtractResult => ({
+        ok: false,
+        entry: {
+          name: call.language,
+          command: [],
+          status: 1,
+          outcome: "failed",
+          duration_ms: 1,
+          stderr: "",
+        },
+      }),
+    };
+
+    scanSync(request(), { ...fakes, scanners } as never, () => {});
+
+    expect(fakes.runLog.runLogs).toHaveLength(1);
+    expect(fakes.runLog.runLogs[0]?.runId).toBeUndefined();
   });
 
   it("a_stopped_scan_stops_its_run_log", async () => {

@@ -144,12 +144,13 @@ describe("fake contracts", () => {
       "fake-clock.ts",
       "fake-process.ts",
       "fake-repository-files.ts",
+      "fake-run-log-repository.ts",
       "fake-scratch.ts",
       "fake-scan-cache.ts",
       "fake-plugin-registrations.ts",
       "fake-io.ts",
     ]);
-    expect(report.baselined.length).toBe(42);
+    expect(report.baselined.length).toBe(41);
     expect(report.baselined.length + report.registered.length).toBe(
       report.found.length,
     );
