@@ -15,22 +15,26 @@ import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import validate from "../src/generated/setup-survey-validator.js";
 import { runSetup } from "../src/setup-command.js";
 import { capture, REPO } from "./helpers.js";
-import { copyLoom, LOOM, shimDirectory, shimmedPath } from "./setup-helpers.js";
+import {
+  copyLoom,
+  LOOM,
+  saveEnvironment,
+  shimDirectory,
+  useShims,
+} from "./setup-helpers.js";
 import { writeStubSurveyPlugin } from "./stub-survey-plugin.js";
 
 const BIN = join(dirname(fileURLToPath(import.meta.url)), "../dist/bin.js");
 
-let savedPath: string | undefined;
-let path: string;
+let restoreEnvironment: () => void;
 
 beforeEach(() => {
-  savedPath = process.env.PATH;
-  path = shimmedPath(shimDirectory());
-  process.env.PATH = path;
+  restoreEnvironment = saveEnvironment();
+  useShims(shimDirectory());
 });
 
 afterEach(() => {
-  process.env.PATH = savedPath;
+  restoreEnvironment();
 });
 
 function spawnSurvey(args: string[], seed: string): string {
@@ -39,7 +43,7 @@ function spawnSurvey(args: string[], seed: string): string {
     [BIN, "setup", "survey", ...args],
     {
       encoding: "utf8",
-      env: { ...process.env, PATH: path, PYTHONHASHSEED: seed },
+      env: { ...process.env, PYTHONHASHSEED: seed },
     },
   );
 
@@ -126,7 +130,7 @@ describe("recognizer setup survey", () => {
   });
 
   it("lists an installed describer as a check that is on once the config has a describer", async () => {
-    process.env.PATH = shimmedPath(shimDirectory(true, true));
+    useShims(shimDirectory(true, true));
 
     const directory = copyLoom();
     const before = await surveyOf([directory]);
@@ -241,7 +245,7 @@ function suiteYaml(name: string, directory: string): string {
 function copySaga(config: string | null, describer = false): string {
   const directory = makeTempDir("recognizer-setup-saga-");
 
-  process.env.PATH = shimmedPath(shimDirectory(true, describer, "saga"));
+  useShims(shimDirectory(true, describer, "saga"));
 
   cpSync(join(REPO, "fixtures/setup-saga"), directory, { recursive: true });
 
@@ -537,7 +541,7 @@ describe("setup survey gap notes", () => {
       });
     }
 
-    process.env.PATH = shimmedPath(shims);
+    useShims(shims);
 
     return (await surveyOf([directory])).survey;
   }

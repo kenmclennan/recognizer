@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { Survey } from "@recognizer/core";
 import { makeTempDir } from "../../../tools/scripts/temp-dirs.mjs";
 import { REPO } from "./helpers.js";
-import { registerShim } from "./plugin-registry-shim.js";
+import { registerShim, useRegisteredShims } from "./plugin-registry-shim.js";
 import { writeStubSurveyPlugin } from "./stub-survey-plugin.js";
 
 const ANSWERS = join(REPO, "packages/cli/test/survey-answers");
@@ -70,6 +70,26 @@ export function shimDirectory(
   }
 
   return directory;
+}
+
+export function useShims(directory: string, onPath = false): void {
+  useRegisteredShims(directory);
+  process.env.PATH = onPath ? shimmedPath(directory) : "/usr/bin:/bin";
+}
+
+export function saveEnvironment(): () => void {
+  const path = process.env.PATH;
+  const dirs = process.env.RECOGNIZER_PLUGIN_DIRS;
+
+  return () => {
+    process.env.PATH = path;
+
+    if (dirs === undefined) {
+      delete process.env.RECOGNIZER_PLUGIN_DIRS;
+    } else {
+      process.env.RECOGNIZER_PLUGIN_DIRS = dirs;
+    }
+  };
 }
 
 export function shimmedPath(directory: string): string {

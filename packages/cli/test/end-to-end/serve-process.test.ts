@@ -12,6 +12,7 @@ import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
 import { REPO } from "../helpers.js";
 import { isolatedPath } from "../isolated-path.js";
+import { registryFolderFor } from "../plugin-registry-shim.js";
 import {
   alive,
   BIN,
@@ -138,7 +139,11 @@ function runningScan(
   sense: string,
 ): ChildProcess {
   return spawn(process.execPath, [BIN, "scan", repository, "--sense", sense], {
-    env: { ...process.env, PATH: `${path}:${process.env.PATH}` },
+    env: {
+      ...process.env,
+      PATH: `${path}:${process.env.PATH}`,
+      RECOGNIZER_PLUGIN_DIRS: `:${registryFolderFor(path)}`,
+    },
     stdio: "ignore",
     detached: true,
   });
@@ -328,7 +333,11 @@ describe("recognizer serve: starting a scan", () => {
       delete environment.RECOGNIZER_STARTED_BY;
 
       const cli = spawnSync(process.execPath, [BIN, "scan", viaCli, "--json"], {
-        env: { ...environment, PATH: isolatedPath(launchers) },
+        env: {
+          ...environment,
+          PATH: isolatedPath(launchers),
+          RECOGNIZER_PLUGIN_DIRS: `:${registryFolderFor(launchers)}`,
+        },
         encoding: "utf8",
       });
 

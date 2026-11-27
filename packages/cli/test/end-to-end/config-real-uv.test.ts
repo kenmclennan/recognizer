@@ -12,7 +12,7 @@ import { scaledTimeout } from "../../../../tools/scripts/pool-scale.mjs";
 import { makeTempDir } from "../../../../tools/scripts/temp-dirs.mjs";
 import { parseConfig } from "../../src/config-parse.js";
 import { REPO } from "../helpers.js";
-import { registerShim } from "../plugin-registry-shim.js";
+import { registerShim, useRegisteredShims } from "../plugin-registry-shim.js";
 
 const HAS_UV = spawnSync("uv", ["--version"]).status === 0;
 const BIN = join(REPO, "packages/cli/dist/bin.js");
@@ -62,6 +62,7 @@ describe.skipIf(!HAS_UV)(
   "recognizer config with the real sensors package (needs uv)",
   () => {
     let savedPath: string | undefined;
+    let restoreRegistry: () => void;
     let launchers: string;
     let sensorsBin: string;
 
@@ -99,11 +100,13 @@ describe.skipIf(!HAS_UV)(
         `exec ${sensorsBin}/recognizer-sense-mutation "$@"`,
       );
       launcher(launchers, "recognizer", `exec node ${BIN} "$@"`);
+      restoreRegistry = useRegisteredShims(launchers);
       process.env.PATH = toolPath(launchers);
     });
 
     afterEach(() => {
       process.env.PATH = savedPath;
+      restoreRegistry();
     });
 
     function shell(command: string, cwd: string) {
