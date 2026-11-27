@@ -223,11 +223,31 @@ describe("the look root", () => {
 
   describe.skipIf(webkit === undefined)("in the page", () => {
     let held = null as unknown as { before: number; after: number };
+    let disposed = null as unknown as { requests: number; rows: number };
     let carried = null as unknown as { before: number; after: number };
     let facts = null as unknown as { refused: string; served: unknown };
 
     beforeAll(async () => {
       const { produced: _held, ...marked } = await lookRoot(unregisteredAfter);
+      disposed = await collectFacts(
+        pageHarness(
+          marked,
+          `const drawn = await drawRecording(host, recording, { until: "first" });
+  click(host.querySelector(".rail-scan"));
+  await tick();
+  drawn.dispose();
+  const target = window.__TAURI_INTERNALS__;
+  const original = target.invoke;
+  facts.requests = 0;
+  target.invoke = (...given) => { if (!String(given[0]).startsWith("plugin:event|")) facts.requests += 1; return original(...given); };
+  drawn.release("second");
+  await tick();
+  await tick();
+  await tick();
+  facts.rows = unregistered();`,
+        ),
+        "look-root-dispose",
+      );
       const { produced: _carried, ...plain } = await lookRoot();
 
       held = await collectFacts(
@@ -271,6 +291,11 @@ describe("the look root", () => {
     it("a draw released only up to a mark serves no later event", () => {
       expect(held.before).toBe(0);
       expect(held.after).toBeGreaterThan(0);
+    });
+
+    it("a disposed draw makes no further requests", () => {
+      expect(disposed.requests).toBe(0);
+      expect(disposed.rows).toBe(0);
     });
 
     it("a drawn explorer's carry is handed to the next draw", () => {

@@ -21,6 +21,7 @@ export type Served = {
   drained: () => Promise<void>;
   release: (mark: string) => void;
   deliverHostEvents: () => void;
+  stop: () => void;
 };
 
 export type Drawn = {
@@ -50,6 +51,7 @@ export function installRecording(
   const shared = host.__lookBridge;
   const { callbacks, listening } = shared;
   const claimed = new Set<string>();
+  let stopped = false;
   let dripping = false;
   let started = false;
   let waits = 0;
@@ -57,7 +59,7 @@ export function installRecording(
   const drip = () => {
     dripping = false;
 
-    if (served >= limit) {
+    if (stopped || served >= limit) {
       return;
     }
 
@@ -151,33 +153,45 @@ export function installRecording(
 
   return {
     drained: async () => {
-      while (served < limit) {
+      while (!stopped && served < limit) {
         await new Promise<void>((resolve) => setTimeout(resolve, 25));
       }
     },
     release: (mark) => {
       limit = marks[mark] ?? limit;
 
-      if (started && !dripping) {
+      if (!stopped && started && !dripping) {
         dripping = true;
         setTimeout(drip, 25);
       }
     },
     deliverHostEvents: () => {
+      if (stopped) {
+        return;
+      }
+
       for (const { event, payload } of recording.hostEvents ?? []) {
         for (const id of listening.get(event) ?? []) {
           callbacks.get(id)?.({ event, id, payload });
         }
       }
     },
+    stop: () => {
+      stopped = true;
+    },
   };
 }
+
+let live: Drawn | null = null;
 
 export async function drawRecording(
   container: HTMLElement,
   recording: Recording,
   options: DrawOptions = {},
 ): Promise<Drawn> {
+  live?.dispose();
+  live = null;
+
   const served = installRecording(recording, {
     ...(options.until === undefined ? {} : { until: options.until }),
   });
@@ -208,11 +222,21 @@ export async function drawRecording(
       served.deliverHostEvents();
       await served.drained();
 
-      return {
+      const drawn: Drawn = {
         explorer: () => built[built.length - 1] ?? null,
         release: (mark) => served.release(mark),
-        dispose: () => built[built.length - 1]?.dispose(),
+        dispose: () => {
+          served.stop();
+
+          for (const explorer of built.splice(0)) {
+            explorer.dispose();
+          }
+        },
       };
+
+      live = drawn;
+
+      return drawn;
     }
 
     await new Promise<void>((resolve) => setTimeout(resolve, 50));
