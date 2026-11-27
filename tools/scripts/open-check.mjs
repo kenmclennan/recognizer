@@ -11,6 +11,7 @@ import { createConnection } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { cargoTargetDir, withCargoTarget } from "./cargo-target.mjs";
 
 const REPO = fileURLToPath(new URL("../..", import.meta.url));
 const LAUNCH_SERVICES =
@@ -252,12 +253,16 @@ function buildBundle(id, toolchain) {
       "--config",
       JSON.stringify({ identifier: id }),
     ],
-    { cwd: REPO, stdio: ["ignore", "inherit", "inherit"] },
+    {
+      cwd: REPO,
+      stdio: ["ignore", "inherit", "inherit"],
+      env: withCargoTarget(REPO),
+    },
   );
 
   const macos = join(
-    REPO,
-    "packages/app/src-tauri/target/aarch64-apple-darwin/release/bundle/macos",
+    cargoTargetDir(REPO),
+    "aarch64-apple-darwin/release/bundle/macos",
   );
   const bundles = readdirSync(macos).filter((name) => name.endsWith(".app"));
 

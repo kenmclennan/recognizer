@@ -100,6 +100,7 @@ jobs:
     timeout-minutes: 60
     env:
       CARGO_BUILD_JOBS: "3"
+      CARGO_TARGET_DIR: ${{ github.workspace }}/../../cargo-target
       HEAD_SHA: ${{ inputs.commit || github.sha }}
       RELEASES_REPO: kenmclennan/recognizer-releases
       TAP_REPO: kenmclennan/homebrew-tap
@@ -180,7 +181,7 @@ jobs:
           rustup target add aarch64-apple-darwin
           npm run build -w @recognizer/app
           npm run tauri -w @recognizer/app -- build --bundles app --target aarch64-apple-darwin
-          dir=packages/app/src-tauri/target/aarch64-apple-darwin/release/bundle/macos
+          dir="$CARGO_TARGET_DIR/aarch64-apple-darwin/release/bundle/macos"
           count=$(find "$dir" -maxdepth 1 -name 'Recognizer.app' | wc -l | tr -d ' ')
           if [ "$count" != "1" ]; then
             echo "expected exactly one Recognizer.app in $dir, found $count" >&2
@@ -289,8 +290,8 @@ jobs:
         if: always()
         run: |
           lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
-          if [ -d packages/app/src-tauri/target ]; then
-            find packages/app/src-tauri/target -name 'Recognizer.app' -type d -prune | while read -r bundle; do
+          if [ -d "$CARGO_TARGET_DIR" ]; then
+            find "$CARGO_TARGET_DIR" -name 'Recognizer.app' -type d -prune | while read -r bundle; do
               "$lsregister" -u "$bundle" || true
               rm -rf "$bundle"
             done

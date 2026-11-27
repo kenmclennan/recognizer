@@ -20,6 +20,7 @@ jobs:
     timeout-minutes: 60
     env:
       CARGO_BUILD_JOBS: "3"
+      CARGO_TARGET_DIR: ${{ github.workspace }}/../../cargo-target
       UNIT: ${{ inputs.unit }}
       RELEASES_REPO: kenmclennan/recognizer-releases
     steps:

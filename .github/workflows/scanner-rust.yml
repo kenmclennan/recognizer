@@ -23,6 +23,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/../cargo-target
     defaults:
       run:
         working-directory: packages/scanners/rust

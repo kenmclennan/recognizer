@@ -14,6 +14,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { cargoTargetDir, withCargoTarget } from "./cargo-target.mjs";
 import {
   assertNoInstallScripts,
   closureFromLock,
@@ -404,7 +405,7 @@ function buildRust(root, entry, folder) {
       "--manifest-path",
       `${entry.folder}/Cargo.toml`,
     ],
-    { cwd: root },
+    { cwd: root, env: withCargoTarget(root) },
   );
 
   mkdirSync(join(folder, "bin"), { recursive: true });
@@ -412,7 +413,7 @@ function buildRust(root, entry, folder) {
   const command = entry.formulae[0].command;
 
   copyFileSync(
-    join(root, entry.folder, "target", RUST_TARGET, "release", command),
+    join(cargoTargetDir(root), RUST_TARGET, "release", command),
     join(folder, "bin", command),
   );
   chmodSync(join(folder, "bin", command), 0o755);
