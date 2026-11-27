@@ -49,7 +49,7 @@ jobs:
     needs: [changes]
     name: check (typecheck, tests, lint, build)
     runs-on: [self-hosted, macOS, ARM64]
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       LC_MAX_AGENTS: "4"
       CARGO_TARGET_DIR: ${{ github.workspace }}/../../cargo-target
@@ -73,27 +73,6 @@ jobs:
         env:
           RECOGNIZER_SKIP_RUST: ${{ needs.changes.outputs.rust == 'true' && '' || '1' }}
         run: node tools/scripts/signal-witness.mjs npm run check:app
-
-  layout:
-    name: layout (graph-layout tests)
-    runs-on: [self-hosted, macOS, ARM64]
-    timeout-minutes: 30
-    env:
-      LC_MAX_AGENTS: "4"
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Set up Node
-        uses: actions/setup-node@v5
-        with:
-          node-version: "22"
-
-      - name: Install dependencies
-        run: node tools/scripts/signal-witness.mjs npm ci --prefer-offline --no-audit --no-fund
-
-      - name: Install the look-test browser
-        run: node tools/scripts/signal-witness.mjs npx -w @recognizer/app playwright install webkit
 
       - name: Run graph-layout tests
         run: node tools/scripts/signal-witness.mjs npm run test:layout -w @recognizer/app
