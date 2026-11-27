@@ -38,6 +38,18 @@ async function drain(scan: RunningScan) {
 }
 
 describe("a stopped scan's run log", () => {
+  it("the_run_log_opens_at_the_time_the_lock_was_taken", async () => {
+    const fakes = world();
+
+    fakes.lock.startedAt = 1_000;
+    fakes.clock.advance(-500);
+
+    await drain(scanOver(fakes).start(request()));
+
+    expect(fakes.runLog.runLogs).toHaveLength(1);
+    expect(fakes.runLog.runLogs[0]?.startedAt).toBe(1_000);
+  });
+
   it("a_stopped_scan_stops_its_run_log", async () => {
     const fakes = world();
     const scan = scanOver(fakes).start(

@@ -10,6 +10,7 @@ import type {
 
 export class FakeRunLogRepository implements RunLogRepository {
   readonly runLogs: {
+    startedAt: number | undefined;
     skipped: SkippedPhase[];
     phases: RunPhase[];
     ended: "finish" | "stop" | null;
@@ -112,8 +113,9 @@ export class FakeRunLogRepository implements RunLogRepository {
     };
   }
 
-  open(): RunLog {
+  open(_root?: string, startedAt?: number): RunLog {
     const record = {
+      startedAt,
       skipped: [] as SkippedPhase[],
       phases: [] as RunPhase[],
       ended: null as "finish" | "stop" | null,

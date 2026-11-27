@@ -28,6 +28,7 @@ export class ScanLockAdapter implements ScanLock {
 
     const { held } = acquired;
     const lock: HeldLock = {
+      startedAt: Date.parse(held.startedAt),
       append: (event) => {
         const line = fileLine(event);
 

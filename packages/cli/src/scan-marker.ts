@@ -71,6 +71,7 @@ export interface MarkerDetails {
 
 export interface HeldMarker {
   readonly runId: string;
+  readonly startedAt: string;
   readonly origin: MarkerOrigin;
   append(line: string): void;
   running(): void;
@@ -247,6 +248,7 @@ export function acquireMarker(
 
   const handle: HeldMarker = {
     runId: record.run_id,
+    startedAt: record.started_at,
     origin: record.started_by,
     append: (line) => io.append(progress, line),
     running: () => {
