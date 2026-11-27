@@ -9,10 +9,11 @@ import {
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { cargoTargetDir } from "../../../tools/scripts/cargo-target.mjs";
 
 const root = fileURLToPath(new URL("../../..", import.meta.url));
 const appDir = join(root, "packages/app");
-const targetDir = join(appDir, "src-tauri", "target");
+const targetDir = cargoTargetDir(root);
 
 function fail(message) {
   process.stderr.write(`install-app FAILED: ${message}\n`);

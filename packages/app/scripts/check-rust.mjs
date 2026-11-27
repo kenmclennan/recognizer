@@ -1,8 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { withCargoTarget } from "../../../tools/scripts/cargo-target.mjs";
 
 const root = fileURLToPath(new URL("../../..", import.meta.url));
+const environment = withCargoTarget(root);
 const manifest = "packages/app/src-tauri/Cargo.toml";
 
 function available(command) {
@@ -12,7 +14,11 @@ function available(command) {
 function run(command, args, cwd = root) {
   process.stdout.write(`check:rust ${command} ${args.join(" ")}\n`);
 
-  const result = spawnSync(command, args, { cwd, stdio: "inherit" });
+  const result = spawnSync(command, args, {
+    cwd,
+    stdio: "inherit",
+    env: environment,
+  });
 
   if (result.status !== 0) {
     process.exit(result.status ?? 1);

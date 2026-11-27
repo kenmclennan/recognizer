@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { withCargoTarget } from "./cargo-target.mjs";
 import {
   BASELINES,
   REVIEW_BY_HAND,
@@ -51,8 +52,11 @@ export function scan(repository, scanner, root, output, options = {}) {
     cwd: repository,
     encoding: "utf8",
     env: options.outsideGit
-      ? { ...process.env, GIT_DIR: join(tmpdir(), "recognizer-no-git") }
-      : process.env,
+      ? {
+          ...withCargoTarget(repository),
+          GIT_DIR: join(tmpdir(), "recognizer-no-git"),
+        }
+      : withCargoTarget(repository),
   });
 
   if (result.status !== 0) {

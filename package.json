@@ -20,7 +20,7 @@
     "vitest": "^5.0.5"
   },
   "scripts": {
-    "app": "npm run tauri -w @recognizer/app -- dev",
+    "app": "node tools/scripts/cargo-target.mjs npm run tauri -w @recognizer/app -- dev",
     "open-check": "node tools/scripts/open-check.mjs",
     "install-app": "node packages/app/scripts/install-app.mjs",
     "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#THIRD-PARTY-NOTICES.md\" \"#packages/app/node_modules\" \"#packages/app/src-tauri/target\" \"#packages/scanners/python/.venv\" \"#packages/scanners/kotlin/.venv\" \"#packages/scanners/csharp/.venv\" \"#packages/sensors/.venv\" \"#packages/describers/claude/prompt.md\"",
